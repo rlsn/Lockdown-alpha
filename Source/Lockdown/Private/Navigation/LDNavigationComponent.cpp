@@ -857,10 +857,23 @@ void ULDNavigationComponent::ClickMove(bool bQueue)
     FHitResult GroundHit;
     if (!GroundUnderPointer(GroundHit)) { return; }
     const FVector Goal=GroundHit.ImpactPoint;
+    const double RealNow=FPlatformTime::Seconds();
+    if (!bQueue && bLocalActive && (ActiveKind==ELDSpatialOrderKind::MoveGround || FollowKind==ELDSpatialOrderKind::MoveGround)
+        && LDOrderRules::ShouldCoalesceClickMove(RealNow,LastClickMoveSentAt,LastClickMoveGoalCm,Goal))
+    {
+        // #337 §3.2: coalesce rapid <50ms, <15cm right-click spam without dropping held-move state.
+        bHeldMove=true;
+        return;
+    }
     const uint32 Before=Local.Order;
     const FName Hint=GroundSurfaceHint();
     if (Hint.IsNone()) { Navigate(Goal,bQueue); }
     else { NavigateGround(Goal,Hint,bQueue); }
+    if (Local.Order!=Before && !bQueue)
+    {
+        LastClickMoveSentAt=RealNow;
+        LastClickMoveGoalCm=Goal;
+    }
     // While the button stays down the walk follows the pointer (TickHeldMove); a refused click starts nothing, and a
     // Shift click is a single queued step.
     bHeldMove=!bQueue && Local.Order!=Before;
@@ -894,6 +907,23 @@ bool ULDNavigationComponent::GroundUnderPointer(FHitResult& Out) const
     const auto* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
     return PC && Registry && PointerPosition(At) && PC->DeprojectScreenPositionToWorld(At.X, At.Y, Origin, Direction)
         && Registry->TraceGround(Origin, Origin + Direction * 100000., Out);
+}
+
+bool ULDNavigationComponent::AimPointAtElevation(double PlaneZ, FVector& OutWorldPoint) const
+{
+    OutWorldPoint=FVector::ZeroVector;
+    const auto* PC=Controller();
+    if (!PC || !FMath::IsFinite(PlaneZ)) { return false; }
+    FVector2D At;
+    FVector Origin=FVector::ZeroVector, Direction=FVector::ZeroVector;
+    if (!PointerPosition(At) || !PC->DeprojectScreenPositionToWorld(At.X, At.Y, Origin, Direction))
+    {
+        return false;
+    }
+    const APawn* Pawn=PC->GetPawn();
+    const FVector Fwd=Pawn?Pawn->GetActorForwardVector():FVector::ZeroVector;
+    const FVector Feet=Pawn?Pawn->GetActorLocation():FVector::ZeroVector;
+    return LDOrderRules::IntersectElevationPlane(Origin, Direction, PlaneZ, Fwd, Feet, OutWorldPoint);
 }
 
 bool ULDNavigationComponent::ReadHovered(FGuid& OutHandle, uint32& OutEpoch) const
@@ -959,18 +989,59 @@ bool ULDNavigationComponent::ProbeGround(const FVector& GroundCm, bool& bKnown) 
 void ULDNavigationComponent::TickPointer()
 {
     auto* PC=Controller();
+    if (!PC) { return; }
     Hovered.Invalidate();
     HoveredEpoch=0;
     EMouseCursor::Type Cursor=EMouseCursor::Default;
     ELDCombatEntry Armed=ELDCombatEntry::None;
-    if (PC->CanWorldCommand() && (!PC->RootUI || !PC->RootUI->PointerOverUI()))
+    const bool bOverUI=PC->RootUI && PC->RootUI->PointerOverUI();
+    if (!bOverUI && PC->HUDUI && PC->HUDUI->IsPKThrowArmed())
     {
-        PC->ObservedUnderPointer(Hovered,HoveredEpoch);
+        Cursor=LDCursor::CastAim;
+    }
+    else if (PC->CanWorldCommand() && !bOverUI)
+    {
+        FGuid Candidate;
+        uint32 CandidateEpoch=0;
+        if (PC->ObservedNearPointer(12.,Candidate,CandidateEpoch))
+        {
+            FLDObservedUnitView View;
+            const auto* Relay=PC->LocalView();
+            if (Relay && Relay->ReadUnit(Candidate,CandidateEpoch,View)
+                && !(View.Kind==ELDObservedUnitKind::Contender && View.ContenderId==PC->OwnerState.ContenderId))
+            {
+                Hovered=Candidate;
+                HoveredEpoch=CandidateEpoch;
+            }
+            else if (PC->ObservedUnderPointer(Candidate,CandidateEpoch))
+            {
+                Hovered=Candidate;
+                HoveredEpoch=CandidateEpoch;
+            }
+        }
         if (PC->IsAttackMoveArmed()) { Cursor=LDCursor::AttackAim; }
         else if (PC->ReadArmedCombatEntry(Armed)) { Cursor=LDCursor::CastAim; }
+        else if (Hovered.IsValid()) { Cursor=LDCursor::EnemySword; }
+        else
+        {
+            const double RealNow=FPlatformTime::Seconds();
+            FVector2D AtPx=FVector2D::ZeroVector;
+            if (PointerPosition(AtPx) && (RealNow-LastCursorProbeAt>=.12 || FVector2D::DistSquared(AtPx,LastCursorProbePx)>=144.))
+            {
+                LastCursorProbeAt=RealNow;
+                LastCursorProbePx=AtPx;
+                FHitResult GroundHit;
+                if (!GroundUnderPointer(GroundHit)) { bCursorGroundBlocked=true; }
+                else
+                {
+                    bool bKnown=false;
+                    const bool bReachable=ProbeGround(GroundHit.ImpactPoint,bKnown);
+                    bCursorGroundBlocked=bKnown && !bReachable;
+                }
+            }
+            if (bCursorGroundBlocked) { Cursor=LDCursor::BlockedGround; }
+        }
     }
-    // Slate asks for the cursor only when the pointer moves; a changed aim (A or a skill just armed, or a confirm or
-    // cancel) asks again at once, so the glow shows the moment the key is pressed.
     if (PC->CurrentMouseCursor!=Cursor)
     {
         PC->CurrentMouseCursor=Cursor;

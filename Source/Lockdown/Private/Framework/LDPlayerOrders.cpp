@@ -8,6 +8,7 @@
 #include "Development/LDDemoContentDefinitions.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Framework/LDDemoEntry.h"
+#include "Framework/LDGameInstance.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Navigation/LDOrderRules.h"
 #include "UI/LDControlSettings.h"
@@ -72,8 +73,10 @@ void ALDPlayerController::ActivateCombatEntry(ELDCombatEntry Entry, const FLDCom
                 }
                 return;
             }
-            FHitResult GroundHit;
-            if (Navigation->GroundUnderPointer(GroundHit)) { ConfirmArmedCombat(); }
+            const auto* Body=Cast<ALDCharacter>(GetPawn());
+            const double PlaneZ=Body?Body->GetActorLocation().Z-Body->GetCapsuleComponent()->GetScaledCapsuleHalfHeight():0.;
+            FVector AimWorldPoint=FVector::ZeroVector;
+            if (Navigation->AimPointAtElevation(PlaneZ,AimWorldPoint)) { ConfirmArmedCombat(); }
         }
         return;
     }
@@ -172,30 +175,44 @@ bool ALDPlayerController::ConfirmArmedCombat()
     else if (Mode==ELDDemoTargetMode::DirectionProjectile || Mode==ELDDemoTargetMode::DirectionDash || Mode==ELDDemoTargetMode::DirectionCone
         || Mode==ELDDemoTargetMode::DirectionLine)
     {
-        FHitResult GroundHit;
+        // #335 §1.2: intersect the cursor ray directly with the caster's foot elevation plane (Z = Foot.Z) so walls,
+        // roofs and foliage never deflect skill or dash directions; within 8 cm of Foot fall back to ActorForward.
         const auto* Body=Cast<ALDCharacter>(GetPawn());
-        if (Body && Navigation->GroundUnderPointer(GroundHit))
+        if (Body && Navigation)
         {
             const FVector Foot=Body->GetActorLocation()-FVector(0,0,Body->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
-            const FVector Direction=FVector(GroundHit.ImpactPoint.X-Foot.X,GroundHit.ImpactPoint.Y-Foot.Y,0).GetSafeNormal();
-            if (!Direction.IsZero())
+            FVector AimWorldPoint=FVector::ZeroVector;
+            if (Navigation->AimPointAtElevation(Foot.Z,AimWorldPoint))
             {
+                const FVector Direction=LDOrderRules::ResolveElevationAimDirection(Foot,AimWorldPoint,Body->GetActorForwardVector());
                 Aim.Kind=ELDCombatTargetKind::Direction;
                 Aim.Direction=Direction;
-                // A queued direction keeps its ground point: the server aims from the body when the step's turn comes.
-                const FVector Point=GroundHit.ImpactPoint;
+                const FVector Point=FVector::DistSquared2D(AimWorldPoint,Foot)>=FMath::Square(LDOrderRules::AimDeadzoneCm)
+                    ?AimWorldPoint:(Foot+Direction*200.);
                 return ConfirmArmedEntry(Aim,&Point);
             }
         }
     }
     else if (Mode==ELDDemoTargetMode::GroundPoint)
     {
-        // The requested ground point; the server clamps it to the reach and judges the path.
-        FHitResult GroundHit;
-        if (Navigation->GroundUnderPointer(GroundHit))
+        // #335 §1.2: evaluate desired ground aim on the caster's elevation plane first so tall wall tops never pull the
+        // target point toward the camera; fall back to GroundUnderPointer only when bodiless.
+        const auto* Body=Cast<ALDCharacter>(GetPawn());
+        FVector AimWorldPoint=FVector::ZeroVector;
+        if (Body && Navigation && Navigation->AimPointAtElevation(
+            Body->GetActorLocation().Z-Body->GetCapsuleComponent()->GetScaledCapsuleHalfHeight(),AimWorldPoint))
         {
             Aim.Kind=ELDCombatTargetKind::Point;
-            Aim.Point=GroundHit.ImpactPoint;
+            Aim.Point=AimWorldPoint;
+        }
+        else
+        {
+            FHitResult GroundHit;
+            if (Navigation && Navigation->GroundUnderPointer(GroundHit))
+            {
+                Aim.Kind=ELDCombatTargetKind::Point;
+                Aim.Point=GroundHit.ImpactPoint;
+            }
         }
     }
     return ConfirmArmedEntry(Aim);
@@ -464,6 +481,10 @@ void ALDPlayerController::SendCombatNow(ELDCombatEntry Entry, const FLDCombatTar
     if (!IsLocalController()) { return; }
     FLDCombatActionRequest Request;
     if (!NextCombatRequest(Entry,Aim,Request)) { return; }
+    if (auto* GI=Cast<ULDGameInstance>(GetGameInstance()))
+    {
+        GI->NoteCrashCommand(*FString::Printf(TEXT("CombatEntry=%u Seq=%llu"),uint32(Entry),Request.DirectSequence));
+    }
     UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT sent match=%u life=%u sequence=%llu entry=%u target=%u source=%llu"),
         Request.Generation,Request.Life,Request.DirectSequence,uint32(Entry),uint32(Aim.Kind),Request.ExpectedSourceRevision);
     ServerSubmitCombatAction(Request);

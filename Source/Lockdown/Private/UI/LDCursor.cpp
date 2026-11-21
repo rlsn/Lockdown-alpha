@@ -117,6 +117,80 @@ public:
 private:
     FLinearColor Glow=FLinearColor::Transparent;
 };
+
+// #329 §4.3: 4-state semantic cursors (2: crimson war-sword #FF4757, 3: cyan-gold / crimson-gold crosshair #38BDF8, 4: grey-red blocked X).
+enum class ELDCursorSemantic : uint8 { Sword, Crosshair, BlockedX };
+
+class SLDCursorSemantic final : public SLeafWidget
+{
+public:
+    SLATE_BEGIN_ARGS(SLDCursorSemantic):_Kind(ELDCursorSemantic::Sword),_Primary(FLinearColor::White),_Accent(FLinearColor::White){}
+        SLATE_ARGUMENT(ELDCursorSemantic,Kind)
+        SLATE_ARGUMENT(FLinearColor,Primary)
+        SLATE_ARGUMENT(FLinearColor,Accent)
+    SLATE_END_ARGS()
+    void Construct(const FArguments& Args){Kind=Args._Kind;Primary=Args._Primary;Accent=Args._Accent;}
+    virtual FVector2D ComputeDesiredSize(float) const override{return FVector2D(2.f*CursorHalf,2.f*CursorHalf);}
+    virtual int32 OnPaint(const FPaintArgs& Args,const FGeometry& Geometry,const FSlateRect& Culling,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle& Style,bool bParentEnabled) const override
+    {
+        if(!FSlateApplication::IsInitialized()){return Layer;}
+        const float Unit=float(Geometry.GetLocalSize().X)/(2.f*CursorHalf);
+        const FVector2f C(CursorHalf*Unit,CursorHalf*Unit);
+        auto Stroke=[&](int32 L,const TArray<FVector2f>& Pts,const FLinearColor& Ink,float W)
+        {
+            FSlateDrawElement::MakeLines(Elements,Layer+L,Geometry.ToPaintGeometry(),Pts,ESlateDrawEffect::None,Ink,true,W*Unit);
+        };
+        if(Kind==ELDCursorSemantic::Sword)
+        {
+            // Tip at hotspot C, diagonal blade toward bottom-right, crossguard & pommel.
+            const FVector2f Tip=C;
+            const FVector2f BladeEnd=C+FVector2f(22.f,22.f)*Unit;
+            const FVector2f GuardA=C+FVector2f(14.f,26.f)*Unit;
+            const FVector2f GuardB=C+FVector2f(26.f,14.f)*Unit;
+            const FVector2f Pommel=C+FVector2f(30.f,30.f)*Unit;
+            Stroke(0,{Tip,Pommel},CursorEdge,6.5f);
+            Stroke(0,{GuardA,GuardB},CursorEdge,6.f);
+            Stroke(1,{Tip,BladeEnd},Primary,3.8f);
+            Stroke(1,{Tip+FVector2f(2.f,2.f)*Unit,BladeEnd-FVector2f(3.f,3.f)*Unit},Accent,1.4f);
+            Stroke(1,{GuardA,GuardB},Accent,3.2f);
+            Stroke(1,{BladeEnd,Pommel},Primary,3.f);
+            return Layer+2;
+        }
+        if(Kind==ELDCursorSemantic::Crosshair)
+        {
+            // Outer oct/circle + 4 inward ticks + crisp gold center reticle.
+            TArray<FVector2f> Ring;
+            constexpr int32 Segs=24;
+            const float R=15.f*Unit;
+            for(int32 i=0;i<=Segs;++i)
+            {
+                const float A=2.f*UE_PI*float(i)/float(Segs);
+                Ring.Add(C+FVector2f(FMath::Cos(A)*R,FMath::Sin(A)*R));
+            }
+            Stroke(0,Ring,CursorEdge,4.2f);
+            Stroke(1,Ring,Primary,2.f);
+            const FVector2f Dirs[4]={FVector2f(1,0),FVector2f(-1,0),FVector2f(0,1),FVector2f(0,-1)};
+            for(const FVector2f& D:Dirs)
+            {
+                Stroke(0,{C+D*(5.5f*Unit),C+D*(21.f*Unit)},CursorEdge,4.4f);
+                Stroke(1,{C+D*(5.5f*Unit),C+D*(21.f*Unit)},Primary,2.2f);
+            }
+            Stroke(2,{C+FVector2f(-2.f,0.f)*Unit,C+FVector2f(2.f,0.f)*Unit},Accent,3.2f);
+            return Layer+3;
+        }
+        // BlockedX: grey-red forbidden cross around hotspot C.
+        const float Arm=11.f*Unit;
+        Stroke(0,{C+FVector2f(-Arm,-Arm),C+FVector2f(Arm,Arm)},CursorEdge,5.8f);
+        Stroke(0,{C+FVector2f(-Arm,Arm),C+FVector2f(Arm,-Arm)},CursorEdge,5.8f);
+        Stroke(1,{C+FVector2f(-Arm,-Arm),C+FVector2f(Arm,Arm)},Primary,3.f);
+        Stroke(1,{C+FVector2f(-Arm,Arm),C+FVector2f(Arm,-Arm)},Primary,3.f);
+        return Layer+2;
+    }
+private:
+    ELDCursorSemantic Kind=ELDCursorSemantic::Sword;
+    FLinearColor Primary=FLinearColor::White;
+    FLinearColor Accent=FLinearColor::White;
+};
 }
 
 void LDCursor::Install(UGameViewportClient& Viewport)
@@ -125,6 +199,13 @@ void LDCursor::Install(UGameViewportClient& Viewport)
     const TSharedRef<SWidget> Plain=SNew(SLDCursorArrow);
     for(int32 Type=int32(EMouseCursor::Default);Type<int32(EMouseCursor::TotalCursorCount);++Type)
     {Viewport.SetSoftwareCursorWidget(static_cast<EMouseCursor::Type>(Type),Plain);}
-    Viewport.SetSoftwareCursorWidget(AttackAim,TSharedPtr<SWidget>(SNew(SLDCursorArrow).Glow(CursorAttackGlow)));
-    Viewport.SetSoftwareCursorWidget(CastAim,TSharedPtr<SWidget>(SNew(SLDCursorArrow).Glow(CursorCastGlow)));
+    const FLinearColor SwordRed=FLinearColor::FromSRGBColor(FColor(0xFF,0x47,0x57));
+    const FLinearColor SwordEdge=FLinearColor::FromSRGBColor(FColor(0xFF,0xD1,0x66));
+    const FLinearColor CastCyan=FLinearColor::FromSRGBColor(FColor(0x38,0xBD,0xF8));
+    const FLinearColor AimGold=FLinearColor::FromSRGBColor(FColor(0xFA,0xCC,0x15));
+    const FLinearColor BlockedRed=FLinearColor::FromSRGBColor(FColor(0x94,0x4B,0x52));
+    Viewport.SetSoftwareCursorWidget(EnemySword,TSharedPtr<SWidget>(SNew(SLDCursorSemantic).Kind(ELDCursorSemantic::Sword).Primary(SwordRed).Accent(SwordEdge)));
+    Viewport.SetSoftwareCursorWidget(CastAim,TSharedPtr<SWidget>(SNew(SLDCursorSemantic).Kind(ELDCursorSemantic::Crosshair).Primary(CastCyan).Accent(AimGold)));
+    Viewport.SetSoftwareCursorWidget(AttackAim,TSharedPtr<SWidget>(SNew(SLDCursorSemantic).Kind(ELDCursorSemantic::Crosshair).Primary(SwordRed).Accent(AimGold)));
+    Viewport.SetSoftwareCursorWidget(BlockedGround,TSharedPtr<SWidget>(SNew(SLDCursorSemantic).Kind(ELDCursorSemantic::BlockedX).Primary(BlockedRed).Accent(BlockedRed)));
 }

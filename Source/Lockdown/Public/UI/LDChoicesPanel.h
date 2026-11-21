@@ -171,8 +171,11 @@ private:
         FString FullName;
         TObjectPtr<UWidget> HotkeyChip;
         TObjectPtr<UTextBlock> HotkeyText;
+        TObjectPtr<UWidget> KindBanner;
+        TObjectPtr<UTextBlock> KindBannerText;
         TObjectPtr<UWidget> CompatBox;
         TObjectPtr<UTextBlock> CompatText;
+        bool bElementStone=false;
         // What the face shows (the definition and the outcome it was rendered for), so it is rendered again only on a change.
         FString ShownKey;
         FString AppliedIcon;

@@ -363,6 +363,7 @@ class LOCKDOWN_API ALDWorldViewRelay : public AActor
     GENERATED_BODY()
 public:
     ALDWorldViewRelay();
+    void FreezeForWorldTeardown();
     virtual void Tick(float Delta) override;
     virtual void EndPlay(const EEndPlayReason::Type Reason) override;
     UFUNCTION(Client,Unreliable) void ClientFullView(const FLDWorldView& View);
@@ -394,6 +395,7 @@ public:
     // Receive timeouts (every unit cleared for lack of frames) since this relay began.
     uint32 TimeoutCount() const { return Timeouts; }
 private:
+    bool bFrozenForTeardown = false;
     uint32 Timeouts = 0;
     uint32 AcceptedImmediateHits = 0;
     void Present(const TArray<FLDObservedClear>& Cleared);

@@ -198,6 +198,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoControlFeel.AttackClick",
         "Lockdown.Rules.DemoControlFeel.RefusedSkillKeepsOrder",
         "Lockdown.Rules.DemoControlFeel.AutoAttackAfterCast",
+        "Lockdown.Rules.DemoControlFeel.ElevationAimAndClip",
         "Lockdown.Rules.DemoControl.TauntForcedTarget",
         "Lockdown.Rules.DemoMechanics.ShieldEvents",
         "Lockdown.Rules.DemoMechanics.Knockback",
@@ -390,6 +391,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.HUDWorkshopPreview",
         "Lockdown.Rules.HUDFieldRewardNotices",
         "Lockdown.Rules.HUDFlowSmoothness",
+        "Lockdown.Rules.HUDLiveSkillTooltip",
         "Lockdown.Rules.HUDDevTestPanel",
         "Lockdown.Rules.HUDTermsGlossary",
         "Lockdown.Rules.IssuedCommandLiveness",
@@ -440,6 +442,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.WorldLabels.HealthBar",
         "Lockdown.Rules.WorldLabels.OwnBars",
         "Lockdown.Rules.WorldLabels.OwnStatusIcons",
+        "Lockdown.Rules.WorldLabels.SegmentedTrail",
         # Spec §16 P2: multiplicative damage, the chain guard, card acquisition, one rule per card and the DEV samples.
         "Lockdown.Rules.BuildBlueprint.Cards",
         "Lockdown.Rules.Combat.Cards.A01",

@@ -69,20 +69,37 @@ float TrayCellHeight(bool bTile,float TextScale,float Scale,bool bCompact)
     const float Icon=TrayIconSize(bTile,Scale,bCompact);
     return bTile?Icon+2.f*TrayCardPadding:Icon+2.f*TrayCardPadding+4.f+FMath::CeilToFloat(LDHUDStyle::TypeBody*TextScale*2.7f);
 }
-// #198 G dismantle selection buttons per line (their labels may carry the installed warning).
-// A card's painted face (LDUIPaint::EButton::Card): idle, or chosen in its state's colour at full strength.
-void GrowthTint(ULDCommandButton* Button,const FLinearColor& Color)
+// #328 §2: maps a reward card's button to its 3-way surface look (CardActive / CardBuild / CardStone) and optional accent tint.
+void GrowthCardLook(ULDCommandButton* Button,LDUIPaint::EButton Look,const FLinearColor& Color=LDHUDStyle::CardIdle)
 {
     if(!Button){return;}
-    if(Button->Look!=LDUIPaint::EButton::Card)
+    if(Button->Look!=Look)
     {
-        Button->Look=LDUIPaint::EButton::Card;
+        Button->Look=Look;
         auto Style=Button->GetStyle();Style.Normal=FSlateNoResource();Style.Hovered=FSlateNoResource();Style.Pressed=FSlateNoResource();Style.Disabled=FSlateNoResource();
         Button->SetStyle(Style);
+        if(TSharedPtr<SWidget> Cached=Button->GetCachedWidget()){Cached->Invalidate(EInvalidateWidgetReason::Paint);}
     }
     const float Peak=FMath::Max3(Color.R,Color.G,Color.B);
     const FLinearColor Mark=Color.Equals(LDHUDStyle::CardIdle)||Peak<=0.f?FLinearColor::Transparent:FLinearColor(Color.R/Peak,Color.G/Peak,Color.B/Peak,1.f);
     if(!Button->Tint.Equals(Mark)){Button->Tint=Mark;if(TSharedPtr<SWidget> Cached=Button->GetCachedWidget()){Cached->Invalidate(EInvalidateWidgetReason::Paint);}}
+}
+void GrowthTint(ULDCommandButton* Button,const FLinearColor& Color)
+{
+    if(!Button){return;}
+    const LDUIPaint::EButton Keep=(Button->Look==LDUIPaint::EButton::CardActive||Button->Look==LDUIPaint::EButton::CardBuild||Button->Look==LDUIPaint::EButton::CardStone)
+        ?Button->Look:LDUIPaint::EButton::Card;
+    GrowthCardLook(Button,Keep,Color);
+}
+FLinearColor ElementStoneRingColor(FName DefinitionId)
+{
+    const FString Id=LDHUD::CardDefinition(DefinitionId).ToString();
+    if(Id.Contains(TEXT("fire"))){return FLinearColor(FColor(0xFB,0x92,0x3C));}
+    if(Id.Contains(TEXT("water"))){return FLinearColor(FColor(0x38,0xBD,0xF8));}
+    if(Id.Contains(TEXT("electric"))||Id.Contains(TEXT("shock"))){return FLinearColor(FColor(0xC0,0x84,0xFC));}
+    if(Id.Contains(TEXT("chill"))||Id.Contains(TEXT("ice"))){return FLinearColor(FColor(0x67,0xE8,0xF9));}
+    if(Id.Contains(TEXT("rot"))){return FLinearColor(FColor(0x84,0xCC,0x16));}
+    return FLinearColor(FColor(0x34,0xD3,0x99));
 }
 void GrowthText(UTextBlock* Text,const FString& Value)
 {
@@ -322,13 +339,22 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
 ULDChoicesPanel::FTrayCard ULDChoicesPanel::MakeCard(FName ButtonName,TFunction<void()> Click,ETrayLook Look,bool bHold)
 {
     FTrayCard Card;
-    // The kind's colour and icon cut: skills blue with a nearly square icon, build cards gold.
-    const FLinearColor LookRim=Look==ETrayLook::Skill?FLinearColor(.36f,.62f,1.f):Look==ETrayLook::Card?FLinearColor(.95f,.74f,.3f):LDHUDStyle::ShapeRim;
-    const float LookRadius=Look==ETrayLook::Skill?2.f:TrayIconRadius;
+    const FLinearColor LookRim=Look==ETrayLook::Skill?LDHUDStyle::RewardActiveRim:Look==ETrayLook::Card?LDHUDStyle::RewardCardRim:LDHUDStyle::ShapeRim;
+    const float LookRadius=Look==ETrayLook::Skill?3.f:TrayIconRadius;
     auto* Face=WidgetTree->ConstructWidget<UVerticalBox>();RowWidgets.Add(Face);
+    Card.KindBannerText=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeMicro,NAME_None,LDUIFonts::ERole::Strong);
+    Card.KindBannerText->SetAutoWrapText(false);Card.KindBannerText->SetJustification(ETextJustify::Center);
+    ScaleNewText(Card.KindBannerText);RowWidgets.Add(Card.KindBannerText);
+    auto* BannerBorder=WidgetTree->ConstructWidget<UBorder>();RowWidgets.Add(BannerBorder);
+    BannerBorder->SetBrush(FSlateRoundedBoxBrush(FLinearColor(0.f,0.f,0.f,.42f),3.f,FLinearColor::Transparent,0.f));
+    BannerBorder->SetPadding(FMargin(5,1));BannerBorder->SetContent(Card.KindBannerText);
+    BannerBorder->SetVisibility(ESlateVisibility::Collapsed);Card.KindBanner=BannerBorder;
+    Face->AddChildToVerticalBox(BannerBorder)->SetHorizontalAlignment(HAlign_Center);
+    if(UVerticalBoxSlot* BSlot=Cast<UVerticalBoxSlot>(BannerBorder->Slot)){BSlot->SetPadding(FMargin(0,0,0,3));}
+
     auto* IconBox=WidgetTree->ConstructWidget<UOverlay>();RowWidgets.Add(IconBox);
     auto* Shape=WidgetTree->ConstructWidget<UBorder>();Shape->SetVisibility(ESlateVisibility::HitTestInvisible);RowWidgets.Add(Shape);
-    Shape->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,LookRadius,LookRim,Look==ETrayLook::Plain?1.5f:2.5f));Shape->SetBrushColor(LDHUDStyle::ShapeFill);
+    Shape->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,LookRadius,LookRim,Look==ETrayLook::Plain?1.5f:2.2f));Shape->SetBrushColor(LDHUDStyle::ShapeFill);
     Card.Shape=Shape;
     auto* ShapeSlot=IconBox->AddChildToOverlay(Shape);ShapeSlot->SetHorizontalAlignment(HAlign_Fill);ShapeSlot->SetVerticalAlignment(VAlign_Fill);
     Card.Picture=WidgetTree->ConstructWidget<UImage>();Card.Picture->SetVisibility(ESlateVisibility::Collapsed);RowWidgets.Add(Card.Picture);
@@ -389,20 +415,16 @@ ULDChoicesPanel::FTrayCard ULDChoicesPanel::MakeCard(FName ButtonName,TFunction<
     Card.Button=bHold?static_cast<ULDCommandButton*>(LDWidgets::HoldButton(WidgetTree,TEXT(""),MoveTemp(Click),ButtonName))
         :LDWidgets::Button(WidgetTree,TEXT(""),MoveTemp(Click),true,ButtonName);
     RowWidgets.Add(Card.Button);
-    Card.Button->SetContent(Face);GrowthTint(Card.Button,LDHUDStyle::CardIdle);
+    Card.Button->SetContent(Face);
+    const LDUIPaint::EButton InitialLook=Look==ETrayLook::Skill?LDUIPaint::EButton::CardActive
+        :Look==ETrayLook::Card?LDUIPaint::EButton::CardBuild:LDUIPaint::EButton::Card;
+    GrowthCardLook(Card.Button,InitialLook,Look==ETrayLook::Skill?LDHUDStyle::RewardActiveRim
+        :Look==ETrayLook::Card?LDHUDStyle::RewardCardRim:LDHUDStyle::CardIdle);
     {auto Style=Card.Button->GetStyle();Style.NormalPadding=FMargin(TrayCardPadding);Style.PressedPadding=FMargin(TrayCardPadding);Card.Button->SetStyle(Style);}
     // After SetContent: replacing the caption makes a new, centred slot; the face fills the card instead.
     if(UButtonSlot* FaceSlot=Cast<UButtonSlot>(Card.Button->GetContentSlot())){FaceSlot->SetHorizontalAlignment(HAlign_Fill);FaceSlot->SetVerticalAlignment(VAlign_Center);}
     Card.Frame=WidgetTree->ConstructWidget<USizeBox>();Card.Frame->SetWidthOverride(TrayCardWidth);
-    if(Look==ETrayLook::Plain){Card.Frame->SetContent(Card.Button);}
-    else
-    {
-        // A coloured outer frame names the kind; a build card stands taller, like a playing card.
-        auto* Rim=WidgetTree->ConstructWidget<UBorder>();RowWidgets.Add(Rim);
-        Rim->SetBrush(FSlateRoundedBoxBrush(FLinearColor::Transparent,Look==ETrayLook::Skill?3.f:8.f,LookRim,2.f));
-        Rim->SetPadding(FMargin(2.f));Rim->SetContent(Card.Button);Card.Frame->SetContent(Rim);
-        if(Look==ETrayLook::Card){Card.Frame->SetMinDesiredHeight(TrayCardWidth*1.3f);}
-    }
+    Card.Frame->SetContent(Card.Button);
     Card.Frame->SetVisibility(ESlateVisibility::Collapsed);RowWidgets.Add(Card.Frame);
     return Card;
 }
@@ -434,9 +456,13 @@ void ULDChoicesPanel::ShowLook(FTrayCard& Card,bool bTile,bool bEnabled,bool bVi
         const float Scale=GetCachedGeometry().Scale>0.f?GetCachedGeometry().Scale:1.f;
         const bool bUseCompact=bCompactTray||bCombatCompact;
         const float Width=TrayCellWidth(bTile,Scale,bUseCompact);
+        const float ExtraBanner=Card.KindBanner&&Card.KindBanner->GetVisibility()!=ESlateVisibility::Collapsed&&!bCombatCompact&&!bTile?18.f:0.f;
         const float ExtraCompat=Card.CompatBox&&Card.CompatBox->GetVisibility()!=ESlateVisibility::Collapsed&&!bCombatCompact&&!bTile?18.f:0.f;
-        const float Height=TrayCellHeight(bTile,AppliedTextScale,Scale,bUseCompact)+ExtraCompat;
-        const float Icon=TrayIconSize(bTile,Scale,bUseCompact);
+        // #328 §2: Element stones (medal_*) use a true circular crystal badge silhouette (square aspect Width x Width).
+        const float Height=Card.bElementStone&&!bTile
+            ?FMath::Max(Width,TrayCellHeight(bTile,AppliedTextScale,Scale,bUseCompact)*.88f)
+            :(TrayCellHeight(bTile,AppliedTextScale,Scale,bUseCompact)+ExtraBanner+ExtraCompat);
+        const float Icon=Card.bElementStone?TrayIconSize(bTile,Scale,bUseCompact)*.86f:TrayIconSize(bTile,Scale,bUseCompact);
         if(!FMath::IsNearlyEqual(Card.Frame->GetWidthOverride(),Width)){Card.Frame->SetWidthOverride(Width);}
         if(!FMath::IsNearlyEqual(Card.Frame->GetHeightOverride(),Height)){Card.Frame->SetHeightOverride(Height);}
         if(!FMath::IsNearlyEqual(Card.IconFrame->GetWidthOverride(),Icon))
@@ -450,7 +476,8 @@ void ULDChoicesPanel::ShowLook(FTrayCard& Card,bool bTile,bool bEnabled,bool bVi
     if(Card.AppliedEnabled!=int32(bEnabled))
     {
         Card.AppliedEnabled=int32(bEnabled);
-        const bool bPicture=LDUIIcons::Apply(Card.Picture,Card.AppliedIcon,TrayIconRadius,bEnabled?FLinearColor::White:LDHUDStyle::IconBlocked);
+        const float PicRadius=Card.bElementStone?Card.IconFrame->GetWidthOverride()*.5f:TrayIconRadius;
+        const bool bPicture=LDUIIcons::Apply(Card.Picture,Card.AppliedIcon,PicRadius,bEnabled?FLinearColor::White:LDHUDStyle::IconBlocked);
         GrowthShown(Card.Glyph,!bPicture,ESlateVisibility::HitTestInvisible);
     }
 }
@@ -899,6 +926,14 @@ void ULDChoicesPanel::RefreshOffer()
             GrowthText(Card.HotkeyText,FString::Printf(TEXT("Alt+%d"),Index+1));
             GrowthShown(Card.HotkeyChip,bVisible,ESlateVisibility::HitTestInvisible);
         }
+        Card.bElementStone=false;
+        GrowthCardLook(Card.Button,LDUIPaint::EButton::CardActive,LDHUDStyle::RewardActiveRim);
+        if(Card.KindBanner&&Card.KindBannerText)
+        {
+            GrowthText(Card.KindBannerText,TEXT("♛ 主动技能"));
+            Card.KindBannerText->SetColorAndOpacity(LDHUDStyle::RewardActiveRim);
+            GrowthShown(Card.KindBanner,bVisible&&!(bQuickShown&&bQuickCompact),ESlateVisibility::HitTestInvisible);
+        }
         ShowLook(Card,false,Gate.bCanChoose&&!PendingRequest,bVisible);
         GrowthShown(Card.ElementChip,Card.bBig&&!Card.Element->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
         GrowthShown(Card.Links,Card.bBig&&Card.LinkIcons.Num()>0&&Card.LinkIcons[0]->GetVisibility()!=ESlateVisibility::Collapsed,ESlateVisibility::Visible);
@@ -1016,9 +1051,39 @@ void ULDChoicesPanel::RefreshCardOffer(bool bTiles)
         }
         if(Card.Shape)
         {
-            const FLinearColor KindEdge=LDUIShapes::KindColor(uint8(View.Type));
-            Card.Shape->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,TrayIconRadius,KindEdge,bCombatCompact?2.2f:1.5f));
-            Card.Shape->SetBrushColor(LDHUDStyle::ShapeFill);
+            const bool bStone=View.Form==ELDCardForm::Medal||Id.ToString().StartsWith(TEXT("medal_"));
+            Card.bElementStone=bStone;
+            if(bStone)
+            {
+                const FLinearColor InnerRing=ElementStoneRingColor(Id);
+                GrowthCardLook(Card.Button,LDUIPaint::EButton::CardStone,InnerRing);
+                const float DiscR=FMath::Max(18.f,Card.IconFrame->GetWidthOverride()*.5f);
+                Card.Shape->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,DiscR,LDHUDStyle::RewardStoneRim,2.2f));
+                Card.Shape->SetBrushColor(LDHUDStyle::RewardStoneBase);
+                if(Card.KindBanner&&Card.KindBannerText)
+                {
+                    GrowthText(Card.KindBannerText,TEXT("◆ 元素石"));
+                    Card.KindBannerText->SetColorAndOpacity(LDHUDStyle::RewardStoneRim);
+                    GrowthShown(Card.KindBanner,!bTiles&&!bCombatCompact,ESlateVisibility::HitTestInvisible);
+                }
+            }
+            else
+            {
+                const FLinearColor RimColor=View.Type==ELDCardType::Convert?LDHUDStyle::RewardCardRare
+                    :View.Type==ELDCardType::Grow?LDHUDStyle::RewardCardLegend:LDHUDStyle::RewardCardRim;
+                GrowthCardLook(Card.Button,LDUIPaint::EButton::CardBuild,RimColor);
+                const FLinearColor KindEdge=LDUIShapes::KindColor(uint8(View.Type));
+                Card.Shape->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,TrayIconRadius,KindEdge,bCombatCompact?2.2f:1.5f));
+                Card.Shape->SetBrushColor(LDHUDStyle::ShapeFill);
+                if(Card.KindBanner&&Card.KindBannerText)
+                {
+                    const TCHAR* FormTag=View.Form==ELDCardForm::Skill?TEXT("构筑牌·技能")
+                        :View.Form==ELDCardForm::Dash?TEXT("构筑牌·冲刺"):TEXT("构筑牌·身体");
+                    GrowthText(Card.KindBannerText,FormTag);
+                    Card.KindBannerText->SetColorAndOpacity(RimColor);
+                    GrowthShown(Card.KindBanner,!bTiles&&!bCombatCompact,ESlateVisibility::HitTestInvisible);
+                }
+            }
         }
         if(Card.HotkeyText&&Card.HotkeyChip)
         {
@@ -1105,6 +1170,14 @@ void ULDChoicesPanel::RefreshBlueprintCards()
         {
             const LDHUD::FActiveCardView View=LDHUD::ActiveCard(Id,LatestContent,LatestStats);
             ShowFace(Card,Key,View.Name,View.IconId,View.Glyph,LDHUD::ActiveChoiceDetail(View,true,Outcome));
+        }
+        Card.bElementStone=false;
+        GrowthCardLook(Card.Button,LDUIPaint::EButton::CardActive,LDHUDStyle::RewardActiveRim);
+        if(Card.KindBanner&&Card.KindBannerText)
+        {
+            GrowthText(Card.KindBannerText,TEXT("♛ 技能图纸"));
+            Card.KindBannerText->SetColorAndOpacity(LDHUDStyle::RewardActiveRim);
+            GrowthShown(Card.KindBanner,TrayShows(ETrayGroup::Blueprint,Index),ESlateVisibility::HitTestInvisible);
         }
         ShowLook(Card,false,Gate.bCanLearn&&!PendingRequest,TrayShows(ETrayGroup::Blueprint,Index));
     }
@@ -1498,6 +1571,58 @@ void ULDChoicesPanel::RefreshShopPanel()
                 const LDHUD::FCardFaceView View=LDHUD::CardFace(Row.DefinitionId,LatestContent,LatestStats);
                 ShowFace(Card,Key,View.Name,View.IconId,View.Glyph,
                     LDHUD::CardChoiceDetail(View,Compat.IsEmpty()?Outcome:Outcome+TEXT("\n")+Compat));
+            }
+        }
+        if(Row.Kind==ELDShopItemKind::Skill)
+        {
+            Card.bElementStone=false;
+            GrowthCardLook(Card.Button,LDUIPaint::EButton::CardActive,LDHUDStyle::RewardActiveRim);
+            if(Card.KindBanner&&Card.KindBannerText)
+            {
+                GrowthText(Card.KindBannerText,TEXT("♛ 主动技能"));
+                Card.KindBannerText->SetColorAndOpacity(LDHUDStyle::RewardActiveRim);
+                GrowthShown(Card.KindBanner,true,ESlateVisibility::HitTestInvisible);
+            }
+        }
+        else
+        {
+            const LDWorkshop::FCardFacts Facts=LDWorkshop::CardFacts(Row.DefinitionId,LatestContent);
+            const bool bStone=Facts.Form==ELDCardForm::Medal||Row.DefinitionId.ToString().StartsWith(TEXT("medal_"));
+            Card.bElementStone=bStone;
+            if(bStone)
+            {
+                GrowthCardLook(Card.Button,LDUIPaint::EButton::CardStone,ElementStoneRingColor(Row.DefinitionId));
+                if(Card.Shape)
+                {
+                    Card.Shape->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,32.f,LDHUDStyle::RewardStoneRim,2.2f));
+                    Card.Shape->SetBrushColor(LDHUDStyle::RewardStoneBase);
+                }
+                if(Card.KindBanner&&Card.KindBannerText)
+                {
+                    GrowthText(Card.KindBannerText,TEXT("◆ 元素石"));
+                    Card.KindBannerText->SetColorAndOpacity(LDHUDStyle::RewardStoneRim);
+                    GrowthShown(Card.KindBanner,true,ESlateVisibility::HitTestInvisible);
+                }
+            }
+            else
+            {
+                const FLinearColor RimColor=Facts.Type==ELDCardType::Convert?LDHUDStyle::RewardCardRare
+                    :Facts.Type==ELDCardType::Grow?LDHUDStyle::RewardCardLegend:LDHUDStyle::RewardCardRim;
+                GrowthCardLook(Card.Button,LDUIPaint::EButton::CardBuild,RimColor);
+                if(Card.Shape)
+                {
+                    const FLinearColor KindEdge=LDUIShapes::KindColor(uint8(Facts.Type));
+                    Card.Shape->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,TrayIconRadius,KindEdge,1.5f));
+                    Card.Shape->SetBrushColor(LDHUDStyle::ShapeFill);
+                }
+                if(Card.KindBanner&&Card.KindBannerText)
+                {
+                    const TCHAR* FormTag=Facts.Form==ELDCardForm::Skill?TEXT("构筑牌·技能")
+                        :Facts.Form==ELDCardForm::Dash?TEXT("构筑牌·冲刺"):TEXT("构筑牌·身体");
+                    GrowthText(Card.KindBannerText,FormTag);
+                    Card.KindBannerText->SetColorAndOpacity(RimColor);
+                    GrowthShown(Card.KindBanner,true,ESlateVisibility::HitTestInvisible);
+                }
             }
         }
         if(Card.CompatText&&Card.CompatBox)

@@ -268,7 +268,9 @@ void ALDGameMode::LeaveRoomMember(ALDPlayerController& Controller)
     {Controller.ClientWasKicked(FText::FromString(TEXT("这个连接不是房间成员。")));return;}
     Controller.bExplicitRoomLeave=true;
     if(LobbyHost==&Controller){CloseRoomForHostDeparture(&Controller);}
-    Controller.ClientDemoRoomClosed(MatchContext.Generation,TEXT("已离开房间。"));
+    // Voluntary leaver returns cleanly to Frontend with an empty failure message; other members in CloseRoomForHostDeparture
+    // already received the explicit Host-left reason above.
+    Controller.ClientDemoRoomClosed(MatchContext.Generation,FString());
 }
 
 bool ALDGameMode::CheckDemoStartInputs(FString& Reason) const
@@ -301,8 +303,9 @@ FLDLobbyView ALDGameMode::ReadLobby() const
             Member.Name = Record.Name;
             Member.Kind = Record.Kind;
             Member.Host = Pair.Key == LobbyHost;
-            Member.Ready = Record.State.bReady && Record.ReadyRosterRevision == RosterRevision;
-            AllReady &= Member.Ready;
+            // #337 §4: the Lobby Host is exempt from manually toggling Ready; only guests gate AllReady.
+            Member.Ready = Member.Host || (Record.State.bReady && Record.ReadyRosterRevision == RosterRevision);
+            if (!Member.Host) { AllReady &= Member.Ready; }
             View.Members.Add(MoveTemp(Member));
         }
     }
@@ -418,7 +421,10 @@ FLDSessionReceipt ALDGameMode::ProcessSessionCommand(ALDPlayerController* Contro
                 && Contenders.Num() + LobbyAISlots.Num() <= LDMatchLifecycle::MaxContenders;
             for (const auto& Pair : Contenders)
             {
-                AllReady &= Pair.Value.State.bReady && Pair.Value.ReadyRosterRevision == RosterRevision;
+                if (Pair.Key != LobbyHost)
+                {
+                    AllReady &= Pair.Value.State.bReady && Pair.Value.ReadyRosterRevision == RosterRevision;
+                }
             }
             if (!AllReady) { Receipt.Reason = ELDSessionReject::NotAllReady; }
             else if (!CheckDemoStartInputs(Receipt.Detail)) { Receipt.Reason = ELDSessionReject::MissingDemoDefinition; }

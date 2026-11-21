@@ -327,6 +327,8 @@ bool FLDDemoSessionTest::RunTest(const FString& Parameters)
     }
     const uint64 Roster = Mode->RosterRevision;
     TestEqual(TEXT("No extra participants fill empty AI slots"), Mode->ReadLobby().Members.Num(), 3);
+    TestTrue(TEXT("Host counts as ready automatically while guests start unready (#337)"),
+        Mode->ReadLobby().Members[0].Host && Mode->ReadLobby().Members[0].Ready && !Mode->ReadLobby().Members[1].Ready);
     TestNull(TEXT("Lobby never spawns a combat body"), Host->GetPawn());
     TestFalse(TEXT("Lobby keeps gameplay writes closed"), Mode->IsGameplayWriteOpen(Mode->MatchContext));
     FLDSessionRequest Request;
@@ -465,6 +467,26 @@ bool FLDDemoSessionTest::RunTest(const FString& Parameters)
     SixReady.Ready = false;
     TestTrue(TEXT("Six ready humans pass the readiness gate"),
         SixRoom->ProcessSessionCommand(SixPlayers[0],SixReady).Reason!=ELDSessionReject::NotAllReady);
+
+    // #337 §4: A solo Host + AI room passes the readiness gate immediately without needing SetReady from Host.
+    auto* SoloRoom = World->SpawnActor<ALDGameMode>();
+    auto* SoloPublic = World->SpawnActor<ALDGameState>();
+    auto* SoloHost = World->SpawnActor<ALDPlayerController>();
+    if (!SoloRoom || !SoloPublic || !SoloHost) { AddError(TEXT("Solo host fixture failed to spawn")); return false; }
+    SoloHost->SetAsLocalPlayerController();
+    SoloRoom->GameState = SoloPublic;
+    SoloRoom->MatchContext = {3, FGuid::NewGuid()};
+    SoloRoom->MatchPhase = ELDMatchPhase::Lobby;
+    SoloRoom->RosterRevision = 1;
+    SoloRoom->LobbyPublicRevision = 1;
+    SoloRoom->bDemoWorld = SoloRoom->bEntryAccepted = true;
+    TestTrue(TEXT("Solo Host admitted"), SoloRoom->AdmitRoomMember(SoloHost, Error));
+    FLDSessionRequest SoloStart;
+    SoloStart.Key = {3, 1};
+    SoloStart.ExpectedRosterRevision = SoloRoom->RosterRevision;
+    SoloStart.Command = ELDSessionCommand::StartMatch;
+    TestTrue(TEXT("Solo Host passes readiness gate without clicking Ready (#337)"),
+        SoloRoom->ProcessSessionCommand(SoloHost, SoloStart).Reason != ELDSessionReject::NotAllReady);
     return true;
 }
 

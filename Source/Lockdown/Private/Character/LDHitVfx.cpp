@@ -230,6 +230,34 @@ LDHitVfx::FRecipe LDHitVfx::ForKill(float EffectScale, const FLayerTuning& Tunin
     return Recipe;
 }
 
+LDHitVfx::FRecipe LDHitVfx::ForDashStart(const FLinearColor& Tint, float EffectScale, const FLayerTuning& Tuning)
+{
+    using namespace LDHitVfxDetail;
+    FRecipe Recipe;
+    if (!FMath::IsFinite(EffectScale) || EffectScale <= 0.f) { return Recipe; }
+    const FLinearColor DashGlow(Tint.R * 2.4f, Tint.G * 2.4f, Tint.B * 2.4f, 1.f), DashInk = Tint * .35f;
+    Recipe.Layers.Add(Make(EMask::Ring, EPlace::Ground, 195.f, .24f, DashGlow, DashInk, .28f, 1.f, .08f));
+    FLayer Ripple = Make(EMask::Ripple, EPlace::Ground, 150.f, .28f, DashGlow * .7f, DashInk, .35f, 1.f, .10f);
+    Ripple.bOptional = true;
+    Recipe.Layers.Add(Ripple);
+    Thin(Recipe, EffectScale);
+    Tune(Recipe, Tuning);
+    return Recipe;
+}
+
+LDHitVfx::FRecipe LDHitVfx::ForPerfectDodge(float EffectScale, const FLayerTuning& Tuning)
+{
+    using namespace LDHitVfxDetail;
+    FRecipe Recipe;
+    if (!FMath::IsFinite(EffectScale) || EffectScale <= 0.f) { return Recipe; }
+    const FLinearColor DodgeGlow(3.4f, 2.6f, .45f), DodgeInk(.45f, .30f, .04f);
+    Recipe.Layers.Add(Make(EMask::Ring, EPlace::Ground, 280.f, .34f, DodgeGlow, DodgeInk, .22f, 1.f, .08f));
+    Recipe.Layers.Add(Make(EMask::Cross, EPlace::Sprite, 150.f, .22f, DodgeGlow, DodgeInk, .45f, 1.f, .12f));
+    Thin(Recipe, EffectScale);
+    Tune(Recipe, Tuning);
+    return Recipe;
+}
+
 float LDHitVfx::Brightness(const FLayer& Layer, float AgeSeconds)
 {
     const float Age = AgeSeconds - Layer.DelaySeconds;
@@ -547,17 +575,18 @@ LDHitVfx::FGhosts LDHitVfx::GhostsOf(const FLinearColor& Tint, float EffectScale
     FGhosts G;
     if (!FMath::IsFinite(EffectScale) || EffectScale <= 0.f) { return G; }
     G.bShow = true;
-    G.IntervalSeconds = EffectScale < 1.f ? .09f : .045f;
-    G.Seconds = .3f;
-    // Saturated like the dash trail, so the copies read on the bright yard.
-    G.Glow = LDHitVfxDetail::Hot(FLinearColor(FMath::Pow(Tint.R, 2.f), FMath::Pow(Tint.G, 2.f), FMath::Pow(Tint.B, 2.f)), 1.4f);
+    // #335 §3.1: 2 crisp translucent afterimages across an ~0.18s dash, fading linearly over 0.22s.
+    G.IntervalSeconds = EffectScale < 1.f ? .16f : .075f;
+    G.Seconds = .22f;
+    const FLinearColor CyanWhite = FLinearColor::LerpUsingHSV(Tint, FLinearColor(.58f, .94f, 1.f), .35f);
+    G.Glow = LDHitVfxDetail::Hot(FLinearColor(FMath::Pow(CyanWhite.R, 1.5f), FMath::Pow(CyanWhite.G, 1.5f), FMath::Pow(CyanWhite.B, 1.5f)), 1.65f);
     return G;
 }
 
 float LDHitVfx::GhostFade(const FGhosts& Ghosts, float AgeSeconds)
 {
     if (!Ghosts.bShow || Ghosts.Seconds <= 0.f || !FMath::IsFinite(AgeSeconds) || AgeSeconds < 0.f || AgeSeconds >= Ghosts.Seconds) { return 0.f; }
-    return .9f * FMath::Square(1.f - AgeSeconds / Ghosts.Seconds);
+    return .88f * (1.f - AgeSeconds / Ghosts.Seconds);
 }
 
 FLinearColor LDHitVfx::OverdriveTint()

@@ -53,6 +53,20 @@ namespace LDOrderRules
     constexpr double HeldMoveShiftCm = 40.;
     LOCKDOWN_API bool ShouldRepeatHeldMove(double NowSeconds, double LastSentSeconds, const FVector& LastGroundCm,
         const FVector& GroundCm);
+    // #337 §3.2: rapid right-click move spam coalesces within 50 ms (20 Hz) when the target ground point shifted < 15 cm.
+    constexpr double ClickMoveCoalesceSeconds = .05;
+    constexpr double ClickMoveCoalesceCm = 15.;
+    LOCKDOWN_API bool ShouldCoalesceClickMove(double NowSeconds, double LastSentSeconds, const FVector& LastGroundCm,
+        const FVector& GroundCm);
+    // #335 §1.2: intersects a pointer ray with horizontal plane Z = PlaneZ (ignoring walls/roofs) and resolves the
+    // planar aim direction from CasterFeet; within AimDeadzoneCm (8 cm) of CasterFeet it falls back to CasterForward.
+    constexpr double AimDeadzoneCm = 8.;
+    LOCKDOWN_API bool IntersectElevationPlane(const FVector& RayOrigin, const FVector& RayDirection, double PlaneZ,
+        const FVector& FallbackForward, const FVector& FallbackFeet, FVector& OutWorldPoint);
+    LOCKDOWN_API FVector ResolveElevationAimDirection(const FVector& CasterFeet, const FVector& AimWorldPoint,
+        const FVector& CasterForward);
+    // #335 §2.2: clips a 2D screen segment [InOutA, InOutB] against [Min, Max] (Liang-Barsky); false if wholly outside.
+    LOCKDOWN_API bool ClipViewportSegment(FVector2D& InOutA, FVector2D& InOutB, const FVector2D& Min, const FVector2D& Max);
 
 
     // Shift queue (2026-11-06 user decision): Shift + right click / A-click / Q W 1 2 D appends a step behind the current

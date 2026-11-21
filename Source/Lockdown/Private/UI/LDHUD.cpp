@@ -24,6 +24,7 @@
 #include "UI/LDUIRoot.h"
 #include "UI/LDUIIcons.h"
 #include "Framework/LDPlayerController.h"
+#include "Framework/LDGameInstance.h"
 #include "Framework/LDBuildBlueprintComponent.h"
 #include "Framework/LDGameState.h"
 #include "Framework/LDDemoEntry.h"
@@ -37,6 +38,7 @@
 #include "Components/CapsuleComponent.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Navigation/LDNavigationComponent.h"
+#include "Navigation/LDOrderRules.h"
 #include "Region/LDMapRegistry.h"
 #include "Region/LDMapGeometry.h"
 #include "Vision/LDWorldViewRelay.h"
@@ -317,7 +319,8 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
     SetVisibility(ESlateVisibility::SelfHitTestInvisible);
     if(!Band)
     {
-        auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());
+        auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+        if(!PC){return Super::RebuildWidget();}
         auto* Canvas=WidgetTree->ConstructWidget<UCanvasPanel>();Canvas->SetVisibility(ESlateVisibility::SelfHitTestInvisible);WidgetTree->RootWidget=Canvas;
         auto Text=[&](const FString& S,int32 Size){return LDWidgets::Text(WidgetTree,S,Size);};
         // A text in a panel that sizes to its content has no stable width to wrap at: it stays on one line, or wraps at a fixed
@@ -336,6 +339,15 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         DiagnosticsText->SetJustification(ETextJustify::Right);
         DiagnosticsPanel=Panel(DiagnosticsText,false);
         DiagnosticsPanel->SetVisibility(ESlateVisibility::Collapsed);
+        NetSpikeText=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeCaption,TEXT("HUDNetSpikeText"));
+        NetSpikeText->SetAutoWrapText(false);
+        NetSpikeText->SetJustification(ETextJustify::Right);
+        NetSpikeText->SetColorAndOpacity(LDHUDStyle::TextWarning);
+        NetSpikePanel=Panel(NetSpikeText,false);
+        NetSpikePanel->SetBrush(HudRound(6.f,LDHUDStyle::TextWarning,1.5f));
+        NetSpikePanel->SetBrushColor(FLinearColor(.16f,.11f,.02f,.92f));
+        NetSpikePanel->SetPadding(FMargin(10,4));
+        NetSpikePanel->SetVisibility(ESlateVisibility::Collapsed);
         auto Bar=[&](FLinearColor Fill,UProgressBar*& OutBar,UTextBlock*& OutText,float Width,float Height,TObjectPtr<UTextBlock>* OutRegen=nullptr)
         {
             auto* Box=WidgetTree->ConstructWidget<USizeBox>();Box->SetWidthOverride(Width);Box->SetHeightOverride(Height);
@@ -712,21 +724,84 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             auto* ScoreBox=WidgetTree->ConstructWidget<UVerticalBox>();
             UTextBlock* ScoreTitle=OneLine(LDTerms::Scoreboard,LDHUDStyle::TypeHeading,0);HudFace(ScoreTitle,true,0);
             ScoreBox->AddChildToVerticalBox(ScoreTitle)->SetPadding(FMargin(0,0,0,8));
-            const float Widths[4]={240,96,96,72};
-            for(int32 RowIdx=0;RowIdx<=LDCapture::MaxScoreRows;++RowIdx)
+            // #328 §4.4: 6-player hold-Tab tactical scoreboard (portrait | name+crown | level | graffiti bar | K/D/A | Q/W/E icons | final mod).
+            TacticalScoreRows.Reset();ScoreRows.Reset();ScoreCells.Reset();
+            auto* HeaderLine=WidgetTree->ConstructWidget<UHorizontalBox>();
+            const TCHAR* HeaderCols[6]={TEXT("参赛者"),TEXT("等级"),TEXT("涂鸦守点"),TEXT("K / D / A"),TEXT("目击技能"),TEXT("终局改装")};
+            const float HeaderWidths[6]={204.f,56.f,146.f,96.f,92.f,124.f};
+            for(int32 Col=0;Col<6;++Col)
             {
+                UTextBlock* Cell=OneLine(HeaderCols[Col],LDHUDStyle::TypeCaption,0);
+                Cell->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+                auto* CellBox=WidgetTree->ConstructWidget<USizeBox>();CellBox->SetWidthOverride(HeaderWidths[Col]);CellBox->SetContent(Cell);
+                HeaderLine->AddChildToHorizontalBox(CellBox)->SetPadding(FMargin(Col?8:0,0,0,0));
+            }
+            ScoreBox->AddChildToVerticalBox(HeaderLine)->SetPadding(FMargin(0,0,0,4));
+
+            for(int32 RowIdx=0;RowIdx<LDCapture::MaxScoreRows;++RowIdx)
+            {
+                FScoreRowWidgets RowW;
                 auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();
-                for(int32 Col=0;Col<4;++Col)
+                auto* WhoLine=WidgetTree->ConstructWidget<UHorizontalBox>();
+                UBorder* PFrame=nullptr;UTextBlock* PGlyph=nullptr;
+                auto* PBox=Portraits(24.f,LDHUDStyle::TypeCaption,PFrame,PGlyph);
+                RowW.Portrait=PFrame;RowW.PortraitGlyph=PGlyph;
+                WhoLine->AddChildToHorizontalBox(PBox)->SetVerticalAlignment(VAlign_Center);
+                RowW.Name=OneLine(TEXT(""),LDHUDStyle::TypeBody,0);RowW.Name->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
+                auto* NameSlot=WhoLine->AddChildToHorizontalBox(RowW.Name);NameSlot->SetPadding(FMargin(8,0,0,0));NameSlot->SetVerticalAlignment(VAlign_Center);
+                NameSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+                auto* WhoWidth=WidgetTree->ConstructWidget<USizeBox>();WhoWidth->SetWidthOverride(HeaderWidths[0]);WhoWidth->SetContent(WhoLine);
+                Line->AddChildToHorizontalBox(WhoWidth)->SetVerticalAlignment(VAlign_Center);
+
+                RowW.Level=OneLine(TEXT(""),LDHUDStyle::TypeBody,0);HudFace(RowW.Level,true,0);
+                auto* LvWidth=WidgetTree->ConstructWidget<USizeBox>();LvWidth->SetWidthOverride(HeaderWidths[1]);LvWidth->SetContent(RowW.Level);
+                auto* LvSlot=Line->AddChildToHorizontalBox(LvWidth);LvSlot->SetPadding(FMargin(8,0,0,0));LvSlot->SetVerticalAlignment(VAlign_Center);
+
+                auto* GrafCol=WidgetTree->ConstructWidget<UVerticalBox>();
+                RowW.GraffitiText=OneLine(TEXT(""),LDHUDStyle::TypeTiny,0);RowW.GraffitiText->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+                GrafCol->AddChildToVerticalBox(RowW.GraffitiText);
+                RowW.GraffitiBar=WidgetTree->ConstructWidget<UProgressBar>();HudBarStyle(RowW.GraffitiBar,LDHUDStyle::UIAction);RowW.GraffitiBar->SetPercent(0.f);
+                auto* GrafBarBox=WidgetTree->ConstructWidget<USizeBox>();GrafBarBox->SetHeightOverride(5.f);GrafBarBox->SetContent(RowW.GraffitiBar);
+                GrafCol->AddChildToVerticalBox(GrafBarBox)->SetPadding(FMargin(0,2,0,0));
+                auto* GrafWidth=WidgetTree->ConstructWidget<USizeBox>();GrafWidth->SetWidthOverride(HeaderWidths[2]);GrafWidth->SetContent(GrafCol);
+                auto* GrafSlot=Line->AddChildToHorizontalBox(GrafWidth);GrafSlot->SetPadding(FMargin(8,0,0,0));GrafSlot->SetVerticalAlignment(VAlign_Center);
+
+                RowW.KDA=OneLine(TEXT(""),LDHUDStyle::TypeBody,0);HudFace(RowW.KDA,true,0);
+                auto* KdaWidth=WidgetTree->ConstructWidget<USizeBox>();KdaWidth->SetWidthOverride(HeaderWidths[3]);KdaWidth->SetContent(RowW.KDA);
+                auto* KdaSlot=Line->AddChildToHorizontalBox(KdaWidth);KdaSlot->SetPadding(FMargin(8,0,0,0));KdaSlot->SetVerticalAlignment(VAlign_Center);
+
+                auto* SkillRow=WidgetTree->ConstructWidget<UHorizontalBox>();
+                for(int32 S=0;S<3;++S)
                 {
-                    UTextBlock* Cell=OneLine(TEXT(""),LDHUDStyle::TypeText,0);
-                    if(RowIdx==0){Cell->SetColorAndOpacity(LDHUDStyle::TextSecondary);}
-                    auto* CellBox=WidgetTree->ConstructWidget<USizeBox>();CellBox->SetWidthOverride(Widths[Col]);CellBox->SetContent(Cell);
-                    Line->AddChildToHorizontalBox(CellBox);
-                    if(RowIdx>0){ScoreCells.Add(Cell);}
-                    else{HudSetText(Cell,Col==0?FString(TEXT("玩家")):Col==1?FString(LDTerms::ResultKills):Col==2?FString(LDTerms::ResultDeaths):FString(LDTerms::ResultAssists));}
+                    auto* SStack=WidgetTree->ConstructWidget<UOverlay>();
+                    RowW.SkillIcons[S]=WidgetTree->ConstructWidget<UImage>();RowW.SkillIcons[S]->SetVisibility(ESlateVisibility::Collapsed);
+                    auto* SPic=SStack->AddChildToOverlay(RowW.SkillIcons[S]);SPic->SetHorizontalAlignment(HAlign_Fill);SPic->SetVerticalAlignment(VAlign_Fill);
+                    RowW.SkillGlyphs[S]=OneLine(TEXT("?"),LDHUDStyle::TypeTiny,0);RowW.SkillGlyphs[S]->SetJustification(ETextJustify::Center);
+                    RowW.SkillGlyphs[S]->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+                    auto* SGlyph=SStack->AddChildToOverlay(RowW.SkillGlyphs[S]);SGlyph->SetHorizontalAlignment(HAlign_Center);SGlyph->SetVerticalAlignment(VAlign_Center);
+                    RowW.SkillFrames[S]=WidgetTree->ConstructWidget<UBorder>();
+                    RowW.SkillFrames[S]->SetBrush(HudRound(4.f,LDHUDStyle::PanelRim,1.f));
+                    RowW.SkillFrames[S]->SetBrushColor(FLinearColor(.02f,.03f,.05f,.85f));
+                    RowW.SkillFrames[S]->SetPadding(FMargin(0));RowW.SkillFrames[S]->SetContent(SStack);
+                    auto* SSize=WidgetTree->ConstructWidget<USizeBox>();SSize->SetWidthOverride(24.f);SSize->SetHeightOverride(24.f);SSize->SetContent(RowW.SkillFrames[S]);
+                    SkillRow->AddChildToHorizontalBox(SSize)->SetPadding(FMargin(S?4:0,0,0,0));
                 }
-                ScoreBox->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,3));
-                if(RowIdx>0){ScoreRows.Add(Line);}
+                auto* SkillWidth=WidgetTree->ConstructWidget<USizeBox>();SkillWidth->SetWidthOverride(HeaderWidths[4]);SkillWidth->SetContent(SkillRow);
+                auto* SkillSlot=Line->AddChildToHorizontalBox(SkillWidth);SkillSlot->SetPadding(FMargin(8,0,0,0));SkillSlot->SetVerticalAlignment(VAlign_Center);
+
+                RowW.FinalMod=OneLine(TEXT("—"),LDHUDStyle::TypeCaption,0);RowW.FinalMod->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
+                RowW.FinalMod->SetColorAndOpacity(LDHUDStyle::UIEvent);
+                auto* FinWidth=WidgetTree->ConstructWidget<USizeBox>();FinWidth->SetWidthOverride(HeaderWidths[5]);FinWidth->SetContent(RowW.FinalMod);
+                auto* FinSlot=Line->AddChildToHorizontalBox(FinWidth);FinSlot->SetPadding(FMargin(8,0,0,0));FinSlot->SetVerticalAlignment(VAlign_Center);
+
+                auto* RowCard=WidgetTree->ConstructWidget<UBorder>();
+                RowCard->SetBrush(HudRound(5.f,FLinearColor(1,1,1,.08f),1.f));
+                RowCard->SetBrushColor(FLinearColor(.02f,.035f,.055f,.75f));
+                RowCard->SetPadding(FMargin(8,5));RowCard->SetContent(Line);
+                RowW.Row=RowCard;
+                ScoreBox->AddChildToVerticalBox(RowCard)->SetPadding(FMargin(0,2));
+                ScoreRows.Add(RowCard);
+                TacticalScoreRows.Add(MoveTemp(RowW));
             }
             ScorePanel=Panel(ScoreBox,false);Place(ScorePanel,FAnchors(.5f,.5f),FVector2D(.5f,.5f),FVector2D(0,-60));ScorePanel->SetVisibility(ESlateVisibility::Collapsed);
         }
@@ -773,10 +848,11 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         auto* TopRight=WidgetTree->ConstructWidget<UVerticalBox>();TopRight->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
         TopRight->AddChildToVerticalBox(FeedWidth)->SetHorizontalAlignment(HAlign_Right);
         TopRight->AddChildToVerticalBox(DevMarkerText)->SetHorizontalAlignment(HAlign_Right);
+        TopRight->AddChildToVerticalBox(NetSpikePanel)->SetHorizontalAlignment(HAlign_Right);
         TopRight->AddChildToVerticalBox(DiagnosticsPanel)->SetHorizontalAlignment(HAlign_Right);
         // The PK side panel follows the corner stack, so a longer feed never covers it.
         TopRight->AddChildToVerticalBox(PKPanelBorder)->SetHorizontalAlignment(HAlign_Right);
-        for(UWidget* Below:{static_cast<UWidget*>(DevMarkerText.Get()),static_cast<UWidget*>(DiagnosticsPanel.Get()),static_cast<UWidget*>(PKPanelBorder.Get())})
+        for(UWidget* Below:{static_cast<UWidget*>(DevMarkerText.Get()),static_cast<UWidget*>(NetSpikePanel.Get()),static_cast<UWidget*>(DiagnosticsPanel.Get()),static_cast<UWidget*>(PKPanelBorder.Get())})
         {if(auto* BelowSlot=Cast<UVerticalBoxSlot>(Below->Slot)){BelowSlot->SetPadding(FMargin(0,6,0,0));}}
         Place(TopRight,FAnchors(1,0),FVector2D(1,0),FVector2D(-HudCornerInset,22));
         // Settings open from the Back menu (its 设置 entry); the HUD has no separate settings button.
@@ -990,17 +1066,44 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         ToastSlot->SetZOrder(14);
         ToastSlot->SetPosition(FVector2D(0,-12-8));
         {
-            // The hovered slot's description: the blind-box popup's look, wrapped at a fixed width, centred above
-            // the slot (RefreshReadModel places it each frame) and taking no pointer input.
+            // The hovered slot's description (#328 §3 live skill tooltip + Alt/C expandable formula box).
             auto* DetailBox=WidgetTree->ConstructWidget<UVerticalBox>();
             auto FixedWrap=[&](int32 Size){UTextBlock* Line=Text(TEXT(""),Size);Line->SetAutoWrapText(false);Line->SetWrapTextAt(HudDetailWidth-28.f);return Line;};
             ActionDetailName=FixedWrap(LDHUDStyle::TypeLabel);DetailBox->AddChildToVerticalBox(ActionDetailName);
             ActionDetailSummary=FixedWrap(LDHUDStyle::TypeCaption);ActionDetailSummary->SetColorAndOpacity(LDHUDStyle::TextAccent);DetailBox->AddChildToVerticalBox(ActionDetailSummary)->SetPadding(FMargin(0,2,0,0));
-            ActionDetailBody=FixedWrap(LDHUDStyle::TypeSmall);DetailBox->AddChildToVerticalBox(ActionDetailBody)->SetPadding(FMargin(0,8,0,0));
+            ActionDetailBody=FixedWrap(LDHUDStyle::TypeBody);DetailBox->AddChildToVerticalBox(ActionDetailBody)->SetPadding(FMargin(0,8,0,0));
+
+            ActionFormulaText=FixedWrap(LDHUDStyle::TypeTiny);
+            ActionFormulaText->SetColorAndOpacity(FLinearColor(.86f,.91f,.96f));
+            ActionFormulaPanel=WidgetTree->ConstructWidget<UBorder>();
+            ActionFormulaPanel->SetBrush(HudRound(5.f,FLinearColor(1.f,1.f,1.f,.14f),1.f));
+            ActionFormulaPanel->SetBrushColor(FLinearColor(.01f,.015f,.028f,.96f));
+            ActionFormulaPanel->SetPadding(FMargin(10,8));
+            ActionFormulaPanel->SetContent(ActionFormulaText);
+            ActionFormulaPanel->SetVisibility(ESlateVisibility::Collapsed);
+            DetailBox->AddChildToVerticalBox(ActionFormulaPanel)->SetPadding(FMargin(0,8,0,0));
+
+            ActionDetailFooter=FixedWrap(LDHUDStyle::TypeMicro);
+            ActionDetailFooter->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+            ActionDetailFooter->SetVisibility(ESlateVisibility::Collapsed);
+            DetailBox->AddChildToVerticalBox(ActionDetailFooter)->SetPadding(FMargin(0,6,0,0));
+
             auto* DetailPanel=LDWidgets::Panel(WidgetTree,DetailBox,FMargin(14,12));DetailPanel->SetBrushColor(FLinearColor(.02f,.035f,.055f,.94f));
             auto* DetailWidth=WidgetTree->ConstructWidget<USizeBox>();DetailWidth->SetWidthOverride(HudDetailWidth);DetailWidth->SetContent(DetailPanel);
             DetailWidth->SetVisibility(ESlateVisibility::Collapsed);
             ActionDetailSlot=Canvas->AddChildToCanvas(DetailWidth);ActionDetailSlot->SetAutoSize(true);ActionDetailSlot->SetAlignment(FVector2D(.5f,1));ActionDetailSlot->SetZOrder(20);
+        }
+        {
+            // #328 §4.2 Channel A: 0.9s lightweight reject micro-tip above the refused action slot or cursor.
+            SlotRejectText=OneLine(TEXT(""),LDHUDStyle::TypeCaption,0);HudFace(SlotRejectText,true,1);
+            SlotRejectText->SetColorAndOpacity(LDHUDStyle::TextDanger);
+            SlotRejectPanel=WidgetTree->ConstructWidget<UBorder>();
+            SlotRejectPanel->SetBrush(HudRound(5.f,LDHUDStyle::TextDanger.CopyWithNewOpacity(.8f),1.2f));
+            SlotRejectPanel->SetBrushColor(FLinearColor(.06f,.015f,.02f,.92f));
+            SlotRejectPanel->SetPadding(FMargin(8,3));SlotRejectPanel->SetContent(SlotRejectText);
+            SlotRejectPanel->SetVisibility(ESlateVisibility::Collapsed);
+            SlotRejectSlot=Canvas->AddChildToCanvas(SlotRejectPanel);SlotRejectSlot->SetAutoSize(true);
+            SlotRejectSlot->SetAlignment(FVector2D(.5f,1.f));SlotRejectSlot->SetZOrder(22);
         }
         {
             // The rank-up page (#287 spec §12 + #331 3-rank tree preview): two branch cards ([1]/[2]), with Rank 3 sub-nodes
@@ -1103,6 +1206,52 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                 KindSlot->SetAutoSize(true);KindSlot->SetZOrder(1);
                 PromptBadges.Add(Badge);PromptBadgeTexts.Add(KindText);PromptBadgeSlots.Add(KindSlot);
             }
+            // #328 §2: 3 separate micro-badges ([技能 ×N], [卡牌 ×N], [元素石 ×N]) right above the 构筑 entry.
+            PromptCategoryRow=WidgetTree->ConstructWidget<UHorizontalBox>();
+            PromptCategoryRow->SetVisibility(ESlateVisibility::Collapsed);
+            PromptCategoryBadges.Reset();PromptCategoryTexts.Reset();
+            const FLinearColor CatRims[3]={LDHUDStyle::RewardActiveRim,LDHUDStyle::RewardCardRim,LDHUDStyle::RewardStoneRim};
+            const FLinearColor CatBgs[3]={LDHUDStyle::RewardActiveBase,LDHUDStyle::RewardCardBase,LDHUDStyle::RewardStoneBase};
+            for(int32 Cat=0;Cat<3;++Cat)
+            {
+                UTextBlock* Txt=OneLine(TEXT(""),LDHUDStyle::TypeMicro,0);HudFace(Txt,true,0);Txt->SetColorAndOpacity(CatRims[Cat]);
+                auto* Chip=WidgetTree->ConstructWidget<UBorder>();
+                Chip->SetBrush(HudRound(Cat==2?10.f:4.f,CatRims[Cat],1.2f));
+                Chip->SetBrushColor(CatBgs[Cat].CopyWithNewOpacity(.94f));
+                Chip->SetPadding(FMargin(6,1));Chip->SetContent(Txt);Chip->SetVisibility(ESlateVisibility::Collapsed);
+                PromptCategoryRow->AddChildToHorizontalBox(Chip)->SetPadding(FMargin(Cat?4:0,0,0,0));
+                PromptCategoryBadges.Add(Chip);PromptCategoryTexts.Add(Txt);
+            }
+            PromptCategorySlot=Canvas->AddChildToCanvas(PromptCategoryRow);
+            PromptCategorySlot->SetAnchors(FAnchors(1,1));PromptCategorySlot->SetAlignment(FVector2D(1,1));
+            PromptCategorySlot->SetAutoSize(true);PromptCategorySlot->SetZOrder(2);
+            PromptCategorySlot->SetPosition(FVector2D(-HudCornerInset,-HudCornerInset-HudPromptHeight-10.f));
+
+            // #328 §4.2 Channel B: right-side vertical loot/growth queue (max 3 rows, 3.5s independent fade).
+            LootQueueBox=WidgetTree->ConstructWidget<UVerticalBox>();
+            LootQueueBox->SetVisibility(ESlateVisibility::Collapsed);
+            LootQueueCards.Reset();LootQueueDots.Reset();LootQueueTexts.Reset();
+            for(int32 Row=0;Row<3;++Row)
+            {
+                auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();
+                auto* Dot=WidgetTree->ConstructWidget<UBorder>();
+                Dot->SetBrush(HudRound(6.f,LDHUDStyle::RewardStoneRim,1.5f));
+                Dot->SetBrushColor(LDHUDStyle::RewardStoneBase);
+                auto* DotSize=WidgetTree->ConstructWidget<USizeBox>();DotSize->SetWidthOverride(12.f);DotSize->SetHeightOverride(12.f);DotSize->SetContent(Dot);
+                Line->AddChildToHorizontalBox(DotSize)->SetVerticalAlignment(VAlign_Center);
+                UTextBlock* Txt=OneLine(TEXT(""),LDHUDStyle::TypeCaption,320);HudFace(Txt,true,1);
+                auto* TxtSlot=Line->AddChildToHorizontalBox(Txt);TxtSlot->SetPadding(FMargin(6,0,0,0));TxtSlot->SetVerticalAlignment(VAlign_Center);
+                auto* Card=WidgetTree->ConstructWidget<UBorder>();
+                Card->SetBrushColor(FLinearColor(.02f,.035f,.055f,.92f));
+                Card->SetPadding(FMargin(10,4));Card->SetContent(Line);Card->SetVisibility(ESlateVisibility::Collapsed);
+                LootQueueBox->AddChildToVerticalBox(Card)->SetPadding(FMargin(0,3,0,0));
+                if(auto* VSlot=Cast<UVerticalBoxSlot>(Card->Slot)){VSlot->SetHorizontalAlignment(HAlign_Right);}
+                LootQueueCards.Add(Card);LootQueueDots.Add(Dot);LootQueueTexts.Add(Txt);
+            }
+            LootQueueSlot=Canvas->AddChildToCanvas(LootQueueBox);
+            LootQueueSlot->SetAnchors(FAnchors(1,1));LootQueueSlot->SetAlignment(FVector2D(1,1));
+            LootQueueSlot->SetAutoSize(true);LootQueueSlot->SetZOrder(15);
+            LootQueueSlot->SetPosition(FVector2D(-HudCornerInset,-260.f));
         }
         {
             // The dragged slot's ghost follows the pointer; it takes no input.
@@ -1349,12 +1498,87 @@ const FLDDemoContentDefinitions* ULDHUD::DisplayDefinitions()
     }
     return DisplayContent?&DisplayContent->Get():nullptr;
 }
+void ULDHUD::FreezeForWorldTeardown()
+{
+    bFrozenForTeardown=true;
+    bPKThrowArmed=false;
+    bDragging=false;
+    DragFrom=INDEX_NONE;
+    if(Minimap){Minimap->FreezeForWorldTeardown();Minimap->SetVisibility(ESlateVisibility::Collapsed);}
+    for(ULDPanel* Open:MainPanels()){if(Open&&Open->IsPanelOpen()){Open->ClosePanel();}}
+    SetVisibility(ESlateVisibility::Collapsed);
+}
+
 void ULDHUD::NativeTick(const FGeometry& Geometry,float DeltaSeconds)
 {
     Super::NativeTick(Geometry,DeltaSeconds);
+    UWorld* World=GetWorld();
+    const auto* GI=World?World->GetGameInstance<ULDGameInstance>():nullptr;
+    if(bFrozenForTeardown||!World||World->bIsTearingDown||(GI&&GI->IsLeavingWorld(World))){return;}
     UpdateDrag();
     const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
     if (!PC || !DiagnosticsPanel) { return; }
+    const double Now=FPlatformTime::Seconds();
+    // #337 §3.3: automatic compact yellow network spike warning on remote clients (RTT >= 180 ms, Loss >= 5%, or Corrections >= 3/s for >= 2s; hides after 5s calm).
+    if (NetSpikePanel)
+    {
+        if (World->GetNetMode()==NM_Client)
+        {
+            const auto* Driver=World->GetNetDriver();
+            const auto* Connection=Driver?Driver->ServerConnection.Get():nullptr;
+            if (Connection && Connection->GetLastRecvAckTime()>0 && NetSpikeTickAt>0 && Now-NetSpikeTickAt>=.25)
+            {
+                const double Elapsed=Now-NetSpikeTickAt;
+                const double RttMs=(Connection->AvgLag>0 ? Connection->AvgLag : Connection->RawPingInSeconds)*1000.;
+                const double LossPct=100.*FMath::Max(Connection->GetInLossPercentage().GetLossPercentage(),Connection->GetOutLossPercentage().GetLossPercentage());
+                auto* Body=Cast<ALDCharacter>(PC->GetPawn());
+                const auto* Movement=Body?Cast<ULDCharacterMovementComponent>(Body->GetCharacterMovement()):nullptr;
+                const double CorrRate=(Movement && NetSpikeBody.Get()==Body) ? double(Movement->CorrectionCount-NetSpikeCorrections)/Elapsed : 0.;
+                NetSpikeBody=Body;
+                NetSpikeCorrections=Movement?Movement->CorrectionCount:0;
+                NetSpikeTickAt=Now;
+                const bool bBad=RttMs>=180. || LossPct>=5. || CorrRate>=3.;
+                if (bBad)
+                {
+                    NetSpikeGoodSince=-1.;
+                    if (NetSpikeBadSince<0.) { NetSpikeBadSince=Now; }
+                    if (Now-NetSpikeBadSince>=2.)
+                    {
+                        bNetSpikeShown=true;
+                        HudSetText(NetSpikeText,FString::Printf(TEXT("⚠ 网络波动 · %.0f ms · 丢包 %.0f%%"),RttMs,LossPct));
+                        if (!bNetSpikeLogged)
+                        {
+                            bNetSpikeLogged=true;
+                            UE_LOG(LogLDMatch,Warning,TEXT("LD_NET_SPIKE rtt_ms=%.0f loss_pct=%.1f corr_per_s=%.1f"),RttMs,LossPct,CorrRate);
+                        }
+                    }
+                }
+                else
+                {
+                    NetSpikeBadSince=-1.;
+                    if (bNetSpikeShown)
+                    {
+                        if (NetSpikeGoodSince<0.) { NetSpikeGoodSince=Now; }
+                        else if (Now-NetSpikeGoodSince>=5.) { bNetSpikeShown=false; bNetSpikeLogged=false; }
+                    }
+                }
+            }
+            else if (NetSpikeTickAt<=0.)
+            {
+                NetSpikeTickAt=Now;
+                auto* Body=Cast<ALDCharacter>(PC->GetPawn());
+                const auto* Movement=Body?Cast<ULDCharacterMovementComponent>(Body->GetCharacterMovement()):nullptr;
+                NetSpikeBody=Body;
+                NetSpikeCorrections=Movement?Movement->CorrectionCount:0;
+            }
+            HudSetShown(NetSpikePanel,bNetSpikeShown,ESlateVisibility::HitTestInvisible);
+        }
+        else
+        {
+            bNetSpikeShown=false;bNetSpikeLogged=false;
+            HudSetShown(NetSpikePanel,false,ESlateVisibility::HitTestInvisible);
+        }
+    }
     const bool Network=PC->Controls && PC->Controls->bShowNetworkDiagnostics;
     const bool FPS=PC->Controls && PC->Controls->bShowFPS;
     HudSetShown(DiagnosticsPanel,Network||FPS,ESlateVisibility::HitTestInvisible);
@@ -1364,7 +1588,6 @@ void ULDHUD::NativeTick(const FGeometry& Geometry,float DeltaSeconds)
         DiagnosticsBody.Reset(); DiagnosticsCorrections=0;
         return;
     }
-    const double Now=FPlatformTime::Seconds();
     const double Previous=DiagnosticsTickAt;
     DiagnosticsTickAt=Now;
     if (Previous<0 || !FrameDiagnostics.AddFrame(Now-Previous)) { return; }
@@ -1408,7 +1631,12 @@ void ULDHUD::NativeTick(const FGeometry& Geometry,float DeltaSeconds)
 
 void ULDHUD::SampleReadModel()
 {
-    auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());const auto* GS=GetWorld()->GetGameState<ALDGameState>();if(!GS||!Band){return;}
+    UWorld* World=GetWorld();
+    auto* GI=World?World->GetGameInstance<ULDGameInstance>():nullptr;
+    auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    const auto* GS=World?World->GetGameState<ALDGameState>():nullptr;
+    if(bFrozenForTeardown||!World||World->bIsTearingDown||(GI&&GI->IsLeavingWorld(World))||!PC||!GS||!Band){return;}
+    if(GI){GI->NoteCrashMatchState(GS->PublicMatch.Generation,uint8(GS->PublicMatch.Phase),uint8(GS->PublicMatch.Timeline.Step));}
     // Cues follow every sample, including while a menu covers the HUD or the result is shown.
     ObserveAudio(*PC,*GS);
     LDHUD::FReadModelKey Key;
@@ -1420,7 +1648,11 @@ void ULDHUD::SampleReadModel()
 }
 void ULDHUD::RefreshReadModel()
 {
-    auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());const auto* GS=GetWorld()->GetGameState<ALDGameState>();if(!GS||!Band){return;}
+    UWorld* World=GetWorld();
+    const auto* GI=World?World->GetGameInstance<ULDGameInstance>():nullptr;
+    auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    const auto* GS=World?World->GetGameState<ALDGameState>():nullptr;
+    if(bFrozenForTeardown||!World||World->bIsTearingDown||(GI&&GI->IsLeavingWorld(World))||!PC||!GS||!Band){return;}
     ObserveAudio(*PC,*GS);
     RebuildReadModel(*PC,*GS);
 }
@@ -1480,7 +1712,8 @@ LDHUD::FReadModelKey ULDHUD::ReadModelKey(ALDPlayerController& PC,const ALDGameS
         Put(PC.RootUI?uint64(PC.RootUI->ActiveMainPanel()):0,8);
         Put(PC.IsWorldInputSuppressed(),1);Put(PC.IsWorldInputCaptured(),1);
         const auto Held=[&PC](const TCHAR* Action){const FKey Bound=PC.BindingKey(Action);return Bound.IsValid()&&PC.IsInputKeyDown(Bound);};
-        Put(Held(TEXT("Details")),1);Put(Held(TEXT("Scoreboard")),1);
+        const bool bAltKey=PC.IsInputKeyDown(EKeys::LeftAlt)||PC.IsInputKeyDown(EKeys::RightAlt);
+        Put(Held(TEXT("Details")),1);Put(Held(TEXT("Scoreboard")),1);Put(bAltKey,1);
         ELDCombatEntry Armed=ELDCombatEntry::None;Put(PC.ReadArmedCombatEntry(Armed),1);Put(uint64(Armed),8);
         for(const ELDCombatEntry Entry:PC.SkillAtKey){Put(uint64(Entry),8);}
         Put(PC.BuildBlueprints&&PC.BuildBlueprints->IsViewerOpen(),1);
@@ -1554,7 +1787,7 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         if(Storage){Storage->Present(nullptr,O.Match,LDProgression::EMatchStage::Closed,O.LifePhase,nullptr,ChoiceStats,ULDComponentStorage::FAnchors(),false);}
         for(UWidget* Hidden:{static_cast<UWidget*>(TargetCard.Get()),static_cast<UWidget*>(DeathBanner.Get()),static_cast<UWidget*>(ToastPanel.Get()),static_cast<UWidget*>(EventFeedPanel.Get()),
             static_cast<UWidget*>(ReturnCountdownText.Get()),static_cast<UWidget*>(RestActionsPanel.Get()),static_cast<UWidget*>(PKPanelBorder.Get()),static_cast<UWidget*>(PKCompactBar.Get()),
-            static_cast<UWidget*>(SpawnChoicePanel.Get()),
+            static_cast<UWidget*>(SpawnChoicePanel.Get()),static_cast<UWidget*>(PromptCategoryRow.Get()),static_cast<UWidget*>(SlotRejectPanel.Get()),static_cast<UWidget*>(LootQueueBox.Get()),
             static_cast<UWidget*>(ScorePanel.Get()),ActionDetailSlot?ActionDetailSlot->Content.Get():nullptr}){HudSetShown(Hidden,false,ESlateVisibility::Visible);}
         // The result enters row by row until AnimateResult settles it, and the showdown ring shrinks: both move with time.
         bReadModelLive=(bResults&&!Overlay&&ResultShownAt>=0.)||ShowdownRing.IsValid();
@@ -1837,10 +2070,46 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             bChanged=true;
             if(LDChainCodex::Record(Codex,LDChain::Text(End.Key,TEXT(">")),End.Steps,FDateTime::UtcNow().ToUnixTimestamp()))
             {
-                ShowToast(LDHUD::NewChainNotice(DisplayDefinitions(),End.Key));
+                PushLootNotice(LDHUD::NewChainNotice(DisplayDefinitions(),End.Key),3);
             }
         }
         if(bChanged&&!LDChainCodex::Save(Codex)){UE_LOG(LogLDUI,Warning,TEXT("LD_UI_CHAIN_CODEX_SAVE_FAILED entries=%d"),Codex.Num());}
+    }
+
+    // #328 §4.2 Channel B: observe newly gained blueprints and non-medal build cards into the loot queue (medals use MedalDropWatch below).
+    if(Progression&&Progression->bValid&&Progression->Generation==O.Match)
+    {
+        if(LootSeenMatch!=O.Match)
+        {
+            LootSeenMatch=O.Match;
+            LootKnownBlueprints.Reset();
+            LootKnownCardSerials.Reset();
+            for(const FName Bp:Progression->PendingBlueprints){LootKnownBlueprints.Add(Bp);}
+            for(const FLDCardInstanceView& C:Progression->Cards){LootKnownCardSerials.Add(C.Serial);}
+        }
+        else
+        {
+            for(const FName Bp:Progression->PendingBlueprints)
+            {
+                if(!LootKnownBlueprints.Contains(Bp))
+                {
+                    LootKnownBlueprints.Add(Bp);
+                    PushLootNotice(FString::Printf(TEXT("获得技能图纸 · %s"),*LDHUD::ContentName(Content,Bp.ToString())),0);
+                }
+            }
+            for(const FLDCardInstanceView& C:Progression->Cards)
+            {
+                if(!LootKnownCardSerials.Contains(C.Serial))
+                {
+                    LootKnownCardSerials.Add(C.Serial);
+                    const bool bStone=(Content&&LDProgression::IsMedal(*Content,C.DefinitionId))||C.DefinitionId.ToString().StartsWith(TEXT("medal_"));
+                    if(!bStone)
+                    {
+                        PushLootNotice(FString::Printf(TEXT("获得构筑卡牌 · %s"),*LDHUD::ContentName(Content,C.DefinitionId.ToString())),1);
+                    }
+                }
+            }
+        }
     }
 
     // New world commands follow Combat's input half (menu/Settings, child confirmation or text edit, held keys);
@@ -1971,16 +2240,20 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         if(bNewAutoOpen&&!bFieldPhase){AutoOpenSince=GetWorld()->GetRealTimeSeconds();}
     }
     {
-        // #198 G: a field reward (天降外卖, 画饼老板, a high or elite camp marker) tells what it gave once, as a toast.
-        TArray<FString> Lines;
+        // #198 G: field rewards and element medal drops enter Channel B loot queue (#328 §4.2) so they never clobber broadcasts.
         for(const FLDFieldRewardView& Reward:FieldRewardWatch.Observe(Progression,O.Match))
         {
             const FString Line=LDHUD::FieldRewardNotice(Reward,Content);
-            if(!Line.IsEmpty()){Lines.Add(Line);}
+            if(!Line.IsEmpty())
+            {
+                const uint8 Kind=Reward.Result==ELDFieldRewardResult::Blueprint?0:1;
+                PushLootNotice(Line,Kind);
+            }
         }
-        // An element medal that dropped (a level-up, a camp, an event or the Boss) is named once too.
-        Lines.Append(MedalDropWatch.Observe(Progression,O.Match,Content));
-        if(!Lines.IsEmpty()){ShowToast(FString::Join(Lines,TEXT("\n")));}
+        for(const FString& MedalLine:MedalDropWatch.Observe(Progression,O.Match,Content))
+        {
+            if(!MedalLine.IsEmpty()){PushLootNotice(TEXT("◆ ")+MedalLine,2);}
+        }
     }
     if(ChoicesPanel&&PC->RootUI&&AutoOpenSince>=0)
     {
@@ -2084,6 +2357,25 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             if(PromptBadgeSlots[Kind]&&!PromptBadgeSlots[Kind]->GetPosition().Equals(Corner,.5f)){PromptBadgeSlots[Kind]->SetPosition(Corner);}
             Offset+=float(PromptBadges[Kind]->GetDesiredSize().X)+3.f;
         }
+        // #328 §2: update the 3 distinct micro-badges ([技能 ×N], [卡牌 ×N], [元素石 ×N]) right above PromptFrame.
+        if(PromptCategoryRow&&PromptCategoryBadges.Num()==3)
+        {
+            const LDHUD::FPendingCategoryCounts Cats=LDHUD::PendingCategoryCounts(Progression,O.Match,Content);
+            const int32 Counts[3]={Cats.SkillCount,Cats.CardCount,Cats.StoneCount};
+            const TCHAR* Prefixes[3]={TEXT("技能"),TEXT("卡牌"),TEXT("元素石")};
+            bool bAnyCat=false;
+            for(int32 Cat=0;Cat<3;++Cat)
+            {
+                const bool bShowChip=Counts[Cat]>0&&PromptFrame->IsVisible();
+                bAnyCat|=bShowChip;
+                HudSetShown(PromptCategoryBadges[Cat],bShowChip,ESlateVisibility::HitTestInvisible);
+                if(bShowChip)
+                {
+                    HudSetText(PromptCategoryTexts[Cat],FString::Printf(TEXT("[%s ×%d]"),Prefixes[Cat],Counts[Cat]));
+                }
+            }
+            HudSetShown(PromptCategoryRow,bAnyCat,ESlateVisibility::HitTestInvisible);
+        }
     }
     // The button always opens the workshop; it is lit while something is pending.
     if(PromptButton->GetIsEnabled()!=bOwnMatch){PromptButton->SetIsEnabled(bOwnMatch);}
@@ -2102,23 +2394,45 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     {
         TArray<FLDCombatActionReceipt> Arrived;
         if(const uint32 Lost=PC->CombatReceipts.ReadSince(SeenCombatReceipt,Arrived)){UE_LOG(LogLDUI,Warning,TEXT("LD_HUD_COMBAT_RECEIPTS_MISSED %u"),Lost);}
-        // Every receipt since the last frame presents once; the single toast line joins their distinct notices in order.
-        const FString Notice=LDHUD::CombatReceiptsNotice(Arrived,O.Match,O.Life,ToldProtectionLifeRevision);
-        if(!Notice.IsEmpty()){ShowToast(Notice);}
+        bool bHandledAsSlotTip=false;
         for(const FLDCombatActionReceipt& Receipt:Arrived)
         {
             if(Receipt.Generation!=O.Match||Receipt.Life!=O.Life){continue;}
-            // The pressed slot's ring turns red for a moment where the player is looking; the toast says why.
-            const bool bSlotRefused=!LDHUD::CombatReceiptSlotNotice(Receipt).IsEmpty();
-            for(int32 Pressed=0;Pressed<ActionSlots.Num()&&bSlotRefused;++Pressed)
-            {if((Pressed<3?PC->SkillAtKey[Pressed]:HudActionEntries[Pressed])==Receipt.Entry){ActionSlots[Pressed].RejectedAt=UiNow;}}
+            const FString SlotReason=LDHUD::CombatReceiptSlotNotice(Receipt);
+            if(!SlotReason.IsEmpty())
+            {
+                int32 MatchedSlot=INDEX_NONE;
+                for(int32 Pressed=0;Pressed<ActionSlots.Num();++Pressed)
+                {
+                    if((Pressed<3?PC->SkillAtKey[Pressed]:HudActionEntries[Pressed])==Receipt.Entry)
+                    {
+                        ActionSlots[Pressed].RejectedAt=UiNow;
+                        MatchedSlot=Pressed;
+                    }
+                }
+                PushSlotRejectTip(SlotReason,MatchedSlot);
+                bHandledAsSlotTip=true;
+            }
+            if(Receipt.bProtectionRemoved&&ToldProtectionLifeRevision!=Receipt.LifeRevision)
+            {
+                ToldProtectionLifeRevision=Receipt.LifeRevision;
+                ShowToast(LDTerms::ProtectionRemoved());
+            }
+        }
+        if(!bHandledAsSlotTip)
+        {
+            const FString Notice=LDHUD::CombatReceiptsNotice(Arrived,O.Match,O.Life,ToldProtectionLifeRevision);
+            if(!Notice.IsEmpty()){ShowToast(Notice);}
         }
     }
     uint8 ControlBits=0;
     if(OwnCombat){for(const FLDCombatStatusView& Status:OwnCombat->Statuses){ControlBits|=Status.ControlBlocks;}}
+    const bool bAltHeld=PC->IsInputKeyDown(EKeys::LeftAlt)||PC->IsInputKeyDown(EKeys::RightAlt);
+    const bool bExpandFormula=(bAltHeld||bDetailsHeld)&&!PC->IsWorldInputCaptured();
     // The slot under the pointer (by its laid-out box, so a disabled slot explains itself as well) gets the description.
     const FVector2D Pointer=FSlateApplication::IsInitialized()?FSlateApplication::Get().GetCursorPos():FVector2D(-1,-1);
     int32 DetailIndex=INDEX_NONE;LDHUD::FActionDetailView DetailView;
+    LDHUD::FLiveSkillTooltip LiveSkillDetail;bool bHasLiveSkillDetail=false;
     for(int32 Index=0;Index<ActionSlots.Num();++Index)
     {
         const LDHUD::EActionSlot SlotKind=static_cast<LDHUD::EActionSlot>(Index);
@@ -2224,7 +2538,28 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         const float Pop=bFlash?1.f+(LDHUDStyle::ReadyPopScale-1.f)*LDTween::PingPong(FlashAge,LDHUDStyle::ReadyFlashSeconds):1.f;
         LDTween::SetScale(Entry.Box,Pop);
         Entry.Button->SetIsEnabled(View.bCanSubmitIntent);
-        if(DetailIndex==INDEX_NONE&&Entry.Box->GetCachedGeometry().IsUnderLocation(Pointer)){DetailIndex=Index;DetailView=LDHUD::ActionDetail(View,Input,Context,Content);}
+        if(DetailIndex==INDEX_NONE&&Entry.Box->GetCachedGeometry().IsUnderLocation(Pointer))
+        {
+            DetailIndex=Index;
+            int32 PracticeStacks=0;
+            if(PC->BuildStats.Match==O.Match&&Progression)
+            {
+                for(const FLDCardInstanceView& C:Progression->Cards)
+                {
+                    if(C.IsInstalled()&&C.DefinitionId==TEXT("card_practice")
+                        &&(C.Target.Kind==ELDCardTargetKind::Body||(C.Target.Kind==ELDCardTargetKind::Skill&&C.Target.Active==Input.DefinitionId)))
+                    {
+                        for(const FLDCardTriggerRow& Tr:PC->BuildStats.Triggers)
+                        {
+                            if(LDHUD::CardDefinition(Tr.Card)==TEXT("card_practice")){PracticeStacks=FMath::Max(PracticeStacks,Tr.Count);}
+                        }
+                    }
+                }
+            }
+            LiveSkillDetail=LDHUD::EvaluateLiveSkillTooltip(View,Input,Context,Progression,OwnCombat,Content,bExpandFormula,PracticeStacks);
+            DetailView=LiveSkillDetail.Detail;
+            bHasLiveSkillDetail=LiveSkillDetail.bHasFormula;
+        }
     }
     // The basic attack's combo pips: the current step lit (the third gold) until COMBO.ResetSec after its start.
     {
@@ -2277,6 +2612,26 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         {
             HudSetText(ActionDetailName,DetailView.Name);HudSetText(ActionDetailSummary,DetailView.Summary);
             HudSetText(ActionDetailBody,DetailView.Body);HudSetShown(ActionDetailBody,!DetailView.Body.IsEmpty(),ESlateVisibility::HitTestInvisible);
+            const bool bSkillPopup=DetailIndex!=INDEX_NONE&&bHasLiveSkillDetail;
+            if(ActionDetailBody)
+            {
+                const FLinearColor BodyTint=!bSkillPopup?LDHUDStyle::TextPrimary
+                    :LiveSkillDetail.PrimaryTone==1?FLinearColor(FColor(0xFF,0x9F,0x43))
+                    :LiveSkillDetail.PrimaryTone==2?FLinearColor(FColor(0x38,0xBD,0xF8))
+                    :LiveSkillDetail.PrimaryTone==4?FLinearColor(FColor(0x4A,0xDE,0x80)):LDHUDStyle::TextPrimary;
+                ActionDetailBody->SetColorAndOpacity(BodyTint);
+            }
+            if(ActionFormulaPanel&&ActionFormulaText)
+            {
+                const bool bShowFormula=bSkillPopup&&bExpandFormula&&!LiveSkillDetail.FormulaLines.IsEmpty();
+                HudSetShown(ActionFormulaPanel,bShowFormula,ESlateVisibility::HitTestInvisible);
+                if(bShowFormula){HudSetText(ActionFormulaText,FString::Join(LiveSkillDetail.FormulaLines,TEXT("\n")));}
+            }
+            if(ActionDetailFooter)
+            {
+                HudSetShown(ActionDetailFooter,bSkillPopup&&!LiveSkillDetail.FooterHint.IsEmpty(),ESlateVisibility::HitTestInvisible);
+                if(bSkillPopup){HudSetText(ActionDetailFooter,LiveSkillDetail.FooterHint);}
+            }
             // Centred 8 units above the slot, icon or mark, read from last frame's layout; neither depends on the popup, so
             // this never feeds back. The popup is only pushed sideways to stay on screen.
             const FGeometry& Area=GetCachedGeometry();
@@ -2295,30 +2650,105 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     const ALDWorldViewRelay* Relay=PC->LocalView();
     const FLDObservedFrameRead Frame=Relay?Relay->ReadObservedFrame():FLDObservedFrameRead();
 
-    FLDObservedUnitView Subject;const bool bSelected=PC->ReadInspected(Subject);
-    HudSetShown(TargetCard,bSelected,ESlateVisibility::Visible);
+    // Update authorized tactical sighting ledger for the hold-Tab scoreboard (#328 §4.4).
+    if(ScoreSightingsMatch!=O.Match)
+    {
+        ScoreSightingsMatch=O.Match;
+        ScoreSightings.Reset();
+    }
+    if(Frame.Frame&&Frame.Status==ELDObservedViewStatus::Current&&Frame.Frame->MatchGeneration==O.Match)
+    {
+        for(const FLDObservedUnitView& SeenUnit:Frame.Frame->Units)
+        {
+            if(SeenUnit.Kind!=ELDObservedUnitKind::Contender||!SeenUnit.ContenderId.IsValid()){continue;}
+            LDHUD::FTacticalSighting& Entry=ScoreSightings.FindOrAdd(SeenUnit.ContenderId);
+            Entry.Presentation=SeenUnit.Presentation;
+            if(SeenUnit.Level>0){Entry.LastSeenLevel=SeenUnit.Level;}
+            if((SeenUnit.AuthorizedFieldMask&LDObservation::Actives)!=0)
+            {
+                for(int32 S=0;S<3;++S)
+                {
+                    if(SeenUnit.Actives.Abilities[S]!=0){Entry.RevealedActives[S]=SeenUnit.Actives.Abilities[S];}
+                }
+            }
+        }
+    }
+    if(Public.GraffitiOwner.IsValid())
+    {
+        LDHUD::FTacticalSighting& OwnerSight=ScoreSightings.FindOrAdd(Public.GraffitiOwner);
+        OwnerSight.Presentation=Public.GraffitiPresentation;
+        const int64 GuardTarget=Public.Showdown.bStarted&&Public.Showdown.GuardMs>0
+            ?Public.Showdown.GuardMs:(Content&&Content->Parameters.CaptureGuardMs>0?Content->Parameters.CaptureGuardMs:20000);
+        if(Public.CircleState==ELDCircleState::Guarded&&bClock&&Public.GuardDueAtMs>0)
+        {
+            OwnerSight.KnownGuardMs=FMath::Clamp<int64>(GuardTarget-FMath::Max<int64>(0,Public.GuardDueAtMs-NowMs),0,GuardTarget);
+        }
+        else
+        {
+            OwnerSight.KnownGuardMs=FMath::Max<int64>(OwnerSight.KnownGuardMs,FMath::Max<int64>(Public.GuardKeptMs,Public.OwnerBankedGuardMs));
+        }
+    }
+
+    // #328 §4.3: TargetCard live view + 2.5s 55%-alpha lost-vision snapshot + seamless re-sight resume.
+    if(LastTargetMatch!=O.Match)
+    {
+        LastTargetMatch=O.Match;
+        bHasTargetSnapshot=false;
+        LastTargetHandle.Invalidate();
+        LastTargetContenderId.Invalidate();
+    }
+    FLDObservedUnitView Subject;bool bSelected=PC->ReadInspected(Subject);
+    if(!bSelected&&bHasTargetSnapshot&&LastTargetContenderId.IsValid()&&(UiNow-LastTargetSeenAtSec)<2.5
+        &&Frame.Frame&&Frame.Status==ELDObservedViewStatus::Current&&Frame.Frame->MatchGeneration==O.Match)
+    {
+        for(const FLDObservedUnitView& Candidate:Frame.Frame->Units)
+        {
+            if(Candidate.Kind==ELDObservedUnitKind::Contender&&Candidate.ContenderId==LastTargetContenderId)
+            {
+                PC->Inspect(Candidate.Handle,Candidate.ObservationEpoch);
+                bSelected=PC->ReadInspected(Subject);
+                break;
+            }
+        }
+    }
     if(bSelected)
     {
         const FString SubjectName=Subject.Kind==ELDObservedUnitKind::Contender?LDHUD::ObservedContenderName(Lobby,Subject.ContenderId,Public.Phase==ELDMatchPhase::Rest):FString();
-        const LDHUD::FObservedCard Card=LDHUD::ObservedCard(Subject,SubjectName,Content,Frame.Frame?Frame.Frame->SampledAtServerSec:0.);
-        const FString Relation=Subject.Kind==ELDObservedUnitKind::Contender?LDHUD::PKRelationText(Public,O.ContenderId,Subject.ContenderId):FString();
-        HudSetText(TargetTitle,Relation.IsEmpty()?Card.Title:Card.Title+TEXT(" · ")+Relation);HudSetText(TargetGlyph,Card.Title.Left(1));
-        TargetPortrait->SetBrushColor(Subject.Kind==ELDObservedUnitKind::Contender?LDHUD::PaletteColor(Subject.Presentation):ULDHumanoidVisualComponent::MonsterTint(Subject.CreatureId));
-        // The bar speaks the shared language: other contenders red, camp members amber (the own body would read green; #331 colorblind option).
-        const bool bContender=Subject.Kind==ELDObservedUnitKind::Contender;
-        const FLinearColor HealthFill=!bContender?LDHUDStyle::CampHealth:Subject.ContenderId==O.ContenderId?LDHUDStyle::OwnHealthOf(bColorblind):LDHUDStyle::EnemyHealthOf(bColorblind);
+        LastTargetCard=LDHUD::ObservedCard(Subject,SubjectName,Content,Frame.Frame?Frame.Frame->SampledAtServerSec:0.);
+        LastTargetRelation=Subject.Kind==ELDObservedUnitKind::Contender?LDHUD::PKRelationText(Public,O.ContenderId,Subject.ContenderId):FString();
+        LastTargetHandle=Subject.Handle;
+        LastTargetContenderId=Subject.Kind==ELDObservedUnitKind::Contender?Subject.ContenderId:FGuid();
+        LastTargetCreatureId=Subject.CreatureId;
+        LastTargetPresentation=Subject.Presentation;
+        bLastTargetContender=Subject.Kind==ELDObservedUnitKind::Contender;
+        LastTargetSeenAtSec=UiNow;
+        bHasTargetSnapshot=true;
+    }
+    const bool bLostVisionGhost=!bSelected&&bHasTargetSnapshot&&(UiNow-LastTargetSeenAtSec)<2.5;
+    if(!bSelected&&!bLostVisionGhost){bHasTargetSnapshot=false;}
+    const bool bShowTarget=(bSelected||bLostVisionGhost)&&!bWorkshopOpen;
+    HudSetShown(TargetCard,bShowTarget,ESlateVisibility::Visible);
+    bReadModelLive|=bLostVisionGhost;
+    if(bShowTarget)
+    {
+        TargetCard->SetRenderOpacity(bLostVisionGhost?.55f:1.f);
+        const LDHUD::FObservedCard& Card=LastTargetCard;
+        FString TitleLine=LastTargetRelation.IsEmpty()?Card.Title:Card.Title+TEXT(" · ")+LastTargetRelation;
+        if(bLostVisionGhost){TitleLine+=TEXT(" · 视野丢失");}
+        HudSetText(TargetTitle,TitleLine);HudSetText(TargetGlyph,Card.Title.Left(1));
+        TargetPortrait->SetBrushColor(bLastTargetContender?LDHUD::PaletteColor(LastTargetPresentation):ULDHumanoidVisualComponent::MonsterTint(LastTargetCreatureId));
+        const FLinearColor HealthFill=!bLastTargetContender?LDHUDStyle::CampHealth:LastTargetContenderId==O.ContenderId?LDHUDStyle::OwnHealthOf(bColorblind):LDHUDStyle::EnemyHealthOf(bColorblind);
         if(TargetHealthBar->GetFillColorAndOpacity()!=HealthFill){TargetHealthBar->SetFillColorAndOpacity(HealthFill);}
         TargetHealthBar->SetPercent(Card.Health.Fraction);HudSetText(TargetHealth,Card.Health.Text);
         HudSetShown(TargetMomentumRow,Card.bMomentum,ESlateVisibility::Visible);
         if(Card.bMomentum&&!TargetMomentum->GetText().ToString().Equals(Card.Momentum.Text,ESearchCase::CaseSensitive))
         {TargetMomentumBar->SetPercent(Card.Momentum.Fraction);HudSetText(TargetMomentum,Card.Momentum.Text);TargetMomentumRow->SetToolTipText(FText::FromString(Card.Momentum.Text));}
         else if(Card.bMomentum){TargetMomentumBar->SetPercent(Card.Momentum.Fraction);}
-        // A full bar glows gold (a possible overdrive); a held charge pulses it.
         if(Card.bMomentum)
         {
-            const float Pulse=Card.bCharging?.55f+.45f*FMath::Abs(FMath::Sin(float(FPlatformTime::Seconds())*9.f)):1.f;
+            const float Pulse=(!bLostVisionGhost&&Card.bCharging)?.55f+.45f*FMath::Abs(FMath::Sin(float(FPlatformTime::Seconds())*9.f)):1.f;
             TargetMomentumBar->SetFillColorAndOpacity(Card.bMomentumFull?LDHUDStyle::Overdrive.CopyWithNewOpacity(Pulse):LDHUDStyle::Momentum);
-            bReadModelLive|=Card.bCharging;
+            bReadModelLive|=(!bLostVisionGhost&&Card.bCharging);
         }
         // The status squares: grown on demand, the unused ones collapsed.
         while(TargetStatusTiles.Num()<Card.StatusChips.Num())
@@ -2346,7 +2776,8 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             const LDHUD::FObservedCard::FStatusChip& Chip=Card.StatusChips[Index];
             if(!TargetStatusTiles[Index]->GetToolTipText().ToString().Equals(Chip.Tip,ESearchCase::CaseSensitive))
             {TargetStatusTiles[Index]->SetToolTipText(FText::FromString(Chip.Tip));}
-            const FLinearColor Edge=Chip.bPositive?LDHUDStyle::StatusPositive:LDHUDStyle::StatusNegative;
+            const FLinearColor Edge=Chip.bPositive?(bColorblind?FLinearColor(.25f,.68f,1.f):LDHUDStyle::StatusPositive)
+                :(bColorblind?FLinearColor(1.f,.52f,.10f):LDHUDStyle::StatusNegative);
             if(TargetStatusRims[Index]->Background.OutlineSettings.Color!=FSlateColor(Edge))
             {TargetStatusRims[Index]->SetBrush(HudRound(4.f,Edge,1.5f));TargetStatusRims[Index]->SetBrushColor(FLinearColor(.02f,.03f,.05f,.92f));}
             const bool bPicture=LDUIIcons::Apply(TargetStatusIcons[Index],Chip.IconId,4.f);
@@ -2361,32 +2792,97 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             const FString Tip=Chip.Key+TEXT(" · ")+Chip.Name;
             UWidget* Tile=TargetActiveTiles[Index]->GetParent()?TargetActiveTiles[Index]->GetParent()->GetParent():nullptr;
             if(Tile&&!Tile->GetToolTipText().ToString().Equals(Tip,ESearchCase::CaseSensitive)){Tile->SetToolTipText(FText::FromString(Tip));}
-            // The first character is only the fallback of a chip without a picture; never drawn under its icon.
             const bool bPicture=LDUIIcons::Apply(TargetActiveIcons[Index],Chip.IconId,6.f);
             HudSetText(TargetActiveNames[Index],Chip.bEmpty||bPicture?FString():Chip.Name.Left(1));
             TargetActiveTiles[Index]->SetBrushColor(FLinearColor(.02f,.03f,.05f,Chip.bEmpty?.45f:.9f));
         }
     }
 
-    // The toast fades on local presentation time.
-    if(SeenIntent!=PC->IntentFeedback||SeenFeedback!=PC->FeedbackSerial()){SeenIntent=PC->IntentFeedback;SeenFeedback=PC->FeedbackSerial();ShowToast(PC->IntentFeedback);}
+    // Route controller intent notices: local target/pointer/order rejects go to Channel A (0.9s cursor micro-tip) so they
+    // never overwrite global broadcasts (#328 §4.2).
+    if(SeenIntent!=PC->IntentFeedback||SeenFeedback!=PC->FeedbackSerial())
+    {
+        SeenIntent=PC->IntentFeedback;SeenFeedback=PC->FeedbackSerial();
+        if(PC->IntentFeedback.Contains(TEXT("指针"))||PC->IntentFeedback.Contains(TEXT("无法到达"))
+            ||PC->IntentFeedback.Contains(TEXT("不能下达"))||PC->IntentFeedback.Contains(TEXT("目标")))
+        {
+            PushSlotRejectTip(PC->IntentFeedback,INDEX_NONE);
+        }
+        else
+        {
+            ShowToast(PC->IntentFeedback);
+        }
+    }
+    // Channel A: 0.9s slot/cursor reject micro-tip.
+    if(SlotRejectPanel&&SlotRejectSlot)
+    {
+        const double RejectAge=UiNow-SlotRejectAt;
+        const bool bShowReject=SlotRejectAt>0.&&RejectAge<0.9;
+        HudSetShown(SlotRejectPanel,bShowReject,ESlateVisibility::HitTestInvisible);
+        bReadModelLive|=bShowReject;
+        if(bShowReject)
+        {
+            SlotRejectPanel->SetRenderOpacity(RejectAge>0.65?float(1.-(RejectAge-0.65)/0.25):1.f);
+            const FGeometry& Area=GetCachedGeometry();
+            FVector2D Pos(Area.GetLocalSize().X*.5,Area.GetLocalSize().Y-BandTop-28.);
+            if(ActionSlots.IsValidIndex(SlotRejectIndex)&&ActionSlots[SlotRejectIndex].Box&&ActionSlots[SlotRejectIndex].Box->IsVisible())
+            {
+                const FGeometry& BoxG=ActionSlots[SlotRejectIndex].Box->GetCachedGeometry();
+                const FVector2D TopLeft=Area.AbsoluteToLocal(BoxG.GetAbsolutePosition());
+                const FVector2D Ext=Area.AbsoluteToLocal(BoxG.GetAbsolutePosition()+BoxG.GetAbsoluteSize())-TopLeft;
+                Pos=FVector2D(TopLeft.X+Ext.X*.5,TopLeft.Y-10.);
+            }
+            else if(SlotRejectCursor.X>=0.&&SlotRejectCursor.Y>=0.)
+            {
+                Pos=Area.AbsoluteToLocal(SlotRejectCursor)-FVector2D(0.,28.);
+            }
+            Pos.X=FMath::Clamp(Pos.X,90.,FMath::Max(90.,Area.GetLocalSize().X-90.));
+            Pos.Y=FMath::Clamp(Pos.Y,36.,FMath::Max(36.,Area.GetLocalSize().Y-24.));
+            SlotRejectSlot->SetPosition(Pos);
+        }
+    }
+    // Channel B: right-side vertical loot/growth queue (max 3 rows, 3.5s independent fade).
+    if(LootQueueBox)
+    {
+        LootNotices.RemoveAll([UiNow](const FLootNoticeEntry& Item){return (UiNow-Item.At)>=3.5;});
+        const bool bShowLoot=!LootNotices.IsEmpty()&&!bWorkshopOpen;
+        HudSetShown(LootQueueBox,bShowLoot,ESlateVisibility::HitTestInvisible);
+        bReadModelLive|=bShowLoot;
+        for(int32 Row=0;Row<LootQueueCards.Num();++Row)
+        {
+            const bool bRow=bShowLoot&&LootNotices.IsValidIndex(Row);
+            HudSetShown(LootQueueCards[Row],bRow,ESlateVisibility::HitTestInvisible);
+            if(!bRow){continue;}
+            const FLootNoticeEntry& Entry=LootNotices[Row];
+            const double Age=UiNow-Entry.At;
+            const float Alpha=Age>2.8?float(1.-(Age-2.8)/0.7):1.f;
+            LootQueueCards[Row]->SetRenderOpacity(FMath::Clamp(Alpha,0.f,1.f));
+            const FLinearColor Rim=Entry.Kind==0?LDHUDStyle::RewardActiveRim
+                :Entry.Kind==1?LDHUDStyle::RewardCardRim
+                :Entry.Kind==2?LDHUDStyle::RewardStoneRim:LDHUDStyle::UIAction;
+            const FLinearColor Bg=Entry.Kind==0?LDHUDStyle::RewardActiveBase
+                :Entry.Kind==1?LDHUDStyle::RewardCardBase
+                :Entry.Kind==2?LDHUDStyle::RewardStoneBase:FLinearColor(.04f,.06f,.09f,.95f);
+            LootQueueCards[Row]->SetBrush(HudRound(Entry.Kind==2?12.f:6.f,Rim,1.4f));
+            LootQueueCards[Row]->SetBrushColor(Bg.CopyWithNewOpacity(.92f));
+            LootQueueDots[Row]->SetBrush(HudRound(Entry.Kind==2?6.f:2.f,Rim,1.2f));
+            LootQueueDots[Row]->SetBrushColor(Rim);
+            HudSetText(LootQueueTexts[Row],Entry.Text);
+            LootQueueTexts[Row]->SetColorAndOpacity(Entry.Kind==2?FLinearColor(.88f,1.f,.95f):LDHUDStyle::TextPrimary);
+        }
+    }
+    // Channel C: top-center broadcast banner (below TopCentre, never fighting Channel A or B).
     HudSetText(Toast,UiNow-FeedbackAt<FeedbackDuration?LastFeedback:FString());
     HudSetShown(ToastPanel,!Toast->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
-    // The toast leaves on time; the opening workshop fades in with Present, and the full one paints its rest step ring from
-    // the clock (a long step's ring moves smoothly enough on the clock bucket); a refused automatic opening retries.
     bReadModelLive|=!Toast->GetText().IsEmpty()||AutoOpenSince>=0||(Workshop&&(Workshop->IsOpening()||(Workshop->GetMode()==ULDWorkshop::EMode::Full&&bRestPhase
         &&LDHUD::ReadModelRingMoves(Public.Timeline.StepStartedAtMs,Public.Timeline.StepEndsAtMs))));
     if(ToastSlot)
     {
-        // Above the band; over the full workshop at the top centre; above the bottom workshop's top edge.
-        const bool bTop=Workshop&&Workshop->GetMode()==ULDWorkshop::EMode::Full;
-        const bool bField=Workshop&&Workshop->GetMode()==ULDWorkshop::EMode::Field;
-        const FAnchors Anchor=bTop?FAnchors(.5f,0):FAnchors(.5f,1);const FVector2D Align=bTop?FVector2D(.5f,0):FVector2D(.5f,1);
-        const float Height=float(GetCachedGeometry().GetLocalSize().Y);
-        const FVector2D Above=bTop?FVector2D(0,36):FVector2D(0,-FMath::RoundToFloat(bField?Height*.46f+8.f:BandTop+8.f));
+        const FAnchors Anchor(.5f,0.f);const FVector2D Align(.5f,0.f);
+        const FVector2D TopPos(0.f,bWorkshopOpen&&bWorkshopFull?36.f:104.f);
         if(!(ToastSlot->GetAnchors()==Anchor)){ToastSlot->SetAnchors(Anchor);}
         if(!ToastSlot->GetAlignment().Equals(Align)){ToastSlot->SetAlignment(Align);}
-        if(!ToastSlot->GetPosition().Equals(Above,.5f)){ToastSlot->SetPosition(Above);}
+        if(!ToastSlot->GetPosition().Equals(TopPos,.5f)){ToastSlot->SetPosition(TopPos);}
     }
 }
 void ULDHUD::OpenRankUp(int32 ProgressionSlot)
@@ -2465,6 +2961,25 @@ void ULDHUD::SubmitRankUp(int32 Card)
     if(PC->SubmitBuild(Command,Reason)==0){ShowToast(LDHUD::GrowthReasonText(Reason));return;}
     RankSlot=INDEX_NONE;
     MarkReadModelDirty();
+}
+
+void ULDHUD::PushSlotRejectTip(const FString& Text,int32 ActionSlotIndex)
+{
+    if(Text.IsEmpty()){return;}
+    MarkReadModelDirty();
+    SlotRejectAt=GetWorld()?GetWorld()->GetRealTimeSeconds():0.;
+    SlotRejectIndex=ActionSlotIndex;
+    SlotRejectCursor=FSlateApplication::IsInitialized()?FSlateApplication::Get().GetCursorPos():FVector2D(-1.,-1.);
+    HudSetText(SlotRejectText,Text);
+}
+
+void ULDHUD::PushLootNotice(const FString& Text,uint8 Kind)
+{
+    if(Text.IsEmpty()){return;}
+    MarkReadModelDirty();
+    const double Now=GetWorld()?GetWorld()->GetRealTimeSeconds():0.;
+    while(LootNotices.Num()>=3){LootNotices.RemoveAt(0);}
+    LootNotices.Add({Text,Kind,Now});
 }
 
 void ULDHUD::ShowToast(const FString& Text)
@@ -3022,30 +3537,56 @@ void ULDHUD::PlayAudioCues(const TArray<ELDAudioCue>& Cues)
 }
 void ULDHUD::RefreshScoreboard(const ALDGameState& Public,const FLDOwnerState& Own)
 {
-    // Shown only while the Scoreboard key is held; a text edit or a child confirmation keeps the key for itself.
-    const auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());
+    const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    if(!PC){return;}
     const FKey Key=PC->BindingKey(TEXT("Scoreboard"));
     const bool bHeld=Key.IsValid()&&PC->IsInputKeyDown(Key)&&!PC->IsWorldInputCaptured();
     HudSetShown(ScorePanel,bHeld,ESlateVisibility::HitTestInvisible);
     if(!bHeld){return;}
-    const TArray<LDHUD::FScoreLine> Lines=LDHUD::Scoreboard(Public.KillFeed,Own.Match,Public.DemoLobby,Own.ContenderId);
-    for(int32 RowIdx=0;RowIdx<ScoreRows.Num();++RowIdx)
+    int64 NowMs=0;
+    const bool bClock=PC->ReadDemoAuthorityTimeMs(NowMs);
+    const TArray<LDHUD::FTacticalScoreRow> Rows=LDHUD::BuildTacticalScoreboard(Public.PublicMatch,Public.KillFeed,
+        Public.DemoLobby,Own.ContenderId,ScoreSightings,PC->ReadOwnProgression(),DisplayDefinitions(),bClock,NowMs);
+    bReadModelLive|=Public.PublicMatch.GraffitiOwner.IsValid()&&Public.PublicMatch.CircleState==ELDCircleState::Guarded;
+    for(int32 RowIdx=0;RowIdx<TacticalScoreRows.Num();++RowIdx)
     {
-        // Without this match's scores there is no zero-filled table, only the syncing line.
-        const bool bLine=Lines.IsValidIndex(RowIdx);
-        HudSetShown(ScoreRows[RowIdx],bLine||(RowIdx==0&&Lines.IsEmpty()),ESlateVisibility::HitTestInvisible);
-        UTextBlock* Cells[4]={ScoreCells[RowIdx*4].Get(),ScoreCells[RowIdx*4+1].Get(),ScoreCells[RowIdx*4+2].Get(),ScoreCells[RowIdx*4+3].Get()};
+        FScoreRowWidgets& W=TacticalScoreRows[RowIdx];
+        const bool bLine=Rows.IsValidIndex(RowIdx);
+        HudSetShown(W.Row,bLine||(RowIdx==0&&Rows.IsEmpty()),ESlateVisibility::HitTestInvisible);
         if(!bLine)
         {
-            if(RowIdx==0){HudSetText(Cells[0],TEXT("统计同步中…"));for(int32 Col=1;Col<4;++Col){HudSetText(Cells[Col],FString());}}
+            if(RowIdx==0){HudSetText(W.Name,TEXT("战术数据同步中…"));HudSetText(W.Level,FString());HudSetText(W.KDA,FString());HudSetText(W.FinalMod,FString());}
             continue;
         }
-        const LDHUD::FScoreLine& Line=Lines[RowIdx];
-        // Every final mod is public in the final field: it follows its holder's name.
-        HudSetText(Cells[0],Public.PublicMatch.Showdown.bStarted
-            ?LDTerms::HolderWithMod(Line.Name,LDHUD::PublicFinalMod(Public.PublicMatch,Line.ContenderId,DisplayDefinitions())):Line.Name);HudSetText(Cells[1],FString::Printf(TEXT("%llu"),Line.Kills));
-        HudSetText(Cells[2],FString::Printf(TEXT("%llu"),Line.Deaths));HudSetText(Cells[3],FString::Printf(TEXT("%llu"),Line.Assists));
-        for(int32 Col=0;Col<4;++Col){Cells[Col]->SetColorAndOpacity(Line.bSelf?LDHUDStyle::TextAccent:LDHUDStyle::TextPrimary);}
+        const LDHUD::FTacticalScoreRow& R=Rows[RowIdx];
+        if(UBorder* Card=Cast<UBorder>(W.Row.Get()))
+        {
+            Card->SetBrush(HudRound(5.f,R.bSelf?LDHUDStyle::UIAction:FLinearColor(1,1,1,.08f),R.bSelf?1.6f:1.f));
+            Card->SetBrushColor(R.bSelf?FLinearColor(.06f,.13f,.18f,.88f):FLinearColor(.02f,.035f,.055f,.75f));
+        }
+        if(W.Portrait){W.Portrait->SetBrushColor(LDHUD::PaletteColor(R.Presentation));}
+        HudSetText(W.PortraitGlyph,R.Name.IsEmpty()?FString(TEXT("?")):R.Name.Left(1));
+        HudSetText(W.Name,R.bLeaderCrown?(R.Name+TEXT(" ♛热搜")):R.Name);
+        W.Name->SetColorAndOpacity(R.bLeaderCrown?LDHUDStyle::UIAction:R.bSelf?LDHUDStyle::TextAccent:LDHUDStyle::TextPrimary);
+        HudSetText(W.Level,R.LevelText);
+        W.Level->SetColorAndOpacity(R.bSelf?LDHUDStyle::TextAccent:LDHUDStyle::TextPrimary);
+        if(W.GraffitiBar){W.GraffitiBar->SetPercent(R.GraffitiFraction);}
+        HudSetText(W.GraffitiText,R.GraffitiText);
+        HudSetText(W.KDA,FString::Printf(TEXT("%llu / %llu / %llu"),R.Kills,R.Deaths,R.Assists));
+        W.KDA->SetColorAndOpacity(R.bSelf?LDHUDStyle::TextAccent:LDHUDStyle::TextPrimary);
+        for(int32 S=0;S<3;++S)
+        {
+            const bool bKnown=!R.ActiveIcons[S].IsEmpty()||!R.ActiveNames[S].IsEmpty();
+            const bool bPic=bKnown&&LDUIIcons::Apply(W.SkillIcons[S],R.ActiveIcons[S],4.f);
+            HudSetShown(W.SkillIcons[S],bPic,ESlateVisibility::HitTestInvisible);
+            HudSetText(W.SkillGlyphs[S],bPic?FString():(bKnown?R.ActiveNames[S].Left(1):FString(TEXT("?"))));
+            HudSetShown(W.SkillGlyphs[S],!bPic,ESlateVisibility::HitTestInvisible);
+            if(W.SkillFrames[S])
+            {
+                W.SkillFrames[S]->SetBrush(HudRound(4.f,bKnown?LDHUDStyle::RewardActiveRim.CopyWithNewOpacity(.75f):LDHUDStyle::PanelRim,1.f));
+            }
+        }
+        HudSetText(W.FinalMod,R.FinalModText.IsEmpty()?FString(TEXT("—")):R.FinalModText);
     }
 }
 void ULDHUD::RefreshEventFeed(const ALDGameState& Public,const FLDOwnerState& Own,const FLDDemoContentDefinitions* Content,bool bClock,int64 NowMs)
@@ -3321,9 +3862,91 @@ int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRec
 void ULDHUD::PaintWorldPreviews(const FGeometry& G,FSlateWindowElementList& E,int32 Layer) const
 {
     const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
-    if(!PC||!Band){return;}
-    auto Lines=[&](TArray<FVector2D> Points,FLinearColor Color,float Thickness=2.f){FSlateDrawElement::MakeLines(E,Layer,G.ToPaintGeometry(),Points,ESlateDrawEffect::None,Color,true,Thickness);};
-    auto Project=[&](FVector P,FVector2D& Out){FVector2D Screen;if(!PC->ProjectWorldLocationToScreen(P,Screen)){return false;}int32 W=0,H=0;PC->GetViewportSize(W,H);Out=Screen*G.GetLocalSize()/FVector2D(FMath::Max(1,W),FMath::Max(1,H));return true;};
+    if(bFrozenForTeardown||!PC||!Band){return;}
+    const FVector2D LocalSize=G.GetLocalSize();
+    if(LocalSize.X<=1.||LocalSize.Y<=1.){return;}
+    int32 ViewW=0,ViewH=0;PC->GetViewportSize(ViewW,ViewH);
+    const FVector2D ViewScale=LocalSize/FVector2D(FMath::Max(1,ViewW),FMath::Max(1,ViewH));
+    const FVector2D ClipMin(-8.,-8.),ClipMax(LocalSize.X+8.,LocalSize.Y+8.);
+    auto Lines=[&](const TArray<FVector2D>& Points,FLinearColor Color,float Thickness=2.f)
+    {
+        if(Points.Num()>=2){FSlateDrawElement::MakeLines(E,Layer,G.ToPaintGeometry(),Points,ESlateDrawEffect::None,Color,true,Thickness);}
+    };
+    auto Project=[&](const FVector& P,FVector2D& Out)
+    {
+        FVector2D Screen;
+        if(!PC->ProjectWorldLocationToScreen(P,Screen)){return false;}
+        Out=Screen*ViewScale;
+        return !Out.ContainsNaN();
+    };
+    // #335 §2.2: step along world segments every 50 cm and clip each projected sub-segment against the viewport so
+    // aiming toward screen edges or past the camera near plane never drops the visible in-screen half of the corridor.
+    auto DrawWorldSegment=[&](const FVector& WorldA,const FVector& WorldB,const FLinearColor& Color,float Thickness)
+    {
+        const double TotalCm=FVector::Dist(WorldA,WorldB);
+        const int32 Steps=FMath::Clamp(FMath::CeilToInt32(TotalCm/50.),1,64);
+        TArray<FVector2D> Run;
+        Run.Reserve(Steps+2);
+        for(int32 Step=0;Step<Steps;++Step)
+        {
+            const FVector SubA=FMath::Lerp(WorldA,WorldB,double(Step)/double(Steps));
+            const FVector SubB=FMath::Lerp(WorldA,WorldB,double(Step+1)/double(Steps));
+            FVector2D SA,SB;
+            if(!Project(SubA,SA)||!Project(SubB,SB))
+            {
+                if(Run.Num()>=2){Lines(Run,Color,Thickness);}
+                Run.Reset();
+                continue;
+            }
+            if(!LDOrderRules::ClipViewportSegment(SA,SB,ClipMin,ClipMax))
+            {
+                if(Run.Num()>=2){Lines(Run,Color,Thickness);}
+                Run.Reset();
+                continue;
+            }
+            if(Run.IsEmpty()||FVector2D::DistSquared(Run.Last(),SA)>1.5)
+            {
+                if(Run.Num()>=2){Lines(Run,Color,Thickness);}
+                Run.Reset();
+                Run.Add(SA);
+            }
+            Run.Add(SB);
+        }
+        if(Run.Num()>=2){Lines(Run,Color,Thickness);}
+    };
+    auto RangeRing=[&](const FVector& Centre,float RadiusCm,const FLinearColor& Color,float Thickness)
+    {
+        if(!(RadiusCm>1.f)){return;}
+        const int32 Segs=FMath::Clamp(FMath::CeilToInt32((2.*UE_DOUBLE_PI*double(RadiusCm))/50.),24,96);
+        TArray<FVector2D> Run;
+        Run.Reserve(Segs+2);
+        for(int32 Step=0;Step<Segs;++Step)
+        {
+            const double A0=UE_DOUBLE_TWO_PI*double(Step)/double(Segs);
+            const double A1=UE_DOUBLE_TWO_PI*double(Step+1)/double(Segs);
+            FVector2D SA,SB;
+            if(!Project(Centre+FVector(FMath::Cos(A0)*RadiusCm,FMath::Sin(A0)*RadiusCm,4.f),SA)
+                ||!Project(Centre+FVector(FMath::Cos(A1)*RadiusCm,FMath::Sin(A1)*RadiusCm,4.f),SB)
+                ||!LDOrderRules::ClipViewportSegment(SA,SB,ClipMin,ClipMax))
+            {
+                if(Run.Num()>=2){Lines(Run,Color,Thickness);}
+                Run.Reset();
+                continue;
+            }
+            if(Run.IsEmpty()||FVector2D::DistSquared(Run.Last(),SA)>1.5)
+            {
+                if(Run.Num()>=2){Lines(Run,Color,Thickness);}
+                Run.Reset();
+                Run.Add(SA);
+            }
+            Run.Add(SB);
+        }
+        if(Run.Num()>=2){Lines(Run,Color,Thickness);}
+    };
+    auto RationalCm=[](const FLDDemoRational& R)->double
+    {
+        return R.Denominator>0?double(R.Denominator?double(R.Numerator)/double(R.Denominator):0.):0.;
+    };
     // #331: PK spectator throw aim draws a 120cm orange-yellow dashed circle + center reticle at the cursor's ground hit.
     if(bPKThrowArmed&&!PC->IsWorldInputSuppressed()&&PC->Navigation)
     {
@@ -3337,78 +3960,133 @@ void ULDHUD::PaintWorldPreviews(const FGeometry& G,FSlateWindowElementList& E,in
             {
                 const float A0=2.f*PI*(float(Dash)/float(DashCount));
                 const float A1=2.f*PI*((float(Dash)+.62f)/float(DashCount));
-                FVector2D P0,P1;
-                if(Project(ThrowGround.ImpactPoint+FVector(FMath::Cos(A0)*ThrowRadiusCm,FMath::Sin(A0)*ThrowRadiusCm,4.f),P0)
-                    &&Project(ThrowGround.ImpactPoint+FVector(FMath::Cos(A1)*ThrowRadiusCm,FMath::Sin(A1)*ThrowRadiusCm,4.f),P1))
-                {
-                    Lines({P0,P1},ThrowColor,2.5f);
-                }
+                DrawWorldSegment(ThrowGround.ImpactPoint+FVector(FMath::Cos(A0)*ThrowRadiusCm,FMath::Sin(A0)*ThrowRadiusCm,4.f),
+                    ThrowGround.ImpactPoint+FVector(FMath::Cos(A1)*ThrowRadiusCm,FMath::Sin(A1)*ThrowRadiusCm,4.f),ThrowColor,2.5f);
             }
-            FVector2D C0,C1,C2,C3;
-            if(Project(ThrowGround.ImpactPoint+FVector(-18.f,0,4.f),C0)&&Project(ThrowGround.ImpactPoint+FVector(18.f,0,4.f),C1)
-                &&Project(ThrowGround.ImpactPoint+FVector(0,-18.f,4.f),C2)&&Project(ThrowGround.ImpactPoint+FVector(0,18.f,4.f),C3))
-            {
-                Lines({C0,C1},ThrowColor,2.f);
-                Lines({C2,C3},ThrowColor,2.f);
-            }
+            DrawWorldSegment(ThrowGround.ImpactPoint+FVector(-18.f,0,4.f),ThrowGround.ImpactPoint+FVector(18.f,0,4.f),ThrowColor,2.f);
+            DrawWorldSegment(ThrowGround.ImpactPoint+FVector(0,-18.f,4.f),ThrowGround.ImpactPoint+FVector(0,18.f,4.f),ThrowColor,2.f);
         }
     }
     if(!PC->CanWorldCommand()){return;}
-    // The inspected unit is marked only by the selection ring under its feet; the HUD draws no bracket over it.
-    // Armed preview (MOVEMENT_INPUT_AND_CAMERA ability targets): the own range ring around the feet, and for direction forms the direction from the
-    // feet toward the cursor. Local presentation only; the server re-checks range, direction and target on confirm.
     ELDCombatEntry Armed=ELDCombatEntry::None;
     const bool bArmedEntry=PC->ReadArmedCombatEntry(Armed);
     const auto* Self=Cast<ALDCharacter>(PC->GetPawn());
-    auto RangeRing=[&](const FVector& Feet,float RangeCm,const FLinearColor& Color,float Thickness)
-    {
-        TArray<FVector2D> Ring;
-        for(int32 Step=0;Step<=64;++Step)
-        {
-            const float Angle=2.f*PI*Step/64.f;FVector2D Point;
-            if(!Project(Feet+FVector(FMath::Cos(Angle)*RangeCm,FMath::Sin(Angle)*RangeCm,0),Point)){return;}
-            Ring.Add(Point);
-        }
-        Lines(Ring,Color,Thickness);
-    };
     const FLDOwnerState& Own=PC->OwnerState;
     const bool bOwnCombat=Self&&Own.Life!=0&&PC->CombatView.bHasBody&&PC->CombatView.Generation==Own.Match&&PC->CombatView.Life==Own.Life;
     if(bOwnCombat&&!bArmedEntry&&!PC->IsAttackMoveArmed()&&PC->CombatView.AttackRangeCm>0)
     {
-        // A faint standing ring of the own basic attack reach (the projected attack range, so range growth shows at once).
         const FVector Feet=Self->PresentedLocation()-FVector(0,0,Self->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
         RangeRing(Feet,PC->CombatView.AttackRangeCm,FLinearColor(1.f,1.f,1.f,.22f),1.2f);
     }
     if(Self&&(bArmedEntry||PC->IsAttackMoveArmed()))
     {
-        float RangeCm=0, ConeDegrees=0;bool bDirection=false,bUnitTarget=false,bPoint=false;
+        float RangeCm=0.f,ConeDegrees=0.f,HalfWidthCm=0.f;
+        bool bDirection=false,bUnitTarget=false,bPoint=false,bCorridor=false;
+        ELDDemoSkillElement SkillElem=ELDDemoSkillElement::None;
+        TArray<float,TInlineAllocator<4>> EndpointRadiiCm;
+        const FLDCombatEntryView* Source=nullptr;
         if(bArmedEntry)
         {
-            const FLDCombatEntryView* Source=PC->CombatView.Entries.FindByPredicate([Armed](const FLDCombatEntryView& Candidate){return Candidate.Entry==Armed;});
+            Source=PC->CombatView.Entries.FindByPredicate([Armed](const FLDCombatEntryView& Candidate){return Candidate.Entry==Armed;});
             RangeCm=Source?float(Source->RangeCm):0.f;
-            bDirection=Source&&(Source->TargetMode==uint8(ELDDemoTargetMode::DirectionProjectile)
-                ||Source->TargetMode==uint8(ELDDemoTargetMode::DirectionDash)||Source->TargetMode==uint8(ELDDemoTargetMode::DirectionCone)
-                ||Source->TargetMode==uint8(ELDDemoTargetMode::DirectionLine));
-            bUnitTarget=Source&&Source->TargetMode==uint8(ELDDemoTargetMode::Unit);
-            // A ground point previews where the zone would sit: the pointer, clamped to the reach.
-            bPoint=Source&&Source->TargetMode==uint8(ELDDemoTargetMode::GroundPoint);bDirection|=bPoint;
-            if (Source && Source->TargetMode==uint8(ELDDemoTargetMode::DirectionCone) && DisplayContent)
+            const ELDDemoTargetMode TargetMode=Source?ELDDemoTargetMode(Source->TargetMode):ELDDemoTargetMode::Self;
+            bDirection=Source&&(TargetMode==ELDDemoTargetMode::DirectionProjectile||TargetMode==ELDDemoTargetMode::DirectionDash
+                ||TargetMode==ELDDemoTargetMode::DirectionCone||TargetMode==ELDDemoTargetMode::DirectionLine);
+            bCorridor=Source&&(TargetMode==ELDDemoTargetMode::DirectionProjectile||TargetMode==ELDDemoTargetMode::DirectionDash
+                ||TargetMode==ELDDemoTargetMode::DirectionLine);
+            bUnitTarget=Source&&TargetMode==ELDDemoTargetMode::Unit;
+            bPoint=Source&&TargetMode==ELDDemoTargetMode::GroundPoint;
+            bDirection|=bPoint;
+            if(Source&&DisplayContent)
             {
-                const auto* Ability=DisplayContent->Get().Abilities.FindByPredicate([Source](const auto& Row)
-                { return Row.Id==Source->DefinitionId.ToString(); });
-                if (Ability && Ability->Target.AngleDegrees.Denominator>0)
-                { ConeDegrees=float(double(Ability->Target.AngleDegrees.Numerator)/Ability->Target.AngleDegrees.Denominator); }
+                const FLDDemoContentDefinitions& Content=DisplayContent->Get();
+                const FLDDemoAbilityDefinition* Ability=Content.Abilities.FindByPredicate([Source](const auto& Row)
+                {return Row.Id==Source->DefinitionId.ToString();});
+                if(Ability)
+                {
+                    ELDSkillBranch ActivePath=ELDSkillBranch::None;
+                    for(const FLDActiveSlotView& Learned:Own.Growth.Progression.Actives)
+                    {
+                        if(Learned.DefinitionId==Source->DefinitionId){ActivePath=Learned.Branch;break;}
+                    }
+                    const FLDDemoAbilityBranch* Branch=ActivePath!=ELDSkillBranch::None
+                        ?Ability->Branches.FindByPredicate([ActivePath](const FLDDemoAbilityBranch& B){return B.Path==ActivePath;}):nullptr;
+                    const FLDDemoTargetDefinition& TargetDef=Branch?Branch->Target:Ability->Target;
+                    SkillElem=(Branch&&Branch->Element!=ELDDemoSkillElement::None)?Branch->Element:Ability->Element;
+                    if(TargetMode==ELDDemoTargetMode::DirectionCone)
+                    {
+                        ConeDegrees=float(RationalCm(TargetDef.AngleDegrees));
+                    }
+                    else if(TargetMode==ELDDemoTargetMode::DirectionProjectile)
+                    {
+                        HalfWidthCm=float(RationalCm(TargetDef.ProjectileRadiusCm));
+                        if(HalfWidthCm<=0.f){HalfWidthCm=36.f;}
+                    }
+                    else if(TargetMode==ELDDemoTargetMode::DirectionLine)
+                    {
+                        HalfWidthCm=float(RationalCm(TargetDef.LineHalfWidthCm));
+                        if(HalfWidthCm<=0.f){HalfWidthCm=45.f;}
+                    }
+                    else if(TargetMode==ELDDemoTargetMode::DirectionDash)
+                    {
+                        HalfWidthCm=float(Self->GetCapsuleComponent()->GetScaledCapsuleRadius());
+                    }
+                    const TArray<FLDDemoEffectDefinition>& Effects=Branch?Branch->Values.Effects:Ability->Values.Effects;
+                    auto PushRadius=[&EndpointRadiiCm](double R)
+                    {
+                        if(R>8.)
+                        {
+                            const float Rf=float(R);
+                            if(!EndpointRadiiCm.ContainsByPredicate([Rf](float Existing){return FMath::Abs(Existing-Rf)<2.f;}))
+                            {
+                                EndpointRadiiCm.Add(Rf);
+                            }
+                        }
+                    };
+                    for(const FLDDemoEffectDefinition& Ef:Effects)
+                    {
+                        if(Ef.GroundKind!=0)
+                        {
+                            const FLDDemoGroundParameters& GP=Content.Parameters.Ground;
+                            double BaseR=0.;
+                            switch(Ef.GroundKind)
+                            {
+                            case 1: BaseR=RationalCm(GP.PuddleRadiusCm); break;
+                            case 2: BaseR=RationalCm(GP.IceRadiusCm); break;
+                            case 3: BaseR=RationalCm(GP.FireRadiusCm); break;
+                            case 4: BaseR=RationalCm(GP.MiasmaRadiusCm); break;
+                            case 5: BaseR=RationalCm(GP.FieldRadiusCm); break;
+                            default: break;
+                            }
+                            if(Ef.RatioBp>0){BaseR=BaseR*double(Ef.RatioBp)/10000.;}
+                            PushRadius(BaseR);
+                        }
+                        const double DirectR=RationalCm(Ef.RadiusCm);
+                        if(DirectR>0.&&(bPoint||TargetMode==ELDDemoTargetMode::DirectionProjectile||TargetMode==ELDDemoTargetMode::DirectionDash))
+                        {
+                            PushRadius(DirectR);
+                        }
+                    }
+                    EndpointRadiiCm.Sort();
+                }
             }
+            if(bCorridor&&HalfWidthCm<=0.f){HalfWidthCm=32.f;}
         }
         else{RangeCm=PC->CombatView.AttackRangeCm;bUnitTarget=true;}
         const FVector AuthorityFeet=Self->GetActorLocation()-FVector(0,0,Self->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
         const FVector Feet=Self->PresentedLocation()-FVector(0,0,Self->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
-        FLinearColor Preview(1,.85f,.45f,.9f);
+        FLinearColor Preview=.9f*FLinearColor(.36f,.84f,.98f,1.f);
+        switch(SkillElem)
+        {
+        case ELDDemoSkillElement::Rot:   Preview=FLinearColor(122.f/255.f,217.f/255.f,58.f/255.f,.82f); break;
+        case ELDDemoSkillElement::Fire:  Preview=FLinearColor(1.f,.45f,.16f,.85f); break;
+        case ELDDemoSkillElement::Water: Preview=FLinearColor(.24f,.68f,1.f,.85f); break;
+        case ELDDemoSkillElement::Shock: Preview=FLinearColor(1.f,.88f,.24f,.88f); break;
+        case ELDDemoSkillElement::Chill: Preview=FLinearColor(.52f,.88f,1.f,.85f); break;
+        default: Preview=bArmedEntry?FLinearColor(.36f,.84f,.98f,.85f):FLinearColor(1.f,.85f,.45f,.9f); break;
+        }
         if(bUnitTarget&&RangeCm>0)
         {
-            // The unit the pointer would pick (the same selection as a click), from the current authorized frame only, turns
-            // the range ring green when its feet are within the server's foot-to-foot range and red otherwise; the unit
-            // itself gets no frame (its hover ring already marks it).
             FGuid Handle;uint32 Epoch=0;FLDObservedUnitView Hovered;
             const ALDWorldViewRelay* Relay=PC->LocalView();
             if(PC->ObservedUnderPointer(Handle,Epoch)&&Relay&&Relay->ReadUnit(Handle,Epoch,Hovered))
@@ -3417,37 +4095,54 @@ void ULDHUD::PaintWorldPreviews(const FGeometry& G,FSlateWindowElementList& E,in
                 Preview=bInRange?FLinearColor(.35f,1.f,.45f,.95f):FLinearColor(1.f,.35f,.3f,.95f);
             }
         }
-        if(RangeCm>0){RangeRing(Feet,RangeCm,Preview,1.5f);}
-        FHitResult GroundHit;
-        if(bDirection&&PC->Navigation&&PC->Navigation->GroundUnderPointer(GroundHit))
+        if(RangeCm>0){RangeRing(Feet,RangeCm,Preview.CopyWithNewOpacity(.55f),1.5f);}
+        FVector AimWorldPoint=FVector::ZeroVector;
+        if(bDirection&&PC->Navigation&&PC->Navigation->AimPointAtElevation(AuthorityFeet.Z,AimWorldPoint))
         {
-            // Aimed as ConfirmArmedCombat submits it (capsule feet to the pointer's ground hit), drawn from the shown feet;
-            // only the planar direction is previewed, at the entry's range when known.
-            FVector Planar=GroundHit.ImpactPoint-AuthorityFeet;Planar.Z=0;
-            if(!Planar.IsNearlyZero())
+            const FVector Dir=LDOrderRules::ResolveElevationAimDirection(AuthorityFeet,AimWorldPoint,Self->GetActorForwardVector());
+            const double AimDist=FVector::Dist2D(AimWorldPoint,AuthorityFeet);
+            const double ReachCm=RangeCm>0.f?(bPoint?FMath::Min(double(RangeCm),AimDist):double(RangeCm)):AimDist;
+            const FVector Start=Feet+FVector(0,0,4.f);
+            const FVector End=Start+Dir*ReachCm;
+            if(bCorridor&&HalfWidthCm>0.f&&ReachCm>20.)
             {
-                const FVector End=Feet+(RangeCm>0?Planar.GetSafeNormal()*(bPoint?FMath::Min(double(RangeCm),Planar.Size()):double(RangeCm)):Planar);
-                FVector2D From,To;
-                if(Project(Feet,From)&&Project(End,To)){Lines({From,To},Preview,3.f);}
-                if (ConeDegrees>0 && RangeCm>0)
+                const FVector Right(-Dir.Y,Dir.X,0.);
+                const double HeadBack=FMath::Min(52.,ReachCm*.28);
+                const FVector Neck=End-Dir*HeadBack;
+                DrawWorldSegment(Start+Right*HalfWidthCm,Neck+Right*HalfWidthCm,Preview,2.2f);
+                DrawWorldSegment(Start-Right*HalfWidthCm,Neck-Right*HalfWidthCm,Preview,2.2f);
+                DrawWorldSegment(Start,End,Preview.CopyWithNewOpacity(Preview.A*.42f),1.4f);
+                const double Wing=HalfWidthCm*1.28;
+                DrawWorldSegment(Neck+Right*Wing,End,Preview,2.6f);
+                DrawWorldSegment(Neck-Right*Wing,End,Preview,2.6f);
+                DrawWorldSegment(Neck+Right*HalfWidthCm,Neck+Right*Wing,Preview,2.f);
+                DrawWorldSegment(Neck-Right*HalfWidthCm,Neck-Right*Wing,Preview,2.f);
+            }
+            else if(!bPoint)
+            {
+                DrawWorldSegment(Start,End,Preview,2.6f);
+            }
+            if(ConeDegrees>0.f&&RangeCm>0.f)
+            {
+                const double Heading=FMath::Atan2(Dir.Y,Dir.X);
+                const double Half=FMath::DegreesToRadians(double(ConeDegrees)*.5);
+                DrawWorldSegment(Start,Start+FVector(FMath::Cos(Heading-Half)*RangeCm,FMath::Sin(Heading-Half)*RangeCm,0.),Preview,2.2f);
+                DrawWorldSegment(Start,Start+FVector(FMath::Cos(Heading+Half)*RangeCm,FMath::Sin(Heading+Half)*RangeCm,0.),Preview,2.2f);
+                for(int32 Step=0;Step<24;++Step)
                 {
-                    TArray<FVector2D> Fan;
-                    FVector2D Start;
-                    if (Project(Feet,Start))
-                    {
-                        Fan.Add(Start);
-                        const double Heading=FMath::Atan2(Planar.Y,Planar.X);
-                        const double Half=FMath::DegreesToRadians(double(ConeDegrees)*.5);
-                        for (int32 Step=0;Step<=24;++Step)
-                        {
-                            const double Angle=Heading-Half+2.*Half*Step/24.;
-                            FVector2D Edge;
-                            if (Project(Feet+FVector(FMath::Cos(Angle)*RangeCm,FMath::Sin(Angle)*RangeCm,0),Edge)) { Fan.Add(Edge); }
-                        }
-                        Fan.Add(Start);
-                        Lines(Fan,Preview,2.f);
-                    }
+                    const double A0=Heading-Half+2.*Half*double(Step)/24.;
+                    const double A1=Heading-Half+2.*Half*double(Step+1)/24.;
+                    DrawWorldSegment(Start+FVector(FMath::Cos(A0)*RangeCm,FMath::Sin(A0)*RangeCm,0.),
+                        Start+FVector(FMath::Cos(A1)*RangeCm,FMath::Sin(A1)*RangeCm,0.),Preview,2.2f);
                 }
+            }
+            for(int32 RIdx=0;RIdx<EndpointRadiiCm.Num();++RIdx)
+            {
+                const bool bInnerSweetSpot=EndpointRadiiCm.Num()>1&&RIdx==0;
+                const FLinearColor RingTint=bInnerSweetSpot
+                    ?FLinearColor(FMath::Min(1.f,Preview.R+.18f),FMath::Min(1.f,Preview.G+.18f),FMath::Min(1.f,Preview.B+.12f),.95f)
+                    :Preview;
+                RangeRing(End-FVector(0,0,4.f),EndpointRadiiCm[RIdx],RingTint,bInnerSweetSpot?2.4f:2.0f);
             }
         }
     }

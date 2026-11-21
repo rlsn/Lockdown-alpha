@@ -490,7 +490,7 @@ void ULDUIRoot::BuildWorld(UCanvasPanel& Canvas)
     LobbyPage=MakePage(Canvas,860,Lobby);
     LobbyPage->SetVisibility(ESlateVisibility::Collapsed);
     Add(Lobby,Label(TEXT("房间"),LDHUDStyle::TypePage,LDHUDStyle::MenuTitle),6);
-    Add(Lobby,Label(TEXT("所有真人准备后，由房主开始对局。"),LDHUDStyle::TypeText,LDHUDStyle::MenuMuted),2);
+    Add(Lobby,Label(TEXT("房主免准备；所有客机准备后，由房主直接开始对局。"),LDHUDStyle::TypeText,LDHUDStyle::MenuMuted),2);
     RoomAddressRow=WidgetTree->ConstructWidget<UHorizontalBox>();
     Add(Lobby,RoomAddressRow,4);
     RoomAddressLabel=Label(FString(),LDHUDStyle::TypeBody,LDHUDStyle::MenuSection);
@@ -898,15 +898,45 @@ void ULDUIRoot::RefreshLobby(const ALDPlayerController& PC,const ALDGameState& P
         :FString(Lobby.DevTestSession?TEXT("测试模式房间：对局中可用“测试”面板改自己的状态"):TEXT("开发房间"))
         +(Lobby.DevContentReload?TEXT(" · 内容热重载：只接受房主与 AI"):TEXT(""))+TEXT("；结果不算无作弊对局。"));
     StartMatchButton->SetVisibility(bHost?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
-    if(UWidget* StartWrap=StartMatchButton->GetParent()){StartWrap->SetVisibility(bHost?ESlateVisibility::SelfHitTestInvisible:ESlateVisibility::Collapsed);}
+    if(UWidget* StartWrap=StartMatchButton->GetParent())
+    {
+        StartWrap->SetVisibility(bHost?ESlateVisibility::SelfHitTestInvisible:ESlateVisibility::Collapsed);
+        if(auto* StartSlot=Cast<UHorizontalBoxSlot>(StartWrap->Slot)){StartSlot->SetPadding(FMargin(bHost?0.f:8.f,0,0,0));}
+    }
     StartMatchButton->SetIsEnabled(bCurrent&&Lobby.CanStart);
     const bool bCanStart=bHost&&bCurrent&&Lobby.CanStart;
     const LDUIPaint::EButton StartLook=bCanStart?LDUIPaint::EButton::Primary:LDUIPaint::EButton::Normal;
     if(StartMatchButton->Look!=StartLook){LDWidgets::SetLook(StartMatchButton,StartLook);}
     StartMatchGlow->SetVisibility(bCanStart?ESlateVisibility::HitTestInvisible:ESlateVisibility::Collapsed);
-    ReadyButton->SetIsEnabled(bOwnerCurrent);
-    SetLine(CastChecked<UTextBlock>(ReadyButton->GetContent()),Mine.bReady?TEXT("取消准备"):TEXT("准备"));
-    SetLine(LobbyBlocker,!bCurrent||Lobby.CanStart||Lobby.StartBlocker.IsEmpty()?FString():TEXT("暂不能开始：")+Lobby.StartBlocker);
+    // #337 §4: hide ReadyButton for the Host; only guests see Ready / Cancel Ready.
+    ReadyButton->SetVisibility(!bHost?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
+    ReadyButton->SetIsEnabled(bOwnerCurrent&&!bHost);
+    if(UTextBlock* ReadyCap=Cast<UTextBlock>(ReadyButton->GetContent()))
+    {
+        SetLine(ReadyCap,Mine.bReady?TEXT("取消准备"):TEXT("准备"));
+    }
+    int32 GuestTotal=0,GuestReady=0;
+    for(const FLDLobbyMember& Member:Lobby.Members)
+    {
+        if(Member.Kind==ELDContenderKind::Human&&!Member.Host)
+        {
+            ++GuestTotal;
+            if(Member.Ready){++GuestReady;}
+        }
+    }
+    FString BlockerLine;
+    if(bCurrent&&!Lobby.CanStart)
+    {
+        if(bHost&&GuestTotal>0&&GuestReady<GuestTotal)
+        {
+            BlockerLine=FString::Printf(TEXT("等待其他玩家准备 (%d/%d)"),GuestReady,GuestTotal);
+        }
+        else if(!Lobby.StartBlocker.IsEmpty())
+        {
+            BlockerLine=TEXT("暂不能开始：")+Lobby.StartBlocker;
+        }
+    }
+    SetLine(LobbyBlocker,BlockerLine);
     SetLine(LobbyFeedback,!PC.IntentFeedback.IsEmpty()?PC.IntentFeedback:CopiedAddressFeedback);
 }
 

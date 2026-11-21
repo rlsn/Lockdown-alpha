@@ -88,7 +88,8 @@ void ALDPlayerController::PawnLeavingGame()
 void ALDPlayerController::InitializeLocalUI()
 {
     if (!IsLocalController() || !GetLocalPlayer() || RootUI) { return; }
-    auto* Instance=CastChecked<ULDGameInstance>(GetGameInstance());
+    auto* Instance=Cast<ULDGameInstance>(GetGameInstance());
+    if (!Instance) { return; }
     // A room this client already leaves for a refusal or a closed room gets no room UI: building it would mark that
     // reason as already seen, and the frontend would show none.
     if (Instance->IsLeavingWorld(GetWorld())) { return; }

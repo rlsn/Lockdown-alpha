@@ -56,6 +56,8 @@ public:
     bool PointerPosition(FVector2D& Out) const;
     // The ground under the pointer on the world-click channel.
     bool GroundUnderPointer(FHitResult& Out) const;
+    // #335 §1.2: pure ray-plane intersection of the cursor ray with Z = PlaneZ (e.g. CasterFeet.Z), immune to walls/roofs.
+    bool AimPointAtElevation(double PlaneZ, FVector& OutWorldPoint) const;
     // The visible unit a right click would attack now (the hover ring and attack cursor); false when none.
     bool ReadHovered(FGuid& OutHandle, uint32& OutEpoch) const;
     // DEV scenarios (WITH_DEV_AUTOMATION_TESTS) stand in for the mouse; an empty value restores it. Inert otherwise.
@@ -261,6 +263,11 @@ private:
     FGuid Hovered;
     uint32 HoveredEpoch=0;
     FVector HeldPoint=FVector::ZeroVector;
+    double LastClickMoveSentAt=-1.;
+    FVector LastClickMoveGoalCm=FVector::ZeroVector;
+    double LastCursorProbeAt=-1.;
+    FVector2D LastCursorProbePx=FVector2D(-1000.,-1000.);
+    bool bCursorGroundBlocked=false;
     double HeldSentAt=0;
     bool bHeldMove=false;
     // The casts sent while the move button was held: the held move waits until the latest cast order ended and every one

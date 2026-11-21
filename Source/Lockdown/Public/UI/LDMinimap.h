@@ -72,7 +72,9 @@ public:
     // Fraction is of the widget area and goes through the same view as the painted map, then the ground clamp.
     bool Gesture(FVector2D Fraction,bool Move);
     bool IsDragging() const {return bDragging;}
+    void FreezeForWorldTeardown();
     virtual void NativeTick(const FGeometry& Geometry,float Delta) override;
+    virtual void NativeDestruct() override;
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual int32 NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,const FSlateRect& Culling,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle& Style,bool Enabled) const override;
@@ -82,6 +84,7 @@ protected:
     virtual void NativeOnMouseCaptureLost(const FCaptureLostEvent& Event) override;
 private:
     bool bDragging=false;
+    bool bFrozenForTeardown=false;
     // Owner match/life at drag start: a new life ends the drag so its camera is not overridden by an old gesture.
     uint32 DragMatch=0,DragLife=0;
     // Local size of the last tick or pointer event; a gesture's view is built for it.

@@ -162,9 +162,12 @@ void ALDPlayerController::RebuildV05Mappings()
 
 void ALDPlayerController::UpdateV05Inputs(float Delta)
 {
+    UWorld* World=GetWorld();
+    auto* Instance=Cast<ULDGameInstance>(GetGameInstance());
+    if (!World || World->bIsTearingDown || !Instance || Instance->IsLeavingWorld(World)) { return; }
     if (!IsLocalController() || !GetLocalPlayer() || (!Navigation->Enabled() && !IsFrontend())) { return; }
-    if (!Controls) { Controls=CastChecked<ULDGameInstance>(GetGameInstance())->GetLocalControlSettings(); }
-    if (!Controls) { IntentFeedback=CastChecked<ULDGameInstance>(GetGameInstance())->GetLocalSettingsMessage(); return; }
+    if (!Controls) { Controls=Instance->GetLocalControlSettings(); }
+    if (!Controls) { IntentFeedback=Instance->GetLocalSettingsMessage(); return; }
     if (Navigation->Enabled() && !IsFrontend() && !HUDUI)
     {
         HUDUI=CreateWidget<ULDHUD>(this);
@@ -182,13 +185,8 @@ void ALDPlayerController::UpdateV05Inputs(float Delta)
         PreferencesPawn=GetPawn();
         if (auto* Body=Cast<ALDCharacter>(GetPawn())) { Body->CameraArm->TargetArmLength=Controls->Zoom; }
     }
-    FLDObservedUnitView Selected;
-    if (Inspected.IsValid() && !ReadInspected(Selected))
-    {
-        Inspected.Invalidate();
-        InspectedEpoch=0;
-        PostIntentNotice(TEXT("目标已不可见"));
-    }
+    // #328 §4.2 & §4.3: losing sight of the inspected target no longer clears Inspected immediately or spams "目标已不可见";
+    // ULDHUD retains a 2.5s 55%-alpha snapshot on TargetCard and auto-resumes if sight returns inside that window.
     // The read model is sampled at most LDHUD::ReadModelHz times a second, not once per rendered frame, and a sample
     // rebuilds only when an input changed or something on screen moves (LDHUD::FReadModelGate). A long gap restarts the
     // cadence.
@@ -206,8 +204,10 @@ void ALDPlayerController::ToggleControlsPanel()
 {
     if (ControlsUI && ControlsUI->IsOpen()) { ControlsUI->Close(); return; }
     if (RootUI) { RootUI->DismissMenu(); }
-    if (!Controls) { Controls=CastChecked<ULDGameInstance>(GetGameInstance())->GetLocalControlSettings(); }
-    if (!Controls) { IntentFeedback=CastChecked<ULDGameInstance>(GetGameInstance())->GetLocalSettingsMessage(); return; }
+    auto* Instance=Cast<ULDGameInstance>(GetGameInstance());
+    if (!Instance) { return; }
+    if (!Controls) { Controls=Instance->GetLocalControlSettings(); }
+    if (!Controls) { IntentFeedback=Instance->GetLocalSettingsMessage(); return; }
     if (!ControlsUI)
     {
         ControlsUI=CreateWidget<ULDControlsPanel>(this);
@@ -264,7 +264,7 @@ void ALDPlayerController::V05Pressed(FName Action)
         if (Action==TEXT("Recenter")) { Navigation->Recenter(true); return; }
         Navigation->ToggleFollow();
         Controls->SetAppliedFollowing(Navigation->bFollowCamera);
-        CastChecked<ULDGameInstance>(GetGameInstance())->RequestLocalSettingsFlush();
+        if (auto* Instance=Cast<ULDGameInstance>(GetGameInstance())) { Instance->RequestLocalSettingsFlush(); }
         return;
     }
     // #198 PK spectators: an armed throw aim owns the next world click; the left button throws at the ground under the
@@ -329,7 +329,7 @@ void ALDPlayerController::V05Zoom(const FInputActionValue& Value)
     // The dead owner's static camera zooms the applied preference itself; the next body starts from it.
     FString Error;
     if (Controls->SetAppliedZoom(ALDCharacter::ZoomedArmLength(Controls->Zoom,Value.Get<float>()),Error))
-    { CastChecked<ULDGameInstance>(GetGameInstance())->RequestLocalSettingsFlush(); }
+    { if (auto* Instance=Cast<ULDGameInstance>(GetGameInstance())) { Instance->RequestLocalSettingsFlush(); } }
     else { IntentFeedback=Error; }
 }
 
@@ -363,7 +363,7 @@ void ALDPlayerController::RecordAppliedCameraZoom()
     if (!Body || !Controls) { return; }
     FString Error;
     if (Controls->SetAppliedZoom(Body->CameraArm->TargetArmLength,Error))
-    { CastChecked<ULDGameInstance>(GetGameInstance())->RequestLocalSettingsFlush(); }
+    { if (auto* Instance=Cast<ULDGameInstance>(GetGameInstance())) { Instance->RequestLocalSettingsFlush(); } }
     else { IntentFeedback=Error; }
 }
 

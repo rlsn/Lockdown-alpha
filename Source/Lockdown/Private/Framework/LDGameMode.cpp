@@ -252,6 +252,8 @@ void ALDGameMode::Logout(AController* Exiting)
 
 void ALDGameMode::CloseRoomForHostDeparture(const ALDPlayerController* Host)
 {
+    if (!LobbyHost.IsValid()) { return; }
+    UE_LOG(LogLDMatch,Display,TEXT("LD_DEMO_ROOM_CLOSED_BY_HOST generation=%u"),MatchContext.Generation);
     MatchPhase=ELDMatchPhase::Closing;
     if (GateRevision!=MAX_uint64) { ++GateRevision; }
     if (Vision) { Vision->EndMatch(); }
@@ -269,7 +271,6 @@ void ALDGameMode::HostWorldUnloading(const FWorldContext& Context,const FString&
     // connection, ahead of its close.
     const ALDPlayerController* Host=LobbyHost.Get();
     if (Context.World()!=GetWorld() || GetNetMode()!=NM_ListenServer || !Host || !Host->IsLocalController()) { return; }
-    UE_LOG(LogLDMatch,Display,TEXT("LD_DEMO_ROOM_CLOSED_BY_HOST generation=%u next=%s"),MatchContext.Generation,*Map);
     CloseRoomForHostDeparture(Host);
 }
 

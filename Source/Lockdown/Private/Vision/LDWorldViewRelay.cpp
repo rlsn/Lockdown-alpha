@@ -29,6 +29,7 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Engine/Level.h"
+#include "RenderingThread.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "Camera/PlayerCameraManager.h"
 
@@ -1122,8 +1123,20 @@ ALDWorldViewRelay::ALDWorldViewRelay()
     PrimaryActorTick.bCanEverTick = true;
 }
 
+void ALDWorldViewRelay::FreezeForWorldTeardown()
+{
+    bFrozenForTeardown = true;
+    bFogBlending = false;
+    SetActorTickEnabled(false);
+    if (FogTexture && FogTexture->GetResource())
+    {
+        FlushRenderingCommands();
+    }
+}
+
 void ALDWorldViewRelay::EndPlay(const EEndPlayReason::Type Reason)
 {
+    FreezeForWorldTeardown();
     TArray<FLDObservedClear> Cleared;
     Receiver.Reset(ELDObservedClearReason::Disconnected, Cleared);
     LastClears = Cleared;
@@ -1494,7 +1507,17 @@ void ALDWorldViewRelay::AttachFog()
         FogMaterial->SetScalarParameterValue(TEXT("CoverageOnly"), 1);
         FogMaterial->SetScalarParameterValue(TEXT("CoverageActive"), 0);
     }
-    Camera->PostProcessSettings.AddBlendable(FogMaterial, 1);
+        Camera->PostProcessSettings.bOverride_AutoExposureMethod = true;
+        Camera->PostProcessSettings.AutoExposureMethod = EAutoExposureMethod::AEM_Manual;
+        Camera->PostProcessSettings.bOverride_AutoExposureApplyPhysicalCameraExposure = true;
+        Camera->PostProcessSettings.AutoExposureApplyPhysicalCameraExposure = false;
+        Camera->PostProcessSettings.bOverride_AutoExposureBias = true;
+        Camera->PostProcessSettings.AutoExposureBias = 0.0f;
+        Camera->PostProcessSettings.bOverride_AutoExposureMinBrightness = true;
+        Camera->PostProcessSettings.bOverride_AutoExposureMaxBrightness = true;
+        Camera->PostProcessSettings.AutoExposureMinBrightness = 1.0f;
+        Camera->PostProcessSettings.AutoExposureMaxBrightness = 1.0f;
+        Camera->PostProcessSettings.AddBlendable(FogMaterial, 1);
     CameraOwner = Target;
     FogSerial = MAX_uint64;
     UploadFog();
@@ -1583,6 +1606,8 @@ void ALDWorldViewRelay::TrackOwnBody(const ALDPlayerController& Owning)
 void ALDWorldViewRelay::Tick(float Delta)
 {
     Super::Tick(Delta);
+    const UWorld* World = GetWorld();
+    if (bFrozenForTeardown || !World || World->bIsTearingDown) { return; }
     const auto* Owning = Cast<ALDPlayerController>(GetOwner());
     // Present only for this machine's real viewer: never for a server-side opponent or a remote client's server copy.
     if (!Owning || !Owning->GetLocalPlayer()) { return; }

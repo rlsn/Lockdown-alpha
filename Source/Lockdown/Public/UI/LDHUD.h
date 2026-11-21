@@ -96,6 +96,9 @@ public:
     void SampleReadModel();
     // Always rebuilds (probes that change what the HUD shows and read it back at once).
     void RefreshReadModel();
+    // #337 §1.2: immediately suspends HUD, Minimap and world-preview sampling/painting when the world begins leaving/teardown.
+    void FreezeForWorldTeardown();
+    bool IsFrozenForTeardown() const { return bFrozenForTeardown; }
     bool PointerOverUI() const;
     // Called by the hit-test-invisible world layer, below the HUD's panels.
     void PaintWorldPreviews(const FGeometry& Geometry,FSlateWindowElementList& Elements,int32 Layer) const;
@@ -156,6 +159,13 @@ protected:
 private:
     // #225 DEV probe reads the rendered HUD rows.
     friend class FLDDemoOpponentProbe;
+    bool bFrozenForTeardown=false;
+    UPROPERTY() TObjectPtr<UBorder> NetSpikePanel;
+    UPROPERTY() TObjectPtr<UTextBlock> NetSpikeText;
+    double NetSpikeTickAt=-1., NetSpikeBadSince=-1., NetSpikeGoodSince=-1.;
+    uint32 NetSpikeCorrections=0;
+    TWeakObjectPtr<class ALDCharacter> NetSpikeBody;
+    bool bNetSpikeShown=false, bNetSpikeLogged=false;
     UPROPERTY() TObjectPtr<UBorder> DiagnosticsPanel;
     UPROPERTY() TObjectPtr<UTextBlock> DiagnosticsText;
     LDHUD::FFrameDiagnostics FrameDiagnostics;
@@ -179,6 +189,14 @@ private:
     UPROPERTY() TArray<TObjectPtr<UImage>> TargetStatusIcons;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> TargetStatusGlyphs;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> TargetStatusStacks;
+    // #328 §4.3: 2.5s 55%-alpha lost-vision snapshot on TargetCard, seamlessly resuming if the contender re-enters sight.
+    LDHUD::FObservedCard LastTargetCard;
+    FString LastTargetRelation;
+    FGuid LastTargetHandle,LastTargetContenderId;
+    uint8 LastTargetCreatureId=0,LastTargetPresentation=0;
+    bool bLastTargetContender=false,bHasTargetSnapshot=false;
+    uint32 LastTargetMatch=0;
+    double LastTargetSeenAtSec=-10.;
     // The visible contender's Q/W/E icon tiles (#198: an active has one level); the name's first character shows when the
     // icon is missing, and the key and name are the tile's tooltip.
     UPROPERTY() TObjectPtr<UWidget> TargetActivesRow;
@@ -316,8 +334,26 @@ private:
     UPROPERTY() TObjectPtr<UBorder> EventFeedPanel;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> EventFeedRows;
     LDHUD::FEventFeed EventFeed;
-    // Hold-Tab scoreboard (LDHUD::Scoreboard), centred: one row per contender, four cells a row (name, K, D, A).
+    // #328 §4.4: 6-player hold-Tab tactical scoreboard (portrait, crown, last-seen level, graffiti bar, K/D/A, Q/W/E icons, final mod).
     UPROPERTY() TObjectPtr<UBorder> ScorePanel;
+    struct FScoreRowWidgets
+    {
+        TObjectPtr<UWidget> Row;
+        TObjectPtr<UBorder> Portrait;
+        TObjectPtr<UTextBlock> PortraitGlyph;
+        TObjectPtr<UTextBlock> Name;
+        TObjectPtr<UTextBlock> Level;
+        TObjectPtr<UProgressBar> GraffitiBar;
+        TObjectPtr<UTextBlock> GraffitiText;
+        TObjectPtr<UTextBlock> KDA;
+        TObjectPtr<UBorder> SkillFrames[3];
+        TObjectPtr<UImage> SkillIcons[3];
+        TObjectPtr<UTextBlock> SkillGlyphs[3];
+        TObjectPtr<UTextBlock> FinalMod;
+    };
+    TArray<FScoreRowWidgets> TacticalScoreRows;
+    TMap<FGuid,LDHUD::FTacticalSighting> ScoreSightings;
+    uint32 ScoreSightingsMatch=0;
     UPROPERTY() TArray<TObjectPtr<UWidget>> ScoreRows;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> ScoreCells;
     UPROPERTY() TObjectPtr<UBorder> ResultPanel;
@@ -419,11 +455,14 @@ private:
     UPROPERTY() TObjectPtr<UBorder> BodyPortrait;
     UPROPERTY() TObjectPtr<UTextBlock> BodyPortraitGlyph;
     UPROPERTY() TArray<FLDHUDActionSlot> ActionSlots;
-    // The hovered slot's full description, popped up above it like the blind-box descriptions; it takes no input.
+    // The hovered slot's full description (#328 §3 live skill tooltip + Alt/C expandable formula breakdown).
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> ActionDetailSlot;
     UPROPERTY() TObjectPtr<UTextBlock> ActionDetailName;
     UPROPERTY() TObjectPtr<UTextBlock> ActionDetailSummary;
     UPROPERTY() TObjectPtr<UTextBlock> ActionDetailBody;
+    UPROPERTY() TObjectPtr<UBorder> ActionFormulaPanel;
+    UPROPERTY() TObjectPtr<UTextBlock> ActionFormulaText;
+    UPROPERTY() TObjectPtr<UTextBlock> ActionDetailFooter;
     UPROPERTY() TMap<FName,TObjectPtr<ULDCommandButton>> Commands;
     // The 构筑 button in the bottom-right corner, with the card tray it toggles right above it: lit while anything is pending
     // (LDHUD::GrowthPending), greyed out otherwise, and pulsing for a few seconds after the opportunities or component choices
@@ -438,6 +477,35 @@ private:
     UPROPERTY() TArray<TObjectPtr<UBorder>> PromptBadges;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> PromptBadgeTexts;
     UPROPERTY() TArray<TObjectPtr<UCanvasPanelSlot>> PromptBadgeSlots;
+    UPROPERTY() TObjectPtr<UHorizontalBox> PromptCategoryRow;
+    UPROPERTY() TObjectPtr<UCanvasPanelSlot> PromptCategorySlot;
+    UPROPERTY() TArray<TObjectPtr<UBorder>> PromptCategoryBadges;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> PromptCategoryTexts;
+    // #328 §4.2: 3-channel non-clobbering notifications (Channel A: 0.9s slot/cursor reject micro-tip; Channel B: right-side
+    // max-3 3.5s loot/growth queue; Channel C: top-center broadcast / ToastPanel).
+    UPROPERTY() TObjectPtr<UBorder> SlotRejectPanel;
+    UPROPERTY() TObjectPtr<UTextBlock> SlotRejectText;
+    UPROPERTY() TObjectPtr<UCanvasPanelSlot> SlotRejectSlot;
+    double SlotRejectAt=-10.;
+    int32 SlotRejectIndex=INDEX_NONE;
+    FVector2D SlotRejectCursor=FVector2D::ZeroVector;
+    struct FLootNoticeEntry
+    {
+        FString Text;
+        uint8 Kind=0; // 0: skill (#F59E0B), 1: build card (#3B82F6), 2: element stone (#10B981), 3: chain/other
+        double At=0.;
+    };
+    TArray<FLootNoticeEntry> LootNotices;
+    UPROPERTY() TObjectPtr<UVerticalBox> LootQueueBox;
+    UPROPERTY() TObjectPtr<UCanvasPanelSlot> LootQueueSlot;
+    UPROPERTY() TArray<TObjectPtr<UBorder>> LootQueueCards;
+    UPROPERTY() TArray<TObjectPtr<UBorder>> LootQueueDots;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> LootQueueTexts;
+    uint32 LootSeenMatch=0;
+    TSet<FName> LootKnownBlueprints;
+    TSet<uint16> LootKnownCardSerials;
+    void PushSlotRejectTip(const FString& Text,int32 ActionSlotIndex=INDEX_NONE);
+    void PushLootNotice(const FString& Text,uint8 Kind);
     int32 PromptOffers=0;
     int32 PromptCardOffers=0;
     double PromptPulseAt=-1;

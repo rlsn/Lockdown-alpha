@@ -68,6 +68,34 @@ namespace LDWorldLabels
     // centred on CentreX; the first row's bottom edge rests on Bottom and further rows stack upward. In status order.
     LOCKDOWN_API TArray<FSlateRect> OwnStatusIconRects(int32 Count,float CentreX,float Bottom,float Side,float Gap,int32 PerRow);
 
+    // #328 §1.2: LoL-style segmented health tick marks (100 HP minor half-height switching to 250 HP at >= 3500 HP span,
+    // 1000 HP full-height 2px major dividers).
+    struct FBarTick
+    {
+        float X=0.f;
+        bool bMajor=false;
+    };
+    LOCKDOWN_API void BuildHealthTicks(int64 MaxHPP2,int64 CurrentHPP2,int64 ShieldP2,float BarWidth,TArray<FBarTick>& OutTicks);
+
+    // #328 §1.3-§1.4: per-unit local presentation state for 120ms white damage trail hold + 2.4x MaxHP/s smooth decay,
+    // 180ms heal flash, >=18% MaxHP / crit bar shake, and 240ms 6-shard shield shatter.
+    struct FBarTrailState
+    {
+        bool bPrimed=false;
+        int64 PreviousHPP2=0;
+        double TrailHPP2=0.;
+        int64 PreviousShieldP2=0;
+        int64 HealFromHPP2=0,HealToHPP2=0;
+        double LastUpdateSec=0.;
+        double LastDamagedAtSec=-10.;
+        double LastHealedAtSec=-10.;
+        double LastShakeAtSec=-10.;
+        double LastShieldBreakAtSec=-10.;
+        float ShieldBreakFraction=0.f;
+        FGuid LastHitId;
+    };
+    LOCKDOWN_API void AdvanceBarTrail(FBarTrailState& State,int64 CurrentHPP2,int64 MaxHPP2,int64 CurrentShieldP2,
+        uint8 HitFlags,const FGuid& HitId,double NowSec);
 }
 
 // Full-viewport layer under the HUD that is never hit-tested or focused; ULDUIRoot shows it exactly while the in-match
@@ -86,21 +114,9 @@ private:
     // Approved public definitions used only for display names; loaded once per widget like the HUD's.
     TSharedPtr<const FLDDemoContentSnapshot> DisplayContent;
     bool bDisplayContentTried=false;
-    // The damage trail of each bar in sight: the health shown a moment ago, held briefly, then closing on the current fill.
-    struct FTrail
-    {
-        float Shown=0.f;
-        double HeldUntil=0.;
-        double SeenAt=0.;
-        // The last painted health and shield, for a heavy hit's shake and a shield's break burst.
-        float LastHealth=-1.f,LastShield=0.f;
-        double ShakeUntil=0.,BrokeAt=-1.;
-        // The longest remaining time this control showed since it began, the countdown bar's full length.
-        int64 ControlSpanMs=0;
-        // The shield-breaking hit already burst, so one break bursts once.
-        FGuid BurstHitId;
-    };
-    mutable TMap<FGuid,FTrail> Trails;
+    mutable LDWorldLabels::FBarTrailState OwnTrail;
+    mutable uint32 OwnTrailMatch=0,OwnTrailLife=0;
+    mutable TMap<FGuid,LDWorldLabels::FBarTrailState> UnitTrails;
     // The pictures of the status icons in sight, kept alive while painted.
     UPROPERTY(Transient) mutable TMap<FString,TObjectPtr<UTexture2D>> StatusTextures;
     mutable TMap<FString,FSlateBrush> StatusBrushes;

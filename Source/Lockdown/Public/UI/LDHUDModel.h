@@ -1166,4 +1166,59 @@ namespace LDHUD
         int64 GuardKeptMs=0;
         int64 GuardDueAtMs=0;
     };
+
+    // #328 §2: separate bottom-right micro-badge counts for Active Skills, Build Cards and Element Stones (medal_*).
+    struct FPendingCategoryCounts
+    {
+        int32 SkillCount=0;
+        int32 CardCount=0;
+        int32 StoneCount=0;
+    };
+    LOCKDOWN_API FPendingCategoryCounts PendingCategoryCounts(const FLDProgressionView* Progression,uint32 Match,const FLDDemoContentDefinitions* Content);
+
+    // #328 §3: live skill tooltip incorporating Rank+Branch, real-time AD/AP/MaxHP/Armor/CooldownHaste, installed build
+    // cards (SkillDamageFactor, IdleReadyAmp, SkillGrowth, SkillAdRider, CooldownCost), 18-point keystones, and Alt/C breakdown.
+    struct FLiveSkillTooltip
+    {
+        FActionDetailView Detail;
+        // 0: neutral, 1: physical (#FF9F43), 2: magical (#38BDF8), 3: true (#FFFFFF), 4: shield/heal (#4ADE80).
+        uint8 PrimaryTone=0;
+        int64 FinalPrimaryDamageP2=0;
+        int64 RiderDamageP2=0;
+        int64 FinalCooldownMs=0;
+        int64 FinalMomentumCostP2=0;
+        bool bHasFormula=false;
+        FString FooterHint;
+        TArray<FString> FormulaLines;
+    };
+    LOCKDOWN_API FLiveSkillTooltip EvaluateLiveSkillTooltip(const FActionView& View,const FActionInput& Input,
+        const FActionContext& Context,const FLDProgressionView* Build,const FLDCombatOwnerView* OwnCombat,
+        const FLDDemoContentDefinitions* Content,bool bExpandFormula,int32 SkillHitStacks=0);
+
+    // #328 §4.4: 6-player hold-Tab tactical scoreboard row (authorized public + sighted-in-vision facts only).
+    struct FTacticalSighting
+    {
+        uint8 Presentation=0;
+        uint8 LastSeenLevel=0;
+        uint8 RevealedActives[3]={0,0,0};
+        int64 KnownGuardMs=0;
+    };
+    struct FTacticalScoreRow
+    {
+        FGuid ContenderId;
+        uint8 Presentation=0;
+        FString Name;
+        bool bSelf=false;
+        bool bLeaderCrown=false;
+        FString LevelText;
+        float GraffitiFraction=0.f;
+        FString GraffitiText;
+        uint64 Kills=0,Deaths=0,Assists=0;
+        FString ActiveIcons[3];
+        FString ActiveNames[3];
+        FString FinalModText;
+    };
+    LOCKDOWN_API TArray<FTacticalScoreRow> BuildTacticalScoreboard(const FLDPublicMatchView& Public,const FLDKillFeedView& Feed,
+        const FLDLobbyView& Lobby,const FGuid& Self,const TMap<FGuid,FTacticalSighting>& Sightings,
+        const FLDProgressionView* OwnProgression,const FLDDemoContentDefinitions* Content,bool bClock,int64 NowMs);
 }

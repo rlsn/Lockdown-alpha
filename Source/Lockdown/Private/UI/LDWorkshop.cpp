@@ -924,16 +924,16 @@ void ULDWorkshop::RefreshCharacter()
             // .stat: the 44 icon, the name, the sixteen-cell meter filling the middle, the value and the yellow "+".
             auto* IconBox=WidgetTree->ConstructWidget<USizeBox>();IconBox->SetWidthOverride(44.f);IconBox->SetHeightOverride(44.f);IconBox->SetContent(IconStack);
             Line->AddChildToHorizontalBox(IconBox)->SetVerticalAlignment(VAlign_Center);Row.Icon=IconBox;
-            Row.Name=LDWidgets::Text(WidgetTree,TEXT(""),18,NAME_None,LDUIFonts::ERole::Strong);Row.Name->SetAutoWrapText(false);
+            Row.Name=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeLead,NAME_None,LDUIFonts::ERole::Strong);Row.Name->SetAutoWrapText(false);
             Row.Name->SetColorAndOpacity(LDHUDStyle::UIText);
-            auto* NameBox=WidgetTree->ConstructWidget<USizeBox>();NameBox->SetWidthOverride(52.f);NameBox->SetContent(Row.Name);
+            auto* NameBox=WidgetTree->ConstructWidget<USizeBox>();NameBox->SetMinDesiredWidth(52.f);NameBox->SetContent(Row.Name);
             auto* NameSlot=Line->AddChildToHorizontalBox(NameBox);NameSlot->SetVerticalAlignment(VAlign_Center);NameSlot->SetPadding(FMargin(12,0,0,0));
             auto* Meter=WidgetTree->ConstructWidget<USizeBox>();Meter->SetHeightOverride(10.f);Row.Meter=Meter;
             auto* MeterSlot=Line->AddChildToHorizontalBox(Meter);MeterSlot->SetVerticalAlignment(VAlign_Center);MeterSlot->SetPadding(FMargin(12,0,0,0));
             MeterSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-            Row.Points=LDWidgets::Text(WidgetTree,TEXT(""),24,NAME_None,LDUIFonts::ERole::Number);Row.Points->SetAutoWrapText(false);
+            Row.Points=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeSection,NAME_None,LDUIFonts::ERole::Number);Row.Points->SetAutoWrapText(false);
             Row.Points->SetColorAndOpacity(LDHUDStyle::UIText);Row.Points->SetJustification(ETextJustify::Right);
-            auto* PointsBox34=WidgetTree->ConstructWidget<USizeBox>();PointsBox34->SetWidthOverride(34.f);PointsBox34->SetContent(Row.Points);
+            auto* PointsBox34=WidgetTree->ConstructWidget<USizeBox>();PointsBox34->SetMinDesiredWidth(34.f);PointsBox34->SetContent(Row.Points);
             Line->AddChildToHorizontalBox(PointsBox34)->SetVerticalAlignment(VAlign_Center);
             if(UHorizontalBoxSlot* PointsSlot=Cast<UHorizontalBoxSlot>(PointsBox34->Slot)){PointsSlot->SetPadding(FMargin(12,0,0,0));}
             Built.Add(NameBox);Built.Add(PointsBox34);
@@ -943,13 +943,13 @@ void ULDWorkshop::RefreshCharacter()
             Row.Plus->EnableRepeat([this,StatIndex](){return StatBar.IsValid()&&StatBar->CanAllocate(StatIndex)&&StatBar->Allocate(StatIndex);});
             LDWidgets::SetLook(Row.Plus,LDUIPaint::EButton::Plus);
             if(UTextBlock* PlusText=Cast<UTextBlock>(Row.Plus->GetContent()))
-            {PlusText->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Strong,24));PlusText->SetJustification(ETextJustify::Center);PlusText->SetRenderTranslation(FVector2D(0,-3));}
+            {PlusText->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Strong,LDHUDStyle::TypeSection));PlusText->SetJustification(ETextJustify::Center);PlusText->SetRenderTranslation(FVector2D(0,-2));}
             {auto Style=Row.Plus->GetStyle();Style.NormalPadding=FMargin(0);Style.PressedPadding=FMargin(0);Row.Plus->SetStyle(Style);}
             auto* PlusBox=WidgetTree->ConstructWidget<USizeBox>();PlusBox->SetWidthOverride(36.f);PlusBox->SetHeightOverride(36.f);PlusBox->SetContent(Row.Plus);
             auto* PlusSlot=Line->AddChildToHorizontalBox(PlusBox);PlusSlot->SetPadding(FMargin(12,0,0,0));PlusSlot->SetVerticalAlignment(VAlign_Center);
             auto* Frame=WidgetTree->ConstructWidget<UBorder>();Frame->SetBrushColor(FLinearColor::Transparent);Frame->SetPadding(FMargin(0));Frame->SetContent(Line);
             Frame->SetVerticalAlignment(VAlign_Center);Frame->SetVisibility(ESlateVisibility::Visible);Row.Row=Frame;
-            auto* RowHeight=WidgetTree->ConstructWidget<USizeBox>();RowHeight->SetHeightOverride(66.f);RowHeight->SetContent(Frame);Built.Add(RowHeight);
+            auto* RowHeight=WidgetTree->ConstructWidget<USizeBox>();RowHeight->SetMinDesiredHeight(66.f);RowHeight->SetContent(Frame);Built.Add(RowHeight);
             StatList->AddChildToVerticalBox(RowHeight);
             for(UTextBlock* Fresh:{Row.Glyph,Row.Name,Row.Points,Cast<UTextBlock>(Row.Plus->GetContent())}){ScaleFresh(Fresh);}
             for(UWidget* Each:{static_cast<UWidget*>(Line),static_cast<UWidget*>(IconStack),static_cast<UWidget*>(IconBox),static_cast<UWidget*>(Meter),static_cast<UWidget*>(PlusBox)}){Built.Add(Each);}

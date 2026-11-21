@@ -273,6 +273,8 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> StackFresh;
     UPROPERTY() TObjectPtr<UWidget> ListFrame;
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> ListSlot;
+    UPROPERTY() TObjectPtr<UWidget> StoneTraySection;
+    UPROPERTY() TObjectPtr<class UWrapBox> StoneTrayList;
     UPROPERTY() TObjectPtr<UWrapBox> CardList;
     UPROPERTY() TObjectPtr<UWidget> PopupFrame;
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> PopupSlot;

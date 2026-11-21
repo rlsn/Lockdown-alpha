@@ -18,6 +18,7 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "HAL/PlatformApplicationMisc.h"
 #include "Styling/CoreStyle.h"
 #include "UI/LDHUDStyle.h"
 #include "UI/LDUIFonts.h"
@@ -268,6 +269,22 @@ TSharedRef<SWidget> ULDDevTestPanel::RebuildWidget()
         {
             UHorizontalBox* Line=Row();
             AddButton(Line,TEXT("全部恢复初值"),[this](){LDHitFeel::ResetAll();PresentFeel();},TEXT("DevTestFeelReset"));
+            AddButton(Line,TEXT("复制当前调参"),[this]()
+            {
+                FString Export;
+                const TConstArrayView<LDHitFeel::FField> All=LDHitFeel::Fields();
+                for(int32 Idx=0;Idx<All.Num();++Idx)
+                {
+                    if(!Export.IsEmpty()){Export+=TEXT("\n");}
+                    Export+=FString::Printf(TEXT("%s = %.4g // %s · %s (%s)"),
+                        All[Idx].ConsoleName,LDHitFeel::Value(Idx),All[Idx].Section,All[Idx].Label,*LDHitFeel::Current(Idx));
+                }
+                FPlatformApplicationMisc::ClipboardCopy(*Export);
+                if(auto* PC=Cast<ALDPlayerController>(GetOwningPlayer()))
+                {
+                    PC->PostIntentNotice(TEXT("已复制打击感当前调参到剪贴板"));
+                }
+            },TEXT("DevTestFeelCopy"));
         }
 
         auto* Host=WidgetTree->ConstructWidget<UVerticalBox>();

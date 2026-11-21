@@ -15,16 +15,23 @@
 #include "Character/LDCharacter.h"
 #include "Framework/LDPlayerController.h"
 #include "Navigation/LDNavigationComponent.h"
+#include "UI/LDControlsPanel.h"
+#include "UI/LDHUD.h"
+#include "UI/LDUIRoot.h"
+#include "Vision/LDWorldViewRelay.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/LocalPlayer.h"
 #include "GameFramework/GameUserSettings.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "HAL/FileManager.h"
 #include "HAL/PlatformTime.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/App.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/CoreDelegates.h"
 #include "Misc/CommandLine.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "UObject/UObjectGlobals.h"
 
 namespace
@@ -207,6 +214,7 @@ void ULDGameInstance::Init()
     PreLoadMapHandle = FCoreUObjectDelegates::PreLoadMapWithContext.AddUObject(this, &ULDGameInstance::LocalSettingsPreLoadMap);
     PreClientTravelHandle = OnNotifyPreClientTravel().AddUObject(this, &ULDGameInstance::LocalSettingsPreClientTravel);
     EngineExitHandle = FCoreDelegates::OnEnginePreExit.AddUObject(this, &ULDGameInstance::PrepareLocalSettingsForTravel);
+    SystemErrorHandle = FCoreDelegates::OnHandleSystemError.AddUObject(this, &ULDGameInstance::HandleSystemError);
 }
 void ULDGameInstance::Shutdown()
 {
@@ -215,6 +223,7 @@ void ULDGameInstance::Shutdown()
     FCoreUObjectDelegates::PreLoadMapWithContext.Remove(PreLoadMapHandle);
     OnNotifyPreClientTravel().Remove(PreClientTravelHandle);
     FCoreDelegates::OnEnginePreExit.Remove(EngineExitHandle);
+    FCoreDelegates::OnHandleSystemError.Remove(SystemErrorHandle);
 #if WITH_DEV_AUTOMATION_TESTS
     LDDemoTests::StopEntryObservation(*this);
 #endif
@@ -223,9 +232,36 @@ void ULDGameInstance::Shutdown()
         FTSTicker::GetCoreTicker().RemoveTicker(EntryReturnTicker);
         EntryReturnTicker.Reset();
     }
+    if (FailureReturnTicker.IsValid())
+    {
+        FTSTicker::GetCoreTicker().RemoveTicker(FailureReturnTicker);
+        FailureReturnTicker.Reset();
+    }
     GEngine->OnNetworkFailure().Remove(NetworkHandle);
     GEngine->OnTravelFailure().Remove(TravelHandle);
     Super::Shutdown();
+}
+
+void ULDGameInstance::NoteCrashMatchState(uint32 Generation, uint8 Phase, uint8 TimelineStep)
+{
+    CrashMatchGeneration = Generation;
+    CrashMatchPhase = Phase;
+    CrashTimelineStep = TimelineStep;
+}
+
+void ULDGameInstance::NoteCrashCommand(const TCHAR* CommandKind)
+{
+    if (!CommandKind) { return; }
+    FCString::Strncpy(CrashLastCommand, CommandKind, UE_ARRAY_COUNT(CrashLastCommand));
+}
+
+void ULDGameInstance::HandleSystemError()
+{
+    const FString Path = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Logs"), TEXT("LastCrashContext.json"));
+    const FString Payload = FString::Printf(
+        TEXT("{\"match_generation\":%u,\"phase\":%u,\"timeline_step\":%u,\"last_command\":\"%s\"}\n"),
+        CrashMatchGeneration, uint32(CrashMatchPhase), uint32(CrashTimelineStep), CrashLastCommand);
+    FFileHelper::SaveStringToFile(Payload, *Path, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
 }
 void ULDGameInstance::NetworkFailed(UWorld* World, UNetDriver* Driver, ENetworkFailure::Type Type, const FString& ErrorString)
 {
@@ -277,14 +313,37 @@ void ULDGameInstance::ReturnAfterFailure(UWorld* World, const FString& Error)
     if (!World || World->GetGameInstance() != this) { return; }
     // A refusal or a closed room is followed by its connection closing: the room's first reason stays the shown one.
     if (World == LeavingWorld.Get()) { return; }
+    const bool bLeaveMap = !World->GetMapName().Contains(TEXT("L_Frontend"));
+    if (bLeaveMap)
+    {
+        // #337 §1.2: freeze all local input/UI sampling BEFORE teardown or next-tick travel so neither HUD, Minimap,
+        // WorldLabels nor WorldViewRelay touches half-destroyed actors, subsystems or owning controllers.
+        LeavingWorld = World;
+        for (auto It = World->GetPlayerControllerIterator(); It; ++It)
+        {
+            if (auto* PC = Cast<ALDPlayerController>(It->Get()); PC && PC->IsLocalController())
+            {
+                PC->ClearControls();
+                if (PC->ControlsUI && PC->ControlsUI->IsOpen()) { PC->ControlsUI->ForceClose(); }
+                if (PC->HUDUI) { PC->HUDUI->FreezeForWorldTeardown(); }
+                if (ALDWorldViewRelay* Relay = PC->LocalView()) { Relay->FreezeForWorldTeardown(); }
+            }
+        }
+    }
     PrepareLocalSettingsForTravel();
     ConnectionMessage = Error;
-    if (!World->GetMapName().Contains(TEXT("L_Frontend")))
+    if (bLeaveMap)
     {
-        LeavingWorld = World;
-        World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateWeakLambda(this, [this]()
+        if (FailureReturnTicker.IsValid())
         {
-            UGameplayStatics::OpenLevel(this, TEXT("/Game/Lockdown/Generated/Maps/L_Frontend"));
+            FTSTicker::GetCoreTicker().RemoveTicker(FailureReturnTicker);
+            FailureReturnTicker.Reset();
+        }
+        FailureReturnTicker = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateWeakLambda(this, [this](float)
+        {
+            FailureReturnTicker.Reset();
+            UGameplayStatics::OpenLevel(this, LDDemoEntry::FrontendMap);
+            return false;
         }));
     }
 }
@@ -318,6 +377,7 @@ ULDControlSettings* ULDGameInstance::GetLocalControlSettings()
             LocalControlSettings->bShowFPS = Loaded.RecoverablePreferences->bShowFPS;
             LocalControlSettings->bReduceCombatEffects = Loaded.RecoverablePreferences->bReduceCombatEffects;
             LocalControlSettings->bCameraShake = Loaded.RecoverablePreferences->bCameraShake;
+            LocalControlSettings->bColorblindMode = Loaded.RecoverablePreferences->bColorblindMode;
         }
         LocalControlSettings->RequireRecovery();
         LocalSettingsMessage += TEXT(" 当前按键只在本次运行有效，请到设置中确认恢复。");

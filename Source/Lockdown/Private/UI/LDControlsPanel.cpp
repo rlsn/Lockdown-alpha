@@ -585,7 +585,9 @@ void ULDControlsPanel::SetFeedback(const FString& Message,bool bProblem)
 void ULDControlsPanel::Populate()
 {
     if(!Feedback){return;}
-    const auto& Applied=*CastChecked<ALDPlayerController>(GetOwningPlayer())->Controls;
+    const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    if(!PC||!PC->Controls){return;}
+    const auto& Applied=*PC->Controls;
     // Text size (VISION_AND_UI readability) rescales every label once per change; the fixed control columns already leave room for 125%.
     ApplyTextScale(Applied.TextScale);
     PopulatePreferences();
@@ -597,7 +599,9 @@ void ULDControlsPanel::Populate()
 
 void ULDControlsPanel::PopulatePreferences()
 {
-    const auto& Applied=*CastChecked<ALDPlayerController>(GetOwningPlayer())->Controls;
+    const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    if(!PC||!PC->Controls){return;}
+    const auto& Applied=*PC->Controls;
     SetSwitch(WidgetTree,TEXT("ToggleQuickCast"),Applied.GetQuickCast());
     SetSwitch(WidgetTree,TEXT("ToggleAutoAttackAfterCast"),Applied.GetAutoAttackAfterCast());
     SetSwitch(WidgetTree,TEXT("ToggleEdgePan"),Applied.bEdgePan);
@@ -642,7 +646,9 @@ void ULDControlsPanel::StepEffect(int32 Field,int32 Direction)
 
 void ULDControlsPanel::PopulateBindings()
 {
-    const auto& Applied=*CastChecked<ALDPlayerController>(GetOwningPlayer())->Controls;
+    const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    if(!PC||!PC->Controls){return;}
+    const auto& Applied=*PC->Controls;
     const auto& Definitions=ULDControlSettings::Definitions();
     for(int32 Index=0;Index<Definitions.Num()&&Index<BindingKeys.Num();++Index)
     {
@@ -687,9 +693,9 @@ void ULDControlsPanel::PopulateFooter()
 
 void ULDControlsPanel::ChangePreference(TFunction<void(ULDControlSettings&)> Change)
 {
-    auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());
+    auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
     auto* Instance=SettingsInstance.Get();
-    if(!Instance){SetFeedback(TEXT("本地设置的所有者不可用，没有应用任何更改。"),true);return;}
+    if(!Instance||!PC||!PC->Controls){SetFeedback(TEXT("本地设置的所有者不可用，没有应用任何更改。"),true);return;}
     auto* Draft=PC->Controls->CreateDraft();
     Change(*Draft);
     const auto Result=Instance->ApplyLocalSettings(*Draft);
@@ -791,8 +797,8 @@ void ULDControlsPanel::AskReset()
 
 void ULDControlsPanel::ShowRecoveryConfirmation()
 {
-    auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());
-    if(!PC->Controls->NeedsRecovery())
+    auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    if(!PC||!PC->Controls||!PC->Controls->NeedsRecovery())
     {ShowChild(EChildConfirmation::None);SetFeedback(TEXT("没有需要替换的无法读取或不兼容的设置文件。"),false);PopulateFooter();return;}
     ShowChild(EChildConfirmation::Recovery);
 }
@@ -1049,7 +1055,9 @@ void ULDControlsPanel::ConfirmResetDefaults()
     const ELDPreferenceGroup Group=ResetCategory==ECategory::Audio?ELDPreferenceGroup::Audio
         :ResetCategory==ECategory::Controls?ELDPreferenceGroup::Controls
         :ResetCategory==ECategory::Camera?ELDPreferenceGroup::Camera:ELDPreferenceGroup::Interface;
-    auto* Draft=CastChecked<ALDPlayerController>(GetOwningPlayer())->Controls->CreateDraft();
+    auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    if(!PC||!PC->Controls){return;}
+    auto* Draft=PC->Controls->CreateDraft();
     Draft->ResetPreferenceGroup(Group);
     const auto Result=Instance->ApplyLocalSettings(*Draft);
     if(Group==ELDPreferenceGroup::Controls){LastCapture=NAME_None;CaptureResult.Reset();bCaptureProblem=false;}
@@ -1082,7 +1090,9 @@ void ULDControlsPanel::Open()
     bOpen=true;Capture=NAME_None;LastCapture=NAME_None;CaptureResult.Reset();bCaptureProblem=false;bFeedbackProblem=false;
     SettingsInstance=GetGameInstance<ULDGameInstance>();
     SetVisibility(ESlateVisibility::Visible);
-    auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());PC->SetMenuOpen(true);
+    auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    if(!PC){return;}
+    PC->SetMenuOpen(true);
     ShowChild(EChildConfirmation::None);PendingFocus=NAME_None;
     auto* Instance=SettingsInstance.Get();
     // Only results that arrive while the panel is open are news; the last apply of an earlier visit is not shown again. A
@@ -1176,7 +1186,8 @@ void ULDControlsPanel::NativeTick(const FGeometry& Geometry,float Delta)
     const bool bFlushPending=Instance->IsLocalSettingsFlushPending();
     if((bSeenFlushPending||bVolumeSavePending)&&!bFlushPending)
     {
-        const ULDControlSettings* Applied=CastChecked<ALDPlayerController>(GetOwningPlayer())->Controls.Get();
+        const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+        const ULDControlSettings* Applied=PC?PC->Controls.Get():nullptr;
         const bool bProblem=Applied&&(Applied->IsDirty()||Applied->NeedsRecovery());
         if(bProblem||bVolumeSavePending||!bFeedbackProblem){SetFeedback(Instance->GetLocalSettingsMessage(),bProblem);}
         bVolumeSavePending=false;
@@ -1190,7 +1201,9 @@ void ULDControlsPanel::NativeTick(const FGeometry& Geometry,float Delta)
 FReply ULDControlsPanel::CaptureKey(FKey Key)
 {
     if(Key==EKeys::Escape){EndCapture();return FReply::Handled();}
-    auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());FString Error,SwappedLabel;auto* Draft=PC->Controls->CreateDraft();
+    auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    if(!PC||!PC->Controls){return FReply::Handled();}
+    FString Error,SwappedLabel;auto* Draft=PC->Controls->CreateDraft();
     if(!Draft->Rebind(Capture,Key,Error,&SwappedLabel))
     {
         // A refused key (reserved, wrong device or unswappable axis) is named on the row and the capture keeps waiting.

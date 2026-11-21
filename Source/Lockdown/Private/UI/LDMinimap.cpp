@@ -34,6 +34,7 @@
 #include "Engine/Texture2D.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Math/OrthoMatrix.h"
+#include "RenderingThread.h"
 #include "Slate/WidgetRenderer.h"
 #include "Widgets/SLeafWidget.h"
 #include "UObject/StrongObjectPtr.h"
@@ -574,36 +575,55 @@ LDMinimap::FView MinimapLiveView(const ALDPlayerController& PC,const FBox2D& Reg
 TSharedRef<SWidget> ULDMinimap::RebuildWidget()
 {if(!WidgetTree->RootWidget){auto* Background=WidgetTree->ConstructWidget<UBorder>();Background->SetBrushColor(FLinearColor::Transparent);WidgetTree->RootWidget=Background;}return Super::RebuildWidget();}
 
+void ULDMinimap::FreezeForWorldTeardown()
+{
+    bFrozenForTeardown=true;
+    bDragging=false;
+    if(StaticMap&&StaticMap->Coverage.IsValid()&&StaticMap->Coverage->GetResource())
+    {
+        FlushRenderingCommands();
+    }
+}
+void ULDMinimap::NativeDestruct()
+{
+    FreezeForWorldTeardown();
+    StaticMap.Reset();
+    Super::NativeDestruct();
+}
 FVector2D ULDMinimap::Fraction(const FGeometry& G,const FPointerEvent& E) const
 {return G.AbsoluteToLocal(E.GetScreenSpacePosition())/G.GetLocalSize();}
 bool ULDMinimap::Gesture(FVector2D P,bool Move)
 {
-    auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());if(PC->IsFrontend()){return false;}
+    UWorld* World=GetWorld();
+    auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    if(bFrozenForTeardown||!World||World->bIsTearingDown||!PC||PC->IsFrontend()||!PC->Navigation){return false;}
     // Death keeps camera operations (MOVEMENT_INPUT_AND_CAMERA input ownership); a ground order still needs the controller's world-command gate.
     if(Move&&!PC->CanWorldCommand()){if(PC->IsAwaitingRespawn()){PC->PostIntentNotice(FString(LDTerms::Dead)+TEXT("，只能移动镜头，不能下达移动"));}return false;}
-    FBox2D Ground(ForceInit);if(!MinimapGroundBounds(GetWorld(),Ground)){PC->PostIntentNotice(TEXT("小地图不可用：未加载 Demo 世界"));return false;}
-    const FBox2D Region=MinimapRegion(*PC,MinimapCache(StaticMap),GetWorld(),Ground);
+    FBox2D Ground(ForceInit);if(!MinimapGroundBounds(World,Ground)){PC->PostIntentNotice(TEXT("小地图不可用：未加载 Demo 世界"));return false;}
+    const FBox2D Region=MinimapRegion(*PC,MinimapCache(StaticMap),World,Ground);
     const LDMinimap::FView View=MinimapLiveView(*PC,Region,FrameSize);
     if(!View.IsValid()){PC->PostIntentNotice(TEXT("小地图不可用：尚未完成布局"));return false;}
     // A point off the ground (a turned corner, the fitted margin) is clamped onto it like any edge point; a move is then
     // still validated against the public ground below.
     const FVector XY=LDMinimap::ClampToGround(LDMinimap::ToWorld(View,P*View.FrameSize),Region);
     if(!Move){PC->Navigation->PanTo(XY);return true;}
-    FVector Surface;if(!LDGround::MapSurface(GetWorld(),XY,Surface)){PC->PostIntentNotice(TEXT("无法到达该位置"));return false;}
+    FVector Surface;if(!LDGround::MapSurface(World,XY,Surface)){PC->PostIntentNotice(TEXT("无法到达该位置"));return false;}
     // Shift queues the minimap move like a Shift right click in the world.
     PC->Navigation->Navigate(Surface,PC->IsQueueModifierDown());return true;
 }
 FReply ULDMinimap::NativeOnMouseButtonDown(const FGeometry& G,const FPointerEvent& E)
 {
     FrameSize=G.GetLocalSize();
-    auto* Owner=CastChecked<ALDPlayerController>(GetOwningPlayer());
+    UWorld* World=GetWorld();
+    auto* Owner=Cast<ALDPlayerController>(GetOwningPlayer());
+    if(bFrozenForTeardown||!World||World->bIsTearingDown||!Owner){return FReply::Unhandled();}
     const FVector2D LocalClick=Fraction(G,E)*FrameSize;
     const FKey Button=E.GetEffectingButton();
     {
         FBox2D Ground(ForceInit);
-        if(!Owner->IsFrontend()&&MinimapGroundBounds(GetWorld(),Ground))
+        if(!Owner->IsFrontend()&&MinimapGroundBounds(World,Ground))
         {
-            const FBox2D Region=MinimapRegion(*Owner,MinimapCache(StaticMap),GetWorld(),Ground);
+            const FBox2D Region=MinimapRegion(*Owner,MinimapCache(StaticMap),World,Ground);
             const LDMinimap::FView View=MinimapLiveView(*Owner,Region,FrameSize);
             // Spawn-choice candidate badges take priority within 22 px of any badge centre (left or right click),
             // even if a high-ground edge badge reaches slightly into the minimap margin.
@@ -648,18 +668,21 @@ void ULDMinimap::NativeOnMouseCaptureLost(const FCaptureLostEvent& E){bDragging=
 void ULDMinimap::NativeTick(const FGeometry& G,float D)
 {
     Super::NativeTick(G,D);FrameSize=G.GetLocalSize();
-    const auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());FLDMinimapStatic& Cache=MinimapCache(StaticMap);FBox2D Ground(ForceInit);
-    const bool bGround=MinimapGroundBounds(GetWorld(),Ground);
+    UWorld* World=GetWorld();
+    const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    if(bFrozenForTeardown||!World||World->bIsTearingDown||!PC){bDragging=false;return;}
+    FLDMinimapStatic& Cache=MinimapCache(StaticMap);FBox2D Ground(ForceInit);
+    const bool bGround=MinimapGroundBounds(World,Ground);
     if(bGround)
     {
-        MinimapResolveRevision(Cache,GetWorld(),Ground);
+        MinimapResolveRevision(Cache,World,Ground);
         // Capture the region once. Only the zone overlays depend on the current display scale.
-        const FBox2D Region=MinimapRegion(*PC,Cache,GetWorld(),Ground);
+        const FBox2D Region=MinimapRegion(*PC,Cache,World,Ground);
         const LDMinimap::FView View=MinimapLiveView(*PC,Region,FrameSize);
         if(View.IsValid())
         {
-            MinimapUpdateImage(Cache, GetWorld(), Region);
-            MinimapUpdateStatic(Cache,GetWorld(),{Region,FrameSize,View.Scale,G.GetAccumulatedLayoutTransform().GetScale(),Cache.World});
+            MinimapUpdateImage(Cache, World, Region);
+            MinimapUpdateStatic(Cache,World,{Region,FrameSize,View.Scale,G.GetAccumulatedLayoutTransform().GetScale(),Cache.World});
         }
         MinimapUpdateCoverage(Cache,*PC);
     }
@@ -669,7 +692,10 @@ void ULDMinimap::NativeTick(const FGeometry& G,float D)
 }
 int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRect& C,FSlateWindowElementList& E,int32 L,const FWidgetStyle& S,bool Enabled) const
 {
-    const int32 Base=Super::NativePaint(A,G,C,E,L,S,Enabled);const auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());
+    const int32 Base=Super::NativePaint(A,G,C,E,L,S,Enabled);
+    const UWorld* World=GetWorld();
+    const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    if(bFrozenForTeardown||!World||World->bIsTearingDown||!PC){return Base;}
     const FVector2D Size=G.GetLocalSize();const FSlateBrush* White=FCoreStyle::Get().GetBrush(TEXT("WhiteBrush"));const FLinearColor Ink(.02f,.03f,.03f,.92f);
     auto Box=[&](int32 Layer,const FVector2f& At,const FVector2f& Extent,const FLinearColor& Tint){FSlateDrawElement::MakeBox(E,Base+Layer,G.ToPaintGeometry(Extent,FSlateLayoutTransform(At)),White,ESlateDrawEffect::None,Tint);};
     auto Diamond=[&](int32 Layer,const FVector2f& At,float Edge,const FLinearColor& Tint){FSlateDrawElement::MakeRotatedBox(E,Base+Layer,G.ToPaintGeometry(FVector2f(Edge,Edge),FSlateLayoutTransform(At-FVector2f(Edge*.5f,Edge*.5f))),White,ESlateDrawEffect::None,UE_PI*.25f,TOptional<FVector2f>(),FSlateDrawElement::RelativeToElement,Tint);};

@@ -132,9 +132,23 @@ TSharedRef<SWidget> ULDComponentStorage::RebuildWidget()
             StackFrame=Hit;StackSlot=Add(Hit,1);StackFrame->SetVisibility(ESlateVisibility::Collapsed);
         }
         {
-            // The open list rises from the stack: only the icons of the stored cards in rows, the newest last, nearest
-            // the stack; no title or instructions (the layout and the popups say it). An empty storage opens no list.
+            // #328 §2: dedicated top Element Stone emerald inlay tray above the main Build Card grid in the open storage list.
             auto* Box=WidgetTree->ConstructWidget<UVerticalBox>();
+            auto* StoneBox=WidgetTree->ConstructWidget<UVerticalBox>();
+            UTextBlock* StoneHead=Line(TEXT("◆ 元素石镶嵌托盘"),LDHUDStyle::TypeMicro,LDHUDStyle::RewardStoneRim);
+            StorageBold(StoneHead,1);
+            StoneBox->AddChildToVerticalBox(StoneHead)->SetPadding(FMargin(2,0,0,4));
+            StoneTrayList=WidgetTree->ConstructWidget<UWrapBox>();StoneTrayList->SetExplicitWrapSize(true);
+            StoneTrayList->SetWrapSize(StorageListWidth-32.f);StoneTrayList->SetInnerSlotPadding(FVector2D(StorageCardGap,StorageCardGap));
+            StoneBox->AddChildToVerticalBox(StoneTrayList);
+            auto* StoneBorder=WidgetTree->ConstructWidget<UBorder>();
+            StoneBorder->SetBrush(StorageRound(6.f,LDHUDStyle::RewardStoneRim.CopyWithNewOpacity(.65f),1.2f));
+            StoneBorder->SetBrushColor(LDHUDStyle::RewardStoneBase.CopyWithNewOpacity(.55f));
+            StoneBorder->SetPadding(FMargin(6,5));StoneBorder->SetContent(StoneBox);
+            StoneBorder->SetVisibility(ESlateVisibility::Collapsed);
+            StoneTraySection=StoneBorder;
+            Box->AddChildToVerticalBox(StoneBorder)->SetPadding(FMargin(0,0,0,6));
+
             CardList=WidgetTree->ConstructWidget<UWrapBox>();CardList->SetExplicitWrapSize(true);CardList->SetWrapSize(StorageListWidth-20.f);
             CardList->SetInnerSlotPadding(FVector2D(StorageCardGap,StorageCardGap));Box->AddChildToVerticalBox(CardList);
             auto* Panel=LDWidgets::Panel(WidgetTree,Box,FMargin(10,8));Panel->SetBrushColor(LDHUDStyle::PanelFill.CopyWithNewOpacity(.9f));
@@ -365,6 +379,7 @@ void ULDComponentStorage::Rebuild(const LDHUD::FStorageView& Model)
 {
     Built.Reset();Cards.Reset();Tiles.Reset();HoverDropsOf=NAME_None;HoverDrops.Reset();
     CardList->ClearChildren();
+    if(StoneTrayList){StoneTrayList->ClearChildren();}
     for(int32 Kind=0;Kind<LibraryWraps.Num();++Kind)
     {
         UWrapBox* Wrap=LibraryWraps[Kind];Wrap->ClearChildren();
@@ -413,6 +428,7 @@ void ULDComponentStorage::Rebuild(const LDHUD::FStorageView& Model)
         for(const LDHUD::FStoredView& Stored:Model.Stored){AddCard(Stored.Card);}
         for(int32 Kind=0;Kind<LDWorkshop::LibraryGroupCount;++Kind){KindCounts[Kind]=ShownCounts[Kind];}
     }
+    StorageShown(StoneTraySection,!Workshop.bActive&&StoneTrayList&&StoneTrayList->GetChildrenCount()>0);
     for(int32 Kind=0;Kind<LibraryCounts.Num();++Kind)
     {
         StorageText(LibraryCounts[Kind],FString::FromInt(KindCounts[Kind]));
@@ -581,7 +597,9 @@ void ULDComponentStorage::BuildCard(FName Component,bool bFresh,int32 Copies)
         auto* ChipSlot=Face->AddChildToOverlay(Chip);ChipSlot->SetHorizontalAlignment(HAlign_Right);ChipSlot->SetVerticalAlignment(VAlign_Top);
     }
     FCard& Card=Cards.AddDefaulted_GetRef();Card.Component=Component;Card.Face=Icon;Card.Size=Box;Card.FreshChip=FreshChip;
-    CardList->AddChildToWrapBox(Box);
+    const bool bStone=LDWorkshop::CardFacts(Component,LatestContent).Form==ELDCardForm::Medal||LDHUD::CardDefinition(Component).ToString().StartsWith(TEXT("medal_"));
+    if(bStone&&StoneTrayList){StoneTrayList->AddChildToWrapBox(Box);}
+    else{CardList->AddChildToWrapBox(Box);}
 }
 void ULDComponentStorage::MarkSeen(FName Component)
 {

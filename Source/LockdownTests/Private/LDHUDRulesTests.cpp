@@ -2442,3 +2442,115 @@ bool FLDHUDFlowSmoothnessTest::RunTest(const FString&)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDLiveSkillTooltipTest,"Lockdown.Rules.HUDLiveSkillTooltip",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDLiveSkillTooltipTest::RunTest(const FString& Parameters)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Snapshot;FString Error;
+    if(!TestTrue(TEXT("Approved runtime content loads"),LDDemoEntry::LoadRuntimeContent(Snapshot,Error)&&Snapshot.IsValid())){return false;}
+    const FLDDemoContentDefinitions& Content=Snapshot->Get();
+
+    // Pick active_snark_bolt (a learned magical projectile damage active) and equip card_big_one + card_lend_fist + 25 CooldownHaste.
+    const FName SkillId(TEXT("active_snark_bolt"));
+    const FLDDemoAbilityDefinition* Ab=Content.Abilities.FindByPredicate([](const FLDDemoAbilityDefinition& A){return A.Id==TEXT("active_snark_bolt");});
+    const FLDDemoCardDefinition* BigOne=Content.Cards.FindByPredicate([](const FLDDemoCardDefinition& C){return C.Id==TEXT("card_big_one");});
+    const FLDDemoCardDefinition* LendFist=Content.Cards.FindByPredicate([](const FLDDemoCardDefinition& C){return C.Id==TEXT("card_lend_fist");});
+    if(!TestTrue(TEXT("Catalog contains active_snark_bolt, card_big_one and card_lend_fist"),Ab&&BigOne&&LendFist)){return false;}
+
+    FLDProgressionView Build;Build.bValid=true;Build.Generation=1;Build.Life=1;Build.Level=5;
+    FLDActiveSlotView SlotQ;SlotQ.Slot=0;SlotQ.DefinitionId=SkillId;SlotQ.Branch=ELDSkillBranch::None;
+    Build.Actives={SlotQ};
+    FLDCardInstanceView C1;C1.Serial=1;C1.DefinitionId=TEXT("card_big_one");C1.Target.Kind=ELDCardTargetKind::Skill;C1.Target.Active=SkillId;
+    FLDCardInstanceView C2;C2.Serial=2;C2.DefinitionId=TEXT("card_lend_fist");C2.Target.Kind=ELDCardTargetKind::Skill;C2.Target.Active=SkillId;
+    FLDCardInstanceView StoredStone;StoredStone.Serial=3;StoredStone.DefinitionId=TEXT("medal_fire");
+    FLDCardInstanceView StoredCard;StoredCard.Serial=4;StoredCard.DefinitionId=TEXT("card_practice");
+    Build.Cards={C1,C2,StoredStone,StoredCard};
+    Build.PendingBlueprints={TEXT("active_elbow")};
+
+    // #328 §2: 3-way pending category counts separate skills, build cards and element stones.
+    const LDHUD::FPendingCategoryCounts Cats=LDHUD::PendingCategoryCounts(&Build,1,&Content);
+    TestTrue(TEXT("PendingCategoryCounts separates skill blueprints, build cards and element stones (#328)"),
+        Cats.SkillCount==1&&Cats.CardCount==1&&Cats.StoneCount==1);
+
+    // Combat owner attributes: AD = 100, AP = 120, MaxHP = 1500, Armor = 40, CooldownHaste = 25.
+    FLDCombatOwnerView OwnCombat;OwnCombat.Generation=1;OwnCombat.Life=1;OwnCombat.bHasBody=true;
+    auto MakeAttr=[](ELDProjectedAttribute Attr,int64 WholeValue)
+    {
+        FLDCombatAttributeRowView Row;Row.Attribute=uint8(Attr);
+        Row.Final.Numerator=WholeValue;Row.Final.Denominator=1;
+        return Row;
+    };
+    OwnCombat.Attributes={
+        MakeAttr(ELDProjectedAttribute::AD,100),
+        MakeAttr(ELDProjectedAttribute::AP,120),
+        MakeAttr(ELDProjectedAttribute::MaxHP,1500),
+        MakeAttr(ELDProjectedAttribute::Armor,40),
+        MakeAttr(ELDProjectedAttribute::CooldownHaste,25)
+    };
+
+    LDHUD::FActionInput In;In.Slot=LDHUD::EActionSlot::Q;In.bProjected=true;In.bHasSource=true;
+    In.DefinitionId=SkillId;In.Name=LDHUD::ContentName(&Content,SkillId.ToString());In.Branch=ELDSkillBranch::None;
+    In.MomentumCostP2=Ab->Values.MomentumCostP2;In.CooldownMs=Ab->Values.CooldownMs;
+    LDHUD::FActionContext Ctx;Ctx.KeyLabel=TEXT("Q");Ctx.bOwnContext=true;Ctx.bPlaying=true;Ctx.bAlive=true;
+    Ctx.bClock=true;Ctx.NowMs=5000;Ctx.bMomentumKnown=true;Ctx.MomentumP2=10000;
+    Ctx.Card=LDHUD::CardStatsOf(Build.Level,OwnCombat.Attributes);
+    const LDHUD::FActionView ActView=LDHUD::Action(In,Ctx);
+
+    // Compare bare tooltip (no installed cards) vs card+haste tooltip.
+    FLDProgressionView BareBuild=Build;BareBuild.Cards.Reset();
+    const LDHUD::FLiveSkillTooltip BareTip=LDHUD::EvaluateLiveSkillTooltip(ActView,In,Ctx,&BareBuild,&OwnCombat,&Content,false);
+    const LDHUD::FLiveSkillTooltip FullTip=LDHUD::EvaluateLiveSkillTooltip(ActView,In,Ctx,&Build,&OwnCombat,&Content,true);
+
+    // Verify exact combat arithmetic: card_big_one multiplies primary damage & AD rider, and scales CD before 25 haste.
+    int64 BigOneDmgFactorBp=10000,BigOneCdBp=10000;
+    for(const FLDDemoEffectDefinition& Ef:BigOne->Effects)
+    {
+        if(Ef.GetOp()==ELDDemoEffectOp::SkillDamageFactor){BigOneDmgFactorBp=10000+Ef.RatioBp;}
+        if(Ef.GetOp()==ELDDemoEffectOp::CooldownCost&&Ef.SecondaryRatioBp>0){BigOneCdBp=Ef.SecondaryRatioBp;}
+    }
+    int64 LendFistAdBp=0;
+    for(const FLDDemoEffectDefinition& Ef:LendFist->Effects)
+    {
+        if(Ef.GetOp()==ELDDemoEffectOp::SkillAdRider){LendFistAdBp+=Ef.ADRatioBp;}
+    }
+    auto Share=[](int64 A,int64 B){return (A/10000)*B+((A%10000)*B)/10000;};
+    const int64 ExpectedFinalDmgP2=Share(BareTip.FinalPrimaryDamageP2,BigOneDmgFactorBp);
+    const int64 ExpectedRiderP2=Share(Share(100*100,LendFistAdBp),BigOneDmgFactorBp);
+    const int64 CardCdMs=Share(Ab->Values.CooldownMs,BigOneCdBp);
+    const int64 HasteScale=Content.Formulas.HasteScaleP2>0?Content.Formulas.HasteScaleP2:10000;
+    const int64 ExpectedCdMs=FMath::Max<int64>(Content.Parameters.SkillRanks.CooldownFloorMs,
+        FMath::DivideAndRoundUp<int64>(CardCdMs*HasteScale,HasteScale+2500));
+
+    TestEqual(TEXT("Live tooltip primary damage matches exact card_big_one combat multiplier"),FullTip.FinalPrimaryDamageP2,ExpectedFinalDmgP2);
+    TestEqual(TEXT("Live tooltip rider matches exact card_lend_fist AD * card_big_one combat value"),FullTip.RiderDamageP2,ExpectedRiderP2);
+    TestEqual(TEXT("Live tooltip cooldown matches exact card_big_one * 25 haste formula"),FullTip.FinalCooldownMs,ExpectedCdMs);
+    TestTrue(TEXT("Main tooltip body embeds multiplied damage and +rider text"),
+        FullTip.Detail.Body.Contains(FString::Printf(TEXT("%lld"),(ExpectedFinalDmgP2+50)/100))
+        &&FullTip.Detail.Body.Contains(FString::Printf(TEXT("+ %lld 额外物理伤害"),(ExpectedRiderP2+50)/100)));
+    TestTrue(TEXT("Summary displays haste+card adjusted cooldown to 0.1s"),
+        FullTip.Detail.Summary.Contains(FString::Printf(TEXT("冷却 %.1f秒"),double(ExpectedCdMs)/1000.)));
+    TestTrue(TEXT("Alt expansion lists base, level growth, stat bonus, card multipliers, final damage and cooldown"),
+        FullTip.FormulaLines.Num()>=6
+        &&FullTip.FormulaLines[0].Contains(TEXT("基础与分支"))
+        &&FullTip.FormulaLines[3].Contains(TEXT("构筑乘区"))
+        &&FullTip.FormulaLines[4].Contains(FString::Printf(TEXT("= %lld"),(ExpectedFinalDmgP2+50)/100))
+        &&FullTip.FormulaLines.Last().Contains(TEXT("技能急速")));
+
+    // #328 §4.4: 6-player tactical scoreboard combines roster, leader crown, graffiti guard bar and sighted skills.
+    FLDPublicMatchView Public;Public.Generation=1;Public.Phase=ELDMatchPhase::CaptureOpen;
+    const FGuid SelfId(1,0,0,1),RivalId(2,0,0,2);
+    Public.Leader.Leader=RivalId;Public.Leader.LeaderLevel=8;
+    Public.GraffitiOwner=RivalId;Public.CircleState=ELDCircleState::Guarded;Public.GuardDueAtMs=14000;
+    FLDLobbyView Lobby;Lobby.Members={{SelfId,TEXT("我方"),ELDContenderKind::Human,true,true},{RivalId,TEXT("敌王"),ELDContenderKind::Human,false,true}};
+    FLDKillFeedView Feed;
+    TMap<FGuid,LDHUD::FTacticalSighting> Sightings;
+    LDHUD::FTacticalSighting SeenRival;SeenRival.Presentation=1;SeenRival.LastSeenLevel=9;SeenRival.RevealedActives[0]=Ab->NativeId;
+    Sightings.Add(RivalId,SeenRival);
+    const TArray<LDHUD::FTacticalScoreRow> TacRows=LDHUD::BuildTacticalScoreboard(Public,Feed,Lobby,SelfId,Sightings,&Build,&Content,true,8000);
+    TestTrue(TEXT("Tactical scoreboard lists contenders with crown, sighted level, live guard bar and sighted skill"),
+        TacRows.Num()==2&&TacRows[1].bLeaderCrown&&TacRows[1].LevelText==TEXT("Lv.9")
+        &&TacRows[1].GraffitiFraction>0.5f&&!TacRows[1].ActiveNames[0].IsEmpty());
+    return true;
+}
+
+
+

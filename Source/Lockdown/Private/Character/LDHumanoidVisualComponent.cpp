@@ -414,7 +414,7 @@ void ULDHumanoidVisualComponent::UpdateDash(const FVector& Velocity, bool bFalli
     const ULDCombatVfxCatalog* Catalog = Impacts ? Impacts->GetCatalog() : nullptr;
     if (!Catalog || !Catalog->SwingTrail) { return; }
     const LDHitVfx::FSkillLook* Skill = LDHitVfx::SkillLookOf(CastAbility);
-    const FLinearColor Tint = Skill ? Skill->Tint : FLinearColor(.35f, .65f, 1.f);
+    const FLinearColor Tint = Skill ? Skill->Tint : FLinearColor(.48f, .90f, 1.f);
     const LDHitVfx::FTrail Trail = LDHitVfx::DashTrailOf(Tint, EffectScale);
     if (!IsValid(DashTrail))
     {
@@ -441,9 +441,11 @@ void ULDHumanoidVisualComponent::UpdateDash(const FVector& Velocity, bool bFalli
     {
         bDashing = true;
         DashTrail->Activate(true);
-        // Dust kicked where the dash starts.
-        Impacts->Kit(Pivot->GetComponentTransform().TransformPosition(FVector(0, 0, -HalfHeight + 6.f)),
-            LDHitVfx::BurstOf(LDHitVfx::EBurst::Dash, Tint, EffectScale), this);
+        // #335 §3.1: ground shockwave ring + dust burst at the dash launch spot.
+        const FVector LaunchGround = Pivot->GetComponentTransform().TransformPosition(FVector(0, 0, -HalfHeight + 6.f));
+        const FVector LaunchChest = Pivot->GetComponentTransform().TransformPosition(FVector(0, 0, .48f * HeightCm - HalfHeight));
+        Impacts->Layers(this, LaunchChest, LaunchGround, LDHitVfx::ForDashStart(Tint, EffectScale, Impacts->LayerTuning()), 0.f);
+        Impacts->Kit(LaunchGround, LDHitVfx::BurstOf(LDHitVfx::EBurst::Dash, Tint, EffectScale), this);
     }
 }
 
@@ -1019,7 +1021,9 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
     }
     else if (Delta > SMALL_NUMBER)
     {
-        VisualYaw = FMath::FixedTurn(VisualYaw, TargetYaw, 540.f * Delta);
+        // #335 §3.2: lock toward attack/cast windup facing at 1080 deg/s so rapid turn-attacks never swing sideways.
+        const float TurnDegPerSec = ShownAction() != LDBodyMotion::EAction::None ? 1080.f : 540.f;
+        VisualYaw = FMath::FixedTurn(VisualYaw, TargetYaw, TurnDegPerSec * Delta);
         const FVector LocalAcceleration = ActorRotation.UnrotateVector((Velocity - PreviousVelocity) / Delta);
         const FQuat VisualFacing = ActorRotation.Quaternion() * Art->MeshTransform.GetRotation()
             * FRotator(0, FRotator::NormalizeAxis(VisualYaw - TargetYaw), 0).Quaternion();
