@@ -427,7 +427,8 @@ void MinimapUpdateImage(FLDMinimapStatic& Cache, UWorld* World, const FBox2D& Re
         return;
     }
 
-    Image.Texture.Reset(NewObject<UTextureRenderTarget2D>(World, NAME_None, RF_Transient));
+    // Slate can retain a brush through teardown; its transient texture must not retain the old world.
+    Image.Texture.Reset(NewObject<UTextureRenderTarget2D>(GetTransientPackage(), NAME_None, RF_Transient));
     Image.Texture->ClearColor = LDMinimapRaster::GroundColor();
     Image.Texture->Filter = TF_Bilinear;
     Image.Texture->InitCustomFormat(Width, Height, PF_B8G8R8A8, true);
@@ -552,6 +553,12 @@ LDMinimap::FView MinimapLiveView(const ALDPlayerController& PC,const FBox2D& Reg
     const APawn* Body=PC.OwnerState.LifePhase==ELDLifePhase::Alive?PC.GetPawn():nullptr;
     return LDMinimap::MakeView(Mode,Region,Size,CameraYaw,Body!=nullptr,Body?double(Body->GetActorRotation().Yaw):0.);
 }
+}
+void ULDMinimap::NativeDestruct()
+{
+    bDragging=false;
+    StaticMap.Reset();
+    Super::NativeDestruct();
 }
 TSharedRef<SWidget> ULDMinimap::RebuildWidget()
 {if(!WidgetTree->RootWidget){auto* Background=WidgetTree->ConstructWidget<UBorder>();Background->SetBrushColor(FLinearColor::Transparent);WidgetTree->RootWidget=Background;}return Super::RebuildWidget();}

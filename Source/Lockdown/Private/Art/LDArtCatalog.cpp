@@ -1,5 +1,6 @@
 #include "Art/LDArtCatalog.h"
 #include "Animation/AnimSequence.h"
+#include "Character/LDBasketballMotion.h"
 #include "Animation/Skeleton.h"
 #include "Development/LDDemoContentIds.h"
 #include "Engine/SkeletalMesh.h"
@@ -124,6 +125,7 @@ namespace
         {
             if (!ArtResolveClip(Body, Index, *Skeleton, Error)) { return false; }
         }
+        if (Body.BasketballMotion && !Body.BasketballMotion->Validate(*Body.Mesh,Error)) { return false; }
         return true;
     }
 }

@@ -7,6 +7,7 @@
 class UAnimSequence;
 class USkeletalMesh;
 class UStaticMesh;
+class ULDBasketballMotionSet;
 
 USTRUCT()
 struct LOCKDOWN_API FLDArtAnimation
@@ -65,6 +66,8 @@ struct LOCKDOWN_API FLDArtCharacter
     UPROPERTY(VisibleAnywhere) float RunSpeedCmPerSec = 0.f;
     // One entry per state in ELDArtAnim order; Spawn may be absent.
     UPROPERTY(VisibleAnywhere) TArray<FLDArtAnimation> Animations;
+    // Optional authored basketball locomotion, actions and non-colliding ball; shared by owned bodies and proxies.
+    UPROPERTY(VisibleAnywhere) TObjectPtr<ULDBasketballMotionSet> BasketballMotion;
     // Null when the state has no clip (only Spawn may be missing in a resolved catalog).
     const FLDArtAnimation* Find(ELDArtAnim State) const;
 };

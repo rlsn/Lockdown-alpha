@@ -70,6 +70,7 @@ public:
     bool IsDragging() const {return bDragging;}
     virtual void NativeTick(const FGeometry& Geometry,float Delta) override;
 protected:
+    virtual void NativeDestruct() override;
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual int32 NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,const FSlateRect& Culling,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle& Style,bool Enabled) const override;
     virtual FReply NativeOnMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event) override;

@@ -12,10 +12,11 @@ class UMeshComponent;
 class UNiagaraComponent;
 class USkeletalMeshComponent;
 class UStaticMeshComponent;
+class ULDBasketballAnimInstance;
 struct FLDArtAnimation;
 struct FLDArtCharacter;
 // Body shared by the owner's own body, every observed proxy and fall puppets: the art catalog's skeletal character
-// (ULDArtSubsystem) with single-node clips, status markers and effect shapes around it. It only draws what it is told:
+// (ULDArtSubsystem) with authored clips/basketball blending, status markers and effect shapes around it. It only draws what it is told:
 // an identity look, one cue byte (ALDCharacter::PresentationCue) with the age of its action, and the appear and fall
 // events; never gameplay state of its own. Every motion hangs from an inner pivot, so the owner keeps the component's
 // own transform and scale.
@@ -91,6 +92,7 @@ private:
 #if WITH_DEV_AUTOMATION_TESTS
     friend class FLDPresentedModelPickingTest;
     friend class FLDBodyMotionTimelinesTest;
+    friend class FLDBasketballRuntimeTest;
 #endif
     // Resolves the catalog body and paints its tint slots; without a body nothing is drawn and the error is logged.
     void ApplyLook(const FLDArtCharacter* Look, const FLinearColor& Identity, const FString& What);
@@ -119,6 +121,7 @@ private:
     void UpdateOverdrive(float EffectScale);
     UPROPERTY() TObjectPtr<USceneComponent> Pivot;
     UPROPERTY() TObjectPtr<USkeletalMeshComponent> Mesh;
+    UPROPERTY() TObjectPtr<UStaticMeshComponent> Basketball;
     UPROPERTY() TObjectPtr<UNiagaraComponent> SwingTrail;
     UPROPERTY() TObjectPtr<UNiagaraComponent> CastCharge;
     UPROPERTY() TObjectPtr<UNiagaraComponent> DashTrail;

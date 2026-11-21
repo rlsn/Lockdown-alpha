@@ -116,6 +116,21 @@
   最多保留 16 条终结事实，只有未被订单绑定的才可被替换；全部被绑定时明确背压。
 - `BeginMatch` 会拒绝“参赛者数 + 营地成员数 − 1”超过 16 的配置；codec 从不截断。
 
+## 篮球手动作与篮球
+
+正式篮球手由美术目录的 `FLDArtCharacter::BasketballMotion` 引用运行时 `ULDBasketballMotionSet`。
+`ULDHumanoidVisualComponent` 为本人、获准显示的远端代理及倒地副本共用表现组件；篮球手安装
+`ULDBasketballAnimInstance`，其他身体继续使用各自的状态片段。图只读取表现 cue、动作年龄、既有出手延迟、速度与公开朝向。
+
+- 基础层使用站立／奔跑运球片段，空闲时穿插胯下运球，片段切换短混合并保留离地球轨迹。快速反向选左右转身片段，按 `TurnFacing` 曲线抵消重复旋转。
+- 普攻按当前运球手选择单手传球，上半身与投球手分层混合，腿部保留移动；技能按站立或移动选择双手收球投篮，移动施法保留奔跑腿部。先天冲刺用胯下换手表现。
+- `Start/Release/End` 为保留的动作裁剪点，`Release` 对齐既有预测／权威出手延迟，恢复段按同一比例缩放。已离手的动作可完成本地收势；取消前摇不能凭动画产生投球或伤害。
+- 篮球是表现组件的无碰撞、无导航子组件。`BallX/Y/Z`、`BallLeft`、`BallContact` 和实际手骨控制运球与接触，校准的掌面、手指净距避免球嵌入手里。离手后的短抛与回收只按角色公开朝向表现，不查询隐藏目标，不做伤害或命中判定。死亡、失视和父组件隐藏一并隐藏篮球。
+- 动作数据在 `SourceData/Animation/Hooper/motion.json`，包含完整局部骨骼轨迹、球曲线、掌面校准与原始片段名；`Scripts/BuildHooperMotionSource.py` 从项目保留的姿势和修正导出重建该输入。
+  `ImportDemoArt.ps1 -Mode ImportBasketball` 通过原生导入器重建正式身体目录的片段、球材质与动作目录，只更新对应身体和美术目录，不改地图、怪物、其他身体或战斗数据。
+  动作目录保留输入 SHA256；`-Mode Validate` 拒绝缺失、骨架不匹配、带根运动、过期数据与不合法的出手窗口。
+- 检查：`Lockdown.Rules.Art.BasketballRuntime` 覆盖正式目录接线、不同出手延迟、非 Pawn 代理、运球、转身、移动普攻与技能、隐藏／倒地清理及胶囊变换不变。
+
 ## 全量快照、隐藏与恢复
 
 - `ClientFullView`（不可靠）发送完整帧；`ClientConceal`（可靠）的 `Removed` 为空时表示代次复位；`ClientTermination`（可靠）发送终结通知。

@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$EngineRoot, [ValidateSet('Import','ImportProps','ImportUI','ImportVFX','Validate')][string]$Mode='Validate')
+param([string]$EngineRoot, [ValidateSet('Import','ImportProps','ImportUI','ImportVFX','ImportBasketball','Validate')][string]$Mode='Validate')
 . (Join-Path $PSScriptRoot 'Common.ps1')
 $engine = Resolve-LDEngine $EngineRoot
 Assert-LDEditorModules
@@ -21,6 +21,7 @@ if ($Mode -eq 'ImportUI') { $arguments += '-UI' }
 if ($Mode -eq 'ImportVFX') { $arguments += '-VFX' }
 # ImportProps re-imports the props only and keeps the catalog's bodies and saved-map decorations.
 if ($Mode -eq 'ImportProps') { $arguments += '-Props' }
+if ($Mode -eq 'ImportBasketball') { $arguments += '-Basketball' }
 $logPath = Join-Path $output 'DemoArt.log'
 Invoke-LDTool -Tool $editor -ToolArguments $arguments -LogPath $logPath
 if (-not (Select-String -LiteralPath $logPath -SimpleMatch 'LD_DEMO_ART_SUCCESS' -Quiet)) { throw "Demo art $Mode did not confirm success. Log: $logPath" }
