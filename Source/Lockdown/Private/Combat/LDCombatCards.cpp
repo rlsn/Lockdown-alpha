@@ -329,10 +329,9 @@ bool LDCombatSourceRules::CompileCardActive(const FLDAttributeProjection& Projec
     {
         for (FLDDemoEffectDefinition& Effect : Values.Effects)
         {
-            const ELDDemoEffectOp Op=Effect.GetOp();
-            if (Op==ELDDemoEffectOp::Root || Op==ELDDemoEffectOp::Stun || Op==ELDDemoEffectOp::Silence || Op==ELDDemoEffectOp::Disarm
-                || Op==ELDDemoEffectOp::Taunt)
-            { Effect.DurationMs=Share(Effect.DurationMs,10000+ControlBp); }
+            if (Effect.IsControl()) { Effect.DurationMs=Share(Effect.DurationMs,10000+ControlBp); }
+            // K11 also lengthens a control another delivery carries.
+            else if (int64* Composed=Effect.ComposedControlMs()) { *Composed=Share(*Composed,10000+ControlBp); }
         }
     }
     if (Source.Kind==ELDCombatSourceKind::Innate && !Rams.IsEmpty())
@@ -415,8 +414,9 @@ bool ALDCombatDirector::HitFactors(FLDBodyCombatState* Source, FLDBodyCombatStat
     if (!bHostile) { return true; }
     // A release's locked factors ride on every native hit of it.
     if (Hit.CastLedger && IsNativeDirectHit(Hit)) { Out.Append(Hit.CastLedger->Factors); }
-    // The strength keystone on a slowed or controlled target.
+    // The strength keystone on a slowed, attack-slowed, pushed or controlled target.
     const bool bControlled=LDTactical::StrongestSlowBp(Target.Slows,NowMs)>0 || LDTactical::HasActiveRoot(Target.Roots,NowMs)
+        || LDTactical::StrongestSlowBp(Target.AttackSlows,NowMs)>0 || LDTactical::HasActiveRoot(Target.Knockbacks,NowMs)
         || LDTactical::HasActiveRoot(Target.Stuns,NowMs) || LDTactical::HasActiveRoot(Target.Disarms,NowMs)
         || LDControl::IsTaunted(Target.Taunt,NowMs) || LDTactical::HasActiveRoot(Target.Silences,NowMs);
     if (Source && Source->AttributeProjection.Keystones.bStrength && bControlled)
@@ -774,6 +774,9 @@ bool ALDCombatDirector::ResolveDashCompletions(int64 NowMs, FString& Error)
         if (!CardsOn(Body.AttributeProjection,ELDDemoEffectOp::DashIce,Dash.Source,Trails,Error)
             || !CardsOn(Body.AttributeProjection,ELDDemoEffectOp::GroundRelocate,Dash.Source,Movers,Error)) { return false; }
         const FVector EndFoot=FootOf(*Actor);
+        // Y12: every copy keeps a trail one more of its lifetimes, so that many more bands stand at once.
+        TArray<FLDPassiveEffectRef> Stalls;
+        if (!Trails.IsEmpty() && !CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::DoubleStall,Stalls,Error)) { return false; }
         for (const FLDPassiveEffectRef& Trail : Trails)
         {
             const FVector Path=FVector(EndFoot.X-Dash.StartFootCm.X,EndFoot.Y-Dash.StartFootCm.Y,0);
@@ -785,7 +788,7 @@ bool ALDCombatDirector::ResolveDashCompletions(int64 NowMs, FString& Error)
             TrailOwner.Level=GrowthLevelOf(Body);
             TrailOwner.SourceAPP2=FMath::Max<int64>(Body.AttributeProjection.Final.APP2,0);
             const double Width=double(Trail.Effect.RadiusCm.Numerator)/double(FMath::Max<int64>(Trail.Effect.RadiusCm.Denominator,1));
-            if (!SpawnGround(ELDGroundStateKind::Ice,TrailOwner,(Dash.StartFootCm+EndFoot)*.5,NowMs,Error,Width*.5,Trail.Effect.DurationMs,
+            if (!SpawnGround(ELDGroundStateKind::Ice,TrailOwner,(Dash.StartFootCm+EndFoot)*.5,NowMs,Error,Width*.5,Trail.Effect.DurationMs*(1+Stalls.Num()),
                 FVector2D(Path.X,Path.Y),Path.Size()*.5)) { return false; }
             LedgerCardTriggered(Body,Trail.Key);
         }
@@ -824,6 +827,17 @@ bool ALDCombatDirector::ResolveDashCompletions(int64 NowMs, FString& Error)
             if (!LDMatchLifecycle::AddDurationMs(NowMs,Parameters.KeystoneAgilityEmpowerDurationMs,Package.ExpiresAtMs,Error))
             { return false; }
             LDCombatControl::ArmEmpower(Body.Empowers,Package);
+            // The same window lends the dasher move speed.
+            FLDCombatTimedBonus Speed;
+            Speed.EffectId=FGuid::NewGuid();
+            Speed.SourceDefinition=FName(TEXT("keystone_agility_speed"));
+            FLDDemoStatBonus& Stat=Speed.Stats.AddDefaulted_GetRef();
+            Stat.Stat=ELDDemoBonusStat::MoveSpeedBonusRatio;
+            Stat.Amount=Parameters.KeystoneAgilityMoveSpeedBp;
+            Speed.ExpiresAtMs=Package.ExpiresAtMs;
+            Body.TimedBonuses.RemoveAll([](const FLDCombatTimedBonus& Row)
+                { return Row.SourceDefinition==FName(TEXT("keystone_agility_speed")); });
+            if (Stat.Amount>0) { LDTactical::ApplyTimedBonus(Body.TimedBonuses,Speed); }
             bArmed=true;
         }
         if (bArmed)
@@ -910,7 +924,8 @@ bool ALDCombatDirector::OnHostDirectHit(FLDBodyCombatState& Holder, const FLDCom
         if (Spent>0)
         {
             Holder.Resources.ShieldP2-=Spent;
-            if (Holder.Resources.ShieldP2<=0) { Holder.Shield.Reset(); Holder.Resources.ShieldP2=0; }
+            SpendShieldLayers(Holder,Spent);
+            if (Holder.Resources.ShieldP2<=0) { Holder.Shield.Reset(); Holder.Resources.ShieldP2=0; Holder.ShieldLayers.Reset(); }
             ++Holder.Resources.Revision;
             ++Holder.StateRevision;
             MarkViewChanged(Holder.Victim.EntityId);
@@ -962,8 +977,8 @@ bool ALDCombatDirector::OnCardHit(const FLDCombatHit& Hit, FLDBodyCombatState& T
             Reflect.BaseP2=Share(Damage.DamageP2,ReflectBp);
             Reflect.DamageType=ELDDemoDamageType::Magical;
             Reflect.bReflect=true;
-            // The reflection may heal its holder through the holder's lifesteal.
-            if (!SnapshotOnHit(Target,10000,Reflect,Error)) { return false; }
+            // Spec §4.4: a reflection never heals (no lifesteal snapshot).
+            if (!SnapshotOnHit(Target,0,Reflect,Error)) { return false; }
             PendingHits.Add(MoveTemp(Reflect));
             LedgerCardTriggered(Target,FName(TEXT("card_spiky_hide")));
         }
@@ -1021,13 +1036,6 @@ bool ALDCombatDirector::OnCardHit(const FLDCombatHit& Hit, FLDBodyCombatState& T
             { LedgerCardTriggered(*Source,Hurts[0].Key); }
             if (!HealError.IsEmpty()) { Error=MoveTemp(HealError); return false; }
         }
-    }
-    // A reflection heals its holder through the holder's lifesteal (Y01: "反弹可以吸血").
-    if (Hit.bReflect && Hit.bLifesteal && Damage.HPLostP2>0)
-    {
-        FString HealError;
-        HealBody(*Source,Share(Damage.HPLostP2,Hit.LifestealRatioBp),Hit.Source,nullptr,FGuid(),&HealError);
-        if (!HealError.IsEmpty()) { Error=MoveTemp(HealError); return false; }
     }
     // Skill-hit triggers of a native hit: the host's cards and Y16.
     const auto SkillHit=[&](const FLDCombatSourceRef& Host)
@@ -1187,7 +1195,9 @@ bool ALDCombatDirector::OnCardReaction(const FLDCombatReactionFact& Fact, int64 
             }
         }
     }
-    // Y05: the primary target takes a random element other than the one just consumed (each copy one more).
+    // Y05: the primary target takes a random element other than the one just consumed (each copy one more). It lands at the
+    // end of the reaction: an element that would react with what the target still holds (a ferment's rot, say) would be
+    // swallowed by the reaction lock, so only elements that stay on as a mark are drawn while any is left.
     FLDBodyCombatState* Primary=FindBody(Fact.Primary);
     if (Waves.IsEmpty() || !Primary || Primary->bPendingDeath) { return true; }
     for (const FLDPassiveEffectRef& Wave : Waves)
@@ -1195,7 +1205,11 @@ bool ALDCombatDirector::OnCardReaction(const FLDCombatReactionFact& Fact, int64 
         TArray<ELDCombatElement> Choices{ELDCombatElement::Fire,ELDCombatElement::Water,ELDCombatElement::Shock,
             ELDCombatElement::Chill,ELDCombatElement::Rot};
         Choices.Remove(Fact.Consumed);
-        const ELDCombatElement Kind=Choices[CritRandom.RandRange(0,Choices.Num()-1)];
+        const ELDCombatElement Still=ElementOfBody(*Primary,NowMs);
+        TArray<ELDCombatElement> Lands=Choices.FilterByPredicate([Still](ELDCombatElement Candidate)
+            { return LDCombatElements::ReactionOf(Still,Candidate)==ELDCombatReaction::None; });
+        if (Lands.IsEmpty()) { Lands=Choices; }
+        const ELDCombatElement Kind=Lands[CritRandom.RandRange(0,Lands.Num()-1)];
         FLDElementApplier Applier;
         Applier.SourceEntity=Trigger->Victim.EntityId;
         Applier.SourceBody=Fact.TriggerBody;
@@ -1736,6 +1750,7 @@ bool ALDCombatDirector::QueueComboCast(FLDBodyCombatState& Body, const FLDCombat
     int64 ShareBp=0;
     for (const FLDPassiveEffectRef& Ref : Casts) { ShareBp+=Ref.Effect.MultiplierBp; }
     Cast.AutoRecastScaleBp=ShareBp;
+    Cast.bWholeEffectShare=true;
     Cast.ChainId=CurrentChain;
     FLDCombatAutoRecast& Repeat=AutoRecasts.AddDefaulted_GetRef();
     Repeat.Body={Body.Victim,Body.Identity};

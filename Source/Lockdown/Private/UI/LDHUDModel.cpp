@@ -193,6 +193,20 @@ FString LDHUD::StatusName(const FLDDemoContentDefinitions* Content,uint8 StatusI
     const TCHAR* Id=HudStatusContentId(StatusId);
     return Id?ContentName(Content,Id):FString::Printf(TEXT("未知状态 #%d"),StatusId);
 }
+FString LDHUD::StatusIconId(const FLDDemoContentDefinitions* Content,uint8 StatusId)
+{
+    const TCHAR* Id=HudStatusContentId(StatusId);
+    return Id?ContentIconId(Content,Id):FString();
+}
+bool LDHUD::StatusIsHardControl(uint8 StatusId)
+{
+    switch(ELDDemoStatusId(StatusId))
+    {
+    case ELDDemoStatusId::Stun: case ELDDemoStatusId::Root: case ELDDemoStatusId::Silence: case ELDDemoStatusId::Disarm:
+    case ELDDemoStatusId::Knockback: case ELDDemoStatusId::Taunt: return true;
+    default: return false;
+    }
+}
 FString LDHUD::CreatureName(const FLDDemoContentDefinitions* Content,uint8 CreatureId)
 {
     if(Content){if(const auto* Monster=Content->Monsters.FindByPredicate([CreatureId](const FLDDemoMonsterDefinition& M){return M.NativeId==CreatureId;})){return ContentName(Content,Monster->Id);}}
@@ -1363,7 +1377,8 @@ LDHUD::FActionDetailView LDHUD::ActionDetail(const FActionView& View,const FActi
     else if(bLearned&&Input.bHasSource)
     {
         // #147/#198: the same card as the growth panel, with this level's numbers and stats.
-        const FActiveCardView Card=ActiveCard(Input.DefinitionId,Content,Context.Card,Input.Branch);
+        FCardStats SlotStats=Context.Card;SlotStats.DamageFactorBp=Input.DamageFactorBp;
+        const FActiveCardView Card=ActiveCard(Input.DefinitionId,Content,SlotStats,Input.Branch,Input.NextCooldownMs);
         if(Card.bKnown)
         {
             Lines.Add(Card.SentencePlain);
@@ -1414,9 +1429,14 @@ LDHUD::FObservedCard LDHUD::ObservedCard(const FLDObservedUnitView& Unit,const F
     FString Statuses;
     for(const FLDObservedStatus& Status:Unit.Statuses)
     {
-        Statuses+=(Statuses.IsEmpty()?TEXT(""):TEXT(" · "))+StatusName(Content,Status.StatusId);
-        if(Status.Stacks>1){Statuses+=FString::Printf(TEXT(" ×%d"),Status.Stacks);}
-        if(Status.ExpiresAtServerMs>0){Statuses+=TEXT(" ")+TenthsUp(int64(FMath::RoundToDouble(double(Status.ExpiresAtServerMs)-SampledAtServerSec*1000.)));}
+        const FString Name=StatusName(Content,Status.StatusId);
+        FString Part=Name;
+        if(Status.Stacks>1){Part+=FString::Printf(TEXT(" ×%d"),Status.Stacks);}
+        if(Status.ExpiresAtServerMs>0){Part+=TEXT(" ")+TenthsUp(int64(FMath::RoundToDouble(double(Status.ExpiresAtServerMs)-SampledAtServerSec*1000.)));}
+        Statuses+=(Statuses.IsEmpty()?TEXT(""):TEXT(" · "))+Part;
+        FObservedCard::FStatusChip& Chip=Card.StatusChips.AddDefaulted_GetRef();
+        Chip.IconId=StatusIconId(Content,Status.StatusId);Chip.Glyph=IconGlyph(Name);Chip.Tip=Part;
+        Chip.bPositive=StatusIsPositive(Status.StatusId);Chip.Stacks=Status.Stacks;
     }
     Card.Statuses=TEXT("状态：")+(Statuses.IsEmpty()?FString(TEXT("无公开状态")):Statuses);
     Card.bActives=bContender&&(Unit.AuthorizedFieldMask&LDObservation::Actives)!=0;
@@ -1619,14 +1639,20 @@ bool CardValue(const LDDemoCardText::FToken& Token,const FLDDemoAbilityValues& V
     {
     case EField::Amount: case EField::Burst:
     {
+        // A skill's damage (S16's answer too) takes its card factors (K09, K16, K17 ...) as it would release now; shields and
+        // heals do not.
+        const ELDDemoEffectOp DamageOp=Effect->GetOp();
+        const bool bFactored=Stats.DamageFactorBp!=10000&&(DamageOp==ELDDemoEffectOp::Damage||DamageOp==ELDDemoEffectOp::ZoneDamage||DamageOp==ELDDemoEffectOp::Brace);
         if(Stats.bShowScalingFormula&&(Effect->ADRatioBp>0||Effect->APRatioBp>0||Effect->MaxHPRatioBp>0||Effect->ArmorRatioBp>0))
         {
             Out=HudScaling(*Effect);
+            if(bFactored){Out=TEXT("(")+Out+TEXT(") × ")+HudPercent(Stats.DamageFactorBp);}
             if(Token.Field==EField::Burst){Out=TEXT("(")+Out+TEXT(") × ")+HudPercent(Effect->SecondaryRatioBp);}
             return true;
         }
         int64 P2=Effect->BaseP2+Term(Effect->ADRatioBp,Stats.ADP2)+Term(Effect->APRatioBp,Stats.APP2)+Term(Effect->MaxHPRatioBp,Stats.MaxHPP2)
             +Term(Effect->ArmorRatioBp,Stats.ArmorP2);
+        if(bFactored){P2=P2/10000*Stats.DamageFactorBp+P2%10000*Stats.DamageFactorBp/10000;}
         if(Token.Field==EField::Burst){P2=Term(Effect->SecondaryRatioBp,P2);}
         Out=FString::Printf(TEXT("%lld"),(P2+50)/100);return true;
     }
@@ -1747,7 +1773,7 @@ TArray<FString> LDHUD::KeywordLines(const TArray<FString>& Keywords)
     }
     return Lines;
 }
-LDHUD::FActiveCardView LDHUD::ActiveCard(FName DefinitionId,const FLDDemoContentDefinitions* Content,const FCardStats& Stats,ELDSkillBranch Branch)
+LDHUD::FActiveCardView LDHUD::ActiveCard(FName DefinitionId,const FLDDemoContentDefinitions* Content,const FCardStats& Stats,ELDSkillBranch Branch,int64 CooldownMs)
 {
     FActiveCardView Card;
     Card.DefinitionId=DefinitionId;
@@ -1798,7 +1824,9 @@ LDHUD::FActiveCardView LDHUD::ActiveCard(FName DefinitionId,const FLDDemoContent
     Card.Sentence=Sentence.Rich;Card.SentencePlain=Sentence.Plain;
     Card.Keywords=KeywordLines(Sentence.Keywords);
     Card.Target=TargetLine(Path?Path->Target:Ability->Target);
-    Card.Cost=CostLine(Values);
+    // A learned skill shows the cooldown its next release would really issue (haste and cards).
+    if(CooldownMs>0){FLDDemoAbilityValues Hasted=Values;Hasted.CooldownMs=CooldownMs;Card.Cost=CostLine(Hasted);}
+    else{Card.Cost=CostLine(Values);}
     Card.bKnown=Sentence.bComplete;
     return Card;
 }
@@ -1944,11 +1972,12 @@ FString LDHUD::BuildBlockedText(ELDGrowthReason Reason)
     default: return GrowthReasonText(Reason);
     }
 }
-LDHUD::FBuildGateView LDHUD::BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase)
+LDHUD::FBuildGateView LDHUD::BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase,bool bDormRested)
 {
     LDProgression::FBuildContext Context;
     Context.Stage=Stage;
     Context.LifePhase=LifePhase;
+    Context.bDormRested=bDormRested&&Stage==LDProgression::EMatchStage::Live;
     const auto Gate=[&](ELDGrowthReason Reason,bool& bAllowed,FString& Blocked)
     {
         bAllowed=Reason==ELDGrowthReason::None;
@@ -1967,6 +1996,7 @@ LDHUD::FBuildGateView LDHUD::BuildGate(LDProgression::EMatchStage Stage,ELDLifeP
     Gate(LDProgression::CommandGate(ELDBuildCommandKind::ForgetActive,Context),View.bCanForget,View.ForgetBlocked);
     Gate(LDProgression::CommandGate(ELDBuildCommandKind::PickCard,Context),View.bCanCardOffer,View.CardOfferBlocked);
     View.bInRest=Stage==LDProgression::EMatchStage::Rest||Stage==LDProgression::EMatchStage::RestLocked;
+    View.bDormSwap=Context.bDormRested&&View.bCanReplace;
     return View;
 }
 FString LDHUD::BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoContentDefinitions* Content,const FSlotKeys& Keys)
@@ -2425,6 +2455,7 @@ FString LDHUD::FieldRewardEventName(FName Event)
     if(Event==FName(TEXT("boss"))){return LDTerms::Boss;}
     if(Event==FName(TEXT("camp_marker_high"))){return LDTerms::FieldRewardHighCamp;}
     if(Event==FName(TEXT("camp_marker_elite"))){return LDTerms::FieldRewardEliteCamp;}
+    if(Event==FName(TEXT("bounty"))){return TEXT("终结上热搜");}
     return FString::Printf(TEXT("未知事件 %s"),*Event.ToString());
 }
 FString LDHUD::FieldRewardNotice(const FLDFieldRewardView& Reward,const FLDDemoContentDefinitions* Content)
@@ -2457,6 +2488,21 @@ TArray<FLDFieldRewardView> LDHUD::FFieldRewardWatch::Observe(const FLDProgressio
     if(SeenMatch!=Match){SeenMatch=Match;Known=Progression->FieldRewards.Num();return TArray<FLDFieldRewardView>();}
     TArray<FLDFieldRewardView> Out=NewFieldRewards(*Progression,Known);
     Known=Progression->FieldRewards.Num();
+    return Out;
+}
+TArray<FString> LDHUD::FMedalDropWatch::Observe(const FLDProgressionView* Progression,uint32 Match,const FLDDemoContentDefinitions* Content)
+{
+    TArray<FString> Out;
+    if(!Progression||!Progression->bValid||Match==0||Progression->Generation!=Match||!Content){return Out;}
+    uint16 Highest=0;
+    for(const FLDCardInstanceView& Card:Progression->Cards){Highest=FMath::Max(Highest,Card.Serial);}
+    if(SeenMatch!=Match){SeenMatch=Match;HighestSerial=Highest;return Out;}
+    for(const FLDCardInstanceView& Card:Progression->Cards)
+    {
+        if(Card.Serial>HighestSerial&&LDProgression::IsMedal(*Content,Card.DefinitionId))
+        {Out.Add(FString::Printf(TEXT("获得【%s】"),*ContentName(Content,Card.DefinitionId.ToString())));}
+    }
+    HighestSerial=FMath::Max(HighestSerial,Highest);
     return Out;
 }
 LDHUD::FAttributeRowView LDHUD::AttributeRow(const FLDCombatAttributeRowView& Row)
@@ -2620,6 +2666,8 @@ LDHUD::FActionInput LDHUD::ActionInput(const FLDCombatEntryView& Entry,EActionSl
     Input.RangeCm=Entry.RangeCm;
     Input.DefinitionId=Entry.DefinitionId;
     Input.Branch=static_cast<ELDSkillBranch>(Entry.Branch);
+    Input.DamageFactorBp=Entry.DamageFactorBp;
+    Input.NextCooldownMs=Entry.NextCooldownMs;
     Input.MomentumCostP2=Entry.MomentumCostP2;
     Input.ReadyAtMs=Entry.ReadyAtMs;Input.CooldownMs=Entry.CooldownMs;
     Input.ServerBlock=CombatRejectText(Entry.Unavailable);

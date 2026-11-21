@@ -80,6 +80,8 @@ namespace LDHUD
         int64 ArmorP2=0;
         // A blueprint records a level but not the final projected attributes; show their coefficients instead.
         bool bShowScalingFormula=false;
+        // A learned skill's current card damage factor (10000 = none), applied to its damage numbers.
+        int64 DamageFactorBp=10000;
     };
     // Level from the progression, stats from the owner's projected attributes; zero stats without a projection.
     LOCKDOWN_API FCardStats CardStatsOf(uint8 Level,const TArray<FLDCombatAttributeRowView>& Attributes);
@@ -130,6 +132,10 @@ namespace LDHUD
     // The display row's IconId of a content entry (#85); empty without a display row.
     LOCKDOWN_API FString ContentIconId(const FLDDemoContentDefinitions* Content,const FString& ContentId);
     LOCKDOWN_API FString StatusName(const FLDDemoContentDefinitions* Content,uint8 StatusId);
+    // The approved icon of a status definition; empty when it has none.
+    LOCKDOWN_API FString StatusIconId(const FLDDemoContentDefinitions* Content,uint8 StatusId);
+    // A control status (stun, root, silence, disarm, knockback, taunt): a head bar shows its remaining time as a bar.
+    LOCKDOWN_API bool StatusIsHardControl(uint8 StatusId);
     LOCKDOWN_API FString CreatureName(const FLDDemoContentDefinitions* Content,uint8 CreatureId);
     LOCKDOWN_API FString AbilityName(const FLDDemoContentDefinitions* Content,uint8 AbilityId);
     // Public roster name of a contender; empty when the roster does not list it (never invented).
@@ -490,6 +496,8 @@ namespace LDHUD
         FString Name;             // display name of the bound definition
         FName DefinitionId;       // the bound definition, for the hover description
         ELDSkillBranch Branch=ELDSkillBranch::None; // its learned path, so the description shows its current rank
+        int64 DamageFactorBp=10000;  // its card damage factors now (owner view)
+        int64 NextCooldownMs=0;      // the cooldown its next release would issue after haste and cards; 0 when unknown
         FString IconId;           // the bound definition's icon (LDUIIcons); the dash's own icon for D
         int64 MomentumCostP2=0;
         int64 ReadyAtMs=0;        // this source's own track end on the authority clock
@@ -570,6 +578,17 @@ namespace LDHUD
         bool bCharging=false;       // the target holds an overdrive charge
         FResourceView Momentum;
         FString Statuses;
+        // The same public statuses as icon squares: the picture (or the name's first character), green when it helps the
+        // bearer and red when it hurts, stacks over 1 in the corner; the name, stacks and remaining time are the tooltip.
+        struct FStatusChip
+        {
+            FString IconId;
+            FString Glyph;
+            FString Tip;
+            bool bPositive=true;
+            uint8 Stacks=1;
+        };
+        TArray<FStatusChip> StatusChips;
         // A visible contender's Q/W/E actives (#112 §10, #198 single level): key, display name and icon; never cooldowns.
         struct FActiveChip
         {
@@ -615,7 +634,7 @@ namespace LDHUD
     };
     // Branch is the learned path (None = rank 1, the face of an offer); the card reads that path's values at its rank.
     LOCKDOWN_API FActiveCardView ActiveCard(FName DefinitionId,const FLDDemoContentDefinitions* Content,const FCardStats& Stats,
-        ELDSkillBranch Branch=ELDSkillBranch::None);
+        ELDSkillBranch Branch=ELDSkillBranch::None,int64 CooldownMs=0);
     struct FFinalModCardView
     {
         FString Name,IconId,Glyph;
@@ -695,11 +714,13 @@ namespace LDHUD
         FString CardOfferBlocked;
         // The stage is a rest (open or locked): the panel shows the rest services, enabled or with their reasons.
         bool bInRest=false;
+        // On the field, resting in a dorm out of combat: a blueprint may replace a learned skill here.
+        bool bDormSwap=false;
         // Installing, moving and uninstalling a card, as growth gates them (LDProgression::InstallGate).
         bool bCanInstall=false;
         FString InstallBlocked;
     };
-    LOCKDOWN_API FBuildGateView BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase);
+    LOCKDOWN_API FBuildGateView BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase,bool bDormRested=false);
     // The player-facing why of a refused or stored build step.
     LOCKDOWN_API FString BuildBlockedText(ELDGrowthReason Reason);
     // The result line of an applied build receipt: 已学到 Q：名称, 已存为图纸：名称（原因）, the points added and left, a rest
@@ -893,6 +914,16 @@ namespace LDHUD
     private:
         uint32 SeenMatch=0;
         int32 Known=0;
+    };
+    // Tells each element medal that drops once ("获得【…】"): the first valid view of a match primes, later views name the
+    // medals whose serial is past the highest one seen. Local presentation only.
+    class LOCKDOWN_API FMedalDropWatch
+    {
+    public:
+        TArray<FString> Observe(const FLDProgressionView* Progression,uint32 Match,const FLDDemoContentDefinitions* Content);
+    private:
+        uint32 SeenMatch=0;
+        uint16 HighestSerial=0;
     };
     struct FAttributeRowView
     {

@@ -344,17 +344,38 @@ FLDRewardReceipt ALDGrowthDirector::CommitDeathReward(const FLDCommittedDeath& D
 
     if (M->GetTimeline().GetStage() == ELDMatchStage::FinalField)
     {
+        // The final field gives no XP; a contender kill heals the killer and gives momentum instead.
+        if (bContenderVictim)
+        {
+            FLDContenderLifeRead KillerLife;
+            FString LifeError, RecoverError;
+            const auto& P = Content->Get().Parameters;
+            if (M->ReadContenderLife(M->GetMatchContext(), Recipient, KillerLife, LifeError)
+                && !M->Combat->RecoverContender(KillerLife.Body, 0, P.ShowdownKillHealMaxHPBp, P.ShowdownKillMomentumP2, Permit, RecoverError))
+            {
+                UE_LOG(LogLDGrowth, Error, TEXT("LD_FINAL_KILL_RECOVERY_FAULT killer=%s: %s"), *LDLog::Id(Recipient), *RecoverError);
+            }
+        }
         Receipt.Recipient = Recipient;
         Finish(ELDRewardOutcome::NoReward, ELDGrowthReason::PhaseClosed);
         RecordReward(Receipt);
         return Receipt;
     }
 
-    // The killer and the assisters split the kill XP evenly.
+    // A contender kill: the killer keeps the whole XP (plus the bounty on a trending victim) and each assister takes its
+    // share on top; a camp kill splits evenly.
     FLDAssistRewardShares Split;
-    if (!LDAssist::SplitKillReward(Amounts.XP, Death.Assisters.Num(), Split))
+    if (bContenderVictim
+        ? !LDAssist::ContenderKillShares(Amounts.XP, Death.Assisters.Num(), Content->Get().Parameters.AssistXPRatioBp, Split)
+        : !LDAssist::SplitKillReward(Amounts.XP, Death.Assisters.Num(), Split))
     {
         return Finish(ELDRewardOutcome::PermanentlyRejected, ELDGrowthReason::ArithmeticOverflow);
+    }
+    if (bContenderVictim && M->IsBountyDeath(Death.Key))
+    {
+        if (Split.KillerXP > MAX_int64 - Content->Get().Parameters.BountyXP)
+        { return Finish(ELDRewardOutcome::PermanentlyRejected, ELDGrowthReason::ArithmeticOverflow); }
+        Split.KillerXP += Content->Get().Parameters.BountyXP;
     }
     TArray<FRewardShare> Shares;
     FRewardShare& Killer = Shares.AddDefaulted_GetRef();
@@ -373,6 +394,23 @@ FLDRewardReceipt ALDGrowthDirector::CommitDeathReward(const FLDCommittedDeath& D
     if (Outcome != ELDRewardOutcome::Granted)
     {
         return Finish(Outcome, Reason);
+    }
+    // A contender kill may drop an element medal (REWARD.KillMedalChance); the bounty killer also picks one of
+    // REWARD.BountyCardOffer cards.
+    if (bContenderVictim)
+    {
+        FString KillError;
+        const uint64 DeathHash = HashCombine(GetTypeHash(Death.Key.Victim.EntityId), Death.Key.Victim.Life);
+        if (!M->Development->RollMedal(Recipient, Content->Get().Parameters.KillMedalChanceBp, 0x4B494C4C00000000ull ^ DeathHash,
+            TEXT("contender_kill"), Permit, KillError))
+        {
+            UE_LOG(LogLDGrowth, Error, TEXT("LD_MEDAL_FAULT victim=%s: %s"), *LDLog::Id(Death.Key.Victim.EntityId), *KillError);
+        }
+        if (M->IsBountyDeath(Death.Key)
+            && !M->PayFieldReward(Recipient, TEXT("bounty"), DeathHash | 1ull, 0, ELDFieldRewardKind::BountyOffer, Permit, KillError))
+        {
+            UE_LOG(LogLDGrowth, Error, TEXT("LD_BOUNTY_OFFER_FAULT victim=%s: %s"), *LDLog::Id(Death.Key.Victim.EntityId), *KillError);
+        }
     }
     // The last hit on a camp monster may drop an element medal by the camp's tier (MEDAL.Camp*Chance). The peddler keeps a
     // camp definition but is an event: its own reward rolls MEDAL.EventChance once.
@@ -396,7 +434,7 @@ ELDRewardOutcome ALDGrowthDirector::CommitFieldReward(const FGuid& Recipient, FN
     ELDFieldRewardKind Kind, const FLDGameplayWritePermit& Permit, FLDRewardReceipt& Receipt, ELDGrowthReason& Reason)
 {
     Reason = ELDGrowthReason::None;
-    const bool bKnownKind = uint8(Kind) <= uint8(ELDFieldRewardKind::BonusOffer);
+    const bool bKnownKind = uint8(Kind) <= uint8(ELDFieldRewardKind::BountyOffer);
     if (!Recipient.IsValid() || Event.IsNone() || !Serial || XP < 0 || !bKnownKind || (Kind == ELDFieldRewardKind::None && XP == 0))
     {
         Reason = ELDGrowthReason::DataInvalid;

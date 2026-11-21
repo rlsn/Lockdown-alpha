@@ -220,8 +220,8 @@ bool AFogMistLabGameMode::BuildField(const FVector& Foot, FString& Error)
     TArray<uint8> Bits;
     Sight.Coverage(Foot, Bits);
     if (Bits.Num() != LDObservation::CoverageBytes) { Error = TEXT("Lab native coverage has an invalid size."); return false; }
-    const double CellX = (Sight.MaxCm().X - Sight.MinCm().X) / FieldSide;
-    const double CellY = (Sight.MaxCm().Y - Sight.MinCm().Y) / FieldSide;
+    const double CellX = (Sight.MaxCm().X - Sight.MinCm().X) / FieldWidth;
+    const double CellY = (Sight.MaxCm().Y - Sight.MinCm().Y) / FieldHeight;
     LDFogDistanceField::Build(Bits, CellX, CellY, TargetField);
     if (ShownField.Num() != TargetField.Num()) { ShownField = TargetField; }
     LastFoot = Foot;
@@ -233,7 +233,7 @@ void AFogMistLabGameMode::UploadField(float DeltaSeconds)
 {
     if (!FieldTexture || !FieldTexture->GetResource() || ShownField.Num() != TargetField.Num()) { return; }
     const float Alpha = 1.f - FMath::Exp(-FMath::Max(0.f, DeltaSeconds) / .06f);
-    uint8* Pixels = new uint8[FieldSide * FieldSide * 4];
+    uint8* Pixels = new uint8[FieldWidth * FieldHeight * 4];
     for (int32 I = 0; I < ShownField.Num(); ++I)
     {
         ShownField[I] = FMath::Lerp(ShownField[I], TargetField[I], Alpha);
@@ -241,7 +241,7 @@ void AFogMistLabGameMode::UploadField(float DeltaSeconds)
         Pixels[4 * I] = Pixels[4 * I + 1] = Pixels[4 * I + 2] = Value;
         Pixels[4 * I + 3] = 255;
     }
-    FieldTexture->UpdateTextureRegions(0, 1, new FUpdateTextureRegion2D(0, 0, 0, 0, FieldSide, FieldSide), FieldSide * 4, 4,
+    FieldTexture->UpdateTextureRegions(0, 1, new FUpdateTextureRegion2D(0, 0, 0, 0, FieldWidth, FieldHeight), FieldWidth * 4, 4,
         Pixels, [](uint8* Data, const FUpdateTextureRegion2D* Region) { delete[] Data; delete Region; });
 }
 void AFogMistLabGameMode::Tick(float DeltaSeconds)
@@ -368,7 +368,7 @@ bool AFogMistLabGameMode::InitializeLab(FString& Error)
         if (It->ActorHasTag(TEXT("FogMistLabVolume"))) { FogVolume = *It; break; }
     }
     if (!FogVolume) { Error = TEXT("Lab fog post-process volume is missing."); return false; }
-    FieldTexture = UTexture2D::CreateTransient(FieldSide, FieldSide, PF_B8G8R8A8);
+    FieldTexture = UTexture2D::CreateTransient(FieldWidth, FieldHeight, PF_B8G8R8A8);
     FieldTexture->SRGB = false;
     FieldTexture->Filter = TF_Bilinear;
     FieldTexture->AddressX = TA_Clamp;

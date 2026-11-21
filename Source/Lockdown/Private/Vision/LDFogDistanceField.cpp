@@ -3,14 +3,15 @@
 
 namespace LDFogDistanceFieldPrivate
 {
-constexpr int32 Side = LDObservation::CoverageSide;
-void DistanceLine(const float* Input, int32 Stride, double CellSquared, float* Output)
+constexpr int32 Width = LDObservation::CoverageWidth, Height = LDObservation::CoverageHeight;
+constexpr int32 Longest = Width > Height ? Width : Height;
+void DistanceLine(const float* Input, int32 Count, int32 Stride, double CellSquared, float* Output)
 {
-    int32 Sites[Side];
-    double Cuts[Side + 1];
+    int32 Sites[Longest];
+    double Cuts[Longest + 1];
     int32 K = 0;
     Sites[0] = 0; Cuts[0] = -DBL_MAX; Cuts[1] = DBL_MAX;
-    for (int32 Q = 1; Q < Side; ++Q)
+    for (int32 Q = 1; Q < Count; ++Q)
     {
         double Crossing;
         do
@@ -24,7 +25,7 @@ void DistanceLine(const float* Input, int32 Stride, double CellSquared, float* O
         ++K; Sites[K] = Q; Cuts[K] = Crossing; Cuts[K + 1] = DBL_MAX;
     }
     K = 0;
-    for (int32 Q = 0; Q < Side; ++Q)
+    for (int32 Q = 0; Q < Count; ++Q)
     {
         while (Cuts[K + 1] < Q) { ++K; }
         const double Delta = Q - Sites[K];
@@ -34,11 +35,11 @@ void DistanceLine(const float* Input, int32 Stride, double CellSquared, float* O
 TArray<float> DistanceTo(const TArray<uint8>& Bits, bool bVisible, double CellX, double CellY)
 {
     TArray<float> Input, Rows, Result;
-    Input.SetNumUninitialized(Side * Side); Rows.SetNumUninitialized(Side * Side); Result.SetNumUninitialized(Side * Side);
+    Input.SetNumUninitialized(Width * Height); Rows.SetNumUninitialized(Width * Height); Result.SetNumUninitialized(Width * Height);
     for (int32 I = 0; I < Input.Num(); ++I)
     { Input[I] = (LDObservation::CoverageBit(Bits, I) == bVisible) ? 0.f : 1.e12f; }
-    for (int32 Y = 0; Y < Side; ++Y) { DistanceLine(Input.GetData() + Y * Side, 1, CellX * CellX, Rows.GetData() + Y * Side); }
-    for (int32 X = 0; X < Side; ++X) { DistanceLine(Rows.GetData() + X, Side, CellY * CellY, Result.GetData() + X); }
+    for (int32 Y = 0; Y < Height; ++Y) { DistanceLine(Input.GetData() + Y * Width, Width, 1, CellX * CellX, Rows.GetData() + Y * Width); }
+    for (int32 X = 0; X < Width; ++X) { DistanceLine(Rows.GetData() + X, Height, Width, CellY * CellY, Result.GetData() + X); }
     return Result;
 }
 }

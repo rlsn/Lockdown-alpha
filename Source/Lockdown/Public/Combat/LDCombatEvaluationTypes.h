@@ -60,8 +60,7 @@ struct FLDDamageEvaluationInput
     int64 DeliveryScaleBp = 10000;
     // A package multiplier of the raw amount (a skill branch's share), applied with the delivery share; 1..100000.
     int64 PackageScaleBp = 10000;
-    // The activated thick-skin keystone cuts after the ordinary primary guard.
-    int64 KeystoneGuardP2 = 0;
+    // The activated thick-skin keystone cuts this share of a direct hit after the ordinary primary guard.
     int64 KeystoneGuardCapBp = 0;
     // #198 S16: the target's stance cuts this share of the hit after resistance and delivery scaling, before the guard.
     int64 BraceCutBp = 0;

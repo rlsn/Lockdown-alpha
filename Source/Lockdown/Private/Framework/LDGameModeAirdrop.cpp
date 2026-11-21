@@ -92,3 +92,54 @@ bool ALDGameMode::ClaimAirdrop(const FLDGameplayWritePermit& Permit, FString& Er
         *LDLog::P2(Effects.MomentumBeforeP2), *LDLog::P2(Effects.MomentumAfterP2), Effects.MoveSpeedBonusUntilMs, NowMs);
     return true;
 }
+
+void ALDGameMode::DropRecoveryOrb(const FVector& PositionCm)
+{
+    if (!DemoContent || !IsFieldRunning()) { return; }
+    FLDRecoveryOrbView& Orb = RecoveryOrbs.AddDefaulted_GetRef();
+    Orb.Serial = ++RecoveryOrbSerial;
+    Orb.PositionCm = PositionCm;
+    Orb.ExpireAtMs = GetFieldNowMs() + DemoContent->Get().Parameters.CampClearOrbMs;
+    bPublicMatchDirty = true;
+    UE_LOG(LogLDWorld, Display, TEXT("LD_RECOVERY_ORB_DROP serial=%llu field_t_ms=%lld"), Orb.Serial, GetFieldNowMs());
+}
+
+bool ALDGameMode::ClaimRecoveryOrbs(const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    if (ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None || !Combat || !DemoContent)
+    {
+        Error = TEXT("A recovery orb claim requires the current Transactions permit, Combat and the approved content.");
+        return false;
+    }
+    if (RecoveryOrbs.IsEmpty() || !IsFieldRunning()) { return true; }
+    const int64 NowMs = Timeline.FieldMsAt(Permit.GetBoundary().AtMs);
+    const auto& Parameters = DemoContent->Get().Parameters;
+    const double PickupCm = Parameters.AirdropPickupRadiusCm.Denominator > 0
+        ? double(Parameters.AirdropPickupRadiusCm.Numerator) / double(Parameters.AirdropPickupRadiusCm.Denominator) : 0.;
+    TArray<LDAirdrop::FCandidate> Candidates;
+    Combat->ReadLivingContenderFeet(Candidates);
+    for (int32 Index = RecoveryOrbs.Num() - 1; Index >= 0; --Index)
+    {
+        const FLDRecoveryOrbView Orb = RecoveryOrbs[Index];
+        FGuid Claimer;
+        // An orb at or past its end is gone, never claimed on that boundary.
+        if (NowMs < Orb.ExpireAtMs && LDAirdrop::PickClaimer(Orb.PositionCm, PickupCm, Candidates, uint32(Orb.Serial), Claimer))
+        {
+            FLDContenderLifeRead Life;
+            FString LifeError;
+            if (ReadContenderLife(MatchContext, Claimer, Life, LifeError)
+                && !Combat->RecoverContender(Life.Body, Parameters.CampClearHealMissingBp, 0, Parameters.CampClearMomentumP2, Permit, Error))
+            { return false; }
+            RecoveryOrbs.RemoveAt(Index);
+            bPublicMatchDirty = true;
+            UE_LOG(LogLDWorld, Display, TEXT("LD_RECOVERY_ORB_CLAIM serial=%llu contender=%s field_t_ms=%lld"), Orb.Serial,
+                *LDLog::Id(Claimer), NowMs);
+        }
+        else if (NowMs >= Orb.ExpireAtMs)
+        {
+            RecoveryOrbs.RemoveAt(Index);
+            bPublicMatchDirty = true;
+        }
+    }
+    return true;
+}

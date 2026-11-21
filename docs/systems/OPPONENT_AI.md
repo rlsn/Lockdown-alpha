@@ -357,7 +357,7 @@ AI 只能凭可见单位的授权 ContenderId 与公开 Occupier/Owner 相等来
 
 画饼老板 Boss只在合法视野内可见，与其他单位相同；AI 按其公开生物编号认出它，始终把可见的 Boss 计为威胁。
 本人脚点在 Boss 的索敌带（`aggro_radius` 加它的 `attack_range`）内时，走向背离 Boss 的公开地点，原因 `AvoidBoss`；
-这排在喷漆、守护涂鸦与围攻之后、追打对手之前；恢复中的 AI 照常以恢复撤离。AI 不主动攻击 Boss（`DemoOpponentPolicy.AvoidBoss`）。
+这排在喷漆、守护涂鸦与围攻之后、追打对手之前；恢复中的 AI 照常以恢复撤离。生命不低于 `AI.HighCampEntryHPRatio` 的 AI 改为上前打 Boss（`EngageTarget`），低于它才撤离（`DemoOpponentPolicy.AvoidBoss`）。
 走出索敌带后，这次撤离继续走到它的地点，直到走到、订单结束或 Boss 离开视野，不在带边折返；
 否则每个决策节拍都会在撤离和把它带回 Boss 身边的原事务之间来回下单（`DemoOpponentPolicy.BossEscapeKept`）。
 

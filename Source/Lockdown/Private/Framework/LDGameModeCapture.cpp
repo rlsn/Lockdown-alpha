@@ -308,7 +308,8 @@ ELDCommitReject ALDGameMode::PublishCaptureEligibility(const FLDGameplayWritePer
         ++FindContender(Id)->Deaths;
         if (Killer) { ++Killer->Kills; }
         for (FLDContenderRecord* Assister : Assisters) { ++Assister->Assists; }
-        // D27: the shown leader's death spends the notice.
+        // D27: the shown leader's death spends the notice and ends its survival run.
+        TrendingRuns.Remove(Id);
         if (LeaderNotice.LeaderDied(Id, GetFieldNowMs()))
         {
             bPublicMatchDirty = true;
@@ -463,6 +464,26 @@ bool ALDGameMode::ExecuteCapturePhase(const FLDGameplayWritePermit& Permit, FStr
     return true;
 }
 
+bool ALDGameMode::ReadCageFence(FVector2D& OutCentreCm, double& OutRadiusCm, FGuid& OutHolder) const
+{
+    if (CageUntilMs == 0 || CageRadiusCm <= 0 || CageDurabilityP2 <= 0) { return false; }
+    OutCentreCm = CageCentreCm;
+    OutRadiusCm = CageRadiusCm;
+    OutHolder = CageHolder;
+    return true;
+}
+
+void ALDGameMode::DamageCageFence(const FGuid& Source, int64 AmountP2)
+{
+    if (CageUntilMs == 0 || CageDurabilityP2 <= 0 || AmountP2 <= 0 || !Source.IsValid() || Source == CageHolder) { return; }
+    // The public integrity moves in whole percents; the fence itself falls with UpdateCaptureGeometry.
+    const auto Percent = [this]() { return CageHPP2 > 0 ? CageDurabilityP2 * 100 / CageHPP2 : 0; };
+    const int64 Before = Percent();
+    CageDurabilityP2 = FMath::Max<int64>(0, CageDurabilityP2 - AmountP2);
+    bPublicMatchDirty |= Percent() != Before;
+    UE_LOG(LogLDMatch, Verbose, TEXT("LD_FINAL_CAGE_HIT source=%s amount=%lld left=%lld"), *LDLog::Id(Source), AmountP2, CageDurabilityP2);
+}
+
 void ALDGameMode::UpdateCaptureGeometry(int64 AtMs)
 {
     if (!Showdown.bStarted || !CaptureReducer.IsOpen()) { return; }
@@ -476,11 +497,18 @@ void ALDGameMode::UpdateCaptureGeometry(int64 AtMs)
         CageUntilMs = AtMs + CageDurationMs;
         CageCentreCm = CaptureCircle.CenterCm;
         CageRadiusCm = CaptureCircle.RadiusCm;
+        CageHolder = Pair.Key;
+        CageDurabilityP2 = CageHPP2;
         bPublicMatchDirty = true;
         UE_LOG(LogLDMatch, Display, TEXT("LD_FINAL_CAGE_UP holder=%s until_ms=%lld"), *LDLog::Id(Pair.Key), CageUntilMs);
     }
-    if (CageUntilMs != 0 && AtMs >= CageUntilMs)
+    // The fence breaks under hostile hits across it (DamageCageFence).
+    const bool bCageBroken = CageUntilMs != 0 && CageDurabilityP2 <= 0;
+    if (CageUntilMs != 0 && (AtMs >= CageUntilMs || bCageBroken))
     {
+        if (bCageBroken) { UE_LOG(LogLDMatch, Display, TEXT("LD_FINAL_CAGE_BROKEN holder=%s at_ms=%lld"), *LDLog::Id(CageHolder), AtMs); }
+        CageHolder.Invalidate();
+        CageDurabilityP2 = 0;
         CageUntilMs = 0;
         CageCentreCm = FVector2D::ZeroVector;
         CageRadiusCm = 0;
@@ -784,6 +812,8 @@ FLDPublicMatchView ALDGameMode::ReadPublicMatch() const
         if (CageUntilMs != 0)
         {
             View.CageUntilMs = CageUntilMs;
+            View.CageIntegrityBp = CageUntilMs != 0 && CageHPP2 > 0
+                ? int32(FMath::Clamp<int64>(FMath::DivideAndRoundUp<int64>(FMath::Max<int64>(CageDurabilityP2, 1) * 100, CageHPP2) * 100, 1, 10000)) : 0;
             View.CageCentreCm = FVector(CageCentreCm.X, CageCentreCm.Y, Showdown.CentreCm.Z);
             View.CageRadiusCm = float(CageRadiusCm);
         }
@@ -810,6 +840,7 @@ FLDPublicMatchView ALDGameMode::ReadPublicMatch() const
     if (!Showdown.bStarted)
     {
         View.Airdrop = Airdrop.View();
+        View.RecoveryOrbs = RecoveryOrbs;
         View.Leader = LeaderNotice.View();
         View.Boss = Camps ? Camps->BossView() : FLDBossView();
         FieldMarkers.View(View.Markers);

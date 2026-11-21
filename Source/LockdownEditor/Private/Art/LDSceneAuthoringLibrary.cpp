@@ -297,8 +297,8 @@ FString ULDSceneAuthoringLibrary::GameplayVisibilityAudit(UWorld* World, bool bS
         || !Sight.Build(*Registry->GetGeometry(),Registry->Revision(),Content->Get().Parameters.VisionRadiusCm,Error,World))
     { Result->SetBoolField(TEXT("ready"),false);Result->SetStringField(TEXT("error"),Error);return Finish(); }
     Result->SetBoolField(TEXT("ready"),true);
-    Result->SetNumberField(TEXT("cell_width_cm"),(Sight.MaxCm().X-Sight.MinCm().X)/LDObservation::CoverageSide);
-    Result->SetNumberField(TEXT("cell_height_cm"),(Sight.MaxCm().Y-Sight.MinCm().Y)/LDObservation::CoverageSide);
+    Result->SetNumberField(TEXT("cell_width_cm"),(Sight.MaxCm().X-Sight.MinCm().X)/LDObservation::CoverageWidth);
+    Result->SetNumberField(TEXT("cell_height_cm"),(Sight.MaxCm().Y-Sight.MinCm().Y)/LDObservation::CoverageHeight);
     Result->SetObjectField(TEXT("registry"),Registry->Report());
     TArray<TSharedPtr<FJsonValue>> Rows;
     auto Sample=[&](const FString& Id,const FVector& Foot,FName Surface)

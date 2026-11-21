@@ -267,7 +267,7 @@ bool RunChoiceOrder(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("Reach the keystone threshold before balancing the remaining point"),
         LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error)
         && SameCounts(ById(C, Counts), {{Physique, 1}, {Strength, 1}}));
-    Spender.Actives = {Active(TEXT("active_snark_bolt"), 0)};
+    Spender.Actives = {Active(TEXT("active_account_banned"), 0)};
     Spender.StatPoints = StatRows(C, {{Physique, 4}, {Skin, 3}, {Strength, 1}, {Agility, 7}});
     Spender.UnspentPoints = 4;
     bGood &= Test.TestTrue(TEXT("An AP-heavy active pursues the brains keystone and agility is not relevant"),
@@ -850,7 +850,7 @@ bool RunPriorities(FAutomationTestBase& Test)
     Frame.Public.Circle = ELDOpponentCircle::Empty;
     bGood &= Expect(Test, TEXT("An open, empty circle is contested"), Decide(Frame), EMode::Contest, EBody::MoveGround,
         TEXT("capture"));
-    // Both feet inside the 300 cm zone yet farther apart than the acquisition radius, so only the zone draws the fight.
+    // Both feet inside the 420 cm zone yet farther apart than the acquisition radius, so only the zone draws the fight.
     Frame.Self.FootCm = FVector(0, 2750, 0);
     Frame.Units = {Unit(3, ELDOpponentUnitKind::Contender, 0, 3240), Unit(4, ELDOpponentUnitKind::Contender, 5000, 5000)};
     Decision = Decide(Frame);
@@ -858,8 +858,8 @@ bool RunPriorities(FAutomationTestBase& Test)
         && Test.TestTrue(TEXT("The in-circle rival"), Decision.Body.Handle == Frame.Units[0].Handle);
     Frame.Public.Circle = ELDOpponentCircle::Solo;
     Frame.Public.Occupier = Frame.Self.ContenderId;
-    // Just outside the zone edge yet inside the acquisition radius of the holder.
-    Frame.Units = {Unit(4, ELDOpponentUnitKind::Contender, 0, 2650)};
+    // Just outside the 420 cm zone edge yet inside the acquisition radius of the holder.
+    Frame.Units = {Unit(4, ELDOpponentUnitKind::Contender, 0, 2560)};
     Decision = Decide(Frame);
     bGood &= Expect(Test, TEXT("A solo holder does not chase a rival outside the circle"), Decision, EMode::DefendOrHold,
         EBody::None) && Test.TestTrue(TEXT("Hold reason"), Decision.Reason == ELDOpponentReason::HoldCapture);
@@ -2231,6 +2231,8 @@ bool RunAvoidBoss(FAutomationTestBase& Test)
     FLDOpponentDecisionFrame Base;
     if (!BaseFrame(Test, C, Base)) { return false; }
     Base.Self.FootCm = FVector(500, -500, 0);
+    // Below AI.HighCampEntryHPRatio (a healthy body contests the Boss instead) but above the recovery threshold.
+    Base.Self.HpP2 = Base.Self.MaxHpP2 * 6 / 10;
     const TCHAR* Dean = *C.Get().Boss.Id;
     auto IsAvoid = [](const FLDOpponentDecision& D) { return D.Reason == ELDOpponentReason::AvoidBoss; };
 
@@ -2238,7 +2240,7 @@ bool RunAvoidBoss(FAutomationTestBase& Test)
     Frame.Units = {Unit(9, ELDOpponentUnitKind::CampMember, 700, -400, Dean)};
     FLDOpponentPolicyState Near;
     const auto Step = LDOpponentPolicy::Decide(Frame, C, Near);
-    bool bGood = Expect(Test, TEXT("D26: a healthy body inside the Boss's acquire band steps away from it"), Step,
+    bool bGood = Expect(Test, TEXT("D26: a worn body inside the Boss's acquire band steps away from it"), Step,
         EMode::Disengage, EBody::MoveGround)
         && Test.TestTrue(TEXT("Stepping away from the Boss is its own reason"), IsAvoid(Step))
         && Test.TestTrue(TEXT("It walks away from the Boss, not past it"),
@@ -2247,7 +2249,7 @@ bool RunAvoidBoss(FAutomationTestBase& Test)
     Frame = Base;
     Frame.Units = {Unit(9, ELDOpponentUnitKind::CampMember, 2500, -500, Dean)};
     FLDOpponentPolicyState Far;
-    bGood &= Test.TestFalse(TEXT("Out of the band a healthy body carries on"), IsAvoid(LDOpponentPolicy::Decide(Frame, C, Far)));
+    bGood &= Test.TestFalse(TEXT("Out of the band a worn body carries on"), IsAvoid(LDOpponentPolicy::Decide(Frame, C, Far)));
     Frame = Base;
     Frame.Units = {Unit(9, ELDOpponentUnitKind::CampMember, 700, -400, Dean)};
     Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 5;
@@ -2268,6 +2270,14 @@ bool RunAvoidBoss(FAutomationTestBase& Test)
     Frame.Units = {Unit(9, ELDOpponentUnitKind::CampMember, 700, -400, TEXT("monster_scavenger"))};
     FLDOpponentPolicyState Camp;
     bGood &= Test.TestFalse(TEXT("A camp member is not the Boss"), IsAvoid(LDOpponentPolicy::Decide(Frame, C, Camp)));
+    // A healthy body (at least AI.HighCampEntryHPRatio) contests a seen Boss.
+    Frame = Base;
+    Frame.Self.HpP2 = Frame.Self.MaxHpP2;
+    Frame.Units = {Unit(9, ELDOpponentUnitKind::CampMember, 700, -400, Dean)};
+    FLDOpponentPolicyState Healthy;
+    const auto Fight = LDOpponentPolicy::Decide(Frame, C, Healthy);
+    bGood &= Test.TestTrue(TEXT("A healthy body fights the Boss instead of stepping away"),
+        Fight.Mode == EMode::Engage && Fight.Reason == ELDOpponentReason::EngageTarget && !IsAvoid(Fight));
     return bGood;
 }
 
@@ -2283,6 +2293,8 @@ bool RunBossEscapeKept(FAutomationTestBase& Test)
     FLDOpponentDecisionFrame Base;
     if (!BaseFrame(Test, C, Base)) { return false; }
     Base.Self.FootCm = FVector(500, -500, 0);
+    // Below AI.HighCampEntryHPRatio (a healthy body contests the Boss instead) but above the recovery threshold.
+    Base.Self.HpP2 = Base.Self.MaxHpP2 * 6 / 10;
     const TCHAR* Dean = *C.Get().Boss.Id;
     auto IsAvoid = [](const FLDOpponentDecision& D) { return D.Reason == ELDOpponentReason::AvoidBoss; };
 

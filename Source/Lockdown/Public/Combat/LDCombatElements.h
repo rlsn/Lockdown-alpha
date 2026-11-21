@@ -209,6 +209,8 @@ struct FLDCombatBrace
     int64 RecordRatioBp = 0;
     double RadiusCm = 0;
     int64 RecordedP2 = 0;
+    // The share of the record the answer, heal and shield use (an A08 combo cast's, summed over its copies; 10000 otherwise).
+    int64 ShareBp = 10000;
     // The release's shared ledger: the answer is that release's native direct damage (B13-B16).
     TSharedPtr<struct FLDCombatCastLedger> CastLedger;
 };

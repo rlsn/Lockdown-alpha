@@ -19,13 +19,6 @@ namespace LDCombatMechanicsDetail
     const FLDDemoEffectDefinition* FindOp(const FLDDemoAbilityValues& Values, ELDDemoEffectOp Op)
     { return Values.Effects.FindByPredicate([Op](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp()==Op; }); }
 
-    // floor(ValueP2 x Bp / 10000) without overflow for nonnegative inputs.
-    int64 Scale(int64 ValueP2, int64 Bp)
-    {
-        if (ValueP2<=0 || Bp<=0) { return 0; }
-        return ValueP2/10000*Bp+ValueP2%10000*Bp/10000;
-    }
-
     // One damage-carrying hit from a body to a target, with the body's current AD/AP as its source values.
     FLDCombatHit MakeHit(const FLDBodyCombatState& Source, const FLDCombatSourceRef& Ref, const FLDCombatBodyRef& Target,
         const FGuid& EffectId)
@@ -101,52 +94,38 @@ bool ALDCombatDirector::HealBody(FLDBodyCombatState& Body, int64 AmountP2, const
     ++Pool.Revision;
     MarkViewChanged(Body.Victim.EntityId);
     LedgerHealed(Body,Pool.HpP2-Before);
-    if (Healed>0 && HealSource.Kind!=ELDCombatSourceKind::None && Body.AttributeProjection.Keystones.bPhysique)
+    return true;
+}
+
+int32 ALDCombatDirector::SpendShieldLayers(FLDBodyCombatState& Body, int64 AmountP2, TArray<FGuid>* OutEmptied)
+{
+    int32 Emptied=0;
+    Body.ShieldLayers.Sort([](const FLDBodyCombatState::FShieldLayer& A, const FLDBodyCombatState::FShieldLayer& B)
+        { return A.ExpiresAtMs<B.ExpiresAtMs; });
+    for (FLDBodyCombatState::FShieldLayer& Layer : Body.ShieldLayers)
     {
-        const auto* Mode=Authority();
-        if (!Mode)
+        if (AmountP2<=0) { break; }
+        const int64 Taken=FMath::Min(AmountP2,Layer.AmountP2);
+        Layer.AmountP2-=Taken;
+        AmountP2-=Taken;
+        if (Layer.AmountP2<=0 && Taken>0)
         {
-            const FString Message=TEXT("The physique keystone requires the current core.");
-            if (OutError) { *OutError=Message; }
-            else { UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_KEYSTONE_ERROR body=%s error=%s"),*LDLog::Id(Body.Victim.EntityId),*Message); }
-            return false;
-        }
-        if (NowMs>=Body.KeystonePhysiqueReadyAtMs)
-        {
-            const auto* Content=Catalog();
-            if (!Content)
-            {
-                const FString Message=TEXT("The physique keystone requires the approved Demo content.");
-                if (OutError) { *OutError=Message; }
-                else { UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_KEYSTONE_ERROR body=%s error=%s"),*LDLog::Id(Body.Victim.EntityId),*Message); }
-                return false;
-            }
-            const FLDDemoContentParameters& Parameters=Content->Get().Parameters;
-            const int64 ShieldP2=FMath::Min(LDCombatMechanicsDetail::Scale(Healed,Parameters.KeystonePhysiqueHealToShieldBp),
-                LDCombatMechanicsDetail::Scale(Pool.MaxHpP2,Parameters.KeystonePhysiqueShieldMaxHPBp));
-            if (ShieldP2>0)
-            {
-                int64 ExpiresAtMs=0, NextReadyAtMs=0;
-                FString ShieldError;
-                if (!LDMatchLifecycle::AddDurationMs(NowMs,Parameters.KeystonePhysiqueShieldDurationMs,ExpiresAtMs,ShieldError)
-                    || !LDMatchLifecycle::AddDurationMs(NowMs,Parameters.KeystonePhysiqueIntervalMs,NextReadyAtMs,ShieldError))
-                {
-                    if (OutError) { *OutError=MoveTemp(ShieldError); }
-                    else { UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_KEYSTONE_ERROR body=%s error=%s"),*LDLog::Id(Body.Victim.EntityId),*ShieldError); }
-                    return false;
-                }
-                const FGuid ShieldId=FGuid::NewGuid();
-                if (!GrantShieldTo(Body,ShieldP2,Parameters.KeystonePhysiqueShieldDurationMs,ShieldId,Body.Victim.EntityId,
-                    NowMs,ShieldError))
-                {
-                    if (OutError) { *OutError=MoveTemp(ShieldError); }
-                    else { UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_KEYSTONE_ERROR body=%s error=%s"),*LDLog::Id(Body.Victim.EntityId),*ShieldError); }
-                    return false;
-                }
-                if (Body.Shield.IsSet() && Body.Shield->EffectId==ShieldId) { Body.KeystonePhysiqueReadyAtMs=NextReadyAtMs; }
-            }
+            ++Emptied;
+            if (OutEmptied) { OutEmptied->Add(Layer.EffectId); }
         }
     }
+    Body.ShieldLayers.RemoveAll([](const FLDBodyCombatState::FShieldLayer& Layer) { return Layer.AmountP2<=0; });
+    return Emptied;
+}
+
+bool ALDCombatDirector::ExpireShieldLayers(FLDBodyCombatState& Body, int64 NowMs)
+{
+    int64 Lapsed=0;
+    const int32 Before=Body.ShieldLayers.Num();
+    Body.ShieldLayers.RemoveAll([NowMs,&Lapsed](const FLDBodyCombatState::FShieldLayer& Layer)
+        { if (Layer.ExpiresAtMs>NowMs) { return false; } Lapsed+=Layer.AmountP2; return true; });
+    if (Body.ShieldLayers.Num()==Before) { return false; }
+    Body.Resources.ShieldP2=FMath::Max<int64>(0,Body.Resources.ShieldP2-Lapsed);
     return true;
 }
 
@@ -161,7 +140,11 @@ bool ALDCombatDirector::GrantShieldTo(FLDBodyCombatState& Body, int64 AmountP2, 
     // A weaker shield is a stated sub-effect outcome, not a failed release.
     if (!LDTactical::ApplyShield(Body.Shield,Body.Resources.ShieldP2,FLDCombatShield{EffectId,SourceEntity,Expires},AmountP2,NowMs))
     { return true; }
-    Body.ShieldGrantedP2=AmountP2;
+    Body.ShieldGrantedP2=Body.Resources.ShieldP2;
+    Body.LastShieldGrantP2=AmountP2;
+    // Layers left over from an expired record are gone with it; this grant is its own layer.
+    if (Body.Resources.ShieldP2==AmountP2) { Body.ShieldLayers.Reset(); }
+    Body.ShieldLayers.Add({EffectId,Expires,AmountP2});
     ++Body.Resources.Revision;
     ++Body.StateRevision;
     MarkViewChanged(Body.Victim.EntityId);

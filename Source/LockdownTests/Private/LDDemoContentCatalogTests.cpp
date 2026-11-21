@@ -1277,14 +1277,14 @@ bool FLDDemoContentGrowthCatalogTest::RunTest(const FString& Parameters)
     }
     TestEqual(TEXT("Twenty-six single-level actives (S01-S22, N1-N4)"), Definitions.Abilities.Num(), 26);
     TestEqual(TEXT("Twenty actives form the opening pool (S01-S13, S17, S18, S20-S22, N1, N3)"), OpeningPool, 20);
-    TestTrue(TEXT("Levels 2 and 6 each enqueue one more active opportunity"), Definitions.Progression.ActiveOfferLevels == TArray<int32>{2, 6});
+    TestTrue(TEXT("Levels 2, 6 and 11 each enqueue one more active opportunity"), Definitions.Progression.ActiveOfferLevels == TArray<int32>{2, 6, 11});
     const FLDDemoContentParameters& P = Definitions.Parameters;
     TestTrue(TEXT("Growth points and the build safe window are the approved values"),
         P.OpeningPoints == 3 && P.PointsPerLevel == 3 && P.MaxLevelPointsXP == 240 && P.MaxLevelPoints == 3 && P.BuildSafeWindowMs == 4000);
     TestTrue(TEXT("Skill growth is G(L) = 1 + 0.04 (L - 1) and the ranks scale 1/1.5/2 and 1/1.25/1.5"),
         P.SkillGrowthPerLevelBp == 400 && P.SkillRanks.RankBaseScaleBp == TArray<int64>({10000, 15000, 20000})
         && P.SkillRanks.RankRatioScaleBp == TArray<int64>({10000, 12500, 15000})
-        && P.SkillRanks.PointLevels == TArray<int64>({4, 8, 12}) && P.SkillRanks.CooldownFloorMs == 300);
+        && P.SkillRanks.PointLevels == TArray<int64>({3, 6, 9, 12, 15}) && P.SkillRanks.CooldownFloorMs == 300);
 
     const FLDDemoAbilityDefinition* Elbow = nullptr;
     if (!TestTrue(TEXT("active_elbow resolves: ") + Error, Snapshot->FindAbility(TEXT("active_elbow"), Elbow, Error))) { return false; }
@@ -1292,9 +1292,9 @@ bool FLDDemoContentGrowthCatalogTest::RunTest(const FString& Parameters)
     const FLDDemoAbilityValues* Top = Snapshot->FindValues(*Elbow, 16, ELDSkillBranch::None);
     if (!TestTrue(TEXT("The value set resolves for levels 1 and 16"), First && Top)) { return false; }
     TestTrue(TEXT("Level 1 uses the authored G=1 values"),
-        First->Effects[0].BaseP2 == 5500 && First->Effects[0].ADRatioBp == 6000 && First->MomentumCostP2 == 2500 && First->CooldownMs == 4200);
+        First->Effects[0].BaseP2 == 5500 && First->Effects[0].ADRatioBp == 9500 && First->MomentumCostP2 == 2500 && First->CooldownMs == 4200);
     TestTrue(TEXT("Level 16 grows the base by G(16)=1.6 and keeps ratios, cost and cooldown"),
-        Top->Effects[0].BaseP2 == 8800 && Top->Effects[0].ADRatioBp == 6000 && Top->MomentumCostP2 == 2500 && Top->CooldownMs == 4200);
+        Top->Effects[0].BaseP2 == 8800 && Top->Effects[0].ADRatioBp == 9500 && Top->MomentumCostP2 == 2500 && Top->CooldownMs == 4200);
     const FLDDemoAbilityDefinition Detached = *Elbow;
     TestTrue(TEXT("Levels outside 1..16 and abilities outside the snapshot have no value set"),
         !Snapshot->FindValues(*Elbow, 0, ELDSkillBranch::None) && !Snapshot->FindValues(*Elbow, 17, ELDSkillBranch::None) && !Snapshot->FindValues(Detached, 1, ELDSkillBranch::None));

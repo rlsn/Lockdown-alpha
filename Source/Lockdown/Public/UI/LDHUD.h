@@ -163,7 +163,14 @@ private:
     UPROPERTY() TObjectPtr<UWidget> TargetMomentumRow;
     UPROPERTY() TObjectPtr<UProgressBar> TargetMomentumBar;
     UPROPERTY() TObjectPtr<UTextBlock> TargetMomentum;
-    UPROPERTY() TObjectPtr<UTextBlock> TargetStatuses;
+    // The target's public statuses as icon squares (a wrap row, no text line): each tile, its picture, its fallback glyph
+    // and its stack count, grown on demand and collapsed when unused.
+    UPROPERTY() TObjectPtr<class UWrapBox> TargetStatusRow;
+    UPROPERTY() TArray<TObjectPtr<UWidget>> TargetStatusTiles;
+    UPROPERTY() TArray<TObjectPtr<UBorder>> TargetStatusRims;
+    UPROPERTY() TArray<TObjectPtr<UImage>> TargetStatusIcons;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> TargetStatusGlyphs;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> TargetStatusStacks;
     // The visible contender's Q/W/E icon tiles (#198: an active has one level); the name's first character shows when the
     // icon is missing, and the key and name are the tile's tooltip.
     UPROPERTY() TObjectPtr<UWidget> TargetActivesRow;
@@ -392,9 +399,11 @@ private:
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> PromptSlot;
     UPROPERTY() TObjectPtr<ULDCommandButton> PromptButton;
     UPROPERTY() TObjectPtr<UTextBlock> PromptText;
-    UPROPERTY() TObjectPtr<UBorder> PromptBadge;
-    UPROPERTY() TObjectPtr<UTextBlock> PromptBadgeText;
-    UPROPERTY() TObjectPtr<UCanvasPanelSlot> PromptBadgeSlot;
+    // The counts on the 构筑 button's corner, one per kind of waiting decision: skills (an active offer and the blueprints,
+    // blue square), build cards (gold tall) and the final mod (pink round), right to left in that order.
+    UPROPERTY() TArray<TObjectPtr<UBorder>> PromptBadges;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> PromptBadgeTexts;
+    UPROPERTY() TArray<TObjectPtr<UCanvasPanelSlot>> PromptBadgeSlots;
     int32 PromptOffers=0;
     int32 PromptCardOffers=0;
     double PromptPulseAt=-1;
@@ -421,6 +430,7 @@ private:
     double AutoOpenSince=-1;
     // #198 G: each new field reward of the own view is toasted once (LDHUD::FieldRewardNotice).
     LDHUD::FFieldRewardWatch FieldRewardWatch;
+    LDHUD::FMedalDropWatch MedalDropWatch;
     // Own-body hits (the same health and shield losses the world feedback floats), which fold the growth panel.
     LDWorldFeedback::FTracker OwnHitWatch;
     void HandleGrowthSubmit(const FLDSubmitResult& Result);

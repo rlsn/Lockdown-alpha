@@ -907,7 +907,7 @@ FINAL_MOD_CONTRACTS = {
     "final_kill_seconds": {"guard"},
     "final_usurp": set(),
     "final_carry_flag": set(),
-    "final_cage": {"duration"},
+    "final_cage": {"duration", "hp"},
     "final_private_pole": {"spray", "guard", "radius"},
     "final_double_yellow": {"radius"},
 }

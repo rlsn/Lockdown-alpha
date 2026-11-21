@@ -116,6 +116,8 @@ struct LOCKDOWN_API FLDArtResolved
     // The airdrop crate and its transform relative to the drop point (footprint centre on the ground).
     const FLDArtProp* AirdropCrate = nullptr;
     FTransform AirdropTransform;
+    // The final_cage fence panel.
+    const FLDArtProp* CageFence = nullptr;
     // Null for a seat outside the roster or an unknown camp tier.
     const FLDArtCharacter* ForSeat(uint8 Seat) const;
     const FLDArtCharacter* ForMonster(uint8 CreatureId) const;
@@ -151,5 +153,7 @@ public:
     // The airdrop crate prop and its transform relative to the drop point.
     UPROPERTY(VisibleAnywhere) FString AirdropProp;
     UPROPERTY(VisibleAnywhere) FTransform AirdropTransform;
+    // The final_cage fence panel prop: a 1 m panel standing on its foot, repeated along the spray zone boundary.
+    UPROPERTY(VisibleAnywhere) FString CageFenceProp;
     bool Resolve(FLDArtResolved& Out, FString& Error) const;
 };

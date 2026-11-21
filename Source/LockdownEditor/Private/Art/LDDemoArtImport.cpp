@@ -132,6 +132,7 @@ namespace
         TArray<FArtPropSpec> Props;
         TSet<FString> Files, Packs;
         FString AirdropProp;
+        FString CageFenceProp;
     };
 
     // Colour and base-colour image of one source material, read from the glTF itself: its alpha mode and cutoff, and
@@ -467,6 +468,10 @@ namespace
         if (!Json->TryGetObjectField(TEXT("dressing"), Dressing) || !(*Dressing)->TryGetStringField(TEXT("airdrop_prop"), Out.AirdropProp) || !KnownProp(Out.AirdropProp))
         {
             return ArtFail(Error, TEXT("art_assets.json dressing needs the airdrop_prop of a declared prop."));
+        }
+        if (!(*Dressing)->TryGetStringField(TEXT("cage_fence_prop"), Out.CageFenceProp) || !KnownProp(Out.CageFenceProp))
+        {
+            return ArtFail(Error, TEXT("art_assets.json dressing needs the cage_fence_prop of a declared prop."));
         }
         if ((*Dressing)->HasField(TEXT("tree_props")) || (*Dressing)->HasField(TEXT("hidden_blockers")))
         { return ArtFail(Error, TEXT("Tree looks and hidden boundaries belong to the saved Demo map, not procedural dressing input.")); }
@@ -1425,7 +1430,7 @@ namespace
     }
 }
 
-bool LDDemoArtImport::Import(FString& Error)
+bool LDDemoArtImport::Import(FString& Error, bool bPropsOnly)
 {
     if (!ArtRequireClient(Error)) { return false; }
     FArtManifest Manifest;
@@ -1436,38 +1441,42 @@ bool LDDemoArtImport::Import(FString& Error)
     auto* Catalog = ArtLoadOrCreate<ULDArtCatalog>(ArtCatalogPackage, true);
     if (!Catalog) { return ArtFail(Error, TEXT("The art catalog cannot be created.")); }
     for (const TPair<EArtSurface, UMaterial*>& Master : Masters) { Assets.Add(Master.Value); }
-    Catalog->Characters.Reset();
-    Catalog->Seats.Reset();
-    Catalog->Monsters.Reset();
     Catalog->Props.Reset();
-    Catalog->Decorations.Reset();
-    Catalog->HiddenBlockers.Reset();
-    for (const FArtCharacterSpec& Spec : Manifest.Characters)
+    if (!bPropsOnly)
     {
-        if (!(Spec.bAuthored ? ArtImportAuthored(Spec, *Catalog, Assets, Error) : ArtImportCharacter(Spec, Masters, *Catalog, Assets, Error))) { return false; }
-    }
-    for (int32 Seat = 0; Seat < Manifest.Seats.Num(); ++Seat)
-    {
-        FLDArtSeatLook& Look = Catalog->Seats.AddDefaulted_GetRef();
-        Look.Seat = uint8(Seat);
-        Look.Character = Manifest.Seats[Seat];
-    }
-    for (const TPair<uint8, FString>& Tier : Manifest.Monsters)
-    {
-        FLDArtMonsterLook& Look = Catalog->Monsters.AddDefaulted_GetRef();
-        Look.CreatureId = Tier.Key;
-        Look.Character = Tier.Value;
+        Catalog->Characters.Reset();
+        Catalog->Seats.Reset();
+        Catalog->Monsters.Reset();
+        Catalog->Decorations.Reset();
+        Catalog->HiddenBlockers.Reset();
+        for (const FArtCharacterSpec& Spec : Manifest.Characters)
+        {
+            if (!(Spec.bAuthored ? ArtImportAuthored(Spec, *Catalog, Assets, Error) : ArtImportCharacter(Spec, Masters, *Catalog, Assets, Error))) { return false; }
+        }
+        for (int32 Seat = 0; Seat < Manifest.Seats.Num(); ++Seat)
+        {
+            FLDArtSeatLook& Look = Catalog->Seats.AddDefaulted_GetRef();
+            Look.Seat = uint8(Seat);
+            Look.Character = Manifest.Seats[Seat];
+        }
+        for (const TPair<uint8, FString>& Tier : Manifest.Monsters)
+        {
+            FLDArtMonsterLook& Look = Catalog->Monsters.AddDefaulted_GetRef();
+            Look.CreatureId = Tier.Key;
+            Look.Character = Tier.Value;
+        }
     }
     for (const FArtPropSpec& Spec : Manifest.Props)
     {
         if (!ArtImportProp(Spec, Masters, *Catalog, Assets, Error)) { return false; }
     }
-    if (!ArtReadSavedScene(*Catalog, Catalog->Decorations, Catalog->HiddenBlockers, Error)) { return false; }
+    if (!bPropsOnly && !ArtReadSavedScene(*Catalog, Catalog->Decorations, Catalog->HiddenBlockers, Error)) { return false; }
     Catalog->AirdropProp = Manifest.AirdropProp;
+    Catalog->CageFenceProp = Manifest.CageFenceProp;
     if (!ArtAirdropTransform(Manifest, *Catalog, Catalog->AirdropTransform, Error)) { return false; }
     FLDArtResolved Resolved;
     if (!Catalog->Resolve(Resolved, Error)) { return ArtFail(Error, TEXT("Imported art catalog is invalid: ") + Error); }
-    if (!LDArt::CheckPlacementsAgainstDemoWorld(*Catalog, Error)) { return ArtFail(Error, TEXT("Decoration placement: ") + Error); }
+    if (!bPropsOnly && !LDArt::CheckPlacementsAgainstDemoWorld(*Catalog, Error)) { return ArtFail(Error, TEXT("Decoration placement: ") + Error); }
     Catalog->MarkPackageDirty();
     Assets.Add(Catalog);
     for (UObject* Asset : Assets)
@@ -1496,6 +1505,7 @@ bool LDDemoArtImport::Validate(FString& Error)
     }
     FTransform Crate;
     if (Catalog->Characters.Num() != Manifest.Characters.Num() || Catalog->AirdropProp != Manifest.AirdropProp
+        || Catalog->CageFenceProp != Manifest.CageFenceProp
         || !ArtAirdropTransform(Manifest, *Catalog, Crate, Error) || !Crate.Equals(Catalog->AirdropTransform, 1e-2))
     {
         return ArtFail(Error, TEXT("Art catalog entries differ from art_assets.json; run ImportDemoArt.ps1 -Mode Import."));

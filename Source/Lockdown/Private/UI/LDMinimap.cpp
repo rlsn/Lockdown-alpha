@@ -502,10 +502,10 @@ void MinimapUpdateCoverage(FLDMinimapStatic& Cache,const ALDPlayerController& PC
     TRACE_CPUPROFILER_EVENT_SCOPE(LDMinimap_CoverageUpload);
     TArray<FColor> Pixels;
     if(!ensureMsgf(LDMinimapRaster::CoveragePixels(Frame->Footprint.CurrentBits,Pixels),TEXT("Invalid authorized minimap coverage length"))){Cache.CoverageKey=LDMinimapRaster::FCoverageKey();return;}
-    constexpr int32 Side=LDObservation::CoverageSide;
+    constexpr int32 Width=LDObservation::CoverageWidth,Height=LDObservation::CoverageHeight;
     if(!Cache.Coverage.IsValid())
     {
-        Cache.Coverage.Reset(UTexture2D::CreateTransient(Side,Side,PF_B8G8R8A8));
+        Cache.Coverage.Reset(UTexture2D::CreateTransient(Width,Height,PF_B8G8R8A8));
         if(!ensureMsgf(Cache.Coverage.IsValid(),TEXT("Cannot create minimap coverage texture"))){return;}
         Cache.Coverage->SRGB=false;Cache.Coverage->Filter=TF_Nearest;
         Cache.Coverage->AddressX=TA_Clamp;Cache.Coverage->AddressY=TA_Clamp;Cache.Coverage->NeverStream=true;
@@ -519,7 +519,7 @@ void MinimapUpdateCoverage(FLDMinimapStatic& Cache,const ALDPlayerController& PC
     {
         uint8* Data=new uint8[Pixels.Num()*sizeof(FColor)];
         FMemory::Memcpy(Data,Pixels.GetData(),Pixels.Num()*sizeof(FColor));
-        Cache.Coverage->UpdateTextureRegions(0,1,new FUpdateTextureRegion2D(0,0,0,0,Side,Side),Side*sizeof(FColor),sizeof(FColor),Data,
+        Cache.Coverage->UpdateTextureRegions(0,1,new FUpdateTextureRegion2D(0,0,0,0,Width,Height),Width*sizeof(FColor),sizeof(FColor),Data,
             [](uint8* Bytes,const FUpdateTextureRegion2D* Regions){delete[] Bytes;delete Regions;});
     }
     Cache.CoverageKey={Read.LocalSerial,PC.OwnerState.Match,PC.OwnerState.Life};

@@ -495,16 +495,16 @@ bool FLDNativeSightEdits::RunTest(const FString& Parameters)
     TestEqual(TEXT("Uphill sight crosses height bands on the ramp"), Sight.Trace(RampLow, RampHigh), ELDSightResult::Visible);
     TestEqual(TEXT("Downhill sight crosses height bands on the ramp"), Sight.Trace(RampHigh, RampLow), ELDSightResult::Visible);
     TestEqual(TEXT("Flat ground beside the ramp retains elevation occlusion"), Sight.Trace(FlatBesideRamp, RampHigh), ELDSightResult::Blocked);
-    constexpr int32 Side = LDObservation::CoverageSide;
-    const int32 Column = FMath::FloorToInt32((RampHigh.X + 5000.) * Side / 10000.);
-    const int32 Row = FMath::FloorToInt32((RampHigh.Y + 5000.) * Side / 10000.);
+    constexpr int32 Width = LDObservation::CoverageWidth, Height = LDObservation::CoverageHeight;
+    const int32 Column = FMath::FloorToInt32((RampHigh.X + 5000.) * Width / 10000.);
+    const int32 Row = FMath::FloorToInt32((RampHigh.Y + 5000.) * Height / 10000.);
     TArray<uint8> Coverage;
     Sight.Coverage(RampLow, Coverage);
-    TestTrue(TEXT("Ground coverage reaches the uphill ramp surface"), LDObservation::CoverageBit(Coverage, Row * Side + Column));
+    TestTrue(TEXT("Ground coverage reaches the uphill ramp surface"), LDObservation::CoverageBit(Coverage, Row * Width + Column));
     Ramp->Tags.Add(TEXT("LDIndependentRamp"));
     if (!TestTrue(TEXT("An independent ramp binds"), Bind())) { return false; }
     Sight.Coverage(RampLow, Coverage);
-    TestTrue(TEXT("Ground coverage projects onto the authored ramp body"), LDObservation::CoverageBit(Coverage, Row * Side + Column));
+    TestTrue(TEXT("Ground coverage projects onto the authored ramp body"), LDObservation::CoverageBit(Coverage, Row * Width + Column));
     if (!TestTrue(TEXT("Ramp binds with a shorter sight radius"), Bind(400))) { return false; }
     TestEqual(TEXT("Ramp sight still obeys normal range"), Sight.Trace(RampLow, RampHigh), ELDSightResult::OutOfRange);
     auto* RampWall = Place(FVector(0,2000,335), FVector(.2,4,2));
@@ -525,7 +525,7 @@ bool FLDNativeSightEdits::RunTest(const FString& Parameters)
     TestEqual(TEXT("An observer below the raised side still cannot see onto the ramp"),
         Sight.Trace(GroundBesideRaisedSide, Uphill), ELDSightResult::Blocked);
     Sight.Coverage(GroundAtRampBase, Coverage);
-    TestTrue(TEXT("A ramp visible from its base also appears in ground coverage"), LDObservation::CoverageBit(Coverage, Row * Side + Column));
+    TestTrue(TEXT("A ramp visible from its base also appears in ground coverage"), LDObservation::CoverageBit(Coverage, Row * Width + Column));
     auto* EntranceWall = Place(FVector(-420, 2000, 150), FVector(.2, 4, 3));
     EntranceWall->GetStaticMeshComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Block);
     if (!TestTrue(TEXT("Wall across the ramp entrance binds"), Bind())) { return false; }

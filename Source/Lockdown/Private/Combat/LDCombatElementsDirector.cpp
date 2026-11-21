@@ -2,6 +2,7 @@
 #include "Core/LDLog.h"
 #include "Combat/LDCombatElements.h"
 #include "Combat/LDCombatKeywords.h"
+#include "Combat/LDCombatSourceRules.h"
 #include "Combat/LDTacticalRules.h"
 #include "Character/LDCharacter.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -266,17 +267,25 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
         if (FLDBodyCombatState* Trigger=FindBody(Applier.SourceBody); Trigger && !Trigger->bPendingDeath)
         { GrantMomentum(*Trigger,Catalog()->Get().Parameters.Momentum.ReactionP2,ELDMomentumBook::Reaction); }
     }
-    if (Reaction!=ELDCombatReaction::None && Applier.CastLedger && !Applier.CastLedger->bBrainsKeystoneRefunded
-        && Applier.CastLedger->PaidMomentumP2>0)
+    // The brains keystone: a reaction its holder triggers (any source, medals included; once per cast) gives momentum and
+    // takes a fixed time off every learned skill still cooling down.
+    if (Reaction!=ELDCombatReaction::None && !(Applier.CastLedger && Applier.CastLedger->bBrainsKeystoneRefunded))
     {
         FLDBodyCombatState* SourceBody=FindBody(Applier.SourceBody);
         if (SourceBody && !SourceBody->bPendingDeath && SourceBody->AttributeProjection.Keystones.bBrains)
         {
-            const int64 RatioBp=Catalog()->Get().Parameters.KeystoneBrainsMomentumRefundBp;
-            const int64 PaidP2=Applier.CastLedger->PaidMomentumP2;
-            const int64 RefundP2=PaidP2/10000*RatioBp+PaidP2%10000*RatioBp/10000;
-            Applier.CastLedger->bBrainsKeystoneRefunded=true;
-            if (RefundP2>0) { GrantMomentum(*SourceBody,RefundP2,ELDMomentumBook::Reaction); }
+            const FLDDemoContentParameters& Parameters=Catalog()->Get().Parameters;
+            if (Applier.CastLedger) { Applier.CastLedger->bBrainsKeystoneRefunded=true; }
+            GrantMomentum(*SourceBody,Parameters.KeystoneBrainsReactionMomentumP2,ELDMomentumBook::Reaction);
+            if (FLDCombatEntityRecord* Record=FindRecord(SourceBody->Victim.EntityId))
+            {
+                for (FLDCombatTrack& Track : Record->Tracks)
+                {
+                    if (Track.Kind==ELDCombatSourceKind::Learned && Track.ReadyAtMs>NowMs)
+                    { Track.ReadyAtMs=LDCombatSourceRules::ReduceReadyAt(Track.ReadyAtMs,NowMs,Parameters.KeystoneBrainsCooldownCutMs); }
+                }
+                MarkViewChanged(SourceBody->Victim.EntityId);
+            }
         }
     }
     if (Reaction==ELDCombatReaction::None)
@@ -580,9 +589,11 @@ bool ALDCombatDirector::NotifyReactionAssists(const FLDCombatHit& Hit, FString& 
 }
 
 bool ALDCombatDirector::ReleaseBrace(FLDBodyCombatState& Body, const FLDDemoEffectDefinition& Effect, const FLDCombatSourceRef& Source,
-    const FGuid& EffectId, uint64 Token, int64 NowMs, FString& Error, TSharedPtr<FLDCombatCastLedger> CastLedger)
+    const FGuid& EffectId, uint64 Token, int64 NowMs, FString& Error, TSharedPtr<FLDCombatCastLedger> CastLedger, int64 ShareBp)
 {
     FLDCombatBrace Brace;
+    // Several A08 copies add their shares (it may pass 100%).
+    Brace.ShareBp=FMath::Max<int64>(ShareBp,0);
     Brace.EffectId=EffectId;
     Brace.CastLedger=MoveTemp(CastLedger);
     Brace.Source=Source;
@@ -796,13 +807,14 @@ bool ALDCombatDirector::AdvanceElements(int64 NowMs, FString& Error)
             if (!StampSourceTerms(Body,Hit,Error) || !StampElementSnapshot(Body,Hit,Error)) { return false; }
         }
         // S16 A2 heals a share of the record; S16 B2 turns the record into a shield.
-        if (bBranch && Branched.BraceHealBp>0 && Brace.RecordedP2>0)
+        const int64 SharedRecordP2=Brace.RecordedP2/10000*Brace.ShareBp+Brace.RecordedP2%10000*Brace.ShareBp/10000;
+        if (bBranch && Branched.BraceHealBp>0 && SharedRecordP2>0)
         {
-            const int64 Heal=Brace.RecordedP2/10000*Branched.BraceHealBp+Brace.RecordedP2%10000*Branched.BraceHealBp/10000;
+            const int64 Heal=SharedRecordP2/10000*Branched.BraceHealBp+SharedRecordP2%10000*Branched.BraceHealBp/10000;
             if (Heal>0 && !HealBody(Body,Heal,Brace.Source,nullptr,FGuid(),&Error) && !Error.IsEmpty()) { return false; }
         }
-        if (bBranch && Branched.BraceShieldMs>0 && Brace.RecordedP2>0
-            && !GrantShieldTo(Body,Brace.RecordedP2,Branched.BraceShieldMs,Brace.EffectId,Body.Victim.EntityId,NowMs,Error,Brace.Source))
+        if (bBranch && Branched.BraceShieldMs>0 && SharedRecordP2>0
+            && !GrantShieldTo(Body,SharedRecordP2,Branched.BraceShieldMs,Brace.EffectId,Body.Victim.EntityId,NowMs,Error,Brace.Source))
         { return false; }
         UE_LOG(LogLDCombat,Log,TEXT("LD_BRACE_ANSWER t=%lld src=%s recorded=%s amount=%s targets=%d"),NowMs,
             *LDLog::Id(Body.Victim.EntityId),*LDLog::P2(Brace.RecordedP2),*LDLog::P2(Amount),Around.Num());

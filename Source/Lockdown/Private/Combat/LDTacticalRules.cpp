@@ -164,7 +164,7 @@ namespace LDTactical
             Damage = Numbers.Mul(Damage, Numbers.Value(Parameters.CritMultiplierBp, 10000));
         }
         if (Input.DamageFactorBp <= 0 || Input.DeliveryScaleBp < 0 || Input.DeliveryScaleBp > 10000
-            || Input.KeystoneGuardP2 < 0 || Input.KeystoneGuardCapBp < 0 || Input.KeystoneGuardCapBp >= 10000
+            || Input.KeystoneGuardCapBp < 0 || Input.KeystoneGuardCapBp >= 10000
             || Input.PackageScaleBp <= 0 || Input.PackageScaleBp > 100000 || Input.BraceCutBp < 0 || Input.BraceCutBp >= 10000)
         {
             return Fail(EError::Domain, TEXT("DamageFactorBp"), TEXT("A damage factor, delivery share or guard is outside its domain"));
@@ -197,16 +197,15 @@ namespace LDTactical
             Damage = Numbers.Sub(Damage, Numbers.Value(BraceCutP2));
         }
         int64 BeforeKeystoneGuardP2 = 0;
-        const bool bKeystoneGuarded = Input.HitClass == ELDCombatHitClass::BasicPrimary && Input.KeystoneGuardP2 > 0;
+        // The thick-skin keystone cuts its share of a direct hit (the caller arms it only for a ready, direct, hostile hit).
+        const bool bKeystoneGuarded = Input.KeystoneGuardCapBp > 0;
         if (bKeystoneGuarded)
         {
             if (!QuantizeEvaluation(Damage, false, BeforeKeystoneGuardP2, Check, TEXT("BeforeKeystoneGuardP2")))
             {
                 return Fail(EError::Overflow, TEXT("BeforeKeystoneGuardP2"), MathError);
             }
-            const auto Flat = Numbers.Value(Input.KeystoneGuardP2);
-            const auto Cap = Numbers.Mul(Damage, Numbers.Value(Input.KeystoneGuardCapBp, 10000));
-            Damage = Numbers.Sub(Damage, Numbers.LE(Flat, Cap) ? Flat : Cap);
+            Damage = Numbers.Sub(Damage, Numbers.Mul(Damage, Numbers.Value(Input.KeystoneGuardCapBp, 10000)));
         }
         FLDDamageEvaluation Value;
         if (!QuantizeEvaluation(Damage, false, Value.DamageP2, Check, TEXT("DamageP2")))
@@ -401,10 +400,13 @@ namespace LDTactical
     bool ApplyShield(TOptional<FLDCombatShield>& Shield, int64& ShieldP2, const FLDCombatShield& Candidate, int64 AmountP2, int64 AtMs)
     {
         if (AmountP2 <= 0 || !Candidate.EffectId.IsValid() || Candidate.ExpiresAtMs <= AtMs) { return false; }
-        const int64 Remaining = Shield.IsSet() && Shield->ExpiresAtMs > AtMs ? FMath::Max<int64>(ShieldP2, 0) : 0;
-        if (AmountP2 < Remaining) { return false; }
+        const bool bLive = Shield.IsSet() && Shield->ExpiresAtMs > AtMs;
+        const int64 Remaining = bLive ? FMath::Max<int64>(ShieldP2, 0) : 0;
+        if (Remaining > MAX_int64 - AmountP2) { return false; }
+        const int64 ExpiresAtMs = bLive ? FMath::Max(Shield->ExpiresAtMs, Candidate.ExpiresAtMs) : Candidate.ExpiresAtMs;
         Shield = Candidate;
-        ShieldP2 = AmountP2;
+        Shield->ExpiresAtMs = ExpiresAtMs;
+        ShieldP2 = Remaining + AmountP2;
         return true;
     }
 

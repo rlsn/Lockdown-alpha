@@ -44,6 +44,8 @@ void ALDGameMode::ResetPacing()
     PacingControlled.Reset();
     PacingCheckedAtMs = 0;
     BountyDeaths.Reset();
+    TrendingRuns.Reset();
+    TrendingPointsOwed.Reset();
 }
 
 bool ALDGameMode::InitializePacing(FString& Error)

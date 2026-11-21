@@ -124,9 +124,9 @@ bool FLDComboStepsTest::RunTest(const FString& Parameters)
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if (!LDMomentumRulesTests::Approved(*this, Catalog)) { return false; }
     const FLDDemoComboParameters& P = Catalog->Get().Parameters.Combo;
-    TestTrue(TEXT("The approved steps are 0.9, 0.9, 1.3 and the reset 1.5 s"),
+    TestTrue(TEXT("The approved steps are 0.9, 0.9, 1.3 and the reset 2.5 s"),
         LDMomentum::ComboRatioBp(P, 1) == 9000 && LDMomentum::ComboRatioBp(P, 2) == 9000 && LDMomentum::ComboRatioBp(P, 3) == 13000
-        && LDMomentum::ComboRatioBp(P, 0) == 10000 && P.ResetMs == 1500);
+        && LDMomentum::ComboRatioBp(P, 0) == 10000 && P.ResetMs == 2500);
     uint8 Step = LDMomentum::NextComboStep(0, 0, 1000, P.ResetMs);
     TestEqual(TEXT("The first swing is step 1"), int32(Step), 1);
     Step = LDMomentum::NextComboStep(Step, 1000, 2000, P.ResetMs);
@@ -135,8 +135,8 @@ bool FLDComboStepsTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("then 3"), int32(Step), 3);
     Step = LDMomentum::NextComboStep(Step, 3000, 4000, P.ResetMs);
     TestEqual(TEXT("and around to 1"), int32(Step), 1);
-    TestEqual(TEXT("At exactly the reset the combo goes on"), int32(LDMomentum::NextComboStep(2, 1000, 2500, P.ResetMs)), 3);
-    TestEqual(TEXT("More than the reset after the previous start starts over"), int32(LDMomentum::NextComboStep(2, 1000, 2501, P.ResetMs)), 1);
+    TestEqual(TEXT("At exactly the reset the combo goes on"), int32(LDMomentum::NextComboStep(2, 1000, 3500, P.ResetMs)), 3);
+    TestEqual(TEXT("More than the reset after the previous start starts over"), int32(LDMomentum::NextComboStep(2, 1000, 3501, P.ResetMs)), 1);
     return true;
 }
 
@@ -150,7 +150,7 @@ bool FLDOverdriveReadyTest::RunTest(const FString& Parameters)
     const FLDDemoOverdriveParameters& O = Catalog->Get().Parameters.Overdrive;
     TestTrue(TEXT("Overdrive needs 60 momentum"), O.ThresholdP2 == 6000 && !LDMomentum::OverdriveReady(O, 5999)
         && LDMomentum::OverdriveReady(O, 6000));
-    TestTrue(TEXT("The approved overdrive terms"), O.HoldMs == 300 && O.ScaleBp == 16000 && O.FireBurnStacks == 3 && O.WaterSlowBp == 4500
+    TestTrue(TEXT("The approved overdrive terms"), O.HoldMs == 180 && O.ScaleBp == 16000 && O.FireBurnStacks == 3 && O.WaterSlowBp == 4500
         && O.WaterSlowMs == 1500 && O.ShockReactionBp == 5000 && O.RotDurationBp == 20000);
     return true;
 }
@@ -244,8 +244,8 @@ bool FLDSkillRankBranchTest::RunTest(const FString& Parameters)
     FLDGrowthBuild Out;
     TestEqual(TEXT("Level 1 has no skill point"), LDProgression::SkillPoints(Content, Build), 0);
     TestEqual(TEXT("so a rank-up is refused"), LDProgression::ApplyRankUpSkill(Content, Build, 0, B::A, Context, Out), ELDGrowthReason::NoSkillPoint);
-    Build.Level = 4;
-    TestEqual(TEXT("Level 4 gives the first point"), LDProgression::SkillPoints(Content, Build), 1);
+    Build.Level = 3;
+    TestEqual(TEXT("Level 3 gives the first point"), LDProgression::SkillPoints(Content, Build), 1);
     TestEqual(TEXT("A rank-3 path cannot skip rank 2"), LDProgression::ApplyRankUpSkill(Content, Build, 0, B::A1, Context, Out),
         ELDGrowthReason::BranchUnavailable);
     TestEqual(TEXT("An empty slot has nothing to raise"), LDProgression::ApplyRankUpSkill(Content, Build, 1, B::A, Context, Out),
@@ -253,16 +253,16 @@ bool FLDSkillRankBranchTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Rank 2 takes A and spends the point"), LDProgression::ApplyRankUpSkill(Content, Build, 0, B::A, Context, Out)
         == ELDGrowthReason::None && Out.Actives[0].Branch == B::A && LDProgression::SkillPoints(Content, Out) == 0);
     Build = Out;
-    Build.Level = 8;
+    Build.Level = 6;
     TestEqual(TEXT("Under A, rank 3 is A1 or A2, never B1"), LDProgression::ApplyRankUpSkill(Content, Build, 0, B::B1, Context, Out),
         ELDGrowthReason::BranchUnavailable);
-    TestTrue(TEXT("Level 8's point takes A2"), LDProgression::ApplyRankUpSkill(Content, Build, 0, B::A2, Context, Out)
+    TestTrue(TEXT("Level 6's point takes A2"), LDProgression::ApplyRankUpSkill(Content, Build, 0, B::A2, Context, Out)
         == ELDGrowthReason::None && Out.Actives[0].Branch == B::A2);
     Build = Out;
-    Build.Level = 12;
+    Build.Level = 9;
     TestEqual(TEXT("Rank 3 is the last"), LDProgression::ApplyRankUpSkill(Content, Build, 0, B::A1, Context, Out),
         ELDGrowthReason::BranchUnavailable);
-    TestEqual(TEXT("Level 12's point stays unspent"), LDProgression::SkillPoints(Content, Build), 1);
+    TestEqual(TEXT("Level 9's point stays unspent"), LDProgression::SkillPoints(Content, Build), 1);
     LDProgression::FBuildContext Closed = Context;
     Closed.Stage = LDProgression::EMatchStage::Closed;
     TestEqual(TEXT("A closed match refuses it"), LDProgression::ApplyRankUpSkill(Content, Build, 0, B::A1, Closed, Out),
@@ -279,7 +279,7 @@ bool FLDSkillRankRefundTest::RunTest(const FString& Parameters)
     if (!LDMomentumRulesTests::Approved(*this, Catalog)) { return false; }
     const FLDDemoContentDefinitions& Content = Catalog->Get();
     FLDGrowthBuild Build = LDProgression::StartBuild(Content);
-    Build.Level = 12;
+    Build.Level = 9;
     Build.Actives.Add({FName(TEXT("active_elbow")), 0, ELDSkillBranch::B2});
     Build.Actives.Add({FName(TEXT("active_pants_down")), 1, ELDSkillBranch::None});
     TestEqual(TEXT("A rank-3 skill holds two of the three points"), LDProgression::SkillPoints(Content, Build), 1);
@@ -375,7 +375,7 @@ bool FLDSkillRankPatchesTest::RunTest(const FString& Parameters)
     const FLDDemoAbilityValues* Rank3 = Catalog->FindValues(*Elbow, 1, ELDSkillBranch::B1);
     const FLDDemoEffectDefinition* Damage = Rank3 ? Rank3->Effects.FindByPredicate([](const FLDDemoEffectDefinition& E)
         { return E.GetOp() == ELDDemoEffectOp::Damage; }) : nullptr;
-    TestTrue(TEXT("S01 B1 at level 1: 55 x 2 + 0.6 x 1.5 AD"), Damage && Damage->BaseP2 == 11000 && Damage->ADRatioBp == 9000);
+    TestTrue(TEXT("S01 B1 at level 1: 55 x 2 + 0.95 x 1.5 AD"), Damage && Damage->BaseP2 == 11000 && Damage->ADRatioBp == 14250);
     TestTrue(TEXT("No variant exists for None outside rank 1, nor a rank-2 path at rank 3"), !Elbow->FindBranch(ELDSkillBranch::None)
         && Catalog->FindValues(*Elbow, 1, ELDSkillBranch::None) != nullptr);
     return true;

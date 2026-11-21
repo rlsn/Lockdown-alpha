@@ -22,11 +22,14 @@ namespace LDObservation
     // 9 adds the authoritative release delay to public action cues.
     // 8 (#198): Q/W/E carry single-level ability ids without ranks; the cowering and contact-guard statuses are gone.
     // 20 widens the conceal count for the authored roster plus the full flight bound.
-    constexpr uint32 Schema = 20;
+    // 21 packs public status expiry times without losing precision.
+    constexpr uint32 Schema = 21;
     // A ground state's wire size (LDViewTypes.cpp SerializeObservedGround): SC-07 registers MaxGroundStates of them per frame.
     constexpr int32 GroundStateWireBytes = 16;
     // The public momentum bar of a visible contender: 0..MomentumBarFull (never the exact value).
     constexpr uint8 MomentumBarFull = 255;
+    // The public shield bar: a shield of at least the maximum HP is full.
+    constexpr uint8 ShieldBarFull = 255;
     constexpr uint16 RecentHitWindowMs = 300;
     // A visible reaction's name floats over its target while its cue is this young (spec §12).
     constexpr uint16 RecentReactionWindowMs = 1000;
@@ -34,9 +37,12 @@ namespace LDObservation
     // shows to everyone who sees the body); the owner receipt carries the same bit (LDCombatCues::DealtOverdrive).
     enum EHitFlags : uint8 { Critical = 1, ShieldAbsorbed = 2, ShieldBroken = 4, Overdriven = 16 };
     constexpr uint8 HitFlagsMask = Critical | ShieldAbsorbed | ShieldBroken | Overdriven;
-    // Display coverage over the registered ground surface bounds: index = y * Side + x, low bit first.
-    constexpr int32 CoverageSide = 128;
-    constexpr int32 CoverageCells = CoverageSide * CoverageSide;
+    // Display coverage over the registered ground surface bounds, low bit first.
+    // The coverage grid over the ground surface: CoverageWidth columns along X, CoverageHeight rows along Y (the 21000 x
+    // 10000 cm ground gives cells of about 82 x 78 cm). Bit index = row * CoverageWidth + column.
+    constexpr int32 CoverageWidth = 256;
+    constexpr int32 CoverageHeight = 128;
+    constexpr int32 CoverageCells = CoverageWidth * CoverageHeight;
     constexpr int32 CoverageBytes = CoverageCells / 8;
     // Bounded uint8 wire counts permit authored camp instances. Admission counts the actual scene roster,
     // every other contender and the Boss; no hidden unit is dropped to fit this capacity.
@@ -134,6 +140,9 @@ struct FLDObservedUnitView
     UPROPERTY() bool bPeddler = false;
     UPROPERTY() uint8 Level = 0;
     UPROPERTY() FLDObservedResource Health;
+    // The live shield as a share of the maximum HP, quantized to 0..LDObservation::ShieldBarFull (never the exact amount);
+    // sent with the health field, so the head bar can show how thick it is.
+    UPROPERTY() uint8 ShieldBar = 0;
     // Contenders: the momentum bar quantized to 0..LDObservation::MomentumBarFull and whether an overdrive charge shows.
     UPROPERTY() uint8 MomentumBar = 0;
     UPROPERTY() bool bCharging = false;

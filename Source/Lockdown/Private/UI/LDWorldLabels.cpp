@@ -24,6 +24,8 @@
 #include "Rendering/SlateRenderer.h"
 #include "Styling/CoreStyle.h"
 #include "UI/LDUIFonts.h"
+#include "UI/LDUIIcons.h"
+#include "Engine/Texture2D.h"
 
 namespace
 {
@@ -37,13 +39,13 @@ constexpr double OwnBarsHeadroomCm=120.;
 // Anchors further off-screen are skipped; the margin keeps a label whose anchor sits just past an edge.
 constexpr float WorldLabelCullMargin=160.f;
 // Local units at the 1080p reference; every bar, badge and pip also has a one-unit rim.
-constexpr float WorldBarHeight=6.f,WorldShieldLine=2.f,WorldBadgeSide=20.f,WorldBadgeGap=3.f,WorldRowGap=2.f;
+constexpr float WorldBarHeight=9.f,WorldBadgeSide=20.f,WorldBadgeGap=3.f,WorldRowGap=2.f;
 constexpr float OwnBarWidth=84.f,OwnHealthHeight=8.f,OwnMomentumHeight=4.f;
 // Own status icons over the own bars: squares at the reference text scale, the gap between them and how many fill a row.
 constexpr float OwnStatusSide=22.f,OwnStatusGap=3.f;constexpr int32 OwnStatusPerRow=6;
 // Contenders sit between the two camp tiers; the high-tier camp body is drawn larger, so its bar is wider.
 float WorldBarWidth(const LDWorldLabels::FLabel& Label)
-{return Label.bContender?72.f:Label.CreatureId==uint8(ELDDemoMonsterId::MonsterDean)?110.f
+{return Label.bContender?96.f:Label.CreatureId==uint8(ELDDemoMonsterId::MonsterDean)?120.f
     :(Label.CreatureId==uint8(ELDDemoMonsterId::MonsterAdvisor)||Label.CreatureId>=uint8(ELDDemoMonsterId::MonsterAuditor))?96.f
     :(Label.CreatureId==uint8(ELDDemoMonsterId::MonsterGuardian)||Label.CreatureId==uint8(ELDDemoMonsterId::MonsterAgent)||Label.CreatureId==uint8(ELDDemoMonsterId::MonsterGuard))?84.f:64.f;}
 const FLinearColor WorldLabelContenderInk(.96f,.97f,1.f);
@@ -106,7 +108,14 @@ LDWorldLabels::FLabel LDWorldLabels::Build(const FLDObservedUnitView& Unit,const
     // no bar rather than an empty one.
     Label.bHealth=Unit.Health.MaxP2>0&&Unit.Health.CurrentP2>=0;
     Label.bCharging=Label.bContender&&Unit.bCharging;
-    if(Label.bHealth){Label.HealthFraction=float(FMath::Clamp(double(Unit.Health.CurrentP2)/double(Unit.Health.MaxP2),0.,1.));}
+    if(Label.bHealth)
+    {
+        Label.HealthFraction=float(FMath::Clamp(double(Unit.Health.CurrentP2)/double(Unit.Health.MaxP2),0.,1.));
+        Label.MaxHealth=float(double(Unit.Health.MaxP2)/100.);
+        Label.ShieldFraction=float(Unit.ShieldBar)/float(LDObservation::ShieldBarFull);
+    }
+    Label.Handle=Unit.Handle;
+    if((Unit.HitFlags&LDObservation::ShieldBroken)!=0&&Unit.RecentHitId.IsValid()){Label.BreakHitId=Unit.RecentHitId;}
     // The same parts as the target card's status line (LDHUD::ObservedCard), so both read alike.
     for(const FLDObservedStatus& Status:Unit.Statuses)
     {
@@ -115,7 +124,16 @@ LDWorldLabels::FLabel LDWorldLabels::Build(const FLDObservedUnitView& Unit,const
         if(Status.Stacks>1){Part+=FString::Printf(TEXT(" ×%d"),Status.Stacks);}
         if(Status.ExpiresAtServerMs>0){Part+=TEXT(" ")+LDHUD::TenthsUp(int64(FMath::RoundToDouble(double(Status.ExpiresAtServerMs)-SampledAtServerSec*1000.)));}
         Label.Status+=(Label.Status.IsEmpty()?TEXT(""):TEXT(" · "))+Part;
-        Label.StatusParts.Add({MoveTemp(Part),Status.StatusId});
+        LDWorldLabels::FLabel::FStatusPart& Shown=Label.StatusParts.Add_GetRef({MoveTemp(Part),Status.StatusId});
+        Shown.IconId=LDHUD::StatusIconId(Content,Status.StatusId);
+        Shown.Glyph=LDHUD::IconGlyph(LDHUD::StatusName(Content,Status.StatusId));
+        Shown.bPositive=LDHUD::StatusIsPositive(Status.StatusId);
+        Shown.Stacks=Status.Stacks;
+        if(LDHUD::StatusIsHardControl(Status.StatusId)&&Status.ExpiresAtServerMs>0)
+        {
+            const int64 Left=int64(FMath::RoundToDouble(double(Status.ExpiresAtServerMs)-SampledAtServerSec*1000.));
+            Label.ControlRemainingMs=FMath::Max(Label.ControlRemainingMs,Left);
+        }
     }
     return Label;
 }
@@ -171,6 +189,8 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     FSlateRenderer* Renderer=FSlateApplication::IsInitialized()?FSlateApplication::Get().GetRenderer():nullptr;
     // Nothing is drawn before the display content was tried, so a first frame never flashes fallback ids.
     if(!bDisplayContentTried||!PC||!Public||!Renderer){return Base;}
+    // A bar out of sight for a while forgets its trail.
+    {const double TrailNow=FPlatformTime::Seconds();for(auto It=Trails.CreateIterator();It;++It){if(TrailNow-It.Value().SeenAt>2.){It.RemoveCurrent();}}}
     if(PC->HUDUI){PC->HUDUI->PaintWorldPreviews(G,E,Base+1);}
     const FLDOwnerState& Own=PC->OwnerState;
     // Only the current authorized frame of this match and life, read on every paint: a dead, stale or foreign frame
@@ -416,7 +436,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             if(Label.bHealth)
             {
                 const float BarRim=WorldBarWidth(Label)+2.f;const bool bBadge=Label.bContender&&Label.Level>0;
-                Entry.Row=FMath::Max(WorldBarHeight+(Label.bShield?WorldShieldLine:0.f)+2.f,bBadge?BadgeRim:0.f);
+                Entry.Row=FMath::Max(WorldBarHeight+2.f,bBadge?BadgeRim:0.f);
                 Entry.LeftReach=BarRim*.5f+(bBadge?WorldBadgeGap+BadgeRim:0.f);Entry.RightReach=BarRim*.5f;
             }
             float Lines=0.f;
@@ -425,10 +445,13 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
                 const FVector2f Name=FontMeasure->Measure(Label.Name,Label.bContender?ContenderFont:CampFont);
                 Entry.TextWidth=FMath::Max(Entry.TextWidth,Name.X);Lines+=Name.Y;
             }
-            if(!Label.Status.IsEmpty())
+            if(!Label.StatusParts.IsEmpty())
             {
-                const FVector2f Status=FontMeasure->Measure(Label.Status,StatusFont);
-                Entry.TextWidth=FMath::Max(Entry.TextWidth,Status.X);Lines+=Status.Y;
+                // The status squares' rows (as painted below).
+                const float Side=FMath::RoundToFloat(OwnStatusSide*.8f*TextScale);const int32 Count=Label.StatusParts.Num();
+                const int32 Rows=(Count+OwnStatusPerRow-1)/OwnStatusPerRow;
+                Entry.TextWidth=FMath::Max(Entry.TextWidth,float(FMath::Min(Count,OwnStatusPerRow))*(Side+OwnStatusGap));
+                Lines+=float(Rows)*(Side+OwnStatusGap)+2.f;
             }
             Entry.Height=Entry.Row+(Entry.Row>0.f&&Lines>0.f?WorldRowGap:0.f)+Lines;
             Pending.Add(MoveTemp(Entry));
@@ -480,8 +503,35 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
         const float CentreX=Entry.CentreX;
         if(Label.bHealth)
         {
-            const float BarWidth=WorldBarWidth(Label),BarRimHeight=WorldBarHeight+(Label.bShield?WorldShieldLine:0.f)+2.f;
-            const float Mid=Bottom-Entry.Row*.5f,BarLeft=CentreX-(BarWidth+2.f)*.5f,BarTop=Mid-BarRimHeight*.5f;
+            const float BarWidth=WorldBarWidth(Label),BarRimHeight=WorldBarHeight+2.f;
+            // The bar's memory for this visibility interval: the damage trail, a heavy hit's shake and a shield's break.
+            const double PaintNow=FPlatformTime::Seconds();
+            float TrailShown=Label.HealthFraction,Shake=0.f,Burst=-1.f,ControlShown=0.f;
+            if(Label.Handle.IsValid())
+            {
+                ULDWorldLabels::FTrail& Trail=Trails.FindOrAdd(Label.Handle);
+                if(Trail.SeenAt<=0.||Label.HealthFraction>=Trail.Shown){Trail.Shown=Label.HealthFraction;Trail.HeldUntil=PaintNow+.15;}
+                // A new loss holds the trail again (at its current height) before it closes.
+                else if(Trail.LastHealth>=0.f&&Label.HealthFraction<Trail.LastHealth){Trail.HeldUntil=PaintNow+.15;}
+                else if(PaintNow>Trail.HeldUntil)
+                {Trail.Shown=FMath::Max(Label.HealthFraction,Trail.Shown-float(FMath::Min(PaintNow-Trail.SeenAt,.1))*1.6f);}
+                // A single drop of more than 18% of the maximum shakes the bar; a hit that broke the shield bursts once (not
+                // a shield that lapsed or was spent).
+                if(Trail.LastHealth>=0.f&&Trail.LastHealth-Label.HealthFraction>.18f){Trail.ShakeUntil=PaintNow+.25;}
+                if(Label.BreakHitId.IsValid()&&Label.BreakHitId!=Trail.BurstHitId){Trail.BurstHitId=Label.BreakHitId;Trail.BrokeAt=PaintNow;}
+                Trail.LastHealth=Label.HealthFraction;Trail.LastShield=Label.ShieldFraction;
+                Trail.SeenAt=PaintNow;
+                TrailShown=Trail.Shown;
+                if(PaintNow<Trail.ShakeUntil){Shake=2.5f*FMath::Sin(float(PaintNow*90.))*float((Trail.ShakeUntil-PaintNow)/.25);}
+                if(Trail.BrokeAt>=0.&&PaintNow-Trail.BrokeAt<.35){Burst=float((PaintNow-Trail.BrokeAt)/.35);}
+                if(Label.ControlRemainingMs<=0){Trail.ControlSpanMs=0;}
+                else
+                {
+                    Trail.ControlSpanMs=FMath::Max(Trail.ControlSpanMs,Label.ControlRemainingMs);
+                    ControlShown=float(double(Label.ControlRemainingMs)/double(Trail.ControlSpanMs));
+                }
+            }
+            const float Mid=Bottom-Entry.Row*.5f,BarLeft=CentreX-(BarWidth+2.f)*.5f+Shake,BarTop=Mid-BarRimHeight*.5f;
             // An overdrive charge: a pulsing gold halo around the bar, visible to every observer of the unit.
             if(Label.bCharging)
             {
@@ -491,12 +541,44 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             // A camp member's bar sits in a frame of its tier colour (the name carries the same colour).
             if(Label.CampTier>=0){Box(1,FVector2f(BarLeft-1.f,BarTop-1.f),FVector2f(BarWidth+4.f,BarRimHeight+2.f),LDHUDStyle::CampTierInk(uint8(Label.CampTier)));}
             Box(1,FVector2f(BarLeft,BarTop),FVector2f(BarWidth+2.f,BarRimHeight),LDHUDStyle::Rim);
-            float TrackTop=BarTop+1.f;
-            // The shield is a line across the top of the bar; the status line below names it too.
-            if(Label.bShield){Box(3,FVector2f(BarLeft+1.f,TrackTop),FVector2f(BarWidth,WorldShieldLine),LDHUDStyle::Shield);TrackTop+=WorldShieldLine;}
+            const float TrackTop=BarTop+1.f;
             Box(2,FVector2f(BarLeft+1.f,TrackTop),FVector2f(BarWidth,WorldBarHeight),LDHUDStyle::BarTrack);
+            // Health, then the shield in proportion to the maximum HP right after it; when both exceed the bar they share it.
+            const float Fill=Label.HealthFraction+Label.ShieldFraction,Squeeze=Fill>1.f?1.f/Fill:1.f;
+            const float HealthW=BarWidth*Label.HealthFraction*Squeeze,ShieldW=BarWidth*Label.ShieldFraction*Squeeze;
+            // The damage trail: what was just lost stays bright for a moment, then closes on the current fill.
+            if(TrailShown>Label.HealthFraction)
+            {Box(3,FVector2f(BarLeft+1.f+HealthW,TrackTop),FVector2f(FMath::Min(BarWidth*(TrailShown-Label.HealthFraction)*Squeeze,BarWidth-HealthW),WorldBarHeight),FLinearColor(1.f,.96f,.86f,.9f));}
             if(Label.HealthFraction>0.f)
-            {Box(3,FVector2f(BarLeft+1.f,TrackTop),FVector2f(BarWidth*Label.HealthFraction,WorldBarHeight),!Label.bContender?LDHUDStyle::CampHealth:Label.bPeaceful?LDHUDStyle::PeacefulHealth:LDHUDStyle::EnemyHealth);}
+            {Box(3,FVector2f(BarLeft+1.f,TrackTop),FVector2f(HealthW,WorldBarHeight),!Label.bContender?LDHUDStyle::CampHealth:Label.bPeaceful?LDHUDStyle::PeacefulHealth:LDHUDStyle::EnemyHealth);}
+            if(ShieldW>0.f){Box(3,FVector2f(BarLeft+1.f+HealthW,TrackTop),FVector2f(ShieldW,WorldBarHeight),LDHUDStyle::Shield);}
+            // A broken shield bursts outward in its colour for a moment.
+            if(Burst>=0.f)
+            {
+                const float Grow=4.f+10.f*Burst;
+                Box(4,FVector2f(BarLeft-Grow*.5f,BarTop-Grow*.25f),FVector2f(BarWidth+2.f+Grow,BarRimHeight+Grow*.5f),LDHUDStyle::Shield.CopyWithNewOpacity(.7f*(1.f-Burst)));
+            }
+            // A hard control: a white bar under the health bar shrinks to its end.
+            if(ControlShown>0.f)
+            {
+                const float ControlTop=BarTop+BarRimHeight+1.f;
+                Box(1,FVector2f(BarLeft,ControlTop),FVector2f(BarWidth+2.f,3.f),LDHUDStyle::Rim);
+                Box(2,FVector2f(BarLeft+1.f,ControlTop+.5f),FVector2f(BarWidth*FMath::Clamp(ControlShown,0.f,1.f),2.f),FLinearColor(.96f,.97f,1.f,.95f));
+            }
+            // Ticks show how tanky the unit is: a thin half tick every 100 HP (when they fit), a full one every 1000 HP.
+            if(Label.MaxHealth>0.f)
+            {
+                const float PerHundred=BarWidth*Squeeze*100.f/Label.MaxHealth;
+                const FLinearColor Tick(0.f,0.f,0.f,.55f);
+                for(int32 Hundred=1;Hundred*100.f<Label.MaxHealth;++Hundred)
+                {
+                    const bool bThousand=Hundred%10==0;
+                    if(!bThousand&&PerHundred<3.f){continue;}
+                    const float X=BarLeft+1.f+PerHundred*float(Hundred);
+                    const float TickHeight=bThousand?WorldBarHeight:WorldBarHeight*.5f;
+                    Box(4,FVector2f(X-(bThousand?.75f:.5f),TrackTop),FVector2f(bThousand?1.5f:1.f,TickHeight),Tick);
+                }
+            }
             if(Label.bContender&&Label.Level>0)
             {
                 // The badge carries the identity tint: the name itself identifies, the colour is only an extra cue.
@@ -516,25 +598,45 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
         }
         if(!Label.StatusParts.IsEmpty())
         {
-            // Each status in the colour of its body marker (Combat's root, shield and protection tints); the text names it.
-            const FString Separator=TEXT(" · ");const float SeparatorWidth=FontMeasure->Measure(Separator,StatusFont).X;
-            float Width=0.f,Height=0.f;
-            for(int32 Index=0;Index<Label.StatusParts.Num();++Index)
+            // Each status as a small square above the name: its picture (or its first character) on a dark tile with a green
+            // or red rim, its stacks over 1 in the corner. The words stay on the target card and its hover.
+            const float Side=FMath::RoundToFloat(OwnStatusSide*.8f*TextScale);
+            const TArray<FSlateRect> Squares=LDWorldLabels::OwnStatusIconRects(Label.StatusParts.Num(),CentreX,Bottom-1.f,Side,OwnStatusGap,OwnStatusPerRow);
+            float Top=Bottom;
+            for(int32 Index=0;Index<Squares.Num();++Index)
             {
-                const FVector2f Extent=FontMeasure->Measure(Label.StatusParts[Index].Text,StatusFont);
-                Width+=Extent.X+(Index>0?SeparatorWidth:0.f);Height=FMath::Max(Height,Extent.Y);
-            }
-            float X=RowLeft(CentreX,Width);const float Top=Bottom-Height;
-            auto Draw=[&](const FString& Text,const FLinearColor& Ink)
-            {
-                const FVector2f Extent=FontMeasure->Measure(Text,StatusFont);
-                FSlateDrawElement::MakeText(E,Base+4,G.ToPaintGeometry(Extent,FSlateLayoutTransform(FVector2f(X,Top))),Text,StatusFont,ESlateDrawEffect::None,Ink);
-                X+=Extent.X;
-            };
-            for(int32 Index=0;Index<Label.StatusParts.Num();++Index)
-            {
-                if(Index>0){Draw(Separator,WorldLabelStatusInk);}
-                Draw(Label.StatusParts[Index].Text,WorldStatusInk(Label.StatusParts[Index].StatusId));
+                const LDWorldLabels::FLabel::FStatusPart& Part=Label.StatusParts[Index];const FSlateRect& Square=Squares[Index];
+                const FLinearColor Edge=Part.bPositive?LDHUDStyle::StatusPositive:LDHUDStyle::StatusNegative;
+                const FVector2f At(Square.Left,Square.Top);
+                Box(1,At-FVector2f(1.f,1.f),FVector2f(Side+2.f,Side+2.f),Edge);
+                Box(2,At,FVector2f(Side,Side),FLinearColor(.02f,.03f,.05f,.92f));
+                const FSlateBrush* Picture=nullptr;
+                if(!Part.IconId.IsEmpty())
+                {
+                    if(FSlateBrush* Known=StatusBrushes.Find(Part.IconId)){Picture=Known;}
+                    else if(UTexture2D* Texture=LDUIIcons::Find(Part.IconId))
+                    {
+                        StatusTextures.Add(Part.IconId,Texture);
+                        FSlateBrush& Brush=StatusBrushes.Add(Part.IconId);
+                        Brush.SetResourceObject(Texture);Brush.ImageSize=FVector2D(64,64);Brush.DrawAs=ESlateBrushDrawType::Image;
+                        Picture=&Brush;
+                    }
+                }
+                if(Picture)
+                {FSlateDrawElement::MakeBox(E,Base+3,G.ToPaintGeometry(FVector2f(Side,Side),FSlateLayoutTransform(At)),Picture,ESlateDrawEffect::None,FLinearColor::White);}
+                else
+                {
+                    const FVector2f GlyphExtent=FontMeasure->Measure(Part.Glyph,StatusFont);
+                    const FVector2f GlyphAt(At.X+Side*.5f-GlyphExtent.X*.5f,At.Y+Side*.5f-GlyphExtent.Y*.5f);
+                    FSlateDrawElement::MakeText(E,Base+4,G.ToPaintGeometry(GlyphExtent,FSlateLayoutTransform(GlyphAt)),Part.Glyph,StatusFont,ESlateDrawEffect::None,WorldStatusInk(Part.StatusId));
+                }
+                if(Part.Stacks>1)
+                {
+                    const FString StackText=FString::FromInt(Part.Stacks);const FVector2f StackExtent=FontMeasure->Measure(StackText,StatusFont);
+                    const FVector2f StackAt(At.X+Side-StackExtent.X+1.f,At.Y+Side-StackExtent.Y+1.f);
+                    FSlateDrawElement::MakeText(E,Base+4,G.ToPaintGeometry(StackExtent,FSlateLayoutTransform(StackAt)),StackText,StatusFont,ESlateDrawEffect::None,FLinearColor::White);
+                }
+                Top=FMath::Min(Top,Square.Top-1.f);
             }
             Bottom=Top;
         }

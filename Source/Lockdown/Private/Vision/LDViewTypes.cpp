@@ -118,6 +118,43 @@ bool SerializeObservedMapId(FArchive& Ar, FName& Id)
     return true;
 }
 
+bool SerializeObservedStatusExpiry(FArchive& Ar, int64& ExpiresAtServerMs)
+{
+    if (Ar.IsSaving())
+    {
+        if (ExpiresAtServerMs < 0) { return false; }
+        uint64 Value = uint64(ExpiresAtServerMs);
+        do
+        {
+            uint8 Byte = uint8(Value & 0x7f);
+            Value >>= 7;
+            if (Value != 0) { Byte |= 0x80; }
+            Ar.Serialize(&Byte, sizeof(Byte));
+        }
+        while (Value != 0 && !Ar.IsError());
+        return !Ar.IsError();
+    }
+
+    uint64 Value = 0;
+    for (uint32 Shift = 0; Shift < 64; Shift += 7)
+    {
+        uint8 Byte = 0;
+        Ar.Serialize(&Byte, sizeof(Byte));
+        if (Ar.IsError()) { return false; }
+        const uint8 Payload = Byte & 0x7f;
+        if (Shift == 63 && Payload > 1) { return false; }
+        Value |= uint64(Payload) << Shift;
+        if ((Byte & 0x80) == 0)
+        {
+            if ((Shift != 0 && Payload == 0) || Value > uint64(MAX_int64)) { return false; }
+            ExpiresAtServerMs = int64(Value);
+            return true;
+        }
+        if (Shift == 63) { return false; }
+    }
+    return false;
+}
+
 bool SerializeObservedUnit(FArchive& Ar, UPackageMap* Map, FLDObservedUnitView& Unit)
 {
     if (Ar.IsLoading()) { Unit = FLDObservedUnitView(); }
@@ -145,7 +182,7 @@ bool SerializeObservedUnit(FArchive& Ar, UPackageMap* Map, FLDObservedUnitView& 
         else { Ar << Unit.CreatureId << Unit.CampAffix << Unit.bPeddler; }
     }
     if (Mask & LDObservation::Level) { Ar << Unit.Level; }
-    if (Mask & LDObservation::Health) { Ar << Unit.Health.CurrentP2 << Unit.Health.MaxP2; }
+    if (Mask & LDObservation::Health) { Ar << Unit.Health.CurrentP2 << Unit.Health.MaxP2 << Unit.ShieldBar; }
     if (Mask & LDObservation::Momentum) { Ar << Unit.MomentumBar << Unit.bCharging << Unit.ChargeAgeMs << Unit.bOverdriveCast; }
     if (Mask & LDObservation::Statuses)
     {
@@ -153,7 +190,11 @@ bool SerializeObservedUnit(FArchive& Ar, UPackageMap* Map, FLDObservedUnitView& 
         Ar << Count;
         if (Ar.IsError() || Count > LDObservation::MaxStatuses) { return false; }
         if (Ar.IsLoading()) { Unit.Statuses.SetNum(Count); }
-        for (FLDObservedStatus& Status : Unit.Statuses) { Ar << Status.StatusId << Status.Stacks << Status.ExpiresAtServerMs; }
+        for (FLDObservedStatus& Status : Unit.Statuses)
+        {
+            Ar << Status.StatusId << Status.Stacks;
+            if (!SerializeObservedStatusExpiry(Ar, Status.ExpiresAtServerMs)) { return false; }
+        }
     }
     if (Mask & LDObservation::Actives)
     {
@@ -305,6 +346,8 @@ bool LDObservation::ValidateUnit(const FLDObservedUnitView& Unit, FString& Error
             || Unit.CampAffix > uint8(ELDCampAffix::Audit) || (Unit.bPeddler && Unit.CampAffix != 0))
     { return FailObservation(Error, TEXT("Observed identity, presentation or level does not match the unit kind.")); }
     if (!IsObservedResourcePair(Unit.Health, true)) { return FailObservation(Error, TEXT("Observed health must be a complete current/maximum P2 pair.")); }
+    if (!(Mask & Health) && Unit.ShieldBar != 0)
+    { return FailObservation(Error, TEXT("An observed shield bar is present without health authorization.")); }
     if (!(Mask & Momentum) && (Unit.MomentumBar != 0 || Unit.bCharging || Unit.bOverdriveCast))
     { return FailObservation(Error, TEXT("Observed momentum is present without authorization.")); }
     if (Unit.ChargeAgeMs != 0 && !Unit.bCharging)

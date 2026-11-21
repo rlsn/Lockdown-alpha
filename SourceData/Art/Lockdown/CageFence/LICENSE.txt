@@ -1,0 +1,5 @@
+Cage fence panel (Lockdown prop id "cage_fence")
+
+License: Project-owned. Modelled in Blender for Lockdown by Scripts/BuildCageFenceModel.py, which rebuilds
+cage_fence.glb: one 1 m panel (steel posts, rails, bars and a brace, a purple band with spikes) that the
+final_cage fence repeats around the spray zone.

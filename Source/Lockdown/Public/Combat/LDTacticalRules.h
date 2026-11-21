@@ -33,8 +33,8 @@ namespace LDTactical
     LOCKDOWN_API bool ApplyRoot(TArray<FLDCombatRoot>& Roots, const FLDCombatRoot& Instance, int64 AtMs);
     // Root-only cleanse: removes every current Root instance and nothing else. Returns the removed count.
     LOCKDOWN_API int32 DispelRoots(TArray<FLDCombatRoot>& Roots);
-    // EFFECT.ShieldPolicy=ReplaceIfNotWeaker against the current remaining amount; equal amounts refresh.
-    // No legacy barrier cap or strict comparison (COMBAT_AND_GROWTH control matrix). Returns whether the candidate replaced the record.
+    // EFFECT.ShieldPolicy=StackToLatestExpiry: a new barrier adds its amount to the live remainder and the record lasts until
+    // the later deadline (no cap); the record names the newest grant. Returns whether the candidate applied.
     LOCKDOWN_API bool ApplyShield(TOptional<FLDCombatShield>& Shield, int64& ShieldP2,
         const FLDCombatShield& Candidate, int64 AmountP2, int64 AtMs);
     // Drops expired Root instances and an expired or depleted barrier.

@@ -814,6 +814,8 @@ bool ALDCampDirector::ConsumeMemberDeath(const FLDCommittedDeath& Fact, const FL
         const FLDCampSpec& Spec = State.GetRoster()->Camps[Camp];
         const ELDCampAffix Affix = CampAffixes.FindRef(Spec.CampId);
         CampAffixes.Remove(Spec.CampId);
+        // A whole clear leaves a recovery orb on the camp anchor: whoever touches it first heals and gains momentum.
+        AuthorityMode()->DropRecoveryOrb(Spec.AnchorCm);
         return PayAffixClear(Affix, Spec.Tier, Spec.CampId, Fact.CreditOwner, Permit, Error)
             && AuthorityMode()->ConsumeCampClear(Spec.CampId, Fact.CreditOwner, FieldMs, Permit, Error);
     }

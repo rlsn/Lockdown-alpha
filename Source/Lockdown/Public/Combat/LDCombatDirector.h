@@ -118,11 +118,24 @@ struct FLDCombatBranchState
     FLDCombatSourceRef OverchargeExit;
     int32 OverchargeLevel=1;
     int64 OverchargeAPP2=0;
-    // The current shield's branch terms (S13 A1, S14 A1/A2), keyed by the shield's effect.
-    FGuid ShieldEffectId;
-    int64 ShieldReflectBp=0, ShieldEndHealBp=0;
-    TOptional<FLDDemoEffectDefinition> ShieldBreakBurst;
-    FLDCombatSourceRef ShieldExit;
+    // The shield branch terms (S13 A1, S14 A1/A2) of every standing shield layer, keyed by the layer's effect: each layer
+    // reflects, heals when it lapses and bursts when it breaks by its own terms; an entry ends with its layer.
+    struct FShieldBranch
+    {
+        FGuid EffectId;
+        int64 ReflectBp=0, EndHealBp=0;
+        TOptional<FLDDemoEffectDefinition> BreakBurst;
+        FLDCombatSourceRef Exit;
+    };
+    TArray<FShieldBranch> ShieldBranches;
+    FShieldBranch& ShieldBranchFor(const FGuid& EffectId)
+    {
+        if (FShieldBranch* Known=ShieldBranches.FindByPredicate([&EffectId](const FShieldBranch& Row) { return Row.EffectId==EffectId; }))
+        { return *Known; }
+        FShieldBranch& Added=ShieldBranches.AddDefaulted_GetRef();
+        Added.EffectId=EffectId;
+        return Added;
+    }
     // The current brace's branch terms (S16), keyed by the brace's effect.
     FGuid BraceEffectId;
     int64 BraceStunMs=0, BraceHealBp=0, BraceStackBp=0, BraceShieldMs=0, BraceShoveMs=0;
@@ -262,6 +275,8 @@ struct FLDCombatAction
     // K06: a free repeat of a release at AutoRecastScaleBp of its damage (no momentum, no cooldown, no further repeat).
     bool bAutoRecast=false;
     int64 AutoRecastScaleBp=10000;
+    // A08: the share scales the whole effect (damage, shields, heals and control durations), not only its damage.
+    bool bWholeEffectShare=false;
     // Spec §6.5: the chain a free repeat (K06, A08) continues; unset for a player's own action (it opens one).
     FGuid ChainId;
 };
@@ -335,6 +350,10 @@ struct FLDBodyCombatState
     // death fact when the life locks its death.
     TArray<FLDDamageSample> DamageLog;
     TOptional<FLDCombatShield> Shield;
+    // Every grant of the stacked shield as its own layer (its amount left and its own deadline). Resources.ShieldP2 is
+    // their sum and Shield names the newest grant with the latest deadline; damage spends the earliest-expiring layer first.
+    struct FShieldLayer { FGuid EffectId; int64 ExpiresAtMs=0; int64 AmountP2=0; };
+    TArray<FShieldLayer> ShieldLayers;
     TOptional<FLDCombatTaunt> Taunt;       // contenders only
     TOptional<FLDCombatAction> Action;
     int64 LastCombatAtMs=0;
@@ -379,8 +398,12 @@ struct FLDBodyCombatState
     uint64 KnockbackSerial=0;
     // The amount the current shield record was granted with.
     int64 ShieldGrantedP2=0;
+    // The amount the newest grant added to the stacked shield (S14 B2 raises only that grant).
+    int64 LastShieldGrantP2=0;
     int64 KeystonePhysiqueReadyAtMs=0;
     int64 KeystoneThickSkinReadyAtMs=0;
+    // Until then the thick-skin guard keeps the body steady: slows miss and knockbacks keep KeystoneThickSkinKnockbackBp.
+    int64 KeystoneSteadyUntilMs=0;
     // #147 build v7 keywords (LDCombatKeywords): silence instances (shaped like disarm and stun), the one shared breach
     // and burn of this life and the damage-triggered shield's rest (B09: it starts only on a granted shield).
     TArray<FLDCombatRoot> Silences;
@@ -804,6 +827,8 @@ struct FLDCombatProjectile
     FGuid StartContact;
     // The complete hit payload snapshotted at release; the contact copies it and names the struck body.
     FLDCombatHit Payload;
+    // final_cage: this flight already crossed the standing fence (it wears the fence once).
+    bool bCrossedFence=false;
     // A05's flying basic: the strikes and riders that land with its primary (A06, A09, A11), retargeted to the struck body.
     TArray<FLDCombatHit> Riders;
     // A08 on a flying third basic: its free Q is queued at the first contact, toward the body struck (bComboCast).
@@ -912,6 +937,8 @@ public:
     void SubmitCharge(const FLDCombatCaller& Caller, const FLDCombatChargeRequest& Request);
     FLDCombatActionReceipt QueryActionReceipt(const FLDCombatCaller& Caller, uint64 DirectSequence) const;
     FLDCombatEntryView QueryAvailability(const FLDCombatCaller& Caller, ELDCombatEntry Entry) const;
+    // The body stands in a dorm and has been out of combat for DORM.RegenDelaySec (the dorm rest that allows a swap).
+    bool IsDormRested(const FLDCombatBodyRef& Body) const;
     bool BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatOwnerView& Out) const;
     // Spec §6.5: the chain ends Entity's owner receives (its recent ones) and every contender's 本局最离谱 row.
     void ReadOwnerChains(const FGuid& Entity, TArray<FLDChainEndView>& Out) const;
@@ -1034,6 +1061,10 @@ public:
 
     // ---- Camps.
     bool CampPeerDied(const FLDCombatBodyRef& Peer,const FLDGameplayWritePermit& Permit,FString& Error);
+    // A match event's recovery for a living contender body: MissingBp of its missing HP plus MaxBp of its maximum HP, and
+    // MomentumP2 momentum (a camp clear, a final-field kill).
+    bool RecoverContender(const FLDCombatBodyRef& Body,int64 MissingBp,int64 MaxBp,int64 MomentumP2,
+        const FLDGameplayWritePermit& Permit,FString& Error);
     bool CancelCampWindup(const FLDCombatBodyRef& Body,const FLDGameplayWritePermit& Permit,FString& Error);
     FLDCampResetPrepareResult PrepareCampReset(const FLDCampResetInput& Input, const FLDGameplayWritePermit& Permit) const;
     void ApplyCampReset(FLDPreparedCampReset&& Prepared, const FLDGameplayWritePermit& Permit);
@@ -1319,8 +1350,12 @@ private:
     // turns the overflow into a shield and Y19 counts what really healed. True when HP changed; OutApplied (optional) is healed.
     bool HealBody(FLDBodyCombatState& Body, int64 AmountP2, const FLDCombatSourceRef& HealSource=FLDCombatSourceRef(),
         int64* OutApplied=nullptr, const FGuid& RootEffectId=FGuid(), FString* OutError=nullptr);
-    // The single shield entry: live rot cuts the amount, then it applies ReplaceIfNotWeaker; a granted shield
+    // The single shield entry: live rot cuts the amount, then it applies StackToLatestExpiry; a granted shield
     // records its amount (ShieldGrantedP2).
+    // Spends AmountP2 of Body's shield layers, earliest deadline first; returns how many layers it emptied.
+    static int32 SpendShieldLayers(FLDBodyCombatState& Body, int64 AmountP2, TArray<FGuid>* OutEmptied=nullptr);
+    // Drops the layers past their deadline and takes their amount off Resources.ShieldP2; true when anything changed.
+    static bool ExpireShieldLayers(FLDBodyCombatState& Body, int64 NowMs);
     bool GrantShieldTo(FLDBodyCombatState& Body, int64 AmountP2, int64 DurationMs, const FGuid& EffectId,
         const FGuid& SourceEntity, int64 NowMs, FString& Error, const FLDCombatSourceRef& GrantSource=FLDCombatSourceRef());
     // The forced displacement of one committed knockback (control kind Knockback): server root motion along the ground
@@ -1412,9 +1447,11 @@ private:
     // prompt once per reaction (ALDGameMode::SendReactionAssist gates it by the setter's sight), and ReactionAssists records
     // what was sent.
     bool NotifyReactionAssists(const FLDCombatHit& Hit, FString& Error);
-    // S16: Body's new stance (a newer one replaces the old record without its answer).
+    // S16: Body's new stance (a newer one replaces the old record without its answer). ShareBp: an A08 combo cast's share
+    // of what the record turns into (the answer's record part, the heal and the shield).
     bool ReleaseBrace(FLDBodyCombatState& Body, const FLDDemoEffectDefinition& Effect, const FLDCombatSourceRef& Source,
-        const FGuid& EffectId, uint64 Token, int64 NowMs, FString& Error, TSharedPtr<FLDCombatCastLedger> CastLedger=nullptr);
+        const FGuid& EffectId, uint64 Token, int64 NowMs, FString& Error, TSharedPtr<FLDCombatCastLedger> CastLedger=nullptr,
+        int64 ShareBp=10000);
     // S10: the bounces after the first struck body.
     bool StartChain(const FLDCombatHit& Payload, const FLDCombatBodyRef& First, const FVector& FirstFoot,
         const FLDDemoEffectDefinition& Bounce, int64 NowMs, FString& Error);
@@ -1442,6 +1479,12 @@ private:
     void RemoveBags(TFunctionRef<bool(const FLDCombatBag&)> Which);
     void DamageBag(FLDCombatBag& Bag, const FLDCombatHit& Hit, int64 NowMs);
     // Enemy bags an area reaches and sees from its anchor (the world sight bodies need, CollectAreaTargets) take its raw amount.
+    // final_cage: a hostile hit that crosses the standing fence wears it by its raw amount (RawBagDamageP2); it still
+    // passes through. Crosses: one end inside the ring and the other outside. InCircle: an area that touches the ring.
+    bool FenceCrosses(const FVector& From, const FVector& To) const;
+    void HitFence(const FLDCombatHit& Payload);
+    void HitFenceInCircle(const FVector& Centre, double RadiusCm, const FLDCombatHit& Payload);
+    void HitFenceInCone(const FVector& Origin, const FVector& Direction, double RangeCm, double AngleDegrees, const FLDCombatHit& Payload);
     bool HitBagsInCircle(const FVector& Centre, double RadiusCm, const FLDCombatHit& Payload, int64 NowMs, FString& Error);
     bool HitBagsInCone(const FVector& Origin, const FVector& Direction, double RangeCm, double AngleDegrees,
         const FLDCombatHit& Payload, int64 NowMs, FString& Error);
@@ -1452,7 +1495,7 @@ private:
     bool BagIsEnemyOf(const FLDCombatBag& Bag, const FGuid& Source) const;
     static int64 RawBagDamageP2(const FLDCombatHit& Hit);
     bool ResolveDashContacts(int64 NowMs, FString& Error);
-    bool OnDashContact(FLDBodyCombatState& Body, FLDCombatDashContact& Dash, int64 NowMs, FString& Error);
+    bool OnDashContact(FLDBodyCombatState& Body, FLDCombatDashContact& Dash, bool bContender, int64 NowMs, FString& Error);
     // Ends the body's channelled cone (a new action, a death or a source change interrupts it).
     void CancelChannel(FLDBodyCombatState& Body);
     bool StartSkillDelivery(FLDBodyCombatState& Body, const FLDCombatActiveTerms& Terms, const FLDCombatAction& Action,
@@ -1548,8 +1591,9 @@ private:
     bool ResolvePerfectDodges(const FGuid& EffectId, const FGuid& SourceEntity, TFunctionRef<bool(const FVector&)> InArea, int64 NowMs,
         FString& Error);
     // Branch reactions of a committed hit on Target: S10 B1 discharges, S14 A1 reflections, S16 B stacks, S13 A1 bursts.
-    bool OnBranchHitTaken(const FLDCombatHit& Hit, FLDBodyCombatState& Target, int64 DamageP2, bool bShieldBroken, int64 NowMs,
-        FString& Error);
+    // BrokenLayers: the shield layers (their EffectIds) this hit emptied; a branch shield settles by its own layer.
+    bool OnBranchHitTaken(const FLDCombatHit& Hit, FLDBodyCombatState& Target, int64 DamageP2, const TArray<FGuid>& BrokenLayers,
+        int64 NowMs, FString& Error);
     // A flight ended at EndCm: a return that reached its thrower was caught (S06 B2); an outbound flight leaves its landing area.
     bool EndBranchProjectile(const FLDCombatProjectile& Projectile, const FVector& EndCm, bool bReachedRange, FString& Error);
     // S19 A1: Ground's wire to its owner's next newer armed trap within WireCm strikes every enemy body on the segment once.
