@@ -510,6 +510,79 @@ bool FLDControlFeelElevationAimAndClipTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Early-half displacement exceeds late-half displacement"), EarlyDelta > LateDelta);
     TestNearlyEqual(TEXT("Total normalized displacement equals 1.0"), EarlyDelta + LateDelta, 1.0, 1e-9);
 
+    // UX-01 / INPUT-02 (#329 §3.1): Default bQuickCast == true + 0.18s tap/hold release-cast & right-click kiting vs cancel.
+    {
+        TestTrue(TEXT("bQuickCast defaults to true on fresh ULDControlSettings"), GetDefault<ULDControlSettings>()->bQuickCast);
+        const auto WorldValues = UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
+            .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
+        UWorld* QCWorld = UWorld::CreateWorld(EWorldType::Game, false, NAME_None, nullptr, true, ERHIFeatureLevel::Num, &WorldValues);
+        if (!TestNotNull(TEXT("QuickCast feel fixture world"), QCWorld)) { return false; }
+        ON_SCOPE_EXIT { QCWorld->DestroyWorld(false); };
+        auto* Public = QCWorld->SpawnActor<ALDGameState>();
+        auto* PC = QCWorld->SpawnActor<ALDPlayerController>();
+        auto* Body = QCWorld->SpawnActor<ALDCharacter>();
+        if (!TestNotNull(TEXT("QuickCast feel actors"), Public) || !TestNotNull(TEXT("QuickCast PC"), PC)
+            || !TestNotNull(TEXT("QuickCast pawn"), Body)) { return false; }
+        QCWorld->SetGameState(Public);
+        PC->Player = NewObject<ULocalPlayer>(GEngine);
+        PC->Controls = ULDControlSettings::CreateSessionSettings(FLDLocalSettingsStorage());
+        TestTrue(TEXT("Session settings start with QuickCast on"), PC->Controls->GetQuickCast());
+        PC->SetPawn(Body);
+        Body->SetActorLocation(FVector(0., 0., 90.));
+        Public->PublicMatch.Generation = 1;
+        Public->PublicMatch.Phase = ELDMatchPhase::Development;
+        PC->OwnerState.Match = 1;
+        PC->OwnerState.Life = 1;
+        PC->OwnerState.LifePhase = ELDLifePhase::Alive;
+        PC->OwnerState.BodyRef = {{ELDVictimKind::Contender, FGuid::NewGuid(), 1}, FGuid::NewGuid()};
+        PC->CombatView.Generation = 1;
+        PC->CombatView.Life = 1;
+        PC->CombatView.SourceRevision = 1;
+        FLDCombatEntryView& EntryQ = PC->CombatView.Entries.AddDefaulted_GetRef();
+        EntryQ.Entry = ELDCombatEntry::Q;
+        EntryQ.SourceKind = ELDCombatSourceKind::Learned;
+        EntryQ.DefinitionId = TEXT("active_charged_ram");
+        EntryQ.TargetMode = uint8(ELDDemoTargetMode::DirectionDash);
+        EntryQ.RangeCm = 600;
+        PC->Navigation->DevSetAimRay(TPair<FVector, FVector>(FVector(0., -800., 1200.), FVector(0.3, 0.8, -0.5).GetSafeNormal()));
+
+        // Direct ActivateCombatEntry (HUD button click / probe path) still arms Q without firing even when QuickCast is on.
+        ELDCombatEntry Armed = ELDCombatEntry::None;
+        PC->ActivateCombatEntry(ELDCombatEntry::Q);
+        TestTrue(TEXT("Direct ActivateCombatEntry arms Q for explicit confirmation and shows preview immediately"),
+            PC->ReadArmedCombatEntry(Armed) && Armed == ELDCombatEntry::Q && PC->ShouldShowArmedPreview()
+            && PC->NextDirectSequence == 0);
+        PC->CancelArmedCombat();
+        const uint32 CancelBase = PC->GetArmedCancelSerial();
+
+        // (b) < 0.18s tap + mid-tap right-click does NOT cancel the QuickCast, hides preview during tap, and fires on release.
+        PC->QuickCastTestClockSec = 10.00;
+        PC->PressSkill(ELDCombatEntry::Q);
+        TestTrue(TEXT("PressSkill arms QuickCast hold while suppressing < 0.18s preview"),
+            PC->bQuickCastHolding && PC->ReadArmedCombatEntry(Armed) && Armed == ELDCombatEntry::Q && !PC->ShouldShowArmedPreview());
+        PC->QuickCastTestClockSec = 10.06; // 60ms < 180ms
+        PC->V05Pressed(TEXT("Navigate"));
+        TestTrue(TEXT("Mid-tap (< 0.18s) right-click kiting keeps QuickCast alive without cancelling"),
+            PC->bQuickCastHolding && PC->ReadArmedCombatEntry(Armed) && Armed == ELDCombatEntry::Q
+            && PC->GetArmedCancelSerial() == CancelBase);
+        PC->QuickCastTestClockSec = 10.09; // 90ms < 180ms
+        PC->ReleaseSkill(ELDCombatEntry::Q);
+        TestTrue(TEXT("Releasing < 0.18s tap fires the skill request immediately"),
+            !PC->bQuickCastHolding && !PC->ReadArmedCombatEntry(Armed) && PC->NextDirectSequence == 1);
+
+        // (c) >= 0.18s hold reveals aim indicator, right-click cancels cleanly, and releasing afterwards does NOT fire.
+        PC->QuickCastTestClockSec = 20.00;
+        PC->PressSkill(ELDCombatEntry::Q);
+        PC->QuickCastTestClockSec = 20.22; // 220ms >= 180ms
+        TestTrue(TEXT("Holding >= 0.18s reveals the world aim indicator"), PC->ShouldShowArmedPreview());
+        PC->V05Pressed(TEXT("Navigate"));
+        TestTrue(TEXT("Right-click during >= 0.18s hold explicitly cancels QuickCast and increments ArmedCancelSerial"),
+            !PC->bQuickCastHolding && !PC->ReadArmedCombatEntry(Armed) && PC->GetArmedCancelSerial() == CancelBase + 1);
+        PC->QuickCastTestClockSec = 20.30;
+        PC->ReleaseSkill(ELDCombatEntry::Q);
+        TestEqual(TEXT("Releasing key after >= 0.18s right-click cancel sends nothing"), PC->NextDirectSequence, uint64(1));
+    }
+
     // DASH-02: Issuing MoveGround or AttackUnit while IsDashing() retains the order across the dash and pursues/attacks upon completion.
     return LDTestRunDashOrderRetention(*this);
 }

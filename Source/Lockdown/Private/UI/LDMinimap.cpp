@@ -25,7 +25,9 @@
 #include "Rendering/SlateRenderer.h"
 #include "Styling/CoreStyle.h"
 #include "Engine/World.h"
+#include "GameFramework/Character.h"
 #include "GameFramework/Pawn.h"
+#include "Components/CapsuleComponent.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
 #include "Components/PrimitiveComponent.h"
@@ -44,14 +46,15 @@
 // World shapes resolve per revision; the north-up raster rebuilds only for world/layout changes, not a turn at fixed scale.
 struct FLDMinimapStatic
 {
-    enum class EArea : uint8 { Blocker, CaptureZone, DormZone };
+    enum class EArea : uint8 { SightOnlyBlocker, FullBlocker, LowBlocker, Ramp, CaptureZone, DormZone };
     enum class ESite : uint8 { Capture, LowCamp, HighCamp, Dorm, BossWaypoint, EliteCamp, AncientCamp };
     // D27: the approved leader circle radius, read with the static map.
     double LeaderRadiusCm=0;
-    struct FArea { EArea Style=EArea::Blocker; TArray<FVector2D> Cm; };
+    struct FArea { EArea Style=EArea::FullBlocker; TArray<FVector2D> Cm; };
+    struct FRampChevron { FVector2D LowMidCm=FVector2D::ZeroVector, HighMidCm=FVector2D::ZeroVector; double WidthCm=0.; };
     struct FSite { ESite Kind=ESite::Capture; FVector2D Cm=FVector2D::ZeroVector; };
     struct FRun { FVector2f Position=FVector2f::ZeroVector; FVector2f Extent=FVector2f::ZeroVector; FLinearColor Color=FLinearColor::White; };
-    struct FOutline { TArray<FVector2f> Points; FLinearColor Color=FLinearColor::White; };
+    struct FOutline { TArray<FVector2f> Points; FLinearColor Color=FLinearColor::White; bool bDashed=false; };
     TSharedPtr<const FLDDemoContentSnapshot> Content;
     FString ContentError;
     bool bContentTried=false,bGroundLogged=false,bResolved=false,bValid=false;
@@ -60,6 +63,7 @@ struct FLDMinimapStatic
     // (Field), the #198 rest room (Rest) or the final arena (Final); Rest and Final are invalid when the world has none.
     // Each is the box of its anchors grown by the drawn areas nearest them (see MinimapResolveStatic), kept to the ground.
     TArray<FArea> Areas;
+    TArray<FRampChevron> RampChevrons;
     TArray<FSite> Sites;
     FBox2D Field=FBox2D(ForceInit);
     FBox2D Rest=FBox2D(ForceInit);
@@ -140,6 +144,19 @@ int32 LDMinimap::HitSpawnCandidate(const FView& View,const FVector2D& Local,TCon
         if(DistSq<=BestDistSq){BestDistSq=DistSq;Best=Index;}
     }
     return Best;
+}
+bool LDMinimap::IntersectCameraPlane(const FVector& Origin,const FVector& Direction,double PlaneZ,FVector& OutHit)
+{
+    if(Origin.ContainsNaN()||Direction.ContainsNaN()||!FMath::IsFinite(PlaneZ)||!(Direction.Z<-.001)){return false;}
+    const double T=(PlaneZ-Origin.Z)/Direction.Z;
+    if(!(T>0.)||!FMath::IsFinite(T)){return false;}
+    OutHit=Origin+Direction*T;
+    return true;
+}
+LDMinimap::EBlockerOverlay LDMinimap::ClassifyBlocker(bool bBlocksMovement,bool bBlocksSight)
+{
+    if(!bBlocksMovement){return EBlockerOverlay::None;}
+    return bBlocksSight?EBlockerOverlay::FullBlocker:EBlockerOverlay::LowBlocker;
 }
 bool LDMinimap::FitRegions(TConstArrayView<FBox2D> Anchors,TConstArrayView<FBox2D> Footprints,const FBox2D& Ground,
     TArray<FBox2D>& Out,FString& Error)
@@ -253,7 +270,7 @@ LDMinimap::ERegion MinimapRegionOf(ELDDemoWorldAnchorKind Kind)
 }
 bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Geometry,const FLDDemoContentDefinitions& Approved,const FBox2D& Ground,FString& Error)
 {
-    Cache.Areas.Reset();Cache.Sites.Reset();Cache.Field=FBox2D(ForceInit);Cache.Rest=FBox2D(ForceInit);Cache.Final=FBox2D(ForceInit);
+    Cache.Areas.Reset();Cache.RampChevrons.Reset();Cache.Sites.Reset();Cache.Field=FBox2D(ForceInit);Cache.Rest=FBox2D(ForceInit);Cache.Final=FBox2D(ForceInit);
     if(!Approved.World.MapId.Equals(Geometry.MapId,ESearchCase::CaseSensitive))
     {Error=FString::Printf(TEXT("Approved content names map %s but the registered world is %s."),*Approved.World.MapId,*Geometry.MapId);return false;}
     auto ToCm=[&Error](const FString& Id,const FLDDemoWorldPoint& Point,FVector2D& Result)
@@ -264,12 +281,38 @@ bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Ge
         Area.Cm=MinimapClipBox(MoveTemp(Area.Cm),Ground);
         return MinimapArea(Area.Cm)>1.;
     };
+    for(const FLDDemoWorldRamp& Ramp:Geometry.Ramps)
+    {
+        if(Ramp.PolygonCm.Num()<3){continue;}
+        FLDMinimapStatic::FArea Area;
+        Area.Style=FLDMinimapStatic::EArea::Ramp;
+        Area.Cm.Reserve(Ramp.PolygonCm.Num());
+        for(const FLDDemoWorldPoint& Vertex:Ramp.PolygonCm)
+        {
+            FVector2D Pt=FVector2D::ZeroVector;
+            if(!ToCm(Ramp.Id,Vertex,Pt)){return false;}
+            Area.Cm.Add(Pt);
+        }
+        if(Ramp.PolygonCm.Num()==4)
+        {
+            const FVector2D LowMid=(Area.Cm[0]+Area.Cm[1])*.5;
+            const FVector2D HighMid=(Area.Cm[2]+Area.Cm[3])*.5;
+            if(Ground.IsInsideOrOn(LowMid)&&Ground.IsInsideOrOn(HighMid))
+            {
+                Cache.RampChevrons.Add({LowMid,HighMid,FVector2D::Distance(Area.Cm[0],Area.Cm[1])});
+            }
+        }
+        if(Keep(Area)){Cache.Areas.Add(MoveTemp(Area));}
+    }
     TArray<FBox2D> Anchors;Anchors.Init(FBox2D(ForceInit),LDMinimap::RegionCount);
     for(const FLDDemoWorldBlocker& Blocker:Geometry.Blockers)
     {
         if(!Blocker.BlocksMovement&&!Blocker.BlocksSight){continue;}
         FLDMinimapStatic::FArea Area;
-        // The registered footprint fits the region. Its appearance comes from the level artwork.
+        const LDMinimap::EBlockerOverlay Overlay=LDMinimap::ClassifyBlocker(Blocker.BlocksMovement,Blocker.BlocksSight);
+        Area.Style=Overlay==LDMinimap::EBlockerOverlay::FullBlocker?FLDMinimapStatic::EArea::FullBlocker
+            :Overlay==LDMinimap::EBlockerOverlay::LowBlocker?FLDMinimapStatic::EArea::LowBlocker
+            :FLDMinimapStatic::EArea::SightOnlyBlocker;
         if(!LDDemoWorld::Footprint(Blocker,Area.Cm,Error)){Error=Blocker.Id+TEXT(": ")+Error;return false;}
         if(Keep(Area)){Cache.Areas.Add(MoveTemp(Area));}
     }
@@ -324,7 +367,10 @@ bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Ge
         Cache.Sites.Add(Site);
     }
     TArray<FBox2D> Footprints,Regions;
-    for(const FLDMinimapStatic::FArea& Area:Cache.Areas){Footprints.Add(FBox2D(Area.Cm));}
+    for(const FLDMinimapStatic::FArea& Area:Cache.Areas)
+    {
+        if(Area.Style!=FLDMinimapStatic::EArea::Ramp){Footprints.Add(FBox2D(Area.Cm));}
+    }
     if(!LDMinimap::FitRegions(Anchors,Footprints,Ground,Regions,Error)){return false;}
     Cache.Field=Regions[LDMinimap::FieldRegion];Cache.Rest=Regions[LDMinimap::RestRegion];Cache.Final=Regions[LDMinimap::FinalRegion];
     return true;
@@ -344,28 +390,77 @@ public:
         for(const auto& Run:Fills){FSlateDrawElement::MakeBox(E,L,G.ToPaintGeometry(Run.Extent,FSlateLayoutTransform(Run.Position)),White,ESlateDrawEffect::None,Run.Color);}
         for(const auto& Outline:Outlines)
         {
-            FSlateDrawElement::MakeLines(E,L+1,G.ToPaintGeometry(),Outline.Points,ESlateDrawEffect::None,Outline.Color,true,1.5f);
+            if(Outline.bDashed)
+            {
+                TArray<FVector2f> Copy=Outline.Points;
+                FSlateDrawElement::MakeDashedLines(E,L+1,G.ToPaintGeometry(),MoveTemp(Copy),ESlateDrawEffect::None,Outline.Color,1.5f,4.f);
+            }
+            else
+            {
+                FSlateDrawElement::MakeLines(E,L+1,G.ToPaintGeometry(),Outline.Points,ESlateDrawEffect::None,Outline.Color,true,1.5f);
+            }
         }
         return L+1;
     }
 };
 void MinimapLayoutStatic(const FLDMinimapStatic& Cache,const FVector2D& Origin,double Scale,SLDMinimapRaster& Raster)
 {
-    for(const FLDMinimapStatic::FArea& Area:Cache.Areas)
+    const FLinearColor LowBlockerFill=FLinearColor(FColor(0x31,0x48,0x52)).CopyWithNewOpacity(.50f);
+    const FLinearColor LowBlockerRim=FLinearColor(FColor(0x6F,0xA3,0xB8)).CopyWithNewOpacity(.92f);
+    const FLinearColor FullBlockerRim=FLinearColor(FColor(0x22,0x25,0x2A)).CopyWithNewOpacity(.85f);
+    const FLinearColor RampFill=FLinearColor(FColor(0x7D,0x6E,0x49)).CopyWithNewOpacity(.32f);
+    const FLinearColor RampChevronInk=FLinearColor(FColor(0xE2,0xC9,0x86)).CopyWithNewOpacity(.92f);
+    auto EmitFill=[&Raster](const TArray<FVector2f>& Points,const FLinearColor& Fill)
     {
-        if (Area.Style == FLDMinimapStatic::EArea::Blocker) { continue; }
-        const bool bCaptureZone = Area.Style == FLDMinimapStatic::EArea::CaptureZone;
-        const FLinearColor Fill = bCaptureZone ? FLinearColor(1.f,.84f,.30f,.16f) : FLinearColor(.25f,.62f,1.f,.18f);
-        const FLinearColor Rim = bCaptureZone ? FLinearColor(1.f,.84f,.34f,.95f) : FLinearColor(.45f,.75f,1.f,.95f);
-        TArray<FVector2f> Points;for(const FVector2D& Cm:Area.Cm){Points.Add(FVector2f(float((Cm.X-Origin.X)*Scale),float((Cm.Y-Origin.Y)*Scale)));}
         MinimapScanRuns(Points,[&Raster,&Fill](float X,float Y,float Width)
         {
-            // Rows with the same span merge, so an axis-aligned wall stays one element.
             FLDMinimapStatic::FRun* Last=Raster.Fills.Num()?&Raster.Fills.Last():nullptr;
             if(Last&&Last->Color==Fill&&FMath::IsNearlyEqual(Last->Position.X,X,.01f)&&FMath::IsNearlyEqual(Last->Extent.X,Width,.01f)&&FMath::IsNearlyEqual(Last->Position.Y+Last->Extent.Y,Y,.01f)){Last->Extent.Y+=1.f;}
             else{Raster.Fills.Add({FVector2f(X,Y),FVector2f(Width,1.f),Fill});}
         });
-        const FVector2f First=Points[0];Points.Add(First);Raster.Outlines.Add({MoveTemp(Points),Rim});
+    };
+    for(const FLDMinimapStatic::FArea& Area:Cache.Areas)
+    {
+        if(Area.Style==FLDMinimapStatic::EArea::SightOnlyBlocker||Area.Cm.Num()<3){continue;}
+        TArray<FVector2f> Points;Points.Reserve(Area.Cm.Num()+1);
+        for(const FVector2D& Cm:Area.Cm){Points.Add(FVector2f(float((Cm.X-Origin.X)*Scale),float((Cm.Y-Origin.Y)*Scale)));}
+        if(Area.Style==FLDMinimapStatic::EArea::Ramp)
+        {
+            EmitFill(Points,RampFill);
+            continue;
+        }
+        if(Area.Style==FLDMinimapStatic::EArea::LowBlocker)
+        {
+            EmitFill(Points,LowBlockerFill);
+            const FVector2f First=Points[0];Points.Add(First);
+            Raster.Outlines.Add({MoveTemp(Points),LowBlockerRim,true});
+            continue;
+        }
+        if(Area.Style==FLDMinimapStatic::EArea::FullBlocker)
+        {
+            const FVector2f First=Points[0];Points.Add(First);
+            Raster.Outlines.Add({MoveTemp(Points),FullBlockerRim,false});
+            continue;
+        }
+        const bool bCaptureZone=Area.Style==FLDMinimapStatic::EArea::CaptureZone;
+        const FLinearColor Fill=bCaptureZone?FLinearColor(1.f,.84f,.30f,.16f):FLinearColor(.25f,.62f,1.f,.18f);
+        const FLinearColor Rim=bCaptureZone?FLinearColor(1.f,.84f,.34f,.95f):FLinearColor(.45f,.75f,1.f,.95f);
+        EmitFill(Points,Fill);
+        const FVector2f First=Points[0];Points.Add(First);Raster.Outlines.Add({MoveTemp(Points),Rim,false});
+    }
+    for(const FLDMinimapStatic::FRampChevron& Ramp:Cache.RampChevrons)
+    {
+        const FVector2f Low(float((Ramp.LowMidCm.X-Origin.X)*Scale),float((Ramp.LowMidCm.Y-Origin.Y)*Scale));
+        const FVector2f High(float((Ramp.HighMidCm.X-Origin.X)*Scale),float((Ramp.HighMidCm.Y-Origin.Y)*Scale));
+        const FVector2f Delta=High-Low;
+        const float Len=Delta.Size();
+        if(Len<3.f){continue;}
+        const FVector2f Dir=Delta/Len;
+        const FVector2f Side(-Dir.Y,Dir.X);
+        const float Wing=FMath::Clamp(float(Ramp.WidthCm*Scale)*.28f,2.2f,5.f);
+        const FVector2f Tip=Low+Dir*(Len*.66f);
+        const FVector2f BasePt=Tip-Dir*FMath::Min(Wing*1.1f,Len*.42f);
+        Raster.Outlines.Add({{BasePt-Side*Wing,Tip,BasePt+Side*Wing},RampChevronInk,false});
     }
 }
 void MinimapGlyphTemplates(FLDMinimapStatic& Cache)
@@ -546,6 +641,16 @@ void MinimapUpdateCoverage(FLDMinimapStatic& Cache,const ALDPlayerController& PC
 // The region the map shows: the rest room or the final arena while the owner's living body stands in it (without a body,
 // while the camera looks at it), else the field; the whole ground until the layer resolves. It is the map's own ground: the view fits it,
 // paint clips to it and gestures clamp into it.
+double MinimapOwnFootPlaneZ(const ALDPlayerController& PC)
+{
+    if(PC.OwnerState.LifePhase!=ELDLifePhase::Alive){return 0.;}
+    if(const ACharacter* Character=Cast<ACharacter>(PC.GetPawn());Character&&Character->GetCapsuleComponent())
+    {
+        return Character->GetActorLocation().Z-Character->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+    }
+    if(const APawn* Body=PC.GetPawn()){return Body->GetActorLocation().Z;}
+    return 0.;
+}
 FBox2D MinimapRegion(const ALDPlayerController& PC,const FLDMinimapStatic& Cache,const UWorld* World,const FBox2D& Ground)
 {
     if(!MinimapStaticCurrent(Cache,World)){return Ground;}
@@ -554,9 +659,10 @@ FBox2D MinimapRegion(const ALDPlayerController& PC,const FLDMinimapStatic& Cache
     if(const APawn* Body=PC.OwnerState.LifePhase==ELDLifePhase::Alive?PC.GetPawn():nullptr){Where=FVector2D(Body->GetActorLocation());bWhere=true;}
     else
     {
-        int32 W=0,H=0;PC.GetViewportSize(W,H);FVector Origin,Direction;
-        if(W>0&&H>0&&PC.DeprojectScreenPositionToWorld(W*.5f,H*.5f,Origin,Direction)&&Direction.Z<-.001)
-        {const FVector Hit=Origin+Direction*(-Origin.Z/Direction.Z);Where=FVector2D(Hit);bWhere=true;}
+        int32 W=0,H=0;PC.GetViewportSize(W,H);FVector Origin,Direction,Hit;
+        if(W>0&&H>0&&PC.DeprojectScreenPositionToWorld(W*.5f,H*.5f,Origin,Direction)
+            &&LDMinimap::IntersectCameraPlane(Origin,Direction,MinimapOwnFootPlaneZ(PC),Hit))
+        {Where=FVector2D(Hit);bWhere=true;}
     }
     if(bWhere&&Cache.Rest.bIsValid&&Cache.Rest.IsInsideOrOn(Where)){return Cache.Rest;}
     return bWhere&&Cache.Final.bIsValid&&Cache.Final.IsInsideOrOn(Where)?Cache.Final:Cache.Field;
@@ -866,13 +972,15 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
             MinimapScanRuns(Arrow,[&Box](float X,float Y,float Width){Box(10,FVector2f(X,Y),FVector2f(Width,1.f),FLinearColor(.30f,1.f,.86f));});
             TArray<FVector2f> Rim=Arrow;Rim.Add(Arrow[0]);Lines(11,Rim,Ink,1.f);
         }
-        // Actual camera's ground footprint, without querying any world actor; a corner beyond the ground is clamped onto it.
+        // Actual camera's footprint on Z = OwnFootZ (0 when dead/bodiless) so elevated terrain adds zero parallax offset.
         int32 W=0,H=0;PC->GetViewportSize(W,H);TArray<FVector2f> Footprint;
+        const double PlaneZ=MinimapOwnFootPlaneZ(*PC);
         for(FVector2D Pixel:{FVector2D(0,0),FVector2D(W,0),FVector2D(W,H),FVector2D(0,H)})
         {
-            FVector Origin,Direction;
-            if(PC->DeprojectScreenPositionToWorld(float(Pixel.X),float(Pixel.Y),Origin,Direction)&&Direction.Z<-.001)
-            {const FVector Hit=Origin+Direction*(-Origin.Z/Direction.Z);Footprint.Add(Spot(FVector(FMath::Clamp(Hit.X,Region.Min.X,Region.Max.X),FMath::Clamp(Hit.Y,Region.Min.Y,Region.Max.Y),0.)));}
+            FVector Origin,Direction,Hit;
+            if(PC->DeprojectScreenPositionToWorld(float(Pixel.X),float(Pixel.Y),Origin,Direction)
+                &&LDMinimap::IntersectCameraPlane(Origin,Direction,PlaneZ,Hit))
+            {Footprint.Add(Spot(FVector(FMath::Clamp(Hit.X,Region.Min.X,Region.Max.X),FMath::Clamp(Hit.Y,Region.Min.Y,Region.Max.Y),0.)));}
         }
         if(Footprint.Num()==4){const FVector2f First=Footprint[0];Footprint.Add(First);Lines(11,Footprint,FLinearColor(1.f,1.f,1.f,.8f),1.5f);}
         E.PopClip();

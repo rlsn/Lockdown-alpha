@@ -48,6 +48,11 @@ namespace LDMinimap
     constexpr double SpawnBadgeRadius=14.;
     constexpr double SpawnBadgeHitRadius=22.;
     LOCKDOWN_API int32 HitSpawnCandidate(const FView& View,const FVector2D& Local,TConstArrayView<FVector> CandidatesCm);
+    // Intersects a downward camera ray with the horizontal plane Z = PlaneZ (OwnFootZ while alive, 0 otherwise) so elevated
+    // terrain never shifts the minimap camera frustum by high-ground parallax.
+    LOCKDOWN_API bool IntersectCameraPlane(const FVector& Origin,const FVector& Direction,double PlaneZ,FVector& OutHit);
+    enum class EBlockerOverlay : uint8 { None=0, LowBlocker=1, FullBlocker=2 };
+    LOCKDOWN_API EBlockerOverlay ClassifyBlocker(bool bBlocksMovement,bool bBlocksSight);
     // The regions the map shows one at a time, as indices into FitRegions' anchors and output.
     enum ERegion : int32 { FieldRegion, RestRegion, FinalRegion, RegionCount };
     // The walls around a region's anchors lie within this reach of them (the final arena's ring reaches about 1300 cm past

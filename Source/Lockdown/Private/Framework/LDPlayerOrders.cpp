@@ -44,6 +44,8 @@ void ALDPlayerController::ActivateCombatEntry(ELDCombatEntry Entry, const FLDCom
     if (bHeld && LDPlayerOrdersDetail::IsArmedMode(Mode))
     {
         bAttackMoveArmed=false;
+        bQuickCastHolding=false;
+        QuickCastHoldEntry=ELDCombatEntry::None;
         if (ArmedEntry!=Entry) { UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT armed entry=%u"),uint32(Entry)); }
         ArmedEntry=Entry;
         // The D dash goes toward the pointer at once; without ground under the pointer the server refuses it explicitly.
@@ -51,40 +53,70 @@ void ALDPlayerController::ActivateCombatEntry(ELDCombatEntry Entry, const FLDCom
         {
             if (PressAim) { ConfirmArmedEntry(*PressAim,AimCm); }
             else { ConfirmArmedCombat(); }
-            return;
-        }
-        // Quick cast (local setting): fires at the pointer at once when it already names the aim. A unit skill takes the
-        // nearest visible unit around the pointer; with none there it is dropped with a notice instead of staying armed
-        // for a confirmation the next move click would silently cancel.
-        if (Controls && Controls->GetQuickCast())
-        {
-            if (Mode==ELDDemoTargetMode::Unit)
-            {
-                FLDCombatTarget Aim;
-                if (ObservedNearPointer(LDModelPicking::QuickCastSnapPx,Aim.Observed,Aim.ObservationEpoch))
-                {
-                    Aim.Kind=ELDCombatTargetKind::Unit;
-                    ConfirmArmedEntry(Aim);
-                }
-                else
-                {
-                    CancelArmedCombat();
-                    PostIntentNotice(TEXT("指针附近没有目标"));
-                }
-                return;
-            }
-            const auto* Body=Cast<ALDCharacter>(GetPawn());
-            const double PlaneZ=Body?Body->GetActorLocation().Z-Body->GetCapsuleComponent()->GetScaledCapsuleHalfHeight():0.;
-            FVector AimWorldPoint=FVector::ZeroVector;
-            if (Navigation->AimPointAtElevation(PlaneZ,AimWorldPoint)) { ConfirmArmedCombat(); }
         }
         return;
     }
     // Self, an empty slot or gear without an active still reaches the server: the attempt is judged there
     // and an admitted aggressive intent ends protection even when it is rejected.
+    bQuickCastHolding=false;
+    QuickCastHoldEntry=ELDCombatEntry::None;
     FLDCombatTarget Aim;
     Aim.Kind=bHeld && Mode==ELDDemoTargetMode::Self?ELDCombatTargetKind::Self:ELDCombatTargetKind::Missing;
     SendCombatAction(Entry,Aim,IsQueueModifierDown());
+}
+
+double ALDPlayerController::QuickCastClockSeconds() const
+{
+    return QuickCastTestClockSec>=0. ? QuickCastTestClockSec : FPlatformTime::Seconds();
+}
+
+bool ALDPlayerController::ShouldShowArmedPreview() const
+{
+    if (bAttackMoveArmed) { return true; }
+    if (ArmedEntry==ELDCombatEntry::None) { return false; }
+    if (!bQuickCastHolding || QuickCastHoldEntry!=ArmedEntry) { return true; }
+    return (QuickCastClockSeconds()-QuickCastPressSec)>=QuickCastHoldPreviewSeconds;
+}
+
+void ALDPlayerController::ExecuteQuickCastAim(ELDCombatEntry Entry)
+{
+    if (!IsLocalController() || !LDCombatPreInput::IsDirectEntry(Entry) || !CanWorldCommand())
+    {
+        CancelArmedCombat();
+        return;
+    }
+    const bool bCurrentView=CombatView.Generation==OwnerState.Match && CombatView.Life==OwnerState.Life;
+    const FLDCombatEntryView* View=bCurrentView?LDPlayerOrdersDetail::FindEntry(CombatView,Entry):nullptr;
+    const bool bHeld=View && !View->DefinitionId.IsNone();
+    const ELDDemoTargetMode Mode=bHeld?ELDDemoTargetMode(View->TargetMode):ELDDemoTargetMode::Self;
+    if (!bHeld || !LDPlayerOrdersDetail::IsArmedMode(Mode))
+    {
+        ActivateCombatEntry(Entry);
+        return;
+    }
+    ArmedEntry=Entry;
+    if (Mode==ELDDemoTargetMode::Unit)
+    {
+        FLDCombatTarget Aim;
+        if (ObservedNearPointer(LDModelPicking::QuickCastSnapPx,Aim.Observed,Aim.ObservationEpoch))
+        {
+            Aim.Kind=ELDCombatTargetKind::Unit;
+            ConfirmArmedEntry(Aim);
+        }
+        else
+        {
+            CancelArmedCombat();
+            PostIntentNotice(TEXT("指针附近没有目标"));
+        }
+        return;
+    }
+    const auto* Body=Cast<ALDCharacter>(GetPawn());
+    const double PlaneZ=Body?Body->GetActorLocation().Z-Body->GetCapsuleComponent()->GetScaledCapsuleHalfHeight():0.;
+    FVector AimWorldPoint=FVector::ZeroVector;
+    if (Navigation && Navigation->AimPointAtElevation(PlaneZ,AimWorldPoint))
+    {
+        ConfirmArmedCombat();
+    }
 }
 
 // Shift is no mapped action, so the player input's key state may never see it; Slate's modifier state is the fallback.
@@ -105,6 +137,8 @@ void ALDPlayerController::ArmAttackMove()
 {
     if (!IsLocalController() || !CanWorldCommand()) { return; }
     ArmedEntry=ELDCombatEntry::None;
+    bQuickCastHolding=false;
+    QuickCastHoldEntry=ELDCombatEntry::None;
     bAttackMoveArmed=true;
 }
 
@@ -113,6 +147,8 @@ bool ALDPlayerController::ClearArmedAim()
     const bool bWasArmed=bAttackMoveArmed || ArmedEntry!=ELDCombatEntry::None;
     bAttackMoveArmed=false;
     ArmedEntry=ELDCombatEntry::None;
+    bQuickCastHolding=false;
+    QuickCastHoldEntry=ELDCombatEntry::None;
     return bWasArmed;
 }
 
@@ -409,9 +445,14 @@ void ALDPlayerController::EndOverdriveHold()
 
 void ALDPlayerController::PressSkill(ELDCombatEntry Entry)
 {
+    if (!IsLocalController() || !LDCombatPreInput::IsDirectEntry(Entry) || !CanWorldCommand()) { return; }
     // A full bar and a ready learned active start the hold: the release decides between a normal cast and overdrive.
     const bool bCurrentView=CombatView.Generation==OwnerState.Match && CombatView.Life==OwnerState.Life;
     const FLDCombatEntryView* View=bCurrentView?LDPlayerOrdersDetail::FindEntry(CombatView,Entry):nullptr;
+    const bool bHeld=View && !View->DefinitionId.IsNone();
+    const ELDDemoTargetMode Mode=bHeld?ELDDemoTargetMode(View->TargetMode):ELDDemoTargetMode::Self;
+    const bool bAimed=bHeld && LDPlayerOrdersDetail::IsArmedMode(Mode) && !LDCombatPreInput::FiresOnPress(Entry);
+    const bool bQuick=Controls && Controls->GetQuickCast();
     const FLDDemoOverdriveParameters* Terms=OverdriveTerms();
     // Unavailable is the published snapshot: a cooldown or momentum reason in it can be stale, so readiness is judged on the
     // current authority time and the current bar; any other reason (control, busy) still blocks. The server decides.
@@ -419,23 +460,48 @@ void ALDPlayerController::PressSkill(ELDCombatEntry Entry)
     const bool bClock=ReadDemoAuthorityTimeMs(NowMs);
     const bool bStaleOnlyReason=View && (View->Unavailable==ELDCombatReject::None || View->Unavailable==ELDCombatReject::Cooldown
         || View->Unavailable==ELDCombatReject::MomentumShort);
-    if (IsLocalController() && CanWorldCommand() && Terms && View && !View->DefinitionId.IsNone()
-        && View->SourceKind==ELDCombatSourceKind::Learned && bStaleOnlyReason && bClock && View->ReadyAtMs<=NowMs
+    const bool bOverdriveEligible=Terms && bHeld && View->SourceKind==ELDCombatSourceKind::Learned && bStaleOnlyReason && bClock
+        && View->ReadyAtMs<=NowMs
         && CombatView.MomentumP2>=(CombatView.OverdriveThresholdP2>0 ? CombatView.OverdriveThresholdP2 : Terms->ThresholdP2)
-        && CombatView.MomentumP2>=View->MomentumCostP2 && !bOverdriveHolding)
+        && CombatView.MomentumP2>=View->MomentumCostP2 && !bOverdriveHolding;
+
+    // Keyboard QuickCast on an aimed skill: < 0.18s tap hides the preview and casts on release; >= 0.18s hold reveals the
+    // aim indicator and casts on release (right-click after >= 0.18s cancels without firing).
+    if (bQuick && bAimed)
+    {
+        if (bOverdriveArmed && OverdriveEntry!=Entry) { EndOverdriveHold(); }
+        if (bOverdriveHolding && OverdriveEntry!=Entry) { EndOverdriveHold(); }
+        const double NowSec=QuickCastClockSeconds();
+        bAttackMoveArmed=false;
+        if (ArmedEntry!=Entry) { UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT armed entry=%u"),uint32(Entry)); }
+        ArmedEntry=Entry;
+        bQuickCastHolding=true;
+        QuickCastHoldEntry=Entry;
+        QuickCastPressSec=NowSec;
+        if (bOverdriveEligible)
+        {
+            if (bOverdriveArmed) { EndOverdriveHold(); }
+            OverdriveEntry=Entry;
+            OverdriveHoldStartSec=NowSec;
+            bOverdriveHolding=true;
+            bOverdriveLatched=FSlateApplication::IsInitialized()&&FSlateApplication::Get().GetModifierKeys().IsAltDown();
+            SendCharge(Entry,true);
+        }
+        return;
+    }
+
+    if (bOverdriveEligible)
     {
         if (bOverdriveArmed) { EndOverdriveHold(); }
         OverdriveEntry=Entry;
-        OverdriveHoldStartSec=FPlatformTime::Seconds();
+        OverdriveHoldStartSec=QuickCastClockSeconds();
         bOverdriveHolding=true;
         // Alt with the key: one press is enough, the charge completes without holding the key.
         bOverdriveLatched=FSlateApplication::IsInitialized()&&FSlateApplication::Get().GetModifierKeys().IsAltDown();
         SendCharge(Entry,true);
-        // An aimed skill is armed from the press itself: a left click during the hold is an ordinary cast, and only a
-        // hold that completes turns the armed aim into overdrive. Quick cast and self skills fire on activation, so
-        // for them the release still decides.
-        if (LDPlayerOrdersDetail::IsArmedMode(ELDDemoTargetMode(View->TargetMode)) && !(Controls && Controls->GetQuickCast()))
-        { ActivateCombatEntry(Entry); }
+        // An aimed skill with QuickCast off is armed from the press itself: a left click during the hold is an ordinary cast,
+        // and only a hold that completes turns the armed aim into overdrive.
+        if (bAimed) { ActivateCombatEntry(Entry); }
         return;
     }
     ActivateCombatEntry(Entry);
@@ -443,13 +509,30 @@ void ALDPlayerController::PressSkill(ELDCombatEntry Entry)
 
 void ALDPlayerController::ReleaseSkill(ELDCombatEntry Entry)
 {
+    if (bQuickCastHolding && QuickCastHoldEntry==Entry)
+    {
+        if (bOverdriveHolding && OverdriveEntry==Entry)
+        {
+            // Alt-latched overdrive keeps charging after early key release and fires once HoldMs completes.
+            if (bOverdriveLatched)
+            {
+                bQuickCastHolding=false;
+                QuickCastHoldEntry=ELDCombatEntry::None;
+                return;
+            }
+            EndOverdriveHold();
+        }
+        bQuickCastHolding=false;
+        QuickCastHoldEntry=ELDCombatEntry::None;
+        if (ArmedEntry==Entry) { ExecuteQuickCastAim(Entry); }
+        return;
+    }
     if (!bOverdriveHolding || Entry!=OverdriveEntry) { return; }
     // A one-press (Alt) charge keeps going after the key is let go.
     if (bOverdriveLatched) { return; }
     // Let go before the hold completed: the charge ends and the press is an ordinary cast.
     EndOverdriveHold();
-    // Armed from the press already: nothing to repeat. Quick cast was not activated on the press, so it reads the aim now.
-    if (ArmedEntry!=Entry || (Controls && Controls->GetQuickCast())) { ActivateCombatEntry(Entry); }
+    if (ArmedEntry!=Entry) { ActivateCombatEntry(Entry); }
 }
 
 void ALDPlayerController::TickOverdriveHold()
@@ -457,10 +540,22 @@ void ALDPlayerController::TickOverdriveHold()
     if (!bOverdriveHolding) { return; }
     const FLDDemoOverdriveParameters* Terms=OverdriveTerms();
     if (!Terms || !CanWorldCommand()) { EndOverdriveHold(); return; }
-    if ((FPlatformTime::Seconds()-OverdriveHoldStartSec)*1000.<double(Terms->HoldMs)) { return; }
+    if ((QuickCastClockSeconds()-OverdriveHoldStartSec)*1000.<double(Terms->HoldMs)) { return; }
     // Held through OVERDRIVE.HoldSec: the next request of this entry asks for overdrive (the server decides by the bar).
     bOverdriveHolding=false;
     bOverdriveArmed=true;
+    // While the player still holds a QuickCast aimed key (without Alt latch), keep previewing and fire on key release.
+    if (bQuickCastHolding && QuickCastHoldEntry==OverdriveEntry && !bOverdriveLatched) { return; }
+    const bool bCurrentView=CombatView.Generation==OwnerState.Match && CombatView.Life==OwnerState.Life;
+    const FLDCombatEntryView* View=bCurrentView?LDPlayerOrdersDetail::FindEntry(CombatView,OverdriveEntry):nullptr;
+    const bool bAimed=View && !View->DefinitionId.IsNone() && LDPlayerOrdersDetail::IsArmedMode(ELDDemoTargetMode(View->TargetMode));
+    if (Controls && Controls->GetQuickCast() && bAimed)
+    {
+        bQuickCastHolding=false;
+        QuickCastHoldEntry=ELDCombatEntry::None;
+        ExecuteQuickCastAim(OverdriveEntry);
+        return;
+    }
     ActivateCombatEntry(OverdriveEntry);
 }
 
@@ -470,7 +565,7 @@ float ALDPlayerController::OverdriveHoldProgress(ELDCombatEntry Entry) const
     if (bOverdriveArmed) { return 1.f; }
     if (!bOverdriveHolding || !OverdriveContent) { return 0.f; }
     const double HoldMs=double(OverdriveContent->Get().Parameters.Overdrive.HoldMs);
-    return HoldMs>0 ? float(FMath::Clamp((FPlatformTime::Seconds()-OverdriveHoldStartSec)*1000./HoldMs,0.,1.)) : 0.f;
+    return HoldMs>0 ? float(FMath::Clamp((QuickCastClockSeconds()-OverdriveHoldStartSec)*1000./HoldMs,0.,1.)) : 0.f;
 }
 
 void ALDPlayerController::SendCombatNow(ELDCombatEntry Entry, const FLDCombatTarget& Aim)

@@ -96,6 +96,15 @@ namespace LDWorldLabels
     };
     LOCKDOWN_API void AdvanceBarTrail(FBarTrailState& State,int64 CurrentHPP2,int64 MaxHPP2,int64 CurrentShieldP2,
         uint8 HitFlags,const FGuid& HitId,double NowSec);
+
+    struct FOcclusionSample
+    {
+        double LastCheckedSec=-10.;
+        bool bOccluded=false;
+    };
+    constexpr double OcclusionTraceIntervalSec=0.07;
+    LOCKDOWN_API bool ShouldRefreshOcclusion(double LastCheckedSec,double NowSec,double IntervalSec=OcclusionTraceIntervalSec);
+    LOCKDOWN_API bool ComputeSilhouetteBounds(const FVector2f& HeadPx,const FVector2f& FootPx,float HalfWidthPx,FSlateRect& OutRect);
 }
 
 // Full-viewport layer under the HUD that is never hit-tested or focused; ULDUIRoot shows it exactly while the in-match
@@ -117,6 +126,8 @@ private:
     mutable LDWorldLabels::FBarTrailState OwnTrail;
     mutable uint32 OwnTrailMatch=0,OwnTrailLife=0;
     mutable TMap<FGuid,LDWorldLabels::FBarTrailState> UnitTrails;
+    mutable LDWorldLabels::FOcclusionSample OwnOcclusion;
+    mutable TMap<FGuid,LDWorldLabels::FOcclusionSample> UnitOcclusions;
     // The pictures of the status icons in sight, kept alive while painted.
     UPROPERTY(Transient) mutable TMap<FString,TObjectPtr<UTexture2D>> StatusTextures;
     mutable TMap<FString,FSlateBrush> StatusBrushes;

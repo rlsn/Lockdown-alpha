@@ -14,7 +14,10 @@
 #include "Framework/LDPlayerController.h"
 #include "Vision/LDViewTypes.h"
 #include "Vision/LDWorldViewRelay.h"
+#include "Navigation/LDNavigationComponent.h"
 #include "World/LDTrainingRoomDisplay.h"
+#include "Camera/PlayerCameraManager.h"
+#include "Components/PrimitiveComponent.h"
 #include "EngineUtils.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
@@ -329,6 +332,26 @@ void LDWorldLabels::AdvanceBarTrail(FBarTrailState& State,int64 CurrentHPP2,int6
     State.PreviousShieldP2=CurrentShieldP2;
 }
 
+bool LDWorldLabels::ShouldRefreshOcclusion(double LastCheckedSec,double NowSec,double IntervalSec)
+{
+    if(!FMath::IsFinite(LastCheckedSec)||!FMath::IsFinite(NowSec)){return false;}
+    return LastCheckedSec<0.||NowSec<LastCheckedSec||(NowSec-LastCheckedSec)>=FMath::Max(0.01,IntervalSec);
+}
+
+bool LDWorldLabels::ComputeSilhouetteBounds(const FVector2f& HeadPx,const FVector2f& FootPx,float HalfWidthPx,FSlateRect& OutRect)
+{
+    if(!FMath::IsFinite(HeadPx.X)||!FMath::IsFinite(HeadPx.Y)||!FMath::IsFinite(FootPx.X)||!FMath::IsFinite(FootPx.Y)
+        ||!FMath::IsFinite(HalfWidthPx)){return false;}
+    const float Top=FMath::Min(HeadPx.Y,FootPx.Y);
+    const float Bottom=FMath::Max(HeadPx.Y,FootPx.Y);
+    const float Height=Bottom-Top;
+    if(Height<6.f||Height>900.f){return false;}
+    const float CentreX=(HeadPx.X+FootPx.X)*.5f;
+    const float SafeHalfW=FMath::Clamp(HalfWidthPx,FMath::Max(6.f,Height*.18f),Height*.55f);
+    OutRect=FSlateRect(CentreX-SafeHalfW,Top,CentreX+SafeHalfW,Bottom);
+    return true;
+}
+
 void ULDWorldLabels::NativeTick(const FGeometry& Geometry,float Delta)
 {
     Super::NativeTick(Geometry,Delta);
@@ -348,6 +371,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     if(!bDisplayContentTried||!PC||!Public||!Renderer||(PC->HUDUI&&PC->HUDUI->IsFrozenForTeardown()))
     {
         UnitTrails.Reset();
+        UnitOcclusions.Reset();
         return Base;
     }
     if(PC->HUDUI){PC->HUDUI->PaintWorldPreviews(G,E,Base+1);}
@@ -364,6 +388,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     if((!Frame&&!IsValid(OwnBody)&&!IsValid(NoticeBody))||ViewW<=0||ViewH<=0)
     {
         UnitTrails.Reset();
+        UnitOcclusions.Reset();
         if(PC->HUDUI){PC->HUDUI->ReportOwnStatusRects({});}
         return Base+1;
     }
@@ -538,12 +563,126 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     const bool bHasServerMs=PC->ReadDemoAuthorityTimeMs(NowServerMs);
     const double FrameServerSec=Frame?Frame->SampledAtServerSec:(bHasServerMs?double(NowServerMs)/1000.:0.);
 
+    const FLinearColor OwnSilhouetteTint=FLinearColor(FColor(0x7D,0xD3,0xFC));
+    const FLinearColor EnemySilhouetteTint=FLinearColor(FColor(0xF8,0x71,0x71));
+    const FLinearColor HoverHighlightTint=FLinearColor(FColor(0xFF,0x4D,0x4F)).CopyWithNewOpacity(.92f);
+    const bool bHasCamera=PC->PlayerCameraManager!=nullptr;
+    const FVector CamLocation=bHasCamera?PC->PlayerCameraManager->GetCameraLocation():FVector::ZeroVector;
+    const FVector CamRight=bHasCamera?FRotationMatrix(PC->PlayerCameraManager->GetCameraRotation()).GetScaledAxis(EAxis::Y):FVector(1.,0.,0.);
+    auto SampleChestOccluded=[&](LDWorldLabels::FOcclusionSample& Sample,const FVector& PresentedFeet)->bool
+    {
+        if(!bHasCamera){return false;}
+        if(LDWorldLabels::ShouldRefreshOcclusion(Sample.LastCheckedSec,UiNow))
+        {
+            Sample.LastCheckedSec=UiNow;
+            Sample.bOccluded=false;
+            FCollisionQueryParams Params(SCENE_QUERY_STAT(LDWorldLabelsOcclusion),false);
+            if(IsValid(OwnBody)){Params.AddIgnoredActor(OwnBody);}
+            TArray<FHitResult> Hits;
+            const FVector Chest=PresentedFeet+FVector(0.,0.,90.);
+            World->LineTraceMultiByChannel(Hits,CamLocation,Chest,ECC_Visibility,Params);
+            for(const FHitResult& Hit:Hits)
+            {
+                if(!Hit.bBlockingHit||Hit.Time>=.96f){continue;}
+                const AActor* HitActor=Hit.GetActor();
+                const UPrimitiveComponent* Comp=Hit.GetComponent();
+                if(Cast<APawn>(HitActor)||!Comp||Comp->Mobility==EComponentMobility::Movable){continue;}
+                Sample.bOccluded=true;
+                break;
+            }
+        }
+        return Sample.bOccluded;
+    };
+    auto ProjectUnitCapsule=[&](const FVector& PresentedFeet,double HeightCm,double RadiusCm,FSlateRect& OutRect)->bool
+    {
+        FVector2D FootScreen,HeadScreen,SideScreen;
+        if(!PC->ProjectWorldLocationToScreen(PresentedFeet,FootScreen)
+            ||!PC->ProjectWorldLocationToScreen(PresentedFeet+FVector(0.,0.,HeightCm),HeadScreen)){return false;}
+        const FVector2f FootPx(float(FootScreen.X)*ToLocalX,float(FootScreen.Y)*ToLocalY);
+        const FVector2f HeadPx(float(HeadScreen.X)*ToLocalX,float(HeadScreen.Y)*ToLocalY);
+        float HalfWidthPx=(FootPx.Y-HeadPx.Y)*.26f;
+        if(PC->ProjectWorldLocationToScreen(PresentedFeet+FVector(0.,0.,HeightCm*.5)+CamRight*RadiusCm,SideScreen))
+        {
+            HalfWidthPx=FMath::Abs(float(SideScreen.X)*ToLocalX-(FootPx.X+HeadPx.X)*.5f);
+        }
+        if(!LDWorldLabels::ComputeSilhouetteBounds(HeadPx,FootPx,HalfWidthPx,OutRect)){return false;}
+        return !Culled((OutRect.Left+OutRect.Right)*.5f,OutRect.Bottom);
+    };
+    auto DrawCapsuleSilhouette=[&](const FSlateRect& Bounds,const FLinearColor& BaseTint)
+    {
+        const float W=Bounds.Right-Bounds.Left,H=Bounds.Bottom-Bounds.Top;
+        const float Cx=(Bounds.Left+Bounds.Right)*.5f;
+        const FLinearColor Fill=BaseTint.CopyWithNewOpacity(.25f);
+        const FLinearColor Rim=BaseTint.CopyWithNewOpacity(.42f);
+        const float HeadDiam=FMath::Clamp(W*.62f,8.f,H*.30f);
+        Disc(1,FVector2f(Cx,Bounds.Top+HeadDiam*.5f),HeadDiam,Fill);
+        const float TorsoTop=Bounds.Top+HeadDiam*.88f;
+        const float TorsoH=FMath::Max(4.f,Bounds.Bottom-TorsoTop);
+        const float R=FMath::Min(W*.5f,TorsoH*.45f);
+        TArray<FVector2f> Poly;Poly.Reserve(26);
+        for(int32 Step=0;Step<=12;++Step)
+        {
+            const float Ang=UE_PI+float(Step)*(UE_PI/12.f);
+            Poly.Add(FVector2f(Cx+FMath::Cos(Ang)*R,TorsoTop+R+FMath::Sin(Ang)*R));
+        }
+        for(int32 Step=0;Step<=12;++Step)
+        {
+            const float Ang=float(Step)*(UE_PI/12.f);
+            Poly.Add(FVector2f(Cx+FMath::Cos(Ang)*(R*.82f),Bounds.Bottom-R*.82f+FMath::Sin(Ang)*(R*.82f)));
+        }
+        const int32 TopRow=FMath::FloorToInt(TorsoTop),BotRow=FMath::CeilToInt(Bounds.Bottom);
+        for(int32 Row=TopRow;Row<BotRow;++Row)
+        {
+            const float Mid=float(Row)+.5f;
+            float MinX=1e6f,MaxX=-1e6f;int32 Crossings=0;
+            for(int32 I=0,J=Poly.Num()-1;I<Poly.Num();J=I++)
+            {
+                if((Poly[J].Y>Mid)!=(Poly[I].Y>Mid))
+                {
+                    const float X=Poly[J].X+(Mid-Poly[J].Y)*(Poly[I].X-Poly[J].X)/(Poly[I].Y-Poly[J].Y);
+                    MinX=FMath::Min(MinX,X);MaxX=FMath::Max(MaxX,X);++Crossings;
+                }
+            }
+            if(Crossings>=2&&MaxX>MinX){Box(1,FVector2f(MinX,float(Row)),FVector2f(MaxX-MinX,1.f),Fill);}
+        }
+        const FVector2f First=Poly[0];Poly.Add(First);
+        FSlateDrawElement::MakeLines(E,Base+1,G.ToPaintGeometry(),Poly,ESlateDrawEffect::None,Rim,true,1.5f);
+    };
+    auto DrawHoverOutline=[&](const FSlateRect& Bounds)
+    {
+        const FSlateRect Pad(Bounds.Left-3.f,Bounds.Top-3.f,Bounds.Right+3.f,Bounds.Bottom+3.f);
+        const float W=Pad.Right-Pad.Left,H=Pad.Bottom-Pad.Top;
+        const float Arm=FMath::Clamp(FMath::Min(W,H)*.28f,6.f,16.f);
+        const auto CornerBracket=[&](const FVector2f& Corner,float SX,float SY)
+        {
+            FSlateDrawElement::MakeLines(E,Base+1,G.ToPaintGeometry(),
+                {Corner+FVector2f(SX*Arm,0.f),Corner,Corner+FVector2f(0.f,SY*Arm)},
+                ESlateDrawEffect::None,HoverHighlightTint,true,1.5f);
+        };
+        CornerBracket(FVector2f(Pad.Left,Pad.Top),1.f,1.f);
+        CornerBracket(FVector2f(Pad.Right,Pad.Top),-1.f,1.f);
+        CornerBracket(FVector2f(Pad.Right,Pad.Bottom),-1.f,-1.f);
+        CornerBracket(FVector2f(Pad.Left,Pad.Bottom),1.f,-1.f);
+    };
+    FGuid HoveredHandle;uint32 HoveredEpoch=0;
+    const bool bHasHovered=PC->Navigation&&PC->Navigation->ReadHovered(HoveredHandle,HoveredEpoch);
+
     // Own body segmented LoL bar (108x12 + 108x4 momentum + 22x22 hex level badge).
     if(OwnTrailMatch!=Own.Match||OwnTrailLife!=Own.Life)
     {
         OwnTrail=LDWorldLabels::FBarTrailState();
+        OwnOcclusion=LDWorldLabels::FOcclusionSample();
         OwnTrailMatch=Own.Match;
         OwnTrailLife=Own.Life;
+    }
+    if(IsValid(OwnBody))
+    {
+        const FVector OwnFeet=OwnBody->PresentedLocation()-FVector(0.,0.,88.);
+        FSlateRect OwnBounds;
+        if(SampleChestOccluded(OwnOcclusion,OwnFeet)&&ProjectUnitCapsule(OwnFeet,176.,38.,OwnBounds))
+        {
+            DrawCapsuleSilhouette(OwnBounds,OwnSilhouetteTint);
+        }
     }
     FVector2D OwnScreen;
     if(IsValid(OwnBody)&&PC->ProjectWorldLocationToScreen(OwnBody->PresentedLocation()+FVector(0,0,OwnBarsHeadroomCm),OwnScreen))
@@ -682,10 +821,11 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     }
     if(PC->HUDUI){PC->HUDUI->ReportOwnStatusRects(MoveTemp(OwnMarkRects));}
 
-    // Prune unit damage-trail cache strictly to handles visible in this exact frame (no cross-visibility memory).
+    // Prune unit damage-trail and occlusion caches strictly to handles visible in this exact frame (no cross-visibility memory).
     TSet<FGuid> SeenHandles;
     if(Frame){for(const FLDObservedUnitView& Unit:Frame->Units){SeenHandles.Add(Unit.Handle);}}
     for(auto It=UnitTrails.CreateIterator();It;++It){if(!SeenHandles.Contains(It.Key())){It.RemoveCurrent();}}
+    for(auto It=UnitOcclusions.CreateIterator();It;++It){if(!SeenHandles.Contains(It.Key())){It.RemoveCurrent();}}
 
     struct FPending
     {
@@ -812,6 +952,28 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
                 }
             }
             const LDWorldLabels::FLabel& Label=Entry.Label;
+            {
+                const FVector UnitFeet=Centre-FVector(0.,0.,88.);
+                const double UnitHeightCm=bContender?176.:WorldLabelHeadroomCm(Label)+48.;
+                const double UnitRadiusCm=bContender?38.:44.;
+                if(bContender&&!Label.bPeaceful)
+                {
+                    LDWorldLabels::FOcclusionSample& Occ=UnitOcclusions.FindOrAdd(Unit.Handle);
+                    FSlateRect SilBounds;
+                    if(SampleChestOccluded(Occ,UnitFeet)&&ProjectUnitCapsule(UnitFeet,UnitHeightCm,UnitRadiusCm,SilBounds))
+                    {
+                        DrawCapsuleSilhouette(SilBounds,EnemySilhouetteTint);
+                    }
+                }
+                if(!Label.bPeaceful&&bHasHovered&&Unit.Handle==HoveredHandle&&Unit.ObservationEpoch==HoveredEpoch)
+                {
+                    FSlateRect HoverBounds;
+                    if(ProjectUnitCapsule(UnitFeet,UnitHeightCm,UnitRadiusCm,HoverBounds))
+                    {
+                        DrawHoverOutline(HoverBounds);
+                    }
+                }
+            }
             FVector2D Screen;
             if((Label.Name.IsEmpty()&&Label.Status.IsEmpty()&&!Label.bHealth)||!PC->ProjectWorldLocationToScreen(Centre+FVector(0,0,WorldLabelHeadroomCm(Label)),Screen)){continue;}
             Entry.CentreX=float(Screen.X)*ToLocalX;Entry.Bottom=float(Screen.Y)*ToLocalY;

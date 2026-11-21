@@ -352,6 +352,18 @@ bool FLDWorldLabelsSegmentedTrailTest::RunTest(const FString& Parameters)
     LDWorldLabels::AdvanceBarTrail(Trail,92000,100000,0,0,FGuid(1,0,0,1),1.22);
     TestNearlyEqual(TEXT("Heal above TrailHP snaps TrailHP immediately"),Trail.TrailHPP2,92000.,1.);
     TestNearlyEqual(TEXT("Heal arms 180ms green flash"),Trail.LastHealedAtSec,1.22,1e-4);
+
+    // #329 §4.3: Throttled (~70ms) visibility-trace cache & screen-space capsule silhouette bounds.
+    TestTrue(TEXT("Fresh negative timestamp refreshes occlusion immediately"),LDWorldLabels::ShouldRefreshOcclusion(-10.,5.0));
+    TestFalse(TEXT("Sample within 70ms throttle interval reuses cached occlusion result"),LDWorldLabels::ShouldRefreshOcclusion(5.00,5.05));
+    TestTrue(TEXT("Sample at >= 70ms refreshes occlusion result"),LDWorldLabels::ShouldRefreshOcclusion(5.00,5.071));
+    FSlateRect SilRect;
+    TestTrue(TEXT("Projected capsule head/foot computes valid silhouette bounds"),
+        LDWorldLabels::ComputeSilhouetteBounds(FVector2f(500.f,420.f),FVector2f(500.f,510.f),22.f,SilRect)
+        &&FMath::IsNearlyEqual(SilRect.Top,420.f)&&FMath::IsNearlyEqual(SilRect.Bottom,510.f)
+        &&FMath::IsNearlyEqual(SilRect.Right-SilRect.Left,44.f));
+    TestFalse(TEXT("Degenerate tiny capsule height is rejected"),
+        LDWorldLabels::ComputeSilhouetteBounds(FVector2f(500.f,500.f),FVector2f(500.f,503.f),10.f,SilRect));
     return true;
 }
 #endif

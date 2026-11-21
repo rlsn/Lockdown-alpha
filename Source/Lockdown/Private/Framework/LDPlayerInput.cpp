@@ -1,4 +1,5 @@
 #include "Framework/LDPlayerController.h"
+#include "Audio/LDAudioSubsystem.h"
 #include "Core/LDLog.h"
 #include "Framework/LDGameInstance.h"
 #include "Framework/LDGameState.h"
@@ -295,9 +296,22 @@ void ALDPlayerController::V05Pressed(FName Action)
     }
     else if (Action==TEXT("Navigate"))
     {
-        // A right click while something is armed cancels it and is an ordinary order in the same click.
+        // A right click while something is armed cancels it and is an ordinary order in the same click, EXCEPT during a
+        // < 0.18s QuickCast tap so rapid right-click kiting never eats an in-flight skill tap.
         if (RootUI && RootUI->PointerOverUI()) { return; }
-        CancelArmedCombat();
+        const bool bTapProtected=bQuickCastHolding && ArmedEntry==QuickCastHoldEntry
+            && (QuickCastClockSeconds()-QuickCastPressSec)<QuickCastHoldPreviewSeconds;
+        if (!bTapProtected)
+        {
+            const bool bCancellingQuickHold=bQuickCastHolding && ArmedEntry!=ELDCombatEntry::None;
+            if (CancelArmedCombat() && bCancellingQuickHold)
+            {
+                if (auto* GI=GetGameInstance())
+                {
+                    if (auto* Audio=GI->GetSubsystem<ULDAudioSubsystem>()) { Audio->Play(ELDAudioCue::UIReject); }
+                }
+            }
+        }
         // Shift queues the click behind the current order (shift queue) instead of replacing it.
         Navigation->ClickMove(IsQueueModifierDown());
     }

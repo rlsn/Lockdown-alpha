@@ -126,7 +126,7 @@ class LOCKDOWN_API ULDControlSettings : public USaveGame
 {
     GENERATED_BODY()
 public:
-    static constexpr int32 CurrentSchema = 24;
+    static constexpr int32 CurrentSchema = 25;
     static constexpr int32 MaxPlayerNameChars = 16;
     // Camera-only pan speed domain in cm/s, defined by the UI settings module (MOVEMENT_INPUT_AND_CAMERA local settings).
     static constexpr float MinCameraPanCmPerSec = 900;
@@ -148,9 +148,9 @@ public:
     UPROPERTY(SaveGame) float CameraPanCmPerSec=1800;
     // Minimap presentation only; it never changes what the minimap may show. The Camera default is the user's decision.
     UPROPERTY(SaveGame) ELDMinimapOrientation MinimapOrientation=ELDMinimapOrientation::Camera;
-    // Quick cast (off by default, MOVEMENT_INPUT_AND_CAMERA ability targets): Combat casts a unit skill at the pointed visible unit and a direction skill
-    // toward the pointer on the key press itself, instead of arming it for a left-click confirmation.
-    UPROPERTY(SaveGame) bool bQuickCast=false;
+    // Quick cast (on by default, APP_SPEC §3.1 & MOVEMENT_INPUT_AND_CAMERA ability targets): a < 0.18s tap casts at the
+    // pointed visible unit or toward the pointer on release; holding >= 0.18s shows the aim preview and casts on release.
+    UPROPERTY(SaveGame) bool bQuickCast=true;
     // Auto attack after a cast (on by default, the user's decision, MOVEMENT_INPUT_AND_CAMERA ability targets): once a non-queued Q/W cast order completes,
     // the owning client sends an ordinary attack order at the skill's unit target, or, for a ground/direction skill, at the
     // unit it was attacking before the cast while that unit is still visible. Client intent only; the server validates it.

@@ -62,6 +62,7 @@ public:
     bool ReadHovered(FGuid& OutHandle, uint32& OutEpoch) const;
     // DEV scenarios (WITH_DEV_AUTOMATION_TESTS) stand in for the mouse; an empty value restores it. Inert otherwise.
     void DevSetPointer(const TOptional<FVector2D>& Pointer);
+    void DevSetAimRay(const TOptional<TPair<FVector, FVector>>& Ray);
     ALDPointerFeedback* PointerFeedback() const;
     virtual void EndPlay(const EEndPlayReason::Type Reason) override;
     // Registered id of the single Demo ground surface; None when the world is unavailable.
@@ -266,6 +267,7 @@ private:
     ALDPointerFeedback* EnsurePointer();
     TWeakObjectPtr<ALDPointerFeedback> Pointer;
     TOptional<FVector2D> DevPointer;
+    TOptional<TPair<FVector, FVector>> DevAimRay;
     FGuid Hovered;
     uint32 HoveredEpoch=0;
     FVector HeldPoint=FVector::ZeroVector;
