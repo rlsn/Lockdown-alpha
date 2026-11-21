@@ -358,10 +358,10 @@ AI 读取 `AI.ObjectiveReachCm`（2500）与 `AI.ObjectiveEntryHPRatio`（0.6）
 | 属性 | 激活后的效果 |
 | --- | --- |
 | 体格 | 脱战回复与躺平角回复的起效等待缩短 50%（`COMBAT.KeystonePhysiqueOutOfCombatCut`）；战斗中每 5 秒得到最大 HP 10% 的护盾，持续 3 秒 |
-| 脸皮 | 每 6 秒至多一次，下一次受到的敌方直接伤害（普攻或技能）在护盾前减少 30%，没有点数上限 |
+| 脸皮 | 每 6 秒至多一次，下一次受到的敌方直接伤害（普攻或技能）在护盾前减少 30%，没有点数上限；触发后 1.5 秒内（`COMBAT.KeystoneThickSkinSteadySec`）不吃减速，被击退的距离只剩一半（`COMBAT.KeystoneThickSkinKnockbackRatio`） |
 | 力道 | 对已减速、被减攻速、正被击退或受硬控的目标额外造成 18% 伤害 |
 | 脑力 | 自己触发元素反应（含勋章）时得到 15 劲，并让所有仍在冷却的技能冷却减少 1 秒；同一释放最多一次 |
-| 身手 | D 键冲刺冷却缩短 40%（`COMBAT.KeystoneAgilityDashCooldownCut`）；自愿冲刺完成后，3 秒内下一次普攻额外造成 `35 点 + 0.5 × 攻击力`；从冲刺完成时快照，重冲刺替换旧包，和同击其他强化普攻包一起暴击 |
+| 身手 | D 键冲刺冷却缩短 40%（`COMBAT.KeystoneAgilityDashCooldownCut`）；自愿冲刺完成后，3 秒内下一次普攻额外造成 `35 点 + 0.5 × 攻击力`；从冲刺完成时快照，重冲刺替换旧包，和同击其他强化普攻包一起暴击；同一窗口内移速 +25%（`COMBAT.KeystoneAgilityMoveSpeedRatio`） |
 
 数值是首轮实现/试玩输入，不表示 TTK、胜率或抗压目标已达成。与构筑牌同时生效时，各效果独立叠加；护盾沿用 `ShieldPolicy=StackToLatestExpiry`。
 
@@ -608,7 +608,7 @@ $$
 | Y09 | `card_skill_crit` | 技能也能暴击 | 改造 | 你的技能可以暴击（用你的暴击率另加 15%，倍率 2） | crit, skill_hit |
 | Y10 | `card_skill_drain` | 吸血对技能生效 | 改造 | 你的吸血也按技能实际生命伤害生效 | heal, skill_hit |
 | Y11 | `card_short_breath` | 气短 | 改造 | 劲到 35 就能爆劲，爆劲倍率 140%（多份取同一门槛，不叠加） | overdrive, momentum |
-| Y12 | `card_double_stall` | 双摊位 | 改造 | 你的陷阱、风扇和技能放下的地面状态每份多同时留一份 | ground |
+| Y12 | `card_double_stall` | 双摊位 | 改造 | 你的陷阱、风扇和技能放下的地面状态每份多同时留一份；D10 的冰带每份多留一倍时长 | ground |
 | Y13 | `card_thick_hide` | 皮糙肉厚 | 转换 | 每 1 点护甲 → 生命上限 +6 | armor, max_hp |
 | Y14 | `card_overfed` | 吃撑了 | 转换 | 溢出的治疗变成护盾（上限 30% 生命上限，5 s，与现有护盾取强） | heal, shield |
 | Y15 | `card_berserk` | 残血狂暴 | 转换 | 每少 1% 生命，攻速 +1% | low_hp, attack_speed |
@@ -844,7 +844,7 @@ App Spec §2.1、规则见 §2.2。每项只改终局的胜负或旗杆规则，
 
 | ID / 名称 | 参数 | 规则 |
 | --- | --- | --- |
-| `final_hit_and_run` 打一枪换个地方 | `sprays` 4，`fade` 4s | 累计成功喷漆 4 次即胜；其涂鸦不计守护，4s 后褪色、旗杆无主；须离开喷漆区后才能再喷 |
+| `final_hit_and_run` 打一枪换个地方 | `sprays` 4，`fade` 4s | 累计成功喷漆 4 次即胜；其涂鸦不计守护，4s 后褪色、旗杆无主；须离开喷漆区后才能再喷；每次成功喷漆把 `fade` 计入历史守护（超时排名用） |
 | `final_clear_out` 清场 | — | 旗杆解锁后，其他仍在局的参赛者同时处于死亡而持有者存活的那一刻立即获胜；复活保护者算活人 |
 | `final_kill_seconds` 人头换秒 | `guard` 3s | 每击杀一名参赛者 +3s 历史守护；当时是涂鸦主人则同时 +3s 当前守护 |
 | `final_usurp` 篡位 | — | 击杀主旗杆涂鸦主人时，涂鸦归持有者并继承其当前守护进度 |
@@ -865,9 +865,9 @@ Root 禁止 Dash。它是移动而不是进攻意图，不解除复活保护。
 
 普攻不要求群攻（CB-P01）；当前目录没有普攻副击来源；`POLICY.BasicSecondaryTriggers` 仍约束将来的副击。
 
-屏障统一为 `EFFECT.ShieldPolicy=StackToLatestExpiry`：只有一个有效屏障记录，新屏障把量加到旧剩余量上，没有上限。
+屏障统一为 `EFFECT.ShieldPolicy=StackToLatestExpiry`：新屏障把量加到旧剩余量上，没有上限；显示为一条合计的护盾，
 记录的来源换成最新一次施加，截止时刻取新旧两者中较晚的一个；适用技能的其他效果照常发生。
-合并后的屏障被打空时算一次破盾。
+每次施加仍是独立的一层，按自己的截止时刻消失；伤害先扣最早到期的一层，每打空一层算一次破盾（Y06 每层各炸一次）。
 到期、伤害耗尽和目标死亡是屏障的常规清除条件，不是排他的生命周期清单。
 正式离局取消、CampHomeReset清临时状态等处理仍按§6.2/§10.2执行；
 不能由本段覆盖正常来源死亡/遗忘后独立效果继续的规则。目录没有敌方驱散屏障技能。
@@ -905,7 +905,8 @@ DEV 成长夹具可预置主动候选，不把 DEV 预置当作随机分布证�
 野怪奖励全部归最后一击，表中“每人平均”只能用于供给估计，不是实现经验分摊。
 参赛者之间的击杀按 App Spec §4.1 的助攻规则（参考 LoL）在同一笔死亡奖励中结算：
 击杀者拿全额 `REWARD.PlayerXP`，每名助攻者另得其 `REWARD.AssistXPRatio`（向下取整），不稀释击杀者。
-击杀时受害者正“上热搜”的，击杀者再得 `REWARD.BountyXP`。
+击杀时受害者正“上热搜”的，击杀者再得 `REWARD.BountyXP`，并得到一组 `REWARD.BountyCardOffer` 张的五选一。
+终局之外每次击杀参赛者，击杀者按 `REWARD.KillMedalChance` 掉一枚元素石。
 例：两名助攻者击杀 Lv1，击杀者得 100 XP，每名助攻者各得 50 XP。资格窗口为 `REWARD.AssistWindowSec`。
 
 | 奖励参数/公式 ID | 已批准值，整数 | 样例与归属 |
@@ -913,6 +914,8 @@ DEV 成长夹具可预置主动候选，不把 DEV 预置当作随机分布证�
 | `REWARD.PlayerXP`（`.Base=100`、`.PerLevel=20`） | $100+20(L_{victim}-1)$ | 击杀Lv1得100XP、Lv10得280XP；以致死瞬间受害者等级快照 |
 | `REWARD.AssistXPRatio` | 0.5 | 参赛者击杀中每名助攻者得到的击杀经验比例 |
 | `REWARD.BountyXP` | 200 | 击杀正“上热搜”的参赛者时击杀者额外得到的经验 |
+| `REWARD.BountyCardOffer` | 5 | 悬赏击杀另给的选牌张数（选一张） |
+| `REWARD.KillMedalChance` | .5 | 击杀参赛者掉元素石的概率 |
 | `REWARD.AssistWindowSec` | 15s | 受害者死亡前15s内（含）有过正伤害（含被护盾吸收）或任一控制/减益的其他在局参赛者算助攻，每次新贡献重新计时；死亡界面的承伤列表用同一窗口 |
 | `CAMP.Low.RewardXP`（怪物 `reward_xp`） | 每只14XP | 小野整组42XP，首次升级（60XP）需要两个完整小营 |
 | `CAMP.High.RewardXP` | 每只40XP | 中野两只，整组80XP |
@@ -1036,7 +1039,8 @@ $k=\min(\text{CAMP.GrowthMaxStage},\lfloor T_{生成}/\text{CAMP.GrowthStageSec}
 | `CAMP.GrowthAttackRatioPerStage` | .08 | 攻击 = 基础 × (1 + .08k)，上限时 1.8 倍 |
 | `CAMP.GrowthResistPerStage` | 2 点 | 护甲、魔抗各 + 2k，上限时 +20 |
 | `CAMP.GrowthRewardXPRatioPerStage` | .10 | 每只经验 = 基础 × (1 + .1k)，上限时 2 倍 |
-| `CAMP.ClearHealMissingRatio` / `CAMP.ClearMomentum` | .12 / 15 | 打完一整营的人当场回复已损生命的 12% 并得到 15 劲，省去跑躺平角 |
+| `CAMP.ClearHealMissingRatio` / `CAMP.ClearMomentum` | .12 / 15 | 打完一整营时营地中心掉一个回复球：第一个走进拾取半径（`AIRDROP.PickupRadiusCm`）的参赛者回复已损生命的 12% 并得到 15 劲，省去跑躺平角 |
+| `CAMP.ClearOrbSec` | 20 s | 回复球无人拾取时的存在时间 |
 
 攻速、前摇、射程、移速、拴绳、刷新时间都不随阶段变化。对手 AI 估计营地代价时按当前公开时间的阶段计算
 （活着的野怪不会高于这个阶段），大野与远古营地沿用中野的入场与保底血量门槛。

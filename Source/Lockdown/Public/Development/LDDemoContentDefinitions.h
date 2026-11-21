@@ -560,12 +560,18 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 KeystoneAgilityDashCooldownCutBp = 0;
     UPROPERTY() int64 KeystoneThickSkinGuardCapBp = 0;
     UPROPERTY() int64 KeystoneThickSkinIntervalMs = 0;
+    // COMBAT.KeystoneThickSkinSteadySec: after the thick-skin guard triggers, slows miss and knockbacks are cut this long.
+    UPROPERTY() int64 KeystoneThickSkinSteadyMs = 0;
+    // COMBAT.KeystoneThickSkinKnockbackRatio: the share of a knockback distance kept during the thick-skin steady window.
+    UPROPERTY() int64 KeystoneThickSkinKnockbackBp = 0;
     UPROPERTY() int64 KeystoneStrengthDamageBp = 0;
     UPROPERTY() int64 KeystoneBrainsReactionMomentumP2 = 0;
     UPROPERTY() int64 KeystoneBrainsCooldownCutMs = 0;
     UPROPERTY() int64 KeystoneAgilityDamageBaseP2 = 0;
     UPROPERTY() int64 KeystoneAgilityADRatioBp = 0;
     UPROPERTY() int64 KeystoneAgilityEmpowerDurationMs = 0;
+    // COMBAT.KeystoneAgilityMoveSpeedRatio: the move speed bonus the agility keystone grants for its empower window after a dash.
+    UPROPERTY() int64 KeystoneAgilityMoveSpeedBp = 0;
     // Elements (CONTENT_AND_BALANCE §4.4, LDCombatElements): one element per target. Burn layers each last BurnMs from their
     // own application and tick every BurnTickMs. Wet lasts WetMs and slows by WetSlowBp. R = ReactionBase + ReactionPerLevel x
     // (L - 1) + ReactionAPRatio x AP of the reaction's trigger. Fog (fire + water): a FogRadiusCm zone for FogMs giving wet
@@ -593,12 +599,16 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 PlayerXPBase = 0;
     // REWARD.BountyXP: extra XP for the killer of a contender shown trending (上热搜) at its death.
     UPROPERTY() int64 BountyXP = 0;
+    // REWARD.BountyCardOffer: the size of the card offer the bounty killer picks one from.
+    UPROPERTY() int64 BountyCardOffer = 0;
     UPROPERTY() int64 PlayerXPPerLevel = 0;
     // Contender kills only: a contribution within this window before the death earns an assist; the killer and the
     // assisters split the kill XP.
     UPROPERTY() int64 AssistWindowMs = 0;
     // REWARD.AssistXPRatio: each assister of a contender kill takes this share of its XP; the killer keeps the whole.
     UPROPERTY() int64 AssistXPRatioBp = 0;
+    // REWARD.KillMedalChance: the chance a contender kill outside the final field drops an element medal for the killer.
+    UPROPERTY() int64 KillMedalChanceBp = 0;
     // #198 points: OpeningPoints at BeginMatch, PointsPerLevel for every level crossed up to the cap, then MaxLevelPoints
     // for every full MaxLevelPointsXP past the top threshold. A build change commits only BuildSafeWindowMs after the
     // contender's last combat action (GROWTH.BuildSafeWindowSec).

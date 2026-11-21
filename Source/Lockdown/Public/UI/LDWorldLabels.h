@@ -11,8 +11,9 @@ class FLDDemoContentSnapshot;
 // Overhead labels of currently visible units (APP_SPEC 8). A contender reads its public roster name and a camp member
 // its approved display name, tinted by its tier (white, blue, violet, gold; the Boss red) with a bar frame of the same
 // colour. Under the name sits a compact health bar (a contender's level badge, in its identity tint,
-// left of it) and above the name the unit's public statuses as text, so no state relies on colour alone: the shield is named
-// there as well as marked on the bar.
+// left of it) and above the name the unit's public statuses as icon squares (their picture, or the name's first character,
+// with a green or red rim), so no state relies on colour alone. A hard control draws its remaining time as a white bar
+// under the health bar.
 namespace LDWorldLabels
 {
     struct FLabel
@@ -22,6 +23,10 @@ namespace LDWorldLabels
         {
             FString Text;
             uint8 StatusId=0;
+            FString IconId;      // the approved picture; empty paints the glyph
+            FString Glyph;       // the name's first character
+            bool bPositive=true; // the rim: green helps its bearer, red hurts
+            uint8 Stacks=1;
         };
         FString Name;          // empty when the public roster does not list the contender: never invented
         FString Status;        // public statuses as on the target card, without its prefix; empty when there are none
@@ -39,6 +44,8 @@ namespace LDWorldLabels
         bool bShield=false;    // the unit has the public shield status
         float ShieldFraction=0.f;  // the live shield over the maximum HP (quantized, 0..1): the bar's shield segment
         bool bCharging=false;  // a contender holding an overdrive charge: a gold halo rings its bar (never which skill)
+        int64 ControlRemainingMs=0;  // the longest public hard control left on the unit; 0 = none
+        FGuid BreakHitId;            // the recent hit when it broke the unit's shield (HitFlags ShieldBroken); else none
     };
     // SC-07 subset for a label: name, level, HP fraction, shield presence and public statuses; never momentum, skills or
     // cooldowns. A remaining time counts from the frame's own authority sample and rounds up to a
@@ -88,6 +95,13 @@ private:
         // The last painted health and shield, for a heavy hit's shake and a shield's break burst.
         float LastHealth=-1.f,LastShield=0.f;
         double ShakeUntil=0.,BrokeAt=-1.;
+        // The longest remaining time this control showed since it began, the countdown bar's full length.
+        int64 ControlSpanMs=0;
+        // The shield-breaking hit already burst, so one break bursts once.
+        FGuid BurstHitId;
     };
     mutable TMap<FGuid,FTrail> Trails;
+    // The pictures of the status icons in sight, kept alive while painted.
+    UPROPERTY(Transient) mutable TMap<FString,TObjectPtr<UTexture2D>> StatusTextures;
+    mutable TMap<FString,FSlateBrush> StatusBrushes;
 };

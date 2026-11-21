@@ -589,9 +589,10 @@ bool ALDCombatDirector::NotifyReactionAssists(const FLDCombatHit& Hit, FString& 
 }
 
 bool ALDCombatDirector::ReleaseBrace(FLDBodyCombatState& Body, const FLDDemoEffectDefinition& Effect, const FLDCombatSourceRef& Source,
-    const FGuid& EffectId, uint64 Token, int64 NowMs, FString& Error, TSharedPtr<FLDCombatCastLedger> CastLedger)
+    const FGuid& EffectId, uint64 Token, int64 NowMs, FString& Error, TSharedPtr<FLDCombatCastLedger> CastLedger, int64 ShareBp)
 {
     FLDCombatBrace Brace;
+    Brace.ShareBp=FMath::Clamp<int64>(ShareBp,0,10000);
     Brace.EffectId=EffectId;
     Brace.CastLedger=MoveTemp(CastLedger);
     Brace.Source=Source;
@@ -805,13 +806,14 @@ bool ALDCombatDirector::AdvanceElements(int64 NowMs, FString& Error)
             if (!StampSourceTerms(Body,Hit,Error) || !StampElementSnapshot(Body,Hit,Error)) { return false; }
         }
         // S16 A2 heals a share of the record; S16 B2 turns the record into a shield.
-        if (bBranch && Branched.BraceHealBp>0 && Brace.RecordedP2>0)
+        const int64 SharedRecordP2=Brace.RecordedP2/10000*Brace.ShareBp+Brace.RecordedP2%10000*Brace.ShareBp/10000;
+        if (bBranch && Branched.BraceHealBp>0 && SharedRecordP2>0)
         {
-            const int64 Heal=Brace.RecordedP2/10000*Branched.BraceHealBp+Brace.RecordedP2%10000*Branched.BraceHealBp/10000;
+            const int64 Heal=SharedRecordP2/10000*Branched.BraceHealBp+SharedRecordP2%10000*Branched.BraceHealBp/10000;
             if (Heal>0 && !HealBody(Body,Heal,Brace.Source,nullptr,FGuid(),&Error) && !Error.IsEmpty()) { return false; }
         }
-        if (bBranch && Branched.BraceShieldMs>0 && Brace.RecordedP2>0
-            && !GrantShieldTo(Body,Brace.RecordedP2,Branched.BraceShieldMs,Brace.EffectId,Body.Victim.EntityId,NowMs,Error,Brace.Source))
+        if (bBranch && Branched.BraceShieldMs>0 && SharedRecordP2>0
+            && !GrantShieldTo(Body,SharedRecordP2,Branched.BraceShieldMs,Brace.EffectId,Body.Victim.EntityId,NowMs,Error,Brace.Source))
         { return false; }
         UE_LOG(LogLDCombat,Log,TEXT("LD_BRACE_ANSWER t=%lld src=%s recorded=%s amount=%s targets=%d"),NowMs,
             *LDLog::Id(Body.Victim.EntityId),*LDLog::P2(Brace.RecordedP2),*LDLog::P2(Amount),Around.Num());

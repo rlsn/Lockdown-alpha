@@ -193,6 +193,20 @@ FString LDHUD::StatusName(const FLDDemoContentDefinitions* Content,uint8 StatusI
     const TCHAR* Id=HudStatusContentId(StatusId);
     return Id?ContentName(Content,Id):FString::Printf(TEXT("未知状态 #%d"),StatusId);
 }
+FString LDHUD::StatusIconId(const FLDDemoContentDefinitions* Content,uint8 StatusId)
+{
+    const TCHAR* Id=HudStatusContentId(StatusId);
+    return Id?ContentIconId(Content,Id):FString();
+}
+bool LDHUD::StatusIsHardControl(uint8 StatusId)
+{
+    switch(ELDDemoStatusId(StatusId))
+    {
+    case ELDDemoStatusId::Stun: case ELDDemoStatusId::Root: case ELDDemoStatusId::Silence: case ELDDemoStatusId::Disarm:
+    case ELDDemoStatusId::Knockback: case ELDDemoStatusId::Taunt: return true;
+    default: return false;
+    }
+}
 FString LDHUD::CreatureName(const FLDDemoContentDefinitions* Content,uint8 CreatureId)
 {
     if(Content){if(const auto* Monster=Content->Monsters.FindByPredicate([CreatureId](const FLDDemoMonsterDefinition& M){return M.NativeId==CreatureId;})){return ContentName(Content,Monster->Id);}}
@@ -1620,18 +1634,19 @@ bool CardValue(const LDDemoCardText::FToken& Token,const FLDDemoAbilityValues& V
     {
     case EField::Amount: case EField::Burst:
     {
+        // A skill's damage takes its card factors (K09, K16, K17 ...) as it would release now; shields and heals do not.
+        const ELDDemoEffectOp DamageOp=Effect->GetOp();
+        const bool bFactored=Stats.DamageFactorBp!=10000&&(DamageOp==ELDDemoEffectOp::Damage||DamageOp==ELDDemoEffectOp::ZoneDamage);
         if(Stats.bShowScalingFormula&&(Effect->ADRatioBp>0||Effect->APRatioBp>0||Effect->MaxHPRatioBp>0||Effect->ArmorRatioBp>0))
         {
             Out=HudScaling(*Effect);
+            if(bFactored){Out=TEXT("(")+Out+TEXT(") × ")+HudPercent(Stats.DamageFactorBp);}
             if(Token.Field==EField::Burst){Out=TEXT("(")+Out+TEXT(") × ")+HudPercent(Effect->SecondaryRatioBp);}
             return true;
         }
         int64 P2=Effect->BaseP2+Term(Effect->ADRatioBp,Stats.ADP2)+Term(Effect->APRatioBp,Stats.APP2)+Term(Effect->MaxHPRatioBp,Stats.MaxHPP2)
             +Term(Effect->ArmorRatioBp,Stats.ArmorP2);
-        // A skill's damage takes its card factors (K09, K16, K17 ...) as it would release now.
-        const ELDDemoEffectOp DamageOp=Effect->GetOp();
-        if(Stats.DamageFactorBp!=10000&&(DamageOp==ELDDemoEffectOp::Damage||DamageOp==ELDDemoEffectOp::ZoneDamage))
-        {P2=P2/10000*Stats.DamageFactorBp+P2%10000*Stats.DamageFactorBp/10000;}
+        if(bFactored){P2=P2/10000*Stats.DamageFactorBp+P2%10000*Stats.DamageFactorBp/10000;}
         if(Token.Field==EField::Burst){P2=Term(Effect->SecondaryRatioBp,P2);}
         Out=FString::Printf(TEXT("%lld"),(P2+50)/100);return true;
     }
@@ -2434,6 +2449,7 @@ FString LDHUD::FieldRewardEventName(FName Event)
     if(Event==FName(TEXT("boss"))){return LDTerms::Boss;}
     if(Event==FName(TEXT("camp_marker_high"))){return LDTerms::FieldRewardHighCamp;}
     if(Event==FName(TEXT("camp_marker_elite"))){return LDTerms::FieldRewardEliteCamp;}
+    if(Event==FName(TEXT("bounty"))){return TEXT("终结上热搜");}
     return FString::Printf(TEXT("未知事件 %s"),*Event.ToString());
 }
 FString LDHUD::FieldRewardNotice(const FLDFieldRewardView& Reward,const FLDDemoContentDefinitions* Content)

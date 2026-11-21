@@ -326,7 +326,7 @@ namespace LDCombatElements
     int64 BraceAnswerP2(const FLDCombatBrace& Brace)
     {
         const int64 Base=FMath::Max<int64>(Brace.BaseP2,0);
-        const int64 FromRecord=LDCombatElementsDetail::Share(Brace.RecordedP2,Brace.RecordRatioBp);
+        const int64 FromRecord=LDCombatElementsDetail::Share(LDCombatElementsDetail::Share(Brace.RecordedP2,Brace.ShareBp),Brace.RecordRatioBp);
         return FromRecord>MAX_int64-Base ? MAX_int64 : Base+FromRecord;
     }
 

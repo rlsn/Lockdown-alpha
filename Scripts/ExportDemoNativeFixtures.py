@@ -446,7 +446,7 @@ def parameter_projection(parameters):
         ("LIFE.RespawnBaseSec", "RespawnBaseMs"), ("LIFE.RespawnPerLevelSec", "RespawnPerLevelMs"),
         ("LIFE.SpawnChoiceSec", "SpawnChoiceMs"),
         ("LIFE.ProtectionSec", "ProtectionMs"),
-        ("REGEN.OutOfCombatDelaySec", "OutOfCombatRegenDelayMs"), ("REWARD.AssistWindowSec", "AssistWindowMs"), ("REWARD.AssistXPRatio", "AssistXPRatioBp"),
+        ("REGEN.OutOfCombatDelaySec", "OutOfCombatRegenDelayMs"), ("REWARD.AssistWindowSec", "AssistWindowMs"), ("REWARD.AssistXPRatio", "AssistXPRatioBp"), ("REWARD.KillMedalChance", "KillMedalChanceBp"),
         ("GROWTH.BuildSafeWindowSec", "BuildSafeWindowMs"),
         ("REGEN.OutOfCombatMaxHPRatioPerSec", "OutOfCombatMaxHPRegenBp"),
         ("DORM.OutOfCombatDelaySec", "DormRegenDelayMs"),
@@ -468,13 +468,13 @@ def parameter_projection(parameters):
         ("COMBAT.KeystonePhysiqueIntervalSec", "KeystonePhysiqueIntervalMs"),
         ("COMBAT.KeystoneAgilityDashCooldownCut", "KeystoneAgilityDashCooldownCutBp"),
         ("COMBAT.KeystoneThickSkinGuardCapRatio", "KeystoneThickSkinGuardCapBp"),
-        ("COMBAT.KeystoneThickSkinIntervalSec", "KeystoneThickSkinIntervalMs"),
+        ("COMBAT.KeystoneThickSkinIntervalSec", "KeystoneThickSkinIntervalMs"), ("COMBAT.KeystoneThickSkinSteadySec", "KeystoneThickSkinSteadyMs"), ("COMBAT.KeystoneThickSkinKnockbackRatio", "KeystoneThickSkinKnockbackBp"),
         ("COMBAT.KeystoneStrengthDamageRatio", "KeystoneStrengthDamageBp"),
         ("COMBAT.KeystoneBrainsReactionMomentum", "KeystoneBrainsReactionMomentumP2"),
         ("COMBAT.KeystoneBrainsCooldownCutSec", "KeystoneBrainsCooldownCutMs"),
         ("COMBAT.KeystoneAgilityDamageBase", "KeystoneAgilityDamageBaseP2"),
         ("COMBAT.KeystoneAgilityADRatio", "KeystoneAgilityADRatioBp"),
-        ("COMBAT.KeystoneAgilityEmpowerDurationSec", "KeystoneAgilityEmpowerDurationMs"),
+        ("COMBAT.KeystoneAgilityEmpowerDurationSec", "KeystoneAgilityEmpowerDurationMs"), ("COMBAT.KeystoneAgilityMoveSpeedRatio", "KeystoneAgilityMoveSpeedBp"),
         # #198 elements and reactions.
         ("COMBAT.WetSec", "WetMs"), ("COMBAT.WetSlow", "WetSlowBp"), ("COMBAT.ReactionBase", "ReactionBaseP2"),
         ("COMBAT.ReactionPerLevel", "ReactionPerLevelP2"), ("COMBAT.ReactionAPRatio", "ReactionAPRatioBp"), ("COMBAT.ReactionLockSec", "ReactionLockMs"),
@@ -500,7 +500,7 @@ def parameter_projection(parameters):
         result[dest] = rational(parameters[source])
     for source, dest in (
         ("XP.BaseToNext", "XPBaseToNext"), ("XP.IncreasePerLevel", "XPIncreasePerLevel"),
-        ("REWARD.PlayerXP.Base", "PlayerXPBase"), ("REWARD.PlayerXP.PerLevel", "PlayerXPPerLevel"), ("REWARD.BountyXP", "BountyXP"),
+        ("REWARD.PlayerXP.Base", "PlayerXPBase"), ("REWARD.PlayerXP.PerLevel", "PlayerXPPerLevel"), ("REWARD.BountyXP", "BountyXP"), ("REWARD.BountyCardOffer", "BountyCardOffer"),
         ("CAMP.ReturnDeadEndPlans", "CampReturnDeadEndPlans"), ("CAMP.GrowthMaxStage", "CampGrowthMaxStage"),
         ("AIRDROP.RewardXP", "AirdropRewardXP"), ("LEADER.MinLevel", "LeaderMinLevel"),
         ("COMBAT.BreachMaxStacks", "BreachMaxStacks"), ("COMBAT.BurnMaxStacks", "BurnMaxStacks"),

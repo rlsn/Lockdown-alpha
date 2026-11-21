@@ -129,6 +129,8 @@ Rejected 也可能 `ProtectionRemoved=true`。所有角色主动（含自身守�
 - Root 按 effect/cast + 完整目标生命保存独立实例与原期限，任一未到期即生效，显示最大剩余；同实例重发不续期，较早到期不清掉另一来源。禁止项为 `POLICY.RootBlocks`。
   “我没急”（`active_not_mad`）给护盾并解除当时全部减速与 Root，不带后续免疫。
 - `EFFECT.ShieldPolicy=StackToLatestExpiry`（`LDTactical::ApplyShield`）：新盾的量加到旧盾**当前剩余量**上，没有上限；记录换成新来源，截止取新旧两者中较晚的一个。组合净化照常、劲与冷却照付。
+  每次施加另记一层（`FLDBodyCombatState::ShieldLayers`：EffectId、截止、剩余量），`Resources.ShieldP2` 是各层之和；
+  `ExpireShieldLayers` 让各层按自己的截止消失，伤害经 `SpendShieldLayers` 先扣最早到期的一层，返回打空的层数，`ApplyHit` 按层数各调用一次 `OnShieldBrokenCards`。
   之后 Max/AP 变化不重算已快照盾。
 - **嘲讽**：`taunt` 在释放时让施放者半径内（脚点平面距离含边界）存活、无保护且此刻能观察到施放者的其他参赛者被嘲讽（野怪不受）；同一身体只保留最新一次；落地是一次控制（`LDControl::TauntVictim`）。
   期间 Q/W/E 与 D 经 `ActiveGate`（`bTaunted`）以 `ControlBlocked` 拒绝，普攻只能打嘲讽者那条生命，前摇中被禁止的动作当场放弃。每个 Actions 开头 `RefreshTaunts` 结束过期、嘲讽者死亡/离局
@@ -154,6 +156,7 @@ Busy/Cooldown/AttackNotReady/MomentumShort/ControlBlocked、TargetUnavailable、
 | `FLDDamageEvaluationResult` | `TOptional` Value 与 Code/Field/Message 的 Error；成功给 DamageP2、ShieldAbsorbedP2、HPLostP2、OverkillP2、RemainingHPP2/RemainingShieldP2。只有 `HPLostP2` 是实际扣血/吸血基数 |
 | `FLDBasicTimingInput` / `Result` | 基础与当前攻速有理数及 BaseWindupMs（玩家 `STAT.BaseAttackSpeed/UNIT.BasicAttackWindupSec`，怪物 `CAMP.*.AttackSpeed/AttackWindupSec`）；输出 IntervalMs/WindupMs 且前摇小于间隔，不生成绝对时刻 |
 
+- 同时带攻击力与法强系数的命中，`ApplyHit` 按施放者两份贡献（攻击力 × ADRatio 与法强 × APRatio）中较大的一份定为物理或魔法伤害，相等时保留定义的类型。
 - HitClass 为 BasicPrimary、BasicSecondary、Ability：只有主普攻允许本次暴击（×`STAT.CritMultiplier`，在乘区之前）；带暴击的技能输入以 Domain 拒绝；反伤与附加伤害不暴击；Basic 拒绝 AP 系数与魔法伤害。
 - 完整字段、数值域与精确算术校验先于保护零伤；中间有理数保留到最终一次 floor/ceil；精度与取整只取内容合同（`FORMULA.Crit/Resistance/Damage`、`FORMULA.AttackIntervalMs/AttackWindupMs`）。
   原生公式夹具使用 producer 生成的 `approved_base`，`base` 是独立合成输入，不在夹具缺失时回退生产资产。

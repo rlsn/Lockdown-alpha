@@ -774,6 +774,9 @@ bool ALDCombatDirector::ResolveDashCompletions(int64 NowMs, FString& Error)
         if (!CardsOn(Body.AttributeProjection,ELDDemoEffectOp::DashIce,Dash.Source,Trails,Error)
             || !CardsOn(Body.AttributeProjection,ELDDemoEffectOp::GroundRelocate,Dash.Source,Movers,Error)) { return false; }
         const FVector EndFoot=FootOf(*Actor);
+        // Y12: every copy keeps a trail one more of its lifetimes, so that many more bands stand at once.
+        TArray<FLDPassiveEffectRef> Stalls;
+        if (!Trails.IsEmpty() && !CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::DoubleStall,Stalls,Error)) { return false; }
         for (const FLDPassiveEffectRef& Trail : Trails)
         {
             const FVector Path=FVector(EndFoot.X-Dash.StartFootCm.X,EndFoot.Y-Dash.StartFootCm.Y,0);
@@ -785,7 +788,7 @@ bool ALDCombatDirector::ResolveDashCompletions(int64 NowMs, FString& Error)
             TrailOwner.Level=GrowthLevelOf(Body);
             TrailOwner.SourceAPP2=FMath::Max<int64>(Body.AttributeProjection.Final.APP2,0);
             const double Width=double(Trail.Effect.RadiusCm.Numerator)/double(FMath::Max<int64>(Trail.Effect.RadiusCm.Denominator,1));
-            if (!SpawnGround(ELDGroundStateKind::Ice,TrailOwner,(Dash.StartFootCm+EndFoot)*.5,NowMs,Error,Width*.5,Trail.Effect.DurationMs,
+            if (!SpawnGround(ELDGroundStateKind::Ice,TrailOwner,(Dash.StartFootCm+EndFoot)*.5,NowMs,Error,Width*.5,Trail.Effect.DurationMs*(1+Stalls.Num()),
                 FVector2D(Path.X,Path.Y),Path.Size()*.5)) { return false; }
             LedgerCardTriggered(Body,Trail.Key);
         }
@@ -824,6 +827,17 @@ bool ALDCombatDirector::ResolveDashCompletions(int64 NowMs, FString& Error)
             if (!LDMatchLifecycle::AddDurationMs(NowMs,Parameters.KeystoneAgilityEmpowerDurationMs,Package.ExpiresAtMs,Error))
             { return false; }
             LDCombatControl::ArmEmpower(Body.Empowers,Package);
+            // The same window lends the dasher move speed.
+            FLDCombatTimedBonus Speed;
+            Speed.EffectId=FGuid::NewGuid();
+            Speed.SourceDefinition=FName(TEXT("keystone_agility_speed"));
+            FLDDemoStatBonus& Stat=Speed.Stats.AddDefaulted_GetRef();
+            Stat.Stat=ELDDemoBonusStat::MoveSpeedBonusRatio;
+            Stat.Amount=Parameters.KeystoneAgilityMoveSpeedBp;
+            Speed.ExpiresAtMs=Package.ExpiresAtMs;
+            Body.TimedBonuses.RemoveAll([](const FLDCombatTimedBonus& Row)
+                { return Row.SourceDefinition==FName(TEXT("keystone_agility_speed")); });
+            if (Stat.Amount>0) { LDTactical::ApplyTimedBonus(Body.TimedBonuses,Speed); }
             bArmed=true;
         }
         if (bArmed)

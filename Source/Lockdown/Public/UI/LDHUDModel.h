@@ -132,6 +132,10 @@ namespace LDHUD
     // The display row's IconId of a content entry (#85); empty without a display row.
     LOCKDOWN_API FString ContentIconId(const FLDDemoContentDefinitions* Content,const FString& ContentId);
     LOCKDOWN_API FString StatusName(const FLDDemoContentDefinitions* Content,uint8 StatusId);
+    // The approved icon of a status definition; empty when it has none.
+    LOCKDOWN_API FString StatusIconId(const FLDDemoContentDefinitions* Content,uint8 StatusId);
+    // A control status (stun, root, silence, disarm, knockback, taunt): a head bar shows its remaining time as a bar.
+    LOCKDOWN_API bool StatusIsHardControl(uint8 StatusId);
     LOCKDOWN_API FString CreatureName(const FLDDemoContentDefinitions* Content,uint8 CreatureId);
     LOCKDOWN_API FString AbilityName(const FLDDemoContentDefinitions* Content,uint8 AbilityId);
     // Public roster name of a contender; empty when the roster does not list it (never invented).

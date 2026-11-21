@@ -192,6 +192,13 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         Hit.bCritical=!Crits.IsEmpty() && ChanceBp>0 && CritRandom.RandRange(0,9999)<ChanceBp;
     }
     const bool bCritical=Hit.bCritical;
+    // Adaptive damage: a hit that scales with both attack damage and ability power deals the type of its larger share,
+    // so a strength build and a brains build each hit through the resistance they are built around.
+    if (Hit.ADRatioBp>0 && Hit.APRatioBp>0)
+    {
+        const int64 ADShare=Hit.SourceADP2/10000*Hit.ADRatioBp, APShare=Hit.SourceAPP2/10000*Hit.APRatioBp;
+        Hit.DamageType=ADShare>APShare ? ELDDemoDamageType::Physical : ADShare<APShare ? ELDDemoDamageType::Magical : Hit.DamageType;
+    }
     FLDDamageEvaluationInput Evaluation;
     Evaluation.Definition.Emplace(Hit.BaseP2,Hit.ADRatioBp,Hit.APRatioBp,Hit.DamageType,Hit.MaxHPRatioBp);
     Evaluation.HitClass=Hit.HitClass;
@@ -344,7 +351,12 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     // The absorbed amount spends the layers, earliest deadline first; each layer it empties is a break of its own.
     const int32 BrokenLayers=Damage.ShieldAbsorbedP2>0 ? SpendShieldLayers(*Body,Damage.ShieldAbsorbedP2) : 0;
     ++Body->Resources.Revision;
-    if (Damage.KeystoneGuardCutP2>0) { Body->KeystoneThickSkinReadyAtMs=KeystoneGuardReadyAtMs; }
+    if (Damage.KeystoneGuardCutP2>0)
+    {
+        Body->KeystoneThickSkinReadyAtMs=KeystoneGuardReadyAtMs;
+        if (!LDMatchLifecycle::AddDurationMs(NowMs,Content->Get().Parameters.KeystoneThickSkinSteadyMs,Body->KeystoneSteadyUntilMs,Error))
+        { return false; }
+    }
     if (bBraced && Damage.BraceCutP2>0)
     {
         Body->Brace.RecordedP2=LDCombatElements::BraceRecordP2(Body->Brace.RecordedP2,Damage.BraceCutP2,Body->Brace.CapP2);
@@ -384,10 +396,12 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         if (bOut) { ControlMask|=LDCombatEffectsDetail::ControlBit(Kind); }
         return true;
     };
+    // The thick-skin steady window: slows miss and a knockback travels its share of the distance.
+    const bool bSteady=NowMs<Body->KeystoneSteadyUntilMs;
     if (bControllable)
     {
         bool bApplied=false;
-        if (Hit.AttackSlowBp>0 && Hit.AttackSlowMs>0)
+        if (Hit.AttackSlowBp>0 && Hit.AttackSlowMs>0 && !bSteady)
         {
             FLDCombatSlow Slow;
             Slow.EffectId=Hit.EffectId;
@@ -409,11 +423,18 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         // #198: the push stops at the first blocking geometry (ApplyKnockback); a wall adds no further control.
         if (Hit.KnockbackCm>0 && Hit.KnockbackMs>0)
         {
-            if (!ApplyKnockback(*Actor,*Body,Hit,NowMs,bApplied,Error)) { return false; }
+            FLDCombatHit Push=Hit;
+            if (bSteady)
+            {
+                const int64 KeepBp=Content->Get().Parameters.KeystoneThickSkinKnockbackBp;
+                Push.KnockbackCm=Push.KnockbackCm*KeepBp/10000;
+                Push.KnockbackMs=FMath::Max<int64>(1,Push.KnockbackMs*KeepBp/10000);
+            }
+            if (Push.KnockbackCm>0 && !ApplyKnockback(*Actor,*Body,Push,NowMs,bApplied,Error)) { return false; }
             bControlled|=bApplied;
             if (bApplied) { ControlMask|=LDCombatEffectsDetail::KnockbackBit; }
         }
-        if (Hit.SlowDurationMs>0 && Hit.SlowBp>0 && !Control(ELDControlKind::Slow,Hit.SlowDurationMs,Hit.SlowBp,bApplied))
+        if (Hit.SlowDurationMs>0 && Hit.SlowBp>0 && !bSteady && !Control(ELDControlKind::Slow,Hit.SlowDurationMs,Hit.SlowBp,bApplied))
         { return false; }
     }
     // #147: the shared breach and burn this hit (its payload, its card fire or its source's basic triggers) adds.

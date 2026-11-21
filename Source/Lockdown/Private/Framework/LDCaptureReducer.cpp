@@ -498,8 +498,10 @@ bool FLDCaptureReducer::CompleteSpray(FString& Error)
     Cause = ELDGraffitiCause::Sprayed;
     if (ModOf(Sprayer) == ELDDemoFinalModId::FinalHitAndRun)
     {
-        // A hit-and-run graffiti has no guard; it fades and its sprayer must leave the zone before spraying again.
+        // A hit-and-run graffiti has no guard; it fades and its sprayer must leave the zone before spraying again. Its
+        // standing time (the fade) counts toward the timeout ranking.
         if (int64(Sprays) >= Rules.HitAndRunSprays) { Win(ELDCaptureWin::Sprays, Sprayer, At); }
+        if (!CreditGuard(Sprayer, Rules.HitAndRunFadeMs, Error)) { return false; }
         GuardDue = 0;
         if (!LDMatchLifecycle::AddDurationMs(At, Rules.HitAndRunFadeMs, FadeAt, Error)) { return false; }
         MustLeave.Add(Sprayer);

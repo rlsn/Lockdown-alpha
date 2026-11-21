@@ -395,6 +395,23 @@ FLDRewardReceipt ALDGrowthDirector::CommitDeathReward(const FLDCommittedDeath& D
     {
         return Finish(Outcome, Reason);
     }
+    // A contender kill may drop an element medal (REWARD.KillMedalChance); the bounty killer also picks one of
+    // REWARD.BountyCardOffer cards.
+    if (bContenderVictim)
+    {
+        FString KillError;
+        const uint64 DeathHash = HashCombine(GetTypeHash(Death.Key.Victim.EntityId), Death.Key.Victim.Life);
+        if (!M->Development->RollMedal(Recipient, Content->Get().Parameters.KillMedalChanceBp, 0x4B494C4C00000000ull ^ DeathHash,
+            TEXT("contender_kill"), Permit, KillError))
+        {
+            UE_LOG(LogLDGrowth, Error, TEXT("LD_MEDAL_FAULT victim=%s: %s"), *LDLog::Id(Death.Key.Victim.EntityId), *KillError);
+        }
+        if (M->IsBountyDeath(Death.Key)
+            && !M->PayFieldReward(Recipient, TEXT("bounty"), DeathHash | 1ull, 0, ELDFieldRewardKind::BountyOffer, Permit, KillError))
+        {
+            UE_LOG(LogLDGrowth, Error, TEXT("LD_BOUNTY_OFFER_FAULT victim=%s: %s"), *LDLog::Id(Death.Key.Victim.EntityId), *KillError);
+        }
+    }
     // The last hit on a camp monster may drop an element medal by the camp's tier (MEDAL.Camp*Chance). The peddler keeps a
     // camp definition but is an event: its own reward rolls MEDAL.EventChance once.
     if (!bContenderVictim && !Basis.bPeddlerAtDeath)
@@ -417,7 +434,7 @@ ELDRewardOutcome ALDGrowthDirector::CommitFieldReward(const FGuid& Recipient, FN
     ELDFieldRewardKind Kind, const FLDGameplayWritePermit& Permit, FLDRewardReceipt& Receipt, ELDGrowthReason& Reason)
 {
     Reason = ELDGrowthReason::None;
-    const bool bKnownKind = uint8(Kind) <= uint8(ELDFieldRewardKind::BonusOffer);
+    const bool bKnownKind = uint8(Kind) <= uint8(ELDFieldRewardKind::BountyOffer);
     if (!Recipient.IsValid() || Event.IsNone() || !Serial || XP < 0 || !bKnownKind || (Kind == ELDFieldRewardKind::None && XP == 0))
     {
         Reason = ELDGrowthReason::DataInvalid;

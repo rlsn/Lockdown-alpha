@@ -389,6 +389,8 @@ struct FLDBodyCombatState
     int64 LastShieldGrantP2=0;
     int64 KeystonePhysiqueReadyAtMs=0;
     int64 KeystoneThickSkinReadyAtMs=0;
+    // Until then the thick-skin guard keeps the body steady: slows miss and knockbacks keep KeystoneThickSkinKnockbackBp.
+    int64 KeystoneSteadyUntilMs=0;
     // #147 build v7 keywords (LDCombatKeywords): silence instances (shaped like disarm and stun), the one shared breach
     // and burn of this life and the damage-triggered shield's rest (B09: it starts only on a granted shield).
     TArray<FLDCombatRoot> Silences;
@@ -1430,9 +1432,11 @@ private:
     // prompt once per reaction (ALDGameMode::SendReactionAssist gates it by the setter's sight), and ReactionAssists records
     // what was sent.
     bool NotifyReactionAssists(const FLDCombatHit& Hit, FString& Error);
-    // S16: Body's new stance (a newer one replaces the old record without its answer).
+    // S16: Body's new stance (a newer one replaces the old record without its answer). ShareBp: an A08 combo cast's share
+    // of what the record turns into (the answer's record part, the heal and the shield).
     bool ReleaseBrace(FLDBodyCombatState& Body, const FLDDemoEffectDefinition& Effect, const FLDCombatSourceRef& Source,
-        const FGuid& EffectId, uint64 Token, int64 NowMs, FString& Error, TSharedPtr<FLDCombatCastLedger> CastLedger=nullptr);
+        const FGuid& EffectId, uint64 Token, int64 NowMs, FString& Error, TSharedPtr<FLDCombatCastLedger> CastLedger=nullptr,
+        int64 ShareBp=10000);
     // S10: the bounces after the first struck body.
     bool StartChain(const FLDCombatHit& Payload, const FLDCombatBodyRef& First, const FVector& FirstFoot,
         const FLDDemoEffectDefinition& Bounce, int64 NowMs, FString& Error);

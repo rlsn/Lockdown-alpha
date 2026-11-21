@@ -1203,6 +1203,7 @@ int32 LDProgression::CardOfferSize(const FLDDemoContentParameters& Parameters, E
     case ELDCardOfferSource::Peddler: return Parameters.Explore.PeddlerCardOffer;
     case ELDCardOfferSource::CampFridge: return Parameters.Affix.FridgeCardOffer;
     case ELDCardOfferSource::CampBonus: return Parameters.Affix.BonusCardOffer;
+    case ELDCardOfferSource::Bounty: return int32(Parameters.BountyCardOffer);
     default: return Parameters.Cards.OfferSize;
     }
 }
@@ -1915,9 +1916,10 @@ ELDGrowthReason LDProgression::DrawFieldReward(const FLDDemoContentDefinitions& 
         return ELDGrowthReason::None;
     case ELDFieldRewardKind::MiniFlagOffer: case ELDFieldRewardKind::ArenaOffer: case ELDFieldRewardKind::LockerOffer:
     case ELDFieldRewardKind::PeddlerOffer: case ELDFieldRewardKind::FridgeOffer: case ELDFieldRewardKind::BonusOffer:
+    case ELDFieldRewardKind::BountyOffer:
     {
         static const ELDCardOfferSource Sources[] = {ELDCardOfferSource::MiniFlag, ELDCardOfferSource::Arena, ELDCardOfferSource::Locker,
-            ELDCardOfferSource::Peddler, ELDCardOfferSource::CampFridge, ELDCardOfferSource::CampBonus};
+            ELDCardOfferSource::Peddler, ELDCardOfferSource::CampFridge, ELDCardOfferSource::CampBonus, ELDCardOfferSource::Bounty};
         Out.Result = ELDFieldRewardResult::CardOffer;
         Out.OfferSource = Sources[uint8(Kind) - uint8(ELDFieldRewardKind::MiniFlagOffer)];
         return ELDGrowthReason::None;

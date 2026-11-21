@@ -21886,6 +21886,10 @@
       "ms": 3000,
       "unit": "ms"
     },
+    "COMBAT.KeystoneAgilityMoveSpeedRatio": {
+      "bp": 2500,
+      "unit": "ratio"
+    },
     "COMBAT.KeystoneBrainsCooldownCutSec": {
       "ms": 1000,
       "unit": "ms"
@@ -21920,6 +21924,14 @@
     },
     "COMBAT.KeystoneThickSkinIntervalSec": {
       "ms": 6000,
+      "unit": "ms"
+    },
+    "COMBAT.KeystoneThickSkinKnockbackRatio": {
+      "bp": 5000,
+      "unit": "ratio"
+    },
+    "COMBAT.KeystoneThickSkinSteadySec": {
+      "ms": 1500,
       "unit": "ms"
     },
     "COMBAT.MeltRatio": {
@@ -22607,7 +22619,12 @@
       "bp": 5000,
       "unit": "ratio"
     },
+    "REWARD.BountyCardOffer": 5,
     "REWARD.BountyXP": 200,
+    "REWARD.KillMedalChance": {
+      "bp": 5000,
+      "unit": "ratio"
+    },
     "REWARD.PlayerXP.Base": 100,
     "REWARD.PlayerXP.PerLevel": 20,
     "SHOP.CardPrice": 2,
