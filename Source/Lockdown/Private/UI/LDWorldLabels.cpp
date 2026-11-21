@@ -37,7 +37,7 @@ constexpr double OwnBarsHeadroomCm=120.;
 // Anchors further off-screen are skipped; the margin keeps a label whose anchor sits just past an edge.
 constexpr float WorldLabelCullMargin=160.f;
 // Local units at the 1080p reference; every bar, badge and pip also has a one-unit rim.
-constexpr float WorldBarHeight=9.f,WorldShieldLine=2.f,WorldBadgeSide=20.f,WorldBadgeGap=3.f,WorldRowGap=2.f;
+constexpr float WorldBarHeight=9.f,WorldBadgeSide=20.f,WorldBadgeGap=3.f,WorldRowGap=2.f;
 constexpr float OwnBarWidth=84.f,OwnHealthHeight=8.f,OwnMomentumHeight=4.f;
 // Own status icons over the own bars: squares at the reference text scale, the gap between them and how many fill a row.
 constexpr float OwnStatusSide=22.f,OwnStatusGap=3.f;constexpr int32 OwnStatusPerRow=6;
@@ -110,6 +110,7 @@ LDWorldLabels::FLabel LDWorldLabels::Build(const FLDObservedUnitView& Unit,const
     {
         Label.HealthFraction=float(FMath::Clamp(double(Unit.Health.CurrentP2)/double(Unit.Health.MaxP2),0.,1.));
         Label.MaxHealth=float(double(Unit.Health.MaxP2)/100.);
+        Label.ShieldFraction=float(Unit.ShieldBar)/float(LDObservation::ShieldBarFull);
     }
     Label.Handle=Unit.Handle;
     // The same parts as the target card's status line (LDHUD::ObservedCard), so both read alike.
@@ -423,7 +424,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             if(Label.bHealth)
             {
                 const float BarRim=WorldBarWidth(Label)+2.f;const bool bBadge=Label.bContender&&Label.Level>0;
-                Entry.Row=FMath::Max(WorldBarHeight+(Label.bShield?WorldShieldLine:0.f)+2.f,bBadge?BadgeRim:0.f);
+                Entry.Row=FMath::Max(WorldBarHeight+2.f,bBadge?BadgeRim:0.f);
                 Entry.LeftReach=BarRim*.5f+(bBadge?WorldBadgeGap+BadgeRim:0.f);Entry.RightReach=BarRim*.5f;
             }
             float Lines=0.f;
@@ -487,8 +488,26 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
         const float CentreX=Entry.CentreX;
         if(Label.bHealth)
         {
-            const float BarWidth=WorldBarWidth(Label),BarRimHeight=WorldBarHeight+(Label.bShield?WorldShieldLine:0.f)+2.f;
-            const float Mid=Bottom-Entry.Row*.5f,BarLeft=CentreX-(BarWidth+2.f)*.5f,BarTop=Mid-BarRimHeight*.5f;
+            const float BarWidth=WorldBarWidth(Label),BarRimHeight=WorldBarHeight+2.f;
+            // The bar's memory for this visibility interval: the damage trail, a heavy hit's shake and a shield's break.
+            const double PaintNow=FPlatformTime::Seconds();
+            float TrailShown=Label.HealthFraction,Shake=0.f,Burst=-1.f;
+            if(Label.Handle.IsValid())
+            {
+                ULDWorldLabels::FTrail& Trail=Trails.FindOrAdd(Label.Handle);
+                if(Trail.SeenAt<=0.||Label.HealthFraction>=Trail.Shown){Trail.Shown=Label.HealthFraction;Trail.HeldUntil=PaintNow+.15;}
+                else if(PaintNow>Trail.HeldUntil)
+                {Trail.Shown=FMath::Max(Label.HealthFraction,Trail.Shown-float(FMath::Min(PaintNow-Trail.SeenAt,.1))*1.6f);}
+                // A single drop of more than 18% of the maximum shakes the bar; a shield taken to nothing bursts.
+                if(Trail.LastHealth>=0.f&&Trail.LastHealth-Label.HealthFraction>.18f){Trail.ShakeUntil=PaintNow+.25;}
+                if(Trail.LastShield>0.f&&Label.ShieldFraction<=0.f&&Label.HealthFraction>0.f){Trail.BrokeAt=PaintNow;}
+                Trail.LastHealth=Label.HealthFraction;Trail.LastShield=Label.ShieldFraction;
+                Trail.SeenAt=PaintNow;
+                TrailShown=Trail.Shown;
+                if(PaintNow<Trail.ShakeUntil){Shake=2.5f*FMath::Sin(float(PaintNow*90.))*float((Trail.ShakeUntil-PaintNow)/.25);}
+                if(Trail.BrokeAt>=0.&&PaintNow-Trail.BrokeAt<.35){Burst=float((PaintNow-Trail.BrokeAt)/.35);}
+            }
+            const float Mid=Bottom-Entry.Row*.5f,BarLeft=CentreX-(BarWidth+2.f)*.5f+Shake,BarTop=Mid-BarRimHeight*.5f;
             // An overdrive charge: a pulsing gold halo around the bar, visible to every observer of the unit.
             if(Label.bCharging)
             {
@@ -498,30 +517,27 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             // A camp member's bar sits in a frame of its tier colour (the name carries the same colour).
             if(Label.CampTier>=0){Box(1,FVector2f(BarLeft-1.f,BarTop-1.f),FVector2f(BarWidth+4.f,BarRimHeight+2.f),LDHUDStyle::CampTierInk(uint8(Label.CampTier)));}
             Box(1,FVector2f(BarLeft,BarTop),FVector2f(BarWidth+2.f,BarRimHeight),LDHUDStyle::Rim);
-            float TrackTop=BarTop+1.f;
-            // The shield is a line across the top of the bar; the status line below names it too.
-            if(Label.bShield){Box(3,FVector2f(BarLeft+1.f,TrackTop),FVector2f(BarWidth,WorldShieldLine),LDHUDStyle::Shield);TrackTop+=WorldShieldLine;}
+            const float TrackTop=BarTop+1.f;
             Box(2,FVector2f(BarLeft+1.f,TrackTop),FVector2f(BarWidth,WorldBarHeight),LDHUDStyle::BarTrack);
+            // Health, then the shield in proportion to the maximum HP right after it; when both exceed the bar they share it.
+            const float Fill=Label.HealthFraction+Label.ShieldFraction,Squeeze=Fill>1.f?1.f/Fill:1.f;
+            const float HealthW=BarWidth*Label.HealthFraction*Squeeze,ShieldW=BarWidth*Label.ShieldFraction*Squeeze;
             // The damage trail: what was just lost stays bright for a moment, then closes on the current fill.
-            const double PaintNow=FPlatformTime::Seconds();
-            float TrailShown=Label.HealthFraction;
-            if(Label.Handle.IsValid())
-            {
-                ULDWorldLabels::FTrail& Trail=Trails.FindOrAdd(Label.Handle);
-                if(Trail.SeenAt<=0.||Label.HealthFraction>=Trail.Shown){Trail.Shown=Label.HealthFraction;Trail.HeldUntil=PaintNow+.15;}
-                else if(PaintNow>Trail.HeldUntil)
-                {Trail.Shown=FMath::Max(Label.HealthFraction,Trail.Shown-float(FMath::Min(PaintNow-Trail.SeenAt,.1))*1.6f);}
-                Trail.SeenAt=PaintNow;
-                TrailShown=Trail.Shown;
-            }
             if(TrailShown>Label.HealthFraction)
-            {Box(3,FVector2f(BarLeft+1.f+BarWidth*Label.HealthFraction,TrackTop),FVector2f(BarWidth*(TrailShown-Label.HealthFraction),WorldBarHeight),FLinearColor(1.f,.96f,.86f,.9f));}
+            {Box(3,FVector2f(BarLeft+1.f+HealthW,TrackTop),FVector2f(FMath::Min(BarWidth*(TrailShown-Label.HealthFraction)*Squeeze,BarWidth-HealthW),WorldBarHeight),FLinearColor(1.f,.96f,.86f,.9f));}
             if(Label.HealthFraction>0.f)
-            {Box(3,FVector2f(BarLeft+1.f,TrackTop),FVector2f(BarWidth*Label.HealthFraction,WorldBarHeight),!Label.bContender?LDHUDStyle::CampHealth:Label.bPeaceful?LDHUDStyle::PeacefulHealth:LDHUDStyle::EnemyHealth);}
+            {Box(3,FVector2f(BarLeft+1.f,TrackTop),FVector2f(HealthW,WorldBarHeight),!Label.bContender?LDHUDStyle::CampHealth:Label.bPeaceful?LDHUDStyle::PeacefulHealth:LDHUDStyle::EnemyHealth);}
+            if(ShieldW>0.f){Box(3,FVector2f(BarLeft+1.f+HealthW,TrackTop),FVector2f(ShieldW,WorldBarHeight),LDHUDStyle::Shield);}
+            // A broken shield bursts outward in its colour for a moment.
+            if(Burst>=0.f)
+            {
+                const float Grow=4.f+10.f*Burst;
+                Box(4,FVector2f(BarLeft-Grow*.5f,BarTop-Grow*.25f),FVector2f(BarWidth+2.f+Grow,BarRimHeight+Grow*.5f),LDHUDStyle::Shield.CopyWithNewOpacity(.7f*(1.f-Burst)));
+            }
             // Ticks show how tanky the unit is: a thin half tick every 100 HP (when they fit), a full one every 1000 HP.
             if(Label.MaxHealth>0.f)
             {
-                const float PerHundred=BarWidth*100.f/Label.MaxHealth;
+                const float PerHundred=BarWidth*Squeeze*100.f/Label.MaxHealth;
                 const FLinearColor Tick(0.f,0.f,0.f,.55f);
                 for(int32 Hundred=1;Hundred*100.f<Label.MaxHealth;++Hundred)
                 {

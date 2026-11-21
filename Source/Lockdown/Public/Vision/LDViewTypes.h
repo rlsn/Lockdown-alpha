@@ -27,6 +27,8 @@ namespace LDObservation
     constexpr int32 GroundStateWireBytes = 16;
     // The public momentum bar of a visible contender: 0..MomentumBarFull (never the exact value).
     constexpr uint8 MomentumBarFull = 255;
+    // The public shield bar: a shield of at least the maximum HP is full.
+    constexpr uint8 ShieldBarFull = 255;
     constexpr uint16 RecentHitWindowMs = 300;
     // A visible reaction's name floats over its target while its cue is this young (spec §12).
     constexpr uint16 RecentReactionWindowMs = 1000;
@@ -134,6 +136,9 @@ struct FLDObservedUnitView
     UPROPERTY() bool bPeddler = false;
     UPROPERTY() uint8 Level = 0;
     UPROPERTY() FLDObservedResource Health;
+    // The live shield as a share of the maximum HP, quantized to 0..LDObservation::ShieldBarFull (never the exact amount);
+    // sent with the health field, so the head bar can show how thick it is.
+    UPROPERTY() uint8 ShieldBar = 0;
     // Contenders: the momentum bar quantized to 0..LDObservation::MomentumBarFull and whether an overdrive charge shows.
     UPROPERTY() uint8 MomentumBar = 0;
     UPROPERTY() bool bCharging = false;

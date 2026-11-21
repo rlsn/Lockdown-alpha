@@ -186,7 +186,7 @@ bool SameObservedPresentation(const FLDObservedUnitView& A, const FLDObservedUni
         && (A.RecentHitAgePlusOneMs != 0) == (B.RecentHitAgePlusOneMs != 0) && A.RecentReaction == B.RecentReaction
         && A.RecentHitId == B.RecentHitId
         && A.ContenderId == B.ContenderId && A.CreatureId == B.CreatureId && A.Level == B.Level
-        && A.Health.CurrentP2 == B.Health.CurrentP2 && A.Health.MaxP2 == B.Health.MaxP2
+        && A.Health.CurrentP2 == B.Health.CurrentP2 && A.Health.MaxP2 == B.Health.MaxP2 && A.ShieldBar == B.ShieldBar
         && A.MomentumBar == B.MomentumBar && A.bCharging == B.bCharging && A.bOverdriveCast == B.bOverdriveCast
         && A.ActionComboStep == B.ActionComboStep
         && A.Actives.Abilities[0] == B.Actives.Abilities[0] && A.Actives.Abilities[1] == B.Actives.Abilities[1]
@@ -1268,6 +1268,8 @@ bool ALDVisionDirector::GatherTargets(TArray<FLDObservedTarget>& Out, FString& E
         else { Unit.ActionCueImpactDelayMs = 0; }
         Unit.Health.CurrentP2 = State->Resources.HpP2;
         Unit.Health.MaxP2 = State->Resources.MaxHpP2;
+        Unit.ShieldBar = State->Resources.MaxHpP2 > 0 ? uint8(FMath::Clamp<int64>(FMath::Max<int64>(State->Resources.ShieldP2, 0)
+            * LDObservation::ShieldBarFull / State->Resources.MaxHpP2, 0, LDObservation::ShieldBarFull)) : 0;
         Unit.Statuses = Facts.Statuses;
         if (Ref.Victim.Kind == ELDVictimKind::Contender)
         {

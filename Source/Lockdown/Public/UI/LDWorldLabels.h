@@ -36,7 +36,8 @@ namespace LDWorldLabels
         float HealthFraction=0.f;  // current over maximum, clamped to 0..1
         float MaxHealth=0.f;       // the maximum in whole HP, for the bar's 100/1000 HP ticks (how tanky the unit is)
         FGuid Handle;              // this visibility interval of the unit, for the bar's damage trail
-        bool bShield=false;    // the unit has the public shield status; its amount is not part of the label
+        bool bShield=false;    // the unit has the public shield status
+        float ShieldFraction=0.f;  // the live shield over the maximum HP (quantized, 0..1): the bar's shield segment
         bool bCharging=false;  // a contender holding an overdrive charge: a gold halo rings its bar (never which skill)
     };
     // SC-07 subset for a label: name, level, HP fraction, shield presence and public statuses; never momentum, skills or
@@ -84,6 +85,9 @@ private:
         float Shown=0.f;
         double HeldUntil=0.;
         double SeenAt=0.;
+        // The last painted health and shield, for a heavy hit's shake and a shield's break burst.
+        float LastHealth=-1.f,LastShield=0.f;
+        double ShakeUntil=0.,BrokeAt=-1.;
     };
     mutable TMap<FGuid,FTrail> Trails;
 };

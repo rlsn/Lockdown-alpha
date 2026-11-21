@@ -145,7 +145,7 @@ bool SerializeObservedUnit(FArchive& Ar, UPackageMap* Map, FLDObservedUnitView& 
         else { Ar << Unit.CreatureId << Unit.CampAffix << Unit.bPeddler; }
     }
     if (Mask & LDObservation::Level) { Ar << Unit.Level; }
-    if (Mask & LDObservation::Health) { Ar << Unit.Health.CurrentP2 << Unit.Health.MaxP2; }
+    if (Mask & LDObservation::Health) { Ar << Unit.Health.CurrentP2 << Unit.Health.MaxP2 << Unit.ShieldBar; }
     if (Mask & LDObservation::Momentum) { Ar << Unit.MomentumBar << Unit.bCharging << Unit.ChargeAgeMs << Unit.bOverdriveCast; }
     if (Mask & LDObservation::Statuses)
     {
@@ -305,6 +305,8 @@ bool LDObservation::ValidateUnit(const FLDObservedUnitView& Unit, FString& Error
             || Unit.CampAffix > uint8(ELDCampAffix::Audit) || (Unit.bPeddler && Unit.CampAffix != 0))
     { return FailObservation(Error, TEXT("Observed identity, presentation or level does not match the unit kind.")); }
     if (!IsObservedResourcePair(Unit.Health, true)) { return FailObservation(Error, TEXT("Observed health must be a complete current/maximum P2 pair.")); }
+    if (!(Mask & Health) && Unit.ShieldBar != 0)
+    { return FailObservation(Error, TEXT("An observed shield bar is present without health authorization.")); }
     if (!(Mask & Momentum) && (Unit.MomentumBar != 0 || Unit.bCharging || Unit.bOverdriveCast))
     { return FailObservation(Error, TEXT("Observed momentum is present without authorization.")); }
     if (Unit.ChargeAgeMs != 0 && !Unit.bCharging)
