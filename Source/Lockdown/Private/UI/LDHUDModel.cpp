@@ -1363,7 +1363,8 @@ LDHUD::FActionDetailView LDHUD::ActionDetail(const FActionView& View,const FActi
     else if(bLearned&&Input.bHasSource)
     {
         // #147/#198: the same card as the growth panel, with this level's numbers and stats.
-        const FActiveCardView Card=ActiveCard(Input.DefinitionId,Content,Context.Card,Input.Branch);
+        FCardStats SlotStats=Context.Card;SlotStats.DamageFactorBp=Input.DamageFactorBp;
+        const FActiveCardView Card=ActiveCard(Input.DefinitionId,Content,SlotStats,Input.Branch,Input.NextCooldownMs);
         if(Card.bKnown)
         {
             Lines.Add(Card.SentencePlain);
@@ -1627,6 +1628,10 @@ bool CardValue(const LDDemoCardText::FToken& Token,const FLDDemoAbilityValues& V
         }
         int64 P2=Effect->BaseP2+Term(Effect->ADRatioBp,Stats.ADP2)+Term(Effect->APRatioBp,Stats.APP2)+Term(Effect->MaxHPRatioBp,Stats.MaxHPP2)
             +Term(Effect->ArmorRatioBp,Stats.ArmorP2);
+        // A skill's damage takes its card factors (K09, K16, K17 ...) as it would release now.
+        const ELDDemoEffectOp DamageOp=Effect->GetOp();
+        if(Stats.DamageFactorBp!=10000&&(DamageOp==ELDDemoEffectOp::Damage||DamageOp==ELDDemoEffectOp::ZoneDamage))
+        {P2=P2/10000*Stats.DamageFactorBp+P2%10000*Stats.DamageFactorBp/10000;}
         if(Token.Field==EField::Burst){P2=Term(Effect->SecondaryRatioBp,P2);}
         Out=FString::Printf(TEXT("%lld"),(P2+50)/100);return true;
     }
@@ -1747,7 +1752,7 @@ TArray<FString> LDHUD::KeywordLines(const TArray<FString>& Keywords)
     }
     return Lines;
 }
-LDHUD::FActiveCardView LDHUD::ActiveCard(FName DefinitionId,const FLDDemoContentDefinitions* Content,const FCardStats& Stats,ELDSkillBranch Branch)
+LDHUD::FActiveCardView LDHUD::ActiveCard(FName DefinitionId,const FLDDemoContentDefinitions* Content,const FCardStats& Stats,ELDSkillBranch Branch,int64 CooldownMs)
 {
     FActiveCardView Card;
     Card.DefinitionId=DefinitionId;
@@ -1798,7 +1803,9 @@ LDHUD::FActiveCardView LDHUD::ActiveCard(FName DefinitionId,const FLDDemoContent
     Card.Sentence=Sentence.Rich;Card.SentencePlain=Sentence.Plain;
     Card.Keywords=KeywordLines(Sentence.Keywords);
     Card.Target=TargetLine(Path?Path->Target:Ability->Target);
-    Card.Cost=CostLine(Values);
+    // A learned skill shows the cooldown its next release would really issue (haste and cards).
+    if(CooldownMs>0){FLDDemoAbilityValues Hasted=Values;Hasted.CooldownMs=CooldownMs;Card.Cost=CostLine(Hasted);}
+    else{Card.Cost=CostLine(Values);}
     Card.bKnown=Sentence.bComplete;
     return Card;
 }
@@ -2637,6 +2644,8 @@ LDHUD::FActionInput LDHUD::ActionInput(const FLDCombatEntryView& Entry,EActionSl
     Input.RangeCm=Entry.RangeCm;
     Input.DefinitionId=Entry.DefinitionId;
     Input.Branch=static_cast<ELDSkillBranch>(Entry.Branch);
+    Input.DamageFactorBp=Entry.DamageFactorBp;
+    Input.NextCooldownMs=Entry.NextCooldownMs;
     Input.MomentumCostP2=Entry.MomentumCostP2;
     Input.ReadyAtMs=Entry.ReadyAtMs;Input.CooldownMs=Entry.CooldownMs;
     Input.ServerBlock=CombatRejectText(Entry.Unavailable);

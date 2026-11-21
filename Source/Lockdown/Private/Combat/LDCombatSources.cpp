@@ -491,6 +491,23 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
     }
     View.TargetMode=static_cast<uint8>(Target->Mode);
     View.MomentumCostP2=Values->MomentumCostP2;
+    // The owner's card text reads what this release would do now: its damage factors and its hasted cooldown.
+    if (Source.Kind==ELDCombatSourceKind::Learned && Body && Catalog())
+    {
+        const FLDDemoContentSnapshot& Content=*Catalog();
+        TArray<FLDDamageFactor> Factors;
+        FString FactorError;
+        int64 FactorBp=10000;
+        bool bCapped=false;
+        if (ReleaseFactors(*Body,Record,Source,TrackFor(Record,Entry),NowMs,Factors,FactorError)
+            && LDTactical::DamageFactorProduct(Factors,Content.Get().Parameters.DamageFactorTechCapBp,FactorBp,bCapped,FactorError))
+        { View.DamageFactorBp=FactorBp; }
+        int64 Hasted=0;
+        FString HasteError;
+        if (LDTactical::CooldownDurationMs(Values->CooldownMs,Body->AttributeProjection.Final.CooldownHasteP2,
+            Content.Get().Formulas.HasteScaleP2,Hasted,HasteError))
+        { View.NextCooldownMs=FMath::Max(Hasted,Content.Get().Parameters.SkillRanks.CooldownFloorMs); }
+    }
     // A dash has no authored target range; its reach is the Dash effect distance of the active.
     const FLDDemoEffectDefinition* Dash=Target->Mode==ELDDemoTargetMode::DirectionDash
         ? Values->Effects.FindByPredicate([](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp()==ELDDemoEffectOp::Dash; })
@@ -806,8 +823,11 @@ bool ALDCombatDirector::IsDormRested(const FLDCombatBodyRef& Ref) const
     const FLDBodyCombatState* Body=FindBody(Ref);
     const auto* Mode=Core();
     const FLDDemoContentSnapshot* Content=Catalog();
-    return Body && Mode && Content && Body->bInDorm && !Body->bPendingDeath
-        && LDTactical::OutOfCombatAt(Body->LastCombatAtMs,Content->Get().Parameters.DormRegenDelayMs,Mode->GetAuthorityNowMs());
+    if (!Body || !Mode || !Content || !Body->bInDorm || Body->bPendingDeath) { return false; }
+    // The same wait the owner view shows: the physique keystone shortens it.
+    const int64 CutBp=Body->AttributeProjection.Keystones.bPhysique ? Content->Get().Parameters.KeystonePhysiqueOutOfCombatCutBp : 0;
+    const int64 DelayMs=Content->Get().Parameters.DormRegenDelayMs;
+    return LDTactical::OutOfCombatAt(Body->LastCombatAtMs,DelayMs-(DelayMs/10000*CutBp+DelayMs%10000*CutBp/10000),Mode->GetAuthorityNowMs());
 }
 
 FLDCombatEntryView ALDCombatDirector::QueryAvailability(const FLDCombatCaller& Caller, ELDCombatEntry Entry) const

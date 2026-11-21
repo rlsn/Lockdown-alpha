@@ -984,12 +984,19 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         PromptSlot=Canvas->AddChildToCanvas(PromptFrame);PromptSlot->SetAnchors(FAnchors(1,1));PromptSlot->SetAlignment(FVector2D(1,1));PromptSlot->SetAutoSize(true);
         PromptSlot->SetPosition(FVector2D(-HudCornerInset,-HudCornerInset));
         {
-            // The pink count on the 构筑 button's corner: how many decisions wait.
-            PromptBadgeText=OneLine(TEXT(""),LDHUDStyle::TypeTiny,0);PromptBadgeText->SetColorAndOpacity(FLinearColor::White);HudFace(PromptBadgeText,true,0);
-            PromptBadge=WidgetTree->ConstructWidget<UBorder>();PromptBadge->SetBrush(HudRound(9.f,LDHUDStyle::UIBase,1.f));PromptBadge->SetBrushColor(LDHUDStyle::UIEvent);
-            PromptBadge->SetPadding(FMargin(6,0));PromptBadge->SetContent(PromptBadgeText);PromptBadge->SetVisibility(ESlateVisibility::Collapsed);
-            PromptBadgeSlot=Canvas->AddChildToCanvas(PromptBadge);PromptBadgeSlot->SetAnchors(FAnchors(1,1));PromptBadgeSlot->SetAlignment(FVector2D(.5f,.5f));
-            PromptBadgeSlot->SetAutoSize(true);PromptBadgeSlot->SetZOrder(1);
+            // One count per kind of waiting decision on the 构筑 button's corner, each in its kind's colour and cut.
+            const FLinearColor Fills[3]={FLinearColor(.24f,.48f,.95f),FLinearColor(.86f,.62f,.16f),LDHUDStyle::UIEvent};
+            const float Radii[3]={3.f,3.f,9.f};
+            const FMargin Pads[3]={FMargin(5,0),FMargin(4,2),FMargin(6,0)};
+            for(int32 Kind=0;Kind<3;++Kind)
+            {
+                UTextBlock* KindText=OneLine(TEXT(""),LDHUDStyle::TypeTiny,0);KindText->SetColorAndOpacity(FLinearColor::White);HudFace(KindText,true,0);
+                UBorder* Badge=WidgetTree->ConstructWidget<UBorder>();Badge->SetBrush(HudRound(Radii[Kind],LDHUDStyle::UIBase,1.f));Badge->SetBrushColor(Fills[Kind]);
+                Badge->SetPadding(Pads[Kind]);Badge->SetContent(KindText);Badge->SetVisibility(ESlateVisibility::Collapsed);
+                UCanvasPanelSlot* KindSlot=Canvas->AddChildToCanvas(Badge);KindSlot->SetAnchors(FAnchors(1,1));KindSlot->SetAlignment(FVector2D(.5f,.5f));
+                KindSlot->SetAutoSize(true);KindSlot->SetZOrder(1);
+                PromptBadges.Add(Badge);PromptBadgeTexts.Add(KindText);PromptBadgeSlots.Add(KindSlot);
+            }
         }
         {
             // The dragged slot's ghost follows the pointer; it takes no input.
@@ -1703,6 +1710,8 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         // #147: the cards show this level's numbers; while no projection is published (dead) the last stats stay in use.
         if(OwnCombat&&!OwnCombat->Attributes.IsEmpty()){ChoiceStats=LDHUD::CardStatsOf(Progression?Progression->Level:1,OwnCombat->Attributes);}
         else if(Progression){ChoiceStats.Level=FMath::Max<uint8>(Progression->Level,1);}
+        // Holding Alt spells out the scaling on every card face, the workshop's as well as the skill bar's.
+        ChoiceStats.bShowScalingFormula=FSlateApplication::IsInitialized()&&FSlateApplication::Get().GetModifierKeys().IsAltDown();
         // #198: the build stage of the public match (the same rule the server and the AI read), never the phase alone.
         const LDProgression::EMatchStage Stage=bOwnMatch?LDProgression::StageForPublic(Public.Phase,Public.Timeline):LDProgression::EMatchStage::Closed;
         // The workshop's places from its last layout; in the field with the workshop closed the pending cards stand as quick
@@ -1901,11 +1910,19 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     PromptOffers=Pending.Offers;PromptCardOffers=Pending.CardOffers;
     HudSetColor(PromptText,bPromptLit?HudPromptInk:HudPromptIdleInk);
     {
-        const int32 Waiting=(Pending.bOffer?1:0)+Pending.Blueprints+(Pending.bCardOffer?1:0)+(Pending.bFinalMod?1:0);
-        HudSetText(PromptBadgeText,FString::FromInt(Waiting));
-        HudSetShown(PromptBadge,Waiting>0&&PromptFrame->IsVisible(),ESlateVisibility::HitTestInvisible);
-        const FVector2D Corner(-HudCornerInset-4.f,-HudCornerInset-float(PromptFrame->GetDesiredSize().Y)+4.f);
-        if(PromptBadgeSlot&&!PromptBadgeSlot->GetPosition().Equals(Corner,.5f)){PromptBadgeSlot->SetPosition(Corner);}
+        // Skills (the active offer and the blueprints), build cards, then the final mod; shown badges line up leftward.
+        const int32 Waiting[3]={(Pending.bOffer?1:0)+Pending.Blueprints,Pending.bCardOffer?1:0,Pending.bFinalMod?1:0};
+        float Offset=0.f;
+        for(int32 Kind=0;Kind<PromptBadges.Num()&&Kind<3;++Kind)
+        {
+            const bool bShown=Waiting[Kind]>0&&PromptFrame->IsVisible();
+            HudSetText(PromptBadgeTexts[Kind],FString::FromInt(Waiting[Kind]));
+            HudSetShown(PromptBadges[Kind],bShown,ESlateVisibility::HitTestInvisible);
+            if(!bShown){continue;}
+            const FVector2D Corner(-HudCornerInset-4.f-Offset,-HudCornerInset-float(PromptFrame->GetDesiredSize().Y)+4.f);
+            if(PromptBadgeSlots[Kind]&&!PromptBadgeSlots[Kind]->GetPosition().Equals(Corner,.5f)){PromptBadgeSlots[Kind]->SetPosition(Corner);}
+            Offset+=float(PromptBadges[Kind]->GetDesiredSize().X)+3.f;
+        }
     }
     // The button always opens the workshop; it is lit while something is pending.
     if(PromptButton->GetIsEnabled()!=bOwnMatch){PromptButton->SetIsEnabled(bOwnMatch);}

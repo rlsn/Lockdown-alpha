@@ -80,6 +80,8 @@ namespace LDHUD
         int64 ArmorP2=0;
         // A blueprint records a level but not the final projected attributes; show their coefficients instead.
         bool bShowScalingFormula=false;
+        // A learned skill's current card damage factor (10000 = none), applied to its damage numbers.
+        int64 DamageFactorBp=10000;
     };
     // Level from the progression, stats from the owner's projected attributes; zero stats without a projection.
     LOCKDOWN_API FCardStats CardStatsOf(uint8 Level,const TArray<FLDCombatAttributeRowView>& Attributes);
@@ -490,6 +492,8 @@ namespace LDHUD
         FString Name;             // display name of the bound definition
         FName DefinitionId;       // the bound definition, for the hover description
         ELDSkillBranch Branch=ELDSkillBranch::None; // its learned path, so the description shows its current rank
+        int64 DamageFactorBp=10000;  // its card damage factors now (owner view)
+        int64 NextCooldownMs=0;      // the cooldown its next release would issue after haste and cards; 0 when unknown
         FString IconId;           // the bound definition's icon (LDUIIcons); the dash's own icon for D
         int64 MomentumCostP2=0;
         int64 ReadyAtMs=0;        // this source's own track end on the authority clock
@@ -615,7 +619,7 @@ namespace LDHUD
     };
     // Branch is the learned path (None = rank 1, the face of an offer); the card reads that path's values at its rank.
     LOCKDOWN_API FActiveCardView ActiveCard(FName DefinitionId,const FLDDemoContentDefinitions* Content,const FCardStats& Stats,
-        ELDSkillBranch Branch=ELDSkillBranch::None);
+        ELDSkillBranch Branch=ELDSkillBranch::None,int64 CooldownMs=0);
     struct FFinalModCardView
     {
         FString Name,IconId,Glyph;
