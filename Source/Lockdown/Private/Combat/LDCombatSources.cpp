@@ -816,6 +816,14 @@ FLDCombatEntryView ALDCombatDirector::QueryAvailability(const FLDCombatCaller& C
     return EntryView(*Record,FindEntityBody(Caller.EntityId),Entry,Mode->GetAuthorityNowMs());
 }
 
+bool ALDCombatDirector::IsDormSwapReady(const FGuid& ContenderId, int64 NowMs) const
+{
+    const FLDDemoContentSnapshot* Content=Catalog();
+    const FLDBodyCombatState* Body=FindEntityBody(ContenderId);
+    return Content && Body && !Body->bPendingDeath && Body->bInDorm
+        && LDTactical::OutOfCombatAt(Body->LastCombatAtMs,Content->Get().Parameters.DormRegenDelayMs,NowMs);
+}
+
 bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatOwnerView& Out) const
 {
     Out=FLDCombatOwnerView();
@@ -928,11 +936,11 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
                 EmpowerStatus.StatusId=static_cast<uint8>(ELDDemoStatusId::Empowered);
                 EmpowerStatus.ExpiresAtMs=EmpoweredUntilMs;
             }
-            if (Body->Shield.IsSet() && Body->Resources.ShieldP2>0)
+            if (const int64 ShieldUntilMs=LDTactical::ActiveShieldUntilMs(Body->Shields,NowMs); ShieldUntilMs>0 && Body->Resources.ShieldP2>0)
             {
                 FLDCombatStatusView& ShieldStatus=Out.Statuses.AddDefaulted_GetRef();
                 ShieldStatus.StatusId=static_cast<uint8>(ELDDemoStatusId::Shield);
-                ShieldStatus.ExpiresAtMs=Body->Shield->ExpiresAtMs;
+                ShieldStatus.ExpiresAtMs=ShieldUntilMs;
                 ShieldStatus.AmountP2=Body->Resources.ShieldP2;
             }
             // Own temporary terms: the same public slow/boost/mark cues.
@@ -1140,7 +1148,9 @@ void ALDCombatDirector::ApplyCampReset(FLDPreparedCampReset&& Prepared, const FL
     Body->Disarms.Reset();
     Body->Stuns.Reset();
     Body->Empowers.Reset();
-    Body->Shield.Reset();
+    Body->Shields.Reset();
+    Body->KeystoneStrengthTargetReadyAtMs.Reset();
+    Body->bWaveAfterReactionExempt=false;
     // #147 keyword records end with the reset too (the camp's burn clears on its return).
     Body->Silences.Reset();
     Body->SharedBreach=FLDCombatSharedBreach();

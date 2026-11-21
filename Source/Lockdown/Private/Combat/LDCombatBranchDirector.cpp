@@ -519,15 +519,16 @@ bool ALDCombatDirector::AdvanceBranches(int64 NowMs, FString& Error)
             Branch.DashEndLedger.Reset();
         }
         // S14 A2: the shield ran out naturally; its remaining share heals (checked before statuses expire this boundary).
-        if (Branch.ShieldEffectId.IsValid() && (!Body.Shield.IsSet() || Body.Shield->EffectId!=Branch.ShieldEffectId))
+        const FLDActiveShield* BranchShield=Branch.ShieldEffectId.IsValid() ? Body.FindShield(Branch.ShieldEffectId) : nullptr;
+        if (Branch.ShieldEffectId.IsValid() && !BranchShield)
         {
             Branch.ShieldEffectId.Invalidate();
             Branch.ShieldReflectBp=Branch.ShieldEndHealBp=0;
             Branch.ShieldBreakBurst.Reset();
         }
-        else if (Branch.ShieldEndHealBp>0 && Body.Shield.IsSet() && Body.Shield->ExpiresAtMs<=NowMs && Body.Resources.ShieldP2>0)
+        else if (Branch.ShieldEndHealBp>0 && BranchShield && BranchShield->ExpiresAtMs<=NowMs && BranchShield->AmountP2>0)
         {
-            const int64 Heal=Share(Body.Resources.ShieldP2,Branch.ShieldEndHealBp);
+            const int64 Heal=Share(BranchShield->AmountP2,Branch.ShieldEndHealBp);
             Branch.ShieldEndHealBp=0;
             if (Heal>0 && !HealBody(Body,Heal,Branch.ShieldExit,nullptr,FGuid(),&Error) && !Error.IsEmpty()) { return false; }
         }
@@ -552,7 +553,10 @@ int64 ALDCombatDirector::NextBranchDueMs(int64 NowMs) const
     {
         const FLDCombatBranchState& Branch=Pair.Value.Branch;
         if (Branch.DashEndBurst.IsSet()) { Consider(Branch.DashEndAtMs); }
-        if (Pair.Value.Shield.IsSet() && Branch.ShieldEndHealBp>0) { Consider(Pair.Value.Shield->ExpiresAtMs); }
+        if (Branch.ShieldEndHealBp>0)
+        {
+            if (const FLDActiveShield* BranchShield=Pair.Value.FindShield(Branch.ShieldEffectId)) { Consider(BranchShield->ExpiresAtMs); }
+        }
         if (Branch.Recast.IsSet()) { Consider(Branch.Recast->UntilMs); }
     }
     return Due;
@@ -603,7 +607,7 @@ bool ALDCombatDirector::OnBranchHitTaken(const FLDCombatHit& Hit, FLDBodyCombatS
     }
     // S14 A1: the shield of this branch reflects a share of the direct damage it took.
     const bool bShieldOfBranch=Branch.ShieldEffectId.IsValid()
-        && ((Target.Shield.IsSet() && Target.Shield->EffectId==Branch.ShieldEffectId) || bShieldBroken);
+        && (Target.FindShield(Branch.ShieldEffectId)!=nullptr || bShieldBroken);
     if (bShieldOfBranch && Branch.ShieldReflectBp>0 && DamageP2>0 && bOrdinary && FindBody(Hit.SourceBody))
     {
         FLDCombatHit Reflect=MakeHit(Target,Branch.ShieldExit,Hit.SourceBody,FGuid::NewGuid());

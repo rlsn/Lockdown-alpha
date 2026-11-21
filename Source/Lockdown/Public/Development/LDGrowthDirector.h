@@ -93,6 +93,9 @@ private:
         ELDFieldRewardKind FieldKind = ELDFieldRewardKind::None;
         FName Event;
         uint64 Serial = 0;
+        int64 BonusStatPoints = 0;
+        TArray<ELDCardOfferSource> ExtraOffers;
+        int32 PvPKillSegment = INDEX_NONE;
 #if WITH_DEV_AUTOMATION_TESTS
         TArray<FName> DevLevelCards;
 #endif

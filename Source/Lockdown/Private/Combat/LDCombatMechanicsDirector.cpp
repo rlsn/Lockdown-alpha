@@ -143,7 +143,7 @@ bool ALDCombatDirector::HealBody(FLDBodyCombatState& Body, int64 AmountP2, const
                     else { UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_KEYSTONE_ERROR body=%s error=%s"),*LDLog::Id(Body.Victim.EntityId),*ShieldError); }
                     return false;
                 }
-                if (Body.Shield.IsSet() && Body.Shield->EffectId==ShieldId) { Body.KeystonePhysiqueReadyAtMs=NextReadyAtMs; }
+                if (Body.FindShield(ShieldId)) { Body.KeystonePhysiqueReadyAtMs=NextReadyAtMs; }
             }
         }
     }
@@ -154,12 +154,11 @@ bool ALDCombatDirector::GrantShieldTo(FLDBodyCombatState& Body, int64 AmountP2, 
     const FGuid& SourceEntity, int64 NowMs, FString& Error, const FLDCombatSourceRef& GrantSource)
 {
     if (Body.bPendingDeath) { return true; }
-    // Spec §8.1: a live rot cuts the new shield before the replacement check; existing shields are untouched.
+    // Spec §8.1: a live rot cuts the new shield before it enters the stack; existing shields are untouched.
     AmountP2=LDCombatElements::AfterRotP2(AmountP2,Body.ElementMark,NowMs);
     int64 Expires=0;
     if (!LDMatchLifecycle::AddDurationMs(NowMs,DurationMs,Expires,Error)) { return false; }
-    // A weaker shield is a stated sub-effect outcome, not a failed release.
-    if (!LDTactical::ApplyShield(Body.Shield,Body.Resources.ShieldP2,FLDCombatShield{EffectId,SourceEntity,Expires},AmountP2,NowMs))
+    if (!LDTactical::AddActiveShield(Body.Shields,Body.Resources.ShieldP2,FLDActiveShield{EffectId,SourceEntity,AmountP2,AmountP2,Expires},NowMs))
     { return true; }
     Body.ShieldGrantedP2=AmountP2;
     ++Body.Resources.Revision;

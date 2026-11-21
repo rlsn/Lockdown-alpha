@@ -1,23 +1,50 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "Combat/LDCombatTypes.h"
+#include "Navigation/LDOrderTypes.h"
 
-// Pre-input (control feel): a Q/W/D press during the owner's own ability windup is held on the owning client and
-// sent as an ordinary Direct request once that windup ends, instead of reaching the server as a Busy refusal. One
-// press is held at a time (the newest replaces it); S, a new life or match, suppressed input or HoldSeconds drop it.
-// A basic attack needs no buffer: an attack order already waits on the server until the body is free.
-// A press that left before the owner saw its own windup (the network delay) is held by the server instead: a Q/W/E/D
-// request that would meet the own ability windup waits in its queue, in order, until that windup releases.
+enum class ELDCombatPreInputMode : uint8
+{
+    Direct,
+    Unit,
+    GroundPoint
+};
+
+struct LOCKDOWN_API FPendingCombatIntent
+{
+    ELDCombatEntry Entry = ELDCombatEntry::None;
+    ELDCombatPreInputMode CastMode = ELDCombatPreInputMode::Direct;
+    FGuid TargetHandle;
+    uint32 ObservationEpoch = 0;
+    FVector GroundPointCm = FVector::ZeroVector;
+    FName SurfaceHint;
+    FVector AimDirection = FVector::ZeroVector;
+    bool bOverdrive = false;
+    int64 ExpiresAtMs = 0;
+    FLDCombatActionRequest Action;
+    FLDSpatialOrderRequest SpatialOrder;
+};
+
 namespace LDCombatPreInput
 {
-    constexpr double HoldSeconds = 1.0;
-    // The server keeps a queued Q/W/E/D request while the caller's own ability windup releases within HoldSeconds.
+    constexpr int64 HoldWindowMs = 450;
+    constexpr double HoldSeconds = 0.45;
+    constexpr int32 MaxBufferedSteps = 2;
+    constexpr double CloseDashConeCm = 220.0;
+    constexpr double CloseDashStopCm = 135.0;
+    constexpr double CloseDashCosHalfAngle = 0.8660254037844386; // cos(30 deg)
+
+    // The server keeps a queued Q/W/E/D request while the caller's own ability windup releases within HoldWindowMs.
     LOCKDOWN_API bool ServerHolds(ELDCombatEntry Entry, bool bOwnAbilityWindup, int64 ReleaseAtMs, int64 NowMs);
     LOCKDOWN_API bool IsDirectEntry(ELDCombatEntry Entry);
-    // The innate D dash fires toward the pointer on the press itself (2026-11-04 decision): it never waits armed for a
-    // left-click confirmation, whatever the quick-cast setting. Other aimed entries arm (or quick-cast) as before.
     LOCKDOWN_API bool FiresOnPress(ELDCombatEntry Entry);
-    // The current owner view shows an own Direct ability still winding up at NowMs (0 when the clock is unknown: the
-    // view's phase alone decides).
     LOCKDOWN_API bool IsWindingUp(const FLDCombatOwnerView& View, int64 NowMs);
+    // Bounded 2-step FIFO buffer: a 3rd buffered intent evicts the oldest buffered intent and retains the newest 2 steps.
+    LOCKDOWN_API void EnqueueFIFO(TArray<FPendingCombatIntent>& Queue, FPendingCombatIntent&& Intent,
+        TOptional<FPendingCombatIntent>& OutEvicted);
+    // Hard CC (stun/silence) clears buffered pre-inputs when it outlasts the remaining windup by more than HoldWindowMs.
+    LOCKDOWN_API bool ShouldClearForHardControl(int64 ControlExpiresAtMs, int64 WindupReleaseAtMs);
+    // Clamps an innate dash without card_pass_through to stop at 135cm from an engaged/hovered enemy within a 220cm, +-30 deg cone.
+    LOCKDOWN_API double ClampInnateDashDistance(double PlannedDistanceCm, const FVector& StartFootCm,
+        const FVector& Direction, const FVector& EnemyCenterCm, bool bHasPassThroughCard);
 }

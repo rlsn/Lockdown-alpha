@@ -444,10 +444,10 @@ bool GrowthTestReadFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoCo
         1500, 1760, 2040, 2340, 2660, 3000};
     bool bApproved = Test.TestTrue(TEXT("Fixture carries the approved 16-level cumulative XP thresholds"),
         Curve.XPStart == 0 && Curve.XPThresholds == ApprovedThresholds);
-    bApproved &= Test.TestTrue(TEXT("Fixture carries MaxLevel 16, three active slots and active opportunities at levels 2 and 6"),
-        Curve.MaxLevel == 16 && Curve.ActiveSlots == 3 && Curve.ActiveOfferLevels == TArray<int32>({2, 6}));
-    bApproved &= Test.TestTrue(TEXT("Fixture carries REWARD.PlayerXP 100 + 20/level"),
-        Tuning.PlayerXPBase == 100 && Tuning.PlayerXPPerLevel == 20);
+    bApproved &= Test.TestTrue(TEXT("Fixture carries MaxLevel 16, three active slots and active opportunities at levels 2, 5 and 9"),
+        Curve.MaxLevel == 16 && Curve.ActiveSlots == 3 && Curve.ActiveOfferLevels == TArray<int32>({2, 5, 9}));
+    bApproved &= Test.TestTrue(TEXT("Fixture carries REWARD.PlayerXP 140 + 28/level"),
+        Tuning.PlayerXPBase == 140 && Tuning.PlayerXPPerLevel == 28);
     bApproved &= Test.TestTrue(TEXT("Fixture carries 3 opening points, 3 per level, 3 per 240 XP past level 16 and a 4 s safe window"),
         Tuning.OpeningPoints == 3 && Tuning.PointsPerLevel == 3 && Tuning.MaxLevelPoints == 3 && Tuning.MaxLevelPointsXP == 240
         && Tuning.BuildSafeWindowMs == 4000);
@@ -529,8 +529,8 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
             LDProgression::LevelForXP(BrokenCurve, 0, Level), ELDGrowthReason::DataInvalid);
     }
 
-    // The opening opportunity is ordinal 1; reaching level 2 and level 6 each add exactly one more.
-    const TPair<int32, int32> OpportunityCases[] = {{1, 1}, {2, 2}, {3, 2}, {4, 2}, {5, 2}, {6, 3}, {10, 3}, {16, 3}};
+    // The opening opportunity is ordinal 1; reaching levels 2, 5 and 9 each add one more.
+    const TPair<int32, int32> OpportunityCases[] = {{1, 1}, {2, 2}, {3, 2}, {4, 2}, {5, 3}, {6, 3}, {8, 3}, {9, 4}, {10, 4}, {16, 4}};
     for (const TPair<int32, int32>& Row : OpportunityCases)
     {
         bGood &= Test.TestEqual(FString::Printf(TEXT("Active opportunities held at level %d"), Row.Key),
@@ -539,11 +539,11 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
     bGood &= GrowthTestPlan(Test, Curve, 0, 1, 59, 1, 1, TEXT("59 XP at level 1 keeps only the opening opportunity"));
     bGood &= GrowthTestPlan(Test, Curve, 0, 1, 60, 2, 2, TEXT("Level 2 adds the first extra active opportunity"));
     bGood &= GrowthTestPlan(Test, Curve, 60, 2, 80, 3, 2, TEXT("Level 3 adds no active opportunity"));
-    bGood &= GrowthTestPlan(Test, Curve, 0, 1, 500, 6, 3, TEXT("Crossing levels 2 and 6 at once adds both"));
-    bGood &= GrowthTestPlan(Test, Curve, 1260, 10, 780, 13, 3, TEXT("780 XP at level 10 reaches level 13 without another"));
-    bGood &= GrowthTestPlan(Test, Curve, 3000, 16, 5000, 16, 3, TEXT("XP keeps accumulating at the top level"));
+    bGood &= GrowthTestPlan(Test, Curve, 0, 1, 500, 6, 3, TEXT("Crossing levels 2 and 5 at once adds both"));
+    bGood &= GrowthTestPlan(Test, Curve, 1260, 10, 780, 13, 4, TEXT("780 XP at level 10 reaches level 13 without another"));
+    bGood &= GrowthTestPlan(Test, Curve, 3000, 16, 5000, 16, 4, TEXT("XP keeps accumulating at the top level"));
     LDProgression::FExperienceChange Change;
-    bGood &= GrowthTestReason(Test, TEXT("1 XP past the int64 bound"), LDProgression::PlanExperience(Curve, MAX_int64, 16, 3, 1, Change),
+    bGood &= GrowthTestReason(Test, TEXT("1 XP past the int64 bound"), LDProgression::PlanExperience(Curve, MAX_int64, 16, 4, 1, Change),
         ELDGrowthReason::ArithmeticOverflow);
     bGood &= Test.TestTrue(TEXT("An overflowing plan carries no partial result"), Change.NewXP == 0 && Change.LevelAfter == 0);
     bGood &= GrowthTestReason(Test, TEXT("60 XP recorded as level 1"), LDProgression::PlanExperience(Curve, 60, 1, 1, 20, Change),
@@ -559,13 +559,13 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
     LDProgression::FRewardAmounts Reward;
     bGood &= GrowthTestReason(Test, TEXT("A level 1 contender kill"),
         LDProgression::ContenderKillReward(Approved.Parameters, MaxLevel, 1, Reward), ELDGrowthReason::None);
-    bGood &= Test.TestEqual(TEXT("Level 1 contender kill XP"), Reward.XP, int64(100));
+    bGood &= Test.TestEqual(TEXT("Level 1 contender kill XP"), Reward.XP, int64(140));
     bGood &= GrowthTestReason(Test, TEXT("A level 10 contender kill"),
         LDProgression::ContenderKillReward(Approved.Parameters, MaxLevel, 10, Reward), ELDGrowthReason::None);
-    bGood &= Test.TestEqual(TEXT("Level 10 contender kill XP"), Reward.XP, int64(280));
+    bGood &= Test.TestEqual(TEXT("Level 10 contender kill XP"), Reward.XP, int64(392));
     bGood &= GrowthTestReason(Test, TEXT("A level 16 contender kill"),
         LDProgression::ContenderKillReward(Approved.Parameters, MaxLevel, 16, Reward), ELDGrowthReason::None);
-    bGood &= Test.TestEqual(TEXT("Level 16 contender kill XP"), Reward.XP, int64(400));
+    bGood &= Test.TestEqual(TEXT("Level 16 contender kill XP"), Reward.XP, int64(560));
     for (const uint8 VictimLevel : {uint8(0), uint8(17)})
     {
         bGood &= GrowthTestReason(Test, FString::Printf(TEXT("A level %d contender kill"), VictimLevel),
@@ -2546,28 +2546,28 @@ bool FLDDemoAssistSettlementTest::RunTest(const FString& Parameters)
     LDProgression::FRewardAmounts Base;
     GrowthTestReason(*this, TEXT("The level-1 contender bounty is approved"),
         LDProgression::ContenderKillReward(Tuning, uint8(Catalog->Get().Progression.MaxLevel), 1, Base), ELDGrowthReason::None);
-    const int64 SharedXP = Base.XP / 3;
-    if (!TestTrue(TEXT("The split leaves every share below the first level threshold"),
-        Catalog->Get().Progression.XPThresholds.Num() >= 2 && SharedXP > 0 && SharedXP < Catalog->Get().Progression.XPThresholds[1]))
-    { return false; }
+    const int64 KillerXP = Base.XP;
+    const int64 AssistXP = Base.XP / 2;
 
     const FLDCommittedDeath Assisted = ContenderDeath(1, {A1, A2});
     FLDRewardReceipt Receipt;
     if (!Settle(Assisted, Receipt)) { return false; }
     TestTrue(TEXT("The assisted kill is granted once"), Receipt.Outcome == ELDRewardOutcome::Granted && Receipt.Recipient == Killer);
-    TestTrue(TEXT("Killer and assisters split the XP evenly, floored"),
-        XP(Killer) == SharedXP && XP(A1) == SharedXP && XP(A2) == SharedXP && XP(Victim) == 0);
+    TestTrue(TEXT("Killer receives 100% XP + 1 PvP offer; each assister receives 50% XP + 1 stat point"),
+        XP(Killer) == KillerXP && XP(A1) == AssistXP && XP(A2) == AssistXP && XP(Victim) == 0
+        && Development->FindProgression(Killer)->PvPKillOffersInSegment[0] == 1
+        && Development->FindBuild(A1)->AwardedPoints == 1 && Development->FindBuild(A2)->AwardedPoints == 1);
     TestTrue(TEXT("The receipt lists both assisters with their parts in fact order"),
         Receipt.Assists.Num() == 2 && Receipt.Assists[0].Recipient == A1 && Receipt.Assists[1].Recipient == A2
-        && Receipt.Assists[0].XPDelta == SharedXP && Receipt.Assists[1].XPDelta == SharedXP && Receipt.XPDelta == SharedXP);
+        && Receipt.Assists[0].XPDelta == AssistXP && Receipt.Assists[1].XPDelta == AssistXP && Receipt.XPDelta == KillerXP);
     TestTrue(TEXT("The receipt names the killer's committed progression revision"), Receipt.Revisions.bHasProgression
         && Receipt.Revisions.ProgressionRevision == Development->FindProgression(Killer)->Revision);
 
     FLDRewardReceipt Replay;
     if (!Settle(Assisted, Replay)) { return false; }
     TestTrue(TEXT("The same death settles only once: a replay returns the original receipt and pays nothing"),
-        Replay.Outcome == ELDRewardOutcome::Granted && Replay.Assists.Num() == 2 && XP(Killer) == SharedXP && XP(A1) == SharedXP
-        && XP(A2) == SharedXP);
+        Replay.Outcome == ELDRewardOutcome::Granted && Replay.Assists.Num() == 2 && XP(Killer) == KillerXP && XP(A1) == AssistXP
+        && XP(A2) == AssistXP);
     FLDRewardReceipt Conflict;
     if (!Settle(ContenderDeath(1, {A1}), Conflict)) { return false; }
     GrowthTestReason(*this, TEXT("Another assister set under the same death key conflicts"), Conflict.Reason, ELDGrowthReason::DeathConflict);
@@ -3155,9 +3155,10 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
         && Three.QueuedActiveOpportunities == 1 && Three.bHasActiveOffer && Three.ActiveOffer.OpportunityOrdinal == 2
         && Three.ActiveOffer.Options.Num() == 3 && GrowthTestDistinct(Three.ActiveOffer.Options)
         && !Three.ActiveOffer.Options.Contains(First) && Three.UnspentPoints == 6);
-    TestTrue(TEXT("Levels 2 and 3 each queue a level-up card offer; the head is drawn at once"),
+    TestTrue(TEXT("Levels 2 and 3 queue a level-up card offer (plus an optional odd-level medal); the head is drawn at once"),
         Three.bHasCardOffer && Three.CardOffer.Source == ELDCardOfferSource::LevelUp && Three.CardOffer.Ordinal == 2
-        && Three.CardOffer.Options.Num() == 3 && Three.Cards.Num() == 1);
+        && Three.CardOffer.Options.Num() == 3
+        && (Three.Cards.Num() == 1 || (Three.Cards.Num() == 2 && !Three.Cards[1].IsInstalled())) && Three.Cards[0].Serial == 1);
     // #222: the field moves cards too; Combat follows each commit.
     FLDBuildCommand FieldOffCommand = Base(Tester, ELDBuildCommandKind::UninstallCard);
     FieldOffCommand.CardSerial = 1;
@@ -3412,13 +3413,32 @@ bool FLDGrowthCardsOfferTest::RunTest(const FString& Parameters)
         Shared += Card && (Card->VocabMask & Vocab) != 0;
         ++Total;
     }
-    int32 SharedDefinitions = 0;
-    for (const FLDDemoCardDefinition& Row : Content.Cards) { SharedDefinitions += (Row.VocabMask & Vocab) != 0; }
-    // A first pick shares the vocabulary with probability 2S / (2S + U); without weighting it would be S / (S + U).
-    const double Weighted = 2. * SharedDefinitions / (2. * SharedDefinitions + (Content.Cards.Num() - SharedDefinitions));
-    const double Plain = double(SharedDefinitions) / Content.Cards.Num();
-    bGood &= TestTrue(FString::Printf(TEXT("Vocabulary-sharing cards are drawn first about twice as often (%d of %d; weighted %.2f, plain %.2f)"),
+    double SharedBaseWeight = 0., UnsharedBaseWeight = 0.;
+    for (const FLDDemoCardDefinition& Row : Content.Cards)
+    {
+        if (!LDProgression::HasValidSkillHost(Content, Build, FName(*Row.Id))) { continue; }
+        const double Base = double(FMath::Max(1, Row.DropWeight));
+        if ((Row.VocabMask & Vocab) != 0) { SharedBaseWeight += Base; }
+        else { UnsharedBaseWeight += Base; }
+    }
+    const double Weighted = 2. * SharedBaseWeight / (2. * SharedBaseWeight + UnsharedBaseWeight);
+    const double Plain = SharedBaseWeight / (SharedBaseWeight + UnsharedBaseWeight);
+    bGood &= TestTrue(FString::Printf(TEXT("Vocabulary-sharing cards are drawn first about twice as often over rarity weights (%d of %d; weighted %.2f, plain %.2f)"),
         Shared, Total, Weighted, Plain), Vocab != 0 && double(Shared) / Total > (Plain + Weighted) / 2.);
+    // A build with no area skill never draws an area-only skill card in level-up offers.
+    {
+        FLDGrowthBuild SingleTarget = LDProgression::StartBuild(Content);
+        SingleTarget.Actives.Add({FName(TEXT("active_elbow")), 0});
+        LDProgression::NormalizeBuild(SingleTarget);
+        bool bDrewAreaCard = false;
+        for (uint64 Seed = 1; Seed <= 250; ++Seed)
+        {
+            TArray<FName> Filtered;
+            LDProgression::DrawCardOffer(Content, SingleTarget, 3, Seed, Filtered);
+            bDrewAreaCard |= Filtered.Contains(FName(TEXT("card_crowd_hit")));
+        }
+        bGood &= TestFalse(TEXT("Host-incompatible skill cards are zero-weighted out of level-up offers"), bDrewAreaCard);
+    }
     // The opening offer waits for the opening opportunity, then the head is drawn once.
     FLDProgressionState Waiting = Queued(Content, 1);
     Waiting.Records.Reset();

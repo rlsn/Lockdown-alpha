@@ -178,6 +178,8 @@ bool ULDCharacterMovementComponent::MoveUpdatedComponentImpl(const FVector& Delt
     { StepMove=++NativeCapture->StepDirectMoves; }
     // #97: bodies block each other, but a dash runs through them (its path slow hits the bodies it crosses); the capsule
     // ignores other bodies only for the dash's own sweeps, so everyone else still bumps into the dashing body.
+    // Issue #329 §4.1: innate dashes without card_pass_through clamp their root-motion distance to 135cm before an engaged
+    // enemy in the 220cm +-30deg forward cone (LDCombatPreInput::ClampInnateDashDistance), while keeping sweep pass-through.
     // #198 F: a forced push (knockback) is blocked by bodies; C02 reads its first real block.
     const bool bPushing=IsDashing()&&bKnockbackMotion;
     const bool bGhost=GetWorld() && GetWorld()->GetTimeSeconds()<BodyPassThroughUntilSeconds;

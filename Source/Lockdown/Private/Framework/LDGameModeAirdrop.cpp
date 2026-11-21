@@ -38,6 +38,11 @@ bool ALDGameMode::AdvanceAirdrop(const FLDGameplayWritePermit& Permit, FString& 
     return true;
 }
 
+void ALDGameMode::SpawnCampRecoveryOrb(const FVector& FootCm, int64 FieldMs)
+{
+    CampRecoveryOrbs.Add({FootCm, FieldMs + 12000, ++NextCampOrbSerial});
+}
+
 bool ALDGameMode::ClaimAirdrop(const FLDGameplayWritePermit& Permit, FString& Error)
 {
     if (ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None || !Airdrop.IsActive()
@@ -46,8 +51,38 @@ bool ALDGameMode::ClaimAirdrop(const FLDGameplayWritePermit& Permit, FString& Er
         Error = TEXT("The airdrop claim requires the current Transactions permit, an active schedule, Combat and the growth domain.");
         return false;
     }
-    if (!IsFieldRunning() || Airdrop.Phase != ELDAirdropPhase::Landed) { return true; }
+    if (!IsFieldRunning()) { return true; }
     const int64 NowMs = Timeline.FieldMsAt(Permit.GetBoundary().AtMs);
+    if (!CampRecoveryOrbs.IsEmpty())
+    {
+        CampRecoveryOrbs.RemoveAll([NowMs](const FLDCampRecoveryOrb& Orb) { return NowMs >= Orb.ExpiresFieldMs; });
+        if (!CampRecoveryOrbs.IsEmpty())
+        {
+            TArray<LDAirdrop::FCandidate> OrbCandidates;
+            Combat->ReadLivingContenderFeet(OrbCandidates);
+            for (int32 Index = 0; Index < CampRecoveryOrbs.Num();)
+            {
+                const FLDCampRecoveryOrb Orb = CampRecoveryOrbs[Index];
+                FGuid OrbClaimer;
+                if (!LDAirdrop::PickClaimer(Orb.FootCm, 90.0, OrbCandidates, 0xCA4902B0ull + Orb.Serial, OrbClaimer))
+                {
+                    ++Index;
+                    continue;
+                }
+                bool bOrbApplied = false;
+                if (!Combat->ApplyCampRecoveryOrb(OrbClaimer, Permit, bOrbApplied, Error)) { return false; }
+                if (!bOrbApplied)
+                {
+                    ++Index;
+                    continue;
+                }
+                UE_LOG(LogLDWorld, Display, TEXT("LD_CAMP_ORB_CLAIM serial=%llu contender=%s field_t_ms=%lld"),
+                    Orb.Serial, *LDLog::Id(OrbClaimer), NowMs);
+                CampRecoveryOrbs.RemoveAt(Index, EAllowShrinking::No);
+            }
+        }
+    }
+    if (Airdrop.Phase != ELDAirdropPhase::Landed) { return true; }
     const LDAirdrop::FPoint* Point = Airdrop.CurrentPoint();
     TArray<LDAirdrop::FCandidate> Candidates;
     Combat->ReadLivingContenderFeet(Candidates);

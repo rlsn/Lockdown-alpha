@@ -208,6 +208,7 @@ public:
     // DeathsAndRewards (camp owner, after the death that cleared CampId at field progress FieldMs): the first clear of a
     // revealed marker's camp gives its credit owner the marker reward once. Without an eligible contender owner it stays open.
     bool ConsumeCampClear(FName CampId, const FGuid& ClearOwner, int64 FieldMs, const FLDGameplayWritePermit& Permit, FString& Error);
+    void SpawnCampRecoveryOrb(const FVector& FootCm, int64 FieldMs);
     // DeathsAndRewards or Transactions: pays one map event reward (#198 G) through the growth composite. A retryable
     // refusal stays owed and is retried at each later Transactions boundary; any other refusal is an authority fault.
     // MedalChanceBp > 0 adds an element medal chance (seeded by MedalKey) that rolls only once the reward commits, so a
@@ -602,10 +603,20 @@ private:
     // The authority instant the match started (R0 begins); the result duration and the public clock count from here.
     // Field-progress timers (camp growth/refresh, Boss, airdrop, leader notice, field respawn waits) use T instead.
     int64 MatchStartedAtMs = 0;
+    struct FLDCampRecoveryOrb
+    {
+        FVector FootCm = FVector::ZeroVector;
+        int64 ExpiresFieldMs = 0;
+        uint64 Serial = 0;
+    };
+    TArray<FLDCampRecoveryOrb> CampRecoveryOrbs;
+    uint64 NextCampOrbSerial = 0;
     FLDShowdownView Showdown;
     FLDShowdownRing ShowdownRing;
     FLDShowdownParameters ShowdownRules;
     TMap<FGuid, int32> ShowdownRespawns;
+    TMap<FGuid, int32> ShowdownKills;
+    TMap<FGuid, int64> ShowdownDamageP2;
     struct FLDShowdownBurn
     {
         uint32 Life = 0;

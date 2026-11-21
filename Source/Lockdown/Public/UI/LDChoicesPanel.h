@@ -43,12 +43,13 @@ public:
     // stage, LDProgression::StageForPublic) and the life phase judge what the server would refuse, for the disabled reasons.
     // Keys: the key the HUD shows for each Q/W/E slot; every line that names a slot uses it.
     void Present(const FLDProgressionView& View,uint32 Match,uint32 Life,ELDLifePhase LifePhase,LDProgression::EMatchStage Stage,
-        const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats,const LDHUD::FSlotKeys& Keys);
+        const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats,const LDHUD::FSlotKeys& Keys,bool bDormSwapReady=false);
     void HandleSubmit(const FLDSubmitResult& Result);
     void HandleReceipt(const FLDBuildReceiptQueryResult& Result);
     // In a rest's build window the open workshop shows the rest rebuilds (respec, replace, forget) on the objects they act on;
     // the owning authority still admits every command.
     bool IsServiceShown() const;
+    bool IsBlueprintSwapShown() const;
     // Where the workshop puts the build moments and the services (absolute rectangles from its last layout).
     struct FWorkshopPlaces
     {

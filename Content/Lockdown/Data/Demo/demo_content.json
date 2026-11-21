@@ -76,7 +76,8 @@
             }
           },
           "vocab": [
-            "control"
+            "control",
+            "range"
           ],
           "windup": {
             "ms": 250,
@@ -139,7 +140,8 @@
             "mode": "Self"
           },
           "vocab": [
-            "control"
+            "control",
+            "area"
           ],
           "windup": {
             "ms": 250,
@@ -225,7 +227,8 @@
           },
           "vocab": [
             "element",
-            "control"
+            "control",
+            "range"
           ],
           "windup": {
             "ms": 250,
@@ -322,7 +325,8 @@
             }
           },
           "vocab": [
-            "control"
+            "control",
+            "range"
           ],
           "windup": {
             "ms": 250,
@@ -397,7 +401,8 @@
             "mode": "Self"
           },
           "vocab": [
-            "control"
+            "control",
+            "area"
           ],
           "windup": {
             "ms": 250,
@@ -468,7 +473,8 @@
             "mode": "Self"
           },
           "vocab": [
-            "control"
+            "control",
+            "area"
           ],
           "windup": {
             "ms": 250,
@@ -530,7 +536,8 @@
         }
       },
       "vocab": [
-        "control"
+        "control",
+        "range"
       ],
       "windup": {
         "ms": 250,
@@ -565,11 +572,11 @@
             },
             {
               "ad_ratio": {
-                "bp": 5000,
+                "bp": 6500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3000,
+                "bp": 3500,
                 "unit": "ratio"
               },
               "base": {
@@ -639,11 +646,11 @@
             },
             {
               "ad_ratio": {
-                "bp": 5000,
+                "bp": 6500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3000,
+                "bp": 3500,
                 "unit": "ratio"
               },
               "base": {
@@ -733,11 +740,11 @@
             },
             {
               "ad_ratio": {
-                "bp": 5000,
+                "bp": 6500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3000,
+                "bp": 3500,
                 "unit": "ratio"
               },
               "base": {
@@ -820,11 +827,11 @@
             },
             {
               "ad_ratio": {
-                "bp": 5000,
+                "bp": 6500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3000,
+                "bp": 3500,
                 "unit": "ratio"
               },
               "base": {
@@ -898,11 +905,11 @@
             },
             {
               "ad_ratio": {
-                "bp": 5000,
+                "bp": 6500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3000,
+                "bp": 3500,
                 "unit": "ratio"
               },
               "base": {
@@ -996,11 +1003,11 @@
             },
             {
               "ad_ratio": {
-                "bp": 5000,
+                "bp": 6500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3000,
+                "bp": 3500,
                 "unit": "ratio"
               },
               "base": {
@@ -1092,11 +1099,11 @@
         },
         {
           "ad_ratio": {
-            "bp": 5000,
+            "bp": 6500,
             "unit": "ratio"
           },
           "ap_ratio": {
-            "bp": 3000,
+            "bp": 3500,
             "unit": "ratio"
           },
           "base": {
@@ -1168,11 +1175,11 @@
             },
             {
               "ad_ratio": {
-                "bp": 2800,
+                "bp": 3850,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 2450,
                 "unit": "ratio"
               },
               "base": {
@@ -1246,11 +1253,11 @@
             },
             {
               "ad_ratio": {
-                "bp": 4000,
+                "bp": 5500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 3500,
                 "unit": "ratio"
               },
               "base": {
@@ -1306,11 +1313,11 @@
             },
             {
               "ad_ratio": {
-                "bp": 2800,
+                "bp": 3850,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 2450,
                 "unit": "ratio"
               },
               "base": {
@@ -1384,11 +1391,11 @@
             },
             {
               "ad_ratio": {
-                "bp": 2800,
+                "bp": 3850,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 2450,
                 "unit": "ratio"
               },
               "base": {
@@ -1479,11 +1486,11 @@
             },
             {
               "ad_ratio": {
-                "bp": 4000,
+                "bp": 5500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 3500,
                 "unit": "ratio"
               },
               "base": {
@@ -1505,11 +1512,11 @@
             },
             {
               "ad_ratio": {
-                "bp": 4000,
+                "bp": 5500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 3500,
                 "unit": "ratio"
               },
               "base": {
@@ -1570,11 +1577,11 @@
             },
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 8250,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 5250,
                 "unit": "ratio"
               },
               "base": {
@@ -1632,11 +1639,11 @@
         },
         {
           "ad_ratio": {
-            "bp": 4000,
+            "bp": 5500,
             "unit": "ratio"
           },
           "ap_ratio": {
-            "bp": 0,
+            "bp": 3500,
             "unit": "ratio"
           },
           "base": {
@@ -2152,8 +2159,12 @@
                 "bp": 0,
                 "unit": "ratio"
               },
+              "adaptive_ratio": {
+                "bp": 8500,
+                "unit": "ratio"
+              },
               "ap_ratio": {
-                "bp": 10000,
+                "bp": 0,
                 "unit": "ratio"
               },
               "base": {
@@ -2201,7 +2212,8 @@
             }
           },
           "vocab": [
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 250,
@@ -2241,8 +2253,12 @@
                 "bp": 0,
                 "unit": "ratio"
               },
+              "adaptive_ratio": {
+                "bp": 11900,
+                "unit": "ratio"
+              },
               "ap_ratio": {
-                "bp": 14000,
+                "bp": 0,
                 "unit": "ratio"
               },
               "base": {
@@ -2274,7 +2290,8 @@
             }
           },
           "vocab": [
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 250,
@@ -2314,8 +2331,12 @@
                 "bp": 0,
                 "unit": "ratio"
               },
+              "adaptive_ratio": {
+                "bp": 8500,
+                "unit": "ratio"
+              },
               "ap_ratio": {
-                "bp": 10000,
+                "bp": 0,
                 "unit": "ratio"
               },
               "base": {
@@ -2367,7 +2388,8 @@
             }
           },
           "vocab": [
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 250,
@@ -2407,8 +2429,12 @@
                 "bp": 0,
                 "unit": "ratio"
               },
+              "adaptive_ratio": {
+                "bp": 8500,
+                "unit": "ratio"
+              },
               "ap_ratio": {
-                "bp": 10000,
+                "bp": 0,
                 "unit": "ratio"
               },
               "base": {
@@ -2457,7 +2483,8 @@
             }
           },
           "vocab": [
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 250,
@@ -2501,8 +2528,12 @@
                 "bp": 0,
                 "unit": "ratio"
               },
+              "adaptive_ratio": {
+                "bp": 11900,
+                "unit": "ratio"
+              },
               "ap_ratio": {
-                "bp": 14000,
+                "bp": 0,
                 "unit": "ratio"
               },
               "base": {
@@ -2534,7 +2565,8 @@
             }
           },
           "vocab": [
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 250,
@@ -2574,8 +2606,12 @@
                 "bp": 0,
                 "unit": "ratio"
               },
+              "adaptive_ratio": {
+                "bp": 11900,
+                "unit": "ratio"
+              },
               "ap_ratio": {
-                "bp": 14000,
+                "bp": 0,
                 "unit": "ratio"
               },
               "base": {
@@ -2616,7 +2652,8 @@
             }
           },
           "vocab": [
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 250,
@@ -2657,8 +2694,12 @@
             "bp": 0,
             "unit": "ratio"
           },
+          "adaptive_ratio": {
+            "bp": 8500,
+            "unit": "ratio"
+          },
           "ap_ratio": {
-            "bp": 10000,
+            "bp": 0,
             "unit": "ratio"
           },
           "base": {
@@ -2692,7 +2733,8 @@
         }
       },
       "vocab": [
-        "ground"
+        "ground",
+        "area"
       ],
       "windup": {
         "ms": 250,
@@ -2721,6 +2763,10 @@
               "opcode": 8
             },
             {
+              "ad_ratio": {
+                "bp": 5600,
+                "unit": "ratio"
+              },
               "ap_ratio": {
                 "bp": 0,
                 "unit": "ratio"
@@ -2747,15 +2793,15 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 5000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3500,
+                "bp": 4500,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 4000,
+                "p2": 6500,
                 "unit": "points"
               },
               "damage_type": "Magical",
@@ -2812,6 +2858,10 @@
               "opcode": 8
             },
             {
+              "ad_ratio": {
+                "bp": 3500,
+                "unit": "ratio"
+              },
               "ap_ratio": {
                 "bp": 0,
                 "unit": "ratio"
@@ -2838,15 +2888,15 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 6500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 4550,
+                "bp": 5850,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 5200,
+                "p2": 8450,
                 "unit": "points"
               },
               "damage_type": "Magical",
@@ -2903,6 +2953,10 @@
               "opcode": 8
             },
             {
+              "ad_ratio": {
+                "bp": 5600,
+                "unit": "ratio"
+              },
               "ap_ratio": {
                 "bp": 0,
                 "unit": "ratio"
@@ -2929,15 +2983,15 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 5000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3500,
+                "bp": 4500,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 4000,
+                "p2": 6500,
                 "unit": "points"
               },
               "damage_type": "Magical",
@@ -3011,6 +3065,10 @@
               "opcode": 8
             },
             {
+              "ad_ratio": {
+                "bp": 5600,
+                "unit": "ratio"
+              },
               "ap_ratio": {
                 "bp": 0,
                 "unit": "ratio"
@@ -3037,15 +3095,15 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 5000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 3500,
+                "bp": 4500,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 4000,
+                "p2": 6500,
                 "unit": "points"
               },
               "damage_type": "Magical",
@@ -3111,6 +3169,10 @@
               "opcode": 8
             },
             {
+              "ad_ratio": {
+                "bp": 3500,
+                "unit": "ratio"
+              },
               "ap_ratio": {
                 "bp": 0,
                 "unit": "ratio"
@@ -3137,15 +3199,15 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 6500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 4550,
+                "bp": 5850,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 5200,
+                "p2": 8450,
                 "unit": "points"
               },
               "damage_type": "Magical",
@@ -3210,6 +3272,10 @@
               "opcode": 8
             },
             {
+              "ad_ratio": {
+                "bp": 3500,
+                "unit": "ratio"
+              },
               "ap_ratio": {
                 "bp": 0,
                 "unit": "ratio"
@@ -3236,15 +3302,15 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 6500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 4550,
+                "bp": 5850,
                 "unit": "ratio"
               },
               "base": {
-                "p2": 5200,
+                "p2": 8450,
                 "unit": "points"
               },
               "damage_type": "Magical",
@@ -3319,6 +3385,10 @@
           "opcode": 8
         },
         {
+          "ad_ratio": {
+            "bp": 3500,
+            "unit": "ratio"
+          },
           "ap_ratio": {
             "bp": 0,
             "unit": "ratio"
@@ -3345,15 +3415,15 @@
         },
         {
           "ad_ratio": {
-            "bp": 0,
+            "bp": 5000,
             "unit": "ratio"
           },
           "ap_ratio": {
-            "bp": 3500,
+            "bp": 4500,
             "unit": "ratio"
           },
           "base": {
-            "p2": 4000,
+            "p2": 6500,
             "unit": "points"
           },
           "damage_type": "Magical",
@@ -3480,7 +3550,8 @@
           "vocab": [
             "element",
             "knockback",
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 150,
@@ -3563,7 +3634,8 @@
           },
           "vocab": [
             "element",
-            "knockback"
+            "knockback",
+            "area"
           ],
           "windup": {
             "ms": 150,
@@ -3660,7 +3732,8 @@
           "vocab": [
             "element",
             "knockback",
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 150,
@@ -3753,7 +3826,8 @@
           "vocab": [
             "element",
             "knockback",
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 150,
@@ -3840,7 +3914,8 @@
           },
           "vocab": [
             "element",
-            "knockback"
+            "knockback",
+            "area"
           ],
           "windup": {
             "ms": 150,
@@ -3931,7 +4006,8 @@
           },
           "vocab": [
             "element",
-            "knockback"
+            "knockback",
+            "area"
           ],
           "windup": {
             "ms": 150,
@@ -4017,7 +4093,8 @@
       },
       "vocab": [
         "element",
-        "knockback"
+        "knockback",
+        "area"
       ],
       "windup": {
         "ms": 150,
@@ -4034,11 +4111,11 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 7000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 3500,
                 "unit": "ratio"
               },
               "base": {
@@ -4078,7 +4155,8 @@
             }
           },
           "vocab": [
-            "control"
+            "control",
+            "range"
           ],
           "windup": {
             "ms": 200,
@@ -4093,11 +4171,11 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 7000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 3500,
                 "unit": "ratio"
               },
               "base": {
@@ -4150,7 +4228,8 @@
             }
           },
           "vocab": [
-            "control"
+            "control",
+            "range"
           ],
           "windup": {
             "ms": 200,
@@ -4165,11 +4244,11 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 7000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 3500,
                 "unit": "ratio"
               },
               "base": {
@@ -4231,7 +4310,8 @@
             }
           },
           "vocab": [
-            "control"
+            "control",
+            "range"
           ],
           "windup": {
             "ms": 200,
@@ -4246,11 +4326,11 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 7000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 3500,
                 "unit": "ratio"
               },
               "base": {
@@ -4303,7 +4383,8 @@
             }
           },
           "vocab": [
-            "control"
+            "control",
+            "range"
           ],
           "windup": {
             "ms": 200,
@@ -4318,11 +4399,11 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 7000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 3500,
                 "unit": "ratio"
               },
               "base": {
@@ -4376,7 +4457,8 @@
             }
           },
           "vocab": [
-            "control"
+            "control",
+            "range"
           ],
           "windup": {
             "ms": 200,
@@ -4391,11 +4473,11 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 7000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 3500,
                 "unit": "ratio"
               },
               "base": {
@@ -4462,7 +4544,8 @@
             }
           },
           "vocab": [
-            "control"
+            "control",
+            "range"
           ],
           "windup": {
             "ms": 200,
@@ -4478,11 +4561,11 @@
       "effects": [
         {
           "ad_ratio": {
-            "bp": 6000,
+            "bp": 7000,
             "unit": "ratio"
           },
           "ap_ratio": {
-            "bp": 0,
+            "bp": 3500,
             "unit": "ratio"
           },
           "base": {
@@ -4524,7 +4607,8 @@
         }
       },
       "vocab": [
-        "control"
+        "control",
+        "range"
       ],
       "windup": {
         "ms": 200,
@@ -4583,7 +4667,8 @@
             }
           },
           "vocab": [
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 200,
@@ -4645,7 +4730,8 @@
             }
           },
           "vocab": [
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 200,
@@ -4706,7 +4792,8 @@
             }
           },
           "vocab": [
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 200,
@@ -4764,7 +4851,8 @@
             }
           },
           "vocab": [
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 200,
@@ -4830,7 +4918,8 @@
             }
           },
           "vocab": [
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 200,
@@ -4892,7 +4981,8 @@
             }
           },
           "vocab": [
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 200,
@@ -4952,7 +5042,8 @@
         }
       },
       "vocab": [
-        "ground"
+        "ground",
+        "area"
       ],
       "windup": {
         "ms": 200,
@@ -5044,7 +5135,8 @@
           },
           "vocab": [
             "element",
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 250,
@@ -5136,7 +5228,8 @@
           "vocab": [
             "element",
             "knockback",
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 250,
@@ -5242,7 +5335,8 @@
           },
           "vocab": [
             "element",
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 250,
@@ -5340,7 +5434,8 @@
           },
           "vocab": [
             "element",
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 250,
@@ -5436,7 +5531,8 @@
           "vocab": [
             "element",
             "knockback",
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 250,
@@ -5532,7 +5628,8 @@
           "vocab": [
             "element",
             "knockback",
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 250,
@@ -5617,7 +5714,8 @@
       },
       "vocab": [
         "element",
-        "ground"
+        "ground",
+        "area"
       ],
       "windup": {
         "ms": 250,
@@ -5634,11 +5732,11 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 7500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 3500,
                 "unit": "ratio"
               },
               "base": {
@@ -5701,7 +5799,8 @@
             }
           },
           "vocab": [
-            "knockback"
+            "knockback",
+            "range"
           ],
           "windup": {
             "ms": 150,
@@ -5716,11 +5815,11 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 7500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 3500,
                 "unit": "ratio"
               },
               "base": {
@@ -5765,7 +5864,8 @@
             }
           },
           "vocab": [
-            "knockback"
+            "knockback",
+            "range"
           ],
           "windup": {
             "ms": 150,
@@ -5780,11 +5880,11 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 7500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 3500,
                 "unit": "ratio"
               },
               "base": {
@@ -5859,7 +5959,8 @@
             }
           },
           "vocab": [
-            "knockback"
+            "knockback",
+            "range"
           ],
           "windup": {
             "ms": 150,
@@ -5874,11 +5975,11 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 7500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 3500,
                 "unit": "ratio"
               },
               "base": {
@@ -5946,7 +6047,8 @@
           },
           "vocab": [
             "element",
-            "knockback"
+            "knockback",
+            "range"
           ],
           "windup": {
             "ms": 150,
@@ -5961,11 +6063,11 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 7500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 3500,
                 "unit": "ratio"
               },
               "base": {
@@ -6014,7 +6116,8 @@
             }
           },
           "vocab": [
-            "knockback"
+            "knockback",
+            "range"
           ],
           "windup": {
             "ms": 150,
@@ -6029,11 +6132,11 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 6000,
+                "bp": 7500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 3500,
                 "unit": "ratio"
               },
               "base": {
@@ -6091,7 +6194,8 @@
             }
           },
           "vocab": [
-            "knockback"
+            "knockback",
+            "range"
           ],
           "windup": {
             "ms": 150,
@@ -6107,11 +6211,11 @@
       "effects": [
         {
           "ad_ratio": {
-            "bp": 6000,
+            "bp": 7500,
             "unit": "ratio"
           },
           "ap_ratio": {
-            "bp": 0,
+            "bp": 3500,
             "unit": "ratio"
           },
           "base": {
@@ -6158,7 +6262,8 @@
         }
       },
       "vocab": [
-        "knockback"
+        "knockback",
+        "range"
       ],
       "windup": {
         "ms": 150,
@@ -6246,7 +6351,8 @@
             }
           },
           "vocab": [
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 150,
@@ -6331,7 +6437,8 @@
             }
           },
           "vocab": [
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 150,
@@ -6430,7 +6537,8 @@
             }
           },
           "vocab": [
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 150,
@@ -6521,7 +6629,8 @@
           },
           "vocab": [
             "element",
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 150,
@@ -6620,7 +6729,8 @@
           },
           "vocab": [
             "knockback",
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 150,
@@ -6702,7 +6812,8 @@
           },
           "vocab": [
             "control",
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 150,
@@ -6790,7 +6901,8 @@
         }
       },
       "vocab": [
-        "ground"
+        "ground",
+        "area"
       ],
       "windup": {
         "ms": 150,
@@ -6884,7 +6996,8 @@
           },
           "vocab": [
             "element",
-            "knockback"
+            "knockback",
+            "area"
           ],
           "windup": {
             "ms": 200,
@@ -6958,7 +7071,8 @@
           },
           "vocab": [
             "element",
-            "knockback"
+            "knockback",
+            "area"
           ],
           "windup": {
             "ms": 200,
@@ -7063,7 +7177,8 @@
           },
           "vocab": [
             "element",
-            "knockback"
+            "knockback",
+            "area"
           ],
           "windup": {
             "ms": 200,
@@ -7159,7 +7274,8 @@
           },
           "vocab": [
             "element",
-            "knockback"
+            "knockback",
+            "area"
           ],
           "windup": {
             "ms": 200,
@@ -7237,7 +7353,8 @@
           },
           "vocab": [
             "element",
-            "knockback"
+            "knockback",
+            "area"
           ],
           "windup": {
             "ms": 200,
@@ -7319,7 +7436,8 @@
           },
           "vocab": [
             "element",
-            "knockback"
+            "knockback",
+            "area"
           ],
           "windup": {
             "ms": 200,
@@ -7396,7 +7514,8 @@
       },
       "vocab": [
         "element",
-        "knockback"
+        "knockback",
+        "area"
       ],
       "windup": {
         "ms": 200,
@@ -7412,6 +7531,10 @@
           },
           "effects": [
             {
+              "ad_ratio": {
+                "bp": 6000,
+                "unit": "ratio"
+              },
               "ap_ratio": {
                 "bp": 9000,
                 "unit": "ratio"
@@ -7465,6 +7588,10 @@
           },
           "effects": [
             {
+              "ad_ratio": {
+                "bp": 2400,
+                "unit": "ratio"
+              },
               "ap_ratio": {
                 "bp": 3600,
                 "unit": "ratio"
@@ -7548,7 +7675,8 @@
           },
           "vocab": [
             "knockback",
-            "shield"
+            "shield",
+            "area"
           ],
           "windup": {
             "ms": 0,
@@ -7562,6 +7690,10 @@
           },
           "effects": [
             {
+              "ad_ratio": {
+                "bp": 6000,
+                "unit": "ratio"
+              },
               "ap_ratio": {
                 "bp": 9000,
                 "unit": "ratio"
@@ -7623,6 +7755,10 @@
           },
           "effects": [
             {
+              "ad_ratio": {
+                "bp": 6000,
+                "unit": "ratio"
+              },
               "ap_ratio": {
                 "bp": 9000,
                 "unit": "ratio"
@@ -7684,6 +7820,10 @@
           },
           "effects": [
             {
+              "ad_ratio": {
+                "bp": 2400,
+                "unit": "ratio"
+              },
               "ap_ratio": {
                 "bp": 3600,
                 "unit": "ratio"
@@ -7775,7 +7915,8 @@
           },
           "vocab": [
             "knockback",
-            "shield"
+            "shield",
+            "area"
           ],
           "windup": {
             "ms": 0,
@@ -7789,6 +7930,10 @@
           },
           "effects": [
             {
+              "ad_ratio": {
+                "bp": 2400,
+                "unit": "ratio"
+              },
               "ap_ratio": {
                 "bp": 3600,
                 "unit": "ratio"
@@ -7880,7 +8025,8 @@
           },
           "vocab": [
             "knockback",
-            "shield"
+            "shield",
+            "area"
           ],
           "windup": {
             "ms": 0,
@@ -7895,6 +8041,10 @@
       "cooldown_family": "cd_not_mad",
       "effects": [
         {
+          "ad_ratio": {
+            "bp": 4000,
+            "unit": "ratio"
+          },
           "ap_ratio": {
             "bp": 6000,
             "unit": "ratio"
@@ -7970,11 +8120,11 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 2625,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 2250,
+                "bp": 1875,
                 "unit": "ratio"
               },
               "base": {
@@ -8024,7 +8174,8 @@
             }
           },
           "vocab": [
-            "knockback"
+            "knockback",
+            "area"
           ],
           "windup": {
             "ms": 200,
@@ -8056,11 +8207,11 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 7700,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 6600,
+                "bp": 5500,
                 "unit": "ratio"
               },
               "base": {
@@ -8110,7 +8261,8 @@
             }
           },
           "vocab": [
-            "knockback"
+            "knockback",
+            "area"
           ],
           "windup": {
             "ms": 200,
@@ -8142,11 +8294,11 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 2625,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 2250,
+                "bp": 1875,
                 "unit": "ratio"
               },
               "base": {
@@ -8204,7 +8356,8 @@
             }
           },
           "vocab": [
-            "knockback"
+            "knockback",
+            "area"
           ],
           "windup": {
             "ms": 200,
@@ -8237,11 +8390,11 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 2625,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 2250,
+                "bp": 1875,
                 "unit": "ratio"
               },
               "base": {
@@ -8291,7 +8444,8 @@
             }
           },
           "vocab": [
-            "knockback"
+            "knockback",
+            "area"
           ],
           "windup": {
             "ms": 200,
@@ -8323,11 +8477,11 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 7700,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 6600,
+                "bp": 5500,
                 "unit": "ratio"
               },
               "base": {
@@ -8394,7 +8548,8 @@
             }
           },
           "vocab": [
-            "knockback"
+            "knockback",
+            "area"
           ],
           "windup": {
             "ms": 200,
@@ -8426,11 +8581,11 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 7700,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 6600,
+                "bp": 5500,
                 "unit": "ratio"
               },
               "base": {
@@ -8489,7 +8644,8 @@
           },
           "vocab": [
             "knockback",
-            "control"
+            "control",
+            "area"
           ],
           "windup": {
             "ms": 200,
@@ -8522,11 +8678,11 @@
         },
         {
           "ad_ratio": {
-            "bp": 0,
+            "bp": 3500,
             "unit": "ratio"
           },
           "ap_ratio": {
-            "bp": 3000,
+            "bp": 2500,
             "unit": "ratio"
           },
           "base": {
@@ -8578,7 +8734,8 @@
         }
       },
       "vocab": [
-        "knockback"
+        "knockback",
+        "area"
       ],
       "windup": {
         "ms": 200,
@@ -8595,11 +8752,11 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 4000,
+                "bp": 5500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 3500,
                 "unit": "ratio"
               },
               "base": {
@@ -8639,7 +8796,8 @@
             }
           },
           "vocab": [
-            "control"
+            "control",
+            "range"
           ],
           "windup": {
             "ms": 200,
@@ -8654,11 +8812,11 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 4000,
+                "bp": 5500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 3500,
                 "unit": "ratio"
               },
               "base": {
@@ -8715,7 +8873,8 @@
             }
           },
           "vocab": [
-            "control"
+            "control",
+            "range"
           ],
           "windup": {
             "ms": 200,
@@ -8730,11 +8889,11 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 4000,
+                "bp": 5500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 3500,
                 "unit": "ratio"
               },
               "base": {
@@ -8788,7 +8947,8 @@
             }
           },
           "vocab": [
-            "control"
+            "control",
+            "range"
           ],
           "windup": {
             "ms": 200,
@@ -8803,11 +8963,11 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 4000,
+                "bp": 5500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 3500,
                 "unit": "ratio"
               },
               "base": {
@@ -8861,7 +9021,8 @@
             }
           },
           "vocab": [
-            "control"
+            "control",
+            "range"
           ],
           "windup": {
             "ms": 200,
@@ -8876,11 +9037,11 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 4000,
+                "bp": 5500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 3500,
                 "unit": "ratio"
               },
               "base": {
@@ -8945,7 +9106,8 @@
             }
           },
           "vocab": [
-            "control"
+            "control",
+            "range"
           ],
           "windup": {
             "ms": 200,
@@ -8960,11 +9122,11 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 4000,
+                "bp": 5500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 3500,
                 "unit": "ratio"
               },
               "base": {
@@ -9021,7 +9183,8 @@
             }
           },
           "vocab": [
-            "control"
+            "control",
+            "range"
           ],
           "windup": {
             "ms": 200,
@@ -9037,11 +9200,11 @@
       "effects": [
         {
           "ad_ratio": {
-            "bp": 4000,
+            "bp": 5500,
             "unit": "ratio"
           },
           "ap_ratio": {
-            "bp": 0,
+            "bp": 3500,
             "unit": "ratio"
           },
           "base": {
@@ -9083,7 +9246,8 @@
         }
       },
       "vocab": [
-        "control"
+        "control",
+        "range"
       ],
       "windup": {
         "ms": 200,
@@ -9188,7 +9352,8 @@
           },
           "vocab": [
             "element",
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 250,
@@ -9267,7 +9432,8 @@
           },
           "vocab": [
             "element",
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 250,
@@ -9378,7 +9544,8 @@
           },
           "vocab": [
             "element",
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 250,
@@ -9489,7 +9656,8 @@
           },
           "vocab": [
             "element",
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 250,
@@ -9584,7 +9752,8 @@
           },
           "vocab": [
             "element",
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 250,
@@ -9663,7 +9832,8 @@
           },
           "vocab": [
             "element",
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 250,
@@ -9761,7 +9931,8 @@
       },
       "vocab": [
         "element",
-        "ground"
+        "ground",
+        "area"
       ],
       "windup": {
         "ms": 250,
@@ -9805,11 +9976,11 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 7000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 6000,
+                "bp": 5000,
                 "unit": "ratio"
               },
               "base": {
@@ -9841,7 +10012,8 @@
             }
           },
           "vocab": [
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 200,
@@ -9887,11 +10059,11 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 14000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 12000,
+                "bp": 10000,
                 "unit": "ratio"
               },
               "base": {
@@ -9923,7 +10095,8 @@
             }
           },
           "vocab": [
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 200,
@@ -9970,11 +10143,11 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 7000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 6000,
+                "bp": 5000,
                 "unit": "ratio"
               },
               "base": {
@@ -10006,7 +10179,8 @@
             }
           },
           "vocab": [
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 200,
@@ -10048,11 +10222,11 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 7000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 6000,
+                "bp": 5000,
                 "unit": "ratio"
               },
               "base": {
@@ -10089,7 +10263,8 @@
           },
           "vocab": [
             "element",
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 200,
@@ -10135,11 +10310,11 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 14000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 12000,
+                "bp": 10000,
                 "unit": "ratio"
               },
               "base": {
@@ -10185,7 +10360,8 @@
           },
           "vocab": [
             "knockback",
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 200,
@@ -10231,11 +10407,11 @@
             },
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 14000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 12000,
+                "bp": 10000,
                 "unit": "ratio"
               },
               "base": {
@@ -10276,7 +10452,8 @@
             }
           },
           "vocab": [
-            "ground"
+            "ground",
+            "area"
           ],
           "windup": {
             "ms": 200,
@@ -10319,11 +10496,11 @@
         },
         {
           "ad_ratio": {
-            "bp": 0,
+            "bp": 7000,
             "unit": "ratio"
           },
           "ap_ratio": {
-            "bp": 6000,
+            "bp": 5000,
             "unit": "ratio"
           },
           "base": {
@@ -10357,7 +10534,8 @@
         }
       },
       "vocab": [
-        "ground"
+        "ground",
+        "area"
       ],
       "windup": {
         "ms": 200,
@@ -10419,7 +10597,8 @@
             "mode": "Self"
           },
           "vocab": [
-            "element"
+            "element",
+            "area"
           ],
           "windup": {
             "ms": 250,
@@ -10492,7 +10671,8 @@
             "mode": "Self"
           },
           "vocab": [
-            "element"
+            "element",
+            "area"
           ],
           "windup": {
             "ms": 250,
@@ -10565,7 +10745,8 @@
             "mode": "Self"
           },
           "vocab": [
-            "element"
+            "element",
+            "area"
           ],
           "windup": {
             "ms": 250,
@@ -10625,7 +10806,8 @@
             "mode": "Self"
           },
           "vocab": [
-            "element"
+            "element",
+            "area"
           ],
           "windup": {
             "ms": 250,
@@ -10702,7 +10884,8 @@
             "mode": "Self"
           },
           "vocab": [
-            "element"
+            "element",
+            "area"
           ],
           "windup": {
             "ms": 250,
@@ -10783,7 +10966,8 @@
             "mode": "Self"
           },
           "vocab": [
-            "element"
+            "element",
+            "area"
           ],
           "windup": {
             "ms": 250,
@@ -10846,7 +11030,8 @@
         "mode": "Self"
       },
       "vocab": [
-        "element"
+        "element",
+        "area"
       ],
       "windup": {
         "ms": 250,
@@ -10866,8 +11051,12 @@
                 "bp": 0,
                 "unit": "ratio"
               },
+              "adaptive_ratio": {
+                "bp": 7500,
+                "unit": "ratio"
+              },
               "ap_ratio": {
-                "bp": 9000,
+                "bp": 0,
                 "unit": "ratio"
               },
               "base": {
@@ -10920,7 +11109,10 @@
               "unit": "cm"
             }
           },
-          "vocab": [],
+          "vocab": [
+            "area",
+            "range"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -10937,8 +11129,12 @@
                 "bp": 0,
                 "unit": "ratio"
               },
+              "adaptive_ratio": {
+                "bp": 7500,
+                "unit": "ratio"
+              },
               "ap_ratio": {
-                "bp": 9000,
+                "bp": 0,
                 "unit": "ratio"
               },
               "base": {
@@ -10999,7 +11195,10 @@
               "unit": "cm"
             }
           },
-          "vocab": [],
+          "vocab": [
+            "area",
+            "range"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -11016,8 +11215,12 @@
                 "bp": 0,
                 "unit": "ratio"
               },
+              "adaptive_ratio": {
+                "bp": 7500,
+                "unit": "ratio"
+              },
               "ap_ratio": {
-                "bp": 9000,
+                "bp": 0,
                 "unit": "ratio"
               },
               "base": {
@@ -11102,7 +11305,9 @@
             }
           },
           "vocab": [
-            "knockback"
+            "knockback",
+            "area",
+            "range"
           ],
           "windup": {
             "ms": 200,
@@ -11120,8 +11325,12 @@
                 "bp": 0,
                 "unit": "ratio"
               },
+              "adaptive_ratio": {
+                "bp": 7500,
+                "unit": "ratio"
+              },
               "ap_ratio": {
-                "bp": 9000,
+                "bp": 0,
                 "unit": "ratio"
               },
               "base": {
@@ -11179,7 +11388,9 @@
             }
           },
           "vocab": [
-            "element"
+            "element",
+            "area",
+            "range"
           ],
           "windup": {
             "ms": 200,
@@ -11197,8 +11408,12 @@
                 "bp": 0,
                 "unit": "ratio"
               },
+              "adaptive_ratio": {
+                "bp": 7500,
+                "unit": "ratio"
+              },
               "ap_ratio": {
-                "bp": 9000,
+                "bp": 0,
                 "unit": "ratio"
               },
               "base": {
@@ -11260,7 +11475,10 @@
               "unit": "cm"
             }
           },
-          "vocab": [],
+          "vocab": [
+            "area",
+            "range"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -11277,8 +11495,12 @@
                 "bp": 0,
                 "unit": "ratio"
               },
+              "adaptive_ratio": {
+                "bp": 7500,
+                "unit": "ratio"
+              },
               "ap_ratio": {
-                "bp": 9000,
+                "bp": 0,
                 "unit": "ratio"
               },
               "base": {
@@ -11352,7 +11574,10 @@
               "unit": "cm"
             }
           },
-          "vocab": [],
+          "vocab": [
+            "area",
+            "range"
+          ],
           "windup": {
             "ms": 200,
             "unit": "ms"
@@ -11370,8 +11595,12 @@
             "bp": 0,
             "unit": "ratio"
           },
+          "adaptive_ratio": {
+            "bp": 7500,
+            "unit": "ratio"
+          },
           "ap_ratio": {
-            "bp": 9000,
+            "bp": 0,
             "unit": "ratio"
           },
           "base": {
@@ -11426,7 +11655,10 @@
           "unit": "cm"
         }
       },
-      "vocab": [],
+      "vocab": [
+        "area",
+        "range"
+      ],
       "windup": {
         "ms": 200,
         "unit": "ms"
@@ -11518,7 +11750,9 @@
           },
           "vocab": [
             "element",
-            "knockback"
+            "knockback",
+            "area",
+            "range"
           ],
           "windup": {
             "ms": 150,
@@ -11626,7 +11860,9 @@
           },
           "vocab": [
             "element",
-            "knockback"
+            "knockback",
+            "area",
+            "range"
           ],
           "windup": {
             "ms": 150,
@@ -11721,7 +11957,9 @@
           },
           "vocab": [
             "element",
-            "knockback"
+            "knockback",
+            "area",
+            "range"
           ],
           "windup": {
             "ms": 150,
@@ -11822,7 +12060,9 @@
           "vocab": [
             "element",
             "knockback",
-            "ground"
+            "ground",
+            "area",
+            "range"
           ],
           "windup": {
             "ms": 150,
@@ -11930,7 +12170,9 @@
           },
           "vocab": [
             "element",
-            "knockback"
+            "knockback",
+            "area",
+            "range"
           ],
           "windup": {
             "ms": 150,
@@ -12039,7 +12281,9 @@
           },
           "vocab": [
             "element",
-            "knockback"
+            "knockback",
+            "area",
+            "range"
           ],
           "windup": {
             "ms": 150,
@@ -12133,7 +12377,9 @@
       },
       "vocab": [
         "element",
-        "knockback"
+        "knockback",
+        "area",
+        "range"
       ],
       "windup": {
         "ms": 150,
@@ -12224,7 +12470,9 @@
           "vocab": [
             "element",
             "knockback",
-            "ground"
+            "ground",
+            "area",
+            "range"
           ],
           "windup": {
             "ms": 200,
@@ -12331,7 +12579,9 @@
           "vocab": [
             "element",
             "knockback",
-            "ground"
+            "ground",
+            "area",
+            "range"
           ],
           "windup": {
             "ms": 200,
@@ -12424,7 +12674,9 @@
           "vocab": [
             "element",
             "knockback",
-            "ground"
+            "ground",
+            "area",
+            "range"
           ],
           "windup": {
             "ms": 200,
@@ -12517,7 +12769,9 @@
           "vocab": [
             "element",
             "knockback",
-            "ground"
+            "ground",
+            "area",
+            "range"
           ],
           "windup": {
             "ms": 200,
@@ -12628,7 +12882,9 @@
           "vocab": [
             "element",
             "knockback",
-            "ground"
+            "ground",
+            "area",
+            "range"
           ],
           "windup": {
             "ms": 200,
@@ -12739,7 +12995,9 @@
           "vocab": [
             "element",
             "knockback",
-            "ground"
+            "ground",
+            "area",
+            "range"
           ],
           "windup": {
             "ms": 200,
@@ -12827,7 +13085,9 @@
       "vocab": [
         "element",
         "knockback",
-        "ground"
+        "ground",
+        "area",
+        "range"
       ],
       "windup": {
         "ms": 200,
@@ -12885,7 +13145,8 @@
             "mode": "Self"
           },
           "vocab": [
-            "control"
+            "control",
+            "area"
           ],
           "windup": {
             "ms": 200,
@@ -12960,7 +13221,8 @@
           },
           "vocab": [
             "knockback",
-            "control"
+            "control",
+            "area"
           ],
           "windup": {
             "ms": 200,
@@ -13028,7 +13290,8 @@
             "mode": "Self"
           },
           "vocab": [
-            "control"
+            "control",
+            "area"
           ],
           "windup": {
             "ms": 200,
@@ -13093,7 +13356,8 @@
             "mode": "Self"
           },
           "vocab": [
-            "control"
+            "control",
+            "area"
           ],
           "windup": {
             "ms": 200,
@@ -13176,7 +13440,8 @@
           },
           "vocab": [
             "knockback",
-            "control"
+            "control",
+            "area"
           ],
           "windup": {
             "ms": 200,
@@ -13265,7 +13530,8 @@
           },
           "vocab": [
             "knockback",
-            "control"
+            "control",
+            "area"
           ],
           "windup": {
             "ms": 200,
@@ -13324,7 +13590,8 @@
         "mode": "Self"
       },
       "vocab": [
-        "control"
+        "control",
+        "area"
       ],
       "windup": {
         "ms": 200,
@@ -13341,11 +13608,11 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 900,
+                "bp": 1500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 900,
                 "unit": "ratio"
               },
               "base": {
@@ -13394,11 +13661,11 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 2160,
+                "bp": 3600,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 2160,
                 "unit": "ratio"
               },
               "base": {
@@ -13447,11 +13714,11 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 900,
+                "bp": 1500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 900,
                 "unit": "ratio"
               },
               "base": {
@@ -13504,11 +13771,11 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 900,
+                "bp": 1500,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 900,
                 "unit": "ratio"
               },
               "base": {
@@ -13558,11 +13825,11 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 2160,
+                "bp": 3600,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 2160,
                 "unit": "ratio"
               },
               "base": {
@@ -13615,11 +13882,11 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 2160,
+                "bp": 3600,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 2160,
                 "unit": "ratio"
               },
               "base": {
@@ -13670,11 +13937,11 @@
       "effects": [
         {
           "ad_ratio": {
-            "bp": 1200,
+            "bp": 2000,
             "unit": "ratio"
           },
           "ap_ratio": {
-            "bp": 0,
+            "bp": 1200,
             "unit": "ratio"
           },
           "base": {
@@ -13727,11 +13994,11 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 4500,
+                "bp": 6000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 3000,
                 "unit": "ratio"
               },
               "base": {
@@ -13771,7 +14038,8 @@
             }
           },
           "vocab": [
-            "control"
+            "control",
+            "range"
           ],
           "windup": {
             "ms": 200,
@@ -13786,11 +14054,11 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 4500,
+                "bp": 6000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 3000,
                 "unit": "ratio"
               },
               "base": {
@@ -13842,7 +14110,8 @@
             }
           },
           "vocab": [
-            "control"
+            "control",
+            "range"
           ],
           "windup": {
             "ms": 200,
@@ -13857,11 +14126,11 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 4500,
+                "bp": 6000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 3000,
                 "unit": "ratio"
               },
               "base": {
@@ -13922,7 +14191,8 @@
             }
           },
           "vocab": [
-            "control"
+            "control",
+            "range"
           ],
           "windup": {
             "ms": 200,
@@ -13937,11 +14207,11 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 4500,
+                "bp": 6000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 3000,
                 "unit": "ratio"
               },
               "base": {
@@ -13995,7 +14265,8 @@
             }
           },
           "vocab": [
-            "control"
+            "control",
+            "range"
           ],
           "windup": {
             "ms": 200,
@@ -14010,11 +14281,11 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 4500,
+                "bp": 6000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 3000,
                 "unit": "ratio"
               },
               "base": {
@@ -14066,7 +14337,8 @@
             }
           },
           "vocab": [
-            "control"
+            "control",
+            "range"
           ],
           "windup": {
             "ms": 200,
@@ -14081,11 +14353,11 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 4500,
+                "bp": 6000,
                 "unit": "ratio"
               },
               "ap_ratio": {
-                "bp": 0,
+                "bp": 3000,
                 "unit": "ratio"
               },
               "base": {
@@ -14141,7 +14413,8 @@
             }
           },
           "vocab": [
-            "control"
+            "control",
+            "range"
           ],
           "windup": {
             "ms": 200,
@@ -14157,11 +14430,11 @@
       "effects": [
         {
           "ad_ratio": {
-            "bp": 4500,
+            "bp": 6000,
             "unit": "ratio"
           },
           "ap_ratio": {
-            "bp": 0,
+            "bp": 3000,
             "unit": "ratio"
           },
           "base": {
@@ -14203,7 +14476,8 @@
         }
       },
       "vocab": [
-        "control"
+        "control",
+        "range"
       ],
       "windup": {
         "ms": 200,
@@ -14278,7 +14552,8 @@
             }
           },
           "vocab": [
-            "element"
+            "element",
+            "range"
           ],
           "windup": {
             "ms": 250,
@@ -14333,7 +14608,8 @@
             }
           },
           "vocab": [
-            "element"
+            "element",
+            "range"
           ],
           "windup": {
             "ms": 250,
@@ -14411,7 +14687,8 @@
             }
           },
           "vocab": [
-            "element"
+            "element",
+            "range"
           ],
           "windup": {
             "ms": 250,
@@ -14492,7 +14769,8 @@
             }
           },
           "vocab": [
-            "element"
+            "element",
+            "range"
           ],
           "windup": {
             "ms": 250,
@@ -14555,7 +14833,8 @@
             }
           },
           "vocab": [
-            "element"
+            "element",
+            "range"
           ],
           "windup": {
             "ms": 250,
@@ -14610,7 +14889,8 @@
             }
           },
           "vocab": [
-            "element"
+            "element",
+            "range"
           ],
           "windup": {
             "ms": 250,
@@ -14686,7 +14966,8 @@
         }
       },
       "vocab": [
-        "element"
+        "element",
+        "range"
       ],
       "windup": {
         "ms": 250,
@@ -14701,7 +14982,7 @@
       "unit": "cm"
     },
     "appear_at": {
-      "ms": 295000,
+      "ms": 210000,
       "unit": "ms"
     },
     "armor": {
@@ -14735,7 +15016,7 @@
       "unit": "cm"
     },
     "hp": {
-      "p2": 450000,
+      "p2": 280000,
       "unit": "hp"
     },
     "id": "monster_dean",
@@ -14753,7 +15034,7 @@
       "unit": "cm/s"
     },
     "native_id": 3,
-    "reward_xp": 300
+    "reward_xp": 320
   },
   "camps": {
     "monsters": [
@@ -16986,10 +17267,11 @@
       ]
     },
     {
+      "drop_weight": 12,
       "effects": [
         {
           "damage_ratio": {
-            "bp": 4000,
+            "bp": 4500,
             "unit": "ratio"
           },
           "op": "combo_cast",
@@ -17011,7 +17293,7 @@
           "op": "overcap_extra_hit",
           "opcode": 201,
           "ratio": {
-            "bp": 1000,
+            "bp": 1800,
             "unit": "ratio"
           },
           "step": {
@@ -17020,8 +17302,8 @@
             "unit": "attacks/s"
           },
           "threshold": {
-            "denominator": 1,
-            "numerator": 2,
+            "denominator": 20,
+            "numerator": 27,
             "unit": "attacks/s"
           }
         }
@@ -17112,13 +17394,17 @@
     {
       "effects": [
         {
-          "count": 10,
+          "count": 4,
           "op": "hit_growth",
           "opcode": 247,
           "stats": {
             "ADFlat": {
-              "p2": 100,
+              "p2": 200,
               "unit": "points"
+            },
+            "AttackSpeedBonusRatio": {
+              "bp": 100,
+              "unit": "ratio"
             }
           },
           "trigger": "BasicHit"
@@ -17252,6 +17538,7 @@
       ]
     },
     {
+      "drop_weight": 12,
       "effects": [
         {
           "damage_ratio": {
@@ -17293,7 +17580,9 @@
       "id": "card_crowd_hit",
       "native_id": 225,
       "type": "modify",
-      "vocab": []
+      "vocab": [
+        "area"
+      ]
     },
     {
       "effects": [
@@ -17320,6 +17609,7 @@
       ]
     },
     {
+      "drop_weight": 35,
       "effects": [
         {
           "cooldown_ratio": {
@@ -17378,7 +17668,9 @@
       "id": "card_long_reach",
       "native_id": 228,
       "type": "modify",
-      "vocab": []
+      "vocab": [
+        "range"
+      ]
     },
     {
       "effects": [
@@ -17413,6 +17705,7 @@
       ]
     },
     {
+      "drop_weight": 35,
       "effects": [
         {
           "op": "hp_cost",
@@ -17441,6 +17734,7 @@
       ]
     },
     {
+      "drop_weight": 35,
       "effects": [
         {
           "ad_ratio": {
@@ -17500,6 +17794,7 @@
       ]
     },
     {
+      "drop_weight": 12,
       "effects": [
         {
           "interval": {
@@ -17523,6 +17818,7 @@
       ]
     },
     {
+      "drop_weight": 35,
       "effects": [
         {
           "op": "skill_growth",
@@ -17584,6 +17880,7 @@
       ]
     },
     {
+      "drop_weight": 35,
       "effects": [
         {
           "op": "dash_contact_reset",
@@ -17670,6 +17967,7 @@
       ]
     },
     {
+      "drop_weight": 12,
       "effects": [
         {
           "distance": {
@@ -17858,6 +18156,7 @@
       ]
     },
     {
+      "drop_weight": 35,
       "effects": [
         {
           "op": "takedown_reset",
@@ -17917,6 +18216,7 @@
       ]
     },
     {
+      "drop_weight": 12,
       "effects": [
         {
           "op": "reaction_element",
@@ -17933,18 +18233,19 @@
       ]
     },
     {
+      "drop_weight": 35,
       "effects": [
         {
           "ap_ratio": {
-            "bp": 0,
+            "bp": 4000,
             "unit": "ratio"
           },
           "base": {
-            "p2": 6000,
+            "p2": 9000,
             "unit": "points"
           },
           "max_hp_ratio": {
-            "bp": 300,
+            "bp": 600,
             "unit": "ratio"
           },
           "op": "shield_burst_break",
@@ -18031,10 +18332,17 @@
       ]
     },
     {
+      "drop_weight": 35,
       "effects": [
         {
           "op": "skill_crit",
-          "opcode": 219
+          "opcode": 219,
+          "stats": {
+            "CritChanceBonusRatio": {
+              "bp": 1500,
+              "unit": "ratio"
+            }
+          }
         }
       ],
       "form": "body",
@@ -18063,6 +18371,7 @@
       ]
     },
     {
+      "drop_weight": 35,
       "effects": [
         {
           "momentum": {
@@ -18237,11 +18546,11 @@
       "effects": [
         {
           "heal": {
-            "p2": 20000,
+            "p2": 10000,
             "unit": "hp"
           },
           "max_hp": {
-            "p2": 1000,
+            "p2": 1800,
             "unit": "hp"
           },
           "op": "heal_growth",
@@ -18258,6 +18567,7 @@
       ]
     },
     {
+      "drop_weight": 12,
       "effects": [
         {
           "assist_ratio": {
@@ -18313,6 +18623,7 @@
       ]
     },
     {
+      "drop_weight": 12,
       "effects": [
         {
           "interval": {
@@ -18586,21 +18897,21 @@
         "unit": "ratio"
       },
       "damage_type": "Physical",
-      "interval_ms": 1334,
+      "interval_ms": 1177,
       "target_mode": "Unit"
     },
     "dash": {
       "cooldown": {
-        "ms": 18000,
+        "ms": 9000,
         "unit": "ms"
       },
       "distance": {
         "denominator": 1,
-        "numerator": 300,
+        "numerator": 450,
         "unit": "cm"
       },
       "duration": {
-        "ms": 200,
+        "ms": 180,
         "unit": "ms"
       }
     },
@@ -18862,7 +19173,7 @@
     },
     {
       "description_key": "active_calculus_drop.description",
-      "description_text": "板砖 [ground_impact.delay] 秒后砸下，中心 [damage.amount] 魔法伤害，外圈 [ground_impact.ratio]%。",
+      "description_text": "板砖 [ground_impact.delay] 秒后砸下，中心 [damage.amount] 自适应伤害，外圈 [ground_impact.ratio]%。",
       "icon_id": "icon_active_calculus_drop",
       "id": "active_calculus_drop",
       "name_key": "active_calculus_drop.name",
@@ -19807,7 +20118,7 @@
     },
     {
       "description_key": "active_snark_bolt.description",
-      "description_text": "直线甩鞋，首个敌人受 [damage.amount] 魔法伤害并减速 [slow.ratio]%，[slow.duration] 秒。",
+      "description_text": "直线甩鞋，首个敌人受 [damage.amount] 自适应伤害并减速 [slow.ratio]%，[slow.duration] 秒。",
       "icon_id": "icon_active_snark_bolt",
       "id": "active_snark_bolt",
       "name_key": "active_snark_bolt.name",
@@ -20383,7 +20694,7 @@
     },
     {
       "description_key": "card_bump_reset.description",
-      "description_text": "冲刺撞到敌人时，冲刺冷却立刻刷新；每次冲刺一次。",
+      "description_text": "冲刺撞到参赛者时立刻刷新冷却并全额返还消耗的劲；撞到野怪或召唤物时缩短一半冷却，每次冲刺一次。",
       "icon_id": "icon_card_bump_reset",
       "id": "card_bump_reset",
       "name_key": "card_bump_reset.name",
@@ -20392,7 +20703,7 @@
     },
     {
       "description_key": "card_burn_guard.description",
-      "description_text": "你造成的灼烧伤害的 [overheal_shield.ratio]% 变成护盾，持续 [overheal_shield.duration] 秒，与现有护盾取强。",
+      "description_text": "你造成的灼烧伤害的 [overheal_shield.ratio]% 变成护盾，持续 [overheal_shield.duration] 秒。",
       "icon_id": "icon_card_burn_guard",
       "id": "card_burn_guard",
       "name_key": "card_burn_guard.name",
@@ -20653,7 +20964,7 @@
     },
     {
       "description_key": "card_muscle_memory.description",
-      "description_text": "普攻每命中参赛者 [hit_growth.count] 次，本局攻击力 +[hit_growth.ADFlat]。",
+      "description_text": "普攻命中累计满 [hit_growth.count] 点进度（命中参赛者计两点、野怪计一点），本局攻击力 +[hit_growth.ADFlat]、攻速 +[hit_growth.AttackSpeedBonusRatio]%。",
       "icon_id": "icon_card_muscle_memory",
       "id": "card_muscle_memory",
       "name_key": "card_muscle_memory.name",
@@ -20824,7 +21135,7 @@
     },
     {
       "description_key": "card_skill_crit.description",
-      "description_text": "你的技能伤害也能暴击，用你的暴击率。",
+      "description_text": "暴击率 +[skill_crit.CritChanceBonusRatio]%，你的技能伤害也能暴击。",
       "icon_id": "icon_card_skill_crit",
       "id": "card_skill_crit",
       "name_key": "card_skill_crit.name",
@@ -20941,7 +21252,7 @@
     },
     {
       "description_key": "card_wave_after.description",
-      "description_text": "你触发反应后，给目标挂上一个和刚被消耗的不同的随机元素。",
+      "description_text": "你触发反应后，给目标挂上一个和刚被消耗的不同的随机元素，该元素触发的二次反应豁免一次反应锁。",
       "icon_id": "icon_card_wave_after",
       "id": "card_wave_after",
       "name_key": "card_wave_after.name",
@@ -21436,14 +21747,14 @@
     },
     {
       "guard": {
-        "ms": 45000,
+        "ms": 28000,
         "unit": "ms"
       },
       "id": "final_private_pole",
       "native_id": 31,
       "radius": {
         "denominator": 1,
-        "numerator": 200,
+        "numerator": 280,
         "unit": "cm"
       },
       "spray": {
@@ -21482,7 +21793,7 @@
   },
   "identity": {
     "approval": {
-      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded; 2026-11-09 #144 equipment, gold and shops removed; 2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据; #198 B base components B01-B18, level-up component category weights and empty-pool points from the same approval; #198 F mods M01-M12 and connectors C01-C12 from the same approval; #198 outer §5 field events (airdrop T=45..485 s, 40 s expiry, Boss T=240-540 s without approval buff, camp markers) approved: 批准整套方案，按票内参数实施. playtest input, not a balance test; #225: PK +50%, ceil and rotate.; 2026-11-13 Phase 4 workshop overhaul approved by user: brains AP 6/pt cap 300, mage/ranged active tuning, B04 own-share lifesteal, B13-B16 reworked as skill rules, new M13-M15 and C13-C16, host-legal level-up draws and category weights 45/30/25 35/35/30 25/35/40; 2026-11-15 Phase 5 skill-centric workshop approved by user: new bases B19-B21 (spell focus, low-HP escape, guard), mods M16-M20 (zone tether, shove, finisher, long empower, pull), connectors C17-C21 (zone relocate, stored force, empower spend, control widen, zone detonate); C02 hosts extended; #238 user approved four tiers, twelve species, HR x3 / trainer x2, fixed tier random species, 18/10/4/2 camps, and the proposed playtest combat/reward parameters: 采用这组试玩参数. Not balance acceptance. #287 P2 build cards and P4 elements, reactions, ground states and N1-N3 approved: 不用管schedule， fix doc and approve all numbers. #292 P5 cards, vouchers, rest shop, pick tickets and chains approved under the same decision. #293 P6 pacing, mid-field objectives, respawn choice, bounty, daily modifiers, camp affixes and hidden things approved under the same decision. #305 overhaul review follow-up approved (\"Start everything! Put them into one PR\"): actives at 2/4, skill cooldowns x0.7, combat momentum 5/s, overdrive at 60 (Y11 35), idle carry 5s, A09/A10/A13/K12 values, stat caps raised, reaction 4/level, cards 4 + 1 per 3 levels.",
+      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded; 2026-11-09 #144 equipment, gold and shops removed; 2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据; #198 B base components B01-B18, level-up component category weights and empty-pool points from the same approval; #198 F mods M01-M12 and connectors C01-C12 from the same approval; #198 outer §5 field events (airdrop T=45..485 s, 40 s expiry, Boss T=240-540 s without approval buff, camp markers) approved: 批准整套方案，按票内参数实施. playtest input, not a balance test; #225: PK +50%, ceil and rotate.; 2026-11-13 Phase 4 workshop overhaul approved by user: brains AP 6/pt cap 300, mage/ranged active tuning, B04 own-share lifesteal, B13-B16 reworked as skill rules, new M13-M15 and C13-C16, host-legal level-up draws and category weights 45/30/25 35/35/30 25/35/40; 2026-11-15 Phase 5 skill-centric workshop approved by user: new bases B19-B21 (spell focus, low-HP escape, guard), mods M16-M20 (zone tether, shove, finisher, long empower, pull), connectors C17-C21 (zone relocate, stored force, empower spend, control widen, zone detonate); C02 hosts extended; #238 user approved four tiers, twelve species, HR x3 / trainer x2, fixed tier random species, 18/10/4/2 camps, and the proposed playtest combat/reward parameters: 采用这组试玩参数. Not balance acceptance. #287 P2 build cards and P4 elements, reactions, ground states and N1-N3 approved: 不用管schedule， fix doc and approve all numbers. #292 P5 cards, vouchers, rest shop, pick tickets and chains approved under the same decision. #293 P6 pacing, mid-field objectives, respawn choice, bounty, daily modifiers, camp affixes and hidden things approved under the same decision. #305 overhaul review follow-up approved (\"Start everything! Put them into one PR\"): actives at 2/4, skill cooldowns x0.7, combat momentum 5/s, overdrive at 60 (Y11 35), idle carry 5s, A09/A10/A13/K12 values, stat caps raised, reaction 4/level, cards 4 + 1 per 3 levels. #330 gameplay, build balance and pacing overhaul approved.",
       "status": "approved"
     },
     "handler_revision": 14,
@@ -21687,7 +21998,7 @@
     },
     "CAPTURE.RadiusCm": {
       "denominator": 1,
-      "numerator": 300,
+      "numerator": 450,
       "unit": "cm"
     },
     "CAPTURE.SpraySec": {
@@ -21807,11 +22118,11 @@
       "unit": "ms"
     },
     "COMBAT.KeystoneAgilityADRatio": {
-      "bp": 1250,
+      "bp": 4500,
       "unit": "ratio"
     },
     "COMBAT.KeystoneAgilityDamageBase": {
-      "p2": 1250,
+      "p2": 3500,
       "unit": "points"
     },
     "COMBAT.KeystoneAgilityEmpowerDurationSec": {
@@ -21819,39 +22130,39 @@
       "unit": "ms"
     },
     "COMBAT.KeystoneBrainsMomentumRefundRatio": {
-      "bp": 1500,
+      "bp": 3000,
       "unit": "ratio"
     },
     "COMBAT.KeystonePhysiqueHealToShieldRatio": {
-      "bp": 2500,
+      "bp": 5000,
       "unit": "ratio"
     },
     "COMBAT.KeystonePhysiqueIntervalSec": {
-      "ms": 6000,
+      "ms": 4000,
       "unit": "ms"
     },
     "COMBAT.KeystonePhysiqueShieldDurationSec": {
-      "ms": 3000,
+      "ms": 4000,
       "unit": "ms"
     },
     "COMBAT.KeystonePhysiqueShieldMaxHPRatio": {
-      "bp": 350,
-      "unit": "ratio"
-    },
-    "COMBAT.KeystoneStrengthDamageRatio": {
-      "bp": 600,
-      "unit": "ratio"
-    },
-    "COMBAT.KeystoneThickSkinGuardCapRatio": {
       "bp": 1200,
       "unit": "ratio"
     },
+    "COMBAT.KeystoneStrengthDamageRatio": {
+      "bp": 1400,
+      "unit": "ratio"
+    },
+    "COMBAT.KeystoneThickSkinGuardCapRatio": {
+      "bp": 2200,
+      "unit": "ratio"
+    },
     "COMBAT.KeystoneThickSkinGuardPoints": {
-      "p2": 600,
+      "p2": 4500,
       "unit": "points"
     },
     "COMBAT.KeystoneThickSkinIntervalSec": {
-      "ms": 8000,
+      "ms": 5000,
       "unit": "ms"
     },
     "COMBAT.MeltRatio": {
@@ -22479,7 +22790,7 @@
       "unit": "ratio"
     },
     "REST.BettingSec": {
-      "ms": 5000,
+      "ms": 6000,
       "unit": "ms"
     },
     "REST.BuildSec": {
@@ -22487,7 +22798,7 @@
       "unit": "ms"
     },
     "REST.DrawSec": {
-      "ms": 3000,
+      "ms": 0,
       "unit": "ms"
     },
     "REST.EntryReadyTimeoutSec": {
@@ -22507,7 +22818,7 @@
       "unit": "ms"
     },
     "REST.PayoutSec": {
-      "ms": 3000,
+      "ms": 0,
       "unit": "ms"
     },
     "REST.ReturnSearchRadiusCm": {
@@ -22531,13 +22842,13 @@
       "ms": 15000,
       "unit": "ms"
     },
-    "REWARD.PlayerXP.Base": 100,
-    "REWARD.PlayerXP.PerLevel": 20,
+    "REWARD.PlayerXP.Base": 140,
+    "REWARD.PlayerXP.PerLevel": 28,
     "SHOP.CardPrice": 2,
     "SHOP.CardSlots": 4,
     "SHOP.RefreshPrice": 0,
     "SHOP.RefreshStep": 1,
-    "SHOP.SkillPointMaxPerMatch": 3,
+    "SHOP.SkillPointMaxPerMatch": 2,
     "SHOP.SkillPointPrice": 3,
     "SHOP.SkillPrice": 2,
     "SHOP.SkillSlots": 2,
@@ -22603,9 +22914,11 @@
       "unit": "ratio"
     },
     "SKILL.PointLevels": [
-      4,
-      8,
-      12
+      3,
+      6,
+      9,
+      12,
+      15
     ],
     "SKILL.RankBaseScale": [
       {
@@ -22708,8 +23021,8 @@
       "unit": "ratio"
     },
     "STAT.BaseAttackSpeed": {
-      "denominator": 4,
-      "numerator": 3,
+      "denominator": 20,
+      "numerator": 17,
       "unit": "attacks/s"
     },
     "STAT.CooldownHaste.Base": {
@@ -22822,11 +23135,11 @@
     },
     "UNIT.BasicAttackRangeCm": {
       "denominator": 1,
-      "numerator": 220,
+      "numerator": 250,
       "unit": "cm"
     },
     "UNIT.BasicAttackWindupSec": {
-      "ms": 300,
+      "ms": 180,
       "unit": "ms"
     },
     "UNIT.CollisionRadiusCm": {
@@ -22875,7 +23188,8 @@
   "progression": {
     "active_offer_levels": [
       2,
-      6
+      5,
+      9
     ],
     "active_slots": 3,
     "max_level": 16,
@@ -22970,11 +23284,11 @@
       "native_id": 29,
       "per_point": {
         "ADFlat": {
-          "p2": 250,
+          "p2": 350,
           "unit": "points"
         },
         "CritChanceBonusRatio": {
-          "bp": 40,
+          "bp": 60,
           "unit": "ratio"
         }
       }

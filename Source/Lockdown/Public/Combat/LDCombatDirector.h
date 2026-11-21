@@ -6,6 +6,7 @@
 #include "Combat/LDAttributeProjection.h"
 #include "Combat/LDAssistRules.h"
 #include "Combat/LDCombatTypes.h"
+#include "Combat/LDCombatPreInput.h"
 #include "Combat/LDDamageRecap.h"
 #include "Combat/LDChainRules.h"
 #include "Combat/LDCombatControlRules.h"
@@ -259,8 +260,9 @@ struct FLDCombatAction
     int64 BasicIntervalMs=0;
     // A Q/W/E admitted with a held overdrive charge; the release decides by the bar (LDMomentum::OverdriveReady).
     bool bOverdrive=false;
-    // K06: a free repeat of a release at AutoRecastScaleBp of its damage (no momentum, no cooldown, no further repeat).
+    // K06 / A08: a free repeat of a release at AutoRecastScaleBp of its damage (no momentum, no cooldown, no further repeat).
     bool bAutoRecast=false;
+    bool bComboCastRepeat=false;
     int64 AutoRecastScaleBp=10000;
     // Spec §6.5: the chain a free repeat (K06, A08) continues; unset for a player's own action (it opens one).
     FGuid ChainId;
@@ -334,9 +336,14 @@ struct FLDBodyCombatState
     // Positive hits this contender life took from other bodies within the recap window (LDDamageRecap); summed into the
     // death fact when the life locks its death.
     TArray<FLDDamageSample> DamageLog;
-    TOptional<FLDCombatShield> Shield;
+    TArray<FLDActiveShield> Shields;
     TOptional<FLDCombatTaunt> Taunt;       // contenders only
     TOptional<FLDCombatAction> Action;
+
+    const FLDActiveShield* FindShield(const FGuid& EffectId) const
+    {
+        return Shields.FindByPredicate([&EffectId](const FLDActiveShield& Row) { return Row.EffectId == EffectId && Row.AmountP2 > 0; });
+    }
     int64 LastCombatAtMs=0;
     int64 RegenThroughMs=0;
     // D21 (#79): this contender's foot stood inside a dorm at the last regeneration settle.
@@ -365,6 +372,7 @@ struct FLDBodyCombatState
     int64 MonsterRecoverUntilMs=0;
     int64 MonsterNextAttackAtMs=0;         // contenders keep their cadence on the persistent record
     int64 DashUntilMs=0;
+    FLDCombatBodyRef LastAttackTarget;
     // Released action and last landed hit of this life for the visible action cue.
     FLDCombatCueFacts Cues;
     // Source of the last released action (the visible Cast cue's ability once its windup released).
@@ -381,6 +389,8 @@ struct FLDBodyCombatState
     int64 ShieldGrantedP2=0;
     int64 KeystonePhysiqueReadyAtMs=0;
     int64 KeystoneThickSkinReadyAtMs=0;
+    TMap<FGuid,int64> KeystoneStrengthTargetReadyAtMs;
+    bool bWaveAfterReactionExempt=false;
     // #147 build v7 keywords (LDCombatKeywords): silence instances (shaped like disarm and stun), the one shared breach
     // and burn of this life and the damage-triggered shield's rest (B09: it starts only on a granted shield).
     TArray<FLDCombatRoot> Silences;
@@ -482,6 +492,7 @@ struct FLDCombatEntityRecord
     uint64 CancelledThrough=0;
     TArray<FLDCombatDirectEntry> Recent;
     TArray<FLDCombatActionRequest> Pending;
+    TArray<FPendingCombatIntent> PreInputQueue;
     uint64 NextToken=1;
     uint64 ReceiptRevision=0;
     uint64 ViewRevision=0;
@@ -507,9 +518,9 @@ struct FLDCombatHit
     FGuid CreditOwner;
     FLDCombatSourceRef Source;
     ELDCombatHitClass HitClass=ELDCombatHitClass::None;
-    int64 BaseP2=0, ADRatioBp=0, APRatioBp=0;
+    int64 BaseP2=0, ADRatioBp=0, APRatioBp=0, AdaptiveRatioBp=0;
     ELDDemoDamageType DamageType=ELDDemoDamageType::Physical;
-    int64 SourceADP2=0, SourceAPP2=0;
+    int64 SourceADP2=0, SourceAPP2=0, SourceBonusADP2=0;
     // Coefficient of the source's max HP and that max HP snapshotted at release.
     int64 MaxHPRatioBp=0, SourceMaxHPP2=0;
     bool bCritical=false;
@@ -777,9 +788,9 @@ struct FLDCombatProjectile
     FGuid SourceEntity;
     FGuid CreditOwner;
     FLDCombatSourceRef Source;
-    int64 BaseP2=0, ADRatioBp=0, APRatioBp=0;
+    int64 BaseP2=0, ADRatioBp=0, APRatioBp=0, AdaptiveRatioBp=0;
     ELDDemoDamageType DamageType=ELDDemoDamageType::Magical;
-    int64 SourceADP2=0, SourceAPP2=0;
+    int64 SourceADP2=0, SourceAPP2=0, SourceBonusADP2=0;
     int64 MaxHPRatioBp=0, SourceMaxHPP2=0;
     FVector OriginCm=FVector::ZeroVector;
     FVector Direction=FVector::ZeroVector;
@@ -913,6 +924,7 @@ public:
     FLDCombatActionReceipt QueryActionReceipt(const FLDCombatCaller& Caller, uint64 DirectSequence) const;
     FLDCombatEntryView QueryAvailability(const FLDCombatCaller& Caller, ELDCombatEntry Entry) const;
     bool BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatOwnerView& Out) const;
+    bool IsDormSwapReady(const FGuid& ContenderId, int64 NowMs) const;
     // Spec §6.5: the chain ends Entity's owner receives (its recent ones) and every contender's 本局最离谱 row.
     void ReadOwnerChains(const FGuid& Entity, TArray<FLDChainEndView>& Out) const;
     void ReadResultHighlights(TArray<FLDResultHighlight>& Out) const;
@@ -934,6 +946,11 @@ public:
     // Cancels the unreleased basic attack of this navigation order; the committed cadence is kept. A swing at Keep
     // (a valid body: the taunter that replaced the order) is left to land, since the taunt still allows it.
     void CancelNavAttack(const FGuid& Entity, const FLDMoveIdentity& Move, const FLDCombatBodyRef& Keep=FLDCombatBodyRef());
+    bool ShouldBufferPreInput(const FGuid& Entity, ELDCombatEntry Entry) const;
+    bool HasBufferedDirectSequence(const FGuid& Entity, uint64 DirectSequence) const;
+    void BufferPreInputIntent(const FGuid& Entity, FPendingCombatIntent&& Intent);
+    void ClearPreInputQueue(const FGuid& Entity, ELDCombatReject DirectReason, ELDOrderFailure OrderFailure);
+    bool FlushPreInputQueues(const FLDGameplayWritePermit& Permit, FString& Error);
     // A newer AttackUnit order of the same life aimed at the same observed target takes over the unreleased basic
     // of the order it replaces (re-clicking the chased target does not throw the committed swing away). The swing is
     // re-keyed to the newer order so that order's own end (Stop, a new order) still cancels it. True when adopted.
@@ -1043,6 +1060,8 @@ public:
     // False only on an authority fault; bOutApplied is false when the body is already gone or dying.
     bool ApplyAirdropReward(const FGuid& Contender, const FLDGameplayWritePermit& Permit, bool& bOutApplied,
         FLDAirdropRewardFact& Out, FString& Error);
+    bool ApplyCampRecoveryOrb(const FGuid& Contender, const FLDGameplayWritePermit& Permit, bool& bOutApplied,
+        FString& Error);
 
     // ---- Shared combat primitives (#112 section 5).
     // The only path that commits a control or slow onto a body life: hard controls (Root, Stun, Disarm, Taunt) pass the
@@ -1452,7 +1471,8 @@ private:
     bool BagIsEnemyOf(const FLDCombatBag& Bag, const FGuid& Source) const;
     static int64 RawBagDamageP2(const FLDCombatHit& Hit);
     bool ResolveDashContacts(int64 NowMs, FString& Error);
-    bool OnDashContact(FLDBodyCombatState& Body, FLDCombatDashContact& Dash, int64 NowMs, FString& Error);
+    bool OnDashContact(FLDBodyCombatState& Body, FLDCombatDashContact& Dash, ELDVictimKind TargetKind, int64 NowMs, FString& Error);
+    TSet<FGuid> WaveAfterExemptedChains;
     // Ends the body's channelled cone (a new action, a death or a source change interrupts it).
     void CancelChannel(FLDBodyCombatState& Body);
     bool StartSkillDelivery(FLDBodyCombatState& Body, const FLDCombatActiveTerms& Terms, const FLDCombatAction& Action,

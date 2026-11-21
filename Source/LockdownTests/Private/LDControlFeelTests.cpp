@@ -58,11 +58,12 @@ bool FLDControlFeelPreInputTest::RunTest(const FString& Parameters)
     View.ActionEntry = ELDCombatEntry::W;
     View.bHasBody = false;
     TestFalse(TEXT("No body holds nothing"), IsWindingUp(View, 1000));
-    TestTrue(TEXT("The server holds a press that met the own ability windup, through its release moment"),
-        ServerHolds(ELDCombatEntry::W, true, 1200, 1000) && ServerHolds(ELDCombatEntry::Dash, true, 1200, 1200));
-    TestFalse(TEXT("The server holds nothing without an own ability windup, for a basic, or past the hold"),
+    TestTrue(TEXT("The server holds a press that met the own ability windup within 450 ms, through its release moment"),
+        ServerHolds(ELDCombatEntry::W, true, 1200, 1000) && ServerHolds(ELDCombatEntry::Dash, true, 1200, 1200)
+        && ServerHolds(ELDCombatEntry::E, true, 1450, 1000));
+    TestFalse(TEXT("The server holds nothing without an own ability windup, for a basic, or past the 450 ms hold"),
         ServerHolds(ELDCombatEntry::W, false, 0, 1000) || ServerHolds(ELDCombatEntry::Basic, true, 1200, 1000)
-        || ServerHolds(ELDCombatEntry::E, true, 3000, 1000));
+        || ServerHolds(ELDCombatEntry::E, true, 1451, 1000));
     TestTrue(TEXT("Q, W, E and the innate D dash are Direct entries"),
         IsDirectEntry(ELDCombatEntry::Q) && IsDirectEntry(ELDCombatEntry::W)
         && IsDirectEntry(ELDCombatEntry::E) && IsDirectEntry(ELDCombatEntry::Dash)
@@ -71,7 +72,36 @@ bool FLDControlFeelPreInputTest::RunTest(const FString& Parameters)
         FiresOnPress(ELDCombatEntry::Dash) && !FiresOnPress(ELDCombatEntry::Q) && !FiresOnPress(ELDCombatEntry::W)
         && !FiresOnPress(ELDCombatEntry::E)
         && !FiresOnPress(ELDCombatEntry::Basic));
-    TestTrue(TEXT("A held press lives at most a second"), HoldSeconds == 1.0);
+    TestTrue(TEXT("A held press lives inside the 450 ms 2-step FIFO window"),
+        HoldWindowMs == 450 && FMath::IsNearlyEqual(HoldSeconds, 0.45) && MaxBufferedSteps == 2);
+
+    // 2-step FIFO covering Direct, GroundPoint and Unit casts: 3rd buffered press evicts the oldest and keeps newest 2 in order.
+    TArray<FPendingCombatIntent> Queue;
+    TOptional<FPendingCombatIntent> Evicted;
+    FPendingCombatIntent Step1{ELDCombatEntry::W, ELDCombatPreInputMode::GroundPoint};
+    FPendingCombatIntent Step2{ELDCombatEntry::E, ELDCombatPreInputMode::Unit};
+    FPendingCombatIntent Step3{ELDCombatEntry::Dash, ELDCombatPreInputMode::Direct};
+    EnqueueFIFO(Queue, MoveTemp(Step1), Evicted);
+    TestTrue(TEXT("First buffered step enters without eviction"), !Evicted.IsSet() && Queue.Num() == 1);
+    EnqueueFIFO(Queue, MoveTemp(Step2), Evicted);
+    TestTrue(TEXT("GroundPoint -> Unit both fit in the 2-step FIFO behind an active Direct windup"),
+        !Evicted.IsSet() && Queue.Num() == 2
+        && Queue[0].CastMode == ELDCombatPreInputMode::GroundPoint && Queue[1].CastMode == ELDCombatPreInputMode::Unit);
+    EnqueueFIFO(Queue, MoveTemp(Step3), Evicted);
+    TestTrue(TEXT("A third buffered key evicts the oldest and retains the latest 2 steps in FIFO order"),
+        Evicted.IsSet() && Evicted->Entry == ELDCombatEntry::W && Queue.Num() == 2
+        && Queue[0].Entry == ELDCombatEntry::E && Queue[1].Entry == ELDCombatEntry::Dash);
+    TestTrue(TEXT("Hard CC outlasting the remaining windup by > 450ms clears the buffer"),
+        !ShouldClearForHardControl(1650, 1200) && ShouldClearForHardControl(1651, 1200));
+
+    // Close-range innate dash clamp: stops at 135cm from an engaged enemy in a 220cm +-30deg forward cone unless card_pass_through is installed.
+    const double Clamped = ClampInnateDashDistance(450.0, FVector::ZeroVector, FVector(1, 0, 0), FVector(200, 0, 0), false);
+    TestTrue(TEXT("Dashing straight at an enemy 200cm ahead clamps 450cm dash to 65cm (stopping at 135cm)"),
+        FMath::IsNearlyEqual(Clamped, 65.0, 1e-4));
+    TestTrue(TEXT("card_pass_through preserves the full 450cm dash through the enemy"),
+        FMath::IsNearlyEqual(ClampInnateDashDistance(450.0, FVector::ZeroVector, FVector(1, 0, 0), FVector(200, 0, 0), true), 450.0, 1e-4));
+    TestTrue(TEXT("Dashing away into open ground preserves the full 450cm dash"),
+        FMath::IsNearlyEqual(ClampInnateDashDistance(450.0, FVector::ZeroVector, FVector(-1, 0, 0), FVector(200, 0, 0), false), 450.0, 1e-4));
     return true;
 }
 

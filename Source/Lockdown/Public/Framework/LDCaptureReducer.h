@@ -79,6 +79,17 @@ struct FLDCaptureFinalRules
     int64 KillGuardMs = 0;
 };
 
+struct FLDShowdownTimeoutCandidate
+{
+    FGuid Contender;
+    bool bEligible = false;
+    int64 GuardProgressMs = 0;
+    int64 GuardTargetMs = 1;
+    int32 ShowdownKills = 0;
+    int64 ShowdownDamageP2 = 0;
+    uint32 CompletedSprays = 0;
+};
+
 // Real-time facts settle before completions at the same instant. Only an uncontested living owner guards.
 // Leaving, control and death pause that guard; only a completed repaint resets its current progress.
 // Historical guard contribution survives repaints and lives, but never confers eligibility on a dead contender.
@@ -89,6 +100,8 @@ public:
     void Reset();
     // Before the opening only: the final mods of the main flagpole. Refused for incomplete terms.
     bool SetFinalRules(const FLDCaptureFinalRules& Rules, FString& Error);
+    void SetShowdownRatchets(const TArray<int64>& InSprayCheckpointsMs, const TArray<int64>& InGuardCheckpointsMs,
+        int64 InBaseKillGuardMs);
     // A private flagpole (final_private_pole): only Holder sprays; anyone else inside freezes his guard. It starts from the
     // committed roster of Main (every member outside), so it takes the same eligibility facts from then on.
     bool BeginPrivate(const FLDCaptureReducer& Main, const FGuid& Holder, int64 SprayMs, int64 GuardMs, FString& Error);
@@ -145,9 +158,11 @@ public:
     // A contender that joined the capture roster and has not left it.
     bool IsCommittedMember(const FGuid& ContenderId) const;
     int64 GetBankedGuardMs(const FGuid& ContenderId) const { return BankedGuard.FindRef(ContenderId); }
+    int64 GetEffectiveGuardMs(const FGuid& ContenderId, int64 AtMs) const;
     uint32 GetCompletedSprays(const FGuid& ContenderId) const { return CompletedSprays.FindRef(ContenderId); }
     // A strict objective-contribution leader among living, unprotected members; a complete tie has no winner.
     FGuid TimeoutWinner() const;
+    static FGuid ResolveShowdownTimeoutWinner(const TArray<FLDShowdownTimeoutCandidate>& Candidates);
     // #198: the zone opens when the final field begins, an instant only the timeline knows. Begin with OpenAtMs =
     // MAX_int64 ("not scheduled") and move the opening forward to AtMs, a boundary that is not closed yet, so the next
     // CloseBoundary opens it. Refused when inactive, already open, or not earlier than the current schedule.
@@ -208,6 +223,13 @@ private:
     FGuid OnlySprayer;
     int64 FadeAt = 0;
     ELDGraffitiCause Cause = ELDGraffitiCause::None;
+    TArray<int64> SprayCheckpointsMs;
+    TArray<int64> GuardCheckpointsMs;
+    int64 BaseKillGuardMs = 0;
+    TMap<FGuid, int64> SprayLatchedMs;
+    int64 GuardLatchedMs = 0;
+    void UpdateSprayLatch(const FGuid& ContenderId, int64 ProgressMs);
+    void UpdateGuardLatch(int64 ProgressMs);
     // final_hit_and_run holders who sprayed and have not left the zone since.
     TSet<FGuid> MustLeave;
     // Alternative and kill-filled wins reached in the boundary being reduced; the earliest instant wins, then priority.

@@ -803,15 +803,22 @@ bool ALDCampDirector::ConsumeMemberDeath(const FLDCommittedDeath& Fact, const FL
     Motion.Remove(Entity);
     Returns.Remove(Entity);
     Stranded.Remove(Entity);
-    if (ALDCampMemberCharacter* Body = Bodies.FindRef(Entity).Get()) { Body->Destroy(); }
+    const FLDCampSpec& Spec = State.GetRoster()->Camps[Camp];
+    FVector LastFootCm = Spec.AnchorCm;
+    if (ALDCampMemberCharacter* Body = Bodies.FindRef(Entity).Get())
+    {
+        if (const UCharacterMovementComponent* Move = Body->GetCharacterMovement()) { LastFootCm = Move->GetActorFeetLocation(); }
+        else { LastFootCm = Body->GetActorLocation(); }
+        Body->Destroy();
+    }
     Bodies.Remove(Entity);
     UE_LOG(LogLDWorld, Display, TEXT("LD_CAMP_DEATH camp=%s life=%u owner=%s cleared=%d due_ms=%lld"),
-        *State.GetRoster()->Camps[Camp].CampId.ToString(), Fact.Key.Victim.Life, *Fact.CreditOwner.ToString(),
+        *Spec.CampId.ToString(), Fact.Key.Victim.Life, *Fact.CreditOwner.ToString(),
         Result == ELDCampDeathResult::CampCleared, State.FindCamp(Camp)->RespawnDueMs);
     // #198 outer §5: the first clear of a marked camp takes its segment's marker; its affix pays its clear reward.
     if (Result == ELDCampDeathResult::CampCleared)
     {
-        const FLDCampSpec& Spec = State.GetRoster()->Camps[Camp];
+        AuthorityMode()->SpawnCampRecoveryOrb(LastFootCm, FieldMs);
         const ELDCampAffix Affix = CampAffixes.FindRef(Spec.CampId);
         CampAffixes.Remove(Spec.CampId);
         return PayAffixClear(Affix, Spec.Tier, Spec.CampId, Fact.CreditOwner, Permit, Error)
@@ -986,8 +993,7 @@ bool ALDCampDirector::RewardBossKill(const FGuid& Killer, const FLDGameplayWrite
         return false;
     }
     if (!Mode->Development->GrantExtraFinalModCard(Killer, Permit, Error)) { return false; }
-    return Mode->PayFieldReward(Killer, TEXT("boss"), 1, 0, ELDFieldRewardKind::BuildDraw, Permit, Error,
-        Content->Get().Parameters.Medal.BossChanceBp, 0x424f5353ull);
+    return Mode->PayFieldReward(Killer, TEXT("boss"), 1, 0, ELDFieldRewardKind::BossKill, Permit, Error);
 }
 
 bool ALDCampDirector::LeaveBossIfDue(const FLDGameplayWritePermit& Permit, FString& Error)

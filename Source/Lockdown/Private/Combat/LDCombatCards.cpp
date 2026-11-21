@@ -418,7 +418,8 @@ bool ALDCombatDirector::HitFactors(FLDBodyCombatState* Source, FLDBodyCombatStat
     // The strength keystone on a slowed or controlled target.
     const bool bControlled=LDTactical::StrongestSlowBp(Target.Slows,NowMs)>0 || LDTactical::HasActiveRoot(Target.Roots,NowMs)
         || LDTactical::HasActiveRoot(Target.Stuns,NowMs) || LDTactical::HasActiveRoot(Target.Disarms,NowMs)
-        || LDControl::IsTaunted(Target.Taunt,NowMs) || LDTactical::HasActiveRoot(Target.Silences,NowMs);
+        || LDControl::IsTaunted(Target.Taunt,NowMs) || LDTactical::HasActiveRoot(Target.Silences,NowMs)
+        || LDTactical::HasActiveRoot(Target.Knockbacks,NowMs);
     if (Source && Source->AttributeProjection.Keystones.bStrength && bControlled)
     { Out.Add({FName(TEXT("keystone_strength")),Content->Get().Parameters.KeystoneStrengthDamageBp}); }
     // Skill branches: the target's vulnerabilities to this hit and the next-basic bonus a primary basic took.
@@ -426,7 +427,7 @@ bool ALDCombatDirector::HitFactors(FLDBodyCombatState* Source, FLDBodyCombatStat
     if (Hit.BranchAmpBp>0) { Out.Add({FName(TEXT("branch_next_basic")),Hit.BranchAmpBp}); }
     // Shatter (shock + chill): the next damaging native skill hit on this life within its window takes more, then the
     // shatter is spent. Zero-damage blows (fans, pushes), riders, reflections, settles and ticks neither take nor spend it.
-    const bool bDamaging=Hit.BaseP2>0 || Hit.ADRatioBp>0 || Hit.APRatioBp>0 || Hit.MaxHPRatioBp>0;
+    const bool bDamaging=Hit.BaseP2>0 || Hit.ADRatioBp>0 || Hit.APRatioBp>0 || Hit.AdaptiveRatioBp>0 || Hit.MaxHPRatioBp>0;
     if (Target.ShatterUntilMs>NowMs && Target.ShatterBp>0 && IsNativeDirectHit(Hit) && bDamaging && !Hit.bPeriodic)
     {
         Out.Add({FName(TEXT("reaction_shatter")),Target.ShatterBp});
@@ -902,15 +903,15 @@ bool ALDCombatDirector::OnHostDirectHit(FLDBodyCombatState& Holder, const FLDCom
     // K14: the host's hit spends a share of the holder's shield as damage of its own type (copies add their share).
     TArray<FLDPassiveEffectRef> Spends;
     if (!CardsOn(Holder.AttributeProjection,ELDDemoEffectOp::ShieldSpend,Host,Spends,Error)) { return false; }
-    if (!Spends.IsEmpty() && Holder.Shield.IsSet() && Holder.Resources.ShieldP2>0 && ChainAllows(Hit,TEXT("shield_spend")))
+    if (!Spends.IsEmpty() && !Holder.Shields.IsEmpty() && Holder.Resources.ShieldP2>0 && ChainAllows(Hit,TEXT("shield_spend")))
     {
         int64 ShareBp=0;
         for (const FLDPassiveEffectRef& Ref : Spends) { ShareBp+=Ref.Effect.RatioBp; }
-        const int64 Spent=LDCombatCardsDetail::Share(Holder.Resources.ShieldP2,FMath::Min<int64>(ShareBp,10000));
+        const int64 Requested=LDCombatCardsDetail::Share(Holder.Resources.ShieldP2,FMath::Min<int64>(ShareBp,10000));
+        TArray<FGuid> IgnoredBroken;
+        const int64 Spent=LDTactical::AbsorbActiveShields(Holder.Shields,Holder.Resources.ShieldP2,Requested,NowMs,IgnoredBroken);
         if (Spent>0)
         {
-            Holder.Resources.ShieldP2-=Spent;
-            if (Holder.Resources.ShieldP2<=0) { Holder.Shield.Reset(); Holder.Resources.ShieldP2=0; }
             ++Holder.Resources.Revision;
             ++Holder.StateRevision;
             MarkViewChanged(Holder.Victim.EntityId);
@@ -1100,8 +1101,30 @@ bool ALDCombatDirector::OnCardHit(const FLDCombatHit& Hit, FLDBodyCombatState& T
                 LedgerCardTriggered(*Source,Ref.Key);
             }
         }
-        // A13: every primary basic hit on a contender counts toward its match growth.
-        if (Hit.Target.Victim.Kind==ELDVictimKind::Contender)
+        // Strength 18-pt keystone: basic crit or Combo 3 on an enemy contender deals 4% of target current HP Physical damage
+        // (1.5 s per-target internal cooldown).
+        if (!Hit.bExtraStrike && Source->AttributeProjection.Keystones.bStrength
+            && Hit.Target.Victim.Kind==ELDVictimKind::Contender && !Target.bTrainingDummy && (Hit.bCritical || bThird))
+        {
+            const int64 ReadyAt=Source->KeystoneStrengthTargetReadyAtMs.FindRef(Hit.Target.Victim.EntityId);
+            if (NowMs>=ReadyAt)
+            {
+                Source->KeystoneStrengthTargetReadyAtMs.Add(Hit.Target.Victim.EntityId,NowMs+1500);
+                const int64 CurrentHPP2=Target.Resources.HpP2+Damage.HPLostP2;
+                const int64 BonusP2=CurrentHPP2/10000*400+CurrentHPP2%10000*400/10000;
+                if (BonusP2>0)
+                {
+                    FLDCombatHit Heavy=MakeHit(*Source,{ELDCombatSourceKind::Basic,NAME_None},Hit.Target,Hit.EffectId);
+                    Heavy.BaseP2=BonusP2;
+                    Heavy.DamageType=ELDDemoDamageType::Physical;
+                    Heavy.bRider=true;
+                    PendingHits.Add(MoveTemp(Heavy));
+                }
+            }
+        }
+        // A13: primary basic hits grant 2 progress on contenders and 1 progress on monsters toward match growth.
+        if (!Target.bTrainingDummy
+            && (Hit.Target.Victim.Kind==ELDVictimKind::Contender || Hit.Target.Victim.Kind==ELDVictimKind::CampMember))
         {
             TArray<FLDPassiveEffectRef> Practice;
             if (!CollectPassiveEffects(Source->AttributeProjection,ELDDemoEffectOp::HitGrowth,Practice,Error)) { return false; }
@@ -1109,7 +1132,7 @@ bool ALDCombatDirector::OnCardHit(const FLDCombatHit& Hit, FLDBodyCombatState& T
             {
                 if (FLDCombatEntityRecord* Record=FindRecord(Source->Victim.EntityId))
                 {
-                    ++Record->CardGrowth.BasicHits;
+                    Record->CardGrowth.BasicHits+=(Hit.Target.Victim.Kind==ELDVictimKind::Contender) ? 2 : 1;
                     if (!RefreshCardGrowth(Source->Victim.EntityId,NowMs,Error)) { return false; }
                 }
             }
@@ -1188,8 +1211,16 @@ bool ALDCombatDirector::OnCardReaction(const FLDCombatReactionFact& Fact, int64 
         }
     }
     // Y05: the primary target takes a random element other than the one just consumed (each copy one more).
+    // Its secondary reaction is exempted once per cast chain from the mother reaction's 0.5 s lock.
     FLDBodyCombatState* Primary=FindBody(Fact.Primary);
     if (Waves.IsEmpty() || !Primary || Primary->bPendingDeath) { return true; }
+    const FGuid ChainKey=CurrentChain.IsValid() ? CurrentChain : Fact.TriggerEffectId;
+    const bool bGrantExempt=ChainKey.IsValid() && !WaveAfterExemptedChains.Contains(ChainKey);
+    if (bGrantExempt)
+    {
+        if (WaveAfterExemptedChains.Num()>512) { WaveAfterExemptedChains.Reset(); }
+        WaveAfterExemptedChains.Add(ChainKey);
+    }
     for (const FLDPassiveEffectRef& Wave : Waves)
     {
         TArray<ELDCombatElement> Choices{ELDCombatElement::Fire,ELDCombatElement::Water,ELDCombatElement::Shock,
@@ -1206,6 +1237,7 @@ bool ALDCombatDirector::OnCardReaction(const FLDCombatReactionFact& Fact, int64 
         if (!ApplyElement(*Primary,Kind,Applier,Kind==ELDCombatElement::Fire ? 1 : 0,FGuid::NewGuid(),NowMs,Error)) { return false; }
         LedgerCardTriggered(*Trigger,Wave.Key);
     }
+    if (bGrantExempt) { Primary->bWaveAfterReactionExempt=true; }
     return true;
 }
 
@@ -1655,7 +1687,10 @@ int64 ALDCombatDirector::OverdriveScaleOf(const FLDBodyCombatState& Body) const
     FString Error;
     if (CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::OverdriveShort,Shorts,Error))
     {
-        for (const FLDPassiveEffectRef& Ref : Shorts) { if (Ref.Effect.MultiplierBp>0) { Scale=FMath::Min(Scale,Ref.Effect.MultiplierBp); } }
+        for (const FLDPassiveEffectRef& Ref : Shorts)
+        {
+            if (Ref.Effect.MultiplierBp>0) { Scale=Scale*8750/10000; }
+        }
     }
     return Scale;
 }
@@ -1732,6 +1767,7 @@ bool ALDCombatDirector::QueueComboCast(FLDBodyCombatState& Body, const FLDCombat
     Cast.ReleaseAtMs=NowMs;
     Cast.SourceRevision=Record->SourceRevision;
     Cast.bAutoRecast=true;
+    Cast.bComboCastRepeat=true;
     Cast.bOverdrive=false;
     int64 ShareBp=0;
     for (const FLDPassiveEffectRef& Ref : Casts) { ShareBp+=Ref.Effect.MultiplierBp; }

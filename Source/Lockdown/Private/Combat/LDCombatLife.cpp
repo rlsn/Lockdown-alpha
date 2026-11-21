@@ -32,8 +32,8 @@ void ALDCombatDirector::AppendObservedStatuses(const ALDCharacter& Actor, int64 
     // Several Root instances show as one cue with the latest remaining deadline.
     if (const int64 RootUntil=LDTactical::ActiveRootUntilMs(Body->Roots,NowMs); RootUntil>0)
     { Out.Add({uint8(ELDDemoStatusId::Root),1,RootUntil}); }
-    if (Body->Shield.IsSet() && Body->Shield->ExpiresAtMs>NowMs && Body->Resources.ShieldP2>0)
-    { Out.Add({uint8(ELDDemoStatusId::Shield),1,Body->Shield->ExpiresAtMs}); }
+    if (const int64 ShieldUntil=LDTactical::ActiveShieldUntilMs(Body->Shields,NowMs); ShieldUntil>0 && Body->Resources.ShieldP2>0)
+    { Out.Add({uint8(ELDDemoStatusId::Shield),1,ShieldUntil}); }
     // A slow shows its strongest instance; timed bonuses and control marks show one cue each with the latest deadline.
     if (const int64 SlowUntil=LDTactical::StrongestSlowUntilMs(Body->Slows,NowMs); SlowUntil>0)
     { Out.Add({uint8(ELDDemoStatusId::Slow),1,SlowUntil}); }
@@ -241,18 +241,29 @@ bool ALDCombatDirector::InstallCombatBody(ALDCharacter& Body,FLDBodyCombatState&
         }
         Records.Add(Record.Entity,MoveTemp(Record));
     }
-    else if (Records.FindChecked(Prepared.Victim.EntityId).Kind!=Prepared.Victim.Kind)
+    else
     {
-        Error=TEXT("A Combat entity cannot change its victim kind.");
-        return false;
+        const FLDCombatEntityRecord* Existing=Records.Find(Prepared.Victim.EntityId);
+        if (!Existing || Existing->Kind!=Prepared.Victim.Kind)
+        {
+            UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_ENTITY_KIND_MISMATCH entity=%s"),*Prepared.Victim.EntityId.ToString());
+            Error=TEXT("A Combat entity cannot change its victim kind.");
+            return false;
+        }
     }
     if(Prepared.Victim.Kind==ELDVictimKind::CampMember)
     {
-        auto& Record=Records.FindChecked(Prepared.Victim.EntityId);
-        if(Record.MonsterLives.Contains(Prepared.Victim.Life))
+        auto* Record=Records.Find(Prepared.Victim.EntityId);
+        if(!Record)
+        {
+            UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_MISSING_CAMP_RECORD entity=%s"),*Prepared.Victim.EntityId.ToString());
+            Error=TEXT("A camp life lost its registered Combat entity record.");
+            return false;
+        }
+        if(Record->MonsterLives.Contains(Prepared.Victim.Life))
         {Error=TEXT("A camp life cannot register another species or physical body.");return false;}
-        Record.MonsterId=Prepared.MonsterId;
-        Record.MonsterLives.Add(Prepared.Victim.Life,Prepared.MonsterId);
+        Record->MonsterId=Prepared.MonsterId;
+        Record->MonsterLives.Add(Prepared.Victim.Life,Prepared.MonsterId);
     }
     Out={Prepared.Victim,Prepared.Identity};
     LDCombatLifeDetail::ApplyMoveSpeed(Body,Prepared.AttributeProjection.Final);

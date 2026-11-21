@@ -223,13 +223,15 @@ bool ALDCombatDirector::ClearBodyForPhase(FLDBodyCombatState& Body, ALDCharacter
     Body.ChannelEffectId={};
     Body.ChannelDirectSequence=0;
     Body.ChannelStartedAtMs=0;
-    if (Body.Shield.IsSet() || Body.Resources.ShieldP2!=0)
+    if (!Body.Shields.IsEmpty() || Body.Resources.ShieldP2!=0)
     {
-        Body.Shield.Reset();
+        Body.Shields.Reset();
         Body.Resources.ShieldP2=0;
         Body.ShieldGrantedP2=0;
         ++Body.Resources.Revision;
     }
+    Body.KeystoneStrengthTargetReadyAtMs.Reset();
+    Body.bWaveAfterReactionExempt=false;
     ++Body.StateRevision;
     MarkViewChanged(Body.Victim.EntityId);
     return RefreshTemporary(Body,Actor,NowMs,Error);

@@ -191,13 +191,15 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     }
     const bool bCritical=Hit.bCritical;
     FLDDamageEvaluationInput Evaluation;
-    Evaluation.Definition.Emplace(Hit.BaseP2,Hit.ADRatioBp,Hit.APRatioBp,Hit.DamageType,Hit.MaxHPRatioBp);
+    const ELDDemoDamageType EffectiveType=LDTactical::EffectiveDamageType(Hit.DamageType,Hit.AdaptiveRatioBp,Hit.SourceBonusADP2,Hit.SourceAPP2);
+    Evaluation.Definition.Emplace(Hit.BaseP2,Hit.ADRatioBp,Hit.APRatioBp,EffectiveType,Hit.MaxHPRatioBp,Hit.AdaptiveRatioBp);
     Evaluation.HitClass=Hit.HitClass;
     Evaluation.bCritical=bCritical;
     Evaluation.SourceADP2=Hit.SourceADP2;
     Evaluation.SourceAPP2=Hit.SourceAPP2;
+    if (Hit.AdaptiveRatioBp!=0) { Evaluation.SourceBonusADP2=Hit.SourceBonusADP2; }
     if (Hit.MaxHPRatioBp!=0) { Evaluation.SourceMaxHPP2=Hit.SourceMaxHPP2; }
-    const bool bPhysical=Hit.DamageType==ELDDemoDamageType::Physical;
+    const bool bPhysical=EffectiveType==ELDDemoDamageType::Physical;
     // The #147 shared breach cuts the matching resistance by its stacks' flat terms.
     Evaluation.TargetResistanceP2=LDCombatKeywords::BreachedResistanceP2(bPhysical ? Defence.ArmorP2 : Defence.MagicResistP2,
         Body->SharedBreach,NowMs,Keywords);
@@ -241,7 +243,8 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     }
     Evaluation.PackageScaleBp=Hit.PackageScaleBp;
     const bool bKeystoneGuardReady=Body->AttributeProjection.Keystones.bThickSkin
-        && NowMs>=Body->KeystoneThickSkinReadyAtMs && Hit.HitClass==ELDCombatHitClass::BasicPrimary
+        && NowMs>=Body->KeystoneThickSkinReadyAtMs
+        && (Hit.HitClass==ELDCombatHitClass::BasicPrimary || Hit.HitClass==ELDCombatHitClass::Ability)
         && Hit.SourceEntity!=Body->Victim.EntityId;
     if (bKeystoneGuardReady)
     {
@@ -338,18 +341,26 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
 
     const int64 HPBefore=Body->Resources.HpP2;
     Body->Resources.HpP2=Damage.RemainingHPP2;
-    Body->Resources.ShieldP2=Damage.RemainingShieldP2;
+    TArray<FGuid> BrokenShieldIds;
+    LDTactical::AbsorbActiveShields(Body->Shields,Body->Resources.ShieldP2,Damage.ShieldAbsorbedP2,NowMs,BrokenShieldIds);
+    Damage.RemainingShieldP2=Body->Resources.ShieldP2;
     ++Body->Resources.Revision;
-    if (Damage.KeystoneGuardCutP2>0) { Body->KeystoneThickSkinReadyAtMs=KeystoneGuardReadyAtMs; }
+    if (Damage.KeystoneGuardCutP2>0)
+    {
+        Body->KeystoneThickSkinReadyAtMs=KeystoneGuardReadyAtMs;
+        GrantMomentum(*Body,1000,ELDMomentumBook::Reaction);
+    }
     if (bBraced && Damage.BraceCutP2>0)
     {
         Body->Brace.RecordedP2=LDCombatElements::BraceRecordP2(Body->Brace.RecordedP2,Damage.BraceCutP2,Body->Brace.CapP2);
         MarkViewChanged(Body->Victim.EntityId);
     }
-    const bool bShieldBroken=LDCombatMechanics::ShieldBroken(ShieldBeforeP2,Damage.RemainingShieldP2,Damage.ShieldAbsorbedP2);
+    const bool bShieldBroken=!BrokenShieldIds.IsEmpty()
+        || LDCombatMechanics::ShieldBroken(ShieldBeforeP2,Damage.RemainingShieldP2,Damage.ShieldAbsorbedP2);
+    const bool bBranchShieldBroken=Body->Branch.ShieldEffectId.IsValid() && BrokenShieldIds.Contains(Body->Branch.ShieldEffectId);
     // A barrier emptied by this hit ends by the same timed-status rule as an expired one.
-    const FLDStatusExpiry Ended=LDTactical::ExpireTimedStatuses(Body->Roots,Body->Shield,Body->Resources.ShieldP2,NowMs);
-    if (Ended.bRootsChanged || Ended.bShieldChanged) { ++Body->StateRevision; }
+    const FLDStatusExpiry Ended=LDTactical::ExpireTimedStatuses(Body->Roots,Body->Shields,Body->Resources.ShieldP2,NowMs);
+    if (Ended.bRootsChanged || Ended.bShieldChanged || !BrokenShieldIds.IsEmpty()) { ++Body->StateRevision; }
     // A positive mitigated hit is combat even when the barrier absorbed all of it.
     if (Damage.DamageP2>0) { MarkEngaged(*Body,NowMs); }
     // #198 build safe window: hostile positive damage marks its victim and the contender credited with it (burn ticks
@@ -536,12 +547,18 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         if (!bProtected && bNativeDirect && Hit.CastLedger && !Hit.CastLedger->Riders.IsEmpty()
             && !ApplyBranchRiders(Hit,*Source,*Body,NowMs,Error)) { return false; }
     }
-    if (!bProtected && !OnBranchHitTaken(Hit,*Body,Damage.DamageP2,bShieldBroken,NowMs,Error)) { return false; }
+    if (!bProtected && !OnBranchHitTaken(Hit,*Body,Damage.DamageP2,bBranchShieldBroken,NowMs,Error)) { return false; }
     // Spec §6.5: the hit's damage joins its chain and its owner's strongest hit.
     if (!bProtected && Hit.SourceEntity!=Body->Victim.EntityId) { ChainDamage(Hit,*Body,Damage.DamageP2); }
-    // Issue #292 P5: Y06 bursts on a broken shield; Y29 shields a share of the burn its source dealt; K03 remembers the native
-    // skill hits on a contender life (its takedown refresh reads them).
-    if (!bProtected && bShieldBroken && Hit.SourceEntity!=Body->Victim.EntityId && !OnShieldBrokenCards(*Body,NowMs,Error)) { return false; }
+    // Issue #292 P5 / #330 §5.4: every individual shield broken to 0 triggers card_shell_burst.
+    if (!bProtected && bShieldBroken && Hit.SourceEntity!=Body->Victim.EntityId)
+    {
+        const int32 BreakCount=FMath::Max(1,BrokenShieldIds.Num());
+        for (int32 BreakIdx=0; BreakIdx<BreakCount; ++BreakIdx)
+        {
+            if (!OnShieldBrokenCards(*Body,NowMs,Error)) { return false; }
+        }
+    }
     if (!bProtected && Source && Hit.bBurnTick && Hit.SourceEntity!=Body->Victim.EntityId
         && !OnBurnDealtCards(*Source,Damage.HPLostP2,NowMs,Error)) { return false; }
     if (!bProtected && bNativeDirect && Damage.DamageP2>0 && Body->Victim.Kind==ELDVictimKind::Contender && Hit.CreditOwner.IsValid()
@@ -589,6 +606,10 @@ bool ALDCombatDirector::SnapshotOnHit(const FLDBodyCombatState& Source, int64 Sc
 
 bool ALDCombatDirector::StampSourceTerms(const FLDBodyCombatState& Source, FLDCombatHit& InOut, FString& Error) const
 {
+    if (const FLDDemoContentSnapshot* Content=Catalog())
+    {
+        InOut.SourceBonusADP2=LDTactical::BonusADOf(Content->Get().Parameters,GrowthLevelOf(Source),Source.AttributeProjection.Final.ADP2);
+    }
     Error.Reset();
     return true;
 }
@@ -684,8 +705,10 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
     Targets.Sort([](const LDCombatEffectsDetail::FProjectileTarget& Left, const LDCombatEffectsDetail::FProjectileTarget& Right)
     { return Left.Body.Victim.EntityId<Right.Body.Victim.EntityId; });
     TArray<int32> Finished;
-    for (int32 Index=0; Index<Projectiles.Num(); ++Index)
+    const int32 InitialCount=Projectiles.Num();
+    for (int32 Index=0; Index<InitialCount; ++Index)
     {
+        if (!Projectiles.IsValidIndex(Index)) { break; }
         FLDCombatProjectile& Projectile=Projectiles[Index];
         const int64 ElapsedMs=NowMs-Projectile.AdvancedThroughMs;
         if (ElapsedMs<=0) { continue; }
@@ -781,9 +804,10 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
                 SegmentFrom=At;
                 continue;
             }
-            if (Projectile.ReturnScaleBp>0 && !Projectile.bReturn
-                && !LaunchReturn(Projectile,At,Targets[Struck].Body.Victim.EntityId,Error)) { return false; }
-            if (!EndBranchProjectile(Projectile,At,false,Error)) { return false; }
+            const FLDCombatProjectile FinishedCopy=Projectile;
+            if (FinishedCopy.ReturnScaleBp>0 && !FinishedCopy.bReturn
+                && !LaunchReturn(FinishedCopy,At,Targets[Struck].Body.Victim.EntityId,Error)) { return false; }
+            if (!EndBranchProjectile(FinishedCopy,At,false,Error)) { return false; }
             bEnded=true;
             break;
         }
@@ -794,17 +818,19 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
         }
         if (BagStruck!=INDEX_NONE)
         {
-            DamageBag(Bags[BagStruck],Projectile.Payload,NowMs);
-            if (Projectile.ReturnScaleBp>0 && !Projectile.bReturn && !LaunchReturn(Projectile,Stop,FGuid(),Error)) { return false; }
-            if (!EndBranchProjectile(Projectile,Stop,false,Error)) { return false; }
+            const FLDCombatProjectile FinishedCopy=Projectiles[Index];
+            if (Bags.IsValidIndex(BagStruck)) { DamageBag(Bags[BagStruck],FinishedCopy.Payload,NowMs); }
+            if (FinishedCopy.ReturnScaleBp>0 && !FinishedCopy.bReturn && !LaunchReturn(FinishedCopy,Stop,FGuid(),Error)) { return false; }
+            if (!EndBranchProjectile(FinishedCopy,Stop,false,Error)) { return false; }
             Finished.Add(Index);
             continue;
         }
         if (ClearFraction<1 || bReachesRange)
         {
             // M13: terrain or the end of the reach still sends the return home.
-            if (Projectile.ReturnScaleBp>0 && !Projectile.bReturn && !LaunchReturn(Projectile,Stop,FGuid(),Error)) { return false; }
-            if (!EndBranchProjectile(Projectile,Stop,bReachesRange,Error)) { return false; }
+            const FLDCombatProjectile FinishedCopy=Projectiles[Index];
+            if (FinishedCopy.ReturnScaleBp>0 && !FinishedCopy.bReturn && !LaunchReturn(FinishedCopy,Stop,FGuid(),Error)) { return false; }
+            if (!EndBranchProjectile(FinishedCopy,Stop,bReachesRange,Error)) { return false; }
             Finished.Add(Index);
             continue;
         }
@@ -951,27 +977,35 @@ bool ALDCombatDirector::InstallBodyProjection(FLDBodyCombatState& Body, ALDChara
 
 bool ALDCombatDirector::RefreshAllTemporary(int64 NowMs, FString& Error)
 {
-    for (auto& Pair : Bodies)
+    TArray<TWeakObjectPtr<ALDCharacter>> BodyKeys;
+    Bodies.GetKeys(BodyKeys);
+    for (const TWeakObjectPtr<ALDCharacter>& Key : BodyKeys)
     {
-        FLDBodyCombatState& Body=Pair.Value;
-        if (!Pair.Key.IsValid()) { continue; }
+        if (!Key.IsValid()) { continue; }
+        FLDBodyCombatState* BodyPtr=Bodies.Find(Key);
+        if (!BodyPtr) { continue; }
+        FLDBodyCombatState& Body=*BodyPtr;
         if (LDTactical::ExpireTemporaryStatuses(Body.Slows,Body.TimedBonuses,NowMs))
         {
             ++Body.StateRevision;
             MarkViewChanged(Body.Victim.EntityId);
         }
         if (Body.bPendingDeath) { continue; }
-        if (!RefreshTemporary(Body,Pair.Key.Get(),NowMs,Error)) { return false; }
+        if (!RefreshTemporary(Body,Key.Get(),NowMs,Error)) { return false; }
     }
     return true;
 }
 
 void ALDCombatDirector::ExpireStatuses(int64 NowMs)
 {
-    for (auto& Pair : Bodies)
+    TArray<TWeakObjectPtr<ALDCharacter>> BodyKeys;
+    Bodies.GetKeys(BodyKeys);
+    for (const TWeakObjectPtr<ALDCharacter>& Key : BodyKeys)
     {
-        FLDBodyCombatState& Body=Pair.Value;
-        const FLDStatusExpiry Expired=LDTactical::ExpireTimedStatuses(Body.Roots,Body.Shield,Body.Resources.ShieldP2,NowMs);
+        FLDBodyCombatState* BodyPtr=Bodies.Find(Key);
+        if (!BodyPtr) { continue; }
+        FLDBodyCombatState& Body=*BodyPtr;
+        const FLDStatusExpiry Expired=LDTactical::ExpireTimedStatuses(Body.Roots,Body.Shields,Body.Resources.ShieldP2,NowMs);
         const FLDStatusExpiry Control=LDControl::ExpireControlStatuses(Body.Taunt,NowMs);
         const bool bControls=LDCombatControl::ExpireDisarmsAndStuns(Body.Disarms,Body.Stuns,NowMs,&Body.Silences)
             | LDCombatKeywords::ExpireBreach(Body.SharedBreach,NowMs) | LDCombatKeywords::ExpireBurn(Body.Burn,NowMs);

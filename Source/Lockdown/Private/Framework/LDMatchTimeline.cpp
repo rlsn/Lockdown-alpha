@@ -23,13 +23,21 @@ bool FLDTimelineParameters::Validate(FString& Error) const
 {
     // Each value is bounded by an int32 of seconds so every sum of a whole match stays far inside int64.
     constexpr int64 Bound = int64(MAX_int32) * 1000;
-    const int64 Durations[] = {FieldSegmentMs, OpeningBuildMs, BuildMs, SignupMs, DrawMs, BettingMs, PKReadyMs, PKMaxMs,
-        SettlementMs, PayoutMs, ReturnMs};
-    for (const int64 Duration : Durations)
+    const int64 PositiveDurations[] = {FieldSegmentMs, OpeningBuildMs, BuildMs, SignupMs, BettingMs, PKReadyMs, PKMaxMs,
+        SettlementMs, ReturnMs};
+    for (const int64 Duration : PositiveDurations)
     {
         if (Duration <= 0 || Duration > Bound)
         {
             Error = TEXT("Every approved timeline duration must be positive and bounded.");
+            return false;
+        }
+    }
+    for (const int64 OptionalDuration : {DrawMs, PayoutMs})
+    {
+        if (OptionalDuration < 0 || OptionalDuration > Bound)
+        {
+            Error = TEXT("Optional rest step durations must be nonnegative and bounded.");
             return false;
         }
     }
@@ -214,7 +222,8 @@ bool FLDMatchTimeline::Advance(int64 AtMs, int32 SignedUp, bool bAllowLock, bool
             Lock.Value = Entrants;
             // R0/R3 are not PK rests; in R1/R2 fewer than two entrants also skip straight to Return.
             bPKSkipped = Entrants < 2;
-            bStepped = EnterStep(bPKSkipped ? ELDRestStep::Return : ELDRestStep::Draw, Due, Out, Error);
+            const ELDRestStep FirstPKStep = Parameters.DrawMs > 0 ? ELDRestStep::Draw : ELDRestStep::Betting;
+            bStepped = EnterStep(bPKSkipped ? ELDRestStep::Return : FirstPKStep, Due, Out, Error);
             break;
         }
         case ELDRestStep::Draw: bStepped = EnterStep(ELDRestStep::Betting, Due, Out, Error); break;
@@ -235,7 +244,9 @@ bool FLDMatchTimeline::Advance(int64 AtMs, int32 SignedUp, bool bAllowLock, bool
             break;
         }
         case ELDRestStep::PK: bStepped = EnterStep(ELDRestStep::Settlement, Due, Out, Error); break;
-        case ELDRestStep::Settlement: bStepped = EnterStep(ELDRestStep::Payout, Due, Out, Error); break;
+        case ELDRestStep::Settlement:
+            bStepped = EnterStep(Parameters.PayoutMs > 0 ? ELDRestStep::Payout : ELDRestStep::Return, Due, Out, Error);
+            break;
         case ELDRestStep::Payout: bStepped = EnterStep(ELDRestStep::Return, Due, Out, Error); break;
         default: Error = TEXT("A rest has no current step."); return false;
         }

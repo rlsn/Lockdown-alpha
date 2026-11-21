@@ -452,6 +452,7 @@ bool ALDGameMode::EndContenderLife(const FLDCommittedDeath& Fact, const FLDGamep
     Life->RespawnAtMs = RespawnAt;
     Life->RespawnDurationMs = RespawnAt > 0 ? WaitMs : 0;
     if (bFinal && RespawnAt > 0) { ++ShowdownRespawns.FindOrAdd(Id); }
+    if (bFinal && Fact.CreditOwner.IsValid() && Fact.CreditOwner != Id) { ++ShowdownKills.FindOrAdd(Fact.CreditOwner); }
     if (bRestLife) { PendingPhasePlacement.Add(Fact.Key.Victim.EntityId); }
     // Spec §10.4: a field death chooses its next spot among the drawn candidates on the death screen.
     if (!bRestLife && !bFinal && RespawnAt > 0) { OpenSpawnChoice(Id, Life->Life, Fact.OccurredAtMs); }

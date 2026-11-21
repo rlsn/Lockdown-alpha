@@ -311,6 +311,13 @@ private:
             for (const FLDDemoEffectDefinition& Effect : Row.Effects)
             {
                 HPPerArmorP2 += Effect.GetOp() == ELDDemoEffectOp::ArmorToHp ? Effect.BaseP2 : 0;
+                if (Effect.GetOp() == ELDDemoEffectOp::SkillCrit)
+                {
+                    for (const FLDDemoStatBonus& Bonus : Effect.Stats)
+                    {
+                        if (!AddBonus(Bonus, &FAttributeSum::Cards, One, TEXT("Cards.skill_crit"))) { return false; }
+                    }
+                }
                 // A05: a flying basic reaches farther (its range bonus is the card's distance).
                 if (Effect.GetOp() == ELDDemoEffectOp::BasicProjectile && Effect.DistanceCm.Numerator > 0)
                 {

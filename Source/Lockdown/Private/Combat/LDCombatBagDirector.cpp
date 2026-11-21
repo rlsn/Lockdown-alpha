@@ -19,8 +19,10 @@ int64 ALDCombatDirector::RawBagDamageP2(const FLDCombatHit& Hit)
 {
     // The hit's own amount before crits, factors and resistances: a bag has none of them.
     const int64 Scale = Hit.DeliveryScaleBp > 0 ? Hit.DeliveryScaleBp : 10000;
+    const int64 AdaptiveStatP2 = Hit.SourceBonusADP2 * 14 >= Hit.SourceAPP2 * 10 ? Hit.SourceBonusADP2 : Hit.SourceAPP2;
     const int64 Raw = FMath::Max<int64>(Hit.BaseP2, 0) + FMath::Max<int64>(Hit.SourceADP2, 0) / 10000 * Hit.ADRatioBp
-        + FMath::Max<int64>(Hit.SourceAPP2, 0) / 10000 * Hit.APRatioBp;
+        + FMath::Max<int64>(Hit.SourceAPP2, 0) / 10000 * Hit.APRatioBp
+        + FMath::Max<int64>(AdaptiveStatP2, 0) / 10000 * Hit.AdaptiveRatioBp;
     return FMath::Max<int64>(Raw, 0) / 10000 * Scale + FMath::Max<int64>(Raw, 0) % 10000 * Scale / 10000;
 }
 

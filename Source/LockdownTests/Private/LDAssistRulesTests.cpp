@@ -55,12 +55,12 @@ bool FLDDemoAssistRewardSplitTest::RunTest(const FString& Parameters)
     FLDAssistRewardShares Shares;
     TestTrue(TEXT("Without assisters the killer takes everything"), LDAssist::SplitKillReward(100, 0, Shares)
         && Shares.KillerXP == 100 && Shares.AssisterXP == 0);
-    TestTrue(TEXT("Two assisters: 100 XP split 33 each"),
-        LDAssist::SplitKillReward(100, 2, Shares) && Shares.KillerXP == 33 && Shares.AssisterXP == 33);
-    TestTrue(TEXT("Three assisters: 120 XP -> 30 each"),
-        LDAssist::SplitKillReward(120, 3, Shares) && Shares.KillerXP == 30 && Shares.AssisterXP == 30);
-    TestTrue(TEXT("A small amount floors every share: 7 XP among five -> 1 each"),
-        LDAssist::SplitKillReward(7, 4, Shares) && Shares.KillerXP == 1 && Shares.AssisterXP == 1);
+    TestTrue(TEXT("Two assisters: killer keeps 100% and each assister receives 50%"),
+        LDAssist::SplitKillReward(100, 2, Shares) && Shares.KillerXP == 100 && Shares.AssisterXP == 50);
+    TestTrue(TEXT("Three assisters: 120 XP -> 120 killer, 60 each assister"),
+        LDAssist::SplitKillReward(120, 3, Shares) && Shares.KillerXP == 120 && Shares.AssisterXP == 60);
+    TestTrue(TEXT("An odd amount floors the assister half: 7 XP -> 7 killer, 3 each assister"),
+        LDAssist::SplitKillReward(7, 4, Shares) && Shares.KillerXP == 7 && Shares.AssisterXP == 3);
     TestFalse(TEXT("A negative amount is refused"), LDAssist::SplitKillReward(-1, 1, Shares));
     TestFalse(TEXT("A negative assister count is refused"), LDAssist::SplitKillReward(10, -1, Shares));
     return true;

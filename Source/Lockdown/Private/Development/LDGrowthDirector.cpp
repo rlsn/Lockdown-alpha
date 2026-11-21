@@ -350,21 +350,41 @@ FLDRewardReceipt ALDGrowthDirector::CommitDeathReward(const FLDCommittedDeath& D
         return Receipt;
     }
 
-    // The killer and the assisters split the kill XP evenly.
+    // Killer receives 100% XP + 1 card offer (up to 2 per field segment, else +2 stat points); each assister receives
+    // 50% XP + 1 stat point independently; shutting down a trending Leader grants extra +150 XP + 3 stat points + 1 Rare/Legendary offer.
     FLDAssistRewardShares Split;
     if (!LDAssist::SplitKillReward(Amounts.XP, Death.Assisters.Num(), Split))
     {
         return Finish(ELDRewardOutcome::PermanentlyRejected, ELDGrowthReason::ArithmeticOverflow);
     }
+    const bool bLeaderShutdown = bContenderVictim && M->IsBountyDeath(Death.Key);
     TArray<FRewardShare> Shares;
     FRewardShare& Killer = Shares.AddDefaulted_GetRef();
     Killer.Recipient = Recipient;
-    Killer.Amounts.XP = Split.KillerXP;
+    Killer.Amounts.XP = Split.KillerXP + (bLeaderShutdown ? 150 : 0);
+    if (bContenderVictim)
+    {
+        Killer.PvPKillSegment = int32(M->GetTimeline().GetFieldSegment());
+        if (bLeaderShutdown)
+        {
+            Killer.BonusStatPoints += 3;
+            Killer.ExtraOffers.Add(ELDCardOfferSource::LeaderBounty);
+        }
+    }
     for (const FGuid& Assister : Death.Assisters)
     {
         FRewardShare& Share = Shares.AddDefaulted_GetRef();
         Share.Recipient = Assister;
         Share.Amounts.XP = Split.AssisterXP;
+        if (bContenderVictim)
+        {
+            Share.BonusStatPoints = 1;
+        }
+    }
+    if (bLeaderShutdown)
+    {
+        UE_LOG(LogLDGrowth, Display, TEXT("LD_LEADER_SHUTDOWN killer=%s victim=%s bonus_xp=150 bonus_points=3"),
+            *LDLog::Id(Recipient), *LDLog::Id(Death.Key.Victim.EntityId));
     }
     ELDGrowthReason Reason = ELDGrowthReason::None;
     const FString Detail = FString::Printf(TEXT("victim=%s victim_life=%u victim_kind=%s"), *LDLog::Id(Death.Key.Victim.EntityId),
@@ -396,7 +416,7 @@ ELDRewardOutcome ALDGrowthDirector::CommitFieldReward(const FGuid& Recipient, FN
     ELDFieldRewardKind Kind, const FLDGameplayWritePermit& Permit, FLDRewardReceipt& Receipt, ELDGrowthReason& Reason)
 {
     Reason = ELDGrowthReason::None;
-    const bool bKnownKind = uint8(Kind) <= uint8(ELDFieldRewardKind::BonusOffer);
+    const bool bKnownKind = uint8(Kind) <= uint8(ELDFieldRewardKind::BossKill);
     if (!Recipient.IsValid() || Event.IsNone() || !Serial || XP < 0 || !bKnownKind || (Kind == ELDFieldRewardKind::None && XP == 0))
     {
         Reason = ELDGrowthReason::DataInvalid;
@@ -480,7 +500,10 @@ ELDRewardOutcome ALDGrowthDirector::CommitRewardShares(const TArray<FRewardShare
                 ? M->Development->DevPrepareEvaluationExperience(Share.Recipient, Share.Amounts.XP, Share.DevLevelCards)
                 :
 #endif
-            M->Development->PrepareFieldReward(Share.Recipient, Share.Amounts.XP, Share.FieldKind, Share.Event, Share.Serial);
+            (Share.BonusStatPoints > 0 || !Share.ExtraOffers.IsEmpty() || Share.PvPKillSegment != INDEX_NONE)
+                ? M->Development->PrepareDeathShare(Share.Recipient, Share.Amounts.XP, Share.BonusStatPoints,
+                    Share.ExtraOffers, Share.PvPKillSegment)
+                : M->Development->PrepareFieldReward(Share.Recipient, Share.Amounts.XP, Share.FieldKind, Share.Event, Share.Serial);
         if (!Growth.IsSuccess())
         {
             Reason = Growth.Reason;

@@ -2723,8 +2723,12 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
     // band it carries on, and a recovering body has already disengaged above. #160: an escape that has left the band
     // walks on to its place while the Boss stays in sight; turning back at the band's edge sent a new order on every
     // decision, flipping between the escape and the errand that led back toward the Boss.
+    // D26 (#79): a low-level (<7) or injured body inside the Boss's acquire band steps away from it before anything but the
+    // circle; mid/late-game healthy contenders (Lv7+, >= HighCampEntryHPRatio) contest the Boss instead.
+    const bool bCanContestBoss = C.Self.Level >= 7 && !State.bRecovering
+        && RatioAtLeast(C.Self.HpP2, C.Self.MaxHpP2, C.AI.HighCampEntryHPBp);
     const bool bInBossBand = C.Boss && C.Distance(C.Boss->FootCm) <= C.BossBandCm;
-    if (C.Boss && !bHoldingSolo && (bInBossBand || State.bEscapingBoss))
+    if (C.Boss && !bCanContestBoss && !bHoldingSolo && (bInBossBand || State.bEscapingBoss))
     {
         EndVisit(State, false);
         const FLDOpponentPOI* Kept = bInBossBand ? nullptr : C.FindPOI(State.RetreatPOI);
@@ -2740,6 +2744,12 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         {
             EndVisit(State, false);
             Body(EngageBody(C, *Target));
+            return Finish(EMode::Engage, EReason::EngageTarget);
+        }
+        if (bCanContestBoss && C.Boss && !HandleSuppressed(C, *C.Boss))
+        {
+            EndVisit(State, false);
+            Body(EngageBody(C, *C.Boss));
             return Finish(EMode::Engage, EReason::EngageTarget);
         }
     }

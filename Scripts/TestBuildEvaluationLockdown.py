@@ -264,7 +264,7 @@ class CapabilitiesTest(AdapterCase):
         self.assertEqual(duel["evidence_level"], "NativeSpatial")
         self.assertEqual(lockdown.level_for(self.content["progression"], 240), 4)
         self.assertEqual(lockdown.level_for(self.content["progression"], 179), 3)
-        self.assertEqual([lockdown._opportunities(self.caps, xp) for xp in (0, 59, 60, 499, 500)], [1, 1, 2, 2, 3])
+        self.assertEqual([lockdown._opportunities(self.caps, xp) for xp in (0, 59, 60, 359, 360, 1039, 1040)], [1, 1, 2, 2, 3, 3, 4])
 
 
 class PlanTest(AdapterCase):

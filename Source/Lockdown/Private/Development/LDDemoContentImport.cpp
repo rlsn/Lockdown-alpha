@@ -779,12 +779,12 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("REST.OpeningBuildSec"), TEXT("ms"), TEXT("ms"), &P.RestOpeningBuildMs, 1, MAX_int64},
         {TEXT("REST.BuildSec"), TEXT("ms"), TEXT("ms"), &P.RestBuildMs, 1, MAX_int64},
         {TEXT("REST.SignupSec"), TEXT("ms"), TEXT("ms"), &P.RestSignupMs, 1, MAX_int64},
-        {TEXT("REST.DrawSec"), TEXT("ms"), TEXT("ms"), &P.RestDrawMs, 1, MAX_int64},
+        {TEXT("REST.DrawSec"), TEXT("ms"), TEXT("ms"), &P.RestDrawMs, 0, MAX_int64},
         {TEXT("REST.BettingSec"), TEXT("ms"), TEXT("ms"), &P.RestBettingMs, 1, MAX_int64},
         {TEXT("REST.PKReadySec"), TEXT("ms"), TEXT("ms"), &P.RestPKReadyMs, 1, MAX_int64},
         {TEXT("REST.PKMaxSec"), TEXT("ms"), TEXT("ms"), &P.RestPKMaxMs, 1, MAX_int64},
         {TEXT("REST.SettlementSec"), TEXT("ms"), TEXT("ms"), &P.RestSettlementMs, 1, MAX_int64},
-        {TEXT("REST.PayoutSec"), TEXT("ms"), TEXT("ms"), &P.RestPayoutMs, 1, MAX_int64},
+        {TEXT("REST.PayoutSec"), TEXT("ms"), TEXT("ms"), &P.RestPayoutMs, 0, MAX_int64},
         {TEXT("REST.ReturnSec"), TEXT("ms"), TEXT("ms"), &P.RestReturnMs, 1, MAX_int64},
         {TEXT("REST.EntryReadyTimeoutSec"), TEXT("ms"), TEXT("ms"), &P.RestEntryReadyTimeoutMs, 1, MAX_int64},
         {TEXT("PK.RingShrinkStartSec"), TEXT("ms"), TEXT("ms"), &P.PKRingShrinkStartMs, 1, MAX_int64},
@@ -1440,6 +1440,7 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bCard, FChec
         {
             FString Type;
             if (!F.Fixed(TEXT("ad_ratio"), TEXT("ratio"), TEXT("bp"), Out.ADRatioBp)
+                || !OptionalFixed(F, TEXT("adaptive_ratio"), TEXT("ratio"), TEXT("bp"), Out.AdaptiveRatioBp)
                 || !F.Fixed(TEXT("max_hp_ratio"), TEXT("ratio"), TEXT("bp"), Out.MaxHPRatioBp)
                 || !F.Text(TEXT("damage_type"), Type)
                 || !Check.Require(Type.Equals(TEXT("Physical"), ESearchCase::CaseSensitive)
@@ -1450,11 +1451,13 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bCard, FChec
             Out.DamageType = Type.Equals(TEXT("Physical"), ESearchCase::CaseSensitive) ? ELDDemoDamageType::Physical : ELDDemoDamageType::Magical;
         }
         else if (!F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)
+            || !OptionalFixed(F, TEXT("ad_ratio"), TEXT("ratio"), TEXT("bp"), Out.ADRatioBp)
             || !OptionalFixed(F, TEXT("max_hp_ratio"), TEXT("ratio"), TEXT("bp"), Out.MaxHPRatioBp, 1, 10000))
         {
             return false;
         }
-        if (!Check.Require(Out.BaseP2 > 0 || Out.APRatioBp > 0 || Out.ADRatioBp > 0 || Out.MaxHPRatioBp > 0, Path, TEXT("ineffective effect")))
+        if (!Check.Require(Out.BaseP2 > 0 || Out.APRatioBp > 0 || Out.ADRatioBp > 0 || Out.AdaptiveRatioBp > 0 || Out.MaxHPRatioBp > 0,
+            Path, TEXT("ineffective effect")))
         {
             return false;
         }
@@ -2033,8 +2036,13 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bCard, FChec
     case ELDDemoEffectOp::DashPhase:
     case ELDDemoEffectOp::TakedownReset:
     case ELDDemoEffectOp::ReactionElement:
-    case ELDDemoEffectOp::SkillCrit:
     case ELDDemoEffectOp::LifestealSkills:
+        break;
+    case ELDDemoEffectOp::SkillCrit:
+        if (F.Has(TEXT("stats")) && (!Stats(F.Take(TEXT("stats")), Out.Stats, Check, Path + TEXT(".stats"))
+            || !Check.Require(StatMask(Out.Stats) == Bit(ELDDemoBonusStat::CritChanceBonusRatio), Path,
+                TEXT("skill_crit only grants CritChanceBonusRatio"))))
+        { return false; }
         break;
     case ELDDemoEffectOp::ComboKnockback:
     case ELDDemoEffectOp::DashSplit:
@@ -2145,8 +2153,8 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bCard, FChec
             || !IntInto(F, TEXT("count"), Out.Count, 1, 1000)
             || !Stats(F.Take(TEXT("stats")), Out.Stats, Check, Path + TEXT(".stats"))
             || !Check.Require((StatMask(Out.Stats) & ~(Bit(ELDDemoBonusStat::ADFlat) | Bit(ELDDemoBonusStat::APFlat)
-                | Bit(ELDDemoBonusStat::MoveSpeedBonusRatio))) == 0, Path,
-                TEXT("hit growth adds flat attack, power or move speed"))) { return false; }
+                | Bit(ELDDemoBonusStat::AttackSpeedBonusRatio) | Bit(ELDDemoBonusStat::MoveSpeedBonusRatio))) == 0, Path,
+                TEXT("hit growth adds flat attack, power, attack speed or move speed"))) { return false; }
         break;
     case ELDDemoEffectOp::ControlAmp:
         if (!F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1)
@@ -2307,7 +2315,7 @@ bool Branches(const FValue& Value, TArray<FLDDemoAbilityBranch>& Out, FCheck& Ch
 // Spec §6.3: distinct vocabulary keys as ELDCardVocab bits (DemoContent.CARD_VOCAB order).
 bool VocabField(FFields& F, uint32& Out, int32 MinKeys, FCheck& Check, const FString& Path)
 {
-    static const TCHAR* const Names[] = {TEXT("basic_hit"), TEXT("combo3"), TEXT("skill_hit"), TEXT("skill_cast"), TEXT("overdrive"), TEXT("reaction"), TEXT("element"), TEXT("dash"), TEXT("dash_contact"), TEXT("perfect_dodge"), TEXT("knockback"), TEXT("wall_impact"), TEXT("shield"), TEXT("shield_break"), TEXT("controlled"), TEXT("control"), TEXT("damaged"), TEXT("low_hp"), TEXT("kill"), TEXT("idle"), TEXT("ground"), TEXT("heal"), TEXT("momentum"), TEXT("attack_speed"), TEXT("move_speed"), TEXT("crit"), TEXT("armor"), TEXT("max_hp")};
+    static const TCHAR* const Names[] = {TEXT("basic_hit"), TEXT("combo3"), TEXT("skill_hit"), TEXT("skill_cast"), TEXT("overdrive"), TEXT("reaction"), TEXT("element"), TEXT("dash"), TEXT("dash_contact"), TEXT("perfect_dodge"), TEXT("knockback"), TEXT("wall_impact"), TEXT("shield"), TEXT("shield_break"), TEXT("controlled"), TEXT("control"), TEXT("damaged"), TEXT("low_hp"), TEXT("kill"), TEXT("idle"), TEXT("ground"), TEXT("heal"), TEXT("momentum"), TEXT("attack_speed"), TEXT("move_speed"), TEXT("crit"), TEXT("armor"), TEXT("max_hp"), TEXT("area"), TEXT("range")};
     static_assert(UE_ARRAY_COUNT(Names) == int32(ELDCardVocab::Count));
     const TArray<FValue>* Rows;
     if (!Array(F.Take(TEXT("vocab")), Rows, Check, Path + TEXT(".vocab"), MinKeys, 8))
@@ -2525,6 +2533,17 @@ bool Card(const FValue& Value, FLDDemoCardDefinition& Out, FCheck& Check, const 
         TEXT("only a skill card limits its host")))
     {
         return false;
+    }
+    Out.DropWeight = 100;
+    if (F.Has(TEXT("drop_weight")))
+    {
+        int64 Weight = 0;
+        if (!F.Int(TEXT("drop_weight"), Weight, 1, 1000)
+            || !Check.Require(Out.Form != ELDCardForm::Medal, Path, TEXT("medals have no drop_weight")))
+        {
+            return false;
+        }
+        Out.DropWeight = static_cast<int32>(Weight);
     }
     FOpMask Mask;
     if (!Effects(F.Take(TEXT("effects")), Out.Effects, true, Mask, Check, Path + TEXT(".effects")))

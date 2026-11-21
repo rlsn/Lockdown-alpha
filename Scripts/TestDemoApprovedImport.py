@@ -83,8 +83,12 @@ ACTIVE_FRAMES = {
 }
 
 
-def magical(base, ap, hp=0):
-    return ("damage", {"ad_ratio": 0, "ap_ratio": r(ap), "base": base, "damage_type": "Magical", "max_hp_ratio": r(hp)})
+def magical(base, ap, hp=0, ad=0):
+    return ("damage", {"ad_ratio": r(ad), "ap_ratio": r(ap), "base": base, "damage_type": "Magical", "max_hp_ratio": r(hp)})
+
+
+def adaptive(base, ratio):
+    return ("damage", {"ad_ratio": 0, "adaptive_ratio": r(ratio), "ap_ratio": 0, "base": base, "damage_type": "Magical", "max_hp_ratio": 0})
 
 
 def physical(base, ad, ap=0):
@@ -93,12 +97,12 @@ def physical(base, ad, ap=0):
 
 # Every active's effects in authored order and author units; "base" grows with the owner's level at runtime.
 ACTIVE_EFFECTS = {
-    "active_elbow": [physical(55, ".6"), ("knockback", {"distance": 300, "duration": r(".25")})],
-    "active_pants_down": [physical(40, ".4"), ("root", {"duration": r("1.2")})],
-    "active_crotch_grab": [physical(60, ".6"), ("stun", {"duration": r(".8")})],
+    "active_elbow": [physical(55, ".75", ".35"), ("knockback", {"distance": 300, "duration": r(".25")})],
+    "active_pants_down": [physical(40, ".55", ".35"), ("root", {"duration": r("1.2")})],
+    "active_crotch_grab": [physical(60, ".7", ".35"), ("stun", {"duration": r(".8")})],
     "active_account_banned": [magical(55, ".6"), ("silence", {"duration": r("1.2")})],
-    "active_unplug": [physical(45, ".45"), ("disarm", {"duration": r("1.4")})],
-    "active_snark_bolt": [magical(90, ".9"), ("slow", {"duration": r("1.5"), "ratio": r(".25")})],
+    "active_unplug": [physical(45, ".6", ".3"), ("disarm", {"duration": r("1.4")})],
+    "active_snark_bolt": [adaptive(90, ".75"), ("slow", {"duration": r("1.5"), "ratio": r(".25")})],
     "active_seethe": [("self_area", {"radius": 300}), magical(60, ".6", ".02"), ("burn", {"stacks": 2})],
     "active_quick_meeting": [
         ("zone", {"count": 3, "delay": 0, "duration": 3, "interval": 1, "radius": 240}),
@@ -110,26 +114,26 @@ ACTIVE_EFFECTS = {
                    ("chain_bounce", {"count": 2, "interval": r(".15"), "radius": 350, "ratio": r(".7")})],
     "active_bail_out": [
         ("dash", {"distance": 350, "duration": r(".2")}),
-        ("empower_basic", {"ad_ratio": r(".4"), "ap_ratio": 0, "base": 45, "damage_type": "Physical", "duration": 3})],
+        ("empower_basic", {"ad_ratio": r(".55"), "ap_ratio": r(".35"), "base": 45, "damage_type": "Physical", "duration": 3})],
     "active_apology_slide": [
-        ("dash", {"distance": 400, "duration": r(".3")}), ("dash_contact", {"targets": "First"}), physical(65, ".5", ".3"),
+        ("dash", {"distance": 400, "duration": r(".3")}), ("dash_contact", {"targets": "First"}), physical(65, ".65", ".35"),
         ("slow", {"duration": r("1.5"), "ratio": r(".25")})],
     "active_charged_ram": [
         ("dash", {"distance": 450, "duration": r(".3")}),
-        ("shield", {"ap_ratio": 0, "base": 60, "duration": 2, "max_hp_ratio": r(".04")}),
-        ("dash_contact", {"targets": "Every"}), magical(40, ".35"), ("electrify", {})],
+        ("shield", {"ad_ratio": r(".35"), "ap_ratio": 0, "base": 60, "duration": 2, "max_hp_ratio": r(".04")}),
+        ("dash_contact", {"targets": "Every"}), magical(65, ".45", 0, ".5"), ("electrify", {})],
     "active_not_mad": [
-        ("shield", {"ap_ratio": r(".6"), "base": 80, "duration": 3, "max_hp_ratio": r(".05")}), ("dispel_slow", {}), ("dispel_root", {})],
+        ("shield", {"ad_ratio": r(".4"), "ap_ratio": r(".6"), "base": 80, "duration": 3, "max_hp_ratio": r(".05")}), ("dispel_slow", {}), ("dispel_root", {})],
     "active_stare_down": [
         ("taunt", {"duration": 1, "radius": 300}),
         ("timed_stat_bonus", {"duration": 3, "stats": {"ArmorFlat": 14, "MagicResistFlat": 14}})],
     "active_brace": [
         ("brace", {"base": 50, "duration": 3, "limit": 120, "radius": 300, "ratio": r(".2"), "record_ratio": r(".6")})],
     "active_triple_combo": [
-        ("empower_basic", {"ad_ratio": r(".12"), "ap_ratio": 0, "base": 18, "charges": 3, "damage_type": "Physical", "duration": 5,
+        ("empower_basic", {"ad_ratio": r(".2"), "ap_ratio": r(".12"), "base": 18, "charges": 3, "damage_type": "Physical", "duration": 5,
                            "stats": {"AttackSpeedBonusRatio": r(".25")}})],
     "active_calculus_drop": [
-        ("ground_impact", {"delay": r(".55"), "inner_radius": 80, "outer_ratio": r(".6"), "radius": 200}), magical(110, "1")],
+        ("ground_impact", {"delay": r(".55"), "inner_radius": 80, "outer_ratio": r(".6"), "radius": 200}), adaptive(110, ".85")],
     "active_flyer_trap": [
         ("contact_trap", {"delay": r(".45"), "duration": 6, "radius": 180, "trigger_radius": 100}), magical(100, ".75"),
         ("slow", {"duration": r("1.5"), "ratio": r(".3")})],
@@ -139,19 +143,19 @@ ACTIVE_EFFECTS = {
         ("zone_wet", {}), ("zone_haste", {"ratio": r(".15")})],
     "active_sock_shot": [magical(80, ".75"), ("attack_slow", {"duration": 3, "ratio": r(".2")}), ("rot", {}), ("knockback", {"distance": 100, "duration": r(".12")})],
     "active_open_mic": [
-        ("channel_cone", {"count": 3, "interval": r(".3"), "slow": r(".3"), "slow_duration": r("1.2")}), magical(35, ".3"), ("knockback", {"distance": 100, "duration": r(".12")})],
+        ("channel_cone", {"count": 3, "interval": r(".3"), "slow": r(".3"), "slow_duration": r("1.2")}), magical(35, ".25", 0, ".35"), ("knockback", {"distance": 100, "duration": r(".12")})],
     # Issue #287 P4 skills N1-N3.
     "active_cola_shake": [("channel_cone", {"count": 1, "interval": r(".25")}), magical(55, ".5"), ("chill", {}), ("knockback", {"distance": 100, "duration": r(".12")})],
     "active_desk_fan": [("fan", {"distance": 60, "duration": 4, "interval": r(".5"), "length": 600, "width": 200})],
     "active_stale_takeout": [magical(75, ".7"), ("rot", {}), ("ground_state", {"kind": "miasma"}), ("knockback", {"distance": 100, "duration": r(".12")})],
     "active_school_bag": [("bag", {"count": 1, "duration": 4, "hp_base": 150, "hp_per_level": 20, "radius": 200, "size": 40}),
-                          magical(80, ".6")],
+                          magical(80, ".5", 0, ".7")],
 }
 # #198 five point-bought stats: native id and the bonuses of one point.
 STAT_POINTS = {
     "stat_physique": (27, {"MaxHPFlat": 40, "HPRegenFlat": r(".08")}),
     "stat_thick_skin": (28, {"ArmorFlat": r("2.5"), "MagicResistFlat": r("2.5")}),
-    "stat_strength": (29, {"ADFlat": r("2.5"), "CritChanceBonusRatio": r(".004")}),
+    "stat_strength": (29, {"ADFlat": r("3.5"), "CritChanceBonusRatio": r(".006")}),
     "stat_brains": (30, {"APFlat": 6, "CooldownHasteFlat": 1, "MomentumRegenFlat": r(".06")}),
     "stat_agility": (31, {"AttackSpeedBonusRatio": r(".02"), "MoveSpeedBonusRatio": r(".005")}),
 }
@@ -288,7 +292,7 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertIn("#292 P5 cards, vouchers, rest shop, pick tickets and chains approved", approval["decision"])
         self.assertIn("#287 P2 build cards and P4 elements, reactions, ground states and N1-N3 approved", approval["decision"])
         self.assertFalse({"components", "workshop_capacity"} & (set(self.data) | set(self.data["progression"])))
-        self.assertEqual(self.data["character"]["basic_attack"]["interval_ms"], 1334)
+        self.assertEqual(self.data["character"]["basic_attack"]["interval_ms"], 1177)
         self.assertEqual(self.data["character"]["basic_attack"]["damage_type"], "Physical")
         self.assertEqual(self.data["character"]["basic_attack"]["ad_ratio"]["bp"], 10000)
 
@@ -305,7 +309,7 @@ class ApprovedDemoData(unittest.TestCase):
             for suffix, value in zip(("Base", "PerLevel", "Min", "Max"), values):
                 expected[f"STAT.{stat}.{suffix}"] = (unit, value)
         for key, unit, value in (
-            ("STAT.BaseAttackSpeed", "attacks/s", ".75"), ("STAT.AttackSpeedPerLevelRatio", "ratio", ".02"),
+            ("STAT.BaseAttackSpeed", "attacks/s", ".85"), ("STAT.AttackSpeedPerLevelRatio", "ratio", ".02"),
             ("STAT.AttackSpeed.Min", "attacks/s", ".30"), ("STAT.AttackSpeed.Max", "attacks/s", "5"),
             ("STAT.CritChance.Base", "ratio", "0"), ("STAT.CritMultiplier", "ratio", "2"),
             ("STAT.CooldownHaste.Base", "points", "0"), ("STAT.CooldownHaste.Max", "points", "400"),
@@ -325,10 +329,10 @@ class ApprovedDemoData(unittest.TestCase):
             ("CHAIN.EndSec", "ms", "3"), ("CARDS.IdleCarrySec", "ms", "5"),
             ("DAMAGE.FactorTechCap", "ratio", "1000"), ("AIRDROP.Momentum", "momentum", "40"),
             ("UNIT.MoveSpeedCmPerSec", "cm/s", "300"), ("STAT.MoveSpeed.Min", "cm/s", "173"), ("STAT.MoveSpeed.Max", "cm/s", "675"),
-            ("UNIT.CollisionRadiusCm", "cm", "40"), ("UNIT.BasicAttackRangeCm", "cm", "220"),
+            ("UNIT.CollisionRadiusCm", "cm", "40"), ("UNIT.BasicAttackRangeCm", "cm", "250"),
             ("STAT.AttackRange.Min", "cm", "80"), ("STAT.AttackRange.Max", "cm", "1000"),
-            ("UNIT.BasicAttackWindupSec", "ms", ".300"), ("VISION.RadiusCm", "cm", "1400"),
-            ("CAPTURE.RadiusCm", "cm", "300"),
+            ("UNIT.BasicAttackWindupSec", "ms", ".180"), ("VISION.RadiusCm", "cm", "1400"),
+            ("CAPTURE.RadiusCm", "cm", "450"),
             ("CAPTURE.SpraySec", "ms", "3.5"), ("CAPTURE.GuardSec", "ms", "20"),
             ("SHOWDOWN.UnlockDelaySec", "ms", "10"), ("SHOWDOWN.DurationSec", "ms", "150"),
             ("SHOWDOWN.FirstRespawnSec", "ms", "18"), ("SHOWDOWN.SecondRespawnSec", "ms", "24"),
@@ -338,10 +342,10 @@ class ApprovedDemoData(unittest.TestCase):
             ("REST.OpeningBuildSec", "ms", "20"), ("REST.BuildSec", "ms", "40"),
             ("REST.ReturnSec", "ms", "3"), ("REST.ReturnSearchRadiusCm", "cm", "300"),
             ("REST.EntryReadyTimeoutSec", "ms", "30"),
-            # The rest PK (R1 and R2): sign-up inside the build step, then draw, betting, ready, fight, settlement and payout.
-            ("REST.SignupSec", "ms", "10"), ("REST.DrawSec", "ms", "3"), ("REST.BettingSec", "ms", "5"),
+            # The rest PK (R1 and R2): sign-up inside the build step, then draw+betting, ready, fight, and settlement+payout.
+            ("REST.SignupSec", "ms", "10"), ("REST.DrawSec", "ms", "0"), ("REST.BettingSec", "ms", "6"),
             ("REST.PKReadySec", "ms", "3"), ("REST.PKMaxSec", "ms", "45"), ("REST.SettlementSec", "ms", "3"),
-            ("REST.PayoutSec", "ms", "3"),
+            ("REST.PayoutSec", "ms", "0"),
             ("PK.ArenaRadiusCm", "cm", "1800"), ("PK.RingMidRadiusCm", "cm", "600"), ("PK.RingFinalRadiusCm", "cm", "150"),
             ("PK.RingShrinkStartSec", "ms", "5"), ("PK.RingMidSec", "ms", "25"), ("PK.RingFinalSec", "ms", "38"),
             ("PK.RingPreviewSec", "ms", "5"), ("PK.RingDamageTickSec", "ms", ".25"),
@@ -394,17 +398,17 @@ class ApprovedDemoData(unittest.TestCase):
             ("COMBAT.BreachPerStack", "points", "3"), ("COMBAT.BreachSec", "ms", "4"),
             ("COMBAT.BurnPerSec", "points", "4.5"), ("COMBAT.BurnAPRatioPerSec", "ratio", ".03"),
             ("COMBAT.BurnTickSec", "ms", ".5"), ("COMBAT.BurnSec", "ms", "3"),
-            ("COMBAT.KeystonePhysiqueHealToShieldRatio", "ratio", ".25"),
-            ("COMBAT.KeystonePhysiqueShieldMaxHPRatio", "ratio", ".035"),
-            ("COMBAT.KeystonePhysiqueShieldDurationSec", "ms", "3"),
-            ("COMBAT.KeystonePhysiqueIntervalSec", "ms", "6"),
-            ("COMBAT.KeystoneThickSkinGuardPoints", "points", "6"),
-            ("COMBAT.KeystoneThickSkinGuardCapRatio", "ratio", ".12"),
-            ("COMBAT.KeystoneThickSkinIntervalSec", "ms", "8"),
-            ("COMBAT.KeystoneStrengthDamageRatio", "ratio", ".06"),
-            ("COMBAT.KeystoneBrainsMomentumRefundRatio", "ratio", ".15"),
-            ("COMBAT.KeystoneAgilityDamageBase", "points", "12.5"),
-            ("COMBAT.KeystoneAgilityADRatio", "ratio", ".125"),
+            ("COMBAT.KeystonePhysiqueHealToShieldRatio", "ratio", ".5"),
+            ("COMBAT.KeystonePhysiqueShieldMaxHPRatio", "ratio", ".12"),
+            ("COMBAT.KeystonePhysiqueShieldDurationSec", "ms", "4"),
+            ("COMBAT.KeystonePhysiqueIntervalSec", "ms", "4"),
+            ("COMBAT.KeystoneThickSkinGuardPoints", "points", "45"),
+            ("COMBAT.KeystoneThickSkinGuardCapRatio", "ratio", ".22"),
+            ("COMBAT.KeystoneThickSkinIntervalSec", "ms", "5"),
+            ("COMBAT.KeystoneStrengthDamageRatio", "ratio", ".14"),
+            ("COMBAT.KeystoneBrainsMomentumRefundRatio", "ratio", ".3"),
+            ("COMBAT.KeystoneAgilityDamageBase", "points", "35"),
+            ("COMBAT.KeystoneAgilityADRatio", "ratio", ".45"),
             ("COMBAT.KeystoneAgilityEmpowerDurationSec", "ms", "3"),
             # #198 elements and reactions (CONTENT_AND_BALANCE §4.4).
             ("COMBAT.WetSec", "ms", "4"), ("COMBAT.WetSlow", "ratio", ".15"),
@@ -460,7 +464,7 @@ class ApprovedDemoData(unittest.TestCase):
         for key, value in (
             ("XP.BaseToNext", 60), ("XP.IncreasePerLevel", 20),
             ("SHOWDOWN.RespawnLimit", 2),
-            ("REWARD.PlayerXP.Base", 100), ("REWARD.PlayerXP.PerLevel", 20), ("AI.RetryPolicy.MaxAttempts", 3),
+            ("REWARD.PlayerXP.Base", 140), ("REWARD.PlayerXP.PerLevel", 28), ("AI.RetryPolicy.MaxAttempts", 3),
             ("CAMP.ReturnDeadEndPlans", 3), ("CAMP.GrowthMaxStage", 10), ("AIRDROP.RewardXP", 200),
             ("LEADER.MinLevel", 3),
             ("COMBAT.BreachMaxStacks", 5), ("COMBAT.BurnMaxStacks", 5), ("COMBAT.OverloadBreachStacks", 2),
@@ -478,11 +482,11 @@ class ApprovedDemoData(unittest.TestCase):
             ("CARDS.RerollsPerRest", 1), ("CARDS.VocabWeight", 2),
             ("CHAIN.MaxDepth", 16), ("CHAIN.MaxEffectsPerStep", 256), ("AI.CardVocabScore", 2), ("AI.LeaderHuntMaxLevelGap", 2), ("AI.BreakoutCardScore", 5),
             # Spec §3.13, §6.5 and §13 (P5): offer skips, the rest shop (in stat points), chain ends and the AI's skip.
-            ("CARDS.SkipPoints", 1), ("CARDS.OfferEveryLevels", 2), ("SHOP.CardSlots", 4), ("SHOP.VocabCardSlots", 2), ("SHOP.VocabWeight", 3), ("SHOP.SkillSlots", 2), ("SHOP.CardPrice", 2), ("SHOP.SkillPrice", 2), ("SHOP.RefreshPrice", 0), ("SHOP.RefreshStep", 1), ("SHOP.SkillPointPrice", 3), ("SHOP.SkillPointMaxPerMatch", 3), ("CHAIN.MinKeySteps", 3),
+            ("CARDS.SkipPoints", 1), ("CARDS.OfferEveryLevels", 2), ("SHOP.CardSlots", 4), ("SHOP.VocabCardSlots", 2), ("SHOP.VocabWeight", 3), ("SHOP.SkillSlots", 2), ("SHOP.CardPrice", 2), ("SHOP.SkillPrice", 2), ("SHOP.RefreshPrice", 0), ("SHOP.RefreshStep", 1), ("SHOP.SkillPointPrice", 3), ("SHOP.SkillPointMaxPerMatch", 2), ("CHAIN.MinKeySteps", 3),
             ("OVERDRIVE.FireBurnStacks", 3),
         ):
             expected[key] = (None, value)
-        expected["SKILL.PointLevels"] = (None, (4, 8, 12))
+        expected["SKILL.PointLevels"] = (None, (3, 6, 9, 12, 15))
         expected["SKILL.RankBaseScale"] = ("ratio", ("1", "1.5", "2"))
         expected["SKILL.RankRatioScale"] = ("ratio", ("1", "1.25", "1.5"))
         expected["COMBO.StepRatios"] = ("ratio", (".9", ".9", "1.3"))
@@ -514,7 +518,7 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual(self.data["policies"]["CampAggroTrigger"], "ConfirmedCombatHit")
         self.assertEqual(self.data["policies"]["MissingSourceCooldown"], "ContinueServerTime")
         self.assertEqual(min(amount(self.catalog.parameter("VISION.RadiusCm")),
-                             2 * amount(self.catalog.parameter("UNIT.BasicAttackRangeCm"))), 440)
+                             2 * amount(self.catalog.parameter("UNIT.BasicAttackRangeCm"))), 500)
 
     def test_respawn_protection_is_display_metadata_not_an_effect_or_duration_change(self):
         ids = content.parse_json((content.ROOT / content.IDS_SOURCE).read_bytes(), "native IDs")
@@ -659,13 +663,13 @@ class ApprovedDemoData(unittest.TestCase):
                          {"active_not_mad", "active_stare_down", "active_brace", "active_flyer_trap", "active_desk_fan",
                           "active_school_bag"})
         self.assertEqual(sum(1 for row in self.data["abilities"] if row["opening"]), 20)
-        self.assertEqual(self.data["progression"]["active_offer_levels"], (2, 6))
+        self.assertEqual(self.data["progression"]["active_offer_levels"], (2, 5, 9))
         self.assertEqual(set(self.data["progression"]),
                          {"max_level", "active_slots", "xp_start", "xp_thresholds", "xp_to_next", "active_offer_levels"})
 
     def test_all_cards_in_native_order(self):
         # Spec §7: the 55 P2, 9 P4 and 21 P5 cards in native ID order 200-284 with their form, type and up to four vocabulary
-        # keys (K07 and K10 carry none); Y25 alone chooses an element.
+        # keys; Y25 alone chooses an element.
         self.assertEqual([row["id"] for row in self.data["cards"]], list(CARD_FRAMES))
         previous = 199
         for identity, (_, form, kind) in CARD_FRAMES.items():
@@ -674,8 +678,7 @@ class ApprovedDemoData(unittest.TestCase):
                 self.assertTrue(previous < row["native_id"] <= 289)
                 previous = row["native_id"]
                 self.assertEqual((row["form"], row["type"]), (form, kind))
-                self.assertTrue(len(row["vocab"]) <= 4 and set(row["vocab"]) <= set(content.CARD_VOCAB))
-                self.assertEqual(len(row["vocab"]) == 0, identity in ("card_crowd_hit", "card_long_reach"))
+                self.assertTrue(1 <= len(row["vocab"]) <= 4 and set(row["vocab"]) <= set(content.CARD_VOCAB))
                 self.assertEqual("choose_element" in row, identity == "card_live_wire")
         self.assertEqual(len(CARD_FRAMES), 78)
 
@@ -815,7 +818,7 @@ class ApprovedDemoData(unittest.TestCase):
         # D19/D20: the innate D dash belongs to the character.
         dash = self.data["character"]["dash"]
         self.assertNotIn("momentum_cost", dash)
-        self.assertEqual((dash["cooldown"]["ms"], amount(dash["distance"]), dash["duration"]["ms"]), (18000, 300, 200))
+        self.assertEqual((dash["cooldown"]["ms"], amount(dash["distance"]), dash["duration"]["ms"]), (9000, 450, 180))
 
     def test_retired_mechanics_refuse_on_actives(self):
         # #198 deletes the advanced-rank changes end to end: their operations and fields no longer exist.
@@ -893,15 +896,13 @@ class ApprovedDemoData(unittest.TestCase):
             self.assertTrue(all(amount(row[key]) == 0 for key in ("hp_regen", "ap", "crit_chance")))
 
     def test_approved_boss(self):
-        # D26 (#79), user-approved 2026-11-04 ("Approve as proposed (Recommended)") and 2026-11-05 (windup, waypoints).
         boss = self.data["boss"]
         self.assertEqual(boss["id"], "monster_dean")
-        for key, expected in (("hp", 4500), ("armor", 30), ("magic_resist", 30), ("attack", 210), ("attack_range", 250),
+        for key, expected in (("hp", 2800), ("armor", 30), ("magic_resist", 30), ("attack", 210), ("attack_range", 250),
                               ("move_speed", 225), ("collision_radius", 40), ("aggro_radius", 400)):
             self.assertEqual(amount(boss[key]), expected, key)
-        # #276 tempo: field T=173 s once, leaves at the final timed-field boundary T=390 s; the old approval buff is removed.
         self.assertEqual((boss["attack_interval"]["ms"], boss["attack_windup"]["ms"], boss["attacker_memory"]["ms"],
-                          boss["appear_at"]["ms"], boss["leave_at"]["ms"], boss["reward_xp"]), (1500, 500, 5000, 295000, 480000, 300))
+                          boss["appear_at"]["ms"], boss["leave_at"]["ms"], boss["reward_xp"]), (1500, 500, 5000, 210000, 480000, 320))
         self.assertNotIn("approval", boss)
 
     def test_world_identity_and_shared_values(self):

@@ -295,10 +295,28 @@ bool RestTestRunReplaceForget(FAutomationTestBase& Test)
         && LDProgression::ValidateBuild(Content, Out) == ELDGrowthReason::None);
     bGood &= Test.TestTrue(TEXT("The replaced active is eligible for later offers again"),
         LDProgression::EligibleActives(Content, Out, 2, Eligible) == ELDGrowthReason::None && Eligible.Contains(B) && !Eligible.Contains(D));
-    bGood &= Unchanged(TEXT("Replacing on the field"), Replace(Full, Settled, D, 1, Field), ELDGrowthReason::ReplacementNotAllowed, Full);
+    bGood &= Unchanged(TEXT("Replacing on the field outside a dorm"), Replace(Full, Settled, D, 1, Field), ELDGrowthReason::ReplacementNotAllowed, Full);
+    {
+        LDProgression::FBuildContext DormField = Field;
+        DormField.bDormSwapReady = true;
+        FLDGrowthBuild DormOut;
+        FName DormForgotten;
+        TArray<uint16> DormReclaimed;
+        int64 DormRefunded = 0;
+        bGood &= RestTestReason(Test, TEXT("Replacing in a field dorm after 3s out of combat"),
+            LDProgression::ApplyReplaceActive(Content, Full, Settled, D, 1, DormField, DormOut, DormForgotten, DormReclaimed),
+            ELDGrowthReason::None);
+        bGood &= Test.TestTrue(TEXT("Dorm swap installs the blueprint in W"),
+            DormForgotten == B && DormOut.ActiveInSlot(1) != INDEX_NONE && DormOut.Actives[DormOut.ActiveInSlot(1)].Id == D);
+        FLDGrowthBuild Allocated = Full;
+        Allocated.StatPoints[0] = 2;
+        bGood &= RestTestReason(Test, TEXT("Stat respec stays Rest-only even inside a field dorm"),
+            LDProgression::ApplyRespec(Content, Allocated, Settled.CumulativeXP, {1, 0, 0, 0, 0}, DormField, DormOut, DormRefunded),
+            ELDGrowthReason::NotRestWindow);
+    }
     bGood &= Unchanged(TEXT("Replacing while dead on the field"),
         Replace(Full, Settled, D, 1, RestTestContext(ERestTestStage::Live, ELDLifePhase::Dead)),
-        ELDGrowthReason::ReplacementNotAllowed, Full);
+        ELDGrowthReason::Dead, Full);
     bGood &= Unchanged(TEXT("Replacing while builds are locked"), Replace(Full, Settled, D, 1, Locked), ELDGrowthReason::BuildLocked, Full);
     bGood &= Unchanged(TEXT("Replacing while an active offer is outstanding"), Replace(Full, Offered, D, 1, Rest),
         ELDGrowthReason::OfferOutstanding, Full);
@@ -356,10 +374,10 @@ bool RestTestRunForgetReclaim(FAutomationTestBase& Test)
     const FLDDemoContentDefinitions& Content = Catalog->Get();
     using EKind = ELDCardTargetKind;
     const FName Elbow(TEXT("active_elbow")), BailOut(TEXT("active_bail_out")), Zap(TEXT("active_zap")), Seethe(TEXT("active_seethe"));
-    const FName Encore(TEXT("card_encore")), Big(TEXT("card_big_one")), Practice(TEXT("card_practice"));
+    const FName Encore(TEXT("card_encore")), CrowdHit(TEXT("card_crowd_hit")), Big(TEXT("card_big_one")), Practice(TEXT("card_practice"));
     const FName Spiky(TEXT("card_spiky_hide")), Breath(TEXT("card_third_breath"));
-    FLDGrowthBuild Built = RestTestBuild(Content, 8, {{Elbow, 0}, {BailOut, 1}, {Zap, 2}}, {Seethe});
-    Built.Cards = {RestTestCard(1, Encore, EKind::Skill, Elbow), RestTestCard(2, Encore, EKind::Skill, Elbow),
+    FLDGrowthBuild Built = RestTestBuild(Content, 9, {{Seethe, 0, ELDSkillBranch::A2}, {BailOut, 1}, {Zap, 2}}, {Elbow});
+    Built.Cards = {RestTestCard(1, Encore, EKind::Skill, Seethe), RestTestCard(2, CrowdHit, EKind::Skill, Seethe),
         RestTestCard(3, Big, EKind::Skill, Zap), RestTestCard(4, Practice, EKind::Skill, BailOut), RestTestCard(5, Spiky, EKind::Body),
         RestTestCard(6, Breath, EKind::Body), RestTestCard(7, Practice)};
     Built.NextCardSerial = 8;
@@ -392,23 +410,27 @@ bool RestTestRunForgetReclaim(FAutomationTestBase& Test)
         return bGood;
     };
 
-    bool bGood = RestTestReason(Test, TEXT("Forgetting Q (elbow)"),
+    bool bGood = RestTestReason(Test, TEXT("Forgetting Q (seethe)"),
         LDProgression::ApplyForgetActive(Content, Built, Settled, 0, Rest, Out, Forgotten, Reclaimed), ELDGrowthReason::None);
-    bGood &= Exactly(TEXT("Forgetting elbow"), {1, 2});
-    bGood &= RestTestReason(Test, TEXT("Replacing Q (elbow) with seethe"),
-        LDProgression::ApplyReplaceActive(Content, Built, Settled, Seethe, 0, Rest, Out, Forgotten, Reclaimed), ELDGrowthReason::None);
-    bGood &= Exactly(TEXT("Replacing elbow"), {1, 2});
-    bGood &= Test.TestTrue(TEXT("Nothing binds to the new skill on its own"), Forgotten == Elbow && Out.ActiveInSlot(0) != INDEX_NONE
-        && Out.Actives[Out.ActiveInSlot(0)].Id == Seethe
-        && !Out.Cards.ContainsByPredicate([&Seethe](const FLDCardInstance& Row) { return Row.Target.Active == Seethe; }));
+    bGood &= Exactly(TEXT("Forgetting seethe"), {1, 2});
+    bGood &= RestTestReason(Test, TEXT("Replacing Q (seethe) with elbow"),
+        LDProgression::ApplyReplaceActive(Content, Built, Settled, Elbow, 0, Rest, Out, Forgotten, Reclaimed), ELDGrowthReason::None);
+    bGood &= Test.TestTrue(TEXT("Replacing keeps compatible skill cards on the new skill, reclaims incompatible ones and refunds rank points"),
+        Forgotten == Seethe && Reclaimed == TArray<uint16>({2})
+        && Out.ActiveInSlot(0) != INDEX_NONE && Out.Actives[Out.ActiveInSlot(0)].Id == Elbow
+        && Out.Actives[Out.ActiveInSlot(0)].Branch == ELDSkillBranch::None
+        && LDProgression::SkillPoints(Content, Out) == LDProgression::SkillPoints(Content, Built) + 2
+        && Out.FindCard(1) && Out.FindCard(1)->Target.Kind == EKind::Skill && Out.FindCard(1)->Target.Active == Elbow
+        && Out.FindCard(2) && !Out.FindCard(2)->IsInstalled()
+        && LDProgression::ValidateBuild(Content, Out) == ELDGrowthReason::None);
     const FLDGrowthBuild Replaced = Out;
     FLDCardTarget OnZap;
     OnZap.Kind = EKind::Skill;
     OnZap.Active = Zap;
     FLDGrowthBuild Moved;
-    bGood &= Test.TestTrue(TEXT("A reclaimed copy can move to another learned skill on the field too (#222)"),
-        LDProgression::ApplyInstallCard(Content, Replaced, 1, OnZap, Field, Moved) == ELDGrowthReason::None
-        && Moved.FindCard(1)->Target == OnZap && LDProgression::ValidateBuild(Content, Moved) == ELDGrowthReason::None);
+    bGood &= Test.TestTrue(TEXT("A reclaimed copy can move to another compatible learned skill on the field too (#222)"),
+        LDProgression::ApplyInstallCard(Content, Replaced, 7, OnZap, Field, Moved) == ELDGrowthReason::None
+        && Moved.FindCard(7)->Target == OnZap && LDProgression::ValidateBuild(Content, Moved) == ELDGrowthReason::None);
 
     bGood &= RestTestReason(Test, TEXT("Forgetting E (zap)"),
         LDProgression::ApplyForgetActive(Content, Built, Settled, 2, Rest, Out, Forgotten, Reclaimed), ELDGrowthReason::None);

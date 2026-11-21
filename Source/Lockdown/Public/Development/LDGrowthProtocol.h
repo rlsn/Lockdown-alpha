@@ -62,7 +62,8 @@ UENUM()
 // offers, each with its content size (OBJECTIVE.*CardOffer, EXPLORE.*CardOffer, AFFIX.*CardOffer).
 enum class ELDCardOfferSource : uint8
 {
-    None = 0, Opening = 1, LevelUp = 2, FieldReward = 3, MiniFlag = 4, Arena = 5, Locker = 6, Peddler = 7, CampFridge = 8, CampBonus = 9
+    None = 0, Opening = 1, LevelUp = 2, FieldReward = 3, MiniFlag = 4, Arena = 5, Locker = 6, Peddler = 7, CampFridge = 8, CampBonus = 9,
+    PvPKill = 10, LeaderBounty = 11, BossLegendary = 12, BossMedal = 13
 };
 
 USTRUCT()
@@ -89,7 +90,7 @@ enum class ELDFieldRewardResult : uint8 { None = 0, Blueprint = 1, BlueprintHeld
 enum class ELDFieldRewardKind : uint8
 {
     None = 0, BuildDraw = 1, Blueprint = 2, CardOffer = 3, MiniFlagOffer = 4, ArenaOffer = 5, LockerOffer = 6, PeddlerOffer = 7,
-    FridgeOffer = 8, BonusOffer = 9
+    FridgeOffer = 8, BonusOffer = 9, BossKill = 10
 };
 
 // What an applied ActiveChoice or LearnBlueprint did with its active.

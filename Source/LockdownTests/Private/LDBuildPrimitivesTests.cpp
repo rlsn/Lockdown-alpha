@@ -1093,7 +1093,7 @@ bool FLDBuildFullDebuffObservationTest::RunTest(const FString& Parameters)
     const auto Control = [&From](int64 Until) { return FLDCombatRoot{FGuid::NewGuid(), From, Until}; };
     // Every public combat cue at once.
     Body.Roots.Add(Control(5000));
-    Body.Shield = FLDCombatShield{FGuid::NewGuid(), From, 5000};
+    Body.Shields.Add({FGuid::NewGuid(), From, 1000, 1000, 5000});
     Body.Resources.ShieldP2 = 1000;
     Body.Slows.Add({FGuid::NewGuid(), From, 3000, 5000});
     FLDCombatTimedBonus Boost;
@@ -3897,5 +3897,70 @@ bool FLDCardRuleD08Test::RunTest(const FString& Parameters)
         });
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDAdaptiveAndKeystonesTest, "Lockdown.Rules.Combat.AdaptiveAndKeystones",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDAdaptiveAndKeystonesTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+
+    // 1. Adaptive ratio chooses Physical BonusAD when BonusAD * 1.4 >= AP, else Magical AP.
+    TestEqual(TEXT("BonusAD * 1.4 >= AP selects Physical adaptive scaling"),
+        LDTactical::EffectiveDamageType(ELDDemoDamageType::Physical, 6000, 5000, 7000), ELDDemoDamageType::Physical);
+    TestEqual(TEXT("AP > BonusAD * 1.4 selects Magical adaptive scaling"),
+        LDTactical::EffectiveDamageType(ELDDemoDamageType::Physical, 6000, 5000, 7001), ELDDemoDamageType::Magical);
+
+    FLDDamageEvaluationInput AdaptivePhys;
+    AdaptivePhys.Definition.Emplace(5000, 0, 0, ELDDemoDamageType::Physical, 0, 6000);
+    AdaptivePhys.HitClass = ELDCombatHitClass::Ability;
+    AdaptivePhys.bCritical = false;
+    AdaptivePhys.SourceBonusADP2 = 5000;
+    AdaptivePhys.SourceAPP2 = 7000;
+    AdaptivePhys.TargetResistanceP2 = 0;
+    AdaptivePhys.TargetHPP2 = 50000;
+    AdaptivePhys.TargetShieldP2 = 0;
+    AdaptivePhys.bTargetProtected = false;
+    const auto PhysEval = LDTactical::EvaluateDamage(AdaptivePhys, *F.Catalog);
+    TestTrue(TEXT("Physical adaptive damage adds BonusAD * adaptive_ratio (50 + 30 = 80)"),
+        PhysEval.IsSuccess() && PhysEval.Value->DamageP2 == 8000);
+
+    FLDDamageEvaluationInput AdaptiveMag = AdaptivePhys;
+    AdaptiveMag.SourceAPP2 = 10000;
+    const auto MagEval = LDTactical::EvaluateDamage(AdaptiveMag, *F.Catalog);
+    TestTrue(TEXT("Magical adaptive damage adds AP * adaptive_ratio (50 + 60 = 110)"),
+        MagEval.IsSuccess() && MagEval.Value->DamageP2 == 11000);
+
+    // 2. Y09 (card_skill_crit) projects +15% CritChanceBonusRatio per copy and Y11 (card_short_breath) multiplies overdrive scale by 0.875x per copy.
+    const FLDCombatBodyRef Holder = F.AddBody();
+    if (!InstallCards(*this, F, Holder, 6, {
+        {TEXT("card_skill_crit"), ELDCardTargetKind::Body},
+        {TEXT("card_short_breath"), ELDCardTargetKind::Body},
+        {TEXT("card_short_breath"), ELDCardTargetKind::Body}}))
+    {
+        return false;
+    }
+    TestEqual(TEXT("card_skill_crit adds +15% flat crit chance"), F.Body(Holder).AttributeProjection.Final.CritChanceBp, int64(1500));
+    FLDCombatActiveTerms Plain, Over;
+    if (!OverdriveTerms(*this, F, Holder, TEXT("active_elbow"), Plain, Over)) { return false; }
+    const int64 ExpectedScaleBp = F.Catalog->Get().Parameters.Overdrive.ScaleBp * 8750 / 10000 * 8750 / 10000;
+    TestEqual(TEXT("Two card_short_breath copies multiply overdrive scale independently by 0.875^2"),
+        FindEffect(Over.Values, ELDDemoEffectOp::Damage)->BaseP2,
+        FindEffect(Plain.Values, ELDDemoEffectOp::Damage)->BaseP2 * ExpectedScaleBp / 10000);
+
+    // 3. Thick Skin keystone reduces any post-mitigation hit >= 30 by Max(Flat, Damage * Ratio) and ignores hits < 30.
+    FLDDamageEvaluationInput GuardInput = AdaptivePhys;
+    GuardInput.Definition.Emplace(20000, 0, 0, ELDDemoDamageType::Magical);
+    GuardInput.KeystoneGuardP2 = 1200;
+    GuardInput.KeystoneGuardCapBp = 1500;
+    const auto GuardedBig = LDTactical::EvaluateDamage(GuardInput, *F.Catalog);
+    TestTrue(TEXT("Thick Skin cuts an ability hit >= 30 by Max(12, 15% of 200) = 30"),
+        GuardedBig.IsSuccess() && GuardedBig.Value->KeystoneGuardCutP2 == 3000 && GuardedBig.Value->DamageP2 == 17000);
+    GuardInput.Definition.Emplace(2500, 0, 0, ELDDemoDamageType::Magical);
+    const auto GuardedSmall = LDTactical::EvaluateDamage(GuardInput, *F.Catalog);
+    TestTrue(TEXT("Hits below 30 do not trigger Thick Skin's guard cut"),
+        GuardedSmall.IsSuccess() && GuardedSmall.Value->KeystoneGuardCutP2 == 0 && GuardedSmall.Value->DamageP2 == 2500);
+    return true;
+}
 
 #endif

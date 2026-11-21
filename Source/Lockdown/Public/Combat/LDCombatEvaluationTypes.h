@@ -27,8 +27,9 @@ struct FLDDamageDefinitionValues
 {
     // P2 points and R4 coefficients from an already-resolved definition/rank.
     FLDDamageDefinitionValues(int64 InBaseP2, int64 InADRatioBp, int64 InAPRatioBp, ELDDemoDamageType InDamageType,
-        int64 InMaxHPRatioBp = 0)
-        : BaseP2(InBaseP2), ADRatioBp(InADRatioBp), APRatioBp(InAPRatioBp), DamageType(InDamageType), MaxHPRatioBp(InMaxHPRatioBp) {}
+        int64 InMaxHPRatioBp = 0, int64 InAdaptiveRatioBp = 0)
+        : BaseP2(InBaseP2), ADRatioBp(InADRatioBp), APRatioBp(InAPRatioBp), DamageType(InDamageType),
+          MaxHPRatioBp(InMaxHPRatioBp), AdaptiveRatioBp(InAdaptiveRatioBp) {}
 
     int64 BaseP2;
     int64 ADRatioBp;
@@ -36,6 +37,8 @@ struct FLDDamageDefinitionValues
     ELDDemoDamageType DamageType;
     // R4 coefficient of the source's own max HP (P2), alongside AD and AP (active_seethe).
     int64 MaxHPRatioBp;
+    // R4 adaptive coefficient: BonusAD * 1.4 >= AP -> BonusAD * AdaptiveRatioBp (Physical), else AP * AdaptiveRatioBp (Magical).
+    int64 AdaptiveRatioBp;
 };
 
 struct FLDDamageEvaluationInput
@@ -46,6 +49,7 @@ struct FLDDamageEvaluationInput
     // A source attribute may be absent only when its resolved coefficient is zero.
     TOptional<int64> SourceADP2;
     TOptional<int64> SourceAPP2;
+    TOptional<int64> SourceBonusADP2;
     // The source's max HP snapshotted at release; required only when MaxHPRatioBp is nonzero.
     TOptional<int64> SourceMaxHPP2;
     // Resistance is the matching armor or magic-resist point value, not a reduction ratio.
@@ -97,7 +101,17 @@ struct FLDCombatRoot
     int64 ExpiresAtMs = 0;
 };
 
-// The single barrier record (EFFECT.ShieldPolicy); the remaining amount is the resource ShieldP2.
+// One independent shield entry in a body's multi-source shield stack (shortest remaining duration absorbs first).
+struct FLDActiveShield
+{
+    FGuid EffectId;
+    FGuid SourceEntity;
+    int64 AmountP2 = 0;
+    int64 GrantedP2 = 0;
+    int64 ExpiresAtMs = 0;
+};
+
+// Legacy single-slot shield struct kept for pure status-rule compatibility.
 struct FLDCombatShield
 {
     FGuid EffectId;

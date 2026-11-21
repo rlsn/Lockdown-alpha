@@ -75,6 +75,7 @@ namespace LDHUD
     {
         uint8 Level=1;
         int64 ADP2=0;
+        int64 BonusADP2=0;
         int64 APP2=0;
         int64 MaxHPP2=0;
         int64 ArmorP2=0;
@@ -284,6 +285,7 @@ namespace LDHUD
     struct FPKPanelView
     {
         bool bVisible=false;
+        bool bMatchupReveal=false;
         FString Title;
         // PKReady: "N 秒后开打 …"; PK: "最长还剩 N 秒 …" (whole seconds rounded up to the step end).
         FString Countdown;
@@ -699,7 +701,7 @@ namespace LDHUD
         bool bCanInstall=false;
         FString InstallBlocked;
     };
-    LOCKDOWN_API FBuildGateView BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase);
+    LOCKDOWN_API FBuildGateView BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase,bool bDormSwapReady=false);
     // The player-facing why of a refused or stored build step.
     LOCKDOWN_API FString BuildBlockedText(ELDGrowthReason Reason);
     // The result line of an applied build receipt: 已学到 Q：名称, 已存为图纸：名称（原因）, the points added and left, a rest

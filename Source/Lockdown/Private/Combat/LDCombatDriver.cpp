@@ -56,7 +56,7 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         if (!Body.Burn.Layers.IsEmpty()) { Consider(LDCombatKeywords::NextBurnTickAtMs(Body.Burn)); }
         for (const auto& Package : Body.Empowers) { Consider(Package.ExpiresAtMs); }
         if (Body.VoluntaryDash.IsSet()) { Consider(Body.VoluntaryDash->EndMs); }
-        if (Body.Shield.IsSet()) { Consider(Body.Shield->ExpiresAtMs); }
+        for (const FLDActiveShield& ShieldEntry : Body.Shields) { Consider(ShieldEntry.ExpiresAtMs); }
         if (Body.Taunt.IsSet()) { Consider(Body.Taunt->ExpiresAtMs); }
         Consider(Body.DashUntilMs);
         Consider(Body.MonsterNextAttackAtMs);
@@ -144,8 +144,18 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
         }
         TArray<TWeakObjectPtr<ALDCharacter>> CurrentBodies;
         Bodies.GetKeys(CurrentBodies);
+        CurrentBodies.RemoveAll([&](const TWeakObjectPtr<ALDCharacter>& Weak) { return !Weak.IsValid() || !Bodies.Contains(Weak); });
         CurrentBodies.Sort([&](const auto& Left,const auto& Right)
-        { return Bodies.FindChecked(Left).Victim.EntityId<Bodies.FindChecked(Right).Victim.EntityId; });
+        {
+            const FLDBodyCombatState* LeftState=Bodies.Find(Left);
+            const FLDBodyCombatState* RightState=Bodies.Find(Right);
+            if (!LeftState || !RightState)
+            {
+                UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_MISSING_BODY_SORT"));
+                return LeftState!=nullptr && RightState==nullptr;
+            }
+            return LeftState->Victim.EntityId<RightState->Victim.EntityId;
+        });
         ContactMotion.Reset();
         if (!Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Motion,[&](const FLDGameplayWritePermit& Permit)
         {
@@ -314,14 +324,20 @@ bool ALDCombatDirector::RunActions(const FLDGameplayWritePermit& Permit, FString
         for (int32 Index=0; Index<Pending.Num(); ++Index)
         {
             const FLDCombatActionRequest& Request=Pending[Index];
-            // Pre-input across the network delay: a press meeting the own ability windup waits, with every later one of
-            // this caller (their order holds), until that windup releases; it stays Queued meanwhile.
-            const FLDBodyCombatState* Body=FindEntityBody(Entity);
-            const bool bOwnWindup=Body && Body->Action.IsSet() && Body->Action->Kind==ELDCombatActionKind::Ability;
-            if (LDCombatPreInput::ServerHolds(Request.Entry,bOwnWindup,bOwnWindup?Body->Action->ReleaseAtMs:0,Mode->GetAuthorityNowMs()))
+            // Issue #329 §3.2: a Direct press during an active own ability windup (or behind an already buffered pre-input)
+            // joins the unified 2-step 450ms FIFO pre-input queue in arrival order.
+            if (ShouldBufferPreInput(Entity,Request.Entry))
             {
-                for (int32 Held=Index; Held<Pending.Num(); ++Held) { Record->Pending.Add(Pending[Held]); }
-                break;
+                FPendingCombatIntent Buffered;
+                Buffered.Entry=Request.Entry;
+                Buffered.CastMode=ELDCombatPreInputMode::Direct;
+                Buffered.AimDirection=Request.Target.Direction;
+                Buffered.GroundPointCm=Request.Target.Point;
+                Buffered.bOverdrive=Request.bOverdrive;
+                Buffered.ExpiresAtMs=Mode->GetAuthorityNowMs()+LDCombatPreInput::HoldWindowMs;
+                Buffered.Action=Request;
+                BufferPreInputIntent(Entity,MoveTemp(Buffered));
+                continue;
             }
             FLDCombatActionReceipt Receipt;
             if (!ProcessDirect(*Record,Request,Permit,Receipt,Error)) { return false; }

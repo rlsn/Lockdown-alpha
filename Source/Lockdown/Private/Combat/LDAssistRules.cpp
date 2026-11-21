@@ -34,8 +34,7 @@ bool LDAssist::SplitKillReward(int64 BaseXP, int32 AssisterCount, FLDAssistRewar
 {
     Out=FLDAssistRewardShares();
     if (BaseXP<0 || AssisterCount<0) { return false; }
-    const int64 Sharers=int64(AssisterCount)+1;
-    Out.KillerXP=BaseXP/Sharers;
-    Out.AssisterXP=AssisterCount>0 ? BaseXP/Sharers : 0;
+    Out.KillerXP=BaseXP;
+    Out.AssisterXP=AssisterCount>0 ? BaseXP/2 : 0;
     return true;
 }

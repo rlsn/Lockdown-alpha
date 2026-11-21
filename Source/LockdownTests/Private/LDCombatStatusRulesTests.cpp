@@ -54,33 +54,28 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatStatusShieldTest, "Lockdown.Rules.Demo
 bool FLDCombatStatusShieldTest::RunTest(const FString& Parameters)
 {
     using namespace LDTactical;
-    const FGuid Source = FGuid::NewGuid();
+    const FGuid SourceA = FGuid::NewGuid();
+    const FGuid SourceB = FGuid::NewGuid();
     TArray<FLDCombatRoot> NoRoots;
-    TOptional<FLDCombatShield> Shield;
+    TArray<FLDActiveShield> Shields;
     int64 ShieldP2 = 0;
-    const FLDCombatShield First{FGuid::NewGuid(), Source, 5000};
+    const FGuid IdA = FGuid::NewGuid();
+    const FGuid IdB = FGuid::NewGuid();
     TestTrue(TEXT("A first barrier applies"),
-        ApplyShield(Shield, ShieldP2, First, 12000, 1000) && ShieldP2 == 12000 && Shield->EffectId == First.EffectId);
-    ShieldP2 = 8000;
-    TestFalse(TEXT("A weaker barrier is suppressed"), ApplyShield(Shield, ShieldP2, {FGuid::NewGuid(), Source, 9000}, 7999, 2000));
-    TestTrue(TEXT("The stronger remaining record keeps its amount, source and deadline"),
-        ShieldP2 == 8000 && Shield->EffectId == First.EffectId && Shield->ExpiresAtMs == 5000);
-    const FLDCombatShield Equal{FGuid::NewGuid(), Source, 9000};
-    TestTrue(TEXT("An equal barrier refreshes the whole record"),
-        ApplyShield(Shield, ShieldP2, Equal, 8000, 2000) && ShieldP2 == 8000 && Shield->EffectId == Equal.EffectId
-        && Shield->ExpiresAtMs == 9000);
-    TestTrue(TEXT("No legacy cap limits a stronger barrier"),
-        ApplyShield(Shield, ShieldP2, {FGuid::NewGuid(), Source, 9500}, 1000000, 2000) && ShieldP2 == 1000000);
-    TestTrue(TEXT("An expired barrier counts as no remaining amount"),
-        ApplyShield(Shield, ShieldP2, {FGuid::NewGuid(), Source, 20000}, 1, 9500) && ShieldP2 == 1);
-    TestFalse(TEXT("A nonpositive amount never applies"), ApplyShield(Shield, ShieldP2, {FGuid::NewGuid(), Source, 30000}, 0, 9600));
-    auto Expiry = ExpireTimedStatuses(NoRoots, Shield, ShieldP2, 20000);
-    TestTrue(TEXT("A barrier ends exactly at its deadline"), Expiry.bShieldChanged && !Shield.IsSet() && ShieldP2 == 0);
-    Shield = FLDCombatShield{FGuid::NewGuid(), Source, 30000};
-    ShieldP2 = 0;
-    Expiry = ExpireTimedStatuses(NoRoots, Shield, ShieldP2, 21000);
-    TestTrue(TEXT("A depleted barrier is cleared"), Expiry.bShieldChanged && !Shield.IsSet());
-    Expiry = ExpireTimedStatuses(NoRoots, Shield, ShieldP2, 22000);
+        AddActiveShield(Shields, ShieldP2, {IdA, SourceA, 12000, 12000, 5000}, 1000) && ShieldP2 == 12000 && Shields.Num() == 1
+        && Shields[0].EffectId == IdA);
+    TestTrue(TEXT("Independent shield sources stack instead of suppressing the weaker barrier"),
+        AddActiveShield(Shields, ShieldP2, {IdB, SourceB, 8000, 8000, 9000}, 2000) && ShieldP2 == 20000 && Shields.Num() == 2);
+    TArray<FGuid> BrokenIds;
+    const int64 Absorbed = AbsorbActiveShields(Shields, ShieldP2, 15000, 2500, BrokenIds);
+    TestTrue(TEXT("Damage absorbs the shortest-expiry shield first and reports each broken layer"),
+        Absorbed == 15000 && ShieldP2 == 5000 && Shields.Num() == 1 && BrokenIds == TArray<FGuid>({IdA})
+        && Shields[0].EffectId == IdB && Shields[0].AmountP2 == 5000);
+    TestFalse(TEXT("A nonpositive amount never applies"),
+        AddActiveShield(Shields, ShieldP2, {FGuid::NewGuid(), SourceA, 0, 0, 30000}, 3000));
+    auto Expiry = ExpireTimedStatuses(NoRoots, Shields, ShieldP2, 9000);
+    TestTrue(TEXT("A barrier ends exactly at its deadline"), Expiry.bShieldChanged && Shields.IsEmpty() && ShieldP2 == 0);
+    Expiry = ExpireTimedStatuses(NoRoots, Shields, ShieldP2, 10000);
     TestFalse(TEXT("Nothing changes without a barrier"), Expiry.bShieldChanged || Expiry.bRootsChanged);
     return true;
 }

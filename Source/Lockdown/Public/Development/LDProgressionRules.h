@@ -183,6 +183,8 @@ struct FLDProgressionState
     bool bExtraFinalModCard = false;
     // Spec §3.13 the rest shop.
     FLDShopState Shop;
+    // Issue #330 §6.1: PvP kill card offers granted per field segment (cap 2 per segment; overflow grants +2 stat points).
+    uint8 PvPKillOffersInSegment[4] = {};
 
     uint8 QueuedActiveOpportunities() const { return ActiveEarned - ActiveConsumed; }
 };
@@ -213,7 +215,15 @@ namespace LDProgression
     {
         EMatchStage Stage = EMatchStage::Closed;
         ELDLifePhase LifePhase = ELDLifePhase::Unspawned;
+        // Field Dorm (400 cm) after 3.0 s out of combat: unlocks blueprint skill swap (ReplaceActive) without opening respec/shop.
+        bool bDormSwapReady = false;
     };
+
+    enum class ELDCardRarity : uint8 { Common = 0, Rare = 1, Legendary = 2 };
+    LOCKDOWN_API ELDCardRarity CardRarityOf(int32 DropWeight);
+    LOCKDOWN_API ELDCardRarity CardRarity(const FLDDemoContentDefinitions& Content, FName Id);
+    // True unless Id is a skill card and none of Build's currently learned skills can host it.
+    LOCKDOWN_API bool HasValidSkillHost(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, FName Id);
 
     // Context is inside a rest build window, where the rest-only services and rebuilds are allowed.
     LOCKDOWN_API bool IsRestWindow(const FBuildContext& Context);
@@ -290,7 +300,7 @@ namespace LDProgression
     // Revision is not changed here.
     LOCKDOWN_API ELDGrowthReason ApplyActiveChoice(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
         FName Option, bool bLearnIfPossible, uint8 PreferredSlot, const FBuildContext& Context, FLDGrowthBuild& Out,
-        FChoiceOutcome& Outcome);
+        FChoiceOutcome& Outcome, FName* OutForgotten = nullptr, TArray<uint16>* OutReclaimed = nullptr);
     // SkipActiveOffer: GROWTH.ActiveSkipPoints awarded stat points (OutPoints) replace the chosen active.
     LOCKDOWN_API ELDGrowthReason ApplySkipActiveOffer(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
         const FBuildContext& Context, FLDGrowthBuild& Out, int64& OutPoints);
@@ -376,6 +386,8 @@ namespace LDProgression
     // Size distinct cards (CardOfferSize of the offer's source).
     LOCKDOWN_API ELDGrowthReason DrawCardOffer(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, int32 Size,
         uint64 Seed, TArray<FName>& Out);
+    LOCKDOWN_API ELDGrowthReason DrawCardOfferForSource(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
+        ELDCardOfferSource Source, uint64 Seed, TArray<FName>& Out);
     // Private random material of one card offer ordinal and its Reroll-th reroll.
     LOCKDOWN_API uint64 CardOfferSeed(const FGuid& MatchSecret, const FGuid& Contender, uint16 Ordinal, uint32 Reroll);
     // Count more offers of Source join the queue; OutFirst..OutLast are their ordinals. CapacityExceeded past the uint16 range.
@@ -449,6 +461,8 @@ namespace LDProgression
     LOCKDOWN_API int32 ShopRefreshPrice(const FLDDemoContentParameters& Parameters, const FLDShopState& Shop);
     // The price of a shelf item of Kind (and the skill point, ShopSkillPointPrice) in Shop (sale day halves it, rounded up).
     LOCKDOWN_API int32 ShopPrice(const FLDDemoContentParameters& Parameters, ELDShopItemKind Kind, const FLDShopState& Shop);
+    LOCKDOWN_API int32 ShopCardPrice(const FLDDemoContentDefinitions& Content, FName CardId, const FLDShopState& Shop);
+    LOCKDOWN_API int32 ShopSlotPrice(const FLDDemoContentDefinitions& Content, const FLDShopSlot& Slot, const FLDShopState& Shop);
     LOCKDOWN_API int32 ShopSkillPointPrice(const FLDDemoContentParameters& Parameters, const FLDShopState& Shop);
 
     // What a shop purchase gave.

@@ -520,6 +520,10 @@ ELDGrowthReason LDProgression::CommandGate(ELDBuildCommandKind Kind, const FBuil
         return Context.Stage == EMatchStage::RestLocked ? ELDGrowthReason::BuildLocked
             : !bRest ? ELDGrowthReason::NotRestWindow : bDead ? ELDGrowthReason::Dead : ELDGrowthReason::None;
     case ELDBuildCommandKind::ReplaceActive:
+        return Context.Stage == EMatchStage::RestLocked ? ELDGrowthReason::BuildLocked
+            : bDead ? ELDGrowthReason::Dead
+            : (bRest || (Context.Stage == EMatchStage::Live && Context.bDormSwapReady)) ? ELDGrowthReason::None
+            : ELDGrowthReason::ReplacementNotAllowed;
     case ELDBuildCommandKind::ForgetActive:
         return Context.Stage == EMatchStage::RestLocked ? ELDGrowthReason::BuildLocked
             : !bRest ? ELDGrowthReason::ReplacementNotAllowed : bDead ? ELDGrowthReason::Dead : ELDGrowthReason::None;
@@ -551,12 +555,45 @@ bool LDProgression::PickLearnSlot(const FLDGrowthBuild& Build, uint8 Preferred, 
     return false;
 }
 
+namespace
+{
+void ProgressionTransferOrReclaimAttachments(const FLDDemoContentDefinitions& Content, FLDGrowthBuild& Build,
+    FName OldActive, FName NewActive, TArray<uint16>& OutReclaimed)
+{
+    OutReclaimed.Reset();
+    if (OldActive.IsNone() || NewActive.IsNone())
+    {
+        return;
+    }
+    for (FLDCardInstance& Card : Build.Cards)
+    {
+        if (Card.Target.Kind == ELDCardTargetKind::Skill && Card.Target.Active == OldActive)
+        {
+            FLDCardTarget Candidate = Card.Target;
+            Candidate.Active = NewActive;
+            if (LDProgression::CardTargetReason(Content, Build, Card.Id, Candidate) == ELDGrowthReason::None
+                && (!LDProgression::IsMedal(Content, Card.Id) || !LDProgression::MedalOn(Content, Build, Candidate, Card.Serial)))
+            {
+                Card.Target = Candidate;
+            }
+            else
+            {
+                Card.Target = FLDCardTarget();
+                OutReclaimed.Add(Card.Serial);
+            }
+        }
+    }
+}
+}
+
 ELDGrowthReason LDProgression::ApplyActiveChoice(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
     FName Option, bool bLearnIfPossible, uint8 PreferredSlot, const FBuildContext& Context, FLDGrowthBuild& Out,
-    FChoiceOutcome& Outcome)
+    FChoiceOutcome& Outcome, FName* OutForgotten, TArray<uint16>* OutReclaimed)
 {
     Out = Current;
     Outcome = FChoiceOutcome();
+    if (OutForgotten) { *OutForgotten = NAME_None; }
+    if (OutReclaimed) { OutReclaimed->Reset(); }
     if (const ELDGrowthReason Reason = ValidateBuild(Content, Current); Reason != ELDGrowthReason::None)
     {
         return Reason;
@@ -575,14 +612,8 @@ ELDGrowthReason LDProgression::ApplyActiveChoice(const FLDDemoContentDefinitions
     }
     if (bLearnIfPossible)
     {
-        // The learn half is decided in the same commit: it never fails the choice, it only keeps the active stored when
-        // Q/W/E are full (#222: the moment never stores it).
         uint8 Slot = 0;
-        if (!PickLearnSlot(Current, PreferredSlot, Slot))
-        {
-            Outcome.StoredReason = ELDGrowthReason::NoEmptySlot;
-        }
-        else
+        if (PickLearnSlot(Current, PreferredSlot, Slot))
         {
             Out.Actives.Add({Option, Slot});
             ProgressionSortBuild(Out);
@@ -590,6 +621,27 @@ ELDGrowthReason LDProgression::ApplyActiveChoice(const FLDDemoContentDefinitions
             Outcome.Slot = Slot;
             return ELDGrowthReason::None;
         }
+        // Full 3-slot bar with an explicit target slot replaces that slot in-place (refunding its skill-rank points and
+        // keeping compatible skill cards); AnySlot keeps storing as a pending blueprint.
+        if (PreferredSlot < 3 && Context.LifePhase == ELDLifePhase::Alive)
+        {
+            const int32 ReplaceIdx = Current.ActiveInSlot(PreferredSlot);
+            if (ReplaceIdx != INDEX_NONE)
+            {
+                const FName Forgotten = Current.Actives[ReplaceIdx].Id;
+                Out.Actives.RemoveAt(ReplaceIdx);
+                Out.Actives.Add({Option, PreferredSlot});
+                ProgressionSortBuild(Out);
+                TArray<uint16> LocalReclaimed;
+                ProgressionTransferOrReclaimAttachments(Content, Out, Forgotten, Option, LocalReclaimed);
+                if (OutForgotten) { *OutForgotten = Forgotten; }
+                if (OutReclaimed) { *OutReclaimed = MoveTemp(LocalReclaimed); }
+                Outcome.Result = ELDBuildChoiceResult::Learned;
+                Outcome.Slot = PreferredSlot;
+                return ELDGrowthReason::None;
+            }
+        }
+        Outcome.StoredReason = ELDGrowthReason::NoEmptySlot;
     }
     Out.PendingBlueprints.Add(Option);
     ProgressionSortBuild(Out);
@@ -794,14 +846,14 @@ ELDGrowthReason LDProgression::ApplyReplaceActive(const FLDDemoContentDefinition
     {
         return ELDGrowthReason::NoBlueprint;
     }
-    // The old active is forgotten, not stored: only a new source gives it back (Combat keeps its cooldown track). Its skill
-    // cards return to the library in the same commit; nothing moves to the new active on its own.
+    // The old active is forgotten (spent skill-rank points return automatically via SkillPoints); compatible skill cards stay
+    // installed on the new active and incompatible ones return to storage.
     OutForgotten = Current.Actives[Index].Id;
     Out.Actives.RemoveAt(Index);
     Out.PendingBlueprints.Remove(Blueprint);
     Out.Actives.Add({Blueprint, Slot});
-    ReclaimAttachments(Out, OutForgotten, OutReclaimed);
     ProgressionSortBuild(Out);
+    ProgressionTransferOrReclaimAttachments(Content, Out, OutForgotten, Blueprint, OutReclaimed);
     return ELDGrowthReason::None;
 }
 
@@ -1148,6 +1200,39 @@ int32 LDProgression::LevelUpCardOffers(const FLDDemoCardParameters& Cards, int32
     return After > Before ? After / Every - Before / Every : 0;
 }
 
+LDProgression::ELDCardRarity LDProgression::CardRarityOf(int32 DropWeight)
+{
+    return DropWeight <= 12 ? ELDCardRarity::Legendary : DropWeight <= 35 ? ELDCardRarity::Rare : ELDCardRarity::Common;
+}
+
+LDProgression::ELDCardRarity LDProgression::CardRarity(const FLDDemoContentDefinitions& Content, FName Id)
+{
+    const FLDDemoCardDefinition* Definition = ProgressionFindCard(Content, Id);
+    return Definition ? CardRarityOf(Definition->DropWeight) : ELDCardRarity::Common;
+}
+
+bool LDProgression::HasValidSkillHost(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, FName Id)
+{
+    const FLDDemoCardDefinition* Definition = ProgressionFindCard(Content, Id);
+    if (!Definition || Definition->Form != ELDCardForm::Skill)
+    {
+        return true;
+    }
+    const ELDDemoElement Element = Definition->ChooseElements.IsEmpty() ? ELDDemoElement::None : Definition->ChooseElements[0];
+    for (const FLDLearnedActive& Active : Build.Actives)
+    {
+        FLDCardTarget Target;
+        Target.Kind = ELDCardTargetKind::Skill;
+        Target.Active = Active.Id;
+        Target.Element = Element;
+        if (CardTargetReason(Content, Build, Id, Target) == ELDGrowthReason::None)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 int32 LDProgression::CardOfferSize(const FLDDemoContentParameters& Parameters, ELDCardOfferSource Source)
 {
     switch (Source)
@@ -1158,12 +1243,15 @@ int32 LDProgression::CardOfferSize(const FLDDemoContentParameters& Parameters, E
     case ELDCardOfferSource::Peddler: return Parameters.Explore.PeddlerCardOffer;
     case ELDCardOfferSource::CampFridge: return Parameters.Affix.FridgeCardOffer;
     case ELDCardOfferSource::CampBonus: return Parameters.Affix.BonusCardOffer;
+    case ELDCardOfferSource::BossMedal: return 5;
     default: return Parameters.Cards.OfferSize;
     }
 }
 
-ELDGrowthReason LDProgression::DrawCardOffer(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, int32 Size,
-    uint64 Seed, TArray<FName>& Out)
+namespace
+{
+ELDGrowthReason ProgressionDrawCardsWeighted(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, int32 Size,
+    uint64 Seed, LDProgression::ELDCardRarity MinRarity, TArray<FName>& Out)
 {
     Out.Reset();
     const FLDDemoCardParameters& Parameters = Content.Parameters.Cards;
@@ -1171,13 +1259,26 @@ ELDGrowthReason LDProgression::DrawCardOffer(const FLDDemoContentDefinitions& Co
     {
         return ELDGrowthReason::DataInvalid;
     }
-    const uint32 Vocab = BuildVocab(Content, Build);
-    TArray<TPair<FName, int64>> Pool;
-    for (const FLDDemoCardDefinition& Card : Content.Cards)
+    const uint32 Vocab = LDProgression::BuildVocab(Content, Build);
+    auto BuildPool = [&](bool bEnforceHost)
     {
-        // Element medals drop on their own (MEDAL.*), never in a card offer.
-        if (Card.Form == ELDCardForm::Medal) { continue; }
-        Pool.Emplace(FName(*Card.Id), (Card.VocabMask & Vocab) != 0 ? int64(Parameters.VocabWeight) : 1);
+        TArray<TPair<FName, int64>> Result;
+        for (const FLDDemoCardDefinition& Card : Content.Cards)
+        {
+            if (Card.Form == ELDCardForm::Medal) { continue; }
+            const FName Id(*Card.Id);
+            if (uint8(LDProgression::CardRarityOf(Card.DropWeight)) < uint8(MinRarity)) { continue; }
+            if (bEnforceHost && !LDProgression::HasValidSkillHost(Content, Build, Id)) { continue; }
+            const int64 BaseWeight = FMath::Max<int64>(1, Card.DropWeight);
+            const int64 Mult = (Card.VocabMask & Vocab) != 0 ? int64(Parameters.VocabWeight) : 1;
+            Result.Emplace(Id, BaseWeight * Mult);
+        }
+        return Result;
+    };
+    TArray<TPair<FName, int64>> Pool = BuildPool(true);
+    if (Pool.Num() < Size && MinRarity != LDProgression::ELDCardRarity::Common)
+    {
+        Pool = BuildPool(false);
     }
     uint64 State = Seed;
     while (Out.Num() < Size && !Pool.IsEmpty())
@@ -1191,6 +1292,31 @@ ELDGrowthReason LDProgression::DrawCardOffer(const FLDDemoContentDefinitions& Co
         Pool.RemoveAt(Index);
     }
     return ELDGrowthReason::None;
+}
+}
+
+ELDGrowthReason LDProgression::DrawCardOffer(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, int32 Size,
+    uint64 Seed, TArray<FName>& Out)
+{
+    return ProgressionDrawCardsWeighted(Content, Build, Size, Seed, ELDCardRarity::Common, Out);
+}
+
+ELDGrowthReason LDProgression::DrawCardOfferForSource(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
+    ELDCardOfferSource Source, uint64 Seed, TArray<FName>& Out)
+{
+    Out.Reset();
+    if (Source == ELDCardOfferSource::BossMedal)
+    {
+        for (const FLDDemoCardDefinition& Card : Content.Cards)
+        {
+            if (Card.Form == ELDCardForm::Medal) { Out.Add(FName(*Card.Id)); }
+        }
+        return Out.IsEmpty() ? ELDGrowthReason::DataInvalid : ELDGrowthReason::None;
+    }
+    const ELDCardRarity MinRarity = Source == ELDCardOfferSource::BossLegendary ? ELDCardRarity::Legendary
+        : Source == ELDCardOfferSource::LeaderBounty ? ELDCardRarity::Rare
+        : ELDCardRarity::Common;
+    return ProgressionDrawCardsWeighted(Content, Build, CardOfferSize(Content.Parameters, Source), Seed, MinRarity, Out);
 }
 
 uint64 LDProgression::CardOfferSeed(const FGuid& MatchSecret, const FGuid& Contender, uint16 Ordinal, uint32 Reroll)
@@ -1242,7 +1368,7 @@ ELDGrowthReason LDProgression::RefreshCardOffer(const FLDDemoContentDefinitions&
     FLDCardOfferState Offer;
     Offer.Ordinal = uint16(Progression.CardOffersEarned - Progression.CardQueue.Num() + 1);
     Offer.Source = Progression.CardQueue[0];
-    if (const ELDGrowthReason Reason = DrawCardOffer(Content, Build, CardOfferSize(Content.Parameters, Offer.Source),
+    if (const ELDGrowthReason Reason = DrawCardOfferForSource(Content, Build, Offer.Source,
         CardOfferSeed(MatchSecret, Contender, Offer.Ordinal, 0), Offer.Options); Reason != ELDGrowthReason::None)
     {
         return Reason;
@@ -1360,13 +1486,13 @@ ELDGrowthReason LDProgression::ApplyRerollCards(const FLDDemoContentDefinitions&
     {
         return ELDGrowthReason::NoCardOffer;
     }
-    if (CardRerollsLeft(Progression) < 1)
+    if (CardRerollsLeft(Progression) < 1 || Offer->Source == ELDCardOfferSource::BossMedal)
     {
         return ELDGrowthReason::NoReroll;
     }
     FLDCardOfferState Redrawn = *Offer;
     ++Redrawn.Rerolls;
-    if (const ELDGrowthReason Reason = DrawCardOffer(Content, Build, CardOfferSize(Content.Parameters, Offer->Source),
+    if (const ELDGrowthReason Reason = DrawCardOfferForSource(Content, Build, Offer->Source,
         CardOfferSeed(MatchSecret, Contender, Offer->Ordinal, Redrawn.Rerolls), Redrawn.Options); Reason != ELDGrowthReason::None)
     {
         return Reason;
@@ -1539,24 +1665,29 @@ ELDGrowthReason LDProgression::DrawShop(const FLDDemoContentDefinitions& Content
         Out.Add({ELDShopItemKind::Skill, Skills[Pick], false});
         Skills.RemoveAt(Pick);
     }
-    // Cards: the first VocabCardSlots weighted by the build's vocabulary, the rest uniform, all distinct.
+    // Cards: the first VocabCardSlots weighted by the build's vocabulary over drop_weight, the rest by drop_weight, all distinct.
     const uint32 Vocab = BuildVocab(Content, Build);
-    TArray<TPair<FName, int64>> Pool;
+    struct FShopCardEntry { FName Id; int64 BaseWeight = 100; bool bSharesVocab = false; };
+    TArray<FShopCardEntry> Pool;
     for (const FLDDemoCardDefinition& Card : Content.Cards)
     {
         // Element medals are never on a shelf.
         if (Card.Form == ELDCardForm::Medal) { continue; }
-        Pool.Emplace(FName(*Card.Id), (Card.VocabMask & Vocab) != 0 ? int64(Shop.VocabWeight) : 1);
+        Pool.Add({FName(*Card.Id), FMath::Max<int64>(1, Card.DropWeight), (Card.VocabMask & Vocab) != 0});
     }
     for (int32 Index = 0; Index < Shop.CardSlots && !Pool.IsEmpty(); ++Index)
     {
         const bool bWeighted = Index < Shop.VocabCardSlots;
+        const auto WeightOf = [&](const FShopCardEntry& Entry)
+        {
+            return Entry.BaseWeight * (bWeighted && Entry.bSharesVocab ? int64(Shop.VocabWeight) : 1);
+        };
         int64 Total = 0;
-        for (const TPair<FName, int64>& Entry : Pool) { Total += bWeighted ? Entry.Value : 1; }
+        for (const FShopCardEntry& Entry : Pool) { Total += WeightOf(Entry); }
         int64 Roll = int64(ProgressionSplitMix64(State) % uint64(Total));
         int32 Pick = 0;
-        while (Roll >= (bWeighted ? Pool[Pick].Value : 1)) { Roll -= bWeighted ? Pool[Pick].Value : 1; ++Pick; }
-        Out.Add({ELDShopItemKind::Card, Pool[Pick].Key, false});
+        while (Roll >= WeightOf(Pool[Pick])) { Roll -= WeightOf(Pool[Pick]); ++Pick; }
+        Out.Add({ELDShopItemKind::Card, Pool[Pick].Id, false});
         Pool.RemoveAt(Pick);
     }
     return ELDGrowthReason::None;
@@ -1593,6 +1724,21 @@ int32 LDProgression::ShopPrice(const FLDDemoContentParameters& Parameters, ELDSh
 {
     const int32 Price = Kind == ELDShopItemKind::Skill ? Parameters.Shop.SkillPrice : Kind == ELDShopItemKind::Card ? Parameters.Shop.CardPrice : 0;
     return LDPacing::SalePrice(Parameters, Price, Shop.bSale);
+}
+
+int32 LDProgression::ShopCardPrice(const FLDDemoContentDefinitions& Content, FName CardId, const FLDShopState& Shop)
+{
+    const ELDCardRarity Rarity = CardRarity(Content, CardId);
+    const int32 BasePrice = Rarity == ELDCardRarity::Legendary ? 4
+        : Rarity == ELDCardRarity::Rare ? 3
+        : Content.Parameters.Shop.CardPrice;
+    return LDPacing::SalePrice(Content.Parameters, BasePrice, Shop.bSale);
+}
+
+int32 LDProgression::ShopSlotPrice(const FLDDemoContentDefinitions& Content, const FLDShopSlot& Slot, const FLDShopState& Shop)
+{
+    return Slot.Kind == ELDShopItemKind::Card ? ShopCardPrice(Content, Slot.Definition, Shop)
+        : ShopPrice(Content.Parameters, Slot.Kind, Shop);
 }
 
 int32 LDProgression::ShopSkillPointPrice(const FLDDemoContentParameters& Parameters, const FLDShopState& Shop)
@@ -1658,7 +1804,7 @@ ELDGrowthReason LDProgression::ApplyShopBuy(const FLDDemoContentDefinitions& Con
     if (Slot >= Shop.Slots.Num()) { return ELDGrowthReason::InvalidRequest; }
     const FLDShopSlot& Item = Shop.Slots[Slot];
     if (Item.bSold || Item.Kind == ELDShopItemKind::None) { return ELDGrowthReason::ShopSoldOut; }
-    const int32 Price = ShopPrice(Parameters, Item.Kind, Shop);
+    const int32 Price = ShopSlotPrice(Content, Item, Shop);
     if (Price <= 0) { return ELDGrowthReason::DataInvalid; }
     if (Item.Kind == ELDShopItemKind::Skill
         && (!ProgressionFindAbility(Content, Item.Definition) || Current.FindActive(Item.Definition) || Current.HasBlueprint(Item.Definition)))
@@ -1837,6 +1983,10 @@ ELDGrowthReason LDProgression::DrawFieldReward(const FLDDemoContentDefinitions& 
         Out.Result = ELDFieldRewardResult::Blueprint;
         Out.Definition = Actives[ProgressionPick(State, Actives.Num())];
         return ELDGrowthReason::None;
+    case ELDFieldRewardKind::BossKill:
+        Out.Result = ELDFieldRewardResult::CardOffer;
+        Out.OfferSource = ELDCardOfferSource::BossLegendary;
+        return ELDGrowthReason::None;
     case ELDFieldRewardKind::CardOffer:
         Out.Result = ELDFieldRewardResult::CardOffer;
         return ELDGrowthReason::None;
@@ -1892,6 +2042,22 @@ ELDGrowthReason LDProgression::ApplyFieldGrant(const FLDDemoContentDefinitions& 
             Reason != ELDGrowthReason::None)
         {
             return Reason;
+        }
+        if (Grant.OfferSource == ELDCardOfferSource::BossLegendary)
+        {
+            if (const ELDGrowthReason MedalReason = QueueCardOffers(Progression, ELDCardOfferSource::BossMedal, 1, First, Last);
+                MedalReason != ELDGrowthReason::None)
+            {
+                return MedalReason;
+            }
+            const int32 StatCount = Build.StatPoints.Num();
+            if (Build.AwardedPoints > MAX_int64 - int64(StatCount) * 2) { return ELDGrowthReason::ArithmeticOverflow; }
+            for (int32 StatIdx = 0; StatIdx < StatCount; ++StatIdx)
+            {
+                if (Build.StatPoints[StatIdx] > MAX_int32 - 2) { return ELDGrowthReason::ArithmeticOverflow; }
+                Build.StatPoints[StatIdx] += 2;
+            }
+            Build.AwardedPoints += int64(StatCount) * 2;
         }
         break;
     }

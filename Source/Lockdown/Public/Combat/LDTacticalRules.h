@@ -33,8 +33,22 @@ namespace LDTactical
     LOCKDOWN_API bool ApplyRoot(TArray<FLDCombatRoot>& Roots, const FLDCombatRoot& Instance, int64 AtMs);
     // Root-only cleanse: removes every current Root instance and nothing else. Returns the removed count.
     LOCKDOWN_API int32 DispelRoots(TArray<FLDCombatRoot>& Roots);
-    // EFFECT.ShieldPolicy=ReplaceIfNotWeaker against the current remaining amount; equal amounts refresh.
-    // No legacy barrier cap or strict comparison (COMBAT_AND_GROWTH control matrix). Returns whether the candidate replaced the record.
+    // BonusAD = max(0, TotalADP2 - (AD.BaseP2 + (Level - 1) * AD.PerLevelP2)).
+    LOCKDOWN_API int64 BonusADOf(const FLDDemoContentParameters& Parameters, int32 Level, int64 TotalADP2);
+    // Adaptive damage type: BonusAD * 1.4 >= AP -> Physical, else Magical; DefaultType when AdaptiveRatioBp <= 0.
+    LOCKDOWN_API ELDDemoDamageType EffectiveDamageType(ELDDemoDamageType DefaultType, int64 AdaptiveRatioBp, int64 BonusADP2, int64 APP2);
+
+    // Multi-source independent shield stack: shields coexist, shortest remaining duration absorbs first, and any individual
+    // shield depleted to 0 reports its EffectId in OutBrokenEffectIds.
+    LOCKDOWN_API int64 TotalActiveShieldP2(const TArray<FLDActiveShield>& Shields, int64 AtMs);
+    LOCKDOWN_API int64 ActiveShieldUntilMs(const TArray<FLDActiveShield>& Shields, int64 AtMs);
+    LOCKDOWN_API bool AddActiveShield(TArray<FLDActiveShield>& Shields, int64& ShieldP2, const FLDActiveShield& Entry, int64 AtMs);
+    LOCKDOWN_API int64 AbsorbActiveShields(TArray<FLDActiveShield>& Shields, int64& ShieldP2, int64 AbsorbP2, int64 AtMs,
+        TArray<FGuid>& OutBrokenEffectIds);
+    LOCKDOWN_API FLDStatusExpiry ExpireTimedStatuses(TArray<FLDCombatRoot>& Roots,
+        TArray<FLDActiveShield>& Shields, int64& ShieldP2, int64 AtMs);
+
+    // Legacy single-barrier overloads.
     LOCKDOWN_API bool ApplyShield(TOptional<FLDCombatShield>& Shield, int64& ShieldP2,
         const FLDCombatShield& Candidate, int64 AmountP2, int64 AtMs);
     // Drops expired Root instances and an expired or depleted barrier.

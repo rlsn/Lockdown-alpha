@@ -60,3 +60,41 @@ bool ALDCombatDirector::ApplyAirdropReward(const FGuid& Contender, const FLDGame
     Error.Reset();
     return true;
 }
+
+bool ALDCombatDirector::ApplyCampRecoveryOrb(const FGuid& Contender, const FLDGameplayWritePermit& Permit, bool& bOutApplied,
+    FString& Error)
+{
+    bOutApplied = false;
+    ILDLifeAuthority* Mode = Authority();
+    if (!Mode || Mode->ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None || !Contender.IsValid())
+    {
+        Error = TEXT("A camp recovery orb needs the current Transactions permit and a contender.");
+        return false;
+    }
+    FLDBodyCombatState* Body = nullptr;
+    ALDCharacter* Actor = nullptr;
+    for (auto& Pair : Bodies)
+    {
+        if (Pair.Key.IsValid() && Pair.Value.Victim.Kind == ELDVictimKind::Contender && Pair.Value.Victim.EntityId == Contender)
+        {
+            Body = &Pair.Value;
+            Actor = Pair.Key.Get();
+            break;
+        }
+    }
+    if (!Body || Body->bPendingDeath || Body->Resources.HpP2 <= 0)
+    {
+        Error.Reset();
+        return true;
+    }
+    FLDBodyCombatState Staged = *Body;
+    // Camp-clear recovery orb: 12% MaxHP + 25 momentum.
+    HealBody(Staged, LDAirdrop::ShareP2(Staged.Resources.MaxHpP2, 1200));
+    GrantMomentum(Staged, 2500, ELDMomentumBook::Other);
+    if (!RefreshTemporary(Staged, Actor, Permit.GetBoundary().AtMs, Error)) { return false; }
+    Staged.StateRevision = Body->StateRevision + 1;
+    *Body = MoveTemp(Staged);
+    bOutApplied = true;
+    Error.Reset();
+    return true;
+}

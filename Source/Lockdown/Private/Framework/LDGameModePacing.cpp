@@ -44,6 +44,8 @@ void ALDGameMode::ResetPacing()
     PacingControlled.Reset();
     PacingCheckedAtMs = 0;
     BountyDeaths.Reset();
+    CampRecoveryOrbs.Reset();
+    NextCampOrbSerial = 0;
 }
 
 bool ALDGameMode::InitializePacing(FString& Error)
@@ -265,6 +267,12 @@ bool ALDGameMode::ClaimFieldPacing(const FLDGameplayWritePermit& Permit, FString
 
 void ALDGameMode::NoteContenderDamage(const FGuid& Attacker, const FGuid& Victim, int64 DamageP2)
 {
+    if (Showdown.bStarted && !Timeline.IsCountdownPaused() && Attacker.IsValid() && Victim.IsValid()
+        && Attacker != Victim && DamageP2 > 0)
+    {
+        int64& Dealt = ShowdownDamageP2.FindOrAdd(Attacker);
+        Dealt = Dealt > MAX_int64 - DamageP2 ? MAX_int64 : Dealt + DamageP2;
+    }
     if (Objective.View.Kind != ELDObjectiveKind::Arena || Objective.View.Phase != ELDObjectivePhase::Open || !IsFieldRunning()) { return; }
     FLDCombatBodyRef AttackerBody, VictimBody;
     FVector AttackerFoot, VictimFoot;

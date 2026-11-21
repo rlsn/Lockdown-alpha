@@ -234,9 +234,14 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
     if (!TargetActor) { Error=TEXT("An element target has no registered actor."); return false; }
     const FVector Foot=FootOf(*TargetActor);
     const ELDCombatElement Held=ElementOfBody(Target,NowMs);
-    // One reaction per body per COMBAT.ReactionLockSec: meanwhile an element that would react is dropped whole (no mark,
-    // no credit, no momentum); the same element still refreshes and a free body still takes a new one.
-    if (NowMs<Target.ReactionLockedUntilMs && LDCombatElements::ReactionOf(Held,Kind)!=ELDCombatReaction::None) { return true; }
+    if (Held==ELDCombatElement::None) { Target.bWaveAfterReactionExempt=false; }
+    // One reaction per body per COMBAT.ReactionLockSec: meanwhile an element that would react is dropped whole unless
+    // card_wave_after granted one secondary-reaction exemption on this body.
+    if (NowMs<Target.ReactionLockedUntilMs && LDCombatElements::ReactionOf(Held,Kind)!=ELDCombatReaction::None)
+    {
+        if (!Target.bWaveAfterReactionExempt) { return true; }
+        Target.bWaveAfterReactionExempt=false;
+    }
     bElementApplied=true;
     // Who applied the held element, the setters of a reaction's rule chain: the mark's latest applier; for fire, the applier
     // of every layer that still had ticks to settle (filled from the settled shares below).
@@ -266,17 +271,29 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
         if (FLDBodyCombatState* Trigger=FindBody(Applier.SourceBody); Trigger && !Trigger->bPendingDeath)
         { GrantMomentum(*Trigger,Catalog()->Get().Parameters.Momentum.ReactionP2,ELDMomentumBook::Reaction); }
     }
-    if (Reaction!=ELDCombatReaction::None && Applier.CastLedger && !Applier.CastLedger->bBrainsKeystoneRefunded
-        && Applier.CastLedger->PaidMomentumP2>0)
+    if (Reaction!=ELDCombatReaction::None && Applier.CastLedger && !Applier.CastLedger->bBrainsKeystoneRefunded)
     {
         FLDBodyCombatState* SourceBody=FindBody(Applier.SourceBody);
         if (SourceBody && !SourceBody->bPendingDeath && SourceBody->AttributeProjection.Keystones.bBrains)
         {
+            Applier.CastLedger->bBrainsKeystoneRefunded=true;
             const int64 RatioBp=Catalog()->Get().Parameters.KeystoneBrainsMomentumRefundBp;
             const int64 PaidP2=Applier.CastLedger->PaidMomentumP2;
             const int64 RefundP2=PaidP2/10000*RatioBp+PaidP2%10000*RatioBp/10000;
-            Applier.CastLedger->bBrainsKeystoneRefunded=true;
             if (RefundP2>0) { GrantMomentum(*SourceBody,RefundP2,ELDMomentumBook::Reaction); }
+            if (FLDCombatEntityRecord* Record=FindRecord(SourceBody->Victim.EntityId))
+            {
+                bool bAnyReduced=false;
+                for (FLDCombatTrack& Track : Record->Tracks)
+                {
+                    if (Track.Kind==ELDCombatSourceKind::Learned && Track.ReadyAtMs>NowMs)
+                    {
+                        Track.ReadyAtMs=FMath::Max<int64>(NowMs,Track.ReadyAtMs-1000);
+                        bAnyReduced=true;
+                    }
+                }
+                if (bAnyReduced) { MarkViewChanged(SourceBody->Victim.EntityId); }
+            }
         }
     }
     if (Reaction==ELDCombatReaction::None)
@@ -340,6 +357,7 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
         return ConvertGroundAt(Foot,Kind,Applier,NowMs,Error);
     }
     // A reaction: the held element is consumed; the trigger is the new element's applier. Observers float its name over the target.
+    Target.bWaveAfterReactionExempt=false;
     const FLDReactionRule Rule=LDCombatElements::RuleOf(Reaction,Terms);
     Target.Cues.LastReaction=uint8(Reaction);
     Target.Cues.LastReactionAtMs=NowMs;
@@ -734,10 +752,14 @@ bool ALDCombatDirector::AdvanceElements(int64 NowMs, FString& Error)
     }
     FLDElementTerms Terms;
     if (!ElementTerms(Terms,Error)) { return false; }
-    for (auto& Pair : Bodies)
+    TArray<TWeakObjectPtr<ALDCharacter>> BodyKeys;
+    Bodies.GetKeys(BodyKeys);
+    for (const TWeakObjectPtr<ALDCharacter>& Key : BodyKeys)
     {
-        FLDBodyCombatState& Body=Pair.Value;
-        ALDCharacter* Actor=Pair.Key.Get();
+        FLDBodyCombatState* BodyPtr=Bodies.Find(Key);
+        if (!BodyPtr) { continue; }
+        FLDBodyCombatState& Body=*BodyPtr;
+        ALDCharacter* Actor=Key.Get();
         // Rot ticks due by now (through its end), credited to its latest applier at the applier's snapshot.
         FLDCombatElementMark& Mark=Body.ElementMark;
         while (!Body.bPendingDeath && Mark.Kind==ELDCombatElement::Rot && Mark.NextTickMs>0 && Mark.NextTickMs<=NowMs

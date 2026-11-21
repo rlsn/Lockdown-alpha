@@ -116,6 +116,8 @@ public:
     // reward history; the build and progression revisions advance once. Kind None is PrepareExperience.
     FLDPrepareGrowthResult PrepareFieldReward(const FGuid& ContenderId, int64 GrantXP, ELDFieldRewardKind Kind, FName Event,
         uint64 Serial) const;
+    FLDPrepareGrowthResult PrepareDeathShare(const FGuid& ContenderId, int64 GrantXP, int64 BonusStatPoints,
+        const TArray<ELDCardOfferSource>& ExtraOffers, int32 PvPKillSegment) const;
     // No-fail: installs the prepared build/progression and draws the queue head when one is due.
     void ApplyPreparedGrowth(FLDPreparedGrowthChange&& Prepared, const FLDGameplayWritePermit& Permit);
 

@@ -487,7 +487,7 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
         FLDShopSlotView& Row = View.Shop.Slots.AddDefaulted_GetRef();
         Row.Kind = Slot.Kind;
         Row.DefinitionId = Slot.Definition;
-        Row.Price = LDProgression::ShopPrice(Definitions.Parameters, Slot.Kind, Progression.Shop);
+        Row.Price = LDProgression::ShopSlotPrice(Definitions, Slot, Progression.Shop);
         Row.bSold = Slot.bSold;
     }
     View.Shop.RefreshPrice = LDProgression::ShopRefreshPrice(Definitions.Parameters, Progression.Shop);
@@ -619,6 +619,8 @@ bool ALDDevelopmentDirector::ReadBuildContext(const FGuid& ContenderId, LDProgre
     OutLife = LifeRead.Life;
     Out.LifePhase = LifeRead.Phase;
     Out.Stage = GameMode->ReadBuildStage(Match);
+    Out.bDormSwapReady = Out.Stage == LDProgression::EMatchStage::Live && Out.LifePhase == ELDLifePhase::Alive
+        && GameMode->Combat->IsDormSwapReady(ContenderId, GameMode->GetAuthorityNowMs());
     return true;
 }
 
@@ -740,7 +742,8 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
         }
         int64 SkipPoints = 0;
         const ELDGrowthReason ChoiceReason = Command.Kind == ELDBuildCommandKind::ActiveChoice
-            ? LDProgression::ApplyActiveChoice(Definitions, Build, Definition, Command.bLearnIfPossible, Command.Slot, Context, NewBuild, Choice)
+            ? LDProgression::ApplyActiveChoice(Definitions, Build, Definition, Command.bLearnIfPossible, Command.Slot, Context,
+                NewBuild, Choice, &Forgotten, &Reclaimed)
             : LDProgression::ApplySkipActiveOffer(Definitions, Build, Context, NewBuild, SkipPoints);
         if (ChoiceReason != ELDGrowthReason::None)
         {
@@ -1508,6 +1511,11 @@ FLDPrepareGrowthResult ALDDevelopmentDirector::DevPrepareEvaluationExperience(co
             *FString::Printf(TEXT("An evaluation preset names %d level cards for %d levels crossed."), LevelCards.Num(), Crossed));
     }
     // The preset replaces exactly the level-up offers this change queued: each crossed level receives its named card instead.
+    if (const FRecord* Record = Records.Find(ContenderId))
+    {
+        Prepared.NewBuild.Cards = Record->Build.Cards;
+        Prepared.NewBuild.NextCardSerial = Record->Build.NextCardSerial;
+    }
     FLDProgressionState& Progression = Prepared.NewProgression;
     Progression.CardQueue.SetNum(Progression.CardQueue.Num() - Crossed);
     Progression.CardOffersEarned = uint16(Progression.CardOffersEarned - Crossed);
@@ -1558,7 +1566,9 @@ FLDPrepareGrowthResult ALDDevelopmentDirector::PrepareFieldReward(const FGuid& C
     }
     // One revision step each for the whole reward, whether or not the XP part already moved it.
     if (Prepared.NewBuild.Revision == Prepared.ExpectedBuildRevision
-        && Prepared.NewBuild.PendingBlueprints != BuildBefore.PendingBlueprints)
+        && (Prepared.NewBuild.PendingBlueprints != BuildBefore.PendingBlueprints
+            || Prepared.NewBuild.StatPoints != BuildBefore.StatPoints
+            || Prepared.NewBuild.AwardedPoints != BuildBefore.AwardedPoints))
     {
         if (Prepared.NewBuild.Revision == MAX_uint64)
         {
@@ -1591,6 +1601,84 @@ FLDPrepareGrowthResult ALDDevelopmentDirector::PrepareFieldReward(const FGuid& C
         Prepared.OfferLast = Prepared.NewProgression.CardOffersEarned;
     }
     Prepared.Field = MoveTemp(Grant);
+    return Result;
+}
+
+FLDPrepareGrowthResult ALDDevelopmentDirector::PrepareDeathShare(const FGuid& ContenderId, int64 GrantXP, int64 BonusStatPoints,
+    const TArray<ELDCardOfferSource>& ExtraOffers, int32 PvPKillSegment) const
+{
+    FLDPrepareGrowthResult Result = PrepareExperience(ContenderId, GrantXP);
+    if (!Result.IsSuccess() || (BonusStatPoints <= 0 && ExtraOffers.IsEmpty() && PvPKillSegment == INDEX_NONE))
+    {
+        return Result;
+    }
+    FLDPreparedGrowthChange& Prepared = Result.Value.GetValue();
+    const FLDDemoContentDefinitions& Definitions = Content->Get();
+    const int64 AwardedBefore = Prepared.NewBuild.AwardedPoints;
+    const uint16 EarnedBefore = Prepared.NewProgression.CardOffersEarned;
+    int64 TotalBonusPoints = BonusStatPoints;
+    TArray<ELDCardOfferSource> QueuedOffers = ExtraOffers;
+    if (PvPKillSegment >= 0 && PvPKillSegment < 4)
+    {
+        if (Prepared.NewProgression.PvPKillOffersInSegment[PvPKillSegment] < 2)
+        {
+            ++Prepared.NewProgression.PvPKillOffersInSegment[PvPKillSegment];
+            QueuedOffers.Insert(ELDCardOfferSource::PvPKill, 0);
+        }
+        else
+        {
+            TotalBonusPoints += 2;
+        }
+    }
+    for (const ELDCardOfferSource Source : QueuedOffers)
+    {
+        uint16 First = 0, Last = 0;
+        if (const ELDGrowthReason Reason = LDProgression::QueueCardOffers(Prepared.NewProgression, Source, 1, First, Last);
+            Reason != ELDGrowthReason::None)
+        {
+            return DevelopmentPrepareFailure(Reason, TEXT("Could not queue death reward card offer."));
+        }
+    }
+    if (TotalBonusPoints > 0)
+    {
+        if (Prepared.NewBuild.AwardedPoints > MAX_int64 - TotalBonusPoints)
+        {
+            return DevelopmentPrepareFailure(ELDGrowthReason::ArithmeticOverflow, TEXT("Awarded stat points overflowed."));
+        }
+        Prepared.NewBuild.AwardedPoints += TotalBonusPoints;
+    }
+    if (Prepared.NewBuild.Revision == Prepared.ExpectedBuildRevision && Prepared.NewBuild.AwardedPoints != AwardedBefore)
+    {
+        if (Prepared.NewBuild.Revision == MAX_uint64)
+        {
+            return DevelopmentPrepareFailure(ELDGrowthReason::ArithmeticOverflow, TEXT("The build revision is exhausted."));
+        }
+        ++Prepared.NewBuild.Revision;
+    }
+    if (Prepared.NewProgression.Revision == Prepared.ExpectedProgressionRevision
+        && (Prepared.NewProgression.CardOffersEarned != EarnedBefore || PvPKillSegment != INDEX_NONE))
+    {
+        if (Prepared.NewProgression.Revision == MAX_uint64)
+        {
+            return DevelopmentPrepareFailure(ELDGrowthReason::ArithmeticOverflow, TEXT("The progression revision is exhausted."));
+        }
+        ++Prepared.NewProgression.Revision;
+    }
+    if (Prepared.NewProgression.CardOffersEarned != EarnedBefore)
+    {
+        if (Prepared.OfferLast < Prepared.OfferFirst) { Prepared.OfferFirst = EarnedBefore + 1; }
+        Prepared.OfferLast = Prepared.NewProgression.CardOffersEarned;
+    }
+    int64 Unspent = 0;
+    if (const ELDGrowthReason Reason = LDProgression::ValidateBuild(Definitions, Prepared.NewBuild); Reason != ELDGrowthReason::None)
+    {
+        return DevelopmentPrepareFailure(Reason, TEXT("Death share leaves an invalid build."));
+    }
+    if (const ELDGrowthReason Reason = LDProgression::UnspentPoints(Definitions, Prepared.NewBuild,
+        Prepared.NewProgression.CumulativeXP, Unspent); Reason != ELDGrowthReason::None)
+    {
+        return DevelopmentPrepareFailure(Reason, TEXT("Death share points do not derive."));
+    }
     return Result;
 }
 

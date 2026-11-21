@@ -735,7 +735,7 @@ enum class ELDCardVocab : uint8
 {
     BasicHit, Combo3, SkillHit, SkillCast, Overdrive, Reaction, Element, Dash, DashContact, PerfectDodge, Knockback,
     WallImpact, Shield, ShieldBreak, Controlled, Control, Damaged, LowHP, Kill, Idle, Ground, Heal, Momentum, AttackSpeed,
-    MoveSpeed, Crit, Armor, MaxHP, Count
+    MoveSpeed, Crit, Armor, MaxHP, Area, Range, Count
 };
 
 UENUM()
@@ -837,6 +837,7 @@ struct FLDDemoEffectDefinition
     UPROPERTY() int64 BaseP2 = 0;
     UPROPERTY() int64 ADRatioBp = 0;
     UPROPERTY() int64 APRatioBp = 0;
+    UPROPERTY() int64 AdaptiveRatioBp = 0;
     // Damage only: coefficient of the caster's own max HP, snapshotted at release.
     UPROPERTY() int64 MaxHPRatioBp = 0;
     UPROPERTY() ELDDemoDamageType DamageType = ELDDemoDamageType::Physical;
@@ -1078,6 +1079,7 @@ struct FLDDemoCardDefinition
     // that controls (root, stun, silence, disarm or taunt in its level-1 value set).
     UPROPERTY() uint8 HostHitTypes = 0;
     UPROPERTY() bool bHostControl = false;
+    UPROPERTY() int32 DropWeight = 100;
     // Fixed amounts grow with the holder's level (LDSkillGrowth) like an active's.
     UPROPERTY() TArray<FLDDemoEffectDefinition> Effects;
 
