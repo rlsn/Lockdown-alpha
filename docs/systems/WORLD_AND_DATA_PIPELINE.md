@@ -6,123 +6,40 @@
 | 文件 | `SourceData\Demo\content.json`、`SourceData\World\demo_world.json`；`Scripts\SyncDemoContentData.py`、`SyncDemoWorldData`、`SyncDemoMap.ps1`、`ApplyDemoMapEdits.py`、`CatalogTools.py`、`DemoContent.py`、`BootstrapAssets.ps1`；`Region\LDMapRegistry`、`ULDMapDefinition`、`Navigation\LDDemoNavigationSystem`、`World\LDCampLifecycle`、`LDCampDecision`、`LDCampDirector`、`LDCaptureCircle`；`Source\LockdownEditor\...\LDDemoWorldBuilder.cpp` |
 | 入口函数 | `ULDMapRegistry::QueryGround` / `QueryCompletePath`、`FindApproach`、`TraceSight`、`QueryCircleMembership` / `ExtractCircleCrossings`、`QueryCombatContacts`；`ALDCampDirector::OnCombatHostileContact` / `AdvanceCamps` / `FreezeForRest` / `ThawAfterRest`；`ULDDemoContentCatalog` 快照 |
 | 不变量 | 一张地图、一个旗杆；SourceData 是生成输入、Content 是游戏读取的载荷，docs 不是构建输入；载荷只经 Sync 生成，不手改哈希；查询不授予观察或交易权限；营地不另存身体、生命、战斗或奖励真值；出生锚点等概率有放回抽样 |
-| 检查 | 对应 Sync `--check` 与 `Test*Import.py`、`BootstrapAssets.ps1 -Mode Validate`、`Lockdown.Rules.DemoWorld.*`、`StaticScene.*`、`DemoCamp.*`；场景 `RunDemoWorldRoomCheck.ps1`、`RunDemoCampCheck.ps1`（见[检查入口](#检查入口)） |
+| 检查 | 对应 Sync `--check` 与 `Test*Import.py`、`BootstrapAssets.ps1 -Mode Validate`、`Lockdown.Rules.DemoWorld.*`、`StaticScene.*`、`DemoCamp.*`；场景 `RunDemoWorldRoomCheck.ps1`、`RunDemoCampCheck.ps1` |
 
 本手册保留当前地形、对象和生成链的维护知识，不要求 Demo 继承完整城市、人口或环境玩法。
 
-## 三种不同的文件
+## 标准关卡编辑与同步
+
+正式关卡 `L_Demo` 在 UE 编辑器中直接编辑保存：普通静态网格体、装饰、材质和灯光保存即可 Play，碰撞、地面与视线直接读取当前关卡原生物理体。`Scripts\SyncDemoMap.ps1` 将保存地图中的 `LDSceneAnchor:<id>` 布局点投影进 `SourceData\World\demo_world.json`。
 
 | 位置 | 角色 |
 | --- | --- |
 | `docs` | 人和 AI 阅读的产品与技术说明，不作为构建输入 |
-| `SourceData` | 脚本或原生导入实际消费的 JSON、schema、ID 映射、CSV |
-| `Content` 与生成 contract 头文件 | 游戏读取的载荷、原生资产及它们的身份/哈希约束 |
+| `SourceData` | 脚本与原生导入消费的 JSON、schema、稳定 ID 映射与素材清单 |
+| `Content` 与 `*Contract.h` | 游戏读取的载荷、原生资产及字节摘要契约 |
 
-SourceData 不是“给 AI 看的文档”，也不是新 Demo 的数值方案。
-其中保留的规则字段是当前可构建工程的输入；不能据此反向扩充 App Spec。
+`CatalogTools.py` 提供确定性编码与原生 ID 校验；源数据按 UTF-8 读取，保留原始换行以保证 SHA-256 一致。`native_ids.json` 的 `retired_ranges` 锁定退役编号，严禁重排或复用。
 
-## 生成入口与输出
+## Demo 内容与世界编译合同
 
-| 输入/入口 | 输出或消费者 |
+保存地图中的野外 `PlayerStart` 提供合法出生池，每点使用唯一 `PlayerStartTag`。开局、复活候选与返场备用位置共用该池，按实际支撑、角色净空和通往旗杆的导航路径校验。
+
+`LDSceneAuthoringLibrary::GameplayTraversalAudit` 在编辑器中读取实际碰撞、原生导航和角色胶囊，检查出入口、通道宽度、碰撞外扩和合法脚点路径。保存地图的回归入口是 `Lockdown.Rules.StaticScene.MapTraversal`。
+
+公共休息室、野外与终局战场共用唯一地面与连接：
+- **休息室与 PK 定位点**（不进入野外随机出生池）：`rest_spawn_0..5`、`rest_service_1..3`（休息室布局与可达路径参考，服务本身均在工坊台内提交）、`training_dummy_0..5`（每位参赛者生成真实共享假人，可复制额外通用假人；总观察单位上限 86）、`pk_signup_0..5`（六点均值即报名圈圆心）、`pk_spawn_0..5`、`pk_throw`。
+- **终局定位点**：`final_spawn_0..5`（同层等距 60° 分布，亦作为持有者 `final_private_pole` 的圆心锚点）与 `final_capture`。
+- **两类可选锚点**（支持作者移动、复制与不低于下限的删除，复制 ID 为 `<原id>_copy_<8位hex>`）：`mini_flag_*`（3–16 个）与 `locker_*`（6–32 个），作用圆须落在合法地面且避开营地净空圈，仅在事件预告/出现期间显示在小地图上。
+
+改动世界几何与内容后依序执行：`SyncDemoWorldData.py` → `SyncDemoContentData.py` → `BuildEditor.ps1` → `BootstrapAssets.ps1 -Mode Regenerate`（纯数值/文案改动用 `-Mode RefreshDefinitions`；只补新增语义锚点用 `-Mode RefreshLayoutPoints`）。
+
+| 边界 | 编译器（`DemoContent.py` / `DemoWorld.py`）行为 |
 | --- | --- |
-| `SourceData\Demo\content.json`、保存的 `L_Demo`、派生的 `SourceData\World\demo_world.json` 与两份 schema | 唯一 Demo 关卡→world→content 同步链及原生 Bootstrap |
+| 严格解析 | `Decimal` 词法读取，拒绝重复键、未知字段/op/ID、错量纲、bool 冒充整数、NaN/Inf 与超精度小数；大整数不经 JSON double 往返 |
+| 定点投影 | P2 → `{unit, p2}`；比例 → `{unit, bp}`；秒 → `{unit: "ms", ms}`；距离/速率 → 约分有理数 `{numerator, denominator}` |
+| 完整闭合 | 角色基值、26 项三级分支主动、五维属性与 18 点关键石、73 张构筑牌 + 5 枚勋章、8 项终局改装、四档 12 种野怪与 Boss、AI 参数及显示表全部进入不可变快照 |
+| 产物核对 | 必须读取真实 `world.json` 与 `LDDemoWorldContract.h` 字节，输出 `demo_content.json`、`manifest.json` 与 `LDDemoContentContract.h` |
 
-`CatalogTools.py` 提供 Demo 生成器复用的确定性编码与原生 ID 校验。
-schema8/schema9、V07/V08/V09、Bxx 命名是当前技术边界，不是产品版本 `0.14.2`。
-
-源数据按 UTF-8 读取；涉及按字节计算的 SHA/MD5 时保留原始编码和换行。
-`native_ids.json` 保留稳定原生编号，不通过重排枚举自动“修正”已有 ID。
-`--check` 比较现有载荷与生成结果而不写文件；不一致应定位输入/生成链，不能删除断言或重写期望值。
-
-## Demo 内容编译合同
-
-野外出生池由保存关卡里的可玩 `PlayerStart` 提供。每个点有唯一的 `PlayerStartTag`，地图绑定会检查数量、地面、角色净空和通往旗杆的路径。开局抽样、死亡后的随机候选和回到野外时的备用出生共用这组点。
-
-公共休息室与野外共用唯一地面与同一连接：地面向东延伸，野外东墙是隔墙，休息室四面封闭。
-`RestSpawn` 的 `rest_spawn_0..5` 只供阶段放置，不加入野外随机出生池；
-`PKSignup` 的 `pk_signup_0..5` 在休息室里，六个点的平均位置是公共报名圈的圆心，各点也是 AI 按名单槽位站的位置；
-`PKSpawn` 的 `pk_spawn_0..5`（`world.pk_spawn_ids`）围着旗杆，是 PK 的出生点；`PKThrow` 的 `pk_throw`（`world.pk_throw_id`）是观众投掷的射程原点。
-这三类都不加入野外随机出生池。
-`RestService` 的三个定位点 `rest_service_1..3` 位于 y=-500 cm、x=7100/7500/7900 cm，只作休息室布局与出生可达的参照，
-不承载服务（休息服务都在构筑台里）。`TrainingDummy` 的六个 `training_dummy_0..5` 位于北侧
-y=700 cm，间距400 cm；各参赛者在对应锚点生成真实共享假人，由获准观察代理同步实际位置、生命与状态，地面边界另作公共展示；
-训练锚点不进入野外 POI 或小地图地点。
-Python/native importer 都识别新增锚点，假人偏移与出生候选仍走实际胶囊净空检查。休息出生候选还须有到 `rest_service_1`
-的完整室内原生路径；野外出生以野外旗杆为路径参考，终局出生以终局旗杆为参考。Bootstrap 校验每个休息出生偏移到该服务的路径。
-改动后依序执行 `SyncDemoWorldData.py`、`SyncDemoContentData.py`、`BuildEditor.ps1`、
-`BootstrapAssets.ps1 -Mode Regenerate`；必须重生成原生地图与定义，不能只刷新旧定义或复制旧地图作为新几何。
-
-`Scripts\DemoContent.py` 与 `Scripts\SyncDemoContentData.py` 提供独立于旧目录的严格作者校验、
-定点投影和根身份生成。`SourceData\Demo\content.schema.json`、`native_ids.json` 以及
-`Public\Development\LDDemoContentIds.h` 只定义格式与编号保留，不批准候选技能或任何数值。
-`native_ids.json` 的 `retired_ranges` 列出不得复用的旧编号（技能 0–91、104–113、119–125，属性卡 0–26，状态 28–29，以及退役的效果操作）；新编号必须同时匹配作者映射与原生声明。
-
-生产输入必须是经审查的 `SourceData\Demo\content.json`，其中
-`identity.approval.status` 为 `approved`，`decision` 引用实际审批决定。
-这个字段记录审批，不是编译器授予审批。没有已批准内容或真实世界产物时明确拒绝，
-不创建 `content.json`、不从旧目录补值，也没有 candidate/fixture 运行开关。
-`Scripts\DemoContentTestFixtures.py` 仅在 unittest 的 `Artifacts` 临时根提供合成机制夹具；
-其审批形状的测试元数据、数值和几何均不能作为产品输入。
-
-| 边界 | 当前编译器行为 |
-| --- | --- |
-| 读取与 schema | UTF-8；小数从原文直接读为 Decimal，拒绝重复键、未知字段/操作/ID、错误单位/等级/引用、bool 整数、非有限值和不可表示精度 |
-| 数值投影 | P2 → `{unit, p2}` 百分之一点；R4 → `{unit, bp}`；秒 → `{unit: "ms", ms}`；距离/速率 → `{unit, numerator, denominator}` 的约分 int64 有理数；计数/XP 为 int64 |
-| 完整定义 | 角色参数、单级主动的完整数值/effects 与开局池标记、五维属性每点加成、成长点数参数、XP 阈值与主动机会等级、四档营地与十二种的攻击模式、AI 参数和显示引用均进入闭合树；没有透传的 ActiveJson 或丢弃坏字段 |
-| 纯提供者 | `compile_content(root)` 返回不可变 Catalog、三份输出字节、输入快照和 32-byte 根摘要；`build_outputs(root)` 返回输出映射；Catalog 不拥有 Match、时钟、HP、XP 或其他玩法状态 |
-| 世界前置 | 必须读取真实 `Content\Lockdown\Data\Demo\world.json` 及 `Private\World\LDDemoWorldContract.h`，核对实际字节，不接受调用方单独给出的 digest 或空世界占位 |
-| 输出 | 同时生成 `Content\Lockdown\Data\Demo\demo_content.json`、`manifest.json` 与 `Private\Development\LDDemoContentContract.h`；不生成世界文件或世界契约 |
-
-大整数不得经过 JSON double 再取回。原生消费者需按整数 token/明确整数编码解析这些字段，
-不能用 UE 的浮点 JSON 读取当作完整 typed importer。定义 ID 的窄 wire 为 64 字节：
-最多 63 字节小写 ASCII、NUL 终止、余字节为零；目录 digest 为 32 原始字节，显示才用 64 位小写 hex。
-纯 wire 编解码与格式拒绝在 `DemoContent.py` 中提供，不替代业务域对未知/退役 ID 的拒绝。
-
-世界字节入口的完整检查见 `DemoWorld`：当前互换版本为 schema/projection 5，
-包含 map_id、作者/schema 的真实字节摘要、批准记录、真实 surfaces/blockers 多边形及
-Spawn、Camp、Capture、Dorm、Airdrop、BossWaypoint、MiniFlag、Locker 和休息室锚点、营地成员 home 与七个局部落地偏移；
-坐标是有符号约分整数对，营地另有成员 home。检查支持面/坐标形状、ID、数量和内容引用，
-**不证明胶囊净空、路径可达、碰撞或原生地图资产正确**，这些仍由世界生成器/Builder 负责。
-世界作者校验有代码拥有的完整字段/类型/cm 单位约束；可编辑 schema 不能扩充原生支持集后
-丢弃新字段，也不能将米伪装成厘米。内容根生成重新调用同一世界 producer 比较全部真实产物，
-不能仅手写 world 和匹配摘要让正式链通过。
-
-终局场地使用独立锚点：`FinalSpawn` 固定为 `final_spawn_0..5`，`FinalCapture` 固定为
-`final_capture`。保存地图的 `LDSceneAnchor:<id>` 点由 `SyncDemoMap.ps1` 投影进世界输入；
-原生目录校验六个出生点同层、等距并按60°顺序分布，Bootstrap 再验证出生偏移的胶囊地面与到旗点的完整导航路径。
-持有私人旗杆（终局改装）的参赛者，其旗杆圆心取自己名册槽位对应的 `final_spawn_<slot>` 绑定位置与地面。
-它们不进入普通野外 POI/小地图；显式出生选择通过 `LDDemoWorld::FinalSpawnId` 和
-`LDDemoWorld::FinalCaptureId` 解析，不替代野外的 `capture` 锚点。
-
-野外目标与隐藏物使用三类可选锚点，id 前缀决定类别：`MiniFlag` 为 `mini_flag_*`（至少 3 个，最多 16 个），
-`Locker` 为 `locker_*`（至少 6 个，最多 32 个）。
-关卡作者可以移动、复制或删除这些点：复制的点以 `<原 id>_copy_<演员名的 8 位十六进制校验值>` 得到新 id（`LDStaticScene::OptionalCopyId`，投影与 RefreshLayoutPoints 共用），删除只要不低于最少数量即可；
-`DemoWorld.py` 与 `LDMapGeometry.cpp` 同样检查前缀与类别一致、数量范围、单胶囊合法站位，以及各自作用圆
-（小迷你旗 `OBJECTIVE.FlagRadiusCm`、外卖柜 `EXPLORE.LockerRadiusCm`）落在合法地面且不进入营地清空圈。
-内容另检查 `EXPLORE.LockerCount` 不超过外卖柜点数、`LIFE.SpawnChoiceCount` 不超过出生点数。
-外卖柜与小迷你旗点不进入 AI 静态公开地点或静态小地图（外卖柜只在出现期间显示，小迷你旗只在开放或预告时显示）。
-
-`camps.placements.monster_id`是固定档位代表，运行按该定义的tier聚合三种候选，不是本次生成结果。
-同档必须具有相同成员数量、奖励与刷新时间。`FLDCampSpec::Pools`每档一个种类池：`Pools[0]`是营地自身档位，
-作者成员名单里其他档位的成员模板各追加该档一池，成员按 `Pool` 取种（`FLDCampSpec::MemberSpecies`；精英与远古的团建位仍穿固定高档种）。
-`FLDCampGroupState`按池保存本次选种与准备中的选种，每次整组生成每池独立抽一次，同档成员同种；
-SpawnBlocked重试保留抽签；整组生命提交后才切换当前种类。公开POI保留档位代表，动态CreatureId只经合法观察发布。
-移动营地仍通过原有语义锚点/home点，模型替换不改档位。`BootstrapAssets.ps1 -Mode RefreshLayoutPoints`导入内容/世界定义，只为批准的新成员与新增定位点（含 `mini_flag_*`、`locker_*`、`pk_signup_*`、`pk_spawn_*`、`pk_throw`）新增语义点，
-保留现存点和人工布景；现存必需点缺失、重复身份或成员落点重叠会拒绝，不能用此入口重建被删除的点。
-该定向同步不刷新碰撞、导航或美术，也不代表完整Bootstrap通过；新增成员的实际胶囊落地及接线由拥有连接营地场景验证。
-普通布景不参与成员数量或档位判定；全场景源快照导出对未注册静态碰撞的限制仍存在。
-
-## 原生地图通行体检
-
-`LDSceneAuthoringLibrary::GameplayTraversalAudit(World, PathPairCount)` 只在编辑器世界执行，读取实际静态碰撞、角色胶囊与已烘焙 Recast。
-它输出可复核 JSON：全量及野外导航图、凸区域合并后按割点分隔的单出口区域、真实可站立深度见证、确定性完整路径样本、出生点可达性、通道净宽、矮台阶候选，
-以及角色躯干高度带内简化碰撞与实际网格交点的外扩量。诊断不自动移动布局，不以旧装饰名字或坐标决定玩法。
-
-`Lockdown.Rules.StaticScene.MapTraversal` 对保存地图采样 200 对实际可站立点，并检查营地成员到营地中心及野外旗杆的原生路径。
-通道门槛为 120 cm，碰撞轮廓外扩门槛为 12 cm；矮路沿上限为 35 cm，单出口区域路线深度上限为 350 cm。
-体检中的轮廓与通道检查是原生采样诊断，不能替代所有角色走法的实机检查；JSON 保留具体对象、位置和失败原因。
-公共休息室、野外与终局场地按玩法语义分别检查可达性，不为消除统计上的独立组件而打通阶段隔离墙。
-`cut_members` 保留入口凸区域的全部原生多边形；新增出口必须接到该区域以外，不能把穿过同一个入口凸区域的路线误认成第二出口。
-`rejected_nav_samples` 与 `rejected_pocket_goal_samples` 记录不满足实际站立条件的体素候选；路径与深度验收只使用合法脚点，`standable_points` 可供后续编辑前后对比。
-Recast 的高程简化权重为 1，保留作者设置的平面误差与角色 35 cm 台阶限制；路径端点优先采用同 XY 的原生导航层，避免三维最近点把合法脚点推向邻近陡面。搜索预算为 32768 个节点。
-原生地图的模型碰撞修改后，烘焙导航并保存。运行时地面、导航、视野和小地图从保存场景读取当前的模型与布局。 `SyncDemoWorldData.py --check` 校验已批准源数据的派生产物。 `SyncDemoMap.ps1` 的解析式源快照导出目前要求已注册的几何，并会拒绝地图内单独保存的通用训练假人与作者自定义布局。
+`camps.placements.monster_id` 仅代表营地固定档位；运行时 `FLDCampSpec::Pools` 按档位聚合 3 种候选并在每次整组生成时独立抽样（`SpawnBlocked` 重试保留原抽签，提交后才切换种类）。
