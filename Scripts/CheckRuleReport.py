@@ -175,6 +175,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoMotionProbe.Slide",
         "Lockdown.Rules.DemoMotionProbe.StepUpRollback",
         "Lockdown.Rules.DemoMotionProbe.LedgeRevert",
+        "Lockdown.Rules.DemoMotionProbe.LedgeRetryEndsWalking",
         "Lockdown.Rules.DemoMotionProbe.SupportTransitions",
         "Lockdown.Rules.DemoMotionProbe.UnrecordedMoveRejected",
         "Lockdown.Rules.DemoMotionProbe.DashStopsAtWall",
