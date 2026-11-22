@@ -14,6 +14,7 @@ class ALDPlayerController;
 class UTexture2D;
 class UMaterialInstanceDynamic;
 class FLDDemoContentSnapshot;
+struct FLDLocalGroundFog;
 
 enum class ELDObservedViewStatus : uint8 { Unavailable, Current, Stale };
 enum class ELDObservedClearReason : uint8
@@ -371,6 +372,8 @@ public:
     UFUNCTION(Client,Reliable) void ClientConceal(const FLDObservedConceal& Notice);
     UFUNCTION(Client,Reliable) void ClientTermination(const FLDObservedTerminationNotice& Notice);
     FLDObservedFrameRead ReadObservedFrame() const { return Receiver.Read(); }
+    // Static ground presentation only. This bitmap never authorizes an entity, ground effect or projectile.
+    const TArray<uint8>* ReadGroundFog(uint64& OutSerial) const;
     bool ReadUnit(const FGuid& Handle, uint32 ObservationEpoch, FLDObservedUnitView& Out) const
     { return Receiver.FindUnit(Handle, ObservationEpoch, Out); }
     const TArray<FLDObservedClear>& RecentClears() const { return LastClears; }
@@ -407,8 +410,7 @@ private:
     // Marks this viewer's own living body with a local ring; hides it while dead or bodiless.
     void TrackOwnBody(const ALDPlayerController& Owning);
     void AttachFog();
-    // Takes the current coverage as the fog target; BlendFog then fades each cell toward it, so the lit area moves with
-    // the published samples instead of jumping. Only authorized coverage is ever a target.
+    void UpdateGroundFog(const ALDPlayerController& Owning, double Now);
     void UploadFog();
     void BlendFog(float Delta);
     // Delayed authority time at which proxies and flights are posed.
@@ -449,9 +451,9 @@ private:
     UPROPERTY() TObjectPtr<UTexture2D> FogTexture;
     UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> FogMaterial;
     TWeakObjectPtr<AActor> CameraOwner;
-    uint64 FogSerial = MAX_uint64;
-    TArray<uint8> FogBits;
-    FVector2D FogSpan = FVector2D::ZeroVector;
+    TSharedPtr<FLDLocalGroundFog> GroundFog;
+    uint64 GroundFogSerial = 0;
+    uint64 FogUploadSerial = MAX_uint64;
     TArray<float> FogTarget;
     TArray<float> FogShown;
     bool bFogBlending = false;

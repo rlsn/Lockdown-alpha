@@ -1,12 +1,13 @@
 #include "World/LDBoss.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Region/LDMapGeometry.h"
+#include "Vision/LDVisionDirector.h"
 
 bool FLDBossRules::IsValid() const
 {
     return StartedAtMs >= 0 && AppearAtMs > 0 && LeaveAtMs > AppearAtMs && FMath::IsFinite(AggroRadiusCm) && FMath::IsFinite(AttackRangeCm)
         && AttackRangeCm > 0 && AggroRadiusCm > AttackRangeCm && AttackerMemoryMs > 0 && !MonsterId.IsNone()
-        && CreatureId != 0 && !SurfaceId.IsNone() && Waypoints.Num() == 4
+        && CreatureId != 0 && !SurfaceId.IsNone() && Waypoints.Num() == 4 && VisionRange.IsValid()
         && !Waypoints.ContainsByPredicate([](const FVector& Point) { return Point.ContainsNaN(); });
 }
 
@@ -52,7 +53,7 @@ bool FLDBossState::Leave(int64 NowMs)
 }
 
 FLDBossDecision FLDBossState::Decide(int64 NowMs, const FVector& SelfFootCm, TConstArrayView<LDBoss::FCandidate> Living,
-    bool bMovementAllowed, bool bAttackReady)
+    bool bMovementAllowed, bool bAttackReady, TOptional<double> SelfSightGroundZ)
 {
     FLDBossDecision Out;
     if (Phase != ELDBossPhase::Alive) { return Out; }
@@ -66,7 +67,9 @@ FLDBossDecision FLDBossState::Decide(int64 NowMs, const FVector& SelfFootCm, TCo
         if (!Candidate.bVisible || !Candidate.Body.IsValid() || Candidate.FootCm.ContainsNaN()) { continue; }
         const bool bAttacker = Attackers.ContainsByPredicate([&Candidate](const FAttacker& A) { return A.Source == Candidate.Body; });
         const double Distance = FVector::DistSquared2D(SelfFootCm, Candidate.FootCm);
-        if (!bAttacker && Distance > Rules.AggroRadiusCm * Rules.AggroRadiusCm) { continue; }
+        const double Perception = Rules.AggroRadiusCm * LDObservation::HeightRadiusScale(Rules.VisionRange,
+            SelfSightGroundZ.Get(SelfFootCm.Z),Candidate.SightGroundZ.Get(Candidate.FootCm.Z));
+        if (!bAttacker && Distance > Perception * Perception) { continue; }
         const bool bBetter = !Best || (bAttacker != bBestAttacker ? bAttacker
             : Distance != BestDistance ? Distance < BestDistance
             : Candidate.Body.Victim.EntityId < Best->Body.Victim.EntityId);
@@ -123,6 +126,7 @@ bool LDBoss::Resolve(const FLDDemoContentSnapshot& Content, const FLDDemoWorldGe
     R.AppearAtMs = bPatrolDay ? D.Parameters.Daily.PatrolBossAppearMs : D.Boss.AppearAtMs;
     R.LeaveAtMs = D.Boss.LeaveAtMs;
     R.AggroRadiusCm = Cm(D.Boss.AggroRadiusCm);
+    R.VisionRange = D.Parameters.VisionRange;
     R.AttackerMemoryMs = D.Boss.AttackerMemoryMs;
     if (Body)
     {

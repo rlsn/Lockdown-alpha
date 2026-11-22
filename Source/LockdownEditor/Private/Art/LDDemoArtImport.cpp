@@ -1,4 +1,6 @@
 #include "LDDemoArtImport.h"
+#include "LDBasketballMotionImport.h"
+#include "Character/LDBasketballMotion.h"
 #include "LDEditorLog.h"
 #include "Art/LDArtCatalog.h"
 #include "Art/LDArtPlacement.h"
@@ -107,7 +109,7 @@ namespace
         FString Id, Source;
         // Authored bodies (finished assets in /Game/Lockdown/Art/Characters/<id>): their pack and mesh asset name.
         bool bAuthored = false;
-        FString Pack, Mesh;
+        FString Pack, Mesh, BasketballMotion, BasketballSource;
         FName HipBone, FootBone;
         float HeightCm = 0.f, RunSpeedCmPerSec = 0.f;
         FName HandBone;
@@ -362,6 +364,12 @@ namespace
             }
             (*Object)->TryGetStringField(TEXT("kind"), Kind);
             Spec.bAuthored = Kind == TEXT("authored");
+            (*Object)->TryGetStringField(TEXT("basketball_motion"), Spec.BasketballMotion);
+            (*Object)->TryGetStringField(TEXT("basketball_source"), Spec.BasketballSource);
+            if (Spec.BasketballMotion.IsEmpty() != Spec.BasketballSource.IsEmpty()
+                || (!Spec.BasketballMotion.IsEmpty() && (!Spec.bAuthored || !ArtIsAssetName(Spec.BasketballMotion)
+                    || !ArtSafeRelative(Spec.BasketballSource) || !Spec.BasketballSource.StartsWith(TEXT("Animation/")))))
+            { return ArtFail(Error,TEXT("Basketball motion needs an authored asset and a relative Animation source.")); }
             if (!Kind.IsEmpty() && !Spec.bAuthored) { return ArtFail(Error, FString::Printf(TEXT("Character %s kind must be authored or absent (glTF)."), *Spec.Id)); }
             const bool bSource = (*Object)->TryGetStringField(TEXT("source"), Spec.Source) && !Spec.Source.IsEmpty();
             if (Spec.bAuthored
@@ -1235,6 +1243,14 @@ namespace
                 return ArtFail(Error, FString::Printf(TEXT("Character %s %s clip moves its root %.1f cm; author it in place."), *Spec.Id, *LDArt::AnimId(Clip.State), Drift));
             }
             if (!LDArt::HasImpact(Clip.State)) { continue; }
+            if (Body.BasketballMotion)
+            {
+                const auto& Bank=Clip.State==ELDArtAnim::Attack?Body.BasketballMotion->Passes:Body.BasketballMotion->StandingShots;
+                if (Bank.IsEmpty() || Bank[0].Animation!=Clip.Sequence)
+                { return ArtFail(Error,TEXT("The default basketball action must match its calibrated bank entry.")); }
+                // Basketball release is palm/ball separation, not the generic farthest-forward hand reach.
+                Out.ImpactSec.Add(Clip.State,Bank[0].Release);continue;
+            }
             int32 Best = INDEX_NONE;
             double Reach = -TNumericLimits<double>::Max();
             for (int32 Index = 0; Index < Poses.Num(); ++Index)
@@ -1347,6 +1363,10 @@ namespace
         Body.HandBone = Spec.HandBone;
         Body.RunSpeedCmPerSec = Spec.RunSpeedCmPerSec;
         if (!ArtBodyTransform(*Mesh, Spec, Body.MeshTransform, Error)) { return false; }
+        Body.BasketballMotion = Spec.BasketballMotion.IsEmpty() ? nullptr : ArtLoadAuthored<ULDBasketballMotionSet>(Folder, Spec.BasketballMotion);
+        if (!Spec.BasketballMotion.IsEmpty() && (!Body.BasketballMotion || !Body.BasketballMotion->Validate(*Mesh,Error)
+            || !LDBasketballMotionImport::ValidateSource(*Body.BasketballMotion,Spec.BasketballSource,Error)))
+        { return ArtFail(Error,TEXT("Basketball motion is missing or stale; run ImportDemoArt.ps1 -Mode ImportBasketball. ") + Error); }
         Body.Animations.Reset();
         for (const FArtClipSpec& Want : Spec.Clips)
         {
@@ -1410,7 +1430,8 @@ namespace
         if (!ArtReadAuthored(Spec, Want, nullptr, Error)) { return false; }
         bool bSame = Have.Id == Want.Id && Have.Mesh == Want.Mesh && Have.HeightCm == Want.HeightCm && Have.TintSlots == Want.TintSlots
             && Have.HandBone == Want.HandBone && Have.RunSpeedCmPerSec == Want.RunSpeedCmPerSec && Have.MeshTransform.Equals(Want.MeshTransform, 1e-3)
-            && Have.Animations.Num() == Want.Animations.Num() && Have.Attachments.Num() == Want.Attachments.Num();
+            && Have.Animations.Num() == Want.Animations.Num() && Have.Attachments.Num() == Want.Attachments.Num()
+            && Have.BasketballMotion == Want.BasketballMotion;
         for (int32 Index = 0; bSame && Index < Want.Animations.Num(); ++Index)
         {
             const FLDArtAnimation& A = Have.Animations[Index];
@@ -1430,6 +1451,34 @@ namespace
     }
 }
 
+bool LDDemoArtImport::ImportBasketball(FString& Error)
+{
+    if (!ArtRequireClient(Error)) { return false; }
+    FArtManifest Manifest;
+    if (!ArtLoadManifest(Manifest,Error)) { return false; }
+    auto* Catalog = ArtLoadOrCreate<ULDArtCatalog>(ArtCatalogPackage,false);
+    if (!Catalog) { return ArtFail(Error,TEXT("The existing art catalog is required.")); }
+    TArray<UObject*> Assets;int32 Count=0;
+    for (const auto& Spec:Manifest.Characters)
+    {
+        if (Spec.BasketballMotion.IsEmpty()) { continue; }
+        const FString Folder=FString(ArtCharacterRoot)+Spec.Id;
+        auto* Mesh=ArtLoadAuthored<USkeletalMesh>(Folder,Spec.Mesh);
+        if (!Mesh || !LDBasketballMotionImport::Import(*Mesh,Spec.BasketballSource,Folder,Spec.BasketballMotion,Assets,Error)) { return false; }
+        FLDArtCharacter Body;
+        if (!ArtReadAuthored(Spec,Body,&Assets,Error) || !ArtCheckMeasured(Spec,Body,Error)) { return false; }
+        auto* Existing=Catalog->Characters.FindByPredicate([&](const FLDArtCharacter& Candidate){return Candidate.Id==Spec.Id;});
+        if (!Existing) { return ArtFail(Error,TEXT("The basketball body must already exist in the art catalog.")); }
+        *Existing=MoveTemp(Body);++Count;
+    }
+    if (Count==0) { return ArtFail(Error,TEXT("No authored basketball motion is declared.")); }
+    FLDArtResolved Resolved;
+    if (!Catalog->Resolve(Resolved,Error)) { return false; }
+    Catalog->MarkPackageDirty();Assets.Add(Catalog);
+    for (UObject* Asset:Assets) { if (!ArtSave(*Asset,Error)) { return false; } }
+    return true;
+}
+
 bool LDDemoArtImport::Import(FString& Error, bool bPropsOnly)
 {
     if (!ArtRequireClient(Error)) { return false; }
@@ -1445,7 +1494,6 @@ bool LDDemoArtImport::Import(FString& Error, bool bPropsOnly)
     if (!bPropsOnly)
     {
         Catalog->Characters.Reset();
-        Catalog->Seats.Reset();
         Catalog->Monsters.Reset();
         Catalog->Decorations.Reset();
         Catalog->HiddenBlockers.Reset();
@@ -1453,18 +1501,20 @@ bool LDDemoArtImport::Import(FString& Error, bool bPropsOnly)
         {
             if (!(Spec.bAuthored ? ArtImportAuthored(Spec, *Catalog, Assets, Error) : ArtImportCharacter(Spec, Masters, *Catalog, Assets, Error))) { return false; }
         }
-        for (int32 Seat = 0; Seat < Manifest.Seats.Num(); ++Seat)
-        {
-            FLDArtSeatLook& Look = Catalog->Seats.AddDefaulted_GetRef();
-            Look.Seat = uint8(Seat);
-            Look.Character = Manifest.Seats[Seat];
-        }
         for (const TPair<uint8, FString>& Tier : Manifest.Monsters)
         {
             FLDArtMonsterLook& Look = Catalog->Monsters.AddDefaulted_GetRef();
             Look.CreatureId = Tier.Key;
             Look.Character = Tier.Value;
         }
+    }
+    // Seat looks only name imported characters, so the props-only import refreshes them too.
+    Catalog->Seats.Reset();
+    for (int32 Seat = 0; Seat < Manifest.Seats.Num(); ++Seat)
+    {
+        FLDArtSeatLook& Look = Catalog->Seats.AddDefaulted_GetRef();
+        Look.Seat = uint8(Seat);
+        Look.Character = Manifest.Seats[Seat];
     }
     for (const FArtPropSpec& Spec : Manifest.Props)
     {

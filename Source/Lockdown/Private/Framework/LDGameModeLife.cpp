@@ -646,15 +646,19 @@ bool ALDGameMode::PlaceContenderBody(const FGuid& Contender, uint32 ProposedLife
     }
     auto* Movement = Body->GetCharacterMovement();
     Movement->SetComponentTickEnabled(false);
+    const FVector BeforeWalking = Body->GetActorLocation();
     Movement->SetMovementMode(MOVE_Walking);
     Movement->FindFloor(Body->GetActorLocation(), Movement->CurrentFloor, false, nullptr);
     Movement->SetBaseFromFloor(Movement->CurrentFloor);
-    if (!Movement->CurrentFloor.IsWalkableFloor()
+    const FVector Delta = Body->GetActorLocation() - Out.Reservation->BodyOrigin();
+    // Entering walking may adjust the native capsule's floor gap on a ramp.
+    // Construction must still start at the reservation and walking must keep its XY and support.
+    if (!BeforeWalking.Equals(Out.Reservation->BodyOrigin(), .000001)
+        || !Movement->CurrentFloor.IsWalkableFloor() || Movement->CurrentFloor.HitResult.bStartPenetrating
         || Movement->CurrentFloor.HitResult.GetComponent() != Out.Reservation->Ground().Floor.Get()
-        || !Body->GetActorLocation().Equals(Out.Reservation->BodyOrigin(), .000001))
+        || !FVector2D(Delta).IsNearlyZero(.000001) || !(FMath::Abs(Delta.Z) <= UCharacterMovementComponent::MAX_FLOOR_DIST))
     {
-        const FVector Delta = Body->GetActorLocation() - Out.Reservation->BodyOrigin();
-        Error = FString::Printf(TEXT("Prepared body does not occupy its exact registered placement: walkable=%d floor=%s expected_floor=%s delta=(%.9f,%.9f,%.9f)."),
+        Error = FString::Printf(TEXT("Prepared body does not occupy its registered support: walkable=%d floor=%s expected_floor=%s delta=(%.9f,%.9f,%.9f)."),
             Movement->CurrentFloor.IsWalkableFloor() ? 1 : 0, *GetNameSafe(Movement->CurrentFloor.HitResult.GetComponent()),
             *GetNameSafe(Out.Reservation->Ground().Floor.Get()), Delta.X, Delta.Y, Delta.Z);
         ReleasePlacedBody(Out);

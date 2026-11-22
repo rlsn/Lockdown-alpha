@@ -405,7 +405,13 @@ def dash_definition(value):
 
 
 def parameter_projection(parameters):
-    result = {}
+    vision_range = {
+        "NeutralHeightCm": rational(parameters["VISION.NeutralHeightCm"]),
+        "FullHeightCm": rational(parameters["VISION.FullHeightCm"]),
+        "UphillRadiusBp": scalar(parameters["VISION.UphillRadiusScale"]),
+        "DownhillRadiusBp": scalar(parameters["VISION.DownhillRadiusScale"]),
+    }
+    result = {"VisionRange": vision_range}
     for stat in ("MaxHP", "AD", "AP", "Armor", "MagicResist", "HPRegen"):
         rate = stat == "HPRegen"
         result[stat] = {
@@ -1065,6 +1071,9 @@ def _export_cases(output, index, base, value_mutations, valid, written):
     exact["parameters"]["STAT.HPRegen.PerLevel"]["value"] = "__exact_literal__"
     valid("exact_rational", exact, literal=b"0.000000000000000001")
     _export_world_spawn_shift_case(valid)
+    zero_neutral_vision = fixtures.content_fixture()
+    zero_neutral_vision["parameters"]["VISION.NeutralHeightCm"]["value"] = 0
+    valid("zero_neutral_vision", zero_neutral_vision)
     unicode_author = fixtures.content_fixture()
     unicode_author["identity"]["approval"]["decision"] = "TEST ONLY \u6d4b\u8bd5 \U0001f9ea"
     valid("unicode_metadata", unicode_author)
@@ -1100,6 +1109,8 @@ def _export_cases(output, index, base, value_mutations, valid, written):
         invalid(name, bundle, digest, error)
 
     bad_content("unknown_root_field", lambda d: d.update({"future_content": 1}), "unknown field")
+    bad_content("negative_neutral_vision",
+                lambda d: d["parameters"]["VISION.NeutralHeightCm"].update({"numerator": -1}), "integer outside")
     bad_content("unknown_parameter", lambda d: d["parameters"].update({"STAT.Unknown": 1}), "unknown field")
     bad_content("missing_parameter", lambda d: d["parameters"].pop("STAT.AD.Base"), "missing")
     bad_content("bad_unit", lambda d: d["parameters"]["STAT.MaxHP.Base"].update({"unit": "momentum"}), "unsupported constant")

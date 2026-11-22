@@ -19,6 +19,7 @@ ALDCaptureFence::ALDCaptureFence()
     bReplicates = false;
     PrimaryActorTick.bCanEverTick = false;
     SetCanBeDamaged(false);
+    Tags.Add(TEXT("NoViewBlock"));
     static ConstructorHelpers::FObjectFinder<UStaticMesh> Cube(TEXT("/Engine/BasicShapes/Cube"));
     Posts = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Posts"));
     RootComponent = Posts;

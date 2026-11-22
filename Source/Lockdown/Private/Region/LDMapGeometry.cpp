@@ -118,7 +118,7 @@ bool FTerrain::Build(const FLDDemoWorldGeometry& Geometry, FString& Error)
     }
     const double Step = double(Geometry.LevelStepCm.Numerator) / double(Geometry.LevelStepCm.Denominator);
     TArray<FRegion> Candidate;
-    for (const auto& Surface : Geometry.Surfaces) { SceneTiers.Add(FName(*Surface.Id), 0); }
+    // A surface id identifies support, not an absolute zero-height band. Native coastal ground may be below zero.
     for (const auto& Plateau : Geometry.Plateaus)
     {
         SceneTiers.Add(FName(*Plateau.Id), 2 * Plateau.Level);
@@ -214,7 +214,7 @@ int32 FTerrain::Tier(const FVector2D& Point) const
             for (FName Tag : Actor->Tags)
             { if (const int32* Tier = SceneTiers.Find(Tag)) { return *Tier; } }
         }
-        return FMath::Max(0, FMath::FloorToInt32((Hit.ImpactPoint.Z + .01) * 2 / StepCm));
+        return FMath::FloorToInt32((Hit.ImpactPoint.Z + .01) * 2 / StepCm);
     }
     if (!RegionBounds.bIsValid || !RegionBounds.IsInsideOrOn(Point)) { return 0; }
     const auto* Candidates = RegionCells.Find(FIntPoint(FMath::FloorToInt32(Point.X / GridCellCm), FMath::FloorToInt32(Point.Y / GridCellCm)));
@@ -245,7 +245,7 @@ bool FTerrain::GroundNear(const FVector& Foot, double& OutZ, int32& OutTier, boo
         for (FName Tag:Actor->Tags)
         { if (const int32* Value=SceneTiers.Find(Tag)) { OutTier=*Value; return true; } }
     }
-    OutTier=FMath::Max(0,FMath::FloorToInt32((OutZ+.01)*2/StepCm));
+    OutTier=FMath::FloorToInt32((OutZ+.01)*2/StepCm);
     return true;
 }
 

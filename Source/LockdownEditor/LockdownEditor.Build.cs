@@ -12,5 +12,6 @@ public class LockdownEditor : ModuleRules
         PrivateDependencyModuleNames.AddRange(new[] { "InterchangeCore", "InterchangeEngine", "InterchangePipelines" });
         // Art: authored bodies are measured from their clips (AnimPose) as MeasureDemoArt.py measures glTF bodies.
         PrivateDependencyModuleNames.Add("AnimationBlueprintLibrary");
+        AddEngineThirdPartyPrivateStaticDependencies(Target, "OpenSSL");
     }
 }

@@ -190,7 +190,7 @@ bool ProxiesMatchFrame(const UWorld& World, const ALDWorldViewRelay& Relay, cons
 class FLDDemoVisionProbe : public TSharedFromThis<FLDDemoVisionProbe>
 {
 public:
-    enum class EStall : uint8 { Waiting, Lossy, Recovering, Done };
+    enum class EStall : uint8 { Waiting, Lossy, MovingWithoutFrames, Recovering, Done };
 
     TWeakObjectPtr<ALDPlayerController> Controller;
     TWeakObjectPtr<UWorld> World;
@@ -255,6 +255,9 @@ public:
         return Result;
     }
     TArray<FLDSeenUnit> PreStall;
+    TArray<uint8> StalledGround;
+    FVector BeforeGroundMove = FVector::ZeroVector;
+    FVector WalkStart = FVector::ZeroVector;
     bool bExplicitLeaveSent=false;
     double ExplicitLeaveSentAt=0;
     TSet<FGuid> RemoteContenders;
@@ -491,7 +494,8 @@ public:
             TEXT("All %d presented proxies are destroyed once 250 ms pass without a full frame"), PreStallProxies));
         bool bDark = true;
         if (Read.Frame) { for (const uint8 Byte : Read.Frame->Footprint.CurrentBits) { bDark &= Byte == 0; } }
-        Check(Read.Frame && Read.Frame->Units.IsEmpty() && bDark, TEXT("#23"), TEXT("The timed-out view keeps no unit and no current coverage"));
+        Check(Read.Frame && Read.Frame->Units.IsEmpty() && bDark, TEXT("#23"),
+            TEXT("The timed-out authority view keeps no unit or authorized coverage"));
         bool bNoLastSeen = true, bTimedOut = true;
         FLDObservedUnitView Ignored;
         for (const FLDSeenUnit& Seen : PreStall)
@@ -593,19 +597,21 @@ public:
         {
             if (!Geometry || !LDDemoEntry::LoadRuntimeContent(Catalog, Why)
                 || !ULDMapRegistry::ContentCapsule(*Catalog, Capsule, Why)
-                || !LDScenarioWalk::Keepouts(*Geometry, *Catalog, Capsule.GetCapsuleRadius(), ArrivalCm, WalkKeepouts, Why))
+                || !LDScenarioWalk::Keepouts(*Geometry, *Catalog, Capsule.GetCapsuleRadius(),
+                    bPeaceful ? LDPathSteering::WaypointToleranceCm : ArrivalCm, WalkKeepouts, Why, !bPeaceful))
             { return Fail(TEXT("#1"), TEXT("The approved Vision arrival fixture could not be prepared: ") + Why); }
-            TArray<FLDCompletePath> Patrol;
-            if (!LDScenarioWalk::PatrolPaths(Registry, *Catalog, Patrol, Why))
-            { return Fail(TEXT("#1"), Why); }
-            const auto& Aggro = Catalog->Get().Boss.AggroRadiusCm;
-            // 150 cm bounds the final arrival disk; 12 cm covers the native waypoint contact tolerance.
-            const double CorridorRadius = double(Aggro.Numerator) / Aggro.Denominator
-                + Capsule.GetCapsuleRadius() + ArrivalCm + LDPathSteering::WaypointToleranceCm;
-            LDScenarioWalk::PatrolKeepouts(Patrol, CorridorRadius, WalkKeepouts);
-            if(bPeaceful){WalkKeepouts.Reset();}
+            // The peaceful fixture still has physical camp bodies. Only the Boss aggro corridor is exempt.
+            if (!bPeaceful)
+            {
+                TArray<FLDCompletePath> Patrol;
+                if (!LDScenarioWalk::PatrolPaths(Registry, *Catalog, Patrol, Why)) { return Fail(TEXT("#1"), Why); }
+                const auto& Aggro = Catalog->Get().Boss.AggroRadiusCm;
+                const double CorridorRadius = double(Aggro.Numerator) / Aggro.Denominator
+                    + Capsule.GetCapsuleRadius() + ArrivalCm + LDPathSteering::WaypointToleranceCm;
+                LDScenarioWalk::PatrolKeepouts(Patrol, CorridorRadius, WalkKeepouts);
+            }
             FLDSightGeometry FixtureSight;
-            if (!FixtureSight.Build(*Geometry, Registry.Revision(), Catalog->Get().Parameters.VisionRadiusCm, Why,Owner.GetWorld()))
+            if (!FixtureSight.Build(*Geometry, Registry.Revision(), Catalog->Get().Parameters.VisionRadiusCm,Catalog->Get().Parameters.VisionRange, Why,Owner.GetWorld()))
             { return Fail(TEXT("#1"), Why); }
             FLDLegalGround HubGround;ELDWorldQueryFailure HubFailure;
             if(!Registry.QueryGround(Registry.Revision(),Capture.Position,Capsule,Capture.Surface,HubGround,HubFailure,Why))
@@ -655,6 +661,7 @@ public:
         FixtureRoute = 1;
         Check(true, TEXT("#1"), TEXT("This owner's route and every detour pass native legal-ground and complete-path validation"));
         OwnBody = Owner.OwnerState.BodyRef;
+        WalkStart = Body->GetNavAgentLocation();
         WalkWaypoint = 0;
         Owner.Navigation->Navigate(WalkWaypoints[WalkWaypoint]);
         StageAt = Now;
@@ -1057,6 +1064,46 @@ public:
             Check(Body && Owner.GetViewTarget()==Body && Owner.PlayerCameraManager
                 && Owner.PlayerCameraManager->GetCameraLocation().Equals(Expected.GetLocation(),10.),
                 TEXT("#23"),TEXT("Loss of observation packets never moves the owning camera to a controller or foreign view"));
+            uint64 LocalSerial=0;
+            const auto* Ground=Relay->ReadGroundFog(LocalSerial);
+            if (!Check(Body && Ground && Ground->ContainsByPredicate([](uint8 Byte){return Byte!=0;}),
+                TEXT("#23"),TEXT("The local terrain stays visible while all server observation is stale"))) { return Finish(); }
+            StalledGround = *Ground;
+            BeforeGroundMove = Body->GetNavAgentLocation();
+            // Walk back toward a waypoint already checked by the fixture. The owning client predicts its normal
+            // ground navigation while every response from the server is being dropped.
+            const FVector* WalkBack = nullptr;
+            for (int32 Index = WalkWaypoints.Num()-2; Index >= 0; --Index)
+            {
+                if (FVector::Dist2D(BeforeGroundMove, WalkWaypoints[Index]) > 240.)
+                { WalkBack = &WalkWaypoints[Index]; break; }
+            }
+            if (!WalkBack && FVector::Dist2D(BeforeGroundMove, WalkStart) > 240.) { WalkBack = &WalkStart; }
+            if (!WalkBack) { return Fail(TEXT("#23"),TEXT("The fixture route lacks a return waypoint for the loss check")); }
+            Owner.Navigation->Navigate(*WalkBack);
+            StageAt = Now;
+            Stall = EStall::MovingWithoutFrames;
+            return true;
+        }
+        if (Stall == EStall::MovingWithoutFrames)
+        {
+            Relay = Owner.LocalView();
+            uint64 LocalSerial=0;
+            const auto* Ground=Relay ? Relay->ReadGroundFog(LocalSerial) : nullptr;
+            const auto* Body=Cast<ALDCharacter>(Owner.GetPawn());
+            const double Distance=Body ? FVector::Dist2D(BeforeGroundMove,Body->GetNavAgentLocation()) : 0.;
+            if (!Relay || Relay->ReadObservedFrame().Status != ELDObservedViewStatus::Stale || Relay->ProxyCount() != 0)
+            { return Fail(TEXT("#23"), TEXT("Local movement during packet loss granted an observed unit")); }
+            if (Distance < 120. || !Ground || *Ground == StalledGround
+                || !Ground->ContainsByPredicate([](uint8 Byte){return Byte!=0;}))
+            {
+                if (Now-StageAt < 3.) { return true; }
+                return Fail(TEXT("#23"),FString::Printf(
+                    TEXT("The local terrain mask did not follow the body while packets were blocked (body moved %.1f cm)"), Distance));
+            }
+            Check(true,TEXT("#23"),FString::Printf(
+                TEXT("Terrain coverage follows %.1f cm of predicted local movement with every incoming packet still dropped"),Distance));
+            Check(true,TEXT("#23"),TEXT("Local movement during packet loss grants no observed unit"));
             EndFrameLoss();
             if (!Passed) { return Finish(); }
             StageAt = Now;

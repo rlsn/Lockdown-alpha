@@ -124,8 +124,17 @@ bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeome
     TMap<FString, const AStaticMeshActor*> Shapes;
     TMap<FString, FString> Prototypes;
     TMap<FString, const AActor*> Points;
+    TArray<FString> FieldStartIds;
     TMap<FString, const ALDLayoutPoint*> SharedTraining;
     auto Fail = [&](const FString& Why) { Error = Why; return false; };
+    const auto DormPrototype = [&Base](const FString& Id)
+    {
+        return Base.Anchors.FindByPredicate([&Id](const FLDDemoWorldAnchor& Anchor)
+        {
+            return Anchor.Kind == ELDDemoWorldAnchorKind::Dorm
+                && (Anchor.Id == Id || Id.StartsWith(Anchor.Id + TEXT("_copy_"), ESearchCase::CaseSensitive));
+        });
+    };
     for (const AActor* Actor : World.PersistentLevel->Actors)
     {
         if (!Actor || Actor->IsEditorOnly()) { continue; }
@@ -204,13 +213,18 @@ bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeome
         }
         const auto* Start = Cast<APlayerStart>(Actor);
         FString Id = Start ? Start->PlayerStartTag.ToString() : !Anchor.IsEmpty() ? Anchor : Member;
+        if (bForPlay && Start)
+        {
+            if (Start->PlayerStartTag.IsNone())
+            { return Fail(TEXT("A field PlayerStart requires a unique PlayerStartTag: ") + Start->GetPathName()); }
+            FieldStartIds.Add(Id);
+        }
         if (!Id.IsEmpty())
         {
             ELDDemoWorldAnchorKind OptionalKind;
-            if (Points.Contains(Id) && LDDemoWorld::OptionalKindOf(Id, OptionalKind))
+            if (Points.Contains(Id) && (LDDemoWorld::OptionalKindOf(Id, OptionalKind) || (bForPlay && DormPrototype(Id))))
             {
-                // Spec §11.4: a copied mini flag or locker point is a new point of the same kind. Its identity
-                // derives from the saved object name, which a copy never shares.
+                // Copies get stable identities derived from their saved actor names.
                 Id = LDStaticScene::OptionalCopyId(Id, Actor->GetName());
             }
             if (Points.Contains(Id)) { return Fail(TEXT("Duplicate layout point: ") + Id); }
@@ -389,6 +403,28 @@ bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeome
         Anchor.SurfaceId = Base.Surfaces[0].Id;
         ++OptionalCounts[Anchor.Kind == ELDDemoWorldAnchorKind::MiniFlag ? 0 : 1];
     }
+    // The saved PlayerStarts supply the live field roster. The imported definition is still used
+    // by the explicit source projection and by analysis fixtures outside the saved scene.
+    if (bForPlay)
+    {
+        const int32 SourceStartCount = Out.Anchors.RemoveAll([](const FLDDemoWorldAnchor& A)
+        { return A.Kind == ELDDemoWorldAnchorKind::Spawn; });
+        if (SourceStartCount > 0 || !FieldStartIds.IsEmpty())
+        {
+            if (FieldStartIds.Num() < LDDemoWorld::MinSpawns || FieldStartIds.Num() > LDDemoWorld::MaxSpawns)
+            {
+                return Fail(FString::Printf(TEXT("The map has %d field PlayerStarts; it requires %d to %d."),
+                    FieldStartIds.Num(), LDDemoWorld::MinSpawns, LDDemoWorld::MaxSpawns));
+            }
+            for (const FString& Id : FieldStartIds)
+            {
+                auto& Anchor = Out.Anchors.AddDefaulted_GetRef();
+                Anchor.Id = Id;
+                Anchor.Kind = ELDDemoWorldAnchorKind::Spawn;
+                Anchor.SurfaceId = Out.Surfaces[0].Id;
+            }
+        }
+    }
     // The definition keeps its anchors in ordinal id order; the projection matches it.
     Out.Anchors.Sort([](const FLDDemoWorldAnchor& A, const FLDDemoWorldAnchor& B) { return A.Id.Compare(B.Id, ESearchCase::CaseSensitive) < 0; });
     // A kind the definition declares (the Demo world) needs its minimum; a level whose definition declares none of a kind
@@ -413,6 +449,8 @@ bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeome
             return (Anchor.Kind == ELDDemoWorldAnchorKind::Camp || Anchor.Kind == ELDDemoWorldAnchorKind::Airdrop)
                 && !Points.Contains(Anchor.Id);
         });
+        int32 DormCount = 0;
+        for (const auto& Anchor : Out.Anchors) { DormCount += Anchor.Kind == ELDDemoWorldAnchorKind::Dorm ? 1 : 0; }
         TArray<FString> InstanceIds;
         Points.GetKeys(InstanceIds);
         InstanceIds.Sort();
@@ -421,13 +459,17 @@ bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeome
             if (Out.Anchors.ContainsByPredicate([&](const auto& A) { return A.Id == Id; })) { continue; }
             const AActor* Instance = Points[Id];
             const FString PrototypeId = Value(*Instance, TEXT("LDScenePrototypeAnchor:"));
-            if (PrototypeId.IsEmpty()) { continue; }
-            const auto* Prototype = Base.Anchors.FindByPredicate([&](const auto& A) { return A.Id == PrototypeId; });
-            if (!Prototype || (Prototype->Kind != ELDDemoWorldAnchorKind::Camp && Prototype->Kind != ELDDemoWorldAnchorKind::Airdrop))
+            const auto* Prototype = PrototypeId.IsEmpty() ? DormPrototype(Id)
+                : Base.Anchors.FindByPredicate([&](const auto& A) { return A.Id == PrototypeId; });
+            if (!Prototype && PrototypeId.IsEmpty()) { continue; }
+            if (!Prototype || (Prototype->Kind != ELDDemoWorldAnchorKind::Camp
+                && Prototype->Kind != ELDDemoWorldAnchorKind::Airdrop && Prototype->Kind != ELDDemoWorldAnchorKind::Dorm))
             { return Fail(TEXT("Scene instance has an unsupported anchor prototype: ") + Id); }
+            if (Prototype->Kind == ELDDemoWorldAnchorKind::Dorm && ++DormCount > LDDemoWorld::MaxDorms)
+            { return Fail(FString::Printf(TEXT("The level has more than %d dorm layout points."), LDDemoWorld::MaxDorms)); }
             auto& Anchor = Out.Anchors.Add_GetRef(*Prototype);
             Anchor.Id = Id;
-            Anchor.PrototypeId = PrototypeId;
+            Anchor.PrototypeId = Prototype->Id;
             for (int32 Slot=0; Slot<Anchor.Members.Num(); ++Slot)
             { Anchor.Members[Slot].Id = FString::Printf(TEXT("%s_%d"), *Id, Slot); }
         }

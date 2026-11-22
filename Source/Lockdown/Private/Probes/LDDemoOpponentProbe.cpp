@@ -563,7 +563,7 @@ void FLDDemoOpponentProbe::PhaseFixtures(UWorld& World, ALDGameMode& Mode)
                         PlaceOccupant(World, Capsule, Ground.SurfaceCm);
                     }
                 }
-                for (const FString& Id : Content->Get().World.SpawnIds) { OccupyAnchor(Id); }
+                for (const FName& Id : Registry->FieldSpawnAnchors()) { OccupyAnchor(Id.ToString()); }
                 ReturnDueMs = Line.GetStepEndsAtMs();
                 ReturnFrozenFieldMs = Line.FieldMsAt(Now);
                 bReturnBlocked = true;

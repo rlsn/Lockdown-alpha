@@ -14,6 +14,7 @@
 #include "Probes/LDDemoEntryProbe.h"
 #include "NavigationSystem.h"
 #include "NavigationPath.h"
+#include "Navigation/LDPathSteering.h"
 #include "NavigationData.h"
 #include "Engine/World.h"
 #include "Engine/StaticMeshActor.h"
@@ -235,7 +236,7 @@ bool ULDMapRegistry::Rebuild(FString& Error)
     for (TActorIterator<AActor> It(GetWorld()); It; ++It)
     {
         if (const auto* Anchor = Cast<ALDMapAnchor>(*It)) { ++AnchorCount; CandidateDefinition = Anchor->Definition; }
-        if (const auto* Start = Cast<APlayerStart>(*It)) { Starts.Add(Start); }
+        if (const auto* Start = Cast<APlayerStart>(*It); Start && !Start->IsEditorOnly()) { Starts.Add(Start); }
         if (*It == GetWorld()->GetDefaultBrush()) { continue; }
         TInlineComponentArray<UPrimitiveComponent*> Parts(*It);
         for (auto* Part : Parts)
@@ -360,9 +361,9 @@ bool ULDMapRegistry::Rebuild(FString& Error)
         {
             const auto* Found = Starts.FindByPredicate([&](const APlayerStart* Start) { return Start->PlayerStartTag == Binding.Id; });
             if (!Found || SpawnIds.Contains(Binding.Id)
-                || !FVector2D((*Found)->GetActorLocation()).Equals(FVector2D(Binding.Position), UE_KINDA_SMALL_NUMBER))
+                || !FVector2D((*Found)->GetActorLocation()).Equals(FVector2D(Binding.Position), .001))
             {
-                Error = TEXT("Saved player start identity/position differs from the approved anchor: ") + Anchor.Id;
+                Error = TEXT("Saved player start does not match its projected field anchor: ") + Anchor.Id;
                 return false;
             }
             SpawnIds.Add(Binding.Id);
@@ -395,7 +396,7 @@ bool ULDMapRegistry::Rebuild(FString& Error)
     }
     if (SpawnIds.Num() != Starts.Num())
     {
-        Error = TEXT("Every saved player start must be one approved spawn anchor.");
+        Error = TEXT("Every playable PlayerStart must bind to one field spawn anchor.");
         return false;
     }
     Definition = CandidateDefinition;
@@ -575,13 +576,21 @@ bool ULDMapRegistry::QueryCompletePath(const FLDWorldRevision& Expected, const F
         return true;
     }
 
-    FPathFindingQuery Query(this, *Data, CurrentFrom.SurfaceCm, CurrentTo.SurfaceCm);
+    // A legal foot can be a few centimetres below Recast's voxel surface. A 3D nearest-point query
+    // can then push its XY onto an adjacent steep face. Preserve XY when the native mesh has a layer
+    // directly above this same supported foot; the physical standing checks remain unchanged.
+    const double StepHeight=GetDefault<ALDCharacter>()->GetCharacterMovement()->MaxStepHeight;
+    FVector NavFrom=CurrentFrom.SurfaceCm,NavTo=CurrentTo.SurfaceCm;
+    LDPathSteering::VerticalNavPoint(*Data,CurrentFrom.SurfaceCm,StepHeight,NavFrom);
+    LDPathSteering::VerticalNavPoint(*Data,CurrentTo.SurfaceCm,StepHeight,NavTo);
+    FPathFindingQuery Query(this, *Data, NavFrom, NavTo);
     Query.SetAllowPartialPaths(false);
     const FPathFindingResult Result = Nav->FindPathSync(Data->GetConfig(), Query);
     if (!Result.IsSuccessful() || !Result.Path.IsValid() || Result.Path->IsPartial() || Result.Path->GetPathPoints().Num() < 2)
     {
-        const FString Detail = FString::Printf(TEXT("IncompletePath: no complete native route; start=%s end=%s result=%d partial=%d."),
-            *CurrentFrom.SurfaceCm.ToString(), *CurrentTo.SurfaceCm.ToString(), int32(Result.Result), Result.IsPartial());
+        const FString Detail = FString::Printf(TEXT("IncompletePath: no complete native route; start=%s end=%s result=%d partial=%d search_limit=%d."),
+            *CurrentFrom.SurfaceCm.ToString(), *CurrentTo.SurfaceCm.ToString(), int32(Result.Result), Result.IsPartial(),
+            Result.Path.IsValid() && Result.Path->DidSearchReachedLimit());
         return Reject(ELDWorldQueryFailure::IncompletePath, *Detail, Failure, Error);
     }
     FLDCompletePath Candidate;
@@ -595,16 +604,30 @@ bool ULDMapRegistry::QueryCompletePath(const FLDWorldRevision& Expected, const F
         const double Distance=FVector::Dist2D(Ground.SurfaceCm,NavPoint);
         if (Distance>Capsule.GetCapsuleRadius()
             || FMath::Abs(NavPoint.Z-Ground.SurfaceCm.Z)>GetDefault<ALDCharacter>()->GetCharacterMovement()->MaxStepHeight) { return false; }
-        FLDLegalGround Bridge;
+        FLDLegalGround Bridge=Ground;
+        const auto* Movement=GetDefault<ALDCharacter>()->GetCharacterMovement();
+        const FCollisionQueryParams ApproachQuery=LDNativeGround::Query(*GetWorld());
         const int32 Samples=FMath::Max(1,FMath::CeilToInt(Distance/(Capsule.GetCapsuleRadius()*.25)));
         for (int32 I=1; I<=Samples; ++I)
         {
-            const FVector Point=FMath::Lerp(Ground.FootCm,FVector(NavPoint.X,NavPoint.Y,Ground.FootCm.Z),double(I)/Samples);
-            if (!QueryGround(Expected,Point,Capsule,Ground.SurfaceId,Bridge,Failure,Error)) { return false; }
+            FVector Point=FMath::Lerp(Ground.FootCm,FVector(NavPoint.X,NavPoint.Y,Ground.FootCm.Z),double(I)/Samples);
+            // Follow the local walking surface. Holding the first height while XY moves downhill
+            // incorrectly asks QueryGround to stand in midair; its no-fall rejection remains correct.
+            Point.Z=Bridge.FootCm.Z;
+            FHitResult Support;
+            if (!LDNativeGround::Trace(*GetWorld(),Support,Point+FVector(0,0,Movement->MaxStepHeight),
+                Point-FVector(0,0,Movement->MaxStepHeight),ApproachQuery)
+                ||Support.bStartPenetrating||Support.ImpactNormal.Z<Movement->GetWalkableFloorZ())
+            {Error=TEXT("native approach has no walkable support within one step");return false;}
+            if (!QueryGround(Expected,Support.ImpactPoint,Capsule,Ground.SurfaceId,Bridge,Failure,Error)) { return false; }
         }
         FHitResult Hit;
-        return !LDNativeGround::Sweep(*GetWorld(),Hit,LDSpawnPlacement::StandingOrigin(Ground),
+        const bool bClear=!LDNativeGround::Sweep(*GetWorld(),Hit,LDSpawnPlacement::StandingOrigin(Ground),
             LDSpawnPlacement::StandingOrigin(Bridge),Capsule,LDNativeGround::Query(*GetWorld()));
+        if (!bClear)
+        { Error=FString::Printf(TEXT("native approach sweep: actor=%s normal=%s penetrating=%d"),
+            *GetNameSafe(Hit.GetActor()),*Hit.ImpactNormal.ToString(),Hit.bStartPenetrating); }
+        return bClear;
     };
     if (Candidate.StartProjectionCm.SizeSquared2D() > UE_KINDA_SMALL_NUMBER)
     {
@@ -612,8 +635,8 @@ bool ULDMapRegistry::QueryCompletePath(const FLDWorldRevision& Expected, const F
         { Candidate.Points.Insert(CurrentFrom.SurfaceCm,0); }
         else
         {
-        const FString Detail = FString::Printf(TEXT("Unreachable: navigation adjusted the route start's XY position; start=%s navigation=%s."),
-            *CurrentFrom.SurfaceCm.ToString(), *Candidate.Points[0].ToString());
+        const FString Detail = FString::Printf(TEXT("Unreachable: navigation adjusted the route start's XY position; start=%s navigation=%s approach=%s."),
+            *CurrentFrom.SurfaceCm.ToString(), *Candidate.Points[0].ToString(), *Error);
         return Reject(ELDWorldQueryFailure::Unreachable, *Detail, Failure, Error);
         }
     }
@@ -623,8 +646,8 @@ bool ULDMapRegistry::QueryCompletePath(const FLDWorldRevision& Expected, const F
         { Candidate.Points.Add(CurrentTo.SurfaceCm); }
         else
         {
-        const FString Detail = FString::Printf(TEXT("Unreachable: navigation adjusted the destination's XY position; goal=%s navigation=%s."),
-            *CurrentTo.SurfaceCm.ToString(), *Candidate.Points.Last().ToString());
+        const FString Detail = FString::Printf(TEXT("Unreachable: navigation adjusted the destination's XY position; goal=%s navigation=%s approach=%s."),
+            *CurrentTo.SurfaceCm.ToString(), *Candidate.Points.Last().ToString(), *Error);
         return Reject(ELDWorldQueryFailure::Unreachable, *Detail, Failure, Error);
         }
     }

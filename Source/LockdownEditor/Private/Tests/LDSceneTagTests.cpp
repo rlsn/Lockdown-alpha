@@ -10,6 +10,17 @@
 #include "Misc/AutomationTest.h"
 #include "Misc/ScopeExit.h"
 
+namespace
+{
+FLDDemoVisionRangeParameters SceneTagVisionRange()
+{
+    FLDDemoVisionRangeParameters Range;
+    Range.NeutralHeightCm={35,1}; Range.FullHeightCm={120,1};
+    Range.UphillRadiusBp=7500; Range.DownhillRadiusBp=12500;
+    return Range;
+}
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDSceneTagCollision, "Lockdown.Rules.SceneTags.CollisionAndNavigation",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
@@ -80,7 +91,7 @@ bool FLDSceneTagSight::RunTest(const FString& Parameters)
         LDDemoWorld::FTerrain Terrain;
         if (!Terrain.Build(Geometry,Error)) { return false; }
         Terrain.BindScene(*World,FBox(FVector(-5000,-5000,-100),FVector(5000,5000,1000)));
-        return Sight.Build(Geometry,{TEXT("scene_tags"),1,1},{3000,1},Error,World,&Terrain);
+        return Sight.Build(Geometry,{TEXT("scene_tags"),1,1},{3000,1},SceneTagVisionRange(),Error,World,&Terrain);
     };
     const FVector Left(-100,0,0),Right(100,0,0);
     TestTrue(TEXT("Native sight binds"),Bind());
@@ -137,7 +148,7 @@ bool FLDNativeMeshSight::RunTest(const FString& Parameters)
     FHitResult Hit;
     if(!TestTrue(TEXT("Local slope support exists"),LDNativeGround::Trace(*World,Hit,FVector(1150,0,400),FVector(1150,0,0),LDNativeGround::Query(*World)))){return false;}
     const FVector Foot=Hit.ImpactPoint+FVector(0,0,2.15);
-    if(!TestTrue(TEXT("Native slope sight binds"),Sight.Build(Geometry,{TEXT("native_mesh_sight"),1,1},{3000,1},Error,World,&Terrain))){return false;}
+    if(!TestTrue(TEXT("Native slope sight binds"),Sight.Build(Geometry,{TEXT("native_mesh_sight"),1,1},{3000,1},SceneTagVisionRange(),Error,World,&Terrain))){return false;}
     TestEqual(TEXT("A sloped mesh cannot conceal a body from itself using the mesh's maximum height"),Sight.Trace(Foot,Foot),ELDSightResult::Visible);
     TestEqual(TEXT("The same slope's equal-height neighbour stays visible"),Sight.Trace(Foot,Foot+FVector(0,30,0)),ELDSightResult::Visible);
     TestEqual(TEXT("A view-transparent floor still provides the observer's actual support level"),Sight.Trace(FVector(-1000,0,2.15),FVector(-900,0,2.15)),ELDSightResult::Visible);
@@ -145,7 +156,7 @@ bool FLDNativeMeshSight::RunTest(const FString& Parameters)
     TestTrue(TEXT("A body on the low portion of one mesh has nonempty coverage"),Bits.ContainsByPredicate([](uint8 B){return B!=0;}));
     Place(FVector(-1000,1000,120),FVector(.1,.1,.2));
     Place(FVector(-1000,1000,1000),FVector(15,15,1));
-    TestTrue(TEXT("Narrow support beneath a roof binds"),Sight.Build(Geometry,{TEXT("native_mesh_sight"),1,2},{3000,1},Error,World,&Terrain));
+    TestTrue(TEXT("Narrow support beneath a roof binds"),Sight.Build(Geometry,{TEXT("native_mesh_sight"),1,2},{3000,1},SceneTagVisionRange(),Error,World,&Terrain));
     const FVector NarrowFoot(-1000,1000,132.15);
     Sight.Coverage(NarrowFoot,Bits);
     bool bNear=false;

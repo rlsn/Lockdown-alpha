@@ -234,6 +234,8 @@ struct FLDOpponentUnit
     FGuid ContenderId;
     FString MonsterId;
     FVector FootCm = FVector::ZeroVector;
+    // The support height sight measures it at; unset falls back to FootCm.Z.
+    TOptional<double> SightGroundZ;
     // Unset when the field is not authorized or not applicable; never a guessed zero.
     TOptional<int64> HpP2;
     TOptional<int64> MaxHpP2;
@@ -265,6 +267,8 @@ struct FLDOpponentPOI
     ELDOpponentPOIKind Kind = ELDOpponentPOIKind::Spawn;
     FName SurfaceId;
     FVector FootCm = FVector::ZeroVector;
+    // The support height sight measures it at; unset falls back to FootCm.Z.
+    TOptional<double> SightGroundZ;
     // Camps only.
     FString MonsterId;
     ELDDemoCampTier Tier = ELDDemoCampTier::Low;

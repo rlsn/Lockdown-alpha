@@ -32,14 +32,21 @@ void DistanceLine(const float* Input, int32 Count, int32 Stride, double CellSqua
         Output[Q * Stride] = float(CellSquared * Delta * Delta + Input[Sites[K] * Stride]);
     }
 }
-TArray<float> DistanceTo(const TArray<uint8>& Bits, bool bVisible, double CellX, double CellY)
+TArray<float> DistanceTo(const TArray<uint8>& Bits,const FIntRect& Region,bool bVisible,double CellX,double CellY)
 {
+    const int32 Columns=Region.Width(), RowsCount=Region.Height();
     TArray<float> Input, Rows, Result;
-    Input.SetNumUninitialized(Width * Height); Rows.SetNumUninitialized(Width * Height); Result.SetNumUninitialized(Width * Height);
-    for (int32 I = 0; I < Input.Num(); ++I)
-    { Input[I] = (LDObservation::CoverageBit(Bits, I) == bVisible) ? 0.f : 1.e12f; }
-    for (int32 Y = 0; Y < Height; ++Y) { DistanceLine(Input.GetData() + Y * Width, Width, 1, CellX * CellX, Rows.GetData() + Y * Width); }
-    for (int32 X = 0; X < Width; ++X) { DistanceLine(Rows.GetData() + X, Height, Width, CellY * CellY, Result.GetData() + X); }
+    Input.SetNumUninitialized(Region.Area()); Rows.SetNumUninitialized(Region.Area()); Result.SetNumUninitialized(Region.Area());
+    for (int32 Y=0; Y<RowsCount; ++Y)
+    {
+        for (int32 X=0; X<Columns; ++X)
+        {
+            const int32 Index=(Region.Min.Y+Y)*Width+Region.Min.X+X;
+            Input[Y*Columns+X]=(LDObservation::CoverageBit(Bits,Index)==bVisible)?0.f:1.e12f;
+        }
+        DistanceLine(Input.GetData()+Y*Columns,Columns,1,CellX*CellX,Rows.GetData()+Y*Columns);
+    }
+    for (int32 X=0; X<Columns; ++X) { DistanceLine(Rows.GetData()+X,RowsCount,Columns,CellY*CellY,Result.GetData()+X); }
     return Result;
 }
 }
@@ -47,13 +54,34 @@ TArray<float> DistanceTo(const TArray<uint8>& Bits, bool bVisible, double CellX,
 void LDFogDistanceField::Build(const TArray<uint8>& Bits, double CellX, double CellY, TArray<float>& Out)
 {
     check(Bits.Num() == LDObservation::CoverageBytes && CellX > 0 && CellY > 0);
-    const TArray<float> ToVisible = LDFogDistanceFieldPrivate::DistanceTo(Bits, true, CellX, CellY);
-    const TArray<float> ToHidden = LDFogDistanceFieldPrivate::DistanceTo(Bits, false, CellX, CellY);
-    Out.SetNumUninitialized(LDObservation::CoverageCells);
-    for (int32 I = 0; I < Out.Num(); ++I)
+    using namespace LDFogDistanceFieldPrivate;
+    Out.Init(0.f,LDObservation::CoverageCells);
+    FIntRect Region(Width,Height,0,0);
+    for (int32 I=0; I<Bits.Num(); ++I)
     {
-        const bool Visible = LDObservation::CoverageBit(Bits, I);
-        const float Distance = FMath::Max(0.f, FMath::Sqrt(Visible ? ToHidden[I] : ToVisible[I]) - float(FMath::Min(CellX, CellY) * .5));
-        Out[I] = FMath::Clamp((Visible ? Distance : -Distance) / RangeCm * .5f + .5f, 0.f, 1.f);
+        if (!Bits[I]) { continue; }
+        const int32 X=(I*8)%Width, Y=(I*8)/Width;
+        Region.Min.X=FMath::Min(Region.Min.X,X); Region.Max.X=FMath::Max(Region.Max.X,X+8);
+        Region.Min.Y=FMath::Min(Region.Min.Y,Y); Region.Max.Y=FMath::Max(Region.Max.Y,Y+1);
+    }
+    if (Region.Width()<=0) { return; }
+    // Outside this rectangle the hidden distance is already saturated. The extra hidden rows and columns also
+    // supply the nearest hidden site for a visible cell next to a cropped edge.
+    const double HalfCell=FMath::Min(CellX,CellY)*.5;
+    const int32 PadX=FMath::CeilToInt(FMath::Min(double(Width),(RangeCm+HalfCell)/CellX));
+    const int32 PadY=FMath::CeilToInt(FMath::Min(double(Height),(RangeCm+HalfCell)/CellY));
+    Region.Min=FIntPoint(FMath::Max(0,Region.Min.X-PadX),FMath::Max(0,Region.Min.Y-PadY));
+    Region.Max=FIntPoint(FMath::Min(Width,Region.Max.X+PadX),FMath::Min(Height,Region.Max.Y+PadY));
+    const TArray<float> ToVisible=DistanceTo(Bits,Region,true,CellX,CellY);
+    const TArray<float> ToHidden=DistanceTo(Bits,Region,false,CellX,CellY);
+    for (int32 Y=Region.Min.Y; Y<Region.Max.Y; ++Y)
+    {
+        for (int32 X=Region.Min.X; X<Region.Max.X; ++X)
+        {
+            const int32 Index=Y*Width+X, Local=(Y-Region.Min.Y)*Region.Width()+X-Region.Min.X;
+            const bool bVisible=LDObservation::CoverageBit(Bits,Index);
+            const float Distance=FMath::Max(0.f,FMath::Sqrt(bVisible?ToHidden[Local]:ToVisible[Local])-float(HalfCell));
+            Out[Index]=FMath::Clamp((bVisible?Distance:-Distance)/RangeCm*.5f+.5f,0.f,1.f);
+        }
     }
 }
