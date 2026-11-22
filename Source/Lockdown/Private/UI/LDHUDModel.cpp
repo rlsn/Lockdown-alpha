@@ -3822,21 +3822,21 @@ TArray<LDHUD::FTacticalScoreRow> LDHUD::BuildTacticalScoreboard(const FLDPublicM
     {
         for(int32 Idx=0;Idx<BaseScores.Num();++Idx)
         {
-            uint8 Seat=uint8(Idx%6);
+            uint8 Seat=uint8(Idx%LDMatchLifecycle::MaxContenders);
             for(int32 M=0;M<Lobby.Members.Num();++M)
             {
-                if(Lobby.Members[M].ContenderId==BaseScores[Idx].ContenderId){Seat=uint8(M%6);break;}
+                if(Lobby.Members[M].ContenderId==BaseScores[Idx].ContenderId){Seat=uint8(M%LDMatchLifecycle::MaxContenders);break;}
             }
             BuildRow(BaseScores[Idx].ContenderId,BaseScores[Idx].Name,BaseScores[Idx].Kills,BaseScores[Idx].Deaths,BaseScores[Idx].Assists,Seat);
         }
     }
     else
     {
-        for(int32 M=0;M<Lobby.Members.Num()&&Out.Num()<6;++M)
+        for(int32 M=0;M<Lobby.Members.Num()&&Out.Num()<LDMatchLifecycle::MaxContenders;++M)
         {
             const FLDLobbyMember& Mem=Lobby.Members[M];
             if(!Mem.ContenderId.IsValid()||Mem.Name.IsEmpty()){continue;}
-            BuildRow(Mem.ContenderId,RosterName(Lobby,Mem.ContenderId),0,0,0,uint8(M%6));
+            BuildRow(Mem.ContenderId,RosterName(Lobby,Mem.ContenderId),0,0,0,uint8(M%LDMatchLifecycle::MaxContenders));
         }
     }
     return Out;

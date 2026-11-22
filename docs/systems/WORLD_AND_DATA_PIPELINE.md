@@ -29,8 +29,8 @@
 `LDSceneAuthoringLibrary::GameplayTraversalAudit` 在编辑器中读取实际碰撞、原生导航和角色胶囊，检查出入口、通道宽度、碰撞外扩和合法脚点路径。保存地图的回归入口是 `Lockdown.Rules.StaticScene.MapTraversal`。单出口区域计入诊断。窄通道以实际角色胶囊跨过导航连接处的结果为准。营地成员须具备原生地面支撑和落点净空，通往营地中心与旗杆的路径及失败坐标由营地审计单独记录。旗杆与出生点的路径仍是开局必要条件。
 
 公共休息室、野外与终局战场共用唯一地面与连接：
-- **休息室与 PK 定位点**（不进入野外随机出生池）：`rest_spawn_0..5`、`rest_service_1..3`（休息室布局与可达路径参考，服务本身均在工坊台内提交）、`training_dummy_0..5`（每位参赛者生成真实共享假人，可复制额外通用假人；总观察单位上限 86）、`pk_signup_0..5`（六点均值即报名圈圆心）、`pk_spawn_0..5`、`pk_throw`。
-- **终局定位点**：`final_spawn_0..5`（同层等距 60° 分布，亦作为持有者 `final_private_pole` 的圆心锚点）与 `final_capture`。
+- **休息室与 PK 定位点**（不进入野外随机出生池）：`rest_spawn_0..7`、`rest_service_1..3`（休息室布局与可达路径参考，服务本身均在工坊台内提交）、`training_dummy_0..7`（每位参赛者生成真实共享假人，可复制额外通用假人；总观察单位上限 86）、`pk_signup_0..7`（八点均值即报名圈圆心）、`pk_spawn_0..7`（每 45° 一个，相邻至少 950 cm）、`pk_throw`。
+- **终局定位点**：`final_spawn_0..7`（同层等距 45° 分布，亦作为持有者 `final_private_pole` 的圆心锚点）与 `final_capture`。
 - **两类可选锚点**（支持作者移动、复制与不低于下限的删除，复制 ID 为 `<原id>_copy_<8位hex>`）：`mini_flag_*`（3–16 个）与 `locker_*`（6–32 个），作用圆须落在合法地面且避开营地净空圈，仅在事件预告/出现期间显示在小地图上。
 
 改动世界几何与内容后依序执行：`SyncDemoWorldData.py` → `SyncDemoContentData.py` → `BuildEditor.ps1` → `BootstrapAssets.ps1 -Mode Regenerate`（纯数值/文案改动用 `-Mode RefreshDefinitions`；只补新增语义锚点用 `-Mode RefreshLayoutPoints`）。

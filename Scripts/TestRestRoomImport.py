@@ -19,7 +19,7 @@ class SharedRestRoom(unittest.TestCase):
     def test_closed_room_and_service_access(self):
         geometry = world.Geometry(self.payload)
         anchors = {row["id"]: row for row in self.payload["anchors"]}
-        for seat in range(6):
+        for seat in range(8):
             start = world.point(anchors[f"rest_spawn_{seat}"]["position_cm"], "rest")
             for service in range(1, 4):
                 end = world.point(anchors[f"rest_service_{service}"]["position_cm"], "service")
@@ -34,9 +34,9 @@ class SharedRestRoom(unittest.TestCase):
     def test_public_training_row_is_legal_and_canonical(self):
         geometry = world.Geometry(self.payload)
         anchors = {row["id"]: row for row in self.payload["anchors"]}
-        for slot in range(6):
+        for slot in range(8):
             position = world.point(anchors[f"training_dummy_{slot}"]["position_cm"], "training dummy")
-            self.assertEqual(position, (6500 + 400 * slot, 700, 0))
+            self.assertEqual(position, (6450 + 300 * slot, 700, 0))
             self.assertTrue(geometry.legal(position, 40), position)
 
     def test_missing_service_or_dummy_refuses(self):
@@ -45,7 +45,7 @@ class SharedRestRoom(unittest.TestCase):
         with self.assertRaises(content.ContentError):
             world.validate_bindings(missing, self.data)
         missing_dummy = deepcopy(self.payload)
-        missing_dummy["anchors"] = [row for row in missing_dummy["anchors"] if row["id"] != "training_dummy_5"]
+        missing_dummy["anchors"] = [row for row in missing_dummy["anchors"] if row["id"] != "training_dummy_7"]
         with self.assertRaises(content.ContentError):
             world.validate_bindings(missing_dummy, self.data)
         displaced_dummy = deepcopy(self.payload)

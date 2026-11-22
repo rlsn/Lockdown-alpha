@@ -97,8 +97,8 @@ bool FLDDemoAssistKillFeedTest::RunTest(const FString& Parameters)
     Refused(TEXT("The killer is never an assister"), [](FLDKillNotice& N) { N.Assisters = {Killer}; });
     Refused(TEXT("The victim is never an assister"), [](FLDKillNotice& N) { N.Assisters = {Victim}; });
     Refused(TEXT("A camp kill lists no assisters"), [](FLDKillNotice& N) { N.Cause = ELDKillCause::CampLow; N.Killer.Invalidate(); });
-    Refused(TEXT("At most four assisters among six contenders"), [](FLDKillNotice& N)
-    { N.Assisters = {FGuid(1, 0, 0, 1), FGuid(1, 0, 0, 2), FGuid(1, 0, 0, 3), FGuid(1, 0, 0, 4), FGuid(1, 0, 0, 5)}; });
+    Refused(TEXT("At most six assisters among eight contenders"), [](FLDKillNotice& N)
+    { N.Assisters = {FGuid(1, 0, 0, 1), FGuid(1, 0, 0, 2), FGuid(1, 0, 0, 3), FGuid(1, 0, 0, 4), FGuid(1, 0, 0, 5), FGuid(1, 0, 0, 6), FGuid(1, 0, 0, 7)}; });
 
     const TArray<FString> Names = {TEXT("阿强"), TEXT("阿珍")};
     TestEqual(TEXT("The kill line lists the assisters after it"), LDHUD::KillLine(Notice, TEXT("小明"), TEXT("小红"), TEXT("低"), TEXT("高"), TEXT("精英"), TEXT("老板"), Names),

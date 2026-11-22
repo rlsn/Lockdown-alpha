@@ -152,7 +152,7 @@ def build_candidate(original, exported):
     geometry['blockers'] += [blockers[key] for key in sorted(set(blockers) - set(old_ids))]
     anchors = _rows(export['anchors'], {'id', 'kind', 'surface_id', 'position_cm', 'members'}, 'anchors')
     source_anchors = {row['id'] for row in after['anchors']}
-    final_ids = [*(f'final_spawn_{slot}' for slot in range(6)), 'final_capture']
+    final_ids = [*(f'final_spawn_{slot}' for slot in range(DemoWorld.ROSTER_SLOTS)), 'final_capture']
     exported_ids = set(anchors)
 
     def optional_kind(identity):

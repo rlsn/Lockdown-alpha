@@ -357,11 +357,11 @@ bool FLDCampContactTest::RunTest(const FString& Parameters)
         && !Sources(A).Contains(Contender(1)));
     TestEqual(TEXT("A late effect from the dead earlier life is not re-added"),
         State.ApplyContact({A, Contender(1), 5}, Error), ELDCampContactResult::Unchanged);
-    for (uint32 Id = 3; Id <= 6; ++Id) { State.ApplyContact({A, Contender(Id), 5}, Error); }
-    TestEqual(TEXT("The bound covers the full contender roster"), Sources(A).Num(), 6);
-    TestEqual(TEXT("A seventh contender identity exceeds the roster bound"),
-        State.ApplyContact({A, Contender(7), 6}, Error), ELDCampContactResult::Rejected);
-    TestTrue(TEXT("Refused contact is all-or-nothing"), Sources(A).Num() == 6 && Sources(B).Num() == 6 && !Error.IsEmpty());
+    for (uint32 Id = 3; Id <= uint32(FLDCampMatchState::MaxHostileSources); ++Id) { State.ApplyContact({A, Contender(Id), 5}, Error); }
+    TestEqual(TEXT("The bound covers the full contender roster"), Sources(A).Num(), FLDCampMatchState::MaxHostileSources);
+    TestEqual(TEXT("A contender identity beyond the roster exceeds the bound"),
+        State.ApplyContact({A, Contender(uint32(FLDCampMatchState::MaxHostileSources) + 1), 6}, Error), ELDCampContactResult::Rejected);
+    TestTrue(TEXT("Refused contact is all-or-nothing"), Sources(A).Num() == FLDCampMatchState::MaxHostileSources && Sources(B).Num() == FLDCampMatchState::MaxHostileSources && !Error.IsEmpty());
 
     bool bBegan = false;
     TestTrue(TEXT("Member A starts returning"), State.ApplyDecision(A, Brain(ELDCampBrainPhase::Returning), bBegan, Error) && bBegan);

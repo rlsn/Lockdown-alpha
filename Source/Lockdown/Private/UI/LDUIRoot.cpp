@@ -509,7 +509,7 @@ void ULDUIRoot::BuildWorld(UCanvasPanel& Canvas)
     Add(Lobby,AIButtonRow,6);
     auto* AICaption=Label(TEXT("AI 对手"),LDHUDStyle::TypeLead,LDHUDStyle::MenuSection);AICaption->SetAutoWrapText(false);
     AIButtonRow->AddChildToHorizontalBox(AICaption)->SetVerticalAlignment(VAlign_Center);
-    for(int32 Count=0;Count<=3;++Count)
+    for(int32 Count=0;Count<=LDMatchLifecycle::MaxOpponents;++Count)
     {
         ULDCommandButton* Choice=MakeButton(FString::FromInt(Count),FName(*FString::Printf(TEXT("AICount%d"),Count)),
             [this,Count](){if(auto* PC=Cast<ALDPlayerController>(GetOwningPlayer())){PC->SetDemoAICount(uint8(Count));}});
@@ -547,7 +547,7 @@ void ULDUIRoot::BuildWorld(UCanvasPanel& Canvas)
     Add(Lobby,LobbyBlocker,4);
     LobbyFeedback=Label(FString(),LDHUDStyle::TypeText);
     Add(Lobby,LobbyFeedback,4);
-    Add(Lobby,Label(TEXT("最多 6 名参赛者（含房主），其中 AI 最多 3 个；空位不会自动补满。真人进出会清除准备，调整 AI 数量保留真人准备。"),LDHUDStyle::TypeBody,LDHUDStyle::MenuMuted),6);
+    Add(Lobby,Label(TEXT("最多 8 名参赛者（含房主），其中 AI 最多 7 个；空位不会自动补满。真人进出会清除准备，调整 AI 数量保留真人准备。"),LDHUDStyle::TypeBody,LDHUDStyle::MenuMuted),6);
     // #198 §10: the own last build blueprint and the read-only import view, outside any match.
     Add(Lobby,MakeButton(LDTerms::BuildBlueprint,TEXT("LobbyBuildBlueprint"),[this]()
     {
@@ -972,13 +972,13 @@ const FLDDemoContentDefinitions* ULDUIRoot::ResultDefinitions()
 
 void ULDUIRoot::RebuildRoster(const ALDGameState& Public,const FGuid& Self)
 {
-    // Six seat cards on their seat colours: a crown on the host's, a robot on each AI's, the name, 真人/AI and 房主, and a
+    // One seat card per roster seat on its seat colour: a crown on the host's, a robot on each AI's, the name, 真人/AI and 房主, and a
     // 已准备 stamp across the corner; empty seats are dashed outlines. The own seat is edged in action yellow.
     RosterRows->ClearChildren();
     // Keep three columns when the scroll bar takes width; wrapping here creates a two-/three-row layout feedback loop.
     auto* Seats=WidgetTree->ConstructWidget<UUniformGridPanel>();Seats->SetSlotPadding(FMargin(5));
     RosterRows->AddChildToVerticalBox(Seats);
-    constexpr int32 SeatCount=6;
+    constexpr int32 SeatCount=LDMatchLifecycle::MaxContenders;
     const bool bHasPrevious=Public.DemoLobby.PreviousResultId.IsValid();
     const bool bPreviousReady=bHasPrevious&&Public.MatchResult.ResultId==Public.DemoLobby.PreviousResultId
         &&Public.MatchResult.Generation>0&&Public.MatchResult.Generation<Public.DemoLobby.Generation;

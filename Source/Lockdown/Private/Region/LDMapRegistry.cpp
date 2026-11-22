@@ -503,7 +503,7 @@ bool ULDMapRegistry::QueryBodyGround(const FLDMatchContext& Match, const FLDComb
         return Previous->bLegal;
     }
     // A bounded geometry cache cannot retain every retired body in a long-running world. The bound sits well above the
-    // living bodies of one field (about 80 camp members, the Boss, six contenders and their training dummies): a bound
+    // living bodies of one field (about 80 camp members, the Boss, eight contenders and their training dummies): a bound
     // below that count empties the cache every step and most standing bodies sweep the ground again.
     if (Cache.Bodies.Num() >= 256) { Cache.Bodies.Reset(); }
     FGroundState::FBodyResult Result;

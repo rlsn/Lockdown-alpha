@@ -145,7 +145,7 @@ public:
     static constexpr const TCHAR* FadeStrengthParameter = TEXT("LDFadeStrength");
     static constexpr const TCHAR* FadeableTag = TEXT("LDFadeable");
     UPROPERTY(VisibleAnywhere) TArray<FLDArtCharacter> Characters;
-    // Exactly one entry per seat 0..5, in seat order.
+    // Exactly one entry per seat 0..7, in seat order.
     UPROPERTY(VisibleAnywhere) TArray<FLDArtSeatLook> Seats;
     // Exactly one entry per camp tier; NPC bodies differ from every seat body and from each other.
     UPROPERTY(VisibleAnywhere) TArray<FLDArtMonsterLook> Monsters;

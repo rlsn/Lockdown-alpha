@@ -65,15 +65,15 @@ namespace LDDemoWorld
     constexpr int32 MaxLevel = 2;
     // #97 anchor counts follow the authored world within these bounds (at least one spawn per match seat, one
     // capture, exactly four Boss waypoints).
-    constexpr int32 MaxAnchors = 128, MinSpawns = 6, MaxSpawns = 32, MaxCamps = 48, MaxDorms = 8,
+    constexpr int32 MaxAnchors = 128, MinSpawns = 8, MaxSpawns = 32, MaxCamps = 48, MaxDorms = 8,
         MaxAirdrops = 16, BossWaypoints = 4, MaxBlockers = 2048;
-    // #198 approved PK anchors: six spawns pk_spawn_0..5, 1000..1400 cm from the capture anchor and at least 1000 cm
-    // apart at 60 degree counterclockwise steps (+-1 degree), and one throw anchor pk_throw outside the 1800 cm arena
+    // #198 approved PK anchors: eight spawns pk_spawn_0..7, 1000..1400 cm from the capture anchor and at least 950 cm
+    // apart at 45 degree counterclockwise steps (+-1 degree), and one throw anchor pk_throw outside the 1800 cm arena
     // with the whole arena within the 4000 cm throw range.
-    constexpr int32 PKSpawns = 6, PKSpawnRingMinCm = 1000, PKSpawnRingMaxCm = 1400, PKSpawnSpacingCm = 1000,
+    constexpr int32 PKSpawns = 8, PKSpawnRingMinCm = 1000, PKSpawnRingMaxCm = 1400, PKSpawnSpacingCm = 950,
         PKArenaRadiusCm = 1800, PKThrowRangeCm = 4000;
-    // Six standing positions define the centre of one shared AIRDROP.PickupRadiusCm sign-up disk.
-    constexpr int32 PKSignups = 6;
+    // Eight standing positions define the centre of one shared AIRDROP.PickupRadiusCm sign-up disk.
+    constexpr int32 PKSignups = 8;
     // A distinct standing position for each roster slot (0..PKSignups-1).
     inline FString PKSignupId(int32 Slot) { return FString::Printf(TEXT("pk_signup_%d"), Slot); }
     // Spec §11.4 (P6) optional layout points: as many as the level holds, at least the minimum. Every id carries its kind
@@ -81,14 +81,14 @@ namespace LDDemoWorld
     constexpr int32 MinMiniFlags = 3, MaxMiniFlags = 16, MinLockers = 6, MaxLockers = 32;
     inline const TCHAR* MiniFlagPrefix() { return TEXT("mini_flag_"); }
     inline const TCHAR* LockerPrefix() { return TEXT("locker_"); }
-    // The shared rest room seats the six roster slots.
-    constexpr int32 RosterSlots = 6;
-    constexpr int32 FinalSpawns = 6;
+    // The shared rest room seats the eight roster slots.
+    constexpr int32 RosterSlots = 8;
+    constexpr int32 FinalSpawns = 8;
     inline FString FinalSpawnId(int32 Slot) { return FString::Printf(TEXT("final_spawn_%d"), Slot); }
     inline FString FinalCaptureId() { return TEXT("final_capture"); }
     constexpr int32 RestServices = 3;
     inline FString RestServiceId(int32 Index) { return FString::Printf(TEXT("rest_service_%d"), Index); }
-    constexpr int32 TrainingDummies = 6;
+    constexpr int32 TrainingDummies = 8;
     inline FString TrainingDummyId(int32 Slot) { return FString::Printf(TEXT("training_dummy_%d"), Slot); }
     // Actor tag of every generated plateau and ramp floor piece; the base ground keeps its surface id tag.
     inline const FName TerrainTag(TEXT("LDDemoTerrain"));
@@ -183,9 +183,9 @@ UENUM()
 // D21 (#79): a Dorm is a public recovery disk of DORM.RadiusCm; D26 (#79): an Airdrop is a public drop point whose
 // pickup disk is AIRDROP.PickupRadiusCm. Neither adds collision, navigation or sight blocking.
 // D26 (#79): a BossWaypoint is one of the four public points the 画饼老板 Boss patrols in id order; a point only.
-// #198: PKSpawn is one of the six PK ring spawns pk_spawn_0..5 around the capture anchor; PKThrow is the fixed
+// #198: PKSpawn is one of the eight PK ring spawns pk_spawn_0..7 around the capture anchor; PKThrow is the fixed
 // off-arena spectator throw origin pk_throw. Points only, read through the content World references. PKSignup is the
-// PK sign-up disk of one roster slot's private rest space (pk_signup_0..5), read by its canonical id.
+// PK sign-up disk of one roster slot's private rest space (pk_signup_0..7), read by its canonical id.
 // Spec §11.4 (P6): MiniFlag is a candidate spot of a segment's spray mini flag (an OBJECTIVE.FlagRadiusCm disk), Locker a
 // delivery locker (an EXPLORE.LockerRadiusCm pickup disk). They are optional, copyable points named mini_flag_* and
 // locker_*.

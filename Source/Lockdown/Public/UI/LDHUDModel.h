@@ -145,7 +145,7 @@ namespace LDHUD
     // The name over an observed contender-kind unit: its roster name; in a rest (bInRest) a contender id the roster does not
     // list is the own personal training dummy (only its owner observes it), named LDTerms::TrainingDummy. Empty otherwise.
     LOCKDOWN_API FString ObservedContenderName(const FLDLobbyView& Lobby,const FGuid& ContenderId,bool bInRest);
-    // The six roster-slot identity tints shared with the bodies (ULDHumanoidVisualComponent::ContenderTint), so
+    // The eight roster-slot identity tints shared with the bodies (ULDHumanoidVisualComponent::ContenderTint), so
     // portraits match them.
     LOCKDOWN_API FLinearColor PaletteColor(uint8 Presentation);
 
@@ -464,7 +464,7 @@ namespace LDHUD
     // Spec §12 结算“本局最离谱”: one row per contender of the result (its standings order, at most ResultHighlightsMax): its
     // longest chain and its strongest hit on a contender (source, points, share of that target's max HP). Available only for
     // the summary of exactly the result shown.
-    inline constexpr int32 ResultHighlightsMax=6;
+    inline constexpr int32 ResultHighlightsMax=LDMatchLifecycle::MaxContenders;
     struct FResultHighlightRow
     {
         FString Name;

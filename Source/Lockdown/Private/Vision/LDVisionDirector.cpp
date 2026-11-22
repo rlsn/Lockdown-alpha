@@ -1554,7 +1554,7 @@ bool ALDVisionDirector::GatherTargets(TArray<FLDObservedTarget>& Out, FString& E
         {
             Unit.Kind = ELDObservedUnitKind::Contender;
             Unit.AuthorizedFieldMask = LDObservation::ContenderFields;
-            // Combat writes the locked roster seat; validation refuses anything outside the six seats.
+            // Combat writes the locked roster seat; validation refuses anything outside the eight seats.
             Unit.Presentation = Body->PresentationKey;
             Unit.ContenderId = Ref.Victim.EntityId;
             Unit.Level = Facts.Level;

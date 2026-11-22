@@ -191,11 +191,16 @@ def make_plan(root, changes, rules="None", filters=(), engine=None, base="origin
     plugin_inputs = [p.relative_to(root).as_posix() for p in (root / "Plugins").rglob("*")
                      if p.is_file() and p.suffix in (".h", ".cpp", ".cs", ".uplugin")
                      and not {"Binaries", "Intermediate"} & set(p.relative_to(root).parts)]
-    native_inputs = ["Source", "Config", ".env", *plugin_inputs, "Lockdown.uproject", "Scripts/Common.ps1",
-                     "Scripts/BuildEditor.ps1", "Scripts/Preflight.ps1", "SourceData", "Content"]
+    # The compiler never reads assets: generated data reaches native code through the contract headers in Source,
+    # and Lockdown.Build.cs names only these payload files, so an asset edit does not invalidate the build record.
+    build_inputs = ["Source", "Config", ".env", *plugin_inputs, "Lockdown.uproject", "Scripts/Common.ps1",
+                    "Scripts/BuildEditor.ps1", "Scripts/Preflight.ps1",
+                    *(f"Content/Lockdown/Data/Demo/{name}.json" for name in ("demo_content", "manifest", "world"))]
+    # Rule tests load payloads and assets at run time, so their record still covers all of SourceData and Content.
+    native_inputs = build_inputs + ["SourceData", "Content"]
     if native_changes:
         add("editor", "build", [*pwsh, "Scripts/BuildEditor.ps1", *engine_args],
-            native_inputs, native_changes, ["Binaries", *(["Plugins"] if (root / "Plugins").exists() else [])])
+            build_inputs, native_changes, ["Binaries", *(["Plugins"] if (root / "Plugins").exists() else [])])
     chosen = sorted(set(filters) | (set(affected) if rules == "Auto" else set()))
     if chosen:
         # Validate explicit prefixes without ever allowing a local selection to become the complete suite.

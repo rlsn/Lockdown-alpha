@@ -754,7 +754,7 @@ bool ALDGameMode::SpawnInitialContenders(const FLDGameplayWritePermit& Permit, F
     TArray<FGuid> Order = RosterOrder;
     Order.RemoveAll([&](const FGuid& Id) { return !IsMemberPresent(Id); });
     Order.Sort();
-    if (Order.IsEmpty() || Order.Num() > 6)
+    if (Order.IsEmpty() || Order.Num() > LDMatchLifecycle::MaxContenders)
     {
         Error = TEXT("Initial spawn requires a bounded registered contender roster.");
         return false;

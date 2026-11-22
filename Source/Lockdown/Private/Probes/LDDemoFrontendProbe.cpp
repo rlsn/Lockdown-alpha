@@ -654,9 +654,9 @@ namespace
                 for (UWidget* Widget : Widgets)
                 {
                     const auto* Seats = Cast<UUniformGridPanel>(Widget);
-                    if (!Seats || Seats->GetChildrenCount() != 6) { continue; }
+                    if (!Seats || Seats->GetChildrenCount() != LDMatchLifecycle::MaxContenders) { continue; }
                     double MinWidth = TNumericLimits<double>::Max(), MaxWidth = 0.;
-                    for (int32 Index = 0; Index < 6; ++Index)
+                    for (int32 Index = 0; Index < LDMatchLifecycle::MaxContenders; ++Index)
                     {
                         const double Width = Seats->GetChildAt(Index)->GetCachedGeometry().GetAbsoluteSize().X;
                         SeatSizes+=FString::Printf(TEXT(" %.2f"),Width);
@@ -664,7 +664,7 @@ namespace
                     }
                     bSeatsFit = MinWidth >= 100. && MaxWidth - MinWidth <= 1.;
                 }
-                Check(bSeatsFit, FString::Printf(TEXT("All six lobby seats fill equally sized grid cells:%s"),*SeatSizes));
+                Check(bSeatsFit, FString::Printf(TEXT("All lobby seats fill equally sized grid cells:%s"),*SeatSizes));
                 Capture(Stage == 2 ? TEXT("LobbyMotion-100") : TEXT("LobbyMotion-125"));
             }
             const double Y = Geometry.GetAbsolutePosition().Y;

@@ -1799,7 +1799,7 @@ bool FLDUIResultHighlightsTest::RunTest(const FString& Parameters)
 {
     FLDResultView Result;Result.Generation=3;Result.ResultId=FGuid(1,2,3,4);
     TArray<FGuid> Ids;
-    for(int32 Index=0;Index<7;++Index)
+    for(int32 Index=0;Index<LDHUD::ResultHighlightsMax+1;++Index)
     {
         FLDResultRow& Row=Result.Rows.AddDefaulted_GetRef();Row.ContenderId=FGuid(9,Index+1,0,0);Row.Name=FString::Printf(TEXT("P%d"),Index+1);
         Ids.Add(Row.ContenderId);
@@ -1810,8 +1810,8 @@ bool FLDUIResultHighlightsTest::RunTest(const FString& Parameters)
     First.BestSource=FName(TEXT("basic"));First.BestDamageP2=62000;First.BestTargetMaxHpP2=100000;
     FLDResultHighlight& Second=Summary.Highlights.AddDefaulted_GetRef();Second.Contender=Ids[1];
     const LDHUD::FResultHighlightsView View=LDHUD::ResultHighlights(Summary,Result,Ids[1],nullptr);
-    bool bGood=TestTrue(TEXT("Available for the result shown, at most six rows in its order"),View.bAvailable&&View.Rows.Num()==LDHUD::ResultHighlightsMax
-        &&View.Rows[0].Name==TEXT("P1")&&View.Rows[5].Name==TEXT("P6"));
+    bool bGood=TestTrue(TEXT("Available for the result shown, at most one row per seat in its order"),View.bAvailable&&View.Rows.Num()==LDHUD::ResultHighlightsMax
+        &&View.Rows[0].Name==TEXT("P1")&&View.Rows[7].Name==TEXT("P8"));
     bGood&=TestEqualSensitive(TEXT("The longest chain reads its step names and length"),View.Rows[0].Chain,
         FString::Printf(TEXT("hud_rules_card → %s → 击杀（5 步）"),*LDTerms::ReactionTerm(uint8(ELDCombatReaction::Overload))));
     bGood&=TestEqualSensitive(TEXT("The strongest hit reads its source, points and share of max HP"),View.Rows[0].Best,

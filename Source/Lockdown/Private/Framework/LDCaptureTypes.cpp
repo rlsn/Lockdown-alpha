@@ -4,8 +4,8 @@
 
 namespace
 {
-    constexpr int32 CaptureResultRowsMax = 6;
-    constexpr uint8 CapturePresentationSlots = 6;
+    constexpr int32 CaptureResultRowsMax = LDMatchLifecycle::MaxContenders;
+    constexpr uint8 CapturePresentationSlots = uint8(LDMatchLifecycle::MaxContenders);
     constexpr int32 CaptureNameLengthMax = 64;
     // #184: a result row carries a committed level, up to the approved cap; a stale 10 here faulted every win above level 10.
     constexpr int32 CaptureLevelMax = LDDemoProgression::MaxLevel;

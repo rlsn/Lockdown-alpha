@@ -101,7 +101,7 @@ def content_fixture():
         ("CAMP.GrowthHPRatioPerStage", "ratio", 0.1), ("CAMP.GrowthAttackRatioPerStage", "ratio", 0.05),
         ("CAMP.GrowthResistPerStage", "points", 1), ("CAMP.GrowthRewardXPRatioPerStage", "ratio", 0.25), ("CAMP.ClearHealMissingRatio", "ratio", 0.1), ("CAMP.ClearMomentum", "momentum", 10), ("CAMP.ClearOrbSec", "s", 15),
         ("AIRDROP.ExpireSec", "s", 20), ("AIRDROP.AnnounceLeadSec", "s", 10), ("CAMPMARK.RevealSec", "s", 10),
-        ("AIRDROP.PickupRadiusCm", "cm", 120),
+        ("AIRDROP.PickupRadiusCm", "cm", 150),
         ("AIRDROP.HealMaxHPRatio", "ratio", 0.15),
         ("AIRDROP.MoveSpeedRatio", "ratio", 0.1), ("AIRDROP.MoveSpeedSec", "s", 4),
         ("LEADER.RefreshSec", "s", 8), ("LEADER.SurvivalPointSec", "s", 24), ("LEADER.CircleRadiusCm", "cm", 1200), ("LEADER.CircleMaxOffsetCm", "cm", 800),
@@ -358,7 +358,7 @@ def content_fixture():
                         "xp_thresholds": [0, 50, 110, 180, 260, 350, 450, 560, 680, 810, 950, 1100, 1260, 1430, 1610, 1800],
                         "active_offer_levels": [4, 9]},
         "world": {"map_id": "demo_world", "spawn_ids": named["Spawn"], "camp_ids": named["Camp"], "capture_id": "capture",
-                  "pk_spawn_ids": [f"pk_spawn_{n}" for n in range(6)], "pk_throw_id": "pk_throw"},
+                  "pk_spawn_ids": [f"pk_spawn_{n}" for n in range(8)], "pk_throw_id": "pk_throw"},
         "display": display,
     }
 

@@ -2,8 +2,8 @@
   "schema_version": 5,
   "projection_revision": 5,
   "map_id": "demo_world",
-  "layout_revision": 15,
-  "geometry_revision": 11,
+  "layout_revision": 16,
+  "geometry_revision": 12,
   "approval": {
     "status": "approved",
     "decision": "Approved world decisions: D01, D03, D17-D24, CB 15.4/15.7-15.9, #79, #97, #112 and #198. #219 approved public rest services and six training anchors. Rest-service locations and shared sign-up positions are defined by the anchors below. A playtest baseline, not a balance check.; #238 approved 18/10/4/2 tiers, HR x3, trainer x2 and h09/h11 ancient camps; original anchor transforms retained."
@@ -5027,21 +5027,25 @@
     "VISION.RadiusCm"
   ],
   "anchors": [
-    {"id": "rest_spawn_0", "kind": "RestSpawn", "surface_id": "demo_ground", "position_cm": {"x": 6500, "y": -500, "z": 0}},
-    {"id": "rest_spawn_1", "kind": "RestSpawn", "surface_id": "demo_ground", "position_cm": {"x": 6900, "y": -500, "z": 0}},
-    {"id": "rest_spawn_2", "kind": "RestSpawn", "surface_id": "demo_ground", "position_cm": {"x": 7300, "y": -500, "z": 0}},
-    {"id": "rest_spawn_3", "kind": "RestSpawn", "surface_id": "demo_ground", "position_cm": {"x": 7700, "y": -500, "z": 0}},
-    {"id": "rest_spawn_4", "kind": "RestSpawn", "surface_id": "demo_ground", "position_cm": {"x": 8100, "y": -500, "z": 0}},
-    {"id": "rest_spawn_5", "kind": "RestSpawn", "surface_id": "demo_ground", "position_cm": {"x": 8500, "y": -500, "z": 0}},
-    {"id": "rest_service_1", "kind": "RestService", "surface_id": "demo_ground", "position_cm": {"x": 7100, "y": -500, "z": 0}},
-    {"id": "rest_service_2", "kind": "RestService", "surface_id": "demo_ground", "position_cm": {"x": 7500, "y": -500, "z": 0}},
-    {"id": "rest_service_3", "kind": "RestService", "surface_id": "demo_ground", "position_cm": {"x": 7900, "y": -500, "z": 0}},
-    {"id": "training_dummy_0", "kind": "TrainingDummy", "surface_id": "demo_ground", "position_cm": {"x": 6500, "y": 700, "z": 0}},
-    {"id": "training_dummy_1", "kind": "TrainingDummy", "surface_id": "demo_ground", "position_cm": {"x": 6900, "y": 700, "z": 0}},
-    {"id": "training_dummy_2", "kind": "TrainingDummy", "surface_id": "demo_ground", "position_cm": {"x": 7300, "y": 700, "z": 0}},
-    {"id": "training_dummy_3", "kind": "TrainingDummy", "surface_id": "demo_ground", "position_cm": {"x": 7700, "y": 700, "z": 0}},
-    {"id": "training_dummy_4", "kind": "TrainingDummy", "surface_id": "demo_ground", "position_cm": {"x": 8100, "y": 700, "z": 0}},
-    {"id": "training_dummy_5", "kind": "TrainingDummy", "surface_id": "demo_ground", "position_cm": {"x": 8500, "y": 700, "z": 0}},
+    {"id": "rest_spawn_0", "kind": "RestSpawn", "surface_id": "demo_ground", "position_cm": {"x": 6450, "y": -500, "z": 0}},
+    {"id": "rest_spawn_1", "kind": "RestSpawn", "surface_id": "demo_ground", "position_cm": {"x": 6750, "y": -500, "z": 0}},
+    {"id": "rest_spawn_2", "kind": "RestSpawn", "surface_id": "demo_ground", "position_cm": {"x": 7050, "y": -500, "z": 0}},
+    {"id": "rest_spawn_3", "kind": "RestSpawn", "surface_id": "demo_ground", "position_cm": {"x": 7350, "y": -500, "z": 0}},
+    {"id": "rest_spawn_4", "kind": "RestSpawn", "surface_id": "demo_ground", "position_cm": {"x": 7650, "y": -500, "z": 0}},
+    {"id": "rest_spawn_5", "kind": "RestSpawn", "surface_id": "demo_ground", "position_cm": {"x": 7950, "y": -500, "z": 0}},
+    {"id": "rest_spawn_6", "kind": "RestSpawn", "surface_id": "demo_ground", "position_cm": {"x": 8250, "y": -500, "z": 0}},
+    {"id": "rest_spawn_7", "kind": "RestSpawn", "surface_id": "demo_ground", "position_cm": {"x": 8550, "y": -500, "z": 0}},
+    {"id": "rest_service_1", "kind": "RestService", "surface_id": "demo_ground", "position_cm": {"x": 7100, "y": -850, "z": 0}},
+    {"id": "rest_service_2", "kind": "RestService", "surface_id": "demo_ground", "position_cm": {"x": 7500, "y": -850, "z": 0}},
+    {"id": "rest_service_3", "kind": "RestService", "surface_id": "demo_ground", "position_cm": {"x": 7900, "y": -850, "z": 0}},
+    {"id": "training_dummy_0", "kind": "TrainingDummy", "surface_id": "demo_ground", "position_cm": {"x": 6450, "y": 700, "z": 0}},
+    {"id": "training_dummy_1", "kind": "TrainingDummy", "surface_id": "demo_ground", "position_cm": {"x": 6750, "y": 700, "z": 0}},
+    {"id": "training_dummy_2", "kind": "TrainingDummy", "surface_id": "demo_ground", "position_cm": {"x": 7050, "y": 700, "z": 0}},
+    {"id": "training_dummy_3", "kind": "TrainingDummy", "surface_id": "demo_ground", "position_cm": {"x": 7350, "y": 700, "z": 0}},
+    {"id": "training_dummy_4", "kind": "TrainingDummy", "surface_id": "demo_ground", "position_cm": {"x": 7650, "y": 700, "z": 0}},
+    {"id": "training_dummy_5", "kind": "TrainingDummy", "surface_id": "demo_ground", "position_cm": {"x": 7950, "y": 700, "z": 0}},
+    {"id": "training_dummy_6", "kind": "TrainingDummy", "surface_id": "demo_ground", "position_cm": {"x": 8250, "y": 700, "z": 0}},
+    {"id": "training_dummy_7", "kind": "TrainingDummy", "surface_id": "demo_ground", "position_cm": {"x": 8550, "y": 700, "z": 0}},
     {
       "id": "airdrop_e", "kind": "Airdrop", "surface_id": "demo_ground", "position_cm": {"x": 2702, "y": -214, "z": 0}
     },
@@ -5282,40 +5286,52 @@
       "id": "mini_flag_3", "kind": "MiniFlag", "surface_id": "demo_ground", "position_cm": {"x": 2000, "y": -1000, "z": 0}
     },
     {
-      "id": "pk_signup_0", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 7590, "y": 100, "z": 0}
+      "id": "pk_signup_0", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 7606, "y": 100, "z": 0}
     },
     {
-      "id": "pk_signup_1", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 7545, "y": 178, "z": 0}
+      "id": "pk_signup_1", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 7575, "y": 175, "z": 0}
     },
     {
-      "id": "pk_signup_2", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 7455, "y": 178, "z": 0}
+      "id": "pk_signup_2", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 7500, "y": 206, "z": 0}
     },
     {
-      "id": "pk_signup_3", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 7410, "y": 100, "z": 0}
+      "id": "pk_signup_3", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 7425, "y": 175, "z": 0}
     },
     {
-      "id": "pk_signup_4", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 7455, "y": 22, "z": 0}
+      "id": "pk_signup_4", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 7394, "y": 100, "z": 0}
     },
     {
-      "id": "pk_signup_5", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 7545, "y": 22, "z": 0}
+      "id": "pk_signup_5", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 7425, "y": 25, "z": 0}
     },
     {
-      "id": "pk_spawn_0", "kind": "PKSpawn", "surface_id": "demo_ground", "position_cm": {"x": 959, "y": 427, "z": 0}
+      "id": "pk_signup_6", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 7500, "y": -6, "z": 0}
     },
     {
-      "id": "pk_spawn_1", "kind": "PKSpawn", "surface_id": "demo_ground", "position_cm": {"x": 110, "y": 1044, "z": 0}
+      "id": "pk_signup_7", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 7575, "y": 25, "z": 0}
     },
     {
-      "id": "pk_spawn_2", "kind": "PKSpawn", "surface_id": "demo_ground", "position_cm": {"x": -849, "y": 617, "z": 0}
+      "id": "pk_spawn_0", "kind": "PKSpawn", "surface_id": "demo_ground", "position_cm": {"x": 1011, "y": 735, "z": 0}
     },
     {
-      "id": "pk_spawn_3", "kind": "PKSpawn", "surface_id": "demo_ground", "position_cm": {"x": -959, "y": -427, "z": 0}
+      "id": "pk_spawn_1", "kind": "PKSpawn", "surface_id": "demo_ground", "position_cm": {"x": 196, "y": 1235, "z": 0}
     },
     {
-      "id": "pk_spawn_4", "kind": "PKSpawn", "surface_id": "demo_ground", "position_cm": {"x": -110, "y": -1044, "z": 0}
+      "id": "pk_spawn_2", "kind": "PKSpawn", "surface_id": "demo_ground", "position_cm": {"x": -735, "y": 1011, "z": 0}
     },
     {
-      "id": "pk_spawn_5", "kind": "PKSpawn", "surface_id": "demo_ground", "position_cm": {"x": 849, "y": -617, "z": 0}
+      "id": "pk_spawn_3", "kind": "PKSpawn", "surface_id": "demo_ground", "position_cm": {"x": -1235, "y": 196, "z": 0}
+    },
+    {
+      "id": "pk_spawn_4", "kind": "PKSpawn", "surface_id": "demo_ground", "position_cm": {"x": -1011, "y": -735, "z": 0}
+    },
+    {
+      "id": "pk_spawn_5", "kind": "PKSpawn", "surface_id": "demo_ground", "position_cm": {"x": -196, "y": -1235, "z": 0}
+    },
+    {
+      "id": "pk_spawn_6", "kind": "PKSpawn", "surface_id": "demo_ground", "position_cm": {"x": 735, "y": -1011, "z": 0}
+    },
+    {
+      "id": "pk_spawn_7", "kind": "PKSpawn", "surface_id": "demo_ground", "position_cm": {"x": 1235, "y": -196, "z": 0}
     },
     {
       "id": "pk_throw", "kind": "PKThrow", "surface_id": "demo_ground", "position_cm": {"x": 416, "y": 1956, "z": 0}
@@ -5357,11 +5373,13 @@
       "id": "s11", "kind": "Spawn", "surface_id": "demo_ground", "position_cm": {"x": 4558, "y": -2571, "z": 100}
     },
       {"id": "final_spawn_0", "kind": "FinalSpawn", "surface_id": "demo_ground", "position_cm": {"x": 14550, "y": 0, "z": 0}},
-      {"id": "final_spawn_1", "kind": "FinalSpawn", "surface_id": "demo_ground", "position_cm": {"x": 13775, "y": 1342, "z": 0}},
-      {"id": "final_spawn_2", "kind": "FinalSpawn", "surface_id": "demo_ground", "position_cm": {"x": 12225, "y": 1342, "z": 0}},
-      {"id": "final_spawn_3", "kind": "FinalSpawn", "surface_id": "demo_ground", "position_cm": {"x": 11450, "y": 0, "z": 0}},
-      {"id": "final_spawn_4", "kind": "FinalSpawn", "surface_id": "demo_ground", "position_cm": {"x": 12225, "y": -1342, "z": 0}},
-      {"id": "final_spawn_5", "kind": "FinalSpawn", "surface_id": "demo_ground", "position_cm": {"x": 13775, "y": -1342, "z": 0}},
+      {"id": "final_spawn_1", "kind": "FinalSpawn", "surface_id": "demo_ground", "position_cm": {"x": 14096, "y": 1096, "z": 0}},
+      {"id": "final_spawn_2", "kind": "FinalSpawn", "surface_id": "demo_ground", "position_cm": {"x": 13000, "y": 1550, "z": 0}},
+      {"id": "final_spawn_3", "kind": "FinalSpawn", "surface_id": "demo_ground", "position_cm": {"x": 11904, "y": 1096, "z": 0}},
+      {"id": "final_spawn_4", "kind": "FinalSpawn", "surface_id": "demo_ground", "position_cm": {"x": 11450, "y": 0, "z": 0}},
+      {"id": "final_spawn_5", "kind": "FinalSpawn", "surface_id": "demo_ground", "position_cm": {"x": 11904, "y": -1096, "z": 0}},
+      {"id": "final_spawn_6", "kind": "FinalSpawn", "surface_id": "demo_ground", "position_cm": {"x": 13000, "y": -1550, "z": 0}},
+      {"id": "final_spawn_7", "kind": "FinalSpawn", "surface_id": "demo_ground", "position_cm": {"x": 14096, "y": -1096, "z": 0}},
       {"id": "final_capture", "kind": "FinalCapture", "surface_id": "demo_ground", "position_cm": {"x": 13000, "y": 0, "z": 0}}
   ]
 }
