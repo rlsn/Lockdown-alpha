@@ -838,9 +838,10 @@ bool FLDBuildSafeWindowTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("A window past the clock saturates instead of wrapping"), LDCombatSourceRules::BuildSafeAtMs(MAX_int64 - 10, WindowMs),
         MAX_int64);
 
-    // Offensive releases: every approved active with a hostile effect; a self buff, a shield, a plain dash or the S16
-    // stance (its answer is hostile damage, marked when it lands) is not one.
-    const TSet<FString> Peaceful = {TEXT("active_bail_out"), TEXT("active_not_mad"), TEXT("active_triple_combo"), TEXT("active_brace")};
+    // Offensive releases: every approved active with a hostile effect; a self buff, shield, plain dash, S16 brace, or
+    // S05 parry stance is not one. The parry's retaliation is marked when it lands.
+    const TSet<FString> Peaceful = {TEXT("active_bail_out"), TEXT("active_not_mad"), TEXT("active_triple_combo"),
+        TEXT("active_brace"), TEXT("active_unplug")};
     for (const FLDDemoAbilityDefinition& Ability : F.Catalog->Get().Abilities)
     {
         TestEqual(FString::Printf(TEXT("%s is %s"), *Ability.Id, Peaceful.Contains(Ability.Id) ? TEXT("not offensive") : TEXT("offensive")),
@@ -1274,7 +1275,16 @@ bool FLDExpandedDeliveryTest::RunTest(const FString& Parameters)
     const auto Source=F.AddBody();
     auto& Body=F.Body(Source);
     FString Error;
-    for (const TCHAR* Id : {TEXT("active_open_mic"),TEXT("active_calculus_drop"),TEXT("active_flyer_trap")})
+    const FLDDemoAbilityDefinition* OpenMic=nullptr;
+    if(!TestTrue(TEXT("Approved warcry exists"),F.Catalog->FindAbility(TEXT("active_open_mic"),OpenMic,Error))) { return false; }
+    const auto HasEffect=[](const FLDDemoAbilityDefinition& Ability,ELDDemoEffectOp Op)
+    {
+        return Ability.Values.Effects.ContainsByPredicate([Op](const FLDDemoEffectDefinition& Effect){return Effect.GetOp()==Op;});
+    };
+    TestTrue(TEXT("The warcry is an immediate self-area damaging shield"),
+        OpenMic->Target.Mode==ELDDemoTargetMode::Self && HasEffect(*OpenMic,ELDDemoEffectOp::SelfArea)
+        && HasEffect(*OpenMic,ELDDemoEffectOp::Damage) && HasEffect(*OpenMic,ELDDemoEffectOp::WarcryRing));
+    for (const TCHAR* Id : {TEXT("active_calculus_drop"),TEXT("active_flyer_trap")})
     {
         const FLDDemoAbilityDefinition* Ability=nullptr;
         if (!TestTrue(TEXT("Approved delivery exists"),F.Catalog->FindAbility(Id,Ability,Error))) { return false; }
@@ -1288,10 +1298,10 @@ bool FLDExpandedDeliveryTest::RunTest(const FString& Parameters)
         TestTrue(TEXT("Delivery is registered instead of immediate area damage"),
             FAccess::Delivery(*F.Driver,Body,Ability->Values,Ability->Target,Action,Hit,1000,Handled,Error) && Handled);
     }
-    TestTrue(TEXT("Channel is an ongoing action cue"),ALDCombatDirector::CueFactsOf(Body).bActing);
+    TestFalse(TEXT("Ground deliveries do not start an ongoing action cue"),ALDCombatDirector::CueFactsOf(Body).bActing);
     TArray<FLDObservedProjectileFact> Facts;
-    TestTrue(TEXT("Telegraphs and channel export public geometry"),F.Driver->ReadObservedProjectiles(Facts,Error));
-    TestEqual(TEXT("Three distinct visible effects"),Facts.Num(),3);
+    TestTrue(TEXT("Both delivery telegraphs export public geometry"),F.Driver->ReadObservedProjectiles(Facts,Error));
+    TestEqual(TEXT("Two distinct visible deliveries"),Facts.Num(),2);
     TestTrue(TEXT("The brick telegraph exposes its outer and full-damage radii"),
         Facts.ContainsByPredicate([](const auto& Fact) { return Fact.Look==ELDObservedProjectileLook::BookShadow
             && Fact.RadiusCm==200 && Fact.InnerRadiusCm==80 && Fact.PositionCm.X==650; }));
