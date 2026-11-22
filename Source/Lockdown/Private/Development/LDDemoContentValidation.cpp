@@ -21,12 +21,15 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
         {
             return true;
         }
-        int64 Base, AP, AD, Adaptive, Sum;
+        int64 Base, AP, AD, Adaptive, MaxResist, Resist, Sum;
         if (!N.Mul64(Effect.BaseP2, 10000, Base, Path) || !N.Mul64(P.AP.MaxP2, Effect.APRatioBp, AP, Path)
             || !N.Add64(Base, AP, Sum, Path)
             || !N.Mul64(P.AD.MaxP2, Effect.ADRatioBp, AD, Path) || !N.Add64(Sum, AD, Sum, Path)
             || !N.Mul64(FMath::Max(P.AD.MaxP2, P.AP.MaxP2), Effect.AdaptiveRatioBp, Adaptive, Path)
-            || !N.Add64(Sum, Adaptive, Sum, Path))
+            || !N.Add64(Sum, Adaptive, Sum, Path)
+            || !N.Add64(P.Armor.MaxP2, P.MagicResist.MaxP2, MaxResist, Path)
+            || !N.Mul64(MaxResist, Effect.ResistRatioBp, Resist, Path)
+            || !N.Add64(Sum, Resist, Sum, Path))
         {
             return false;
         }
@@ -211,9 +214,10 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
     {
         return false;
     }
-    // #198: PK sign-up is the last part of every rest build window (R0 and R1-R3), not an extra wait.
-    if (!Check.Require(P.RestSignupMs > 0 && P.RestSignupMs <= P.RestBuildMs && P.RestSignupMs <= P.RestOpeningBuildMs,
-        TEXT("REST.SignupSec"), TEXT("PK sign-up must fit inside every rest build window")))
+    // #198: PK sign-up is the last part of every PK rest build window (R1-R2); R0 and R3 use OpeningBuildSec / FinalBuildSec.
+    if (!Check.Require(P.RestSignupMs > 0 && P.RestSignupMs <= P.RestBuildMs && P.RestSignupMs <= P.RestOpeningBuildMs
+        && P.RestFinalBuildMs > 0 && P.RestFinalBuildMs <= P.RestBuildMs,
+        TEXT("REST.SignupSec"), TEXT("PK sign-up must fit inside every rest build window and R3 build stays within BuildSec")))
     {
         return false;
     }
@@ -299,12 +303,25 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
     }
     for (int32 I = 0; I < D.Progression.MaxLevel - 1; ++I)
     {
-        int64 Growth, Increment;
+        int64 Growth = 0, Increment = 0;
         if (!N.Mul64(I, P.XPIncreasePerLevel, Growth, TEXT("XP"))
-            || !N.Add64(P.XPBaseToNext, Growth, Increment, TEXT("XP"))
-            || !N.Add64(TotalXP, Increment, TotalXP, TEXT("XP"))
+            || !N.Add64(P.XPBaseToNext, Growth, Increment, TEXT("XP")))
+        {
+            return false;
+        }
+        const int64 Level = I + 1;
+        if (Level >= P.XPSteepFromLevel - 1 && P.XPSteepExtraPerLevel > 0)
+        {
+            int64 Steep = 0;
+            if (!N.Mul64(Level - (P.XPSteepFromLevel - 2), P.XPSteepExtraPerLevel, Steep, TEXT("XP"))
+                || !N.Add64(Increment, Steep, Increment, TEXT("XP")))
+            {
+                return false;
+            }
+        }
+        if (!N.Add64(TotalXP, Increment, TotalXP, TEXT("XP"))
             || !Check.Require(D.Progression.XPToNext[I] == Increment && D.Progression.XPThresholds[I + 1] == TotalXP,
-                TEXT("progression"), TEXT("threshold/derived increment does not match the linear XP formula")))
+                TEXT("progression"), TEXT("threshold/derived increment does not match the XP formula")))
         {
             return false;
         }

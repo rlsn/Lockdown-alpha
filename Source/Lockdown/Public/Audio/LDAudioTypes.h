@@ -50,6 +50,11 @@ enum class ELDAudioCue : uint8
     // Two local layers of the owner's confirmed hit, not the sound of the owner's body being hit.
     SelfDealtImpact,
     SelfDealtAccent,
+    // #345 tactical combat & workshop audio cues: 0.12s perfect dodge, parry counter-shock, world pickup, and medal tier fusion.
+    SelfPerfectDodge,
+    SelfParry,
+    SelfPickup,
+    UIMedalFuse,
     Count UMETA(Hidden)
 };
 

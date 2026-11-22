@@ -92,7 +92,7 @@ bool FLDCombatEmpowerTest::RunTest(const FString& Parameters)
     FLDCombatEmpower Value;
     Value.EffectId = FGuid::NewGuid();
     Value.Source.Kind = ELDCombatSourceKind::Learned;
-    Value.Source.DefinitionId = TEXT("active_apology_slide");
+    Value.Source.DefinitionId = TEXT("active_bail_out");
     Value.AmountP2 = 5000;
     Value.ExpiresAtMs = 3100;
     LDCombatControl::ArmEmpower(Armed, Value);

@@ -80,6 +80,7 @@ namespace LDHUD
         int64 APP2=0;
         int64 MaxHPP2=0;
         int64 ArmorP2=0;
+        int64 MagicResistP2=0;
         // A blueprint records a level but not the final projected attributes; show their coefficients instead.
         bool bShowScalingFormula=false;
         // A learned skill's current card damage factor (10000 = none), applied to its damage numbers.
@@ -826,8 +827,9 @@ namespace LDHUD
         FName Card;
         TArray<FName> Keys;
         int32 Copies=1;
-        // Y25's chosen element ("火"); empty otherwise.
+        // Y25's chosen element ("火") or medal tier ("Ⅰ/Ⅱ/Ⅲ"); empty otherwise.
         FString Note;
+        uint8 MedalTier=0;
     };
     struct FStorageColumnView
     {

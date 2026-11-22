@@ -11,7 +11,7 @@
    - 默认开启快速施法（`bQuickCast = true`，`ULDControlSettings::CurrentSchema = 25`）。
    - **键盘双模态释放（`QuickCastHolds[3]` 三槽独立跟踪）**：按下 `Q/W/E` 开始计时；按住 `< 0.18 s` 松开视为**轻点（Tap）**，不弹瞄准预览圈、不改瞄准光标、忽略轻点期间右键走位取消，松键瞬间朝当前光标位置/目标施放；按住 `>= 0.18 s` 进入**长按预览（Hold）**，显示世界射程与几何预览，松键施放，按右键（`CancelPreviewedQuickCastHolds`）仅取消已进入预览的槽位、播放 `UIReject` 并闪烁槽位边框且不吞掉该次右键移动，同时恢复其余仍在按住槽位的预览。
    - 关闭快速施法或鼠标点击 HUD 技能槽时，走经典两步（先 `Armed` 预览，左键确认、右键或 `Esc` 取消）。
-   - **爆劲蓄力（Overdrive）**：劲满 `MOMENTUM.OverdriveCost`（60）时按住技能满 `MOMENTUM.OverdriveHoldSec`（0.4 s）蓄成爆劲，HUD 动作槽与角色脚下同步显示金色蓄力环；单位技能目标解析失败或 `CombatView` 定义变更时独立清理 `OverdriveEntry`。
+   - **爆劲蓄力（Overdrive）**：劲满 `OVERDRIVE.Threshold`（60）时按住技能满 `OVERDRIVE.HoldSec`（0.35 s）蓄成爆劲，HUD 动作槽与角色脚下同步显示蓄力环；单位技能目标解析失败或 `CombatView` 定义变更时独立清理 `OverdriveEntry`。
 4. **移动与攻击移动层**：右键地面 `MoveGround`（按住右键每 `50 ms` 节流重发，并在显式新单、排队施法、`S` 停止、换命与立即施法时失效合并缓存 `InvalidateClickMoveCoalesce`）、右键敌方 `AttackUnit`、`A` + 左键地面 `AttackMove`（搜敌半径 `min(VISION.RadiusCm, 2 * AttackRangeCm)`）、`S` 立即停止移动与未出手动作。
 
 ## 高低差瞄准、楼顶排除与双槽预输入队列

@@ -32,6 +32,22 @@ bool ALDCombatDirector::ResolvePerfectDodges(const FGuid& EffectId, const FGuid&
             { return Mark.Get<0>()==EffectId && Mark.Get<1>()==Dodger; })) { continue; }
         PerfectDodgeMarks.Emplace(EffectId,Dodger,NowMs);
         GrantMomentum(Body,M.PerfectDodgeP2,ELDMomentumBook::Dodge);
+        if (M.DashDodgeCooldownRefundBp>0)
+        {
+            if (FLDCombatEntityRecord* Record=FindRecord(Dodger))
+            {
+                const FName InnateId=LDCombatSourceRules::InnateDashId();
+                for (FLDCombatTrack& Track : Record->Tracks)
+                {
+                    if (Track.Kind==ELDCombatSourceKind::Innate && Track.DefinitionId==InnateId && Track.ReadyAtMs>NowMs)
+                    {
+                        const int64 Rem=Track.ReadyAtMs-NowMs;
+                        Track.ReadyAtMs=LDCombatSourceRules::ReduceReadyAt(Track.ReadyAtMs,NowMs,
+                            Rem/10000*M.DashDodgeCooldownRefundBp+Rem%10000*M.DashDodgeCooldownRefundBp/10000);
+                    }
+                }
+            }
+        }
         ++Body.PerfectDodges;
         Body.LastPerfectDodgeAtMs=NowMs;
         MarkViewChanged(Dodger);

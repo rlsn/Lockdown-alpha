@@ -67,6 +67,7 @@ private:
     double LastHitAt = -1e9;
     double LastShieldBreakAt = -1e9;
     int64 AttackReleasedAtMs = 0;   // the last own release (any kind) seen in this life; 0 when none was released
+    int64 PickupSeenAtMs = 0;       // the last own world pickup seen in this life; 0 when none was picked up
     uint32 GrowthMatch = 0;
     uint8 GrowthLevel = 0;
     uint8 GrowthEarned = 0;

@@ -179,12 +179,27 @@ bool ALDCombatDirector::ArmBranchHostile(FLDBodyCombatState& Body, const FLDComb
         FLDCombatPulse& Row=Pulses.AddDefaulted_GetRef();
         Row.Template=Template;
         Row.Template.DeliveryScaleBp=Share(Template.DeliveryScaleBp,Pulse->MultiplierBp);
-        Row.RadiusCm=Cm(Area->RadiusCm);
+        Row.RadiusCm=Cm(Area->RadiusCm)*HulkingAreaScaleOf(Body);
         Row.IntervalMs=Pulse->IntervalMs;
         Row.Remaining=Pulse->Count;
         Row.MomentumP2=Pulse->LimitP2;
         Row.ShieldBaseP2=Pulse->BaseP2;
         Row.ShieldMaxHPBp=Pulse->MaxHPRatioBp;
+        if (const FLDDemoEffectDefinition* Warcry=Find(Terms.Values,ELDDemoEffectOp::WarcryRing))
+        {
+            if (Warcry->LimitP2>0 && Body.Resources.MaxHpP2>0)
+            {
+                const int64 Steps=Body.Resources.MaxHpP2/Warcry->LimitP2;
+                if (Steps>0) { Row.RadiusCm*=1.+0.10*double(Steps); }
+            }
+            if (Warcry->Count>0) { Row.Template.BreachStacks+=Warcry->Count; }
+            if (Warcry->SecondaryRatioBp>0)
+            {
+                const int64 EstPulseP2=Share(Template.BaseP2+Share(Template.SourceAPP2,Template.APRatioBp)+Share(Template.SourceADP2,Template.ADRatioBp),
+                    Pulse->MultiplierBp);
+                Row.ShieldBaseP2+=Share(EstPulseP2,Warcry->SecondaryRatioBp);
+            }
+        }
         if (!LDMatchLifecycle::AddDurationMs(NowMs,Pulse->IntervalMs,Row.NextMs,Error)) { return false; }
     }
     // S14 B2: a self area that reached anybody raises the release's own shield (its grant, never a shield stacked under it).
@@ -511,16 +526,16 @@ bool ALDCombatDirector::AdvanceBranches(int64 NowMs, FString& Error)
             FLDElementTerms Terms;
             if (!ElementTerms(Terms,Error)) { return false; }
             const int64 R=LDCombatElements::ReactionDamageP2(GrowthLevelOf(Body),Body.AttributeProjection.Final.APP2,Terms);
+            const int64 ResistSum=Body.AttributeProjection.Final.ArmorP2+Body.AttributeProjection.Final.MagicResistP2;
             FLDCombatGroundEffect Blast;
             Blast.Payload=MakeHit(Body,Branch.DashEndExit,FLDCombatBodyRef(),Branch.DashEndEffectId);
-            Blast.Payload.BaseP2=Share(R,Burst.RatioBp);
-            Blast.Payload.DamageType=ELDDemoDamageType::Magical;
-            Blast.Payload.NativeElements|=LDCombatElements::Bit(ELDCombatElement::Shock);
+            Blast.Payload.BaseP2=Share(R+Share(ResistSum,5000),Burst.RatioBp);
+            Blast.Payload.DamageType=ELDDemoDamageType::Physical;
             Blast.Payload.bDirectAbilityDamage=true;
             Blast.Payload.CastLedger=Branch.DashEndLedger;
             if (!StampElementSnapshot(Body,Blast.Payload,Error) || !StampSourceTerms(Body,Blast.Payload,Error)) { return false; }
             Blast.CentreCm=FootOf(*Actor);
-            Blast.RadiusCm=Blast.InnerRadiusCm=Cm(Burst.RadiusCm);
+            Blast.RadiusCm=Blast.InnerRadiusCm=Cm(Burst.RadiusCm)*HulkingAreaScaleOf(Body);
             Blast.Origin=ELDCombatGroundOrigin::Echo;
             Blast.ObservedKey=FGuid::NewGuid();
             if (!LDMatchLifecycle::AddDurationMs(NowMs,Burst.DelayMs,Blast.ReadyAtMs,Error)) { return false; }

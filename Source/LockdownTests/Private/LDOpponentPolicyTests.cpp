@@ -214,13 +214,13 @@ bool RunChoiceOrder(FAutomationTestBase& Test)
         {TEXT("active_snark_bolt"), TEXT("active_open_mic"), TEXT("active_quick_meeting")}, TEXT("active_quick_meeting"));
     bGood &= Pick(Test, C, TEXT("Roles covered: DirectionCone beats Self and DirectionDash"),
         {Active(TEXT("active_not_mad"), 0), Active(TEXT("active_elbow"), 1)}, {},
-        {TEXT("active_bail_out"), TEXT("active_triple_combo"), TEXT("active_open_mic")}, TEXT("active_open_mic"));
+        {TEXT("active_bail_out"), TEXT("active_triple_combo"), TEXT("active_seethe")}, TEXT("active_seethe"));
     bGood &= Pick(Test, C, TEXT("Roles covered: Self beats DirectionDash"),
         {Active(TEXT("active_not_mad"), 0), Active(TEXT("active_elbow"), 1)}, {},
-        {TEXT("active_apology_slide"), TEXT("active_triple_combo")}, TEXT("active_triple_combo"));
+        {TEXT("active_bail_out"), TEXT("active_triple_combo")}, TEXT("active_triple_combo"));
     bGood &= Pick(Test, C, TEXT("The same target mode ties on catalog order"),
         {Active(TEXT("active_not_mad"), 0), Active(TEXT("active_snark_bolt"), 1)}, {},
-        {TEXT("active_unplug"), TEXT("active_elbow")}, TEXT("active_elbow"));
+        {TEXT("active_zap"), TEXT("active_elbow")}, TEXT("active_elbow"));
     FLDOpponentSelf Unknown;
     Unknown.Offer = ActiveOffer({TEXT("active_unknown")});
     FString Ignored, Error;
@@ -267,7 +267,7 @@ bool RunChoiceOrder(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("Reach the keystone threshold before balancing the remaining point"),
         LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error)
         && SameCounts(ById(C, Counts), {{Physique, 1}, {Strength, 1}}));
-    Spender.Actives = {Active(TEXT("active_account_banned"), 0)};
+    Spender.Actives = {Active(TEXT("active_zap"), 0)};
     Spender.StatPoints = StatRows(C, {{Physique, 4}, {Skin, 3}, {Strength, 1}, {Agility, 7}});
     Spender.UnspentPoints = 4;
     bGood &= Test.TestTrue(TEXT("An AP-heavy active pursues the brains keystone first"),
@@ -1917,12 +1917,13 @@ bool RunV7Activations(FAutomationTestBase& Test)
     bGood &= Test.TestFalse(TEXT("but not beyond it"), IsCast(LDOpponentPolicy::Decide(Frame, C, BailFar), ELDDemoTargetMode::DirectionDash));
 
     for (const auto& Case : {
-        TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_open_mic"),ELDDemoTargetMode::DirectionCone),
+        TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_cola_shake"),ELDDemoTargetMode::DirectionCone),
         TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_snark_bolt"),ELDDemoTargetMode::DirectionProjectile),
-        TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_sock_shot"),ELDDemoTargetMode::DirectionProjectile),
+        TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_stale_takeout"),ELDDemoTargetMode::DirectionProjectile),
         TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_hose_down"),ELDDemoTargetMode::DirectionLine),
         TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_calculus_drop"),ELDDemoTargetMode::GroundPoint),
-        TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_flyer_trap"),ELDDemoTargetMode::GroundPoint)})
+        TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_flyer_trap"),ELDDemoTargetMode::GroundPoint),
+        TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_cordon_tape"),ELDDemoTargetMode::GroundPoint)})
     {
         Frame=With(Case.Key);
         Frame.Units={Unit(2,ELDOpponentUnitKind::Contender,Attack-10,80)};
@@ -1936,7 +1937,7 @@ bool RunV7Activations(FAutomationTestBase& Test)
             && (Case.Value!=ELDDemoTargetMode::GroundPoint || Cast.Body.Point.Equals(Frame.Units[0].FootCm,1.e-3)));
     }
 
-    Frame=With(TEXT("active_apology_slide"));
+    Frame=With(TEXT("active_charged_ram"));
     Frame.Units={Unit(2,ELDOpponentUnitKind::Contender,Attack+20,0)};
     FLDOpponentPolicyState Slide;
     const auto Sliding=LDOpponentPolicy::Decide(Frame,C,Slide);

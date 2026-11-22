@@ -1,4 +1,5 @@
 #include "Character/LDHumanoidVisualComponent.h"
+#include "Audio/LDAudioSubsystem.h"
 #include "Core/LDLog.h"
 #include "Animation/AnimSequence.h"
 #include "Art/LDArtCatalog.h"
@@ -397,6 +398,17 @@ void ULDHumanoidVisualComponent::UpdateRelease(float EffectScale)
     const FVector At = bBody ? Pivot->GetComponentTransform().TransformPosition(FVector(0, 0, .45f * HeightCm - HalfHeight))
         : Mesh->GetSocketLocation(Art->HandBone);
     Impacts->Kit(At, LDHitVfx::BurstOf(Skill->Release, Skill->Tint, EffectScale), this);
+    // Visible observed enemy cast feedback strictly within the local sight-authorized proxy.
+    if (GetOwner() && !GetOwner()->IsA<ALDCharacter>())
+    {
+        if (UGameInstance* GI = World->GetGameInstance())
+        {
+            if (ULDAudioSubsystem* Audio = GI->GetSubsystem<ULDAudioSubsystem>())
+            {
+                Audio->Play(ELDAudioCue::SelfCast, .45f);
+            }
+        }
+    }
 }
 
 void ULDHumanoidVisualComponent::UpdateDash(const FVector& Velocity, bool bFalling, float EffectScale)
@@ -1077,10 +1089,35 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
                 // The extra hit particles follow the same impact controls as the Niagara burst and the layers.
                 const LDHitFeel::FTuning Feel = LDHitFeel::Read();
                 const bool bImpactOn = Feel.ImpactScale > 0.f && Feel.ImpactSeconds > 0.f;
+                if (bImpactOn && Age < .3f && (Impact.Flags & LDObservation::Dodged))
+                {
+                    const LDHitVfx::FGhosts GoldGhost = LDHitVfx::GhostsOf(FLinearColor(1.f, .86f, .2f), EffectScale);
+                    if (GoldGhost.bShow) { Impacts->Ghost(*Mesh, GoldGhost, *this); }
+                    Impacts->Kit(At, LDHitVfx::BurstOf(LDHitVfx::EBurst::Dash, FLinearColor(1.f, .86f, .2f), EffectScale), this);
+                }
+                else if (bImpactOn && Age < .3f && (Impact.Flags & LDObservation::Parried))
+                {
+                    Impacts->Kit(At, LDHitVfx::BurstOf(LDHitVfx::EBurst::Aura, FLinearColor(.55f, .95f, 1.f), EffectScale), this);
+                }
                 if (bImpactOn && Age < .3f && LDHitVfx::HitBurstOf(Impact.Look, Element, Tint))
                 { Impacts->Kit(At, LDHitVfx::BurstOf(Element, Tint, EffectScale), this); }
                 if (bImpactOn && Age < .3f && (Impact.Flags & LDObservation::Overdriven))
                 { Impacts->Kit(At, LDHitVfx::BurstOf(LDHitVfx::EBurst::Overdrive, LDHitVfx::OverdriveTint(), EffectScale), this); }
+                if (Age < .25f && GetOwner() && !GetOwner()->IsA<ALDCharacter>())
+                {
+                    if (UGameInstance* GI = GetWorld()->GetGameInstance())
+                    {
+                        if (ULDAudioSubsystem* Audio = GI->GetSubsystem<ULDAudioSubsystem>())
+                        {
+                            const ELDAudioCue ObservedCue = (Impact.Flags & LDObservation::Dodged) ? ELDAudioCue::SelfPerfectDodge
+                                : (Impact.Flags & LDObservation::Parried) ? ELDAudioCue::SelfParry
+                                : (Impact.Flags & LDObservation::ShieldBroken) ? ELDAudioCue::SelfShieldBreak
+                                : (Impact.Flags & LDObservation::ShieldAbsorbed) ? ELDAudioCue::SelfShieldHit
+                                : ELDAudioCue::SelfHit;
+                            Audio->Play(ObservedCue, .38f);
+                        }
+                    }
+                }
             }
         }
         PendingImpacts.Reset();

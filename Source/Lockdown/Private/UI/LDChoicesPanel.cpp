@@ -750,9 +750,12 @@ void ULDChoicesPanel::RefreshAll()
     if(!Tray){return;}
     ShownBlueprints=Usable()?Latest.PendingBlueprints:TArray<FName>();
     const bool bTiles=false;
-    // Field quick picks stand above the 构筑 button while the workshop is closed and something waits; in an engagement window
-    // they are icons only.
-    const bool bQuickNow=!bOpen&&bQuick&&Usable()&&HasCards();
+    // Field quick picks stand above the 构筑 button while the workshop is closed and something waits; while engaged in field
+    // combat (#345), non-opening offers stay folded into the compact corner badge so big cards never block combat sight,
+    // unfolding automatically once disengaged or in Rest.
+    const bool bOpeningOffer=HasAvailableOffer()&&Latest.ActiveOffer.OpportunityOrdinal==1;
+    const bool bStashedInCombat=bQuickCompact&&!bOpeningOffer&&!HasPendingRequest();
+    const bool bQuickNow=!bOpen&&bQuick&&!bStashedInCombat&&Usable()&&HasCards();
     if(bQuickNow!=bQuickShown)
     {
         bQuickShown=bQuickNow;

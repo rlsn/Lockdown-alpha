@@ -225,7 +225,7 @@ bool DevelopmentChangesCombat(const FLDGrowthBuild& Old, const FLDGrowthBuild& N
     for (int32 Index = 0; Index < OldInstalled.Num(); ++Index)
     {
         if (OldInstalled[Index]->Serial != NewInstalled[Index]->Serial || OldInstalled[Index]->Id != NewInstalled[Index]->Id
-            || !(OldInstalled[Index]->Target == NewInstalled[Index]->Target))
+            || !(OldInstalled[Index]->Target == NewInstalled[Index]->Target) || OldInstalled[Index]->Tier != NewInstalled[Index]->Tier)
         {
             return true;
         }
@@ -242,6 +242,7 @@ FLDCardInstanceView DevelopmentCardView(const FLDCardInstance& Card)
     View.Target.Kind = Card.Target.Kind;
     View.Target.Active = Card.Target.Active;
     View.Target.Element = Card.Target.Element;
+    View.Tier = FMath::Max<uint8>(Card.Tier, 1);
     return View;
 }
 

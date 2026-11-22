@@ -48,18 +48,18 @@ TArray<FLDBreakoutPreset> MakeBreakoutPresets()
         {{TEXT("active_bail_out"), EB::B1}},
         {{TEXT("card_bump_reset"), ET::Dash}, {TEXT("card_pass_through"), ET::Dash},
             {TEXT("card_dash_punch"), ET::Dash}}});
-    // 人头滚雪球: S03, S04; Y02, Y20 (K03 comes with P5).
+    // 人头滚雪球: S03, S02; Y02, Y20.
     Out.Add({TEXT("breakout_snowball"), TEXT("人头滚雪球"),
-        {{TEXT("active_crotch_grab")}, {TEXT("active_account_banned")}},
+        {{TEXT("active_crotch_grab")}, {TEXT("active_pants_down")}},
         {{TEXT("card_takedown"), ET::Body}, {TEXT("card_kill_streak"), ET::Body}}});
-    // 残血狂暴: S17, S12; Y15, Y03, K12, Y17.
+    // 残血狂暴: S17, S05; Y15, Y03, K12, Y17, card_desperado.
     Out.Add({TEXT("breakout_berserk"), TEXT("残血狂暴"),
-        {{TEXT("active_triple_combo")}, {TEXT("active_apology_slide")}},
+        {{TEXT("active_triple_combo")}, {TEXT("active_unplug")}},
         {{TEXT("card_berserk"), ET::Body}, {TEXT("card_hang_on"), ET::Body}, {TEXT("card_blood_price"), ET::Skill, 0},
-            {TEXT("card_punch_heal"), ET::Body}}});
-    // 地雷阵 (P4): S08 2A, S19 2A, S20; Y12, Y23, D11, D10. A DEV sample only, never an AI goal.
+            {TEXT("card_punch_heal"), ET::Body}, {TEXT("card_desperado"), ET::Body}}});
+    // 地雷阵 (P4): S08 2A, S19 2A, active_cordon_tape; Y12, Y23, D11, D10. A DEV sample only, never an AI goal.
     FLDBreakoutPreset Minefield{TEXT("breakout_minefield"), TEXT("地雷阵"),
-        {{TEXT("active_quick_meeting"), EB::A}, {TEXT("active_flyer_trap"), EB::A}, {TEXT("active_dirty_puddle")}},
+        {{TEXT("active_quick_meeting"), EB::A}, {TEXT("active_flyer_trap"), EB::A}, {TEXT("active_cordon_tape")}},
         {{TEXT("card_double_stall"), ET::Body}, {TEXT("card_turf_growth"), ET::Body}, {TEXT("card_move_turf"), ET::Dash},
             {TEXT("card_ice_trail"), ET::Dash}}};
     Minefield.bAIGoal = false;

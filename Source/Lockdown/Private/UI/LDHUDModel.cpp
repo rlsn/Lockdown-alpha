@@ -1632,6 +1632,7 @@ FString HudScaling(const FLDDemoEffectDefinition& Effect)
     if(Effect.AdaptiveRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.AdaptiveRatioBp)+TEXT("自适应(额外攻击力/法术强度)");}
     if(Effect.MaxHPRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.MaxHPRatioBp)+TEXT("自身")+LDTerms::MaxHealth();}
     if(Effect.ArmorRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.ArmorRatioBp)+LDTerms::Armor;}
+    if(Effect.ResistRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.ResistRatioBp)+TEXT("双抗");}
     return Text;
 }
 }
@@ -1734,6 +1735,7 @@ LDHUD::FCardStats LDHUD::CardStatsOf(uint8 Level,const TArray<FLDCombatAttribute
         Stats.BonusADP2=FMath::Max<int64>(0,Stats.ADP2-(RationalP2(ADRow->Base)+RationalP2(ADRow->Level)));
     }
     Stats.MaxHPP2=P2(ELDProjectedAttribute::MaxHP);Stats.ArmorP2=P2(ELDProjectedAttribute::Armor);
+    Stats.MagicResistP2=P2(ELDProjectedAttribute::MagicResist);
     return Stats;
 }
 namespace
@@ -1763,7 +1765,7 @@ bool CardValue(const LDDemoCardText::FToken& Token,const FLDDemoAbilityValues& V
         // heals do not.
         const ELDDemoEffectOp DamageOp=Effect->GetOp();
         const bool bFactored=Stats.DamageFactorBp!=10000&&(DamageOp==ELDDemoEffectOp::Damage||DamageOp==ELDDemoEffectOp::ZoneDamage||DamageOp==ELDDemoEffectOp::Brace);
-        if(Stats.bShowScalingFormula&&(Effect->ADRatioBp>0||Effect->APRatioBp>0||Effect->AdaptiveRatioBp>0||Effect->MaxHPRatioBp>0||Effect->ArmorRatioBp>0))
+        if(Stats.bShowScalingFormula&&(Effect->ADRatioBp>0||Effect->APRatioBp>0||Effect->AdaptiveRatioBp>0||Effect->MaxHPRatioBp>0||Effect->ArmorRatioBp>0||Effect->ResistRatioBp>0))
         {
             Out=HudScaling(*Effect);
             if(bFactored){Out=TEXT("(")+Out+TEXT(") × ")+HudPercent(Stats.DamageFactorBp);}
@@ -1772,7 +1774,8 @@ bool CardValue(const LDDemoCardText::FToken& Token,const FLDDemoAbilityValues& V
         }
         const int64 AdaptiveStatP2=Stats.BonusADP2*14>=Stats.APP2*10?Stats.BonusADP2:Stats.APP2;
         int64 P2=Effect->BaseP2+Term(Effect->ADRatioBp,Stats.ADP2)+Term(Effect->APRatioBp,Stats.APP2)
-            +Term(Effect->AdaptiveRatioBp,AdaptiveStatP2)+Term(Effect->MaxHPRatioBp,Stats.MaxHPP2)+Term(Effect->ArmorRatioBp,Stats.ArmorP2);
+            +Term(Effect->AdaptiveRatioBp,AdaptiveStatP2)+Term(Effect->MaxHPRatioBp,Stats.MaxHPP2)+Term(Effect->ArmorRatioBp,Stats.ArmorP2)
+            +Term(Effect->ResistRatioBp,Stats.ArmorP2+Stats.MagicResistP2);
         if(bFactored){P2=P2/10000*Stats.DamageFactorBp+P2%10000*Stats.DamageFactorBp/10000;}
         if(Token.Field==EField::Burst){P2=Term(Effect->SecondaryRatioBp,P2);}
         Out=FString::Printf(TEXT("%lld"),(P2+50)/100);return true;
@@ -2666,8 +2669,11 @@ LDHUD::FStorageView LDHUD::CardStorage(const FLDProgressionView& Progression,con
         // An element medal sits in its host's element slot, not among the column's cards.
         if(Content&&LDProgression::IsMedal(*Content,Owned.DefinitionId))
         {
+            const uint8 Tier=FMath::Clamp<uint8>(Owned.Tier,1,3);
             FStorageColumnView& Host=View.Columns[int32(Column)];
             Host.bHasMedal=true;Host.Medal.Card=Key;Host.Medal.Keys={Key};Host.Medal.Copies=1;
+            Host.Medal.MedalTier=Tier;
+            Host.Medal.Note=Tier>=3?TEXT("Ⅲ"):Tier==2?TEXT("Ⅱ"):TEXT("Ⅰ");
             continue;
         }
         TArray<FEquippedView>& Entries=View.Columns[int32(Column)].Entries;
@@ -2693,7 +2699,16 @@ TArray<LDHUD::FCardDrop> LDHUD::CardDrops(FName Key,const FLDProgressionView& Pr
     const auto Try=[&](ELDCardTargetKind Kind,FName Active)
     {
         // Growth's own target rule decides the place (any listed element stands for Y25's choice).
-        if(LDProgression::CardTargetReason(*Content,Build,Owned->DefinitionId,HudTarget(Kind,Active,Element))!=ELDGrowthReason::None){return;}
+        const FLDCardTarget Target=HudTarget(Kind,Active,Element);
+        if(LDProgression::CardTargetReason(*Content,Build,Owned->DefinitionId,Target)!=ELDGrowthReason::None){return;}
+        if(bMedal)
+        {
+            if(const FLDCardInstance* Held=LDProgression::MedalOn(*Content,Build,Target,Owned->Serial))
+            {
+                const uint8 MaxTier=uint8(FMath::Clamp(Content->Parameters.Medal.MaxTier,1,3));
+                if(Held->Id==Owned->DefinitionId&&Held->Tier>=MaxTier){return;}
+            }
+        }
         FCardDrop Drop;Drop.Kind=Kind;Drop.TargetId=Active;Drop.Elements=Definition->ChooseElements;
         if(!CardColumn(Progression,Kind,Active,Drop.Column)){return;}
         // Moving a card onto the place it already holds is no drop.
@@ -3565,7 +3580,18 @@ LDHUD::FLiveSkillTooltip LDHUD::EvaluateLiveSkillTooltip(const FActionView& View
                         case ELDDemoElement::Rot: MedalSkillElem=ELDDemoSkillElement::Rot; break;
                         default: break;
                         }
-                        if(MedalSkillElem!=ELDDemoSkillElement::None){MedalCardName=CardDisplayName;}
+                        if(MedalSkillElem!=ELDDemoSkillElement::None)
+                        {
+                            const uint8 Tier=FMath::Clamp<uint8>(Inst.Tier,1,3);
+                            const TCHAR* Roman=Tier>=3?TEXT(" Ⅲ"):Tier==2?TEXT(" Ⅱ"):TEXT(" Ⅰ");
+                            MedalCardName=CardDisplayName+Roman;
+                            if(Tier>=2)
+                            {
+                                MedalCardName+=Tier>=3
+                                    ?FString::Printf(TEXT(" · 反应 +%s / 命中附异种副元素"),*HudPercent(Content->Parameters.Medal.Tier2ReactionBonusBp))
+                                    :FString::Printf(TEXT(" · 反应 +%s"),*HudPercent(Content->Parameters.Medal.Tier2ReactionBonusBp));
+                            }
+                        }
                     }
                     break;
                 case ELDDemoEffectOp::OverdriveShort:

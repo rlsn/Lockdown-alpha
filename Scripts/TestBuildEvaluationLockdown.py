@@ -20,15 +20,14 @@ import BuildEvaluationLockdown as lockdown  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 S, O, H, CAMP = "1" * 32, "2" * 32, "3" * 32, "4" * 32
 CONTENT_ROOT = hashlib.sha256((ROOT / "Content/Lockdown/Data/Demo/manifest.json").read_bytes()).hexdigest()
-# 840 XP reaches level 8: the opening opportunity plus the ones of levels 3 and 6.
-SUPPLY = 840
+# 990 XP reaches level 8: the opening opportunity plus the ones of levels 2 and 5.
+SUPPLY = 990
 # The stats' design order (ascending native id), the order of every per-stat row and points= list.
 STATS = ("stat_physique", "stat_thick_skin", "stat_strength", "stat_brains", "stat_agility")
 
 
-# Supply to level 8: one level card for each of levels 2..8 (copies may repeat).
-# Level 8 crosses the even levels 2, 4, 6 and 8: four level cards.
-LEVEL8_CARDS = ("card_spiky_hide", "card_encore", "card_live_wire", "card_thick_hide")
+# Supply to level 8: one level card for each card-offer level crossed (L3 and L6 under OfferEveryLevels = 3).
+LEVEL8_CARDS = ("card_encore", "card_live_wire")
 
 
 def stat_points(*points):
@@ -113,9 +112,9 @@ def trace(*extra, drop=()):
         ("field", "LD_FIELD_ENTER generation=2 segment=0 at_ms=5000 field_t_ms=0 final=0"),
         ("s_spawn", f"LD_EVAL_FIELD_SPAWN t=5000 generation=2 contender={S} life=2 pos=100,0,0"),
         ("o_spawn", f"LD_EVAL_FIELD_SPAWN t=5000 generation=2 contender={O} life=2 pos=-100,5,0"),
-        ("s_reward", f"LD_REWARD t=5016 contender={S} cause=dev_fixture role=recipient xp=840 xp_after=840 level=1->8 "),
+        ("s_reward", f"LD_REWARD t=5016 contender={S} cause=dev_fixture role=recipient xp=990 xp_after=990 level=1->8 "),
         ("s_level", f"LD_LEVEL_UP t=5016 contender={S} level=1->8 choices_earned=2 unspent_points=5"),
-        ("o_reward", f"LD_REWARD t=5016 contender={O} cause=dev_fixture role=recipient xp=840 xp_after=840 level=1->8 "),
+        ("o_reward", f"LD_REWARD t=5016 contender={O} cause=dev_fixture role=recipient xp=990 xp_after=990 level=1->8 "),
         ("o_level", f"LD_LEVEL_UP t=5016 contender={O} level=1->8 choices_earned=2 unspent_points=5"),
         ("s_offer2", f"LD_OFFER t=5016 contender={S} ordinal=2 level=6 cards=active_flyer_trap,active_seethe,active_stare_down"),
         ("o_offer2", f"LD_OFFER t=5016 contender={O} ordinal=2 level=6 cards=active_stare_down,active_calculus_drop,active_seethe"),
@@ -134,7 +133,7 @@ def trace(*extra, drop=()):
         ("hit2", hit(11000, O, S, "50.00", "10.00", "40.00", "620.00", "580.00")),
         ("lethal", hit(20000, S, O, "600.00", "0.00", "520.00", "520.00", "0.00")),
         ("death", f"LD_DEATH_RECEIPT contender={O} life=1 respawn_at_ms=35000 t=20000 killer={S} cause=Contender fatal=basic fatal_body={S} assisters=- no_reward=None victim_level=6"),
-        ("death_reward", f"LD_REWARD t=20000 contender={S} cause=death role=killer xp=140 xp_after=980 level=6->6 victim={O} victim_life=1 victim_kind=contender"),
+        ("death_reward", f"LD_REWARD t=20000 contender={S} cause=death role=killer xp=140 xp_after=1130 level=6->6 victim={O} victim_life=1 victim_kind=contender"),
         ("late_heartbeat", heartbeat(21000, S, "101,0,0", hp="580.00/620.00")),
     ]
     lines = [line for key, line in lines if key not in drop]
@@ -142,21 +141,21 @@ def trace(*extra, drop=()):
 
 
 # Workshop: the subject owns its build. Three opening points go to strength in the opening rest; on the field the level
-# cards arrive with the supply, Y01 goes onto the body, K06 onto the opening active, Y25 onto the body with fire, Y01 comes off
-# again and the 21 level points go to physique: every one of the 24 points 840 XP earns.
+# cards arrive with the supply, K06 goes onto the opening active, comes off, Y25 goes onto the body with fire, K06 goes back
+# onto the opening active, and the 21 level points go to physique: every one of the 24 points 990 XP earns.
 WORKSHOP = {
     "choices": [{"rule": "definition", "definition": "active_elbow"}, "ai_select", "ai_select"],
     "level_cards": list(LEVEL8_CARDS),
     "build": [
         {"step": "allocate_points", "at": "opening_rest", "points": {"stat_strength": 3}},
-        {"step": "install", "at": "field", "card": "card_spiky_hide", "target": "body"},
         {"step": "install", "at": "field", "card": "card_encore", "target": "active_elbow"},
+        {"step": "uninstall", "at": "field", "card": "card_encore"},
         {"step": "install", "at": "field", "card": "card_live_wire", "target": "body", "element": "fire"},
-        {"step": "uninstall", "at": "field", "card": "card_spiky_hide"},
+        {"step": "install", "at": "field", "card": "card_encore", "target": "active_elbow"},
         {"step": "allocate_points", "at": "field", "points": {"stat_physique": 21}},
     ],
 }
-REWARD_LINE = f"LD_REWARD t=5016 contender={S} cause=dev_fixture role=recipient xp=840 xp_after=840 level=1->8 "
+REWARD_LINE = f"LD_REWARD t=5016 contender={S} cause=dev_fixture role=recipient xp=990 xp_after=990 level=1->8 "
 PRESET_LINE = f"LD_EVAL_CARD_PRESET t=10 contender={S} ticket=1 cards={','.join(LEVEL8_CARDS)}"
 
 
@@ -175,10 +174,10 @@ WORKSHOP_LINES = {
     "w_points": build_line(200, "AllocatePoints", points="0,0,3,0,0"),
     "w_skip": card_line(40, "SkipCards"),
     "w_level": f"LD_LEVEL_UP t=5016 contender={S} level=1->8 choices_earned=2 unspent_points=21 card_offers=0",
-    "w_spiky": card_line(5400, "InstallCard", "card_spiky_hide", 1, "1", "Body"),
-    "w_encore": card_line(5410, "InstallCard", "card_encore", 2, "1", "Skill:active_elbow"),
-    "w_wire": card_line(5420, "InstallCard", "card_live_wire", 3, "1", "Body:Fire"),
-    "w_off": card_line(5430, "UninstallCard", "card_spiky_hide", 1, "0"),
+    "w_encore_1": card_line(5400, "InstallCard", "card_encore", 1, "1", "Skill:active_elbow"),
+    "w_off": card_line(5410, "UninstallCard", "card_encore", 1, "0"),
+    "w_wire": card_line(5420, "InstallCard", "card_live_wire", 2, "1", "Body:Fire"),
+    "w_encore": card_line(5430, "InstallCard", "card_encore", 1, "1", "Skill:active_elbow"),
     "w_body": build_line(5500, "AllocatePoints", points="21,0,0,0,0", level=8),
 }
 
@@ -195,10 +194,10 @@ def card(name, serial, installed=False, target_kind="None", target_id="", elemen
 
 
 def workshop_cards():
-    rows = [card(name, serial) for serial, name in enumerate(LEVEL8_CARDS, 1)]
-    rows[1] = card("card_encore", 2, True, "Skill", "active_elbow")
-    rows[2] = card("card_live_wire", 3, True, "Body", "", "Fire")
-    return rows
+    return [
+        card("card_encore", 1, True, "Skill", "active_elbow"),
+        card("card_live_wire", 2, True, "Body", "", "Fire"),
+    ]
 
 
 def workshop_result(**subject):
@@ -264,7 +263,7 @@ class CapabilitiesTest(AdapterCase):
         self.assertEqual(duel["evidence_level"], "NativeSpatial")
         self.assertEqual(lockdown.level_for(self.content["progression"], 240), 4)
         self.assertEqual(lockdown.level_for(self.content["progression"], 179), 3)
-        self.assertEqual([lockdown._opportunities(self.caps, xp) for xp in (0, 59, 60, 359, 360, 1039, 1040)], [1, 1, 2, 2, 3, 3, 4])
+        self.assertEqual([lockdown._opportunities(self.caps, xp) for xp in (0, 59, 60, 374, 375, 1264, 1265)], [1, 1, 2, 2, 3, 3, 4])
 
 
 class PlanTest(AdapterCase):
@@ -338,7 +337,7 @@ class PlanTest(AdapterCase):
 
     def test_known_illegal_plans_are_refused_before_any_run(self):
         needs = self.requirements({"choices": ["ai_select"] * 2})
-        self.assertTrue(any("has 2 rules but its supply of 840 XP gives 3 active opportunities" in item for item in needs["problems"]))
+        self.assertTrue(any("has 2 rules but its supply of 990 XP gives 3 active opportunities" in item for item in needs["problems"]))
         needs = self.requirements({"choices": ["ai_select"] * 2}, supply=140)
         self.assertEqual(needs["problems"], [], "140 XP gives the opening opportunity and the level-2 one")
         needs = self.requirements({"choices": [{"rule": "definition", "definition": "active_stare_down"}, "ai_select", "ai_select"]})
@@ -402,7 +401,7 @@ class PlanTest(AdapterCase):
         needs = self.requirements(WORKSHOP)
         self.assertEqual(needs["problems"], [])
         self.assertTrue({"allocate_points", "uninstall_card", "install_card", "preset_level_cards"} <= set(needs["decisions"]))
-        self.assertTrue({"card_spiky_hide", "card_encore", "card_live_wire", "stat_strength", "stat_physique", "active_elbow"}
+        self.assertTrue({"card_encore", "card_live_wire", "stat_strength", "stat_physique", "active_elbow"}
                         <= set(needs["mechanics"]))
         cases, native_written = self.plan_cases(WORKSHOP, sample="diagnostic")
         self.assertEqual({case["status"] for case in cases}, {"NotRun"})
@@ -423,12 +422,12 @@ class PlanTest(AdapterCase):
         cases, _ = self.plan_cases(subject, sample="legal_search")
         self.assertTrue(all(case["status"] == "Unsupported" for case in cases))
         self.assertIn("diagnostic", {case["arm"]: case["reason"] for case in cases}["t"])
-        for invalid, reason in ((list(LEVEL8_CARDS[:-1]), "needs 4 cards"), ([*LEVEL8_CARDS[:-1], "active_seethe"], "not a card")):
+        for invalid, reason in ((list(LEVEL8_CARDS[:-1]), "needs 2 cards"), ([*LEVEL8_CARDS[:-1], "active_seethe"], "not a card")):
             with self.subTest(cards=invalid):
                 problems = self.requirements({**subject, "level_cards": invalid})["problems"]
                 self.assertTrue(any(reason in item for item in problems), problems)
         with self.assertRaisesRegex(ValueError, "card ids"):
-            self.requirements({**subject, "level_cards": ["Card-Punch"] * 4})
+            self.requirements({**subject, "level_cards": ["Card-Punch"] * 2})
 
     def test_workshop_plans_duel_site_cannot_carry_out_are_illegal(self):
         build = WORKSHOP["build"]
@@ -444,16 +443,16 @@ class PlanTest(AdapterCase):
             "the level cards arrive with the field supply": plan([{**build[1], "at": "opening_rest"}, build[0], *build[2:]]),
             "no stored copy of card_hang_on": plan([*build[:4], {"step": "install", "at": "field", "card": "card_hang_on",
                                                                   "target": "body"}, build[5]]),
-            "no stored copy of card_encore": plan([*build[:3], build[2], *build[3:]]),
-            "a body card goes on the body": plan([*build[:1], {**build[1], "target": "dash"}, *build[2:]]),
-            "a skill card names a learned skill, not body": plan([*build[:2], {**build[2], "target": "body"}, *build[3:]]),
-            "cannot prove active_hose_down is learned here": plan([*build[:2], {**build[2], "target": "active_hose_down"},
-                                                                    *build[3:]]),
+            "no stored copy of card_encore": plan([*build[:5], build[1], build[5]]),
+            "a body card goes on the body": plan([*build[:3], {**build[3], "target": "dash"}, *build[4:]]),
+            "a skill card names a learned skill, not body": plan([*build[:1], {**build[1], "target": "body"}, *build[2:]]),
+            "cannot prove active_hose_down is learned here": plan([*build[:1], {**build[1], "target": "active_hose_down"},
+                                                                    *build[2:]]),
             "chooses one of": plan([*build[:3], {"step": "install", "at": "field", "card": "card_live_wire", "target": "body"},
                                     *build[4:]]),
             "takes no element": plan([*build[:1], {**build[1], "element": "fire"}, *build[2:]]),
-            "no copy of card_thick_hide is installed": plan([*build[:4], {"step": "uninstall", "at": "field",
-                                                                          "card": "card_thick_hide"}, build[5]]),
+            "no copy of card_live_wire is installed": plan([*build[:2], {"step": "uninstall", "at": "field",
+                                                                          "card": "card_live_wire"}, *build[3:]]),
             "no point is allocated by an earlier step": plan([{"step": "respec", "at": "opening_rest"}, *build]),
             "never leaves a blueprint pending": plan([*build, {"step": "learn", "at": "field", "blueprint": "active_seethe",
                                                                "slot": "E"}]),
@@ -823,7 +822,7 @@ class EvidenceTest(AdapterCase):
         reciprocal_hit = hit(20000, O, S, "580.00", "0.00", "580.00", "580.00", "0.00")
         reciprocal_death = (f"LD_DEATH_RECEIPT contender={S} life=1 respawn_at_ms=35000 t=20000 "
                             f"killer={O} cause=Contender fatal=basic fatal_body={O} assisters=- no_reward=None victim_level=6")
-        reciprocal_reward = (f"LD_REWARD t=20000 contender={O} cause=death role=killer xp=140 xp_after=980 level=6->6 "
+        reciprocal_reward = (f"LD_REWARD t=20000 contender={O} cause=death role=killer xp=140 xp_after=1130 level=6->6 "
                              f"victim={S} victim_life=1 victim_kind=contender")
         text = trace(reciprocal_hit, reciprocal_death, reciprocal_reward)
         out = self.evidence(value, text)
@@ -847,7 +846,7 @@ class EvidenceTest(AdapterCase):
         after = boundary.replace("t=50000", "t=50001")
         self.assertEqual(self.evidence(timeout, trace(after, drop=("lethal", "death", "death_reward")))["status"], "Completed")
         self.assertEqual(self.evidence()["status"], "Completed", "the deciding kill's own reward is exempt")
-        killer_reward = (f"LD_REWARD t=20000 contender={S} cause=death role=killer xp=140 xp_after=980 level=6->6 "
+        killer_reward = (f"LD_REWARD t=20000 contender={S} cause=death role=killer xp=140 xp_after=1130 level=6->6 "
                          f"victim={O} victim_life=1 victim_kind=contender")
         self.assertIn(killer_reward, trace())
         for original, replacement in (("cause=death", "cause=map_event"), (f"victim={O}", f"victim={CAMP}"),
@@ -889,7 +888,7 @@ class EvidenceTest(AdapterCase):
         traces = (
             trace().replace("LD_DEATH_RECEIPT contender=", "LD_DEATH_RECEIPT missing=", 1).replace("t=20000 killer=", "t=bad killer=", 1),
             trace().replace("LD_HIT t=10000", "LD_HIT t=missing", 1),
-            trace().replace("cause=dev_fixture role=recipient xp=840", "cause=dev_fixture role=recipient xp=bad", 1),
+            trace().replace("cause=dev_fixture role=recipient xp=990", "cause=dev_fixture role=recipient xp=bad", 1),
         )
         for text in traces:
             with self.subTest(trace=text[:60]):
@@ -1159,10 +1158,10 @@ class WorkshopEvidenceTest(AdapterCase):
         steps = out["facts"]["build_steps"]["subject"]
         self.assertEqual([(step["kind"], step["card"], step.get("target"), step.get("points")) for step in steps],
                          [("AllocatePoints", "-", None, "0,0,3,0,0"),
-                          ("InstallCard", "card_spiky_hide", "Body", None),
                           ("InstallCard", "card_encore", "Skill:active_elbow", None),
+                          ("UninstallCard", "card_encore", "-", None),
                           ("InstallCard", "card_live_wire", "Body:Fire", None),
-                          ("UninstallCard", "card_spiky_hide", "-", None),
+                          ("InstallCard", "card_encore", "Skill:active_elbow", None),
                           ("AllocatePoints", "-", None, "21,0,0,0,0")],
                          "the skipped card offers are the policy's own, never steps")
         self.assertEqual(out["facts"]["grants"]["subject"][0]["card_offers"], "0")
@@ -1176,12 +1175,12 @@ class WorkshopEvidenceTest(AdapterCase):
         out = self.workshop(workshop_result(steps_committed=4))
         self.assertIn("PlanNotReached: the subject committed 4 of 6 planned build steps", out["reason"])
         refused = workshop_result(steps_committed=1, profile_phase="Failed",
-                                  profile_failure="build step 2 (InstallCard card_spiky_hide): no stored copy of the card "
+                                  profile_failure="build step 2 (InstallCard card_encore): no stored copy of the card "
                                                   "(the seeded level cards did not grant it)")
-        refused.update(status="Invalid", reason="subject plan refused: build step 2 (InstallCard card_spiky_hide)")
+        refused.update(status="Invalid", reason="subject plan refused: build step 2 (InstallCard card_encore)")
         out = self.workshop(refused)
         self.assertEqual(out["status"], "Invalid")
-        self.assertEqual(out["reason"], "PlanNotReached: the subject build step 2 (InstallCard card_spiky_hide): no stored copy "
+        self.assertEqual(out["reason"], "PlanNotReached: the subject build step 2 (InstallCard card_encore): no stored copy "
                                         "of the card (the seeded level cards did not grant it)")
         out = self.workshop(workshop_result(planned_steps=0))
         self.assertIn("TraceIncomplete: the native subject plan has 0 build steps, planned 6", out["reason"])
@@ -1192,11 +1191,11 @@ class WorkshopEvidenceTest(AdapterCase):
             "committed target=Skill:active_hose_down, planned Skill:active_elbow":
                 {"w_encore": WORKSHOP_LINES["w_encore"].replace("Skill:active_elbow", "Skill:active_hose_down")},
             "committed points=0,3,0,0,0, planned 0,0,3,0,0": {"w_points": WORKSHOP_LINES["w_points"].replace("0,0,3,0,0", "0,3,0,0,0")},
-            "committed card=card_hang_on, planned card_spiky_hide":
-                {"w_spiky": WORKSHOP_LINES["w_spiky"].replace("card=card_spiky_hide", "card=card_hang_on")},
-            "committed installed=0, planned 1": {"w_spiky": WORKSHOP_LINES["w_spiky"].replace("installed=1", "installed=0")},
+            "committed card=card_hang_on, planned card_encore":
+                {"w_encore_1": WORKSHOP_LINES["w_encore_1"].replace("card=card_encore", "card=card_hang_on")},
+            "committed installed=0, planned 1": {"w_encore_1": WORKSHOP_LINES["w_encore_1"].replace("installed=1", "installed=0")},
             "committed after the opening rest": {"w_points": WORKSHOP_LINES["w_points"].replace("t=200", "t=5200")},
-            "committed before the field supply and the planned choices": {"w_spiky": WORKSHOP_LINES["w_spiky"].replace("t=5400", "t=5012")},
+            "committed before the field supply and the planned choices": {"w_encore_1": WORKSHOP_LINES["w_encore_1"].replace("t=5400", "t=5012")},
             "has no authority time in order before the outcome": {"w_body": WORKSHOP_LINES["w_body"].replace("t=5500", "t=20001")},
         }
         for expected, replace in variants.items():
@@ -1212,13 +1211,13 @@ class WorkshopEvidenceTest(AdapterCase):
 
     def test_terminal_cards_must_be_where_the_plan_put_them(self):
         moved = workshop_cards()
-        moved[1] = card("card_encore", 2, True, "Skill", "active_hose_down")
+        moved[0] = card("card_encore", 1, True, "Skill", "active_hose_down")
         self.assertIn("PlanNotReached: the subject ends with installed cards", self.workshop(workshop_result(cards=moved))["reason"])
         water = workshop_cards()
-        water[2]["element"] = "Water"
+        water[1]["element"] = "Water"
         self.assertIn("ends with installed cards", self.workshop(workshop_result(cards=water))["reason"])
         extra = workshop_cards()
-        extra[3] = card("card_third_breath", 4, True, "Basic")
+        extra.append(card("card_third_breath", 3, True, "Basic"))
         self.assertIn("ends with installed cards", self.workshop(workshop_result(cards=extra))["reason"])
         for broken in ([{"id": "card_encore"}], [dict(workshop_cards()[0], installed=1)], "x"):
             with self.subTest(cards=broken):
@@ -1256,14 +1255,14 @@ class WorkshopEvidenceTest(AdapterCase):
         fire = judged(plan, "a", workshop_trace())
         self.assertEqual(fire["label"], "InstallCard card_live_wire target=Body:Fire")
         cards = workshop_cards()
-        cards[2]["element"] = "Water"
+        cards[1]["element"] = "Water"
         other = judged(plan, "b", workshop_trace(replace={"w_wire": WORKSHOP_LINES["w_wire"].replace(":Fire", ":Water")}),
                        workshop_result(cards=cards))
         self.assertEqual(other["label"], "InstallCard card_live_wire target=Body:Water")
         self.assertEqual(fire["prefix"], other["prefix"], "the same history up to the element choice")
         prefix = json.loads(fire["prefix"])
         self.assertEqual(prefix["branch"], {"position": 6})
-        self.assertEqual([step["kind"] for step in prefix["builds"]], ["AllocatePoints", "InstallCard", "InstallCard"])
+        self.assertEqual([step["kind"] for step in prefix["builds"]], ["AllocatePoints", "InstallCard", "UninstallCard"])
         self.assertEqual(prefix["history"][0]["choice"]["card"], "active_elbow")
 
 

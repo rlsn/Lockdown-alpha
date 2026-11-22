@@ -45,64 +45,71 @@ def author_units(value):
 
 
 # #198 actives (CONTENT_AND_BALANCE, issue #198 approval 2026-11-10): one value set each at G=1, in S order.
-ACTIVE_IDS = ("active_elbow", "active_pants_down", "active_crotch_grab", "active_account_banned", "active_unplug",
+ACTIVE_IDS = ("active_elbow", "active_pants_down", "active_crotch_grab", "active_unplug",
               "active_snark_bolt", "active_seethe", "active_quick_meeting", "active_hose_down", "active_zap",
-              "active_bail_out", "active_apology_slide", "active_charged_ram", "active_not_mad", "active_stare_down",
-              "active_brace", "active_triple_combo", "active_calculus_drop", "active_flyer_trap", "active_dirty_puddle",
-              "active_sock_shot", "active_open_mic", "active_cola_shake", "active_desk_fan", "active_stale_takeout",
-              "active_school_bag")
+              "active_bail_out", "active_charged_ram", "active_not_mad", "active_stare_down",
+              "active_brace", "active_triple_combo", "active_calculus_drop", "active_flyer_trap",
+              "active_open_mic", "active_cola_shake", "active_desk_fan", "active_stale_takeout",
+              "active_school_bag", "active_flurry_rush", "active_cordon_tape")
 # (target mode, range cm or None, windup s, momentum cost, cooldown s, in the opening pool).
 ACTIVE_FRAMES = {
     "active_elbow": ("Unit", 220, r(".15"), 25, r("4.2"), True),
-    "active_pants_down": ("Unit", 400, r(".2"), 30, r("6.3"), True),
-    "active_crotch_grab": ("Unit", 200, r(".2"), 35, 7, True),
-    "active_account_banned": ("Unit", 600, r(".25"), 30, r("6.3"), True),
-    "active_unplug": ("Unit", 300, r(".2"), 25, r("5.6"), True),
-    "active_snark_bolt": ("DirectionProjectile", 850, r(".2"), 30, r("4.2"), True),
+    "active_pants_down": ("DirectionLine", 440, r(".14"), 25, 6, True),
+    "active_crotch_grab": ("DirectionDash", None, r(".12"), 30, r("6.3"), False),
+    "active_unplug": ("Self", None, 0, 20, r("6.3"), False),
+    "active_snark_bolt": ("DirectionProjectile", 850, r(".18"), 25, r("4.2"), True),
     "active_seethe": ("Self", None, r(".25"), 30, r("4.9"), True),
     "active_quick_meeting": ("GroundPoint", 650, r(".25"), 35, r("5.6"), True),
     "active_hose_down": ("DirectionLine", 600, r(".2"), 25, r("4.9"), True),
     "active_zap": ("Unit", 650, r(".25"), 30, r("4.9"), True),
     "active_bail_out": ("DirectionDash", None, 0, 20, r("4.9"), True),
-    "active_apology_slide": ("DirectionDash", None, r(".15"), 25, r("5.6"), True),
     "active_charged_ram": ("DirectionDash", None, r(".1"), 30, r("6.3"), True),
-    "active_not_mad": ("Self", None, 0, 25, 7, False),
+    "active_not_mad": ("Self", None, 0, 25, 7, True),
     "active_stare_down": ("Self", None, r(".2"), 30, r("8.4"), False),
     "active_brace": ("Self", None, r(".1"), 25, r("8.4"), False),
     "active_triple_combo": ("Self", None, 0, 20, r("6.3"), True),
     "active_calculus_drop": ("GroundPoint", 650, r(".25"), 35, r("5.6"), True),
     "active_flyer_trap": ("GroundPoint", 550, r(".15"), 30, r("6.3"), False),
-    "active_dirty_puddle": ("GroundPoint", 600, r(".25"), 30, r("6.3"), True),
-    "active_sock_shot": ("DirectionProjectile", 750, r(".15"), 30, r("5.6"), True),
-    "active_open_mic": ("DirectionCone", 450, r(".2"), 30, r("4.9"), True),
-    # Issue #287 P4 N1-N3 (N1 and N3 open).
+    "active_open_mic": ("Self", None, r(".15"), 25, r("5.6"), True),
     "active_cola_shake": ("DirectionCone", 400, r(".15"), 25, r("4.2"), True),
     "active_desk_fan": ("GroundPoint", 500, r(".2"), 35, 7, False),
-    "active_stale_takeout": ("DirectionProjectile", 700, r(".2"), 30, r("5.6"), True),
-    "active_school_bag": ("GroundPoint", 450, r(".2"), 30, r("7.7"), False),
+    "active_stale_takeout": ("DirectionProjectile", 700, r(".2"), 30, r("5.6"), False),
+    "active_school_bag": ("GroundPoint", 450, r(".2"), 30, r("7.7"), True),
+    "active_flurry_rush": ("Self", None, 0, 25, 7, False),
+    "active_cordon_tape": ("GroundPoint", 560, r(".16"), 30, r("6.8"), False),
 }
 
 
-def magical(base, ap, hp=0, ad=0):
-    return ("damage", {"ad_ratio": r(ad), "ap_ratio": r(ap), "base": base, "damage_type": "Magical", "max_hp_ratio": r(hp)})
+def magical(base, ap, hp=0, ad=0, **extra):
+    return ("damage", {"ad_ratio": r(ad), "ap_ratio": r(ap), "base": base, "damage_type": "Magical", "max_hp_ratio": r(hp), **extra})
 
 
-def adaptive(base, ratio):
-    return ("damage", {"ad_ratio": 0, "adaptive_ratio": r(ratio), "ap_ratio": 0, "base": base, "damage_type": "Magical", "max_hp_ratio": 0})
+def adaptive(base, ratio, damage_type="Magical"):
+    return ("damage", {"ad_ratio": 0, "adaptive_ratio": r(ratio), "ap_ratio": 0, "base": base, "damage_type": damage_type, "max_hp_ratio": 0})
 
 
-def physical(base, ad, ap=0):
-    return ("damage", {"ad_ratio": r(ad), "ap_ratio": r(ap), "base": base, "damage_type": "Physical", "max_hp_ratio": 0})
+def physical(base, ad, ap=0, hp=0, **extra):
+    return ("damage", {"ad_ratio": r(ad), "ap_ratio": r(ap), "base": base, "damage_type": "Physical", "max_hp_ratio": r(hp), **extra})
 
 
 # Every active's effects in authored order and author units; "base" grows with the owner's level at runtime.
 ACTIVE_EFFECTS = {
     "active_elbow": [physical(65, ".85"), ("knockback", {"distance": 300, "duration": r(".25")})],
-    "active_pants_down": [physical(50, ".65", ".4"), ("root", {"duration": r("1.2")})],
-    "active_crotch_grab": [physical(75, ".9"), ("stun", {"duration": r(".8")})],
-    "active_account_banned": [magical(55, ".6"), ("silence", {"duration": r("1.2")})],
-    "active_unplug": [physical(55, ".7", ".45"), ("disarm", {"duration": r("1.4")})],
-    "active_snark_bolt": [adaptive(90, ".9"), ("slow", {"duration": r("1.5"), "ratio": r(".25")})],
+    "active_pants_down": [physical(55, ".7", ".5"), ("root", {"duration": r("1.1")}), ("breach", {"stacks": 3}),
+                          ("grab_line", {"extra_duration": r(".3")})],
+    "active_crotch_grab": [
+        ("dash", {"distance": 280, "duration": r(".16")}), ("dash_contact", {"targets": "First"}),
+        adaptive(72, ".95", "Physical"), ("slow", {"duration": r("1.5"), "ratio": r(".35")}),
+        ("attack_slow", {"duration": r("1.5"), "ratio": r(".35")}),
+        ("backstab_lunge", {"angle": 150, "stun_duration": r("1.1")})],
+    "active_unplug": [
+        ("parry_stance", {"ad_ratio": r(".75"), "base": 65, "buff_duration": 3, "combo_charges": 1, "cut": r(".65"),
+                          "disarm_duration": r("1.3"), "duration": r(".45"), "miss_refund": r(".3"), "radius": 280,
+                          "resist_ratio": r(".65"), "stats": {"AttackSpeedBonusRatio": r(".35")}})],
+    "active_snark_bolt": [
+        adaptive(85, ".9", "Physical"), ("slow", {"duration": r("1.5"), "ratio": r(".25")}),
+        ("slipper_pickup", {"buff_duration": 3, "duration": 3, "radius": 110, "refund_ratio": r(".55"),
+                            "stats": {"AttackSpeedBonusRatio": r(".2"), "MoveSpeedBonusRatio": r(".15")}})],
     "active_seethe": [("self_area", {"radius": 300}), magical(60, ".6", ".02"), ("burn", {"stacks": 2})],
     "active_quick_meeting": [
         ("zone", {"count": 3, "delay": 0, "duration": 3, "interval": 1, "radius": 240}),
@@ -115,15 +122,14 @@ ACTIVE_EFFECTS = {
     "active_bail_out": [
         ("dash", {"distance": 350, "duration": r(".2")}),
         ("empower_basic", {"ad_ratio": r(".75"), "ap_ratio": r(".45"), "base": 55, "damage_type": "Physical", "duration": 3})],
-    "active_apology_slide": [
-        ("dash", {"distance": 400, "duration": r(".3")}), ("dash_contact", {"targets": "First"}), physical(75, ".8", ".5"),
-        ("slow", {"duration": r("1.5"), "ratio": r(".25")})],
     "active_charged_ram": [
-        ("dash", {"distance": 450, "duration": r(".3")}),
-        ("shield", {"ad_ratio": r(".4"), "ap_ratio": 0, "base": 60, "duration": 2, "max_hp_ratio": r(".04")}),
-        ("dash_contact", {"targets": "Every"}), magical(55, ".45", 0, ".55"), ("electrify", {})],
+        ("dash", {"distance": 460, "duration": r(".28")}),
+        ("shield", {"ad_ratio": r(".4"), "ap_ratio": 0, "base": 70, "duration": r("2.5"), "max_hp_ratio": r(".06"), "resist_ratio": r(".55")}),
+        ("dash_contact", {"targets": "Every"}), physical(60, ".6", ".4", ".03", resist_ratio=r(".45")),
+        ("knockback", {"distance": 180, "duration": r(".16")})],
     "active_not_mad": [
-        ("shield", {"ad_ratio": r(".65"), "ap_ratio": r(".6"), "base": 95, "duration": 3, "max_hp_ratio": r(".08")}), ("dispel_slow", {}), ("dispel_root", {})],
+        ("shield", {"ad_ratio": r(".65"), "ap_ratio": r(".6"), "base": 95, "duration": 3, "max_hp_ratio": r(".08"), "resist_ratio": r(".5")}),
+        ("dispel_slow", {}), ("dispel_root", {})],
     "active_stare_down": [
         ("taunt", {"duration": 1, "radius": 300}),
         ("timed_stat_bonus", {"duration": 3, "stats": {"ArmorFlat": 14, "MagicResistFlat": 14}})],
@@ -137,24 +143,29 @@ ACTIVE_EFFECTS = {
     "active_flyer_trap": [
         ("contact_trap", {"delay": r(".45"), "duration": 6, "radius": 180, "trigger_radius": 100}), magical(100, ".75"),
         ("slow", {"duration": r("1.5"), "ratio": r(".3")})],
-    "active_dirty_puddle": [
-        ("zone", {"count": 4, "delay": 0, "duration": 4, "interval": 1, "radius": 220}),
-        ("zone_damage", {"ad_ratio": 0, "ap_ratio": r(".2"), "base": 22, "damage_type": "Magical"}),
-        ("zone_wet", {}), ("zone_haste", {"ratio": r(".15")})],
-    "active_sock_shot": [magical(80, ".75", ad=".75"), ("attack_slow", {"duration": 3, "ratio": r(".2")}), ("rot", {}), ("knockback", {"distance": 100, "duration": r(".12")})],
     "active_open_mic": [
-        ("channel_cone", {"count": 3, "interval": r(".3"), "slow": r(".3"), "slow_duration": r("1.2")}), magical(38, ".32", 0, ".35"), ("knockback", {"distance": 100, "duration": r(".12")})],
-    # Issue #287 P4 skills N1-N3.
+        ("self_area", {"radius": 340}),
+        magical(65, ".5", ".03", ".55", monster_multiplier=r("1.6")),
+        ("knockback", {"distance": 160, "duration": r(".15")}),
+        ("shield", {"ad_ratio": 0, "ap_ratio": r(".45"), "base": 75, "duration": 3, "max_hp_ratio": r(".06"), "resist_ratio": r(".6")}),
+        ("warcry_ring", {"shield_per_hit_ratio": r(".25")})],
     "active_cola_shake": [("channel_cone", {"count": 1, "interval": r(".25")}), magical(55, ".5"), ("chill", {}), ("knockback", {"distance": 100, "duration": r(".12")})],
     "active_desk_fan": [("fan", {"distance": 60, "duration": 4, "interval": r(".5"), "length": 600, "width": 200})],
     "active_stale_takeout": [magical(75, ".7", ad=".7"), ("rot", {}), ("ground_state", {"kind": "miasma"}), ("knockback", {"distance": 100, "duration": r(".12")})],
     "active_school_bag": [("bag", {"count": 1, "duration": 4, "hp_base": 150, "hp_per_level": 20, "radius": 200, "size": 40}),
-                          magical(85, ".65", 0, ".7")],
+                          magical(85, ".65", 0, ".7", monster_multiplier=r("1.4"))],
+    "active_flurry_rush": [
+        ("frenzy_waves", {"adaptive_ratio": r(".38"), "base": 32, "distance": 420, "duration": 4, "radius": 65, "speed": 1900,
+                          "stats": {"AttackSpeedBonusRatio": r(".35"), "MoveSpeedBonusRatio": r(".18")}})],
+    "active_cordon_tape": [
+        ("cordon_line", {"ally_amp": r(".25"), "distance": 180, "duration": 5, "length": 500, "vulnerable_duration": r("2.5"),
+                         "vulnerable_ratio": r(".15"), "width": 70}),
+        adaptive(65, ".7"), ("slow", {"duration": r("1.5"), "ratio": r(".3")})],
 }
 # #198 five point-bought stats: native id and the bonuses of one point.
 STAT_POINTS = {
-    "stat_physique": (27, {"MaxHPFlat": 40, "HPRegenFlat": r(".08")}),
-    "stat_thick_skin": (28, {"ArmorFlat": r("2.5"), "MagicResistFlat": r("2.5")}),
+    "stat_physique": (27, {"MaxHPFlat": 52, "HPRegenFlat": r(".08")}),
+    "stat_thick_skin": (28, {"ArmorFlat": r("3.5"), "MagicResistFlat": r("3.5")}),
     "stat_strength": (29, {"ADFlat": r("3.5"), "CritChanceBonusRatio": r(".006")}),
     "stat_brains": (30, {"APFlat": 6, "CooldownHasteFlat": 1, "MomentumRegenFlat": r(".06")}),
     "stat_agility": (31, {"AttackSpeedBonusRatio": r(".02"), "MoveSpeedBonusRatio": r(".005")}),
@@ -242,6 +253,23 @@ CARD_FRAMES = {
     "medal_electric": ("麻勋章", "medal", "element"),
     "medal_chill": ("冻勋章", "medal", "element"),
     "medal_rot": ("馊勋章", "medal", "element"),
+    # Issue #345 cross-axis synergy unlock cards.
+    "card_brain_speed": ("脑转手快", "body", "convert"),
+    "card_spellblade_echo": ("咒刃回响", "body", "trigger"),
+    "card_heavy_mallet": ("千斤重锤", "body", "convert"),
+    "card_let_bullets_fly": ("让子弹飞", "body", "modify"),
+    "card_eagle_stance": ("鹰眼架枪", "body", "modify"),
+    "card_runaway_train": ("失控列车", "dash", "convert"),
+    "card_phantom_molt": ("幻影脱壳", "dash", "trigger"),
+    "card_skate_blade": ("冰刀割裂", "body", "trigger"),
+    "card_tonnage_crush": ("吨位碾压", "body", "convert"),
+    "card_hulking_presence": ("大块头有威慑", "body", "convert"),
+    "card_iron_hedgehog": ("铁刺猬", "body", "convert"),
+    "card_reactive_plating": ("反应装甲", "body", "trigger"),
+    "card_desperado": ("亡命之徒", "body", "modify"),
+    "card_fuel_the_fire": ("火上浇油", "skill", "trigger"),
+    "card_rogue_works": ("违章工事", "body", "modify"),
+    "card_martial_scholar": ("文武双全", "body", "trigger"),
 }
 
 
@@ -284,11 +312,11 @@ class ApprovedDemoData(unittest.TestCase):
                      "2026-11-09 #144 equipment, gold and shops removed", "#225: PK +50%",
                      "2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据"):
             self.assertIn(text, approval["decision"])
-        self.assertEqual((len(self.data["abilities"]), len(self.data["stats"]), len(self.data["camps"]["monsters"])), (26, 5, 12))
+        self.assertEqual((len(self.data["abilities"]), len(self.data["stats"]), len(self.data["camps"]["monsters"])), (24, 5, 12))
         self.assertEqual([row["id"] for row in self.data["abilities"]], sorted(ACTIVE_IDS))
         self.assertFalse({"attributes", "opening_cards"} & set(self.data))
         self.assertEqual((self.data["identity"]["schema_version"], self.data["identity"]["handler_revision"],
-                          self.data["identity"]["projection_revision"]), (7, 14, 10))
+                          self.data["identity"]["projection_revision"]), (8, 15, 11))
         self.assertIn("#292 P5 cards, vouchers, rest shop, pick tickets and chains approved", approval["decision"])
         self.assertIn("#287 P2 build cards and P4 elements, reactions, ground states and N1-N3 approved", approval["decision"])
         self.assertFalse({"components", "workshop_capacity"} & (set(self.data) | set(self.data["progression"])))
@@ -299,15 +327,16 @@ class ApprovedDemoData(unittest.TestCase):
     def test_every_approved_parameter_value_and_unit(self):
         expected = {}
         for stat, unit, values in (
-            ("MaxHP", "hp", ("860", "80", "1", "20000")),
+            ("MaxHP", "hp", ("860", "105", "1", "20000")),
             ("AD", "points", ("70", "3.2", "0", "2000")),
-            ("AP", "points", ("0", "0", "0", "3000")),
+            ("AP", "points", ("0", None, "0", "3000")),
             ("Armor", "points", ("18", "2", "0", "1000")),
             ("MagicResist", "points", ("18", "2", "0", "1000")),
             ("HPRegen", "hp/s", ("1.60", "0.12", "0", "12")),
         ):
             for suffix, value in zip(("Base", "PerLevel", "Min", "Max"), values):
-                expected[f"STAT.{stat}.{suffix}"] = (unit, value)
+                if value is not None:
+                    expected[f"STAT.{stat}.{suffix}"] = (unit, value)
         for key, unit, value in (
             ("STAT.BaseAttackSpeed", "attacks/s", ".85"), ("STAT.AttackSpeedPerLevelRatio", "ratio", ".02"),
             ("STAT.AttackSpeed.Min", "attacks/s", ".30"), ("STAT.AttackSpeed.Max", "attacks/s", "5"),
@@ -318,10 +347,12 @@ class ApprovedDemoData(unittest.TestCase):
             ("MOMENTUM.Max", "momentum", "100"), ("MOMENTUM.Start", "momentum", "50"),
             ("MOMENTUM.CombatPerSec", "momentum/s", "5"), ("MOMENTUM.BasicPerRefInterval", "momentum", "10"),
             ("MOMENTUM.BasicRefIntervalSec", "ms", "1.334"), ("MOMENTUM.SkillHit", "momentum", "5"),
-            ("MOMENTUM.Reaction", "momentum", "10"), ("MOMENTUM.PerfectDodge", "momentum", "15"),
-            ("MOMENTUM.PerfectDodgeWindowSec", "ms", ".3"), ("MOMENTUM.IdleDelaySec", "ms", "5"),
+            ("MOMENTUM.Reaction", "momentum", "10"), ("MOMENTUM.PerfectDodge", "momentum", "20"),
+            ("MOMENTUM.PerfectDodgeWindowSec", "ms", ".3"), ("MOMENTUM.DashDodgeWindowSec", "ms", ".12"),
+            ("MOMENTUM.DashDodgeCutRatio", "ratio", ".5"), ("MOMENTUM.DashDodgeCooldownRefundRatio", "ratio", ".3"),
+            ("MOMENTUM.IdleDelaySec", "ms", "5"),
             ("MOMENTUM.IdleReturnPerSec", "momentum/s", "10"), ("COMBO.ResetSec", "ms", "2.5"),
-            ("OVERDRIVE.Threshold", "momentum", "60"), ("OVERDRIVE.HoldSec", "ms", ".18"), ("OVERDRIVE.Scale", "ratio", "1.6"),
+            ("OVERDRIVE.Threshold", "momentum", "60"), ("OVERDRIVE.HoldSec", "ms", ".35"), ("OVERDRIVE.Scale", "ratio", "1.35"),
             ("OVERDRIVE.WaterSlow", "ratio", ".45"), ("OVERDRIVE.WaterSlowSec", "ms", "1.5"),
             ("OVERDRIVE.ShockReactionRatio", "ratio", ".5"), ("OVERDRIVE.RotDurationScale", "ratio", "2"),
             ("AI.DodgeChance", "ratio", ".5"), ("AI.EnemyGroundPathCost", "ratio", "3"), ("AI.BreakoutChance", "ratio", ".25"),
@@ -336,10 +367,10 @@ class ApprovedDemoData(unittest.TestCase):
             ("CAPTURE.SpraySec", "ms", "3.5"), ("CAPTURE.GuardSec", "ms", "20"), ("CAPTURE.GuardCheckpointSec", "ms", "10"), ("CAPTURE.GuardResumeSec", "ms", "8"),
             ("SHOWDOWN.UnlockDelaySec", "ms", "10"), ("SHOWDOWN.DurationSec", "ms", "150"),
             ("SHOWDOWN.FirstRespawnSec", "ms", "18"), ("SHOWDOWN.SecondRespawnSec", "ms", "24"),
-            ("SHOWDOWN.RespawnCutoffSec", "ms", "90"), ("SHOWDOWN.ClosureStartsSec", "ms", "75"),
+            ("SHOWDOWN.RespawnCutoffSec", "ms", "90"), ("SHOWDOWN.ClosureStartsSec", "ms", "75"), ("SHOWDOWN.KillGuardBonusSec", "ms", "4"),
             # Issue #287 spec §10 (P6): three 160 s field segments and 25 s rests.
             ("MATCH.FieldSegmentSec", "ms", "160"),
-            ("REST.OpeningBuildSec", "ms", "20"), ("REST.BuildSec", "ms", "40"),
+            ("REST.OpeningBuildSec", "ms", "20"), ("REST.BuildSec", "ms", "40"), ("REST.FinalBuildSec", "ms", "20"),
             ("REST.ReturnSec", "ms", "3"), ("REST.ReturnSearchRadiusCm", "cm", "300"),
             ("REST.EntryReadyTimeoutSec", "ms", "30"),
             # The rest PK (R1 and R2): sign-up inside the build step, then draw+betting, ready, fight, and settlement+payout.
@@ -366,7 +397,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("DAILY.BlackoutVisionCut", "ratio", "0.25"), ("DAILY.BlackoutShockScale", "ratio", "2"), ("DAILY.TyphoonIntervalSec", "ms", "30"),
             ("DAILY.TyphoonPushCm", "cm", "150"), ("DAILY.HeatBurnTickScale", "ratio", "1.3"), ("DAILY.SalePriceScale", "ratio", "0.5"),
             ("DAILY.DeliveryExpireSec", "ms", "15"), ("DAILY.PatrolBossAppearSec", "ms", "120"), ("DAILY.ExamMonsterXPScale", "ratio", "1.3"),
-            ("DAILY.ExamRespawnBonusSec", "ms", "3"), ("DAILY.GymDashCooldownCut", "ratio", "0.3"), ("AFFIX.Chance", "ratio", "0.3"), ("MEDAL.LevelChance", "ratio", "0.15"), ("MEDAL.CampLowChance", "ratio", "0.03"), ("MEDAL.CampHighChance", "ratio", "0.06"), ("MEDAL.CampEliteChance", "ratio", "0.12"), ("MEDAL.CampAncientChance", "ratio", "0.25"), ("MEDAL.BossChance", "ratio", "1"), ("MEDAL.EventChance", "ratio", "0.5"),
+            ("DAILY.ExamRespawnBonusSec", "ms", "3"), ("DAILY.GymDashCooldownCut", "ratio", "0.3"), ("AFFIX.Chance", "ratio", "0.3"), ("MEDAL.LevelChance", "ratio", "0.08"), ("MEDAL.CampLowChance", "ratio", "0"), ("MEDAL.CampHighChance", "ratio", "0.02"), ("MEDAL.CampEliteChance", "ratio", "0.08"), ("MEDAL.CampAncientChance", "ratio", "0.20"), ("MEDAL.BossChance", "ratio", "1"), ("MEDAL.EventChance", "ratio", "0.25"), ("MEDAL.Tier2ReactionBonusRatio", "ratio", "0.35"),
             ("AFFIX.OvertimeAttackSpeed", "ratio", "0.3"), ("AFFIX.TeambuildXPScale", "ratio", "1.5"),
             ("AFFIX.BonusHP", "ratio", "0.4"), ("AFFIX.LayoffAttack", "ratio", "0.3"), ("AFFIX.AuditTelegraphCut", "ratio", "0.3"),
             ("EXPLORE.LockerRadiusCm", "cm", "150"), ("EXPLORE.LockerChannelSec", "ms", "3"),
@@ -381,14 +412,14 @@ class ApprovedDemoData(unittest.TestCase):
             ("CAMP.ResetArrivalRadiusCm", "cm", "100"),
             ("CAMP.ReturnDeadEndSec", "ms", "6"), ("CAMP.GrowthStageSec", "ms", "43"),
             ("CAMP.GrowthHPRatioPerStage", "ratio", ".12"), ("CAMP.GrowthAttackRatioPerStage", "ratio", ".08"),
-            ("CAMP.GrowthResistPerStage", "points", "2"), ("CAMP.GrowthRewardXPRatioPerStage", "ratio", ".1"), ("CAMP.ClearHealMissingRatio", "ratio", ".12"), ("CAMP.ClearMomentum", "momentum", "25"), ("CAMP.ClearOrbSec", "ms", "12"),
+            ("CAMP.GrowthResistPerStage", "points", "2"), ("CAMP.GrowthRewardXPRatioPerStage", "ratio", ".06"), ("CAMP.ClearHealMissingRatio", "ratio", ".12"), ("CAMP.ClearMomentum", "momentum", "25"), ("CAMP.ClearOrbSec", "ms", "12"),
             ("AIRDROP.ExpireSec", "ms", "30"), ("CAMPMARK.RevealSec", "ms", "11"),
             ("AIRDROP.AnnounceLeadSec", "ms", "15"), ("AIRDROP.PickupRadiusCm", "cm", "150"),
             ("AIRDROP.HealMaxHPRatio", "ratio", ".20"),
             ("AIRDROP.MoveSpeedRatio", "ratio", ".20"), ("AIRDROP.MoveSpeedSec", "ms", "6"),
             ("LEADER.RefreshSec", "ms", "10"), ("LEADER.SurvivalPointSec", "ms", "30"), ("LEADER.CircleRadiusCm", "cm", "1500"),
             ("LEADER.CircleMaxOffsetCm", "cm", "1000"),
-            ("REWARD.AssistWindowSec", "ms", "15"), ("REWARD.AssistXPRatio", "ratio", ".5"), ("REWARD.KillMedalChance", "ratio", ".5"), ("GROWTH.BuildSafeWindowSec", "ms", "4"),
+            ("REWARD.AssistWindowSec", "ms", "15"), ("REWARD.AssistXPRatio", "ratio", ".5"), ("REWARD.KillMedalChance", "ratio", ".25"), ("GROWTH.BuildSafeWindowSec", "ms", "4"),
             ("AI.RetreatHPRatio", "ratio", ".25"), ("AI.ResumeFarmHPRatio", "ratio", ".45"),
             ("AI.HighCampEntryHPRatio", "ratio", ".80"), ("AI.HighCampReserveHPRatio", "ratio", ".35"),
             ("AI.LowCampReserveHPRatio", "ratio", ".15"), ("AI.CaptureReactionBudgetSec", "ms", "2"),
@@ -407,6 +438,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("COMBAT.KeystoneThickSkinGuardPoints", "points", "45"),
             ("COMBAT.KeystoneThickSkinGuardCapRatio", "ratio", ".22"),
             ("COMBAT.KeystoneThickSkinIntervalSec", "ms", "5"), ("COMBAT.KeystoneThickSkinSteadySec", "ms", "1.5"), ("COMBAT.KeystoneThickSkinKnockbackRatio", "ratio", ".5"),
+            ("COMBAT.KeystoneThickSkinBleedThresholdRatio", "ratio", ".35"), ("COMBAT.KeystoneThickSkinBleedSec", "ms", "2"), ("COMBAT.KeystoneThickSkinBleedTickSec", "ms", ".5"),
             ("COMBAT.KeystoneStrengthDamageRatio", "ratio", ".14"),
             ("COMBAT.KeystoneBrainsMomentumRefundRatio", "ratio", ".3"),
             ("COMBAT.KeystoneBrainsReactionMomentum", "momentum", "15"), ("COMBAT.KeystoneBrainsCooldownCutSec", "ms", "1"),
@@ -462,10 +494,13 @@ class ApprovedDemoData(unittest.TestCase):
             ("GROUND.FieldTickSec", "ms", ".5"),
             ("GROUND.FieldRatio", "ratio", ".3"),
             ("OVERDRIVE.ChillRootSec", "ms", ".6"),
+            ("CARDS.VocabWeight", "ratio", "1.2"),
+            ("SHOP.VocabWeight", "ratio", "1.8"),
         ):
             expected[key] = (unit, value)
         for key, value in (
-            ("XP.BaseToNext", 60), ("XP.IncreasePerLevel", 20),
+            ("XP.BaseToNext", 60), ("XP.IncreasePerLevel", 20), ("XP.SteepFromLevel", 5), ("XP.SteepExtraPerLevel", 15),
+            ("MEDAL.MaxTier", 3),
             ("SHOWDOWN.RespawnLimit", 2),
             ("REWARD.PlayerXP.Base", 140), ("REWARD.PlayerXP.PerLevel", 28), ("REWARD.BountyXP", 150), ("REWARD.BountyCardOffer", 3), ("AI.RetryPolicy.MaxAttempts", 3),
             ("CAMP.ReturnDeadEndPlans", 3), ("CAMP.GrowthMaxStage", 10), ("AIRDROP.RewardXP", 200),
@@ -482,10 +517,10 @@ class ApprovedDemoData(unittest.TestCase):
             ("GROWTH.KeystoneThresholdPoints", 18), ("GROWTH.ActiveSkipPoints", 1),
             # Spec §3.8, §3.12 and §13 (P2): card capacity, offers, rerolls, lock, vocabulary weight, the chain guard and the AI.
             ("CARDS.CapacityBase", 6), ("CARDS.LevelsPerSlot", 3), ("CARDS.OfferSize", 3), ("CARDS.FreeRerolls", 3),
-            ("CARDS.RerollsPerRest", 1), ("CARDS.VocabWeight", 2),
+            ("CARDS.RerollsPerRest", 1),
             ("CHAIN.MaxDepth", 16), ("CHAIN.MaxEffectsPerStep", 256), ("AI.CardVocabScore", 2), ("AI.LeaderHuntMaxLevelGap", 2), ("AI.BreakoutCardScore", 5),
             # Spec §3.13, §6.5 and §13 (P5): offer skips, the rest shop (in stat points), chain ends and the AI's skip.
-            ("CARDS.SkipPoints", 1), ("CARDS.OfferEveryLevels", 2), ("SHOP.CardSlots", 4), ("SHOP.VocabCardSlots", 2), ("SHOP.VocabWeight", 3), ("SHOP.SkillSlots", 2), ("SHOP.CardPrice", 2), ("SHOP.SkillPrice", 2), ("SHOP.RefreshPrice", 0), ("SHOP.RefreshStep", 1), ("SHOP.SkillPointPrice", 3), ("SHOP.SkillPointMaxPerMatch", 2), ("CHAIN.MinKeySteps", 3),
+            ("CARDS.SkipPoints", 1), ("CARDS.OfferEveryLevels", 3), ("SHOP.CardSlots", 4), ("SHOP.VocabCardSlots", 2), ("SHOP.SkillSlots", 2), ("SHOP.CardPrice", 2), ("SHOP.SkillPrice", 2), ("SHOP.RefreshPrice", 0), ("SHOP.RefreshStep", 1), ("SHOP.SkillPointPrice", 3), ("SHOP.SkillPointMaxPerMatch", 2), ("CHAIN.MinKeySteps", 3),
             ("OVERDRIVE.FireBurnStacks", 3),
         ):
             expected[key] = (None, value)
@@ -495,6 +530,8 @@ class ApprovedDemoData(unittest.TestCase):
         expected["COMBO.StepRatios"] = ("ratio", (".9", ".9", "1.3"))
         expected["AIRDROP.LandSec"] = ("ms", ("40", "110", "200", "270", "360", "430"))
         expected["DAILY.DeliveryLandSec"] = ("ms", ("40", "75", "110", "155", "200", "235", "270", "315", "360", "395", "430", "460"))
+        expected["SHOWDOWN.SprayRatchetSec"] = ("ms", ("1.15", "2.3"))
+        expected["SHOWDOWN.GuardRatchetSec"] = ("ms", ("7", "14"))
         self.assertEqual(set(self.data["parameters"]), set(expected))
         for key, (unit, value) in expected.items():
             with self.subTest(key=key):
@@ -531,7 +568,7 @@ class ApprovedDemoData(unittest.TestCase):
                                            "knockback": 20, "silence": 25, "burn": 26,
                                            "attack_slowed": 27, "wet": 30, "electrified": 31, "braced": 32,
                                            "camp_enraged": 34, "camp_guarding": 35, "chilled": 36, "rotten": 37})
-        self.assertEqual(ids["effect_ops"], {"damage": 1, "shield": 2, "dispel_root": 3, "root": 4, "lifesteal": 7, "dash": 8, "slow": 12, "timed_stat_bonus": 13, "self_area": 14, "taunt": 18, "disarm": 20, "stun": 21, "empower_basic": 22, "thorns": 24, "triggered_shield": 31, "dispel_slow": 37, "knockback": 40, "zone": 50, "zone_slow": 52, "zone_damage": 54, "silence": 69, "breach": 70, "burn": 71, "zone_burn": 77, "channel_cone": 78, "ground_impact": 79, "attack_slow": 80, "contact_trap": 81, "dash_contact": 82, "wet": 90, "electrify": 91, "chain_bounce": 92, "brace": 93, "zone_wet": 94, "zone_haste": 95, "basic_element": 101, "idle_ready_amp": 103, "cooldown_cost": 130, "knockback_impact": 138, "skill_lifesteal": 146, "projectile_return": 152, "projectile_pierce": 153, "echo_impact": 155, "hit_haste_other": 156, "setup_mark": 157, "reaction_haste": 158, "zone_tether": 160, "final_knockback": 162, "empower_reach": 163, "pull": 164, "vulnerable": 170, "next_basic_amp": 171, "momentum_gain": 172, "momentum_steal": 173, "follow_up": 174, "recast": 175, "dash_back": 176, "self_buff": 177, "burn_burst": 178, "pulse": 179, "zone_guard": 180, "zone_momentum": 181, "overcharge": 182, "follow_basic": 183, "shield_burst_break": 184, "basic_rider": 185, "delayed_burst": 186, "shield_reflect": 187, "shield_end_heal": 188, "shield_hit_bonus": 189, "brace_stun": 190, "brace_heal": 191, "brace_stack": 192, "brace_shove": 193, "brace_shield": 194, "combo_momentum": 196, "basic_cooldown_cut": 197, "combo_skill_hit": 198, "combo_knockback": 199, "combo_double": 200, "overcap_extra_hit": 201, "basic_ap_rider": 202, "focus_attack_speed": 203, "skill_hit_momentum": 204, "auto_recast": 205, "skill_damage_factor": 206, "hp_cost": 207, "skill_ad_rider": 208, "skill_growth": 209, "skill_element": 210, "dash_contact_reset": 211, "dash_split": 212, "dash_phase": 213, "dash_contact_element": 214, "takedown_reset": 215, "last_stand": 216, "reaction_momentum": 217, "reaction_element": 218, "skill_crit": 219, "lifesteal_skills": 220, "armor_to_hp": 221, "overheal_shield": 222, "missing_hp_attack_speed": 223, "haste_momentum": 224, "heal_growth": 225, "kill_growth": 226, "control_growth": 227, "idle_charge": 228, "element_aura": 229, "element_duration": 230, "reaction_factor": 231, "burn_cap": 232, "rot": 233, "chill": 234, "ground_state": 236, "fan": 237, "dash_ice": 238, "ground_relocate": 239, "double_stall": 240, "ground_growth": 241, "bag": 242, "basic_projectile": 243, "combo_sweep": 244, "combo_cast": 245, "speed_factor": 246, "hit_growth": 247, "control_amp": 248, "reshape": 249, "shield_spend": 250, "recent_cast_amp": 251, "dodge_free_cast": 252, "dash_ram": 253, "overdrive_short": 254, "tally": 255})
+        self.assertEqual(ids["effect_ops"], {"damage": 1, "shield": 2, "dispel_root": 3, "root": 4, "lifesteal": 7, "dash": 8, "slow": 12, "timed_stat_bonus": 13, "self_area": 14, "taunt": 18, "disarm": 20, "stun": 21, "empower_basic": 22, "thorns": 24, "triggered_shield": 31, "dispel_slow": 37, "knockback": 40, "zone": 50, "zone_slow": 52, "zone_damage": 54, "silence": 69, "breach": 70, "burn": 71, "zone_burn": 77, "channel_cone": 78, "ground_impact": 79, "attack_slow": 80, "contact_trap": 81, "dash_contact": 82, "wet": 90, "electrify": 91, "chain_bounce": 92, "brace": 93, "zone_wet": 94, "zone_haste": 95, "basic_element": 101, "idle_ready_amp": 103, "cooldown_cost": 130, "knockback_impact": 138, "skill_lifesteal": 146, "projectile_return": 152, "projectile_pierce": 153, "echo_impact": 155, "hit_haste_other": 156, "setup_mark": 157, "reaction_haste": 158, "zone_tether": 160, "final_knockback": 162, "empower_reach": 163, "pull": 164, "vulnerable": 170, "next_basic_amp": 171, "momentum_gain": 172, "momentum_steal": 173, "follow_up": 174, "recast": 175, "dash_back": 176, "self_buff": 177, "burn_burst": 178, "pulse": 179, "zone_guard": 180, "zone_momentum": 181, "overcharge": 182, "follow_basic": 183, "shield_burst_break": 184, "basic_rider": 185, "delayed_burst": 186, "shield_reflect": 187, "shield_end_heal": 188, "shield_hit_bonus": 189, "brace_stun": 190, "brace_heal": 191, "brace_stack": 192, "brace_shove": 193, "brace_shield": 194, "combo_momentum": 196, "basic_cooldown_cut": 197, "combo_skill_hit": 198, "combo_knockback": 199, "combo_double": 200, "overcap_extra_hit": 201, "basic_ap_rider": 202, "focus_attack_speed": 203, "skill_hit_momentum": 204, "auto_recast": 205, "skill_damage_factor": 206, "hp_cost": 207, "skill_ad_rider": 208, "skill_growth": 209, "skill_element": 210, "dash_contact_reset": 211, "dash_split": 212, "dash_phase": 213, "dash_contact_element": 214, "takedown_reset": 215, "last_stand": 216, "reaction_momentum": 217, "reaction_element": 218, "skill_crit": 219, "lifesteal_skills": 220, "armor_to_hp": 221, "overheal_shield": 222, "missing_hp_attack_speed": 223, "haste_momentum": 224, "heal_growth": 225, "kill_growth": 226, "control_growth": 227, "idle_charge": 228, "element_aura": 229, "element_duration": 230, "reaction_factor": 231, "burn_cap": 232, "rot": 233, "chill": 234, "ground_state": 236, "fan": 237, "dash_ice": 238, "ground_relocate": 239, "double_stall": 240, "ground_growth": 241, "bag": 242, "basic_projectile": 243, "combo_sweep": 244, "combo_cast": 245, "speed_factor": 246, "hit_growth": 247, "control_amp": 248, "reshape": 249, "shield_spend": 250, "recent_cast_amp": 251, "dodge_free_cast": 252, "dash_ram": 253, "overdrive_short": 254, "tally": 255, "grab_line": 256, "backstab_lunge": 257, "parry_stance": 258, "warcry_ring": 259, "slipper_pickup": 260, "frenzy_waves": 261, "cordon_line": 262, "brain_speed": 263, "spellblade_echo": 264, "heavy_mallet": 265, "projectile_flight_amp": 266, "eagle_stance": 267, "runaway_train": 268, "phantom_molt": 269, "skate_blade": 270, "tonnage_crush": 271, "hulking_presence": 272, "iron_hedgehog": 273, "reactive_plating": 274, "desperado": 275, "fuel_the_fire": 276, "rogue_works": 277, "martial_scholar": 278})
         entries = [row for row in self.data["display"] if row["id"] == "respawn_protection"]
         self.assertEqual(len(entries), 1)
         self.assertEqual({key: value for key, value in entries[0].items() if not key.endswith("_text")}, {
@@ -548,20 +585,19 @@ class ApprovedDemoData(unittest.TestCase):
         # Skill branch steps (issue #287 spec §5.1) are checked on their own below.
         step = re.compile(r"_(2a|2b|3a1|3a2|3b1|3b2)$")
         steps = {row["id"]: row["name_text"] for row in self.data["display"] if step.search(row["id"])}
-        self.assertEqual(len(steps), 26 * 6)
-        self.assertEqual((steps["active_elbow_2a"], steps["active_elbow_3b2"], steps["active_open_mic_2b"]), ("给我过来", "踹出内伤", "一嗓子"))
+        self.assertEqual(len(steps), 24 * 6)
+        self.assertEqual((steps["active_elbow_2a"], steps["active_elbow_3b2"], steps["active_open_mic_2b"]), ("给我过来", "踹出内伤", "破音大嗓门"))
         self.assertEqual({row["id"]: row["name_text"] for row in self.data["display"] if not step.search(row["id"])}, {
             "character_demo": "脆皮大学生",
-            # #198 v0.11 actives and the five point-bought stats.
             "active_elbow": "滚远点", "active_pants_down": "扒裤子", "active_crotch_grab": "掏蛋子",
-            "active_account_banned": "给老子闭嘴", "active_unplug": "拧你手腕", "active_snark_bolt": "甩你一鞋",
+            "active_unplug": "拧你手腕", "active_snark_bolt": "甩你一鞋",
             "active_seethe": "烫你屁股", "active_quick_meeting": "脚底开锅", "active_bail_out": "贴脸补一拳",
-            "active_apology_slide": "铲你脚脖子", "active_not_mad": "锅盖挡脸", "active_stare_down": "来打老子啊",
+            "active_not_mad": "锅盖挡脸", "active_stare_down": "来打老子啊",
             "active_triple_combo": "左右开抽", "active_calculus_drop": "板砖糊脸", "active_flyer_trap": "踩一脚试试",
             "active_open_mic": "扯嗓子喷你", "active_hose_down": "滋你一脸", "active_zap": "电你个哆嗦",
-            "active_charged_ram": "带电撞你", "active_brace": "顶着揍", "active_dirty_puddle": "满地泼脏水",
-            "active_sock_shot": "馊水糊脸",
+            "active_charged_ram": "蛮牛顶", "active_brace": "顶着揍",
             "active_cola_shake": "冰可乐摇一摇", "active_desk_fan": "电风扇", "active_stale_takeout": "过期外卖", "active_school_bag": "占座书包",
+            "active_flurry_rush": "疯狗乱拳", "active_cordon_tape": "警戒封条",
             "stat_physique": "体格", "stat_thick_skin": "脸皮", "stat_strength": "力道", "stat_brains": "脑力", "stat_agility": "身手",
             # Spec §7 P2 cards.
             **{identity: frame[0] for identity, frame in CARD_FRAMES.items()},
@@ -651,49 +687,44 @@ class ApprovedDemoData(unittest.TestCase):
                 self.assertEqual((amount(row["momentum_cost"]), amount(row["cooldown"])), (mana, cooldown))
                 self.assertEqual([(effect["op"], author_units(effect)) for effect in row["effects"]], ACTIVE_EFFECTS[identity])
         bolt = self.catalog.definition("active_snark_bolt")["target"]
-        self.assertEqual((amount(bolt["projectile_radius"]), amount(bolt["projectile_speed"])), (55, 1600))
-        sock = self.catalog.definition("active_sock_shot")["target"]
-        self.assertEqual((amount(sock["projectile_radius"]), amount(sock["projectile_speed"])), (55, 1500))
+        self.assertEqual((amount(bolt["projectile_radius"]), amount(bolt["projectile_speed"])), (55, 1650))
+        takeout = self.catalog.definition("active_stale_takeout")["target"]
+        self.assertEqual((amount(takeout["projectile_radius"]), amount(takeout["projectile_speed"])), (60, 1400))
         self.assertEqual(amount(self.catalog.definition("active_hose_down")["target"]["half_width"]), 80)
-        self.assertEqual(amount(self.catalog.definition("active_open_mic")["target"]["angle"]), 70)
+        self.assertEqual(amount(self.catalog.definition("active_pants_down")["target"]["half_width"]), 65)
+        self.assertEqual(amount(self.catalog.definition("active_cola_shake")["target"]["angle"]), 60)
 
     def test_opening_pool_and_active_offer_levels(self):
-        # The opening draws 20 actives (S01-S13, S17, S18, S20-S22, N1, N3); S14-S16, S19 and N2 come only from later
-        # opportunities.
         self.assertEqual({row["id"] for row in self.data["abilities"] if row["opening"]},
                          {identity for identity, frame in ACTIVE_FRAMES.items() if frame[-1]})
         self.assertEqual({row["id"] for row in self.data["abilities"] if not row["opening"]},
-                         {"active_not_mad", "active_stare_down", "active_brace", "active_flyer_trap", "active_desk_fan",
-                          "active_school_bag"})
-        self.assertEqual(sum(1 for row in self.data["abilities"] if row["opening"]), 20)
+                         {"active_crotch_grab", "active_unplug", "active_stare_down", "active_brace", "active_flyer_trap",
+                          "active_desk_fan", "active_stale_takeout", "active_flurry_rush", "active_cordon_tape"})
+        self.assertEqual(sum(1 for row in self.data["abilities"] if row["opening"]), 15)
         self.assertEqual(self.data["progression"]["active_offer_levels"], (2, 5, 9))
         self.assertEqual(set(self.data["progression"]),
                          {"max_level", "active_slots", "xp_start", "xp_thresholds", "xp_to_next", "active_offer_levels"})
 
     def test_all_cards_in_native_order(self):
-        # Spec §7: the 55 P2, 9 P4 and 21 P5 cards in native ID order 200-284 with their form, type and up to four vocabulary
-        # keys; Y25 alone chooses an element.
         self.assertEqual([row["id"] for row in self.data["cards"]], list(CARD_FRAMES))
         previous = 199
         for identity, (_, form, kind) in CARD_FRAMES.items():
             with self.subTest(identity=identity):
                 row = self.catalog.definition(identity)
-                self.assertTrue(previous < row["native_id"] <= 289)
+                self.assertTrue(previous < row["native_id"] <= 305)
                 previous = row["native_id"]
                 self.assertEqual((row["form"], row["type"]), (form, kind))
                 self.assertTrue(1 <= len(row["vocab"]) <= 4 and set(row["vocab"]) <= set(content.CARD_VOCAB))
                 self.assertEqual("choose_element" in row, identity == "card_live_wire")
-        self.assertEqual(len(CARD_FRAMES), 78)
+        self.assertEqual(len(CARD_FRAMES), 94)
 
     def test_retired_content_ids_stay_reserved_and_absent(self):
         ids = content.parse_json((content.ROOT / content.IDS_SOURCE).read_bytes(), "native IDs")
-        self.assertEqual(ids["retired_ranges"]["abilities"], [[0, 91], [104, 113], [119, 125]])
+        self.assertEqual(ids["retired_ranges"]["abilities"], [[0, 91], [101, 101], [104, 113], [116, 116], [118, 125], [130, 130]])
         self.assertEqual(ids["retired_ranges"]["stats"], [[0, 26]])
         self.assertIn([28, 29], ids["retired_ranges"]["statuses"])
         self.assertFalse({"attributes"} & set(ids) | {"attributes"} & set(ids["retired_ranges"]))
-        # Sock shot returns on its reserved number as S21; no retired ability, card or cower status returns.
-        self.assertEqual(ids["abilities"]["active_sock_shot"], 116)
-        self.assertEqual(self.catalog.definition("active_sock_shot")["native_id"], 116)
+        self.assertFalse({"active_sock_shot", "active_account_banned", "active_dirty_puddle", "active_apology_slide"} & set(ids["abilities"]))
         self.assertFalse([identity for identity in ids["abilities"] if identity.startswith("passive_") or identity == "active_cower"])
         self.assertFalse({"cowering", "contact_guard"} & set(ids["statuses"]))
         self.assertNotIn("STAT.AbilityCritMultiplier", self.data["parameters"])
@@ -749,7 +780,7 @@ class ApprovedDemoData(unittest.TestCase):
             return next(row for row in data["display"] if row["id"] == identity)
 
         for name, mutate, code in (
-            ("area on a unit target", lambda d: ability(d, "active_pants_down")["effects"].append(
+            ("area on a unit target", lambda d: ability(d, "active_elbow")["effects"].append(
                 {"op": "self_area", "radius": {"unit": "cm", "numerator": 100, "denominator": 1}}), "TargetEffectMismatch"),
             ("slow that stops the body", lambda d: first(d, "active_snark_bolt", "slow")["ratio"].update(bp=10000), "NumericDomain"),
             ("zero-radius area", lambda d: first(d, "active_seethe", "self_area")["radius"].update(numerator=0), "NumericDomain"),
@@ -793,18 +824,15 @@ class ApprovedDemoData(unittest.TestCase):
     def test_expanded_skill_geometry_and_recovery_refusals(self):
         author, schema, ids = self.approved_projection_inputs()
         cases = (
-            ("active_open_mic", "channel_cone", "slow_duration", None, "ObjectShape"),
             ("active_calculus_drop", "ground_impact", "inner_radius", {"unit": "cm", "numerator": 201, "denominator": 1}, "InvalidGeometry"),
             ("active_calculus_drop", "ground_impact", "outer_ratio", {"unit": "ratio", "bp": 10000}, "NumericDomain"),
             ("active_flyer_trap", "contact_trap", "trigger_radius", {"unit": "cm", "numerator": 0, "denominator": 1}, "InvalidGeometry"),
-            ("active_open_mic", "channel_cone", "slow", {"unit": "ratio", "bp": 10000}, "NumericDomain"),
-            # #198 session A.
             ("active_zap", "chain_bounce", "radius", {"unit": "cm", "numerator": 0, "denominator": 1}, "InvalidGeometry"),
             ("active_zap", "chain_bounce", "ratio", {"unit": "ratio", "bp": 10000}, "NumericDomain"),
             ("active_brace", "brace", "ratio", {"unit": "ratio", "bp": 10000}, "NumericDomain"),
             ("active_brace", "brace", "record_ratio", {"unit": "ratio", "bp": 0}, "IneffectiveEffect"),
             ("active_desk_fan", "fan", "width", {"unit": "cm", "numerator": 0, "denominator": 1}, "InvalidGeometry"),
-            ("active_dirty_puddle", "zone_haste", "ratio", {"unit": "ratio", "bp": 10000}, "NumericDomain"),
+            ("active_cordon_tape", "cordon_line", "width", {"unit": "cm", "numerator": 0, "denominator": 1}, "InvalidGeometry"),
         )
         for identity, op, field, value, error in cases:
             projected = content.project_author(schema, author)
@@ -831,7 +859,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("active_snark_bolt", {"op": "pierce"}), ("active_not_mad", {"op": "dispel_disarm"}),
             ("active_quick_meeting", {"op": "zone_root", "duration": {"unit": "ms", "ms": 1000}}),
             ("active_seethe", {"op": "echo", "delay": {"unit": "ms", "ms": 1000}, "ratio": {"unit": "ratio", "bp": 5000}}),
-            ("active_account_banned", {"op": "breach", "stacks": 3}),
+            ("active_zap", {"op": "breach", "stacks": 3}),
         ):
             projected = content.project_author(schema, author)
             next(item for item in projected["abilities"] if item["id"] == identity)["effects"].append(effect)
@@ -852,7 +880,7 @@ class ApprovedDemoData(unittest.TestCase):
     def test_only_seethe_damage_scales_with_the_casters_max_hp(self):
         scaled = {row["id"] for row in self.data["abilities"] for effect in row["effects"]
                   if effect["op"] == "damage" and effect["max_hp_ratio"]["bp"] != 0}
-        self.assertEqual(scaled, {"active_seethe"})
+        self.assertEqual(scaled, {"active_seethe", "active_charged_ram", "active_open_mic"})
 
     def test_self_area_damage_refuses_without_its_area(self):
         author, schema, ids = self.approved_projection_inputs()
@@ -865,7 +893,7 @@ class ApprovedDemoData(unittest.TestCase):
     def test_v7_contracts_reject_misplaced_mechanics(self):
         author, schema, ids = self.approved_projection_inputs()
         for identity, change in (
-            ("active_account_banned", lambda effects: effects.pop(0)),
+            ("active_zap", lambda effects: effects.pop(0)),
             ("active_unplug", lambda effects: effects.append({"op": "stun", "duration": {"unit": "ms", "ms": 500}})),
             ("active_bail_out", lambda effects: effects.pop(0)),
             ("active_seethe", lambda effects: next(e for e in effects if e["op"] == "burn").update(basic_stacks=1)),
@@ -878,14 +906,14 @@ class ApprovedDemoData(unittest.TestCase):
 
     def test_monster_and_progression_values(self):
         self.assertEqual(self.data["progression"]["xp_thresholds"],
-                         (0, 60, 140, 240, 360, 500, 660, 840, 1040, 1260, 1500, 1760, 2040, 2340, 2660, 3000))
+                         (0, 60, 140, 240, 375, 545, 750, 990, 1265, 1575, 1920, 2300, 2715, 3165, 3650, 4170))
         self.assertEqual(self.data["progression"]["xp_to_next"],
-                         (60, 80, 100, 120, 140, 160, 180, 200, 220, 240, 260, 280, 300, 320, 340))
+                         (60, 80, 100, 135, 170, 205, 240, 275, 310, 345, 380, 415, 450, 485, 520))
         self.assertEqual((self.data["progression"]["max_level"], self.data["progression"]["active_slots"]), (16, 3))
         for identity, tier, count, hp, resist, attack, rate, windup, reach, speed, leash, grace, respawn, xp, interval in (
-            ("monster_scavenger", "Low", 3, 90, 8, 14, ".80", 350, 150, 240, 900, 3000, 25000, 14, 1250),
-            ("monster_guardian", "High", 2, 315, 20, 50, ".65", 500, 175, 260, 1050, 4000, 65000, 40, 1539),
-            ("monster_advisor", "Elite", 1, 1350, 30, 126, ".60", 500, 175, 260, 1050, 4000, 90000, 180, 1667),
+            ("monster_scavenger", "Low", 3, 90, 8, 14, ".80", 350, 150, 240, 900, 3000, 40000, 11, 1250),
+            ("monster_guardian", "High", 2, 315, 20, 50, ".65", 500, 175, 260, 1050, 4000, 75000, 32, 1539),
+            ("monster_advisor", "Elite", 1, 1350, 30, 126, ".60", 500, 175, 260, 1050, 4000, 90000, 145, 1667),
             ("monster_director", "Ancient", 1, 2100, 40, 182, ".55", 500, 175, 260, 1050, 4000, 120000, 300, 1819),
         ):
             row = self.catalog.definition(identity)

@@ -3,147 +3,941 @@
   "folder": "Icons",
   "provenance": "Lockdown Wugang icon set generated individually with the built-in ImageGen in the project-approved aerosol graffiti style over opaque colored grounds; 128x128 sRGB exports. No third-party art.",
   "icons": [
-    {"id": "icon_final_clear_out", "sha256": "43681e45fcb2acfc52478e1727bc3781aad86846ed9024ec70e0ec614ec7ee38", "width": 128, "height": 128},
-    {"id": "icon_final_kill_seconds", "sha256": "01b63579ac5c3ff1639f695c559eca04b69d0e50e0a47ae41b38d5aed69645a5", "width": 128, "height": 128},
-    {"id": "icon_final_double_yellow", "sha256": "27565684243be2c06ce107891db548009fb7ddb010938e652e2cddf9d4529fe5", "width": 128, "height": 128},
-    {"id": "icon_final_hit_and_run", "sha256": "a0c8065b41ac5b06aef592dd955438a4f586e20ccbf149cc1ae99e707f324506", "width": 128, "height": 128},
-    {"id": "icon_final_carry_flag", "sha256": "1dcc9c2b6d9e4039065c5163cea516ffa9bbf4a354a6a3fd0da462d41ead6579", "width": 128, "height": 128},
-    {"id": "icon_final_cage", "sha256": "c0f2f86a9ef1553c6946d137ae7a90133d2aadcc5d65375de3a62ce52f5abd14", "width": 128, "height": 128},
-    {"id": "icon_final_usurp", "sha256": "b34289861756ed23c07cd035dfcac1159669c2d3a5f83ad33da6b796e6294204", "width": 128, "height": 128},
-    {"id": "icon_final_private_pole", "sha256": "3bea0279ef9ea340b5251b7f6bfd2a08309a6166bc433e5532c8b291ff70db1e", "width": 128, "height": 128},
-    {"id": "icon_active_account_banned", "sha256": "6ad9b18a4e17350673384ef14ee7e7330af0721498a3a5581655ecefdbb10016", "width": 128, "height": 128},
-    {"id": "icon_active_apology_slide", "sha256": "d6d3340e3c4dd1e8d3a0e6df2a72aa7ec4e734bceb9e3844eaba0ee0e6c5b4b8", "width": 128, "height": 128},
-    {"id": "icon_active_bail_out", "sha256": "1a4b8ff04ee34a2fcb48405909e040436ec432bbcd20c6e5e347874f125c20f3", "width": 128, "height": 128},
-    {"id": "icon_active_brace", "sha256": "49d0663c72d0610b245c348266b97b433bff014b7bbc9501fa8209c416d11536", "width": 128, "height": 128},
-    {"id": "icon_active_calculus_drop", "sha256": "fe9a7496ca92714ca84dc79001e52fa0f3c93b380dc3892380683e0ad0c3e4f5", "width": 128, "height": 128},
-    {"id": "icon_active_charged_ram", "sha256": "afb0706aade79130d2239c3f37350a755c90cbf7a82f19999b9720ff89f22f1d", "width": 128, "height": 128},
-    {"id": "icon_active_crotch_grab", "sha256": "d093edbfc5c71d7582c08a48caba69c577a4aa696e1397aef4ba8bd32b51a29a", "width": 128, "height": 128},
-    {"id": "icon_active_dirty_puddle", "sha256": "c53679acdb899ae9380cabbb2df7ec7e40d4cd5b08e92a742def905b146ad2bf", "width": 128, "height": 128},
-    {"id": "icon_active_elbow", "sha256": "007be2876cb7cac1c3e3dd0794ad6ecde97a4689a364ac199e36b0d073b2ece5", "width": 128, "height": 128},
-    {"id": "icon_active_flyer_trap", "sha256": "b3898e2fc723001d44c19ab943d86b73e43763f27c98fdd8e256d11bf42a6e13", "width": 128, "height": 128},
-    {"id": "icon_active_hose_down", "sha256": "bd99920d8b0ca19e165090a18fb4fbe4966c1b3205d8560527b2c9be77c8cf9f", "width": 128, "height": 128},
-    {"id": "icon_active_not_mad", "sha256": "bb868291b74d9425ef947169e2d0e0f5ed85d55550694f3abe81ecc042ab37f2", "width": 128, "height": 128},
-    {"id": "icon_active_open_mic", "sha256": "1978a3d00db606f26f53bd0dbbf57c4dbdaef538d1998c73a085fb191ff55b55", "width": 128, "height": 128},
-    {"id": "icon_active_pants_down", "sha256": "4a49bb95c59d77baaf92148078c0f789909e114689d3b114ca0cf20557c9790f", "width": 128, "height": 128},
-    {"id": "icon_active_quick_meeting", "sha256": "b781ef1b534c8c5fc2215fa73dfbd0cdb81e707bc31474f4473558dbdef3def8", "width": 128, "height": 128},
-    {"id": "icon_active_seethe", "sha256": "1caf4f8d9d7f3e336f54113faffe42281cb6c8786b3a359d8c66c218d6390e62", "width": 128, "height": 128},
-    {"id": "icon_active_snark_bolt", "sha256": "b03f681a36e798247f5f3574fd9c06dc08cfaf5593ae94f58911d1630e1a661f", "width": 128, "height": 128},
-    {"id": "icon_active_sock_shot", "sha256": "4b0e22aad95159f3135aaec121a304811d81197913716ff43d67e8135539537d", "width": 128, "height": 128},
-    {"id": "icon_active_stare_down", "sha256": "2de1c5c7a03bb988c41fbb434f4f74092848ca2a2633b587fe31e8c9337eadb5", "width": 128, "height": 128},
-    {"id": "icon_active_triple_combo", "sha256": "89e7b94e9a5a53463d733746418458eeca34d4ebb5769c367b6df0745b56462f", "width": 128, "height": 128},
-    {"id": "icon_active_unplug", "sha256": "60eb1db63299d7082ba18436f2c8597d48b1fa368bf09351ccf7e150fc608006", "width": 128, "height": 128},
-    {"id": "icon_active_zap", "sha256": "b18864339b6f52c79b18dc66c7052b2376df43b8fa4643bbd10818c083639513", "width": 128, "height": 128},
-    {"id": "icon_active_cola_shake", "sha256": "b29ea4f77bfb16ab0b731d31654bde2d19b809005712123e46c447055c07ae73", "width": 128, "height": 128},
-    {"id": "icon_active_desk_fan", "sha256": "35f89f203610d6b1eaac79e01172b6903fb3468670e3229912eae4c18842be24", "width": 128, "height": 128},
-    {"id": "icon_active_stale_takeout", "sha256": "42e8c1fd15a35516f958de59a2bd3742a5fae30b64141d8f93206f1783aaf189", "width": 128, "height": 128},
-    {"id": "icon_active_school_bag", "sha256": "a6c7ea7d9bed63427a57389885a4132b41a07afa2bc42b602699700cb1d6ac6c", "width": 128, "height": 128},
-    {"id": "icon_attack_slowed", "sha256": "b13e2dd268f0f8733712d0ccdece0947b6e697330ff4be7c27d9d0128af75550", "width": 128, "height": 128},
-    {"id": "icon_braced", "sha256": "40751f40a0afa1a3d1719f17cd09e9eef6d6eba699eea3eb2092dc81dc668b09", "width": 128, "height": 128},
-    {"id": "icon_burn", "sha256": "c383f4f015b178c82493abbd274628e7579c5fcef339869729190e5146bea0ac", "width": 128, "height": 128},
-    {"id": "icon_camp_returning", "sha256": "3e8754df01248028af7a91db0f74f28a3454f711693881a47c3e7f25abad3e33", "width": 128, "height": 128},
-    {"id": "icon_dash", "sha256": "5d9e26b5f01d61913b9d133e3cca0e668b7f801836a7d3359a5e059c19b3e7c7", "width": 128, "height": 128},
-    {"id": "icon_disarm", "sha256": "3871e077b05253330177c8d6bf0f4d54f3edf97f5a5efade617cd641e24f6f39", "width": 128, "height": 128},
-    {"id": "icon_dorm_regen", "sha256": "0f8289a4822a10061408a57e713509dd62d34eb2337825d642224129fc0c6ec2", "width": 128, "height": 128},
-    {"id": "icon_electrified", "sha256": "63dd09ce57e0e33f9b1e9ba766b3b886fa0e470df67bf0e9d4d90127ce8a8156", "width": 128, "height": 128},
-    {"id": "icon_empowered", "sha256": "e5405b57905224fecbc61de5ee9912f0a82f6c34b5a1e4f6e1ad5ea251b8f623", "width": 128, "height": 128},
-    {"id": "icon_exposed", "sha256": "e7d51bc610c5e907fc1d9a3f58ad7b35da5d2f2da611168ba15c22f5f7fba69c", "width": 128, "height": 128},
-    {"id": "icon_knockback", "sha256": "3e2306c48d25603fbfaa789a0e9a0c6cdff52ebd9c7dadd33311399c36270c30", "width": 128, "height": 128},
-    {"id": "icon_out_of_combat_regen", "sha256": "592373e8ea1ba8914891fdc6ce930ce738f59f3aecc9d96362fbd14b67d8c768", "width": 128, "height": 128},
-    {"id": "icon_respawn_protection", "sha256": "f2a452abfc6829efbfb49b99a0f79098cb12fd706123f025a9105a3df2be875e", "width": 128, "height": 128},
-    {"id": "icon_root", "sha256": "2095ac0b756a4e9336fee79c0600f21f89389299a0cd6976504579e15cd4df15", "width": 128, "height": 128},
-    {"id": "icon_shield", "sha256": "441a35731137371d021d8cdfe2b808072f56d80fe5637be962df2853cda32abf", "width": 128, "height": 128},
-    {"id": "icon_silence", "sha256": "0bda65b3dd828f78556e3c43c23741cc768011b2ec297a12ce2c714d33ed0a11", "width": 128, "height": 128},
-    {"id": "icon_slow", "sha256": "1ac2ad327ca0e764d13aeb299c13e3cb0015eb38f98b3a143ee623e427c774c6", "width": 128, "height": 128},
-    {"id": "icon_chilled", "sha256": "f6d98ede34ca3a59207ccd1a3d2e0f104d21825f362890f40df4c0b69142f952", "width": 128, "height": 128},
-    {"id": "icon_rotten", "sha256": "f1836cac4cf593fb48f3ecec93775a28e64c1b7173935179a4d3c795752fd8cb", "width": 128, "height": 128},
-    {"id": "icon_stat_agility", "sha256": "874816ec70950a611e4bff03b57d471f28a9faa4b827bcd0ad4894efd90a4d94", "width": 128, "height": 128},
-    {"id": "icon_stat_boost", "sha256": "49fee516317e78060567819c53cc517ad99596505b9a0f41ab9ea86bc9fdff07", "width": 128, "height": 128},
-    {"id": "icon_stat_brains", "sha256": "7ae7b682520d5ad27e637aa4c4260a7ff6f6d2a9534e41c7b7f1b83adc446462", "width": 128, "height": 128},
-    {"id": "icon_stat_physique", "sha256": "fceeffa310dcf31c723a0419962f84270ba6e6337c91602c6a7a415b1cc0585f", "width": 128, "height": 128},
-    {"id": "icon_stat_strength", "sha256": "765e5cdd95c50b818afc838ca615130641f0c6811ce481c35449d589d28ccf4c", "width": 128, "height": 128},
-    {"id": "icon_stat_thick_skin", "sha256": "865d847c51ca4a3d4d0ea744842d3e033ecf57f6d45697a05ded052e30325b62", "width": 128, "height": 128},
-    {"id": "icon_stun", "sha256": "ca5e87f004412464db693ed18c1ea74685742d60d5244d695cd2dbbc90903a64", "width": 128, "height": 128},
-    {"id": "icon_taunt", "sha256": "0f216a83d42ec46ec5df6d36b959d31ed187f6553607642a0cdbe583fbe81dc9", "width": 128, "height": 128},
-    {"id": "icon_wet", "sha256": "c4f447ee53c2c612d5a0876680ed13b4f09088637de991621cd52cfb3b7b3724", "width": 128, "height": 128},
-    {"id": "icon_camp_enraged", "sha256": "c1e45a4cc04d35893d0ba8e862b0c331051302f4f0f63b7b3c4e8caf835d0b0b", "width": 128, "height": 128},
-    {"id": "icon_camp_guarding", "sha256": "d42b8c51811c213e6468dcaf6d8bdf326771f3edb508295b70eff9a3666a0ee6", "width": 128, "height": 128},
-    {"id": "icon_medal_fire", "sha256": "56f6f2cb3350af33b5d32f60a0162c7ea87852a5b2f41b6e51854b64fa13bbd1", "width": 128, "height": 128},
-    {"id": "icon_medal_electric", "sha256": "89cf140416d55d398b1d1e6662f3edbd2f0752e90daa6a990640e69ac5c92108", "width": 128, "height": 128},
-    {"id": "icon_medal_water", "sha256": "99a76c28239dd710328bfcdead9d755a0dea1d054ea8280eb32b26c14a60130d", "width": 128, "height": 128},
-    {"id": "icon_card_again_now", "sha256": "d8d7cd52aa0ca84eb97ca8bdf439301d9279f23b7e3833ed5db12bd1fd2a3354", "width": 128, "height": 128},
-    {"id": "icon_card_ball_kick", "sha256": "1147e3aa09b65e2de48c9a214b4d736ab73a2e2f63a1678773cec848fc4c5d05", "width": 128, "height": 128},
-    {"id": "icon_card_berserk", "sha256": "b636627d3257174de96a68ce98c243a96295e8b33ba635d327db3a63524344eb", "width": 128, "height": 128},
-    {"id": "icon_card_big_one", "sha256": "57e4e20545f9b5ee0a23273fc7f57bb84c9689e249181c052156db53cd5af2cb", "width": 128, "height": 128},
-    {"id": "icon_card_blast_reload", "sha256": "f8cf2fcaef2f6a838cbe0cbe5fb8d5c2cd5f56982dc0293ee72f6dd5482a5b97", "width": 128, "height": 128},
-    {"id": "icon_card_blood_price", "sha256": "8f4564c9b5e728767dfbdbf818c27d8249f998d02dcdcac831ab89081bf9e66b", "width": 128, "height": 128},
-    {"id": "icon_card_both_hands", "sha256": "377daf108126384a73140248222f8459e010e4ded2e149ebb64fbd6f39133c9a", "width": 128, "height": 128},
-    {"id": "icon_card_breach_fist", "sha256": "c8d1cbf0cd44bd2f9f7349fe46eaa0915fd86a7f28af9d8c283a6ca4ba8650b8", "width": 128, "height": 128},
-    {"id": "icon_card_bump_again", "sha256": "48d2fcce458b22c733f0b22bd9c0655b230093e7b32e0f62ecc4b65cb7a563ae", "width": 128, "height": 128},
-    {"id": "icon_card_bump_reset", "sha256": "429213011a3eff44cd71358a0a17a1edae4caf54c554adfe330db43893b30cb2", "width": 128, "height": 128},
-    {"id": "icon_card_charge_up", "sha256": "28a8027b01bb192ac87c38cd578af3a80bacb48bb1650617af5e566682e33bfa", "width": 128, "height": 128},
-    {"id": "icon_card_dash_punch", "sha256": "f0d69c2d780bacfb5a6609f324216167462549d44880dfe852d558758b144d8d", "width": 128, "height": 128},
-    {"id": "icon_card_double_dash", "sha256": "04329ec322c02bfd55a30c3aa772669f7328d68d859236a2a21e75fc08a0f129", "width": 128, "height": 128},
-    {"id": "icon_card_encore", "sha256": "0253d10e40829a078a3c5eab06f562bcd87d58ff26521ab737b5a313fe0fc226", "width": 128, "height": 128},
-    {"id": "icon_card_endless_burn", "sha256": "4b013fc3fb24016143b026047dadf91a1f5ad4613407106ec99931e90d77f0a5", "width": 128, "height": 128},
-    {"id": "icon_card_grow_fat", "sha256": "845e922f424a7ba619eef19bbd83651c2f2b27d293610f78a2b6963ce3a539d1", "width": 128, "height": 128},
-    {"id": "icon_card_hang_on", "sha256": "77cf0a0b5db594b0ab50a0daa4cd12fe796bf34716b50a703ba840fd0ef25a19", "width": 128, "height": 128},
-    {"id": "icon_card_hard_skin", "sha256": "f5a9187c32cf4a91c9fee10a9bb5f517c9084f14d5321d5a766b159f73dff744", "width": 128, "height": 128},
-    {"id": "icon_card_heated_up", "sha256": "a750e292cb6659854db7c8d52f29bf55f566e44f8857d5dbd953ed40a7df84be", "width": 128, "height": 128},
-    {"id": "icon_card_held_shot", "sha256": "dfe968661da6881eadab0b3e15745dd6d71784c38164d472a53d37659f512775", "width": 128, "height": 128},
-    {"id": "icon_card_hurt_heal", "sha256": "3a8b48e67c5393ec5b54844ecd4c183530a39d1ba01a821c7909a696d79445a7", "width": 128, "height": 128},
-    {"id": "icon_card_kill_streak", "sha256": "403bb89ab83df1e6b1101dd294c5280858157cfabad81af73d0a82e856cf42d3", "width": 128, "height": 128},
-    {"id": "icon_card_lend_fist", "sha256": "a427da3c5e4acafb5de3c00673d565e6cc859c65109ef0c8dd4ddbc286d2a6fe", "width": 128, "height": 128},
-    {"id": "icon_card_live_wire", "sha256": "bcbfc3068265da5387d1801944325d2777b29dde943412dac8e05a66fc1c0e8d", "width": 128, "height": 128},
-    {"id": "icon_card_long_soak", "sha256": "45329ad2af4a8aae0cb782330a760137c0a5af7c5fa0c837f84307be5d60471d", "width": 128, "height": 128},
-    {"id": "icon_card_louder_blast", "sha256": "af34fc3a5e7c67a7efbde5eaf3890d07aa351de10ec595707a2ffacca373233b", "width": 128, "height": 128},
-    {"id": "icon_card_next_up", "sha256": "e1de865cbb9f1256426b66adfb87baef831312dd4eb9ed9b9979c63e87451cef", "width": 128, "height": 128},
-    {"id": "icon_card_overfed", "sha256": "e999bfbc9e358cb0d07dc83376f8dc2d92429a5b8cddd474110ef4ba31ab82df", "width": 128, "height": 128},
-    {"id": "icon_card_pass_through", "sha256": "aad565d42021657ebd3b700d359c39abd3655eeec820a7a38bcc4f99d24e55f0", "width": 128, "height": 128},
-    {"id": "icon_card_pay_back", "sha256": "f528da67faf415f928992eca5c0bc3ed0f8ddd325c1051620dc9f7f4c6a5c25b", "width": 128, "height": 128},
-    {"id": "icon_card_practice", "sha256": "8a2506b31b01bb7efaf29a80e2289ec546cf543a9390676b013a53384917dc63", "width": 128, "height": 128},
-    {"id": "icon_card_punch_heal", "sha256": "17a578050a7341b6259228a82d0d6c49ef05165288428483608bf6216820187a", "width": 128, "height": 128},
-    {"id": "icon_card_punch_think", "sha256": "35457e1e27f19b54554e399099e89c0412871c94c00ac879eea7ff1655c2d3ec", "width": 128, "height": 128},
-    {"id": "icon_card_quick_brain", "sha256": "0ffcd0fc81c07026a0c297d579e63852c05f1f1f921042ba0570ef562c971b19", "width": 128, "height": 128},
-    {"id": "icon_card_quick_hands", "sha256": "0e3c45abf4af98378f97569cbd65d4ff0ed92d20d10ae901ca70537077dfa928", "width": 128, "height": 128},
-    {"id": "icon_card_reaction_refund", "sha256": "7258e8533c9c80f9a0fed2b7413146f2c2229e8f0583d9afc13a0c0a73acc4fd", "width": 128, "height": 128},
-    {"id": "icon_card_scholar_punch", "sha256": "a6c56d7e8596b4bec3db70f1c3ef006061f59e02892755c484684173396c05c0", "width": 128, "height": 128},
-    {"id": "icon_card_setup_line", "sha256": "16be58b876e4b534f5b6075748cf37fb6bd646d93491db41b50c761a48b28c92", "width": 128, "height": 128},
-    {"id": "icon_card_skill_crit", "sha256": "a5fd04c9f5f9e2a2bfd9a1b2fadbcb961280112c74a9e64c3f8b0bf035b4ab77", "width": 128, "height": 128},
-    {"id": "icon_card_skill_drain", "sha256": "f6372eda7b7b1649673b792d11fb909d28093521fc20c41c46aabe85f4325742", "width": 128, "height": 128},
-    {"id": "icon_card_solid_punch", "sha256": "bc01257fe2828e6248fd8c70045c91e581b022efde870db80c66922abd624980", "width": 128, "height": 128},
-    {"id": "icon_card_spiky_hide", "sha256": "e758e4223befe8d9158975aaf11b31be31868cc71187442de8080523d1259d0c", "width": 128, "height": 128},
-    {"id": "icon_card_takedown", "sha256": "1463c0ed8db1e9c1e2e9d927d89becf1bac731fa22f4f5520e76500f2cc2b9bc", "width": 128, "height": 128},
-    {"id": "icon_card_thick_hide", "sha256": "5da61fbf5186ab9c644b76dc95d620d429deb69316a5a06200de998514fb86b1", "width": 128, "height": 128},
-    {"id": "icon_card_third_breath", "sha256": "56584de06fb603113ce0b8a37106b14e3d1621755f6fd4d0f5d21130dff25676", "width": 128, "height": 128},
-    {"id": "icon_card_third_shove", "sha256": "e857942da741072653f1a01c808461c22307a8b99b14533170e4aff3d46c4d62", "width": 128, "height": 128},
-    {"id": "icon_card_tough_skin", "sha256": "c40182cea1738ec3e9fcfe2cfd7221bbbd32bc36948d4b07108051d94a70bbce", "width": 128, "height": 128},
-    {"id": "icon_medal_chill", "sha256": "3695182b105dd8538dcbd36e6c96264138191cfc12fe868198c0c6b89ba67ff0", "width": 128, "height": 128},
-    {"id": "icon_medal_rot", "sha256": "577f9c5cfc2986fd6254abfadb8bed07a1d29b77f9d316f56fd18e268ecfd056", "width": 128, "height": 128},
-    {"id": "icon_card_ice_trail", "sha256": "c252bdb81797bf4fe8e8cf8b21bbf68aa9598a0dd0d784cb5cfde5647933756f", "width": 128, "height": 128},
-    {"id": "icon_card_move_turf", "sha256": "c1d525966404f4cc44457868d3aedeb4aadd6531ef2c3dcd129b719093f85a78", "width": 128, "height": 128},
-    {"id": "icon_card_double_stall", "sha256": "a8bce2b885600810ae6e045e9f99b851a99835c91f0345143cca83347d63b441", "width": 128, "height": 128},
-    {"id": "icon_card_turf_growth", "sha256": "f50ee7c56db754303a886da06f130e856c6a79761b7b82b1ddcfbb0d51c9256b", "width": 128, "height": 128},
-    {"id": "icon_card_wave_after", "sha256": "726c3c3c97e4793823e40cddc9cd15b6a66936707145d748c804df4220e12188", "width": 128, "height": 128},
-    {"id": "icon_card_burn_guard", "sha256": "4c33af7bdbbe50d91cdaae51ee237041c104faa085de0b116d8b8fba33abbb79", "width": 128, "height": 128},
-    {"id": "icon_card_combo_chain", "sha256": "631de40118e9a4f041692460ecde9ca382fb5b943f50fb95ced6122e5b87668d", "width": 128, "height": 128},
-    {"id": "icon_card_crowd_hit", "sha256": "6c85e6ca9d2bda66683dac811dcda792abb168068b500c9425a3e848a4127171", "width": 128, "height": 128},
-    {"id": "icon_card_dodge_strike", "sha256": "6c8d057dfb349cbc0944b85a19eec11ef0ee2ebb9966b008fe480e782bd027d9", "width": 128, "height": 128},
-    {"id": "icon_card_fist_skill", "sha256": "58dd9b9a80be9cdd09ce60101592107f4c84e26ec3e1848e6b141017f660355f", "width": 128, "height": 128},
-    {"id": "icon_card_head_down", "sha256": "d0c7e284b119986e8c920ff6f966a143758e179447ad59499525123401a5d9a6", "width": 128, "height": 128},
-    {"id": "icon_card_held_breath", "sha256": "a16d2e6d93b85502cb904252f4b1317b61e0848bb57e8c50e60142b958acb2c6", "width": 128, "height": 128},
-    {"id": "icon_card_hold_longer", "sha256": "dcf88aaabaca1cccadbcbe05d26708433d7e46f95b36079880a0f2a8955d8eeb", "width": 128, "height": 128},
-    {"id": "icon_card_long_arm", "sha256": "6bec59bf34cc7d68da5eb8aafc412734c4c4e23ee417b8067ea8c486206ea38b", "width": 128, "height": 128},
-    {"id": "icon_card_long_reach", "sha256": "cee61f4a017563000374aa1eb8774ace8e73bdf3ce7228e2fee1b3addb764bbc", "width": 128, "height": 128},
-    {"id": "icon_card_muscle_memory", "sha256": "4788958928045a476962b6e1fda978ee4e1fb5d70b85dd798301858839ac52c8", "width": 128, "height": 128},
-    {"id": "icon_card_paid_dash", "sha256": "437a3f0814846f358f7ede8266a8db6908973c7811218eab9a5090e7f0d69ba4", "width": 128, "height": 128},
-    {"id": "icon_card_pin_amp", "sha256": "d8e82755af8b519555f8939f024919d5988b4bc2eaa0fe20e38f2a7957fcd96b", "width": 128, "height": 128},
-    {"id": "icon_card_quick_takedown", "sha256": "da676a13a6c24f81cb9afd4718f19d57051c398a869c4b50f9bc7298813ba76b", "width": 128, "height": 128},
-    {"id": "icon_card_run_hit", "sha256": "eb89a4c61e8b0e1a18dd4845b76a772328c2a3b81a27415034a3e5867074d039", "width": 128, "height": 128},
-    {"id": "icon_card_shell_burst", "sha256": "a9dd58c309575ce266566877be090c245a1e790d96bd8bfa77aad5e7e3a7d9d6", "width": 128, "height": 128},
-    {"id": "icon_card_short_breath", "sha256": "f5765c122fd4a7ae3624a219b8d90f1342ddd9c01430a3427fd0c40888b10701", "width": 128, "height": 128},
-    {"id": "icon_card_slippery", "sha256": "785d1dac0fdc1d42e360f96a8d691eec376be967bd8e738edc887c77623e21e3", "width": 128, "height": 128},
-    {"id": "icon_card_slow_craft", "sha256": "1b8ade8a8539fdd81e87bcc564f30f77a270084fba2a0a1939b8914e54e4805b", "width": 128, "height": 128},
-    {"id": "icon_card_tally", "sha256": "4298f395f5431ae6ac2de67ea6568d1648f1e0170234abe4f0701427f6d77877", "width": 128, "height": 128},
-    {"id": "icon_card_wide_swing", "sha256": "3ad8368d48d4728f082016286f0124ee44e57f53d2683929f0d3145f5fb138b5", "width": 128, "height": 128}
+    {
+      "id": "icon_final_clear_out",
+      "sha256": "43681e45fcb2acfc52478e1727bc3781aad86846ed9024ec70e0ec614ec7ee38",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_final_kill_seconds",
+      "sha256": "01b63579ac5c3ff1639f695c559eca04b69d0e50e0a47ae41b38d5aed69645a5",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_final_double_yellow",
+      "sha256": "27565684243be2c06ce107891db548009fb7ddb010938e652e2cddf9d4529fe5",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_final_hit_and_run",
+      "sha256": "a0c8065b41ac5b06aef592dd955438a4f586e20ccbf149cc1ae99e707f324506",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_final_carry_flag",
+      "sha256": "1dcc9c2b6d9e4039065c5163cea516ffa9bbf4a354a6a3fd0da462d41ead6579",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_final_cage",
+      "sha256": "c0f2f86a9ef1553c6946d137ae7a90133d2aadcc5d65375de3a62ce52f5abd14",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_final_usurp",
+      "sha256": "b34289861756ed23c07cd035dfcac1159669c2d3a5f83ad33da6b796e6294204",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_final_private_pole",
+      "sha256": "3bea0279ef9ea340b5251b7f6bfd2a08309a6166bc433e5532c8b291ff70db1e",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_active_bail_out",
+      "sha256": "1a4b8ff04ee34a2fcb48405909e040436ec432bbcd20c6e5e347874f125c20f3",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_active_brace",
+      "sha256": "49d0663c72d0610b245c348266b97b433bff014b7bbc9501fa8209c416d11536",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_active_calculus_drop",
+      "sha256": "fe9a7496ca92714ca84dc79001e52fa0f3c93b380dc3892380683e0ad0c3e4f5",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_active_charged_ram",
+      "sha256": "afb0706aade79130d2239c3f37350a755c90cbf7a82f19999b9720ff89f22f1d",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_active_crotch_grab",
+      "sha256": "d093edbfc5c71d7582c08a48caba69c577a4aa696e1397aef4ba8bd32b51a29a",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_active_elbow",
+      "sha256": "007be2876cb7cac1c3e3dd0794ad6ecde97a4689a364ac199e36b0d073b2ece5",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_active_flyer_trap",
+      "sha256": "b3898e2fc723001d44c19ab943d86b73e43763f27c98fdd8e256d11bf42a6e13",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_active_hose_down",
+      "sha256": "bd99920d8b0ca19e165090a18fb4fbe4966c1b3205d8560527b2c9be77c8cf9f",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_active_not_mad",
+      "sha256": "bb868291b74d9425ef947169e2d0e0f5ed85d55550694f3abe81ecc042ab37f2",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_active_open_mic",
+      "sha256": "1978a3d00db606f26f53bd0dbbf57c4dbdaef538d1998c73a085fb191ff55b55",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_active_pants_down",
+      "sha256": "4a49bb95c59d77baaf92148078c0f789909e114689d3b114ca0cf20557c9790f",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_active_quick_meeting",
+      "sha256": "b781ef1b534c8c5fc2215fa73dfbd0cdb81e707bc31474f4473558dbdef3def8",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_active_seethe",
+      "sha256": "1caf4f8d9d7f3e336f54113faffe42281cb6c8786b3a359d8c66c218d6390e62",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_active_snark_bolt",
+      "sha256": "b03f681a36e798247f5f3574fd9c06dc08cfaf5593ae94f58911d1630e1a661f",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_active_stare_down",
+      "sha256": "2de1c5c7a03bb988c41fbb434f4f74092848ca2a2633b587fe31e8c9337eadb5",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_active_triple_combo",
+      "sha256": "89e7b94e9a5a53463d733746418458eeca34d4ebb5769c367b6df0745b56462f",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_active_unplug",
+      "sha256": "60eb1db63299d7082ba18436f2c8597d48b1fa368bf09351ccf7e150fc608006",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_active_zap",
+      "sha256": "b18864339b6f52c79b18dc66c7052b2376df43b8fa4643bbd10818c083639513",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_active_cola_shake",
+      "sha256": "b29ea4f77bfb16ab0b731d31654bde2d19b809005712123e46c447055c07ae73",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_active_desk_fan",
+      "sha256": "35f89f203610d6b1eaac79e01172b6903fb3468670e3229912eae4c18842be24",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_active_stale_takeout",
+      "sha256": "42e8c1fd15a35516f958de59a2bd3742a5fae30b64141d8f93206f1783aaf189",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_active_school_bag",
+      "sha256": "a6c7ea7d9bed63427a57389885a4132b41a07afa2bc42b602699700cb1d6ac6c",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_attack_slowed",
+      "sha256": "b13e2dd268f0f8733712d0ccdece0947b6e697330ff4be7c27d9d0128af75550",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_braced",
+      "sha256": "40751f40a0afa1a3d1719f17cd09e9eef6d6eba699eea3eb2092dc81dc668b09",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_burn",
+      "sha256": "c383f4f015b178c82493abbd274628e7579c5fcef339869729190e5146bea0ac",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_camp_returning",
+      "sha256": "3e8754df01248028af7a91db0f74f28a3454f711693881a47c3e7f25abad3e33",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_dash",
+      "sha256": "5d9e26b5f01d61913b9d133e3cca0e668b7f801836a7d3359a5e059c19b3e7c7",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_disarm",
+      "sha256": "3871e077b05253330177c8d6bf0f4d54f3edf97f5a5efade617cd641e24f6f39",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_dorm_regen",
+      "sha256": "0f8289a4822a10061408a57e713509dd62d34eb2337825d642224129fc0c6ec2",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_electrified",
+      "sha256": "63dd09ce57e0e33f9b1e9ba766b3b886fa0e470df67bf0e9d4d90127ce8a8156",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_empowered",
+      "sha256": "e5405b57905224fecbc61de5ee9912f0a82f6c34b5a1e4f6e1ad5ea251b8f623",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_exposed",
+      "sha256": "e7d51bc610c5e907fc1d9a3f58ad7b35da5d2f2da611168ba15c22f5f7fba69c",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_knockback",
+      "sha256": "3e2306c48d25603fbfaa789a0e9a0c6cdff52ebd9c7dadd33311399c36270c30",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_out_of_combat_regen",
+      "sha256": "592373e8ea1ba8914891fdc6ce930ce738f59f3aecc9d96362fbd14b67d8c768",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_respawn_protection",
+      "sha256": "f2a452abfc6829efbfb49b99a0f79098cb12fd706123f025a9105a3df2be875e",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_root",
+      "sha256": "2095ac0b756a4e9336fee79c0600f21f89389299a0cd6976504579e15cd4df15",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_shield",
+      "sha256": "441a35731137371d021d8cdfe2b808072f56d80fe5637be962df2853cda32abf",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_silence",
+      "sha256": "0bda65b3dd828f78556e3c43c23741cc768011b2ec297a12ce2c714d33ed0a11",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_slow",
+      "sha256": "1ac2ad327ca0e764d13aeb299c13e3cb0015eb38f98b3a143ee623e427c774c6",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_chilled",
+      "sha256": "f6d98ede34ca3a59207ccd1a3d2e0f104d21825f362890f40df4c0b69142f952",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_rotten",
+      "sha256": "f1836cac4cf593fb48f3ecec93775a28e64c1b7173935179a4d3c795752fd8cb",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_stat_agility",
+      "sha256": "874816ec70950a611e4bff03b57d471f28a9faa4b827bcd0ad4894efd90a4d94",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_stat_boost",
+      "sha256": "49fee516317e78060567819c53cc517ad99596505b9a0f41ab9ea86bc9fdff07",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_stat_brains",
+      "sha256": "7ae7b682520d5ad27e637aa4c4260a7ff6f6d2a9534e41c7b7f1b83adc446462",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_stat_physique",
+      "sha256": "fceeffa310dcf31c723a0419962f84270ba6e6337c91602c6a7a415b1cc0585f",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_stat_strength",
+      "sha256": "765e5cdd95c50b818afc838ca615130641f0c6811ce481c35449d589d28ccf4c",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_stat_thick_skin",
+      "sha256": "865d847c51ca4a3d4d0ea744842d3e033ecf57f6d45697a05ded052e30325b62",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_stun",
+      "sha256": "ca5e87f004412464db693ed18c1ea74685742d60d5244d695cd2dbbc90903a64",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_taunt",
+      "sha256": "0f216a83d42ec46ec5df6d36b959d31ed187f6553607642a0cdbe583fbe81dc9",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_wet",
+      "sha256": "c4f447ee53c2c612d5a0876680ed13b4f09088637de991621cd52cfb3b7b3724",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_camp_enraged",
+      "sha256": "c1e45a4cc04d35893d0ba8e862b0c331051302f4f0f63b7b3c4e8caf835d0b0b",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_camp_guarding",
+      "sha256": "d42b8c51811c213e6468dcaf6d8bdf326771f3edb508295b70eff9a3666a0ee6",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_medal_fire",
+      "sha256": "56f6f2cb3350af33b5d32f60a0162c7ea87852a5b2f41b6e51854b64fa13bbd1",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_medal_electric",
+      "sha256": "89cf140416d55d398b1d1e6662f3edbd2f0752e90daa6a990640e69ac5c92108",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_medal_water",
+      "sha256": "99a76c28239dd710328bfcdead9d755a0dea1d054ea8280eb32b26c14a60130d",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_again_now",
+      "sha256": "d8d7cd52aa0ca84eb97ca8bdf439301d9279f23b7e3833ed5db12bd1fd2a3354",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_ball_kick",
+      "sha256": "1147e3aa09b65e2de48c9a214b4d736ab73a2e2f63a1678773cec848fc4c5d05",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_berserk",
+      "sha256": "b636627d3257174de96a68ce98c243a96295e8b33ba635d327db3a63524344eb",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_big_one",
+      "sha256": "57e4e20545f9b5ee0a23273fc7f57bb84c9689e249181c052156db53cd5af2cb",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_blast_reload",
+      "sha256": "f8cf2fcaef2f6a838cbe0cbe5fb8d5c2cd5f56982dc0293ee72f6dd5482a5b97",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_blood_price",
+      "sha256": "8f4564c9b5e728767dfbdbf818c27d8249f998d02dcdcac831ab89081bf9e66b",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_both_hands",
+      "sha256": "377daf108126384a73140248222f8459e010e4ded2e149ebb64fbd6f39133c9a",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_breach_fist",
+      "sha256": "c8d1cbf0cd44bd2f9f7349fe46eaa0915fd86a7f28af9d8c283a6ca4ba8650b8",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_bump_again",
+      "sha256": "48d2fcce458b22c733f0b22bd9c0655b230093e7b32e0f62ecc4b65cb7a563ae",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_bump_reset",
+      "sha256": "429213011a3eff44cd71358a0a17a1edae4caf54c554adfe330db43893b30cb2",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_charge_up",
+      "sha256": "28a8027b01bb192ac87c38cd578af3a80bacb48bb1650617af5e566682e33bfa",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_dash_punch",
+      "sha256": "f0d69c2d780bacfb5a6609f324216167462549d44880dfe852d558758b144d8d",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_double_dash",
+      "sha256": "04329ec322c02bfd55a30c3aa772669f7328d68d859236a2a21e75fc08a0f129",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_encore",
+      "sha256": "0253d10e40829a078a3c5eab06f562bcd87d58ff26521ab737b5a313fe0fc226",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_endless_burn",
+      "sha256": "4b013fc3fb24016143b026047dadf91a1f5ad4613407106ec99931e90d77f0a5",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_grow_fat",
+      "sha256": "845e922f424a7ba619eef19bbd83651c2f2b27d293610f78a2b6963ce3a539d1",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_hang_on",
+      "sha256": "77cf0a0b5db594b0ab50a0daa4cd12fe796bf34716b50a703ba840fd0ef25a19",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_hard_skin",
+      "sha256": "f5a9187c32cf4a91c9fee10a9bb5f517c9084f14d5321d5a766b159f73dff744",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_heated_up",
+      "sha256": "a750e292cb6659854db7c8d52f29bf55f566e44f8857d5dbd953ed40a7df84be",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_held_shot",
+      "sha256": "dfe968661da6881eadab0b3e15745dd6d71784c38164d472a53d37659f512775",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_hurt_heal",
+      "sha256": "3a8b48e67c5393ec5b54844ecd4c183530a39d1ba01a821c7909a696d79445a7",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_kill_streak",
+      "sha256": "403bb89ab83df1e6b1101dd294c5280858157cfabad81af73d0a82e856cf42d3",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_lend_fist",
+      "sha256": "a427da3c5e4acafb5de3c00673d565e6cc859c65109ef0c8dd4ddbc286d2a6fe",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_live_wire",
+      "sha256": "bcbfc3068265da5387d1801944325d2777b29dde943412dac8e05a66fc1c0e8d",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_long_soak",
+      "sha256": "45329ad2af4a8aae0cb782330a760137c0a5af7c5fa0c837f84307be5d60471d",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_louder_blast",
+      "sha256": "af34fc3a5e7c67a7efbde5eaf3890d07aa351de10ec595707a2ffacca373233b",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_next_up",
+      "sha256": "e1de865cbb9f1256426b66adfb87baef831312dd4eb9ed9b9979c63e87451cef",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_overfed",
+      "sha256": "e999bfbc9e358cb0d07dc83376f8dc2d92429a5b8cddd474110ef4ba31ab82df",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_pass_through",
+      "sha256": "aad565d42021657ebd3b700d359c39abd3655eeec820a7a38bcc4f99d24e55f0",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_pay_back",
+      "sha256": "f528da67faf415f928992eca5c0bc3ed0f8ddd325c1051620dc9f7f4c6a5c25b",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_practice",
+      "sha256": "8a2506b31b01bb7efaf29a80e2289ec546cf543a9390676b013a53384917dc63",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_punch_heal",
+      "sha256": "17a578050a7341b6259228a82d0d6c49ef05165288428483608bf6216820187a",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_punch_think",
+      "sha256": "35457e1e27f19b54554e399099e89c0412871c94c00ac879eea7ff1655c2d3ec",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_quick_brain",
+      "sha256": "0ffcd0fc81c07026a0c297d579e63852c05f1f1f921042ba0570ef562c971b19",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_quick_hands",
+      "sha256": "0e3c45abf4af98378f97569cbd65d4ff0ed92d20d10ae901ca70537077dfa928",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_reaction_refund",
+      "sha256": "7258e8533c9c80f9a0fed2b7413146f2c2229e8f0583d9afc13a0c0a73acc4fd",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_scholar_punch",
+      "sha256": "a6c56d7e8596b4bec3db70f1c3ef006061f59e02892755c484684173396c05c0",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_setup_line",
+      "sha256": "16be58b876e4b534f5b6075748cf37fb6bd646d93491db41b50c761a48b28c92",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_skill_crit",
+      "sha256": "a5fd04c9f5f9e2a2bfd9a1b2fadbcb961280112c74a9e64c3f8b0bf035b4ab77",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_skill_drain",
+      "sha256": "f6372eda7b7b1649673b792d11fb909d28093521fc20c41c46aabe85f4325742",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_solid_punch",
+      "sha256": "bc01257fe2828e6248fd8c70045c91e581b022efde870db80c66922abd624980",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_spiky_hide",
+      "sha256": "e758e4223befe8d9158975aaf11b31be31868cc71187442de8080523d1259d0c",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_takedown",
+      "sha256": "1463c0ed8db1e9c1e2e9d927d89becf1bac731fa22f4f5520e76500f2cc2b9bc",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_thick_hide",
+      "sha256": "5da61fbf5186ab9c644b76dc95d620d429deb69316a5a06200de998514fb86b1",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_third_breath",
+      "sha256": "56584de06fb603113ce0b8a37106b14e3d1621755f6fd4d0f5d21130dff25676",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_third_shove",
+      "sha256": "e857942da741072653f1a01c808461c22307a8b99b14533170e4aff3d46c4d62",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_tough_skin",
+      "sha256": "c40182cea1738ec3e9fcfe2cfd7221bbbd32bc36948d4b07108051d94a70bbce",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_medal_chill",
+      "sha256": "3695182b105dd8538dcbd36e6c96264138191cfc12fe868198c0c6b89ba67ff0",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_medal_rot",
+      "sha256": "577f9c5cfc2986fd6254abfadb8bed07a1d29b77f9d316f56fd18e268ecfd056",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_ice_trail",
+      "sha256": "c252bdb81797bf4fe8e8cf8b21bbf68aa9598a0dd0d784cb5cfde5647933756f",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_move_turf",
+      "sha256": "c1d525966404f4cc44457868d3aedeb4aadd6531ef2c3dcd129b719093f85a78",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_double_stall",
+      "sha256": "a8bce2b885600810ae6e045e9f99b851a99835c91f0345143cca83347d63b441",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_turf_growth",
+      "sha256": "f50ee7c56db754303a886da06f130e856c6a79761b7b82b1ddcfbb0d51c9256b",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_wave_after",
+      "sha256": "726c3c3c97e4793823e40cddc9cd15b6a66936707145d748c804df4220e12188",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_burn_guard",
+      "sha256": "4c33af7bdbbe50d91cdaae51ee237041c104faa085de0b116d8b8fba33abbb79",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_combo_chain",
+      "sha256": "631de40118e9a4f041692460ecde9ca382fb5b943f50fb95ced6122e5b87668d",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_crowd_hit",
+      "sha256": "6c85e6ca9d2bda66683dac811dcda792abb168068b500c9425a3e848a4127171",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_dodge_strike",
+      "sha256": "6c8d057dfb349cbc0944b85a19eec11ef0ee2ebb9966b008fe480e782bd027d9",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_fist_skill",
+      "sha256": "58dd9b9a80be9cdd09ce60101592107f4c84e26ec3e1848e6b141017f660355f",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_head_down",
+      "sha256": "d0c7e284b119986e8c920ff6f966a143758e179447ad59499525123401a5d9a6",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_held_breath",
+      "sha256": "a16d2e6d93b85502cb904252f4b1317b61e0848bb57e8c50e60142b958acb2c6",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_hold_longer",
+      "sha256": "dcf88aaabaca1cccadbcbe05d26708433d7e46f95b36079880a0f2a8955d8eeb",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_long_arm",
+      "sha256": "6bec59bf34cc7d68da5eb8aafc412734c4c4e23ee417b8067ea8c486206ea38b",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_long_reach",
+      "sha256": "cee61f4a017563000374aa1eb8774ace8e73bdf3ce7228e2fee1b3addb764bbc",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_muscle_memory",
+      "sha256": "4788958928045a476962b6e1fda978ee4e1fb5d70b85dd798301858839ac52c8",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_paid_dash",
+      "sha256": "437a3f0814846f358f7ede8266a8db6908973c7811218eab9a5090e7f0d69ba4",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_pin_amp",
+      "sha256": "d8e82755af8b519555f8939f024919d5988b4bc2eaa0fe20e38f2a7957fcd96b",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_quick_takedown",
+      "sha256": "da676a13a6c24f81cb9afd4718f19d57051c398a869c4b50f9bc7298813ba76b",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_run_hit",
+      "sha256": "eb89a4c61e8b0e1a18dd4845b76a772328c2a3b81a27415034a3e5867074d039",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_shell_burst",
+      "sha256": "a9dd58c309575ce266566877be090c245a1e790d96bd8bfa77aad5e7e3a7d9d6",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_short_breath",
+      "sha256": "f5765c122fd4a7ae3624a219b8d90f1342ddd9c01430a3427fd0c40888b10701",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_slippery",
+      "sha256": "785d1dac0fdc1d42e360f96a8d691eec376be967bd8e738edc887c77623e21e3",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_slow_craft",
+      "sha256": "1b8ade8a8539fdd81e87bcc564f30f77a270084fba2a0a1939b8914e54e4805b",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_tally",
+      "sha256": "4298f395f5431ae6ac2de67ea6568d1648f1e0170234abe4f0701427f6d77877",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_wide_swing",
+      "sha256": "3ad8368d48d4728f082016286f0124ee44e57f53d2683929f0d3145f5fb138b5",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_active_flurry_rush",
+      "sha256": "f1393004387ec316557d557ddbbea08d1c64cce14795cadb8fe4b5313216abf3",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_active_cordon_tape",
+      "sha256": "5a98430b0dc92313807e4a7f39ceec0c823adf1c123028c88ef7c7a71cc435e2",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_brain_speed",
+      "sha256": "8737c501f845625f25db18d412afb873c19192e9199541d97cec1fb176b0564b",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_spellblade_echo",
+      "sha256": "8f370ff0cbd10d6dbe1150a88f0629e53684822ddab28820f48a9ebf8f7db974",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_heavy_mallet",
+      "sha256": "0fadd02975998f7818db70bf890633e36048c86948c83b4c6db36effba72fb0e",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_let_bullets_fly",
+      "sha256": "530f84574d74d2df0fdb5a90ca43e37c74e5b4007760c3c448a57d574d866cef",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_eagle_stance",
+      "sha256": "26bf6993ba90f27849b2bc345ad55614c8f6ba8c60ffdfa467df0b262a037599",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_runaway_train",
+      "sha256": "d05cbdad6862df464169235248144dd5ae24e1d1562ca6d3f5919636a15eaf87",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_phantom_molt",
+      "sha256": "282e80a01674cd5409044d103c1a46d1f97ed673cd67727b06b5b21ec0153db9",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_skate_blade",
+      "sha256": "8d3a402fbb743391816c828b2a80cc03671883b21d376d1ad9db69e672834ea7",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_tonnage_crush",
+      "sha256": "b17642eb2a3592ed99a240a0f35c0a9ba45141b01eb76ef06ed0252d38180665",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_hulking_presence",
+      "sha256": "b68a959ec2af64808aef802bc901cf29f3fd6d85ff2e2d9e9f796dc82c8f46f1",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_iron_hedgehog",
+      "sha256": "e2b9629b0f56fdd9ac9bb1559e6821a00ae590a2d38f9383850fd98bb2051a77",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_reactive_plating",
+      "sha256": "9d1f54081d5104603e355b2b87607b68058c18052d94477afa34a8b49f2fb06e",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_desperado",
+      "sha256": "e4471d446193a55164f47bacd10233d94b86ce318ecb2cf872461eaadc253f99",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_fuel_the_fire",
+      "sha256": "37608c70510475fe41b87e75ca229be58c176493fdfd56c5ebf1b4236ed5b28a",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_rogue_works",
+      "sha256": "6871cc73cfa9d9218ff3f87960461333e39c2f5c00b8a30aed0015feb2eea0fe",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "id": "icon_card_martial_scholar",
+      "sha256": "796afe0e66ff2a5605f2db52e8fad28f892463fd848751b80bd5faf4dc26e1c4",
+      "width": 128,
+      "height": 128
+    }
   ]
 }

@@ -127,8 +127,23 @@ LDHitVfx::FLayerTuning LDHitVfx::TuningOf(const LDHitFeel::FTuning& Feel, float 
 LDHitVfx::FRecipe LDHitVfx::ForHit(ELDObservedHitLook Look, uint8 HitFlags, float EffectScale, const FLayerTuning& Tuning)
 {
     using namespace LDHitVfxDetail;
+    if (HitFlags & LDObservation::Dodged)
+    {
+        return ForPerfectDodge(EffectScale, Tuning);
+    }
     FRecipe Recipe;
     if (!FMath::IsFinite(EffectScale) || EffectScale <= 0.f) { return Recipe; }
+    if (HitFlags & LDObservation::Parried)
+    {
+        const FLinearColor ParryGlow(1.4f, 3.0f, 3.6f), ParryInk(.08f, .32f, .42f);
+        FLayer Cross = Make(EMask::Cross, EPlace::Sprite, 185.f, .24f, ParryGlow, ParryInk, .5f, 1.f, .12f);
+        Cross.SpinDegPerSec = -110.f;
+        Recipe.Layers.Add(Cross);
+        Recipe.Layers.Add(Make(EMask::Ring, EPlace::Ground, 265.f, .34f, ParryGlow, ParryInk, .24f, 1.f, .08f));
+        Thin(Recipe, EffectScale);
+        Tune(Recipe, Tuning);
+        return Recipe;
+    }
     const bool bCritical = (HitFlags & LDObservation::Critical) != 0;
     const bool bBroken = (HitFlags & LDObservation::ShieldBroken) != 0;
     const bool bShield = bBroken || (HitFlags & LDObservation::ShieldAbsorbed) != 0;
@@ -422,29 +437,27 @@ TConstArrayView<LDHitVfx::FSkillLook> LDHitVfx::SkillLooks()
         {uint8(A::ActiveElbow), TEXT("active_elbow"), FLinearColor(1.f, .55f, .2f), EBurst::Strike},
         {uint8(A::ActivePantsDown), TEXT("active_pants_down"), FLinearColor(1.f, .45f, .65f), EBurst::Strike},
         {uint8(A::ActiveCrotchGrab), TEXT("active_crotch_grab"), FLinearColor(1.f, .85f, .25f), EBurst::Strike},
-        {uint8(A::ActiveAccountBanned), TEXT("active_account_banned"), FLinearColor(1.f, .2f, .2f), EBurst::Strike},
-        {uint8(A::ActiveUnplug), TEXT("active_unplug"), FLinearColor(.55f, .9f, 1.f), EBurst::Zap},
+        {uint8(A::ActiveUnplug), TEXT("active_unplug"), FLinearColor(.55f, .92f, 1.f), EBurst::Aura},
         {uint8(A::ActiveSnarkBolt), TEXT("active_snark_bolt"), FLinearColor(.95f, .95f, .9f), EBurst::Muzzle},
         {uint8(A::ActiveSeethe), TEXT("active_seethe"), FLinearColor(1.f, .3f, .05f), EBurst::Flame},
         {uint8(A::ActiveQuickMeeting), TEXT("active_quick_meeting"), FLinearColor(1.f, .4f, .08f), EBurst::Flame},
         {uint8(A::ActiveBailOut), TEXT("active_bail_out"), FLinearColor(.6f, .85f, 1.f), EBurst::Dash},
-        {uint8(A::ActiveApologySlide), TEXT("active_apology_slide"), FLinearColor(1.f, .75f, .45f), EBurst::Dash},
         {uint8(A::ActiveNotMad), TEXT("active_not_mad"), FLinearColor(.2f, .85f, 1.f), EBurst::Aura},
         {uint8(A::ActiveStareDown), TEXT("active_stare_down"), FLinearColor(1.f, .15f, .1f), EBurst::Aura},
         {uint8(A::ActiveTripleCombo), TEXT("active_triple_combo"), FLinearColor(1.f, .7f, .1f), EBurst::Aura},
         {uint8(A::ActiveCalculusDrop), TEXT("active_calculus_drop"), FLinearColor(.95f, .95f, .85f), EBurst::Slam},
         {uint8(A::ActiveFlyerTrap), TEXT("active_flyer_trap"), FLinearColor(1.f, .62f, .2f), EBurst::Muzzle},
-        {uint8(A::ActiveOpenMic), TEXT("active_open_mic"), FLinearColor(1.f, .4f, .8f), EBurst::Gust},
+        {uint8(A::ActiveOpenMic), TEXT("active_open_mic"), FLinearColor(1.f, .45f, .75f), EBurst::Gust},
         {uint8(A::ActiveHoseDown), TEXT("active_hose_down"), FLinearColor(.2f, .65f, 1.f), EBurst::Splash},
         {uint8(A::ActiveZap), TEXT("active_zap"), FLinearColor(1.f, .9f, .3f), EBurst::Zap},
-        {uint8(A::ActiveChargedRam), TEXT("active_charged_ram"), FLinearColor(1.f, .85f, .2f), EBurst::Zap},
+        {uint8(A::ActiveChargedRam), TEXT("active_charged_ram"), FLinearColor(.95f, .62f, .22f), EBurst::Slam},
         {uint8(A::ActiveBrace), TEXT("active_brace"), FLinearColor(.75f, .8f, .9f), EBurst::Aura},
-        {uint8(A::ActiveDirtyPuddle), TEXT("active_dirty_puddle"), FLinearColor(.35f, .55f, .7f), EBurst::Splash},
-        {uint8(A::ActiveSockShot), TEXT("active_sock_shot"), FLinearColor(.55f, .85f, .25f), EBurst::Rot},
         {uint8(A::ActiveColaShake), TEXT("active_cola_shake"), FLinearColor(.65f, .9f, 1.f), EBurst::Frost},
         {uint8(A::ActiveDeskFan), TEXT("active_desk_fan"), FLinearColor(.8f, .9f, .95f), EBurst::Gust},
         {uint8(A::ActiveStaleTakeout), TEXT("active_stale_takeout"), FLinearColor(.5f, .7f, .15f), EBurst::Rot},
         {uint8(A::ActiveSchoolBag), TEXT("active_school_bag"), FLinearColor(.7f, .45f, .2f), EBurst::Slam},
+        {uint8(A::ActiveFlurryRush), TEXT("active_flurry_rush"), FLinearColor(1.f, .38f, .18f), EBurst::Gust},
+        {uint8(A::ActiveCordonTape), TEXT("active_cordon_tape"), FLinearColor(1.f, .86f, .12f), EBurst::Zap},
     };
     return Table;
 }
@@ -496,6 +509,18 @@ LDHitVfx::FZone LDHitVfx::ZoneOf(ELDObservedProjectileLook Look, float RadiusCm,
     case ELDObservedProjectileLook::FlyerArmed:
         Density = 12.f; Z.Lifetime = .5f; Z.Scale = .7f; Z.Velocity = FVector(0, 0, 60); Z.Colour = Hot(FLinearColor(1.f, .6f, .2f), 2.f);
         break;
+    case ELDObservedProjectileLook::SlipperDrop:
+        Density = 26.f; Z.Lifetime = .65f; Z.Scale = .95f; Z.Velocity = FVector(0, 0, 95); Z.Colour = Hot(FLinearColor(.25f, .95f, 1.f), 2.2f);
+        break;
+    case ELDObservedProjectileLook::CordonTape:
+        Density = 32.f; Z.Lifetime = .4f; Z.Scale = .85f; Z.Velocity = FVector(0, 0, 50); Z.Colour = Hot(FLinearColor(1.f, .86f, .12f), 2.4f);
+        break;
+    case ELDObservedProjectileLook::PhantomDecoy:
+        Density = 64.f; Z.Lifetime = .75f; Z.Scale = 1.5f; Z.Velocity = FVector(0, 0, 140); Z.Colour = Hot(FLinearColor(.78f, .38f, 1.f), 2.5f);
+        break;
+    case ELDObservedProjectileLook::ShardBurst:
+        Density = 90.f; Z.Lifetime = .25f; Z.Scale = 1.4f; Z.Velocity = FVector(0, 0, 180); Z.Colour = Hot(FLinearColor(.2f, .92f, 1.f), 2.6f);
+        break;
     default: return Z;
     }
     Z.bShow = true;
@@ -518,6 +543,9 @@ LDHitVfx::FTrail LDHitVfx::TrailOf(ELDObservedProjectileLook Look, float EffectS
     case ELDObservedProjectileLook::SockReturn:
         T = {true, 22.f, .3f, 120.f, Hot(FLinearColor(.55f, .85f, .25f), 2.f, .8f)};
         break;
+    case ELDObservedProjectileLook::FistWind:
+        T = {true, 34.f, .26f, 150.f, Hot(FLinearColor(1.f, .42f, .18f), 2.4f, .9f)};
+        break;
     default: return T;
     }
     T.WidthCm *= .6f + .4f * FMath::Clamp(EffectScale, 0.f, 1.f);
@@ -530,6 +558,11 @@ bool LDHitVfx::AppearBurstOf(ELDObservedProjectileLook Look, EBurst& Out, FLinea
     {
     case ELDObservedProjectileLook::Chalk: Out = EBurst::Muzzle; Tint = FLinearColor(.95f, .95f, .9f); return true;
     case ELDObservedProjectileLook::Sock: Out = EBurst::Muzzle; Tint = FLinearColor(.55f, .85f, .25f); return true;
+    case ELDObservedProjectileLook::FistWind: Out = EBurst::Gust; Tint = FLinearColor(1.f, .42f, .18f); return true;
+    case ELDObservedProjectileLook::SlipperDrop: Out = EBurst::Aura; Tint = FLinearColor(.25f, .95f, 1.f); return true;
+    case ELDObservedProjectileLook::CordonTape: Out = EBurst::Zap; Tint = FLinearColor(1.f, .86f, .12f); return true;
+    case ELDObservedProjectileLook::PhantomDecoy: Out = EBurst::Dash; Tint = FLinearColor(.82f, .42f, 1.f); return true;
+    case ELDObservedProjectileLook::ShardBurst: Out = EBurst::Slam; Tint = FLinearColor(.2f, .92f, 1.f); return true;
     case ELDObservedProjectileLook::AreaFire: Out = EBurst::Flame; Tint = FLinearColor(1.f, .3f, .05f); return true;
     case ELDObservedProjectileLook::AreaWater: Out = EBurst::Splash; Tint = FLinearColor(.25f, .7f, 1.f); return true;
     case ELDObservedProjectileLook::AreaElectric: Out = EBurst::Zap; Tint = FLinearColor(1.f, .9f, .3f); return true;
@@ -550,6 +583,9 @@ bool LDHitVfx::EndBurstOf(ELDObservedProjectileLook Look, EBurst& Out, FLinearCo
     case ELDObservedProjectileLook::ChalkReturn: Out = EBurst::Strike; Tint = FLinearColor(.95f, .95f, .9f); return true;
     case ELDObservedProjectileLook::Sock:
     case ELDObservedProjectileLook::SockReturn: Out = EBurst::Rot; Tint = FLinearColor(.55f, .85f, .25f); return true;
+    case ELDObservedProjectileLook::FistWind: Out = EBurst::Gust; Tint = FLinearColor(1.f, .42f, .18f); return true;
+    case ELDObservedProjectileLook::SlipperDrop: Out = EBurst::Aura; Tint = FLinearColor(.25f, .95f, 1.f); return true;
+    case ELDObservedProjectileLook::PhantomDecoy: Out = EBurst::Arcane; Tint = FLinearColor(.88f, .45f, 1.f); return true;
     case ELDObservedProjectileLook::BookShadow: Out = EBurst::Slam; Tint = FLinearColor(.95f, .95f, .85f); return true;
     default: return false;
     }

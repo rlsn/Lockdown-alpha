@@ -60,6 +60,28 @@ bool ALDCombatDirector::HealBody(FLDBodyCombatState& Body, int64 AmountP2, const
     if (OutApplied) { *OutApplied=0; }
     if (OutError) { OutError->Reset(); }
     if (Body.bPendingDeath || Body.Resources.HpP2<=0 || AmountP2<=0) { return false; }
+    // card_desperado: while below hp_below, every missing_step of missing HP boosts incoming healing/lifesteal.
+    {
+        TArray<FLDPassiveEffectRef> Desp;
+        FString DespErr;
+        if (Body.Resources.MaxHpP2>0 && CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::Desperado,Desp,DespErr) && !Desp.IsEmpty())
+        {
+            int64 BonusBp=0;
+            for (const FLDPassiveEffectRef& Ref : Desp)
+            {
+                if (Body.Resources.HpP2*10000<Body.Resources.MaxHpP2*Ref.Effect.RatioBp && Ref.Effect.CostRatioBp>0)
+                {
+                    const int64 MissingBp=(Body.Resources.MaxHpP2-Body.Resources.HpP2)*10000/Body.Resources.MaxHpP2;
+                    BonusBp+=(MissingBp/Ref.Effect.CostRatioBp)*Ref.Effect.SecondaryRatioBp;
+                }
+            }
+            if (BonusBp>0)
+            {
+                AmountP2=AmountP2/10000*(10000+BonusBp)+AmountP2%10000*(10000+BonusBp)/10000;
+                LedgerCardTriggered(Body,Desp[0].Key);
+            }
+        }
+    }
     // Spec §8.1: a live rot cuts every new heal once, before it lands.
     if (const ILDLifeAuthority* Mode=Authority()) { AmountP2=LDCombatElements::AfterRotP2(AmountP2,Body.ElementMark,Mode->GetAuthorityNowMs()); }
     if (AmountP2<=0) { return false; }
@@ -157,6 +179,7 @@ bool ALDCombatDirector::GrantShieldTo(FLDBodyCombatState& Body, int64 AmountP2, 
     const FGuid& SourceEntity, int64 NowMs, FString& Error, const FLDCombatSourceRef& GrantSource)
 {
     if (Body.bPendingDeath) { return true; }
+    const bool bWasShielded=Body.Shield.IsSet() && Body.Shield->ExpiresAtMs>NowMs && Body.Resources.ShieldP2>0;
     // Spec §8.1: a live rot cuts the new shield before it enters the stack; existing shields are untouched.
     AmountP2=LDCombatElements::AfterRotP2(AmountP2,Body.ElementMark,NowMs);
     int64 Expires=0;
@@ -172,6 +195,43 @@ bool ALDCombatDirector::GrantShieldTo(FLDBodyCombatState& Body, int64 AmountP2, 
     ++Body.StateRevision;
     MarkViewChanged(Body.Victim.EntityId);
     LedgerShieldGranted(Body,AmountP2);
+    // card_reactive_plating: gaining a new shield while already shielded blasts nearby enemies for a share of the new shield.
+    if (bWasShielded && AmountP2>0)
+    {
+        TArray<FLDPassiveEffectRef> Platings;
+        if (!CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::ReactivePlating,Platings,Error)) { return false; }
+        const ALDCharacter* HolderActor=ActorOf(Body);
+        if (!Platings.IsEmpty() && HolderActor)
+        {
+            int64 ShareBp=0;
+            for (const FLDPassiveEffectRef& Ref : Platings) { ShareBp+=Ref.Effect.RatioBp; }
+            const int64 ShardP2=AmountP2/10000*ShareBp+AmountP2%10000*ShareBp/10000;
+            const double Radius=LDCombatMechanicsDetail::Cm(Platings[0].Effect.RadiusCm)*HulkingAreaScaleOf(Body);
+            if (ShardP2>0 && Radius>0)
+            {
+                FLDCombatShardBurst& VisualBurst=ShardBursts.AddDefaulted_GetRef();
+                VisualBurst.Id=FGuid::NewGuid();
+                VisualBurst.OwnerEntity=Body.Victim.EntityId;
+                VisualBurst.FootCm=FootOf(*HolderActor);
+                VisualBurst.RadiusCm=Radius;
+                if (!LDMatchLifecycle::AddDurationMs(NowMs,250,VisualBurst.ExpiresAtMs,Error)) { return false; }
+            }
+            TArray<FLDCombatBodyRef> Around;
+            if (ShardP2>0 && Radius>0 && CollectAreaTargets(FootOf(*HolderActor),Radius,&Body,Body.Victim.EntityId,Around,Error))
+            {
+                const FGuid BlastId=FGuid::NewGuid();
+                for (const FLDCombatBodyRef& Enemy : Around)
+                {
+                    FLDCombatHit Shard=LDCombatMechanicsDetail::MakeHit(Body,Platings[0].Source,Enemy,BlastId);
+                    Shard.BaseP2=ShardP2;
+                    Shard.DamageType=ELDDemoDamageType::Physical;
+                    Shard.bFromShieldTrigger=true;
+                    PendingHits.Add(MoveTemp(Shard));
+                }
+                if (!Around.IsEmpty()) { LedgerCardTriggered(Body,Platings[0].Key); }
+            }
+        }
+    }
     return true;
 }
 
@@ -220,6 +280,11 @@ bool ALDCombatDirector::ApplyKnockback(ALDCharacter& Target, FLDBodyCombatState&
     // A push is blocked by bodies as well as static geometry (#198 F: C02 reads its first real block).
     // Spec §8.3: a body on an enemy's ice slides GROUND.IceDisplacementScale as far.
     double PushCm=Hit.KnockbackCm;
+    if (!Hit.bKnockbackPull)
+    {
+        const int64 KeepBp=HulkingKnockbackKeepBp(Body);
+        if (KeepBp>0 && KeepBp<10000) { PushCm*=double(KeepBp)/10000.; }
+    }
     if (Body.bOnEnemyIce)
     {
         FLDGroundTerms Ground;

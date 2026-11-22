@@ -2349,6 +2349,14 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     // unspent points on the portrait badge.
     if(Pending.Offers>PromptOffers||Pending.CardOffers>PromptCardOffers){PromptPulseAt=UiNow;}
     PromptOffers=Pending.Offers;PromptCardOffers=Pending.CardOffers;
+    if(PromptText&&PC)
+    {
+        const int32 StashedCount=(Pending.bOffer?1:0)+Pending.Blueprints+FMath::Max<int32>(Pending.CardOffers,Pending.bCardOffer?1:0)+(Pending.bFinalMod?1:0);
+        const FString KeyLabel=PC->BindingLabel(TEXT("Workshop"));
+        HudSetText(PromptText,bFieldPhase&&bEngaged&&StashedCount>0
+            ?FString::Printf(TEXT("待选 ×%d [%s]"),StashedCount,*KeyLabel)
+            :FString::Printf(TEXT("构筑 [%s]"),*KeyLabel));
+    }
     HudSetColor(PromptText,bPromptLit?HudPromptInk:HudPromptIdleInk);
     {
         // Skills (the active offer and the blueprints), build cards, then the final mod; shown badges line up leftward.

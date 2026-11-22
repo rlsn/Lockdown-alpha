@@ -168,6 +168,7 @@ struct FLDPassiveEffectRef
     // Skill: the learned active it sits on; Y25: the chosen element.
     FName Active;
     ELDDemoElement Element=ELDDemoElement::None;
+    uint8 Tier=1;
 
     // Whether this card sits on Exit: a learned skill, the innate D, or the body, which carries the primary basic.
     bool Targets(const FLDCombatSourceRef& Exit) const
@@ -379,6 +380,8 @@ struct FLDBodyCombatState
     // Perfect dodges of this life and the last one's instant (owner notice).
     uint32 PerfectDodges=0;
     int64 LastPerfectDodgeAtMs=0;
+    // Innate 0.12s hit-graze perfect dodge: the DashStartedAtMs that already consumed its hit-dodge proc.
+    int64 LastDashDodgeStartMs=-1;
     int32 MonsterAttackCount=0;
     bool bMonsterEnraged=false;
     int64 MonsterGuardUntilMs=0;
@@ -458,6 +461,45 @@ struct FLDBodyCombatState
     TArray<FLDSkillContribution> SkillContributions;
     // Skill branch state (LDCombatBranchDirector.cpp).
     FLDCombatBranchState Branch;
+    // #345 keystone_thick_skin stagger bleed: single-hit HP loss past 35% MaxHP settles over 2.0s at 0.5s intervals.
+    struct FStaggerBleed
+    {
+        int64 RemainingP2=0;
+        int32 TicksLeft=0;
+        int64 NextTickMs=0, IntervalMs=500;
+        FLDCombatBodyRef SourceBody;
+        FGuid SourceEntity;
+        FGuid CreditOwner;
+        FLDCombatSourceRef Source;
+    };
+    TArray<FStaggerBleed> StaggerBleeds;
+    // #345 active_unplug parry stance, forced Combo 3 charges, and active_flurry_rush frenzy waves.
+    TOptional<FLDDemoEffectDefinition> ActiveParry;
+    int64 ParryUntilMs=0;
+    FGuid ParryEffectId;
+    FLDCombatSourceRef ParrySource;
+    bool bParryTriggered=false;
+    int32 ForcedCombo3Charges=0;
+    TOptional<FLDDemoEffectDefinition> ActiveFrenzy;
+    int64 FrenzyUntilMs=0;
+    FGuid FrenzyEffectId;
+    FLDCombatSourceRef FrenzySource;
+    // #345 cross-axis synergy card states.
+    int32 SpellbladeCharges=0;
+    int64 SpellbladeUntilMs=0;
+    ELDCombatElement SpellbladeElement=ELDCombatElement::None;
+    FLDCombatSourceRef SpellbladeHost;
+    int64 StillSinceMs=0;
+    FVector LastStillFootCm=FVector::ZeroVector;
+    bool bHasLastStillFoot=false;
+    bool bEagleStanceActive=false;
+    int64 EagleLingerUntilMs=0;
+    bool bOnAnyIce=false;
+    FVector LastIceSlideFootCm=FVector::ZeroVector;
+    bool bTrackingIceSlide=false;
+    double IceSlideAccumCm=0;
+    int64 ScholarBasicUntilMs=0;
+    int64 ScholarSkillUntilMs=0;
 };
 
 // The match counts the grow cards read (spec §7.4), kept on the entity record across lives.
@@ -630,7 +672,15 @@ struct FLDCombatHit
     // element of the same kind.
     int32 CardBurnStacks=0;
     FLDCombatSourceRef CardBurnSource;
+    uint8 CardMedalTier=1;
     TArray<TPair<ELDCombatElement,FLDCombatSourceRef>> CardElements;
+    // #345: monster damage scale, projectile flight distance, basic+skill dual trigger, stagger bleed, and backstab lunge terms.
+    int64 MonsterMultiplierBp=0;
+    double FlightDistanceCm=0;
+    double SourceDashDistanceCm=0;
+    bool bTriggersBasicOnHit=false;
+    bool bStaggerBleed=false;
+    TOptional<FLDDemoEffectDefinition> BackstabTerms;
     bool CarriesElement(ELDCombatElement Element) const
     {
         return (NativeElements & LDCombatElements::Bit(Element))!=0
@@ -1489,6 +1539,15 @@ private:
     void RemoveBag(int32 Index);
     void RemoveBags(TFunctionRef<bool(const FLDCombatBag&)> Which);
     void DamageBag(FLDCombatBag& Bag, const FLDCombatHit& Hit, int64 NowMs);
+    // #345 world combat entities (slipper pickups, cordon lines, phantom decoys) and stagger bleeds.
+    bool AdvanceStaggerBleeds(int64 NowMs, FString& Error);
+    bool AdvanceSlipperDrops(int64 NowMs, FString& Error);
+    bool AdvanceCordons(int64 NowMs, FString& Error);
+    bool AdvanceDecoys(int64 NowMs, FString& Error);
+    bool AdvanceSynergyStates(int64 NowMs, FString& Error);
+    bool IsEagleStanceActive(const FLDBodyCombatState& Body, int64 NowMs) const;
+    double HulkingAreaScaleOf(const FLDBodyCombatState& Body) const;
+    int64 HulkingKnockbackKeepBp(const FLDBodyCombatState& Body) const;
     // Enemy bags an area reaches and sees from its anchor (the world sight bodies need, CollectAreaTargets) take its raw amount.
     // final_cage: a hostile hit that crosses the standing fence wears it by its raw amount (RawBagDamageP2); it still
     // passes through. Crosses: one end inside the ring and the other outside. InCircle: an area that touches the ring.
@@ -1701,6 +1760,56 @@ private:
     TArray<FLDCombatFan> Fans;
     TArray<FLDCombatBag> Bags;
     TArray<FLDCombatGroundEffect> GroundEffects;
+    struct FLDCombatSlipperDrop
+    {
+        FGuid Id;
+        FGuid OwnerEntity;
+        FLDCombatBodyRef OwnerBody;
+        FName SkillId;
+        FVector FootCm=FVector::ZeroVector;
+        double RadiusCm=110;
+        int64 ExpiresAtMs=0;
+        FLDDemoEffectDefinition Terms;
+    };
+    struct FLDCombatCordon
+    {
+        FGuid Id;
+        FLDCombatHit Payload;
+        FLDDemoEffectDefinition Terms;
+        FVector CentreCm=FVector::ZeroVector;
+        FVector Tangent=FVector(0,1,0);
+        double HalfLengthCm=250, HalfWidthCm=70;
+        int64 ExpiresAtMs=0;
+        TMap<FGuid,int32> EnemyTouches;
+        TMap<FGuid,int64> EnemyCooldownUntilMs;
+        TSet<FGuid> BoostedFlights;
+        uint64 CreatedSerial=0;
+    };
+    struct FLDCombatDecoy
+    {
+        FGuid Id;
+        FLDCombatBodyRef OwnerBody;
+        FGuid OwnerEntity;
+        FGuid CreditOwner;
+        FLDCombatSourceRef Source;
+        FVector FootCm=FVector::ZeroVector;
+        double RadiusCm=240;
+        int64 ExplodeAtMs=0;
+        FLDDemoEffectDefinition Terms;
+        int64 SourceADP2=0, SourceAPP2=0, SourceBonusADP2=0;
+    };
+    struct FLDCombatShardBurst
+    {
+        FGuid Id;
+        FGuid OwnerEntity;
+        FVector FootCm=FVector::ZeroVector;
+        double RadiusCm=260;
+        int64 ExpiresAtMs=0;
+    };
+    TArray<FLDCombatSlipperDrop> SlipperDrops;
+    TArray<FLDCombatCordon> Cordons;
+    TArray<FLDCombatDecoy> Decoys;
+    TArray<FLDCombatShardBurst> ShardBursts;
     // Skill branch schedules (LDCombatBranchDirector.cpp).
     TArray<FLDCombatFollowUp> FollowUps;
     TArray<FLDCombatPulse> Pulses;

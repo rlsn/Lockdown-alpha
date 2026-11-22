@@ -178,6 +178,7 @@ private:
         LDHUD::EStorageColumn Column=LDHUD::EStorageColumn::Body;
         UBorder* Face=nullptr;
         uint8 Kind=0;
+        uint8 MedalTier=0;
         int32 Copies=1;
         EFaceState State=EFaceState::Normal;
         int32 AppliedLook=-1;
@@ -329,6 +330,7 @@ private:
     FName PendingComponent;
     FVector2D PendingAt=FVector2D::ZeroVector;
     bool bPendingAt=false;
+    bool bPendingMedalFuse=false;
     FName RejectedComponent;
     double RejectedAt=-100.;
     FName LandedComponent;

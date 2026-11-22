@@ -1275,8 +1275,8 @@ bool FLDDemoContentGrowthCatalogTest::RunTest(const FString& Parameters)
     {
         OpeningPool += Ability.Opening ? 1 : 0;
     }
-    TestEqual(TEXT("Twenty-six single-level actives (S01-S22, N1-N4)"), Definitions.Abilities.Num(), 26);
-    TestEqual(TEXT("Twenty actives form the opening pool (S01-S13, S17, S18, S20-S22, N1, N3)"), OpeningPool, 20);
+    TestEqual(TEXT("Twenty-four single-level actives"), Definitions.Abilities.Num(), 24);
+    TestEqual(TEXT("Fifteen actives form the opening pool"), OpeningPool, 15);
     TestTrue(TEXT("Levels 2, 5 and 9 each enqueue one active opportunity"), Definitions.Progression.ActiveOfferLevels == TArray<int32>{2, 5, 9});
     const FLDDemoContentParameters& P = Definitions.Parameters;
     TestTrue(TEXT("Growth points and the build safe window are the approved values"),
@@ -1354,14 +1354,14 @@ bool FLDDemoContentCardCatalogTest::RunTest(const FString& Parameters)
         return false;
     }
     const FLDDemoContentDefinitions& Definitions = Snapshot->Get();
-    if (!TestEqual(TEXT("Seventy-three cards and five element medals"), Definitions.Cards.Num(), 78)) { return false; }
+    if (!TestEqual(TEXT("Eighty-nine cards and five element medals"), Definitions.Cards.Num(), 94)) { return false; }
     int32 Forms[int32(ELDCardForm::Count)] = {};
     int32 Types[int32(ELDCardType::Count)] = {};
     uint16 Previous = 199;
     for (const FLDDemoCardDefinition& Row : Definitions.Cards)
     {
-        TestTrue(FString::Printf(TEXT("%s has an ascending native id in 200-289"), *Row.Id),
-            Row.NativeId > Previous && Row.NativeId <= 289);
+        TestTrue(FString::Printf(TEXT("%s has an ascending native id in 200-305"), *Row.Id),
+            Row.NativeId > Previous && Row.NativeId <= 305);
         Previous = Row.NativeId;
         ++Forms[int32(Row.Form)];
         ++Types[int32(Row.Type)];
@@ -1375,14 +1375,14 @@ bool FLDDemoContentCardCatalogTest::RunTest(const FString& Parameters)
         TestTrue(FString::Printf(TEXT("FindCard resolves %s to its own row: %s"), *Row.Id, *Error),
             Snapshot->FindCard(Row.Id, Found, Error) && Found == &Row);
     }
-    TestTrue(TEXT("Nineteen skill, eleven dash and forty-three body cards and five element medals"),
-        Forms[int32(ELDCardForm::Skill)] == 19 && Forms[int32(ELDCardForm::Dash)] == 11
-        && Forms[int32(ELDCardForm::Body)] == 43 && Forms[int32(ELDCardForm::Medal)] == 5);
+    TestTrue(TEXT("Twenty skill, thirteen dash and fifty-six body cards and five element medals"),
+        Forms[int32(ELDCardForm::Skill)] == 20 && Forms[int32(ELDCardForm::Dash)] == 13
+        && Forms[int32(ELDCardForm::Body)] == 56 && Forms[int32(ELDCardForm::Medal)] == 5);
     TestTrue(TEXT("Every card type has cards"), Algo::AllOf(Types, [](int32 Count) { return Count > 0; }));
     const FLDDemoCardParameters& Cards = Definitions.Parameters.Cards;
     TestTrue(TEXT("Capacity 6 plus one per three levels, three-card offers, three free rerolls plus one per rest"),
         Cards.CapacityBase == 6 && Cards.LevelsPerSlot == 3 && Cards.OfferSize == 3 && Cards.FreeRerolls == 3
-        && Cards.RerollsPerRest == 1 && Cards.VocabWeight == 2);
+        && Cards.RerollsPerRest == 1 && Cards.VocabWeightBp == 12000);
     TestTrue(TEXT("The chain guard is read"), Definitions.Parameters.ChainMaxDepth > 0 && Definitions.Parameters.ChainMaxEffectsPerStep > 0);
     const FLDDemoCardDefinition* Missing = nullptr;
     TestFalse(TEXT("An absent card stays absent"), Snapshot->FindCard(TEXT("card_missing"), Missing, Error));

@@ -427,6 +427,7 @@ bool LDObservation::ValidateProjectile(const FLDObservedProjectileView& Projecti
     if (!FMath::IsFinite(Projectile.LengthCm) || Projectile.LengthCm<0
         || (Projectile.Look!=ELDObservedProjectileLook::Road && Projectile.Look!=ELDObservedProjectileLook::LineWarning
             && Projectile.Look!=ELDObservedProjectileLook::Wind && Projectile.Look!=ELDObservedProjectileLook::BagWall
+            && Projectile.Look!=ELDObservedProjectileLook::CordonTape
             && Projectile.LengthCm!=0)
         || !FMath::IsFinite(Projectile.RadiusCm) || !FMath::IsFinite(Projectile.InnerRadiusCm)
         || !FMath::IsFinite(Projectile.AngleDegrees) || Projectile.RadiusCm < 0 || Projectile.RadiusCm > MaxObservedCoordinateCm
@@ -450,6 +451,7 @@ bool LDObservation::ValidateProjectile(const FLDObservedProjectileView& Projecti
     case ELDObservedProjectileLook::Road:
     case ELDObservedProjectileLook::Wind:
     case ELDObservedProjectileLook::BagWall:
+    case ELDObservedProjectileLook::CordonTape:
         if(Projectile.LengthCm<=0 || Projectile.RadiusCm<=0 || Projectile.InnerRadiusCm!=0
             || Projectile.AngleDegrees!=0 || Projectile.WarningRemainingMs!=0)
         {return FailObservation(Error,TEXT("A road needs its walked length and half-width, without a landing warning."));}
@@ -458,6 +460,7 @@ bool LDObservation::ValidateProjectile(const FLDObservedProjectileView& Projecti
     case ELDObservedProjectileLook::Sock:
     case ELDObservedProjectileLook::ChalkReturn:
     case ELDObservedProjectileLook::SockReturn:
+    case ELDObservedProjectileLook::FistWind:
         if (Projectile.RadiusCm != 0 || Projectile.InnerRadiusCm != 0 || Projectile.AngleDegrees != 0
             || Projectile.WarningRemainingMs != 0)
         { return FailObservation(Error, TEXT("A flight cannot carry a ground-effect shape.")); }
@@ -473,6 +476,9 @@ bool LDObservation::ValidateProjectile(const FLDObservedProjectileView& Projecti
     case ELDObservedProjectileLook::AreaFire:
     case ELDObservedProjectileLook::AreaWater:
     case ELDObservedProjectileLook::AreaElectric:
+    case ELDObservedProjectileLook::SlipperDrop:
+    case ELDObservedProjectileLook::PhantomDecoy:
+    case ELDObservedProjectileLook::ShardBurst:
         if (Projectile.RadiusCm <= 0 || Projectile.InnerRadiusCm < 0 || Projectile.AngleDegrees != 0)
         { return FailObservation(Error, TEXT("An observed area needs its public radius and no cone angle.")); }
         break;

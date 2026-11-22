@@ -140,6 +140,7 @@ void FLDAudioCueTracker::ObserveOwn(const FLDAudioFrame& Frame, TArray<ELDAudioC
             HitMaxHPP2 = Combat->MaxHPP2;
             HitSeenAtMs = Combat->Cues.LastHitAtMs;
             AttackReleasedAtMs = Combat->Cues.ReleasedAtMs;
+            PickupSeenAtMs = Combat->Cues.LastPickupAtMs;
         }
         else if (Combat->Revision > HitRevision)
         {
@@ -155,24 +156,47 @@ void FLDAudioCueTracker::ObserveOwn(const FLDAudioFrame& Frame, TArray<ELDAudioC
                 }
                 AttackReleasedAtMs = Facts.ReleasedAtMs;
             }
+            if (Facts.LastPickupAtMs > PickupSeenAtMs)
+            {
+                if (Facts.LastPickupAtMs <= Combat->AsOfMs && Frame.OwnLifePhase == ELDLifePhase::Alive && Combat->HPP2 > 0)
+                {
+                    LDAudio::AddUnique(Out, ELDAudioCue::SelfPickup);
+                }
+                PickupSeenAtMs = Facts.LastPickupAtMs;
+            }
             // Lost points with an unchanged or larger maximum: a smaller maximum only clamps.
             // A lethal hit is left to the death cue.
             const bool bLost = Combat->HPP2 < HitHPP2 && Combat->MaxHPP2 >= HitMaxHPP2 && Combat->HPP2 > 0;
             const bool bNewHit = Facts.LastHitAtMs > HitSeenAtMs && Facts.LastHitAtMs <= Combat->AsOfMs;
+            const bool bDodged = bNewHit && (Facts.LastHitFlags & LDObservation::Dodged);
+            const bool bParried = bNewHit && (Facts.LastHitFlags & LDObservation::Parried);
             const bool bAbsorbed = bNewHit && (Facts.LastHitFlags & LDObservation::ShieldAbsorbed);
             const bool bBroken = bAbsorbed && (Facts.LastHitFlags & LDObservation::ShieldBroken);
-            if ((bLost || bAbsorbed) && Combat->HPP2 > 0 && Frame.OwnLifePhase == ELDLifePhase::Alive)
+            if (Combat->HPP2 > 0 && Frame.OwnLifePhase == ELDLifePhase::Alive)
             {
-                if (bBroken && Frame.LocalSeconds - LastShieldBreakAt >= HitRepeatSeconds)
+                if (bDodged)
                 {
-                    LDAudio::AddUnique(Out, ELDAudioCue::SelfShieldBreak);
-                    LastShieldBreakAt = Frame.LocalSeconds;
+                    LDAudio::AddUnique(Out, ELDAudioCue::SelfPerfectDodge);
                     LastHitAt = Frame.LocalSeconds;
                 }
-                else if (!bBroken && Frame.LocalSeconds - LastHitAt >= HitRepeatSeconds)
+                else if (bParried)
                 {
-                    LDAudio::AddUnique(Out, bAbsorbed ? ELDAudioCue::SelfShieldHit : ELDAudioCue::SelfHit);
+                    LDAudio::AddUnique(Out, ELDAudioCue::SelfParry);
                     LastHitAt = Frame.LocalSeconds;
+                }
+                else if (bLost || bAbsorbed)
+                {
+                    if (bBroken && Frame.LocalSeconds - LastShieldBreakAt >= HitRepeatSeconds)
+                    {
+                        LDAudio::AddUnique(Out, ELDAudioCue::SelfShieldBreak);
+                        LastShieldBreakAt = Frame.LocalSeconds;
+                        LastHitAt = Frame.LocalSeconds;
+                    }
+                    else if (!bBroken && Frame.LocalSeconds - LastHitAt >= HitRepeatSeconds)
+                    {
+                        LDAudio::AddUnique(Out, bAbsorbed ? ELDAudioCue::SelfShieldHit : ELDAudioCue::SelfHit);
+                        LastHitAt = Frame.LocalSeconds;
+                    }
                 }
             }
             if (bNewHit) { HitSeenAtMs = Facts.LastHitAtMs; }

@@ -84,9 +84,13 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::Shield:
     case ELDDemoEffectOp::DispelRoot:
     case ELDDemoEffectOp::DispelSlow:
-    // #198 S16: a damage cut that answers when it ends.
+    // #198 S16 & #345 S05: a damage cut that answers when hit or when it ends.
     case ELDDemoEffectOp::Brace:
+    case ELDDemoEffectOp::ParryStance:
         Usage.bSelfProtect |= bSelfTarget;
+        break;
+    case ELDDemoEffectOp::FrenzyWaves:
+        Usage.bEngage = true;
         break;
     case ELDDemoEffectOp::Dash:
         Usage.bMobility = true;
@@ -135,9 +139,11 @@ void ReadEffects(const TArray<FLDDemoEffectDefinition>& Effects, FSourceShape& O
         case ELDDemoEffectOp::Zone: Out.ZoneRadiusCm = FMath::Max(Out.ZoneRadiusCm, ToDouble(Effect.RadiusCm)); break;
         case ELDDemoEffectOp::GroundImpact:
         case ELDDemoEffectOp::ContactTrap: Out.ZoneRadiusCm = FMath::Max(Out.ZoneRadiusCm, ToDouble(Effect.RadiusCm)); break;
-        // N4: a bag is placed on the target like a trap and blows over its radius.
-        case ELDDemoEffectOp::Bag: Out.ZoneRadiusCm = FMath::Max(Out.ZoneRadiusCm, ToDouble(Effect.RadiusCm)); break;
-        case ELDDemoEffectOp::EmpowerBasic: Out.bEmpowerBasic = true; break;
+        // N4 & #345 N6: a bag or cordon is placed on the target like a trap.
+        case ELDDemoEffectOp::Bag:
+        case ELDDemoEffectOp::CordonLine: Out.ZoneRadiusCm = FMath::Max(Out.ZoneRadiusCm, ToDouble(Effect.RadiusCm)); break;
+        case ELDDemoEffectOp::EmpowerBasic:
+        case ELDDemoEffectOp::FrenzyWaves: Out.bEmpowerBasic = true; break;
         case ELDDemoEffectOp::Root: Out.bRoot = true; break;
         case ELDDemoEffectOp::Stun:
         case ELDDemoEffectOp::Silence: Out.bStun = true; break;
@@ -146,7 +152,8 @@ void ReadEffects(const TArray<FLDDemoEffectDefinition>& Effects, FSourceShape& O
             Out.TauntRadiusCm = FMath::Max(Out.TauntRadiusCm, ToDouble(Effect.RadiusCm));
             break;
         case ELDDemoEffectOp::Shield:
-        case ELDDemoEffectOp::Brace: Out.bShield = true; break;
+        case ELDDemoEffectOp::Brace:
+        case ELDDemoEffectOp::ParryStance: Out.bShield = true; break;
         case ELDDemoEffectOp::DispelRoot: Out.bDispelRoot = true; break;
         case ELDDemoEffectOp::Dash:
             Out.bDash = true;

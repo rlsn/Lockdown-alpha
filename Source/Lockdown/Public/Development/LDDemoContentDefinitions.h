@@ -108,7 +108,7 @@ struct FLDDemoCardParameters
     UPROPERTY() int32 OfferSize = 0;
     UPROPERTY() int32 FreeRerolls = 0;
     UPROPERTY() int32 RerollsPerRest = 0;
-    UPROPERTY() int32 VocabWeight = 0;
+    UPROPERTY() int64 VocabWeightBp = 0;
     // Stat points for skipping one card offer (CARDS.SkipPoints).
     UPROPERTY() int32 SkipPoints = 0;
     // A level-up queues a card offer only at levels this divides (1: every level).
@@ -128,7 +128,7 @@ struct FLDDemoShopParameters
 
     UPROPERTY() int32 CardSlots = 0;
     UPROPERTY() int32 VocabCardSlots = 0;
-    UPROPERTY() int32 VocabWeight = 0;
+    UPROPERTY() int64 VocabWeightBp = 0;
     UPROPERTY() int32 SkillSlots = 0;
     UPROPERTY() int32 CardPrice = 0;
     UPROPERTY() int32 SkillPrice = 0;
@@ -219,6 +219,8 @@ struct FLDDemoMedalParameters
     UPROPERTY() int64 CampAncientChanceBp = 0;
     UPROPERTY() int64 BossChanceBp = 0;
     UPROPERTY() int64 EventChanceBp = 0;
+    UPROPERTY() int32 MaxTier = 3;
+    UPROPERTY() int64 Tier2ReactionBonusBp = 0;
 };
 
 // Spec §11.3 (P6) delivery lockers and the second-hand dealer.
@@ -261,6 +263,9 @@ struct FLDDemoMomentumParameters
     UPROPERTY() int64 ReactionP2 = 0;
     UPROPERTY() int64 PerfectDodgeP2 = 0;
     UPROPERTY() int64 PerfectDodgeWindowMs = 0;
+    UPROPERTY() int64 DashDodgeWindowMs = 0;
+    UPROPERTY() int64 DashDodgeCutBp = 0;
+    UPROPERTY() int64 DashDodgeCooldownRefundBp = 0;
     // IdleDelayMs after the last combat event the bar drifts toward StartP2 at IdleReturnPerSec.
     UPROPERTY() int64 IdleDelayMs = 0;
     UPROPERTY() FLDDemoRational IdleReturnPerSec;
@@ -422,12 +427,16 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 ShowdownSecondRespawnMs = 0;
     UPROPERTY() int64 ShowdownRespawnCutoffMs = 0;
     UPROPERTY() int64 ShowdownClosureStartsMs = 0;
+    UPROPERTY() TArray<int64> ShowdownSprayRatchetMs;
+    UPROPERTY() TArray<int64> ShowdownGuardRatchetMs;
+    UPROPERTY() int64 ShowdownKillGuardBonusMs = 0;
     // #198: each of the three field segments; the field progress T only advances in the field.
     UPROPERTY() int64 FieldSegmentMs = 0;
     // #198 rest phases: R0 and R1-R3 build windows whose last RestSignupMs double as PK sign-up, then draw, betting,
     // PK ready lock, PK cap, settlement, payout and the return-to-field countdown.
     UPROPERTY() int64 RestOpeningBuildMs = 0;
     UPROPERTY() int64 RestBuildMs = 0;
+    UPROPERTY() int64 RestFinalBuildMs = 0;
     UPROPERTY() int64 RestSignupMs = 0;
     UPROPERTY() int64 RestDrawMs = 0;
     UPROPERTY() int64 RestBettingMs = 0;
@@ -568,6 +577,9 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 KeystoneThickSkinSteadyMs = 0;
     // COMBAT.KeystoneThickSkinKnockbackRatio: the share of a knockback distance kept during the thick-skin steady window.
     UPROPERTY() int64 KeystoneThickSkinKnockbackBp = 0;
+    UPROPERTY() int64 KeystoneThickSkinBleedThresholdBp = 0;
+    UPROPERTY() int64 KeystoneThickSkinBleedMs = 0;
+    UPROPERTY() int64 KeystoneThickSkinBleedTickMs = 0;
     UPROPERTY() int64 KeystoneStrengthDamageBp = 0;
     UPROPERTY() int64 KeystoneBrainsMomentumRefundBp = 0;
     UPROPERTY() int64 KeystoneBrainsReactionMomentumP2 = 0;
@@ -601,6 +613,8 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 OverloadBreachStacks = 0;
     UPROPERTY() int64 XPBaseToNext = 0;
     UPROPERTY() int64 XPIncreasePerLevel = 0;
+    UPROPERTY() int64 XPSteepFromLevel = 5;
+    UPROPERTY() int64 XPSteepExtraPerLevel = 0;
     UPROPERTY() int64 PlayerXPBase = 0;
     // REWARD.BountyXP: extra XP for the killer of a contender shown trending (上热搜) at its death.
     UPROPERTY() int64 BountyXP = 0;
@@ -869,13 +883,17 @@ struct FLDDemoEffectDefinition
     // Opcode is checked against ELDDemoEffectOp; reservations are not battle handlers.
     // Field use per op: Slow RatioBp+DurationMs; TimedStatBonus Stats+DurationMs; SelfArea RadiusCm;
     // LowHpStatBonus RatioBp (HP threshold)+Stats; ControlDamageAmp RatioBp.
-    UPROPERTY() uint8 Opcode = 0;
+    UPROPERTY() uint16 Opcode = 0;
     UPROPERTY() int64 BaseP2 = 0;
     UPROPERTY() int64 ADRatioBp = 0;
     UPROPERTY() int64 APRatioBp = 0;
     UPROPERTY() int64 AdaptiveRatioBp = 0;
     // Damage only: coefficient of the caster's own max HP, snapshotted at release.
     UPROPERTY() int64 MaxHPRatioBp = 0;
+    // Coefficient of (Armor + MagicResist) on heavy shields, slams and parries (#345).
+    UPROPERTY() int64 ResistRatioBp = 0;
+    // Parry missing-HP heal share (#345).
+    UPROPERTY() int64 HealMissingBp = 0;
     UPROPERTY() ELDDemoDamageType DamageType = ELDDemoDamageType::Physical;
     UPROPERTY() int64 DurationMs = 0;
     UPROPERTY() int64 DelayMs = 0;
@@ -1006,14 +1024,16 @@ struct FLDDemoEffectDefinition
         switch (GetOp())
         {
         case ELDDemoEffectOp::Knockback: case ELDDemoEffectOp::ChannelCone: case ELDDemoEffectOp::GroundImpact:
-        case ELDDemoEffectOp::EmpowerBasic: case ELDDemoEffectOp::Fan:
+        case ELDDemoEffectOp::EmpowerBasic: case ELDDemoEffectOp::Fan: case ELDDemoEffectOp::CordonLine:
             return ExtraDurationMs > 0 ? &ExtraDurationMs : nullptr;
         case ELDDemoEffectOp::Recast:
             return ExtraDurationMs > 0 ? &ExtraDurationMs
                 : RecastControl != ELDDemoRecastControl::Same && SecondaryDurationMs > 0 ? &SecondaryDurationMs : nullptr;
-        // S16 3A1: the brace answer stuns.
-        case ELDDemoEffectOp::BraceStun:
+        // S16 3A1: the brace answer stuns; backstab lunge stuns from rear/controlled; parry stance disarms on block.
+        case ELDDemoEffectOp::BraceStun: case ELDDemoEffectOp::BackstabLunge:
             return DurationMs > 0 ? &DurationMs : nullptr;
+        case ELDDemoEffectOp::ParryStance:
+            return ExtraDurationMs > 0 ? &ExtraDurationMs : SecondaryDurationMs > 0 ? &SecondaryDurationMs : nullptr;
         default: return nullptr;
         }
     }

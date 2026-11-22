@@ -49,7 +49,9 @@ bool ALDGameMode::BeginShowdown(const FLDGameplayWritePermit& Permit, FString& E
     ShowdownDamageP2.Reset();
     ShowdownBurn.Reset();
     bShowdownClosePending = false;
-    CaptureReducer.SetShowdownRatchets({1150, 2300}, {7000, 14000}, 4000);
+    const FLDDemoContentParameters& ContentParams = DemoContent->Get().Parameters;
+    CaptureReducer.SetShowdownRatchets(ContentParams.ShowdownSprayRatchetMs, ContentParams.ShowdownGuardRatchetMs,
+        ContentParams.ShowdownKillGuardBonusMs);
     int64 OpensAt = 0;
     if (!LDMatchLifecycle::AddDurationMs(Showdown.StartedAtMs, Settings->UnlockDelayMs, OpensAt, Error)
         || !CaptureReducer.ScheduleOpen(OpensAt, Error) || !BeginFinalMods(*Registry, Error)) { return false; }

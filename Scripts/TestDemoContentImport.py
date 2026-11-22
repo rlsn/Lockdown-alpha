@@ -220,7 +220,7 @@ class DemoContentImport(unittest.TestCase):
             self.assertFalse({"ranks", "kind", "draftable"} & set(row))
         self.assertEqual(bolt["effects"][0]["base"]["p2"], 800)
         self.assertEqual(bolt["effects"][0]["ap_ratio"]["bp"], 1250)
-        self.assertEqual([effect["opcode"] for effect in bolt["effects"]], [1, 12])
+        self.assertEqual([effect["opcode"] for effect in bolt["effects"]], [1, 12, 260])
         self.assertEqual((bolt["momentum_cost"]["p2"], bolt["cooldown"]["ms"]), (600, 3000))
         self.assertEqual((bolt["element"], bolt["hit_type"]), ("none", "projectile"))
         self.assertEqual(guard["effects"][0]["base"]["p2"], 2000)
@@ -507,7 +507,8 @@ class DemoContentImport(unittest.TestCase):
             lambda data: data["retired_ranges"].pop("statuses"),
             lambda data: data["abilities"].update(passive_pressed=104),
             lambda data: data["abilities"].update(active_cower=119),
-            lambda data: data["abilities"].pop("active_sock_shot"),
+            lambda data: data["abilities"].update(active_sock_shot=116),
+            lambda data: data["abilities"].pop("active_stale_takeout"),
             lambda data: data["stats"].update(stat_physique=15),
             lambda data: data.update(attributes={"attr_protein": 15}),
             lambda data: data["statuses"].update(cowering=28),
@@ -570,22 +571,24 @@ class DemoContentImport(unittest.TestCase):
              "element": "water", "hit_type": "area",
              "momentum_cost": q("momentum", 5), "cooldown": q("s", 6),
              "effects": [deepcopy(damage), {"op": "knockback", "distance": q("cm", 100), "duration": q("s", 0.125)}, {"op": "wet"}]},
-            {"id": "active_charged_ram", "opening": False, "cooldown_family": "cd_charged_ram", "windup": q("s", 0),
-             "target": {"mode": "DirectionDash"}, "element": "shock", "hit_type": "dash", "momentum_cost": q("momentum", 5), "cooldown": q("s", 8),
+            {"id": "active_charged_ram", "opening": True, "cooldown_family": "cd_charged_ram", "windup": q("s", 0),
+             "target": {"mode": "DirectionDash"}, "element": "none", "hit_type": "dash", "momentum_cost": q("momentum", 5), "cooldown": q("s", 8),
              "effects": [{"op": "dash", "distance": q("cm", 200), "duration": q("s", 0.25)},
                          {"op": "shield", "base": q("hp", 10), "ap_ratio": q("ratio", 0), "duration": q("s", 1)},
-                         {"op": "dash_contact", "targets": "Every"}, deepcopy(damage), {"op": "electrify"}]},
+                         {"op": "dash_contact", "targets": "Every"}, deepcopy(damage),
+                         {"op": "knockback", "distance": q("cm", 100), "duration": q("s", 0.125)}]},
             {"id": "active_brace", "opening": False, "cooldown_family": "cd_brace", "windup": q("s", 0),
              "target": {"mode": "Self"}, "element": "none", "hit_type": "self", "momentum_cost": q("momentum", 5), "cooldown": q("s", 9),
              "effects": [{"op": "brace", "duration": q("s", 2), "ratio": q("ratio", 0.25), "limit": q("points", 40),
                           "radius": q("cm", 150), "base": q("points", 10), "record_ratio": q("ratio", 0.5)}]},
-            {"id": "active_dirty_puddle", "opening": False, "cooldown_family": "cd_dirty_puddle", "windup": q("s", 0.25),
-             "target": {"mode": "GroundPoint", "range": q("cm", 400)}, "element": "water", "hit_type": "area", "momentum_cost": q("momentum", 5), "cooldown": q("s", 9),
+            {"id": "active_quick_meeting", "opening": True, "cooldown_family": "cd_quick_meeting", "windup": q("s", 0.25),
+             "target": {"mode": "GroundPoint", "range": q("cm", 400)}, "element": "fire", "hit_type": "area", "momentum_cost": q("momentum", 5), "cooldown": q("s", 9),
              "effects": [{"op": "zone", "radius": q("cm", 150), "duration": q("s", 2), "interval": q("s", 1),
                           "delay": q("s", 0), "count": 2},
                          {"op": "zone_damage", "base": q("points", 3), "ad_ratio": q("ratio", 0), "ap_ratio": q("ratio", 0.1),
                           "damage_type": "Magical"},
-                         {"op": "zone_wet"}, {"op": "zone_haste", "ratio": q("ratio", 0.1)}]},
+                         {"op": "zone_slow", "ratio": q("ratio", 0.2), "duration": q("s", 0.5), "interval": q("s", 1)},
+                         {"op": "zone_burn", "stacks": 1, "interval": q("s", 1)}]},
         ]
         for index, row in enumerate(added):
             row["ranks"] = simple_ranks(10 + index)
@@ -605,16 +608,16 @@ class DemoContentImport(unittest.TestCase):
             return next(effect for effect in ability(data, identity)["effects"] if effect["op"] == op)
 
         for mutation, code in (
-            (lambda d: ability(d, "active_dirty_puddle")["effects"].append({"op": "wet"}), "MissingHandler"),
-            (lambda d: ability(d, "active_dirty_puddle")["effects"].pop(2), "MissingHandler"),
-            (lambda d: first(d, "active_dirty_puddle", "zone_haste")["ratio"].update(value=1), "NumericDomain"),
+            (lambda d: ability(d, "active_quick_meeting")["effects"].append({"op": "wet"}), "MissingHandler"),
+            (lambda d: ability(d, "active_quick_meeting")["effects"].pop(2), "MissingHandler"),
+            (lambda d: first(d, "active_quick_meeting", "zone_slow")["ratio"].update(value=1), "NumericDomain"),
             (lambda d: first(d, "active_brace", "brace")["ratio"].update(value=1), "NumericDomain"),
             (lambda d: first(d, "active_brace", "brace")["limit"].update(value=0), "IneffectiveEffect"),
             (lambda d: first(d, "active_brace", "brace")["radius"].update(value=0), "InvalidGeometry"),
             (lambda d: ability(d, "active_brace")["effects"].append({"op": "wet"}), "TargetEffectMismatch"),
             (lambda d: ability(d, "active_hose_down")["target"].pop("half_width"), "SchemaVariant"),
             (lambda d: ability(d, "active_hose_down")["target"]["half_width"].update(value=0), "NumericDomain"),
-            (lambda d: ability(d, "active_hose_down")["effects"].append({"op": "root", "duration": q("s", 1)}),
+            (lambda d: ability(d, "active_hose_down")["effects"].append({"op": "self_area", "radius": q("cm", 100)}),
              "TargetEffectMismatch"),
             (lambda d: first(d, "active_charged_ram", "dash_contact").update(targets="All"), "SchemaVariant"),
             (lambda d: first(d, "active_charged_ram", "dash_contact").update(count=1), "SchemaVariant"),

@@ -113,6 +113,14 @@ struct FLDBuildPrimitivesAccess
     static int64 NextGroundDueMs(const ALDCombatDirector& Driver, int64 NowMs) { return Driver.NextGroundDueMs(NowMs); }
     // Spec §5 N4 bags.
     static TArray<FLDCombatBag>& Bags(ALDCombatDirector& Driver) { return Driver.Bags; }
+    static TArray<ALDCombatDirector::FLDCombatSlipperDrop>& SlipperDrops(ALDCombatDirector& Driver) { return Driver.SlipperDrops; }
+    static TArray<ALDCombatDirector::FLDCombatCordon>& Cordons(ALDCombatDirector& Driver) { return Driver.Cordons; }
+    static TArray<ALDCombatDirector::FLDCombatDecoy>& Decoys(ALDCombatDirector& Driver) { return Driver.Decoys; }
+    static bool AdvanceStaggerBleeds(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceStaggerBleeds(NowMs, Error); }
+    static bool AdvanceSlipperDrops(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceSlipperDrops(NowMs, Error); }
+    static bool AdvanceCordons(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceCordons(NowMs, Error); }
+    static bool AdvanceDecoys(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceDecoys(NowMs, Error); }
+    static bool AdvanceSynergyStates(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceSynergyStates(NowMs, Error); }
     static bool PlaceBag(ALDCombatDirector& Driver, FLDBodyCombatState& Body, const FLDCombatHit& Payload, const FLDDemoEffectDefinition& Effect,
         const FVector& Centre, int64 NowMs, FString& Error) { return Driver.PlaceBag(Body, Payload, Effect, nullptr, Centre, NowMs, Error); }
     static bool AdvanceBags(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceBags(NowMs, Error); }
@@ -162,6 +170,9 @@ struct FLDBuildPrimitivesAccess
     static bool Compile(const ALDCombatDirector& Driver, const FLDAttributeProjection& Projection, const FLDCombatSourceRef& Source,
         FLDCombatActiveTerms& Terms, FString& Error)
     { return Driver.CompileActive(Projection, Source, Terms, Error); }
+    static bool CastRange(const ALDCombatDirector& Driver, const FLDBodyCombatState& Body, const FLDDemoTargetDefinition& Target,
+        double& OutCm, FString& Error)
+    { return Driver.CastRangeCm(Body, Target, OutCm, Error); }
     static bool ReleaseTerms(ALDCombatDirector& Driver, FLDBodyCombatState& Body, const FLDCombatSourceRef& Source,
         const FLDCombatActiveTerms& Terms, const FVector& Origin, const FVector& Point, FString& Error)
     { return Driver.ReleaseMechanics(Body, Source, Terms, Origin, Point, (Point-Origin).GetSafeNormal2D(), FGuid::NewGuid(), 0, MakeShared<FLDCombatCastLedger>(), Error); }
@@ -1803,8 +1814,8 @@ bool FLDCombatEventDefenseBudgetTest::RunTest(const FString& Parameters)
                             { AddError(TEXT("The planned heal failed")); return false; }
                             Healed = Body.Resources.HpP2 - Before;
                         }
-                        // 400 HP: the first hit still reaches HP past the thick-skin keystone and the 100 HP shield, and the light builds live.
-                        FLDCombatHit Hit = FFixture::Hit(Attacker, Target, 40000);
+                        // 460 HP: the first hit still reaches HP past the thick-skin keystone and the 100 HP shield, and the light builds live.
+                        FLDCombatHit Hit = FFixture::Hit(Attacker, Target, 46000);
                         Hit.DamageType = Type;
                         const int64 BeforeHP = Body.Resources.HpP2, BeforeShield = Body.Resources.ShieldP2;
                         if (!F.Apply(Hit, Error)) { AddError(TEXT("Defensive hit: ") + Error); return false; }
@@ -1831,7 +1842,7 @@ bool FLDCombatEventProjectileCounterplayTest::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
     TArray<TStrongObjectPtr<UPackage>> RetainedPackages;
-    for (const TCHAR* Active : {TEXT("active_snark_bolt"), TEXT("active_sock_shot")})
+    for (const TCHAR* Active : {TEXT("active_snark_bolt"), TEXT("active_stale_takeout")})
     {
         for (int32 Case = 0; Case < 3; ++Case)
         {
@@ -1874,9 +1885,8 @@ bool FLDCombatEventProjectileCounterplayTest::RunTest(const FString& Parameters)
                 if (!Drain(*this, F)) { return false; }
                 if (Case == 0 && FString(Active) == TEXT("active_snark_bolt"))
                 { TestTrue(TEXT("S06 applies its movement slow"), !F.Body(Target).Slows.IsEmpty()); }
-                if (Case == 0 && FString(Active) == TEXT("active_sock_shot"))
-                { TestTrue(TEXT("S21 applies attack slow and rot"), !F.Body(Target).AttackSlows.IsEmpty()
-                    && F.Body(Target).ElementMark.Kind == ELDCombatElement::Rot); }
+                if (Case == 0 && FString(Active) == TEXT("active_stale_takeout"))
+                { TestTrue(TEXT("N3 applies rot"), F.Body(Target).ElementMark.Kind == ELDCombatElement::Rot); }
             }
         }
     }
@@ -2044,11 +2054,17 @@ bool FLDCombatEventZoneHasteTest::RunTest(const FString& Parameters)
     const FLDCombatBodyRef Owner = F.AddBody(), Other = F.AddBody(ELDVictimKind::Contender, Big);
     F.Place(Owner, 250, 0);
     F.Place(Other, 300, -80);
-    FLDCombatActiveTerms Puddle;
-    if (!ActiveTerms(*this, F, TEXT("active_dirty_puddle"), Puddle)) { return false; }
+    FLDCombatActiveTerms ZoneTerms;
+    if (!ActiveTerms(*this, F, TEXT("active_quick_meeting"), ZoneTerms)) { return false; }
+    {
+        FLDDemoEffectDefinition Haste;
+        Haste.Opcode = uint8(ELDDemoEffectOp::ZoneHaste);
+        Haste.RatioBp = 2500;
+        ZoneTerms.Values.Effects.Add(Haste);
+    }
     FString Error;
-    const FLDCombatSourceRef S20 = SourceOf(ELDCombatSourceKind::Learned, TEXT("active_dirty_puddle"));
-    if (!TestTrue(FString::Printf(TEXT("S20 is released: %s"), *Error), FAccess::ReleaseTerms(*F.Driver, F.Body(Owner), S20, Puddle,
+    const FLDCombatSourceRef S08 = SourceOf(ELDCombatSourceKind::Learned, TEXT("active_quick_meeting"));
+    if (!TestTrue(FString::Printf(TEXT("Zone with ally haste is released: %s"), *Error), FAccess::ReleaseTerms(*F.Driver, F.Body(Owner), S08, ZoneTerms,
         F.Foot(Owner), F.Origin + FVector(300, 0, 0), Error) && FAccess::Zones(*F.Driver).Num() == 1)) { return false; }
     const FGuid ZoneId = FAccess::Zones(*F.Driver)[0].EffectId;
     const auto Hasted = [&](const FLDCombatBodyRef& Ref)
@@ -2403,10 +2419,12 @@ bool FLDOverdriveReleaseTest::RunTest(const FString& Parameters)
     const FLDCombatBodyRef Holder = F.AddBody();
     FLDCombatActiveTerms Plain, Over;
     if (!OverdriveTerms(*this, F, Holder, TEXT("active_elbow"), Plain, Over)) { return false; }
+    const int64 ScaleBp = F.Catalog->Get().Parameters.Overdrive.ScaleBp;
     const FLDDemoEffectDefinition* Base = FindEffect(Plain.Values, ELDDemoEffectOp::Damage);
     const FLDDemoEffectDefinition* Scaled = FindEffect(Over.Values, ELDDemoEffectOp::Damage);
-    TestTrue(TEXT("S01's base and AD coefficient are 1.6 times"), Base && Scaled && Scaled->BaseP2 == Base->BaseP2 * 16 / 10
-        && Scaled->ADRatioBp == Base->ADRatioBp * 16 / 10);
+    TestTrue(TEXT("S01's base and AD coefficient scale by OVERDRIVE.Scale"), Base && Scaled
+        && Scaled->BaseP2 == Base->BaseP2 * ScaleBp / 10000
+        && Scaled->ADRatioBp == Base->ADRatioBp * ScaleBp / 10000);
     TestTrue(TEXT("its push distance and time do not scale"), FindEffect(Over.Values, ELDDemoEffectOp::Knockback)->DistanceCm.Numerator
         == FindEffect(Plain.Values, ELDDemoEffectOp::Knockback)->DistanceCm.Numerator
         && FindEffect(Over.Values, ELDDemoEffectOp::Knockback)->DurationMs == FindEffect(Plain.Values, ELDDemoEffectOp::Knockback)->DurationMs);
@@ -2414,9 +2432,9 @@ bool FLDOverdriveReleaseTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("A control's duration never scales"), FindEffect(Over.Values, ELDDemoEffectOp::Root)->DurationMs,
         FindEffect(Plain.Values, ELDDemoEffectOp::Root)->DurationMs);
     if (!OverdriveTerms(*this, F, Holder, TEXT("active_not_mad"), Plain, Over)) { return false; }
-    TestTrue(TEXT("A shield's base, AP and max-HP shares are 1.6 times"), FindEffect(Over.Values, ELDDemoEffectOp::Shield)->BaseP2
-        == FindEffect(Plain.Values, ELDDemoEffectOp::Shield)->BaseP2 * 16 / 10
-        && FindEffect(Over.Values, ELDDemoEffectOp::Shield)->MaxHPRatioBp == FindEffect(Plain.Values, ELDDemoEffectOp::Shield)->MaxHPRatioBp * 16 / 10);
+    TestTrue(TEXT("A shield's base, AP and max-HP shares scale by OVERDRIVE.Scale"), FindEffect(Over.Values, ELDDemoEffectOp::Shield)->BaseP2
+        == FindEffect(Plain.Values, ELDDemoEffectOp::Shield)->BaseP2 * ScaleBp / 10000
+        && FindEffect(Over.Values, ELDDemoEffectOp::Shield)->MaxHPRatioBp == FindEffect(Plain.Values, ELDDemoEffectOp::Shield)->MaxHPRatioBp * ScaleBp / 10000);
     TestTrue(TEXT("Only a bar at the approved 60 momentum may overdrive"), !LDMomentum::OverdriveReady(F.Catalog->Get().Parameters.Overdrive, 5999)
         && LDMomentum::OverdriveReady(F.Catalog->Get().Parameters.Overdrive, 6000));
     return true;
@@ -2431,15 +2449,15 @@ bool FLDOverdriveCostTest::RunTest(const FString& Parameters)
     FFixture F;
     if (!F.Init(*this)) { return false; }
     const FLDCombatBodyRef Holder = F.AddBody();
-    // S06 costs 30 momentum; an overdrive pays the 60 threshold, not the whole bar.
+    // S06 costs 25 momentum; an overdrive pays the 60 threshold, not the whole bar.
     if (!ReleaseOnQ(*this, F, Holder, TEXT("active_snark_bolt"), 10000, true)) { return false; }
     TestTrue(TEXT("An overdrive from a full bar pays the 60 threshold and keeps 40"),
         F.Body(Holder).bReleasedOverdrive && F.Body(Holder).Resources.MomentumP2 == 4000);
     if (!ReleaseOnQ(*this, F, Holder, TEXT("active_snark_bolt"), 5900, true)) { return false; }
     TestTrue(TEXT("A bar below the threshold releases normally and pays the skill's cost"),
-        !F.Body(Holder).bReleasedOverdrive && F.Body(Holder).Resources.MomentumP2 == 2900);
+        !F.Body(Holder).bReleasedOverdrive && F.Body(Holder).Resources.MomentumP2 == 3400);
     if (!ReleaseOnQ(*this, F, Holder, TEXT("active_snark_bolt"), 10000, false)) { return false; }
-    TestEqual(TEXT("A normal release pays only the skill's cost"), F.Body(Holder).Resources.MomentumP2, int64(7000));
+    TestEqual(TEXT("A normal release pays only the skill's cost"), F.Body(Holder).Resources.MomentumP2, int64(7500));
     // Y11 lowers the holder's threshold to 35, which is what its overdrive pays.
     if (!InstallCards(*this, F, Holder, 6, {{TEXT("card_short_breath"), ELDCardTargetKind::Body}})) { return false; }
     if (!ReleaseOnQ(*this, F, Holder, TEXT("active_snark_bolt"), 10000, true)) { return false; }
@@ -2466,10 +2484,10 @@ bool FLDOverdriveElementTest::RunTest(const FString& Parameters)
     const FLDDemoEffectDefinition* Slow = FindEffect(Over.Values, ELDDemoEffectOp::Slow);
     TestTrue(TEXT("Water (S09) slows 45% for 1.5 s"), Slow && Slow->RatioBp == O.WaterSlowBp && Slow->DurationMs == O.WaterSlowMs);
     if (!OverdriveTerms(*this, F, Holder, TEXT("active_zap"), Plain, Over)) { return false; }
-    TestTrue(TEXT("Shock (S10) discharges once more: its base gains 0.5 R on top of the 1.6 scale"),
-        FindEffect(Over.Values, ELDDemoEffectOp::Damage)->BaseP2 > FindEffect(Plain.Values, ELDDemoEffectOp::Damage)->BaseP2 * 16 / 10);
-    if (!OverdriveTerms(*this, F, Holder, TEXT("active_sock_shot"), Plain, Over)) { return false; }
-    TestEqual(TEXT("Rot (S21) lasts twice the approved rot"), FindEffect(Over.Values, ELDDemoEffectOp::Rot)->DurationMs,
+    TestTrue(TEXT("Shock (S10) discharges once more: its base gains 0.5 R on top of the overdrive scale"),
+        FindEffect(Over.Values, ELDDemoEffectOp::Damage)->BaseP2 > FindEffect(Plain.Values, ELDDemoEffectOp::Damage)->BaseP2 * O.ScaleBp / 10000);
+    if (!OverdriveTerms(*this, F, Holder, TEXT("active_stale_takeout"), Plain, Over)) { return false; }
+    TestEqual(TEXT("Rot (N3) lasts twice the approved rot"), FindEffect(Over.Values, ELDDemoEffectOp::Rot)->DurationMs,
         F.Catalog->Get().Parameters.Elements.RotMs * 2);
     if (!OverdriveTerms(*this, F, Holder, TEXT("active_cola_shake"), Plain, Over)) { return false; }
     const FLDDemoEffectDefinition* Root = FindEffect(Over.Values, ELDDemoEffectOp::Root);
@@ -2536,14 +2554,14 @@ bool FLDPerfectDodgeResolveTest::RunTest(const FString& Parameters)
     const FGuid Effect = FGuid::NewGuid();
     FString Error;
     TestTrue(TEXT("The resolution judges"), FAccess::PerfectDodges(*F.Driver, Effect, Caster.Victim.EntityId, InCircle, 2000, Error));
-    TestTrue(TEXT("A perfect dodge gains 15 momentum and is counted"), Body.Resources.MomentumP2 == 2500 && Body.PerfectDodges == 1
+    TestTrue(TEXT("A perfect dodge gains 20 momentum and is counted"), Body.Resources.MomentumP2 == 3000 && Body.PerfectDodges == 1
         && Body.LastPerfectDodgeAtMs == 2000);
     TestTrue(TEXT("The same effect never pays twice"), FAccess::PerfectDodges(*F.Driver, Effect, Caster.Victim.EntityId, InCircle, 2000, Error)
-        && Body.Resources.MomentumP2 == 2500);
+        && Body.Resources.MomentumP2 == 3000);
     TestTrue(TEXT("The caster never dodges its own effect"), FAccess::PerfectDodges(*F.Driver, FGuid::NewGuid(), Dodger.Victim.EntityId,
-        InCircle, 2000, Error) && Body.Resources.MomentumP2 == 2500);
+        InCircle, 2000, Error) && Body.Resources.MomentumP2 == 3000);
     TestTrue(TEXT("A dash older than the window is no perfect dodge"), FAccess::PerfectDodges(*F.Driver, FGuid::NewGuid(),
-        Caster.Victim.EntityId, InCircle, 2301, Error) && Body.Resources.MomentumP2 == 2500);
+        Caster.Victim.EntityId, InCircle, 2301, Error) && Body.Resources.MomentumP2 == 3000);
     return true;
 }
 
@@ -3592,10 +3610,10 @@ bool FLDElementsRotTest::RunTest(const FString& Parameters)
     F.Now(5500);
     TestTrue(TEXT("Eight more ticks through its end, then it lapses"), FAccess::AdvanceElements(*F.Driver, 5500, Error)
         && Pending.Num() == 1 + 8 && Body.ElementMark.Kind == ELDCombatElement::None);
-    const FLDDemoAbilityDefinition* Sock = nullptr;
-    TestTrue(TEXT("S21 carries rot, and its A2 branch leaves miasma"), F.Catalog->FindAbility(TEXT("active_sock_shot"), Sock, Error)
-        && Sock->Values.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp() == ELDDemoEffectOp::Rot; })
-        && Sock->Branches.ContainsByPredicate([](const FLDDemoAbilityBranch& Branch)
+    const FLDDemoAbilityDefinition* Takeout = nullptr;
+    TestTrue(TEXT("N3 carries rot, and its A2 branch leaves miasma"), F.Catalog->FindAbility(TEXT("active_stale_takeout"), Takeout, Error)
+        && Takeout->Values.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp() == ELDDemoEffectOp::Rot; })
+        && Takeout->Branches.ContainsByPredicate([](const FLDDemoAbilityBranch& Branch)
         {
             return Branch.Path == ELDSkillBranch::A2 && Branch.Values.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect)
             { return Effect.GetOp() == ELDDemoEffectOp::GroundState && Effect.GroundKind == uint8(ELDGroundStateKind::Miasma); });
@@ -4563,6 +4581,319 @@ bool LDTestRunDashOrderRetention(FAutomationTestBase& Test)
         Nav.ActiveOrder.IsSet() && Nav.ActiveOrder->Request.Kind == ELDSpatialOrderKind::AttackUnit
         && FLDBuildPrimitivesAccess::Bodies(*Driver)[Body].Action.IsSet()
         && FLDBuildPrimitivesAccess::Bodies(*Driver)[Body].Action->Entry == ELDCombatEntry::Basic);
+}
+
+// ---- Issue #345: 16 cross-axis synergy unlock cards (U01..U16) + Batch 2/3 frameworks & reworked/new skills ----
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleU01Test, "Lockdown.Rules.Combat.Cards.U01",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleU01Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_brain_speed"), ELDDemoEffectOp::BrainSpeed, ELDCardTargetKind::Body},
+        [this](FFixture& F, const FLDCombatBodyRef&, int32 Copies)
+        {
+            FLDAttributeBuildValues PlainBuild(10, {FLDStatPointsValue(TEXT("stat_brains"), 10)});
+            FLDAttributeBuildValues BrainBuild = PlainBuild;
+            for (int32 I = 0; I < Copies; ++I)
+            {
+                BrainBuild.Cards.Add({FName(TEXT("card_brain_speed")), uint16(I + 1), ELDCardTargetKind::Body});
+            }
+            const auto Plain = LDAttributeProjection::Project(PlainBuild, *F.Catalog);
+            const auto Boosted = LDAttributeProjection::Project(BrainBuild, *F.Catalog);
+            return TestTrue(TEXT("card_brain_speed converts AP steps into projected attack speed"),
+                Plain.IsSuccess() && Boosted.IsSuccess()
+                && Boosted.Value->Final.AttackSpeed.Numerator * Plain.Value->Final.AttackSpeed.Denominator
+                    > Plain.Value->Final.AttackSpeed.Numerator * Boosted.Value->Final.AttackSpeed.Denominator);
+        });
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleU02Test, "Lockdown.Rules.Combat.Cards.U02",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleU02Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_spellblade_echo"), ELDDemoEffectOp::SpellbladeEcho, ELDCardTargetKind::Body});
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleU03Test, "Lockdown.Rules.Combat.Cards.U03",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleU03Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_heavy_mallet"), ELDDemoEffectOp::HeavyMallet, ELDCardTargetKind::Body},
+        [this](FFixture& F, const FLDCombatBodyRef& Holder, int32)
+        {
+            const FLDDemoRational& Cap = F.Body(Holder).AttributeProjection.Final.AttackSpeed;
+            return TestTrue(TEXT("card_heavy_mallet clamps projected AttackSpeed at 0.75 attacks/s"),
+                Cap.Numerator * 4 <= 3 * Cap.Denominator);
+        });
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleU04Test, "Lockdown.Rules.Combat.Cards.U04",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleU04Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_let_bullets_fly"), ELDDemoEffectOp::ProjectileFlightAmp, ELDCardTargetKind::Body});
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleU05Test, "Lockdown.Rules.Combat.Cards.U05",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleU05Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_eagle_stance"), ELDDemoEffectOp::EagleStance, ELDCardTargetKind::Body},
+        [this](FFixture& F, const FLDCombatBodyRef& Holder, int32 Copies)
+        {
+            FString Error;
+            FLDCombatActiveTerms BoltTerms;
+            if (!ActiveTerms(*this, F, TEXT("active_snark_bolt"), BoltTerms)) { return false; }
+            const auto Cm = [](const FLDDemoRational& V) { return V.Denominator > 0 ? double(V.Numerator) / double(V.Denominator) : 0.; };
+            const double BaseBasicRangeCm = Cm(F.Body(Holder).AttributeProjection.Final.AttackRangeCm);
+            double BaseSkillRangeCm = 0., BoostedSkillRangeCm = 0.;
+            if (!FAccess::CastRange(*F.Driver, F.Body(Holder), BoltTerms.Target, BaseSkillRangeCm, Error)) { AddError(Error); return false; }
+            F.Body(Holder).StillSinceMs = 100;
+            F.Body(Holder).LastStillFootCm = F.Foot(Holder);
+            F.Body(Holder).bHasLastStillFoot = true;
+            F.Now(1000);
+            if (!FAccess::AdvanceSynergyStates(*F.Driver, 1000, Error)
+                || !FAccess::CastRange(*F.Driver, F.Body(Holder), BoltTerms.Target, BoostedSkillRangeCm, Error))
+            { AddError(Error); return false; }
+            const double BoostedBasicRangeCm = Cm(F.Body(Holder).AttributeProjection.Final.AttackRangeCm);
+            return TestTrue(TEXT("Standing 0.8s activates eagle stance and extends basic and skill range by 160cm per copy"),
+                FMath::IsNearlyEqual(BoostedBasicRangeCm, BaseBasicRangeCm + 160. * Copies, 0.5)
+                && FMath::IsNearlyEqual(BoostedSkillRangeCm, BaseSkillRangeCm + 160. * Copies, 0.5));
+        });
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleU06Test, "Lockdown.Rules.Combat.Cards.U06",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleU06Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_runaway_train"), ELDDemoEffectOp::RunawayTrain, ELDCardTargetKind::Dash});
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleU07Test, "Lockdown.Rules.Combat.Cards.U07",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleU07Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_phantom_molt"), ELDDemoEffectOp::PhantomMolt, ELDCardTargetKind::Dash});
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleU08Test, "Lockdown.Rules.Combat.Cards.U08",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleU08Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_skate_blade"), ELDDemoEffectOp::SkateBlade, ELDCardTargetKind::Body});
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleU09Test, "Lockdown.Rules.Combat.Cards.U09",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleU09Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_tonnage_crush"), ELDDemoEffectOp::TonnageCrush, ELDCardTargetKind::Body});
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleU10Test, "Lockdown.Rules.Combat.Cards.U10",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleU10Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_hulking_presence"), ELDDemoEffectOp::HulkingPresence, ELDCardTargetKind::Body});
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleU11Test, "Lockdown.Rules.Combat.Cards.U11",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleU11Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_iron_hedgehog"), ELDDemoEffectOp::IronHedgehog, ELDCardTargetKind::Body});
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleU12Test, "Lockdown.Rules.Combat.Cards.U12",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleU12Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_reactive_plating"), ELDDemoEffectOp::ReactivePlating, ELDCardTargetKind::Body});
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleU13Test, "Lockdown.Rules.Combat.Cards.U13",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleU13Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_desperado"), ELDDemoEffectOp::Desperado, ELDCardTargetKind::Body});
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleU14Test, "Lockdown.Rules.Combat.Cards.U14",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleU14Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_fuel_the_fire"), ELDDemoEffectOp::FuelTheFire, ELDCardTargetKind::Skill});
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleU15Test, "Lockdown.Rules.Combat.Cards.U15",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleU15Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_rogue_works"), ELDDemoEffectOp::RogueWorks, ELDCardTargetKind::Body});
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleU16Test, "Lockdown.Rules.Combat.Cards.U16",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardRuleU16Test::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    return RunCardRule(*this, {TEXT("card_martial_scholar"), ELDDemoEffectOp::MartialScholar, ELDCardTargetKind::Body});
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDIssue345SkillsAndFrameworksTest, "Lockdown.Rules.Combat.Skills.Issue345",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDIssue345SkillsAndFrameworksTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    FString Error;
+
+    // 1. Native 0.12s D-dash hit-graze Perfect Dodge + card_phantom_molt decoy spawn & detonation.
+    const FLDCombatBodyRef Dodger = F.AddBody(), Attacker = F.AddBody();
+    F.Place(Dodger, 0, 0);
+    F.Place(Attacker, 180, 0);
+    if (!InstallCards(*this, F, Dodger, 6, {{TEXT("card_phantom_molt"), ELDCardTargetKind::Dash}})) { return false; }
+    F.Body(Dodger).Resources.HpP2 = F.Body(Dodger).Resources.MaxHpP2 = 100000;
+    F.Body(Dodger).Resources.MomentumP2 = 2000;
+    F.Body(Dodger).DashStartedAtMs = 1000;
+    F.Body(Dodger).DashUntilMs = 1180;
+    F.Now(1080);
+    FLDCombatHit GrazingHit;
+    GrazingHit.HitId = FGuid::NewGuid();
+    GrazingHit.EffectId = FGuid::NewGuid();
+    GrazingHit.Target = Dodger;
+    GrazingHit.SourceBody = Attacker;
+    GrazingHit.SourceEntity = Attacker.Victim.EntityId;
+    GrazingHit.CreditOwner = Attacker.Victim.EntityId;
+    GrazingHit.Source = SourceOf(ELDCombatSourceKind::Learned, TEXT("active_elbow"));
+    GrazingHit.HitClass = ELDCombatHitClass::Ability;
+    GrazingHit.BaseP2 = 20000;
+    GrazingHit.DamageType = ELDDemoDamageType::Physical;
+    if (!TestTrue(TEXT("Grazing hit during 0.12s dash window resolves: ") + Error, F.Apply(GrazingHit, Error))) { return false; }
+    TestTrue(TEXT("0.12s dash window halves damage, grants +20 momentum, sets Dodged cue flag, and spawns phantom decoy"),
+        F.Body(Dodger).PerfectDodges == 1 && F.Body(Dodger).Resources.MomentumP2 == 4000
+        && (F.Body(Dodger).Cues.LastHitFlags & LDObservation::Dodged) != 0
+        && F.Body(Dodger).Resources.HpP2 > 88000
+        && FAccess::Decoys(*F.Driver).Num() == 1);
+    F.Now(2100);
+    if (!TestTrue(TEXT("Phantom decoy detonates after 1s: ") + Error, FAccess::AdvanceDecoys(*F.Driver, 2100, Error) && Drain(*this, F)))
+    { return false; }
+    TestTrue(TEXT("Phantom decoy blast slows nearby attacker"), FAccess::Decoys(*F.Driver).IsEmpty() && !F.Body(Attacker).Slows.IsEmpty());
+
+    // 2. Thick Skin 18-point keystone 35% MaxHP stagger bleed gate.
+    const FLDCombatBodyRef Tank = F.AddBody();
+    const auto TankProj = LDAttributeProjection::Project(FLDAttributeBuildValues(10, {FLDStatPointsValue(TEXT("stat_thick_skin"), 18)}), *F.Catalog);
+    if (!TestTrue(TEXT("Tank 18-pt Thick Skin projection succeeds"), TankProj.IsSuccess())) { return false; }
+    F.Body(Tank).BuildProjection = F.Body(Tank).AttributeProjection = TankProj.Value.GetValue();
+    F.Body(Tank).Resources.HpP2 = F.Body(Tank).Resources.MaxHpP2 = 100000; // 1000 HP -> 35% cap = 350 HP (35000 P2)
+    F.Body(Tank).KeystoneThickSkinReadyAtMs = 99999; // isolate bleed gate from flat guard
+    FLDCombatHit NukingHit = GrazingHit;
+    NukingHit.HitId = FGuid::NewGuid();
+    NukingHit.EffectId = FGuid::NewGuid();
+    NukingHit.Target = Tank;
+    NukingHit.BaseP2 = 80000;
+    if (!TestTrue(TEXT("Heavy hit on 18-pt Thick Skin resolves: ") + Error, F.Apply(NukingHit, Error))) { return false; }
+    TestTrue(TEXT("Immediate HP loss is capped at 35% MaxHP (650 HP left) with excess queued in StaggerBleeds"),
+        F.Body(Tank).Resources.HpP2 == 65000 && F.Body(Tank).StaggerBleeds.Num() == 1 && F.Body(Tank).StaggerBleeds[0].TicksLeft == 4);
+    F.Now(2600);
+    if (!TestTrue(TEXT("First stagger bleed tick settles after 0.5s: ") + Error, FAccess::AdvanceStaggerBleeds(*F.Driver, 2600, Error) && Drain(*this, F)))
+    { return false; }
+    TestTrue(TEXT("Stagger bleed drains deferred damage tick by tick"), F.Body(Tank).Resources.HpP2 < 65000);
+
+    // 3. active_unplug ParryStance: 65% cut, disarm counter-shock, and Combo 3 arm.
+    const FLDCombatBodyRef Parrier = F.AddBody(), Striker = F.AddBody();
+    F.Place(Parrier, 1000, 0);
+    F.Place(Striker, 1180, 0);
+    if (!InstallCards(*this, F, Parrier, 6, {})) { return false; }
+    F.Now(3000);
+    if (!ReleaseOnQ(*this, F, Parrier, TEXT("active_unplug"), 10000, false)) { return false; }
+    FLDCombatHit Strike = GrazingHit;
+    Strike.HitId = FGuid::NewGuid();
+    Strike.EffectId = FGuid::NewGuid();
+    Strike.Target = Parrier;
+    Strike.SourceBody = Striker;
+    Strike.SourceEntity = Striker.Victim.EntityId;
+    Strike.CreditOwner = Striker.Victim.EntityId;
+    Strike.HitClass = ELDCombatHitClass::BasicPrimary;
+    Strike.BaseP2 = 10000;
+    F.Now(3100);
+    if (!TestTrue(TEXT("Melee hit into active_unplug parry resolves: ") + Error, F.Apply(Strike, Error) && Drain(*this, F)))
+    { return false; }
+    TestTrue(TEXT("Parry arms ForcedCombo3Charges, sets Parried cue flag, and disarms nearby striker"),
+        F.Body(Parrier).ForcedCombo3Charges >= 1
+        && (F.Body(Parrier).Cues.LastHitFlags & LDObservation::Parried) != 0
+        && !F.Body(Striker).Disarms.IsEmpty());
+
+    // 4. active_snark_bolt drops collectible slipper on hit; walking over it refunds cooldown.
+    const FLDCombatBodyRef Thrower = F.AddBody(), ShoeVictim = F.AddBody();
+    F.Place(Thrower, -1000, 0);
+    F.Place(ShoeVictim, -700, 0);
+    if (!InstallCards(*this, F, Thrower, 6, {})) { return false; }
+    FLDCombatActiveTerms ShoeTerms;
+    FLDCombatHit ShoePayload;
+    if (!Released(*this, F, Thrower, TEXT("active_snark_bolt"), ShoeTerms, ShoePayload)) { return false; }
+    FLDCombatAction ShoeAction;
+    ShoeAction.Direction = FVector(1, 0, 0);
+    F.Now(4000);
+    if (!TestTrue(TEXT("active_snark_bolt launches: ") + Error,
+        FAccess::DeliverPayload(*F.Driver, F.Actor(Thrower), F.Body(Thrower), ShoeTerms, ShoeAction, ShoePayload,
+            FLDCombatBodyRef(), FVector::ZeroVector, F.Foot(Thrower), 4000, Error)))
+    { return false; }
+    F.Now(4300);
+    if (!TestTrue(TEXT("active_snark_bolt hits and spawns slipper drop: ") + Error,
+        FAccess::AdvanceProjectiles(*F.Driver, Error) && Drain(*this, F)))
+    { return false; }
+    TestEqual(TEXT("Slipper drop spawned at impact"), FAccess::SlipperDrops(*F.Driver).Num(), 1);
+    if (!FAccess::SlipperDrops(*F.Driver).IsEmpty())
+    {
+        const FVector DropFoot = FAccess::SlipperDrops(*F.Driver)[0].FootCm - F.Origin;
+        F.Place(Thrower, DropFoot.X, DropFoot.Y);
+    }
+    if (!TestTrue(TEXT("Thrower walks over slipper drop: ") + Error, FAccess::AdvanceSlipperDrops(*F.Driver, 4350, Error)))
+    { return false; }
+    TestTrue(TEXT("Slipper drop consumed and LastPickupAtMs recorded"),
+        FAccess::SlipperDrops(*F.Driver).IsEmpty() && F.Body(Thrower).Cues.LastPickupAtMs == 4350);
+
+    // 5. active_cordon_tape places elastic cordon that bounces & slows crossing enemy.
+    const FLDCombatBodyRef Warden = F.AddBody(), Trespasser = F.AddBody();
+    F.Place(Warden, 0, 1000);
+    F.Place(Trespasser, 200, 1000);
+    if (!InstallCards(*this, F, Warden, 6, {})) { return false; }
+    FLDCombatActiveTerms CordonTerms;
+    FLDCombatHit CordonPayload;
+    if (!Released(*this, F, Warden, TEXT("active_cordon_tape"), CordonTerms, CordonPayload)) { return false; }
+    FLDCombatAction CordonAction;
+    CordonAction.TargetPoint = F.Origin + FVector(200, 1000, 0);
+    CordonAction.Direction = FVector(1, 0, 0);
+    F.Now(5000);
+    bool bCordonHandled = false;
+    if (!TestTrue(TEXT("active_cordon_tape places cordon: ") + Error,
+        FAccess::DeliverTerms(*F.Driver, F.Body(Warden), CordonTerms, CordonAction, CordonPayload, 5000, bCordonHandled, Error)
+            && bCordonHandled))
+    { return false; }
+    TestEqual(TEXT("One cordon line active"), FAccess::Cordons(*F.Driver).Num(), 1);
+    if (!TestTrue(TEXT("Enemy touching cordon bounces and slows: ") + Error,
+        FAccess::AdvanceCordons(*F.Driver, 5050, Error) && Drain(*this, F)))
+    { return false; }
+    TestTrue(TEXT("Trespasser slowed and marked vulnerable by cordon"), !F.Body(Trespasser).Slows.IsEmpty()
+        && !F.Body(Trespasser).Branch.Vulnerabilities.IsEmpty());
+    return true;
 }
 
 #endif

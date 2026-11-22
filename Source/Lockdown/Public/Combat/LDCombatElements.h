@@ -124,6 +124,8 @@ struct FLDElementApplier
     // The release whose hit applied this element (K25 keys its once-per-release cut on it); unset otherwise.
     FGuid EffectId;
     TSharedPtr<FLDCombatCastLedger> CastLedger;
+    // Same-element medal fusion tier on the applier's host slot (1..3; 2+ boosts reaction damage by MEDAL.Tier2ReactionBonusRatio).
+    uint8 MedalTier = 1;
 };
 
 // The held mark of a target life (water, shock, chill or rot). Wet and chill hold their slow instances (SlowEffectId,

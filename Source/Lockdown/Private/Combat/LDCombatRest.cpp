@@ -128,6 +128,10 @@ int32 ALDCombatDirector::CancelAllForPhase(const FLDGameplayWritePermit& Permit)
     MonsterStrikes.Reset();
     ContactMotion.Reset();
     PendingContacts.Reset();
+    SlipperDrops.Reset();
+    Cordons.Reset();
+    Decoys.Reset();
+    ShardBursts.Reset();
     RemoveBags([](const FLDCombatBag&) { return true; });
     for (auto& Pair : Bodies)
     {
@@ -198,6 +202,18 @@ bool ALDCombatDirector::ClearBodyForPhase(FLDBodyCombatState& Body, ALDCharacter
     Body.FocusHits=0;
     Body.FocusUntilMs=0;
     Body.LastStandUntilMs=0;
+    Body.StaggerBleeds.Reset();
+    Body.ActiveParry.Reset();
+    Body.ParryUntilMs=0;
+    Body.ForcedCombo3Charges=0;
+    Body.ActiveFrenzy.Reset();
+    Body.FrenzyUntilMs=0;
+    Body.SpellbladeCharges=0;
+    Body.SpellbladeUntilMs=0;
+    Body.bEagleStanceActive=false;
+    Body.EagleLingerUntilMs=0;
+    Body.ScholarBasicUntilMs=0;
+    Body.ScholarSkillUntilMs=0;
     Body.IdleSinceMs=NowMs;
     Body.SplitDashLeft=0;
     Body.SplitDashUntilMs=0;

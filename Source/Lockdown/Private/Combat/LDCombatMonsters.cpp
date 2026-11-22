@@ -131,6 +131,11 @@ bool ALDCombatDirector::RecoverContender(const FLDCombatBodyRef& Ref,int64 Missi
     if(Heal>0){HealBody(*Body,Heal,FLDCombatSourceRef(),nullptr,FGuid(),&HealError);}
     if(!HealError.IsEmpty()){Error=MoveTemp(HealError);return false;}
     if(MomentumP2>0){GrantMomentum(*Body,MomentumP2,ELDMomentumBook::Other);}
+    if(Authority()->ValidateWritePermit(Permit,ELDCommitPhase::Transactions)==ELDCommitReject::None)
+    {
+        Body->Cues.LastPickupAtMs=Authority()->GetAuthorityNowMs();
+        MarkViewChanged(Body->Victim.EntityId);
+    }
     return true;
 }
 

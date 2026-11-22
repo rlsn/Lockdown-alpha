@@ -35,9 +35,9 @@ bool FLDMomentumIncomeTest::RunTest(const FString& Parameters)
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if (!LDMomentumRulesTests::Approved(*this, Catalog)) { return false; }
     const FLDDemoMomentumParameters& P = Catalog->Get().Parameters.Momentum;
-    TestTrue(TEXT("The approved incomes: basic 10 per 1.334 s, skill hit 5, reaction 10, perfect dodge 15, combat 5/s"),
+    TestTrue(TEXT("The approved incomes: basic 10 per 1.334 s, skill hit 5, reaction 10, perfect dodge 20, combat 5/s"),
         P.BasicPerRefP2 == 1000 && P.BasicRefIntervalMs == 1334 && P.SkillHitP2 == 500 && P.ReactionP2 == 1000
-        && P.PerfectDodgeP2 == 1500 && P.CombatPerSec.Numerator == 5 * P.CombatPerSec.Denominator);
+        && P.PerfectDodgeP2 == 2000 && P.CombatPerSec.Numerator == 5 * P.CombatPerSec.Denominator);
     TestEqual(TEXT("A basic at the reference interval gains the reference amount"), LDMomentum::BasicGainP2(P, 1334), int64(1000));
     // Momentum per second from basics does not depend on attack speed: faster swings gain less each.
     const double Reference = double(LDMomentum::BasicGainP2(P, 1334)) * 1000. / 1334.;
@@ -150,7 +150,7 @@ bool FLDOverdriveReadyTest::RunTest(const FString& Parameters)
     const FLDDemoOverdriveParameters& O = Catalog->Get().Parameters.Overdrive;
     TestTrue(TEXT("Overdrive needs 60 momentum"), O.ThresholdP2 == 6000 && !LDMomentum::OverdriveReady(O, 5999)
         && LDMomentum::OverdriveReady(O, 6000));
-    TestTrue(TEXT("The approved overdrive terms"), O.HoldMs == 180 && O.ScaleBp == 16000 && O.FireBurnStacks == 3 && O.WaterSlowBp == 4500
+    TestTrue(TEXT("The approved overdrive terms"), O.HoldMs == 350 && O.ScaleBp == 13500 && O.FireBurnStacks == 3 && O.WaterSlowBp == 4500
         && O.WaterSlowMs == 1500 && O.ShockReactionBp == 5000 && O.RotDurationBp == 20000);
     return true;
 }
@@ -182,49 +182,31 @@ bool FLDSkillRankCardHostTest::RunTest(const FString& Parameters)
     if (!LDMomentumRulesTests::Approved(*this, Catalog)) { return false; }
     const FLDDemoContentDefinitions& Content = Catalog->Get();
     using B = ELDSkillBranch;
-    const FName Banned(TEXT("active_account_banned")), Slide(TEXT("active_apology_slide"));
+    const FName Trap(TEXT("active_flyer_trap")), Lid(TEXT("active_not_mad"));
     FLDGrowthBuild Build = LDProgression::StartBuild(Content);
-    Build.Level = 8;
-    Build.Actives.Add({Banned, 0, B::None});
-    Build.Actives.Add({Slide, 1, B::None});
-    FLDCardTarget OnBanned, OnSlide;
-    OnBanned.Kind = OnSlide.Kind = ELDCardTargetKind::Skill;
-    OnBanned.Active = Banned;
-    OnSlide.Active = Slide;
-    FLDCardInstance Reach;
-    Reach.Serial = 1;
-    Reach.Id = TEXT("card_long_reach");
-    Reach.Target = OnBanned;
-    Build.Cards.Add(Reach);
-    Build.NextCardSerial = 2;
+    Build.Level = 12;
+    Build.Actives.Add({Trap, 0, B::None});
+    Build.Actives.Add({Lid, 1, B::None});
+    FLDCardTarget OnTrap, OnLid;
+    OnTrap.Kind = OnLid.Kind = ELDCardTargetKind::Skill;
+    OnTrap.Active = Trap;
+    OnLid.Active = Lid;
     const auto Reason = [&Content](const FLDGrowthBuild& On, const TCHAR* Card, const FLDCardTarget& Target)
         { return LDProgression::CardTargetReason(Content, On, FName(Card), Target); };
-    // S04 at rank 1 is a targeted single-target silence: K10 fits, K07 does not.
-    TestTrue(TEXT("Rank-1 S04 takes K10 and refuses K07"), Reason(Build, TEXT("card_long_reach"), OnBanned) == ELDGrowthReason::None
-        && Reason(Build, TEXT("card_crowd_hit"), OnBanned) == ELDGrowthReason::InvalidTarget);
+    // S19 at rank 1 only slows; its 2B -> 3B2 replaces slow with root, unlocking K05/K11.
+    TestEqual(TEXT("Rank-1 S19 refuses K05"), Reason(Build, TEXT("card_pin_amp"), OnTrap), ELDGrowthReason::InvalidTarget);
     const LDProgression::FBuildContext Context = LDMomentumRulesTests::LiveContext();
     FLDGrowthBuild Out;
-    TestEqual(TEXT("S04 ranks up to 2B"), LDProgression::ApplyRankUpSkill(Content, Build, 0, B::B, Context, Out), ELDGrowthReason::None);
-    TestTrue(TEXT("2B silences around the caster: K10 returns to the library and K07 now fits"), !Out.Cards[0].IsInstalled()
-        && Reason(Out, TEXT("card_long_reach"), OnBanned) == ELDGrowthReason::InvalidTarget
-        && Reason(Out, TEXT("card_crowd_hit"), OnBanned) == ELDGrowthReason::None);
-    // S12 only slows at rank 1; its 2A turns the slow into a root, which K05/K11 take.
-    TestEqual(TEXT("Rank-1 S12 refuses K05"), Reason(Out, TEXT("card_pin_amp"), OnSlide), ELDGrowthReason::InvalidTarget);
+    TestEqual(TEXT("S19 ranks up to 2B"), LDProgression::ApplyRankUpSkill(Content, Build, 0, B::B, Context, Out), ELDGrowthReason::None);
     Build = Out;
-    TestEqual(TEXT("S12 ranks up to 2A"), LDProgression::ApplyRankUpSkill(Content, Build, 1, B::A, Context, Out), ELDGrowthReason::None);
-    TestTrue(TEXT("2A's root takes K05 and K11"), Reason(Out, TEXT("card_pin_amp"), OnSlide) == ELDGrowthReason::None
-        && Reason(Out, TEXT("card_hold_longer"), OnSlide) == ELDGrowthReason::None);
+    TestEqual(TEXT("S19 ranks up to 3B2"), LDProgression::ApplyRankUpSkill(Content, Build, 0, B::B2, Context, Out), ELDGrowthReason::None);
+    TestTrue(TEXT("3B2's root takes K05 and K11"), Reason(Out, TEXT("card_pin_amp"), OnTrap) == ELDGrowthReason::None
+        && Reason(Out, TEXT("card_hold_longer"), OnTrap) == ELDGrowthReason::None);
     // S14 stays a self form; its 2B adds a hit around the caster, which K07 widens.
-    const FName Lid(TEXT("active_not_mad"));
-    FLDCardTarget OnLid;
-    OnLid.Kind = ELDCardTargetKind::Skill;
-    OnLid.Active = Lid;
     Build = Out;
-    Build.Level = 12;
-    Build.Actives.Add({Lid, 2, B::None});
     TestEqual(TEXT("Rank-1 S14 only shields its caster and refuses K07"), Reason(Build, TEXT("card_crowd_hit"), OnLid),
         ELDGrowthReason::InvalidTarget);
-    TestEqual(TEXT("S14 ranks up to 2B"), LDProgression::ApplyRankUpSkill(Content, Build, 2, B::B, Context, Out), ELDGrowthReason::None);
+    TestEqual(TEXT("S14 ranks up to 2B"), LDProgression::ApplyRankUpSkill(Content, Build, 1, B::B, Context, Out), ELDGrowthReason::None);
     TestEqual(TEXT("2B's area around the caster takes K07"), Reason(Out, TEXT("card_crowd_hit"), OnLid), ELDGrowthReason::None);
     return true;
 }
@@ -371,9 +353,9 @@ bool FLDSkillRankPatchesTest::RunTest(const FString& Parameters)
     const FLDDemoEffectDefinition* Push = Kick ? Kick->Values.Effects.FindByPredicate([](const FLDDemoEffectDefinition& E)
         { return E.GetOp() == ELDDemoEffectOp::Knockback; }) : nullptr;
     TestTrue(TEXT("S01 B kicks 500 cm"), Push && Push->DistanceCm.Numerator == 500 * Push->DistanceCm.Denominator);
-    const FLDDemoAbilityBranch* Belt = Pants->FindBranch(ELDSkillBranch::A);
-    TestTrue(TEXT("S02 A reaches 650 cm and keeps it under A1"), Belt && Belt->Target.RangeCm.Numerator == 650 * Belt->Target.RangeCm.Denominator
-        && Pants->FindBranch(ELDSkillBranch::A1)->Target.RangeCm.Numerator == Belt->Target.RangeCm.Numerator);
+    const FLDDemoAbilityBranch* Belt = Pants->FindBranch(ELDSkillBranch::B);
+    TestTrue(TEXT("S02 B reaches 620 cm and keeps it under B1"), Belt && Belt->Target.RangeCm.Numerator == 620 * Belt->Target.RangeCm.Denominator
+        && Pants->FindBranch(ELDSkillBranch::B1)->Target.RangeCm.Numerator == Belt->Target.RangeCm.Numerator);
     // Rank 3 at level 1: base x 2 and coefficients x 1.5 on S01 B1.
     const FLDDemoAbilityValues* Rank3 = Catalog->FindValues(*Elbow, 1, ELDSkillBranch::B1);
     const FLDDemoEffectDefinition* Damage = Rank3 ? Rank3->Effects.FindByPredicate([](const FLDDemoEffectDefinition& E)

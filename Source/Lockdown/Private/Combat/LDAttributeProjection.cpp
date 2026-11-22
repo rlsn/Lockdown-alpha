@@ -327,6 +327,14 @@ private:
                     Range.Cm = Effect.DistanceCm;
                     if (!AddBonus(Range, &FAttributeSum::Cards, One, TEXT("Cards.basic_projectile"))) { return false; }
                 }
+                if (Effect.GetOp() == ELDDemoEffectOp::HeavyMallet && Effect.ExtraDistanceCm.Numerator > 0 && Effect.ExtraDistanceCm.Denominator > 0)
+                {
+                    if (AttackSpeedCap.Numerator <= 0 || AttackSpeedCap.Denominator <= 0
+                        || Numbers.LT(Numbers.Value(Effect.ExtraDistanceCm), Numbers.Value(AttackSpeedCap)))
+                    {
+                        AttackSpeedCap = Effect.ExtraDistanceCm;
+                    }
+                }
             }
         }
         if (HPPerArmorP2 > 0)
@@ -337,6 +345,36 @@ private:
             const FExact Value = Numbers.Mul(Numbers.Add(Armor.Base, Flat), Numbers.Add(One, Ratio));
             FTermSum& HP = Sums[int32(EAttribute::MaxHP)].Cards;
             HP.Flat = Numbers.Add(HP.Flat, Numbers.Mul(Value, Numbers.Value(HPPerArmorP2, 100)));
+        }
+        // card_brain_speed: every full ap_step of projected AP adds attack_speed_ratio to AttackSpeed Cards.Ratio.
+        {
+            const FAttributeSum& AP = Sums[int32(EAttribute::AP)];
+            const FExact APFlat = Numbers.Add(Numbers.Add(Numbers.Add(AP.Level.Flat, AP.Choices.Flat), AP.Cards.Flat), AP.Dev.Flat);
+            const FExact APRatio = Numbers.Add(Numbers.Add(Numbers.Add(AP.Level.Ratio, AP.Choices.Ratio), AP.Cards.Ratio), AP.Dev.Ratio);
+            const FExact APValue = Numbers.Mul(Numbers.Add(AP.Base, APFlat), Numbers.Add(One, APRatio));
+            FLDDemoRational APScaled;
+            const int64 RawAPP2 = (ToRational(Numbers.Mul(APValue, Numbers.Value(100)), APScaled, TEXT("AP")) && APScaled.Denominator > 0)
+                ? (APScaled.Numerator / APScaled.Denominator) : 0;
+            const int64 APP2 = FMath::Clamp<int64>(RawAPP2, Content.Parameters.AP.MinP2, Content.Parameters.AP.MaxP2);
+            if (APP2 > 0)
+            {
+                int64 BonusASBp = 0;
+                for (const FResolvedCard& Row : Cards)
+                {
+                    for (const FLDDemoEffectDefinition& Effect : Row.Effects)
+                    {
+                        if (Effect.GetOp() == ELDDemoEffectOp::BrainSpeed && Effect.LimitP2 > 0)
+                        {
+                            BonusASBp += (APP2 / Effect.LimitP2) * Effect.RatioBp;
+                        }
+                    }
+                }
+                if (BonusASBp > 0)
+                {
+                    FTermSum& AS = Sums[int32(EAttribute::AttackSpeed)].Cards;
+                    AS.Ratio = Numbers.Add(AS.Ratio, Numbers.Value(BonusASBp, 10000));
+                }
+            }
         }
         return Check.Good || ArithmeticFailure(TEXT("Cards"));
     }
@@ -529,7 +567,17 @@ private:
         case EAttribute::AP: Points(P.AP); break;
         case EAttribute::Armor: Points(P.Armor); break;
         case EAttribute::MagicResist: Points(P.MagicResist); break;
-        case EAttribute::AttackSpeed: Rational(P.AttackSpeed.Min, P.AttackSpeed.Max); break;
+        case EAttribute::AttackSpeed:
+        {
+            FLDDemoRational MaxAS = P.AttackSpeed.Max;
+            if (AttackSpeedCap.Numerator > 0 && AttackSpeedCap.Denominator > 0
+                && Numbers.LT(Numbers.Value(AttackSpeedCap), Numbers.Value(MaxAS)))
+            {
+                MaxAS = AttackSpeedCap;
+            }
+            Rational(P.AttackSpeed.Min, MaxAS);
+            break;
+        }
         case EAttribute::MoveSpeed: Rational(P.MoveSpeedCmPerSec.Min, P.MoveSpeedCmPerSec.Max); break;
         case EAttribute::AttackRange: Rational(P.AttackRangeCm.Min, P.AttackRangeCm.Max); break;
         case EAttribute::HPRegen: Rational(P.HPRegen.Min, P.HPRegen.Max); break;
@@ -602,6 +650,7 @@ private:
             }
         }
         Out.MissingHPAttackSpeedBp = MissingHPAttackSpeedBp;
+        Out.AttackSpeedCap = AttackSpeedCap;
         const int64 KeystoneThreshold = Content.Parameters.KeystoneThresholdPoints;
         for (int32 Index = 0; Index < Build.StatPoints.Num(); ++Index)
         {
@@ -627,6 +676,7 @@ private:
             Term.Active = Installed.Active;
             Term.Element = Installed.Element;
             Term.Level = Build.Level;
+            Term.Tier = FMath::Max<uint8>(Installed.Tier, 1);
         }
         return true;
     }
@@ -643,6 +693,7 @@ private:
     // Each Build.Cards row resolved, in input order, and Y15's summed ratio.
     TArray<FResolvedCard> Cards;
     int64 MissingHPAttackSpeedBp = 0;
+    FLDDemoRational AttackSpeedCap;
 };
 
 // Exact value of one projected attribute as stored in Final.
@@ -814,15 +865,24 @@ FLDAttributeProjectionResult ApplyTemporary(const FLDAttributeProjection& Build,
             bStored = FloorScaled(Value, 100, 0, P.CooldownHasteMaxP2, Final.CooldownHasteP2, bClamped, N); break;
         case EAttribute::CritChance: bStored = FloorScaled(Value, 10000, 0, 10000, Final.CritChanceBp, bClamped, N); break;
         case EAttribute::AttackSpeed:
+        {
+            FLDDemoRational MaxAS = P.AttackSpeed.Max;
+            if (Build.AttackSpeedCap.Numerator > 0 && Build.AttackSpeedCap.Denominator > 0
+                && N.LT(N.Value(Build.AttackSpeedCap), N.Value(MaxAS)))
+            {
+                MaxAS = Build.AttackSpeedCap;
+            }
             if (Terms.AttackSlowBp > 0)
             {
                 Value = N.Max(N.Value(P.AttackSpeed.Min), Value);
-                if (N.LT(N.Value(P.AttackSpeed.Max), Value)) { Value = N.Value(P.AttackSpeed.Max); bClamped = true; }
+                if (N.LT(N.Value(MaxAS), Value)) { Value = N.Value(MaxAS); bClamped = true; }
                 const FExact Before = Value;
                 Value = N.Mul(Value, N.Value(10000 - Terms.AttackSlowBp, 10000));
                 Temporary[Index].Flat = N.Add(Temporary[Index].Flat, N.Sub(Value, Before));
             }
-            bStored = ClampRational(Value, P.AttackSpeed.Min, P.AttackSpeed.Max, Final.AttackSpeed, bClamped, N); break;
+            bStored = ClampRational(Value, P.AttackSpeed.Min, MaxAS, Final.AttackSpeed, bClamped, N);
+            break;
+        }
         case EAttribute::MoveSpeed:
             bStored = ClampRational(Value, P.MoveSpeedCmPerSec.Min, P.MoveSpeedCmPerSec.Max, Final.MoveSpeedCmPerSec, bClamped, N); break;
         case EAttribute::AttackRange:

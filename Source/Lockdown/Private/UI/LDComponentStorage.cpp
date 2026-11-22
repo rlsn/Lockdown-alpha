@@ -456,7 +456,7 @@ void ULDComponentStorage::Rebuild(const LDHUD::FStorageView& Model)
             else{BuildTile(Column,Entry,static_cast<LDHUD::EStorageColumn>(Index));}
             FTile& Tile=Tiles.Last();
             const LDWorkshop::FCardFacts Facts=LDWorkshop::CardFacts(Entry.Card,LatestContent);
-            Tile.Kind=uint8(Facts.Type);Tile.Copies=Entry.Copies;
+            Tile.Kind=uint8(Facts.Type);Tile.Copies=Entry.Copies;Tile.MedalTier=Entry.MedalTier;
             Tile.Icon=LDUIIcons::Find(LDHUD::ContentIconId(LatestContent,LDHUD::CardDefinition(Entry.Card).ToString()));
             StyleFace(Tile.Face,Entry.Card,Tile.Kind,TileSize,false);
         };
@@ -550,6 +550,8 @@ void ULDComponentStorage::BuildWorkshopTile(FColumn& Column,const LDHUD::FEquipp
     if(!Entry.Note.IsEmpty())
     {
         UTextBlock* Note=LDWidgets::Text(WidgetTree,Entry.Note,LDHUDStyle::TypeMicro);Note->SetAutoWrapText(false);StorageBold(Note,2);Built.Add(Note);
+        if(Entry.MedalTier>=3){Note->SetColorAndOpacity(FLinearColor(1.f,.95f,.55f));}
+        else if(Entry.MedalTier==2){Note->SetColorAndOpacity(LDHUDStyle::TextAccent);}
         auto* NoteSlot=Face->AddChildToOverlay(Note);NoteSlot->SetHorizontalAlignment(HAlign_Right);NoteSlot->SetVerticalAlignment(VAlign_Bottom);
         NoteSlot->SetPadding(FMargin(2,0,3,1));
     }
@@ -1127,9 +1129,15 @@ bool ULDComponentStorage::Commit(FName Component,const LDHUD::FCardDrop& Drop,EL
     {
         const FLDCardInstanceView* Replaced=LDHUD::FindCard(Latest,Drop.Replacing);
         if(Owned->IsInstalled()||!Replaced){return Refuse(TEXT("被替换的牌已经不在了。"));}
+        bPendingMedalFuse=(Owned->DefinitionId==Replaced->DefinitionId);
         Install.ReplacingSerial=Replaced->Serial;
         return Send(Install);
     }
+    bPendingMedalFuse=Latest.Cards.ContainsByPredicate([&](const FLDCardInstanceView& C)
+    {
+        return C.IsInstalled() && C.DefinitionId==Owned->DefinitionId && C.Target.Kind==Drop.Kind
+            && (Drop.Kind!=ELDCardTargetKind::Skill || C.Target.Active==Drop.TargetId);
+    });
     if(!Owned->IsInstalled()){return Send(Install);}
     // A move: uninstall first, then install once the view shows the uninstall.
     FLDBuildCommand Uninstall;Uninstall.Kind=ELDBuildCommandKind::UninstallCard;Uninstall.CardSerial=Owned->Serial;
@@ -1165,9 +1173,11 @@ bool ULDComponentStorage::Send(FLDBuildCommand Command)
 void ULDComponentStorage::FinishRequest(const FString& Text,bool bRefused)
 {
     PendingRequest=0;
+    const bool bFused=bPendingMedalFuse;
+    bPendingMedalFuse=false;
     // A refusal shakes the card and edges it red for a moment; an applied install flashes where it lands.
     if(bRefused){RejectedComponent=PendingComponent;RejectedAt=UiNow();LDWidgets::PlayCue(this,ELDAudioCue::UIReject);}
-    else if(!Text.IsEmpty()){LandedComponent=PendingComponent;LandedAt=UiNow();LDWidgets::PlayCue(this,ELDAudioCue::UIInstall);}
+    else if(!Text.IsEmpty()){LandedComponent=PendingComponent;LandedAt=UiNow();LDWidgets::PlayCue(this,bFused?ELDAudioCue::UIMedalFuse:ELDAudioCue::UIInstall);}
     if(Follow.State==EFollow::None){bPendingAt=false;PendingComponent=NAME_None;}
     if(!Text.IsEmpty()&&Notify){Notify(FString(LDTerms::Storage)+TEXT("：")+Text);}
 }
@@ -1692,6 +1702,23 @@ void ULDComponentStorage::PaintTiles(const LDUIPaint::FContext& Paint) const
         if(!Columns.IsValidIndex(Index)||!Columns[Index].Frame||!Columns[Index].Frame->IsVisible()){continue;}
         const float Opacity=Columns[Index].Frame->GetRenderOpacity();
         PaintFace(Tile.Face,Tile.Kind,Tile.State,Tile.Icon.Get(),Opacity,false);
+        if(Tile.MedalTier>=2&&Tile.Face&&Tile.Face->IsVisible())
+        {
+            const FGeometry& FaceGeometry=Tile.Face->GetCachedGeometry();
+            const FVector2D Size=FaceGeometry.GetLocalSize();
+            if(Size.X>=4.)
+            {
+                const float Pulse=.72f+.28f*FMath::Sin(float(Now*(Tile.MedalTier>=3?5.2:3.4)));
+                const FLinearColor Halo=Tile.MedalTier>=3
+                    ?FLinearColor(.55f,1.f,.95f,Pulse)
+                    :FLinearColor(1.f,.78f,.22f,Pulse);
+                const LDUIPaint::FContext FacePaint=Paint.WithGeometry(FaceGeometry).WithOpacity(Opacity*Tile.Face->GetRenderOpacity());
+                const FBox2D AuraBox(FVector2D(-2.5f,-2.5f),Size+FVector2D(2.5f,2.5f));
+                const float AuraRadius=FaceRadius(Tile.Kind,float(Size.X))+2.5f;
+                FacePaint.Halo(Layer+2,LDUIShapes::EShape::Rounded,AuraBox,AuraRadius,Halo.CopyWithNewOpacity(Pulse*.42f),Tile.MedalTier>=3?7.f:4.5f);
+                FacePaint.Edge(Layer+3,LDUIShapes::EShape::Rounded,AuraBox,AuraRadius,Halo,Tile.MedalTier>=3?2.4f:1.8f);
+            }
+        }
     }
 }
 int32 ULDComponentStorage::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,const FSlateRect& Culling,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle& Style,bool bEnabled) const
