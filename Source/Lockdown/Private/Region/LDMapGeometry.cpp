@@ -992,7 +992,7 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
     const FLDDemoWorldAnchor* FinalCapture = FindFinalAnchor(LDDemoWorld::FinalCaptureId());
     if (!Check.Require(FinalSpawnCount == LDDemoWorld::FinalSpawns && FinalCaptureCount == 1
         && FinalCapture && FinalCapture->Kind == ELDDemoWorldAnchorKind::FinalCapture,
-        Root.Path, TEXT("the final field needs six final spawns and one final_capture anchor")))
+        Root.Path, TEXT("the final field needs eight final spawns and one final_capture anchor")))
     {
         return false;
     }
@@ -1033,17 +1033,18 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
     for (int32 Slot = 0; Slot < FinalAngles.Num(); ++Slot)
     {
         const double Step = FMath::Fmod(FinalAngles[(Slot + 1) % FinalAngles.Num()] - FinalAngles[Slot] + 360., 360.);
-        if (!Check.Require(Step >= 59. && Step <= 61., LDDemoWorld::FinalSpawnId(Slot),
-            TEXT("final spawns must step 60 degrees counterclockwise in id order")))
+        const double Even = 360. / LDDemoWorld::FinalSpawns;
+        if (!Check.Require(Step >= Even - 1. && Step <= Even + 1., LDDemoWorld::FinalSpawnId(Slot),
+            TEXT("final spawns must step 45 degrees counterclockwise in id order")))
         {
             return false;
         }
     }
 #endif
-    // #198 approved PK geometry around the capture anchor, at its level: the ring of six spawns in id order and the
+    // #198 approved PK geometry around the capture anchor, at its level: the ring of eight spawns in id order and the
     // off-arena throw anchor. Each already passed the one-capsule static clearance above; walkable paths between the
     // spawns, the shrinking rings and the final circle are the runtime navigation's proof. Then the shared rest room:
-    // six seats, the PK sign-up disk, the service anchors and the six training dummies, clear of every camp.
+    // eight seats, the PK sign-up disk, the service anchors and the eight training dummies, clear of every camp.
     {
         const auto Find = [&Out](const FString& Id) { return Out.Anchors.FindByPredicate([&Id](const auto& A) { return A.Id == Id; }); };
         const FLDDemoWorldAnchor* Capture = Find(Content.World.CaptureId);
@@ -1066,7 +1067,7 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
             }
             return true;
         };
-        if (!Check.Require(Content.World.PKSpawnIds.Num() == LDDemoWorld::PKSpawns, Root.Path, TEXT("six PK spawns are required")))
+        if (!Check.Require(Content.World.PKSpawnIds.Num() == LDDemoWorld::PKSpawns, Root.Path, TEXT("eight PK spawns are required")))
         {
             return false;
         }
@@ -1097,8 +1098,9 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         {
             const FVector2D From = Ring[I].At - Centre.At, To = Ring[(I + 1) % LDDemoWorld::PKSpawns].At - Centre.At;
             const double Step = FMath::RadiansToDegrees(FMath::Atan2(FVector2D::CrossProduct(From, To), FVector2D::DotProduct(From, To)));
-            if (!Check.Require(Step >= 59. && Step <= 61., Content.World.PKSpawnIds[I],
-                TEXT("PK spawns must step 60 degrees counterclockwise in id order")))
+            const double Even = 360. / LDDemoWorld::PKSpawns;
+            if (!Check.Require(Step >= Even - 1. && Step <= Even + 1., Content.World.PKSpawnIds[I],
+                TEXT("PK spawns must step 45 degrees counterclockwise in id order")))
             {
                 return false;
             }
@@ -1121,7 +1123,7 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         if (!Check.Require(SignupCentre(Out, N, SharedCentre, SignupLevel) && N.LT(N.Value(0), UsableRadius)
             && ClearCircle(SharedCentre, SignupLevel, N.Add(Radius, SignupRadius),
                 Approx(Content.Parameters.CollisionRadiusCm) + Approx(Content.Parameters.AirdropPickupRadiusCm), Out, N),
-            Root.Path, TEXT("the shared PK sign-up disk needs six positions and clear standing ground")))
+            Root.Path, TEXT("the shared PK sign-up disk needs eight positions and clear standing ground")))
         {
             return false;
         }
@@ -1164,7 +1166,7 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         }
         if (!Check.Require(RestSpawns == LDDemoWorld::RosterSlots && Services == LDDemoWorld::RestServices
             && TrainingDummyCount == LDDemoWorld::TrainingDummies, Root.Path,
-            TEXT("the shared rest room needs six seats, three services and six training dummy positions"))) { return false; }
+            TEXT("the shared rest room needs eight seats, three services and eight training dummy positions"))) { return false; }
         for (int32 Index = 1; Index <= LDDemoWorld::RestServices; ++Index)
         {
             const auto* Service = Find(LDDemoWorld::RestServiceId(Index));
@@ -1176,7 +1178,7 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
             const FString Id = LDDemoWorld::TrainingDummyId(Slot);
             const auto* Dummy = Find(Id);
             if (!Check.Require(Dummy && Dummy->Kind == ELDDemoWorldAnchorKind::TrainingDummy
-                && N.EQ(N.Value(Dummy->PositionCm.X), N.Value(int64(6500 + 400 * Slot)))
+                && N.EQ(N.Value(Dummy->PositionCm.X), N.Value(int64(6450 + 300 * Slot)))
                 && N.EQ(N.Value(Dummy->PositionCm.Y), N.Value(700))
                 && N.EQ(N.Value(Dummy->PositionCm.Z), N.Value(0)), Id,
                 TEXT("training dummy anchor differs from the approved rest-room layout"))

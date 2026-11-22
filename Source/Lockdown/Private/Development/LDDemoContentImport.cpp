@@ -2982,11 +2982,11 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
     {
         return false;
     }
-    // #198: the PK ring is read in index order, so the references are exactly pk_spawn_0..5 and pk_throw.
+    // #198: the PK ring is read in index order, so the references are exactly pk_spawn_0..7 and pk_throw.
     for (int32 Index = 0; Index < Out.World.PKSpawnIds.Num(); ++Index)
     {
         if (!Check.Require(Out.World.PKSpawnIds[Index].Equals(FString::Printf(TEXT("pk_spawn_%d"), Index), ESearchCase::CaseSensitive),
-            World.Path + TEXT(".pk_spawn_ids"), TEXT("PK spawns must be pk_spawn_0 to pk_spawn_5 in order")))
+            World.Path + TEXT(".pk_spawn_ids"), TEXT("PK spawns must be pk_spawn_0 to pk_spawn_7 in order")))
         {
             return false;
         }
