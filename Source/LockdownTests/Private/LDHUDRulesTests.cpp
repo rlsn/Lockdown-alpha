@@ -1790,6 +1790,23 @@ bool FLDHUDChoicesFoldTest::RunTest(const FString& Parameters)
         Combat.Revision=4;Combat.HPP2=48100;Combat.AsOfMs=3000;
         TestFalse(TEXT("Regeneration is not a hit"),IsHit(Observe()));
     }
+    {
+        // Stashed in-combat badge counts all queued active opportunities and queued card offers, with current-offer fallback.
+        FLDProgressionView Prog;
+        Prog.bValid=true;Prog.Generation=7;
+        Prog.bHasActiveOffer=true;Prog.ActiveOffer.Options={FName(TEXT("active_elbow"))};
+        Prog.QueuedActiveOpportunities=3;
+        Prog.Actives={{FName(TEXT("active_seethe")),0,ELDSkillBranch::None}};
+        Prog.PendingBlueprints={FName(TEXT("active_zap"))};
+        Prog.bHasCardOffer=true;Prog.CardOffer.Options={FName(TEXT("card_hard_skin"))};
+        Prog.QueuedCardOffers=2;
+        const LDHUD::FGrowthPending Pending=LDHUD::GrowthPending(&Prog,7,nullptr);
+        TestEqual(TEXT("StashedCount sums all 3 queued active offers, 1 installable blueprint, and 2 queued card offers"),
+            Pending.StashedCount(),6);
+        Prog.QueuedActiveOpportunities=0;Prog.QueuedCardOffers=0;
+        TestEqual(TEXT("StashedCount falls back to 1 when a current offer has zero reported queue count"),
+            LDHUD::GrowthPending(&Prog,7,nullptr).StashedCount(),3);
+    }
     return true;
 }
 // Spec §12 结算“本局最离谱”: one row per contender of the result in its order (at most six), its longest chain as step names and its

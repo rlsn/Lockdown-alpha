@@ -1,4 +1,5 @@
 #include "World/LDBoss.h"
+#include "LDVisionTestParameters.h"
 #include "Character/LDCharacter.h"
 #include "Combat/LDAttributeProjection.h"
 #include "Combat/LDCombatDirector.h"
@@ -28,6 +29,7 @@ FLDBossState MakeState()
     R.AppearAtMs = 20000;
     R.LeaveAtMs = 60000;
     R.AggroRadiusCm = 300.;
+    R.VisionRange = LDVisionTestRange();
     R.AttackRangeCm = 200.;
     R.AttackerMemoryMs = 4000;
     R.MonsterId = TEXT("monster_dean");
@@ -107,6 +109,14 @@ bool FLDBossRulesTest::RunTest(const FString& Parameters)
     const FVector Home = State.Rules.Waypoints[0];
     FLDBossDecision Decision = State.Decide(Appear, Home, {}, true, true);
     TestTrue(TEXT("Alone it patrols toward the first waypoint"), Decision.Intent == ELDBossIntent::Patrol && Decision.GoalFootCm == Home);
+    Decision=State.Decide(Appear,Home,{Seen(1,Home+FVector(330,0,-120))},true,true);
+    TestTrue(TEXT("Boss perception expands downhill without extending attack reach"),Decision.Intent==ELDBossIntent::Chase);
+    Decision=State.Decide(Appear,Home,{Seen(1,Home+FVector(240,0,120))},true,true);
+    TestTrue(TEXT("Boss perception contracts uphill"),Decision.Intent==ELDBossIntent::Patrol);
+    LDBoss::FCandidate Airborne=Seen(1,Home+FVector(240,0,120));
+    Airborne.SightGroundZ=Home.Z;
+    Decision=State.Decide(Appear,Home,{Airborne},true,true,Home.Z);
+    TestTrue(TEXT("Boss perception scales by the support heights sight used, not an airborne foot"),Decision.Intent==ELDBossIntent::Chase);
     for (int32 Step = 0; Step < 4; ++Step) { State.ReachedWaypoint(); }
     TestTrue(TEXT("After the fourth waypoint it loops back to the first"), State.PatrolGoal() == Home);
     State.ReachedWaypoint();

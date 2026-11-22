@@ -23,6 +23,7 @@ int32 ULDDemoArtImportCommandlet::Main(const FString& Params)
     const bool bVfx = FParse::Param(*Params, TEXT("VFX"));
     // -Props re-imports only the props and dressing props; bodies and the saved-map decorations stay as they are.
     const bool bProps = FParse::Param(*Params, TEXT("Props"));
+    const bool bBasketball = FParse::Param(*Params,TEXT("Basketball"));
     FString Error;
     FString ExportPath;
     if (FParse::Value(*Params, TEXT("ExportStaticScene="), ExportPath))
@@ -31,12 +32,12 @@ int32 ULDDemoArtImportCommandlet::Main(const FString& Params)
         if (!LDStaticSceneEditor::Export(ExportPath, Error)) { UE_LOG(LogLDEditor, Error, TEXT("LD_STATIC_SCENE_REJECTED %s"), *Error); return 1; }
         UE_LOG(LogLDEditor, Display, TEXT("LD_STATIC_SCENE_EXPORTED %s"), *ExportPath); return 0;
     }
-    if (int32(bValidate) + int32(bUI) + int32(bVfx) + int32(bProps) > 1)
+    if (int32(bValidate) + int32(bUI) + int32(bVfx) + int32(bProps) + int32(bBasketball) > 1)
     {
-        UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_ART_REJECTED -Validate, -UI, -VFX and -Props are exclusive."));
+        UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_ART_REJECTED -Validate, -UI, -VFX, -Props and -Basketball are exclusive."));
         return 1;
     }
-    const bool bImported = bValidate || (bUI ? LDDemoUIImageImport::Import(Error) : bVfx ? LDDemoVfxImport::Import(Error) : LDDemoArtImport::Import(Error, bProps));
+    const bool bImported = bValidate || (bBasketball ? LDDemoArtImport::ImportBasketball(Error) : bUI ? LDDemoUIImageImport::Import(Error) : bVfx ? LDDemoVfxImport::Import(Error) : LDDemoArtImport::Import(Error, bProps));
     if (!bImported || (bValidate && !(LDDemoArtImport::Validate(Error) && LDDemoUIImageImport::Validate(Error) && LDDemoVfxImport::Validate(Error))))
     {
         UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_ART_REJECTED %s"), *Error);
@@ -48,6 +49,6 @@ int32 ULDDemoArtImportCommandlet::Main(const FString& Params)
         return 1;
     }
     UE_LOG(LogLDEditor, Display, TEXT("LD_DEMO_ART_SUCCESS %s: licensed sources, imported and authored bodies, clips, props, catalog, UI backgrounds and icons, hit-effect masks and materials validated."),
-        bValidate ? TEXT("Validate") : bUI ? TEXT("ImportUI") : bVfx ? TEXT("ImportVFX") : bProps ? TEXT("ImportProps") : TEXT("Import"));
+        bValidate ? TEXT("Validate") : bBasketball ? TEXT("ImportBasketball") : bUI ? TEXT("ImportUI") : bVfx ? TEXT("ImportVFX") : bProps ? TEXT("ImportProps") : TEXT("Import"));
     return 0;
 }

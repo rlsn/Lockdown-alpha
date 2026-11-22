@@ -850,19 +850,22 @@ bool ALDCombatDirector::OnBasicLanded(FLDBodyCombatState& Body, FLDCombatHit& Pr
 }
 
 bool ALDCombatDirector::ApplyCardElement(FLDCombatHit& Hit, ELDDemoElement Element, int32 FireStacks, const FLDCombatSourceRef& Card,
-    FString& Error) const
+    FString& Error, uint8 MedalTier) const
 {
+    const uint8 NormalizedTier=FMath::Max<uint8>(MedalTier,1);
     switch (Element)
     {
     case ELDDemoElement::Fire:
         if (Hit.CardBurnStacks>0 && Hit.CardBurnSource!=Card)
         {
-            // Fire of a second card joins the first's layers (one applier of the hit's fire).
+            // Fire of a second card joins the first's layers (one applier of the hit's fire); keep the highest fire medal tier.
             Hit.CardBurnStacks+=FMath::Max(FireStacks,1);
+            Hit.CardBurnTier=FMath::Max<uint8>(Hit.CardBurnTier,NormalizedTier);
             return true;
         }
         Hit.CardBurnStacks+=FMath::Max(FireStacks,1);
         Hit.CardBurnSource=Card;
+        Hit.CardBurnTier=NormalizedTier;
         return true;
     case ELDDemoElement::Water:
     case ELDDemoElement::Electric:
@@ -870,7 +873,10 @@ bool ALDCombatDirector::ApplyCardElement(FLDCombatHit& Hit, ELDDemoElement Eleme
     case ELDDemoElement::Rot:
     {
         const ELDCombatElement Kind=LDCombatCardsDetail::CombatElement(Element);
-        if (!Hit.CardElements.ContainsByPredicate([Kind](const auto& Row) { return Row.Key==Kind; })) { Hit.CardElements.Emplace(Kind,Card); }
+        if (!Hit.CardElements.ContainsByPredicate([Kind](const FLDCombatHit::FCardElementEntry& Row) { return Row.Element==Kind; }))
+        {
+            Hit.CardElements.Add({Kind,Card,NormalizedTier});
+        }
         return true;
     }
     default:

@@ -6,6 +6,7 @@
 #include "Development/LDDemoContentIds.h"
 #include "Development/LDProgressionRules.h"
 #include "Development/LDBreakoutPresets.h"
+#include "Vision/LDVisionDirector.h"
 
 // Unity builds merge translation units: every file-scope helper lives in this module-unique namespace.
 namespace LDOpponentPolicy::Detail
@@ -1114,10 +1115,18 @@ const FLDOpponentPOI* PickRetreat(const FContext& C)
     {
         if (!Usable(POI)) { continue; }
         double ThreatDistance = TNumericLimits<double>::Max();
-        for (const auto* Threat : C.Threats) { ThreatDistance = FMath::Min(ThreatDistance, FVector::Dist2D(POI.FootCm, Threat->FootCm)); }
+        bool bBeyondSight = true;
+        for (const auto* Threat : C.Threats)
+        {
+            const double Distance = FVector::Dist2D(POI.FootCm, Threat->FootCm);
+            ThreatDistance = FMath::Min(ThreatDistance, Distance);
+            const double Radius = C.VisionRadiusCm * LDObservation::HeightRadiusScale(C.Catalog.Get().Parameters.VisionRange,
+                Threat->SightGroundZ.Get(Threat->FootCm.Z),POI.SightGroundZ.Get(POI.FootCm.Z));
+            bBeyondSight &= Distance > Radius;
+        }
         FRank Rank;
         Rank.bAway = LeadsAway(POI);
-        Rank.bBeyondSight = ThreatDistance > C.VisionRadiusCm;
+        Rank.bBeyondSight = bBeyondSight;
         Rank.SelfDistance = C.Distance(POI.FootCm);
         Rank.Lead = ThreatDistance - Rank.SelfDistance;
         if (!Best || Before(Rank, POI, BestRank, *Best))

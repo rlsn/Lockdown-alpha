@@ -97,7 +97,8 @@ bool Evaluate(const FLDDemoContentSnapshot& Catalog,FName CampId,const FLDCampDe
     if(!PositiveDistance(Monster->AttackRangeCm,AttackRange)||!PositiveDistance(Monster->LeashRadiusCm,Leash)
         ||!PositiveDistance(Monster->PerceptionRadiusCm,Perception)
         ||!PositiveDistance(Content.Parameters.VisionRadiusCm,SightRange)
-        ||!PositiveDistance(Content.Parameters.CampResetArrivalRadiusCm,Arrival)||Monster->LoseTargetGraceMs<0)
+        ||!PositiveDistance(Content.Parameters.CampResetArrivalRadiusCm,Arrival)||Monster->LoseTargetGraceMs<0
+        ||!Content.Parameters.VisionRange.IsValid())
     {return Fail(TEXT("approved decision parameters are invalid"));}
     if(Perception>SightRange){return Fail(TEXT("camp perception exceeds the TraceSight range that supplies candidates"));}
     const double AnchorDistance=FVector::DistSquared2D(Input.FootCm,Input.CampAnchorFootCm);
@@ -117,7 +118,6 @@ bool Evaluate(const FLDDemoContentSnapshot& Catalog,FName CampId,const FLDCampDe
     TSet<FGuid> EntitiesByKind[2];
     const FLDAuthorityTargetSample* Best=nullptr;
     double BestDistance=0;
-    const double PerceptionSquared=Perception*Perception;
     for(const auto& Candidate:Candidates)
     {
         if(!Candidate.Target.IsValid()||Candidate.Target.Victim==Input.Self.Victim
@@ -140,7 +140,10 @@ bool Evaluate(const FLDDemoContentSnapshot& Catalog,FName CampId,const FLDCampDe
         const double Distance=FVector::DistSquared2D(Input.FootCm,Candidate.FootCm);
         if(!FMath::IsFinite(Distance)){return Fail(TEXT("target distance overflow"));}
         // Perception is measured from the member's current foot; the leash bounds the member, not its target.
-        if(Distance>PerceptionSquared){continue;}
+        // Scaled by the support heights sight used, as the target already passed that sight query.
+        const double LocalPerception=Perception*LDObservation::HeightRadiusScale(Content.Parameters.VisionRange,
+            Input.SightGroundZ.Get(Input.FootCm.Z),Candidate.SightGroundZ.Get(Candidate.FootCm.Z));
+        if(Distance>LocalPerception*LocalPerception){continue;}
         if(!Best||Distance<BestDistance||(Distance==BestDistance&&BodyLess(Candidate.Target,Best->Target)))
         {Best=&Candidate;BestDistance=Distance;}
     }

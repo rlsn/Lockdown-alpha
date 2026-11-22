@@ -235,12 +235,14 @@ bool ALDCombatDirector::AdvanceCordons(int64 NowMs, FString& Error)
             continue;
         }
         FLDCombatCordon& Cordon = Cordons[Idx];
-        FLDBodyCombatState* CordonOwner = FindBody(Cordon.Payload.SourceBody);
-        if (!CordonOwner || CordonOwner->bPendingDeath)
+        // A released cordon is an independent ground effect: keep it across normal caster death/respawn, and end it only on
+        // expiry, replacement, phase closure, or match departure (Records no longer holds the contender).
+        if (Cordon.Payload.CreditOwner.IsValid() && !Records.Contains(Cordon.Payload.CreditOwner))
         {
             Cordons.RemoveAt(Idx);
             continue;
         }
+        const FLDBodyCombatState* CordonOwner = FindBody(Cordon.Payload.SourceBody);
         const FVector SegA = Cordon.CentreCm - Cordon.Tangent * Cordon.HalfLengthCm;
         const FVector SegB = Cordon.CentreCm + Cordon.Tangent * Cordon.HalfLengthCm;
         const FVector Normal(-Cordon.Tangent.Y, Cordon.Tangent.X, 0);
@@ -248,8 +250,13 @@ bool ALDCombatDirector::AdvanceCordons(int64 NowMs, FString& Error)
         {
             ALDCharacter* CandidateActor = Pair.Key.Get();
             FLDBodyCombatState& Candidate = Pair.Value;
+            const bool bSameSide = Cordon.OwnerPKSide != 0 && Candidate.PKSide == Cordon.OwnerPKSide
+                && Candidate.Victim.Kind == ELDVictimKind::Contender;
+            const bool bIsolatedFromCordon = CordonOwner
+                ? IsIsolated(Cordon.Payload.SourceEntity, Candidate)
+                : (Candidate.IsolationGroup != Cordon.OwnerGroup || bSameSide);
             if (!CandidateActor || Candidate.bPendingDeath || Candidate.Victim.EntityId == Cordon.Payload.SourceEntity
-                || IsIsolated(Cordon.Payload.SourceEntity, Candidate))
+                || bIsolatedFromCordon)
             { continue; }
             const int64* CooldownUntil = Cordon.EnemyCooldownUntilMs.Find(Candidate.Victim.EntityId);
             if (CooldownUntil && *CooldownUntil > NowMs) { continue; }

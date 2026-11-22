@@ -82,7 +82,7 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
         {
         case ELDDemoWorldAnchorKind::Spawn:
             POI.Kind = ELDOpponentPOIKind::Spawn;
-            bApproved = References.SpawnIds.Contains(Anchor.Id);
+            bApproved = World.bSceneLayout || References.SpawnIds.Contains(Anchor.Id);
             break;
         case ELDDemoWorldAnchorKind::Capture:
             POI.Kind = ELDOpponentPOIKind::Capture;

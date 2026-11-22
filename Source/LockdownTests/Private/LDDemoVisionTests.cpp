@@ -1,3 +1,4 @@
+#include "LDVisionTestParameters.h"
 #include "Vision/LDViewTypes.h"
 #include "Vision/LDVisionDirector.h"
 #include "Vision/LDWorldViewRelay.h"
@@ -30,6 +31,15 @@ FLDWorldRevision DemoRevision()
     Revision.LayoutRevision = 1;
     Revision.GeometryRevision = 1;
     return Revision;
+}
+
+int32 CoverageCellAt(const FLDSightGeometry& Sight, double X, double Y)
+{
+    const FBox2D& Bounds = Sight.CoverageBounds();
+    const FVector2D Span = Bounds.GetSize();
+    const int32 Column = FMath::FloorToInt32((X - Bounds.Min.X) * LDObservation::CoverageWidth / Span.X);
+    const int32 Row = FMath::FloorToInt32((Y - Bounds.Min.Y) * LDObservation::CoverageHeight / Span.Y);
+    return Row * LDObservation::CoverageWidth + Column;
 }
 
 FLDObservedUnitView ContenderUnit(uint32 Epoch = 1)
@@ -919,7 +929,7 @@ bool FLDDemoVisionSightTest::RunTest(const FString& Parameters)
     FLDSightGeometry Sight;
     FString Error;
     const FLDWorldRevision World = DemoRevision();
-    TestTrue(TEXT("Approved geometry builds"), Sight.Build(TestGeometry(), World, Whole(1400), Error));
+    TestTrue(TEXT("Approved geometry builds"), Sight.Build(TestGeometry(), World, Whole(1400), LDVisionTestRange(), Error));
     const FVector West(-1000, 0, 2);
     TestTrue(TEXT("A tall sight blocker occludes"), Sight.Trace(West, FVector(300, 0, 2)) == ELDSightResult::Blocked);
     TestTrue(TEXT("Open ground is visible"), Sight.Trace(West, FVector(-1000, 1300, 2)) == ELDSightResult::Visible);
@@ -943,44 +953,41 @@ bool FLDDemoVisionSightTest::RunTest(const FString& Parameters)
 
     TArray<uint8> Bits;
     Sight.Coverage(West, Bits);
-    const int32 Width = LDObservation::CoverageWidth, Height = LDObservation::CoverageHeight;
-    auto CellOf = [Width, Height](double X, double Y)
-    { return FMath::FloorToInt32((Y + 5000.0) / (10000.0 / Height)) * Width + FMath::FloorToInt32((X + 5000.0) / (10000.0 / Width)); };
-    const int32 Own = CellOf(-1000, 0);
+    const int32 Own = CoverageCellAt(Sight, -1000, 0);
     TestEqual(TEXT("Coverage is the fixed width x height bitmap"), Bits.Num(), LDObservation::CoverageBytes);
     TestTrue(TEXT("Coverage indexes y * width + x, low bit first"), LDObservation::CoverageBit(Bits, Own) && (Bits[Own / 8] & (1 << (Own % 8))) != 0);
-    TestFalse(TEXT("Shadowed cells stay dark"), LDObservation::CoverageBit(Bits, CellOf(500, 0)));
-    TestFalse(TEXT("Cells beyond the radius stay dark"), LDObservation::CoverageBit(Bits, CellOf(-1000, 3000)));
+    TestFalse(TEXT("Shadowed cells stay dark"), LDObservation::CoverageBit(Bits, CoverageCellAt(Sight, 500, 0)));
+    TestFalse(TEXT("Cells beyond the radius stay dark"), LDObservation::CoverageBit(Bits, CoverageCellAt(Sight, -1000, 3000)));
     const FVector2D Centre = Sight.CellCentre(Own);
-    TestTrue(TEXT("Cell centres follow the registered ground bounds"), FMath::IsNearlyEqual(Centre.X, -996.09375, 1e-9) && FMath::IsNearlyEqual(Centre.Y, 39.0625, 1e-9));
+    TestTrue(TEXT("Cell centres use square cells in the padded ground bounds"), FMath::IsNearlyEqual(Centre.X, -984.375, 1e-9) && FMath::IsNearlyEqual(Centre.Y, 15.625, 1e-9));
     // Two observers on either side of the wall see the same target differently, in traces and coverage alike.
     const FVector East(1000, 0, 2), Between(300, 0, 2);
     TArray<uint8> EastBits;
     Sight.Coverage(East, EastBits);
     TestTrue(TEXT("Observers on either side of a wall see the same target differently"),
         Sight.Trace(West, Between) == ELDSightResult::Blocked && Sight.Trace(East, Between) == ELDSightResult::Visible
-        && !LDObservation::CoverageBit(Bits, CellOf(300, 0)) && LDObservation::CoverageBit(EastBits, CellOf(300, 0)));
+        && !LDObservation::CoverageBit(Bits, CoverageCellAt(Sight, 300, 0)) && LDObservation::CoverageBit(EastBits, CoverageCellAt(Sight, 300, 0)));
 
     FLDSightGeometry Wide;
-    TestTrue(TEXT("Wide test radius builds"), Wide.Build(TestGeometry(), World, Whole(3000), Error));
+    TestTrue(TEXT("Wide test radius builds"), Wide.Build(TestGeometry(), World, Whole(3000), LDVisionTestRange(), Error));
     TArray<uint8> WideBits;
     Wide.Coverage(West, WideBits);
     const FVector Edge(470, 1640, 2);
     TestTrue(TEXT("A unit sample can be visible inside a shadowed display cell"), Wide.Trace(West, Edge) == ELDSightResult::Visible
-        && Wide.Trace(West, FVector(Wide.CellCentre(CellOf(Edge.X, Edge.Y)), 2)) == ELDSightResult::Blocked
-        && !LDObservation::CoverageBit(WideBits, CellOf(Edge.X, Edge.Y)));
+        && Wide.Trace(West, FVector(Wide.CellCentre(CoverageCellAt(Wide, Edge.X, Edge.Y)), 2)) == ELDSightResult::Blocked
+        && !LDObservation::CoverageBit(WideBits, CoverageCellAt(Wide, Edge.X, Edge.Y)));
 
     FLDDemoWorldGeometry Short = TestGeometry();
     Short.Blockers[0].HeightCm = Whole(100);
-    TestFalse(TEXT("A sight blocker below the sample height is rejected"), FLDSightGeometry().Build(Short, World, Whole(1400), Error));
+    TestFalse(TEXT("A sight blocker below the sample height is rejected"), FLDSightGeometry().Build(Short, World, Whole(1400), LDVisionTestRange(), Error));
     FLDDemoWorldGeometry Clockwise = TestGeometry();
     Algo::Reverse(Clockwise.Blockers[0].PolygonCm);
-    TestFalse(TEXT("A non-counterclockwise sight blocker is rejected"), FLDSightGeometry().Build(Clockwise, World, Whole(1400), Error));
+    TestFalse(TEXT("A non-counterclockwise sight blocker is rejected"), FLDSightGeometry().Build(Clockwise, World, Whole(1400), LDVisionTestRange(), Error));
     FLDDemoWorldGeometry Layers = TestGeometry();
     const FLDDemoWorldSurface SecondLayer = Layers.Surfaces[0];
     Layers.Surfaces.Add(SecondLayer);
-    TestFalse(TEXT("Observation is single-layer only"), FLDSightGeometry().Build(Layers, World, Whole(1400), Error));
-    TestFalse(TEXT("A radius is required"), FLDSightGeometry().Build(TestGeometry(), World, Whole(0), Error));
+    TestFalse(TEXT("Observation is single-layer only"), FLDSightGeometry().Build(Layers, World, Whole(1400), LDVisionTestRange(), Error));
+    TestFalse(TEXT("A radius is required"), FLDSightGeometry().Build(TestGeometry(), World, Whole(0), LDVisionTestRange(), Error));
     return true;
 }
 
@@ -991,7 +998,7 @@ bool FLDDemoVisionCoveragePublicationTest::RunTest(const FString& Parameters)
     FString Error;
     FLDSightGeometry Sight;
     FLDWorldRevision World = DemoRevision();
-    if (!TestTrue(TEXT("Publication geometry builds"), Sight.Build(TestGeometry(), World, Whole(1400), Error))) { return false; }
+    if (!TestTrue(TEXT("Publication geometry builds"), Sight.Build(TestGeometry(), World, Whole(1400), LDVisionTestRange(), Error))) { return false; }
     const FVector West(-1000, 0, 2), East(1000, 0, 2);
     FLDObserverCoverage Human, AI;
     TArray<uint8> Expected, Actual;
@@ -1025,7 +1032,7 @@ bool FLDDemoVisionCoveragePublicationTest::RunTest(const FString& Parameters)
     Sight.Coverage(West, Expected);
     TestTrue(TEXT("Its first eligible publication uses its own source"), Actual == Expected);
     ++World.GeometryRevision;
-    if (!TestTrue(TEXT("A new world revision builds"), Sight.Build(TestGeometry(), World, Whole(1400), Error))) { return false; }
+    if (!TestTrue(TEXT("A new world revision builds"), Sight.Build(TestGeometry(), World, Whole(1400), LDVisionTestRange(), Error))) { return false; }
     TestTrue(TEXT("A changed world revision invalidates stationary coverage"), AI.Sample(Sight, West, true, true, Actual));
     AI.Reset();
     TestTrue(TEXT("A life/generation reset invalidates even an identical source and world"), AI.Sample(Sight, West, true, true, Actual));
@@ -1070,22 +1077,21 @@ FLDDemoWorldGeometry TieredGeometry()
     return Geometry;
 }
 
-// #97: high ground sees low ground, never the reverse; a ramp sees its lower level and itself; obstacles hide only
-// from observers at or below their level.
+// Actual terrain and prop geometry determine occlusion independently of the smooth range modifier.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoVisionTieredSightTest, "Lockdown.Rules.DemoVision.TieredSight",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDDemoVisionTieredSightTest::RunTest(const FString& Parameters)
 {
     FLDSightGeometry Sight, Wide;
     FString Error;
-    if (!TestTrue(TEXT("Tiered geometry builds"), Sight.Build(TieredGeometry(), DemoRevision(), Whole(1400), Error))
-        || !TestTrue(TEXT("Wide tiered geometry builds"), Wide.Build(TieredGeometry(), DemoRevision(), Whole(3000), Error))) { return false; }
+    if (!TestTrue(TEXT("Tiered geometry builds"), Sight.Build(TieredGeometry(), DemoRevision(), Whole(1400), LDVisionTestRange(), Error))
+        || !TestTrue(TEXT("Wide tiered geometry builds"), Wide.Build(TieredGeometry(), DemoRevision(), Whole(3000), LDVisionTestRange(), Error))) { return false; }
     const FVector GroundEye(1000, 0, 0), RampEye(1850, 0, 75), LowEye(2100, 0, 150), HighEye(2600, 0, 300);
-    TestTrue(TEXT("Low ground does not see high ground"), Sight.Trace(GroundEye, LowEye) == ELDSightResult::Blocked);
+    TestTrue(TEXT("Reduced uphill radius rejects the distant high platform"), Sight.Trace(GroundEye, LowEye) == ELDSightResult::OutOfRange);
     TestTrue(TEXT("High ground sees low ground"), Sight.Trace(LowEye, GroundEye) == ELDSightResult::Visible);
     TestTrue(TEXT("A ramp sees the low ground"), Sight.Trace(RampEye, GroundEye) == ELDSightResult::Visible);
-    TestTrue(TEXT("Low ground does not see onto a ramp"), Sight.Trace(GroundEye, RampEye) == ELDSightResult::Blocked);
-    TestTrue(TEXT("A ramp does not see the plateau it climbs to"), Sight.Trace(RampEye, LowEye) == ELDSightResult::Blocked);
+    TestTrue(TEXT("Low ground can see up the actual ramp"), Sight.Trace(GroundEye, RampEye) == ELDSightResult::Visible);
+    TestTrue(TEXT("A ramp can see the nearby upper platform below its eye"), Sight.Trace(RampEye, LowEye) == ELDSightResult::Visible);
     TestTrue(TEXT("The plateau sees down its ramp"), Sight.Trace(LowEye, RampEye) == ELDSightResult::Visible);
     TestTrue(TEXT("Level 1 does not see level 2, level 2 sees level 1"),
         Sight.Trace(LowEye, HighEye) == ELDSightResult::Blocked && Sight.Trace(HighEye, LowEye) == ELDSightResult::Visible);
@@ -1093,24 +1099,21 @@ bool FLDDemoVisionTieredSightTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A plateau between two ground points hides them from each other"),
         Wide.Trace(FVector(1500, 0, 0), FVector(3500, 0, 0)) == ELDSightResult::Blocked
         && Wide.Trace(FVector(1500, 700, 0), FVector(3500, 700, 0)) == ELDSightResult::Visible);
-    TestTrue(TEXT("A ground wall hides the ground behind it from the ground, not from level 1"),
+    TestTrue(TEXT("A sufficiently tall wall blocks actual sight from both ground and level 1"),
         Wide.Trace(GroundEye, FVector(-300, 0, 0)) == ELDSightResult::Blocked
-        && Wide.Trace(LowEye, FVector(-300, 0, 0)) == ELDSightResult::Visible);
-    TestTrue(TEXT("A level-1 tree hides level 1 from level 1, not from level 2"),
+        && Wide.Trace(LowEye, FVector(-300, 0, 0)) == ELDSightResult::Blocked);
+    TestTrue(TEXT("A tree occludes actual eye-to-ground sight from either height"),
         Sight.Trace(FVector(2050, 300, 150), FVector(2350, 300, 150)) == ELDSightResult::Blocked
-        && Sight.Trace(FVector(2500, 150, 300), FVector(2100, 380, 150)) == ELDSightResult::Visible);
+        && Sight.Trace(FVector(2500, 150, 300), FVector(2100, 380, 150)) == ELDSightResult::Blocked);
     TArray<uint8> GroundBits, LowBits;
     Sight.Coverage(GroundEye, GroundBits);
     Sight.Coverage(LowEye, LowBits);
-    const int32 Width = LDObservation::CoverageWidth, Height = LDObservation::CoverageHeight;
-    auto CellOf = [Width, Height](double X, double Y)
-    { return FMath::FloorToInt32((Y + 5000.0) / (10000.0 / Height)) * Width + FMath::FloorToInt32((X + 5000.0) / (10000.0 / Width)); };
     TestTrue(TEXT("Ground coverage lights the ground and leaves the plateau dark"),
-        LDObservation::CoverageBit(GroundBits, CellOf(1500, 300)) && !LDObservation::CoverageBit(GroundBits, CellOf(2200, -300)));
-    TestTrue(TEXT("Plateau coverage lights the ground below it"), LDObservation::CoverageBit(LowBits, CellOf(1300, 300)));
+        LDObservation::CoverageBit(GroundBits, CoverageCellAt(Wide, 1500, 300)) && !LDObservation::CoverageBit(GroundBits, CoverageCellAt(Wide, 2200, -300)));
+    TestTrue(TEXT("Plateau coverage lights the ground below it"), LDObservation::CoverageBit(LowBits, CoverageCellAt(Wide, 1300, 300)));
     FLDDemoWorldGeometry Floating = TieredGeometry();
     Floating.Blockers.Last().CenterCm.Z = Whole(75);
-    TestFalse(TEXT("A sight blocker off every flat level is rejected"), FLDSightGeometry().Build(Floating, DemoRevision(), Whole(1400), Error));
+    TestFalse(TEXT("A sight blocker off every flat level is rejected"), FLDSightGeometry().Build(Floating, DemoRevision(), Whole(1400), LDVisionTestRange(), Error));
     return true;
 }
 
@@ -1132,7 +1135,7 @@ bool FLDDemoVisionTreeSightTest::RunTest(const FString& Parameters)
     Geometry.Blockers.Add(Tree);
     FLDSightGeometry Sight;
     FString Error;
-    if (!TestTrue(TEXT("Geometry with a tree builds"), Sight.Build(Geometry, DemoRevision(), Whole(1400), Error))) { return false; }
+    if (!TestTrue(TEXT("Geometry with a tree builds"), Sight.Build(Geometry, DemoRevision(), Whole(1400), LDVisionTestRange(), Error))) { return false; }
     TestTrue(TEXT("A sight line through the trunk is blocked"),
         Sight.Trace(FVector(-2500, -2000, 2), FVector(-1500, -2000, 2)) == ELDSightResult::Blocked);
     TestTrue(TEXT("A sight line touching the trunk's edge is blocked"),
@@ -1144,17 +1147,14 @@ bool FLDDemoVisionTreeSightTest::RunTest(const FString& Parameters)
         && Sight.Trace(FVector(-2600, -2000, 2), FVector(-1900, -1800, 2)) == ELDSightResult::Visible);
     TArray<uint8> Bits;
     Sight.Coverage(FVector(-2600, -2000, 2), Bits);
-    const int32 Width = LDObservation::CoverageWidth, Height = LDObservation::CoverageHeight;
-    auto CellOf = [Width, Height](double X, double Y)
-    { return FMath::FloorToInt32((Y + 5000.0) / (10000.0 / Height)) * Width + FMath::FloorToInt32((X + 5000.0) / (10000.0 / Width)); };
-    TestFalse(TEXT("Coverage leaves the trunk's shadow dark"), LDObservation::CoverageBit(Bits, CellOf(-1700, -2000)));
-    TestTrue(TEXT("Coverage lights the open ground beside the shadow"), LDObservation::CoverageBit(Bits, CellOf(-1700, -1600)));
+    TestFalse(TEXT("Coverage leaves the trunk's shadow dark"), LDObservation::CoverageBit(Bits, CoverageCellAt(Sight, -1700, -2000)));
+    TestTrue(TEXT("Coverage lights the open ground beside the shadow"), LDObservation::CoverageBit(Bits, CoverageCellAt(Sight, -1700, -1600)));
     FLDDemoWorldGeometry Low = Geometry;
     Low.Blockers.Last().HeightCm = Whole(100);
-    TestFalse(TEXT("A sight-blocking tree below the sample height is rejected"), FLDSightGeometry().Build(Low, DemoRevision(), Whole(1400), Error));
+    TestFalse(TEXT("A sight-blocking tree below the sample height is rejected"), FLDSightGeometry().Build(Low, DemoRevision(), Whole(1400), LDVisionTestRange(), Error));
     FLDDemoWorldGeometry Flat = Geometry;
     Flat.Blockers.Last().RadiusCm = Whole(0);
-    TestFalse(TEXT("A tree without a radius is rejected"), FLDSightGeometry().Build(Flat, DemoRevision(), Whole(1400), Error));
+    TestFalse(TEXT("A tree without a radius is rejected"), FLDSightGeometry().Build(Flat, DemoRevision(), Whole(1400), LDVisionTestRange(), Error));
     return true;
 }
 
@@ -1405,7 +1405,7 @@ bool FLDDemoVisionProjectileTest::RunTest(const FString& Parameters)
     // Selection uses the unit sight rule, nearest first and bounded; a flight beyond the ground is merely out of sight.
     FString Error;
     FLDSightGeometry Sight;
-    TestTrue(TEXT("Sight builds"), Sight.Build(TestGeometry(), DemoRevision(), Whole(1400), Error));
+    TestTrue(TEXT("Sight builds"), Sight.Build(TestGeometry(), DemoRevision(), Whole(1400), LDVisionTestRange(), Error));
     const FVector West(-600, 0, 2);
     auto Fact = [](const FVector& Position, const FVector2D& Heading = FVector2D(1, 0))
     {
@@ -1516,7 +1516,7 @@ bool FLDDemoVisionEffectAccessTest::RunTest(const FString& Parameters)
 
     FString Error;
     FLDSightGeometry Sight;
-    if (!TestTrue(TEXT("Sight builds"), Sight.Build(TestGeometry(), DemoRevision(), Whole(1400), Error))) { return false; }
+    if (!TestTrue(TEXT("Sight builds"), Sight.Build(TestGeometry(), DemoRevision(), Whole(1400), LDVisionTestRange(), Error))) { return false; }
     const FVector West(-600, 0, 2);
     auto Fact = [](const FVector& Position)
     {

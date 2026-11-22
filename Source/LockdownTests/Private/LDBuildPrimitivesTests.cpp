@@ -1,3 +1,4 @@
+#include "LDVisionTestParameters.h"
 #include "Combat/LDMomentum.h"
 #include "Algo/AllOf.h"
 #include "Combat/LDCombatDirector.h"
@@ -222,7 +223,7 @@ struct FLDBuildPrimitivesAccess
         ALDVisionDirector* Vision = World.SpawnActor<ALDVisionDirector>();
         if (!Registry || !Vision) { Error = TEXT("The sight world needs its map registry and observation owner."); return false; }
         Registry->WorldRevision = Revision;
-        if (!Vision->Sight.Build(Geometry, Revision, Radius, Error)) { return false; }
+        if (!Vision->Sight.Build(Geometry, Revision, Radius, LDVisionTestRange(), Error)) { return false; }
         Mode.Vision = Vision;
         return true;
     }
@@ -1556,6 +1557,7 @@ struct FCard
     ELDCardTargetKind Target = ELDCardTargetKind::Body;
     FName Active;
     ELDDemoElement Element = ELDDemoElement::None;
+    uint8 Tier = 1;
 };
 
 FLDAttributeProjectionResult ProjectCards(const FLDDemoContentSnapshot& Catalog, uint8 Level, const TArray<FCard>& Rows)
@@ -1570,6 +1572,7 @@ FLDAttributeProjectionResult ProjectCards(const FLDDemoContentSnapshot& Catalog,
         Installed.TargetKind = Row.Target;
         Installed.Active = Row.Active;
         Installed.Element = Row.Element;
+        Installed.Tier = Row.Tier;
     }
     return LDAttributeProjection::Project(Values, Catalog);
 }
@@ -4893,6 +4896,45 @@ bool FLDIssue345SkillsAndFrameworksTest::RunTest(const FString& Parameters)
     { return false; }
     TestTrue(TEXT("Trespasser slowed and marked vulnerable by cordon"), !F.Body(Trespasser).Slows.IsEmpty()
         && !F.Body(Trespasser).Branch.Vulnerabilities.IsEmpty());
+
+    // 5b. Released cordon stays active across normal caster death/respawn and is cleared only on departure/phase close.
+    const FLDCombatBodyRef SecondTrespasser = F.AddBody();
+    F.Place(SecondTrespasser, 200, 1000);
+    F.Body(Warden).bPendingDeath = true;
+    if (!TestTrue(TEXT("Cordon persists after caster pending death: ") + Error,
+        FAccess::AdvanceCordons(*F.Driver, 5200, Error) && Drain(*this, F)))
+    { return false; }
+    TestEqual(TEXT("Cordon remains active after caster death"), FAccess::Cordons(*F.Driver).Num(), 1);
+    TestTrue(TEXT("Persisting cordon still slows a crossing enemy after caster death"), !F.Body(SecondTrespasser).Slows.IsEmpty());
+
+    // 6. Dual-host hit (active_crotch_grab triggers both Body and Skill medals): winning Tier-I Fire medal does not inherit
+    // Tier-III secondary element or reaction bonus from an unselected Tier-III Water medal on the other host.
+    const FLDCombatBodyRef DualHolder = F.AddBody(), DualTarget = F.AddBody();
+    F.Place(DualHolder, -2000, 1000);
+    F.Place(DualTarget, -1850, 1000);
+    if (!InstallCards(*this, F, DualHolder, 6, {
+        {TEXT("medal_fire"), ELDCardTargetKind::Body, NAME_None, ELDDemoElement::None, 1},
+        {TEXT("medal_water"), ELDCardTargetKind::Skill, FName(TEXT("active_crotch_grab")), ELDDemoElement::None, 3}}))
+    { return false; }
+    FLDCombatHit DualHit = GrazingHit;
+    DualHit.HitId = FGuid::NewGuid();
+    DualHit.EffectId = FGuid::NewGuid();
+    DualHit.Target = DualTarget;
+    DualHit.SourceBody = DualHolder;
+    DualHit.SourceEntity = DualHolder.Victim.EntityId;
+    DualHit.CreditOwner = DualHolder.Victim.EntityId;
+    DualHit.Source = SourceOf(ELDCombatSourceKind::Learned, TEXT("active_crotch_grab"));
+    DualHit.HitClass = ELDCombatHitClass::Ability;
+    DualHit.bDirectAbilityDamage = true;
+    DualHit.bTriggersBasicOnHit = true;
+    DualHit.BaseP2 = 5000;
+    F.Now(6000);
+    if (!TestTrue(TEXT("Dual-medal hit resolves: ") + Error, F.Apply(DualHit, Error) && Drain(*this, F)))
+    { return false; }
+    TestTrue(TEXT("Winning Tier-I Fire medal applies burn without triggering unselected Tier-III Water secondary reaction"),
+        LDCombatKeywords::BurnActive(F.Body(DualTarget).Burn, 6000)
+        && F.Body(DualTarget).ElementMark.Kind == ELDCombatElement::None
+        && F.Body(DualTarget).ReactionLockedUntilMs <= 6000);
     return true;
 }
 

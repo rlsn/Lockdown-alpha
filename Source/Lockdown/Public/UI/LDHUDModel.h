@@ -928,6 +928,11 @@ namespace LDHUD
         // Phase 9: an untaken final mod three-choice.
         bool bFinalMod=false;
         bool Any() const {return bOffer||Blueprints>0||bCardOffer||bFinalMod;}
+        int32 StashedCount() const
+        {
+            return FMath::Max<int32>(Offers, bOffer ? 1 : 0) + Blueprints
+                + FMath::Max<int32>(CardOffers, bCardOffer ? 1 : 0) + (bFinalMod ? 1 : 0);
+        }
     };
     LOCKDOWN_API FGrowthPending GrowthPending(const FLDProgressionView* Progression,uint32 Match,const FLDDemoContentDefinitions* Content);
     // The current opportunity is included in Queued; the first dot represents it.

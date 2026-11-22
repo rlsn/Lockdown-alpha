@@ -6,6 +6,8 @@
 #include "World/LDWorldQueryTypes.h"
 #include "Vision/LDViewTypes.h"
 #include "Region/LDMapGeometry.h"
+#include "UObject/ObjectKey.h"
+#include "Vision/LDVisionSupport.h"
 #include "LDVisionDirector.generated.h"
 class ALDPlayerController;
 class ALDWorldViewRelay;
@@ -22,6 +24,7 @@ enum class ELDObservedResolve : uint8 { Resolved, TargetUnavailable, ObserverUna
 
 namespace LDObservation
 {
+    LOCKDOWN_API double HeightRadiusScale(const FLDDemoVisionRangeParameters& Parameters, double SourceGroundZ, double TargetGroundZ);
     // Keeps the schedule's phase across ordinary late frames; after a stall it skips the missed intervals instead
     // of replaying them, so a caller samples the current pose once.
     inline int64 NextSampleDue(int64 NowMs, int64 DueMs, int64 PeriodMs, bool bStarted)
@@ -50,6 +53,8 @@ struct FLDAuthorityTargetSample
     FVector FootCm = FVector::ZeroVector;
     FLDWorldRevision World;
     double SampledAtSeconds = 0;
+    // The support height sight measured the target at; unset falls back to FootCm.Z.
+    TOptional<double> SightGroundZ;
 };
 
 // Server-only ObservedDeath fact with its core binding. Never serialized.
@@ -72,32 +77,60 @@ struct FLDObservedTarget
 // Runtime sight uses native scene collision; data/import fixtures can build the approved polygon model.
 // The importer guarantees every authored sight blocker is a
 // strictly convex polygon or an upright cylinder standing on one flat level, taller than the sight sample height.
-// #97 tiers (LDDemoWorld::FTerrain): nothing on a higher tier than the observer is seen, terrain of a higher tier
-// between them hides, and an obstacle hides only from observers at or below its level (a ramp counts as its lower
-// level), so high ground sees low ground over its walls and trees. A common walkable ramp plane
-// can span several native height bands.
+// Range is horizontal and varies smoothly with the actual relative supporting heights. Terrain is tested from
+// the observer's virtual eye to the target ground. Downhill terrain exempts only the connected departure plane's
+// near-foot blind spot; subsequent terrain and ordinary props retain actual occlusion. No mesh identity or
+// quantized world-height tier grants sight.
 class LOCKDOWN_API FLDSightGeometry
 {
 public:
     bool Build(const FLDDemoWorldGeometry& Geometry, const FLDWorldRevision& InWorld, const FLDDemoRational& InRadius,
-        FString& Error, UWorld* NativeScene = nullptr, const LDDemoWorld::FTerrain* NativeTerrain = nullptr);
+        const FLDDemoVisionRangeParameters& RangeParameters, FString& Error, UWorld* NativeScene = nullptr,
+        const LDDemoWorld::FTerrain* NativeTerrain = nullptr, bool bLazyCoverage = false);
     bool IsValid() const { return World.IsValid() && RadiusCm > 0; }
     const FLDWorldRevision& Revision() const { return World; }
     double Radius() const { return RadiusCm; }
+    double MaximumRadius() const { return RadiusCm * DownhillScale; }
+    double RadiusForHeights(double SourceGroundZ, double TargetGroundZ) const;
+    // The support-surface height a sight query uses for this foot point (the foot's own Z without native support).
+    double GroundZ(const FVector& Foot) const;
+    struct FQueryDiagnostics
+    {
+        uint64 TerrainBuilds=0,PropBuilds=0,DepartureCalls=0,Scopes=0;
+        double TerrainBuildSeconds=0,PropBuildSeconds=0,DepartureSeconds=0,ScopeSeconds=0;
+    };
+    const FQueryDiagnostics& QueryDiagnostics()const{return Diagnostics;}
     const FVector2D& MinCm() const { return Min; }
     const FVector2D& MaxCm() const { return Max; }
+    const FBox2D& CoverageBounds() const { return CoverageWorldBounds; }
     bool InBounds(const FVector& FootCm) const;
     ELDSightResult Trace(const FVector& SourceFootCm, const FVector& TargetFootCm) const;
     FVector2D CellCentre(int32 Index) const;
+    struct FCoverageScan
+    {
+        FVector Ground = FVector::ZeroVector;
+        FHitResult Support;
+        FIntRect Region{0,0,0,0};
+        FIntPoint Next{0,0};
+        TArray<uint8> Bits;
+    };
+    bool BeginCoverage(const FVector& SourceFootCm, FCoverageScan& Scan) const;
+    // A zero deadline runs the whole scan. A yielded scan retains its exact source and next column.
+    bool ContinueCoverage(FCoverageScan& Scan, double DeadlineSeconds = 0.) const;
     void Coverage(const FVector& SourceFootCm, TArray<uint8>& OutBits) const;
     // #198 session D: marks every coverage cell whose centre lies within the disk (a spectator's arena permission).
     void AddDisk(const FVector& CentreCm, double DiskRadiusCm, TArray<uint8>& InOutBits) const;
 private:
-    bool SegmentBlocked(const FVector2D& From, const FVector2D& To, int32 ObserverTier, int32 TargetTier,
-        double SourceGroundZ, const FHitResult& SourceSupport, const FHitResult& TargetSupport) const;
+    bool SegmentBlocked(const FVector& From, const FVector& To,
+        const FHitResult& SourceSupport, const FHitResult& TargetSupport, double DistanceFractionSquared) const;
+    ELDSightResult TracePrepared(const FVector& From, const FVector& To,
+        const FHitResult& SourceSupport, const FHitResult& TargetSupport) const;
+    void ResolveFoot(const FVector& Foot, FVector& Ground, FHitResult& Support) const;
+    void PrepareNativeScope(const FVector2D& From) const;
     // #97: forests hold hundreds of trunks, so blockers are bucketed in a coarse grid; a segment tests only the
     // blockers of the cells its bounds touch (a blocker may be tested more than once, never skipped).
-    void BuildGrid();
+    void BuildGrid(bool bLazyCoverage);
+    void CacheCoverageGround(int32 Index, const FVector2D& Centre) const;
     void CellRange(const FVector2D& Low, const FVector2D& High, int32& X0, int32& Y0, int32& X1, int32& Y1) const;
     static constexpr double GridCellCm = 400.;
     int32 GridWidth = 0, GridHeight = 0;
@@ -105,32 +138,47 @@ private:
     TArray<TArray<int32>> CellPolygons;
     TArray<TArray<int32>> CellCircles;
     TArray<TArray<int32>> CellRegions;
-    TArray<TArray<int32>> CellNativeTerrain;
-    TArray<int32> CoverageTiers;
+    struct FGroundSample
+    {
+        FVector Foot = FVector::ZeroVector;
+        FHitResult Support;
+    };
+    mutable TArray<TArray<FGroundSample>> CoverageGround;
+    mutable TBitArray<> CachedCoverageColumns;
+    FBox2D CoverageWorldBounds{ForceInit};
     struct FCircle
     {
         FVector2D Centre = FVector2D::ZeroVector;
         double Radius = 0;
         int32 Level = 0;
+        double HeightCm = 0;
     };
     FLDWorldRevision World;
     FVector2D Min = FVector2D::ZeroVector;
     FVector2D Max = FVector2D::ZeroVector;
     double RadiusCm = 0;
+    FLDDemoVisionRangeParameters RangeParameters;
+    double DownhillScale = 0;
     TArray<TArray<FVector2D>> Blockers;
     TArray<int32> BlockerLevels;
+    TArray<double> BlockerHeights;
     TArray<FCircle> Circles;
     LDDemoWorld::FTerrain Terrain;
     TWeakObjectPtr<UWorld> Scene;
     double SampleHeightCm = 0;
-    mutable TMap<int32, FCollisionQueryParams> NativeSightQueries;
-    struct FNativeTerrainPart
-    {
-        TWeakObjectPtr<UPrimitiveComponent> Component;
-        FBox Bounds = FBox(ForceInit);
-        int32 Tier = INDEX_NONE;
-    };
-    TArray<FNativeTerrainPart> NativeTerrainParts;
+    FCollisionQueryParams NativePropQuery;
+    FCollisionQueryParams NativeTerrainQuery;
+    TSet<FObjectKey> NativeTerrainParts;
+    mutable TMap<TPair<FObjectKey,FObjectKey>,FCollisionQueryParams> NativePropQueries;
+    struct FExcludedPart {TWeakObjectPtr<UPrimitiveComponent> Component;FBox Bounds;};
+    TArray<FExcludedPart> NativeTerrainExcludedParts,NativePropExcludedParts;
+    mutable TArray<TWeakObjectPtr<UPrimitiveComponent>> LocalTerrainExcludedParts;
+    mutable bool bHasNativeScope=false;
+    mutable FIntPoint NativeScopeCell;
+    mutable FCollisionQueryParams LocalTerrainQuery,LocalPropQuery;
+    mutable TMap<TPair<FObjectKey,FObjectKey>,FCollisionQueryParams> NativeTerrainQueries;
+    FLDVisionSupport SupportSurfaces;
+    mutable FQueryDiagnostics Diagnostics;
 };
 
 // Per-observer display memoization only; never used to authorize a unit or flight.
@@ -261,6 +309,8 @@ public:
     // Whether an observer standing at SourceFootCm may observe Target now: static sight to the target's foot point.
     // Every enemy perception (contenders, opponent AI, camp members, taunt upkeep) uses this, never bare TraceSight.
     ELDSightResult TraceObservation(const FVector& SourceFootCm, const ALDCharacter& Target, const FLDWorldRevision& Expected) const;
+    // The support height sight scales its radius by for a foot point; perception radii use it, never the body foot Z.
+    double SightGroundZ(const FVector& FootCm) const;
     // The caller's current observer-local handle of Body, only while Body is bound in its latest sample.
     bool FindObservedHandle(const ALDPlayerController& Caller, const FLDCombatBodyRef& Body, FGuid& OutHandle, uint32& OutEpoch) const;
     // Sends only to the attacking life, after revalidating its current presentation permission.

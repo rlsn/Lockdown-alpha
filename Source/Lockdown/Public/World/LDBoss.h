@@ -4,6 +4,7 @@
 #include "Containers/ArrayView.h"
 #include "Combat/LDCombatTypes.h"
 #include "Framework/LDCaptureTypes.h"
+#include "Development/LDDemoContentDefinitions.h"
 
 class FLDDemoContentSnapshot;
 struct FLDDemoWorldGeometry;
@@ -20,6 +21,8 @@ namespace LDBoss
     {
         FLDCombatBodyRef Body;
         FVector FootCm = FVector::ZeroVector;
+        // The support height sight measured it at; unset falls back to FootCm.Z.
+        TOptional<double> SightGroundZ;
         bool bVisible = false;
     };
 }
@@ -30,6 +33,7 @@ struct LOCKDOWN_API FLDBossRules
     int64 AppearAtMs = 0;
     int64 LeaveAtMs = 0;
     double AggroRadiusCm = 0;
+    FLDDemoVisionRangeParameters VisionRange;
     double AttackRangeCm = 0;
     int64 AttackerMemoryMs = 0;
     FName MonsterId;
@@ -90,9 +94,10 @@ struct LOCKDOWN_API FLDBossState
     // The patrol goal, advancing past every waypoint already reached.
     const FVector& PatrolGoal() const { return Rules.Waypoints[Waypoint]; }
     void ReachedWaypoint() { Waypoint = (Waypoint + 1) % Rules.Waypoints.Num(); }
-    // Target choice for one Actions step; drops attackers older than the memory.
+    // Target choice for one Actions step; drops attackers older than the memory. SelfSightGroundZ is the support height
+    // sight measures the Boss at (unset falls back to SelfFootCm.Z).
     FLDBossDecision Decide(int64 NowMs, const FVector& SelfFootCm, TConstArrayView<LDBoss::FCandidate> Living,
-        bool bMovementAllowed, bool bAttackReady);
+        bool bMovementAllowed, bool bAttackReady, TOptional<double> SelfSightGroundZ = {});
     FLDBossView View() const;
 };
 

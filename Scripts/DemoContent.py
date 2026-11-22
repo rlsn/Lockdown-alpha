@@ -1258,6 +1258,10 @@ def validate_numbers(data):
                 "StatBounds", prefix, "base must be within positive bounds")
     require(p("UNIT.CollisionRadiusCm") > 0 and p("UNIT.BasicAttackRangeCm") >= 2 * p("UNIT.CollisionRadiusCm"),
             "InvalidGeometry", "UNIT", "basic attack cannot require overlapping bodies")
+    require(0 <= p("VISION.NeutralHeightCm") < p("VISION.FullHeightCm"),
+            "InvalidGeometry", "VISION", "neutral height must be below the full height transition")
+    require(0 < p("VISION.UphillRadiusScale") <= 1 <= p("VISION.DownhillRadiusScale"),
+            "InvalidGeometry", "VISION", "uphill and downhill scales must bracket the base radius")
     for key in ("VISION.RadiusCm", "CAPTURE.RadiusCm", "CAMP.ResetArrivalRadiusCm",
                 "AIRDROP.PickupRadiusCm", "REST.ReturnSearchRadiusCm", "THROW.RadiusCm", "THROW.RangeCm",
                 "SHOWDOWN.RingFinalRadiusCm",

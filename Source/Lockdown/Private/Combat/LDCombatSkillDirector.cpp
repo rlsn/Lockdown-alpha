@@ -239,6 +239,8 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
         Cordon.Tangent=FVector(-CastDir.Y, CastDir.X, 0).GetSafeNormal();
         Cordon.HalfLengthCm=Cm(Tape->RadiusCm)*.5;
         Cordon.HalfWidthCm=FMath::Max(25.,Cm(Tape->ExtraDistanceCm));
+        Cordon.OwnerGroup=Body.IsolationGroup;
+        Cordon.OwnerPKSide=Body.PKSide;
         Cordon.CreatedSerial=++NextAreaSerial;
         if (!LDMatchLifecycle::AddDurationMs(NowMs, Tape->DurationMs, Cordon.ExpiresAtMs, Error)) { return false; }
         int32 Allowed=1;

@@ -8,7 +8,7 @@
 namespace LDScenarioWalk
 {
 bool Keepouts(const FLDDemoWorldGeometry& Geometry, const FLDDemoContentSnapshot& Content,
-    double BodyRadius, double Arrival, TArray<FKeepout>& Out, FString& Error)
+    double BodyRadius, double Arrival, TArray<FKeepout>& Out, FString& Error, bool bIncludeBoss)
 {
     Out.Reset();
     const auto Rational = [](const FLDDemoRational& Value)
@@ -20,6 +20,7 @@ bool Keepouts(const FLDDemoWorldGeometry& Geometry, const FLDDemoContentSnapshot
         double Radius = BodyRadius + Arrival;
         if (Anchor.Kind == ELDDemoWorldAnchorKind::BossWaypoint)
         {
+            if (!bIncludeBoss) { continue; }
             Radius += Rational(Defs.Boss.AggroRadiusCm);
             FVector Centre;
             if (!Anchor.PositionCm.ToVector(Centre, Error)) { return false; }

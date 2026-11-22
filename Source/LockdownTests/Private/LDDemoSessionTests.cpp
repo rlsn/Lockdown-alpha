@@ -627,7 +627,7 @@ bool FLDDemoLobbyReadModelTest::RunTest(const FString& Parameters)
     Candidate.PreviousResultId = FGuid::NewGuid();
     Reject(Candidate, TEXT("Previous result mapping is only published in the Lobby"));
     Candidate = Stable;
-    for (int32 Index = 0; Index < 6; ++Index)
+    while (Candidate.Members.Num() <= LDMatchLifecycle::MaxContenders)
     {
         FLDLobbyMember Member;
         Member.ContenderId = FGuid::NewGuid();
@@ -635,7 +635,7 @@ bool FLDDemoLobbyReadModelTest::RunTest(const FString& Parameters)
         Member.Ready = true;
         Candidate.Members.Add(Member);
     }
-    Reject(Candidate, TEXT("Seven human rows exceed the Demo structure"));
+    Reject(Candidate, TEXT("Human rows beyond the room capacity exceed the Demo structure"));
     Candidate = Stable;
     Candidate.Generation = 2;
     Candidate.RosterRevision = Candidate.PublicRevision = 1;

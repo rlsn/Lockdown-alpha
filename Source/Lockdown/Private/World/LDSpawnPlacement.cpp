@@ -95,6 +95,19 @@ namespace
     }
 }
 
+TArray<FName> ULDMapRegistry::FieldSpawnAnchors() const
+{
+    TArray<FName> Anchors;
+    if (Geometry)
+    {
+        for (const FLDDemoWorldAnchor& Anchor : Geometry->Anchors)
+        {
+            if (Anchor.Kind == ELDDemoWorldAnchorKind::Spawn) { Anchors.Add(FName(*Anchor.Id)); }
+        }
+    }
+    return Anchors;
+}
+
 bool ULDMapRegistry::ValidateFieldSpawnPaths(bool bFinalField, FString& Error) const
 {
     if (!Content) { Error=TEXT("入场检查失败：地图数据未就绪");return false; }
@@ -103,7 +116,7 @@ bool ULDMapRegistry::ValidateFieldSpawnPaths(bool bFinalField, FString& Error) c
     {
         for (int32 Slot=0;Slot<LDDemoWorld::FinalSpawns;++Slot) { Anchors.Add(FName(*LDDemoWorld::FinalSpawnId(Slot))); }
     }
-    else { for (const FString& Id:Content->Get().World.SpawnIds) { Anchors.Add(FName(*Id)); } }
+    else { Anchors = FieldSpawnAnchors(); }
     return ValidateSpawnPaths(Anchors,bFinalField?FName(*LDDemoWorld::FinalCaptureId()):FName(*Content->Get().World.CaptureId),Error);
 }
 
@@ -252,12 +265,12 @@ bool ULDMapRegistry::DrawSpawnAnchor(const FLDSpawnRequestKey& Request, FRandomS
     TSharedPtr<const FLDSpawnSelection> Replay;
     if (!AdmitSpawnRequest(Request,Permit,Replay,Error)) { return false; }
     if (Replay) { Out=MoveTemp(Replay); return true; }
-    const auto& Anchors=Content->Get().World.SpawnIds;
+    const TArray<FName> Anchors=FieldSpawnAnchors();
     if (Anchors.Num()<LDDemoWorld::MinSpawns)
     { Error=TEXT("The approved spawn anchor pool is unavailable."); return false; }
     uint32 Index=0;
     while (!LDSpawnPlacement::TryUniformSample(Random.GetUnsignedInt(),uint32(Anchors.Num()),Index)) {}
-    Out=RecordSpawnSelection(Request,FName(*Anchors[int32(Index)]));
+    Out=RecordSpawnSelection(Request,Anchors[int32(Index)]);
     Error.Reset();
     return true;
 }
@@ -274,10 +287,10 @@ bool ULDMapRegistry::SelectSpawnAnchor(const FLDSpawnRequestKey& Request, FName 
         Out=MoveTemp(Replay);
         return true;
     }
-    // Rest anchors are validated by the world geometry, not the field spawn list.
+    // The current map supplies field, rest and final anchors; PK retains its fixed ring identities.
     const auto& Refs=Content->Get().World;
     const FString AnchorId=Anchor.ToString();
-    if (!Refs.SpawnIds.Contains(AnchorId) && !Refs.PKSpawnIds.Contains(AnchorId)
+    if (!FieldSpawnAnchors().Contains(Anchor) && !Refs.PKSpawnIds.Contains(AnchorId)
         && !IsRestSpawn(Geometry.Get(),Anchor) && !IsFinalSpawn(Geometry.Get(),Anchor))
     { Error=FString::Printf(TEXT("%s is not an approved field, rest, PK, or final spawn anchor."),*AnchorId); return false; }
     Out=RecordSpawnSelection(Request,Anchor);
@@ -456,9 +469,11 @@ bool ULDMapRegistry::ValidateSpawnReservation(const TSharedPtr<const FLDSpawnRes
     if (!ContentCapsule(*Content,Capsule,Error)) { return false; }
     FCollisionQueryParams Query(SCENE_QUERY_STAT(DemoSpawnCommit));
     if (PreparedBody) { Query.AddIgnoredActor(PreparedBody); }
-    if (GetWorld()->OverlapAnyTestByObjectType(Reservation->Origin,FQuat::Identity,
+    const FVector Origin=PreparedBody ? PreparedBody->GetActorLocation() : Reservation->Origin;
+    if (LDSpawnPlacement::OverlapsStatic(*GetWorld(),Origin,Capsule)
+        || GetWorld()->OverlapAnyTestByObjectType(Origin,FQuat::Identity,
         FCollisionObjectQueryParams(ECC_Pawn),Capsule,Query))
-    { Error=TEXT("SpawnBlocked: a physical body entered the held placement before commit."); return false; }
+    { Error=TEXT("SpawnBlocked: the prepared capsule overlaps physical collision before commit."); return false; }
     Error.Reset();
     return true;
 }

@@ -450,8 +450,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
             { return false; }
             for (const FLDPassiveEffectRef& Ref : Elements)
             {
-                Hit.CardMedalTier=FMath::Max<uint8>(Hit.CardMedalTier,Ref.Tier);
-                if (!ApplyCardElement(Hit,Ref.Effect.Element,Ref.Effect.Count,Ref.Source,Error)) { return false; }
+                if (!ApplyCardElement(Hit,Ref.Effect.Element,Ref.Effect.Count,Ref.Source,Error,Ref.Tier)) { return false; }
                 ElementTriggers.Add({Ref.Key,Ref.Source,Ref.Effect.Element==ELDDemoElement::Fire});
             }
         }
@@ -461,8 +460,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
             if (!CardsOn(Source->AttributeProjection,ELDDemoEffectOp::SkillElement,Hit.Source,Mixed,Error)) { return false; }
             for (const FLDPassiveEffectRef& Ref : Mixed)
             {
-                Hit.CardMedalTier=FMath::Max<uint8>(Hit.CardMedalTier,Ref.Tier);
-                if (!ApplyCardElement(Hit,Ref.Effect.Element,Ref.Effect.Count,Ref.Source,Error)) { return false; }
+                if (!ApplyCardElement(Hit,Ref.Effect.Element,Ref.Effect.Count,Ref.Source,Error,Ref.Tier)) { return false; }
                 ElementTriggers.Add({Ref.Key,Ref.Source,Ref.Effect.Element==ELDDemoElement::Fire});
             }
         }

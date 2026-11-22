@@ -670,10 +670,16 @@ struct FLDCombatHit
     // Cards: burn layers a card's fire adds to this hit (ApplyCardElement), credited to CardBurnSource; a card's other element
     // on this hit (one per element, the first card naming it), applied as that card's own application after the hit's native
     // element of the same kind.
+    struct FCardElementEntry
+    {
+        ELDCombatElement Element=ELDCombatElement::None;
+        FLDCombatSourceRef Source;
+        uint8 Tier=1;
+    };
     int32 CardBurnStacks=0;
     FLDCombatSourceRef CardBurnSource;
-    uint8 CardMedalTier=1;
-    TArray<TPair<ELDCombatElement,FLDCombatSourceRef>> CardElements;
+    uint8 CardBurnTier=1;
+    TArray<FCardElementEntry> CardElements;
     // #345: monster damage scale, projectile flight distance, basic+skill dual trigger, stagger bleed, and backstab lunge terms.
     int64 MonsterMultiplierBp=0;
     double FlightDistanceCm=0;
@@ -684,7 +690,7 @@ struct FLDCombatHit
     bool CarriesElement(ELDCombatElement Element) const
     {
         return (NativeElements & LDCombatElements::Bit(Element))!=0
-            || CardElements.ContainsByPredicate([Element](const auto& Row) { return Row.Key==Element; });
+            || CardElements.ContainsByPredicate([Element](const FCardElementEntry& Row) { return Row.Element==Element; });
     }
     TSharedPtr<FLDCombatCastLedger> CastLedger;
 };
@@ -1243,6 +1249,7 @@ private:
     friend class FLDDemoGrowthBuildCommandsTest;
     friend struct FLDBuildPrimitivesAccess;
 #if WITH_DEV_AUTOMATION_TESTS
+    friend class FLDCombatCancelledRecoveryCueTest;
     friend struct FLDDemoVisionReactionAccess;
     friend struct FLDDemoVisionIceAccess;
 #endif
@@ -1391,7 +1398,8 @@ private:
     bool OnBasicLanded(FLDBodyCombatState& Body, FLDCombatHit& Primary, TArray<FLDCombatHit>& OutExtra, FString& Error);
     // One card's element on Hit (A16-A19, K19-K24, D12). Fire adds burn layers credited to Card; the others name Card in the
     // hit's CardElements for ApplyElements.
-    bool ApplyCardElement(FLDCombatHit& Hit, ELDDemoElement Element, int32 FireStacks, const FLDCombatSourceRef& Card, FString& Error) const;
+    bool ApplyCardElement(FLDCombatHit& Hit, ELDDemoElement Element, int32 FireStacks, const FLDCombatSourceRef& Card, FString& Error,
+        uint8 MedalTier=1) const;
     // Voluntary dashes that ended by NowMs; one that completed with a real displacement arms every held DashComplete
     // empower_basic (D03, values snapshotted now).
     bool ResolveDashCompletions(int64 NowMs, FString& Error);
@@ -1780,6 +1788,8 @@ private:
         FVector Tangent=FVector(0,1,0);
         double HalfLengthCm=250, HalfWidthCm=70;
         int64 ExpiresAtMs=0;
+        FGuid OwnerGroup;
+        uint8 OwnerPKSide=0;
         TMap<FGuid,int32> EnemyTouches;
         TMap<FGuid,int64> EnemyCooldownUntilMs;
         TSet<FGuid> BoostedFlights;

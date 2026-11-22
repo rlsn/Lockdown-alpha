@@ -39,7 +39,7 @@ private:
 };
 
 LOCKDOWN_API bool Keepouts(const FLDDemoWorldGeometry& Geometry, const FLDDemoContentSnapshot& Content,
-    double BodyRadius, double Arrival, TArray<FKeepout>& Out, FString& Error);
+    double BodyRadius, double Arrival, TArray<FKeepout>& Out, FString& Error, bool bIncludeBoss = true);
 LOCKDOWN_API void PatrolKeepouts(const TArray<FLDCompletePath>& Paths, double Radius, TArray<FKeepout>& Out);
 bool PatrolPaths(const ULDMapRegistry& Registry, const FLDDemoContentSnapshot& Content,
     TArray<FLDCompletePath>& Out, FString& Error);

@@ -2352,16 +2352,16 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     PromptOffers=Pending.Offers;PromptCardOffers=Pending.CardOffers;
     if(PromptText&&PC)
     {
-        const int32 StashedCount=(Pending.bOffer?1:0)+Pending.Blueprints+FMath::Max<int32>(Pending.CardOffers,Pending.bCardOffer?1:0)+(Pending.bFinalMod?1:0);
+        const int32 StashedCount=Pending.StashedCount();
         const FString KeyLabel=PC->BindingLabel(TEXT("Workshop"));
-        HudSetText(PromptText,bFieldPhase&&bEngaged&&StashedCount>0
+        HudSetText(PromptText,bPromptLit&&bFieldPhase&&bEngaged&&StashedCount>0
             ?FString::Printf(TEXT("待选 ×%d [%s]"),StashedCount,*KeyLabel)
             :FString::Printf(TEXT("构筑 [%s]"),*KeyLabel));
     }
     HudSetColor(PromptText,bPromptLit?HudPromptInk:HudPromptIdleInk);
     {
-        // Skills (the active offer and the blueprints), build cards, then the final mod; shown badges line up leftward.
-        const int32 Waiting[3]={(Pending.bOffer?1:0)+Pending.Blueprints,Pending.bCardOffer?1:0,Pending.bFinalMod?1:0};
+        // Skills (the active offers and the blueprints), build cards, then the final mod; shown badges line up leftward.
+        const int32 Waiting[3]={(Pending.bOffer?FMath::Max<int32>(Pending.Offers,1):0)+Pending.Blueprints,FMath::Max<int32>(Pending.CardOffers,Pending.bCardOffer?1:0),Pending.bFinalMod?1:0};
         float Offset=0.f;
         for(int32 Kind=0;Kind<PromptBadges.Num()&&Kind<3;++Kind)
         {

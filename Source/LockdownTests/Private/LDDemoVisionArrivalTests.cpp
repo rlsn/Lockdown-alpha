@@ -39,7 +39,7 @@ bool FLDVisionArrivalRoutesTest::RunTest(const FString& Parameters)
     Revision.GeometryRevision = Geometry->GeometryRevision;
     FLDSightGeometry Sight;
     LDDemoWorld::FTerrain Terrain;
-    if (!Sight.Build(*Geometry, Revision, Vision, Error) || !Terrain.Build(*Geometry, Error)) { AddError(Error); return false; }
+    if (!Sight.Build(*Geometry, Revision, Vision, Content->Get().Parameters.VisionRange, Error) || !Terrain.Build(*Geometry, Error)) { AddError(Error); return false; }
     for (int32 A = 0; A < Goals.Num(); ++A)
     {
         for (int32 B = A + 1; B < Goals.Num(); ++B)

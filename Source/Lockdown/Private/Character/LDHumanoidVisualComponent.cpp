@@ -6,6 +6,7 @@
 #include "Art/LDArtSubsystem.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Character/LDCharacter.h"
+#include "Character/LDBasketballAnimInstance.h"
 #include "Character/LDCombatVfxCatalog.h"
 #include "Character/LDHitFeel.h"
 #include "Character/LDImpactFx.h"
@@ -157,6 +158,13 @@ ULDHumanoidVisualComponent::ULDHumanoidVisualComponent()
     // A body hidden from this view (another player's authority body on the Listen Host) evaluates no pose.
     Mesh->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered;
     Mesh->SetHiddenInGame(true);
+    Basketball = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Basketball"));
+    Basketball->SetupAttachment(Mesh);
+    Basketball->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    Basketball->SetGenerateOverlapEvents(false);
+    Basketball->SetCanEverAffectNavigation(false);
+    Basketball->SetHiddenInGame(true);
+    KeepOutOfSceneLighting(*Basketball);
     for (int32 Index = 0; Index < PartCount; ++Index)
     {
         const FPartSpec& Spec = Specs[Index];
@@ -196,12 +204,15 @@ void ULDHumanoidVisualComponent::OnRegister()
     {
         Pivot->bIsEditorOnly = true;
         Mesh->bIsEditorOnly = true;
+        Basketball->bIsEditorOnly = true;
         for (UStaticMeshComponent* Part : Parts) { Part->bIsEditorOnly = true; }
         for (UStaticMeshComponent* Edge : Edges) { Edge->bIsEditorOnly = true; }
         for (UMeshComponent* Part : Worn) { if (Part) { Part->bIsEditorOnly = true; } }
     }
     if (!Pivot->IsRegistered()) { Pivot->RegisterComponent(); }
     if (!Mesh->IsRegistered()) { Mesh->RegisterComponent(); }
+    if (!Basketball->IsRegistered()) { Basketball->RegisterComponent(); }
+    if (GetOwner()) { Mesh->AddTickPrerequisiteActor(GetOwner()); }
     for (UStaticMeshComponent* Part : Parts)
     {
         if (!Part->IsRegistered()) { Part->RegisterComponent(); }
@@ -226,12 +237,14 @@ void ULDHumanoidVisualComponent::OnVisibilityChanged()
 {
     Super::OnVisibilityChanged();
     if (!GetVisibleFlag()) { ClearImpacts(); }
+    if (!GetVisibleFlag()) { Basketball->SetHiddenInGame(true); }
 }
 
 void ULDHumanoidVisualComponent::OnHiddenInGameChanged()
 {
     Super::OnHiddenInGameChanged();
     if (bHiddenInGame) { ClearImpacts(); }
+    if (bHiddenInGame) { Basketball->SetHiddenInGame(true); }
 }
 
 void ULDHumanoidVisualComponent::ClearImpacts()
@@ -667,6 +680,8 @@ void ULDHumanoidVisualComponent::ApplyLook(const FLDArtCharacter* Look, const FL
     PickingFrame = MAX_uint64;
     PickingModel.Reset();
     PickingPose = {};
+    Basketball->SetHiddenInGame(true);
+    Basketball->SetStaticMesh(nullptr);
     if (!Art)
     {
         ClearImpacts();
@@ -684,6 +699,24 @@ void ULDHumanoidVisualComponent::ApplyLook(const FLDArtCharacter* Look, const FL
     Mesh->SetSkeletalMeshAsset(Art->Mesh);
     Mesh->SetRelativeTransform(Art->MeshTransform);
     Mesh->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+    if (Art->BasketballMotion)
+    {
+        Basketball->SetStaticMesh(Art->BasketballMotion->BallMesh);
+        Basketball->SetMaterial(0,Art->BasketballMotion->BallMaterial);
+        // The basic sphere's bounding box, unlike SphereRadius, is its physical radius.
+        const float Radius=Art->BasketballMotion->BallMesh->GetBoundingBox().GetExtent().GetMax();
+        Basketball->SetWorldScale3D(FVector(Art->BasketballMotion->BallRadiusCm/FMath::Max(Radius,1.f)));
+        Mesh->SetAnimationMode(EAnimationMode::AnimationBlueprint);
+        Mesh->SetAnimInstanceClass(ULDBasketballAnimInstance::StaticClass());
+        auto* Animation=Cast<ULDBasketballAnimInstance>(Mesh->GetAnimInstance());
+        if (ensureMsgf(Animation,TEXT("The declared basketball body needs its runtime animation graph.")))
+        {
+            Animation->Bind(Art->BasketballMotion,Basketball,
+                Art->MeshTransform.GetRotation().UnrotateVector(FVector::ForwardVector));
+            UE_LOG(LogLDContent,Display,TEXT("LD_BASKETBALL_PRESENTATION body=%s owner_class=%s graph=%s source=%s"),
+                *Art->Id,*GetOwner()->GetClass()->GetName(),*Animation->GetClass()->GetPathName(),*Art->BasketballMotion->SourceSha256);
+        }
+    }
     // Every slot takes the hit flash; only the catalog's tint slots take the identity colour.
     for (int32 Index = 0; Index < Mesh->GetNumMaterials(); ++Index)
     {
@@ -982,6 +1015,17 @@ void ULDHumanoidVisualComponent::PlayClip(bool bFalling, float Speed)
             || (Waving && AppearAt >= 0 && Speed < RunFromCmPerSec && Pose(ELDArtAnim::Spawn, float(Clock - AppearAt) * Waving->PlayRate, false));
     const FLDArtAnimation* Entry = Art->Find(State);
     if (!Entry || !Entry->Sequence) { return; }
+    if (Art->BasketballMotion)
+    {
+        if (auto* Animation=Cast<ULDBasketballAnimInstance>(Mesh->GetAnimInstance()))
+        {
+            const bool bOverride=bPosed&&State!=ELDArtAnim::Attack&&State!=ELDArtAnim::Cast;
+            Animation->Prepare(Clock,Speed,GetOwner()?GetOwner()->GetActorRotation().Yaw:0.f,Showing,ActionAge,
+                ImpactSeconds,ActionOnset,bOverride?Entry->Sequence.Get():nullptr,Time,
+                Showing==EAction::Cast&&CastAbility==0&&LDHitVfx::IsDashing(Speed,bKnockback,bFalling),CanShowImpact());
+        }
+        return;
+    }
     if (State != Clip)
     {
         Mesh->PlayAnimation(Entry->Sequence, Entry->bLoop);

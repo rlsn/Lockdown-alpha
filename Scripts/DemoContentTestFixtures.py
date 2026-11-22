@@ -53,6 +53,8 @@ def content_fixture():
         ("UNIT.CollisionRadiusCm", "cm", 20), ("UNIT.BasicAttackRangeCm", "cm", 100),
         ("STAT.AttackRange.Min", "cm", 40), ("STAT.AttackRange.Max", "cm", 1000),
         ("UNIT.BasicAttackWindupSec", "s", 0.125), ("VISION.RadiusCm", "cm", 1200),
+        ("VISION.NeutralHeightCm", "cm", 35), ("VISION.FullHeightCm", "cm", 120),
+        ("VISION.UphillRadiusScale", "ratio", 0.75), ("VISION.DownhillRadiusScale", "ratio", 1.25),
         ("CAPTURE.RadiusCm", "cm", 300),
         ("CAPTURE.SpraySec", "s", 3), ("VISION.SightGraceSec", "s", 0.2), ("CAPTURE.GuardSec", "s", 20), ("CAPTURE.GuardCheckpointSec", "s", 10), ("CAPTURE.GuardResumeSec", "s", 8),
         ("SHOWDOWN.UnlockDelaySec", "s", 10), ("SHOWDOWN.DurationSec", "s", 240),

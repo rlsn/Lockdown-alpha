@@ -4,6 +4,7 @@
 #include "World/LDWorldQueryTypes.h"
 
 class ACharacter;
+class ANavigationData;
 class ULDMapRegistry;
 struct FCollisionShape;
 
@@ -42,6 +43,9 @@ namespace LDPathSteering
     LOCKDOWN_API bool BlockedAtHeldGoal(const FVector2D& Foot, double Radius, const FVector2D& Goal, TConstArrayView<FBodyDisc> Others);
     // BlockedAtHeldGoal for a grounded body against every other live character in its world whose capsule blocks pawns.
     LOCKDOWN_API bool BlockedAtHeldGoal(const ACharacter& Body, const FVector& Goal);
+    // Match a validated foot to a native navigation layer vertically, within the body's step height.
+    // The caller still validates physical ground; this only accounts for Recast's voxel height without moving XY.
+    LOCKDOWN_API bool VerticalNavPoint(const ANavigationData& Data, const FVector& Foot, double HeightToleranceCm, FVector& Out);
     // Route endpoint for any registered body from its validated ground: a planner's own start, or the foot of a body it
     // chases. Recast erodes the walkable area conservatively, so a legal capsule against a wall or another body, or one
     // cutting a corner, can stand just outside the mesh: the endpoint then moves to the nearest navmesh point at most one

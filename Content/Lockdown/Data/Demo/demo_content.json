@@ -23937,14 +23937,32 @@
       "numerator": 300,
       "unit": "cm/s"
     },
+    "VISION.DownhillRadiusScale": {
+      "bp": 12500,
+      "unit": "ratio"
+    },
+    "VISION.FullHeightCm": {
+      "denominator": 1,
+      "numerator": 120,
+      "unit": "cm"
+    },
+    "VISION.NeutralHeightCm": {
+      "denominator": 1,
+      "numerator": 35,
+      "unit": "cm"
+    },
     "VISION.RadiusCm": {
       "denominator": 1,
-      "numerator": 1400,
+      "numerator": 1120,
       "unit": "cm"
     },
     "VISION.SightGraceSec": {
       "ms": 300,
       "unit": "ms"
+    },
+    "VISION.UphillRadiusScale": {
+      "bp": 7500,
+      "unit": "ratio"
     },
     "XP.BaseToNext": 60,
     "XP.IncreasePerLevel": 20,
