@@ -87,7 +87,7 @@ void ULDBasketballAnimInstance::Bind(ULDBasketballMotionSet* InMotion,UStaticMes
         for (int32 Frame=0; Frame<Frames; ++Frame)
         {
             RunBounceHeight=FMath::Min(RunBounceHeight,
-                Run->EvaluateCurveData(TEXT("BallZ"),FAnimExtractContext(Run->GetTimeAtFrame(Frame),false),true));
+                Run->EvaluateCurveData(TEXT("BallZ"),FAnimExtractContext(Run->GetTimeAtFrame(Frame),false),false));
         }
         if (Frames==0) { RunBounceHeight=0; }
     }
