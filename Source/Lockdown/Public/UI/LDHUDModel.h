@@ -145,7 +145,7 @@ namespace LDHUD
     // The name over an observed contender-kind unit: its roster name; in a rest (bInRest) a contender id the roster does not
     // list is the own personal training dummy (only its owner observes it), named LDTerms::TrainingDummy. Empty otherwise.
     LOCKDOWN_API FString ObservedContenderName(const FLDLobbyView& Lobby,const FGuid& ContenderId,bool bInRest);
-    // The six roster-slot identity tints shared with the bodies (ULDHumanoidVisualComponent::ContenderTint), so
+    // The eight roster-slot identity tints shared with the bodies (ULDHumanoidVisualComponent::ContenderTint), so
     // portraits match them.
     LOCKDOWN_API FLinearColor PaletteColor(uint8 Presentation);
 

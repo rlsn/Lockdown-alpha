@@ -19,7 +19,7 @@
 
 namespace LDOpponentControllerDetail
 {
-constexpr int32 MaxOpponentsPerRoom = 3;
+constexpr int32 MaxOpponentsPerRoom = LDMatchLifecycle::MaxOpponents;
 
 // Lifecycle delivery to this provider's own adapters only; never a perception input.
 template <typename TVisit>
@@ -45,7 +45,7 @@ FLDMatchProviderHooks MakeOpponentHooks()
         UWorld* World = Mode.GetWorld();
         if (!World || Start.AISlots.Num() > MaxOpponentsPerRoom)
         {
-            Error = TEXT("A Demo room holds at most three opponent AI contenders.");
+            Error = TEXT("A Demo room holds at most seven opponent AI contenders.");
             return false;
         }
         for (int32 Slot = 0; Slot < Start.AISlots.Num(); ++Slot)

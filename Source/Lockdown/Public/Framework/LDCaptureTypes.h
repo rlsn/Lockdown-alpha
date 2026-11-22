@@ -368,7 +368,7 @@ namespace LDCapture
     // Highest ELDKillCause wire value; causes are appended, so range checks compare against this.
     inline constexpr ELDKillCause LastKillCause = ELDKillCause::CampAncient;
     // A match has at most this many contenders, so the scoreboard at most this many rows.
-    inline constexpr int32 MaxScoreRows = 6;
+    inline constexpr int32 MaxScoreRows = LDMatchLifecycle::MaxContenders;
     LOCKDOWN_API bool ValidatePublicMatchView(const FLDPublicMatchView& View, FString& Error);
     LOCKDOWN_API bool ValidateResultBuild(const FLDResultBuild& Build, FString& Error);
     LOCKDOWN_API bool ValidateResultView(const FLDResultView& View, FString& Error);
