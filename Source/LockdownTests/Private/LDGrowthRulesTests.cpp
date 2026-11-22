@@ -1523,8 +1523,8 @@ bool GrowthTestRunSkillGrowth(FAutomationTestBase& Test)
         && At5.Effects[2].Stats[1].Amount == 3500 && At5.Effects[2].DurationMs == 3000);
     bGood &= Test.TestTrue(TEXT("Momentum cost and cooldown never grow"), At5.MomentumCostP2 == 6000 && At5.CooldownMs == 12000);
     FLDDemoAbilityValues Rank3;
-    bGood &= Test.TestTrue(TEXT("Rank 3 at level 5: base x G x 2, ratio x 1.5, momentum and durations unchanged"),
-        LDSkillGrowth::GrowValues(Authored, Ranks, Step, 5, 3, Rank3) && Rank3.Effects[0].BaseP2 == 13920
+    bGood &= Test.TestTrue(TEXT("Rank 3 at level 5: base x G x 1.7, ratio x 1.5, momentum and durations unchanged"),
+        LDSkillGrowth::GrowValues(Authored, Ranks, Step, 5, 3, Rank3) && Rank3.Effects[0].BaseP2 == 11832
         && Rank3.Effects[0].ADRatioBp == 7500 && Rank3.Effects[0].DurationMs == 1000 && Rank3.Effects[1].BaseP2 == 1200
         && Rank3.MomentumCostP2 == 6000 && Rank3.CooldownMs == 12000);
     bGood &= Test.TestFalse(TEXT("Rank 0 and rank 4 are no ranks"), LDSkillGrowth::GrowValues(Authored, Ranks, Step, 5, 0, Rank3)
