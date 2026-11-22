@@ -916,7 +916,6 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
     for (const auto& Field : {
         FCmField{TEXT("UNIT.CollisionRadiusCm"), &P.CollisionRadiusCm},
         {TEXT("VISION.RadiusCm"), &P.VisionRadiusCm},
-        {TEXT("VISION.NeutralHeightCm"), &P.VisionRange.NeutralHeightCm},
         {TEXT("VISION.FullHeightCm"), &P.VisionRange.FullHeightCm},
         {TEXT("CAPTURE.RadiusCm"), &P.CaptureRadiusCm}, {TEXT("CAMP.ResetArrivalRadiusCm"), &P.CampResetArrivalRadiusCm},
         {TEXT("DORM.RadiusCm"), &P.DormRadiusCm}, {TEXT("AIRDROP.PickupRadiusCm"), &P.AirdropPickupRadiusCm},
@@ -933,6 +932,10 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {
             return false;
         }
+    }
+    if (!F.Fraction(TEXT("VISION.NeutralHeightCm"), TEXT("cm"), P.VisionRange.NeutralHeightCm, false))
+    {
+        return false;
     }
     struct FCountField { const TCHAR* Key; int64* Out; int64 Min; };
     for (const auto& Field : {
