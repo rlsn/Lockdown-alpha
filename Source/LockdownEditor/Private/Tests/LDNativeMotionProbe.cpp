@@ -79,6 +79,20 @@ void ULDNativeMotionProbeMovement::TraceWalking(const FVector& InVelocity, float
     EndTrace(Index,true);
 }
 
+void ULDNativeMotionProbeMovement::TraceFalling(const FVector& InVelocity, const FVector& InAcceleration, float Seconds)
+{
+    Trace.Reset();
+    SetMovementMode(MOVE_Falling);
+    Velocity=InVelocity;
+    Acceleration=InAcceleration;
+    TGuardValue<bool> Guard(Tracing,true);
+    const int32 Index=BeginTrace(TEXT("PerformMovement"),Seconds);
+    if (!BeginIsolatedNativeMotionProbe(Seconds,CaptureError)) { EndTrace(Index,false); return; }
+    PerformMovement(Seconds);
+    EndIsolatedNativeMotionProbe(Captured,CaptureError);
+    EndTrace(Index,true);
+}
+
 void ULDNativeMotionProbeMovement::TraceUnrecordedMove()
 {
     Captured.Reset();
@@ -705,6 +719,31 @@ bool FLDNativeLedgeRetryProbe::RunTest(const FString& Parameters)
         && !Move->Captured->Records.ContainsByPredicate([&](const auto& Record)
             { return Record.ToFootCm.X>Move->Captured->EndFootCm.X+.001; }));
     return SaveTrace(*this,TEXT("ledge_retry_ends_walking"),*Move,Passed) && Passed;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDNativeFallingImpactProbe, "Lockdown.Rules.DemoMotionProbe.FallingImpactAirControl",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDNativeFallingImpactProbe::RunTest(const FString& Parameters)
+{
+    FNativeWorld Fixture;
+    if (!TestNotNull(TEXT("Native physics world"),Fixture.World)) { return false; }
+    if (!TestNotNull(TEXT("Unwalkable wall"),Fixture.Box({100,0,0},{10,2000,2000},false))) { return false; }
+    auto* Body=Fixture.Body({0,0,0});
+    if (!TestNotNull(TEXT("Native transient character"),Body)) { return false; }
+    auto* Move=CastChecked<ULDNativeMotionProbeMovement>(Body->GetCharacterMovement());
+    // An airborne body steering with input reaches the wall mid-step. CMC then recomputes the fall velocity
+    // without air control to deflect the slide; that second NewFallVelocity opens no new time slice.
+    Move->TraceFalling({600,300,0},{0,1000,0},.25f);
+    int32 Moves=0;
+    for (const auto& Row : Move->Trace) { Moves+=Row.Kind==TEXT("Move") && !Row.From.Equals(Row.To,.001); }
+    bool Passed=TestTrue(TEXT("The body reaches the wall and slides along it in the same step"),
+        Moves>=2 && Move->IsFalling() && Move->GetActorFeetLocation().Y>40);
+    Passed&=TestTrue(TEXT("The impact's air-control probe is not an authority fault: ")+Move->CaptureError,Move->CaptureError.IsEmpty());
+    Passed&=TestTrue(TEXT("Every record stays inside the issued step and the batch ends at the native foot"),
+        Move->Captured && Move->Captured->EndFootCm.Equals(Move->GetActorFeetLocation(),.001)
+        && !Move->Captured->Records.ContainsByPredicate([](const auto& Record)
+            { return Record.EndServerSeconds>.25+.000001 || Record.EndServerSeconds<Record.StartServerSeconds; }));
+    return SaveTrace(*this,TEXT("falling_impact_air_control"),*Move,Passed) && Passed;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDNativeSupportProbe, "Lockdown.Rules.DemoMotionProbe.SupportTransitions",
