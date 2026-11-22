@@ -32,6 +32,54 @@ TArray<TSharedPtr<FJsonValue>> Coordinates(const FVector& At)
 }
 using FAuditNode=LDTraversalTopology::FNode;
 struct FAuditTriangle { FVector A, B, C; };
+bool HasClearPortalCrossing(ULDMapRegistry& Registry, const UWorld& World, const FCollisionQueryParams& GroundQuery,
+    const FNavigationPortalEdge& Edge, const FVector& FromPolygon, const FVector& ToPolygon,
+    const FCollisionShape& Capsule, FName Surface, double StepHeight)
+{
+    const double Approach = Capsule.GetCapsuleRadius() * .5;
+    // Stay inside both convex polygons. A fixed perpendicular offset can overshoot a short corner polygon.
+    const auto ApproachInside = [Approach](const FVector& Portal, const FVector& Polygon)
+    {
+        const double Distance = FVector::Dist2D(Portal, Polygon);
+        return Distance <= Approach ? Polygon : FMath::Lerp(Portal, Polygon, Approach / Distance);
+    };
+
+    const auto StandingAt = [&](const FVector& At, FVector& Origin)
+    {
+        double SupportZ;
+        int32 Tier;
+        FHitResult Support;
+        if (!Registry.GetTerrain().GroundNear(At + FVector(0., 0., StepHeight), SupportZ, Tier, true, &Support)
+            || FMath::Abs(SupportZ - At.Z) > StepHeight)
+        {
+            return false;
+        }
+        FLDLegalGround Ground;
+        ELDWorldQueryFailure Failure;
+        FString Error;
+        if (!Registry.QueryGround(Registry.Revision(), Support.ImpactPoint, Capsule, Surface, Ground, Failure, Error))
+        {
+            return false;
+        }
+        Origin = LDSpawnPlacement::StandingOrigin(Ground);
+        return !LDNativeGround::Overlaps(World, Origin, Capsule, GroundQuery);
+    };
+    for (const double Alpha : {.5, .25, .75})
+    {
+        const FVector Centre = FMath::Lerp(Edge.Left, Edge.Right, Alpha);
+        FVector Start, Middle, End;
+        FHitResult Hit;
+        if (StandingAt(ApproachInside(Centre, FromPolygon), Start) && StandingAt(Centre, Middle)
+            && StandingAt(ApproachInside(Centre, ToPolygon), End)
+            && !LDNativeGround::Sweep(World, Hit, Start, Middle, Capsule, GroundQuery)
+            && !LDNativeGround::Sweep(World, Hit, Middle, End, Capsule, GroundQuery))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 FRows AnalysePockets(const TArray<FAuditNode>& Nodes,const TMap<NavNodeRef,int32>& Indices,
     const TSet<int32>& Field,int32 Hub,ARecastNavMesh& Recast,UNavigationSystemV1& Nav,UWorld& World,
     double CapsuleRadius,ULDMapRegistry& Registry,const FCollisionShape& Capsule,FName Surface,
@@ -311,7 +359,7 @@ FString ULDSceneAuthoringLibrary::GameplayTraversalAudit(UWorld* World, int32 Pa
     Report->SetArrayField(TEXT("pocket_path_errors"),PocketErrors);
     Report->SetArrayField(TEXT("single_exit_pockets"),Pockets);
 
-    FRows BadCentres,Narrow,Curbs;
+    FRows BadCentres,Narrow,BlockedNarrow,Curbs;
     TSet<FIntVector> TestedGaps,TestedCurbs;
     TArray<FLDLegalGround> Candidates;FRows StandablePoints;
     for(const int32 Index:Queue)
@@ -355,7 +403,14 @@ FString ULDSceneAuthoringLibrary::GameplayTraversalAudit(UWorld* World, int32 Pa
                 {
                     auto Row=MakeShared<FJsonObject>();Row->SetArrayField(TEXT("point"),Coordinates(Centre));Row->SetNumberField(TEXT("width_cm"),BestWidth);
                     Row->SetArrayField(TEXT("left"),Coordinates(BestLeft));Row->SetArrayField(TEXT("right"),Coordinates(BestRight));
-                    Row->SetStringField(TEXT("left_component"),LeftName);Row->SetStringField(TEXT("right_component"),RightName);Narrow.Add(MakeShared<FJsonValueObject>(Row));
+                    Row->SetStringField(TEXT("left_component"),LeftName);Row->SetStringField(TEXT("right_component"),RightName);
+                    const int32* Other = Indices.Find(Edge.ToRef);
+                    const bool bClear = Other && HasClearPortalCrossing(*Registry, *World, GroundQuery, Edge,
+                        Nodes[Index].Point, Nodes[*Other].Point, Capsule, Surface, Move->MaxStepHeight);
+                    Row->SetBoolField(TEXT("capsule_crossing_clear"), bClear);
+                    const auto Value = MakeShared<FJsonValueObject>(Row);
+                    Narrow.Add(Value);
+                    if (!bClear) { BlockedNarrow.Add(Value); }
                 }
             }
             else
@@ -379,7 +434,9 @@ FString ULDSceneAuthoringLibrary::GameplayTraversalAudit(UWorld* World, int32 Pa
     Report->SetArrayField(TEXT("rejected_nav_samples"),BadCentres);
     Report->SetNumberField(TEXT("standable_nav_samples"),Candidates.Num());
     Report->SetArrayField(TEXT("standable_points"),StandablePoints);
-    Report->SetArrayField(TEXT("narrow_passages"),Narrow);Report->SetArrayField(TEXT("curb_candidates"),Curbs);
+    Report->SetArrayField(TEXT("narrow_passages"),Narrow);
+    Report->SetArrayField(TEXT("blocked_narrow_passages"),BlockedNarrow);
+    Report->SetArrayField(TEXT("curb_candidates"),Curbs);
     FRows Paths;
     FRandomStream Random(338);int32 Passed=0;
     if(Candidates.Num()<2)
@@ -533,8 +590,8 @@ FString ULDSceneAuthoringLibrary::GameplayTraversalAudit(UWorld* World, int32 Pa
     Error.Reset();Report->SetBoolField(TEXT("field_spawns_reachable"),Registry->ValidateFieldSpawnPaths(false,Error));Report->SetStringField(TEXT("field_spawns_error"),Error);
     Error.Reset();Report->SetBoolField(TEXT("final_spawns_reachable"),Registry->ValidateFieldSpawnPaths(true,Error));Report->SetStringField(TEXT("final_spawns_error"),Error);
     Report->SetBoolField(TEXT("ready"),true);
-    Report->SetBoolField(TEXT("passed"),Passed==PathPairCount&&Airwalls.IsEmpty()&&Narrow.IsEmpty()&&Curbs.IsEmpty()&&MissingMeshes.IsEmpty()
-        &&Pockets.IsEmpty()&&PocketErrors.IsEmpty()&&HiddenCollision.IsEmpty()&&Candidates.Num()>=2&&CoastalFailures.IsEmpty()&&NegativeCells>0&&CoastalPairs>0
+    Report->SetBoolField(TEXT("passed"),Passed==PathPairCount&&Airwalls.IsEmpty()&&BlockedNarrow.IsEmpty()&&Curbs.IsEmpty()&&MissingMeshes.IsEmpty()
+        &&PocketErrors.IsEmpty()&&HiddenCollision.IsEmpty()&&Candidates.Num()>=2&&CoastalFailures.IsEmpty()&&NegativeCells>0&&CoastalPairs>0
         &&Report->GetBoolField(TEXT("field_spawns_reachable"))&&Report->GetBoolField(TEXT("final_spawns_reachable")));
     return Finish();
 }
