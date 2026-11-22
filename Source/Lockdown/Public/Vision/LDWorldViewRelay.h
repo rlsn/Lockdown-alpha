@@ -11,6 +11,7 @@ class UInstancedStaticMeshComponent;
 class UStaticMesh;
 class UPrimitiveComponent;
 class ALDPlayerController;
+class ALDRecoveryOrbMarker;
 class UTexture2D;
 class UMaterialInstanceDynamic;
 class FLDDemoContentSnapshot;
@@ -378,6 +379,7 @@ public:
     uint32 ImmediateHitCount() const { return AcceptedImmediateHits; }
     int32 ProjectileProxyCount() const { return ProjectileProxies.Num(); }
     int32 GroundProxyCount() const { return GroundProxies.Num(); }
+    int32 RecoveryOrbProxyCount() const { return RecoveryOrbProxies.Num(); }
     // Display location (body centre) of a unit presented right now: its proxy's interpolated pose. False unless the
     // current frame lists this handle and epoch and its proxy is placed, so callers never label a hidden or stale unit.
     bool ReadPresentedLocation(const FGuid& Handle, uint32 ObservationEpoch, FVector& OutWorld) const;
@@ -445,6 +447,8 @@ private:
     UPROPERTY() TMap<FGuid,TObjectPtr<ALDObservedProjectileProxy>> ProjectileProxies;
     // Public ground states of the current frame, by their observed id.
     UPROPERTY() TMap<uint8,TObjectPtr<ALDObservedGroundProxy>> GroundProxies;
+    // Sight-authorized camp-clear recovery orbs of the current frame, by their serial.
+    UPROPERTY() TMap<uint64,TObjectPtr<ALDRecoveryOrbMarker>> RecoveryOrbProxies;
     UPROPERTY() TObjectPtr<ALDOwnBodyMarker> OwnMarker;
     UPROPERTY() TObjectPtr<UTexture2D> FogTexture;
     UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> FogMaterial;

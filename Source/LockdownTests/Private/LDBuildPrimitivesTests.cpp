@@ -2477,6 +2477,42 @@ bool FLDOverdriveElementTest::RunTest(const FString& Parameters)
     if (!OverdriveTerms(*this, F, Holder, TEXT("active_elbow"), Plain, Over)) { return false; }
     TestFalse(TEXT("A skill without an element gains only the scale"),
         FindEffect(Over.Values, ELDDemoEffectOp::Burn) || FindEffect(Over.Values, ELDDemoEffectOp::Slow));
+
+    // Regression: non-elemental active_elbow equipped with a SkillElement medal triggers the corresponding elemental overdrive.
+    if (!InstallCards(*this, F, Holder, 6, {{TEXT("medal_fire"), ELDCardTargetKind::Skill, FName(TEXT("active_elbow"))}})
+        || !OverdriveTerms(*this, F, Holder, TEXT("active_elbow"), Plain, Over)) { return false; }
+    TestTrue(TEXT("Non-elemental skill + medal_fire gains Fire overdrive burn stacks"),
+        FindEffect(Over.Values, ELDDemoEffectOp::Burn) && FindEffect(Over.Values, ELDDemoEffectOp::Burn)->Count == int32(O.FireBurnStacks));
+
+    if (!InstallCards(*this, F, Holder, 6, {{TEXT("medal_water"), ELDCardTargetKind::Skill, FName(TEXT("active_elbow"))}})
+        || !OverdriveTerms(*this, F, Holder, TEXT("active_elbow"), Plain, Over)) { return false; }
+    TestTrue(TEXT("Non-elemental skill + medal_water gains Water overdrive slow"),
+        FindEffect(Over.Values, ELDDemoEffectOp::Slow)
+        && FindEffect(Over.Values, ELDDemoEffectOp::Slow)->RatioBp == O.WaterSlowBp
+        && FindEffect(Over.Values, ELDDemoEffectOp::Slow)->DurationMs == O.WaterSlowMs);
+
+    if (!InstallCards(*this, F, Holder, 6, {{TEXT("medal_electric"), ELDCardTargetKind::Skill, FName(TEXT("active_elbow"))}})
+        || !OverdriveTerms(*this, F, Holder, TEXT("active_elbow"), Plain, Over)) { return false; }
+    TestTrue(TEXT("Non-elemental skill + medal_electric gains Shock overdrive +0.5R base damage"),
+        FindEffect(Over.Values, ELDDemoEffectOp::Damage)->BaseP2
+            > FindEffect(Plain.Values, ELDDemoEffectOp::Damage)->BaseP2 * O.ScaleBp / 10000);
+
+    if (!InstallCards(*this, F, Holder, 6, {{TEXT("medal_chill"), ELDCardTargetKind::Skill, FName(TEXT("active_elbow"))}})
+        || !OverdriveTerms(*this, F, Holder, TEXT("active_elbow"), Plain, Over)) { return false; }
+    TestTrue(TEXT("Non-elemental skill + medal_chill gains Chill overdrive root"),
+        FindEffect(Over.Values, ELDDemoEffectOp::Root)
+        && FindEffect(Over.Values, ELDDemoEffectOp::Root)->DurationMs == O.ChillRootMs);
+
+    if (!InstallCards(*this, F, Holder, 6, {{TEXT("medal_rot"), ELDCardTargetKind::Skill, FName(TEXT("active_elbow"))}})
+        || !OverdriveTerms(*this, F, Holder, TEXT("active_elbow"), Plain, Over)) { return false; }
+    TestTrue(TEXT("Non-elemental skill + medal_rot gains Rot overdrive extended duration"),
+        FindEffect(Over.Values, ELDDemoEffectOp::Rot)
+        && FindEffect(Over.Values, ELDDemoEffectOp::Rot)->DurationMs == F.Catalog->Get().Parameters.Elements.RotMs * O.RotDurationBp / 10000);
+
+    // Pure self shield without SelfArea must not receive hostile rider ops even if a medal is installed.
+    if (!InstallCards(*this, F, Holder, 6, {{TEXT("medal_chill"), ELDCardTargetKind::Skill, FName(TEXT("active_not_mad"))}})
+        || !OverdriveTerms(*this, F, Holder, TEXT("active_not_mad"), Plain, Over)) { return false; }
+    TestNull(TEXT("Non-area Self skill never receives unroutable hostile Root op"), FindEffect(Over.Values, ELDDemoEffectOp::Root));
     return true;
 }
 
@@ -3147,7 +3183,41 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY14Test, "Lockdown.Rules.Combat.Card
 bool FLDCardRuleY14Test::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_overfed"), ELDDemoEffectOp::OverhealShield, ELDCardTargetKind::Body});
+    return RunCardRule(*this, {TEXT("card_overfed"), ELDDemoEffectOp::OverhealShield, ELDCardTargetKind::Body},
+        [this](FFixture& F, const FLDCombatBodyRef& Holder, int32 Copies)
+        {
+            FLDBodyCombatState& Body = F.Body(Holder);
+            Body.Shield.Reset();
+            Body.ShieldLayers.Reset();
+            Body.Resources.ShieldP2 = 0;
+            Body.Resources.HpP2 = Body.Resources.MaxHpP2;
+            const int64 CapP2 = (Body.Resources.MaxHpP2 / 10000) * (3000 * Copies)
+                + ((Body.Resources.MaxHpP2 % 10000) * (3000 * Copies)) / 10000;
+            F.Now(1000);
+            // Repeated full-HP overheals must strictly cap card_overfed shield at 30% MaxHP per copy and refresh expiry.
+            FAccess::Heal(*F.Driver, Body, CapP2 * 6 / 10);
+            const int64 FirstShield = Body.Resources.ShieldP2;
+            F.Now(2500);
+            FAccess::Heal(*F.Driver, Body, CapP2);
+            F.Now(4000);
+            FAccess::Heal(*F.Driver, Body, CapP2);
+            bool bGood = TestTrue(FString::Printf(TEXT("Y14 x%d: partial overheal grants %lld (< cap %lld)"), Copies, FirstShield, CapP2),
+                FirstShield > 0 && FirstShield < CapP2);
+            bGood &= TestEqual(FString::Printf(TEXT("Y14 x%d: repeated overheals strictly cap at 30%% MaxHP per copy"), Copies),
+                Body.Resources.ShieldP2, CapP2);
+            bGood &= TestTrue(TEXT("Y14: latest overheal refreshes shield expiry to Now + 5000 ms"),
+                Body.Shield.IsSet() && Body.Shield->ExpiresAtMs == 9000);
+            // Independent shield layers from another source stack freely without being eaten or inflating card_overfed's cap.
+            FString Error;
+            bGood &= TestTrue(TEXT("Y14: independent shield grants cleanly"), FAccess::GrantShield(*F.Driver, Body, 5000, 4000, Error));
+            bGood &= TestEqual(TEXT("Y14: independent shield layer stacks on top of capped overheal shield"),
+                Body.Resources.ShieldP2, CapP2 + 5000);
+            F.Now(4500);
+            FAccess::Heal(*F.Driver, Body, CapP2);
+            bGood &= TestEqual(TEXT("Y14: overhealing at cap with another shield active adds 0 more shield"),
+                Body.Resources.ShieldP2, CapP2 + 5000);
+            return bGood;
+        });
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY15Test, "Lockdown.Rules.Combat.Cards.Y15",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

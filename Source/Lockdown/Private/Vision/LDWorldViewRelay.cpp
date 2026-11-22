@@ -1,4 +1,5 @@
 #include "Vision/LDWorldViewRelay.h"
+#include "World/LDRecoveryOrbMarker.h"
 #include "Character/LDImpactFx.h"
 #include "NiagaraComponent.h"
 #include "Combat/LDCombatBagBlocker.h"
@@ -1154,6 +1155,8 @@ void ALDWorldViewRelay::EndPlay(const EEndPlayReason::Type Reason)
     ProjectileProxies.Empty();
     for (auto& Pair : GroundProxies) { if (IsValid(Pair.Value)) { Pair.Value->Destroy(); } }
     GroundProxies.Empty();
+    for (auto& Pair : RecoveryOrbProxies) { if (IsValid(Pair.Value)) { Pair.Value->Destroy(); } }
+    RecoveryOrbProxies.Empty();
     if (IsValid(OwnMarker)) { OwnMarker->Destroy(); }
     OwnMarker = nullptr;
     Super::EndPlay(Reason);
@@ -1436,6 +1439,42 @@ void ALDWorldViewRelay::SyncProxies()
     for (auto It = GroundProxies.CreateIterator(); It; ++It)
     {
         if (Grounds.Contains(It.Key())) { continue; }
+        if (IsValid(It.Value())) { It.Value()->Destroy(); }
+        It.RemoveCurrent();
+    }
+    TSet<uint64> Orbs;
+    if (bCurrent)
+    {
+        constexpr double OrbRadiusCm = 90.0;
+        FString OrbError;
+        for (const FLDObservedRecoveryOrb& Orb : Snapshot.Frame->RecoveryOrbs)
+        {
+            Orbs.Add(Orb.Serial);
+            TObjectPtr<ALDRecoveryOrbMarker>& Marker = RecoveryOrbProxies.FindOrAdd(Orb.Serial);
+            if (IsValid(Marker) && Marker->GetGeneration() != Snapshot.Frame->MatchGeneration)
+            {
+                Marker->Destroy();
+                Marker = nullptr;
+            }
+            if (!IsValid(Marker))
+            {
+                FActorSpawnParameters Params;
+                Params.ObjectFlags |= RF_Transient;
+                Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+                Marker = GetWorld()->SpawnActor<ALDRecoveryOrbMarker>(Params);
+                if (!Marker || !Marker->Build(FVector(Orb.PositionCm), OrbRadiusCm, Orb.Serial, Snapshot.Frame->MatchGeneration, OrbError))
+                {
+                    if (Marker) { Marker->Destroy(); }
+                    Marker = nullptr;
+                    UE_LOG(LogLDWorld, Warning, TEXT("LD_RECOVERY_ORB_MARKER_FAILED serial=%llu %s"), Orb.Serial, *OrbError);
+                    Orbs.Remove(Orb.Serial);
+                }
+            }
+        }
+    }
+    for (auto It = RecoveryOrbProxies.CreateIterator(); It; ++It)
+    {
+        if (Orbs.Contains(It.Key()) && IsValid(It.Value())) { continue; }
         if (IsValid(It.Value())) { It.Value()->Destroy(); }
         It.RemoveCurrent();
     }

@@ -353,7 +353,7 @@ struct FLDBodyCombatState
     TOptional<FLDCombatShield> Shield;
     // Every grant of the stacked shield as its own layer (its amount left and its own deadline). Resources.ShieldP2 is
     // their sum and Shield names the newest grant with the latest deadline; damage spends the earliest-expiring layer first.
-    struct FShieldLayer { FGuid EffectId; int64 ExpiresAtMs=0; int64 AmountP2=0; };
+    struct FShieldLayer { FGuid EffectId; int64 ExpiresAtMs=0; int64 AmountP2=0; FLDCombatSourceRef Source{}; };
     TArray<FShieldLayer> ShieldLayers;
     TOptional<FLDCombatTaunt> Taunt;       // contenders only
     TOptional<FLDCombatAction> Action;

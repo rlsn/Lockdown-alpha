@@ -1478,12 +1478,67 @@ bool ALDCombatDirector::OverhealShield(FLDBodyCombatState& Body, int64 OverflowP
     // Y29 shares the op with a burn share and no cap; only the heal caps shield overflowing heals.
     Fed.RemoveAll([](const FLDPassiveEffectRef& Ref) { return Ref.Effect.MultiplierBp<=0; });
     if (Fed.IsEmpty()) { return true; }
-    // Copies add their cap; the shield takes the stronger of the current one and the capped overflow.
+    // Copies add their cap; total active shield from this source is strictly capped at CapBp of MaxHP (refreshing expiry).
     int64 CapBp=0;
     for (const FLDPassiveEffectRef& Ref : Fed) { CapBp+=Ref.Effect.MultiplierBp; }
-    const int64 Amount=FMath::Min(OverflowP2,LDCombatCardsDetail::Share(Body.Resources.MaxHpP2,CapBp));
-    if (Amount<=0) { return true; }
-    if (!GrantShieldTo(Body,Amount,Fed[0].Effect.DurationMs,FGuid::NewGuid(),Body.Victim.EntityId,NowMs,Error,Fed[0].Source)) { return false; }
+    const int64 CapP2=LDCombatCardsDetail::Share(Body.Resources.MaxHpP2,CapBp);
+    if (CapP2<=0) { return true; }
+    if (Body.Shield.IsSet() && Body.Shield->ExpiresAtMs<=NowMs)
+    {
+        Body.Shield.Reset();
+        Body.Resources.ShieldP2=0;
+        Body.ShieldLayers.Reset();
+    }
+    else
+    {
+        ExpireShieldLayers(Body,NowMs);
+    }
+    const FLDCombatSourceRef& GrantSource=Fed[0].Source;
+    const int64 DurationMs=Fed[0].Effect.DurationMs;
+    int64 NewExpires=0;
+    if (!LDMatchLifecycle::AddDurationMs(NowMs,DurationMs,NewExpires,Error)) { return false; }
+    int64 ExistingSameSourceP2=0;
+    FLDBodyCombatState::FShieldLayer* PrimaryLayer=nullptr;
+    for (int32 Idx=Body.ShieldLayers.Num()-1; Idx>=0; --Idx)
+    {
+        FLDBodyCombatState::FShieldLayer& Layer=Body.ShieldLayers[Idx];
+        if (Layer.ExpiresAtMs<=NowMs || Layer.AmountP2<=0 || Layer.Source!=GrantSource) { continue; }
+        ExistingSameSourceP2+=Layer.AmountP2;
+        if (!PrimaryLayer) { PrimaryLayer=&Layer; }
+    }
+    const int64 RoomP2=FMath::Max<int64>(0,CapP2-ExistingSameSourceP2);
+    const int64 RawAddP2=FMath::Min(OverflowP2,RoomP2);
+    if (!PrimaryLayer)
+    {
+        if (RawAddP2<=0) { return true; }
+        if (!GrantShieldTo(Body,RawAddP2,DurationMs,FGuid::NewGuid(),Body.Victim.EntityId,NowMs,Error,GrantSource)) { return false; }
+        LedgerCardTriggered(Body,Fed[0].Key);
+        return true;
+    }
+    // Refresh all active layers from this source and top up only the remaining difference under CapP2.
+    for (FLDBodyCombatState::FShieldLayer& Layer : Body.ShieldLayers)
+    {
+        if (Layer.ExpiresAtMs>NowMs && Layer.AmountP2>0 && Layer.Source==GrantSource)
+        {
+            Layer.ExpiresAtMs=FMath::Max(Layer.ExpiresAtMs,NewExpires);
+        }
+    }
+    if (Body.Shield.IsSet())
+    {
+        Body.Shield->ExpiresAtMs=FMath::Max(Body.Shield->ExpiresAtMs,NewExpires);
+    }
+    const int64 EffectiveAddP2=RawAddP2>0 ? LDCombatElements::AfterRotP2(RawAddP2,Body.ElementMark,NowMs) : 0;
+    if (EffectiveAddP2>0)
+    {
+        PrimaryLayer->AmountP2+=EffectiveAddP2;
+        Body.Resources.ShieldP2+=EffectiveAddP2;
+        Body.ShieldGrantedP2=Body.Resources.ShieldP2;
+        Body.LastShieldGrantP2=EffectiveAddP2;
+        LedgerShieldGranted(Body,EffectiveAddP2);
+    }
+    ++Body.Resources.Revision;
+    ++Body.StateRevision;
+    MarkViewChanged(Body.Victim.EntityId);
     LedgerCardTriggered(Body,Fed[0].Key);
     return true;
 }

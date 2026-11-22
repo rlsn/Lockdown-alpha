@@ -270,10 +270,60 @@ bool RunChoiceOrder(FAutomationTestBase& Test)
     Spender.Actives = {Active(TEXT("active_account_banned"), 0)};
     Spender.StatPoints = StatRows(C, {{Physique, 4}, {Skin, 3}, {Strength, 1}, {Agility, 7}});
     Spender.UnspentPoints = 4;
-    bGood &= Test.TestTrue(TEXT("An AP-heavy active pursues the brains keystone and agility is not relevant"),
+    bGood &= Test.TestTrue(TEXT("An AP-heavy active pursues the brains keystone first"),
         LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error) && ById(C, Counts).FindRef(Agility) == 0
         && ById(C, Counts).FindRef(Physique) == 0 && ById(C, Counts).FindRef(Skin) == 0
         && ById(C, Counts).FindRef(Strength) == 0 && ById(C, Counts).FindRef(Brains) == 4);
+    // Agility is unblocked: WantsRespec never mistakenly refunds Agility points, and basic/speed/crit cards + dual-keystone focus
+    // drive Agility + Strength all the way to both 18-point keystones instead of spreading evenly across four stats.
+    {
+        FLDOpponentSelf AgilityHolder;
+        AgilityHolder.Actives = {Active(TEXT("active_elbow"), 0)};
+        AgilityHolder.StatPoints = StatRows(C, {{Agility, 7}, {Strength, 4}});
+        FString RespecErr;
+        bGood &= Test.TestFalse(TEXT("WantsRespec does not mistakenly refund StatAgility"),
+            LDOpponentPolicy::WantsRespec(AgilityHolder, C, RespecErr));
+
+        FLDOpponentSelf BasicArchetype;
+        BasicArchetype.Actives = {Active(TEXT("active_elbow"), 0)};
+        FLDOpponentCard Berserk;
+        Berserk.Serial = 1;
+        Berserk.DefinitionId = TEXT("card_berserk");
+        Berserk.TargetKind = ELDCardTargetKind::Body;
+        FLDOpponentCard PunchHeal;
+        PunchHeal.Serial = 2;
+        PunchHeal.DefinitionId = TEXT("card_punch_heal");
+        PunchHeal.TargetKind = ELDCardTargetKind::Body;
+        BasicArchetype.Cards = {Berserk, PunchHeal};
+        BasicArchetype.StatPoints = StatRows(C, {{Agility, 18}});
+        BasicArchetype.UnspentPoints = 10;
+        TArray<uint8> DualCounts;
+        bGood &= Test.TestTrue(TEXT("After first 18-pt Agility keystone, basic/AS archetype focuses all 10 points into 2nd keystone (Strength)"),
+            LDOpponentPolicy::AllocatePoints(BasicArchetype, C, DualCounts, Error)
+            && SameCounts(ById(C, DualCounts), {{Strength, 10}}));
+        BasicArchetype.StatPoints = StatRows(C, {{Strength, 18}});
+        BasicArchetype.UnspentPoints = 10;
+        bGood &= Test.TestTrue(TEXT("After first 18-pt Strength keystone, basic/AS archetype focuses all 10 points into 2nd keystone (Agility)"),
+            LDOpponentPolicy::AllocatePoints(BasicArchetype, C, DualCounts, Error)
+            && SameCounts(ById(C, DualCounts), {{Agility, 10}}));
+
+        // AdaptiveRatioBp + Lv2/3 branch recognition: an AdaptiveRatioBp active with AP preference pursues Brains keystone.
+        const FLDDemoAbilityDefinition* AdaptiveAb = C.Get().Abilities.FindByPredicate([](const FLDDemoAbilityDefinition& A)
+        {
+            return A.Values.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& E) { return E.AdaptiveRatioBp > 0 && E.APRatioBp == 0; });
+        });
+        if (AdaptiveAb)
+        {
+            FLDOpponentSelf AdaptiveSpender;
+            AdaptiveSpender.Actives = {Active(*AdaptiveAb->Id, 0)};
+            AdaptiveSpender.StatPoints = StatRows(C, {{Brains, 2}});
+            AdaptiveSpender.UnspentPoints = 5;
+            TArray<uint8> AdaptiveCounts;
+            bGood &= Test.TestTrue(TEXT("AdaptiveRatioBp active recognizes existing Brains investment and focuses Brains keystone"),
+                LDOpponentPolicy::AllocatePoints(AdaptiveSpender, C, AdaptiveCounts, Error)
+                && SameCounts(ById(C, AdaptiveCounts), {{Brains, 5}}));
+        }
+    }
     Spender.UnspentPoints = 0;
     bGood &= Test.TestFalse(TEXT("No unspent points: nothing to allocate"), LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error));
     Spender.UnspentPoints = 1;

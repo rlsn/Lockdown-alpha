@@ -167,7 +167,7 @@ bool ALDCombatDirector::GrantShieldTo(FLDBodyCombatState& Body, int64 AmountP2, 
     Body.LastShieldGrantP2=AmountP2;
     // Layers left over from an expired record are gone with it; this grant is its own layer.
     if (Body.Resources.ShieldP2==AmountP2) { Body.ShieldLayers.Reset(); }
-    Body.ShieldLayers.Add({EffectId,Expires,AmountP2});
+    Body.ShieldLayers.Add({EffectId,Expires,AmountP2,GrantSource});
     ++Body.Resources.Revision;
     ++Body.StateRevision;
     MarkViewChanged(Body.Victim.EntityId);

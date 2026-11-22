@@ -14,8 +14,9 @@
    - **爆劲蓄力（Overdrive）**：劲满 `MOMENTUM.OverdriveCost`（60）时按住技能满 `MOMENTUM.OverdriveHoldSec`（0.4 s）蓄成爆劲，HUD 动作槽与角色脚下同步显示金色蓄力环；单位技能目标解析失败或 `CombatView` 定义变更时独立清理 `OverdriveEntry`。
 4. **移动与攻击移动层**：右键地面 `MoveGround`（按住右键每 `50 ms` 节流重发，并在显式新单、排队施法、`S` 停止、换命与立即施法时失效合并缓存 `InvalidateClickMoveCoalesce`）、右键敌方 `AttackUnit`、`A` + 左键地面 `AttackMove`（搜敌半径 `min(VISION.RadiusCm, 2 * AttackRangeCm)`）、`S` 立即停止移动与未出手动作。
 
-## 高低差瞄准与双槽预输入队列
+## 高低差瞄准、楼顶排除与双槽预输入队列
 
+- **可行走地面层隔离与障碍投影（`ULDMapRegistry` / `LDPathSteering`）**：`TerrainFloors` 仅收纳合法地面、坡道与可踏上低矮铺层，显式阻挡体（墙体、建筑、树木）与无坡道连通的高空屋顶绝不进入地面支撑或指针射线（`TraceGround` / `GroundUnderPointer`），杜绝选中或站立楼顶；世界与小地图右键点击建筑、树木或边界内侧时统一解析到下方可行走地面层，经 `ProjectGroundGoal` 自动投影至连通可达的最近地面导航点。
 - **角色脚平面等高投影（`AimPointAtElevation`）**：方向型（`Direction`）、直线型（`Line`）与扇形（`Cone`）技能在把屏幕光标射线转为水平瞄准角前，先与施法者当前脚底平面 `Z = FootLocation.Z` 求交（仅射线近平行时回退地形命中点），消除高台/坡道视差导致的斜向偏射；地面落点型（`GroundPoint`）仍取真实可行走地面交点。
 - **全模式双槽 FIFO 预输入（`450 ms`）**：客户端与服务端均维护最多 **2 步**、有效期 **450 ms** 的到达序 FIFO 技能队列，覆盖全部目标模式（`Self`、`Unit`、`Direction`、`GroundPoint`、`Cone`、`Line`），支持前摇/收势/位移期间无缝滚键盘连招，也支持 `Shift` 显式排队。前序动作完成或取消即按序弹出下一步校验执行；死亡、换局、`S` 停止或过期自动清空并回执。
 

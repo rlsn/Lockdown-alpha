@@ -164,34 +164,91 @@ bool ALDCombatDirector::ApplyOverdrive(const FLDBodyCombatState& Body, const FLD
     { Error=FString::Printf(TEXT("Overdrive of %s leaves the checked numeric domain."),*Ability.Id); return false; }
     const auto Find=[&Values](ELDDemoEffectOp Op)
     { return Values.Effects.FindByPredicate([Op](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp()==Op; }); };
-    switch (Ability.Element)
+    auto MapCardElement=[](ELDDemoElement Elem)->ELDDemoSkillElement
+    {
+        switch (Elem)
+        {
+        case ELDDemoElement::Fire: return ELDDemoSkillElement::Fire;
+        case ELDDemoElement::Water: return ELDDemoSkillElement::Water;
+        case ELDDemoElement::Electric: return ELDDemoSkillElement::Shock;
+        case ELDDemoElement::Chill: return ELDDemoSkillElement::Chill;
+        case ELDDemoElement::Rot: return ELDDemoSkillElement::Rot;
+        default: return ELDDemoSkillElement::None;
+        }
+    };
+    ELDDemoSkillElement EffectiveElement=Ability.Element;
+    if (EffectiveElement==ELDDemoSkillElement::None)
+    {
+        if (const FLDCombatEntityRecord* Record=FindRecord(Body.Victim.EntityId))
+        {
+            if (const FLDLearnedActiveValue* Learned=Record->Build.Actives.FindByPredicate(
+                [&Ability](const FLDLearnedActiveValue& Row) { return Row.AbilityId==FName(*Ability.Id); }))
+            {
+                if (const FLDDemoAbilityBranch* Branch=Ability.FindBranch(Learned->Branch);
+                    Branch && Branch->Element!=ELDDemoSkillElement::None)
+                {
+                    EffectiveElement=Branch->Element;
+                }
+            }
+        }
+    }
+    if (EffectiveElement==ELDDemoSkillElement::None)
+    {
+        TArray<FLDPassiveEffectRef> MedalElements;
+        if (!CardsOn(Body.AttributeProjection,ELDDemoEffectOp::SkillElement,
+            {ELDCombatSourceKind::Learned,FName(*Ability.Id)},MedalElements,Error))
+        {
+            return false;
+        }
+        for (const FLDPassiveEffectRef& Ref : MedalElements)
+        {
+            const ELDDemoSkillElement Mapped=MapCardElement(Ref.Effect.Element);
+            if (Mapped!=ELDDemoSkillElement::None) { EffectiveElement=Mapped; break; }
+        }
+    }
+    const bool bAreaMode=Terms.Target.Mode==ELDDemoTargetMode::Self || Terms.Target.Mode==ELDDemoTargetMode::DirectionDash;
+    const bool bCanDeliverHostile=!bAreaMode || Find(ELDDemoEffectOp::SelfArea)!=nullptr || Find(ELDDemoEffectOp::DashContact)!=nullptr;
+    switch (EffectiveElement)
     {
     case ELDDemoSkillElement::Fire:
         // OVERDRIVE.FireBurnStacks more burn layers: on the release's hits, or spread over a zone's pulses.
         if (FLDDemoEffectDefinition* Burn=Find(ELDDemoEffectOp::Burn)) { Burn->Count+=int32(O.FireBurnStacks); }
-        else if (FLDDemoEffectDefinition* ZoneBurn=Find(ELDDemoEffectOp::ZoneBurn))
+        else if (const FLDDemoEffectDefinition* Zone=Find(ELDDemoEffectOp::Zone))
         {
-            const FLDDemoEffectDefinition* Zone=Find(ELDDemoEffectOp::Zone);
-            const int64 PulseCount=Zone && Zone->Count>0 ? Zone->Count : 1;
+            const int64 PulseCount=Zone->Count>0 ? Zone->Count : 1;
+            const int64 IntervalMs=Zone->IntervalMs;
+            FLDDemoEffectDefinition* ZoneBurn=Find(ELDDemoEffectOp::ZoneBurn);
+            if (!ZoneBurn)
+            {
+                ZoneBurn=&Values.Effects.AddDefaulted_GetRef();
+                ZoneBurn->Opcode=uint8(ELDDemoEffectOp::ZoneBurn);
+                ZoneBurn->IntervalMs=IntervalMs;
+            }
             ZoneBurn->Count+=int32(FMath::Max<int64>(1,O.FireBurnStacks/PulseCount));
+        }
+        else if (bCanDeliverHostile)
+        {
+            FLDDemoEffectDefinition& AddedBurn=Values.Effects.AddDefaulted_GetRef();
+            AddedBurn.Opcode=uint8(ELDDemoEffectOp::Burn);
+            AddedBurn.Count=int32(O.FireBurnStacks);
         }
         break;
     case ELDDemoSkillElement::Water:
         // The slow rises to OVERDRIVE.WaterSlow for OVERDRIVE.WaterSlowSec: the hit's slow, or the zone's pulse slow.
-        if (Find(ELDDemoEffectOp::Zone))
+        if (const FLDDemoEffectDefinition* Zone=Find(ELDDemoEffectOp::Zone))
         {
-            const FLDDemoEffectDefinition* Zone=Find(ELDDemoEffectOp::Zone);
+            const int64 IntervalMs=Zone->IntervalMs;
             FLDDemoEffectDefinition* ZoneSlow=Find(ELDDemoEffectOp::ZoneSlow);
             if (!ZoneSlow)
             {
                 ZoneSlow=&Values.Effects.AddDefaulted_GetRef();
                 ZoneSlow->Opcode=uint8(ELDDemoEffectOp::ZoneSlow);
-                ZoneSlow->IntervalMs=Zone->IntervalMs;
+                ZoneSlow->IntervalMs=IntervalMs;
             }
             ZoneSlow->RatioBp=FMath::Max(ZoneSlow->RatioBp,O.WaterSlowBp);
             ZoneSlow->DurationMs=FMath::Max(ZoneSlow->DurationMs,O.WaterSlowMs);
         }
-        else
+        else if (bCanDeliverHostile)
         {
             FLDDemoEffectDefinition* Slow=Find(ELDDemoEffectOp::Slow);
             if (!Slow) { Slow=&Values.Effects.AddDefaulted_GetRef(); Slow->Opcode=uint8(ELDDemoEffectOp::Slow); }
@@ -200,18 +257,36 @@ bool ALDCombatDirector::ApplyOverdrive(const FLDBodyCombatState& Body, const FLD
         }
         break;
     case ELDDemoSkillElement::Shock:
+    {
         // One extra discharge on each body hit: OVERDRIVE.ShockReactionRatio x R of the caster, added to its damage.
-        if (FLDDemoEffectDefinition* Damage=Find(ELDDemoEffectOp::Damage))
+        FLDDemoEffectDefinition* Damage=Find(ELDDemoEffectOp::Damage);
+        bool bZonePulseShare=false;
+        int64 PulseCount=1;
+        if (!Damage) { Damage=Find(ELDDemoEffectOp::GroundImpact); }
+        if (!Damage) { Damage=Find(ELDDemoEffectOp::DashContact); }
+        if (!Damage) { Damage=Find(ELDDemoEffectOp::ChannelCone); }
+        if (!Damage)
+        {
+            Damage=Find(ELDDemoEffectOp::ZoneDamage);
+            if (Damage)
+            {
+                bZonePulseShare=true;
+                if (const FLDDemoEffectDefinition* Zone=Find(ELDDemoEffectOp::Zone); Zone && Zone->Count>0) { PulseCount=Zone->Count; }
+            }
+        }
+        if (Damage)
         {
             FLDElementTerms Reaction;
             if (!ElementTerms(Reaction,Error)) { return false; }
             const FLDCombatEntityRecord* Record=FindRecord(Body.Victim.EntityId);
             const int64 R=LDCombatElements::ReactionDamageP2(Record ? Record->Build.Level : 1,Body.AttributeProjection.Final.APP2,Reaction);
-            const int64 Extra=R/10000*O.ShockReactionBp+R%10000*O.ShockReactionBp/10000;
+            int64 Extra=R/10000*O.ShockReactionBp+R%10000*O.ShockReactionBp/10000;
+            if (bZonePulseShare && PulseCount>1) { Extra=FMath::Max<int64>(1,Extra/PulseCount); }
             if (Extra<0 || Extra>MAX_int64-Damage->BaseP2) { Error=TEXT("An overdrive discharge leaves the checked numeric domain."); return false; }
             Damage->BaseP2+=Extra;
         }
         break;
+    }
     case ELDDemoSkillElement::Rot:
         // The rot lasts OVERDRIVE.RotDurationScale times longer (its own duration, or the approved COMBAT.RotSec).
         if (FLDDemoEffectDefinition* Rot=Find(ELDDemoEffectOp::Rot))
@@ -219,10 +294,16 @@ bool ALDCombatDirector::ApplyOverdrive(const FLDBodyCombatState& Body, const FLD
             const int64 Base=Rot->DurationMs>0 ? Rot->DurationMs : P.Elements.RotMs;
             Rot->DurationMs=Base/10000*O.RotDurationBp+Base%10000*O.RotDurationBp/10000;
         }
+        else if (bCanDeliverHostile)
+        {
+            FLDDemoEffectDefinition& AddedRot=Values.Effects.AddDefaulted_GetRef();
+            AddedRot.Opcode=uint8(ELDDemoEffectOp::Rot);
+            AddedRot.DurationMs=P.Elements.RotMs/10000*O.RotDurationBp+P.Elements.RotMs%10000*O.RotDurationBp/10000;
+        }
         break;
     case ELDDemoSkillElement::Chill:
         // The chill roots for OVERDRIVE.ChillRootSec (hard control, diminishing returns; control times never scale).
-        if (Find(ELDDemoEffectOp::Chill))
+        if (Find(ELDDemoEffectOp::Chill) || bCanDeliverHostile)
         {
             FLDDemoEffectDefinition* Root=Find(ELDDemoEffectOp::Root);
             if (!Root) { Root=&Values.Effects.AddDefaulted_GetRef(); Root->Opcode=uint8(ELDDemoEffectOp::Root); }

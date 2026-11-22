@@ -2770,6 +2770,31 @@ bool FLDHUDLiveSkillTooltipTest::RunTest(const FString& Parameters)
         &&FullTip.FormulaLines[4].Contains(FString::Printf(TEXT("= %lld"),(ExpectedFinalDmgP2+50)/100))
         &&FullTip.FormulaLines.Last().Contains(TEXT("技能急速")));
 
+    // Non-elemental skill (active_elbow) bare vs equipped with medal_fire reflects elemental overdrive in live tooltip.
+    if(const FLDDemoAbilityDefinition* Elbow=Content.Abilities.FindByPredicate([](const FLDDemoAbilityDefinition& A){return A.Id==TEXT("active_elbow");}))
+    {
+        LDHUD::FActionInput ElbowIn=In;
+        ElbowIn.DefinitionId=TEXT("active_elbow");
+        ElbowIn.Name=LDHUD::ContentName(&Content,TEXT("active_elbow"));
+        ElbowIn.MomentumCostP2=Elbow->Values.MomentumCostP2;
+        ElbowIn.CooldownMs=Elbow->Values.CooldownMs;
+        const LDHUD::FActionView ElbowView=LDHUD::Action(ElbowIn,Ctx);
+        FLDProgressionView ElbowBuild=BareBuild;
+        ElbowBuild.Actives[0].DefinitionId=TEXT("active_elbow");
+        const LDHUD::FLiveSkillTooltip PlainElbowTip=LDHUD::EvaluateLiveSkillTooltip(ElbowView,ElbowIn,Ctx,&ElbowBuild,&OwnCombat,&Content,false);
+        FLDCardInstanceView EquippedFire=StoredStone;
+        EquippedFire.Target.Kind=ELDCardTargetKind::Skill;
+        EquippedFire.Target.Active=TEXT("active_elbow");
+        ElbowBuild.Cards={EquippedFire};
+        const LDHUD::FLiveSkillTooltip FireElbowTip=LDHUD::EvaluateLiveSkillTooltip(ElbowView,ElbowIn,Ctx,&ElbowBuild,&OwnCombat,&Content,false);
+        TestTrue(TEXT("Non-elemental active_elbow shows plain overdrive bare and Fire overdrive once medal_fire is equipped"),
+            PlainElbowTip.OverdriveElement==uint8(ELDDemoSkillElement::None)
+            &&PlainElbowTip.Detail.Body.Contains(TEXT("爆劲："))
+            &&FireElbowTip.OverdriveElement==uint8(ELDDemoSkillElement::Fire)
+            &&FireElbowTip.Detail.Body.Contains(TEXT("火爆劲："))
+            &&FireElbowTip.Detail.Body.Contains(LDHUD::ContentName(&Content,TEXT("medal_fire"))));
+    }
+
     // #328 §4.4: 6-player tactical scoreboard combines roster, leader crown, graffiti guard bar and sighted skills.
     FLDPublicMatchView Public;Public.Generation=1;Public.Phase=ELDMatchPhase::CaptureOpen;
     const FGuid SelfId(1,0,0,1),RivalId(2,0,0,2);

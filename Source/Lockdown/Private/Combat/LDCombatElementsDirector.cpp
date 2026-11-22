@@ -135,11 +135,11 @@ bool ALDCombatDirector::ApplyElements(FLDBodyCombatState& Target, const FLDComba
         Applier.CastLedger=CastLedger;
         return Applier;
     };
-    // A card's fire on this hit (K19, ApplyCardElement): one application of all its layers.
+    // A card's fire on this hit (K19, ApplyCardElement): one application of all its layers, including overdrive extra stacks.
     if (bCardFire)
     {
-        if (!ApplyElement(Target,ELDCombatElement::Fire,SourceApplier(Hit.CardBurnSource),Hit.CardBurnStacks,Hit.HitId,
-            NowMs,Error)) { return false; }
+        if (!ApplyElement(Target,ELDCombatElement::Fire,SourceApplier(Hit.CardBurnSource),
+            Hit.CardBurnStacks+FMath::Max(Hit.BurnStacks,0),Hit.HitId,NowMs,Error)) { return false; }
         if (OutCard) { OutCard->bApplied=bElementApplied; OutCard->bFire=true; }
         return true;
     }
@@ -182,7 +182,8 @@ bool ALDCombatDirector::ApplyElements(FLDBodyCombatState& Target, const FLDComba
             for (const auto& Card : Hit.CardElements)
             {
                 if (Card.Key!=Kind) { continue; }
-                if (!ApplyElement(Target,Kind,SourceApplier(Card.Value),0,Hit.HitId,NowMs,Error)) { return false; }
+                const FLDElementExtras CardExtras=Kind==ELDCombatElement::Rot ? Extras : FLDElementExtras();
+                if (!ApplyElement(Target,Kind,SourceApplier(Card.Value),0,Hit.HitId,NowMs,Error,CardExtras)) { return false; }
                 if (OutCard) { OutCard->bApplied=bElementApplied; OutCard->Source=Card.Value; }
                 return true;
             }

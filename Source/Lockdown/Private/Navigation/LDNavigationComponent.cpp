@@ -289,11 +289,12 @@ void ULDNavigationComponent::NavigateGround(const FVector& Surface, FName Surfac
     Request.SurfaceHint=SurfaceHint;
     Request.bQueue=bQueue;
     if (!SendOrder(Request,LDNavigationDetail::PendingText(Request.Kind))) { return; }
-    // The ground marker answers in the same frame: green, or a red cross where the local route already fails (the
-    // server's own refusal still follows as the notice).
+    // The ground marker answers in the same frame: green at the projected reachable ground point, or a red cross where
+    // the local route already fails (the server's own refusal still follows as the notice).
     bool bKnown=false;
-    const bool bReachable=ProbeGround(Surface,bKnown) || !bKnown;
-    if (ALDPointerFeedback* Feedback=EnsurePointer()) { Feedback->ShowMove(Surface,bReachable); }
+    FVector Projected=Surface;
+    const bool bReachable=ProbeGround(Surface,bKnown,&Projected) || !bKnown;
+    if (ALDPointerFeedback* Feedback=EnsurePointer()) { Feedback->ShowMove(bReachable && bKnown ? Projected : Surface,bReachable); }
 }
 
 void ULDNavigationComponent::AttackUnit(const FGuid& Observed, uint32 ObservationEpoch, bool bQueue)
@@ -442,8 +443,9 @@ void ULDNavigationComponent::AttackMove(const FVector& Surface, FName SurfaceHin
     // The ground marker of a right-click move, in red, in the same frame; a point the local route check already refuses
     // is the same red cross.
     bool bKnown=false;
-    const bool bReachable=ProbeGround(Surface,bKnown) || !bKnown;
-    if (ALDPointerFeedback* Feedback=EnsurePointer()) { Feedback->ShowMove(Surface,bReachable,true); }
+    FVector Projected=Surface;
+    const bool bReachable=ProbeGround(Surface,bKnown,&Projected) || !bKnown;
+    if (ALDPointerFeedback* Feedback=EnsurePointer()) { Feedback->ShowMove(bReachable && bKnown ? Projected : Surface,bReachable,true); }
 }
 
 // The previous accepted order keeps running (and is still predicted) until the server activates this one.
@@ -997,9 +999,10 @@ ALDPointerFeedback* ULDNavigationComponent::EnsurePointer()
     return Spawned;
 }
 
-bool ULDNavigationComponent::ProbeGround(const FVector& GroundCm, bool& bKnown) const
+bool ULDNavigationComponent::ProbeGround(const FVector& GroundCm, bool& bKnown, FVector* OutProjected) const
 {
     bKnown=false;
+    if (OutProjected) { *OutProjected=GroundCm; }
     FLDLegalGround Body, To;
     FCollisionShape Capsule;
     ELDWorldQueryFailure Failure=ELDWorldQueryFailure::None;
@@ -1007,8 +1010,10 @@ bool ULDNavigationComponent::ProbeGround(const FVector& GroundCm, bool& bKnown) 
     if (GroundCm.ContainsNaN() || !QueryBodyGround(Body,Capsule,Failure,Error)) { return true; }
     bKnown=true;
     FLDCompletePath Path;
-    return LDPathSteering::PlanRoute(*GetWorld()->GetSubsystem<ULDMapRegistry>(),Body,GroundCm,GroundSurfaceHint(),
+    const bool bPlanned=LDPathSteering::PlanRoute(*GetWorld()->GetSubsystem<ULDMapRegistry>(),Body,GroundCm,GroundSurfaceHint(),
         LDPathSteering::EGoal::Ground,Capsule,Path,To,Failure,Error);
+    if (bPlanned && OutProjected) { *OutProjected=To.SurfaceCm; }
+    return bPlanned;
 }
 
 // Hover: the visible unit a right click would attack gets the ring, read from the authorized frame only. The pointer is

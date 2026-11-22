@@ -23,7 +23,8 @@ namespace LDObservation
     // 8 (#198): Q/W/E carry single-level ability ids without ranks; the cowering and contact-guard statuses are gone.
     // 20 widens the conceal count for the authored roster plus the full flight bound.
     // 21 packs public status expiry times without losing precision.
-    constexpr uint32 Schema = 21;
+    // 22 moves camp-clear recovery orbs into sight-authorized FLDWorldView instead of room-public GameState.
+    constexpr uint32 Schema = 22;
     // A ground state's wire size (LDViewTypes.cpp SerializeObservedGround): SC-07 registers MaxGroundStates of them per frame.
     constexpr int32 GroundStateWireBytes = 16;
     // The public momentum bar of a visible contender: 0..MomentumBarFull (never the exact value).
@@ -57,6 +58,7 @@ namespace LDObservation
     constexpr int32 MaxProjectiles = 128;
     // Spec §8.3/§14: every live ground state of the map at once (GROUND.MaxTotal fits it); each is one compact public record.
     constexpr int32 MaxGroundStates = 40;
+    constexpr int32 MaxRecoveryOrbs = 48;
     static_assert(MaxUnits + MaxProjectiles <= MAX_uint16, "Conceal count must represent all authorized handles.");
     // One identity tint per seat of the six-contender roster (APP_SPEC 1).
     constexpr uint8 MaxPresentations = 6;
@@ -227,6 +229,15 @@ struct FLDObservedGroundState
     UPROPERTY() uint32 TotalMs = 0; // its whole duration (the decal fades over it)
 };
 
+// Authorized camp-clear recovery orb currently visible in the observer's sight; hidden orbs outside fog never replicate.
+USTRUCT()
+struct FLDObservedRecoveryOrb
+{
+    GENERATED_BODY()
+    UPROPERTY() uint64 Serial = 0;
+    UPROPERTY() FVector_NetQuantize10 PositionCm = FVector::ZeroVector;
+};
+
 USTRUCT()
 struct FLDObservedFootprint
 {
@@ -255,6 +266,7 @@ struct LOCKDOWN_API FLDWorldView
     UPROPERTY() TArray<FLDObservedUnitTermination> RecentTerminations;
     UPROPERTY() TArray<FLDObservedProjectileView> Projectiles;
     UPROPERTY() TArray<FLDObservedGroundState> GroundStates;
+    UPROPERTY() TArray<FLDObservedRecoveryOrb> RecoveryOrbs;
     bool NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuccess);
 };
 template<> struct TStructOpsTypeTraits<FLDWorldView> : TStructOpsTypeTraitsBase2<FLDWorldView>

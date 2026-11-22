@@ -4045,6 +4045,31 @@ void ULDHUD::PaintWorldPreviews(const FGeometry& G,FSlateWindowElementList& E,in
                         ?Ability->Branches.FindByPredicate([ActivePath](const FLDDemoAbilityBranch& B){return B.Path==ActivePath;}):nullptr;
                     const FLDDemoTargetDefinition& TargetDef=Branch?Branch->Target:Ability->Target;
                     SkillElem=(Branch&&Branch->Element!=ELDDemoSkillElement::None)?Branch->Element:Ability->Element;
+                    if(SkillElem==ELDDemoSkillElement::None)
+                    {
+                        for(const FLDCardInstanceView& Inst:Own.Growth.Progression.Cards)
+                        {
+                            if(!Inst.IsInstalled()||Inst.Target.Kind!=ELDCardTargetKind::Skill||Inst.Target.Active!=Source->DefinitionId){continue;}
+                            const FLDDemoCardDefinition* MedalDef=Content.Cards.FindByPredicate([&Inst](const FLDDemoCardDefinition& C)
+                                {return FName(*C.Id)==Inst.DefinitionId;});
+                            if(!MedalDef){continue;}
+                            for(const FLDDemoEffectDefinition& Ef:MedalDef->Effects)
+                            {
+                                if(Ef.GetOp()!=ELDDemoEffectOp::SkillElement){continue;}
+                                switch(Ef.Element)
+                                {
+                                case ELDDemoElement::Fire: SkillElem=ELDDemoSkillElement::Fire; break;
+                                case ELDDemoElement::Water: SkillElem=ELDDemoSkillElement::Water; break;
+                                case ELDDemoElement::Electric: SkillElem=ELDDemoSkillElement::Shock; break;
+                                case ELDDemoElement::Chill: SkillElem=ELDDemoSkillElement::Chill; break;
+                                case ELDDemoElement::Rot: SkillElem=ELDDemoSkillElement::Rot; break;
+                                default: break;
+                                }
+                                if(SkillElem!=ELDDemoSkillElement::None){break;}
+                            }
+                            if(SkillElem!=ELDDemoSkillElement::None){break;}
+                        }
+                    }
                     if(TargetMode==ELDDemoTargetMode::DirectionCone)
                     {
                         ConeDegrees=float(RationalCm(TargetDef.AngleDegrees));

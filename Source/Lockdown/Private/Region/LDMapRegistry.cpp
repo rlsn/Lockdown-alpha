@@ -9,6 +9,7 @@
 #include "Development/LDDemoContentCatalog.h"
 #include "Character/LDCharacter.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/BoxComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Probes/LDDemoEntryProbe.h"
@@ -41,6 +42,120 @@ bool Reject(ELDWorldQueryFailure Code, const TCHAR* Detail, ELDWorldQueryFailure
 {
     Failure = Code;
     Error = Detail;
+    return false;
+}
+
+bool HasActorChainTag(const UPrimitiveComponent& Part, FName Tag)
+{
+    if (Part.ComponentHasTag(Tag)) { return true; }
+    for (const AActor* Actor = Part.GetOwner(); Actor; Actor = Actor->GetAttachParentActor())
+    {
+        if (Actor->ActorHasTag(Tag)) { return true; }
+    }
+    return false;
+}
+
+bool IsExplicitBlockerComponent(const UPrimitiveComponent& Part, FName PrimarySurfaceTag)
+{
+    static const FName IndependentRampTag(TEXT("LDIndependentRamp"));
+    if (Part.ComponentHasTag(LDStaticScene::CollisionTag)) { return true; }
+    for (const AActor* Actor = Part.GetOwner(); Actor; Actor = Actor->GetAttachParentActor())
+    {
+        if (LDStaticScene::Value(*Actor, TEXT("LDSceneZone:")).Equals(TEXT("blocker"), ESearchCase::IgnoreCase))
+        {
+            return true;
+        }
+        if (Actor->ActorHasTag(LDDemoWorld::StaticGeometryTag))
+        {
+            const bool bTerrain = (!PrimarySurfaceTag.IsNone() && Actor->ActorHasTag(PrimarySurfaceTag))
+                || Actor->ActorHasTag(LDDemoWorld::TerrainTag)
+                || Actor->ActorHasTag(IndependentRampTag);
+            if (!bTerrain) { return true; }
+        }
+    }
+    return false;
+}
+
+bool BoxFaceHasWalkableSlope(const FTransform& ElemWorld, const FVector& HalfExtent, double WalkableFloorZ)
+{
+    if (HalfExtent.X <= 0. || HalfExtent.Y <= 0. || HalfExtent.Z <= 0.) { return false; }
+    const FVector Axes[3] = {
+        ElemWorld.TransformVector(FVector(HalfExtent.X, 0., 0.)),
+        ElemWorld.TransformVector(FVector(0., HalfExtent.Y, 0.)),
+        ElemWorld.TransformVector(FVector(0., 0., HalfExtent.Z))
+    };
+    const double Rise = FMath::Abs(Axes[0].Z) + FMath::Abs(Axes[1].Z) + FMath::Abs(Axes[2].Z);
+    if (Rise * 2. <= 4.) { return false; }
+    for (int32 Face = 0; Face < 3; ++Face)
+    {
+        const FVector Raw = FVector::CrossProduct(Axes[(Face + 1) % 3], Axes[(Face + 2) % 3]);
+        const FVector Normal = Raw.GetSafeNormal();
+        for (const double Sign : {1., -1.})
+        {
+            const double NZ = Normal.Z * Sign;
+            if (NZ >= WalkableFloorZ - 1e-4 && NZ < .9999) { return true; }
+        }
+    }
+    return false;
+}
+
+bool HasWalkableSlopeFace(const UPrimitiveComponent& Part, double WalkableFloorZ)
+{
+    const FTransform& CompTransform = Part.GetComponentTransform();
+    if (const auto* BoxComp = Cast<UBoxComponent>(&Part))
+    {
+        return BoxFaceHasWalkableSlope(CompTransform, BoxComp->GetUnscaledBoxExtent(), WalkableFloorZ);
+    }
+    const auto* MeshComp = Cast<UStaticMeshComponent>(&Part);
+    const UBodySetup* Body = MeshComp && MeshComp->GetStaticMesh() ? MeshComp->GetStaticMesh()->GetBodySetup() : nullptr;
+    if (!Body) { return false; }
+    for (const FKBoxElem& Box : Body->AggGeom.BoxElems)
+    {
+        if (BoxFaceHasWalkableSlope(Box.GetTransform() * CompTransform, FVector(Box.X * .5, Box.Y * .5, Box.Z * .5), WalkableFloorZ))
+        {
+            return true;
+        }
+    }
+    for (const FKConvexElem& Convex : Body->AggGeom.ConvexElems)
+    {
+        if (Convex.VertexData.Num() < 4 || Convex.VertexData.Num() > 64) { continue; }
+        const FTransform ElemWorld = Convex.GetTransform() * CompTransform;
+        TArray<FVector, TInlineAllocator<32>> Pts;
+        FVector Inside = FVector::ZeroVector;
+        for (const FVector& V : Convex.VertexData)
+        {
+            const FVector W = ElemWorld.TransformPosition(V);
+            if (!Pts.ContainsByPredicate([&W](const FVector& E) { return FVector::DistSquared(E, W) <= .25; }))
+            {
+                Pts.Add(W);
+                Inside += W;
+            }
+        }
+        if (Pts.Num() < 4) { continue; }
+        Inside /= double(Pts.Num());
+        for (int32 I = 0; I < Pts.Num(); ++I)
+        {
+            for (int32 J = I + 1; J < Pts.Num(); ++J)
+            {
+                for (int32 K = J + 1; K < Pts.Num(); ++K)
+                {
+                    FVector N = FVector::CrossProduct(Pts[J] - Pts[I], Pts[K] - Pts[I]).GetSafeNormal();
+                    if (N.IsNearlyZero()) { continue; }
+                    if (FVector::DotProduct(N, Pts[I] - Inside) < 0.) { N = -N; }
+                    if (N.Z < WalkableFloorZ - 1e-4 || N.Z >= .9999) { continue; }
+                    bool bOuter = true;
+                    double MinZ = Pts[I].Z, MaxZ = Pts[I].Z;
+                    for (const FVector& P : Pts)
+                    {
+                        const double Signed = FVector::DotProduct(N, P - Pts[I]);
+                        if (Signed > 1.5) { bOuter = false; break; }
+                        if (Signed >= -1.5) { MinZ = FMath::Min(MinZ, P.Z); MaxZ = FMath::Max(MaxZ, P.Z); }
+                    }
+                    if (bOuter && MaxZ - MinZ > 4.) { return true; }
+                }
+            }
+        }
+    }
     return false;
 }
 
@@ -145,7 +260,9 @@ struct ULDMapRegistry::FGroundState
     FCollisionShape Capsule;
     double Step = 0;
     TArray<FGroundFloor> Floors;
+    FBox FloorBounds = FBox(ForceInit);
     FCollisionQueryParams Query{SCENE_QUERY_STAT(DemoGroundCapsule), false};
+    FCollisionQueryParams FloorQuery{SCENE_QUERY_STAT(DemoWalkableFloors), false};
     struct FBodyResult
     {
         FLDCombatBodyRef Body;
@@ -229,8 +346,7 @@ bool ULDMapRegistry::Rebuild(FString& Error)
     LDSceneTags::ApplyRuntimePolicy(*GetWorld());
     int32 AnchorCount = 0;
     const ULDMapDefinition* CandidateDefinition = nullptr;
-    UPrimitiveComponent* Floor = nullptr;
-    TArray<UPrimitiveComponent*> Floors;
+    TArray<UPrimitiveComponent*> AllSupport;
     TArray<const APlayerStart*> Starts;
     for (TActorIterator<AActor> It(GetWorld()); It; ++It)
     {
@@ -242,14 +358,13 @@ bool ULDMapRegistry::Rebuild(FString& Error)
         {
             if (LDNativeGround::IsSupport(*Part))
             {
-                Floors.Add(Part);
-                if (!Floor) { Floor = Part; }
+                AllSupport.Add(Part);
             }
         }
     }
     TSharedPtr<const FLDDemoContentSnapshot> CandidateContent;
     TSharedPtr<const FLDDemoWorldGeometry> CandidateGeometry;
-    if (AnchorCount != 1 || !CandidateDefinition || !Floor
+    if (AnchorCount != 1 || !CandidateDefinition || AllSupport.IsEmpty()
         || CandidateDefinition->GetPathName() != FString(LDDemoEntry::WorldDefinition) + TEXT(".DA_DemoWorld")
         || Starts.IsEmpty())
     {
@@ -268,9 +383,8 @@ bool ULDMapRegistry::Rebuild(FString& Error)
     auto CandidateGround = MakeShared<FGroundState>();
     CandidateGround->Capsule = Capsule;
     CandidateGround->Step = GetDefault<ALDCharacter>()->GetCharacterMovement()->MaxStepHeight;
-    CandidateGround->Floors.Reserve(Floors.Num());
     FBox NativeBounds(ForceInit);
-    for (UPrimitiveComponent* Piece : Floors)
+    for (UPrimitiveComponent* Piece : AllSupport)
     {
         const FBodyInstance* Physics = Piece->GetBodyInstance();
         if (!Physics || !Physics->IsValidBodyInstance())
@@ -278,9 +392,236 @@ bool ULDMapRegistry::Rebuild(FString& Error)
             Error = TEXT("Demo terrain requires initialized native collision bodies.");
             return false;
         }
+        NativeBounds += Physics->GetBodyBounds();
+    }
+    // Separate genuine walkable terrain/floor pieces from blockers, walls, trees and unreachable elevated rooftops.
+    const FName PrimarySurfaceTag = !CandidateGeometry->Surfaces.IsEmpty() ? FName(*CandidateGeometry->Surfaces[0].Id) : NAME_None;
+    static const FName IndependentRampTag(TEXT("LDIndependentRamp"));
+    const double WalkableFloorZ = GetDefault<ALDCharacter>()->GetCharacterMovement()->GetWalkableFloorZ();
+    TArray<UPrimitiveComponent*> NonBlockers;
+    FCollisionQueryParams NonBlockerQuery = LDNativeGround::Query(*GetWorld());
+    for (UPrimitiveComponent* Piece : AllSupport)
+    {
+        if (IsExplicitBlockerComponent(*Piece, PrimarySurfaceTag))
+        {
+            NonBlockerQuery.AddIgnoredComponent(Piece);
+        }
+        else
+        {
+            NonBlockers.Add(Piece);
+        }
+    }
+    TSet<UPrimitiveComponent*> AdmittedSet;
+    TArray<UPrimitiveComponent*> Floors;
+    const auto AdmitFloor = [&](UPrimitiveComponent* Piece)
+    {
+        if (Piece && !AdmittedSet.Contains(Piece))
+        {
+            AdmittedSet.Add(Piece);
+            Floors.Add(Piece);
+        }
+    };
+    for (UPrimitiveComponent* Piece : NonBlockers)
+    {
+        if ((!PrimarySurfaceTag.IsNone() && HasActorChainTag(*Piece, PrimarySurfaceTag))
+            || HasActorChainTag(*Piece, LDDemoWorld::TerrainTag)
+            || HasActorChainTag(*Piece, IndependentRampTag))
+        {
+            AdmitFloor(Piece);
+        }
+    }
+    const double HalfHeight = Capsule.GetCapsuleHalfHeight();
+    const double Lift = Capsule.GetCapsuleRadius() * (1.0 / WalkableFloorZ - 1.0);
+    const double Gap = UCharacterMovementComponent::MAX_FLOOR_DIST + UE_KINDA_SMALL_NUMBER;
+    const auto AdmitPointSupport = [&](const FVector& Pos)
+    {
+        FHitResult LocalHit;
+        if (LDNativeGround::Sweep(*GetWorld(), LocalHit,
+            Pos + FVector(0., 0., HalfHeight + Lift + Gap),
+            Pos + FVector(0., 0., HalfHeight - Gap),
+            Capsule, NonBlockerQuery)
+            && !LocalHit.bStartPenetrating
+            && LocalHit.ImpactNormal.Z >= WalkableFloorZ - 1e-4
+            && NonBlockers.Contains(LocalHit.GetComponent()))
+        {
+            AdmitFloor(LocalHit.GetComponent());
+            return;
+        }
+        FHitResult TopHit;
+        if (LDNativeGround::Trace(*GetWorld(), TopHit,
+            FVector(Pos.X, Pos.Y, NativeBounds.Max.Z + 1.),
+            FVector(Pos.X, Pos.Y, NativeBounds.Min.Z - 1.),
+            NonBlockerQuery)
+            && !TopHit.bStartPenetrating
+            && TopHit.ImpactNormal.Z >= WalkableFloorZ - 1e-4
+            && NonBlockers.Contains(TopHit.GetComponent()))
+        {
+            AdmitFloor(TopHit.GetComponent());
+        }
+    };
+    TArray<FVector> ReferenceSeeds;
+    for (const auto& Anchor : Current->Anchors)
+    {
+        FVector AnchorPos;
+        if (!Anchor.PositionCm.ToVector(AnchorPos, Error)) { return false; }
+        AdmitPointSupport(AnchorPos);
+        if (Anchor.Kind == ELDDemoWorldAnchorKind::Capture
+            || Anchor.Kind == ELDDemoWorldAnchorKind::RestService
+            || Anchor.Kind == ELDDemoWorldAnchorKind::FinalCapture
+            || (ReferenceSeeds.IsEmpty() && Anchor.Kind == ELDDemoWorldAnchorKind::Spawn))
+        {
+            ReferenceSeeds.Add(AnchorPos);
+        }
+        for (const auto& Member : Anchor.Members)
+        {
+            FVector MemberPos;
+            if (Member.PositionCm.ToVector(MemberPos, Error)) { AdmitPointSupport(MemberPos); }
+        }
+    }
+    if (UNavigationSystemV1* Nav = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld()))
+    {
+        if (const ANavigationData* Data = Nav->GetDefaultNavDataInstance(FNavigationSystem::DontCreate))
+        {
+            TArray<FVector> SeedNavOrigins;
+            for (const FVector& SeedPos : ReferenceSeeds)
+            {
+                FVector Probe = SeedPos;
+                FHitResult SeedHit;
+                if (LDNativeGround::Trace(*GetWorld(), SeedHit,
+                    FVector(SeedPos.X, SeedPos.Y, NativeBounds.Max.Z + 1.),
+                    FVector(SeedPos.X, SeedPos.Y, NativeBounds.Min.Z - 1.),
+                    NonBlockerQuery) && !SeedHit.bStartPenetrating)
+                {
+                    Probe = SeedHit.ImpactPoint;
+                }
+                FNavLocation SeedNav;
+                if (Nav->ProjectPointToNavigation(Probe, SeedNav,
+                    FVector(Capsule.GetCapsuleRadius() * 2., Capsule.GetCapsuleRadius() * 2., HalfHeight * 2.), Data))
+                {
+                    SeedNavOrigins.Add(SeedNav.Location);
+                }
+            }
+            if (!SeedNavOrigins.IsEmpty())
+            {
+                const FCollisionQueryParams CompTraceParams(SCENE_QUERY_STAT(DemoFloorNavCheck), false);
+                const double NavSnapZ = CandidateGround->Step + 25.;
+                for (UPrimitiveComponent* Piece : NonBlockers)
+                {
+                    if (AdmittedSet.Contains(Piece)) { continue; }
+                    const FBox CBounds = Piece->GetBodyInstance()->GetBodyBounds();
+                    const FVector Size = CBounds.GetSize();
+                    const FVector2D Samples[5] = {
+                        FVector2D(CBounds.GetCenter()),
+                        FVector2D(CBounds.Min.X + Size.X * .25, CBounds.Min.Y + Size.Y * .25),
+                        FVector2D(CBounds.Min.X + Size.X * .75, CBounds.Min.Y + Size.Y * .25),
+                        FVector2D(CBounds.Min.X + Size.X * .25, CBounds.Min.Y + Size.Y * .75),
+                        FVector2D(CBounds.Min.X + Size.X * .75, CBounds.Min.Y + Size.Y * .75)
+                    };
+                    bool bNavReachable = false;
+                    for (const FVector2D& SampleXY : Samples)
+                    {
+                        FHitResult PieceHit;
+                        if (!Piece->LineTraceComponent(PieceHit,
+                            FVector(SampleXY.X, SampleXY.Y, CBounds.Max.Z + 1.),
+                            FVector(SampleXY.X, SampleXY.Y, CBounds.Min.Z - 1.),
+                            CompTraceParams)
+                            || PieceHit.bStartPenetrating
+                            || PieceHit.ImpactNormal.Z < WalkableFloorZ - 1e-4)
+                        {
+                            continue;
+                        }
+                        FNavLocation PieceNav;
+                        if (!Nav->ProjectPointToNavigation(PieceHit.ImpactPoint, PieceNav,
+                            FVector(Capsule.GetCapsuleRadius(), Capsule.GetCapsuleRadius(), NavSnapZ), Data)
+                            || FMath::Abs(PieceNav.Location.Z - PieceHit.ImpactPoint.Z) > NavSnapZ)
+                        {
+                            continue;
+                        }
+                        for (const FVector& Origin : SeedNavOrigins)
+                        {
+                            FPathFindingQuery RouteQuery(this, *Data, Origin, PieceNav.Location);
+                            RouteQuery.SetAllowPartialPaths(false);
+                            const FPathFindingResult Route = Nav->FindPathSync(Data->GetConfig(), RouteQuery);
+                            if (Route.IsSuccessful() && Route.Path.IsValid() && !Route.Path->IsPartial())
+                            {
+                                bNavReachable = true;
+                                break;
+                            }
+                        }
+                        if (bNavReachable) { break; }
+                    }
+                    if (bNavReachable) { AdmitFloor(Piece); }
+                }
+            }
+        }
+    }
+    if (Floors.IsEmpty() && !NonBlockers.IsEmpty())
+    {
+        double LowestTopZ = DBL_MAX;
+        for (UPrimitiveComponent* Piece : NonBlockers)
+        {
+            LowestTopZ = FMath::Min(LowestTopZ, Piece->GetBodyInstance()->GetBodyBounds().Max.Z);
+        }
+        for (UPrimitiveComponent* Piece : NonBlockers)
+        {
+            if (Piece->GetBodyInstance()->GetBodyBounds().Max.Z <= LowestTopZ + CandidateGround->Step + 2.)
+            {
+                AdmitFloor(Piece);
+            }
+        }
+    }
+    const double XYReach = Capsule.GetCapsuleRadius() + 4.;
+    bool bExpanded = true;
+    while (bExpanded)
+    {
+        bExpanded = false;
+        for (UPrimitiveComponent* Piece : NonBlockers)
+        {
+            if (AdmittedSet.Contains(Piece)) { continue; }
+            const FBox CBounds = Piece->GetBodyInstance()->GetBodyBounds();
+            const FBox2D CXY(FVector2D(CBounds.Min.X - XYReach, CBounds.Min.Y - XYReach),
+                FVector2D(CBounds.Max.X + XYReach, CBounds.Max.Y + XYReach));
+            for (UPrimitiveComponent* Existing : Floors)
+            {
+                const FBox FBounds = Existing->GetBodyInstance()->GetBodyBounds();
+                if (!CXY.Intersect(FBox2D(FVector2D(FBounds.Min.X, FBounds.Min.Y), FVector2D(FBounds.Max.X, FBounds.Max.Y))))
+                {
+                    continue;
+                }
+                const bool bStepReachable = CBounds.Max.Z <= FBounds.Max.Z + CandidateGround->Step + 2.;
+                const bool bSlopeReachable = !bStepReachable
+                    && CBounds.Min.Z <= FBounds.Max.Z + CandidateGround->Step + 2.
+                    && HasWalkableSlopeFace(*Piece, WalkableFloorZ);
+                if (bStepReachable || bSlopeReachable)
+                {
+                    AdmitFloor(Piece);
+                    bExpanded = true;
+                    break;
+                }
+            }
+        }
+    }
+    UPrimitiveComponent* Floor = Floors.IsEmpty() ? nullptr : Floors[0];
+    if (!Floor)
+    {
+        Error = TEXT("Demo world requires its unique native definition, walkable ground collision and player starts.");
+        return false;
+    }
+    CandidateGround->Floors.Reserve(Floors.Num());
+    CandidateGround->FloorQuery = LDNativeGround::Query(*GetWorld());
+    for (UPrimitiveComponent* Piece : AllSupport)
+    {
+        if (!AdmittedSet.Contains(Piece))
+        {
+            CandidateGround->FloorQuery.AddIgnoredComponent(Piece);
+        }
+    }
+    for (UPrimitiveComponent* Piece : Floors)
+    {
+        const FBodyInstance* Physics = Piece->GetBodyInstance();
         // Use collision bounds, not render bounds; padding only admits extra narrow-phase candidates.
         CandidateGround->Floors.Add({Piece, Physics->GetBodyBounds().ExpandBy(UCharacterMovementComponent::MAX_FLOOR_DIST)});
-        NativeBounds += Physics->GetBodyBounds();
+        CandidateGround->FloorBounds += Physics->GetBodyBounds();
         CandidateGround->Query.AddIgnoredComponent(Piece);
     }
     CandidateTerrain.BindScene(*GetWorld(), NativeBounds);
@@ -348,7 +689,18 @@ bool ULDMapRegistry::Rebuild(FString& Error)
         };
         if (!LocalGround(Binding.Position, Legal))
         {
-            CandidateTerrain.Ground(FVector2D(Binding.Position), Binding.Position.Z, NativeNormal);
+            FHitResult FloorHit;
+            if (LDNativeGround::Trace(*GetWorld(), FloorHit,
+                FVector(Binding.Position.X, Binding.Position.Y, CandidateGround->FloorBounds.Max.Z + 1.),
+                FVector(Binding.Position.X, Binding.Position.Y, CandidateGround->FloorBounds.Min.Z - 1.),
+                CandidateGround->FloorQuery))
+            {
+                Binding.Position.Z = FloorHit.ImpactPoint.Z;
+            }
+            else
+            {
+                CandidateTerrain.Ground(FVector2D(Binding.Position), Binding.Position.Z, NativeNormal);
+            }
             if (!FMath::IsFinite(Binding.Position.Z))
             { Error = TEXT("NotGrounded: no native ground under layout point ") + Anchor.Id; return false; }
             if (!LocalGround(Binding.Position, Legal))
@@ -544,7 +896,54 @@ bool ULDMapRegistry::IsTerrainFloor(const UPrimitiveComponent* Floor) const
 
 bool ULDMapRegistry::TraceGround(const FVector& Start, const FVector& End, FHitResult& Hit) const
 {
-    return Enabled() && Terrain.TraceScene(Start, End, Hit);
+    if (!Enabled() || !GroundState || !GetWorld()) { return false; }
+    FCollisionQueryParams Params = GroundState->FloorQuery;
+    for (int32 Pass = 0; Pass < 8; ++Pass)
+    {
+        if (!LDNativeGround::Trace(*GetWorld(), Hit, Start, End, Params)) { return false; }
+        if (IsTerrainFloor(Hit.GetComponent())) { return true; }
+        Params.AddIgnoredComponent(Hit.GetComponent());
+    }
+    return false;
+}
+
+bool ULDMapRegistry::ResolveWalkableGround(const FVector2D& Point, FVector& OutSurface, FVector* OutNormal) const
+{
+    if (!Enabled() || !GroundState || !Geometry || Geometry->Surfaces.IsEmpty()
+        || !FMath::IsFinite(Point.X) || !FMath::IsFinite(Point.Y))
+    {
+        return false;
+    }
+    FHitResult Hit;
+    if (GroundState->FloorBounds.IsValid && TraceGround(
+        FVector(Point.X, Point.Y, GroundState->FloorBounds.Max.Z + 1.),
+        FVector(Point.X, Point.Y, GroundState->FloorBounds.Min.Z - 1.), Hit))
+    {
+        OutSurface = Hit.ImpactPoint;
+        if (OutNormal) { *OutNormal = Hit.ImpactNormal; }
+        return true;
+    }
+    FVector Min, Max;
+    FString Error;
+    if (!Geometry->Surfaces[0].MinCm.ToVector(Min, Error) || !Geometry->Surfaces[0].MaxCm.ToVector(Max, Error))
+    {
+        return false;
+    }
+    if (Point.X < Min.X - 1. || Point.X > Max.X + 1. || Point.Y < Min.Y - 1. || Point.Y > Max.Y + 1.)
+    {
+        return false;
+    }
+    OutSurface = FVector(FMath::Clamp(Point.X, Min.X, Max.X), FMath::Clamp(Point.Y, Min.Y, Max.Y),
+        GroundState->FloorBounds.IsValid ? GroundState->FloorBounds.Min.Z : Min.Z);
+    if (OutNormal) { *OutNormal = FVector::UpVector; }
+    return true;
+}
+
+double ULDMapRegistry::WalkableVerticalSpanCm() const
+{
+    return Enabled() && GroundState && GroundState->FloorBounds.IsValid
+        ? FMath::Max(0., GroundState->FloorBounds.Max.Z - GroundState->FloorBounds.Min.Z)
+        : 0.;
 }
 
 bool ULDMapRegistry::QueryCompletePath(const FLDWorldRevision& Expected, const FLDLegalGround& From, const FLDLegalGround& To,

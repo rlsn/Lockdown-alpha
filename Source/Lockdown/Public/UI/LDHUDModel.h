@@ -1196,6 +1196,8 @@ namespace LDHUD
         int64 RiderDamageP2=0;
         int64 FinalCooldownMs=0;
         int64 FinalMomentumCostP2=0;
+        uint8 OverdriveElement=0;
+        FString OverdriveLine;
         bool bHasFormula=false;
         FString FooterHint;
         TArray<FString> FormulaLines;

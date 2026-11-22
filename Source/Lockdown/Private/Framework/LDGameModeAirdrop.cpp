@@ -101,7 +101,6 @@ void ALDGameMode::DropRecoveryOrb(const FVector& PositionCm)
     Orb.Serial = ++RecoveryOrbSerial;
     Orb.PositionCm = PositionCm;
     Orb.ExpireAtMs = GetFieldNowMs() + DemoContent->Get().Parameters.CampClearOrbMs;
-    bPublicMatchDirty = true;
     UE_LOG(LogLDWorld, Display, TEXT("LD_RECOVERY_ORB_DROP serial=%llu field_t_ms=%lld"), Orb.Serial, GetFieldNowMs());
 }
 
@@ -131,14 +130,12 @@ bool ALDGameMode::ClaimRecoveryOrbs(const FLDGameplayWritePermit& Permit, FStrin
                 && !Combat->RecoverContender(Life.Body, 0, Parameters.CampClearHealMissingBp, Parameters.CampClearMomentumP2, Permit, Error))
             { return false; }
             RecoveryOrbs.RemoveAt(Index);
-            bPublicMatchDirty = true;
             UE_LOG(LogLDWorld, Display, TEXT("LD_RECOVERY_ORB_CLAIM serial=%llu contender=%s field_t_ms=%lld"), Orb.Serial,
                 *LDLog::Id(Claimer), NowMs);
         }
         else if (NowMs >= Orb.ExpireAtMs)
         {
             RecoveryOrbs.RemoveAt(Index);
-            bPublicMatchDirty = true;
         }
     }
     return true;
