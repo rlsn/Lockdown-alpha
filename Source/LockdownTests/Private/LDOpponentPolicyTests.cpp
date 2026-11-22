@@ -214,13 +214,13 @@ bool RunChoiceOrder(FAutomationTestBase& Test)
         {TEXT("active_snark_bolt"), TEXT("active_open_mic"), TEXT("active_quick_meeting")}, TEXT("active_quick_meeting"));
     bGood &= Pick(Test, C, TEXT("Roles covered: DirectionCone beats Self and DirectionDash"),
         {Active(TEXT("active_not_mad"), 0), Active(TEXT("active_elbow"), 1)}, {},
-        {TEXT("active_bail_out"), TEXT("active_triple_combo"), TEXT("active_open_mic")}, TEXT("active_open_mic"));
+        {TEXT("active_bail_out"), TEXT("active_triple_combo"), TEXT("active_seethe")}, TEXT("active_seethe"));
     bGood &= Pick(Test, C, TEXT("Roles covered: Self beats DirectionDash"),
         {Active(TEXT("active_not_mad"), 0), Active(TEXT("active_elbow"), 1)}, {},
-        {TEXT("active_apology_slide"), TEXT("active_triple_combo")}, TEXT("active_triple_combo"));
+        {TEXT("active_bail_out"), TEXT("active_triple_combo")}, TEXT("active_triple_combo"));
     bGood &= Pick(Test, C, TEXT("The same target mode ties on catalog order"),
         {Active(TEXT("active_not_mad"), 0), Active(TEXT("active_snark_bolt"), 1)}, {},
-        {TEXT("active_unplug"), TEXT("active_elbow")}, TEXT("active_elbow"));
+        {TEXT("active_zap"), TEXT("active_elbow")}, TEXT("active_elbow"));
     FLDOpponentSelf Unknown;
     Unknown.Offer = ActiveOffer({TEXT("active_unknown")});
     FString Ignored, Error;
@@ -267,13 +267,63 @@ bool RunChoiceOrder(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("Reach the keystone threshold before balancing the remaining point"),
         LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error)
         && SameCounts(ById(C, Counts), {{Physique, 1}, {Strength, 1}}));
-    Spender.Actives = {Active(TEXT("active_account_banned"), 0)};
+    Spender.Actives = {Active(TEXT("active_zap"), 0)};
     Spender.StatPoints = StatRows(C, {{Physique, 4}, {Skin, 3}, {Strength, 1}, {Agility, 7}});
     Spender.UnspentPoints = 4;
-    bGood &= Test.TestTrue(TEXT("An AP-heavy active pursues the brains keystone and agility is not relevant"),
+    bGood &= Test.TestTrue(TEXT("An AP-heavy active pursues the brains keystone first"),
         LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error) && ById(C, Counts).FindRef(Agility) == 0
         && ById(C, Counts).FindRef(Physique) == 0 && ById(C, Counts).FindRef(Skin) == 0
         && ById(C, Counts).FindRef(Strength) == 0 && ById(C, Counts).FindRef(Brains) == 4);
+    // Agility is unblocked: WantsRespec never mistakenly refunds Agility points, and basic/speed/crit cards + dual-keystone focus
+    // drive Agility + Strength all the way to both 18-point keystones instead of spreading evenly across four stats.
+    {
+        FLDOpponentSelf AgilityHolder;
+        AgilityHolder.Actives = {Active(TEXT("active_elbow"), 0)};
+        AgilityHolder.StatPoints = StatRows(C, {{Agility, 7}, {Strength, 4}});
+        FString RespecErr;
+        bGood &= Test.TestFalse(TEXT("WantsRespec does not mistakenly refund StatAgility"),
+            LDOpponentPolicy::WantsRespec(AgilityHolder, C, RespecErr));
+
+        FLDOpponentSelf BasicArchetype;
+        BasicArchetype.Actives = {Active(TEXT("active_elbow"), 0)};
+        FLDOpponentCard Berserk;
+        Berserk.Serial = 1;
+        Berserk.DefinitionId = TEXT("card_berserk");
+        Berserk.TargetKind = ELDCardTargetKind::Body;
+        FLDOpponentCard PunchHeal;
+        PunchHeal.Serial = 2;
+        PunchHeal.DefinitionId = TEXT("card_punch_heal");
+        PunchHeal.TargetKind = ELDCardTargetKind::Body;
+        BasicArchetype.Cards = {Berserk, PunchHeal};
+        BasicArchetype.StatPoints = StatRows(C, {{Agility, 18}});
+        BasicArchetype.UnspentPoints = 10;
+        TArray<uint8> DualCounts;
+        bGood &= Test.TestTrue(TEXT("After first 18-pt Agility keystone, basic/AS archetype focuses all 10 points into 2nd keystone (Strength)"),
+            LDOpponentPolicy::AllocatePoints(BasicArchetype, C, DualCounts, Error)
+            && SameCounts(ById(C, DualCounts), {{Strength, 10}}));
+        BasicArchetype.StatPoints = StatRows(C, {{Strength, 18}});
+        BasicArchetype.UnspentPoints = 10;
+        bGood &= Test.TestTrue(TEXT("After first 18-pt Strength keystone, basic/AS archetype focuses all 10 points into 2nd keystone (Agility)"),
+            LDOpponentPolicy::AllocatePoints(BasicArchetype, C, DualCounts, Error)
+            && SameCounts(ById(C, DualCounts), {{Agility, 10}}));
+
+        // AdaptiveRatioBp + Lv2/3 branch recognition: an AdaptiveRatioBp active with AP preference pursues Brains keystone.
+        const FLDDemoAbilityDefinition* AdaptiveAb = C.Get().Abilities.FindByPredicate([](const FLDDemoAbilityDefinition& A)
+        {
+            return A.Values.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& E) { return E.AdaptiveRatioBp > 0 && E.APRatioBp == 0; });
+        });
+        if (AdaptiveAb)
+        {
+            FLDOpponentSelf AdaptiveSpender;
+            AdaptiveSpender.Actives = {Active(*AdaptiveAb->Id, 0)};
+            AdaptiveSpender.StatPoints = StatRows(C, {{Brains, 2}});
+            AdaptiveSpender.UnspentPoints = 5;
+            TArray<uint8> AdaptiveCounts;
+            bGood &= Test.TestTrue(TEXT("AdaptiveRatioBp active recognizes existing Brains investment and focuses Brains keystone"),
+                LDOpponentPolicy::AllocatePoints(AdaptiveSpender, C, AdaptiveCounts, Error)
+                && SameCounts(ById(C, AdaptiveCounts), {{Brains, 5}}));
+        }
+    }
     Spender.UnspentPoints = 0;
     bGood &= Test.TestFalse(TEXT("No unspent points: nothing to allocate"), LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error));
     Spender.UnspentPoints = 1;
@@ -1867,12 +1917,13 @@ bool RunV7Activations(FAutomationTestBase& Test)
     bGood &= Test.TestFalse(TEXT("but not beyond it"), IsCast(LDOpponentPolicy::Decide(Frame, C, BailFar), ELDDemoTargetMode::DirectionDash));
 
     for (const auto& Case : {
-        TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_open_mic"),ELDDemoTargetMode::DirectionCone),
+        TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_cola_shake"),ELDDemoTargetMode::DirectionCone),
         TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_snark_bolt"),ELDDemoTargetMode::DirectionProjectile),
-        TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_sock_shot"),ELDDemoTargetMode::DirectionProjectile),
+        TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_stale_takeout"),ELDDemoTargetMode::DirectionProjectile),
         TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_hose_down"),ELDDemoTargetMode::DirectionLine),
         TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_calculus_drop"),ELDDemoTargetMode::GroundPoint),
-        TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_flyer_trap"),ELDDemoTargetMode::GroundPoint)})
+        TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_flyer_trap"),ELDDemoTargetMode::GroundPoint),
+        TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_cordon_tape"),ELDDemoTargetMode::GroundPoint)})
     {
         Frame=With(Case.Key);
         Frame.Units={Unit(2,ELDOpponentUnitKind::Contender,Attack-10,80)};
@@ -1886,7 +1937,7 @@ bool RunV7Activations(FAutomationTestBase& Test)
             && (Case.Value!=ELDDemoTargetMode::GroundPoint || Cast.Body.Point.Equals(Frame.Units[0].FootCm,1.e-3)));
     }
 
-    Frame=With(TEXT("active_apology_slide"));
+    Frame=With(TEXT("active_charged_ram"));
     Frame.Units={Unit(2,ELDOpponentUnitKind::Contender,Attack+20,0)};
     FLDOpponentPolicyState Slide;
     const auto Sliding=LDOpponentPolicy::Decide(Frame,C,Slide);

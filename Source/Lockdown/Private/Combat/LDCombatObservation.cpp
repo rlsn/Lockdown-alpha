@@ -174,12 +174,15 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
         const FLDDemoMonsterDefinition* Monster=nullptr;
         // A05 makes a contender's basic fly: its source is the unnamed basic, never a catalog definition.
         const bool bFlyingBasic=Projectile.Source.Kind==ELDCombatSourceKind::Basic && Projectile.Source.DefinitionId.IsNone();
+        const bool bSpellWave=Projectile.Source.Kind==ELDCombatSourceKind::Card
+            && Projectile.Source.DefinitionId==FName(TEXT("card_spellblade_echo"));
         const bool bMonster=!bFlyingBasic && Projectile.Source.Kind==ELDCombatSourceKind::Basic
             && Content->FindMonster(Projectile.Source.DefinitionId.ToString(),Monster,LookupError)
             && Monster->Skill.Pattern==ELDMonsterPattern::Projectile;
-        if ((!bFlyingBasic && !bMonster && (!Content->FindAbility(Projectile.Source.DefinitionId.ToString(),Ability,LookupError)
-            || (Ability->NativeId!=uint8(ELDDemoAbilityId::ActiveSnarkBolt) && Ability->NativeId!=uint8(ELDDemoAbilityId::ActiveSockShot)
-                && Ability->NativeId!=uint8(ELDDemoAbilityId::ActiveStaleTakeout))))
+        if ((!bFlyingBasic && !bSpellWave && !bMonster && (!Content->FindAbility(Projectile.Source.DefinitionId.ToString(),Ability,LookupError)
+            || (Ability->NativeId!=uint8(ELDDemoAbilityId::ActiveSnarkBolt)
+                && Ability->NativeId!=uint8(ELDDemoAbilityId::ActiveStaleTakeout)
+                && Ability->NativeId!=uint8(ELDDemoAbilityId::ActiveFlurryRush))))
             || Heading.IsNearlyZero())
         {
             Out.Reset();
@@ -193,12 +196,12 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
         Fact.SourceEntity=Projectile.SourceEntity;
         Fact.PositionCm=Projectile.OriginCm+FVector(Heading.X,Heading.Y,0)*Projectile.TravelledCm;
         Fact.Heading=Heading;
-        // The two rot throws (S21, N3) share the sock look; the shoe (S06), a flying basic (A05) and camp shots use chalk.
-        const bool bSock=Ability && (Ability->NativeId==uint8(ELDDemoAbilityId::ActiveSockShot)
-            || Ability->NativeId==uint8(ELDDemoAbilityId::ActiveStaleTakeout));
-        Fact.Look=Projectile.bReturn
-            ? (bSock ? ELDObservedProjectileLook::SockReturn : ELDObservedProjectileLook::ChalkReturn)
-            : (bSock ? ELDObservedProjectileLook::Sock : ELDObservedProjectileLook::Chalk);
+        const bool bSock=Ability && Ability->NativeId==uint8(ELDDemoAbilityId::ActiveStaleTakeout);
+        const bool bFistWind=bSpellWave || (Ability && Ability->NativeId==uint8(ELDDemoAbilityId::ActiveFlurryRush));
+        Fact.Look=bFistWind ? ELDObservedProjectileLook::FistWind
+            : Projectile.bReturn
+                ? (bSock ? ELDObservedProjectileLook::SockReturn : ELDObservedProjectileLook::ChalkReturn)
+                : (bSock ? ELDObservedProjectileLook::Sock : ELDObservedProjectileLook::Chalk);
     }
     const auto* Mode=Authority();
     if (!Mode) { Error=TEXT("Observed skill effects require the current match."); return false; }
@@ -294,6 +297,54 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
         Fact.Look=ELDObservedProjectileLook::SpeechCone;
         Fact.RadiusCm=float(Channel.RangeCm);
         Fact.AngleDegrees=float(Channel.AngleDegrees);
+    }
+    // #345 tactical world entities: slipper pickups, cordon tapes, phantom decoys, and shield shard bursts.
+    for (const FLDCombatSlipperDrop& Drop : SlipperDrops)
+    {
+        if (Drop.ExpiresAtMs<=NowMs) { continue; }
+        FLDObservedProjectileFact& Fact=Out.AddDefaulted_GetRef();
+        Fact.Key=Drop.Id;
+        Fact.SourceEntity=Drop.OwnerEntity;
+        Fact.PositionCm=Drop.FootCm;
+        Fact.Heading=FVector2D(1,0);
+        Fact.Look=ELDObservedProjectileLook::SlipperDrop;
+        Fact.RadiusCm=float(FMath::Max(Drop.RadiusCm,45.));
+    }
+    for (const FLDCombatCordon& Cordon : Cordons)
+    {
+        if (Cordon.ExpiresAtMs<=NowMs) { continue; }
+        FLDObservedProjectileFact& Fact=Out.AddDefaulted_GetRef();
+        Fact.Key=Cordon.Id;
+        Fact.SourceEntity=Cordon.Payload.SourceEntity;
+        Fact.PositionCm=Cordon.CentreCm;
+        Fact.Heading=FVector2D(Cordon.Tangent.X,Cordon.Tangent.Y).GetSafeNormal();
+        if (Fact.Heading.IsNearlyZero()) { Fact.Heading=FVector2D(0,1); }
+        Fact.Look=ELDObservedProjectileLook::CordonTape;
+        Fact.LengthCm=float(FMath::Max(Cordon.HalfLengthCm*2.,60.));
+        Fact.RadiusCm=float(FMath::Max(Cordon.HalfWidthCm,30.));
+    }
+    for (const FLDCombatDecoy& Decoy : Decoys)
+    {
+        if (Decoy.ExplodeAtMs<=NowMs) { continue; }
+        FLDObservedProjectileFact& Fact=Out.AddDefaulted_GetRef();
+        Fact.Key=Decoy.Id;
+        Fact.SourceEntity=Decoy.OwnerEntity;
+        Fact.PositionCm=Decoy.FootCm;
+        Fact.Heading=FVector2D(1,0);
+        Fact.Look=ELDObservedProjectileLook::PhantomDecoy;
+        Fact.RadiusCm=float(FMath::Max(Decoy.RadiusCm,80.));
+        Fact.WarningRemainingMs=uint32(FMath::Min<int64>(FMath::Max<int64>(Decoy.ExplodeAtMs-NowMs,0),MAX_uint32));
+    }
+    for (const FLDCombatShardBurst& Burst : ShardBursts)
+    {
+        if (Burst.ExpiresAtMs<=NowMs) { continue; }
+        FLDObservedProjectileFact& Fact=Out.AddDefaulted_GetRef();
+        Fact.Key=Burst.Id;
+        Fact.SourceEntity=Burst.OwnerEntity;
+        Fact.PositionCm=Burst.FootCm;
+        Fact.Heading=FVector2D(1,0);
+        Fact.Look=ELDObservedProjectileLook::ShardBurst;
+        Fact.RadiusCm=float(FMath::Max(Burst.RadiusCm,80.));
     }
     Error.Reset();
     return true;

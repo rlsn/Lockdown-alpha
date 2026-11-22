@@ -123,7 +123,7 @@ bool ALDCombatDirector::ApplyElements(FLDBodyCombatState& Target, const FLDComba
     // reflections, added damage and shield answers carry none of the source's triggers.
     const bool bCardFire=bLivingSource && Hit.CardBurnStacks>0;
     const bool bCardElement=bCardFire || (bLivingSource && !Hit.CardElements.IsEmpty());
-    const auto SourceApplier=[this,Source,CastLedger=Hit.CastLedger](const FLDCombatSourceRef& Ref)
+    const auto SourceApplier=[this,Source,CastLedger=Hit.CastLedger](const FLDCombatSourceRef& Ref, uint8 MedalTier=1)
     {
         FLDElementApplier Applier;
         Applier.SourceEntity=Source->Victim.EntityId;
@@ -133,14 +133,27 @@ bool ALDCombatDirector::ApplyElements(FLDBodyCombatState& Target, const FLDComba
         Applier.Level=GrowthLevelOf(*Source);
         Applier.SourceAPP2=FMath::Max<int64>(Source->AttributeProjection.Final.APP2,0);
         Applier.CastLedger=CastLedger;
+        Applier.MedalTier=FMath::Max<uint8>(MedalTier,1);
         return Applier;
     };
-    // A card's fire on this hit (K19, ApplyCardElement): one application of all its layers.
+    const auto MaybeApplyTier3Secondary=[&](ELDCombatElement Primary, const FLDCombatSourceRef& Ref, uint8 SelectedTier) -> bool
+    {
+        if (SelectedTier<3 || Target.bPendingDeath || Target.ReactionLockedUntilMs>NowMs) { return true; }
+        static const ELDCombatElement Order[]={ELDCombatElement::Fire,ELDCombatElement::Water,ELDCombatElement::Shock,
+            ELDCombatElement::Chill,ELDCombatElement::Rot};
+        int32 PrimaryIdx=0;
+        for (int32 Idx=0; Idx<5; ++Idx) { if (Order[Idx]==Primary) { PrimaryIdx=Idx; break; } }
+        const ELDCombatElement Secondary=Order[(PrimaryIdx+1+int32(Hit.HitId.A%4u))%5];
+        return ApplyElement(Target,Secondary,SourceApplier(Ref,SelectedTier),Secondary==ELDCombatElement::Fire ? 1 : 0,Hit.HitId,NowMs,Error);
+    };
+    // A card's fire on this hit (K19, ApplyCardElement): one application of all its layers, including overdrive extra stacks.
     if (bCardFire)
     {
-        if (!ApplyElement(Target,ELDCombatElement::Fire,SourceApplier(Hit.CardBurnSource),Hit.CardBurnStacks,Hit.HitId,
-            NowMs,Error)) { return false; }
-        if (OutCard) { OutCard->bApplied=bElementApplied; OutCard->bFire=true; }
+        if (!ApplyElement(Target,ELDCombatElement::Fire,SourceApplier(Hit.CardBurnSource,Hit.CardBurnTier),
+            Hit.CardBurnStacks+FMath::Max(Hit.OverdriveBurnStacks,0),Hit.HitId,NowMs,Error)) { return false; }
+        const bool bFirstApplied=bElementApplied;
+        if (bFirstApplied && !MaybeApplyTier3Secondary(ELDCombatElement::Fire,Hit.CardBurnSource,Hit.CardBurnTier)) { return false; }
+        if (OutCard) { OutCard->bApplied=bFirstApplied; OutCard->bFire=true; }
         return true;
     }
     // Fire is first in the fixed order, so A15 goes before the other card elements of the hit; without one, the hit's
@@ -179,11 +192,14 @@ bool ALDCombatDirector::ApplyElements(FLDBodyCombatState& Target, const FLDComba
         for (const ELDCombatElement Kind : {ELDCombatElement::Water,ELDCombatElement::Shock,ELDCombatElement::Chill,
             ELDCombatElement::Rot})
         {
-            for (const auto& Card : Hit.CardElements)
+            for (const FLDCombatHit::FCardElementEntry& Card : Hit.CardElements)
             {
-                if (Card.Key!=Kind) { continue; }
-                if (!ApplyElement(Target,Kind,SourceApplier(Card.Value),0,Hit.HitId,NowMs,Error)) { return false; }
-                if (OutCard) { OutCard->bApplied=bElementApplied; OutCard->Source=Card.Value; }
+                if (Card.Element!=Kind) { continue; }
+                const FLDElementExtras CardExtras=Kind==ELDCombatElement::Rot ? Extras : FLDElementExtras();
+                if (!ApplyElement(Target,Kind,SourceApplier(Card.Source,Card.Tier),0,Hit.HitId,NowMs,Error,CardExtras)) { return false; }
+                const bool bFirstApplied=bElementApplied;
+                if (bFirstApplied && !MaybeApplyTier3Secondary(Kind,Card.Source,Card.Tier)) { return false; }
+                if (OutCard) { OutCard->bApplied=bFirstApplied; OutCard->Source=Card.Source; }
                 return true;
             }
         }
@@ -372,7 +388,12 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
     Target.Cues.LastReactionElement=uint8(Kind);
     Target.ReactionLockedUntilMs=NowMs+Terms.ReactionLockMs;
     const FLDCombatBodyRef Primary{Target.Victim,Target.Identity};
-    const int64 R=LDCombatElements::ReactionDamageP2(Applier.Level,Applier.SourceAPP2,Terms);
+    int64 R=LDCombatElements::ReactionDamageP2(Applier.Level,Applier.SourceAPP2,Terms);
+    if (Applier.MedalTier>=2 && Catalog())
+    {
+        const int64 BonusBp=Catalog()->Get().Parameters.Medal.Tier2ReactionBonusBp;
+        if (BonusBp>0) { R=LDCombatElements::ScaledP2(R,10000+BonusBp); }
+    }
     const FGuid ReactionId=FGuid::NewGuid();
     // Fog settles the fire at once: the held layers' remaining ticks, or the new layers' full budget, each attributed to its
     // own applier and source as fire damage. Any other reaction consuming fire ends it unsettled.

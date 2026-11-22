@@ -147,7 +147,8 @@ CARD_TYPES = ("trigger", "modify", "convert", "grow", "element")
 
 def effect(value):
     result = {
-        "Opcode": value["opcode"], "BaseP2": 0, "ADRatioBp": 0, "APRatioBp": 0, "AdaptiveRatioBp": 0, "MaxHPRatioBp": 0, "DamageType": 0,
+        "Opcode": value["opcode"], "BaseP2": 0, "ADRatioBp": 0, "APRatioBp": 0, "AdaptiveRatioBp": 0, "MaxHPRatioBp": 0,
+        "ResistRatioBp": 0, "HealMissingBp": 0, "DamageType": 0,
         "DurationMs": 0, "DelayMs": 0, "RatioBp": 0,
         "DistanceCm": rational(), "RadiusCm": rational(), "Stats": [],
         "ArmorRatioBp": 0, "IntervalMs": 0, "CriticalMultiplierBp": 0,
@@ -160,6 +161,7 @@ def effect(value):
     }
     for source, dest in (
         ("base", "BaseP2"), ("ad_ratio", "ADRatioBp"), ("ap_ratio", "APRatioBp"), ("adaptive_ratio", "AdaptiveRatioBp"), ("max_hp_ratio", "MaxHPRatioBp"),
+        ("resist_ratio", "ResistRatioBp"), ("heal_missing_ratio", "HealMissingBp"), ("monster_multiplier", "CostRatioBp"),
         ("duration", "DurationMs"), ("delay", "DelayMs"), ("ratio", "RatioBp"), ("threshold", "RatioBp"),
         ("armor_ratio", "ArmorRatioBp"), ("interval", "IntervalMs"), ("critical_multiplier", "CriticalMultiplierBp"),
         ("cooldown", "AmountMs"), ("momentum", "BaseP2"),
@@ -272,6 +274,64 @@ def card_terms(value, result):
         result["DamageType"] = 0
     elif op == "tally":
         result["DamageType"] = 1
+    elif op == "brain_speed":
+        result["LimitP2"] = scalar(value["ap_step"])
+        result["RatioBp"] = scalar(value["attack_speed_ratio"])
+        result["Count"] = value["haste_step"]
+        result["DamageType"] = 1
+    elif op == "spellblade_echo":
+        result["RatioBp"] = scalar(value["ap_ratio"])
+        result["APRatioBp"] = 0
+        result["DamageType"] = 1
+    elif op == "heavy_mallet":
+        result["ExtraDistanceCm"] = rational(value["cap"])
+        result["RatioBp"] = scalar(value["convert_ratio"])
+    elif op == "projectile_flight_amp":
+        result["SecondaryRatioBp"] = scalar(value["max_ratio"])
+    elif op == "runaway_train":
+        result["RatioBp"] = scalar(value["speed_ratio"])
+        result["SecondaryRatioBp"] = scalar(value["distance_ratio"])
+        result["CostRatioBp"] = scalar(value["wall_refund"])
+        result["DamageType"] = 0
+    elif op == "phantom_molt":
+        result["RatioBp"] = scalar(value["slow_ratio"])
+        result["DurationMs"] = scalar(value["slow_duration"])
+        result["SecondaryDurationMs"] = 0
+        result["DamageType"] = 0
+    elif op == "skate_blade":
+        result["DamageType"] = 0
+    elif op == "tonnage_crush":
+        result["RatioBp"] = scalar(value["max_hp_ratio"])
+        result["MaxHPRatioBp"] = 0
+        result["SecondaryRatioBp"] = scalar(value["monster_ratio"])
+        result["DamageType"] = 0
+    elif op == "hulking_presence":
+        result["LimitP2"] = scalar(value["hp_step"])
+        result["RatioBp"] = scalar(value["area_ratio"])
+        result["SecondaryRatioBp"] = scalar(value["knockback_cut"])
+    elif op == "iron_hedgehog":
+        result["RatioBp"] = scalar(value["resist_ratio"])
+        result["ResistRatioBp"] = 0
+        result["SecondaryRatioBp"] = scalar(value["stance_bonus"])
+        result["DamageType"] = 1
+    elif op == "reactive_plating":
+        result["RatioBp"] = scalar(value["burst_ratio"])
+        result["SecondaryRatioBp"] = scalar(value["crit_bonus"])
+        result["DamageType"] = 0
+    elif op == "desperado":
+        result["RatioBp"] = scalar(value["hp_below"])
+        result["CostRatioBp"] = scalar(value["missing_step"])
+        result["SecondaryRatioBp"] = scalar(value["bonus_ratio"])
+    elif op == "fuel_the_fire":
+        result["DurationMs"] = scalar(value["settle_duration"])
+    elif op == "rogue_works":
+        result["RatioBp"] = scalar(value["hp_share"])
+        result["DamageType"] = 1
+    elif op == "martial_scholar":
+        result["LimitP2"] = scalar(value["ad_threshold"])
+        result["Count"] = value["ap_threshold"]
+        result["BaseP2"] = scalar(value["momentum_steal"])
+        result["RatioBp"] = scalar(value["skill_bonus"])
 
 
 GROUND_KINDS = ("none", "puddle", "ice", "fire", "miasma", "field", "blizzard")
@@ -374,6 +434,63 @@ def branch_terms(value, result):
             result["APRatioBp"] = scalar(value["wire_ap_ratio"]) if "wire_ap_ratio" in value else 0
     elif op == "echo_impact" and "center_ratio" in value:
         result["RatioBp"] = scalar(value["center_ratio"])
+    elif op == "grab_line":
+        result["ExtraDurationMs"] = scalar(value["extra_duration"])
+        result["RatioBp"] = scalar(value["miss_slow"]) if "miss_slow" in value else 0
+        result["DurationMs"] = scalar(value["miss_slow_duration"]) if "miss_slow_duration" in value else 0
+    elif op == "backstab_lunge":
+        result["DurationMs"] = scalar(value["stun_duration"])
+        result["SecondaryDurationMs"] = 0
+        result["SecondaryRatioBp"] = scalar(value["execute_threshold"]) if "execute_threshold" in value else 0
+        result["RatioBp"] = scalar(value["execute_ratio"]) if "execute_ratio" in value else 0
+        result["CostRatioBp"] = scalar(value["stun_refund"]) if "stun_refund" in value else 0
+        result["ExtraDurationMs"] = scalar(value["disarm_duration"]) if "disarm_duration" in value else 0
+        if "crit_shock_radius" in value:
+            result["RadiusCm"] = rational(value["crit_shock_radius"])
+    elif op == "parry_stance":
+        result["RatioBp"] = scalar(value["cut"])
+        result["SecondaryDurationMs"] = scalar(value["disarm_duration"])
+        result["Count"] = value["combo_charges"]
+        result["IntervalMs"] = scalar(value["buff_duration"])
+        result["CostRatioBp"] = scalar(value["miss_refund"])
+        result["LimitP2"] = scalar(value["step_momentum"]) if "step_momentum" in value else 0
+        result["MultiplierBp"] = scalar(value["reflect_ratio"]) if "reflect_ratio" in value else 0
+        result["MaxHPRatioBp"] = scalar(value["shield_max_hp_ratio"]) if "shield_max_hp_ratio" in value else 0
+        result["ExtraDurationMs"] = scalar(value["melee_stun"]) if "melee_stun" in value else 0
+        result["DamageType"] = 0
+    elif op == "warcry_ring":
+        result["RatioBp"] = scalar(value["shield_per_hit_ratio"])
+        result["LimitP2"] = scalar(value["hp_radius_step"]) if "hp_radius_step" in value else 0
+        result["SecondaryRatioBp"] = scalar(value["pulse_shield_ratio"]) if "pulse_shield_ratio" in value else 0
+        result["MultiplierBp"] = scalar(value["wall_vulnerable"]) if "wall_vulnerable" in value else 0
+        result["ExtraDurationMs"] = scalar(value["wall_vulnerable_duration"]) if "wall_vulnerable_duration" in value else 0
+        result["CostRatioBp"] = scalar(value["detonate_shield_ratio"]) if "detonate_shield_ratio" in value else 0
+        if "pulse_breach" in value:
+            result["Count"] = value["pulse_breach"]
+    elif op == "slipper_pickup":
+        result["RatioBp"] = scalar(value["refund_ratio"])
+        result["SecondaryDurationMs"] = scalar(value["buff_duration"])
+    elif op == "frenzy_waves":
+        result["ExtraDistanceCm"] = rational(value["speed"])
+        result["RatioBp"] = scalar(value["lifesteal"]) if "lifesteal" in value else 0
+        result["SecondaryRatioBp"] = 0
+        result["MultiplierBp"] = scalar(value["third_multiplier"]) if "third_multiplier" in value else 0
+        result["ExtraDurationMs"] = scalar(value["extend_on_kill"]) if "extend_on_kill" in value else 0
+        result["LimitP2"] = scalar(value["kill_momentum"]) if "kill_momentum" in value else 0
+        if "breach" in value:
+            result["Count"] = value["breach"]
+        result["DamageType"] = 0
+    elif op == "cordon_line":
+        result["RadiusCm"] = rational(value["length"])
+        result["ExtraDistanceCm"] = rational(value["width"])
+        result["RatioBp"] = scalar(value["ally_amp"])
+        result["SecondaryRatioBp"] = scalar(value["vulnerable_ratio"])
+        result["SecondaryDurationMs"] = scalar(value["vulnerable_duration"])
+        result["ExtraDurationMs"] = scalar(value["second_stun"]) if "second_stun" in value else 0
+        result["AmountMs"] = scalar(value["crossing_haste"]) if "crossing_haste" in value else 0
+        result["MultiplierBp"] = scalar(value["crossing_speed_ratio"]) if "crossing_speed_ratio" in value else 0
+        if "crossing_pierce" in value:
+            result["Count"] = value["crossing_pierce"]
 
 
 def values(value):
@@ -415,7 +532,10 @@ def parameter_projection(parameters):
     for stat in ("MaxHP", "AD", "AP", "Armor", "MagicResist", "HPRegen"):
         rate = stat == "HPRegen"
         result[stat] = {
-            suffix + ("" if rate else "P2"): (rational if rate else scalar)(parameters[f"STAT.{stat}.{suffix}"])
+            suffix + ("" if rate else "P2"): (
+                0 if stat == "AP" and suffix == "PerLevel" and f"STAT.{stat}.{suffix}" not in parameters
+                else (rational if rate else scalar)(parameters[f"STAT.{stat}.{suffix}"])
+            )
             for suffix in ("Base", "PerLevel", "Min", "Max")
         }
     for dest, base, prefix in (
@@ -434,9 +554,9 @@ def parameter_projection(parameters):
         ("SHOWDOWN.UnlockDelaySec", "ShowdownUnlockDelayMs"), ("SHOWDOWN.DurationSec", "ShowdownDurationMs"),
         ("SHOWDOWN.FirstRespawnSec", "ShowdownFirstRespawnMs"),
         ("SHOWDOWN.SecondRespawnSec", "ShowdownSecondRespawnMs"), ("SHOWDOWN.RespawnCutoffSec", "ShowdownRespawnCutoffMs"),
-        ("SHOWDOWN.ClosureStartsSec", "ShowdownClosureStartsMs"),
+        ("SHOWDOWN.ClosureStartsSec", "ShowdownClosureStartsMs"), ("SHOWDOWN.KillGuardBonusSec", "ShowdownKillGuardBonusMs"),
         ("MATCH.FieldSegmentSec", "FieldSegmentMs"),
-        ("REST.OpeningBuildSec", "RestOpeningBuildMs"), ("REST.BuildSec", "RestBuildMs"), ("REST.SignupSec", "RestSignupMs"),
+        ("REST.OpeningBuildSec", "RestOpeningBuildMs"), ("REST.BuildSec", "RestBuildMs"), ("REST.FinalBuildSec", "RestFinalBuildMs"), ("REST.SignupSec", "RestSignupMs"),
         ("REST.DrawSec", "RestDrawMs"), ("REST.BettingSec", "RestBettingMs"), ("REST.PKReadySec", "RestPKReadyMs"),
         ("REST.PKMaxSec", "RestPKMaxMs"), ("REST.SettlementSec", "RestSettlementMs"), ("REST.PayoutSec", "RestPayoutMs"),
         ("REST.ReturnSec", "RestReturnMs"), ("REST.EntryReadyTimeoutSec", "RestEntryReadyTimeoutMs"),
@@ -478,6 +598,8 @@ def parameter_projection(parameters):
         ("COMBAT.KeystoneThickSkinGuardPoints", "KeystoneThickSkinGuardP2"),
         ("COMBAT.KeystoneThickSkinGuardCapRatio", "KeystoneThickSkinGuardCapBp"),
         ("COMBAT.KeystoneThickSkinIntervalSec", "KeystoneThickSkinIntervalMs"), ("COMBAT.KeystoneThickSkinSteadySec", "KeystoneThickSkinSteadyMs"), ("COMBAT.KeystoneThickSkinKnockbackRatio", "KeystoneThickSkinKnockbackBp"),
+        ("COMBAT.KeystoneThickSkinBleedThresholdRatio", "KeystoneThickSkinBleedThresholdBp"),
+        ("COMBAT.KeystoneThickSkinBleedSec", "KeystoneThickSkinBleedMs"), ("COMBAT.KeystoneThickSkinBleedTickSec", "KeystoneThickSkinBleedTickMs"),
         ("COMBAT.KeystoneStrengthDamageRatio", "KeystoneStrengthDamageBp"),
         ("COMBAT.KeystoneBrainsMomentumRefundRatio", "KeystoneBrainsMomentumRefundBp"),
         ("COMBAT.KeystoneBrainsReactionMomentum", "KeystoneBrainsReactionMomentumP2"),
@@ -493,6 +615,8 @@ def parameter_projection(parameters):
     ):
         result[dest] = scalar(parameters[source])
     result["AirdropLandMs"] = [scalar(value) for value in parameters["AIRDROP.LandSec"]]
+    result["ShowdownSprayRatchetMs"] = [scalar(value) for value in parameters["SHOWDOWN.SprayRatchetSec"]]
+    result["ShowdownGuardRatchetMs"] = [scalar(value) for value in parameters["SHOWDOWN.GuardRatchetSec"]]
     for source, dest in (
         ("UNIT.CollisionRadiusCm", "CollisionRadiusCm"), ("VISION.RadiusCm", "VisionRadiusCm"),
         ("CAPTURE.RadiusCm", "CaptureRadiusCm"),
@@ -510,6 +634,7 @@ def parameter_projection(parameters):
         result[dest] = rational(parameters[source])
     for source, dest in (
         ("XP.BaseToNext", "XPBaseToNext"), ("XP.IncreasePerLevel", "XPIncreasePerLevel"),
+        ("XP.SteepFromLevel", "XPSteepFromLevel"), ("XP.SteepExtraPerLevel", "XPSteepExtraPerLevel"),
         ("REWARD.PlayerXP.Base", "PlayerXPBase"), ("REWARD.PlayerXP.PerLevel", "PlayerXPPerLevel"), ("REWARD.BountyXP", "BountyXP"), ("REWARD.BountyCardOffer", "BountyCardOffer"),
         ("CAMP.ReturnDeadEndPlans", "CampReturnDeadEndPlans"), ("CAMP.GrowthMaxStage", "CampGrowthMaxStage"),
         ("AIRDROP.RewardXP", "AirdropRewardXP"), ("LEADER.MinLevel", "LeaderMinLevel"),
@@ -584,7 +709,8 @@ def parameter_projection(parameters):
     result["DamageFactorTechCapBp"] = scalar(parameters["DAMAGE.FactorTechCap"])
     result["ChainEndMs"] = scalar(parameters["CHAIN.EndSec"])
     result["Cards"] = {dest: parameters["CARDS." + dest] for dest in (
-        "CapacityBase", "LevelsPerSlot", "OfferSize", "FreeRerolls", "RerollsPerRest", "VocabWeight", "SkipPoints", "OfferEveryLevels")}
+        "CapacityBase", "LevelsPerSlot", "OfferSize", "FreeRerolls", "RerollsPerRest", "SkipPoints", "OfferEveryLevels")}
+    result["Cards"]["VocabWeightBp"] = scalar(parameters["CARDS.VocabWeight"])
     result["Cards"]["IdleCarryMs"] = scalar(parameters["CARDS.IdleCarrySec"])
     o = lambda key: parameters["OBJECTIVE." + key]
     result["Objective"] = {
@@ -614,7 +740,8 @@ def parameter_projection(parameters):
         "AuditTelegraphCutBp": scalar(a("AuditTelegraphCut")), "AuditSkillPointsMax": a("AuditSkillPointsMax"),
     }
     x = lambda key: parameters["EXPLORE." + key]
-    result["Medal"] = {field: scalar(parameters[key]) for key, field in (("MEDAL.LevelChance", "LevelChanceBp"), ("MEDAL.CampLowChance", "CampLowChanceBp"), ("MEDAL.CampHighChance", "CampHighChanceBp"), ("MEDAL.CampEliteChance", "CampEliteChanceBp"), ("MEDAL.CampAncientChance", "CampAncientChanceBp"), ("MEDAL.BossChance", "BossChanceBp"), ("MEDAL.EventChance", "EventChanceBp"))}
+    result["Medal"] = {field: scalar(parameters[key]) for key, field in (("MEDAL.LevelChance", "LevelChanceBp"), ("MEDAL.CampLowChance", "CampLowChanceBp"), ("MEDAL.CampHighChance", "CampHighChanceBp"), ("MEDAL.CampEliteChance", "CampEliteChanceBp"), ("MEDAL.CampAncientChance", "CampAncientChanceBp"), ("MEDAL.BossChance", "BossChanceBp"), ("MEDAL.EventChance", "EventChanceBp"), ("MEDAL.Tier2ReactionBonusRatio", "Tier2ReactionBonusBp"))}
+    result["Medal"]["MaxTier"] = parameters["MEDAL.MaxTier"]
     result["Explore"] = {
         "LockerCount": x("LockerCount"), "LockerRadiusCm": rational(x("LockerRadiusCm")),
         "LockerChannelMs": scalar(x("LockerChannelSec")),
@@ -626,8 +753,9 @@ def parameter_projection(parameters):
         "LockerStayMs": scalar(x("LockerStaySec")),
     }
     result["Shop"] = {dest: parameters["SHOP." + dest] for dest in (
-        "CardSlots", "VocabCardSlots", "VocabWeight", "SkillSlots", "CardPrice", "SkillPrice", "RefreshPrice", "RefreshStep",
+        "CardSlots", "VocabCardSlots", "SkillSlots", "CardPrice", "SkillPrice", "RefreshPrice", "RefreshStep",
         "SkillPointPrice", "SkillPointMaxPerMatch")}
+    result["Shop"]["VocabWeightBp"] = scalar(parameters["SHOP.VocabWeight"])
     result["AI"] = {}
     for source, dest in (
         ("RetreatHPRatio", "RetreatHPBp"), ("ResumeFarmHPRatio", "ResumeFarmHPBp"),
@@ -656,6 +784,9 @@ def parameter_projection(parameters):
         "SkillHitP2": scalar(parameters["MOMENTUM.SkillHit"]), "ReactionP2": scalar(parameters["MOMENTUM.Reaction"]),
         "PerfectDodgeP2": scalar(parameters["MOMENTUM.PerfectDodge"]),
         "PerfectDodgeWindowMs": scalar(parameters["MOMENTUM.PerfectDodgeWindowSec"]),
+        "DashDodgeWindowMs": scalar(parameters["MOMENTUM.DashDodgeWindowSec"]),
+        "DashDodgeCutBp": scalar(parameters["MOMENTUM.DashDodgeCutRatio"]),
+        "DashDodgeCooldownRefundBp": scalar(parameters["MOMENTUM.DashDodgeCooldownRefundRatio"]),
         "IdleDelayMs": scalar(parameters["MOMENTUM.IdleDelaySec"]),
         "IdleReturnPerSec": rational(parameters["MOMENTUM.IdleReturnPerSec"]),
     }
@@ -1123,15 +1254,16 @@ def _export_cases(output, index, base, value_mutations, valid, written):
     bad_content("long_id", lambda d: d["abilities"][0].update({"id": "a" * 64}), "string length")
     bad_content("duplicate_ability", lambda d: d["abilities"].__setitem__(1, deepcopy(d["abilities"][0])), "duplicate")
     bad_content("retired_rank_field", lambda d: d["abilities"][0].update({"ranks": []}), "unknown field")
-    bad_content("sock_shot_wrong_target", lambda d: d["abilities"][0].update({"id": "active_sock_shot", "native_id": 116}),
+    # The bolt's first effect is damage and it does not target Self or GroundPoint (the payload sorts abilities by id).
+    bolt = lambda d: next(a for a in d["abilities"] if a["id"] == "active_snark_bolt")
+    bad_content("sock_shot_wrong_target",
+                lambda d: bolt(d).update({"target": {"mode": "GroundPoint", "range": {"unit": "cm", "numerator": 500, "denominator": 1}}}),
                 "wrong definition target")
     bad_content("wrong_opcode", lambda d: d["abilities"][0]["effects"][0].update({"opcode": 255}), "opcode")
     bad_content("unknown_effect", lambda d: d["abilities"][0]["effects"][0].update({"op": "unknown_op"}), "opcode")
     bad_content("duplicate_effect", lambda d: d["abilities"][0]["effects"].append(deepcopy(d["abilities"][0]["effects"][0])), "duplicate effect")
     bad_content("unknown_effect_field", lambda d: d["abilities"][0]["effects"][0].update({"unexpected": 1}), "unknown field")
     bad_content("retired_effect_op", lambda d: d["abilities"][0]["effects"].append({"op": "pierce", "opcode": 73}), "opcode")
-    # The bolt's first effect is damage and it does not target Self (the payload sorts abilities by id).
-    bolt = lambda d: next(a for a in d["abilities"] if a["id"] == "active_snark_bolt")
     bad_content("bad_damage_type", lambda d: bolt(d)["effects"][0].update({"damage_type": "True"}), "unknown damage type")
     bad_content("wrong_target", lambda d: bolt(d).update({"target": {"mode": "Self"}}), "wrong definition target")
     # #147: fits ungrown, overflows once grown for the top level.
@@ -1153,7 +1285,7 @@ def _export_cases(output, index, base, value_mutations, valid, written):
     bad_content("missing_stat", lambda d: d["stats"].pop(), "array length")
     bad_content("retired_stat_id", lambda d: stat(d, "stat_agility").update({"native_id": 26}), "renumbered native ID")
     bad_content("attribute_card_section", lambda d: d.update({"attributes": []}), "unknown field")
-    bad_content("bad_xp_derived", lambda d: d["progression"]["xp_to_next"].__setitem__(0, 1), "linear XP")
+    bad_content("bad_xp_derived", lambda d: d["progression"]["xp_to_next"].__setitem__(0, 1), "XP formula")
     bad_content("unreachable_active_offer_level", lambda d: d["progression"].update({"active_offer_levels": [1]}), "integer outside")
     bad_content("unsorted_active_offer_levels", lambda d: d["progression"].update({"active_offer_levels": [6, 3]}),
                 "active offer levels")

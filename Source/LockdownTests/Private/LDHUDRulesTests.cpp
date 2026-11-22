@@ -1790,6 +1790,23 @@ bool FLDHUDChoicesFoldTest::RunTest(const FString& Parameters)
         Combat.Revision=4;Combat.HPP2=48100;Combat.AsOfMs=3000;
         TestFalse(TEXT("Regeneration is not a hit"),IsHit(Observe()));
     }
+    {
+        // Stashed in-combat badge counts all queued active opportunities and queued card offers, with current-offer fallback.
+        FLDProgressionView Prog;
+        Prog.bValid=true;Prog.Generation=7;
+        Prog.bHasActiveOffer=true;Prog.ActiveOffer.Options={FName(TEXT("active_elbow"))};
+        Prog.QueuedActiveOpportunities=3;
+        Prog.Actives={{FName(TEXT("active_seethe")),0,ELDSkillBranch::None}};
+        Prog.PendingBlueprints={FName(TEXT("active_zap"))};
+        Prog.bHasCardOffer=true;Prog.CardOffer.Options={FName(TEXT("card_hard_skin"))};
+        Prog.QueuedCardOffers=2;
+        const LDHUD::FGrowthPending Pending=LDHUD::GrowthPending(&Prog,7,nullptr);
+        TestEqual(TEXT("StashedCount sums all 3 queued active offers, 1 installable blueprint, and 2 queued card offers"),
+            Pending.StashedCount(),6);
+        Prog.QueuedActiveOpportunities=0;Prog.QueuedCardOffers=0;
+        TestEqual(TEXT("StashedCount falls back to 1 when a current offer has zero reported queue count"),
+            LDHUD::GrowthPending(&Prog,7,nullptr).StashedCount(),3);
+    }
     return true;
 }
 // Spec §12 结算“本局最离谱”: one row per contender of the result in its order (at most six), its longest chain as step names and its
@@ -2040,7 +2057,7 @@ bool FLDHUDWorkshopPreviewTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("K08 compares the compiled cooldown without claiming a conditional effect"),
         Preview.Status==EStatus::Ready&&!Preview.bPartial
         &&Preview.Lines.ContainsByPredicate([](const LDWorkshopPreview::FLine& Line)
-            {return Line.Label.Contains(LDTerms::WorkshopCooldown)&&Line.Before==TEXT("6.3s")&&Line.After==TEXT("4.095s");}));
+            {return Line.Label.Contains(LDTerms::WorkshopCooldown)&&Line.Before==TEXT("6s")&&Line.After==TEXT("3.9s");}));
     ++View.CombatInstalledRevision;
     TestTrue(TEXT("Mismatched installed revisions wait for synchronization"),LDWorkshopPreview::Compare(Input).Status==EStatus::Synchronizing);
     --View.CombatInstalledRevision;
@@ -2074,8 +2091,8 @@ bool FLDHUDWorkshopPreviewTest::RunTest(const FString& Parameters)
     }
     int64 OldCooldown=0,NewCooldown=0;FString Error;
     if(!TestTrue(TEXT("Both expected cooldowns use the authority formula"),
-        LDTactical::CooldownDurationMs(6300,Effective.Value->Final.CooldownHasteP2,Content.Formulas.HasteScaleP2,OldCooldown,Error)
-        &&LDTactical::CooldownDurationMs(4095,Effective.Value->Final.CooldownHasteP2,Content.Formulas.HasteScaleP2,NewCooldown,Error)))
+        LDTactical::CooldownDurationMs(6000,Effective.Value->Final.CooldownHasteP2,Content.Formulas.HasteScaleP2,OldCooldown,Error)
+        &&LDTactical::CooldownDurationMs(3900,Effective.Value->Final.CooldownHasteP2,Content.Formulas.HasteScaleP2,NewCooldown,Error)))
     {return false;}
     const LDWorkshopPreview::FResult Live=LDWorkshopPreview::Compare(Input);
     const LDWorkshopPreview::FLine* Cooldown=Live.Lines.FindByPredicate([](const LDWorkshopPreview::FLine& Line)
@@ -2769,6 +2786,31 @@ bool FLDHUDLiveSkillTooltipTest::RunTest(const FString& Parameters)
         &&FullTip.FormulaLines[3].Contains(TEXT("构筑乘区"))
         &&FullTip.FormulaLines[4].Contains(FString::Printf(TEXT("= %lld"),(ExpectedFinalDmgP2+50)/100))
         &&FullTip.FormulaLines.Last().Contains(TEXT("技能急速")));
+
+    // Non-elemental skill (active_elbow) bare vs equipped with medal_fire reflects elemental overdrive in live tooltip.
+    if(const FLDDemoAbilityDefinition* Elbow=Content.Abilities.FindByPredicate([](const FLDDemoAbilityDefinition& A){return A.Id==TEXT("active_elbow");}))
+    {
+        LDHUD::FActionInput ElbowIn=In;
+        ElbowIn.DefinitionId=TEXT("active_elbow");
+        ElbowIn.Name=LDHUD::ContentName(&Content,TEXT("active_elbow"));
+        ElbowIn.MomentumCostP2=Elbow->Values.MomentumCostP2;
+        ElbowIn.CooldownMs=Elbow->Values.CooldownMs;
+        const LDHUD::FActionView ElbowView=LDHUD::Action(ElbowIn,Ctx);
+        FLDProgressionView ElbowBuild=BareBuild;
+        ElbowBuild.Actives[0].DefinitionId=TEXT("active_elbow");
+        const LDHUD::FLiveSkillTooltip PlainElbowTip=LDHUD::EvaluateLiveSkillTooltip(ElbowView,ElbowIn,Ctx,&ElbowBuild,&OwnCombat,&Content,false);
+        FLDCardInstanceView EquippedFire=StoredStone;
+        EquippedFire.Target.Kind=ELDCardTargetKind::Skill;
+        EquippedFire.Target.Active=TEXT("active_elbow");
+        ElbowBuild.Cards={EquippedFire};
+        const LDHUD::FLiveSkillTooltip FireElbowTip=LDHUD::EvaluateLiveSkillTooltip(ElbowView,ElbowIn,Ctx,&ElbowBuild,&OwnCombat,&Content,false);
+        TestTrue(TEXT("Non-elemental active_elbow shows plain overdrive bare and Fire overdrive once medal_fire is equipped"),
+            PlainElbowTip.OverdriveElement==uint8(ELDDemoSkillElement::None)
+            &&PlainElbowTip.Detail.Body.Contains(TEXT("爆劲："))
+            &&FireElbowTip.OverdriveElement==uint8(ELDDemoSkillElement::Fire)
+            &&FireElbowTip.Detail.Body.Contains(TEXT("火爆劲："))
+            &&FireElbowTip.Detail.Body.Contains(LDHUD::ContentName(&Content,TEXT("medal_fire"))));
+    }
 
     // #328 §4.4: 6-player tactical scoreboard combines roster, leader crown, graffiti guard bar and sighted skills.
     FLDPublicMatchView Public;Public.Generation=1;Public.Phase=ELDMatchPhase::CaptureOpen;

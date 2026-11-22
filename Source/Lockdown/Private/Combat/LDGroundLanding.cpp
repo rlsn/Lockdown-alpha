@@ -19,13 +19,16 @@ bool LDGroundLanding::Resolve(const ULDMapRegistry& Registry, const FVector& Cas
     {
         FVector Point=CasterFoot+Reach*(double(Steps-Step)/Steps);
         FVector Normal;
-        Registry.GetTerrain().Ground(FVector2D(Point.X,Point.Y),Point.Z,Normal);
+        if (!Registry.ResolveWalkableGround(FVector2D(Point.X,Point.Y),Point,&Normal))
+        {
+            Registry.GetTerrain().Ground(FVector2D(Point.X,Point.Y),Point.Z,Normal);
+        }
         FLDLegalGround Ground;
         ELDWorldQueryFailure Failure=ELDWorldQueryFailure::None;
         if (!Registry.QueryGround(Registry.Revision(),Point,Capsule,Surface,Ground,Failure,Error))
         {
             if (Failure!=ELDWorldQueryFailure::Blocked && Failure!=ELDWorldQueryFailure::NotGrounded
-                && Failure!=ELDWorldQueryFailure::InvalidPosition) { return false; }
+                && Failure!=ELDWorldQueryFailure::WrongSurface && Failure!=ELDWorldQueryFailure::InvalidPosition) { return false; }
             Error.Reset();
             continue;
         }

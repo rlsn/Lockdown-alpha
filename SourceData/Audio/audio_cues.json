@@ -409,6 +409,54 @@
       "loudness_lufs": -23.01,
       "level_db": -12.0,
       "volume": 0.275
+    },
+    {
+      "cue": "SelfPerfectDodge",
+      "pack": "kenney-digital-audio",
+      "source": "Kenney/DigitalAudio/threeTone2.ogg",
+      "pack_path": "Audio/threeTone2.ogg",
+      "sha256": "124198c80ff2e1826230be606aa3dcdd90262272bb545f621a9eb91dccfd5c9d",
+      "duration_sec": 0.866,
+      "purpose": "精准闪避触发成功",
+      "loudness_lufs": -11.59,
+      "level_db": -3.0,
+      "volume": 0.68
+    },
+    {
+      "cue": "SelfParry",
+      "pack": "kenney-interface-sounds",
+      "source": "Kenney/InterfaceSounds/bong_001.ogg",
+      "pack_path": "Audio/bong_001.ogg",
+      "sha256": "d21d0f0b782445db579d11e2506b24cd1ac9d664ee33aeaf807761aa7b6fd710",
+      "duration_sec": 0.123,
+      "purpose": "卸力招架反震触发",
+      "loudness_lufs": -22.66,
+      "level_db": -1.0,
+      "volume": 0.94
+    },
+    {
+      "cue": "SelfPickup",
+      "pack": "kenney-interface-sounds",
+      "source": "Kenney/InterfaceSounds/pluck_002.ogg",
+      "pack_path": "Audio/pluck_002.ogg",
+      "sha256": "c977fe249ff42d1c93a552b33abc13a8399df3879fa510475426e5c4bbac1da9",
+      "duration_sec": 0.165,
+      "purpose": "拾取地面拖鞋或清营回复球",
+      "loudness_lufs": -20.31,
+      "level_db": -2.0,
+      "volume": 0.78
+    },
+    {
+      "cue": "UIMedalFuse",
+      "pack": "kenney-digital-audio",
+      "source": "Kenney/DigitalAudio/powerUp7.ogg",
+      "pack_path": "Audio/powerUp7.ogg",
+      "sha256": "9048d651b51f528099c384566b0d4c6c597bee8b56c48f3adab7a901feba0fa5",
+      "duration_sec": 0.522,
+      "purpose": "同色元素石融合升阶",
+      "loudness_lufs": -11.65,
+      "level_db": -2.0,
+      "volume": 0.72
     }
   ],
   "music": [

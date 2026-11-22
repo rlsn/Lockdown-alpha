@@ -30,9 +30,9 @@ AUTHOR_INPUT_PATHS = (CONTENT_SOURCE, SCHEMA_SOURCE, IDS_SOURCE, NATIVE_IDS)
 WORLD_SOURCE = Path("SourceData", "World", "demo_world.json")
 WORLD_SCHEMA_SOURCE = Path("SourceData", "World", "demo_world.schema.json")
 INPUT_PATHS = (*AUTHOR_INPUT_PATHS, WORLD_SOURCE, WORLD_SCHEMA_SOURCE, WORLD_OUTPUT, WORLD_CONTRACT)
-SCHEMA_VERSION = 7
-HANDLER_REVISION = 14
-PROJECTION_REVISION = 10
+SCHEMA_VERSION = 8
+HANDLER_REVISION = 15
+PROJECTION_REVISION = 11
 NATIVE_IDS_SCHEMA_VERSION = 2
 INT64_MAX = (1 << 63) - 1
 INT64_MIN = -(1 << 63)
@@ -49,7 +49,7 @@ NATIVE_ENUMS = {
 # Inclusive native numbers that are never reused (#198 retires the passives, cower, attribute cards, their statuses and
 # unused ops; #287 P2 retires the components 1-63 below the cards; P4 retires the grievous status and operation and the
 # projectile zone).
-RETIRED_RANGES = {"abilities": [[0, 91], [104, 113], [119, 125]], "stats": [[0, 26]], "cards": [[0, 199], [214, 218], [237, 242], [255, 255]],
+RETIRED_RANGES = {"abilities": [[0, 91], [101, 101], [104, 113], [116, 116], [118, 125], [130, 130]], "stats": [[0, 26]], "cards": [[0, 199], [214, 218], [237, 242], [255, 255]],
                   "final_mods": [[2, 2], [5, 5], [11, 11], [15, 15], [21, 24]],
                   "statuses": [[7, 8], [11, 11], [15, 19], [21, 24], [28, 29], [33, 33]],
                   "effect_ops": [[5, 6], [9, 11], [15, 17], [19, 19], [23, 23], [25, 30], [32, 36], [38, 39], [41, 49], [51, 51], [53, 53], [55, 68], [72, 76], [83, 89], [96, 96], [100, 100], [102, 102], [104, 104], [120, 129], [131, 137], [139, 145], [147, 151], [154, 154], [159, 159], [161, 161], [165, 169], [195, 195], [235, 235]]}
@@ -78,6 +78,8 @@ EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "dash",
                        "wet", "electrify", "chain_bounce", "brace", "zone_wet", "zone_haste",
                        # Issue #287 P4: chill and rot, the ground states a skill leaves and N2's fan.
                        "chill", "rot", "ground_state", "fan", "bag",
+                       # Issue #345 orthogonal skill & rework mechanics.
+                       "grab_line", "backstab_lunge", "parry_stance", "warcry_ring", "slipper_pickup", "frenzy_waves", "cordon_line",
                        "projectile_return", "projectile_pierce", "echo_impact", "zone_tether", "final_knockback",
                        "empower_reach", "pull",
                        # Skill branch operations (issue #287 spec §5.1).
@@ -96,7 +98,11 @@ CARD_ONLY_OPS = frozenset(("thorns", "lifesteal", "triggered_shield", "basic_ele
                            # Issue #292 P5 cards (spec §7).
                            "basic_projectile", "combo_sweep", "combo_cast", "speed_factor", "hit_growth", "control_amp",
                            "reshape", "shield_spend", "recent_cast_amp", "dodge_free_cast", "dash_ram", "overdrive_short",
-                           "tally"))
+                           "tally",
+                           # Issue #345 cross-axis synergy unlock cards.
+                           "brain_speed", "spellblade_echo", "heavy_mallet", "projectile_flight_amp", "eagle_stance",
+                           "runaway_train", "phantom_molt", "skate_blade", "tonnage_crush", "hulking_presence",
+                           "iron_hedgehog", "reactive_plating", "desperado", "fuel_the_fire", "rogue_works", "martial_scholar"))
 # burn, breach and empower_basic also have an active form; shield_burst_break is S13 A1's branch and Y06's card.
 CARD_OPS = CARD_ONLY_OPS | {"burn", "breach", "empower_basic", "shield_burst_break"}
 EFFECT_OPS = EFFECT_OPS | CARD_ONLY_OPS
@@ -106,9 +112,10 @@ FORM_OPS = {
     "skill": frozenset(("hit_haste_other", "skill_hit_momentum", "setup_mark", "auto_recast", "cooldown_cost",
                         "skill_damage_factor", "hp_cost", "skill_ad_rider", "skill_lifesteal", "idle_ready_amp",
                         "skill_growth", "reaction_haste", "takedown_reset", "control_amp", "reshape",
-                        "shield_spend", "recent_cast_amp")),
+                        "shield_spend", "recent_cast_amp", "fuel_the_fire")),
     "dash": frozenset(("dash_contact_reset", "hit_haste_other", "empower_basic", "dash_split", "dash_phase",
-                       "dash_ice", "ground_relocate", "dodge_free_cast", "dash_ram", "cooldown_cost", "hit_growth")),
+                       "dash_ice", "ground_relocate", "dodge_free_cast", "dash_ram", "cooldown_cost", "hit_growth",
+                       "runaway_train", "phantom_molt")),
     "body": frozenset(("thorns", "takedown_reset", "last_stand", "reaction_momentum", "reaction_element", "triggered_shield",
                        "knockback_impact", "skill_crit", "lifesteal_skills", "armor_to_hp", "overheal_shield",
                        "missing_hp_attack_speed", "haste_momentum", "lifesteal", "heal_growth", "kill_growth",
@@ -116,7 +123,9 @@ FORM_OPS = {
                        "double_stall", "ground_growth", "shield_burst_break", "overdrive_short", "speed_factor", "tally",
                        "breach", "combo_momentum", "basic_cooldown_cut", "combo_skill_hit", "combo_knockback", "combo_double",
                        "overcap_extra_hit", "basic_ap_rider", "focus_attack_speed", "basic_projectile", "combo_sweep",
-                       "combo_cast", "hit_growth")),
+                       "combo_cast", "hit_growth", "brain_speed", "spellblade_echo", "heavy_mallet",
+                       "projectile_flight_amp", "eagle_stance", "skate_blade", "tonnage_crush", "hulking_presence",
+                       "iron_hedgehog", "reactive_plating", "desperado", "rogue_works", "martial_scholar")),
     "medal": frozenset(("skill_element",)),
 }
 CARD_FORMS = ("skill", "dash", "body", "medal")
@@ -505,7 +514,7 @@ def validate_native_ids(root, value):
         require(type(mapping) is dict and mapping, "NativeId", section, "missing ID mapping")
         for name, number in mapping.items():
             definition_id(name, section)
-            integer(number, name, 0, 65535 if section == "cards" else 255)
+            integer(number, name, 0, 65535 if section in ("cards", "effect_ops") else 255)
         require(len(set(mapping.values())) == len(mapping), "DuplicateId", section, "duplicate native number")
         declared = native_ids(root, NATIVE_IDS, enum_name)
         expected = {re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower(): number for name, number in declared.items()}
@@ -569,6 +578,9 @@ _PAIRED_FIELDS = {
     "lifesteal": (("hp_below", "low_hp_multiplier"),),
     "triggered_shield": (("burst_ratio", "burst_radius"),),
     "channel_cone": (("slow", "slow_duration"),),
+    "grab_line": (("miss_slow", "miss_slow_duration"),),
+    "backstab_lunge": (("execute_threshold", "execute_ratio"),),
+    "warcry_ring": (("wall_vulnerable", "wall_vulnerable_duration"),),
 }
 
 
@@ -622,6 +634,39 @@ def _validate_new_effect(effect, path):
         require(effect["interval"]["ms"] <= effect["duration"]["ms"], "InvalidTiming", path, "a fan blows inside its life")
         require(quantity(effect["length"]) > 0 and quantity(effect["width"]) > 0 and quantity(effect["distance"]) > 0,
                 "InvalidGeometry", path, "a fan blows a positive rectangle a positive distance")
+    if effect["op"] == "grab_line" and "miss_slow" in effect:
+        require(0 < quantity(effect["miss_slow"]) < 1, "NumericDomain", path, "miss slow must keep some move speed")
+    if effect["op"] == "backstab_lunge":
+        require(0 < quantity(effect["angle"]) <= 180, "InvalidGeometry", path, "backstab arc must lie in (0, 180]")
+        if "execute_threshold" in effect:
+            require(0 < quantity(effect["execute_threshold"]) < 1 and 0 < quantity(effect["execute_ratio"]) <= 1,
+                    "NumericDomain", path, "execute threshold and ratio must be positive fractions")
+        if "stun_refund" in effect:
+            require(0 < quantity(effect["stun_refund"]) < 1, "NumericDomain", path, "stun refund stays below 100%")
+    if effect["op"] == "parry_stance":
+        require(0 < quantity(effect["cut"]) < 1 and quantity(effect["radius"]) > 0
+                and 0 < quantity(effect["miss_refund"]) < 1, "NumericDomain", path,
+                "parry stance needs a fractional cut, positive counter radius and fractional miss refund")
+        require(set(effect["stats"]) <= TEMPORARY_STATS, "UnknownField", path, "parry stats must be temporary")
+        _positive_stats(effect["stats"], path)
+    if effect["op"] == "warcry_ring":
+        require(0 < quantity(effect["shield_per_hit_ratio"]) <= 1, "NumericDomain", path,
+                "warcry shield bonus per hit must be positive")
+    if effect["op"] == "slipper_pickup":
+        require(quantity(effect["radius"]) > 0 and 0 < quantity(effect["refund_ratio"]) < 1,
+                "NumericDomain", path, "slipper pickup needs positive radius and fractional cooldown refund")
+        require(set(effect["stats"]) <= TEMPORARY_STATS, "UnknownField", path, "slipper stats must be temporary")
+        _positive_stats(effect["stats"], path)
+    if effect["op"] == "frenzy_waves":
+        require(quantity(effect["distance"]) > 0 and quantity(effect["radius"]) > 0
+                and any(quantity(effect[k]) > 0 for k in ("base", "adaptive_ratio")),
+                "InvalidGeometry", path, "frenzy waves need positive reach, width and wave damage")
+        require(set(effect["stats"]) <= TEMPORARY_STATS, "UnknownField", path, "frenzy stats must be temporary")
+        _positive_stats(effect["stats"], path)
+    if effect["op"] == "cordon_line":
+        require(quantity(effect["length"]) > 0 and quantity(effect["width"]) > 0 and quantity(effect["distance"]) > 0
+                and 0 < quantity(effect["ally_amp"]) <= 1 and 0 < quantity(effect["vulnerable_ratio"]) < 1,
+                "InvalidGeometry", path, "cordon line needs positive geometry, bounce and projectile bonus")
 
 
 def _validate_action(target, effects, path):
@@ -631,22 +676,25 @@ def _validate_action(target, effects, path):
                            "knockback", *HOSTILE_OPS, "silence", "breach", "burn", "empower_basic", *ELEMENT_OPS,
                            "brace", "vulnerable", "momentum_gain", "pulse", "burn_burst", "self_buff", "basic_rider",
                            "shield_reflect", "shield_end_heal", "shield_hit_bonus", "brace_stun", "brace_heal", "brace_stack",
-                           "brace_shove", "brace_shield", "pull")),
+                           "brace_shove", "brace_shield", "pull", "parry_stance", "warcry_ring", "frenzy_waves")),
         "Unit": frozenset(("damage", "root", "slow", "disarm", "stun", "silence", "breach", "burn", "knockback",
                            *ELEMENT_OPS, "chain_bounce", "vulnerable", "next_basic_amp", "momentum_gain",
                            "momentum_steal", "follow_up", "recast", "dash_back", "self_buff", "pull", "overcharge")),
         "DirectionProjectile": frozenset(("damage", "slow", "silence", "breach", "burn", "attack_slow", *ELEMENT_OPS,
                                           "knockback", "pull", "projectile_return", "projectile_pierce",
-                                          "next_basic_amp", "ground_state", "follow_up", "momentum_gain")),
-        "DirectionLine": frozenset(("damage", "knockback", "slow", "burn", *ELEMENT_OPS, "pull", "vulnerable", "momentum_gain")),
+                                          "next_basic_amp", "ground_state", "follow_up", "momentum_gain", "slipper_pickup")),
+        "DirectionLine": frozenset(("damage", "knockback", "root", "slow", "disarm", "breach", "burn", *ELEMENT_OPS,
+                                    "pull", "vulnerable", "momentum_gain", "momentum_steal", "recast", "follow_up",
+                                    "basic_rider", "next_basic_amp", "self_buff", "grab_line")),
         "DirectionDash": frozenset(("dash", "self_area", "empower_basic", "zone", "zone_damage",
-                                    *HOSTILE_OPS, "breach", "burn", "dash_contact", "shield", *ELEMENT_OPS,
+                                    *HOSTILE_OPS, "knockback", "stun", "disarm", "attack_slow", "breach", "burn", "dash_contact", "shield", *ELEMENT_OPS,
                                     "vulnerable", "follow_basic", "recast", "momentum_gain", "delayed_burst", "basic_rider",
-                                    "shield_burst_break", "empower_reach", "final_knockback")),
+                                    "shield_burst_break", "empower_reach", "final_knockback", "dash_back", "self_buff",
+                                    "backstab_lunge")),
         "GroundPoint": frozenset(("zone", "zone_slow", "zone_damage", "zone_burn", "zone_wet", "zone_haste",
                                   "ground_impact", "contact_trap", "damage", "root", "slow", "burn", "knockback", *ELEMENT_OPS,
                                   "zone_tether", "zone_guard", "zone_momentum", "echo_impact", "momentum_gain", "fan",
-                                  "bag", "ground_state")),
+                                  "bag", "ground_state", "cordon_line", "vulnerable")),
         "DirectionCone": frozenset(("channel_cone", "damage", "knockback", "momentum_gain", "final_knockback", "silence", *ELEMENT_OPS,
                                     "ground_state")),
     }[mode]
@@ -675,18 +723,28 @@ def _validate_action(target, effects, path):
     require(not ops & {"zone_tether", "zone_guard", "zone_momentum"} or "zone" in ops, "MissingHandler", path,
             "zone terms need their zone")
     require("echo_impact" not in ops or "ground_impact" in ops, "MissingHandler", path, "an echo repeats a ground impact")
-    require("pull" not in ops or bool(ops & {"knockback", "taunt"}), "MissingHandler", path,
-            "a pull turns a knockback or a taunt toward the caster")
+    require("pull" not in ops or bool(ops & {"knockback", "taunt", "grab_line"}), "MissingHandler", path,
+            "a pull turns a knockback, a grab or a taunt toward the caster")
     require(not ops & {"projectile_return", "projectile_pierce"} or mode == "DirectionProjectile", "MissingHandler", path,
             "return and pierce change a projectile")
     require(not ops & {"empower_reach", "final_knockback"} or bool(ops & {"empower_basic", "channel_cone"}), "MissingHandler",
             path, "reach and final knockback change empowered basics or the last wave")
     require("pulse" not in ops or "self_area" in ops, "MissingHandler", path, "a pulse repeats the self area")
+    require("warcry_ring" not in ops or {"self_area", "shield"} <= ops, "MissingHandler", path,
+            "a warcry ring needs its self area and shield")
+    require("grab_line" not in ops or (mode == "DirectionLine" and "damage" in ops), "MissingHandler", path,
+            "a grab line is a damaging direction line")
+    require("backstab_lunge" not in ops or {"dash", "dash_contact", "damage"} <= ops, "MissingHandler", path,
+            "a backstab lunge needs its dash, contact and damage")
+    require("slipper_pickup" not in ops or mode == "DirectionProjectile", "MissingHandler", path,
+            "a slipper pickup rides a projectile")
+    require("cordon_line" not in ops or "damage" in ops, "MissingHandler", path,
+            "a cordon line carries damage")
     require("burn_burst" not in ops or "burn" in ops, "MissingHandler", path, "a burn burst reads the burn it adds")
     require("recast" not in ops or "damage" in ops, "MissingHandler", path, "a recast repeats a damaging release")
     require("follow_basic" not in ops or "dash_contact" in ops, "MissingHandler", path, "a follow-up basic needs a contact")
     require("chain_bounce" not in ops or "damage" in ops, "MissingHandler", path, "a chain bounce carries damage")
-    require(mode != "GroundPoint" or len(ops & {"zone", "ground_impact", "contact_trap", "fan", "bag"}) == 1,
+    require(mode != "GroundPoint" or len(ops & {"zone", "ground_impact", "contact_trap", "fan", "bag", "cordon_line"}) == 1,
             "MissingHandler", path, "a ground point needs exactly one delivery handler")
     require(mode != "DirectionCone" or {"channel_cone", "damage"} <= ops,
             "MissingHandler", path, "a cone needs its channel and damage")
@@ -719,8 +777,12 @@ def _validate_action(target, effects, path):
                 quantities += [effect["ad_ratio"]]
             if "adaptive_ratio" in effect:
                 quantities += [effect["adaptive_ratio"]]
+            if "resist_ratio" in effect:
+                quantities += [effect["resist_ratio"]]
             require(any(quantity(value) > 0 for value in quantities),
                     "IneffectiveEffect", path, "effect has neither magnitude nor scaling")
+            if "monster_multiplier" in effect:
+                require(quantity(effect["monster_multiplier"]) > 1, "NumericDomain", path, "monster multiplier only strengthens")
         if effect["op"] == "slow":
             require(0 < quantity(effect["ratio"]) < 1, "NumericDomain", path, "slow must keep some move speed")
         if effect["op"] == "self_area":
@@ -754,6 +816,22 @@ _CARD_MAGNITUDES = {
     "speed_factor": ("ratio",), "control_amp": ("ratio",), "shield_spend": ("ratio",), "recent_cast_amp": ("ratio",),
     "dash_ram": ("ratio", "distance"), "overdrive_short": ("momentum", "multiplier"), "tally": ("base",),
     "shield_burst_break": ("radius",),
+    "brain_speed": ("ap_step", "attack_speed_ratio", "base"),
+    "spellblade_echo": ("ap_ratio", "radius"),
+    "heavy_mallet": ("cap", "convert_ratio"),
+    "projectile_flight_amp": ("distance", "ratio", "max_ratio"),
+    "eagle_stance": ("distance",),
+    "runaway_train": ("speed_ratio", "distance_ratio", "wall_refund"),
+    "phantom_molt": ("radius", "slow_ratio"),
+    "skate_blade": ("distance",),
+    "tonnage_crush": ("max_hp_ratio", "monster_ratio"),
+    "hulking_presence": ("hp_step", "area_ratio", "knockback_cut"),
+    "iron_hedgehog": ("resist_ratio", "stance_bonus"),
+    "reactive_plating": ("burst_ratio", "radius", "crit_bonus"),
+    "desperado": ("hp_below", "missing_step", "bonus_ratio"),
+    "fuel_the_fire": ("settle_duration",),
+    "rogue_works": ("hp_share",),
+    "martial_scholar": ("ad_threshold", "momentum_steal", "skill_bonus"),
 }
 # Spec §7 P5: skill cards that only fit some hosts name them (K07, K10 by delivery; K05, K11 a host that controls).
 CONTROL_OPS = frozenset(("root", "stun", "silence", "disarm", "taunt"))
@@ -853,55 +931,61 @@ def ability_vocab(ability):
     vocab = set()
     if ability["element"] != "none" or ops & {"wet", "electrify", "chill", "rot", "burn", "zone_burn", "zone_wet"}:
         vocab.add("element")
-    if ops & {"ground_state", "fan"}:
+    if ops & {"ground_state", "fan", "cordon_line"}:
         vocab.add("ground")
     if ability["target"]["mode"] == "DirectionDash":
         vocab.update(("dash", "dash_contact") if "dash_contact" in ops else ("dash",))
-    if ops & {"zone", "contact_trap", "ground_impact", "bag"}:
+    if ops & {"zone", "contact_trap", "ground_impact", "bag", "cordon_line"}:
         vocab.add("ground")
-    if ops & {"root", "stun", "silence", "disarm", "taunt"}:
+    if ops & {"root", "stun", "silence", "disarm", "taunt"} or "backstab_lunge" in ops or "parry_stance" in ops:
         vocab.add("control")
-    if ops & {"knockback", "pull"}:
+    if ops & {"knockback", "pull", "cordon_line"}:
         vocab.add("knockback")
-    if ops & {"shield", "brace"}:
+    if ops & {"shield", "brace", "parry_stance"}:
         vocab.add("shield")
-    if ops & {"empower_basic"}:
+    if ops & {"empower_basic", "backstab_lunge", "slipper_pickup", "frenzy_waves", "parry_stance"}:
         vocab.add("basic_hit")
-    if ability["hit_type"] in ("projectile", "area"):
+    if ops & {"frenzy_waves", "parry_stance", "slipper_pickup"}:
+        vocab.add("attack_speed")
+    if ops & {"parry_stance"}:
+        vocab.update(("combo3", "damaged", "armor"))
+    if ops & {"warcry_ring"}:
+        vocab.update(("max_hp", "armor"))
+    if ops & {"backstab_lunge"}:
+        vocab.add("crit")
+    if ability["hit_type"] in ("projectile", "area") or "frenzy_waves" in ops:
         vocab.add("area")
-    if ability["hit_type"] in ("targeted", "projectile"):
+    if ability["hit_type"] in ("targeted", "projectile") or "cordon_line" in ops:
         vocab.add("range")
     return [key for key in CARD_VOCAB if key in vocab]
 
 
 ACTIVE_CONTRACTS = {
     "active_elbow": ("Unit", {"damage", "knockback"}),
-    "active_pants_down": ("Unit", {"damage", "root"}),
-    "active_crotch_grab": ("Unit", {"damage", "stun"}),
-    "active_account_banned": ("Unit", {"damage", "silence"}),
-    "active_unplug": ("Unit", {"damage", "disarm"}),
-    "active_snark_bolt": ("DirectionProjectile", {"damage", "slow"}),
+    "active_pants_down": ("DirectionLine", {"damage", "root", "breach", "grab_line"}),
+    "active_crotch_grab": ("DirectionDash", {"dash", "dash_contact", "damage", "slow", "attack_slow", "backstab_lunge"}),
+    "active_unplug": ("Self", {"parry_stance"}),
+    "active_snark_bolt": ("DirectionProjectile", {"damage", "slow", "slipper_pickup"}),
     "active_seethe": ("Self", {"self_area", "damage", "burn"}),
     "active_quick_meeting": ("GroundPoint", {"zone", "zone_damage", "zone_slow", "zone_burn"}),
     "active_bail_out": ("DirectionDash", {"dash", "empower_basic"}),
-    "active_apology_slide": ("DirectionDash", {"dash", "dash_contact", "damage", "slow"}),
     "active_not_mad": ("Self", {"shield", "dispel_slow", "dispel_root"}),
     "active_stare_down": ("Self", {"taunt", "timed_stat_bonus"}),
     "active_triple_combo": ("Self", {"empower_basic"}),
     "active_calculus_drop": ("GroundPoint", {"ground_impact", "damage"}),
     "active_flyer_trap": ("GroundPoint", {"contact_trap", "damage", "slow"}),
-    "active_open_mic": ("DirectionCone", {"channel_cone", "damage", "knockback"}),
+    "active_open_mic": ("Self", {"self_area", "damage", "knockback", "shield", "warcry_ring"}),
     "active_hose_down": ("DirectionLine", {"damage", "knockback", "wet"}),
     "active_zap": ("Unit", {"damage", "electrify", "chain_bounce"}),
-    "active_charged_ram": ("DirectionDash", {"dash", "shield", "dash_contact", "damage", "electrify"}),
+    "active_charged_ram": ("DirectionDash", {"dash", "shield", "dash_contact", "damage", "knockback"}),
     "active_brace": ("Self", {"brace"}),
-    "active_dirty_puddle": ("GroundPoint", {"zone", "zone_damage", "zone_wet", "zone_haste"}),
-    "active_sock_shot": ("DirectionProjectile", {"damage", "attack_slow", "rot", "knockback"}),
-    # Issue #287 P4 skills N1-N3 (spec §5).
+    # Issue #287 P4 skills N1-N4 + #345 N5-N6.
     "active_cola_shake": ("DirectionCone", {"channel_cone", "damage", "chill", "knockback"}),
     "active_desk_fan": ("GroundPoint", {"fan"}),
     "active_stale_takeout": ("DirectionProjectile", {"damage", "rot", "ground_state", "knockback"}),
     "active_school_bag": ("GroundPoint", {"bag", "damage"}),
+    "active_flurry_rush": ("Self", {"frenzy_waves"}),
+    "active_cordon_tape": ("GroundPoint", {"cordon_line", "damage", "slow"}),
 }
 TIMED_STATS = {"active_stare_down": {"ArmorFlat", "MagicResistFlat"}}
 # #198: the five point-bought stats and the bonuses one point of each adds (flat and additive percent terms).
@@ -1153,7 +1237,7 @@ def validate_numbers(data):
     params = data["parameters"]
     p = lambda key: quantity(params[key])
     level_steps = data["progression"]["max_level"] - 1
-    for stat in ("MaxHP", "AD", "AP", "Armor", "MagicResist", "HPRegen"):
+    for stat in ("MaxHP", "AD", "Armor", "MagicResist", "HPRegen"):
         key = "STAT." + stat
         minimum, maximum = p(key + ".Min"), p(key + ".Max")
         base, growth = p(key + ".Base"), p(key + ".PerLevel")
@@ -1161,6 +1245,8 @@ def validate_numbers(data):
                 "StatBounds", key, "base/level growth is outside the declared projection bounds")
         if stat != "HPRegen":
             checked_add(params[key + ".Base"]["p2"], checked_mul(level_steps, params[key + ".PerLevel"]["p2"], key), key)
+    require(p("STAT.AP.Min") <= p("STAT.AP.Base") <= p("STAT.AP.Max"),
+            "StatBounds", "STAT.AP", "base AP is outside the declared projection bounds")
     require(p("STAT.MaxHP.Min") > 0 and p("STAT.MaxHP.Base") > 0,
             "NumericDomain", "STAT.MaxHP", "alive characters require positive HP")
     require(p("STAT.AD.Base") > 0, "NumericDomain", "STAT.AD.Base", "initial basic attack requires positive damage")
@@ -1250,9 +1336,24 @@ def validate_numbers(data):
     require(p("AIRDROP.HealMaxHPRatio") > 0 and p("AIRDROP.Momentum") > 0
             and p("AIRDROP.MoveSpeedRatio") > 0 and p("AIRDROP.MoveSpeedSec") > 0,
             "InvalidPolicy", "AIRDROP", "healing, momentum and move-speed rewards must all be positive")
-    # #198: PK sign-up is the last part of every rest build window (R0 and R1-R3), not an extra wait.
-    require(p("REST.SignupSec") <= p("REST.BuildSec") and p("REST.SignupSec") <= p("REST.OpeningBuildSec"),
-            "InvalidTiming", "REST.SignupSec", "PK sign-up must fit inside every rest build window")
+    # #198: PK sign-up is the last part of every PK rest build window (R1-R2); R0 and R3 use OpeningBuildSec / FinalBuildSec.
+    require(p("REST.SignupSec") <= p("REST.BuildSec") and p("REST.SignupSec") <= p("REST.OpeningBuildSec")
+            and 0 < p("REST.FinalBuildSec") <= p("REST.BuildSec"),
+            "InvalidTiming", "REST.SignupSec", "PK sign-up must fit inside every rest build window and R3 build stays within BuildSec")
+    spray_ratchets = [quantity(v) for v in params["SHOWDOWN.SprayRatchetSec"]]
+    guard_ratchets = [quantity(v) for v in params["SHOWDOWN.GuardRatchetSec"]]
+    require(0 < spray_ratchets[0] < spray_ratchets[1] < p("CAPTURE.SpraySec")
+            and 0 < guard_ratchets[0] < guard_ratchets[1] < p("CAPTURE.GuardSec")
+            and 0 < p("SHOWDOWN.KillGuardBonusSec") <= p("CAPTURE.GuardSec"),
+            "InvalidTiming", "SHOWDOWN.SprayRatchetSec", "showdown ratchets must ascend strictly inside spray/guard durations")
+    require(0 < p("MOMENTUM.DashDodgeWindowSec") <= quantity(data["character"]["dash"]["duration"])
+            and 0 < p("MOMENTUM.DashDodgeCutRatio") < 1 and 0 < p("MOMENTUM.DashDodgeCooldownRefundRatio") < 1,
+            "InvalidTiming", "MOMENTUM.DashDodgeWindowSec", "innate dash dodge window and cuts must fit inside the dash")
+    require(0 < p("COMBAT.KeystoneThickSkinBleedThresholdRatio") < 1
+            and 0 < p("COMBAT.KeystoneThickSkinBleedTickSec") <= p("COMBAT.KeystoneThickSkinBleedSec"),
+            "InvalidTiming", "COMBAT.KeystoneThickSkinBleedSec", "thick-skin stagger bleed must tick inside its window")
+    require(1 <= params["MEDAL.MaxTier"] <= 3 and p("MEDAL.Tier2ReactionBonusRatio") > 0,
+            "NumericDomain", "MEDAL.MaxTier", "medal fusion tier cap must be 1..3 with positive tier-2 bonus")
     # #198 PK ring: the shrink steps are ordered and end before the PK cap, and every ring lies strictly inside the last.
     require(0 < p("PK.RingShrinkStartSec") < p("PK.RingMidSec") < p("PK.RingFinalSec") < p("REST.PKMaxSec"),
             "InvalidTiming", "PK.RingFinalSec", "ring shrink steps must be ordered and finish before the PK cap")
@@ -1273,12 +1374,18 @@ def validate_numbers(data):
     _validate_momentum(data)
 
     thresholds = [0]
+    steep_from = params["XP.SteepFromLevel"]
+    steep_extra = params["XP.SteepExtraPerLevel"]
     for level in range(1, data["progression"]["max_level"]):
         increment = checked_add(params["XP.BaseToNext"],
                                 checked_mul(level - 1, params["XP.IncreasePerLevel"], "XP"), "XP")
+        if level >= steep_from - 1:
+            increment = checked_add(increment, checked_mul(level - (steep_from - 2), steep_extra, "XP"), "XP")
         thresholds.append(checked_add(thresholds[-1], increment, "XP"))
     require(data["progression"]["xp_thresholds"] == thresholds,
-            "XPThresholds", "progression", "thresholds do not match the explicit linear XP parameters")
+            "XPThresholds", "progression", "thresholds do not match the explicit XP parameters")
+    require(p("CARDS.VocabWeight") >= 1 and p("SHOP.VocabWeight") >= 1,
+            "NumericDomain", "CARDS.VocabWeight", "vocabulary draw weights cannot down-weight matching cards")
     data["progression"]["xp_to_next"] = [b - a for a, b in zip(thresholds, thresholds[1:])]
     checked_add(params["REWARD.PlayerXP.Base"], checked_mul(level_steps, params["REWARD.PlayerXP.PerLevel"], "REWARD.PlayerXP"),
                 "REWARD.PlayerXP")
@@ -1457,6 +1564,7 @@ def _validate_build_envelope(data):
     max_ad = params["STAT.AD.Max"]["p2"]
     max_ap = params["STAT.AP.Max"]["p2"]
     max_hp = params["STAT.MaxHP.Max"]["p2"]
+    max_resist = checked_add(params["STAT.Armor.Max"]["p2"], params["STAT.MagicResist.Max"]["p2"], "STAT.Armor.Max")
     # G(L) = 1 + SKILL.GrowthPerLevel x (L - 1); the top rank and overdrive scale the grown base amounts again.
     top_level = data["progression"]["max_level"]
     factor = checked_add(10000, checked_mul(top_level - 1, params["SKILL.GrowthPerLevel"]["bp"], "SKILL.GrowthPerLevel"),
@@ -1487,6 +1595,8 @@ def _validate_build_envelope(data):
                     numerator = checked_add(numerator, checked_mul(max_ad, effect["ad_ratio"]["bp"], row["id"]), row["id"])
                 if "adaptive_ratio" in effect:
                     numerator = checked_add(numerator, checked_mul(max(max_ad, max_ap), effect["adaptive_ratio"]["bp"], row["id"]), row["id"])
+                if "resist_ratio" in effect:
+                    numerator = checked_add(numerator, checked_mul(max_resist, effect["resist_ratio"]["bp"], row["id"]), row["id"])
                 if effect["op"] == "damage":
                     checked_add(numerator, checked_mul(max_hp, effect["max_hp_ratio"]["bp"], row["id"]), row["id"])
             if effect["op"] == "brace":

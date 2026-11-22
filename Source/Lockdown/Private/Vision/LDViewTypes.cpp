@@ -463,6 +463,7 @@ bool LDObservation::ValidateProjectile(const FLDObservedProjectileView& Projecti
     if (!FMath::IsFinite(Projectile.LengthCm) || Projectile.LengthCm<0
         || (Projectile.Look!=ELDObservedProjectileLook::Road && Projectile.Look!=ELDObservedProjectileLook::LineWarning
             && Projectile.Look!=ELDObservedProjectileLook::Wind && Projectile.Look!=ELDObservedProjectileLook::BagWall
+            && Projectile.Look!=ELDObservedProjectileLook::CordonTape
             && Projectile.LengthCm!=0)
         || !FMath::IsFinite(Projectile.RadiusCm) || !FMath::IsFinite(Projectile.InnerRadiusCm)
         || !FMath::IsFinite(Projectile.AngleDegrees) || Projectile.RadiusCm < 0 || Projectile.RadiusCm > MaxObservedCoordinateCm
@@ -486,6 +487,7 @@ bool LDObservation::ValidateProjectile(const FLDObservedProjectileView& Projecti
     case ELDObservedProjectileLook::Road:
     case ELDObservedProjectileLook::Wind:
     case ELDObservedProjectileLook::BagWall:
+    case ELDObservedProjectileLook::CordonTape:
         if(Projectile.LengthCm<=0 || Projectile.RadiusCm<=0 || Projectile.InnerRadiusCm!=0
             || Projectile.AngleDegrees!=0 || Projectile.WarningRemainingMs!=0)
         {return FailObservation(Error,TEXT("A road needs its walked length and half-width, without a landing warning."));}
@@ -494,6 +496,7 @@ bool LDObservation::ValidateProjectile(const FLDObservedProjectileView& Projecti
     case ELDObservedProjectileLook::Sock:
     case ELDObservedProjectileLook::ChalkReturn:
     case ELDObservedProjectileLook::SockReturn:
+    case ELDObservedProjectileLook::FistWind:
         if (Projectile.RadiusCm != 0 || Projectile.InnerRadiusCm != 0 || Projectile.AngleDegrees != 0
             || Projectile.WarningRemainingMs != 0)
         { return FailObservation(Error, TEXT("A flight cannot carry a ground-effect shape.")); }
@@ -509,6 +512,9 @@ bool LDObservation::ValidateProjectile(const FLDObservedProjectileView& Projecti
     case ELDObservedProjectileLook::AreaFire:
     case ELDObservedProjectileLook::AreaWater:
     case ELDObservedProjectileLook::AreaElectric:
+    case ELDObservedProjectileLook::SlipperDrop:
+    case ELDObservedProjectileLook::PhantomDecoy:
+    case ELDObservedProjectileLook::ShardBurst:
         if (Projectile.RadiusCm <= 0 || Projectile.InnerRadiusCm < 0 || Projectile.AngleDegrees != 0)
         { return FailObservation(Error, TEXT("An observed area needs its public radius and no cone angle.")); }
         break;
@@ -552,16 +558,27 @@ bool LDObservation::ValidateView(const FLDWorldView& View, FString& Error)
     else if (Footprint.SourceStatus == ELDObservationSource::NoLivingBody)
     {
         if (!FVector(Footprint.SourceFeetCm).IsZero() || Footprint.RadiusCm != 0 || Footprint.CurrentBits.Num() != 0
-            || View.Units.Num() != 0 || View.RecentTerminations.Num() != 0 || View.Projectiles.Num() != 0 || View.GroundStates.Num() != 0)
+            || View.Units.Num() != 0 || View.RecentTerminations.Num() != 0 || View.Projectiles.Num() != 0
+            || View.GroundStates.Num() != 0 || View.RecoveryOrbs.Num() != 0)
         { return FailObservation(Error, TEXT("A frame without a living source carries no coverage, unit, termination or projectile.")); }
     }
     else { return FailObservation(Error, TEXT("Unknown observation source status.")); }
     if (View.Units.Num() > MaxUnits || View.RecentTerminations.Num() > MaxTerminations || View.Projectiles.Num() > MaxProjectiles
-        || View.GroundStates.Num() > MaxGroundStates)
+        || View.GroundStates.Num() > MaxGroundStates || View.RecoveryOrbs.Num() > MaxRecoveryOrbs)
     { return FailObservation(Error, TEXT("Observation frame exceeds its bounded capacity.")); }
     for (const FLDObservedGroundState& Ground : View.GroundStates)
     {
         if (!ValidateGround(Ground, Error)) { return false; }
+    }
+    TSet<uint64> OrbSerials;
+    for (const FLDObservedRecoveryOrb& Orb : View.RecoveryOrbs)
+    {
+        bool bDupOrb = false;
+        OrbSerials.Add(Orb.Serial, &bDupOrb);
+        if (Orb.Serial == 0 || bDupOrb || !IsFiniteObservedPoint(Orb.PositionCm))
+        {
+            return FailObservation(Error, TEXT("An observed recovery orb requires a unique nonzero serial and finite position."));
+        }
     }
     TSet<FGuid> Handles;
     for (const FLDObservedUnitView& Unit : View.Units)
@@ -673,6 +690,18 @@ bool FLDWorldView::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuccess)
     for (FLDObservedGroundState& Ground : GroundStates)
     {
         if (!SerializeObservedGround(Ar, Ground)) { return RejectObservationArchive(Ar, bSuccess); }
+    }
+    uint8 OrbCount = uint8(FMath::Min(RecoveryOrbs.Num(), 255));
+    Ar << OrbCount;
+    if (Ar.IsError() || OrbCount > LDObservation::MaxRecoveryOrbs) { return RejectObservationArchive(Ar, bSuccess); }
+    if (Ar.IsLoading()) { RecoveryOrbs.SetNum(OrbCount); }
+    for (FLDObservedRecoveryOrb& Orb : RecoveryOrbs)
+    {
+        if (Ar.IsLoading()) { Orb = FLDObservedRecoveryOrb(); }
+        Ar << Orb.Serial;
+        bool bOrbPos = true;
+        Orb.PositionCm.NetSerialize(Ar, Map, bOrbPos);
+        if (!bOrbPos || Ar.IsError()) { return RejectObservationArchive(Ar, bSuccess); }
     }
     if (Ar.IsError() || (Ar.IsLoading() && !LDObservation::ValidateView(*this, Error))) { return RejectObservationArchive(Ar, bSuccess); }
     bSuccess = true;

@@ -85,9 +85,13 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::Shield:
     case ELDDemoEffectOp::DispelRoot:
     case ELDDemoEffectOp::DispelSlow:
-    // #198 S16: a damage cut that answers when it ends.
+    // #198 S16 & #345 S05: a damage cut that answers when hit or when it ends.
     case ELDDemoEffectOp::Brace:
+    case ELDDemoEffectOp::ParryStance:
         Usage.bSelfProtect |= bSelfTarget;
+        break;
+    case ELDDemoEffectOp::FrenzyWaves:
+        Usage.bEngage = true;
         break;
     case ELDDemoEffectOp::Dash:
         Usage.bMobility = true;
@@ -136,9 +140,11 @@ void ReadEffects(const TArray<FLDDemoEffectDefinition>& Effects, FSourceShape& O
         case ELDDemoEffectOp::Zone: Out.ZoneRadiusCm = FMath::Max(Out.ZoneRadiusCm, ToDouble(Effect.RadiusCm)); break;
         case ELDDemoEffectOp::GroundImpact:
         case ELDDemoEffectOp::ContactTrap: Out.ZoneRadiusCm = FMath::Max(Out.ZoneRadiusCm, ToDouble(Effect.RadiusCm)); break;
-        // N4: a bag is placed on the target like a trap and blows over its radius.
-        case ELDDemoEffectOp::Bag: Out.ZoneRadiusCm = FMath::Max(Out.ZoneRadiusCm, ToDouble(Effect.RadiusCm)); break;
-        case ELDDemoEffectOp::EmpowerBasic: Out.bEmpowerBasic = true; break;
+        // N4 & #345 N6: a bag or cordon is placed on the target like a trap.
+        case ELDDemoEffectOp::Bag:
+        case ELDDemoEffectOp::CordonLine: Out.ZoneRadiusCm = FMath::Max(Out.ZoneRadiusCm, ToDouble(Effect.RadiusCm)); break;
+        case ELDDemoEffectOp::EmpowerBasic:
+        case ELDDemoEffectOp::FrenzyWaves: Out.bEmpowerBasic = true; break;
         case ELDDemoEffectOp::Root: Out.bRoot = true; break;
         case ELDDemoEffectOp::Stun:
         case ELDDemoEffectOp::Silence: Out.bStun = true; break;
@@ -147,7 +153,8 @@ void ReadEffects(const TArray<FLDDemoEffectDefinition>& Effects, FSourceShape& O
             Out.TauntRadiusCm = FMath::Max(Out.TauntRadiusCm, ToDouble(Effect.RadiusCm));
             break;
         case ELDDemoEffectOp::Shield:
-        case ELDDemoEffectOp::Brace: Out.bShield = true; break;
+        case ELDDemoEffectOp::Brace:
+        case ELDDemoEffectOp::ParryStance: Out.bShield = true; break;
         case ELDDemoEffectOp::DispelRoot: Out.bDispelRoot = true; break;
         case ELDDemoEffectOp::Dash:
             Out.bDash = true;
@@ -1701,36 +1708,24 @@ bool PreferActive(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Cat
     return bFound;
 }
 
-// The own allocated points per stat (design order), whether AllocatePoints spends on each, and the preferred first
-// keystone stat. The preference follows the larger learned damage coefficient; defenses remain relevant afterward.
+// The own allocated points per stat (design order), whether AllocatePoints/WantsRespec treat each as build-relevant,
+// and the primary + secondary 18-point keystone targets. Accounts for active Lv2/3 branches, AdaptiveRatioBp, and
+// basic-attack/attack-speed/crit/mobility card & skill vocabulary, without excluding StatAgility.
 bool RelevantStats(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, TArray<int64>& OutPoints,
-    TArray<bool>& OutRelevant, int32& OutKeystoneFocus, FString& Error)
+    TArray<bool>& OutRelevant, int32& OutPrimaryKeystone, int32& OutSecondaryKeystone, FString& Error)
 {
     OutPoints.Reset();
     OutRelevant.Reset();
-    OutKeystoneFocus = INDEX_NONE;
+    OutPrimaryKeystone = INDEX_NONE;
+    OutSecondaryKeystone = INDEX_NONE;
     const auto& Content = Catalog.Get();
     if (Self.StatPoints.Num() != Content.Stats.Num())
     {
         Error = TEXT("The own stat points do not list every catalog stat.");
         return false;
     }
-    int64 ADWeight = 0;
-    int64 APWeight = 0;
-    for (const FLDOpponentActive& Active : Self.Actives)
-    {
-        const FLDDemoAbilityDefinition* Ability = nullptr;
-        if (!Catalog.FindAbility(Active.DefinitionId, Ability, Error) || !Ability) { return false; }
-        for (const FLDDemoEffectDefinition& Effect : Ability->Values.Effects)
-        {
-            ADWeight += Effect.ADRatioBp;
-            APWeight += Effect.APRatioBp;
-        }
-    }
-    const ELDDemoStatId Preferred = APWeight > ADWeight ? ELDDemoStatId::StatBrains
-        : ADWeight > 0 || Content.Character.BasicADRatioBp > 0 ? ELDDemoStatId::StatStrength
-        : ELDDemoStatId::StatPhysique;
     const TArray<const FLDDemoStatDefinition*> StatOrder = Content.StatsInDesignOrder();
+    int64 ExistingStrength = 0, ExistingBrains = 0;
     for (int32 Index = 0; Index < StatOrder.Num(); ++Index)
     {
         const FLDDemoStatDefinition& Stat = *StatOrder[Index];
@@ -1738,15 +1733,164 @@ bool RelevantStats(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Ca
         {
             Error = TEXT("The own stat points are not in the stats' design order.");
             OutPoints.Reset();
-            OutRelevant.Reset();
             return false;
         }
-        OutPoints.Add(Self.StatPoints[Index].Points);
-        const ELDDemoStatId Id = Stat.GetNativeId();
-        OutRelevant.Add(Id == ELDDemoStatId::StatPhysique || Id == ELDDemoStatId::StatThickSkin
-            || (Id == ELDDemoStatId::StatStrength && (ADWeight > 0 || Content.Character.BasicADRatioBp > 0))
-            || (Id == ELDDemoStatId::StatBrains && APWeight > 0));
-        if (Id == Preferred && OutRelevant.Last()) { OutKeystoneFocus = Index; }
+        const int64 Pts = Self.StatPoints[Index].Points;
+        OutPoints.Add(Pts);
+        if (Stat.GetNativeId() == ELDDemoStatId::StatStrength) { ExistingStrength = Pts; }
+        else if (Stat.GetNativeId() == ELDDemoStatId::StatBrains) { ExistingBrains = Pts; }
+    }
+
+    constexpr uint32 BasicSpeedCritVocab = (1u << uint32(ELDCardVocab::BasicHit))
+        | (1u << uint32(ELDCardVocab::Combo3))
+        | (1u << uint32(ELDCardVocab::AttackSpeed))
+        | (1u << uint32(ELDCardVocab::Crit));
+    constexpr uint32 MobilityVocab = (1u << uint32(ELDCardVocab::Dash))
+        | (1u << uint32(ELDCardVocab::DashContact))
+        | (1u << uint32(ELDCardVocab::PerfectDodge))
+        | (1u << uint32(ELDCardVocab::MoveSpeed));
+    constexpr uint32 CastElementVocab = (1u << uint32(ELDCardVocab::Reaction))
+        | (1u << uint32(ELDCardVocab::Element))
+        | (1u << uint32(ELDCardVocab::SkillCast));
+    constexpr uint32 SurvivalHPVocab = (1u << uint32(ELDCardVocab::MaxHP))
+        | (1u << uint32(ELDCardVocab::Heal))
+        | (1u << uint32(ELDCardVocab::Shield));
+
+    int64 ADWeight = 0;
+    int64 APWeight = 0;
+    int64 AdaptiveWeight = 0;
+    int64 AgilityWeight = 0;
+    int64 PhysiqueWeight = 2000;
+    int64 SkinWeight = 1500;
+    int32 BasicCardCount = 0;
+    int32 CastCardCount = 0;
+
+    for (const FLDOpponentCard& Owned : Self.Cards)
+    {
+        if (!Owned.IsInstalled()) { continue; }
+        const FLDDemoCardDefinition* Card = Content.Cards.FindByPredicate(
+            [&Owned](const FLDDemoCardDefinition& Row) { return Row.Id == Owned.DefinitionId; });
+        if (!Card) { continue; }
+        if ((Card->VocabMask & BasicSpeedCritVocab) != 0)
+        {
+            ++BasicCardCount;
+            AgilityWeight += 5000;
+            ADWeight += 3500;
+        }
+        if ((Card->VocabMask & MobilityVocab) != 0)
+        {
+            AgilityWeight += 2500;
+        }
+        if ((Card->VocabMask & CastElementVocab) != 0)
+        {
+            ++CastCardCount;
+        }
+        if ((Card->VocabMask & SurvivalHPVocab) != 0)
+        {
+            PhysiqueWeight += 1500;
+        }
+        if ((Card->VocabMask & (1u << uint32(ELDCardVocab::Armor))) != 0)
+        {
+            SkinWeight += 2000;
+        }
+    }
+
+    for (const FLDOpponentActive& Active : Self.Actives)
+    {
+        const FLDDemoAbilityDefinition* Ability = nullptr;
+        if (!Catalog.FindAbility(Active.DefinitionId, Ability, Error) || !Ability)
+        {
+            OutPoints.Reset();
+            return false;
+        }
+        const FLDDemoAbilityBranch* Branch = Ability->FindBranch(Active.Branch);
+        if (Active.Branch != ELDSkillBranch::None && !Branch)
+        {
+            Error = TEXT("Learned active references an unknown skill branch.");
+            OutPoints.Reset();
+            return false;
+        }
+        const FLDDemoAbilityValues& ActiveValues = Branch ? Branch->Values : Ability->Values;
+        const uint32 ActiveVocab = Ability->VocabMask | (Branch ? Branch->VocabMask : 0u);
+        for (const FLDDemoEffectDefinition& Effect : ActiveValues.Effects)
+        {
+            ADWeight += Effect.ADRatioBp;
+            APWeight += Effect.APRatioBp;
+            AdaptiveWeight += Effect.AdaptiveRatioBp;
+            PhysiqueWeight += Effect.MaxHPRatioBp;
+            SkinWeight += Effect.ArmorRatioBp;
+            const ELDDemoEffectOp Op = Effect.GetOp();
+            if (Op == ELDDemoEffectOp::EmpowerBasic || Op == ELDDemoEffectOp::FollowBasic || Op == ELDDemoEffectOp::BasicRider)
+            {
+                AgilityWeight += 4500;
+                ADWeight += 2500;
+            }
+        }
+        if ((ActiveVocab & BasicSpeedCritVocab) != 0)
+        {
+            AgilityWeight += 3000;
+            ADWeight += 1500;
+        }
+    }
+
+    if (AdaptiveWeight > 0)
+    {
+        const bool bPreferAPForAdaptive = APWeight > ADWeight
+            || (APWeight == ADWeight && (ExistingBrains > ExistingStrength || (CastCardCount > BasicCardCount && ExistingStrength == 0)));
+        if (bPreferAPForAdaptive) { APWeight += AdaptiveWeight; }
+        else { ADWeight += AdaptiveWeight; }
+    }
+
+    const int64 EffectiveStrengthWeight = ADWeight > 0 ? ADWeight
+        : (APWeight == 0 && AgilityWeight == 0 && Content.Character.BasicADRatioBp > 0 ? Content.Character.BasicADRatioBp : 0);
+
+    TArray<int64, TInlineAllocator<5>> Weights;
+    for (int32 Index = 0; Index < StatOrder.Num(); ++Index)
+    {
+        const ELDDemoStatId Id = StatOrder[Index]->GetNativeId();
+        bool bRel = false;
+        int64 Weight = 0;
+        switch (Id)
+        {
+        case ELDDemoStatId::StatPhysique:
+            bRel = true;
+            Weight = PhysiqueWeight;
+            break;
+        case ELDDemoStatId::StatThickSkin:
+            bRel = true;
+            Weight = SkinWeight;
+            break;
+        case ELDDemoStatId::StatStrength:
+            bRel = EffectiveStrengthWeight > 0 || BasicCardCount > 0;
+            Weight = EffectiveStrengthWeight;
+            break;
+        case ELDDemoStatId::StatBrains:
+            bRel = APWeight > 0;
+            Weight = APWeight;
+            break;
+        case ELDDemoStatId::StatAgility:
+            bRel = true;
+            Weight = AgilityWeight;
+            break;
+        default:
+            break;
+        }
+        OutRelevant.Add(bRel);
+        Weights.Add(bRel ? Weight : -1);
+    }
+
+    for (int32 Index = 0; Index < Weights.Num(); ++Index)
+    {
+        if (!OutRelevant[Index]) { continue; }
+        if (OutPrimaryKeystone == INDEX_NONE || Weights[Index] > Weights[OutPrimaryKeystone])
+        {
+            OutSecondaryKeystone = OutPrimaryKeystone;
+            OutPrimaryKeystone = Index;
+        }
+        else if (OutSecondaryKeystone == INDEX_NONE || Weights[Index] > Weights[OutSecondaryKeystone])
+        {
+            OutSecondaryKeystone = Index;
+        }
     }
     return true;
 }
@@ -2086,8 +2230,9 @@ bool AllocatePoints(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& C
     }
     TArray<int64> Points;
     TArray<bool> Relevant;
-    int32 KeystoneFocus = INDEX_NONE;
-    if (!RelevantStats(Self, Catalog, Points, Relevant, KeystoneFocus, Error)) { return false; }
+    int32 PrimaryKeystone = INDEX_NONE;
+    int32 SecondaryKeystone = INDEX_NONE;
+    if (!RelevantStats(Self, Catalog, Points, Relevant, PrimaryKeystone, SecondaryKeystone, Error)) { return false; }
     Out.SetNumZeroed(Catalog.Get().Stats.Num());
     int64 Left = Self.UnspentPoints;
     const int64 KeystoneThreshold = Catalog.Get().Parameters.KeystoneThresholdPoints;
@@ -2097,18 +2242,27 @@ bool AllocatePoints(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& C
         Out.Reset();
         return false;
     }
-    if (!Points.IsValidIndex(KeystoneFocus) || !Relevant[KeystoneFocus])
+    if (!Points.IsValidIndex(PrimaryKeystone) || !Relevant[PrimaryKeystone])
     {
         Error = TEXT("The catalog has no relevant stat for a keystone.");
         Out.Reset();
         return false;
     }
-    // Secure one build-relevant keystone before distributing subsequent points across the other useful stats.
-    while (Left > 0 && Points.IsValidIndex(KeystoneFocus) && Points[KeystoneFocus] < KeystoneThreshold
-        && Out[KeystoneFocus] < MAX_uint8)
+    // Secure the primary 18-point keystone first, then focus the secondary core stat toward its 18-point keystone
+    // before distributing surplus late-game points across the remaining relevant stats.
+    while (Left > 0 && Points.IsValidIndex(PrimaryKeystone) && Points[PrimaryKeystone] < KeystoneThreshold
+        && Out[PrimaryKeystone] < MAX_uint8)
     {
-        ++Points[KeystoneFocus];
-        ++Out[KeystoneFocus];
+        ++Points[PrimaryKeystone];
+        ++Out[PrimaryKeystone];
+        --Left;
+    }
+    while (Left > 0 && Points.IsValidIndex(SecondaryKeystone) && SecondaryKeystone != PrimaryKeystone
+        && Relevant[SecondaryKeystone] && Points[SecondaryKeystone] < KeystoneThreshold
+        && Out[SecondaryKeystone] < MAX_uint8)
+    {
+        ++Points[SecondaryKeystone];
+        ++Out[SecondaryKeystone];
         --Left;
     }
     for (; Left > 0; --Left)
@@ -2137,8 +2291,9 @@ bool WantsRespec(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Cata
     using namespace Detail;
     TArray<int64> Points;
     TArray<bool> Relevant;
-    int32 KeystoneFocus = INDEX_NONE;
-    if (!RelevantStats(Self, Catalog, Points, Relevant, KeystoneFocus, Error)) { return false; }
+    int32 PrimaryKeystone = INDEX_NONE;
+    int32 SecondaryKeystone = INDEX_NONE;
+    if (!RelevantStats(Self, Catalog, Points, Relevant, PrimaryKeystone, SecondaryKeystone, Error)) { return false; }
     for (int32 Index = 0; Index < Points.Num(); ++Index)
     {
         if (Points[Index] > 0 && !Relevant[Index]) { return true; }
@@ -2184,7 +2339,10 @@ uint32 OpponentVocab(const FLDOpponentSelf& Self, const FLDDemoContentDefinition
     for (const FLDOpponentActive& Active : Self.Actives)
     {
         if (const FLDDemoAbilityDefinition* Ability = Content.Abilities.FindByPredicate([&Active](const FLDDemoAbilityDefinition& Row) { return Row.Id == Active.DefinitionId; }))
-        { Vocab |= Ability->VocabMask; }
+        {
+            const FLDDemoAbilityBranch* Branch = Ability->FindBranch(Active.Branch);
+            Vocab |= Ability->VocabMask | (Branch ? Branch->VocabMask : 0u);
+        }
     }
     return Vocab;
 }

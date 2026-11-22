@@ -1,4 +1,5 @@
 #include "Vision/LDWorldViewRelay.h"
+#include "World/LDRecoveryOrbMarker.h"
 #include "Character/LDImpactFx.h"
 #include "NiagaraComponent.h"
 #include "Combat/LDCombatBagBlocker.h"
@@ -61,7 +62,8 @@ namespace
 bool IsObservedFlight(ELDObservedProjectileLook Look)
 {
     return Look==ELDObservedProjectileLook::Chalk || Look==ELDObservedProjectileLook::Sock
-        || Look==ELDObservedProjectileLook::ChalkReturn || Look==ELDObservedProjectileLook::SockReturn;
+        || Look==ELDObservedProjectileLook::ChalkReturn || Look==ELDObservedProjectileLook::SockReturn
+        || Look==ELDObservedProjectileLook::FistWind;
 }
 
 bool IsObservedReturn(ELDObservedProjectileLook Look)
@@ -73,7 +75,8 @@ bool IsObservedArea(ELDObservedProjectileLook Look)
 {
     return Look==ELDObservedProjectileLook::AreaPlain || Look==ELDObservedProjectileLook::AreaMagic
         || Look==ELDObservedProjectileLook::AreaFire || Look==ELDObservedProjectileLook::AreaWater
-        || Look==ELDObservedProjectileLook::AreaElectric;
+        || Look==ELDObservedProjectileLook::AreaElectric || Look==ELDObservedProjectileLook::SlipperDrop
+        || Look==ELDObservedProjectileLook::PhantomDecoy || Look==ELDObservedProjectileLook::ShardBurst;
 }
 
 FLinearColor ObservedEffectColor(ELDObservedProjectileLook Look)
@@ -84,6 +87,11 @@ FLinearColor ObservedEffectColor(ELDObservedProjectileLook Look)
     case ELDObservedProjectileLook::ChalkReturn: return FLinearColor(.95f,.95f,.9f);
     case ELDObservedProjectileLook::Sock:
     case ELDObservedProjectileLook::SockReturn: return FLinearColor(.55f,.85f,.25f);
+    case ELDObservedProjectileLook::FistWind: return FLinearColor(1.f,.42f,.18f);
+    case ELDObservedProjectileLook::SlipperDrop: return FLinearColor(.25f,.95f,1.f);
+    case ELDObservedProjectileLook::CordonTape: return FLinearColor(1.f,.84f,.08f);
+    case ELDObservedProjectileLook::PhantomDecoy: return FLinearColor(.78f,.38f,1.f);
+    case ELDObservedProjectileLook::ShardBurst: return FLinearColor(.2f,.92f,1.f);
     case ELDObservedProjectileLook::FlyerArming: return FLinearColor(.9f,.65f,.2f);
     case ELDObservedProjectileLook::AreaMagic: return FLinearColor(.65f,.2f,1.f);
     case ELDObservedProjectileLook::AreaFire: return FLinearColor(1.f,.18f,.015f);
@@ -907,8 +915,9 @@ void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effe
     const bool bBook=Effect.Look==ELDObservedProjectileLook::BookShadow;
     const bool bArea=IsObservedArea(Effect.Look);
     const bool bForwardLine=Effect.Look==ELDObservedProjectileLook::LineWarning;
+    const bool bCordon=Effect.Look==ELDObservedProjectileLook::CordonTape;
     const bool bRoad=Effect.Look==ELDObservedProjectileLook::Road || Effect.Look==ELDObservedProjectileLook::LineWarning
-        || Effect.Look==ELDObservedProjectileLook::Wind;
+        || Effect.Look==ELDObservedProjectileLook::Wind || bCordon;
     const FLinearColor Color=Effect.bOwn ? FMath::Lerp(ObservedEffectColor(Effect.Look),FLinearColor(.08f,.85f,.6f),.5f)
         : ObservedEffectColor(Effect.Look);
     ShownLook=Effect.Look;
@@ -932,11 +941,29 @@ void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effe
         : bCone ? FVector(.4,.75,.04) : bArea ? FVector(.38,.38,.04) : bBook ? FVector(1.7,1.3,.16) : FVector(1.1,.85,.025));
     if (bBook) { Chalk->SetRelativeLocation(FVector(0,0,95)); }
     if (bCone) { Chalk->SetRelativeLocation(FVector(Effect.RadiusCm*.35,0,100)); }
-    if (bArea) { Chalk->SetRelativeLocation(FVector(0,0,7)); }
+    if (bArea)
+    {
+        if (Effect.Look==ELDObservedProjectileLook::PhantomDecoy)
+        {
+            Chalk->SetStaticMesh(CylinderMesh);
+            Chalk->SetRelativeLocation(FVector(0,0,88));
+            Chalk->SetRelativeScale3D(FVector(.75,.75,1.72));
+        }
+        else if (Effect.Look==ELDObservedProjectileLook::SlipperDrop)
+        {
+            Chalk->SetRelativeLocation(FVector(0,0,22));
+            Chalk->SetRelativeRotation(FRotator(18,25,0));
+            Chalk->SetRelativeScale3D(FVector(.46,.24,.16));
+        }
+        else
+        {
+            Chalk->SetRelativeLocation(FVector(0,0,7));
+        }
+    }
     if(bRoad)
     {
-        Chalk->SetRelativeLocation(FVector(bForwardLine?Effect.LengthCm*.5:0,0,1));
-        Chalk->SetRelativeScale3D(FVector(Effect.LengthCm/100.,Effect.RadiusCm*2./100.,.012));
+        Chalk->SetRelativeLocation(FVector(bForwardLine?Effect.LengthCm*.5:0,0,bCordon?64.:1.));
+        Chalk->SetRelativeScale3D(FVector(Effect.LengthCm/100.,bCordon?.14:(Effect.RadiusCm*2./100.),bCordon?.10:.012));
     }
     // N4: a bag or a bag wall stands as a solid box that blocks bodies like the server's blocker (owner prediction agrees
     // with the authority while the obstacle is seen); every other look never collides.
@@ -1174,6 +1201,8 @@ void ALDWorldViewRelay::EndPlay(const EEndPlayReason::Type Reason)
     ProjectileProxies.Empty();
     for (auto& Pair : GroundProxies) { if (IsValid(Pair.Value)) { Pair.Value->Destroy(); } }
     GroundProxies.Empty();
+    for (auto& Pair : RecoveryOrbProxies) { if (IsValid(Pair.Value)) { Pair.Value->Destroy(); } }
+    RecoveryOrbProxies.Empty();
     if (IsValid(OwnMarker)) { OwnMarker->Destroy(); }
     OwnMarker = nullptr;
     Super::EndPlay(Reason);
@@ -1455,6 +1484,42 @@ void ALDWorldViewRelay::SyncProxies()
     for (auto It = GroundProxies.CreateIterator(); It; ++It)
     {
         if (Grounds.Contains(It.Key())) { continue; }
+        if (IsValid(It.Value())) { It.Value()->Destroy(); }
+        It.RemoveCurrent();
+    }
+    TSet<uint64> Orbs;
+    if (bCurrent)
+    {
+        constexpr double OrbRadiusCm = 90.0;
+        FString OrbError;
+        for (const FLDObservedRecoveryOrb& Orb : Snapshot.Frame->RecoveryOrbs)
+        {
+            Orbs.Add(Orb.Serial);
+            TObjectPtr<ALDRecoveryOrbMarker>& Marker = RecoveryOrbProxies.FindOrAdd(Orb.Serial);
+            if (IsValid(Marker) && Marker->GetGeneration() != Snapshot.Frame->MatchGeneration)
+            {
+                Marker->Destroy();
+                Marker = nullptr;
+            }
+            if (!IsValid(Marker))
+            {
+                FActorSpawnParameters Params;
+                Params.ObjectFlags |= RF_Transient;
+                Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+                Marker = GetWorld()->SpawnActor<ALDRecoveryOrbMarker>(Params);
+                if (!Marker || !Marker->Build(FVector(Orb.PositionCm), OrbRadiusCm, Orb.Serial, Snapshot.Frame->MatchGeneration, OrbError))
+                {
+                    if (Marker) { Marker->Destroy(); }
+                    Marker = nullptr;
+                    UE_LOG(LogLDWorld, Warning, TEXT("LD_RECOVERY_ORB_MARKER_FAILED serial=%llu %s"), Orb.Serial, *OrbError);
+                    Orbs.Remove(Orb.Serial);
+                }
+            }
+        }
+    }
+    for (auto It = RecoveryOrbProxies.CreateIterator(); It; ++It)
+    {
+        if (Orbs.Contains(It.Key()) && IsValid(It.Value())) { continue; }
         if (IsValid(It.Value())) { It.Value()->Destroy(); }
         It.RemoveCurrent();
     }

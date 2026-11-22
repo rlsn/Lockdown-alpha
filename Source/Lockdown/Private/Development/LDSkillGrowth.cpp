@@ -11,7 +11,8 @@ namespace LDSkillGrowthDetail
     bool IsFixedBase(ELDDemoEffectOp Op)
     {
         return Op == ELDDemoEffectOp::MomentumGain || Op == ELDDemoEffectOp::MomentumSteal || Op == ELDDemoEffectOp::ZoneMomentum
-            || Op == ELDDemoEffectOp::ArmorToHp || Op == ELDDemoEffectOp::HasteMomentum || Op == ELDDemoEffectOp::HealGrowth;
+            || Op == ELDDemoEffectOp::ArmorToHp || Op == ELDDemoEffectOp::HasteMomentum || Op == ELDDemoEffectOp::HealGrowth
+            || Op == ELDDemoEffectOp::MartialScholar || Op == ELDDemoEffectOp::BrainSpeed;
     }
 
     bool ScaleBp(int64 Value, int64 Bp, int64& Out)
@@ -75,7 +76,8 @@ bool LDSkillGrowth::ScaleRatios(FLDDemoEffectDefinition& InOut, int64 RatioBp)
     using LDSkillGrowthDetail::ScaleBp;
     return ScaleBp(InOut.ADRatioBp, RatioBp, InOut.ADRatioBp) && ScaleBp(InOut.APRatioBp, RatioBp, InOut.APRatioBp)
         && ScaleBp(InOut.AdaptiveRatioBp, RatioBp, InOut.AdaptiveRatioBp)
-        && ScaleBp(InOut.MaxHPRatioBp, RatioBp, InOut.MaxHPRatioBp);
+        && ScaleBp(InOut.MaxHPRatioBp, RatioBp, InOut.MaxHPRatioBp)
+        && ScaleBp(InOut.ResistRatioBp, RatioBp, InOut.ResistRatioBp);
 }
 
 bool LDSkillGrowth::ScaleValues(FLDDemoAbilityValues& InOut, int64 BaseBp, int64 RatioBp)

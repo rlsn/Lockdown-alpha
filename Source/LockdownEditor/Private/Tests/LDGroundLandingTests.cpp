@@ -1,4 +1,6 @@
 #include "Combat/LDGroundLanding.h"
+#include "Core/LDGroundQueries.h"
+#include "Navigation/LDPathSteering.h"
 #include "Region/LDMapRegistry.h"
 #include "Framework/LDDemoEntry.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -71,6 +73,72 @@ bool FLDGroundLandingTest::RunTest(const FString& Parameters)
         Registry->Rebuild(Restore);
     };
     if (!TestTrue(TEXT("The block binds as ordinary scene support: ") + Error, Registry->Rebuild(Error))) { return false; }
+    // Rooftop & minimap regression: elevated 4 m block roof is excluded from walkable terrain floors, pointer/ground rays pass
+    // through it to the walkable floor below, and minimap/PlanRoute project obstacle clicks to connected ground.
+    TestFalse(TEXT("4 m elevated block roof is never admitted as a walkable terrain floor"), Registry->IsTerrainFloor(Box));
+    {
+        FHitResult PointerRayHit;
+        TestTrue(TEXT("Pointer/terrain floor trace ignores 4 m rooftop and hits the walkable ground underneath"),
+            Registry->TraceGround(Requested + FVector(0, 0, 1000), Requested - FVector(0, 0, 1000), PointerRayHit)
+            && PointerRayHit.GetComponent() != Box && FMath::Abs(PointerRayHit.ImpactPoint.Z - Caster.Z) < 10.);
+        FLDLegalGround RoofAttempt;
+        ELDWorldQueryFailure RoofFail = ELDWorldQueryFailure::None;
+        TestFalse(TEXT("QueryGround strictly rejects standing on the 4 m rooftop"),
+            Registry->QueryGround(Registry->Revision(), Requested + FVector(0, 0, 400), Capsule,
+                FName(*Registry->GetGeometry()->Surfaces[0].Id), RoofAttempt, RoofFail, Error));
+        FVector MinimapSurface = FVector::ZeroVector;
+        TestTrue(TEXT("Minimap MapSurface resolves walkable ground beneath the 4 m block instead of failing"),
+            LDGround::MapSurface(World, FVector(Requested.X, Requested.Y, 0.), MinimapSurface)
+            && FMath::Abs(MinimapSurface.Z - Caster.Z) < 10.);
+        FLDLegalGround CasterGround, ProjectedGoal;
+        FLDCompletePath ProjectedPath;
+        ELDWorldQueryFailure RouteFail = ELDWorldQueryFailure::None;
+        const FName SurfaceId(*Registry->GetGeometry()->Surfaces[0].Id);
+        if (TestTrue(TEXT("Caster stands on legal ground"),
+            Registry->QueryGround(Registry->Revision(), Caster, Capsule, SurfaceId, CasterGround, RouteFail, Error)))
+        {
+            TestTrue(TEXT("Minimap click inside 4 m block projects to a reachable connected ground point: ") + Error,
+                LDPathSteering::PlanRoute(*Registry, CasterGround, MinimapSurface, SurfaceId, LDPathSteering::EGoal::Ground,
+                    Capsule, ProjectedPath, ProjectedGoal, RouteFail, Error)
+                && FMath::Abs(ProjectedGoal.SurfaceCm.Z - Caster.Z) < 100.
+                && FVector::Dist2D(ProjectedGoal.SurfaceCm, Requested) >= 90.);
+            // Near-edge click within capsule radius of the block wall (where Clicked ~= Recast edge): must also project cleanly.
+            const FVector NearWallEdge = Requested - Direction * (90. + Capsule.GetCapsuleRadius() * .5);
+            FVector NearEdgeSurface = FVector::ZeroVector;
+            TestTrue(TEXT("Minimap near-wall-edge click resolves and routes without false Unreachable"),
+                LDGround::MapSurface(World, NearWallEdge, NearEdgeSurface)
+                && LDPathSteering::PlanRoute(*Registry, CasterGround, NearEdgeSurface, SurfaceId, LDPathSteering::EGoal::Ground,
+                    Capsule, ProjectedPath, ProjectedGoal, RouteFail, Error));
+            // Also verify a registered StaticGeometryTag blocker in L_Demo (e.g. tree or wall) resolves on minimap and projects.
+            for (const FLDDemoWorldBlocker& Blocker : Registry->GetGeometry()->Blockers)
+            {
+                if (!Blocker.BlocksMovement) { continue; }
+                FVector BlockerPt = FVector::ZeroVector;
+                if (Blocker.Shape == ELDDemoWorldBlockerShape::Cylinder)
+                {
+                    if (!Blocker.CenterCm.ToVector(BlockerPt, Error)) { continue; }
+                }
+                else
+                {
+                    for (const FLDDemoWorldPoint& Corner : Blocker.PolygonCm)
+                    {
+                        FVector C;
+                        if (Corner.ToVector(C, Error)) { BlockerPt += C / double(Blocker.PolygonCm.Num()); }
+                    }
+                }
+                const double BlockerHeight = Blocker.HeightCm.Denominator > 0
+                    ? double(Blocker.HeightCm.Numerator) / double(Blocker.HeightCm.Denominator) : 0.;
+                if (BlockerHeight < 120. || FVector::Dist2D(BlockerPt, Caster) > 3500.) { continue; }
+                FVector BlockerSurface = FVector::ZeroVector;
+                TestTrue(TEXT("Minimap click directly on a registered scene blocker resolves walkable ground below its roof and routes: ") + Blocker.Id,
+                    LDGround::MapSurface(World, BlockerPt, BlockerSurface)
+                    && BlockerSurface.Z < BlockerPt.Z + BlockerHeight - 50.
+                    && LDPathSteering::PlanRoute(*Registry, CasterGround, BlockerSurface, SurfaceId, LDPathSteering::EGoal::Ground,
+                        Capsule, ProjectedPath, ProjectedGoal, RouteFail, Error));
+                break;
+            }
+        }
+    }
     TOptional<FVector> Short;
     if (!TestTrue(TEXT("Landing beside the block: ") + Error,
         LDGroundLanding::Resolve(*Registry, Caster, Requested, Range, Capsule, Short, Error))) { return false; }

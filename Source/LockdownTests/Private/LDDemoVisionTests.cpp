@@ -264,6 +264,8 @@ bool FLDDemoVisionCodecTest::RunTest(const FString& Parameters)
     }
     for (uint32 Sequence = 1; Sequence <= uint32(LDObservation::MaxTerminations); ++Sequence)
     { Full.RecentTerminations.Add(Death(ContenderUnit(100 + Sequence), 3, Sequence)); }
+    Full.RecoveryOrbs.Add({11, FVector(-1250.4, 840.7, 0.0)});
+    Full.RecoveryOrbs.Add({27, FVector(2100.2, -630.5, 50.0)});
     FLDWorldView Read;
     int64 Bytes = 0;
     TestTrue(TEXT("Bounded full view round-trips"), Wire(Full, Read, &Bytes));
@@ -271,6 +273,10 @@ bool FLDDemoVisionCodecTest::RunTest(const FString& Parameters)
     AddInfo(FString::Printf(TEXT("Maximum observation frame: %lld bytes"), Bytes));
     TestEqual(TEXT("Units complete"), Read.Units.Num(), LDObservation::MaxUnits);
     TestEqual(TEXT("Terminations complete"), Read.RecentTerminations.Num(), LDObservation::MaxTerminations);
+    TestTrue(TEXT("Authorized recovery orbs round-trip accurately"),
+        Read.RecoveryOrbs.Num() == 2
+        && Read.RecoveryOrbs[0].Serial == 11 && Read.RecoveryOrbs[0].PositionCm.Equals(Full.RecoveryOrbs[0].PositionCm, FeetToleranceCm)
+        && Read.RecoveryOrbs[1].Serial == 27 && Read.RecoveryOrbs[1].PositionCm.Equals(Full.RecoveryOrbs[1].PositionCm, FeetToleranceCm));
     TestTrue(TEXT("Coverage is the exact fixed bitmap"), Read.Footprint.CurrentBits == Full.Footprint.CurrentBits
         && LDObservation::CoverageBit(Read.Footprint.CurrentBits, 0) && LDObservation::CoverageBit(Read.Footprint.CurrentBits, LDObservation::CoverageCells - 1)
         && (Read.Footprint.CurrentBits[0] & 1) != 0 && (Read.Footprint.CurrentBits[LDObservation::CoverageBytes - 1] & 0x80) != 0);
@@ -557,7 +563,8 @@ bool FLDDemoVisionPrivacyTest::RunTest(const FString& Parameters)
     Exact(FLDObservedFootprint::StaticStruct(), {TEXT("SourceStatus"), TEXT("SourceFeetCm"), TEXT("RadiusCm"), TEXT("CurrentBits")});
     Exact(FLDWorldView::StaticStruct(), {TEXT("Schema"), TEXT("MatchGeneration"), TEXT("ObserverLife"), TEXT("Generation"), TEXT("Revision"),
         TEXT("WorldMapId"), TEXT("WorldLayoutRevision"), TEXT("WorldGeometryRevision"), TEXT("SampledAtServerSec"), TEXT("Footprint"),
-        TEXT("Units"), TEXT("RecentTerminations"), TEXT("Projectiles"), TEXT("GroundStates")});
+        TEXT("Units"), TEXT("RecentTerminations"), TEXT("Projectiles"), TEXT("GroundStates"), TEXT("RecoveryOrbs")});
+    Exact(FLDObservedRecoveryOrb::StaticStruct(), {TEXT("Serial"), TEXT("PositionCm")});
     // Spec §8.3: a ground state names its public id, kind, shape, the owner's roster seat and its footprint and time; no owner
     // identity, source or value.
     Exact(FLDObservedGroundState::StaticStruct(), {TEXT("Id"), TEXT("Kind"), TEXT("Shape"), TEXT("OwnerSeat"), TEXT("CentreCm"),

@@ -259,7 +259,7 @@ private:
         ELDWorldQueryFailure& Failure, FString& Error);
     // Local route check of a ground point from this body, for click feedback only: false with bKnown when the route
     // fails; true without bKnown when the body's own support cannot be read this frame. The server still decides.
-    bool ProbeGround(const FVector& GroundCm, bool& bKnown) const;
+    bool ProbeGround(const FVector& GroundCm, bool& bKnown, FVector* OutProjected = nullptr) const;
     // ---- Owning client pointer: hover target, cursor and the held move button.
     void TickPointer();
     void ClearPointer();

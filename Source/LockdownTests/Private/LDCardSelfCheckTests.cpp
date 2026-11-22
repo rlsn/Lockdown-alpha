@@ -23,12 +23,13 @@ bool Configured(const LDDemoCardText::FToken& Token, const FLDDemoEffectDefiniti
     using LDDemoCardText::EField;
     switch (Token.Field)
     {
-    case EField::Amount: return Effect.BaseP2 != 0 || Effect.ADRatioBp != 0 || Effect.APRatioBp != 0 || Effect.MaxHPRatioBp != 0
-        || Effect.ArmorRatioBp != 0;
+    case EField::Amount: return Effect.BaseP2 != 0 || Effect.ADRatioBp != 0 || Effect.APRatioBp != 0 || Effect.AdaptiveRatioBp != 0
+        || Effect.MaxHPRatioBp != 0 || Effect.ArmorRatioBp != 0 || Effect.ResistRatioBp != 0;
     case EField::Burst: return Effect.SecondaryRatioBp != 0;
     case EField::BasicCount: return Effect.BasicCount != 0;
     case EField::Refund: return Effect.AmountMs != 0;
     case EField::Duration: return Effect.DurationMs != 0;
+    case EField::ExtraDuration: return Effect.ExtraDurationMs != 0;
     case EField::Ratio: return Effect.RatioBp != 0;
     case EField::Count: return Effect.Count != 0;
     case EField::Radius: return Effect.RadiusCm.Numerator != 0;

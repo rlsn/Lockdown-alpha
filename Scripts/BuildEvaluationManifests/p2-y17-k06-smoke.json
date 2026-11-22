@@ -15,15 +15,15 @@
       "site": "capture",
       "duel_timeout_ms": 45000,
       "supply_xp": {
-        "subject": 240,
-        "opponent": 240
+        "subject": 545,
+        "opponent": 545
       }
     }
   },
   "sample_class": "diagnostic",
   "assumptions": [
-    "双方固定同一开局主动及 L3 主动；两组主角在 L2、L4 固定获得 Y17、K06 两张等级牌（跳过全部牌三选一）；对手不装牌；不代表自然抽取概率。",
-    "两组主角均把 Y17 装到本体、分配十二点力道；只有实验组把 K06 装到 L3 主动上。",
+    "双方固定同一开局主动及 L2 主动，L5 主动按生产 AI 选择；两组主角在 L3、L6 固定获得 Y17、K06 两张等级牌（跳过全部牌三选一）；对手不装牌；不代表自然抽取概率。",
+    "两组主角均把 Y17 装到本体、分配十八点力道；只有实验组把 K06 装到第二主动上。",
     "仅用于检查事务、证据与跨进程重放；单个种子不支持强度结论。"
   ],
   "design": {
@@ -45,7 +45,8 @@
               {
                 "rule": "definition",
                 "definition": "active_triple_combo"
-              }
+              },
+              "ai_select"
             ],
             "presets": [
               [
@@ -57,7 +58,7 @@
                 "step": "allocate_points",
                 "at": "field",
                 "points": {
-                  "stat_strength": 12
+                  "stat_strength": 18
                 }
               },
               {
@@ -84,7 +85,8 @@
               {
                 "rule": "definition",
                 "definition": "active_triple_combo"
-              }
+              },
+              "ai_select"
             ],
             "presets": [
               [
@@ -96,7 +98,7 @@
                 "step": "allocate_points",
                 "at": "field",
                 "points": {
-                  "stat_strength": 12
+                  "stat_strength": 18
                 }
               }
             ]
@@ -118,7 +120,8 @@
               {
                 "rule": "definition",
                 "definition": "active_triple_combo"
-              }
+              },
+              "ai_select"
             ],
             "presets": [
               [
@@ -130,7 +133,7 @@
                 "step": "allocate_points",
                 "at": "field",
                 "points": {
-                  "stat_strength": 12
+                  "stat_strength": 18
                 }
               },
               {
@@ -163,7 +166,8 @@
               {
                 "rule": "definition",
                 "definition": "active_triple_combo"
-              }
+              },
+              "ai_select"
             ],
             "presets": [
               [
@@ -175,7 +179,7 @@
                 "step": "allocate_points",
                 "at": "field",
                 "points": {
-                  "stat_strength": 12
+                  "stat_strength": 18
                 }
               }
             ]

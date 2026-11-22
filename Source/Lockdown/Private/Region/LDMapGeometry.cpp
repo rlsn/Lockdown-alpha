@@ -1004,7 +1004,7 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
     {
         const FString Id = LDDemoWorld::FinalSpawnId(Slot);
         const FLDDemoWorldAnchor* Spawn = FindFinalAnchor(Id);
-        FVector Position;
+        FVector Position = FVector::ZeroVector;
         if (!Check.Require(Spawn && Spawn->Kind == ELDDemoWorldAnchorKind::FinalSpawn, Id,
             TEXT("missing canonical final spawn anchor")) || !Spawn->PositionCm.ToVector(Position, Check.Error))
         {

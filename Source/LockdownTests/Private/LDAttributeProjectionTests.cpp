@@ -25,7 +25,7 @@ bool ReadAttributeFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoCon
     const FLDDemoContentParameters& P = Out->Get().Parameters;
     const FLDDemoProgressionDefinition& Progression = Out->Get().Progression;
     return Test.TestTrue(TEXT("Fixture carries the approved first-play attribute parameters"),
-        P.MaxHP.BaseP2 == 86000 && P.MaxHP.PerLevelP2 == 8000 && P.Momentum.CombatPerSec.Numerator == 5 && P.Momentum.CombatPerSec.Denominator == 1
+        P.MaxHP.BaseP2 == 86000 && P.MaxHP.PerLevelP2 == 10500 && P.Momentum.CombatPerSec.Numerator == 5 && P.Momentum.CombatPerSec.Denominator == 1
         && P.AD.BaseP2 == 7000 && P.AD.PerLevelP2 == 320 && P.Armor.BaseP2 == 1800 && P.MagicResist.BaseP2 == 1800
         && P.AttackSpeed.Base.Numerator == 17 && P.AttackSpeed.Base.Denominator == 20 && P.AttackSpeedPerLevelBp == 200
         && P.MoveSpeedCmPerSec.Base.Numerator == 300 && P.MoveSpeedCmPerSec.Base.Denominator == 1
@@ -76,27 +76,27 @@ FExpectedAttributes ApprovedLevel(int32 Level)
         Expected.HPRegenPerSec = MakeRational(8, 5);
         break;
     case 2:
-        Expected.MaxHPP2 = 94000; Expected.ADP2 = 7320;
+        Expected.MaxHPP2 = 96500; Expected.ADP2 = 7320;
         Expected.ArmorP2 = 2000; Expected.MagicResistP2 = 2000; Expected.AttackSpeed = MakeRational(867, 1000);
         Expected.HPRegenPerSec = MakeRational(43, 25);
         break;
     case 4:
-        Expected.MaxHPP2 = 110000; Expected.ADP2 = 7960;
+        Expected.MaxHPP2 = 117500; Expected.ADP2 = 7960;
         Expected.ArmorP2 = 2400; Expected.MagicResistP2 = 2400; Expected.AttackSpeed = MakeRational(901, 1000);
         Expected.HPRegenPerSec = MakeRational(49, 25);
         break;
     case 5:
-        Expected.MaxHPP2 = 118000; Expected.ADP2 = 8280;
+        Expected.MaxHPP2 = 128000; Expected.ADP2 = 8280;
         Expected.ArmorP2 = 2600; Expected.MagicResistP2 = 2600; Expected.AttackSpeed = MakeRational(459, 500);
         Expected.HPRegenPerSec = MakeRational(52, 25);
         break;
     case 6:
-        Expected.MaxHPP2 = 126000; Expected.ADP2 = 8600;
+        Expected.MaxHPP2 = 138500; Expected.ADP2 = 8600;
         Expected.ArmorP2 = 2800; Expected.MagicResistP2 = 2800; Expected.AttackSpeed = MakeRational(187, 200);
         Expected.HPRegenPerSec = MakeRational(11, 5);
         break;
     case 10:
-        Expected.MaxHPP2 = 158000; Expected.ADP2 = 9880;
+        Expected.MaxHPP2 = 180500; Expected.ADP2 = 9880;
         Expected.ArmorP2 = 3600; Expected.MagicResistP2 = 3600; Expected.AttackSpeed = MakeRational(1003, 1000);
         Expected.HPRegenPerSec = MakeRational(67, 25);
         break;
@@ -341,7 +341,7 @@ bool RunApprovedLevels(FAutomationTestBase& Test)
     {
         return false;
     }
-    bGood &= Test.TestEqual(TEXT("Level 2 maximum HP is 940"), Projection.Final.MaxHPP2, int64(94000));
+    bGood &= Test.TestEqual(TEXT("Level 2 maximum HP is 965"), Projection.Final.MaxHPP2, int64(96500));
     for (const int32 Level : {4, 5, 6})
     {
         const FString Label = FString::Printf(TEXT("Level %d character"), Level);
@@ -359,7 +359,7 @@ bool RunApprovedLevels(FAutomationTestBase& Test)
     }
     bGood &= ExpectRational(Test, TEXT("Level 10 maximum HP base"), Rows[int32(EAttribute::MaxHP)].Base, MakeRational(860));
     bGood &= ExpectTerms(Test, TEXT("Level 10 maximum HP growth"), Rows[int32(EAttribute::MaxHP)].LevelGrowth,
-        MakeRational(720), MakeRational(0));
+        MakeRational(945), MakeRational(0));
     bGood &= ExpectTerms(Test, TEXT("Level 10 AD growth"), Rows[int32(EAttribute::AD)].LevelGrowth,
         MakeRational(144, 5), MakeRational(0));
     bGood &= ExpectRational(Test, TEXT("Level 10 AD final"), Rows[int32(EAttribute::AD)].Final, MakeRational(494, 5));
@@ -397,10 +397,10 @@ bool RunStatPoints(FAutomationTestBase& Test)
     };
     const FLDDemoRational Zero = MakeRational(0);
     const TArray<FStatCase> Stats = {
-        {TEXT("stat_physique"), [](FExpectedAttributes& E) { E.MaxHPP2 = 198000; E.HPRegenPerSec = MakeRational(87, 25); },
-            EAttribute::MaxHP, MakeRational(400), Zero},
-        {TEXT("stat_thick_skin"), [](FExpectedAttributes& E) { E.ArmorP2 = 6100; E.MagicResistP2 = 6100; },
-            EAttribute::Armor, MakeRational(25), Zero},
+        {TEXT("stat_physique"), [](FExpectedAttributes& E) { E.MaxHPP2 = 232500; E.HPRegenPerSec = MakeRational(87, 25); },
+            EAttribute::MaxHP, MakeRational(520), Zero},
+        {TEXT("stat_thick_skin"), [](FExpectedAttributes& E) { E.ArmorP2 = 7100; E.MagicResistP2 = 7100; },
+            EAttribute::Armor, MakeRational(35), Zero},
         {TEXT("stat_strength"), [](FExpectedAttributes& E) { E.ADP2 = 13380; E.CritChanceBp = 600; },
             EAttribute::AD, MakeRational(35), Zero},
         {TEXT("stat_brains"), [](FExpectedAttributes& E) { E.APP2 = 6000; E.CooldownHasteP2 = 1000; E.MomentumRegenPerSec = MakeRational(28, 5); },
@@ -436,7 +436,7 @@ bool RunStatPoints(FAutomationTestBase& Test)
 
     // Points of several stats at level 6 (max HP 910, AD 87, attack speed 0.75 x 1.1, HP regeneration 2.2).
     FExpectedAttributes Mixed = ApprovedLevel(6);
-    Mixed.MaxHPP2 = 138000;
+    Mixed.MaxHPP2 = 154100;
     Mixed.HPRegenPerSec = MakeRational(61, 25);
     Mixed.ADP2 = 9300;
     Mixed.CritChanceBp = 120;
@@ -517,10 +517,10 @@ bool RunEnvelope(FAutomationTestBase& Test)
     // Level 16 holds 3 + 15 x 3 = 48 points; every stat stays inside its bound with all of them except max HP (base 2060, AD 118,
     // resistances 48, HP regeneration 3.4, momentum regeneration 5, attack speed 0.75 x 1.3).
     if (!Envelope(TEXT("Physique envelope"), TEXT("stat_physique"), 48)) { return false; }
-    bool bGood = Test.TestEqual(TEXT("HP envelope is 2060 + 48 x 40, under the 20000 maximum"), Projection.Final.MaxHPP2, int64(398000));
+    bool bGood = Test.TestEqual(TEXT("HP envelope is 2435 + 48 x 52, under the 20000 maximum"), Projection.Final.MaxHPP2, int64(493100));
     bGood &= ExpectRational(Test, TEXT("HP regeneration envelope is 3.4 + 48 x 0.08"), Projection.Final.HPRegenPerSec, MakeRational(181, 25));
     if (!Envelope(TEXT("Thick skin envelope"), TEXT("stat_thick_skin"), 48)) { return false; }
-    bGood &= Test.TestTrue(TEXT("Resistance envelope is 48 + 48 x 2.5"), Projection.Final.ArmorP2 == 16800 && Projection.Final.MagicResistP2 == 16800);
+    bGood &= Test.TestTrue(TEXT("Resistance envelope is 48 + 48 x 3.5"), Projection.Final.ArmorP2 == 21600 && Projection.Final.MagicResistP2 == 21600);
     if (!Envelope(TEXT("Strength envelope"), TEXT("stat_strength"), 48)) { return false; }
     bGood &= Test.TestTrue(TEXT("AD envelope is 118 + 48 x 3.5 with 48 x 0.6% crit"),
         Projection.Final.ADP2 == 28600 && Projection.Final.CritChanceBp == 2880);
@@ -541,7 +541,7 @@ bool RunEnvelope(FAutomationTestBase& Test)
         && !Projection.Contributions[int32(EAttribute::CooldownHaste)].bClamped
         && !Projection.Contributions[int32(EAttribute::MomentumRegen)].bClamped);
     if (!Envelope(TEXT("Physique past level 16"), TEXT("stat_physique"), 78)) { return false; }
-    bGood &= Test.TestTrue(TEXT("78 physique: max HP 2060 + 78 x 40 under the 20000 maximum"), Projection.Final.MaxHPP2 == 518000
+    bGood &= Test.TestTrue(TEXT("78 physique: max HP 2435 + 78 x 52 under the 20000 maximum"), Projection.Final.MaxHPP2 == 649100
         && !Projection.Contributions[int32(EAttribute::MaxHP)].bClamped);
     return bGood;
 }
@@ -653,8 +653,8 @@ bool RunResourceMaxChange(FAutomationTestBase& Test)
     {
         return false;
     }
-    bGood &= ExpectResource(Test, TEXT("Low-camp 583.94/860 HP after levelling becomes 638.26/940"), *Catalog,
-        ELDResourcePool::HP, 58394, LevelOne.Final.MaxHPP2, LevelTwo.Final.MaxHPP2, 63826);
+    bGood &= ExpectResource(Test, TEXT("Low-camp 583.94/860 HP after levelling becomes 655.23/965"), *Catalog,
+        ELDResourcePool::HP, 58394, LevelOne.Final.MaxHPP2, LevelTwo.Final.MaxHPP2, 65523);
 
     // Native fast path and exact wide-product path, on both sides of the int64 product boundary.
     bGood &= ExpectResource(Test, TEXT("Largest native product floors exactly"), *Catalog, ELDResourcePool::HP,

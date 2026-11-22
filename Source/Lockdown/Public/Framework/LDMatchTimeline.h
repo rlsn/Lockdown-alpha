@@ -68,6 +68,7 @@ struct LOCKDOWN_API FLDTimelineParameters
     int64 FieldSegmentMs = 0;
     int64 OpeningBuildMs = 0;
     int64 BuildMs = 0;
+    int64 FinalBuildMs = 0;
     int64 SignupMs = 0;
     int64 DrawMs = 0;
     int64 BettingMs = 0;

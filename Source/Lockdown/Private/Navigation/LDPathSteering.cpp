@@ -160,10 +160,15 @@ namespace LDPathSteering
     // #97: the registered terrain's standing height at an XY (ground, plateau or ramp), where a foot there rests.
     FVector TerrainFoot(const ULDMapRegistry& Registry, double X, double Y)
     {
-        double Z=0;
+        FVector Walkable = FVector::ZeroVector;
+        if (Registry.ResolveWalkableGround(FVector2D(X, Y), Walkable))
+        {
+            return Walkable;
+        }
+        double Z = 0;
         FVector Normal;
-        Registry.GetTerrain().Ground(FVector2D(X,Y),Z,Normal);
-        return FVector(X,Y,Z);
+        Registry.GetTerrain().Ground(FVector2D(X, Y), Z, Normal);
+        return FVector(X, Y, FMath::IsFinite(Z) ? Z : 0.);
     }
 
     bool VerticalNavPoint(const ANavigationData& Data, const FVector& Foot, double HeightToleranceCm, FVector& Out)
@@ -190,7 +195,9 @@ namespace LDPathSteering
         UWorld* World=Registry.GetWorld();
         auto* Nav=World?FNavigationSystem::GetCurrent<UNavigationSystemV1>(World):nullptr;
         const ANavigationData* Data=Nav?Nav->GetDefaultNavDataInstance(FNavigationSystem::DontCreate):nullptr;
-        const double Reach=Capsule.GetCapsuleRadius();
+        const double Reach=Capsule.GetCapsuleRadius()*2.;
+        const double VerticalExtent=FMath::Max<double>(Capsule.GetCapsuleHalfHeight(),
+            Registry.WalkableVerticalSpanCm()+Capsule.GetCapsuleHalfHeight());
         FVector Vertical;
         if (Data && VerticalNavPoint(*Data,BodyGround.SurfaceCm,
             GetDefault<ALDCharacter>()->GetCharacterMovement()->MaxStepHeight,Vertical))
@@ -198,7 +205,7 @@ namespace LDPathSteering
             Out=BodyGround;Failure=ELDWorldQueryFailure::None;Error.Reset();return true;
         }
         FNavLocation OnMesh;
-        if (!Data || !Nav->ProjectPointToNavigation(BodyGround.SurfaceCm,OnMesh,FVector(Reach,Reach,Capsule.GetCapsuleHalfHeight()),Data)
+        if (!Data || !Nav->ProjectPointToNavigation(BodyGround.SurfaceCm,OnMesh,FVector(Reach,Reach,VerticalExtent),Data)
             || FVector::DistSquared2D(OnMesh.Location,BodyGround.SurfaceCm)<=UE_KINDA_SMALL_NUMBER
             || FVector::DistSquared2D(OnMesh.Location,BodyGround.SurfaceCm)>FMath::Square(Reach))
         {
@@ -208,8 +215,21 @@ namespace LDPathSteering
             return true;
         }
         // Only the planar start moves: same support id, the terrain's height there, and it must itself be legal ground.
-        return Registry.QueryGround(Registry.Revision(),TerrainFoot(Registry,OnMesh.Location.X,OnMesh.Location.Y),
-            Capsule,BodyGround.SurfaceId,Out,Failure,Error);
+        FLDLegalGround Snapped;
+        ELDWorldQueryFailure SnapFailure=ELDWorldQueryFailure::None;
+        FString SnapError;
+        if (Registry.QueryGround(Registry.Revision(),TerrainFoot(Registry,OnMesh.Location.X,OnMesh.Location.Y),
+            Capsule,BodyGround.SurfaceId,Snapped,SnapFailure,SnapError))
+        {
+            Out=Snapped;
+            Failure=ELDWorldQueryFailure::None;
+            Error.Reset();
+            return true;
+        }
+        Out=BodyGround;
+        Failure=ELDWorldQueryFailure::None;
+        Error.Reset();
+        return true;
     }
 
     // The navmesh point nearest an XY. Detour ranks only the first 128 polygons a query box gathers, in tile order, so a
@@ -256,12 +276,14 @@ namespace LDPathSteering
             Error=TEXT("MissingNavigation: no navigation data to project the destination onto.");
             return false;
         }
-        // Search at the terrain's height under the click, across the whole surface, for the nearest navmesh point to
-        // the clicked XY (a wall, a box top or a spot too close to an obstacle).
+        // Search at the walkable floor height under the click, across the whole surface, for the nearest navmesh point to
+        // the clicked XY (a wall, a building, a tree or a spot too close to an obstacle or border).
         const FVector Flat=TerrainFoot(Registry,Clicked.X,Clicked.Y);
         const double Reach=FMath::Max(Max.X-Min.X,Max.Y-Min.Y);
+        const double VerticalExtent=FMath::Max<double>(Capsule.GetCapsuleHalfHeight(),
+            Registry.WalkableVerticalSpanCm()+Capsule.GetCapsuleHalfHeight());
         FNavLocation OnMesh;
-        if (!NearestNavPoint(*Nav,*Data,Flat,Reach,Capsule.GetCapsuleHalfHeight(),OnMesh))
+        if (!NearestNavPoint(*Nav,*Data,Flat,Reach,VerticalExtent,OnMesh))
         {
             Failure=ELDWorldQueryFailure::Unreachable;
             Error=TEXT("Unreachable: no navmesh point near the clicked destination.");
@@ -290,27 +312,80 @@ namespace LDPathSteering
         }
         else { Candidates.Add(OnMesh.Location); }
 
+        const auto TryCandidate=[&](const FVector& TargetXY)->bool
+        {
+            FNavLocation Candidate;
+            if (!Nav->ProjectPointToNavigation(TerrainFoot(Registry,TargetXY.X,TargetXY.Y),Candidate,
+                FVector(4.,4.,VerticalExtent),Data))
+            {
+                return false;
+            }
+            if (!Registry.QueryGround(Registry.Revision(),TerrainFoot(Registry,Candidate.Location.X,Candidate.Location.Y),
+                Capsule,SurfaceId,Out,Failure,Error))
+            {
+                return false;
+            }
+            FLDCompletePath CandidatePath;
+            if (!Registry.QueryCompletePath(Registry.Revision(),From,Out,Capsule,CandidatePath,Failure,Error))
+            {
+                return false;
+            }
+            OutPath=MoveTemp(CandidatePath);
+            Failure=ELDWorldQueryFailure::None;
+            Error.Reset();
+            return true;
+        };
+
         // A partial path is confined to the start's connected navmesh. Try its closest points to the click first;
         // each candidate must still pass the same legal-ground and complete-route checks as an ordinary destination.
         for (const FVector& Base : Candidates)
         {
-            const FVector Inward=(Base-Flat).GetSafeNormal2D();
-            for (const double Step : { 0., 2., 5., 10. })
+            if (Registry.QueryGround(Registry.Revision(),TerrainFoot(Registry,Base.X,Base.Y),Capsule,SurfaceId,Out,Failure,Error))
             {
-                if (Step>0 && Inward.IsNearlyZero()) { break; }
-                FNavLocation Candidate;
-                if (Step==0) { Candidate.Location=Base; }
-                else if (!Nav->ProjectPointToNavigation(
-                    TerrainFoot(Registry,Base.X+Inward.X*Step,Base.Y+Inward.Y*Step),Candidate,
-                    FVector(1.,1.,Capsule.GetCapsuleHalfHeight()),Data)) { continue; }
-                if (!Registry.QueryGround(Registry.Revision(),TerrainFoot(Registry,Candidate.Location.X,Candidate.Location.Y),
-                    Capsule,SurfaceId,Out,Failure,Error)) { continue; }
-                FLDCompletePath CandidatePath;
-                if (!Registry.QueryCompletePath(Registry.Revision(),From,Out,Capsule,CandidatePath,Failure,Error)) { continue; }
-                OutPath=MoveTemp(CandidatePath);
-                Failure=ELDWorldQueryFailure::None;
-                Error.Reset();
-                return true;
+                FLDCompletePath DirectPath;
+                if (Registry.QueryCompletePath(Registry.Revision(),From,Out,Capsule,DirectPath,Failure,Error))
+                {
+                    OutPath=MoveTemp(DirectPath);
+                    Failure=ELDWorldQueryFailure::None;
+                    Error.Reset();
+                    return true;
+                }
+            }
+            const FVector Inward=(Base-Flat).GetSafeNormal2D();
+            if (!Inward.IsNearlyZero())
+            {
+                for (const double Step : { 2., 5., 10., 18., 28., 45. })
+                {
+                    if (TryCandidate(Base+Inward*Step)) { return true; }
+                }
+            }
+            // Corner/border and unbaked-obstacle fallback: search outward toward From first, then radial rings, up to building scale.
+            const FVector TowardStart=(From.SurfaceCm-Base).GetSafeNormal2D();
+            const double DistToStart=FVector::Dist2D(From.SurfaceCm,Base);
+            const FVector RefDir=!Inward.IsNearlyZero() ? Inward : (!TowardStart.IsNearlyZero() ? TowardStart : FVector(1.,0.,0.));
+            if (!TowardStart.IsNearlyZero())
+            {
+                for (double BackStep=60.; BackStep<=FMath::Min(DistToStart,800.); BackStep+=40.)
+                {
+                    if (TryCandidate(Base+TowardStart*BackStep)) { return true; }
+                }
+            }
+            TArray<FVector,TInlineAllocator<8>> Directions;
+            for (int32 DirIdx=0; DirIdx<8; ++DirIdx)
+            {
+                const double Angle=UE_DOUBLE_TWO_PI*double(DirIdx)/8.;
+                Directions.Add(FVector(FMath::Cos(Angle),FMath::Sin(Angle),0.));
+            }
+            Directions.Sort([&RefDir](const FVector& A, const FVector& B)
+            {
+                return FVector::DotProduct(A,RefDir)>FVector::DotProduct(B,RefDir);
+            });
+            for (const double Step : { 12., 25., 45., 90., 145., 220., 340., 500., 700. })
+            {
+                for (const FVector& Dir : Directions)
+                {
+                    if (TryCandidate(Base+Dir*Step)) { return true; }
+                }
             }
         }
         Failure=ELDWorldQueryFailure::Unreachable;

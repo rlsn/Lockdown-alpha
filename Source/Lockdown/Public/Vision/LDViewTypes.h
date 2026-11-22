@@ -24,7 +24,8 @@ namespace LDObservation
     // 20 widens the conceal count for the authored roster plus the full flight bound.
     // 21 packs public status expiry times without losing precision.
     // 22 uses the finer square-cell ground coverage raster.
-    constexpr uint32 Schema = 22;
+    // 23 moves camp-clear recovery orbs and #345 tactical entities/hit flags into sight-authorized FLDWorldView.
+    constexpr uint32 Schema = 23;
     // A ground state's wire size (LDViewTypes.cpp SerializeObservedGround): SC-07 registers MaxGroundStates of them per frame.
     constexpr int32 GroundStateWireBytes = 16;
     // The public momentum bar of a visible contender: 0..MomentumBarFull (never the exact value).
@@ -36,8 +37,8 @@ namespace LDObservation
     constexpr uint16 RecentReactionWindowMs = 1000;
     // Overdriven: the hit came from an overdrive release. Public like the charge that preceded it (spec: the charge ring
     // shows to everyone who sees the body); the owner receipt carries the same bit (LDCombatCues::DealtOverdrive).
-    enum EHitFlags : uint8 { Critical = 1, ShieldAbsorbed = 2, ShieldBroken = 4, Overdriven = 16 };
-    constexpr uint8 HitFlagsMask = Critical | ShieldAbsorbed | ShieldBroken | Overdriven;
+    enum EHitFlags : uint8 { Critical = 1, ShieldAbsorbed = 2, ShieldBroken = 4, Overdriven = 16, Dodged = 32, Parried = 64 };
+    constexpr uint8 HitFlagsMask = Critical | ShieldAbsorbed | ShieldBroken | Overdriven | Dodged | Parried;
     // Square display cells sampled over the native ground bounds with padding as needed. Low bit first.
     constexpr int32 CoverageWidth = 512;
     constexpr int32 CoverageHeight = 320;
@@ -60,6 +61,7 @@ namespace LDObservation
     constexpr int32 MaxProjectiles = 128;
     // Spec §8.3/§14: every live ground state of the map at once (GROUND.MaxTotal fits it); each is one compact public record.
     constexpr int32 MaxGroundStates = 40;
+    constexpr int32 MaxRecoveryOrbs = 48;
     static_assert(MaxUnits + MaxProjectiles <= MAX_uint16, "Conceal count must represent all authorized handles.");
     // One identity tint per seat of the eight-contender roster (APP_SPEC 1).
     constexpr uint8 MaxPresentations = 8;
@@ -82,7 +84,9 @@ UENUM() enum class ELDObservedProjectileLook : uint8
     AreaPlain = 7, AreaMagic = 8, AreaFire = 9, AreaWater = 10, AreaElectric = 11,
     ChalkReturn = 12, SockReturn = 13, Road = 14, ConeWarning = 15, LineWarning = 16, Wind = 17,
     // N4: a school bag (RadiusCm = its body) and the wall between two bags (LengthCm, RadiusCm = half width).
-    Bag = 18, BagWall = 19
+    Bag = 18, BagWall = 19,
+    // #345: piercing fist-wind wave, collectible slipper drop, elastic cordon tape, phantom decoy afterimage, and shield shard burst.
+    FistWind = 20, SlipperDrop = 21, CordonTape = 22, PhantomDecoy = 23, ShardBurst = 24
 };
 // Spec §8.3 ground-state footprints: a circle, D10's band (ExtentCm = half length) or N1's sector (ExtentCm = angle).
 UENUM() enum class ELDObservedGroundShape : uint8 { Circle = 0, Band = 1, Sector = 2 };
@@ -230,6 +234,15 @@ struct FLDObservedGroundState
     UPROPERTY() uint32 TotalMs = 0; // its whole duration (the decal fades over it)
 };
 
+// Authorized camp-clear recovery orb currently visible in the observer's sight; hidden orbs outside fog never replicate.
+USTRUCT()
+struct FLDObservedRecoveryOrb
+{
+    GENERATED_BODY()
+    UPROPERTY() uint64 Serial = 0;
+    UPROPERTY() FVector_NetQuantize10 PositionCm = FVector::ZeroVector;
+};
+
 USTRUCT()
 struct FLDObservedFootprint
 {
@@ -258,6 +271,7 @@ struct LOCKDOWN_API FLDWorldView
     UPROPERTY() TArray<FLDObservedUnitTermination> RecentTerminations;
     UPROPERTY() TArray<FLDObservedProjectileView> Projectiles;
     UPROPERTY() TArray<FLDObservedGroundState> GroundStates;
+    UPROPERTY() TArray<FLDObservedRecoveryOrb> RecoveryOrbs;
     bool NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuccess);
 };
 template<> struct TStructOpsTypeTraits<FLDWorldView> : TStructOpsTypeTraitsBase2<FLDWorldView>

@@ -5,14 +5,14 @@
 // Reservations describe the wire format, not an approved or enabled content set.
 // Retired identities must never be reused: skill 0..61 and item 0..98, 107, 113..114.
 enum class ELDDemoCharacterId : uint8 { CharacterDemo=1 };
-// #198: abilities are single-level actives 92-103, 114-118 and 126-130 (issue #287 P4 adds N1-N3 as 131-133; 134 stays reserved for N4); 0-91, the passives 104-113 and 120-125 and the
-// cower active 119 are retired.
+// #198/#345: abilities are 92-100, 102-103, 114-115, 117, 126-129, 131-136; 0-91, 101, 104-113, 116, 118-125 and 130 are retired.
 enum class ELDDemoAbilityId : uint8
 {
-    ActivePantsDown=92, ActiveCrotchGrab=93, ActiveSnarkBolt=94, ActiveSeethe=95, ActiveBailOut=96, ActiveElbow=97, ActiveNotMad=98, ActiveStareDown=99, ActiveQuickMeeting=100, ActiveAccountBanned=101, ActiveUnplug=102, ActiveTripleCombo=103,
-    ActiveOpenMic=114, ActiveCalculusDrop=115, ActiveSockShot=116, ActiveFlyerTrap=117, ActiveApologySlide=118,
-    ActiveHoseDown=126, ActiveZap=127, ActiveChargedRam=128, ActiveBrace=129, ActiveDirtyPuddle=130,
-    ActiveColaShake=131, ActiveDeskFan=132, ActiveStaleTakeout=133, ActiveSchoolBag=134
+    ActivePantsDown=92, ActiveCrotchGrab=93, ActiveSnarkBolt=94, ActiveSeethe=95, ActiveBailOut=96, ActiveElbow=97, ActiveNotMad=98, ActiveStareDown=99, ActiveQuickMeeting=100, ActiveUnplug=102, ActiveTripleCombo=103,
+    ActiveOpenMic=114, ActiveCalculusDrop=115, ActiveFlyerTrap=117,
+    ActiveHoseDown=126, ActiveZap=127, ActiveChargedRam=128, ActiveBrace=129,
+    ActiveColaShake=131, ActiveDeskFan=132, ActiveStaleTakeout=133, ActiveSchoolBag=134,
+    ActiveFlurryRush=135, ActiveCordonTape=136
 };
 // #198: the five point-bought stats share the former attribute-card number space; 0-26 are retired.
 enum class ELDDemoStatId : uint8
@@ -41,7 +41,11 @@ enum class ELDDemoCardId : uint16
     CardShortBreath=266, CardDoubleStall=267, CardThickHide=268, CardOverfed=269, CardBerserk=270, CardQuickBrain=271,
     CardPunchHeal=272, CardRunHit=273, CardGrowFat=274, CardKillStreak=275, CardToughSkin=276, CardChargeUp=277,
     CardTurfGrowth=278, CardTally=279, CardLiveWire=280, CardLongSoak=281, CardLouderBlast=282, CardEndlessBurn=283,
-    CardBurnGuard=284, MedalFire=285, MedalWater=286, MedalElectric=287, MedalChill=288, MedalRot=289
+    CardBurnGuard=284, MedalFire=285, MedalWater=286, MedalElectric=287, MedalChill=288, MedalRot=289,
+    CardBrainSpeed=290, CardSpellbladeEcho=291, CardHeavyMallet=292, CardLetBulletsFly=293, CardEagleStance=294,
+    CardRunawayTrain=295, CardPhantomMolt=296, CardSkateBlade=297, CardTonnageCrush=298, CardHulkingPresence=299,
+    CardIronHedgehog=300, CardReactivePlating=301, CardDesperado=302, CardFuelTheFire=303, CardRogueWorks=304,
+    CardMartialScholar=305
 };
 enum class ELDDemoMonsterId : uint8 { MonsterScavenger=1, MonsterGuardian=2, MonsterDean=3, MonsterAdvisor=4, MonsterPromoter=5, MonsterCourier=6, MonsterAgent=7, MonsterGuard=8, MonsterAuditor=9, MonsterClient=10, MonsterDirector=11, MonsterFinalClient=12, MonsterProperty=13 };
 // Public status ids stay below 64 (the observation uniqueness check is a 64-bit mask; #112 C2 uses 20, #147 v7 25..26,
@@ -52,13 +56,13 @@ enum class ELDDemoStatusId : uint8 { Root=1, Shield=2, CampReturning=3, RespawnP
     Disarm=12, Stun=13, Empowered=14,
     Knockback=20, Silence=25, Burn=26, AttackSlowed=27,
     Wet=30, Electrified=31, Braced=32, CampEnraged=34, CampGuarding=35, Chilled=36, Rotten=37 };
-// Effect operations of the actives, their skill branches (170..195), the build cards (196..232; issue #287 spec §7) and
-// the P4 element, ground-state and N1-N3 operations (233..241) and the #292 P5 card operations (242..255; the uint8
-// operation space is now full).
+// Effect operations of the actives, their skill branches (170..195), the build cards (196..232; issue #287 spec §7),
+// the P4 element/ground-state/N1-N3 operations (233..242), the #292 P5 card operations (243..255) and the #345 skill/card
+// operations (256..278).
 // Retired operation identities must never be reused (native_ids.json retired_ranges): 5..6, 9..11, 15..17, 19, 23,
 // 25..30, 32..36, 38..39, 41..49, 51, 53, 55..68, 72..76, 83..89, 96, 100, 102, 104, 120..129, 131..137, 139..145, 147..151,
-// 154, 159, 161, 165..169, 195.
-enum class ELDDemoEffectOp : uint8
+// 154, 159, 161, 165..169, 195, 235.
+enum class ELDDemoEffectOp : uint16
 {
     Damage=1, Shield=2, DispelRoot=3, Root=4, Lifesteal=7, Dash=8, Slow=12, TimedStatBonus=13, SelfArea=14, Taunt=18,
     Disarm=20, Stun=21, EmpowerBasic=22, Thorns=24, TriggeredShield=31, DispelSlow=37, Knockback=40, Zone=50, ZoneSlow=52,
@@ -80,5 +84,9 @@ enum class ELDDemoEffectOp : uint8
     Rot=233, Chill=234, GroundState=236, Fan=237, DashIce=238, GroundRelocate=239, DoubleStall=240,
     GroundGrowth=241, Bag=242,
     BasicProjectile=243, ComboSweep=244, ComboCast=245, SpeedFactor=246, HitGrowth=247, ControlAmp=248, Reshape=249,
-    ShieldSpend=250, RecentCastAmp=251, DodgeFreeCast=252, DashRam=253, OverdriveShort=254, Tally=255
+    ShieldSpend=250, RecentCastAmp=251, DodgeFreeCast=252, DashRam=253, OverdriveShort=254, Tally=255,
+    GrabLine=256, BackstabLunge=257, ParryStance=258, WarcryRing=259, SlipperPickup=260, FrenzyWaves=261, CordonLine=262,
+    BrainSpeed=263, SpellbladeEcho=264, HeavyMallet=265, ProjectileFlightAmp=266, EagleStance=267,
+    RunawayTrain=268, PhantomMolt=269, SkateBlade=270, TonnageCrush=271, HulkingPresence=272,
+    IronHedgehog=273, ReactivePlating=274, Desperado=275, FuelTheFire=276, RogueWorks=277, MartialScholar=278
 };

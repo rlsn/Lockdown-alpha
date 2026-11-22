@@ -39,11 +39,13 @@ struct FLDInstalledCardValue
     FName Active;
     // Y25: the chosen element.
     ELDDemoElement Element = ELDDemoElement::None;
+    // Same-element medal fusion tier (1..3).
+    uint8 Tier = 1;
 
     bool operator==(const FLDInstalledCardValue& Other) const
     {
         return CardId == Other.CardId && Serial == Other.Serial && TargetKind == Other.TargetKind && Active == Other.Active
-            && Element == Other.Element;
+            && Element == Other.Element && Tier == Other.Tier;
     }
 };
 
@@ -142,6 +144,8 @@ struct FLDInstalledCardTerm
     ELDDemoElement Element = ELDDemoElement::None;
     // The holder's level when projected; a level-up reprojects the build.
     uint8 Level = 0;
+    // Same-element medal fusion tier (1..3).
+    uint8 Tier = 1;
 };
 
 struct FLDAttributeProjection
@@ -153,6 +157,8 @@ struct FLDAttributeProjection
     TArray<FLDAttributeContributions> Contributions;
     // Y15: attack-speed ratio per missing HP ratio (copies add); Combat applies it from current HP as a temporary term.
     int64 MissingHPAttackSpeedBp = 0;
+    // card_heavy_mallet: optional upper cap on final attack speed (0/0 = none).
+    FLDDemoRational AttackSpeedCap;
     // Every installed card, sorted by serial.
     TArray<FLDInstalledCardTerm> InstalledCards;
 };

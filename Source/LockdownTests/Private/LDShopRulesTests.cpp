@@ -323,10 +323,10 @@ bool FLDGrowthMedalDropsTest::RunTest(const FString& Parameters)
     const FLDDemoMedalParameters& M = Content.Parameters.Medal;
     bGood &= TestEqual(TEXT("Medal chances"), FString::Printf(TEXT("%lld/%lld/%lld/%lld/%lld/%lld/%lld"), M.LevelChanceBp, M.CampLowChanceBp,
         M.CampHighChanceBp, M.CampEliteChanceBp, M.CampAncientChanceBp, M.BossChanceBp, M.EventChanceBp),
-        FString(TEXT("1500/300/600/1200/2500/10000/5000")));
+        FString(TEXT("800/0/200/800/2000/10000/2500")));
     bGood &= TestEqual(TEXT("Camp tiers map to their chance"), LDProgression::CampMedalChanceBp(M, ELDDemoCampTier::Ancient), M.CampAncientChanceBp);
-    // With a card offer every two levels, levels 3 and 5 of 1 -> 6 roll for a medal.
-    bGood &= TestTrue(TEXT("Odd levels roll for a medal"), LDProgression::MedalLevels(Content.Parameters.Cards, 1, 6) == TArray<int32>({3, 5}));
+    // With a card offer every three levels (L3, L6), levels 2, 4 and 5 of 1 -> 6 roll for a medal.
+    bGood &= TestTrue(TEXT("Non-offer levels roll for a medal"), LDProgression::MedalLevels(Content.Parameters.Cards, 1, 6) == TArray<int32>({2, 4, 5}));
     // Over many seeds, roughly the chance hits.
     int32 Hits = 0;
     for (uint32 Seed = 1; Seed <= 2000; ++Seed) { Hits += LDProgression::RollMedal(Content, LDProgression::MedalSeed(Secret, Contender, Seed), 1500, Medal) ? 1 : 0; }

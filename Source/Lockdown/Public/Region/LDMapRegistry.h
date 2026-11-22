@@ -49,6 +49,9 @@ public:
     // Whether a native floor is one of the registered terrain pieces (ground, plateau or ramp).
     bool IsTerrainFloor(const UPrimitiveComponent* Floor) const;
     bool TraceGround(const FVector& Start, const FVector& End, FHitResult& Hit) const;
+    // Resolves the walkable floor surface under Point (ignoring blockers, walls, trees and unreachable rooftops).
+    bool ResolveWalkableGround(const FVector2D& Point, FVector& OutSurface, FVector* OutNormal = nullptr) const;
+    double WalkableVerticalSpanCm() const;
     static bool ContentCapsule(const FLDDemoContentSnapshot& Content, FCollisionShape& Out, FString& Error);
     bool QueryGround(const FLDWorldRevision& Expected, const FVector& FootCm, const FCollisionShape& Capsule,
         FName SurfaceHint, FLDLegalGround& Out, ELDWorldQueryFailure& Failure, FString& Error) const;

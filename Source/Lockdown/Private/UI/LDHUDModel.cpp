@@ -1632,6 +1632,7 @@ FString HudScaling(const FLDDemoEffectDefinition& Effect)
     if(Effect.AdaptiveRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.AdaptiveRatioBp)+TEXT("自适应(额外攻击力/法术强度)");}
     if(Effect.MaxHPRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.MaxHPRatioBp)+TEXT("自身")+LDTerms::MaxHealth();}
     if(Effect.ArmorRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.ArmorRatioBp)+LDTerms::Armor;}
+    if(Effect.ResistRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.ResistRatioBp)+TEXT("双抗");}
     return Text;
 }
 }
@@ -1689,6 +1690,18 @@ FString LDHUD::EffectLine(const FLDDemoEffectDefinition& Effect)
         return TEXT("受到伤害时（内置冷却 ")+HudSeconds(Effect.IntervalMs)+TEXT("）获得")
             +LDTerms::Shield+TEXT(" ")+HudScaling(Effect)+TEXT("，持续 ")+HudSeconds(Effect.DurationMs);
     case ELDDemoEffectOp::DispelSlow: return FString(TEXT("解除自身全部"))+LDTerms::Slow;
+    case ELDDemoEffectOp::GrabLine: return TEXT("抓扯首个敌方目标，移动或冲刺中目标延长 ")+HudSeconds(Effect.ExtraDurationMs)+TEXT(" ")+LDTerms::Root;
+    case ELDDemoEffectOp::BackstabLunge: return TEXT("侧后方或受控目标必暴并")+FString(LDTerms::Stun)+TEXT(" ")+HudSeconds(Effect.DurationMs);
+    case ELDDemoEffectOp::ParryStance:
+        return TEXT("移动卸力架势 ")+HudSeconds(Effect.DurationMs)+TEXT("（减伤 ")+HudPercent(Effect.RatioBp)+TEXT("），接招反震周围 ")
+            +HudRational(Effect.RadiusCm)+TEXT(" 厘米并")+LDTerms::Disarm+TEXT(" ")+HudSeconds(Effect.SecondaryDurationMs);
+    case ELDDemoEffectOp::WarcryRing: return TEXT("战吼清除圈内敌方普通弹道，每命中一人提高 ")+HudPercent(Effect.RatioBp)+LDTerms::Shield;
+    case ELDDemoEffectOp::SlipperPickup: return TEXT("命中掉落拖鞋 ")+HudSeconds(Effect.DurationMs)+TEXT("，拾取返还 ")+HudPercent(Effect.RatioBp)+TEXT(" 剩余冷却");
+    case ELDDemoEffectOp::FrenzyWaves:
+        return TEXT("狂热步法 ")+HudSeconds(Effect.DurationMs)+TEXT("，普攻额外挥出 ")+HudRational(Effect.DistanceCm)+TEXT(" 厘米穿透拳风");
+    case ELDDemoEffectOp::CordonLine:
+        return TEXT("拉设长 ")+HudRational(Effect.RadiusCm)+TEXT(" 厘米警戒封条 ")+HudSeconds(Effect.DurationMs)
+            +TEXT("，弹退触碰敌人并强化穿带己方弹道 ")+HudPercent(Effect.RatioBp);
     default: return FString::Printf(TEXT("未知效果 #%d"),Effect.Opcode);
     }
 }
@@ -1734,6 +1747,7 @@ LDHUD::FCardStats LDHUD::CardStatsOf(uint8 Level,const TArray<FLDCombatAttribute
         Stats.BonusADP2=FMath::Max<int64>(0,Stats.ADP2-(RationalP2(ADRow->Base)+RationalP2(ADRow->Level)));
     }
     Stats.MaxHPP2=P2(ELDProjectedAttribute::MaxHP);Stats.ArmorP2=P2(ELDProjectedAttribute::Armor);
+    Stats.MagicResistP2=P2(ELDProjectedAttribute::MagicResist);
     return Stats;
 }
 namespace
@@ -1763,7 +1777,7 @@ bool CardValue(const LDDemoCardText::FToken& Token,const FLDDemoAbilityValues& V
         // heals do not.
         const ELDDemoEffectOp DamageOp=Effect->GetOp();
         const bool bFactored=Stats.DamageFactorBp!=10000&&(DamageOp==ELDDemoEffectOp::Damage||DamageOp==ELDDemoEffectOp::ZoneDamage||DamageOp==ELDDemoEffectOp::Brace);
-        if(Stats.bShowScalingFormula&&(Effect->ADRatioBp>0||Effect->APRatioBp>0||Effect->AdaptiveRatioBp>0||Effect->MaxHPRatioBp>0||Effect->ArmorRatioBp>0))
+        if(Stats.bShowScalingFormula&&(Effect->ADRatioBp>0||Effect->APRatioBp>0||Effect->AdaptiveRatioBp>0||Effect->MaxHPRatioBp>0||Effect->ArmorRatioBp>0||Effect->ResistRatioBp>0))
         {
             Out=HudScaling(*Effect);
             if(bFactored){Out=TEXT("(")+Out+TEXT(") × ")+HudPercent(Stats.DamageFactorBp);}
@@ -1772,7 +1786,8 @@ bool CardValue(const LDDemoCardText::FToken& Token,const FLDDemoAbilityValues& V
         }
         const int64 AdaptiveStatP2=Stats.BonusADP2*14>=Stats.APP2*10?Stats.BonusADP2:Stats.APP2;
         int64 P2=Effect->BaseP2+Term(Effect->ADRatioBp,Stats.ADP2)+Term(Effect->APRatioBp,Stats.APP2)
-            +Term(Effect->AdaptiveRatioBp,AdaptiveStatP2)+Term(Effect->MaxHPRatioBp,Stats.MaxHPP2)+Term(Effect->ArmorRatioBp,Stats.ArmorP2);
+            +Term(Effect->AdaptiveRatioBp,AdaptiveStatP2)+Term(Effect->MaxHPRatioBp,Stats.MaxHPP2)+Term(Effect->ArmorRatioBp,Stats.ArmorP2)
+            +Term(Effect->ResistRatioBp,Stats.ArmorP2+Stats.MagicResistP2);
         if(bFactored){P2=P2/10000*Stats.DamageFactorBp+P2%10000*Stats.DamageFactorBp/10000;}
         if(Token.Field==EField::Burst){P2=Term(Effect->SecondaryRatioBp,P2);}
         Out=FString::Printf(TEXT("%lld"),(P2+50)/100);return true;
@@ -2666,8 +2681,11 @@ LDHUD::FStorageView LDHUD::CardStorage(const FLDProgressionView& Progression,con
         // An element medal sits in its host's element slot, not among the column's cards.
         if(Content&&LDProgression::IsMedal(*Content,Owned.DefinitionId))
         {
+            const uint8 Tier=FMath::Clamp<uint8>(Owned.Tier,1,3);
             FStorageColumnView& Host=View.Columns[int32(Column)];
             Host.bHasMedal=true;Host.Medal.Card=Key;Host.Medal.Keys={Key};Host.Medal.Copies=1;
+            Host.Medal.MedalTier=Tier;
+            Host.Medal.Note=Tier>=3?TEXT("Ⅲ"):Tier==2?TEXT("Ⅱ"):TEXT("Ⅰ");
             continue;
         }
         TArray<FEquippedView>& Entries=View.Columns[int32(Column)].Entries;
@@ -2693,7 +2711,16 @@ TArray<LDHUD::FCardDrop> LDHUD::CardDrops(FName Key,const FLDProgressionView& Pr
     const auto Try=[&](ELDCardTargetKind Kind,FName Active)
     {
         // Growth's own target rule decides the place (any listed element stands for Y25's choice).
-        if(LDProgression::CardTargetReason(*Content,Build,Owned->DefinitionId,HudTarget(Kind,Active,Element))!=ELDGrowthReason::None){return;}
+        const FLDCardTarget Target=HudTarget(Kind,Active,Element);
+        if(LDProgression::CardTargetReason(*Content,Build,Owned->DefinitionId,Target)!=ELDGrowthReason::None){return;}
+        if(bMedal)
+        {
+            if(const FLDCardInstance* Held=LDProgression::MedalOn(*Content,Build,Target,Owned->Serial))
+            {
+                const uint8 MaxTier=uint8(FMath::Clamp(Content->Parameters.Medal.MaxTier,1,3));
+                if(Held->Id==Owned->DefinitionId&&Held->Tier>=MaxTier){return;}
+            }
+        }
         FCardDrop Drop;Drop.Kind=Kind;Drop.TargetId=Active;Drop.Elements=Definition->ChooseElements;
         if(!CardColumn(Progression,Kind,Active,Drop.Column)){return;}
         // Moving a card onto the place it already holds is no drop.
@@ -3492,6 +3519,9 @@ LDHUD::FLiveSkillTooltip LDHUD::EvaluateLiveSkillTooltip(const FActionView& View
     int64 TotalFactorBp=10000;
     int64 RiderADBp=0;
     TArray<FString> RiderCardNames;
+    ELDDemoSkillElement MedalSkillElem=ELDDemoSkillElement::None;
+    FString MedalCardName;
+    int64 OverdriveScaleBp=Content->Parameters.Overdrive.ScaleBp;
     if(Build&&Build->bValid)
     {
         for(const FLDCardInstanceView& Inst:Build->Cards)
@@ -3549,6 +3579,35 @@ LDHUD::FLiveSkillTooltip LDHUD::EvaluateLiveSkillTooltip(const FActionView& View
                         RiderADBp+=Ef.ADRatioBp;
                         RiderCardNames.AddUnique(CardDisplayName);
                     }
+                    break;
+                case ELDDemoEffectOp::SkillElement:
+                    if(Inst.Target.Kind==ELDCardTargetKind::Skill&&MedalSkillElem==ELDDemoSkillElement::None)
+                    {
+                        switch(Ef.Element)
+                        {
+                        case ELDDemoElement::Fire: MedalSkillElem=ELDDemoSkillElement::Fire; break;
+                        case ELDDemoElement::Water: MedalSkillElem=ELDDemoSkillElement::Water; break;
+                        case ELDDemoElement::Electric: MedalSkillElem=ELDDemoSkillElement::Shock; break;
+                        case ELDDemoElement::Chill: MedalSkillElem=ELDDemoSkillElement::Chill; break;
+                        case ELDDemoElement::Rot: MedalSkillElem=ELDDemoSkillElement::Rot; break;
+                        default: break;
+                        }
+                        if(MedalSkillElem!=ELDDemoSkillElement::None)
+                        {
+                            const uint8 Tier=FMath::Clamp<uint8>(Inst.Tier,1,3);
+                            const TCHAR* Roman=Tier>=3?TEXT(" Ⅲ"):Tier==2?TEXT(" Ⅱ"):TEXT(" Ⅰ");
+                            MedalCardName=CardDisplayName+Roman;
+                            if(Tier>=2)
+                            {
+                                MedalCardName+=Tier>=3
+                                    ?FString::Printf(TEXT(" · 反应 +%s / 命中附异种副元素"),*HudPercent(Content->Parameters.Medal.Tier2ReactionBonusBp))
+                                    :FString::Printf(TEXT(" · 反应 +%s"),*HudPercent(Content->Parameters.Medal.Tier2ReactionBonusBp));
+                            }
+                        }
+                    }
+                    break;
+                case ELDDemoEffectOp::OverdriveShort:
+                    if(Ef.MultiplierBp>0){OverdriveScaleBp=OverdriveScaleBp*8750/10000;}
                     break;
                 default: break;
                 }
@@ -3728,9 +3787,48 @@ LDHUD::FLiveSkillTooltip LDHUD::EvaluateLiveSkillTooltip(const FActionView& View
         Result.FormulaLines.Add(CdExpr);
     }
 
+    ELDDemoSkillElement EffectiveOverdriveElem=(Path&&Path->Element!=ELDDemoSkillElement::None)?Path->Element:Ability->Element;
+    bool bOverdriveFromMedal=false;
+    if(EffectiveOverdriveElem==ELDDemoSkillElement::None&&MedalSkillElem!=ELDDemoSkillElement::None)
+    {
+        EffectiveOverdriveElem=MedalSkillElem;
+        bOverdriveFromMedal=true;
+    }
+    Result.OverdriveElement=uint8(EffectiveOverdriveElem);
+    {
+        const FLDDemoOverdriveParameters& O=Content->Parameters.Overdrive;
+        const double Scale=double(OverdriveScaleBp)/10000.;
+        switch(EffectiveOverdriveElem)
+        {
+        case ELDDemoSkillElement::Fire:
+            Result.OverdriveLine=FString::Printf(TEXT("火爆劲：数值 ×%.2f，追加 %lld 层灼烧"),Scale,O.FireBurnStacks);
+            break;
+        case ELDDemoSkillElement::Water:
+            Result.OverdriveLine=FString::Printf(TEXT("水爆劲：数值 ×%.2f，减速升至 %s（%.1f秒）"),Scale,*HudPercent(O.WaterSlowBp),double(O.WaterSlowMs)/1000.);
+            break;
+        case ELDDemoSkillElement::Shock:
+            Result.OverdriveLine=FString::Printf(TEXT("电爆劲：数值 ×%.2f，直伤追加 %s 元素反应值"),Scale,*HudPercent(O.ShockReactionBp));
+            break;
+        case ELDDemoSkillElement::Chill:
+            Result.OverdriveLine=FString::Printf(TEXT("冻爆劲：数值 ×%.2f，附加 %.1f秒定身"),Scale,double(O.ChillRootMs)/1000.);
+            break;
+        case ELDDemoSkillElement::Rot:
+            Result.OverdriveLine=FString::Printf(TEXT("馊爆劲：数值 ×%.2f，馊持续 ×%.1f"),Scale,double(O.RotDurationBp)/10000.);
+            break;
+        default:
+            Result.OverdriveLine=FString::Printf(TEXT("爆劲：数值 ×%.2f"),Scale);
+            break;
+        }
+        if(bOverdriveFromMedal&&!MedalCardName.IsEmpty())
+        {
+            Result.OverdriveLine+=FString::Printf(TEXT(" [%s]"),*MedalCardName);
+        }
+    }
+
     TArray<FString> BodyLines;
     BodyLines.Add(MainText);
     BodyLines.Add(TargetLine(Path?Path->Target:Ability->Target));
+    BodyLines.Add(Result.OverdriveLine);
     Result.FooterHint=bExpandFormula?TEXT("松开 [Alt] 收起计算过程"):TEXT("按住 [Alt] 查看实时伤害与冷却计算过程");
     if(Context.bInputCaptured){BodyLines.Add(TEXT("当前输入暂不可用：界面占用或按键尚未松开"));}
     Result.Detail.Body=FString::Join(BodyLines,TEXT("\n"));

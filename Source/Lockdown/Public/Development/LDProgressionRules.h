@@ -46,6 +46,8 @@ struct FLDCardInstance
     // The offer ordinal that gave it; 0 for a DEV fixture card.
     uint16 OfferOrdinal = 0;
     FLDCardTarget Target;
+    // Same-element medal fusion tier (1..3 when installed as a medal; always 1 in the library and on ordinary cards).
+    uint8 Tier = 1;
 
     bool IsInstalled() const { return Target.Kind != ELDCardTargetKind::None; }
 };
@@ -387,7 +389,7 @@ namespace LDProgression
     // A card's weight in a draw for Build: 0 for a host-limited skill card no learned skill takes; else its DrawWeightBp in
     // hundredths times VocabWeight for one shared vocabulary key, twice that for two or more.
     LOCKDOWN_API int64 CardDrawWeight(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
-        const FLDDemoCardDefinition& Card, uint32 Vocab, int32 VocabWeight);
+        const FLDDemoCardDefinition& Card, uint32 Vocab, int64 VocabWeightBp);
     LOCKDOWN_API ELDGrowthReason DrawCardOffer(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, int32 Size,
         uint64 Seed, TArray<FName>& Out);
     LOCKDOWN_API ELDGrowthReason DrawCardOfferForSource(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,

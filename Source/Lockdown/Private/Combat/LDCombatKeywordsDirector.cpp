@@ -64,7 +64,8 @@ bool ALDCombatDirector::ApplyKeywordStacks(FLDBodyCombatState& Target, const FLD
     else { Breach(Hit.BreachStacks,Hit.CreditOwner); }
     // The living source's held breach trigger on a primary basic hit (basic_stacks: A14). Ticks, pulses, settles,
     // reflections, added damage and shield-triggered answers are none.
-    const bool bBasic=Hit.HitClass==ELDCombatHitClass::BasicPrimary;
+    const bool bBasic=(Hit.HitClass==ELDCombatHitClass::BasicPrimary || Hit.bTriggersBasicOnHit);
+    const int32 BreachMult=(Source && Source->ScholarBasicUntilMs>NowMs && bBasic && !Hit.bExtraStrike) ? 2 : 1;
     if (Source && !Source->bPendingDeath && bBasic && !Hit.bReflect && !Hit.bAddedDamage && !Hit.bPeriodic && !Hit.bStatusSettle
         && !Hit.bFromShieldTrigger)
     {
@@ -73,7 +74,7 @@ bool ALDCombatDirector::ApplyKeywordStacks(FLDBodyCombatState& Target, const FLD
         for (const FLDPassiveEffectRef& Ref : Passives)
         {
             // A14 is one trigger when its stacks apply or restart the shared breach.
-            if (Breach(Ref.Effect.BasicCount,Hit.CreditOwner)) { LedgerCardTriggered(*Source,Ref.Key); }
+            if (Breach(Ref.Effect.BasicCount*BreachMult,Hit.CreditOwner)) { LedgerCardTriggered(*Source,Ref.Key); }
         }
     }
     if (bChanged)

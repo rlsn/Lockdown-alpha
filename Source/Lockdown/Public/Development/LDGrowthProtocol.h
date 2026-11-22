@@ -285,6 +285,8 @@ struct LOCKDOWN_API FLDCardInstanceView
     UPROPERTY() uint16 OfferOrdinal = 0;
     // Kind None = in the library.
     UPROPERTY() FLDCardTargetView Target;
+    // Same-element medal fusion tier (1..3 when installed; 1 otherwise).
+    UPROPERTY() uint8 Tier = 1;
 
     bool IsInstalled() const { return Target.Kind != ELDCardTargetKind::None; }
 };

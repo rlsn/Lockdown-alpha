@@ -2350,10 +2350,18 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     // unspent points on the portrait badge.
     if(Pending.Offers>PromptOffers||Pending.CardOffers>PromptCardOffers){PromptPulseAt=UiNow;}
     PromptOffers=Pending.Offers;PromptCardOffers=Pending.CardOffers;
+    if(PromptText&&PC)
+    {
+        const int32 StashedCount=Pending.StashedCount();
+        const FString KeyLabel=PC->BindingLabel(TEXT("Workshop"));
+        HudSetText(PromptText,bPromptLit&&bFieldPhase&&bEngaged&&StashedCount>0
+            ?FString::Printf(TEXT("待选 ×%d [%s]"),StashedCount,*KeyLabel)
+            :FString::Printf(TEXT("构筑 [%s]"),*KeyLabel));
+    }
     HudSetColor(PromptText,bPromptLit?HudPromptInk:HudPromptIdleInk);
     {
-        // Skills (the active offer and the blueprints), build cards, then the final mod; shown badges line up leftward.
-        const int32 Waiting[3]={(Pending.bOffer?1:0)+Pending.Blueprints,Pending.bCardOffer?1:0,Pending.bFinalMod?1:0};
+        // Skills (the active offers and the blueprints), build cards, then the final mod; shown badges line up leftward.
+        const int32 Waiting[3]={(Pending.bOffer?FMath::Max<int32>(Pending.Offers,1):0)+Pending.Blueprints,FMath::Max<int32>(Pending.CardOffers,Pending.bCardOffer?1:0),Pending.bFinalMod?1:0};
         float Offset=0.f;
         for(int32 Kind=0;Kind<PromptBadges.Num()&&Kind<3;++Kind)
         {
@@ -4046,6 +4054,31 @@ void ULDHUD::PaintWorldPreviews(const FGeometry& G,FSlateWindowElementList& E,in
                         ?Ability->Branches.FindByPredicate([ActivePath](const FLDDemoAbilityBranch& B){return B.Path==ActivePath;}):nullptr;
                     const FLDDemoTargetDefinition& TargetDef=Branch?Branch->Target:Ability->Target;
                     SkillElem=(Branch&&Branch->Element!=ELDDemoSkillElement::None)?Branch->Element:Ability->Element;
+                    if(SkillElem==ELDDemoSkillElement::None)
+                    {
+                        for(const FLDCardInstanceView& Inst:Own.Growth.Progression.Cards)
+                        {
+                            if(!Inst.IsInstalled()||Inst.Target.Kind!=ELDCardTargetKind::Skill||Inst.Target.Active!=Source->DefinitionId){continue;}
+                            const FLDDemoCardDefinition* MedalDef=Content.Cards.FindByPredicate([&Inst](const FLDDemoCardDefinition& C)
+                                {return FName(*C.Id)==Inst.DefinitionId;});
+                            if(!MedalDef){continue;}
+                            for(const FLDDemoEffectDefinition& Ef:MedalDef->Effects)
+                            {
+                                if(Ef.GetOp()!=ELDDemoEffectOp::SkillElement){continue;}
+                                switch(Ef.Element)
+                                {
+                                case ELDDemoElement::Fire: SkillElem=ELDDemoSkillElement::Fire; break;
+                                case ELDDemoElement::Water: SkillElem=ELDDemoSkillElement::Water; break;
+                                case ELDDemoElement::Electric: SkillElem=ELDDemoSkillElement::Shock; break;
+                                case ELDDemoElement::Chill: SkillElem=ELDDemoSkillElement::Chill; break;
+                                case ELDDemoElement::Rot: SkillElem=ELDDemoSkillElement::Rot; break;
+                                default: break;
+                                }
+                                if(SkillElem!=ELDDemoSkillElement::None){break;}
+                            }
+                            if(SkillElem!=ELDDemoSkillElement::None){break;}
+                        }
+                    }
                     if(TargetMode==ELDDemoTargetMode::DirectionCone)
                     {
                         ConeDegrees=float(RationalCm(TargetDef.AngleDegrees));

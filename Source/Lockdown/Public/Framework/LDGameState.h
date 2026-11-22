@@ -62,9 +62,6 @@ private:
     uint32 DormMarkerFailedGeneration = 0;
     // The airdrop ring and crate, rebuilt for each drop serial.
     void SyncAirdropMarker();
-    // One ring per public recovery orb, rebuilt by serial.
-    void SyncRecoveryOrbMarkers();
-    TArray<TWeakObjectPtr<class ALDRecoveryOrbMarker>> RecoveryOrbMarkers;
     TWeakObjectPtr<ALDAirdropMarker> AirdropMarker;
     uint32 AirdropMarkerFailedGeneration = 0;
     FLDLobbyView LatestDemoLobby;

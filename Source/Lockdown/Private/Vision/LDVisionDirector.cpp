@@ -1755,6 +1755,35 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
         { return A.Key < B.Key; });
         for (int32 Index = 0; Index < SeenGround.Num() && Index < LDObservation::MaxGroundStates; ++Index)
         { View.GroundStates.Add(LDObservation::GroundView(*SeenGround[Index].Value)); }
+        // Camp-clear recovery orbs are strictly fog-of-war authorized: only a field observer with line-of-sight sees them.
+        if (Mode && Mode->IsFieldRunning() && !Mode->IsShowdown() && !Mode->IsInRestSpace(Observer.ContenderId) && !bArena)
+        {
+            const int64 FieldNowMs = Mode->GetFieldNowMs();
+            TArray<TPair<double, const FLDRecoveryOrbView*>> SeenOrbs;
+            for (const FLDRecoveryOrbView& Orb : Mode->GetRecoveryOrbs())
+            {
+                if (Orb.Serial == 0 || FieldNowMs >= Orb.ExpireAtMs) { continue; }
+                const ELDSightResult Result = Sight.Trace(Foot, Orb.PositionCm);
+                if (Result == ELDSightResult::StaleWorld)
+                {
+                    Error = TEXT("StaleWorld: recovery-orb sight has no current world.");
+                    return false;
+                }
+                if (Result == ELDSightResult::Visible)
+                {
+                    SeenOrbs.Emplace(FVector2D::DistSquared(FVector2D(Foot.X, Foot.Y), FVector2D(Orb.PositionCm.X, Orb.PositionCm.Y)), &Orb);
+                }
+            }
+            SeenOrbs.Sort([](const TPair<double, const FLDRecoveryOrbView*>& A, const TPair<double, const FLDRecoveryOrbView*>& B)
+            { return A.Key < B.Key; });
+            for (int32 Index = 0; Index < SeenOrbs.Num() && Index < LDObservation::MaxRecoveryOrbs; ++Index)
+            {
+                FLDObservedRecoveryOrb AuthorizedOrb;
+                AuthorizedOrb.Serial = SeenOrbs[Index].Value->Serial;
+                AuthorizedOrb.PositionCm = SeenOrbs[Index].Value->PositionCm;
+                View.RecoveryOrbs.Add(AuthorizedOrb);
+            }
+        }
     }
     if (!LDObservation::ValidateView(View, Error)) { return false; }
     Observer.Latest = View;

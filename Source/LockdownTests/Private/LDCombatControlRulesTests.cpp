@@ -92,7 +92,7 @@ bool FLDCombatEmpowerTest::RunTest(const FString& Parameters)
     FLDCombatEmpower Value;
     Value.EffectId = FGuid::NewGuid();
     Value.Source.Kind = ELDCombatSourceKind::Learned;
-    Value.Source.DefinitionId = TEXT("active_apology_slide");
+    Value.Source.DefinitionId = TEXT("active_bail_out");
     Value.AmountP2 = 5000;
     Value.ExpiresAtMs = 3100;
     LDCombatControl::ArmEmpower(Armed, Value);
@@ -123,9 +123,9 @@ bool FLDCombatExpansionContentTest::RunTest(const FString& Parameters)
         AddError(Error);
         return false;
     }
-    const FLDDemoEffectDefinition* Disarm = FindOp(Unplug->Values.Effects, ELDDemoEffectOp::Disarm);
-    TestTrue(TEXT("The unplug damages and disarms a unit"), Unplug->Target.Mode == ELDDemoTargetMode::Unit
-        && FindOp(Unplug->Values.Effects, ELDDemoEffectOp::Damage) && Disarm && Disarm->DurationMs > 0);
+    const FLDDemoEffectDefinition* Parry = FindOp(Unplug->Values.Effects, ELDDemoEffectOp::ParryStance);
+    TestTrue(TEXT("The unplug opens a self parry stance whose counter disarms"), Unplug->Target.Mode == ELDDemoTargetMode::Self
+        && Parry && Parry->DurationMs > 0 && Parry->SecondaryDurationMs > 0 && Parry->BaseP2 > 0);
     const FLDDemoEffectDefinition* Empower = FindOp(BailOut->Values.Effects, ELDDemoEffectOp::EmpowerBasic);
     TestTrue(TEXT("The bail-out dashes and arms one empowered basic"), BailOut->Target.Mode == ELDDemoTargetMode::DirectionDash
         && FindOp(BailOut->Values.Effects, ELDDemoEffectOp::Dash) && Empower && Empower->DurationMs > 0

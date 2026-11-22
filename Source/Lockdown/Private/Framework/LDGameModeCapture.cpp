@@ -840,7 +840,6 @@ FLDPublicMatchView ALDGameMode::ReadPublicMatch() const
     if (!Showdown.bStarted)
     {
         View.Airdrop = Airdrop.View();
-        View.RecoveryOrbs = RecoveryOrbs;
         View.Leader = LeaderNotice.View();
         View.Boss = Camps ? Camps->BossView() : FLDBossView();
         FieldMarkers.View(View.Markers);

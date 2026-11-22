@@ -294,6 +294,101 @@ namespace LDCombatElements
         return (Offset-Along*T).SizeSquared()<=Ground.RadiusCm*Ground.RadiusCm;
     }
 
+    bool WindIntersectsGround(const FVector& OriginCm, const FVector& Heading, double LengthCm, double HalfWidthCm,
+        const FLDGroundState& Ground)
+    {
+        if (LengthCm<=0. || HalfWidthCm<=0. || Ground.RadiusCm<=0.) { return false; }
+        const FVector2D Fwd=FVector2D(Heading.X,Heading.Y).GetSafeNormal();
+        if (Fwd.IsNearlyZero()) { return false; }
+        const FVector2D Right(-Fwd.Y,Fwd.X);
+        const auto ToLocal=[&](const FVector2D& WorldPt)->FVector2D
+        {
+            const FVector2D Rel=WorldPt-FVector2D(OriginCm.X,OriginCm.Y);
+            return FVector2D(FVector2D::DotProduct(Rel,Fwd),FVector2D::DotProduct(Rel,Right));
+        };
+        const auto ToWorld=[&](const FVector2D& LocalPt)->FVector
+        {
+            const FVector2D W=FVector2D(OriginCm.X,OriginCm.Y)+Fwd*LocalPt.X+Right*LocalPt.Y;
+            return FVector(W.X,W.Y,Ground.CentreCm.Z);
+        };
+        const auto PointToBoxDistSq=[&](const FVector2D& P)->double
+        {
+            const double ClampedX=FMath::Clamp(P.X,0.,LengthCm);
+            const double ClampedY=FMath::Clamp(P.Y,-HalfWidthCm,HalfWidthCm);
+            return FMath::Square(P.X-ClampedX)+FMath::Square(P.Y-ClampedY);
+        };
+        const auto SegIntersectsSeg=[](const FVector2D& A, const FVector2D& B, const FVector2D& C, const FVector2D& D)->bool
+        {
+            const auto Cross=[](const FVector2D& U, const FVector2D& V) { return U.X*V.Y-U.Y*V.X; };
+            const FVector2D R=B-A, S=D-C, AC=C-A;
+            const double Den=Cross(R,S);
+            if (FMath::Abs(Den)<=1e-9) { return false; }
+            const double T=Cross(AC,S)/Den, U=Cross(AC,R)/Den;
+            return T>=-1e-9 && T<=1.+1e-9 && U>=-1e-9 && U<=1.+1e-9;
+        };
+        const FVector2D Corners[4]={
+            FVector2D(0.,-HalfWidthCm), FVector2D(LengthCm,-HalfWidthCm),
+            FVector2D(LengthCm,HalfWidthCm), FVector2D(0.,HalfWidthCm)
+        };
+        const auto SegToBoxDistSq=[&](const FVector2D& A, const FVector2D& B)->double
+        {
+            double Best=FMath::Min(PointToBoxDistSq(A),PointToBoxDistSq(B));
+            if (Best<=0.) { return 0.; }
+            for (int32 E=0; E<4; ++E)
+            {
+                const FVector2D& E0=Corners[E];
+                const FVector2D& E1=Corners[(E+1)%4];
+                if (SegIntersectsSeg(A,B,E0,E1)) { return 0.; }
+                const FVector2D AB=B-A;
+                const double LenSq=AB.SizeSquared();
+                const double T=LenSq>1e-9 ? FMath::Clamp(FVector2D::DotProduct(E0-A,AB)/LenSq,0.,1.) : 0.;
+                Best=FMath::Min(Best,(E0-(A+AB*T)).SizeSquared());
+            }
+            return Best;
+        };
+
+        const FVector2D Centre2D(Ground.CentreCm.X,Ground.CentreCm.Y);
+        const FVector2D LocalCentre=ToLocal(Centre2D);
+        // 1. Sector footprint: check vertices, apex, radial boundary segments, and closest points on wind edges to apex.
+        if (Ground.AngleDegrees>0.)
+        {
+            if (PointToBoxDistSq(LocalCentre)<=0.) { return true; }
+            for (const FVector2D& Corner : Corners)
+            {
+                if (GroundContains(Ground,ToWorld(Corner))) { return true; }
+            }
+            const FVector2D GHead=Ground.Heading.GetSafeNormal();
+            const double HalfRad=FMath::DegreesToRadians(Ground.AngleDegrees*.5);
+            for (const double Sign : {-1., 1.})
+            {
+                const double C=FMath::Cos(Sign*HalfRad), S=FMath::Sin(Sign*HalfRad);
+                const FVector2D RayDir(GHead.X*C-GHead.Y*S, GHead.X*S+GHead.Y*C);
+                const FVector2D RayEnd=ToLocal(Centre2D+RayDir*Ground.RadiusCm);
+                if (SegToBoxDistSq(LocalCentre,RayEnd)<=1e-6) { return true; }
+            }
+            for (int32 E=0; E<4; ++E)
+            {
+                const FVector2D& E0=Corners[E];
+                const FVector2D& E1=Corners[(E+1)%4];
+                const FVector2D Edge=E1-E0;
+                const double LenSq=Edge.SizeSquared();
+                const double T=LenSq>1e-9 ? FMath::Clamp(FVector2D::DotProduct(LocalCentre-E0,Edge)/LenSq,0.,1.) : 0.;
+                if (GroundContains(Ground,ToWorld(E0+Edge*T))) { return true; }
+            }
+            return false;
+        }
+        // 2. Circle footprint: exact Euclidean distance from Centre to wind rectangle <= RadiusCm.
+        if (Ground.HalfLengthCm<=0.)
+        {
+            return PointToBoxDistSq(LocalCentre)<=FMath::Square(Ground.RadiusCm);
+        }
+        // 3. Capsule-band footprint: exact 2D distance between band segment and wind rectangle <= RadiusCm.
+        const FVector2D Along=Ground.Heading.GetSafeNormal();
+        const FVector2D SegA=ToLocal(Centre2D-Along*Ground.HalfLengthCm);
+        const FVector2D SegB=ToLocal(Centre2D+Along*Ground.HalfLengthCm);
+        return SegToBoxDistSq(SegA,SegB)<=FMath::Square(Ground.RadiusCm);
+    }
+
     void GroundEvictions(const TArray<FLDGroundState>& Live, const FGuid& Owner, int32 MaxPerOwner, int32 MaxTotal,
         TArray<int32>& OutDescending)
     {

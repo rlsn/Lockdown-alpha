@@ -39,7 +39,7 @@
 | --- | --- |
 | 严格解析 | `Decimal` 词法读取，拒绝重复键、未知字段/op/ID、错量纲、bool 冒充整数、NaN/Inf 与超精度小数；大整数不经 JSON double 往返 |
 | 定点投影 | P2 → `{unit, p2}`；比例 → `{unit, bp}`；秒 → `{unit: "ms", ms}`；距离/速率 → 约分有理数 `{numerator, denominator}` |
-| 完整闭合 | 角色基值、26 项三级分支主动、五维属性与 18 点关键石、73 张构筑牌 + 5 枚勋章、8 项终局改装、四档 12 种野怪与 Boss、AI 参数及显示表全部进入不可变快照 |
+| 完整闭合 | 角色基值、24 项三级分支主动、五维属性与 18 点关键石、89 张构筑牌 + 5 枚勋章、8 项终局改装、四档 12 种野怪与 Boss、AI 参数及显示表全部进入不可变快照 |
 | 产物核对 | 必须读取真实 `world.json` 与 `LDDemoWorldContract.h` 字节，输出 `demo_content.json`、`manifest.json` 与 `LDDemoContentContract.h` |
 
 `camps.placements.monster_id` 仅代表营地固定档位；运行时 `FLDCampSpec::Pools` 按档位聚合 3 种候选并在每次整组生成时独立抽样（`SpawnBlocked` 重试保留原抽签，提交后才切换种类）。

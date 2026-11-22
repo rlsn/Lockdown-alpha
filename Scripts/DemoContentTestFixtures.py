@@ -26,12 +26,13 @@ def content_fixture():
     parameters = {}
     for stat, unit, base, per_level, minimum, maximum in (
         ("MaxHP", "hp", 100, 10, 1, 10000),
-        ("AD", "points", 20, 1, 0, 1000), ("AP", "points", 8, 1, 0, 1000),
+        ("AD", "points", 20, 1, 0, 1000), ("AP", "points", 8, None, 0, 1000),
         ("Armor", "points", 5, 1, 0, 500), ("MagicResist", "points", 6, 1, 0, 500),
         ("HPRegen", "hp/s", 1.25, 0.25, 0, 100),
     ):
         for suffix, value in (("Base", base), ("PerLevel", per_level), ("Min", minimum), ("Max", maximum)):
-            parameters[f"STAT.{stat}.{suffix}"] = q(unit, value)
+            if value is not None:
+                parameters[f"STAT.{stat}.{suffix}"] = q(unit, value)
     for key, unit, value in (
         ("STAT.BaseAttackSpeed", "attacks/s", 1), ("STAT.AttackSpeedPerLevelRatio", "ratio", 0.03),
         ("STAT.AttackSpeed.Min", "attacks/s", 0.1), ("STAT.AttackSpeed.Max", "attacks/s", 4),
@@ -41,7 +42,9 @@ def content_fixture():
         ("MOMENTUM.Max", "momentum", 80), ("MOMENTUM.Start", "momentum", 40), ("MOMENTUM.CombatPerSec", "momentum/s", 2),
         ("MOMENTUM.BasicPerRefInterval", "momentum", 8), ("MOMENTUM.BasicRefIntervalSec", "s", 1),
         ("MOMENTUM.SkillHit", "momentum", 4), ("MOMENTUM.Reaction", "momentum", 6), ("MOMENTUM.PerfectDodge", "momentum", 12),
-        ("MOMENTUM.PerfectDodgeWindowSec", "s", 0.25), ("MOMENTUM.IdleDelaySec", "s", 4), ("MOMENTUM.IdleReturnPerSec", "momentum/s", 8),
+        ("MOMENTUM.PerfectDodgeWindowSec", "s", 0.25), ("MOMENTUM.DashDodgeWindowSec", "s", 0.12),
+        ("MOMENTUM.DashDodgeCutRatio", "ratio", 0.5), ("MOMENTUM.DashDodgeCooldownRefundRatio", "ratio", 0.3),
+        ("MOMENTUM.IdleDelaySec", "s", 4), ("MOMENTUM.IdleReturnPerSec", "momentum/s", 8),
         ("COMBO.ResetSec", "s", 1.25), ("OVERDRIVE.Threshold", "momentum", 80), ("OVERDRIVE.HoldSec", "s", 0.25),
         ("OVERDRIVE.Scale", "ratio", 1.5), ("OVERDRIVE.WaterSlow", "ratio", 0.4), ("OVERDRIVE.WaterSlowSec", "s", 1.25),
         ("OVERDRIVE.ShockReactionRatio", "ratio", 0.5), ("OVERDRIVE.RotDurationScale", "ratio", 2),
@@ -57,9 +60,9 @@ def content_fixture():
         ("SHOWDOWN.UnlockDelaySec", "s", 10), ("SHOWDOWN.DurationSec", "s", 240),
         ("SHOWDOWN.FirstRespawnSec", "s", 18),
         ("SHOWDOWN.SecondRespawnSec", "s", 24), ("SHOWDOWN.RespawnCutoffSec", "s", 150),
-        ("SHOWDOWN.ClosureStartsSec", "s", 120),
+        ("SHOWDOWN.ClosureStartsSec", "s", 120), ("SHOWDOWN.KillGuardBonusSec", "s", 2),
         ("MATCH.FieldSegmentSec", "s", 90),
-        ("REST.OpeningBuildSec", "s", 40), ("REST.BuildSec", "s", 20), ("REST.SignupSec", "s", 8),
+        ("REST.OpeningBuildSec", "s", 40), ("REST.BuildSec", "s", 20), ("REST.FinalBuildSec", "s", 20), ("REST.SignupSec", "s", 8),
         ("REST.DrawSec", "s", 4), ("REST.BettingSec", "s", 6), ("REST.PKReadySec", "s", 2), ("REST.PKMaxSec", "s", 45),
         ("REST.SettlementSec", "s", 2.5), ("REST.PayoutSec", "s", 9), ("REST.ReturnSec", "s", 4),
         ("REST.ReturnSearchRadiusCm", "cm", 250), ("REST.EntryReadyTimeoutSec", "s", 20),
@@ -86,7 +89,7 @@ def content_fixture():
         ("DAILY.DeliveryExpireSec", "s", 10), ("DAILY.PatrolBossAppearSec", "s", 100),
         ("DAILY.ExamMonsterXPScale", "ratio", 1.2), ("DAILY.ExamRespawnBonusSec", "s", 2),
         ("DAILY.GymDashCooldownCut", "ratio", 0.2),
-        ("AFFIX.Chance", "ratio", 0.25), ("MEDAL.LevelChance", "ratio", 0.15), ("MEDAL.CampLowChance", "ratio", 0.03), ("MEDAL.CampHighChance", "ratio", 0.06), ("MEDAL.CampEliteChance", "ratio", 0.12), ("MEDAL.CampAncientChance", "ratio", 0.25), ("MEDAL.BossChance", "ratio", 1), ("MEDAL.EventChance", "ratio", 0.5), ("AFFIX.OvertimeAttackSpeed", "ratio", 0.2),
+        ("AFFIX.Chance", "ratio", 0.25), ("MEDAL.LevelChance", "ratio", 0.15), ("MEDAL.CampLowChance", "ratio", 0.03), ("MEDAL.CampHighChance", "ratio", 0.06), ("MEDAL.CampEliteChance", "ratio", 0.12), ("MEDAL.CampAncientChance", "ratio", 0.25), ("MEDAL.BossChance", "ratio", 1), ("MEDAL.EventChance", "ratio", 0.5), ("MEDAL.Tier2ReactionBonusRatio", "ratio", 0.35), ("AFFIX.OvertimeAttackSpeed", "ratio", 0.2),
         ("AFFIX.TeambuildXPScale", "ratio", 1.25), ("AFFIX.BonusHP", "ratio", 0.3), ("AFFIX.LayoffAttack", "ratio", 0.2),
         ("AFFIX.AuditTelegraphCut", "ratio", 0.25),
         ("EXPLORE.LockerRadiusCm", "cm", 120), ("EXPLORE.LockerChannelSec", "s", 2.5),
@@ -122,6 +125,7 @@ def content_fixture():
         ("COMBAT.KeystoneAgilityDashCooldownCut", "ratio", 0.2),
         ("COMBAT.KeystoneThickSkinGuardPoints", "points", 6),
         ("COMBAT.KeystoneThickSkinGuardCapRatio", "ratio", 0.12), ("COMBAT.KeystoneThickSkinIntervalSec", "s", 8), ("COMBAT.KeystoneThickSkinSteadySec", "s", 1), ("COMBAT.KeystoneThickSkinKnockbackRatio", "ratio", 0.6),
+        ("COMBAT.KeystoneThickSkinBleedThresholdRatio", "ratio", 0.35), ("COMBAT.KeystoneThickSkinBleedSec", "s", 2), ("COMBAT.KeystoneThickSkinBleedTickSec", "s", 0.5),
         ("COMBAT.KeystoneStrengthDamageRatio", "ratio", 0.06),
         ("COMBAT.KeystoneBrainsMomentumRefundRatio", "ratio", 0.15),
         ("COMBAT.KeystoneBrainsReactionMomentum", "momentum", 10), ("COMBAT.KeystoneBrainsCooldownCutSec", "s", 0.5),
@@ -184,9 +188,12 @@ def content_fixture():
     parameters["SKILL.RankRatioScale"] = [q("ratio", 1), q("ratio", 1.125), q("ratio", 1.25)]
     parameters["SKILL.PointLevels"] = [3, 6, 9]
     parameters["COMBO.StepRatios"] = [q("ratio", 0.75), q("ratio", 1), q("ratio", 1.5)]
+    parameters["SHOWDOWN.SprayRatchetSec"] = [q("s", 1), q("s", 2)]
+    parameters["SHOWDOWN.GuardRatchetSec"] = [q("s", 8), q("s", 14)]
     parameters["OVERDRIVE.FireBurnStacks"] = 2
     parameters.update({
-        "XP.BaseToNext": 50, "XP.IncreasePerLevel": 10,
+        "XP.BaseToNext": 50, "XP.IncreasePerLevel": 10, "XP.SteepFromLevel": 5, "XP.SteepExtraPerLevel": 0,
+        "MEDAL.MaxTier": 3,
         "REWARD.PlayerXP.Base": 12, "REWARD.PlayerXP.PerLevel": 2, "REWARD.BountyXP": 20, "REWARD.BountyCardOffer": 4, "AI.RetryPolicy.MaxAttempts": 2,
         "SHOWDOWN.RespawnLimit": 2,
         "CAMP.ReturnDeadEndPlans": 2, "CAMP.GrowthMaxStage": 4, "AIRDROP.RewardXP": 150,
@@ -201,8 +208,8 @@ def content_fixture():
         "EXPLORE.LockerCount": 5, "EXPLORE.LockerCardOffer": 4, "EXPLORE.PeddlerCardOffer": 4,
         "GROWTH.KeystoneThresholdPoints": 18, "GROWTH.ActiveSkipPoints": 2,
         "CARDS.CapacityBase": 5, "CARDS.LevelsPerSlot": 4, "CARDS.OfferSize": 3, "CARDS.FreeRerolls": 2,
-        "CARDS.RerollsPerRest": 1, "CARDS.VocabWeight": 3, "CARDS.SkipPoints": 1, "CARDS.OfferEveryLevels": 1, "CARDS.IdleCarrySec": q("s", 4),
-        "SHOP.CardSlots": 3, "SHOP.VocabCardSlots": 1, "SHOP.VocabWeight": 2, "SHOP.SkillSlots": 1, "SHOP.CardPrice": 3,
+        "CARDS.RerollsPerRest": 1, "CARDS.VocabWeight": q("ratio", 1.2), "CARDS.SkipPoints": 1, "CARDS.OfferEveryLevels": 1, "CARDS.IdleCarrySec": q("s", 4),
+        "SHOP.CardSlots": 3, "SHOP.VocabCardSlots": 1, "SHOP.VocabWeight": q("ratio", 1.8), "SHOP.SkillSlots": 1, "SHOP.CardPrice": 3,
         "SHOP.SkillPrice": 3, "SHOP.RefreshPrice": 0, "SHOP.RefreshStep": 2, "SHOP.SkillPointPrice": 4,
         "SHOP.SkillPointMaxPerMatch": 2,
         "DAMAGE.FactorTechCap": q("ratio", 500), "CHAIN.MaxDepth": 8, "CHAIN.MaxEffectsPerStep": 64,
@@ -239,7 +246,9 @@ def content_fixture():
             "momentum_cost": q("momentum", 6), "cooldown": q("s", 3),
             "effects": [{"op": "damage", "base": q("points", 8), "ad_ratio": q("ratio", 0),
                          "ap_ratio": q("ratio", 0.125), "max_hp_ratio": q("ratio", 0), "damage_type": "Magical"},
-                        {"op": "slow", "ratio": q("ratio", 0.25), "duration": q("s", 0.5)}],
+                        {"op": "slow", "ratio": q("ratio", 0.25), "duration": q("s", 0.5)},
+                        {"op": "slipper_pickup", "duration": q("s", 3), "radius": q("cm", 100),
+                         "refund_ratio": q("ratio", 0.5), "stats": {"AttackSpeedBonusRatio": q("ratio", 0.1)}, "buff_duration": q("s", 2)}],
         },
         {
             "id": "active_not_mad", "opening": True, "cooldown_family": "cd_not_mad",
@@ -250,10 +259,12 @@ def content_fixture():
         },
         {
             "id": "active_pants_down", "opening": True, "cooldown_family": "cd_pants_down",
-            "target": {"mode": "Unit", "range": q("cm", 250)}, "windup": q("s", 0.125), "momentum_cost": q("momentum", 7), "cooldown": q("s", 9),
-            "element": "none", "hit_type": "targeted",
+            "target": {"mode": "DirectionLine", "range": q("cm", 250), "half_width": q("cm", 45)}, "windup": q("s", 0.125), "momentum_cost": q("momentum", 7), "cooldown": q("s", 9),
+            "element": "none", "hit_type": "area",
             "effects": [{"op": "damage", "base": q("points", 5), "ad_ratio": q("ratio", 0), "ap_ratio": q("ratio", 0.1), "max_hp_ratio": q("ratio", 0), "damage_type": "Magical"},
-                        {"op": "root", "duration": q("s", 0.25)}],
+                        {"op": "root", "duration": q("s", 0.25)},
+                        {"op": "breach", "stacks": 2},
+                        {"op": "grab_line", "extra_duration": q("s", 0.25)}],
         },
         {
             "id": "active_stare_down", "opening": False, "cooldown_family": "cd_stare_down",
@@ -348,7 +359,7 @@ def content_fixture():
     next(row for row in display if row["id"] == "stat_brains")["description_text"] += " [per_point.APFlat] [per_point.MomentumRegenFlat]"
     next(row for row in display if row["id"] == "card_breach_fist")["description_text"] += " [breach.basic_count]"
     return {
-        "identity": {"schema_version": 7, "handler_revision": 14, "projection_revision": 10,
+        "identity": {"schema_version": 8, "handler_revision": 15, "projection_revision": 11,
                      "approval": {"status": "approved", "decision": "TEST ONLY: synthetic fixture, not product approval"}},
         "parameters": parameters, "formulas": formulas, "policies": policies,
         "character": {"id": "character_demo", "basic_attack": {"target_mode": "Unit", "damage_type": "Physical", "ad_ratio": q("ratio", 1)},

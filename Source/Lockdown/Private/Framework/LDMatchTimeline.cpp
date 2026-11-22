@@ -8,6 +8,7 @@ bool FLDTimelineParameters::FromContent(const FLDDemoContentParameters& Content,
     Out.FieldSegmentMs = Content.FieldSegmentMs;
     Out.OpeningBuildMs = Content.RestOpeningBuildMs;
     Out.BuildMs = Content.RestBuildMs;
+    Out.FinalBuildMs = Content.RestFinalBuildMs > 0 ? Content.RestFinalBuildMs : Content.RestBuildMs;
     Out.SignupMs = Content.RestSignupMs;
     Out.DrawMs = Content.RestDrawMs;
     Out.BettingMs = Content.RestBettingMs;
@@ -40,6 +41,11 @@ bool FLDTimelineParameters::Validate(FString& Error) const
             Error = TEXT("Optional rest step durations must be nonnegative and bounded.");
             return false;
         }
+    }
+    if (FinalBuildMs != 0 && (FinalBuildMs < 0 || FinalBuildMs > Bound))
+    {
+        Error = TEXT("The final rest build duration must be positive and bounded.");
+        return false;
     }
     if (SignupMs > BuildMs || SignupMs > OpeningBuildMs)
     {
@@ -114,7 +120,10 @@ int64 FLDMatchTimeline::StepDuration(ELDRestStep InStep) const
 {
     switch (InStep)
     {
-    case ELDRestStep::Build: return RestIndex == 0 ? Parameters.OpeningBuildMs : Parameters.BuildMs;
+    case ELDRestStep::Build:
+        return RestIndex == 0 ? Parameters.OpeningBuildMs
+            : (RestIndex == FLDTimelineParameters::TimedSegments && Parameters.FinalBuildMs > 0) ? Parameters.FinalBuildMs
+            : Parameters.BuildMs;
     case ELDRestStep::Draw: return Parameters.DrawMs;
     case ELDRestStep::Betting: return Parameters.BettingMs;
     case ELDRestStep::PKReady: return Parameters.PKReadyMs;

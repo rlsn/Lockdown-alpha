@@ -199,6 +199,7 @@ public:
     // A whole camp clear leaves a recovery orb on its anchor; the first living contender to touch it takes it.
     void DropRecoveryOrb(const FVector& PositionCm);
     bool ClaimRecoveryOrbs(const FLDGameplayWritePermit& Permit, FString& Error);
+    const TArray<FLDRecoveryOrbView>& GetRecoveryOrbs() const { return RecoveryOrbs; }
     // Transactions: grants the trending survival points counted so far; one that fails stays owed.
     bool PayTrendingPoints(const FLDGameplayWritePermit& Permit, FString& Error);
     // Driver step planning: the next airdrop announcement or landing boundary, MAX_int64 when none.

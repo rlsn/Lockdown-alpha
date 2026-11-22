@@ -58,6 +58,10 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         if (Body.VoluntaryDash.IsSet()) { Consider(Body.VoluntaryDash->EndMs); }
         if (Body.Shield.IsSet()) { Consider(Body.Shield->ExpiresAtMs); }
         for (const FLDBodyCombatState::FShieldLayer& Layer : Body.ShieldLayers) { Consider(Layer.ExpiresAtMs); }
+        for (const FLDBodyCombatState::FStaggerBleed& Bleed : Body.StaggerBleeds) { Consider(Bleed.NextTickMs); }
+        Consider(Body.ParryUntilMs);
+        Consider(Body.FrenzyUntilMs);
+        Consider(Body.EagleLingerUntilMs);
         if (Body.Taunt.IsSet()) { Consider(Body.Taunt->ExpiresAtMs); }
         Consider(Body.DashUntilMs);
         Consider(Body.MonsterNextAttackAtMs);
@@ -77,6 +81,10 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
     }
     // #112 mechanics: zone pulses and their records' ends.
     for(const auto& Strike:MonsterStrikes){Consider(Strike.AtMs);}
+    for(const auto& Drop:SlipperDrops){Consider(Drop.ExpiresAtMs);}
+    for(const auto& Cordon:Cordons){Consider(Cordon.ExpiresAtMs);}
+    for(const auto& Decoy:Decoys){Consider(Decoy.ExplodeAtMs);}
+    for(const auto& Burst:ShardBursts){Consider(Burst.ExpiresAtMs);}
     Consider(NextMechanicsDueMs(NowMs));
     Consider(NextCardsDueMs(NowMs));
     // The basic cadence and every ability cooldown end on exact boundaries, not one frame late.

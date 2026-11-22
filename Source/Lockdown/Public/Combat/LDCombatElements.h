@@ -124,6 +124,8 @@ struct FLDElementApplier
     // The release whose hit applied this element (K25 keys its once-per-release cut on it); unset otherwise.
     FGuid EffectId;
     TSharedPtr<FLDCombatCastLedger> CastLedger;
+    // Same-element medal fusion tier on the applier's host slot (1..3; 2+ boosts reaction damage by MEDAL.Tier2ReactionBonusRatio).
+    uint8 MedalTier = 1;
 };
 
 // The held mark of a target life (water, shock, chill or rot). Wet and chill hold their slow instances (SlowEffectId,
@@ -269,6 +271,9 @@ namespace LDCombatElements
     LOCKDOWN_API ELDCombatElement GroundElement(ELDGroundStateKind Kind);
     // Whether Foot is inside the ground state (circle, band or sector, planar).
     LOCKDOWN_API bool GroundContains(const FLDGroundState& Ground, const FVector& Foot);
+    // Whether an oriented wind corridor [0, LengthCm] x [-HalfWidthCm, HalfWidthCm] from OriginCm along Heading intersects Ground.
+    LOCKDOWN_API bool WindIntersectsGround(const FVector& OriginCm, const FVector& Heading, double LengthCm, double HalfWidthCm,
+        const FLDGroundState& Ground);
     // Spec §8.3 caps: Owner's live states beyond MaxPerOwner - 1 and all beyond MaxTotal - 1 go first, oldest first, so one
     // more fits. Returns the indices to remove (descending).
     LOCKDOWN_API void GroundEvictions(const TArray<FLDGroundState>& Live, const FGuid& Owner, int32 MaxPerOwner, int32 MaxTotal,

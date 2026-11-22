@@ -117,6 +117,17 @@ bool ALDCombatDirector::PlaceBag(FLDBodyCombatState& Body, const FLDCombatHit& P
     const int64 Level = FMath::Max(GrowthLevelOf(Body), 1);
     int64 HpP2 = Effect.BaseP2 + Effect.LimitP2 * (Level - 1);
     if (Effect.RatioBp > 0) { HpP2 = HpP2 / 10000 * Effect.RatioBp + HpP2 % 10000 * Effect.RatioBp / 10000; }
+    {
+        TArray<FLDPassiveEffectRef> Rogue;
+        if (!CollectPassiveEffects(Body.AttributeProjection, ELDDemoEffectOp::RogueWorks, Rogue, Error)) { return false; }
+        int64 ShareBp = 0;
+        for (const FLDPassiveEffectRef& Ref : Rogue) { ShareBp += Ref.Effect.RatioBp; }
+        if (ShareBp > 0)
+        {
+            HpP2 += Body.Resources.MaxHpP2 / 10000 * ShareBp + Body.Resources.MaxHpP2 % 10000 * ShareBp / 10000;
+            LedgerCardTriggered(Body, Rogue[0].Key);
+        }
+    }
     Bag.HpP2 = FMath::Max<int64>(HpP2, 1);
     if (Bag.BodyRadiusCm <= 0 || Bag.BlastRadiusCm <= 0 || !LDMatchLifecycle::AddDurationMs(NowMs, Effect.DurationMs, Bag.ExpiresAtMs, Error))
     {

@@ -182,8 +182,6 @@ struct FLDPublicMatchView
     UPROPERTY() int64 GuardKeptMs = 0;
     UPROPERTY() FGuid ResultId;
     UPROPERTY() FLDAirdropView Airdrop;
-    // The recovery orbs on the field now (none outside a running field).
-    UPROPERTY() TArray<FLDRecoveryOrbView> RecoveryOrbs;
     UPROPERTY() FLDLeaderView Leader;
     UPROPERTY() FLDBossView Boss;
     // #198 outer §5: the camp markers of the current (or, until the next reveal, the last) timed field segment.

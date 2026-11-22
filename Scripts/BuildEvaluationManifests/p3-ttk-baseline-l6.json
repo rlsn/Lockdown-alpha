@@ -15,8 +15,8 @@
       "site": "capture",
       "duel_timeout_ms": 90000,
       "supply_xp": {
-        "subject": 500,
-        "opponent": 500
+        "subject": 545,
+        "opponent": 545
       }
     }
   },

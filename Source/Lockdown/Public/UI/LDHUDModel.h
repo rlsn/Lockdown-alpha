@@ -80,6 +80,7 @@ namespace LDHUD
         int64 APP2=0;
         int64 MaxHPP2=0;
         int64 ArmorP2=0;
+        int64 MagicResistP2=0;
         // A blueprint records a level but not the final projected attributes; show their coefficients instead.
         bool bShowScalingFormula=false;
         // A learned skill's current card damage factor (10000 = none), applied to its damage numbers.
@@ -826,8 +827,9 @@ namespace LDHUD
         FName Card;
         TArray<FName> Keys;
         int32 Copies=1;
-        // Y25's chosen element ("火"); empty otherwise.
+        // Y25's chosen element ("火") or medal tier ("Ⅰ/Ⅱ/Ⅲ"); empty otherwise.
         FString Note;
+        uint8 MedalTier=0;
     };
     struct FStorageColumnView
     {
@@ -926,6 +928,11 @@ namespace LDHUD
         // Phase 9: an untaken final mod three-choice.
         bool bFinalMod=false;
         bool Any() const {return bOffer||Blueprints>0||bCardOffer||bFinalMod;}
+        int32 StashedCount() const
+        {
+            return FMath::Max<int32>(Offers, bOffer ? 1 : 0) + Blueprints
+                + FMath::Max<int32>(CardOffers, bCardOffer ? 1 : 0) + (bFinalMod ? 1 : 0);
+        }
     };
     LOCKDOWN_API FGrowthPending GrowthPending(const FLDProgressionView* Progression,uint32 Match,const FLDDemoContentDefinitions* Content);
     // The current opportunity is included in Queued; the first dot represents it.
@@ -1196,6 +1203,8 @@ namespace LDHUD
         int64 RiderDamageP2=0;
         int64 FinalCooldownMs=0;
         int64 FinalMomentumCostP2=0;
+        uint8 OverdriveElement=0;
+        FString OverdriveLine;
         bool bHasFormula=false;
         FString FooterHint;
         TArray<FString> FormulaLines;

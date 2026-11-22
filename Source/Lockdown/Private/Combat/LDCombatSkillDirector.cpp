@@ -218,6 +218,45 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
         bHandled=true;
         return true;
     }
+    // #345 active_cordon_tape: transverse elastic cordon line at target point.
+    if (const auto* Tape=Op(Values, ELDDemoEffectOp::CordonLine))
+    {
+        const auto* Actor=ActorOf(Body);
+        if (!Actor) { Error=TEXT("A cordon skill lost its releasing body."); return false; }
+        const FVector Origin=FootOf(*Actor);
+        const FVector Offset(Action.TargetPoint.X-Origin.X, Action.TargetPoint.Y-Origin.Y, 0);
+        FVector Centre=Origin + Offset.GetClampedToMaxSize(Cm(Target.RangeCm));
+        Centre.Z=Action.TargetPoint.Z;
+        FVector CastDir=Offset.GetSafeNormal2D();
+        if (CastDir.IsNearlyZero()) { CastDir=FVector(Action.Direction.X, Action.Direction.Y, 0).GetSafeNormal(); }
+        if (CastDir.IsNearlyZero()) { CastDir=Actor->GetActorForwardVector().GetSafeNormal2D(); }
+        if (CastDir.IsNearlyZero()) { CastDir=FVector(1,0,0); }
+        FLDCombatCordon Cordon;
+        Cordon.Id=FGuid::NewGuid();
+        Cordon.Payload=Payload;
+        Cordon.Terms=*Tape;
+        Cordon.CentreCm=Centre;
+        Cordon.Tangent=FVector(-CastDir.Y, CastDir.X, 0).GetSafeNormal();
+        Cordon.HalfLengthCm=Cm(Tape->RadiusCm)*.5;
+        Cordon.HalfWidthCm=FMath::Max(25.,Cm(Tape->ExtraDistanceCm));
+        Cordon.OwnerGroup=Body.IsolationGroup;
+        Cordon.OwnerPKSide=Body.PKSide;
+        Cordon.CreatedSerial=++NextAreaSerial;
+        if (!LDMatchLifecycle::AddDurationMs(NowMs, Tape->DurationMs, Cordon.ExpiresAtMs, Error)) { return false; }
+        int32 Allowed=1;
+        TArray<FLDPassiveEffectRef> Stalls;
+        if (!CollectPassiveEffects(Body.AttributeProjection, ELDDemoEffectOp::DoubleStall, Stalls, Error)) { return false; }
+        Allowed+=Stalls.Num();
+        TArray<int32> Owned;
+        for (int32 Idx=0; Idx<Cordons.Num(); ++Idx)
+        {
+            if (Cordons[Idx].Payload.SourceEntity==Body.Victim.EntityId && Cordons[Idx].Payload.Source==Payload.Source) { Owned.Add(Idx); }
+        }
+        for (int32 Drop=Owned.Num()-Allowed; Drop>=0; --Drop) { Cordons.RemoveAt(Owned[Drop]); }
+        Cordons.Add(MoveTemp(Cordon));
+        bHandled=true;
+        return true;
+    }
     const auto* Impact=Op(Values, ELDDemoEffectOp::GroundImpact);
     const auto* Trap=Op(Values, ELDDemoEffectOp::ContactTrap);
     if (Impact || Trap)
@@ -329,6 +368,38 @@ bool ALDCombatDirector::AdvanceFans(int64 NowMs, FString& Error)
                 if (FanOwner->LastAppliedElement==ELDCombatElement::Fire) { Blow.BurnStacks=FMath::Max(Blow.BurnStacks,1); }
                 else { Blow.NativeElements|=LDCombatElements::Bit(FanOwner->LastAppliedElement); }
             }
+            // card_rogue_works: blowing across owner's fire/miasma/puddle ground states imbues the wind with storm damage + element.
+            {
+                TArray<FLDPassiveEffectRef> Rogue;
+                if (!CollectPassiveEffects(FanOwner->AttributeProjection,ELDDemoEffectOp::RogueWorks,Rogue,Error)) { return false; }
+                if (!Rogue.IsEmpty())
+                {
+                    ELDCombatElement StormElem=ELDCombatElement::None;
+                    for (const FLDGroundState& Ground : GroundStates)
+                    {
+                        if (Ground.ExpiresAtMs<=NowMs || Ground.Owner.SourceEntity!=FanOwner->Victim.EntityId) { continue; }
+                        if (LDCombatElements::WindIntersectsGround(Fan.OriginCm,Heading,Fan.LengthCm,Fan.HalfWidthCm,Ground))
+                        {
+                            if (Ground.Kind==ELDGroundStateKind::Fire) { StormElem=ELDCombatElement::Fire; break; }
+                            if (Ground.Kind==ELDGroundStateKind::Miasma) { StormElem=ELDCombatElement::Rot; break; }
+                            if (Ground.Kind==ELDGroundStateKind::Puddle) { StormElem=ELDCombatElement::Water; break; }
+                        }
+                    }
+                    if (StormElem!=ELDCombatElement::None)
+                    {
+                        int64 StormBase=0, StormAPBp=0;
+                        for (const FLDPassiveEffectRef& Ref : Rogue) { StormBase+=Ref.Effect.BaseP2; StormAPBp+=Ref.Effect.APRatioBp; }
+                        Blow.BaseP2+=StormBase;
+                        Blow.APRatioBp+=StormAPBp;
+                        Blow.DamageType=ELDDemoDamageType::Magical;
+                        Blow.SourceAPP2=FanOwner->AttributeProjection.Final.APP2;
+                        if (StormElem==ELDCombatElement::Fire) { Blow.BurnStacks=FMath::Max(Blow.BurnStacks,1); }
+                        else { Blow.NativeElements|=LDCombatElements::Bit(StormElem); }
+                        if (!StampElementSnapshot(*FanOwner,Blow,Error)) { return false; }
+                        if (!Inside.IsEmpty()) { LedgerCardTriggered(*FanOwner,Rogue[0].Key); }
+                    }
+                }
+            }
             for (const TPair<FLDCombatBodyRef,FVector>& Row : Inside)
             {
                 FLDCombatHit Hit=Blow;
@@ -347,7 +418,11 @@ bool ALDCombatDirector::AdvanceFans(int64 NowMs, FString& Error)
 
 bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
 {
-    if (!AdvanceFans(NowMs,Error) || !AdvanceBags(NowMs,Error)) { return false; }
+    if (!AdvanceFans(NowMs,Error) || !AdvanceBags(NowMs,Error)
+        || !AdvanceStaggerBleeds(NowMs,Error) || !AdvanceSlipperDrops(NowMs,Error)
+        || !AdvanceCordons(NowMs,Error) || !AdvanceDecoys(NowMs,Error)
+        || !AdvanceSynergyStates(NowMs,Error))
+    { return false; }
     for (int32 Index=Channels.Num()-1; Index>=0; --Index)
     {
         auto& Channel=Channels[Index];

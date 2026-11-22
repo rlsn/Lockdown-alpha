@@ -407,7 +407,7 @@ bool FLDBodyMotionHitLayersTest::RunTest(const FString& Parameters)
         TestTrue(FString::Printf(TEXT("%s has its own look"), Skill.Id), SkillLookOf(Skill.Ability) == &Skill && SkillLookOf(FName(Skill.Id)) == &Skill
             && !BurstOf(Skill.Release, Skill.Tint, 1.f).IsEmpty());
     }
-    TestTrue(TEXT("The skill table names 26 distinct abilities"), SkillLooks().Num() == 26 && Abilities.Num() == 26 && AbilityIds.Num() == 26
+    TestTrue(TEXT("The skill table names 24 distinct abilities"), SkillLooks().Num() == 24 && Abilities.Num() == 24 && AbilityIds.Num() == 24
         && SkillLookOf(uint8(0)) == nullptr && SkillLookOf(FName()) == nullptr);
     for (int32 Kind = 0; Kind < int32(EBurst::Count); ++Kind)
     {

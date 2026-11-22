@@ -23,9 +23,9 @@
 
 - **26 主动与 7 种目标模式全覆盖**：`LDOpponentPolicy` 按 `ELDDemoTargetMode`（`Self`、`Unit`、`Direction`、`GroundPoint`、`Cone`、`Line` 及通用 `Dash`）与技能角色（控制、护盾/解控、突进、爆发、持续区、召唤/墙体）生成瞄准点、施法时机与满 60 劲的爆劲（Overdrive）释放决策。
 - **构筑牌、元素勋章与终局改装**：优先选择与已学技能宿主形态/词汇匹配的构筑牌并自动装满容量格，拾得元素勋章后装入空元素槽；R3 从候选终局改装中选定一项。
-- **当前五维加点启发式（`RelevantStats`，以代码为准）**：
-  - 始终将 `stat_physique`（体格）与 `stat_thick_skin`（脸皮）纳入相关属性；再扫描已学主动 1 级基础效果中的 `ADRatioBp` 与 `APRatioBp` 决定是否纳入 `stat_strength`（力道）与 `stat_brains`（脑力），先把最高权重属性点满 18 点激活首个关键石，再均分其余相关属性。
-  - **已知代码局限**：`RelevantStats` 当前硬编码排除了 `stat_agility`（身手，AI 永不加身手且洗点会洗掉身手），且仅读取 1 级静态 `ADRatioBp/APRatioBp`（未计 `AdaptiveRatioBp` 与 2/3 级分支加成）。
+- **五维加点与双关键石聚焦（`RelevantStats` / `AllocatePoints` / `WantsRespec`）**：
+  - 综合已学主动的当前 1–3 级分支效果（`ADRatioBp`、`APRatioBp`、`AdaptiveRatioBp`、`MaxHPRatioBp`、`ArmorRatioBp` 及强化普攻效果）与已装构筑牌词汇（普攻/三段/攻速/暴击、冲刺机动、施法元素、生命/护甲）评估体格、脸皮、力道、脑力、身手五维权重。
+  - `stat_agility`（身手）全程开放且不会被 `WantsRespec` 误洗点；普攻/攻速/暴击向构筑优先聚焦身手与力道，先点满第 1 个 18 点关键石后立即聚焦第 2 核心属性冲第 2 个 18 点关键石，双关键石成型后再均衡剩余相关属性。
 
 ## 检查入口
 

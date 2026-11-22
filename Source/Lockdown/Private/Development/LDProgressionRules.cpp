@@ -353,11 +353,14 @@ ELDGrowthReason LDProgression::ValidateBuild(const FLDDemoContentDefinitions& Co
         }
     }
     // Spec §6.1: distinct serials below NextCardSerial in ascending order, known definitions, legal installs within capacity.
+    const uint8 MaxMedalTier = uint8(FMath::Clamp(Content.Parameters.Medal.MaxTier, 1, 3));
     for (int32 Index = 0; Index < Build.Cards.Num(); ++Index)
     {
         const FLDCardInstance& Card = Build.Cards[Index];
+        const bool bInstalledMedal = Card.IsInstalled() && IsMedal(Content, Card.Id);
         if (Card.Serial == 0 || Card.Serial >= Build.NextCardSerial || (Index > 0 && Build.Cards[Index - 1].Serial >= Card.Serial)
             || !ProgressionFindCard(Content, Card.Id)
+            || Card.Tier < 1 || (bInstalledMedal ? Card.Tier > MaxMedalTier : Card.Tier != 1)
             || (Card.IsInstalled() && CardTargetReason(Content, Build, Card.Id, Card.Target) != ELDGrowthReason::None)
             || (!Card.IsInstalled() && !Card.Target.IsEmpty()))
         {
@@ -602,6 +605,32 @@ bool LDProgression::PickLearnSlot(const FLDGrowthBuild& Build, uint8 Preferred, 
 
 namespace
 {
+ELDGrowthReason ProgressionUnpackFusedMedal(FLDGrowthBuild& Build, int32 CardIndex, TArray<uint16>* OutReturned)
+{
+    if (!Build.Cards.IsValidIndex(CardIndex) || Build.Cards[CardIndex].Tier <= 1)
+    {
+        return ELDGrowthReason::None;
+    }
+    const uint8 ExtraCopies = Build.Cards[CardIndex].Tier - 1;
+    const FName MedalId = Build.Cards[CardIndex].Id;
+    const uint16 OfferOrdinal = Build.Cards[CardIndex].OfferOrdinal;
+    if (int32(Build.NextCardSerial) + int32(ExtraCopies) > MAX_uint16)
+    {
+        return ELDGrowthReason::CapacityExceeded;
+    }
+    Build.Cards[CardIndex].Tier = 1;
+    for (uint8 Copy = 0; Copy < ExtraCopies; ++Copy)
+    {
+        FLDCardInstance& Restored = Build.Cards.AddDefaulted_GetRef();
+        Restored.Serial = Build.NextCardSerial++;
+        Restored.Id = MedalId;
+        Restored.OfferOrdinal = OfferOrdinal;
+        Restored.Tier = 1;
+        if (OutReturned) { OutReturned->Add(Restored.Serial); }
+    }
+    return ELDGrowthReason::None;
+}
+
 void ProgressionTransferOrReclaimAttachments(const FLDDemoContentDefinitions& Content, FLDGrowthBuild& Build,
     FName OldActive, FName NewActive, TArray<uint16>& OutReclaimed)
 {
@@ -610,8 +639,10 @@ void ProgressionTransferOrReclaimAttachments(const FLDDemoContentDefinitions& Co
     {
         return;
     }
-    for (FLDCardInstance& Card : Build.Cards)
+    const int32 InitialCount = Build.Cards.Num();
+    for (int32 Index = 0; Index < InitialCount; ++Index)
     {
+        FLDCardInstance& Card = Build.Cards[Index];
         if (Card.Target.Kind == ELDCardTargetKind::Skill && Card.Target.Active == OldActive)
         {
             FLDCardTarget Candidate = Card.Target;
@@ -625,6 +656,7 @@ void ProgressionTransferOrReclaimAttachments(const FLDDemoContentDefinitions& Co
             {
                 Card.Target = FLDCardTarget();
                 OutReclaimed.Add(Card.Serial);
+                ProgressionUnpackFusedMedal(Build, Index, &OutReclaimed);
             }
         }
     }
@@ -1054,12 +1086,15 @@ void LDProgression::ReclaimAttachments(FLDGrowthBuild& Build, FName Forgotten, T
     {
         return;
     }
-    for (FLDCardInstance& Card : Build.Cards)
+    const int32 InitialCount = Build.Cards.Num();
+    for (int32 Index = 0; Index < InitialCount; ++Index)
     {
+        FLDCardInstance& Card = Build.Cards[Index];
         if (Card.Target.Kind == ELDCardTargetKind::Skill && Card.Target.Active == Forgotten)
         {
             Card.Target = FLDCardTarget();
             OutReclaimed.Add(Card.Serial);
+            ProgressionUnpackFusedMedal(Build, Index, &OutReclaimed);
         }
     }
 }
@@ -1141,8 +1176,14 @@ uint32 LDProgression::BuildVocab(const FLDDemoContentDefinitions& Content, const
     }
     for (const FLDLearnedActive& Active : Build.Actives)
     {
-        const FLDDemoAbilityDefinition* Ability = ProgressionFindAbility(Content, Active.Id);
-        Vocab |= Ability ? Ability->VocabMask : 0u;
+        if (const FLDDemoAbilityDefinition* Ability = ProgressionFindAbility(Content, Active.Id))
+        {
+            Vocab |= Ability->VocabMask;
+            if (const FLDDemoAbilityBranch* Branch = Ability->FindBranch(Active.Branch))
+            {
+                Vocab |= Branch->VocabMask;
+            }
+        }
     }
     return Vocab;
 }
@@ -1219,7 +1260,9 @@ bool LDProgression::DefaultCardTarget(const FLDDemoContentDefinitions& Content, 
         for (const FLDLearnedActive& Active : Build.Actives)
         {
             const FLDDemoAbilityDefinition* Ability = ProgressionFindAbility(Content, Active.Id);
-            const int32 Shared = Ability ? FMath::CountBits64(uint64(Ability->VocabMask & Definition->VocabMask)) : 0;
+            const FLDDemoAbilityBranch* Branch = Ability ? Ability->FindBranch(Active.Branch) : nullptr;
+            const uint32 ActiveVocab = (Ability ? Ability->VocabMask : 0u) | (Branch ? Branch->VocabMask : 0u);
+            const int32 Shared = FMath::CountBits64(uint64(ActiveVocab & Definition->VocabMask));
             if (Shared > Best)
             {
                 Best = Shared;
@@ -1292,16 +1335,17 @@ int32 LDProgression::CardOfferSize(const FLDDemoContentParameters& Parameters, E
 }
 
 int64 LDProgression::CardDrawWeight(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
-    const FLDDemoCardDefinition& Card, uint32 Vocab, int32 VocabWeight)
+    const FLDDemoCardDefinition& Card, uint32 Vocab, int64 VocabWeightBp)
 {
     if (!HasValidSkillHost(Content, Build, FName(*Card.Id)))
     {
         return 0;
     }
+    const int64 EffectiveBp = VocabWeightBp >= 10000 ? VocabWeightBp : FMath::Max<int64>(1, VocabWeightBp) * 10000;
     const int32 Shared = FMath::CountBits(Card.VocabMask & Vocab);
-    const int64 Factor = Shared >= 2 ? 2 * int64(VocabWeight) : Shared == 1 ? int64(VocabWeight) : 1;
+    const int64 FactorBp = EffectiveBp <= 10000 ? 10000 : Shared >= 2 ? (EffectiveBp * 3) / 2 : Shared == 1 ? EffectiveBp : 10000;
     const int64 Base = FMath::Max<int64>(1, int64(FMath::Max(Card.DropWeight, 1)) * FMath::Max<int64>(Card.DrawWeightBp, 1) / 10000);
-    return Base * Factor;
+    return Base * FactorBp;
 }
 
 namespace
@@ -1311,7 +1355,7 @@ ELDGrowthReason ProgressionDrawCardsWeighted(const FLDDemoContentDefinitions& Co
 {
     Out.Reset();
     const FLDDemoCardParameters& Parameters = Content.Parameters.Cards;
-    if (Size < 1 || Parameters.VocabWeight < 1)
+    if (Size < 1 || Parameters.VocabWeightBp < 10000)
     {
         return ELDGrowthReason::DataInvalid;
     }
@@ -1326,9 +1370,10 @@ ELDGrowthReason ProgressionDrawCardsWeighted(const FLDDemoContentDefinitions& Co
             if (uint8(LDProgression::CardRarityOf(Card.DropWeight)) < uint8(MinRarity)) { continue; }
             if (bEnforceHost && !LDProgression::HasValidSkillHost(Content, Build, Id)) { continue; }
             const int32 Shared = FMath::CountBits(Card.VocabMask & Vocab);
-            const int64 Factor = Shared >= 2 ? 2 * int64(Parameters.VocabWeight) : Shared == 1 ? int64(Parameters.VocabWeight) : 1;
+            const int64 FactorBp = Parameters.VocabWeightBp <= 10000 ? 10000
+                : Shared >= 2 ? (Parameters.VocabWeightBp * 3) / 2 : Shared == 1 ? Parameters.VocabWeightBp : 10000;
             const int64 BaseWeight = FMath::Max<int64>(1, int64(FMath::Max(Card.DropWeight, 1)) * FMath::Max<int64>(Card.DrawWeightBp, 1) / 10000);
-            Result.Emplace(Id, BaseWeight * Factor);
+            Result.Emplace(Id, BaseWeight * FactorBp);
         }
         return Result;
     };
@@ -1584,11 +1629,30 @@ ELDGrowthReason LDProgression::ApplyInstallCard(const FLDDemoContentDefinitions&
     {
         return ELDGrowthReason::AlreadyInstalled;
     }
-    // A medal swaps out the medal already in that element slot.
+    // Same-color element medal fusion (Lv1 -> Lv2 -> Lv3): installing an identical medal onto an occupied slot upgrades
+    // the installed medal's tier in place and consumes the incoming library copy; a different-color medal swaps out the
+    // existing one and returns all fused copies to the library.
     const bool bMedal = IsMedal(Content, Card->Id);
-    if (bMedal && Replacing == 0)
+    const uint8 MaxMedalTier = uint8(FMath::Clamp(Content.Parameters.Medal.MaxTier, 1, 3));
+    if (bMedal)
     {
-        if (const FLDCardInstance* Held = MedalOn(Content, Out, Target, Serial)) { Replacing = Held->Serial; }
+        if (const FLDCardInstance* Held = MedalOn(Content, Out, Target, Serial))
+        {
+            if (Held->Id == Card->Id)
+            {
+                if (Replacing != 0 && Replacing != Held->Serial) { return ELDGrowthReason::InvalidTarget; }
+                if (Held->Tier >= MaxMedalTier) { return ELDGrowthReason::InvalidTarget; }
+                if (const ELDGrowthReason Reason = CardTargetReason(Content, Out, Card->Id, Target); Reason != ELDGrowthReason::None)
+                {
+                    return Reason;
+                }
+                const uint16 HeldSerial = Held->Serial;
+                Out.FindCard(HeldSerial)->Tier = uint8(Held->Tier + 1);
+                Out.Cards.RemoveAll([Serial](const FLDCardInstance& Owned) { return Owned.Serial == Serial; });
+                return ELDGrowthReason::None;
+            }
+            if (Replacing == 0) { Replacing = Held->Serial; }
+        }
     }
     if (Replacing != 0)
     {
@@ -1603,6 +1667,12 @@ ELDGrowthReason LDProgression::ApplyInstallCard(const FLDDemoContentDefinitions&
         }
         Replaced->Target = FLDCardTarget();
         if (OutUninstalled) { OutUninstalled->Add(Replacing); }
+        const int32 ReplacedIndex = Out.Cards.IndexOfByPredicate([Replacing](const FLDCardInstance& Owned) { return Owned.Serial == Replacing; });
+        if (const ELDGrowthReason UnpackReason = ProgressionUnpackFusedMedal(Out, ReplacedIndex, OutUninstalled);
+            UnpackReason != ELDGrowthReason::None)
+        {
+            return UnpackReason;
+        }
     }
     if (const ELDGrowthReason Reason = CardTargetReason(Content, Out, Card->Id, Target); Reason != ELDGrowthReason::None)
     {
@@ -1642,7 +1712,8 @@ ELDGrowthReason LDProgression::ApplyUninstallCard(const FLDDemoContentDefinition
         return ELDGrowthReason::NotInstalled;
     }
     Card->Target = FLDCardTarget();
-    return ELDGrowthReason::None;
+    const int32 CardIndex = Out.Cards.IndexOfByPredicate([Serial](const FLDCardInstance& Owned) { return Owned.Serial == Serial; });
+    return ProgressionUnpackFusedMedal(Out, CardIndex, nullptr);
 }
 
 // ---------------------------------------------------------------- vouchers, the rest shop and pick tickets (spec §3.13, §11.3)
@@ -1708,7 +1779,7 @@ ELDGrowthReason LDProgression::DrawShop(const FLDDemoContentDefinitions& Content
     Out.Reset();
     const FLDDemoShopParameters& Shop = Content.Parameters.Shop;
     if (Shop.CardSlots < 0 || Shop.SkillSlots < 0 || Shop.VocabCardSlots < 0 || Shop.VocabCardSlots > Shop.CardSlots
-        || Shop.VocabWeight < 1 || Shop.CardSlots > Content.Cards.Num())
+        || Shop.VocabWeightBp < 10000 || Shop.CardSlots > Content.Cards.Num())
     {
         return ELDGrowthReason::DataInvalid;
     }
@@ -1738,7 +1809,7 @@ ELDGrowthReason LDProgression::DrawShop(const FLDDemoContentDefinitions& Content
         const bool bWeighted = Index < Shop.VocabCardSlots;
         const auto WeightOf = [&](const FShopCardEntry& Entry)
         {
-            return Entry.BaseWeight * (bWeighted && Entry.bSharesVocab ? int64(Shop.VocabWeight) : 1);
+            return Entry.BaseWeight * (bWeighted && Entry.bSharesVocab ? Shop.VocabWeightBp : 10000);
         };
         int64 Total = 0;
         for (const FShopCardEntry& Entry : Pool) { Total += WeightOf(Entry); }
@@ -1948,6 +2019,7 @@ FLDGrowthBuild LDProgression::BuildFromView(const FLDDemoContentDefinitions& Con
         Card.Target.Kind = Row.Target.Kind;
         Card.Target.Active = Row.Target.Active;
         Card.Target.Element = Row.Target.Element;
+        Card.Tier = Card.IsInstalled() && IsMedal(Content, Card.Id) ? FMath::Clamp<uint8>(Row.Tier, 1, 3) : 1;
         Build.NextCardSerial = FMath::Max<uint16>(Build.NextCardSerial, uint16(FMath::Min<int32>(int32(Row.Serial) + 1, MAX_uint16)));
     }
     ProgressionSortBuild(Build);
@@ -1989,6 +2061,7 @@ FLDBuildProjectionInput LDProgression::CombatProjectionInput(const FLDDemoConten
             Value.TargetKind = Card.Target.Kind;
             Value.Active = Card.Target.Active;
             Value.Element = Card.Target.Element;
+            Value.Tier = FMath::Max<uint8>(Card.Tier, 1);
         }
     }
     Input.ResultBuildRevision = Build.Revision;
