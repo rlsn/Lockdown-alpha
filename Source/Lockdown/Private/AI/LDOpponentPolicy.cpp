@@ -1114,7 +1114,7 @@ const FLDOpponentPOI* PickRetreat(const FContext& C)
             const double Distance = FVector::Dist2D(POI.FootCm, Threat->FootCm);
             ThreatDistance = FMath::Min(ThreatDistance, Distance);
             const double Radius = C.VisionRadiusCm * LDObservation::HeightRadiusScale(C.Catalog.Get().Parameters.VisionRange,
-                Threat->FootCm.Z,POI.FootCm.Z);
+                Threat->SightGroundZ.Get(Threat->FootCm.Z),POI.SightGroundZ.Get(POI.FootCm.Z));
             bBeyondSight &= Distance > Radius;
         }
         FRank Rank;

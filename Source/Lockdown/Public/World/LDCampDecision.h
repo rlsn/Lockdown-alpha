@@ -31,6 +31,8 @@ struct FLDCampDecisionInput
     FLDCombatBodyRef Self;
     double NowSeconds = 0;
     FVector FootCm = FVector::ZeroVector;
+    // The support height sight measures this member at; unset falls back to FootCm.Z.
+    TOptional<double> SightGroundZ;
     bool Grounded = false;
     FName SurfaceId;
     FVector CampAnchorFootCm = FVector::ZeroVector;

@@ -741,6 +741,14 @@ bool FLDSightGeometry::SegmentBlocked(const FVector& Source, const FVector& Targ
     return false;
 }
 
+double FLDSightGeometry::GroundZ(const FVector& Foot) const
+{
+    FVector Ground;
+    FHitResult Support;
+    ResolveFoot(Foot, Ground, Support);
+    return Ground.Z;
+}
+
 void FLDSightGeometry::ResolveFoot(const FVector& Foot, FVector& Ground, FHitResult& Support) const
 {
     Ground = Foot;
@@ -2039,6 +2047,11 @@ ELDSightResult ALDVisionDirector::TraceSight(const FVector& SourceFootCm, const 
 {
     if (!Sight.IsValid() || Expected != Sight.Revision()) { return ELDSightResult::StaleWorld; }
     return Sight.Trace(SourceFootCm, TargetFootCm);
+}
+
+double ALDVisionDirector::SightGroundZ(const FVector& FootCm) const
+{
+    return Sight.IsValid() ? Sight.GroundZ(FootCm) : FootCm.Z;
 }
 
 ELDSightResult ALDVisionDirector::TraceObservation(const FVector& SourceFootCm, const ALDCharacter& Target,

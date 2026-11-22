@@ -515,6 +515,9 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
         // An unanswered path stays unknown; the policy then treats the public deadline conservatively.
         if (ReadCapturePath(Me.FootCm, PathCm, PathError)) { Frame.CapturePathCm = PathCm; }
     }
+    // Retreat ranking scales sight by the support heights the sight query itself uses.
+    for (auto& Unit : Frame.Units) { Unit.SightGroundZ = Mode.Vision->SightGroundZ(Unit.FootCm); }
+    for (auto& Place : Frame.POIs) { Place.SightGroundZ = Mode.Vision->SightGroundZ(Place.FootCm); }
     return true;
 }
 

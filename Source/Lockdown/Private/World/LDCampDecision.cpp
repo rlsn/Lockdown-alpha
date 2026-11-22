@@ -140,8 +140,9 @@ bool Evaluate(const FLDDemoContentSnapshot& Catalog,FName CampId,const FLDCampDe
         const double Distance=FVector::DistSquared2D(Input.FootCm,Candidate.FootCm);
         if(!FMath::IsFinite(Distance)){return Fail(TEXT("target distance overflow"));}
         // Perception is measured from the member's current foot; the leash bounds the member, not its target.
+        // Scaled by the support heights sight used, as the target already passed that sight query.
         const double LocalPerception=Perception*LDObservation::HeightRadiusScale(Content.Parameters.VisionRange,
-            Input.FootCm.Z,Candidate.FootCm.Z);
+            Input.SightGroundZ.Get(Input.FootCm.Z),Candidate.SightGroundZ.Get(Candidate.FootCm.Z));
         if(Distance>LocalPerception*LocalPerception){continue;}
         if(!Best||Distance<BestDistance||(Distance==BestDistance&&BodyLess(Candidate.Target,Best->Target)))
         {Best=&Candidate;BestDistance=Distance;}

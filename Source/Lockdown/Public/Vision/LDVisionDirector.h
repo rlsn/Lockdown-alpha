@@ -53,6 +53,8 @@ struct FLDAuthorityTargetSample
     FVector FootCm = FVector::ZeroVector;
     FLDWorldRevision World;
     double SampledAtSeconds = 0;
+    // The support height sight measured the target at; unset falls back to FootCm.Z.
+    TOptional<double> SightGroundZ;
 };
 
 // Server-only ObservedDeath fact with its core binding. Never serialized.
@@ -90,6 +92,8 @@ public:
     double Radius() const { return RadiusCm; }
     double MaximumRadius() const { return RadiusCm * DownhillScale; }
     double RadiusForHeights(double SourceGroundZ, double TargetGroundZ) const;
+    // The support-surface height a sight query uses for this foot point (the foot's own Z without native support).
+    double GroundZ(const FVector& Foot) const;
     struct FQueryDiagnostics
     {
         uint64 TerrainBuilds=0,PropBuilds=0,DepartureCalls=0,Scopes=0;
@@ -305,6 +309,8 @@ public:
     // Whether an observer standing at SourceFootCm may observe Target now: static sight to the target's foot point.
     // Every enemy perception (contenders, opponent AI, camp members, taunt upkeep) uses this, never bare TraceSight.
     ELDSightResult TraceObservation(const FVector& SourceFootCm, const ALDCharacter& Target, const FLDWorldRevision& Expected) const;
+    // The support height sight scales its radius by for a foot point; perception radii use it, never the body foot Z.
+    double SightGroundZ(const FVector& FootCm) const;
     // The caller's current observer-local handle of Body, only while Body is bound in its latest sample.
     bool FindObservedHandle(const ALDPlayerController& Caller, const FLDCombatBodyRef& Body, FGuid& OutHandle, uint32& OutEpoch) const;
     // Sends only to the attacking life, after revalidating its current presentation permission.

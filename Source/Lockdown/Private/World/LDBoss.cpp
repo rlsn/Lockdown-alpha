@@ -53,7 +53,7 @@ bool FLDBossState::Leave(int64 NowMs)
 }
 
 FLDBossDecision FLDBossState::Decide(int64 NowMs, const FVector& SelfFootCm, TConstArrayView<LDBoss::FCandidate> Living,
-    bool bMovementAllowed, bool bAttackReady)
+    bool bMovementAllowed, bool bAttackReady, TOptional<double> SelfSightGroundZ)
 {
     FLDBossDecision Out;
     if (Phase != ELDBossPhase::Alive) { return Out; }
@@ -67,7 +67,8 @@ FLDBossDecision FLDBossState::Decide(int64 NowMs, const FVector& SelfFootCm, TCo
         if (!Candidate.bVisible || !Candidate.Body.IsValid() || Candidate.FootCm.ContainsNaN()) { continue; }
         const bool bAttacker = Attackers.ContainsByPredicate([&Candidate](const FAttacker& A) { return A.Source == Candidate.Body; });
         const double Distance = FVector::DistSquared2D(SelfFootCm, Candidate.FootCm);
-        const double Perception = Rules.AggroRadiusCm * LDObservation::HeightRadiusScale(Rules.VisionRange,SelfFootCm.Z,Candidate.FootCm.Z);
+        const double Perception = Rules.AggroRadiusCm * LDObservation::HeightRadiusScale(Rules.VisionRange,
+            SelfSightGroundZ.Get(SelfFootCm.Z),Candidate.SightGroundZ.Get(Candidate.FootCm.Z));
         if (!bAttacker && Distance > Perception * Perception) { continue; }
         const bool bBetter = !Best || (bAttacker != bBestAttacker ? bAttacker
             : Distance != BestDistance ? Distance < BestDistance

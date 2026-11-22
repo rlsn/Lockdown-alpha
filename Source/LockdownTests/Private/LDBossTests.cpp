@@ -113,6 +113,10 @@ bool FLDBossRulesTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Boss perception expands downhill without extending attack reach"),Decision.Intent==ELDBossIntent::Chase);
     Decision=State.Decide(Appear,Home,{Seen(1,Home+FVector(240,0,120))},true,true);
     TestTrue(TEXT("Boss perception contracts uphill"),Decision.Intent==ELDBossIntent::Patrol);
+    LDBoss::FCandidate Airborne=Seen(1,Home+FVector(240,0,120));
+    Airborne.SightGroundZ=Home.Z;
+    Decision=State.Decide(Appear,Home,{Airborne},true,true,Home.Z);
+    TestTrue(TEXT("Boss perception scales by the support heights sight used, not an airborne foot"),Decision.Intent==ELDBossIntent::Chase);
     for (int32 Step = 0; Step < 4; ++Step) { State.ReachedWaypoint(); }
     TestTrue(TEXT("After the fourth waypoint it loops back to the first"), State.PatrolGoal() == Home);
     State.ReachedWaypoint();

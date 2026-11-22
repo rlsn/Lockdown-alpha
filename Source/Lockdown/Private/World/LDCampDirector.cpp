@@ -348,7 +348,7 @@ bool ALDCampDirector::BuildCandidates(const FLDCampMemberState& Member, const FM
         switch (Mode->Vision->TraceObservation(Self.FootCm, *Target, Registry->Revision()))
         {
         case ELDSightResult::Visible:
-            Out.Add({Source, TargetFoot, Registry->Revision(), NowSeconds});
+            Out.Add({Source, TargetFoot, Registry->Revision(), NowSeconds, Mode->Vision->SightGroundZ(TargetFoot)});
             break;
         case ELDSightResult::OutOfRange:
         case ELDSightResult::Blocked:
@@ -494,6 +494,7 @@ bool ALDCampDirector::ProcessAuthorityIntents(const FLDGameplayWritePermit& Perm
             Input.Self = Ref;
             Input.NowSeconds = Now;
             Input.FootCm = Self.FootCm;
+            Input.SightGroundZ = Mode->Vision->SightGroundZ(Self.FootCm);
             Input.Grounded = Self.bGrounded;
             Input.SurfaceId = Self.SurfaceId;
             Input.CampAnchorFootCm = Spec.AnchorCm;
@@ -662,6 +663,7 @@ bool ALDCampDirector::ProcessBoss(const FLDGameplayWritePermit& Permit, FString&
         LDBoss::FCandidate& Candidate = Living.AddDefaulted_GetRef();
         Candidate.Body = Life.Body;
         Candidate.FootCm = Foot.FootCm;
+        Candidate.SightGroundZ = Mode->Vision->SightGroundZ(Foot.FootCm);
         switch (Mode->Vision->TraceObservation(Self.FootCm, *Target, Registry->Revision()))
         {
         case ELDSightResult::Visible: Candidate.bVisible = true; break;
@@ -674,7 +676,7 @@ bool ALDCampDirector::ProcessBoss(const FLDGameplayWritePermit& Permit, FString&
     }
     const double Now = Mode->GetAuthorityNowSeconds();
     const FLDBossDecision Decision = Boss.Decide(Permit.GetBoundary().AtMs, Self.FootCm, Living,
-        Body.bMovementAllowed && Self.bGrounded, Body.bAttackAllowed && Body.bBasicAttackReady);
+        Body.bMovementAllowed && Self.bGrounded, Body.bAttackAllowed && Body.bBasicAttackReady, Mode->Vision->SightGroundZ(Self.FootCm));
     FMotion& Track = Motion.FindOrAdd(Entity);
     auto Walk = [&](const FVector& Goal, const TCHAR* What)
     {
