@@ -675,6 +675,38 @@ bool FLDNativeLedgeProbe::RunTest(const FString& Parameters)
     return SaveTrace(*this,TEXT("ledge_revert"),*Move,Passed) && Passed;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDNativeLedgeRetryProbe, "Lockdown.Rules.DemoMotionProbe.LedgeRetryEndsWalking",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDNativeLedgeRetryProbe::RunTest(const FString& Parameters)
+{
+    FNativeWorld Fixture;
+    if (!TestNotNull(TEXT("Native physics world"),Fixture.World)) { return false; }
+    if (!TestNotNull(TEXT("Finite narrow ground"),Fixture.Box({-100,0,-10},{100,45,10}))) { return false; }
+    auto* Move=Prepare(*this,Fixture.Body({-100,0,0}));
+    if (!Move) { return false; }
+    // Walk to the edge first: CMC only reads a ledge normal from a capsule already perched on it.
+    for (int32 Tick=0; Tick<60; ++Tick)
+    {
+        Move->TraceWalking({300,0,0},1.f/60);
+        if (!TestTrue(TEXT("The approach preserves native motion evidence: ")+Move->CaptureError,Move->CaptureError.IsEmpty())) { return false; }
+    }
+    // An almost perpendicular push: CMC slides the delta along the ledge, leaving a move that is not zero
+    // but nearly zero. It reverts the trial, asks for a retry, then ends walking without another floor move.
+    Move->TraceWalking({300,.001,0},1.f/60);
+    const int32 Retry=Move->Trace.IndexOfByPredicate([](const auto& Row) { return Row.Kind==TEXT("GetLedgeMove") && Row.Result; });
+    bool MovedAfterRetry=false;
+    for (int32 Index=FMath::Max(Retry,0)+1; Index<Move->Trace.Num(); ++Index) { MovedAfterRetry|=Move->Trace[Index].Kind==TEXT("Move"); }
+    bool Passed=TestTrue(TEXT("CMC asks for a ledge retry and never performs it"),Retry!=INDEX_NONE && !MovedAfterRetry);
+    Passed&=TestTrue(TEXT("The unconsumed retry is not an authority fault: ")+Move->CaptureError,Move->CaptureError.IsEmpty());
+    Passed&=TestTrue(TEXT("The body stays on its walkable floor"),Move->IsMovingOnGround() && Move->CurrentFloor.IsWalkableFloor());
+    Passed&=TestTrue(TEXT("The reverted trial leaves no record and the batch ends at the native foot"),
+        Move->Captured && Move->Captured->RevertedTrials>0
+        && Move->Captured->EndFootCm.Equals(Move->GetActorFeetLocation(),.001)
+        && !Move->Captured->Records.ContainsByPredicate([&](const auto& Record)
+            { return Record.ToFootCm.X>Move->Captured->EndFootCm.X+.001; }));
+    return SaveTrace(*this,TEXT("ledge_retry_ends_walking"),*Move,Passed) && Passed;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDNativeSupportProbe, "Lockdown.Rules.DemoMotionProbe.SupportTransitions",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDNativeSupportProbe::RunTest(const FString& Parameters)

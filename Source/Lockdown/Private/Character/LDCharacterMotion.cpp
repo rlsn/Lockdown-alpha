@@ -337,8 +337,11 @@ void ULDCharacterMovementComponent::PhysWalking(float DeltaSeconds, int32 Iterat
     Super::PhysWalking(DeltaSeconds,Iterations);
     if (Capture.PendingRevert!=FNativeCapture::ERevert::None)
     {
-        if (!Capture.WalkBookmark || Capture.PendingRevert!=FNativeCapture::ERevert::Failure)
-        { Capture.Fail(TEXT("Native walking ended before an expected rollback retry.")); }
+        // CMC reverts the trial before asking for a ledge retry. A retry whose delta is nearly zero ends the
+        // walk without another MoveAlongFloor, leaving the body on the bookmark exactly as a failed fall check
+        // does. Restore verifies that position and support; only a walk that left the ground stays a fault.
+        if (!Capture.WalkBookmark || (Capture.PendingRevert==FNativeCapture::ERevert::Retry && !IsMovingOnGround()))
+        { Capture.Fail(TEXT("Native walking left the ground before an expected rollback retry.")); }
         else { Capture.Restore(Capture.WalkBookmark.GetValue(),UpdatedComponent->GetComponentLocation(),SupportOf(*this)); }
         Capture.PendingRevert=FNativeCapture::ERevert::None;
     }

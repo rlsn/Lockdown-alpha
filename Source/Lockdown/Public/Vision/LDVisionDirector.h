@@ -145,6 +145,8 @@ private:
     };
     mutable TArray<TArray<FGroundSample>> CoverageGround;
     mutable TBitArray<> CachedCoverageColumns;
+    // Standing bodies ask for the same foot every authority step; the support under a foot is fixed for one Build.
+    mutable TMap<FVector, FGroundSample> FootGround;
     FBox2D CoverageWorldBounds{ForceInit};
     struct FCircle
     {
