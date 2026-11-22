@@ -464,7 +464,7 @@ namespace LDHUD
     // Spec §12 结算“本局最离谱”: one row per contender of the result (its standings order, at most ResultHighlightsMax): its
     // longest chain and its strongest hit on a contender (source, points, share of that target's max HP). Available only for
     // the summary of exactly the result shown.
-    inline constexpr int32 ResultHighlightsMax=6;
+    inline constexpr int32 ResultHighlightsMax=LDMatchLifecycle::MaxContenders;
     struct FResultHighlightRow
     {
         FString Name;
