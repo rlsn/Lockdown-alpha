@@ -945,18 +945,18 @@ class ApprovedDemoData(unittest.TestCase):
     def test_final_arena_anchor_ring_and_capture(self):
         anchors = content.rows_by_id(self.world.world["anchors"], "world anchors")
         self.assertEqual(sorted(identity for identity, row in anchors.items() if row["kind"] == "FinalSpawn"),
-                         [f"final_spawn_{slot}" for slot in range(6)])
+                         [f"final_spawn_{slot}" for slot in range(8)])
         self.assertEqual([identity for identity, row in anchors.items() if row["kind"] == "FinalCapture"],
                          ["final_capture"])
         centre = world.point(anchors["final_capture"]["position_cm"], "final_capture")
         ring = [world.point(anchors[f"final_spawn_{slot}"]["position_cm"], f"final_spawn_{slot}")
-                for slot in range(6)]
+                for slot in range(8)]
         radii = [math.hypot(float(point[0] - centre[0]), float(point[1] - centre[1])) for point in ring]
         self.assertLessEqual(max(radii) - min(radii), 5)
         angles = [math.degrees(math.atan2(float(point[1] - centre[1]), float(point[0] - centre[0])) % (2 * math.pi))
                   for point in ring]
         for index, angle in enumerate(angles):
-            self.assertAlmostEqual((angles[(index + 1) % len(angles)] - angle) % 360, 60, delta=1)
+            self.assertAlmostEqual((angles[(index + 1) % len(angles)] - angle) % 360, 45, delta=1)
 
         moved = json.loads(self.world.outputs[content.WORLD_OUTPUT])
         next(row for row in moved["anchors"] if row["id"] == "final_spawn_0")["position_cm"]["x"]["numerator"] += 100

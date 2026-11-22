@@ -7,7 +7,7 @@
 // and §6). Public read model and request results; the authority is ALDPKDirector (PK/LDPKDirector.h), the pure rules are
 // LDPKRules (PK/LDPKRules.h).
 
-// The format drawn once after the roster locked: 2 entrants duel, 3 or 5 always free-for-all, 4 or 6 free-for-all or two
+// The format drawn once after the roster locked: 2 entrants duel, 3, 5 or 7 always free-for-all, 4, 6 or 8 free-for-all or two
 // equal random teams.
 UENUM()
 enum class ELDPKFormat : uint8 { None = 0, Duel = 1, FreeForAll = 2, Teams = 3 };

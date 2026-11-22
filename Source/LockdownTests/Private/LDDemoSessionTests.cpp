@@ -134,14 +134,14 @@ bool FLDDemoEntryTest::RunTest(const FString& Parameters)
                 || !TestNotNull(TEXT("Native capacity fixture player state"), Player->PlayerState.Get())) { return false; }
             Players.Add(Player);
         }
-        TestEqual(TEXT("Six active controllers fill the native player capacity"), Mode->GetNumPlayers(), LDMatchLifecycle::MaxContenders);
+        TestEqual(TEXT("A full room of active controllers fills the native player capacity"), Mode->GetNumPlayers(), LDMatchLifecycle::MaxContenders);
         Players.Last()->bParkedForReconnect = true;
         TestEqual(TEXT("A retained offline controller reserves its contender, not a second network seat"),
             Mode->GetNumPlayers(), LDMatchLifecycle::MaxContenders - 1);
         auto* Rejoining = SpawnCapacityController();
         if (!TestNotNull(TEXT("Native replacement connection controller"), Rejoining)
             || !TestNotNull(TEXT("Native replacement connection player state"), Rejoining->PlayerState.Get())) { return false; }
-        TestEqual(TEXT("The pending replacement fills the sixth seat while the retained controller still exists"),
+        TestEqual(TEXT("The pending replacement fills the last seat while the retained controller still exists"),
             Mode->GetNumPlayers(), LDMatchLifecycle::MaxContenders);
     }
     const FString LegacyName = TEXT("UEDPIE_") + LexToString(FGuid::NewGuid().A & MAX_int32) + TEXT("_L_V09Full");
@@ -351,12 +351,12 @@ bool FLDDemoSessionTest::RunTest(const FString& Parameters)
     Request.Key.RequestSequence = 2;
     Request.Ready = false;
     Request.Command = ELDSessionCommand::SetAICount;
-    Request.AICount = 3;
+    Request.AICount = 5;
     TestTrue(TEXT("Guest cannot alter AI configuration"), Mode->ProcessSessionCommand(Guest, Request).Reason == ELDSessionReject::NotHost);
-    TestTrue(TEXT("Host can choose exactly three AI slots"), Mode->ProcessSessionCommand(Host, Request).Outcome == ELDSessionOutcome::Committed);
-    TestEqual(TEXT("AI and humans remain independent slots"), Mode->ReadLobby().Members.Num(), 6);
+    TestTrue(TEXT("Host can choose exactly five AI slots"), Mode->ProcessSessionCommand(Host, Request).Outcome == ELDSessionOutcome::Committed);
+    TestEqual(TEXT("AI and humans remain independent slots"), Mode->ReadLobby().Members.Num(), 8);
     const uint64 FullRoster = Mode->RosterRevision;
-    TestFalse(TEXT("Final admission rejects a human when all six human and AI slots are occupied"), Mode->AdmitRoomMember(Fourth, Error));
+    TestFalse(TEXT("Final admission rejects a human when all eight human and AI slots are occupied"), Mode->AdmitRoomMember(Fourth, Error));
     FString Shown;
     TestTrue(TEXT("The final admission refusal of a full room carries its client-mapped code"),
         LDDemoEntry::DescribeJoinRefusal(Error, Shown) && Shown.Contains(TEXT("（RoomFull）")));
@@ -429,8 +429,8 @@ bool FLDDemoSessionTest::RunTest(const FString& Parameters)
     auto* SixRoom = World->SpawnActor<ALDGameMode>();
     auto* SixPublic = World->SpawnActor<ALDGameState>();
     TArray<ALDPlayerController*> SixPlayers;
-    for (int32 Index = 0; Index < 7; ++Index) { SixPlayers.Add(World->SpawnActor<ALDPlayerController>()); }
-    if (!SixRoom || !SixPublic || SixPlayers.Contains(nullptr)) { AddError(TEXT("Six-owner fixture failed to spawn")); return false; }
+    for (int32 Index = 0; Index <= LDMatchLifecycle::MaxContenders; ++Index) { SixPlayers.Add(World->SpawnActor<ALDPlayerController>()); }
+    if (!SixRoom || !SixPublic || SixPlayers.Contains(nullptr)) { AddError(TEXT("Full-room fixture failed to spawn")); return false; }
     SixPlayers[0]->SetAsLocalPlayerController();
     SixRoom->GameState = SixPublic;
     SixRoom->MatchContext = {2, FGuid::NewGuid()};
@@ -438,34 +438,34 @@ bool FLDDemoSessionTest::RunTest(const FString& Parameters)
     SixRoom->RosterRevision = 1;
     SixRoom->LobbyPublicRevision = 1;
     SixRoom->bDemoWorld = SixRoom->bEntryAccepted = true;
-    for (int32 Index = 0; Index < 6; ++Index)
+    for (int32 Index = 0; Index < LDMatchLifecycle::MaxContenders; ++Index)
     { TestTrue(FString::Printf(TEXT("Human slot %d is admitted"),Index+1),SixRoom->AdmitRoomMember(SixPlayers[Index],Error)); }
     FLDLobbyView SixLatest;
-    TestTrue(TEXT("The six-human lobby is accepted by the client projection"),
+    TestTrue(TEXT("The full human lobby is accepted by the client projection"),
         LDMatchLifecycle::AcceptLobbyView(SixRoom->ReadLobby(),SixLatest,Error)==ELDLobbyProjectionResult::Accepted);
-    TestFalse(TEXT("A seventh human is rejected"),SixRoom->AdmitRoomMember(SixPlayers[6],Error));
+    TestFalse(TEXT("A human beyond the room capacity is rejected"),SixRoom->AdmitRoomMember(SixPlayers[LDMatchLifecycle::MaxContenders],Error));
     FLDSessionRequest ExcessAI;
     ExcessAI.Key = {2, 1};
     ExcessAI.ExpectedRosterRevision = SixRoom->RosterRevision;
     ExcessAI.Command = ELDSessionCommand::SetAICount;
     ExcessAI.AICount = 1;
-    TestTrue(TEXT("AI cannot overfill a six-human room"),
+    TestTrue(TEXT("AI cannot overfill a full human room"),
         SixRoom->ProcessSessionCommand(SixPlayers[0],ExcessAI).Reason==ELDSessionReject::RoomFull
-        && SixRoom->ReadLobby().Members.Num()==6);
+        && SixRoom->ReadLobby().Members.Num()==LDMatchLifecycle::MaxContenders);
     FLDSessionRequest SixReady;
     SixReady.Key.Generation = 2;
     SixReady.ExpectedRosterRevision = SixRoom->RosterRevision;
     SixReady.Ready = true;
-    for (int32 Index = 0; Index < 6; ++Index)
+    for (int32 Index = 0; Index < LDMatchLifecycle::MaxContenders; ++Index)
     {
         SixReady.Key.RequestSequence = Index == 0 ? 2 : 1;
-        TestTrue(TEXT("Each of six humans can ready"),
+        TestTrue(TEXT("Each human of a full room can ready"),
             SixRoom->ProcessSessionCommand(SixPlayers[Index],SixReady).Outcome==ELDSessionOutcome::Committed);
     }
     SixReady.Key.RequestSequence = 3;
     SixReady.Command = ELDSessionCommand::StartMatch;
     SixReady.Ready = false;
-    TestTrue(TEXT("Six ready humans pass the readiness gate"),
+    TestTrue(TEXT("A full room of ready humans passes the readiness gate"),
         SixRoom->ProcessSessionCommand(SixPlayers[0],SixReady).Reason!=ELDSessionReject::NotAllReady);
 
     // #337 §4: A solo Host + AI room passes the readiness gate immediately without needing SetReady from Host.

@@ -195,7 +195,8 @@ bool LDPKRules::DrawFormat(int32 Entrants, int64 TeamFormatBp, FRandomStream& Ra
     case 1: Out = ELDPKFormat::None; break;
     case 2: Out = ELDPKFormat::Duel; break;
     case 3:
-    case 5: Out = ELDPKFormat::FreeForAll; break;
+    case 5:
+    case 7: Out = ELDPKFormat::FreeForAll; break;
     default:
         Out = int64(Random.RandRange(0, int32(LDPKRulesDetail::BpWhole) - 1)) < TeamFormatBp ? ELDPKFormat::Teams : ELDPKFormat::FreeForAll;
         break;
@@ -279,11 +280,13 @@ bool LDPKRules::Draw(int32 Entrants, const FLDPKParameters& Params, FRandomStrea
         TArray<int32> Offsets;
         switch (Entrants)
         {
-        case 2: Offsets = {0, 3}; break;
-        case 3: Offsets = {0, 2, 4}; break;
-        case 4: Offsets = {0, 1, 3, 4}; break;
-        case 5: Offsets = {0, 1, 2, 3, 4}; break;
-        default: Offsets = {0, 1, 2, 3, 4, 5}; break;
+        case 2: Offsets = {0, 4}; break;
+        case 3: Offsets = {0, 3, 6}; break;
+        case 4: Offsets = {0, 2, 4, 6}; break;
+        case 5: Offsets = {0, 2, 3, 5, 6}; break;
+        case 6: Offsets = {0, 1, 3, 4, 6, 7}; break;
+        case 7: Offsets = {0, 1, 2, 3, 4, 5, 6}; break;
+        default: Offsets = {0, 1, 2, 3, 4, 5, 6, 7}; break;
         }
         for (int32& Offset : Offsets) { Offset = (Rotation + Offset) % SpawnAnchors; }
         LDPKRulesDetail::Shuffle(Offsets, Random);
@@ -558,7 +561,7 @@ bool LDPKRules::ComputeAwards(const FLDPKParameters& Params, ELDPKOutcome Outcom
     }
     if (SideOfSeat.Num() < 2 || SideOfSeat.Num() > SpawnAnchors)
     {
-        Error = TEXT("A PK has 2..6 locked entrants.");
+        Error = TEXT("A PK has 2..8 locked entrants.");
         return false;
     }
     const int64 Points[] = {Params.ParticipationPoints, Params.WinnerPointsMax, Params.BettingPoolMaxPoints};
@@ -581,7 +584,7 @@ bool LDPKRules::ComputeAwards(const FLDPKParameters& Params, ELDPKOutcome Outcom
     {
         if (Side == 0 || Side > SpawnAnchors)
         {
-            Error = TEXT("Every PK seat has a side in 1..6.");
+            Error = TEXT("Every PK seat has a side in 1..8.");
             return false;
         }
         MaxSide = FMath::Max(MaxSide, Side);

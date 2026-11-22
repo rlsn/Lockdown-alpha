@@ -71,7 +71,7 @@ bool ValidSpawns(const FLDPKDraw& Draw)
         for (int32 Seat = 0; Seat < N; ++Seat) { (Draw.SideOfSeat[Seat] == 1 ? Side1 : Side2).Add(Draw.AnchorOfSeat[Seat]); }
         for (int32 Rotation = 0; Rotation < LDPKRules::SpawnAnchors; ++Rotation)
         {
-            if (AnchorMask(Side1) == RotatedMask(Rotation, 0, N / 2) && AnchorMask(Side2) == RotatedMask(Rotation, 3, N / 2))
+            if (AnchorMask(Side1) == RotatedMask(Rotation, 0, N / 2) && AnchorMask(Side2) == RotatedMask(Rotation, LDPKRules::SpawnAnchors / 2, N / 2))
             {
                 return true;
             }
@@ -81,9 +81,11 @@ bool ValidSpawns(const FLDPKDraw& Draw)
     TArray<int32> Offsets;
     switch (N)
     {
-    case 2: Offsets = {0, 3}; break;
-    case 3: Offsets = {0, 2, 4}; break;
-    case 4: Offsets = {0, 1, 3, 4}; break;
+    case 2: Offsets = {0, 4}; break;
+    case 3: Offsets = {0, 3, 6}; break;
+    case 4: Offsets = {0, 2, 4, 6}; break;
+    case 5: Offsets = {0, 2, 3, 5, 6}; break;
+    case 6: Offsets = {0, 1, 3, 4, 6, 7}; break;
     default: for (int32 Index = 0; Index < N; ++Index) { Offsets.Add(Index); } break;
     }
     for (int32 Seat = 0; Seat < N; ++Seat)
@@ -154,12 +156,12 @@ bool FLDPKFormatDrawTest::RunTest(const FString& Parameters)
     FRandomStream Random(198);
     ELDPKFormat Format = ELDPKFormat::Duel;
     const ELDPKFormat Fixed[] = {ELDPKFormat::None, ELDPKFormat::None, ELDPKFormat::Duel, ELDPKFormat::FreeForAll,
-        ELDPKFormat::None, ELDPKFormat::FreeForAll};
-    for (int32 N = 0; N <= 6; ++N)
+        ELDPKFormat::None, ELDPKFormat::FreeForAll, ELDPKFormat::None, ELDPKFormat::FreeForAll};
+    for (int32 N = 0; N <= 8; ++N)
     {
         const bool bDrawn = LDPKRules::DrawFormat(N, P.TeamFormatBp, Random, Format);
         TestTrue(*FString::Printf(TEXT("N=%d draws a format"), N), bDrawn);
-        if (N == 4 || N == 6)
+        if (N == 4 || N == 6 || N == 8)
         {
             TestTrue(*FString::Printf(TEXT("N=%d is free-for-all or teams"), N),
                 Format == ELDPKFormat::FreeForAll || Format == ELDPKFormat::Teams);
@@ -169,7 +171,7 @@ bool FLDPKFormatDrawTest::RunTest(const FString& Parameters)
             TestTrue(*FString::Printf(TEXT("N=%d has its fixed format"), N), Format == Fixed[N]);
         }
     }
-    TestFalse(TEXT("Seven entrants are refused"), LDPKRules::DrawFormat(7, P.TeamFormatBp, Random, Format));
+    TestFalse(TEXT("Nine entrants are refused"), LDPKRules::DrawFormat(9, P.TeamFormatBp, Random, Format));
     TestFalse(TEXT("A probability above 100% is refused"), LDPKRules::DrawFormat(4, 10001, Random, Format));
     TestTrue(TEXT("0 bp never draws teams"), LDPKRules::DrawFormat(6, 0, Random, Format) && Format == ELDPKFormat::FreeForAll);
     TestTrue(TEXT("10000 bp always draws teams"), LDPKRules::DrawFormat(4, 10000, Random, Format) && Format == ELDPKFormat::Teams);
@@ -182,12 +184,15 @@ bool FLDPKFormatDrawTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("4 entrants have 3 equal partitions"), Partitions.Num(), 3);
     LDPKRules::EqualPartitions(6, Partitions);
     TestEqual(TEXT("6 entrants have 10 equal partitions"), Partitions.Num(), 10);
+    LDPKRules::EqualPartitions(8, Partitions);
+    TestEqual(TEXT("8 entrants have 35 equal partitions"), Partitions.Num(), 35);
     LDPKRules::EqualPartitions(5, Partitions);
     TestEqual(TEXT("Odd counts have no equal partition"), Partitions.Num(), 0);
 
-    constexpr int32 Draws = 4000;
-    for (const int32 N : {4, 6})
+    for (const int32 N : {4, 6, 8})
     {
+        // Enough team draws that each of the 35 partitions of eight is sampled well past its noise.
+        const int32 Draws = N == 8 ? 12000 : 4000;
         LDPKRules::EqualPartitions(N, Partitions);
         TArray<int32> PartitionCounts;
         PartitionCounts.Init(0, Partitions.Num());
@@ -213,7 +218,7 @@ bool FLDPKFormatDrawTest::RunTest(const FString& Parameters)
                 FMath::Abs(PartitionCounts[Partition] - Mean) < Mean * 0.3);
         }
     }
-    for (const int32 N : {2, 3, 5})
+    for (const int32 N : {2, 3, 5, 7})
     {
         bool bAllValid = true;
         for (int32 Index = 0; Index < 200; ++Index)

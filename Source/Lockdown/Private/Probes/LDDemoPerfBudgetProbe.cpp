@@ -42,7 +42,7 @@ namespace
     const FVector PerfFocus(0., -1100., 0.);
     constexpr double PrimerSeconds = 4., WarmSeconds = 3., SampleSeconds = 6.;
     // The most opponent AI a room takes (FLDSessionCommand::SetAICount).
-    constexpr uint8 MatchAI = 3;
+    constexpr uint8 MatchAI = uint8(LDMatchLifecycle::MaxOpponents);
 
     struct FPerfBody
     {

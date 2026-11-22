@@ -14,8 +14,8 @@ enum class ELDArtZone : uint8 { Outside, WallBase, Capture, Blocker, Ground, Cou
 
 namespace LDArt
 {
-    // Locked roster seats 0..5 (APP_SPEC: at most six contenders).
-    constexpr int32 SeatCount = 6;
+    // Locked roster seats 0..7 (APP_SPEC: at most eight contenders).
+    constexpr int32 SeatCount = 8;
     constexpr int32 AnimCount = int32(ELDArtAnim::Count);
     // Literal ids instead of reflected enum names: non-editor builds do not preserve FName casing.
     LOCKDOWN_API FString AnimId(ELDArtAnim Anim);

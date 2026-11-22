@@ -924,7 +924,7 @@ bool FLDCaptureViewsTest::RunTest(const FString& Parameters)
     MalformedOwned(Owned, [](FLDPublicMatchView& View) { View.GuardDueAtMs = 140000; }, TEXT("A paused guard has no win instant"));
     MalformedOwned(Owned, [](FLDPublicMatchView& View) { View.GuardKeptMs = -1; }, TEXT("Kept guard progress is not negative"));
     MalformedOwned(Owned, [](FLDPublicMatchView& View) { View.Occupier = View.GraffitiOwner; }, TEXT("The owner never sprays"));
-    MalformedOwned(Owned, [](FLDPublicMatchView& View) { View.GraffitiPresentation = 6; }, TEXT("The owner's tint is a roster slot"));
+    MalformedOwned(Owned, [](FLDPublicMatchView& View) { View.GraffitiPresentation = uint8(LDMatchLifecycle::MaxContenders); }, TEXT("The owner's tint is a roster slot"));
     FLDPublicMatchView Guarded = Owned;
     Guarded.CircleState = ELDCircleState::Guarded;
     Guarded.Occupier.Invalidate();

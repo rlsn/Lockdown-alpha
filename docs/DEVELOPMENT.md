@@ -116,6 +116,8 @@ CI 拒绝缺失入口，局部计划保留已删除模块的依赖边。静态�
 通过记录和独立日志位于忽略的 `Artifacts\Verification`。复用要求命令、输入文件内容/目录成员、
 Python/工具环境、构建输出（如适用）及日志摘要一致；计划和跳过信息显示上次通过时间与日志路径。
 删除证据、修改输入、失败或运行中输入变化都不能产生可复用的通过结果；`-Force` 强制重验。
+构建记录只覆盖编译读取的输入（`Source`、`Config`、`.env`、插件、`.uproject`、构建脚本与 `Lockdown.Build.cs` 列出的三份载荷），
+改资产不使它失效；规则测试记录仍覆盖整个 `SourceData` 与 `Content`。
 本地静态输入指纹不证明外部引擎/SDK 安装未被修改，切换或维护外部工具后用 `-Force`，不能把本机缓存当作 CI 门禁。
 
 - 规则测试的门禁是 PR 的 CI（[CI 与发布](systems/CI_AND_RELEASE.md#pr-检查与每日试玩包)），本地不重复跑整套。
@@ -228,7 +230,7 @@ Host 仅请求 `/Game/Lockdown/Generated/Maps/L_Demo?listen`；
 Join 还携带独立 wire 版本、产品版本和根 manifest 摘要；连接中不表示准入已成功。
 原生 GameMode 不再通过旧 profile 创建战斗、经济、人口、旧目标或 probe 服务。
 
-GameMode 提供真人和最多 3 个 AI 共用的六人容量、Host 权限（房主免准备）、结构名单版本与有界会话回执。
+GameMode 提供真人和最多 7 个 AI 共用的八人容量、Host 权限（房主免准备）、结构名单版本与有界会话回执。
 Ready 变化只推进公共发布版本；真人成员进出推进结构版本并清除真人 Ready，房主调整 AI 名额保留已准备真人的 Ready 状态；开局时每个 AI 名额生成一个服务器 `ALDOpponentController`。全部必需提供者已注册且除房主外的真人均已准备时才允许开局。
 玩家名称经 `?LDName=` 传入并由服务器复核；加入被拒时客户端显示中文原因与稳定原因码。场景见[验证手册](systems/VERIFICATION.md#最小验证选择)。
 

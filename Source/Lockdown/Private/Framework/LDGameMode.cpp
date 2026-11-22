@@ -135,7 +135,7 @@ void ALDGameMode::PreLogin(const FString& Options,const FString& Address,const F
     if(bResume&&!bHasResume)
     {ErrorMessage=MakeJoinRefusal(JoinRefusal::RoomNotReady,TEXT("no disconnected participant remains in this match."));return;}
     if (!bResume&&Contenders.Num()+LobbyAISlots.Num()>=LDMatchLifecycle::MaxContenders)
-    { ErrorMessage=MakeJoinRefusal(JoinRefusal::RoomFull,TEXT("all six contender slots are occupied.")); return; }
+    { ErrorMessage=MakeJoinRefusal(JoinRefusal::RoomFull,TEXT("all eight contender slots are occupied.")); return; }
     if (UGameplayStatics::ParseOption(Options,TEXT("LDWire"))!=LexToString(WireProtocol))
     { ErrorMessage=MakeJoinRefusal(JoinRefusal::ProtocolMismatch,TEXT("use the same Demo network build as the Host.")); return; }
     FString Version;

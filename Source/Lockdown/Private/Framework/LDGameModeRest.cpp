@@ -123,7 +123,7 @@ bool ALDGameMode::IsInRestSpace(const FGuid& Contender) const
 FName ALDGameMode::RestAnchorFor(const FGuid& Contender) const
 {
     const int32 Slot = RosterOrder.IndexOfByKey(Contender);
-    if (!DemoContent || Slot == INDEX_NONE || Slot >= 6) { return NAME_None; }
+    if (!DemoContent || Slot == INDEX_NONE || Slot >= LDDemoWorld::RosterSlots) { return NAME_None; }
     return FName(*FString::Printf(TEXT("rest_spawn_%d"), Slot));
 }
 

@@ -38,7 +38,7 @@ class SavedSceneExportTests(unittest.TestCase):
         source['schema_version'] = 3
         source['projection_revision'] = 3
         source['anchors'] = [row for row in source['anchors'] if row['id'] not in {
-            *(f'final_spawn_{slot}' for slot in range(6)), 'final_capture'
+            *(f'final_spawn_{slot}' for slot in range(8)), 'final_capture'
         }]
         return b'\r\n' + self.raw(source) + b'\r\n'
 
@@ -90,7 +90,7 @@ class SavedSceneExportTests(unittest.TestCase):
         original = self.legacy_world()
         export = self.export(original)
         centre = (13000, 0)
-        ring = ((1550, 0), (775, 1342), (-775, 1342), (-1550, 0), (-775, -1342), (775, -1342))
+        ring = ((1550, 0), (1096, 1096), (0, 1550), (-1096, 1096), (-1550, 0), (-1096, -1096), (0, -1550), (1096, -1096))
         for slot, (dx, dy) in enumerate(ring):
             export['anchors'].append({
                 'id': f'final_spawn_{slot}', 'kind': 'FinalSpawn', 'surface_id': 'demo_ground',
@@ -106,10 +106,10 @@ class SavedSceneExportTests(unittest.TestCase):
 
         self.assertEqual(updated['schema_version'], 5)
         self.assertEqual(updated['projection_revision'], 5)
-        self.assertEqual(raw.count(b'\r\n'), original.count(b'\r\n') + 7)
+        self.assertEqual(raw.count(b'\r\n'), original.count(b'\r\n') + 9)
         final_anchors = [row for row in updated['anchors'] if row['id'].startswith('final_')]
         self.assertEqual([row['id'] for row in final_anchors],
-                         [*(f'final_spawn_{slot}' for slot in range(6)), 'final_capture'])
+                         [*(f'final_spawn_{slot}' for slot in range(8)), 'final_capture'])
         self.assertEqual(final_anchors[-1]['position_cm'], {'x': 13000, 'y': 0, 'z': 0})
 
     def test_partial_final_anchor_set_is_rejected(self):

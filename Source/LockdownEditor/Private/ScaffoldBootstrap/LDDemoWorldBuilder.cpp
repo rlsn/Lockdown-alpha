@@ -8,6 +8,7 @@
 #include "Framework/LDGameMode.h"
 #include "Character/LDCharacter.h"
 #include "Components/CapsuleComponent.h"
+#include "World/LDLayoutPoint.h"
 #include "World/LDSpawnPlacement.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Region/LDMapDefinition.h"
@@ -516,7 +517,7 @@ bool LDDemoWorldBuilder::RefreshLayoutPoints(UWorld& World,const FLDDemoWorldGeo
     TMap<FName,AActor*> Homes,Anchors;
     for(AActor* Actor:World.PersistentLevel->Actors)
     {
-        if(!Actor){continue;}
+        if(!Actor||Actor->IsEditorOnly()){continue;}
         for(const FName Tag:Actor->Tags)
         {
             const FString Text=Tag.ToString();
@@ -526,9 +527,14 @@ bool LDDemoWorldBuilder::RefreshLayoutPoints(UWorld& World,const FLDDemoWorldGeo
             {const FName Id(*Text.Mid(14));if(CampAnchors.Contains(Id)){if(Anchors.Contains(Id)){return Fail(Error,TEXT("Duplicate camp anchor: ")+Id.ToString());}Anchors.Add(Id,Actor);}}
         }
     }
-    // A deleted existing point is an authoring error, not permission to recreate it at a generator coordinate.
+    // Authored levels may delete or replace base camps (LDStaticScene::ProjectRuntimeGeometry); only live saved camps
+    // that do not opt into authored child slots require their previous member homes.
     for(const auto& Camp:Previous.Anchors)
     {
+        if(Camp.Kind!=ELDDemoWorldAnchorKind::Camp){continue;}
+        const AActor* SavedAnchor=Anchors.FindRef(FName(*Camp.Id));
+        const auto* Layout=Cast<ALDLayoutPoint>(SavedAnchor);
+        if(!SavedAnchor||(Layout&&Layout->bUseAuthoredCampMembers)){continue;}
         for(const auto& Home:Camp.Members)
         {if(!Homes.Contains(FName(*Home.Id))){return Fail(Error,TEXT("Missing existing camp member home: ")+Home.Id);}}
     }
@@ -537,7 +543,8 @@ bool LDDemoWorldBuilder::RefreshLayoutPoints(UWorld& World,const FLDDemoWorldGeo
     {
         if(Camp.Kind!=ELDDemoWorldAnchorKind::Camp){continue;}
         const auto* Anchor=Anchors.FindRef(FName(*Camp.Id));
-        if(!Anchor){return Fail(Error,TEXT("Missing saved semantic camp anchor: ")+Camp.Id);}
+        const auto* Layout=Cast<ALDLayoutPoint>(Anchor);
+        if(!Anchor||(Layout&&Layout->bUseAuthoredCampMembers)){continue;}
         FVector Baseline;if(!Camp.PositionCm.ToVector(Baseline,Error)){return false;}
         TArray<FVector> Positions;
         for(const auto& Home:Camp.Members)
@@ -558,7 +565,7 @@ bool LDDemoWorldBuilder::RefreshLayoutPoints(UWorld& World,const FLDDemoWorldGeo
     }
     for(const auto& Addition:Additions)
     {
-        auto* Point=World.SpawnActor<ATargetPoint>();
+        auto* Point=World.SpawnActor<ALDLayoutPoint>();
         if(!Point){return Fail(Error,TEXT("Could not add a semantic camp member home."));}
         Point->Tags.Add(FName(*(FString(TEXT("LDSceneMember:"))+Addition.Id.ToString())));
         Point->SetActorLocation(Addition.Position);Point->SetActorLabel(Addition.Id.ToString());
@@ -566,12 +573,12 @@ bool LDDemoWorldBuilder::RefreshLayoutPoints(UWorld& World,const FLDDemoWorldGeo
     // Every other layout point by its semantic id: player starts by their start tag, the rest by LDSceneAnchor tags.
     TSet<FString> Declared;
     for(const auto& Anchor:Geometry->Anchors){Declared.Add(Anchor.Id);}
-    TSet<FString> Saved;
+    TMap<FString,AActor*> Saved;
     TArray<AActor*> Retired;
     for(AActor* Actor:World.PersistentLevel->Actors)
     {
-        if(!Actor){continue;}
-        if(const auto* Start=Cast<APlayerStart>(Actor)){Saved.Add(Start->PlayerStartTag.ToString());continue;}
+        if(!Actor||Actor->IsEditorOnly()){continue;}
+        if(const auto* Start=Cast<APlayerStart>(Actor)){Saved.Add(Start->PlayerStartTag.ToString(),Actor);continue;}
         for(const FName Tag:Actor->Tags)
         {
             const FString Text=Tag.ToString();
@@ -581,23 +588,166 @@ bool LDDemoWorldBuilder::RefreshLayoutPoints(UWorld& World,const FLDDemoWorldGeo
             // A copied optional point repeats its original's tag; it stands for the same derived id the projection gives
             // it (LDStaticScene::OptionalCopyId, same actor order), so the refresh never adds a second point there.
             if(Saved.Contains(Id)&&LDDemoWorld::OptionalKindOf(Id,Optional)){Id=LDStaticScene::OptionalCopyId(Id,Actor->GetName());}
-            if(!Declared.Contains(Id)&&!LDDemoWorld::OptionalKindOf(Id,Optional)){Retired.Add(Actor);}
-            Saved.Add(Id);
+            const bool bWasInPrevious=Previous.Anchors.ContainsByPredicate([&](const auto& Row){return Row.Id==Id;});
+            if(bWasInPrevious&&!Declared.Contains(Id)&&!LDDemoWorld::OptionalKindOf(Id,Optional)){Retired.Add(Actor);}
+            Saved.Add(Id,Actor);
         }
     }
-    int32 Added=0;
+    const auto GroupOffset=[&](const FString& RefId)->FVector
+    {
+        const AActor* RefActor=Saved.FindRef(RefId);
+        const auto* OldRef=Previous.Anchors.FindByPredicate([&](const auto& Row){return Row.Id==RefId;});
+        FVector OldRefPos=FVector::ZeroVector;
+        FString Ignored;
+        if(!RefActor||!OldRef||!OldRef->PositionCm.ToVector(OldRefPos,Ignored)){return FVector::ZeroVector;}
+        return RefActor->GetActorLocation()-OldRefPos;
+    };
+    const FVector CaptureOffset=GroupOffset(Content.Get().World.CaptureId);
+    const FVector FinalOffset=GroupOffset(LDDemoWorld::FinalCaptureId());
+    const FVector SignupOffset=[&]()->FVector
+    {
+        FVector SavedSum=FVector::ZeroVector,OldSum=FVector::ZeroVector;
+        int32 Count=0;
+        for(int32 I=0;I<LDDemoWorld::PKSpawns;++I)
+        {
+            const FString Id=FString::Printf(TEXT("pk_signup_%d"),I);
+            const AActor* Act=Saved.FindRef(Id);
+            const auto* OldRow=Previous.Anchors.FindByPredicate([&](const auto& R){return R.Id==Id;});
+            FVector OldP=FVector::ZeroVector;FString Ign;
+            if(Act&&OldRow&&OldRow->PositionCm.ToVector(OldP,Ign)){SavedSum+=Act->GetActorLocation();OldSum+=OldP;++Count;}
+        }
+        return Count>0 ? (SavedSum-OldSum)/double(Count) : GroupOffset(TEXT("rest_spawn_0"));
+    }();
+    // Preserve the authored rest-room span [0..OldLast] when expanding roster-indexed lines (rest_spawn_*, training_dummy_*)
+    // so newly added slots stay inside the saved room rather than stepping into surrounding authored props/walls.
+    const auto SpanLinePos=[&](const TCHAR* Prefix,int32 NewCount,int32 Slot,FVector& OutPos)->bool
+    {
+        int32 OldMaxSlot=INDEX_NONE;
+        for(int32 I=0;I<NewCount;++I)
+        {
+            if(Saved.Contains(FString::Printf(TEXT("%s%d"),Prefix,I))){OldMaxSlot=I;}
+        }
+        const AActor* First=Saved.FindRef(FString::Printf(TEXT("%s0"),Prefix));
+        const AActor* Last=OldMaxSlot>0 ? Saved.FindRef(FString::Printf(TEXT("%s%d"),Prefix,OldMaxSlot)) : nullptr;
+        if(!First||!Last||NewCount<=1){return false;}
+        const double Alpha=double(Slot)/double(NewCount-1);
+        OutPos=FMath::Lerp(First->GetActorLocation(),Last->GetActorLocation(),Alpha);
+        return true;
+    };
+    // For ring spawns (final_spawn_*, pk_spawn_*), keep all existing author-placed ring slots in the saved level
+    // untouched and place newly added ring slots on clear arc midpoints at the arena centre's floor elevation.
+    const auto NewRingSlotPos=[&](const TCHAR* Prefix,const FString& CentreId,int32 NewSlotIndex,FVector& OutPos)->bool
+    {
+        const AActor* CentreActor=Saved.FindRef(CentreId);
+        if(!CentreActor){return false;}
+        const FVector Centre=CentreActor->GetActorLocation();
+        TArray<FVector> ExistingRing;
+        for(int32 I=0;I<16;++I)
+        {
+            if(const AActor* Act=Saved.FindRef(FString::Printf(TEXT("%s%d"),Prefix,I)))
+            {
+                ExistingRing.Add(Act->GetActorLocation());
+            }
+        }
+        if(ExistingRing.Num()<2){return false;}
+        ExistingRing.Sort([&Centre](const FVector& A,const FVector& B)
+        {
+            return FMath::Atan2(A.Y-Centre.Y,A.X-Centre.X)<FMath::Atan2(B.Y-Centre.Y,B.X-Centre.X);
+        });
+        // Rank adjacent arc gaps from widest to narrowest and pick the Nth widest gap's arc midpoint.
+        struct FGap{double SpanRad;int32 Index;};
+        TArray<FGap> Gaps;
+        for(int32 I=0;I<ExistingRing.Num();++I)
+        {
+            const FVector A=ExistingRing[I]-Centre;
+            const FVector B=ExistingRing[(I+1)%ExistingRing.Num()]-Centre;
+            double AngA=FMath::Atan2(A.Y,A.X);
+            double AngB=FMath::Atan2(B.Y,B.X);
+            double Span=AngB-AngA;
+            while(Span<=0.){Span+=2.*UE_DOUBLE_PI;}
+            Gaps.Add({Span,I});
+        }
+        Gaps.Sort([](const FGap& L,const FGap& R){return L.SpanRad>R.SpanRad;});
+        const FGap& Chosen=Gaps[NewSlotIndex%Gaps.Num()];
+        const FVector A=ExistingRing[Chosen.Index]-Centre;
+        const FVector B=ExistingRing[(Chosen.Index+1)%ExistingRing.Num()]-Centre;
+        const double AngA=FMath::Atan2(A.Y,A.X);
+        const double MidAng=AngA+0.5*Chosen.SpanRad;
+        const double MidRadius=0.5*(A.Size2D()+B.Size2D());
+        const double MidZ=0.5*(ExistingRing[Chosen.Index].Z+ExistingRing[(Chosen.Index+1)%ExistingRing.Num()].Z);
+        OutPos=FVector(Centre.X+MidRadius*FMath::Cos(MidAng),Centre.Y+MidRadius*FMath::Sin(MidAng),MidZ);
+        return true;
+    };
+    const auto TargetPositionFor=[&](const FLDDemoWorldAnchor& Anchor,FVector& OutPos)->bool
+    {
+        FVector BasePos;
+        if(!Anchor.PositionCm.ToVector(BasePos,Error)){return false;}
+        if(Anchor.Kind==ELDDemoWorldAnchorKind::RestSpawn && Anchor.Id.StartsWith(TEXT("rest_spawn_")))
+        {
+            const int32 Slot=FCString::Atoi(*Anchor.Id.Mid(11));
+            if(SpanLinePos(TEXT("rest_spawn_"),LDDemoWorld::RosterSlots,Slot,OutPos)){return true;}
+        }
+        if(Anchor.Kind==ELDDemoWorldAnchorKind::TrainingDummy && Anchor.Id.StartsWith(TEXT("training_dummy_")))
+        {
+            const int32 Slot=FCString::Atoi(*Anchor.Id.Mid(15));
+            if(SpanLinePos(TEXT("training_dummy_"),LDDemoWorld::TrainingDummies,Slot,OutPos)){return true;}
+        }
+        if(Anchor.Kind==ELDDemoWorldAnchorKind::FinalSpawn && Anchor.Id.StartsWith(TEXT("final_spawn_")) && !Saved.Contains(Anchor.Id))
+        {
+            const int32 Slot=FCString::Atoi(*Anchor.Id.Mid(12));
+            if(NewRingSlotPos(TEXT("final_spawn_"),LDDemoWorld::FinalCaptureId(),FMath::Max(0,Slot-6),OutPos)){return true;}
+        }
+        if(Anchor.Kind==ELDDemoWorldAnchorKind::PKSpawn && Anchor.Id.StartsWith(TEXT("pk_spawn_")) && !Saved.Contains(Anchor.Id))
+        {
+            const int32 Slot=FCString::Atoi(*Anchor.Id.Mid(9));
+            if(NewRingSlotPos(TEXT("pk_spawn_"),Content.Get().World.CaptureId,FMath::Max(0,Slot-6),OutPos)){return true;}
+        }
+        switch(Anchor.Kind)
+        {
+        case ELDDemoWorldAnchorKind::PKSpawn:
+        case ELDDemoWorldAnchorKind::PKThrow: OutPos=BasePos+CaptureOffset; return true;
+        case ELDDemoWorldAnchorKind::FinalSpawn:
+        case ELDDemoWorldAnchorKind::FinalCapture: OutPos=BasePos+FinalOffset; return true;
+        case ELDDemoWorldAnchorKind::PKSignup: OutPos=BasePos+SignupOffset; return true;
+        default: OutPos=BasePos; return true;
+        }
+    };
+    int32 Added=0,Moved=0;
     for(const auto& Anchor:Geometry->Anchors)
     {
-        if(Anchor.Kind==ELDDemoWorldAnchorKind::Camp||Saved.Contains(Anchor.Id)){continue;}
-        // Only a new identity is added. A deleted existing required point is an authoring error, never recreated at a
-        // stale coordinate; a deleted existing optional point stays deleted (the projection enforces its minimum).
+        if(Anchor.Kind==ELDDemoWorldAnchorKind::Camp){continue;}
+        FVector BasePos,Position;
+        if(!Anchor.PositionCm.ToVector(BasePos,Error)||!TargetPositionFor(Anchor,Position)){return false;}
+        if(AActor* ExistingActor=Saved.FindRef(Anchor.Id))
+        {
+            // Keep authored rest_service_*, final_spawn_*, and pk_spawn_* positions untouched in the saved level;
+            // only compact the rest-room lines/signup disk to make room for seats 7 and 8.
+            if(Anchor.Kind==ELDDemoWorldAnchorKind::RestService
+                || Anchor.Kind==ELDDemoWorldAnchorKind::FinalSpawn
+                || Anchor.Kind==ELDDemoWorldAnchorKind::PKSpawn)
+            {continue;}
+            const auto* Old=Previous.Anchors.FindByPredicate([&](const auto& Row){return Row.Id==Anchor.Id;});
+            FVector OldBasePos=BasePos;
+            if(Old&&!Old->PositionCm.ToVector(OldBasePos,Error)){return false;}
+            if(Old&&!OldBasePos.Equals(BasePos,1e-3))
+            {
+                FVector TargetPos=Position;
+                if(Cast<APlayerStart>(ExistingActor))
+                {TargetPos.Z+=GetDefault<ALDCharacter>()->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight();}
+                ExistingActor->SetActorLocation(TargetPos);
+                ++Moved;
+            }
+            continue;
+        }
+        // Only a new identity is added (and an absent Airdrop in an authored map stays absent). A deleted existing
+        // required point is an authoring error, never recreated at a stale coordinate.
+        if(Anchor.Kind==ELDDemoWorldAnchorKind::Airdrop){continue;}
         if(Previous.Anchors.ContainsByPredicate([&](const auto& Old){return Old.Id==Anchor.Id;}))
         {
             ELDDemoWorldAnchorKind Optional;
             if(LDDemoWorld::OptionalKindOf(Anchor.Id,Optional)){continue;}
             return Fail(Error,TEXT("Missing existing layout point: ")+Anchor.Id);
         }
-        FVector Position;if(!Anchor.PositionCm.ToVector(Position,Error)){return false;}
         if(Anchor.Kind==ELDDemoWorldAnchorKind::Spawn)
         {
             // Field spawns are player starts the registry binds by PlayerStartTag. The projection exports a start at its
@@ -608,17 +758,17 @@ bool LDDemoWorldBuilder::RefreshLayoutPoints(UWorld& World,const FLDDemoWorldGeo
             Start->PlayerStartTag=FName(*Anchor.Id);Start->SetActorLabel(Anchor.Id);
             ++Added;continue;
         }
-        auto* Point=World.SpawnActor<ATargetPoint>();
+        auto* Point=World.SpawnActor<ALDLayoutPoint>();
         if(!Point){return Fail(Error,TEXT("Could not add a semantic layout point."));}
         Point->Tags.Add(FName(*(FString(TEXT("LDSceneAnchor:"))+Anchor.Id)));
         Point->SetActorLocation(Position);Point->SetActorLabel(Anchor.Id);
         ++Added;
     }
     for(AActor* Actor:Retired){World.EditorDestroyActor(Actor,true);}
-    if((!Additions.IsEmpty()||Added>0||!Retired.IsEmpty()) && !UEditorLoadingAndSavingUtils::SaveMap(&World,LDDemoEntry::WorldMap))
+    if((!Additions.IsEmpty()||Added>0||Moved>0||!Retired.IsEmpty()) && !UEditorLoadingAndSavingUtils::SaveMap(&World,LDDemoEntry::WorldMap))
     {return Fail(Error,TEXT("Could not save the layout point changes."));}
-    UE_LOG(LogLDEditor,Display,TEXT("LD_LAYOUT_POINTS_REFRESHED member_homes_added=%d points_added=%d points_removed=%d scope=semantic_layout_points_only"),
-        Additions.Num(),Added,Retired.Num());
+    UE_LOG(LogLDEditor,Display,TEXT("LD_LAYOUT_POINTS_REFRESHED member_homes_added=%d points_added=%d points_moved=%d points_removed=%d scope=semantic_layout_points_only"),
+        Additions.Num(),Added,Moved,Retired.Num());
     return true;
 }
 

@@ -12,7 +12,7 @@ class LOCKDOWN_API ALDLayoutPoint : public ATargetPoint
 public:
     ALDLayoutPoint();
     virtual void OnConstruction(const FTransform& Transform) override;
-    // Additional shared targets use saved actor names, independently of the six roster-owned slots.
+    // Additional shared targets use saved actor names, independently of the eight roster-owned slots.
     UPROPERTY(EditAnywhere, Category="Training", meta=(ToolTip="Additional attackable shared training target. Duplicating a training point enables this automatically."))
     bool bSharedTrainingDummy = false;
     // Opt in to the actual saved child roster rather than the template's default count.

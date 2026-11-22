@@ -28,6 +28,7 @@
 #include "Framework/LDBuildBlueprintComponent.h"
 #include "Framework/LDGameState.h"
 #include "Framework/LDDemoEntry.h"
+#include "PK/LDPKRules.h"
 #include "World/LDPKRingMarker.h"
 #include "World/LDSignupMarker.h"
 #include "World/LDShowdownRingMarker.h"
@@ -370,7 +371,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         };
         auto Portraits=[&](float Size,int32 GlyphSize,UBorder*& OutFrame,UTextBlock*& OutGlyph,FName Name=NAME_None)
         {
-            // The glyph sits on any of the six identity tints, bright ones included; an outline keeps it readable on each.
+            // The glyph sits on any of the eight identity tints, bright ones included; an outline keeps it readable on each.
             OutGlyph=OneLine(TEXT(""),GlyphSize,0);OutGlyph->SetJustification(ETextJustify::Center);HudFace(OutGlyph,true,2);
             OutFrame=WidgetTree->ConstructWidget<UBorder>();OutFrame->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,8.f,LDHUDStyle::Rim,1.f));
             OutFrame->SetHorizontalAlignment(HAlign_Center);OutFrame->SetVerticalAlignment(VAlign_Center);OutFrame->SetContent(OutGlyph);
@@ -482,13 +483,13 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                 PKCountdownText=OneLine(TEXT(""),LDHUDStyle::TypeLead,HudPKWrap);PKCountdownText->SetJustification(ETextJustify::Center);HudFace(PKCountdownText,true,2);
                 PKCountdownText->SetColorAndOpacity(LDHUDStyle::TextWarning);Centred(PKCountdownText,4);
                 PKRingText=OneLine(TEXT(""),LDHUDStyle::TypeSmall,HudPKWrap);PKRingText->SetJustification(ETextJustify::Center);PKRingText->SetColorAndOpacity(FSlateColor(ALDPKRingMarker::SafeColor()));Centred(PKRingText,2);
-                for(int32 Index=0;Index<6;++Index)
+                for(int32 Index=0;Index<LDPKRules::SpawnAnchors;++Index)
                 {
                     UTextBlock* SideText=OneLine(TEXT(""),LDHUDStyle::TypeBody,HudPKWrap);SideText->SetJustification(ETextJustify::Center);SideText->SetVisibility(ESlateVisibility::Collapsed);
                     Centred(SideText,Index?2.f:6.f);PKSideTexts.Add(SideText);
                 }
                 PKRoleText=OneLine(TEXT(""),LDHUDStyle::TypeSmall,HudPKWrap);PKRoleText->SetJustification(ETextJustify::Center);PKRoleText->SetColorAndOpacity(LDHUDStyle::TextAccent);Centred(PKRoleText,6);
-                for(int32 Index=0;Index<6;++Index)
+                for(int32 Index=0;Index<LDPKRules::SpawnAnchors;++Index)
                 {
                     ULDCommandButton* Bet=LDWidgets::Button(WidgetTree,TEXT(""),[this,Index](){SubmitPKBet(Index);},true,FName(*FString::Printf(TEXT("HUDPKBet%d"),Index+1)));
                     Bet->SetVisibility(ESlateVisibility::Collapsed);Centred(Bet,4);PKBetButtons.Add(Bet);
@@ -499,7 +500,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                 PKResultLine=OneLine(TEXT(""),LDHUDStyle::TypeHeading,HudPKWrap);PKResultLine->SetJustification(ETextJustify::Center);HudFace(PKResultLine,true,0);
                 PKResultLine->SetColorAndOpacity(LDHUDStyle::Celebration);Centred(PKResultLine,6);
                 PKAwardsTitle=OneLine(LDTerms::PKAwardsTitle,LDHUDStyle::TypeSmall,0);PKAwardsTitle->SetColorAndOpacity(LDHUDStyle::TextSecondary);Centred(PKAwardsTitle,6);
-                for(int32 Index=0;Index<6;++Index)
+                for(int32 Index=0;Index<LDPKRules::SpawnAnchors;++Index)
                 {
                     UTextBlock* AwardText=OneLine(TEXT(""),LDHUDStyle::TypeSmall,HudPKWrap);AwardText->SetJustification(ETextJustify::Center);AwardText->SetVisibility(ESlateVisibility::Collapsed);
                     Centred(AwardText,2);PKAwardTexts.Add(AwardText);
@@ -543,7 +544,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                 PKCompactTitle=OneLine(TEXT(""),LDHUDStyle::TypeSmall,0);HudFace(PKCompactTitle,true,1);PKCompactTitle->SetColorAndOpacity(LDHUDStyle::TextAccent);
                 CompactLine->AddChildToHorizontalBox(PKCompactTitle)->SetVerticalAlignment(VAlign_Center);
                 PKCompactBetButtons.Reset();
-                for(int32 Index=0;Index<6;++Index)
+                for(int32 Index=0;Index<LDPKRules::SpawnAnchors;++Index)
                 {
                     ULDCommandButton* Bet=LDWidgets::Button(WidgetTree,TEXT(""),[this,Index](){SubmitPKBet(Index);},true,FName(*FString::Printf(TEXT("HUDPKCompactBet%d"),Index+1)));
                     Bet->SetVisibility(ESlateVisibility::Collapsed);
@@ -683,7 +684,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             DamageCard->SetBrushColor(LDHUDStyle::UIPanel.CopyWithNewOpacity(.82f));DamageCard->SetPadding(FMargin(24,18));DamageCard->SetContent(DamageBox);
             ResultBox->AddChildToVerticalBox(DamageCard)->SetPadding(FMargin(0,HudResultGap,0,0));
         }
-        // Spec §12 结算“本局最离谱”: one line per contender (at most six), shrunk to fit, never scrolled.
+        // Spec §12 结算“本局最离谱”: one line per contender (at most eight), shrunk to fit, never scrolled.
         ResultHighlightCells.Reset();
         {
             auto* HighlightBox=WidgetTree->ConstructWidget<UVerticalBox>();
@@ -724,7 +725,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             auto* ScoreBox=WidgetTree->ConstructWidget<UVerticalBox>();
             UTextBlock* ScoreTitle=OneLine(LDTerms::Scoreboard,LDHUDStyle::TypeHeading,0);HudFace(ScoreTitle,true,0);
             ScoreBox->AddChildToVerticalBox(ScoreTitle)->SetPadding(FMargin(0,0,0,8));
-            // #328 §4.4: 6-player hold-Tab tactical scoreboard (portrait | name+crown | level | graffiti bar | K/D/A | Q/W/E icons | final mod).
+            // #328 §4.4: one row per contender in the hold-Tab tactical scoreboard (portrait | name+crown | level | graffiti bar | K/D/A | Q/W/E icons | final mod).
             TacticalScoreRows.Reset();ScoreRows.Reset();ScoreCells.Reset();
             auto* HeaderLine=WidgetTree->ConstructWidget<UHorizontalBox>();
             const TCHAR* HeaderCols[6]={TEXT("参赛者"),TEXT("等级"),TEXT("涂鸦守点"),TEXT("K / D / A"),TEXT("目击技能"),TEXT("终局改装")};

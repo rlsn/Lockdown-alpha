@@ -60,8 +60,8 @@ namespace LDObservation
     constexpr int32 MaxGroundStates = 40;
     constexpr int32 MaxRecoveryOrbs = 48;
     static_assert(MaxUnits + MaxProjectiles <= MAX_uint16, "Conceal count must represent all authorized handles.");
-    // One identity tint per seat of the six-contender roster (APP_SPEC 1).
-    constexpr uint8 MaxPresentations = 6;
+    // One identity tint per seat of the eight-contender roster (APP_SPEC 1).
+    constexpr uint8 MaxPresentations = 8;
     constexpr int32 MaxMapIdBytes = 63;
     // Bit 32 (the retired equipment slots, #144) is never reused.
     enum EField : uint32 { Identity = 1, Level = 2, Health = 4, Momentum = 8, Statuses = 16, Actives = 64 };
@@ -222,7 +222,7 @@ struct FLDObservedGroundState
     UPROPERTY() uint8 Id = 0;
     UPROPERTY() uint8 Kind = 0;
     UPROPERTY() ELDObservedGroundShape Shape = ELDObservedGroundShape::Circle;
-    UPROPERTY() uint8 OwnerSeat = 255; // the owner's roster seat 0..5; 255 = none
+    UPROPERTY() uint8 OwnerSeat = 255; // the owner's roster seat 0..7; 255 = none
     UPROPERTY() FVector CentreCm = FVector::ZeroVector;
     UPROPERTY() float RadiusCm = 0;
     UPROPERTY() float ExtentCm = 0;

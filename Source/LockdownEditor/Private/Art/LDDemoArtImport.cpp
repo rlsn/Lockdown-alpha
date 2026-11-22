@@ -1466,6 +1466,16 @@ bool LDDemoArtImport::Import(FString& Error, bool bPropsOnly)
             Look.Character = Tier.Value;
         }
     }
+    else
+    {
+        Catalog->Seats.Reset();
+        for (int32 Seat = 0; Seat < Manifest.Seats.Num(); ++Seat)
+        {
+            FLDArtSeatLook& Look = Catalog->Seats.AddDefaulted_GetRef();
+            Look.Seat = uint8(Seat);
+            Look.Character = Manifest.Seats[Seat];
+        }
+    }
     for (const FArtPropSpec& Spec : Manifest.Props)
     {
         if (!ArtImportProp(Spec, Masters, *Catalog, Assets, Error)) { return false; }

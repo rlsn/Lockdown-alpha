@@ -134,7 +134,7 @@ struct FLDCampResetKey
 class LOCKDOWN_API FLDCampMatchState
 {
 public:
-    static constexpr int32 MaxHostileSources = 6;
+    static constexpr int32 MaxHostileSources = LDMatchLifecycle::MaxContenders;
 
     bool Begin(const FLDMatchContext& InMatch, const TSharedRef<const FLDCampRoster>& InRoster, FString& Error);
     void End();
