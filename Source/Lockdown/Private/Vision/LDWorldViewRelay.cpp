@@ -1783,7 +1783,7 @@ void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, fl
         int32 LevelIndex = 0, ActorIndex = 0;
         if (!FadeSweep.Next(Counts, LevelIndex, ActorIndex)) { break; }
         const AActor* Actor = Levels[LevelIndex]->Actors[ActorIndex];
-        if (!IsValid(Actor)) { continue; }
+        if (!IsValid(Actor) || Actor->IsEditorOnly()) { continue; }
         Actor->ForEachComponent<UPrimitiveComponent>(false, [this](UPrimitiveComponent* Primitive)
         {
             if (Primitive->ComponentHasTag(LDPropFade::Tag)
@@ -1839,10 +1839,11 @@ void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, fl
     for (FFadeableProp& Prop : FadeableProps)
     {
         UPrimitiveComponent* Primitive = Prop.Primitive.Get();
-        if (!Primitive) { continue; }
+        const AActor* Actor = Primitive ? Primitive->GetOwner() : nullptr;
+        if (!Actor || Actor->IsHidden() || Primitive->bHiddenInGame || !Primitive->IsVisible()) { continue; }
         if (!Prop.bResolved)
         {
-            // The fade needs the material's LDFade parameter; without it the prop hides while it occludes instead.
+            // Fading is an opt-in material effect. Imported opaque materials keep their authored visibility and shadow.
             Prop.bResolved = true;
             Prop.bCastShadow = Primitive->CastShadow;
             if (UMeshComponent* Mesh = Cast<UMeshComponent>(Primitive))
@@ -1872,10 +1873,11 @@ void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, fl
             }
             if (!Prop.bParameter)
             {
-                UE_LOG(LogLDWorld, Warning, TEXT("LD_FADEABLE_PARAMETER_MISSING %s has no LDFade material parameter; it hides while it occludes."),
+                UE_LOG(LogLDWorld, Verbose, TEXT("LD_FADEABLE_PARAMETER_MISSING %s keeps its authored visibility and shadow."),
                     *Primitive->GetPathName());
             }
         }
+        if (!Prop.bParameter) { continue; }
         if (Prop.bPerInstance)
         {
             if (Prop.InstancesFaded == 0 && (!Reach.IsValid || !Reach.Intersect(Prop.InstanceUnion))) { continue; }
@@ -1896,17 +1898,16 @@ void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, fl
         }
         const bool bOccluding = Hides(Primitive->Bounds.GetBox());
         const float Next = LDPropFade::Step(Prop.Fade, bOccluding, Delta);
-        if (Next == Prop.Fade && Prop.bResolved && (Next == 0.f || Next == 1.f) && Prop.bParameter) { continue; }
+        if (Next == Prop.Fade) { continue; }
         Prop.Fade = Next;
         // A faded prop's shadow would still darken the bodies it no longer hides; it returns with the opaque prop.
         const bool bShadow = Prop.bCastShadow && Prop.Fade <= 0.f;
         if (Primitive->CastShadow != bShadow) { Primitive->SetCastShadow(bShadow); }
-        if (Prop.bParameter)
+        EnsureMaterials(Prop, *Primitive);
+        for (const TWeakObjectPtr<UMaterialInstanceDynamic>& Material : Prop.Materials)
         {
-            EnsureMaterials(Prop, *Primitive);
-            for (const TWeakObjectPtr<UMaterialInstanceDynamic>& Material : Prop.Materials)
-            { if (UMaterialInstanceDynamic* Dynamic = Material.Get()) { Dynamic->SetScalarParameterValue(LDPropFade::Parameter, Prop.Fade); } }
+            if (UMaterialInstanceDynamic* Dynamic = Material.Get())
+            { Dynamic->SetScalarParameterValue(LDPropFade::Parameter, Prop.Fade); }
         }
-        else if (Primitive->bHiddenInGame != (Prop.Fade > .5f)) { Primitive->SetHiddenInGame(Prop.Fade > .5f); }
     }
 }
