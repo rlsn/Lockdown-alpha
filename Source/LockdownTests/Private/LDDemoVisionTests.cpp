@@ -33,6 +33,15 @@ FLDWorldRevision DemoRevision()
     return Revision;
 }
 
+int32 CoverageCellAt(const FLDSightGeometry& Sight, double X, double Y)
+{
+    const FBox2D& Bounds = Sight.CoverageBounds();
+    const FVector2D Span = Bounds.GetSize();
+    const int32 Column = FMath::FloorToInt32((X - Bounds.Min.X) * LDObservation::CoverageWidth / Span.X);
+    const int32 Row = FMath::FloorToInt32((Y - Bounds.Min.Y) * LDObservation::CoverageHeight / Span.Y);
+    return Row * LDObservation::CoverageWidth + Column;
+}
+
 FLDObservedUnitView ContenderUnit(uint32 Epoch = 1)
 {
     FLDObservedUnitView Unit;
@@ -937,23 +946,20 @@ bool FLDDemoVisionSightTest::RunTest(const FString& Parameters)
 
     TArray<uint8> Bits;
     Sight.Coverage(West, Bits);
-    const int32 Width = LDObservation::CoverageWidth, Height = LDObservation::CoverageHeight;
-    auto CellOf = [Width, Height](double X, double Y)
-    { return FMath::FloorToInt32((Y + 5000.0) / (10000.0 / Height)) * Width + FMath::FloorToInt32((X + 5000.0) / (10000.0 / Width)); };
-    const int32 Own = CellOf(-1000, 0);
+    const int32 Own = CoverageCellAt(Sight, -1000, 0);
     TestEqual(TEXT("Coverage is the fixed width x height bitmap"), Bits.Num(), LDObservation::CoverageBytes);
     TestTrue(TEXT("Coverage indexes y * width + x, low bit first"), LDObservation::CoverageBit(Bits, Own) && (Bits[Own / 8] & (1 << (Own % 8))) != 0);
-    TestFalse(TEXT("Shadowed cells stay dark"), LDObservation::CoverageBit(Bits, CellOf(500, 0)));
-    TestFalse(TEXT("Cells beyond the radius stay dark"), LDObservation::CoverageBit(Bits, CellOf(-1000, 3000)));
+    TestFalse(TEXT("Shadowed cells stay dark"), LDObservation::CoverageBit(Bits, CoverageCellAt(Sight, 500, 0)));
+    TestFalse(TEXT("Cells beyond the radius stay dark"), LDObservation::CoverageBit(Bits, CoverageCellAt(Sight, -1000, 3000)));
     const FVector2D Centre = Sight.CellCentre(Own);
-    TestTrue(TEXT("Cell centres follow the registered ground bounds"), FMath::IsNearlyEqual(Centre.X, -996.09375, 1e-9) && FMath::IsNearlyEqual(Centre.Y, 39.0625, 1e-9));
+    TestTrue(TEXT("Cell centres use square cells in the padded ground bounds"), FMath::IsNearlyEqual(Centre.X, -984.375, 1e-9) && FMath::IsNearlyEqual(Centre.Y, 15.625, 1e-9));
     // Two observers on either side of the wall see the same target differently, in traces and coverage alike.
     const FVector East(1000, 0, 2), Between(300, 0, 2);
     TArray<uint8> EastBits;
     Sight.Coverage(East, EastBits);
     TestTrue(TEXT("Observers on either side of a wall see the same target differently"),
         Sight.Trace(West, Between) == ELDSightResult::Blocked && Sight.Trace(East, Between) == ELDSightResult::Visible
-        && !LDObservation::CoverageBit(Bits, CellOf(300, 0)) && LDObservation::CoverageBit(EastBits, CellOf(300, 0)));
+        && !LDObservation::CoverageBit(Bits, CoverageCellAt(Sight, 300, 0)) && LDObservation::CoverageBit(EastBits, CoverageCellAt(Sight, 300, 0)));
 
     FLDSightGeometry Wide;
     TestTrue(TEXT("Wide test radius builds"), Wide.Build(TestGeometry(), World, Whole(3000), LDVisionTestRange(), Error));
@@ -961,8 +967,8 @@ bool FLDDemoVisionSightTest::RunTest(const FString& Parameters)
     Wide.Coverage(West, WideBits);
     const FVector Edge(470, 1640, 2);
     TestTrue(TEXT("A unit sample can be visible inside a shadowed display cell"), Wide.Trace(West, Edge) == ELDSightResult::Visible
-        && Wide.Trace(West, FVector(Wide.CellCentre(CellOf(Edge.X, Edge.Y)), 2)) == ELDSightResult::Blocked
-        && !LDObservation::CoverageBit(WideBits, CellOf(Edge.X, Edge.Y)));
+        && Wide.Trace(West, FVector(Wide.CellCentre(CoverageCellAt(Wide, Edge.X, Edge.Y)), 2)) == ELDSightResult::Blocked
+        && !LDObservation::CoverageBit(WideBits, CoverageCellAt(Wide, Edge.X, Edge.Y)));
 
     FLDDemoWorldGeometry Short = TestGeometry();
     Short.Blockers[0].HeightCm = Whole(100);
@@ -1095,12 +1101,9 @@ bool FLDDemoVisionTieredSightTest::RunTest(const FString& Parameters)
     TArray<uint8> GroundBits, LowBits;
     Sight.Coverage(GroundEye, GroundBits);
     Sight.Coverage(LowEye, LowBits);
-    const int32 Width = LDObservation::CoverageWidth, Height = LDObservation::CoverageHeight;
-    auto CellOf = [Width, Height](double X, double Y)
-    { return FMath::FloorToInt32((Y + 5000.0) / (10000.0 / Height)) * Width + FMath::FloorToInt32((X + 5000.0) / (10000.0 / Width)); };
     TestTrue(TEXT("Ground coverage lights the ground and leaves the plateau dark"),
-        LDObservation::CoverageBit(GroundBits, CellOf(1500, 300)) && !LDObservation::CoverageBit(GroundBits, CellOf(2200, -300)));
-    TestTrue(TEXT("Plateau coverage lights the ground below it"), LDObservation::CoverageBit(LowBits, CellOf(1300, 300)));
+        LDObservation::CoverageBit(GroundBits, CoverageCellAt(Wide, 1500, 300)) && !LDObservation::CoverageBit(GroundBits, CoverageCellAt(Wide, 2200, -300)));
+    TestTrue(TEXT("Plateau coverage lights the ground below it"), LDObservation::CoverageBit(LowBits, CoverageCellAt(Wide, 1300, 300)));
     FLDDemoWorldGeometry Floating = TieredGeometry();
     Floating.Blockers.Last().CenterCm.Z = Whole(75);
     TestFalse(TEXT("A sight blocker off every flat level is rejected"), FLDSightGeometry().Build(Floating, DemoRevision(), Whole(1400), LDVisionTestRange(), Error));
@@ -1137,11 +1140,8 @@ bool FLDDemoVisionTreeSightTest::RunTest(const FString& Parameters)
         && Sight.Trace(FVector(-2600, -2000, 2), FVector(-1900, -1800, 2)) == ELDSightResult::Visible);
     TArray<uint8> Bits;
     Sight.Coverage(FVector(-2600, -2000, 2), Bits);
-    const int32 Width = LDObservation::CoverageWidth, Height = LDObservation::CoverageHeight;
-    auto CellOf = [Width, Height](double X, double Y)
-    { return FMath::FloorToInt32((Y + 5000.0) / (10000.0 / Height)) * Width + FMath::FloorToInt32((X + 5000.0) / (10000.0 / Width)); };
-    TestFalse(TEXT("Coverage leaves the trunk's shadow dark"), LDObservation::CoverageBit(Bits, CellOf(-1700, -2000)));
-    TestTrue(TEXT("Coverage lights the open ground beside the shadow"), LDObservation::CoverageBit(Bits, CellOf(-1700, -1600)));
+    TestFalse(TEXT("Coverage leaves the trunk's shadow dark"), LDObservation::CoverageBit(Bits, CoverageCellAt(Sight, -1700, -2000)));
+    TestTrue(TEXT("Coverage lights the open ground beside the shadow"), LDObservation::CoverageBit(Bits, CoverageCellAt(Sight, -1700, -1600)));
     FLDDemoWorldGeometry Low = Geometry;
     Low.Blockers.Last().HeightCm = Whole(100);
     TestFalse(TEXT("A sight-blocking tree below the sample height is rejected"), FLDSightGeometry().Build(Low, DemoRevision(), Whole(1400), LDVisionTestRange(), Error));

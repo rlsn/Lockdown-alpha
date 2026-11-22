@@ -23,6 +23,7 @@ struct FReferenceSight
     TArray<FBlocker> Blockers;
     TArray<FTriangle> Triangles;
     FVector2D Min=FVector2D::ZeroVector,Max=FVector2D::ZeroVector;
+    FBox2D CoverageBounds{ForceInit};
     FLDDemoVisionRangeParameters Range;
     double Radius=0,EyeHeight=0;
     void Prism(const TArray<FVector>& Top,double Base,bool bTerrain)
@@ -41,6 +42,7 @@ struct FReferenceSight
         FVector Low,High;
         if(!Geometry.Surfaces[0].MinCm.ToVector(Low,Error)||!Geometry.Surfaces[0].MaxCm.ToVector(High,Error)){return false;}
         Min=FVector2D(Low);Max=FVector2D(High);Radius=InRadius;Range=InRange;
+        CoverageBounds=LDObservation::SquareCoverageBounds(FBox2D(Min,Max));
         EyeHeight=double(Geometry.SightSampleHeightCm.Numerator)/Geometry.SightSampleHeightCm.Denominator;
         for(const auto& Region:Terrain.Regions)
         {
@@ -126,8 +128,11 @@ struct FReferenceSight
         if(!Valid(Source)||!Valid(Target)){return ELDSightResult::InvalidPoint;}
         double A,B;FVector SourceNormal,TargetNormal;Terrain.Ground(FVector2D(Source),A,SourceNormal);Terrain.Ground(FVector2D(Target),B,TargetNormal);
         const double LocalRadius=Radius*LDObservation::HeightRadiusScale(Range,A,B);
-        if(FVector::DistSquared2D(Source,Target)>LocalRadius*LocalRadius){return ELDSightResult::OutOfRange;}
+        const double DistanceFractionSquared=FVector::DistSquared2D(Source,Target)/FMath::Square(LocalRadius);
+        if(DistanceFractionSquared>1.){return ELDSightResult::OutOfRange;}
         const FVector Eye(Source.X,Source.Y,A+EyeHeight),GroundEnd(Target.X,Target.Y,B+.1);
+        // For uphill terrain the guard ray samples progressively lower from the eye as distance increases.
+        const FVector TerrainEye=Eye-FVector(0,0,.5*FMath::Clamp(B-A,0.,EyeHeight)*DistanceFractionSquared);
         const FVector TerrainEnd(Target.X,Target.Y,FMath::Max(A,B)+.1);
         const double Exit=B<A?Departure(FVector(Source.X,Source.Y,A),FVector(Target.X,Target.Y,B),SourceNormal):1.;
         const FVector Start=FMath::Lerp(Eye,GroundEnd,FMath::Min(1.,Exit+.000001));
@@ -138,7 +143,7 @@ struct FReferenceSight
         }
         for(const auto& T:Triangles)
         {
-            if(Intersects(Eye,T.bTerrain?TerrainEnd:GroundEnd,T)
+            if(Intersects(T.bTerrain?TerrainEye:Eye,T.bTerrain?TerrainEnd:GroundEnd,T)
                 ||(T.bTerrain&&B<A&&Exit<1.&&Intersects(Start,GroundEnd,T))){return ELDSightResult::Blocked;}
         }
         // Cylinder oracle intersects the ray's vertical slab, then finds its closest horizontal point.
@@ -174,10 +179,11 @@ struct FReferenceSight
     void Coverage(const FVector& Source,TArray<uint8>& Out)const
     {
         Out.Init(0,LDObservation::CoverageBytes);
+        const FVector2D Span=CoverageBounds.GetSize();
         for(int32 I=0;I<LDObservation::CoverageCells;++I)
         {
-            const FVector2D P(Min.X+((I%LDObservation::CoverageWidth)+.5)*(Max.X-Min.X)/LDObservation::CoverageWidth,
-                Min.Y+((I/LDObservation::CoverageWidth)+.5)*(Max.Y-Min.Y)/LDObservation::CoverageHeight);
+            const FVector2D P=CoverageBounds.Min+FVector2D(((I%LDObservation::CoverageWidth)+.5)*Span.X/LDObservation::CoverageWidth,
+                ((I/LDObservation::CoverageWidth)+.5)*Span.Y/LDObservation::CoverageHeight);
             if(Trace(Source,FVector(P,0))==ELDSightResult::Visible){LDObservation::SetCoverageBit(Out,I);}
         }
     }
