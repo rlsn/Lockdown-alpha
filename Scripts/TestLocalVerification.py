@@ -107,6 +107,18 @@ class LocalVerificationTests(unittest.TestCase):
                 self.assertNotEqual(second, verify.cache_key(self.root, step))
                 (self.root / ".env").unlink()
 
+    def test_asset_edit_keeps_build_record_but_not_rule_record(self):
+        plan = verify.make_plan(self.root, ["Source/Game/Private/Combat.cpp"],
+                                filters=["Lockdown.Rules.DemoMatchIdentity"])
+        steps = {step["id"]: step for step in plan["steps"]}
+        build, rules = (verify.cache_key(self.root, steps[name]) for name in ("editor", "rules"))
+        self.write("Content/Lockdown/Art/Wall.uasset", "asset")
+        self.write("SourceData/Demo/content.json", "{}")
+        self.assertEqual(build, verify.cache_key(self.root, steps["editor"]))
+        self.assertNotEqual(rules, verify.cache_key(self.root, steps["rules"]))
+        self.write("Content/Lockdown/Data/Demo/world.json", "{}")
+        self.assertNotEqual(build, verify.cache_key(self.root, steps["editor"]))
+
     def test_cache_requires_evidence_outputs_and_identical_inputs(self):
         self.write("input.txt", "a")
         output = self.write("Binaries/tool.dll", "binary")
