@@ -1947,15 +1947,22 @@ public:
             return false;
         }
         // The fewest kills of the level-1 victim that reach the last offer level; the window stage runs at the first one.
-        KillsPlanned = 1;
-        uint8 PlannedLevel = 0;
+        // Each kill pays REWARD.LevelGapXP at the killer's level before it, so later kills of the level-1 victim pay less.
+        KillsPlanned = 0;
+        uint8 PlannedLevel = 1;
+        int64 PlannedXP = Defs.Progression.XPStart;
         ELDGrowthReason LevelReason = ELDGrowthReason::None;
-        while ((LevelReason = LDProgression::LevelForXP(Defs.Progression,
-            Defs.Progression.XPStart + int64(KillsPlanned) * Bounty.XP, PlannedLevel)) == ELDGrowthReason::None
-            && int32(PlannedLevel) < OfferLevels.Last() && int32(PlannedLevel) < int32(Defs.Progression.MaxLevel))
+        do
         {
+            int64 Step = 0;
+            LevelReason = LDProgression::LevelGapXP(Defs.Parameters, Bounty.XP, PlannedLevel, 1, Step);
+            if (LevelReason != ELDGrowthReason::None || Step <= 0) { break; }
+            PlannedXP += Step;
             ++KillsPlanned;
+            LevelReason = LDProgression::LevelForXP(Defs.Progression, PlannedXP, PlannedLevel);
         }
+        while (LevelReason == ELDGrowthReason::None
+            && int32(PlannedLevel) < OfferLevels.Last() && int32(PlannedLevel) < int32(Defs.Progression.MaxLevel));
         return Check(LevelReason == ELDGrowthReason::None && int32(PlannedLevel) >= OfferLevels.Last(), TEXT("N03"),
             TEXT("The planned kills reach the last approved offer level"),
             FString::Printf(TEXT("kills=%d level=%u last offer level=%d %s"), KillsPlanned, uint32(PlannedLevel), OfferLevels.Last(),
@@ -2184,6 +2191,14 @@ public:
                 HostKillVictimLevel, Bounty);
             if (!Check(BountyReason == ELDGrowthReason::None && Bounty.XP > 0, TEXT("N03"),
                 TEXT("The buyer's level at death has a positive approved XP bounty"), LDGrowthWire::ReasonName(BountyReason)))
+            {
+                return Finish();
+            }
+            // REWARD.LevelGapXP at the Host's level before the reward.
+            uint8 HostLevelBefore = 0;
+            if (!Check(LDProgression::LevelForXP(Defs.Progression, HostKillReward.XPBefore, HostLevelBefore) == ELDGrowthReason::None
+                && LDProgression::LevelGapXP(Defs.Parameters, Bounty.XP, HostLevelBefore, HostKillVictimLevel, Bounty.XP) == ELDGrowthReason::None,
+                TEXT("N03"), TEXT("The Host's level before the kill has a level-gap factor"), FString()))
             {
                 return Finish();
             }
@@ -3063,7 +3078,11 @@ public:
                 return Finish();
             }
             VictimLevel = Victim->Level;
-            KillXP = Bounty.XP;
+            if (!Check(LDProgression::LevelGapXP(Defs.Parameters, Bounty.XP, ProgView->Level, Victim->Level, KillXP) == ELDGrowthReason::None,
+                TEXT("N03"), TEXT("The killer's level has a level-gap factor"), FString()))
+            {
+                return Finish();
+            }
             KillBefore = *ProgView;
             KillStartedAt = Now;
         }

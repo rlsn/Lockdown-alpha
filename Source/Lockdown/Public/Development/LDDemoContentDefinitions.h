@@ -645,6 +645,10 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 AssistWindowMs = 0;
     // REWARD.AssistXPRatio: each assister of a contender kill takes this share of its XP; the killer keeps the whole.
     UPROPERTY() int64 AssistXPRatioBp = 0;
+    // REWARD.LevelGapXP*: contender kill XP scales by 1 - Step per level the killer is above the victim, clamped to [Min, Max].
+    UPROPERTY() int64 LevelGapXPStepBp = 0;
+    UPROPERTY() int64 LevelGapXPMinBp = 0;
+    UPROPERTY() int64 LevelGapXPMaxBp = 0;
     // REWARD.KillMedalChance: the chance a contender kill outside the final field drops an element medal for the killer.
     UPROPERTY() int64 KillMedalChanceBp = 0;
     // #198 points: OpeningPoints at BeginMatch, PointsPerLevel for every level crossed up to the cap, then MaxLevelPoints

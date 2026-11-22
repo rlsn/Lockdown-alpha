@@ -15,7 +15,7 @@
     },
     "STAT.MaxHP.PerLevel": {
       "unit": "hp",
-      "value": 105
+      "value": 125
     },
     "STAT.MaxHP.Min": {
       "unit": "hp",
@@ -144,11 +144,11 @@
       },
       {
         "unit": "ratio",
-        "value": 1.5
+        "value": 1.35
       },
       {
         "unit": "ratio",
-        "value": 2
+        "value": 1.7
       }
     ],
     "SKILL.RankRatioScale": [
@@ -916,8 +916,8 @@
     "EXPLORE.PeddlerCardOffer": 5,
     "XP.BaseToNext": 60,
     "XP.IncreasePerLevel": 20,
-    "REWARD.PlayerXP.Base": 140,
-    "REWARD.PlayerXP.PerLevel": 28,
+    "REWARD.PlayerXP.Base": 70,
+    "REWARD.PlayerXP.PerLevel": 20,
     "REWARD.BountyXP": 150,
     "REWARD.BountyCardOffer": 3,
     "REWARD.AssistWindowSec": {
@@ -927,6 +927,18 @@
     "REWARD.AssistXPRatio": {
       "unit": "ratio",
       "value": 0.5
+    },
+    "REWARD.LevelGapXPStep": {
+      "unit": "ratio",
+      "value": 0.12
+    },
+    "REWARD.LevelGapXPMin": {
+      "unit": "ratio",
+      "value": 0.4
+    },
+    "REWARD.LevelGapXPMax": {
+      "unit": "ratio",
+      "value": 1.6
     },
     "REWARD.KillMedalChance": {
       "unit": "ratio",
@@ -6238,7 +6250,7 @@
       "per_point": {
         "MaxHPFlat": {
           "unit": "hp",
-          "value": 52
+          "value": 70
         },
         "HPRegenFlat": {
           "unit": "hp/s",

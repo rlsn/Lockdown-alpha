@@ -446,8 +446,9 @@ bool GrowthTestReadFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoCo
         Curve.XPStart == 0 && Curve.XPThresholds == ApprovedThresholds);
     bApproved &= Test.TestTrue(TEXT("Fixture carries MaxLevel 16, three active slots and active opportunities at levels 2, 5 and 9"),
         Curve.MaxLevel == 16 && Curve.ActiveSlots == 3 && Curve.ActiveOfferLevels == TArray<int32>({2, 5, 9}));
-    bApproved &= Test.TestTrue(TEXT("Fixture carries REWARD.PlayerXP 140 + 28/level"),
-        Tuning.PlayerXPBase == 140 && Tuning.PlayerXPPerLevel == 28);
+    bApproved &= Test.TestTrue(TEXT("Fixture carries REWARD.PlayerXP 70 + 20/level and the level-gap factor 12% per level in [0.4, 1.6]"),
+        Tuning.PlayerXPBase == 70 && Tuning.PlayerXPPerLevel == 20 && Tuning.LevelGapXPStepBp == 1200
+        && Tuning.LevelGapXPMinBp == 4000 && Tuning.LevelGapXPMaxBp == 16000);
     bApproved &= Test.TestTrue(TEXT("Fixture carries 3 opening points, 3 per level, 3 per 240 XP past level 16 and a 4 s safe window"),
         Tuning.OpeningPoints == 3 && Tuning.PointsPerLevel == 3 && Tuning.MaxLevelPoints == 3 && Tuning.MaxLevelPointsXP == 240
         && Tuning.BuildSafeWindowMs == 4000);
@@ -559,13 +560,28 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
     LDProgression::FRewardAmounts Reward;
     bGood &= GrowthTestReason(Test, TEXT("A level 1 contender kill"),
         LDProgression::ContenderKillReward(Approved.Parameters, MaxLevel, 1, Reward), ELDGrowthReason::None);
-    bGood &= Test.TestEqual(TEXT("Level 1 contender kill XP"), Reward.XP, int64(140));
+    bGood &= Test.TestEqual(TEXT("Level 1 contender kill XP"), Reward.XP, int64(70));
     bGood &= GrowthTestReason(Test, TEXT("A level 10 contender kill"),
         LDProgression::ContenderKillReward(Approved.Parameters, MaxLevel, 10, Reward), ELDGrowthReason::None);
-    bGood &= Test.TestEqual(TEXT("Level 10 contender kill XP"), Reward.XP, int64(392));
+    bGood &= Test.TestEqual(TEXT("Level 10 contender kill XP"), Reward.XP, int64(250));
     bGood &= GrowthTestReason(Test, TEXT("A level 16 contender kill"),
         LDProgression::ContenderKillReward(Approved.Parameters, MaxLevel, 16, Reward), ELDGrowthReason::None);
-    bGood &= Test.TestEqual(TEXT("Level 16 contender kill XP"), Reward.XP, int64(560));
+    bGood &= Test.TestEqual(TEXT("Level 16 contender kill XP"), Reward.XP, int64(370));
+    // REWARD.LevelGapXP: 12% per level of gap, clamped to [0.4, 1.6], rounded down.
+    int64 Scaled = 0;
+    const auto Gap = [&](int64 Base, uint8 Killer, uint8 Victim, int64 Expected)
+    {
+        bGood &= GrowthTestReason(Test, FString::Printf(TEXT("Level %d kills level %d"), Killer, Victim),
+            LDProgression::LevelGapXP(Approved.Parameters, Base, Killer, Victim, Scaled), ELDGrowthReason::None);
+        bGood &= Test.TestEqual(FString::Printf(TEXT("Level %d kills level %d XP"), Killer, Victim), Scaled, Expected);
+    };
+    Gap(150, 5, 5, 150);
+    Gap(150, 12, 5, 60);
+    Gap(170, 16, 6, 68);
+    Gap(290, 5, 12, 464);
+    Gap(110, 8, 6, 83);
+    bGood &= GrowthTestReason(Test, TEXT("A level 0 killer"),
+        LDProgression::LevelGapXP(Approved.Parameters, 150, 0, 5, Scaled), ELDGrowthReason::DataInvalid);
     for (const uint8 VictimLevel : {uint8(0), uint8(17)})
     {
         bGood &= GrowthTestReason(Test, FString::Printf(TEXT("A level %d contender kill"), VictimLevel),

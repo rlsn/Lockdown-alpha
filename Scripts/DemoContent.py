@@ -1389,6 +1389,8 @@ def validate_numbers(data):
     data["progression"]["xp_to_next"] = [b - a for a, b in zip(thresholds, thresholds[1:])]
     checked_add(params["REWARD.PlayerXP.Base"], checked_mul(level_steps, params["REWARD.PlayerXP.PerLevel"], "REWARD.PlayerXP"),
                 "REWARD.PlayerXP")
+    require(0 < p("REWARD.LevelGapXPMin") <= 1 <= p("REWARD.LevelGapXPMax"), "NumericDomain", "REWARD.LevelGapXP",
+            "the level-gap XP factor must be clamped around 1")
     # #198 points: the opening grant and one grant per level-up to the cap stay inside int64; past the cap every full
     # GROWTH.MaxLevelPointsXP beyond the top threshold grants GROWTH.MaxLevelPoints.
     checked_add(params["GROWTH.OpeningPoints"], checked_mul(level_steps, params["GROWTH.PointsPerLevel"], "GROWTH.PointsPerLevel"),
