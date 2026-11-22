@@ -72,7 +72,7 @@ namespace LDHumanoidVisualDetail
         {TEXT("Burst"), Sphere, {.1,.1,.1}},
         {TEXT("SpawnColumn"), Cylinder, {.9,.9,3.2}},
     };
-    // One fixed colour per status on every unit, apart from all six seat tints, the turf and the red track:
+    // One fixed colour per status on every unit, apart from all eight seat tints, the turf and the red track:
     // root hot magenta, shield bright cyan, protection white-gold; each edged in near-black.
     const FLinearColor RootColour(1.f,.02f,.58f), EdgeColour(.012f,.01f,.016f), ShieldColour(0.f,.78f,1.f);
     const FLinearColor ProtectionColour(1.f,.92f,.62f), ReturnColour(.95f,.95f,.95f);
@@ -564,9 +564,11 @@ FLinearColor ULDHumanoidVisualComponent::ContenderTint(uint8 Slot)
 {
     static const FLinearColor Palette[] =
     {
-        {.05f,.2f,.75f}, {.85f,.35f,.02f}, {.1f,.55f,.12f}, {.45f,.12f,.65f}, {.85f,.75f,.05f}, {.05f,.6f,.65f}
+        {.05f,.2f,.75f}, {.85f,.35f,.02f}, {.1f,.55f,.12f}, {.45f,.12f,.65f}, {.85f,.75f,.05f}, {.05f,.6f,.65f},
+        {.9f,.15f,.5f}, {.8f,.8f,.82f}
     };
-    // Validation keeps observed slots inside the six-seat roster; an out-of-range key draws a neutral grey.
+    static_assert(UE_ARRAY_COUNT(Palette) == LDArt::SeatCount, "One tint per roster seat.");
+    // Validation keeps observed slots inside the eight-seat roster; an out-of-range key draws a neutral grey.
     return Slot < UE_ARRAY_COUNT(Palette) ? Palette[Slot] : FLinearColor(.3f,.3f,.3f);
 }
 

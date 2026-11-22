@@ -32,7 +32,7 @@ public:
     virtual void OnUnregister() override;
     virtual void OnVisibilityChanged() override;
     virtual void OnHiddenInGameChanged() override;
-    // One identity tint per locked roster slot 0..5, shared by bodies, portraits and the minimap.
+    // One identity tint per locked roster slot 0..7, shared by bodies, portraits and the minimap.
     static FLinearColor ContenderTint(uint8 Slot);
     // Camp NPC clothing; never one of the contender tints.
     static FLinearColor MonsterTint(uint8 CreatureId);
