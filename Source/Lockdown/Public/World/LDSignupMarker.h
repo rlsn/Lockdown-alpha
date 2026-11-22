@@ -8,7 +8,7 @@ class UInstancedStaticMeshComponent;
 class UMaterialInstanceDynamic;
 
 // Local presentation of the shared PK sign-up disk: a flat painted ring of AIRDROP.PickupRadiusCm around the mean
-// position of the six pk_signup standing anchors. The HUD owns one
+// position of the eight pk_signup standing anchors. The HUD owns one
 // during a rest's build step (ULDHUD::SyncSignupMarker): dim before the sign-up window, bright while it is open, gold while
 // the public sign-ups name the own contender. It only mirrors the public timeline; it is never replicated and has no
 // collision, navigation, sight or height effect. The authority judges the committed foot against the same disk.

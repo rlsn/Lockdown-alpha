@@ -24,11 +24,11 @@ PARAMETER_REFS = (
 # D21 (#79): a Dorm is a public recovery disk of DORM.RadiusCm; D26 (#79): an Airdrop is a public drop point whose
 # pickup disk is AIRDROP.PickupRadiusCm. Neither adds collision, navigation or sight blocking.
 # D26 (#79): a BossWaypoint is one of the four public points the 画饼老板 Boss patrols in id order; a point only.
-# #198 (approved PK rules, issue comment 6752601175 §2): PKSpawn anchors pk_spawn_0..5 are one ring around the capture
+# #198 (approved PK rules, issue comment 6752601175 §2): PKSpawn anchors pk_spawn_0..7 are one ring around the capture
 # anchor for the PK on the original map; PKThrow pk_throw is the fixed off-arena spectator throw origin. Points only.
 # #198 PK sign-up (user decision A on issue #198: stand in the circle, reusing the existing 150 cm stand-in-disk radius
-# AIRDROP.PickupRadiusCm, no new number): PKSignup pk_signup_0..5 is the sign-up disk of the private rest space of roster
-# slot 0..5, PK_SIGNUP_DISTANCE_CM from that slot's rest anchor on its level.
+# AIRDROP.PickupRadiusCm, no new number): PKSignup pk_signup_0..7 is the sign-up disk of the private rest space of roster
+# slot 0..7, PK_SIGNUP_DISTANCE_CM from that slot's rest anchor on its level.
 # Spec §10.3/§11.3/§11.4 (P6): MiniFlag (mini_flag_*) is a candidate spot for a field-segment spray flag, Locker (locker_*)
 # a candidate delivery locker. They are optional, copyable layout points: the saved
 # level holds as many as the author wants, each id carries its kind prefix, and fewer than the minimum is an error.
@@ -40,25 +40,26 @@ ANCHOR_KINDS = ("Spawn", "Camp", "Capture", "Dorm", "Airdrop", "BossWaypoint", *
 MAX_ANCHORS = 128
 # #97: forests of body-sized trunks need well over a thousand blockers.
 MAX_BLOCKERS = 2048
-ANCHOR_COUNTS = {"Spawn": (6, 32), "Camp": (1, 48), "Capture": (1, 1), "Dorm": (1, 8),
-                 "PKSpawn": (6, 6), "PKThrow": (1, 1), "PKSignup": (6, 6),
+ANCHOR_COUNTS = {"Spawn": (8, 32), "Camp": (1, 48), "Capture": (1, 1), "Dorm": (1, 8),
+                 "PKSpawn": (8, 8), "PKThrow": (1, 1), "PKSignup": (8, 8),
                  "Airdrop": (1, 16), "BossWaypoint": (4, 4), "MiniFlag": (3, 16), "Locker": (6, 32),
-                 "RestSpawn": (6, 6), "RestService": (3, 3), "TrainingDummy": (6, 6),
-                 "FinalSpawn": (6, 6), "FinalCapture": (1, 1)}
-# #198 approved PK geometry: spawns 1000..1400 cm from the ring centre, enemy spawns at least 1000 cm apart, six at
-# 60 degree steps counterclockwise in id order (+-1 degree after integer rounding); the throw anchor stands outside the
+                 "RestSpawn": (8, 8), "RestService": (3, 3), "TrainingDummy": (8, 8),
+                 "FinalSpawn": (8, 8), "FinalCapture": (1, 1)}
+# #198 approved PK geometry: spawns 1000..1400 cm from the ring centre, enemy spawns at least 950 cm apart, eight at
+# 45 degree steps counterclockwise in id order (+-1 degree after integer rounding); the throw anchor stands outside the
 # 1800 cm arena and its 4000 cm range covers the whole arena.
-PK_SPAWNS = 6
+PK_SPAWNS = 8
 PK_SPAWN_RING_CM = (1000, 1400)
-PK_SPAWN_SPACING_CM = 1000
-PK_SPAWN_STEP_DEGREES = (59, 61)
+PK_SPAWN_SPACING_CM = 950
+PK_SPAWN_STEP_DEGREES = (44, 46)
 PK_ARENA_RADIUS_CM = 1800
 PK_THROW_RANGE_CM = 4000
 # Each roster slot has a standing position within the shared sign-up disk.
-PK_SIGNUPS = 6
+PK_SIGNUPS = 8
 PK_SIGNUP_WALK_STEP_CM = 10
-# The shared rest room seats the six roster slots.
-ROSTER_SLOTS = 6
+# The shared rest room seats the eight roster slots; the final arena has one entrance per slot.
+ROSTER_SLOTS = 8
+FINAL_SPAWN_STEP_DEGREES = (44, 46)
 # A blocker is a convex polygon prism (walls, stalls) or an upright cylinder (trees); each carries its own height and
 # movement/sight classification.
 BLOCKER_SHAPES = ("polygon", "cylinder")
@@ -773,12 +774,12 @@ def validate_bindings(world, data):
     for identity in waypoints:
         require(geometry.legal(point(anchors[identity]["position_cm"], identity), radius), "InvalidGeometry", identity,
                 "Boss waypoint lacks legal capsule support")
-    # #198 PK anchors: one ring of six spawns around the capture and one off-arena throw origin, each on legal standing
+    # #198 PK anchors: one ring of eight spawns around the capture and one off-arena throw origin, each on legal standing
     # ground for one capsule at the capture's level and outside every camp clearing. Only static footprints are checked
     # here; the walkable paths between spawns, rings and the final circle are proven by the native navigation.
     pk_ids = [f"pk_spawn_{n}" for n in range(PK_SPAWNS)]
     require(sorted(identity for identity, row in anchors.items() if row["kind"] == "PKSpawn") == pk_ids,
-            "WorldAnchors", "pk_spawn", "the PK spawns must be pk_spawn_0 to pk_spawn_5")
+            "WorldAnchors", "pk_spawn", "the PK spawns must be pk_spawn_0 to pk_spawn_7")
     require([identity for identity, row in anchors.items() if row["kind"] == "PKThrow"] == ["pk_throw"],
             "WorldAnchors", "pk_throw", "the PK throw anchor must be pk_throw")
     camp_centres = [point(row["position_cm"], identity) for identity, row in anchors.items() if row["kind"] == "Camp"]
@@ -802,14 +803,14 @@ def validate_bindings(world, data):
     for index, angle in enumerate(angles):
         step = (angles[(index + 1) % PK_SPAWNS] - angle) % 360
         require(PK_SPAWN_STEP_DEGREES[0] <= step <= PK_SPAWN_STEP_DEGREES[1], "InvalidGeometry", pk_ids[index],
-                "PK spawns must step 60 degrees counterclockwise in id order")
+                "PK spawns must step 45 degrees counterclockwise in id order")
     reach = squared_distance(pk_anchor("pk_throw"), capture)
     require(PK_ARENA_RADIUS_CM ** 2 < reach <= (PK_THROW_RANGE_CM - PK_ARENA_RADIUS_CM) ** 2, "InvalidGeometry", "pk_throw",
             "PK throw anchor must stand outside the arena with the whole arena within throw range")
-    # Six separated standing positions share one disk; no rest spawn offset starts inside it.
-    final_spawn_ids = [f"final_spawn_{n}" for n in range(6)]
+    # Eight separated standing positions share one disk; no rest spawn offset starts inside it.
+    final_spawn_ids = [f"final_spawn_{n}" for n in range(ROSTER_SLOTS)]
     require(sorted(identity for identity, row in anchors.items() if row["kind"] == "FinalSpawn") == final_spawn_ids,
-            "WorldAnchors", "final_spawn", "the final arena spawns must be final_spawn_0 to final_spawn_5")
+            "WorldAnchors", "final_spawn", "the final arena spawns must be final_spawn_0 to final_spawn_7")
     require([identity for identity, row in anchors.items() if row["kind"] == "FinalCapture"] == ["final_capture"],
             "WorldAnchors", "final_capture", "the final arena needs one final_capture anchor")
     final_centre = point(anchors["final_capture"]["position_cm"], "final_capture")
@@ -830,26 +831,26 @@ def validate_bindings(world, data):
                     for location in final_ring]
     for index, angle in enumerate(final_angles):
         step = (final_angles[(index + 1) % len(final_ring)] - angle) % 360
-        require(59 <= step <= 61, "InvalidGeometry", final_spawn_ids[index],
-                "final spawns must step 60 degrees counterclockwise in id order")
+        require(FINAL_SPAWN_STEP_DEGREES[0] <= step <= FINAL_SPAWN_STEP_DEGREES[1], "InvalidGeometry", final_spawn_ids[index],
+                "final spawns must step 45 degrees counterclockwise in id order")
     signup_ids = [f"pk_signup_{n}" for n in range(PK_SIGNUPS)]
     require(sorted(identity for identity, row in anchors.items() if row["kind"] == "PKSignup") == signup_ids,
-            "WorldAnchors", "pk_signup", "the PK sign-up positions must be pk_signup_0 to pk_signup_5")
+            "WorldAnchors", "pk_signup", "the PK sign-up positions must be pk_signup_0 to pk_signup_7")
     signup_radius = p("AIRDROP.PickupRadiusCm")
     rest_ids = [f"rest_spawn_{n}" for n in range(PK_SIGNUPS)]
     service_radius = p("AIRDROP.PickupRadiusCm")
     rest_ids = [f"rest_spawn_{n}" for n in range(ROSTER_SLOTS)]
     require(sorted(identity for identity, row in anchors.items() if row["kind"] == "RestSpawn") == rest_ids,
-            "WorldAnchors", "rest_spawn", "the shared room needs rest_spawn_0 to rest_spawn_5")
+            "WorldAnchors", "rest_spawn", "the shared room needs rest_spawn_0 to rest_spawn_7")
     service_ids = [f"rest_service_{n}" for n in range(1, 4)]
     require(sorted(identity for identity, row in anchors.items() if row["kind"] == "RestService") == service_ids,
             "WorldAnchors", "rest_service", "the shared room needs three distinct service NPCs")
     dummy_ids = [f"training_dummy_{n}" for n in range(ROSTER_SLOTS)]
     require(sorted(identity for identity, row in anchors.items() if row["kind"] == "TrainingDummy") == dummy_ids,
-            "WorldAnchors", "training_dummy", "the shared room needs six canonical training dummy anchors")
+            "WorldAnchors", "training_dummy", "the shared room needs eight canonical training dummy anchors")
     for slot, identity in enumerate(dummy_ids):
         dummy = point(anchors[identity]["position_cm"], identity)
-        expected = (6500 + 400 * slot, 700, 0)
+        expected = (6450 + 300 * slot, 700, 0)
         require(dummy == expected, "InvalidGeometry", identity,
                 f"training dummy anchor must match the approved rest-room slot {expected}")
         require(geometry.legal(dummy, radius), "InvalidGeometry", identity,

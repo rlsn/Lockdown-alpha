@@ -405,11 +405,11 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 13775
+          "numerator": 14096
         },
         "y": {
           "denominator": 1,
-          "numerator": 1342
+          "numerator": 1096
         },
         "z": {
           "denominator": 1,
@@ -424,11 +424,11 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 12225
+          "numerator": 13000
         },
         "y": {
           "denominator": 1,
-          "numerator": 1342
+          "numerator": 1550
         },
         "z": {
           "denominator": 1,
@@ -439,6 +439,25 @@
     },
     {
       "id": "final_spawn_3",
+      "kind": "FinalSpawn",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 11904
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 1096
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "final_spawn_4",
       "kind": "FinalSpawn",
       "position_cm": {
         "x": {
@@ -457,16 +476,16 @@
       "surface_id": "demo_ground"
     },
     {
-      "id": "final_spawn_4",
+      "id": "final_spawn_5",
       "kind": "FinalSpawn",
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 12225
+          "numerator": 11904
         },
         "y": {
           "denominator": 1,
-          "numerator": -1342
+          "numerator": -1096
         },
         "z": {
           "denominator": 1,
@@ -476,16 +495,35 @@
       "surface_id": "demo_ground"
     },
     {
-      "id": "final_spawn_5",
+      "id": "final_spawn_6",
       "kind": "FinalSpawn",
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 13775
+          "numerator": 13000
         },
         "y": {
           "denominator": 1,
-          "numerator": -1342
+          "numerator": -1550
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "final_spawn_7",
+      "kind": "FinalSpawn",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 14096
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -1096
         },
         "z": {
           "denominator": 1,
@@ -2688,7 +2726,7 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 7590
+          "numerator": 7606
         },
         "y": {
           "denominator": 1,
@@ -2707,11 +2745,11 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 7545
+          "numerator": 7575
         },
         "y": {
           "denominator": 1,
-          "numerator": 178
+          "numerator": 175
         },
         "z": {
           "denominator": 1,
@@ -2726,11 +2764,11 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 7455
+          "numerator": 7500
         },
         "y": {
           "denominator": 1,
-          "numerator": 178
+          "numerator": 206
         },
         "z": {
           "denominator": 1,
@@ -2745,11 +2783,11 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 7410
+          "numerator": 7425
         },
         "y": {
           "denominator": 1,
-          "numerator": 100
+          "numerator": 175
         },
         "z": {
           "denominator": 1,
@@ -2764,11 +2802,11 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 7455
+          "numerator": 7394
         },
         "y": {
           "denominator": 1,
-          "numerator": 22
+          "numerator": 100
         },
         "z": {
           "denominator": 1,
@@ -2783,11 +2821,49 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 7545
+          "numerator": 7425
         },
         "y": {
           "denominator": 1,
-          "numerator": 22
+          "numerator": 25
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "pk_signup_6",
+      "kind": "PKSignup",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 7500
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -6
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "pk_signup_7",
+      "kind": "PKSignup",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 7575
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 25
         },
         "z": {
           "denominator": 1,
@@ -2802,11 +2878,11 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 959
+          "numerator": 1011
         },
         "y": {
           "denominator": 1,
-          "numerator": 427
+          "numerator": 735
         },
         "z": {
           "denominator": 1,
@@ -2821,11 +2897,11 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 110
+          "numerator": 196
         },
         "y": {
           "denominator": 1,
-          "numerator": 1044
+          "numerator": 1235
         },
         "z": {
           "denominator": 1,
@@ -2840,11 +2916,11 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": -849
+          "numerator": -735
         },
         "y": {
           "denominator": 1,
-          "numerator": 617
+          "numerator": 1011
         },
         "z": {
           "denominator": 1,
@@ -2859,11 +2935,11 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": -959
+          "numerator": -1235
         },
         "y": {
           "denominator": 1,
-          "numerator": -427
+          "numerator": 196
         },
         "z": {
           "denominator": 1,
@@ -2878,11 +2954,11 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": -110
+          "numerator": -1011
         },
         "y": {
           "denominator": 1,
-          "numerator": -1044
+          "numerator": -735
         },
         "z": {
           "denominator": 1,
@@ -2897,11 +2973,49 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 849
+          "numerator": -196
         },
         "y": {
           "denominator": 1,
-          "numerator": -617
+          "numerator": -1235
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "pk_spawn_6",
+      "kind": "PKSpawn",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 735
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -1011
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "pk_spawn_7",
+      "kind": "PKSpawn",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 1235
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -196
         },
         "z": {
           "denominator": 1,
@@ -2939,7 +3053,7 @@
         },
         "y": {
           "denominator": 1,
-          "numerator": -500
+          "numerator": -850
         },
         "z": {
           "denominator": 1,
@@ -2958,7 +3072,7 @@
         },
         "y": {
           "denominator": 1,
-          "numerator": -500
+          "numerator": -850
         },
         "z": {
           "denominator": 1,
@@ -2977,7 +3091,7 @@
         },
         "y": {
           "denominator": 1,
-          "numerator": -500
+          "numerator": -850
         },
         "z": {
           "denominator": 1,
@@ -2992,7 +3106,7 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 6500
+          "numerator": 6450
         },
         "y": {
           "denominator": 1,
@@ -3011,7 +3125,7 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 6900
+          "numerator": 6750
         },
         "y": {
           "denominator": 1,
@@ -3030,7 +3144,7 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 7300
+          "numerator": 7050
         },
         "y": {
           "denominator": 1,
@@ -3049,7 +3163,7 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 7700
+          "numerator": 7350
         },
         "y": {
           "denominator": 1,
@@ -3068,7 +3182,7 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 8100
+          "numerator": 7650
         },
         "y": {
           "denominator": 1,
@@ -3087,7 +3201,45 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 8500
+          "numerator": 7950
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -500
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "rest_spawn_6",
+      "kind": "RestSpawn",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 8250
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -500
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "rest_spawn_7",
+      "kind": "RestSpawn",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 8550
         },
         "y": {
           "denominator": 1,
@@ -3334,7 +3486,7 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 6500
+          "numerator": 6450
         },
         "y": {
           "denominator": 1,
@@ -3353,7 +3505,7 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 6900
+          "numerator": 6750
         },
         "y": {
           "denominator": 1,
@@ -3372,7 +3524,7 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 7300
+          "numerator": 7050
         },
         "y": {
           "denominator": 1,
@@ -3391,7 +3543,7 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 7700
+          "numerator": 7350
         },
         "y": {
           "denominator": 1,
@@ -3410,7 +3562,7 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 8100
+          "numerator": 7650
         },
         "y": {
           "denominator": 1,
@@ -3429,7 +3581,45 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 8500
+          "numerator": 7950
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 700
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "training_dummy_6",
+      "kind": "TrainingDummy",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 8250
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 700
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "training_dummy_7",
+      "kind": "TrainingDummy",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 8550
         },
         "y": {
           "denominator": 1,
@@ -38660,8 +38850,8 @@
       }
     ]
   },
-  "geometry_revision": 11,
-  "layout_revision": 15,
+  "geometry_revision": 12,
+  "layout_revision": 16,
   "map_id": "demo_world",
   "parameter_refs": [
     "AIRDROP.PickupRadiusCm",
@@ -38782,5 +38972,5 @@
   },
   "projection_revision": 5,
   "schema_version": 5,
-  "source_sha256": "f293c14a9239b1df18a4627f56f7a303c2b81ce192252ea2e5b25c3068032ef1"
+  "source_sha256": "5f4a47de201da7a3d727236e92493dc0bc401e3a1fd03b2efc0aae275a47e0af"
 }

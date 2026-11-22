@@ -1549,9 +1549,9 @@ def validate_world_references(data, world, anchors):
         require(len(set(identities)) == len(identities), "DuplicateId", kind, "repeated anchor reference")
         require(set(identities) == {identity for identity, row in anchors.items() if row["kind"] == kind},
                 "InvalidReference", kind, "missing, extra or wrong-kind world anchor")
-    # #198: the PK ring is read in index order, so the content lists it exactly as pk_spawn_0..5.
-    require(list(refs["pk_spawn_ids"]) == [f"pk_spawn_{n}" for n in range(6)],
-            "InvalidReference", "world.pk_spawn_ids", "PK spawns must be listed as pk_spawn_0 to pk_spawn_5 in order")
+    # #198: the PK ring is read in index order, so the content lists it exactly as pk_spawn_0..7.
+    require(list(refs["pk_spawn_ids"]) == [f"pk_spawn_{n}" for n in range(8)],
+            "InvalidReference", "world.pk_spawn_ids", "PK spawns must be listed as pk_spawn_0 to pk_spawn_7 in order")
     # Spec §10.4/§11.3: spawn choice draws distinct spawn anchors; lockers draw distinct locker anchors.
     require(data["parameters"]["LIFE.SpawnChoiceCount"] <= len(refs["spawn_ids"]), "InvalidReference", "LIFE.SpawnChoiceCount",
             "spawn choice needs that many distinct spawn anchors")

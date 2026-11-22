@@ -5,8 +5,8 @@
 
 namespace LDMatchLifecycle
 {
-    inline constexpr int32 MaxContenders = 6;
-    inline constexpr int32 MaxOpponents = 3;
+    inline constexpr int32 MaxContenders = 8;
+    inline constexpr int32 MaxOpponents = 7;
 }
 
 struct FLDMatchContext

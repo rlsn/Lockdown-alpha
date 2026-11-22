@@ -110,7 +110,7 @@ bool ALDPKDirector::BeginMatch(const FLDMatchStartContext& Start, FString& Error
     const FLDMapBinding* Throw = Registry->Resolve(FName(*World.PKThrowId), Registry->Generation);
     if (!Capture || !Throw || World.PKSpawnIds.Num() != LDPKRules::SpawnAnchors)
     {
-        Error = TEXT("The PK needs the registered capture anchor, the throw anchor and exactly six PK spawn anchors.");
+        Error = TEXT("The PK needs the registered capture anchor, the throw anchor and exactly eight PK spawn anchors.");
         return false;
     }
     SpawnAnchors.Reset();
@@ -298,7 +298,7 @@ bool ALDPKDirector::LockRoster(const FLDRestStepNotice& Notice, FString& Error)
     }
     if (Notice.Entrants.Num() > LDPKRules::SpawnAnchors || Serial == MAX_uint32)
     {
-        Error = TEXT("A PK locks two to six entrants.");
+        Error = TEXT("A PK locks two to eight entrants.");
         return false;
     }
     Entrants = Notice.Entrants;

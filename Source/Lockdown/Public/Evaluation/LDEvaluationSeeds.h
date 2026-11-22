@@ -10,7 +10,7 @@
 // identities. Without the switch, or while nothing is armed, every hook keeps its production entropy unchanged.
 struct FLDEvaluationSeeds
 {
-    static constexpr int32 MaxAISlots = 3;
+    static constexpr int32 MaxAISlots = 7;
     uint64 Root = 0;
     // Growth draws (LDProgression::OfferSeed material).
     FGuid MatchSecret;

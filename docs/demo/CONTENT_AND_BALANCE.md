@@ -168,7 +168,8 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | `PK.ArenaRadiusCm` / `PK.RingMidRadiusCm` / `PK.RingFinalRadiusCm` | cm | 1800 / 600 / 150 | PK 圈：开打后 `PK.RingShrinkStartSec` 起缩，`PK.RingMidSec` 到中圈，`PK.RingFinalSec` 到终圈 |
 | `PK.RingShrinkStartSec` / `PK.RingMidSec` / `PK.RingFinalSec` / `PK.RingPreviewSec` | s/Sec | 5 / 25 / 38 / 5 | 缩圈时间点与下一圈的预告提前量 |
 | `PK.RingDamageTickSec`；`PK.RingDamage{Early,Mid,Final}MaxHPRatioPerSec` | s；比例 | 0.25；0.05 / 0.12 / 0.25 | 圈外每秒损失开打时最大生命的比例，按三个阶段 |
-| `PK.TeamFormatRatio` | 比例 | 0.5 | 4 或 6 人时抽到两队对抗的概率 |
+| `PK.TeamFormatRatio` | 比例 | 0.5 | 4、6 或 8 人时抽到两队对抗的概率；3、5、7 人固定自由混战，2 人单挑 |
+| PK 出生环 | cm | 1000–1400 / 950 | 8 个 `pk_spawn_*` 绕主旗杆每 45° 一个，离旗杆 1000–1400 cm，相邻至少 950 cm |
 | `PK.RewardMultiplier`；`PK.ParticipationPoints` / `PK.WinnerPointsMax` / `PK.BettingPoolMaxPoints` | 比例；点 | 1.5；1 / 3 / 2 | PK 三个属性点奖池的基数与倍率 |
 | `THROW.CooldownSec` / `THROW.TelegraphSec` / `THROW.RadiusCm` / `THROW.RangeCm` | s；cm | 10 / 0.8 / 120 / 4000 | 观众投掷：冷却、落点预警、命中半径、射程 |
 | `THROW.SlowRatio` / `THROW.SlowSec` / `THROW.ExposeSec` | 比例；s | 0.2 / 1 / 2 | 投掷命中：减速与暴露位置 |

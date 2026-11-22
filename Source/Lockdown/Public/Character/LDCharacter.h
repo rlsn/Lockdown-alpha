@@ -36,7 +36,7 @@ public:
     // A contender's public identity slot (its locked roster position), written by the core before the body spawns
     // and the same for every life of the match; camp member bodies leave it unused.
     UPROPERTY(ReplicatedUsing=OnRep_Presentation) uint8 PresentationKey = 0;
-    static constexpr int32 ContenderPresentations = 6;
+    static constexpr int32 ContenderPresentations = LDObservation::MaxPresentations;
     // The humanoid presentation code of an action cue and public statuses, shared by the own body and observed
     // proxies: pose Attack 1, Cast 2; markers root 16, camp_returning 32, shield 64, respawn_protection 128.
     static uint8 PresentationCue(ELDObservedActionCue Cue, const TArray<FLDObservedStatus>& Statuses);
