@@ -1494,7 +1494,6 @@ bool LDDemoArtImport::Import(FString& Error, bool bPropsOnly)
     if (!bPropsOnly)
     {
         Catalog->Characters.Reset();
-        Catalog->Seats.Reset();
         Catalog->Monsters.Reset();
         Catalog->Decorations.Reset();
         Catalog->HiddenBlockers.Reset();
@@ -1502,18 +1501,20 @@ bool LDDemoArtImport::Import(FString& Error, bool bPropsOnly)
         {
             if (!(Spec.bAuthored ? ArtImportAuthored(Spec, *Catalog, Assets, Error) : ArtImportCharacter(Spec, Masters, *Catalog, Assets, Error))) { return false; }
         }
-        for (int32 Seat = 0; Seat < Manifest.Seats.Num(); ++Seat)
-        {
-            FLDArtSeatLook& Look = Catalog->Seats.AddDefaulted_GetRef();
-            Look.Seat = uint8(Seat);
-            Look.Character = Manifest.Seats[Seat];
-        }
         for (const TPair<uint8, FString>& Tier : Manifest.Monsters)
         {
             FLDArtMonsterLook& Look = Catalog->Monsters.AddDefaulted_GetRef();
             Look.CreatureId = Tier.Key;
             Look.Character = Tier.Value;
         }
+    }
+    // Seat looks only name imported characters, so the props-only import refreshes them too.
+    Catalog->Seats.Reset();
+    for (int32 Seat = 0; Seat < Manifest.Seats.Num(); ++Seat)
+    {
+        FLDArtSeatLook& Look = Catalog->Seats.AddDefaulted_GetRef();
+        Look.Seat = uint8(Seat);
+        Look.Character = Manifest.Seats[Seat];
     }
     for (const FArtPropSpec& Spec : Manifest.Props)
     {
