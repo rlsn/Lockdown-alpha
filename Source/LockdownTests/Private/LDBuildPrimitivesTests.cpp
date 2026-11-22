@@ -838,9 +838,10 @@ bool FLDBuildSafeWindowTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("A window past the clock saturates instead of wrapping"), LDCombatSourceRules::BuildSafeAtMs(MAX_int64 - 10, WindowMs),
         MAX_int64);
 
-    // Offensive releases: every approved active with a hostile effect; a self buff, a shield, a plain dash or the S16
-    // stance (its answer is hostile damage, marked when it lands) is not one.
-    const TSet<FString> Peaceful = {TEXT("active_bail_out"), TEXT("active_not_mad"), TEXT("active_triple_combo"), TEXT("active_brace")};
+    // Offensive releases: every approved active with a hostile effect; a self buff, a shield, a plain dash or a defensive
+    // parry/brace stance (its counter-answer is hostile damage, marked when it lands) is not one.
+    const TSet<FString> Peaceful = {TEXT("active_bail_out"), TEXT("active_not_mad"), TEXT("active_triple_combo"), TEXT("active_brace"),
+        TEXT("active_unplug")};
     for (const FLDDemoAbilityDefinition& Ability : F.Catalog->Get().Abilities)
     {
         TestEqual(FString::Printf(TEXT("%s is %s"), *Ability.Id, Peaceful.Contains(Ability.Id) ? TEXT("not offensive") : TEXT("offensive")),
@@ -1274,7 +1275,7 @@ bool FLDExpandedDeliveryTest::RunTest(const FString& Parameters)
     const auto Source=F.AddBody();
     auto& Body=F.Body(Source);
     FString Error;
-    for (const TCHAR* Id : {TEXT("active_open_mic"),TEXT("active_calculus_drop"),TEXT("active_flyer_trap")})
+    for (const TCHAR* Id : {TEXT("active_cola_shake"),TEXT("active_calculus_drop"),TEXT("active_flyer_trap")})
     {
         const FLDDemoAbilityDefinition* Ability=nullptr;
         if (!TestTrue(TEXT("Approved delivery exists"),F.Catalog->FindAbility(Id,Ability,Error))) { return false; }
@@ -4747,7 +4748,28 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleU15Test, "Lockdown.Rules.Combat.Card
 bool FLDCardRuleU15Test::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_rogue_works"), ELDDemoEffectOp::RogueWorks, ELDCardTargetKind::Body});
+    bool bGood = RunCardRule(*this, {TEXT("card_rogue_works"), ELDDemoEffectOp::RogueWorks, ELDCardTargetKind::Body});
+    // Exact wind-vs-ground footprint intersection (circle, capsule band, sector).
+    FLDGroundState FireCircle;
+    FireCircle.Kind = ELDGroundStateKind::Fire;
+    FireCircle.RadiusCm = 180.;
+    FireCircle.CentreCm = FVector(750., 250., 0.);
+    bGood &= TestFalse(TEXT("Corner miss at (750, 250) (nearest ~212cm > 180cm) does not intersect 600x200 fan corridor"),
+        LDCombatElements::WindIntersectsGround(FVector::ZeroVector, FVector(1., 0., 0.), 600., 100., FireCircle));
+    FireCircle.CentreCm = FVector(650., 150., 0.);
+    bGood &= TestTrue(TEXT("Corner overlap at (650, 150) (nearest ~71cm <= 180cm) intersects 600x200 fan corridor"),
+        LDCombatElements::WindIntersectsGround(FVector::ZeroVector, FVector(1., 0., 0.), 600., 100., FireCircle));
+    FLDGroundState Band = FireCircle;
+    Band.CentreCm = FVector(300., 320., 0.);
+    Band.RadiusCm = 90.;
+    Band.HalfLengthCm = 200.;
+    Band.Heading = FVector2D(0., 1.);
+    bGood &= TestTrue(TEXT("Capsule band reaching y=120 with 90cm radius intersects y=[-100,100] fan corridor"),
+        LDCombatElements::WindIntersectsGround(FVector::ZeroVector, FVector(1., 0., 0.), 600., 100., Band));
+    Band.CentreCm = FVector(300., 420., 0.);
+    bGood &= TestFalse(TEXT("Capsule band stopping at y=220 with 90cm radius misses y=[-100,100] fan corridor"),
+        LDCombatElements::WindIntersectsGround(FVector::ZeroVector, FVector(1., 0., 0.), 600., 100., Band));
+    return bGood;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleU16Test, "Lockdown.Rules.Combat.Cards.U16",
@@ -4935,6 +4957,25 @@ bool FLDIssue345SkillsAndFrameworksTest::RunTest(const FString& Parameters)
         LDCombatKeywords::BurnActive(F.Body(DualTarget).Burn, 6000)
         && F.Body(DualTarget).ElementMark.Kind == ELDCombatElement::None
         && F.Body(DualTarget).ReactionLockedUntilMs <= 6000);
+
+    // 7. Ordinary fire-skill hit with medal_fire overrides native burn stacks instead of summing them unless Fire Overdrive added stacks.
+    const FLDCombatBodyRef SeetheCaster = F.AddBody(), SeetheTarget = F.AddBody();
+    F.Place(SeetheCaster, -2000, -1000);
+    F.Place(SeetheTarget, -1880, -1000);
+    if (!InstallCards(*this, F, SeetheCaster, 6, {
+        {TEXT("medal_fire"), ELDCardTargetKind::Skill, FName(TEXT("active_seethe")), ELDDemoElement::None, 1}}))
+    { return false; }
+    FLDCombatActiveTerms SeetheTerms;
+    FLDCombatHit SeetheHit;
+    if (!Released(*this, F, SeetheCaster, TEXT("active_seethe"), SeetheTerms, SeetheHit)) { return false; }
+    SeetheHit.HitId = FGuid::NewGuid();
+    SeetheHit.Target = SeetheTarget;
+    F.Now(7000);
+    if (!TestTrue(TEXT("Ordinary active_seethe hit with medal_fire resolves: ") + Error, F.Apply(SeetheHit, Error) && Drain(*this, F)))
+    { return false; }
+    TestTrue(TEXT("active_seethe carries native burn stacks"), SeetheHit.BurnStacks > 0);
+    TestEqual(TEXT("Ordinary fire-medal hit applies only the medal's 2 burn layers rather than summing native stacks"),
+        F.Body(SeetheTarget).Burn.Layers.Num(), 2);
     return true;
 }
 

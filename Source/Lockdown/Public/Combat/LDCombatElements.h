@@ -271,6 +271,9 @@ namespace LDCombatElements
     LOCKDOWN_API ELDCombatElement GroundElement(ELDGroundStateKind Kind);
     // Whether Foot is inside the ground state (circle, band or sector, planar).
     LOCKDOWN_API bool GroundContains(const FLDGroundState& Ground, const FVector& Foot);
+    // Whether an oriented wind corridor [0, LengthCm] x [-HalfWidthCm, HalfWidthCm] from OriginCm along Heading intersects Ground.
+    LOCKDOWN_API bool WindIntersectsGround(const FVector& OriginCm, const FVector& Heading, double LengthCm, double HalfWidthCm,
+        const FLDGroundState& Ground);
     // Spec §8.3 caps: Owner's live states beyond MaxPerOwner - 1 and all beyond MaxTotal - 1 go first, oldest first, so one
     // more fits. Returns the indices to remove (descending).
     LOCKDOWN_API void GroundEvictions(const TArray<FLDGroundState>& Live, const FGuid& Owner, int32 MaxPerOwner, int32 MaxTotal,

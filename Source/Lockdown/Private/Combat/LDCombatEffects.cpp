@@ -554,7 +554,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         const double CounterRadius=(Parry.RadiusCm.Denominator>0 ? double(Parry.RadiusCm.Numerator)/double(Parry.RadiusCm.Denominator) : 280.)
             *HulkingAreaScaleOf(*Body);
         TArray<FLDCombatBodyRef> Around;
-        if (CollectAreaTargets(FootOf(*Actor),CounterRadius,Body,Body->Victim.EntityId,Around,Error))
+        if (!CollectAreaTargets(FootOf(*Actor),CounterRadius,Body,Body->Victim.EntityId,Around,Error)) { return false; }
         {
             const int64 BonusADP2=LDTactical::BonusADOf(Content->Get().Parameters,GrowthLevelOf(*Body),Body->AttributeProjection.Final.ADP2);
             const int64 ResistSum=Body->AttributeProjection.Final.ArmorP2+Body->AttributeProjection.Final.MagicResistP2;
@@ -594,7 +594,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     {
         const double ShockRadius=double(Hit.BackstabTerms->RadiusCm.Numerator)/double(Hit.BackstabTerms->RadiusCm.Denominator);
         TArray<FLDCombatBodyRef> Around;
-        if (CollectAreaTargets(FootOf(*Actor),ShockRadius,Source,Source->Victim.EntityId,Around,Error))
+        if (!CollectAreaTargets(FootOf(*Actor),ShockRadius,Source,Source->Victim.EntityId,Around,Error)) { return false; }
         {
             const FGuid ShockId=FGuid::NewGuid();
             for (const FLDCombatBodyRef& Other : Around)

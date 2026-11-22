@@ -209,16 +209,14 @@ bool ALDCombatDirector::GrantShieldTo(FLDBodyCombatState& Body, int64 AmountP2, 
             const double Radius=LDCombatMechanicsDetail::Cm(Platings[0].Effect.RadiusCm)*HulkingAreaScaleOf(Body);
             if (ShardP2>0 && Radius>0)
             {
+                TArray<FLDCombatBodyRef> Around;
+                if (!CollectAreaTargets(FootOf(*HolderActor),Radius,&Body,Body.Victim.EntityId,Around,Error)) { return false; }
                 FLDCombatShardBurst& VisualBurst=ShardBursts.AddDefaulted_GetRef();
                 VisualBurst.Id=FGuid::NewGuid();
                 VisualBurst.OwnerEntity=Body.Victim.EntityId;
                 VisualBurst.FootCm=FootOf(*HolderActor);
                 VisualBurst.RadiusCm=Radius;
                 if (!LDMatchLifecycle::AddDurationMs(NowMs,250,VisualBurst.ExpiresAtMs,Error)) { return false; }
-            }
-            TArray<FLDCombatBodyRef> Around;
-            if (ShardP2>0 && Radius>0 && CollectAreaTargets(FootOf(*HolderActor),Radius,&Body,Body.Victim.EntityId,Around,Error))
-            {
                 const FGuid BlastId=FGuid::NewGuid();
                 for (const FLDCombatBodyRef& Enemy : Around)
                 {
@@ -533,6 +531,7 @@ bool ALDCombatDirector::ReleaseMechanics(FLDBodyCombatState& Body, const FLDComb
                     return false;
                 }
                 Zone.PulseBurnStacks=Burn->Count;
+                Zone.OverdrivePulseBurnStacks=Terms.OverdriveZoneBurnStacks;
             }
             else
             {
@@ -607,6 +606,7 @@ bool ALDCombatDirector::EmitZonePulse(const FLDCombatZone& Zone, FString& Error)
         Hit.PackageScaleBp=Zone.PackageScaleBp;
         if (Zone.bWet) { Hit.NativeElements|=LDCombatElements::Bit(ELDCombatElement::Water); }
         Hit.BurnStacks=Zone.PulseBurnStacks;
+        Hit.OverdriveBurnStacks=Zone.OverdrivePulseBurnStacks;
         Hit.ElementLevel=Zone.ElementLevel;
         Hit.ElementAPP2=Zone.ElementAPP2;
         Hit.SlowBp=Zone.PulseSlowBp;

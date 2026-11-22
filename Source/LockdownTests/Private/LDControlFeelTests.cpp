@@ -689,7 +689,7 @@ bool FLDControlFeelElevationAimAndClipTest::RunTest(const FString& Parameters)
         PC->QuickCastTestClockSec = 70.02;
         PC->PressSkill(ELDCombatEntry::Q);
         TestTrue(TEXT("Full-momentum Unit Q starts overdrive hold"), PC->bOverdriveHolding && PC->OverdriveEntry == ELDCombatEntry::Q);
-        PC->QuickCastTestClockSec = 70.30; // past OVERDRIVE.HoldSec
+        PC->QuickCastTestClockSec = 70.40; // past OVERDRIVE.HoldSec (0.35s)
         PC->TickOverdriveHold();
         TestTrue(TEXT("Completed overdrive hold arms overdrive while key remains held"),
             PC->bOverdriveArmed && FMath::IsNearlyEqual(PC->OverdriveHoldProgress(ELDCombatEntry::Q), 1.f));

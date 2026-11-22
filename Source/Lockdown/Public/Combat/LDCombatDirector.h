@@ -204,6 +204,9 @@ struct FLDCombatActiveTerms
     TOptional<FLDDemoEffectDefinition> FinalKnockbackTerms, PullTerms;
     // K12: the release pays HPCostBpPerMomentum of max HP per momentum of its cost instead of momentum (copies add).
     int64 HPCostBpPerMomentum=0;
+    // Extra burn layers added specifically by Fire Overdrive (merged onto a selected fire medal without copying native skill burn).
+    int32 OverdriveBurnStacks=0;
+    int32 OverdriveZoneBurnStacks=0;
     // K06: AutoRecasts repeats of this release, each AutoRecastDelayMs after the previous, at AutoRecastScaleBp.
     int32 AutoRecasts=0;
     int64 AutoRecastDelayMs=0, AutoRecastScaleBp=0;
@@ -677,6 +680,7 @@ struct FLDCombatHit
         uint8 Tier=1;
     };
     int32 CardBurnStacks=0;
+    int32 OverdriveBurnStacks=0;
     FLDCombatSourceRef CardBurnSource;
     uint8 CardBurnTier=1;
     TArray<FCardElementEntry> CardElements;
@@ -928,6 +932,7 @@ struct FLDCombatZone
     int32 BurnStacks=0;
     int64 BurnIntervalMs=0, NextBurnAtMs=0;
     int32 PulseBurnStacks=0;
+    int32 OverdrivePulseBurnStacks=0;
     // #198: the owner's element snapshot (level, AP) at release; zone_wet makes every pulse apply wet; zone_haste gives
     // the owner and its current-match teammates (OwnerGroup/OwnerPKSide at release, PK side 0: none) HasteBp move speed
     // while their foot stands inside.

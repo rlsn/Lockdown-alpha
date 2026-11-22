@@ -378,10 +378,7 @@ bool ALDCombatDirector::AdvanceFans(int64 NowMs, FString& Error)
                     for (const FLDGroundState& Ground : GroundStates)
                     {
                         if (Ground.ExpiresAtMs<=NowMs || Ground.Owner.SourceEntity!=FanOwner->Victim.EntityId) { continue; }
-                        const FVector Rel=Ground.CentreCm-Fan.OriginCm;
-                        const double Forward=FVector::DotProduct(Rel,Heading.GetSafeNormal2D());
-                        const double Side=FVector::CrossProduct(Heading.GetSafeNormal2D(),FVector(Rel.X,Rel.Y,0)).Size();
-                        if (Forward>=-Ground.RadiusCm && Forward<=Fan.LengthCm+Ground.RadiusCm && Side<=Fan.HalfWidthCm+Ground.RadiusCm)
+                        if (LDCombatElements::WindIntersectsGround(Fan.OriginCm,Heading,Fan.LengthCm,Fan.HalfWidthCm,Ground))
                         {
                             if (Ground.Kind==ELDGroundStateKind::Fire) { StormElem=ELDCombatElement::Fire; break; }
                             if (Ground.Kind==ELDGroundStateKind::Miasma) { StormElem=ELDCombatElement::Rot; break; }

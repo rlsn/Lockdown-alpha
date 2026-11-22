@@ -195,7 +195,14 @@ bool ALDCombatDirector::ArmBranchHostile(FLDBodyCombatState& Body, const FLDComb
             if (Warcry->Count>0) { Row.Template.BreachStacks+=Warcry->Count; }
             if (Warcry->SecondaryRatioBp>0)
             {
-                const int64 EstPulseP2=Share(Template.BaseP2+Share(Template.SourceAPP2,Template.APRatioBp)+Share(Template.SourceADP2,Template.ADRatioBp),
+                const int64 AdaptiveTerm=Template.AdaptiveRatioBp>0
+                    ? (LDTactical::EffectiveDamageType(Template.DamageType,Template.AdaptiveRatioBp,Template.SourceBonusADP2,Template.SourceAPP2)
+                        ==ELDDemoDamageType::Physical
+                        ? Share(Template.SourceBonusADP2,Template.AdaptiveRatioBp)
+                        : Share(Template.SourceAPP2,Template.AdaptiveRatioBp))
+                    : 0;
+                const int64 EstPulseP2=Share(Template.BaseP2+Share(Template.SourceAPP2,Template.APRatioBp)
+                    +Share(Template.SourceADP2,Template.ADRatioBp)+Share(Template.SourceMaxHPP2,Template.MaxHPRatioBp)+AdaptiveTerm,
                     Pulse->MultiplierBp);
                 Row.ShieldBaseP2+=Share(EstPulseP2,Warcry->SecondaryRatioBp);
             }

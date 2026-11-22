@@ -228,7 +228,12 @@ bool ALDCombatDirector::ApplyOverdrive(const FLDBodyCombatState& Body, const FLD
     {
     case ELDDemoSkillElement::Fire:
         // OVERDRIVE.FireBurnStacks more burn layers: on the release's hits, or spread over a zone's pulses.
-        if (FLDDemoEffectDefinition* Burn=Find(ELDDemoEffectOp::Burn)) { Burn->Count+=int32(O.FireBurnStacks); }
+        if (FLDDemoEffectDefinition* Burn=Find(ELDDemoEffectOp::Burn))
+        {
+            const int32 Extra=int32(O.FireBurnStacks);
+            Burn->Count+=Extra;
+            Terms.OverdriveBurnStacks+=Extra;
+        }
         else if (const FLDDemoEffectDefinition* Zone=Find(ELDDemoEffectOp::Zone))
         {
             const int64 PulseCount=Zone->Count>0 ? Zone->Count : 1;
@@ -240,13 +245,17 @@ bool ALDCombatDirector::ApplyOverdrive(const FLDBodyCombatState& Body, const FLD
                 ZoneBurn->Opcode=uint8(ELDDemoEffectOp::ZoneBurn);
                 ZoneBurn->IntervalMs=IntervalMs;
             }
-            ZoneBurn->Count+=int32(FMath::Max<int64>(1,O.FireBurnStacks/PulseCount));
+            const int32 Extra=int32(FMath::Max<int64>(1,O.FireBurnStacks/PulseCount));
+            ZoneBurn->Count+=Extra;
+            Terms.OverdriveZoneBurnStacks+=Extra;
         }
         else if (bCanDeliverHostile)
         {
+            const int32 Extra=int32(O.FireBurnStacks);
             FLDDemoEffectDefinition& AddedBurn=Values.Effects.AddDefaulted_GetRef();
             AddedBurn.Opcode=uint8(ELDDemoEffectOp::Burn);
-            AddedBurn.Count=int32(O.FireBurnStacks);
+            AddedBurn.Count=Extra;
+            Terms.OverdriveBurnStacks+=Extra;
         }
         break;
     case ELDDemoSkillElement::Water:

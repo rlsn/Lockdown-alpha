@@ -146,7 +146,7 @@ bool FLDDemoDamageEvaluationTest::RunTest(const FString& Parameters)
         AddError(Error);
         return false;
     }
-    // #330 S06: level-1 authored value set: 90 + 0.90 adaptive_ratio; with 0 BonusAD and 20 AP -> (90 + 18) / 1.18 = 91.52 P2.
+    // #345 S06: level-1 authored value set: 85 + 0.90 adaptive_ratio; with 0 BonusAD and 20 AP -> (85 + 18) / 1.18 = 87.28 P2.
     const auto* Effect = Snark->Values.Effects.FindByPredicate(
         [](const auto& Value) { return Value.GetOp() == ELDDemoEffectOp::Damage; });
     if (!TestNotNull(TEXT("The snark bolt has an actual compiled damage effect"), Effect)) { return false; }
@@ -159,14 +159,14 @@ bool FLDDemoDamageEvaluationTest::RunTest(const FString& Parameters)
     Input.TargetResistanceP2 = LDTactical::EffectiveDamageType(Effect->DamageType, Effect->AdaptiveRatioBp, 0, 2000) == ELDDemoDamageType::Physical
         ? Catalog->Get().Parameters.Armor.BaseP2 : Catalog->Get().Parameters.MagicResist.BaseP2;
     if (!CheckDamage(*this, TEXT("Compiled snark bolt with 70 AD (0 bonus AD) and 20 AP"), Input, *Catalog,
-        {9152, 0, 9152, 0, 76848, 0})) { return false; }
+        {8728, 0, 8728, 0, 77272, 0})) { return false; }
     Input.SourceAPP2 = Catalog->Get().Parameters.AP.BaseP2;
     Input.SourceADP2 = int64(0);
-    if (!CheckDamage(*this, TEXT("90 damage against 18 resistance points, not a ratio"), Input, *Catalog,
-        {7627, 0, 7627, 0, 78373, 0})) { return false; }
+    if (!CheckDamage(*this, TEXT("85 damage against 18 resistance points, not a ratio"), Input, *Catalog,
+        {7203, 0, 7203, 0, 78797, 0})) { return false; }
     Input.TargetResistanceP2 = int64(20000);
     if (!CheckDamage(*this, TEXT("Resistance uses the same points formula"), Input, *Catalog,
-        {3000, 0, 3000, 0, 83000, 0})) { return false; }
+        {2833, 0, 2833, 0, 83167, 0})) { return false; }
     return true;
 }
 

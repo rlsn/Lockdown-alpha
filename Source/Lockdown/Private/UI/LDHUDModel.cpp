@@ -1690,6 +1690,18 @@ FString LDHUD::EffectLine(const FLDDemoEffectDefinition& Effect)
         return TEXT("受到伤害时（内置冷却 ")+HudSeconds(Effect.IntervalMs)+TEXT("）获得")
             +LDTerms::Shield+TEXT(" ")+HudScaling(Effect)+TEXT("，持续 ")+HudSeconds(Effect.DurationMs);
     case ELDDemoEffectOp::DispelSlow: return FString(TEXT("解除自身全部"))+LDTerms::Slow;
+    case ELDDemoEffectOp::GrabLine: return TEXT("抓扯首个敌方目标，移动或冲刺中目标延长 ")+HudSeconds(Effect.ExtraDurationMs)+TEXT(" ")+LDTerms::Root;
+    case ELDDemoEffectOp::BackstabLunge: return TEXT("侧后方或受控目标必暴并")+FString(LDTerms::Stun)+TEXT(" ")+HudSeconds(Effect.DurationMs);
+    case ELDDemoEffectOp::ParryStance:
+        return TEXT("移动卸力架势 ")+HudSeconds(Effect.DurationMs)+TEXT("（减伤 ")+HudPercent(Effect.RatioBp)+TEXT("），接招反震周围 ")
+            +HudRational(Effect.RadiusCm)+TEXT(" 厘米并")+LDTerms::Disarm+TEXT(" ")+HudSeconds(Effect.SecondaryDurationMs);
+    case ELDDemoEffectOp::WarcryRing: return TEXT("战吼清除圈内敌方普通弹道，每命中一人提高 ")+HudPercent(Effect.RatioBp)+LDTerms::Shield;
+    case ELDDemoEffectOp::SlipperPickup: return TEXT("命中掉落拖鞋 ")+HudSeconds(Effect.DurationMs)+TEXT("，拾取返还 ")+HudPercent(Effect.RatioBp)+TEXT(" 剩余冷却");
+    case ELDDemoEffectOp::FrenzyWaves:
+        return TEXT("狂热步法 ")+HudSeconds(Effect.DurationMs)+TEXT("，普攻额外挥出 ")+HudRational(Effect.DistanceCm)+TEXT(" 厘米穿透拳风");
+    case ELDDemoEffectOp::CordonLine:
+        return TEXT("拉设长 ")+HudRational(Effect.RadiusCm)+TEXT(" 厘米警戒封条 ")+HudSeconds(Effect.DurationMs)
+            +TEXT("，弹退触碰敌人并强化穿带己方弹道 ")+HudPercent(Effect.RatioBp);
     default: return FString::Printf(TEXT("未知效果 #%d"),Effect.Opcode);
     }
 }

@@ -2255,6 +2255,7 @@ bool ALDCombatDirector::BuildReleasePayload(const FLDBodyCombatState& Body, cons
     Template.SilenceDurationMs=SilenceEffect ? SilenceEffect->DurationMs : 0;
     Template.BreachStacks=BreachEffect ? BreachEffect->Count : 0;
     Template.BurnStacks=BurnEffect ? BurnEffect->Count : 0;
+    Template.OverdriveBurnStacks=Terms.OverdriveBurnStacks;
     // Elements of every hit of this release, with the caster's snapshot now (a rot's own cut and duration).
     for (const TPair<ELDDemoEffectOp,ELDCombatElement>& Row : {TPair<ELDDemoEffectOp,ELDCombatElement>(ELDDemoEffectOp::Wet,ELDCombatElement::Water),
         {ELDDemoEffectOp::Electrify,ELDCombatElement::Shock}, {ELDDemoEffectOp::Chill,ELDCombatElement::Chill},
