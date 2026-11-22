@@ -36,7 +36,7 @@ struct LOCKDOWN_API FLDPKDraw
     uint8 SideCount = 0;
     // 1-based side of every seat.
     TArray<uint8> SideOfSeat;
-    // 0..SpawnAnchors-1 index into the PK spawn anchors (counter-clockwise, 60 degrees apart).
+    // 0..SpawnAnchors-1 index into the PK spawn anchors (counter-clockwise, 45 degrees apart).
     TArray<int32> AnchorOfSeat;
 };
 
@@ -50,14 +50,14 @@ struct LOCKDOWN_API FLDPKAward
 
 namespace LDPKRules
 {
-    constexpr int32 SpawnAnchors = 6;
+    constexpr int32 SpawnAnchors = 8;
 
-    // 0-1 entrants: None; 2: Duel; 3 or 5: FreeForAll; 4 or 6: Teams with probability TeamFormatBp/10000, FreeForAll
-    // otherwise. False for a count outside 0..6 or a probability outside 0..10000.
+    // 0-1 entrants: None; 2: Duel; 3, 5 or 7: FreeForAll; 4, 6 or 8: Teams with probability TeamFormatBp/10000,
+    // FreeForAll otherwise. False for a count outside 0..8 or a probability outside 0..10000.
     LOCKDOWN_API bool DrawFormat(int32 Entrants, int64 TeamFormatBp, FRandomStream& Random, ELDPKFormat& Out);
-    // Every unlabeled equal 2-partition of N (even, 4 or 6) in canonical form (seat 0 on side 1), deterministic order.
+    // Every unlabeled equal 2-partition of N (even, 4, 6 or 8) in canonical form (seat 0 on side 1), deterministic order.
     LOCKDOWN_API void EqualPartitions(int32 N, TArray<TArray<uint8>>& Out);
-    // Format, sides and spawn anchors of 2..6 entrants. Teams are a uniform choice among every equal partition; the spawn
+    // Format, sides and spawn anchors of 2..8 entrants. Teams are a uniform choice among every equal partition; the spawn
     // ring rotation and the seat order inside the chosen anchors are uniform too.
     LOCKDOWN_API bool Draw(int32 Entrants, const FLDPKParameters& Params, FRandomStream& Random, FLDPKDraw& Out, FString& Error);
     LOCKDOWN_API double RingRadiusCm(const FLDPKParameters& Params, int64 ElapsedMs);
