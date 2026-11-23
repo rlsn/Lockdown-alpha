@@ -1208,6 +1208,39 @@ bool FLDDemoContentCaseFoldedLookupTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("A well-formed but absent identity stays absent in any casing"),
         Snapshot->FindStat(TEXT("Stat_Absent"), Missing, Error));
     TestTrue(TEXT("The absent identity reports the not-present reason"), Missing == nullptr && Error.Contains(TEXT("not present")));
+    // The indexed forms answer with the rows the string lookups and scans answer with.
+    for (const FLDDemoMonsterDefinition& Row : Definitions.Monsters)
+    {
+        const FLDDemoMonsterDefinition* ByName = nullptr;
+        TestTrue(FString::Printf(TEXT("Monster %s resolves by name in any casing: %s"), *Row.Id, *Error),
+            Snapshot->FindMonsterByName(FName(*Row.Id.ToUpper()), ByName, Error) && ByName == &Row);
+    }
+    const FLDDemoMonsterDefinition* NoMonster = nullptr;
+    TestFalse(TEXT("An absent monster name stays absent"), Snapshot->FindMonsterByName(TEXT("monster_absent"), NoMonster, Error));
+    TestTrue(TEXT("The absent monster name reports the not-present reason"), NoMonster == nullptr && Error.Contains(TEXT("not present")));
+    TestFalse(TEXT("No name is no monster"), Snapshot->FindMonsterByName(NAME_None, NoMonster, Error));
+    TestTrue(TEXT("The approved catalog places camps"), !Definitions.Camps.IsEmpty());
+    for (const FLDDemoCampPlacement& Row : Definitions.Camps)
+    {
+        const FName Anchor(*Row.AnchorId);
+        TestTrue(FString::Printf(TEXT("Camp anchor %s resolves to its first placement"), *Row.AnchorId),
+            Snapshot->FindCampByAnchor(Anchor) == Definitions.Camps.FindByPredicate(
+                [Anchor](const FLDDemoCampPlacement& Each) { return FName(*Each.AnchorId) == Anchor; }));
+    }
+    TestNull(TEXT("An unknown anchor has no camp"), Snapshot->FindCampByAnchor(TEXT("anchor_absent")));
+    for (const FLDDemoDisplayDefinition& Row : Definitions.Display)
+    {
+        TestTrue(FString::Printf(TEXT("Display %s resolves through the definitions in any casing"), *Row.Id),
+            Definitions.FindDisplay(Row.Id.ToUpper()) == &Row);
+    }
+    TestNull(TEXT("An absent display id has no row"), Definitions.FindDisplay(TEXT("display_absent")));
+    // A table edited after its first lookup still answers as a scan of the edited rows would.
+    FLDDemoContentDefinitions Edited = Definitions;
+    const FString Renamed = Edited.Display[0].Id;
+    TestTrue(TEXT("The copy answers before the edit"), Edited.FindDisplay(Renamed) == &Edited.Display[0]);
+    Edited.Display[0].Id = TEXT("renamed_display_row");
+    TestTrue(TEXT("A renamed row is found under its new id"), Edited.FindDisplay(TEXT("renamed_display_row")) == &Edited.Display[0]);
+    TestNull(TEXT("A renamed row is gone under its old id"), Edited.FindDisplay(Renamed));
     return true;
 }
 
