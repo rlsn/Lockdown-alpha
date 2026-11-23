@@ -129,6 +129,23 @@ bool LDDemoEntry::ReusesApprovedContent(bool bEditorProcess, const FLDDemoConten
     return !bEditorProcess && Verified && Verified->Get().Identity.Root == ExpectedRoot;
 }
 
+bool LDDemoEntry::IsWorldMap(const UWorld* World)
+{
+    if (!World) { return false; }
+    static TWeakObjectPtr<const UWorld> Asked;
+    static FName AskedPackage;
+    static bool bAnswer = false;
+    // A world keeps its package, but PIE renames the package while it sets the world up.
+    const FName Package = World->GetOutermost()->GetFName();
+    if (Asked.Get() != World || AskedPackage != Package)
+    {
+        Asked = World;
+        AskedPackage = Package;
+        bAnswer = UWorld::RemovePIEPrefix(Package.ToString()) == WorldMap;
+    }
+    return bAnswer;
+}
+
 bool LDDemoEntry::ValidateSelection(const FString& PackageName, const FString& Options, FString& Error)
 {
     Error.Reset();

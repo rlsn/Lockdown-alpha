@@ -16,7 +16,7 @@
 namespace LDCharacterMovementDetail
 {
     bool IsDemoMovement(const UWorld* World)
-    { return World && UWorld::RemovePIEPrefix(World->GetOutermost()->GetName())==LDDemoEntry::WorldMap; }
+    { return LDDemoEntry::IsWorldMap(World); }
 
     const FName DashSourceName(TEXT("LDDemoDash"));
 }

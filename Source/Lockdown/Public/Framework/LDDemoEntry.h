@@ -12,6 +12,10 @@ namespace LDDemoEntry
     inline constexpr TCHAR WorldDefinition[] = TEXT("/Game/Lockdown/Generated/Data/DA_DemoWorld");
     inline constexpr uint32 WireProtocol = 37;
 
+    // Whether World is the Demo match world (PIE prefix ignored). Game thread only: the answer of the last asked world is
+    // kept, so per-step and per-frame callers do not build the package name again.
+    LOCKDOWN_API bool IsWorldMap(const UWorld* World);
+
     LOCKDOWN_API bool ValidateSelection(const FString& PackageName, const FString& Options, FString& Error);
     LOCKDOWN_API bool VerifyRuntimeFiles(FString& Error, FString* CatalogDigest = nullptr);
     LOCKDOWN_API bool VerifyPayloadFiles(FString& Error, FString* CatalogDigest = nullptr);
