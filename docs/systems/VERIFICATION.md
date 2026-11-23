@@ -36,6 +36,14 @@ python -B .\Scripts\RunPythonTests.py
 
 AI 多局遥测（诊断用，非门禁）：`.\Scripts\RunDemoOpponentCheck.ps1 -Telemetry -Accelerated -MatchCount <1-50>`（60 FPS 固定步长约 3 倍速跑完，输出 `Summary.json`）。
 
+## 编辑器进程的启动开销
+
+每次规则测试、每个编辑器版场景进程都要启动一个编辑器进程。脚本用三处设置压低这部分固定开销：
+
+- `Common.ps1` 设置 `UE-ZenLimitProcessLifetime=false`：引擎的本机 Zen 缓存服务不再随编辑器进程退出，下一次启动直接连上已在运行的 `zenserver.exe`。它会在脚本结束后继续留在后台，需要时可手动结束，下次启动会重新拉起。
+- `RunTests.ps1` 显式启用 `GameFeatures` 插件：`-DisablePlugins=AllToolsets` 会连带不加载它，而 `DefaultGame.ini` 仍要扫描它的资产类型，否则每次启动都会触发一次引擎断言并发送错误报告。
+- `RunTests.ps1` 让编辑器以引擎空地图启动，不加载编辑器默认地图 `L_Demo`：规则测试自己搭建世界，或自行加载要读取的地图。
+
 ## 多人共用一台机器
 
 共享引擎 `Build.bat` 全局互斥；`RunTests.ps1` 与编辑器版 `RunDemo*Check.ps1` 通过 `UE_SKIP_UBT_SDK_SETUP=1` 跳过启动期 SDK 校验避免被他人构建阻塞，但 `BuildEditor`/`BuildGame`/`PackageWin64`（UAT 单例，跨工作区打包须串行）仍受互斥约束。同机并发红线：无头编辑器进程 `<= 3` 个，活跃 UBT 构建进程（`dotnet ... UnrealBuildTool.dll`）`>= 2` 个时先等待，最多 `2` 个会话同时跑重型构建或场景。

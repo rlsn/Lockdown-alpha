@@ -5,6 +5,9 @@ $ErrorActionPreference = 'Stop'
 $OutputEncoding = [Console]::OutputEncoding
 $env:PYTHONUTF8 = '1'
 $env:PYTHONIOENCODING = 'utf-8'
+# The engine starts its local Zen cache server with each editor process and stops it with that process, about 6 s of
+# every start. Kept alive, the next editor process of any script connects to the running server instead.
+${env:UE-ZenLimitProcessLifetime} = 'false'
 
 function Get-LDProjectRoot {
     (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
