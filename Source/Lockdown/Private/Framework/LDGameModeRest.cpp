@@ -497,7 +497,8 @@ bool ALDGameMode::EnterRestWorld(const FLDGameplayWritePermit& Permit, FString& 
     RecoveryOrbs.Reset();
     if (Airdrop.Phase == ELDAirdropPhase::Landed)
     {
-        Airdrop.Phase = ELDAirdropPhase::Expired;
+        // Its field expiry may still lie ahead, so the drop leaves the public view; the serial and point stay for the next draw.
+        Airdrop.Phase = ELDAirdropPhase::None;
         bPublicMatchDirty = true;
     }
     for (FLDLockerState::FLocker& Locker : Lockers.Lockers)

@@ -46,6 +46,12 @@ bool ALDGameMode::PlanFieldSpawns(uint8 Segment, TConstArrayView<FGuid> Order,
     {
         Exclusions.Add({FVector2D(BossActor->GetActorLocation()), FMath::Square(Boss.AggroRadiusCm + PatrolMarginCm)});
     }
+    // The peddler keeps its place through a rest; a contender cannot land inside its capsule.
+    ALDCharacter* PeddlerActor = nullptr;
+    if (Camps->IsPeddlerAlive() && ResolveBody(MatchContext, Camps->GetPeddlerBody(), PeddlerActor) == ELDCommitReject::None && PeddlerActor)
+    {
+        Exclusions.Add({FVector2D(PeddlerActor->GetActorLocation()), FMath::Square(CampPlacementMarginCm)});
+    }
     for (const FVector& Waypoint : Boss.Waypoints)
     {
         Exclusions.Add({FVector2D(Waypoint), FMath::Square(Boss.AggroRadiusCm + PatrolMarginCm)});

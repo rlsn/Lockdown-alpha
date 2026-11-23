@@ -1266,8 +1266,10 @@ def validate_numbers(data):
                 "AIRDROP.PickupRadiusCm", "CAMP.ClearOrbRadiusCm", "THROW.RadiusCm", "THROW.RangeCm",
                 "SHOWDOWN.RingFinalRadiusCm",
                 "OBJECTIVE.FlagRadiusCm", "OBJECTIVE.ArenaRadiusCm", "EXPLORE.LockerRadiusCm", "EXPLORE.PeddlerOffsetCm",
-                "DAILY.TyphoonPushCm"):
-        require(p(key) > 0, "InvalidGeometry", key, "radius must be positive")
+                "DAILY.TyphoonPushCm", "FIELD.SpawnSeparationCm", "FIELD.SpawnCaptureDistanceCm",
+                "FIELD.SpawnPatrolMarginCm", "FIELD.MapRecoverySeparationCm", "FIELD.MapRecoverySightCm",
+                "AIRDROP.FieldClearanceCm", "AIRDROP.FieldSeparationCm"):
+        require(p(key) > 0, "InvalidGeometry", key, "distance must be positive")
     for name in ("ResistanceScale", "HasteScale"):
         require(quantity(data["formulas"][name]) > 0, "NumericDomain", name, "formula denominator scale must be positive")
     require(p("STAT.CritMultiplier") >= 1, "NumericDomain", "STAT.CritMultiplier", "critical multiplier must not reduce damage")

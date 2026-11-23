@@ -519,6 +519,9 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
     }
     if (!LDOpponentFrame::ReadObservedUnits(View, Generation, *Content, Frame.Units, Error)) { return false; }
     LDOpponentFrame::ReadWarnings(View, Frame.Warnings);
+    // A camp this seat saw empty stays empty for the segment; the view forgets it when the next one begins.
+    Frame.POIs.RemoveAll([&View](const FLDOpponentPOI& Place)
+        { return Place.Kind == ELDOpponentPOIKind::Camp && View.WitnessedEmptyCamps.Contains(Place.Id); });
     if (const ALDCharacter* OwnBody = Cast<ALDCharacter>(GetPawn())) { Me.Seat = OwnBody->PresentationKey; }
     LDOpponentFrame::ReadGrounds(View, Me.Seat, Frame.Grounds);
 #if WITH_DEV_AUTOMATION_TESTS

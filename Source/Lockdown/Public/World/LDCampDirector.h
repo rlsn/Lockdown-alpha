@@ -68,6 +68,7 @@ public:
         FString& Error);
     bool RetirePeddler(const FLDGameplayWritePermit& Permit, FString& Error);
     bool IsPeddlerAlive() const { return PeddlerBody.IsValid(); }
+    const FLDCombatBodyRef& GetPeddlerBody() const { return PeddlerBody; }
     // Spec §11.2: the affix of a camp's current spawn (None while it waits).
     ELDCampAffix CampAffixOf(FName CampId) const { return CampAffixes.FindRef(CampId); }
     // D26: the public Boss view and state (read-only).
