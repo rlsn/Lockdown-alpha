@@ -41,7 +41,7 @@ struct ULDCharacterMovementComponent::FNativeCapture
     double NativeScale=1;
     float NativeDuration=0;
     int32 SafeDepth=0, AdjustmentDepth=0, StepDepth=0, StepDirectMoves=0;
-    bool Walking=false, Falling=false, FallingHandoff=false;
+    bool Walking=false, Falling=false, FallingHandoff=false, FallSteered=false;
     TOptional<FBookmark> WalkBookmark;
     ERevert PendingRevert=ERevert::None;
     FString Error;
@@ -337,8 +337,11 @@ void ULDCharacterMovementComponent::PhysWalking(float DeltaSeconds, int32 Iterat
     Super::PhysWalking(DeltaSeconds,Iterations);
     if (Capture.PendingRevert!=FNativeCapture::ERevert::None)
     {
-        if (!Capture.WalkBookmark || Capture.PendingRevert!=FNativeCapture::ERevert::Failure)
-        { Capture.Fail(TEXT("Native walking ended before an expected rollback retry.")); }
+        // CMC reverts the trial before asking for a ledge retry. A retry whose delta is nearly zero ends the
+        // walk without another MoveAlongFloor, leaving the body on the bookmark exactly as a failed fall check
+        // does. Restore verifies that position and support; only a walk that left the ground stays a fault.
+        if (!Capture.WalkBookmark || (Capture.PendingRevert==FNativeCapture::ERevert::Retry && !IsMovingOnGround()))
+        { Capture.Fail(TEXT("Native walking left the ground before an expected rollback retry.")); }
         else { Capture.Restore(Capture.WalkBookmark.GetValue(),UpdatedComponent->GetComponentLocation(),SupportOf(*this)); }
         Capture.PendingRevert=FNativeCapture::ERevert::None;
     }
@@ -349,7 +352,9 @@ void ULDCharacterMovementComponent::PhysWalking(float DeltaSeconds, int32 Iterat
 
 FVector ULDCharacterMovementComponent::NewFallVelocity(const FVector& InitialVelocity, const FVector& Gravity, float DeltaTime) const
 {
-    if (NativeCapture && NativeCapture->Falling)
+    // After an impact CMC recomputes the fall velocity without air control, under a zeroed Acceleration, to
+    // deflect the slide. That call is a probe inside the slice already open; it starts no new time.
+    if (NativeCapture && NativeCapture->Falling && !(NativeCapture->FallSteered && Acceleration.IsZero()))
     {
         // PhysFalling substeps internally. Hit.Time is a fraction of this gravity-integrated slice,
         // not of all remaining frame time; a landing returns only the unconsumed native remainder.
@@ -367,6 +372,7 @@ void ULDCharacterMovementComponent::PhysFalling(float DeltaSeconds, int32 Iterat
     if (!NativeCapture) { Super::PhysFalling(DeltaSeconds,Iterations); return; }
     auto& Capture=*NativeCapture;
     TGuardValue<bool> Falling(Capture.Falling,true);
+    TGuardValue<bool> Steered(Capture.FallSteered,!Acceleration.IsZero());
     Capture.Cursor=Capture.StartFor(DeltaSeconds);
     TGuardValue<bool> Walking(Capture.Walking,false);
     Capture.SliceEnd=Capture.Batch.Step.EndServerSeconds;

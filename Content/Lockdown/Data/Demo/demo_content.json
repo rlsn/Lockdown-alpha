@@ -23586,8 +23586,20 @@
       "bp": 2500,
       "unit": "ratio"
     },
-    "REWARD.PlayerXP.Base": 140,
-    "REWARD.PlayerXP.PerLevel": 28,
+    "REWARD.LevelGapXPMax": {
+      "bp": 16000,
+      "unit": "ratio"
+    },
+    "REWARD.LevelGapXPMin": {
+      "bp": 4000,
+      "unit": "ratio"
+    },
+    "REWARD.LevelGapXPStep": {
+      "bp": 1200,
+      "unit": "ratio"
+    },
+    "REWARD.PlayerXP.Base": 70,
+    "REWARD.PlayerXP.PerLevel": 20,
     "SHOP.CardPrice": 2,
     "SHOP.CardSlots": 4,
     "SHOP.RefreshPrice": 0,
@@ -23705,11 +23717,11 @@
         "unit": "ratio"
       },
       {
-        "bp": 15000,
+        "bp": 13500,
         "unit": "ratio"
       },
       {
-        "bp": 20000,
+        "bp": 17000,
         "unit": "ratio"
       }
     ],
@@ -23865,7 +23877,7 @@
       "unit": "hp"
     },
     "STAT.MaxHP.PerLevel": {
-      "p2": 10500,
+      "p2": 12500,
       "unit": "hp"
     },
     "STAT.MoveSpeed.Max": {
@@ -24073,7 +24085,7 @@
           "unit": "hp/s"
         },
         "MaxHPFlat": {
-          "p2": 5200,
+          "p2": 7000,
           "unit": "hp"
         }
       }

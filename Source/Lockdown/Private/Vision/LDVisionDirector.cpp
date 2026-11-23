@@ -752,11 +752,15 @@ double FLDSightGeometry::GroundZ(const FVector& Foot) const
 
 void FLDSightGeometry::ResolveFoot(const FVector& Foot, FVector& Ground, FHitResult& Support) const
 {
+    if (const FGroundSample* Cached = FootGround.Find(Foot)) { Ground = Cached->Foot; Support = Cached->Support; return; }
     Ground = Foot;
     int32 IgnoredTier;
     double Z;
     if (Terrain.GroundNear(Foot, Z, IgnoredTier, false, &Support)
         || Terrain.GroundNear(Foot, Z, IgnoredTier, true, &Support)) { Ground.Z = Z; }
+    // Moving bodies add a foot per step; the bound keeps the map small and standing bodies re-resolve once after a reset.
+    if (FootGround.Num() >= 1024) { FootGround.Reset(); }
+    FootGround.Add(Foot, {Ground, Support});
 }
 
 ELDSightResult FLDSightGeometry::TracePrepared(const FVector& From, const FVector& To,

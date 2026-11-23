@@ -328,6 +328,16 @@ FLDRewardReceipt ALDGrowthDirector::CommitDeathReward(const FLDCommittedDeath& D
     {
         return Finish(ELDRewardOutcome::PermanentlyRejected, AmountReason);
     }
+    // REWARD.LevelGapXP: a kill below the killer's level is worth less, one above it more; assists share the scaled XP.
+    if (bContenderVictim)
+    {
+        const ELDGrowthReason GapReason = LDProgression::LevelGapXP(Content->Get().Parameters, Amounts.XP,
+            M->Development->FindBuild(Recipient)->Level, Basis.VictimLevelAtDeath, Amounts.XP);
+        if (GapReason != ELDGrowthReason::None)
+        {
+            return Finish(ELDRewardOutcome::PermanentlyRejected, GapReason);
+        }
+    }
     // Spec §11.1 exam week and §11.2 team building scale a monster's XP (rounded down).
     if (!bContenderVictim)
     {

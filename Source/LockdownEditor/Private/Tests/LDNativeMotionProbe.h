@@ -30,6 +30,7 @@ public:
     FString CaptureError;
     bool PrepareGround();
     void TraceWalking(const FVector& InVelocity, float Seconds);
+    void TraceFalling(const FVector& InVelocity, const FVector& InAcceleration, float Seconds);
     bool TraceStationary(const FVector& Input=FVector::ZeroVector);
     virtual void PerformMovement(float DeltaSeconds) override;
     void TraceUnrecordedMove();

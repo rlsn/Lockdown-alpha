@@ -58,6 +58,7 @@ ALDCharacter::ALDCharacter(const FObjectInitializer& ObjectInitializer)
     Body->SetVisibility(false,true);
     // The Demo presents bodies only through SharedBody; the inherited, asset-less character mesh never renders.
     GetMesh()->SetHiddenInGame(true);
+    GetMesh()->PrimaryComponentTick.bStartWithTickEnabled = false;
     CameraArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraArm"));
     CameraArm->SetupAttachment(GetRootComponent());
     CameraArm->SetUsingAbsoluteLocation(true);
