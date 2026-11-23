@@ -1484,9 +1484,10 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
             Out.OfferId = Self.CardOffer->OfferId;
             Out.OfferRevision = Self.CardOffer->OfferRevision;
             Out.Option = Card;
-            const int32 Installed = Self.Cards.FilterByPredicate([](const FLDOpponentCard& Owned) { return Owned.IsInstalled(); }).Num();
+            // A medal is kept in the library: SelectCardInstall then gives it an element slot without swapping one out.
             FLDCardTarget Target;
-            if (Installed < Self.CardCapacity && LDOpponentPolicy::CardTarget(Self, Catalog, Card, Target))
+            if (!LDProgression::IsMedal(Catalog.Get(), FName(*Card))
+                && LDOpponentPolicy::InstalledCards(Self, Catalog) < Self.CardCapacity && LDOpponentPolicy::CardTarget(Self, Catalog, Card, Target))
             {
                 Out.CardTarget = Target.Kind;
                 Out.TargetId = Target.Active.IsNone() ? FString() : Target.Active.ToString();
@@ -2434,13 +2435,54 @@ bool CardTarget(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catal
     return LDProgression::DefaultCardTarget(Content, OpponentBuild(Self, Content), FName(*Card), Out);
 }
 
+int32 InstalledCards(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog)
+{
+    const FLDDemoContentDefinitions& Content = Catalog.Get();
+    return Self.Cards.FilterByPredicate([&Content](const FLDOpponentCard& Owned)
+        { return Owned.IsInstalled() && !LDProgression::IsMedal(Content, FName(*Owned.DefinitionId)); }).Num();
+}
+
+namespace
+{
+// The element slot a stored medal goes into: a host whose same medal can still fuse, else the first empty one (Q/W/E, then
+// the body). Never a swap, which would hand the swapped medal back to be installed again.
+bool OpponentMedalTarget(const FLDOpponentSelf& Self, const FLDDemoContentDefinitions& Content, const FLDOpponentCard& Medal,
+    FLDCardTarget& Out)
+{
+    const uint8 MaxTier = uint8(FMath::Clamp(Content.Parameters.Medal.MaxTier, 1, 3));
+    TArray<FLDCardTarget> Hosts;
+    for (const FLDOpponentActive& Active : Self.Actives)
+    {
+        FLDCardTarget& Host = Hosts.AddDefaulted_GetRef();
+        Host.Kind = ELDCardTargetKind::Skill;
+        Host.Active = FName(*Active.DefinitionId);
+    }
+    Hosts.AddDefaulted_GetRef().Kind = ELDCardTargetKind::Body;
+    const FLDCardTarget* Empty = nullptr;
+    for (const FLDCardTarget& Host : Hosts)
+    {
+        const FLDOpponentCard* Held = Self.Cards.FindByPredicate([&](const FLDOpponentCard& Owned)
+        {
+            return Owned.TargetKind == Host.Kind && FName(*Owned.TargetActive) == Host.Active
+                && LDProgression::IsMedal(Content, FName(*Owned.DefinitionId));
+        });
+        if (!Held) { Empty = Empty ? Empty : &Host; continue; }
+        if (Held->DefinitionId == Medal.DefinitionId && Held->Tier < MaxTier) { Out = Host; return true; }
+    }
+    if (Empty) { Out = *Empty; }
+    return Empty != nullptr;
+}
+}
+
 bool SelectCardInstall(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, uint16& OutSerial, FLDCardTarget& OutTarget)
 {
-    const int32 Installed = Self.Cards.FilterByPredicate([](const FLDOpponentCard& Owned) { return Owned.IsInstalled(); }).Num();
-    if (Installed >= Self.CardCapacity) { return false; }
+    const FLDDemoContentDefinitions& Content = Catalog.Get();
+    const bool bFull = InstalledCards(Self, Catalog) >= Self.CardCapacity;
     for (const FLDOpponentCard& Owned : Self.Cards)
     {
-        if (!Owned.IsInstalled() && CardTarget(Self, Catalog, Owned.DefinitionId, OutTarget))
+        if (Owned.IsInstalled()) { continue; }
+        const bool bMedal = LDProgression::IsMedal(Content, FName(*Owned.DefinitionId));
+        if (bMedal ? OpponentMedalTarget(Self, Content, Owned, OutTarget) : !bFull && CardTarget(Self, Catalog, Owned.DefinitionId, OutTarget))
         {
             OutSerial = Owned.Serial;
             return true;

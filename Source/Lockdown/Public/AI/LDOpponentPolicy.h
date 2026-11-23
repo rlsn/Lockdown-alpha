@@ -102,6 +102,8 @@ struct FLDOpponentCard
     ELDCardTargetKind TargetKind = ELDCardTargetKind::None;
     FString TargetActive;
     ELDDemoElement Element = ELDDemoElement::None;
+    // An installed element medal's fusion tier.
+    uint8 Tier = 1;
     bool IsInstalled() const { return TargetKind != ELDCardTargetKind::None; }
 };
 
@@ -583,9 +585,12 @@ namespace LDOpponentPolicy
     LOCKDOWN_API bool SelectCard(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FName Goal, FString& OutCard,
         FString& Error);
     // The place the AI puts a card (LDProgression::DefaultCardTarget over the own build); false when none exists now.
+    // The installed cards that count against CardCapacity (element medals do not).
+    LOCKDOWN_API int32 InstalledCards(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog);
     LOCKDOWN_API bool CardTarget(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, const FString& Card,
         FLDCardTarget& Out);
-    // The first stored card (serial order) with a place while a slot is free; false when none or the workshop is full.
+    // The first stored card (serial order) with a place: a card while a capacity slot is free; an element medal, which takes
+    // none, onto a host whose same medal can still fuse, else onto the first empty element slot (Q/W/E, then the body).
     LOCKDOWN_API bool SelectCardInstall(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, uint16& OutSerial,
         FLDCardTarget& OutTarget);
     // True when the public solo deadline leaves no more than travel, control and reaction budget.

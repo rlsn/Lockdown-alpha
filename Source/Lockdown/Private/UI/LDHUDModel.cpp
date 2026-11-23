@@ -2830,30 +2830,20 @@ FString LDHUD::SkillCardCompatStrip(FName CardId,const FLDProgressionView& Progr
     const ELDDemoElement Element=Definition->ChooseElements.IsEmpty()?ELDDemoElement::None:Definition->ChooseElements[0];
     const bool bWorkshopIsFull=WorkshopFull(Progression,Content);
     TArray<FString> Chips;
-    bool bAnyFree=false;
     for(uint8 Slot=0;Slot<3;++Slot)
     {
         const FName Held=ActiveInSlot(Progression,Slot);
         if(Held.IsNone()){continue;}
         if(LDProgression::CardTargetReason(*Content,Build,FName(*Definition->Id),HudTarget(ELDCardTargetKind::Skill,Held,Element))!=ELDGrowthReason::None)
         {continue;}
-        int32 ColCount=0;
-        for(const FLDCardInstanceView& Owned:Progression.Cards)
-        {
-            if(Owned.IsInstalled()&&Owned.Target.Kind==ELDCardTargetKind::Skill&&Owned.Target.Active==Held
-                &&!LDProgression::IsMedal(*Content,Owned.DefinitionId))
-            {++ColCount;}
-        }
-        const bool bColFull=bWorkshopIsFull||ColCount>=4;
-        if(!bColFull){bAnyFree=true;}
-        Chips.Add(FString::Printf(TEXT("[%s %s %d/4]"),*Keys.Of(Slot),*ContentName(Content,Held.ToString()),ColCount));
+        Chips.Add(FString::Printf(TEXT("[%s %s]"),*Keys.Of(Slot),*ContentName(Content,Held.ToString())));
     }
     if(Chips.IsEmpty())
     {
         return FString(LDTerms::NoCompatibleSkillHost);
     }
     bOutHasMatch=true;
-    bOutAllFull=!bAnyFree;
+    bOutAllFull=bWorkshopIsFull;
     return FString(TEXT("可装："))+FString::Join(Chips,TEXT(" "));
 }
 FString LDHUD::DropPreviewText(FName Key,const FCardDrop& Drop,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
@@ -2908,12 +2898,14 @@ bool LDHUD::WorkshopFull(const FLDProgressionView& Progression,const FLDDemoCont
 }
 FString LDHUD::StoredPlaceText(FName Key,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
 {
-    if(WorkshopFull(Progression,Content))
+    // A medal still goes into an element slot of a full workshop.
+    const TArray<FCardDrop> Drops=CardDrops(Key,Progression,Content);
+    if(Drops.IsEmpty()&&WorkshopFull(Progression,Content))
     {
         return ReplaceDrops(Key,Progression,Content).IsEmpty()?LDTerms::WorkshopFullNoPlace(Progression.CardCapacity)
             :LDTerms::WorkshopFullHint(Progression.CardCapacity);
     }
-    return DropColumnsText(CardDrops(Key,Progression,Content));
+    return DropColumnsText(Drops);
 }
 LDHUD::FGrowthPending LDHUD::GrowthPending(const FLDProgressionView* Progression,uint32 Match,const FLDDemoContentDefinitions* Content)
 {
