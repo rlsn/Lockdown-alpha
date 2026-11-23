@@ -1632,8 +1632,8 @@ FString HudDamageTerm(const FLDDemoEffectDefinition& Effect)
 bool HudWholeMaxHP(const FLDDemoEffectDefinition& Effect)
 {
     const ELDDemoEffectOp Op=Effect.GetOp();
-    // The max-HP coefficient of a pulse is the shield its ticks grant.
-    return Op==ELDDemoEffectOp::Shield||Op==ELDDemoEffectOp::TriggeredShield||Op==ELDDemoEffectOp::Pulse;
+    // The max-HP coefficient of a pulse or a parry is the shield it grants.
+    return Op==ELDDemoEffectOp::Shield||Op==ELDDemoEffectOp::TriggeredShield||Op==ELDDemoEffectOp::Pulse||Op==ELDDemoEffectOp::ParryStance;
 }
 FString HudScaling(const FLDDemoEffectDefinition& Effect)
 {
