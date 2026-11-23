@@ -589,6 +589,14 @@ bool ALDCampDirector::ProcessAuthorityIntents(const FLDGameplayWritePermit& Perm
             {
                 return false;
             }
+            // An idle member decides nothing: LDCampDecision::Evaluate answers Hold with the same brain whatever it
+            // could read, and only a consumed hostile contact engages it. Most of the map idles on every step, so it
+            // holds here without the ground, sight and combat reads. Motion already proved this body current this step.
+            if (Member.Brain.Phase == ELDCampBrainPhase::Idle && !Member.Brain.LostTargetSinceSeconds.IsSet())
+            {
+                StopMotion(Entity);
+                continue;
+            }
             FMemberRead Self;
             FLDCombatBodyRead Body;
             TArray<FLDAuthorityTargetSample> Candidates;
