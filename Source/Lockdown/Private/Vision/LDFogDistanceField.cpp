@@ -85,3 +85,49 @@ void LDFogDistanceField::Build(const TArray<uint8>& Bits, double CellX, double C
         }
     }
 }
+
+FIntRect LDFogDistanceField::Difference(const TArray<float>& A, const TArray<float>& B)
+{
+    using namespace LDFogDistanceFieldPrivate;
+    if (A.Num() != LDObservation::CoverageCells || B.Num() != LDObservation::CoverageCells) { return FIntRect(); }
+    FIntRect Out(Width, Height, 0, 0);
+    for (int32 Y = 0; Y < Height; ++Y)
+    {
+        const float* RowA = A.GetData() + Y * Width;
+        const float* RowB = B.GetData() + Y * Width;
+        int32 First = 0, Last = Width - 1;
+        while (First < Width && RowA[First] == RowB[First]) { ++First; }
+        if (First == Width) { continue; }
+        while (RowA[Last] == RowB[Last]) { --Last; }
+        Out.Min.X = FMath::Min(Out.Min.X, First); Out.Max.X = FMath::Max(Out.Max.X, Last + 1);
+        Out.Min.Y = FMath::Min(Out.Min.Y, Y); Out.Max.Y = FMath::Max(Out.Max.Y, Y + 1);
+    }
+    return Out.Min.X < Out.Max.X ? Out : FIntRect();
+}
+
+FIntRect LDFogDistanceField::Blend(const TArray<float>& Target, TArray<float>& Shown, const FIntRect& Region, float Alpha, uint8* OutPixels)
+{
+    using namespace LDFogDistanceFieldPrivate;
+    FIntRect Moving(Width, Height, 0, 0);
+    for (int32 Y = Region.Min.Y; Y < Region.Max.Y; ++Y)
+    {
+        for (int32 X = Region.Min.X; X < Region.Max.X; ++X)
+        {
+            const int32 Index = Y * Width + X;
+            const float Goal = Target[Index];
+            float& Now = Shown[Index];
+            Now = FMath::Lerp(Now, Goal, Alpha);
+            if (FMath::Abs(Now - Goal) < 1.f / 1024.f) { Now = Goal; }
+            if (Now != Goal)
+            {
+                Moving.Min.X = FMath::Min(Moving.Min.X, X); Moving.Max.X = FMath::Max(Moving.Max.X, X + 1);
+                Moving.Min.Y = FMath::Min(Moving.Min.Y, Y); Moving.Max.Y = FMath::Max(Moving.Max.Y, Y + 1);
+            }
+            const uint8 Value = uint8(FMath::Clamp(FMath::RoundToInt(Now * 255.f), 0, 255));
+            uint8* Pixel = OutPixels + (SIZE_T(Y - Region.Min.Y) * Region.Width() + (X - Region.Min.X)) * 4;
+            Pixel[0] = Pixel[1] = Pixel[2] = Value;
+            Pixel[3] = 255;
+        }
+    }
+    return Moving.Min.X < Moving.Max.X ? Moving : FIntRect();
+}

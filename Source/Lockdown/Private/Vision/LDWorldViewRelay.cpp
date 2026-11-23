@@ -1741,6 +1741,7 @@ void ALDWorldViewRelay::UploadFog()
     {
         FogShown.Reset();
         FogTarget.Reset();
+        FogBlendRegion = FIntRect();
         bFogBlending = false;
         return;
     }
@@ -1749,8 +1750,23 @@ void ALDWorldViewRelay::UploadFog()
     FogMaterial->SetVectorParameterValue(TEXT("FieldWorldMin"), FLinearColor(Bounds.Min.X, Bounds.Min.Y, 0, 0));
     FogMaterial->SetVectorParameterValue(TEXT("FieldWorldSpan"), FLinearColor(Span.X, Span.Y, 0, 0));
     LDFogDistanceField::Build(*Bits, Span.X / LDObservation::CoverageWidth, Span.Y / LDObservation::CoverageHeight, FogTarget);
-    if (FogShown.Num() != FogTarget.Num()) { FogShown = FogTarget; }
-    bFogBlending = true;
+    if (FogShown.Num() != FogTarget.Num())
+    {
+        // Nothing was shown yet: the whole texture takes the target once.
+        FogShown = FogTarget;
+        FogBlendRegion = FIntRect(0, 0, LDObservation::CoverageWidth, LDObservation::CoverageHeight);
+    }
+    else
+    {
+        // Cells already at the new target keep their pixel; the blend covers the ones this walk changed and the ones
+        // still easing from the walk before.
+        const FIntRect Changed = LDFogDistanceField::Difference(FogShown, FogTarget);
+        if (Changed.Area() > 0)
+        {
+            if (FogBlendRegion.Area() > 0) { FogBlendRegion.Union(Changed); } else { FogBlendRegion = Changed; }
+        }
+    }
+    bFogBlending = FogBlendRegion.Area() > 0;
 }
 
 void ALDWorldViewRelay::BlendFog(float Delta)
@@ -1758,23 +1774,16 @@ void ALDWorldViewRelay::BlendFog(float Delta)
     if (!bFogBlending || !FogTexture || !FogTexture->GetResource() || FogShown.Num() != LDObservation::CoverageCells
         || FogTarget.Num() != LDObservation::CoverageCells) { return; }
     const float Alpha = 1.f - FMath::Exp(-FMath::Max(Delta, 0.f) / .06f);
-    bool bMoving = false;
-    const int32 Width = LDObservation::CoverageWidth, Height = LDObservation::CoverageHeight;
-    uint8* Pixels = new uint8[LDObservation::CoverageCells * 4];
-    for (int32 Index = 0; Index < LDObservation::CoverageCells; ++Index)
-    {
-        const float Target = FogTarget[Index];
-        float& Shown = FogShown[Index];
-        Shown = FMath::Lerp(Shown, Target, Alpha);
-        if (FMath::Abs(Shown - Target) < 1.f / 1024.f) { Shown = Target; }
-        bMoving |= Shown != Target;
-        const uint8 Value = uint8(FMath::Clamp(FMath::RoundToInt(Shown * 255.f), 0, 255));
-        Pixels[Index * 4] = Pixels[Index * 4 + 1] = Pixels[Index * 4 + 2] = Value;
-        Pixels[Index * 4 + 3] = 255;
-    }
-    FogTexture->UpdateTextureRegions(0, 1, new FUpdateTextureRegion2D(0, 0, 0, 0, Width, Height), Width * 4, 4, Pixels,
+    // A walking viewer changes the field around the body many times a second and the blend runs on every frame between:
+    // only the rectangle still in motion is recomputed and uploaded, never the whole map-sized texture.
+    const FIntRect Region = FogBlendRegion;
+    if (Region.Area() <= 0) { bFogBlending = false; return; }
+    uint8* Pixels = new uint8[SIZE_T(Region.Area()) * 4];
+    FogBlendRegion = LDFogDistanceField::Blend(FogTarget, FogShown, Region, Alpha, Pixels);
+    FogTexture->UpdateTextureRegions(0, 1,
+        new FUpdateTextureRegion2D(Region.Min.X, Region.Min.Y, 0, 0, Region.Width(), Region.Height()), Region.Width() * 4, 4, Pixels,
         [](uint8* Data, const FUpdateTextureRegion2D* Regions) { delete[] Data; delete Regions; });
-    bFogBlending = bMoving;
+    bFogBlending = FogBlendRegion.Area() > 0;
 }
 
 void ALDWorldViewRelay::TrackOwnBody(const ALDPlayerController& Owning)

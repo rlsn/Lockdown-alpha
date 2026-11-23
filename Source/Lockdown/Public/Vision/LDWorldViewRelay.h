@@ -464,6 +464,8 @@ private:
     uint64 FogUploadSerial = MAX_uint64;
     TArray<float> FogTarget;
     TArray<float> FogShown;
+    // The cells whose shown value is still short of its target: the only ones a blend step recomputes and uploads.
+    FIntRect FogBlendRegion;
     bool bFogBlending = false;
     bool bClock = false;
     double ClockOffset = 0;

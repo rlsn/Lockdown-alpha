@@ -25,6 +25,45 @@ bool FLDFogDistanceFieldTest::RunTest(const FString&)
     TestTrue(TEXT("Y distance uses the rectangular cell height"), FMath::Abs(Cm(Centre + LDObservation::CoverageWidth) + 15.f) < .001f);
     TestTrue(TEXT("Diagonal distance is Euclidean"), FMath::Abs(Cm(Centre + LDObservation::CoverageWidth + 1) + FMath::Sqrt(500.f) - 5.f) < .001f);
     TestEqual(TEXT("A hidden far corner saturates"), Field[0], 0.f);
+    // The shown field eases toward a new target. A blend confined to the cells that differ must leave the same field and
+    // the same texture as a blend over every cell, step for step.
+    const int32 Width = LDObservation::CoverageWidth, Height = LDObservation::CoverageHeight, Cells = LDObservation::CoverageCells;
+    const TArray<float> Target = Field;
+    TArray<float> Whole, Part;
+    Whole.Init(0.f, Cells);
+    Part = Whole;
+    TestEqual(TEXT("Identical fields differ nowhere"), LDFogDistanceField::Difference(Target, Target).Area(), 0);
+    FIntRect Region = LDFogDistanceField::Difference(Part, Target);
+    TestTrue(TEXT("The changed rectangle holds the island and is far smaller than the map"),
+        Region.Contains(FIntPoint(64, 64)) && Region.Area() > 0 && Region.Area() < Cells / 4);
+    // Both textures start as the settled all-hidden field.
+    TArray<uint8> WholeTexture, PartTexture, Pixels;
+    WholeTexture.SetNumUninitialized(Cells * 4);
+    for (int32 Index = 0; Index < Cells; ++Index)
+    {
+        WholeTexture[Index * 4] = WholeTexture[Index * 4 + 1] = WholeTexture[Index * 4 + 2] = 0;
+        WholeTexture[Index * 4 + 3] = 255;
+    }
+    PartTexture = WholeTexture;
+    int32 Steps = 0;
+    for (; Steps < 200 && Region.Area() > 0; ++Steps)
+    {
+        LDFogDistanceField::Blend(Target, Whole, FIntRect(0, 0, Width, Height), .25f, WholeTexture.GetData());
+        Pixels.SetNumUninitialized(Region.Area() * 4);
+        const FIntRect Next = LDFogDistanceField::Blend(Target, Part, Region, .25f, Pixels.GetData());
+        for (int32 Y = 0; Y < Region.Height(); ++Y)
+        {
+            FMemory::Memcpy(PartTexture.GetData() + ((Region.Min.Y + Y) * Width + Region.Min.X) * 4,
+                Pixels.GetData() + Y * Region.Width() * 4, Region.Width() * 4);
+        }
+        TestTrue(TEXT("The cells still in motion never leave the rectangle that held them"),
+            Next.Area() == 0 || (Region.Contains(Next.Min) && Next.Max.X <= Region.Max.X && Next.Max.Y <= Region.Max.Y));
+        Region = Next;
+    }
+    TestTrue(TEXT("The confined blend settles"), Steps > 1 && Steps < 200 && Region.Area() == 0);
+    TestTrue(TEXT("The confined blend ends on the target"), Part == Target);
+    TestTrue(TEXT("Both blends leave the same field"), Whole == Part);
+    TestTrue(TEXT("Both blends leave the same texture"), WholeTexture == PartTexture);
     return true;
 }
 #endif
