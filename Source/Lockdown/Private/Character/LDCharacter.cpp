@@ -26,7 +26,9 @@
 #include "Navigation/LDNavigationComponent.h"
 
 ALDCharacter::ALDCharacter(const FObjectInitializer& ObjectInitializer)
-    : Super(ObjectInitializer.SetDefaultSubobjectClass<ULDCharacterMovementComponent>(ACharacter::CharacterMovementComponentName))
+    // The Demo presents bodies only through SharedBody, so the inherited optional character mesh is never created.
+    : Super(ObjectInitializer.SetDefaultSubobjectClass<ULDCharacterMovementComponent>(ACharacter::CharacterMovementComponentName)
+        .DoNotCreateDefaultSubobject(ACharacter::MeshComponentName))
 {
     PrimaryActorTick.bCanEverTick = true;
     bReplicates = true;
@@ -56,9 +58,6 @@ ALDCharacter::ALDCharacter(const FObjectInitializer& ObjectInitializer)
     Body = CreateDefaultSubobject<ULDHumanoidVisualComponent>(TEXT("SharedBody"));
     Body->SetupAttachment(GetRootComponent());
     Body->SetVisibility(false,true);
-    // The Demo presents bodies only through SharedBody; the inherited, asset-less character mesh never renders.
-    GetMesh()->SetHiddenInGame(true);
-    GetMesh()->PrimaryComponentTick.bStartWithTickEnabled = false;
     CameraArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraArm"));
     CameraArm->SetupAttachment(GetRootComponent());
     CameraArm->SetUsingAbsoluteLocation(true);

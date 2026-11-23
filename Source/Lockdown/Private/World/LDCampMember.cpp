@@ -2,11 +2,15 @@
 #include "Core/LDLog.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "GameFramework/SpringArmComponent.h"
 
 ALDCampMemberCharacter::ALDCampMemberCharacter(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer)
 {
     bReplicates = false;
+    // No one views through a camp member. Auto-activation would turn the arm's tick back on.
+    CameraArm->bAutoActivate = false;
+    CameraArm->PrimaryComponentTick.bStartWithTickEnabled = false;
 }
 
 bool ALDCampMemberCharacter::PrepareMonster(const FLDDemoContentSnapshot& Content, const FLDDemoMonsterDefinition& Monster, FString& Error)

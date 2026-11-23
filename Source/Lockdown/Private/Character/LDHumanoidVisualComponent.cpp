@@ -158,6 +158,10 @@ ULDHumanoidVisualComponent::ULDHumanoidVisualComponent()
     // A body hidden from this view (another player's authority body on the Listen Host) evaluates no pose.
     Mesh->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered;
     Mesh->SetHiddenInGame(true);
+    // Most bodies are never shown on this machine: the mesh ticks only once a look is applied (ApplyLook activates it).
+    // Auto-activation would turn the tick back on.
+    Mesh->bAutoActivate = false;
+    Mesh->PrimaryComponentTick.bStartWithTickEnabled = false;
     Basketball = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Basketball"));
     Basketball->SetupAttachment(Mesh);
     Basketball->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -735,6 +739,7 @@ void ULDHumanoidVisualComponent::ApplyLook(const FLDArtCharacter* Look, const FL
         }
     }
     WearParts(Identity, What);
+    Mesh->Activate();
     Mesh->SetHiddenInGame(false);
     UMaterialInterface* Material = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Lockdown/Generated/Materials/M_Character.M_Character"));
     if (!ensureMsgf(Material, TEXT("Character material missing; rerun asset bootstrap"))) { return; }

@@ -11,6 +11,7 @@
 #include "NavMesh/RecastNavMesh.h"
 #include "Character/LDCharacter.h"
 #include "Engine/World.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 
 namespace LDPathSteering
 {
@@ -264,6 +265,8 @@ namespace LDPathSteering
         const FCollisionShape& Capsule, FLDCompletePath& OutPath, FLDLegalGround& Out,
         ELDWorldQueryFailure& Failure, FString& Error)
     {
+        // Each fallback candidate costs a synchronous path query; the hover cursor probe reaches this too.
+        TRACE_CPUPROFILER_EVENT_SCOPE(LDProjectGroundGoal);
         UWorld* World=Registry.GetWorld();
         auto* Nav=World?FNavigationSystem::GetCurrent<UNavigationSystemV1>(World):nullptr;
         const ANavigationData* Data=Nav?Nav->GetDefaultNavDataInstance(FNavigationSystem::DontCreate):nullptr;
