@@ -1,5 +1,6 @@
 #include "AI/LDOpponentController.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
+#include "Core/LDTrace.h"
 #include "Character/LDCharacter.h"
 #include "Core/LDLog.h"
 #include "AI/LDOpponentFrame.h"
@@ -493,14 +494,14 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
     if (Own.LifePhase != ELDLifePhase::Alive && Own.LifePhase != ELDLifePhase::Dead) { return true; }
     // The own Combat view also explains a dead contender's persistent build; its card growth joins the derived attributes.
     if (!Mode.Combat->ResolveControllerCaller(*this, Reads.CombatCaller, Error)
-        || !Mode.Combat->BuildOwnerView(Reads.CombatCaller, Reads.Combat))
+        || !LD_TRACED(LDAI_FrameOwnerView, Mode.Combat->BuildOwnerView(Reads.CombatCaller, Reads.Combat)))
     {
         if (Error.IsEmpty()) { Error = TEXT("The own combat projection is unavailable."); }
         return false;
     }
     const FLDGrowthOwnerView& Growth = Own.Growth;
     if (Growth.Generation != Generation || Reads.Combat.Generation != Generation
-        || !LDOpponentFrame::ReadOwnBuild(Growth.Progression, Reads.Combat.CardGrowth, *Content, Me, Error))
+        || !LD_TRACED(LDAI_FrameOwnBuild, LDOpponentFrame::ReadOwnBuild(Growth.Progression, Reads.Combat.CardGrowth, *Content, Me, Error)))
     {
         if (Error.IsEmpty()) { Error = TEXT("The own growth publication is not of this match."); }
         return false;
@@ -516,13 +517,13 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
     }
     Reads.bCombat = true;
     FLDWorldView View;
-    if (!Mode.Vision->EnumerateVisibleUnits(*this, ELDObservationPurpose::NewAttackOrder, View, Error)) { return false; }
+    if (!LD_TRACED(LDAI_FrameObservation, Mode.Vision->EnumerateVisibleUnits(*this, ELDObservationPurpose::NewAttackOrder, View, Error))) { return false; }
     if (View.ObserverLife != Own.Life || View.Footprint.SourceStatus != ELDObservationSource::ActiveBody)
     {
         Error = TEXT("The own observation frame is not of the current living body yet.");
         return false;
     }
-    if (!LDOpponentFrame::ReadObservedUnits(View, Generation, *Content, Frame.Units, Error)) { return false; }
+    if (!LD_TRACED(LDAI_FrameUnits, LDOpponentFrame::ReadObservedUnits(View, Generation, *Content, Frame.Units, Error))) { return false; }
     LDOpponentFrame::ReadWarnings(View, Frame.Warnings);
     // A camp this seat saw empty stays empty for the segment; the view forgets it when the next one begins.
     Frame.POIs.RemoveAll([&View](const FLDOpponentPOI& Place)
