@@ -236,6 +236,8 @@ FLDDemoContentSnapshot::FLDDemoContentSnapshot(FLDDemoContentDefinitions&& In) :
     BuildIndex(Definitions.FinalMods, FinalModIndex);
     BuildIndex(Definitions.Monsters, MonsterIndex);
     BuildIndex(Definitions.Display, DisplayIndex);
+    for (const TPair<FString, int32>& Pair : AbilityIndex) { AbilityNameIndex.Add(FName(*Pair.Key), Pair.Value); }
+    for (const TPair<FString, int32>& Pair : CardIndex) { CardNameIndex.Add(FName(*Pair.Key), Pair.Value); }
     for (const TPair<FString, int32>& Pair : MonsterIndex) { MonsterNameIndex.Add(FName(*Pair.Key), Pair.Value); }
     for (int32 Row = 0; Row < Definitions.Camps.Num(); ++Row)
     {
@@ -289,9 +291,31 @@ bool FLDDemoContentSnapshot::FindMonster(const FString& Id, const FLDDemoMonster
     return Find(Definitions.Monsters, MonsterIndex, Id, Out, Error);
 }
 
+// Names compare without case, exactly as the string lookups fold it; a miss asks the string lookup for its error.
+bool FLDDemoContentSnapshot::FindAbilityByName(FName Id, const FLDDemoAbilityDefinition*& Out, FString& Error) const
+{
+    if (const int32* Row = AbilityNameIndex.Find(Id))
+    {
+        Out = &Definitions.Abilities[*Row];
+        Error.Reset();
+        return true;
+    }
+    return FindAbility(Id.ToString(), Out, Error);
+}
+
+bool FLDDemoContentSnapshot::FindCardByName(FName Id, const FLDDemoCardDefinition*& Out, FString& Error) const
+{
+    if (const int32* Row = CardNameIndex.Find(Id))
+    {
+        Out = &Definitions.Cards[*Row];
+        Error.Reset();
+        return true;
+    }
+    return FindCard(Id.ToString(), Out, Error);
+}
+
 bool FLDDemoContentSnapshot::FindMonsterByName(FName Id, const FLDDemoMonsterDefinition*& Out, FString& Error) const
 {
-    // Names compare without case, exactly as the string lookup folds it.
     if (const int32* Row = MonsterNameIndex.Find(Id))
     {
         Out = &Definitions.Monsters[*Row];

@@ -1111,7 +1111,7 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
             {
                 const FLDDemoAbilityDefinition* AbilDef=nullptr;
                 FString LookupErr;
-                if (Catalog()->FindAbility(Projectile.Source.DefinitionId.ToString(),AbilDef,LookupErr) && AbilDef)
+                if (Catalog()->FindAbilityByName(Projectile.Source.DefinitionId,AbilDef,LookupErr) && AbilDef)
                 {
                     FLDBodyCombatState* Thrower=FindBody(Projectile.SourceBody);
                     const FLDDemoAbilityValues* ValSet=&AbilDef->Values;

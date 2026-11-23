@@ -114,7 +114,7 @@ bool LDCombatSourceRules::CollectCardEffects(const FLDAttributeProjection& Proje
     {
         const FLDDemoCardDefinition* Card=nullptr;
         FString LookupError;
-        if (!Content->FindCard(Term.CardId.ToString(),Card,LookupError) || !Card)
+        if (!Content->FindCardByName(Term.CardId,Card,LookupError) || !Card)
         {
             Out.Reset();
             Error=FString::Printf(TEXT("Installed card %s is not in the approved catalog: %s"),*Term.CardId.ToString(),*LookupError);
@@ -1304,7 +1304,7 @@ bool ALDCombatDirector::OnCardHit(const FLDCombatHit& Hit, FLDBodyCombatState& T
         {
             const FLDDemoAbilityDefinition* AbilDef=nullptr;
             FString LookupErr;
-            if (Catalog()->FindAbility(Hit.Source.DefinitionId.ToString(),AbilDef,LookupErr) && AbilDef
+            if (Catalog()->FindAbilityByName(Hit.Source.DefinitionId,AbilDef,LookupErr) && AbilDef
                 && AbilDef->Target.Mode==ELDDemoTargetMode::Self && AbilDef->HitType==ELDDemoHitType::Area)
             {
                 TArray<FLDPassiveEffectRef> Tonnage;
@@ -2185,7 +2185,7 @@ bool ALDCombatDirector::QueueComboCast(FLDBodyCombatState& Body, const FLDCombat
     ALDCharacter* TargetActor=nullptr;
     FindBody(Primary.Target,&TargetActor);
     // Without a Q skill or a body to aim at, the third step casts nothing.
-    if (!Q || !Content || !Content->FindAbility(Q->AbilityId.ToString(),Ability,LookupError) || !Ability || !HolderActor || !TargetActor)
+    if (!Q || !Content || !Content->FindAbilityByName(Q->AbilityId,Ability,LookupError) || !Ability || !HolderActor || !TargetActor)
     { return true; }
     // A unit Q follows the basic's own target only: a flying basic that struck another body casts no unit Q.
     if (Ability->Target.Mode==ELDDemoTargetMode::Unit && Primary.Target!=Basic.TargetBody) { return true; }
@@ -2327,7 +2327,7 @@ bool ALDCombatDirector::WatchKnockbackImpact(ALDCharacter& Target, FLDBodyCombat
     {
         const FLDDemoAbilityDefinition* AbilDef=nullptr;
         FString LookupErr;
-        if (Catalog()->FindAbility(Hit.KnockbackSource.DefinitionId.ToString(),AbilDef,LookupErr) && AbilDef)
+        if (Catalog()->FindAbilityByName(Hit.KnockbackSource.DefinitionId,AbilDef,LookupErr) && AbilDef)
         {
             if (const FLDCombatEntityRecord* Rec=FindRecord(Holder->Victim.EntityId))
             {
@@ -2477,7 +2477,7 @@ bool ALDCombatDirector::AdvanceCards(int64 NowMs, FString& Error)
                         {
                             const FLDDemoAbilityDefinition* AbilDef=nullptr;
                             FString LookupErr;
-                            if (Catalog()->FindAbility(Impact.PushSource.DefinitionId.ToString(),AbilDef,LookupErr) && AbilDef)
+                            if (Catalog()->FindAbilityByName(Impact.PushSource.DefinitionId,AbilDef,LookupErr) && AbilDef)
                             {
                                 if (const FLDCombatEntityRecord* Rec=FindRecord(Holder->Victim.EntityId))
                                 {

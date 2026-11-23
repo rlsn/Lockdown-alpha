@@ -162,7 +162,7 @@ namespace LDCombatSourcesDetail
             const FLDLearnedActiveValue& Learned=Input.Actives[Index];
             const int32 Slot=LearnedSlot(Learned.Entry);
             const FLDDemoAbilityDefinition* Ability=nullptr;
-            const bool bKnown=!Learned.AbilityId.IsNone() && Content.FindAbility(Learned.AbilityId.ToString(),Ability,LookupError)
+            const bool bKnown=!Learned.AbilityId.IsNone() && Content.FindAbilityByName(Learned.AbilityId,Ability,LookupError)
                 && Ability && Content.FindValues(*Ability,Input.Level,Learned.Branch);
             bool bDuplicate=false;
             for (int32 Earlier=0; Earlier<Index; ++Earlier)
@@ -385,7 +385,7 @@ bool ALDCombatDirector::ResolveEntry(const FLDCombatEntityRecord& Record, ELDCom
     if (const FLDLearnedActiveValue* Learned=LDCombatSourcesDetail::FindLearned(Record.Build,Entry))
     {
         const FLDDemoAbilityDefinition* Ability=nullptr;
-        if (Learned->AbilityId.IsNone() || !Content->FindAbility(Learned->AbilityId.ToString(),Ability,LookupError) || !Ability)
+        if (Learned->AbilityId.IsNone() || !Content->FindAbilityByName(Learned->AbilityId,Ability,LookupError) || !Ability)
         { return false; }
         OutSource.Kind=ELDCombatSourceKind::Learned;
         OutSource.DefinitionId=Learned->AbilityId;
@@ -703,7 +703,7 @@ bool ALDCombatDirector::PublicActivesOf(const FLDBuildProjectionInput& Build, co
         const FLDDemoAbilityDefinition* Ability=nullptr;
         FString LookupError;
         if (Slot==INDEX_NONE || Out.Abilities[Slot]!=0
-            || !Content.FindAbility(Active.AbilityId.ToString(),Ability,LookupError) || !Ability || Ability->NativeId==0)
+            || !Content.FindAbilityByName(Active.AbilityId,Ability,LookupError) || !Ability || Ability->NativeId==0)
         { return false; }
         Out.Abilities[Slot]=Ability->NativeId;
     }

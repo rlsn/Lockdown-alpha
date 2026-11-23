@@ -1215,6 +1215,24 @@ bool FLDDemoContentCaseFoldedLookupTest::RunTest(const FString& Parameters)
         TestTrue(FString::Printf(TEXT("Monster %s resolves by name in any casing: %s"), *Row.Id, *Error),
             Snapshot->FindMonsterByName(FName(*Row.Id.ToUpper()), ByName, Error) && ByName == &Row);
     }
+    for (const FLDDemoAbilityDefinition& Row : Definitions.Abilities)
+    {
+        const FLDDemoAbilityDefinition* ByName = nullptr;
+        TestTrue(FString::Printf(TEXT("Ability %s resolves by name in any casing: %s"), *Row.Id, *Error),
+            Snapshot->FindAbilityByName(FName(*Row.Id.ToUpper()), ByName, Error) && ByName == &Row);
+    }
+    for (const FLDDemoCardDefinition& Row : Definitions.Cards)
+    {
+        const FLDDemoCardDefinition* ByName = nullptr;
+        TestTrue(FString::Printf(TEXT("Card %s resolves by name in any casing: %s"), *Row.Id, *Error),
+            Snapshot->FindCardByName(FName(*Row.Id.ToUpper()), ByName, Error) && ByName == &Row);
+    }
+    const FLDDemoAbilityDefinition* NoAbility = nullptr;
+    const FLDDemoCardDefinition* NoCard = nullptr;
+    TestFalse(TEXT("An absent ability name stays absent"), Snapshot->FindAbilityByName(TEXT("active_absent"), NoAbility, Error));
+    TestFalse(TEXT("A card name is no ability"), Snapshot->FindAbilityByName(FName(*Definitions.Cards[0].Id), NoAbility, Error));
+    TestFalse(TEXT("An absent card name stays absent"), Snapshot->FindCardByName(TEXT("card_absent"), NoCard, Error));
+    TestTrue(TEXT("The absent names resolve nothing"), NoAbility == nullptr && NoCard == nullptr && Error.Contains(TEXT("not present")));
     const FLDDemoMonsterDefinition* NoMonster = nullptr;
     TestFalse(TEXT("An absent monster name stays absent"), Snapshot->FindMonsterByName(TEXT("monster_absent"), NoMonster, Error));
     TestTrue(TEXT("The absent monster name reports the not-present reason"), NoMonster == nullptr && Error.Contains(TEXT("not present")));
