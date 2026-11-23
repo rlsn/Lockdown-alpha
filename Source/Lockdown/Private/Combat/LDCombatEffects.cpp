@@ -1374,14 +1374,12 @@ bool ALDCombatDirector::InstallBodyProjection(FLDBodyCombatState& Body, ALDChara
 
 bool ALDCombatDirector::RefreshAllTemporary(int64 NowMs, FString& Error)
 {
-    TArray<TWeakObjectPtr<ALDCharacter>> BodyKeys;
-    Bodies.GetKeys(BodyKeys);
-    for (const TWeakObjectPtr<ALDCharacter>& Key : BodyKeys)
+    // Nothing below registers or removes a body, so the map is walked in place (twice per step for every body).
+    for (TPair<TWeakObjectPtr<ALDCharacter>,FLDBodyCombatState>& Pair : Bodies)
     {
+        const TWeakObjectPtr<ALDCharacter>& Key=Pair.Key;
         if (!Key.IsValid()) { continue; }
-        FLDBodyCombatState* BodyPtr=Bodies.Find(Key);
-        if (!BodyPtr) { continue; }
-        FLDBodyCombatState& Body=*BodyPtr;
+        FLDBodyCombatState& Body=Pair.Value;
         if (LDTactical::ExpireTemporaryStatuses(Body.Slows,Body.TimedBonuses,NowMs))
         {
             ++Body.StateRevision;
@@ -1395,13 +1393,9 @@ bool ALDCombatDirector::RefreshAllTemporary(int64 NowMs, FString& Error)
 
 void ALDCombatDirector::ExpireStatuses(int64 NowMs)
 {
-    TArray<TWeakObjectPtr<ALDCharacter>> BodyKeys;
-    Bodies.GetKeys(BodyKeys);
-    for (const TWeakObjectPtr<ALDCharacter>& Key : BodyKeys)
+    for (TPair<TWeakObjectPtr<ALDCharacter>,FLDBodyCombatState>& Pair : Bodies)
     {
-        FLDBodyCombatState* BodyPtr=Bodies.Find(Key);
-        if (!BodyPtr) { continue; }
-        FLDBodyCombatState& Body=*BodyPtr;
+        FLDBodyCombatState& Body=Pair.Value;
         // Layers lapse on their own deadlines; the record goes with the last of them.
         const bool bLayers=ExpireShieldLayers(Body,NowMs);
         FLDStatusExpiry Expired=LDTactical::ExpireTimedStatuses(Body.Roots,Body.Shield,Body.Resources.ShieldP2,NowMs);
