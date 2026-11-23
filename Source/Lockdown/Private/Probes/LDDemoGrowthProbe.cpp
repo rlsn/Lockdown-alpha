@@ -226,6 +226,10 @@ const TCHAR* const GrowthProbeDevActive = TEXT("active_not_mad");
 const TCHAR* const GrowthProbeDevStat = TEXT("stat_strength");
 constexpr double GrowthProbeCampSearchCm = 600.0;
 constexpr int32 GrowthProbeLowCampMembers = 2;
+// The Host's approach to its sampled camp stands within this height of the camp's anchor.
+constexpr double GrowthProbeCampLevelCm = 35.0;
+// At most this many camps get a walk plan from the Host site before the sample is refused.
+constexpr int32 GrowthProbeCampWalkPlans = 4;
 
 // Private rendered HUD widgets, read through reflection without changing the HUD for the probe.
 const UWidget* GrowthProbeHudWidget(const ALDPlayerController& PC, const TCHAR* Field)
@@ -1855,7 +1859,9 @@ public:
             TEXT("Both duel sites are legal ground outside the capture circle, the airdrop pickups, the dorms and the camp/Boss exclusions"),
             FString::Printf(TEXT("kill=%s host=%s %s"), *KillSite.ToCompactString(), *HostSite.ToCompactString(), *SiteError)))
         { return false; }
+        const double CampBegan = FPlatformTime::Seconds();
         const bool bCampReady = PrepareLowCamp(Registry, BodyRadius, SiteError);
+        const double RoutesBegan = FPlatformTime::Seconds();
         if (!Check(bCampReady, TEXT("N03"),
             TEXT("The Host's low-camp reward sample has authored homes and a legal native approach"),
             HostCampAnchor + TEXT(": ") + SiteError)) { return false; }
@@ -1874,7 +1880,8 @@ public:
         }
         WalkWaypoints.Reset();
         bSitesReady = true;
-        return Check(true, TEXT("N03"), TEXT("Every authored spawn has a legal camp/Boss-free fixture route to both duel sites"));
+        return Check(true, TEXT("N03"), TEXT("Every authored spawn has a legal camp/Boss-free fixture route to both duel sites"),
+            FString::Printf(TEXT("camp=%s sample %.1fs routes %.1fs"), *HostCampAnchor, RoutesBegan - CampBegan, FPlatformTime::Seconds() - RoutesBegan));
     }
 
     bool PrepareWalkKeepouts(const ULDMapRegistry& Registry, double BodyRadius, FString& WalkError)
@@ -1896,17 +1903,35 @@ public:
         FCollisionShape Capsule;
         if (!Geometry || !ULDMapRegistry::ContentCapsule(*Catalog, Capsule, CampError))
         { CampError = TEXT("The low-camp fixture has no registered geometry or capsule: ") + CampError; return false; }
-        for (const auto& Placement : Catalog->Get().Camps)
+        // The sample is any camp standing in the saved map whose tier is the low one and which has the sampled member
+        // count: the level author decides which camps exist, where they stand and how many members each has.
+        int32 Candidates = 0, OffLevel = 0, NoGround = 0, NoWalk = 0;
+        FString LastError;
+        const FName LowMonster(TEXT("monster_scavenger"));
+        const FLDDemoMonsterDefinition* Monster = nullptr;
+        if (!Catalog->FindMonster(LowMonster.ToString(), Monster, CampError))
+        { CampError = TEXT("The low-camp sample has no monster definition: ") + CampError; return false; }
+        struct FCandidate { const FLDDemoWorldAnchor* Anchor; FVector Centre; };
+        TArray<FCandidate> Sorted;
+        for (const FLDDemoWorldAnchor& Row : Geometry->Anchors)
         {
-            if (Placement.MonsterId != TEXT("monster_scavenger")) { continue; }
-            const auto* Anchor = Geometry->Anchors.FindByPredicate([&](const auto& Row) { return Row.Id == Placement.AnchorId; });
-            const FLDDemoMonsterDefinition* Monster = nullptr;
-            if (!Anchor || Anchor->Kind != ELDDemoWorldAnchorKind::Camp
-                || Anchor->Members.Num() != LDDemoGrowthScenario::GrowthProbeLowCampMembers
-                || !Catalog->FindMonster(Placement.MonsterId, Monster, CampError))
-            { CampError = TEXT("The low-camp sample has invalid authored members: ") + Placement.AnchorId + TEXT(": ") + CampError; return false; }
+            const FString& TierAnchor = Row.PrototypeId.IsEmpty() ? Row.Id : Row.PrototypeId;
+            const auto* Tier = Catalog->Get().Camps.FindByPredicate([&](const auto& Placement) { return Placement.AnchorId == TierAnchor; });
+            if (Row.Kind != ELDDemoWorldAnchorKind::Camp || !Tier || FName(*Tier->MonsterId) != LowMonster
+                || Row.Members.Num() != LDDemoGrowthScenario::GrowthProbeLowCampMembers) { continue; }
             FVector Centre;
-            if (!Anchor->PositionCm.ToVector(Centre, CampError)) { return false; }
+            if (!Row.PositionCm.ToVector(Centre, CampError)) { return false; }
+            Sorted.Add({&Row, Centre});
+        }
+        // Nearest camps first, and one walk plan per camp: the planner blocks the Listen Host while it runs.
+        Sorted.Sort([&](const FCandidate& A, const FCandidate& B)
+            { return FVector::DistSquared2D(A.Centre, HostSite) < FVector::DistSquared2D(B.Centre, HostSite); });
+        for (const FCandidate& Candidate : Sorted)
+        {
+            if (NoWalk >= LDDemoGrowthScenario::GrowthProbeCampWalkPlans) { break; }
+            const FLDDemoWorldAnchor* Anchor = Candidate.Anchor;
+            const FVector Centre = Candidate.Centre;
+            ++Candidates;
             double HomeReach = 0;
             for (const auto& Member : Anchor->Members)
             {
@@ -1922,21 +1947,25 @@ public:
             {
                 const double Radians = Angle * UE_TWO_PI / 16;
                 FVector Approach = Centre + (TowardHost * FMath::Cos(Radians) + Across * FMath::Sin(Radians)) * ApproachRadius;
-                FVector Normal;
-                Registry.GetTerrain().Ground(FVector2D(Approach), Approach.Z, Normal);
-                if (!FMath::IsNearlyEqual(Approach.Z, Centre.Z) || !Normal.Equals(FVector::UpVector, 1e-4)) { continue; }
+                // The camp stands on authored floor meshes: the native ground query at the camp's own height decides the
+                // approach, and it must come out on the camp's level rather than on a floor above or below it.
+                Approach.Z = Centre.Z;
                 FLDLegalGround Ground, OnMesh;
                 ELDWorldQueryFailure Failure = ELDWorldQueryFailure::None;
                 if (!Registry.QueryGround(Registry.Revision(), Approach, Capsule, FName(*Anchor->SurfaceId), Ground, Failure, CampError)
-                    || !LDPathSteering::PlanStart(Registry, Ground, Capsule, OnMesh, Failure, CampError)
-                    || !PlanDuelWalk(Registry, HostSite, OnMesh.SurfaceCm, CampError)) { continue; }
+                    || !LDPathSteering::PlanStart(Registry, Ground, Capsule, OnMesh, Failure, CampError))
+                { ++NoGround; LastError = Anchor->Id + TEXT(": ") + CampError; continue; }
+                if (FMath::Abs(OnMesh.SurfaceCm.Z - Centre.Z) > LDDemoGrowthScenario::GrowthProbeCampLevelCm) { ++OffLevel; continue; }
+                if (!PlanDuelWalk(Registry, HostSite, OnMesh.SurfaceCm, CampError))
+                { ++NoWalk; LastError = Anchor->Id + TEXT(": ") + CampError; break; }
                 HostCampAnchor = Anchor->Id;
                 HostCampApproach = OnMesh.SurfaceCm;
                 CampError.Reset();
                 return true;
             }
         }
-        CampError = TEXT("No authored two-scavenger camp has a legal fixture approach: ") + CampError;
+        CampError = FString::Printf(TEXT("No authored two-member low camp has a legal fixture approach: camps=%d approaches off the camp's level=%d without legal ground=%d without a walk from the Host site=%d; last: %s"),
+            Candidates, OffLevel, NoGround, NoWalk, *LastError);
         return false;
     }
 
