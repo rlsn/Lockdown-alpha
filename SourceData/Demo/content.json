@@ -526,8 +526,8 @@
     },
     "GROWTH.OpeningPoints": 3,
     "GROWTH.PointsPerLevel": 3,
-    "GROWTH.MaxLevelPointsXP": 240,
-    "GROWTH.MaxLevelPoints": 3,
+    "GROWTH.MaxLevelPointsXP": 400,
+    "GROWTH.MaxLevelPoints": 2,
     "GROWTH.KeystoneThresholdPoints": 18,
     "GROWTH.BuildSafeWindowSec": {
       "unit": "s",
@@ -716,7 +716,7 @@
     },
     "LEADER.SurvivalPointSec": {
       "unit": "s",
-      "value": 30
+      "value": 60
     },
     "LEADER.CircleRadiusCm": {
       "unit": "cm",
@@ -1422,7 +1422,7 @@
       "value": 0.35
     },
     "XP.SteepFromLevel": 5,
-    "XP.SteepExtraPerLevel": 15,
+    "XP.SteepExtraPerLevel": 30,
     "COMBAT.KeystoneThickSkinBleedThresholdRatio": {
       "unit": "ratio",
       "value": 0.35
@@ -10290,18 +10290,18 @@
       60,
       140,
       240,
-      375,
-      545,
-      750,
-      990,
-      1265,
-      1575,
-      1920,
-      2300,
-      2715,
-      3165,
-      3650,
-      4170
+      390,
+      590,
+      840,
+      1140,
+      1490,
+      1890,
+      2340,
+      2840,
+      3390,
+      3990,
+      4640,
+      5340
     ],
     "active_offer_levels": [
       2,
@@ -11813,7 +11813,7 @@
       "name_key": "card_tonnage_crush.name",
       "name_text": "吨位碾压",
       "description_key": "card_tonnage_crush.description",
-      "description_text": "第三段普攻与自身范围技能额外造成生命上限 [tonnage_crush.ratio]% 的物理伤害，对野怪提高至 [tonnage_crush.secondary_ratio]%。",
+      "description_text": "第三段普攻与自身范围技能再造成额外生命上限 [tonnage_crush.ratio]% 的物理伤害，对野怪提高至 [tonnage_crush.secondary_ratio]%。",
       "icon_id": "icon_card_tonnage_crush"
     },
     {

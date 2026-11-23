@@ -1617,15 +1617,16 @@ FLDPrepareGrowthResult ALDDevelopmentDirector::PrepareDeathShare(const FGuid& Co
     TArray<ELDCardOfferSource> QueuedOffers = ExtraOffers;
     if (PvPKillSegment >= 0 && PvPKillSegment < 4)
     {
-        if (Prepared.NewProgression.PvPKillOffersInSegment[PvPKillSegment] < 2)
+        uint8& Kills = Prepared.NewProgression.PvPKillsInSegment[PvPKillSegment];
+        if (Kills < LDProgression::PvPKillOffers)
         {
-            ++Prepared.NewProgression.PvPKillOffersInSegment[PvPKillSegment];
             QueuedOffers.Insert(ELDCardOfferSource::PvPKill, 0);
         }
-        else
+        else if (Kills < LDProgression::PvPKillOffers + LDProgression::PvPKillPoints)
         {
-            TotalBonusPoints += 2;
+            TotalBonusPoints += 1;
         }
+        if (Kills < MAX_uint8) { ++Kills; }
     }
     for (const ELDCardOfferSource Source : QueuedOffers)
     {

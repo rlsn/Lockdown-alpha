@@ -119,7 +119,8 @@ namespace LDTactical
         {
             return Fail(EError::Numeric, TEXT("SourceMaxHPP2"), TEXT("Max HP is required by the resolved coefficient"));
         }
-        if (Input.SourceMaxHPP2.IsSet() && !WithinP2Bounds(Input.SourceMaxHPP2.GetValue(), Parameters.MaxHP))
+        // The source's max HP above its own base and level growth: zero for a character without any.
+        if (Input.SourceMaxHPP2.IsSet() && (Input.SourceMaxHPP2.GetValue() < 0 || Input.SourceMaxHPP2.GetValue() > Parameters.MaxHP.MaxP2))
         {
             return Fail(EError::Domain, TEXT("SourceMaxHPP2"), TEXT("Max HP is outside the catalog point domain"));
         }
@@ -434,6 +435,18 @@ namespace LDTactical
         const int64 Steps = FMath::Max<int64>(0, int64(Level) - 1);
         const int64 BaseADP2 = Parameters.AD.BaseP2 + Steps * Parameters.AD.PerLevelP2;
         return FMath::Max<int64>(0, TotalADP2 - BaseADP2);
+    }
+
+    int64 BonusMaxHPOf(const FLDDemoContentParameters& Parameters, int32 Level, int64 TotalMaxHPP2)
+    {
+        const int64 Steps = FMath::Max<int64>(0, int64(Level) - 1);
+        return FMath::Max<int64>(0, TotalMaxHPP2 - (Parameters.MaxHP.BaseP2 + Steps * Parameters.MaxHP.PerLevelP2));
+    }
+
+    double AreaScaleBeside(int64 AppliedAreaBp, int64 ExtraBp)
+    {
+        const int64 Applied = FMath::Max<int64>(AppliedAreaBp, 10000);
+        return double(Applied + FMath::Max<int64>(ExtraBp, 0)) / double(Applied);
     }
 
     ELDDemoDamageType EffectiveDamageType(ELDDemoDamageType DefaultType, int64 AdaptiveRatioBp, int64 BonusADP2, int64 APP2)

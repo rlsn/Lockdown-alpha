@@ -216,6 +216,8 @@ struct FLDCombatActiveTerms
     int64 SplitWindowMs=0;
     // D08: the innate dash pays this much momentum (copies add).
     int64 DashMomentumCostP2=0;
+    // K07: the multiplier the reshapes put into this release's areas (10000 without one).
+    int64 AreaBp=10000;
 };
 
 // Y08: a knockback whose source holds Y08 watches for its first real blocking fact (also a branch wall stun).
@@ -1560,7 +1562,14 @@ private:
     bool AdvanceDecoys(int64 NowMs, FString& Error);
     bool AdvanceSynergyStates(int64 NowMs, FString& Error);
     bool IsEagleStanceActive(const FLDBodyCombatState& Body, int64 NowMs) const;
-    double HulkingAreaScaleOf(const FLDBodyCombatState& Body) const;
+    // Max HP above the character's own base and level growth. Damage that scales with max HP reads this, shields read
+    // the whole maximum.
+    int64 BonusMaxHpP2Of(const FLDBodyCombatState& Body) const;
+    // The hulking presence growth of an area. AppliedAreaBp is the multiplier the release's own reshapes already put
+    // into the radius and ExtraAreaBp another growth of the same area: all add into one multiplier, none compounds.
+    double HulkingAreaScaleOf(const FLDBodyCombatState& Body, int64 AppliedAreaBp = 10000, int64 ExtraAreaBp = 0) const;
+    // The warcry ring's growth of its own area: 10% per LimitP2 of the caster's max HP.
+    static int64 WarcryAreaBpOf(const FLDBodyCombatState& Body, const FLDDemoAbilityValues& Values);
     int64 HulkingKnockbackKeepBp(const FLDBodyCombatState& Body) const;
     // Enemy bags an area reaches and sees from its anchor (the world sight bodies need, CollectAreaTargets) take its raw amount.
     // final_cage: a hostile hit that crosses the standing fence wears it by its raw amount (RawBagDamageP2); it still

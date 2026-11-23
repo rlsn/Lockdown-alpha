@@ -8,7 +8,7 @@
   "adapter": {"module": "BuildEvaluationLockdown", "id": "lockdown-demo"},
   "scenario": {
     "kind": "duel_site",
-    "parameters": {"site": "capture", "duel_timeout_ms": 45000, "supply_xp": {"subject": 1575, "opponent": 1575}}
+    "parameters": {"site": "capture", "duel_timeout_ms": 45000, "supply_xp": {"subject": 1890, "opponent": 1890}}
   },
   "sample_class": "diagnostic",
   "assumptions": [

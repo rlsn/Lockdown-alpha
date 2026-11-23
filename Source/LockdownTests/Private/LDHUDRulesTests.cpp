@@ -659,6 +659,24 @@ bool FLDHUDCardTextTest::RunTest(const FString& Parameters)
         FString(TEXT("护甲 +17，攻速 +50%。")));
     TestFalse(TEXT("An active's template never reads a per-point bonus"),
         LDHUD::CardText(TEXT("每点 +[per_point.ADFlat]。"),Values,L1,Ranks,1000).bComplete);
+    // Max-HP coefficients: damage reads only the bonus max HP; a shield and the shield of a pulse read the whole maximum.
+    FLDDemoEffectDefinition HPDamage;HPDamage.Opcode=uint8(ELDDemoEffectOp::Damage);HPDamage.BaseP2=6000;HPDamage.MaxHPRatioBp=300;
+    FLDDemoEffectDefinition HPShield;HPShield.Opcode=uint8(ELDDemoEffectOp::Shield);HPShield.BaseP2=2500;HPShield.MaxHPRatioBp=600;
+    HPShield.DurationMs=3000;
+    FLDDemoEffectDefinition HPPulse;HPPulse.Opcode=uint8(ELDDemoEffectOp::Pulse);HPPulse.BaseP2=1000;HPPulse.MaxHPRatioBp=200;
+    FLDDemoAbilityValues HPValues;HPValues.Effects={HPDamage,HPShield,HPPulse};
+    LDHUD::FCardStats Bulky=L1;Bulky.MaxHPP2=300000;Bulky.BonusMaxHPP2=100000;
+    TestEqualSensitive(TEXT("3000 max HP with 1000 bonus: damage 60 + 3% x 1000, shield 25 + 6% x 3000, pulse shield 10 + 2% x 3000"),
+        LDHUD::CardText(TEXT("造成 [damage.amount] 伤害，获得 [shield.amount] 护盾，每跳 [pulse.amount] 护盾。"),HPValues,Bulky,Ranks,1000).Plain,
+        FString(TEXT("造成 90 伤害，获得 205 护盾，每跳 70 护盾。")));
+    LDHUD::FCardStats Lean=L1;Lean.MaxHPP2=86000;
+    TestEqualSensitive(TEXT("Without bonus max HP the damage is its base alone and the shields still read the maximum"),
+        LDHUD::CardText(TEXT("造成 [damage.amount] 伤害，获得 [shield.amount] 护盾，每跳 [pulse.amount] 护盾。"),HPValues,Lean,Ranks,1000).Plain,
+        FString(TEXT("造成 60 伤害，获得 77 护盾，每跳 27 护盾。")));
+    LDHUD::FCardStats HPBlueprint=L1;HPBlueprint.bShowScalingFormula=true;
+    TestEqualSensitive(TEXT("A blueprint names which maximum each coefficient reads"),
+        LDHUD::CardText(TEXT("造成 [damage.amount] 伤害，获得 [shield.amount] 护盾，每跳 [pulse.amount] 护盾。"),HPValues,HPBlueprint,Ranks,1000).Plain,
+        FString(TEXT("造成 60 + 3%自身额外生命上限 伤害，获得 25 + 6%自身生命上限 护盾，每跳 10 + 2%自身生命上限 护盾。")));
     // #198 stat rows: [per_point.<Stat>] reads the per-point bonus exactly as authored, decimals kept and never grown.
     FLDDemoStatDefinition Brains;Brains.Id=TEXT("hud_rules_fixture_brains");
     FLDDemoStatBonus AP;AP.Stat=ELDDemoBonusStat::APFlat;AP.Amount=500;

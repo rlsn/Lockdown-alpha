@@ -431,7 +431,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("AIRDROP.AnnounceLeadSec", "ms", "15"), ("AIRDROP.PickupRadiusCm", "cm", "150"),
             ("AIRDROP.HealMaxHPRatio", "ratio", ".20"),
             ("AIRDROP.MoveSpeedRatio", "ratio", ".20"), ("AIRDROP.MoveSpeedSec", "ms", "6"),
-            ("LEADER.RefreshSec", "ms", "10"), ("LEADER.SurvivalPointSec", "ms", "30"), ("LEADER.CircleRadiusCm", "cm", "1500"),
+            ("LEADER.RefreshSec", "ms", "10"), ("LEADER.SurvivalPointSec", "ms", "60"), ("LEADER.CircleRadiusCm", "cm", "1500"),
             ("LEADER.CircleMaxOffsetCm", "cm", "1000"),
             ("REWARD.AssistWindowSec", "ms", "15"), ("REWARD.AssistXPRatio", "ratio", ".5"), ("REWARD.LevelGapXPStep", "ratio", ".12"), ("REWARD.LevelGapXPMin", "ratio", ".4"), ("REWARD.LevelGapXPMax", "ratio", "1.6"), ("REWARD.KillMedalChance", "ratio", ".25"), ("GROWTH.BuildSafeWindowSec", "ms", "4"),
             ("AI.RetreatHPRatio", "ratio", ".25"), ("AI.ResumeFarmHPRatio", "ratio", ".45"),
@@ -513,7 +513,7 @@ class ApprovedDemoData(unittest.TestCase):
         ):
             expected[key] = (unit, value)
         for key, value in (
-            ("XP.BaseToNext", 60), ("XP.IncreasePerLevel", 20), ("XP.SteepFromLevel", 5), ("XP.SteepExtraPerLevel", 15),
+            ("XP.BaseToNext", 60), ("XP.IncreasePerLevel", 20), ("XP.SteepFromLevel", 5), ("XP.SteepExtraPerLevel", 30),
             ("MEDAL.MaxTier", 3),
             ("SHOWDOWN.RespawnLimit", 2),
             ("REWARD.PlayerXP.Base", 70), ("REWARD.PlayerXP.PerLevel", 20), ("REWARD.BountyXP", 150), ("REWARD.BountyCardOffer", 3), ("AI.RetryPolicy.MaxAttempts", 3),
@@ -522,7 +522,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("LEADER.MinLevel", 3),
             ("COMBAT.BreachMaxStacks", 5), ("COMBAT.BurnMaxStacks", 5), ("COMBAT.OverloadBreachStacks", 2),
             ("COMBAT.ShockEveryNthHit", 3), ("COMBAT.MethaneBurnStacks", 2), ("COMBAT.CorrodeBreachStacks", 5), ("GROUND.FireBurnStacks", 1), ("GROUND.MaxPerOwner", 6), ("GROUND.MaxTotal", 40),
-            ("GROWTH.OpeningPoints", 3), ("GROWTH.PointsPerLevel", 3), ("GROWTH.MaxLevelPointsXP", 240), ("GROWTH.MaxLevelPoints", 3),
+            ("GROWTH.OpeningPoints", 3), ("GROWTH.PointsPerLevel", 3), ("GROWTH.MaxLevelPointsXP", 400), ("GROWTH.MaxLevelPoints", 2),
             ("PK.ParticipationPoints", 1), ("PK.WinnerPointsMax", 3), ("PK.BettingPoolMaxPoints", 2),
             # Issue #287 spec §10-§11 (P6) counts.
             ("LIFE.SpawnChoiceCount", 3), ("OBJECTIVE.FlagCardOffer", 3), ("OBJECTIVE.ArenaCardOffer", 5),
@@ -921,9 +921,9 @@ class ApprovedDemoData(unittest.TestCase):
 
     def test_monster_and_progression_values(self):
         self.assertEqual(self.data["progression"]["xp_thresholds"],
-                         (0, 60, 140, 240, 375, 545, 750, 990, 1265, 1575, 1920, 2300, 2715, 3165, 3650, 4170))
+                         (0, 60, 140, 240, 390, 590, 840, 1140, 1490, 1890, 2340, 2840, 3390, 3990, 4640, 5340))
         self.assertEqual(self.data["progression"]["xp_to_next"],
-                         (60, 80, 100, 135, 170, 205, 240, 275, 310, 345, 380, 415, 450, 485, 520))
+                         (60, 80, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 650, 700))
         self.assertEqual((self.data["progression"]["max_level"], self.data["progression"]["active_slots"]), (16, 3))
         for identity, tier, count, hp, resist, attack, rate, windup, reach, speed, leash, grace, xp, interval in (
             ("monster_scavenger", "Low", 3, 90, 8, 14, ".80", 350, 150, 240, 900, 3000, 15, 1250),

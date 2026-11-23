@@ -122,7 +122,7 @@ Root 是动作禁止，不把移动速度属性改成 0 后再夹回 173。
 | `FORMULA.CooldownMs` | $\lceil1000\times BaseCDSec\times100/(100+H)\rceil$ → 本次释放持续时间 | H 非负；6s、H=30 得 4616ms。10s 释放得到 ReadyAt=14.616s，随后升级不改这个端点 |
 | `FORMULA.Regen` | rate × 同一权威时间的实际 elapsed + 亚P2积分余数 → 可提交的0.01点及新余数 | 见 `POLICY.RegenIntegration`；活体才恢复，满资源丢弃溢出。1.6/s 分1000次1ms仍回复1.60 |
 | `FORMULA.ResourceMaxChange` | 以P2整数计算 $\lfloor oldCurrent\times finalNewMax/oldMax\rfloor$ | 用户要求保持比例，最终一次向下量化；40/100→150为60→30为12→150为60→100回40；零上限/活HP下溢见§10.3 |
-| `FORMULA.XPToNext` | $60+20(L-1)$，仅 $L=1..15$ | 正整数；达到十六级不再升级，之后按 `GROWTH.MaxLevelPointsXP` 给点（§4.1）。累计阈值为 0/60/140/240/360/500/660/840/1040/1260/1500/1760/2040/2340/2660/3000 |
+| `FORMULA.XPToNext` | $60+20(L-1)$，仅 $L=1..15$ | 正整数；达到十六级不再升级，之后按 `GROWTH.MaxLevelPointsXP` 给点（§4.1）。五级起每级另加 `XP.SteepExtraPerLevel`；累计阈值见 §6.1 |
 
 普攻节拍从通过初始合法性检查的 AttackStart 提交；技能则在成功 release 才提交
 劲/冷却。前摇内复查目标/来源，导航不负责扣费或退节拍。前摇在出手时刻之前被打断没有挥出，
@@ -293,15 +293,15 @@ AI 读取 `AI.ObjectiveReachCm`（2500）与 `AI.ObjectiveEntryHPRatio`（0.6）
 | --- | --- | --- |
 | `GROWTH.OpeningPoints` | 3 | 开局（成长 `BeginMatch`）给的点数；已确认决定 |
 | `GROWTH.PointsPerLevel` | 3 | 每次升到 2–16 级各给的点数；已确认决定 |
-| `GROWTH.MaxLevelPointsXP` | 240 XP | 满 16 级后，超出 `XP.Threshold[16]` 的累计 XP 每满这么多 |
-| `GROWTH.MaxLevelPoints` | 3 | 每满一段给的点数；满级后不再发牌三选一 |
+| `GROWTH.MaxLevelPointsXP` | 400 XP | 满 16 级后，超出 `XP.Threshold[16]` 的累计 XP 每满这么多 |
+| `GROWTH.MaxLevelPoints` | 2 | 每满一段给的点数；满级后不再发牌三选一 |
 | `GROWTH.BuildSafeWindowSec` | 4 s | 交战窗口（§4.3）：只供 HUD 在交战中收起野外文字摘要；不限制任何成长命令 |
 | `progression.active_offer_levels` | [2, 5, 9] | 额外主动机会的等级 |
 
 基础点数 = `OpeningPoints` + `PointsPerLevel` ×（L − 1）+ `MaxLevelPoints` ×
 ⌊max(0, XP − `XP.Threshold[16]`) / `MaxLevelPointsXP`⌋（最后一项只在 16 级计算）及池空奖励；
 未分配点数 = 已得 − 五维点数之和，不能为负。
-不计额外奖励时开局与正常成长到 16 级共 48 点；之后每满 240 XP 再得 3 点。
+不计额外奖励时开局与正常成长到 16 级共 48 点；之后每满 400 XP 再得 2 点。
 
 **技能等级成长**：固定项随拥有者等级 L 乘 G(L)，再乘技能等级倍率，`SKILL.GrowthPerLevel=0.04`：
 
@@ -331,7 +331,7 @@ $$
 
 ### 4.2 角色主动
 
-伤害类型 P = 物理（按护甲），M = 魔法（按魔抗）；H = 施法者生命上限。表中是 G = 1、技能 1 级的基础值，即 `content.json` 的效果值，
+伤害类型 P = 物理（按护甲），M = 魔法（按魔抗）；H = 施法者生命上限：用于伤害时只取额外生命上限（超出角色基础值与等级成长的部分，体格、牌与临时来源都算），用于护盾时取完整生命上限。表中是 G = 1、技能 1 级的基础值，即 `content.json` 的效果值，
 固定项随拥有者等级乘 G（§4.1）。冷却是基础冷却，受技能急速影响。技能不暴击。
 五种元素、十种反应与地面状态见 §4.4。
 
@@ -487,7 +487,7 @@ $$
 | K04 | `card_setup_line` | 先垫一句 | 触发 | 这个技能命中挂记号 4 s；你的其他技能命中有记号的人 +35%（乘区）并消耗记号 | skill_hit |
 | K05 | `card_pin_amp` | 按住了就放大 | 触发 | 只装在有控制的技能上（含墙撞眩晕、末波定身等附带控制）：这个技能造成控制后 3 s 内，你的下一个技能伤害 +40%（乘区） | control |
 | K06 | `card_encore` | 再来一遍 | 改造 | 这个技能释放后 0.6 s 在同一目标/方向自动再放一次，60% 效果，不耗劲；每多一份多一次 | skill_cast |
-| K07 | `card_crowd_hit` | 一群人一起挨 | 改造 | 只装在飞行物或范围技能上：范围、飞行物半径与直线宽度 ×1.6，伤害不变 | — |
+| K07 | `card_crowd_hit` | 一群人一起挨 | 改造 | 只装在飞行物或范围技能上：范围、飞行物半径与直线宽度 ×1.6，伤害不变；多张的增量相加，并与 U10 的半径加成相加成一个倍率，不相乘 | — |
 | K08 | `card_again_now` | 再来一下别喘 | 改造 | 冷却 −35%，劲耗 +50% | skill_cast, momentum |
 | K09 | `card_big_one` | 攒够一顿狠的 | 改造 | 冷却 +50%，伤害 ×1.8（乘区） | skill_hit |
 | K10 | `card_long_reach` | 站远点照样抽你 | 改造 | 只装在指向或飞行物技能上：射程 +50%；命中时离目标至少 550 cm 则伤害 +25%（乘区） | — |
@@ -516,7 +516,7 @@ $$
 | Y03 | `card_hang_on` | 死扛 | 触发 | 生命低于 15% → 2 s 内受到的每次伤害降为 1（每条命一次） | low_hp |
 | Y04 | `card_reaction_refund` | 反应回本 | 触发 | 触发反应 → 回 15 劲 | reaction, momentum |
 | Y05 | `card_wave_after` | 一波接一波 | 触发 | 触发反应 → 反应结算后给目标挂一个随机的、与刚被消耗的不同的元素；该元素触发的二次反应豁免一次 0.5 s 反应锁 | reaction, element |
-| Y06 | `card_shell_burst` | 壳碎了也崩你 | 触发 | 护盾被打破 → 300 cm 内的敌人受 90 + 40% 法强 + 6% 生命上限魔法伤害 | shield_break |
+| Y06 | `card_shell_burst` | 壳碎了也崩你 | 触发 | 护盾被打破 → 300 cm 内的敌人受 90 + 40% 法强 + 6% 额外生命上限魔法伤害 | shield_break |
 | Y07 | `card_hard_skin` | 挨揍起硬皮 | 触发 | 受到敌方正伤害后获得护盾 45 + 4%H，3 s；获得后 8 s 才能再获得 | damaged, shield |
 | Y08 | `card_ball_kick` | 拿你当球踢 | 触发 | 你造成的击退撞上固定障碍 → 眩晕 0.8 s；撞上另一敌人 → 两人各受 P 60 + 0.5AD | knockback, wall_impact |
 | Y09 | `card_skill_crit` | 技能也能暴击 | 改造 | 你的技能可以暴击（用你的暴击率另加 15%，倍率 2） | crit, skill_hit |
@@ -548,8 +548,8 @@ $$
 | U06 | `card_runaway_train` | 失控列车 | 转化 | 冲刺碰撞附加 45% 当前移速 + 30% 本次冲刺距离的物理伤害；冲刺撞墙返还 40% 剩余冲刺冷却 | dash, dash_contact, move_speed, wall_impact |
 | U07 | `card_phantom_molt` | 幻影脱壳 | 触发 | 触发精准闪避时原地留下 1.0s 嘲讽野怪的残影，随后爆炸对 240cm 内造成 70 + 0.65 自适应伤害并减速 35%（1.2s） | perfect_dodge, dash, area |
 | U08 | `card_skate_blade` | 冰刀割裂 | 触发 | 敌人在冰面上每位移或滑行 100cm 受 28 + 0.30 自适应物理伤害；自身站在冰面上攻速 +25%、移速 +20% | ground, element, move_speed, attack_speed |
-| U09 | `card_tonnage_crush` | 吨位碾压 | 转化 | 第 3 段普攻与自身周围范围技能额外附加 3.5% 最大生命物理伤害（对野怪翻倍为 7%） | max_hp, combo3, area |
-| U10 | `card_hulking_presence` | 大块头有威慑 | 转化 | 每拥有 800 额外最大生命，自身范围/光环/护盾爆破半径扩大 10%，受到的击退距离减少 12% | max_hp, area, knockback |
+| U09 | `card_tonnage_crush` | 吨位碾压 | 转化 | 第 3 段普攻与自身周围范围技能额外附加 3.5% 额外生命上限的物理伤害（对野怪翻倍为 7%） | max_hp, combo3, area |
+| U10 | `card_hulking_presence` | 大块头有威慑 | 转化 | 每拥有 800 额外最大生命，自身范围/光环/护盾爆破半径扩大 10%（上限 +100%；与 K07 的范围加成、扯嗓子喷你“低音震胸”分支按生命上限的扩圈相加成一个倍率，不相乘），受到的击退距离减少 12% | max_hp, area, knockback |
 | U11 | `card_iron_hedgehog` | 铁刺猬 | 转化 | 反伤额外附加 (护甲+魔抗)×0.8 魔法伤害；处于嘲讽、顶着揍或招架期间反伤比例提高 50% | armor, damaged, control |
 | U12 | `card_reactive_plating` | 反应装甲 | 触发 | 身上已有护盾时再获新护盾，向 260cm 内迸射 35% 新护盾量的物理破片；消耗护盾的技能获得 +25% 暴击率 | shield, area, crit |
 | U13 | `card_desperado` | 亡命之徒 | 改造 | 生命低于 45% 时，每缺失 2% 最大生命提升 1.5% 造成伤害与受治疗效果 | low_hp, heal, damaged |
@@ -736,7 +736,7 @@ $$
 **上热搜**：从开局起每 `LEADER.RefreshSec=10` 秒刷新。仍在对局中、等级不低于 `LEADER.MinLevel=3` 的参赛者里
 等级唯一最高者上热搜，等级相同按击杀数，仍相同则无人上热搜；此刻已死亡也不上热搜。公开圆半径 `LEADER.CircleRadiusCm=1500`，
 圆心是刷新瞬间脚点加均匀随机偏移，最多 `LEADER.CircleMaxOffsetCm=1000`（内容校验要求不超过半径，上热搜者总在圈内）；
-随机流只由对局身份和刷新序号决定。击杀上热搜者另得 `REWARD.BountyXP`；同一人连续当选上热搜且未死亡，每满 `LEADER.SurvivalPointSec=30` 秒得到 1 个属性点（在刷新时结算，换人或死亡后重新计时）。
+随机流只由对局身份和刷新序号决定。击杀上热搜者另得 `REWARD.BountyXP`；同一人连续当选上热搜且未死亡，每满 `LEADER.SurvivalPointSec=60` 秒得到 1 个属性点（在刷新时结算，换人或死亡后重新计时）。
 上热搜者死亡结束本次上热搜。是首轮试玩值，未经平衡验证。
 
 **画饼老板 Boss**：`content.json` 的 `boss` 块（`monster_dean`，显示名“画饼老板”）。野外进度 T=`appear_at=210` 秒
@@ -787,10 +787,10 @@ XP 保留为累计整数；没有“当前级经验归零后丢掉溢出”的�
 
 | 达到等级 L | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `XP.Threshold[L]` | 0 | 60 | 140 | 240 | 375 | 545 | 750 | 990 | 1265 | 1575 | 1920 | 2300 | 2715 | 3165 | 3650 | 4170 |
-| 该级到下级 XP | 60 | 80 | 100 | 135 | 170 | 205 | 240 | 275 | 310 | 345 | 380 | 415 | 450 | 485 | 520 | 不再升级 |
+| `XP.Threshold[L]` | 0 | 60 | 140 | 240 | 390 | 590 | 840 | 1140 | 1490 | 1890 | 2340 | 2840 | 3390 | 3990 | 4640 | 5340 |
+| 该级到下级 XP | 60 | 80 | 100 | 150 | 200 | 250 | 300 | 350 | 400 | 450 | 500 | 550 | 600 | 650 | 700 | 不再升级 |
 
-阈值保存在 `progression.xp_thresholds`，并须与参数 `XP.BaseToNext=60`、`XP.IncreasePerLevel=20`、`XP.SteepFromLevel=5`、`XP.SteepExtraPerLevel=15` 一致。
+阈值保存在 `progression.xp_thresholds`，并须与参数 `XP.BaseToNext=60`、`XP.IncreasePerLevel=20`、`XP.SteepFromLevel=5`、`XP.SteepExtraPerLevel=30` 一致。
 比赛开始时（成长 `BeginMatch`，即 Progression 提供者 Prepare，早于发育期开放）每名参赛者（真人与 AI）得到 `GROWTH.OpeningPoints`
 与 1 号主动机会，并固定其首组开局候选；之后每达到一级得到 `GROWTH.PointsPerLevel`，达到 `progression.active_offer_levels` 的等级
 各加一次主动机会；复活不再授予，新局重建。真人的开局面板在本局首次显示该候选时自动打开一次，不代选。
@@ -800,7 +800,7 @@ DEV 成长夹具可预置主动候选，不把 DEV 预置当作随机分布证�
 累计存储有界int64，溢出在整个奖励计划提交前明确拒绝，不静默饱和；UI十六级显示MAX而非暗示17级。
 野怪奖励全部归最后一击，表中“每人平均”只能用于供给估计，不是实现经验分摊。
 参赛者之间的击杀按 App Spec §4.1 的助攻规则（参考 LoL）在同一笔死亡奖励中结算：
-击杀经验先按 `REWARD.PlayerXP` 取受害者等级的基础值，再乘等级差系数（`REWARD.LevelGapXP`，下表）。击杀者拿全额折后经验（本野外段前 2 次击杀各得一组牌三选一，之后改为 +2 属性点），每名助攻者另得其 `REWARD.AssistXPRatio`（向下取整）与 1 个属性点，不稀释击杀者。
+击杀经验先按 `REWARD.PlayerXP` 取受害者等级的基础值，再乘等级差系数（`REWARD.LevelGapXP`，下表）。击杀者拿全额折后经验（本野外段前 2 次击杀各得一组牌三选一，第 3 至第 5 次各改为 +1 属性点，第 6 次起不再有这项额外奖励），每名助攻者另得其 `REWARD.AssistXPRatio`（向下取整）与 1 个属性点，不稀释击杀者。
 击杀时受害者正“上热搜”的，击杀者再得 `REWARD.BountyXP`、3 个属性点，并得到一组 `REWARD.BountyCardOffer` 张的稀有/传说三选一。
 终局之外每次击杀参赛者，击杀者按 `REWARD.KillMedalChance` 掉一枚元素石。
 例：Lv1 击杀者与两名助攻者击杀 Lv1，击杀者得 70 XP，每名助攻者各得 35 XP 与 1 个属性点。资格窗口为 `REWARD.AssistWindowSec`。

@@ -1629,13 +1629,20 @@ FString HudDamageTerm(const FLDDemoEffectDefinition& Effect)
 {
     return Effect.DamageType==ELDDemoDamageType::Magical?LDTerms::MagicalDamage:LDTerms::PhysicalDamage;
 }
+bool HudWholeMaxHP(const FLDDemoEffectDefinition& Effect)
+{
+    const ELDDemoEffectOp Op=Effect.GetOp();
+    // The max-HP coefficient of a pulse or a parry is the shield it grants.
+    return Op==ELDDemoEffectOp::Shield||Op==ELDDemoEffectOp::TriggeredShield||Op==ELDDemoEffectOp::Pulse||Op==ELDDemoEffectOp::ParryStance;
+}
 FString HudScaling(const FLDDemoEffectDefinition& Effect)
 {
     FString Text=HudPoints(Effect.BaseP2);
     if(Effect.ADRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.ADRatioBp)+LDTerms::AttackDamage;}
     if(Effect.APRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.APRatioBp)+LDTerms::AbilityPower;}
     if(Effect.AdaptiveRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.AdaptiveRatioBp)+TEXT("自适应(额外攻击力/法术强度)");}
-    if(Effect.MaxHPRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.MaxHPRatioBp)+TEXT("自身")+LDTerms::MaxHealth();}
+    // A shield reads the whole maximum; damage reads only what exceeds the character's own base and level growth.
+    if(Effect.MaxHPRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.MaxHPRatioBp)+(HudWholeMaxHP(Effect)?TEXT("自身"):TEXT("自身额外"))+LDTerms::MaxHealth();}
     if(Effect.ArmorRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.ArmorRatioBp)+LDTerms::Armor;}
     if(Effect.ResistRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.ResistRatioBp)+TEXT("双抗");}
     return Text;
@@ -1752,6 +1759,10 @@ LDHUD::FCardStats LDHUD::CardStatsOf(uint8 Level,const TArray<FLDCombatAttribute
         Stats.BonusADP2=FMath::Max<int64>(0,Stats.ADP2-(RationalP2(ADRow->Base)+RationalP2(ADRow->Level)));
     }
     Stats.MaxHPP2=P2(ELDProjectedAttribute::MaxHP);Stats.ArmorP2=P2(ELDProjectedAttribute::Armor);
+    if(const FLDCombatAttributeRowView* HPRow=Attributes.FindByPredicate([](const FLDCombatAttributeRowView& R){return R.Attribute==uint8(ELDProjectedAttribute::MaxHP);}))
+    {
+        Stats.BonusMaxHPP2=FMath::Max<int64>(0,Stats.MaxHPP2-(RationalP2(HPRow->Base)+RationalP2(HPRow->Level)));
+    }
     Stats.MagicResistP2=P2(ELDProjectedAttribute::MagicResist);
     return Stats;
 }
@@ -1791,7 +1802,7 @@ bool CardValue(const LDDemoCardText::FToken& Token,const FLDDemoAbilityValues& V
         }
         const int64 AdaptiveStatP2=Stats.BonusADP2*14>=Stats.APP2*10?Stats.BonusADP2:Stats.APP2;
         int64 P2=Effect->BaseP2+Term(Effect->ADRatioBp,Stats.ADP2)+Term(Effect->APRatioBp,Stats.APP2)
-            +Term(Effect->AdaptiveRatioBp,AdaptiveStatP2)+Term(Effect->MaxHPRatioBp,Stats.MaxHPP2)+Term(Effect->ArmorRatioBp,Stats.ArmorP2)
+            +Term(Effect->AdaptiveRatioBp,AdaptiveStatP2)+Term(Effect->MaxHPRatioBp,HudWholeMaxHP(*Effect)?Stats.MaxHPP2:Stats.BonusMaxHPP2)+Term(Effect->ArmorRatioBp,Stats.ArmorP2)
             +Term(Effect->ResistRatioBp,Stats.ArmorP2+Stats.MagicResistP2);
         if(bFactored){P2=P2/10000*Stats.DamageFactorBp+P2%10000*Stats.DamageFactorBp/10000;}
         if(Token.Field==EField::Burst){P2=Term(Effect->SecondaryRatioBp,P2);}
@@ -3669,7 +3680,7 @@ LDHUD::FLiveSkillTooltip LDHUD::EvaluateLiveSkillTooltip(const FActionView& View
             const FLDDemoEffectDefinition* Effect=LDDemoCardText::FindEffect(ValSet,Token);
             if(!Effect){return false;}
             int64 P2=Effect->BaseP2+Share(LiveStats.ADP2,Effect->ADRatioBp)+Share(LiveStats.APP2,Effect->APRatioBp)
-                +Share(AdaptiveStatP2,Effect->AdaptiveRatioBp)+Share(LiveStats.MaxHPP2,Effect->MaxHPRatioBp)+Share(LiveStats.ArmorP2,Effect->ArmorRatioBp);
+                +Share(AdaptiveStatP2,Effect->AdaptiveRatioBp)+Share(HudWholeMaxHP(*Effect)?LiveStats.MaxHPP2:LiveStats.BonusMaxHPP2,Effect->MaxHPRatioBp)+Share(LiveStats.ArmorP2,Effect->ArmorRatioBp);
             if(Token.Field==LDDemoCardText::EField::Burst){P2=Share(P2,Effect->SecondaryRatioBp);}
             if(Effect->GetOp()!=ELDDemoEffectOp::Shield){P2=Share(P2,TotalFactorBp);}
             Out=FString::Printf(TEXT("%lld"),(P2+50)/100);
@@ -3741,7 +3752,7 @@ LDHUD::FLiveSkillTooltip LDHUD::EvaluateLiveSkillTooltip(const FActionView& View
         const int64 BaseBranchP2=RankOnlyValues.Effects[DmgIdx].BaseP2;
         const int64 LevelDeltaP2=FMath::Max<int64>(0,GE.BaseP2-BaseBranchP2);
         const int64 StatBonusP2=Share(LiveStats.ADP2,GE.ADRatioBp)+Share(LiveStats.APP2,GE.APRatioBp)
-            +Share(AdaptiveStatP2,GE.AdaptiveRatioBp)+Share(LiveStats.MaxHPP2,GE.MaxHPRatioBp)+Share(LiveStats.ArmorP2,GE.ArmorRatioBp);
+            +Share(AdaptiveStatP2,GE.AdaptiveRatioBp)+Share(LiveStats.BonusMaxHPP2,GE.MaxHPRatioBp)+Share(LiveStats.ArmorP2,GE.ArmorRatioBp);
         const int64 PreMultP2=GE.BaseP2+StatBonusP2;
         const int64 FinalDmgP2=Share(PreMultP2,TotalFactorBp);
         Result.FinalPrimaryDamageP2=FinalDmgP2;
@@ -3754,7 +3765,7 @@ LDHUD::FLiveSkillTooltip LDHUD::EvaluateLiveSkillTooltip(const FActionView& View
         if(GE.ADRatioBp>0){StatParts.Add(HudPercent(GE.ADRatioBp)+TEXT(" 攻击"));}
         if(GE.APRatioBp>0){StatParts.Add(HudPercent(GE.APRatioBp)+TEXT(" 法强"));}
         if(GE.AdaptiveRatioBp>0){StatParts.Add(HudPercent(GE.AdaptiveRatioBp)+TEXT(" 自适应"));}
-        if(GE.MaxHPRatioBp>0){StatParts.Add(HudPercent(GE.MaxHPRatioBp)+TEXT(" 最大生命"));}
+        if(GE.MaxHPRatioBp>0){StatParts.Add(HudPercent(GE.MaxHPRatioBp)+TEXT(" 额外最大生命"));}
         if(GE.ArmorRatioBp>0){StatParts.Add(HudPercent(GE.ArmorRatioBp)+TEXT(" 护甲"));}
         Result.FormulaLines.Add(FString::Printf(TEXT("属性加成 (%s): +%lld"),
             StatParts.IsEmpty()?TEXT("无系数"):*FString::Join(StatParts,TEXT(" + ")),(StatBonusP2+50)/100));
