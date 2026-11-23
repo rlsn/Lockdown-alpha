@@ -6,6 +6,7 @@ role logs) and answers one question: did every match run to a locked result with
 
 It fails when
 - the run did not complete every requested match, or a match took longer than its wall-clock bound;
+- the runner reports that the Host timed out or exited abnormally, or an evidence file cannot be read;
 - a match file is malformed, has no result id, or ended without a locked outcome (no reason, or the Host ended it);
 - the room was not one human Host plus the requested number of AI, or a contender left;
 - an AI never took an active choice, never learned an active or never gained XP;
@@ -64,18 +65,22 @@ def idle_ais(match):
     return reasons
 
 
-def judge(report, matches, logs, opponents, timeout_seconds):
-    """report: Telemetry.json or None; matches: the parsed MatchNN.json files in order; logs: see scan_logs."""
-    failures, rows = [], []
+def judge(report, matches, logs, opponents, timeout_seconds, problems=()):
+    """report: Telemetry.json or None; matches: the parsed MatchNN.json files in order, None for an unreadable one;
+    logs: see scan_logs; problems: failures found before judging (an unreadable file, a Host that timed out or
+    exited abnormally)."""
+    failures, rows = list(problems), []
     if not isinstance(report, dict):
-        failures.append("The run left no Telemetry.json")
+        failures.append("The run left no readable Telemetry.json")
         report = {}
     requested = report.get("matches_requested")
-    walls = report.get("match_wall_seconds") or []
-    if report and not report.get("passed"):
-        failures.append(f"The telemetry run failed: {report.get('detail') or 'no detail'}")
-    if report and not (isinstance(requested, int) and requested >= 1 and report.get("matches_completed") == requested
-                       and len(matches) == requested and len(walls) == requested):
+    walls = report.get("match_wall_seconds")
+    walls = walls if isinstance(walls, list) else []
+    if report.get("passed") is not True:
+        failures.append(f"The telemetry run did not report a pass: {report.get('detail') or 'no detail'}")
+    # Unconditional: an empty report with no match file is no evidence of a match, however clean the logs are.
+    if not (isinstance(requested, int) and not isinstance(requested, bool) and requested >= 1
+            and report.get("matches_completed") == requested and len(matches) == requested and len(walls) == requested):
         failures.append(f"The run completed {report.get('matches_completed')} of {requested} requested match(es) "
                         f"and left {len(matches)} match file(s)")
     for index, match in enumerate(matches, start=1):
@@ -83,10 +88,13 @@ def judge(report, matches, logs, opponents, timeout_seconds):
         wall = walls[index - 1] if index <= len(walls) else None
         row = {"match": index, "wall_seconds": wall}
         rows.append(row)
+        if match is None:
+            continue
         try:
             check_match(match, index)
-        except ValueError as error:
-            failures.append(f"Malformed match file: {error}")
+        except (ValueError, KeyError, TypeError, AttributeError, IndexError) as error:
+            # check_match reads some fields directly; any structural surprise is this match's failure, not a crash.
+            failures.append(f"Malformed match file: {where}: {type(error).__name__}: {error}")
             continue
         ais = [c for c in match["contenders"] if c["kind"] == "OpponentAI"]
         humans = len(match["contenders"]) - len(ais)
@@ -115,15 +123,30 @@ def judge(report, matches, logs, opponents, timeout_seconds):
             "warnings": warnings, "matches": rows}
 
 
+def read_json(path, problems):
+    """The parsed file, or None with the reason added to problems, so one broken file never hides the others."""
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        problems.append(f"Unreadable evidence file {path.name}: {error}")
+        return None
+
+
 def load(evidence, log_directory):
+    """Returns (report, matches, logs, problems); an unreadable match keeps its place as None."""
     evidence, log_directory = Path(evidence), Path(log_directory)
+    problems = []
     report_file = evidence / "Telemetry.json"
-    report = json.loads(report_file.read_text(encoding="utf-8")) if report_file.is_file() else None
-    files = sorted(path for path in evidence.iterdir() if MATCH_FILE.fullmatch(path.name))
-    matches = [json.loads(path.read_text(encoding="utf-8")) for path in files]
-    logs = {path.name: path.read_text(encoding="utf-8-sig", errors="replace").splitlines()
-            for path in sorted(log_directory.glob("*.log"))}
-    return report, matches, logs
+    report = read_json(report_file, problems) if report_file.is_file() else None
+    files = sorted(path for path in evidence.iterdir() if MATCH_FILE.fullmatch(path.name)) if evidence.is_dir() else []
+    matches = [read_json(path, problems) for path in files]
+    logs = {}
+    for path in sorted(log_directory.glob("*.log")):
+        try:
+            logs[path.name] = path.read_text(encoding="utf-8-sig", errors="replace").splitlines()
+        except OSError as error:
+            problems.append(f"Unreadable log {path.name}: {error}")
+    return report, matches, logs, problems
 
 
 def describe(verdict):
@@ -150,12 +173,13 @@ if __name__ == "__main__":
     parser.add_argument("--opponents", type=int, required=True, help="the AI count the run asked for")
     parser.add_argument("--timeout-seconds", type=int, required=True, help="wall-clock bound of one match")
     parser.add_argument("--output", type=Path, help="verdict path (default: Verdict.json beside the logs)")
+    parser.add_argument("--run-failure", action="append", default=[],
+                        help="a failure the runner saw itself (the Host timed out or exited abnormally); fails the verdict")
     args = parser.parse_args()
     log_directory = args.logs or args.evidence
-    try:
-        result = judge(*load(args.evidence, log_directory), args.opponents, args.timeout_seconds)
-    except (OSError, ValueError) as error:
-        parser.exit(2, f"Unreadable bot match evidence {args.evidence}: {error}\n")
+    loaded_report, loaded_matches, loaded_logs, found = load(args.evidence, log_directory)
+    result = judge(loaded_report, loaded_matches, loaded_logs, args.opponents, args.timeout_seconds,
+                   args.run_failure + found)
     (args.output or log_directory / "Verdict.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     for line in describe(result):
         print(line)

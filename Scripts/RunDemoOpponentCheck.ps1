@@ -139,13 +139,15 @@ function Wait-HostLobby {
 }
 
 # The bot match verdict is JudgeBotMatch.py's alone: it reads the Host's report, every match file and the logs, lists
-# every failure and every game warning, and its exit code is the result. A failed run still gets its verdict.
+# every failure and every game warning, and its exit code is the result. A failed run still gets its verdict: a Host
+# that timed out (stopped by the caller first) or exited with a non-zero code is handed over as -RunFailure.
 function Complete-BotMatch {
-    param([Parameter(Mandatory)]$Watch)
+    param([Parameter(Mandatory)]$Watch, [string]$RunFailure)
     # A package writes its evidence inside itself; bring it beside the logs before judging.
     Complete-LDGameEvidence $launch
-    & python -B (Join-Path $PSScriptRoot 'JudgeBotMatch.py') $output --opponents $AICount --timeout-seconds $TimeoutSeconds 2>&1 |
-        Tee-Object -FilePath (Join-Path $output 'Verdict.txt') | Out-Host
+    $judge = @('-B', (Join-Path $PSScriptRoot 'JudgeBotMatch.py'), $output, '--opponents', $AICount, '--timeout-seconds', $TimeoutSeconds)
+    if ($RunFailure) { $judge += @('--run-failure', $RunFailure) }
+    & python @judge 2>&1 | Tee-Object -FilePath (Join-Path $output 'Verdict.txt') | Out-Host
     $verdict = $LASTEXITCODE
     $wall = [int]$Watch.Elapsed.TotalSeconds
     if ($verdict -ne 0) { throw "Bot match failed after $wall s of wall time (verdict exit $verdict); every failure is listed above. Evidence: $output" }
@@ -158,8 +160,19 @@ function Invoke-OpponentTelemetry {
     # The Host ends itself after the last match, or on the first failure with its reason in Telemetry.json.
     $process = $processes[0]
     $watch = [System.Diagnostics.Stopwatch]::StartNew()
-    if (-not $process.WaitForExit((($TimeoutSeconds * $MatchCount) + 60) * 1000)) { throw "Opponent telemetry timed out: $output" }
-    if ($BotMatch) { Complete-BotMatch $watch; return }
+    $bound = ($TimeoutSeconds * $MatchCount) + 60
+    if (-not $process.WaitForExit($bound * 1000)) {
+        if (-not $BotMatch) { throw "Opponent telemetry timed out: $output" }
+        # Stop the Host and wait for it, so its log is complete and closed before the verdict reads it.
+        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+        [void]$process.WaitForExit(30000)
+        Complete-BotMatch $watch "The Host did not exit within $bound s and was stopped"
+        return
+    }
+    if ($BotMatch) {
+        Complete-BotMatch $watch $(if ($process.ExitCode -ne 0) { "The Host exited with code $($process.ExitCode)" })
+        return
+    }
     $file = Join-Path $evidence 'Telemetry.json'
     if (-not (Test-Path -LiteralPath $file)) { throw "Opponent telemetry left no report (exit $($process.ExitCode)): $output" }
     $report = Get-Content -LiteralPath $file -Raw | ConvertFrom-Json

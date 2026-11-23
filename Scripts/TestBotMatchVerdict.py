@@ -67,7 +67,31 @@ class VerdictTest(unittest.TestCase):
         self.assert_fails(verdict(run=report(passed=False, detail="Telemetry match 1 timed out at stage 3.")), "timed out")
         self.assert_fails(verdict(run=report(count=2)), "completed 2 of 2 requested match(es) and left 1")
         self.assert_fails(verdict(run=report(wall=1200.5)), "outside its 1200 s bound")
-        self.assert_fails(judge(None, [], CLEAN_LOG, 7, 1200), "no Telemetry.json")
+        self.assert_fails(judge(None, [], CLEAN_LOG, 7, 1200), "no readable Telemetry.json")
+
+    def test_an_empty_report_without_match_files_is_not_a_pass(self):
+        result = judge({}, [], CLEAN_LOG, 7, 1200)
+        self.assert_fails(result, "did not report a pass")
+        self.assert_fails(result, "completed None of None requested match(es) and left 0 match file(s)")
+        self.assert_fails(judge({"passed": True}, [], CLEAN_LOG, 7, 1200), "left 0 match file(s)")
+        self.assert_fails(judge({"passed": True, "matches_requested": 0, "matches_completed": 0,
+                                 "match_wall_seconds": []}, [], CLEAN_LOG, 7, 1200), "left 0 match file(s)")
+
+    def test_a_runner_failure_fails_an_otherwise_clean_run(self):
+        result = judge(report(), [played(1)], CLEAN_LOG, 7, 1200, ["The Host exited with code 3"])
+        self.assert_fails(result, "The Host exited with code 3")
+        self.assertEqual(result["matches"][0]["reason"], "ObjectiveTimeout")
+
+    def test_a_structural_surprise_in_a_match_file_fails_only_that_match(self):
+        no_killer = played(1)
+        del no_killer["kills"][0]["killer"]
+        not_a_dict = played(2)
+        not_a_dict["contenders"][1]["curve"] = None
+        result = verdict([no_killer, not_a_dict, played(3)], logs={"A.log": ["LogLDX: Error: one"]})
+        self.assert_fails(result, "Malformed match file: Match01: KeyError")
+        self.assert_fails(result, "Malformed match file: Match02")
+        self.assert_fails(result, "1 error line(s) logged")
+        self.assertEqual(result["matches"][2]["reason"], "ObjectiveTimeout")
 
     def test_the_room_must_be_the_idle_host_and_the_requested_ai(self):
         self.assert_fails(verdict([played(1, opponents=3)]), "not the idle Host and 7 AI")
@@ -128,9 +152,12 @@ class CommandLineTest(unittest.TestCase):
             (directory / f"Match{index:02d}.json").write_text(json.dumps(value), encoding="utf-8")
         # Unreal writes its logs as UTF-8 with a byte order mark and Chinese text in them.
         (directory / "Telemetry.log").write_text("\n".join(log_lines) + "\n", encoding="utf-8-sig")
+        return self.run_judge_only(directory, opponents=opponents)
+
+    def run_judge_only(self, directory, *extra, opponents=7):
         script = Path(__file__).with_name("JudgeBotMatch.py")
         return subprocess.run([sys.executable, "-B", str(script), str(directory), "--opponents", str(opponents),
-                               "--timeout-seconds", "1200"], capture_output=True, text=True, encoding="utf-8")
+                               "--timeout-seconds", "1200", *extra], capture_output=True, text=True, encoding="utf-8")
 
     def test_writes_the_verdict_and_exits_by_it(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -142,8 +169,36 @@ class CommandLineTest(unittest.TestCase):
             saved = json.loads((directory / "Verdict.json").read_text(encoding="utf-8"))
             self.assertTrue(saved["passed"])
             self.assertEqual(saved["warnings"], {"LD_CAMP_PATH_STALLED": 1})
-            loaded_report, loaded_matches, loaded_logs = load(directory, directory)
-            self.assertEqual((loaded_report["opponents"], len(loaded_matches), list(loaded_logs)), (7, 1, ["Telemetry.log"]))
+            loaded_report, loaded_matches, loaded_logs, problems = load(directory, directory)
+            self.assertEqual((loaded_report["opponents"], len(loaded_matches), list(loaded_logs), problems),
+                             (7, 1, ["Telemetry.log"], []))
+
+    def test_a_broken_match_file_keeps_its_number_and_the_rest_is_still_judged(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            self.run_judge(directory, [played(1), played(2), played(3)], ["LogLDCombat: Error: LD_DEMO_AUTHORITY_FAULT step"])
+            (directory / "Match02.json").write_text('{"schema": 5, "match": 2,', encoding="utf-8")
+            done = self.run_judge_only(directory)
+            self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+            self.assertIn("FAILED: Unreadable evidence file Match02.json", done.stdout)
+            self.assertIn("FAILED: 1 error line(s) logged", done.stdout)
+            self.assertIn("Match 3: ObjectiveTimeout", done.stdout)
+            saved = json.loads((directory / "Verdict.json").read_text(encoding="utf-8"))
+            self.assertEqual([row["match"] for row in saved["matches"]], [1, 2, 3])
+            self.assertNotIn("reason", saved["matches"][1])
+
+    def test_an_unreadable_report_or_a_runner_failure_still_writes_a_failed_verdict(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            self.run_judge(directory, [played(1)], ["clean"])
+            done = self.run_judge_only(directory, "--run-failure", "The Host timed out and was stopped")
+            self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+            self.assertIn("FAILED: The Host timed out and was stopped", done.stdout)
+            (directory / "Telemetry.json").write_text("{", encoding="utf-8")
+            done = self.run_judge_only(directory)
+            self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+            self.assertIn("FAILED: Unreadable evidence file Telemetry.json", done.stdout)
+            self.assertFalse(json.loads((directory / "Verdict.json").read_text(encoding="utf-8"))["passed"])
 
     def test_a_failed_verdict_exits_nonzero_and_lists_every_failure(self):
         with tempfile.TemporaryDirectory() as temporary:
