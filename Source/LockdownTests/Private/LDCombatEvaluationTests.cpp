@@ -513,6 +513,15 @@ bool FLDDemoDamageControlAmplifyTest::RunTest(const FString& Parameters)
         {
             return false;
         }
+        // The input is the caster's bonus max HP: a caster without any still casts, for the base and the other terms.
+        Input.SourceMaxHPP2 = 0;
+        const int64 RawWithoutBonus = Effect->BaseP2 * 10000 + AD * Effect->ADRatioBp + AP * Effect->APRatioBp;
+        const int64 Unboosted = RawWithoutBonus * Scale / ((Scale + Resist) * 10000);
+        if (!CheckDamage(*this, TEXT("Zero bonus max HP is evaluated and adds nothing"), Input, *Catalog,
+            {Unboosted, 0, Unboosted, 0, HP - Unboosted, 0}))
+        {
+            return false;
+        }
     }
     Input = PrimaryInput(*Catalog);
     Input.Definition.Emplace(0, Content.Character.BasicADRatioBp, 0, Content.Character.BasicDamageType, 600);
