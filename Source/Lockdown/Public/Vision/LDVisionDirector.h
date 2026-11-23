@@ -187,12 +187,16 @@ private:
 class LOCKDOWN_API FLDObserverCoverage
 {
 public:
+    // A moving source rescans at most this often; a first sample, a reset or a new world rescans at once. The client draws
+    // its own fog locally, so this display grant may trail a moving foot by up to this long.
+    static constexpr double MovingRefreshSeconds = .25;
     // Returns whether coverage was recomputed. Non-published/non-relay samples get a codec-valid zero bitmap.
-    bool Sample(const FLDSightGeometry& Sight, const FVector& Foot, bool bPublish, bool bHasRelay, TArray<uint8>& OutBits);
+    bool Sample(const FLDSightGeometry& Sight, const FVector& Foot, double NowSeconds, bool bPublish, bool bHasRelay, TArray<uint8>& OutBits);
     void Reset() { *this = FLDObserverCoverage(); }
 private:
     FLDWorldRevision World;
     FVector SourceFeet = FVector::ZeroVector;
+    double NextMoveRefreshAt = 0;
     TArray<uint8> Bits;
 };
 
@@ -330,6 +334,7 @@ private:
         TWeakObjectPtr<ALDWorldViewRelay> Relay;
         FLDObserverLedger Ledger;
         FLDObserverCoverage Coverage;
+        TArray<FLDObserverCoverage> MateCoverage; // One per living PK teammate, in TeammateFeet order.
         FLDWorldView Latest;
         bool bHasLatest = false;
         // VISION.SightGraceSec: when and where each unit's life was last in this observer's own sight.
