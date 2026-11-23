@@ -329,20 +329,20 @@ public:
     }
 
     bool ResolveCampPoint(ALDPlayerController& Owner, FName Camp, const FVector& FromFoot, double Bearing,
-        TConstArrayView<double> Distances, TOptional<FVector>& Out, FString& Error)
+        TConstArrayView<double> Distances, TOptional<FVector>& Out, FString& Why)
     {
         if (Out.IsSet()) { return true; }
         const auto* Registry = Owner.GetWorld()->GetSubsystem<ULDMapRegistry>();
         const FLDMapBinding* Anchor = Registry ? Registry->Resolve(Camp, Registry->Generation) : nullptr;
         FCollisionShape Capsule;
-        if (!Anchor || !PrepareWalk(*Registry, Error) || !ULDMapRegistry::ContentCapsule(*Catalog, Capsule, Error))
+        if (!Anchor || !PrepareWalk(*Registry, Why) || !ULDMapRegistry::ContentCapsule(*Catalog, Capsule, Why))
         {
-            if (Error.IsEmpty()) { Error = TEXT("The fixture camp has no registered ground."); }
+            if (Why.IsEmpty()) { Why = TEXT("The fixture camp has no registered ground."); }
             return false;
         }
         FLDLegalGround From;
         ELDWorldQueryFailure Failure;
-        if (!Registry->QueryGround(Registry->Revision(), FromFoot, Capsule, Anchor->Surface, From, Failure, Error)) { return false; }
+        if (!Registry->QueryGround(Registry->Revision(), FromFoot, Capsule, Anchor->Surface, From, Failure, Why)) { return false; }
         for (double Distance : Distances)
         {
             for (int32 Step = 0; Step < 16; ++Step)
@@ -355,31 +355,31 @@ public:
                 if (!Registry->ResolveWalkableGround(XY, Foot)
                     || WalkKeepouts.ContainsByPredicate([&](const LDScenarioWalk::FKeepout& Zone)
                         { return FVector::DistSquared2D(Foot, Zone.Centre) <= FMath::Square(Zone.Radius); })
-                    || !Registry->QueryGround(Registry->Revision(), Foot, Capsule, Anchor->Surface, Ground, Failure, Error)
-                    || !Registry->QueryCompletePath(Registry->Revision(), From, Ground, Capsule, Path, Failure, Error))
+                    || !Registry->QueryGround(Registry->Revision(), Foot, Capsule, Anchor->Surface, Ground, Failure, Why)
+                    || !Registry->QueryCompletePath(Registry->Revision(), From, Ground, Capsule, Path, Failure, Why))
                 {
                     continue;
                 }
                 TArray<FVector> Route;
-                if (!LDScenarioWalk::Plan(*Registry, *Catalog, FromFoot, Ground.SurfaceCm, WalkKeepouts, WalkArrivalCm, Route, Error))
+                if (!LDScenarioWalk::Plan(*Registry, *Catalog, FromFoot, Ground.SurfaceCm, WalkKeepouts, WalkArrivalCm, Route, Why))
                 {
                     continue;
                 }
                 Out = Ground.SurfaceCm;
-                Error.Reset();
+                Why.Reset();
                 return true;
             }
         }
-        Error = FString::Printf(TEXT("The fixture found no reachable point around camp %s."), *Camp.ToString());
+        Why = FString::Printf(TEXT("The fixture found no reachable point around camp %s."), *Camp.ToString());
         return false;
     }
 
-    bool ResolveApproach(ALDPlayerController& Owner, FName Camp, double Bearing, TOptional<FVector>& Out, FString& Error)
+    bool ResolveApproach(ALDPlayerController& Owner, FName Camp, double Bearing, TOptional<FVector>& Out, FString& Why)
     {
         const auto* Body = Cast<ALDCharacter>(Owner.GetPawn());
-        if (!Body) { Error = TEXT("The fixture has no owning field body."); return false; }
+        if (!Body) { Why = TEXT("The fixture has no owning field body."); return false; }
         const double Distances[] = {240., 320., 400.};
-        return ResolveCampPoint(Owner, Camp, Body->GetNavAgentLocation(), Bearing, Distances, Out, Error);
+        return ResolveCampPoint(Owner, Camp, Body->GetNavAgentLocation(), Bearing, Distances, Out, Why);
     }
 
     // Walks from the current deployment via waypoints that keep clear of authored camp homes and Boss waypoints.
