@@ -295,6 +295,40 @@ bool RunChoiceOrder(FAutomationTestBase& Test)
         PunchHeal.DefinitionId = TEXT("card_punch_heal");
         PunchHeal.TargetKind = ELDCardTargetKind::Body;
         BasicArchetype.Cards = {Berserk, PunchHeal};
+        // An element medal takes no capacity slot: it goes into an empty element slot of a full workshop, fuses onto its own
+        // kind, and never swaps one out.
+        if (const FLDDemoCardDefinition* MedalDef = C.Get().Cards.FindByPredicate([](const FLDDemoCardDefinition& Row) { return Row.Form == ELDCardForm::Medal; }))
+        {
+            FLDOpponentSelf MedalHolder = BasicArchetype;
+            MedalHolder.CardCapacity = 2;
+            FLDOpponentCard Held;
+            Held.Serial = 3;
+            Held.DefinitionId = MedalDef->Id;
+            Held.TargetKind = ELDCardTargetKind::Skill;
+            Held.TargetActive = TEXT("active_elbow");
+            FLDOpponentCard Stored;
+            Stored.Serial = 4;
+            Stored.DefinitionId = MedalDef->Id;
+            MedalHolder.Cards.Append({Held, Stored});
+            uint16 Serial = 0;
+            FLDCardTarget Target;
+            bGood &= Test.TestTrue(TEXT("Installed medals stay out of the AI's capacity count"),
+                LDOpponentPolicy::InstalledCards(MedalHolder, C) == 2);
+            bGood &= Test.TestTrue(TEXT("A stored medal fuses onto its own kind on a full workshop"),
+                LDOpponentPolicy::SelectCardInstall(MedalHolder, C, Serial, Target) && Serial == 4
+                && Target.Kind == ELDCardTargetKind::Skill && Target.Active == FName(TEXT("active_elbow")));
+            MedalHolder.Cards[2].Tier = uint8(FMath::Clamp(C.Get().Parameters.Medal.MaxTier, 1, 3));
+            bGood &= Test.TestTrue(TEXT("A stored medal takes the empty body slot past the top tier"),
+                LDOpponentPolicy::SelectCardInstall(MedalHolder, C, Serial, Target) && Target.Kind == ELDCardTargetKind::Body);
+            MedalHolder.Cards[2].TargetKind = ELDCardTargetKind::Body;
+            MedalHolder.Cards[2].TargetActive.Reset();
+            FLDOpponentCard OnSkill = Held;
+            OnSkill.Serial = 5;
+            OnSkill.Tier = MedalHolder.Cards[2].Tier;
+            MedalHolder.Cards.Add(OnSkill);
+            bGood &= Test.TestFalse(TEXT("A stored medal never swaps one out"),
+                LDOpponentPolicy::SelectCardInstall(MedalHolder, C, Serial, Target));
+        }
         BasicArchetype.StatPoints = StatRows(C, {{Agility, 18}});
         BasicArchetype.UnspentPoints = 10;
         TArray<uint8> DualCounts;

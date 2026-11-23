@@ -279,6 +279,7 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const TArray<FLDDemoSta
         if (!Owned.IsInstalled()) { continue; }
         Card.TargetKind = Owned.Target.Kind;
         Card.TargetActive = Owned.Target.Active.IsNone() ? FString() : CanonicalId(Owned.Target.Active);
+        Card.Tier = Owned.Tier;
         Card.Element = Owned.Target.Element;
         FLDInstalledCardValue& Value = Installed.AddDefaulted_GetRef();
         Value.CardId = Owned.DefinitionId;

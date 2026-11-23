@@ -420,7 +420,6 @@ private:
     void CloseQuickEquip();
     bool BeginReplacePick(FName Component,LDHUD::EStorageColumn Column);
     void CloseReplacePick();
-    int32 ColumnInstalledCards(LDHUD::EStorageColumn Column) const;
     bool Commit(FName Component,const LDHUD::FCardDrop& Drop,ELDDemoElement Element);
     bool Send(FLDBuildCommand Command);
     void ShowFinal(const FLDBuildReceipt& Receipt);
