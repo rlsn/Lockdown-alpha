@@ -61,7 +61,15 @@ public:
     // the rest entry reached leaves first (#198 outer §5: never into the final field).
     bool FreezeForRest(const FLDGameplayWritePermit& Permit, FString& Error);
     bool ThawAfterRest(const FLDGameplayWritePermit& Permit, FString& Error);
+    // The field entry (RespawnsAndWorld): retires every camp body of the ending segment, then stands each group of
+    // SegmentIndex up suspended. bReady stays false while a group is blocked; the entry holds until every group stands.
     bool ResetForFieldSegment(uint8 SegmentIndex, const FLDGameplayWritePermit& Permit, bool& bReady, FString& Error);
+    // RespawnsAndWorld during a rest's return countdown, before the entry is due: the same reset ahead of the entry, at
+    // most FieldResetGroupsPerFrame camps per frame in roster order, first retiring every old group and then standing the
+    // new ones (the order and the species draws of ResetForFieldSegment). Like the initial camps, the bound is per frame,
+    // not per authority step. ResetForFieldSegment then only finishes what is still pending at the entry.
+    static constexpr int32 FieldResetGroupsPerFrame = 3;
+    bool PrepareFieldSegmentAhead(uint8 SegmentIndex, const FLDGameplayWritePermit& Permit, FString& Error);
     // Spec §11.3 second-hand dealer (RespawnsAndWorld): appears beside CampAnchor at OffsetCm in direction AngleRad (bBlocked:
     // try again later), and leaves unkilled.
     bool SpawnPeddler(FName CampAnchor, double AngleRad, double OffsetCm, const FLDGameplayWritePermit& Permit, bool& bBlocked,
@@ -166,7 +174,15 @@ private:
     int32 NextInitialCamp = MAX_int32;
     // Between FreezeForRest and ThawAfterRest.
     bool bRestFrozen = false;
+    // The field segment whose reset began, and how many camps (roster order) of it have retired their old bodies.
     uint8 PreparedFieldSegment = 0;
+    int32 RetiredForFieldReset = 0;
     // GFrameCounter of the last initial batch.
     uint64 InitialBatchFrame = MAX_uint64;
+    // GFrameCounter of the last batch of PrepareFieldSegmentAhead.
+    uint64 FieldResetFrame = MAX_uint64;
+    void BeginFieldReset(uint8 SegmentIndex);
+    bool RetireCampForReset(int32 Camp, const FLDGameplayWritePermit& Permit, FString& Error);
+    // Stands one pending group of the reset up suspended; bBlocked when its placement must wait.
+    bool StandResetGroup(int32 Camp, const FLDGameplayWritePermit& Permit, bool& bBlocked, FString& Error);
 };
