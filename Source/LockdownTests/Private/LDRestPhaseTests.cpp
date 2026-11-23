@@ -167,8 +167,8 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
     const FLDTimelineView View = Line.MakeView(3, 7);
     bGood &= TestTrue(TEXT("Clients derive the same T from the public view"),
         LDMatchTimeline::FieldNowFromView(View, Final + 60000) == 3 * Seg + 60000 && View.FieldEndT == -1);
-    // Start to the flagpole: R0 (20 + 3 s), R1 & R2 (40 + 3 s each), R3 (20 + 3 s) and three 160 s segments, 612 s.
-    bGood &= TestEqual(TEXT("The flagpole opens 612 s after the start"), Final - Start, int64(612000));
+    // With no PK, showdown entry follows the 35 s opening, three 65 s build windows, four 3 s returns and 480 s of field.
+    bGood &= TestEqual(TEXT("The showdown starts 722 s after match start without PK"), Final - Start, int64(722000));
     return bGood;
 }
 
