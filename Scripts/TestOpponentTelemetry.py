@@ -29,11 +29,11 @@ def contender(kind, slot, ident, level_curve, final_level, winner=False, attempt
             "curve": {"t_ms": times, "level": level_curve, "xp": [0] * len(times)}}
 
 
-def match(index, duration_ms=125000, winner_slot=1, first_kill=30000):
+def match(index, duration_ms=125000, winner_slot=1, first_kill=30000, opponents=3):
     samples = duration_ms // 1000
     winner = ai_id(winner_slot) if winner_slot >= 0 else ""
     rows = [contender("Human", -1, HUMAN, [1] * samples, 1)]
-    for slot in range(3):
+    for slot in range(opponents):
         level = [1 + (i * 1000) // 60000 for i in range(samples)]
         rows.append(contender("OpponentAI", slot, ai_id(slot), level, level[-1], ai_id(slot) == winner, attempts=2))
     return {"schema": 5, "match": index, "generation": index, "result_id": f"{index:032x}",
@@ -93,6 +93,31 @@ class SummaryTest(unittest.TestCase):
             self.assertNotIn(retired, summary["growth"])
         self.assertEqual(summary["ai"]["assists"]["count"], 6)
 
+    def test_room_size_follows_the_run_up_to_a_full_room(self):
+        summary = summarize([match(1, opponents=7, winner_slot=6)])
+        self.assertEqual(summary["opponents"], 7)
+        self.assertEqual(summary["wins_by_slot"], {str(slot): int(slot == 6) for slot in range(7)})
+        self.assertEqual(summary["ai"]["final_level"]["count"], 7)
+        with self.assertRaises(ValueError):
+            summarize([match(1), match(2, opponents=7)])
+        with self.assertRaises(ValueError):
+            summarize([match(1, opponents=8)])
+
+    def test_names_every_locked_end_reason(self):
+        timed_out = match(1)
+        timed_out["reason"] = "ObjectiveTimeout"
+        timed_out["guard_success_ms"] = -1
+        summary = summarize([timed_out])
+        self.assertEqual(summary["reasons"]["ObjectiveTimeout"], 1)
+        self.assertEqual(summary["ai_capture_wins"], 0)
+
+    def test_guard_win_on_a_private_pole_has_no_shared_guard_time(self):
+        private = match(1)
+        private["guard_success_ms"] = -1
+        summary = summarize([private])
+        self.assertEqual(summary["ai_capture_wins"], 1)
+        self.assertEqual(summary["capture"]["guard_success_ms"], {"count": 0, "missing": 1})
+
     def test_host_ended_match_has_no_winner_slot(self):
         summary = summarize([match(1, winner_slot=-1)])
         self.assertEqual(summary["reasons"]["HostEnded"], 1)
@@ -104,7 +129,6 @@ class SummaryTest(unittest.TestCase):
         cases = []
         bad = match(1); bad["match"] = 2; cases.append(bad)
         bad = match(1); bad["schema"] = 4; cases.append(bad)
-        bad = match(1); bad["guard_success_ms"] = -1; cases.append(bad)
         bad = match(1, winner_slot=-1); bad["guard_success_ms"] = 100; cases.append(bad)
         bad = match(1); bad["kills"][0]["assisters"] = [ai_id(0)]; cases.append(bad)
         bad = match(1); bad["deaths"][0]["outcome"] = "NoReward"; cases.append(bad)

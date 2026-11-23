@@ -318,7 +318,7 @@ public:
 
     // Walks to a camp approach from wherever the body stands, such as the field spawn the R0 return drew at random from
     // every approved spawn. Native moves follow fixture waypoints that keep clear of every authored camp member home and
-    // Boss waypoint (LDScenarioWalk, as the Growth and Vision probes do), so idle camp bodies standing on the direct
+    // Boss waypoint (LDScenarioWalk, as the Vision probe does), so idle camp bodies standing on the direct
     // line cannot block it (s09 -> l09 passes l19's homes). The approach itself and its arrival radius are unchanged.
     bool Walk(double Now, ALDPlayerController& Owner, const FVector& Goal, const TCHAR* Id)
     {

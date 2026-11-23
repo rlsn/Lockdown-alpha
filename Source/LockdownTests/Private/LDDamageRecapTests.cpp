@@ -263,6 +263,17 @@ bool FLDDamageRecapChainDisplayTest::RunTest(const FString& Parameters)
     LDHUD::ReactionChainNodes(&Content, Fatal, Self, TEXT("阿强"), Icons);
     TestTrue(TEXT("The source and the consumed state show their content icons"), Icons.Num() == 4
         && Icons[0].IconId == TEXT("icon_zap") && Icons[2].IconId == TEXT("icon_wet") && Icons[3].IconId.IsEmpty());
+    // A creature has a display row for its name but no icon picture: its attack shows a glyph and asks for no texture.
+    FLDDemoMonsterDefinition Creature;
+    Creature.Id = TEXT("zap");
+    Content.Monsters.Add(Creature);
+    Icons.Reset();
+    LDHUD::ReactionChainNodes(&Content, Fatal, Self, TEXT("阿强"), Icons);
+    TestTrue(TEXT("A creature source shows its glyph instead of an icon"), Icons.Num() == 4
+        && Icons[0].IconId.IsEmpty() && !Icons[0].Glyph.IsEmpty() && Icons[2].IconId == TEXT("icon_wet"));
+    TestTrue(TEXT("A creature id has no content icon"), LDHUD::ContentIconId(&Content, TEXT("zap")).IsEmpty()
+        && LDHUD::ContentIconId(&Content, TEXT("wet")) == TEXT("icon_wet"));
+    Content.Monsters.Reset();
     Icons.Reset();
     LDHUD::ReactionChainNodes(&Content, Line(Killer, Source(ELDCombatSourceKind::Innate), 100), Self, FString(), Icons);
     TestTrue(TEXT("The innate dash shows the dash icon and no chain"), Icons.Num() == 1 && Icons[0].IconId == LDUIIcons::Dash);

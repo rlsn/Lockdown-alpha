@@ -7,8 +7,8 @@ param([string]$EngineRoot,
     # Rule tests to run after the build (RunTests.ps1 -Filter); none = skip the rule-test step.
     [string[]]$Filter,
     # Scenarios to run in order, each through its own Run*Check.ps1.
-    [ValidateSet('Core','Combat','Camp','Growth','Capture','Vision','VisionReaction','Entry','Frontend','WorldRoom','SessionFault',
-        'Opponent','OpponentUI','Telemetry','CombatVfx')][string[]]$Scenario,
+    [ValidateSet('Core','Combat','Camp','GrowthLink','Capture','Vision','VisionReaction','Entry','Frontend','WorldRoom','SessionFault',
+        'Opponent','OpponentUI','Telemetry','BotMatch','CombatVfx')][string[]]$Scenario,
     # Skip the editor build (the binaries are already current).
     [switch]$NoBuild)
 . (Join-Path $PSScriptRoot 'Common.ps1')
@@ -17,11 +17,12 @@ $engine = @{}
 if ($EngineRoot) { $engine.EngineRoot = $EngineRoot }
 $scripts = @{
     Core = @('RunDemoCoreCheck.ps1', @{}); Combat = @('RunDemoCombatCheck.ps1', @{}); Camp = @('RunDemoCampCheck.ps1', @{})
-    Growth = @('RunDemoGrowthCheck.ps1', @{}); Capture = @('RunDemoCaptureCheck.ps1', @{}); Vision = @('RunDemoVisionCheck.ps1', @{})
+    GrowthLink = @('RunDemoGrowthLinkCheck.ps1', @{}); Capture = @('RunDemoCaptureCheck.ps1', @{}); Vision = @('RunDemoVisionCheck.ps1', @{})
     VisionReaction = @('RunDemoVisionCheck.ps1', @{ReactionOnly = $true}); Entry = @('RunDemoEntryCheck.ps1', @{})
     Frontend = @('RunDemoFrontendCheck.ps1', @{}); WorldRoom = @('RunDemoWorldRoomCheck.ps1', @{})
     SessionFault = @('RunDemoSessionFaultCheck.ps1', @{}); Opponent = @('RunDemoOpponentCheck.ps1', @{})
     OpponentUI = @('RunDemoOpponentCheck.ps1', @{UIOnly = $true}); Telemetry = @('RunDemoOpponentCheck.ps1', @{Telemetry = $true; Accelerated = $true})
+    BotMatch = @('RunDemoOpponentCheck.ps1', @{BotMatch = $true})
     CombatVfx = @('CaptureDemoArt.ps1', @{CombatVfx = $true})
 }
 $steps = [System.Collections.Generic.List[object]]::new()
