@@ -22,6 +22,7 @@
 #include "EngineUtils.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
+#include "Core/LDTrace.h"
 
 THIRD_PARTY_INCLUDES_START
 #include <openssl/sha.h>
@@ -1660,7 +1661,7 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
     }
     TArray<FGuid> Removed;
     TArray<FLDObservedUnitView> Units;
-    if (!Observer.Ledger.Sample(Visible, Removed, Units, Error)) { return false; }
+    if (!LD_TRACED(LDVisionObserverLedger, Observer.Ledger.Sample(Visible, Removed, Units, Error))) { return false; }
     // #198 R15: a skill effect has its source's body permissions: hidden across isolation groups, the whole arena for a
     // spectator, the living teammates' sight for a PK life; a flight that left sight or ended is concealed with the units.
     FGuid ObserverGroup;
@@ -1710,7 +1711,10 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
         View.Footprint.SourceStatus = ELDObservationSource::ActiveBody;
         View.Footprint.SourceFeetCm = Foot;
         View.Footprint.RadiusCm = float(Sight.MaximumRadius());
-        Observer.Coverage.Sample(Sight, Foot, bPublish, Relay != nullptr, View.Footprint.CurrentBits);
+        {
+            TRACE_CPUPROFILER_EVENT_SCOPE(LDVisionObserverCoverage);
+            Observer.Coverage.Sample(Sight, Foot, bPublish, Relay != nullptr, View.Footprint.CurrentBits);
+        }
         // #198 session D: a spectator's authorized coverage includes the whole arena; a PK life's includes its teammates'.
         if (bPublish && Relay && (bSpectating || !TeammateFeet.IsEmpty()))
         {
@@ -1818,9 +1822,14 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
         }
     }
     if (!LDObservation::ValidateView(View, Error)) { return false; }
-    Observer.Latest = View;
+    // The view (units and the whole coverage mask) is kept, not copied, and published from where it is kept.
+    Observer.Latest = MoveTemp(View);
     Observer.bHasLatest = true;
-    if (bPublish && Relay) { Relay->ClientFullView(View); }
+    if (bPublish && Relay)
+    {
+        TRACE_CPUPROFILER_EVENT_SCOPE(LDVisionObserverSend);
+        Relay->ClientFullView(Observer.Latest);
+    }
     return true;
 }
 
@@ -1846,7 +1855,7 @@ bool ALDVisionDirector::PublishAuthority(const FLDMatchContext& InMatch, FString
     bSampled = true;
     TRACE_CPUPROFILER_EVENT_SCOPE(LDVisionSample);
     TArray<FLDObservedTarget> Targets;
-    if (!GatherTargets(Targets, Error)) { return false; }
+    if (!LD_TRACED(LDVisionGatherTargets, GatherTargets(Targets, Error))) { return false; }
     // Combat's flights after its last Effects advance; Vision only decides who may see them.
     TArray<FLDObservedProjectileFact> Flights;
     if (!Core->Combat->ReadObservedProjectiles(Flights, Error))
