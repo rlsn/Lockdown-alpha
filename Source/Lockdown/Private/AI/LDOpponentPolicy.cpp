@@ -213,7 +213,6 @@ struct FContext
     FLDOpponentPolicyState& State;
     const int64 Now;
     const FLDOpponentPOI* Capture = nullptr;
-    mutable FLDOpponentPOI AnnouncedDrop;
     double CaptureRadiusCm = 0;
     double DormRadiusCm = 0;
     double AirdropRadiusCm = 0;
@@ -336,15 +335,7 @@ struct FContext
     // D26: the public point of the current airdrop when its walk is not suppressed by failure memory, or nullptr.
     const FLDOpponentPOI* AirdropTarget() const
     {
-        const FLDOpponentPOI* Drop = FindPOI(Frame.Public.AirdropPOI);
-        if (Frame.Public.AirdropFootCm.IsSet() && !Frame.Public.AirdropPOI.IsNone())
-        {
-            AnnouncedDrop.Id = Frame.Public.AirdropPOI;
-            AnnouncedDrop.Kind = ELDOpponentPOIKind::Airdrop;
-            AnnouncedDrop.SurfaceId = Capture->SurfaceId;
-            AnnouncedDrop.FootCm = Frame.Public.AirdropFootCm.GetValue();
-            Drop = &AnnouncedDrop;
-        }
+        const FLDOpponentPOI* Drop = Frame.Public.AirdropPOI.IsNone() ? nullptr : FindPOI(Frame.Public.AirdropPOI);
         return Drop && Drop->Kind == ELDOpponentPOIKind::Airdrop && CanAttempt(PathKey(Drop->Id)) ? Drop : nullptr;
     }
     // P6 spec §10.3: the public place of the live mid-field objective (a mini_flag_* point, or the flagpole for the arena)

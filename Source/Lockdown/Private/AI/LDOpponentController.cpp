@@ -439,7 +439,26 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
     if (Public.Airdrop.Phase == ELDAirdropPhase::Announced || Public.Airdrop.Phase == ELDAirdropPhase::Landed)
     {
         Frame.Public.AirdropPOI = Public.Airdrop.PointId;
-        Frame.Public.AirdropFootCm = Public.Airdrop.PositionCm;
+        FLDOpponentPOI* Drop = Frame.POIs.FindByPredicate([&Public](const FLDOpponentPOI& Place)
+        {
+            return Place.Id == Public.Airdrop.PointId && Place.Kind == ELDOpponentPOIKind::Airdrop;
+        });
+        if (!Drop)
+        {
+            const auto* Capture = Frame.POIs.FindByPredicate([](const FLDOpponentPOI& Place)
+            {
+                return Place.Kind == ELDOpponentPOIKind::Capture;
+            });
+            if (Capture && !Capture->SurfaceId.IsNone())
+            {
+                const FName Surface = Capture->SurfaceId;
+                Drop = &Frame.POIs.AddDefaulted_GetRef();
+                Drop->Id = Public.Airdrop.PointId;
+                Drop->Kind = ELDOpponentPOIKind::Airdrop;
+                Drop->SurfaceId = Surface;
+            }
+        }
+        if (Drop) { Drop->FootCm = Public.Airdrop.PositionCm; }
         Frame.Public.bAirdropLanded = Public.Airdrop.Phase == ELDAirdropPhase::Landed;
     }
     // #198 outer §5: the open camp markers, as every participant's public view lists them.
