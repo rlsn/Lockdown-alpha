@@ -37,8 +37,8 @@
 
 ## 权威身体与每步开销
 
-- **每步的移动**：每个注册身体每步走一次原生移动（`ULDCharacterMovementComponent::AdvanceAuthorityMovement`），并留下本步的移动记录，冲刺接触判定要读每个身体的这份记录（包括站着不动的）。移动期间战斗状态不变，身体的速度与加速度系数每次调用只向 Combat 读一次。
-- **静止的营地成员**：没有输入、站在静态地面上的营地成员走 `TryAdvanceStationaryMovement`，不跑原生物理，只查一次“有没有东西挤进来”。同一姿态做过一次完整查询后，脚下那块静态地面不再参与后续查询；一旦跑过完整的原生移动，这份结论作废重来。
+- **每步的移动**：每个注册身体每步走一次原生移动（`ULDCharacterMovementComponent::AdvanceAuthorityMovement`），并留下本步的移动记录，冲刺接触判定要读每个身体的这份记录（包括站着不动的）。
+- **静止的营地成员**：没有输入、站在静态地面上的营地成员走 `TryAdvanceStationaryMovement`，不跑原生物理，只查一次“有没有东西挤进来”（`LDStationaryPenetration`）。这次查询的耗时主要在查询本身的固定开销，实测让它跳过脚下的静态地面并不更快。
 - **营地成员身体**（`ALDCampMemberCharacter`）不带表现组件、镜头臂和镜头，也不运行 Actor Tick：它只通过观察代理显示，由营地在权威步内驱动。`ALDCharacter` 的这三个子对象是可选的，参赛者身体总是齐全。
 - **空闲的营地成员**在 Actions 阶段不读地面、视野和战斗状态，直接原地保持；只有已消费的敌对接触能让它进入交战（`LDCampDecision::Evaluate` 对 Idle 恒答 Hold）。
 - **内容查找**：`FLDDemoContentSnapshot` 对每张定义表建有按 id 的索引，技能、卡牌和怪物另有按名字（`FindAbilityByName`、`FindCardByName`、`FindMonsterByName`）、营地另有按锚点（`FindCampByAnchor`）的索引；界面取显示行走 `FLDDemoContentDefinitions::FindDisplay`。查不到时仍走完整路径给出原因。
