@@ -77,6 +77,25 @@ class VerdictTest(unittest.TestCase):
         self.assert_fails(judge({"passed": True, "matches_requested": 0, "matches_completed": 0,
                                  "match_wall_seconds": []}, [], CLEAN_LOG, 7, 1200), "left 0 match file(s)")
 
+    def test_a_match_file_without_a_match_is_not_a_pass(self):
+        for empty in (None, [], "text", 5):
+            result = judge(report(), [empty], CLEAN_LOG, 7, 1200)
+            self.assert_fails(result, "Match01: the match file holds no match to judge")
+        result = judge(report(2), [None, played(2)], CLEAN_LOG, 7, 1200)
+        self.assert_fails(result, "Match01: the match file holds no match to judge")
+        self.assertEqual(result["matches"][1]["reason"], "ObjectiveTimeout")
+
+    def test_a_leaver_without_a_usable_name_is_named_by_its_id(self):
+        value = played(1)
+        value["contenders"][2]["left"] = True
+        del value["contenders"][2]["name"]
+        value["contenders"][3]["left"] = True
+        value["contenders"][3]["name"] = 7
+        result = verdict([value], logs={"A.log": ["LogLDX: Error: one"]})
+        self.assert_fails(result, "a contender left the match: " + value["contenders"][2]["contender"] + ", "
+                          + value["contenders"][3]["contender"])
+        self.assert_fails(result, "1 error line(s) logged")
+
     def test_a_runner_failure_fails_an_otherwise_clean_run(self):
         result = judge(report(), [played(1)], CLEAN_LOG, 7, 1200, ["The Host exited with code 3"])
         self.assert_fails(result, "The Host exited with code 3")
@@ -186,6 +205,10 @@ class CommandLineTest(unittest.TestCase):
             saved = json.loads((directory / "Verdict.json").read_text(encoding="utf-8"))
             self.assertEqual([row["match"] for row in saved["matches"]], [1, 2, 3])
             self.assertNotIn("reason", saved["matches"][1])
+            (directory / "Match02.json").write_text("null", encoding="utf-8")
+            done = self.run_judge_only(directory)
+            self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+            self.assertIn("FAILED: Match02: the match file holds no match to judge", done.stdout)
 
     def test_an_unreadable_report_or_a_runner_failure_still_writes_a_failed_verdict(self):
         with tempfile.TemporaryDirectory() as temporary:

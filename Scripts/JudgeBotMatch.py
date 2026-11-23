@@ -88,7 +88,9 @@ def judge(report, matches, logs, opponents, timeout_seconds, problems=()):
         wall = walls[index - 1] if index <= len(walls) else None
         row = {"match": index, "wall_seconds": wall}
         rows.append(row)
-        if match is None:
+        if not isinstance(match, dict):
+            # An unreadable file, or one holding JSON that is no match (null, a list): there is nothing to judge.
+            failures.append(f"{where}: the match file holds no match to judge")
             continue
         try:
             check_match(match, index)
@@ -106,7 +108,9 @@ def judge(report, matches, logs, opponents, timeout_seconds, problems=()):
             failures.append(f"{where}: took {wall} s of wall time, outside its {timeout_seconds} s bound")
         if len(ais) != opponents or humans != 1:
             failures.append(f"{where}: the room held {humans} human(s) and {len(ais)} AI, not the idle Host and {opponents} AI")
-        left = [c["name"] for c in match["contenders"] if c.get("left")]
+        # check_match does not vouch for the name; the contender id it did check stands in for a missing or odd one.
+        left = [c["name"] if isinstance(c.get("name"), str) and c["name"] else c["contender"]
+                for c in match["contenders"] if c.get("left")]
         if left:
             failures.append(f"{where}: a contender left the match: {', '.join(left)}")
         idle = idle_ais(match)
