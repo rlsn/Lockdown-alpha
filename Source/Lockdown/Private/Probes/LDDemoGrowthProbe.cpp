@@ -1859,29 +1859,15 @@ public:
             TEXT("Both duel sites are legal ground outside the capture circle, the airdrop pickups, the dorms and the camp/Boss exclusions"),
             FString::Printf(TEXT("kill=%s host=%s %s"), *KillSite.ToCompactString(), *HostSite.ToCompactString(), *SiteError)))
         { return false; }
-        const double CampBegan = FPlatformTime::Seconds();
         const bool bCampReady = PrepareLowCamp(Registry, BodyRadius, SiteError);
-        const double RoutesBegan = FPlatformTime::Seconds();
         if (!Check(bCampReady, TEXT("N03"),
             TEXT("The Host's low-camp reward sample has authored homes and a legal native approach"),
             HostCampAnchor + TEXT(": ") + SiteError)) { return false; }
-        for (const auto& Anchor : Registry.GetGeometry()->Anchors)
-        {
-            if (Anchor.Kind != ELDDemoWorldAnchorKind::Spawn) { continue; }
-            FVector Spawn;
-            if (!Anchor.PositionCm.ToVector(Spawn, SiteError))
-            { return Check(false, TEXT("N03"), TEXT("The authored spawn position is valid"), Anchor.Id + TEXT(": ") + SiteError); }
-            for (const FVector& Site : {KillSite, HostSite})
-            {
-                if (!PlanDuelWalk(Registry, Spawn, Site, SiteError))
-                { return Check(false, TEXT("N03"), TEXT("Every authored spawn has a legal camp/Boss-free fixture route to both duel sites"),
-                    Anchor.Id + TEXT(": ") + SiteError); }
-            }
-        }
+        // A walk to a duel site is planned when a body starts it (NavigateDuelSite), from wherever that body spawned.
+        // Planning every authored spawn's routes here blocked the Listen Host for the whole plan at field entry.
         WalkWaypoints.Reset();
         bSitesReady = true;
-        return Check(true, TEXT("N03"), TEXT("Every authored spawn has a legal camp/Boss-free fixture route to both duel sites"),
-            FString::Printf(TEXT("camp=%s sample %.1fs routes %.1fs"), *HostCampAnchor, RoutesBegan - CampBegan, FPlatformTime::Seconds() - RoutesBegan));
+        return Check(true, TEXT("N03"), TEXT("The duel sites and the Host's low-camp sample are ready"), HostCampAnchor);
     }
 
     bool PrepareWalkKeepouts(const ULDMapRegistry& Registry, double BodyRadius, FString& WalkError)
