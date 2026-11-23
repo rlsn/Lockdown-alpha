@@ -2,6 +2,7 @@
 #include "Combat/LDCombatPreInput.h"
 #include "PK/LDPKDirector.h"
 #include "Core/LDLog.h"
+#include "Core/LDTrace.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDCharacterMovementComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -143,7 +144,7 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
             continue;
         }
         const int64 Now=Mode->GetAuthorityNowMs();
-        const int64 End=FMath::Min(Now+FMath::Min(MaxStepMs,ThroughMs-Now),NextDueMs(Now));
+        const int64 End=FMath::Min(Now+FMath::Min(MaxStepMs,ThroughMs-Now),LD_TRACED(LDStep_NextDue,NextDueMs(Now)));
         Mode->ReleaseConsumedMotion();
         const auto Admission=Mode->BeginAuthorityStep(*this,Match,End);
         if (Admission!=ELDCommitReject::None)
@@ -151,20 +152,20 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
             Error=FString::Printf(TEXT("Core refused native step: %u."),uint8(Admission));
             return false;
         }
+        // Bodies integrate in entity order. Each key is read once, not looked up again on every comparison.
         TArray<TWeakObjectPtr<ALDCharacter>> CurrentBodies;
-        Bodies.GetKeys(CurrentBodies);
-        CurrentBodies.RemoveAll([&](const TWeakObjectPtr<ALDCharacter>& Weak) { return !Weak.IsValid() || !Bodies.Contains(Weak); });
-        CurrentBodies.Sort([&](const auto& Left,const auto& Right)
         {
-            const FLDBodyCombatState* LeftState=Bodies.Find(Left);
-            const FLDBodyCombatState* RightState=Bodies.Find(Right);
-            if (!LeftState || !RightState)
+            TRACE_CPUPROFILER_EVENT_SCOPE(LDStep_SortBodies);
+            TArray<TPair<FGuid,TWeakObjectPtr<ALDCharacter>>> Ordered;
+            Ordered.Reserve(Bodies.Num());
+            for (const auto& Pair : Bodies)
             {
-                UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_MISSING_BODY_SORT"));
-                return LeftState!=nullptr && RightState==nullptr;
+                if (Pair.Key.IsValid()) { Ordered.Emplace(Pair.Value.Victim.EntityId,Pair.Key); }
             }
-            return LeftState->Victim.EntityId<RightState->Victim.EntityId;
-        });
+            Ordered.Sort([](const auto& Left,const auto& Right) { return Left.Key<Right.Key; });
+            CurrentBodies.Reserve(Ordered.Num());
+            for (const auto& Entry : Ordered) { CurrentBodies.Add(Entry.Value); }
+        }
         ContactMotion.Reset();
         if (!Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Motion,[&](const FLDGameplayWritePermit& Permit)
         {
@@ -309,17 +310,17 @@ bool ALDCombatDirector::RunActions(const FLDGameplayWritePermit& Permit, FString
     if (!Mode || Mode->ValidateWritePermit(Permit,ELDCommitPhase::Actions)!=ELDCommitReject::None)
     { Error=TEXT("Combat actions require the current Actions permit."); return false; }
     // Regeneration of the elapsed interval settles before this boundary's actions can start combat.
-    if (!Regenerate(Mode->GetAuthorityNowMs(),Error)) { return false; }
+    if (!LD_TRACED(LDActions_Regenerate,Regenerate(Mode->GetAuthorityNowMs(),Error))) { return false; }
     // Lapsed temporary terms and HP-conditional bonuses are current before any action reads attributes.
-    if (!RefreshAllTemporary(Mode->GetAuthorityNowMs(),Error)) { return false; }
+    if (!LD_TRACED(LDActions_Temporary,RefreshAllTemporary(Mode->GetAuthorityNowMs(),Error))) { return false; }
     // A taunt whose taunter died, left or went out of the victim's observation ends before any intent is judged.
-    if (!RefreshTaunts(Error)) { return false; }
+    if (!LD_TRACED(LDActions_Taunts,RefreshTaunts(Error))) { return false; }
     // K06: repeats due now release before this boundary's intents.
-    if (!RunAutoRecasts(Mode->GetAuthorityNowMs(),Error)) { return false; }
+    if (!LD_TRACED(LDActions_AutoRecasts,RunAutoRecasts(Mode->GetAuthorityNowMs(),Error))) { return false; }
     // Camp members submit their basic attacks through the same entry first, so they are admitted below.
     if (!Mode->Camps) { Error=TEXT("Camp intents require the camp owner of this match."); return false; }
     // #198: camps stay idle (no aggro, chase or attack) while a rest freezes the world.
-    if (!Mode->IsRestPhase(Mode->GetMatchContext()) && !Mode->Camps->ProcessAuthorityIntents(Permit,Error)) { return false; }
+    if (!Mode->IsRestPhase(Mode->GetMatchContext()) && !LD_TRACED(LDActions_CampIntents,Mode->Camps->ProcessAuthorityIntents(Permit,Error))) { return false; }
     // Direct intents first: an ability may interrupt a basic windup before Navigation starts the next one.
     TArray<FGuid> Entities;
     Records.GetKeys(Entities);
@@ -366,9 +367,9 @@ bool ALDCombatDirector::RunActions(const FLDGameplayWritePermit& Permit, FString
     for (const auto& Contender : Owners)
     {
         auto* PC=Contender.Value.Get();
-        if (PC && !PC->Navigation->ProcessAuthorityOrders(Permit,Error)) { return false; }
+        if (PC && !LD_TRACED(LDActions_Orders,PC->Navigation->ProcessAuthorityOrders(Permit,Error))) { return false; }
     }
-    return ReleaseDue(Permit,Error);
+    return LD_TRACED(LDActions_Release,ReleaseDue(Permit,Error));
 }
 
 bool ALDCombatDirector::RunEffects(const FLDGameplayWritePermit& Permit, FString& Error)
@@ -378,26 +379,27 @@ bool ALDCombatDirector::RunEffects(const FLDGameplayWritePermit& Permit, FString
     { Error=TEXT("Combat effects require the current Effects permit."); return false; }
     const int64 Now=Mode->GetAuthorityNowMs();
     // Skill branch follow-ups, pulses and bursts due now (a shield's natural end heals before statuses expire).
-    if (!AdvanceBranches(Now,Error)) { return false; }
+    if (!LD_TRACED(LDEffects_Branches,AdvanceBranches(Now,Error))) { return false; }
     // Half-open statuses end before this boundary's hits; regeneration already settled in Actions.
-    ExpireStatuses(Now);
+    { TRACE_CPUPROFILER_EVENT_SCOPE(LDEffects_ExpireStatuses); ExpireStatuses(Now); }
     // B12: voluntary dashes that completed by now (motion already ran to this boundary) arm their empowered packages.
-    if (!ResolveDashCompletions(Now,Error)) { return false; }
+    if (!LD_TRACED(LDEffects_Dashes,ResolveDashCompletions(Now,Error))) { return false; }
     // Zones, burns and element records due now join this boundary's hits and projectiles.
     ReactionFacts.Reset();
     ReactionAssists.Reset();
-    if (!AdvanceSkillContent(Now,Error) || !AdvanceMechanics(Now,Error) || !AdvanceElements(Now,Error) || !AdvanceGround(Now,Error)
-        || !AdvanceBurns(Now,Error)
-        || !AdvanceProjectiles(Error))
+    if (!LD_TRACED(LDEffects_SkillContent,AdvanceSkillContent(Now,Error)) || !LD_TRACED(LDEffects_Mechanics,AdvanceMechanics(Now,Error))
+        || !LD_TRACED(LDEffects_Elements,AdvanceElements(Now,Error)) || !LD_TRACED(LDEffects_Ground,AdvanceGround(Now,Error))
+        || !LD_TRACED(LDEffects_Burns,AdvanceBurns(Now,Error))
+        || !LD_TRACED(LDEffects_Projectiles,AdvanceProjectiles(Error)))
     { return false; }
     // #198 F: C02 blocks seen by this boundary's motion, M12 debts, C08 stores and M02 locked batches.
-    if (!AdvanceMonsterStrikes(Now,Error) || !AdvanceCards(Now,Error)) { return false; }
+    if (!LD_TRACED(LDEffects_MonsterStrikes,AdvanceMonsterStrikes(Now,Error)) || !LD_TRACED(LDEffects_Cards,AdvanceCards(Now,Error))) { return false; }
     // Every hit of this boundary, then the C01 windows it closed.
-    if (!ApplyPendingHits(Now,Error)) { return false; }
+    if (!LD_TRACED(LDEffects_Hits,ApplyPendingHits(Now,Error))) { return false; }
     // Spec §6.5: chains idle past CHAIN.EndSec end here.
-    if (!AdvanceChains(Now,Error)) { return false; }
+    if (!LD_TRACED(LDEffects_Chains,AdvanceChains(Now,Error))) { return false; }
     // Slows and HP changes of this boundary reach the effective attributes before the next motion step.
-    if (!RefreshAllTemporary(Now,Error)) { return false; }
+    if (!LD_TRACED(LDEffects_Temporary,RefreshAllTemporary(Now,Error))) { return false; }
     if (PendingContacts.IsEmpty()) { return true; }
     if (!Mode->Camps) { Error=TEXT("Camp contacts require the camp owner of this match."); return false; }
     const TArray<FLDCombatHostileContact> Contacts=MoveTemp(PendingContacts);
