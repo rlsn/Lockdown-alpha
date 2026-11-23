@@ -33,8 +33,6 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoMotionProbe.LedgeNavigation",
         "Lockdown.Rules.DemoMotionProbe.Stationary",
         "Lockdown.Rules.DemoMotionProbe.StationarySupport",
-        "Lockdown.Rules.DemoGrowthProbe.CampDetourGeometry",
-        "Lockdown.Rules.DemoGrowthProbe.HudRewardBinding",
         "Lockdown.Rules.ArtCatalogAsset",
         "Lockdown.Rules.ArtDecorations",
         "Lockdown.Rules.StaticScene.PersistenceAndBinding",

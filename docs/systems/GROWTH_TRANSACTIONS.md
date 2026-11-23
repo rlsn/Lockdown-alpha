@@ -50,4 +50,4 @@
 ## 检查入口
 
 - 纯规则与目录：`Lockdown.Rules.DemoGrowth*`、`Lockdown.Rules.DemoAssist.*`、`Lockdown.Rules.HUDFlowSmoothness`、`Scripts/TestDemoContentImport.py`、`Scripts/TestBuildEvaluation.py`。
-- 拥有连接场景：`Scripts/RunDemoGrowthCheck.ps1`、`Scripts/RunDemoCampCheck.ps1`。
+- 拥有连接场景：`Scripts/RunDemoGrowthLinkCheck.ps1`（回执与视图同步、一次真实击杀）、`Scripts/RunDemoCampCheck.ps1`；分层与边界见[验证手册](VERIFICATION.md#成长的四层验证)。

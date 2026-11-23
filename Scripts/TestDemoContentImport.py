@@ -21,7 +21,13 @@ from CatalogTools import encode
 import DemoContent as demo
 from DemoContentTestFixtures import simple_ranks, write_fixture, write_world, world_fixture
 import SyncDemoContentData as sync
+import DemoWorld
 import SyncDemoWorldData as world_sync
+
+# Most tests here recompile a fixture whose world bytes they did not change. The worker process keeps one reuse scope
+# open for its lifetime, so an identical world payload is validated and bound once per process instead of per compile.
+_WORLD_REUSE = DemoWorld.reuse_binding_reports()
+_WORLD_REUSE.__enter__()
 
 
 def leaves(value, path="content"):

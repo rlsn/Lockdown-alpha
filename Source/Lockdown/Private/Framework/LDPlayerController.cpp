@@ -12,7 +12,7 @@
 #include "Navigation/LDNavigationComponent.h"
 #include "Probes/LDDemoEntryProbe.h"
 #include "Probes/LDDemoVisionProbe.h"
-#include "Probes/LDDemoGrowthProbe.h"
+#include "Probes/LDDemoGrowthLinkProbe.h"
 #include "Probes/LDDemoCombatProbe.h"
 #include "Probes/LDDemoCampProbe.h"
 #include "Probes/LDDemoCaptureProbe.h"
@@ -64,7 +64,7 @@ void ALDPlayerController::BeginPlay()
     LDDemoTests::StartCoreProbe(*this);
     LDDemoTests::StartSoloProbe(*this);
     LDDemoTests::StartVisionProbe(*this);
-    LDDemoTests::StartGrowthProbe(*this);
+    LDDemoTests::StartGrowthLinkProbe(*this);
     LDDemoTests::StartCombatProbe(*this);
     LDDemoTests::StartCampProbe(*this);
     LDDemoTests::StartCaptureProbe(*this);

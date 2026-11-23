@@ -189,7 +189,12 @@ FString LDHUD::ContentIconId(const FLDDemoContentDefinitions* Content,const FStr
 {
     const FLDDemoDisplayDefinition* Display=Content&&!ContentId.IsEmpty()
         ?Content->Display.FindByPredicate([&ContentId](const FLDDemoDisplayDefinition& D){return D.Id==ContentId;}):nullptr;
-    return Display?Display->IconId:FString();
+    // The character and the creatures have a display row for their name but no icon picture (#85): a creature's attack in
+    // a recap shows its name's glyph instead of asking for a texture that was never made.
+    if(!Display||ContentId==Content->Character.Id
+        ||Content->Monsters.ContainsByPredicate([&ContentId](const FLDDemoMonsterDefinition& M){return M.Id==ContentId;}))
+    {return FString();}
+    return Display->IconId;
 }
 FString LDHUD::StatusName(const FLDDemoContentDefinitions* Content,uint8 StatusId)
 {

@@ -23,14 +23,14 @@
 #include "Misc/Paths.h"
 #include "Serialization/JsonSerializer.h"
 
-// DEV-only telemetry: one idle Listen Host and three opponent AI play several matches back to back through the
-// normal lobby. The Host only reads authority state to record how each match unfolded; it never enters play or
+// DEV-only telemetry: one idle Listen Host and the requested number of opponent AI (three unless
+// -LDDemoOpponentAI names another count, up to a full room) play several matches back to back through the normal lobby. The Host only reads authority state to record how each match unfolded; it never enters play or
 // feeds anything back to a policy. This records numbers for review, it is not an acceptance check of the AI.
 enum class ELDOpponentTelemetryStage : uint8 { Join, Lobby, Starting, Match, Results };
 
 namespace LDDemoOpponentTelemetryDetail
 {
-constexpr uint8 OpponentCount = 3;
+constexpr int32 DefaultOpponents = 3;
 constexpr int64 CurveMs = 1000;
 constexpr int32 MaxMatches = 50;
 constexpr uint32 MatchSchema = 5;
@@ -43,6 +43,10 @@ const TCHAR* ReasonName(ELDMatchEndReason Reason)
     {
     case ELDMatchEndReason::GuardSucceeded: return TEXT("GuardSucceeded");
     case ELDMatchEndReason::HostEnded: return TEXT("HostEnded");
+    case ELDMatchEndReason::ObjectiveTimeout: return TEXT("ObjectiveTimeout");
+    case ELDMatchEndReason::NoChampion: return TEXT("NoChampion");
+    case ELDMatchEndReason::SprayCount: return TEXT("SprayCount");
+    case ELDMatchEndReason::ClearOut: return TEXT("ClearOut");
     default: return TEXT("None");
     }
 }
@@ -101,7 +105,7 @@ class FLDDemoOpponentTelemetry : public TSharedFromThis<FLDDemoOpponentTelemetry
 public:
     TWeakObjectPtr<ALDPlayerController> Controller;
     FString Output, Error;
-    int32 Matches = 1, Completed = 0, TimeoutSeconds = 720;
+    int32 Matches = 1, Completed = 0, TimeoutSeconds = 720, Opponents = LDDemoOpponentTelemetryDetail::DefaultOpponents;
     double Deadline = 0, LastCommandAt = -100, ReturnedAt = 0;
     ELDOpponentTelemetryStage Stage = ELDOpponentTelemetryStage::Join;
     bool StartSent = false, ReturnSent = false;
@@ -155,12 +159,13 @@ public:
         Report->SetStringField(TEXT("detail"), Error);
         Report->SetNumberField(TEXT("matches_requested"), Matches);
         Report->SetNumberField(TEXT("matches_completed"), Completed);
+        Report->SetNumberField(TEXT("opponents"), Opponents);
         Report->SetArrayField(TEXT("files"), Files);
         Report->SetBoolField(TEXT("fixed_time_step"), FApp::UseFixedTimeStep());
         Report->SetNumberField(TEXT("fixed_delta_seconds"), FApp::UseFixedTimeStep() ? FApp::GetFixedDeltaTime() : 0.);
         Report->SetBoolField(TEXT("rendered"), FApp::CanEverRender());
         Report->SetArrayField(TEXT("match_wall_seconds"), WallSeconds);
-        Report->SetStringField(TEXT("scope"), TEXT("DEV-only telemetry: one idle Listen Host and three opponent AI through the normal lobby, several matches in a row. Records how the matches went; it does not judge the AI or the balance."));
+        Report->SetStringField(TEXT("scope"), TEXT("DEV-only telemetry: one idle Listen Host and the listed number of opponent AI through the normal lobby, several matches in a row. Records how the matches went; it does not judge the AI or the balance."));
         const bool bWritten = Save(Report, TEXT("Telemetry.json"));
         UE_LOG(LogLDTest, Display, TEXT("LD_DEMO_OPPONENT_TELEMETRY passed=%d matches=%d/%d detail=%s"), bPassed && bWritten,
             Completed, Matches, *Error);
@@ -422,9 +427,9 @@ bool FLDDemoOpponentTelemetry::Tick()
         int32 Humans = 0;
         for (const FLDLobbyMember& Row : Lobby.Members) { Humans += Row.Kind == ELDContenderKind::Human ? 1 : 0; }
         if (Humans != 1) { return Fail(TEXT("Telemetry needs the Host as the only human in the room.")); }
-        if (Lobby.AICount != OpponentCount)
+        if (Lobby.AICount != Opponents)
         {
-            if (Resend()) { PC->SetDemoAICount(OpponentCount); }
+            if (Resend()) { PC->SetDemoAICount(uint8(Opponents)); }
             return true;
         }
         const FLDLobbyMember* Self = Lobby.Members.FindByPredicate([PC](const FLDLobbyMember& Row)
@@ -512,6 +517,14 @@ void LDDemoTests::StartOpponentTelemetry(ALDPlayerController& Controller, const 
         || Telemetry->Matches < 1 || Telemetry->Matches > MaxMatches)
     {
         UE_LOG(LogLDTest, Error, TEXT("LD_DEMO_OPPONENT_TELEMETRY Invalid match count."));
+        FPlatformMisc::RequestExitWithStatus(false, 2);
+        return;
+    }
+    // Absent: the three AI every earlier telemetry run played, so its numbers stay comparable.
+    if (FParse::Value(FCommandLine::Get(), TEXT("LDDemoOpponentAI="), Telemetry->Opponents)
+        && (Telemetry->Opponents < 1 || Telemetry->Opponents > LDMatchLifecycle::MaxOpponents))
+    {
+        UE_LOG(LogLDTest, Error, TEXT("LD_DEMO_OPPONENT_TELEMETRY Invalid AI count."));
         FPlatformMisc::RequestExitWithStatus(false, 2);
         return;
     }

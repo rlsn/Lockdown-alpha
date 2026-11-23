@@ -340,6 +340,18 @@ def _project_blocker(row):
 
 
 def validate_payload(raw):
+    """The validated world and its anchors. Inside reuse_binding_reports an identical payload is validated once and
+    its frozen result is shared; validation is pure in the payload bytes."""
+    if _reuse is None or type(raw) is not bytes:
+        return _validate_payload(raw)
+    key = ("payload", raw)
+    if key not in _reuse:
+        world, anchors = _validate_payload(raw)
+        _reuse[key] = (content.freeze(world), content.freeze(anchors))
+    return _reuse[key]
+
+
+def _validate_payload(raw):
     world = content.parse_json(raw, content.WORLD_OUTPUT)
     content.validate_integer_tree(world, "world")
     keys(world, ROOT_KEYS, "world")
@@ -636,11 +648,20 @@ class Terrain:
         return level
 
     def ring_level(self, ring):
-        level = max((height for height, plateau in self.plateaus.values()
+        # A region whose plan box lies clear of the ring's can neither contain the ring nor share interior with it.
+        box = plan_box(ring)
+
+        def near(identity):
+            other = self.boxes[identity]
+            return not (box[2] + SCREEN_CM < other[0] or other[2] + SCREEN_CM < box[0]
+                        or box[3] + SCREEN_CM < other[1] or other[3] + SCREEN_CM < box[1])
+
+        plateaus = [region for identity, region in self.plateaus.items() if near(identity)]
+        level = max((height for height, plateau in plateaus
                      if all(inside(vertex, plateau) for vertex in ring)), default=0)
-        if any(height > level and interiors_overlap(plateau, ring) for height, plateau in self.plateaus.values()):
+        if any(height > level and interiors_overlap(plateau, ring) for height, plateau in plateaus):
             return None
-        if any(interiors_overlap(ramp, ring) for _, ramp in self.ramps.values()):
+        if any(near(identity) and interiors_overlap(ramp, ring) for identity, (_, ramp) in self.ramps.items()):
             return None
         return level
 
@@ -991,23 +1012,29 @@ def world_contract_bytes(payload):
 # section fails instead of silently escaping the reuse key below.
 BINDING_SECTIONS = ("parameters", "world", "camps")
 _reuse = None
+_reuse_depth = 0
 
 
 @contextmanager
 def reuse_binding_reports():
-    """Within the block, reuse the binding report for an identical world payload and identical binding sections.
+    """Within the block, reuse the binding report for an identical world payload and identical binding sections, and
+    the payload validation for an identical payload.
 
-    validate_bindings is the expensive, pure part of compile_world. Its key is the world payload bytes plus the
-    canonical BINDING_SECTIONS it is given, so a reused report is the one recomputing would produce. Test fixture
-    export uses this; nothing else does, and the cache is dropped when the block ends.
+    validate_payload and validate_bindings are the expensive, pure parts of compile_world. The report's key is the
+    world payload bytes plus the canonical BINDING_SECTIONS it is given, so a reused result is the one recomputing
+    would produce. Test fixture export and the content tests use this; the Sync entries do not. A nested block shares
+    the outer block's cache, which is dropped when the outermost block ends.
     """
-    global _reuse
-    require(_reuse is None, "ReuseActive", SOURCE, "world binding reuse cannot be nested")
-    _reuse = {}
+    global _reuse, _reuse_depth
+    if _reuse_depth == 0:
+        _reuse = {}
+    _reuse_depth += 1
     try:
         yield
     finally:
-        _reuse = None
+        _reuse_depth -= 1
+        if _reuse_depth == 0:
+            _reuse = None
 
 
 def _binding_report(world, raw, data):

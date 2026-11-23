@@ -6,9 +6,15 @@ param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(300,2400)][int]$
     [ValidatePattern('^-Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+( -Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+)*$')][string]$NetEmulation,
     # Optional log verbosity for every role, e.g. 'LogLDNav Verbose' or 'LogLDTrace off, LogLDCombat Display' (passed as -LogCmds).
     [ValidatePattern('^[A-Za-z0-9_]+ [A-Za-z]+(, ?[A-Za-z0-9_]+ [A-Za-z]+)*$')][string]$LogCmds,
-    # DEV telemetry instead of the full-room check: one idle headless Listen Host and three AI play -MatchCount matches in a
-    # row; each match gets -TimeoutSeconds. Writes one MatchNN.json per match and Summary.json; it judges nothing.
-    [switch]$Telemetry, [ValidateRange(1,50)][int]$MatchCount=1,
+    # DEV telemetry instead of the full-room check: one idle headless Listen Host and -AICount AI (three by default) play
+    # -MatchCount matches in a row; each match gets -TimeoutSeconds. Writes one MatchNN.json per match and Summary.json;
+    # it judges nothing.
+    [switch]$Telemetry, [ValidateRange(1,50)][int]$MatchCount=1, [ValidateRange(1,7)][int]$AICount,
+    # Bot match: the accelerated telemetry run with a full room of seven AI unless -AICount names another count, judged
+    # by invariants only (JudgeBotMatch.py): every match reaches a locked result inside -TimeoutSeconds of wall time,
+    # no log holds an error or an authority fault, and every AI chose, learned and gained XP. Game warnings are listed,
+    # not failed. It judges no level, kill count, winner or balance number.
+    [switch]$BotMatch,
     # Telemetry only: the Host advances a fixed 1/60 s step as fast as the machine allows (-UseFixedTimeStep -FPS=60, as
     # RunBuildEvaluation.ps1 does) instead of following the wall clock. -TimeoutSeconds stays wall-clock time per match.
     [switch]$Accelerated,
@@ -21,12 +27,20 @@ param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(300,2400)][int]$
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
 Assert-LDDemoInputs
+if ($BotMatch) {
+    if ($UIOnly -or $NetEmulation -or $DevContentReload) { throw '-BotMatch is the accelerated telemetry run with a verdict; it does not combine with -UIOnly, -NetEmulation or -DevContentReload.' }
+    $Telemetry = $true
+    $Accelerated = $true
+}
+if ($PSBoundParameters.ContainsKey('AICount') -and -not $Telemetry) { throw '-AICount applies only to -Telemetry and -BotMatch; the full-room check fills the room itself.' }
+if (-not $PSBoundParameters.ContainsKey('AICount')) { $AICount = if ($BotMatch) { 7 } else { 3 } }
 if ($Telemetry -and $NetEmulation) { throw 'Telemetry runs the Host alone on loopback; -NetEmulation has no connection to impair.' }
-if (-not $Telemetry -and $PSBoundParameters.ContainsKey('MatchCount')) { throw '-MatchCount applies only to -Telemetry.' }
+if (-not $Telemetry -and $PSBoundParameters.ContainsKey('MatchCount')) { throw '-MatchCount applies only to -Telemetry and -BotMatch.' }
 if ($Accelerated -and -not $Telemetry) { throw '-Accelerated applies only to -Telemetry; the full-room check runs on real connections in real time.' }
 if ($UIOnly -and $Telemetry) { throw '-UIOnly is the interface part of the full-room check; it does not combine with -Telemetry.' }
 if ($DevContentReload -and (-not $Telemetry -or $PackageRoot)) { throw '-DevContentReload applies only to -Telemetry on the editor build; a package must be cooked again.' }
-$scenario = if ($Telemetry) { 'DemoOpponent-Telemetry' + $(if ($Accelerated) { '-Accelerated' } else { '' }) }
+$scenario = if ($BotMatch) { 'DemoOpponent-BotMatch' }
+    elseif ($Telemetry) { 'DemoOpponent-Telemetry' + $(if ($Accelerated) { '-Accelerated' } else { '' }) }
     elseif ($UIOnly) { 'DemoOpponent-UI' } else { 'DemoOpponent-FullRoom' }
 $output = New-LDArtifactDirectory ($scenario + $(if ($PackageRoot) { '-Packaged' } else { '' }) +
     $(if ($NetEmulation) { '-NetEmulated' } else { '' }))
@@ -48,7 +62,7 @@ function Start-OpponentRole {
         # The Host renders (1280x720 offscreen) so it can keep HUD screenshots of the match; clients and the telemetry
         # Host stay headless.
         $portArgument = if ($Role -eq 'Host') { "-windowed -RenderOffScreen -ResX=1280 -ResY=720 -port=$port" }
-            elseif ($Role -eq 'Telemetry') { "-nullrhi -port=$port -LDDemoOpponentMatches=$MatchCount$(if ($DevContentReload) { ' -LDDevContentReload' })$(if ($Accelerated) { ' -UseFixedTimeStep -FPS=60' })" }
+            elseif ($Role -eq 'Telemetry') { "-nullrhi -port=$port -LDDemoOpponentMatches=$MatchCount -LDDemoOpponentAI=$AICount$(if ($DevContentReload) { ' -LDDevContentReload' })$(if ($Accelerated) { ' -UseFixedTimeStep -FPS=60' })" }
             else { '-nullrhi' }
         $arguments = '-unattended -nop4 -nosound -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoOpponentProbe -LDDemoOpponentRole={2} -LDDemoOpponentTimeout={3} -LDDemoOpponentOutput="{4}" -abslog="{5}"' -f $portArgument,$user,$Role,$TimeoutSeconds,$evidence,$log
         if ($NetEmulation) { $arguments += " $NetEmulation" }
@@ -124,12 +138,41 @@ function Wait-HostLobby {
     throw "Opponent scenario Host lobby timed out: $output"
 }
 
+# The bot match verdict is JudgeBotMatch.py's alone: it reads the Host's report, every match file and the logs, lists
+# every failure and every game warning, and its exit code is the result. A failed run still gets its verdict: a Host
+# that timed out (stopped by the caller first) or exited with a non-zero code is handed over as -RunFailure.
+function Complete-BotMatch {
+    param([Parameter(Mandatory)]$Watch, [string]$RunFailure)
+    # A package writes its evidence inside itself; bring it beside the logs before judging.
+    Complete-LDGameEvidence $launch
+    $judge = @('-B', (Join-Path $PSScriptRoot 'JudgeBotMatch.py'), $output, '--opponents', $AICount, '--timeout-seconds', $TimeoutSeconds)
+    if ($RunFailure) { $judge += @('--run-failure', $RunFailure) }
+    & python @judge 2>&1 | Tee-Object -FilePath (Join-Path $output 'Verdict.txt') | Out-Host
+    $verdict = $LASTEXITCODE
+    $wall = [int]$Watch.Elapsed.TotalSeconds
+    if ($verdict -ne 0) { throw "Bot match failed after $wall s of wall time (verdict exit $verdict); every failure is listed above. Evidence: $output" }
+    Invoke-LDTool -Tool 'python' -ToolArguments @('-B', (Join-Path $PSScriptRoot 'SummarizeOpponentTelemetry.py'), $output) -LogPath (Join-Path $output 'Summary.txt')
+    Write-Host "DEV-only bot match passed: $MatchCount match(es) of one idle Host and $AICount AI at a fixed 60 steps/s, unrendered, in $wall s of wall time including start-up. Invariants only: locked results inside the time bound, no logged error or authority fault, every AI chose, learned and gained XP. Not real owned connections, AI strength or balance. Evidence: $output"
+}
+
 function Invoke-OpponentTelemetry {
     Start-OpponentRole 'Telemetry' '/Game/Lockdown/Generated/Maps/L_Demo?listen?Name=DemoTelemetryHost'
     # The Host ends itself after the last match, or on the first failure with its reason in Telemetry.json.
     $process = $processes[0]
     $watch = [System.Diagnostics.Stopwatch]::StartNew()
-    if (-not $process.WaitForExit((($TimeoutSeconds * $MatchCount) + 60) * 1000)) { throw "Opponent telemetry timed out: $output" }
+    $bound = ($TimeoutSeconds * $MatchCount) + 60
+    if (-not $process.WaitForExit($bound * 1000)) {
+        if (-not $BotMatch) { throw "Opponent telemetry timed out: $output" }
+        # Stop the Host and wait for it, so its log is complete and closed before the verdict reads it.
+        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+        [void]$process.WaitForExit(30000)
+        Complete-BotMatch $watch "The Host did not exit within $bound s and was stopped"
+        return
+    }
+    if ($BotMatch) {
+        Complete-BotMatch $watch $(if ($process.ExitCode -ne 0) { "The Host exited with code $($process.ExitCode)" })
+        return
+    }
     $file = Join-Path $evidence 'Telemetry.json'
     if (-not (Test-Path -LiteralPath $file)) { throw "Opponent telemetry left no report (exit $($process.ExitCode)): $output" }
     $report = Get-Content -LiteralPath $file -Raw | ConvertFrom-Json
@@ -144,7 +187,7 @@ function Invoke-OpponentTelemetry {
     $played = [math]::Round((@($report.files | ForEach-Object { (Get-Content -LiteralPath (Join-Path $evidence $_) -Raw | ConvertFrom-Json).duration_ms }) | Measure-Object -Sum).Sum / 1000)
     $step = if ($report.fixed_time_step) { "a fixed $([math]::Round(1 / $report.fixed_delta_seconds)) steps/s, unrendered" } else { 'real time' }
     Write-Host "Telemetry pace: $played s of match time in $([int]$watch.Elapsed.TotalSeconds) s of wall time including start-up ($step)."
-    Write-Host "DEV-only opponent telemetry recorded $MatchCount match(es) of one idle Host and three AI. It describes these matches; it is not an AI acceptance check or a balance verdict. Evidence: $output"
+    Write-Host "DEV-only opponent telemetry recorded $MatchCount match(es) of one idle Host and $AICount AI. It describes these matches; it is not an AI acceptance check or a balance verdict. Evidence: $output"
 }
 
 try {
