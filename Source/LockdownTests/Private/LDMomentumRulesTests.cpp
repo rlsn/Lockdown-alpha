@@ -356,11 +356,11 @@ bool FLDSkillRankPatchesTest::RunTest(const FString& Parameters)
     const FLDDemoAbilityBranch* Belt = Pants->FindBranch(ELDSkillBranch::B);
     TestTrue(TEXT("S02 B reaches 620 cm and keeps it under B1"), Belt && Belt->Target.RangeCm.Numerator == 620 * Belt->Target.RangeCm.Denominator
         && Pants->FindBranch(ELDSkillBranch::B1)->Target.RangeCm.Numerator == Belt->Target.RangeCm.Numerator);
-    // Rank 3 at level 1: base x 2 and coefficients x 1.5 on S01 B1.
+    // Rank 3 at level 1: base x 1.7 and coefficients x 1.5 on S01 B1.
     const FLDDemoAbilityValues* Rank3 = Catalog->FindValues(*Elbow, 1, ELDSkillBranch::B1);
     const FLDDemoEffectDefinition* Damage = Rank3 ? Rank3->Effects.FindByPredicate([](const FLDDemoEffectDefinition& E)
         { return E.GetOp() == ELDDemoEffectOp::Damage; }) : nullptr;
-    TestTrue(TEXT("S01 B1 at level 1: 65 x 2 + 0.85 x 1.5 AD"), Damage && Damage->BaseP2 == 13000 && Damage->ADRatioBp == 12750);
+    TestTrue(TEXT("S01 B1 at level 1: 65 x 1.7 + 0.85 x 1.5 AD"), Damage && Damage->BaseP2 == 11050 && Damage->ADRatioBp == 12750);
     TestTrue(TEXT("No variant exists for None outside rank 1, nor a rank-2 path at rank 3"), !Elbow->FindBranch(ELDSkillBranch::None)
         && Catalog->FindValues(*Elbow, 1, ELDSkillBranch::None) != nullptr);
     return true;
