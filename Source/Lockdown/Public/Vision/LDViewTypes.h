@@ -273,6 +273,8 @@ struct LOCKDOWN_API FLDWorldView
     UPROPERTY() TArray<FLDObservedGroundState> GroundStates;
     UPROPERTY() TArray<FLDObservedRecoveryOrb> RecoveryOrbs;
     UPROPERTY() TArray<FName> WitnessedEmptyCamps;
+    // Not on the wire: the bytes this view took when a connection delivered it; 0 for a view built or delivered locally.
+    int32 ReceivedWireBytes = 0;
     bool NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuccess);
 };
 template<> struct TStructOpsTypeTraits<FLDWorldView> : TStructOpsTypeTraitsBase2<FLDWorldView>

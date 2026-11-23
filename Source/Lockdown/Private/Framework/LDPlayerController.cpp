@@ -212,9 +212,11 @@ void ALDPlayerController::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& 
 
 ALDWorldViewRelay* ALDPlayerController::LocalView() const
 {
+    if (ALDWorldViewRelay* Found=FoundLocalView.Get(); Found && Found->GetOwner()==this) { return Found; }
+    FoundLocalView=nullptr;
     for (TActorIterator<ALDWorldViewRelay> It(GetWorld());It;++It)
-    { if (It->GetOwner()==this) { return *It; } }
-    return nullptr;
+    { if (It->GetOwner()==this) { FoundLocalView=*It; break; } }
+    return FoundLocalView.Get();
 }
 
 void ALDPlayerController::ClientIntentResult_Implementation(uint32 Request,const FString& Reason)

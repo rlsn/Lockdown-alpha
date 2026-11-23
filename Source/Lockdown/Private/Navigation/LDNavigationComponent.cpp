@@ -154,7 +154,7 @@ bool ULDNavigationComponent::IsHumanOwner() const
 bool ULDNavigationComponent::Enabled() const
 {
     const auto* PC=Controller();
-    return PC && GetWorld() && UWorld::RemovePIEPrefix(GetWorld()->GetOutermost()->GetName())==LDDemoEntry::WorldMap;
+    return PC && LDDemoEntry::IsWorldMap(GetWorld());
 }
 
 FName ULDNavigationComponent::GroundSurfaceHint() const

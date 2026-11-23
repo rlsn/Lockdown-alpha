@@ -1,4 +1,5 @@
 #include "PK/LDPKDirector.h"
+#include "ProfilingDebugging/MiscTrace.h"
 #include "Core/LDLog.h"
 #include "Character/LDNativeMotionTypes.h"
 #include "Combat/LDCombatDirector.h"
@@ -420,6 +421,7 @@ bool ALDPKDirector::StartFight(const FLDGameplayWritePermit& Permit, FString& Er
     }
     View.Outcome = ELDPKOutcome::Running;
     UE_LOG(LogLDMatch, Display, TEXT("LD_PK_START serial=%u at_ms=%lld"), Serial, FightStartedAtMs);
+    TRACE_BOOKMARK(TEXT("LD PK %u fight"), Serial);
     Publish();
     Error.Reset();
     return true;

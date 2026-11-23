@@ -91,7 +91,7 @@ bool ALDGameState::ShowsWorldEvents() const
     const bool bActive=PublicMatch.Phase==ELDMatchPhase::Rest||PublicMatch.Phase==ELDMatchPhase::Development||PublicMatch.Phase==ELDMatchPhase::CaptureOpen
         ||PublicMatch.Phase==ELDMatchPhase::Results;
     return bActive&&World&&!World->bIsTearingDown&&GetNetMode()!=NM_DedicatedServer
-        &&UWorld::RemovePIEPrefix(World->GetOutermost()->GetName())==LDDemoEntry::WorldMap;
+        &&LDDemoEntry::IsWorldMap(World);
 }
 
 void ALDGameState::SyncAirdropMarker()
@@ -161,7 +161,7 @@ void ALDGameState::SyncDormMarkers()
         ||PublicMatch.Phase==ELDMatchPhase::Results;
     // Like the flagpole boundary: Demo world presentation only, rebuilt for each match generation.
     const bool bShow=bActive&&World&&!World->bIsTearingDown&&GetNetMode()!=NM_DedicatedServer
-        &&UWorld::RemovePIEPrefix(World->GetOutermost()->GetName())==LDDemoEntry::WorldMap;
+        &&LDDemoEntry::IsWorldMap(World);
     const bool bStale=DormMarkers.ContainsByPredicate([this](const TWeakObjectPtr<ALDDormMarker>& Marker)
         { return !Marker.IsValid()||Marker->GetGeneration()!=PublicMatch.Generation; });
     if (!bShow||bStale) { ClearDormMarkers(); }
@@ -204,7 +204,7 @@ void ALDGameState::SyncCaptureMarker()
         ||PublicMatch.Phase==ELDMatchPhase::Results;
     // The boundary belongs to the Demo world's presentation; fixture worlds without its registry show none.
     const bool bShow=bActive&&World&&!World->bIsTearingDown&&GetNetMode()!=NM_DedicatedServer
-        &&UWorld::RemovePIEPrefix(World->GetOutermost()->GetName())==LDDemoEntry::WorldMap;
+        &&LDDemoEntry::IsWorldMap(World);
     ALDCaptureMarker* Marker=CaptureMarker.Get();
     // A new match generation, a return to the Lobby or a stopped room never keeps the previous ring.
     if (Marker&&(!bShow||Marker->GetGeneration()!=PublicMatch.Generation))

@@ -1,4 +1,5 @@
 #include "Framework/LDGameMode.h"
+#include "ProfilingDebugging/MiscTrace.h"
 #include "Core/LDLog.h"
 #include "Framework/LDGameInstance.h"
 #include "Framework/LDPlayerController.h"
@@ -128,6 +129,7 @@ bool ALDGameMode::StartDemoMatch(ELDSessionReject& Reject, FString& Detail)
     PublishMatchOutcome();
     UE_LOG(LogLDMatch, Display, TEXT("LD_MATCH_STARTED generation=%u contenders=%d started_at_ms=%lld rest_ends_at_ms=%lld"),
         MatchContext.Generation, RosterOrder.Num(), MatchStartedAtMs, Timeline.GetStepEndsAtMs());
+    TRACE_BOOKMARK(TEXT("LD match %u started"), MatchContext.Generation);
     HeartbeatGate.Reset();
     LoggedAbilityCasts.Reset();
     LastMarkAt.Reset();

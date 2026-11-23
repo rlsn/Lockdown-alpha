@@ -3232,7 +3232,7 @@ void ULDHUD::SyncShowdownRing(const FLDPublicMatchView& Public,bool bOwnMatch,bo
     // Demo world presentation of the own match's final street closure; fixture worlds draw none.
     const bool bShow=bOwnMatch&&Content&&World&&!World->bIsTearingDown&&Public.Showdown.bStarted
         &&(Public.Phase==ELDMatchPhase::Development||Public.Phase==ELDMatchPhase::CaptureOpen)
-        &&UWorld::RemovePIEPrefix(World->GetOutermost()->GetName())==LDDemoEntry::WorldMap;
+        &&LDDemoEntry::IsWorldMap(World);
     if(!KeepRing(ShowdownRing,bShow,Public,MAX_uint32,Public.Showdown.CentreCm,ALDShowdownRingMarker::SafeColor())){return;}
     const int64 At=bClock?NowMs:Public.ServerNowMs;
     const bool bPreview=At>=Public.Showdown.ClosureAtMs-Content->Parameters.ShowdownRingPreviewMs;
@@ -3245,7 +3245,7 @@ void ULDHUD::SyncObjectiveRing(const FLDPublicMatchView& Public,bool bOwnMatch)
     const bool bLive=Objective.Phase==ELDObjectivePhase::Announced||Objective.Phase==ELDObjectivePhase::Open;
     const bool bShow=bOwnMatch&&bLive&&World&&!World->bIsTearingDown&&Objective.RadiusCm>0.f
         &&(Public.Phase==ELDMatchPhase::Development||Public.Phase==ELDMatchPhase::CaptureOpen)
-        &&UWorld::RemovePIEPrefix(World->GetOutermost()->GetName())==LDDemoEntry::WorldMap;
+        &&LDDemoEntry::IsWorldMap(World);
     if(!KeepRing(ObjectiveRing,bShow,Public,uint32(Objective.Serial),Objective.CentreCm,ALDShowdownRingMarker::PreviewColor())){return;}
     // Announced: only the preview of the circle; open: the circle itself.
     const bool bOpen=Objective.Phase==ELDObjectivePhase::Open;
@@ -3492,7 +3492,7 @@ void ULDHUD::SyncPKRing(const FLDPublicMatchView& Public,bool bOwnMatch,bool bCl
     // Demo world presentation of the own match's arena during the PKReady and PK steps; fixture worlds draw none.
     const bool bShow=bOwnMatch&&World&&!World->bIsTearingDown
         &&(bFinal||(LDHUD::HasPK(Public)&&(Step==ELDRestStep::PKReady||Step==ELDRestStep::PK)&&PK.Outcome!=ELDPKOutcome::NoContest))
-        &&UWorld::RemovePIEPrefix(World->GetOutermost()->GetName())==LDDemoEntry::WorldMap;
+        &&LDDemoEntry::IsWorldMap(World);
     ALDPKRingMarker* Ring=PKRing.Get();
     if(Ring&&(!bShow||Ring->GetGeneration()!=Public.Generation||Ring->GetSerial()!=Serial||!Ring->GetCentre().Equals(Centre,1.)))
     {

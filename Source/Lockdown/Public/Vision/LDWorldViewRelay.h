@@ -400,7 +400,10 @@ public:
     double ReceiveTimeoutSeconds() const { return Receiver.GetStaleAfter(); }
     // Receive timeouts (every unit cleared for lack of frames) since this relay began.
     uint32 TimeoutCount() const { return Timeouts; }
+    // The largest view a connection delivered to this relay since the last call, in bytes; then starts over.
+    int32 TakePeakViewWireBytes() { const int32 Peak = PeakViewWireBytes; PeakViewWireBytes = 0; return Peak; }
 private:
+    int32 PeakViewWireBytes = 0;
     bool bFrozenForTeardown = false;
     bool IsShuttingDown() const;
     uint32 Timeouts = 0;

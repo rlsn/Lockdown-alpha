@@ -3,11 +3,13 @@
 #include "Engine/World.h"
 #include "Region/LDMapGeometry.h"
 #include "Region/LDMapRegistry.h"
+#include "ProfilingDebugging/CountersTrace.h"
+#include "Serialization/BitReader.h"
+#include "Serialization/BitWriter.h"
 
 namespace
 {
 constexpr double MaxObservedCoordinateCm = 1000000.0;
-
 bool FailObservation(FString& Error, const TCHAR* Message)
 {
     Error = Message;
@@ -649,6 +651,13 @@ bool FLDWorldView::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuccess)
 {
     FString Error;
     if (Ar.IsSaving() && !LDObservation::ValidateView(*this, Error)) { return RejectObservationArchive(Ar, bSuccess); }
+    // Net archives are bit streams: the position before and after is this view's size on the wire.
+    const auto WireBits = [&Ar]()
+    {
+        return !Ar.IsNetArchive() ? int64(0) : Ar.IsLoading() ? static_cast<FBitReader&>(Ar).GetPosBits()
+            : static_cast<FBitWriter&>(Ar).GetNumBits();
+    };
+    const int64 StartBits = WireBits();
     Ar << Schema;
     if (Ar.IsError() || Schema != LDObservation::Schema) { return RejectObservationArchive(Ar, bSuccess); }
     Ar << MatchGeneration << ObserverLife << Generation << Revision;
@@ -722,6 +731,17 @@ bool FLDWorldView::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuccess)
         if (!SerializeObservedMapId(Ar, Camp)) { return RejectObservationArchive(Ar, bSuccess); }
     }
     if (Ar.IsError() || (Ar.IsLoading() && !LDObservation::ValidateView(*this, Error))) { return RejectObservationArchive(Ar, bSuccess); }
+    // A connection always brings its package map; a probe or test that encodes a view by itself has none and is not traffic.
+    if (Ar.IsNetArchive() && Map)
+    {
+        const int32 Bytes = int32((WireBits() - StartBits + 7) / 8);
+        if (Ar.IsLoading()) { ReceivedWireBytes = Bytes; }
+        else
+        {
+            TRACE_INT_VALUE(TEXT("LD/ViewWireBytesSent"), Bytes);
+            TRACE_INT_VALUE(TEXT("LD/ViewUnitsSent"), Units.Num());
+        }
+    }
     bSuccess = true;
     return true;
 }
