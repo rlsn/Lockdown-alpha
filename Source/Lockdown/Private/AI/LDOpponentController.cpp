@@ -1,4 +1,5 @@
 #include "AI/LDOpponentController.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "Character/LDCharacter.h"
 #include "Core/LDLog.h"
 #include "AI/LDOpponentFrame.h"
@@ -335,13 +336,16 @@ void ALDOpponentController::Tick(float DeltaSeconds)
     }
     SettleBuild(*Mode, Frame.Self, NowMs, Problem);
     ComposeFrame(Frame);
+    const FLDOpponentDecision Decision = [&]()
+    {
+        TRACE_CPUPROFILER_EVENT_SCOPE(LDAI_Decide);
 #if WITH_DEV_AUTOMATION_TESTS
-    const FLDOpponentDecision Decision = Evaluation
-        ? LDEvaluationPolicy::Decide(Frame, *Content, Evaluation->Profile, Policy, Evaluation->State)
-        : LDOpponentPolicy::Decide(Frame, *Content, Policy);
+        return Evaluation ? LDEvaluationPolicy::Decide(Frame, *Content, Evaluation->Profile, Policy, Evaluation->State)
+            : LDOpponentPolicy::Decide(Frame, *Content, Policy);
 #else
-    const FLDOpponentDecision Decision = LDOpponentPolicy::Decide(Frame, *Content, Policy);
+        return LDOpponentPolicy::Decide(Frame, *Content, Policy);
 #endif
+    }();
     NoteContest(Frame, Decision);
     DispatchBody(*Mode, Reads, Frame, Decision.Body, NowMs, Problem);
     DispatchBuild(*Mode, Reads, Frame, Decision.Build, NowMs, Problem);
@@ -352,6 +356,7 @@ void ALDOpponentController::Tick(float DeltaSeconds)
 bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& Reads, FLDOpponentDecisionFrame& Frame,
     FString& Error) const
 {
+    TRACE_CPUPROFILER_EVENT_SCOPE(LDAI_BuildFrame);
     using namespace LDOpponentControllerDetail;
     const uint32 Generation = Binding.GetMatch().Generation;
     FLDAISelfReadResult SelfRead = Mode.ReadAISelf(Binding);
@@ -546,6 +551,7 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
 
 bool ALDOpponentController::ReadCapturePath(const FVector& FootCm, double& OutCm, FString& Error) const
 {
+    TRACE_CPUPROFILER_EVENT_SCOPE(LDAI_ReadCapturePath);
     const ULDMapRegistry* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
     const FLDOpponentPOI* Capture = POIs.FindByPredicate([](const FLDOpponentPOI& POI) { return POI.Kind == ELDOpponentPOIKind::Capture; });
     FCollisionShape Capsule;
@@ -590,6 +596,7 @@ void ALDOpponentController::Learn(const FLDOpponentRetryKey& Key, ELDOpponentSet
 
 void ALDOpponentController::SettleOrders(const FReads& Reads, const FLDOpponentDecisionFrame& Frame, int64 NowMs, FString& Problem)
 {
+    TRACE_CPUPROFILER_EVENT_SCOPE(LDAI_SettleOrders);
     if (!Navigation) { return; }
     const FLDOpponentSelf& Self = Frame.Self;
     const FLDOrderCaller Caller = OrderCaller(Reads);
@@ -668,6 +675,7 @@ void ALDOpponentController::SettleOrders(const FReads& Reads, const FLDOpponentD
 bool ALDOpponentController::RouteAroundGrounds(const FLDOpponentDecisionFrame& Frame, const FVector& FootCm,
     const FLDSpatialOrderRequest& Request, FVector& Out) const
 {
+    TRACE_CPUPROFILER_EVENT_SCOPE(LDAI_RouteAroundGrounds);
     if (Request.Kind != ELDSpatialOrderKind::MoveGround
         || !Frame.Grounds.ContainsByPredicate([](const FLDOpponentGround& Ground) { return Ground.bEnemy; }))
     {
@@ -754,6 +762,7 @@ void ALDOpponentController::FinishIncumbent(ELDOpponentSettle Settle, const FLDO
 void ALDOpponentController::SettleDirectAction(ALDGameMode& Mode, const FReads& Reads, const FLDOpponentSelf& Self,
     int64 NowMs, FString& Problem)
 {
+    TRACE_CPUPROFILER_EVENT_SCOPE(LDAI_SettleDirectAction);
     if (!Action.bHas || Action.bFinal) { return; }
     const FLDCombatActionReceipt Receipt = Mode.Combat->QueryActionReceipt(Reads.CombatCaller, Action.DirectSequence);
     ELDOpponentSettle Settle = LDOpponentRequests::SettleAction(Receipt);
@@ -780,6 +789,7 @@ void ALDOpponentController::SettleDirectAction(ALDGameMode& Mode, const FReads& 
 
 void ALDOpponentController::SettleBuild(ALDGameMode& Mode, const FLDOpponentSelf& Self, int64 NowMs, FString& Problem)
 {
+    TRACE_CPUPROFILER_EVENT_SCOPE(LDAI_SettleBuild);
     if (!Build.bHas || !Mode.Development) { return; }
     const ELDOpponentSettle Settle = LDOpponentRequests::SettleBuildQuery(
         Mode.Development->QueryBuildReceipt(Binding.GetContender(), Build.Query));
@@ -796,6 +806,7 @@ void ALDOpponentController::SettleBuild(ALDGameMode& Mode, const FLDOpponentSelf
 
 void ALDOpponentController::ComposeFrame(FLDOpponentDecisionFrame& Frame) const
 {
+    TRACE_CPUPROFILER_EVENT_SCOPE(LDAI_ComposeFrame);
     using namespace LDOpponentControllerDetail;
     FLDOpponentOrder& Current = Frame.Order;
     Current = FLDOpponentOrder();
@@ -843,6 +854,7 @@ void ALDOpponentController::AbandonCharge(ALDGameMode& Mode, const FReads& Reads
 void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads, const FLDOpponentDecisionFrame& Frame,
     const FLDOpponentBodyIntent& Intent, int64 NowMs, FString& Problem)
 {
+    TRACE_CPUPROFILER_EVENT_SCOPE(LDAI_DispatchBody);
     // A charge lives only while the policy keeps asking to overdrive the same skill: any other intent (keep, stop, move,
     // retreat, another skill) ends it on the authority so no stale charge stays visible or is reused later.
     if (Charge.bHas)
@@ -973,6 +985,7 @@ void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads,
 void ALDOpponentController::DispatchBuild(ALDGameMode& Mode, const FReads& Reads, const FLDOpponentDecisionFrame& Frame,
     const FLDOpponentBuildIntent& Intent, int64 NowMs, FString& Problem)
 {
+    TRACE_CPUPROFILER_EVENT_SCOPE(LDAI_DispatchBuild);
     if (Intent.Kind == ELDOpponentBuildKind::None || Build.bHas) { return; }
     const FLDOpponentSelf& Self = Frame.Self;
     FString Error;
@@ -1011,6 +1024,7 @@ void ALDOpponentController::DispatchBuild(ALDGameMode& Mode, const FReads& Reads
 void ALDOpponentController::DispatchPK(ALDGameMode& Mode, const FLDOpponentDecisionFrame& Frame,
     const FLDOpponentPKIntent& Intent, int64 NowMs, FString& Problem)
 {
+    TRACE_CPUPROFILER_EVENT_SCOPE(LDAI_DispatchPK);
     if (Intent.Kind == ELDOpponentPKKind::None) { return; }
     const uint32 Generation = Binding.GetMatch().Generation;
     const FString Contender = Binding.GetContender().ToString();
@@ -1055,6 +1069,7 @@ void ALDOpponentController::DispatchPK(ALDGameMode& Mode, const FLDOpponentDecis
 void ALDOpponentController::Report(const FLDOpponentDecisionFrame& Frame, const FLDOpponentDecision& Decision,
     const FString& Problem)
 {
+    TRACE_CPUPROFILER_EVENT_SCOPE(LDAI_Report);
     if (Decision.Mode == ReportedMode && Decision.Reason == ReportedReason && Problem == ReportedProblem) { return; }
     Tally.LeaderHunts += Decision.Reason == ELDOpponentReason::HuntLeader && ReportedReason != ELDOpponentReason::HuntLeader ? 1 : 0;
     Tally.BossAvoids += Decision.Reason == ELDOpponentReason::AvoidBoss && ReportedReason != ELDOpponentReason::AvoidBoss ? 1 : 0;
