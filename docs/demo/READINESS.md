@@ -8,7 +8,7 @@
 运行流程：前端建房/加入 → Lobby（房主设 0–7 名 AI，房主免准备）→ 开局休息 R0 → 野外 1 → 休息 R1（含 PK）→ 野外 2 → 休息 R2（含 PK）→ 野外 3 → 休息 R3（选终局改装）→ 最终野外（封街争旗）→ 唯一结果 → 房主带在线房间回 Lobby 开新局。
 
 - 当前运行输入（`SourceData\Demo\content.json` 与 `L_Demo`）为获批试玩输入，未经平衡测试。
-- 自动化门禁覆盖 `370` 项 Python 测试与 `536` 项原生 `Lockdown.Rules` 测试；联机场景均在同机回环连接上验证。
+- 自动化门禁覆盖 `370` 项 Python 测试与 `534` 项原生 `Lockdown.Rules` 测试；联机场景均在同机回环连接上验证。
 
 ## 完成标准与验证矩阵
 
@@ -20,7 +20,7 @@
 | 八席联机与断线 | `LDGameModeSession`（8 席容量、房主免准备、调 AI 数保留真人准备、房主离开 `PreLoadMapWithContext` 通知清退、意外断线 `ParkDisconnectedMember` 同进程重连）；场景 Opponent / Capture / SessionFault | 跨机器局域网与公网直连未跑；意外断线保留身体供同进程重连与旧“断线即清身体”设计存在偏移；房主进程被强杀时客户端约 60s 超时 |
 | 地图、寻路与坡道 | Bootstrap Validate、`DemoWorld.*`、`StaticScene.*`、`DemoControlFeel.ElevationAimAndClip`（50° 可走坡度、35cm 台阶、坡口 3D 高差 28cm/35cm 防切角）；场景 Core / Combat | 动态改图与多层重叠桥面未支持 |
 | 营地生态与续航 | 34 处四档营地（每档 3 种抽样、随野外时间 T 升阶、拴绳回位与无路原地重置、清营掉落 `90cm / 12s` 回复球）；规则 `DemoCamp.*`、`CampDecision`；场景 Camp | 12 种野怪体感平衡与远古专属模型待试玩打磨 |
-| 成长、加点与换招 | 1–16 级、开局与 `[2, 5, 9]` 级主动三选一、`[3, 6, 9, 12, 15]` 技能点三级分支、五维 18 点关键石、休息室洗点/商店与野外躺平角脱战换招（退还技能点并迁移兼容技能牌）；规则 `DemoGrowth*`、`Growth.*`、`Combat.AdaptiveAndKeystones`；场景 GrowthLink（真连接上 DEV 经验、选主动、加点的回执与视图同步，一次真实击杀的经验两端一致，Host HUD 等级）；机器人对局 `-BotMatch`（满房 AI 整局成长无报错） | 连升多级与满级溢出给点仅在规则层验证；休息跨段、死亡期间构筑、复活、营地奖励与换局隔离没有通过的真连接场景（长剧本 `RunDemoGrowthCheck.ps1` 在当前地图与奖励规则下跑不通）；GrowthLink 与 `-BotMatch` 未在打包版运行 |
+| 成长、加点与换招 | 1–16 级、开局与 `[2, 5, 9]` 级主动三选一、`[3, 6, 9, 12, 15]` 技能点三级分支、五维 18 点关键石、休息室洗点/商店与野外躺平角脱战换招（退还技能点并迁移兼容技能牌）；规则 `DemoGrowth*`、`Growth.*`、`Combat.AdaptiveAndKeystones`；场景 GrowthLink（真连接上 DEV 经验、选主动、加点的回执与视图同步，一次真实击杀的经验两端一致，Host HUD 等级）；机器人对局 `-BotMatch`（满房 AI 整局成长无报错） | 连升多级与满级溢出给点仅在规则层验证；休息跨段、死亡期间构筑、复活、营地奖励与换局隔离没有真连接场景覆盖；GrowthLink 与 `-BotMatch` 未在打包版运行 |
 | 战斗、元素与构筑牌 | 劲/三段连击/爆劲（60 门槛）/0.12s 原生精准闪避、24 主动（含自适应与双系数）、89 构筑牌（`100/22/6` 权重）+ 5 枚三阶融合元素勋章、五元素十反应 + Y05 反应锁单次豁免、多源独立 `ShieldLayers` 护盾栈、全形态 2 步 `450ms` 预输入、默认 `0.18s` 快速施法；规则 `Combat.*`、`DemoCombat*`、`DemoBuildPrimitives.*`、`DemoControlFeel.*`；场景 Combat | 144 个技能分支子项与多牌极端连锁组合未逐一跑拥有连接场景 |
 | 喷漆、守护与终局 | 主旗杆与私人旗杆同刻归约、终局 8 项改装、封街缩圈、有效守点完成率 → 终局击杀 → 终局伤害超时破僵；规则 `DemoCapture.*`（含 `ShowdownAntiStalemate`）、`DemoFinalMod.*`、`DemoShowdown.*`；场景 Capture / Opponent | 铁笼物理阻挡仅经完整场景间接覆盖 |
 | 视野与小地图 | 服务器稀疏 `FLDWorldView` 白名单、客户端距离场迷雾、单次静态底图 + 矮墙虚线/实时坡道箭头语义层 + 高地 `OwnFootZ` 视口框、`VISION.SightGraceSec`；规则 `DemoVision.*`、`ViewPrivacySchema`、`Minimap.*`；场景 Vision | 坡顶水平平台边缘整数层阶视野规则待独立工单收口 |

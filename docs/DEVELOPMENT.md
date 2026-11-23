@@ -132,7 +132,7 @@ Python/工具环境、构建输出（如适用）及日志摘要一致；计划�
   或 Issue 明确要求时才在 PR 前跑；只选覆盖实际改动及其直接依赖的最小场景或已有定向模式。
   不用仅有 Host 的调试场景替代拥有连接证据；同一模块不等于需要整局回归。
   没有定向入口时报告覆盖缺口，不默认启动长测，其余集中到里程碑验收。
-- Core、Combat、Camp、Growth、GrowthLink、Capture、Vision、Opponent 复用 `DemoEntry.ps1` 的进程与证据 harness；
+- Core、Combat、Camp、GrowthLink、Capture、Vision、Opponent 复用 `DemoEntry.ps1` 的进程与证据 harness；
   新场景沿用它，入口只维护探针参数、断言和特殊错误规则，不复制端口、身份、轮询与退出流程。
 - 失败先看本次 `Artifacts`、日志与断言并标记未通过，不原样重跑来碰运气通过或判断偶发性。
   修复相关原因后只重跑失败项及受影响检查；没有定向入口的长测仅在明确要求专项验证时重跑。
