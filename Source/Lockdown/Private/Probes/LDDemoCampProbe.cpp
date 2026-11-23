@@ -44,12 +44,6 @@
 namespace LDDemoCampScenario
 {
 const TCHAR* const CampRoles[] = {TEXT("Host"), TEXT("Client1"), TEXT("Client2")};
-// Basin points of the #97 layout, checked offline on the approved world: an open, reachable melee approach beside
-// Low camp l09 and High camp h05 (no other camp of the same creature within the target search), and a flee goal on
-// open basin ground 14.7 m from h05, beyond the High leash and away from the Boss patrol and the flagpole.
-const FVector CampLowApproachCm(1452, -2386, 0);
-const FVector CampHighApproachCm(1723, 818, 0);
-const FVector CampFleeGoalCm(2100, -850, 0);
 constexpr double CampApproachArrivalCm = 150.0;
 constexpr double CampTargetSearchCm = 600.0;
 // Local placement offsets reach 100.344 cm from a member home.
@@ -140,6 +134,9 @@ public:
     TArray<LDScenarioWalk::FKeepout> WalkKeepouts;
     TArray<FVector> WalkWaypoints;
     FVector WalkGoal = FVector::ZeroVector;
+    TOptional<FVector> LowApproach;
+    TOptional<FVector> HighApproach;
+    TOptional<FVector> FleeGoal;
     double WalkArrivalCm = 0;
     int32 WalkWaypoint = 0;
     uint32 WalkLife = 0;
@@ -331,10 +328,61 @@ public:
         return bWalkPrepared;
     }
 
-    // Walks to a camp approach from wherever the body stands, such as the field spawn the R0 return drew at random from
-    // every approved spawn. Native moves follow fixture waypoints that keep clear of every authored camp member home and
-    // Boss waypoint (LDScenarioWalk, as the Vision probe does), so idle camp bodies standing on the direct
-    // line cannot block it (s09 -> l09 passes l19's homes). The approach itself and its arrival radius are unchanged.
+    bool ResolveCampPoint(ALDPlayerController& Owner, FName Camp, const FVector& FromFoot, double Bearing,
+        TConstArrayView<double> Distances, TOptional<FVector>& Out, FString& Error)
+    {
+        if (Out.IsSet()) { return true; }
+        const auto* Registry = Owner.GetWorld()->GetSubsystem<ULDMapRegistry>();
+        const FLDMapBinding* Anchor = Registry ? Registry->Resolve(Camp, Registry->Generation) : nullptr;
+        FCollisionShape Capsule;
+        if (!Anchor || !PrepareWalk(*Registry, Error) || !ULDMapRegistry::ContentCapsule(*Catalog, Capsule, Error))
+        {
+            if (Error.IsEmpty()) { Error = TEXT("The fixture camp has no registered ground."); }
+            return false;
+        }
+        FLDLegalGround From;
+        ELDWorldQueryFailure Failure;
+        if (!Registry->QueryGround(Registry->Revision(), FromFoot, Capsule, Anchor->Surface, From, Failure, Error)) { return false; }
+        for (double Distance : Distances)
+        {
+            for (int32 Step = 0; Step < 16; ++Step)
+            {
+                const double Angle = Bearing + double(Step) * UE_DOUBLE_PI / 8.;
+                const FVector2D XY = FVector2D(Anchor->Position) + FVector2D(FMath::Cos(Angle), FMath::Sin(Angle)) * Distance;
+                FVector Foot;
+                FLDLegalGround Ground;
+                FLDCompletePath Path;
+                if (!Registry->ResolveWalkableGround(XY, Foot)
+                    || WalkKeepouts.ContainsByPredicate([&](const LDScenarioWalk::FKeepout& Zone)
+                        { return FVector::DistSquared2D(Foot, Zone.Centre) <= FMath::Square(Zone.Radius); })
+                    || !Registry->QueryGround(Registry->Revision(), Foot, Capsule, Anchor->Surface, Ground, Failure, Error)
+                    || !Registry->QueryCompletePath(Registry->Revision(), From, Ground, Capsule, Path, Failure, Error))
+                {
+                    continue;
+                }
+                TArray<FVector> Route;
+                if (!LDScenarioWalk::Plan(*Registry, *Catalog, FromFoot, Ground.SurfaceCm, WalkKeepouts, WalkArrivalCm, Route, Error))
+                {
+                    continue;
+                }
+                Out = Ground.SurfaceCm;
+                Error.Reset();
+                return true;
+            }
+        }
+        Error = FString::Printf(TEXT("The fixture found no reachable point around camp %s."), *Camp.ToString());
+        return false;
+    }
+
+    bool ResolveApproach(ALDPlayerController& Owner, FName Camp, double Bearing, TOptional<FVector>& Out, FString& Error)
+    {
+        const auto* Body = Cast<ALDCharacter>(Owner.GetPawn());
+        if (!Body) { Error = TEXT("The fixture has no owning field body."); return false; }
+        const double Distances[] = {240., 320., 400.};
+        return ResolveCampPoint(Owner, Camp, Body->GetNavAgentLocation(), Bearing, Distances, Out, Error);
+    }
+
+    // Walks from the current deployment via waypoints that keep clear of authored camp homes and Boss waypoints.
     bool Walk(double Now, ALDPlayerController& Owner, const FVector& Goal, const TCHAR* Id)
     {
         const ALDCharacter* Body = Cast<ALDCharacter>(Owner.GetPawn());
@@ -445,9 +493,11 @@ public:
     bool TickLowCamp(double Now, ALDPlayerController& Owner)
     {
         if (!Exists(TEXT("CampsReady.json"))) { return true; }
+        FString ApproachError;
+        if (!ResolveApproach(Owner, CampLowId, -.52, LowApproach, ApproachError)) { return Fail(TEXT("#C3"), ApproachError); }
         if (!bArrived)
         {
-            if (!Walk(Now, Owner, CampLowApproachCm, TEXT("#C3"))) { return false; }
+            if (!Walk(Now, Owner, LowApproach.GetValue(), TEXT("#C3"))) { return false; }
             if (!bArrived) { return true; }
         }
         if (!bAtLowMarked)
@@ -473,7 +523,7 @@ public:
             for (const FLDObservedUnitView& Unit : Frame->Units)
             {
                 if (Unit.Kind == ELDObservedUnitKind::CampMember && CampSpeciesIs(Unit.CreatureId,ELDDemoMonsterId::MonsterScavenger)
-                    && FVector::Dist2D(FVector(Unit.FeetCm), CampLowApproachCm) <= CampTargetSearchCm && !bRewarded)
+                    && FVector::Dist2D(FVector(Unit.FeetCm), LowApproach.GetValue()) <= CampTargetSearchCm && !bRewarded)
                 {
                     SeenScavengers.Add(Unit.Handle);
                 }
@@ -484,7 +534,7 @@ public:
             // Keep one attack order on the nearest visible scavenger; a dead target ends its order.
             if (Frame && Now >= NextOrderAt && !Owner.Navigation->HasMoveOrder())
             {
-                if (const FLDObservedUnitView* Target = NearestCreature(*Frame, ELDDemoMonsterId::MonsterScavenger, CampLowApproachCm))
+                if (const FLDObservedUnitView* Target = NearestCreature(*Frame, ELDDemoMonsterId::MonsterScavenger, LowApproach.GetValue()))
                 {
                     Owner.Navigation->AttackUnit(Target->Handle, Target->ObservationEpoch);
                     bAttacking = true;
@@ -516,7 +566,7 @@ public:
             if (!bRecoveryPickupSeen && Frame && Now >= NextOrderAt && !Owner.Navigation->HasMoveOrder())
             {
                 const ALDCharacter* Body = Cast<ALDCharacter>(Owner.GetPawn());
-                const FVector Foot = Body ? Body->GetNavAgentLocation() : CampLowApproachCm;
+                const FVector Foot = Body ? Body->GetNavAgentLocation() : LowApproach.GetValue();
                 const FLDObservedRecoveryOrb* Nearest = nullptr;
                 double DistanceSq = FMath::Square(CampTargetSearchCm);
                 for (const FLDObservedRecoveryOrb& Pack : Frame->RecoveryOrbs)
@@ -545,7 +595,7 @@ public:
             for (const FLDObservedUnitView& Unit : Frame->Units)
             {
                 Fresh += Unit.Kind == ELDObservedUnitKind::CampMember && CampSpeciesIs(Unit.CreatureId,ELDDemoMonsterId::MonsterScavenger)
-                    && FVector::Dist2D(FVector(Unit.FeetCm), CampLowApproachCm) <= CampTargetSearchCm
+                    && FVector::Dist2D(FVector(Unit.FeetCm), LowApproach.GetValue()) <= CampTargetSearchCm
                     && !SeenScavengers.Contains(Unit.Handle) ? 1 : 0;
             }
         }
@@ -566,7 +616,7 @@ public:
         {
             if(Frame && Now>=NextOrderAt && !Owner.Navigation->HasMoveOrder())
             {
-                if(const auto* Target=NearestCreature(*Frame,ELDDemoMonsterId::MonsterScavenger,CampLowApproachCm))
+                if(const auto* Target=NearestCreature(*Frame,ELDDemoMonsterId::MonsterScavenger,LowApproach.GetValue()))
                 {Owner.Navigation->AttackUnit(Target->Handle,Target->ObservationEpoch);NextOrderAt=Now+.5;}
             }
             return true;
@@ -597,18 +647,27 @@ public:
         switch (HighStep)
         {
         case EHighStep::Approach:
-            if (!Walk(Now, Owner, CampHighApproachCm, TEXT("#C6"))) { return false; }
+        {
+            FString ApproachError;
+            if (!ResolveApproach(Owner, CampHighId, 1.92, HighApproach, ApproachError)) { return Fail(TEXT("#C6"), ApproachError); }
+            const double Distances[] = {1500., 1700., 1900.};
+            if (!ResolveCampPoint(Owner, CampHighId, HighApproach.GetValue(), -1.35, Distances, FleeGoal, ApproachError))
+            {
+                return Fail(TEXT("#C6"), ApproachError);
+            }
+            if (!Walk(Now, Owner, HighApproach.GetValue(), TEXT("#C6"))) { return false; }
             if (!bArrived) { return true; }
             SnapshotGrowth(Owner);
             HighStep = EHighStep::Attack;
             return true;
+        }
         case EHighStep::Attack:
         {
-            const FLDObservedUnitView* Guardian = Frame ? NearestCreature(*Frame, ELDDemoMonsterId::MonsterGuardian, CampHighApproachCm) : nullptr;
+            const FLDObservedUnitView* Guardian = Frame ? NearestCreature(*Frame, ELDDemoMonsterId::MonsterGuardian, HighApproach.GetValue()) : nullptr;
             if (Guardian && Guardian->Health.CurrentP2 < Guardian->Health.MaxP2)
             {
                 // Break off after the first landed hit and run past the guardian's leash; the move supersedes the attack.
-                IssueMove(Now, Owner, CampFleeGoalCm);
+                IssueMove(Now, Owner, FleeGoal.GetValue());
                 HighStep = EHighStep::Flee;
             }
             else if (Guardian && Now >= NextOrderAt && !Owner.Navigation->HasMoveOrder())
@@ -619,14 +678,14 @@ public:
             return true;
         }
         case EHighStep::Flee:
-            if (!Returning) { return Navigate(Now, Owner, CampFleeGoalCm, TEXT("#C6")); }
+            if (!Returning) { return Navigate(Now, Owner, FleeGoal.GetValue(), TEXT("#C6")); }
             // Walk back behind the returning guardian so it stays in the rendered view until its home reset.
-            IssueMove(Now, Owner, CampHighApproachCm);
+            IssueMove(Now, Owner, HighApproach.GetValue());
             HighStep = EHighStep::FollowHome;
             return true;
         case EHighStep::FollowHome:
         {
-            if (!bArrived && !Navigate(Now, Owner, CampHighApproachCm, TEXT("#C9"))) { return false; }
+            if (!bArrived && !Navigate(Now, Owner, HighApproach.GetValue(), TEXT("#C9"))) { return false; }
             if (!bGuardianShot && Returning && CampOnScreen(Owner, *Returning))
             {
                 RequestShot(TEXT("CampGuardianReturning.png"), Now);
@@ -648,7 +707,9 @@ public:
         }
         case EHighStep::ToLowCamp:
         {
-            if (!bArrived && !Walk(Now, Owner, CampLowApproachCm, TEXT("#C9"))) { return false; }
+            FString ApproachError;
+            if (!ResolveApproach(Owner, CampLowId, -.52, LowApproach, ApproachError)) { return Fail(TEXT("#C9"), ApproachError); }
+            if (!bArrived && !Walk(Now, Owner, LowApproach.GetValue(), TEXT("#C9"))) { return false; }
             if (!bArrived || !Exists(TEXT("LowRefreshed.json"))) { return true; }
             if (LowShotSince == 0) { LowShotSince = Now; }
             int32 Shown = 0;
@@ -657,7 +718,7 @@ public:
                 for (const FLDObservedUnitView& Unit : Frame->Units)
                 {
                     Shown += Unit.Kind == ELDObservedUnitKind::CampMember && CampSpeciesIs(Unit.CreatureId,ELDDemoMonsterId::MonsterScavenger)
-                        && FVector::Dist2D(FVector(Unit.FeetCm), CampLowApproachCm) <= CampTargetSearchCm && CampOnScreen(Owner, Unit) ? 1 : 0;
+                        && FVector::Dist2D(FVector(Unit.FeetCm), LowApproach.GetValue()) <= CampTargetSearchCm && CampOnScreen(Owner, Unit) ? 1 : 0;
                 }
             }
             if (Shown < 3)
