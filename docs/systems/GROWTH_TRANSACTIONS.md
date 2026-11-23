@@ -10,7 +10,7 @@
 
 ## 经验、升级、点数与候选生成
 
-- **累计 XP 与等级**：开局 L1、`XP=0`，阈值 `progression.xp_thresholds`（L1..L16 累计 `0..4170 XP`，分段曲线 L5 起每级额外 +15 斜率）。L16 封顶后继续累计合法 XP，每满 `GROWTH.MaxLevelPointsXP`（240）授予 `GROWTH.MaxLevelPoints`（3）属性点，不再升级或触发升级候选。
+- **累计 XP 与等级**：开局 L1、`XP=0`，阈值 `progression.xp_thresholds`（L1..L16 累计 `0..5340 XP`，分段曲线 L5 起每级额外 +30 斜率）。L16 封顶后继续累计合法 XP，每满 `GROWTH.MaxLevelPointsXP`（400）授予 `GROWTH.MaxLevelPoints`（2）属性点，不再升级或触发升级候选。
 - **开局与升级授予**：
   - `BeginMatch`：授予 `GROWTH.OpeningPoints`（3）属性点与开局主动三选一（仅从 `opening=true` 的 15 个主动抽取）；处理完开局主动后立即派生一次**开局构筑牌三选一**。
   - 每升 1 级：授予 `GROWTH.PointsPerLevel`（3）属性点。
@@ -43,7 +43,7 @@
 
 - **唯一致死结算（`ALDGrowthDirector::CommitDeathReward`）**：以 `(Match, VictimIdentity, VictimLife)` 为唯一 `DeathKey` 去重。
   - **野怪与 Boss**：XP 全额归最后一击的在局参赛者，**无助攻分摊**；按营地档位（小 15% / 中 25% / 大 45% / 远古 70%）或 Boss（100%）独立判掉元素勋章。
-  - **参赛者击杀**：同一事务内同时 Prepare 击杀者与全部 `REWARD.AssistWindowSec`（10 s）内有效助攻者。击杀者获全额 `floor((70 + 20*(L_victim - 1)) * 等级差系数)` XP（系数为 `1 - 0.12*(L_killer - L_victim)`，夹在 0.4–1.6，由 `LDProgression::LevelGapXP` 计算）、本野外段前 2 次击杀各获牌三选一（第 3 次起改为 +2 属性点）、非终局 50% 掉元素勋章；若受害者正上热搜，额外获 `REWARD.BountyXP`（150）、+3 属性点与稀有/传说牌三选一。每名助攻者独立获得 `floor(0.5 * PlayerXP)` 与 +1 属性点，不稀释击杀者。
+  - **参赛者击杀**：同一事务内同时 Prepare 击杀者与全部 `REWARD.AssistWindowSec`（10 s）内有效助攻者。击杀者获全额 `floor((70 + 20*(L_victim - 1)) * 等级差系数)` XP（系数为 `1 - 0.12*(L_killer - L_victim)`，夹在 0.4–1.6，由 `LDProgression::LevelGapXP` 计算）、本野外段前 2 次击杀各获牌三选一（第 3 至第 5 次各改为 +1 属性点，之后不再有）、非终局 50% 掉元素勋章；若受害者正上热搜，额外获 `REWARD.BountyXP`（150）、+3 属性点与稀有/传说牌三选一。每名助攻者独立获得 `floor(0.5 * PlayerXP)` 与 +1 属性点，不稀释击杀者。
 - **野外事件奖励（`PayFieldReward` / `CommitOwedFieldReward`）**：空投、Boss 构筑奖、标记营地、小迷你旗、擂台、外卖柜、二手贩子、热搜存活点、审计技能点与中场 PK 奖池均按 `(EventKind, Serial)`（PK 按个人键）幂等记账；暂态锁定期间进入待付队列，由权威步重试兑现，终局冻结后停止重试。
 - **DEV 破格构筑预设（`LDDevelopmentDirector`）**：仅显式开启 `-LDDevTestMode` 时开放，包含 10 套一键预设（含 `Y05` 元素连锁、`K06` 双发核弹、`D10/D11` 冰道风筝、`Y17` 狂战吸血、`Y01/Y06` 反甲破盾、召唤物海及四套五维关键石流派），重置并装入对应等级、点数、分支与多份同名牌供实战手感验证。
 

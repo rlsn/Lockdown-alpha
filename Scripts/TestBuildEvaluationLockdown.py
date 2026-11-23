@@ -20,8 +20,8 @@ import BuildEvaluationLockdown as lockdown  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 S, O, H, CAMP = "1" * 32, "2" * 32, "3" * 32, "4" * 32
 CONTENT_ROOT = hashlib.sha256((ROOT / "Content/Lockdown/Data/Demo/manifest.json").read_bytes()).hexdigest()
-# 990 XP reaches level 8: the opening opportunity plus the ones of levels 2 and 5.
-SUPPLY = 990
+# 1140 XP reaches level 8: the opening opportunity plus the ones of levels 2 and 5.
+SUPPLY = 1140
 # The stats' design order (ascending native id), the order of every per-stat row and points= list.
 STATS = ("stat_physique", "stat_thick_skin", "stat_strength", "stat_brains", "stat_agility")
 
@@ -112,9 +112,9 @@ def trace(*extra, drop=()):
         ("field", "LD_FIELD_ENTER generation=2 segment=0 at_ms=5000 field_t_ms=0 final=0"),
         ("s_spawn", f"LD_EVAL_FIELD_SPAWN t=5000 generation=2 contender={S} life=2 pos=100,0,0"),
         ("o_spawn", f"LD_EVAL_FIELD_SPAWN t=5000 generation=2 contender={O} life=2 pos=-100,5,0"),
-        ("s_reward", f"LD_REWARD t=5016 contender={S} cause=dev_fixture role=recipient xp=990 xp_after=990 level=1->8 "),
+        ("s_reward", f"LD_REWARD t=5016 contender={S} cause=dev_fixture role=recipient xp=1140 xp_after=1140 level=1->8 "),
         ("s_level", f"LD_LEVEL_UP t=5016 contender={S} level=1->8 choices_earned=2 unspent_points=5"),
-        ("o_reward", f"LD_REWARD t=5016 contender={O} cause=dev_fixture role=recipient xp=990 xp_after=990 level=1->8 "),
+        ("o_reward", f"LD_REWARD t=5016 contender={O} cause=dev_fixture role=recipient xp=1140 xp_after=1140 level=1->8 "),
         ("o_level", f"LD_LEVEL_UP t=5016 contender={O} level=1->8 choices_earned=2 unspent_points=5"),
         ("s_offer2", f"LD_OFFER t=5016 contender={S} ordinal=2 level=6 cards=active_flyer_trap,active_seethe,active_stare_down"),
         ("o_offer2", f"LD_OFFER t=5016 contender={O} ordinal=2 level=6 cards=active_stare_down,active_calculus_drop,active_seethe"),
@@ -142,7 +142,7 @@ def trace(*extra, drop=()):
 
 # Workshop: the subject owns its build. Three opening points go to strength in the opening rest; on the field the level
 # cards arrive with the supply, K06 goes onto the opening active, comes off, Y25 goes onto the body with fire, K06 goes back
-# onto the opening active, and the 21 level points go to physique: every one of the 24 points 990 XP earns.
+# onto the opening active, and the 21 level points go to physique: every one of the 24 points 1140 XP earns.
 WORKSHOP = {
     "choices": [{"rule": "definition", "definition": "active_elbow"}, "ai_select", "ai_select"],
     "level_cards": list(LEVEL8_CARDS),
@@ -155,7 +155,7 @@ WORKSHOP = {
         {"step": "allocate_points", "at": "field", "points": {"stat_physique": 21}},
     ],
 }
-REWARD_LINE = f"LD_REWARD t=5016 contender={S} cause=dev_fixture role=recipient xp=990 xp_after=990 level=1->8 "
+REWARD_LINE = f"LD_REWARD t=5016 contender={S} cause=dev_fixture role=recipient xp=1140 xp_after=1140 level=1->8 "
 PRESET_LINE = f"LD_EVAL_CARD_PRESET t=10 contender={S} ticket=1 cards={','.join(LEVEL8_CARDS)}"
 
 
@@ -263,7 +263,7 @@ class CapabilitiesTest(AdapterCase):
         self.assertEqual(duel["evidence_level"], "NativeSpatial")
         self.assertEqual(lockdown.level_for(self.content["progression"], 240), 4)
         self.assertEqual(lockdown.level_for(self.content["progression"], 179), 3)
-        self.assertEqual([lockdown._opportunities(self.caps, xp) for xp in (0, 59, 60, 374, 375, 1264, 1265)], [1, 1, 2, 2, 3, 3, 4])
+        self.assertEqual([lockdown._opportunities(self.caps, xp) for xp in (0, 59, 60, 389, 390, 1489, 1490)], [1, 1, 2, 2, 3, 3, 4])
 
 
 class PlanTest(AdapterCase):
@@ -337,7 +337,7 @@ class PlanTest(AdapterCase):
 
     def test_known_illegal_plans_are_refused_before_any_run(self):
         needs = self.requirements({"choices": ["ai_select"] * 2})
-        self.assertTrue(any("has 2 rules but its supply of 990 XP gives 3 active opportunities" in item for item in needs["problems"]))
+        self.assertTrue(any("has 2 rules but its supply of 1140 XP gives 3 active opportunities" in item for item in needs["problems"]))
         needs = self.requirements({"choices": ["ai_select"] * 2}, supply=140)
         self.assertEqual(needs["problems"], [], "140 XP gives the opening opportunity and the level-2 one")
         needs = self.requirements({"choices": [{"rule": "definition", "definition": "active_stare_down"}, "ai_select", "ai_select"]})
@@ -888,7 +888,7 @@ class EvidenceTest(AdapterCase):
         traces = (
             trace().replace("LD_DEATH_RECEIPT contender=", "LD_DEATH_RECEIPT missing=", 1).replace("t=20000 killer=", "t=bad killer=", 1),
             trace().replace("LD_HIT t=10000", "LD_HIT t=missing", 1),
-            trace().replace("cause=dev_fixture role=recipient xp=990", "cause=dev_fixture role=recipient xp=bad", 1),
+            trace().replace("cause=dev_fixture role=recipient xp=1140", "cause=dev_fixture role=recipient xp=bad", 1),
         )
         for text in traces:
             with self.subTest(trace=text[:60]):

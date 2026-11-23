@@ -1660,15 +1660,9 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     }
     TArray<FLDCombatBodyRef> AreaTargets;
     // The origin is the caster's foot at release, before any dash of the same action moves it.
-    double EffectiveSelfAreaRadiusCm=AreaEffect ? LDCA::ToDouble(AreaEffect->RadiusCm)*HulkingAreaScaleOf(Body) : 0.;
-    if (const FLDDemoEffectDefinition* Warcry=LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::WarcryRing))
-    {
-        if (Warcry->LimitP2>0 && Body.Resources.MaxHpP2>0)
-        {
-            const int64 Steps=Body.Resources.MaxHpP2/Warcry->LimitP2;
-            if (Steps>0) { EffectiveSelfAreaRadiusCm*=1.+0.10*double(Steps); }
-        }
-    }
+    // The reshapes, the hulking presence and the warcry ring's own growth add into one multiplier of the self area.
+    const double EffectiveSelfAreaRadiusCm=AreaEffect
+        ? LDCA::ToDouble(AreaEffect->RadiusCm)*HulkingAreaScaleOf(Body,Terms.AreaBp,WarcryAreaBpOf(Body,*ValuesDef)) : 0.;
     if (bHostile && bAreaMode && AreaEffect
         && !CollectAreaTargets(FootOf(Actor),EffectiveSelfAreaRadiusCm,&Body,Body.Victim.EntityId,AreaTargets,Error))
     { return false; }
@@ -2245,7 +2239,8 @@ bool ALDCombatDirector::BuildReleasePayload(const FLDBodyCombatState& Body, cons
     Template.SourceAPP2=Final.APP2;
     Template.SourceBonusADP2=BonusADP2;
     Template.MaxHPRatioBp=DamageEffect ? DamageEffect->MaxHPRatioBp : 0;
-    Template.SourceMaxHPP2=Body.Resources.MaxHpP2;
+    // Damage scales with the max HP above the character's own base and level growth.
+    Template.SourceMaxHPP2=BonusMaxHpP2Of(Body);
     Template.RootDurationMs=RootEffect ? RootEffect->DurationMs : 0;
     Template.SlowBp=SlowEffect ? SlowEffect->RatioBp : 0;
     Template.SlowDurationMs=SlowEffect ? SlowEffect->DurationMs : 0;
@@ -2412,15 +2407,18 @@ bool ALDCombatDirector::DeliverReleasePayload(const ALDCharacter& Actor, const F
     {
         // A telegraphed self area can be perfectly dodged at its resolution (spec §4.4).
         const FLDDemoEffectDefinition* Around=LDCA::FindEffect(Terms.Values,ELDDemoEffectOp::SelfArea);
+        // The same circle the release collected its targets in.
+        const double AroundRadius=Around
+            ? LDCA::ToDouble(Around->RadiusCm)*HulkingAreaScaleOf(Body,Terms.AreaBp,WarcryAreaBpOf(Body,Terms.Values)) : 0.;
         if (Around && Terms.WindupMs>=150)
         {
-            const double Radius=LDCA::ToDouble(Around->RadiusCm);
+            const double Radius=AroundRadius;
             if (!ResolvePerfectDodges(Template.EffectId,Template.SourceEntity,
                 [&ReleaseFoot,Radius](const FVector& Point) { return FVector::Dist2D(ReleaseFoot,Point)<=Radius; },NowMs,Error)) { return false; }
         }
         for (const FLDCombatBodyRef& Target : AreaTargets) { Deliver(Target); }
-        if (Around && !HitBagsInCircle(ReleaseFoot, LDCA::ToDouble(Around->RadiusCm), Template, NowMs, Error)) { return false; }
-        if (Around) { HitFenceInCircle(ReleaseFoot, LDCA::ToDouble(Around->RadiusCm), Template); }
+        if (Around && !HitBagsInCircle(ReleaseFoot, AroundRadius, Template, NowMs, Error)) { return false; }
+        if (Around) { HitFenceInCircle(ReleaseFoot, AroundRadius, Template); }
         // M15 on S07: a blast of the same radius at the release foot after the delay, with one burn stack.
         const FLDDemoEffectDefinition* AreaEffect=LDCA::FindEffect(Terms.Values,ELDDemoEffectOp::SelfArea);
         if (Terms.EchoImpact.IsSet() && AreaEffect)
@@ -2429,7 +2427,7 @@ bool ALDCombatDirector::DeliverReleasePayload(const ALDCharacter& Actor, const F
             Blast.Payload=Template;
             Blast.Payload.BurnStacks=1;
             Blast.CentreCm=ReleaseFoot;
-            Blast.RadiusCm=Blast.InnerRadiusCm=LDCA::ToDouble(AreaEffect->RadiusCm);
+            Blast.RadiusCm=Blast.InnerRadiusCm=AroundRadius;
             if (!ScheduleEcho(Template.SourceBody,Terms.EchoImpact.GetValue(),Blast,NowMs,Error)) { return false; }
         }
     }

@@ -305,6 +305,7 @@ bool LDCombatSourceRules::CompileCardActive(const FLDAttributeProjection& Projec
     if (AreaDeltaBp>0)
     {
         const int64 AreaBp=10000+AreaDeltaBp;
+        Terms.AreaBp=AreaBp;
         FLDDemoTargetDefinition& Target=Terms.Target;
         if (Target.ProjectileRadiusCm.Numerator>0) { Target.ProjectileRadiusCm=ScaleRational(Target.ProjectileRadiusCm,AreaBp); }
         if (Target.LineHalfWidthCm.Numerator>0) { Target.LineHalfWidthCm=ScaleRational(Target.LineHalfWidthCm,AreaBp); }
@@ -828,12 +829,12 @@ bool ALDCombatDirector::OnBasicLanded(FLDBodyCombatState& Body, FLDCombatHit& Pr
     {
         TArray<FLDPassiveEffectRef> Tonnage;
         if (!CollectPassiveEffects(Projection,ELDDemoEffectOp::TonnageCrush,Tonnage,Error)) { return false; }
-        if (!Tonnage.IsEmpty() && Body.Resources.MaxHpP2>0)
+        if (!Tonnage.IsEmpty() && BonusMaxHpP2Of(Body)>0)
         {
             const bool bVsMonster=Primary.Target.Victim.Kind==ELDVictimKind::CampMember;
             int64 RatioBp=0;
             for (const FLDPassiveEffectRef& Ref : Tonnage) { RatioBp+=bVsMonster ? Ref.Effect.SecondaryRatioBp : Ref.Effect.RatioBp; }
-            const int64 CrushP2=Share(Body.Resources.MaxHpP2,RatioBp);
+            const int64 CrushP2=Share(BonusMaxHpP2Of(Body),RatioBp);
             if (CrushP2>0)
             {
                 FLDCombatHit Crush=MakeHit(Body,Tonnage[0].Source,Primary.Target,Primary.EffectId);
@@ -1308,12 +1309,12 @@ bool ALDCombatDirector::OnCardHit(const FLDCombatHit& Hit, FLDBodyCombatState& T
             {
                 TArray<FLDPassiveEffectRef> Tonnage;
                 if (!CollectPassiveEffects(Source->AttributeProjection,ELDDemoEffectOp::TonnageCrush,Tonnage,Error)) { return false; }
-                if (!Tonnage.IsEmpty() && Source->Resources.MaxHpP2>0)
+                if (!Tonnage.IsEmpty() && BonusMaxHpP2Of(*Source)>0)
                 {
                     const bool bVsMonster=Target.Victim.Kind==ELDVictimKind::CampMember;
                     int64 RatioBp=0;
                     for (const FLDPassiveEffectRef& Ref : Tonnage) { RatioBp+=bVsMonster ? Ref.Effect.SecondaryRatioBp : Ref.Effect.RatioBp; }
-                    const int64 CrushP2=Share(Source->Resources.MaxHpP2,RatioBp);
+                    const int64 CrushP2=Share(BonusMaxHpP2Of(*Source),RatioBp);
                     if (CrushP2>0)
                     {
                         FLDCombatHit Crush=MakeHit(*Source,Tonnage[0].Source,Hit.Target,Hit.EffectId);
@@ -2006,7 +2007,7 @@ bool ALDCombatDirector::OnShieldBrokenCards(FLDBodyCombatState& Holder, int64 No
         Blast.BaseP2=BaseP2;
         Blast.APRatioBp=APBp;
         Blast.MaxHPRatioBp=MaxHPBp;
-        Blast.SourceMaxHPP2=Holder.Resources.MaxHpP2;
+        Blast.SourceMaxHPP2=BonusMaxHpP2Of(Holder);
         Blast.DamageType=ELDDemoDamageType::Magical;
         Blast.bFromShieldTrigger=true;
         if (!StampSourceTerms(Holder,Blast,Error)) { return false; }

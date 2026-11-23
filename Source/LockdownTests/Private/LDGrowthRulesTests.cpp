@@ -440,8 +440,8 @@ bool GrowthTestReadFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoCo
     }
     const FLDDemoContentParameters& Tuning = OutCatalog->Get().Parameters;
     const FLDDemoProgressionDefinition& Curve = OutCatalog->Get().Progression;
-    const TArray<int64> ApprovedThresholds = {0, 60, 140, 240, 375, 545, 750, 990, 1265, 1575,
-        1920, 2300, 2715, 3165, 3650, 4170};
+    const TArray<int64> ApprovedThresholds = {0, 60, 140, 240, 390, 590, 840, 1140, 1490, 1890,
+        2340, 2840, 3390, 3990, 4640, 5340};
     bool bApproved = Test.TestTrue(TEXT("Fixture carries the approved 16-level cumulative XP thresholds"),
         Curve.XPStart == 0 && Curve.XPThresholds == ApprovedThresholds);
     bApproved &= Test.TestTrue(TEXT("Fixture carries MaxLevel 16, three active slots and active opportunities at levels 2, 5 and 9"),
@@ -449,8 +449,8 @@ bool GrowthTestReadFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoCo
     bApproved &= Test.TestTrue(TEXT("Fixture carries REWARD.PlayerXP 70 + 20/level and the level-gap factor 12% per level in [0.4, 1.6]"),
         Tuning.PlayerXPBase == 70 && Tuning.PlayerXPPerLevel == 20 && Tuning.LevelGapXPStepBp == 1200
         && Tuning.LevelGapXPMinBp == 4000 && Tuning.LevelGapXPMaxBp == 16000);
-    bApproved &= Test.TestTrue(TEXT("Fixture carries 3 opening points, 3 per level, 3 per 240 XP past level 16 and a 4 s safe window"),
-        Tuning.OpeningPoints == 3 && Tuning.PointsPerLevel == 3 && Tuning.MaxLevelPoints == 3 && Tuning.MaxLevelPointsXP == 240
+    bApproved &= Test.TestTrue(TEXT("Fixture carries 3 opening points, 3 per level, 2 per 400 XP past level 16 and a 4 s safe window"),
+        Tuning.OpeningPoints == 3 && Tuning.PointsPerLevel == 3 && Tuning.MaxLevelPoints == 2 && Tuning.MaxLevelPointsXP == 400
         && Tuning.BuildSafeWindowMs == 4000);
     bApproved &= Test.TestTrue(TEXT("Fixture carries the five point-bought stats"), OutCatalog->Get().Stats.Num() == 5);
     return bApproved;
@@ -506,8 +506,8 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
     const FLDDemoProgressionDefinition& Curve = Approved.Progression;
     bool bGood = true;
 
-    const TPair<int64, int32> LevelCases[] = {{0, 1}, {59, 1}, {60, 2}, {239, 3}, {240, 4}, {1574, 9},
-        {1575, 10}, {4169, 15}, {4170, 16}, {MAX_int64, 16}};
+    const TPair<int64, int32> LevelCases[] = {{0, 1}, {59, 1}, {60, 2}, {239, 3}, {240, 4}, {1889, 9},
+        {1890, 10}, {5339, 15}, {5340, 16}, {MAX_int64, 16}};
     for (const TPair<int64, int32>& LevelCase : LevelCases)
     {
         uint8 Level = 0;
@@ -540,9 +540,9 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
     bGood &= GrowthTestPlan(Test, Curve, 0, 1, 59, 1, 1, TEXT("59 XP at level 1 keeps only the opening opportunity"));
     bGood &= GrowthTestPlan(Test, Curve, 0, 1, 60, 2, 2, TEXT("Level 2 adds the first extra active opportunity"));
     bGood &= GrowthTestPlan(Test, Curve, 60, 2, 80, 3, 2, TEXT("Level 3 adds no active opportunity"));
-    bGood &= GrowthTestPlan(Test, Curve, 0, 1, 545, 6, 3, TEXT("Crossing levels 2 and 5 at once adds both"));
-    bGood &= GrowthTestPlan(Test, Curve, 1575, 10, 1140, 13, 4, TEXT("1140 XP at level 10 reaches level 13 without another"));
-    bGood &= GrowthTestPlan(Test, Curve, 4170, 16, 5000, 16, 4, TEXT("XP keeps accumulating at the top level"));
+    bGood &= GrowthTestPlan(Test, Curve, 0, 1, 590, 6, 3, TEXT("Crossing levels 2 and 5 at once adds both"));
+    bGood &= GrowthTestPlan(Test, Curve, 1890, 10, 1500, 13, 4, TEXT("1500 XP at level 10 reaches level 13 without another"));
+    bGood &= GrowthTestPlan(Test, Curve, 5340, 16, 5000, 16, 4, TEXT("XP keeps accumulating at the top level"));
     LDProgression::FExperienceChange Change;
     bGood &= GrowthTestReason(Test, TEXT("1 XP past the int64 bound"), LDProgression::PlanExperience(Curve, MAX_int64, 16, 4, 1, Change),
         ELDGrowthReason::ArithmeticOverflow);
@@ -616,14 +616,14 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
     // ---- #198 points: derived from the level and XP, never stored ----
     bGood &= GrowthTestPoints(Test, Approved, 1, 0, 3, TEXT("The opening grants 3 points"));
     bGood &= GrowthTestPoints(Test, Approved, 2, 60, 6, TEXT("Level 2 adds 3"));
-    bGood &= GrowthTestPoints(Test, Approved, 10, 1575, 30, TEXT("Level 10 holds 3 + 9 x 3"));
-    bGood &= GrowthTestPoints(Test, Approved, 15, 4169, 45, TEXT("Level 15 one XP short of the top earns no XP grant"));
-    bGood &= GrowthTestPoints(Test, Approved, 16, 4170, 48, TEXT("Level 16 at its threshold holds 3 + 15 x 3"));
-    bGood &= GrowthTestPoints(Test, Approved, 16, 4409, 48, TEXT("239 XP past level 16 grants nothing yet"));
-    bGood &= GrowthTestPoints(Test, Approved, 16, 4410, 51, TEXT("Every full 240 XP past level 16 grants 3"));
-    bGood &= GrowthTestPoints(Test, Approved, 16, 4649, 51, TEXT("A partial second 240 XP grants nothing more"));
-    bGood &= GrowthTestPoints(Test, Approved, 16, 4650, 54, TEXT("The second full 240 XP grants 3 more"));
-    bGood &= GrowthTestPoints(Test, Approved, 16, 6570, 78, TEXT("Ten full 240 XP past level 16"));
+    bGood &= GrowthTestPoints(Test, Approved, 10, 1890, 30, TEXT("Level 10 holds 3 + 9 x 3"));
+    bGood &= GrowthTestPoints(Test, Approved, 15, 5339, 45, TEXT("Level 15 one XP short of the top earns no XP grant"));
+    bGood &= GrowthTestPoints(Test, Approved, 16, 5340, 48, TEXT("Level 16 at its threshold holds 3 + 15 x 3"));
+    bGood &= GrowthTestPoints(Test, Approved, 16, 5739, 48, TEXT("399 XP past level 16 grants nothing yet"));
+    bGood &= GrowthTestPoints(Test, Approved, 16, 5740, 50, TEXT("Every full 400 XP past level 16 grants 2"));
+    bGood &= GrowthTestPoints(Test, Approved, 16, 6139, 50, TEXT("A partial second 400 XP grants nothing more"));
+    bGood &= GrowthTestPoints(Test, Approved, 16, 6140, 52, TEXT("The second full 400 XP grants 2 more"));
+    bGood &= GrowthTestPoints(Test, Approved, 16, 9340, 68, TEXT("Ten full 400 XP past level 16"));
     int64 Earned = -1;
     bGood &= GrowthTestReason(Test, TEXT("A level that does not match its XP"), LDProgression::EarnedPoints(Approved, 2, 0, Earned),
         ELDGrowthReason::DataInvalid);
@@ -640,7 +640,7 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
             ELDGrowthReason::DataInvalid);
         Broken.Parameters.PointsPerLevel = 3;
         Broken.Parameters.MaxLevelPoints = MAX_int64 / 2;
-        bGood &= GrowthTestReason(Test, TEXT("Max-level grants past the int64 bound"), LDProgression::EarnedPoints(Broken, 16, 5000, Earned),
+        bGood &= GrowthTestReason(Test, TEXT("Max-level grants past the int64 bound"), LDProgression::EarnedPoints(Broken, 16, 6200, Earned),
             ELDGrowthReason::ArithmeticOverflow);
     }
 
@@ -655,8 +655,8 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
         LDProgression::UnspentPoints(Approved, GrowthTestBuild(Approved, 1, {}, {}, {1, 0, 2, 0, 0}), 0, Unspent)
             == ELDGrowthReason::None && Unspent == 0);
     bGood &= Test.TestTrue(TEXT("Points earned past level 16 are unspent until allocated"),
-        LDProgression::UnspentPoints(Approved, GrowthTestBuild(Approved, 16, {}, {}, {40, 0, 0, 0, 8}), 4410, Unspent)
-            == ELDGrowthReason::None && Unspent == 3);
+        LDProgression::UnspentPoints(Approved, GrowthTestBuild(Approved, 16, {}, {}, {40, 0, 0, 0, 8}), 5740, Unspent)
+            == ELDGrowthReason::None && Unspent == 2);
     bGood &= GrowthTestReason(Test, TEXT("More allocated than earned is a broken authority record"),
         LDProgression::UnspentPoints(Approved, GrowthTestBuild(Approved, 1, {}, {}, {2, 0, 2, 0, 0}), 0, Unspent),
         ELDGrowthReason::AuthorityFault);
@@ -1105,7 +1105,7 @@ bool GrowthTestRunOpening(FAutomationTestBase& Test)
         && Three.Value->Build().Level == 3 && Three.Value->Progression().ActiveEarned == 2
         && Three.Value->Progression().QueuedActiveOpportunities() == 2
         && Three.Value->Progression().Offer.IsSet() && Three.Value->Progression().Offer->OfferId == FirstOffers[Human]);
-    const FLDPrepareGrowthResult Six = Development->PrepareExperience(Human, 545);
+    const FLDPrepareGrowthResult Six = Development->PrepareExperience(Human, 590);
     bGood &= Test.TestTrue(TEXT("By level 6 opportunity 3 (level 6) is queued"), Six.IsSuccess() && Six.Value->Build().Level == 6
         && Six.Value->Progression().ActiveEarned == 3 && Six.Value->Progression().QueuedActiveOpportunities() == 3);
     // The card-offer levels 3 and 6 each receive their named card instead of a level-up offer.
@@ -1117,7 +1117,7 @@ bool GrowthTestRunOpening(FAutomationTestBase& Test)
         for (const FLDCardInstance& Card : Six.Value->Build().Cards) { ExpectedCards.Add(Card.Id); }
     }
     ExpectedCards.Append(FixedCards);
-    const FLDPrepareGrowthResult Fixed = Development->DevPrepareEvaluationExperience(Human, 545, FixedCards);
+    const FLDPrepareGrowthResult Fixed = Development->DevPrepareEvaluationExperience(Human, 590, FixedCards);
     TArray<FName> ActualCards;
     if (Fixed.IsSuccess())
     {
@@ -1128,7 +1128,7 @@ bool GrowthTestRunOpening(FAutomationTestBase& Test)
         && Fixed.Value->CardOfferLast() < Fixed.Value->CardOfferFirst()
         && Development->FindBuild(Human)->Level == 1 && Development->FindBuild(Human)->Cards.IsEmpty());
     bGood &= Test.TestTrue(TEXT("An incomplete evaluation level preset is refused without changing the existing build"),
-        !Development->DevPrepareEvaluationExperience(Human, 545, {FixedCards[0]}).IsSuccess()
+        !Development->DevPrepareEvaluationExperience(Human, 590, {FixedCards[0]}).IsSuccess()
         && Development->FindBuild(Human)->Level == 1 && Development->FindBuild(Human)->Cards.IsEmpty());
     const FLDPrepareGrowthResult Top = Development->PrepareExperience(Human, 7300);
     bGood &= Test.TestTrue(TEXT("Level 16 holds the opening opportunity and one per active offer level"), Top.IsSuccess()
@@ -1466,8 +1466,8 @@ bool GrowthTestRunBuildRules(FAutomationTestBase& Test)
         Allocate(Empty, 0, {0, 0, 0, 3, 0}, Dead) == ELDGrowthReason::None && Out.StatPoints == TArray<int32>({0, 0, 0, 3, 0}));
     const FLDGrowthBuild Top = GrowthTestBuild(Content, 16, {}, {}, {40, 0, 0, 0, 8});
     bGood &= Test.TestTrue(TEXT("The XP grant past level 16 is allocated like any other point"),
-        Allocate(Top, 4650, {0, 3, 0, 0, 0}, Safe) == ELDGrowthReason::None && Out.StatPoints == TArray<int32>({40, 3, 0, 0, 8}));
-    bGood &= Refused(TEXT("Points not yet granted past level 16"), Allocate(Top, 4409, {0, 1, 0, 0, 0}, Safe),
+        Allocate(Top, 6140, {0, 3, 0, 0, 0}, Safe) == ELDGrowthReason::None && Out.StatPoints == TArray<int32>({40, 3, 0, 0, 8}));
+    bGood &= Refused(TEXT("Points not yet granted past level 16"), Allocate(Top, 5739, {0, 1, 0, 0, 0}, Safe),
         ELDGrowthReason::NotEnoughPoints, Top);
     bGood &= Refused(TEXT("An allocation on a build that spent more than it earned"),
         Allocate(GrowthTestBuild(Content, 1, {}, {}, {4, 0, 0, 0, 0}), 0, {0, 1, 0, 0, 0}, Safe), ELDGrowthReason::AuthorityFault,
@@ -2589,7 +2589,7 @@ bool FLDDemoAssistSettlementTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The assisted kill is granted once"), Receipt.Outcome == ELDRewardOutcome::Granted && Receipt.Recipient == Killer);
     TestTrue(TEXT("Killer receives 100% XP + 1 PvP offer; each assister receives 50% XP + 1 stat point"),
         XP(Killer) == KillerXP && XP(A1) == AssistXP && XP(A2) == AssistXP && XP(Victim) == 0
-        && Development->FindProgression(Killer)->PvPKillOffersInSegment[0] == 1
+        && Development->FindProgression(Killer)->PvPKillsInSegment[0] == 1
         && Development->FindBuild(A1)->AwardedPoints == 1 && Development->FindBuild(A2)->AwardedPoints == 1);
     TestTrue(TEXT("The receipt lists both assisters with their parts in fact order"),
         Receipt.Assists.Num() == 2 && Receipt.Assists[0].Recipient == A1 && Receipt.Assists[1].Recipient == A2
@@ -2681,6 +2681,19 @@ bool FLDDemoAssistSettlementTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A replay after the level-up returns the original XP and pays nothing"),
         GapReplay.Outcome == ELDRewardOutcome::Granted && GapReplay.XPDelta == GapReceipt.XPDelta
         && GapReplay.Assists.Num() == 2 && GapReplay.Assists[0].XPDelta == GapAssistXP && TotalXP() == TotalAfterGap);
+    // The killer's two rewarded kills of this segment paid card offers; the next three pay one stat point each and
+    // later ones pay no point.
+    const int64 PointsAfterOffers = Development->FindBuild(Killer)->AwardedPoints;
+    TArray<int64> PointSteps;
+    for (uint32 LifeNumber = 9; LifeNumber <= 12; ++LifeNumber)
+    {
+        FLDRewardReceipt Extra;
+        if (!Settle(ContenderDeath(LifeNumber, {}), Extra)) { return false; }
+        TestTrue(FString::Printf(TEXT("Kill of life %u is granted"), LifeNumber), Extra.Outcome == ELDRewardOutcome::Granted);
+        PointSteps.Add(Development->FindBuild(Killer)->AwardedPoints - PointsAfterOffers);
+    }
+    TestTrue(TEXT("Kills three to five of a segment pay one stat point each and the sixth pays none"),
+        PointSteps == TArray<int64>({1, 2, 3, 3}));
 
     FLDTimelineParameters TimelineParameters;
     TArray<FLDTimelineEvent> TimelineEvents;
@@ -2695,7 +2708,7 @@ bool FLDDemoAssistSettlementTest::RunTest(const FString& Parameters)
     { AddError(Error); return false; }
 
     const int64 BeforeFinalDeath = TotalXP();
-    const FLDCommittedDeath FinalDeath = ContenderDeath(9, {A1, A2});
+    const FLDCommittedDeath FinalDeath = ContenderDeath(13, {A1, A2});
     FLDRewardReceipt FinalReceipt;
     if (!Settle(FinalDeath, FinalReceipt)) { return false; }
     TestTrue(TEXT("A final-field kill and its assists grant no growth"),
@@ -3198,7 +3211,7 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
     // ---- Development: level 3 queues an offer of every active but the learned one ----
     Mode->MatchPhase = ELDMatchPhase::Development;
     FightOf(Tester).LastBuildUnsafeAtMs = 0;
-    if (!Reward(Skipper, 4, 545)) { return false; }
+    if (!Reward(Skipper, 4, 590)) { return false; }
     const FLDProgressionView QueuedSkips = Development->ReadProgression(Skipper);
     if (!TestTrue(TEXT("Level 6 has two queued opportunities behind a single generated offer"),
         QueuedSkips.Level == 6 && QueuedSkips.QueuedActiveOpportunities == 2 && QueuedSkips.bHasActiveOffer
@@ -3298,7 +3311,7 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
 
     // ---- Dead: a choice is stored, a learn waits for the next life, points can be allocated ----
     Mode->Lives.FindChecked(Tester).Phase = ELDLifePhase::Dead;
-    if (!Reward(Tester, 2, 405)) { return false; }
+    if (!Reward(Tester, 2, 450)) { return false; }
     const FLDProgressionView Six = Development->ReadProgression(Tester);
     TestTrue(TEXT("Level 6 queues opportunity 3 with an offer of the remaining actives and adds 9 points"), Six.Level == 6
         && Six.ActiveOpportunitiesEarned == 3 && Six.QueuedActiveOpportunities == 1 && Six.bHasActiveOffer

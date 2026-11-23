@@ -186,13 +186,20 @@ struct FLDProgressionState
     // Spec §3.13 the rest shop.
     FLDShopState Shop;
     // Issue #330 §6.1: PvP kill card offers granted per field segment (cap 2 per segment; overflow grants +2 stat points).
-    uint8 PvPKillOffersInSegment[4] = {};
+    // Contender kills rewarded in each field segment: the first PvPKillOffers pay a card offer, the next
+    // PvPKillPoints pay one stat point each, later ones pay neither.
+    uint8 PvPKillsInSegment[4] = {};
 
     uint8 QueuedActiveOpportunities() const { return ActiveEarned - ActiveConsumed; }
 };
 
 namespace LDProgression
 {
+    // App Spec §4.1: per field segment, the first two contender kills each pay a card offer and the next three one stat
+    // point each.
+    inline constexpr uint8 PvPKillOffers = 2;
+    inline constexpr uint8 PvPKillPoints = 3;
+
     struct FRewardAmounts
     {
         int64 XP = 0;

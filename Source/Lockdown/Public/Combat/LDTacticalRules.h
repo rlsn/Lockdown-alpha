@@ -35,6 +35,11 @@ namespace LDTactical
     LOCKDOWN_API int32 DispelRoots(TArray<FLDCombatRoot>& Roots);
     // BonusAD = max(0, TotalADP2 - (AD.BaseP2 + (Level - 1) * AD.PerLevelP2)).
     LOCKDOWN_API int64 BonusADOf(const FLDDemoContentParameters& Parameters, int32 Level, int64 TotalADP2);
+    // Max HP above the character's own base and level growth. Damage coefficients read this; shields read the whole maximum.
+    LOCKDOWN_API int64 BonusMaxHPOf(const FLDDemoContentParameters& Parameters, int32 Level, int64 TotalMaxHPP2);
+    // A release's own reshapes (AppliedAreaBp, already inside its radius) and a body-wide area growth (ExtraBp) add into
+    // one multiplier: this is the factor still to apply to that radius.
+    LOCKDOWN_API double AreaScaleBeside(int64 AppliedAreaBp, int64 ExtraBp);
     // Adaptive damage type: BonusAD * 1.4 >= AP -> Physical, else Magical; DefaultType when AdaptiveRatioBp <= 0.
     LOCKDOWN_API ELDDemoDamageType EffectiveDamageType(ELDDemoDamageType DefaultType, int64 AdaptiveRatioBp, int64 BonusADP2, int64 APP2);
     // EFFECT.ShieldPolicy=StackToLatestExpiry: a new barrier adds its amount to the live remainder and the record lasts until

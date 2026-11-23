@@ -35,30 +35,37 @@ namespace LDCombatSynergyDetail
     }
 }
 
-double ALDCombatDirector::HulkingAreaScaleOf(const FLDBodyCombatState& Body) const
+int64 ALDCombatDirector::BonusMaxHpP2Of(const FLDBodyCombatState& Body) const
 {
     const FLDDemoContentSnapshot* Content = Catalog();
-    if (!Content) { return 1.; }
+    if (!Content) { return 0; }
+    return LDTactical::BonusMaxHPOf(Content->Get().Parameters, GrowthLevelOf(Body), Body.Resources.MaxHpP2);
+}
+
+double ALDCombatDirector::HulkingAreaScaleOf(const FLDBodyCombatState& Body, int64 AppliedAreaBp, int64 ExtraAreaBp) const
+{
     TArray<FLDPassiveEffectRef> Hulks;
     FString Error;
-    if (!CollectPassiveEffects(Body.AttributeProjection, ELDDemoEffectOp::HulkingPresence, Hulks, Error) || Hulks.IsEmpty())
-    {
-        return 1.;
-    }
-    const FLDDemoContentParameters& P = Content->Get().Parameters;
-    const int64 LevelSteps = FMath::Max<int64>(0, int64(GrowthLevelOf(Body)) - 1);
-    const int64 BaseMaxHPP2 = P.MaxHP.BaseP2 + LevelSteps * P.MaxHP.PerLevelP2;
-    const int64 BonusHPP2 = FMath::Max<int64>(0, Body.Resources.MaxHpP2 - BaseMaxHPP2);
-    if (BonusHPP2 <= 0) { return 1.; }
     int64 BonusBp = 0;
-    for (const FLDPassiveEffectRef& Ref : Hulks)
+    const int64 BonusHPP2 = BonusMaxHpP2Of(Body);
+    if (BonusHPP2 > 0 && CollectPassiveEffects(Body.AttributeProjection, ELDDemoEffectOp::HulkingPresence, Hulks, Error))
     {
-        if (Ref.Effect.LimitP2 > 0)
+        for (const FLDPassiveEffectRef& Ref : Hulks)
         {
-            BonusBp += (BonusHPP2 / Ref.Effect.LimitP2) * Ref.Effect.RatioBp;
+            if (Ref.Effect.LimitP2 > 0)
+            {
+                BonusBp += (BonusHPP2 / Ref.Effect.LimitP2) * Ref.Effect.RatioBp;
+            }
         }
     }
-    return 1. + double(FMath::Min<int64>(BonusBp, 10000)) / 10000.;
+    return LDTactical::AreaScaleBeside(AppliedAreaBp, FMath::Min<int64>(BonusBp, 10000) + FMath::Max<int64>(ExtraAreaBp, 0));
+}
+
+int64 ALDCombatDirector::WarcryAreaBpOf(const FLDBodyCombatState& Body, const FLDDemoAbilityValues& Values)
+{
+    const FLDDemoEffectDefinition* Warcry = Values.Effects.FindByPredicate(
+        [](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp() == ELDDemoEffectOp::WarcryRing; });
+    return Warcry && Warcry->LimitP2 > 0 && Body.Resources.MaxHpP2 > 0 ? Body.Resources.MaxHpP2 / Warcry->LimitP2 * 1000 : 0;
 }
 
 int64 ALDCombatDirector::HulkingKnockbackKeepBp(const FLDBodyCombatState& Body) const
@@ -71,10 +78,7 @@ int64 ALDCombatDirector::HulkingKnockbackKeepBp(const FLDBodyCombatState& Body) 
     {
         return 10000;
     }
-    const FLDDemoContentParameters& P = Content->Get().Parameters;
-    const int64 LevelSteps = FMath::Max<int64>(0, int64(GrowthLevelOf(Body)) - 1);
-    const int64 BaseMaxHPP2 = P.MaxHP.BaseP2 + LevelSteps * P.MaxHP.PerLevelP2;
-    const int64 BonusHPP2 = FMath::Max<int64>(0, Body.Resources.MaxHpP2 - BaseMaxHPP2);
+    const int64 BonusHPP2 = BonusMaxHpP2Of(Body);
     if (BonusHPP2 <= 0) { return 10000; }
     int64 CutBp = 0;
     for (const FLDPassiveEffectRef& Ref : Hulks)
