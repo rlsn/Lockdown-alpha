@@ -2652,6 +2652,36 @@ bool FLDDemoAssistSettlementTest::RunTest(const FString& Parameters)
     if (!Settle(Unowned, Plain)) { return false; }
     TestTrue(TEXT("A death without a killer pays nobody"), Plain.Outcome == ELDRewardOutcome::NoReward && TotalXP() == XPBeforeUnowned);
 
+    // REWARD.LevelGapXP through the settlement entry: a victim above the killer pays more, assists share the scaled XP,
+    // the bounty is added unscaled, and a replay after the killer levelled returns the original receipt.
+    const uint8 KillerLevelBefore = Development->FindBuild(Killer)->Level;
+    const uint8 GapVictimLevel = 5;
+    FLDCommittedDeath Gapped = ContenderDeath(8, {A1, A2});
+    Gapped.RewardBasis.VictimLevelAtDeath = GapVictimLevel;
+    Mode->BountyDeaths.Add(Gapped.Key);
+    const int64 GapBase = Tuning.PlayerXPBase + Tuning.PlayerXPPerLevel * (GapVictimLevel - 1);
+    const int64 GapBp = FMath::Clamp<int64>(10000 - Tuning.LevelGapXPStepBp * (int64(KillerLevelBefore) - GapVictimLevel),
+        Tuning.LevelGapXPMinBp, Tuning.LevelGapXPMaxBp);
+    const int64 GapKillXP = GapBase * GapBp / 10000;
+    const int64 GapAssistXP = GapKillXP * Tuning.AssistXPRatioBp / 10000;
+    const int64 KillerXPBefore = XP(Killer), A1XPBefore = XP(A1), A2XPBefore = XP(A2);
+    FLDRewardReceipt GapReceipt;
+    if (!Settle(Gapped, GapReceipt)) { return false; }
+    TestTrue(TEXT("The fixture kill crosses levels: the killer is below the victim and the factor is above 1"),
+        KillerLevelBefore < GapVictimLevel && GapBp > 10000 && GapKillXP > GapBase);
+    TestTrue(TEXT("A cross-level bounty kill pays the scaled XP plus the unscaled bounty; assisters share the scaled XP only"),
+        GapReceipt.Outcome == ELDRewardOutcome::Granted && GapReceipt.XPDelta == GapKillXP + Tuning.BountyXP
+        && XP(Killer) == KillerXPBefore + GapKillXP + Tuning.BountyXP
+        && GapReceipt.Assists.Num() == 2 && GapReceipt.Assists[0].XPDelta == GapAssistXP && GapReceipt.Assists[1].XPDelta == GapAssistXP
+        && XP(A1) == A1XPBefore + GapAssistXP && XP(A2) == A2XPBefore + GapAssistXP);
+    TestTrue(TEXT("The reward raised the killer's level"), Development->FindBuild(Killer)->Level > KillerLevelBefore);
+    const int64 TotalAfterGap = TotalXP();
+    FLDRewardReceipt GapReplay;
+    if (!Settle(Gapped, GapReplay)) { return false; }
+    TestTrue(TEXT("A replay after the level-up returns the original XP and pays nothing"),
+        GapReplay.Outcome == ELDRewardOutcome::Granted && GapReplay.XPDelta == GapReceipt.XPDelta
+        && GapReplay.Assists.Num() == 2 && GapReplay.Assists[0].XPDelta == GapAssistXP && TotalXP() == TotalAfterGap);
+
     FLDTimelineParameters TimelineParameters;
     TArray<FLDTimelineEvent> TimelineEvents;
     if (!TestTrue(TEXT("Create a timeline for the final field"),
@@ -2665,7 +2695,7 @@ bool FLDDemoAssistSettlementTest::RunTest(const FString& Parameters)
     { AddError(Error); return false; }
 
     const int64 BeforeFinalDeath = TotalXP();
-    const FLDCommittedDeath FinalDeath = ContenderDeath(8, {A1, A2});
+    const FLDCommittedDeath FinalDeath = ContenderDeath(9, {A1, A2});
     FLDRewardReceipt FinalReceipt;
     if (!Settle(FinalDeath, FinalReceipt)) { return false; }
     TestTrue(TEXT("A final-field kill and its assists grant no growth"),
