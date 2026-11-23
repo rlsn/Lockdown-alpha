@@ -62,7 +62,11 @@ $fixturePath = $fixtureLine[0].Substring('FIXTURES='.Length)
 $project = Join-Path (Get-LDProjectRoot) 'Lockdown.uproject'
 # The project enables ModelContextProtocol, so -DisablePlugins still mounts it and the project config auto-starts its server on
 # 127.0.0.1:8000. A local MCP client reaching that port during automation logs an error that fails whichever test is running.
-$editorArgs = '"{0}" -unattended -nop4 -nosound -nullrhi -DisablePlugins=AllToolsets,ModelContextProtocol,Fab -ini:EditorPerProjectUserSettings:[/Script/ModelContextProtocolEngine.ModelContextProtocolSettings]:bAutoStartServer=False -stdout -FullStdOutLogOutput -ExecCmds="Automation RunTests {1}" -TestExit="Automation Test Queue Empty" -ReportExportPath="{2}" -abslog="{3}" -LDDemoContentFixtures="{4}"' -f $project,$plan.filter,$reportPath,(Join-Path $output 'Automation.log'),$fixturePath
+# AllToolsets is what loads GameFeatures, whose asset type DefaultGame.ini scans: without it the asset manager raises an
+# ensure and sends a report on every start (about 3 s), so GameFeatures is enabled by name.
+# The rule tests build their own worlds or load the map they read, so the editor starts on the engine's empty map
+# instead of the editor startup map L_Demo.
+$editorArgs = '"{0}" -unattended -nop4 -nosound -nullrhi -DisablePlugins=AllToolsets,ModelContextProtocol,Fab -EnablePlugins=GameFeatures -ini:Engine:[/Script/EngineSettings.GameMapsSettings]:EditorStartupMap=/Engine/Maps/Entry -ini:EditorPerProjectUserSettings:[/Script/ModelContextProtocolEngine.ModelContextProtocolSettings]:bAutoStartServer=False -stdout -FullStdOutLogOutput -ExecCmds="Automation RunTests {1}" -TestExit="Automation Test Queue Empty" -ReportExportPath="{2}" -abslog="{3}" -LDDemoContentFixtures="{4}"' -f $project,$plan.filter,$reportPath,(Join-Path $output 'Automation.log'),$fixturePath
 $process = Start-Process -FilePath (Join-Path $engine 'Engine/Binaries/Win64/UnrealEditor-Cmd.exe') -ArgumentList $editorArgs -WindowStyle Hidden -PassThru
 if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
     $process.Kill()

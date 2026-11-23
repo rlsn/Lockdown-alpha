@@ -20,6 +20,11 @@ import DemoWorld as world
 import SyncDemoContentData as content_sync
 import SyncDemoWorldData as world_sync
 
+# Most tests here recompile a fixture whose world bytes they did not change. The worker process keeps one reuse scope
+# open for its lifetime, so an identical world payload is validated and bound once per process instead of per compile.
+_WORLD_REUSE = world.reuse_binding_reports()
+_WORLD_REUSE.__enter__()
+
 
 def amount(value):
     return content.quantity(value)
@@ -1001,6 +1006,80 @@ def vec(x, y, z=0):
 
 def box(x0, y0, x1, y1, z=0):
     return [vec(x0, y0, z), vec(x1, y0, z), vec(x1, y1, z), vec(x0, y1, z)]
+
+
+class WorldReuseScope(unittest.TestCase):
+    """reuse_binding_reports as a fresh process sees it: this module's own open scope is set aside for each test."""
+
+    def setUp(self):
+        for name, value in (("_reuse", None), ("_reuse_depth", 0)):
+            patcher = patch.object(world, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.validated = []
+
+        def validate(raw):
+            self.validated.append(raw)
+            return {"anchors": [{"id": raw.decode("ascii")}]}, {"a": {"members": [1, 2]}}
+
+        patcher = patch.object(world, "_validate_payload", validate)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_outside_a_scope_every_call_validates(self):
+        world.validate_payload(b"one")
+        world.validate_payload(b"one")
+        self.assertEqual(self.validated, [b"one", b"one"])
+
+    def test_identical_payload_validates_once_and_another_payload_validates_again(self):
+        with world.reuse_binding_reports():
+            first = world.validate_payload(b"one")
+            self.assertIs(world.validate_payload(b"one"), first)
+            other = world.validate_payload(b"two")
+            self.assertEqual(self.validated, [b"one", b"two"])
+            self.assertEqual((first[0]["anchors"][0]["id"], other[0]["anchors"][0]["id"]), ("one", "two"))
+
+    def test_a_nested_scope_shares_the_cache_and_the_outermost_exit_drops_it(self):
+        with world.reuse_binding_reports():
+            world.validate_payload(b"one")
+            with world.reuse_binding_reports():
+                world.validate_payload(b"one")
+            world.validate_payload(b"one")
+            self.assertEqual(self.validated, [b"one"])
+        self.assertIsNone(world._reuse)
+        self.assertEqual(world._reuse_depth, 0)
+        with world.reuse_binding_reports():
+            world.validate_payload(b"one")
+        self.assertEqual(self.validated, [b"one", b"one"])
+
+    def test_a_failing_block_still_closes_its_scope(self):
+        with self.assertRaises(RuntimeError), world.reuse_binding_reports():
+            with world.reuse_binding_reports():
+                world.validate_payload(b"one")
+                raise RuntimeError("inside")
+        self.assertIsNone(world._reuse)
+        self.assertEqual(world._reuse_depth, 0)
+        world.validate_payload(b"one")
+        self.assertEqual(self.validated, [b"one", b"one"])
+
+    def test_shared_results_are_read_only_at_every_depth(self):
+        with world.reuse_binding_reports():
+            payload, anchors = world.validate_payload(b"one")
+            with self.assertRaises(TypeError):
+                payload["anchors"] = ()
+            with self.assertRaises(TypeError):
+                payload["anchors"][0]["id"] = "changed"
+            with self.assertRaises(TypeError):
+                anchors["a"]["members"] = ()
+            self.assertIsInstance(payload["anchors"], tuple)
+            self.assertIsInstance(anchors["a"]["members"], tuple)
+
+    def test_a_non_bytes_payload_is_never_cached(self):
+        with world.reuse_binding_reports():
+            raw = bytearray(b"one")
+            world.validate_payload(raw)
+            world.validate_payload(raw)
+        self.assertEqual(len(self.validated), 2)
 
 
 class WorldGeometryFunctions(unittest.TestCase):
