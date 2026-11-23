@@ -360,7 +360,7 @@ AI 整局遥测的房主日志也可以直接汇总：`python -B .\Scripts\Summa
   加 `-PackageRoot <打包目录>` 测打包版（结论以它为准），
   不加时是编辑器 `-game`（含编辑器开销、约 ±15% 波动，只用于定位）。不加 `-Match` 测 Lobby 场地。
   `-Trace` 额外录 Unreal Insights CPU 追踪 `PerfBudget.utrace`；`-ExtraArguments '-ExecCmds="<cvar> <值>"'` 做单项 A/B。
-  整局的追踪用 `.\Scripts\RunDemoOpponentCheck.ps1 -Trace`（满房检查或 `-BotMatch`）：房主把整局录成 `HostMatch.utrace`。追踪本身占帧时间，这一局不作帧率结论。
+  整局的追踪用 `.\Scripts\RunDemoOpponentCheck.ps1 -Trace`（满房检查或 `-BotMatch`）：房主把整局录成 `HostMatch.utrace`。追踪本身占帧时间，这一局不作帧率结论。`-ExtraArguments '-ExecCmds="<cvar> <值>"'` 给房主加命令行参数做单项 A/B。
   无界面导出计时表：`Start-Process -Wait UnrealInsights.exe -ArgumentList '-OpenTraceFile="<utrace>" -ExecOnAnalysisCompleteCmd="TimingInsights.ExportTimerStatistics <csv> -threads=GameThread" -AutoQuit -NoUI'`。
   游戏线程上权威阶段（`LDPhase_*`）、视野发布、HUD 读模型等已有 `LD*` 命名的追踪区段。
 
