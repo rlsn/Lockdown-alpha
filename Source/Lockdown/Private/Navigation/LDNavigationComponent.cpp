@@ -1064,12 +1064,29 @@ void ULDNavigationComponent::TickPointer()
                 LastCursorProbeAt=RealNow;
                 LastCursorProbePx=AtPx;
                 FHitResult GroundHit;
-                if (!GroundUnderPointer(GroundHit)) { bCursorGroundBlocked=true; }
+                if (!GroundUnderPointer(GroundHit)) { bCursorGroundBlocked=true; CursorProbedAt=-1.; }
                 else
                 {
-                    bool bKnown=false;
-                    const bool bReachable=ProbeGround(GroundHit.ImpactPoint,bKnown);
-                    bCursorGroundBlocked=bKnown && !bReachable;
+                    // A point no route reaches directly is projected through many route searches (ProjectGroundGoal).
+                    // The kept answer still lapses after a second: a movable obstacle (the capture fence) changes
+                    // ground without changing the registered world.
+                    const APawn* Pawn=PC->GetPawn();
+                    const auto* Registry=GetWorld()->GetSubsystem<ULDMapRegistry>();
+                    const FVector BodyAt=Pawn?Pawn->GetActorLocation():FVector::ZeroVector;
+                    const FLDWorldRevision World=Registry?Registry->Revision():FLDWorldRevision();
+                    const bool bSameQuestion=CursorProbedAt>=0. && RealNow-CursorProbedAt<1. && CursorProbePawn.Get()==Pawn
+                        && CursorProbeGround==GroundHit.ImpactPoint && CursorProbeBody==BodyAt && !(CursorProbeWorld!=World);
+                    if (!bSameQuestion)
+                    {
+                        bool bKnown=false;
+                        const bool bReachable=ProbeGround(GroundHit.ImpactPoint,bKnown);
+                        bCursorGroundBlocked=bKnown && !bReachable;
+                        CursorProbeGround=GroundHit.ImpactPoint;
+                        CursorProbeBody=BodyAt;
+                        CursorProbePawn=Pawn;
+                        CursorProbeWorld=World;
+                        CursorProbedAt=RealNow;
+                    }
                 }
             }
             if (bCursorGroundBlocked) { Cursor=LDCursor::BlockedGround; }

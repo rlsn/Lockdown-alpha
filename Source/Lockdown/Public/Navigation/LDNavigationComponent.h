@@ -277,6 +277,13 @@ private:
     double LastCursorProbeAt=-1.;
     FVector2D LastCursorProbePx=FVector2D(-1000.,-1000.);
     bool bCursorGroundBlocked=false;
+    // What the last route probe under the pointer was asked: the same ground point from the same standing body in the
+    // same registered world has the same answer, so a resting pointer does not search a route eight times a second.
+    FVector CursorProbeGround=FVector::ZeroVector;
+    FVector CursorProbeBody=FVector::ZeroVector;
+    TWeakObjectPtr<const APawn> CursorProbePawn;
+    FLDWorldRevision CursorProbeWorld;
+    double CursorProbedAt=-1.;
     double HeldSentAt=0;
     bool bHeldMove=false;
     // The casts sent while the move button was held: the held move waits until the latest cast order ended and every one
