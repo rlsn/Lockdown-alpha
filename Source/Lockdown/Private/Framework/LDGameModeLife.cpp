@@ -530,6 +530,13 @@ bool ALDGameMode::RetireCampBody(const FLDCombatBodyRef& Body, const FLDGameplay
     ++Life->Revision;
     Life->Body = {};
     Life->Actor.Reset();
+    // The next camp generation can spawn at this boundary. A closed life cannot carry its motion into the new one.
+    if (!Life->NativeMotion.IsEmpty())
+    {
+        Life->MotionAckStep = Life->NativeMotion.Last()->Step.StepSerial;
+        Life->MotionAckSequence = Life->NativeMotion.Last()->ThroughSequence;
+        Life->NativeMotion.Reset();
+    }
     UE_LOG(LogLDMatch, Log, TEXT("LD_CAMP_BODY_RETIRED member=%s life=%u"), *LDLog::Id(Body.Victim.EntityId), Body.Victim.Life);
     Error.Reset();
     return true;

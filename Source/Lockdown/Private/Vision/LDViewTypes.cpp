@@ -565,7 +565,7 @@ bool LDObservation::ValidateView(const FLDWorldView& View, FString& Error)
     else { return FailObservation(Error, TEXT("Unknown observation source status.")); }
     if (View.Units.Num() > MaxUnits || View.RecentTerminations.Num() > MaxTerminations || View.Projectiles.Num() > MaxProjectiles
         || View.GroundStates.Num() > MaxGroundStates || View.RecoveryOrbs.Num() > MaxRecoveryOrbs
-        || View.WitnessedEmptyCamps.Num() > LDDemoWorld::MaxCamps)
+        || View.WitnessedEmptyCamps.Num() > MaxUnits)
     { return FailObservation(Error, TEXT("Observation frame exceeds its bounded capacity.")); }
     for (const FLDObservedGroundState& Ground : View.GroundStates)
     {
@@ -715,7 +715,7 @@ bool FLDWorldView::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuccess)
     }
     uint8 EmptyCampCount = uint8(WitnessedEmptyCamps.Num());
     Ar << EmptyCampCount;
-    if (Ar.IsError() || EmptyCampCount > LDDemoWorld::MaxCamps) { return RejectObservationArchive(Ar, bSuccess); }
+    if (Ar.IsError() || EmptyCampCount > LDObservation::MaxUnits) { return RejectObservationArchive(Ar, bSuccess); }
     if (Ar.IsLoading()) { WitnessedEmptyCamps.SetNum(EmptyCampCount); }
     for (FName& Camp : WitnessedEmptyCamps)
     {

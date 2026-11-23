@@ -17,6 +17,7 @@
 #include "Navigation/LDPathSteering.h"
 #include "Region/LDMapRegistry.h"
 #include "Vision/LDViewTypes.h"
+#include "Vision/LDVisionDirector.h"
 #include "Vision/LDWorldViewRelay.h"
 #include "World/LDCampDirector.h"
 #include "World/LDFieldEcology.h"
@@ -48,7 +49,7 @@ constexpr double CampApproachArrivalCm = 150.0;
 constexpr double CampTargetSearchCm = 600.0;
 // Local placement offsets reach 100.344 cm from a member home.
 constexpr double CampHomePlacementCm = 101.0;
-const FName CampLowId(TEXT("l09"));
+const FName CampLowId(TEXT("l03"));
 const FName CampHighId(TEXT("h05"));
 // #198: a match opens in the rest R0, whose private rest body is each contender's life 1; the R0 return retires it without
 // a death and places the first field life, life 2, at a randomly drawn approved spawn.
@@ -329,7 +330,7 @@ public:
     }
 
     bool ResolveCampPoint(ALDPlayerController& Owner, FName Camp, const FVector& FromFoot, double Bearing,
-        TConstArrayView<double> Distances, TOptional<FVector>& Out, FString& Why)
+        TConstArrayView<double> Distances, TOptional<FVector>& Out, FString& Why, bool bRequireCampSight)
     {
         if (Out.IsSet()) { return true; }
         const auto* Registry = Owner.GetWorld()->GetSubsystem<ULDMapRegistry>();
@@ -343,6 +344,14 @@ public:
         FLDLegalGround From;
         ELDWorldQueryFailure Failure;
         if (!Registry->QueryGround(Registry->Revision(), FromFoot, Capsule, Anchor->Surface, From, Failure, Why)) { return false; }
+        FLDSightGeometry Sight;
+        const auto* Geometry = Registry->GetGeometry();
+        if (bRequireCampSight)
+        {
+            const auto& Params = Catalog->Get().Parameters;
+            if (!Sight.Build(*Geometry, Registry->Revision(), Params.VisionRadiusCm, Params.VisionRange, Why,
+                Owner.GetWorld(), &Registry->GetTerrain(), true)) { return false; }
+        }
         for (double Distance : Distances)
         {
             for (int32 Step = 0; Step < 16; ++Step)
@@ -357,6 +366,10 @@ public:
                         { return FVector::DistSquared2D(Foot, Zone.Centre) <= FMath::Square(Zone.Radius); })
                     || !Registry->QueryGround(Registry->Revision(), Foot, Capsule, Anchor->Surface, Ground, Failure, Why)
                     || !Registry->QueryCompletePath(Registry->Revision(), From, Ground, Capsule, Path, Failure, Why))
+                {
+                    continue;
+                }
+                if (bRequireCampSight && Sight.Trace(Ground.SurfaceCm, Anchor->Position) != ELDSightResult::Visible)
                 {
                     continue;
                 }
@@ -379,7 +392,7 @@ public:
         const auto* Body = Cast<ALDCharacter>(Owner.GetPawn());
         if (!Body) { Why = TEXT("The fixture has no owning field body."); return false; }
         const double Distances[] = {240., 320., 400.};
-        return ResolveCampPoint(Owner, Camp, Body->GetNavAgentLocation(), Bearing, Distances, Out, Why);
+        return ResolveCampPoint(Owner, Camp, Body->GetNavAgentLocation(), Bearing, Distances, Out, Why, true);
     }
 
     // Walks from the current deployment via waypoints that keep clear of authored camp homes and Boss waypoints.
@@ -651,7 +664,7 @@ public:
             FString ApproachError;
             if (!ResolveApproach(Owner, CampHighId, 1.92, HighApproach, ApproachError)) { return Fail(TEXT("#C6"), ApproachError); }
             const double Distances[] = {1500., 1700., 1900.};
-            if (!ResolveCampPoint(Owner, CampHighId, HighApproach.GetValue(), -1.35, Distances, FleeGoal, ApproachError))
+            if (!ResolveCampPoint(Owner, CampHighId, HighApproach.GetValue(), -1.35, Distances, FleeGoal, ApproachError, false))
             {
                 return Fail(TEXT("#C6"), ApproachError);
             }
@@ -790,7 +803,7 @@ public:
         if (!State || !State->IsActive() || !Roster || !Mode.Combat)
         { return Fail(TEXT("#C2"), TEXT("A started match has no active camp director")); }
         const int32 Low = Roster->FindCamp(CampLowId), High = Roster->FindCamp(CampHighId);
-        if (Low == INDEX_NONE || High == INDEX_NONE) { return Fail(TEXT("#C2"), TEXT("The approved roster lacks l09 or h05")); }
+        if (Low == INDEX_NONE || High == INDEX_NONE) { return Fail(TEXT("#C2"), TEXT("The approved roster lacks the selected low or high camp")); }
         // The opening rest stands the camps up a few per frame (ALDCampDirector::InitialGroupsPerFrame).
         if (!bCampsReady && Camps->HasPendingInitialCamps()) { return true; }
         if (!bCampsReady)
