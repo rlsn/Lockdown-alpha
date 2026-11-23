@@ -49,8 +49,10 @@ bool FLDBasketballRuntimeTest::RunTest(const FString& Parameters)
     auto* Visual=NewObject<ULDHumanoidVisualComponent>(Owner);
     Visual->SetupAttachment(Capsule);
     Visual->RegisterComponent();
-    Visual->ApplyLook(Body,FLinearColor::White,TEXT("Basketball runtime fixture"));
     auto* Mesh=Visual->Mesh.Get();auto* Ball=Visual->Basketball.Get();
+    TestTrue(TEXT("A body without a look keeps its art mesh inactive and unticked"),Mesh->IsRegistered()&&!Mesh->IsActive()&&!Mesh->IsComponentTickEnabled());
+    Visual->ApplyLook(Body,FLinearColor::White,TEXT("Basketball runtime fixture"));
+    TestTrue(TEXT("Applying a look activates the art mesh and its tick"),Mesh->IsActive()&&Mesh->IsComponentTickEnabled());
     Mesh->VisibilityBasedAnimTickOption=EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
     auto* Animation=Cast<ULDBasketballAnimInstance>(Mesh->GetAnimInstance());
     if(!TestNotNull(TEXT("The production visual, including proxy owners that are not Pawns, installs the runtime graph"),Animation)){return false;}
