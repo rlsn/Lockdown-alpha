@@ -1029,31 +1029,39 @@ bool FLDDemoVisionCoveragePublicationTest::RunTest(const FString& Parameters)
         return Actual.Num() == LDObservation::CoverageBytes
             && !Actual.ContainsByPredicate([](uint8 Byte) { return Byte != 0; }) && LDObservation::ValidateView(View, Error);
     };
-    TestFalse(TEXT("A human's non-publication sample performs no coverage"), Human.Sample(Sight, West, false, true, Actual));
+    const double Hold = FLDObserverCoverage::MovingRefreshSeconds;
+    double Now = 100;
+    TestFalse(TEXT("A human's non-publication sample performs no coverage"), Human.Sample(Sight, West, Now, false, true, Actual));
     TestTrue(TEXT("A non-publication frame remains codec-valid, with a zero bitmap"), DarkValidFrame());
-    TestFalse(TEXT("An AI never computes coverage, even at a publication boundary"), AI.Sample(Sight, East, true, false, Actual));
+    TestFalse(TEXT("An AI never computes coverage, even at a publication boundary"), AI.Sample(Sight, East, Now, true, false, Actual));
     TestTrue(TEXT("An AI frame remains codec-valid, with its own units unchanged"), DarkValidFrame());
-    TestTrue(TEXT("The first human publication computes coverage"), Human.Sample(Sight, West, true, true, Actual));
+    TestTrue(TEXT("The first human publication computes coverage"), Human.Sample(Sight, West, Now, true, true, Actual));
     TestTrue(TEXT("The published human bitmap matches every reference byte"), Actual == Expected);
-    TestFalse(TEXT("An unchanged foot and world reuse the prior coverage"), Human.Sample(Sight, West, true, true, Actual));
+    TestFalse(TEXT("An unchanged foot and world reuse the prior coverage"), Human.Sample(Sight, West, Now + Hold * 4, true, true, Actual));
     TestTrue(TEXT("Reused coverage is byte-identical"), Actual == Expected);
-    TestFalse(TEXT("Movement at a non-publication sample computes nothing"), Human.Sample(Sight, East, false, true, Actual));
+    TestFalse(TEXT("Movement at a non-publication sample computes nothing"), Human.Sample(Sight, East, Now, false, true, Actual));
     TestTrue(TEXT("It does not copy an obsolete human bitmap into the internal frame"), DarkValidFrame());
-    TestFalse(TEXT("A non-publication sample did not replace the stationary cache"), Human.Sample(Sight, West, true, true, Actual));
+    TestFalse(TEXT("A non-publication sample did not replace the stationary cache"), Human.Sample(Sight, West, Now, true, true, Actual));
     TestTrue(TEXT("The next stationary publication still carries the authorized bitmap"), Actual == Expected);
-    TestTrue(TEXT("Sub-millimetre movement invalidates, without tolerance"), Human.Sample(Sight, West + FVector(.000001, 0, 0), true, true, Actual));
-    TestTrue(TEXT("A changed foot height also invalidates"), Human.Sample(Sight, West + FVector(.000001, 0, 1), true, true, Actual));
-    TestTrue(TEXT("A moved publication recomputes"), Human.Sample(Sight, East, true, true, Actual));
+    TestFalse(TEXT("Movement within the moving refresh period reuses the last scan"), Human.Sample(Sight, East, Now + Hold * .5, true, true, Actual));
+    TestTrue(TEXT("The held bitmap is the last scanned one"), Actual == Expected);
+    Now += Hold;
+    TestTrue(TEXT("Sub-millimetre movement invalidates once the period is due, without tolerance"),
+        Human.Sample(Sight, West + FVector(.000001, 0, 0), Now, true, true, Actual));
+    Now += Hold;
+    TestTrue(TEXT("A changed foot height also invalidates"), Human.Sample(Sight, West + FVector(.000001, 0, 1), Now, true, true, Actual));
+    Now += Hold;
+    TestTrue(TEXT("A moved publication recomputes"), Human.Sample(Sight, East, Now, true, true, Actual));
     Sight.Coverage(East, Expected);
     TestTrue(TEXT("Moved coverage matches that observer, not the other side of the wall"), Actual == Expected);
-    TestTrue(TEXT("A second observer cannot borrow the human's cached coverage"), AI.Sample(Sight, West, true, true, Actual));
+    TestTrue(TEXT("A second observer cannot borrow the human's cached coverage"), AI.Sample(Sight, West, Now, true, true, Actual));
     Sight.Coverage(West, Expected);
     TestTrue(TEXT("Its first eligible publication uses its own source"), Actual == Expected);
     ++World.GeometryRevision;
     if (!TestTrue(TEXT("A new world revision builds"), Sight.Build(TestGeometry(), World, Whole(1400), LDVisionTestRange(), Error))) { return false; }
-    TestTrue(TEXT("A changed world revision invalidates stationary coverage"), AI.Sample(Sight, West, true, true, Actual));
+    TestTrue(TEXT("A changed world revision invalidates stationary coverage at once"), AI.Sample(Sight, West, Now, true, true, Actual));
     AI.Reset();
-    TestTrue(TEXT("A life/generation reset invalidates even an identical source and world"), AI.Sample(Sight, West, true, true, Actual));
+    TestTrue(TEXT("A life/generation reset invalidates even an identical source and world"), AI.Sample(Sight, West, Now, true, true, Actual));
     View.Footprint.CurrentBits = Actual;
     FLDWorldView Read;
     TestTrue(TEXT("Publication and AI-frame coverage selection never changes the unit fields"),

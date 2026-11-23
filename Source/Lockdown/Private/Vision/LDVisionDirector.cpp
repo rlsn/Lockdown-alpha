@@ -852,19 +852,21 @@ void FLDSightGeometry::AddDisk(const FVector& CentreCm, double DiskRadiusCm, TAr
     }
 }
 
-bool FLDObserverCoverage::Sample(const FLDSightGeometry& Sight, const FVector& Foot, bool bPublish, bool bHasRelay, TArray<uint8>& OutBits)
+bool FLDObserverCoverage::Sample(const FLDSightGeometry& Sight, const FVector& Foot, double NowSeconds, bool bPublish, bool bHasRelay, TArray<uint8>& OutBits)
 {
     if (!bPublish || !bHasRelay)
     {
         OutBits.Init(0, LDObservation::CoverageBytes);
         return false;
     }
-    const bool bRecompute = Bits.Num() != LDObservation::CoverageBytes || SourceFeet != Foot || World != Sight.Revision();
+    const bool bRecompute = Bits.Num() != LDObservation::CoverageBytes || World != Sight.Revision()
+        || (SourceFeet != Foot && NowSeconds >= NextMoveRefreshAt);
     if (bRecompute)
     {
         Sight.Coverage(Foot, Bits);
         SourceFeet = Foot;
         World = Sight.Revision();
+        NextMoveRefreshAt = NowSeconds + MovingRefreshSeconds;
     }
     OutBits = Bits;
     return bRecompute;
@@ -1619,7 +1621,7 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
     if (!ReadObserver(Observer, Life, Foot, Error)) { return false; }
     bool bReset = false;
     if (!Observer.Ledger.Bind(Life.Phase, Life.Life, bReset, Error)) { return false; }
-    if (bReset) { Observer.Coverage.Reset(); Observer.LastSeen.Reset(); }
+    if (bReset) { Observer.Coverage.Reset(); Observer.MateCoverage.Reset(); Observer.LastSeen.Reset(); }
     ALDWorldViewRelay* Relay = Observer.Relay.Get();
     if (bReset && Relay)
     {
@@ -1722,16 +1724,19 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
         View.Footprint.RadiusCm = float(Sight.MaximumRadius());
         {
             TRACE_CPUPROFILER_EVENT_SCOPE(LDVisionObserverCoverage);
-            Observer.Coverage.Sample(Sight, Foot, bPublish, Relay != nullptr, View.Footprint.CurrentBits);
+            Observer.Coverage.Sample(Sight, Foot, View.SampledAtServerSec, bPublish, Relay != nullptr, View.Footprint.CurrentBits);
         }
         // #198 session D: a spectator's authorized coverage includes the whole arena; a PK life's includes its teammates'.
+        // A teammate joining or leaving rescans every teammate at once rather than reuse a departed one's coverage.
+        if (Observer.MateCoverage.Num() != TeammateFeet.Num()) { Observer.MateCoverage.Reset(); Observer.MateCoverage.SetNum(TeammateFeet.Num()); }
         if (bPublish && Relay && (bSpectating || !TeammateFeet.IsEmpty()))
         {
+            TRACE_CPUPROFILER_EVENT_SCOPE(LDVisionMateCoverage);
             if (bSpectating) { Sight.AddDisk(PK->GetView().ArenaCentreCm, PK->GetParameters().ArenaRadiusCm, View.Footprint.CurrentBits); }
-            for (const FVector& MateFoot : TeammateFeet)
+            for (int32 Mate = 0; Mate < TeammateFeet.Num(); ++Mate)
             {
                 TArray<uint8> MateBits;
-                Sight.Coverage(MateFoot, MateBits);
+                Observer.MateCoverage[Mate].Sample(Sight, TeammateFeet[Mate], View.SampledAtServerSec, true, true, MateBits);
                 for (int32 Index = 0; Index < MateBits.Num() && Index < View.Footprint.CurrentBits.Num(); ++Index)
                 {
                     View.Footprint.CurrentBits[Index] |= MateBits[Index];
