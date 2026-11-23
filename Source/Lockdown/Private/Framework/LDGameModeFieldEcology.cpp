@@ -52,16 +52,22 @@ bool ALDGameMode::PlanFieldSpawns(uint8 Segment, TConstArrayView<FGuid> Order,
     }
     for (const FLDCampSpec& Camp : Camps->GetState().GetRoster()->Camps)
     {
+        double Radius = CampPlacementMarginCm;
+        if (Camp.Tier == ELDDemoCampTier::Elite || Camp.Tier == ELDDemoCampTier::Ancient)
+        {
+            // Member definitions identify layout prototypes. The tier pools contain the monster definitions.
+            for (const FLDCampSpeciesPool& Pool : Camp.Pools)
+            {
+                for (FName Species : Pool.Species)
+                {
+                    const FLDDemoMonsterDefinition* Monster = nullptr;
+                    if (!DemoContent->FindMonster(Species.ToString(), Monster, Error) || !Monster) { return false; }
+                    Radius = FMath::Max(Radius, Centimeters(Monster->PerceptionRadiusCm) + PatrolMarginCm);
+                }
+            }
+        }
         for (const FLDCampMemberSpec& Member : Camp.Members)
         {
-            double Radius = CampPlacementMarginCm;
-            if (Camp.Tier == ELDDemoCampTier::Elite || Camp.Tier == ELDDemoCampTier::Ancient)
-            {
-                const FLDDemoMonsterDefinition* Monster = nullptr;
-                if (!DemoContent->FindMonster(Member.DefinitionId.ToString(), Monster, Error) || !Monster) { return false; }
-                const auto& Perception = Monster->PerceptionRadiusCm;
-                Radius = Centimeters(Perception) + PatrolMarginCm;
-            }
             Exclusions.Add({FVector2D(Member.HomeCm), FMath::Square(Radius)});
         }
     }
