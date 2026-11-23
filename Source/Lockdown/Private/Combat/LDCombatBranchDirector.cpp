@@ -678,6 +678,9 @@ bool ALDCombatDirector::OnBranchHitTaken(const FLDCombatHit& Hit, FLDBodyCombatS
                 FLDCombatHit Blast=MakeHit(Target,BurstExit,Other,BurstId);
                 Blast.BaseP2=Burst.BaseP2;
                 Blast.APRatioBp=Burst.APRatioBp;
+                // The burst's authored max-HP share, like the card's burst (Y06): of the holder's bonus max HP.
+                Blast.MaxHPRatioBp=Burst.MaxHPRatioBp;
+                Blast.SourceMaxHPP2=BonusMaxHpP2Of(Target);
                 Blast.DamageType=ELDDemoDamageType::Magical;
                 Blast.bFromShieldTrigger=true;
                 if (!StampSourceTerms(Target,Blast,Error)) { return false; }
