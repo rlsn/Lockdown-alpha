@@ -68,9 +68,6 @@ constexpr double GrowthProbeArrivalCm = 150.0;
 // order; the victim's walk back after the approved respawn delay.
 constexpr double GrowthProbeRequestSeconds = 20.0;
 constexpr double GrowthProbeKillSeconds = 90.0;
-// The Host raises itself to this level by its DEV grant before the buyer's first kill. REWARD.LevelGapXP pays a level-1
-// buyer too little for level-1 kills to reach the last offer level inside the timed field; kills of a victim at this level do.
-constexpr uint8 GrowthProbeVictimLevel = 8;
 constexpr double GrowthProbeReturnSeconds = 75.0;
 // Ending a match, returning the room to a new Lobby generation or starting the next match.
 constexpr double GrowthProbeTransitionSeconds = 60.0;
@@ -226,10 +223,6 @@ const TCHAR* const GrowthProbeDevActive = TEXT("active_not_mad");
 const TCHAR* const GrowthProbeDevStat = TEXT("stat_strength");
 constexpr double GrowthProbeCampSearchCm = 600.0;
 constexpr int32 GrowthProbeLowCampMembers = 2;
-// The Host's approach to its sampled camp stands within this height of the camp's anchor.
-constexpr double GrowthProbeCampLevelCm = 35.0;
-// At most this many camps get a walk plan from the Host site before the sample is refused.
-constexpr int32 GrowthProbeCampWalkPlans = 4;
 
 // Private rendered HUD widgets, read through reflection without changing the HUD for the probe.
 const UWidget* GrowthProbeHudWidget(const ALDPlayerController& PC, const TCHAR* Field)
@@ -443,7 +436,6 @@ public:
 
     // Host: the DEV fixture presets, its own grant and the attack that kills the buyer.
     bool bHostGrantSent = false, bHostGranted = false, bBuyerKilled = false;
-    uint64 VictimGrantTicket = 0;
     uint64 HostGrantTicket = 0;
     int64 HostGrantXP = 0;
     uint8 HostGrantLevel = 0;
@@ -1333,30 +1325,6 @@ public:
         {
             return TickOpeningQuery(PC);
         }
-        if (IsHost() && VictimGrantTicket != 0)
-        {
-            // The victim level reaches the Host's own view before the buyer is told its offers are preset and may attack.
-            ALDGameMode* Mode = PC.GetWorld()->GetAuthGameMode<ALDGameMode>();
-            FString Detail;
-            const ELDDevGrantStatus Status = Mode && Mode->Growth ? Mode->Growth->DevGrantStatus(VictimGrantTicket, Detail) : ELDDevGrantStatus::Unknown;
-            if (Status == ELDDevGrantStatus::Rejected || Status == ELDDevGrantStatus::Unknown)
-            {
-                return Fail(TEXT("Fixture"), TEXT("The Host's victim-level DEV grant was not committed: ") + Detail);
-            }
-            if (Status != ELDDevGrantStatus::Granted || ProgView->Level != LDDemoGrowthScenario::GrowthProbeVictimLevel)
-            {
-                if (FPlatformTime::Seconds() - StageAt <= LDDemoGrowthScenario::GrowthProbeRequestSeconds) { return true; }
-                return Fail(TEXT("Fixture"), TEXT("The Host's victim-level DEV grant did not reach its own growth view in time: ") + Detail);
-            }
-            if (!Check(true, TEXT("Fixture"), TEXT("The Host stands as a victim at the planned level before the buyer's first kill"),
-                FString::Printf(TEXT("level %u xp %lld"), uint32(ProgView->Level), ProgView->CumulativeXP))
-                || !Mark(TEXT("OffersPreset.json")))
-            {
-                return Finish();
-            }
-            SetStage(EStage::Victim);
-            return true;
-        }
         if (!ResolveRoster(PC, Lobby) || !PrepareSites(Registry)) { return Finish(); }
         if (IsHost() && !bGrowthChecked && !CheckStartGrowth(PC, Lobby)) { return Finish(); }
         const FLDDemoContentDefinitions& Defs = Catalog->Get();
@@ -1376,21 +1344,12 @@ public:
         if (IsHost())
         {
             if (!Check(bPresetsStaged && StagedClientId == ClientId, TEXT("Fixture"),
-                TEXT("The Lobby presets were staged for exactly this match's buyer")))
+                TEXT("The Lobby presets were staged for exactly this match's buyer")) || !Mark(TEXT("OffersPreset.json")))
             {
                 return Finish();
             }
-            ALDGameMode* Mode = PC.GetWorld()->GetAuthGameMode<ALDGameMode>();
-            const TArray<int64>& Thresholds = Defs.Progression.XPThresholds;
-            FString GrantError;
-            if (Mode && Mode->Growth && Thresholds.IsValidIndex(LDDemoGrowthScenario::GrowthProbeVictimLevel - 1))
-            {
-                VictimGrantTicket = Mode->Growth->DevGrantReward(HostId,
-                    Thresholds[LDDemoGrowthScenario::GrowthProbeVictimLevel - 1] - ProgView->CumulativeXP, GrantError);
-            }
-            StageAt = FPlatformTime::Seconds();
-            return Check(VictimGrantTicket != 0, TEXT("Fixture"), TEXT("The fixture queues the Host's victim-level XP grant"), GrantError)
-                ? true : Finish();
+            SetStage(EStage::Victim);
+            return true;
         }
         if (!PlanKills()) { return Finish(); }
         if (!NavigateDuelSite(PC, KillSite)) { return Finish(); }
@@ -1863,11 +1822,22 @@ public:
         if (!Check(bCampReady, TEXT("N03"),
             TEXT("The Host's low-camp reward sample has authored homes and a legal native approach"),
             HostCampAnchor + TEXT(": ") + SiteError)) { return false; }
-        // A walk to a duel site is planned when a body starts it (NavigateDuelSite), from wherever that body spawned.
-        // Planning every authored spawn's routes here blocked the Listen Host for the whole plan at field entry.
+        for (const auto& Anchor : Registry.GetGeometry()->Anchors)
+        {
+            if (Anchor.Kind != ELDDemoWorldAnchorKind::Spawn) { continue; }
+            FVector Spawn;
+            if (!Anchor.PositionCm.ToVector(Spawn, SiteError))
+            { return Check(false, TEXT("N03"), TEXT("The authored spawn position is valid"), Anchor.Id + TEXT(": ") + SiteError); }
+            for (const FVector& Site : {KillSite, HostSite})
+            {
+                if (!PlanDuelWalk(Registry, Spawn, Site, SiteError))
+                { return Check(false, TEXT("N03"), TEXT("Every authored spawn has a legal camp/Boss-free fixture route to both duel sites"),
+                    Anchor.Id + TEXT(": ") + SiteError); }
+            }
+        }
         WalkWaypoints.Reset();
         bSitesReady = true;
-        return Check(true, TEXT("N03"), TEXT("The duel sites and the Host's low-camp sample are ready"), HostCampAnchor);
+        return Check(true, TEXT("N03"), TEXT("Every authored spawn has a legal camp/Boss-free fixture route to both duel sites"));
     }
 
     bool PrepareWalkKeepouts(const ULDMapRegistry& Registry, double BodyRadius, FString& WalkError)
@@ -1889,35 +1859,17 @@ public:
         FCollisionShape Capsule;
         if (!Geometry || !ULDMapRegistry::ContentCapsule(*Catalog, Capsule, CampError))
         { CampError = TEXT("The low-camp fixture has no registered geometry or capsule: ") + CampError; return false; }
-        // The sample is any camp standing in the saved map whose tier is the low one and which has the sampled member
-        // count: the level author decides which camps exist, where they stand and how many members each has.
-        int32 Candidates = 0, OffLevel = 0, NoGround = 0, NoWalk = 0;
-        FString LastError;
-        const FName LowMonster(TEXT("monster_scavenger"));
-        const FLDDemoMonsterDefinition* Monster = nullptr;
-        if (!Catalog->FindMonster(LowMonster.ToString(), Monster, CampError))
-        { CampError = TEXT("The low-camp sample has no monster definition: ") + CampError; return false; }
-        struct FCandidate { const FLDDemoWorldAnchor* Anchor; FVector Centre; };
-        TArray<FCandidate> Sorted;
-        for (const FLDDemoWorldAnchor& Row : Geometry->Anchors)
+        for (const auto& Placement : Catalog->Get().Camps)
         {
-            const FString& TierAnchor = Row.PrototypeId.IsEmpty() ? Row.Id : Row.PrototypeId;
-            const auto* Tier = Catalog->Get().Camps.FindByPredicate([&](const auto& Placement) { return Placement.AnchorId == TierAnchor; });
-            if (Row.Kind != ELDDemoWorldAnchorKind::Camp || !Tier || FName(*Tier->MonsterId) != LowMonster
-                || Row.Members.Num() != LDDemoGrowthScenario::GrowthProbeLowCampMembers) { continue; }
+            if (Placement.MonsterId != TEXT("monster_scavenger")) { continue; }
+            const auto* Anchor = Geometry->Anchors.FindByPredicate([&](const auto& Row) { return Row.Id == Placement.AnchorId; });
+            const FLDDemoMonsterDefinition* Monster = nullptr;
+            if (!Anchor || Anchor->Kind != ELDDemoWorldAnchorKind::Camp
+                || Anchor->Members.Num() != LDDemoGrowthScenario::GrowthProbeLowCampMembers
+                || !Catalog->FindMonster(Placement.MonsterId, Monster, CampError))
+            { CampError = TEXT("The low-camp sample has invalid authored members: ") + Placement.AnchorId + TEXT(": ") + CampError; return false; }
             FVector Centre;
-            if (!Row.PositionCm.ToVector(Centre, CampError)) { return false; }
-            Sorted.Add({&Row, Centre});
-        }
-        // Nearest camps first, and one walk plan per camp: the planner blocks the Listen Host while it runs.
-        Sorted.Sort([&](const FCandidate& A, const FCandidate& B)
-            { return FVector::DistSquared2D(A.Centre, HostSite) < FVector::DistSquared2D(B.Centre, HostSite); });
-        for (const FCandidate& Candidate : Sorted)
-        {
-            if (NoWalk >= LDDemoGrowthScenario::GrowthProbeCampWalkPlans) { break; }
-            const FLDDemoWorldAnchor* Anchor = Candidate.Anchor;
-            const FVector Centre = Candidate.Centre;
-            ++Candidates;
+            if (!Anchor->PositionCm.ToVector(Centre, CampError)) { return false; }
             double HomeReach = 0;
             for (const auto& Member : Anchor->Members)
             {
@@ -1933,25 +1885,21 @@ public:
             {
                 const double Radians = Angle * UE_TWO_PI / 16;
                 FVector Approach = Centre + (TowardHost * FMath::Cos(Radians) + Across * FMath::Sin(Radians)) * ApproachRadius;
-                // The camp stands on authored floor meshes: the native ground query at the camp's own height decides the
-                // approach, and it must come out on the camp's level rather than on a floor above or below it.
-                Approach.Z = Centre.Z;
+                FVector Normal;
+                Registry.GetTerrain().Ground(FVector2D(Approach), Approach.Z, Normal);
+                if (!FMath::IsNearlyEqual(Approach.Z, Centre.Z) || !Normal.Equals(FVector::UpVector, 1e-4)) { continue; }
                 FLDLegalGround Ground, OnMesh;
                 ELDWorldQueryFailure Failure = ELDWorldQueryFailure::None;
                 if (!Registry.QueryGround(Registry.Revision(), Approach, Capsule, FName(*Anchor->SurfaceId), Ground, Failure, CampError)
-                    || !LDPathSteering::PlanStart(Registry, Ground, Capsule, OnMesh, Failure, CampError))
-                { ++NoGround; LastError = Anchor->Id + TEXT(": ") + CampError; continue; }
-                if (FMath::Abs(OnMesh.SurfaceCm.Z - Centre.Z) > LDDemoGrowthScenario::GrowthProbeCampLevelCm) { ++OffLevel; continue; }
-                if (!PlanDuelWalk(Registry, HostSite, OnMesh.SurfaceCm, CampError))
-                { ++NoWalk; LastError = Anchor->Id + TEXT(": ") + CampError; break; }
+                    || !LDPathSteering::PlanStart(Registry, Ground, Capsule, OnMesh, Failure, CampError)
+                    || !PlanDuelWalk(Registry, HostSite, OnMesh.SurfaceCm, CampError)) { continue; }
                 HostCampAnchor = Anchor->Id;
                 HostCampApproach = OnMesh.SurfaceCm;
                 CampError.Reset();
                 return true;
             }
         }
-        CampError = FString::Printf(TEXT("No authored two-member low camp has a legal fixture approach: camps=%d approaches off the camp's level=%d without legal ground=%d without a walk from the Host site=%d; last: %s"),
-            Candidates, OffLevel, NoGround, NoWalk, *LastError);
+        CampError = TEXT("No authored two-scavenger camp has a legal fixture approach: ") + CampError;
         return false;
     }
 
@@ -1985,10 +1933,9 @@ public:
     {
         const FLDDemoContentDefinitions& Defs = Catalog->Get();
         LDProgression::FRewardAmounts Bounty;
-        const ELDGrowthReason BountyReason = LDProgression::ContenderKillReward(Defs.Parameters, uint8(Defs.Progression.MaxLevel),
-            LDDemoGrowthScenario::GrowthProbeVictimLevel, Bounty);
+        const ELDGrowthReason BountyReason = LDProgression::ContenderKillReward(Defs.Parameters, uint8(Defs.Progression.MaxLevel), 1, Bounty);
         if (!Check(BountyReason == ELDGrowthReason::None && Bounty.XP > 0, TEXT("N03"),
-            TEXT("The catalog pays a positive XP bounty for a contender at the victim level"), LDGrowthWire::ReasonName(BountyReason)))
+            TEXT("The catalog pays a positive XP bounty for a level-1 contender"), LDGrowthWire::ReasonName(BountyReason)))
         {
             return false;
         }
@@ -1999,8 +1946,8 @@ public:
         {
             return false;
         }
-        // The fewest kills of the victim that reach the last offer level; the window stage runs at the first one.
-        // Each kill pays REWARD.LevelGapXP at the killer's level before it, so later kills pay less.
+        // The fewest kills of the level-1 victim that reach the last offer level; the window stage runs at the first one.
+        // Each kill pays REWARD.LevelGapXP at the killer's level before it, so later kills of the level-1 victim pay less.
         KillsPlanned = 0;
         uint8 PlannedLevel = 1;
         int64 PlannedXP = Defs.Progression.XPStart;
@@ -2008,7 +1955,7 @@ public:
         do
         {
             int64 Step = 0;
-            LevelReason = LDProgression::LevelGapXP(Defs.Parameters, Bounty.XP, PlannedLevel, LDDemoGrowthScenario::GrowthProbeVictimLevel, Step);
+            LevelReason = LDProgression::LevelGapXP(Defs.Parameters, Bounty.XP, PlannedLevel, 1, Step);
             if (LevelReason != ELDGrowthReason::None || Step <= 0) { break; }
             PlannedXP += Step;
             ++KillsPlanned;
@@ -2114,7 +2061,7 @@ public:
                 return Fail(TEXT("A14"), TEXT("The Host never saw the buyer it was asked to kill"));
             }
             const TArray<int64>& Thresholds = Catalog->Get().Progression.XPThresholds;
-            HostGrantLevel = uint8(FMath::Clamp<int32>(FMath::Max<int32>(Buyer->Level, OwnProgression->Level), 1, Thresholds.Num()));
+            HostGrantLevel = uint8(FMath::Clamp<int32>(Buyer->Level, 1, Thresholds.Num()));
             HostGrantXP = FMath::Max<int64>(0, Thresholds[HostGrantLevel - 1] - OwnProgression->CumulativeXP);
             FString GrantError;
             HostGrantTicket = Mode.Growth->DevGrantReward(HostId, HostGrantXP, GrantError);
@@ -3114,11 +3061,10 @@ public:
         const FLDWorldView* Frame = LDDemoGrowthScenario::GrowthProbeFrame(PC);
         const FLDObservedUnitView* Victim = Frame ? LDDemoGrowthScenario::GrowthProbeContender(*Frame, HostId) : nullptr;
         const FLDProgressionView* ProgView = PC.ReadOwnProgression();
-        if (!Victim || LDDemoGrowthScenario::GrowthProbeProtected(*Victim) || !ProgView
-            || Victim->Level < LDDemoGrowthScenario::GrowthProbeVictimLevel)
+        if (!Victim || LDDemoGrowthScenario::GrowthProbeProtected(*Victim) || !ProgView)
         {
             if (Now - StageAt <= RespawnSecondsNow(PC) + LDDemoGrowthScenario::GrowthProbeReturnSeconds) { return true; }
-            return Fail(TEXT("N03"), TEXT("The victim never became visible, unprotected and at its planned level at its duel site"));
+            return Fail(TEXT("N03"), TEXT("The victim never became visible and unprotected at its duel site"));
         }
         if (AttackOrders == 0)
         {
