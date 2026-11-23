@@ -1,4 +1,5 @@
 #include "World/LDCampDecision.h"
+#include "World/LDCampMember.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Misc/AutomationTest.h"
 
@@ -44,6 +45,16 @@ bool FLDCampDecisionTest::RunTest(const FString& Parameters)
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if(!LDTestApprovedFixture::Read(*this,Catalog)){return false;}
     FString Error;
+    {
+        // A camp member is seen through its observed proxy and steered inside the authority step; only a body a player
+        // can own presents itself and carries a camera.
+        const auto* Member=GetDefault<ALDCampMemberCharacter>();
+        TestTrue(TEXT("A camp body carries no presentation, camera or actor tick"),
+            !Member->Body&&!Member->CameraArm&&!Member->Camera&&!Member->PrimaryActorTick.bCanEverTick);
+        const auto* Owned=GetDefault<ALDCharacter>();
+        TestTrue(TEXT("A contender body keeps its presentation, camera and tick"),
+            Owned->Body&&Owned->CameraArm&&Owned->Camera&&Owned->PrimaryActorTick.bCanEverTick);
+    }
     {
         // BeginMatch refuses a roster whose observer could see more than the wire bound: the five other seats of the
         // six-seat roster, every camp member and the Boss.

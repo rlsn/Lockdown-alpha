@@ -288,6 +288,8 @@ void ULDImpactFxSubsystem::Ghost(const USkeletalMeshComponent& Source, const LDH
         Copy->SetUsingAbsoluteScale(true);
         Copy->SetHiddenInGame(true);
         Copy->RegisterComponent();
+        // A pooled copy ticks only while it is shown; registration activated its tick.
+        Copy->SetComponentTickEnabled(false);
         Slot = GhostSlots.Add(Copy);
         GhostPaints.Add(UMaterialInstanceDynamic::Create(GhostMaterial, this));
     }
@@ -302,6 +304,7 @@ void ULDImpactFxSubsystem::Ghost(const USkeletalMeshComponent& Source, const LDH
     Paint->SetVectorParameterValue(LDHitVfx::GlowParameter, Ghosts.Glow);
     Paint->SetScalarParameterValue(LDHitVfx::FadeParameter, LDHitVfx::GhostFade(Ghosts, 0.f));
     Copy->SetHiddenInGame(false);
+    Copy->SetComponentTickEnabled(true);
     FLiveGhost& Added = LiveGhosts.AddDefaulted_GetRef();
     Added.Owner = &Owner;
     Added.Slot = Slot;
@@ -314,6 +317,7 @@ void ULDImpactFxSubsystem::ReleaseGhost(int32 Index)
     if (GhostSlots.IsValidIndex(Slot) && IsValid(GhostSlots[Slot]))
     {
         GhostSlots[Slot]->SetHiddenInGame(true);
+        GhostSlots[Slot]->SetComponentTickEnabled(false);
         FreeGhosts.Add(Slot);
     }
     LiveGhosts.RemoveAt(Index, EAllowShrinking::No);
@@ -758,6 +762,7 @@ void ULDImpactFxSubsystem::WarmGhost(const USkeletalMeshComponent& Source)
     Copy->SetUsingAbsoluteScale(true);
     Copy->SetHiddenInGame(true);
     Copy->RegisterComponent();
+    Copy->SetComponentTickEnabled(false);
     UMaterialInstanceDynamic* Paint = UMaterialInstanceDynamic::Create(GhostMaterial, this);
     Copy->SetSkinnedAssetAndUpdate(Source.GetSkinnedAsset());
     for (int32 Index = 0; Index < Copy->GetNumMaterials(); ++Index) { Copy->SetMaterial(Index, Paint); }

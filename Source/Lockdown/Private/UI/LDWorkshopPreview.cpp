@@ -103,7 +103,7 @@ bool Partial(const FLDDemoContentSnapshot& Content,const FLDGrowthBuild& Before,
     const auto Check=[&](const FLDCardInstance& Card)
     {
         const FLDDemoCardDefinition* Definition=nullptr;
-        if(!Content.FindCard(Card.Id.ToString(),Definition,Error)||!Definition){return false;}
+        if(!Content.FindCardByName(Card.Id,Definition,Error)||!Definition){return false;}
         Out|=!Covered(*Definition);
         return true;
     };
@@ -265,7 +265,7 @@ bool Compiled(const FLDDemoContentSnapshot& Content,const FState& State,const FL
     else
     {
         const FLDDemoAbilityDefinition* Ability=nullptr;
-        if(!Content.FindAbility(Source.DefinitionId.ToString(),Ability,Error)||!Ability){return false;}
+        if(!Content.FindAbilityByName(Source.DefinitionId,Ability,Error)||!Ability){return false;}
         // The learned branch decides the variant, its target form and windup, like the authority's release (ActiveOf).
         const FLDLearnedActiveValue* Learned=State.Input.Actives.FindByPredicate([&Source](const FLDLearnedActiveValue& Row)
             {return Row.AbilityId==Source.DefinitionId;});

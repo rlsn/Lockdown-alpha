@@ -1413,4 +1413,12 @@ struct LOCKDOWN_API FLDDemoContentDefinitions
     TArray<const FLDDemoStatDefinition*> StatsInDesignOrder() const;
     // Index of StatId in StatsInDesignOrder, or INDEX_NONE.
     int32 StatDesignIndex(const FString& StatId) const;
+    // The display row of a content id (the first one, ids compared without case), or null. The interface names things
+    // through this table many times per build and per painted label; game thread only.
+    const FLDDemoDisplayDefinition* FindDisplay(const FString& Id) const;
+
+private:
+    // Row of each display id, built on the first lookup of a table of DisplayIndexedRows rows. Not part of the content.
+    mutable TMap<FString, int32> DisplayIndex;
+    mutable int32 DisplayIndexedRows = INDEX_NONE;
 };

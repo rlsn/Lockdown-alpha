@@ -136,7 +136,7 @@ bool ALDCombatDirector::ObservedCastSource(const ALDCharacter& Body, int64 NowMs
     if (Content && Source.Kind==ELDCombatSourceKind::Learned)
     {
         const FLDDemoAbilityDefinition* Ability=nullptr;
-        if (Content->FindAbility(Source.DefinitionId.ToString(),Ability,Error)) { OutAbility=Ability->NativeId; return true; }
+        if (Content->FindAbilityByName(Source.DefinitionId,Ability,Error)) { OutAbility=Ability->NativeId; return true; }
     }
     UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_CAST_SOURCE_UNAVAILABLE %s %s"),*Source.DefinitionId.ToString(),*Error);
     return false;
@@ -177,9 +177,9 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
         const bool bSpellWave=Projectile.Source.Kind==ELDCombatSourceKind::Card
             && Projectile.Source.DefinitionId==FName(TEXT("card_spellblade_echo"));
         const bool bMonster=!bFlyingBasic && Projectile.Source.Kind==ELDCombatSourceKind::Basic
-            && Content->FindMonster(Projectile.Source.DefinitionId.ToString(),Monster,LookupError)
+            && Content->FindMonsterByName(Projectile.Source.DefinitionId,Monster,LookupError)
             && Monster->Skill.Pattern==ELDMonsterPattern::Projectile;
-        if ((!bFlyingBasic && !bSpellWave && !bMonster && (!Content->FindAbility(Projectile.Source.DefinitionId.ToString(),Ability,LookupError)
+        if ((!bFlyingBasic && !bSpellWave && !bMonster && (!Content->FindAbilityByName(Projectile.Source.DefinitionId,Ability,LookupError)
             || (Ability->NativeId!=uint8(ELDDemoAbilityId::ActiveSnarkBolt)
                 && Ability->NativeId!=uint8(ELDDemoAbilityId::ActiveStaleTakeout)
                 && Ability->NativeId!=uint8(ELDDemoAbilityId::ActiveFlurryRush))))

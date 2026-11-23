@@ -200,7 +200,7 @@ bool ALDCombatDirector::AdvanceSlipperDrops(int64 NowMs, FString& Error)
         {
             const FLDDemoAbilityDefinition* AbilDef = nullptr;
             FString LookupErr;
-            if (Catalog()->FindAbility(Drop.SkillId.ToString(), AbilDef, LookupErr) && AbilDef)
+            if (Catalog()->FindAbilityByName(Drop.SkillId, AbilDef, LookupErr) && AbilDef)
             {
                 if (const FLDCombatEntityRecord* Rec = FindRecord(Holder->Victim.EntityId))
                 {

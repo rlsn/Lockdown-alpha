@@ -165,11 +165,13 @@ bool ALDGameMode::AdvanceFieldPacing(const FLDGameplayWritePermit& Permit, FStri
         UE_LOG(LogLDWorld, Display, TEXT("LD_ARENA_CLOSE serial=%u winner=%s field_t_ms=%lld"), View.Serial, *LDLog::Id(View.Winner), T);
     }
     // Spec §11.3: the dealer comes out once beside a camp, and leaves unkilled.
-    if (!Peddler.bSpawned && T >= Peddler.AppearT && T < Peddler.LeaveT)
+    if (!Peddler.bSpawned && T >= Peddler.AppearT && T < Peddler.LeaveT && T >= Peddler.RetryT)
     {
         bool bBlocked = false;
         if (!Camps->SpawnPeddler(Peddler.CampAnchor, Peddler.OffsetAngleRad, Cm(P.Explore.PeddlerOffsetCm), Permit, bBlocked, Error)) { return false; }
         Peddler.bSpawned = !bBlocked;
+        // A blocked spot is searched again a second later, not on every step of the window.
+        if (bBlocked) { Peddler.RetryT = T + 1000; }
         if (Peddler.bSpawned) { bPublicMatchDirty = true; }
     }
     if (Peddler.bSpawned && !Peddler.bGone && T >= Peddler.LeaveT)

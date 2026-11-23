@@ -25,6 +25,10 @@
 #include "Region/LDMapRegistry.h"
 #include "Navigation/LDNavigationComponent.h"
 
+const FName ALDCharacter::BodyComponentName(TEXT("SharedBody"));
+const FName ALDCharacter::CameraArmComponentName(TEXT("CameraArm"));
+const FName ALDCharacter::CameraComponentName(TEXT("Camera"));
+
 ALDCharacter::ALDCharacter(const FObjectInitializer& ObjectInitializer)
     // The Demo presents bodies only through SharedBody, so the inherited optional character mesh is never created.
     : Super(ObjectInitializer.SetDefaultSubobjectClass<ULDCharacterMovementComponent>(ACharacter::CharacterMovementComponentName)
@@ -55,10 +59,12 @@ ALDCharacter::ALDCharacter(const FObjectInitializer& ObjectInitializer)
     Movement->bOrientRotationToMovement = false;
     Movement->bRunPhysicsWithNoController = true;
     Movement->NavAgentProps.bCanJump = false;
-    Body = CreateDefaultSubobject<ULDHumanoidVisualComponent>(TEXT("SharedBody"));
+    Body = CreateOptionalDefaultSubobject<ULDHumanoidVisualComponent>(BodyComponentName);
+    CameraArm = CreateOptionalDefaultSubobject<USpringArmComponent>(CameraArmComponentName);
+    Camera = CreateOptionalDefaultSubobject<UCameraComponent>(CameraComponentName);
+    if (!Body || !CameraArm || !Camera) { return; }
     Body->SetupAttachment(GetRootComponent());
     Body->SetVisibility(false,true);
-    CameraArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraArm"));
     CameraArm->SetupAttachment(GetRootComponent());
     CameraArm->SetUsingAbsoluteLocation(true);
     CameraArm->SetUsingAbsoluteRotation(true);
@@ -66,7 +72,6 @@ ALDCharacter::ALDCharacter(const FObjectInitializer& ObjectInitializer)
     CameraArm->TargetArmLength = LDCamera::DefaultArmLength;
     CameraArm->TargetOffset = FVector(0,0,LDCamera::TargetOffsetZ);
     CameraArm->bDoCollisionTest = false;
-    Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
     Camera->SetupAttachment(CameraArm);
     Camera->FieldOfView = LDCamera::FieldOfView;
     Camera->PostProcessSettings.bOverride_AutoExposureMethod = true;
@@ -112,7 +117,7 @@ void ALDCharacter::BeginPlay()
 {
     Super::BeginPlay();
     // Constructor attachments may not yet be registered; hide the complete body before its first frame.
-    Body->SetVisibility(false,true);
+    if (Body) { Body->SetVisibility(false,true); }
     FString Error;
     if (UWorld::RemovePIEPrefix(GetWorld()->GetOutermost()->GetName()) != LDDemoEntry::WorldMap)
     {

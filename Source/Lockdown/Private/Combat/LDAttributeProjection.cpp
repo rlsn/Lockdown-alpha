@@ -240,7 +240,7 @@ private:
             const FLDInstalledCardValue& Installed = Build.Cards[Index];
             const FString Field = FString::Printf(TEXT("Cards[%d]"), Index);
             const FLDDemoCardDefinition* Definition = nullptr;
-            if (Installed.CardId.IsNone() || !Catalog.FindCard(Installed.CardId.ToString(), Definition, LookupError) || !Definition)
+            if (Installed.CardId.IsNone() || !Catalog.FindCardByName(Installed.CardId, Definition, LookupError) || !Definition)
             {
                 return Refuse(EError::UnknownDefinition, Field,
                     LookupError.IsEmpty() ? FString(TEXT("An installed card needs a catalog id")) : LookupError);

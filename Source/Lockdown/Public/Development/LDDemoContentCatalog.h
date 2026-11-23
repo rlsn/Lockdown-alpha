@@ -37,6 +37,13 @@ public:
     bool FindCard(const FString& Id, const FLDDemoCardDefinition*& Out, FString& Error) const;
     bool FindFinalMod(const FString& Id, const FLDDemoFinalModDefinition*& Out, FString& Error) const;
     bool FindMonster(const FString& Id, const FLDDemoMonsterDefinition*& Out, FString& Error) const;
+    // The same lookups for an id already held as a name: per-step authority code reads a body's monster, an installed
+    // card or a learned active without building a string for it.
+    bool FindAbilityByName(FName Id, const FLDDemoAbilityDefinition*& Out, FString& Error) const;
+    bool FindCardByName(FName Id, const FLDDemoCardDefinition*& Out, FString& Error) const;
+    bool FindMonsterByName(FName Id, const FLDDemoMonsterDefinition*& Out, FString& Error) const;
+    // The camp whose anchor id is Anchor, or null.
+    const FLDDemoCampPlacement* FindCampByAnchor(FName Anchor) const;
     bool FindDisplay(const FString& Id, const FLDDemoDisplayDefinition*& Out, FString& Error) const;
     // Skill growth: Ability's value set as its owner at Level uses it on Branch (LDSkillGrowth::GrowValues with SKILL.GrowthPerLevel
     // and the rank Branch belongs to; None is rank 1). Null for an ability outside this snapshot, a missing branch or a level
@@ -50,6 +57,9 @@ private:
     // Per ability (index into Definitions.Abilities) and variant (0 = rank 1, then its branches in path order): the value set
     // grown for each level 1..MaxLevel; unset where growth would overflow, which content validation refuses.
     TArray<TArray<TArray<TOptional<FLDDemoAbilityValues>>>> GrownValues;
+    // Row index of every canonical id per table; FString keys compare without case, as the lookups fold case.
+    TMap<FString, int32> AbilityIndex, StatIndex, CardIndex, FinalModIndex, MonsterIndex, DisplayIndex;
+    TMap<FName, int32> AbilityNameIndex, CardNameIndex, MonsterNameIndex, CampAnchorIndex;
 };
 
 class LOCKDOWN_API FLDDemoPreparedContent

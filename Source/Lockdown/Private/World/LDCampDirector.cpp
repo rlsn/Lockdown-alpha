@@ -589,6 +589,14 @@ bool ALDCampDirector::ProcessAuthorityIntents(const FLDGameplayWritePermit& Perm
             {
                 return false;
             }
+            // An idle member decides nothing: LDCampDecision::Evaluate answers Hold with the same brain whatever it
+            // could read, and only a consumed hostile contact engages it. Most of the map idles on every step, so it
+            // holds here without the ground, sight and combat reads. Motion already proved this body current this step.
+            if (Member.Brain.Phase == ELDCampBrainPhase::Idle && !Member.Brain.LostTargetSinceSeconds.IsSet())
+            {
+                StopMotion(Entity);
+                continue;
+            }
             FMemberRead Self;
             FLDCombatBodyRead Body;
             TArray<FLDAuthorityTargetSample> Candidates;
@@ -1057,7 +1065,7 @@ bool ALDCampDirector::SpawnBoss(const FLDGameplayWritePermit& Permit, bool& bBlo
     bBlocked = false;
     ALDGameMode* Mode = AuthorityMode();
     const FLDDemoMonsterDefinition* Monster = nullptr;
-    if (!Mode || !Content->FindMonster(Boss.Rules.MonsterId.ToString(), Monster, Error) || !Monster)
+    if (!Mode || !Content->FindMonsterByName(Boss.Rules.MonsterId, Monster, Error) || !Monster)
     {
         if (Error.IsEmpty()) { Error = TEXT("The Boss spawn needs the core and its approved monster row."); }
         return false;
@@ -1080,7 +1088,6 @@ bool ALDCampDirector::SpawnBoss(const FLDGameplayWritePermit& Permit, bool& bBlo
     Bodies.Add(Boss.EntityId, Body);
     Motion.Add(Boss.EntityId, {});
     Body->SetActorHiddenInGame(false);
-    Body->SetActorTickEnabled(true);
     Mode->MarkPublicMatchDirty();
     UE_LOG(LogLDWorld, Display, TEXT("LD_BOSS_SPAWN life=%u at_ms=%lld waypoint=%s"), Refs[0].Victim.Life, Mode->GetAuthorityNowMs(),
         *Boss.Rules.Waypoints[0].ToString());
@@ -1244,7 +1251,7 @@ bool ALDCampDirector::SpawnGroup(int32 Camp, const FLDGameplayWritePermit& Permi
     {
         const FLDDemoMonsterDefinition* SlotMonster = nullptr;
         const FName Species = Spec.MemberSpecies(Slot, Selected);
-        if (Species.IsNone() || !Content->FindMonster(Species.ToString(), SlotMonster, Error) || !SlotMonster)
+        if (Species.IsNone() || !Content->FindMonsterByName(Species, SlotMonster, Error) || !SlotMonster)
         {
             if (Error.IsEmpty()) { Error = TEXT("Camp spawn has no approved species for a member's tier pool."); }
             return false;
@@ -1304,7 +1311,6 @@ bool ALDCampDirector::SpawnGroup(int32 Camp, const FLDGameplayWritePermit& Permi
         Bodies.Add(Refs[Slot].Victim.EntityId, Spawned[Slot]);
         Motion.Add(Refs[Slot].Victim.EntityId, {});
         Spawned[Slot]->SetActorHiddenInGame(false);
-        Spawned[Slot]->SetActorTickEnabled(true);
     }
     UE_LOG(LogLDWorld, Display, TEXT("LD_CAMP_SPAWN camp=%s generation=%u members=%d life=%u stage=%u affix=%s at=%.3f"),
         *Spec.CampId.ToString(), State.FindCamp(Camp)->Generation, Spawned.Num(), Refs[0].Victim.Life, uint32(Stage),
@@ -1330,7 +1336,6 @@ bool ALDCampDirector::CreateBody(const FLDLegalGround& Ground, const FLDDemoMons
     }
     Out = Body;
     Body->SetActorHiddenInGame(true);
-    Body->SetActorTickEnabled(false);
     if (!Body->PrepareMonster(*Content, Monster, Error)) { return false; }
     Body->FinishSpawning(Transform);
     if (!IsValid(Body) || Body->IsActorBeingDestroyed())
@@ -1445,7 +1450,9 @@ bool ALDCampDirector::SpawnPeddler(FName CampAnchor, double AngleRad, double Off
     if (bBlocked)
     {
         // The offset spot is taken or off the walkable ground: stand at the camp anchor itself instead.
-        if (!FindGround(Anchor->Position, Anchor->Surface, TEXT("peddler"), {}, Ground, bBlocked, Error) || bBlocked) { return !bBlocked || Error.IsEmpty(); }
+        if (!FindGround(Anchor->Position, Anchor->Surface, TEXT("peddler"), {}, Ground, bBlocked, Error)) { return false; }
+        // Both spots are taken: not a fault. The caller tries again on a later step of the dealer's window.
+        if (bBlocked) { return true; }
     }
     ALDCampMemberCharacter* Body = nullptr;
     bool bCommitted = false;
@@ -1465,7 +1472,6 @@ bool ALDCampDirector::SpawnPeddler(FName CampAnchor, double AngleRad, double Off
     Bodies.Add(PeddlerEntity, Body);
     Motion.Add(PeddlerEntity, {});
     Body->SetActorHiddenInGame(false);
-    Body->SetActorTickEnabled(true);
     UE_LOG(LogLDWorld, Display, TEXT("LD_PEDDLER_SPAWN camp=%s life=%u at_ms=%lld"), *CampAnchor.ToString(), Refs[0].Victim.Life,
         Mode->GetAuthorityNowMs());
     Error.Reset();

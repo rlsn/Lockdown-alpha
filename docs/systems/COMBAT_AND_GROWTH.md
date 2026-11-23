@@ -35,6 +35,16 @@
 4. 原子冻结本步全部 `HP -> 0` 致死事实，提交 `CommitDeathReward` 并清理死者活体持续状态（已释放的独立弹道/区域/护盾按原期限继续；正式退房者立即取消全部未完效果）；
 5. 随后才由 `GameMode` 基于最新存活与受控状态推进旗杆喷漆/守护、野外目标与终局胜负裁决。
 
+## 权威身体与每步开销
+
+- **每步的移动**：每个注册身体每步走一次原生移动（`ULDCharacterMovementComponent::AdvanceAuthorityMovement`），并留下本步的移动记录，冲刺接触判定要读每个身体的这份记录（包括站着不动的）。
+- **静止的营地成员**：没有输入、站在静态地面上的营地成员走 `TryAdvanceStationaryMovement`，不跑原生物理，只查一次“有没有东西挤进来”（`LDStationaryPenetration`）。这次查询的耗时主要在查询本身的固定开销，实测让它跳过脚下的静态地面并不更快。
+- **营地成员身体**（`ALDCampMemberCharacter`）不带表现组件、镜头臂和镜头，也不运行 Actor Tick：它只通过观察代理显示，由营地在权威步内驱动。`ALDCharacter` 的这三个子对象是可选的，参赛者身体总是齐全。
+- **空闲的营地成员**在 Actions 阶段不读地面、视野和战斗状态，直接原地保持；只有已消费的敌对接触能让它进入交战（`LDCampDecision::Evaluate` 对 Idle 恒答 Hold）。
+- **内容查找**：`FLDDemoContentSnapshot` 对每张定义表建有按 id 的索引，技能、卡牌和怪物另有按名字（`FindAbilityByName`、`FindCardByName`、`FindMonsterByName`）、营地另有按锚点（`FindCampByAnchor`）的索引；界面取显示行走 `FLDDemoContentDefinitions::FindDisplay`。查不到时仍走完整路径给出原因。
+- **二手贩子落点被占**：偏移点和营地锚点都站不下时不算故障，`AdvanceFieldPacing` 每隔 1 s 再找一次，直到它的出现窗口结束。
+- **追踪区段**：`LDPhase_*`（阶段）、`LDStep_NextDue`、`LDStep_SortBodies`、`LDActions_*`、`LDEffects_*`、`LDVision*`、`LDAI_Frame*`；多段表达式里的一段用 `LD_TRACED`（`Core/LDTrace.h`）。按身体触发的代码不加区段，一局会多出上千万个事件。整局追踪见[开发指南](../DEVELOPMENT.md#试玩问题排查)的 `RunDemoOpponentCheck.ps1 -Trace`。
+
 ## 野怪攻击模式
 
 四档 12 种野怪除小野 HR 外，每第 3 次成功释放以锁定几何预警技能替代普攻（扇形 `ConeWarning`、直线 `LineWarning`、圆形落点或短冲，由 `LDCombatMonsters.cpp` 与 `LDMonsterRules` 共用预警和命中判定）；回位开始即取消未释放预警，沿路径回锚点（或连续 3 次无路 / 6 s 停滞触发原地 `LD_CAMP_RETURN_DEAD_END` 重置）后满当前成长阶生命并清仇恨，已死同伴不复活、不重复发奖。

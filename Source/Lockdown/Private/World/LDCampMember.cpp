@@ -2,15 +2,17 @@
 #include "Core/LDLog.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "GameFramework/SpringArmComponent.h"
 
 ALDCampMemberCharacter::ALDCampMemberCharacter(const FObjectInitializer& ObjectInitializer)
-    : Super(ObjectInitializer)
+    // A camp member is shown through its observed proxy and no one views through it: it carries neither the shared
+    // body presentation (dozens of marker components that would register and follow every move) nor a camera.
+    : Super(ObjectInitializer.DoNotCreateDefaultSubobject(ALDCharacter::BodyComponentName)
+        .DoNotCreateDefaultSubobject(ALDCharacter::CameraArmComponentName)
+        .DoNotCreateDefaultSubobject(ALDCharacter::CameraComponentName))
 {
     bReplicates = false;
-    // No one views through a camp member. Auto-activation would turn the arm's tick back on.
-    CameraArm->bAutoActivate = false;
-    CameraArm->PrimaryComponentTick.bStartWithTickEnabled = false;
+    // The camp owner steers it inside the authority step; the shared body tick only presents an owned body.
+    PrimaryActorTick.bCanEverTick = false;
 }
 
 bool ALDCampMemberCharacter::PrepareMonster(const FLDDemoContentSnapshot& Content, const FLDDemoMonsterDefinition& Monster, FString& Error)

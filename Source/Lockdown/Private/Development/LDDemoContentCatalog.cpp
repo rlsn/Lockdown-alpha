@@ -25,11 +25,55 @@ int32 FLDDemoContentDefinitions::StatDesignIndex(const FString& StatId) const
         { return Stat->Id.Equals(StatId, ESearchCase::IgnoreCase); });
 }
 
+const FLDDemoDisplayDefinition* FLDDemoContentDefinitions::FindDisplay(const FString& Id) const
+{
+    if (DisplayIndexedRows != Display.Num())
+    {
+        DisplayIndex.Reset();
+        DisplayIndex.Reserve(Display.Num());
+        for (int32 Row = 0; Row < Display.Num(); ++Row)
+        {
+            if (!DisplayIndex.Contains(Display[Row].Id)) { DisplayIndex.Add(Display[Row].Id, Row); }
+        }
+        DisplayIndexedRows = Display.Num();
+    }
+    // A hit is checked against its row, and a miss scans: rows renamed after the index was built still answer.
+    const int32* Row = DisplayIndex.Find(Id);
+    if (Row && Display[*Row].Id == Id) { return &Display[*Row]; }
+    return Display.FindByPredicate([&Id](const FLDDemoDisplayDefinition& Each) { return Each.Id == Id; });
+}
+
 namespace
 {
-template <typename T>
-bool Find(const TArray<T>& Rows, const FString& Id, const T*& Out, FString& Error)
+bool IsCanonicalId(const FString& Value)
 {
+    FString Ignored;
+    LDDemoContent::FCheck Check(Ignored);
+    return LDDemoContent::Id(Value, Check, TEXT("definition index"));
+}
+
+// The first row of each canonical id, which is the row the folded scan in Find returns for it.
+template <typename T>
+void BuildIndex(const TArray<T>& Rows, TMap<FString, int32>& Out)
+{
+    Out.Reserve(Rows.Num());
+    for (int32 Row = 0; Row < Rows.Num(); ++Row)
+    {
+        if (IsCanonicalId(Rows[Row].Id) && !Out.Contains(Rows[Row].Id)) { Out.Add(Rows[Row].Id, Row); }
+    }
+}
+
+template <typename T>
+bool Find(const TArray<T>& Rows, const TMap<FString, int32>& Index, const FString& Id, const T*& Out, FString& Error)
+{
+    // Authority code looks definitions up many times per step. An indexed id is canonical, so a hit needs no fold,
+    // validation or scan; a miss takes the full path below for its error.
+    if (const int32* Row = Index.Find(Id))
+    {
+        Out = &Rows[*Row];
+        Error.Reset();
+        return true;
+    }
     LDDemoContent::FCheck Check(Error);
     // Callers often pass FName::ToString(). Without case-preserving names (every non-editor build) a common word comes
     // back in the casing it was first registered with, such as "Root" or "Shield". Catalog identities are canonical
@@ -186,6 +230,20 @@ FLDDemoContentSnapshot::FLDDemoContentSnapshot(FLDDemoContentDefinitions&& In) :
             }
         }
     }
+    BuildIndex(Definitions.Abilities, AbilityIndex);
+    BuildIndex(Definitions.Stats, StatIndex);
+    BuildIndex(Definitions.Cards, CardIndex);
+    BuildIndex(Definitions.FinalMods, FinalModIndex);
+    BuildIndex(Definitions.Monsters, MonsterIndex);
+    BuildIndex(Definitions.Display, DisplayIndex);
+    for (const TPair<FString, int32>& Pair : AbilityIndex) { AbilityNameIndex.Add(FName(*Pair.Key), Pair.Value); }
+    for (const TPair<FString, int32>& Pair : CardIndex) { CardNameIndex.Add(FName(*Pair.Key), Pair.Value); }
+    for (const TPair<FString, int32>& Pair : MonsterIndex) { MonsterNameIndex.Add(FName(*Pair.Key), Pair.Value); }
+    for (int32 Row = 0; Row < Definitions.Camps.Num(); ++Row)
+    {
+        const FName Anchor(*Definitions.Camps[Row].AnchorId);
+        if (!CampAnchorIndex.Contains(Anchor)) { CampAnchorIndex.Add(Anchor, Row); }
+    }
 }
 
 const FLDDemoAbilityValues* FLDDemoContentSnapshot::FindValues(const FLDDemoAbilityDefinition& Ability, uint8 Level,
@@ -210,32 +268,72 @@ const FLDDemoAbilityValues* FLDDemoContentSnapshot::FindValues(const FLDDemoAbil
 
 bool FLDDemoContentSnapshot::FindAbility(const FString& Id, const FLDDemoAbilityDefinition*& Out, FString& Error) const
 {
-    return Find(Definitions.Abilities, Id, Out, Error);
+    return Find(Definitions.Abilities, AbilityIndex, Id, Out, Error);
 }
 
 bool FLDDemoContentSnapshot::FindStat(const FString& Id, const FLDDemoStatDefinition*& Out, FString& Error) const
 {
-    return Find(Definitions.Stats, Id, Out, Error);
+    return Find(Definitions.Stats, StatIndex, Id, Out, Error);
 }
 
 bool FLDDemoContentSnapshot::FindCard(const FString& Id, const FLDDemoCardDefinition*& Out, FString& Error) const
 {
-    return Find(Definitions.Cards, Id, Out, Error);
+    return Find(Definitions.Cards, CardIndex, Id, Out, Error);
 }
 
 bool FLDDemoContentSnapshot::FindFinalMod(const FString& Id, const FLDDemoFinalModDefinition*& Out, FString& Error) const
 {
-    return Find(Definitions.FinalMods, Id, Out, Error);
+    return Find(Definitions.FinalMods, FinalModIndex, Id, Out, Error);
 }
 
 bool FLDDemoContentSnapshot::FindMonster(const FString& Id, const FLDDemoMonsterDefinition*& Out, FString& Error) const
 {
-    return Find(Definitions.Monsters, Id, Out, Error);
+    return Find(Definitions.Monsters, MonsterIndex, Id, Out, Error);
+}
+
+// Names compare without case, exactly as the string lookups fold it; a miss asks the string lookup for its error.
+bool FLDDemoContentSnapshot::FindAbilityByName(FName Id, const FLDDemoAbilityDefinition*& Out, FString& Error) const
+{
+    if (const int32* Row = AbilityNameIndex.Find(Id))
+    {
+        Out = &Definitions.Abilities[*Row];
+        Error.Reset();
+        return true;
+    }
+    return FindAbility(Id.ToString(), Out, Error);
+}
+
+bool FLDDemoContentSnapshot::FindCardByName(FName Id, const FLDDemoCardDefinition*& Out, FString& Error) const
+{
+    if (const int32* Row = CardNameIndex.Find(Id))
+    {
+        Out = &Definitions.Cards[*Row];
+        Error.Reset();
+        return true;
+    }
+    return FindCard(Id.ToString(), Out, Error);
+}
+
+bool FLDDemoContentSnapshot::FindMonsterByName(FName Id, const FLDDemoMonsterDefinition*& Out, FString& Error) const
+{
+    if (const int32* Row = MonsterNameIndex.Find(Id))
+    {
+        Out = &Definitions.Monsters[*Row];
+        Error.Reset();
+        return true;
+    }
+    return FindMonster(Id.ToString(), Out, Error);
+}
+
+const FLDDemoCampPlacement* FLDDemoContentSnapshot::FindCampByAnchor(FName Anchor) const
+{
+    const int32* Row = CampAnchorIndex.Find(Anchor);
+    return Row ? &Definitions.Camps[*Row] : nullptr;
 }
 
 bool FLDDemoContentSnapshot::FindDisplay(const FString& Id, const FLDDemoDisplayDefinition*& Out, FString& Error) const
 {
-    return Find(Definitions.Display, Id, Out, Error);
+    return Find(Definitions.Display, DisplayIndex, Id, Out, Error);
 }
 
 const TCHAR* ULDDemoContentCatalog::AssetPath()
