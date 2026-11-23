@@ -23,7 +23,10 @@ param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(300,2400)][int]$
     [switch]$UIOnly,
     # Telemetry only: DEV content hot reload (-LDDevContentReload, editor build only), so a re-synced demo_content.json
     # is played without rebuilding C++. Each match records the content root it played.
-    [switch]$DevContentReload)
+    [switch]$DevContentReload,
+    # The Host (rendered or telemetry) records an Unreal Insights CPU trace (HostMatch.utrace) of the whole run for
+    # attributing the frame time. The trace costs frame time itself, so its run is not a frame-rate measurement.
+    [switch]$Trace)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
 Assert-LDDemoInputs
@@ -68,6 +71,7 @@ function Start-OpponentRole {
         if ($NetEmulation) { $arguments += " $NetEmulation" }
         if ($UIOnly) { $arguments += ' -LDDemoOpponentUIOnly' }
         if ($LogCmds) { $arguments += " -LogCmds=""$LogCmds""" }
+        if ($Trace -and $Role -in 'Host','Telemetry') { $arguments += ' -trace=cpu,frame,bookmark -statnamedevents -tracefile="{0}"' -f (Join-Path $output 'HostMatch.utrace') }
         $arguments
     }
 }
