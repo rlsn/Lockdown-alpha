@@ -1242,6 +1242,7 @@ void ALDWorldViewRelay::Refuse(const FString& Error)
 void ALDWorldViewRelay::ClientFullView_Implementation(const FLDWorldView& View)
 {
     if (IsShuttingDown()) { return; }
+    PeakViewWireBytes = FMath::Max(PeakViewWireBytes, View.ReceivedWireBytes);
     FString Error;
     FLDWorldRevision ExpectedRevision;
     if (!EnsureCatalog(Error) || !ExpectedWorld(ExpectedRevision))

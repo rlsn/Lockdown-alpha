@@ -273,6 +273,8 @@ struct LOCKDOWN_API FLDWorldView
     UPROPERTY() TArray<FLDObservedGroundState> GroundStates;
     UPROPERTY() TArray<FLDObservedRecoveryOrb> RecoveryOrbs;
     UPROPERTY() TArray<FName> WitnessedEmptyCamps;
+    // Not on the wire: the bytes this view took when a connection delivered it; 0 for a view built or delivered locally.
+    int32 ReceivedWireBytes = 0;
     bool NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuccess);
 };
 template<> struct TStructOpsTypeTraits<FLDWorldView> : TStructOpsTypeTraitsBase2<FLDWorldView>
@@ -395,9 +397,6 @@ struct FLDOwnerState
 namespace LDObservation
 {
     LOCKDOWN_API bool DecodeCoverageRuns(TConstArrayView<uint8> Runs, TArray<uint8>& Bits);
-    // The largest FLDWorldView this process serialized to or from the network since the last call, in bytes; then starts
-    // over. The Listen Host's own view is delivered locally and never counted.
-    LOCKDOWN_API int32 TakePeakViewWireBytes();
     // Shared by NetSerialize and by local Listen Host delivery, which bypasses network serialization.
     LOCKDOWN_API bool ValidateUnit(const FLDObservedUnitView& Unit, FString& Error);
     LOCKDOWN_API bool ValidateProjectile(const FLDObservedProjectileView& Projectile, FString& Error);

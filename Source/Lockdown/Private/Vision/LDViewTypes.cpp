@@ -10,9 +10,6 @@
 namespace
 {
 constexpr double MaxObservedCoordinateCm = 1000000.0;
-// The largest FLDWorldView this process put on or took off the wire since LDObservation::TakePeakViewWireBytes.
-int32 PeakViewWireBytes = 0;
-
 bool FailObservation(FString& Error, const TCHAR* Message)
 {
     Error = Message;
@@ -734,22 +731,19 @@ bool FLDWorldView::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuccess)
         if (!SerializeObservedMapId(Ar, Camp)) { return RejectObservationArchive(Ar, bSuccess); }
     }
     if (Ar.IsError() || (Ar.IsLoading() && !LDObservation::ValidateView(*this, Error))) { return RejectObservationArchive(Ar, bSuccess); }
-    if (Ar.IsNetArchive())
+    // A connection always brings its package map; a probe or test that encodes a view by itself has none and is not traffic.
+    if (Ar.IsNetArchive() && Map)
     {
         const int32 Bytes = int32((WireBits() - StartBits + 7) / 8);
-        PeakViewWireBytes = FMath::Max(PeakViewWireBytes, Bytes);
-        TRACE_INT_VALUE(TEXT("LD/ViewWireBytes"), Bytes);
-        TRACE_INT_VALUE(TEXT("LD/ViewUnits"), Units.Num());
+        if (Ar.IsLoading()) { ReceivedWireBytes = Bytes; }
+        else
+        {
+            TRACE_INT_VALUE(TEXT("LD/ViewWireBytesSent"), Bytes);
+            TRACE_INT_VALUE(TEXT("LD/ViewUnitsSent"), Units.Num());
+        }
     }
     bSuccess = true;
     return true;
-}
-
-int32 LDObservation::TakePeakViewWireBytes()
-{
-    const int32 Peak = PeakViewWireBytes;
-    PeakViewWireBytes = 0;
-    return Peak;
 }
 
 bool FLDObservedConceal::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuccess)

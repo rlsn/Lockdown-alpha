@@ -147,18 +147,18 @@ void FLDPlaytestTrace::LogConnections(ALDPlayerController& PC)
             MaxCm = Movement->MaxCorrectionCm;
         }
         // This client's observation stream: applied presentation delay, arrival lateness envelope, receive timeout and
-        // receive timeouts (every observed unit cleared) since the relay began.
-        FString Observation = TEXT("obs_delay_ms=- obs_late_ms=- obs_timeout_ms=- obs_timeouts=-");
-        if (const ALDWorldViewRelay* Relay = PC.LocalView())
+        // receive timeouts (every observed unit cleared) since the relay began; then the largest world view this relay
+        // received since the previous line (0 when none arrived).
+        FString Observation = TEXT("obs_delay_ms=- obs_late_ms=- obs_timeout_ms=- obs_timeouts=- view_peak_bytes=-");
+        if (ALDWorldViewRelay* Relay = PC.LocalView())
         {
-            Observation = FString::Printf(TEXT("obs_delay_ms=%.0f obs_late_ms=%.0f obs_timeout_ms=%.0f obs_timeouts=%u"),
+            Observation = FString::Printf(TEXT("obs_delay_ms=%.0f obs_late_ms=%.0f obs_timeout_ms=%.0f obs_timeouts=%u view_peak_bytes=%d"),
                 Relay->PresentationDelaySeconds() * 1000, Relay->ArrivalLatenessSeconds() * 1000, Relay->ReceiveTimeoutSeconds() * 1000,
-                Relay->TimeoutCount());
+                Relay->TimeoutCount(), Relay->TakePeakViewWireBytes());
         }
-        // view_peak_bytes: the largest world view received since the previous line (0 when none arrived).
-        UE_LOG(LogLDNet, Log, TEXT("LD_NET role=client server=%s %s corrections=%u last_correction_cm=%.1f body_max_correction_cm=%.1f %s view_peak_bytes=%d"),
+        UE_LOG(LogLDNet, Log, TEXT("LD_NET role=client server=%s %s corrections=%u last_correction_cm=%.1f body_max_correction_cm=%.1f %s"),
             *LDLog::Quote(Connection->LowLevelGetRemoteAddress(true)), *LDPlaytestTraceDetail::ConnectionText(*Driver, *Connection),
-            Corrections, LastCm, MaxCm, *Observation, LDObservation::TakePeakViewWireBytes());
+            Corrections, LastCm, MaxCm, *Observation);
         return;
     }
     const ALDGameMode* Mode = World->GetAuthGameMode<ALDGameMode>();
