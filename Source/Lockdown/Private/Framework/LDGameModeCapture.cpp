@@ -1,4 +1,5 @@
 #include "Framework/LDGameMode.h"
+#include "ProfilingDebugging/MiscTrace.h"
 #include "Core/LDLog.h"
 #include "World/LDCampDirector.h"
 #include "PK/LDPKDirector.h"
@@ -651,6 +652,7 @@ bool ALDGameMode::TryCloseMatch(ELDMatchEndReason Reason, const FGuid& Winner, i
     bPublicMatchDirty = true;
     UE_LOG(LogLDMatch, Display, TEXT("LD_MATCH_RESULT generation=%u reason=%u winner=%s ended_ms=%lld"),
         MatchContext.Generation, uint8(Reason), *Winner.ToString(EGuidFormats::Digits), EndedAtMs);
+    TRACE_BOOKMARK(TEXT("LD match result"));
     LogPlaytestCasts();
     LogPlaytestSummary(ResultView);
     Error.Reset();

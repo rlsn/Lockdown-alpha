@@ -1,4 +1,5 @@
 #include "Framework/LDGameMode.h"
+#include "ProfilingDebugging/MiscTrace.h"
 #include "Core/LDLog.h"
 #include "Combat/LDCombatDirector.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -57,6 +58,7 @@ bool ALDGameMode::BeginShowdown(const FLDGameplayWritePermit& Permit, FString& E
         || !CaptureReducer.ScheduleOpen(OpensAt, Error) || !BeginFinalMods(*Registry, Error)) { return false; }
     UE_LOG(LogLDMatch, Display, TEXT("LD_SHOWDOWN_BEGIN generation=%u at_ms=%lld opens_at_ms=%lld ends_at_ms=%lld"),
         MatchContext.Generation, Showdown.StartedAtMs, OpensAt, Showdown.EndsAtMs);
+    TRACE_BOOKMARK(TEXT("LD showdown"));
     return true;
 }
 

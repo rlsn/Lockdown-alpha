@@ -155,9 +155,10 @@ void FLDPlaytestTrace::LogConnections(ALDPlayerController& PC)
                 Relay->PresentationDelaySeconds() * 1000, Relay->ArrivalLatenessSeconds() * 1000, Relay->ReceiveTimeoutSeconds() * 1000,
                 Relay->TimeoutCount());
         }
-        UE_LOG(LogLDNet, Log, TEXT("LD_NET role=client server=%s %s corrections=%u last_correction_cm=%.1f body_max_correction_cm=%.1f %s"),
+        // view_peak_bytes: the largest world view received since the previous line (0 when none arrived).
+        UE_LOG(LogLDNet, Log, TEXT("LD_NET role=client server=%s %s corrections=%u last_correction_cm=%.1f body_max_correction_cm=%.1f %s view_peak_bytes=%d"),
             *LDLog::Quote(Connection->LowLevelGetRemoteAddress(true)), *LDPlaytestTraceDetail::ConnectionText(*Driver, *Connection),
-            Corrections, LastCm, MaxCm, *Observation);
+            Corrections, LastCm, MaxCm, *Observation, LDObservation::TakePeakViewWireBytes());
         return;
     }
     const ALDGameMode* Mode = World->GetAuthGameMode<ALDGameMode>();

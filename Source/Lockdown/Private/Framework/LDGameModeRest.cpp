@@ -1,4 +1,5 @@
 #include "Framework/LDGameMode.h"
+#include "ProfilingDebugging/MiscTrace.h"
 #include "Framework/LDPacingTypes.h"
 #include "Core/LDLog.h"
 #include "Character/LDCharacter.h"
@@ -392,6 +393,7 @@ bool ALDGameMode::ApplyTimelineEvents(const TArray<FLDTimelineEvent>& Events, co
         case ELDTimelineEventKind::EnterRest:
             UE_LOG(LogLDMatch, Display, TEXT("LD_REST_ENTER generation=%u rest=%u at_ms=%lld field_t_ms=%lld"),
                 MatchContext.Generation, Event.RestIndex, Event.AtMs, Event.Value);
+            TRACE_BOOKMARK(TEXT("LD rest %u"), uint32(Event.RestIndex));
             // The phase changes first: the retiring field lives leave the spray roster as a rest boundary.
             MatchPhase = ELDMatchPhase::Rest;
             if (!MoveContendersToRest(Permit, Error) || !EnterRestWorld(Permit, Error)) { return false; }
@@ -443,6 +445,7 @@ bool ALDGameMode::ApplyTimelineEvents(const TArray<FLDTimelineEvent>& Events, co
             MatchPhase = ELDMatchPhase::Development;
             UE_LOG(LogLDMatch, Display, TEXT("LD_FIELD_ENTER generation=%u segment=%u at_ms=%lld field_t_ms=%lld final=%d"),
                 MatchContext.Generation, Event.FieldSegment, Event.AtMs, Event.Value, bFinal ? 1 : 0);
+            TRACE_BOOKMARK(TEXT("LD field %u%s"), uint32(Event.FieldSegment), bFinal ? TEXT(" final") : TEXT(""));
 #if WITH_DEV_AUTOMATION_TESTS
             if (Event.FieldSegment == 0 && LDEvaluationSeeds::Armed())
             {

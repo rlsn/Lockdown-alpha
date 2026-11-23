@@ -3,10 +3,15 @@
 #include "Engine/World.h"
 #include "Region/LDMapGeometry.h"
 #include "Region/LDMapRegistry.h"
+#include "ProfilingDebugging/CountersTrace.h"
+#include "Serialization/BitReader.h"
+#include "Serialization/BitWriter.h"
 
 namespace
 {
 constexpr double MaxObservedCoordinateCm = 1000000.0;
+// The largest FLDWorldView this process put on or took off the wire since LDObservation::TakePeakViewWireBytes.
+int32 PeakViewWireBytes = 0;
 
 bool FailObservation(FString& Error, const TCHAR* Message)
 {
@@ -649,6 +654,13 @@ bool FLDWorldView::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuccess)
 {
     FString Error;
     if (Ar.IsSaving() && !LDObservation::ValidateView(*this, Error)) { return RejectObservationArchive(Ar, bSuccess); }
+    // Net archives are bit streams: the position before and after is this view's size on the wire.
+    const auto WireBits = [&Ar]()
+    {
+        return !Ar.IsNetArchive() ? int64(0) : Ar.IsLoading() ? static_cast<FBitReader&>(Ar).GetPosBits()
+            : static_cast<FBitWriter&>(Ar).GetNumBits();
+    };
+    const int64 StartBits = WireBits();
     Ar << Schema;
     if (Ar.IsError() || Schema != LDObservation::Schema) { return RejectObservationArchive(Ar, bSuccess); }
     Ar << MatchGeneration << ObserverLife << Generation << Revision;
@@ -722,8 +734,22 @@ bool FLDWorldView::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuccess)
         if (!SerializeObservedMapId(Ar, Camp)) { return RejectObservationArchive(Ar, bSuccess); }
     }
     if (Ar.IsError() || (Ar.IsLoading() && !LDObservation::ValidateView(*this, Error))) { return RejectObservationArchive(Ar, bSuccess); }
+    if (Ar.IsNetArchive())
+    {
+        const int32 Bytes = int32((WireBits() - StartBits + 7) / 8);
+        PeakViewWireBytes = FMath::Max(PeakViewWireBytes, Bytes);
+        TRACE_INT_VALUE(TEXT("LD/ViewWireBytes"), Bytes);
+        TRACE_INT_VALUE(TEXT("LD/ViewUnits"), Units.Num());
+    }
     bSuccess = true;
     return true;
+}
+
+int32 LDObservation::TakePeakViewWireBytes()
+{
+    const int32 Peak = PeakViewWireBytes;
+    PeakViewWireBytes = 0;
+    return Peak;
 }
 
 bool FLDObservedConceal::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuccess)

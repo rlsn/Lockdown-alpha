@@ -395,6 +395,9 @@ struct FLDOwnerState
 namespace LDObservation
 {
     LOCKDOWN_API bool DecodeCoverageRuns(TConstArrayView<uint8> Runs, TArray<uint8>& Bits);
+    // The largest FLDWorldView this process serialized to or from the network since the last call, in bytes; then starts
+    // over. The Listen Host's own view is delivered locally and never counted.
+    LOCKDOWN_API int32 TakePeakViewWireBytes();
     // Shared by NetSerialize and by local Listen Host delivery, which bypasses network serialization.
     LOCKDOWN_API bool ValidateUnit(const FLDObservedUnitView& Unit, FString& Error);
     LOCKDOWN_API bool ValidateProjectile(const FLDObservedProjectileView& Projectile, FString& Error);
