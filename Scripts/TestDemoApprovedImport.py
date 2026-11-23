@@ -20,6 +20,11 @@ import DemoWorld as world
 import SyncDemoContentData as content_sync
 import SyncDemoWorldData as world_sync
 
+# Most tests here recompile a fixture whose world bytes they did not change. The worker process keeps one reuse scope
+# open for its lifetime, so an identical world payload is validated and bound once per process instead of per compile.
+_WORLD_REUSE = world.reuse_binding_reports()
+_WORLD_REUSE.__enter__()
+
 
 def amount(value):
     return content.quantity(value)
