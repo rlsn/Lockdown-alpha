@@ -177,7 +177,7 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
         const bool bSpellWave=Projectile.Source.Kind==ELDCombatSourceKind::Card
             && Projectile.Source.DefinitionId==FName(TEXT("card_spellblade_echo"));
         const bool bMonster=!bFlyingBasic && Projectile.Source.Kind==ELDCombatSourceKind::Basic
-            && Content->FindMonster(Projectile.Source.DefinitionId.ToString(),Monster,LookupError)
+            && Content->FindMonsterByName(Projectile.Source.DefinitionId,Monster,LookupError)
             && Monster->Skill.Pattern==ELDMonsterPattern::Projectile;
         if ((!bFlyingBasic && !bSpellWave && !bMonster && (!Content->FindAbility(Projectile.Source.DefinitionId.ToString(),Ability,LookupError)
             || (Ability->NativeId!=uint8(ELDDemoAbilityId::ActiveSnarkBolt)

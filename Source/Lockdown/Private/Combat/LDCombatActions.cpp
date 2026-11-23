@@ -907,7 +907,7 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
             return Refuse(ELDCombatReject::Blocked);
         }
         const FLDDemoMonsterDefinition* Monster=nullptr;
-        if(!Catalog()->FindMonster(Body->MonsterId.ToString(),Monster,Error)){return false;}
+        if(!Catalog()->FindMonsterByName(Body->MonsterId,Monster,Error)){return false;}
         const auto& Skill=Monster->Skill;
         bool Special=Skill.Pattern!=ELDMonsterPattern::Basic && Skill.Pattern!=ELDMonsterPattern::Enrage
             && Skill.Every>0 && (Body->MonsterAttackCount+1)%Skill.Every==0;
@@ -1242,7 +1242,7 @@ bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body,
     if(Body.Victim.Kind==ELDVictimKind::CampMember)
     {
         const FLDDemoMonsterDefinition* Monster=nullptr;
-        if(!Content->FindMonster(Body.MonsterId.ToString(),Monster,Error)){return false;}
+        if(!Content->FindMonsterByName(Body.MonsterId,Monster,Error)){return false;}
         Body.MonsterAttackCount=Monster->Skill.Every>0?(Body.MonsterAttackCount+1)%Monster->Skill.Every:0;
         if(Body.bMonsterEnraged){Hit.ADRatioBp+=Body.CampStage>=Monster->Skill.EvolveStage?Monster->Skill.EvolvedPassiveBp:Monster->Skill.PassiveBp;}
     }

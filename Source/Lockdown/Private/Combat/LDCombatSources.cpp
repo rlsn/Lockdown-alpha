@@ -1124,7 +1124,7 @@ FLDCampResetPrepareResult ALDCombatDirector::PrepareCampReset(const FLDCampReset
     FLDDemoMonsterDefinition Grown;
     const FLDDemoMonsterDefinition* Monster=&Grown;
     FString LookupError;
-    if (Body->MonsterId.IsNone() || !Content->FindMonster(Body->MonsterId.ToString(),BaseMonster,LookupError) || !BaseMonster
+    if (Body->MonsterId.IsNone() || !Content->FindMonsterByName(Body->MonsterId,BaseMonster,LookupError) || !BaseMonster
         || !LDCampGrowth::ScaleBody(Content->Get().Parameters,*BaseMonster,Body->CampStage,Grown,LookupError)
         || !LDCampGrowth::ApplySpawnTerms(Content->Get().Parameters,Body->CampAffix,Body->bPeddler,Grown,LookupError)
         || Monster->HPP2<=0)

@@ -359,7 +359,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         && FVector::DotProduct(Actor->GetActorForwardVector(),(FootOf(*SourceActor)-FootOf(*Actor)).GetSafeNormal2D())>0)
     {
         const FLDDemoMonsterDefinition* Monster=nullptr;
-        if(!Content->FindMonster(Body->MonsterId.ToString(),Monster,Error)){return false;}
+        if(!Content->FindMonsterByName(Body->MonsterId,Monster,Error)){return false;}
         Evaluation.DeliveryScaleBp=Evaluation.DeliveryScaleBp*(10000-Monster->Skill.PassiveBp)/10000;
     }
     Evaluation.PackageScaleBp=Hit.PackageScaleBp;
@@ -1277,7 +1277,7 @@ bool ALDCombatDirector::RefreshTemporary(FLDBodyCombatState& Body, ALDCharacter*
     if(Body.Victim.Kind==ELDVictimKind::CampMember && !Body.MonsterId.IsNone())
     {
         const FLDDemoMonsterDefinition* Monster=nullptr;
-        if(!Content->FindMonster(Body.MonsterId.ToString(),Monster,Error)){return false;}
+        if(!Content->FindMonsterByName(Body.MonsterId,Monster,Error)){return false;}
         const auto& S=Monster->Skill;
         if(S.LowHPThresholdBp>0 && Body.Resources.HpP2<=Body.Resources.MaxHpP2/10000*S.LowHPThresholdBp
             +Body.Resources.MaxHpP2%10000*S.LowHPThresholdBp/10000)
@@ -1344,7 +1344,7 @@ bool ALDCombatDirector::RefreshTemporary(FLDBodyCombatState& Body, ALDCharacter*
         if(Body.Victim.Kind==ELDVictimKind::CampMember)
         {
             const FLDDemoMonsterDefinition* Monster=nullptr;
-            if(!Content->FindMonster(Body.MonsterId.ToString(),Monster,Error)){return false;}
+            if(!Content->FindMonsterByName(Body.MonsterId,Monster,Error)){return false;}
             TimingInput.BaseAttackSpeed=Monster->AttackSpeed;TimingInput.BaseWindupMs=Monster->AttackWindupMs;
         }
         const FLDBasicTimingResult Timing=LDTactical::EvaluateBasicTiming(TimingInput,*Content);

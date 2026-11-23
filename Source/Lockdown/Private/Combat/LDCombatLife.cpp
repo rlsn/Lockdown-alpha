@@ -155,7 +155,7 @@ bool ALDCombatDirector::PrepareCampMemberBody(ALDCharacter& Body,const FLDVictim
         { Error=TEXT("This camp member already has a registered Combat body."); return false; }
     }
     const FLDDemoMonsterDefinition* BaseMonster=nullptr;
-    if (!Content->FindMonster(MonsterId.ToString(),BaseMonster,Error)) { return false; }
+    if (!Content->FindMonsterByName(MonsterId,BaseMonster,Error)) { return false; }
     // #97: this life's stats at its spawn stage; the Boss is not a camp and only ever takes stage 0.
     FLDDemoMonsterDefinition Grown;
     if ((BaseMonster->Tier==ELDDemoCampTier::Boss && CampStage!=0)

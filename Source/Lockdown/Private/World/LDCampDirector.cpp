@@ -1057,7 +1057,7 @@ bool ALDCampDirector::SpawnBoss(const FLDGameplayWritePermit& Permit, bool& bBlo
     bBlocked = false;
     ALDGameMode* Mode = AuthorityMode();
     const FLDDemoMonsterDefinition* Monster = nullptr;
-    if (!Mode || !Content->FindMonster(Boss.Rules.MonsterId.ToString(), Monster, Error) || !Monster)
+    if (!Mode || !Content->FindMonsterByName(Boss.Rules.MonsterId, Monster, Error) || !Monster)
     {
         if (Error.IsEmpty()) { Error = TEXT("The Boss spawn needs the core and its approved monster row."); }
         return false;
@@ -1244,7 +1244,7 @@ bool ALDCampDirector::SpawnGroup(int32 Camp, const FLDGameplayWritePermit& Permi
     {
         const FLDDemoMonsterDefinition* SlotMonster = nullptr;
         const FName Species = Spec.MemberSpecies(Slot, Selected);
-        if (Species.IsNone() || !Content->FindMonster(Species.ToString(), SlotMonster, Error) || !SlotMonster)
+        if (Species.IsNone() || !Content->FindMonsterByName(Species, SlotMonster, Error) || !SlotMonster)
         {
             if (Error.IsEmpty()) { Error = TEXT("Camp spawn has no approved species for a member's tier pool."); }
             return false;

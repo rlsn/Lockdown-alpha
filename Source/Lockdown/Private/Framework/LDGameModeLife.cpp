@@ -210,7 +210,7 @@ bool ALDGameMode::KillCauseOf(const FLDCommittedDeath& Fact, ELDKillCause& OutCa
         // The killer's tier outlives its body through the persistent Combat record.
         const auto* Record = Combat ? Combat->FindRecord(Fact.SourceBodyAtRelease.Victim.EntityId) : nullptr;
         const FLDDemoMonsterDefinition* Monster = nullptr;
-        if (!Record || !DemoContent || !DemoContent->FindMonster(Record->MonsterAtLife(Fact.SourceBodyAtRelease.Victim.Life).ToString(), Monster, Error))
+        if (!Record || !DemoContent || !DemoContent->FindMonsterByName(Record->MonsterAtLife(Fact.SourceBodyAtRelease.Victim.Life), Monster, Error))
         {
             if (Error.IsEmpty()) { Error = TEXT("A camp kill has no recorded monster definition."); }
             return false;

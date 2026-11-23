@@ -13,7 +13,7 @@ bool ALDCombatDirector::ReleaseMonsterSkill(ALDCharacter& Actor,FLDBodyCombatSta
 {
     Reject=ELDCombatReject::None;
     const FLDDemoMonsterDefinition* Monster=nullptr;
-    if(!Catalog() || !Catalog()->FindMonster(Body.MonsterId.ToString(),Monster,Error)){return false;}
+    if(!Catalog() || !Catalog()->FindMonsterByName(Body.MonsterId,Monster,Error)){return false;}
     const auto& Skill=Monster->Skill;
     const int64 Now=Authority()->GetAuthorityNowMs();
     if(Skill.Pattern==ELDMonsterPattern::Guard)
@@ -76,7 +76,7 @@ bool ALDCombatDirector::AdvanceMonsterStrikes(int64 NowMs,FString& Error)
     for(const auto& S:Due)
     {
         const FLDDemoMonsterDefinition* Monster=nullptr;
-        if(!Catalog()->FindMonster(S.Payload.Source.DefinitionId.ToString(),Monster,Error)){return false;}
+        if(!Catalog()->FindMonsterByName(S.Payload.Source.DefinitionId,Monster,Error)){return false;}
         // A charge's line warning ends at its release, where its dash starts: a contender who dashed out of the line in time
         // dodged perfectly (spec §4.4); the dash itself then strikes only the bodies it actually meets (ResolveDashContacts).
         if(Monster->Skill.Pattern==ELDMonsterPattern::Charge)
@@ -157,7 +157,7 @@ bool ALDCombatDirector::CampPeerDied(const FLDCombatBodyRef& Peer,const FLDGamep
     auto* Body=FindBody(Peer);
     if(!Body || Body->bPendingDeath){return true;}
     const FLDDemoMonsterDefinition* Monster=nullptr;
-    if(!Catalog()->FindMonster(Body->MonsterId.ToString(),Monster,Error)){return false;}
+    if(!Catalog()->FindMonsterByName(Body->MonsterId,Monster,Error)){return false;}
     if(Monster->Skill.Pattern==ELDMonsterPattern::Enrage && !Body->bMonsterEnraged)
     {Body->bMonsterEnraged=true;++Body->StateRevision;MarkViewChanged(Body->Victim.EntityId);}
     // Spec §11.2 layoff affix: every fallen mate adds AFFIX.LayoffAttack to the survivors' attack (stacking, this life).

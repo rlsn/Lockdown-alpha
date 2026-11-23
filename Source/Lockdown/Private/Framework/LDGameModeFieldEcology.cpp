@@ -67,7 +67,7 @@ bool ALDGameMode::PlanFieldSpawns(uint8 Segment, TConstArrayView<FGuid> Order,
                 for (FName Species : Pool.Species)
                 {
                     const FLDDemoMonsterDefinition* Monster = nullptr;
-                    if (!DemoContent->FindMonster(Species.ToString(), Monster, Error) || !Monster) { return false; }
+                    if (!DemoContent->FindMonsterByName(Species, Monster, Error) || !Monster) { return false; }
                     Radius = FMath::Max(Radius, Centimeters(Monster->PerceptionRadiusCm) + PatrolMarginCm);
                 }
             }

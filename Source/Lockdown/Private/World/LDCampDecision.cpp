@@ -89,10 +89,10 @@ bool Evaluate(const FLDDemoContentSnapshot& Catalog,FName CampId,const FLDCampDe
     {return Fail(TEXT("loss timestamp is not a current Engaged history"));}
     if(!Input.bObservationComplete){return Fail(TEXT("current authorized observation read did not complete"));}
     if(Candidates.Num()>LDObservation::MaxUnits){return Fail(TEXT("candidate count exceeds the observation contract"));}
-    const auto* Camp=Content.Camps.FindByPredicate([&](const auto& Row){return FName(*Row.AnchorId)==CampId;});
+    const auto* Camp=Catalog.FindCampByAnchor(CampId);
     if(!Camp){return Fail(TEXT("camp is absent from the approved content"));}
     const FLDDemoMonsterDefinition* Monster=nullptr;
-    if(!Catalog.FindMonster(Input.MonsterId.IsNone()?Camp->MonsterId:Input.MonsterId.ToString(),Monster,Error)){return false;}
+    if(Input.MonsterId.IsNone()?!Catalog.FindMonster(Camp->MonsterId,Monster,Error):!Catalog.FindMonsterByName(Input.MonsterId,Monster,Error)){return false;}
     double AttackRange=0,Leash=0,Perception=0,SightRange=0,Arrival=0;
     if(!PositiveDistance(Monster->AttackRangeCm,AttackRange)||!PositiveDistance(Monster->LeashRadiusCm,Leash)
         ||!PositiveDistance(Monster->PerceptionRadiusCm,Perception)
