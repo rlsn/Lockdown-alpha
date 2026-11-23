@@ -1,5 +1,6 @@
 #include "Vision/LDWorldViewRelay.h"
 #include "World/LDRecoveryOrbMarker.h"
+#include "Art/LDArtSubsystem.h"
 #include "Character/LDImpactFx.h"
 #include "NiagaraComponent.h"
 #include "Combat/LDCombatBagBlocker.h"
@@ -645,7 +646,7 @@ void ALDOwnBodyMarker::Track(APawn* Body, uint8 Slot)
     {
         const UCapsuleComponent* Capsule = Body->FindComponentByClass<UCapsuleComponent>();
         const auto* Character=Cast<ALDCharacter>(Body);
-        AttachToComponent(Character ? Character->Body.Get() : Body->GetRootComponent(),
+        AttachToComponent(Character && Character->Body ? Character->Body.Get() : Body->GetRootComponent(),
             FAttachmentTransformRules::SnapToTargetNotIncludingScale);
         SetActorRelativeLocation(FVector(0, 0, -(Capsule ? Capsule->GetScaledCapsuleHalfHeight() : 90.0)));
         Tracked = Body;
@@ -654,12 +655,9 @@ void ALDOwnBodyMarker::Track(APawn* Body, uint8 Slot)
     {
         UMaterialInterface* Material = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Lockdown/Generated/Materials/M_Character.M_Character"));
         if (!ensureMsgf(Material, TEXT("Character material missing; rerun asset bootstrap"))) { return; }
-        UMaterialInstanceDynamic* RimTint = UMaterialInstanceDynamic::Create(Material, this);
-        RimTint->SetVectorParameterValue(TEXT("Tint"), FLinearColor(1.f, .85f, .2f));
-        Rim->SetMaterial(0, RimTint);
-        UMaterialInstanceDynamic* CoreTint = UMaterialInstanceDynamic::Create(Material, this);
-        CoreTint->SetVectorParameterValue(TEXT("Tint"), ULDHumanoidVisualComponent::ContenderTint(Slot));
-        Core->SetMaterial(0, CoreTint);
+        // Fixed colours: the shared tint instances serve them, as they serve the body markers.
+        Rim->SetMaterial(0, ULDArtSubsystem::SharedTint(this, Material, FLinearColor(1.f, .85f, .2f)));
+        Core->SetMaterial(0, ULDArtSubsystem::SharedTint(this, Material, ULDHumanoidVisualComponent::ContenderTint(Slot)));
         TintSlot = Slot;
     }
     SetActorHiddenInGame(false);
