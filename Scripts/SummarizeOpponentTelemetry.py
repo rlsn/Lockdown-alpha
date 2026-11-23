@@ -17,8 +17,8 @@ import statistics
 
 MATCH_SCHEMA = 5
 SUMMARY_SCHEMA = 5
-OPPONENTS = 3
-REASONS = ("GuardSucceeded", "HostEnded", "None")
+MAX_OPPONENTS = 7
+REASONS = ("GuardSucceeded", "HostEnded", "ObjectiveTimeout", "NoChampion", "SprayCount", "ClearOut", "None")
 KINDS = ("Human", "OpponentAI")
 CAUSES = ("Contender", "CampLow", "CampHigh", "CampElite", "Unowned")
 OUTCOMES = ("Granted", "NoReward")
@@ -87,8 +87,9 @@ def check_match(match, index):
                  "graffiti_cleared_by_leave"):
         require(field(match, name, int) >= 0, f"{where}: negative {name}")
     guard = field(match, "guard_success_ms", int)
-    require((guard >= 0) == (match["reason"] == "GuardSucceeded") and guard <= duration,
-            f"{where}: a guard time belongs to exactly a guard win")
+    # The tally follows the shared flagpole: a guard won on a final mod's private pole has no guard time here (-1).
+    require(-1 <= guard <= duration and (guard < 0 or match["reason"] == "GuardSucceeded"),
+            f"{where}: a guard time without a guard win")
     for kill in field(match, "kills", list):
         require(field(kill, "cause", str) in CAUSES, f"{where}: unknown kill cause")
         require(0 <= field(kill, "t_ms", int) <= duration, f"{where}: kill outside the match")
@@ -153,8 +154,9 @@ def check_match(match, index):
             field(learn, "id", str)
             require(0 <= field(learn, "slot", int) <= 2, f"{where}: learn outside Q/W/E")
         check_curve(field(row, "curve", dict), duration, f"{where} {contender}")
-    require(sorted(slots) == list(range(OPPONENTS)), f"{where}: the room does not hold AI slots 0 to {OPPONENTS - 1}")
-    require(len(contenders) > OPPONENTS, f"{where}: no human in the room")
+    require(1 <= len(slots) <= MAX_OPPONENTS and sorted(slots) == list(range(len(slots))),
+            f"{where}: the AI slots are not 0 to one below the AI count")
+    require(len(contenders) > len(slots), f"{where}: no human in the room")
     require(not winner or winner in ids, f"{where}: winner is not on the roster")
     return match
 
@@ -201,8 +203,11 @@ def by_minute(ais, name, minutes):
 def summarize(matches):
     require(matches, "No telemetry matches")
     checked = [check_match(match, index) for index, match in enumerate(matches, start=1)]
+    opponents = sum(1 for row in checked[0]["contenders"] if row["kind"] == "OpponentAI")
+    require(all(sum(1 for row in match["contenders"] if row["kind"] == "OpponentAI") == opponents for match in checked),
+            "The matches of one run do not hold the same number of AI")
     reasons = {reason: 0 for reason in REASONS}
-    wins_by_slot = {str(slot): 0 for slot in range(OPPONENTS)}
+    wins_by_slot = {str(slot): 0 for slot in range(opponents)}
     ai_capture_wins = 0
     ais = []
     per_match = []
@@ -238,6 +243,7 @@ def summarize(matches):
     return {
         "schema": SUMMARY_SCHEMA,
         "matches": len(checked),
+        "opponents": opponents,
         # Every content catalog the run played, in first-played order; more than one only under hot reload.
         "content_roots": list(dict.fromkeys(match["content_root"] for match in checked)),
         "dev_content_reload": any(match["dev_content_reload"] for match in checked),
