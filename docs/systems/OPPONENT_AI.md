@@ -31,3 +31,4 @@
 
 - 纯规则：`Lockdown.Rules.OpponentPolicy*`、`Lockdown.Rules.CampDecision*`。
 - 拥有连接场景：`Scripts/RunDemoOpponentCheck.ps1`（含满房 AI 自主任命、成长、清营、战斗与喷漆守护）。
+- 机器人对局：`Scripts/RunDemoOpponentCheck.ps1 -BotMatch`（满房 AI 整局跑完、无报错、每个 AI 都在成长，只判不变量；见[验证手册](VERIFICATION.md#机器人对局)）。
