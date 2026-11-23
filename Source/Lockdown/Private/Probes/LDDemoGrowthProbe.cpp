@@ -68,6 +68,9 @@ constexpr double GrowthProbeArrivalCm = 150.0;
 // order; the victim's walk back after the approved respawn delay.
 constexpr double GrowthProbeRequestSeconds = 20.0;
 constexpr double GrowthProbeKillSeconds = 90.0;
+// The Host raises itself to this level by its DEV grant before the buyer's first kill. REWARD.LevelGapXP pays a level-1
+// buyer too little for level-1 kills to reach the last offer level inside the timed field; kills of a victim at this level do.
+constexpr uint8 GrowthProbeVictimLevel = 8;
 constexpr double GrowthProbeReturnSeconds = 75.0;
 // Ending a match, returning the room to a new Lobby generation or starting the next match.
 constexpr double GrowthProbeTransitionSeconds = 60.0;
@@ -436,6 +439,7 @@ public:
 
     // Host: the DEV fixture presets, its own grant and the attack that kills the buyer.
     bool bHostGrantSent = false, bHostGranted = false, bBuyerKilled = false;
+    uint64 VictimGrantTicket = 0;
     uint64 HostGrantTicket = 0;
     int64 HostGrantXP = 0;
     uint8 HostGrantLevel = 0;
@@ -1325,6 +1329,30 @@ public:
         {
             return TickOpeningQuery(PC);
         }
+        if (IsHost() && VictimGrantTicket != 0)
+        {
+            // The victim level reaches the Host's own view before the buyer is told its offers are preset and may attack.
+            ALDGameMode* Mode = PC.GetWorld()->GetAuthGameMode<ALDGameMode>();
+            FString Detail;
+            const ELDDevGrantStatus Status = Mode && Mode->Growth ? Mode->Growth->DevGrantStatus(VictimGrantTicket, Detail) : ELDDevGrantStatus::Unknown;
+            if (Status == ELDDevGrantStatus::Rejected || Status == ELDDevGrantStatus::Unknown)
+            {
+                return Fail(TEXT("Fixture"), TEXT("The Host's victim-level DEV grant was not committed: ") + Detail);
+            }
+            if (Status != ELDDevGrantStatus::Granted || ProgView->Level != LDDemoGrowthScenario::GrowthProbeVictimLevel)
+            {
+                if (FPlatformTime::Seconds() - StageAt <= LDDemoGrowthScenario::GrowthProbeRequestSeconds) { return true; }
+                return Fail(TEXT("Fixture"), TEXT("The Host's victim-level DEV grant did not reach its own growth view in time: ") + Detail);
+            }
+            if (!Check(true, TEXT("Fixture"), TEXT("The Host stands as a victim at the planned level before the buyer's first kill"),
+                FString::Printf(TEXT("level %u xp %lld"), uint32(ProgView->Level), ProgView->CumulativeXP))
+                || !Mark(TEXT("OffersPreset.json")))
+            {
+                return Finish();
+            }
+            SetStage(EStage::Victim);
+            return true;
+        }
         if (!ResolveRoster(PC, Lobby) || !PrepareSites(Registry)) { return Finish(); }
         if (IsHost() && !bGrowthChecked && !CheckStartGrowth(PC, Lobby)) { return Finish(); }
         const FLDDemoContentDefinitions& Defs = Catalog->Get();
@@ -1344,12 +1372,21 @@ public:
         if (IsHost())
         {
             if (!Check(bPresetsStaged && StagedClientId == ClientId, TEXT("Fixture"),
-                TEXT("The Lobby presets were staged for exactly this match's buyer")) || !Mark(TEXT("OffersPreset.json")))
+                TEXT("The Lobby presets were staged for exactly this match's buyer")))
             {
                 return Finish();
             }
-            SetStage(EStage::Victim);
-            return true;
+            ALDGameMode* Mode = PC.GetWorld()->GetAuthGameMode<ALDGameMode>();
+            const TArray<int64>& Thresholds = Defs.Progression.XPThresholds;
+            FString GrantError;
+            if (Mode && Mode->Growth && Thresholds.IsValidIndex(LDDemoGrowthScenario::GrowthProbeVictimLevel - 1))
+            {
+                VictimGrantTicket = Mode->Growth->DevGrantReward(HostId,
+                    Thresholds[LDDemoGrowthScenario::GrowthProbeVictimLevel - 1] - ProgView->CumulativeXP, GrantError);
+            }
+            StageAt = FPlatformTime::Seconds();
+            return Check(VictimGrantTicket != 0, TEXT("Fixture"), TEXT("The fixture queues the Host's victim-level XP grant"), GrantError)
+                ? true : Finish();
         }
         if (!PlanKills()) { return Finish(); }
         if (!NavigateDuelSite(PC, KillSite)) { return Finish(); }
@@ -1933,9 +1970,10 @@ public:
     {
         const FLDDemoContentDefinitions& Defs = Catalog->Get();
         LDProgression::FRewardAmounts Bounty;
-        const ELDGrowthReason BountyReason = LDProgression::ContenderKillReward(Defs.Parameters, uint8(Defs.Progression.MaxLevel), 1, Bounty);
+        const ELDGrowthReason BountyReason = LDProgression::ContenderKillReward(Defs.Parameters, uint8(Defs.Progression.MaxLevel),
+            LDDemoGrowthScenario::GrowthProbeVictimLevel, Bounty);
         if (!Check(BountyReason == ELDGrowthReason::None && Bounty.XP > 0, TEXT("N03"),
-            TEXT("The catalog pays a positive XP bounty for a level-1 contender"), LDGrowthWire::ReasonName(BountyReason)))
+            TEXT("The catalog pays a positive XP bounty for a contender at the victim level"), LDGrowthWire::ReasonName(BountyReason)))
         {
             return false;
         }
@@ -1946,8 +1984,8 @@ public:
         {
             return false;
         }
-        // The fewest kills of the level-1 victim that reach the last offer level; the window stage runs at the first one.
-        // Each kill pays REWARD.LevelGapXP at the killer's level before it, so later kills of the level-1 victim pay less.
+        // The fewest kills of the victim that reach the last offer level; the window stage runs at the first one.
+        // Each kill pays REWARD.LevelGapXP at the killer's level before it, so later kills pay less.
         KillsPlanned = 0;
         uint8 PlannedLevel = 1;
         int64 PlannedXP = Defs.Progression.XPStart;
@@ -1955,7 +1993,7 @@ public:
         do
         {
             int64 Step = 0;
-            LevelReason = LDProgression::LevelGapXP(Defs.Parameters, Bounty.XP, PlannedLevel, 1, Step);
+            LevelReason = LDProgression::LevelGapXP(Defs.Parameters, Bounty.XP, PlannedLevel, LDDemoGrowthScenario::GrowthProbeVictimLevel, Step);
             if (LevelReason != ELDGrowthReason::None || Step <= 0) { break; }
             PlannedXP += Step;
             ++KillsPlanned;
@@ -2061,7 +2099,7 @@ public:
                 return Fail(TEXT("A14"), TEXT("The Host never saw the buyer it was asked to kill"));
             }
             const TArray<int64>& Thresholds = Catalog->Get().Progression.XPThresholds;
-            HostGrantLevel = uint8(FMath::Clamp<int32>(Buyer->Level, 1, Thresholds.Num()));
+            HostGrantLevel = uint8(FMath::Clamp<int32>(FMath::Max<int32>(Buyer->Level, OwnProgression->Level), 1, Thresholds.Num()));
             HostGrantXP = FMath::Max<int64>(0, Thresholds[HostGrantLevel - 1] - OwnProgression->CumulativeXP);
             FString GrantError;
             HostGrantTicket = Mode.Growth->DevGrantReward(HostId, HostGrantXP, GrantError);
@@ -3061,10 +3099,11 @@ public:
         const FLDWorldView* Frame = LDDemoGrowthScenario::GrowthProbeFrame(PC);
         const FLDObservedUnitView* Victim = Frame ? LDDemoGrowthScenario::GrowthProbeContender(*Frame, HostId) : nullptr;
         const FLDProgressionView* ProgView = PC.ReadOwnProgression();
-        if (!Victim || LDDemoGrowthScenario::GrowthProbeProtected(*Victim) || !ProgView)
+        if (!Victim || LDDemoGrowthScenario::GrowthProbeProtected(*Victim) || !ProgView
+            || Victim->Level < LDDemoGrowthScenario::GrowthProbeVictimLevel)
         {
             if (Now - StageAt <= RespawnSecondsNow(PC) + LDDemoGrowthScenario::GrowthProbeReturnSeconds) { return true; }
-            return Fail(TEXT("N03"), TEXT("The victim never became visible and unprotected at its duel site"));
+            return Fail(TEXT("N03"), TEXT("The victim never became visible, unprotected and at its planned level at its duel site"));
         }
         if (AttackOrders == 0)
         {
