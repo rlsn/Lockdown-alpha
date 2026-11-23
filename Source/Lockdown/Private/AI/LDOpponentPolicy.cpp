@@ -1484,8 +1484,10 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
             Out.OfferId = Self.CardOffer->OfferId;
             Out.OfferRevision = Self.CardOffer->OfferRevision;
             Out.Option = Card;
+            // A medal is kept in the library: SelectCardInstall then gives it an element slot without swapping one out.
             FLDCardTarget Target;
-            if (LDOpponentPolicy::InstalledCards(Self, Catalog) < Self.CardCapacity && LDOpponentPolicy::CardTarget(Self, Catalog, Card, Target))
+            if (!LDProgression::IsMedal(Catalog.Get(), FName(*Card))
+                && LDOpponentPolicy::InstalledCards(Self, Catalog) < Self.CardCapacity && LDOpponentPolicy::CardTarget(Self, Catalog, Card, Target))
             {
                 Out.CardTarget = Target.Kind;
                 Out.TargetId = Target.Active.IsNone() ? FString() : Target.Active.ToString();
