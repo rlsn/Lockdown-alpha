@@ -266,6 +266,7 @@ bool FLDDemoVisionCodecTest::RunTest(const FString& Parameters)
     { Full.RecentTerminations.Add(Death(ContenderUnit(100 + Sequence), 3, Sequence)); }
     Full.RecoveryOrbs.Add({11, FVector(-1250.4, 840.7, 0.0)});
     Full.RecoveryOrbs.Add({27, FVector(2100.2, -630.5, 50.0)});
+    Full.WitnessedEmptyCamps = {FName(TEXT("h08")), FName(TEXT("l10")), FName(TEXT("e01"))};
     FLDWorldView Read;
     int64 Bytes = 0;
     TestTrue(TEXT("Bounded full view round-trips"), Wire(Full, Read, &Bytes));
@@ -277,6 +278,7 @@ bool FLDDemoVisionCodecTest::RunTest(const FString& Parameters)
         Read.RecoveryOrbs.Num() == 2
         && Read.RecoveryOrbs[0].Serial == 11 && Read.RecoveryOrbs[0].PositionCm.Equals(Full.RecoveryOrbs[0].PositionCm, FeetToleranceCm)
         && Read.RecoveryOrbs[1].Serial == 27 && Read.RecoveryOrbs[1].PositionCm.Equals(Full.RecoveryOrbs[1].PositionCm, FeetToleranceCm));
+    TestTrue(TEXT("Witnessed empty camps round-trip in order"), Read.WitnessedEmptyCamps == Full.WitnessedEmptyCamps);
     TestTrue(TEXT("Coverage is the exact fixed bitmap"), Read.Footprint.CurrentBits == Full.Footprint.CurrentBits
         && LDObservation::CoverageBit(Read.Footprint.CurrentBits, 0) && LDObservation::CoverageBit(Read.Footprint.CurrentBits, LDObservation::CoverageCells - 1)
         && (Read.Footprint.CurrentBits[0] & 1) != 0 && (Read.Footprint.CurrentBits[LDObservation::CoverageBytes - 1] & 0x80) != 0);
@@ -367,6 +369,22 @@ bool FLDDemoVisionCodecTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("The uncompressed schema 5 is refused"), Encodes(Mutated([](FLDWorldView& V) { V.Schema = 5; })));
     TestFalse(TEXT("Capacity is never truncated"), Encodes(Mutated([](FLDWorldView& V)
     { while (V.Units.Num() <= LDObservation::MaxUnits) { V.Units.Add(ContenderUnit()); } })));
+    TestFalse(TEXT("Empty camps past the capacity are refused"), Encodes(Mutated([](FLDWorldView& V)
+    {
+        for (int32 Index = 0; Index <= LDObservation::MaxUnits; ++Index)
+        { V.WitnessedEmptyCamps.Add(FName(*FString::Printf(TEXT("camp_%d"), Index))); }
+    })));
+    TestFalse(TEXT("A repeated empty camp is refused"), Encodes(Mutated([](FLDWorldView& V)
+    { V.WitnessedEmptyCamps = {FName(TEXT("h08")), FName(TEXT("h08"))}; })));
+    TestFalse(TEXT("An empty camp without a map id is refused"), Encodes(Mutated([](FLDWorldView& V)
+    { V.WitnessedEmptyCamps = {FName(TEXT("Not A Map Id!"))}; })));
+    TestFalse(TEXT("A frame without a living source carries no empty camp"), Encodes(Mutated([](FLDWorldView& V)
+    {
+        V.Footprint = FLDObservedFootprint();
+        V.Footprint.SourceStatus = ELDObservationSource::NoLivingBody;
+        V.Units.Reset(); V.RecentTerminations.Reset(); V.Projectiles.Reset(); V.GroundStates.Reset(); V.RecoveryOrbs.Reset();
+        V.WitnessedEmptyCamps = {FName(TEXT("h08"))};
+    })));
     TestFalse(TEXT("Contender without level is not complete"), Encodes(Mutated([](FLDWorldView& V)
     { V.Units[0].AuthorizedFieldMask &= ~uint32(LDObservation::Level); })));
     TestFalse(TEXT("Missing level is not a default"), Encodes(Mutated([](FLDWorldView& V) { V.Units[0].Level = 0; })));

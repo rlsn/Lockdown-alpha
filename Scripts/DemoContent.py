@@ -1270,6 +1270,8 @@ def validate_numbers(data):
                 "FIELD.SpawnPatrolMarginCm", "FIELD.MapRecoverySeparationCm", "FIELD.MapRecoverySightCm",
                 "AIRDROP.FieldClearanceCm", "AIRDROP.FieldSeparationCm"):
         require(p(key) > 0, "InvalidGeometry", key, "distance must be positive")
+    for key in ("FIELD.SpawnPoolMin", "FIELD.MapRecoveryCount"):
+        require(1 <= params[key] <= 48, "NumericDomain", key, "count must fit the 48 sampled candidates and view orbs")
     for name in ("ResistanceScale", "HasteScale"):
         require(quantity(data["formulas"][name]) > 0, "NumericDomain", name, "formula denominator scale must be positive")
     require(p("STAT.CritMultiplier") >= 1, "NumericDomain", "STAT.CritMultiplier", "critical multiplier must not reduce damage")

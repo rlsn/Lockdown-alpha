@@ -51,6 +51,30 @@ bool LDFieldEcology::ChooseFieldSpawns(TConstArrayView<FVector> Candidates, TCon
         }
         if (Chosen.Num() == Previous.Num()) { return true; }
     }
+    // The farthest-point passes commit to each pick. A bounded search that takes picks back finds the layouts they miss.
+    Chosen.Reset();
+    int32 Budget = 200000;
+    const TFunction<bool()> Place = [&]() -> bool
+    {
+        if (Chosen.Num() == Previous.Num()) { return true; }
+        const TOptional<FVector>& Old = Previous[Chosen.Num()];
+        for (int32 Index : Permutation)
+        {
+            if (--Budget < 0) { return false; }
+            const FVector& Foot = Candidates[Index];
+            if ((Old.IsSet() && FVector::DistSquared2D(Old.GetValue(), Foot) < FMath::Square(PreviousDistanceCm))
+                || Chosen.ContainsByPredicate([&](int32 Other)
+                    { return FVector::DistSquared2D(Candidates[Other], Foot) < FMath::Square(SeparationCm); }))
+            {
+                continue;
+            }
+            Chosen.Add(Index);
+            if (Place()) { return true; }
+            Chosen.Pop();
+        }
+        return false;
+    };
+    if (Place()) { return true; }
     Chosen.Reset();
     return false;
 }

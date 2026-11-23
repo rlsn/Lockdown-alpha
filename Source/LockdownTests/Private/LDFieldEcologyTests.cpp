@@ -44,6 +44,28 @@ bool FLDFieldEcologyDeploymentTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("An impossible deployment yields no partial assignments"),
         LDFieldEcology::ChooseFieldSpawns(MakeArrayView(Candidates.GetData(), 5), Previous, 2400., Return, NextSegment));
     TestTrue(TEXT("The failed plan is empty"), NextSegment.IsEmpty());
+
+    // Farthest-point picking strands at five from every start of this layout, yet six of its points keep 2400 cm apart.
+    const TArray<FVector> Irregular{{2280., 2890., 0.}, {780., 1560., 0.}, {4050., 3190., 0.}, {5190., 3100., 0.},
+        {70., 3420., 0.}, {950., 4670., 0.}, {2610., 1860., 0.}, {2410., 4360., 0.}, {4810., 610., 0.}, {1940., 640., 0.},
+        {10., 710., 0.}, {5990., 1270., 0.}};
+    TArray<TOptional<FVector>> Fresh;
+    Fresh.SetNum(6);
+    for (int32 Seed : {1, 334, 356})
+    {
+        FRandomStream Stream(Seed);
+        TArray<int32> Found;
+        if (!TestTrue(TEXT("An irregular layout with a legal deployment places all six"),
+            LDFieldEcology::ChooseFieldSpawns(Irregular, Fresh, 2400., Stream, Found) && Found.Num() == 6)) { return false; }
+        for (int32 A = 0; A < Found.Num(); ++A)
+        {
+            for (int32 B = A + 1; B < Found.Num(); ++B)
+            {
+                TestTrue(TEXT("The irregular deployment keeps 2400 cm apart"),
+                    FVector::Dist2D(Irregular[Found[A]], Irregular[Found[B]]) >= 2400.);
+            }
+        }
+    }
     return true;
 }
 

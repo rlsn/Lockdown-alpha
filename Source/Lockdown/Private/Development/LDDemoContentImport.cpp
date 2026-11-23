@@ -996,7 +996,7 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
     {
         return false;
     }
-    struct FCountField { const TCHAR* Key; int64* Out; int64 Min; };
+    struct FCountField { const TCHAR* Key; int64* Out; int64 Min; int64 Max = MAX_int64; };
     for (const auto& Field : {
         FCountField{TEXT("XP.BaseToNext"), &P.XPBaseToNext, 1}, {TEXT("XP.IncreasePerLevel"), &P.XPIncreasePerLevel, 0},
         {TEXT("XP.SteepFromLevel"), &P.XPSteepFromLevel, 2}, {TEXT("XP.SteepExtraPerLevel"), &P.XPSteepExtraPerLevel, 0},
@@ -1004,8 +1004,9 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("REWARD.PlayerXP.Base"), &P.PlayerXPBase, 0}, {TEXT("REWARD.PlayerXP.PerLevel"), &P.PlayerXPPerLevel, 0}, {TEXT("REWARD.BountyXP"), &P.BountyXP, 0}, {TEXT("REWARD.BountyCardOffer"), &P.BountyCardOffer, 1},
         {TEXT("AI.RetryPolicy.MaxAttempts"), &P.AI.RetryMaxAttempts, 1},
         {TEXT("CAMP.ReturnDeadEndPlans"), &P.CampReturnDeadEndPlans, 1},
-        {TEXT("FIELD.SpawnPoolMin"), &P.FieldSpawnPoolMin, 1},
-        {TEXT("FIELD.MapRecoveryCount"), &P.FieldMapRecoveryCount, 1},
+        // Both stay inside the 48 candidates a deployment samples and the 48 orbs a view carries.
+        {TEXT("FIELD.SpawnPoolMin"), &P.FieldSpawnPoolMin, 1, 48},
+        {TEXT("FIELD.MapRecoveryCount"), &P.FieldMapRecoveryCount, 1, 48},
         {TEXT("CAMP.GrowthStagesPerSegment"), &P.CampGrowthStagesPerSegment, 1},
         {TEXT("CAMP.GrowthMaxStage"), &P.CampGrowthMaxStage, 1},
         {TEXT("AIRDROP.RewardXP"), &P.AirdropRewardXP, 1}, {TEXT("LEADER.MinLevel"), &P.LeaderMinLevel, 1},
@@ -1019,7 +1020,7 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("PK.ParticipationPoints"), &P.PKParticipationPoints, 1}, {TEXT("PK.WinnerPointsMax"), &P.PKWinnerPointsMax, 1},
         {TEXT("PK.BettingPoolMaxPoints"), &P.PKBettingPoolMaxPoints, 1}})
     {
-        if (!F.Int(Field.Key, *Field.Out, Field.Min))
+        if (!F.Int(Field.Key, *Field.Out, Field.Min, Field.Max))
         {
             return false;
         }
