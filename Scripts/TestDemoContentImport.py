@@ -1007,12 +1007,13 @@ class DemoContentImport(unittest.TestCase):
         on_capture = first([near(capture[0], capture[1], lambda p: apart(p, camps + events))])
         by_camp = first(near(c[0], c[1], lambda p: apart(p, [capture] + events)) for c in camps)
         cases = [
-            (lambda data: data.update(anchors=[row for row in data["anchors"] if row["kind"] != kind]),
-             f"expected 1..[0-9]+ {kind} anchors, found 0"),
             (move(first(against_tree())), f"{label} disk lacks legal capsule support"),
             (move(on_capture), f"{label} disk overlaps the capture disk"),
             (move(by_camp), f"{label} disk overlaps a camp clearing"),
         ]
+        if kind == "Dorm":
+            cases.append((lambda data: data.update(anchors=[row for row in data["anchors"] if row["kind"] != kind]),
+                          "expected 1..[0-9]+ Dorm anchors, found 0"))
         if events:
             cases.append((move(first(near(c[0], c[1], lambda p: apart(p, [capture] + camps)) for c in events)),
                           "disk overlaps another event disk"))
@@ -1037,6 +1038,13 @@ class DemoContentImport(unittest.TestCase):
         # D26 (#79): each airdrop pickup disk stands on legal ground and keeps apart from the capture circle,
         # every camp clearing and every other event disk.
         self.check_zone_cases(self.zone_cases("Airdrop", 150))
+
+    def test_airdrop_fallback_anchors_are_optional(self):
+        self.edit(lambda data: data.update(anchors=[row for row in data["anchors"] if row["kind"] != "Airdrop"]),
+                  demo.WORLD_SOURCE)
+        world_sync.synchronize(self.root)
+        sync.synchronize(self.root)
+        self.assert_outputs_equal(demo.compile_content(self.root).outputs)
 
     def test_exact_file_bytes_including_newlines_are_required(self):
         for relative in demo.OUTPUT_PATHS:
