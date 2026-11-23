@@ -79,6 +79,8 @@ namespace LDHUD
         int64 BonusADP2=0;
         int64 APP2=0;
         int64 MaxHPP2=0;
+        // Max HP above the character's own base and level growth: what damage coefficients read.
+        int64 BonusMaxHPP2=0;
         int64 ArmorP2=0;
         int64 MagicResistP2=0;
         // A blueprint records a level but not the final projected attributes; show their coefficients instead.

@@ -179,7 +179,7 @@ bool ALDCombatDirector::ArmBranchHostile(FLDBodyCombatState& Body, const FLDComb
         FLDCombatPulse& Row=Pulses.AddDefaulted_GetRef();
         Row.Template=Template;
         Row.Template.DeliveryScaleBp=Share(Template.DeliveryScaleBp,Pulse->MultiplierBp);
-        Row.RadiusCm=Cm(Area->RadiusCm)*HulkingAreaScaleOf(Body);
+        Row.RadiusCm=Cm(Area->RadiusCm)*HulkingAreaScaleOf(Body,Terms.AreaBp);
         Row.IntervalMs=Pulse->IntervalMs;
         Row.Remaining=Pulse->Count;
         Row.MomentumP2=Pulse->LimitP2;

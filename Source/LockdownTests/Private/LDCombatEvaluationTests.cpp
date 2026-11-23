@@ -519,6 +519,21 @@ bool FLDDemoDamageControlAmplifyTest::RunTest(const FString& Parameters)
     Input.SourceMaxHPP2 = MaxHP;
     CheckFailure(*this, TEXT("A basic hit cannot scale with max HP"), LDTactical::EvaluateDamage(Input, *Catalog),
         ELDCombatEvaluationError::Definition);
+    // Damage reads only the max HP above the character's own base and level growth.
+    const FLDDemoContentParameters& Tuning = Content.Parameters;
+    const int64 Level10HP = Tuning.MaxHP.BaseP2 + 9 * Tuning.MaxHP.PerLevelP2;
+    TestEqual(TEXT("A character at its own level-1 maximum has no bonus max HP"),
+        LDTactical::BonusMaxHPOf(Tuning, 1, Tuning.MaxHP.BaseP2), int64(0));
+    TestEqual(TEXT("Level growth is not bonus max HP"), LDTactical::BonusMaxHPOf(Tuning, 10, Level10HP), int64(0));
+    TestEqual(TEXT("Ten physique points at level 10 are 700 bonus max HP"),
+        LDTactical::BonusMaxHPOf(Tuning, 10, Level10HP + 70000), int64(70000));
+    TestEqual(TEXT("A maximum below the level's own is no negative bonus"),
+        LDTactical::BonusMaxHPOf(Tuning, 10, Tuning.MaxHP.BaseP2), int64(0));
+    // A release's reshapes and a body-wide area growth add into one multiplier.
+    TestEqual(TEXT("Without a reshape a +100% growth doubles the radius"), LDTactical::AreaScaleBeside(10000, 10000), 2.);
+    TestEqual(TEXT("Beside a 2.2x reshape a +100% growth makes 3.2x in total, not 4.4x"),
+        LDTactical::AreaScaleBeside(22000, 10000) * 2.2, 3.2, 1e-9);
+    TestEqual(TEXT("No growth leaves the reshaped radius alone"), LDTactical::AreaScaleBeside(22000, 0), 1.);
     return true;
 }
 

@@ -1660,7 +1660,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     }
     TArray<FLDCombatBodyRef> AreaTargets;
     // The origin is the caster's foot at release, before any dash of the same action moves it.
-    double EffectiveSelfAreaRadiusCm=AreaEffect ? LDCA::ToDouble(AreaEffect->RadiusCm)*HulkingAreaScaleOf(Body) : 0.;
+    double EffectiveSelfAreaRadiusCm=AreaEffect ? LDCA::ToDouble(AreaEffect->RadiusCm)*HulkingAreaScaleOf(Body,Terms.AreaBp) : 0.;
     if (const FLDDemoEffectDefinition* Warcry=LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::WarcryRing))
     {
         if (Warcry->LimitP2>0 && Body.Resources.MaxHpP2>0)
@@ -2245,7 +2245,8 @@ bool ALDCombatDirector::BuildReleasePayload(const FLDBodyCombatState& Body, cons
     Template.SourceAPP2=Final.APP2;
     Template.SourceBonusADP2=BonusADP2;
     Template.MaxHPRatioBp=DamageEffect ? DamageEffect->MaxHPRatioBp : 0;
-    Template.SourceMaxHPP2=Body.Resources.MaxHpP2;
+    // Damage scales with the max HP above the character's own base and level growth.
+    Template.SourceMaxHPP2=BonusMaxHpP2Of(Body);
     Template.RootDurationMs=RootEffect ? RootEffect->DurationMs : 0;
     Template.SlowBp=SlowEffect ? SlowEffect->RatioBp : 0;
     Template.SlowDurationMs=SlowEffect ? SlowEffect->DurationMs : 0;
