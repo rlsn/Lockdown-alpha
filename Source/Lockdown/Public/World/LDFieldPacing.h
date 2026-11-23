@@ -188,6 +188,8 @@ struct LOCKDOWN_API FLDPeddlerPlan
     double OffsetAngleRad = 0;
     bool bSpawned = false;
     bool bGone = false;
+    // Field T before which a spawn whose placement was blocked is not attempted again.
+    int64 RetryT = 0;
 
     bool Plan(const FLDDemoContentParameters& Parameters, TConstArrayView<FName> Camps, uint64 Seed, FString& Error);
 };

@@ -1450,7 +1450,9 @@ bool ALDCampDirector::SpawnPeddler(FName CampAnchor, double AngleRad, double Off
     if (bBlocked)
     {
         // The offset spot is taken or off the walkable ground: stand at the camp anchor itself instead.
-        if (!FindGround(Anchor->Position, Anchor->Surface, TEXT("peddler"), {}, Ground, bBlocked, Error) || bBlocked) { return !bBlocked || Error.IsEmpty(); }
+        if (!FindGround(Anchor->Position, Anchor->Surface, TEXT("peddler"), {}, Ground, bBlocked, Error)) { return false; }
+        // Both spots are taken: not a fault. The caller tries again on a later step of the dealer's window.
+        if (bBlocked) { return true; }
     }
     ALDCampMemberCharacter* Body = nullptr;
     bool bCommitted = false;
