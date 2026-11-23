@@ -1644,11 +1644,20 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
     if (bPKObserver) { PKTeammateFeet(*Mode, PK, Observer.ContenderId, TeammateFeet); }
     if (bAlive)
     {
+        TRACE_CPUPROFILER_EVENT_SCOPE(LDVisionObserverTargets);
+        // Most of the map is out of sight of any one observer. Where neither the arena nor the shared rest space grants
+        // sight, a target beyond the longest sight is unavailable whatever else is read for it: PresentationSight would
+        // answer the same from Sight.Trace's range test, after its group and rest lookups.
+        const bool bSightOnly = !bArena && Sight.IsValid() && Sight.InBounds(Foot) && !Mode->IsInRestSpace(Observer.ContenderId);
+        const double ReachSquared = FMath::Square(Sight.MaximumRadius());
         for (const FLDObservedTarget& Target : Targets)
         {
             if (Target.Body.Victim.EntityId == Observer.ContenderId) { continue; }
-            const ELDObservedResolve Seen = PresentationSight(*Mode, Combat, PK, Observer.ContenderId, bArena,
-                bSpectating, bPKObserver, Foot, TeammateFeet, Target.Body, Target.FootCm, Sight, Error);
+            const bool bBeyondReach = bSightOnly && FVector::DistSquared2D(Foot, Target.FootCm) > ReachSquared
+                && Sight.InBounds(Target.FootCm);
+            const ELDObservedResolve Seen = bBeyondReach ? ELDObservedResolve::TargetUnavailable
+                : PresentationSight(*Mode, Combat, PK, Observer.ContenderId, bArena,
+                    bSpectating, bPKObserver, Foot, TeammateFeet, Target.Body, Target.FootCm, Sight, Error);
             if (Seen == ELDObservedResolve::AuthorityFault) { return false; }
             if (Seen == ELDObservedResolve::Resolved)
             {
