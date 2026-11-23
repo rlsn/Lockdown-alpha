@@ -2898,9 +2898,10 @@ bool LDHUD::WorkshopFull(const FLDProgressionView& Progression,const FLDDemoCont
 }
 FString LDHUD::StoredPlaceText(FName Key,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
 {
-    // A medal still goes into an element slot of a full workshop.
+    // A medal takes no capacity slot: a full workshop is never why it has no place.
     const TArray<FCardDrop> Drops=CardDrops(Key,Progression,Content);
-    if(Drops.IsEmpty()&&WorkshopFull(Progression,Content))
+    const FLDDemoCardDefinition* Definition=CardDefinitionOf(Content,Key);
+    if(Drops.IsEmpty()&&WorkshopFull(Progression,Content)&&!(Definition&&Definition->Form==ELDCardForm::Medal))
     {
         return ReplaceDrops(Key,Progression,Content).IsEmpty()?LDTerms::WorkshopFullNoPlace(Progression.CardCapacity)
             :LDTerms::WorkshopFullHint(Progression.CardCapacity);
