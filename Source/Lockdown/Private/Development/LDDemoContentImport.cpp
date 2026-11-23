@@ -865,12 +865,12 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("DORM.OutOfCombatDelaySec"), TEXT("ms"), TEXT("ms"), &P.DormRegenDelayMs, 1, MAX_int64},
         {TEXT("DORM.MaxHPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.DormMaxHPRegenBp, 0, 10000},
         {TEXT("CAMP.ReturnDeadEndSec"), TEXT("ms"), TEXT("ms"), &P.CampReturnDeadEndMs, 1, MAX_int64},
-        {TEXT("CAMP.GrowthStageSec"), TEXT("ms"), TEXT("ms"), &P.CampGrowthStageMs, 1, MAX_int64},
         {TEXT("CAMP.GrowthHPRatioPerStage"), TEXT("ratio"), TEXT("bp"), &P.CampGrowthHPPerStageBp, 0, MAX_int64},
         {TEXT("CAMP.GrowthAttackRatioPerStage"), TEXT("ratio"), TEXT("bp"), &P.CampGrowthAttackPerStageBp, 0, MAX_int64},
         {TEXT("CAMP.GrowthResistPerStage"), TEXT("points"), TEXT("p2"), &P.CampGrowthResistPerStageP2, 0, MAX_int64},
         {TEXT("CAMP.GrowthRewardXPRatioPerStage"), TEXT("ratio"), TEXT("bp"), &P.CampGrowthRewardXPPerStageBp, 0, MAX_int64},
-        {TEXT("CAMP.ClearHealMissingRatio"), TEXT("ratio"), TEXT("bp"), &P.CampClearHealMissingBp, 1, 10000},
+        {TEXT("CAMP.ClearHealMaxRatio"), TEXT("ratio"), TEXT("bp"), &P.CampClearHealMaxBp, 1, 10000},
+        {TEXT("CAMP.ClearHealFlat"), TEXT("hp"), TEXT("p2"), &P.CampClearHealFlatP2, 1, MAX_int64},
         {TEXT("CAMP.ClearMomentum"), TEXT("momentum"), TEXT("p2"), &P.CampClearMomentumP2, 1, MAX_int64},
         {TEXT("CAMP.ClearOrbSec"), TEXT("ms"), TEXT("ms"), &P.CampClearOrbMs, 1, MAX_int64},
         {TEXT("AIRDROP.ExpireSec"), TEXT("ms"), TEXT("ms"), &P.AirdropExpireMs, 1, MAX_int64},
@@ -974,7 +974,14 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("LEADER.CircleRadiusCm"), &P.LeaderCircleRadiusCm}, {TEXT("LEADER.CircleMaxOffsetCm"), &P.LeaderCircleMaxOffsetCm},
         {TEXT("COMBAT.FogRadiusCm"), &P.FogRadiusCm},
         {TEXT("COMBAT.ConductRadiusCm"), &P.ConductRadiusCm}, {TEXT("COMBAT.OverloadRadiusCm"), &P.OverloadRadiusCm},
-        {TEXT("REST.ReturnSearchRadiusCm"), &P.RestReturnSearchRadiusCm},
+        {TEXT("CAMP.ClearOrbRadiusCm"), &P.CampClearOrbRadiusCm},
+        {TEXT("FIELD.SpawnSeparationCm"), &P.FieldSpawnSeparationCm},
+        {TEXT("FIELD.SpawnCaptureDistanceCm"), &P.FieldSpawnCaptureDistanceCm},
+        {TEXT("FIELD.SpawnPatrolMarginCm"), &P.FieldSpawnPatrolMarginCm},
+        {TEXT("FIELD.MapRecoverySeparationCm"), &P.FieldMapRecoverySeparationCm},
+        {TEXT("FIELD.MapRecoverySightCm"), &P.FieldMapRecoverySightCm},
+        {TEXT("AIRDROP.FieldClearanceCm"), &P.AirdropFieldClearanceCm},
+        {TEXT("AIRDROP.FieldSeparationCm"), &P.AirdropFieldSeparationCm},
         {TEXT("PK.ArenaRadiusCm"), &P.PKArenaRadiusCm}, {TEXT("PK.RingMidRadiusCm"), &P.PKRingMidRadiusCm},
         {TEXT("PK.RingFinalRadiusCm"), &P.PKRingFinalRadiusCm},
         {TEXT("THROW.RadiusCm"), &P.ThrowRadiusCm}, {TEXT("THROW.RangeCm"), &P.ThrowRangeCm},
@@ -989,7 +996,7 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
     {
         return false;
     }
-    struct FCountField { const TCHAR* Key; int64* Out; int64 Min; };
+    struct FCountField { const TCHAR* Key; int64* Out; int64 Min; int64 Max = MAX_int64; };
     for (const auto& Field : {
         FCountField{TEXT("XP.BaseToNext"), &P.XPBaseToNext, 1}, {TEXT("XP.IncreasePerLevel"), &P.XPIncreasePerLevel, 0},
         {TEXT("XP.SteepFromLevel"), &P.XPSteepFromLevel, 2}, {TEXT("XP.SteepExtraPerLevel"), &P.XPSteepExtraPerLevel, 0},
@@ -997,6 +1004,10 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("REWARD.PlayerXP.Base"), &P.PlayerXPBase, 0}, {TEXT("REWARD.PlayerXP.PerLevel"), &P.PlayerXPPerLevel, 0}, {TEXT("REWARD.BountyXP"), &P.BountyXP, 0}, {TEXT("REWARD.BountyCardOffer"), &P.BountyCardOffer, 1},
         {TEXT("AI.RetryPolicy.MaxAttempts"), &P.AI.RetryMaxAttempts, 1},
         {TEXT("CAMP.ReturnDeadEndPlans"), &P.CampReturnDeadEndPlans, 1},
+        // Both stay inside the 48 candidates a deployment samples and the 48 orbs a view carries.
+        {TEXT("FIELD.SpawnPoolMin"), &P.FieldSpawnPoolMin, 1, 48},
+        {TEXT("FIELD.MapRecoveryCount"), &P.FieldMapRecoveryCount, 1, 48},
+        {TEXT("CAMP.GrowthStagesPerSegment"), &P.CampGrowthStagesPerSegment, 1},
         {TEXT("CAMP.GrowthMaxStage"), &P.CampGrowthMaxStage, 1},
         {TEXT("AIRDROP.RewardXP"), &P.AirdropRewardXP, 1}, {TEXT("LEADER.MinLevel"), &P.LeaderMinLevel, 1},
         {TEXT("COMBAT.BreachMaxStacks"), &P.BreachMaxStacks, 1}, {TEXT("COMBAT.BurnMaxStacks"), &P.BurnMaxStacks, 1},
@@ -1009,7 +1020,7 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("PK.ParticipationPoints"), &P.PKParticipationPoints, 1}, {TEXT("PK.WinnerPointsMax"), &P.PKWinnerPointsMax, 1},
         {TEXT("PK.BettingPoolMaxPoints"), &P.PKBettingPoolMaxPoints, 1}})
     {
-        if (!F.Int(Field.Key, *Field.Out, Field.Min))
+        if (!F.Int(Field.Key, *Field.Out, Field.Min, Field.Max))
         {
             return false;
         }
@@ -2968,7 +2979,6 @@ bool Monster(const FValue& Value, FLDDemoMonsterDefinition& Out, FCheck& Check, 
         && F.Fraction(TEXT("leash_radius"), TEXT("cm"), Out.LeashRadiusCm, true)
         && F.Fraction(TEXT("perception_radius"), TEXT("cm"), Out.PerceptionRadiusCm, true)
         && F.Fixed(TEXT("lose_target_grace"), TEXT("ms"), TEXT("ms"), Out.LoseTargetGraceMs, 1)
-        && F.Fixed(TEXT("respawn"), TEXT("ms"), TEXT("ms"), Out.RespawnMs, 1)
         && F.Int(TEXT("reward_xp"), Out.RewardXP)
         && F.Fraction(TEXT("hp_regen"), TEXT("hp/s"), Out.HPRegenPerSec)
         && F.Fixed(TEXT("ap"), TEXT("points"), TEXT("p2"), Out.APP2, 0, 0)

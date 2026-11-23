@@ -559,16 +559,26 @@ bool LDObservation::ValidateView(const FLDWorldView& View, FString& Error)
     {
         if (!FVector(Footprint.SourceFeetCm).IsZero() || Footprint.RadiusCm != 0 || Footprint.CurrentBits.Num() != 0
             || View.Units.Num() != 0 || View.RecentTerminations.Num() != 0 || View.Projectiles.Num() != 0
-            || View.GroundStates.Num() != 0 || View.RecoveryOrbs.Num() != 0)
+            || View.GroundStates.Num() != 0 || View.RecoveryOrbs.Num() != 0 || !View.WitnessedEmptyCamps.IsEmpty())
         { return FailObservation(Error, TEXT("A frame without a living source carries no coverage, unit, termination or projectile.")); }
     }
     else { return FailObservation(Error, TEXT("Unknown observation source status.")); }
     if (View.Units.Num() > MaxUnits || View.RecentTerminations.Num() > MaxTerminations || View.Projectiles.Num() > MaxProjectiles
-        || View.GroundStates.Num() > MaxGroundStates || View.RecoveryOrbs.Num() > MaxRecoveryOrbs)
+        || View.GroundStates.Num() > MaxGroundStates || View.RecoveryOrbs.Num() > MaxRecoveryOrbs
+        || View.WitnessedEmptyCamps.Num() > MaxUnits)
     { return FailObservation(Error, TEXT("Observation frame exceeds its bounded capacity.")); }
     for (const FLDObservedGroundState& Ground : View.GroundStates)
     {
         if (!ValidateGround(Ground, Error)) { return false; }
+    }
+    TSet<FName> CampIds;
+    for (FName Camp : View.WitnessedEmptyCamps)
+    {
+        if (CampIds.Contains(Camp) || !IsValidObservedMapId(Camp.ToString().ToLower()))
+        {
+            return FailObservation(Error, TEXT("An observed empty camp requires a unique registered camp id."));
+        }
+        CampIds.Add(Camp);
     }
     TSet<uint64> OrbSerials;
     for (const FLDObservedRecoveryOrb& Orb : View.RecoveryOrbs)
@@ -702,6 +712,14 @@ bool FLDWorldView::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuccess)
         bool bOrbPos = true;
         Orb.PositionCm.NetSerialize(Ar, Map, bOrbPos);
         if (!bOrbPos || Ar.IsError()) { return RejectObservationArchive(Ar, bSuccess); }
+    }
+    uint8 EmptyCampCount = uint8(WitnessedEmptyCamps.Num());
+    Ar << EmptyCampCount;
+    if (Ar.IsError() || EmptyCampCount > LDObservation::MaxUnits) { return RejectObservationArchive(Ar, bSuccess); }
+    if (Ar.IsLoading()) { WitnessedEmptyCamps.SetNum(EmptyCampCount); }
+    for (FName& Camp : WitnessedEmptyCamps)
+    {
+        if (!SerializeObservedMapId(Ar, Camp)) { return RejectObservationArchive(Ar, bSuccess); }
     }
     if (Ar.IsError() || (Ar.IsLoading() && !LDObservation::ValidateView(*this, Error))) { return RejectObservationArchive(Ar, bSuccess); }
     bSuccess = true;

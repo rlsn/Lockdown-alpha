@@ -40,7 +40,7 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
     FLDTimelineParameters P;
     if (!RestTimelineParameters(*this, P)) { return false; }
     bool bGood = TestTrue(TEXT("The approved durations (s): field 160, R0 build 20, rest build 40, betting 6, settlement 3, return 3"),
-        P.FieldSegmentMs == 160000 && P.OpeningBuildMs == 20000 && P.BuildMs == 40000
+        P.FieldSegmentMs == 160000 && P.OpeningBuildMs == 35000 && P.BuildMs == 65000 && P.FinalBuildMs == 65000
         && P.DrawMs == 0 && P.BettingMs == 6000 && P.SettlementMs == 3000 && P.PayoutMs == 0 && P.ReturnMs == 3000);
     FString Error;
     {
@@ -167,8 +167,8 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
     const FLDTimelineView View = Line.MakeView(3, 7);
     bGood &= TestTrue(TEXT("Clients derive the same T from the public view"),
         LDMatchTimeline::FieldNowFromView(View, Final + 60000) == 3 * Seg + 60000 && View.FieldEndT == -1);
-    // Start to the flagpole: R0 (20 + 3 s), R1 & R2 (40 + 3 s each), R3 (20 + 3 s) and three 160 s segments, 612 s.
-    bGood &= TestEqual(TEXT("The flagpole opens 612 s after the start"), Final - Start, int64(612000));
+    // With no PK, showdown entry follows the 35 s opening, three 65 s build windows, four 3 s returns and 480 s of field.
+    bGood &= TestEqual(TEXT("The showdown starts 722 s after match start without PK"), Final - Start, int64(722000));
     return bGood;
 }
 

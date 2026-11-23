@@ -424,7 +424,7 @@ class DemoContentImport(unittest.TestCase):
             lambda data: data["parameters"]["LIFE.RespawnPerLevelSec"].update(value=0.0001),
             lambda data: data["parameters"]["LIFE.SpawnChoiceSec"].update(value=0),
             lambda data: data["parameters"]["MATCH.FieldSegmentSec"].update(value=0),
-            lambda data: data["parameters"]["REST.ReturnSearchRadiusCm"].update(unit="s"),
+            lambda data: data["parameters"]["CAMP.ClearOrbRadiusCm"].update(unit="s"),
             lambda data: data["parameters"]["AI.DecisionIntervalSec"].update(value=-1),
             lambda data: data["parameters"]["STAT.BaseAttackSpeed"].update(value=0),
             lambda data: data["abilities"][0]["target"].update(projectile_speed={"unit": "cm/s", "value": -1}),
@@ -707,7 +707,7 @@ class DemoContentImport(unittest.TestCase):
             (lambda data: data["parameters"]["REGEN.OutOfCombatDelaySec"].update(value=0), "NumericDomain"),
             (lambda data: data["parameters"].pop("REGEN.OutOfCombatDelaySec"), "MissingField"),
             # #198 rest phases: retired timeline keys stay rejected.
-            (lambda data: data["parameters"]["REST.ReturnSearchRadiusCm"].update(value=0), "InvalidGeometry"),
+            (lambda data: data["parameters"]["CAMP.ClearOrbRadiusCm"].update(value=0), "InvalidGeometry"),
             (lambda data: data["parameters"].update({"SHOP.CardPrice": 0}), "NumericDomain"),
             (lambda data: data["parameters"].pop("REST.ReturnSec"), "MissingField"),
             (lambda data: data["parameters"].update({"MATCH.DevelopmentSec": {"unit": "s", "value": 180}}), "UnknownField"),
@@ -750,7 +750,7 @@ class DemoContentImport(unittest.TestCase):
                 self.assert_refused(mutation)
 
     def test_species_pools_refuse_different_member_reward_or_refresh_budgets(self):
-        for field,value in (("count_per_camp",4),("reward_xp",99),("respawn",{"unit":"s","value":12})):
+        for field,value in (("count_per_camp",4),("reward_xp",99)):
             (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
             with self.subTest(field=field):
                 self.assert_refused(lambda data: data["camps"]["monsters"][0].update({field:value}),"CampPool")
@@ -1013,12 +1013,13 @@ class DemoContentImport(unittest.TestCase):
         on_capture = first([near(capture[0], capture[1], lambda p: apart(p, camps + events))])
         by_camp = first(near(c[0], c[1], lambda p: apart(p, [capture] + events)) for c in camps)
         cases = [
-            (lambda data: data.update(anchors=[row for row in data["anchors"] if row["kind"] != kind]),
-             f"expected 1..[0-9]+ {kind} anchors, found 0"),
             (move(first(against_tree())), f"{label} disk lacks legal capsule support"),
             (move(on_capture), f"{label} disk overlaps the capture disk"),
             (move(by_camp), f"{label} disk overlaps a camp clearing"),
         ]
+        if kind == "Dorm":
+            cases.append((lambda data: data.update(anchors=[row for row in data["anchors"] if row["kind"] != kind]),
+                          "expected 1..[0-9]+ Dorm anchors, found 0"))
         if events:
             cases.append((move(first(near(c[0], c[1], lambda p: apart(p, [capture] + camps)) for c in events)),
                           "disk overlaps another event disk"))
@@ -1043,6 +1044,13 @@ class DemoContentImport(unittest.TestCase):
         # D26 (#79): each airdrop pickup disk stands on legal ground and keeps apart from the capture circle,
         # every camp clearing and every other event disk.
         self.check_zone_cases(self.zone_cases("Airdrop", 150))
+
+    def test_airdrop_fallback_anchors_are_optional(self):
+        self.edit(lambda data: data.update(anchors=[row for row in data["anchors"] if row["kind"] != "Airdrop"]),
+                  demo.WORLD_SOURCE)
+        world_sync.synchronize(self.root)
+        sync.synchronize(self.root)
+        self.assert_outputs_equal(demo.compile_content(self.root).outputs)
 
     def test_exact_file_bytes_including_newlines_are_required(self):
         for relative in demo.OUTPUT_PATHS:

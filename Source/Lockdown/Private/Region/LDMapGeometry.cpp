@@ -1229,10 +1229,10 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
             }
         }
     }
-    if (!Check.Require(Dorms >= 1 && Dorms <= LDDemoWorld::MaxDorms && Airdrops >= 1 && Airdrops <= LDDemoWorld::MaxAirdrops
+    if (!Check.Require(Dorms >= 1 && Dorms <= LDDemoWorld::MaxDorms && Airdrops <= LDDemoWorld::MaxAirdrops
         && Waypoints == LDDemoWorld::BossWaypoints && N.LT(N.Value(0), N.Value(Content.Parameters.DormRadiusCm))
         && N.LT(N.Value(0), N.Value(Content.Parameters.AirdropPickupRadiusCm)),
-        Root.Path, TEXT("dorms, airdrop points and four Boss waypoints within their bounds, with positive radii, are required")))
+        Root.Path, TEXT("dorms and four Boss waypoints are required; optional airdrop anchors must remain within their bounds")))
     {
         return false;
     }

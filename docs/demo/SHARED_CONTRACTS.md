@@ -15,7 +15,7 @@
 | 参赛者等级、XP、属性点、技能与分支、待学图纸、构筑牌、休息商店、终局改装 | `ALDDevelopmentDirector` / `ALDGrowthDirector` | 本人 `FLDOwnerState.Growth`；对应 AI 的 `ReadAISelf` |
 | 身体资源（HP/劲/多源护盾栈 P2）、动作、控制、元素反应、地面状态、冷却轨道 | `ALDCombatDirector` | 本人 `CombatView`；经 `ALDVisionDirector` 过滤的公开观察事实 |
 | 身体位置与碰撞积分 | 原生 `ULDCharacterMovementComponent` + `ULDNavigationComponent` | 本人预测/校正平滑；经 `ALDVisionDirector` 授权的呈现代理 |
-| 静态世界几何、营地组生命、刷新与回位 | `ULDMapRegistry`、`ALDCampDirector` | 静态公开锚点与地形；授权可见的野怪动态观察 |
+| 静态世界几何、营地组生命、刷新与回位 | `ULDMapRegistry`、`ALDCampDirector` | 静态公开锚点与地形，预告中的空投落点，以及各观察者授权的野怪、恢复球与目击空营地 |
 | 观察权限、句柄、`ObservationEpoch`、可见集合与授权死亡见证 | `ALDVisionDirector` → `ALDWorldViewRelay` | 拥有连接客户端表现与 HUD；对应 AI 的受限感知帧 |
 | 玩家名称、按键绑定、画面模式/分辨率/帧率上限、音量、镜头与界面偏好 | 本地 `ULDControlSettings`（Schema 25）与 `UGameUserSettings` | 本机 UI/镜头/渲染；名称经 `?LDName=` 提交服务器复核 |
 
@@ -53,7 +53,7 @@ Host 主动离开或进程结束即关闭房间，客户端显示原因返回主
 
 ## SC-05：奖励、构筑、来源冷却与复活保护
 
-- **致死到奖励原子性**：同一批致死事实先冻结全部 `FLDCommittedDeath`（含助攻者快照），再在 `DeathsAndRewards` 阶段一次性提交击杀与助攻奖励；营地回位重置以 `LedgerMatch + VictimKey + ReturnEpoch` 幂等恢复存活野怪，不产生死亡或奖励。
+- **致死到奖励原子性**：同一批致死事实先冻结全部 `FLDCommittedDeath`（含助攻者快照），再在 `DeathsAndRewards` 阶段一次性提交击杀与助攻奖励；营地回位重置以 `LedgerMatch + VictimKey + ReturnEpoch` 幂等恢复存活野怪。中场返场保留营地槽身份并递增各成员生命与营地代次，退役存活的旧身体不产生死亡或奖励。
 - **来源与多源护盾**：`FLDCombatSourceRef` 区分 `Basic / Learned / Innate`（D 冲刺固定单轨，不吃技能急速）。护盾总量为独立 `ShieldLayers` 之和，按最早到期层先吸收伤害，每打空一层独立触发一次破盾事件。
 - **属性单次投影**：构筑变更对最终属性一次性投影并夹取至 `STAT.<属性>.Min/Max`；存活时最大生命变化按最终上限一次性同比换算当前生命（下溢为 0 时以 `NumericUnderflow` 整笔拒绝，往返不刷血）。
 - **进攻意图先解保护**：请求通过身份、当前 `Match/Life`、去重与写闸准入后，凡属进攻意图（`AttackUnit`、`AttackMove`、普攻、角色主动技能及带撞击伤害的冲刺）立即解除复活保护并发布资格变化；随后即使因缺劲、冷却、越距或目标无效被拒，保护也不恢复，且不扣劲、不进冷却。

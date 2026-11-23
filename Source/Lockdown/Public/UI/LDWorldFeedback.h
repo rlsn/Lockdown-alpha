@@ -22,7 +22,7 @@ namespace LDWorldFeedback
     // PerfectDodge / ChainEnd (#305): a perfect dodge of the own body and the end of one of its counted chains (Amount = its
     // steps), each a word over the own body.
     enum class EKind : uint8 { DamageTaken, Heal, ShieldGain, ShieldAbsorbed, UnitDamage, UnitHeal, Experience, LevelUp, Kill, UnitCast, DealtConfirm,
-        UnitReaction, PerfectDodge, ChainEnd };
+        UnitReaction, PerfectDodge, ChainEnd, RecoveryPack };
     struct FEvent
     {
         EKind Kind=EKind::DamageTaken;
@@ -120,6 +120,7 @@ namespace LDWorldFeedback
         int64 ShieldEndsAtMs=0;    // end of the shield status listed with the baseline; 0 when none was listed
         int64 DealtAtMs=0;         // the own hit receipt of the baseline (LastDealtAtMs)
         int64 ReactionAtMs=0;      // the own body's last reaction of the baseline (Cues.LastReactionAtMs)
+        int64 RecoveryPackAtMs=0;
         uint32 PerfectDodges=0;    // the own body's perfect dodges of the baseline life
         bool bChains=false;        // the chain ends of this match are primed
         uint64 ChainSerial=0;      // the newest own chain end already told

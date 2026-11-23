@@ -1,4 +1,6 @@
 #include "World/LDAirdrop.h"
+#include "World/LDFieldEcology.h"
+#include "World/LDDormZones.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Evaluation/LDEvaluationSeeds.h"
 #include "Region/LDMapGeometry.h"
@@ -63,7 +65,7 @@ bool LDAirdrop::PickClaimer(const FVector& CentreCm, double RadiusCm, TConstArra
 bool FLDAirdropSchedule::IsValid() const
 {
     if (StartedAtMs < 0 || LandMs.IsEmpty() || AnnounceLeadMs <= 0 || ExpireMs <= 0 || LandMs[0] < AnnounceLeadMs
-        || Points.IsEmpty() || Seed == 0 || !FMath::IsFinite(PickupRadiusCm) || PickupRadiusCm <= 0)
+        || Seed == 0 || !FMath::IsFinite(PickupRadiusCm) || PickupRadiusCm <= 0)
     {
         return false;
     }
@@ -101,7 +103,7 @@ bool FLDAirdropSchedule::ExpireAtMs(uint64 Index, int64& Out) const
     return LandAtMs(Index, Land) && AirdropAdd(Land, ExpireMs, Out);
 }
 
-bool FLDAirdropState::Advance(int64 NowMs)
+bool FLDAirdropState::Advance(int64 NowMs, const FSelectPoint& SelectPoint)
 {
     if (!Schedule.IsValid()) { return false; }
     // The latest announcement at or before NowMs names the current drop.
@@ -115,12 +117,26 @@ bool FLDAirdropState::Advance(int64 NowMs)
         : NowMs >= LandAt ? ELDAirdropPhase::Landed : ELDAirdropPhase::Announced;
     if (Serial != Index + 1)
     {
-        if (Serial > Index) { Serial = 0; PointIndex = INDEX_NONE; }
+        const bool bRewound = Serial > Index;
+        int32 SelectedIndex = bRewound ? INDEX_NONE : PointIndex;
+        TOptional<LDAirdrop::FPoint> Selected = bRewound ? TOptional<LDAirdrop::FPoint>() : SampledPoint;
         // Each point depends on the previous drop's, so every drop up to this one is drawn in order.
-        for (uint64 Next = Serial + 1; Next <= Index + 1; ++Next)
+        for (uint64 Next = (bRewound ? 1 : Serial + 1); Next <= Index + 1; ++Next)
         {
-            PointIndex = LDAirdrop::NextPoint(Schedule.Seed, Next, PointIndex, Schedule.Points.Num());
+            if (SelectPoint)
+            {
+                LDAirdrop::FPoint Candidate;
+                if (!SelectPoint(Next, Selected.IsSet() ? &Selected.GetValue() : nullptr, Candidate)) { return false; }
+                Selected = Candidate;
+            }
+            else
+            {
+                SelectedIndex = LDAirdrop::NextPoint(Schedule.Seed, Next, SelectedIndex, Schedule.Points.Num());
+                if (SelectedIndex == INDEX_NONE) { return false; }
+            }
         }
+        PointIndex = SelectedIndex;
+        SampledPoint = MoveTemp(Selected);
         Serial = Index + 1;
         Phase = Timed;
         ClaimedBy.Invalidate();
@@ -170,7 +186,9 @@ bool FLDAirdropState::Claim(const FGuid& Contender, int64 NowMs)
 
 const LDAirdrop::FPoint* FLDAirdropState::CurrentPoint() const
 {
-    return Schedule.IsValid() && Serial > 0 && Schedule.Points.IsValidIndex(PointIndex) ? &Schedule.Points[PointIndex] : nullptr;
+    if (!Schedule.IsValid() || Serial == 0) { return nullptr; }
+    if (SampledPoint.IsSet()) { return &SampledPoint.GetValue(); }
+    return Schedule.Points.IsValidIndex(PointIndex) ? &Schedule.Points[PointIndex] : nullptr;
 }
 
 FLDAirdropView FLDAirdropState::View() const
@@ -185,6 +203,49 @@ FLDAirdropView FLDAirdropState::View() const
     Schedule.LandAtMs(Serial - 1, Out.LandAtMs);
     Schedule.ExpireAtMs(Serial - 1, Out.ExpireAtMs);
     return Out;
+}
+
+bool LDAirdrop::SampleFieldPoint(const ULDMapRegistry& Registry, const FLDDemoContentSnapshot& Content, const FLDDormZones& Dorms,
+    const FLDAirdropSchedule& Schedule, uint64 Serial, const FPoint* Previous, FPoint& Out, FString& Error)
+{
+    using namespace LDFieldEcology;
+    FGroundSampler Sampler;
+    if (!Sampler.Initialize(Registry, Content, Error)) { return false; }
+    FRandomStream Random(int32(Mix(Schedule.Seed ^ Mix(Serial))));
+    const auto& Parameters = Content.Get().Parameters;
+    const double AirdropClearanceCm = Centimeters(Parameters.AirdropFieldClearanceCm);
+    const double AirdropSeparationCm = Centimeters(Parameters.AirdropFieldSeparationCm);
+    const double CaptureClearanceCm = Centimeters(Parameters.CaptureRadiusCm) + AirdropClearanceCm;
+    const auto Legal = [&](FVector2D XY, FLDLegalGround& Ground)
+    {
+        const FVector Point(XY, Sampler.Capture().FootCm.Z);
+        return FVector::DistSquared2D(Point, Sampler.Capture().FootCm) >= FMath::Square(CaptureClearanceCm)
+            && (!Previous || FVector::DistSquared2D(Point, Previous->PositionCm) >= FMath::Square(AirdropSeparationCm))
+            && !Dorms.Find(Point) && Sampler.Resolve(XY, Ground, AirdropClearanceCm);
+    };
+    FLDLegalGround Ground;
+    for (int32 Attempt = 0; Attempt < 512; ++Attempt)
+    {
+        if (Legal(Sampler.Draw(Random, AirdropClearanceCm), Ground))
+        {
+            Out = {FName(*FString::Printf(TEXT("field_airdrop_%llu"), Serial)), Ground.SurfaceCm};
+            Error.Reset();
+            return true;
+        }
+    }
+    TArray<FPoint> Fallbacks;
+    for (const FPoint& Point : Schedule.Points)
+    {
+        if (Legal(FVector2D(Point.PositionCm), Ground)) { Fallbacks.Add({Point.Id, Ground.SurfaceCm}); }
+    }
+    if (!Fallbacks.IsEmpty())
+    {
+        Out = Fallbacks[Random.RandRange(0, Fallbacks.Num() - 1)];
+        Error.Reset();
+        return true;
+    }
+    Error = TEXT("No connected, clear field ground or fallback anchor was available for the next airdrop.");
+    return false;
 }
 
 bool LDAirdrop::Resolve(const ULDMapRegistry& Registry, const FLDDemoContentSnapshot& Content, int64 StartedAtMs,
@@ -212,12 +273,7 @@ bool LDAirdrop::Resolve(const ULDMapRegistry& Registry, const FLDDemoContentSnap
         if (Anchor.Kind != ELDDemoWorldAnchorKind::Airdrop) { continue; }
         const FName Id(*Anchor.Id);
         const FLDMapBinding* Binding = Registry.Resolve(Id, Registry.Generation);
-        if (!Binding || !Binding->Floor.IsValid())
-        {
-            Error = FString::Printf(TEXT("Airdrop point '%s' is not bound to registered ground."), *Anchor.Id);
-            return false;
-        }
-        S.Points.Add({Id, Binding->Position});
+        if (Binding && Binding->Floor.IsValid()) { S.Points.Add({Id, Binding->Position}); }
     }
     // A fresh server-only seed: nothing public (match identity, anchors, clock) predicts the next drop's point.
     const FGuid Random = FGuid::NewGuid();

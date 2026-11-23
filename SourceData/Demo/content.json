@@ -332,11 +332,11 @@
     },
     "REST.OpeningBuildSec": {
       "unit": "s",
-      "value": 20
+      "value": 35
     },
     "REST.BuildSec": {
       "unit": "s",
-      "value": 40
+      "value": 65
     },
     "REST.SignupSec": {
       "unit": "s",
@@ -369,10 +369,6 @@
     "REST.ReturnSec": {
       "unit": "s",
       "value": 3
-    },
-    "REST.ReturnSearchRadiusCm": {
-      "unit": "cm",
-      "value": 300
     },
     "REST.EntryReadyTimeoutSec": {
       "unit": "s",
@@ -586,10 +582,7 @@
       "unit": "s",
       "value": 6
     },
-    "CAMP.GrowthStageSec": {
-      "unit": "s",
-      "value": 43
-    },
+    "CAMP.GrowthStagesPerSegment": 3,
     "CAMP.GrowthMaxStage": 10,
     "CAMP.GrowthHPRatioPerStage": {
       "unit": "ratio",
@@ -607,9 +600,17 @@
       "unit": "ratio",
       "value": 0.06
     },
-    "CAMP.ClearHealMissingRatio": {
+    "CAMP.ClearHealMaxRatio": {
       "unit": "ratio",
-      "value": 0.12
+      "value": 0.15
+    },
+    "CAMP.ClearHealFlat": {
+      "unit": "hp",
+      "value": 60
+    },
+    "CAMP.ClearOrbRadiusCm": {
+      "unit": "cm",
+      "value": 95
     },
     "CAMP.ClearMomentum": {
       "unit": "momentum",
@@ -617,7 +618,37 @@
     },
     "CAMP.ClearOrbSec": {
       "unit": "s",
-      "value": 12
+      "value": 20
+    },
+    "FIELD.SpawnPoolMin": 18,
+    "FIELD.MapRecoveryCount": 10,
+    "FIELD.SpawnSeparationCm": {
+      "unit": "cm",
+      "value": 2400
+    },
+    "FIELD.SpawnCaptureDistanceCm": {
+      "unit": "cm",
+      "value": 2000
+    },
+    "FIELD.SpawnPatrolMarginCm": {
+      "unit": "cm",
+      "value": 600
+    },
+    "FIELD.MapRecoverySeparationCm": {
+      "unit": "cm",
+      "value": 1400
+    },
+    "FIELD.MapRecoverySightCm": {
+      "unit": "cm",
+      "value": 1400
+    },
+    "AIRDROP.FieldClearanceCm": {
+      "unit": "cm",
+      "value": 200
+    },
+    "AIRDROP.FieldSeparationCm": {
+      "unit": "cm",
+      "value": 1800
     },
     "AIRDROP.LandSec": [
       {
@@ -1383,7 +1414,7 @@
     },
     "REST.FinalBuildSec": {
       "unit": "s",
-      "value": 20
+      "value": 65
     },
     "MEDAL.MaxTier": 3,
     "MEDAL.Tier2ReactionBonusRatio": {
@@ -8422,11 +8453,7 @@
           "unit": "s",
           "value": 3
         },
-        "respawn": {
-          "unit": "s",
-          "value": 40
-        },
-        "reward_xp": 11,
+        "reward_xp": 15,
         "hp_regen": {
           "unit": "hp/s",
           "value": 0
@@ -8566,11 +8593,7 @@
           "unit": "s",
           "value": 4
         },
-        "respawn": {
-          "unit": "s",
-          "value": 75
-        },
-        "reward_xp": 32,
+        "reward_xp": 44,
         "hp_regen": {
           "unit": "hp/s",
           "value": 0
@@ -8710,11 +8733,7 @@
           "unit": "s",
           "value": 4
         },
-        "respawn": {
-          "unit": "s",
-          "value": 90
-        },
-        "reward_xp": 145,
+        "reward_xp": 196,
         "hp_regen": {
           "unit": "hp/s",
           "value": 0
@@ -8854,11 +8873,7 @@
           "unit": "s",
           "value": 4
         },
-        "respawn": {
-          "unit": "s",
-          "value": 40
-        },
-        "reward_xp": 11,
+        "reward_xp": 15,
         "hp_regen": {
           "unit": "hp/s",
           "value": 0
@@ -8998,11 +9013,7 @@
           "unit": "s",
           "value": 4
         },
-        "respawn": {
-          "unit": "s",
-          "value": 40
-        },
-        "reward_xp": 11,
+        "reward_xp": 15,
         "hp_regen": {
           "unit": "hp/s",
           "value": 0
@@ -9142,11 +9153,7 @@
           "unit": "s",
           "value": 4
         },
-        "respawn": {
-          "unit": "s",
-          "value": 75
-        },
-        "reward_xp": 32,
+        "reward_xp": 44,
         "hp_regen": {
           "unit": "hp/s",
           "value": 0
@@ -9286,11 +9293,7 @@
           "unit": "s",
           "value": 4
         },
-        "respawn": {
-          "unit": "s",
-          "value": 75
-        },
-        "reward_xp": 32,
+        "reward_xp": 44,
         "hp_regen": {
           "unit": "hp/s",
           "value": 0
@@ -9430,11 +9433,7 @@
           "unit": "s",
           "value": 4
         },
-        "respawn": {
-          "unit": "s",
-          "value": 90
-        },
-        "reward_xp": 145,
+        "reward_xp": 196,
         "hp_regen": {
           "unit": "hp/s",
           "value": 0
@@ -9574,11 +9573,7 @@
           "unit": "s",
           "value": 4
         },
-        "respawn": {
-          "unit": "s",
-          "value": 90
-        },
-        "reward_xp": 145,
+        "reward_xp": 196,
         "hp_regen": {
           "unit": "hp/s",
           "value": 0
@@ -9718,11 +9713,7 @@
           "unit": "s",
           "value": 4
         },
-        "respawn": {
-          "unit": "s",
-          "value": 120
-        },
-        "reward_xp": 300,
+        "reward_xp": 405,
         "hp_regen": {
           "unit": "hp/s",
           "value": 0
@@ -9862,11 +9853,7 @@
           "unit": "s",
           "value": 4
         },
-        "respawn": {
-          "unit": "s",
-          "value": 120
-        },
-        "reward_xp": 300,
+        "reward_xp": 405,
         "hp_regen": {
           "unit": "hp/s",
           "value": 0
@@ -10006,11 +9993,7 @@
           "unit": "s",
           "value": 4
         },
-        "respawn": {
-          "unit": "s",
-          "value": 120
-        },
-        "reward_xp": 300,
+        "reward_xp": 405,
         "hp_regen": {
           "unit": "hp/s",
           "value": 0

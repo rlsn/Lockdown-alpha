@@ -129,6 +129,14 @@ void LDWorldFeedback::FTracker::ObserveBody(const FSample& Sample,TArray<FEvent>
     {
         FEvent& Dealt=Out.AddDefaulted_GetRef();Dealt.Kind=EKind::DealtConfirm;Dealt.Amount=1;Dealt.HitFlags=Combat->Cues.LastDealtFlags;
     }
+    if (bNewLife) { RecoveryPackAtMs = Combat->Cues.LastRecoveryPackAtMs; }
+    else if (Sample.bClock && Sample.LifePhase == ELDLifePhase::Alive
+        && LDHitFeel::TakeFreshReceipt(RecoveryPackAtMs, Combat->Cues.LastRecoveryPackAtMs, Sample.NowMs))
+    {
+        FEvent& Pack = Out.AddDefaulted_GetRef();
+        Pack.Kind = EKind::RecoveryPack;
+        Pack.Amount = 1;
+    }
     if(!bNewLife&&Combat->Revision<=BodyRevision){return;}
     const FLDCombatStatusView* Shield=WorldFeedbackShieldStatus(*Combat);
     // A changed maximum rescales the points proportionally (level, build): never a hit or a heal.
@@ -283,6 +291,7 @@ FString LDWorldFeedback::Text(const FEvent& Event)
     switch(Event.Kind)
     {
     case EKind::DamageTaken: case EKind::UnitDamage: return FString::Printf(TEXT("-%lld"),Event.Amount);
+    case EKind::RecoveryPack: return TEXT("+");
     case EKind::Heal: case EKind::UnitHeal: return FString::Printf(TEXT("+%lld"),Event.Amount);
     case EKind::ShieldGain: return FString::Printf(TEXT("+%lld %s"),Event.Amount,LDTerms::Shield);
     case EKind::ShieldAbsorbed: return FString::Printf(TEXT("-%lld %s"),Event.Amount,LDTerms::Shield);
@@ -381,6 +390,7 @@ FWorldFeedbackLook WorldFeedbackLookOf(LDWorldFeedback::EKind Kind)
     {
     case LDWorldFeedback::EKind::DamageTaken: return {LDHUDStyle::DamageTaken,LDHUDStyle::TypeTitle};
     case LDWorldFeedback::EKind::UnitDamage: return {LDHUDStyle::DamageDealt,LDHUDStyle::TypeLabel};
+    case LDWorldFeedback::EKind::RecoveryPack: return {FLinearColor(.25f, 1.f, .45f), LDHUDStyle::TypeTitle};
     case LDWorldFeedback::EKind::Heal: case LDWorldFeedback::EKind::UnitHeal: return {LDHUDStyle::Heal,LDHUDStyle::TypeLabel};
     case LDWorldFeedback::EKind::ShieldGain: return {LDHUDStyle::ShieldGain,LDHUDStyle::TypeLabel};
     case LDWorldFeedback::EKind::ShieldAbsorbed: return {LDHUDStyle::Shield,LDHUDStyle::TypeLabel};

@@ -41,6 +41,7 @@ struct FLDObservedFrameRead
 struct LOCKDOWN_API FLDObservedCatalog
 {
     uint8 MaxLevel = 0;
+    double RecoveryPackRadiusCm = 0.;
     TSet<uint8> Creatures;
     // #198: every approved ability is a Q/W/E active, a cast source or a slot a visible contender shows.
     TSet<uint8> Abilities;

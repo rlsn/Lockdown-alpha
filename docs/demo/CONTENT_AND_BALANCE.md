@@ -165,8 +165,8 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | `SHOWDOWN.RingDamageEarlyMaxHPRatioPerSec` / `LateMaxHPRatioPerSec` | ratio/R4 | 0.05 / 0.12 | 封街前一半、后一半圈外每秒扣最大生命的比例，直扣生命，须大于 0 |
 | `SHOWDOWN.KillHealMaxHPRatio` / `SHOWDOWN.KillMomentum` | ratio/R4；momentum | 0.35 / 50 | 终局不给经验；击杀参赛者的人回复最大生命的 35% 并得到 50 劲 |
 | `MATCH.FieldSegmentSec` | s/Sec | 160 | 三段定时野外各 160 s；野外进度 T 只在野外推进，休息暂停 T；R3 返场十秒后开放终局旗杆 |
-| `REST.OpeningBuildSec` | s/Sec | 20 | 开局 R0 构筑/试招窗；所有真人准备后立即结束 |
-| `REST.BuildSec` | s/Sec | 40 | R1–R3 构筑/试招窗；所有真人准备后立即结束；AI 不阻塞 |
+| `REST.OpeningBuildSec` | s/Sec | 35 | 开局 R0 构筑/试招窗；所有真人准备后立即结束 |
+| `REST.BuildSec` / `REST.FinalBuildSec` | s/Sec | 65 / 65 | R1–R3 的构筑与试招窗，所有真人就绪后提前收束，R1、R2 保留 PK 报名窗 |
 | `REST.SignupSec` | s/Sec | 10 | R1、R2 配装的最后这么久兼作 PK 报名窗；全员准备提前结束时保留 |
 | `REST.DrawSec` / `REST.BettingSec` / `REST.PKReadySec` | s/Sec | 0 / 6 / 3 | PK 公布赛制与押注合并为 6 s 押注步骤，随后 3 s 准备（锁输入） |
 | `REST.PKMaxSec` | s/Sec | 45 | PK 对打上限；提前分出胜负即结束 |
@@ -180,7 +180,6 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | `THROW.CooldownSec` / `THROW.TelegraphSec` / `THROW.RadiusCm` / `THROW.RangeCm` | s；cm | 10 / 0.8 / 120 / 4000 | 观众投掷：冷却、落点预警、命中半径、射程 |
 | `THROW.SlowRatio` / `THROW.SlowSec` / `THROW.ExposeSec` | 比例；s | 0.2 / 1 / 2 | 投掷命中：减速与暴露位置 |
 | `REST.ReturnSec` | s/Sec | 3 | 返野外倒计时，锁移动、攻击、施法与冲刺输入（自己的构筑不锁；洗点、遗忘、替换与商店关闭） |
-| `REST.ReturnSearchRadiusCm` | cm/Cm | 300 | 返场原脚点被占用时只在同可达面此半径内找不重叠位置，仍失败用现有批准出生点 |
 | `REST.EntryReadyTimeoutSec` | s/Sec | 30 | 返回野外是全员一次性共同提交：有人放不下时入场冻结、时间线停在边界并每拍重试；超时为明确的权威故障 `LD_REST_RETURN_UNREADY` |
 | `LIFE.RespawnBaseSec` / `RespawnPerLevelSec` | s/Sec | 6 / 0.5 | 野外复活等待 = 6 + 0.5 × 死亡时等级（秒）；考试周另加 `DAILY.ExamRespawnBonusSec` |
 | `LIFE.SpawnChoiceCount` | Count | 3 | 死亡时从全部野外出生点不放回抽这么多个候选；不超过 4，也不超过出生点数 |
@@ -815,12 +814,12 @@ DEV 成长夹具可预置主动候选，不把 DEV 预置当作随机分布证�
 | `REWARD.BountyCardOffer` | 3 | 悬赏击杀另给的稀有/传说选牌张数（选一张） |
 | `REWARD.KillMedalChance` | .25 | 击杀参赛者掉元素石的概率 |
 | `REWARD.AssistWindowSec` | 15s | 受害者死亡前15s内（含）有过正伤害（含被护盾吸收）或任一控制/减益的其他在局参赛者算助攻，每次新贡献重新计时；死亡界面的承伤列表用同一窗口 |
-| `CAMP.Low.RewardXP`（怪物 `reward_xp`） | 每只11XP | 小野整组33XP |
-| `CAMP.High.RewardXP` | 每只32XP | 中野两只，整组64XP |
-| `CAMP.Elite.RewardXP` | 每只145XP | 大野整组145XP；1级只有普攻的角色单挑打不过 |
-| `CAMP.Ancient.RewardXP` | 每只300XP | 远古整组300XP |
+| `CAMP.Low.RewardXP`（怪物 `reward_xp`） | 每只15XP | 小野整组45XP |
+| `CAMP.High.RewardXP` | 每只44XP | 中野两只，整组88XP |
+| `CAMP.Elite.RewardXP` | 每只196XP | 大野整组196XP；1级只有普攻的角色单挑打不过 |
+| `CAMP.Ancient.RewardXP` | 每只405XP | 远古整组405XP |
 
-以上经验是 0 阶的基础值；每条野怪生命按生成时的成长阶段多给经验（§6.2.1）。
+以上是基础经验，逐只按乘以 1.35 后向上取整。整营总经验是各成员之和，再按野外段的成长阶段计算实际发放量（§6.2.1）。
 
 不保留旧 PvP 配对冷却、总XP上限、固定击杀次数池。合法新生命可继续产生奖励；
 同一生命重复致死/回包不能产生第二份。人为送人头仍是自由混战的行为风险，不能未经产品授权
@@ -832,10 +831,9 @@ DEV 成长夹具可预置主动候选，不把 DEV 预置当作随机分布证�
 `Boss` 是独立厨师事件。`camps.placements.monster_id` 引用一个固定的档位代表定义，用它的 `tier` 关联种类池，
 不指定本次活着的种类。h09、h11属于远古；其余营地锚点与周围人工布局保留。
 
-服务器在首次生成和每次整组刷新前，在本档三种中独立等概率选一种，允许连续重复；整组不混编。
-一次生成准备期间的选种固定，落点被占而重试不能重抽；成功后整组生命固定种类，只有全部死亡后的下一次刷新才再抽。
-回位、休息、重连和观察不触发重抽。公开营地记录仅含固定位置和档位代表；当前种类只随合法可见身体发布。
-同档共用成员数量、整营经验、刷新时间和成长曲线，并通过行为区分打法。
+服务器在每段开始时从对应档位的三种野怪中等概率抽一种，允许连续重复。
+落点临时被占时保留当次抽到的种类。新一段开场前统一重置，包括前一段从未交战或只清了一部分的营地。
+公开营地记录含位置和档位代表，实际种类只随合法可见身体发布。同档共用成员数量、整营经验和成长曲线，通过行为区分打法。
 
 | 字段 / 单位 | 小野 Low，每组3只 | 中野 High，每组2只 | 大野 Elite，每组1只 | 远古 Ancient，每组1只 |
 | --- | --- | --- | --- | --- |
@@ -849,10 +847,9 @@ DEV 成长夹具可预置主动候选，不把 DEV 预置当作随机分布证�
 | 碰撞半径，cm | 40 | 40 | 40 | 40 |
 | 拴绳 / 感知半径，cm | 900（HR）、1050（地推、骑手） | 1050 | 1050 | 1050 |
 | 失去目标宽限，s | 3 | 4 | 4 | 4 |
-| 清空后刷新，s | 40 | 75 | 90 | 120 |
-| 每只 / 整营基础XP | 11 / 33 | 32 / 64 | 145 / 145 | 300 / 300 |
+| 每只 / 整营基础XP | 15 / 45 | 44 / 88 | 196 / 196 | 405 / 405 |
 
-每只仍独立life和最后一击奖励，不再次发整营经验。三十四处营地的0阶首轮总供给为2876XP，
+每只仍独立life和最后一击奖励，不再次发整营经验。三十四处营地的 0 阶基础经验合计为 3284 XP，
 不等于任何人的可保证收益；技能、竞争、刷新与随时间成长还会改变实际发育速度。
 本表是试玩输入，未经平衡验收。基础回复、AP和暴击率均为0；野怪没有劲，技能不耗劲。
 未受击不主动；确认的合法命中触发同营反击，每个成员仍须独立合法感知目标，不共享隐藏坐标。
@@ -919,29 +916,27 @@ Root 只会暂时禁止运动，不把返回订单变成追击。沿合法路径
 回到家中重置后恢复正常规则。是已批准的首轮值，未经试玩验证。
 
 例如一组小野先死一只，只发这只的XP；其他存活成员回位只回血，奖励仍未发、原 life 不变。
-之后它在t=10s死亡，整组从t=10开始25s等待，于t=35重新抽种并生成三条全新生命。
-旧弹体/命中持有旧 target life，不能伤害这次刷新。
+清完其余成员后，这个营地在本段保持为空。中场返场时整组获得新生命，旧弹体和命中仍引用旧生命。
 
 ### 6.2.1 随对局时间成长
 
-每组野怪生成时（开局整组生成与每次清空后刷新）取成长阶段
-$k=\min(\text{CAMP.GrowthMaxStage},\lfloor T_{生成}/\text{CAMP.GrowthStageSec}\rfloor)$，$T_{生成}$ 是生成时的野外进度 T（只在野外推进、休息中冻结），开局生成时为 0；
-整组同阶，整条生命保持该阶段，回位重置（含原地重置）恢复到该阶段的满值，不退回基础值；只有下一次刷新才取新的阶段。
-画饼老板不是营地，固定 0 阶。
+F1、F2、F3 的营地成长阶段依次为 0、3、6。每组全段使用同一阶段，回位重置恢复该阶段的满值。画饼老板固定 0 阶。
 
-| 参数 ID（`content.json`） | 值 | 作用（各自按存储单位向下取整） |
+| 参数 ID | 值 | 作用（按存储单位向下取整） |
 | --- | --- | --- |
-| `CAMP.GrowthStageSec` | 43 s | 每满 43 s 升一阶 |
-| `CAMP.GrowthMaxStage` | 10 | T=430 s 起达到 10 阶封顶（三段定时野外合计 T=480 s） |
-| `CAMP.GrowthHPRatioPerStage` | .12 | 生命 = 基础 × (1 + .12k)，上限时 2.2 倍 |
-| `CAMP.GrowthAttackRatioPerStage` | .08 | 攻击 = 基础 × (1 + .08k)，上限时 1.8 倍 |
-| `CAMP.GrowthResistPerStage` | 2 点 | 护甲、魔抗各 + 2k，上限时 +20 |
-| `CAMP.GrowthRewardXPRatioPerStage` | .10 | 每只经验 = 基础 × (1 + .1k)，上限时 2 倍 |
-| `CAMP.ClearHealMissingRatio` / `CAMP.ClearMomentum` | .12 / 25 | 打完一整营时在最后一击落点掉一个回复球：走进 90 cm 拾取半径的存活非保护参赛者回复**已损生命**的 12% 并得到 25 劲 |
-| `CAMP.ClearOrbSec` | 12 s | 回复球无人拾取时的存在时间 |
+| `CAMP.GrowthStagesPerSegment` / `CAMP.GrowthMaxStage` | 3 / 10 | 野外段索引乘以 3 后受最大阶段约束 |
+| `CAMP.GrowthHPRatioPerStage` | .12 | 生命 = 基础 × (1 + .12k) |
+| `CAMP.GrowthAttackRatioPerStage` | .08 | 攻击 = 基础 × (1 + .08k) |
+| `CAMP.GrowthResistPerStage` | 2 点 | 护甲、魔抗各 + 2k |
+| `CAMP.GrowthRewardXPRatioPerStage` | .06 | 每只经验 = 基础 × (1 + .06k) |
+| `CAMP.ClearHealMaxRatio` / `CAMP.ClearHealFlat` / `CAMP.ClearMomentum` | .15 / 60 HP / 25 劲 | 两类恢复球拾取后回复 15% 最大生命加 60 生命，并回复 25 劲 |
+| `CAMP.ClearOrbRadiusCm` / `CAMP.ClearOrbSec` | 95 cm / 20 s | 两类恢复球的拾取范围，清营掉落球的存续时间 |
+| `FIELD.MapRecoveryCount` / `FIELD.MapRecoverySeparationCm` / `FIELD.MapRecoverySightCm` | 10 / 1400 cm / 1400 cm | 每段地图恢复球的数量、最小间距和视野半径。视野同时检查遮挡 |
+| `FIELD.SpawnPoolMin` / `FIELD.SpawnSeparationCm` | 18 / 2400 cm | 分散入场候选下限和入场参赛者之间的最小距离 |
+| `FIELD.SpawnCaptureDistanceCm` / `FIELD.SpawnPatrolMarginCm` | 2000 cm / 600 cm | 入场点距旗杆中心的下限及大野、远古和 Boss 警戒区外的缓冲 |
+| `AIRDROP.FieldClearanceCm` / `AIRDROP.FieldSeparationCm` | 200 cm / 1800 cm | 空投平坦净空和边界缓冲、与上一落点的最小间距。中心缓冲从旗杆区外沿计算 |
 
-攻速、前摇、射程、移速、拴绳、刷新时间都不随阶段变化。对手 AI 估计营地代价时按当前公开时间的阶段计算
-（活着的野怪不会高于这个阶段），大野与远古营地沿用中野的入场与保底血量门槛。
+攻速、前摇、射程、移速和拴绳保持各野怪定义的值。对手 AI 用公开的野外段估计营地代价。
 
 ### 6.3 AI 只读决策参数
 

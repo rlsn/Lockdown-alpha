@@ -591,18 +591,18 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
     }
     bGood &= GrowthTestReason(Test, TEXT("A monster_scavenger kill"),
         LDProgression::MonsterKillReward(*Catalog, FName(TEXT("monster_scavenger")), 0, Reward), ELDGrowthReason::None);
-    bGood &= Test.TestEqual(TEXT("monster_scavenger XP"), Reward.XP, int64(11));
+    bGood &= Test.TestEqual(TEXT("monster_scavenger XP"), Reward.XP, int64(15));
     bGood &= GrowthTestReason(Test, TEXT("A monster_guardian kill"),
         LDProgression::MonsterKillReward(*Catalog, FName(TEXT("monster_guardian")), 0, Reward), ELDGrowthReason::None);
-    bGood &= Test.TestEqual(TEXT("monster_guardian XP"), Reward.XP, int64(32));
+    bGood &= Test.TestEqual(TEXT("monster_guardian XP"), Reward.XP, int64(44));
     bGood &= GrowthTestReason(Test, TEXT("A monster_advisor kill"),
         LDProgression::MonsterKillReward(*Catalog, FName(TEXT("monster_advisor")), 0, Reward), ELDGrowthReason::None);
-    bGood &= Test.TestEqual(TEXT("monster_advisor XP"), Reward.XP, int64(145));
+    bGood &= Test.TestEqual(TEXT("monster_advisor XP"), Reward.XP, int64(196));
     // #97/#345 camp growth: +6% of the base XP per stage that life spawned with, floored.
     for (const auto& [Monster, Stage, XP] : TArray<TTuple<const TCHAR*, uint8, int64>>{
-        {TEXT("monster_scavenger"), 3, 12}, {TEXT("monster_guardian"), 5, 41},
-        {TEXT("monster_advisor"), 10, 232}, {TEXT("monster_scavenger"), 10, 17},
-        {TEXT("monster_director"), 0, 300}, {TEXT("monster_director"), 6, 408}, {TEXT("monster_property"), 10, 480}})
+        {TEXT("monster_scavenger"), 3, 17}, {TEXT("monster_guardian"), 5, 57},
+        {TEXT("monster_advisor"), 10, 313}, {TEXT("monster_scavenger"), 10, 24},
+        {TEXT("monster_director"), 0, 405}, {TEXT("monster_director"), 6, 550}, {TEXT("monster_property"), 10, 648}})
     {
         bGood &= GrowthTestReason(Test, FString::Printf(TEXT("A stage %u %s kill"), Stage, Monster),
             LDProgression::MonsterKillReward(*Catalog, FName(Monster), Stage, Reward), ELDGrowthReason::None);

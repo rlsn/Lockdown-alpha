@@ -116,6 +116,8 @@ bool FLDObservedCatalog::Build(const FLDDemoContentSnapshot& Content, FString& E
 {
     *this = FLDObservedCatalog();
     const FLDDemoContentDefinitions& Definitions = Content.Get();
+    const auto& Radius = Definitions.Parameters.CampClearOrbRadiusCm;
+    RecoveryPackRadiusCm = Radius.Denominator > 0 ? double(Radius.Numerator) / double(Radius.Denominator) : 0.;
     if (Definitions.Progression.MaxLevel < 1 || Definitions.Progression.MaxLevel > MAX_uint8)
     {
         Error = TEXT("Observed level validation requires the approved progression maximum.");
@@ -1490,7 +1492,7 @@ void ALDWorldViewRelay::SyncProxies()
     TSet<uint64> Orbs;
     if (bCurrent)
     {
-        constexpr double OrbRadiusCm = 90.0;
+        const double OrbRadiusCm = Catalog.RecoveryPackRadiusCm;
         FString OrbError;
         for (const FLDObservedRecoveryOrb& Orb : Snapshot.Frame->RecoveryOrbs)
         {

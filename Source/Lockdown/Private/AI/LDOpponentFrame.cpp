@@ -53,7 +53,7 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
         POI.Tier = Camp.Tier;
         Out.Add(MoveTemp(POI));
     }
-    int32 Captures = 0, Dorms = 0, Airdrops = 0;
+    int32 Captures = 0, Dorms = 0;
     for (const auto& Anchor : World.Anchors)
     {
         if (Anchor.Kind == ELDDemoWorldAnchorKind::Camp)
@@ -99,7 +99,6 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
             // D26: a public drop point; whether it holds the current drop is the public match view's business.
             POI.Kind = ELDOpponentPOIKind::Airdrop;
             bApproved = true;
-            ++Airdrops;
             break;
         case ELDDemoWorldAnchorKind::MiniFlag:
             // P6 spec §10.3: a public mini flag point; whether it holds the live objective is the public view's business.
@@ -122,10 +121,10 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
         }
         Out.Add(MoveTemp(POI));
     }
-    if (Captures != 1 || Dorms < 1 || Airdrops < 1)
+    if (Captures != 1 || Dorms < 1)
     {
         Out.Reset();
-        return Fail(Error, TEXT("The public world must expose one capture place, and at least one dorm and airdrop point."));
+        return Fail(Error, TEXT("The public world must expose one capture place and at least one dorm."));
     }
     Error.Reset();
     return true;

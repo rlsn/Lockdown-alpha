@@ -1,6 +1,6 @@
 # #198: the default covers the opening rest R0 (25 s build + 5 s return) before the field-1 walk.
 [CmdletBinding()]
-param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(30,600)][int]$TimeoutSeconds=330, [switch]$EarlyRestReady, [switch]$ReplayFieldReturn, [switch]$FinalEntryOnly,
+param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(30,600)][int]$TimeoutSeconds=330, [switch]$EarlyRestReady, [switch]$FinalEntryOnly,
     [ValidatePattern('^-Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+( -Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+)*$')][string]$NetEmulation)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
@@ -25,7 +25,6 @@ function Start-CoreRole {
         $render = if ($EarlyRestReady -and $Role -eq 'Client1') { '-windowed -RenderOffScreen -ResX=1280 -ResY=720' } else { '-nullrhi' }
         $arguments = '-unattended -nop4 -nosound {0} -multihome=127.0.0.1 {1} -UserDir="{2}" -LDDemoCoreProbe -LDDemoCoreRole={3} -LDDemoCoreTimeout={4} -LDDemoCoreOutput="{5}" -abslog="{6}"' -f $render,$portArgument,$user,$Role,$TimeoutSeconds,$evidence,$log
         if ($EarlyRestReady) { $arguments += ' -LDDemoCoreReady' }
-        if ($ReplayFieldReturn) { $arguments += ' -LDDemoCoreReplayFieldReturn' }
         if ($NetEmulation) { $arguments += " $NetEmulation" }
         $arguments
     }

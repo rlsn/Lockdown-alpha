@@ -439,6 +439,26 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
     if (Public.Airdrop.Phase == ELDAirdropPhase::Announced || Public.Airdrop.Phase == ELDAirdropPhase::Landed)
     {
         Frame.Public.AirdropPOI = Public.Airdrop.PointId;
+        FLDOpponentPOI* Drop = Frame.POIs.FindByPredicate([&Public](const FLDOpponentPOI& Place)
+        {
+            return Place.Id == Public.Airdrop.PointId && Place.Kind == ELDOpponentPOIKind::Airdrop;
+        });
+        if (!Drop)
+        {
+            const auto* Capture = Frame.POIs.FindByPredicate([](const FLDOpponentPOI& Place)
+            {
+                return Place.Kind == ELDOpponentPOIKind::Capture;
+            });
+            if (Capture && !Capture->SurfaceId.IsNone())
+            {
+                const FName Surface = Capture->SurfaceId;
+                Drop = &Frame.POIs.AddDefaulted_GetRef();
+                Drop->Id = Public.Airdrop.PointId;
+                Drop->Kind = ELDOpponentPOIKind::Airdrop;
+                Drop->SurfaceId = Surface;
+            }
+        }
+        if (Drop) { Drop->FootCm = Public.Airdrop.PositionCm; }
         Frame.Public.bAirdropLanded = Public.Airdrop.Phase == ELDAirdropPhase::Landed;
     }
     // #198 outer §5: the open camp markers, as every participant's public view lists them.
@@ -499,6 +519,9 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
     }
     if (!LDOpponentFrame::ReadObservedUnits(View, Generation, *Content, Frame.Units, Error)) { return false; }
     LDOpponentFrame::ReadWarnings(View, Frame.Warnings);
+    // A camp this seat saw empty stays empty for the segment; the view forgets it when the next one begins.
+    Frame.POIs.RemoveAll([&View](const FLDOpponentPOI& Place)
+        { return Place.Kind == ELDOpponentPOIKind::Camp && View.WitnessedEmptyCamps.Contains(Place.Id); });
     if (const ALDCharacter* OwnBody = Cast<ALDCharacter>(GetPawn())) { Me.Seat = OwnBody->PresentationKey; }
     LDOpponentFrame::ReadGrounds(View, Me.Seat, Frame.Grounds);
 #if WITH_DEV_AUTOMATION_TESTS

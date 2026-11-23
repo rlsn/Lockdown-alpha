@@ -42,7 +42,6 @@ struct LOCKDOWN_API FLDCampSpec
     TArray<FLDCampSpeciesPool> Pools;
     ELDDemoCampTier Tier = ELDDemoCampTier::Low;
     FVector AnchorCm = FVector::ZeroVector;
-    int64 RespawnMs = 0;
     TArray<FLDCampMemberSpec> Members;
     // The fixed High-tier species the teambuild member of an Elite or Ancient camp wears, with its native creature id.
     // None and 0 for a High camp (its teambuild member is of each spawn's selected species) and for a Low camp (no slot).
@@ -153,6 +152,8 @@ public:
     // after a blocked placement returns the same draw whatever it passes.
     bool SelectSpecies(int32 Camp, TConstArrayView<int32> Choices, TArray<FName>& Out, FString& Error);
     bool IsRespawnDue(int32 Camp, int64 NowMs) const;
+    // Called after the authority has retired surviving bodies, including partially cleared camps.
+    void QueueFieldReset(int32 Camp);
     // Earliest pending whole-group refresh deadline in authority ms, for the driver's exact step boundaries;
     // MAX_int64 when no camp is waiting. A deadline that already passed stays reported until its refresh commits.
     int64 NextRespawnDueMs() const;

@@ -27,10 +27,10 @@ FFixture MakeFixture()
     FFixture F;
     FLDDemoMonsterDefinition Low;
     Low.Id = TEXT("monster_scavenger"); Low.NativeId = uint8(ELDDemoMonsterId::MonsterScavenger);
-    Low.Tier = ELDDemoCampTier::Low; Low.CountPerCamp = 2; Low.RespawnMs = 40000;
+    Low.Tier = ELDDemoCampTier::Low; Low.CountPerCamp = 2;
     FLDDemoMonsterDefinition High;
     High.Id = TEXT("monster_guardian"); High.NativeId = uint8(ELDDemoMonsterId::MonsterGuardian);
-    High.Tier = ELDDemoCampTier::High; High.CountPerCamp = 1; High.RespawnMs = 65000;
+    High.Tier = ELDDemoCampTier::High; High.CountPerCamp = 1;
     F.Content.Monsters = {Low, High};
     const TCHAR* Ids[] = {TEXT("l1"), TEXT("h1"), TEXT("l2"), TEXT("h2"), TEXT("l3")};
     const int64 Xy[5][2] = {{2473, 803}, {0, 2600}, {-2473, 803}, {-1528, -2103}, {1528, -2103}};
@@ -109,7 +109,6 @@ bool FLDCampRosterTest::RunTest(const FString& Parameters)
         && Out.Camps[1].Members.Last().HomeCm == Out.Camps[1].AnchorCm && Out.Camps[1].TeambuildMonsterId.IsNone()
         && Out.Camps[1].TeambuildCreatureId == 0);
     TestEqual(TEXT("Native creature identity is the approved monster"), Out.Camps[1].CreatureId, uint8(ELDDemoMonsterId::MonsterGuardian));
-    TestEqual(TEXT("Refresh delay comes from the camp tier definition"), Out.Camps[0].RespawnMs, int64(40000));
     TestEqual(TEXT("Anchor coordinate is exact"), Out.Camps[3].AnchorCm, FVector(-1528, -2103, 0));
     TestEqual(TEXT("Lookup by stable camp id"), Out.FindCamp(TEXT("h2")), 3);
     {
@@ -157,7 +156,6 @@ bool FLDCampRosterTest::RunTest(const FString& Parameters)
         Extra.AnchorId = TEXT("x9");
         F.Content.Camps.Add(MoveTemp(Extra));
     });
-    Reject(TEXT("Nonpositive refresh delay refused"), [](FFixture& F) { F.Content.Monsters[1].RespawnMs = 0; });
     Reject(TEXT("Invalid coordinate denominator refused"), [](FFixture& F) { F.World.Anchors[1].PositionCm.X.Denominator = 0; });
     FFixture Scene = MakeFixture();
     Scene.World.bSceneLayout = true;
@@ -183,7 +181,6 @@ bool FLDCampRosterTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Mixed member keeps its approved tier"),Group.Pools.Num()==2 && Group.Members[1].Pool==1
         && Group.Pools[1].Tier==ELDDemoCampTier::High && Group.Members[0].Pool==0 && Group.Members[2].Pool==0);
     TestEqual(TEXT("Mixed member keeps its own AI definition"),Group.Members[1].DefinitionId,FName(TEXT("h1")));
-    TestEqual(TEXT("Group refresh remains controlled by its explicit centre prototype"),Group.RespawnMs,Good.Content.Monsters[0].RespawnMs);
     Mixed.PrototypeId=TEXT("h1");
     TestTrue(TEXT("A high-tier authored centre preserves fixed mixed slots without adding a generated teambuild home"),
         LDCamp::BuildRoster(Scene.Content,Scene.World,Out,Error) && Out.Camps[Out.FindCamp(TEXT("l23"))].Members.Num()==3
@@ -257,11 +254,10 @@ bool FLDCampLifecycleTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Last member death clears the camp"),
         State.RecordDeath({Match.LedgerMatch, B.Victim}, 10000, Error), ELDCampDeathResult::CampCleared);
     const FLDCampGroupState* Group = State.FindCamp(0);
-    TestTrue(TEXT("Refresh is timed from the last death, not the spawn"),
-        Group->bRespawnPending && Group->ClearedAtMs == 10000 && Group->RespawnDueMs == 50000);
-    TestFalse(TEXT("Refresh waits for its deadline"), State.IsRespawnDue(0, 49999));
-    TestTrue(TEXT("Refresh is due at its deadline"), State.IsRespawnDue(0, 50000));
-    TestEqual(TEXT("The driver's next refresh boundary is the cleared camp's deadline"), State.NextRespawnDueMs(), int64(50000));
+    TestTrue(TEXT("Clearing a camp marks it empty without a pending refresh"),
+        !Group->bRespawnPending && Group->ClearedAtMs == 10000);
+    TestFalse(TEXT("The camp is still empty 120 seconds later"), State.IsRespawnDue(0, 130000));
+    TestEqual(TEXT("A clear does not add a driver deadline"), State.NextRespawnDueMs(), MAX_int64);
     TestEqual(TEXT("A cleared camp does not rearm on repeated deaths"),
         State.RecordDeath({Match.LedgerMatch, B.Victim}, 11000, Error), ELDCampDeathResult::Duplicate);
 
@@ -280,20 +276,19 @@ bool FLDCampLifecycleTest::RunTest(const FString& Parameters)
         State.CommitSpawn(1, MakeArrayView(HighBodies.GetData(), 1), 0, Error) && !State.FindCamp(1)->Members[1].bAlive);
     TestEqual(TEXT("High camp clears with its single member"),
         State.RecordDeath({Match.LedgerMatch, State.FindCamp(1)->Members[0].Body.Victim}, 1001, Error), ELDCampDeathResult::CampCleared);
-    TestTrue(TEXT("Clear and due times are the committed death millisecond plus the tier delay"),
-        State.FindCamp(1)->ClearedAtMs == 1001 && State.FindCamp(1)->RespawnDueMs == 66001);
-    TestEqual(TEXT("The earliest of several pending deadlines bounds the next step"), State.NextRespawnDueMs(), int64(50000));
+    TestTrue(TEXT("The High camp records the clear without arming a timer"),
+        State.FindCamp(1)->ClearedAtMs == 1001 && !State.FindCamp(1)->bRespawnPending);
     // DEV test refresh (on a copy): both cleared camps become due at the DEV boundary, never-spawned camps stay untouched.
     FLDCampMatchState DevState = State;
     TestEqual(TEXT("A DEV refresh counts exactly the cleared camps"), DevState.DevRefreshNow(20000), 2);
     TestTrue(TEXT("Both cleared camps are due at the DEV boundary and the driver stops there"),
         DevState.IsRespawnDue(0, 20000) && DevState.IsRespawnDue(1, 20000) && DevState.NextRespawnDueMs() == 20000
         && !DevState.IsRespawnDue(2, 20000));
-    TestTrue(TEXT("A later DEV refresh never postpones an earlier deadline"),
-        DevState.DevRefreshNow(60000) == 2 && DevState.NextRespawnDueMs() == 20000);
-
-    TestTrue(TEXT("Group refresh commits the next life for every slot"), State.CommitSpawn(0, Spawned(State, 0, 1), 50, Error));
-    TestEqual(TEXT("A committed refresh leaves only the other pending deadline"), State.NextRespawnDueMs(), int64(66001));
+    State.QueueFieldReset(0);
+    State.QueueFieldReset(1);
+    TestTrue(TEXT("Field reset commits the next life for every slot"), State.CommitSpawn(0, Spawned(State, 0, 1), 160, Error));
+    TestTrue(TEXT("The other group is still queued for the boundary"),
+        !State.FindCamp(0)->bRespawnPending && State.FindCamp(1)->bRespawnPending);
     Group = State.FindCamp(0);
     TestTrue(TEXT("Second generation lives"), Group->Generation == 2 && Group->Members[0].Life == 2 && Group->Members[1].Life == 2
         && !Group->bRespawnPending && Group->Members[0].EntityId == FirstEntity);
@@ -558,6 +553,8 @@ bool FLDCampSpeciesTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Only the first member dies"),State.RecordDeath({Match.LedgerMatch,Bodies[0].Victim},2000,Error),ELDCampDeathResult::MemberDead);
     TestFalse(TEXT("A surviving member still pins the species"),State.SelectSpecies(0,{1},Choice,Error));
     TestEqual(TEXT("The last member clears the camp"),State.RecordDeath({Match.LedgerMatch,Bodies[1].Victim},2100,Error),ELDCampDeathResult::CampCleared);
+    TestFalse(TEXT("A cleared camp cannot reroll during the segment"),State.SelectSpecies(0,{1},Choice,Error));
+    State.QueueFieldReset(0);
     TestTrue(TEXT("A new generation can choose another species"),State.SelectSpecies(0,{1},Choice,Error));
     auto Fresh=Spawned(State,0,9);
     TestTrue(TEXT("New bodies commit under the next selected species"),State.CommitSpawn(0,Fresh,43.,Error));

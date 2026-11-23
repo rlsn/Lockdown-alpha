@@ -1091,7 +1091,7 @@ bool RunProjections(FAutomationTestBase& Test)
     };
     bGood &= Test.TestFalse(TEXT("A world without any dorm is refused"),
         LDOpponentFrame::ReadPublicPOIs(Without(ELDDemoWorldAnchorKind::Dorm, 2), C, POIs, Error));
-    bGood &= Test.TestFalse(TEXT("A world without any airdrop point is refused"),
+    bGood &= Test.TestTrue(TEXT("A world without fallback airdrop anchors still resolves"),
         LDOpponentFrame::ReadPublicPOIs(Without(ELDDemoWorldAnchorKind::Airdrop, 3), C, POIs, Error));
     auto Unplaced = World;
     Unplaced.Anchors.Add(Anchor(TEXT("x9"), ELDDemoWorldAnchorKind::Camp, 0, 0, 2));

@@ -11,13 +11,16 @@
 #include "Combat/LDCombatDirector.h"
 #include "Combat/LDCombatTypes.h"
 #include "Development/LDDemoContentCatalog.h"
+#include "Development/LDCampGrowth.h"
 #include "Development/LDDemoContentIds.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Navigation/LDPathSteering.h"
 #include "Region/LDMapRegistry.h"
 #include "Vision/LDViewTypes.h"
+#include "Vision/LDVisionDirector.h"
 #include "Vision/LDWorldViewRelay.h"
 #include "World/LDCampDirector.h"
+#include "World/LDFieldEcology.h"
 #include "Containers/Ticker.h"
 #include "Dom/JsonObject.h"
 #include "Engine/NetConnection.h"
@@ -36,37 +39,39 @@
 #include "UObject/Package.h"
 
 // Owned-connection camp checks (App Spec §5.2/§10): no first strike, whole-camp
-// retaliation, last-hit reward once per life, clear-then-refresh timing, leash return with the public cue and an
+// retaliation, last-hit reward once per life, segment clear and rest reset, leash return with the public cue and an
 // unrewarded home reset. Bookkeeping invariants stay in Lockdown.Rules.DemoCamp.*. Named, not anonymous: unity
 // builds merge files.
 namespace LDDemoCampScenario
 {
 const TCHAR* const CampRoles[] = {TEXT("Host"), TEXT("Client1"), TEXT("Client2")};
-// Basin points of the #97 layout, checked offline on the approved world: an open, reachable melee approach beside
-// Low camp l09 and High camp h05 (no other camp of the same creature within the target search), and a flee goal on
-// open basin ground 14.7 m from h05, beyond the High leash and away from the Boss patrol and the flagpole.
-const FVector CampLowApproachCm(1452, -2386, 0);
-const FVector CampHighApproachCm(1723, 818, 0);
-const FVector CampFleeGoalCm(2100, -850, 0);
 constexpr double CampApproachArrivalCm = 150.0;
 constexpr double CampTargetSearchCm = 600.0;
 // Local placement offsets reach 100.344 cm from a member home.
 constexpr double CampHomePlacementCm = 101.0;
-const FName CampLowId(TEXT("l09"));
+const FName CampLowId(TEXT("l03"));
 const FName CampHighId(TEXT("h05"));
 // #198: a match opens in the rest R0, whose private rest body is each contender's life 1; the R0 return retires it without
 // a death and places the first field life, life 2, at a randomly drawn approved spawn.
 constexpr uint32 CampFieldLife = 2;
 
-// The approved reward of clearing one low camp: every member's stage-0 XP (the first lives spawn before T=0).
-bool CampLowClearReward(int64& OutXP)
+bool CampLowClearReward(const ALDPlayerController& Owner, uint8 Segment, int64& OutXP)
 {
     TSharedPtr<const FLDDemoContentSnapshot> Content;
     FString Error;
     const FLDDemoMonsterDefinition* Monster = nullptr;
     if (!LDDemoEntry::LoadRuntimeContent(Content, Error) || !Content || !Content->FindMonster(TEXT("monster_scavenger"), Monster, Error)
         || !Monster) { return false; }
-    OutXP = Monster->RewardXP * Monster->CountPerCamp;
+    int64 PerMonster = 0;
+    const auto& Parameters = Content->Get().Parameters;
+    if (!LDCampGrowth::RewardXP(Parameters, *Monster, uint8(Segment * Parameters.CampGrowthStagesPerSegment), PerMonster))
+    { return false; }
+    const ALDGameState* State = Owner.GetWorld()->GetGameState<ALDGameState>();
+    if (State && State->PublicMatch.DailyModifiers.Contains(ELDDailyModifier::Exam))
+    {
+        PerMonster = PerMonster * Parameters.Daily.ExamMonsterXPScaleBp / 10000;
+    }
+    OutXP = PerMonster * Monster->CountPerCamp;
     return OutXP > 0;
 }
 
@@ -118,6 +123,9 @@ public:
     TArray<TSharedPtr<FJsonValue>> Checks;
     // Owning-client state.
     int64 StartXP = -1;
+    int64 PickupBeforeCampMs = 0;
+    double PickupStarted = 0.;
+    bool bRecoveryPickupSeen = false, bEmptyCampSeen = false;
     bool bArrived = false, bAtLowMarked = false, bIdleConfirmed = false, bAttacking = false, bTookDamage = false, bRewarded = false;
     bool bSawReturningCue = false, bCueShapeValid = true;
     bool bFreshVerified = false;
@@ -127,6 +135,9 @@ public:
     TArray<LDScenarioWalk::FKeepout> WalkKeepouts;
     TArray<FVector> WalkWaypoints;
     FVector WalkGoal = FVector::ZeroVector;
+    TOptional<FVector> LowApproach;
+    TOptional<FVector> HighApproach;
+    TOptional<FVector> FleeGoal;
     double WalkArrivalCm = 0;
     int32 WalkWaypoint = 0;
     uint32 WalkLife = 0;
@@ -141,7 +152,9 @@ public:
     // Listen Host state.
     FGuid Client1, Client2;
     bool bCampsReady = false, bLowIdle = false, bLowEngaged = false, bLowCleared = false, bLowRefreshed = false, bHighReset = false;
-    int64 LowDueMs = 0;
+    uint8 LastClientFieldSegment = 0;
+    uint64 LastAirdropSerial = 0;
+    FVector LastAirdropFoot = FVector::ZeroVector;
 
     bool Check(bool bValue, const TCHAR* Id, const FString& Name)
     {
@@ -316,10 +329,73 @@ public:
         return bWalkPrepared;
     }
 
-    // Walks to a camp approach from wherever the body stands, such as the field spawn the R0 return drew at random from
-    // every approved spawn. Native moves follow fixture waypoints that keep clear of every authored camp member home and
-    // Boss waypoint (LDScenarioWalk, as the Vision probe does), so idle camp bodies standing on the direct
-    // line cannot block it (s09 -> l09 passes l19's homes). The approach itself and its arrival radius are unchanged.
+    bool ResolveCampPoint(ALDPlayerController& Owner, FName Camp, const FVector& FromFoot, double Bearing,
+        TConstArrayView<double> Distances, TOptional<FVector>& Out, FString& Why, bool bRequireCampSight)
+    {
+        if (Out.IsSet()) { return true; }
+        const auto* Registry = Owner.GetWorld()->GetSubsystem<ULDMapRegistry>();
+        const FLDMapBinding* Anchor = Registry ? Registry->Resolve(Camp, Registry->Generation) : nullptr;
+        FCollisionShape Capsule;
+        if (!Anchor || !PrepareWalk(*Registry, Why) || !ULDMapRegistry::ContentCapsule(*Catalog, Capsule, Why))
+        {
+            if (Why.IsEmpty()) { Why = TEXT("The fixture camp has no registered ground."); }
+            return false;
+        }
+        FLDLegalGround From;
+        ELDWorldQueryFailure Failure;
+        if (!Registry->QueryGround(Registry->Revision(), FromFoot, Capsule, Anchor->Surface, From, Failure, Why)) { return false; }
+        FLDSightGeometry Sight;
+        const auto* Geometry = Registry->GetGeometry();
+        if (bRequireCampSight)
+        {
+            const auto& Params = Catalog->Get().Parameters;
+            if (!Sight.Build(*Geometry, Registry->Revision(), Params.VisionRadiusCm, Params.VisionRange, Why,
+                Owner.GetWorld(), &Registry->GetTerrain(), true)) { return false; }
+        }
+        for (double Distance : Distances)
+        {
+            for (int32 Step = 0; Step < 16; ++Step)
+            {
+                const double Angle = Bearing + double(Step) * UE_DOUBLE_PI / 8.;
+                const FVector2D XY = FVector2D(Anchor->Position) + FVector2D(FMath::Cos(Angle), FMath::Sin(Angle)) * Distance;
+                FVector Foot;
+                FLDLegalGround Ground;
+                FLDCompletePath Path;
+                if (!Registry->ResolveWalkableGround(XY, Foot)
+                    || WalkKeepouts.ContainsByPredicate([&](const LDScenarioWalk::FKeepout& Zone)
+                        { return FVector::DistSquared2D(Foot, Zone.Centre) <= FMath::Square(Zone.Radius); })
+                    || !Registry->QueryGround(Registry->Revision(), Foot, Capsule, Anchor->Surface, Ground, Failure, Why)
+                    || !Registry->QueryCompletePath(Registry->Revision(), From, Ground, Capsule, Path, Failure, Why))
+                {
+                    continue;
+                }
+                if (bRequireCampSight && Sight.Trace(Ground.SurfaceCm, Anchor->Position) != ELDSightResult::Visible)
+                {
+                    continue;
+                }
+                TArray<FVector> Route;
+                if (!LDScenarioWalk::Plan(*Registry, *Catalog, FromFoot, Ground.SurfaceCm, WalkKeepouts, WalkArrivalCm, Route, Why))
+                {
+                    continue;
+                }
+                Out = Ground.SurfaceCm;
+                Why.Reset();
+                return true;
+            }
+        }
+        Why = FString::Printf(TEXT("The fixture found no reachable point around camp %s."), *Camp.ToString());
+        return false;
+    }
+
+    bool ResolveApproach(ALDPlayerController& Owner, FName Camp, double Bearing, TOptional<FVector>& Out, FString& Why)
+    {
+        const auto* Body = Cast<ALDCharacter>(Owner.GetPawn());
+        if (!Body) { Why = TEXT("The fixture has no owning field body."); return false; }
+        const double Distances[] = {240., 320., 400.};
+        return ResolveCampPoint(Owner, Camp, Body->GetNavAgentLocation(), Bearing, Distances, Out, Why, true);
+    }
+
+    // Walks from the current deployment via waypoints that keep clear of authored camp homes and Boss waypoints.
     bool Walk(double Now, ALDPlayerController& Owner, const FVector& Goal, const TCHAR* Id)
     {
         const ALDCharacter* Body = Cast<ALDCharacter>(Owner.GetPawn());
@@ -430,9 +506,11 @@ public:
     bool TickLowCamp(double Now, ALDPlayerController& Owner)
     {
         if (!Exists(TEXT("CampsReady.json"))) { return true; }
+        FString ApproachError;
+        if (!ResolveApproach(Owner, CampLowId, -.52, LowApproach, ApproachError)) { return Fail(TEXT("#C3"), ApproachError); }
         if (!bArrived)
         {
-            if (!Walk(Now, Owner, CampLowApproachCm, TEXT("#C3"))) { return false; }
+            if (!Walk(Now, Owner, LowApproach.GetValue(), TEXT("#C3"))) { return false; }
             if (!bArrived) { return true; }
         }
         if (!bAtLowMarked)
@@ -440,6 +518,7 @@ public:
             // The first field life arrives protected; the no-first-strike window starts only once that protection ended.
             if (Owner.OwnerState.ProtectedUntilMs != 0) { return true; }
             SnapshotGrowth(Owner);
+            PickupBeforeCampMs = Owner.CombatView.Cues.LastRecoveryPackAtMs;
             if (!Mark(TEXT("Client1AtLow.json"))) { return Finish(); }
             bAtLowMarked = true;
         }
@@ -457,7 +536,7 @@ public:
             for (const FLDObservedUnitView& Unit : Frame->Units)
             {
                 if (Unit.Kind == ELDObservedUnitKind::CampMember && CampSpeciesIs(Unit.CreatureId,ELDDemoMonsterId::MonsterScavenger)
-                    && FVector::Dist2D(FVector(Unit.FeetCm), CampLowApproachCm) <= CampTargetSearchCm && !bRewarded)
+                    && FVector::Dist2D(FVector(Unit.FeetCm), LowApproach.GetValue()) <= CampTargetSearchCm && !bRewarded)
                 {
                     SeenScavengers.Add(Unit.Handle);
                 }
@@ -468,7 +547,7 @@ public:
             // Keep one attack order on the nearest visible scavenger; a dead target ends its order.
             if (Frame && Now >= NextOrderAt && !Owner.Navigation->HasMoveOrder())
             {
-                if (const FLDObservedUnitView* Target = NearestCreature(*Frame, ELDDemoMonsterId::MonsterScavenger, CampLowApproachCm))
+                if (const FLDObservedUnitView* Target = NearestCreature(*Frame, ELDDemoMonsterId::MonsterScavenger, LowApproach.GetValue()))
                 {
                     Owner.Navigation->AttackUnit(Target->Handle, Target->ObservationEpoch);
                     bAttacking = true;
@@ -483,7 +562,7 @@ public:
             // The clear marker can arrive before the last reward's owner projection; allow it 5 s to replicate.
             if (WatchSince == 0) { WatchSince = Now; }
             int64 WantXP = 0;
-            if (!CampLowClearReward(WantXP)) { return Fail(TEXT("#C5"), TEXT("The approved low-camp reward is unavailable")); }
+            if (!CampLowClearReward(Owner, 0, WantXP)) { return Fail(TEXT("#C5"), TEXT("The approved low-camp reward is unavailable")); }
             if (XP < WantXP && Now - WatchSince < 5) { return true; }
             Check(bAttacking && bTookDamage, TEXT("#C4"), TEXT("The attacked camp retaliated against this contender"));
             Check(XP == WantXP, TEXT("#C5"), FString::Printf(
@@ -491,6 +570,35 @@ public:
                 XP, WantXP));
             bRewarded = true;
             WatchSince = 0;
+        }
+        if (!bRecoveryPickupSeen || !bEmptyCampSeen)
+        {
+            if (PickupStarted == 0.) { PickupStarted = Now; }
+            bEmptyCampSeen |= Frame && Frame->WitnessedEmptyCamps.Contains(CampLowId);
+            bRecoveryPickupSeen |= Owner.CombatView.Cues.LastRecoveryPackAtMs > PickupBeforeCampMs;
+            if (!bRecoveryPickupSeen && Frame && Now >= NextOrderAt && !Owner.Navigation->HasMoveOrder())
+            {
+                const ALDCharacter* Body = Cast<ALDCharacter>(Owner.GetPawn());
+                const FVector Foot = Body ? Body->GetNavAgentLocation() : LowApproach.GetValue();
+                const FLDObservedRecoveryOrb* Nearest = nullptr;
+                double DistanceSq = FMath::Square(CampTargetSearchCm);
+                for (const FLDObservedRecoveryOrb& Pack : Frame->RecoveryOrbs)
+                {
+                    const double CandidateSq = FVector::DistSquared2D(Foot, FVector(Pack.PositionCm));
+                    if (CandidateSq < DistanceSq) { DistanceSq = CandidateSq; Nearest = &Pack; }
+                }
+                if (Nearest) { Owner.Navigation->Navigate(FVector(Nearest->PositionCm)); }
+                NextOrderAt = Now + .5;
+            }
+            if (bRecoveryPickupSeen && bEmptyCampSeen)
+            {
+                Check(true, TEXT("#C13"), TEXT("An owning client witnessed the empty camp and received a recovery-pickup cue"));
+            }
+            else if (Now - PickupStarted > 12.)
+            {
+                return Fail(TEXT("#C13"), TEXT("The owning client did not see both the emptied camp and a recovery pickup"));
+            }
+            else { return true; }
         }
         if (!Exists(TEXT("LowRefreshed.json"))) { return true; }
         if (WatchSince == 0) { WatchSince = Now; }
@@ -500,7 +608,7 @@ public:
             for (const FLDObservedUnitView& Unit : Frame->Units)
             {
                 Fresh += Unit.Kind == ELDObservedUnitKind::CampMember && CampSpeciesIs(Unit.CreatureId,ELDDemoMonsterId::MonsterScavenger)
-                    && FVector::Dist2D(FVector(Unit.FeetCm), CampLowApproachCm) <= CampTargetSearchCm
+                    && FVector::Dist2D(FVector(Unit.FeetCm), LowApproach.GetValue()) <= CampTargetSearchCm
                     && !SeenScavengers.Contains(Unit.Handle) ? 1 : 0;
             }
         }
@@ -513,19 +621,20 @@ public:
         }
         // Let the rendered owner finish the intact three-member refresh screenshot before clearing it again.
         if(!Exists(TEXT("Client2Done.json"))){return true;}
-        int64 WantXP=0;
-        if(!CampLowClearReward(WantXP)){return Fail(TEXT("#C10"),TEXT("The small-camp reward is unavailable"));}
+        int64 FirstXP=0, SecondXP=0;
+        if(!CampLowClearReward(Owner, 0, FirstXP) || !CampLowClearReward(Owner, 1, SecondXP))
+        { return Fail(TEXT("#C10"), TEXT("The small-camp reward is unavailable")); }
         const auto& Progress=Owner.OwnerState.Growth.Progression;
-        if(Progress.CumulativeXP-StartXP<2*WantXP || Progress.Level<2)
+        if(Progress.CumulativeXP-StartXP<FirstXP+SecondXP || Progress.Level<2)
         {
             if(Frame && Now>=NextOrderAt && !Owner.Navigation->HasMoveOrder())
             {
-                if(const auto* Target=NearestCreature(*Frame,ELDDemoMonsterId::MonsterScavenger,CampLowApproachCm))
+                if(const auto* Target=NearestCreature(*Frame,ELDDemoMonsterId::MonsterScavenger,LowApproach.GetValue()))
                 {Owner.Navigation->AttackUnit(Target->Handle,Target->ObservationEpoch);NextOrderAt=Now+.5;}
             }
             return true;
         }
-        if(!Check(Progress.Level==2,TEXT("#C10"),FString::Printf(
+        if(!Check(Progress.Level==2 && Progress.CumulativeXP-StartXP==FirstXP+SecondXP,TEXT("#C10"),FString::Printf(
             TEXT("Two complete small-camp clears with basic attacks reach level two through the owning reward projection (XP +%lld, level %d)"),
             Progress.CumulativeXP-StartXP,Progress.Level))){return Finish();}
         if (!Mark(TEXT("Client1Done.json"))) { return Finish(); }
@@ -551,18 +660,27 @@ public:
         switch (HighStep)
         {
         case EHighStep::Approach:
-            if (!Walk(Now, Owner, CampHighApproachCm, TEXT("#C6"))) { return false; }
+        {
+            FString ApproachError;
+            if (!ResolveApproach(Owner, CampHighId, 1.92, HighApproach, ApproachError)) { return Fail(TEXT("#C6"), ApproachError); }
+            const double Distances[] = {1500., 1700., 1900.};
+            if (!ResolveCampPoint(Owner, CampHighId, HighApproach.GetValue(), -1.35, Distances, FleeGoal, ApproachError, false))
+            {
+                return Fail(TEXT("#C6"), ApproachError);
+            }
+            if (!Walk(Now, Owner, HighApproach.GetValue(), TEXT("#C6"))) { return false; }
             if (!bArrived) { return true; }
             SnapshotGrowth(Owner);
             HighStep = EHighStep::Attack;
             return true;
+        }
         case EHighStep::Attack:
         {
-            const FLDObservedUnitView* Guardian = Frame ? NearestCreature(*Frame, ELDDemoMonsterId::MonsterGuardian, CampHighApproachCm) : nullptr;
+            const FLDObservedUnitView* Guardian = Frame ? NearestCreature(*Frame, ELDDemoMonsterId::MonsterGuardian, HighApproach.GetValue()) : nullptr;
             if (Guardian && Guardian->Health.CurrentP2 < Guardian->Health.MaxP2)
             {
                 // Break off after the first landed hit and run past the guardian's leash; the move supersedes the attack.
-                IssueMove(Now, Owner, CampFleeGoalCm);
+                IssueMove(Now, Owner, FleeGoal.GetValue());
                 HighStep = EHighStep::Flee;
             }
             else if (Guardian && Now >= NextOrderAt && !Owner.Navigation->HasMoveOrder())
@@ -573,14 +691,14 @@ public:
             return true;
         }
         case EHighStep::Flee:
-            if (!Returning) { return Navigate(Now, Owner, CampFleeGoalCm, TEXT("#C6")); }
+            if (!Returning) { return Navigate(Now, Owner, FleeGoal.GetValue(), TEXT("#C6")); }
             // Walk back behind the returning guardian so it stays in the rendered view until its home reset.
-            IssueMove(Now, Owner, CampHighApproachCm);
+            IssueMove(Now, Owner, HighApproach.GetValue());
             HighStep = EHighStep::FollowHome;
             return true;
         case EHighStep::FollowHome:
         {
-            if (!bArrived && !Navigate(Now, Owner, CampHighApproachCm, TEXT("#C9"))) { return false; }
+            if (!bArrived && !Navigate(Now, Owner, HighApproach.GetValue(), TEXT("#C9"))) { return false; }
             if (!bGuardianShot && Returning && CampOnScreen(Owner, *Returning))
             {
                 RequestShot(TEXT("CampGuardianReturning.png"), Now);
@@ -602,7 +720,9 @@ public:
         }
         case EHighStep::ToLowCamp:
         {
-            if (!bArrived && !Walk(Now, Owner, CampLowApproachCm, TEXT("#C9"))) { return false; }
+            FString ApproachError;
+            if (!ResolveApproach(Owner, CampLowId, -.52, LowApproach, ApproachError)) { return Fail(TEXT("#C9"), ApproachError); }
+            if (!bArrived && !Walk(Now, Owner, LowApproach.GetValue(), TEXT("#C9"))) { return false; }
             if (!bArrived || !Exists(TEXT("LowRefreshed.json"))) { return true; }
             if (LowShotSince == 0) { LowShotSince = Now; }
             int32 Shown = 0;
@@ -611,7 +731,7 @@ public:
                 for (const FLDObservedUnitView& Unit : Frame->Units)
                 {
                     Shown += Unit.Kind == ELDObservedUnitKind::CampMember && CampSpeciesIs(Unit.CreatureId,ELDDemoMonsterId::MonsterScavenger)
-                        && FVector::Dist2D(FVector(Unit.FeetCm), CampLowApproachCm) <= CampTargetSearchCm && CampOnScreen(Owner, Unit) ? 1 : 0;
+                        && FVector::Dist2D(FVector(Unit.FeetCm), LowApproach.GetValue()) <= CampTargetSearchCm && CampOnScreen(Owner, Unit) ? 1 : 0;
                 }
             }
             if (Shown < 3)
@@ -660,6 +780,21 @@ public:
         return true;
     }
 
+    bool CheckMapPacks(const ALDGameMode& Mode)
+    {
+        const auto& Packs = Mode.GetRecoveryOrbs();
+        bool bValid = Packs.Num() == 10;
+        for (int32 A = 0; A < Packs.Num(); ++A)
+        {
+            bValid &= Packs[A].ExpireAtMs == MAX_int64;
+            for (int32 B = A + 1; B < Packs.Num(); ++B)
+            {
+                bValid &= FVector::Dist2D(Packs[A].PositionCm, Packs[B].PositionCm) >= 1400.;
+            }
+        }
+        return Check(bValid, TEXT("#C11"), TEXT("The field opens with ten persistent recovery packs at least 1400 cm apart"));
+    }
+
     bool TickHost(double Now, ALDGameMode& Mode)
     {
         const ALDCampDirector* Camps = Mode.Camps.Get();
@@ -668,7 +803,7 @@ public:
         if (!State || !State->IsActive() || !Roster || !Mode.Combat)
         { return Fail(TEXT("#C2"), TEXT("A started match has no active camp director")); }
         const int32 Low = Roster->FindCamp(CampLowId), High = Roster->FindCamp(CampHighId);
-        if (Low == INDEX_NONE || High == INDEX_NONE) { return Fail(TEXT("#C2"), TEXT("The approved roster lacks l09 or h05")); }
+        if (Low == INDEX_NONE || High == INDEX_NONE) { return Fail(TEXT("#C2"), TEXT("The approved roster lacks the selected low or high camp")); }
         // The opening rest stands the camps up a few per frame (ALDCampDirector::InitialGroupsPerFrame).
         if (!bCampsReady && Camps->HasPendingInitialCamps()) { return true; }
         if (!bCampsReady)
@@ -695,8 +830,25 @@ public:
             if (!Check(bFirstGeneration && Members > 0 && Alive == Members && Placed == Members && Idle == Members, TEXT("#C2"), FString::Printf(
                 TEXT("Normal start spawned every approved camp once with idle first lives at their homes (alive %d, placed %d, idle %d of %d)"),
                 Alive, Placed, Idle, Members))) { return Finish(); }
-            if (!Mark(TEXT("CampsReady.json"))) { return Finish(); }
+            if (!CheckMapPacks(Mode) || !Mark(TEXT("CampsReady.json"))) { return Finish(); }
             bCampsReady = true;
+        }
+        const FLDAirdropView Drop = Mode.ReadPublicMatch().Airdrop;
+        if (Drop.Serial > LastAirdropSerial && Drop.Phase == ELDAirdropPhase::Announced && LastAirdropSerial < 2)
+        {
+            const auto* Registry = Mode.GetWorld()->GetSubsystem<ULDMapRegistry>();
+            TSharedPtr<const FLDDemoContentSnapshot> Content;
+            FString Why;
+            LDFieldEcology::FGroundSampler Sampler;
+            FLDLegalGround Ground;
+            const bool bLegal = Registry && LDDemoEntry::LoadRuntimeContent(Content, Why) && Content
+                && Sampler.Initialize(*Registry, *Content, Why) && Sampler.Resolve(FVector2D(Drop.PositionCm), Ground, 200.)
+                && !Mode.GetDormZones().Find(Drop.PositionCm)
+                && (LastAirdropSerial == 0 || FVector::Dist2D(LastAirdropFoot, Drop.PositionCm) >= 1800.);
+            if (!Check(bLegal && Drop.PointId.ToString().StartsWith(TEXT("field_airdrop_")), TEXT("#C12"),
+                TEXT("An announced drop sampled connected, clear ground away from the previous point"))) { return Finish(); }
+            LastAirdropSerial = Drop.Serial;
+            LastAirdropFoot = Drop.PositionCm;
         }
         // The two scenario tracks run concurrently, so neither may wait inside the other.
         if (!TickHostHigh(Mode, *State, *Roster, High)) { return false; }
@@ -770,27 +922,40 @@ public:
             { return Finish(); }
             bLowEngaged = true;
         }
-        if (bLowEngaged && !bLowCleared && LowGroup.bRespawnPending)
+        const bool bEmpty = !LowGroup.Members.ContainsByPredicate([](const FLDCampMemberState& Member) { return Member.bAlive; });
+        if (bLowEngaged && !bLowCleared && bEmpty && LowGroup.Generation == 1)
         {
             const bool bDead = !LowGroup.Members.ContainsByPredicate([](const FLDCampMemberState& Member) { return Member.bAlive || Member.Life != 1; });
-            const int64 Delay = LowGroup.RespawnDueMs - LowGroup.ClearedAtMs;
-            if (!Check(bDead && Delay == Roster.Camps[Low].RespawnMs, TEXT("#C5"), FString::Printf(
-                TEXT("Clearing the low camp ends each first life once and schedules one refresh %lld ms after the last death"), Delay)))
-            { return Finish(); }
-            auto Due = MakeShared<FJsonObject>();
-            Due->SetNumberField(TEXT("due_ms"), double(LowGroup.RespawnDueMs));
-            if (!Mark(TEXT("LowCleared.json"), Due)) { return Finish(); }
-            LowDueMs = LowGroup.RespawnDueMs;
+            if (!Check(bDead && !LowGroup.bRespawnPending, TEXT("#C5"),
+                TEXT("The last death cleared the camp without scheduling another spawn in this segment"))) { return Finish(); }
+            if (!Mark(TEXT("LowCleared.json"))) { return Finish(); }
             bLowCleared = true;
         }
-        // #198: the clear instant and the refresh deadline are field progress T (paused in rests), not authority time.
-        if (bLowCleared && !bLowRefreshed && Mode.GetFieldNowMs() < LowDueMs && LowGroup.Generation != 1)
+        const uint8 Segment = Mode.GetTimeline().GetFieldSegment();
+        if (bLowCleared && !bLowRefreshed && Segment == 0 && (!bEmpty || LowGroup.Generation != 1))
         {
-            return Fail(TEXT("#C7"), FString::Printf(TEXT("The low camp refreshed before its field-T due time (T=%lld, due %lld)"),
-                Mode.GetFieldNowMs(), LowDueMs));
+            return Fail(TEXT("#C7"), TEXT("A cleared camp returned during the first field segment"));
         }
-        if (bLowCleared && !bLowRefreshed && Mode.GetFieldNowMs() >= LowDueMs && LowGroup.Generation == 2)
+        if (bLowCleared && !bLowRefreshed && Segment == 1)
         {
+            const bool bAllReset = [&]()
+            {
+                for (int32 Index = 0; Index < State.NumCamps(); ++Index)
+                {
+                    const FLDCampGroupState& Camp = *State.FindCamp(Index);
+                    if (Camp.Generation != 2 || Camp.bRespawnPending) { return false; }
+                    for (int32 Slot = 0; Slot < Camp.Members.Num(); ++Slot)
+                    {
+                        const auto& Member = Camp.Members[Slot];
+                        if (Roster.Camps[Index].Members[Slot].bTeambuild && !Member.bAlive) { continue; }
+                        FLDCombatBodyRead Read;
+                        if (!Member.bAlive || !Mode.Combat->ReadCombatBody(Member.Body, Read) || Read.HPP2 != Read.MaxHPP2) { return false; }
+                    }
+                }
+                return true;
+            }();
+            if (!CheckMapPacks(Mode) || !Check(bAllReset, TEXT("#C7"), TEXT("R1 field return restored every camp at full health, each with generation 2")))
+            { return Finish(); }
             int32 Alive = 0, Placed = 0, Idle = 0;
             for (int32 Slot = 0; Slot < LowGroup.Members.Num(); ++Slot)
             {
@@ -801,7 +966,7 @@ public:
                 Placed += MemberFoot(Mode, Member, Foot) && FVector::Dist2D(Foot, Roster.Camps[Low].Members[Slot].HomeCm) <= CampHomePlacementCm ? 1 : 0;
             }
             if (!Check(Alive == LowGroup.Members.Num() && Placed == Alive && Idle == Alive, TEXT("#C7"), FString::Printf(
-                TEXT("The due refresh re-spawned the whole low camp as second lives at home (alive %d, placed %d, idle %d)"), Alive, Placed, Idle)))
+                TEXT("The field reset re-spawned the whole low camp as second lives at home (alive %d, placed %d, idle %d)"), Alive, Placed, Idle)))
             { return Finish(); }
             if (!Mark(TEXT("LowRefreshed.json"))) { return Finish(); }
             bLowRefreshed = true;
@@ -826,7 +991,7 @@ public:
         Report->SetStringField(TEXT("role"), Role);
         Report->SetBoolField(TEXT("dev_probe"), true);
         Report->SetBoolField(TEXT("normal_start"), true);
-        Report->SetStringField(TEXT("scope"), TEXT("DEV-only owned-connection camp scenario: a participating Listen Host and two owning clients started through the normal lobby. Covers no first strike, whole-camp retaliation, last-hit camp rewards, clear-then-refresh timing and a leashed return with an unrewarded home reset (#C1-#C7); the rendered Client2 keeps presentation screenshots without pixel comparison (#C9). Client1 clears a second full small camp using basic attacks and verifies level two through its reward projection (#C10). Not AI, capture, full-match or balance acceptance."));
+        Report->SetStringField(TEXT("scope"), TEXT("DEV-only owned-connection camp scenario: a participating Listen Host and two owning clients started through the normal lobby. Covers no first strike, whole-camp retaliation, last-hit camp rewards, segment clear and rest reset and a leashed return with an unrewarded home reset (#C1-#C7); the rendered Client2 keeps presentation screenshots without pixel comparison (#C9). Client1 clears a second full small camp using basic attacks and verifies level two through its reward projection (#C10). Not AI, capture, full-match or balance acceptance."));
         Report->SetStringField(TEXT("catalog_sha256"), CatalogDigest);
         Report->SetStringField(TEXT("detail"), Error);
         Report->SetNumberField(TEXT("stage"), Stage);
@@ -880,11 +1045,20 @@ public:
                 : Driver && Driver->ServerConnection != nullptr;
             if (!bConnected) { return Fail(TEXT("#C1"), TEXT("An owning connection dropped before the scenario finished")); }
         }
-        // Every camp step runs in field 1: a rest would move the bodies off the field and pause the field-T camp clock.
-        if ((Stage == 2 || Stage == 3) && Public->DemoLobby.Phase != ELDMatchPhase::Development)
+        if (Stage == 3)
         {
-            return Fail(TEXT("#C8"), TEXT("The camp scenario left field 1 before it finished: ")
-                + StaticEnum<ELDMatchPhase>()->GetNameStringByValue(int64(Public->DemoLobby.Phase)));
+            if (Public->DemoLobby.Phase == ELDMatchPhase::Rest) { return true; }
+            const uint8 Segment = Public->PublicMatch.Timeline.FieldSegment;
+            if (Segment > 1) { return Fail(TEXT("#C8"), TEXT("The camp scenario did not finish before Field 2 ended")); }
+            if (Role != TEXT("Host") && Segment != LastClientFieldSegment)
+            {
+                if (!Owner->CanWorldCommand() || !Cast<ALDCharacter>(Owner->GetPawn())) { return true; }
+                LastClientFieldSegment = Segment;
+                bArrived = false;
+                bWalkPrepared = false;
+                WalkWaypoints.Reset();
+                WatchSince = 0;
+            }
         }
         switch (Stage)
         {

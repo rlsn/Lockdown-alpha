@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "World/LDFieldEcology.h"
 #include "Combat/LDTacticalRules.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDCharacterMovementComponent.h"
@@ -116,8 +117,16 @@ bool ALDCombatDirector::AdvanceMonsterStrikes(int64 NowMs,FString& Error)
     return true;
 }
 
+bool ALDCombatDirector::CanUseRecoveryPack(const FLDCombatBodyRef& Ref) const
+{
+    const FLDBodyCombatState* Body = FindBody(Ref);
+    return Body && !Body->bPendingDeath && Body->Victim.Kind == ELDVictimKind::Contender && Catalog()
+        && LDFieldEcology::NeedsRecovery(Body->Resources.HpP2, Body->Resources.MaxHpP2,
+            Body->Resources.MomentumP2, Catalog()->Get().Parameters.Momentum.MaxP2);
+}
+
 bool ALDCombatDirector::RecoverContender(const FLDCombatBodyRef& Ref,int64 MissingBp,int64 MaxBp,int64 MomentumP2,
-    const FLDGameplayWritePermit& Permit,FString& Error)
+    const FLDGameplayWritePermit& Permit,FString& Error,int64 FlatHealP2)
 {
     if(!Authority() || (Authority()->ValidateWritePermit(Permit,ELDCommitPhase::DeathsAndRewards)!=ELDCommitReject::None
         && Authority()->ValidateWritePermit(Permit,ELDCommitPhase::Transactions)!=ELDCommitReject::None))
@@ -128,12 +137,14 @@ bool ALDCombatDirector::RecoverContender(const FLDCombatBodyRef& Ref,int64 Missi
     const int64 Heal=Missing/10000*MissingBp+Missing%10000*MissingBp/10000
         +Body->Resources.MaxHpP2/10000*MaxBp+Body->Resources.MaxHpP2%10000*MaxBp/10000;
     FString HealError;
-    if(Heal>0){HealBody(*Body,Heal,FLDCombatSourceRef(),nullptr,FGuid(),&HealError);}
+    const int64 EffectiveHeal = Heal + FMath::Min(FlatHealP2, MAX_int64 - Heal);
+    if(EffectiveHeal>0){HealBody(*Body,EffectiveHeal,FLDCombatSourceRef(),nullptr,FGuid(),&HealError);}
     if(!HealError.IsEmpty()){Error=MoveTemp(HealError);return false;}
     if(MomentumP2>0){GrantMomentum(*Body,MomentumP2,ELDMomentumBook::Other);}
     if(Authority()->ValidateWritePermit(Permit,ELDCommitPhase::Transactions)==ELDCommitReject::None)
     {
         Body->Cues.LastPickupAtMs=Authority()->GetAuthorityNowMs();
+        if (FlatHealP2 > 0) { Body->Cues.LastRecoveryPackAtMs = Body->Cues.LastPickupAtMs; }
         MarkViewChanged(Body->Victim.EntityId);
     }
     return true;

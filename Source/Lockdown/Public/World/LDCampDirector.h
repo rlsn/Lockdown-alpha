@@ -61,12 +61,14 @@ public:
     // the rest entry reached leaves first (#198 outer §5: never into the final field).
     bool FreezeForRest(const FLDGameplayWritePermit& Permit, FString& Error);
     bool ThawAfterRest(const FLDGameplayWritePermit& Permit, FString& Error);
+    bool ResetForFieldSegment(uint8 SegmentIndex, const FLDGameplayWritePermit& Permit, bool& bReady, FString& Error);
     // Spec §11.3 second-hand dealer (RespawnsAndWorld): appears beside CampAnchor at OffsetCm in direction AngleRad (bBlocked:
     // try again later), and leaves unkilled.
     bool SpawnPeddler(FName CampAnchor, double AngleRad, double OffsetCm, const FLDGameplayWritePermit& Permit, bool& bBlocked,
         FString& Error);
     bool RetirePeddler(const FLDGameplayWritePermit& Permit, FString& Error);
     bool IsPeddlerAlive() const { return PeddlerBody.IsValid(); }
+    const FLDCombatBodyRef& GetPeddlerBody() const { return PeddlerBody; }
     // Spec §11.2: the affix of a camp's current spawn (None while it waits).
     ELDCampAffix CampAffixOf(FName CampId) const { return CampAffixes.FindRef(CampId); }
     // D26: the public Boss view and state (read-only).
@@ -164,6 +166,7 @@ private:
     int32 NextInitialCamp = MAX_int32;
     // Between FreezeForRest and ThawAfterRest.
     bool bRestFrozen = false;
+    uint8 PreparedFieldSegment = 0;
     // GFrameCounter of the last initial batch.
     uint64 InitialBatchFrame = MAX_uint64;
 };

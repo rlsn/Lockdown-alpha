@@ -15,6 +15,7 @@
 #include "Region/LDMapRegistry.h"
 #include "Region/LDMapGeometry.h"
 #include "World/LDCampDirector.h"
+#include "World/LDFieldEcology.h"
 #include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
 #include "Engine/Brush.h"
@@ -763,23 +764,23 @@ void FLDSightGeometry::ResolveFoot(const FVector& Foot, FVector& Ground, FHitRes
 }
 
 ELDSightResult FLDSightGeometry::TracePrepared(const FVector& From, const FVector& To,
-    const FHitResult& SourceSupport, const FHitResult& TargetSupport) const
+    const FHitResult& SourceSupport, const FHitResult& TargetSupport, double FixedRangeCm) const
 {
-    const double RangeSquared = FMath::Square(RadiusForHeights(From.Z, To.Z));
+    const double RangeSquared = FMath::Square(FixedRangeCm > 0. ? FixedRangeCm : RadiusForHeights(From.Z, To.Z));
     const double DistanceSquared = FVector::DistSquared2D(From, To);
     if (DistanceSquared > RangeSquared) { return ELDSightResult::OutOfRange; }
     return SegmentBlocked(From, To, SourceSupport, TargetSupport, DistanceSquared / RangeSquared)
         ? ELDSightResult::Blocked : ELDSightResult::Visible;
 }
 
-ELDSightResult FLDSightGeometry::Trace(const FVector& SourceFootCm, const FVector& TargetFootCm) const
+ELDSightResult FLDSightGeometry::Trace(const FVector& SourceFootCm, const FVector& TargetFootCm, double FixedRangeCm) const
 {
     if (!IsValid()) { return ELDSightResult::StaleWorld; }
     if (!InBounds(SourceFootCm) || !InBounds(TargetFootCm)) { return ELDSightResult::InvalidPoint; }
-    if (FVector::DistSquared2D(SourceFootCm, TargetFootCm) > FMath::Square(MaximumRadius())) { return ELDSightResult::OutOfRange; }
+    if (FVector::DistSquared2D(SourceFootCm, TargetFootCm) > FMath::Square(FixedRangeCm > 0. ? FixedRangeCm : MaximumRadius())) { return ELDSightResult::OutOfRange; }
     FVector From, To; FHitResult SourceSupport, TargetSupport;
     ResolveFoot(SourceFootCm, From, SourceSupport); ResolveFoot(TargetFootCm, To, TargetSupport);
-    return TracePrepared(From, To, SourceSupport, TargetSupport);
+    return TracePrepared(From, To, SourceSupport, TargetSupport, FixedRangeCm);
 }
 
 FVector2D FLDSightGeometry::CellCentre(int32 Index) const
@@ -1762,12 +1763,39 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
         // Camp-clear recovery orbs are strictly fog-of-war authorized: only a field observer with line-of-sight sees them.
         if (Mode && Mode->IsFieldRunning() && !Mode->IsShowdown() && !Mode->IsInRestSpace(Observer.ContenderId) && !bArena)
         {
+            const uint8 Segment = Mode->GetTimeline().GetFieldSegment();
+            if (Observer.EmptyCampSegment != Segment)
+            {
+                Observer.EmptyCampSegment = Segment;
+                Observer.WitnessedEmptyCamps.Reset();
+            }
+            if (const ALDCampDirector* Camps = Mode->Camps.Get())
+            {
+                const FLDCampMatchState& State = Camps->GetState();
+                for (int32 Index = 0; Index < State.NumCamps(); ++Index)
+                {
+                    const FLDCampSpec& Spec = State.GetRoster()->Camps[Index];
+                    const FLDCampGroupState& Group = *State.FindCamp(Index);
+                    if (Group.Generation == 0 || Sight.Trace(Foot, Spec.AnchorCm) != ELDSightResult::Visible) { continue; }
+                    if (Group.Members.ContainsByPredicate([](const FLDCampMemberState& Member) { return Member.bAlive; }))
+                    {
+                        Observer.WitnessedEmptyCamps.Remove(Spec.CampId);
+                    }
+                    else
+                    {
+                        Observer.WitnessedEmptyCamps.Add(Spec.CampId);
+                    }
+                }
+            }
+            View.WitnessedEmptyCamps = Observer.WitnessedEmptyCamps.Array();
+            View.WitnessedEmptyCamps.Sort(FNameLexicalLess());
             const int64 FieldNowMs = Mode->GetFieldNowMs();
             TArray<TPair<double, const FLDRecoveryOrbView*>> SeenOrbs;
             for (const FLDRecoveryOrbView& Orb : Mode->GetRecoveryOrbs())
             {
                 if (Orb.Serial == 0 || FieldNowMs >= Orb.ExpireAtMs) { continue; }
-                const ELDSightResult Result = Sight.Trace(Foot, Orb.PositionCm);
+                const double PackRange = Orb.ExpireAtMs == MAX_int64 ? LDFieldEcology::Centimeters(Content->Get().Parameters.FieldMapRecoverySightCm) : 0.;
+                const ELDSightResult Result = Sight.Trace(Foot, Orb.PositionCm, PackRange);
                 if (Result == ELDSightResult::StaleWorld)
                 {
                     Error = TEXT("StaleWorld: recovery-orb sight has no current world.");

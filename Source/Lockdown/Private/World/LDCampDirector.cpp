@@ -104,7 +104,7 @@ bool ALDCampDirector::DevRefreshCleared(const FLDGameplayWritePermit& Permit, in
 {
     OutWaiting = 0;
     if (!CheckPermit(Permit, ELDCommitPhase::Transactions, Error)) { return false; }
-    OutWaiting = State.DevRefreshNow(Permit.GetBoundary().AtMs);
+    OutWaiting = State.DevRefreshNow(AuthorityMode()->GetFieldNowMs());
     return true;
 }
 #endif
@@ -136,6 +136,66 @@ bool ALDCampDirector::FreezeForRest(const FLDGameplayWritePermit& Permit, FStrin
     }
     bRestFrozen = true;
     UE_LOG(LogLDWorld, Display, TEXT("LD_WORLD_FROZEN bodies=%d field_t_ms=%lld"), Frozen, Mode->GetFieldNowMs());
+    Error.Reset();
+    return true;
+}
+
+bool ALDCampDirector::ResetForFieldSegment(uint8 SegmentIndex, const FLDGameplayWritePermit& Permit,
+    bool& bReady, FString& Error)
+{
+    bReady = false;
+    if (!CheckPermit(Permit, ELDCommitPhase::RespawnsAndWorld, Error)) { return false; }
+    ALDGameMode* Mode = AuthorityMode();
+    if (SegmentIndex == 0)
+    {
+        if (!SpawnInitialBatch(MAX_int32, Permit, Error)) { return false; }
+        bReady = !HasPendingInitialCamps();
+        return true;
+    }
+    if (PreparedFieldSegment != SegmentIndex)
+    {
+        for (int32 Camp = 0; Camp < State.NumCamps(); ++Camp)
+        {
+            for (const FLDCampMemberState& Member : State.FindCamp(Camp)->Members)
+            {
+                if (!Member.bAlive) { continue; }
+                if (!Mode->RetireCampBody(Member.Body, Permit, Error)) { return false; }
+                StopMotion(Member.EntityId);
+                if (ALDCampMemberCharacter* Actor = Bodies.FindRef(Member.EntityId).Get()) { Actor->Destroy(); }
+                Bodies.Remove(Member.EntityId);
+                Motion.Remove(Member.EntityId);
+                Returns.Remove(Member.EntityId);
+                Stranded.Remove(Member.EntityId);
+                MemberAffixes.Remove(Member.EntityId);
+            }
+            State.QueueFieldReset(Camp);
+        }
+        CampAffixes.Reset();
+        BlockedRefresh.Reset();
+        PreparedFieldSegment = SegmentIndex;
+    }
+    bReady = true;
+    for (int32 Camp = 0; Camp < State.NumCamps(); ++Camp)
+    {
+        if (!State.FindCamp(Camp)->bRespawnPending) { continue; }
+        bool bBlocked = false;
+        if (!SpawnGroup(Camp, Permit, bBlocked, Error)) { return false; }
+        if (bBlocked)
+        {
+            if (!BlockedRefresh.Contains(Camp))
+            {
+                UE_LOG(LogLDWorld, Warning, TEXT("LD_CAMP_RESET_BLOCKED camp=%s %s"),
+                    *State.GetRoster()->Camps[Camp].CampId.ToString(), *Error);
+                BlockedRefresh.Add(Camp);
+            }
+            bReady = false;
+            continue;
+        }
+        for (const FLDCampMemberState& Member : State.FindCamp(Camp)->Members)
+        {
+            if (Member.bAlive && !Mode->Combat->SetBodySuspended(Member.Body, true, Permit, Error)) { return false; }
+        }
+    }
     Error.Reset();
     return true;
 }
@@ -1269,6 +1329,7 @@ void ALDCampDirector::EndMatch()
     NextInitialCamp = MAX_int32;
     bRestFrozen = false;
     InitialBatchFrame = MAX_uint64;
+    PreparedFieldSegment = 0;
     State.End();
     Content.Reset();
 }

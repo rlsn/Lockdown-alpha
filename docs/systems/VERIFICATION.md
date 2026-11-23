@@ -13,7 +13,7 @@
 | `SourceData/Demo/*` / `World/*` | `SyncDemoWorldData.py --check`、`SyncDemoContentData.py --check`、`Test*Import.py`；刷新资产用 `BootstrapAssets.ps1 -Mode RefreshDefinitions`（改几何用 `Regenerate`） |
 | `SourceData/Art` / `UI` / `Audio` | `ImportDemoArt.ps1 -Mode Validate`、`ImportDemoAudio.ps1 -Mode Validate` |
 | `Source/Lockdown*` C++ | `.\Scripts\Verify.ps1`（增量 `BuildEditor.ps1`）；新增原生 `Lockdown.Rules.*` 测试须同步登记到 `Scripts\CheckRuleReport.py` 的 `REQUIRED_TESTS` 并跑 `TestRuleReport.py` |
-| 必须由真实拥有连接证明的联机/视野/阶段行为 | 按需选跑对应 `RunDemo*Check.ps1`：`Core`（初生/运动/返场）、`Combat`（寻路/施法/追击/离屏帧）、`GrowthLink`（成长指令的回执与视图同步、一次真实击杀）、`Camp`（反击/回位/刷新）、`Vision`（视野隔离/`-ReactionOnly`/`-IceOnly`）、`Capture`（三段野外+R3终局改装+断线恢复）、`Opponent`（满房 AI）、`SessionFault`（退房/拒入/房主离开） |
+| 必须由真实拥有连接证明的联机/视野/阶段行为 | 按需选跑对应 `RunDemo*Check.ps1`：`Core`（初生/运动/返场）、`Combat`（寻路/施法/追击/离屏帧）、`GrowthLink`（成长指令的回执与视图同步、一次真实击杀）、`Camp`（反击、回位、段内清空和中场整图重置）、`Vision`（视野隔离/`-ReactionOnly`/`-IceOnly`）、`Capture`（三段野外+R3终局改装+断线恢复）、`Opponent`（满房 AI）、`SessionFault`（退房/拒入/房主离开） |
 | 整局能否跑完、有没有报错（AI、权威步、营地、结算一起跑） | `.\Scripts\RunDemoOpponentCheck.ps1 -BotMatch`（见[机器人对局](#机器人对局)） |
 
 ### 成长的四层验证

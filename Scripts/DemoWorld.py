@@ -42,7 +42,7 @@ MAX_ANCHORS = 128
 MAX_BLOCKERS = 2048
 ANCHOR_COUNTS = {"Spawn": (8, 32), "Camp": (1, 48), "Capture": (1, 1), "Dorm": (1, 8),
                  "PKSpawn": (8, 8), "PKThrow": (1, 1), "PKSignup": (8, 8),
-                 "Airdrop": (1, 16), "BossWaypoint": (4, 4), "MiniFlag": (3, 16), "Locker": (6, 32),
+                 "Airdrop": (0, 16), "BossWaypoint": (4, 4), "MiniFlag": (3, 16), "Locker": (6, 32),
                  "RestSpawn": (8, 8), "RestService": (3, 3), "TrainingDummy": (8, 8),
                  "FinalSpawn": (8, 8), "FinalCapture": (1, 1)}
 # #198 approved PK geometry: spawns 1000..1400 cm from the ring centre, enemy spawns at least 950 cm apart, eight at
