@@ -25,6 +25,24 @@ int32 FLDDemoContentDefinitions::StatDesignIndex(const FString& StatId) const
         { return Stat->Id.Equals(StatId, ESearchCase::IgnoreCase); });
 }
 
+const FLDDemoDisplayDefinition* FLDDemoContentDefinitions::FindDisplay(const FString& Id) const
+{
+    if (DisplayIndexedRows != Display.Num())
+    {
+        DisplayIndex.Reset();
+        DisplayIndex.Reserve(Display.Num());
+        for (int32 Row = 0; Row < Display.Num(); ++Row)
+        {
+            if (!DisplayIndex.Contains(Display[Row].Id)) { DisplayIndex.Add(Display[Row].Id, Row); }
+        }
+        DisplayIndexedRows = Display.Num();
+    }
+    // A hit is checked against its row, and a miss scans: rows renamed after the index was built still answer.
+    const int32* Row = DisplayIndex.Find(Id);
+    if (Row && Display[*Row].Id == Id) { return &Display[*Row]; }
+    return Display.FindByPredicate([&Id](const FLDDemoDisplayDefinition& Each) { return Each.Id == Id; });
+}
+
 namespace
 {
 bool IsCanonicalId(const FString& Value)

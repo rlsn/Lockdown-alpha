@@ -144,8 +144,8 @@ LDHUD::FBranchCardView LDHUD::BranchCard(const FLDDemoContentDefinitions* Conten
     const FLDDemoAbilityBranch* Branch=Ability?Ability->FindBranch(Path):nullptr;
     if(!Branch){return Out;}
     const FString StepId=LDSkillBranch::DisplayId(Id,Path);
-    const FLDDemoDisplayDefinition* Step=Content->Display.FindByPredicate([&StepId](const FLDDemoDisplayDefinition& Row){return Row.Id==StepId;});
-    const FLDDemoDisplayDefinition* Whole=Content->Display.FindByPredicate([&Id](const FLDDemoDisplayDefinition& Row){return Row.Id==Id;});
+    const FLDDemoDisplayDefinition* Step=Content->FindDisplay(StepId);
+    const FLDDemoDisplayDefinition* Whole=Content->FindDisplay(Id);
     if(!Step||!Whole){return Out;}
     const uint8 Rank=LDSkillBranch::RankOf(Path);
     FString Name;
@@ -165,7 +165,7 @@ bool LDHUD::ContentText(const FLDDemoContentDefinitions* Content,const FString& 
 {
     Out=ContentId;
     if(!Content||ContentId.IsEmpty()){return false;}
-    const FLDDemoDisplayDefinition* Display=Content->Display.FindByPredicate([&ContentId](const FLDDemoDisplayDefinition& D){return D.Id==ContentId;});
+    const FLDDemoDisplayDefinition* Display=Content->FindDisplay(ContentId);
     if(!Display||Display->Namespace.IsEmpty()){HudReportMissingText(ContentId);return false;}
     const FString& Key=bDescription?Display->DescriptionKey:Display->NameKey;
     const FStringTableConstPtr Table=FStringTableRegistry::Get().FindStringTable(FName(*Display->Namespace));
@@ -188,7 +188,7 @@ FString LDHUD::ContentName(const FLDDemoContentDefinitions* Content,const FStrin
 FString LDHUD::ContentIconId(const FLDDemoContentDefinitions* Content,const FString& ContentId)
 {
     const FLDDemoDisplayDefinition* Display=Content&&!ContentId.IsEmpty()
-        ?Content->Display.FindByPredicate([&ContentId](const FLDDemoDisplayDefinition& D){return D.Id==ContentId;}):nullptr;
+        ?Content->FindDisplay(ContentId):nullptr;
     // The character and the creatures have a display row for their name but no icon picture (#85): a creature's attack in
     // a recap shows its name's glyph instead of asking for a texture that was never made.
     if(!Display||ContentId==Content->Character.Id
@@ -1932,7 +1932,7 @@ LDHUD::FActiveCardView LDHUD::ActiveCard(FName DefinitionId,const FLDDemoContent
     const FString Id=DefinitionId.ToString();
     Card.Name=ContentName(Content,Id);
     Card.Glyph=IconGlyph(Card.Name);
-    const FLDDemoDisplayDefinition* Display=Content?Content->Display.FindByPredicate([&Id](const FLDDemoDisplayDefinition& D){return D.Id==Id;}):nullptr;
+    const FLDDemoDisplayDefinition* Display=Content?Content->FindDisplay(Id):nullptr;
     const FLDDemoAbilityDefinition* Ability=Content?Content->Abilities.FindByPredicate([&Id](const FLDDemoAbilityDefinition& D){return D.Id==Id;}):nullptr;
     if(Display){Card.IconId=Display->IconId;}
     if(!Ability||!Display)
@@ -1957,7 +1957,7 @@ LDHUD::FActiveCardView LDHUD::ActiveCard(FName DefinitionId,const FLDDemoContent
     for(const ELDSkillBranch Step:Steps)
     {
         const FString StepId=LDSkillBranch::DisplayId(Id,Step);
-        const FLDDemoDisplayDefinition* StepRow=Content->Display.FindByPredicate([&StepId](const FLDDemoDisplayDefinition& Row){return Row.Id==StepId;});
+        const FLDDemoDisplayDefinition* StepRow=Content->FindDisplay(StepId);
         const FLDDemoAbilityBranch* StepPath=Ability->FindBranch(Step);
         if(!StepRow||!StepPath)
         {
@@ -1988,7 +1988,7 @@ LDHUD::FFinalModCardView LDHUD::FinalModCard(FName DefinitionId,const FLDDemoCon
     const FString Id=DefinitionId.ToString();
     View.Name=ContentName(Content,Id);View.Glyph=IconGlyph(View.Name);View.Detail.Name=View.Name;
     const auto* Card=Content?Content->FinalMods.FindByPredicate([&Id](const FLDDemoFinalModDefinition& Row){return Row.Id==Id;}):nullptr;
-    const auto* Display=Content?Content->Display.FindByPredicate([&Id](const FLDDemoDisplayDefinition& Row){return Row.Id==Id;}):nullptr;
+    const auto* Display=Content?Content->FindDisplay(Id):nullptr;
     if(!Card||!Display){View.Detail.Body=TEXT("终局改装数据未就绪。");return View;}
     View.IconId=Display->IconId;View.Detail.Summary=TEXT("终局改装 · 一局一次");
     const auto Sec=[](int64 Value){return HudDecimal(double(Value)/1000.)+TEXT(" 秒");};
@@ -2029,7 +2029,7 @@ LDHUD::FStatRowView LDHUD::StatRow(const FLDDemoStatDefinition& Stat,int32 Point
     Row.Name=ContentName(Content,Stat.Id);
     Row.Glyph=IconGlyph(Row.Name);
     Row.IconId=ContentIconId(Content,Stat.Id);
-    const FLDDemoDisplayDefinition* Display=Content?Content->Display.FindByPredicate([&Stat](const FLDDemoDisplayDefinition& D){return D.Id==Stat.Id;}):nullptr;
+    const FLDDemoDisplayDefinition* Display=Content?Content->FindDisplay(Stat.Id):nullptr;
     if(!Display){Row.PerPoint=Row.PerPointRich=TEXT("内容目录中找不到该属性");return Row;}
     const FCardText Text=StatCardText(Display->DescriptionText,Stat);
     Row.PerPoint=Text.Plain;Row.PerPointRich=Text.Rich;
@@ -2576,7 +2576,7 @@ LDHUD::FCardFaceView LDHUD::CardFace(FName DefinitionId,const FLDDemoContentDefi
     const FString Id=Card.DefinitionId.ToString();
     Card.Name=ContentName(Content,Id);
     Card.Glyph=IconGlyph(Card.Name);
-    const FLDDemoDisplayDefinition* Display=Content?Content->Display.FindByPredicate([&Id](const FLDDemoDisplayDefinition& D){return D.Id==Id;}):nullptr;
+    const FLDDemoDisplayDefinition* Display=Content?Content->FindDisplay(Id):nullptr;
     const FLDDemoCardDefinition* Definition=CardDefinitionOf(Content,Card.DefinitionId);
     if(Display){Card.IconId=Display->IconId;}
     if(!Definition||!Display)
@@ -3474,7 +3474,7 @@ LDHUD::FLiveSkillTooltip LDHUD::EvaluateLiveSkillTooltip(const FActionView& View
     }
     const FString Id=Input.DefinitionId.ToString();
     const FLDDemoAbilityDefinition* Ability=Content->Abilities.FindByPredicate([&Id](const FLDDemoAbilityDefinition& D){return D.Id==Id;});
-    const FLDDemoDisplayDefinition* Display=Content->Display.FindByPredicate([&Id](const FLDDemoDisplayDefinition& D){return D.Id==Id;});
+    const FLDDemoDisplayDefinition* Display=Content->FindDisplay(Id);
     if(!Ability||!Display){return Result;}
     const FLDDemoAbilityBranch* Path=Ability->FindBranch(Input.Branch);
     if(Input.Branch!=ELDSkillBranch::None&&!Path){return Result;}
@@ -3690,7 +3690,7 @@ LDHUD::FLiveSkillTooltip LDHUD::EvaluateLiveSkillTooltip(const FActionView& View
     for(const ELDSkillBranch Step:Steps)
     {
         const FString StepId=LDSkillBranch::DisplayId(Id,Step);
-        const FLDDemoDisplayDefinition* StepRow=Content->Display.FindByPredicate([&StepId](const FLDDemoDisplayDefinition& Row){return Row.Id==StepId;});
+        const FLDDemoDisplayDefinition* StepRow=Content->FindDisplay(StepId);
         const FLDDemoAbilityBranch* StepPath=Ability->FindBranch(Step);
         if(!StepRow||!StepPath){continue;}
         FString StepName;

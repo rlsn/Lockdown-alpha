@@ -565,7 +565,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
                 : Effect.Look==ELDObservedProjectileLook::FlyerArmed || Effect.Look==ELDObservedProjectileLook::FlyerArming
                     ? TEXT("active_flyer_trap") : nullptr;
             if (!Id) { continue; }
-            const auto* Display=Content->Display.FindByPredicate([Id](const auto& Row) { return Row.Id==Id; });
+            const auto* Display=Content->FindDisplay(Id);
             if (!Display) { continue; }
             FVector Point=FVector(Effect.PositionCm)+FVector(0,0,35);
             const bool Speech=Effect.Look==ELDObservedProjectileLook::SpeechCone;
