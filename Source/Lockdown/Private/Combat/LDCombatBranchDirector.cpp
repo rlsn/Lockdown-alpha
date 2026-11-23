@@ -179,7 +179,7 @@ bool ALDCombatDirector::ArmBranchHostile(FLDBodyCombatState& Body, const FLDComb
         FLDCombatPulse& Row=Pulses.AddDefaulted_GetRef();
         Row.Template=Template;
         Row.Template.DeliveryScaleBp=Share(Template.DeliveryScaleBp,Pulse->MultiplierBp);
-        Row.RadiusCm=Cm(Area->RadiusCm)*HulkingAreaScaleOf(Body,Terms.AreaBp);
+        Row.RadiusCm=Cm(Area->RadiusCm)*HulkingAreaScaleOf(Body,Terms.AreaBp,WarcryAreaBpOf(Body,Terms.Values));
         Row.IntervalMs=Pulse->IntervalMs;
         Row.Remaining=Pulse->Count;
         Row.MomentumP2=Pulse->LimitP2;
@@ -187,11 +187,6 @@ bool ALDCombatDirector::ArmBranchHostile(FLDBodyCombatState& Body, const FLDComb
         Row.ShieldMaxHPBp=Pulse->MaxHPRatioBp;
         if (const FLDDemoEffectDefinition* Warcry=Find(Terms.Values,ELDDemoEffectOp::WarcryRing))
         {
-            if (Warcry->LimitP2>0 && Body.Resources.MaxHpP2>0)
-            {
-                const int64 Steps=Body.Resources.MaxHpP2/Warcry->LimitP2;
-                if (Steps>0) { Row.RadiusCm*=1.+0.10*double(Steps); }
-            }
             if (Warcry->Count>0) { Row.Template.BreachStacks+=Warcry->Count; }
             if (Warcry->SecondaryRatioBp>0)
             {

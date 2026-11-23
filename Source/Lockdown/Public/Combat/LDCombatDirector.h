@@ -1565,8 +1565,10 @@ private:
     // the whole maximum.
     int64 BonusMaxHpP2Of(const FLDBodyCombatState& Body) const;
     // The hulking presence growth of an area. AppliedAreaBp is the multiplier the release's own reshapes already put
-    // into the radius: both add into one multiplier instead of compounding.
-    double HulkingAreaScaleOf(const FLDBodyCombatState& Body, int64 AppliedAreaBp = 10000) const;
+    // into the radius and ExtraAreaBp another growth of the same area: all add into one multiplier, none compounds.
+    double HulkingAreaScaleOf(const FLDBodyCombatState& Body, int64 AppliedAreaBp = 10000, int64 ExtraAreaBp = 0) const;
+    // The warcry ring's growth of its own area: 10% per LimitP2 of the caster's max HP.
+    static int64 WarcryAreaBpOf(const FLDBodyCombatState& Body, const FLDDemoAbilityValues& Values);
     int64 HulkingKnockbackKeepBp(const FLDBodyCombatState& Body) const;
     // Enemy bags an area reaches and sees from its anchor (the world sight bodies need, CollectAreaTargets) take its raw amount.
     // final_cage: a hostile hit that crosses the standing fence wears it by its raw amount (RawBagDamageP2); it still

@@ -42,25 +42,30 @@ int64 ALDCombatDirector::BonusMaxHpP2Of(const FLDBodyCombatState& Body) const
     return LDTactical::BonusMaxHPOf(Content->Get().Parameters, GrowthLevelOf(Body), Body.Resources.MaxHpP2);
 }
 
-double ALDCombatDirector::HulkingAreaScaleOf(const FLDBodyCombatState& Body, int64 AppliedAreaBp) const
+double ALDCombatDirector::HulkingAreaScaleOf(const FLDBodyCombatState& Body, int64 AppliedAreaBp, int64 ExtraAreaBp) const
 {
     TArray<FLDPassiveEffectRef> Hulks;
     FString Error;
-    if (!CollectPassiveEffects(Body.AttributeProjection, ELDDemoEffectOp::HulkingPresence, Hulks, Error) || Hulks.IsEmpty())
-    {
-        return 1.;
-    }
-    const int64 BonusHPP2 = BonusMaxHpP2Of(Body);
-    if (BonusHPP2 <= 0) { return 1.; }
     int64 BonusBp = 0;
-    for (const FLDPassiveEffectRef& Ref : Hulks)
+    const int64 BonusHPP2 = BonusMaxHpP2Of(Body);
+    if (BonusHPP2 > 0 && CollectPassiveEffects(Body.AttributeProjection, ELDDemoEffectOp::HulkingPresence, Hulks, Error))
     {
-        if (Ref.Effect.LimitP2 > 0)
+        for (const FLDPassiveEffectRef& Ref : Hulks)
         {
-            BonusBp += (BonusHPP2 / Ref.Effect.LimitP2) * Ref.Effect.RatioBp;
+            if (Ref.Effect.LimitP2 > 0)
+            {
+                BonusBp += (BonusHPP2 / Ref.Effect.LimitP2) * Ref.Effect.RatioBp;
+            }
         }
     }
-    return LDTactical::AreaScaleBeside(AppliedAreaBp, FMath::Min<int64>(BonusBp, 10000));
+    return LDTactical::AreaScaleBeside(AppliedAreaBp, FMath::Min<int64>(BonusBp, 10000) + FMath::Max<int64>(ExtraAreaBp, 0));
+}
+
+int64 ALDCombatDirector::WarcryAreaBpOf(const FLDBodyCombatState& Body, const FLDDemoAbilityValues& Values)
+{
+    const FLDDemoEffectDefinition* Warcry = Values.Effects.FindByPredicate(
+        [](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp() == ELDDemoEffectOp::WarcryRing; });
+    return Warcry && Warcry->LimitP2 > 0 && Body.Resources.MaxHpP2 > 0 ? Body.Resources.MaxHpP2 / Warcry->LimitP2 * 1000 : 0;
 }
 
 int64 ALDCombatDirector::HulkingKnockbackKeepBp(const FLDBodyCombatState& Body) const

@@ -550,7 +550,7 @@ $$
 | U07 | `card_phantom_molt` | 幻影脱壳 | 触发 | 触发精准闪避时原地留下 1.0s 嘲讽野怪的残影，随后爆炸对 240cm 内造成 70 + 0.65 自适应伤害并减速 35%（1.2s） | perfect_dodge, dash, area |
 | U08 | `card_skate_blade` | 冰刀割裂 | 触发 | 敌人在冰面上每位移或滑行 100cm 受 28 + 0.30 自适应物理伤害；自身站在冰面上攻速 +25%、移速 +20% | ground, element, move_speed, attack_speed |
 | U09 | `card_tonnage_crush` | 吨位碾压 | 转化 | 第 3 段普攻与自身周围范围技能额外附加 3.5% 额外生命上限的物理伤害（对野怪翻倍为 7%） | max_hp, combo3, area |
-| U10 | `card_hulking_presence` | 大块头有威慑 | 转化 | 每拥有 800 额外最大生命，自身范围/光环/护盾爆破半径扩大 10%（上限 +100%；与 K07 的范围加成相加，不相乘），受到的击退距离减少 12% | max_hp, area, knockback |
+| U10 | `card_hulking_presence` | 大块头有威慑 | 转化 | 每拥有 800 额外最大生命，自身范围/光环/护盾爆破半径扩大 10%（上限 +100%；与 K07 的范围加成、扯嗓子喷你“低音震胸”分支按生命上限的扩圈相加成一个倍率，不相乘），受到的击退距离减少 12% | max_hp, area, knockback |
 | U11 | `card_iron_hedgehog` | 铁刺猬 | 转化 | 反伤额外附加 (护甲+魔抗)×0.8 魔法伤害；处于嘲讽、顶着揍或招架期间反伤比例提高 50% | armor, damaged, control |
 | U12 | `card_reactive_plating` | 反应装甲 | 触发 | 身上已有护盾时再获新护盾，向 260cm 内迸射 35% 新护盾量的物理破片；消耗护盾的技能获得 +25% 暴击率 | shield, area, crit |
 | U13 | `card_desperado` | 亡命之徒 | 改造 | 生命低于 45% 时，每缺失 2% 最大生命提升 1.5% 造成伤害与受治疗效果 | low_hp, heal, damaged |

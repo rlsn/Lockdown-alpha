@@ -1660,15 +1660,9 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     }
     TArray<FLDCombatBodyRef> AreaTargets;
     // The origin is the caster's foot at release, before any dash of the same action moves it.
-    double EffectiveSelfAreaRadiusCm=AreaEffect ? LDCA::ToDouble(AreaEffect->RadiusCm)*HulkingAreaScaleOf(Body,Terms.AreaBp) : 0.;
-    if (const FLDDemoEffectDefinition* Warcry=LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::WarcryRing))
-    {
-        if (Warcry->LimitP2>0 && Body.Resources.MaxHpP2>0)
-        {
-            const int64 Steps=Body.Resources.MaxHpP2/Warcry->LimitP2;
-            if (Steps>0) { EffectiveSelfAreaRadiusCm*=1.+0.10*double(Steps); }
-        }
-    }
+    // The reshapes, the hulking presence and the warcry ring's own growth add into one multiplier of the self area.
+    const double EffectiveSelfAreaRadiusCm=AreaEffect
+        ? LDCA::ToDouble(AreaEffect->RadiusCm)*HulkingAreaScaleOf(Body,Terms.AreaBp,WarcryAreaBpOf(Body,*ValuesDef)) : 0.;
     if (bHostile && bAreaMode && AreaEffect
         && !CollectAreaTargets(FootOf(Actor),EffectiveSelfAreaRadiusCm,&Body,Body.Victim.EntityId,AreaTargets,Error))
     { return false; }

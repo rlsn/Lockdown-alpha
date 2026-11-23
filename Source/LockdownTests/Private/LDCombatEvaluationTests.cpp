@@ -534,6 +534,8 @@ bool FLDDemoDamageControlAmplifyTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Beside a 2.2x reshape a +100% growth makes 3.2x in total, not 4.4x"),
         LDTactical::AreaScaleBeside(22000, 10000) * 2.2, 3.2, 1e-9);
     TestEqual(TEXT("No growth leaves the reshaped radius alone"), LDTactical::AreaScaleBeside(22000, 0), 1.);
+    TestEqual(TEXT("A third growth joins the same sum: 2.2x, +100% and +30% make 3.5x"),
+        LDTactical::AreaScaleBeside(22000, 10000 + 3000) * 2.2, 3.5, 1e-9);
     return true;
 }
 
