@@ -320,7 +320,19 @@ bool ALDGameMode::PrepareEntry(const FLDGameplayWritePermit& Permit, bool& bBodi
         bool bPlaced = false;
         if (!TryPKEntry(Permit, bPlaced, Error)) { return false; }
     }
-    if (!Timeline.IsEntryDue(AtMs)) { Error.Reset(); return true; }
+    if (!Timeline.IsEntryDue(AtMs))
+    {
+        // Nobody is in the field during the return countdown: the next timed segment's camps reset a few per frame now,
+        // so the entry does not retire and stand every camp body in one frame.
+        const uint8 Segment = Timeline.GetRestIndex();
+        if (Timeline.GetStep() == ELDRestStep::Return && !bFieldReturnStarted && Camps && Segment > 0
+            && Segment < FLDTimelineParameters::TimedSegments && !Camps->PrepareFieldSegmentAhead(Segment, Permit, Error))
+        {
+            return false;
+        }
+        Error.Reset();
+        return true;
+    }
     const int64 TimeoutMs = DemoContent->Get().Parameters.RestEntryReadyTimeoutMs;
     const int64 HeldMs = AtMs - Timeline.GetStepEndsAtMs();
     if (Timeline.GetStep() == ELDRestStep::Return)

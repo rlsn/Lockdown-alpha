@@ -485,6 +485,14 @@ bool ALDCombatDirector::PublishOwnerViews(FString& Error)
         auto* PC=Pair.Key.Get();
         auto* Record=FindRecord(Pair.Value.Session);
         if (!PC || !Record || !Mode->IsMemberPresent(Pair.Value.Session)) { continue; }
+        // A marked revision or another match or life publishes at once. Without either, only the time-driven terms
+        // below can differ, so building the whole view every step to compare them is polled at OwnerViewPollMs.
+        const int64 NowMs=Mode->GetAuthorityNowMs();
+        const auto* LifeRecord=Mode->Lives.Find(Pair.Value.Session);
+        const bool bSameLife=LifeRecord && LifeRecord->Life==PC->CombatView.Life
+            && PC->CombatView.Generation==Mode->GetMatchContext().Generation;
+        if (bSameLife && Record->ViewRevision==Record->PublishedViewRevision && NowMs<Record->NextOwnerViewPollMs) { continue; }
+        Record->NextOwnerViewPollMs=NowMs+OwnerViewPollMs;
         FLDCombatCaller Caller{Mode->GetMatchContext(),ELDVictimKind::Contender,Pair.Value.Session,PC};
         FLDCombatOwnerView View;
         if (!BuildOwnerView(Caller,View)) { Error=TEXT("A present contender has no Combat owner projection."); return false; }

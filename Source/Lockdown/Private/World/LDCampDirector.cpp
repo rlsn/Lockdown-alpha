@@ -145,58 +145,108 @@ bool ALDCampDirector::ResetForFieldSegment(uint8 SegmentIndex, const FLDGameplay
 {
     bReady = false;
     if (!CheckPermit(Permit, ELDCommitPhase::RespawnsAndWorld, Error)) { return false; }
-    ALDGameMode* Mode = AuthorityMode();
     if (SegmentIndex == 0)
     {
         if (!SpawnInitialBatch(MAX_int32, Permit, Error)) { return false; }
         bReady = !HasPendingInitialCamps();
         return true;
     }
-    if (PreparedFieldSegment != SegmentIndex)
+    if (PreparedFieldSegment != SegmentIndex) { BeginFieldReset(SegmentIndex); }
+    // Whatever the return countdown did not reset ahead: every old body leaves before any new group stands.
+    while (RetiredForFieldReset < State.NumCamps())
     {
-        for (int32 Camp = 0; Camp < State.NumCamps(); ++Camp)
-        {
-            for (const FLDCampMemberState& Member : State.FindCamp(Camp)->Members)
-            {
-                if (!Member.bAlive) { continue; }
-                if (!Mode->RetireCampBody(Member.Body, Permit, Error)) { return false; }
-                StopMotion(Member.EntityId);
-                if (ALDCampMemberCharacter* Actor = Bodies.FindRef(Member.EntityId).Get()) { Actor->Destroy(); }
-                Bodies.Remove(Member.EntityId);
-                Motion.Remove(Member.EntityId);
-                Returns.Remove(Member.EntityId);
-                Stranded.Remove(Member.EntityId);
-                MemberAffixes.Remove(Member.EntityId);
-            }
-            State.QueueFieldReset(Camp);
-        }
-        CampAffixes.Reset();
-        BlockedRefresh.Reset();
-        PreparedFieldSegment = SegmentIndex;
+        if (!RetireCampForReset(RetiredForFieldReset, Permit, Error)) { return false; }
+        ++RetiredForFieldReset;
     }
     bReady = true;
     for (int32 Camp = 0; Camp < State.NumCamps(); ++Camp)
     {
         if (!State.FindCamp(Camp)->bRespawnPending) { continue; }
         bool bBlocked = false;
-        if (!SpawnGroup(Camp, Permit, bBlocked, Error)) { return false; }
-        if (bBlocked)
-        {
-            if (!BlockedRefresh.Contains(Camp))
-            {
-                UE_LOG(LogLDWorld, Warning, TEXT("LD_CAMP_RESET_BLOCKED camp=%s %s"),
-                    *State.GetRoster()->Camps[Camp].CampId.ToString(), *Error);
-                BlockedRefresh.Add(Camp);
-            }
-            bReady = false;
-            continue;
-        }
-        for (const FLDCampMemberState& Member : State.FindCamp(Camp)->Members)
-        {
-            if (Member.bAlive && !Mode->Combat->SetBodySuspended(Member.Body, true, Permit, Error)) { return false; }
-        }
+        if (!StandResetGroup(Camp, Permit, bBlocked, Error)) { return false; }
+        if (bBlocked) { bReady = false; }
     }
     Error.Reset();
+    return true;
+}
+
+bool ALDCampDirector::PrepareFieldSegmentAhead(uint8 SegmentIndex, const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    if (!CheckPermit(Permit, ELDCommitPhase::RespawnsAndWorld, Error)) { return false; }
+    if (SegmentIndex == 0)
+    {
+        Error = TEXT("The first field segment stands its camps up through the initial batches.");
+        return false;
+    }
+    if (FieldResetFrame == GFrameCounter) { Error.Reset(); return true; }
+    if (PreparedFieldSegment != SegmentIndex) { BeginFieldReset(SegmentIndex); }
+    int32 Budget = FieldResetGroupsPerFrame;
+    while (Budget > 0 && RetiredForFieldReset < State.NumCamps())
+    {
+        if (!RetireCampForReset(RetiredForFieldReset, Permit, Error)) { return false; }
+        ++RetiredForFieldReset;
+        --Budget;
+        FieldResetFrame = GFrameCounter;
+    }
+    // A blocked group is skipped here and keeps its pending draw; the entry retries it and holds until it stands.
+    for (int32 Camp = 0; Budget > 0 && RetiredForFieldReset == State.NumCamps() && Camp < State.NumCamps(); ++Camp)
+    {
+        if (!State.FindCamp(Camp)->bRespawnPending || BlockedRefresh.Contains(Camp)) { continue; }
+        bool bBlocked = false;
+        if (!StandResetGroup(Camp, Permit, bBlocked, Error)) { return false; }
+        --Budget;
+        FieldResetFrame = GFrameCounter;
+    }
+    Error.Reset();
+    return true;
+}
+
+void ALDCampDirector::BeginFieldReset(uint8 SegmentIndex)
+{
+    CampAffixes.Reset();
+    BlockedRefresh.Reset();
+    PreparedFieldSegment = SegmentIndex;
+    RetiredForFieldReset = 0;
+}
+
+bool ALDCampDirector::RetireCampForReset(int32 Camp, const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    ALDGameMode* Mode = AuthorityMode();
+    for (const FLDCampMemberState& Member : State.FindCamp(Camp)->Members)
+    {
+        if (!Member.bAlive) { continue; }
+        if (!Mode->RetireCampBody(Member.Body, Permit, Error)) { return false; }
+        StopMotion(Member.EntityId);
+        if (ALDCampMemberCharacter* Actor = Bodies.FindRef(Member.EntityId).Get()) { Actor->Destroy(); }
+        Bodies.Remove(Member.EntityId);
+        Motion.Remove(Member.EntityId);
+        Returns.Remove(Member.EntityId);
+        Stranded.Remove(Member.EntityId);
+        MemberAffixes.Remove(Member.EntityId);
+    }
+    State.QueueFieldReset(Camp);
+    return true;
+}
+
+bool ALDCampDirector::StandResetGroup(int32 Camp, const FLDGameplayWritePermit& Permit, bool& bBlocked, FString& Error)
+{
+    bBlocked = false;
+    if (!SpawnGroup(Camp, Permit, bBlocked, Error)) { return false; }
+    if (bBlocked)
+    {
+        if (!BlockedRefresh.Contains(Camp))
+        {
+            UE_LOG(LogLDWorld, Warning, TEXT("LD_CAMP_RESET_BLOCKED camp=%s %s"),
+                *State.GetRoster()->Camps[Camp].CampId.ToString(), *Error);
+            BlockedRefresh.Add(Camp);
+        }
+        Error.Reset();
+        return true;
+    }
+    for (const FLDCampMemberState& Member : State.FindCamp(Camp)->Members)
+    {
+        if (Member.bAlive && !AuthorityMode()->Combat->SetBodySuspended(Member.Body, true, Permit, Error)) { return false; }
+    }
     return true;
 }
 
@@ -1330,6 +1380,8 @@ void ALDCampDirector::EndMatch()
     bRestFrozen = false;
     InitialBatchFrame = MAX_uint64;
     PreparedFieldSegment = 0;
+    RetiredForFieldReset = 0;
+    FieldResetFrame = MAX_uint64;
     State.End();
     Content.Reset();
 }

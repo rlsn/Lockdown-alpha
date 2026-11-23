@@ -561,6 +561,9 @@ struct FLDCombatEntityRecord
     uint64 ReceiptRevision=0;
     uint64 ViewRevision=0;
     uint64 PublishedViewRevision=0;
+    // Authority ms before which PublishOwnerViews does not rebuild an unchanged owner view only to find its time-driven
+    // terms unchanged (ALDCombatDirector::OwnerViewPollMs).
+    int64 NextOwnerViewPollMs=0;
     // #198 combat window (contenders): the authority ms of the last combat action (MarkBuildUnsafe); 0 = none yet. Kept
     // across lives; the window is GROWTH.BuildSafeWindowSec. #222: it no longer gates any build command; the owner view
     // publishes it only for the HUD's combat fold of the field summary.
@@ -1293,6 +1296,9 @@ private:
     // One growth reward per locked death; a retryable refusal gets exactly one more attempt next boundary.
     bool CommitReward(const FLDCommittedDeath& Fact, bool bRetry, const FLDGameplayWritePermit& Permit, FString& Error);
     bool PublishOwnerViews(FString& Error);
+    // How often an owner view whose revision and life are unchanged is rebuilt to catch its time-driven terms (the
+    // observation publish period).
+    static constexpr int64 OwnerViewPollMs=50;
 
     // ---- Actions (LDCombatActions.cpp).
     FLDCombatEntityRecord* FindRecord(const FGuid& Entity);
