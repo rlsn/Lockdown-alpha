@@ -256,7 +256,9 @@ bool ALDGameMode::RetireMatch(bool bAbortedStart, FString& Error)
     RestReady.Reset();
     ClearRestRoomDisplay();
     LockedEntrants.Reset();
-    RestReturns.Reset();
+    PreviousFieldSpawns.Reset();
+    PendingFieldSpawns.Reset();
+    PendingMapRecoveryPacks.Reset();
     RestLives.Reset();
     PKLives.Reset();
     PendingPhasePlacement.Reset();

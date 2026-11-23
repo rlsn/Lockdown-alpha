@@ -76,7 +76,7 @@ public:
     int32 Stage=0;
     bool Written=false, Passed=true, StopSampled=false, IdleVerified=false, DisconnectVerified=false;
     bool bRoomLeaveRequested=false;
-    bool bEarlyRestReady=false, bReplayFieldReturn=false, bRestReadySent=false, bRestReadyProjected=false, bRestPresentationSeen=false;
+    bool bEarlyRestReady=false, bRestReadySent=false, bRestReadyProjected=false, bRestPresentationSeen=false;
     bool bReadyWindowObserved=false;
     int64 ReadyBuildEndMs=0;
     double RestObservationStartedAt=0;
@@ -339,36 +339,6 @@ public:
         bool Registered=Mode.ExecuteAuthorityPhase(*Mode.Combat,ELDCommitPhase::RespawnsAndWorld,
             [&](const FLDGameplayWritePermit& Permit)
         {
-            if (bReplayFieldReturn)
-            {
-                const FGuid ReplayId=Mode.RosterOrder[1];
-                const FLDDemoRational& Radius=Content->Get().Parameters.RestReturnSearchRadiusCm;
-                const FVector Foot(1312,-1600,4);
-                if (Radius.Denominator<=0) { Error=TEXT("Return replay requires the approved search radius."); return false; }
-                ALDGameMode::FLDPlacementTarget Target;
-                Target.Kind=ALDGameMode::FLDPlacementTarget::EKind::Near;
-                Target.FootCm=Foot;
-                Target.Surface=TEXT("demo_ground");
-                Target.RadiusCm=double(Radius.Numerator)/double(Radius.Denominator);
-                ALDGameMode::FLDPlacedBody Placed;
-                if (!Mode.PlaceContenderBody(ReplayId,1,Permit,Placed,Error,Target))
-                {
-                    Error=FString::Printf(TEXT("Return replay at %.3f,%.3f,%.3f: %s"),
-                        Target.FootCm.X,Target.FootCm.Y,Target.FootCm.Z,*Error);
-                    Check(false,TEXT("Captured field return position prepares without an authority fault"));
-                    return false;
-                }
-                const bool bAtCapturedFoot=Placed.Reservation && Placed.Reservation->AnchorId().IsNone()
-                    && Placed.Reservation->Ground().FootCm.Equals(Foot,.000001);
-                Mode.ReleasePlacedBody(Placed);
-                if (!bAtCapturedFoot || !Mode.WithdrawPhaseRequest(ReplayId,Permit,Error))
-                {
-                    if (Error.IsEmpty()) { Error=TEXT("The exact captured field foot could not be prepared."); }
-                    Check(false,TEXT("Captured field return position prepares without an authority fault"));
-                    return false;
-                }
-                Check(true,TEXT("Captured field return position prepares without an authority fault"));
-            }
             const FGuid FinalEntryId=Mode.RosterOrder[1];
             for (int32 Slot=0; Slot<LDDemoWorld::FinalSpawns; ++Slot)
             {
@@ -1197,7 +1167,6 @@ void LDDemoTests::StartCoreProbe(ALDPlayerController& Controller)
         || UWorld::RemovePIEPrefix(Controller.GetWorld()->GetOutermost()->GetName())!=LDDemoEntry::WorldMap) { return; }
     auto Probe=MakeShared<FLDDemoCoreProbe>();
     Probe->bEarlyRestReady=FParse::Param(FCommandLine::Get(),TEXT("LDDemoCoreReady"));
-    Probe->bReplayFieldReturn=FParse::Param(FCommandLine::Get(),TEXT("LDDemoCoreReplayFieldReturn"));
     int32 Timeout=330;
     FParse::Value(FCommandLine::Get(),TEXT("LDDemoCoreTimeout="),Timeout);
     if (!FParse::Value(FCommandLine::Get(),TEXT("LDDemoCoreOutput="),Probe->Output)

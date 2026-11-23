@@ -298,86 +298,55 @@ bool ULDMapRegistry::SelectSpawnAnchor(const FLDSpawnRequestKey& Request, FName 
     return true;
 }
 
-bool ULDMapRegistry::ReserveSpawnNear(const FLDSpawnRequestKey& Request, const FVector& FootCm, FName SurfaceHint,
-    double RadiusCm, const FCollisionShape& Capsule, const FLDGameplayWritePermit& Permit,
-    TSharedPtr<const FLDSpawnReservation>& Out, bool& bBlocked, FString& Error)
+bool ULDMapRegistry::ReserveSpawnAt(const FLDSpawnRequestKey& Request, const FVector& FootCm, FName SurfaceHint,
+    const FCollisionShape& Capsule, const FLDGameplayWritePermit& Permit, TSharedPtr<const FLDSpawnReservation>& Out,
+    FString& Error)
 {
     Out.Reset();
-    bBlocked=false;
     TSharedPtr<const FLDSpawnSelection> Replay;
-    if (!AdmitSpawnRequest(Request,Permit,Replay,Error)) { return false; }
-    if (Replay) { Error=TEXT("A placement near the old foot is never replayed; it names a fresh request."); return false; }
+    if (!AdmitSpawnRequest(Request, Permit, Replay, Error)) { return false; }
+    if (Replay) { Error = TEXT("A direct ground placement needs a fresh request."); return false; }
     FCollisionShape Required;
-    if (!ContentCapsule(*Content,Required,Error) || !Capsule.IsCapsule()
-        || Capsule.GetCapsuleRadius()!=Required.GetCapsuleRadius()
-        || Capsule.GetCapsuleHalfHeight()!=Required.GetCapsuleHalfHeight()
-        || !FMath::IsFinite(RadiusCm) || RadiusCm<0 || FootCm.ContainsNaN())
+    if (!ContentCapsule(*Content, Required, Error) || !Capsule.IsCapsule()
+        || Capsule.GetCapsuleRadius() != Required.GetCapsuleRadius()
+        || Capsule.GetCapsuleHalfHeight() != Required.GetCapsuleHalfHeight() || FootCm.ContainsNaN())
     {
-        if (Error.IsEmpty()) { Error=TEXT("A near placement needs the approved capsule, a finite foot and a nonnegative radius."); }
+        if (Error.IsEmpty()) { Error = TEXT("A direct placement needs the approved capsule and a finite foot."); }
         return false;
     }
     ELDWorldQueryFailure Failure;
-    FLDLegalGround FootGround;
-    if (!QueryGround(WorldRevision,FootCm,Required,SurfaceHint,FootGround,Failure,Error))
+    FLDLegalGround Ground;
+    if (!QueryGround(WorldRevision, FootCm, Required, SurfaceHint, Ground, Failure, Error)) { return false; }
+    const FVector Origin = LDSpawnPlacement::StandingOrigin(Ground);
+    const bool bOccupied = LDSpawnPlacement::OverlapsStatic(*GetWorld(), Origin, Required)
+        || GetWorld()->OverlapAnyTestByObjectType(Origin, FQuat::Identity, FCollisionObjectQueryParams(ECC_Pawn),
+            Required, FCollisionQueryParams(SCENE_QUERY_STAT(DemoSpawnAt)));
+    if (bOccupied)
     {
-        // The old foot is no longer legal support: the caller uses a normal spawn instead.
-        bBlocked=true;
+        Error = TEXT("SpawnBlocked: the selected field point is occupied.");
         return false;
     }
-    // The foot first, then three rings of eight directions out to RadiusCm, in a fixed order.
-    TArray<FVector> Candidates;
-    Candidates.Add(FootCm);
-    for (int32 Ring=1; Ring<=3; ++Ring)
+    for (const auto& Pair : SpawnState->Requests)
     {
-        const double Distance=RadiusCm*Ring/3.;
-        for (int32 Direction=0; Direction<8; ++Direction)
+        if (Pair.Value.Held && CapsulesOverlap(Origin, Pair.Value.Held->Origin, Required))
         {
-            const double Angle=Direction*PI/4.;
-            Candidates.Add(FootCm+FVector(FMath::Cos(Angle)*Distance,FMath::Sin(Angle)*Distance,0));
-        }
-    }
-    for (const FVector& Candidate : Candidates)
-    {
-        FLDLegalGround Ground;
-        if (!QueryGround(WorldRevision,Candidate,Required,SurfaceHint,Ground,Failure,Error))
-        {
-            if (Failure==ELDWorldQueryFailure::Blocked || Failure==ELDWorldQueryFailure::NotGrounded || Failure==ELDWorldQueryFailure::WrongSurface) { continue; }
+            Error = TEXT("SpawnBlocked: the selected field point overlaps another reservation.");
             return false;
         }
-        if (FVector::DistSquared2D(Ground.SurfaceCm,FootCm)>FMath::Square(RadiusCm)+1) { continue; }
-        const FVector Origin=LDSpawnPlacement::StandingOrigin(Ground);
-        bool Occupied=LDSpawnPlacement::OverlapsStatic(*GetWorld(),Origin,Required)
-            || GetWorld()->OverlapAnyTestByObjectType(Origin,FQuat::Identity,
-            FCollisionObjectQueryParams(ECC_Pawn),Required,FCollisionQueryParams(SCENE_QUERY_STAT(DemoSpawnNear)));
-        for (const auto& Pair : SpawnState->Requests)
-        {
-            if (Pair.Value.Held && CapsulesOverlap(Origin,Pair.Value.Held->Origin,Required)) { Occupied=true; break; }
-        }
-        if (Occupied) { continue; }
-        // Same reachable surface: a complete legal path from the old foot to the candidate.
-        FLDCompletePath Path;
-        if (!QueryCompletePath(WorldRevision,FootGround,Ground,Required,Path,Failure,Error))
-        {
-            if (Failure==ELDWorldQueryFailure::Blocked || Failure==ELDWorldQueryFailure::IncompletePath || Failure==ELDWorldQueryFailure::Unreachable) { continue; }
-            return false;
-        }
-        TSharedPtr<const FLDSpawnSelection> Selection=RecordSpawnSelection(Request,NAME_None);
-        TSharedPtr<FLDSpawnReservation> Reservation(new FLDSpawnReservation);
-        Reservation->Owner=FObjectKey(this);
-        Reservation->Key=Request;
-        Reservation->Token=FGuid::NewGuid();
-        Reservation->Anchor=NAME_None;
-        Reservation->Offset=INDEX_NONE;
-        Reservation->Placement=MoveTemp(Ground);
-        Reservation->Origin=Origin;
-        SpawnState->Requests.FindChecked(Request.ContenderId).Held=Reservation;
-        Out=MoveTemp(Reservation);
-        Error.Reset();
-        return true;
     }
-    bBlocked=true;
-    Error=FString::Printf(TEXT("SpawnBlocked: no free legal placement within %.0f cm of the old field foot."),RadiusCm);
-    return false;
+    RecordSpawnSelection(Request, NAME_None);
+    TSharedPtr<FLDSpawnReservation> Reservation(new FLDSpawnReservation);
+    Reservation->Owner = FObjectKey(this);
+    Reservation->Key = Request;
+    Reservation->Token = FGuid::NewGuid();
+    Reservation->Anchor = NAME_None;
+    Reservation->Offset = INDEX_NONE;
+    Reservation->Placement = MoveTemp(Ground);
+    Reservation->Origin = Origin;
+    SpawnState->Requests.FindChecked(Request.ContenderId).Held = Reservation;
+    Out = MoveTemp(Reservation);
+    Error.Reset();
+    return true;
 }
 
 bool ULDMapRegistry::ReserveSpawnPlacement(const TSharedPtr<const FLDSpawnSelection>& Selection,

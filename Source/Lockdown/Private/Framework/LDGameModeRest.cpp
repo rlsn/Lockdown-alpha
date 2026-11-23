@@ -30,9 +30,8 @@
 //
 // Phase boundaries (approved §8): a field -> rest boundary retires every living field life (no death, kill or reward),
 // ends the remaining field respawn waits, cancels every in-flight effect and control, and gives everyone a fresh rest life
-// at full HP and MOMENTUM.Start with every cooldown ready. A rest -> field boundary does the same in reverse: every rest life is retired and
-// the next field life stands at the remembered field foot (or within REST.ReturnSearchRadiusCm, else a normal spawn; a
-// contender dead at the rest entry takes a normal spawn) with the shared LIFE.ProtectionSec. The field bodies (and a PK's
+// at full HP and MOMENTUM.Start with every cooldown ready. At rest exit, timed fields use a joint randomized deployment
+// with the shared LIFE.ProtectionSec. The final arena uses its roster anchors. The field bodies (and a PK's
 // arena bodies) are prepared jointly and stand only together; while any is blocked the entry holds (T, the flagpole and
 // the PK clock wait), each attempt under a newer spawn identity, until REST.EntryReadyTimeoutSec ends it explicitly
 // (approved outer parameters §1/§8).
@@ -50,7 +49,9 @@ bool ALDGameMode::InitializeTimeline(FString& Error)
     RestSignups.Reset();
     RestReady.Reset();
     LockedEntrants.Reset();
-    RestReturns.Reset();
+    PreviousFieldSpawns.Reset();
+    PendingFieldSpawns.Reset();
+    PendingMapRecoveryPacks.Reset();
     RestLives.Reset();
     PKLives.Reset();
     PendingPhasePlacement.Reset();
@@ -493,6 +494,18 @@ bool ALDGameMode::EnterRestWorld(const FLDGameplayWritePermit& Permit, FString& 
         Error = TEXT("Combat could not end the field's effects at the rest boundary.");
         return false;
     }
+    RecoveryOrbs.Reset();
+    if (Airdrop.Phase == ELDAirdropPhase::Landed)
+    {
+        Airdrop.Phase = ELDAirdropPhase::Expired;
+        bPublicMatchDirty = true;
+    }
+    for (FLDLockerState::FLocker& Locker : Lockers.Lockers)
+    {
+        Locker.Opener.Invalidate();
+        Locker.ChannelSinceT = 0;
+        if (Locker.LeaveT <= GetFieldNowMs()) { Locker.bShown = false; }
+    }
     // #198 outer §5: the segment's unclaimed camp markers expire with it.
     if (!EndFieldMarkersForRest(Permit, Error)) { return false; }
     if (!Camps->FreezeForRest(Permit, Error)) { return false; }
@@ -527,6 +540,14 @@ bool ALDGameMode::ExitRestWorld(const FLDGameplayWritePermit& Permit, FString& E
         return false;
     }
     ClearRestRoomDisplay();
+    RecoveryOrbs.Reset();
+    for (const FVector& Position : PendingMapRecoveryPacks)
+    {
+        FLDRecoveryOrbView& Pack = RecoveryOrbs.AddDefaulted_GetRef();
+        Pack.Serial = ++RecoveryOrbSerial;
+        Pack.PositionCm = Position;
+        Pack.ExpireAtMs = MAX_int64;
+    }
     return Camps->ThawAfterRest(Permit, Error);
 }
 
@@ -766,29 +787,16 @@ bool ALDGameMode::PlaceRestLife(const FGuid& Contender, const FLDGameplayWritePe
 
 bool ALDGameMode::MoveContendersToRest(const FLDGameplayWritePermit& Permit, FString& Error)
 {
-    auto* Registry = GetWorld()->GetSubsystem<ULDMapRegistry>();
-    const FLDMapBinding* Capture = Registry && DemoContent
-        ? Registry->Resolve(FName(*DemoContent->Get().World.CaptureId), Registry->Generation) : nullptr;
-    if (!Capture)
-    {
-        Error = TEXT("The rest entry needs the registered field surface.");
-        return false;
-    }
     TArray<FGuid> Order = RosterOrder;
     Order.RemoveAll([this](const FGuid& Id) { return !IsMemberPresent(Id); });
     Order.Sort();
     // Every field body is retired before any rest body is placed.
     for (const FGuid& Id : Order)
     {
-        FLDRestReturn& Return = RestReturns.FindOrAdd(Id);
-        Return = {};
         PendingPhasePlacement.Remove(Id);
         FLDLifeRecord& Life = Lives.FindChecked(Id);
         if (Life.Phase == ELDLifePhase::Alive)
         {
-            Return.bAliveAtRest = true;
-            Return.FieldFootCm = Life.MotionLastFoot;
-            Return.FieldSurface = Capture->Surface;
             if (!RetireLifeForPhase(Id, Permit, Error)) { return false; }
         }
         else
@@ -815,12 +823,8 @@ bool ALDGameMode::PrepareFieldReturn(const FLDGameplayWritePermit& Permit, bool&
         Error = TEXT("The field return needs the approved content.");
         return false;
     }
-    const FLDDemoRational& Radius = DemoContent->Get().Parameters.RestReturnSearchRadiusCm;
-    if (Radius.Denominator <= 0 || Radius.Numerator < 0)
-    {
-        Error = TEXT("The approved return search radius is invalid.");
-        return false;
-    }
+    const uint8 Segment = Timeline.GetRestIndex();
+    const bool bFinal = Segment == FLDTimelineParameters::TimedSegments;
     TArray<FGuid> Order = RosterOrder;
     Order.RemoveAll([this](const FGuid& Id) { return !IsMemberPresent(Id); });
     Order.Sort();
@@ -828,8 +832,13 @@ bool ALDGameMode::PrepareFieldReturn(const FLDGameplayWritePermit& Permit, bool&
     {
         // A static scene error must be reported while the current bodies still exist.
         auto* Registry = GetWorld()->GetSubsystem<ULDMapRegistry>();
-        if (!Registry || !Registry->ValidateFieldSpawnPaths(Timeline.GetRestIndex() == FLDTimelineParameters::TimedSegments, Error))
-        { if (Error.IsEmpty()) { Error = TEXT("入场检查失败：地图未就绪，角色保留在原处"); } return false; }
+        if (!Registry || (bFinal && !Registry->ValidateFieldSpawnPaths(true, Error))
+            || (!bFinal && (!PlanFieldSpawns(Segment, Order, PendingFieldSpawns, Error)
+                || !PlanMapRecoveryPacks(Segment, PendingMapRecoveryPacks, Error))))
+        {
+            if (Error.IsEmpty()) { Error = TEXT("入场检查失败：地图未就绪，角色保留在原处"); }
+            return false;
+        }
         TArray<FGuid> DummySlots;
         TrainingDummies.GetKeys(DummySlots);
         for (const FGuid& Slot : DummySlots) { RetireTrainingDummy(Slot); }
@@ -843,32 +852,28 @@ bool ALDGameMode::PrepareFieldReturn(const FLDGameplayWritePermit& Permit, bool&
         PendingPhasePlacement.Reset();
         bFieldReturnStarted = true;
     }
-    // Survivors claim their old spots first, so a normal draw never takes a returning foot.
-    Order.StableSort([this](const FGuid& A, const FGuid& B)
+    if (!bFinal)
     {
-        const FLDRestReturn* RA = RestReturns.Find(A);
-        const FLDRestReturn* RB = RestReturns.Find(B);
-        return (RA && RA->bAliveAtRest) && !(RB && RB->bAliveAtRest);
-    });
+        bool bCampsReady = false;
+        if (!Camps || !Camps->ResetForFieldSegment(Segment, Permit, bCampsReady, Error)) { return false; }
+        if (!bCampsReady) { return true; }
+    }
     TArray<FLDPhaseTarget> Targets;
     for (const FGuid& Id : Order)
     {
         FLDPhaseTarget& Target = Targets.AddDefaulted_GetRef();
         Target.Contender = Id;
-        if (Timeline.GetRestIndex() == FLDTimelineParameters::TimedSegments)
+        if (bFinal)
         {
             Target.Where.Kind = FLDPlacementTarget::EKind::Anchor;
             Target.Where.Anchor = FName(*FString::Printf(TEXT("final_spawn_%d"), RosterOrder.IndexOfByKey(Id)));
-            continue;
         }
-        // Alive at the rest entry: the old foot or a free spot within the approved radius, else a normal spawn; dead at
-        // the rest entry: a normal spawn.
-        if (const FLDRestReturn* Return = RestReturns.Find(Id); Return && Return->bAliveAtRest)
+        else
         {
-            Target.Where.Kind = FLDPlacementTarget::EKind::Near;
-            Target.Where.FootCm = Return->FieldFootCm;
-            Target.Where.Surface = Return->FieldSurface;
-            Target.Where.RadiusCm = double(Radius.Numerator) / double(Radius.Denominator);
+            const FLDLegalGround& Ground = PendingFieldSpawns.FindChecked(Id);
+            Target.Where.Kind = FLDPlacementTarget::EKind::Exact;
+            Target.Where.FootCm = Ground.FootCm;
+            Target.Where.Surface = Ground.SurfaceId;
         }
     }
     bool bBlocked = false;
@@ -902,6 +907,7 @@ bool ALDGameMode::CommitFieldReturn(bool bFinalField, const FLDGameplayWritePerm
     {
         const FGuid Contender = Prepared.Placed.Contender;
         const FLDLifeRecord& Committed = Lives.FindChecked(Contender);
+        if (!bFinalField) { PreviousFieldSpawns.Add(Contender, Committed.MotionLastFoot); }
         // The first field life (the R0 return) joins the spray roster; every later one returns to it.
         FLDCaptureEligibilityEvent Fact;
         Fact.Body = Committed.Body;
@@ -926,7 +932,8 @@ bool ALDGameMode::CommitFieldReturn(bool bFinalField, const FLDGameplayWritePerm
 #endif
     const int32 Placed = PreparedFieldReturn.Num();
     PreparedFieldReturn.Reset();
-    RestReturns.Reset();
+    PendingFieldSpawns.Reset();
+    PendingMapRecoveryPacks.Reset();
     bFieldReturnStarted = false;
     UE_LOG(LogLDMatch, Display, TEXT("LD_REST_RETURN generation=%u final=%d protected_until_ms=%lld placed=%d"),
         MatchContext.Generation, bFinalField ? 1 : 0, ProtectedUntil, Placed);

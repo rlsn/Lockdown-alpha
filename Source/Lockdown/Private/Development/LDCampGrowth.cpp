@@ -36,12 +36,16 @@ namespace
 
 uint8 LDCampGrowth::Stage(const FLDDemoContentParameters& Parameters, int64 SinceMatchStartMs)
 {
-    if (SinceMatchStartMs <= 0 || Parameters.CampGrowthStageMs <= 0 || Parameters.CampGrowthMaxStage <= 0)
+    if (SinceMatchStartMs <= 0 || Parameters.FieldSegmentMs <= 0 || Parameters.CampGrowthStagesPerSegment <= 0
+        || Parameters.CampGrowthMaxStage <= 0)
     {
         return 0;
     }
-    const int64 Reached = SinceMatchStartMs / Parameters.CampGrowthStageMs;
-    return uint8(FMath::Min<int64>(Reached, FMath::Min<int64>(Parameters.CampGrowthMaxStage, MAX_uint8)));
+    const int64 Segment = SinceMatchStartMs / Parameters.FieldSegmentMs;
+    const int64 Cap = FMath::Min<int64>(Parameters.CampGrowthMaxStage, MAX_uint8);
+    const int64 Steps = Parameters.CampGrowthStagesPerSegment;
+    const int64 Reached = FMath::Min(Segment, Cap) * FMath::Min(Steps, Cap);
+    return uint8(FMath::Min(Reached, Cap));
 }
 
 bool LDCampGrowth::ScaleBody(const FLDDemoContentParameters& Parameters, const FLDDemoMonsterDefinition& Base, uint8 Stage,

@@ -588,27 +588,14 @@ bool ALDGameMode::PlaceContenderBody(const FGuid& Contender, uint32 ProposedLife
     Out.Contender = Contender;
     Out.Life = ProposedLife;
     Out.Controller = Controller;
-    bool bPlaced = false;
-    if (Target.Kind == FLDPlacementTarget::EKind::Near)
+    if (Target.Kind == FLDPlacementTarget::EKind::Exact)
     {
-        // #198 return to the field: the old foot or a free spot within the approved radius, else a normal spawn.
-        bool bBlocked = false;
-        if (Registry->ReserveSpawnNear(Request, Target.FootCm, Target.Surface, Target.RadiusCm, Capsule, Permit,
-            Out.Reservation, bBlocked, Error))
-        {
-            bPlaced = true;
-        }
-        else if (!bBlocked)
+        if (!Registry->ReserveSpawnAt(Request, Target.FootCm, Target.Surface, Capsule, Permit, Out.Reservation, Error))
         {
             return false;
         }
-        else if (!Timeline.IsEntryHeld())
-        {
-            // A held return retries every step; its first attempt (and LD_REST_RETURN_HELD) already tells why.
-            UE_LOG(LogLDMatch, Display, TEXT("LD_REST_RETURN_FALLBACK contender=%s life=%u %s"), *Contender.ToString(), ProposedLife, *Error);
-        }
     }
-    if (!bPlaced)
+    else
     {
         const bool bSelected = Target.Kind == FLDPlacementTarget::EKind::Anchor
             ? Registry->SelectSpawnAnchor(Request, Target.Anchor, Permit, Selection, Error)

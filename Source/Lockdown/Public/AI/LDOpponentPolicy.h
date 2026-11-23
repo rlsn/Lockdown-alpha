@@ -190,6 +190,7 @@ struct FLDOpponentPublicMatch
     int64 GuardDueAtMs = 0;
     // D26: the public point of the current airdrop while it is announced or on the ground; None otherwise.
     FName AirdropPOI;
+    TOptional<FVector> AirdropFootCm;
     bool bAirdropLanded = false;
     // #198 outer §5: the camps whose public marker is open (revealed and not yet taken) now.
     TArray<FName> MarkedCamps;

@@ -563,7 +563,7 @@ bool FLDDemoVisionPrivacyTest::RunTest(const FString& Parameters)
     Exact(FLDObservedFootprint::StaticStruct(), {TEXT("SourceStatus"), TEXT("SourceFeetCm"), TEXT("RadiusCm"), TEXT("CurrentBits")});
     Exact(FLDWorldView::StaticStruct(), {TEXT("Schema"), TEXT("MatchGeneration"), TEXT("ObserverLife"), TEXT("Generation"), TEXT("Revision"),
         TEXT("WorldMapId"), TEXT("WorldLayoutRevision"), TEXT("WorldGeometryRevision"), TEXT("SampledAtServerSec"), TEXT("Footprint"),
-        TEXT("Units"), TEXT("RecentTerminations"), TEXT("Projectiles"), TEXT("GroundStates"), TEXT("RecoveryOrbs")});
+        TEXT("Units"), TEXT("RecentTerminations"), TEXT("Projectiles"), TEXT("GroundStates"), TEXT("RecoveryOrbs"), TEXT("WitnessedEmptyCamps")});
     Exact(FLDObservedRecoveryOrb::StaticStruct(), {TEXT("Serial"), TEXT("PositionCm")});
     // Spec §8.3: a ground state names its public id, kind, shape, the owner's roster seat and its footprint and time; no owner
     // identity, source or value.

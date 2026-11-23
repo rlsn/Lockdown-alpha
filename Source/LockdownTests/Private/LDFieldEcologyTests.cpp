@@ -1,0 +1,90 @@
+#include "Misc/AutomationTest.h"
+#include "World/LDAirdrop.h"
+#include "World/LDFieldEcology.h"
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDFieldEcologyDeploymentTest, "Lockdown.Rules.FieldEcology.JointDeployment",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDFieldEcologyDeploymentTest::RunTest(const FString& Parameters)
+{
+    TArray<FVector> Candidates;
+    for (int32 X = 0; X < 5; ++X)
+    {
+        for (int32 Y = 0; Y < 5; ++Y) { Candidates.Emplace(X * 1350., Y * 1350., 0.); }
+    }
+    TArray<TOptional<FVector>> Previous;
+    Previous.SetNum(6);
+    FRandomStream Match(334), Return(335), OtherMatch(354);
+    TArray<int32> Opening, NextSegment, Other;
+    if (!TestTrue(TEXT("The opening places all six"), LDFieldEcology::ChooseFieldSpawns(Candidates, Previous, 2400., Match, Opening)))
+    {
+        return false;
+    }
+    TestTrue(TEXT("A different match can pick a different deployment"),
+        LDFieldEcology::ChooseFieldSpawns(Candidates, Previous, 2400., OtherMatch, Other) && Other != Opening);
+    for (int32 Seat = 0; Seat < Previous.Num(); ++Seat) { Previous[Seat] = Candidates[Opening[Seat]]; }
+    if (!TestTrue(TEXT("The next segment places all six again"),
+        LDFieldEcology::ChooseFieldSpawns(Candidates, Previous, 2400., Return, NextSegment))) { return false; }
+
+    for (const TArray<int32>* Deployment : { &Opening, &NextSegment })
+    {
+        for (int32 A = 0; A < Deployment->Num(); ++A)
+        {
+            for (int32 B = A + 1; B < Deployment->Num(); ++B)
+            {
+                TestTrue(TEXT("The initial feet are at least 2400 cm apart"),
+                    FVector::Dist2D(Candidates[(*Deployment)[A]], Candidates[(*Deployment)[B]]) >= 2400.);
+            }
+        }
+    }
+    for (int32 Seat = 0; Seat < Previous.Num(); ++Seat)
+    {
+        TestNotEqual(TEXT("A seat gets a new point after rest"), NextSegment[Seat], Opening[Seat]);
+    }
+    TestFalse(TEXT("An impossible deployment yields no partial assignments"),
+        LDFieldEcology::ChooseFieldSpawns(MakeArrayView(Candidates.GetData(), 5), Previous, 2400., Return, NextSegment));
+    TestTrue(TEXT("The failed plan is empty"), NextSegment.IsEmpty());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDFieldEcologyAirdropTest, "Lockdown.Rules.FieldEcology.AnnouncedPlacement",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDFieldEcologyAirdropTest::RunTest(const FString& Parameters)
+{
+    FLDAirdropState State;
+    State.Schedule.LandMs = {40000, 110000};
+    State.Schedule.AnnounceLeadMs = 15000;
+    State.Schedule.ExpireMs = 30000;
+    State.Schedule.Seed = 334;
+    State.Schedule.PickupRadiusCm = 150.;
+    int32 Samples = 0;
+    const FLDAirdropState::FSelectPoint Sample = [&](uint64 Serial, const LDAirdrop::FPoint* Previous, LDAirdrop::FPoint& Out)
+    {
+        ++Samples;
+        if (Previous) { TestEqual(TEXT("The next sample receives the last landed position"), Previous->PositionCm, FVector(2000., 3000., 0.)); }
+        Out = {TEXT("sampled_field_point"), FVector(2000. * Serial, 3000., 0.)};
+        return true;
+    };
+    TestFalse(TEXT("No point is sampled before its announcement"), State.Advance(24999, Sample));
+    TestTrue(TEXT("The first announcement works with an empty fallback pool"), State.Advance(25000, Sample));
+    TestEqual(TEXT("The sampled point is announced"), State.View().PositionCm, FVector(2000., 3000., 0.));
+    TestTrue(TEXT("Landing preserves the announced position"), State.Advance(40000, Sample));
+    TestEqual(TEXT("Landing never redraws"), Samples, 1);
+    TestTrue(TEXT("The next announcement updates the point"), State.Advance(95000, Sample));
+    TestEqual(TEXT("The second sample is published"), State.View().PositionCm, FVector(4000., 3000., 0.));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDFieldEcologyRecoveryTest, "Lockdown.Rules.FieldEcology.RecoveryEligibility",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDFieldEcologyRecoveryTest::RunTest(const FString& Parameters)
+{
+    using LDFieldEcology::NeedsRecovery;
+    TestFalse(TEXT("Full health and momentum leave the pack on the ground"), NeedsRecovery(100000, 100000, 10000, 10000));
+    TestTrue(TEXT("A health deficit can take it"), NeedsRecovery(95000, 100000, 10000, 10000));
+    TestTrue(TEXT("A momentum deficit can take it even with full health"), NeedsRecovery(100000, 100000, 9500, 10000));
+    TestFalse(TEXT("A dead body cannot take it"), NeedsRecovery(0, 100000, 9500, 10000));
+    return true;
+}

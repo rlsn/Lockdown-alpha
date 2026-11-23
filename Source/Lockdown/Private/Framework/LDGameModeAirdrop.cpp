@@ -3,9 +3,9 @@
 #include "Development/LDDevelopmentDirector.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Combat/LDCombatDirector.h"
-#include "Development/LDDemoContentCatalog.h"
 #include "Development/LDGrowthProtocol.h"
 #include "Development/LDGrowthDirector.h"
+#include "Region/LDMapRegistry.h"
 
 // D26 (#79): the airdrop. The schedule and claim selection are the pure FLDAirdropState / LDAirdrop rules; this file
 // only drives them: the schedule at the RespawnsAndWorld boundary, then the claim in the same step's Transactions phase
@@ -26,7 +26,17 @@ bool ALDGameMode::AdvanceAirdrop(const FLDGameplayWritePermit& Permit, FString& 
     }
     if (!IsFieldRunning()) { return true; }
     const int64 NowMs = Timeline.FieldMsAt(Permit.GetBoundary().AtMs);
-    if (Airdrop.Advance(NowMs))
+    const auto* Registry = GetWorld()->GetSubsystem<ULDMapRegistry>();
+    if (!Registry || !DemoContent)
+    {
+        Error = TEXT("Airdrop placement requires the registered field and approved content.");
+        return false;
+    }
+    Error.Reset();
+    if (Airdrop.Advance(NowMs, [&](uint64 Serial, const LDAirdrop::FPoint* Previous, LDAirdrop::FPoint& Out)
+    {
+        return LDAirdrop::SampleFieldPoint(*Registry, *DemoContent, DormZones, Airdrop.Schedule, Serial, Previous, Out, Error);
+    }))
     {
         bPublicMatchDirty = true;
         const LDAirdrop::FPoint* Point = Airdrop.CurrentPoint();
@@ -35,7 +45,7 @@ bool ALDGameMode::AdvanceAirdrop(const FLDGameplayWritePermit& Permit, FString& 
         UE_LOG(LogLDWorld, Display, TEXT("LD_AIRDROP_%s serial=%llu point=%s field_t_ms=%lld"), Event, Airdrop.Serial,
             Point ? *Point->Id.ToString() : TEXT("none"), NowMs);
     }
-    return true;
+    return Error.IsEmpty();
 }
 
 bool ALDGameMode::ClaimAirdrop(const FLDGameplayWritePermit& Permit, FString& Error)
@@ -114,21 +124,28 @@ bool ALDGameMode::ClaimRecoveryOrbs(const FLDGameplayWritePermit& Permit, FStrin
     if (RecoveryOrbs.IsEmpty() || !IsFieldRunning()) { return true; }
     const int64 NowMs = Timeline.FieldMsAt(Permit.GetBoundary().AtMs);
     const auto& Parameters = DemoContent->Get().Parameters;
-    constexpr double PickupCm = 90.0;
+    const auto& Radius = Parameters.CampClearOrbRadiusCm;
+    const double PickupCm = double(Radius.Numerator) / double(Radius.Denominator);
     TArray<LDAirdrop::FCandidate> Candidates;
     Combat->ReadLivingContenderFeet(Candidates);
     for (int32 Index = RecoveryOrbs.Num() - 1; Index >= 0; --Index)
     {
         const FLDRecoveryOrbView Orb = RecoveryOrbs[Index];
+        TArray<LDAirdrop::FCandidate, TInlineAllocator<6>> Eligible;
+        for (const LDAirdrop::FCandidate& Candidate : Candidates)
+        {
+            if (FVector::DistSquared(Orb.PositionCm, Candidate.FootCm) > FMath::Square(PickupCm)) { continue; }
+            const FLDLifeRecord* Life = Lives.Find(Candidate.Contender);
+            if (!Life || !Combat->CanUseRecoveryPack(Life->Body)) { continue; }
+            Eligible.Add({Candidate.Contender, Candidate.FootCm, false});
+        }
         FGuid Claimer;
         // An orb at or past its end is gone, never claimed on that boundary.
-        if (NowMs < Orb.ExpireAtMs && LDAirdrop::PickClaimer(Orb.PositionCm, PickupCm, Candidates, uint32(Orb.Serial), Claimer))
+        if (NowMs < Orb.ExpireAtMs && LDAirdrop::PickClaimer(Orb.PositionCm, PickupCm, Eligible, uint32(Orb.Serial), Claimer))
         {
-            FLDContenderLifeRead Life;
-            FString LifeError;
-            if (ReadContenderLife(MatchContext, Claimer, Life, LifeError)
-                && !Combat->RecoverContender(Life.Body, 0, Parameters.CampClearHealMissingBp, Parameters.CampClearMomentumP2, Permit, Error))
-            { return false; }
+            const FLDLifeRecord& Life = Lives.FindChecked(Claimer);
+            if (!Combat->RecoverContender(Life.Body, 0, Parameters.CampClearHealMaxBp,
+                Parameters.CampClearMomentumP2, Permit, Error, Parameters.CampClearHealFlatP2)) { return false; }
             RecoveryOrbs.RemoveAt(Index);
             UE_LOG(LogLDWorld, Display, TEXT("LD_RECOVERY_ORB_CLAIM serial=%llu contender=%s field_t_ms=%lld"), Orb.Serial,
                 *LDLog::Id(Claimer), NowMs);

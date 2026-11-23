@@ -442,12 +442,15 @@ bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeome
                 Minimum.Count, Minimum.Prefix, Minimum.Min, Minimum.Prefix, Minimum.Prefix));
         }
     }
+    Out.Anchors.RemoveAll([&](const FLDDemoWorldAnchor& Anchor)
+    {
+        return Anchor.Kind == ELDDemoWorldAnchorKind::Airdrop && !Points.Contains(Anchor.Id);
+    });
     if (bForPlay)
     {
         Out.Anchors.RemoveAll([&](const auto& Anchor)
         {
-            return (Anchor.Kind == ELDDemoWorldAnchorKind::Camp || Anchor.Kind == ELDDemoWorldAnchorKind::Airdrop)
-                && !Points.Contains(Anchor.Id);
+            return Anchor.Kind == ELDDemoWorldAnchorKind::Camp && !Points.Contains(Anchor.Id);
         });
         int32 DormCount = 0;
         for (const auto& Anchor : Out.Anchors) { DormCount += Anchor.Kind == ELDDemoWorldAnchorKind::Dorm ? 1 : 0; }

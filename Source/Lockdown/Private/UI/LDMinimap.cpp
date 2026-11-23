@@ -59,7 +59,7 @@ struct FLDMinimapStatic
     double LeaderRadiusCm=0;
     struct FArea { EArea Style=EArea::FullBlocker; TArray<FVector2D> Cm; };
     struct FRampChevron { FVector2D LowMidCm=FVector2D::ZeroVector, HighMidCm=FVector2D::ZeroVector; double WidthCm=0.; };
-    struct FSite { ESite Kind=ESite::Capture; FVector2D Cm=FVector2D::ZeroVector; };
+    struct FSite { ESite Kind=ESite::Capture; FVector2D Cm=FVector2D::ZeroVector; FName CampId; };
     struct FRun { FVector2f Position=FVector2f::ZeroVector; FVector2f Extent=FVector2f::ZeroVector; FLinearColor Color=FLinearColor::White; };
     struct FOutline { TArray<FVector2f> Points; FLinearColor Color=FLinearColor::White; bool bDashed=false; };
     TSharedPtr<const FLDDemoContentSnapshot> Content;
@@ -582,6 +582,7 @@ bool MinimapResolveStatic(FLDMinimapStatic& Cache,const UWorld* World,const FLDD
         }
         else if(Anchor.Kind==ELDDemoWorldAnchorKind::Camp)
         {
+            Site.CampId = FName(*Anchor.Id);
             // Tier comes from the approved monster placed on this camp anchor.
             const FString& DefinitionId=Anchor.PrototypeId.IsEmpty()?Anchor.Id:Anchor.PrototypeId;
             const FLDDemoCampPlacement* Camp=Approved.Camps.FindByPredicate([&DefinitionId](const FLDDemoCampPlacement& Placement){return Placement.AnchorId.Equals(DefinitionId,ESearchCase::CaseSensitive);});
@@ -1105,6 +1106,16 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
             for(const FLDMinimapStatic::FSite& Site:Cache.Sites)
             {
                 const FVector2f At=Spot(FVector(Site.Cm.X,Site.Cm.Y,0.));
+                if (Frame && !Site.CampId.IsNone() && Frame->WitnessedEmptyCamps.Contains(Site.CampId))
+                {
+                    const float Radius = Site.Kind == FLDMinimapStatic::ESite::LowCamp ? 4.5f
+                        : Site.Kind == FLDMinimapStatic::ESite::HighCamp ? 8.5f
+                        : Site.Kind == FLDMinimapStatic::ESite::EliteCamp ? 11.f : 14.f;
+                    TArray<FVector2f> Outline{At+FVector2f(0.f,-Radius), At+FVector2f(Radius,0.f),
+                        At+FVector2f(0.f,Radius), At+FVector2f(-Radius,0.f), At+FVector2f(0.f,-Radius)};
+                    Lines(6, Outline, FLinearColor(.22f,.24f,.25f), 1.5f);
+                    continue;
+                }
                 switch(Site.Kind)
                 {
                 case FLDMinimapStatic::ESite::Capture:Box(5,At+FVector2f(-.75f,-9.f),FVector2f(1.5f,9.5f),FLinearColor(.94f,.94f,.90f));Box(6,At+FVector2f(.75f,-9.f),FVector2f(6.f,4.f),FLinearColor(.92f,.20f,.16f));break;
@@ -1183,6 +1194,13 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
         }
         if(Frame)
         {
+            for (const FLDObservedRecoveryOrb& Pack : Frame->RecoveryOrbs)
+            {
+                const FVector2f At = Spot(Pack.PositionCm);
+                const FLinearColor Green(.25f, 1.f, .45f);
+                Box(7, At - FVector2f(3.5f, 1.f), FVector2f(7.f, 2.f), Green);
+                Box(7, At - FVector2f(1.f, 3.5f), FVector2f(2.f, 7.f), Green);
+            }
             // Currently visible units only, where their world proxy is presented (the frame sample until it is placed), so
             // they glide with the world instead of jumping per frame: contenders in their identity tint, camp members amber.
             const ALDGameState* PublicState=GetWorld()?GetWorld()->GetGameState<ALDGameState>():nullptr;

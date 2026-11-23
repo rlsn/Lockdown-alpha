@@ -350,7 +350,7 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
             if(M.Tier!=Tier){continue;} ++Count;
             if(!First){First=&M;}
             if(!Check.Require(M.CountPerCamp==First->CountPerCamp && M.RewardXP==First->RewardXP
-                && M.RespawnMs==First->RespawnMs && M.Skill.Every>0 && M.Skill.RatioBp*M.Skill.Pulses<=22500,
+                && M.Skill.Every>0 && M.Skill.RatioBp*M.Skill.Pulses<=22500,
                 M.Id,TEXT("inconsistent camp pool or invalid monster skill"))){return false;}
         }
         if(!Check.Require(Count==3,TEXT("camps"),TEXT("each camp tier requires three species"))){return false;}
@@ -358,7 +358,7 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
     // #97 camp growth: a positive stage length, 1..255 stages (the stage is one byte), and every scaled value fits.
     {
         int64 Product = 0, Factor = 0;
-        bool bGrowth = P.CampGrowthStageMs > 0 && P.CampGrowthMaxStage >= 1 && P.CampGrowthMaxStage <= MAX_uint8
+        bool bGrowth = P.CampGrowthStagesPerSegment > 0 && P.CampGrowthStagesPerSegment <= P.CampGrowthMaxStage && P.CampGrowthMaxStage >= 1 && P.CampGrowthMaxStage <= MAX_uint8
             && P.CampGrowthResistPerStageP2 >= 0;
         for (const int64 Bp : {P.CampGrowthHPPerStageBp, P.CampGrowthAttackPerStageBp, P.CampGrowthRewardXPPerStageBp})
         {

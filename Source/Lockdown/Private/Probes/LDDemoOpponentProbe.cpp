@@ -357,7 +357,6 @@ public:
     bool bReturnBlocked = false, bReturnHeldSeen = false, bNobodyStood = true, bReturnChecked = false;
     bool bReturnCommitSeen = false, bReturnCommitTogether = false;
     int64 ReturnDueMs = 0, ReturnFrozenFieldMs = 0, ReturnCommitAtMs = 0;
-    FGuid ReturnTarget;
     bool PlaceOccupant(UWorld& World, const FCollisionShape& Capsule, const FVector& FootCm);
     void ClearOccupants();
     void CaptureReturnCommit(ALDGameMode& Mode);
@@ -485,15 +484,6 @@ void FLDDemoOpponentProbe::PhaseFixtures(UWorld& World, ALDGameMode& Mode)
     FString QueryError;
     if (!Content || !Registry || !Geometry || !ULDMapRegistry::ContentCapsule(*Content, Capsule, QueryError)) { return; }
     const FLDDemoContentParameters& P = Content->Get().Parameters;
-    const auto OccupyAnchor = [&](const FString& Id)
-    {
-        const FLDMapBinding* Anchor = Registry->Resolve(FName(*Id), Registry->Generation);
-        for (const FLDDemoWorldPoint& Point : Geometry->SpawnOffsetsCm)
-        {
-            FVector Offset;
-            if (Anchor && Point.ToVector(Offset, QueryError)) { PlaceOccupant(World, Capsule, Anchor->Position + Offset); }
-        }
-    };
     // R01: the dummies are added to the life ledger at R1's rest entry.
     if (!bGrowthChecked)
     {
@@ -532,38 +522,13 @@ void FLDDemoOpponentProbe::PhaseFixtures(UWorld& World, ALDGameMode& Mode)
     {
         if (!bReturnBlocked && Now >= Line.GetStepEndsAtMs() - 1000)
         {
-            TArray<FGuid> Survivors;
-            for (const FGuid& Id : Mode.GetRosterOrder())
+            TArray<FGuid> Participants = Mode.GetRosterOrder();
+            Participants.RemoveAll([&Mode](const FGuid& Id) { return !Mode.IsContenderPresent(Id); });
+            Participants.Sort();
+            TMap<FGuid, FLDLegalGround> Plan;
+            if (Participants.Num() >= 2 && Mode.PlanFieldSpawns(Line.GetRestIndex(), Participants, Plan, QueryError)
+                && PlaceOccupant(World, Capsule, Plan.FindChecked(Participants.Last()).SurfaceCm))
             {
-                const auto* Return = Mode.RestReturns.Find(Id);
-                if (Mode.IsContenderPresent(Id) && Return && Return->bAliveAtRest) { Survivors.Add(Id); }
-            }
-            Survivors.Sort();
-            const FLDDemoRational& Radius = P.RestReturnSearchRadiusCm;
-            if (Survivors.Num() >= 2 && Radius.Denominator > 0)
-            {
-                ReturnTarget = Survivors.Last();
-                const auto& Return = Mode.RestReturns.FindChecked(ReturnTarget);
-                const double Reach = double(Radius.Numerator) / double(Radius.Denominator);
-                TArray<FVector> Spots = {Return.FieldFootCm};
-                for (int32 Ring = 1; Ring <= 3; ++Ring)
-                {
-                    for (int32 Direction = 0; Direction < 8; ++Direction)
-                    {
-                        const double Angle = Direction * PI / 4.;
-                        Spots.Add(Return.FieldFootCm + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0) * (Reach * Ring / 3.));
-                    }
-                }
-                for (const FVector& Spot : Spots)
-                {
-                    FLDLegalGround Ground;
-                    ELDWorldQueryFailure Failure;
-                    if (Registry->QueryGround(Registry->Revision(), Spot, Capsule, Return.FieldSurface, Ground, Failure, QueryError))
-                    {
-                        PlaceOccupant(World, Capsule, Ground.SurfaceCm);
-                    }
-                }
-                for (const FName& Id : Registry->FieldSpawnAnchors()) { OccupyAnchor(Id.ToString()); }
                 ReturnDueMs = Line.GetStepEndsAtMs();
                 ReturnFrozenFieldMs = Line.FieldMsAt(Now);
                 bReturnBlocked = true;

@@ -1263,7 +1263,7 @@ def validate_numbers(data):
     require(0 < p("VISION.UphillRadiusScale") <= 1 <= p("VISION.DownhillRadiusScale"),
             "InvalidGeometry", "VISION", "uphill and downhill scales must bracket the base radius")
     for key in ("VISION.RadiusCm", "CAPTURE.RadiusCm", "CAMP.ResetArrivalRadiusCm",
-                "AIRDROP.PickupRadiusCm", "REST.ReturnSearchRadiusCm", "THROW.RadiusCm", "THROW.RangeCm",
+                "AIRDROP.PickupRadiusCm", "CAMP.ClearOrbRadiusCm", "THROW.RadiusCm", "THROW.RangeCm",
                 "SHOWDOWN.RingFinalRadiusCm",
                 "OBJECTIVE.FlagRadiusCm", "OBJECTIVE.ArenaRadiusCm", "EXPLORE.LockerRadiusCm", "EXPLORE.PeddlerOffsetCm",
                 "DAILY.TyphoonPushCm"):
@@ -1413,7 +1413,7 @@ def validate_numbers(data):
     # #97 camp growth: a camp life takes stage min(MaxStage, floor(spawn time / StageSec)) at spawn and keeps it; the
     # native stage is one byte. Scaled values stay integral in their stored units (P2, bp) at the cap.
     max_stage = params["CAMP.GrowthMaxStage"]
-    require(params["CAMP.GrowthStageSec"]["ms"] > 0 and 1 <= max_stage <= 255, "NumericDomain", "CAMP.Growth",
+    require(1 <= params["CAMP.GrowthStagesPerSegment"] <= max_stage <= 255, "NumericDomain", "CAMP.Growth",
             "camp growth needs a positive stage length and 1..255 stages")
     for key in ("CAMP.GrowthHPRatioPerStage", "CAMP.GrowthAttackRatioPerStage", "CAMP.GrowthRewardXPRatioPerStage"):
         checked_add(10000, checked_mul(params[key]["bp"], max_stage, key), key)
@@ -1440,7 +1440,7 @@ def validate_numbers(data):
         monster["perception_radius"] = dict(monster["leash_radius"])
     for tier in CAMP_TIERS:
         pool = [m for m in monsters.values() if m["tier"] == tier]
-        for field in ("count_per_camp", "reward_xp", "respawn"):
+        for field in ("count_per_camp", "reward_xp"):
             require(all(m[field] == pool[0][field] for m in pool), "CampPool", tier,
                     f"same-tier species must share {field}")
         for m in pool:

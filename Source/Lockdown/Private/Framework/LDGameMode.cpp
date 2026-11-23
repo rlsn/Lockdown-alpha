@@ -226,7 +226,8 @@ void ALDGameMode::Logout(AController* Exiting)
         RestLives.Remove(Session);
         // #198 session D: a PK entrant that leaves forfeits (ALDPKDirector reads presence at its next judgement).
         PKLives.Remove(Session);
-        RestReturns.Remove(Session);
+        PreviousFieldSpawns.Remove(Session);
+        PendingFieldSpawns.Remove(Session);
         RetireTrainingDummy(Session);
         Record->State.bActive=false;
         if (MatchPhase!=ELDMatchPhase::Lobby) { Record->bLeft=true; }

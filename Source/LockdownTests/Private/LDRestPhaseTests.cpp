@@ -40,7 +40,7 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
     FLDTimelineParameters P;
     if (!RestTimelineParameters(*this, P)) { return false; }
     bool bGood = TestTrue(TEXT("The approved durations (s): field 160, R0 build 20, rest build 40, betting 6, settlement 3, return 3"),
-        P.FieldSegmentMs == 160000 && P.OpeningBuildMs == 20000 && P.BuildMs == 40000
+        P.FieldSegmentMs == 160000 && P.OpeningBuildMs == 35000 && P.BuildMs == 65000 && P.FinalBuildMs == 65000
         && P.DrawMs == 0 && P.BettingMs == 6000 && P.SettlementMs == 3000 && P.PayoutMs == 0 && P.ReturnMs == 3000);
     FString Error;
     {

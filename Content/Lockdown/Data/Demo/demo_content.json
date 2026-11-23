@@ -15254,11 +15254,7 @@
           "numerator": 1050,
           "unit": "cm"
         },
-        "respawn": {
-          "ms": 90000,
-          "unit": "ms"
-        },
-        "reward_xp": 145,
+        "reward_xp": 196,
         "skill": {
           "angle": 60,
           "echo_delay": {
@@ -15415,11 +15411,7 @@
           "numerator": 1050,
           "unit": "cm"
         },
-        "respawn": {
-          "ms": 75000,
-          "unit": "ms"
-        },
-        "reward_xp": 32,
+        "reward_xp": 44,
         "skill": {
           "angle": 60,
           "echo_delay": {
@@ -15576,11 +15568,7 @@
           "numerator": 1050,
           "unit": "cm"
         },
-        "respawn": {
-          "ms": 90000,
-          "unit": "ms"
-        },
-        "reward_xp": 145,
+        "reward_xp": 196,
         "skill": {
           "angle": 60,
           "echo_delay": {
@@ -15737,11 +15725,7 @@
           "numerator": 1050,
           "unit": "cm"
         },
-        "respawn": {
-          "ms": 90000,
-          "unit": "ms"
-        },
-        "reward_xp": 145,
+        "reward_xp": 196,
         "skill": {
           "angle": 60,
           "echo_delay": {
@@ -15898,11 +15882,7 @@
           "numerator": 1050,
           "unit": "cm"
         },
-        "respawn": {
-          "ms": 40000,
-          "unit": "ms"
-        },
-        "reward_xp": 11,
+        "reward_xp": 15,
         "skill": {
           "angle": 60,
           "echo_delay": {
@@ -16059,11 +16039,7 @@
           "numerator": 1050,
           "unit": "cm"
         },
-        "respawn": {
-          "ms": 120000,
-          "unit": "ms"
-        },
-        "reward_xp": 300,
+        "reward_xp": 405,
         "skill": {
           "angle": 60,
           "echo_delay": {
@@ -16220,11 +16196,7 @@
           "numerator": 1050,
           "unit": "cm"
         },
-        "respawn": {
-          "ms": 120000,
-          "unit": "ms"
-        },
-        "reward_xp": 300,
+        "reward_xp": 405,
         "skill": {
           "angle": 60,
           "echo_delay": {
@@ -16381,11 +16353,7 @@
           "numerator": 1050,
           "unit": "cm"
         },
-        "respawn": {
-          "ms": 75000,
-          "unit": "ms"
-        },
-        "reward_xp": 32,
+        "reward_xp": 44,
         "skill": {
           "angle": 60,
           "echo_delay": {
@@ -16542,11 +16510,7 @@
           "numerator": 1050,
           "unit": "cm"
         },
-        "respawn": {
-          "ms": 75000,
-          "unit": "ms"
-        },
-        "reward_xp": 32,
+        "reward_xp": 44,
         "skill": {
           "angle": 60,
           "echo_delay": {
@@ -16703,11 +16667,7 @@
           "numerator": 1050,
           "unit": "cm"
         },
-        "respawn": {
-          "ms": 40000,
-          "unit": "ms"
-        },
-        "reward_xp": 11,
+        "reward_xp": 15,
         "skill": {
           "angle": 60,
           "echo_delay": {
@@ -16864,11 +16824,7 @@
           "numerator": 1050,
           "unit": "cm"
         },
-        "respawn": {
-          "ms": 120000,
-          "unit": "ms"
-        },
-        "reward_xp": 300,
+        "reward_xp": 405,
         "skill": {
           "angle": 60,
           "echo_delay": {
@@ -17025,11 +16981,7 @@
           "numerator": 900,
           "unit": "cm"
         },
-        "respawn": {
-          "ms": 40000,
-          "unit": "ms"
-        },
-        "reward_xp": 11,
+        "reward_xp": 15,
         "skill": {
           "angle": 60,
           "echo_delay": {
@@ -22565,6 +22517,16 @@
       "ms": 30000,
       "unit": "ms"
     },
+    "AIRDROP.FieldClearanceCm": {
+      "denominator": 1,
+      "numerator": 200,
+      "unit": "cm"
+    },
+    "AIRDROP.FieldSeparationCm": {
+      "denominator": 1,
+      "numerator": 1800,
+      "unit": "cm"
+    },
     "AIRDROP.HealMaxHPRatio": {
       "bp": 2000,
       "unit": "ratio"
@@ -22613,16 +22575,25 @@
       "unit": "cm"
     },
     "AIRDROP.RewardXP": 200,
-    "CAMP.ClearHealMissingRatio": {
-      "bp": 1200,
+    "CAMP.ClearHealFlat": {
+      "p2": 6000,
+      "unit": "hp"
+    },
+    "CAMP.ClearHealMaxRatio": {
+      "bp": 1500,
       "unit": "ratio"
     },
     "CAMP.ClearMomentum": {
       "p2": 2500,
       "unit": "momentum"
     },
+    "CAMP.ClearOrbRadiusCm": {
+      "denominator": 1,
+      "numerator": 95,
+      "unit": "cm"
+    },
     "CAMP.ClearOrbSec": {
-      "ms": 12000,
+      "ms": 20000,
       "unit": "ms"
     },
     "CAMP.GrowthAttackRatioPerStage": {
@@ -22642,10 +22613,7 @@
       "bp": 600,
       "unit": "ratio"
     },
-    "CAMP.GrowthStageSec": {
-      "ms": 43000,
-      "unit": "ms"
-    },
+    "CAMP.GrowthStagesPerSegment": 3,
     "CAMP.ResetArrivalRadiusCm": {
       "denominator": 1,
       "numerator": 100,
@@ -23181,6 +23149,33 @@
       "ms": 60000,
       "unit": "ms"
     },
+    "FIELD.MapRecoveryCount": 10,
+    "FIELD.MapRecoverySeparationCm": {
+      "denominator": 1,
+      "numerator": 1400,
+      "unit": "cm"
+    },
+    "FIELD.MapRecoverySightCm": {
+      "denominator": 1,
+      "numerator": 1400,
+      "unit": "cm"
+    },
+    "FIELD.SpawnCaptureDistanceCm": {
+      "denominator": 1,
+      "numerator": 2000,
+      "unit": "cm"
+    },
+    "FIELD.SpawnPatrolMarginCm": {
+      "denominator": 1,
+      "numerator": 600,
+      "unit": "cm"
+    },
+    "FIELD.SpawnPoolMin": 18,
+    "FIELD.SpawnSeparationCm": {
+      "denominator": 1,
+      "numerator": 2400,
+      "unit": "cm"
+    },
     "GROUND.FieldRadiusCm": {
       "denominator": 1,
       "numerator": 180,
@@ -23534,7 +23529,7 @@
       "unit": "ms"
     },
     "REST.BuildSec": {
-      "ms": 40000,
+      "ms": 65000,
       "unit": "ms"
     },
     "REST.DrawSec": {
@@ -23546,11 +23541,11 @@
       "unit": "ms"
     },
     "REST.FinalBuildSec": {
-      "ms": 20000,
+      "ms": 65000,
       "unit": "ms"
     },
     "REST.OpeningBuildSec": {
-      "ms": 20000,
+      "ms": 35000,
       "unit": "ms"
     },
     "REST.PKMaxSec": {
@@ -23564,11 +23559,6 @@
     "REST.PayoutSec": {
       "ms": 0,
       "unit": "ms"
-    },
-    "REST.ReturnSearchRadiusCm": {
-      "denominator": 1,
-      "numerator": 300,
-      "unit": "cm"
     },
     "REST.ReturnSec": {
       "ms": 3000,

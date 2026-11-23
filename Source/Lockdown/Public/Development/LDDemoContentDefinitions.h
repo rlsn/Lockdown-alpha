@@ -468,7 +468,6 @@ struct FLDDemoContentParameters
     // after its boundary (then the PK is NoContest and an unready field return is an explicit fault).
     UPROPERTY() int64 RestEntryReadyTimeoutMs = 0;
     // #198: an occupied pre-rest foot point is replaced by a free spot on the same reachable surface within this radius.
-    UPROPERTY() FLDDemoRational RestReturnSearchRadiusCm;
     // #198 PK ring centred on the capture anchor: PKArenaRadiusCm until PKRingShrinkStartMs, linear to PKRingMidRadiusCm
     // at PKRingMidMs, linear to PKRingFinalRadiusCm at PKRingFinalMs, then held until RestPKMaxMs. The next ring is
     // shown PKRingPreviewMs ahead. Ring damage is the start-of-PK max HP times the early/mid/final share per second of
@@ -536,15 +535,26 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 CampReturnDeadEndPlans = 0;
     UPROPERTY() int64 CampReturnDeadEndMs = 0;
     // #97 camp growth (Development/LDCampGrowth.h): a camp life spawned t after T=0 takes stage
-    // min(CampGrowthMaxStage, floor(t / CampGrowthStageMs)); each stage adds these shares of the base values.
-    UPROPERTY() int64 CampGrowthStageMs = 0;
+    // Camp growth is fixed for the field segment; each stage adds these shares of the base values.
+    UPROPERTY() int64 CampGrowthStagesPerSegment = 0;
     UPROPERTY() int64 CampGrowthMaxStage = 0;
     UPROPERTY() int64 CampGrowthHPPerStageBp = 0;
     UPROPERTY() int64 CampGrowthAttackPerStageBp = 0;
     UPROPERTY() int64 CampGrowthResistPerStageP2 = 0;
     UPROPERTY() int64 CampGrowthRewardXPPerStageBp = 0;
-    // CAMP.ClearHealMissingRatio: the contender who clears a whole camp heals this share of its missing HP.
-    UPROPERTY() int64 CampClearHealMissingBp = 0;
+    // Recovery packs share the same maximum-HP ratio, flat heal and pickup radius.
+    UPROPERTY() int64 CampClearHealMaxBp = 0;
+    UPROPERTY() int64 CampClearHealFlatP2 = 0;
+    UPROPERTY() FLDDemoRational CampClearOrbRadiusCm;
+    UPROPERTY() int64 FieldSpawnPoolMin = 0;
+    UPROPERTY() int64 FieldMapRecoveryCount = 0;
+    UPROPERTY() FLDDemoRational FieldSpawnSeparationCm;
+    UPROPERTY() FLDDemoRational FieldSpawnCaptureDistanceCm;
+    UPROPERTY() FLDDemoRational FieldSpawnPatrolMarginCm;
+    UPROPERTY() FLDDemoRational FieldMapRecoverySeparationCm;
+    UPROPERTY() FLDDemoRational FieldMapRecoverySightCm;
+    UPROPERTY() FLDDemoRational AirdropFieldClearanceCm;
+    UPROPERTY() FLDDemoRational AirdropFieldSeparationCm;
     // CAMP.ClearMomentum: and gains this much momentum.
     UPROPERTY() int64 CampClearMomentumP2 = 0;
     // CAMP.ClearOrbSec: how long a camp clear recovery orb lies on the ground before it fades (field progress T).
@@ -1282,7 +1292,6 @@ struct FLDDemoMonsterDefinition
     UPROPERTY() FLDDemoRational LeashRadiusCm;
     UPROPERTY() FLDDemoRational PerceptionRadiusCm;
     UPROPERTY() int64 LoseTargetGraceMs = 0;
-    UPROPERTY() int64 RespawnMs = 0;
     UPROPERTY() int64 RewardXP = 0;
     UPROPERTY() FLDDemoRational HPRegenPerSec;
     UPROPERTY() int64 APP2 = 0;

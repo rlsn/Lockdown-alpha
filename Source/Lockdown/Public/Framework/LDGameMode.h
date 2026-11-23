@@ -12,6 +12,7 @@
 #include "World/LDAirdrop.h"
 #include "World/LDFieldMarkers.h"
 #include "World/LDDormZones.h"
+#include "World/LDWorldQueryTypes.h"
 #include "World/LDLeaderNotice.h"
 #include "World/LDFieldPacing.h"
 #include "Framework/LDPacingTypes.h"
@@ -482,16 +483,14 @@ private:
         TWeakObjectPtr<ALDCharacter> Body;
         TSharedPtr<const class FLDSpawnReservation> Reservation;
     };
-    // Where a placed life stands: a uniform spawn draw, a fixed spawn anchor (#198 private rest space) or near an old
-    // field foot (#198 return to the field, falling back to a draw).
+    // A respawn draw, an authored phase anchor, or an exact point in a joint field deployment.
     struct FLDPlacementTarget
     {
-        enum class EKind : uint8 { Draw, Anchor, Near };
+        enum class EKind : uint8 { Draw, Anchor, Exact };
         EKind Kind = EKind::Draw;
         FName Anchor;
         FVector FootCm = FVector::ZeroVector;
         FName Surface;
-        double RadiusCm = 0;
     };
     // Draws, reserves and physically places one contender body without committing any life state.
     bool PlaceContenderBody(const FGuid& Contender, uint32 ProposedLife, const FLDGameplayWritePermit& Permit,
@@ -661,14 +660,11 @@ private:
     // RespawnsAndWorld and the lock: RestSignups from the committed feet (empty outside the window). False on a fault.
     bool RefreshRestSignups(FString& Error);
     TArray<FGuid> LockedEntrants;
-    // Per contender: where its field life stood when the rest began (returns there), and whether it was alive.
-    struct FLDRestReturn
-    {
-        bool bAliveAtRest = false;
-        FVector FieldFootCm = FVector::ZeroVector;
-        FName FieldSurface;
-    };
-    TMap<FGuid, FLDRestReturn> RestReturns;
+    TMap<FGuid, FVector> PreviousFieldSpawns;
+    TMap<FGuid, FLDLegalGround> PendingFieldSpawns;
+    TArray<FVector> PendingMapRecoveryPacks;
+    bool PlanFieldSpawns(uint8 Segment, TConstArrayView<FGuid> Order, TMap<FGuid, FLDLegalGround>& Out, FString& Error) const;
+    bool PlanMapRecoveryPacks(uint8 Segment, TArray<FVector>& Out, FString& Error) const;
     // Contenders whose current life is a rest life (private rest space, no capture eligibility).
     TSet<FGuid> RestLives;
     // #198 session D: contenders whose current life is a PK life in the arena.

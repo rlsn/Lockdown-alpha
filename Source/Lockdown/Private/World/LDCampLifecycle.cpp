@@ -28,7 +28,7 @@ int32 FindOrAddPool(const FLDDemoContentDefinitions& Content, const FLDDemoMonst
     for (const auto& Species : Content.Monsters)
     {
         if (Species.Tier != Representative.Tier) { continue; }
-        if (Species.CountPerCamp != Representative.CountPerCamp || Species.RespawnMs != Representative.RespawnMs
+        if (Species.CountPerCamp != Representative.CountPerCamp
             || Species.RewardXP != Representative.RewardXP)
         {
             Error = TEXT("Species of one camp tier disagree on member count, reward or refresh.");
@@ -68,7 +68,7 @@ bool BuildRoster(const FLDDemoContentDefinitions& Content, const FLDDemoWorldGeo
             [Placement](const FLDDemoMonsterDefinition& Row) { return Row.Id == Placement->MonsterId; }) : nullptr;
         if (CampId.IsNone() || Camps.Contains(CampId) || !Placement || !Monster || !Anchor
             || Anchor->Kind != ELDDemoWorldAnchorKind::Camp || Anchor->SurfaceId.IsEmpty()
-            || Monster->NativeId == 0 || Monster->CountPerCamp <= 0 || Monster->RespawnMs <= 0
+            || Monster->NativeId == 0 || Monster->CountPerCamp <= 0
             || Anchor->Members.IsEmpty()
             || (Anchor->Members.Num() != Monster->CountPerCamp
                 && !(World.bSceneLayout && Anchor->Members.ContainsByPredicate([](const auto& Home) { return !Home.PrototypeId.IsEmpty(); }))))
@@ -85,7 +85,6 @@ bool BuildRoster(const FLDDemoContentDefinitions& Content, const FLDDemoWorldGeo
         Spec.CreatureId = Monster->NativeId;
         if (FindOrAddPool(Content, *Monster, Spec, Error) != 0) { return false; }
         Spec.Tier = Monster->Tier;
-        Spec.RespawnMs = Monster->RespawnMs;
         if (!Anchor->PositionCm.ToVector(Spec.AnchorCm, Error)) { return false; }
         for (const auto& Home : Anchor->Members)
         {
@@ -94,7 +93,7 @@ bool BuildRoster(const FLDDemoContentDefinitions& Content, const FLDDemoWorldGeo
             const FString MemberTemplate=World.bSceneLayout && !Home.PrototypeId.IsEmpty() ? Home.PrototypeId : Template;
             const auto* MemberPlacement=Content.Camps.FindByPredicate([&](const auto& Row) { return Row.AnchorId==MemberTemplate; });
             const auto* MemberMonster=MemberPlacement ? Content.Monsters.FindByPredicate([&](const auto& Row) { return Row.Id==MemberPlacement->MonsterId; }) : nullptr;
-            if (!MemberMonster || !MemberMonster->NativeId || MemberMonster->RespawnMs<=0)
+            if (!MemberMonster || !MemberMonster->NativeId)
             { Error=TEXT("Camp member has no approved monster prototype: ")+Home.Id; return false; }
             Member.DefinitionId=FName(*MemberTemplate);
             // The member prototype only names a tier representative; its species comes from that tier's draw.
@@ -286,15 +285,31 @@ int32 FLDCampMatchState::DevRefreshNow(int64 NowMs)
     int32 Waiting = 0;
     for (FLDCampGroupState& Group : Camps)
     {
-        if (IsActive() && Group.bRespawnPending)
+        if (IsActive() && Group.Generation != 0 && !Group.Members.ContainsByPredicate([](const auto& M) { return M.bAlive; }))
         {
-            Group.RespawnDueMs = FMath::Min(Group.RespawnDueMs, NowMs);
+            Group.RespawnDueMs = Group.bRespawnPending ? FMath::Min(Group.RespawnDueMs, NowMs) : NowMs;
+            Group.bRespawnPending = true;
             ++Waiting;
         }
     }
     return Waiting;
 }
 #endif
+
+void FLDCampMatchState::QueueFieldReset(int32 Camp)
+{
+    FLDCampGroupState& Group = Camps[Camp];
+    for (FLDCampMemberState& Member : Group.Members)
+    {
+        Member.bAlive = false;
+        Member.Body = {};
+        Member.Brain = {};
+        Member.HostileSources.Reset();
+    }
+    Group.PendingSpecies.Reset();
+    Group.bRespawnPending = true;
+    Group.RespawnDueMs = 0;
+}
 
 int64 FLDCampMatchState::NextRespawnDueMs() const
 {
@@ -390,11 +405,6 @@ ELDCampDeathResult FLDCampMatchState::RecordDeath(const FLDDeathKey& Death, int6
     {
         bLastLiving &= Other == Slot || !Group.Members[Other].bAlive;
     }
-    int64 DueMs = 0;
-    if (bLastLiving && !LDMatchLifecycle::AddDurationMs(OccurredAtMs, Roster->Camps[Camp].RespawnMs, DueMs, Error))
-    {
-        return ELDCampDeathResult::Rejected;
-    }
     FLDCampMemberState& Member = Group.Members[Slot];
     Member.bAlive = false;
     Member.Body = {};
@@ -402,9 +412,9 @@ ELDCampDeathResult FLDCampMatchState::RecordDeath(const FLDDeathKey& Death, int6
     Member.HostileSources.Reset();
     if (bLastLiving)
     {
-        Group.bRespawnPending = true;
+        Group.bRespawnPending = false;
         Group.ClearedAtMs = OccurredAtMs;
-        Group.RespawnDueMs = DueMs;
+        Group.RespawnDueMs = 0;
     }
     Error.Reset();
     return bLastLiving ? ELDCampDeathResult::CampCleared : ELDCampDeathResult::MemberDead;

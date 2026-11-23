@@ -104,7 +104,7 @@ public:
     const FVector2D& MaxCm() const { return Max; }
     const FBox2D& CoverageBounds() const { return CoverageWorldBounds; }
     bool InBounds(const FVector& FootCm) const;
-    ELDSightResult Trace(const FVector& SourceFootCm, const FVector& TargetFootCm) const;
+    ELDSightResult Trace(const FVector& SourceFootCm, const FVector& TargetFootCm, double FixedRangeCm = 0.) const;
     FVector2D CellCentre(int32 Index) const;
     struct FCoverageScan
     {
@@ -124,7 +124,7 @@ private:
     bool SegmentBlocked(const FVector& From, const FVector& To,
         const FHitResult& SourceSupport, const FHitResult& TargetSupport, double DistanceFractionSquared) const;
     ELDSightResult TracePrepared(const FVector& From, const FVector& To,
-        const FHitResult& SourceSupport, const FHitResult& TargetSupport) const;
+        const FHitResult& SourceSupport, const FHitResult& TargetSupport, double FixedRangeCm = 0.) const;
     void ResolveFoot(const FVector& Foot, FVector& Ground, FHitResult& Support) const;
     void PrepareNativeScope(const FVector2D& From) const;
     // #97: forests hold hundreds of trunks, so blockers are bucketed in a coarse grid; a segment tests only the
@@ -333,6 +333,8 @@ private:
         // VISION.SightGraceSec: when and where each unit's life was last in this observer's own sight.
         struct FSeen { uint32 Life = 0; double AtSeconds = 0; FVector FootCm = FVector::ZeroVector; };
         TMap<FGuid, FSeen> LastSeen;
+        uint8 EmptyCampSegment = MAX_uint8;
+        TSet<FName> WitnessedEmptyCamps;
     };
     ALDGameMode* AuthorityMode() const;
     FObserver* FindObserver(const ALDPlayerController& Caller);

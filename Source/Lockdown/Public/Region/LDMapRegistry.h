@@ -77,11 +77,10 @@ public:
     // its free offset.
     bool SelectSpawnAnchor(const FLDSpawnRequestKey& Request, FName Anchor,
         const FLDGameplayWritePermit& Permit, TSharedPtr<const FLDSpawnSelection>& Out, FString& Error);
-    // #198 return to the field: reserves a free placement for the next life at FootCm, else within RadiusCm on ground
-    // reachable from that foot. bBlocked (no state recorded) when none is free; the caller then draws a normal spawn.
-    bool ReserveSpawnNear(const FLDSpawnRequestKey& Request, const FVector& FootCm, FName SurfaceHint, double RadiusCm,
+    // Reserves an exact legal ground point selected by the joint field deployment.
+    bool ReserveSpawnAt(const FLDSpawnRequestKey& Request, const FVector& FootCm, FName SurfaceHint,
         const FCollisionShape& Capsule, const FLDGameplayWritePermit& Permit, TSharedPtr<const FLDSpawnReservation>& Out,
-        bool& bBlocked, FString& Error);
+        FString& Error);
     bool ReserveSpawnPlacement(const TSharedPtr<const FLDSpawnSelection>& Selection, const FCollisionShape& Capsule,
         const FLDGameplayWritePermit& Permit, TSharedPtr<const FLDSpawnReservation>& Out, FString& Error);
     bool ValidateSpawnReservation(const TSharedPtr<const FLDSpawnReservation>& Reservation,

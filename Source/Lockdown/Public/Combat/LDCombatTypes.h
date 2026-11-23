@@ -509,6 +509,7 @@ struct FLDCombatCueFacts
     UPROPERTY() uint8 LastDealtFlags=0;              // LDObservation::EHitFlags
     // Owner-only timestamp of the last tactical world pickup (slipper drop or recovery orb) in this life.
     UPROPERTY() int64 LastPickupAtMs=0;
+    UPROPERTY() int64 LastRecoveryPackAtMs=0;
 };
 
 USTRUCT()

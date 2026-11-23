@@ -372,8 +372,8 @@ class ApprovedDemoData(unittest.TestCase):
             ("SHOWDOWN.RespawnCutoffSec", "ms", "90"), ("SHOWDOWN.ClosureStartsSec", "ms", "75"), ("SHOWDOWN.KillGuardBonusSec", "ms", "4"),
             # Issue #287 spec §10 (P6): three 160 s field segments and 25 s rests.
             ("MATCH.FieldSegmentSec", "ms", "160"),
-            ("REST.OpeningBuildSec", "ms", "20"), ("REST.BuildSec", "ms", "40"), ("REST.FinalBuildSec", "ms", "20"),
-            ("REST.ReturnSec", "ms", "3"), ("REST.ReturnSearchRadiusCm", "cm", "300"),
+            ("REST.OpeningBuildSec", "ms", "35"), ("REST.BuildSec", "ms", "65"), ("REST.FinalBuildSec", "ms", "65"),
+            ("REST.ReturnSec", "ms", "3"),
             ("REST.EntryReadyTimeoutSec", "ms", "30"),
             # The rest PK (R1 and R2): sign-up inside the build step, then draw+betting, ready, fight, and settlement+payout.
             ("REST.SignupSec", "ms", "10"), ("REST.DrawSec", "ms", "0"), ("REST.BettingSec", "ms", "6"),
@@ -412,10 +412,17 @@ class ApprovedDemoData(unittest.TestCase):
             ("DORM.RadiusCm", "cm", "400"), ("DORM.OutOfCombatDelaySec", "ms", "3"),
             ("DORM.MaxHPRatioPerSec", "ratio", ".1"),
             ("CAMP.ResetArrivalRadiusCm", "cm", "100"),
-            ("CAMP.ReturnDeadEndSec", "ms", "6"), ("CAMP.GrowthStageSec", "ms", "43"),
+            ("CAMP.ReturnDeadEndSec", "ms", "6"),
             ("CAMP.GrowthHPRatioPerStage", "ratio", ".12"), ("CAMP.GrowthAttackRatioPerStage", "ratio", ".08"),
-            ("CAMP.GrowthResistPerStage", "points", "2"), ("CAMP.GrowthRewardXPRatioPerStage", "ratio", ".06"), ("CAMP.ClearHealMissingRatio", "ratio", ".12"), ("CAMP.ClearMomentum", "momentum", "25"), ("CAMP.ClearOrbSec", "ms", "12"),
+            ("CAMP.GrowthResistPerStage", "points", "2"), ("CAMP.GrowthRewardXPRatioPerStage", "ratio", ".06"), ("CAMP.ClearHealMaxRatio", "ratio", ".15"), ("CAMP.ClearHealFlat", "hp", "60"), ("CAMP.ClearOrbRadiusCm", "cm", "95"), ("CAMP.ClearMomentum", "momentum", "25"), ("CAMP.ClearOrbSec", "ms", "20"),
             ("AIRDROP.ExpireSec", "ms", "30"), ("CAMPMARK.RevealSec", "ms", "11"),
+            ("FIELD.SpawnSeparationCm", "cm", "2400"),
+            ("FIELD.SpawnCaptureDistanceCm", "cm", "2000"),
+            ("FIELD.SpawnPatrolMarginCm", "cm", "600"),
+            ("FIELD.MapRecoverySeparationCm", "cm", "1400"),
+            ("FIELD.MapRecoverySightCm", "cm", "1400"),
+            ("AIRDROP.FieldClearanceCm", "cm", "200"),
+            ("AIRDROP.FieldSeparationCm", "cm", "1800"),
             ("AIRDROP.AnnounceLeadSec", "ms", "15"), ("AIRDROP.PickupRadiusCm", "cm", "150"),
             ("AIRDROP.HealMaxHPRatio", "ratio", ".20"),
             ("AIRDROP.MoveSpeedRatio", "ratio", ".20"), ("AIRDROP.MoveSpeedSec", "ms", "6"),
@@ -505,7 +512,8 @@ class ApprovedDemoData(unittest.TestCase):
             ("MEDAL.MaxTier", 3),
             ("SHOWDOWN.RespawnLimit", 2),
             ("REWARD.PlayerXP.Base", 140), ("REWARD.PlayerXP.PerLevel", 28), ("REWARD.BountyXP", 150), ("REWARD.BountyCardOffer", 3), ("AI.RetryPolicy.MaxAttempts", 3),
-            ("CAMP.ReturnDeadEndPlans", 3), ("CAMP.GrowthMaxStage", 10), ("AIRDROP.RewardXP", 200),
+            ("FIELD.SpawnPoolMin", 18), ("FIELD.MapRecoveryCount", 10),
+            ("CAMP.ReturnDeadEndPlans", 3), ("CAMP.GrowthStagesPerSegment", 3), ("CAMP.GrowthMaxStage", 10), ("AIRDROP.RewardXP", 200),
             ("LEADER.MinLevel", 3),
             ("COMBAT.BreachMaxStacks", 5), ("COMBAT.BurnMaxStacks", 5), ("COMBAT.OverloadBreachStacks", 2),
             ("COMBAT.ShockEveryNthHit", 3), ("COMBAT.MethaneBurnStacks", 2), ("COMBAT.CorrodeBreachStacks", 5), ("GROUND.FireBurnStacks", 1), ("GROUND.MaxPerOwner", 6), ("GROUND.MaxTotal", 40),
@@ -912,11 +920,11 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual(self.data["progression"]["xp_to_next"],
                          (60, 80, 100, 135, 170, 205, 240, 275, 310, 345, 380, 415, 450, 485, 520))
         self.assertEqual((self.data["progression"]["max_level"], self.data["progression"]["active_slots"]), (16, 3))
-        for identity, tier, count, hp, resist, attack, rate, windup, reach, speed, leash, grace, respawn, xp, interval in (
-            ("monster_scavenger", "Low", 3, 90, 8, 14, ".80", 350, 150, 240, 900, 3000, 40000, 11, 1250),
-            ("monster_guardian", "High", 2, 315, 20, 50, ".65", 500, 175, 260, 1050, 4000, 75000, 32, 1539),
-            ("monster_advisor", "Elite", 1, 1350, 30, 126, ".60", 500, 175, 260, 1050, 4000, 90000, 145, 1667),
-            ("monster_director", "Ancient", 1, 2100, 40, 182, ".55", 500, 175, 260, 1050, 4000, 120000, 300, 1819),
+        for identity, tier, count, hp, resist, attack, rate, windup, reach, speed, leash, grace, xp, interval in (
+            ("monster_scavenger", "Low", 3, 90, 8, 14, ".80", 350, 150, 240, 900, 3000, 15, 1250),
+            ("monster_guardian", "High", 2, 315, 20, 50, ".65", 500, 175, 260, 1050, 4000, 44, 1539),
+            ("monster_advisor", "Elite", 1, 1350, 30, 126, ".60", 500, 175, 260, 1050, 4000, 196, 1667),
+            ("monster_director", "Ancient", 1, 2100, 40, 182, ".55", 500, 175, 260, 1050, 4000, 405, 1819),
         ):
             row = self.catalog.definition(identity)
             self.assertEqual((row["tier"], row["count_per_camp"], row["reward_xp"]), (tier, count, xp))
@@ -924,8 +932,8 @@ class ApprovedDemoData(unittest.TestCase):
                                   ("attack_speed", Fraction(rate)), ("attack_range", reach), ("move_speed", speed),
                                   ("leash_radius", leash), ("perception_radius", leash), ("collision_radius", 40)):
                 self.assertEqual(amount(row[key]), expected)
-            self.assertEqual((row["attack_windup"]["ms"], row["lose_target_grace"]["ms"], row["respawn"]["ms"],
-                              row["attack_interval_ms"]), (windup, grace, respawn, interval))
+            self.assertEqual((row["attack_windup"]["ms"], row["lose_target_grace"]["ms"],
+                              row["attack_interval_ms"]), (windup, grace, interval))
             self.assertTrue(all(amount(row[key]) == 0 for key in ("hp_regen", "ap", "crit_chance")))
 
     def test_approved_boss(self):

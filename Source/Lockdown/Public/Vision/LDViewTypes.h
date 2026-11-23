@@ -25,7 +25,7 @@ namespace LDObservation
     // 21 packs public status expiry times without losing precision.
     // 22 uses the finer square-cell ground coverage raster.
     // 23 moves camp-clear recovery orbs and #345 tactical entities/hit flags into sight-authorized FLDWorldView.
-    constexpr uint32 Schema = 23;
+    constexpr uint32 Schema = 24;
     // A ground state's wire size (LDViewTypes.cpp SerializeObservedGround): SC-07 registers MaxGroundStates of them per frame.
     constexpr int32 GroundStateWireBytes = 16;
     // The public momentum bar of a visible contender: 0..MomentumBarFull (never the exact value).
@@ -272,6 +272,7 @@ struct LOCKDOWN_API FLDWorldView
     UPROPERTY() TArray<FLDObservedProjectileView> Projectiles;
     UPROPERTY() TArray<FLDObservedGroundState> GroundStates;
     UPROPERTY() TArray<FLDObservedRecoveryOrb> RecoveryOrbs;
+    UPROPERTY() TArray<FName> WitnessedEmptyCamps;
     bool NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuccess);
 };
 template<> struct TStructOpsTypeTraits<FLDWorldView> : TStructOpsTypeTraitsBase2<FLDWorldView>

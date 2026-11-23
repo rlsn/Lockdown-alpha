@@ -9,7 +9,8 @@ namespace LDCampGrowthTests
 FLDDemoContentParameters MakeParameters()
 {
     FLDDemoContentParameters P;
-    P.CampGrowthStageMs = 60000;
+    P.FieldSegmentMs = 160000;
+    P.CampGrowthStagesPerSegment = 3;
     P.CampGrowthMaxStage = 10;
     P.CampGrowthHPPerStageBp = 1200;
     P.CampGrowthAttackPerStageBp = 800;
@@ -30,7 +31,6 @@ FLDDemoMonsterDefinition MakeMonster()
     M.MagicResistP2 = 1500;
     M.AttackIntervalMs = 1539;
     M.AttackWindupMs = 500;
-    M.RespawnMs = 65000;
     M.RewardXP = 21;
     return M;
 }
@@ -44,10 +44,10 @@ bool FLDCampGrowthTest::RunTest(const FString& Parameters)
     const FLDDemoContentParameters P = MakeParameters();
     const FLDDemoMonsterDefinition Base = MakeMonster();
 
-    // 1. The stage counts whole StageMs from T=0, starts at 0 during the countdown and stops at the cap.
+    // 1. Each field uses a single growth stage, with three stages between field entries.
     bool bGood = true;
     for (const auto& [SinceMs, Expected] : TArray<TTuple<int64, uint8>>{
-        {-5000, 0}, {0, 0}, {59999, 0}, {60000, 1}, {119999, 1}, {599999, 9}, {600000, 10}, {MAX_int64, 10}})
+        {-5000, 0}, {0, 0}, {159999, 0}, {160000, 3}, {319999, 3}, {320000, 6}, {479999, 6}, {MAX_int64, 10}})
     {
         bGood &= TestEqual(FString::Printf(TEXT("A life spawned %lld ms after T=0 takes stage %u"), SinceMs, Expected),
             LDCampGrowth::Stage(P, SinceMs), Expected);
@@ -67,8 +67,8 @@ bool FLDCampGrowthTest::RunTest(const FString& Parameters)
     bGood &= TestEqual(TEXT("Stage 3 attack is +24% floored"), Grown.AttackP2, int64(5953));
     bGood &= TestEqual(TEXT("Stage 3 armor is +6 points"), Grown.ArmorP2, int64(2600));
     bGood &= TestEqual(TEXT("Stage 3 magic resist is +6 points"), Grown.MagicResistP2, int64(2100));
-    bGood &= TestTrue(TEXT("Growth leaves timing, respawn and rewards alone"), Grown.AttackIntervalMs == Base.AttackIntervalMs
-        && Grown.AttackWindupMs == Base.AttackWindupMs && Grown.RespawnMs == Base.RespawnMs && Grown.RewardXP == Base.RewardXP
+    bGood &= TestTrue(TEXT("Growth leaves attack timing and base rewards alone"), Grown.AttackIntervalMs == Base.AttackIntervalMs
+        && Grown.AttackWindupMs == Base.AttackWindupMs && Grown.RewardXP == Base.RewardXP
         && Grown.Id == Base.Id && Grown.Tier == Base.Tier);
     bGood &= TestTrue(TEXT("The cap stage scales"), LDCampGrowth::ScaleBody(P, Base, 10, Grown, Error));
     bGood &= TestEqual(TEXT("The cap stage HP is +120%"), Grown.HPP2, int64(19802));

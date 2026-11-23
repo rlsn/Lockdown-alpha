@@ -418,7 +418,7 @@ class DemoContentImport(unittest.TestCase):
             lambda data: data["parameters"]["LIFE.RespawnPerLevelSec"].update(value=0.0001),
             lambda data: data["parameters"]["LIFE.SpawnChoiceSec"].update(value=0),
             lambda data: data["parameters"]["MATCH.FieldSegmentSec"].update(value=0),
-            lambda data: data["parameters"]["REST.ReturnSearchRadiusCm"].update(unit="s"),
+            lambda data: data["parameters"]["CAMP.ClearOrbRadiusCm"].update(unit="s"),
             lambda data: data["parameters"]["AI.DecisionIntervalSec"].update(value=-1),
             lambda data: data["parameters"]["STAT.BaseAttackSpeed"].update(value=0),
             lambda data: data["abilities"][0]["target"].update(projectile_speed={"unit": "cm/s", "value": -1}),
@@ -701,7 +701,7 @@ class DemoContentImport(unittest.TestCase):
             (lambda data: data["parameters"]["REGEN.OutOfCombatDelaySec"].update(value=0), "NumericDomain"),
             (lambda data: data["parameters"].pop("REGEN.OutOfCombatDelaySec"), "MissingField"),
             # #198 rest phases: retired timeline keys stay rejected.
-            (lambda data: data["parameters"]["REST.ReturnSearchRadiusCm"].update(value=0), "InvalidGeometry"),
+            (lambda data: data["parameters"]["CAMP.ClearOrbRadiusCm"].update(value=0), "InvalidGeometry"),
             (lambda data: data["parameters"].update({"SHOP.CardPrice": 0}), "NumericDomain"),
             (lambda data: data["parameters"].pop("REST.ReturnSec"), "MissingField"),
             (lambda data: data["parameters"].update({"MATCH.DevelopmentSec": {"unit": "s", "value": 180}}), "UnknownField"),
@@ -744,7 +744,7 @@ class DemoContentImport(unittest.TestCase):
                 self.assert_refused(mutation)
 
     def test_species_pools_refuse_different_member_reward_or_refresh_budgets(self):
-        for field,value in (("count_per_camp",4),("reward_xp",99),("respawn",{"unit":"s","value":12})):
+        for field,value in (("count_per_camp",4),("reward_xp",99)):
             (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
             with self.subTest(field=field):
                 self.assert_refused(lambda data: data["camps"]["monsters"][0].update({field:value}),"CampPool")

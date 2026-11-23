@@ -6,11 +6,11 @@
 
 class ULDMapRegistry;
 class FLDDemoContentSnapshot;
+struct FLDDormZones;
 
 // D26 (#79) 天降外卖 rules, #198 outer §5 schedule. Drop n (1-based) lands at field progress T = StartedAt +
-// AIRDROP.LandSec[n-1] on one of the public airdrop points, is announced AIRDROP.AnnounceLeadSec earlier, and leaves
-// unclaimed AIRDROP.ExpireSec after landing; there is no drop after the list. Each drop's point is drawn from a
-// server-only seed among the points other than the previous drop's, so it is known only from its announcement. There
+// AIRDROP.LandSec[n-1], is announced AIRDROP.AnnounceLeadSec earlier, and leaves unclaimed AIRDROP.ExpireSec after landing.
+// The authority samples a connected field point at announcement using a private seed. Authored points are fallbacks. There
 // is one current drop: the next announcement replaces it (claimed or expired). The first living, unprotected contender
 // whose foot is inside the closed AIRDROP.PickupRadiusCm disk of a landed drop claims it once (nearest first; an exact
 // tie is a seeded server draw, not a contender-id order). The public view never names the claimer; the claimer learns
@@ -69,8 +69,9 @@ struct LOCKDOWN_API FLDAirdropState
 {
     FLDAirdropSchedule Schedule;
     uint64 Serial = 0;
-    // Index into Schedule.Points of the current drop; INDEX_NONE before the first announcement.
+    // The selected fallback list index for schedules driven without a field sampler.
     int32 PointIndex = INDEX_NONE;
+    TOptional<LDAirdrop::FPoint> SampledPoint;
     ELDAirdropPhase Phase = ELDAirdropPhase::None;
     // Authority and owner view only; the public view never carries them.
     FGuid ClaimedBy;
@@ -79,7 +80,8 @@ struct LOCKDOWN_API FLDAirdropState
     bool IsActive() const { return Schedule.IsValid(); }
     // Moves to the drop NowMs falls in: announcement, landing and expiry are inclusive boundaries; a claimed drop stays
     // claimed until the next announcement. True when the public view changed.
-    bool Advance(int64 NowMs);
+    using FSelectPoint = TFunction<bool(uint64, const LDAirdrop::FPoint*, LDAirdrop::FPoint&)>;
+    bool Advance(int64 NowMs, const FSelectPoint& SelectPoint = {});
     // The next announcement, landing or expiry boundary strictly after NowMs; MAX_int64 when none.
     int64 NextDueMs(int64 NowMs) const;
     // Landed -> Claimed by Contender at NowMs; false in any other phase.
@@ -94,8 +96,10 @@ struct LOCKDOWN_API FLDAirdropState
 
 namespace LDAirdrop
 {
-    // Binds every compiled airdrop anchor to its registered ground position and the approved AIRDROP parameters for a
-    // match that started at StartedAtMs, with a fresh server-only seed. No fallback values.
+    bool SampleFieldPoint(const ULDMapRegistry& Registry, const FLDDemoContentSnapshot& Content, const FLDDormZones& Dorms,
+        const FLDAirdropSchedule& Schedule, uint64 Serial, const FPoint* Previous, FPoint& Out, FString& Error);
+
+    // Creates the schedule and the optional registered fallback point pool with a private match seed.
     LOCKDOWN_API bool Resolve(const ULDMapRegistry& Registry, const FLDDemoContentSnapshot& Content, int64 StartedAtMs,
         const FGuid& LedgerMatch, bool bDeliveryDay, FLDAirdropState& Out, FString& Error);
 }

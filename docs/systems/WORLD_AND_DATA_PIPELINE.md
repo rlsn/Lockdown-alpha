@@ -4,9 +4,9 @@
 | --- | --- |
 | 规则 | [App Spec](../APP_SPEC.md) §1.1、§5；数值只在[内容与数值](../demo/CONTENT_AND_BALANCE.md)；关卡编辑约束见[关卡创作自由与开发约束](../LEVEL_AUTHORING_CONTRACT.md) |
 | 文件 | `SourceData\Demo\content.json`、`SourceData\World\demo_world.json`；`Scripts\SyncDemoContentData.py`、`SyncDemoWorldData`、`SyncDemoMap.ps1`、`ApplyDemoMapEdits.py`、`CatalogTools.py`、`DemoContent.py`、`BootstrapAssets.ps1`；`Region\LDMapRegistry`、`ULDMapDefinition`、`Navigation\LDDemoNavigationSystem`、`World\LDCampLifecycle`、`LDCampDecision`、`LDCampDirector`、`LDCaptureCircle`；`Source\LockdownEditor\...\LDDemoWorldBuilder.cpp` |
-| 入口函数 | `ULDMapRegistry::QueryGround` / `QueryCompletePath`、`FindApproach`、`TraceSight`、`QueryCircleMembership` / `ExtractCircleCrossings`、`QueryCombatContacts`；`ALDCampDirector::OnCombatHostileContact` / `AdvanceCamps` / `FreezeForRest` / `ThawAfterRest`；`ULDDemoContentCatalog` 快照 |
+| 入口函数 | `ULDMapRegistry::QueryGround` / `QueryCompletePath`、`FindApproach`、`TraceSight`、`QueryCircleMembership` / `ExtractCircleCrossings`、`QueryCombatContacts`；`ALDCampDirector::OnCombatHostileContact` / `AdvanceCamps` / `ResetForFieldSegment`、`LDFieldEcology::FGroundSampler`；`ULDDemoContentCatalog` 快照 |
 | 不变量 | 一张地图、一个旗杆；SourceData 是生成输入、Content 是游戏读取的载荷，docs 不是构建输入；载荷只经 Sync 生成，不手改哈希；查询不授予观察或交易权限；营地不另存身体、生命、战斗或奖励真值；出生锚点等概率有放回抽样 |
-| 检查 | 对应 Sync `--check` 与 `Test*Import.py`、`BootstrapAssets.ps1 -Mode Validate`、`Lockdown.Rules.DemoWorld.*`、`StaticScene.*`、`DemoCamp.*`；场景 `RunDemoWorldRoomCheck.ps1`、`RunDemoCampCheck.ps1` |
+| 检查 | `Lockdown.Rules.FieldEcology.*`、对应 Sync `--check` 与 `Test*Import.py`、`BootstrapAssets.ps1 -Mode Validate`、`Lockdown.Rules.DemoWorld.*`、`StaticScene.*`、`DemoCamp.*`；场景 `RunDemoWorldRoomCheck.ps1`、`RunDemoCampCheck.ps1` |
 
 本手册保留当前地形、对象和生成链的维护知识，不要求 Demo 继承完整城市、人口或环境玩法。
 
