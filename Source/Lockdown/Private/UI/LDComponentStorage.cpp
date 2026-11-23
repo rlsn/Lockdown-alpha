@@ -725,26 +725,16 @@ FReply ULDComponentStorage::NativeOnMouseButtonDown(const FGeometry& Geometry,co
     }
     return Super::NativeOnMouseButtonDown(Geometry,Event);
 }
-int32 ULDComponentStorage::ColumnInstalledCards(LDHUD::EStorageColumn Column) const
-{
-    const int32 Index=int32(Column);
-    if(!LatestModel.Columns.IsValidIndex(Index)){return 0;}
-    int32 Count=0;
-    for(const LDHUD::FEquippedView& Entry:LatestModel.Columns[Index].Entries){Count+=Entry.Copies;}
-    return Count;
-}
 void ULDComponentStorage::CollectQuickTargets(FName Component,TArray<FQuickTarget>& Out) const
 {
     Out.Reset();
     const FLDCardInstanceView* Owned=LDHUD::FindCard(Latest,Component);
     if(!Owned||Owned->IsInstalled()||!LatestContent){return;}
     const TArray<LDHUD::FCardDrop> FreeDrops=LDHUD::CardDrops(Component,Latest,LatestContent);
-    const bool bFull=LDHUD::WorkshopFull(Latest,LatestContent);
     for(int32 Position=0;Position<LDHUD::StorageColumnCount;++Position)
     {
         const LDHUD::EStorageColumn Col=LDHUD::BoardColumn(Position);
-        const bool bColFull=bFull||ColumnInstalledCards(Col)>=4;
-        if(!bColFull&&FreeDrops.ContainsByPredicate([Col](const LDHUD::FCardDrop& D){return D.Column==Col;}))
+        if(FreeDrops.ContainsByPredicate([Col](const LDHUD::FCardDrop& D){return D.Column==Col;}))
         {
             Out.Add({Col,false});
         }
@@ -1054,11 +1044,11 @@ bool ULDComponentStorage::DropOn(FName Component,LDHUD::EStorageColumn Column,FN
             if(Tile.Column==Column&&(Host.IsNone()||Host==Component)){return false;}
         }
     }
-    const bool bColFull=LDHUD::WorkshopFull(Latest,LatestContent)||ColumnInstalledCards(Column)>=4;
-    const TArray<LDHUD::FCardDrop> Drops=bColFull&&!Owned->IsInstalled()?TArray<LDHUD::FCardDrop>():LDHUD::CardDrops(Component,Latest,LatestContent);
+    // The shared capacity is the only limit (CardDrops applies it); an element medal takes none of it.
+    const TArray<LDHUD::FCardDrop> Drops=LDHUD::CardDrops(Component,Latest,LatestContent);
     // A tile of the same column is the column itself unless it is a replace drop.
     const LDHUD::FCardDrop* Drop=LDHUD::FindDrop(Drops,Column,NAME_None);
-    // A stored card let go on an installed card replaces it in one commit; let go on a full column/header enters 1-click replace pick mode (#331).
+    // A stored card let go on an installed card replaces it in one commit; let go on a column of a full workshop enters 1-click replace pick mode (#331).
     const TArray<LDHUD::FCardDrop> ColReplaces=Drop||Owned->IsInstalled()?TArray<LDHUD::FCardDrop>():LDHUD::ColumnReplaceDrops(Component,Column,Latest,LatestContent);
     if(!Drop&&!Host.IsNone())
     {
@@ -1068,7 +1058,7 @@ bool ULDComponentStorage::DropOn(FName Component,LDHUD::EStorageColumn Column,FN
     {
         return BeginReplacePick(Component,Column);
     }
-    if(!Drop&&!Owned->IsInstalled()&&LDHUD::WorkshopFull(Latest,LatestContent))
+    if(!Drop&&!Owned->IsInstalled()&&Drops.IsEmpty()&&LDHUD::WorkshopFull(Latest,LatestContent))
     {
         if(Notify){Notify(FString(LDTerms::Storage)+TEXT("：")+LDHUD::StoredPlaceText(Component,Latest,LatestContent));}
         return false;

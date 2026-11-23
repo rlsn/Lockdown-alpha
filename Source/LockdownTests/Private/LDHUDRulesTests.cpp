@@ -2468,7 +2468,7 @@ bool FLDHUDFlowSmoothnessTest::RunTest(const FString&)
                 bool bFitsAbil=false,bColFull=false;
                 const FString FitText=LDHUD::SkillCardCompatStrip(FName(*SkillCardDef->Id),FullColProg,&Content,LDHUD::FSlotKeys(),bFitsAbil,bColFull);
                 if(!bFitsAbil){continue;}
-                TestTrue(TEXT("Compatible active appears on skill card strip"),FitText.Contains(TEXT("可装："))&&FitText.Contains(TEXT("0/4")));
+                TestTrue(TEXT("Compatible active appears on skill card strip"),FitText.Contains(TEXT("可装：")));
 
                 // Install 4 cards on Q and add 1 uninstalled copy to storage.
                 for(int32 i=0;i<4;++i)
@@ -2482,7 +2482,31 @@ bool FLDHUDFlowSmoothnessTest::RunTest(const FString&)
                 Candidate.Serial=99;Candidate.DefinitionId=FName(*SkillCardDef->Id);
                 const FName CandidateKey=LDHUD::CardKey(Candidate.DefinitionId,Candidate.Serial);
                 const TArray<LDHUD::FCardDrop> RepDrops=LDHUD::ColumnReplaceDrops(CandidateKey,LDHUD::EStorageColumn::SlotQ,FullColProg,&Content);
-                TestEqual(TEXT("Full 4-card column exposes 4 direct replacement targets even when workshop < 22"),RepDrops.Num(),4);
+                TestEqual(TEXT("A column of 4 exposes 4 direct replacement targets"),RepDrops.Num(),4);
+
+                // The shared capacity is the only limit: a column of 4 still takes a card while a slot is free.
+                FullColProg.CardCapacity=5;
+                TestTrue(TEXT("A column of 4 takes another card below the shared capacity"),
+                    !LDHUD::WorkshopFull(FullColProg,&Content)
+                    &&LDHUD::CardDrops(CandidateKey,FullColProg,&Content).ContainsByPredicate(
+                        [](const LDHUD::FCardDrop& D){return D.Column==LDHUD::EStorageColumn::SlotQ&&D.Replacing.IsNone();}));
+                // Every copy takes a slot; an element medal takes none and still goes in on a full workshop.
+                FullColProg.CardCapacity=4;
+                TestTrue(TEXT("Four copies of one card fill a capacity of 4"),
+                    LDHUD::WorkshopFull(FullColProg,&Content)&&LDHUD::CardDrops(CandidateKey,FullColProg,&Content).IsEmpty()
+                    &&LDHUD::CardStorage(FullColProg,&Content).Installed==4);
+                if(const FLDDemoCardDefinition* MedalDef=Content.Cards.FindByPredicate([](const FLDDemoCardDefinition& C){return C.Form==ELDCardForm::Medal;}))
+                {
+                    FLDCardInstanceView& Medal=FullColProg.Cards.AddDefaulted_GetRef();
+                    Medal.Serial=100;Medal.DefinitionId=FName(*MedalDef->Id);
+                    const FName MedalKey=LDHUD::CardKey(Medal.DefinitionId,Medal.Serial);
+                    TestTrue(TEXT("A stored medal goes into an element slot of a full workshop"),
+                        LDHUD::CardDrops(MedalKey,FullColProg,&Content).ContainsByPredicate(
+                            [](const LDHUD::FCardDrop& D){return D.Column==LDHUD::EStorageColumn::SlotQ;})
+                        &&!LDHUD::StoredPlaceText(MedalKey,FullColProg,&Content).Contains(TEXT("工坊已满")));
+                    FullColProg.Cards.Last().Target.Kind=ELDCardTargetKind::Skill;FullColProg.Cards.Last().Target.Active=FName(*Abil.Id);
+                    TestTrue(TEXT("An installed medal takes no capacity slot"),LDHUD::CardStorage(FullColProg,&Content).Installed==4);
+                }
                 break;
             }
         }

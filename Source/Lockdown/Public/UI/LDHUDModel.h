@@ -889,7 +889,7 @@ namespace LDHUD
     // The atomic replace drops of a stored card on a full workshop (the server's InstallCard with ReplacingSerial): one on the
     // tile of each installed card in a column the card takes.
     LOCKDOWN_API TArray<FCardDrop> ReplaceDrops(FName Key,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);
-    // Atomic replace drops in a specific column (when WorkshopFull or when that column already holds >= 4 installed cards).
+    // Atomic replace drops in a specific column of a full workshop.
     LOCKDOWN_API TArray<FCardDrop> ColumnReplaceDrops(FName Key,EStorageColumn Column,const FLDProgressionView& Progression,
         const FLDDemoContentDefinitions* Content);
     // Live host-compatibility strip for a skill-form card on 3-choice offers and the rest shop (#331). Empty for non-skill cards.
