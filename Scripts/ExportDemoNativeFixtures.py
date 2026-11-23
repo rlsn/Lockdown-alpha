@@ -573,7 +573,7 @@ def parameter_projection(parameters):
         ("LIFE.RespawnBaseSec", "RespawnBaseMs"), ("LIFE.RespawnPerLevelSec", "RespawnPerLevelMs"),
         ("LIFE.SpawnChoiceSec", "SpawnChoiceMs"),
         ("LIFE.ProtectionSec", "ProtectionMs"),
-        ("REGEN.OutOfCombatDelaySec", "OutOfCombatRegenDelayMs"), ("REWARD.AssistWindowSec", "AssistWindowMs"), ("REWARD.AssistXPRatio", "AssistXPRatioBp"), ("REWARD.KillMedalChance", "KillMedalChanceBp"),
+        ("REGEN.OutOfCombatDelaySec", "OutOfCombatRegenDelayMs"), ("REWARD.AssistWindowSec", "AssistWindowMs"), ("REWARD.AssistXPRatio", "AssistXPRatioBp"), ("REWARD.LevelGapXPStep", "LevelGapXPStepBp"), ("REWARD.LevelGapXPMin", "LevelGapXPMinBp"), ("REWARD.LevelGapXPMax", "LevelGapXPMaxBp"), ("REWARD.KillMedalChance", "KillMedalChanceBp"),
         ("GROWTH.BuildSafeWindowSec", "BuildSafeWindowMs"),
         ("REGEN.OutOfCombatMaxHPRatioPerSec", "OutOfCombatMaxHPRegenBp"),
         ("DORM.OutOfCombatDelaySec", "DormRegenDelayMs"),

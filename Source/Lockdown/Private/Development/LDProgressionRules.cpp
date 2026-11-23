@@ -221,6 +221,26 @@ ELDGrowthReason LDProgression::ContenderKillReward(const FLDDemoContentParameter
     return Out.XP >= 0 ? ELDGrowthReason::None : ELDGrowthReason::DataInvalid;
 }
 
+ELDGrowthReason LDProgression::LevelGapXP(const FLDDemoContentParameters& Parameters, int64 BaseXP, uint8 KillerLevel,
+    uint8 VictimLevel, int64& Out)
+{
+    Out = 0;
+    if (BaseXP < 0 || KillerLevel < 1 || VictimLevel < 1 || Parameters.LevelGapXPStepBp < 0 || Parameters.LevelGapXPStepBp > 10000
+        || Parameters.LevelGapXPMinBp < 1 || Parameters.LevelGapXPMinBp > 10000 || Parameters.LevelGapXPMaxBp < 10000)
+    {
+        return ELDGrowthReason::DataInvalid;
+    }
+    const int64 Gap = int64(KillerLevel) - int64(VictimLevel);
+    const int64 Bp = FMath::Clamp<int64>(10000 - Parameters.LevelGapXPStepBp * Gap, Parameters.LevelGapXPMinBp, Parameters.LevelGapXPMaxBp);
+    int64 Scaled = 0;
+    if (!ProgressionCheckedMul(BaseXP, Bp, Scaled))
+    {
+        return ELDGrowthReason::ArithmeticOverflow;
+    }
+    Out = Scaled / 10000;
+    return ELDGrowthReason::None;
+}
+
 ELDGrowthReason LDProgression::MonsterKillReward(const FLDDemoContentSnapshot& Catalog, FName MonsterId, uint8 Stage,
     FRewardAmounts& Out)
 {

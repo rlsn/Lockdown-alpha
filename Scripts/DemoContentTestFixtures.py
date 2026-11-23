@@ -108,7 +108,7 @@ def content_fixture():
         ("AIRDROP.HealMaxHPRatio", "ratio", 0.15),
         ("AIRDROP.MoveSpeedRatio", "ratio", 0.1), ("AIRDROP.MoveSpeedSec", "s", 4),
         ("LEADER.RefreshSec", "s", 8), ("LEADER.SurvivalPointSec", "s", 24), ("LEADER.CircleRadiusCm", "cm", 1200), ("LEADER.CircleMaxOffsetCm", "cm", 800),
-        ("REWARD.AssistWindowSec", "s", 10), ("REWARD.AssistXPRatio", "ratio", 0.5), ("REWARD.KillMedalChance", "ratio", 0.4), ("GROWTH.BuildSafeWindowSec", "s", 2.5),
+        ("REWARD.AssistWindowSec", "s", 10), ("REWARD.AssistXPRatio", "ratio", 0.5), ("REWARD.LevelGapXPStep", "ratio", 0.1), ("REWARD.LevelGapXPMin", "ratio", 0.5), ("REWARD.LevelGapXPMax", "ratio", 1.5), ("REWARD.KillMedalChance", "ratio", 0.4), ("GROWTH.BuildSafeWindowSec", "s", 2.5),
         ("AI.RetreatHPRatio", "ratio", 0.2), ("AI.ResumeFarmHPRatio", "ratio", 0.6),
         ("AI.HighCampEntryHPRatio", "ratio", 0.85), ("AI.HighCampReserveHPRatio", "ratio", 0.3),
         ("AI.LowCampReserveHPRatio", "ratio", 0.1), ("AI.CaptureReactionBudgetSec", "s", 2),

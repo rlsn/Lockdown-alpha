@@ -40,7 +40,7 @@
 
 | 稳定参数键 | 单位/类型 | Base；PerLevel | 合法结果范围 | 依赖、理由与可复算样例 |
 | --- | --- | --- | --- | --- |
-| `STAT.MaxHP.Base/PerLevel` | HP 点/P2 | 860；105 | 1..20000 | 同级对打击杀时间与拉扯节奏校准；L10=1805，L16=2435 |
+| `STAT.MaxHP.Base/PerLevel` | HP 点/P2 | 860；125 | 1..20000 | 同级对打击杀时间与拉扯节奏校准；L10=1985，L16=2735 |
 | `STAT.AD.Base/PerLevel` | 物攻点/P2 | 70；3.2 | 0..2000 | 普攻 1.0 AD；L5=82.8，L10=98.8 |
 | `STAT.AP.Base` | 法强点/P2 | 0 | 0..3000 | 无每级自然增长；通过脑力属性点与构筑牌提升 |
 | `STAT.Armor.Base/PerLevel` | 护甲点/P2 | 18；2 | 0..1000 | 首版无负抗/穿透；L10=36，不是 36% 减伤 |
@@ -269,7 +269,7 @@ AI 读取 `AI.ObjectiveReachCm`（2500）与 `AI.ObjectiveEntryHPRatio`（0.6）
 
 | ID | 显示名 | 原生编号 | 每点收益 |
 | --- | --- | --- | --- |
-| `stat_physique` | 体格 | 27 | `MaxHPFlat=52`、`HPRegenFlat=0.08`/秒 |
+| `stat_physique` | 体格 | 27 | `MaxHPFlat=70`、`HPRegenFlat=0.08`/秒 |
 | `stat_thick_skin` | 脸皮 | 28 | `ArmorFlat=3.5`、`MagicResistFlat=3.5` |
 | `stat_strength` | 力道 | 29 | `ADFlat=3.5`、`CritChanceBonusRatio=0.006` |
 | `stat_brains` | 脑力 | 30 | `APFlat=6`、`CooldownHasteFlat=1`、`MomentumRegenFlat=0.06`/秒（交战中的劲回复） |
@@ -316,7 +316,7 @@ $$
 
 | 参数 | 值 | 作用 |
 | --- | --- | --- |
-| `SKILL.RankBaseScale` | 1、1.5、2 | 技能 1–3 级的基础量倍率（伤害、护盾、治疗、反震、区域跳伤） |
+| `SKILL.RankBaseScale` | 1、1.35、1.7 | 技能 1–3 级的基础量倍率（伤害、护盾、治疗、反震、区域跳伤） |
 | `SKILL.RankRatioScale` | 1、1.25、1.5 | 技能 1–3 级的攻击力 / 法强 / 生命上限系数倍率 |
 | `SKILL.PointLevels` | 3、6、9、12、15 | 到这些等级各得 1 个技能点 |
 | `SKILL.CooldownFloorSec` | 0.3s | 急速后的 Q/W/E 冷却下限（动画与网络的技术下限，不是玩法上限） |
@@ -801,14 +801,15 @@ DEV 成长夹具可预置主动候选，不把 DEV 预置当作随机分布证�
 累计存储有界int64，溢出在整个奖励计划提交前明确拒绝，不静默饱和；UI十六级显示MAX而非暗示17级。
 野怪奖励全部归最后一击，表中“每人平均”只能用于供给估计，不是实现经验分摊。
 参赛者之间的击杀按 App Spec §4.1 的助攻规则（参考 LoL）在同一笔死亡奖励中结算：
-击杀者拿全额 `REWARD.PlayerXP`（本野外段前 2 次击杀各得一组牌三选一，之后改为 +2 属性点），每名助攻者另得其 `REWARD.AssistXPRatio`（向下取整）与 1 个属性点，不稀释击杀者。
+击杀经验先按 `REWARD.PlayerXP` 取受害者等级的基础值，再乘等级差系数（`REWARD.LevelGapXP`，下表）。击杀者拿全额折后经验（本野外段前 2 次击杀各得一组牌三选一，之后改为 +2 属性点），每名助攻者另得其 `REWARD.AssistXPRatio`（向下取整）与 1 个属性点，不稀释击杀者。
 击杀时受害者正“上热搜”的，击杀者再得 `REWARD.BountyXP`、3 个属性点，并得到一组 `REWARD.BountyCardOffer` 张的稀有/传说三选一。
 终局之外每次击杀参赛者，击杀者按 `REWARD.KillMedalChance` 掉一枚元素石。
-例：两名助攻者击杀 Lv1，击杀者得 140 XP，每名助攻者各得 70 XP 与 1 个属性点。资格窗口为 `REWARD.AssistWindowSec`。
+例：Lv1 击杀者与两名助攻者击杀 Lv1，击杀者得 70 XP，每名助攻者各得 35 XP 与 1 个属性点。资格窗口为 `REWARD.AssistWindowSec`。
 
 | 奖励参数/公式 ID | 已批准值，整数 | 样例与归属 |
 | --- | --- | --- |
-| `REWARD.PlayerXP`（`.Base=140`、`.PerLevel=28`） | $140+28(L_{victim}-1)$ | 击杀Lv1得140XP、Lv10得392XP；以致死瞬间受害者等级快照 |
+| `REWARD.PlayerXP`（`.Base=70`、`.PerLevel=20`） | $70+20(L_{victim}-1)$ | 同级击杀Lv1得70XP、Lv10得250XP；以致死瞬间受害者等级快照 |
+| `REWARD.LevelGapXPStep` / `LevelGapXPMin` / `LevelGapXPMax` | 0.12 / 0.4 / 1.6 | 等级差系数 = $1-0.12(L_{killer}-L_{victim})$，夹在 0.4–1.6，乘基础值后向下取整；击杀者等级取结算时的当前等级。12 级杀 5 级得 60XP，5 级杀 12 级得 464XP；助攻者按折后经验取比例，悬赏经验不乘 |
 | `REWARD.AssistXPRatio` | 0.5 | 参赛者击杀中每名助攻者得到的击杀经验比例（另固定 +1 属性点） |
 | `REWARD.BountyXP` | 150 | 击杀正“上热搜”的参赛者时击杀者额外得到的经验（另得 3 属性点） |
 | `REWARD.BountyCardOffer` | 3 | 悬赏击杀另给的稀有/传说选牌张数（选一张） |

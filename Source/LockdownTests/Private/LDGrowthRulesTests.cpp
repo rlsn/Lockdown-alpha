@@ -446,8 +446,9 @@ bool GrowthTestReadFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoCo
         Curve.XPStart == 0 && Curve.XPThresholds == ApprovedThresholds);
     bApproved &= Test.TestTrue(TEXT("Fixture carries MaxLevel 16, three active slots and active opportunities at levels 2, 5 and 9"),
         Curve.MaxLevel == 16 && Curve.ActiveSlots == 3 && Curve.ActiveOfferLevels == TArray<int32>({2, 5, 9}));
-    bApproved &= Test.TestTrue(TEXT("Fixture carries REWARD.PlayerXP 140 + 28/level"),
-        Tuning.PlayerXPBase == 140 && Tuning.PlayerXPPerLevel == 28);
+    bApproved &= Test.TestTrue(TEXT("Fixture carries REWARD.PlayerXP 70 + 20/level and the level-gap factor 12% per level in [0.4, 1.6]"),
+        Tuning.PlayerXPBase == 70 && Tuning.PlayerXPPerLevel == 20 && Tuning.LevelGapXPStepBp == 1200
+        && Tuning.LevelGapXPMinBp == 4000 && Tuning.LevelGapXPMaxBp == 16000);
     bApproved &= Test.TestTrue(TEXT("Fixture carries 3 opening points, 3 per level, 3 per 240 XP past level 16 and a 4 s safe window"),
         Tuning.OpeningPoints == 3 && Tuning.PointsPerLevel == 3 && Tuning.MaxLevelPoints == 3 && Tuning.MaxLevelPointsXP == 240
         && Tuning.BuildSafeWindowMs == 4000);
@@ -559,13 +560,28 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
     LDProgression::FRewardAmounts Reward;
     bGood &= GrowthTestReason(Test, TEXT("A level 1 contender kill"),
         LDProgression::ContenderKillReward(Approved.Parameters, MaxLevel, 1, Reward), ELDGrowthReason::None);
-    bGood &= Test.TestEqual(TEXT("Level 1 contender kill XP"), Reward.XP, int64(140));
+    bGood &= Test.TestEqual(TEXT("Level 1 contender kill XP"), Reward.XP, int64(70));
     bGood &= GrowthTestReason(Test, TEXT("A level 10 contender kill"),
         LDProgression::ContenderKillReward(Approved.Parameters, MaxLevel, 10, Reward), ELDGrowthReason::None);
-    bGood &= Test.TestEqual(TEXT("Level 10 contender kill XP"), Reward.XP, int64(392));
+    bGood &= Test.TestEqual(TEXT("Level 10 contender kill XP"), Reward.XP, int64(250));
     bGood &= GrowthTestReason(Test, TEXT("A level 16 contender kill"),
         LDProgression::ContenderKillReward(Approved.Parameters, MaxLevel, 16, Reward), ELDGrowthReason::None);
-    bGood &= Test.TestEqual(TEXT("Level 16 contender kill XP"), Reward.XP, int64(560));
+    bGood &= Test.TestEqual(TEXT("Level 16 contender kill XP"), Reward.XP, int64(370));
+    // REWARD.LevelGapXP: 12% per level of gap, clamped to [0.4, 1.6], rounded down.
+    int64 Scaled = 0;
+    const auto Gap = [&](int64 Base, uint8 Killer, uint8 Victim, int64 Expected)
+    {
+        bGood &= GrowthTestReason(Test, FString::Printf(TEXT("Level %d kills level %d"), Killer, Victim),
+            LDProgression::LevelGapXP(Approved.Parameters, Base, Killer, Victim, Scaled), ELDGrowthReason::None);
+        bGood &= Test.TestEqual(FString::Printf(TEXT("Level %d kills level %d XP"), Killer, Victim), Scaled, Expected);
+    };
+    Gap(150, 5, 5, 150);
+    Gap(150, 12, 5, 60);
+    Gap(170, 16, 6, 68);
+    Gap(290, 5, 12, 464);
+    Gap(110, 8, 6, 83);
+    bGood &= GrowthTestReason(Test, TEXT("A level 0 killer"),
+        LDProgression::LevelGapXP(Approved.Parameters, 150, 0, 5, Scaled), ELDGrowthReason::DataInvalid);
     for (const uint8 VictimLevel : {uint8(0), uint8(17)})
     {
         bGood &= GrowthTestReason(Test, FString::Printf(TEXT("A level %d contender kill"), VictimLevel),
@@ -1507,8 +1523,8 @@ bool GrowthTestRunSkillGrowth(FAutomationTestBase& Test)
         && At5.Effects[2].Stats[1].Amount == 3500 && At5.Effects[2].DurationMs == 3000);
     bGood &= Test.TestTrue(TEXT("Momentum cost and cooldown never grow"), At5.MomentumCostP2 == 6000 && At5.CooldownMs == 12000);
     FLDDemoAbilityValues Rank3;
-    bGood &= Test.TestTrue(TEXT("Rank 3 at level 5: base x G x 2, ratio x 1.5, momentum and durations unchanged"),
-        LDSkillGrowth::GrowValues(Authored, Ranks, Step, 5, 3, Rank3) && Rank3.Effects[0].BaseP2 == 13920
+    bGood &= Test.TestTrue(TEXT("Rank 3 at level 5: base x G x 1.7, ratio x 1.5, momentum and durations unchanged"),
+        LDSkillGrowth::GrowValues(Authored, Ranks, Step, 5, 3, Rank3) && Rank3.Effects[0].BaseP2 == 11832
         && Rank3.Effects[0].ADRatioBp == 7500 && Rank3.Effects[0].DurationMs == 1000 && Rank3.Effects[1].BaseP2 == 1200
         && Rank3.MomentumCostP2 == 6000 && Rank3.CooldownMs == 12000);
     bGood &= Test.TestFalse(TEXT("Rank 0 and rank 4 are no ranks"), LDSkillGrowth::GrowValues(Authored, Ranks, Step, 5, 0, Rank3)
@@ -2636,6 +2652,36 @@ bool FLDDemoAssistSettlementTest::RunTest(const FString& Parameters)
     if (!Settle(Unowned, Plain)) { return false; }
     TestTrue(TEXT("A death without a killer pays nobody"), Plain.Outcome == ELDRewardOutcome::NoReward && TotalXP() == XPBeforeUnowned);
 
+    // REWARD.LevelGapXP through the settlement entry: a victim above the killer pays more, assists share the scaled XP,
+    // the bounty is added unscaled, and a replay after the killer levelled returns the original receipt.
+    const uint8 KillerLevelBefore = Development->FindBuild(Killer)->Level;
+    const uint8 GapVictimLevel = 5;
+    FLDCommittedDeath Gapped = ContenderDeath(8, {A1, A2});
+    Gapped.RewardBasis.VictimLevelAtDeath = GapVictimLevel;
+    Mode->BountyDeaths.Add(Gapped.Key);
+    const int64 GapBase = Tuning.PlayerXPBase + Tuning.PlayerXPPerLevel * (GapVictimLevel - 1);
+    const int64 GapBp = FMath::Clamp<int64>(10000 - Tuning.LevelGapXPStepBp * (int64(KillerLevelBefore) - GapVictimLevel),
+        Tuning.LevelGapXPMinBp, Tuning.LevelGapXPMaxBp);
+    const int64 GapKillXP = GapBase * GapBp / 10000;
+    const int64 GapAssistXP = GapKillXP * Tuning.AssistXPRatioBp / 10000;
+    const int64 KillerXPBefore = XP(Killer), A1XPBefore = XP(A1), A2XPBefore = XP(A2);
+    FLDRewardReceipt GapReceipt;
+    if (!Settle(Gapped, GapReceipt)) { return false; }
+    TestTrue(TEXT("The fixture kill crosses levels: the killer is below the victim and the factor is above 1"),
+        KillerLevelBefore < GapVictimLevel && GapBp > 10000 && GapKillXP > GapBase);
+    TestTrue(TEXT("A cross-level bounty kill pays the scaled XP plus the unscaled bounty; assisters share the scaled XP only"),
+        GapReceipt.Outcome == ELDRewardOutcome::Granted && GapReceipt.XPDelta == GapKillXP + Tuning.BountyXP
+        && XP(Killer) == KillerXPBefore + GapKillXP + Tuning.BountyXP
+        && GapReceipt.Assists.Num() == 2 && GapReceipt.Assists[0].XPDelta == GapAssistXP && GapReceipt.Assists[1].XPDelta == GapAssistXP
+        && XP(A1) == A1XPBefore + GapAssistXP && XP(A2) == A2XPBefore + GapAssistXP);
+    TestTrue(TEXT("The reward raised the killer's level"), Development->FindBuild(Killer)->Level > KillerLevelBefore);
+    const int64 TotalAfterGap = TotalXP();
+    FLDRewardReceipt GapReplay;
+    if (!Settle(Gapped, GapReplay)) { return false; }
+    TestTrue(TEXT("A replay after the level-up returns the original XP and pays nothing"),
+        GapReplay.Outcome == ELDRewardOutcome::Granted && GapReplay.XPDelta == GapReceipt.XPDelta
+        && GapReplay.Assists.Num() == 2 && GapReplay.Assists[0].XPDelta == GapAssistXP && TotalXP() == TotalAfterGap);
+
     FLDTimelineParameters TimelineParameters;
     TArray<FLDTimelineEvent> TimelineEvents;
     if (!TestTrue(TEXT("Create a timeline for the final field"),
@@ -2649,7 +2695,7 @@ bool FLDDemoAssistSettlementTest::RunTest(const FString& Parameters)
     { AddError(Error); return false; }
 
     const int64 BeforeFinalDeath = TotalXP();
-    const FLDCommittedDeath FinalDeath = ContenderDeath(8, {A1, A2});
+    const FLDCommittedDeath FinalDeath = ContenderDeath(9, {A1, A2});
     FLDRewardReceipt FinalReceipt;
     if (!Settle(FinalDeath, FinalReceipt)) { return false; }
     TestTrue(TEXT("A final-field kill and its assists grant no growth"),

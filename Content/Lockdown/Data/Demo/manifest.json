@@ -1,8 +1,8 @@
 {
-  "author_schema_sha256": "1354c6020d31c1b607eb71f883604b0da0443b8fd49cba613539698ac8665153",
+  "author_schema_sha256": "18c9fc18e8ffb25b2a35d5dc21e481a565991ef3572c3ada53f816c6ce0fc27c",
   "content": {
     "file": "demo_content.json",
-    "sha256": "3348f6472026a297394febfdeb19c8beab8d0ea0aa14d3fb7cba3c082e5481ba"
+    "sha256": "0c52a35450c64e90caad8d870fcb5bade5c2f63fdd93addd60b0c5a53f1c3b02"
   },
   "display_sha256": "958be904b55d0efd186a23e0b538edabe2601efcac022261dcaf4f132dcb0dc4",
   "format": "lockdown-demo-content",

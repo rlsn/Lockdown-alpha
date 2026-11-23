@@ -164,7 +164,7 @@ ACTIVE_EFFECTS = {
 }
 # #198 five point-bought stats: native id and the bonuses of one point.
 STAT_POINTS = {
-    "stat_physique": (27, {"MaxHPFlat": 52, "HPRegenFlat": r(".08")}),
+    "stat_physique": (27, {"MaxHPFlat": 70, "HPRegenFlat": r(".08")}),
     "stat_thick_skin": (28, {"ArmorFlat": r("3.5"), "MagicResistFlat": r("3.5")}),
     "stat_strength": (29, {"ADFlat": r("3.5"), "CritChanceBonusRatio": r(".006")}),
     "stat_brains": (30, {"APFlat": 6, "CooldownHasteFlat": 1, "MomentumRegenFlat": r(".06")}),
@@ -327,7 +327,7 @@ class ApprovedDemoData(unittest.TestCase):
     def test_every_approved_parameter_value_and_unit(self):
         expected = {}
         for stat, unit, values in (
-            ("MaxHP", "hp", ("860", "105", "1", "20000")),
+            ("MaxHP", "hp", ("860", "125", "1", "20000")),
             ("AD", "points", ("70", "3.2", "0", "2000")),
             ("AP", "points", ("0", None, "0", "3000")),
             ("Armor", "points", ("18", "2", "0", "1000")),
@@ -421,7 +421,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("AIRDROP.MoveSpeedRatio", "ratio", ".20"), ("AIRDROP.MoveSpeedSec", "ms", "6"),
             ("LEADER.RefreshSec", "ms", "10"), ("LEADER.SurvivalPointSec", "ms", "30"), ("LEADER.CircleRadiusCm", "cm", "1500"),
             ("LEADER.CircleMaxOffsetCm", "cm", "1000"),
-            ("REWARD.AssistWindowSec", "ms", "15"), ("REWARD.AssistXPRatio", "ratio", ".5"), ("REWARD.KillMedalChance", "ratio", ".25"), ("GROWTH.BuildSafeWindowSec", "ms", "4"),
+            ("REWARD.AssistWindowSec", "ms", "15"), ("REWARD.AssistXPRatio", "ratio", ".5"), ("REWARD.LevelGapXPStep", "ratio", ".12"), ("REWARD.LevelGapXPMin", "ratio", ".4"), ("REWARD.LevelGapXPMax", "ratio", "1.6"), ("REWARD.KillMedalChance", "ratio", ".25"), ("GROWTH.BuildSafeWindowSec", "ms", "4"),
             ("AI.RetreatHPRatio", "ratio", ".25"), ("AI.ResumeFarmHPRatio", "ratio", ".45"),
             ("AI.HighCampEntryHPRatio", "ratio", ".80"), ("AI.HighCampReserveHPRatio", "ratio", ".35"),
             ("AI.LowCampReserveHPRatio", "ratio", ".15"), ("AI.CaptureReactionBudgetSec", "ms", "2"),
@@ -504,7 +504,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("XP.BaseToNext", 60), ("XP.IncreasePerLevel", 20), ("XP.SteepFromLevel", 5), ("XP.SteepExtraPerLevel", 15),
             ("MEDAL.MaxTier", 3),
             ("SHOWDOWN.RespawnLimit", 2),
-            ("REWARD.PlayerXP.Base", 140), ("REWARD.PlayerXP.PerLevel", 28), ("REWARD.BountyXP", 150), ("REWARD.BountyCardOffer", 3), ("AI.RetryPolicy.MaxAttempts", 3),
+            ("REWARD.PlayerXP.Base", 70), ("REWARD.PlayerXP.PerLevel", 20), ("REWARD.BountyXP", 150), ("REWARD.BountyCardOffer", 3), ("AI.RetryPolicy.MaxAttempts", 3),
             ("CAMP.ReturnDeadEndPlans", 3), ("CAMP.GrowthMaxStage", 10), ("AIRDROP.RewardXP", 200),
             ("LEADER.MinLevel", 3),
             ("COMBAT.BreachMaxStacks", 5), ("COMBAT.BurnMaxStacks", 5), ("COMBAT.OverloadBreachStacks", 2),
@@ -527,7 +527,7 @@ class ApprovedDemoData(unittest.TestCase):
         ):
             expected[key] = (None, value)
         expected["SKILL.PointLevels"] = (None, (3, 6, 9, 12, 15))
-        expected["SKILL.RankBaseScale"] = ("ratio", ("1", "1.5", "2"))
+        expected["SKILL.RankBaseScale"] = ("ratio", ("1", "1.35", "1.7"))
         expected["SKILL.RankRatioScale"] = ("ratio", ("1", "1.25", "1.5"))
         expected["COMBO.StepRatios"] = ("ratio", (".9", ".9", "1.3"))
         expected["AIRDROP.LandSec"] = ("ms", ("40", "110", "200", "270", "360", "430"))

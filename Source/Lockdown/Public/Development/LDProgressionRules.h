@@ -249,6 +249,9 @@ namespace LDProgression
     // must follow CurrentLevel (ActiveOpportunitiesAt); the change reports them at the new level.
     LOCKDOWN_API ELDGrowthReason PlanExperience(const FLDDemoProgressionDefinition& Progression, int64 CurrentXP,
         uint8 CurrentLevel, uint8 LevelActiveEarned, int64 Grant, FExperienceChange& Out);
+    // REWARD.LevelGapXP: BaseXP scaled by the clamped level-gap factor, rounded down.
+    LOCKDOWN_API ELDGrowthReason LevelGapXP(const FLDDemoContentParameters& Parameters, int64 BaseXP, uint8 KillerLevel,
+        uint8 VictimLevel, int64& Out);
     // REWARD.PlayerXP at the frozen victim level.
     LOCKDOWN_API ELDGrowthReason ContenderKillReward(const FLDDemoContentParameters& Parameters, uint8 MaxLevel,
         uint8 VictimLevel, FRewardAmounts& Out);
