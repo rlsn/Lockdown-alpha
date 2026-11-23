@@ -41,9 +41,9 @@
 - **静止的营地成员**：没有输入、站在静态地面上的营地成员走 `TryAdvanceStationaryMovement`，不跑原生物理，只查一次“有没有东西挤进来”。同一姿态做过一次完整查询后，脚下那块静态地面不再参与后续查询；一旦跑过完整的原生移动，这份结论作废重来。
 - **营地成员身体**（`ALDCampMemberCharacter`）不带表现组件、镜头臂和镜头，也不运行 Actor Tick：它只通过观察代理显示，由营地在权威步内驱动。`ALDCharacter` 的这三个子对象是可选的，参赛者身体总是齐全。
 - **空闲的营地成员**在 Actions 阶段不读地面、视野和战斗状态，直接原地保持；只有已消费的敌对接触能让它进入交战（`LDCampDecision::Evaluate` 对 Idle 恒答 Hold）。
-- **内容查找**：`FLDDemoContentSnapshot` 对每张定义表建有按 id 的索引，怪物另有按名字（`FindMonsterByName`）、营地另有按锚点（`FindCampByAnchor`）的索引；界面取显示行走 `FLDDemoContentDefinitions::FindDisplay`。查不到时仍走完整路径给出原因。
+- **内容查找**：`FLDDemoContentSnapshot` 对每张定义表建有按 id 的索引，技能、卡牌和怪物另有按名字（`FindAbilityByName`、`FindCardByName`、`FindMonsterByName`）、营地另有按锚点（`FindCampByAnchor`）的索引；界面取显示行走 `FLDDemoContentDefinitions::FindDisplay`。查不到时仍走完整路径给出原因。
 - **二手贩子落点被占**：偏移点和营地锚点都站不下时不算故障，`AdvanceFieldPacing` 每隔 1 s 再找一次，直到它的出现窗口结束。
-- **追踪区段**：`LDPhase_*`（阶段）、`LDStep_NextDue`、`LDStep_SortBodies`、`LDActions_*`、`LDEffects_*`、`LDVision*`；多段表达式里的一段用 `LD_TRACED`（`Core/LDTrace.h`）。按身体触发的代码不加区段，一局会多出上千万个事件。整局追踪见[开发指南](../DEVELOPMENT.md#试玩问题排查)的 `RunDemoOpponentCheck.ps1 -Trace`。
+- **追踪区段**：`LDPhase_*`（阶段）、`LDStep_NextDue`、`LDStep_SortBodies`、`LDActions_*`、`LDEffects_*`、`LDVision*`、`LDAI_Frame*`；多段表达式里的一段用 `LD_TRACED`（`Core/LDTrace.h`）。按身体触发的代码不加区段，一局会多出上千万个事件。整局追踪见[开发指南](../DEVELOPMENT.md#试玩问题排查)的 `RunDemoOpponentCheck.ps1 -Trace`。
 
 ## 野怪攻击模式
 
