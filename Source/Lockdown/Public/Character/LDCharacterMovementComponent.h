@@ -15,7 +15,7 @@ namespace LDDashCurve
 USTRUCT()
 struct LOCKDOWN_API FLDRootMotionSource_EaseOutDash : public FRootMotionSource_ConstantForce
 {
-    GENERATED_USTRUCT_BODY()
+    GENERATED_BODY()
 
     FLDRootMotionSource_EaseOutDash() = default;
     virtual ~FLDRootMotionSource_EaseOutDash() = default;
