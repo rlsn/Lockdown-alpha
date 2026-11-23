@@ -279,6 +279,8 @@ private:
     // held key never fires again on its own while every other key and button keeps working.
     TSet<FKey> StaleKeys;
     TWeakObjectPtr<APawn> PreferencesPawn;
+    // LocalView's last find; looked up again once that relay is gone or no longer owned by this controller.
+    mutable TWeakObjectPtr<class ALDWorldViewRelay> FoundLocalView;
     TArray<uint32> V05BindingHandles;
     FGuid Inspected;
     uint32 InspectedGeneration=0,InspectedEpoch=0;
