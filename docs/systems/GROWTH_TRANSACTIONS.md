@@ -10,7 +10,7 @@
 
 ## 经验、升级、点数与候选生成
 
-- **累计 XP 与等级**：开局 L1、`XP=0`，阈值 `progression.xp_thresholds`（L1..L16 累计 `0..5340 XP`，分段曲线 L5 起每级额外 +30 斜率）。L16 封顶后继续累计合法 XP，每满 `GROWTH.MaxLevelPointsXP`（240）授予 `GROWTH.MaxLevelPoints`（3）属性点，不再升级或触发升级候选。
+- **累计 XP 与等级**：开局 L1、`XP=0`，阈值 `progression.xp_thresholds`（L1..L16 累计 `0..5340 XP`，分段曲线 L5 起每级额外 +30 斜率）。L16 封顶后继续累计合法 XP，每满 `GROWTH.MaxLevelPointsXP`（400）授予 `GROWTH.MaxLevelPoints`（2）属性点，不再升级或触发升级候选。
 - **开局与升级授予**：
   - `BeginMatch`：授予 `GROWTH.OpeningPoints`（3）属性点与开局主动三选一（仅从 `opening=true` 的 15 个主动抽取）；处理完开局主动后立即派生一次**开局构筑牌三选一**。
   - 每升 1 级：授予 `GROWTH.PointsPerLevel`（3）属性点。
