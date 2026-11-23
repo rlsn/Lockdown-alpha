@@ -30,6 +30,11 @@ public:
     static float ZoomedArmLength(float ArmLength, float Axis);
     // World pose of a camera on this class's default arm (fixed angle and world offset) centred on Origin.
     static FTransform DefaultArmCameraPose(const FVector& Origin, float ArmLength);
+    // The presentation and camera subobjects are optional: a body class that no player ever owns or views through (a
+    // camp member) creates none of them. A contender body always has all three.
+    static const FName BodyComponentName;
+    static const FName CameraArmComponentName;
+    static const FName CameraComponentName;
     UPROPERTY(VisibleAnywhere) TObjectPtr<ULDHumanoidVisualComponent> Body;
     UPROPERTY(VisibleAnywhere) TObjectPtr<USpringArmComponent> CameraArm;
     UPROPERTY(VisibleAnywhere) TObjectPtr<UCameraComponent> Camera;

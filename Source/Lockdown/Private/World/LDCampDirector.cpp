@@ -1080,7 +1080,6 @@ bool ALDCampDirector::SpawnBoss(const FLDGameplayWritePermit& Permit, bool& bBlo
     Bodies.Add(Boss.EntityId, Body);
     Motion.Add(Boss.EntityId, {});
     Body->SetActorHiddenInGame(false);
-    Body->SetActorTickEnabled(true);
     Mode->MarkPublicMatchDirty();
     UE_LOG(LogLDWorld, Display, TEXT("LD_BOSS_SPAWN life=%u at_ms=%lld waypoint=%s"), Refs[0].Victim.Life, Mode->GetAuthorityNowMs(),
         *Boss.Rules.Waypoints[0].ToString());
@@ -1304,7 +1303,6 @@ bool ALDCampDirector::SpawnGroup(int32 Camp, const FLDGameplayWritePermit& Permi
         Bodies.Add(Refs[Slot].Victim.EntityId, Spawned[Slot]);
         Motion.Add(Refs[Slot].Victim.EntityId, {});
         Spawned[Slot]->SetActorHiddenInGame(false);
-        Spawned[Slot]->SetActorTickEnabled(true);
     }
     UE_LOG(LogLDWorld, Display, TEXT("LD_CAMP_SPAWN camp=%s generation=%u members=%d life=%u stage=%u affix=%s at=%.3f"),
         *Spec.CampId.ToString(), State.FindCamp(Camp)->Generation, Spawned.Num(), Refs[0].Victim.Life, uint32(Stage),
@@ -1330,7 +1328,6 @@ bool ALDCampDirector::CreateBody(const FLDLegalGround& Ground, const FLDDemoMons
     }
     Out = Body;
     Body->SetActorHiddenInGame(true);
-    Body->SetActorTickEnabled(false);
     if (!Body->PrepareMonster(*Content, Monster, Error)) { return false; }
     Body->FinishSpawning(Transform);
     if (!IsValid(Body) || Body->IsActorBeingDestroyed())
@@ -1465,7 +1462,6 @@ bool ALDCampDirector::SpawnPeddler(FName CampAnchor, double AngleRad, double Off
     Bodies.Add(PeddlerEntity, Body);
     Motion.Add(PeddlerEntity, {});
     Body->SetActorHiddenInGame(false);
-    Body->SetActorTickEnabled(true);
     UE_LOG(LogLDWorld, Display, TEXT("LD_PEDDLER_SPAWN camp=%s life=%u at_ms=%lld"), *CampAnchor.ToString(), Refs[0].Victim.Life,
         Mode->GetAuthorityNowMs());
     Error.Reset();
