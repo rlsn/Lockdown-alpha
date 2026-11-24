@@ -2649,6 +2649,25 @@ bool RunExplore(FAutomationTestBase& Test)
     FLDOpponentPolicyState Stander;
     bGood &= Expect(Test, TEXT("On the locker the body holds still to channel the pickup"), LDOpponentPolicy::Decide(Frame, C, Stander),
         EMode::Objective, EBody::None);
+    {
+        // A walk that ended short of the middle, still inside the locker's radius, is not ordered again.
+        const auto& Radius = C.Get().Parameters.Explore.LockerRadiusCm;
+        Frame.Self.FootCm = FVector(1500 + Radius.Numerator / double(Radius.Denominator) * .7, -500, 0);
+        FLDOpponentPolicyState Short;
+        bGood &= Expect(Test, TEXT("Inside the locker radius a walk that ended short is not ordered again"),
+            LDOpponentPolicy::Decide(Frame, C, Short), EMode::Objective, EBody::None);
+        // A live walk to the locker that leads out of the straight-line reach (round a ramp) keeps the locker.
+        auto Round = Base;
+        Round.POIs.Add(POI(TEXT("locker_3"), ELDOpponentPOIKind::Locker, 1500, -500));
+        const auto& Reach = C.Get().Parameters.AI.ObjectiveReachCm;
+        Round.Self.FootCm = FVector(1500 - Reach.Numerator / double(Reach.Denominator) - 200, -500, 0);
+        Round.Order.Kind = ELDOpponentOrderKind::MoveGround;
+        Round.Order.Status = ELDOpponentOrderStatus::Active;
+        Round.Order.POI = TEXT("locker_3");
+        FLDOpponentPolicyState Rounding;
+        bGood &= Expect(Test, TEXT("A live walk to the locker beyond the straight-line reach keeps going"),
+            LDOpponentPolicy::Decide(Round, C, Rounding), EMode::Objective, EBody::Keep, TEXT("locker_3"));
+    }
     Frame.Self.FootCm = Base.Self.FootCm;
     Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 2;
     FLDOpponentPolicyState Hurt;
