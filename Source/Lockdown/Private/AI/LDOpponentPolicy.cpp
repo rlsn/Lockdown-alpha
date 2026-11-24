@@ -522,17 +522,15 @@ FLDOpponentBodyIntent Halt(const FContext& C)
     return Body;
 }
 
-FLDOpponentBodyIntent Hold(const FContext& C);
-
 // D26: near the middle of the drop the body stops; inside its pickup radius it lets a live walk to the drop finish but
-// never orders a new one. A crowded or kept-clear point ends every walk where the body already stands, and re-ordering
-// it there loops a request at every decision.
+// never orders a new one, and stops any walk elsewhere. A crowded or kept-clear point ends every walk where the body
+// already stands, and re-ordering it there loops a request at every decision.
 FLDOpponentBodyIntent ApproachAirdrop(const FContext& C, const FLDOpponentPOI& Drop)
 {
     const double Distance = C.Distance(Drop.FootCm);
     if (Distance * 2. <= C.AirdropRadiusCm) { return Halt(C); }
     FLDOpponentBodyIntent Walk = MoveTo(C, Drop);
-    return Distance <= C.AirdropRadiusCm && Walk.Kind == EBody::MoveGround ? Hold(C) : Walk;
+    return Distance <= C.AirdropRadiusCm && Walk.Kind == EBody::MoveGround ? Halt(C) : Walk;
 }
 
 // Keeps any live order without sending anything new.
