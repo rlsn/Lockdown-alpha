@@ -119,6 +119,7 @@ protected:
     virtual int32 NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,const FSlateRect& Culling,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle& Style,bool bEnabled) const override;
 private:
     friend class FLDHUDCardFacesTest;
+    friend class FLDWorkshopDrawerFloorTest;
     struct FStatRow
     {
         FName StatId;
@@ -294,7 +295,9 @@ private:
     uint8 DockKindValue=0;
     TWeakObjectPtr<UTexture2D> DockIcon;
     double UiNow() const;
-    static FRects ComputeLayout(FVector2D Size,const FInput& Input);
+    // Scale is the layout's Slate scale (the icon floor is in pixels) and TextScale the player's text size; the drawer keeps
+    // the pending row with its services and one library card before the shop takes the rest.
+    static FRects ComputeLayout(FVector2D Size,const FInput& Input,float Scale=1.f,float TextScale=1.f);
     void ApplyLayout(const FRects& Layout,FVector2D Size,float Scale);
     void AnimateOpening();
     void PaintBackdrop(const LDUIPaint::FContext& Paint) const;

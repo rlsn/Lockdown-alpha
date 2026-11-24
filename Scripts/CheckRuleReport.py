@@ -361,6 +361,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.HUDPaintOpacity",
         "Lockdown.Rules.HUDBuildGate",
         "Lockdown.Rules.HUDAttributeView",
+        "Lockdown.Rules.WorkshopDrawerFloor",
         "Lockdown.Rules.HUDCardSelfCheck",
         "Lockdown.Rules.HUDOwnResources",
         "Lockdown.Rules.HUDRegenDisplay",

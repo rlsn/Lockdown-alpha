@@ -1,6 +1,7 @@
 #include "Character/LDCharacterMovementComponent.h"
 #include "Character/LDCharacter.h"
 #include "Components/CapsuleComponent.h"
+#include "Core/LDLog.h"
 #include "Engine/World.h"
 #include "Framework/LDDemoEntry.h"
 
@@ -69,6 +70,26 @@ struct ULDCharacterMovementComponent::FNativeCapture
         Cursor=Bookmark.Time;
         SliceEnd=Bookmark.SliceEnd;
         ++Batch.RevertedTrials;
+    }
+
+    // Inside CMC's own adjustment machinery (a SafeMove or a penetration resolution), a sub-centimetre unrecorded shift of
+    // the body has been seen in real matches with no engine path we could witness. Such a shift is taken as a zero-time
+    // adjustment record and reported; anything larger, or outside those scopes, stays an authority fault.
+    static constexpr double MaxUnwitnessedAdjustmentCm=2.;
+    void WitnessSmallAdjustment(const FVector& Foot, const TCHAR* Body)
+    {
+        if (!Error.IsEmpty() || (SafeDepth<=0 && AdjustmentDepth<=0) || Foot.ContainsNaN() || LastFoot.ContainsNaN()) { return; }
+        const double Gap=FVector::Dist(Foot,LastFoot);
+        if (Gap>MaxUnwitnessedAdjustmentCm) { return; }
+        FLDNativeMotionRecord Record;
+        Record.Kind=ELDNativeMotionRecordKind::Adjustment;
+        Record.FromFootCm=LastFoot;
+        Record.ToFootCm=Foot;
+        Record.StartServerSeconds=Record.EndServerSeconds=Cursor;
+        if (!Append(MoveTemp(Record))) { return; }
+        UE_LOG(LogLDMatch, Warning, TEXT("LD_NATIVE_UNWITNESSED_ADJUSTMENT body=%s gap=%.6f safe=%d adjust=%d walking=%d"),Body,Gap,SafeDepth,
+            AdjustmentDepth,Walking?1:0);
+        LastFoot=Foot;
     }
 
     // Once a walk has tried its ledge move and checked its fall, CMC's walking loop reverts a later ledge trial with
@@ -184,8 +205,9 @@ bool ULDCharacterMovementComponent::MoveUpdatedComponentImpl(const FVector& Delt
     bool Sweep, FHitResult* Hit, ETeleportType Teleport)
 {
     const FVector From=NativeCapture?GetActorFeetLocation():FVector::ZeroVector;
-    if (NativeCapture && !From.Equals(NativeCapture->LastFoot,.000001))
-    { NativeCapture->RestoreUnflaggedWalkRevert(UpdatedComponent->GetComponentLocation(),SupportOf(*this)); }
+    if (NativeCapture && !From.Equals(NativeCapture->LastFoot,.000001)
+        && !NativeCapture->RestoreUnflaggedWalkRevert(UpdatedComponent->GetComponentLocation(),SupportOf(*this)))
+    { NativeCapture->WitnessSmallAdjustment(From,*GetNameSafe(GetOwner())); }
     int32 StepMove=0;
     if (NativeCapture && NativeCapture->StepDepth && !NativeCapture->SafeDepth && !NativeCapture->AdjustmentDepth)
     { StepMove=++NativeCapture->StepDirectMoves; }

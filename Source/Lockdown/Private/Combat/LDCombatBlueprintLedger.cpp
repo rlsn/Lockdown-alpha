@@ -94,17 +94,24 @@ void ALDCombatDirector::LedgerHitCommitted(const FLDCombatHit& Hit, const FLDBod
             { BuildLedger.Add(Hit.CreditOwner,Version,ELDBlueprintFact::DamageToContenders,Damage.DamageP2); }
         }
     }
+    const FLDCombatEntityRecord* Attacker=FindRecord(Hit.CreditOwner);
+    const bool bContenderCredit=Attacker&&Attacker->Kind==ELDVictimKind::Contender&&Hit.CreditOwner!=Victim.Victim.EntityId;
+    // The peak burst counts every non-training reaction, a camp's too; only the damage-to-players buckets below need a
+    // contender victim.
+    if(bContenderCredit&&Hit.ReactionKind!=ELDCombatReaction::None)
+    {
+        FReportCounters& Report=ReportCounters.FindOrAdd(Hit.CreditOwner);
+        int64& Burst=BoundaryReactionDamage.FindOrAdd(Hit.EffectId);
+        Burst+=Damage.DamageP2;
+        Report.PeakReactionP2=FMath::Max(Report.PeakReactionP2,Burst);
+    }
     if (Victim.Victim.Kind!=ELDVictimKind::Contender) { return; }
-    if(const FLDCombatEntityRecord* Attacker=FindRecord(Hit.CreditOwner);
-        Attacker&&Attacker->Kind==ELDVictimKind::Contender&&Hit.CreditOwner!=Victim.Victim.EntityId)
+    if(bContenderCredit)
     {
         FReportCounters& Report=ReportCounters.FindOrAdd(Hit.CreditOwner);
         if(Hit.ReactionKind!=ELDCombatReaction::None)
         {
             Report.ReactionToPlayersP2+=Damage.DamageP2;
-            int64& Burst=BoundaryReactionDamage.FindOrAdd(Hit.EffectId);
-            Burst+=Damage.DamageP2;
-            Report.PeakReactionP2=FMath::Max(Report.PeakReactionP2,Burst);
         }
         else if(EffectiveType==ELDDemoDamageType::Physical){Report.PhysicalToPlayersP2+=Damage.DamageP2;}
         else{Report.MagicalToPlayersP2+=Damage.DamageP2;}
@@ -276,7 +283,10 @@ bool ALDCombatDirector::ReadResultCombat(const FGuid& Contender,FLDResultCombat&
     if(!Record||Record->Kind!=ELDVictimKind::Contender){return false;}
 
     Out.bAvailable=true;
-    const FLDAttributeProjection& Projection=Record->Projection;
+    // As the owner's own panel reads it (BuildOwnerView): the living body's current projection, with its temporary terms;
+    // the record's persistent build projection only without a body.
+    const FLDBodyCombatState* Body=FindEntityBody(Contender);
+    const FLDAttributeProjection& Projection=Body ? Body->AttributeProjection : Record->Projection;
     for(const FLDAttributeContributions& Attribute:Projection.Contributions)
     {
         FLDResultAttribute& Row=Out.Attributes.AddDefaulted_GetRef();

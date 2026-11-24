@@ -63,6 +63,8 @@ constexpr float WorkshopDockRight=270.f;
 constexpr int32 WorkshopMeterCells=16;
 // Icons never draw under this many pixels; below it the board hides the names beside them.
 constexpr float WorkshopMinIconPixels=36.f;
+// The pending tray's title row and service row above its pages, and the least height an opened shop is drawn at.
+constexpr float WorkshopPendingHead=56.f,WorkshopPendingServices=40.f,WorkshopShopFloor=220.f;
 
 FSlateRoundedBoxBrush WorkshopRound(float Radius,const FLinearColor& Edge,float Width)
 {FSlateRoundedBoxBrush Brush(FLinearColor::White,Radius,Edge,Width);Brush.OutlineSettings.bUseBrushTransparency=true;return Brush;}
@@ -426,7 +428,7 @@ void ULDWorkshop::Place(UWidget* Widget,const FBox2D& Box)
     if(!(*Found)->GetSize().Equals(Size,.5f)){(*Found)->SetSize(Size);}
 }
 
-ULDWorkshop::FRects ULDWorkshop::ComputeLayout(FVector2D Size,const FInput& Input)
+ULDWorkshop::FRects ULDWorkshop::ComputeLayout(FVector2D Size,const FInput& Input,float Scale,float TextScale)
 {
     FRects Next;
     if(Input.Mode==EMode::Closed){return Next;}
@@ -449,7 +451,12 @@ ULDWorkshop::FRects ULDWorkshop::ComputeLayout(FVector2D Size,const FInput& Inpu
     Next.Board=WorkshopBox(CharacterRight+WorkshopGap,Top,DrawerLeft-WorkshopGap,ContentBottom);
     Next.Dock=WorkshopBox(Margin,ContentBottom+WorkshopDockGap,DrawerRight,Bottom);
 
-    // The drawer budgets are fractions of its height. Child desired sizes never feed back into these bounds.
+    // The drawer budgets are fractions of its height, floored by fixed minimums from the scale and text size: the pending
+    // row with its services and one library card first, then the shop takes what is left. Child desired sizes never feed
+    // back into these bounds.
+    constexpr float LibraryHeader=118.f;
+    const float MinIcon=WorkshopMinIconPixels/FMath::Max(.01f,Scale);
+    const float Text=FMath::Max(.5f,TextScale);
     float LibraryTop=Top;
     float LibraryBottom=ContentBottom;
     if(Input.bStage)
@@ -457,20 +464,44 @@ ULDWorkshop::FRects ULDWorkshop::ComputeLayout(FVector2D Size,const FInput& Inpu
         LibraryTop=Top+DrawerHeight*.43f;
         Next.Stage=WorkshopBox(DrawerLeft,Top,DrawerRight,LibraryTop-WorkshopGap);
     }
-    else if(Input.bShop)
+    bool bLibraryShown=true;
+    if(!Input.bStage)
     {
-        LibraryTop=Top+DrawerHeight*(Input.Pending>0?.34f:.52f);
-        Next.Shop=WorkshopBox(DrawerLeft,Top,DrawerRight,LibraryTop-WorkshopGap);
+        const bool bPendingArea=Input.Pending>0||Input.bServices;
+        const float PendingFloor=Input.Pending>0
+            ? WorkshopPendingHead+(Input.bServices?WorkshopPendingServices:0.f)+LDWorkshop::PendingPageFloor(Scale) : 0.f;
+        float PendingHeight=!bPendingArea?0.f:Input.Pending>0?FMath::Max(PendingFloor,DrawerHeight*(Input.bShop?.29f:.45f))
+            :FMath::Min(104.f,DrawerHeight*.16f);
+        const float LibraryFloor=LibraryHeader+14.f+LDWorkshop::LibraryMinPageHeight(MinIcon,Text);
+        float ShopHeight=Input.bShop?DrawerHeight*(Input.Pending>0?.34f:.52f):0.f;
+        // The pending tray gives way to the library down to its own floor.
+        const float Short=LibraryFloor-(DrawerHeight-PendingHeight-ShopHeight);
+        if(Short>0.f) { PendingHeight-=FMath::Min(Short,FMath::Max(0.f,PendingHeight-PendingFloor)); }
+        const float Room=DrawerHeight-PendingHeight;
+        if(Input.bShop)
+        {
+            // An opened shop gives way to one library card but never below its own floor: without room for both it takes
+            // the whole drawer page and the library waits behind its tab.
+            ShopHeight=FMath::Min(ShopHeight,Room-LibraryFloor);
+            if(ShopHeight<WorkshopShopFloor)
+            {
+                ShopHeight=Room;
+                bLibraryShown=false;
+            }
+            LibraryTop=Top+ShopHeight;
+            Next.Shop=WorkshopBox(DrawerLeft,Top,DrawerRight,LibraryTop-(bLibraryShown||bPendingArea?WorkshopGap:0.f));
+        }
+        if(bPendingArea)
+        {
+            LibraryBottom-=PendingHeight;
+            Next.Pending=WorkshopBox(DrawerLeft,LibraryBottom,DrawerRight,ContentBottom);
+        }
     }
-    if(!Input.bStage&&(Input.Pending>0||Input.bServices))
+    if(bLibraryShown)
     {
-        const float Height=Input.Pending>0?DrawerHeight*(Input.bShop?.29f:.45f):FMath::Min(104.f,DrawerHeight*.16f);
-        LibraryBottom-=Height;
-        Next.Pending=WorkshopBox(DrawerLeft,LibraryBottom,DrawerRight,ContentBottom);
+        Next.Library=WorkshopBox(DrawerLeft,LibraryTop,DrawerRight,LibraryBottom);
+        Next.LibraryBody=WorkshopBox(DrawerLeft+24.f,LibraryTop+LibraryHeader,DrawerRight-20.f,LibraryBottom-14.f);
     }
-    Next.Library=WorkshopBox(DrawerLeft,LibraryTop,DrawerRight,LibraryBottom);
-    constexpr float LibraryHeader=118.f;
-    Next.LibraryBody=WorkshopBox(DrawerLeft+24.f,LibraryTop+LibraryHeader,DrawerRight-20.f,LibraryBottom-14.f);
     Next.Capacity=WorkshopBox(Next.Board.Min.X,Top,Next.Board.Max.X,Top+WorkshopCapacityHeight);
     Next.Columns=WorkshopBox(Next.Board.Min.X+16.f,Next.Capacity.Max.Y,Next.Board.Max.X-16.f,ContentBottom-12.f);
     Next.HeadTop=WorkshopHeadTop;
@@ -496,7 +527,8 @@ void ULDWorkshop::ApplyLayout(const FRects& Layout,FVector2D Size,float Scale)
     TrayRight=WorkshopHasArea(Rects.Pending)?W-float(Rects.Pending.Max.X)+12.f:0.f;
     TrayBottom=WorkshopHasArea(Rects.Pending)?H-float(Rects.Pending.Max.Y)+12.f:0.f;
     TrayWrap=WorkshopHasArea(Rects.Pending)?FMath::Max(0.f,float(Rects.Pending.GetSize().X)-24.f):0.f;
-    TrayLimit=WorkshopHasArea(Rects.Pending)?FMath::Max(0.f,float(Rects.Pending.GetSize().Y)-56.f-(Latest.bServices?40.f:0.f)):0.f;
+    TrayLimit=WorkshopHasArea(Rects.Pending)?FMath::Max(0.f,float(Rects.Pending.GetSize().Y)-WorkshopPendingHead
+        -(Latest.bServices?WorkshopPendingServices:0.f)):0.f;
     const float Right=float(Rects.Dock.Max.X);
     ActionsAt=FVector2D(Right-94.f,34.f);
     Place(Blur,Rects.Region);
@@ -737,7 +769,7 @@ void ULDWorkshop::Present(const FInput& Input,const FGeometry* HudGeometry)
     LayoutGeometry=HudGeometry?*HudGeometry:EffectiveWorkshopGeometry(*this);
     const FVector2D CachedSize=LayoutGeometry.GetLocalSize();
     const FVector2D Size=CachedSize.X>1.f&&CachedSize.Y>1.f?CachedSize:FVector2D(1920.f,1080.f);
-    ApplyLayout(ComputeLayout(Size,Input),Size,FMath::Max(.01f,LayoutGeometry.Scale));
+    ApplyLayout(ComputeLayout(Size,Input,FMath::Max(.01f,LayoutGeometry.Scale),TextScale),Size,FMath::Max(.01f,LayoutGeometry.Scale));
     if(WorkshopHasArea(Rects.Library))
     {
         const FIntVector4 Counts=LDWorkshop::CollectLibrary(LDHUD::CardStorage(View,Latest.Content),Latest.Content,TagFilter).Counts();

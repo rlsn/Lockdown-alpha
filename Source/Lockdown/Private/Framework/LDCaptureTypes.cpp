@@ -234,7 +234,7 @@ bool ValidResultReport(const FLDResultRow& Row)
     if(Combat.KeystoneMask>31||Combat.PhysicalToPlayersP2<0||Combat.MagicalToPlayersP2<0||Combat.ReactionToPlayersP2<0
         ||Combat.DamageTakenP2<0||Combat.ShieldAbsorbedP2<0||Combat.ShieldAbsorbedP2>Combat.DamageTakenP2
         ||Combat.HealingP2<0||Combat.RecoveryPackP2<0||Combat.RecoveryPackP2>Combat.HealingP2
-        ||Combat.Reactions<0||Combat.PeakReactionP2<0||Combat.PeakReactionP2>Combat.ReactionToPlayersP2
+        ||Combat.Reactions<0||Combat.PeakReactionP2<0
         ||Combat.Attributes.Num()>int32(ELDProjectedAttribute::Count)||Combat.Cards.Num()>256)
     {return false;}
     TSet<uint8> Attributes;

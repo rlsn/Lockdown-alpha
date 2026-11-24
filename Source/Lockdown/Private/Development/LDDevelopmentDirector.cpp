@@ -1058,11 +1058,7 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
         UE_LOG(LogLDGrowth, Log, TEXT("LD_FINAL_MOD_LOCK t=%lld contender=%s chosen=%s slot=%s forgot=%s"), GameMode->GetAuthorityNowMs(),
             *LDLog::Id(ContenderId), *Receipt.DefinitionId.ToString(), TEXT("-"), TEXT("-"));
     }
-    const auto& Timeline=GameMode->GetTimeline();
-    constexpr int32 FinalPhase=FLDTimelineParameters::TimedSegments+1;
-    const int32 Phase=Timeline.GetStage()==ELDMatchStage::FinalField?FinalPhase:Timeline.GetRestIndex();
-    if(Record->Report.IsEmpty()){Record->Report.SetNum(FinalPhase+1);}
-    FLDResultGrowthPhase& Report=Record->Report[Phase];
+    FLDResultGrowthPhase& Report=ReportPhase(*Record);
     for(int32 Points:Receipt.PointsSpent){Report.Allocated+=Points;}
     Report.Refunded+=Receipt.PointsRefunded;
     const int64 Spent=Record->Build.ShopSpentPoints-ShopSpentBefore;
@@ -1071,10 +1067,6 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     {
         if(Committed){Report.BoughtCards+=Spent;}
         else{Report.BoughtSkills+=Spent;}
-    }
-    if(Committed&&(Command.Kind==ELDBuildCommandKind::PickCard||Command.Kind==ELDBuildCommandKind::ShopBuy))
-    {
-        Report.AcquiredCards.AddUnique(Committed->Id);
     }
     if(Choice.Result==ELDBuildChoiceResult::Learned||Command.Kind==ELDBuildCommandKind::RankUpSkill)
     {
@@ -1430,10 +1422,41 @@ ELDGrowthReason ALDDevelopmentDirector::InstallBuild(const FGuid& ContenderId, F
         GameMode->Combat->ApplyBuildChange(MoveTemp(Projection.GetValue()), Permit);
         Record.CombatInstalled.BuildRevision = NewBuild.Revision;
     }
+    const TArray<FLDCardInstance> CardsBefore = Record.Build.Cards;
     Record.Build = MoveTemp(NewBuild);
     Record.Progression = MoveTemp(NewProgression);
+    NoteAcquiredCards(Record, CardsBefore);
     DrawHead(ContenderId, Record);
     return ELDGrowthReason::None;
+}
+
+FLDResultGrowthPhase& ALDDevelopmentDirector::ReportPhase(FRecord& Record) const
+{
+    constexpr int32 FinalPhase = FLDTimelineParameters::TimedSegments + 1;
+    if (Record.Report.IsEmpty()) { Record.Report.SetNum(FinalPhase + 1); }
+    const ALDGameMode* GameMode = Mode();
+    const int32 Phase = !GameMode ? 0 : GameMode->GetTimeline().GetStage() == ELDMatchStage::FinalField ? FinalPhase
+        : GameMode->GetTimeline().GetRestIndex();
+    return Record.Report[FMath::Clamp(Phase, 0, FinalPhase)];
+}
+
+void ALDDevelopmentDirector::NoteAcquiredCards(FRecord& Record, const TArray<FLDCardInstance>& Before) const
+{
+    const auto Owned = [](const TArray<FLDCardInstance>& Cards)
+    {
+        TMap<FName, int32> Counts;
+        for (const FLDCardInstance& Card : Cards) { Counts.FindOrAdd(Card.Id) += FMath::Max<int32>(1, Card.Tier); }
+        return Counts;
+    };
+    const TMap<FName, int32> Was = Owned(Before);
+    const TMap<FName, int32> Now = Owned(Record.Build.Cards);
+    FLDResultGrowthPhase* Report = nullptr;
+    for (const TPair<FName, int32>& Pair : Now)
+    {
+        if (Pair.Value <= Was.FindRef(Pair.Key)) { continue; }
+        if (!Report) { Report = &ReportPhase(Record); }
+        Report->AcquiredCards.AddUnique(Pair.Key);
+    }
 }
 
 FLDBuildReceipt ALDDevelopmentDirector::RejectPending(FRecord& Record, const FLDBuildCommand& Command,
@@ -1736,8 +1759,10 @@ void ALDDevelopmentDirector::ApplyPreparedGrowth(FLDPreparedGrowthChange&& Prepa
     checkf(Record && Record->Build.Revision == Prepared.ExpectedBuildRevision
         && Record->Progression.Revision == Prepared.ExpectedProgressionRevision,
         TEXT("Growth plan no longer matches the contender; prepare and apply must be one uninterrupted commit."));
+    const TArray<FLDCardInstance> CardsBefore = Record->Build.Cards;
     Record->Build = MoveTemp(Prepared.NewBuild);
     Record->Progression = MoveTemp(Prepared.NewProgression);
+    NoteAcquiredCards(*Record, CardsBefore);
     if (Prepared.bCombatInstall)
     {
         Record->CombatInstalled = Prepared.CombatInstall;
