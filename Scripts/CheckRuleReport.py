@@ -307,6 +307,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoOpponentPolicy.RecoveryEscapeKept",
         "Lockdown.Rules.DemoOpponentPolicy.DormRecovery",
         "Lockdown.Rules.DemoOpponentPolicy.Airdrop",
+        "Lockdown.Rules.DemoOpponentPolicy.BreakoutGoal",
         "Lockdown.Rules.DemoOpponentPolicy.HuntLeader",
         "Lockdown.Rules.DemoOpponentPolicy.AvoidBoss",
         "Lockdown.Rules.DemoOpponentPolicy.BossEscapeKept",

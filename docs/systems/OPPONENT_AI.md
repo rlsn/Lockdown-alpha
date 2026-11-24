@@ -22,6 +22,7 @@
 ## 构筑、分支与施法覆盖
 
 - **26 主动与 7 种目标模式全覆盖**：`LDOpponentPolicy` 按 `ELDDemoTargetMode`（`Self`、`Unit`、`Direction`、`GroundPoint`、`Cone`、`Line` 及通用 `Dash`）与技能角色（控制、护盾/解控、突进、爆发、持续区、召唤/墙体）生成瞄准点、施法时机与满 60 劲的爆劲（Overdrive）释放决策。
+- **质变目标（`DrawBreakoutGoal` / `BreakoutProgress`）**：每个 AI 在第一个构筑步前按 `AI.BreakoutChance` 抽一套 AI 可用的质变样板（`LDBreakoutPresets`，不含 DEV 专用的地雷阵）作为本局目标；对局代数轮换样板顺序，房间名单里的每个座位取下一套，所以同房 AI 目标互不重复。目标技能在主动三选一、图纸学习与休息室替换中优先于其他偏好；技能点先给未到目标分支的目标技能并沿目标分支走；样板指定的属性（攒个大的：力道，刺猬肉山：脸皮）成为第一关键石且不会被洗点；目标里的牌按 `AI.BreakoutCardScore` 加分。`LD_AI_BREAKOUT_GOAL` 记录抽到的目标，`LD_AI_SUMMARY` 的 `goal_skills`、`goal_cards` 记录局末达成的目标技能（到目标分支）与已装目标牌数。
 - **构筑牌、元素勋章与终局改装**：优先选择与已学技能宿主形态/词汇匹配的构筑牌并自动装满容量格，拾得元素勋章后装入空元素槽；R3 从候选终局改装中选定一项。
 - **五维加点与双关键石聚焦（`RelevantStats` / `AllocatePoints` / `WantsRespec`）**：
   - 综合已学主动的当前 1–3 级分支效果（`ADRatioBp`、`APRatioBp`、`AdaptiveRatioBp`、`MaxHPRatioBp`、`ArmorRatioBp` 及强化普攻效果）与已装构筑牌词汇（普攻/三段/攻速/暴击、冲刺机动、施法元素、生命/护甲）评估体格、脸皮、力道、脑力、身手五维权重。
