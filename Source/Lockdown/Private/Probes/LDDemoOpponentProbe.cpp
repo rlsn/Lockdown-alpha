@@ -1423,10 +1423,13 @@ bool FLDDemoOpponentProbe::Tick()
         const FLDResultView& Result = Public->MatchResult;
         if (Result.Generation != View.Generation || Result.ResultId != View.ResultId) { return true; }
         const FLDResultRow* Winner = Result.Rows.FindByPredicate([&Result](const FLDResultRow& Row) { return Row.ContenderId == Result.Winner; });
-        // The win is the guard of a graffiti that an opponent AI sprayed; the public end view still names him as its owner.
-        Check(Result.Reason == ELDMatchEndReason::GuardSucceeded && Winner && Winner->Kind == ELDContenderKind::OpponentAI
-            && OpponentIds.Contains(Result.Winner) && View.GraffitiOwner == Result.Winner && View.GuardDueAtMs == Result.EndedAtMs,
-            TEXT("An opponent AI wins the match by spraying the flagpole and guarding its graffiti"));
+        // An opponent AI wins at the flagpole: by guarding its graffiti (the public end view still names it as the owner) or
+        // by reaching the spray count first, the approved second win condition.
+        const bool bAIWinner = Winner && Winner->Kind == ELDContenderKind::OpponentAI && OpponentIds.Contains(Result.Winner);
+        const bool bGuarded = Result.Reason == ELDMatchEndReason::GuardSucceeded && View.GraffitiOwner == Result.Winner
+            && View.GuardDueAtMs == Result.EndedAtMs;
+        Check(bAIWinner && (bGuarded || Result.Reason == ELDMatchEndReason::SprayCount),
+            TEXT("An opponent AI wins the match at the flagpole, by guarding its graffiti or by its spray count"));
         Check(Result.Rows.Num() == HumanCount + OpponentCount && !Result.Rows.ContainsByPredicate([](const FLDResultRow& Row)
             { return Row.FinalLevel < 1 || Row.bLeft; }), TEXT("The frozen result lists all six contenders with committed final levels"));
         Summary->SetStringField(TEXT("winner"), Result.Winner.ToString(EGuidFormats::Digits));
