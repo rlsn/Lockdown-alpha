@@ -695,8 +695,8 @@ int32 ULDWorldFeedback::NativePaint(const FPaintArgs& A,const FGeometry& G,const
                 if(!Project(Feet+FVector(FMath::Cos(Angle)*Radius,FMath::Sin(Angle)*Radius,0.),Point)){Points.Reset();break;}
                 Points.Add(Point);
             }
-            FLinearColor RingInk=LDHUDStyle::Celebration;RingInk.A*=.95f*(1.f-RingProgress);
-            if(Points.Num()>1){FSlateDrawElement::MakeLines(E,Base+1,G.ToPaintGeometry(),MoveTemp(Points),ESlateDrawEffect::None,RingInk,true,WorldFeedbackEffectThickness);}
+            FLinearColor LevelRing=LDHUDStyle::Celebration;LevelRing.A*=.95f*(1.f-RingProgress);
+            if(Points.Num()>1){FSlateDrawElement::MakeLines(E,Base+1,G.ToPaintGeometry(),MoveTemp(Points),ESlateDrawEffect::None,LevelRing,true,WorldFeedbackEffectThickness);}
         }
         if(Since<WorldFeedbackStreakSeconds)
         {
