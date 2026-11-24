@@ -728,9 +728,14 @@ namespace
             }
             Sequences.Add({TEXT("hose_down"), {{0.f, Cast(A, ELDDemoAbilityId::ActiveHoseDown, .2f)}, {.23f, Hit(V1, ELDObservedHitLook::Water)}, {1.2f, Stop(A)}},
                 Shots_({.1f, .215f, .27f, .4f, .8f, 1.5f})});
-            Sequences.Add({TEXT("zap"), {{0.f, Cast(A, ELDDemoAbilityId::ActiveZap, .25f)}, {.27f, Hit(V1, ELDObservedHitLook::Electric)},
+            // The zap chain is the Niagara Chain template: the own cast (full width and brightness), then another body's cast
+            // over the same bodies (thinner and dimmer), so the user parameters show in the frames.
+            Sequences.Add({TEXT("zap-niagara"), {{0.f, Cast(A, ELDDemoAbilityId::ActiveZap, .25f)}, {.27f, Hit(V1, ELDObservedHitLook::Electric)},
                 {.42f, Hit(V2, ELDObservedHitLook::Electric)}, {.57f, Hit(V3, ELDObservedHitLook::Electric)}, {1.2f, Stop(A)}},
-                Shots_({.12f, .26f, .32f, .45f, .6f, .95f})});
+                Shots_({.12f, .26f, .29f, .33f, .45f, .6f, .75f, .95f})});
+            Sequences.Add({TEXT("zap-niagara-others"), {{0.f, Cast(A3, ELDDemoAbilityId::ActiveZap, .25f)}, {.27f, Hit(V3, ELDObservedHitLook::Electric)},
+                {.42f, Hit(V2, ELDObservedHitLook::Electric)}, {.57f, Hit(V1, ELDObservedHitLook::Electric)}, {1.2f, Stop(A3)}},
+                Shots_({.12f, .26f, .29f, .33f, .45f, .6f, .75f, .95f})});
             Sequences.Add({TEXT("conduct"), {{0.f, Cast(A, ELDDemoAbilityId::ActiveZap, .25f)}, {.27f, Hit(V1, ELDObservedHitLook::Electric)}, {.28f, Conduct(V1)},
                 {1.2f, Stop(A)}}, Shots_({.2f, .32f, .4f, .6f, 1.f, 1.6f})});
             Sequences.Add({TEXT("ground_field"), {{0.f, [this, V1]()
@@ -858,7 +863,7 @@ namespace
             if (ALDObservedGroundProxy* Old = VfxGround.Get()) { Old->Destroy(); }
             VfxGround.Reset();
             VfxFlightAt = -1.;
-            Check(Impacts && Impacts->WarmedSystems() >= 5, TEXT("Every effect system was warmed up at world start"));
+            Check(Impacts && Impacts->WarmedSystems() >= 6, TEXT("Every effect system, the Niagara Chain included, was warmed up at world start"));
             if (bVfxDash) { Attacker->GetOwner()->SetActorLocation(VfxDashFrom); }
             bVfxDash = false;
             Attacker->SetCastAbility(Current.CastAbility);
@@ -875,7 +880,8 @@ namespace
                 LDHitVfx::EBurst Element;
                 FLinearColor ElementTint;
                 const bool bSlice = LDSliceVfx::ShowsHit(Current.HitLook, Current.HitFlags);
-                const int32 Expected = bSlice ? 0 : 1 + (LDHitVfx::HitBurstOf(Current.HitLook, Element, ElementTint) ? 1 : 0)
+                // A slice hit spawns no burst system; an electric one the Niagara Chain of its hop.
+                const int32 Expected = bSlice ? (Current.HitLook == ELDObservedHitLook::Electric ? 1 : 0) : 1 + (LDHitVfx::HitBurstOf(Current.HitLook, Element, ElementTint) ? 1 : 0)
                     + ((Current.HitFlags & LDObservation::Overdriven) ? 1 : 0);
                 if (!Check(Impacts && Impacts->LiveCount() == Expected,
                     TEXT("A fresh shown hit creates one impact effect, plus its element and overdrive particles; a slice hit none"))) { return false; }

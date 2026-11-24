@@ -973,8 +973,12 @@ void ULDHumanoidVisualComponent::ShowSliceImpact(const FPendingImpact& Impact, c
         : Impact.Look == ELDObservedHitLook::Electric ? LDSliceVfx::EStrike::Zap : LDSliceVfx::EStrike::Basic;
     const FVector Dir = !Match.Dir.IsNearlyZero() ? Match.Dir : (GetOwner() ? -GetOwner()->GetActorForwardVector() : FVector::ForwardVector);
     if (Match.bOwn) { OwnStrikeAt = Clock; }
-    Impacts->Slice(this, LDSliceVfx::Impact(Strike, Chest, Feet, Dir, Match.From, Match.bChained,
-        Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, Match.bOwn, bOwnBody || Match.bOwn)), Age);
+    const LDSliceVfx::FLook Look = Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, Match.bOwn, bOwnBody || Match.bOwn);
+    Impacts->Slice(this, LDSliceVfx::Impact(Strike, Chest, Feet, Dir, Match.From, Match.bChained, Look), Age);
+    // A zap hop: the Niagara Chain from the matched hand or previous body to this one; with no visible source only its
+    // contact sparks show (a short link straight down onto the body).
+    if (Strike == LDSliceVfx::EStrike::Zap)
+    { Impacts->Chain(*this, Match.From.ContainsNaN() ? Chest + FVector(0, 0, 60.f) : Match.From, Chest, Match.bChained, Look, Age); }
 }
 
 void ULDHumanoidVisualComponent::PlayFall()

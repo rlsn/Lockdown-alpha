@@ -106,6 +106,10 @@ public:
     // The strike a hit HitAgeSeconds old on Victim's Chest belongs to: the nearest in time of the strikes whose kind
     // fits the hit's look, timing and reach; None when no visible strike fits.
     FStrikeMatch MatchHit(const ULDHumanoidVisualComponent& Victim, const FVector& Chest, ELDObservedHitLook Look, float HitAgeSeconds);
+    // One hop of a chain (active_zap) as the Niagara Chain: the bolt from From to To and its end sparks, in Look's size
+    // and brightness, bound to Victim (cleared with it) and stopped after its duration.
+    void Chain(const ULDHumanoidVisualComponent& Victim, const FVector& From, const FVector& To, bool bChained, const LDSliceVfx::FLook& Look, float AgeSeconds);
+    UNiagaraSystem* GetChainSystem() const { return ChainSystem; }
     // A public electric ground state's looping field on Owner (fades with Alpha; Alpha <= 0 removes it).
     void ShowGroundField(const AActor& Owner, const FVector& Centre, float RadiusCm, float Alpha);
     // The approved reach of a skill's level-1 target (its range and, for a direction line, the band's half width) and
@@ -136,6 +140,8 @@ private:
         float InitialAge = 0;
         float WaitingSeconds = 0;
         bool bStarted = false;
+        // A looping effect (the Chain) is deactivated once it has run this long; negative never.
+        float StopAfter = -1, Age = 0;
     };
     struct FLiveLayer
     {
@@ -226,6 +232,7 @@ private:
     UPROPERTY() TObjectPtr<UNiagaraSystem> ImpactSystem;
     UPROPERTY() TObjectPtr<UNiagaraSystem> BurstSystem;
     UPROPERTY() TObjectPtr<UNiagaraSystem> ZoneSystem;
+    UPROPERTY() TObjectPtr<UNiagaraSystem> ChainSystem;
     void Track(UNiagaraComponent* Effect, const ULDHumanoidVisualComponent* Source, float AgeSeconds, const AActor* OwnerActor = nullptr);
     UNiagaraComponent* SpawnKit(const FVector& At, const LDHitVfx::FBurst& Burst);
     TArray<FLive> Live;

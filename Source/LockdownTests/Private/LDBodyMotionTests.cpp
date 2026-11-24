@@ -343,10 +343,9 @@ bool FLDBodyMotionSliceLayersTest::RunTest(const FString& Parameters)
         Find(Hose,ETex::HitSkill,EPlace::Facing) && Find(Hose,ETex::WaterSplash,EPlace::Facing) && Wet && Wet->Seconds>1.f
         && Find(Hose,ETex::HitSkill,EPlace::Facing)->Glow.B>Find(Hose,ETex::HitSkill,EPlace::Facing)->Glow.R);
     const FRecipe Zap=Impact(EStrike::Zap,Chest,Feet,Dir,From,false,Own), Bounce=Impact(EStrike::Zap,Chest,Feet,Dir,From,true,Own);
-    const FLayer* Arc=Find(Zap,ETex::ShockArcs,EPlace::Strip);
-    TestTrue(TEXT("A zap hit arcs from its source to the body and sparks; a bounce arcs from the last body without the skill burst"),
-        Arc && Arc->At.Equals(From) && Arc->End.Equals(Chest) && Arc->Variants==8 && Find(Zap,ETex::ShockSpark,EPlace::Facing)
-        && Find(Zap,ETex::HitSkill,EPlace::Facing) && Find(Bounce,ETex::ShockArcs,EPlace::Strip) && !Find(Bounce,ETex::HitSkill,EPlace::Facing));
+    TestTrue(TEXT("A zap's first hit shows the skill burst and a bounce nothing more; the arcs and sparks are the Niagara Chain"),
+        Find(Zap,ETex::HitSkill,EPlace::Facing) && !Find(Zap,ETex::ShockArcs,EPlace::Strip) && !Find(Zap,ETex::ShockSpark,EPlace::Facing)
+        && Bounce.Layers.IsEmpty());
     const FLayer* Field=Find(Reaction,ETex::ShockField,EPlace::Flat);
     TestTrue(TEXT("Conduct arcs along the ground out to its splash radius over a field whose edge is exactly that radius"),
         Field && FMath::IsNearlyEqual(Field->SizeCm*FieldEdge*.5f,450.f,1.f) && FMath::IsNearlyEqual(FieldSizeCm(220.f)*FieldEdge*.5f,220.f,.1f) && Reaction.Layers.ContainsByPredicate([](const FLayer& L){ return L.Place==EPlace::GroundStrip && FVector::Dist(L.At,L.End)>400.f; })
@@ -378,7 +377,7 @@ bool FLDBodyMotionSliceLayersTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A slash reveals from its tail to its head, then erodes"),
         Evaluate(Cut,0.f).WindowLo>.9f && Evaluate(Cut,Cut.RevealSeconds).WindowLo<0.f && Evaluate(Cut,Cut.ErodeFrom).Dissolve==0.f
         && Evaluate(Cut,Cut.ErodeFrom+Cut.ErodeSeconds*.5f).Dissolve>.4f);
-    const FLayer& Spark=*Find(Zap,ETex::ShockSpark,EPlace::Facing);
+    const FLayer& Spark=ZapRelease(Chest,Own).Layers[0];
     TestTrue(TEXT("Flipbooks step at their authored rate and hold their last frame; a delayed layer waits"),
         Evaluate(Spark,0.f).Frame==0.f && Evaluate(Spark,.1f).Frame==3.f && Evaluate(Spark,Spark.Seconds-.01f).Frame==15.f
         && !Evaluate(*Find(Hose,ETex::WaterSplash,EPlace::Facing),.01f).bVisible && IsOver(Spark,Spark.Seconds) && !IsOver(Spark,0.f));

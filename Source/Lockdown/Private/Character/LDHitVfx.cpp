@@ -469,19 +469,13 @@ LDSliceVfx::FRecipe LDSliceVfx::Impact(EStrike Strike, const FVector& Chest, con
     }
     case EStrike::Zap:
     {
-        const FLinearColor Glow = ElementGlow(LDBroadcast::Shock, Look);
-        // The arc from the hand (or the previous body of the chain) to this body, then its contact spark; the first
-        // target of the cast also shows the skill tier's burst.
-        if (!From.ContainsNaN() && FVector::DistSquared(From, Chest) > 100.f) { Recipe.Layers.Add(Arc(From, Chest, bChained ? 46.f : 56.f, .26f, Glow, Look, false)); }
-        FLayer Spark = Burst(ETex::ShockSpark, Chest, Along, bChained ? 120.f : 140.f, .44f, Look);
-        Spark.Glow = Glow;
-        Spark.Core = CoreGlow(Look);
-        Recipe.Layers.Add(Spark);
+        // The link itself (the arc from the hand or the previous body and its contact sparks) is the Niagara Chain
+        // (LDSliceVfx::ChainSystem, ULDImpactFxSubsystem::Chain); the first target of the cast also shows the skill tier's burst.
         if (!bChained)
         {
             FLayer Hit = Burst(ETex::HitSkill, Chest, Along, 200.f, .57f, Look);
-            Hit.Glow = Glow;
-            Hit.Core = Spark.Core;
+            Hit.Glow = ElementGlow(LDBroadcast::Shock, Look);
+            Hit.Core = CoreGlow(Look);
             Hit.DelaySeconds = .02f;
             Recipe.Layers.Add(Hit);
         }

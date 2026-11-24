@@ -1,4 +1,5 @@
 #include "Character/LDImpactFx.h"
+#include "UI/LDBroadcastStyle.h"
 #include "Character/LDCombatVfxCatalog.h"
 #include "Character/LDHitFeel.h"
 #include "Character/LDHumanoidVisualComponent.h"
@@ -104,6 +105,7 @@ void ULDImpactFxSubsystem::OnWorldBeginPlay(UWorld& World)
     ImpactSystem = Catalog ? Catalog->Impact.Get() : nullptr;
     BurstSystem = Catalog && Catalog->Burst ? Catalog->Burst.Get() : LoadObject<UNiagaraSystem>(nullptr, ULDCombatVfxCatalog::DefaultBurst);
     ZoneSystem = Catalog && Catalog->Zone ? Catalog->Zone.Get() : LoadObject<UNiagaraSystem>(nullptr, ULDCombatVfxCatalog::DefaultZone);
+    ChainSystem = Catalog && Catalog->Chain ? Catalog->Chain.Get() : LoadObject<UNiagaraSystem>(nullptr, ULDCombatVfxCatalog::DefaultChain);
 #if WITH_EDITOR
     // Start editor-only Niagara compilation during world startup rather than on the first swing.
     if (ImpactSystem) { ImpactSystem->RequestCompile(false); }
@@ -111,6 +113,7 @@ void ULDImpactFxSubsystem::OnWorldBeginPlay(UWorld& World)
     if (Catalog && Catalog->CastCharge) { Catalog->CastCharge->RequestCompile(false); }
     if (BurstSystem) { BurstSystem->RequestCompile(false); }
     if (ZoneSystem) { ZoneSystem->RequestCompile(false); }
+    if (ChainSystem) { ChainSystem->RequestCompile(false); }
 #endif
     WarmUp();
     if (!BurstSystem || !ZoneSystem)
@@ -121,6 +124,10 @@ void ULDImpactFxSubsystem::OnWorldBeginPlay(UWorld& World)
     if (!ImpactSystem)
     {
         UE_LOG(LogLDContent, Error, TEXT("LD_IMPACT_FX asset=missing catalog=%s"), ULDCombatVfxCatalog::AssetPath);
+    }
+    if (!ChainSystem)
+    {
+        UE_LOG(LogLDContent, Error, TEXT("LD_CHAIN_FX asset=missing %s (run Scripts\\ImportDemoArt.ps1 -Mode ImportVFX)"), ULDCombatVfxCatalog::DefaultChain);
     }
     if (Catalog && !Catalog->SwingTrail)
     {
@@ -150,6 +157,7 @@ void ULDImpactFxSubsystem::Deinitialize()
     ImpactSystem = nullptr;
     BurstSystem = nullptr;
     ZoneSystem = nullptr;
+    ChainSystem = nullptr;
     Catalog = nullptr;
     Super::Deinitialize();
 }
@@ -620,6 +628,11 @@ void ULDImpactFxSubsystem::Tick(float DeltaTime)
             }
         }
         else if (Effect->IsComplete()) { Release(Index); }
+        else
+        {
+            Burst.Age += Step;
+            if (Burst.StopAfter >= 0.f && Burst.Age + Burst.InitialAge >= Burst.StopAfter && Effect->IsActive()) { Effect->Deactivate(); }
+        }
     }
     for (int32 Index = LiveLayers.Num() - 1; Index >= 0; --Index)
     {
@@ -766,7 +779,7 @@ void ULDImpactFxSubsystem::WarmUp()
         for (uint8 Kind = SlotQuad; Kind < SlotSlash + uint8(LDSliceVfx::EMesh::Count); ++Kind) { FreeSlots.Add(TakeSlot(Kind)); }
     }
     const FVector Under(0., 0., -20000.);
-    TArray<UNiagaraSystem*> Systems{ImpactSystem.Get(), BurstSystem.Get(), ZoneSystem.Get()};
+    TArray<UNiagaraSystem*> Systems{ImpactSystem.Get(), BurstSystem.Get(), ZoneSystem.Get(), ChainSystem.Get()};
     if (Catalog) { Systems.Append({Catalog->SwingTrail.Get(), Catalog->CastCharge.Get()}); }
     for (UNiagaraSystem* System : Systems)
     {
@@ -1145,4 +1158,32 @@ float ULDImpactFxSubsystem::ConductRadiusCm()
     if (!Content) { return 0.f; }
     const FLDDemoRational& Radius = Content->Get().Parameters.ConductRadiusCm;
     return Radius.Denominator > 0 ? float(double(Radius.Numerator) / double(Radius.Denominator)) : 0.f;
+}
+
+void ULDImpactFxSubsystem::Chain(const ULDHumanoidVisualComponent& Victim, const FVector& From, const FVector& To, bool bChained,
+    const LDSliceVfx::FLook& Look, float AgeSeconds)
+{
+    if (!FApp::CanEverRender() || !ChainSystem || !Victim.CanShowImpact() || From.ContainsNaN() || To.ContainsNaN() || !FMath::IsFinite(AgeSeconds)) { return; }
+    const float Thin = FMath::Clamp(Look.EffectScale, 0.f, 1.f);
+    if (Thin <= 0.f || Look.Size <= 0.f || Look.Seconds <= 0.f || Look.Glow <= 0.f) { return; }
+    if (Live.Num() >= LDImpactFx::MaxBursts) { Release(0); }
+    UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), ChainSystem, To, FRotator::ZeroRotator, FVector(1.f),
+        false, false, ENCPoolMethod::ManualRelease, false);
+    if (!Effect)
+    {
+        UE_LOG(LogLDContent, Warning, TEXT("LD_CHAIN_FX spawn=failed"));
+        return;
+    }
+    // Others' links are thinner and dimmer, a bounce thinner than the first hop; reduced effects dim them further.
+    const float Focus = Look.bFocus ? 1.f : .7f;
+    const float Seconds = .26f * Look.Seconds;
+    Effect->SetVariableVec3(TEXT("User.Start"), From);
+    Effect->SetVariableVec3(TEXT("User.End"), To);
+    Effect->SetVariableLinearColor(TEXT("User.Tint"), LDBroadcast::Shock);
+    Effect->SetVariableFloat(TEXT("User.Width"), (bChained ? 56.f : 70.f) * Look.Size * (Look.bFocus ? 1.f : .8f));
+    Effect->SetVariableFloat(TEXT("User.Intensity"), 2.2f * Look.Glow * Focus * (.55f + .45f * Thin));
+    Effect->SetVariableFloat(TEXT("User.Duration"), Seconds);
+    Effect->Activate(true);
+    Track(Effect, &Victim, AgeSeconds);
+    Live.Last().StopAfter = Seconds;
 }
