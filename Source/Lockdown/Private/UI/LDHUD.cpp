@@ -1154,7 +1154,15 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                     const ELDCombatEntry Shown=PC->SkillAtKey[Index];
                     OpenRankUp(Shown==ELDCombatEntry::Q?0:Shown==ELDCombatEntry::W?1:Shown==ELDCombatEntry::E?2:INDEX_NONE);
                 },true,FName(*FString::Printf(TEXT("HUDRankUp%d"),Index)));
-                LDWidgets::SetLook(Entry.Plus,LDUIPaint::EButton::Primary);
+                {
+                    // A small orange square on the corner: its own flat brushes, so no rounded button face is painted.
+                    FButtonStyle PlusStyle=Entry.Plus->GetStyle();
+                    PlusStyle.Normal=FSlateColorBrush(LDBroadcast::Orange);PlusStyle.Hovered=FSlateColorBrush(LDBroadcast::Gold);
+                    PlusStyle.Pressed=FSlateColorBrush(LDBroadcast::Gold);PlusStyle.Disabled=FSlateColorBrush(LDBroadcast::Mute);
+                    PlusStyle.NormalPadding=FMargin(7,0);PlusStyle.PressedPadding=FMargin(7,0);Entry.Plus->SetStyle(PlusStyle);
+                    if(UTextBlock* PlusText=Cast<UTextBlock>(Entry.Plus->GetContent()))
+                    {PlusText->SetFont(LDBroadcastPaint::FigureFont(LDBroadcast::TypeBody));PlusText->SetColorAndOpacity(LDBroadcast::Ink);}
+                }
                 Entry.Plus->SetVisibility(ESlateVisibility::Collapsed);
                 auto* PlusLayer=WithPlus->AddChildToOverlay(Entry.Plus);PlusLayer->SetHorizontalAlignment(HAlign_Right);PlusLayer->SetVerticalAlignment(VAlign_Top);
                 PlusLayer->SetPadding(FMargin(0,-10,-8,0));
