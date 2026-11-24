@@ -1460,8 +1460,9 @@ bool FLDDemoOpponentProbe::Tick()
             if (Remaining && FPlatformTime::Seconds() - ReturnedAt < 15.) { return true; }
             Check(!Remaining, TEXT("Every AI controller ends with its match"));
         }
+        // The Lobby Host is always listed Ready (it never toggles Ready); every guest starts the new generation unready.
         Check(CountKind(Lobby, ELDContenderKind::Human) == HumanCount && !Lobby.Members.ContainsByPredicate([](const FLDLobbyMember& Row)
-            { return Row.Ready; }), TEXT("The same connections return to a new, unready Lobby generation"));
+            { return Row.Ready && !Row.Host; }), TEXT("The same connections return to a new, unready Lobby generation"));
         Check(View.CircleState == ELDCircleState::NotOpen && !View.ResultId.IsValid(),
             TEXT("The new Lobby carries no capture state or result"));
         Summary->SetNumberField(TEXT("next_generation"), double(Lobby.Generation));
