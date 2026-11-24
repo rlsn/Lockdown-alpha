@@ -1,5 +1,6 @@
 # Shock assets for active_zap and the electrified / conduct (导电) reaction in the presentation slice:
-#   tex_shock_arcs.png   512 x 512: 8 stacked lightning strip variants (512 x 64 each), stretchable along U
+#   tex_shock_arcs.png   512 x 512: 8 stacked lightning strip variants (512 x 64 each), stretchable along U; rendered from
+#                        Blender stroke geometry (slice_render.py)
 #   fb_shock_spark.png   4 x 4 frames of 256 x 256: contact spark burst (flickering forked bolts, erodes away)
 #   fb_shock_field.png   4 x 4 frames of 256 x 256: LOOPING electric ground field (crackle net + hatch + chalk boundary)
 # Run from the repository root (prints each file's SHA-256):
@@ -7,8 +8,10 @@
 import math, os, random, sys
 import numpy as np
 
+sys.dont_write_bytecode = True  # a __pycache__ folder under SourceData/VFX fails the importer whitelist
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import slice_lib as L
+import slice_render as R
 
 ARGS = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 OUT = os.path.abspath(ARGS[0] if ARGS else os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Slice"))
@@ -57,47 +60,114 @@ def arc_with_branches(rng, p0, p1, depth, jag, branches, branch_len, bounds=None
     return paths
 
 
-# ---------------------------------------------------------------- lightning strip atlas
-def zigzag(rng, x0, x1, centre, amp_lo, amp_hi, step_lo, step_hi, clamp_lo, clamp_hi):
-    """Sharp lightning zig-zag: x advances in irregular steps, y alternates around the centre line."""
-    pts = [(x0, centre)]
-    x, sign = x0, rng.choice((-1, 1))
-    while x < x1 - step_hi:
-        x += rng.uniform(step_lo, step_hi)
-        sign = -sign if rng.random() < 0.8 else sign
-        pts.append((x, min(max(centre + sign * rng.uniform(amp_lo, amp_hi), clamp_lo), clamp_hi)))
-    pts.append((x1, centre))
-    return pts
+# ---------------------------------------------------------------- lightning strip atlas (Blender-rendered strokes)
+# Each variant is one confident main bolt plus 1-3 thin short forks, drawn as tapered poly strokes in slice_render:
+# ink rim under the shock body under a white-hot core. Strip pixels: x 0..512 along U, y 0..64 across (centre 32).
+# Chain links stretch the strip to about 4-8 x its height, so kinks are designed for that aspect (shallow long runs,
+# a few sharp short kicks), and the bolt tapers to a thin point where it meets each body.
+ARC_W, ARC_H, ARC_VARIANTS = 512, 64, 8
+ARC_BODY, ARC_INK, ARC_CORE = 6.2, 3.2, 0.45   # body half-width (px), ink rim (px), core / body ratio
+ARC_SWING = 19.0                              # max |y - centre| of the main bolt; ink stays clear of the strip border
+
+# Per variant: segment count, kick probability, swing scale, forks, seed. Distinct silhouettes, not one zig-zag rule.
+ARC_STYLE = [
+    dict(segs=8, kick=0.35, swing=1.00, forks=2, seed=11),
+    dict(segs=7, kick=0.25, swing=0.85, forks=1, seed=23),
+    dict(segs=10, kick=0.40, swing=0.95, forks=3, seed=37),
+    dict(segs=6, kick=0.50, swing=1.00, forks=2, seed=41),
+    dict(segs=9, kick=0.20, swing=0.80, forks=1, seed=59),
+    dict(segs=8, kick=0.45, swing=1.00, forks=3, seed=67),
+    dict(segs=11, kick=0.30, swing=0.90, forks=2, seed=73),
+    dict(segs=7, kick=0.35, swing=0.95, forks=1, seed=89),
+]
 
 
-def shock_arcs(width=512, strip=64, variants=8):
-    X, Y = L.grid(width, strip, 0.0, float(width), 0.0, float(strip))  # pixel units, y up
-    layers = []
-    centre = strip / 2.0
-    for v in range(variants):
-        rng = random.Random(1000 + v * 37)
-        main = zigzag(rng, -8.0, width + 8.0, centre, 7.0, 18.0, 16.0, 46.0, 12.0, strip - 12.0)
-        paths = [main]
-        for _ in range(2 + v % 3):
-            k = rng.randint(2, len(main) - 3)
-            a = main[k]
-            direction = 1 if a[1] < centre else -1  # branches leave toward the free side of the strip
-            pts = [a]
-            x, y = a
-            for _step in range(rng.randint(2, 3)):
-                x += rng.uniform(14, 34)
-                y = min(max(y + direction * rng.uniform(4, 11) * (1 if _step % 2 == 0 else -0.5), 9.0), strip - 9.0)
-                pts.append((min(x, width - 3.0), y))
-            paths.append(pts)
-        ink = np.full(X.shape, 9.0, dtype=np.float32)
-        body, core = ink.copy(), ink.copy()
-        for i, path in enumerate(paths):
-            weight = 1.0 if i == 0 else 0.6
-            ink = np.minimum(ink, draw_polyline(X, Y, path, 8.6 * weight, 0.35))
-            body = np.minimum(body, draw_polyline(X, Y, path, 5.4 * weight, 0.35))
-            core = np.minimum(core, draw_polyline(X, Y, path, 2.3 * weight, 0.35))
-        layers.append(L.pack_layers(L.aa(ink, 1.0), L.aa(body, 1.0), L.aa(core, 1.0)))
-    return np.vstack(layers)
+def bolt_main(rng, style):
+    """Main bolt as a turtle walk: irregular segment lengths (long runs, mid steps, short steep kicks), the heading
+    turning 25-70 degrees mostly against the last turn and steered back toward the centre; ends on the centre line."""
+    centre = ARC_H / 2.0
+    xs, ys, heading = [0.0], [0.0], math.radians(rng.uniform(-35.0, 35.0))
+    for k in range(style["segs"]):
+        roll = rng.random()
+        if roll < style["kick"] and 0 < k < style["segs"] - 1:
+            length, turn = rng.uniform(8.0, 16.0), rng.uniform(55.0, 80.0)
+        elif roll < style["kick"] + 0.3:
+            length, turn = rng.uniform(70.0, 130.0), rng.uniform(15.0, 35.0)
+        else:
+            length, turn = rng.uniform(26.0, 64.0), rng.uniform(25.0, 60.0)
+        sign = -1.0 if heading > 0 else 1.0
+        if rng.random() < 0.25:
+            sign = -sign
+        heading = sign * math.radians(turn) - 0.02 * ys[-1]
+        heading = max(-1.35, min(1.35, heading))
+        xs.append(xs[-1] + math.cos(heading) * length)
+        ys.append(ys[-1] + math.sin(heading) * length)
+    scale = ARC_W / xs[-1]
+    xs = [x * scale for x in xs]
+    ys = [y - ys[-1] * x / ARC_W for x, y in zip(xs, ys)]       # both ends back on the centre line
+    peak = max(1e-6, max(abs(y) for y in ys))
+    swing = ARC_SWING * style["swing"] * rng.uniform(0.9, 1.0)
+    ys = [y * swing / peak for y in ys]                         # every variant uses its full swing
+    xs[0], xs[-1] = -4.0, ARC_W + 4.0                           # run off both ends so links meet without a gap
+    return [(x, centre + y) for x, y in zip(xs, ys)]
+
+
+def bolt_widths(rng, pts):
+    """Half-width per point: thin points at both ends, fattest in the first half, kinks a little heavier."""
+    total = pts[-1][0] - pts[0][0]
+    out = []
+    for i, (x, _y) in enumerate(pts):
+        s = (x - pts[0][0]) / total
+        taper = L.smoothstep(0.0, 0.10, s) * L.smoothstep(0.0, 0.15, 1.0 - s)
+        swell = 0.85 + 0.3 * math.sin(math.pi * min(1.0, s * 1.4)) + rng.uniform(-0.08, 0.12)
+        out.append(ARC_BODY * float(max(0.18, taper)) * swell if 0 < i < len(pts) - 1 else ARC_BODY * 0.22)
+    return out
+
+
+def bolt_fork(rng, pts, widths, used):
+    """A thin short fork from an interior bolt vertex, leaving toward the roomier side, tapering to a point."""
+    centre = ARC_H / 2.0
+    candidates = [i for i in range(1, len(pts) - 1) if 0.12 < pts[i][0] / ARC_W < 0.85 and i not in used] or [len(pts) // 2]
+    i = rng.choice(candidates)
+    used.add(i)
+    x, y = pts[i]
+    tx, ty = pts[i + 1][0] - pts[i - 1][0], pts[i + 1][1] - pts[i - 1][1]
+    side = 1.0 if y < centre else -1.0
+    angle = math.atan2(ty, tx) + side * math.radians(rng.uniform(24.0, 48.0))
+    length = rng.uniform(50.0, 95.0)
+    path, ang = [(x, y)], angle
+    for k in range(rng.randint(2, 3)):
+        step = length * rng.uniform(0.3, 0.5)
+        ang += math.radians(rng.uniform(-28.0, 28.0)) * (1 if k else 0.4)
+        nx = path[-1][0] + math.cos(ang) * step
+        ny = min(max(path[-1][1] + math.sin(ang) * step * 0.7, 14.0), ARC_H - 14.0)
+        path.append((min(max(nx, 6.0), ARC_W - 6.0), ny))
+    root = widths[i] * 0.55
+    return path, [root * (1.0 - j / (len(path) - 1)) ** 0.8 + 0.25 for j in range(len(path))]
+
+
+def shock_arcs():
+    canvas = R.Canvas(ARC_W, ARC_H * ARC_VARIANTS, 0.0, float(ARC_W), 0.0, float(ARC_H * ARC_VARIANTS))
+    for v, style in enumerate(ARC_STYLE):
+        rng = random.Random(4000 + style["seed"])
+        main = bolt_main(rng, style)
+        widths = bolt_widths(rng, main)
+        # Pull the swing in where a fat (mitred) kink plus its ink would reach the strip border.
+        centre, room = ARC_H / 2.0, ARC_H / 2.0 - 4.0
+        fit = min([1.0] + [(room - w * 1.4 - ARC_INK) / abs(y - centre) for (_x, y), w in zip(main, widths) if abs(y - centre) > 1e-3])
+        main = [(x, centre + (y - centre) * fit) for x, y in main]
+        base = (ARC_VARIANTS - 1 - v) * ARC_H        # variant 0 is the top strip (row 0 of the image)
+        lift = lambda path: [(x, y + base) for x, y in path]
+        used = set()
+        for _ in range(style["forks"]):
+            path, radii = bolt_fork(rng, main, widths, used)
+            canvas.layered_stroke(lift(path), radii, ARC_INK * 0.7, ARC_CORE)
+        canvas.layered_stroke(lift(main), widths, ARC_INK, ARC_CORE, order=1.0)
+    img = canvas.render()
+    for v in range(ARC_VARIANTS):                     # strip borders stay empty so neighbouring variants never bleed
+        img[v * ARC_H:v * ARC_H + 2] = 0.0
+        img[(v + 1) * ARC_H - 2:(v + 1) * ARC_H] = 0.0
+    return img
 
 
 # ---------------------------------------------------------------- shared flipbook frame space
