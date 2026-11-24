@@ -2,8 +2,143 @@
 
 #include "CoreMinimal.h"
 #include "Vision/LDViewTypes.h"
+#include "Math/Vector.h"
 
 namespace LDHitFeel { struct FTuning; }
+
+// The designed effects of the combat presentation slice: the three basic swings and their hit tiers, the water line
+// (active_hose_down), the shock chain (active_zap), the conduct reaction and the electric ground field. Sources:
+// SourceData/VFX/Slice (rendered by SourceData/VFX/Blender/slice_*.py, listed with SHA-256 in vfx_slice_assets.json),
+// imported by Scripts\ImportDemoArt.ps1 -Mode ImportVFX (LDDemoVfxImport) into Folder with the importer-built Material.
+// Every slice texture packs RGB = glow (0 ink, 0.6 element body, 1 white-hot core) and A = coverage; a flipbook is a
+// 4 x 4 atlas whose frame i sits at column i % 4, row i / 4.
+namespace LDSliceVfx
+{
+    constexpr const TCHAR* Folder = TEXT("/Game/Lockdown/Art/VFX/Slice");
+    // Translucent unlit two-sided: emissive = Ink where the glow is 0, the Glow body where it is 0.6 and Core where it
+    // is 1; opacity = coverage x Fade x the U window x the dissolve erosion. The parameters below drive it.
+    constexpr const TCHAR* Material = TEXT("/Game/Lockdown/Art/VFX/Slice/M_LDSlice");
+    constexpr const TCHAR* MaskParameter = TEXT("Mask");
+    constexpr const TCHAR* NoiseParameter = TEXT("Noise");
+    constexpr const TCHAR* GlowParameter = TEXT("Glow");
+    constexpr const TCHAR* InkParameter = TEXT("Ink");
+    constexpr const TCHAR* CoreParameter = TEXT("Core");
+    constexpr const TCHAR* FadeParameter = TEXT("Fade");
+    // (columns, rows, frame, U repeats) of the atlas.
+    constexpr const TCHAR* FlipParameter = TEXT("Flip");
+    // (U window start, U window end, dissolve 0..1, U scroll) over the surface's first UV channel.
+    constexpr const TCHAR* ShapeParameter = TEXT("Shape");
+
+    enum class ETex : uint8
+    {
+        SlashEdge, DissolveNoise, HitBasic, HitFinisher, HitSkill, WaterJet, WaterSplash, WetDecal, ShockArcs, ShockSpark,
+        ShockField, ChalkLane, Count
+    };
+    enum class EMesh : uint8 { Slash1, Slash2, Slash3, Count };
+    // The manifest id ("fb_hit_basic", "SM_LD_SlashCombo1") and the package (Folder/T_fb_hit_basic, Folder/SM_LD_SlashCombo1).
+    LOCKDOWN_API const TCHAR* TexId(ETex Tex);
+    LOCKDOWN_API const TCHAR* MeshId(EMesh Mesh);
+    LOCKDOWN_API FString TexturePackage(ETex Tex);
+    LOCKDOWN_API FString MeshPackage(EMesh Mesh);
+    LOCKDOWN_API bool IsFlipbook(ETex Tex);
+    // The authored frame rate of a flipbook (16 frames each); 0 for a still texture.
+    LOCKDOWN_API float FlipbookFps(ETex Tex);
+    // The slash meshes lie in the swing plane with their origin at the swing centre, forward +X; combo stage 1 sweeps
+    // right to left with its head on the left of forward, stage 2 the reverse, stage 3 is the wide finisher. Their imported
+    // head points (UV U = 0 on the outer edge), which the importer checks after every import, in Unreal coordinates.
+    LOCKDOWN_API FVector SlashHead(EMesh Mesh);
+    // The importer-built unit quad: 100 x 100 cm in XY facing +Z, U = (X + 50) / 100, V = (Y + 50) / 100.
+    constexpr const TCHAR* QuadMesh = TEXT("/Game/Lockdown/Art/VFX/Slice/SM_LDSliceQuad");
+
+    // How a layer stands in the world. Every placement keeps the texture's +U along Dir.
+    enum class EPlace : uint8
+    {
+        Facing,       // a quad turned to the camera at At, its +U along Dir as seen on screen; Pivot = the hit point's U
+        Flat,         // a quad lying on the ground under At
+        Strip,        // a quad from At to End, turned about that axis towards the camera
+        GroundStrip,  // a quad from At to End lying on the ground
+        Slash,        // a slash mesh with its swing centre at At
+        GroundSlash,  // a slash mesh laid on the ground under At
+    };
+    struct FLayer
+    {
+        ETex Tex = ETex::HitBasic;
+        EMesh Mesh = EMesh::Count;   // Slash and GroundSlash only
+        EPlace Place = EPlace::Facing;
+        FVector At = FVector::ZeroVector, End = FVector::ZeroVector, Dir = FVector::ForwardVector;
+        float SizeCm = 100;          // quad width, strip width, or a slash mesh's scale x 100
+        float Pivot = .5f;
+        float DelaySeconds = 0, Seconds = 0;
+        float FadeInSeconds = .02f, FadeOutSeconds = .08f;
+        float Alpha = 1;
+        FLinearColor Glow = FLinearColor::White, Ink = FLinearColor::Black, Core = FLinearColor::White;
+        // The visible U window grows from [RevealLo, RevealLo] to [RevealLo, 1] (or, reversed, from the tail) over
+        // RevealSeconds; ErodeFrom (seconds) starts the dissolve that takes ErodeSeconds; ChalkErode is a constant grain.
+        float RevealSeconds = 0;
+        bool bRevealFromTail = false;
+        float ErodeFrom = -1, ErodeSeconds = .1f, ChalkErode = 0;
+        float TileCm = 0;            // strips: one texture repeat per TileCm of length; 0 stretches it once
+        float ScrollPerSecond = 0;
+        int32 Variants = 1;          // strips: stacked rows picked at VariantHz
+        float VariantHz = 0;
+        float GrowFrom = 1;          // size scale at the start, eased to 1 over the first quarter
+        bool bLoop = false;
+        bool bOptional = false;      // dropped with reduced effects
+        bool bTop = false;           // drawn over the other layers
+        bool bTelegraph = false;     // an anticipation layer, cleared when its windup is withdrawn or cancelled
+    };
+    constexpr int32 MaxLayers = 12;
+    struct FRecipe
+    {
+        TArray<FLayer, TFixedAllocator<MaxLayers>> Layers;
+    };
+    // What one layer shows AgeSeconds after its recipe started.
+    struct FState
+    {
+        bool bVisible = false;
+        float Fade = 0, Frame = 0, WindowLo = -1, WindowHi = 2, Dissolve = 0, Scroll = 0, Scale = 1;
+    };
+    LOCKDOWN_API FState Evaluate(const FLayer& Layer, float AgeSeconds);
+    LOCKDOWN_API bool IsOver(const FLayer& Layer, float AgeSeconds);
+
+    // Which visible strike a hit belongs to (ULDImpactFxSubsystem::NoteStrike / MatchHit); its tier picks the silhouette:
+    // basic < finisher (the 3rd basic) < skill < reaction.
+    enum class EStrike : uint8 { None, Basic, Finisher, Skill, Hose, Zap };
+    // The hits the slice shows (Impact): a plain, water or electric hit without a critical, shield, overdrive, dodge or
+    // parry outcome. Every other hit keeps its hit layers (LDHitVfx::ForHit).
+    LOCKDOWN_API bool ShowsHit(ELDObservedHitLook Look, uint8 HitFlags);
+    // bOwn: the strike is the local player's (white with the ball orange; others' strikes are white only). bFocus: the
+    // local player strikes or is struck, shown full size; others' fights are smaller and fainter (80 % size, 70 %
+    // strength) so they stay readable but quieter. Reduced effects (EffectScale < 1) drop optional layers and dim.
+    struct FLook
+    {
+        bool bOwn = false;
+        bool bFocus = false;
+        float EffectScale = 1;
+        // ld.Feel / DA_CombatVfx tuning of this kind of layer: size, duration and brightness multipliers.
+        float Size = 1, Seconds = 1, Glow = 1;
+    };
+    // The basic swing of combo Step (1..3): the chalk shape of the coming slash on the ground from the start of the
+    // windup, then at the release the slash itself at the chest, revealed head-first and eroding from its tail.
+    LOCKDOWN_API FRecipe SwingTelegraph(uint8 Step, const FVector& Feet, const FVector& Facing, float WindupSeconds, const FLook& Look);
+    LOCKDOWN_API FRecipe SwingRelease(uint8 Step, const FVector& Centre, const FVector& Facing, const FLook& Look);
+    // A skill's chalk lane on the ground from the caster's feet along its facing (Length x Width), during the windup.
+    LOCKDOWN_API FRecipe SkillTelegraph(const FVector& Feet, const FVector& Facing, float LengthCm, float WidthCm, float WindupSeconds, const FLook& Look);
+    // active_hose_down at its release: the water line from the hand along the facing over its range, with a muzzle splash.
+    LOCKDOWN_API FRecipe HoseRelease(const FVector& Hand, const FVector& Facing, float LengthCm, const FLook& Look);
+    // active_zap at its release: the contact spark at the casting hand (the arcs follow the hits it lands).
+    LOCKDOWN_API FRecipe ZapRelease(const FVector& Hand, const FLook& Look);
+    // One landed hit of a strike on a visible body: the tier's burst at the chest along Dir (basic, finisher, or the skill
+    // burst for any skill; white, orange for the local player's, element ink for water and shock), plus the strike's own
+    // follow-through (water splash and wet ground, the shock arc from From and the contact spark).
+    LOCKDOWN_API FRecipe Impact(EStrike Strike, const FVector& Chest, const FVector& Feet, const FVector& Dir, const FVector& From,
+        bool bChained, const FLook& Look);
+    // The conduct reaction (wet + shock) on a body: a large burst, arcs along the ground out to the splash radius and the
+    // electric field over that radius.
+    LOCKDOWN_API FRecipe Conduct(const FVector& Chest, const FVector& Feet, float RadiusCm, const FLook& Look);
+    // A public electric ground state's field (ELDGroundStateKind::Field): the looping crackle over its radius.
+    LOCKDOWN_API FLayer GroundField(const FVector& Centre, float RadiusCm, const FLook& Look);
+}
 
 // The shaped hit layers over the Niagara burst (LDImpactFx): a flash star facing the camera, a ground mark under the
 // struck body and the per-look signature (fire burn ring, water ripples, electric strike, magic sigil, shield shell),
@@ -60,7 +195,8 @@ namespace LDHitVfx
         float Size = 1, Seconds = 1, Glow = 1;
     };
     LOCKDOWN_API FLayerTuning TuningOf(const LDHitFeel::FTuning& Feel, float AssetSize, float AssetSeconds, float AssetGlow);
-    // One observed hit (LDObservation::EHitFlags): ordinary star and ring; critical cross star and a double gold ring;
+    // One observed hit (LDObservation::EHitFlags) the slice does not show (LDSliceVfx::ShowsHit: an unflagged plain, water
+    // or electric hit is LDSliceVfx::Impact, so it has no layers here): critical cross star and a double gold ring;
     // a shield's cyan hex shell (a broken one bursts outwards over a wide ring); then the look's signature. An overdrive
     // hit replaces the star with a large magenta cross and adds its own wide ring and spinning ground sigil.
     // Reduced effects drop the optional layers and dim the rest; no layer that tells the tier or the look is removed.
@@ -169,13 +305,15 @@ namespace LDHitVfx
     LOCKDOWN_API FGhosts GhostsOf(const FLinearColor& Tint, float EffectScale);
     LOCKDOWN_API float GhostFade(const FGhosts& Ghosts, float AgeSeconds);
 
-    // An element reaction on a body (ELDCombatElement 1..6, the element that set it off; spec 12 floats its name in the
-    // same colour): a cross flash and a ground ring in that colour plus the element's particles.
+    // An element reaction on a body other than conduct (LDSliceVfx::Conduct) (ELDCombatElement 1..6, the element that set
+    // it off; spec 12 floats its name in the same colour): a cross flash and a ground ring in that colour plus the
+    // element's particles. ElementTint is the broadcast element ink (LDBroadcast).
     LOCKDOWN_API FLinearColor ElementTint(uint8 Element);
     LOCKDOWN_API EBurst ElementBurst(uint8 Element);
     LOCKDOWN_API FRecipe ForReaction(uint8 Element, float EffectScale, const FLayerTuning& Tuning = FLayerTuning());
     // A public ground state (ELDGroundStateKind): looping particles over its footprint under its line pattern, and the
-    // burst a freshly laid one appears with. The pattern and the owner outline stay (never colour alone).
+    // burst a freshly laid one appears with; the electric field has neither (its crackle is LDSliceVfx::GroundField). The
+    // pattern and the owner outline stay (never colour alone).
     LOCKDOWN_API FZone GroundZoneOf(uint8 Kind, float RadiusCm, float EffectScale);
     LOCKDOWN_API bool GroundAppearBurstOf(uint8 Kind, EBurst& Out, FLinearColor& Tint);
 

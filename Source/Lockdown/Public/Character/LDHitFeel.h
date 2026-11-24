@@ -114,6 +114,4 @@ namespace LDHitFeel
     constexpr float SwingHoldFraction = .75f;
     LOCKDOWN_API float SwingHoldSeconds(int64 WindupMs);
     LOCKDOWN_API const TCHAR* SwingStepName(ESwingStep Step);
-    // The hand trail emits during the attack's moving portion, not after a stale cue or during the rewind.
-    LOCKDOWN_API bool SwingTrailWindow(float AgeSeconds, float ImpactSeconds);
 }

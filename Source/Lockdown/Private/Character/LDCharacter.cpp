@@ -20,6 +20,7 @@
 #include "UI/LDControlSettings.h"
 #include "Framework/LDDemoEntry.h"
 #include "Combat/LDCombatCues.h"
+#include "Combat/LDMomentum.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentIds.h"
 #include "Region/LDMapRegistry.h"
@@ -134,6 +135,7 @@ void ALDCharacter::BeginPlay()
     }
     if (HasAuthority()) { GetCharacterMovement()->SetComponentTickEnabled(false); }
     PredictWindupMs=Content->Get().Parameters.BasicAttackWindupMs;
+    ComboResetMs=Content->Get().Parameters.Combo.ResetMs;
     // The look is built when the body is first shown (EnsureLook), not here: most bodies are never shown on this machine.
 }
 
@@ -222,6 +224,17 @@ void ALDCharacter::Tick(float Delta)
         if (const LDHitVfx::FSkillLook* Skill=LDHitVfx::SkillLookOf(Facts.CastDefinitionId)) { CastAbility=Skill->Ability; }
     }
     Body->SetCastAbility(CastAbility);
+    // The shown swing's combo step: the released basic's own, else the step the acting (or predicted) swing advances to
+    // from the last released one (LDMomentum::NextComboStep, as the authority admits it).
+    uint8 ComboStep=0;
+    if (bPredicted) { ComboStep=LDMomentum::NextComboStep(View.ComboStep,View.ComboStartMs,NowMs,ComboResetMs); }
+    else if (bCue && Selected.Cue==ELDObservedActionCue::Attack)
+    {
+        ComboStep=Facts.bReleasedBasic && Selected.AtMs==Facts.ReleasedStartedAtMs ? Facts.ReleasedComboStep
+            : LDMomentum::NextComboStep(View.ComboStep,View.ComboStartMs,Selected.AtMs,ComboResetMs);
+    }
+    Body->SetComboStep(ComboStep);
+    Body->SetOwnBody(true);
     // The own hold runs on the local key timer, so the column and the ready flare do not wait for replication.
     const bool bHolding=PC->OverdriveHoldProgress(PC->HeldOverdriveEntry())>0.f;
     Body->SetCharging(bHolding || (bCurrentView && View.ChargingEntry!=ELDCombatEntry::None),0.f,

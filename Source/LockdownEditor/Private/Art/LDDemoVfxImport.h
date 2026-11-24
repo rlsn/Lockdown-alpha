@@ -6,6 +6,9 @@
 // importer-built materials LDHitVfx::LayerMaterial, ShellMaterial and GhostMaterial. Their graphs are code: an import rebuilds
 // a material whose graph differs from the importer's, so edits made to the material assets are replaced; tint,
 // brightness and fade are runtime parameters.
+// The combat slice (LDSliceVfx) comes from SourceData\VFX\vfx_slice_assets.json: its textures and flipbooks
+// (LDSliceVfx::TexturePackage), the FBX slash meshes (LDSliceVfx::MeshPackage, checked against the runtime orientation),
+// and the importer-built unit quad and slice material, all under LDSliceVfx::Folder.
 namespace LDDemoVfxImport
 {
     // Imports every listed mask whose texture differs from its source, rebuilds any material whose graph differs and saves it.

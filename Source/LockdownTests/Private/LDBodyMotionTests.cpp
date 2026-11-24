@@ -10,6 +10,7 @@
 #include "Combat/LDCombatCues.h"
 #include "Combat/LDCombatEvaluationTypes.h"
 #include "Development/LDDemoContentIds.h"
+#include "UI/LDBroadcastStyle.h"
 #include "Vision/LDViewTypes.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -301,13 +302,94 @@ bool FLDBodyMotionTimelinesTest::RunTest(const FString& Parameters)
         LDHitFeel::AdvanceSwing(First,Fresh)==ESwingStep::Started && First.StartedAtMs==1000);
     TestTrue(TEXT("The predicted pose holds short of the release flash"),
         FMath::IsNearlyEqual(LDHitFeel::SwingHoldSeconds(400),.3f) && LDHitFeel::SwingHoldSeconds(400)<.4f*.8f && LDHitFeel::SwingHoldSeconds(-5)==0.f);
-    TestTrue(TEXT("A swing trail follows only a current attack's moving window"),
-        !LDHitFeel::SwingTrailWindow(.1f,.4f) && LDHitFeel::SwingTrailWindow(.3f,.4f)
-        && !LDHitFeel::SwingTrailWindow(.5f,.4f) && !LDHitFeel::SwingTrailWindow(NaN,.4f)
-        && !LDHitFeel::SwingTrailWindow(.1f,0.f));
+
     TestTrue(TEXT("A withdrawn swing rewinds to rest and then ends"),
         FMath::IsNearlyEqual(LDBodyMotion::RetractAge(.3f,0.f),.3f) && LDBodyMotion::RetractAge(.3f,LDBodyMotion::RetractSeconds*.5f)<.3f
         && LDBodyMotion::RetractAge(.3f,LDBodyMotion::RetractSeconds)<0.f && LDBodyMotion::RetractAge(.3f,-.01f)<0.f);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDBodyMotionSliceLayersTest, "Lockdown.Rules.DemoBodyMotion.SliceLayers",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDBodyMotionSliceLayersTest::RunTest(const FString& Parameters)
+{
+    using namespace LDSliceVfx;
+    const float NaN=std::numeric_limits<float>::quiet_NaN();
+    const FVector Chest(0,0,120), Feet(0,0,0), Dir(1,0,0), From(-300,0,120);
+    FLook Own; Own.bOwn=Own.bFocus=true;
+    FLook Other;
+    const auto Find=[](const FRecipe& Recipe, ETex Tex, EPlace Place)
+    { return Recipe.Layers.FindByPredicate([Tex,Place](const FLayer& Layer){ return Layer.Tex==Tex && Layer.Place==Place; }); };
+    TestTrue(TEXT("The slice shows unflagged plain, water and electric hits; any outcome flag or other look keeps the hit layers"),
+        ShowsHit(ELDObservedHitLook::None,0) && ShowsHit(ELDObservedHitLook::Water,0) && ShowsHit(ELDObservedHitLook::Electric,0)
+        && !ShowsHit(ELDObservedHitLook::Fire,0) && !ShowsHit(ELDObservedHitLook::Magic,0) && !ShowsHit(ELDObservedHitLook::None,LDObservation::Critical)
+        && !ShowsHit(ELDObservedHitLook::Water,LDObservation::ShieldAbsorbed) && !ShowsHit(ELDObservedHitLook::Electric,LDObservation::Dodged));
+    // Tiers differ by silhouette (their own sheet), not only by size: basic < finisher < skill < reaction.
+    const FRecipe Basic=Impact(EStrike::Basic,Chest,Feet,Dir,From,false,Own), Finisher=Impact(EStrike::Finisher,Chest,Feet,Dir,From,false,Own);
+    const FRecipe Skill=Impact(EStrike::Skill,Chest,Feet,Dir,From,false,Own), Reaction=Conduct(Chest,Feet,450.f,Own);
+    const FLayer* BasicHit=Find(Basic,ETex::HitBasic,EPlace::Facing);
+    const FLayer* FinisherHit=Find(Finisher,ETex::HitFinisher,EPlace::Facing);
+    const FLayer* SkillHit=Find(Skill,ETex::HitSkill,EPlace::Facing);
+    const FLayer* ReactionHit=Find(Reaction,ETex::HitSkill,EPlace::Facing);
+    TestTrue(TEXT("Each hit tier has its own burst sheet and grows basic < finisher <= skill < reaction"),
+        BasicHit && FinisherHit && SkillHit && ReactionHit && !Find(Basic,ETex::HitFinisher,EPlace::Facing)
+        && BasicHit->SizeCm<FinisherHit->SizeCm && FinisherHit->SizeCm<=SkillHit->SizeCm && SkillHit->SizeCm<ReactionHit->SizeCm);
+    TestTrue(TEXT("Bursts point along the strike with their hit point at the sheet's pivot"),
+        BasicHit && BasicHit->Dir.Equals(Dir) && FMath::IsNearlyEqual(BasicHit->Pivot,.3f) && BasicHit->bTop);
+    const FRecipe Hose=Impact(EStrike::Hose,Chest,Feet,Dir,From,false,Own);
+    const FLayer* Wet=Find(Hose,ETex::WetDecal,EPlace::Flat);
+    TestTrue(TEXT("A water hit bursts in the water ink, splashes along the jet and wets the ground for over a second"),
+        Find(Hose,ETex::HitSkill,EPlace::Facing) && Find(Hose,ETex::WaterSplash,EPlace::Facing) && Wet && Wet->Seconds>1.f
+        && Find(Hose,ETex::HitSkill,EPlace::Facing)->Glow.B>Find(Hose,ETex::HitSkill,EPlace::Facing)->Glow.R);
+    const FRecipe Zap=Impact(EStrike::Zap,Chest,Feet,Dir,From,false,Own), Bounce=Impact(EStrike::Zap,Chest,Feet,Dir,From,true,Own);
+    const FLayer* Arc=Find(Zap,ETex::ShockArcs,EPlace::Strip);
+    TestTrue(TEXT("A zap hit arcs from its source to the body and sparks; a bounce arcs from the last body without the skill burst"),
+        Arc && Arc->At.Equals(From) && Arc->End.Equals(Chest) && Arc->Variants==8 && Find(Zap,ETex::ShockSpark,EPlace::Facing)
+        && Find(Zap,ETex::HitSkill,EPlace::Facing) && Find(Bounce,ETex::ShockArcs,EPlace::Strip) && !Find(Bounce,ETex::HitSkill,EPlace::Facing));
+    const FLayer* Field=Find(Reaction,ETex::ShockField,EPlace::Flat);
+    TestTrue(TEXT("Conduct arcs along the ground out to its splash radius over a puddle-sized electric field"),
+        Field && FMath::IsNearlyEqual(Field->SizeCm*.74f*.5f,240.f,1.f) && Reaction.Layers.ContainsByPredicate([](const FLayer& L){ return L.Place==EPlace::GroundStrip && FVector::Dist(L.At,L.End)>400.f; })
+        && Reaction.Layers.FilterByPredicate([](const FLayer& L){ return L.Tex==ETex::ShockArcs && L.Place==EPlace::GroundStrip; }).Num()==6
+        && ReactionHit->Ink.B>ReactionHit->Ink.R);
+    // Own strikes: full size with the ball orange; others' are white, smaller and fainter; reduced effects drop the optional layers.
+    const FLayer* OtherHit=Find(Impact(EStrike::Basic,Chest,Feet,Dir,From,false,Other),ETex::HitBasic,EPlace::Facing);
+    TestTrue(TEXT("Others' fights are smaller, fainter and white; the local player's strikes carry the ball orange"),
+        OtherHit && OtherHit->SizeCm<BasicHit->SizeCm && OtherHit->Alpha<BasicHit->Alpha && BasicHit->Glow.R>2.f*BasicHit->Glow.B
+        && FMath::IsNearlyEqual(OtherHit->Glow.R,OtherHit->Glow.B,.01f));
+    FLook Reduced=Own; Reduced.EffectScale=.45f;
+    TestTrue(TEXT("Reduced effects drop the optional arcs and dim the rest"), Conduct(Chest,Feet,450.f,Reduced).Layers.Num()==Reaction.Layers.Num()-3
+        && Find(Conduct(Chest,Feet,450.f,Reduced),ETex::HitSkill,EPlace::Facing)->Alpha<ReactionHit->Alpha);
+    FLook Off=Own; Off.Size=0.f;
+    FLook Broken=Own; Broken.Seconds=NaN;
+    TestTrue(TEXT("A zero or invalid tuning or effect scale shows nothing"), Impact(EStrike::Basic,Chest,Feet,Dir,From,false,Off).Layers.IsEmpty()
+        && SwingRelease(1,Chest,Dir,Broken).Layers.IsEmpty() && Impact(EStrike::None,Chest,Feet,Dir,From,false,Own).Layers.IsEmpty());
+    // The swing: chalk telegraph on the ground through the windup, then the step's slash at the chest.
+    const FRecipe Chalk=SwingTelegraph(2,Feet,Dir,.3f,Own);
+    TestTrue(TEXT("A swing's telegraph is the coming slash in white chalk on the ground, gone after the windup"),
+        Chalk.Layers.Num()==1 && Chalk.Layers[0].Mesh==EMesh::Slash2 && Chalk.Layers[0].Place==EPlace::GroundSlash && Chalk.Layers[0].bTelegraph
+        && Chalk.Layers[0].Glow.R==Chalk.Layers[0].Glow.B && Evaluate(Chalk.Layers[0],.15f).bVisible && !Evaluate(Chalk.Layers[0],.36f).bVisible
+        && SwingTelegraph(1,Feet,Dir,.05f,Own).Layers.IsEmpty());
+    const FRecipe Slash1=SwingRelease(1,Chest,Dir,Own), Slash3=SwingRelease(3,Chest,Dir,Own);
+    TestTrue(TEXT("Each combo step has its own slash; the finisher lasts longer"),
+        Slash1.Layers.Num()==1 && Slash1.Layers[0].Mesh==EMesh::Slash1 && Slash3.Layers[0].Mesh==EMesh::Slash3
+        && Slash3.Layers[0].Seconds>Slash1.Layers[0].Seconds && SwingRelease(2,Chest,Dir,Own).Layers[0].Mesh==EMesh::Slash2);
+    const FLayer& Cut=Slash1.Layers[0];
+    TestTrue(TEXT("A slash reveals from its tail to its head, then erodes"),
+        Evaluate(Cut,0.f).WindowLo>.9f && Evaluate(Cut,Cut.RevealSeconds).WindowLo<0.f && Evaluate(Cut,Cut.ErodeFrom).Dissolve==0.f
+        && Evaluate(Cut,Cut.ErodeFrom+Cut.ErodeSeconds*.5f).Dissolve>.4f);
+    const FLayer& Spark=*Find(Zap,ETex::ShockSpark,EPlace::Facing);
+    TestTrue(TEXT("Flipbooks step at their authored rate and hold their last frame; a delayed layer waits"),
+        Evaluate(Spark,0.f).Frame==0.f && Evaluate(Spark,.1f).Frame==3.f && Evaluate(Spark,Spark.Seconds-.01f).Frame==15.f
+        && !Evaluate(*Find(Hose,ETex::WaterSplash,EPlace::Facing),.01f).bVisible && IsOver(Spark,Spark.Seconds) && !IsOver(Spark,0.f));
+    const FLayer Loop=GroundField(Feet,220.f,Own);
+    TestTrue(TEXT("The ground field loops its frames and never ends on its own"),
+        Loop.bLoop && !IsOver(Loop,100.f) && Evaluate(Loop,1.f+1.f/16.f).Frame==1.f && Evaluate(Loop,0.f).Fade<Evaluate(Loop,1.f).Fade);
+    const FRecipe Lane=SkillTelegraph(Feet,Dir,600.f,160.f,.2f,Own);
+    TestTrue(TEXT("A skill's chalk lane covers its footprint along the facing"), Lane.Layers.Num()==1 && Lane.Layers[0].Tex==ETex::ChalkLane
+        && Lane.Layers[0].End.Equals(FVector(600,0,0)) && FMath::IsNearlyEqual(Lane.Layers[0].SizeCm,160.f) && Lane.Layers[0].Place==EPlace::GroundStrip);
+    TestTrue(TEXT("The shock element is the broadcast shock ink"), LDHitVfx::ElementTint(uint8(ELDCombatElement::Shock))==LDBroadcast::Shock
+        && LDHitVfx::ElementTint(uint8(ELDCombatElement::Water))==LDBroadcast::Water);
     return true;
 }
 
@@ -319,9 +401,14 @@ bool FLDBodyMotionHitLayersTest::RunTest(const FString& Parameters)
     using namespace LDHitVfx;
     auto Has=[](const FRecipe& Recipe, EMask Mask, EPlace Place)
     { return Recipe.Layers.ContainsByPredicate([Mask,Place](const FLayer& Layer){ return Layer.Mask==Mask && Layer.Place==Place; }); };
-    const FRecipe Plain=ForHit(ELDObservedHitLook::None,0,1.f);
+    // Unflagged plain, water and electric hits are the slice's (LDSliceVfx::Impact): no hit layers here.
+    TestTrue(TEXT("The slice's hits have no hit layers; every other hit keeps them"),
+        ForHit(ELDObservedHitLook::None,0,1.f).Layers.IsEmpty() && ForHit(ELDObservedHitLook::Water,0,1.f).Layers.IsEmpty()
+        && ForHit(ELDObservedHitLook::Electric,0,1.f).Layers.IsEmpty() && !ForHit(ELDObservedHitLook::None,LDObservation::Critical,1.f).Layers.IsEmpty()
+        && !ForHit(ELDObservedHitLook::Fire,0,1.f).Layers.IsEmpty());
+    const FRecipe Plain=ForHit(ELDObservedHitLook::Fire,0,1.f);
     const FRecipe Crit=ForHit(ELDObservedHitLook::None,LDObservation::Critical,1.f);
-    TestTrue(TEXT("An ordinary hit flashes a star and rings the ground"), Has(Plain,EMask::Star,EPlace::Sprite) && Has(Plain,EMask::Ring,EPlace::Ground));
+    TestTrue(TEXT("A fire hit flashes a star and burns the ground"), Has(Plain,EMask::Star,EPlace::Sprite) && Has(Plain,EMask::Burn,EPlace::Ground));
     const FLayer* PlainStar=Plain.Layers.FindByPredicate([](const FLayer& L){ return L.Place==EPlace::Sprite; });
     const FLayer* CritStar=Crit.Layers.FindByPredicate([](const FLayer& L){ return L.Place==EPlace::Sprite; });
     TestTrue(TEXT("A critical hit changes shape, not only colour: a larger cross star and a second ring"),
@@ -334,16 +421,16 @@ bool FLDBodyMotionHitLayersTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A shield shows its hex shell and a broken one bursts outwards over a wide ring"),
         Shell && Shell->Mask==EMask::Hex && Burst && Burst->ToScale>Shell->ToScale && Has(Broken,EMask::Ring,EPlace::Ground));
     TestTrue(TEXT("Each look has its own signature"),
-        Has(ForHit(ELDObservedHitLook::Fire,0,1.f),EMask::Burn,EPlace::Ground) && Has(ForHit(ELDObservedHitLook::Water,0,1.f),EMask::Ripple,EPlace::Ground)
-        && Has(ForHit(ELDObservedHitLook::Electric,0,1.f),EMask::Bolt,EPlace::Upright) && Has(ForHit(ELDObservedHitLook::Magic,0,1.f),EMask::Sigil,EPlace::Ground)
+        Has(ForHit(ELDObservedHitLook::Fire,0,1.f),EMask::Burn,EPlace::Ground) && Has(ForHit(ELDObservedHitLook::Water,LDObservation::Critical,1.f),EMask::Ripple,EPlace::Ground)
+        && Has(ForHit(ELDObservedHitLook::Electric,LDObservation::Critical,1.f),EMask::Bolt,EPlace::Upright) && Has(ForHit(ELDObservedHitLook::Magic,0,1.f),EMask::Sigil,EPlace::Ground)
         && Has(Shield,EMask::Burn,EPlace::Ground));
     const FRecipe Reduced=ForHit(ELDObservedHitLook::None,LDObservation::Critical,.45f);
     TestTrue(TEXT("Reduced effects drop only the repeat layers and dim the rest; the tier's shape stays"),
         Reduced.Layers.Num()==Crit.Layers.Num()-1 && Has(Reduced,EMask::Cross,EPlace::Sprite) && Has(Reduced,EMask::Ring,EPlace::Ground)
-        && Reduced.Layers[0].Glow.R<Crit.Layers[0].Glow.R && Has(ForHit(ELDObservedHitLook::Electric,0,.45f),EMask::Bolt,EPlace::Upright));
+        && Reduced.Layers[0].Glow.R<Crit.Layers[0].Glow.R && Has(ForHit(ELDObservedHitLook::Electric,LDObservation::Critical,.45f),EMask::Bolt,EPlace::Upright));
     const float NaN=std::numeric_limits<float>::quiet_NaN();
     TestTrue(TEXT("A zero or invalid effect scale shows nothing"),
-        ForHit(ELDObservedHitLook::None,0,0.f).Layers.IsEmpty() && ForHit(ELDObservedHitLook::None,0,NaN).Layers.IsEmpty() && ForKill(NaN).Layers.IsEmpty());
+        ForHit(ELDObservedHitLook::Fire,0,0.f).Layers.IsEmpty() && ForHit(ELDObservedHitLook::Fire,0,NaN).Layers.IsEmpty() && ForKill(NaN).Layers.IsEmpty());
     const FRecipe Kill=ForKill(1.f);
     const FLayer* Crack=Kill.Layers.FindByPredicate([](const FLayer& L){ return L.Mask==EMask::Crack; });
     TestTrue(TEXT("A fall cracks the ground for two seconds under a shock ring"), Crack && Crack->Place==EPlace::Ground
@@ -378,7 +465,7 @@ bool FLDBodyMotionHitLayersTest::RunTest(const FString& Parameters)
     const FLayerTuning Neutral=TuningOf(Start,1.f,1.f,1.f);
     TestTrue(TEXT("At the starting controls and neutral asset values the layers are unchanged"), FMath::IsNearlyEqual(Neutral.Size,1.f)
         && FMath::IsNearlyEqual(Neutral.Seconds,1.f) && FMath::IsNearlyEqual(Neutral.Glow,1.f)
-        && FMath::IsNearlyEqual(ForHit(ELDObservedHitLook::None,0,1.f,Neutral).Layers[0].SizeCm,PlainStar->SizeCm));
+        && FMath::IsNearlyEqual(ForHit(ELDObservedHitLook::Fire,0,1.f,Neutral).Layers[0].SizeCm,PlainStar->SizeCm));
     LDHitFeel::FTuning Bigger=Start; Bigger.ImpactScale*=2.f; Bigger.ImpactSeconds*=2.f;
     const FRecipe Tuned=ForHit(ELDObservedHitLook::None,LDObservation::Critical,1.f,TuningOf(Bigger,1.f,1.f,.5f));
     TestTrue(TEXT("Live size and duration and the saved glow scale every layer, delays included"),
@@ -388,7 +475,7 @@ bool FLDBodyMotionHitLayersTest::RunTest(const FString& Parameters)
     LDHitFeel::FTuning NoTime=Start; NoTime.ImpactSeconds=0.f;
     TestTrue(TEXT("An impact size or duration of zero, or a zero asset value, shows no layers"),
         ForHit(ELDObservedHitLook::Fire,0,1.f,TuningOf(NoSize,1.f,1.f,1.f)).Layers.IsEmpty()
-        && ForKill(1.f,TuningOf(NoTime,1.f,1.f,1.f)).Layers.IsEmpty() && ForHit(ELDObservedHitLook::None,0,1.f,TuningOf(Start,0.f,1.f,1.f)).Layers.IsEmpty());
+        && ForKill(1.f,TuningOf(NoTime,1.f,1.f,1.f)).Layers.IsEmpty() && ForHit(ELDObservedHitLook::Fire,0,1.f,TuningOf(Start,0.f,1.f,1.f)).Layers.IsEmpty());
     const FScreenFlash KillFlash=ScreenFlashOf(LDCombatCues::DealtLethal|LDObservation::Critical,false);
     const FScreenFlash CritFlash=ScreenFlashOf(LDObservation::Critical,false);
     TestTrue(TEXT("A kill flashes red over a critical hit's gold, a broken shield cyan, an ordinary hit nothing"),
@@ -503,6 +590,12 @@ bool FLDBodyMotionHitLayersTest::RunTest(const FString& Parameters)
     {
         EBurst Appear; FLinearColor AppearTint;
         const FZone Patch=GroundZoneOf(GroundKind,150.f,1.f);
+        if (GroundKind==uint8(ELDGroundStateKind::Field))
+        {
+            TestTrue(TEXT("The electric field has no particles or burst: its crackle is the slice's ground field"),
+                !Patch.bShow && !GroundAppearBurstOf(GroundKind,Appear,AppearTint));
+            continue;
+        }
         TestTrue(TEXT("Every ground state loops particles by area, thins with reduced effects and appears with a burst"),
             Patch.bShow && GroundZoneOf(GroundKind,300.f,1.f).Rate>3.f*Patch.Rate && GroundZoneOf(GroundKind,150.f,.45f).Rate<Patch.Rate
             && GroundAppearBurstOf(GroundKind,Appear,AppearTint));

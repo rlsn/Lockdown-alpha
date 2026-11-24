@@ -83,6 +83,36 @@ public:
     static void ApplyZone(UNiagaraComponent& Effect, const LDHitVfx::FZone& Zone, float RadiusCm, const FVector& Velocity);
     // The catalog's saved layer tuning times the live impact controls (LDHitVfx::TuningOf).
     LDHitVfx::FLayerTuning LayerTuning() const;
+    // The designed slice layers (LDSliceVfx) of one recipe. A recipe bound to Source goes with it (hidden, fallen or
+    // removed); an unbound one plays out alone. AgeSeconds starts it part way (a late-seen event).
+    void Slice(const ULDHumanoidVisualComponent* Source, const LDSliceVfx::FRecipe& Recipe, float AgeSeconds);
+    // Removes Source's telegraphs (a withdrawn or cancelled windup).
+    void ClearTelegraphs(const ULDHumanoidVisualComponent& Source);
+    // The look of one kind of slice layer: own or another body's, the reduced-effects scale and the live tuning
+    // (impacts: ld.Feel.Impact* x DA_CombatVfx Layer*; swings: ld.Feel.Trail* x SwingSize/SwingSeconds; telegraphs: Cast*).
+    enum class ESliceTuning : uint8 { Impact, Swing, Telegraph };
+    LDSliceVfx::FLook SliceLook(ESliceTuning Kind, bool bOwn, bool bFocus) const;
+    // A visible body's strike reached its release: hits that follow on visible bodies take its tier, direction and
+    // owner (MatchHit). Only visible bodies note strikes, so a hit never reveals a hidden source.
+    void NoteStrike(const ULDHumanoidVisualComponent& Source, LDSliceVfx::EStrike Strike, const FVector& From, const FVector& Dir, bool bOwn);
+    struct FStrikeMatch
+    {
+        LDSliceVfx::EStrike Strike = LDSliceVfx::EStrike::None;
+        FVector From = FVector(NAN);
+        FVector Dir = FVector::ZeroVector;
+        bool bOwn = false;
+        bool bChained = false;   // a later link of a chain: its arc starts at the previous body struck
+    };
+    // The strike a hit HitAgeSeconds old on Victim's Chest belongs to: the nearest in time of the strikes whose kind
+    // fits the hit's look, timing and reach; None when no visible strike fits.
+    FStrikeMatch MatchHit(const ULDHumanoidVisualComponent& Victim, const FVector& Chest, ELDObservedHitLook Look, float HitAgeSeconds);
+    // A public electric ground state's looping field on Owner (fades with Alpha; Alpha <= 0 removes it).
+    void ShowGroundField(const AActor& Owner, const FVector& Centre, float RadiusCm, float Alpha);
+    // The approved reach of a skill's level-1 target (its range and, for a direction line, the band's half width) and
+    // the conduct reaction's splash radius; 0 when the content is unavailable.
+    bool SkillReach(uint8 Ability, float& OutRangeCm, float& OutHalfWidthCm);
+    float ConductRadiusCm();
+    int32 LiveSliceCount() const { return LiveSlices.Num(); }
     // A visible skill effect's own particles: its flight trail or ground zone on Owner, and its appear burst.
     UNiagaraComponent* ShowEffect(USceneComponent& Owner, UNiagaraComponent* Existing, ELDObservedProjectileLook Look,
         float RadiusCm, const FRotator& Heading);
@@ -93,7 +123,8 @@ public:
     void ClearForActor(const AActor& Owner);
     int32 LiveCount() const { return Live.Num(); }
     int32 LiveLayerCount() const { return LiveLayers.Num(); }
-    static constexpr int32 MaxLayers = 48;
+    // The pooled layer components shared by the hit layers and the slice layers.
+    static constexpr int32 MaxLayers = 96;
     const ULDCombatVfxCatalog* GetCatalog() const { return Catalog; }
 private:
     struct FLive
@@ -116,8 +147,40 @@ private:
         FVector At = FVector::ZeroVector;
         FVector Normal = FVector::UpVector;  // a ground mark's supporting surface at spawn
     };
+    struct FLiveSlice
+    {
+        TWeakObjectPtr<const ULDHumanoidVisualComponent> Source;
+        TWeakObjectPtr<const AActor> OwnerActor;
+        bool bBound = false;
+        int32 Slot = INDEX_NONE;
+        LDSliceVfx::FLayer Layer;
+        float Age = 0;
+        float ExternalAlpha = 1;
+        FVector Ground = FVector::ZeroVector;   // flat layers: the supporting surface under At at spawn
+        FVector Normal = FVector::UpVector;
+    };
+    TArray<FLiveSlice> LiveSlices;
+    struct FStrike
+    {
+        TWeakObjectPtr<const ULDHumanoidVisualComponent> Source;
+        LDSliceVfx::EStrike Strike = LDSliceVfx::EStrike::None;
+        FVector From = FVector::ZeroVector, Dir = FVector::ZeroVector, Last = FVector::ZeroVector;
+        double At = 0;
+        bool bOwn = false;
+        int32 Hits = 0;
+    };
+    TArray<FStrike> Strikes;
     void Release(int32 Index);
     void ReleaseLayer(int32 Index);
+    void ReleaseSlice(int32 Index);
+    void PlaceSlice(FLiveSlice& Shown);
+    FVector GroundUnder(const FVector& At, FVector& OutNormal) const;
+    bool LoadSliceAssets();
+    bool bSliceAssetsTried = false, bSliceAssetsReady = false;
+    UPROPERTY() TObjectPtr<UMaterialInterface> SliceMaterial;
+    UPROPERTY() TObjectPtr<UStaticMesh> SliceQuad;
+    UPROPERTY() TArray<TObjectPtr<UStaticMesh>> SlashMeshes;
+    UPROPERTY() TArray<TObjectPtr<UTexture2D>> SliceTextures;
     struct FLiveGhost
     {
         TWeakObjectPtr<const ULDHumanoidVisualComponent> Owner;
@@ -127,8 +190,10 @@ private:
     };
     void ReleaseGhost(int32 Index);
     bool LoadLayerAssets();
-    int32 TakeSlot(bool bShell);
-    void Configure(UStaticMeshComponent& Mesh, bool bShell);
+    // Slot kinds: a hit layer plane, a shield shell sphere, a slice quad, then one per slash mesh.
+    enum ESlotKind : uint8 { SlotPlane, SlotShell, SlotQuad, SlotSlash };
+    int32 TakeSlot(uint8 Kind);
+    void Configure(UStaticMeshComponent& Mesh, uint8 Kind);
     void PlaceLayer(FLiveLayer& Live, float Brightness);
     UPROPERTY() TObjectPtr<ULDCombatVfxCatalog> Catalog;
     UPROPERTY() TObjectPtr<AActor> LayerHost;
@@ -140,7 +205,7 @@ private:
     UPROPERTY() TObjectPtr<UTexture2D> ScreenEdge;
     // Pooled layer components; a slot is free while no live layer uses it.
     UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> Slots;
-    TArray<bool> SlotShell;
+    TArray<uint8> SlotKinds;
     TArray<int32> FreeSlots;
     TArray<FLiveLayer> LiveLayers;
     UPROPERTY() TObjectPtr<UMaterialInterface> GhostMaterial;

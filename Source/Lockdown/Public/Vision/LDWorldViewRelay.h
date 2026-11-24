@@ -132,6 +132,7 @@ namespace LDObservedPresentation
         uint16 CueAgeMs = 0;
         uint16 CueImpactDelayMs = 0;
         uint8 ActionAbility = 0;  // the Cast cue's ability, 0 otherwise
+        uint8 ActionComboStep = 0;  // the Attack cue's combo step, 0 otherwise
         bool bCharging = false;   // the public overdrive charge
         uint16 ChargeAgeMs = 0;
         bool bOverdriveCast = false;  // the Cast cue is an overdrive release
