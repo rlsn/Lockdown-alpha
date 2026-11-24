@@ -44,6 +44,7 @@
 #include "NiagaraSystem.h"
 #include "Region/LDMapDefinition.h"
 #include "Region/LDMapGeometry.h"
+#include "Region/LDMapRegistry.h"
 #include "Serialization/JsonSerializer.h"
 #include "ShaderCompiler.h"
 #include "UnrealClient.h"
@@ -398,6 +399,72 @@ namespace
             return Visual;
         }
 
+        // The stage of the combat VFX bodies: the first open floor around the flagpole, nearest ring first, found in the
+        // loaded level, so the fixture follows the authored map. Every sampled point (both bodies, the dash run and a ring
+        // around them) is legal ground for a body on the flagpole's surface, level with the centre, and its feet, chest
+        // and head are seen unobstructed from the game camera at its default arm.
+        bool FindVfxStage(UWorld& Target, FVector& OutFocus, FString& Error) const
+        {
+            auto* Registry = Target.GetSubsystem<ULDMapRegistry>();
+            TSharedPtr<const FLDDemoContentSnapshot> Content;
+            FCollisionShape Capsule;
+            if (!Registry || !Registry->Ensure(Error) || !LDDemoEntry::LoadRuntimeContent(Content, Error) || !Content
+                || !ULDMapRegistry::ContentCapsule(*Content, Capsule, Error))
+            {
+                return false;
+            }
+            const FLDMapBinding* Flag = Registry->Resolve(FName(*Content->Get().World.CaptureId), Registry->Generation);
+            if (!Flag)
+            {
+                Error = TEXT("The level has no capture anchor to search around.");
+                return false;
+            }
+            const FLDDemoRational& Reach = Content->Get().Parameters.CaptureRadiusCm;
+            const double FlagReach = Reach.Denominator > 0 ? double(Reach.Numerator) / double(Reach.Denominator) : 0.;
+            const FVector2D Across(UE_INV_SQRT_2, UE_INV_SQRT_2);
+            TArray<FVector2D> Samples = { FVector2D::ZeroVector, -Across * 95., Across * 95. };
+            for (const double Run : { 150., 300., 450., 600. }) { Samples.Add(-Across * 95. + FVector2D(Run, 0.)); }
+            for (int32 Turn = 0; Turn < 8; ++Turn) { Samples.Add(FVector2D(320., 0.).GetRotated(45. * Turn)); }
+            FCollisionQueryParams Sight(SCENE_QUERY_STAT(LDArtCapture), true);
+            const auto Open = [&](const FVector2D& Centre, FVector& Focus)
+            {
+                if (!Registry->ResolveWalkableGround(Centre, Focus)) { return false; }
+                const FVector Eye = ALDCharacter::DefaultArmCameraPose(Focus, LDCamera::DefaultArmLength).GetLocation();
+                for (const FVector2D& Sample : Samples)
+                {
+                    FVector Surface;
+                    FLDLegalGround Legal;
+                    ELDWorldQueryFailure Failure = ELDWorldQueryFailure::None;
+                    FString Why;
+                    if (!Registry->ResolveWalkableGround(Centre + Sample, Surface) || FMath::Abs(Surface.Z - Focus.Z) > 15.
+                        || !Registry->QueryGround(Registry->Revision(), Surface, Capsule, Flag->Surface, Legal, Failure, Why))
+                    {
+                        return false;
+                    }
+                    for (const double Height : { 10., ArtSweepBodyCm[0], ArtSweepBodyCm[1] })
+                    {
+                        const FVector Point = Surface + FVector(0., 0., Height);
+                        if (Target.LineTraceTestByChannel(Eye, Point, ECC_Visibility, Sight)
+                            || Target.LineTraceTestByChannel(Eye, Point, ECC_Camera, Sight))
+                        {
+                            return false;
+                        }
+                    }
+                }
+                return true;
+            };
+            for (int32 Ring = 0; Ring < 24; ++Ring)
+            {
+                for (int32 Bearing = 0; Bearing < 16; ++Bearing)
+                {
+                    const FVector2D Centre = FVector2D(Flag->Position) + FVector2D(FlagReach + 400. + Ring * 250., 0.).GetRotated(22.5 * Bearing);
+                    if (Open(Centre, OutFocus)) { return true; }
+                }
+            }
+            Error = FString::Printf(TEXT("No open floor within %.0f cm of the flagpole at %s."), FlagReach + 400. + 23 * 250., *Flag->Position.ToCompactString());
+            return false;
+        }
+
         bool SetupVfx(UWorld& Target)
         {
             auto* Impacts = Target.GetSubsystem<ULDImpactFxSubsystem>();
@@ -421,7 +488,10 @@ namespace
             Charge->WaitForCompilationComplete(true, false);
 #endif
             if (!Check(Charge->IsReadyToRun(), TEXT("The authored cast charge compiled"))) { return false; }
-            const FVector Focus(0., -1100., 0.);
+            FVector Focus = FVector::ZeroVector;
+            FString StageError;
+            if (!Check(FindVfxStage(Target, Focus, StageError), TEXT("The level has open floor around the flagpole for the combat VFX stage ") + StageError)) { return false; }
+            Check(true, TEXT("Combat VFX stage at ") + Focus.ToCompactString());
             const FVector Across(UE_INV_SQRT_2, UE_INV_SQRT_2, 0.);
             VfxAttacker = SpawnVfxBody(Target, Focus - Across * 95., 45.f, 0);
             VfxVictim = SpawnVfxBody(Target, Focus + Across * 95., 225.f, 1);
