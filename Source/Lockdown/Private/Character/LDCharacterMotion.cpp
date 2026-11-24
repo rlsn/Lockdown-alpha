@@ -364,6 +364,10 @@ void ULDCharacterMovementComponent::PhysWalking(float DeltaSeconds, int32 Iterat
         else { Capture.Restore(Capture.WalkBookmark.GetValue(),UpdatedComponent->GetComponentLocation(),SupportOf(*this)); }
         Capture.PendingRevert=FNativeCapture::ERevert::None;
     }
+    // An unflagged ledge revert can be the walk's last act, with no later move to notice it: take it while the
+    // bookmark is still held.
+    if (!GetActorFeetLocation().Equals(Capture.LastFoot,.000001))
+    { Capture.RestoreUnflaggedWalkRevert(UpdatedComponent->GetComponentLocation(),SupportOf(*this)); }
     Capture.Cursor=Capture.Batch.Step.EndServerSeconds;
     Capture.WalkBookmark.Reset();
     CaptureNativeSupport();
