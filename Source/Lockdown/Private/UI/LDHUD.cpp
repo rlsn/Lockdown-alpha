@@ -2171,6 +2171,9 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         if(In.bDead){In.DeathRecap=LDHUD::DeathRecap(PC->DeathRecap,O,Lobby,Content);}
         const LDHUD::FGrowthPending Waiting=LDHUD::GrowthPending(Progression,O.Match,Content);
         In.Pending=(Waiting.bOffer?1:0)+Waiting.Blueprints+(Waiting.bCardOffer?1:0)+(Waiting.bFinalMod?1:0);
+        In.PendingCells=FMath::Max3(1,Waiting.bOffer&&Progression?Progression->ActiveOffer.Options.Num()+1:0,
+            FMath::Max(Waiting.bCardOffer&&Progression?Progression->CardOffer.Options.Num()+1:0,
+                Waiting.bFinalMod&&Progression?Progression->FinalModOptions.Num():0));
         In.bLowQuality=Scalability::GetQualityLevels().PostProcessQuality<=0;
         const auto Drawer=ChoicesPanel?ChoicesPanel->DrawerState(bWorkshopOpen):ULDChoicesPanel::FDrawerState();
         if(Drawer.bLibraryOnly){In.Pending=0;}

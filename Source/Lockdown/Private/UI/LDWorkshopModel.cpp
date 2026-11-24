@@ -100,14 +100,15 @@ float LDWorkshop::LibraryMinPageHeight(float MinIcon,float TextScale)
 {
     return WorkshopLibraryHeight(FIntVector4(0,1,0,0),1,FMath::Max(46.f,MinIcon),TextScale,true);
 }
-// Mirrors the tray tiles of LDChoicesPanel: a 46 icon (never under 36 screen pixels) in 4 padding, and the group's 8 gap.
-float LDWorkshop::PendingTileGroupHeight(float Scale)
+// Mirrors the tray tiles of LDChoicesPanel: a 46 icon (never under 36 screen pixels) in 4 padding on a 54 tile, 6 between
+// tiles, 76 for a group's label and the group's 8 gap.
+float LDWorkshop::PendingTileGroupHeight(float Scale,float Width,int32 Cells)
 {
-    return FMath::Max(46.f,36.f/FMath::Max(.01f,Scale))+2.f*4.f+8.f;
-}
-float LDWorkshop::PendingPageFloor(float Scale)
-{
-    return PendingTileGroupHeight(Scale)+32.f;
+    const float Icon=FMath::Max(46.f,36.f/FMath::Max(.01f,Scale));
+    const float Tile=FMath::Max(54.f,Icon+2.f*4.f);
+    const int32 PerRow=FMath::Max(1,FMath::FloorToInt((Width-76.f+6.f)/(Tile+6.f)));
+    const int32 Rows=FMath::DivideAndRoundUp(FMath::Max(1,Cells),PerRow);
+    return Rows*(Icon+2.f*4.f)+(Rows-1)*6.f+8.f;
 }
 LDWorkshop::FLibraryFit LDWorkshop::FitLibrary(FIntVector4 Counts,float Width,float Height,float MinIcon,float TextScale)
 {

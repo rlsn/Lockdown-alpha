@@ -72,6 +72,8 @@ public:
         float DeathProgress=0.f;
         LDHUD::FDamageListView DeathRecap;
         int32 Pending=0;
+        // The widest pending group's tiles (an offer's options and its action column); the tray floor keeps its rows.
+        int32 PendingCells=4;
         // Low quality: the backdrop only darkens, without the blur.
         bool bLowQuality=false;
         bool bStage=false;

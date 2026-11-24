@@ -65,6 +65,8 @@ constexpr int32 WorkshopMeterCells=16;
 constexpr float WorkshopMinIconPixels=36.f;
 // The pending tray's title row and service row above its pages, and the least height an opened shop is drawn at.
 constexpr float WorkshopPendingHead=56.f,WorkshopPendingServices=40.f,WorkshopShopFloor=220.f;
+// The tray's pager bar, and the side insets between the pending panel and the tray's wrap width.
+constexpr float WorkshopPendingPager=32.f,WorkshopPendingInset=24.f;
 
 FSlateRoundedBoxBrush WorkshopRound(float Radius,const FLinearColor& Edge,float Width)
 {FSlateRoundedBoxBrush Brush(FLinearColor::White,Radius,Edge,Width);Brush.OutlineSettings.bUseBrushTransparency=true;return Brush;}
@@ -468,8 +470,10 @@ ULDWorkshop::FRects ULDWorkshop::ComputeLayout(FVector2D Size,const FInput& Inpu
     if(!Input.bStage)
     {
         const bool bPendingArea=Input.Pending>0||Input.bServices;
+        // The widest group at the tray's icon-only fallback, and the pager bar once there is more than one group.
         const float PendingFloor=Input.Pending>0
-            ? WorkshopPendingHead+(Input.bServices?WorkshopPendingServices:0.f)+LDWorkshop::PendingPageFloor(Scale) : 0.f;
+            ? WorkshopPendingHead+(Input.bServices?WorkshopPendingServices:0.f)+(Input.Pending>1?WorkshopPendingPager:0.f)
+                +LDWorkshop::PendingTileGroupHeight(Scale,DrawerRight-DrawerLeft-WorkshopPendingInset,Input.PendingCells) : 0.f;
         float PendingHeight=!bPendingArea?0.f:Input.Pending>0?FMath::Max(PendingFloor,DrawerHeight*(Input.bShop?.29f:.45f))
             :FMath::Min(104.f,DrawerHeight*.16f);
         const float LibraryFloor=LibraryHeader+14.f+LDWorkshop::LibraryMinPageHeight(MinIcon,Text);
@@ -490,6 +494,13 @@ ULDWorkshop::FRects ULDWorkshop::ComputeLayout(FVector2D Size,const FInput& Inpu
             }
             LibraryTop=Top+ShopHeight;
             Next.Shop=WorkshopBox(DrawerLeft,Top,DrawerRight,LibraryTop-(bLibraryShown||bPendingArea?WorkshopGap:0.f));
+        }
+        // Rewards waiting for a choice come before browsing: when the tray's floor leaves the library no card, the tray
+        // takes the room and the library waits behind its tab.
+        if(!Input.bShop&&Input.Pending>0&&Room<LibraryFloor)
+        {
+            PendingHeight=DrawerHeight;
+            bLibraryShown=false;
         }
         if(bPendingArea)
         {
@@ -526,7 +537,7 @@ void ULDWorkshop::ApplyLayout(const FRects& Layout,FVector2D Size,float Scale)
     LibraryPage=LibraryFit.Pages.IsEmpty()?0:FMath::Clamp(LibraryPage,0,LibraryFit.Pages.Num()-1);
     TrayRight=WorkshopHasArea(Rects.Pending)?W-float(Rects.Pending.Max.X)+12.f:0.f;
     TrayBottom=WorkshopHasArea(Rects.Pending)?H-float(Rects.Pending.Max.Y)+12.f:0.f;
-    TrayWrap=WorkshopHasArea(Rects.Pending)?FMath::Max(0.f,float(Rects.Pending.GetSize().X)-24.f):0.f;
+    TrayWrap=WorkshopHasArea(Rects.Pending)?FMath::Max(0.f,float(Rects.Pending.GetSize().X)-WorkshopPendingInset):0.f;
     TrayLimit=WorkshopHasArea(Rects.Pending)?FMath::Max(0.f,float(Rects.Pending.GetSize().Y)-WorkshopPendingHead
         -(Latest.bServices?WorkshopPendingServices:0.f)):0.f;
     const float Right=float(Rects.Dock.Max.X);
@@ -670,7 +681,8 @@ ULDChoicesPanel::FWorkshopPlaces ULDWorkshop::Places() const
     if(WorkshopHasArea(Rects.Pending))
     {Out.PendingTop=Absolute(WorkshopBox(Rects.Pending.Min.X+24.f,Rects.Pending.Min.Y+44.f,Rects.Pending.Max.X-20.f,Rects.Pending.Min.Y+96.f));}
     Out.Shop=Absolute(Rects.Shop);
-    Out.DrawerHeader=Absolute(WorkshopBox(Rects.Library.Min.X,Rects.Character.Min.Y-54.f,Rects.Library.Max.X,Rects.Character.Min.Y-6.f));
+    // The drawer's own edges: a shop-only page has no library rectangle, and its tab must still be placed.
+    Out.DrawerHeader=Absolute(WorkshopBox(Rects.Board.Max.X+WorkshopGap,Rects.Character.Min.Y-54.f,Rects.Dock.Max.X,Rects.Character.Min.Y-6.f));
     return Out;
 }
 
