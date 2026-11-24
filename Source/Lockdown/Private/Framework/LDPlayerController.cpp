@@ -19,6 +19,7 @@
 #include "Probes/LDDemoOpponentProbe.h"
 #include "Probes/LDDemoSessionFaultProbe.h"
 #include "Probes/LDBuildEvaluationProbe.h"
+#include "Probes/LDBuildRingProbe.h"
 #include "UI/LDUIRoot.h"
 #include "UI/LDControlSettings.h"
 #include "Vision/LDWorldViewRelay.h"
@@ -71,6 +72,7 @@ void ALDPlayerController::BeginPlay()
     LDDemoTests::StartOpponentProbe(*this);
     LDDemoTests::StartSessionFaultProbe(*this);
     LDDemoTests::StartBuildEvaluation(*this);
+    LDDemoTests::StartBuildRingProbe(*this);
 #endif
 }
 

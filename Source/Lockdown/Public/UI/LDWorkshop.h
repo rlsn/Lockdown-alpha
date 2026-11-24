@@ -3,37 +3,30 @@
 #include "Blueprint/UserWidget.h"
 #include "Development/LDGrowthProtocol.h"
 #include "Framework/LDMatchTimeline.h"
+#include "UI/LDBuildRingModel.h"
+#include "UI/LDBuildRingPaint.h"
 #include "UI/LDHUDModel.h"
-#include "UI/LDComponentStorage.h"
-#include "UI/LDChoicesPanel.h"
-#include "UI/LDWorkshopModel.h"
-#include "UI/LDWorkshopPreview.h"
 #include "LDWorkshop.generated.h"
-class UBorder;
-class UCanvasPanel;
-class UCanvasPanelSlot;
-class UHorizontalBox;
-class UImage;
-class URichTextBlock;
-class USizeBox;
-class UTextBlock;
-class UVerticalBox;
-class UWrapBox;
-class UBackgroundBlur;
-class ULDCommandButton;
-class ULDStatBar;
+
+class ALDBuildRadarDecal;
 class ULDChoicesPanel;
-class ULDPaintLayer;
+class ULDComponentStorage;
+class ULDStatBar;
 class UTexture2D;
+struct FLDCombatOwnerView;
 struct FLDDemoContentDefinitions;
 class FLDDemoContentSnapshot;
 
-// The build workshop (APP_SPEC §7 构筑): the 构筑 tray's full view, open while the tray is open. Full screen in a rest's build,
-// payout and return steps and in the own death wait (the world darkens and blurs but never pauses); elsewhere it keeps to the
-// bottom 46% of the screen. It lays out the phase bar, the character column (stats, derived attributes, element reactions),
-// the capacity bar, the rule board, the library and the pending area, and the info dock, and hands the board and library
-// rectangles to the component storage and the pending rectangle to the 构筑 tray, which keep every rule, drop, request and
-// receipt of their own. Presentation only: it reads the own view, the storage's focus and the tray's hovered card.
+// The build ring (构筑气场环, APP_SPEC §7 构筑; approved design Artifacts/Audits/WorkshopRedesign). Open (B), it grows around
+// the own character without pausing or locking play: the five-stat radar lies on the ground under the character
+// (ALDBuildRadarDecal), the element sockets and their reactions sit on the inner ring, the five skill hosts (本体, Q, W, E,
+// 冲刺) carry their installed cards in fixed 3 + 4 + 5 slots, the left wing lists the live derived attributes, the right
+// wing is the rest shop, and the hand (or the offer on top of the queue, keys 1/2/3) lies above the HUD band. Hovering
+// anything shows its card in the top-left corner and links it to the cards and skills sharing a vocabulary key. Closed, the
+// radar stays faint under the character with the capacity ticks, and the offer on top waits beside the HUD band.
+// Presentation only: a click is an intent sent through the existing command owners (the card storage for installs, the
+// 构筑 tray for offers, the shop and rest services, the stat bar for points); the server decides and every refusal reads as
+// one line.
 UCLASS()
 class LOCKDOWN_API ULDWorkshop : public UUserWidget
 {
@@ -43,271 +36,188 @@ public:
     struct FInput
     {
         EMode Mode=EMode::Closed;
+        // The gameplay HUD shows for the own match (the closed state draws only then).
+        bool bShown=false;
         const FLDProgressionView* Progression=nullptr;
         uint32 Match=0;
         const FLDDemoContentDefinitions* Content=nullptr;
         const FLDDemoContentSnapshot* ContentSnapshot=nullptr;
         const FLDCombatOwnerView* Combat=nullptr;
         LDProgression::EMatchStage Stage=LDProgression::EMatchStage::Closed;
-        bool bFinalField=false;
         LDHUD::FCardStats Stats;
         LDHUD::FSlotKeys Keys;
         FString DashKey;
-        FString HolderName;
-        FLinearColor HolderColor=FLinearColor::Gray;
-        LDHUD::FLevelView Level;
+        FString OpenKey;
         TArray<FLDCombatAttributeRowView> Attributes;
-        // The phase bar: the rest and its step with the step's span, or the own death wait.
         bool bRest=false;
-        uint8 RestIndex=0;
-        ELDRestStep Step=ELDRestStep::None;
-        int64 StepStartedAtMs=0;
-        int64 StepEndsAtMs=0;
-        bool bClock=false;
-        int64 NowMs=0;
         bool bDead=false;
-        FString DeathTitle;
-        FString DeathCountdown;
-        FString DeathClock;
-        float DeathProgress=0.f;
-        LDHUD::FDamageListView DeathRecap;
-        int32 Pending=0;
-        // Low quality: the backdrop only darkens, without the blur.
-        bool bLowQuality=false;
-        bool bStage=false;
-        bool bFinalStage=false;
-        bool bShop=false;
-        bool bServices=false;
-        // The respec takes the foot of the character column.
-        bool bCharacterServices=false;
+        // HUD surfaces the ring keeps clear of (absolute; empty when hidden): the band, the minimap and the top banner.
+        FSlateRect Band;
+        FSlateRect Map;
+        FSlateRect Banner;
     };
     void Present(const FInput& Input,const FGeometry* HudGeometry=nullptr);
-    bool IsOpen() const {return Mode!=EMode::Closed;}
-    // Present still fades the opening in (LDHUDStyle::MotionWorkshopOpen); the HUD presents every sample meanwhile.
+    bool IsOpen() const {return Mode==EMode::Open;}
+    // The ring is still growing in (the HUD keeps presenting every frame meanwhile).
     bool IsOpening() const;
+    // Over a part of the ring that takes the pointer (world clicks elsewhere still move the character).
     bool IsHit(FVector2D Absolute) const;
-    // The storage's board and library rectangles (absolute), from the last layout.
-    ULDComponentStorage::FWorkshopLayout StorageLayout() const;
-    // The 构筑 tray's distance from the bottom-right corner, so its rows rise inside the pending area.
-    FVector2D TrayInset() const {return FVector2D(TrayRight,TrayBottom);}
-    // The width the tray rows wrap at inside the pending area (0: no limit).
-    float TrayWrapWidth() const {return TrayWrap;}
-    // The most height the tray can take without crossing the workshop boundary.
-    float TrayHeightLimit() const {return TrayLimit;}
-    // Where the rest actions (重置训练, 准备完毕) sit: right of the phase bar, left of the close button (local units).
+    // Where the rest actions (重置训练, 准备完毕) stand while the ring is open: the top-right corner under the ring's own
+    // buttons, clear of every arc (local units, the right edge of the actions).
     FVector2D ActionsAnchor() const {return ActionsAt;}
-    // The tray's stage, dock and service places (absolute), from the last layout.
-    ULDChoicesPanel::FWorkshopPlaces Places() const;
+    // Keys 1/2/3 take an option of the offer on top, open or closed; true when the key was taken.
+    bool HandleKey(const FKey& Key);
     TWeakObjectPtr<ULDComponentStorage> Storage;
     TWeakObjectPtr<ULDStatBar> StatBar;
     TWeakObjectPtr<ULDChoicesPanel> Choices;
     TFunction<void()> RequestClose;
-    // The local text-size preference: rescales every text of the tree once per change; texts built later start scaled.
+    TFunction<void()> RequestOpen;
+    // A local refusal line (the HUD's toast).
+    TFunction<void(const FString&)> Notify;
     void ApplyTextScale(float Scale);
-    // The workshop's own "+" of the stat at Index (design order); the same one-click allocation as the band (ULDStatBar).
-    ULDCommandButton* StatPlus(int32 Index) const {return StatRows.IsValidIndex(Index)?StatRows[Index].Plus:nullptr;}
     void AllocationApplied(const FLDBuildReceipt& Receipt);
     void FinalModApplied(const FLDBuildReceipt& Receipt,const FLDFinalModSelection& Selection);
     void InterruptFinalFeedback();
+    // Probes and tests: hover a part as if the pointer were over it (Kind INDEX_NONE releases it), select a hand card.
+    enum class EHit : uint8 { None, Stat, Host, Gem, Installed, Drop, Hand, Offer, OfferPile, HandPile, Reroll, Skip, Shop, ShopRefresh,
+        Close, Matrix, Respec, Element, ConfirmYes, ConfirmNo, Entry, Wing };
+    void PinHover(EHit Kind,int32 Host,int32 Index);
+    bool SelectHand(int32 Index);
+    const LDBuildRing::FView& View() const {return Ring;}
+    void ShowHand(bool bHand){bShowHand=bHand;}
+    // Probes: hold the opening and the reveal at an age in seconds (negative releases them), and a part's link count.
+    void FreezeMotion(float OpenAge,float RevealAge){FrozenOpen=OpenAge;FrozenReveal=RevealAge;}
+    int32 LinkCount(EHit Kind,int32 Host,int32 Index) const {return LinkedTo(FHit{Kind,Host,Index}).Num();}
+    // The current layout's faults, empty when every part is on screen, the wing rows stay apart below the inspector's corner
+    // and above the hand, and the hand stands above the band line (probes and tests).
+    TArray<FString> LayoutProblems() const;
+    // The number of unseen hand cards (the closed entry's 新 N).
+    int32 FreshCount() const {return Ring.bValid?Ring.Fresh:0;}
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual void NativeTick(const FGeometry& Geometry,float DeltaSeconds) override;
-    // The trainer's forget: a right click on a skill head (ULDChoicesPanel::ForgetAtColumn).
+    virtual void NativeDestruct() override;
     virtual FReply NativeOnMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event) override;
-    // The wheel over a stat row of the character column: up adds a point, down takes one back (rest only), like the band.
     virtual FReply NativeOnMouseWheel(const FGeometry& Geometry,const FPointerEvent& Event) override;
     virtual int32 NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,const FSlateRect& Culling,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle& Style,bool bEnabled) const override;
 private:
-    friend class FLDHUDCardFacesTest;
-    friend class FLDWorkshopDrawerFloorTest;
-    struct FStatRow
+    friend class FLDBuildRingLayoutTest;
+    friend class FLDBuildRingIntentTest;
+    friend class FLDHUDStatWheelTest;
+    struct FHit
     {
-        FName StatId;
-        UWidget* Row=nullptr;
-        UImage* Picture=nullptr;
-        UTextBlock* Glyph=nullptr;
-        UTextBlock* Name=nullptr;
-        UWidget* Icon=nullptr;
-        UWidget* Meter=nullptr;
-        UTextBlock* Points=nullptr;
-        UTextBlock* Keystone=nullptr;
-        ULDCommandButton* Plus=nullptr;
-        int32 Value=0;
-        // Flash only after the applied revision arrives in the owner view.
-        double AddedAt=-100.;
-        uint64 PendingFlashRevision=0;
-        int32 FlashCell=INDEX_NONE;
-        FString AppliedIcon;
+        EHit Kind=EHit::None;
+        int32 Host=INDEX_NONE;
+        int32 Index=INDEX_NONE;
+        bool operator==(const FHit& Other) const {return Kind==Other.Kind&&Host==Other.Host&&Index==Other.Index;}
+        bool IsNone() const {return Kind==EHit::None;}
     };
-    struct FHead
+    struct FShape
     {
-        UWidget* Box=nullptr;
-        USizeBox* IconBox=nullptr;
-        UBorder* IconFace=nullptr;
-        UImage* Picture=nullptr;
-        UTextBlock* Glyph=nullptr;
-        UTextBlock* Key=nullptr;
-        UTextBlock* Name=nullptr;
-        UTextBlock* Momentum=nullptr;
-        UTextBlock* Cooldown=nullptr;
-        UTextBlock* Element=nullptr;
-        // The locked final mod's icon over the head of what it binds.
-        UImage* Final=nullptr;
-        // The confirmed final mod stamps in over LDHUDStyle::MotionFinalLock.
-        double FinalAt=-1.;
-        FName Active;
-        ELDSkillBranch Branch=ELDSkillBranch::None;
-        FString AppliedIcon;
-        // The painted art's icon (none for the body and an empty slot).
-        TWeakObjectPtr<UTexture2D> Icon;
-        TArray<ELDDemoElement> Elements;
-        bool bEmpty=false;
+        FHit Hit;
+        // A convex outline, or a circle (Radius > 0) around Centre.
+        TArray<FVector2D> Shape;
+        FVector2D Centre=FVector2D::ZeroVector;
+        float Radius=0.f;
+        // An annular sector around Centre: radii X..Y, degrees Z..W.
+        bool bWedge=false;
+        FVector4f Wedge=FVector4f(0.f,0.f,0.f,0.f);
     };
-    struct FReaction
+    // One frame's layout in local units, shared by the paint pass and the hit test.
+    struct FLayout
     {
-        UBorder* Row=nullptr;
-        UTextBlock* Pair=nullptr;
-        UTextBlock* FirstText=nullptr;
-        UTextBlock* SecondText=nullptr;
-        UTextBlock* Name=nullptr;
-        ELDDemoElement First=ELDDemoElement::None;
-        ELDDemoElement Second=ELDDemoElement::None;
-        bool bLit=false;
+        float U=1.f;      // design px -> local units (layout scale)
+        float R=1.f;      // ring scale
+        float F=1.f;      // text scale
+        float K=1.f;      // local units -> pixels
+        FVector2D Size=FVector2D(1920.,1080.);
+        FVector2D Centre=FVector2D(960.,580.);
+        float HandTop=0.f;
+        float HandBottom=0.f;
+        bool bWingCompact=false;
+        bool bShopCompact=false;
+        float RingBottom=0.f;
+        int32 OfferLines=3;
+        float CardWidth=0.f;
+        FVector2D ShopLabel=FVector2D::ZeroVector;
+        float WingWidth=0.f;
+        float InspectorBottom=0.f;
+        TArray<FShape> Boxes;
+        // Where each linkable thing sits (hosts, installed cards, hand cards, offers, shop items), for the link lines.
+        TMap<uint64,FVector2D> Anchors;
     };
-    // Every rectangle of the current layout, in local units.
-    struct FRects
+    // A face in the hand or the offer row as laid out this frame.
+    struct FFace
     {
-        FBox2D Title,Phase,Character,Board,Capacity,Columns,Dock,Library,LibraryBody,Pending,Region,Stage,Shop;
-        FBox2D Column[LDHUD::StorageColumnCount];
-        float HeadHeight=0.f;
-        float HeadTop=0.f;
-        float HeadIcon=100.f;
+        FHit Hit;
+        FBox2D Box;
+        float Degrees=0.f;
     };
-    UPROPERTY() TObjectPtr<UCanvasPanel> Canvas;
-    UPROPERTY() TObjectPtr<UBackgroundBlur> Blur;
-    UPROPERTY() TObjectPtr<UBorder> Shade;
-    // Paints every surface, frame, meter and chip under the widgets (PaintBackdrop).
-    UPROPERTY() TObjectPtr<ULDPaintLayer> Backdrop;
-    UPROPERTY() TObjectPtr<USizeBox> PortraitFrame;
-    UPROPERTY() TObjectPtr<UWidget> PhasePanel;
-    // Mock 2: the page's own title "构筑" in the top-left corner, the phase pill right after it.
-    UPROPERTY() TObjectPtr<UTextBlock> PageTitle;
-    UPROPERTY() TObjectPtr<UTextBlock> PhaseClock;
-    UPROPERTY() TObjectPtr<UTextBlock> PhaseRest;
-    UPROPERTY() TObjectPtr<UTextBlock> PhaseStep;
-    UPROPERTY() TObjectPtr<ULDCommandButton> CloseButton;
-    UPROPERTY() TObjectPtr<UWidget> CharacterPanel;
-    UPROPERTY() TObjectPtr<UWidget> CharacterFit;
-    UPROPERTY() TObjectPtr<UBorder> Portrait;
-    UPROPERTY() TObjectPtr<UTextBlock> PortraitGlyph;
-    UPROPERTY() TObjectPtr<UTextBlock> LevelBadge;
-    UPROPERTY() TObjectPtr<UTextBlock> HolderName;
-    UPROPERTY() TObjectPtr<UTextBlock> LevelLine;
-    UPROPERTY() TObjectPtr<UBorder> PointsBox;
-    // The foot of the character column the trainer's respec takes (no height without the trainer).
-    // The element reactions title and grid; the trainer's respec foot takes their place.
-    UPROPERTY() TObjectPtr<UVerticalBox> ReactionBlock;
-    UPROPERTY() TObjectPtr<UTextBlock> PointsText;
-    UPROPERTY() TObjectPtr<UVerticalBox> StatList;
-    UPROPERTY() TObjectPtr<UVerticalBox> AttributeList;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> AttributeNames;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> AttributeValues;
-    UPROPERTY() TArray<TObjectPtr<UWidget>> AttributeHalves;
-    UPROPERTY() TObjectPtr<UWidget> BoardPanel;
-    UPROPERTY() TObjectPtr<UTextBlock> CapacityCount;
-    UPROPERTY() TObjectPtr<UTextBlock> CapacityUnlock;
-    UPROPERTY() TObjectPtr<UWidget> CapacityTitle;
-    UPROPERTY() TObjectPtr<UTextBlock> LockBadge;
-    UPROPERTY() TObjectPtr<UWidget> LibraryPanel;
-    UPROPERTY() TObjectPtr<UTextBlock> LibraryCount;
-    UPROPERTY() TObjectPtr<UWidget> LibraryPager;
-    UPROPERTY() TObjectPtr<ULDCommandButton> LibraryPrevious;
-    UPROPERTY() TObjectPtr<ULDCommandButton> LibraryNext;
-    UPROPERTY() TObjectPtr<UTextBlock> LibraryPageText;
-    UPROPERTY() TObjectPtr<UWrapBox> FilterRow;
-    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> FilterButtons;
-    UPROPERTY() TObjectPtr<UWidget> LibraryTitle;
-    UPROPERTY() TObjectPtr<UWidget> DockLeft;
-    UPROPERTY() TObjectPtr<UWidget> DockCentre;
-    UPROPERTY() TObjectPtr<UWidget> DockRight;
-    UPROPERTY() TObjectPtr<UWidget> PendingPanel;
-    UPROPERTY() TObjectPtr<UTextBlock> PendingTitle;
-    UPROPERTY() TObjectPtr<UWidget> DockPanel;
-    UPROPERTY() TObjectPtr<USizeBox> DockIconBox;
-    UPROPERTY() TObjectPtr<UBorder> DockIconFace;
-    UPROPERTY() TObjectPtr<UImage> DockPicture;
-    UPROPERTY() TObjectPtr<UTextBlock> DockGlyph;
-    UPROPERTY() TObjectPtr<UTextBlock> DockKind;
-    UPROPERTY() TObjectPtr<UTextBlock> DockTags;
-    UPROPERTY() TObjectPtr<UTextBlock> DockName;
-    UPROPERTY() TObjectPtr<UTextBlock> DockSummary;
-    UPROPERTY() TObjectPtr<URichTextBlock> DockBody;
-    UPROPERTY() TObjectPtr<UTextBlock> DockChips;
-    // The death recap's icon chains (LDRecapChain), one row per recap row; empty and collapsed for every other dock.
-    UPROPERTY() TObjectPtr<UVerticalBox> DockChains;
-    TArray<LDHUD::FRecapChain> DockChainsShown;
-    float DockChainsScale=0.f;
-    UPROPERTY() TObjectPtr<UTextBlock> DockWhereTitle;
-    UPROPERTY() TObjectPtr<UTextBlock> DockWhere;
-    UPROPERTY() TObjectPtr<UTextBlock> DockPreviewTitle;
-    UPROPERTY() TObjectPtr<URichTextBlock> DockPreviewBody;
-    UPROPERTY() TObjectPtr<UHorizontalBox> DockPreviewPager;
-    UPROPERTY() TObjectPtr<ULDCommandButton> DockPreviewPrevious;
-    UPROPERTY() TObjectPtr<ULDCommandButton> DockPreviewNext;
-    UPROPERTY() TObjectPtr<UTextBlock> DockPreviewPageText;
-    UPROPERTY() TObjectPtr<UTextBlock> DockLinksTitle;
-    UPROPERTY() TObjectPtr<UTextBlock> DockLinks;
-    UPROPERTY() TObjectPtr<UTextBlock> DockNotesTitle;
-    UPROPERTY() TObjectPtr<UTextBlock> DockNotes;
-    UPROPERTY() TArray<TObjectPtr<UBorder>> ColumnBacks;
-    UPROPERTY() TArray<TObjectPtr<UWidget>> Built;
-    TArray<FStatRow> StatRows;
-    TArray<FHead> Heads;
-    TArray<FReaction> Reactions;
-    TMap<UWidget*,UCanvasPanelSlot*> Slots;
-    TMap<UWidget*,ESlateVisibility> ShownAs;
-    float TextScale=1.f;
-    // The artisan band's height at the top of the library (0 without it), from the last layout.
-    // Where the capacity cells start (local x), from the last layout.
-    float CapacityCellsAt=0.f,CapacityCellStep=45.f;
-    float DockDividerX=0.f;
-    void ScaleFresh(UTextBlock* Text) const;
     EMode Mode=EMode::Closed;
     FInput Latest;
-    FLDProgressionView View;
-    FLDFinalModSelection PendingFinalFeedback;
-    uint64 PendingFinalRevision=0;
-    TMap<FName,LDHUD::FCardConnections> LinkConnections;
-    FRects Rects;
-    FGeometry LayoutGeometry;
-    FVector2D ActionsAt=FVector2D::ZeroVector;
-    float TrayRight=0.f,TrayBottom=0.f,TrayWrap=0.f,TrayLimit=0.f;
-    int32 TagFilter=INDEX_NONE;
-    int32 LibraryPage=0;
-    LDWorkshop::FLibraryFit LibraryFit;
+    FLDProgressionView View0;
+    LDBuildRing::FView Ring;
+    LDHUD::FStorageView StorageView;
+    FLayout Layout;
+    TArray<FFace> HandFaces;
+    TArray<FFace> OfferFaces;
+    FHit Hovered;
+    FHit Pinned;
+    double HoveredAt=-1.;
+    // The selected hand card (its first copy's key), or a blueprint of the blueprint batch.
+    FName Selected;
+    int32 SelectedBlueprint=INDEX_NONE;
+    bool bShowHand=false;
+    float FrozenOpen=-1.f;
+    float FrozenReveal=-1.f;
+    bool bMatrix=false;
+    float TextScale=1.f;
     double OpenedAt=-1.;
-    double ClosingAt=-1.;
-    FString LibraryWarning;
-    // What the dock shows; kept when the pointer leaves, so the eye has a steady place to read.
-    FString DockKey;
-    LDWorkshopPreview::FResult Preview;
-    int32 PreviewPage=0;
-    uint8 DockKindValue=0;
-    TWeakObjectPtr<UTexture2D> DockIcon;
+    double ClosedAt=-1.;
+    // The batch on top as last shown (its kind and options), for the reveal.
+    uint32 BatchKey=0;
+    double BatchAt=-1.;
+    // The last page turn between the hand and the offers.
+    double PageAt=-1.;
+    // Install feedback: the installed keys of the last view and when each new one landed.
+    TSet<FName> KnownInstalled;
+    TMap<FName,double> Landed;
+    // Per-face hover and lift springs (0..1) by face key.
+    TMap<uint64,float> Lift;
+    double LastTick=-1.;
+    FVector2D ActionsAt=FVector2D::ZeroVector;
+    FVector2D SmoothedCentre=FVector2D::ZeroVector;
+    bool bHasCentre=false;
+    UPROPERTY() TObjectPtr<ALDBuildRadarDecal> Radar;
+
     double UiNow() const;
-    // Scale is the layout's Slate scale (the icon floor is in pixels) and TextScale the player's text size; the drawer keeps
-    // the pending row with its services and one library card before the shop takes the rest.
-    static FRects ComputeLayout(FVector2D Size,const FInput& Input,float Scale=1.f,float TextScale=1.f);
-    void ApplyLayout(const FRects& Layout,FVector2D Size,float Scale);
-    void AnimateOpening();
-    void PaintBackdrop(const LDUIPaint::FContext& Paint) const;
-    void Place(UWidget* Widget,const FBox2D& Box);
-    void RefreshCharacter();
-    void RefreshHeads();
-    void RefreshPhase();
-    void RefreshDock(FVector2D Pointer);
-    void RefreshPreviewPage();
-    void ShowComponentDock(FName Component,const ULDComponentStorage::FFocus* Focus);
-    void ShowTextDock(const FString& Key,const FString& Name,const FString& Summary,const FString& Body,const FString& IconId,const FString& Glyph);
-    void ShowDockChains(const TArray<LDHUD::FRecapChain>& Chains);
+    float OpenAmount() const;
+    void Rebuild();
+    void ComputeLayout(const FGeometry& Geometry);
+    void UpdateRadar();
+    FHit HitAt(FVector2D Local) const;
+    void Click(const FHit& Hit,bool bRight);
+    void Tell(const FString& Text) const;
+    // The level plate's width (LV, capacity pips, unspent points), its right edge at 800 design px.
+    float LevelPlateWidth() const;
+    // The hit currently drawn as hovered (the pin, else the pointer).
+    FHit Focus() const {return Pinned.IsNone()?Hovered:Pinned;}
+    // The vocabulary keys of a hovered thing, and whether a field thing shares one.
+    uint32 VocabOf(const FHit& Hit) const;
+    TArray<uint64> LinkedTo(const FHit& Hit) const;
+    static uint64 AnchorKey(EHit Kind,int32 Host,int32 Index){return (uint64(uint8(Kind))<<48)|(uint64(uint16(Host+1))<<32)|uint64(uint32(Index+1));}
+    const LDBuildRing::FCard* SelectedCard() const;
+    // Painting, one layer of the ring each.
+    void PaintDim(LDRingPaint::FPainter& P) const;
+    void PaintSectors(LDRingPaint::FPainter& P,const TArray<uint64>& Lit,bool bDim) const;
+    void PaintGems(LDRingPaint::FPainter& P) const;
+    void PaintRadarLabels(LDRingPaint::FPainter& P) const;
+    void PaintWing(LDRingPaint::FPainter& P) const;
+    void PaintShop(LDRingPaint::FPainter& P,const TArray<uint64>& Lit) const;
+    void PaintBottom(LDRingPaint::FPainter& P,const TArray<uint64>& Lit) const;
+    void PaintTop(LDRingPaint::FPainter& P) const;
+    void PaintLinks(LDRingPaint::FPainter& P,const TArray<uint64>& Lit) const;
+    void PaintInspector(LDRingPaint::FPainter& P,int32 LinkCount) const;
+    void PaintClosed(LDRingPaint::FPainter& P) const;
+    void PaintNode(LDRingPaint::FPainter& P,const FBox2D& Box,const LDBuildRing::FCard& Card,float Dim,bool bHot,bool bLit,float Flash) const;
 };

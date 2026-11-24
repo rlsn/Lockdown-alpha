@@ -145,6 +145,11 @@ public:
     virtual void OpenPanel() override;
     virtual bool ClosePanel() override;
     bool HasPendingRequest() const {return PendingRequest!=0;}
+    // The build ring (ULDWorkshop) draws every decision itself: the tray keeps its rules, guards, requests and receipts and
+    // shows nothing of its own.
+    void SetHeadless(bool bInHeadless){bHeadless=bInHeadless;}
+    // The open rest confirm line (替换 / 遗忘), with the reason it would be refused now; empty without one.
+    FString ConfirmLine() const;
     // The tray has at least one card (LDHUD::GrowthPending over the same view).
     bool HasCards() const;
     // The card of the open tray under Pointer (absolute), else the pinned offer card, with its popup lines; or null.
@@ -364,6 +369,7 @@ private:
     ELDBuildCommandKind PendingKind=ELDBuildCommandKind::None;
     uint32 Answers=0;
     bool bOpen=false;
+    bool bHeadless=false;
     LDHUD::FChoicesFold Fold;
     double UiNow() const;
     bool Usable() const;

@@ -244,7 +244,6 @@ constexpr float HudGroupGap=16.f;
 constexpr float HudDetailWidth=300.f;
 // The corner build entry and the loot queue above it.
 constexpr float HudCornerH=46.f;
-constexpr float HudCornerKeyW=56.f;
 constexpr float HudLootBottom=HudSafeBottom+HudCornerH+20.f;
 // The tray's distance from the screen's bottom-right corner (ULDChoicesPanel bounds).
 constexpr float HudCornerInset=16.f;
@@ -1321,39 +1320,8 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             PageSlot->SetAutoSize(true);PageSlot->SetZOrder(25);
         }
 
-        // Bottom-right corner: the compact build entry. New picks (选) and unspent points (点) as small plates beside the B key
-        // block, which is orange while anything waits and white otherwise; the whole entry toggles the build (card tray) and its
-        // tooltip lists the waiting kinds. The attribute view and the DEV test entry sit left of it as key plates. The space
-        // between the strip and this corner is the build stream's pending-reward area.
-        auto* Prompt=LDWidgets::Button(WidgetTree,TEXT(""),[PC](){if(PC->RootUI){PC->RootUI->ToggleMainPanel(ELDUIMainPanel::Choices);}},true,TEXT("HUDChoicesPrompt"));
-        PromptButton=Prompt;
-        {
-            auto ButtonStyle=Prompt->GetStyle();ButtonStyle.Normal=FSlateNoResource();ButtonStyle.Hovered=FSlateNoResource();ButtonStyle.Pressed=FSlateNoResource();
-            ButtonStyle.Disabled=FSlateNoResource();ButtonStyle.NormalPadding=FMargin(0);ButtonStyle.PressedPadding=FMargin(0);Prompt->SetStyle(ButtonStyle);
-        }
-        auto* EntryRow=WidgetTree->ConstructWidget<UHorizontalBox>();
-        auto CountPlate=[&](const TCHAR* Word,TObjectPtr<UTextBlock>& OutCount)
-        {
-            auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();
-            Line->AddChildToHorizontalBox(Words(Word,LDBroadcast::TypeBody,LDBroadcast::White,true))->SetVerticalAlignment(VAlign_Center);
-            OutCount=Figure(TEXT(""),LDBroadcast::TypeTitle,LDBroadcast::Orange);
-            auto* CountSlot=Line->AddChildToHorizontalBox(OutCount);CountSlot->SetVerticalAlignment(VAlign_Center);CountSlot->SetPadding(FMargin(10,0,0,0));
-            UOverlay* Plate=Slabbed(Line,[](){return LDBroadcast::Ink.CopyWithNewOpacity(.9f);},FMargin(16,0,16,0));
-            if(UOverlaySlot* LineSlot=Cast<UOverlaySlot>(Line->Slot)){LineSlot->SetVerticalAlignment(VAlign_Center);}
-            UWidget* Box=Fixed(Plate,0.f,HudCornerH);Box->SetVisibility(ESlateVisibility::Collapsed);
-            EntryRow->AddChildToHorizontalBox(Box)->SetPadding(FMargin(0,0,6,0));
-            return Box;
-        };
-        PickBadge=CountPlate(TEXT("选"),PickBadgeText);
-        PointsBadge=CountPlate(TEXT("点"),PointsBadgeText);
-        PromptText=Figure(TEXT("B"),LDBroadcast::TypeTitle,LDBroadcast::Ink);PromptText->SetJustification(ETextJustify::Center);
-        UOverlay* KeyBlock=Slabbed(PromptText,[this](){return !PromptButton||!PromptButton->GetIsEnabled()?LDBroadcast::Mute:bPromptLitShown?LDBroadcast::Orange:LDBroadcast::White;},FMargin(0));
-        if(UOverlaySlot* KeySlot=Cast<UOverlaySlot>(PromptText->Slot)){KeySlot->SetHorizontalAlignment(HAlign_Center);KeySlot->SetVerticalAlignment(VAlign_Center);}
-        EntryRow->AddChildToHorizontalBox(Fixed(KeyBlock,HudCornerKeyW,HudCornerH));
-        Prompt->SetContent(EntryRow);
-        if(UButtonSlot* RowSlot=Cast<UButtonSlot>(EntryRow->Slot)){RowSlot->SetPadding(FMargin(0));}
-        PendingPrompt=WidgetTree->ConstructWidget<UBorder>();PendingPrompt->SetBrush(FSlateNoResource());PendingPrompt->SetPadding(FMargin(0));PendingPrompt->SetContent(Prompt);
-        PendingPrompt->SetRenderTransformPivot(FVector2D(1.f,.5f));
+        // Bottom-right corner: the attribute view and, in a DEV test room, the test panel as key plates. The build entry is the
+        // ring's own closed state beside the strip (ULDWorkshop); the HUD draws no second one.
         auto* CornerRow=WidgetTree->ConstructWidget<UHorizontalBox>();
         {
             // The attribute view (ULDStatBar's grid, a flyout over the strip) and, in a DEV test room only, the test panel.
@@ -1376,7 +1344,6 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             Dev->SetVisibility(ESlateVisibility::Collapsed);
             Commands.Add(TEXT("Attributes"),Sheet);Commands.Add(TEXT("DevTest"),Dev);
         }
-        CornerRow->AddChildToHorizontalBox(PendingPrompt)->SetVerticalAlignment(VAlign_Bottom);
         PromptFrame=WidgetTree->ConstructWidget<UBorder>();PromptFrame->SetBrush(FSlateNoResource());PromptFrame->SetPadding(FMargin(0));PromptFrame->SetContent(CornerRow);
         HitPanels.Add(PromptFrame);
         PromptSlot=Canvas->AddChildToCanvas(PromptFrame);PromptSlot->SetAnchors(FAnchors(1,1));PromptSlot->SetAlignment(FVector2D(1,1));PromptSlot->SetAutoSize(true);
@@ -1433,6 +1400,8 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                 auto* Owner=Cast<ALDPlayerController>(GetOwningPlayer());
                 if(Owner&&Owner->RootUI&&ChoicesPanel&&ChoicesPanel->IsTrayOpen()){Owner->RootUI->ToggleMainPanel(ELDUIMainPanel::Choices);}
             };
+            Workshop->RequestOpen=[this](){if(ChoicesPanel&&!ChoicesPanel->IsTrayOpen()){ToggleWorkshop();}};
+            Workshop->Notify=[this](const FString& Notice){ShowToast(Notice);};
         }
         else{UE_LOG(LogLDUI,Error,TEXT("LD_HUD_WORKSHOP_CREATION_FAILED"));}
         // Normal main panels fill the canvas with a hit-transparent frame, so the world beside them keeps its input.
@@ -1451,11 +1420,15 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         {
             auto* StorageSlot=Canvas->AddChildToCanvas(Storage);StorageSlot->SetAnchors(FAnchors(0,0,1,1));StorageSlot->SetOffsets(FMargin(0));StorageSlot->SetZOrder(12);
             Storage->Notify=[this](const FString& Notice){ShowToast(Notice);};
+            // The build ring draws the library and the installed cards; the storage keeps the commands.
+            Storage->SetHeadless(true);
         }
         else{UE_LOG(LogLDUI,Error,TEXT("LD_HUD_STORAGE_CREATION_FAILED"));}
         if(ChoicesPanel)
         {
             ChoicesPanel->Notify=[this](const FString& Notice){ShowToast(Notice);};
+            // The build ring draws the offers, the shop and the rest services; the tray keeps the commands.
+            ChoicesPanel->SetHeadless(true);
         }
         // Growth's owning-connection entries; the panels only build commands from the views they showed.
         const TWeakObjectPtr<ALDPlayerController> WeakPC(PC);
@@ -1567,9 +1540,10 @@ void ULDHUD::ToggleWorkshop()
     MarkReadModelDirty();
     auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
     if(!PC||!PC->RootUI||!ChoicesPanel){return;}
+    // The build ring opens whenever the own match's HUD shows: the hand and the build are there to tend, not only offers.
     const bool bOpen=ChoicesPanel->IsTrayOpen();
-    const bool bPromptReady=PromptButton&&PromptButton->GetIsEnabled()&&PromptFrame&&PromptFrame->IsVisible();
-    if(bOpen||bPromptReady){PC->RootUI->ToggleMainPanel(ELDUIMainPanel::Choices);}
+    const bool bReady=Workshop&&Workshop->IsVisible();
+    if(bOpen||bReady){PC->RootUI->ToggleMainPanel(ELDUIMainPanel::Choices);}
 }
 void ULDHUD::HandleDevTestResult(const FLDDevTestResult& Result)
 {
@@ -1921,9 +1895,10 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     const bool bRestPhase=bOwnMatch&&Public.Phase==ELDMatchPhase::Rest;
     const bool bAutoWorkshopPhase=LDWorkshop::FullScreen(bRestPhase,Public.Timeline.Step,bDeathWait);
     const bool bWorkshopOpen=bShow&&ChoicesPanel&&ChoicesPanel->IsTrayOpen();
-    HudSetShown(Band,bShow&&!bWorkshopOpen,ESlateVisibility::Visible);
-    HudSetShown(PromptFrame,bShow&&!bWorkshopOpen,ESlateVisibility::Visible);HudSetShown(MapColumn,bShow&&!bWorkshopOpen,ESlateVisibility::Visible);
-    HudSetShown(PhaseBanner,bShow&&!(bWorkshopOpen),ESlateVisibility::SelfHitTestInvisible);
+    // The build ring grows around the character: the strip, the minimap and the score bug stay in play while it is open.
+    HudSetShown(Band,bShow,ESlateVisibility::Visible);
+    HudSetShown(PromptFrame,bShow&&!bWorkshopOpen,ESlateVisibility::Visible);HudSetShown(MapColumn,bShow,ESlateVisibility::Visible);
+    HudSetShown(PhaseBanner,bShow,ESlateVisibility::SelfHitTestInvisible);
     HudSetShown(ResultPanel,bResults&&!Overlay,ESlateVisibility::Visible);
     if(bResults&&!Overlay){RefreshResult(*PC,*GS);}
     // The arena rings are world presentation: they follow the PK even while a menu covers the HUD.
@@ -2252,12 +2227,7 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         if(!bShown){OwnStatusMarks.Reset();}
         OwnStatusNotice=LDHUD::SelfIconsNotice(Icons,bShown);
     }
-    {
-        // Unspent points ride on the portrait; the stat icons under the name spend them.
-        const int64 Unspent=Progression&&Progression->bValid&&Progression->Generation==O.Match?FMath::Max<int64>(0,Progression->UnspentPoints):0;
-        HudSetText(PointsBadgeText,FString::Printf(TEXT("%lld"),Unspent));
-        HudSetShown(PointsBadge,Unspent>0,ESlateVisibility::HitTestInvisible);
-    }
+
     // Spec §6.5: every chain end of the own view reaches the local codex once; a key it had not seen shows one line.
     if(OwnCombat&&!OwnCombat->Chains.IsEmpty())
     {
@@ -2339,43 +2309,10 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         StatBar->Present(Progression,O.Match,O.Life,BuildStage,O.LifePhase,Content,OwnCombat?OwnCombat->Attributes:TArray<FLDCombatAttributeRowView>(),
             bOwnMatch&&Progression!=nullptr,DisplayContent.Get(),OwnCombat);
     }
-    if(Workshop)
-    {
-        ULDWorkshop::FInput In;
-        In.Mode=bWorkshopOpen?ULDWorkshop::EMode::Open:ULDWorkshop::EMode::Closed;
-        In.Progression=Progression;In.Match=O.Match;In.Content=Content;In.ContentSnapshot=DisplayContent.Get();In.Combat=OwnCombat;
-        In.Stage=BuildStage;In.bFinalField=Public.Timeline.Stage==ELDMatchStage::FinalField;
-        In.Stats=ChoiceStats;In.Keys=HudSlotKeys(*PC);
-        In.DashKey=PC->BindingLabel(TEXT("Dash"));
-        In.HolderName=Name;In.HolderColor=Portrait?Portrait->GetBrushColor():FLinearColor::Gray;In.Level=Level;
-        In.Attributes=OwnCombat?OwnCombat->Attributes:TArray<FLDCombatAttributeRowView>();
-        In.bRest=bRestPhase;In.RestIndex=Public.Timeline.RestIndex;In.Step=Public.Timeline.Step;
-        In.StepStartedAtMs=Public.Timeline.StepStartedAtMs;In.StepEndsAtMs=Public.Timeline.StepEndsAtMs;In.bClock=bClock;In.NowMs=NowMs;
-        In.bDead=bDeathWait&&!bRestPhase;In.DeathTitle=Death.Title;In.DeathCountdown=Death.Countdown;
-        In.DeathClock=Death.Clock;In.DeathProgress=Death.Progress;
-        if(In.bDead){In.DeathRecap=LDHUD::DeathRecap(PC->DeathRecap,O,Lobby,Content);}
-        const LDHUD::FGrowthPending Waiting=LDHUD::GrowthPending(Progression,O.Match,Content);
-        In.Pending=(Waiting.bOffer?1:0)+Waiting.Blueprints+(Waiting.bCardOffer?1:0)+(Waiting.bFinalMod?1:0);
-        In.bLowQuality=Scalability::GetQualityLevels().PostProcessQuality<=0;
-        const auto Drawer=ChoicesPanel?ChoicesPanel->DrawerState(bWorkshopOpen):ULDChoicesPanel::FDrawerState();
-        if(Drawer.bLibraryOnly){In.Pending=0;}
-        In.bStage=Drawer.bStage;In.bFinalStage=Drawer.bFinalStage;
-        In.bServices=Drawer.bServices;In.bShop=Drawer.bShop;In.bCharacterServices=Drawer.bCharacterServices;
-        Workshop->Present(In,&GetCachedGeometry());
-    }
     if(ChoicesPanel)
     {
-        if(Workshop&&Workshop->IsOpen())
-        {
-            ChoicesPanel->PresentWithBounds(Workshop->Places(),Workshop->TrayInset(),Workshop->TrayWrapWidth(),Workshop->TrayHeightLimit());
-        }
-        else
-        {
-            const float Stack=Storage?Storage->StackHeight():0.f;
-            const float PromptHeight=PromptFrame?float(PromptFrame->GetDesiredSize().Y):0.f;
-            ChoicesPanel->PresentWithBounds(ULDChoicesPanel::FWorkshopPlaces(),FVector2D(HudCornerInset,
-                HudCornerInset+FMath::RoundToFloat(PromptHeight+(Stack>0.f?Stack+12.f:0.f))+8.f));
-        }
+        // The tray draws nothing of its own (the build ring shows its decisions); its guards follow the view every frame.
+        ChoicesPanel->PresentWithBounds(ULDChoicesPanel::FWorkshopPlaces(),FVector2D::ZeroVector);
     }
     if(Storage)
     {
@@ -2393,7 +2330,7 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         }
         if(ActionSlots.Num()>3){Anchors.Columns[int32(LDHUD::EStorageColumn::Dash)]=RectOf(ActionSlots[3].Box);}
         Storage->SetEngaged(bEngaged);
-        Storage->SetWorkshop(Workshop?Workshop->StorageLayout():ULDComponentStorage::FWorkshopLayout());
+        Storage->SetWorkshop(ULDComponentStorage::FWorkshopLayout());
         if(ChoicesPanel){Storage->SetWarnings(ChoicesPanel->ConfirmWarnings());}
         {
             // What each installed card did so far: its damage, else how often it triggered (the snapshot of the last rest).
@@ -2411,6 +2348,22 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             Storage->SetContributions(BuildStats.Match==O.Match?BuildStats.Serial:0,Did);
         }
         Storage->Present(Progression,O.Match,BuildStage,O.LifePhase,Content,ChoiceStats,Anchors,bOwnMatch&&Progression!=nullptr,HudSlotKeys(*PC));
+    }
+    if(Workshop)
+    {
+        // The build ring: open while the 构筑 tray is open; otherwise its closed state under the character and by the band.
+        ULDWorkshop::FInput In;
+        In.Mode=bWorkshopOpen?ULDWorkshop::EMode::Open:ULDWorkshop::EMode::Closed;
+        In.bShown=bOwnMatch&&Progression!=nullptr;
+        In.Progression=Progression;In.Match=O.Match;In.Content=Content;In.ContentSnapshot=DisplayContent.Get();In.Combat=OwnCombat;
+        In.Stage=BuildStage;In.Stats=ChoiceStats;In.Keys=HudSlotKeys(*PC);
+        In.DashKey=PC->BindingLabel(TEXT("Dash"));In.OpenKey=PC->BindingLabel(TEXT("Workshop"));
+        In.Attributes=OwnCombat?OwnCombat->Attributes:TArray<FLDCombatAttributeRowView>();
+        In.bRest=bRestPhase;In.bDead=bDeathWait;
+        const auto RingRect=[](const UWidget* Widget){return Widget&&Widget->IsVisible()?Widget->GetCachedGeometry().GetLayoutBoundingRect():FSlateRect();};
+        // The top HUD block (the banner, and in a rest its actions): the ring's dim and shop wing keep clear of it.
+        In.Band=RingRect(Band);In.Map=RingRect(MapColumn);In.Banner=RingRect(TopCentreSlot?TopCentreSlot->Content.Get():PhaseBanner.Get());
+        Workshop->Present(In,&GetCachedGeometry());
     }
     if(ChoicesPanel&&PC->RootUI&&bOwnMatch)
     {
@@ -2495,7 +2448,8 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     if(TopCentreSlot)
     {
         // The full workshop keeps the rest actions in its top-right corner, beside its own close button.
-        const bool bCorner=bWorkshopOpen&&Workshop;
+        // Only the rest's actions leave the top centre (they would meet the ring's top arc); the banner alone stays.
+        const bool bCorner=bWorkshopOpen&&Workshop&&RestActionsPanel&&RestActionsPanel->IsVisible();
         // In the full workshop the actions stand bare on the top bar, as buttons of their own; elsewhere they sit on a panel.
         if(RestActionsPanel)
         {
@@ -2529,11 +2483,6 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         }
     }
     if(ULDCommandButton* Dev=Commands.FindRef(TEXT("DevTest"))){HudSetShown(Dev,Lobby.DevTestSession,ESlateVisibility::Visible);}
-    const LDHUD::FGrowthPending Pending=LDHUD::GrowthPending(Progression,O.Match,Content);
-    // Lit only while the tray has cards; with nothing to choose the button is greyed out and the tray folds away (a request
-    // still in flight keeps it until its answer).
-    const bool bPromptLit=bOwnMatch&&Pending.Any();
-    // The entry names the view it switches to.
     if(ULDCommandButton* Sheet=Commands.FindRef(TEXT("Attributes")))
     {
         // The entry names its key; the flyout over the strip shows the own final attributes while it is open.
@@ -2541,37 +2490,6 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         if(Sheet->GetToolTipText().ToString()!=Tip){Sheet->SetToolTipText(FText::FromString(Tip));}
     }
     HudSetShown(StatFlyout,StatBar&&StatBar->ShowsAttributes()&&Band->IsVisible(),ESlateVisibility::Visible);
-    // New opportunities or component choices pulse the entry briefly; owned components wait in the storage.
-    if(Pending.Offers>PromptOffers||Pending.CardOffers>PromptCardOffers){PromptPulseAt=UiNow;}
-    PromptOffers=Pending.Offers;PromptCardOffers=Pending.CardOffers;
-    bPromptLitShown=bPromptLit;
-    if(PromptText&&PC){HudSetText(PromptText,PC->BindingLabel(TEXT("Workshop")));}
-    {
-        // 选: every waiting decision (skills: the active offers and the blueprints; build cards; the final mod). The kinds,
-        // with the element stones among the cards, are the entry's tooltip.
-        const int32 Waiting[3]={(Pending.bOffer?FMath::Max<int32>(Pending.Offers,1):0)+Pending.Blueprints,FMath::Max<int32>(Pending.CardOffers,Pending.bCardOffer?1:0),Pending.bFinalMod?1:0};
-        const int32 Picks=Waiting[0]+Waiting[1]+Waiting[2];
-        HudSetText(PickBadgeText,FString::FromInt(Picks));
-        HudSetShown(PickBadge,Picks>0,ESlateVisibility::HitTestInvisible);
-        const LDHUD::FPendingCategoryCounts Cats=LDHUD::PendingCategoryCounts(Progression,O.Match,Content);
-        TArray<FString> Parts;
-        const FString KeyLabel=PC->BindingLabel(TEXT("Workshop"));
-        Parts.Add(FString::Printf(TEXT("%s [%s]"),LDTerms::Choice,*KeyLabel));
-        if(Cats.SkillCount>0){Parts.Add(FString::Printf(TEXT("技能 ×%d"),Cats.SkillCount));}
-        if(Cats.CardCount>0){Parts.Add(FString::Printf(TEXT("卡牌 ×%d"),Cats.CardCount));}
-        if(Cats.StoneCount>0){Parts.Add(FString::Printf(TEXT("元素石 ×%d"),Cats.StoneCount));}
-        if(Waiting[2]>0){Parts.Add(TEXT("终局改装 ×1"));}
-        const FString Tip=FString::Join(Parts,TEXT("\n"));
-        if(PromptTip!=Tip){PromptTip=Tip;PromptButton->SetToolTipText(FText::FromString(Tip));}
-    }
-    // The button always opens the workshop; it is lit while something is pending.
-    if(PromptButton->GetIsEnabled()!=bOwnMatch){PromptButton->SetIsEnabled(bOwnMatch);}
-    {
-        const double PulseAge=UiNow-PromptPulseAt;
-        const float Wave=Pending.Any()&&!bEngaged&&PromptPulseAt>=0&&PulseAge<LDHUDStyle::PulseSeconds?LDTween::PingPong(PulseAge,1.):0.f;
-        bReadModelLive|=PromptPulseAt>=0&&PulseAge<LDHUDStyle::PulseSeconds;
-        LDTween::SetScale(PendingPrompt,1.f+.05f*Wave);LDTween::SetOpacity(PendingPrompt,1.f-.25f*Wave);
-    }
 
     ELDCombatEntry ArmedEntry=ELDCombatEntry::None;const bool bArmed=PC->ReadArmedCombatEntry(ArmedEntry);
     // An armed aim cancelled since the last sample flashes its slot once.
@@ -3111,7 +3029,16 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     if(ToastSlot)
     {
         const FAnchors Anchor(.5f,0.f);const FVector2D Align(.5f,0.f);
-        const FVector2D TopPos(0.f,bWorkshopOpen?36.f:HudToastY);
+        // Stacked under the top-centre block (the target card, then the rest actions, spawn choice and PK lines): the toast
+        // never draws over them, whatever is shown (last frame's layout; the block does not depend on the toast).
+        float Top=HudTopCentreY;
+        if(const UWidget* Block=TopCentreSlot?TopCentreSlot->Content.Get():nullptr;Block&&Block->IsVisible())
+        {
+            const FGeometry& Over=Block->GetCachedGeometry();
+            const float Bottom=float(GetCachedGeometry().AbsoluteToLocal(Over.LocalToAbsolute(FVector2D(Over.GetLocalSize()))).Y);
+            if(Over.GetLocalSize().Y>1.f){Top=FMath::Max(Top,Bottom+8.f);}
+        }
+        const FVector2D TopPos(0.f,FMath::RoundToFloat(Top));
         if(!(ToastSlot->GetAnchors()==Anchor)){ToastSlot->SetAnchors(Anchor);}
         if(!ToastSlot->GetAlignment().Equals(Align)){ToastSlot->SetAlignment(Align);}
         if(!ToastSlot->GetPosition().Equals(TopPos,.5f)){ToastSlot->SetPosition(TopPos);}
@@ -3341,14 +3268,10 @@ bool ULDHUD::HandleContextualKeyPress(const FKey& Key,bool bAlt,bool bCtrl,bool 
     }
 
     // 3) Alt + 1 / 2 / 3: 3-choice offer quick-pick (works both expanded and combat-folded).
-    if(bAlt&&!bCtrl&&ChoicesPanel)
+    if(bAlt&&!bCtrl&&Workshop&&Workshop->HandleKey(Key))
     {
-        const int32 OfferIdx=Key==EKeys::One?0:Key==EKeys::Two?1:Key==EKeys::Three?2:INDEX_NONE;
-        if(OfferIdx!=INDEX_NONE&&ChoicesPanel->PickByHotkey(OfferIdx))
-        {
-            MarkReadModelDirty();
-            return true;
-        }
+        MarkReadModelDirty();
+        return true;
     }
 
     // 4) Storage inline QuickEquip open: Q / W / E / D installs the selected uninstalled card directly into that slot.
@@ -3369,6 +3292,12 @@ bool ULDHUD::HandleContextualKeyPress(const FKey& Key,bool bAlt,bool bCtrl,bool 
         {
             return true;
         }
+    }
+    // 6) The build ring: [1] / [2] / [3] take an option of the offer on top, open or closed.
+    if(!bCtrl&&!bShift&&Workshop&&Workshop->HandleKey(Key))
+    {
+        MarkReadModelDirty();
+        return true;
     }
     return false;
 }

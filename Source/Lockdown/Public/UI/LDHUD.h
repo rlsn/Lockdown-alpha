@@ -496,11 +496,6 @@ private:
     int32 LevelFlipLevel=0;
     int64 LevelFlipPoints=0;
     void PaintMoments(const LDUIPaint::FContext& P) const;
-    // The compact build entry in the bottom-right corner: new picks (选) and unspent points (点) beside the B key block.
-    UPROPERTY() TObjectPtr<UWidget> PickBadge;
-    UPROPERTY() TObjectPtr<UTextBlock> PickBadgeText;
-    UPROPERTY() TObjectPtr<UWidget> PointsBadge;
-    UPROPERTY() TObjectPtr<UTextBlock> PointsBadgeText;
     // The own stat attribute view (ULDStatBar) as a flyout above the strip, shown while the Attributes key holds it open.
     UPROPERTY() TObjectPtr<UWidget> StatFlyout;
     // Spec §12: the own life line (protection, death) above the seat block; plain alive shows none.
@@ -555,17 +550,9 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> ActionFormulaText;
     UPROPERTY() TObjectPtr<UTextBlock> ActionDetailFooter;
     UPROPERTY() TMap<FName,TObjectPtr<ULDCommandButton>> Commands;
-    // The 构筑 button in the bottom-right corner, with the card tray it toggles right above it: lit while anything is pending
-    // (LDHUD::GrowthPending), greyed out otherwise, and pulsing for a few seconds after the opportunities or component choices
-    // rise.
-    UPROPERTY() TObjectPtr<UBorder> PendingPrompt;
+    // The bottom-right key plates (属性, and 测试 in a DEV test room); the build entry is the ring's closed state (ULDWorkshop).
     UPROPERTY() TObjectPtr<UBorder> PromptFrame;
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> PromptSlot;
-    UPROPERTY() TObjectPtr<ULDCommandButton> PromptButton;
-    UPROPERTY() TObjectPtr<UTextBlock> PromptText;
-    // The waiting decisions by kind (skills, build cards, element stones, the final mod) are the entry's tooltip.
-    FString PromptTip;
-    bool bPromptLitShown=false;
     // #328 §4.2: 3-channel non-clobbering notifications (Channel A: 0.9s slot/cursor reject micro-tip; Channel B: right-side
     // max-3 3.5s loot/growth queue; Channel C: top-center broadcast / ToastPanel).
     UPROPERTY() TObjectPtr<UBorder> SlotRejectPanel;
@@ -591,9 +578,7 @@ private:
     TSet<uint16> LootKnownCardSerials;
     void PushSlotRejectTip(const FString& Text,int32 ActionSlotIndex=INDEX_NONE);
     void PushLootNotice(const FString& Text,uint8 Kind);
-    int32 PromptOffers=0;
-    int32 PromptCardOffers=0;
-    double PromptPulseAt=-1;
+
     // The own training combo (ALDPlayerController::TrainingCombo) already shown beside the rest actions.
     uint32 SeenTrainingCombo=0;
     // ALDPlayerController::GetArmedCancelSerial already shown as a slot flash.

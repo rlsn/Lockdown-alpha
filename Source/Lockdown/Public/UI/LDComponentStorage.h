@@ -74,6 +74,11 @@ public:
     // The open chooser's option at Index (an element of Y25), which sends the command.
     bool ChooseOption(int32 Index);
     bool IsChoosing() const {return Chooser.bOpen;}
+    // The open chooser's elements, in option order (empty when it is closed).
+    TArray<ELDDemoElement> ChooserElements() const {return Chooser.bOpen?Chooser.Drop.Elements:TArray<ELDDemoElement>();}
+    // The build ring (ULDWorkshop) draws the library and the installed cards itself: the storage keeps every rule, drop,
+    // request and receipt and shows nothing of its own.
+    void SetHeadless(bool bInHeadless){bHeadless=bInHeadless;}
     // A card preview or storage hover marks this card (and every copy it stands for) read for the current match.
     void MarkSeen(FName Component);
     void SetDetailsHeld(bool bHeld);
@@ -359,6 +364,7 @@ private:
     FAnchors Anchors;
     FString BuiltKey;
     bool bShownNow=false;
+    bool bHeadless=false;
     bool bExpanded=false;
     bool bPinned=false;
     bool bDetailsHeld=false;
