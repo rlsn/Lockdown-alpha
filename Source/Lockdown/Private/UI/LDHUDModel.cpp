@@ -257,6 +257,7 @@ LDHUD::FResourceView LDHUD::Resource(const FString& Label,double Current,double 
     const double ShownMax=bRoundUp?FMath::CeilToDouble(Max):FMath::FloorToDouble(Max);
     View.bKnown=true;View.Fraction=float(FMath::Clamp(Current/Max,0.,1.));
     View.Text=FString::Printf(TEXT("%s %.0f/%.0f"),*Label,Shown,ShownMax);
+    View.Now=FString::Printf(TEXT("%.0f"),Shown);View.Max=FString::Printf(TEXT("%.0f"),ShownMax);
     return View;
 }
 LDHUD::FResourceView LDHUD::ResourceP2(const FString& Label,int64 CurrentP2,int64 MaxP2,bool bRoundUp)
@@ -265,6 +266,7 @@ LDHUD::FResourceView LDHUD::ResourceP2(const FString& Label,int64 CurrentP2,int6
     if(MaxP2<=0||CurrentP2<0){View.Text=Label+TEXT(" 同步中");return View;}
     View.bKnown=true;View.Fraction=float(FMath::Clamp(double(CurrentP2)/double(MaxP2),0.,1.));
     View.Text=FString::Printf(TEXT("%s %lld/%lld"),*Label,HudWholePoints(CurrentP2,bRoundUp),HudWholePoints(MaxP2,bRoundUp));
+    View.Now=FString::Printf(TEXT("%lld"),HudWholePoints(CurrentP2,bRoundUp));View.Max=FString::Printf(TEXT("%lld"),HudWholePoints(MaxP2,bRoundUp));
     return View;
 }
 LDHUD::FLevelView LDHUD::Level(int32 InLevel,int32 MaxLevel,int64 CumulativeXp,int64 LevelThresholdXp,bool bHasNext,int64 NextThresholdXp)
@@ -874,6 +876,16 @@ void LDHUD::FEventFeed::Observe(const FEventFeedInput& In)
                 for(const FGuid& Assister:Notice->Assisters){Assisters.Add(Name(Assister));}
                 const FKillFeedLineView Line=KillFeedLine(*Notice,In.Self,Name(Notice->Victim),Name(Notice->Killer),In.LowCampName,In.HighCampName,In.EliteCampName,In.BossName,Assisters);
                 Add(Line.Text,Line.bSelf);
+                if(!Line.Text.IsEmpty())
+                {
+                    FEventLine& Kill=Shown.Last();
+                    const bool bContender=Notice->Cause==ELDKillCause::Contender&&Notice->Killer.IsValid();
+                    Kill.bKill=true;Kill.Cause=Notice->Cause;Kill.Assists=Notice->Assisters.Num();
+                    Kill.VictimSeat=In.Lobby?SeatOf(*In.Lobby,Notice->Victim):INDEX_NONE;Kill.VictimName=Name(Notice->Victim);
+                    Kill.KillerSeat=bContender&&In.Lobby?SeatOf(*In.Lobby,Notice->Killer):INDEX_NONE;
+                    Kill.KillerName=bContender?Name(Notice->Killer)
+                        :KillerLabel(*Notice,In.LowCampName,In.HighCampName,In.EliteCampName,In.BossName);
+                }
                 if(Notice->Cause==ELDKillCause::Contender&&Notice->Killer.IsValid()
                     &&Notice->CreatureName==TEXT("leader_bounty"))
                 {
@@ -1525,8 +1537,12 @@ LDHUD::FObservedCard LDHUD::ObservedCard(const FLDObservedUnitView& Unit,const F
 {
     FObservedCard Card;
     const bool bContender=Unit.Kind==ELDObservedUnitKind::Contender;
-    if(bContender){Card.Title=FString::Printf(TEXT("%s · 等级 %d"),ContenderName.IsEmpty()?TEXT("未列名参赛者"):*ContenderName,Unit.Level);}
-    else{Card.Title=CreatureName(Content,Unit.CreatureId);}
+    if(bContender)
+    {
+        Card.Name=ContenderName.IsEmpty()?FString(TEXT("未列名参赛者")):ContenderName;Card.Level=Unit.Level;
+        Card.Title=FString::Printf(TEXT("%s · 等级 %d"),*Card.Name,Unit.Level);
+    }
+    else{Card.Title=CreatureName(Content,Unit.CreatureId);Card.Name=Card.Title;}
     Card.Health=ResourceP2(LDTerms::Health,Unit.Health.CurrentP2,Unit.Health.MaxP2,true);
     Card.bMomentum=(Unit.AuthorizedFieldMask&LDObservation::Momentum)!=0;
     if(Card.bMomentum)
@@ -3944,6 +3960,107 @@ TArray<LDHUD::FTacticalScoreRow> LDHUD::BuildTacticalScoreboard(const FLDPublicM
             const FLDLobbyMember& Mem=Lobby.Members[M];
             if(!Mem.ContenderId.IsValid()||Mem.Name.IsEmpty()){continue;}
             BuildRow(Mem.ContenderId,RosterName(Lobby,Mem.ContenderId),0,0,0,uint8(M%LDMatchLifecycle::MaxContenders));
+        }
+    }
+    return Out;
+}
+
+int32 LDHUD::SeatOf(const FLDLobbyView& Lobby,const FGuid& ContenderId)
+{
+    if(!ContenderId.IsValid()){return INDEX_NONE;}
+    for(int32 Index=0;Index<Lobby.Members.Num();++Index){if(Lobby.Members[Index].ContenderId==ContenderId){return Index;}}
+    return INDEX_NONE;
+}
+FString LDHUD::KillerLabel(const FLDKillNotice& Notice,const FString& LowCampName,const FString& HighCampName,const FString& EliteCampName,const FString& BossName)
+{
+    if(Notice.Cause==ELDKillCause::Contender){return FString();}
+    if(!Notice.CreatureName.IsEmpty()){return Notice.CreatureName;}
+    switch(Notice.Cause)
+    {
+    case ELDKillCause::CampLow: return LowCampName;
+    case ELDKillCause::CampHigh: return HighCampName;
+    case ELDKillCause::CampElite: return EliteCampName;
+    case ELDKillCause::CampAncient: return TEXT("远古野怪");
+    case ELDKillCause::Boss: return BossName;
+    default: return FString();
+    }
+}
+uint8 LDHUD::SkillElement(const FLDDemoContentDefinitions* Content,FName DefinitionId,ELDSkillBranch Branch)
+{
+    if(!Content||DefinitionId.IsNone()){return 0;}
+    const FLDDemoAbilityDefinition* Ability=Content->Abilities.FindByPredicate([DefinitionId](const FLDDemoAbilityDefinition& Candidate)
+    {return FName(*Candidate.Id)==DefinitionId;});
+    if(!Ability){return 0;}
+    const FLDDemoAbilityBranch* Path=Ability->FindBranch(Branch);
+    return uint8(Path&&Path->Element!=ELDDemoSkillElement::None?Path->Element:Ability->Element);
+}
+FString LDHUD::ElementGlyph(uint8 Element)
+{
+    switch(ELDCombatElement(Element))
+    {
+    case ELDCombatElement::Fire: return LDTerms::ElementFire;
+    case ELDCombatElement::Water: return LDTerms::ElementWater;
+    case ELDCombatElement::Shock: return LDTerms::ElementElectric;
+    case ELDCombatElement::Chill: return LDTerms::ElementChill;
+    case ELDCombatElement::Rot: return LDTerms::ElementRot;
+    default: return FString();
+    }
+}
+LDHUD::FScoreBugView LDHUD::ScoreBug(const FLDPublicMatchView& Public,bool bClock,int64 NowMs)
+{
+    FScoreBugView View;
+    const FLDTimelineView& Timeline=Public.Timeline;
+    if(Public.Generation==0||Timeline.Generation!=Public.Generation){return View;}
+    View.bPaused=Timeline.bCountdownPaused;
+    if(Timeline.bCountdownPaused){NowMs=FMath::Min(NowMs,Timeline.CountdownPausedAtMs);}
+    constexpr int32 Segments=int32(FLDTimelineParameters::TimedSegments);
+    int64 RemainingMs=-1;
+    switch(Timeline.Stage)
+    {
+    case ELDMatchStage::Rest:
+        View.bKnown=true;View.bRest=true;
+        View.Beat=FMath::Clamp(int32(Timeline.RestIndex)*2,0,ScoreBugBeats-2);
+        View.Label=Timeline.RestIndex==Segments?FString(TEXT("最终休息")):LDTerms::RestLabel(Timeline.RestIndex);
+        if(bClock){RemainingMs=Timeline.StepEndsAtMs-NowMs;}
+        break;
+    case ELDMatchStage::Field:
+        View.bKnown=true;
+        View.Beat=FMath::Clamp(int32(Timeline.FieldSegment)*2+1,1,ScoreBugBeats-3);
+        View.Label=FString::Printf(TEXT("野外 %d/%d"),int32(Timeline.FieldSegment)+1,Segments);
+        if(bClock){RemainingMs=Timeline.FieldEndT-LDMatchTimeline::FieldNowFromView(Timeline,NowMs);}
+        break;
+    case ELDMatchStage::FinalField:
+        View.bKnown=true;View.bFinal=true;View.Beat=ScoreBugBeats-1;
+        View.Label=TEXT("终局");
+        if(bClock&&Public.Showdown.bStarted){RemainingMs=Public.Showdown.EndsAtMs-NowMs;}
+        break;
+    default:
+        return View;
+    }
+    if(RemainingMs>=0){View.Clock=Clock(RemainingMs);View.bUrgent=RemainingMs<=10000;}
+    return View;
+}
+TArray<LDHUD::FSeatPlateView> LDHUD::SeatPlates(const FLDLobbyView& Lobby,const FLDPublicMatchView& Public,const FLDKillFeedView& Kills,
+    const FGuid& Self,bool bClock,int64 NowMs)
+{
+    TArray<FSeatPlateView> Out;
+    for(int32 Seat=0;Seat<Lobby.Members.Num()&&Out.Num()<LDMatchLifecycle::MaxContenders;++Seat)
+    {
+        const FLDLobbyMember& Member=Lobby.Members[Seat];
+        if(!Member.ContenderId.IsValid()){continue;}
+        FSeatPlateView& Plate=Out.AddDefaulted_GetRef();
+        Plate.Seat=Seat;Plate.ContenderId=Member.ContenderId;Plate.Name=Member.Name;
+        Plate.bSelf=Self.IsValid()&&Member.ContenderId==Self;
+        Plate.bGraffiti=Public.GraffitiOwner.IsValid()&&Public.GraffitiOwner==Member.ContenderId;
+        Plate.bLeader=(Public.Leader.Leader.IsValid()&&Public.Leader.Leader==Member.ContenderId)
+            ||(Public.Leader.RunnerUp.IsValid()&&Public.Leader.RunnerUp==Member.ContenderId);
+        if(bClock&&Kills.Generation==Public.Generation)
+        {
+            for(const FLDKillNotice& Notice:Kills.Notices)
+            {
+                if(Notice.Victim==Member.ContenderId&&NowMs>=Notice.OccurredAtMs&&NowMs-Notice.OccurredAtMs<int64(FEventFeed::LineSeconds*1000.))
+                {Plate.bRecentKO=true;break;}
+            }
         }
     }
     return Out;

@@ -3,6 +3,8 @@
 #include "UI/LDMinimapRaster.h"
 #include "UI/LDHUD.h"
 #include "UI/LDHUDStyle.h"
+#include "UI/LDBroadcastStyle.h"
+#include "UI/LDBroadcastPaint.h"
 #include "UI/LDUIFonts.h"
 #include "Core/LDLog.h"
 #include "UI/LDHUDModel.h"
@@ -653,8 +655,9 @@ public:
 void MinimapLayoutStatic(const FLDMinimapStatic& Cache,const FVector2D& Origin,double Scale,SLDMinimapRaster& Raster)
 {
     const FLinearColor LowBlockerFill=FLinearColor(FColor(0x31,0x48,0x52)).CopyWithNewOpacity(.50f);
-    const FLinearColor LowBlockerRim=FLinearColor(FColor(0x6F,0xA3,0xB8)).CopyWithNewOpacity(.92f);
-    const FLinearColor FullBlockerRim=FLinearColor(FColor(0x22,0x25,0x2A)).CopyWithNewOpacity(.85f);
+    // On air: walls are white court lines over the darkened street; low walls a softer grey line.
+    const FLinearColor LowBlockerRim=FLinearColor(FColor(0x9A,0xA0,0xA8)).CopyWithNewOpacity(.85f);
+    const FLinearColor FullBlockerRim=FLinearColor(FColor(0xF2,0xF2,0xF2)).CopyWithNewOpacity(.9f);
     const FLinearColor RampFill=FLinearColor(FColor(0x7D,0x6E,0x49)).CopyWithNewOpacity(.32f);
     const FLinearColor RampChevronInk=FLinearColor(FColor(0xE2,0xC9,0x86)).CopyWithNewOpacity(.92f);
     auto EmitFill=[&Raster](const TArray<FVector2f>& Points,const FLinearColor& Fill)
@@ -1080,8 +1083,9 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
         PlaneBox(1,RegionAt,RegionSize,LDMinimapRaster::GroundColor());
         if (const auto* Image = MinimapFindImage(Cache, Region); MinimapStaticCurrent(Cache, GetWorld()) && Image && Image->Texture.IsValid())
         {
+            // The real street colours, darkened under the white wall lines so the markers carry the colour.
             FSlateDrawElement::MakeBox(E, Base+2, Plane.ToPaintGeometry(RegionSize, FSlateLayoutTransform(RegionAt)),
-                &Image->Brush, ESlateDrawEffect::IgnoreTextureAlpha);
+                &Image->Brush, ESlateDrawEffect::IgnoreTextureAlpha, FLinearColor(.34f, .34f, .36f));
         }
         const FLDOwnerState& Own=PC->OwnerState;const bool bAlive=Own.LifePhase==ELDLifePhase::Alive;
         const ALDWorldViewRelay* Relay=bAlive?PC->LocalView():nullptr;const FLDObservedFrameRead Read=Relay?Relay->ReadObservedFrame():FLDObservedFrameRead();
@@ -1209,19 +1213,18 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
                 FVector Presented=FVector::ZeroVector;const FVector2f At=Spot(Relay->ReadPresentedLocation(Unit.Handle,Unit.ObservationEpoch,Presented)?Presented:FVector(Unit.FeetCm));
                 if(Unit.Kind==ELDObservedUnitKind::Contender)
                 {
+                    // A seat plate (seat ink, jersey number); a PK teammate gets a white rule under it, a PK enemy a cross.
                     const FString Relation=PublicState?LDHUD::PKRelationText(PublicState->PublicMatch,Own.ContenderId,Unit.ContenderId):FString();
-                    if(Relation==LDTerms::PKTeammate||Relation==LDTerms::PKOwnSide)
+                    int32 Seat=PublicState?LDHUD::SeatOf(PublicState->DemoLobby,Unit.ContenderId):INDEX_NONE;
+                    if(Seat==INDEX_NONE){Seat=Unit.Presentation;}
+                    const FBox2D Plate(FVector2D(At)-FVector2D(9.,7.),FVector2D(At)+FVector2D(9.,7.));
+                    LDBroadcastPaint::FillSlab(LDUIPaint::FContext(E,Base+8,G),Base+8,FBox2D(Plate.Min-FVector2D(1.5,1.5),Plate.Max+FVector2D(1.5,1.5)),Ink);
+                    LDBroadcastPaint::SeatPlate(LDUIPaint::FContext(E,Base+9,G),Base+9,Plate,Seat,1.f,13.f);
+                    if(Relation==LDTerms::PKTeammate||Relation==LDTerms::PKOwnSide){Box(11,At+FVector2f(-9.f,8.f),FVector2f(18.f,2.f),FLinearColor::White);}
+                    else if(Relation==LDTerms::PKEnemy)
                     {
-                        Diamond(8,At,10.f,Ink);Diamond(9,At,7.f,LDHUD::PaletteColor(Unit.Presentation));
-                    }
-                    else
-                    {
-                        Disc(8,At,9.f,Ink);Disc(9,At,6.5f,LDHUD::PaletteColor(Unit.Presentation));
-                        if(Relation==LDTerms::PKEnemy)
-                        {
-                            Lines(10,{At+FVector2f(-2.f,-2.f),At+FVector2f(2.f,2.f)},FLinearColor::White,1.5f);
-                            Lines(10,{At+FVector2f(-2.f,2.f),At+FVector2f(2.f,-2.f)},FLinearColor::White,1.5f);
-                        }
+                        Lines(11,{At+FVector2f(-6.f,-6.f),At+FVector2f(6.f,6.f)},FLinearColor::White,1.5f);
+                        Lines(11,{At+FVector2f(-6.f,6.f),At+FVector2f(6.f,-6.f)},FLinearColor::White,1.5f);
                     }
                 }
                 // P6 spec §11.3: the second-hand dealer, a green diamond with a pale core.
@@ -1239,7 +1242,7 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
             if(Ahead.IsNearlyZero()){Ahead=FVector2f(0.f,-1.f);}
             const FVector2f Across(-Ahead.Y,Ahead.X);
             const TArray<FVector2f> Arrow={At+Ahead*7.f,At-Ahead*5.f+Across*5.f,At-Ahead*2.f,At-Ahead*5.f-Across*5.f};
-            MinimapScanRuns(Arrow,[&Box](float X,float Y,float Width){Box(10,FVector2f(X,Y),FVector2f(Width,1.f),FLinearColor(.30f,1.f,.86f));});
+            MinimapScanRuns(Arrow,[&Box](float X,float Y,float Width){Box(10,FVector2f(X,Y),FVector2f(Width,1.f),LDBroadcast::Orange);});
             TArray<FVector2f> Rim=Arrow;Rim.Add(Arrow[0]);Lines(11,Rim,Ink,1.f);
         }
         // Actual camera's footprint on Z = OwnFootZ (0 when dead/bodiless) so elevated terrain adds zero parallax offset.

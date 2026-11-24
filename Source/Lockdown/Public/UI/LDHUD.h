@@ -7,6 +7,7 @@
 #include "Combat/LDDamageRecap.h"
 #include "UI/LDWorldFeedback.h"
 #include "UI/LDHUDModel.h"
+#include "UI/LDUIPaint.h"
 #include "PK/LDPKRules.h"
 #include "Framework/LDPacingTypes.h"
 #include "LDHUD.generated.h"
@@ -43,6 +44,27 @@ struct FLDOwnStatusMark
     int32 ViewIndex=INDEX_NONE;
 };
 
+// The white damage trail behind a falling bar (local real time): it holds a moment, then falls to the bar; a rise snaps.
+struct FLDHudTrail
+{
+    float Trail=-1.f;
+    float Shown=-1.f;
+    double HoldUntil=0.;
+    double LastAt=0.;
+    float Advance(float Fraction,double Now)
+    {
+        constexpr double Hold=.35,FallPerSecond=1.2;
+        if(Trail<0.f||Fraction>=Trail){Trail=Fraction;Shown=Fraction;LastAt=Now;return Trail;}
+        // A new loss restarts the hold, so a combo reads as one growing white run.
+        if(Fraction<Shown-.0005f){HoldUntil=Now+Hold;}
+        Shown=Fraction;
+        if(Now>HoldUntil){Trail=FMath::Max(Fraction,Trail-float((Now-FMath::Max(LastAt,HoldUntil))*FallPerSecond));}
+        LastAt=Now;
+        return Trail;
+    }
+    void Reset(){*this=FLDHudTrail();}
+};
+
 // One Q/W/E/D entry: a world button that sends the same activation as its hotkey. It is enabled only while an intent can
 // be submitted; execution limits colour it but never replace the server's decision. The face shows only the key,
 // the icon and the momentum cost; the state is the frame and icon colour, and the tooltip keeps the words.
@@ -58,7 +80,12 @@ struct FLDHUDActionSlot
     UPROPERTY() TObjectPtr<UBorder> Icon;
     UPROPERTY() TObjectPtr<UImage> Picture;
     UPROPERTY() TObjectPtr<UTextBlock> Glyph;
+    // The key band under the face: orange while the entry can act, ink otherwise, live red on a refused press.
+    UPROPERTY() TObjectPtr<UBorder> KeyBand;
     UPROPERTY() TObjectPtr<UTextBlock> Key;
+    // The element the bound active applies (LDHUD::SkillElement) as a square chip in its element ink on the face's corner.
+    UPROPERTY() TObjectPtr<UBorder> ElementChip;
+    UPROPERTY() TObjectPtr<UTextBlock> ElementGlyph;
     UPROPERTY() TObjectPtr<UBorder> CostChip;
     UPROPERTY() TObjectPtr<UTextBlock> Cost;
     UPROPERTY() TObjectPtr<UBorder> ControlChip;
@@ -174,15 +201,32 @@ private:
     double DiagnosticsTickAt=-1, DiagnosticsSampleAt=0;
     uint32 DiagnosticsCorrections=0;
     TWeakObjectPtr<class ALDCharacter> DiagnosticsBody;
+    // Top centre (on-air target card): the seat plate (a creature's tint block and first character for a camp), the name, the
+    // public level and the health figure on one slab, the painted health bar with the public momentum under it.
     UPROPERTY() TObjectPtr<UBorder> TargetCard;
-    UPROPERTY() TObjectPtr<UBorder> TargetPortrait;
+    UPROPERTY() TObjectPtr<UWidget> TargetPortrait;
     UPROPERTY() TObjectPtr<UTextBlock> TargetGlyph;
     UPROPERTY() TObjectPtr<UTextBlock> TargetTitle;
-    UPROPERTY() TObjectPtr<UProgressBar> TargetHealthBar;
+    UPROPERTY() TObjectPtr<UTextBlock> TargetLevelText;
     UPROPERTY() TObjectPtr<UTextBlock> TargetHealth;
-    UPROPERTY() TObjectPtr<UWidget> TargetMomentumRow;
-    UPROPERTY() TObjectPtr<UProgressBar> TargetMomentumBar;
-    UPROPERTY() TObjectPtr<UTextBlock> TargetMomentum;
+    UPROPERTY() TObjectPtr<UWidget> TargetBarSpot;
+    struct FTargetPaint
+    {
+        bool bContender=false;
+        int32 Seat=INDEX_NONE;
+        FLinearColor CreatureInk=FLinearColor::Gray;
+        bool bHealth=false;
+        float Health=0.f;
+        FLinearColor HealthInk=FLinearColor::White;
+        bool bMomentum=false;
+        float Momentum=0.f;
+        bool bMomentumFull=false;
+        bool bCharging=false;
+        float MomentumNotch=-1.f;
+    } TargetPaint;
+    // The white damage trail behind the target's bar, kept for one target.
+    mutable FLDHudTrail TargetTrail;
+    FGuid TargetTrailHandle;
     // The target's public statuses as icon squares (a wrap row, no text line): each tile, its picture, its fallback glyph
     // and its stack count, grown on demand and collapsed when unused.
     UPROPERTY() TObjectPtr<class UWrapBox> TargetStatusRow;
@@ -325,17 +369,28 @@ private:
     // Keeps Ring built for (generation, key, centre) or destroys it; false when no ring can be shown.
     bool KeepRing(TWeakObjectPtr<class ALDShowdownRingMarker>& Ring,bool bShow,const FLDPublicMatchView& Public,uint32 Key,const FVector& Centre,const FLinearColor& Tint);
 private:
+    // Top-left score bug (PhaseBanner): the LIVE tag, the beat's label and clock, the day's modifiers, the eight-beat match
+    // bar and the eight seat plates (LDHUD::ScoreBug / SeatPlates), then the flagpole line under it.
+    UPROPERTY() TObjectPtr<UTextBlock> ScoreLabelText;
+    UPROPERTY() TObjectPtr<UTextBlock> ScoreClockText;
+    UPROPERTY() TObjectPtr<UWidget> ScoreBeatSpot;
+    UPROPERTY() TObjectPtr<UWidget> ScorePlateSpot;
+    LDHUD::FScoreBugView ShownBug;
+    TArray<LDHUD::FSeatPlateView> ShownPlates;
     UPROPERTY() TObjectPtr<UTextBlock> PhaseText;
-    // Under the capture bar (Mock 1): the graffiti owner on the left, the guard state on the right.
+    // Under the capture bar: the graffiti owner on the left, the guard state on the right.
     UPROPERTY() TObjectPtr<UWidget> PhaseFootRow;
     UPROPERTY() TObjectPtr<UTextBlock> PhaseOwnerText;
     UPROPERTY() TObjectPtr<UTextBlock> PhaseAsideText;
     UPROPERTY() TObjectPtr<UTextBlock> DevMarkerText;
-    UPROPERTY() TObjectPtr<UProgressBar> CircleProgress;
-    // Bottom-left event feed (LDHUD::FEventFeed): one row per shown line, newest at the bottom.
+    UPROPERTY() TObjectPtr<UWidget> CircleSpot;
+    float CircleFraction=0.f;
+    // Top-right feed (LDHUD::FEventFeed), painted as lower thirds: a kill as killer plate · cause · victim plate, every other
+    // line as one slab, newest at the bottom; each wipes in and fades out on time.
     UPROPERTY() TObjectPtr<UBorder> EventFeedPanel;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> EventFeedRows;
+    UPROPERTY() TObjectPtr<USizeBox> EventFeedSpot;
     LDHUD::FEventFeed EventFeed;
+    void PaintFeed(const LDUIPaint::FContext& P) const;
     // #328 §4.4: 6-player hold-Tab tactical scoreboard (portrait, crown, last-seen level, graffiti bar, K/D/A, Q/W/E icons, final mod).
     UPROPERTY() TObjectPtr<UBorder> ScorePanel;
     struct FScoreRowWidgets
@@ -403,15 +458,41 @@ private:
     UPROPERTY() TObjectPtr<USizeBox> MapFrame;
     // The elapsed match time (LDHUD::MatchTimer), centred right above the minimap frame; click-through.
     UPROPERTY() TObjectPtr<UTextBlock> MatchTimerText;
+    // The bottom lower-third strip (APP_SPEC §7): the seat block (own jersey number in the seat ink, the basic attack's combo
+    // ticks under it), level and experience, the health figure over its segmented bar, momentum with the overdrive notch,
+    // then the Q/W/E and D slots over their key bands. The slabs and bars are painted (PaintStrip) on the widgets' layout.
     UPROPERTY() TObjectPtr<UBorder> Band;
+    // The seat block; its brush colour keeps the own identity tint (the workshop reads it), it draws nothing itself.
     UPROPERTY() TObjectPtr<UBorder> Portrait;
-    UPROPERTY() TObjectPtr<UTextBlock> PortraitGlyph;
     UPROPERTY() TObjectPtr<UTextBlock> LevelBadgeText;
-    // Unspent points on the portrait's bottom-left corner (the level rides on the bottom-right); hidden at 0.
-    UPROPERTY() TObjectPtr<UBorder> PointsBadge;
+    UPROPERTY() TObjectPtr<UWidget> HealthBarSpot;
+    UPROPERTY() TObjectPtr<UWidget> MomentumBarSpot;
+    UPROPERTY() TObjectPtr<UWidget> StripPanelSpot;
+    struct FStripPaint
+    {
+        int32 Seat=INDEX_NONE;
+        bool bHealth=false;
+        float Health=0.f;
+        float Shield=0.f;
+        FLinearColor HealthInk=FLinearColor::White;
+        // One cut per 250 HP of the maximum (as a fraction; 0 = none).
+        float HealthSegment=0.f;
+        bool bMomentum=false;
+        float Momentum=0.f;
+        float Notch=-1.f;
+        bool bOverdrive=false;
+        int32 Combo=0;
+    } StripPaint;
+    mutable FLDHudTrail StripTrail;
+    void PaintStrip(const LDUIPaint::FContext& P) const;
+    // The compact build entry in the bottom-right corner: new picks (选) and unspent points (点) beside the B key block.
+    UPROPERTY() TObjectPtr<UWidget> PickBadge;
+    UPROPERTY() TObjectPtr<UTextBlock> PickBadgeText;
+    UPROPERTY() TObjectPtr<UWidget> PointsBadge;
     UPROPERTY() TObjectPtr<UTextBlock> PointsBadgeText;
-    UPROPERTY() TObjectPtr<UTextBlock> SelfName;
-    // Spec §12: the own vouchers (票) and pick tickets beside the portrait, under the name.
+    // The own stat attribute view (ULDStatBar) as a flyout above the strip, shown while the Attributes key holds it open.
+    UPROPERTY() TObjectPtr<UWidget> StatFlyout;
+    // Spec §12: the own life line (protection, death) above the seat block; plain alive shows none.
     UPROPERTY() TObjectPtr<UTextBlock> LifeText;
     // The own statuses (LDHUD::SelfIcons) are painted by ULDWorldLabels above the own overhead bars, as LoL-style icons
     // (OwnStatusMarks). The HUD builds the marks with the band's gate, keeps their textures alive and their remaining-time
@@ -424,18 +505,16 @@ private:
     UPROPERTY() TArray<TObjectPtr<UTexture2D>> OwnStatusTextures;
     mutable TArray<FSlateRect> OwnStatusHitRects;
     LDHUD::FStatusRings SelfIconRings;
-    UPROPERTY() TObjectPtr<UProgressBar> HealthBar;
     UPROPERTY() TObjectPtr<UTextBlock> HealthText;
-    UPROPERTY() TObjectPtr<UProgressBar> MomentumBar;
+    UPROPERTY() TObjectPtr<UTextBlock> HealthMaxText;
     UPROPERTY() TObjectPtr<UTextBlock> MomentumText;
     UPROPERTY() TObjectPtr<UTextBlock> HealthRegenText;
     UPROPERTY() TObjectPtr<UProgressBar> LevelBar;
     FString LevelTip;
     // The toast's own canvas slot, kept right above the band.
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> ToastSlot;
+    // The seat block's box: the storage's body column follows it.
     UPROPERTY() TObjectPtr<USizeBox> BodySlot;
-    // The basic attack's three combo pips under the body slot: the current step lit, the third gold.
-    UPROPERTY() TArray<TObjectPtr<UBorder>> ComboPips;
     // The rank-up page (issue #287 spec §12, #331 3-rank preview): two big cards of the chosen skill's next rank, with
     // Rank 3 sub-branch preview chips beneath 2A and 2B during 1->2 selection; a click or 1/2 submits RankUpSkill.
     UPROPERTY() TObjectPtr<UBorder> RankPage;
@@ -455,8 +534,6 @@ private:
     void OpenRankUp(int32 ProgressionSlot);
     void SubmitRankUp(int32 Card);
     void RefreshRankUp(const FLDProgressionView* Progression,const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats);
-    UPROPERTY() TObjectPtr<UBorder> BodyPortrait;
-    UPROPERTY() TObjectPtr<UTextBlock> BodyPortraitGlyph;
     UPROPERTY() TArray<FLDHUDActionSlot> ActionSlots;
     // The hovered slot's full description (#328 §3 live skill tooltip + Alt/C expandable formula breakdown).
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> ActionDetailSlot;
@@ -475,15 +552,9 @@ private:
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> PromptSlot;
     UPROPERTY() TObjectPtr<ULDCommandButton> PromptButton;
     UPROPERTY() TObjectPtr<UTextBlock> PromptText;
-    // The counts on the 构筑 button's corner, one per kind of waiting decision: skills (an active offer and the blueprints,
-    // blue square), build cards (gold tall) and the final mod (pink round), right to left in that order.
-    UPROPERTY() TArray<TObjectPtr<UBorder>> PromptBadges;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> PromptBadgeTexts;
-    UPROPERTY() TArray<TObjectPtr<UCanvasPanelSlot>> PromptBadgeSlots;
-    UPROPERTY() TObjectPtr<UHorizontalBox> PromptCategoryRow;
-    UPROPERTY() TObjectPtr<UCanvasPanelSlot> PromptCategorySlot;
-    UPROPERTY() TArray<TObjectPtr<UBorder>> PromptCategoryBadges;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> PromptCategoryTexts;
+    // The waiting decisions by kind (skills, build cards, element stones, the final mod) are the entry's tooltip.
+    FString PromptTip;
+    bool bPromptLitShown=false;
     // #328 §4.2: 3-channel non-clobbering notifications (Channel A: 0.9s slot/cursor reject micro-tip; Channel B: right-side
     // max-3 3.5s loot/growth queue; Channel C: top-center broadcast / ToastPanel).
     UPROPERTY() TObjectPtr<UBorder> SlotRejectPanel;

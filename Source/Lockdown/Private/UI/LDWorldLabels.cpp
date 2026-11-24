@@ -28,6 +28,7 @@
 #include "Rendering/SlateRenderer.h"
 #include "Styling/CoreStyle.h"
 #include "UI/LDUIFonts.h"
+#include "UI/LDBroadcastPaint.h"
 #include "UI/LDUIIcons.h"
 #include "Engine/Texture2D.h"
 
@@ -65,7 +66,9 @@ FVector2f WorldBarDimensions(const LDWorldLabels::FLabel& Label)
 
 const FLinearColor WorldOuterRim=FLinearColor(FColor(0x0A,0x0C,0x10)).CopyWithNewOpacity(.95f);
 const FLinearColor WorldMajorTickInk=FLinearColor(FColor(0x08,0x0A,0x0D));
-const FLinearColor WorldOwnHPFill=FLinearColor(FColor(0x2E,0xCC,0x71));
+// On air: the own bar is the ball orange (me), another contender's white, the current target's live red.
+const FLinearColor WorldOwnHPFill=FLinearColor(FColor(0xFF,0x6B,0x1A));
+const FLinearColor WorldOtherHPFill=FLinearColor(FColor(0xF2,0xF2,0xF2));
 const FLinearColor WorldOwnHPColorblind=FLinearColor(FColor(0x38,0xBD,0xF8));
 const FLinearColor WorldEnemyHPFill=FLinearColor(FColor(0xE0,0x31,0x31));
 const FLinearColor WorldEnemyHPColorblind=FLinearColor(FColor(0xF9,0x73,0x16));
@@ -77,31 +80,6 @@ const FLinearColor WorldShieldFill=FLinearColor(FColor(0xE2,0xE8,0xF0));
 const FLinearColor WorldShieldRim=FLinearColor(FColor(0x7D,0xD3,0xFC));
 const FLinearColor WorldHealFlashInk=FLinearColor(FColor(0x86,0xEF,0xAC));
 const FLinearColor WorldCCBarFill=FLinearColor(FColor(0xF8,0xFA,0xFC));
-
-void WorldHexScanRuns(const FVector2f& Centre,float Radius,TFunctionRef<void(float,float,float)> Emit)
-{
-    FVector2f Verts[6];
-    for(int32 I=0;I<6;++I)
-    {
-        const float Angle=UE_HALF_PI+float(I)*(UE_TWO_PI/6.f);
-        Verts[I]=Centre+FVector2f(FMath::Cos(Angle)*Radius,FMath::Sin(Angle)*Radius);
-    }
-    const int32 Top=FMath::FloorToInt(Centre.Y-Radius),Bot=FMath::CeilToInt(Centre.Y+Radius);
-    for(int32 Row=Top;Row<Bot;++Row)
-    {
-        const float Mid=float(Row)+.5f;
-        float MinX=1e6f,MaxX=-1e6f;int32 Hits=0;
-        for(int32 I=0,J=5;I<6;J=I++)
-        {
-            if((Verts[J].Y>Mid)!=(Verts[I].Y>Mid))
-            {
-                const float X=Verts[J].X+(Mid-Verts[J].Y)*(Verts[I].X-Verts[J].X)/(Verts[I].Y-Verts[J].Y);
-                MinX=FMath::Min(MinX,X);MaxX=FMath::Max(MaxX,X);++Hits;
-            }
-        }
-        if(Hits>=2&&MaxX>MinX){Emit(MinX,float(Row),MaxX-MinX);}
-    }
-}
 
 bool WorldIsHardCC(uint8 StatusId,const TCHAR*& OutShortName)
 {
@@ -439,23 +417,6 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     {FSlateDrawElement::MakeBox(E,Base+Layer,G.ToPaintGeometry(FVector2f(Diameter,Diameter),FSlateLayoutTransform(At-FVector2f(Diameter*.5f,Diameter*.5f))),WorldDiscBrush(),ESlateDrawEffect::None,Tint);};
     auto Diamond=[&](int32 Layer,const FVector2f& At,float Edge,const FLinearColor& Tint)
     {FSlateDrawElement::MakeRotatedBox(E,Base+Layer,G.ToPaintGeometry(FVector2f(Edge,Edge),FSlateLayoutTransform(At-FVector2f(Edge*.5f,Edge*.5f))),White,ESlateDrawEffect::None,UE_PI*.25f,TOptional<FVector2f>(),FSlateDrawElement::RelativeToElement,Tint);};
-    auto DrawHexBadge=[&](const FVector2f& Centre,float Side,const FLinearColor& Fill,int32 Level)
-    {
-        WorldHexScanRuns(Centre,Side*.5f+1.5f,[&](float X,float Y,float W){Box(1,FVector2f(X,Y),FVector2f(W,1.f),WorldOuterRim);});
-        WorldHexScanRuns(Centre,Side*.5f,[&](float X,float Y,float W){Box(2,FVector2f(X,Y),FVector2f(W,1.f),Fill);});
-        TArray<FVector2f> HexOutline;
-        HexOutline.Reserve(7);
-        for(int32 I=0;I<=6;++I)
-        {
-            const float Angle=UE_HALF_PI+float(I%6)*(UE_TWO_PI/6.f);
-            HexOutline.Add(Centre+FVector2f(FMath::Cos(Angle)*(Side*.5f+.5f),FMath::Sin(Angle)*(Side*.5f+.5f)));
-        }
-        FSlateDrawElement::MakeLines(E,Base+3,G.ToPaintGeometry(),HexOutline,ESlateDrawEffect::None,FLinearColor(1.f,1.f,1.f,.32f),true,1.f);
-        const FString LevelText=FString::FromInt(Level);
-        const FVector2f LevelExtent=FontMeasure->Measure(LevelText,LevelFont);
-        const FVector2f LevelAt(Centre.X-LevelExtent.X*.5f,Centre.Y-LevelExtent.Y*.5f);
-        FSlateDrawElement::MakeText(E,Base+5,G.ToPaintGeometry(LevelExtent,FSlateLayoutTransform(LevelAt)),LevelText,LevelFont,ESlateDrawEffect::None,FLinearColor::White);
-    };
     auto DrawSegmentedBar=[&](float BarLeft,float BarTop,float BarW,float BarH,int64 CurrentHPP2,int64 MaxHPP2,int64 ShieldP2,
         const FLinearColor& HPFill,const LDWorldLabels::FBarTrailState& Trail,bool bHasMomentum,float MomentumFrac,bool bMomentumOverdrive,
         const FLinearColor* AccentFrame)
@@ -681,6 +642,19 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     };
     FGuid HoveredHandle;uint32 HoveredEpoch=0;
     const bool bHasHovered=PC->Navigation&&PC->Navigation->ReadHovered(HoveredHandle,HoveredEpoch);
+    // On air, a contender's overhead label is its seat plate and bar; its name shows only while it is the current target or
+    // under the pointer.
+    FLDObservedUnitView Inspected;
+    const bool bHasInspected=PC->ReadInspected(Inspected);
+    // The seat plate left of a bar (seat ink, jersey number), as tall as the bar block plus a little; returns its left edge.
+    auto DrawSeatPlate=[&](float BarLeft,float BarTop,float BarH,int32 Seat)
+    {
+        const float H=FMath::RoundToFloat(FMath::Max(BarH+8.f,18.f*TextScale)),W=FMath::RoundToFloat(H*1.15f);
+        const float Right=BarLeft-3.f;
+        const FBox2D Plate(FVector2D(Right-W,BarTop+BarH*.5f-H*.5f),FVector2D(Right,BarTop+BarH*.5f+H*.5f));
+        LDBroadcastPaint::SeatPlate(LDUIPaint::FContext(E,Base+2,G),Base+2,Plate,Seat,1.f,H*.9f);
+        return float(Plate.Min.X)-LDBroadcastPaint::Lean(H)*.5f;
+    };
 
     // Own body segmented LoL bar (108x12 + 108x4 momentum + 22x22 hex level badge).
     if(OwnTrailMatch!=Own.Match||OwnTrailLife!=Own.Life)
@@ -712,20 +686,20 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             const int64 OverdriveThresh=Combat.OverdriveThresholdP2>0?Combat.OverdriveThresholdP2
                 :(Content?Content->Parameters.Overdrive.ThresholdP2:6000);
             const bool bOwnOverdrive=SelfBars.bMomentum&&Combat.MomentumP2>=OverdriveThresh;
+            // On air: the own bar is the ball orange (colour blind: the own blue), behind the own seat plate; no name.
             DrawSegmentedBar(BarLeft,BarTop,ContenderBarWidth,ContenderBarHeight,Combat.HPP2,Combat.MaxHPP2,Combat.ShieldP2,
                 bColorblind?WorldOwnHPColorblind:WorldOwnHPFill,OwnTrail,SelfBars.bMomentum,SelfBars.Momentum,bOwnOverdrive,nullptr);
 
-            const FLDProgressionView* Progression=PC->ReadOwnProgression();
             const ALDCharacter* OwnCharacter=Cast<ALDCharacter>(OwnBody);
-            const bool bOwnBadge=Progression&&Progression->Level>=1&&Progression->Level<=Progression->MaxLevel&&OwnCharacter;
             float ReachLeft=BarLeft-2.f,ReachRight=BarLeft+ContenderBarWidth+2.f;
             float ReachTop=BarTop-2.f;
-            if(bOwnBadge)
+            if(OwnCharacter)
             {
-                const FVector2f HexCentre(BarLeft-WorldBadgeGap-BadgeRim*.5f,BarTop+TotalInnerH*.5f);
-                DrawHexBadge(HexCentre,BadgeSide,LDHUD::PaletteColor(OwnCharacter->PresentationKey),Progression->Level);
-                ReachLeft=FMath::Min(ReachLeft,HexCentre.X-BadgeRim*.5f);
-                ReachTop=FMath::Min(ReachTop,HexCentre.Y-BadgeRim*.5f);
+                int32 Seat=LDHUD::SeatOf(Public->DemoLobby,Own.ContenderId);
+                if(Seat==INDEX_NONE){Seat=OwnCharacter->PresentationKey;}
+                const float PlateLeft=DrawSeatPlate(BarLeft,BarTop,TotalInnerH,Seat);
+                ReachLeft=FMath::Min(ReachLeft,PlateLeft);
+                ReachTop=FMath::Min(ReachTop,BarTop-3.f);
             }
             float BestCCFrac=0.f;FString BestCCName;
             TArray<TPair<FString,FLinearColor>,TInlineAllocator<4>> OwnElems;
@@ -768,14 +742,6 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
                 const FVector2f CCE=FontMeasure->Measure(BestCCName,TinyBoldFont);
                 FSlateDrawElement::MakeText(E,Base+5,G.ToPaintGeometry(CCE,FSlateLayoutTransform(FVector2f(BarLeft,CCNameBottom-CCE.Y))),BestCCName,TinyBoldFont,ESlateDrawEffect::None,WorldCCBarFill);
                 ReachTop=CCNameBottom-CCE.Y;
-            }
-            const FString OwnName=LDHUD::RosterName(Public->DemoLobby,Own.ContenderId);
-            if(!OwnName.IsEmpty())
-            {
-                const FVector2f NameExtent=FontMeasure->Measure(OwnName,ContenderFont);
-                float NameBottom=ReachTop-WorldRowGap;
-                Line(OwnName,ContenderFont,WorldLabelContenderInk,OwnX,NameBottom);
-                ReachTop=NameBottom;ReachLeft=FMath::Min(ReachLeft,OwnX-NameExtent.X*.5f);ReachRight=FMath::Max(ReachRight,OwnX+NameExtent.X*.5f);
             }
             const TArray<FLDOwnStatusMark>* Marks=PC->HUDUI?&PC->HUDUI->GetOwnStatusMarks():nullptr;
             if(Marks&&!Marks->IsEmpty())
@@ -854,6 +820,8 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
         LDWorldLabels::FBarTrailState TrailSnapshot;
         float CentreX=0.f,Bottom=0.f,LeftReach=0.f,RightReach=0.f,TextWidth=0.f,Height=0.f,Row=0.f;
         bool bPublicService=false;
+        // The current target (inspected) or the unit under the pointer: its name shows and a contender's bar turns live red.
+        bool bFocused=false;
         FString DummyBoard;
         FLinearColor DummyBoardInk=FLinearColor::White;
     };
@@ -966,6 +934,8 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
                     }
                 }
             }
+            Entry.bFocused=(bHasHovered&&Unit.Handle==HoveredHandle&&Unit.ObservationEpoch==HoveredEpoch)||(bHasInspected&&Unit.Handle==Inspected.Handle);
+            if(bContender&&!Entry.bFocused&&!Entry.Label.Name.StartsWith(LDTerms::TrainingDummy)){Entry.Label.Name.Reset();}
             const LDWorldLabels::FLabel& Label=Entry.Label;
             {
                 const FVector UnitFeet=Centre-FVector(0.,0.,88.);
@@ -998,7 +968,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
                 const FVector2f Dim=WorldBarDimensions(Label);
                 const float BarRimW=Dim.X+3.f;
                 const float TotalBarH=Dim.Y+(Entry.bHasMomentum?ContenderMomentumHeight+1.f:0.f)+3.f;
-                const bool bBadge=Label.bContender&&Label.Level>0;
+                const bool bBadge=Label.bContender;
                 const float ExtraTop=(Entry.CCFrac>0.f?WorldCCBarHeight+14.f:0.f)+(!Entry.ElemDiscs.IsEmpty()?WorldElemDiscSide+3.f:0.f);
                 Entry.Row=FMath::Max(TotalBarH,bBadge?BadgeRim:0.f)+ExtraTop;
                 Entry.LeftReach=BarRimW*.5f+(bBadge?WorldBadgeGap+BadgeRim:0.f);
@@ -1085,18 +1055,13 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             const bool bBoss=Label.CampTier==int8(ELDDemoCampTier::Boss)||Label.CreatureId==uint8(ELDDemoMonsterId::MonsterDean);
             const FLinearColor TierAccent=bBoss?WorldBossFrameInk:(Label.CampTier>=0?LDHUDStyle::CampTierInk(uint8(Label.CampTier)):FLinearColor::Transparent);
             const FLinearColor HPFill=!Label.bContender?WorldCampHPFill:Label.bPeaceful?LDHUDStyle::PeacefulHealth
-                :(bColorblind?WorldEnemyHPColorblind:WorldEnemyHPFill);
+                :!Entry.bFocused?WorldOtherHPFill:(bColorblind?WorldEnemyHPColorblind:WorldEnemyHPFill);
             DrawSegmentedBar(BarLeft,BarTop,Dim.X,Dim.Y,Entry.CurrentHPP2,Entry.MaxHPP2,Entry.ShieldP2,
                 HPFill,Entry.TrailSnapshot,Entry.bHasMomentum,Entry.MomentumFrac,Entry.bMomentumOverdrive,
                 (bBoss||Label.CampTier>=0)?&TierAccent:nullptr);
 
             float UpperY=BarTop-2.f;
-            if(Label.bContender&&Label.Level>0)
-            {
-                const FVector2f HexCentre(BarLeft-WorldBadgeGap-BadgeRim*.5f,BarTop+TotalInnerH*.5f);
-                DrawHexBadge(HexCentre,BadgeSide,LDHUD::PaletteColor(Label.Presentation),Label.Level);
-                UpperY=FMath::Min(UpperY,HexCentre.Y-BadgeRim*.5f);
-            }
+            if(Label.bContender){DrawSeatPlate(BarLeft,BarTop,TotalInnerH,Label.Presentation);UpperY=FMath::Min(UpperY,BarTop-3.f);}
             if(!Entry.ElemDiscs.IsEmpty())
             {
                 float ElemRight=BarLeft+Dim.X;

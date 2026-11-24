@@ -157,6 +157,9 @@ namespace LDHUD
         bool bKnown=false;
         FString Text;
         float Fraction=0.f;
+        // The rounded current and maximum as bare figures (the broadcast chrome's big number); empty while unknown.
+        FString Now;
+        FString Max;
     };
     // Points from the owner projection. Max<=0 means not projected yet: shown as syncing, never as 0/0.
     // Health rounds up so a living body never reads 0; momentum rounds down so a cost never looks affordable early.
@@ -595,6 +598,9 @@ namespace LDHUD
     struct FObservedCard
     {
         FString Title;
+        // Title's parts for the broadcast target card: the roster or creature name and a contender's public level (0 for none).
+        FString Name;
+        int32 Level=0;
         FResourceView Health;
         bool bMomentum=false;
         bool bMomentumFull=false;   // a full public bar: the target may overdrive
@@ -1135,6 +1141,16 @@ namespace LDHUD
         // A camp marker claim line (its kind and segment): relabelled the same way from the own field rewards.
         ELDFieldMarkerKind MarkerKind=ELDFieldMarkerKind::None;
         uint8 MarkerSegment=0;
+        // A public death notice, drawn as the lower third killer plate · cause · victim plate: the seats (SeatOf, -1 for
+        // none), the public roster names and, for a death no contender owned, the camp or creature that caused it
+        // (KillerLabel). The notice carries no skill, so the middle cell names the cause kind only.
+        bool bKill=false;
+        ELDKillCause Cause=ELDKillCause::Unowned;
+        int32 KillerSeat=INDEX_NONE;
+        int32 VictimSeat=INDEX_NONE;
+        FString KillerName;
+        FString VictimName;
+        int32 Assists=0;
     };
     // Kills are told when their notice arrives, unless it was already older than StaleKillMs (a late join). Every other
     // event is a change between two observations of the same match: the first observation of a match only records the
@@ -1184,6 +1200,53 @@ namespace LDHUD
         int64 GuardKeptMs=0;
         int64 GuardDueAtMs=0;
     };
+
+    // ---- On-air broadcast chrome (APP_SPEC §7) ----
+    // A contender's public seat: his start roster position in the lobby (the body tint key, LDBroadcast::SeatInk), shown as
+    // his jersey number (seat + 1) on every plate. INDEX_NONE when the roster does not list him.
+    LOCKDOWN_API int32 SeatOf(const FLDLobbyView& Lobby,const FGuid& ContenderId);
+    // The camp, creature or Boss that caused a death no contender owned (the same names as KillLine); empty for a contender
+    // kill or an unowned death.
+    LOCKDOWN_API FString KillerLabel(const FLDKillNotice& Notice,const FString& LowCampName,const FString& HighCampName,
+        const FString& EliteCampName,const FString& BossName);
+    // The element a learned active applies (its branch's element, else the ability's; ELDCombatElement order), 0 for none or
+    // unknown content. The chip on the slot shows it; medals that change the overdrive element stay in the tooltip.
+    LOCKDOWN_API uint8 SkillElement(const FLDDemoContentDefinitions* Content,FName DefinitionId,ELDSkillBranch Branch);
+    // The one-character element name (烫 湿 麻 冻 馊), empty for none.
+    LOCKDOWN_API FString ElementGlyph(uint8 Element);
+    // The match as eight beats: R0, field 1, R1, field 2, R2, field 3, R3, final field.
+    inline constexpr int32 ScoreBugBeats=8;
+    struct FScoreBugView
+    {
+        bool bKnown=false;
+        // The current beat (0..7) and whether it is a rest.
+        int32 Beat=0;
+        bool bRest=false;
+        bool bFinal=false;
+        // "野外 2/3", "休息 R1", "终局" or "最终休息".
+        FString Label;
+        // The remaining time of the current beat ("1:37"); empty without a clock or when the beat has no end yet.
+        FString Clock;
+        // The clock is in its last ten seconds, or paused.
+        bool bUrgent=false;
+        bool bPaused=false;
+    };
+    LOCKDOWN_API FScoreBugView ScoreBug(const FLDPublicMatchView& Public,bool bClock,int64 NowMs);
+    // One seat plate of the score bug: only public facts (the roster, the graffiti owner, the 上热搜 leader and the public
+    // death notices of the feed window).
+    struct FSeatPlateView
+    {
+        int32 Seat=INDEX_NONE;
+        FGuid ContenderId;
+        FString Name;
+        bool bSelf=false;
+        bool bGraffiti=false;
+        bool bLeader=false;
+        // A public death notice of this seat arrived within FEventFeed::LineSeconds (an event, never a claim of "dead").
+        bool bRecentKO=false;
+    };
+    LOCKDOWN_API TArray<FSeatPlateView> SeatPlates(const FLDLobbyView& Lobby,const FLDPublicMatchView& Public,const FLDKillFeedView& Kills,
+        const FGuid& Self,bool bClock,int64 NowMs);
 
     // #328 §2: separate bottom-right micro-badge counts for Active Skills, Build Cards and Element Stones (medal_*).
     struct FPendingCategoryCounts
