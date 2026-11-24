@@ -2879,23 +2879,32 @@ bool FLDHUDLiveSkillTooltipTest::RunTest(const FString& Parameters)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDWorkshopDrawerFloorTest,"Lockdown.Rules.WorkshopDrawerFloor",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDWorkshopDrawerFloorTest::RunTest(const FString& Parameters)
 {
-    // With the shop, a pending reward and the services open together, the drawer keeps the pending row with its services and
-    // one library card at the smallest logical layout and at a 2/3 scale with 125% text.
+    // With the shop, pending rewards (a blueprint and a card offer) and the services open together, at the smallest logical
+    // layout and at a 2/3 scale with 125% text: the tray pages its rewards, the opened shop stays drawn, and with the shop
+    // closed (the library tab) the library keeps at least one card.
     ULDWorkshop::FInput Input;
     Input.Mode=ULDWorkshop::EMode::Open;
-    Input.bShop=true;Input.bServices=true;Input.Pending=3;
+    Input.bServices=true;Input.Pending=2;
     struct FCase{FVector2D Size;float Scale;float Text;};
     for(const FCase& Case:{FCase{FVector2D(1280,720),1.f,1.f},FCase{FVector2D(1920,1080),2.f/3.f,1.25f}})
     {
-        const ULDWorkshop::FRects R=ULDWorkshop::ComputeLayout(Case.Size,Input,Case.Scale,Case.Text);
-        const float MinIcon=36.f/Case.Scale;
         const FString At=FString::Printf(TEXT("%.0fx%.0f scale %.2f text %.2f"),Case.Size.X,Case.Size.Y,Case.Scale,Case.Text);
-        TestTrue(At+TEXT(": the pending tray keeps a row of icons under its title and services"),R.Pending.bIsValid
-            &&float(R.Pending.GetSize().Y)-56.f-40.f>=LDWorkshop::PendingRowHeight(MinIcon,Case.Text)-.5f);
-        TestTrue(At+TEXT(": the library keeps at least one card of any group"),R.LibraryBody.bIsValid
-            &&float(R.LibraryBody.GetSize().Y)>=LDWorkshop::LibraryMinPageHeight(MinIcon,Case.Text)-.5f);
-        TestTrue(At+TEXT(": shop, library and pending stack inside the drawer"),(!R.Shop.bIsValid||R.Shop.Max.Y<=R.Library.Min.Y)
-            &&R.Library.Max.Y<=R.Pending.Min.Y+.5&&R.Pending.Max.Y<=R.Dock.Min.Y);
+        Input.bShop=true;
+        const ULDWorkshop::FRects Shop=ULDWorkshop::ComputeLayout(Case.Size,Input,Case.Scale,Case.Text);
+        const float Group=LDWorkshop::PendingTileGroupHeight(Case.Scale);
+        const float TrayLimit=float(Shop.Pending.GetSize().Y)-56.f-40.f;
+        TestTrue(At+TEXT(": the tray pages two reward groups of icon tiles"),Shop.Pending.bIsValid
+            &&LDWorkshop::FitPending({Group,Group},TrayLimit,32.f).bFits);
+        TestTrue(At+TEXT(": the opened shop is drawn at its floor or more"),Shop.Shop.bIsValid&&Shop.Shop.GetSize().Y>=200.
+            &&Shop.Shop.Max.Y<=Shop.Pending.Min.Y);
+        TestTrue(At+TEXT(": a shown library sits between the shop and the tray"),!Shop.Library.bIsValid
+            ||(Shop.Library.Min.Y>=Shop.Shop.Max.Y&&Shop.Library.Max.Y<=Shop.Pending.Min.Y+.5));
+        Input.bShop=false;
+        const ULDWorkshop::FRects Library=ULDWorkshop::ComputeLayout(Case.Size,Input,Case.Scale,Case.Text);
+        TestTrue(At+TEXT(": without the shop the library keeps at least one card of any group"),Library.LibraryBody.bIsValid
+            &&float(Library.LibraryBody.GetSize().Y)>=LDWorkshop::LibraryMinPageHeight(36.f/Case.Scale,Case.Text)-.5f);
+        TestTrue(At+TEXT(": without the shop the tray still pages its rewards"),Library.Pending.bIsValid
+            &&LDWorkshop::FitPending({Group,Group},float(Library.Pending.GetSize().Y)-96.f,32.f).bFits);
     }
     return true;
 }
