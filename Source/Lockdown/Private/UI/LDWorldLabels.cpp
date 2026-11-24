@@ -935,7 +935,9 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
                 }
             }
             Entry.bFocused=(bHasHovered&&Unit.Handle==HoveredHandle&&Unit.ObservationEpoch==HoveredEpoch)||(bHasInspected&&Unit.Handle==Inspected.Handle);
-            if(bContender&&!Entry.bFocused&&!Entry.Label.Name.StartsWith(LDTerms::TrainingDummy)){Entry.Label.Name.Reset();}
+            // A camp member keeps its tier in its bar's size and accent; the Boss keeps its name.
+            const bool bBossLabel=Entry.Label.CampTier==int8(ELDDemoCampTier::Boss)||Entry.Label.CreatureId==uint8(ELDDemoMonsterId::MonsterDean);
+            if(!Entry.bFocused&&!bBossLabel&&!Unit.bPeddler&&!Entry.Label.Name.StartsWith(LDTerms::TrainingDummy)){Entry.Label.Name.Reset();}
             const LDWorldLabels::FLabel& Label=Entry.Label;
             {
                 const FVector UnitFeet=Centre-FVector(0.,0.,88.);

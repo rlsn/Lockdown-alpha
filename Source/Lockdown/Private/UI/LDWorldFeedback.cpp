@@ -454,7 +454,9 @@ void ULDWorldFeedback::Present(const LDWorldFeedback::FEvent& Event,double Now)
         while(Floaters.Num()>WorldFeedbackMaxFloaters){Floaters.RemoveAt(0);}
         return;
     }
-    if(Event.Kind==EKind::LevelUp||Event.Kind==EKind::Kill)
+    // The own kill is the HUD's on-air K.O. moment (ULDHUD::PaintMoments), never a second banner over the body.
+    if(Event.Kind==EKind::Kill){return;}
+    if(Event.Kind==EKind::LevelUp)
     {
         if(Event.Kind==EKind::LevelUp){LevelUpAt=Now;}
         LDWorldFeedback::FBanner& Banner=Banners.AddDefaulted_GetRef();

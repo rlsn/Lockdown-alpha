@@ -1046,7 +1046,8 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             MomentumLine->AddChildToHorizontalBox(Fixed(MomentumText,HudMomentumTextW,0.f))->SetVerticalAlignment(VAlign_Center);
             Side->AddChildToVerticalBox(MomentumLine)->SetPadding(FMargin(0,4,0,0));
             auto* SideSlot=Numbers->AddChildToHorizontalBox(Side);SideSlot->SetVerticalAlignment(VAlign_Bottom);SideSlot->SetPadding(FMargin(8,0,0,10));
-            HealthCol->AddChildToVerticalBox(Numbers);
+            // A larger text scale shrinks the row to the column instead of pushing into the slots (no overflow, no scroll).
+            HealthCol->AddChildToVerticalBox(LDWidgets::Fit(WidgetTree,Numbers));
             HealthBarSpot=Fixed(Painted(nullptr,[this,Whole](const LDUIPaint::FContext& P)
             {
                 LDBroadcastPaint::FBar Bar;Bar.bLean=true;
