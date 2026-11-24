@@ -874,6 +874,7 @@ void ULDImpactFxSubsystem::Slice(const ULDHumanoidVisualComponent* Source, const
             Paint->SetVectorParameterValue(LDSliceVfx::GlowParameter, Layer.Glow);
             Paint->SetVectorParameterValue(LDSliceVfx::InkParameter, Layer.Ink);
             Paint->SetVectorParameterValue(LDSliceVfx::CoreParameter, Layer.Core);
+
         }
         // Ground marks first, then the slash, then sprites and strips; the tier's burst on top.
         const bool bGround = Layer.Place == EPlace::Flat || Layer.Place == EPlace::GroundStrip || Layer.Place == EPlace::GroundSlash;
@@ -994,6 +995,7 @@ LDSliceVfx::FLook ULDImpactFxSubsystem::SliceLook(ESliceTuning Kind, bool bOwn, 
     LDSliceVfx::FLook Look;
     Look.bOwn = bOwn;
     Look.bFocus = bFocus || bOwn;
+
     Look.EffectScale = LocalEffectScale();
     const LDHitFeel::FTuning Feel = LDHitFeel::Read();
     const auto Ratio = [](float Value, const TCHAR* Field)
@@ -1112,10 +1114,10 @@ void ULDImpactFxSubsystem::ShowGroundField(const AActor& Owner, const FVector& C
     FLiveSlice& Field = LiveSlices[Found];
     // The reduced-effects setting dims a field like every other layer.
     Field.ExternalAlpha = FMath::Clamp(Alpha, 0.f, 1.f) * (.55f + .45f * LocalEffectScale());
-    if (!Field.Layer.At.Equals(Centre, 1.) || !FMath::IsNearlyEqual(Field.Layer.SizeCm, 2.f * RadiusCm / .74f, 1.f))
+    if (!Field.Layer.At.Equals(Centre, 1.) || !FMath::IsNearlyEqual(Field.Layer.SizeCm, LDSliceVfx::FieldSizeCm(RadiusCm), 1.f))
     {
         Field.Layer.At = Centre;
-        Field.Layer.SizeCm = 2.f * RadiusCm / .74f;
+        Field.Layer.SizeCm = LDSliceVfx::FieldSizeCm(RadiusCm);
         Field.Ground = GroundUnder(Centre, Field.Normal);
     }
 }

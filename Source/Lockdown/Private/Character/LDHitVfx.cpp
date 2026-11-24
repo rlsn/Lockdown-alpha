@@ -166,6 +166,9 @@ namespace LDSliceVfxDetail
     FLinearColor Chalk() { return Hdr(LDBroadcast::White, 1.15f); }
 
     EMesh SlashOf(uint8 Step) { return Step >= 3 ? EMesh::Slash3 : Step == 2 ? EMesh::Slash2 : EMesh::Slash1; }
+    // The finisher's crescent is far wider than the first two cuts: drawn at three quarters of their scale so the struck
+    // body stays visible behind its impact star.
+    float SlashScale(uint8 Step) { return Step >= 3 ? 105.f : 140.f; }
 
     FVector Planar(const FVector& Dir)
     {
@@ -286,7 +289,7 @@ LDSliceVfx::FRecipe LDSliceVfx::SwingTelegraph(uint8 Step, const FVector& Feet, 
     Chalked.Place = EPlace::GroundSlash;
     Chalked.At = Feet;
     Chalked.Dir = Planar(Facing);
-    Chalked.SizeCm = 140.f * Look.Size;
+    Chalked.SizeCm = SlashScale(Step) * Look.Size;
     Chalked.Seconds = WindupSeconds + .05f;
     Chalked.FadeInSeconds = WindupSeconds * .5f;
     Chalked.FadeOutSeconds = .06f;
@@ -314,7 +317,7 @@ LDSliceVfx::FRecipe LDSliceVfx::SwingRelease(uint8 Step, const FVector& Centre, 
     Slash.Place = EPlace::Slash;
     Slash.At = Centre;
     Slash.Dir = Planar(Facing);
-    Slash.SizeCm = 140.f * Look.Size;
+    Slash.SizeCm = SlashScale(Step) * Look.Size;
     // The finisher sweeps slower and holds at its thickest before it erodes.
     Slash.Seconds = (bFinisher ? .36f : .24f) * Look.Seconds;
     Slash.FadeInSeconds = 0.f;
@@ -324,7 +327,8 @@ LDSliceVfx::FRecipe LDSliceVfx::SwingRelease(uint8 Step, const FVector& Centre, 
     Slash.ErodeFrom = (bFinisher ? .17f : .1f) * Look.Seconds;
     Slash.ErodeSeconds = (bFinisher ? .17f : .12f) * Look.Seconds;
     Slash.Glow = BodyGlow(Look);
-    Slash.Core = CoreGlow(Look);
+    // The finisher's wide fill reads as the ink-edged body colour with a light centre, not a solid white sheet.
+    Slash.Core = bFinisher ? FMath::Lerp(Slash.Glow, CoreGlow(Look), .35f) : CoreGlow(Look);
     Slash.Ink = InkEdge;
     Recipe.Layers.Add(Slash);
     Finish(Recipe, Look);
@@ -506,27 +510,30 @@ LDSliceVfx::FRecipe LDSliceVfx::Conduct(const FVector& Chest, const FVector& Fee
     Spark.Glow = Glow;
     Spark.Core = Hit.Core;
     Recipe.Layers.Add(Spark);
-    // Arcs run along the ground out to the splash radius: the reach of the shock to the other wet bodies.
-    for (int32 Spoke = 0; Spoke < 6; ++Spoke)
+    // Three short-lived thin arcs run along the ground out to the splash radius: the shock reaching the other wet bodies.
+    for (int32 Spoke = 0; Spoke < 3; ++Spoke)
     {
-        const FVector Out = FVector::ForwardVector.RotateAngleAxis(15.f + 60.f * Spoke, FVector::UpVector);
-        FLayer Ray = Arc(Feet, Feet + Out * RadiusCm * .95f, 34.f, .5f, Glow, Look, true);
-        Ray.DelaySeconds = .02f + .015f * Spoke;
-        Ray.RevealSeconds = .08f;
-        Ray.bOptional = Spoke % 2 == 1;
+        const FVector Out = FVector::ForwardVector.RotateAngleAxis(30.f + 120.f * Spoke, FVector::UpVector);
+        FLayer Ray = Arc(Feet, Feet + Out * RadiusCm * .9f, 22.f, .3f, Glow, Look, true);
+        Ray.DelaySeconds = .02f + .02f * Spoke;
+        Ray.RevealSeconds = .06f;
+        Ray.bOptional = Spoke > 0;
         Recipe.Layers.Add(Ray);
     }
-    // The field electrifies the ground at the body (a patch the size of a puddle); the arcs above carry the full reach,
-    // so the field never covers the screen.
-    FLayer Field = GroundField(Feet, FMath::Min(RadiusCm, 240.f), Look);
+    // The quiet field marks exactly the splash radius (COMBAT.ConductRadiusCm) for a moment, then fades.
+    FLayer Field = GroundField(Feet, RadiusCm, Look);
     Field.Seconds = 1.2f * Look.Seconds;
     Field.bLoop = false;
     Field.FadeInSeconds = .08f;
     Field.FadeOutSeconds = .8f * Look.Seconds;
-    Field.Alpha = .45f;
     Recipe.Layers.Add(Field);
     Finish(Recipe, Look);
     return Recipe;
+}
+
+float LDSliceVfx::FieldSizeCm(float RadiusCm)
+{
+    return 2.f * FMath::Max(RadiusCm, 1.f) / FieldEdge;
 }
 
 LDSliceVfx::FLayer LDSliceVfx::GroundField(const FVector& Centre, float RadiusCm, const FLook& Look)
@@ -536,8 +543,7 @@ LDSliceVfx::FLayer LDSliceVfx::GroundField(const FVector& Centre, float RadiusCm
     Field.Tex = ETex::ShockField;
     Field.Place = EPlace::Flat;
     Field.At = Centre;
-    // The field patch fills 0.74 of the frame's half width (vfx_slice_assets.json), so the patch edge meets the radius.
-    Field.SizeCm = 2.f * FMath::Max(RadiusCm, 1.f) / .74f;
+    Field.SizeCm = FieldSizeCm(RadiusCm);
     Field.Seconds = 1.f;
     Field.bLoop = true;
     Field.FadeInSeconds = .2f;

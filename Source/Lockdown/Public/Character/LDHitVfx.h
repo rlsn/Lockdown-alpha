@@ -28,6 +28,9 @@ namespace LDSliceVfx
     constexpr const TCHAR* FlipParameter = TEXT("Flip");
     // (U window start, U window end, dissolve 0..1, U scroll) over the surface's first UV channel.
     constexpr const TCHAR* ShapeParameter = TEXT("Shape");
+    // The field texture's edge radius on the quad (half-UV units; fb_shock_field draws its patch out to 0.74 of the half
+    // frame, vfx_slice_assets.json), so a quad of FieldSizeCm puts the patch edge on the gameplay radius.
+    constexpr float FieldEdge = .74f;
 
     enum class ETex : uint8
     {
@@ -86,6 +89,7 @@ namespace LDSliceVfx
         bool bOptional = false;      // dropped with reduced effects
         bool bTop = false;           // drawn over the other layers
         bool bTelegraph = false;     // an anticipation layer, cleared when its windup is withdrawn or cancelled
+
     };
     constexpr int32 MaxLayers = 12;
     struct FRecipe
@@ -117,6 +121,7 @@ namespace LDSliceVfx
         float EffectScale = 1;
         // ld.Feel / DA_CombatVfx tuning of this kind of layer: size, duration and brightness multipliers.
         float Size = 1, Seconds = 1, Glow = 1;
+
     };
     // The basic swing of combo Step (1..3): the chalk shape of the coming slash on the ground from the start of the
     // windup, then at the release the slash itself at the chest, revealed head-first and eroding from its tail.
@@ -133,11 +138,14 @@ namespace LDSliceVfx
     // follow-through (water splash and wet ground, the shock arc from From and the contact spark).
     LOCKDOWN_API FRecipe Impact(EStrike Strike, const FVector& Chest, const FVector& Feet, const FVector& Dir, const FVector& From,
         bool bChained, const FLook& Look);
-    // The conduct reaction (wet + shock) on a body: a large burst, arcs along the ground out to the splash radius and the
-    // electric field over that radius.
+    // The conduct reaction (wet + shock) on a body: a large burst, a few arcs along the ground out to the splash radius
+    // and, for a moment, the quiet field whose edge marks exactly that radius (COMBAT.ConductRadiusCm).
     LOCKDOWN_API FRecipe Conduct(const FVector& Chest, const FVector& Feet, float RadiusCm, const FLook& Look);
-    // A public electric ground state's field (ELDGroundStateKind::Field): the looping crackle over its radius.
+    // A public electric ground state's field (ELDGroundStateKind::Field): the looping field whose patch edge lies on its
+    // radius (the ground state's own RadiusCm, or COMBAT.ConductRadiusCm for conduct). FieldSizeCm is the quad width that
+    // puts the edge on RadiusCm.
     LOCKDOWN_API FLayer GroundField(const FVector& Centre, float RadiusCm, const FLook& Look);
+    LOCKDOWN_API float FieldSizeCm(float RadiusCm);
 }
 
 // The shaped hit layers over the Niagara burst (LDImpactFx): a flash star facing the camera, a ground mark under the

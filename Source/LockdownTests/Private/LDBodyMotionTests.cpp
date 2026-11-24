@@ -348,9 +348,9 @@ bool FLDBodyMotionSliceLayersTest::RunTest(const FString& Parameters)
         Arc && Arc->At.Equals(From) && Arc->End.Equals(Chest) && Arc->Variants==8 && Find(Zap,ETex::ShockSpark,EPlace::Facing)
         && Find(Zap,ETex::HitSkill,EPlace::Facing) && Find(Bounce,ETex::ShockArcs,EPlace::Strip) && !Find(Bounce,ETex::HitSkill,EPlace::Facing));
     const FLayer* Field=Find(Reaction,ETex::ShockField,EPlace::Flat);
-    TestTrue(TEXT("Conduct arcs along the ground out to its splash radius over a puddle-sized electric field"),
-        Field && FMath::IsNearlyEqual(Field->SizeCm*.74f*.5f,240.f,1.f) && Reaction.Layers.ContainsByPredicate([](const FLayer& L){ return L.Place==EPlace::GroundStrip && FVector::Dist(L.At,L.End)>400.f; })
-        && Reaction.Layers.FilterByPredicate([](const FLayer& L){ return L.Tex==ETex::ShockArcs && L.Place==EPlace::GroundStrip; }).Num()==6
+    TestTrue(TEXT("Conduct arcs along the ground out to its splash radius over a field whose edge is exactly that radius"),
+        Field && FMath::IsNearlyEqual(Field->SizeCm*FieldEdge*.5f,450.f,1.f) && FMath::IsNearlyEqual(FieldSizeCm(220.f)*FieldEdge*.5f,220.f,.1f) && Reaction.Layers.ContainsByPredicate([](const FLayer& L){ return L.Place==EPlace::GroundStrip && FVector::Dist(L.At,L.End)>400.f; })
+        && Reaction.Layers.FilterByPredicate([](const FLayer& L){ return L.Tex==ETex::ShockArcs && L.Place==EPlace::GroundStrip; }).Num()==3
         && ReactionHit->Ink.B>ReactionHit->Ink.R);
     // Own strikes: full size with the ball orange; others' are white, smaller and fainter; reduced effects drop the optional layers.
     const FLayer* OtherHit=Find(Impact(EStrike::Basic,Chest,Feet,Dir,From,false,Other),ETex::HitBasic,EPlace::Facing);
@@ -358,7 +358,7 @@ bool FLDBodyMotionSliceLayersTest::RunTest(const FString& Parameters)
         OtherHit && OtherHit->SizeCm<BasicHit->SizeCm && OtherHit->Alpha<BasicHit->Alpha && BasicHit->Glow.R>2.f*BasicHit->Glow.B
         && FMath::IsNearlyEqual(OtherHit->Glow.R,OtherHit->Glow.B,.01f));
     FLook Reduced=Own; Reduced.EffectScale=.45f;
-    TestTrue(TEXT("Reduced effects drop the optional arcs and dim the rest"), Conduct(Chest,Feet,450.f,Reduced).Layers.Num()==Reaction.Layers.Num()-3
+    TestTrue(TEXT("Reduced effects drop the optional arcs and dim the rest"), Conduct(Chest,Feet,450.f,Reduced).Layers.Num()==Reaction.Layers.Num()-2
         && Find(Conduct(Chest,Feet,450.f,Reduced),ETex::HitSkill,EPlace::Facing)->Alpha<ReactionHit->Alpha);
     FLook Off=Own; Off.Size=0.f;
     FLook Broken=Own; Broken.Seconds=NaN;
@@ -373,7 +373,7 @@ bool FLDBodyMotionSliceLayersTest::RunTest(const FString& Parameters)
     const FRecipe Slash1=SwingRelease(1,Chest,Dir,Own), Slash3=SwingRelease(3,Chest,Dir,Own);
     TestTrue(TEXT("Each combo step has its own slash; the finisher lasts longer"),
         Slash1.Layers.Num()==1 && Slash1.Layers[0].Mesh==EMesh::Slash1 && Slash3.Layers[0].Mesh==EMesh::Slash3
-        && Slash3.Layers[0].Seconds>Slash1.Layers[0].Seconds && SwingRelease(2,Chest,Dir,Own).Layers[0].Mesh==EMesh::Slash2);
+        && Slash3.Layers[0].Seconds>Slash1.Layers[0].Seconds && Slash3.Layers[0].SizeCm<Slash1.Layers[0].SizeCm && SwingRelease(2,Chest,Dir,Own).Layers[0].Mesh==EMesh::Slash2);
     const FLayer& Cut=Slash1.Layers[0];
     TestTrue(TEXT("A slash reveals from its tail to its head, then erodes"),
         Evaluate(Cut,0.f).WindowLo>.9f && Evaluate(Cut,Cut.RevealSeconds).WindowLo<0.f && Evaluate(Cut,Cut.ErodeFrom).Dissolve==0.f
