@@ -87,6 +87,8 @@ namespace
     const float ArtSweepArms[] = { LDCamera::MinArmLength, LDCamera::DefaultArmLength, LDCamera::MaxArmLength };
     // Heights on a standing body that must stay visible: upper chest and top of the head.
     const double ArtSweepBodyCm[] = { 130., 170. };
+    // How far the combat VFX dash shot streaks the attacker before it holds still; the stage search clears this run.
+    constexpr double VfxDashRunCm = 600.;
 
     struct FArtCaptureProbe
     {
@@ -400,9 +402,11 @@ namespace
         }
 
         // The stage of the combat VFX bodies: the first open floor around the flagpole, nearest ring first, found in the
-        // loaded level, so the fixture follows the authored map. Every sampled point (both bodies, the dash run and a ring
-        // around them) is legal ground for a body on the flagpole's surface, level with the centre, and its feet, chest
-        // and head are seen unobstructed from the game camera at its default arm.
+        // loaded level, so the fixture follows the authored map. Every sampled point (both bodies and a ring around them)
+        // is legal ground for a body on the flagpole's surface, level with the centre; the dash run is swept by the body
+        // capsule and keeps level walkable support along its whole length. From the game camera at its default arm, no
+        // collision hides a body's feet, chest or head, and no visual decoration (which has no collision) hides its chest
+        // or head, tested on the decoration bounds as CheckOcclusion does.
         bool FindVfxStage(UWorld& Target, FVector& OutFocus, FString& Error) const
         {
             auto* Registry = Target.GetSubsystem<ULDMapRegistry>();
@@ -421,11 +425,50 @@ namespace
             }
             const FLDDemoRational& Reach = Content->Get().Parameters.CaptureRadiusCm;
             const double FlagReach = Reach.Denominator > 0 ? double(Reach.Numerator) / double(Reach.Denominator) : 0.;
+            const ULDArtSubsystem* Art = Target.GetGameInstance() ? Target.GetGameInstance()->GetSubsystem<ULDArtSubsystem>() : nullptr;
+            const ULDArtCatalog* Catalog = Art ? Art->GetCatalog() : nullptr;
+            if (!Catalog)
+            {
+                Error = TEXT("The art catalog is not loaded, so visual decorations cannot be tested for occlusion.");
+                return false;
+            }
+            TMap<FString, const FLDArtProp*> Props;
+            for (const FLDArtProp& Prop : Catalog->Props) { Props.Add(Prop.Id, &Prop); }
+            TArray<FBox> Visuals;
+            for (const FLDArtDecoration& Decoration : Catalog->Decorations)
+            {
+                const FLDArtProp* Prop = Props.FindRef(Decoration.Prop);
+                if (Prop && Prop->Mesh) { Visuals.Add(Prop->Mesh->GetBoundingBox().TransformBy(Decoration.Transform)); }
+            }
             const FVector2D Across(UE_INV_SQRT_2, UE_INV_SQRT_2);
+            const FVector2D DashFrom = -Across * 95.;
             TArray<FVector2D> Samples = { FVector2D::ZeroVector, -Across * 95., Across * 95. };
-            for (const double Run : { 150., 300., 450., 600. }) { Samples.Add(-Across * 95. + FVector2D(Run, 0.)); }
             for (int32 Turn = 0; Turn < 8; ++Turn) { Samples.Add(FVector2D(320., 0.).GetRotated(45. * Turn)); }
+            const double HalfHeight = Capsule.GetCapsuleHalfHeight();
             FCollisionQueryParams Sight(SCENE_QUERY_STAT(LDArtCapture), true);
+            const auto Seen = [&](const FVector& Eye, const FVector& Surface, bool bFeet)
+            {
+                for (const double Height : { 10., ArtSweepBodyCm[0], ArtSweepBodyCm[1] })
+                {
+                    if (!bFeet && Height < ArtSweepBodyCm[0]) { continue; }
+                    const FVector Point = Surface + FVector(0., 0., Height);
+                    if (Target.LineTraceTestByChannel(Eye, Point, ECC_Visibility, Sight)
+                        || Target.LineTraceTestByChannel(Eye, Point, ECC_Camera, Sight))
+                    {
+                        return false;
+                    }
+                    if (Height >= ArtSweepBodyCm[0] && Visuals.ContainsByPredicate([&](const FBox& Box)
+                        { return FMath::LineBoxIntersection(Box, Eye, Point, Point - Eye); }))
+                    {
+                        return false;
+                    }
+                }
+                return true;
+            };
+            const auto Level = [&](const FVector2D& Point, const FVector& Focus, FVector& Surface)
+            {
+                return Registry->ResolveWalkableGround(Point, Surface) && FMath::Abs(Surface.Z - Focus.Z) <= 15.;
+            };
             const auto Open = [&](const FVector2D& Centre, FVector& Focus)
             {
                 if (!Registry->ResolveWalkableGround(Centre, Focus)) { return false; }
@@ -436,19 +479,25 @@ namespace
                     FLDLegalGround Legal;
                     ELDWorldQueryFailure Failure = ELDWorldQueryFailure::None;
                     FString Why;
-                    if (!Registry->ResolveWalkableGround(Centre + Sample, Surface) || FMath::Abs(Surface.Z - Focus.Z) > 15.
-                        || !Registry->QueryGround(Registry->Revision(), Surface, Capsule, Flag->Surface, Legal, Failure, Why))
+                    if (!Level(Centre + Sample, Focus, Surface)
+                        || !Registry->QueryGround(Registry->Revision(), Surface, Capsule, Flag->Surface, Legal, Failure, Why)
+                        || !Seen(Eye, Surface, true))
                     {
                         return false;
                     }
-                    for (const double Height : { 10., ArtSweepBodyCm[0], ArtSweepBodyCm[1] })
+                }
+                // The dash run: one continuous capsule sweep over level support, its body seen from the camera.
+                const FVector RunStart(Centre + DashFrom, Focus.Z + HalfHeight + 5.);
+                if (Target.SweepTestByChannel(RunStart, RunStart + FVector(VfxDashRunCm, 0., 0.), FQuat::Identity, ECC_Pawn, Capsule, Sight))
+                {
+                    return false;
+                }
+                for (int32 Step = 0; Step * 25. <= VfxDashRunCm; ++Step)
+                {
+                    FVector Surface;
+                    if (!Level(Centre + DashFrom + FVector2D(Step * 25., 0.), Focus, Surface) || (Step % 4 == 0 && !Seen(Eye, Surface, false)))
                     {
-                        const FVector Point = Surface + FVector(0., 0., Height);
-                        if (Target.LineTraceTestByChannel(Eye, Point, ECC_Visibility, Sight)
-                            || Target.LineTraceTestByChannel(Eye, Point, ECC_Camera, Sight))
-                        {
-                            return false;
-                        }
+                        return false;
                     }
                 }
                 return true;
@@ -844,8 +893,10 @@ namespace
                 }
                 if (auto* Body = VfxAttacker.Get())
                 {
-                    const FVector Dash(bVfxDash ? 1500.f : 0.f, 0.f, 0.f);
-                    if (bVfxDash) { Body->GetOwner()->AddActorWorldOffset(Dash * Delta); }
+                    // The streak holds still at the end of the run the stage search cleared.
+                    const bool bRunning = bVfxDash && FVector::Dist2D(Body->GetOwner()->GetActorLocation(), VfxDashFrom) < VfxDashRunCm;
+                    const FVector Dash(bRunning ? 1500.f : 0.f, 0.f, 0.f);
+                    if (bRunning) { Body->GetOwner()->AddActorWorldOffset(Dash * Delta); }
                     Body->Animate(Dash, Delta);
                 }
                 if (auto* Body = VfxVictim.Get()) { Body->Animate(FVector::ZeroVector, Delta); }
