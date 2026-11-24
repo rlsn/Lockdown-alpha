@@ -514,14 +514,12 @@ void LDUIPaint::Pill(FSlateWindowElementList& Elements,int32 Layer,const FGeomet
     Edge(Elements,Layer,Geometry,EShape::Rounded,Box,Radius,Border,1.f);
 }
 
-float LDUIPaint::TileRadius(uint8 Kind,float Size){return Kind==4?Size*.5f:Kind==0?Size*.14f:0.f;}
-
 void LDUIPaint::Tile(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry,const FBox2D& Box,uint8 Kind,ETileState State,UTexture2D* Icon,float Opacity,double Time)
 {
     const float Size=float(FMath::Min(Box.GetSize().X,Box.GetSize().Y));
     if(Size<4.f||Opacity<=0.f){return;}
     const EShape Form=LDUIShapes::KindShape(Kind);
-    const float Radius=TileRadius(Kind,Size);
+    const float Radius=Kind==4?Size*.5f:Kind==0?Size*.14f:0.f;
     const FLinearColor KindColor=LDUIShapes::KindColor(Kind);
     if(State==ETileState::Hole)
     {
@@ -583,14 +581,6 @@ void LDUIPaint::SkillArt(FSlateWindowElementList& Elements,int32 Layer,const FGe
     const FBox2D Face=Grow(Box,-3.f);
     Shape(Elements,Layer+2,Geometry,EShape::Rounded,Face,7.f,FFill::Solid(Hex(0x0A1220)),Opacity);
     Picture(Elements,Layer+3,Geometry,EShape::Rounded,Face,7.f,Icon,FLinearColor(1,1,1,Opacity));
-}
-
-void LDUIPaint::NewDot(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry,FVector2D Center,float Opacity)
-{
-    const FBox2D Dot(Center-FVector2D(8,8),Center+FVector2D(8,8));
-    Halo(Elements,Layer,Geometry,EShape::Circle,Dot,8.f,LDHUDStyle::UIAction.CopyWithNewOpacity(.9f*Opacity),10.f);
-    Shape(Elements,Layer+1,Geometry,EShape::Circle,Dot,8.f,FFill::Solid(Hex(0x10141D)),Opacity);
-    Shape(Elements,Layer+2,Geometry,EShape::Circle,Grow(Dot,-2.f),6.f,FFill::Solid(LDHUDStyle::UIAction),Opacity);
 }
 
 void LDUIPaint::ElementDisc(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry,const FBox2D& Box,const FLinearColor& Color,float Opacity)

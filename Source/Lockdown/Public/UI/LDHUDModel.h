@@ -782,8 +782,6 @@ namespace LDHUD
     LOCKDOWN_API const FLDDemoCardDefinition* CardDefinitionOf(const FLDDemoContentDefinitions* Content,FName KeyOrId);
     // How many copies of Definition the own view owns.
     LOCKDOWN_API int32 OwnedCopies(const FLDProgressionView& Progression,FName Definition);
-    // What an installed card sits on, for its row: "（技能名）", "（技能名 · 元素）" or "（元素）"; empty when stored or plain.
-    LOCKDOWN_API FString CardTargetText(const FLDCardInstanceView& Card,const FLDDemoContentDefinitions* Content);
     // A card's face: icon, name, its form and type (the frame's shape) and its display sentence with the owner's level grown
     // numbers (like an active's).
     struct FCardFaceView
@@ -805,12 +803,6 @@ namespace LDHUD
         bool bKnown=false;
     };
     LOCKDOWN_API FCardFaceView CardFace(FName DefinitionId,const FLDDemoContentDefinitions* Content,const FCardStats& Stats);
-    // The 构筑 tray's hover popup of a card (the HUD's slot popup; the card face shows only the icon and the name): the name,
-    // the kind ("技能 · <target> · <cost>", "图纸 · …" or "构件"), then the full rule with this level's numbers and its
-    // keyword explanations, and Outcome (what a click does besides the plain take, or why it cannot be taken now) when not
-    // empty.
-    LOCKDOWN_API FActionDetailView ActiveChoiceDetail(const FActiveCardView& Card,bool bBlueprint,const FString& Outcome);
-    LOCKDOWN_API FActionDetailView CardChoiceDetail(const FCardFaceView& Card,const FString& Outcome);
 
     // The card storage (APP_SPEC §7): the owned cards not installed, and the equipped columns Q, W and E by server slot,
     // 冲刺(D) and 本体 (which carries the basic attack); each installed card sits in the column of its target, an element medal
@@ -872,8 +864,6 @@ namespace LDHUD
         int32 Capacity=0;
         // StorageColumnCount columns in EStorageColumn order.
         TArray<FStorageColumnView> Columns;
-        // Every stored card key (all copies).
-        int32 StoredCards() const {int32 N=0;for(const FStoredView& S:Stored){N+=S.Copies;}return N;}
     };
     LOCKDOWN_API FStorageView CardStorage(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content,
         const TSet<FName>* Seen=nullptr);
@@ -901,9 +891,6 @@ namespace LDHUD
     // Live host-compatibility strip for a skill-form card on 3-choice offers and the rest shop (#331). Empty for non-skill cards.
     LOCKDOWN_API FString SkillCardCompatStrip(FName CardId,const FLDProgressionView& Progression,
         const FLDDemoContentDefinitions* Content,const FSlotKeys& Keys,bool& bOutHasMatch,bool& bOutAllFull);
-    // What letting go of Key on Drop does, for the drag caption: "装到 Q", "替换 X · 装到 Q".
-    LOCKDOWN_API FString DropPreviewText(FName Key,const FCardDrop& Drop,const FLDProgressionView& Progression,
-        const FLDDemoContentDefinitions* Content);
     // The learned skills and owned cards sharing a vocabulary key with the card (spec §6.3), for the popup's 联动 line and
     // the workshop's link lines.
     struct FCardConnections
@@ -911,7 +898,6 @@ namespace LDHUD
         TArray<FName> Actives,Cards;
     };
     LOCKDOWN_API FCardConnections CardConnections(FName Key,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);
-    LOCKDOWN_API FString ConnectionsText(FName Key,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);
     // The drop of Drops a pointer over Column (and over the installed Host there, or None) selects: the host's own drop when
     // it takes one, else the column's own; null when neither does.
     LOCKDOWN_API const FCardDrop* FindDrop(const TArray<FCardDrop>& Drops,EStorageColumn Column,FName Host);
@@ -943,8 +929,6 @@ namespace LDHUD
         }
     };
     LOCKDOWN_API FGrowthPending GrowthPending(const FLDProgressionView* Progression,uint32 Match,const FLDDemoContentDefinitions* Content);
-    // The current opportunity is included in Queued; the first dot represents it.
-    LOCKDOWN_API FString OfferQueueDots(uint8 Queued);
     // Match a consumed opportunity to the applied receipt of the exact request and life that submitted it.
     struct FOfferMotionTicket
     {

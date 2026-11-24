@@ -744,31 +744,24 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
     ULDChoicesPanel* Panel = Owner.HUDUI ? Owner.HUDUI->ChoicesPanel.Get() : nullptr;
     if (!Panel || !Owner.Controls) { return false; }
 
-    // Tab -1 is the #227 component storage held open over the band with the panel closed.
-    // Tab: 0 the open 构筑 panel, -1 the pinned storage, 1 the HUD stat icons with the first stat's "+" and popup pinned,
-    // 2 the open workshop's bench (its board, library and character column) with the offer stage left.
+    // Tab: 0 the open build ring, 1 the HUD stat icons with the first stat's "+" and popup pinned, 2 the open build ring.
     struct FReviewShot { const TCHAR* Name; int32 Tab, Width, Height; float Scale; };
     static constexpr FReviewShot ReviewShots[] = {
         {TEXT("HostRestSkills_1280x720_100.png"), 0, 1280, 720, 1.f},
-        {TEXT("HostRestStorage_1280x720_100.png"), -1, 1280, 720, 1.f},
         {TEXT("HostRestStats_1280x720_100.png"), 1, 1280, 720, 1.f},
         {TEXT("HostRestSkills_1280x720_125.png"), 0, 1280, 720, 1.25f},
-        {TEXT("HostRestStorage_1280x720_125.png"), -1, 1280, 720, 1.25f},
         {TEXT("HostRestStats_1280x720_125.png"), 1, 1280, 720, 1.25f},
         {TEXT("HostRestSkills_1920x1080_100.png"), 0, 1920, 1080, 1.f},
-        {TEXT("HostRestStorage_1920x1080_100.png"), -1, 1920, 1080, 1.f},
         {TEXT("HostRestStats_1920x1080_100.png"), 1, 1920, 1080, 1.f},
         {TEXT("HostRestSkills_1920x1080_125.png"), 0, 1920, 1080, 1.25f},
-        {TEXT("HostRestStorage_1920x1080_125.png"), -1, 1920, 1080, 1.25f},
         {TEXT("HostRestStats_1920x1080_125.png"), 1, 1920, 1080, 1.25f},
         {TEXT("HostWorkshop_1920x1080_100.png"), 2, 1920, 1080, 1.f},
         {TEXT("HostWorkshop_1920x1080_125.png"), 2, 1920, 1080, 1.25f},
         {TEXT("HostWorkshop_1280x720_100.png"), 2, 1280, 720, 1.f},
         {TEXT("HostWorkshop_1280x720_125.png"), 2, 1280, 720, 1.25f},
     };
-    ULDComponentStorage* Storage = Owner.HUDUI ? Owner.HUDUI->Storage.Get() : nullptr;
     ULDStatBar* Stats = Owner.HUDUI ? Owner.HUDUI->StatBar.Get() : nullptr;
-    if (!Storage || !Stats) { return false; }
+    if (!Stats) { return false; }
     static constexpr FReviewShot ServiceShots[] = {
         {TEXT("HostRestService_1280x720_100.png"), 0, 1280, 720, 1.f},
         {TEXT("HostRestService_1280x720_125.png"), 0, 1280, 720, 1.25f},
@@ -788,25 +781,13 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
     {
         const FReviewShot& Shot = ReviewShots[Index];
         Owner.Controls->TextScale = Shot.Scale;
-        Storage->PinOpen(Shot.Tab < 0);
         Stats->PinHover(Shot.Tab == 1 ? 0 : INDEX_NONE);
         if (Shot.Tab != 0 && Shot.Tab != 2) { Panel->ClosePanel(); }
         else { Panel->OpenPanel(); }
-        if (Shot.Tab == 2) { Panel->LeaveStage(); }
         Settle(Shot.Width, Shot.Height);
     };
     const auto Capture = [&](const TCHAR* Name)
     {
-        if(Panel->IsStageShown()&&!Panel->IsFinalStage())
-        {
-            LDHUD::FActionDetailView Detail;
-            const int32 Pick=Panel->PinnedPreview==INDEX_NONE?0:Panel->PinnedPreview;
-            const bool bDocked=Panel->OfferCards.IsValidIndex(Pick)
-                &&Panel->Hovered(FVector2D(-1000,-1000),Detail)
-                &&Detail.Name==Panel->OfferCards[Pick].Detail.Name;
-            CheckUI(bDocked,TEXT("UI: the active offer has its own default dock detail without pointer hover"),
-                FString::Printf(TEXT("%s: pick=%d of %d cards, dock shows \"%s\""),Name,Pick,Panel->OfferCards.Num(),*Detail.Name));
-        }
         if(Owner.HUDUI->Workshop&&Owner.HUDUI->Workshop->IsOpen())
         {
             // The build ring: every part on screen, the wing clear of the inspector's corner and the hand above the band.
@@ -848,7 +829,6 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
                 return true;
             }
             Owner.Controls->TextScale = RestReviewOriginalScale;
-            Storage->PinOpen(false);
             Stats->PinHover(INDEX_NONE);
             Panel->OpenPanel();
             Owner.ConsoleCommand(TEXT("r.SetRes 1280x720w"), true); RestReviewWidth = 1280; RestReviewHeight = 720;
@@ -858,8 +838,6 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
             return true;
         }
         if (Now < RestReviewDueAt || FScreenshotRequest::IsScreenshotRequested()) { return true; }
-        // The bench shots leave the offer stage once the workshop has laid it out.
-        if (ReviewShots[RestReviewIndex].Tab == 2 && Panel->IsStageShown()) { Panel->LeaveStage(); RestReviewDueAt = Now + .5; return true; }
         Capture(ReviewShots[RestReviewIndex].Name);
         bRestReviewCapturePending = true;
         return true;
@@ -969,18 +947,13 @@ void FLDDemoOpponentProbe::ReviewShots(ALDPlayerController& Owner, const ALDGame
         return true;
     };
     if (bResults) { Queue(TEXT("HostResults"), .5); return; }
-    // The opening active offer with its points. The Host opens it and previews the first card only so a hit does not fold it
-    // before the shot; it never confirms.
+    // The opening active offer with its points. The Host opens the ring for the shot; it never confirms.
     if (Public.PublicMatch.Phase == ELDMatchPhase::Rest && Public.PublicMatch.Timeline.Stage == ELDMatchStage::Rest
         && Public.PublicMatch.Timeline.Step == ELDRestStep::Build && Now - MatchSeenAt >= 2.
         && !ReviewTaken.Contains(TEXT("HostChoices")))
     {
         ULDChoicesPanel* Panel = Owner.HUDUI ? Owner.HUDUI->ChoicesPanel.Get() : nullptr;
-        if (Panel)
-        {
-            if (!Panel->IsPanelOpen()) { Panel->OpenPanel(); }
-            Panel->PreviewOffer(0);
-        }
+        if (Panel && !Panel->IsPanelOpen()) { Panel->OpenPanel(); }
         if (Queue(TEXT("HostChoices"), .4)) { return; }
     }
     for (const FLDKillNotice& Notice : Public.KillFeed.Notices)

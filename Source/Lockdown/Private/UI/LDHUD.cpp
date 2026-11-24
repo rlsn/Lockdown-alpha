@@ -245,8 +245,6 @@ constexpr float HudDetailWidth=300.f;
 // The corner build entry and the loot queue above it.
 constexpr float HudCornerH=46.f;
 constexpr float HudLootBottom=HudSafeBottom+HudCornerH+20.f;
-// The tray's distance from the screen's bottom-right corner (ULDChoicesPanel bounds).
-constexpr float HudCornerInset=16.f;
 // The PK side panel wraps at this width: the longest fixed line (the PK time limit) stays on one line at 100% text.
 constexpr float HudPKWrap=440.f;
 const FLinearColor HudPromptFill(FColor(0xFF,0xC8,0x3D));
@@ -1425,7 +1423,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             DragGhostSlot=Canvas->AddChildToCanvas(GhostBox);DragGhostSlot->SetAutoSize(true);DragGhostSlot->SetAlignment(FVector2D(.5f,.5f));DragGhostSlot->SetZOrder(30);
         }
 
-        // The workshop lies under the tray and the storage, which it lays out (ULDWorkshop).
+        // The build ring (ULDWorkshop) draws every build decision; the 构筑 panel and the card storage below hold its commands.
         Workshop=CreateWidget<ULDWorkshop>(PC);
         if(Workshop)
         {
@@ -1439,32 +1437,22 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             Workshop->Notify=[this](const FString& Notice){ShowToast(Notice);};
         }
         else{UE_LOG(LogLDUI,Error,TEXT("LD_HUD_WORKSHOP_CREATION_FAILED"));}
-        // Normal main panels fill the canvas with a hit-transparent frame, so the world beside them keeps its input.
+        // The main panels the root opens one at a time. The 构筑 panel draws nothing (the ring shows its decisions), so only the
+        // DEV panel joins the canvas, filling it with a hit-transparent frame so the world beside it keeps its input.
         ChoicesPanel=CreateWidget<ULDChoicesPanel>(PC);
         DevTestPanel=CreateWidget<ULDDevTestPanel>(PC);
         const TPair<ELDUIMainPanel,ULDPanel*> Docked[]={{ELDUIMainPanel::Choices,ChoicesPanel.Get()},{ELDUIMainPanel::DevTest,DevTestPanel.Get()}};
         for(const TPair<ELDUIMainPanel,ULDPanel*>& Entry:Docked)
         {
             if(!Entry.Value){UE_LOG(LogLDUI,Error,TEXT("LD_HUD_PANEL_CREATION_FAILED %d"),int32(Entry.Key));continue;}
-            auto* PanelSlot=Canvas->AddChildToCanvas(Entry.Value);PanelSlot->SetAnchors(FAnchors(0,0,1,1));PanelSlot->SetOffsets(FMargin(0));PanelSlot->SetZOrder(10);
+            if(Entry.Value==DevTestPanel)
+            {auto* PanelSlot=Canvas->AddChildToCanvas(Entry.Value);PanelSlot->SetAnchors(FAnchors(0,0,1,1));PanelSlot->SetOffsets(FMargin(0));PanelSlot->SetZOrder(10);}
             if(PC->RootUI){PC->RootUI->RegisterMainPanel(Entry.Key,Entry.Value);}
         }
-        // #227: the storage fills the canvas with a hit-transparent frame above the band and below the main panels' popups.
-        Storage=CreateWidget<ULDComponentStorage>(PC);
-        if(Storage)
-        {
-            auto* StorageSlot=Canvas->AddChildToCanvas(Storage);StorageSlot->SetAnchors(FAnchors(0,0,1,1));StorageSlot->SetOffsets(FMargin(0));StorageSlot->SetZOrder(12);
-            Storage->Notify=[this](const FString& Notice){ShowToast(Notice);};
-            // The build ring draws the library and the installed cards; the storage keeps the commands.
-            Storage->SetHeadless(true);
-        }
-        else{UE_LOG(LogLDUI,Error,TEXT("LD_HUD_STORAGE_CREATION_FAILED"));}
-        if(ChoicesPanel)
-        {
-            ChoicesPanel->Notify=[this](const FString& Notice){ShowToast(Notice);};
-            // The build ring draws the offers, the shop and the rest services; the tray keeps the commands.
-            ChoicesPanel->SetHeadless(true);
-        }
+        // #227: the card storage's commands (installs, moves, replaces); the ring draws the library and the installed cards.
+        Storage=NewObject<ULDComponentStorage>(this);
+        Storage->Notify=[this](const FString& Notice){ShowToast(Notice);};
+        if(ChoicesPanel){ChoicesPanel->Notify=[this](const FString& Notice){ShowToast(Notice);};}
         // Growth's owning-connection entries; the panels only build commands from the views they showed.
         const TWeakObjectPtr<ALDPlayerController> WeakPC(PC);
         if(ChoicesPanel)
@@ -1542,15 +1530,12 @@ TArray<FSlateRect> ULDHUD::WorldLabelReservedAreas(const FGeometry& PaintGeometr
     Add(DeathBanner);
     Add(EventFeedPanel);
     Add(ToastPanel);
-    if(Storage){for(const UWidget* Shown:Storage->ReservedWidgets()){Add(Shown);}}
     return Areas;
 }
 bool ULDHUD::IsUIAt(FVector2D P) const
 {
     if(Minimap&&Minimap->IsDragging()){return true;}
-    if(Storage&&Storage->IsHit(P)){return true;}
     if(Workshop&&Workshop->IsHit(P)){return true;}
-    if(ChoicesPanel&&ChoicesPanel->IsQuickHit(P)){return true;}
     if(DeathBanner&&DeathBanner->IsVisible())
     {
         if(DeathWorkshopButton&&DeathWorkshopButton->IsVisible()&&DeathWorkshopButton->GetCachedGeometry().IsUnderLocation(P)){return true;}
@@ -1882,7 +1867,7 @@ LDHUD::FReadModelKey ULDHUD::ReadModelKey(ALDPlayerController& PC,const ALDGameS
         for(const ELDCombatEntry Entry:PC.SkillAtKey){Put(uint64(Entry),8);}
         Put(PC.BuildBlueprints&&PC.BuildBlueprints->IsViewerOpen(),1);
         Put(ChoicesPanel&&ChoicesPanel->IsPanelOpen(),1);Put(ChoicesPanel&&ChoicesPanel->IsTrayOpen(),1);
-        Put(Workshop&&Workshop->IsOpen(),1);Put(Storage&&Storage->IsDragging(),1);Put(bDragging,1);
+        Put(Workshop&&Workshop->IsOpen(),1);Put(bDragging,1);
         Put(PC.Controls&&PC.Controls->bColorblindMode,1);
         int64 NowMs=0;Put(PC.ReadDemoAuthorityTimeMs(NowMs),1);
         // Owner statistics that arrive by RPC (the low bits of their serials are enough to notice a new one).
@@ -1946,10 +1931,8 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         // A covered HUD keeps no armed throw: the next world click must not throw blind.
         bPKThrowArmed=false;
         if(StatBar){StatBar->SetDetailsHeld(false);}
-        if(Storage){Storage->SetDetailsHeld(false);}
         if(Workshop){Workshop->Present(ULDWorkshop::FInput());}
-        if(Storage){Storage->SetWorkshop(ULDComponentStorage::FWorkshopLayout());}
-        if(Storage){Storage->Present(nullptr,O.Match,LDProgression::EMatchStage::Closed,O.LifePhase,nullptr,ChoiceStats,ULDComponentStorage::FAnchors(),false);}
+        if(Storage){Storage->Present(nullptr,O.Match,LDProgression::EMatchStage::Closed,O.LifePhase,nullptr,false);}
         for(UWidget* Hidden:{static_cast<UWidget*>(TargetCard.Get()),static_cast<UWidget*>(DeathBanner.Get()),static_cast<UWidget*>(ToastPanel.Get()),static_cast<UWidget*>(EventFeedPanel.Get()),
             static_cast<UWidget*>(ReturnCountdownText.Get()),static_cast<UWidget*>(RestActionsPanel.Get()),static_cast<UWidget*>(PKPanelBorder.Get()),static_cast<UWidget*>(PKCompactBar.Get()),
             static_cast<UWidget*>(SpawnChoicePanel.Get()),static_cast<UWidget*>(StatFlyout.Get()),static_cast<UWidget*>(SlotRejectPanel.Get()),static_cast<UWidget*>(LootQueueBox.Get()),
@@ -1968,7 +1951,6 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     // The docked panels own separate widget trees and follow the same preference themselves.
     for(ULDPanel* Docked:MainPanels()){Docked->ApplyTextScale(TextScale);}
     if(Workshop){Workshop->ApplyTextScale(TextScale);}
-    if(Storage){Storage->ApplyTextScale(TextScale);}
     const FLDDemoContentDefinitions* Content=DisplayDefinitions();
 
     // The final field names the graffiti owner with his public final mod.
@@ -1981,7 +1963,6 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     const bool bChoicesRestOpen=Public.Phase==ELDMatchPhase::Rest&&ChoicesPanel&&ChoicesPanel->IsPanelOpen()&&!ChoicesPanel->IsTrayOpen();
     const bool bFieldPhase=Public.Phase==ELDMatchPhase::Development||Public.Phase==ELDMatchPhase::CaptureOpen;
     const FLDCombatOwnerView* OwnCombat=bOwnMatch&&O.Life!=0&&PC->CombatView.Generation==O.Match&&PC->CombatView.Life==O.Life?&PC->CombatView:nullptr;
-    const bool bEngaged=OwnCombat&&bClock&&NowMs<OwnCombat->BuildSafeAtMs;
     LDWorldFeedback::FSample OwnSample;OwnSample.Match=O.Match;OwnSample.Life=O.Life;OwnSample.LifePhase=O.LifePhase;OwnSample.Self=O.ContenderId;OwnSample.OwnCombat=OwnCombat;
     // The same tracker tells the own kills and level-ups for the on-air moments (PaintMoments).
     OwnSample.Progression=PC->ReadOwnProgression();OwnSample.KillFeed=&GS->KillFeed;OwnSample.PublicGeneration=Public.Generation;
@@ -2329,7 +2310,6 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     const FKey DetailsKey=PC->BindingKey(TEXT("Details"));
     const bool bDetailsHeld=bOwnMatch&&Playing&&DetailsKey.IsValid()&&PC->IsInputKeyDown(DetailsKey)&&!PC->IsWorldInputCaptured();
     if(StatBar){StatBar->SetDetailsHeld(bDetailsHeld);}
-    if(Storage){Storage->SetDetailsHeld(bDetailsHeld);}
 
     const LDProgression::EMatchStage BuildStage=bOwnMatch?LDProgression::StageForPublic(Public.Phase,Public.Timeline):LDProgression::EMatchStage::Closed;
     if(ChoicesPanel)
@@ -2339,55 +2319,16 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         else if(Progression){ChoiceStats.Level=FMath::Max<uint8>(Progression->Level,1);}
         // Holding Alt spells out the scaling on every card face, the workshop's as well as the skill bar's.
         ChoiceStats.bShowScalingFormula=FSlateApplication::IsInitialized()&&FSlateApplication::Get().GetModifierKeys().IsAltDown();
-        ChoicesPanel->SetQuickPick(bOwnMatch&&bFieldPhase&&!bDeathWait,bEngaged);
-        ChoicesPanel->UpdateInputs(Progression?*Progression:FLDProgressionView(),O.Match,O.Life,O.LifePhase,BuildStage,
-            Content,ChoiceStats,HudSlotKeys(*PC),bOwnMatch&&OwnCombat&&OwnCombat->bDormRegenActive);
+        // The 构筑 panel draws nothing (the build ring shows its decisions); its command guards follow the view every frame.
+        ChoicesPanel->Present(Progression?*Progression:FLDProgressionView(),O.Match,O.Life,O.LifePhase,BuildStage,
+            Content,HudSlotKeys(*PC),bOwnMatch&&OwnCombat&&OwnCombat->bDormRegenActive);
     }
     if(StatBar)
     {
         StatBar->Present(Progression,O.Match,O.Life,BuildStage,O.LifePhase,Content,OwnCombat?OwnCombat->Attributes:TArray<FLDCombatAttributeRowView>(),
             bOwnMatch&&Progression!=nullptr,DisplayContent.Get(),OwnCombat);
     }
-    if(ChoicesPanel)
-    {
-        // The tray draws nothing of its own (the build ring shows its decisions); its guards follow the view every frame.
-        ChoicesPanel->PresentWithBounds(ULDChoicesPanel::FWorkshopPlaces(),FVector2D::ZeroVector);
-    }
-    if(Storage)
-    {
-        // The storage columns follow the actual body and action slots, including the local Q/W/E slot order.
-        ULDComponentStorage::FAnchors Anchors;
-        const auto RectOf=[](const UWidget* Widget){return Widget&&Widget->IsVisible()?Widget->GetCachedGeometry().GetLayoutBoundingRect():FSlateRect();};
-        Anchors.Band=RectOf(Band);
-        Anchors.Corner=RectOf(PromptFrame);
-        Anchors.bValid=Anchors.Band.Right>Anchors.Band.Left;
-        Anchors.Columns[int32(LDHUD::EStorageColumn::Body)]=RectOf(BodySlot);
-        for(int32 Index=0;Index<FMath::Min(3,ActionSlots.Num());++Index)
-        {
-            const int32 ServerSlot=HudServerSlot(PC->SkillAtKey[Index]);
-            if(ServerSlot>=0){Anchors.Columns[int32(LDHUD::SlotColumn(uint8(ServerSlot)))]=RectOf(ActionSlots[Index].Box);}
-        }
-        if(ActionSlots.Num()>3){Anchors.Columns[int32(LDHUD::EStorageColumn::Dash)]=RectOf(ActionSlots[3].Box);}
-        Storage->SetEngaged(bEngaged);
-        Storage->SetWorkshop(ULDComponentStorage::FWorkshopLayout());
-        if(ChoicesPanel){Storage->SetWarnings(ChoicesPanel->ConfirmWarnings());}
-        {
-            // What each installed card did so far: its damage, else how often it triggered (the snapshot of the last rest).
-            TMap<FName,FString> Did;
-            const FLDBuildStatsView& BuildStats=PC->BuildStats;
-            if(BuildStats.Match==O.Match)
-            {
-                for(const FLDCardTriggerRow& Row:BuildStats.Triggers){Did.Add(LDHUD::CardDefinition(Row.Card),FString::Printf(TEXT("×%d"),Row.Count));}
-                for(const FLDDamageLine& Line:BuildStats.Lines)
-                {
-                    if(Line.DamageP2>=100&&Line.Source.DefinitionId.ToString().StartsWith(TEXT("card_")))
-                    {Did.Add(Line.Source.DefinitionId,FString::Printf(TEXT("%lld"),Line.DamageP2/100));}
-                }
-            }
-            Storage->SetContributions(BuildStats.Match==O.Match?BuildStats.Serial:0,Did);
-        }
-        Storage->Present(Progression,O.Match,BuildStage,O.LifePhase,Content,ChoiceStats,Anchors,bOwnMatch&&Progression!=nullptr,HudSlotKeys(*PC));
-    }
+    if(Storage){Storage->Present(Progression,O.Match,BuildStage,O.LifePhase,Content,bOwnMatch&&Progression!=nullptr);}
     if(Workshop)
     {
         // The build ring: open while the 构筑 tray is open; otherwise its closed state under the character and by the band.
@@ -2767,18 +2708,9 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     if(Workshop&&Workshop->IsOpen()){DetailIndex=INDEX_NONE;DetailOver=nullptr;DetailMark.Reset();}
     // A hovered stat icon: its name, points and per-point text, above its "+".
     else if(!DetailOver&&!DetailMark&&StatBar){DetailOver=StatBar->Hovered(DetailView);}
-    // A card of the open 构筑 tray: its full rules (the card shows only the icon and the name).
-    const bool bTrayOpen=ChoicesPanel&&(ChoicesPanel->IsTrayOpen()||ChoicesPanel->IsQuickShown());
-    if(!DetailOver&&!DetailMark&&bTrayOpen)
-    {
-        FName SeenComponent;
-        DetailOver=ChoicesPanel->Hovered(Pointer,DetailView,&SeenComponent);
-        if(Storage&&!SeenComponent.IsNone()){Storage->MarkSeen(SeenComponent);}
-        // The workshop's dock shows the card instead of a popup.
-        if(Workshop&&Workshop->IsOpen()){DetailOver=nullptr;}
-    }
+    const bool bTrayOpen=ChoicesPanel&&ChoicesPanel->IsTrayOpen();
     if((PC->RootUI&&PC->RootUI->ActiveMainPanel()!=ELDUIMainPanel::None&&!(bTrayOpen&&PC->RootUI->ActiveMainPanel()==ELDUIMainPanel::Choices))
-        ||(PC->BuildBlueprints&&PC->BuildBlueprints->IsViewerOpen())||(Storage&&Storage->IsDragging())){DetailOver=nullptr;DetailMark.Reset();}
+        ||(PC->BuildBlueprints&&PC->BuildBlueprints->IsViewerOpen())){DetailOver=nullptr;DetailMark.Reset();}
     if(UWidget* Popup=ActionDetailSlot?ActionDetailSlot->Content:nullptr)
     {
         const bool bDetail=DetailOver!=nullptr||DetailMark.IsSet();
@@ -3313,17 +3245,7 @@ bool ULDHUD::HandleContextualKeyPress(const FKey& Key,bool bAlt,bool bCtrl,bool 
         return true;
     }
 
-    // 4) Storage inline QuickEquip open: Q / W / E / D installs the selected uninstalled card directly into that slot.
-    if(!bAlt&&!bCtrl&&Storage&&Storage->IsQuickEquipOpen())
-    {
-        if(Storage->HandleQuickEquipKey(Key,PC->SkillAtKey,PC->Controls.Get()))
-        {
-            MarkReadModelDirty();
-            return true;
-        }
-    }
-
-    // 5) Active SpawnChoice during field death wait: [1] / [2] / [3] selects spawn candidate + pans camera preview.
+    // 4) Active SpawnChoice during field death wait: [1] / [2] / [3] selects spawn candidate + pans camera preview.
     if(!bAlt&&!bCtrl&&!bShift)
     {
         const int32 SpawnIdx=Key==EKeys::One?0:Key==EKeys::Two?1:Key==EKeys::Three?2:INDEX_NONE;
@@ -3332,7 +3254,7 @@ bool ULDHUD::HandleContextualKeyPress(const FKey& Key,bool bAlt,bool bCtrl,bool 
             return true;
         }
     }
-    // 6) The build ring: [1] / [2] / [3] take an option of the offer on top, open or closed.
+    // 5) The build ring: [1] / [2] / [3] take an option of the offer on top, open or closed.
     if(!bCtrl&&!bShift&&Workshop&&Workshop->HandleKey(Key))
     {
         MarkReadModelDirty();

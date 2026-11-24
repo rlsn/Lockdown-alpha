@@ -253,8 +253,7 @@ bool FLDBuildRingIntentTest::RunTest(const FString& Parameters)
     if(!TestNotNull(TEXT("The intent fixture has a world"),World)){return false;}
     ON_SCOPE_EXIT{World->DestroyWorld(false);};
     ULDWorkshop* Ring=NewObject<ULDWorkshop>(World);Ring->Initialize();Ring->TakeWidget();
-    ULDComponentStorage* Storage=NewObject<ULDComponentStorage>(World);Storage->Initialize();Storage->TakeWidget();
-    Storage->SetHeadless(true);
+    ULDComponentStorage* Storage=NewObject<ULDComponentStorage>(World);
     TArray<FLDBuildCommand> Sent;
     Storage->SubmitBuild=[&Sent](const FLDBuildCommand& Command,ELDGrowthReason& Reason){Sent.Add(Command);Reason=ELDGrowthReason::None;return uint64(Sent.Num());};
     Storage->PeekRequestId=[&Sent](){return uint64(Sent.Num()+1);};
@@ -264,7 +263,7 @@ bool FLDBuildRingIntentTest::RunTest(const FString& Parameters)
     FLDProgressionView View=RingFixtureView(Content);
     // Make room: capacity above what is installed.
     View.CardCapacity=11;
-    Storage->Present(&View,1,LDProgression::EMatchStage::Live,ELDLifePhase::Alive,&Content,LDHUD::FCardStats(),ULDComponentStorage::FAnchors(),true);
+    Storage->Present(&View,1,LDProgression::EMatchStage::Live,ELDLifePhase::Alive,&Content,true);
     ULDWorkshop::FInput Input;Input.Mode=ULDWorkshop::EMode::Open;Input.bShown=true;Input.Progression=&View;Input.Match=1;Input.Content=&Content;
     Input.Stage=LDProgression::EMatchStage::Live;
     Ring->Present(Input);
