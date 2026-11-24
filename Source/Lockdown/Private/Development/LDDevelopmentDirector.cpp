@@ -1422,10 +1422,10 @@ ELDGrowthReason ALDDevelopmentDirector::InstallBuild(const FGuid& ContenderId, F
         GameMode->Combat->ApplyBuildChange(MoveTemp(Projection.GetValue()), Permit);
         Record.CombatInstalled.BuildRevision = NewBuild.Revision;
     }
-    const uint16 FirstNewSerial = Record.Build.NextCardSerial;
+    const TArray<FLDCardInstance> CardsBefore = Record.Build.Cards;
     Record.Build = MoveTemp(NewBuild);
     Record.Progression = MoveTemp(NewProgression);
-    NoteAcquiredCards(Record, FirstNewSerial);
+    NoteAcquiredCards(Record, CardsBefore);
     DrawHead(ContenderId, Record);
     return ELDGrowthReason::None;
 }
@@ -1440,13 +1440,22 @@ FLDResultGrowthPhase& ALDDevelopmentDirector::ReportPhase(FRecord& Record) const
     return Record.Report[FMath::Clamp(Phase, 0, FinalPhase)];
 }
 
-void ALDDevelopmentDirector::NoteAcquiredCards(FRecord& Record, uint16 FirstNewSerial) const
+void ALDDevelopmentDirector::NoteAcquiredCards(FRecord& Record, const TArray<FLDCardInstance>& Before) const
 {
-    if (Record.Build.NextCardSerial == FirstNewSerial) { return; }
-    FLDResultGrowthPhase& Report = ReportPhase(Record);
-    for (const FLDCardInstance& Card : Record.Build.Cards)
+    const auto Owned = [](const TArray<FLDCardInstance>& Cards)
     {
-        if (Card.Serial >= FirstNewSerial) { Report.AcquiredCards.AddUnique(Card.Id); }
+        TMap<FName, int32> Counts;
+        for (const FLDCardInstance& Card : Cards) { Counts.FindOrAdd(Card.Id) += FMath::Max<int32>(1, Card.Tier); }
+        return Counts;
+    };
+    const TMap<FName, int32> Was = Owned(Before);
+    const TMap<FName, int32> Now = Owned(Record.Build.Cards);
+    FLDResultGrowthPhase* Report = nullptr;
+    for (const TPair<FName, int32>& Pair : Now)
+    {
+        if (Pair.Value <= Was.FindRef(Pair.Key)) { continue; }
+        if (!Report) { Report = &ReportPhase(Record); }
+        Report->AcquiredCards.AddUnique(Pair.Key);
     }
 }
 
@@ -1750,10 +1759,10 @@ void ALDDevelopmentDirector::ApplyPreparedGrowth(FLDPreparedGrowthChange&& Prepa
     checkf(Record && Record->Build.Revision == Prepared.ExpectedBuildRevision
         && Record->Progression.Revision == Prepared.ExpectedProgressionRevision,
         TEXT("Growth plan no longer matches the contender; prepare and apply must be one uninterrupted commit."));
-    const uint16 FirstNewSerial = Record->Build.NextCardSerial;
+    const TArray<FLDCardInstance> CardsBefore = Record->Build.Cards;
     Record->Build = MoveTemp(Prepared.NewBuild);
     Record->Progression = MoveTemp(Prepared.NewProgression);
-    NoteAcquiredCards(*Record, FirstNewSerial);
+    NoteAcquiredCards(*Record, CardsBefore);
     if (Prepared.bCombatInstall)
     {
         Record->CombatInstalled = Prepared.CombatInstall;
