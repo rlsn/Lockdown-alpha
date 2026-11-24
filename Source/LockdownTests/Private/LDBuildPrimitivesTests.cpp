@@ -3822,6 +3822,17 @@ bool FLDSkillN4BagTest::RunTest(const FString& Parameters)
     FAccess::HitBags(*F.Driver, Point, 50, EnemyBlast, 1500);
     FAccess::HitBags(*F.Driver, Point, 50, Payload, 1500);
     TestEqual(TEXT("Only enemies damage it, by their raw amount"), Bags[0].HpP2, int64(5000));
+    // The package multiplier scales the raw amount too: a boost (a cordon, a third wave) and a reduced recast share, the
+    // latter on top of a delivery share.
+    FLDCombatHit Boosted = FFixture::Hit(Enemy, Owner, 2000);
+    Boosted.PackageScaleBp = 12500;
+    FAccess::HitBags(*F.Driver, Point, 50, Boosted, 1600);
+    TestEqual(TEXT("A boosted package takes its boosted amount off the bag"), Bags.IsEmpty() ? int64(-1) : Bags[0].HpP2, int64(2500));
+    FLDCombatHit Recast = FFixture::Hit(Enemy, Owner, 2000);
+    Recast.PackageScaleBp = 5000;
+    Recast.DeliveryScaleBp = 8000;
+    FAccess::HitBags(*F.Driver, Point, 50, Recast, 1700);
+    TestEqual(TEXT("A reduced recast share over a delivery share takes both off its amount"), Bags.IsEmpty() ? int64(-1) : Bags[0].HpP2, int64(1700));
     // It runs out: the blast hits the enemy within 200 cm and not the far body or the owner.
     const int64 EnemyBefore = F.Body(Enemy).Resources.HpP2, FarBefore = F.Body(Far).Resources.HpP2, OwnerBefore = F.Body(Owner).Resources.HpP2;
     F.Now(5000);
