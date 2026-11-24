@@ -2153,6 +2153,35 @@ bool RunAirdrop(FAutomationTestBase& Test)
     Frame.Public.bAirdropLanded = true;
     bGood &= Expect(Test, TEXT("A landed drop under the body is held the same way until the authority grants it"),
         LDOpponentPolicy::Decide(Frame, C, Waiter), EMode::Airdrop, EBody::None);
+    {
+        // A crowded or kept-clear point ends the walk short of the middle: inside the pickup radius the body never
+        // re-orders it, while a live walk there still finishes and a body outside the radius still walks in.
+        const double Radius = C.Get().Parameters.AirdropPickupRadiusCm.Numerator / double(C.Get().Parameters.AirdropPickupRadiusCm.Denominator);
+        auto Short = Base;
+        Short.Public.AirdropPOI = TEXT("airdrop_s");
+        Short.Self.FootCm = FVector(Radius * .7, -3300, 0);
+        FLDOpponentPolicyState Stopped;
+        bGood &= Expect(Test, TEXT("A walk that ended inside the pickup radius is not ordered again"),
+            LDOpponentPolicy::Decide(Short, C, Stopped), EMode::Airdrop, EBody::None);
+        Short.Order.Kind = ELDOpponentOrderKind::MoveGround;
+        Short.Order.Status = ELDOpponentOrderStatus::Active;
+        Short.Order.POI = TEXT("airdrop_s");
+        bGood &= Expect(Test, TEXT("A live walk inside the pickup radius keeps going to the middle"),
+            LDOpponentPolicy::Decide(Short, C, Stopped), EMode::Airdrop, EBody::Keep, TEXT("airdrop_s"));
+        Short.Order.POI = TEXT("elsewhere");
+        bGood &= Expect(Test, TEXT("A live walk elsewhere stops inside the pickup radius"),
+            LDOpponentPolicy::Decide(Short, C, Stopped), EMode::Airdrop, EBody::Stop);
+        FLDOpponentPolicyState Held;
+        LDOpponentPolicy::RecordWalkAdmission(Held, FLDOpponentRetryKey(), true, Short.Self, Short.Public.NowMs, C.Get().Parameters.AI);
+        bGood &= Expect(Test, TEXT("Held walking does not keep a walk elsewhere inside the pickup radius"),
+            LDOpponentPolicy::Decide(Short, C, Held), EMode::Airdrop, EBody::Stop);
+        Short = Base;
+        Short.Public.AirdropPOI = TEXT("airdrop_s");
+        Short.Self.FootCm = FVector(Radius * 1.3, -3300, 0);
+        FLDOpponentPolicyState Outside;
+        bGood &= Expect(Test, TEXT("Outside the pickup radius the body walks in"),
+            LDOpponentPolicy::Decide(Short, C, Outside), EMode::Airdrop, EBody::MoveGround, TEXT("airdrop_s"));
+    }
 
     Frame = Base;
     Frame.Public.AirdropPOI = TEXT("airdrop_s");
@@ -2620,6 +2649,25 @@ bool RunExplore(FAutomationTestBase& Test)
     FLDOpponentPolicyState Stander;
     bGood &= Expect(Test, TEXT("On the locker the body holds still to channel the pickup"), LDOpponentPolicy::Decide(Frame, C, Stander),
         EMode::Objective, EBody::None);
+    {
+        // A walk that ended short of the middle, still inside the locker's radius, is not ordered again.
+        const auto& Radius = C.Get().Parameters.Explore.LockerRadiusCm;
+        Frame.Self.FootCm = FVector(1500 + Radius.Numerator / double(Radius.Denominator) * .7, -500, 0);
+        FLDOpponentPolicyState Short;
+        bGood &= Expect(Test, TEXT("Inside the locker radius a walk that ended short is not ordered again"),
+            LDOpponentPolicy::Decide(Frame, C, Short), EMode::Objective, EBody::None);
+        // A live walk to the locker that leads out of the straight-line reach (round a ramp) keeps the locker.
+        auto Round = Base;
+        Round.POIs.Add(POI(TEXT("locker_3"), ELDOpponentPOIKind::Locker, 1500, -500));
+        const auto& Reach = C.Get().Parameters.AI.ObjectiveReachCm;
+        Round.Self.FootCm = FVector(1500 - Reach.Numerator / double(Reach.Denominator) - 200, -500, 0);
+        Round.Order.Kind = ELDOpponentOrderKind::MoveGround;
+        Round.Order.Status = ELDOpponentOrderStatus::Active;
+        Round.Order.POI = TEXT("locker_3");
+        FLDOpponentPolicyState Rounding;
+        bGood &= Expect(Test, TEXT("A live walk to the locker beyond the straight-line reach keeps going"),
+            LDOpponentPolicy::Decide(Round, C, Rounding), EMode::Objective, EBody::Keep, TEXT("locker_3"));
+    }
     Frame.Self.FootCm = Base.Self.FootCm;
     Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 2;
     FLDOpponentPolicyState Hurt;

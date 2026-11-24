@@ -664,6 +664,10 @@ void FLDDemoOpponentProbe::Sample(UWorld& World, ALDGameMode& Mode)
         {
             ++Track.RespawnsChecked;
             Track.RespawnsActed += Body > Track.ActBase ? 1 : 0;
+            UE_CLOG(Body <= Track.ActBase, LogLDTest, Warning,
+                TEXT("LD_OPPONENT_PROBE_RESPAWN_IDLE contender=%s life=%u phase=%d respawned_at_ms=%lld checked_at_ms=%lld body_requests=%u base=%u has_pawn=%d"),
+                *Track.Contender.ToString(), Life.Life, int32(Public.Phase), Track.ActCheckDueMs - ActAfterRespawnMs, Now, Body, Track.ActBase,
+                AI->GetPawn() ? 1 : 0);
             Track.ActCheckDueMs = -1;
         }
         Track.Phase = Life.Phase;
@@ -1419,10 +1423,13 @@ bool FLDDemoOpponentProbe::Tick()
         const FLDResultView& Result = Public->MatchResult;
         if (Result.Generation != View.Generation || Result.ResultId != View.ResultId) { return true; }
         const FLDResultRow* Winner = Result.Rows.FindByPredicate([&Result](const FLDResultRow& Row) { return Row.ContenderId == Result.Winner; });
-        // The win is the guard of a graffiti that an opponent AI sprayed; the public end view still names him as its owner.
-        Check(Result.Reason == ELDMatchEndReason::GuardSucceeded && Winner && Winner->Kind == ELDContenderKind::OpponentAI
-            && OpponentIds.Contains(Result.Winner) && View.GraffitiOwner == Result.Winner && View.GuardDueAtMs == Result.EndedAtMs,
-            TEXT("An opponent AI wins the match by spraying the flagpole and guarding its graffiti"));
+        // An opponent AI wins at the flagpole: by guarding its graffiti (the public end view still names it as the owner) or
+        // by reaching the spray count first, the approved second win condition.
+        const bool bAIWinner = Winner && Winner->Kind == ELDContenderKind::OpponentAI && OpponentIds.Contains(Result.Winner);
+        const bool bGuarded = Result.Reason == ELDMatchEndReason::GuardSucceeded && View.GraffitiOwner == Result.Winner
+            && View.GuardDueAtMs == Result.EndedAtMs;
+        Check(bAIWinner && (bGuarded || Result.Reason == ELDMatchEndReason::SprayCount),
+            TEXT("An opponent AI wins the match at the flagpole, by guarding its graffiti or by its spray count"));
         Check(Result.Rows.Num() == HumanCount + OpponentCount && !Result.Rows.ContainsByPredicate([](const FLDResultRow& Row)
             { return Row.FinalLevel < 1 || Row.bLeft; }), TEXT("The frozen result lists all six contenders with committed final levels"));
         Summary->SetStringField(TEXT("winner"), Result.Winner.ToString(EGuidFormats::Digits));
@@ -1460,8 +1467,9 @@ bool FLDDemoOpponentProbe::Tick()
             if (Remaining && FPlatformTime::Seconds() - ReturnedAt < 15.) { return true; }
             Check(!Remaining, TEXT("Every AI controller ends with its match"));
         }
+        // The Lobby Host is always listed Ready (it never toggles Ready); every guest starts the new generation unready.
         Check(CountKind(Lobby, ELDContenderKind::Human) == HumanCount && !Lobby.Members.ContainsByPredicate([](const FLDLobbyMember& Row)
-            { return Row.Ready; }), TEXT("The same connections return to a new, unready Lobby generation"));
+            { return Row.Ready && !Row.Host; }), TEXT("The same connections return to a new, unready Lobby generation"));
         Check(View.CircleState == ELDCircleState::NotOpen && !View.ResultId.IsValid(),
             TEXT("The new Lobby carries no capture state or result"));
         Summary->SetNumberField(TEXT("next_generation"), double(Lobby.Generation));

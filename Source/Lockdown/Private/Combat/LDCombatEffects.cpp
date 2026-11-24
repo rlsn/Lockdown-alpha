@@ -1046,8 +1046,9 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
             {
                 const double RemRange=FMath::Max(0.,Projectile.RangeCm-Projectile.TravelledCm);
                 Projectile.RangeCm+=RemRange*double(AmpBp)/10000.;
-                Projectile.Payload.DeliveryScaleBp=Projectile.Payload.DeliveryScaleBp/10000*(10000+AmpBp)
-                    +Projectile.Payload.DeliveryScaleBp%10000*(10000+AmpBp)/10000;
+                // A damage boost above the full share rides the package multiplier; the delivery share never exceeds 1.
+                const int64 Scale=Projectile.Payload.PackageScaleBp;
+                Projectile.Payload.PackageScaleBp=FMath::Min<int64>(100000,Scale/10000*(10000+AmpBp)+Scale%10000*(10000+AmpBp)/10000);
             }
             if (Cordon.Terms.MultiplierBp>10000)
             {

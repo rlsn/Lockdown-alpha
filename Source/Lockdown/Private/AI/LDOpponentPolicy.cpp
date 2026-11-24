@@ -362,7 +362,10 @@ struct FContext
         const FLDOpponentPOI* Best = nullptr;
         for (const auto& POI : Frame.POIs)
         {
-            if (POI.Kind != ELDOpponentPOIKind::Locker || Distance(POI.FootCm) > ObjectiveReachCm || !CanAttempt(PathKey(POI.Id))) { continue; }
+            // A live walk to the locker keeps it: a path round a ramp can lead out of the straight-line reach first, and
+            // dropping it there flips the body between the locker and its next goal at every decision.
+            const bool bWalking = Frame.Order.IsLive() && Frame.Order.Kind == ELDOpponentOrderKind::MoveGround && Frame.Order.POI == POI.Id;
+            if (POI.Kind != ELDOpponentPOIKind::Locker || (!bWalking && Distance(POI.FootCm) > ObjectiveReachCm) || !CanAttempt(PathKey(POI.Id))) { continue; }
             if (!Best || Distance(POI.FootCm) < Distance(Best->FootCm)) { Best = &POI; }
         }
         return Best;
@@ -520,6 +523,24 @@ FLDOpponentBodyIntent Halt(const FContext& C)
     FLDOpponentBodyIntent Body;
     Body.Kind = C.Frame.Order.IsLive() ? EBody::Stop : EBody::None;
     return Body;
+}
+
+// A pickup point (a D26 drop, a #305 locker): near its middle the body stops; inside its pickup radius it lets a live
+// walk to the point finish but never orders a new one, and stops any walk elsewhere. A crowded or kept-clear point ends
+// every walk where the body already stands, and re-ordering it there loops a request at every decision.
+FLDOpponentBodyIntent ApproachPickup(const FContext& C, const FLDOpponentPOI& Drop, double RadiusCm)
+{
+    const double Distance = C.Distance(Drop.FootCm);
+    if (Distance * 2. <= RadiusCm) { return Halt(C); }
+    if (Distance > RadiusCm) { return MoveTo(C, Drop); }
+    // Whether walking is held or not, only a live walk to this drop is kept.
+    const auto& Order = C.Frame.Order;
+    if (!(Order.IsLive() && Order.Kind == ELDOpponentOrderKind::MoveGround && Order.POI == Drop.Id)) { return Halt(C); }
+    FLDOpponentBodyIntent Keep;
+    Keep.Kind = EBody::Keep;
+    Keep.POI = Drop.Id;
+    Keep.Key = FContext::PathKey(Drop.Id);
+    return Keep;
 }
 
 // Keeps any live order without sending anything new.
@@ -2992,7 +3013,7 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         const FLDOpponentPOI* Drop = bRivalHolds || !State.RetreatPOI.IsNone() ? nullptr : C.AirdropTarget();
         if (Drop && (C.Self.HpP2 < C.Self.MaxHpP2 || C.Self.MomentumP2 < C.Self.MaxMomentumP2))
         {
-            Body(C.Distance(Drop->FootCm) * 2. <= C.AirdropRadiusCm ? Halt(C) : MoveTo(C, *Drop));
+            Body(ApproachPickup(C, *Drop, C.AirdropRadiusCm));
             return Finish(EMode::Airdrop, EReason::ContestAirdrop);
         }
         if (const FLDOpponentPOI* Dorm = bRivalHolds ? nullptr : C.NearestDorm())
@@ -3011,7 +3032,7 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
     if (const FLDOpponentPOI* Drop = State.VisitEngagedAtMs == 0 ? C.AirdropTarget() : nullptr)
     {
         EndVisit(State, false);
-        Body(C.Distance(Drop->FootCm) * 2. <= C.AirdropRadiusCm ? Halt(C) : MoveTo(C, *Drop));
+        Body(ApproachPickup(C, *Drop, C.AirdropRadiusCm));
         return Finish(EMode::Airdrop, EReason::ContestAirdrop);
     }
     // P6 spec §10.3: a healthy body within reach goes for the live mini flag or the arena, below the airdrop and above
@@ -3035,7 +3056,7 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
     if (const FLDOpponentPOI* Locker = State.VisitEngagedAtMs == 0 ? C.LockerTarget() : nullptr)
     {
         EndVisit(State, false);
-        Body(C.Distance(Locker->FootCm) <= C.LockerStandCm ? Halt(C) : MoveTo(C, *Locker));
+        Body(ApproachPickup(C, *Locker, C.LockerStandCm * 2.));
         return Finish(EMode::Objective, EReason::OpenLocker);
     }
     if (C.bCaptureOpen && bMayContest && CircleBody(C, false, Intent))

@@ -3822,6 +3822,17 @@ bool FLDSkillN4BagTest::RunTest(const FString& Parameters)
     FAccess::HitBags(*F.Driver, Point, 50, EnemyBlast, 1500);
     FAccess::HitBags(*F.Driver, Point, 50, Payload, 1500);
     TestEqual(TEXT("Only enemies damage it, by their raw amount"), Bags[0].HpP2, int64(5000));
+    // The package multiplier scales the raw amount too: a boost (a cordon, a third wave) and a reduced recast share, the
+    // latter on top of a delivery share.
+    FLDCombatHit Boosted = FFixture::Hit(Enemy, Owner, 2000);
+    Boosted.PackageScaleBp = 12500;
+    FAccess::HitBags(*F.Driver, Point, 50, Boosted, 1600);
+    TestEqual(TEXT("A boosted package takes its boosted amount off the bag"), Bags.IsEmpty() ? int64(-1) : Bags[0].HpP2, int64(2500));
+    FLDCombatHit Recast = FFixture::Hit(Enemy, Owner, 2000);
+    Recast.PackageScaleBp = 5000;
+    Recast.DeliveryScaleBp = 8000;
+    FAccess::HitBags(*F.Driver, Point, 50, Recast, 1700);
+    TestEqual(TEXT("A reduced recast share over a delivery share takes both off its amount"), Bags.IsEmpty() ? int64(-1) : Bags[0].HpP2, int64(1700));
     // It runs out: the blast hits the enemy within 200 cm and not the far body or the owner.
     const int64 EnemyBefore = F.Body(Enemy).Resources.HpP2, FarBefore = F.Body(Far).Resources.HpP2, OwnerBefore = F.Body(Owner).Resources.HpP2;
     F.Now(5000);
@@ -4976,6 +4987,106 @@ bool FLDIssue345SkillsAndFrameworksTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("active_seethe carries native burn stacks"), SeetheHit.BurnStacks > 0);
     TestEqual(TEXT("Ordinary fire-medal hit applies only the medal's 2 burn layers rather than summing native stacks"),
         F.Body(SeetheTarget).Burn.Layers.Num(), 2);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatCordonBoostTest, "Lockdown.Rules.Combat.Skills.CordonBoost",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatCordonBoostTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    const FLDCombatBodyRef Warden = F.AddBody(), Target = F.AddBody();
+    F.Place(Warden, 0, 0);
+    F.Place(Target, 2000, 2000);
+    if (!InstallCards(*this, F, Warden, 6, {})) { return false; }
+    FString Error;
+    FLDCombatActiveTerms CordonTerms;
+    FLDCombatHit CordonPayload;
+    if (!Released(*this, F, Warden, TEXT("active_cordon_tape"), CordonTerms, CordonPayload)) { return false; }
+    FLDCombatAction CordonAction;
+    CordonAction.TargetPoint = F.Origin + FVector(300, 0, 0);
+    CordonAction.Direction = FVector(1, 0, 0);
+    F.Now(1000);
+    bool bHandled = false;
+    if (!TestTrue(TEXT("active_cordon_tape places its cordon: ") + Error,
+        FAccess::DeliverTerms(*F.Driver, F.Body(Warden), CordonTerms, CordonAction, CordonPayload, 1000, bHandled, Error) && bHandled)
+        || !TestEqual(TEXT("One cordon"), FAccess::Cordons(*F.Driver).Num(), 1))
+    { return false; }
+    const auto& Cordon = FAccess::Cordons(*F.Driver)[0];
+    const int64 RatioBp = Cordon.Terms.RatioBp;
+    if (!TestTrue(TEXT("The approved cordon boosts its owner's flights"), RatioBp > 0)) { return false; }
+    // Shoot straight across the cordon line, from one side of it to a target on the other.
+    const FVector Normal(-Cordon.Tangent.Y, Cordon.Tangent.X, 0);
+    const FVector Centre = Cordon.CentreCm - F.Origin;
+    F.Place(Warden, Centre.X - Normal.X * 250, Centre.Y - Normal.Y * 250);
+    F.Place(Target, Centre.X + Normal.X * 350, Centre.Y + Normal.Y * 350);
+    FLDCombatActiveTerms BoltTerms;
+    FLDCombatHit BoltPayload;
+    if (!Released(*this, F, Warden, TEXT("active_snark_bolt"), BoltTerms, BoltPayload)) { return false; }
+    FLDCombatAction BoltAction;
+    BoltAction.Direction = Normal;
+    if (!TestTrue(TEXT("The owner's bolt is released toward the cordon: ") + Error,
+        FAccess::DeliverPayload(*F.Driver, F.Actor(Warden), F.Body(Warden), BoltTerms, BoltAction, BoltPayload,
+            FLDCombatBodyRef(), FVector::ZeroVector, F.Foot(Warden), 1100, Error))) { return false; }
+    TArray<FLDCombatHit> Contacts;
+    for (int64 At = 1150; At <= 2600 && Contacts.IsEmpty(); At += 50)
+    {
+        F.Now(At);
+        if (!TestTrue(TEXT("The bolt advances through the cordon: ") + Error, FAccess::AdvanceProjectiles(*F.Driver, Error))) { return false; }
+        for (const FLDCombatHit& Hit : FAccess::PendingHits(*F.Driver)) { if (Hit.Target == Target) { Contacts.Add(Hit); } }
+    }
+    if (!TestEqual(TEXT("The boosted bolt reaches the target beyond the cordon"), Contacts.Num(), 1)) { return false; }
+    const int64 Base = BoltPayload.PackageScaleBp;
+    TestEqual(TEXT("The cordon's damage boost rides the package multiplier"), Contacts[0].PackageScaleBp,
+        Base / 10000 * (10000 + RatioBp) + Base % 10000 * (10000 + RatioBp) / 10000);
+    TestTrue(TEXT("The delivery share stays within its domain"), Contacts[0].DeliveryScaleBp >= 0 && Contacts[0].DeliveryScaleBp <= 10000);
+    TestTrue(TEXT("The boosted hit evaluates without an authority fault"), Drain(*this, F));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatFrenzyThirdWaveTest, "Lockdown.Rules.Combat.Skills.FrenzyThirdWave",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatFrenzyThirdWaveTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    const FLDCombatBodyRef Brawler = F.AddBody(), Target = F.AddBody();
+    F.Place(Brawler, 0, 0);
+    F.Place(Target, 150, 0);
+    if (!InstallCards(*this, F, Brawler, 6, {})) { return false; }
+    FString Error;
+    FLDCombatActiveTerms Terms;
+    if (!ActiveTerms(*this, F, TEXT("active_flurry_rush"), Terms)) { return false; }
+    const FLDDemoEffectDefinition* Frenzy = FindEffect(Terms.Values, ELDDemoEffectOp::FrenzyWaves);
+    if (!TestNotNull(TEXT("active_flurry_rush has its frenzy waves"), Frenzy)) { return false; }
+    // The frenzy as its release leaves it, with branch 3B1 (content: frenzy_waves.third_multiplier 1.8) on the third wave.
+    constexpr int64 ThirdBp = 18000;
+    F.Body(Brawler).ActiveFrenzy = *Frenzy;
+    F.Body(Brawler).ActiveFrenzy->MultiplierBp = ThirdBp;
+    F.Body(Brawler).FrenzySource = SourceOf(ELDCombatSourceKind::Learned, TEXT("active_flurry_rush"));
+    F.Body(Brawler).FrenzyUntilMs = 5000;
+    FLDCombatAction Third = BasicAt(Target, 7);
+    Third.ComboStep = 3;
+    F.Now(1100);
+    if (!TestTrue(TEXT("The third basic lands and throws its wave: ") + Error,
+        FAccess::LandBasic(*F.Driver, F.Actor(Brawler), F.Body(Brawler), Third, Error))) { return false; }
+    const FLDCombatProjectile* Wave = FAccess::Projectiles(*F.Driver).FindByPredicate([](const FLDCombatProjectile& P)
+        { return P.Payload.Source.Kind == ELDCombatSourceKind::Learned; });
+    if (!TestNotNull(TEXT("The frenzy wave flies"), Wave)) { return false; }
+    TestEqual(TEXT("The third wave's boost rides the package multiplier"), Wave->Payload.PackageScaleBp,
+        int64(10000) / 10000 * ThirdBp + int64(10000) % 10000 * ThirdBp / 10000);
+    TestTrue(TEXT("The wave's delivery share stays within its domain"), Wave->Payload.DeliveryScaleBp >= 0 && Wave->Payload.DeliveryScaleBp <= 10000);
+    for (int64 At = 1150; At <= 1600; At += 50)
+    {
+        F.Now(At);
+        if (!TestTrue(TEXT("The wave advances: ") + Error, FAccess::AdvanceProjectiles(*F.Driver, Error))) { return false; }
+    }
+    TestTrue(TEXT("The boosted wave's hits evaluate without an authority fault"), Drain(*this, F));
     return true;
 }
 

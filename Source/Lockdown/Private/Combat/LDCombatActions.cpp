@@ -1356,7 +1356,9 @@ bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body,
                 }
                 if (Hit.ComboStep==3 && Frenzy.MultiplierBp>10000)
                 {
-                    WaveHit.DeliveryScaleBp=Frenzy.MultiplierBp;
+                    // A multiplier above 1 is a package multiplier; the delivery share stays within 1.
+                    const int64 Scale=WaveHit.PackageScaleBp,Bp=Frenzy.MultiplierBp;
+                    WaveHit.PackageScaleBp=FMath::Min<int64>(100000,Scale/10000*Bp+Scale%10000*Bp/10000);
                 }
                 if (!StampSourceTerms(Body,WaveHit,Error) || !StampElementSnapshot(Body,WaveHit,Error)) { return false; }
                 FLDCombatProjectile WaveProj;

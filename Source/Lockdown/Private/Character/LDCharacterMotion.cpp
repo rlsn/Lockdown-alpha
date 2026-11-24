@@ -71,6 +71,17 @@ struct ULDCharacterMovementComponent::FNativeCapture
         ++Batch.RevertedTrials;
     }
 
+    // Once a walk has tried its ledge move and checked its fall, CMC's walking loop reverts a later ledge trial with
+    // RevertMove (a SetWorldLocation) without asking either again, so no witness flags it. The body then stands exactly
+    // on the walk bookmark; only that position is taken as the reverted trial, any other unrecorded move stays a fault.
+    bool RestoreUnflaggedWalkRevert(const FVector& NativePosition, const FLDNativeSupportSample& Support)
+    {
+        if (!Walking || !WalkBookmark || PendingRevert!=ERevert::None || !Error.IsEmpty()
+            || !NativePosition.Equals(WalkBookmark->NativePosition,.000001)) { return false; }
+        Restore(WalkBookmark.GetValue(),NativePosition,Support);
+        return Error.IsEmpty();
+    }
+
     double StartFor(float RemainingSeconds)
     {
         if (!FMath::IsFinite(RemainingSeconds) || RemainingSeconds<0 || RemainingSeconds>NativeDuration)
@@ -131,7 +142,7 @@ void ULDCharacterMovementComponent::CaptureNativeSupport() const
     if (!NativeCapture || !NativeCapture->Error.IsEmpty() || NativeCapture->PendingRevert!=FNativeCapture::ERevert::None) { return; }
     auto& Capture=*NativeCapture;
     const FVector Foot=GetActorFeetLocation();
-    if (!Foot.Equals(Capture.LastFoot,.000001))
+    if (!Foot.Equals(Capture.LastFoot,.000001) && !Capture.RestoreUnflaggedWalkRevert(UpdatedComponent->GetComponentLocation(),SupportOf(*this)))
     { Capture.Fail(TEXT("Native support changed after an unrecorded position update.")); return; }
     const auto Support=SupportOf(*this);
     if (Support.Grounded && !Support.Floor.IsValid())
@@ -173,6 +184,8 @@ bool ULDCharacterMovementComponent::MoveUpdatedComponentImpl(const FVector& Delt
     bool Sweep, FHitResult* Hit, ETeleportType Teleport)
 {
     const FVector From=NativeCapture?GetActorFeetLocation():FVector::ZeroVector;
+    if (NativeCapture && !From.Equals(NativeCapture->LastFoot,.000001))
+    { NativeCapture->RestoreUnflaggedWalkRevert(UpdatedComponent->GetComponentLocation(),SupportOf(*this)); }
     int32 StepMove=0;
     if (NativeCapture && NativeCapture->StepDepth && !NativeCapture->SafeDepth && !NativeCapture->AdjustmentDepth)
     { StepMove=++NativeCapture->StepDirectMoves; }
@@ -210,7 +223,13 @@ bool ULDCharacterMovementComponent::MoveUpdatedComponentImpl(const FVector& Delt
     const FVector To=GetActorFeetLocation();
     const bool Moved=From!=To;
     if (!From.Equals(Capture.LastFoot,.000001) || From.ContainsNaN() || To.ContainsNaN())
-    { Capture.Fail(TEXT("Native movement trace has a missing or nonfinite position.")); return Result; }
+    {
+        const UObject* Base=GetMovementBaseObject();
+        Capture.Fail(*FString::Printf(TEXT("Native movement trace has a missing or nonfinite position. body=%s from=%s last=%s to=%s gap=%.6f mode=%d base=%s step=%d safe=%d adjust=%d"),
+            *GetNameSafe(GetOwner()),*From.ToString(),*Capture.LastFoot.ToString(),*To.ToString(),FVector::Dist(From,Capture.LastFoot),
+            int32(MovementMode.GetValue()),*GetNameSafe(Base),Capture.StepDepth,Capture.SafeDepth,Capture.AdjustmentDepth));
+        return Result;
+    }
     const bool ArtificialStepMove=StepMove==1 || StepMove==3;
     const bool Adjustment=Capture.AdjustmentDepth>0 || ArtificialStepMove;
     const bool Timed=!Adjustment && ((Capture.SafeDepth>0 && (Capture.Walking || Capture.Falling)) || StepMove==2);
@@ -345,6 +364,10 @@ void ULDCharacterMovementComponent::PhysWalking(float DeltaSeconds, int32 Iterat
         else { Capture.Restore(Capture.WalkBookmark.GetValue(),UpdatedComponent->GetComponentLocation(),SupportOf(*this)); }
         Capture.PendingRevert=FNativeCapture::ERevert::None;
     }
+    // An unflagged ledge revert can be the walk's last act, with no later move to notice it: take it while the
+    // bookmark is still held.
+    if (!GetActorFeetLocation().Equals(Capture.LastFoot,.000001))
+    { Capture.RestoreUnflaggedWalkRevert(UpdatedComponent->GetComponentLocation(),SupportOf(*this)); }
     Capture.Cursor=Capture.Batch.Step.EndServerSeconds;
     Capture.WalkBookmark.Reset();
     CaptureNativeSupport();
