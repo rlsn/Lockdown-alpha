@@ -33,6 +33,7 @@
 #include "Framework/LDPlayerController.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/FileManager.h"
+#include "Kismet/GameplayStatics.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Misc/CommandLine.h"
@@ -111,6 +112,21 @@ namespace
         FVector VfxDashFrom = FVector::ZeroVector;
         TWeakObjectPtr<ALDObservedProjectileProxy> VfxEffect;
         bool Failed = false, bCombatVfx = false;
+        // Keyframe sequences of the designed slice effects (LDSliceVfx), played in slowed world time so every phase
+        // (anticipation, release, impact, follow-through, dissipation) is captured at its own moment; time stands still
+        // while a frame is written. Extra bodies on the stage: two more victims for the chain and two more attackers.
+        struct FSeqStep { float At = 0; TFunction<void()> Do; };
+        struct FSeqShot { float At = 0; FString Label; };
+        struct FSequence { FString Name; TArray<FSeqStep> Steps; TArray<FSeqShot> Shots; };
+        TArray<TWeakObjectPtr<ULDHumanoidVisualComponent>> VfxExtras;
+        TArray<FSequence> Sequences;
+        int32 SeqIndex = 0, SeqStep = 0, SeqShot = 0;
+        bool bSeqStarted = false, bSeqWarmed = false;
+        double SeqClock = 0., SeqWarmUntil = -1.;
+        static constexpr float SeqDilation = .1f, SeqFreeze = .0001f;
+        TWeakObjectPtr<ALDObservedGroundProxy> SeqGround;
+        FVector VfxFocus = FVector::ZeroVector;
+        float BasicWindupSeconds = .18f;
 
         bool Check(bool Passed, const FString& Name)
         {
@@ -539,9 +555,18 @@ namespace
             if (!Check(FindVfxStage(Target, Focus, StageError), TEXT("The level has open floor around the flagpole for the combat VFX stage ") + StageError)) { return false; }
             Check(true, TEXT("Combat VFX stage at ") + Focus.ToCompactString());
             const FVector Across(UE_INV_SQRT_2, UE_INV_SQRT_2, 0.);
+            VfxFocus = Focus;
             VfxAttacker = SpawnVfxBody(Target, Focus - Across * 95., 45.f, 0);
             VfxVictim = SpawnVfxBody(Target, Focus + Across * 95., 225.f, 1);
             if (!Check(VfxAttacker.IsValid() && VfxVictim.IsValid(), TEXT("Combat VFX bodies spawned"))) { return false; }
+            // The attacker stands in for the local player's own body (full size, ball orange).
+            VfxAttacker->SetOwnBody(true);
+            {
+                TSharedPtr<const FLDDemoContentSnapshot> Content;
+                FString Ignored;
+                if (LDDemoEntry::LoadRuntimeContent(Content, Ignored) && Content && Content->Get().Parameters.BasicAttackWindupMs > 0)
+                { BasicWindupSeconds = float(Content->Get().Parameters.BasicAttackWindupMs) / 1000.f; }
+            }
             VfxAttacker->SetCue(2, .2f, .4f);
             VfxAttacker->Animate(FVector::ZeroVector, .04f);
             TInlineComponentArray<UNiagaraComponent*> EffectsOnAttacker;
@@ -558,16 +583,17 @@ namespace
             Check(CastEffect && !CastEffect->IsActive(), TEXT("Hiding the caster immediately clears its cast effect"));
             VfxAttacker->SetVisibility(true, true);
             VfxAttacker->SetCue(0);
+            // Every live effect of either kind: Niagara bursts, hit layers and slice layers.
+            const auto LiveEffects = [Impacts]() { return Impacts ? Impacts->LiveCount() + Impacts->LiveLayerCount() + Impacts->LiveSliceCount() : 0; };
             VfxAttacker->SetHitReaction(.03f);
             VfxAttacker->Animate(FVector::ZeroVector, 0.f);
-            const int32 OtherParticles = Impacts ? Impacts->LiveCount() : 0;
+            const int32 OtherParticles = LiveEffects();
             VfxVictim->SetHitReaction(.03f);
             VfxVictim->Animate(FVector::ZeroVector, 0.f);
-            const int32 BothParticles = Impacts ? Impacts->LiveCount() : 0;
+            const int32 BothParticles = LiveEffects();
             Check(OtherParticles > 0 && BothParticles > OtherParticles, TEXT("Two visible bodies produce independent impact effects"));
             VfxVictim->SetVisibility(false, true);
-            Check(Impacts && Impacts->LiveCount() == OtherParticles,
-                TEXT("Hiding one body immediately clears only its impact effects"));
+            Check(LiveEffects() == OtherParticles, TEXT("Hiding one body immediately clears only its impact effects"));
             VfxVictim->SetVisibility(true, true);
 
             auto* Proxy = Target.SpawnActor<ALDObservedEntityProxy>();
@@ -580,9 +606,9 @@ namespace
                 Unit.RecentHitId = FGuid::NewGuid();
                 Proxy->Apply(Unit, GetDefault<ALDCharacter>()->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight(), 100.);
                 Proxy->Present(100., 0.f);
-                const int32 BeforeConceal = Impacts ? Impacts->LiveCount() : 0;
+                const int32 BeforeConceal = LiveEffects();
                 Proxy->Destroy();
-                Check(Impacts && BeforeConceal > OtherParticles && Impacts->LiveCount() == OtherParticles,
+                Check(BeforeConceal > OtherParticles && LiveEffects() == OtherParticles,
                     TEXT("Removing an observed proxy immediately clears only its impact effects"));
             }
             if (Impacts)
@@ -650,6 +676,7 @@ namespace
             {
                 Shots.RemoveAll([](const FArtShot& Shot) { return Shot.Name != TEXT("VFX-Idle") && Shot.Name != TEXT("VFX-Cast"); });
             }
+            else if (!BuildSequences(Target, Focus)) { return false; }
             FActorSpawnParameters Spawn;
             Spawn.ObjectFlags |= RF_Transient;
             ACameraActor* View = Target.SpawnActor<ACameraActor>(Spawn);
@@ -663,6 +690,159 @@ namespace
             Camera = View;
             CaptureController = Controller;
             Controller->SetDevArtCaptureCamera(View);
+            return true;
+        }
+
+        // Extra stage bodies on the stage search's checked ring (320 cm around the focus) and the keyframe sequences.
+        bool BuildSequences(UWorld& Target, const FVector& Focus)
+        {
+            const auto Ring = [&Focus](float Degrees) { return Focus + FVector(320., 0., 0.).RotateAngleAxis(Degrees, FVector::UpVector); };
+            VfxExtras = { SpawnVfxBody(Target, Ring(0.f), 180.f, 2), SpawnVfxBody(Target, Ring(45.f), 225.f, 3),
+                SpawnVfxBody(Target, Ring(180.f), 0.f, 4), SpawnVfxBody(Target, Ring(270.f), 90.f, 5) };
+            if (!Check(!VfxExtras.ContainsByPredicate([](const TWeakObjectPtr<ULDHumanoidVisualComponent>& Body) { return !Body.IsValid(); }),
+                TEXT("Combat VFX sequence bodies spawned on the checked stage ring"))) { return false; }
+            const TWeakObjectPtr<ULDHumanoidVisualComponent> A = VfxAttacker, V1 = VfxVictim, V2 = VfxExtras[0], V3 = VfxExtras[1], A2 = VfxExtras[2], A3 = VfxExtras[3];
+            const float W = BasicWindupSeconds;
+            const auto Swing = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, uint8 Step, float Windup)
+            { return [Body, Step, Windup]() { if (auto* B = Body.Get()) { B->SetComboStep(Step); B->SetCastAbility(0); B->SetCue(1, 0.f, Windup); } }; };
+            const auto Cast = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, ELDDemoAbilityId Ability, float Windup)
+            { return [Body, Ability, Windup]() { if (auto* B = Body.Get()) { B->SetComboStep(0); B->SetCastAbility(uint8(Ability)); B->SetCue(2, 0.f, Windup); } }; };
+            const auto Hit = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, ELDObservedHitLook Look)
+            { return [Body, Look]() { if (auto* B = Body.Get()) { B->SetHitReaction(0.f, Look, 0, FGuid::NewGuid()); } }; };
+            const auto Stop = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body)
+            { return [Body]() { if (auto* B = Body.Get()) { B->SetCue(0); B->SetCastAbility(0); B->SetComboStep(0); } }; };
+            const auto Conduct = [this](TWeakObjectPtr<ULDHumanoidVisualComponent> Body)
+            { return [this, Body]() { if (auto* B = Body.Get()) { B->SetReaction(uint8(ELDCombatReaction::Conduct), uint8(ELDCombatElement::Shock), 0.f, 500. + SeqIndex); } }; };
+            const auto Shots_ = [](std::initializer_list<float> Times)
+            {
+                TArray<FSeqShot> Out;
+                int32 Index = 0;
+                for (const float At : Times) { Out.Add({At, FString::Printf(TEXT("%02d"), ++Index)}); }
+                return Out;
+            };
+            for (uint8 Step = 1; Step <= 3; ++Step)
+            {
+                // Anticipation (chalk), release (slash), impact (the step's tier), follow-through, dissipation, clear.
+                Sequences.Add({FString::Printf(TEXT("combo%d"), Step), {{0.f, Swing(A, Step, W)}, {W + .02f, Hit(V1, ELDObservedHitLook::None)}, {1.2f, Stop(A)}},
+                    Shots_({W * .5f, W + .01f, W + .06f, W + .16f, W + .34f, W + .7f})});
+            }
+            Sequences.Add({TEXT("hose_down"), {{0.f, Cast(A, ELDDemoAbilityId::ActiveHoseDown, .2f)}, {.23f, Hit(V1, ELDObservedHitLook::Water)}, {1.2f, Stop(A)}},
+                Shots_({.1f, .215f, .27f, .4f, .8f, 1.5f})});
+            Sequences.Add({TEXT("zap"), {{0.f, Cast(A, ELDDemoAbilityId::ActiveZap, .25f)}, {.27f, Hit(V1, ELDObservedHitLook::Electric)},
+                {.42f, Hit(V2, ELDObservedHitLook::Electric)}, {.57f, Hit(V3, ELDObservedHitLook::Electric)}, {1.2f, Stop(A)}},
+                Shots_({.12f, .26f, .32f, .45f, .6f, .95f})});
+            Sequences.Add({TEXT("conduct"), {{0.f, Cast(A, ELDDemoAbilityId::ActiveZap, .25f)}, {.27f, Hit(V1, ELDObservedHitLook::Electric)}, {.28f, Conduct(V1)},
+                {1.2f, Stop(A)}}, Shots_({.2f, .32f, .4f, .6f, 1.f, 1.6f})});
+            Sequences.Add({TEXT("ground_field"), {{0.f, [this, V1]()
+                {
+                    FActorSpawnParameters Spawn;
+                    Spawn.ObjectFlags |= RF_Transient;
+                    ALDObservedGroundProxy* Ground = World->SpawnActor<ALDObservedGroundProxy>(Spawn);
+                    if (!Check(Ground != nullptr && V1.IsValid(), TEXT("Sequence ground state proxy spawned"))) { return; }
+                    FLDObservedGroundState State;
+                    State.Id = 2;
+                    State.Kind = uint8(ELDGroundStateKind::Field);
+                    State.CentreCm = V1->GetOwner()->GetActorLocation() - FVector(0, 0, 90);
+                    State.RadiusCm = 220.f;
+                    State.RemainingMs = State.TotalMs = 6000;
+                    Ground->Apply(State, 100.);
+                    SeqGround = Ground;
+                }}, {2.3f, [this]() { if (ALDObservedGroundProxy* Old = SeqGround.Get()) { Old->Destroy(); } }}},
+                Shots_({.1f, .4f, .8f, 1.3f, 2.f, 2.4f})});
+            // Several casters at once: the own finisher and two other bodies' hose and zap, then a conduct on the first victim.
+            Sequences.Add({TEXT("crowded"), {{0.f, Swing(A, 3, W)}, {0.f, Cast(A2, ELDDemoAbilityId::ActiveHoseDown, .2f)},
+                {0.f, Cast(A3, ELDDemoAbilityId::ActiveZap, .25f)}, {W + .02f, Hit(V1, ELDObservedHitLook::None)},
+                {.23f, Hit(V1, ELDObservedHitLook::Water)}, {.27f, Hit(V3, ELDObservedHitLook::Electric)}, {.42f, Hit(V2, ELDObservedHitLook::Electric)},
+                {.45f, Conduct(V1)}, {1.2f, Stop(A)}, {1.2f, Stop(A2)}, {1.2f, Stop(A3)}},
+                Shots_({.1f, .22f, .3f, .48f, .7f, 1.1f})});
+            return true;
+        }
+
+        void SeqBodies(TFunctionRef<void(ULDHumanoidVisualComponent&)> Each)
+        {
+            for (const TWeakObjectPtr<ULDHumanoidVisualComponent>& Body : {VfxAttacker, VfxVictim}) { if (Body.IsValid()) { Each(*Body.Get()); } }
+            for (const TWeakObjectPtr<ULDHumanoidVisualComponent>& Body : VfxExtras) { if (Body.IsValid()) { Each(*Body.Get()); } }
+        }
+
+        // One tick of the keyframe sequences; false ends the probe. Runs before the single shots.
+        bool TickSequence(UWorld& Target, double Now, float SimDelta)
+        {
+            auto* Impacts = Target.GetSubsystem<ULDImpactFxSubsystem>();
+            if (!Impacts) { return Finish(TEXT("No impact effect subsystem for the sequences")); }
+            if (!bSeqWarmed)
+            {
+                // Show every slice recipe once and wait for its shaders, so no keyframe shows a default material.
+                if (SeqWarmUntil < 0.)
+                {
+                    LDSliceVfx::FLook Look;
+                    Look.bOwn = Look.bFocus = true;
+                    const FVector At = VfxFocus + FVector(0, 0, 100);
+                    for (uint8 Strike = uint8(LDSliceVfx::EStrike::Basic); Strike <= uint8(LDSliceVfx::EStrike::Zap); ++Strike)
+                    { Impacts->Slice(nullptr, LDSliceVfx::Impact(LDSliceVfx::EStrike(Strike), At, VfxFocus, FVector::ForwardVector, VfxFocus, false, Look), 0.f); }
+                    for (uint8 Step = 1; Step <= 3; ++Step)
+                    {
+                        Impacts->Slice(nullptr, LDSliceVfx::SwingRelease(Step, At, FVector::ForwardVector, Look), 0.f);
+                        Impacts->Slice(nullptr, LDSliceVfx::SwingTelegraph(Step, VfxFocus, FVector::ForwardVector, .3f, Look), 0.f);
+                    }
+                    Impacts->Slice(nullptr, LDSliceVfx::SkillTelegraph(VfxFocus, FVector::ForwardVector, 300.f, 100.f, .3f, Look), 0.f);
+                    Impacts->Slice(nullptr, LDSliceVfx::HoseRelease(At, FVector::ForwardVector, 300.f, Look), 0.f);
+                    Impacts->Slice(nullptr, LDSliceVfx::Conduct(At, VfxFocus, 300.f, Look), 0.f);
+                    SeqWarmUntil = Now + 3.;
+                }
+                if (Now < SeqWarmUntil || (GShaderCompilingManager && GShaderCompilingManager->IsCompiling())) { return true; }
+                Check(Impacts->LiveSliceCount() == 0, TEXT("The warm-up slice layers expired on their own"));
+                bSeqWarmed = true;
+                return true;
+            }
+            FSequence& Sequence = Sequences[SeqIndex];
+            if (!PendingImage.IsEmpty())
+            {
+                if (IFileManager::Get().FileSize(*PendingImage) <= 0) { return true; }
+                Check(true, TEXT("Rendered keyframe: ") + PendingImage.RightChop(Directory.Len() + 1));
+                PendingImage.Reset();
+                UGameplayStatics::SetGlobalTimeDilation(&Target, SeqDilation);
+                return true;
+            }
+            if (!bSeqStarted)
+            {
+                // A clean stage: every body idle and visible, no effect from the previous sequence.
+                SeqBodies([Impacts](ULDHumanoidVisualComponent& Body)
+                {
+                    Body.SetCue(0);
+                    Body.SetCastAbility(0);
+                    Body.SetComboStep(0);
+                    Impacts->ClearFor(Body);
+                });
+                if (GShaderCompilingManager && GShaderCompilingManager->IsCompiling()) { return true; }
+                IFileManager::Get().MakeDirectory(*(Directory / (TEXT("seq-") + Sequence.Name)), true);
+                bSeqStarted = true;
+                SeqClock = 0.;
+                SeqStep = SeqShot = 0;
+                UGameplayStatics::SetGlobalTimeDilation(&Target, SeqDilation);
+                return true;
+            }
+            SeqClock += SimDelta;
+            const int32 Fired = SeqStep;
+            while (SeqStep < Sequence.Steps.Num() && Sequence.Steps[SeqStep].At <= SeqClock) { Sequence.Steps[SeqStep++].Do(); }
+            // A step fired now reaches the bodies on their next frame: never capture before it shows.
+            if (SeqStep != Fired) { return true; }
+            if (SeqShot < Sequence.Shots.Num() && SeqClock >= Sequence.Shots[SeqShot].At)
+            {
+                // Time stands (almost) still while this frame renders and is written.
+                UGameplayStatics::SetGlobalTimeDilation(&Target, SeqFreeze);
+                PendingImage = Directory / (TEXT("seq-") + Sequence.Name) / (Sequence.Shots[SeqShot].Label + TEXT(".png"));
+                Images.Add(MakeShared<FJsonValueString>(PendingImage.RightChop(Directory.Len() + 1)));
+                FScreenshotRequest::RequestScreenshot(PendingImage, false, false);
+                ++SeqShot;
+                return true;
+            }
+            if (SeqShot >= Sequence.Shots.Num() && SeqStep >= Sequence.Steps.Num())
+            {
+                UGameplayStatics::SetGlobalTimeDilation(&Target, 1.f);
+                bSeqStarted = false;
+                // The single shots that follow stage only the attacker and the first victim, as the earlier captures did.
+                if (++SeqIndex == Sequences.Num()) { for (const TWeakObjectPtr<ULDHumanoidVisualComponent>& Extra : VfxExtras) { if (Extra.IsValid()) { Extra->SetVisibility(false, true); } } }
+            }
             return true;
         }
 
@@ -694,12 +874,14 @@ namespace
                 Victim->Animate(FVector::ZeroVector, 0.f);
                 LDHitVfx::EBurst Element;
                 FLinearColor ElementTint;
-                const int32 Expected = 1 + (LDHitVfx::HitBurstOf(Current.HitLook, Element, ElementTint) ? 1 : 0)
+                const bool bSlice = LDSliceVfx::ShowsHit(Current.HitLook, Current.HitFlags);
+                const int32 Expected = bSlice ? 0 : 1 + (LDHitVfx::HitBurstOf(Current.HitLook, Element, ElementTint) ? 1 : 0)
                     + ((Current.HitFlags & LDObservation::Overdriven) ? 1 : 0);
                 if (!Check(Impacts && Impacts->LiveCount() == Expected,
-                    TEXT("A fresh shown hit creates one impact effect, plus its element and overdrive particles"))) { return false; }
+                    TEXT("A fresh shown hit creates one impact effect, plus its element and overdrive particles; a slice hit none"))) { return false; }
                 Check(Impacts->LiveLayerCount() == LDHitVfx::ForHit(Current.HitLook, Current.HitFlags, 1.f, Impacts->LayerTuning()).Layers.Num(),
                     TEXT("A fresh shown hit spawns its shaped layers"));
+                Check(!bSlice || Impacts->LiveSliceCount() > 0, TEXT("A plain, water or electric hit shows its designed slice burst"));
                 // The own receipt of the same tier flashes the screen edge (drawn by the world feedback layer).
                 Impacts->FlashScreen(LDHitVfx::ScreenFlashOf(Current.HitFlags, false));
             }
@@ -768,7 +950,9 @@ namespace
                 State.RadiusCm = 220.f;
                 State.RemainingMs = State.TotalMs = 6000;
                 Ground->Apply(State, 100.);
-                Check(Ground->GetParticles() != nullptr, TEXT("A ground state shows its kind's particles over its pattern"));
+                // The electric field shows its designed crackle (LDSliceVfx::GroundField); every other kind its particles.
+                Check(Current.GroundKind == uint8(ELDGroundStateKind::Field) ? Impacts && Impacts->LiveSliceCount() > 0 : Ground->GetParticles() != nullptr,
+                    TEXT("A ground state shows its kind's particles or its field over its pattern"));
                 VfxGround = Ground;
             }
             if (Current.bKill && Impacts)
@@ -868,8 +1052,12 @@ namespace
             const double Now = FPlatformTime::Seconds();
             if (Now - StartedAt > 600.) { return Finish(TEXT("Art capture timed out")); }
             if (!World.IsValid()) { return Finish(TEXT("The Demo world ended before the art capture completed")); }
+            // The stage bodies run on the world's own (dilated) frame time, which the keyframe sequences slow down, so a
+            // slow frame moves the bodies, the effects and the sequence clock by the same step.
+            const float SimDelta = World.IsValid() ? World->GetDeltaSeconds() : Delta;
             if (bCombatVfx)
             {
+                for (const TWeakObjectPtr<ULDHumanoidVisualComponent>& Extra : VfxExtras) { if (auto* Body = Extra.Get()) { Body->Animate(FVector::ZeroVector, SimDelta); } }
                 if (ALDObservedProjectileProxy* Flight = VfxEffect.Get(); Flight && VfxFlightAt > 0.)
                 {
                     // The chalk keeps flying towards the victim at 900 cm/s on its own authority timeline.
@@ -895,10 +1083,11 @@ namespace
                     const bool bRunning = Left > 0.;
                     const FVector Dash(bRunning ? 1500.f : 0.f, 0.f, 0.f);
                     if (bRunning) { Body->GetOwner()->AddActorWorldOffset(FVector(FMath::Min(1500. * Delta, Left), 0., 0.)); }
-                    Body->Animate(Dash, Delta);
+                    Body->Animate(Dash, SimDelta);
                 }
-                if (auto* Body = VfxVictim.Get()) { Body->Animate(FVector::ZeroVector, Delta); }
+                if (auto* Body = VfxVictim.Get()) { Body->Animate(FVector::ZeroVector, SimDelta); }
             }
+            if (bCombatVfx && Stage == 2 && SeqIndex < Sequences.Num() && World.IsValid()) { return TickSequence(*World.Get(), Now, SimDelta); }
             if (!PendingImage.IsEmpty())
             {
                 if (IFileManager::Get().FileSize(*PendingImage) <= 0) { return true; }
