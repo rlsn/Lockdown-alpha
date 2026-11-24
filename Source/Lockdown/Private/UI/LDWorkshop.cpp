@@ -104,15 +104,19 @@ TArray<FVector2D> Star(FVector2D Centre,float Radius,int32 Points,float Inner,fl
 }
 UTexture2D* RingArt(EArt Kind)
 {
-    static TWeakObjectPtr<UTexture2D> Loaded[int32(EArt::Count)];
-    static bool bTried[int32(EArt::Count)]={};
+    // Held for the process like the icons: the ring paints them every frame.
+    static TStrongObjectPtr<UTexture2D> Loaded[int32(EArt::Count)];
+    static bool bWarned[int32(EArt::Count)]={};
     const int32 Index=int32(Kind);
-    if(!Loaded[Index].IsValid()&&!bTried[Index])
+    if(!Loaded[Index].IsValid())
     {
-        bTried[Index]=true;
         const FString Package=Art[Index].Package;
-        Loaded[Index]=LoadObject<UTexture2D>(nullptr,*(Package+TEXT(".")+FPackageName::GetShortName(Package)),nullptr,LOAD_NoWarn|LOAD_Quiet);
-        if(!Loaded[Index].IsValid()){UE_LOG(LogLDUI,Warning,TEXT("LD_UI_RING_ART_MISSING %s (%s); the ring paints its fallback shape."),Art[Index].Id,*Package);}
+        Loaded[Index].Reset(LoadObject<UTexture2D>(nullptr,*(Package+TEXT(".")+FPackageName::GetShortName(Package)),nullptr,LOAD_NoWarn|LOAD_Quiet));
+        if(!Loaded[Index].IsValid()&&!bWarned[Index])
+        {
+            bWarned[Index]=true;
+            UE_LOG(LogLDUI,Warning,TEXT("LD_UI_RING_ART_MISSING %s (%s); the ring paints its fallback shape."),Art[Index].Id,*Package);
+        }
     }
     return Loaded[Index].Get();
 }
@@ -296,39 +300,6 @@ void ULDWorkshop::ComputeLayout(const FGeometry& Geometry)
         // The inspector's room in the top-left corner; the wing starts below it, whatever the text size.
         const float InspectorTop=96.f*U;
         L.InspectorBottom=InspectorTop+28.f*U+T(20.f)*1.25f+T(14.f)*1.4f+8.f*U+4.f*T(16.f)*1.35f;
-        {
-            const float Reach=WingRadius*R;
-            const float Floor=L.InspectorBottom+8.f*U+T(14.f);
-            const float Cos=FMath::Clamp(float((C.Y-Floor)/Reach),-1.f,1.f);
-            L.WingStart=FMath::Min(-60.f,-FMath::RadiansToDegrees(FMath::Acos(Cos)));
-        }
-        {
-            float Angle=L.WingStart;
-            for(int32 Index=0;Index<Ring.Derived.Num();++Index)
-            {
-                const FVector2D At=LDRingPaint::Polar(C,(WingRadius-4.f)*R,Angle);
-                const float Width=FMath::Max(190.f*F,T(150.f));
-                Add(EHit::Wing,INDEX_NONE,Index,Rect(FBox2D(FVector2D(At.X-Width,At.Y-T(14.f)),FVector2D(At.X,At.Y+T(14.f)))));
-                L.Anchors.Add(AnchorKey(EHit::Wing,INDEX_NONE,Index),At);
-                const float Sin=FMath::Max(.2f,FMath::Abs(FMath::Sin(FMath::DegreesToRadians(Angle))));
-                Angle-=FMath::Max(4.6f,FMath::RadiansToDegrees((T(28.f)+6.f*U)/(WingRadius*R*Sin)));
-            }
-        }
-        // The right wing: the rest shop, one row each, along the outer arc.
-        if(Ring.bShop)
-        {
-            const float Z=FMath::Max(54.f*U,36.f/L.K);
-            for(int32 Index=0;Index<Ring.Shop.Num();++Index)
-            {
-                const FVector2D At=LDRingPaint::Polar(C,WingRadius*R,70.f+Index*6.2f*FMath::Max(1.f,F/FMath::Max(.01f,U)));
-                const float Width=Z+T(150.f);
-                Add(EHit::Shop,INDEX_NONE,Index,Rect(FBox2D(FVector2D(At.X-Z*.5,At.Y-Z*.5),FVector2D(At.X-Z*.5+Width,At.Y+Z*.5))));
-                L.Anchors.Add(AnchorKey(EHit::Shop,INDEX_NONE,Index),At);
-            }
-            const FVector2D Top=LDRingPaint::Polar(C,WingRadius*R,64.f);
-            const FVector2D At(Top.X-30.f*U+110.f*F,Top.Y-46.f*U-3.f*F);
-            Add(EHit::ShopRefresh,INDEX_NONE,INDEX_NONE,Rect(FBox2D(At,At+FVector2D(T(96.f),T(30.f)))));
-        }
         // The top-right buttons: 收起 and the reaction table.
         {
             const FVector2D Close(L.Size.X-40.f*U-T(76.f),96.f*U);
@@ -338,6 +309,22 @@ void ULDWorkshop::ComputeLayout(const FGeometry& Geometry)
             ActionsAt=FVector2D(L.Size.X-40.f*U,96.f*U+T(30.f)+18.f*U);
         }
     }
+    // The ring's lowest point (the lower sectors' outer corners and the radar chips): the plates and the hand stay under it.
+    float RingBottom=float(C.Y);
+    if(bOpen)
+    {
+        const bool bFullNow=Ring.Capacity>0&&Ring.Installed>=Ring.Capacity;
+        for(int32 HostIndex=0;HostIndex<Ring.Hosts.Num();++HostIndex)
+        {
+            const float Outer=(RowRadius[RowsFor(Ring.Hosts[HostIndex].Cards.Num()+(bFullNow?0:1))-1]+36.f+11.f)*R;
+            for(const float Edge:{HostAngle[HostIndex]-SectorHalf,HostAngle[HostIndex]+SectorHalf})
+            {RingBottom=FMath::Max(RingBottom,float(LDRingPaint::Polar(C,Outer,Edge).Y));}
+        }
+        for(const FShape& Box:L.Boxes){if(Box.Hit.Kind==EHit::Stat){for(const FVector2D& Point:Box.Shape){RingBottom=FMath::Max(RingBottom,float(Point.Y));}}}
+    }
+    L.RingBottom=RingBottom;
+    // Above the cards: the level and reaction plates (and the batch title) take this much.
+    const float PlateBand=12.f*U+T(30.f);
     // The bottom: the offer on top (or the hand), above the HUD band and right of the minimap.
     const float BandTop=Latest.Band.Bottom>Latest.Band.Top?float(Geometry.AbsoluteToLocal(FVector2D(Latest.Band.Left,Latest.Band.Top)).Y):L.Size.Y;
     const float Y1=FMath::Min(890.f*U,BandTop-8.f*U);
@@ -351,7 +338,10 @@ void ULDWorkshop::ComputeLayout(const FGeometry& Geometry)
             const int32 Count=Ring.Batch.Options.Num();
             const float Gap=16.f*U;
             const float W=FMath::Min(372.f*U,(Right-Left-150.f*U-(Count-1)*Gap)/FMath::Max(1,Count));
-            const float H=FMath::Max(108.f*U,24.f*U+T(18.f)*1.2f+3.f*T(16.f)*1.3f);
+            L.OfferLines=3;
+            const auto Height=[&](int32 Lines){return FMath::Max(108.f*U,24.f*U+T(18.f)*1.2f+Lines*T(16.f)*1.3f);};
+            while(L.OfferLines>1&&Y1-Height(L.OfferLines)-PlateBand<RingBottom+4.f*U){--L.OfferLines;}
+            const float H=Height(L.OfferLines);
             const float X0=float(C.X)-(Count*W+(Count-1)*Gap)*.5f;
             const float Top=Y1-H;
             L.HandTop=Top;
@@ -387,7 +377,13 @@ void ULDWorkshop::ComputeLayout(const FGeometry& Geometry)
         else
         {
             // The hand: one fanned group per form, cards overlapping like a poker hand when they run out of room.
-            const float CW=FMath::Max(108.f*U,4.25f*T(14.f)+12.f*U);
+            float CW=FMath::Max(108.f*U,4.25f*T(14.f)+12.f*U);
+            {
+                const float Room=Y1-24.f*U-PlateBand-RingBottom-4.f*U;
+                const float Fit=Room-4.f*U-2.36f*T(14.f);
+                CW=FMath::Clamp(Fit,40.f/L.K+8.f*U,CW);
+            }
+            L.CardWidth=CW;
             const float CH=8.f*U+(CW-8.f*U)+2.36f*T(14.f)+4.f*U;
             const float MW=FMath::Max(82.f*U,46.f/L.K);
             const float GroupGap=30.f*U;
@@ -403,7 +399,8 @@ void ULDWorkshop::ComputeLayout(const FGeometry& Geometry)
             const float Pitch=Over>0?FMath::Min(CW+10.f*U,(Right-Left-Fixed)/Over):0.f;
             const float Total=Fixed+Over*Pitch;
             float X=float(C.X)-Total*.5f;
-            const float Top=Y1-CH;
+            // The fan's outer cards drop and turn: the row stands high enough that none crosses the band line.
+            const float Top=Y1-CH-24.f*U;
             L.HandTop=Top;
             for(const TArray<int32>& Group:Groups)
             {
@@ -437,13 +434,72 @@ void ULDWorkshop::ComputeLayout(const FGeometry& Geometry)
             {
                 Add(EHit::OfferPile,INDEX_NONE,INDEX_NONE,Rect(FBox2D(FVector2D(float(C.X)-Total*.5f-108.f*U,Top+24.f*U),FVector2D(float(C.X)-Total*.5f-30.f*U,Y1))));
             }
-            if(Ring.Hand.IsEmpty()){L.HandTop=Y1-CH;}
+            if(Ring.Hand.IsEmpty()){L.HandTop=Y1-CH-24.f*U;}
+        }
+        // The left wing: the derived attributes hang on the outer arc between the inspector's corner and the level plate.
+        // When their rows do not fit that height (a small screen with large text) they pair up as glyph chips.
+        {
+            const int32 Count=Ring.Derived.Num();
+            const float RowH=T(28.f);
+            const float Top=L.InspectorBottom+8.f*U+RowH*.5f;
+            const float Bottom=L.HandTop-12.f*U-T(30.f)-10.f*U-RowH*.5f;
+            const float Reach=(WingRadius-4.f)*R;
+            const auto ArcX=[&](float Y){const float Dy=float(Y-C.Y);return float(C.X)-FMath::Sqrt(FMath::Max(0.f,Reach*Reach-Dy*Dy));};
+            L.bWingCompact=Count>1&&(Count-1)*(RowH+3.f*U)>Bottom-Top;
+            L.WingWidth=L.bWingCompact?T(104.f):FMath::Max(190.f*F,T(150.f));
+            const int32 Lines=L.bWingCompact?(Count+1)/2:Count;
+            const float Step=Lines>1?FMath::Min((Bottom-Top)/(Lines-1),RowH*1.65f):0.f;
+            for(int32 Index=0;Index<Count;++Index)
+            {
+                const int32 Line=L.bWingCompact?Index/2:Index;
+                const float Y=Top+Line*Step;
+                const float Edge=FMath::Max(ArcX(Y),(L.bWingCompact?2.f*L.WingWidth+6.f*U:L.WingWidth)+16.f*U);
+                const float X=L.bWingCompact&&Index%2==0?Edge-L.WingWidth-6.f*U:Edge;
+                const FVector2D At(X,Y);
+                Add(EHit::Wing,INDEX_NONE,Index,Rect(FBox2D(FVector2D(At.X-L.WingWidth,At.Y-RowH*.5f),FVector2D(At.X,At.Y+RowH*.5f))));
+                L.Anchors.Add(AnchorKey(EHit::Wing,INDEX_NONE,Index),At);
+            }
+        }
+        // The right wing: the rest shop. Its label sits under the top HUD (the banner, and in a rest its actions in the
+        // corner) and under the ring's own buttons; its rows hang on the outer arc down to the plates.
+        if(Ring.bShop)
+        {
+            const float Z=FMath::Max(54.f*U,36.f/L.K);
+            const float RowH=FMath::Max(Z,T(44.f));
+            float Ceiling=96.f*U+T(30.f)+8.f*U;
+            if(Latest.Banner.Bottom>Latest.Banner.Top)
+            {
+                const FVector2D BannerMin=Geometry.AbsoluteToLocal(FVector2D(Latest.Banner.Left,Latest.Banner.Top));
+                const FVector2D BannerMax=Geometry.AbsoluteToLocal(FVector2D(Latest.Banner.Right,Latest.Banner.Bottom));
+                // Only a banner standing over the right wing pushes it down.
+                if(BannerMax.X>C.X+200.f*R){Ceiling=FMath::Max(Ceiling,float(BannerMax.Y)+8.f*U);}
+                (void)BannerMin;
+            }
+            const float Reach=WingRadius*R;
+            const auto ArcX=[&](float Y){const float Dy=float(Y-C.Y);return float(C.X)+FMath::Sqrt(FMath::Max(0.f,Reach*Reach-Dy*Dy));};
+            const int32 Count=Ring.Shop.Num();
+            const float Top=Ceiling+T(24.f)+10.f*U+RowH*.5f;
+            const float Bottom=L.HandTop-PlateBand-RowH*.5f;
+            const float Step=Count>1?FMath::Min((Bottom-Top)/(Count-1),RowH+16.f*U):0.f;
+            const float Width=Z+T(150.f);
+            for(int32 Index=0;Index<Count;++Index)
+            {
+                const float Y=Top+Index*Step;
+                const float X=FMath::Min(ArcX(Y),float(L.Size.X)-16.f*U-Width+Z*.5f);
+                const FVector2D At(X,Y);
+                Add(EHit::Shop,INDEX_NONE,Index,Rect(FBox2D(FVector2D(At.X-Z*.5,At.Y-Z*.5),FVector2D(At.X-Z*.5+Width,At.Y+Z*.5))));
+                L.Anchors.Add(AnchorKey(EHit::Shop,INDEX_NONE,Index),At);
+            }
+            const float LabelX=FMath::Min(ArcX(Top)-Z*.5f,float(L.Size.X)-16.f*U-T(110.f)-T(100.f));
+            L.ShopLabel=FVector2D(LabelX,Ceiling);
+            const FVector2D At(LabelX+T(110.f),Ceiling);
+            Add(EHit::ShopRefresh,INDEX_NONE,INDEX_NONE,Rect(FBox2D(At,At+FVector2D(T(96.f),T(24.f)))));
         }
         // The rest's respec chip beside the level plate.
         if(Latest.Stage==LDProgression::EMatchStage::Rest)
         {
             const float PlateTop=L.HandTop-12.f*U-T(30.f);
-            const FVector2D At(800.f*U-T(420.f)-T(80.f),PlateTop);
+            const FVector2D At(800.f*U-LevelPlateWidth()-8.f*U-T(72.f),PlateTop);
             Add(EHit::Respec,INDEX_NONE,INDEX_NONE,Rect(FBox2D(At,At+FVector2D(T(72.f),T(30.f)))));
         }
         // The element chooser of a card that asks for one, and a rest service's confirm line.
@@ -507,6 +563,33 @@ bool ULDWorkshop::IsHit(FVector2D Absolute) const
     return !HitAt(Geometry.AbsoluteToLocal(Absolute)).IsNone();
 }
 
+TArray<FString> ULDWorkshop::LayoutProblems() const
+{
+    TArray<FString> Out;
+    const FLayout& L=Layout;
+    TArray<FBox2D> WingRows;
+    for(const FShape& Box:L.Boxes)
+    {
+        if(Box.bWedge){continue;}
+        FBox2D Bounds(ForceInit);
+        for(const FVector2D& Point:Box.Shape){Bounds+=Point;}
+        const FString Part=FString::Printf(TEXT("part %d/%d/%d (%.0f,%.0f)-(%.0f,%.0f)"),int32(Box.Hit.Kind),Box.Hit.Host,Box.Hit.Index,Bounds.Min.X,Bounds.Min.Y,Bounds.Max.X,Bounds.Max.Y);
+        if(Bounds.Min.X<-1.||Bounds.Min.Y<-1.||Bounds.Max.X>L.Size.X+1.||Bounds.Max.Y>L.Size.Y+1.){Out.Add(TEXT("off screen ")+Part);}
+        if(Box.Hit.Kind==EHit::Wing)
+        {
+            if(Bounds.Min.Y<L.InspectorBottom-.5f){Out.Add(TEXT("under the inspector ")+Part);}
+            if(Bounds.Max.Y>L.HandTop+.5f){Out.Add(TEXT("into the hand ")+Part);}
+            for(const FBox2D& Other:WingRows)
+            {
+                if(!(Bounds.Max.X<=Other.Min.X+.5||Other.Max.X<=Bounds.Min.X+.5||Bounds.Max.Y<=Other.Min.Y+.5||Other.Max.Y<=Bounds.Min.Y+.5)){Out.Add(TEXT("wing overlap ")+Part);}
+            }
+            WingRows.Add(Bounds);
+        }
+        if(Box.Hit.Kind==EHit::Hand&&Bounds.Max.Y>L.HandBottom+1.){Out.Add(TEXT("below the band line ")+Part);}
+    }
+    return Out;
+}
+
 // ---- tick: the pointer, the radar, the springs ---------------------------------------------------------------------------
 
 void ULDWorkshop::UpdateRadar()
@@ -555,6 +638,8 @@ void ULDWorkshop::NativeTick(const FGeometry& Geometry,float DeltaSeconds)
     ComputeLayout(Geometry);
     const double Now=UiNow();
     const float Delta=LastTick<0.?0.f:float(Now-LastTick);LastTick=Now;
+    if(FrozenOpen>=0.f&&IsOpen()){OpenedAt=Now-FrozenOpen;}
+    if(FrozenReveal>=0.f&&BatchAt>=0.){BatchAt=Now-FrozenReveal;}
     FHit Next;
     if(FSlateApplication::IsInitialized()&&Ring.bValid)
     {
@@ -726,6 +811,17 @@ void ULDWorkshop::Click(const FHit& Hit,bool bRight)
     case EHit::ConfirmNo: if(Tray){Tray->CancelRestAction();}return;
     default: return;
     }
+}
+
+float ULDWorkshop::LevelPlateWidth() const
+{
+    const float U=Layout.U,F=Layout.F;
+    const FSlateFontInfo Label=RingFont(LDUIFonts::ERole::Strong,14.f,F),Figure=RingFigure(21.f,F);
+    const FString Lv=FString::FromInt(Ring.Level),Used=FString::FromInt(Ring.Installed),Cap=FString::Printf(TEXT(" / %d"),Ring.Capacity);
+    const FString Points=FString::FromInt(Ring.Unspent);
+    return 16.f*F+float(LDRingPaint::Measure(TEXT("LV "),Label).X+LDRingPaint::Measure(Lv,Figure).X)+12.f*F
+        +float(LDRingPaint::Measure(TEXT("构筑 "),Label).X+LDRingPaint::Measure(Used,Figure).X+LDRingPaint::Measure(Cap,Label).X)+12.f*F
+        +Ring.Capacity*11.f*U+12.f*F+float(LDRingPaint::Measure(TEXT("属性点 "),Label).X+LDRingPaint::Measure(Points,Figure).X)+16.f*F;
 }
 
 // ---- links ---------------------------------------------------------------------------------------------------------------
@@ -952,7 +1048,7 @@ void ULDWorkshop::PaintSectors(FPainter& P,const TArray<uint64>& Lit,bool bDim) 
         {
             TArray<FVector2D> Edge=LDRingPaint::Arc(C,Inner,A-SectorHalf,A+SectorHalf,24);
             TArray<FVector2D> OuterRev=LDRingPaint::Arc(C,Outer,A+SectorHalf,A-SectorHalf,24);
-            Edge.Append(OuterRev);Edge.Add(Edge[0]);
+            Edge.Append(OuterRev);const FVector2D Closing=Edge[0];Edge.Add(Closing);
             const TArray<FVector2D> Spray=LDRingPaint::Jitter(Edge,2.2f*R,uint32(17+HostIndex*31),5.f*R);
             P.Stroke(Spray,8.f*R,RingDeep.CopyWithNewOpacity(.9f));
             P.Stroke(Spray,(bTarget||bBlueprintTarget?7.f:2.5f)*R,bTarget||bBlueprintTarget?LDBroadcast::Gold:Ink.CopyWithNewOpacity(.9f));
@@ -1157,9 +1253,16 @@ void ULDWorkshop::PaintWing(FPainter& P) const
     const FLayout& L=Layout;
     const float F=L.F,R=L.R;
     if(Ring.Derived.IsEmpty()){return;}
-    // The spray-painted arc the rows hang from.
-    const float LastAngle=L.WingStart-(Ring.Derived.Num()-1)*5.2f;
-    P.Stroke(LDRingPaint::Jitter(LDRingPaint::Arc(L.Centre,602.f*R,L.WingStart+4.f,LastAngle-6.f,40),1.6f*R,91u,5.f*R),2.5f*R,Hex(0xFFE9A3,.6f));
+    // The spray-painted arc the rows hang from, from the first row to the last.
+    {
+        const FVector2D* First=L.Anchors.Find(AnchorKey(EHit::Wing,INDEX_NONE,0));
+        const FVector2D* Last=L.Anchors.Find(AnchorKey(EHit::Wing,INDEX_NONE,Ring.Derived.Num()-1));
+        if(First&&Last)
+        {
+            const auto Degrees=[&](FVector2D At){const FVector2D D=At-L.Centre;return FMath::RadiansToDegrees(FMath::Atan2(float(D.X),float(-D.Y)));};
+            P.Stroke(LDRingPaint::Jitter(LDRingPaint::Arc(L.Centre,602.f*R,Degrees(*First)+4.f,Degrees(*Last)-6.f,40),1.6f*R,91u,5.f*R),2.5f*R,Hex(0xFFE9A3,.6f));
+        }
+    }
     // The hovered stat previews one more point: the rows it raises turn green with the gain.
     const FHit Shown=Focus();
     TMap<FString,FString> Gain;
@@ -1181,8 +1284,10 @@ void ULDWorkshop::PaintWing(FPainter& P) const
         const FString* Up=Gain.Find(Row.Name);
         const float H=28.f*F;
         const FString DeltaText=Up?(Up->StartsWith(TEXT("+"))?*Up:TEXT("+")+*Up):FString();
-        const float W=FMath::Max(190.f*F,18.f*F+float(LDRingPaint::Measure(Row.Name,Name).X)+10.f*F+float(LDRingPaint::Measure(Row.Value,Figure).X)
-            +(Up?5.f*F+float(LDRingPaint::Measure(DeltaText,Delta).X):0.f)+14.f*F);
+        // A compact chip names its row by the attribute's glyph; the hover card spells it out.
+        const FString& Label=L.bWingCompact?Row.Glyph:Row.Name;
+        const float W=L.bWingCompact?L.WingWidth:FMath::Max(L.WingWidth,18.f*F+float(LDRingPaint::Measure(Label,Name).X)+10.f*F
+            +float(LDRingPaint::Measure(Row.Value,Figure).X)+(Up?5.f*F+float(LDRingPaint::Measure(DeltaText,Delta).X):0.f)+14.f*F);
         const FBox2D Plate(FVector2D(At->X-W,At->Y-H*.5f),FVector2D(At->X,At->Y+H*.5f));
         const TArray<FVector2D> Shape=LDRingPaint::Slant(Plate,8.f*F);
         P.FillShaded(Shape,[&](FVector2D Point)
@@ -1191,7 +1296,7 @@ void ULDWorkshop::PaintWing(FPainter& P) const
             return Up?LDRingPaint::Mix(Hex(0x10301E,.95f),Hex(0x070A11,.8f),T):LDRingPaint::Mix(Hex(0x070A11,.9f),Hex(0x070A11,.72f),T);
         });
         P.Fill(LDRingPaint::Slant(FBox2D(FVector2D(Plate.Max.X-13.f*F,Plate.Min.Y),Plate.Max),8.f*F),StatInk(Row.Source));
-        P.Text(Row.Name,FVector2D(Plate.Min.X+18.f*F,At->Y),Name,RingSoft,FVector2D(0.,.5));
+        P.Text(Label,FVector2D(Plate.Min.X+(L.bWingCompact?12.f:18.f)*F,At->Y),Name,RingSoft,FVector2D(0.,.5));
         float X=float(Plate.Max.X)-14.f*F;
         if(Up){X-=float(P.Text(DeltaText,FVector2D(X,At->Y),Delta,RingUp,FVector2D(1.,.5),LDBroadcast::SkewDegrees).X)+5.f*F;}
         P.Text(Row.Value,FVector2D(X,At->Y),Figure,FLinearColor::White,FVector2D(1.,.52),LDBroadcast::SkewDegrees);
@@ -1204,12 +1309,20 @@ void ULDWorkshop::PaintShop(FPainter& P,const TArray<uint64>& Lit) const
     if(!Ring.bShop){return;}
     const float F=L.F,R=L.R,U=L.U;
     const FVector2D C=L.Centre;
-    P.Stroke(LDRingPaint::Jitter(LDRingPaint::Arc(C,602.f*R,64.f,64.f+Ring.Shop.Num()*6.2f*FMath::Max(1.f,F/FMath::Max(.01f,U))+4.f,40),1.6f*R,53u,5.f*R),2.5f*R,Hex(0xFFE9A3,.6f));
-    const FVector2D Top=LDRingPaint::Polar(C,WingRadius*R,64.f);
+    {
+        // The spray-painted arc the shelf hangs from, from the first row to the last.
+        const FVector2D* First=L.Anchors.Find(AnchorKey(EHit::Shop,INDEX_NONE,0));
+        const FVector2D* Last=L.Anchors.Find(AnchorKey(EHit::Shop,INDEX_NONE,Ring.Shop.Num()-1));
+        if(First&&Last)
+        {
+            const auto Degrees=[&](FVector2D At){const FVector2D D=At-C;return FMath::RadiansToDegrees(FMath::Atan2(float(D.X),float(-D.Y)));};
+            P.Stroke(LDRingPaint::Jitter(LDRingPaint::Arc(C,602.f*R,Degrees(*First)-6.f,Degrees(*Last)+4.f,40),1.6f*R,53u,5.f*R),2.5f*R,Hex(0xFFE9A3,.6f));
+        }
+    }
     {
         // The labels: 休息商店 and the refresh with its price (free shows as 免费).
         const FSlateFontInfo Font=RingFont(LDUIFonts::ERole::Title,14.f,F);
-        const FVector2D At(Top.X-30.f*U,Top.Y-46.f*U);
+        const FVector2D At=L.ShopLabel;
         const float W=float(LDRingPaint::Measure(TEXT("休息商店"),Font).X)+24.f*F;
         P.Fill(LDRingPaint::Slant(FBox2D(At,At+FVector2D(W,24.f*F)),8.f*F),LDBroadcast::Gold);
         P.Text(TEXT("休息商店"),At+FVector2D(W*.5,12.f*F),Font,Hex(0x16120A),FVector2D(.5,.5));
@@ -1274,9 +1387,7 @@ void ULDWorkshop::PaintBottom(FPainter& P,const TArray<uint64>& Lit) const
         const FString Points=FString::FromInt(Ring.Unspent);
         const float Pip=8.f*U,PipGap=3.f*U;
         const float PipsW=Ring.Capacity*(Pip+PipGap);
-        const float W=16.f*F+float(LDRingPaint::Measure(TEXT("LV "),Label).X+LDRingPaint::Measure(Lv,Figure).X)+12.f*F
-            +float(LDRingPaint::Measure(TEXT("构筑 "),Label).X+LDRingPaint::Measure(Used,Figure).X+LDRingPaint::Measure(Cap,Label).X)+12.f*F
-            +PipsW+12.f*F+float(LDRingPaint::Measure(TEXT("属性点 "),Label).X+LDRingPaint::Measure(Points,Figure).X)+16.f*F;
+        const float W=LevelPlateWidth();
         const FBox2D Plate(FVector2D(800.f*U-W,PlateTop),FVector2D(800.f*U,PlateTop+H));
         P.Fill(LDRingPaint::Slant(Plate,8.f*F),RingInk);
         float X=float(Plate.Min.X)+16.f*F;const float Y=float(Plate.GetCenter().Y);
@@ -1397,7 +1508,7 @@ void ULDWorkshop::PaintBottom(FPainter& P,const TArray<uint64>& Lit) const
             const float TextW=float(Inner.Max.X)-TextX-10.f*U;
             const FSlateFontInfo NameFont=RingFont(LDUIFonts::ERole::Title,18.f,F),Body=RingFont(LDUIFonts::ERole::Body,16.f,F);
             P.Text(Option.Name,FVector2D(TextX,Inner.Min.Y+7.f*U),NameFont,RingText);
-            const TArray<FString> Lines=LDRingPaint::Wrap(Option.Text,Body,TextW,3);
+            const TArray<FString> Lines=LDRingPaint::Wrap(Option.Text,Body,TextW,L.OfferLines);
             float Y=float(Inner.Min.Y)+7.f*U+18.f*F*1.25f+2.f*U;
             for(const FString& Line:Lines){P.Text(Line,FVector2D(TextX,Y),Body,RingSoft);Y+=16.f*F*1.3f;}
             // The pick key: a gold slanted tag on the top-left corner.

@@ -1,4 +1,5 @@
 #include "UI/LDWorldLabels.h"
+#include "UI/LDWorkshop.h"
 #include "UI/LDTerms.h"
 #include "Core/LDLog.h"
 #include "UI/LDHUD.h"
@@ -700,7 +701,9 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
         }
     }
     FVector2D OwnScreen;
-    if(IsValid(OwnBody)&&PC->ProjectWorldLocationToScreen(OwnBody->PresentedLocation()+FVector(0,0,OwnBarsHeadroomCm),OwnScreen))
+    // The open build ring grows around the own body: its overhead plate steps aside so the element ring stays readable.
+    const bool bBuildRingOpen=PC->HUDUI&&PC->HUDUI->Workshop&&PC->HUDUI->Workshop->IsOpen();
+    if(!bBuildRingOpen&&IsValid(OwnBody)&&PC->ProjectWorldLocationToScreen(OwnBody->PresentedLocation()+FVector(0,0,OwnBarsHeadroomCm),OwnScreen))
     {
         const float OwnX=float(OwnScreen.X)*ToLocalX,OwnBottom=float(OwnScreen.Y)*ToLocalY;
         if(!Culled(OwnX,OwnBottom))

@@ -112,6 +112,8 @@ namespace LDBuildRing
     {
         uint8 Attribute=0;
         FString Name;
+        // One character for the compact chip.
+        FString Glyph;
         FString Value;
         int32 Source=INDEX_NONE;
     };

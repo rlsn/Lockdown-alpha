@@ -18,6 +18,51 @@
       "height": 941,
       "purpose": "Room lobby full-screen background",
       "provenance": "Supplied by the project owner in the 2026-11-06 UI request; converted losslessly from WebP to PNG."
+    },
+    {
+      "id": "ring_splat",
+      "path": "ring_splat.png",
+      "sha256": "367a7f8ff1e82db3f2e40196a5a781b929a24e156e7b499bad3996b560feec37",
+      "width": 512,
+      "height": 512,
+      "purpose": "Build ring: the spray-paint splat behind a skill host, tinted with the host's element",
+      "provenance": "Generated procedurally for this project by Scripts/MakeBuildRingArt.py (numpy/Pillow, fixed seeds; the 新 and 1 glyphs use SourceData/UI/Fonts/SourceHanSansSC-Heavy.otf, SIL OFL 1.1). No third-party art."
+    },
+    {
+      "id": "ring_metal",
+      "path": "ring_metal.png",
+      "sha256": "ce6f5b56f862a61c61667c4acc71fbbd93622fb64586389ef74ae6cdfd0388fb",
+      "width": 256,
+      "height": 256,
+      "purpose": "Build ring: brushed metal with a bevel over the card frames' rarity gradient",
+      "provenance": "Generated procedurally for this project by Scripts/MakeBuildRingArt.py (numpy/Pillow, fixed seeds; the 新 and 1 glyphs use SourceData/UI/Fonts/SourceHanSansSC-Heavy.otf, SIL OFL 1.1). No third-party art."
+    },
+    {
+      "id": "ring_socket",
+      "path": "ring_socket.png",
+      "sha256": "f756bc661be9aebfd7161d3d38168dbe7c100a82fca4928cceaa973f9863212d",
+      "width": 256,
+      "height": 256,
+      "purpose": "Build ring: the medal socket's octagonal metal seat, tinted by the ring",
+      "provenance": "Generated procedurally for this project by Scripts/MakeBuildRingArt.py (numpy/Pillow, fixed seeds; the 新 and 1 glyphs use SourceData/UI/Fonts/SourceHanSansSC-Heavy.otf, SIL OFL 1.1). No third-party art."
+    },
+    {
+      "id": "ring_fresh",
+      "path": "ring_fresh.png",
+      "sha256": "41977d53de548ba00a89d3ec1198086252de8d8aaeee4789789198e84f056850",
+      "width": 128,
+      "height": 128,
+      "purpose": "Build ring: the red 新 star sticker on unseen hand cards",
+      "provenance": "Generated procedurally for this project by Scripts/MakeBuildRingArt.py (numpy/Pillow, fixed seeds; the 新 and 1 glyphs use SourceData/UI/Fonts/SourceHanSansSC-Heavy.otf, SIL OFL 1.1). No third-party art."
+    },
+    {
+      "id": "ring_body",
+      "path": "ring_body.png",
+      "sha256": "417d93fc9616542ddb9171510ebb117566a8be4ff0a0dd9109f55387e2f6750c",
+      "width": 128,
+      "height": 128,
+      "purpose": "Build ring: the 本体 skill-host icon (a jersey in the icon set's aerosol style)",
+      "provenance": "Generated procedurally for this project by Scripts/MakeBuildRingArt.py (numpy/Pillow, fixed seeds; the 新 and 1 glyphs use SourceData/UI/Fonts/SourceHanSansSC-Heavy.otf, SIL OFL 1.1). No third-party art."
     }
   ]
 }

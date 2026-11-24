@@ -1,5 +1,6 @@
 #include "LDDemoUIImageImport.h"
 #include "LDEditorLog.h"
+#include "UI/LDBuildRingModel.h"
 #include "UI/LDUIBackgrounds.h"
 #include "UI/LDUIFonts.h"
 #include "UI/LDUIIcons.h"
@@ -46,7 +47,8 @@ namespace
     {
         if (Id == LDUIBackgrounds::TitleId) { return LDUIBackgrounds::TitlePackage; }
         if (Id == LDUIBackgrounds::LobbyId) { return LDUIBackgrounds::LobbyPackage; }
-        return FString();
+        // The build ring's own art (LDBuildRing::Art).
+        return LDBuildRing::ArtPackage(Id);
     }
 
     bool UILoadIcons(TArray<FUIImageSpec>& Out, FString& Error);

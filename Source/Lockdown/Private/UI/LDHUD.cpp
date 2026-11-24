@@ -2214,7 +2214,8 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         In.Attributes=OwnCombat?OwnCombat->Attributes:TArray<FLDCombatAttributeRowView>();
         In.bRest=bRestPhase;In.bDead=bDeathWait;
         const auto RingRect=[](const UWidget* Widget){return Widget&&Widget->IsVisible()?Widget->GetCachedGeometry().GetLayoutBoundingRect():FSlateRect();};
-        In.Band=RingRect(Band);In.Map=RingRect(MapColumn);In.Banner=RingRect(PhaseBanner);
+        // The top HUD block (the banner, and in a rest its actions): the ring's dim and shop wing keep clear of it.
+        In.Band=RingRect(Band);In.Map=RingRect(MapColumn);In.Banner=RingRect(TopCentreSlot?TopCentreSlot->Content.Get():PhaseBanner.Get());
         Workshop->Present(In,&GetCachedGeometry());
     }
     if(ChoicesPanel&&PC->RootUI&&bOwnMatch)
@@ -2300,7 +2301,8 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     if(TopCentreSlot)
     {
         // The full workshop keeps the rest actions in its top-right corner, beside its own close button.
-        const bool bCorner=bWorkshopOpen&&Workshop;
+        // Only the rest's actions leave the top centre (they would meet the ring's top arc); the banner alone stays.
+        const bool bCorner=bWorkshopOpen&&Workshop&&RestActionsPanel&&RestActionsPanel->IsVisible();
         // In the full workshop the actions stand bare on the top bar, as buttons of their own; elsewhere they sit on a panel.
         if(RestActionsPanel)
         {

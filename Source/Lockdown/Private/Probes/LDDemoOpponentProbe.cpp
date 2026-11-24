@@ -807,34 +807,12 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
             CheckUI(bDocked,TEXT("UI: the active offer has its own default dock detail without pointer hover"),
                 FString::Printf(TEXT("%s: pick=%d of %d cards, dock shows \"%s\""),Name,Pick,Panel->OfferCards.Num(),*Detail.Name));
         }
-        if(Owner.HUDUI->Workshop&&Owner.HUDUI->Workshop->IsOpen()&&!Panel->IsStageShown())
+        if(Owner.HUDUI->Workshop&&Owner.HUDUI->Workshop->IsOpen())
         {
-            bool bAttributesFit=true;
-            int32 AttributeCount=0;
-            FString Misfits;
-            for(int32 Index=0;;++Index)
-            {
-                const auto* Label=Owner.HUDUI->Workshop->WidgetTree->FindWidget(
-                    FName(*FString::Printf(TEXT("WorkshopAttributeName%d"),Index)));
-                if(!Label){break;}
-                ++AttributeCount;
-                const auto* Value=Owner.HUDUI->Workshop->WidgetTree->FindWidget(
-                    FName(*FString::Printf(TEXT("WorkshopAttributeValue%d"),Index)));
-                const bool bFits=Value&&Label->GetCachedGeometry().GetLayoutBoundingRect().Right+1.f
-                    <=Value->GetCachedGeometry().GetLayoutBoundingRect().Left
-                    &&LDSlateProbeInput::FullyVisible(Label,Label->GetParent()->GetParent());
-                if(!bFits)
-                {
-                    const FSlateRect L=Label->GetCachedGeometry().GetLayoutBoundingRect();
-                    const FSlateRect V=Value?Value->GetCachedGeometry().GetLayoutBoundingRect():FSlateRect();
-                    const FSlateRect F=Label->GetParent()->GetParent()->GetCachedGeometry().GetLayoutBoundingRect();
-                    Misfits+=FString::Printf(TEXT(" #%d label=(%.1f,%.1f,%.1f,%.1f) value=(%.1f,%.1f,%.1f,%.1f) column=(%.1f,%.1f,%.1f,%.1f) visible=%d"),
-                        Index,L.Left,L.Top,L.Right,L.Bottom,V.Left,V.Top,V.Right,V.Bottom,F.Left,F.Top,F.Right,F.Bottom,Label->IsVisible()?1:0);
-                }
-                bAttributesFit&=bFits;
-            }
-            CheckUI(AttributeCount>0&&bAttributesFit,TEXT("UI: workshop attribute labels and values fit without overlap or truncation"),
-                FString::Printf(TEXT("%s: %d attribute row(s)%s"),Name,AttributeCount,*Misfits));
+            // The build ring: every part on screen, the wing clear of the inspector's corner and the hand above the band.
+            const TArray<FString> Problems=Owner.HUDUI->Workshop->LayoutProblems();
+            CheckUI(Owner.HUDUI->Workshop->View().bValid&&Problems.IsEmpty(),TEXT("UI: the build ring lays every part out on screen without overlap"),
+                FString::Printf(TEXT("%s: %s"),Name,*FString::Join(Problems,TEXT("; "))));
         }
         FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output, Name), true, false);
         Screenshots.Add(MakeShared<FJsonValueString>(Name));

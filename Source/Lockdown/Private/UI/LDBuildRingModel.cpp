@@ -262,7 +262,7 @@ LDBuildRing::FView LDBuildRing::Build(const FInputs& In)
             if(!Row){continue;}
             const LDHUD::FAttributeRowView Shown=LDHUD::AttributeRow(*Row);
             FDerived& Derived=View.Derived.AddDefaulted_GetRef();
-            Derived.Attribute=Attribute;Derived.Name=Shown.Name;Derived.Source=StatSourceOf(Content,Attribute);
+            Derived.Attribute=Attribute;Derived.Name=Shown.Name;Derived.Glyph=Shown.Glyph;Derived.Source=StatSourceOf(Content,Attribute);
             Derived.Value=Shown.Value;
             if(Attribute==uint8(ELDProjectedAttribute::HPRegen)){Derived.Value+=TEXT("/s");}
             else if(Attribute==uint8(ELDProjectedAttribute::AttackSpeed)){Derived.Value+=TEXT("/分");}

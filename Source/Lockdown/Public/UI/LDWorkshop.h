@@ -84,6 +84,13 @@ public:
     void PinHover(EHit Kind,int32 Host,int32 Index);
     bool SelectHand(int32 Index);
     const LDBuildRing::FView& View() const {return Ring;}
+    void ShowHand(bool bHand){bShowHand=bHand;}
+    // Probes: hold the opening and the reveal at an age in seconds (negative releases them), and a part's link count.
+    void FreezeMotion(float OpenAge,float RevealAge){FrozenOpen=OpenAge;FrozenReveal=RevealAge;}
+    int32 LinkCount(EHit Kind,int32 Host,int32 Index) const {return LinkedTo(FHit{Kind,Host,Index}).Num();}
+    // The current layout's faults, empty when every part is on screen, the wing rows stay apart below the inspector's corner
+    // and above the hand, and the hand stands above the band line (probes and tests).
+    TArray<FString> LayoutProblems() const;
     // The number of unseen hand cards (the closed entry's 新 N).
     int32 FreshCount() const {return Ring.bValid?Ring.Fresh:0;}
 protected:
@@ -127,7 +134,12 @@ private:
         FVector2D Centre=FVector2D(960.,580.);
         float HandTop=0.f;
         float HandBottom=0.f;
-        float WingStart=-60.f;
+        bool bWingCompact=false;
+        float RingBottom=0.f;
+        int32 OfferLines=3;
+        float CardWidth=0.f;
+        FVector2D ShopLabel=FVector2D::ZeroVector;
+        float WingWidth=0.f;
         float InspectorBottom=0.f;
         TArray<FShape> Boxes;
         // Where each linkable thing sits (hosts, installed cards, hand cards, offers, shop items), for the link lines.
@@ -155,6 +167,8 @@ private:
     FName Selected;
     int32 SelectedBlueprint=INDEX_NONE;
     bool bShowHand=false;
+    float FrozenOpen=-1.f;
+    float FrozenReveal=-1.f;
     bool bMatrix=false;
     float TextScale=1.f;
     double OpenedAt=-1.;
@@ -181,6 +195,8 @@ private:
     FHit HitAt(FVector2D Local) const;
     void Click(const FHit& Hit,bool bRight);
     void Tell(const FString& Text) const;
+    // The level plate's width (LV, capacity pips, unspent points), its right edge at 800 design px.
+    float LevelPlateWidth() const;
     // The hit currently drawn as hovered (the pin, else the pointer).
     FHit Focus() const {return Pinned.IsNone()?Hovered:Pinned;}
     // The vocabulary keys of a hovered thing, and whether a field thing shares one.
