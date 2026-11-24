@@ -2153,6 +2153,28 @@ bool RunAirdrop(FAutomationTestBase& Test)
     Frame.Public.bAirdropLanded = true;
     bGood &= Expect(Test, TEXT("A landed drop under the body is held the same way until the authority grants it"),
         LDOpponentPolicy::Decide(Frame, C, Waiter), EMode::Airdrop, EBody::None);
+    {
+        // A crowded or kept-clear point ends the walk short of the middle: inside the pickup radius the body never
+        // re-orders it, while a live walk there still finishes and a body outside the radius still walks in.
+        const double Radius = C.Get().Parameters.AirdropPickupRadiusCm.Numerator / double(C.Get().Parameters.AirdropPickupRadiusCm.Denominator);
+        auto Short = Base;
+        Short.Public.AirdropPOI = TEXT("airdrop_s");
+        Short.Self.FootCm = FVector(Radius * .7, -3300, 0);
+        FLDOpponentPolicyState Stopped;
+        bGood &= Expect(Test, TEXT("A walk that ended inside the pickup radius is not ordered again"),
+            LDOpponentPolicy::Decide(Short, C, Stopped), EMode::Airdrop, EBody::None);
+        Short.Order.Kind = ELDOpponentOrderKind::MoveGround;
+        Short.Order.Status = ELDOpponentOrderStatus::Active;
+        Short.Order.POI = TEXT("airdrop_s");
+        bGood &= Expect(Test, TEXT("A live walk inside the pickup radius keeps going to the middle"),
+            LDOpponentPolicy::Decide(Short, C, Stopped), EMode::Airdrop, EBody::Keep, TEXT("airdrop_s"));
+        Short = Base;
+        Short.Public.AirdropPOI = TEXT("airdrop_s");
+        Short.Self.FootCm = FVector(Radius * 1.3, -3300, 0);
+        FLDOpponentPolicyState Outside;
+        bGood &= Expect(Test, TEXT("Outside the pickup radius the body walks in"),
+            LDOpponentPolicy::Decide(Short, C, Outside), EMode::Airdrop, EBody::MoveGround, TEXT("airdrop_s"));
+    }
 
     Frame = Base;
     Frame.Public.AirdropPOI = TEXT("airdrop_s");

@@ -522,6 +522,19 @@ FLDOpponentBodyIntent Halt(const FContext& C)
     return Body;
 }
 
+FLDOpponentBodyIntent Hold(const FContext& C);
+
+// D26: near the middle of the drop the body stops; inside its pickup radius it lets a live walk to the drop finish but
+// never orders a new one. A crowded or kept-clear point ends every walk where the body already stands, and re-ordering
+// it there loops a request at every decision.
+FLDOpponentBodyIntent ApproachAirdrop(const FContext& C, const FLDOpponentPOI& Drop)
+{
+    const double Distance = C.Distance(Drop.FootCm);
+    if (Distance * 2. <= C.AirdropRadiusCm) { return Halt(C); }
+    FLDOpponentBodyIntent Walk = MoveTo(C, Drop);
+    return Distance <= C.AirdropRadiusCm && Walk.Kind == EBody::MoveGround ? Hold(C) : Walk;
+}
+
 // Keeps any live order without sending anything new.
 FLDOpponentBodyIntent Hold(const FContext& C)
 {
@@ -2992,7 +3005,7 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         const FLDOpponentPOI* Drop = bRivalHolds || !State.RetreatPOI.IsNone() ? nullptr : C.AirdropTarget();
         if (Drop && (C.Self.HpP2 < C.Self.MaxHpP2 || C.Self.MomentumP2 < C.Self.MaxMomentumP2))
         {
-            Body(C.Distance(Drop->FootCm) * 2. <= C.AirdropRadiusCm ? Halt(C) : MoveTo(C, *Drop));
+            Body(ApproachAirdrop(C, *Drop));
             return Finish(EMode::Airdrop, EReason::ContestAirdrop);
         }
         if (const FLDOpponentPOI* Dorm = bRivalHolds ? nullptr : C.NearestDorm())
@@ -3011,7 +3024,7 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
     if (const FLDOpponentPOI* Drop = State.VisitEngagedAtMs == 0 ? C.AirdropTarget() : nullptr)
     {
         EndVisit(State, false);
-        Body(C.Distance(Drop->FootCm) * 2. <= C.AirdropRadiusCm ? Halt(C) : MoveTo(C, *Drop));
+        Body(ApproachAirdrop(C, *Drop));
         return Finish(EMode::Airdrop, EReason::ContestAirdrop);
     }
     // P6 spec §10.3: a healthy body within reach goes for the live mini flag or the arena, below the airdrop and above
