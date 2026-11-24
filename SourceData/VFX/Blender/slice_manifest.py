@@ -11,7 +11,7 @@ import slice_lib as L
 ROOT = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 SLICE = os.path.join(ROOT, "Slice")
 GENERATORS = ["Blender/slice_lib.py", "Blender/slice_slash.py", "Blender/slice_impact.py", "Blender/slice_water.py", "Blender/slice_shock.py",
-              "Blender/slice_chalk.py"]
+              "Blender/slice_chalk.py", "Blender/slice_render.py"]
 TOOLS = ["Blender/slice_preview.py", "Blender/slice_manifest.py"]
 
 GEOMETRY_SHA = {  # printed by slice_slash.py; the FBX header carries a timestamp, so file bytes differ per export
@@ -70,7 +70,7 @@ ASSETS = [
          usage="Deferred or mesh decal (or a flat quad just above the ground) at the target; opacity from A times a 1-2 s fade; tint = cool dark water colour; decal size about 160 cm; project along -Z.",
          uv="decal space (U = X, V = Y of the decal projector), puddle centre at (0.5, 0.5)", **MASK, budget="one decal per wet target, 0.5-1 m2, fade 1-2 s"),
     dict(id="tex_shock_arcs", kind="texture", file="Slice/tex_shock_arcs.png", width=512, height=512, variants=8, variant_size=[512, 64],
-         purpose="Atlas of 8 lightning strip variants (each 512 x 64, stacked vertically): sharp zig-zag main bolt with 2-4 branches, white-hot core, ink edge. Both ends sit on the strip centre line so chained arcs meet.",
+         purpose="Atlas of 8 lightning strip variants (each 512 x 64, stacked vertically), rendered from Blender stroke geometry: one thick main bolt with irregular segment lengths (long runs, short steep kicks) and a varying-width profile that tapers at both ends, 1-3 thin short tapered forks; white-hot core inside the shock body inside a black ink rim. Both ends sit on the strip centre line so chained arcs meet.",
          usage="Ribbon / beam between chain targets for active_zap; pick variant row v (UV V = v/8 .. (v+1)/8), U runs along the arc and can be stretched 2-8x; flicker by swapping the variant every 1-2 frames (about 15 Hz).",
          uv="U along the arc (x), variant row index = floor(V * 8); the bolt crosses the centre line at U = 0 and U = 1", **MASK, budget="one strip per chain link, 1-3 links per cast, translucent additive-or-alpha"),
     dict(id="fb_shock_spark", kind="flipbook", file="Slice/fb_shock_spark.png", width=1024, height=1024, flip=FLIP(cols=4, rows=4, frames=16, frame_size=256, fps=36, duration_s=0.44, loop=False, flicker="a new bolt set every second frame"),
@@ -146,7 +146,7 @@ def main():
         if e["material_hint"] is None:
             del e["material_hint"]
         entries.append(e)
-    doc = dict(schema=1, provenance="Generated for this project by SourceData/VFX/Blender/slice_*.py in Blender 5.2.4 headless (bpy mesh + FBX export; numpy 2.x raster and noise with fixed seeds); no third-party material.",
+    doc = dict(schema=1, provenance="Generated for this project by SourceData/VFX/Blender/slice_*.py in Blender 5.2.4 headless (bpy mesh + FBX export; Workbench renders of curve geometry via slice_render.py; numpy 2.x raster and noise with fixed seeds); no third-party material.",
                generators={g: L.sha256_file(os.path.join(ROOT, g)) for g in GENERATORS}, tools={t: L.sha256_file(os.path.join(ROOT, t)) for t in TOOLS},
                glow_levels=dict(ink=0.0, body=L.GLOW_BODY, core=L.GLOW_CORE),
                ground_swatches_rgb=dict(dark_vfx_capture=[22, 26, 24], shaded_paving=[116, 121, 126], sunlit_warm_paving=[189, 181, 166]),

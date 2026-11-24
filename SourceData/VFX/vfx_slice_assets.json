@@ -1,17 +1,18 @@
 {
   "schema": 1,
-  "provenance": "Generated for this project by SourceData/VFX/Blender/slice_*.py in Blender 5.2.4 headless (bpy mesh + FBX export; numpy 2.x raster and noise with fixed seeds); no third-party material.",
+  "provenance": "Generated for this project by SourceData/VFX/Blender/slice_*.py in Blender 5.2.4 headless (bpy mesh + FBX export; Workbench renders of curve geometry via slice_render.py; numpy 2.x raster and noise with fixed seeds); no third-party material.",
   "generators": {
     "Blender/slice_lib.py": "a2760c4692a432a3b0b6c8c62744c87840118c626425e4349794eb0392a1e1fc",
     "Blender/slice_slash.py": "8c3405028bad06b51b50a413bf6f7905737494db05755edd4ebfbe9639b48d3f",
     "Blender/slice_impact.py": "dc950a82522a48bbda75cd8b5651f5f5ce0d85f2c1e657bda9f936840c0e2152",
     "Blender/slice_water.py": "f937d1547b87a0d4aeb06d9adbba1f423f39b57bc9d6b4d653967d68ab7b1e24",
-    "Blender/slice_shock.py": "f8f55f0a7118f76311636a1bb066396bf228d91a5ce5108ba6a0f3137b1765c3",
-    "Blender/slice_chalk.py": "dfc522c375555a2dda968df184ebc64b827df69e82646e0f722c519ed2466697"
+    "Blender/slice_shock.py": "11a4ebe4f2e2f175bf651b9825688854b4389a64fe8d21ec16afda216f07809f",
+    "Blender/slice_chalk.py": "dfc522c375555a2dda968df184ebc64b827df69e82646e0f722c519ed2466697",
+    "Blender/slice_render.py": "c79c3b5fb4239aaebbac5ac0e1d9e8715f1fd1394575bb371e64dab85ce3013f"
   },
   "tools": {
     "Blender/slice_preview.py": "1f10fa3440e24b8f9b8b2e0037eb447926b74e34c57704b93975782aa192321c",
-    "Blender/slice_manifest.py": "c3f3e2d4f931b09ba141144bebdc28c106ef7986470c8051eb6ef6a8a3f56dfe"
+    "Blender/slice_manifest.py": "a2d86e040ac34372a5fcf319487fe8b851d19f13db01cd4d1dafa8ac35d82fe3"
   },
   "glow_levels": {
     "ink": 0.0,
@@ -410,7 +411,7 @@
         512,
         64
       ],
-      "purpose": "Atlas of 8 lightning strip variants (each 512 x 64, stacked vertically): sharp zig-zag main bolt with 2-4 branches, white-hot core, ink edge. Both ends sit on the strip centre line so chained arcs meet.",
+      "purpose": "Atlas of 8 lightning strip variants (each 512 x 64, stacked vertically), rendered from Blender stroke geometry: one thick main bolt with irregular segment lengths (long runs, short steep kicks) and a varying-width profile that tapers at both ends, 1-3 thin short tapered forks; white-hot core inside the shock body inside a black ink rim. Both ends sit on the strip centre line so chained arcs meet.",
       "usage": "Ribbon / beam between chain targets for active_zap; pick variant row v (UV V = v/8 .. (v+1)/8), U runs along the arc and can be stretched 2-8x; flicker by swapping the variant every 1-2 frames (about 15 Hz).",
       "uv": "U along the arc (x), variant row index = floor(V * 8); the bolt crosses the centre line at U = 0 and U = 1",
       "alpha_packing": "RGB = glow mask (R = G = B; 0 ink only, 0.6 element body, 1.0 white-hot core), A = coverage; ink = A > 0 with RGB = 0",
@@ -419,7 +420,7 @@
       "mips": "generate (TMGS_FromTextureGroup)",
       "streaming": "NeverStream = true, LODGroup Effects (same as VfxApplySettings)",
       "budget": "one strip per chain link, 1-3 links per cast, translucent additive-or-alpha",
-      "sha256": "6362b687789746a53d88707a5939a02bfae2104369b28766df126b6aa3419f01",
+      "sha256": "99de05629933550b5c4ad76a8062c2328d16bb0b31e0a0d747f33a006538f804",
       "uncompressed_rgba8_bytes": 1398101,
       "bc3_bc7_with_mips_bytes": 349525,
       "checks": {},
