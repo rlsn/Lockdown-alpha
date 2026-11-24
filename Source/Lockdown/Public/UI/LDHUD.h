@@ -141,10 +141,10 @@ public:
     // LDHUD::SelfIconsNotice: "状态同步中" in place of the marks while the own projection is missing; painted, never hit-tested.
     const FString& GetOwnStatusNotice() const {return OwnStatusNotice;}
     UPROPERTY() TObjectPtr<ULDMinimap> Minimap;
-    // The normal main panels (VISION_AND_UI navigation) with DevTestPanel below. The HUD owns and hit-tests them; ULDUIRoot opens one at a
-    // time. ChoicesPanel is the #198 构筑 card tray behind the bottom-right 构筑 button, and the rest's NPC service window.
+    // The normal main panels (VISION_AND_UI navigation) with DevTestPanel below. The HUD owns them; ULDUIRoot opens one at a
+    // time. ChoicesPanel is the 构筑 panel: open, the build ring is open; it holds the offer, rest service and shop commands.
     UPROPERTY() TObjectPtr<ULDChoicesPanel> ChoicesPanel;
-    // #227: the component storage right of the band and its equipped columns (ULDComponentStorage); not a main panel.
+    // #227: the card storage's install commands the build ring sends (ULDComponentStorage); not a main panel.
     UPROPERTY() TObjectPtr<ULDComponentStorage> Storage;
     // The build workshop (APP_SPEC §7 构筑): the full view of the 构筑 tray, open while the tray is open (ULDWorkshop).
     UPROPERTY() TObjectPtr<ULDWorkshop> Workshop;
@@ -154,7 +154,7 @@ public:
     void ToggleAttributeView();
     // The Workshop key: the same toggle as the 构筑 button, only while that button would accept a click or the workshop is open.
     void ToggleWorkshop();
-    // Back: closes the storage's chooser or drops its drag (V05Back, after an armed preview).
+    // Back: closes the storage's element chooser (V05Back, after an armed preview).
     bool CancelStorage();
     bool CloseRankUp();
     bool IsRankUpOpen() const { return RankSlot != INDEX_NONE; }
