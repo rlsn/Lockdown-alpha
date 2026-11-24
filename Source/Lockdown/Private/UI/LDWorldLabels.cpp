@@ -1011,14 +1011,18 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
         const float TextLeft=RowLeft(Entry.CentreX,Entry.TextWidth);
         const float Left=bBar?FMath::Min(Entry.CentreX-Entry.LeftReach,TextLeft):TextLeft;
         const float Right=bBar?FMath::Max(Entry.CentreX+Entry.RightReach,TextLeft+Entry.TextWidth):TextLeft+Entry.TextWidth;
+        // HUD chrome wins: a label whose rect meets the strip, score bug, target card, minimap or another HUD block is not
+        // drawn (presentation only; the unit and its data are untouched). Labels only step up past each other.
+        const auto OnChrome=[&](float AtBottom)
+        {
+            for(const FSlateRect& Other:HudReserved)
+            {if(Left-4.f<Other.Right&&Right+4.f>Other.Left&&AtBottom-Entry.Height-4.f<Other.Bottom&&AtBottom>Other.Top){return true;}}
+            return false;
+        };
+        if(OnChrome(Bottom)){continue;}
         for(bool bMoved=true;bMoved;)
         {
             bMoved=false;
-            for(const FSlateRect& Other:HudReserved)
-            {
-                if(Left<Other.Right&&Right>Other.Left&&Bottom-Entry.Height<Other.Bottom&&Bottom>Other.Top)
-                {Bottom=Other.Top-2.f;bMoved=true;}
-            }
             for(const FSlateRect& Other:Placed)
             {
                 if(Left<Other.Right&&Right>Other.Left&&Bottom-Entry.Height<Other.Bottom&&Bottom>Other.Top){Bottom=Other.Top-2.f;bMoved=true;}
@@ -1030,18 +1034,15 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             for(bool bMoved=true;bMoved;)
             {
                 bMoved=false;
-                const auto MoveBelow=[&](const TArray<FSlateRect>& Areas)
+                for(const FSlateRect& Other:Placed)
                 {
-                    for(const FSlateRect& Other:Areas)
-                    {
-                        if(Left<Other.Right&&Right>Other.Left&&Bottom-Entry.Height<Other.Bottom&&Bottom>Other.Top)
-                        {Bottom=Other.Bottom+Entry.Height+2.f;bMoved=true;}
-                    }
-                };
-                MoveBelow(HudReserved);MoveBelow(Placed);
+                    if(Left<Other.Right&&Right>Other.Left&&Bottom-Entry.Height<Other.Bottom&&Bottom>Other.Top)
+                    {Bottom=Other.Bottom+Entry.Height+2.f;bMoved=true;}
+                }
             }
             if(Bottom>Size.Y){continue;}
         }
+        if(OnChrome(Bottom)){continue;}
         if(Bottom<Entry.Height){continue;}
         Placed.Add(FSlateRect(Left,Bottom-Entry.Height,Right,Bottom));
         const LDWorldLabels::FLabel& Label=Entry.Label;

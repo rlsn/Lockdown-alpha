@@ -562,9 +562,16 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         TimelineText=Words(TEXT(""),LDBroadcast::TypeBody,LDBroadcast::White,true);
         TimelineText->SetVisibility(ESlateVisibility::Collapsed);
         CircleBox->AddChildToVerticalBox(TimelineText)->SetPadding(FMargin(6,8,0,0));
-        TimelineDetailText=Words(TEXT(""),LDBroadcast::TypeSmall,LDBroadcast::Orange);TimelineDetailText->SetAutoWrapText(false);TimelineDetailText->SetWrapTextAt(HudBugWidth+200.f);
+        // The detail is information, not an action: grey, one line, shrunk to the bug's width rather than wrapped.
+        TimelineDetailText=Words(TEXT(""),LDBroadcast::TypeBody,LDBroadcast::White);TimelineDetailText->SetAutoWrapText(false);
         TimelineDetailText->SetVisibility(ESlateVisibility::Collapsed);
-        CircleBox->AddChildToVerticalBox(TimelineDetailText)->SetPadding(FMargin(6,2,0,0));
+        {
+            UScaleBox* DetailFit=LDWidgets::Fit(WidgetTree,TimelineDetailText);
+            if(auto* FitSlot=Cast<UScaleBoxSlot>(DetailFit->GetContentSlot())){FitSlot->SetHorizontalAlignment(HAlign_Left);}
+            auto* DetailWidth=WidgetTree->ConstructWidget<USizeBox>();DetailWidth->SetWidthOverride(HudBugWidth+60.f);DetailWidth->SetContent(DetailFit);
+            DetailWidth->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+            CircleBox->AddChildToVerticalBox(DetailWidth)->SetPadding(FMargin(6,2,0,0));
+        }
         {
             // The flagpole: its state over a gold progress bar, then the graffiti owner and the guard state.
             PhaseText=Words(TEXT(""),LDBroadcast::TypeBody,LDBroadcast::White,true);
@@ -593,13 +600,32 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             TrainingResetButton=LDWidgets::Button(WidgetTree,LDTerms::TrainingReset,[this](){SubmitTrainingReset();},true,TEXT("HUDTrainingReset"));
             RestLine->AddChildToHorizontalBox(TrainingResetButton)->SetVerticalAlignment(VAlign_Center);
             RestReadyButton=LDWidgets::Button(WidgetTree,TEXT("准备完毕"),[this](){SubmitRestReady();},true,TEXT("HUDRestReady"));
-            // .btn / .btn.pri: the rest's main action is the yellow one.
-            LDWidgets::SetLook(RestReadyButton,LDUIPaint::EButton::Primary);
+            // On air: parallelogram blocks. 准备完毕 is the orange actionable block (a panel with a white rule once ready, when
+            // it cancels); 重置训练 is a panel block with a white rule. The buttons keep flat transparent brushes of their own, so
+            // no rounded face is painted under the slabs.
             for(ULDCommandButton* Action:{TrainingResetButton.Get(),RestReadyButton.Get()})
             {
-                if(UTextBlock* Caption=Cast<UTextBlock>(Action->GetContent()))
-                {FSlateFontInfo Font=LDUIFonts::Font(LDUIFonts::ERole::Strong,19);Font.LetterSpacing=80;Caption->SetFont(Font);}
-                auto Style=Action->GetStyle();Style.NormalPadding=FMargin(26,13);Style.PressedPadding=FMargin(26,13);Action->SetStyle(Style);
+                UTextBlock* Caption=Cast<UTextBlock>(Action->GetContent());
+                if(!Caption){continue;}
+                Caption->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Strong,LDBroadcastPaint::PointsOf(LDBroadcast::TypeLabel)));
+                auto Style=Action->GetStyle();
+                Style.Normal=FSlateColorBrush(FLinearColor::Transparent);Style.Hovered=Style.Normal;Style.Pressed=Style.Normal;Style.Disabled=Style.Normal;
+                Style.NormalPadding=FMargin(0);Style.PressedPadding=FMargin(0);Action->SetStyle(Style);
+                const bool bReady=Action==RestReadyButton;
+                if(bReady){RestReadyCaption=Caption;}
+                Caption->RemoveFromParent();
+                TWeakObjectPtr<ULDCommandButton> Weak(Action);
+                Action->SetContent(Painted(Caption,[this,Weak,bReady,Whole](const LDUIPaint::FContext& P)
+                {
+                    const FBox2D Box=Whole(P);
+                    const bool bHot=Weak.IsValid()&&Weak->IsHovered()&&Weak->GetIsEnabled();
+                    const bool bOrange=bReady&&!bRestReadyShown;
+                    if(!bOrange){LDBroadcastPaint::FillSlab(P,P.Layer,Box,LDBroadcast::White);}
+                    const FBox2D Inner(Box.Min+FVector2D(LDBroadcast::RuleWidth,LDBroadcast::RuleWidth),Box.Max-FVector2D(LDBroadcast::RuleWidth,LDBroadcast::RuleWidth));
+                    const FLinearColor Fill=bOrange?(bHot?LDBroadcast::Gold:LDBroadcast::Orange):(bHot?LDBroadcast::Raised:LDBroadcast::Panel);
+                    LDBroadcastPaint::FillSlab(P,P.Layer+1,bOrange?Box:Inner,Weak.IsValid()&&!Weak->GetIsEnabled()?Fill.CopyWithNewOpacity(.5f):Fill);
+                },FMargin(30,10,30,10)));
+                Caption->SetColorAndOpacity(bReady?LDBroadcast::Ink:LDBroadcast::White);
             }
             RestLine->AddChildToHorizontalBox(RestReadyButton)->SetPadding(FMargin(20,0,0,0));
             RestAnswerText=OneLine(TEXT(""),LDHUDStyle::TypeSmall,420);RestAnswerText->SetColorAndOpacity(LDHUDStyle::TextSecondary);RestAnswerText->SetVisibility(ESlateVisibility::Collapsed);
@@ -1159,13 +1185,14 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                     FButtonStyle PlusStyle=Entry.Plus->GetStyle();
                     PlusStyle.Normal=FSlateColorBrush(LDBroadcast::Orange);PlusStyle.Hovered=FSlateColorBrush(LDBroadcast::Gold);
                     PlusStyle.Pressed=FSlateColorBrush(LDBroadcast::Gold);PlusStyle.Disabled=FSlateColorBrush(LDBroadcast::Mute);
-                    PlusStyle.NormalPadding=FMargin(7,0);PlusStyle.PressedPadding=FMargin(7,0);Entry.Plus->SetStyle(PlusStyle);
+                    PlusStyle.NormalPadding=FMargin(10,0);PlusStyle.PressedPadding=FMargin(10,0);Entry.Plus->SetStyle(PlusStyle);
                     if(UTextBlock* PlusText=Cast<UTextBlock>(Entry.Plus->GetContent()))
-                    {PlusText->SetFont(LDBroadcastPaint::FigureFont(LDBroadcast::TypeBody));PlusText->SetColorAndOpacity(LDBroadcast::Ink);}
+                    {PlusText->SetFont(LDBroadcastPaint::FigureFont(LDBroadcast::TypeSmall));PlusText->SetColorAndOpacity(LDBroadcast::Ink);}
                 }
                 Entry.Plus->SetVisibility(ESlateVisibility::Collapsed);
                 auto* PlusLayer=WithPlus->AddChildToOverlay(Entry.Plus);PlusLayer->SetHorizontalAlignment(HAlign_Right);PlusLayer->SetVerticalAlignment(VAlign_Top);
-                PlusLayer->SetPadding(FMargin(0,-10,-8,0));
+                // A tab standing on the face's top edge, above the icon: it never covers the picture.
+                PlusLayer->SetHorizontalAlignment(HAlign_Center);PlusLayer->SetPadding(FMargin(0,-20,0,0));
                 Entry.Box->SetContent(WithPlus);
             }
             else{Entry.Box->SetContent(Entry.Button);}
@@ -1997,7 +2024,12 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             ?LDHUD::RestStepText(Public.Timeline.Step)+(Public.Timeline.bCountdownPaused?TEXT(" · 计时已暂停"):TEXT(""))
             :Public.Timeline.Stage==ELDMatchStage::FinalField&&!Public.Showdown.bStarted?Timeline.Headline:FString();
         HudSetText(TimelineText,StepLine);HudSetShown(TimelineText,!StepLine.IsEmpty(),ESlateVisibility::HitTestInvisible);
-        HudSetText(TimelineDetailText,Timeline.Detail);
+        {
+            // The detail states facts only: the sign-up instruction (stand in the disk) is left to the disk itself.
+            FString Detail=Timeline.Detail;
+            Detail.ReplaceInline(*(FString(TEXT(" · "))+LDTerms::NotSignedUpSelf),TEXT(""));
+            HudSetText(TimelineDetailText,Detail);
+        }
         HudSetShown(TimelineDetailText,LDHUD::TimelineDetailVisible(Public,Timeline,bChoicesRestOpen),ESlateVisibility::HitTestInvisible);
         // The reset exists only in a rest's open steps (build and settlement/payout); leaving them drops a wait the server will still answer.
         const bool bRestActions=bRestPlanning||(Public.Phase==ELDMatchPhase::Rest&&(Public.Timeline.Step==ELDRestStep::Settlement||Public.Timeline.Step==ELDRestStep::Payout));
@@ -2007,12 +2039,11 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         if(bRestActions)
         {
             if(TrainingResetButton->GetIsEnabled()==bTrainingResetInFlight){TrainingResetButton->SetIsEnabled(!bTrainingResetInFlight);}
-            HudSetText(Cast<UTextBlock>(RestReadyButton->GetContent()),ReadyLabel);
+            // Orange while it can mark the player ready; a white-ruled panel once ready (the press then cancels).
+            HudSetText(RestReadyCaption,ReadyLabel);
             RestReadyButton->SetIsEnabled(O.bCanRestReady&&!bRestReadyInFlight);
-            const LDUIPaint::EButton ReadyLook=O.bRestReady?LDUIPaint::EButton::Normal:LDUIPaint::EButton::Primary;
-            if(RestReadyButton->Look!=ReadyLook){LDWidgets::SetLook(RestReadyButton,ReadyLook);}
-            const FLinearColor ReadyTint=O.bRestReady?LDHUDStyle::StatusPositive:FLinearColor::White;
-            if(RestReadyButton->GetBackgroundColor()!=ReadyTint){RestReadyButton->SetBackgroundColor(ReadyTint);}
+            bRestReadyShown=O.bRestReady;
+            HudSetColor(RestReadyCaption,O.bRestReady?LDBroadcast::White:LDBroadcast::Ink);
             HudSetShown(RestReadyButton,bRestPlanning,ESlateVisibility::Visible);
             const bool bThisRest=RestAnswerMatch==Public.Generation&&RestAnswerRest==Public.Timeline.RestIndex;
             HudSetText(RestAnswerText,bThisRest?RestAnswer:FString());
@@ -4130,7 +4161,7 @@ void ULDHUD::PaintMoments(const LDUIPaint::FContext& P) const
     const bool bShown=Band&&Band->IsVisible();
     // Own kill: 0-150 ms letterbox bars and an orange skew wipe in, a two-frame hard cut to K.O. with the own plate beating
     // the victim's, everything gone by KillMomentSeconds (so the screen centre is never covered for longer).
-    const double KillAge=Now-KillMomentAt;
+    const double KillAge=MomentFreezeAge>=0.f&&KillMomentAt>=0.?double(MomentFreezeAge):Now-KillMomentAt;
     if(bShown&&KillMomentAt>=0.&&KillAge>=0.&&KillAge<KillMomentSeconds+.15)
     {
         const float In=LDTween::Progress(KillAge,.15,LDTween::ECurve::EaseOut);
@@ -4171,7 +4202,7 @@ void ULDHUD::PaintMoments(const LDUIPaint::FContext& P) const
         }
     }
     // Level-up: an orange card flips open over the level column (scale Y 0->1 in 120 ms), holds, then flips shut.
-    const double FlipAge=Now-LevelFlipAt;
+    const double FlipAge=MomentFreezeAge>=0.f&&LevelFlipAt>=0.?double(MomentFreezeAge):Now-LevelFlipAt;
     if(bShown&&LevelFlipAt>=0.&&FlipAge>=0.&&FlipAge<LevelFlipSeconds&&LevelBadgeText)
     {
         const FGeometry& Level=LevelBadgeText->GetCachedGeometry();
@@ -4187,7 +4218,8 @@ void ULDHUD::PaintMoments(const LDUIPaint::FContext& P) const
             LDBroadcastPaint::Text(P,P.Layer+7,FString::Printf(TEXT("LV %d"),LevelFlipLevel),LDBroadcastPaint::FigureFont(40.f),Card.GetCenter(),LDBroadcast::Ink,FVector2D(.5,.5));
             if(LevelFlipPoints>0)
             {
-                const FVector2D ChipAt(Card.Max.X+10.,Card.Min.Y);
+                // Above the card, never over the health figure beside it.
+                const FVector2D ChipAt(Card.Min.X,Card.Min.Y-Card.GetSize().Y-6.);
                 const FString Gain=FString::Printf(TEXT("+%lld 点"),LevelFlipPoints);
                 const FSlateFontInfo Font=LDBroadcastPaint::LabelFont(LDBroadcast::TypeBody,true);
                 const FVector2D GainSize=LDBroadcastPaint::Measure(Gain,Font);

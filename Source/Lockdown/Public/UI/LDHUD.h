@@ -273,6 +273,10 @@ private:
     UPROPERTY() TObjectPtr<UBorder> RestActionsPanel;
     UPROPERTY() TObjectPtr<ULDCommandButton> TrainingResetButton;
     UPROPERTY() TObjectPtr<ULDCommandButton> RestReadyButton;
+    // The ready button's caption (inside its painted block) and whether the own contender is ready (its block turns from
+    // orange to a white-ruled panel).
+    UPROPERTY() TObjectPtr<UTextBlock> RestReadyCaption;
+    bool bRestReadyShown=false;
     UPROPERTY() TObjectPtr<UTextBlock> RestAnswerText;
     // A reset is waiting for its answer (a Listen Host answers inside the call); its button stays disabled meanwhile.
     bool bTrainingResetInFlight=false;
@@ -496,6 +500,13 @@ private:
     int32 LevelFlipLevel=0;
     int64 LevelFlipPoints=0;
     void PaintMoments(const LDUIPaint::FContext& P) const;
+    // DEV capture only (probes): a fixed age for the moments' clock (<0 releases it); the moments themselves still come
+    // only from real events.
+    float MomentFreezeAge=-1.f;
+public:
+    void FreezeMoments(float Age){MomentFreezeAge=Age;}
+    bool HasMomentLevelUp() const {return LevelFlipAt>=0.;}
+private:
     // The own stat attribute view (ULDStatBar) as a flyout above the strip, shown while the Attributes key holds it open.
     UPROPERTY() TObjectPtr<UWidget> StatFlyout;
     // Spec §12: the own life line (protection, death) above the seat block; plain alive shows none.

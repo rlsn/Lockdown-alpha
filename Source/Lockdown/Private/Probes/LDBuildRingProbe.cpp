@@ -178,6 +178,22 @@ public:
         case 4:
             if(!View||View->Level<12){if(Now-At>15.){Check(false,TEXT("The DEV XP grant raises the level"),FString::Printf(TEXT("level %d"),View?View->Level:0));return Finish();}return true;}
             Facts->SetNumberField(TEXT("level"),View->Level);
+            At=Now;Stage=40;return true;
+        case 40:
+            // The HUD's level-up flip of this real level-up (its read model samples on its own clock), as keyframes on a frozen
+            // moment clock.
+            if(!(PC->HUDUI&&PC->HUDUI->HasMomentLevelUp())&&Now-At<3.){return true;}
+            Check(PC->HUDUI&&PC->HUDUI->HasMomentLevelUp(),TEXT("The XP grant's level-up reaches the HUD moment"));
+            Plan.Reset();
+            for(const float Age:{0.f,.04f,.08f,.12f,.5f,1.3f})
+            {
+                FShot& Key=Plan.AddDefaulted_GetRef();Key.Name=FString::Printf(TEXT("seq-levelup_%04dms.png"),int32(Age*1000.f+.5f));
+                Key.Setup=[Age](ALDPlayerController& Owner,ULDWorkshop&){if(Owner.HUDUI){Owner.HUDUI->FreezeMoments(Age);}};
+            }
+            At=Now;Stage=41;Step=0;Shot=0;Due=Now+.5;return true;
+        case 41:
+            if(RunPlan(*PC,Now)){return true;}
+            if(PC->HUDUI){PC->HUDUI->FreezeMoments(-1.f);}
             At=Now;Stage=5;Step=0;return true;
         case 5:
         {

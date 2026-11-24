@@ -290,24 +290,61 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
         Add(Codex,CodexBack,8);
     }
     {
-        // 怎么玩: one card at a time, a title and one line, with its place in the six.
+        // 怎么玩 (on air): one of six short cards on the right of the screen, clear of the title and the menu column; an ink
+        // square with a 2 px white rule, the card's index as a big figure, its title and one sentence. Only the actionable
+        // control (下一张) is orange; 上一张 and 关闭 are panel blocks with a white rule.
         UVerticalBox* HowTo=nullptr;
-        HowToPage=MakePage(Canvas,720,HowTo);
+        HowToPage=MakePage(Canvas,620,HowTo);
         HowToPage->SetVisibility(ESlateVisibility::Collapsed);
-        Add(HowTo,Label(LDTerms::HowTo,LDHUDStyle::TypePage,LDHUDStyle::MenuTitle),6);
-        HowToCount=Label(FString(),LDHUDStyle::TypeText,LDHUDStyle::MenuMuted);
-        Add(HowTo,HowToCount,2);
-        HowToTitle=Label(FString(),LDHUDStyle::TypePage,LDHUDStyle::UIText);
-        Add(HowTo,HowToTitle,14);
-        HowToBody=Label(FString(),LDHUDStyle::TypeText,LDHUDStyle::UIText);
+        if(UCanvasPanelSlot* PageSlot=Cast<UCanvasPanelSlot>(HowToPage->Slot))
+        {PageSlot->SetAnchors(FAnchors(1.f,.5f));PageSlot->SetAlignment(FVector2D(1.f,.5f));PageSlot->SetPosition(FVector2D(-96.f,-20.f));}
+        if(UBorder* Face=Cast<UBorder>(HowToPage->GetContent()))
+        {
+            Face->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,0.f,LDBroadcast::White,LDBroadcast::RuleWidth));
+            Face->SetBrushColor(LDBroadcast::Ink.CopyWithNewOpacity(.94f));Face->SetPadding(FMargin(32,26));
+        }
+        auto* Head=WidgetTree->ConstructWidget<UHorizontalBox>();
+        HowToCount=LDWidgets::Text(WidgetTree,FString(),Scaled(54),NAME_None,LDUIFonts::ERole::Figure);HowToCount->SetColorAndOpacity(LDBroadcast::White);
+        HowToCount->SetAutoWrapText(false);
+        Head->AddChildToHorizontalBox(HowToCount)->SetVerticalAlignment(VAlign_Bottom);
+        UTextBlock* Tag=Label(LDTerms::HowTo,LDHUDStyle::TypeLead,LDBroadcast::Grey);
+        auto* TagSlot=Head->AddChildToHorizontalBox(Tag);TagSlot->SetVerticalAlignment(VAlign_Bottom);TagSlot->SetPadding(FMargin(16,0,0,10));
+        Add(HowTo,Head,0);
+        HowToTitle=Label(FString(),LDHUDStyle::TypePage,LDBroadcast::White);
+        HowToTitle->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Strong,Scaled(LDHUDStyle::TypeBanner)));
+        Add(HowTo,HowToTitle,10);
+        HowToBody=Label(FString(),LDHUDStyle::TypeText,LDBroadcast::Grey);
         HowToBody->SetAutoWrapText(true);
-        Add(HowTo,HowToBody,8);
+        Add(HowTo,HowToBody,6);
+        const auto Flat=[this,Whole](ULDCommandButton* Button,bool bOrange)
+        {
+            UTextBlock* Caption=Cast<UTextBlock>(Button->GetContent());
+            FButtonStyle Style=Button->GetStyle();
+            Style.Normal=FSlateColorBrush(FLinearColor::Transparent);Style.Hovered=Style.Normal;Style.Pressed=Style.Normal;Style.Disabled=Style.Normal;
+            Style.NormalPadding=Style.PressedPadding=FMargin(0);Button->SetStyle(Style);
+            if(!Caption){return Button;}
+            Caption->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Strong,Scaled(LDHUDStyle::TypeText)));
+            Caption->SetColorAndOpacity(bOrange?LDBroadcast::Ink:LDBroadcast::White);
+            Caption->RemoveFromParent();
+            TWeakObjectPtr<ULDCommandButton> Weak(Button);
+            Button->SetContent(Painted(WidgetTree,Caption,FMargin(26,8,26,8),[Weak,bOrange,Whole](const LDUIPaint::FContext& Paint)
+            {
+                const FBox2D Box=Whole(Paint);
+                const bool bHot=Weak.IsValid()&&Weak->IsHovered();
+                if(bOrange){LDBroadcastPaint::FillSlab(Paint,Paint.Layer,Box,bHot?LDBroadcast::Gold:LDBroadcast::Orange);return;}
+                LDBroadcastPaint::FillSlab(Paint,Paint.Layer,Box,LDBroadcast::White);
+                const FBox2D Inner(Box.Min+FVector2D(LDBroadcast::RuleWidth,LDBroadcast::RuleWidth),Box.Max-FVector2D(LDBroadcast::RuleWidth,LDBroadcast::RuleWidth));
+                LDBroadcastPaint::FillSlab(Paint,Paint.Layer+1,Inner,bHot?LDBroadcast::Raised:LDBroadcast::Panel);
+            }));
+            return Button;
+        };
         auto* Pager=WidgetTree->ConstructWidget<UHorizontalBox>();
-        Pager->AddChildToHorizontalBox(MakeButton(TEXT("上一张"),TEXT("HowToPrevious"),[this](){ShowHowTo(HowToIndex-1);}));
-        Pager->AddChildToHorizontalBox(MakeButton(TEXT("下一张"),TEXT("HowToNext"),[this](){ShowHowTo(HowToIndex+1);}))->SetPadding(FMargin(12,0,0,0));
-        Add(HowTo,Pager,16);
-        HowToBack=MakeButton(TEXT("返回"),TEXT("HowToBack"),[this](){CloseHowTo();});
-        Add(HowTo,HowToBack,8);
+        Pager->AddChildToHorizontalBox(Flat(MakeButton(TEXT("上一张"),TEXT("HowToPrevious"),[this](){ShowHowTo(HowToIndex-1);}),false));
+        Pager->AddChildToHorizontalBox(Flat(MakeButton(TEXT("下一张"),TEXT("HowToNext"),[this](){ShowHowTo(HowToIndex+1);}),true))->SetPadding(FMargin(12,0,0,0));
+        Pager->AddChildToHorizontalBox(WidgetTree->ConstructWidget<USpacer>())->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+        HowToBack=Flat(MakeButton(TEXT("关闭"),TEXT("HowToBack"),[this](){CloseHowTo();}),false);
+        Pager->AddChildToHorizontalBox(HowToBack);
+        Add(HowTo,Pager,18);
     }
     // The first main menu on this computer opens 怎么玩 by itself.
     if(PC.IsFrontend()&&GConfig)
@@ -1139,7 +1176,7 @@ void ULDUIRoot::ShowHowTo(int32 Index)
 {
     if(!HowToPage){return;}
     HowToIndex=FMath::Clamp(Index,0,LDTerms::HowToCards-1);
-    HowToCount->SetText(FText::FromString(FString::Printf(TEXT("%d / %d"),HowToIndex+1,LDTerms::HowToCards)));
+    HowToCount->SetText(FText::FromString(FString::Printf(TEXT("%02d/%02d"),HowToIndex+1,LDTerms::HowToCards)));
     HowToTitle->SetText(FText::FromString(LDTerms::HowToTitle(HowToIndex)));
     HowToBody->SetText(FText::FromString(LDTerms::HowToBody(HowToIndex)));
 }
@@ -1149,8 +1186,8 @@ void ULDUIRoot::OpenHowTo()
     if(!HowToPage||!FrontendPage||bHowToOpen||bCodexOpen){return;}
     ShowHowTo(0);
     bHowToOpen=true;
+    // The card stands on the right; the title and the menu column stay in view on the left.
     FrontendPage->SetVisibility(ESlateVisibility::Collapsed);
-    if(FrontendLogo){FrontendLogo->SetVisibility(ESlateVisibility::Collapsed);}
     HowToPage->SetVisibility(ESlateVisibility::Visible);
     HowToBack->SetKeyboardFocus();
 }
