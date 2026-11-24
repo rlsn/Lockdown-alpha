@@ -664,6 +664,10 @@ void FLDDemoOpponentProbe::Sample(UWorld& World, ALDGameMode& Mode)
         {
             ++Track.RespawnsChecked;
             Track.RespawnsActed += Body > Track.ActBase ? 1 : 0;
+            UE_CLOG(Body <= Track.ActBase, LogLDTest, Warning,
+                TEXT("LD_OPPONENT_PROBE_RESPAWN_IDLE contender=%s life=%u phase=%d respawned_at_ms=%lld checked_at_ms=%lld body_requests=%u base=%u has_pawn=%d"),
+                *Track.Contender.ToString(), Life.Life, int32(Public.Phase), Track.ActCheckDueMs - ActAfterRespawnMs, Now, Body, Track.ActBase,
+                AI->GetPawn() ? 1 : 0);
             Track.ActCheckDueMs = -1;
         }
         Track.Phase = Life.Phase;
