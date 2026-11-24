@@ -210,7 +210,13 @@ bool ULDCharacterMovementComponent::MoveUpdatedComponentImpl(const FVector& Delt
     const FVector To=GetActorFeetLocation();
     const bool Moved=From!=To;
     if (!From.Equals(Capture.LastFoot,.000001) || From.ContainsNaN() || To.ContainsNaN())
-    { Capture.Fail(TEXT("Native movement trace has a missing or nonfinite position.")); return Result; }
+    {
+        const UObject* Base=GetMovementBaseObject();
+        Capture.Fail(*FString::Printf(TEXT("Native movement trace has a missing or nonfinite position. body=%s from=%s last=%s to=%s gap=%.6f mode=%d base=%s step=%d safe=%d adjust=%d"),
+            *GetNameSafe(GetOwner()),*From.ToString(),*Capture.LastFoot.ToString(),*To.ToString(),FVector::Dist(From,Capture.LastFoot),
+            int32(MovementMode.GetValue()),*GetNameSafe(Base),Capture.StepDepth,Capture.SafeDepth,Capture.AdjustmentDepth));
+        return Result;
+    }
     const bool ArtificialStepMove=StepMove==1 || StepMove==3;
     const bool Adjustment=Capture.AdjustmentDepth>0 || ArtificialStepMove;
     const bool Timed=!Adjustment && ((Capture.SafeDepth>0 && (Capture.Walking || Capture.Falling)) || StepMove==2);
