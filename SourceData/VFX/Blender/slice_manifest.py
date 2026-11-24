@@ -1,6 +1,6 @@
 # Builds SourceData/VFX/vfx_slice_assets.json from the generated presentation-slice assets (plain Python 3 + numpy):
 # per-asset import spec, sha256 of every file and generator, and mechanical checks (frame-border bleed, empty last frame,
-# tile seams, loop continuity). Run after the four slice_*.py generators:
+# tile seams, loop continuity). Run after the five slice_*.py generators:
 #   python SourceData/VFX/Blender/slice_manifest.py SourceData/VFX
 import json, os, sys
 import numpy as np
@@ -10,7 +10,8 @@ import slice_lib as L
 
 ROOT = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 SLICE = os.path.join(ROOT, "Slice")
-GENERATORS = ["Blender/slice_lib.py", "Blender/slice_slash.py", "Blender/slice_impact.py", "Blender/slice_water.py", "Blender/slice_shock.py"]
+GENERATORS = ["Blender/slice_lib.py", "Blender/slice_slash.py", "Blender/slice_impact.py", "Blender/slice_water.py", "Blender/slice_shock.py",
+              "Blender/slice_chalk.py"]
 TOOLS = ["Blender/slice_preview.py", "Blender/slice_manifest.py"]
 
 GEOMETRY_SHA = {  # printed by slice_slash.py; the FBX header carries a timestamp, so file bytes differ per export
@@ -79,6 +80,10 @@ ASSETS = [
          purpose="Electric ground field for electrified targets and the conduct reaction: domain-warped crackle net, diagonal court hatch, three bolts that jump across the patch, dashed chalk boundary. Readable from above; not a glow blob.",
          usage="Decal (or flat quad) under the affected area, looped while the field lives; opacity fades in/out at runtime (no fade baked in); size = patch about 150 percent of the gameplay radius (patch fills 0.74 of the half frame); tint = shock colour.",
          pivot="centre (0.5, 0.5)", uv="frame i at column i % 4, row i / 4; looping", **MASK, budget="one decal per electrified area; mean coverage about 11 percent; sample 2 frames at 16 fps or a single frame via Flipbook node"),
+    dict(id="tex_chalk_lane", kind="texture", file="Slice/tex_chalk_lane.png", width=512, height=128,
+         purpose="Chalk court lane for a skill's anticipation: two hand-drawn border lines and four forward chevrons per tile, chalk-grained, white with a thin ink rim.",
+         usage="Flat strip on the ground over the skill's footprint before its release; U (x) runs along the lane in the cast direction and tiles seamlessly, V (y) across; shown white only (no element colour).",
+         uv="tileable along U, chevrons point to +U; V across (row 0 = top edge)", **MASK, budget="one ground strip per casting body during its windup"),
 ]
 
 
@@ -110,7 +115,7 @@ def checks(asset, img):
                 return img[r * fs:(r + 1) * fs, c * fs:(c + 1) * fs, 3]
             out["loop_seam_mean_abs_alpha_diff_15_to_0"] = round(float(np.abs(frame(15) - frame(0)).mean()), 5)
             out["adjacent_frame_mean_abs_alpha_diff"] = round(float(np.mean([np.abs(frame(i) - frame(i + 1)).mean() for i in range(15)])), 5)
-    if asset["id"] == "tex_water_jet":
+    if asset["id"] in ("tex_water_jet", "tex_chalk_lane"):
         out["seam_mean_abs_diff_left_right_columns"] = round(float(np.abs(img[:, 0] - img[:, -1]).mean()), 5)
         out["adjacent_column_mean_abs_diff"] = round(float(np.abs(img[:, 100] - img[:, 101]).mean()), 5)
     if asset["id"] == "tex_dissolve_noise":

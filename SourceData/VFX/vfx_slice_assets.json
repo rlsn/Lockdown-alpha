@@ -6,11 +6,12 @@
     "Blender/slice_slash.py": "8c3405028bad06b51b50a413bf6f7905737494db05755edd4ebfbe9639b48d3f",
     "Blender/slice_impact.py": "dc950a82522a48bbda75cd8b5651f5f5ce0d85f2c1e657bda9f936840c0e2152",
     "Blender/slice_water.py": "f937d1547b87a0d4aeb06d9adbba1f423f39b57bc9d6b4d653967d68ab7b1e24",
-    "Blender/slice_shock.py": "f8f55f0a7118f76311636a1bb066396bf228d91a5ce5108ba6a0f3137b1765c3"
+    "Blender/slice_shock.py": "f8f55f0a7118f76311636a1bb066396bf228d91a5ce5108ba6a0f3137b1765c3",
+    "Blender/slice_chalk.py": "dfc522c375555a2dda968df184ebc64b827df69e82646e0f722c519ed2466697"
   },
   "tools": {
     "Blender/slice_preview.py": "1f10fa3440e24b8f9b8b2e0037eb447926b74e34c57704b93975782aa192321c",
-    "Blender/slice_manifest.py": "5524d756c875816004856409295bade878496043c3dfacb215cd67420417b22b"
+    "Blender/slice_manifest.py": "c3f3e2d4f931b09ba141144bebdc28c106ef7986470c8051eb6ef6a8a3f56dfe"
   },
   "glow_levels": {
     "ink": 0.0,
@@ -533,6 +534,30 @@
         "mean_coverage_average": 0.1811,
         "loop_seam_mean_abs_alpha_diff_15_to_0": 0.16256,
         "adjacent_frame_mean_abs_alpha_diff": 0.10978
+      },
+      "material_hint": "Same graph as the existing Layer material: emissive = Glow * tex.rgb (+ white lerp above 0.8) + Ink, opacity = tex.a * Fade, translucent unlit, two-sided. Recommended glow remap: color = lerp(Glow * saturate(g / 0.6), 1, smoothstep(0.8, 1.0, g)); Ink (0A0B0D) shows where g = 0 and A > 0."
+    },
+    {
+      "id": "tex_chalk_lane",
+      "kind": "texture",
+      "file": "Slice/tex_chalk_lane.png",
+      "width": 512,
+      "height": 128,
+      "purpose": "Chalk court lane for a skill's anticipation: two hand-drawn border lines and four forward chevrons per tile, chalk-grained, white with a thin ink rim.",
+      "usage": "Flat strip on the ground over the skill's footprint before its release; U (x) runs along the lane in the cast direction and tiles seamlessly, V (y) across; shown white only (no element colour).",
+      "uv": "tileable along U, chevrons point to +U; V across (row 0 = top edge)",
+      "alpha_packing": "RGB = glow mask (R = G = B; 0 ink only, 0.6 element body, 1.0 white-hot core), A = coverage; ink = A > 0 with RGB = 0",
+      "srgb": false,
+      "compression": "TC_Default (BC3/DXT5 with alpha) as the existing hit masks; TC_BC7 recommended for thin-line sheets",
+      "mips": "generate (TMGS_FromTextureGroup)",
+      "streaming": "NeverStream = true, LODGroup Effects (same as VfxApplySettings)",
+      "budget": "one ground strip per casting body during its windup",
+      "sha256": "54691c0665e9a0503a91328cddcfb6300b129a781ed49a0324c5959b35e5fad0",
+      "uncompressed_rgba8_bytes": 349525,
+      "bc3_bc7_with_mips_bytes": 87381,
+      "checks": {
+        "seam_mean_abs_diff_left_right_columns": 0.00059,
+        "adjacent_column_mean_abs_diff": 0.00086
       },
       "material_hint": "Same graph as the existing Layer material: emissive = Glow * tex.rgb (+ white lerp above 0.8) + Ink, opacity = tex.a * Fade, translucent unlit, two-sided. Recommended glow remap: color = lerp(Glow * saturate(g / 0.6), 1, smoothstep(0.8, 1.0, g)); Ink (0A0B0D) shows where g = 0 and A > 0."
     }
