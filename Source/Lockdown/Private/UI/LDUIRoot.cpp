@@ -18,6 +18,8 @@
 #include "UI/LDHUD.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDHUDStyle.h"
+#include "UI/LDBroadcastStyle.h"
+#include "UI/LDBroadcastPaint.h"
 #include "UI/LDResultBuild.h"
 #include "UI/LDTerms.h"
 #include "UI/LDUIBackgrounds.h"
@@ -159,8 +161,8 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
     // The title screen is this root over its picture; the frontend map itself renders nothing.
     FrontendBackground=AddBackground(Canvas,LDUIBackgrounds::TitleAsset);
     if(FrontendBackground){FrontendBackground->SetRenderTransformPivot(FVector2D(.5f,.5f));}
-    // Over the picture: the sky darkened behind the title and the ground behind the buttons, then a slow low fog (interface
-    // motion only, see TickFrontend).
+    // On air: the picture darkened to ink, heavier on the left where the title and the menu stand, then a slow neutral haze
+    // along the ground (interface motion only, see TickFrontend).
     const auto Cover=[&Canvas](UWidget* Layer,const FMargin& Offsets)
     {
         UCanvasPanelSlot* LayerSlot=Canvas.AddChildToCanvas(Layer);LayerSlot->SetAnchors(FAnchors(0,0,1,1));LayerSlot->SetOffsets(Offsets);
@@ -168,24 +170,17 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
     };
     Cover(PaintLayer(WidgetTree,[](const LDUIPaint::FContext& Paint)
     {
-        Paint.Shape(Paint.Layer,LDUIPaint::EShape::Rounded,FBox2D(FVector2D::ZeroVector,FVector2D(Paint.Geometry.GetLocalSize())),0.f,
-            LDUIPaint::FFill::Linear(180.f,{{0.f,LDUIPaint::Hex(0x140614,.55f)},{.34f,LDUIPaint::Hex(0x140614,0.f)},{.52f,LDUIPaint::Hex(0x06050A,0.f)},
-            {1.f,LDUIPaint::Hex(0x06050A,.88f)}}));
+        const FBox2D Whole(FVector2D::ZeroVector,FVector2D(Paint.Geometry.GetLocalSize()));
+        Paint.Shape(Paint.Layer,LDUIPaint::EShape::Rounded,Whole,0.f,LDUIPaint::FFill::Solid(LDBroadcast::Ink.CopyWithNewOpacity(.42f)));
+        Paint.Shape(Paint.Layer+1,LDUIPaint::EShape::Rounded,Whole,0.f,
+            LDUIPaint::FFill::Linear(90.f,{{0.f,LDBroadcast::Ink.CopyWithNewOpacity(.82f)},{.45f,LDBroadcast::Ink.CopyWithNewOpacity(.42f)},{1.f,LDBroadcast::Ink.CopyWithNewOpacity(.12f)}}));
     }),FMargin(0));
     FrontendFog=PaintLayer(WidgetTree,[this](const LDUIPaint::FContext& Paint)
     {
         const FVector2D Size(Paint.Geometry.GetLocalSize());
         const float Breath=.75f+.25f*LDTween::PingPong(FPlatformTime::Seconds()-FrontendShownAt,9.);
         Paint.Shape(Paint.Layer,LDUIPaint::EShape::Rounded,FBox2D(FVector2D(0,Size.Y*.6),Size),0.f,
-            LDUIPaint::FFill::Linear(180.f,{{0.f,LDUIPaint::Hex(0x2A1236,0.f)},{.6f,LDUIPaint::Hex(0x2A1236,.2f)},{1.f,LDUIPaint::Hex(0x12081A,.34f)}}),Breath);
-        // Uneven streaks, so the drift reads: soft purple and neon-pink haze along the ground.
-        const struct {float X,Y,W;uint32 Rgb;float Alpha;} Streaks[]={{.08f,.9f,.3f,0x6A3A8C,.16f},{.42f,.95f,.34f,0xC2185B,.09f},
-            {.7f,.88f,.26f,0x6A3A8C,.14f},{.24f,.98f,.4f,0xC2185B,.07f}};
-        for(const auto& Streak:Streaks)
-        {
-            const FBox2D Bar(FVector2D(Size.X*Streak.X,Size.Y*Streak.Y-1.),FVector2D(Size.X*(Streak.X+Streak.W),Size.Y*Streak.Y+1.));
-            Paint.Halo(Paint.Layer+1,LDUIPaint::EShape::Rounded,Bar,1.f,LDUIPaint::Hex(Streak.Rgb,Streak.Alpha*Breath),float(Size.Y)*.07f);
-        }
+            LDUIPaint::FFill::Linear(180.f,{{0.f,LDBroadcast::Ink.CopyWithNewOpacity(0.f)},{1.f,LDBroadcast::Ink.CopyWithNewOpacity(.55f)}}),Breath);
     });
     Cover(FrontendFog,FMargin(-60,0,-60,0));
     UVerticalBox* Content=nullptr;
@@ -193,73 +188,81 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
     FrontendPanel=Cast<UBorder>(FrontendPage->GetContent());
     FrontendShownAt=FPlatformTime::Seconds();
     auto Add=[](UVerticalBox* Box,UWidget* Child,float Gap){Box->AddChildToVerticalBox(Child)->SetPadding(FMargin(0,Gap));};
+    const auto Whole=[](const LDUIPaint::FContext& Paint){return FBox2D(FVector2D::ZeroVector,FVector2D(Paint.Geometry.GetLocalSize()));};
+    // The left column (title and menu), anchored to the left edge at the 1080p reference; it takes pointer input only on
+    // its buttons.
+    auto* Column=WidgetTree->ConstructWidget<UVerticalBox>();Column->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
     {
-        // The logo in the sky, off the people in the picture: the title's lead, the winner title large in spray yellow over an
-        // event-pink offset with a buzzing neon glow, then the tagline. Y is each line's centre at 1080p.
-        auto* Sky=WidgetTree->ConstructWidget<UCanvasPanel>();Sky->SetVisibility(ESlateVisibility::HitTestInvisible);
-        UCanvasPanelSlot* SkySlot=Canvas.AddChildToCanvas(Sky);SkySlot->SetAnchors(FAnchors(0,0,1,1));SkySlot->SetOffsets(FMargin(0));
-        const auto Line=[this,Sky](const FString& Value,LDUIFonts::ERole Role,int32 Size,int32 Spacing,const FLinearColor& Ink,const FFontOutlineSettings& Outline,
-            FVector2D Shadow,const FLinearColor& ShadowInk,float Y)
+        UCanvasPanelSlot* ColumnSlot=Canvas.AddChildToCanvas(Column);ColumnSlot->SetAnchors(FAnchors(0,.5f));ColumnSlot->SetAlignment(FVector2D(0,.5f));
+        ColumnSlot->SetPosition(FVector2D(96.f,-30.f));ColumnSlot->SetAutoSize(true);
+    }
+    {
+        // LIVE · the title's lead, then the winner title in white heavy with its first character on an orange block.
+        auto* Head=WidgetTree->ConstructWidget<UHorizontalBox>();
+        UTextBlock* Live=LDWidgets::Text(WidgetTree,TEXT("LIVE"),Scaled(22),NAME_None,LDUIFonts::ERole::Figure);Live->SetColorAndOpacity(LDBroadcast::White);
+        Head->AddChildToHorizontalBox(Painted(WidgetTree,Live,FMargin(18,4,16,4),[Whole](const LDUIPaint::FContext& Paint)
+        {LDBroadcastPaint::FillSlab(Paint,Paint.Layer,Whole(Paint),LDBroadcast::LiveRed);}))->SetVerticalAlignment(VAlign_Center);
+        FString Lead=LDTerms::Title;Lead.RemoveFromEnd(LDTerms::Winner);
+        UTextBlock* LeadText=LDWidgets::Text(WidgetTree,Lead,Scaled(26),NAME_None,LDUIFonts::ERole::Strong);LeadText->SetColorAndOpacity(LDBroadcast::White);
+        Head->AddChildToHorizontalBox(LeadText)->SetPadding(FMargin(20,0,0,0));
+        if(auto* LeadSlot=Cast<UHorizontalBoxSlot>(LeadText->Slot)){LeadSlot->SetVerticalAlignment(VAlign_Center);}
+        Column->AddChildToVerticalBox(Head);
+        auto* Title=WidgetTree->ConstructWidget<UHorizontalBox>();
+        const FString Winner=LDTerms::Winner;
+        const auto Heavy=[this](const FString& Value,const FLinearColor& Ink)
         {
-            UTextBlock* Text=LDWidgets::Text(WidgetTree,Value,Scaled(Size),NAME_None,Role);
-            FSlateFontInfo Font=LDUIFonts::Font(Role,Scaled(Size),Outline);Font.LetterSpacing=Spacing;Text->SetFont(Font);
-            Text->SetAutoWrapText(false);Text->SetColorAndOpacity(FSlateColor(Ink));
-            if(!Shadow.IsZero()){Text->SetShadowOffset(Shadow);Text->SetShadowColorAndOpacity(ShadowInk);}
-            // A shadow widens the text's box by its offset; shifting by half keeps the glyphs themselves on the centre line.
-            UCanvasPanelSlot* TextSlot=Sky->AddChildToCanvas(Text);TextSlot->SetAnchors(FAnchors(.5f,0));TextSlot->SetAlignment(FVector2D(.5f,.5f));
-            TextSlot->SetPosition(FVector2D(Shadow.X*.5,Y+Shadow.Y*.5));TextSlot->SetAutoSize(true);
+            UTextBlock* Text=LDWidgets::Text(WidgetTree,Value,Scaled(132),NAME_None,LDUIFonts::ERole::Title);
+            FSlateFontInfo Font=Text->GetFont();Font.SkewAmount=0.f;Text->SetFont(Font);Text->SetColorAndOpacity(Ink);Text->SetAutoWrapText(false);
             return Text;
         };
-        const FLinearColor Dusk(0.f,0.f,0.f,.6f);
-        FString Lead=LDTerms::Title;Lead.RemoveFromEnd(LDTerms::Winner);
-        Line(Lead,LDUIFonts::ERole::Title,40,140,FLinearColor::White,FFontOutlineSettings(),FVector2D(0,4),Dusk,86.f);
-        // The logo's soft dark drop 12 px below it (mockup 08's 0 12px 40px shadow), as widening translucent outlines.
-        for(const TPair<int32,float>& Soft:{TPair<int32,float>(26,.08f),TPair<int32,float>(16,.12f),TPair<int32,float>(7,.18f)})
-        {
-            Line(LDTerms::Winner,LDUIFonts::ERole::Title,142,40,FLinearColor::Transparent,
-                FFontOutlineSettings(Soft.Key,FLinearColor(0.f,0.f,0.f,Soft.Value)),FVector2D::ZeroVector,FLinearColor::Transparent,221.f+12.f);
-        }
-        for(const TPair<int32,float>& Glow:{TPair<int32,float>(30,.1f),TPair<int32,float>(18,.16f),TPair<int32,float>(8,.24f)})
-        {
-            FrontendNeon.Add(Line(LDTerms::Winner,LDUIFonts::ERole::Title,142,40,FLinearColor::Transparent,
-                FFontOutlineSettings(Glow.Key,LDHUDStyle::UIEvent.CopyWithNewOpacity(Glow.Value)),FVector2D::ZeroVector,FLinearColor::Transparent,221.f));
-        }
-        Line(LDTerms::Winner,LDUIFonts::ERole::Title,142,40,LDHUDStyle::UIAction,FFontOutlineSettings(),FVector2D(7,7),LDUIPaint::Hex(0xC2185B),221.f);
-        Line(LDTerms::Tagline,LDUIFonts::ERole::Body,17,300,LDUIPaint::Hex(0xF7E9D6),FFontOutlineSettings(),FVector2D(0,2),Dusk,340.f);
-        FrontendLogo=Sky;
+        Title->AddChildToHorizontalBox(Painted(WidgetTree,Heavy(Winner.Left(1),LDBroadcast::Ink),FMargin(14,0,22,0),[Whole](const LDUIPaint::FContext& Paint)
+        {LDBroadcastPaint::FillSlab(Paint,Paint.Layer,Whole(Paint),LDBroadcast::Orange);}));
+        Title->AddChildToHorizontalBox(Heavy(Winner.Mid(1),LDBroadcast::White))->SetPadding(FMargin(8,0,0,0));
+        Column->AddChildToVerticalBox(Title)->SetPadding(FMargin(0,10,0,0));
+        FrontendLogo=Column;
     }
-    // The buttons stand on the ground at the bottom centre, sheared like street signs: 开始 is the one primary button, wide and
-    // tall; 设置 and 退出 (and 重新连接本局 when offered) are dark glass under it.
+    // The menu column under the title: 开始 is the one white slab with its orange arrow; the rest are plain rows with an
+    // orange tick that turn into the white slab under the pointer.
     MainMenu=WidgetTree->ConstructWidget<UVerticalBox>();
-    Content->AddChildToVerticalBox(MainMenu)->SetPadding(FMargin(0,30,0,0));
-    const auto Sign=[this](UWidget* Child,float Width,float Height)
+    Column->AddChildToVerticalBox(MainMenu)->SetPadding(FMargin(0,40,0,0));
+    const auto Row=[this,Whole](ULDCommandButton* Button,bool bPrimary)
     {
-        auto* Box=WidgetTree->ConstructWidget<USizeBox>();Box->SetWidthOverride(Width);Box->SetHeightOverride(Height);Box->SetContent(Child);
-        Box->SetRenderShear(FVector2D(-8.f,0));
-        return Box;
-    };
-    const auto Caption=[this](ULDCommandButton* Button,int32 Size,int32 Spacing)
-    {
+        // The ghost look paints no face of its own: the row's slab below is the whole surface.
+        LDWidgets::SetLook(Button,LDUIPaint::EButton::Ghost);
         auto* Text=CastChecked<UTextBlock>(Button->GetContent());
-        FSlateFontInfo Font=LDUIFonts::Font(LDUIFonts::ERole::Strong,Scaled(Size));Font.LetterSpacing=Spacing;Text->SetFont(Font);
-    };
-    const auto Glass=[&Caption](ULDCommandButton* Button)
-    {
+        Text->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Strong,Scaled(bPrimary?30:26)));Text->SetJustification(ETextJustify::Left);
         FButtonStyle Style=Button->GetStyle();
-        Style.Normal=FSlateRoundedBoxBrush(LDUIPaint::Hex(0x10121C,.78f),5.f,FLinearColor(1,1,1,.14f),1.f);
-        Style.Hovered=FSlateRoundedBoxBrush(LDUIPaint::Hex(0x1C2030,.86f),5.f,FLinearColor(1,1,1,.28f),1.f);
-        Style.Pressed=FSlateRoundedBoxBrush(LDUIPaint::Hex(0x08090F,.88f),5.f,FLinearColor(1,1,1,.14f),1.f);
-        Style.Disabled=Style.Normal;Style.NormalPadding=Style.PressedPadding=FMargin(8,0);
-        Button->SetStyle(Style);
-        Caption(Button,14,380);
-        CastChecked<UTextBlock>(Button->GetContent())->SetColorAndOpacity(FSlateColor(LDHUDStyle::UIText));
+        Style.Normal=FSlateNoResource();Style.Hovered=FSlateNoResource();Style.Pressed=FSlateNoResource();Style.Disabled=FSlateNoResource();
+        Style.NormalPadding=Style.PressedPadding=FMargin(0);Button->SetStyle(Style);
+        TWeakObjectPtr<ULDCommandButton> Weak(Button);
+        auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();
+        Text->RemoveFromParent();
+        UHorizontalBoxSlot* TextSlot=Line->AddChildToHorizontalBox(Text);TextSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));TextSlot->SetVerticalAlignment(VAlign_Center);
+        auto* Surface=Painted(WidgetTree,Line,FMargin(bPrimary?28:24,6,24,6),[Weak,bPrimary,Whole](const LDUIPaint::FContext& Paint)
+        {
+            const bool bLit=bPrimary||(Weak.IsValid()&&Weak->IsHovered());
+            if(bPrimary)
+            {
+                // The primary row: a white slab with the orange arrow at its right end.
+                const FBox2D Box=Whole(Paint);
+                LDBroadcastPaint::FillSlab(Paint,Paint.Layer,Box,LDBroadcast::White);
+                const FVector2D C(Box.Max.X-40.,Box.GetCenter().Y);
+                Paint.Polygon(Paint.Layer+1,{C+FVector2D(-6.,-9.),C+FVector2D(8.,0.),C+FVector2D(-6.,9.)},LDUIPaint::FFill::Solid(LDBroadcast::Orange));
+                return;
+            }
+            if(bLit){LDBroadcastPaint::FillSlab(Paint,Paint.Layer,Whole(Paint),LDBroadcast::Raised);}
+            LDBroadcastPaint::Block(Paint,Paint.Layer+1,FBox2D(FVector2D(0.,10.),FVector2D(4.,Paint.Geometry.GetLocalSize().Y-10.)),LDBroadcast::Orange);
+        });
+        auto* Box=WidgetTree->ConstructWidget<USizeBox>();Box->SetWidthOverride(420.f);Box->SetHeightOverride(bPrimary?66.f:54.f);Box->SetContent(Surface);
+        Button->SetContent(Box);
+        // The caption is ink on the white slab and white on the plain rows; only the primary row carries the arrow.
+        Text->SetColorAndOpacity(bPrimary?FSlateColor(LDBroadcast::Ink):FSlateColor(LDBroadcast::White));
+        return Button;
     };
     const auto Stack=[this](UWidget* Child,float Below)
-    {UVerticalBoxSlot* SignSlot=MainMenu->AddChildToVerticalBox(Child);SignSlot->SetHorizontalAlignment(HAlign_Center);SignSlot->SetPadding(FMargin(0,0,0,Below));};
+    {UVerticalBoxSlot* SignSlot=MainMenu->AddChildToVerticalBox(Child);SignSlot->SetHorizontalAlignment(HAlign_Left);SignSlot->SetPadding(FMargin(0,0,0,Below));};
     StartButton=MakeButton(TEXT("开始"),TEXT("Start"),[this](){ShowStartPage(true);});
-    LDWidgets::SetLook(StartButton,LDUIPaint::EButton::Primary);
-    Caption(StartButton,26,600);
-    Stack(Sign(StartButton,420,84),14);
+    Stack(Row(StartButton,true),10);
     if(const auto* Instance=GetGameInstance<ULDGameInstance>();Instance&&Instance->CanReconnect())
     {
         ULDCommandButton* Reconnect=MakeButton(TEXT("重新连接本局"),TEXT("Reconnect"),[this]()
@@ -267,23 +270,12 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
             if(auto* Owner=Cast<ALDPlayerController>(GetOwningPlayer()))
             {if(auto* State=GetGameInstance<ULDGameInstance>()){State->ReconnectRoom(*Owner);}}
         });
-        Glass(Reconnect);
-        Stack(Sign(Reconnect,420,58),14);
+        Stack(Row(Reconnect,false),4);
     }
-    {
-        auto* Row=WidgetTree->ConstructWidget<UHorizontalBox>();
-        ULDCommandButton* Settings=MakeButton(TEXT("设置"),TEXT("Settings"),[this](){ToggleMainPanel(ELDUIMainPanel::Settings);});
-        ULDCommandButton* Codex=MakeButton(LDTerms::ChainCodex,TEXT("ChainCodex"),[this](){OpenCodex();});
-        ULDCommandButton* HowTo=MakeButton(LDTerms::HowTo,TEXT("HowTo"),[this](){OpenHowTo();});
-        ULDCommandButton* Exit=MakeButton(TEXT("退出"),TEXT("Exit"),[this](){OpenConfirm(ELDRootConfirm::Exit);});
-        Glass(Settings);Glass(Codex);Glass(HowTo);Glass(Exit);
-        // Four signs share the start button's 420 width.
-        Row->AddChildToHorizontalBox(Sign(Settings,96,58));
-        Row->AddChildToHorizontalBox(Sign(Codex,96,58))->SetPadding(FMargin(12,0,0,0));
-        Row->AddChildToHorizontalBox(Sign(HowTo,96,58))->SetPadding(FMargin(12,0,0,0));
-        Row->AddChildToHorizontalBox(Sign(Exit,96,58))->SetPadding(FMargin(12,0,0,0));
-        Stack(Row,0);
-    }
+    Stack(Row(MakeButton(LDTerms::HowTo,TEXT("HowTo"),[this](){OpenHowTo();}),false),4);
+    Stack(Row(MakeButton(LDTerms::ChainCodex,TEXT("ChainCodex"),[this](){OpenCodex();}),false),4);
+    Stack(Row(MakeButton(TEXT("设置"),TEXT("Settings"),[this](){ToggleMainPanel(ELDUIMainPanel::Settings);}),false),4);
+    Stack(Row(MakeButton(TEXT("退出"),TEXT("Exit"),[this](){OpenConfirm(ELDRootConfirm::Exit);}),false),0);
     {
         // Spec §6.5: the codex page lists every chain key found on this computer, newest first, with its longest length.
         UVerticalBox* Codex=nullptr;
@@ -428,18 +420,26 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
     StartBackButton=MakeButton(TEXT("返回"),TEXT("StartBack"),[this](){ShowStartPage(false);});
     Add(Content,StartBackButton,6);
     FString Version,VersionError;
-    UTextBlock* VersionLine=Label(LDDemoEntry::ReadProductVersion(Version,VersionError)?LDDemoEntry::TitleVersion(Version):TEXT("版本读取失败：")+VersionError,11,
-        FLinearColor(1,1,1,.62f));
-    // The slang note stays on the front page (#111) so the title's slang is never read as anything else; with the version it
-    // sits in a bottom corner, off the picture's people.
-    UTextBlock* SlangNote=Label(LDTerms::SlangNote,11,FLinearColor(1,1,1,.62f));
-    for(UTextBlock* Corner:{VersionLine,SlangNote})
+    UTextBlock* VersionLine=LDWidgets::Text(WidgetTree,LDDemoEntry::ReadProductVersion(Version,VersionError)?LDDemoEntry::TitleVersion(Version):TEXT("版本读取失败：")+VersionError,
+        Scaled(14),NAME_None,LDUIFonts::ERole::Figure);
+    VersionLine->SetColorAndOpacity(LDBroadcast::Grey);VersionLine->SetAutoWrapText(false);
+    // The slang note stays on the front page (#111) so the title's slang is never read as anything else: the bottom ticker
+    // of the broadcast, its "黑话" tag on an orange block, the version at its right end.
+    UTextBlock* SlangNote=Label(LDTerms::SlangNote,15,LDBroadcast::White);SlangNote->SetAutoWrapText(false);
     {
-        FSlateFontInfo Font=Corner->GetFont();Font.LetterSpacing=60;Corner->SetFont(Font);Corner->SetAutoWrapText(false);
-        Corner->SetShadowOffset(FVector2D(1.f,1.f));Corner->SetShadowColorAndOpacity(LDHUDStyle::Rim);
-        UCanvasPanelSlot* CornerSlot=Canvas.AddChildToCanvas(Corner);const float Side=Corner==VersionLine?0.f:1.f;
-        CornerSlot->SetAnchors(FAnchors(Side,1));CornerSlot->SetAlignment(FVector2D(Side,1));CornerSlot->SetPosition(FVector2D(Side>0.f?-36.f:36.f,-26.f));
-        CornerSlot->SetAutoSize(true);FrontendCorners.Add(Corner);
+        auto* Ticker=WidgetTree->ConstructWidget<UHorizontalBox>();
+        UTextBlock* Tag=LDWidgets::Text(WidgetTree,TEXT("黑话"),Scaled(18),NAME_None,LDUIFonts::ERole::Strong);Tag->SetColorAndOpacity(LDBroadcast::Ink);
+        Ticker->AddChildToHorizontalBox(Painted(WidgetTree,Tag,FMargin(40,10,40,10),[Whole](const LDUIPaint::FContext& Paint)
+        {LDBroadcastPaint::FillSlab(Paint,Paint.Layer,Whole(Paint),LDBroadcast::Orange,true,false);}));
+        auto* NoteSlot=Ticker->AddChildToHorizontalBox(SlangNote);NoteSlot->SetVerticalAlignment(VAlign_Center);NoteSlot->SetPadding(FMargin(24,0,0,0));
+        NoteSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+        auto* VersionSlot=Ticker->AddChildToHorizontalBox(VersionLine);VersionSlot->SetVerticalAlignment(VAlign_Center);VersionSlot->SetPadding(FMargin(0,0,36,0));
+        UOverlay* Band=Painted(WidgetTree,Ticker,FMargin(0),[Whole](const LDUIPaint::FContext& Paint)
+        {LDBroadcastPaint::Block(Paint,Paint.Layer,Whole(Paint),LDBroadcast::Ink.CopyWithNewOpacity(.92f));});
+        Band->SetVisibility(ESlateVisibility::HitTestInvisible);
+        UCanvasPanelSlot* BandSlot=Canvas.AddChildToCanvas(Band);BandSlot->SetAnchors(FAnchors(0,1,1,1));BandSlot->SetAlignment(FVector2D(0,1));
+        BandSlot->SetOffsets(FMargin(0,0,0,0));BandSlot->SetAutoSize(true);
+        FrontendCorners.Add(Band);
     }
     bMenuOpen=true;
     SetFrontendPage(Draft&&Draft->bStartPage);
@@ -1090,7 +1090,7 @@ void ULDUIRoot::SetFrontendPage(bool bStart)
         FrontendPage->SetWidthOverride(bStart?940.f:560.f);
     }
     if(FrontendPanel){FrontendPanel->SetBrushColor(bStart?LDHUDStyle::PanelFill:FLinearColor::Transparent);}
-    if(FrontendLogo){FrontendLogo->SetVisibility(bStart?ESlateVisibility::Collapsed:ESlateVisibility::HitTestInvisible);}
+    if(FrontendLogo){FrontendLogo->SetVisibility(bStart?ESlateVisibility::Collapsed:ESlateVisibility::SelfHitTestInvisible);}
     MainMenu->SetVisibility(bStart?ESlateVisibility::Collapsed:ESlateVisibility::SelfHitTestInvisible);
     StartPage->SetVisibility(bStart?ESlateVisibility::SelfHitTestInvisible:ESlateVisibility::Collapsed);
     if(ULDStartPageDraft* Draft=StartDraft()){Draft->bStartPage=bStart;}
@@ -1166,7 +1166,7 @@ bool ULDUIRoot::CloseHowTo()
     }
     HowToPage->SetVisibility(ESlateVisibility::Collapsed);
     FrontendPage->SetVisibility(ESlateVisibility::Visible);
-    if(FrontendLogo&&!bStartPage){FrontendLogo->SetVisibility(ESlateVisibility::HitTestInvisible);}
+    if(FrontendLogo&&!bStartPage){FrontendLogo->SetVisibility(ESlateVisibility::SelfHitTestInvisible);}
     if(StartButton){StartButton->SetKeyboardFocus();}
     return true;
 }
@@ -1177,7 +1177,7 @@ bool ULDUIRoot::CloseCodex()
     bCodexOpen=false;
     CodexPage->SetVisibility(ESlateVisibility::Collapsed);
     FrontendPage->SetVisibility(ESlateVisibility::Visible);
-    if(FrontendLogo&&!bStartPage){FrontendLogo->SetVisibility(ESlateVisibility::HitTestInvisible);}
+    if(FrontendLogo&&!bStartPage){FrontendLogo->SetVisibility(ESlateVisibility::SelfHitTestInvisible);}
     if(StartButton){StartButton->SetKeyboardFocus();}
     return true;
 }
@@ -1218,7 +1218,7 @@ void ULDUIRoot::RestoreFrontendPage(ALDPlayerController& PC)
     bMenuOpen=true;
     FrontendPage->SetVisibility(ESlateVisibility::Visible);
     for(UWidget* Corner:FrontendCorners){Corner->SetVisibility(ESlateVisibility::HitTestInvisible);}
-    if(FrontendLogo&&!bStartPage){FrontendLogo->SetVisibility(ESlateVisibility::HitTestInvisible);}
+    if(FrontendLogo&&!bStartPage){FrontendLogo->SetVisibility(ESlateVisibility::SelfHitTestInvisible);}
     PC.SetMenuOpen(true);
 }
 
