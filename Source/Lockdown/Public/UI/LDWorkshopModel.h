@@ -54,6 +54,10 @@ namespace LDWorkshop
     };
     // Fit or paginate the groups using the same cell, label and group spacing as the library widgets.
     LOCKDOWN_API FLibraryFit FitLibrary(FIntVector4 Counts,float Width,float Height,float MinIcon,float TextScale);
+    // The library body height that shows one card of any group (a later group's header padding included) on a compact page.
+    LOCKDOWN_API float LibraryMinPageHeight(float MinIcon,float TextScale);
+    // One icon row of the pending tray: the icon and its two-line label.
+    LOCKDOWN_API float PendingRowHeight(float MinIcon,float TextScale);
     // Reserve room for at least one library card when the pending tray shares the same column.
     struct FPendingPage
     {

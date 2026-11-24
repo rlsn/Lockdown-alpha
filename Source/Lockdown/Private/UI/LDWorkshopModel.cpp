@@ -96,6 +96,14 @@ float WorkshopLibraryHeight(FIntVector4 Counts,int32 PerRow,float Icon,float Tex
     return Height;
 }
 }
+float LDWorkshop::LibraryMinPageHeight(float MinIcon,float TextScale)
+{
+    return WorkshopLibraryHeight(FIntVector4(0,1,0,0),1,FMath::Max(46.f,MinIcon),TextScale,true);
+}
+float LDWorkshop::PendingRowHeight(float MinIcon,float TextScale)
+{
+    return FMath::Max(46.f,MinIcon)+6.f+WorkshopLibraryLabelHeight(TextScale);
+}
 LDWorkshop::FLibraryFit LDWorkshop::FitLibrary(FIntVector4 Counts,float Width,float Height,float MinIcon,float TextScale)
 {
     FLibraryFit Result;
