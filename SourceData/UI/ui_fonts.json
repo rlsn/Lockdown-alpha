@@ -21,6 +21,16 @@
       "typeface": "Heavy",
       "file": "SourceHanSansSC-Heavy.otf",
       "sha256": "6374b11bc4c2cd4bd7be1a1d64cf5047906c8a6a025c64e023c6792e50ba985e"
+    },
+    {
+      "typeface": "Figure",
+      "file": "Roboto-BoldCondensedItalic.ttf",
+      "sha256": "1117eab9f490123cf8a656fa936a4c9a7e4918b88ae576d64d3d79507096f7b9",
+      "family": "Roboto",
+      "provenance": "Roboto Bold Condensed Italic as shipped with Unreal Engine 5.8 (Engine/Content/Slate/Fonts/Roboto-BoldCondensedItalic.ttf, TPS Roboto.tps), unmodified; licence text from Engine/Source/ThirdParty/Licenses/ROBOTO_License.txt.",
+      "license": "Apache License 2.0",
+      "license_file": "ROBOTO_LICENSE.txt",
+      "license_sha256": "813aec82b71fe6fc927f1f9f5c08c5a098785b0a89e3a2e76697aa4662e5f666"
     }
   ]
 }

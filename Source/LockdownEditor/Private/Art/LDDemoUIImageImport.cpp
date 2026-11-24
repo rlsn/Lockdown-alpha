@@ -220,8 +220,9 @@ namespace
         FString Package;
     };
 
-    // SourceData/UI/ui_fonts.json lists exactly the typefaces LDUIFonts composes, each one .otf of SourceData/UI/Fonts with
-    // its SHA-256, plus the licence file the fonts ship with; the folder holds nothing else.
+    // SourceData/UI/ui_fonts.json lists exactly the typefaces LDUIFonts composes, each one .otf or .ttf of SourceData/UI/Fonts
+    // with its SHA-256, plus the licence file the fonts ship with; the folder holds nothing else. A face of another family
+    // names its own family, provenance, licence and licence file (with its SHA-256) instead of the manifest's.
     bool UILoadFonts(TArray<FUIFontSpec>& Out, FString& Error)
     {
         Out.Reset();
@@ -256,9 +257,31 @@ namespace
             FString File, Hash;
             if (!Value->TryGetObject(Object) || !(*Object)->TryGetStringField(TEXT("typeface"), Spec.Typeface) || Typefaces.Contains(Spec.Typeface)
                 || !(*Object)->TryGetStringField(TEXT("file"), File) || File.Contains(TEXT("/")) || File.Contains(TEXT("\\")) || File.Contains(TEXT(".."))
-                || !File.EndsWith(TEXT(".otf"), ESearchCase::CaseSensitive) || Listed.Contains(File) || !(*Object)->TryGetStringField(TEXT("sha256"), Hash))
+                || !(File.EndsWith(TEXT(".otf"), ESearchCase::CaseSensitive) || File.EndsWith(TEXT(".ttf"), ESearchCase::CaseSensitive))
+                || Listed.Contains(File) || !(*Object)->TryGetStringField(TEXT("sha256"), Hash))
             {
-                return UIFail(Error, TEXT("Every font needs a unique typeface, a unique .otf file name and sha256."));
+                return UIFail(Error, TEXT("Every font needs a unique typeface, a unique .otf or .ttf file name and sha256."));
+            }
+            FString OwnLicenseFile;
+            if ((*Object)->TryGetStringField(TEXT("license_file"), OwnLicenseFile))
+            {
+                FString OwnFamily, OwnProvenance, OwnLicense, OwnLicenseHash;
+                if (!(*Object)->TryGetStringField(TEXT("family"), OwnFamily) || OwnFamily.IsEmpty()
+                    || !(*Object)->TryGetStringField(TEXT("provenance"), OwnProvenance) || OwnProvenance.IsEmpty()
+                    || !(*Object)->TryGetStringField(TEXT("license"), OwnLicense) || OwnLicense.IsEmpty()
+                    || OwnLicenseFile.IsEmpty() || OwnLicenseFile.Contains(TEXT("/")) || OwnLicenseFile.Contains(TEXT("\\"))
+                    || OwnLicenseFile.Contains(TEXT("..")) || !(*Object)->TryGetStringField(TEXT("license_sha256"), OwnLicenseHash))
+                {
+                    return UIFail(Error, TEXT("A font with its own license_file also names its family, provenance, license and license_sha256."));
+                }
+                if (!Listed.Contains(OwnLicenseFile))
+                {
+                    if (!LDDemoEntry::VerifyFileHash(UIAbsolute(FString(FontFolder) / OwnLicenseFile), OwnLicenseHash, HashError))
+                    {
+                        return UIFail(Error, FString::Printf(TEXT("SourceData/UI/Fonts/%s is missing or differs from its manifest SHA-256."), *OwnLicenseFile));
+                    }
+                    Listed.Add(OwnLicenseFile);
+                }
             }
             Spec.Package = LDUIFonts::PackageFor(Spec.Typeface);
             if (Spec.Package.IsEmpty()) { return UIFail(Error, TEXT("ui_fonts.json lists a typeface the interface font does not use: ") + Spec.Typeface); }
