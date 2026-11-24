@@ -28,7 +28,9 @@ int64 ALDCombatDirector::RawBagDamageP2(const FLDCombatHit& Hit)
     const int64 Raw = FMath::Max<int64>(Hit.BaseP2, 0) + ScaleTerm(Hit.SourceADP2, Hit.ADRatioBp)
         + ScaleTerm(Hit.SourceAPP2, Hit.APRatioBp)
         + ScaleTerm(AdaptiveStatP2, Hit.AdaptiveRatioBp);
-    return ScaleTerm(FMath::Max<int64>(Raw, 0), Scale);
+    // The package multiplier (a cordon or third-wave boost, an auto-recast share) scales the hit's own amount too.
+    const int64 Package = Hit.PackageScaleBp > 0 ? Hit.PackageScaleBp : 10000;
+    return ScaleTerm(ScaleTerm(FMath::Max<int64>(Raw, 0), Scale), Package);
 }
 
 bool ALDCombatDirector::FenceCrosses(const FVector& From, const FVector& To) const

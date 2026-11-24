@@ -5036,4 +5036,47 @@ bool FLDCombatCordonBoostTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatFrenzyThirdWaveTest, "Lockdown.Rules.Combat.Skills.FrenzyThirdWave",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatFrenzyThirdWaveTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    const FLDCombatBodyRef Brawler = F.AddBody(), Target = F.AddBody();
+    F.Place(Brawler, 0, 0);
+    F.Place(Target, 150, 0);
+    if (!InstallCards(*this, F, Brawler, 6, {})) { return false; }
+    FString Error;
+    FLDCombatActiveTerms Terms;
+    if (!ActiveTerms(*this, F, TEXT("active_flurry_rush"), Terms)) { return false; }
+    const FLDDemoEffectDefinition* Frenzy = FindEffect(Terms.Values, ELDDemoEffectOp::FrenzyWaves);
+    if (!TestNotNull(TEXT("active_flurry_rush has its frenzy waves"), Frenzy)) { return false; }
+    // The frenzy as its release leaves it, with branch 3B1 (content: frenzy_waves.third_multiplier 1.8) on the third wave.
+    constexpr int64 ThirdBp = 18000;
+    F.Body(Brawler).ActiveFrenzy = *Frenzy;
+    F.Body(Brawler).ActiveFrenzy->MultiplierBp = ThirdBp;
+    F.Body(Brawler).FrenzySource = SourceOf(ELDCombatSourceKind::Learned, TEXT("active_flurry_rush"));
+    F.Body(Brawler).FrenzyUntilMs = 5000;
+    FLDCombatAction Third = BasicAt(Target, 7);
+    Third.ComboStep = 3;
+    F.Now(1100);
+    if (!TestTrue(TEXT("The third basic lands and throws its wave: ") + Error,
+        FAccess::LandBasic(*F.Driver, F.Actor(Brawler), F.Body(Brawler), Third, Error))) { return false; }
+    const FLDCombatProjectile* Wave = FAccess::Projectiles(*F.Driver).FindByPredicate([](const FLDCombatProjectile& P)
+        { return P.Payload.Source.Kind == ELDCombatSourceKind::Learned; });
+    if (!TestNotNull(TEXT("The frenzy wave flies"), Wave)) { return false; }
+    TestEqual(TEXT("The third wave's boost rides the package multiplier"), Wave->Payload.PackageScaleBp,
+        int64(10000) / 10000 * ThirdBp + int64(10000) % 10000 * ThirdBp / 10000);
+    TestTrue(TEXT("The wave's delivery share stays within its domain"), Wave->Payload.DeliveryScaleBp >= 0 && Wave->Payload.DeliveryScaleBp <= 10000);
+    for (int64 At = 1150; At <= 1600; At += 50)
+    {
+        F.Now(At);
+        if (!TestTrue(TEXT("The wave advances: ") + Error, FAccess::AdvanceProjectiles(*F.Driver, Error))) { return false; }
+    }
+    TestTrue(TEXT("The boosted wave's hits evaluate without an authority fault"), Drain(*this, F));
+    return true;
+}
+
 #endif
