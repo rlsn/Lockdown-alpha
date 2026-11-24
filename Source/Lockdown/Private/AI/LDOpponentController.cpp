@@ -237,11 +237,13 @@ void ALDOpponentController::ReportTally()
     bTallyReported = true;
     UE_LOG(LogLDAI, Display, TEXT("LD_AI_SUMMARY contender=%s gen=%u orders=%u orders_refused=%u stops=%u actions=%u ")
         TEXT("actions_refused=%u dashes=%u/%u dorm_entries=%u airdrops=%u leader_hunts=%u boss_avoids=%u builds=%u builds_refused=%u paused_holds=%u/%u/%u ")
-        TEXT("challenges=%u/%u/%u holder_attacks=%u owner_attacks=%u orders_rejected=%u objectives=%u pk=%u/%u/%u/%u"), *Binding.GetContender().ToString(),
+        TEXT("challenges=%u/%u/%u holder_attacks=%u owner_attacks=%u orders_rejected=%u objectives=%u pk=%u/%u/%u/%u ")
+        TEXT("goal=%s goal_skills=%d/%d goal_cards=%d/%d"), *Binding.GetContender().ToString(),
         Binding.GetMatch().Generation, Tally.Orders, Tally.OrdersRefused, Tally.Stops, Tally.Actions, Tally.ActionsRefused,
         Tally.Dashes, Tally.DashesLanded, Tally.DormEntries, Tally.AirdropClaims, Tally.LeaderHunts, Tally.BossAvoids, Tally.Builds, Tally.BuildsRefused, Tally.PausedHolds,
         Tally.PausedHoldsKept, Tally.PausedHoldsReleased, Tally.Challenges, Tally.ChallengesKept, Tally.ChallengesReleased, Tally.HolderAttacks, Tally.OwnerAttacks,
-        Tally.OrdersRejected, Tally.Objectives, Tally.PKSignUps, Tally.PKBets, Tally.PKThrows, Tally.PKRefused);
+        Tally.OrdersRejected, Tally.Objectives, Tally.PKSignUps, Tally.PKBets, Tally.PKThrows, Tally.PKRefused,
+        *Policy.BreakoutGoal.ToString(), GoalSkills, GoalSkillsTotal, GoalCards, GoalCardsTotal);
 }
 
 void ALDOpponentController::NoteContest(const FLDOpponentDecisionFrame& Frame, const FLDOpponentDecision& Decision)
@@ -348,6 +350,13 @@ void ALDOpponentController::Tick(float DeltaSeconds)
 #endif
     }();
     NoteContest(Frame, Decision);
+    if (Policy.bBreakoutDrawn && !bGoalReported)
+    {
+        bGoalReported = true;
+        UE_LOG(LogLDAI, Display, TEXT("LD_AI_BREAKOUT_GOAL contender=%s gen=%u goal=%s"), *Binding.GetContender().ToString(),
+            Binding.GetMatch().Generation, *Policy.BreakoutGoal.ToString());
+    }
+    LDOpponentPolicy::BreakoutProgress(Frame.Self, Policy.BreakoutGoal, GoalSkills, GoalSkillsTotal, GoalCards, GoalCardsTotal);
     DispatchBody(*Mode, Reads, Frame, Decision.Body, NowMs, Problem);
     DispatchBuild(*Mode, Reads, Frame, Decision.Build, NowMs, Problem);
     DispatchPK(*Mode, Frame, Decision.PK, NowMs, Problem);

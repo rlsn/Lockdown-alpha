@@ -1440,12 +1440,19 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
     const uint64 Print = LDOpponentPolicy::Fingerprint(ELDOpponentFailure::Build, Self);
     const LDProgression::FBuildContext Context = BuildContext(Frame);
     FString Error;
+    // Spec §13: the match's breakout goal is drawn before the first build step, so the opening active already follows it.
+    if (!State.bBreakoutDrawn)
+    {
+        State.BreakoutGoal = LDOpponentPolicy::DrawBreakoutGoal(Self.ContenderId, Frame.Generation, Frame.Public.Roster,
+            Catalog.Get().Parameters.AI);
+        State.bBreakoutDrawn = true;
+    }
     if (bChooseOffer && Self.Offer.IsSet()
         && LDProgression::CommandGate(ELDBuildCommandKind::ActiveChoice, Context) == ELDGrowthReason::None)
     {
         FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::ChooseActive);
         Key.Target = Self.Offer->OfferId;
-        if (State.Failures.CanAttempt(Key, Print, Now) && LDOpponentPolicy::SelectActive(Self, Catalog, Out.Option, Error))
+        if (State.Failures.CanAttempt(Key, Print, Now) && LDOpponentPolicy::SelectActive(Self, Catalog, Out.Option, Error, State.BreakoutGoal))
         {
             Out.Kind = ELDOpponentBuildKind::ChooseActive;
             Out.OfferId = Self.Offer->OfferId;
@@ -1472,11 +1479,6 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
         }
     }
     // Spec §13: the card offer is always resolved by a pick (installed on its default place when a slot is free).
-    if (!State.bBreakoutDrawn)
-    {
-        State.BreakoutGoal = LDOpponentPolicy::DrawBreakoutGoal(Self.ContenderId, Frame.Generation, Catalog.Get().Parameters.AI);
-        State.bBreakoutDrawn = true;
-    }
     // Spec §13: an offer sharing nothing with the build goes for vouchers now and then.
     if (Self.CardOffer.IsSet() && LDProgression::CommandGate(ELDBuildCommandKind::SkipCards, Context) == ELDGrowthReason::None
         && LDOpponentPolicy::WantsCardSkip(Self, Catalog))
@@ -1523,7 +1525,7 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
     {
         FString Blueprint;
         uint8 Slot = 0;
-        if (LDOpponentPolicy::SelectBlueprint(Self, Catalog, Blueprint, Slot, Error))
+        if (LDOpponentPolicy::SelectBlueprint(Self, Catalog, Blueprint, Slot, Error, State.BreakoutGoal))
         {
             FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::LearnBlueprint);
             Key.POI = FName(*Blueprint);
@@ -1545,7 +1547,7 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
     {
         FString Blueprint;
         uint8 Slot = 0;
-        if (LDOpponentPolicy::SelectReplacement(Self, Catalog, Blueprint, Slot, Error))
+        if (LDOpponentPolicy::SelectReplacement(Self, Catalog, Blueprint, Slot, Error, State.BreakoutGoal))
         {
             FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::ReplaceActive);
             Key.POI = FName(*Blueprint);
@@ -1586,7 +1588,7 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
     if (LDProgression::CommandGate(ELDBuildCommandKind::Respec, Context) == ELDGrowthReason::None)
     {
         const FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::Respec);
-        if (State.Failures.CanAttempt(Key, Print, Now) && LDOpponentPolicy::WantsRespec(Self, Catalog, Error))
+        if (State.Failures.CanAttempt(Key, Print, Now) && LDOpponentPolicy::WantsRespec(Self, Catalog, Error, State.BreakoutGoal))
         {
             Out = FLDOpponentBuildIntent();
             Out.Kind = ELDOpponentBuildKind::Respec;
@@ -1620,7 +1622,7 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
         const FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::RankUpSkill);
         uint8 Slot = 0;
         ELDSkillBranch Branch = ELDSkillBranch::None;
-        if (State.Failures.CanAttempt(Key, Print, Now) && LDOpponentPolicy::PickRankUp(Self, Catalog, Slot, Branch))
+        if (State.Failures.CanAttempt(Key, Print, Now) && LDOpponentPolicy::PickRankUp(Self, Catalog, Slot, Branch, State.BreakoutGoal))
         {
             Out = FLDOpponentBuildIntent();
             Out.Kind = ELDOpponentBuildKind::RankUpSkill;
@@ -1635,7 +1637,7 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
     {
         const FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::AllocatePoints);
         TArray<uint8> Counts;
-        if (State.Failures.CanAttempt(Key, Print, Now) && LDOpponentPolicy::AllocatePoints(Self, Catalog, Counts, Error))
+        if (State.Failures.CanAttempt(Key, Print, Now) && LDOpponentPolicy::AllocatePoints(Self, Catalog, Counts, Error, State.BreakoutGoal))
         {
             Out = FLDOpponentBuildIntent();
             Out.Kind = ELDOpponentBuildKind::AllocatePoints;
@@ -1685,21 +1687,57 @@ bool CoverRoles(const FLDDemoContentSnapshot& Catalog, const FString& Id, FRoleC
 // mode, then its catalog order. Catalog order is unique per active, so Before is a strict total order.
 struct FActiveRank
 {
+    // A skill of the match's breakout goal comes before every other consideration.
+    bool bGoal = false;
     bool bGain = false;
     int32 Mode = 0;
     int32 Order = 0;
     bool Before(const FActiveRank& Other) const
     {
-        return bGain != Other.bGain ? bGain : Mode != Other.Mode ? Mode < Other.Mode : Order < Other.Order;
+        return bGoal != Other.bGoal ? bGoal : bGain != Other.bGain ? bGain : Mode != Other.Mode ? Mode < Other.Mode : Order < Other.Order;
     }
 };
 
+// The goal preset's entry for an active; null when the goal does not name it.
+const FLDBreakoutSkill* GoalSkill(const FLDBreakoutPreset* Preset, const FString& Id)
+{
+    return Preset ? Preset->Skills.FindByPredicate([&Id](const FLDBreakoutSkill& Skill) { return Id == Skill.Ability; }) : nullptr;
+}
+
+const FLDBreakoutPreset* GoalPreset(FName Goal) { return Goal.IsNone() ? nullptr : LDBreakoutPresets::Find(Goal); }
+
+// A goal that names a stat (攒个大的: strength, 刺猬肉山: thick skin) makes it relevant and the primary keystone, the
+// build's own primary becoming the secondary. Indices are the stats' design order, as RelevantStats returns them.
+void ApplyGoalStat(const FLDBreakoutPreset* Preset, const FLDDemoContentSnapshot& Catalog, TArray<bool>& Relevant,
+    int32& Primary, int32& Secondary)
+{
+    if (!Preset || !Preset->Stat || Preset->StatPoints <= 0) { return; }
+    const TArray<const FLDDemoStatDefinition*> Order = Catalog.Get().StatsInDesignOrder();
+    const int32 Index = Order.IndexOfByPredicate([Preset](const FLDDemoStatDefinition* Stat) { return Stat && Stat->Id == Preset->Stat; });
+    if (!Relevant.IsValidIndex(Index)) { return; }
+    Relevant[Index] = true;
+    if (Primary != Index) { Secondary = Primary; Primary = Index; }
+}
+
+// The next branch on the way to Target from Current (None, A then A1/A2, B then B1/B2); None when Current is not on the way.
+ELDSkillBranch NextBranchToward(ELDSkillBranch Current, ELDSkillBranch Target)
+{
+    using EB = ELDSkillBranch;
+    const bool bA = Target == EB::A || Target == EB::A1 || Target == EB::A2;
+    const bool bB = Target == EB::B || Target == EB::B1 || Target == EB::B2;
+    if (Current == EB::None) { return bA ? EB::A : bB ? EB::B : EB::None; }
+    if ((Current == EB::A && (Target == EB::A1 || Target == EB::A2)) || (Current == EB::B && (Target == EB::B1 || Target == EB::B2)))
+    { return Target; }
+    return EB::None;
+}
+
 bool RankActive(const FLDDemoContentSnapshot& Catalog, const FString& Id, const FRoleCover& Others, FActiveRank& Out,
-    FString& Error)
+    FString& Error, const FLDBreakoutPreset* Preset = nullptr)
 {
     const FLDDemoAbilityDefinition* Ability = nullptr;
     if (!Catalog.FindAbility(Id, Ability, Error) || !Ability) { return false; }
     const FLDOpponentUsage Usage = LDOpponentPolicy::AbilityUsage(*Ability);
+    Out.bGoal = GoalSkill(Preset, Id) != nullptr;
     Out.bGain = (Usage.bEngage && !Others.bEngage) || (Usage.bSelfProtect && !Others.bProtect);
     Out.Mode = TargetModePreference(Ability->Target.Mode);
     Out.Order = CatalogIndex(Catalog.Get().Abilities, Id);
@@ -1708,7 +1746,7 @@ bool RankActive(const FLDDemoContentSnapshot& Catalog, const FString& Id, const 
 
 // Picks the preferred of Candidates (active ids) against the roles the learned actives and blueprints already cover.
 bool PreferActive(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, const TArray<FString>& Candidates,
-    FString& Out, FString& Error)
+    FString& Out, FString& Error, const FLDBreakoutPreset* Preset = nullptr)
 {
     FRoleCover Cover;
     for (const FLDOpponentActive& Active : Self.Actives) { if (!CoverRoles(Catalog, Active.DefinitionId, Cover, Error)) { return false; } }
@@ -1718,7 +1756,7 @@ bool PreferActive(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Cat
     for (const FString& Id : Candidates)
     {
         FActiveRank Rank;
-        if (!RankActive(Catalog, Id, Cover, Rank, Error)) { return false; }
+        if (!RankActive(Catalog, Id, Cover, Rank, Error, Preset)) { return false; }
         if (!bFound || Rank.Before(Best))
         {
             bFound = true;
@@ -2146,7 +2184,7 @@ FLDOpponentUsage AbilityUsage(const FLDDemoAbilityDefinition& Ability)
     return Usage;
 }
 
-bool SelectActive(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& Out, FString& Error)
+bool SelectActive(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& Out, FString& Error, FName Goal)
 {
     using namespace Detail;
     Out.Reset();
@@ -2155,11 +2193,11 @@ bool SelectActive(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Cat
         Error = TEXT("No current active offer.");
         return false;
     }
-    return PreferActive(Self, Catalog, Self.Offer->Options, Out, Error);
+    return PreferActive(Self, Catalog, Self.Offer->Options, Out, Error, GoalPreset(Goal));
 }
 
 bool SelectBlueprint(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& OutBlueprint, uint8& OutSlot,
-    FString& Error)
+    FString& Error, FName Goal)
 {
     using namespace Detail;
     OutBlueprint.Reset();
@@ -2177,13 +2215,14 @@ bool SelectBlueprint(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& 
         Error = TEXT("No pending blueprint.");
         return false;
     }
-    return PreferActive(Self, Catalog, Self.Blueprints, OutBlueprint, Error);
+    return PreferActive(Self, Catalog, Self.Blueprints, OutBlueprint, Error, GoalPreset(Goal));
 }
 
 bool SelectReplacement(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& OutBlueprint, uint8& OutSlot,
-    FString& Error)
+    FString& Error, FName Goal)
 {
     using namespace Detail;
+    const FLDBreakoutPreset* Preset = GoalPreset(Goal);
     OutBlueprint.Reset();
     OutSlot = 0;
     const FLDOpponentActive* BySlot[3] = {nullptr, nullptr, nullptr};
@@ -2210,7 +2249,7 @@ bool SelectReplacement(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot
             if (Other != Slot && !CoverRoles(Catalog, BySlot[Other]->DefinitionId, Others, Error)) { return false; }
         }
         FActiveRank Rank;
-        if (!RankActive(Catalog, BySlot[Slot]->DefinitionId, Others, Rank, Error)) { return false; }
+        if (!RankActive(Catalog, BySlot[Slot]->DefinitionId, Others, Rank, Error, Preset)) { return false; }
         if (Lowest == INDEX_NONE || LowestRank.Before(Rank))
         {
             Lowest = Slot;
@@ -2223,7 +2262,7 @@ bool SelectReplacement(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot
     for (const FString& Blueprint : Self.Blueprints)
     {
         FActiveRank Rank;
-        if (!RankActive(Catalog, Blueprint, Kept, Rank, Error)) { return false; }
+        if (!RankActive(Catalog, Blueprint, Kept, Rank, Error, Preset)) { return false; }
         if (!bFound || Rank.Before(BestRank))
         {
             bFound = true;
@@ -2241,7 +2280,7 @@ bool SelectReplacement(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot
     return true;
 }
 
-bool AllocatePoints(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, TArray<uint8>& Out, FString& Error)
+bool AllocatePoints(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, TArray<uint8>& Out, FString& Error, FName Goal)
 {
     using namespace Detail;
     Out.Reset();
@@ -2255,6 +2294,7 @@ bool AllocatePoints(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& C
     int32 PrimaryKeystone = INDEX_NONE;
     int32 SecondaryKeystone = INDEX_NONE;
     if (!RelevantStats(Self, Catalog, Points, Relevant, PrimaryKeystone, SecondaryKeystone, Error)) { return false; }
+    ApplyGoalStat(GoalPreset(Goal), Catalog, Relevant, PrimaryKeystone, SecondaryKeystone);
     Out.SetNumZeroed(Catalog.Get().Stats.Num());
     int64 Left = Self.UnspentPoints;
     const int64 KeystoneThreshold = Catalog.Get().Parameters.KeystoneThresholdPoints;
@@ -2308,7 +2348,7 @@ bool AllocatePoints(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& C
     return true;
 }
 
-bool WantsRespec(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& Error)
+bool WantsRespec(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& Error, FName Goal)
 {
     using namespace Detail;
     TArray<int64> Points;
@@ -2316,6 +2356,7 @@ bool WantsRespec(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Cata
     int32 PrimaryKeystone = INDEX_NONE;
     int32 SecondaryKeystone = INDEX_NONE;
     if (!RelevantStats(Self, Catalog, Points, Relevant, PrimaryKeystone, SecondaryKeystone, Error)) { return false; }
+    ApplyGoalStat(GoalPreset(Goal), Catalog, Relevant, PrimaryKeystone, SecondaryKeystone);
     for (int32 Index = 0; Index < Points.Num(); ++Index)
     {
         if (Points[Index] > 0 && !Relevant[Index]) { return true; }
@@ -2325,15 +2366,49 @@ bool WantsRespec(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Cata
 }
 
 
-FName DrawBreakoutGoal(const FGuid& Contender, uint32 Generation, const FLDDemoAIParameters& AI)
+FName DrawBreakoutGoal(const FGuid& Contender, uint32 Generation, const TArray<FGuid>& Roster, const FLDDemoAIParameters& AI)
 {
     TArray<const FLDBreakoutPreset*> Presets;
     for (const FLDBreakoutPreset& Preset : LDBreakoutPresets::All()) { if (Preset.bAIGoal) { Presets.Add(&Preset); } }
     if (Presets.IsEmpty() || AI.BreakoutChanceBp <= 0) { return NAME_None; }
-    // One deterministic draw per contender and match: the chance roll and the preset come from the same hash.
+    // One deterministic draw per contender and match: the chance roll comes from its own hash.
     const uint32 Hash = HashCombine(GetTypeHash(Contender), GetTypeHash(Generation));
     if (int64(Hash % 10000) >= AI.BreakoutChanceBp) { return NAME_None; }
-    return FName(Presets[(Hash / 10000) % uint32(Presets.Num())]->Id);
+    // The match rotates the presets and each roster seat takes the next one, so a room's AIs take different goals while
+    // there are presets for them; a contender off the roster draws from its own hash.
+    const int32 Seat = Roster.IndexOfByKey(Contender);
+    const uint32 Offset = HashCombine(GetTypeHash(Generation), 0x42524b4fu);
+    const uint32 Pick = Seat == INDEX_NONE ? Hash / 10000 : Offset + uint32(Seat);
+    return FName(Presets[Pick % uint32(Presets.Num())]->Id);
+}
+
+void BreakoutProgress(const FLDOpponentSelf& Self, FName Goal, int32& OutSkills, int32& OutSkillsTotal, int32& OutCards,
+    int32& OutCardsTotal)
+{
+    OutSkills = OutSkillsTotal = OutCards = OutCardsTotal = 0;
+    const FLDBreakoutPreset* Preset = Detail::GoalPreset(Goal);
+    if (!Preset) { return; }
+    OutSkillsTotal = Preset->Skills.Num();
+    for (const FLDBreakoutSkill& Wanted : Preset->Skills)
+    {
+        OutSkills += Self.Actives.ContainsByPredicate([&Wanted](const FLDOpponentActive& Active)
+            { return Active.DefinitionId == Wanted.Ability && Active.Branch == Wanted.Branch; }) ? 1 : 0;
+    }
+    OutCardsTotal = Preset->Cards.Num();
+    TArray<bool> Used;
+    Used.SetNumZeroed(Self.Cards.Num());
+    for (const FLDBreakoutCard& Wanted : Preset->Cards)
+    {
+        for (int32 Index = 0; Index < Self.Cards.Num(); ++Index)
+        {
+            if (!Used[Index] && Self.Cards[Index].IsInstalled() && Self.Cards[Index].DefinitionId == Wanted.Card)
+            {
+                Used[Index] = true;
+                ++OutCards;
+                break;
+            }
+        }
+    }
 }
 
 namespace
@@ -2640,8 +2715,25 @@ const FLDOpponentUnit* TrainingDummy(const FLDOpponentDecisionFrame& Frame)
 }
 
 
-bool PickRankUp(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, uint8& OutSlot, ELDSkillBranch& OutBranch)
+bool PickRankUp(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, uint8& OutSlot, ELDSkillBranch& OutBranch,
+    FName Goal)
 {
+    // A learned goal skill below its goal branch comes first, along the goal's path (preset order).
+    if (const FLDBreakoutPreset* Preset = Detail::GoalPreset(Goal))
+    {
+        for (const FLDBreakoutSkill& Wanted : Preset->Skills)
+        {
+            const FLDOpponentActive* Active = Self.Actives.FindByPredicate([&Wanted](const FLDOpponentActive& Each)
+                { return Each.DefinitionId == Wanted.Ability; });
+            const ELDSkillBranch Next = Active ? Detail::NextBranchToward(Active->Branch, Wanted.Branch) : ELDSkillBranch::None;
+            if (Next != ELDSkillBranch::None)
+            {
+                OutSlot = Active->Slot;
+                OutBranch = Next;
+                return true;
+            }
+        }
+    }
     // The damage one release of each learned skill deals now (its base plus the own AD/AP shares of every damage package).
     int64 Best = -1;
     bool bFound = false;

@@ -451,7 +451,7 @@ $$
 | `CHAIN.MaxDepth`、`CHAIN.MaxEffectsPerStep` | 16、256 | 连锁最深步数；一个权威步最多产生的后续效果，其余顺延（`LD_CHAIN_GUARD`） |
 | `CHAIN.EndSec`、`CHAIN.MinKeySteps` | 3 s、3 | 连锁多久没有新的一步就结束；结束时至少有几种不同步骤才算一把连锁键（App Spec §4.4） |
 | `AI.CardSkipChance` | 30% | 一组牌里没有一张和构筑共享词汇时 AI 跳过换属性点的概率 |
-| `AI.CardVocabScore`、`AI.BreakoutChance`、`AI.BreakoutCardScore` | 2、25%、5 | AI 选牌时每个共享词汇加分；开局抽质变目标的概率；目标样板里的牌额外加分（[对手 AI](../systems/OPPONENT_AI.md)） |
+| `AI.CardVocabScore`、`AI.BreakoutChance`、`AI.BreakoutCardScore` | 2、100%、5 | AI 选牌时每个共享词汇加分；开局抽质变目标的概率（每个 AI 都有目标，同房按座位分到不同样板）；目标样板里的牌额外加分（[对手 AI](../systems/OPPONENT_AI.md)） |
 
 - **稀有度与抽取权重**：每张构筑牌按 `drop_weight` 分为普通 `100`、稀有 `22`、传说 `6`；悬赏、空投等高档来源设最低稀有度保底；叠加不设上限。
 

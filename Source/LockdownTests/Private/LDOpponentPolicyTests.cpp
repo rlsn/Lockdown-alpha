@@ -6,6 +6,7 @@
 #include "AI/LDOpponentRequests.h"
 #include "Combat/LDAttributeProjection.h"
 #include "Combat/LDCombatTypes.h"
+#include "Development/LDBreakoutPresets.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDGrowthProtocol.h"
 #include "Development/LDProgressionRules.h"
@@ -3105,6 +3106,79 @@ bool FLDDemoOpponentGroundPathCostTest::RunTest(const FString& Parameters)
     Aside.View.CentreCm = FVector(500, 600, 0);
     LDOpponentPolicy::GroundDetours(Straight[0], Straight[1], {Aside}, Detours);
     TestTrue(TEXT("No detour around a ground state off the way"), Detours.IsEmpty());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentBreakoutGoalTest, "Lockdown.Rules.DemoOpponentPolicy.BreakoutGoal",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentBreakoutGoalTest::RunTest(const FString& Parameters)
+{
+    using namespace LDOpponentPolicyTests;
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(*this, Catalog)) { return false; }
+    const auto& C = *Catalog;
+    FLDDemoAIParameters Always = C.Get().Parameters.AI;
+    Always.BreakoutChanceBp = 10000;
+
+    // A full room of eight seats takes eight different goals, and another match deals them out differently.
+    TArray<FGuid> Roster;
+    for (uint32 Seat = 0; Seat < 8; ++Seat) { Roster.Add(FGuid(0xA1, Seat, 0, 1)); }
+    TSet<FName> Goals;
+    for (const FGuid& Seat : Roster)
+    {
+        const FName Goal = LDOpponentPolicy::DrawBreakoutGoal(Seat, 3, Roster, Always);
+        TestTrue(TEXT("Every AI draws a goal at the full chance"), !Goal.IsNone() && LDBreakoutPresets::Find(Goal) != nullptr);
+        TestTrue(TEXT("No AI takes the DEV-only minefield"), Goal != FName(TEXT("breakout_minefield")));
+        Goals.Add(Goal);
+    }
+    TestEqual(TEXT("The room's seats take different goals"), Goals.Num(), Roster.Num());
+    TestTrue(TEXT("The draw is fixed for a match"),
+        LDOpponentPolicy::DrawBreakoutGoal(Roster[0], 3, Roster, Always) == LDOpponentPolicy::DrawBreakoutGoal(Roster[0], 3, Roster, Always));
+    bool bRotates = false;
+    for (uint32 Generation = 4; Generation < 12 && !bRotates; ++Generation)
+    { bRotates = LDOpponentPolicy::DrawBreakoutGoal(Roster[0], Generation, Roster, Always) != LDOpponentPolicy::DrawBreakoutGoal(Roster[0], 3, Roster, Always); }
+    TestTrue(TEXT("Another match can give a seat another goal"), bRotates);
+    TestTrue(TEXT("A zero chance draws no goal"), LDOpponentPolicy::DrawBreakoutGoal(Roster[0], 3, Roster, FLDDemoAIParameters()).IsNone());
+
+    // 刺猬肉山: active_not_mad 3A1, active_stare_down 3A1, active_brace; thick skin 18.
+    const FName Hedgehog(TEXT("breakout_hedgehog"));
+    FLDOpponentSelf Self;
+    Self.Offer = ActiveOffer({TEXT("active_snark_bolt"), TEXT("active_stare_down"), TEXT("active_elbow")});
+    FString Out, Error;
+    TestTrue(TEXT("A goal skill in the offer is taken before every other preference"),
+        LDOpponentPolicy::SelectActive(Self, C, Out, Error, Hedgehog) && Out == TEXT("active_stare_down"));
+
+    FLDOpponentSelf Ranker;
+    Ranker.Actives = {Active(TEXT("active_snark_bolt"), 0), Active(TEXT("active_not_mad"), 1)};
+    uint8 Slot = 0xFF;
+    ELDSkillBranch Branch = ELDSkillBranch::None;
+    TestTrue(TEXT("The goal skill takes the skill point, on its goal path"),
+        LDOpponentPolicy::PickRankUp(Ranker, C, Slot, Branch, Hedgehog) && Slot == 1 && Branch == ELDSkillBranch::A);
+    Ranker.Actives[1].Branch = ELDSkillBranch::A;
+    TestTrue(TEXT("Its next rank follows the goal branch"),
+        LDOpponentPolicy::PickRankUp(Ranker, C, Slot, Branch, Hedgehog) && Slot == 1 && Branch == ELDSkillBranch::A1);
+    Ranker.Actives[1].Branch = ELDSkillBranch::A1;
+    TestTrue(TEXT("A goal skill at its goal branch leaves the point to the ordinary pick"),
+        LDOpponentPolicy::PickRankUp(Ranker, C, Slot, Branch, Hedgehog) && Slot == 0);
+
+    const FString Skin(TEXT("stat_thick_skin")), Strength(TEXT("stat_strength"));
+    FLDOpponentSelf Spender;
+    Spender.Actives = {Active(TEXT("active_elbow"), 0)};
+    Spender.StatPoints = StatRows(C, {});
+    Spender.UnspentPoints = 3;
+    TArray<uint8> Counts;
+    TestTrue(TEXT("The goal stat is the primary keystone"),
+        LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error, Hedgehog) && ById(C, Counts).FindRef(Skin) == 3);
+    Spender.StatPoints = StatRows(C, {{Skin, 6}});
+    TestFalse(TEXT("Points in the goal stat are never refunded"), LDOpponentPolicy::WantsRespec(Spender, C, Error, Hedgehog));
+
+    int32 Skills = 0, SkillsTotal = 0, Cards = 0, CardsTotal = 0;
+    FLDOpponentSelf Built;
+    Built.Actives = {Active(TEXT("active_not_mad"), 0), Active(TEXT("active_brace"), 2)};
+    Built.Actives[0].Branch = ELDSkillBranch::A1;
+    LDOpponentPolicy::BreakoutProgress(Built, Hedgehog, Skills, SkillsTotal, Cards, CardsTotal);
+    TestTrue(TEXT("Progress counts goal skills at their goal branch"), Skills == 2 && SkillsTotal == 3 && Cards == 0 && CardsTotal == 4);
     return true;
 }
 

@@ -547,28 +547,33 @@ namespace LDOpponentPolicy
     // actives and blueprints lack comes first; then the fixed target-mode order Unit > GroundPoint > DirectionCone =
     // Issue #287 spec §13: the learned skill below rank 3 that deals the most damage now (lower slot on ties) and its next
     // branch (A, then A1 or B1). False without such a skill.
+    // With a breakout Goal, a learned goal skill below its goal branch comes first and takes the next branch toward it.
     LOCKDOWN_API bool PickRankUp(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, uint8& OutSlot,
-        ELDSkillBranch& OutBranch);
+        ELDSkillBranch& OutBranch, FName Goal = NAME_None);
     // DirectionLine > DirectionProjectile > Self > DirectionDash; then catalog order. Picks among the current offer's options.
-    LOCKDOWN_API bool SelectActive(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& Out, FString& Error);
+    // With a breakout Goal, a goal skill comes before every other preference (here, for blueprints and for replacements).
+    LOCKDOWN_API bool SelectActive(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& Out, FString& Error,
+        FName Goal = NAME_None);
     // The pending blueprint to learn first by the same preference and the lowest empty Q/W/E slot; false when either is missing.
     LOCKDOWN_API bool SelectBlueprint(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& OutBlueprint,
-        uint8& OutSlot, FString& Error);
+        uint8& OutSlot, FString& Error, FName Goal = NAME_None);
     // #198 rest replacement (rule-based, no tunable numbers): with Q, W and E all learned, the learned active the same
     // preference ranks lowest against the roles of the other two, and the pending blueprint it ranks highest against those
     // two; that blueprint and the low active's slot only when the blueprint ranks strictly higher, false otherwise. A
     // replacement forgets the old active (it never becomes a blueprint again), so each one spends a blueprint and they end.
     LOCKDOWN_API bool SelectReplacement(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& OutBlueprint,
-        uint8& OutSlot, FString& Error);
+        uint8& OutSlot, FString& Error, FName Goal = NAME_None);
     // Every unspent point (at most 255 per stat in one command), each to the stat with the fewest points among the relevant
     // set: physique and thick skin always; strength when a learned active or the basic attack scales with AD; brains when a
     // learned active scales with AP. Ties go to the stats' design order, which also orders the counts; false without unspent points.
+    // A breakout Goal naming a stat makes it relevant and the primary keystone.
     LOCKDOWN_API bool AllocatePoints(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, TArray<uint8>& Out,
-        FString& Error);
+        FString& Error, FName Goal = NAME_None);
     // #198 rest respec: some allocated point sits in a stat outside AllocatePoints' relevant set (after a replacement took the
     // last AP or AD active away, say). After the respec AllocatePoints spends only into that set, so it does not repeat
     // until the learned actives change. False with Error when the stat rows are not the catalog's.
-    LOCKDOWN_API bool WantsRespec(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& Error);
+    LOCKDOWN_API bool WantsRespec(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& Error,
+        FName Goal = NAME_None);
     // Spec §13 rest shop: with at least the skill point's price in vouchers and points left to buy this match, the skill point
     // (OutSlot FLDBuildCommand::ShopSkillPointSlot); otherwise the affordable, unsold shelf card scoring highest like a card
     // pick (SelectCard's score). The AI never buys skills and never sells. False when nothing qualifies.
@@ -577,8 +582,13 @@ namespace LDOpponentPolicy
     // AI.CardSkipChance (a deterministic draw of the offer).
     LOCKDOWN_API bool WantsCardSkip(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog);
     // Spec §13 breakout goal: with AI.BreakoutChance an AI takes one breakout preset (LDBreakoutPresets) as its goal for the
-    // match, drawn deterministically from its id and the match generation; None otherwise.
-    LOCKDOWN_API FName DrawBreakoutGoal(const FGuid& Contender, uint32 Generation, const FLDDemoAIParameters& AI);
+    // match; None otherwise. The generation rotates the presets and each Roster seat takes the next, so the room's AIs take
+    // different goals; a contender off the Roster draws from its id and the generation.
+    LOCKDOWN_API FName DrawBreakoutGoal(const FGuid& Contender, uint32 Generation, const TArray<FGuid>& Roster,
+        const FLDDemoAIParameters& AI);
+    // How far the build has come toward Goal: its skills learned at their goal branch, and its cards installed (each copy).
+    LOCKDOWN_API void BreakoutProgress(const FLDOpponentSelf& Self, FName Goal, int32& OutSkills, int32& OutSkillsTotal,
+        int32& OutCards, int32& OutCardsTotal);
     // Spec §13 card pick: each option scores AI.CardVocabScore per vocabulary key it shares with the installed cards and
     // learned skills, AI.BreakoutCardScore more when it belongs to Goal, plus a jitter in [0, 1) drawn from the offer and the
     // card; the highest score wins (WantsCardSkip decides a skip first). False without an offer.

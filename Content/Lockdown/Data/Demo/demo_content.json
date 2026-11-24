@@ -22438,7 +22438,7 @@
     },
     "AI.BreakoutCardScore": 5,
     "AI.BreakoutChance": {
-      "bp": 2500,
+      "bp": 10000,
       "unit": "ratio"
     },
     "AI.CaptureReactionBudgetSec": {

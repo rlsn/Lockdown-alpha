@@ -203,6 +203,9 @@ private:
     bool bClosed = false;
     bool bRetiring = false;
     bool bTallyReported = false;
+    // The breakout goal is logged once it is drawn; its progress, from the last decided frame, closes the match summary.
+    bool bGoalReported = false;
+    int32 GoalSkills = 0, GoalSkillsTotal = 0, GoalCards = 0, GoalCardsTotal = 0;
     bool bWasInDorm = false;
     uint64 LastClaimedAirdrop = 0;
     // #198 D: the PK serial of this adapter's latest throw answer and when it may throw again in that PK.
