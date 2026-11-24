@@ -11,7 +11,8 @@
 | 房间名单、Host、准备状态、AI 名额、连接准入与恢复 | `ALDGameMode` 会话域 | Lobby 公开视图（`ALDGameState::DemoLobby`）、拥有连接回执 |
 | 比赛身份、权威时钟、阶段与时间线、喷漆/守护归约、唯一终局结果 | `ALDGameMode` 对局核心与 `FLDCaptureReducer` | `ALDGameState::PublicMatch`、`MatchResult`、拥有者阶段投影 |
 | 结算记录与终局规则板摘要（含已学技能及分支、已装牌及位置、五维已分配点数、终局改装） | 服务器参赛记录与终局冻结投影 | 结果锁定后的全部客户端与同房间返回后的席位卡（局中绝不发布） |
-| 本人伤害统计（死亡助攻窗承伤明细、局末本人各来源伤害与离谱时刻） | `ALDCombatDirector`（按已提交命中累加，致死瞬间冻结承伤） | 仅本人连接（死亡界面与结算页）；不判胜、不公开他人统计 |
+| 赛后复盘（最终属性、阶段成长、按卡牌定义计的贡献与按类型汇总的战斗事实） | 成长事务与战斗提交记录，由服务器在结果锁定时冻结 | 结果锁定后的全部客户端，局内不发布；不参与判胜 |
+| 本人伤害统计（死亡助攻窗承伤明细、局末本人各来源伤害与离谱时刻） | `ALDCombatDirector`（按已提交命中累加，致死瞬间冻结承伤） | 仅本人连接（死亡界面与结算页）；该来源明细不参与判胜 |
 | 参赛者等级、XP、属性点、技能与分支、待学图纸、构筑牌、休息商店、终局改装 | `ALDDevelopmentDirector` / `ALDGrowthDirector` | 本人 `FLDOwnerState.Growth`；对应 AI 的 `ReadAISelf` |
 | 身体资源（HP/劲/多源护盾栈 P2）、动作、控制、元素反应、地面状态、冷却轨道 | `ALDCombatDirector` | 本人 `CombatView`；经 `ALDVisionDirector` 过滤的公开观察事实 |
 | 身体位置与碰撞积分 | 原生 `ULDCharacterMovementComponent` + `ULDNavigationComponent` | 本人预测/校正平滑；经 `ALDVisionDirector` 授权的呈现代理 |

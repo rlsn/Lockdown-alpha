@@ -6,6 +6,7 @@
 #include "Framework/LDPlayerController.h"
 #include "Character/LDCharacter.h"
 #include "Combat/LDCombatDirector.h"
+#include "Development/LDDevelopmentDirector.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Region/LDMapRegistry.h"
@@ -709,6 +710,8 @@ void ALDGameMode::PublishMatchOutcome()
         const FLDMatchProviderHooks* Progression = LDMatchProviders::Find(ELDMatchProvider::Progression);
         for (FLDResultRow& Row : ResultView.Rows)
         {
+            if(Combat){Combat->ReadResultCombat(Row.ContenderId,Row.Combat);}
+            if(Development){Development->ReadResultGrowth(Row.ContenderId,Row.Growth);}
             FLDResultBuild Build;
             FString BuildError;
             if (!Progression || !Progression->ReadResultBuild

@@ -47,12 +47,9 @@ constexpr float WorkshopTop=116.f;
 constexpr float WorkshopTitleWidth=118.f;
 constexpr float WorkshopGap=20.f;
 constexpr float WorkshopDockGap=16.f;
-constexpr float WorkshopCharacterWidth=352.f;
-// The character column shows every element reaction (6 x 5 / 2 pairs) as chips in rows of three.
+// The character column shows the ten pairs of supported elements as chips in rows of three.
 constexpr int32 WorkshopReactionChips=10;
 constexpr int32 WorkshopReactionColumns=3;
-constexpr float WorkshopRightWidth=456.f;
-constexpr float WorkshopPendingWidth=360.f;
 constexpr float WorkshopCapacityHeight=60.f;
 constexpr float WorkshopColumnGap=10.f;
 // A column's head (the skill art at 28, its name and pills) above the first socket at 206, as in the design.
@@ -62,8 +59,6 @@ constexpr float WorkshopSocketTop=206.f;
 constexpr float WorkshopPillLead=21.f;
 constexpr float WorkshopPillTail=8.f;
 constexpr float WorkshopDockHeight=204.f;
-constexpr float WorkshopFieldShare=.46f;
-constexpr float WorkshopFieldDockWidth=340.f;
 constexpr float WorkshopDockRight=270.f;
 constexpr int32 WorkshopMeterCells=16;
 // Icons never draw under this many pixels; below it the board hides the names beside them.
@@ -237,14 +232,13 @@ TSharedRef<SWidget> ULDWorkshop::RebuildWidget()
             }
             // The column keeps the panel's inner width and scales down (never up) when larger text would push it past the
             // panel's height.
-            auto* ColumnWidth=WidgetTree->ConstructWidget<USizeBox>();ColumnWidth->SetWidthOverride(WorkshopCharacterWidth-48.f);ColumnWidth->SetContent(Column);
+            auto* ColumnWidth=WidgetTree->ConstructWidget<USizeBox>();ColumnWidth->SetWidthOverride(380.f);ColumnWidth->SetContent(Column);
             CharacterFit=LDWidgets::Fit(WidgetTree,ColumnWidth);
             // The trainer's respec foot sits under the scaled column at full size: its button and reason lines are laid
             // over it by the choices panel and do not scale with the column.
             auto* Stack=WidgetTree->ConstructWidget<UVerticalBox>();
             Stack->AddChildToVerticalBox(CharacterFit)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-            RespecSpace=WidgetTree->ConstructWidget<USizeBox>();RespecSpace->SetHeightOverride(0.f);
-            Stack->AddChildToVerticalBox(RespecSpace)->SetHorizontalAlignment(HAlign_Fill);
+
             CharacterPanel=Surface(Stack,FMargin(24,22));Add(CharacterPanel,2);
         }
         {
@@ -432,170 +426,84 @@ void ULDWorkshop::Place(UWidget* Widget,const FBox2D& Box)
     if(!(*Found)->GetSize().Equals(Size,.5f)){(*Found)->SetSize(Size);}
 }
 
-void ULDWorkshop::Layout(FVector2D Size)
+ULDWorkshop::FRects ULDWorkshop::ComputeLayout(FVector2D Size,const FInput& Input)
 {
     FRects Next;
+    if(Input.Mode==EMode::Closed){return Next;}
     const float W=float(Size.X),H=float(Size.Y);
-    const float Scale=GetCachedGeometry().Scale>0.f?GetCachedGeometry().Scale:1.f;
-    const float FilterHeight=FMath::Max(56.f,FilterRow?float(FilterRow->GetDesiredSize().Y):0.f);
-    const LDHUD::FStorageView LibraryModel=LDHUD::CardStorage(View,Latest.Content);
-    const FIntVector4 AllCounts=LDWorkshop::CollectLibrary(LibraryModel,Latest.Content,INDEX_NONE).Counts();
-    const auto CanStack=[&](float BodyHeight)
+    const float Margin=FMath::Min(WorkshopMargin,W*.025f);
+    const float Top=FMath::Min(WorkshopTop,H*.14f);
+    const float Bottom=H-Margin;
+    const float DockHeight=FMath::Min(WorkshopDockHeight,(Bottom-Top)*.23f);
+    const float ContentBottom=Bottom-DockHeight-WorkshopDockGap;
+    const float Span=W-2.f*(Margin+WorkshopGap);
+    const float CharacterRight=Margin+Span*.24f;
+    const float DrawerRight=W-Margin;
+    const float DrawerLeft=DrawerRight-Span*.28f;
+    const float DrawerHeight=ContentBottom-Top;
+
+    Next.Region=WorkshopBox(0,0,W,H);
+    Next.Title=WorkshopBox(Margin,30,Margin+WorkshopTitleWidth,84);
+    Next.Phase=WorkshopBox(Next.Title.Max.X,20,FMath::Min(DrawerLeft-WorkshopGap,Margin+WorkshopTitleWidth+464.f),94);
+    Next.Character=WorkshopBox(Margin,Top,CharacterRight,ContentBottom);
+    Next.Board=WorkshopBox(CharacterRight+WorkshopGap,Top,DrawerLeft-WorkshopGap,ContentBottom);
+    Next.Dock=WorkshopBox(Margin,ContentBottom+WorkshopDockGap,DrawerRight,Bottom);
+
+    // The drawer budgets are fractions of its height. Child desired sizes never feed back into these bounds.
+    float LibraryTop=Top;
+    float LibraryBottom=ContentBottom;
+    if(Input.bStage)
     {
-        return BodyHeight>=36.f&&LDWorkshop::FitLibrary(AllCounts,WorkshopRightWidth-44.f,BodyHeight,WorkshopMinIconPixels/Scale,TextScale).bFits;
-    };
-    TrayLimit=0.f;
-    if(Mode==EMode::Full)
-    {
-        const float Bottom=H-WorkshopMargin;
-        const float DockHeight=FMath::Min(WorkshopDockHeight,FMath::Max(0.f,(Bottom-WorkshopTop)*.25f));
-        const float ContentBottom=Bottom-DockHeight-WorkshopDockGap;
-        Next.Region=WorkshopBox(0,0,W,H);
-        Next.Title=WorkshopBox(WorkshopMargin,30,WorkshopMargin+WorkshopTitleWidth,84);
-        Next.Phase=WorkshopBox(WorkshopMargin+WorkshopTitleWidth,20,WorkshopMargin+WorkshopTitleWidth+464,94);
-        Next.Character=WorkshopBox(WorkshopMargin,WorkshopTop,WorkshopMargin+WorkshopCharacterWidth,ContentBottom);
-        const float ServiceHeight=Latest.bServices?58.f:0.f;
-        const float FullTrayLimit=FMath::Max(0.f,ContentBottom-WorkshopTop-52.f-ServiceHeight);
-        const float DesiredTray=FMath::Clamp(float(Latest.TrayDesired.Y),0.f,FullTrayLimit);
-        const float DesiredPending=(DesiredTray>0.f?DesiredTray+52.f:72.f)+ServiceHeight;
-        const float RightX=W-WorkshopMargin-WorkshopRightWidth;
-        const float BodyHeight=ContentBottom-DesiredPending-WorkshopTop-70.f-FilterHeight-14.f;
-        const float SideX=RightX-WorkshopGap-WorkshopPendingWidth;
-        const bool bSide=DesiredTray>0.f&&!CanStack(BodyHeight)&&SideX-WorkshopGap-float(Next.Character.Max.X)-WorkshopGap>=600.f;
-        TrayLimit=bSide?FullTrayLimit:LDWorkshop::StackedTrayLimit(AllCounts,WorkshopRightWidth-44.f,
-            ContentBottom-WorkshopTop-70.f-FilterHeight-14.f-52.f-ServiceHeight,WorkshopMinIconPixels/Scale,TextScale);
-        const float Tray=FMath::Min(DesiredTray,TrayLimit);
-        const float PendingHeight=(Tray>0.f?Tray+52.f:72.f)+ServiceHeight;
-        // Keep a page of components visible when the pending cards need more than the stacked layout can hold.
-        Next.Pending=bSide?WorkshopBox(SideX,ContentBottom-PendingHeight,RightX-WorkshopGap,ContentBottom)
-            :WorkshopBox(RightX,ContentBottom-PendingHeight,W-WorkshopMargin,ContentBottom);
-        Next.Library=WorkshopBox(RightX,WorkshopTop,W-WorkshopMargin,bSide?ContentBottom:Next.Pending.Min.Y);
-        Next.Board=WorkshopBox(Next.Character.Max.X+WorkshopGap,WorkshopTop,(bSide?SideX:RightX)-WorkshopGap,ContentBottom);
-        Next.Dock=WorkshopBox(WorkshopMargin,ContentBottom+WorkshopDockGap,W-WorkshopMargin,Bottom);
-        Next.HeadIcon=100.f;
-        ActionsAt=FVector2D(W-WorkshopMargin-74.f-20.f,34.f);
+        LibraryTop=Top+DrawerHeight*.43f;
+        Next.Stage=WorkshopBox(DrawerLeft,Top,DrawerRight,LibraryTop-WorkshopGap);
     }
-    else
+    else if(Input.bShop)
     {
-        const float Top=H*(1.f-WorkshopFieldShare);
-        const float Bottom=H-16.f,Inner=Top+16.f,Margin=24.f;
-        Next.Region=WorkshopBox(0,Top,W,H);
-        const float RightX=W-Margin-WorkshopRightWidth;
-        const float FullTrayLimit=FMath::Max(0.f,Bottom-Inner-52.f);
-        const float DesiredTray=FMath::Clamp(float(Latest.TrayDesired.Y),0.f,FullTrayLimit);
-        const float DesiredPending=DesiredTray>0.f?DesiredTray+52.f:0.f;
-        const float SideX=RightX-WorkshopGap-WorkshopPendingWidth;
-        const float BoardLeft=Margin+WorkshopFieldDockWidth+16.f;
-        const float BodyHeight=Bottom-DesiredPending-Inner-70.f-FilterHeight-14.f;
-        const bool bSide=DesiredTray>0.f&&!CanStack(BodyHeight)&&SideX-WorkshopGap-BoardLeft>=600.f;
-        TrayLimit=bSide?FullTrayLimit:LDWorkshop::StackedTrayLimit(AllCounts,WorkshopRightWidth-44.f,
-            Bottom-Inner-70.f-FilterHeight-14.f-52.f,WorkshopMinIconPixels/Scale,TextScale);
-        const float Tray=FMath::Min(DesiredTray,TrayLimit);
-        const float PendingHeight=Tray>0.f?Tray+52.f:0.f;
-        Next.Pending=PendingHeight<=0.f?FBox2D(ForceInit):bSide?WorkshopBox(SideX,Bottom-PendingHeight,RightX-WorkshopGap,Bottom)
-            :WorkshopBox(RightX,Bottom-PendingHeight,W-Margin,Bottom);
-        Next.Library=WorkshopBox(RightX,Inner,W-Margin,PendingHeight>0.f&&!bSide?Next.Pending.Min.Y:Bottom);
-        const float FieldColSpan=FMath::Max(160.f,Bottom-Inner);
-        const float FieldCharBottom=Inner+FieldColSpan*.52f-6.f;
-        Next.Character=WorkshopBox(Margin,Inner,Margin+WorkshopFieldDockWidth,FieldCharBottom);
-        Next.Dock=WorkshopBox(Margin,FieldCharBottom+12.f,Margin+WorkshopFieldDockWidth,Bottom);
-        Next.Board=WorkshopBox(BoardLeft,Inner,(bSide?SideX:RightX)-16.f,Bottom);
-        Next.HeadIcon=64.f;
-        ActionsAt=FVector2D(W-WorkshopMargin-86.f,30.f);
+        LibraryTop=Top+DrawerHeight*(Input.Pending>0?.34f:.52f);
+        Next.Shop=WorkshopBox(DrawerLeft,Top,DrawerRight,LibraryTop-WorkshopGap);
     }
-    if(Mode==EMode::Full&&Latest.bStage)
+    if(!Input.bStage&&(Input.Pending>0||Input.bServices))
     {
-        // Keep CharacterPanel visible on the left so stats, 18-pt keystones and element statuses remain readable during
-        // skill and final-mod offers, fitting Stage + Dock cleanly in the remaining right span.
-        const float Bottom=H-WorkshopMargin;
-        const float CharWidth=FMath::Min(WorkshopCharacterWidth,FMath::Max(240.f,W*.24f));
-        Next.Character=WorkshopBox(WorkshopMargin,WorkshopTop,WorkshopMargin+CharWidth,Bottom);
-        const float RightSpanLeft=float(Next.Character.Max.X)+WorkshopGap;
-        const float RightSpanRight=W-WorkshopMargin;
-        const float RightSpanMid=(RightSpanLeft+RightSpanRight)*.5f;
-        Next.Dock=WorkshopBox(FMath::Max(RightSpanLeft,RightSpanMid-548.f),Bottom-300.f,
-            FMath::Min(RightSpanRight,RightSpanMid+548.f),Bottom);
-        Next.Stage=WorkshopBox(FMath::Max(RightSpanLeft,RightSpanMid-734.f),96.f,
-            FMath::Min(RightSpanRight,RightSpanMid+734.f),float(Next.Dock.Min.Y)-16.f);
-        Next.Board=Next.Library=Next.Pending=FBox2D(ForceInit);
+        const float Height=Input.Pending>0?DrawerHeight*(Input.bShop?.29f:.45f):FMath::Min(104.f,DrawerHeight*.16f);
+        LibraryBottom-=Height;
+        Next.Pending=WorkshopBox(DrawerLeft,LibraryBottom,DrawerRight,ContentBottom);
     }
-    else if(Mode==EMode::Full&&Latest.bShop)
-    {
-        // Side-by-side Rest workspace (#331): Rule Board stays visible in the centre while the Rest Shop expands on the
-        // upper right above the Card Library and Pending tray, preserving at least one library page via StackedTrayLimit.
-        const float Bottom=H-WorkshopMargin;
-        const float DockHeight=FMath::Min(WorkshopDockHeight,FMath::Max(0.f,(Bottom-WorkshopTop)*.25f));
-        const float ContentBottom=Bottom-DockHeight-WorkshopDockGap;
-        const float ShopRightWidth=FMath::Clamp(W*.34f,520.f,680.f);
-        const float RightX=W-WorkshopMargin-ShopRightWidth;
-        const float TotalRightH=FMath::Max(200.f,ContentBottom-WorkshopTop);
-        const float ServiceHeight=Latest.bServices?58.f:0.f;
-        const float LibraryChrome=70.f+FilterHeight+14.f;
-        const float PendingChrome=52.f+ServiceHeight;
-        // Minimum library content height for one page of stored cards (36.f when empty, ~82.f+ when cards exist).
-        const float ProbeAvail=10000.f;
-        const float LibraryReserve=FMath::Max(36.f,ProbeAvail-LDWorkshop::StackedTrayLimit(AllCounts,ShopRightWidth-44.f,
-            ProbeAvail,WorkshopMinIconPixels/Scale,TextScale));
-        const float WantedTray=FMath::Max(0.f,float(Latest.TrayDesired.Y));
-        const float NeededBelow=LibraryChrome+LibraryReserve
-            +(WantedTray>0.f?(PendingChrome+FMath::Min(WantedTray,116.f)):(ServiceHeight>0.f?72.f+ServiceHeight:0.f));
-        const float ShopHeight=FMath::Clamp(FMath::Min(TotalRightH*.38f,TotalRightH-14.f-NeededBelow),176.f,296.f);
-        Next.Shop=WorkshopBox(RightX,WorkshopTop,W-WorkshopMargin,WorkshopTop+ShopHeight);
-        const float LibTop=float(Next.Shop.Max.Y)+14.f;
-        const float AvailLibH=FMath::Max(0.f,ContentBottom-LibTop);
-        const float StackTrayBudget=FMath::Max(0.f,AvailLibH-LibraryChrome-PendingChrome);
-        const float StackedLimit=LDWorkshop::StackedTrayLimit(AllCounts,ShopRightWidth-44.f,
-            StackTrayBudget,WorkshopMinIconPixels/Scale,TextScale);
-        const float SideX=RightX-WorkshopGap-WorkshopPendingWidth;
-        const bool bSide=WantedTray>0.f&&WantedTray>StackedLimit&&StackedLimit<84.f
-            &&SideX-WorkshopGap-float(Next.Character.Max.X)-WorkshopGap>=460.f;
-        const float FullSideLimit=FMath::Max(0.f,ContentBottom-WorkshopTop-PendingChrome);
-        TrayLimit=bSide?FullSideLimit:StackedLimit;
-        const float Tray=FMath::Min(FMath::Clamp(WantedTray,0.f,TrayLimit),TrayLimit);
-        const float MaxEmptyPending=FMath::Max(0.f,AvailLibH-LibraryChrome-LibraryReserve);
-        const float PendingHeight=Tray>0.f?(Tray+PendingChrome)
-            :(ServiceHeight>0.f?FMath::Min(72.f+ServiceHeight,MaxEmptyPending):0.f);
-        Next.Pending=PendingHeight<=0.f?FBox2D(ForceInit):bSide
-            ?WorkshopBox(SideX,ContentBottom-PendingHeight,RightX-WorkshopGap,ContentBottom)
-            :WorkshopBox(RightX,ContentBottom-PendingHeight,W-WorkshopMargin,ContentBottom);
-        Next.Library=WorkshopBox(RightX,LibTop,W-WorkshopMargin,PendingHeight>0.f&&!bSide?float(Next.Pending.Min.Y):ContentBottom);
-        Next.Board=WorkshopBox(Next.Character.Max.X+WorkshopGap,WorkshopTop,(bSide?SideX:RightX)-WorkshopGap,ContentBottom);
-    }
-    // .cap: the capacity strip across the board's top; .cols under it, five columns with the design's gaps.
-    Next.Capacity=WorkshopBox(Next.Board.Min.X,Next.Board.Min.Y,Next.Board.Max.X,Next.Board.Min.Y+(Mode==EMode::Full?WorkshopCapacityHeight:48.f));
-    Next.Columns=WorkshopBox(Next.Board.Min.X+16.f,Next.Capacity.Max.Y,Next.Board.Max.X-16.f,Next.Board.Max.Y-12.f);
-    Next.HeadTop=Mode==EMode::Full?WorkshopHeadTop:18.f;
-    Next.HeadHeight=Mode==EMode::Full?WorkshopSocketTop:Next.HeadTop+Next.HeadIcon+64.f;
-    const float ColumnGap=WorkshopColumnGap;
-    const float ColumnWidth=(float(Next.Columns.GetSize().X)-ColumnGap*(LDHUD::StorageColumnCount-1))/LDHUD::StorageColumnCount;
+    Next.Library=WorkshopBox(DrawerLeft,LibraryTop,DrawerRight,LibraryBottom);
+    constexpr float LibraryHeader=118.f;
+    Next.LibraryBody=WorkshopBox(DrawerLeft+24.f,LibraryTop+LibraryHeader,DrawerRight-20.f,LibraryBottom-14.f);
+    Next.Capacity=WorkshopBox(Next.Board.Min.X,Top,Next.Board.Max.X,Top+WorkshopCapacityHeight);
+    Next.Columns=WorkshopBox(Next.Board.Min.X+16.f,Next.Capacity.Max.Y,Next.Board.Max.X-16.f,ContentBottom-12.f);
+    Next.HeadTop=WorkshopHeadTop;
+    Next.HeadHeight=WorkshopSocketTop;
+    const float ColumnWidth=(float(Next.Columns.GetSize().X)-WorkshopColumnGap*(LDHUD::StorageColumnCount-1))/LDHUD::StorageColumnCount;
     for(int32 Index=0;Index<LDHUD::StorageColumnCount;++Index)
     {
-        // The board reads 普攻, Q, W, E, 冲刺, 本体 left to right.
-        const float X=float(Next.Columns.Min.X)+LDHUD::BoardPosition(static_cast<LDHUD::EStorageColumn>(Index))*(ColumnWidth+ColumnGap);
+        const float X=float(Next.Columns.Min.X)+LDHUD::BoardPosition(static_cast<LDHUD::EStorageColumn>(Index))*(ColumnWidth+WorkshopColumnGap);
         Next.Column[Index]=WorkshopBox(X,Next.Columns.Min.Y,X+ColumnWidth,Next.Columns.Max.Y);
     }
-    // The library body sits under its title and filter rows (the filter wraps to as many lines as it needs).
-    Next.LibraryBody=WorkshopBox(Next.Library.Min.X+24.f,Next.Library.Min.Y+70.f+FilterHeight,Next.Library.Max.X-20.f,Next.Library.Max.Y-14.f);
-    if(!WorkshopHasArea(Next.Board))
-    {
-        Next.Capacity=Next.Columns=FBox2D(ForceInit);
-        for(FBox2D& Column:Next.Column){Column=FBox2D(ForceInit);}
-    }
-    if(!WorkshopHasArea(Next.Library)){Next.LibraryBody=FBox2D(ForceInit);}
-    Rects=Next;
+    return Next;
+}
+
+void ULDWorkshop::ApplyLayout(const FRects& Layout,FVector2D Size,float Scale)
+{
+    Rects=Layout;
+    const float W=float(Size.X),H=float(Size.Y);
+    const LDHUD::FStorageView LibraryModel=LDHUD::CardStorage(View,Latest.Content);
     const FIntVector4 Counts=LDWorkshop::CollectLibrary(LibraryModel,Latest.Content,TagFilter).Counts();
     LibraryFit=WorkshopHasArea(Rects.LibraryBody)?LDWorkshop::FitLibrary(Counts,float(Rects.LibraryBody.GetSize().X),
         float(Rects.LibraryBody.GetSize().Y),WorkshopMinIconPixels/Scale,TextScale):LDWorkshop::FLibraryFit();
     LibraryPage=LibraryFit.Pages.IsEmpty()?0:FMath::Clamp(LibraryPage,0,LibraryFit.Pages.Num()-1);
-    TrayRight=WorkshopHasArea(Rects.Pending)?W-float(Rects.Pending.Max.X)+12.f:W-float(Rects.Library.Max.X);
-    TrayBottom=WorkshopHasArea(Rects.Pending)?H-float(Rects.Pending.Max.Y)+12.f:H-float(Rects.Library.Max.Y);
+    TrayRight=WorkshopHasArea(Rects.Pending)?W-float(Rects.Pending.Max.X)+12.f:0.f;
+    TrayBottom=WorkshopHasArea(Rects.Pending)?H-float(Rects.Pending.Max.Y)+12.f:0.f;
     TrayWrap=WorkshopHasArea(Rects.Pending)?FMath::Max(0.f,float(Rects.Pending.GetSize().X)-24.f):0.f;
-    const bool bFull=Mode==EMode::Full;
+    TrayLimit=WorkshopHasArea(Rects.Pending)?FMath::Max(0.f,float(Rects.Pending.GetSize().Y)-56.f-(Latest.bServices?40.f:0.f)):0.f;
+    const float Right=float(Rects.Dock.Max.X);
+    ActionsAt=FVector2D(Right-94.f,34.f);
     Place(Blur,Rects.Region);
-    Place(Backdrop,WorkshopBox(0.f,0.f,W,H));
-    Place(PhasePanel,bFull?Rects.Phase:FBox2D(ForceInit));
-    Place(PageTitle,bFull?Rects.Title:FBox2D(ForceInit));
-    Place(CloseButton,WorkshopBox(W-WorkshopMargin-74.f,bFull?34.f:float(Rects.Region.Min.Y)-60.f,W-WorkshopMargin,bFull?86.f:float(Rects.Region.Min.Y)-8.f));
+    Place(Backdrop,Rects.Region);
+    Place(PhasePanel,(Latest.bRest||Latest.bDead)?Rects.Phase:FBox2D(ForceInit));
+    Place(PageTitle,Rects.Title);
+    Place(CloseButton,WorkshopBox(Right-74.f,34.f,Right,86.f));
     Place(CharacterPanel,WorkshopHasArea(Rects.Character)?Rects.Character:FBox2D(ForceInit));
     Place(BoardPanel,Rects.Board);
     Place(DockPanel,Rects.Dock);
@@ -639,39 +547,26 @@ void ULDWorkshop::Layout(FVector2D Size)
         if(Heads[Index].Glyph){Heads[Index].Glyph->SetRenderScale(FVector2D(HeadScale));}
     }
     Place(LibraryTitle,WorkshopBox(Rects.Library.Min.X+24.f,Rects.Library.Min.Y+18.f,Rects.Library.Max.X-20.f,Rects.Library.Min.Y+56.f));
-    const bool bOwnDock=!(Mode==EMode::Full&&Latest.bFinalStage);
+    const bool bOwnDock=!Latest.bFinalStage;
     float CentreWrap=0.f,RightWrap=0.f,DockArtSize=80.f;
     DockDividerX=0.f;
     if(!bOwnDock){for(UWidget* Hidden:{DockLeft.Get(),DockCentre.Get(),DockRight.Get()}){Place(Hidden,FBox2D(ForceInit));}}
-    else if(Mode==EMode::Full)
+    else
     {
         // Give the rule more room when the board narrows or the player selects larger text.
-        const bool bRight=DockHasRight();
         const float Compact=FMath::Clamp(FMath::Max((1000.f-float(Rects.Dock.GetSize().X))/400.f,(TextScale-1.f)/.25f),0.f,1.f);
         const float LeftWidth=FMath::Lerp(150.f,98.f,Compact);
         const float RightWidth=FMath::Lerp(WorkshopDockRight,150.f,Compact);
         const float LeftGap=FMath::Lerp(26.f,12.f,Compact),RightGap=FMath::Lerp(50.f,20.f,Compact);
         const float CentreStart=float(Rects.Dock.Min.X)+28.f+LeftWidth+LeftGap;
         const float RightStart=float(Rects.Dock.Max.X)-28.f-RightWidth;
-        const float CentreEnd=bRight?RightStart-RightGap:float(Rects.Dock.Max.X)-28.f;
+        const float CentreEnd=RightStart-RightGap;
         Place(DockLeft,WorkshopBox(Rects.Dock.Min.X+28.f,Rects.Dock.Min.Y+24.f,Rects.Dock.Min.X+28.f+LeftWidth,Rects.Dock.Max.Y-16.f));
         Place(DockCentre,WorkshopBox(CentreStart,Rects.Dock.Min.Y+22.f,CentreEnd,Rects.Dock.Max.Y-16.f));
-        Place(DockRight,bRight?WorkshopBox(RightStart,Rects.Dock.Min.Y+24.f,Rects.Dock.Max.X-28.f,Rects.Dock.Max.Y-16.f):FBox2D(ForceInit));
+        Place(DockRight,WorkshopBox(RightStart,Rects.Dock.Min.Y+24.f,Rects.Dock.Max.X-28.f,Rects.Dock.Max.Y-16.f));
         CentreWrap=CentreEnd-CentreStart;RightWrap=RightWidth;
-        DockDividerX=bRight?RightStart-RightGap*.5f:0.f;
+        DockDividerX=RightStart-RightGap*.5f;
         DockArtSize=FMath::Lerp(112.f,80.f,Compact);
-    }
-    else
-    {
-        // The field dock stacks the name and rule under the icon and puts where it goes beside the icon.
-        const float DockH=FMath::Max(80.f,float(Rects.Dock.GetSize().Y));
-        const float TopRowH=FMath::Clamp(DockH*.44f,68.f,118.f);
-        DockArtSize=FMath::Clamp(TopRowH-12.f,56.f,96.f);
-        const float LeftEnd=18.f+DockArtSize+12.f;
-        Place(DockLeft,WorkshopBox(Rects.Dock.Min.X+18.f,Rects.Dock.Min.Y+12.f,Rects.Dock.Min.X+LeftEnd,Rects.Dock.Min.Y+12.f+TopRowH));
-        Place(DockRight,WorkshopBox(Rects.Dock.Min.X+LeftEnd+10.f,Rects.Dock.Min.Y+12.f,Rects.Dock.Max.X-18.f,Rects.Dock.Min.Y+12.f+TopRowH));
-        Place(DockCentre,WorkshopBox(Rects.Dock.Min.X+18.f,Rects.Dock.Min.Y+16.f+TopRowH,Rects.Dock.Max.X-18.f,Rects.Dock.Max.Y-10.f));
-        CentreWrap=float(Rects.Dock.GetSize().X)-36.f;RightWrap=FMath::Max(40.f,float(Rects.Dock.GetSize().X)-LeftEnd-28.f);
     }
     Place(FilterRow,WorkshopBox(Rects.Library.Min.X+24.f,Rects.Library.Min.Y+62.f,Rects.Library.Max.X-20.f,float(Rects.LibraryBody.Min.Y)-6.f));
     Place(PendingTitle,WorkshopHasArea(Rects.Pending)?WorkshopBox(Rects.Pending.Min.X+46.f,Rects.Pending.Min.Y+16.f,Rects.Pending.Min.X+200.f,Rects.Pending.Min.Y+38.f):FBox2D(ForceInit));
@@ -709,13 +604,13 @@ const FGeometry& EffectiveWorkshopGeometry(const UWidget& Widget)
 ULDChoicesPanel::FWorkshopPlaces ULDWorkshop::Places() const
 {
     ULDChoicesPanel::FWorkshopPlaces Out;
-    if(Mode!=EMode::Full||!Canvas){return Out;}
-    const FGeometry& Geometry=EffectiveWorkshopGeometry(*this);
+    if(!IsOpen()||!Canvas){return Out;}
+    const FGeometry& Geometry=LayoutGeometry;
     if(Geometry.GetLocalSize().X<=0.f){return Out;}
     const auto Absolute=[&Geometry](const FBox2D& Box)
     {
         if(!WorkshopHasArea(Box)){return FSlateRect();}
-        const FVector2D A=Geometry.LocalToAbsolute(Box.Min),B=Geometry.LocalToAbsolute(Box.Max);
+        const FVector2D A=TransformPoint(Geometry.GetAccumulatedLayoutTransform(),Box.Min),B=TransformPoint(Geometry.GetAccumulatedLayoutTransform(),Box.Max);
         return FSlateRect(A.X,A.Y,B.X,B.Y);
     };
     Out.bActive=true;
@@ -726,12 +621,10 @@ ULDChoicesPanel::FWorkshopPlaces ULDWorkshop::Places() const
         const FBox2D& Column=Rects.Column[Index];
         Out.Heads[Index]=WorkshopHasArea(Column)?Absolute(WorkshopBox(Column.Min.X,Column.Min.Y,Column.Max.X,Column.Min.Y+Rects.HeadHeight)):FSlateRect();
     }
-    if(WorkshopHasArea(Rects.Character)&&RespecSpace&&Latest.bCharacterServices)
+    if(Latest.bCharacterServices)
     {
-        // The trainer's respec spans the foot of the character column (below the reactions).
-        const FGeometry& Foot=RespecSpace->GetCachedGeometry();
-        const FVector2D A=Foot.GetAbsolutePosition(),B=A+Foot.GetAbsoluteSize();
-        Out.CharacterFoot=FSlateRect(A.X,A.Y+18.f*Foot.Scale,B.X,B.Y);
+        Out.CharacterFoot=Absolute(WorkshopBox(Rects.Character.Min.X+24.f,Rects.Character.Max.Y-82.f,
+            Rects.Character.Max.X-24.f,Rects.Character.Max.Y-12.f));
     }
     if(WorkshopHasArea(Rects.Character)&&PointsBox&&PointsBox->GetParent())
     {Out.Points=PointsBox->GetParent()->GetCachedGeometry().GetLayoutBoundingRect();}
@@ -745,8 +638,7 @@ ULDChoicesPanel::FWorkshopPlaces ULDWorkshop::Places() const
     if(WorkshopHasArea(Rects.Pending))
     {Out.PendingTop=Absolute(WorkshopBox(Rects.Pending.Min.X+24.f,Rects.Pending.Min.Y+44.f,Rects.Pending.Max.X-20.f,Rects.Pending.Min.Y+96.f));}
     Out.Shop=Absolute(Rects.Shop);
-    if(WorkshopHasArea(Rects.Phase))
-    {Out.ShopButton=Absolute(WorkshopBox(Rects.Phase.Max.X+20.f,Rects.Phase.Min.Y,Rects.Phase.Max.X+21.f,Rects.Phase.Max.Y));}
+    Out.DrawerHeader=Absolute(WorkshopBox(Rects.Library.Min.X,Rects.Character.Min.Y-54.f,Rects.Library.Max.X,Rects.Character.Min.Y-6.f));
     return Out;
 }
 
@@ -754,12 +646,12 @@ ULDComponentStorage::FWorkshopLayout ULDWorkshop::StorageLayout() const
 {
     ULDComponentStorage::FWorkshopLayout Out;
     if(!IsOpen()||!Canvas){return Out;}
-    const FGeometry& Geometry=EffectiveWorkshopGeometry(*this);
+    const FGeometry& Geometry=LayoutGeometry;
     if(Geometry.GetLocalSize().X<=0.f){return Out;}
     const auto Absolute=[&Geometry](const FBox2D& Box)
     {
         if(!WorkshopHasArea(Box)){return FSlateRect();}
-        const FVector2D A=Geometry.LocalToAbsolute(Box.Min),B=Geometry.LocalToAbsolute(Box.Max);
+        const FVector2D A=TransformPoint(Geometry.GetAccumulatedLayoutTransform(),Box.Min),B=TransformPoint(Geometry.GetAccumulatedLayoutTransform(),Box.Max);
         return FSlateRect(A.X,A.Y,B.X,B.Y);
     };
     Out.bActive=true;
@@ -767,7 +659,7 @@ ULDComponentStorage::FWorkshopLayout ULDWorkshop::StorageLayout() const
     const float Scale=Geometry.Scale>0.f?Geometry.Scale:1.f;
     Out.HeadHeight=Rects.HeadHeight*Scale;
     Out.Library=Absolute(Rects.LibraryBody);
-    Out.TileScale=Mode==EMode::Full?1.f:.78f;
+    Out.TileScale=1.f;
     Out.bNames=true;
     // Icons stay at least WorkshopMinIconPixels on screen; the board then drops the names to keep the room.
     const float MinUnits=WorkshopMinIconPixels/Scale;
@@ -792,13 +684,10 @@ ULDComponentStorage::FWorkshopLayout ULDWorkshop::StorageLayout() const
 
 bool ULDWorkshop::IsHit(FVector2D Absolute) const
 {
-    if(!IsOpen()){return false;}
-    if(Mode==EMode::Full){return true;}
-    const FVector2D Local=GetCachedGeometry().AbsoluteToLocal(Absolute);
-    return WorkshopHasArea(Rects.Region)&&Rects.Region.IsInside(Local);
+    return IsOpen()&&LayoutGeometry.IsUnderLocation(Absolute);
 }
 
-void ULDWorkshop::Present(const FInput& Input)
+void ULDWorkshop::Present(const FInput& Input,const FGeometry* HudGeometry)
 {
     const EMode Previous=Mode;
     Mode=Input.Mode;
@@ -806,7 +695,7 @@ void ULDWorkshop::Present(const FInput& Input)
     {
         ShowTextDock(FString(),FString(),FString(),FString(),FString(),FString());
     }
-    if(Previous==EMode::Full&&Mode!=EMode::Full)
+    if(Previous==EMode::Open&&Mode!=EMode::Open)
     {
         for(FStatRow& Row:StatRows){Row.PendingFlashRevision=0;Row.AddedAt=-100.;Row.FlashCell=INDEX_NONE;}
         InterruptFinalFeedback();
@@ -814,7 +703,7 @@ void ULDWorkshop::Present(const FInput& Input)
     if(Mode==EMode::Closed)
     {
         // The panels sink and fade out (LDHUDStyle::MotionWorkshopClose) without taking any more input.
-        if(Previous!=EMode::Closed){ClosingMode=Previous;LDWidgets::PlayCue(this,ELDAudioCue::UIWorkshopClose);ClosingAt=UiNow();SetVisibility(ESlateVisibility::HitTestInvisible);}
+        if(Previous!=EMode::Closed){LDWidgets::PlayCue(this,ELDAudioCue::UIWorkshopClose);ClosingAt=UiNow();SetVisibility(ESlateVisibility::HitTestInvisible);}
         else if(ClosingAt<0.){WorkshopShown(this,false);}
         OpenedAt=-1.;
         return;
@@ -845,10 +734,10 @@ void ULDWorkshop::Present(const FInput& Input)
     if(Previous==EMode::Closed||OpenedAt<0.){OpenedAt=UiNow();DockKey.Reset();LDWidgets::PlayCue(this,ELDAudioCue::UIWorkshopOpen);}
     ClosingAt=-1.;
     WorkshopShown(this,true);
-    FVector2D Size=EffectiveWorkshopGeometry(*this).GetLocalSize();
-    if(Size.X<=1.f||Size.Y<=1.f){Size=FVector2D(1920.f,1080.f);}
-    LastSize=Size;
-    Layout(Size);
+    LayoutGeometry=HudGeometry?*HudGeometry:EffectiveWorkshopGeometry(*this);
+    const FVector2D CachedSize=LayoutGeometry.GetLocalSize();
+    const FVector2D Size=CachedSize.X>1.f&&CachedSize.Y>1.f?CachedSize:FVector2D(1920.f,1080.f);
+    ApplyLayout(ComputeLayout(Size,Input),Size,FMath::Max(.01f,LayoutGeometry.Scale));
     if(WorkshopHasArea(Rects.Library))
     {
         const FIntVector4 Counts=LDWorkshop::CollectLibrary(LDHUD::CardStorage(View,Latest.Content),Latest.Content,TagFilter).Counts();
@@ -868,12 +757,12 @@ void ULDWorkshop::Present(const FInput& Input)
     const float Open=LDTween::Progress(UiNow()-OpenedAt,LDHUDStyle::MotionWorkshopOpen,LDTween::ECurve::EaseOut);
     if(Blur)
     {
-        const float Strength=Mode==EMode::Full&&!Input.bLowQuality?8.f*Open:0.f;
+        const float Strength=!Input.bLowQuality?8.f*Open:0.f;
         if(!FMath::IsNearlyEqual(Blur->GetBlurStrength(),Strength,.01f)){Blur->SetBlurStrength(Strength);}
     }
     // The final mod page turns the dark blue to a deep magenta: this step is not like the others.
-    const FLinearColor Tint=Mode==EMode::Full&&Input.bFinalStage?FLinearColor(FColor(0x2A,0x06,0x1C)):LDHUDStyle::UIBase;
-    if(Shade){Shade->SetBrushColor(Tint.CopyWithNewOpacity((Mode==EMode::Full?(Input.bFinalStage?.82f:.62f):.88f)*Open));}
+    const FLinearColor Tint=Input.bFinalStage?FLinearColor(FColor(0x2A,0x06,0x1C)):LDHUDStyle::UIBase;
+    if(Shade){Shade->SetBrushColor(Tint.CopyWithNewOpacity((Input.bFinalStage?.82f:.62f)*Open));}
     RefreshPhase();
     RefreshCharacter();
     RefreshHeads();
@@ -897,70 +786,13 @@ void ULDWorkshop::Present(const FInput& Input)
     WorkshopText(PendingTitle,FString::Printf(TEXT("%s  %d"),LDTerms::WorkshopPending,Input.Pending));
     if(FSlateApplication::IsInitialized())
     {
-        const bool bHadRight=DockHasRight();
         RefreshDock(FSlateApplication::Get().GetCursorPos());
-        if(DockHasRight()!=bHadRight){Layout(Size);}
     }
-}
-
-void ULDWorkshop::PresentConverged(ULDWorkshop& Workshop,ULDChoicesPanel* ChoicesPanel,ULDComponentStorage* Storage,
-    FInput& In,float LayoutScale,TFunctionRef<void()> PresentChoices)
-{
-    const float PrepassScale=LayoutScale>0.f?LayoutScale:1.f;
-    const auto PrepassChoices=[ChoicesPanel,PrepassScale]()
-    {
-        if(!ChoicesPanel){return;}
-        if(TSharedPtr<SWidget> Slate=ChoicesPanel->GetCachedWidget()){Slate->SlatePrepass(PrepassScale);}
-    };
-    const ULDChoicesPanel::FWorkshopPlaces PrevPlaces=ChoicesPanel?ChoicesPanel->WorkshopPlaces():ULDChoicesPanel::FWorkshopPlaces();
-    const FVector2D PrevInset=ChoicesPanel?ChoicesPanel->CurrentTrayInset():FVector2D(-1.f,-1.f);
-    const float PrevWrap=ChoicesPanel?ChoicesPanel->CurrentTrayWrap():-1.f;
-    const float PrevLimit=ChoicesPanel?ChoicesPanel->CurrentTrayLimit():-1.f;
-    Workshop.Present(In);
-    if(ChoicesPanel&&Workshop.IsOpen())
-    {
-        const ULDChoicesPanel::FWorkshopPlaces NextPlaces=Workshop.Places();
-        const FVector2D NextInset=Workshop.TrayInset();
-        const float NextWrap=Workshop.TrayWrapWidth();
-        const float NextLimit=Workshop.TrayHeightLimit();
-        if(!NextPlaces.Equals(PrevPlaces)||!NextInset.Equals(PrevInset,.5f)
-            ||!FMath::IsNearlyEqual(NextWrap,PrevWrap,.5f)||!FMath::IsNearlyEqual(NextLimit,PrevLimit,.5f))
-        {
-            ChoicesPanel->SetWorkshopPlaces(NextPlaces);
-            ChoicesPanel->SetTrayInset(NextInset.X,NextInset.Y,NextWrap,NextLimit);
-            PresentChoices();
-            PrepassChoices();
-            if(Storage){Storage->SetWarnings(ChoicesPanel->ConfirmWarnings());}
-            const FVector2D ConvergedTray=ChoicesPanel->TrayDesiredSize();
-            if(!ConvergedTray.Equals(In.TrayDesired,.5)||In.bStage!=ChoicesPanel->IsStageShown()
-                ||In.bFinalStage!=ChoicesPanel->IsFinalStage()||In.bShop!=ChoicesPanel->IsShopShown()
-                ||In.bServices!=(ChoicesPanel->IsServiceShown()||ChoicesPanel->IsBlueprintSwapShown()))
-            {
-                In.TrayDesired=ConvergedTray;
-                In.bStage=ChoicesPanel->IsStageShown();In.bFinalStage=ChoicesPanel->IsFinalStage();
-                In.bServices=ChoicesPanel->IsServiceShown()||ChoicesPanel->IsBlueprintSwapShown();
-                In.bShop=ChoicesPanel->IsShopShown();
-                In.bCharacterServices=ChoicesPanel->IsServiceShown();
-                Workshop.Present(In);
-                const ULDChoicesPanel::FWorkshopPlaces FinalPlaces=Workshop.Places();
-                const FVector2D FinalInset=Workshop.TrayInset();
-                const float FinalWrap=Workshop.TrayWrapWidth();
-                const float FinalLimit=Workshop.TrayHeightLimit();
-                ChoicesPanel->SetWorkshopPlaces(FinalPlaces);
-                ChoicesPanel->SetTrayInset(FinalInset.X,FinalInset.Y,FinalWrap,FinalLimit);
-                PresentChoices();
-                PrepassChoices();
-                In.TrayDesired=ChoicesPanel->TrayDesiredSize();
-                if(Storage){Storage->SetWarnings(ChoicesPanel->ConfirmWarnings());}
-            }
-        }
-    }
-    if(Storage){Storage->SetWorkshop(Workshop.StorageLayout());}
 }
 
 void ULDWorkshop::RefreshPhase()
 {
-    if(Mode!=EMode::Full){return;}
+    if(Mode!=EMode::Open){return;}
     if(Latest.bDead)
     {
         WorkshopText(PhaseRest,Latest.DeathClock.IsEmpty()?Latest.DeathCountdown:FString(LDTerms::RespawnWait));
@@ -980,7 +812,7 @@ void ULDWorkshop::RefreshPhase()
 
 void ULDWorkshop::AllocationApplied(const FLDBuildReceipt& Receipt)
 {
-    if(Mode!=EMode::Full||!View.bValid||Receipt.Header.Generation!=View.Generation||Receipt.Header.OriginalLife!=View.Life
+    if(Mode!=EMode::Open||!View.bValid||Receipt.Header.Generation!=View.Generation||Receipt.Header.OriginalLife!=View.Life
         ||Receipt.PointsSpent.Num()!=StatRows.Num()){return;}
     for(int32 Index=0;Index<StatRows.Num();++Index)
     {if(Receipt.PointsSpent[Index]>0){StatRows[Index].PendingFlashRevision=Receipt.Header.Revisions.BuildRevision;}}
@@ -990,7 +822,7 @@ void ULDWorkshop::AllocationApplied(const FLDBuildReceipt& Receipt)
 
 void ULDWorkshop::FinalModApplied(const FLDBuildReceipt& Receipt,const FLDFinalModSelection& Selection)
 {
-    if(Mode!=EMode::Full||!View.bValid||Receipt.Header.Generation!=View.Generation||Receipt.Header.OriginalLife!=View.Life){return;}
+    if(Mode!=EMode::Open||!View.bValid||Receipt.Header.Generation!=View.Generation||Receipt.Header.OriginalLife!=View.Life){return;}
     PendingFinalFeedback=Selection;
     PendingFinalRevision=Receipt.Header.Revisions.BuildRevision;
 }
@@ -1004,9 +836,7 @@ void ULDWorkshop::InterruptFinalFeedback()
 void ULDWorkshop::RefreshCharacter()
 {
     if(!IsOpen()){return;}
-    const bool bFull=Mode==EMode::Full;
-    if(UBorder* PanelBorder=Cast<UBorder>(CharacterPanel.Get())){PanelBorder->SetPadding(bFull?FMargin(24,22):FMargin(14,10));}
-    if(PortraitFrame&&PortraitFrame->GetParent()){WorkshopShown(PortraitFrame->GetParent(),bFull);}
+    if(UBorder* PanelBorder=Cast<UBorder>(CharacterPanel.Get())){PanelBorder->SetPadding(FMargin(24,22,24,86));}
     const FLDDemoContentDefinitions* Content=Latest.Content;
     WorkshopText(PortraitGlyph,Latest.HolderName.IsEmpty()?FString(TEXT("?")):Latest.HolderName.Left(1));
     if(Portrait&&Portrait->GetBrushColor()!=Latest.HolderColor){Portrait->SetBrushColor(Latest.HolderColor);}
@@ -1015,9 +845,6 @@ void ULDWorkshop::RefreshCharacter()
     WorkshopText(LevelLine,Latest.Level.Experience);
     const int64 Unspent=StatBar.IsValid()&&View.bValid?StatBar->EffectiveUnspent():View.bValid?FMath::Max<int64>(0,View.UnspentPoints):0;
     WorkshopShown(PointsBox,Unspent>0);
-    if(RespecSpace){const float Foot=(bFull&&Latest.bCharacterServices)?110.f*TextScale:0.f;if(RespecSpace->GetHeightOverride()!=Foot){RespecSpace->SetHeightOverride(Foot);}}
-    // With the trainer the respec foot replaces the reactions so the stats and attributes keep a legible size.
-    WorkshopShown(ReactionBlock,!(bFull&&Latest.bCharacterServices));
     WorkshopText(PointsText,FString::FromInt(Unspent));
     // The stat rows follow the catalog's design order; each "+" spends one point through the band's stat bar.
     if(Content&&StatRows.IsEmpty())
@@ -1048,6 +875,9 @@ void ULDWorkshop::RefreshCharacter()
             Line->AddChildToHorizontalBox(PointsBox34)->SetVerticalAlignment(VAlign_Center);
             if(UHorizontalBoxSlot* PointsSlot=Cast<UHorizontalBoxSlot>(PointsBox34->Slot)){PointsSlot->SetPadding(FMargin(12,0,0,0));}
             Built.Add(NameBox);Built.Add(PointsBox34);
+            Row.Keystone=LDWidgets::Text(WidgetTree,TEXT("◇"),LDHUDStyle::TypeSmall);
+            Line->AddChildToHorizontalBox(Row.Keystone)->SetVerticalAlignment(VAlign_Center);
+            ScaleFresh(Row.Keystone);
             const int32 StatIndex=Index;
             Row.Plus=LDWidgets::Button(WidgetTree,TEXT("+"),[this,StatIndex](){if(StatBar.IsValid()){StatBar->Allocate(StatIndex);}},true,
                 FName(*FString::Printf(TEXT("WorkshopStatPlus%d"),StatIndex)));
@@ -1060,7 +890,7 @@ void ULDWorkshop::RefreshCharacter()
             auto* PlusSlot=Line->AddChildToHorizontalBox(PlusBox);PlusSlot->SetPadding(FMargin(12,0,0,0));PlusSlot->SetVerticalAlignment(VAlign_Center);
             auto* Frame=WidgetTree->ConstructWidget<UBorder>();Frame->SetBrushColor(FLinearColor::Transparent);Frame->SetPadding(FMargin(0));Frame->SetContent(Line);
             Frame->SetVerticalAlignment(VAlign_Center);Frame->SetVisibility(ESlateVisibility::Visible);Row.Row=Frame;
-            auto* RowHeight=WidgetTree->ConstructWidget<USizeBox>();RowHeight->SetMinDesiredHeight(66.f);RowHeight->SetContent(Frame);Built.Add(RowHeight);
+            auto* RowHeight=WidgetTree->ConstructWidget<USizeBox>();RowHeight->SetMinDesiredHeight(54.f);RowHeight->SetContent(Frame);Built.Add(RowHeight);
             StatList->AddChildToVerticalBox(RowHeight);
             for(UTextBlock* Fresh:{Row.Glyph,Row.Name,Row.Points,Cast<UTextBlock>(Row.Plus->GetContent())}){ScaleFresh(Fresh);}
             for(UWidget* Each:{static_cast<UWidget*>(Line),static_cast<UWidget*>(IconStack),static_cast<UWidget*>(IconBox),static_cast<UWidget*>(Meter),static_cast<UWidget*>(PlusBox)}){Built.Add(Each);}
@@ -1077,6 +907,14 @@ void ULDWorkshop::RefreshCharacter()
             const int32 ShownPts=StatBar.IsValid()&&View.bValid?StatBar->EffectivePoints(Index):LDHUD::StatPointsOf(View,Row.StatId);
             const LDHUD::FStatRowView Shown=LDHUD::StatRow(*Stats[Index],ShownPts,Content);
             WorkshopText(Row.Name,Shown.Name);WorkshopText(Row.Points,FString::FromInt(Shown.Points));WorkshopText(Row.Glyph,Shown.Glyph);
+            const bool bKeystone=Shown.Points>=Content->Parameters.KeystoneThresholdPoints;
+            Row.Points->SetColorAndOpacity(bKeystone?LDHUDStyle::UIAction:LDHUDStyle::UIText);
+            if(Row.Keystone)
+            {
+                WorkshopText(Row.Keystone,bKeystone?FString(TEXT("★")):FString(TEXT("◇")));
+                Row.Keystone->SetColorAndOpacity(bKeystone?LDHUDStyle::UIAction:LDHUDStyle::TextSecondary);
+                Row.Keystone->SetToolTipText(FText::FromString(FString::Printf(TEXT("%d / %lld"),Shown.Points,Content->Parameters.KeystoneThresholdPoints)));
+            }
             Row.Value=Shown.Points;
             if(Row.PendingFlashRevision!=0&&View.bValid&&View.BuildRevision>=Row.PendingFlashRevision)
             {
@@ -1163,7 +1001,7 @@ void ULDWorkshop::RefreshHeads()
         else{Key=Latest.Keys.Of(uint8(Index-int32(LDHUD::EStorageColumn::SlotQ)));}
         WorkshopText(Head.Key,Key);
         const FString Name=Shown.Name;
-        WorkshopText(Head.Name,Name);
+        WorkshopText(Head.Name,Head.Active.IsNone()?Name:Name+TEXT("  ")+LDHUD::RankDots(LDSkillBranch::RankOf(Head.Branch)));
         Head.Name->SetColorAndOpacity(Shown.bEmpty?LDHUDStyle::TextSecondary:LDHUDStyle::UIText);
         WorkshopText(Head.Glyph,Shown.bEmpty?FString(TEXT("+")):Shown.Glyph);
         if(Head.AppliedIcon!=Shown.IconId||Shown.IconId.IsEmpty())
@@ -1351,7 +1189,7 @@ void ULDWorkshop::RefreshPreviewPage()
     else if(Preview.Status==EStatus::Refused){Body=LDHUD::GrowthReasonText(Preview.Reason);}
     else if(Preview.Status==EStatus::Unavailable){Body=LDTerms::WorkshopPreviewUnavailable;}
     else if(Preview.Lines.IsEmpty()){Body=Preview.bPartial?LDTerms::WorkshopPreviewConditional:LDTerms::WorkshopPreviewNoChange;}
-    const int32 PerPage=Mode==EMode::Full?3:1;
+    const int32 PerPage=3;
     const int32 Pages=FMath::Max(1,FMath::DivideAndRoundUp(Preview.Lines.Num(),PerPage));
     PreviewPage=FMath::Clamp(PreviewPage,0,Pages-1);
     if(Preview.Status==EStatus::Ready)
@@ -1394,9 +1232,8 @@ void ULDWorkshop::RefreshDock(FVector2D Pointer)
             return;
         }
     }
-    if(bChoiceStage){return;}
     const FLDDemoContentDefinitions* Content=Latest.Content;
-    if(Content&&Mode==EMode::Full)
+    if(Content&&Mode==EMode::Open)
     {
         for(const FReaction& Reaction:Reactions)
         {
@@ -1474,8 +1311,7 @@ void ULDWorkshop::NativeTick(const FGeometry& Geometry,float DeltaSeconds)
 void ULDWorkshop::AnimateOpening()
 {
     if(!Canvas){return;}
-    // The panels rise from below and fade in when the workshop opens, and sink and fade out when it closes; the world's
-    // darkening (Blur, Shade) follows its own fade in Present.
+    // Fade the backdrop without moving or hiding the interactive surfaces during layout.
     float Shown=1.f;
     if(ClosingAt>=0.)
     {
@@ -1484,13 +1320,11 @@ void ULDWorkshop::AnimateOpening()
         else{Shown=1.f-LDTween::Progress(Age,LDHUDStyle::MotionWorkshopClose,LDTween::ECurve::EaseIn);}
     }
     else if(OpenedAt>=0.){Shown=LDTween::Progress(UiNow()-OpenedAt,LDHUDStyle::MotionWorkshopOpen,LDTween::ECurve::EaseOut);}
-    const float Rise=(ClosingAt>=0.?ClosingMode:Mode)==EMode::Field?60.f:36.f;
     for(int32 Index=0;Index<Canvas->GetChildrenCount();++Index)
     {
         UWidget* Child=Canvas->GetChildAt(Index);
         if(Child==Blur){LDTween::SetOpacity(Child,ClosingAt>=0.?Shown:1.f);continue;}
-        LDTween::SetTranslation(Child,FVector2D(0.f,(1.f-Shown)*Rise));
-        LDTween::SetOpacity(Child,Shown);
+        LDTween::SetOpacity(Child,ClosingAt>=0.?Shown:1.f);
     }
     for(FHead& Head:Heads)
     {
@@ -1503,13 +1337,6 @@ void ULDWorkshop::AnimateOpening()
             else{Stamp=FMath::Lerp(1.6f,1.f,LDTween::Progress(Age,LDHUDStyle::MotionFinalLock,LDTween::ECurve::Back));}
         }
         LDTween::SetScale(Head.Final,Stamp);
-    }
-    // The board, the library and the pending cards live in their own widgets placed over these panels: they rise with them.
-    const float Joined=ClosingAt>=0.?1.f:Shown;
-    for(UWidget* Over:{static_cast<UWidget*>(Storage.Get()),static_cast<UWidget*>(Choices.Get())})
-    {
-        LDTween::SetTranslation(Over,FVector2D(0.f,(1.f-Joined)*Rise));
-        LDTween::SetOpacity(Over,Joined);
     }
 }
 FReply ULDWorkshop::NativeOnMouseWheel(const FGeometry& Geometry,const FPointerEvent& Event)
@@ -1545,12 +1372,6 @@ FReply ULDWorkshop::NativeOnMouseButtonDown(const FGeometry& Geometry,const FPoi
     return Super::NativeOnMouseButtonDown(Geometry,Event);
 }
 
-bool ULDWorkshop::DockHasRight() const
-{
-    for(const UTextBlock* Section:{DockWhere.Get(),DockLinks.Get(),DockNotes.Get()}){if(Section&&Section->GetVisibility()!=ESlateVisibility::Collapsed&&!Section->GetText().IsEmpty()){return true;}}
-    return false;
-}
-
 void ULDWorkshop::PaintBackdrop(const LDUIPaint::FContext& Paint) const
 {
     if(!IsOpen()&&ClosingAt<0.){return;}
@@ -1562,9 +1383,9 @@ void ULDWorkshop::PaintBackdrop(const LDUIPaint::FContext& Paint) const
     const auto Shown=[](const UWidget* Widget){return Widget&&Widget->IsVisible()&&Widget->GetCachedGeometry().GetLocalSize().X>1.f;};
     const int32 Base=Layer,Ink=Layer+3;
     const FLinearColor Line=FLinearColor(1,1,1,.075f);
-    const bool bFull=(IsOpen()?Mode:ClosingMode)==EMode::Full;
+
     // ---- surfaces ----
-    if(bFull&&WorkshopHasArea(Rects.Phase))
+    if((Latest.bRest||Latest.bDead)&&WorkshopHasArea(Rects.Phase))
     {
         // .phase: a horizontal fade from the solid surface, its hairline and highlight.
         Paint.Shape(Base,EShape::Rounded,Rects.Phase,6.f,FFill::Linear(90.f,{{0.f,Hex(0x121723,.95f)},{1.f,Hex(0x121723,.7f)}}));
@@ -1576,7 +1397,7 @@ void ULDWorkshop::PaintBackdrop(const LDUIPaint::FContext& Paint) const
     if(WorkshopHasArea(Rects.Dock))
     {
         Paint.Panel(Base,Rects.Dock);
-        if(bFull&&DockRight&&DockRight->IsVisible()&&!(Latest.bFinalStage))
+        if(DockRight&&DockRight->IsVisible()&&!(Latest.bFinalStage))
         {
             Paint.Line(Base+3,FVector2D(DockDividerX,Rects.Dock.Min.Y+24.f),FVector2D(DockDividerX,Rects.Dock.Max.Y-24.f),Line,1.f);
         }
@@ -1610,7 +1431,7 @@ void ULDWorkshop::PaintBackdrop(const LDUIPaint::FContext& Paint) const
         else{Paint.SkillArt(Ink,Art,false,!DockIcon.IsValid()&&DockGlyph&&DockGlyph->GetText().IsEmpty(),DockIcon.Get());}
     }
     // ---- phase ring and steps ----
-    if(bFull&&PhaseClock&&WorkshopHasArea(Rects.Phase))
+    if((Latest.bRest||Latest.bDead)&&PhaseClock&&WorkshopHasArea(Rects.Phase))
     {
         const UWidget* Clock=PhaseClock->GetParent()?static_cast<const UWidget*>(PhaseClock->GetParent()):PhaseClock.Get();
         const FVector2D Centre=Box(Clock).GetCenter();
@@ -1770,7 +1591,7 @@ void ULDWorkshop::PaintBackdrop(const LDUIPaint::FContext& Paint) const
         const LDHUD::EStorageColumn Id=static_cast<LDHUD::EStorageColumn>(Index);
         const bool bTakes=Focus&&Focus->Drops.ContainsByPredicate([Id](const LDHUD::FCardDrop& Drop){return Drop.Column==Id&&Drop.Replacing.IsNone();});
         const bool bSwaps=Focus&&!bTakes&&Focus->Drops.ContainsByPredicate([Id](const LDHUD::FCardDrop& Drop){return Drop.Column==Id;});
-        const FBox2D Back=WorkshopBox(Column.Min.X,Column.Min.Y+(bFull?44.f:Rects.HeadTop+Rects.HeadIcon*.5f),Column.Max.X,Column.Max.Y);
+        const FBox2D Back=WorkshopBox(Column.Min.X,Column.Min.Y+44.f,Column.Max.X,Column.Max.Y);
         if(bTakes||bSwaps)
         {
             const FLinearColor Tone=bTakes?LDHUDStyle::UILegal:LDHUDStyle::UIReplace;
@@ -1784,11 +1605,10 @@ void ULDWorkshop::PaintBackdrop(const LDUIPaint::FContext& Paint) const
             Paint.Shape(Ink+1,EShape::Rounded,Back,6.f,FFill::Linear(180.f,{{0.f,FLinearColor(1,1,1,.035f)},{1.f,FLinearColor(1,1,1,.01f)}}));
             Paint.Edge(Ink+1,EShape::Rounded,Back,6.f,FLinearColor(1,1,1,.045f),1.f);
         }
-        if(bFull)
-        {
-            Paint.Line(Ink+1,FVector2D(Column.Min.X+37.f,Column.Min.Y+WorkshopSocketTop-2.f),FVector2D(Column.Min.X+37.f,Column.Max.Y-26.f),
-                FLinearColor(1,1,1,.2f),2.f,FLinearColor(1,1,1,.04f));
-        }
+        const double RailX=Column.GetCenter().X;
+        const double SocketY=Column.Min.Y+WorkshopSocketTop;
+        Paint.Stroke(Ink+1,{FVector2D(RailX-5,SocketY-10),FVector2D(RailX,SocketY-4),FVector2D(RailX+5,SocketY-10)},
+            LDHUDStyle::TextAccent.CopyWithNewOpacity(.60f),1.5f);
         // The head: the skill art (gold for an active, silver for the body and the dash), the body's face in the holder's
         // colour, and the numbers' pills.
         const FHead& Head=Heads[Index];
@@ -1833,6 +1653,113 @@ int32 ULDWorkshop::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,
             const FBox2D& Column=Rects.Column[Index];
             Paint.Shape(Top,LDUIShapes::EShape::Rounded,WorkshopBox(Column.Min.X,Column.Min.Y,Column.Max.X,Column.Min.Y+Rects.HeadHeight),6.f,
                 LDUIPaint::FFill::Solid(LDUIPaint::Hex(0x0C1019,.7f)));
+        }
+    }
+    const auto DrawLink=[&](const UWidget* Source,const UWidget* Target)
+    {
+        if(!Source||!Target||!Source->IsVisible()||!Target->IsVisible()){return;}
+        const FBox2D Start=LDUIShapes::RectIn(Geometry,Source->GetCachedGeometry());
+        const FBox2D End=LDUIShapes::RectIn(Geometry,Target->GetCachedGeometry());
+        if(!WorkshopHasArea(Start)||!WorkshopHasArea(End)){return;}
+        const FVector2D A(Start.GetCenter()),B(End.GetCenter());
+        const double Mid=(A.X+B.X)*.5;
+        Paint.Stroke(Top,{A,FVector2D(Mid,A.Y),FVector2D(Mid,B.Y),B},LDHUDStyle::UIAction.CopyWithNewOpacity(.65f),1.5f);
+        Paint.Frame(Top,LDUIShapes::EShape::Rounded,End,LDHUDStyle::UIAction,1.5f,5.f);
+    };
+    if(Latest.Content&&FSlateApplication::IsInitialized())
+    {
+        const FVector2D Pointer=FSlateApplication::Get().GetCursorPos();
+        const auto Under=[Pointer](const UWidget* Widget)
+        {
+            return Widget&&Widget->IsVisible()&&Widget->GetCachedGeometry().IsUnderLocation(Pointer);
+        };
+        for(const FReaction& Reaction:Reactions)
+        {
+            for(const auto& Disc:{TPair<const UWidget*,ELDDemoElement>(Reaction.FirstText?Reaction.FirstText->GetParent():nullptr,Reaction.First),
+                TPair<const UWidget*,ELDDemoElement>(Reaction.SecondText?Reaction.SecondText->GetParent():nullptr,Reaction.Second)})
+            {
+                if(!Under(Disc.Key)){continue;}
+                for(const FHead& Head:Heads)
+                {
+                    if(Head.Elements.Contains(Disc.Value)){DrawLink(Disc.Key,Head.IconFace);}
+                }
+                if(Storage.IsValid())
+                {
+                    for(const FLDCardInstanceView& Card:View.Cards)
+                    {
+                        if(!Card.IsInstalled()){continue;}
+                        const FName Key=LDHUD::CardKey(Card.DefinitionId,Card.Serial);
+                        const auto CardElements=LDWorkshop::CardElements(Card.DefinitionId,Latest.Content);
+                        if(Card.Target.Element==Disc.Value||CardElements.Contains(Disc.Value))
+                        {
+                            FSlateRect Tile;
+                            if(Storage->TileBox(Key,Tile))
+                            {
+                                const FBox2D Bounds=LDUIShapes::AbsoluteIn(Geometry,Tile);
+                                Paint.Frame(Top,LDUIShapes::EShape::Rounded,Bounds,LDHUDStyle::UIAction,2.f,5.f);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if(Choices.IsValid())
+        {
+            LDHUD::FActionDetailView Detail;FName Component;
+            const UWidget* Source=Choices->Hovered(Pointer,Detail,&Component);
+            if(Under(Source)&&!Component.IsNone())
+            {
+                const FLDDemoCardDefinition* Definition=LDHUD::CardDefinitionOf(Latest.Content,Component);
+                if(Definition)
+                {
+                    const FLDGrowthBuild Build=LDProgression::BuildFromView(*Latest.Content,View);
+                    for(int32 Index=0;Index<Heads.Num();++Index)
+                    {
+                        const auto Column=LDHUD::EStorageColumn(Index);
+                        const FHead& Head=Heads[Index];
+                        FLDCardTarget Target;
+                        Target.Active=Head.Active;
+                        if(!Head.Active.IsNone()){Target.Kind=ELDCardTargetKind::Skill;}
+                        else if(Column==LDHUD::EStorageColumn::Dash){Target.Kind=ELDCardTargetKind::Dash;}
+                        else if(Column==LDHUD::EStorageColumn::Body){Target.Kind=ELDCardTargetKind::Body;}
+                        if(!Definition->ChooseElements.IsEmpty()){Target.Element=Definition->ChooseElements[0];}
+                        if(Target.Kind!=ELDCardTargetKind::None&&LDProgression::CardTargetReason(*Latest.Content,Build,Component,Target)==ELDGrowthReason::None)
+                        {DrawLink(Source,Head.IconFace);}
+                    }
+                }
+            }
+        }
+        const auto Stats=Latest.Content->StatsInDesignOrder();
+        for(int32 Index=0;Index<StatRows.Num()&&Stats.IsValidIndex(Index);++Index)
+        {
+            const FStatRow& Row=StatRows[Index];
+            if(!Under(Row.Row)){continue;}
+            const auto Has=[&](ELDDemoBonusStat Stat)
+            {
+                return Stats[Index]->PerPoint.ContainsByPredicate([Stat](const FLDDemoStatBonus& Bonus){return Bonus.Stat==Stat;});
+            };
+            const bool bAD=Has(ELDDemoBonusStat::ADFlat),bAP=Has(ELDDemoBonusStat::APFlat);
+            const bool bHealth=Has(ELDDemoBonusStat::MaxHPFlat);
+            const bool bResist=Has(ELDDemoBonusStat::ArmorFlat)||Has(ELDDemoBonusStat::MagicResistFlat);
+            const bool bHaste=Has(ELDDemoBonusStat::CooldownHasteFlat);
+            for(const FHead& Head:Heads)
+            {
+                if(Head.Active.IsNone()){continue;}
+                const auto* Definition=Latest.Content->Abilities.FindByPredicate([&](const FLDDemoAbilityDefinition& Ability)
+                {return FName(*Ability.Id)==Head.Active;});
+                if(!Definition){continue;}
+                const auto* Variant=Definition->FindBranch(Head.Branch);
+                const auto& Values=Variant?Variant->Values:Definition->Values;
+                if((bHaste&&Values.CooldownMs>0)||Values.Effects.ContainsByPredicate([=](const FLDDemoEffectDefinition& Effect)
+                    {
+                        return (bAD&&(Effect.ADRatioBp!=0||Effect.AdaptiveRatioBp!=0))
+                            ||(bAP&&(Effect.APRatioBp!=0||Effect.AdaptiveRatioBp!=0))
+                            ||(bHealth&&(Effect.MaxHPRatioBp!=0||Effect.HealMissingBp!=0))
+                            ||(bResist&&(Effect.ResistRatioBp!=0||Effect.ArmorRatioBp!=0));
+                    }))
+                {DrawLink(Row.Row,Head.IconFace);}
+            }
+            break;
         }
     }
     // The lines and the dock read the same owned connections; a legal held drop previews them at its prospective position.

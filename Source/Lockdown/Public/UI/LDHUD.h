@@ -213,7 +213,7 @@ private:
     bool bWorkshopSeenDead=false;
     bool bWorkshopSeenRestBuild=false;
     bool bWorkshopOpenedDuringDeath=false;
-    bool bWorkshopWasFull=false;
+    bool bWasAutoWorkshopPhase=false;
     // The open workshop was opened by its moment, not by the player: it closes again when the moment ends.
     bool bWorkshopAutoOpened=false;
     // The rest actions panel's own brush, restored when it leaves the full workshop's top bar.
@@ -375,6 +375,7 @@ private:
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> ResultDamageGlyphs;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> ResultDamageCells;
     UPROPERTY() TArray<TObjectPtr<UProgressBar>> ResultDamageBars;
+    uint8 ResultReportTab=0;
     void RefreshResultInspectedBuild(const struct FLDResultView& Result, const FGuid& OwnContenderId);
     // Spec §12 结算“本局最离谱”: one line per contender (LDHUD::ResultHighlights).
     UPROPERTY() TObjectPtr<UWidget> ResultHighlightsCard;

@@ -386,6 +386,7 @@ bool ALDCombatDirector::RunEffects(const FLDGameplayWritePermit& Permit, FString
     if (!LD_TRACED(LDEffects_Dashes,ResolveDashCompletions(Now,Error))) { return false; }
     // Zones, burns and element records due now join this boundary's hits and projectiles.
     ReactionFacts.Reset();
+    BoundaryReactionDamage.Reset();
     ReactionAssists.Reset();
     if (!LD_TRACED(LDEffects_SkillContent,AdvanceSkillContent(Now,Error)) || !LD_TRACED(LDEffects_Mechanics,AdvanceMechanics(Now,Error))
         || !LD_TRACED(LDEffects_Elements,AdvanceElements(Now,Error)) || !LD_TRACED(LDEffects_Ground,AdvanceGround(Now,Error))

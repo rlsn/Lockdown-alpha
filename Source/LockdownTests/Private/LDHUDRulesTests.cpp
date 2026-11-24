@@ -44,6 +44,7 @@
 #include "Components/OverlaySlot.h"
 #include "Components/RichTextBlock.h"
 #include "Components/ScaleBox.h"
+#include "Components/ScrollBox.h"
 #include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
@@ -840,6 +841,9 @@ bool FLDHUDStatWheelTest::RunTest(const FString& Parameters)
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if(!LDTestApprovedFixture::Read(*this,Catalog)){return false;}
     const FLDDemoContentDefinitions& Content=Catalog->Get();
+    FName Table;
+    if(!HudRegisterApprovedNames(*this,Content,Table)){return false;}
+    ON_SCOPE_EXIT{if(!Table.IsNone()){FStringTableRegistry::Get().UnregisterStringTable(Table);}};
     const FLDAttributeProjectionResult Base=LDAttributeProjection::Project(FLDAttributeBuildValues(1,{}),*Catalog);
     if(!TestTrue(TEXT("The bare level-1 build projects"),Base.IsSuccess())){return false;}
     LDHUD::FCardStats L1;L1.ADP2=Base.Value->Final.ADP2;L1.APP2=Base.Value->Final.APP2;L1.MaxHPP2=Base.Value->Final.MaxHPP2;L1.ArmorP2=Base.Value->Final.ArmorP2;
@@ -859,7 +863,7 @@ bool FLDHUDStatWheelTest::RunTest(const FString& Parameters)
     Bar->SubmitBuild=[&Sent](const FLDBuildCommand& Command,ELDGrowthReason& Reason){Sent.Add(Command);Reason=ELDGrowthReason::InvalidRequest;return uint64(0);};
     Bar->PeekRequestId=[](){return uint64(1);};
     Workshop->StatBar=Bar;
-    ULDWorkshop::FInput Input;Input.Mode=ULDWorkshop::EMode::Full;Input.Progression=&View;Input.Match=1;Input.Content=&Content;
+    ULDWorkshop::FInput Input;Input.Mode=ULDWorkshop::EMode::Open;Input.Progression=&View;Input.Match=1;Input.Content=&Content;
     Input.bRest=true;Input.Step=ELDRestStep::Build;Input.Stats=L1;
     // Laid out far off any desktop, so the real cursor is never over a cell and only the wheel events and the pin aim.
     const FVector2D Origin(-1000000.,-1000000.);
@@ -894,13 +898,12 @@ bool FLDHUDStatWheelTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Wheel up over a workshop row allocates that stat"),Sent.Num()==1&&Only(Sent.Last(),ELDBuildCommandKind::AllocatePoints,1));
     Wheel(Workshop,Row2,-1.f);
     TestTrue(TEXT("Wheel down over a workshop row refunds that stat"),Sent.Num()==2&&Only(Sent.Last(),ELDBuildCommandKind::Respec,2));
-    // A collapsed character panel (the field workshop) keeps its rows' old geometry but takes no wheel.
-    Input.Mode=ULDWorkshop::EMode::Field;
+    // The closed workshop ignores a wheel over its previous rows.
+    Input.Mode=ULDWorkshop::EMode::Closed;
     for(int32 Tick=0;Tick<5;++Tick){Frame();}
     Wheel(Workshop,Row1,1.f);Wheel(Workshop,Row2,-1.f);
-    TestEqual(TEXT("A collapsed workshop panel sends nothing"),Sent.Num(),2);
-    // The band: the cell under the wheel event, not the last tick's hover.
-    Input.Mode=ULDWorkshop::EMode::Closed;
+    TestEqual(TEXT("A closed workshop sends nothing"),Sent.Num(),2);
+    // The band uses the cell beneath the wheel event.
     for(int32 Tick=0;Tick<5;++Tick){Frame();}
     Bar->PinHover(2);Frame();
     TestEqual(TEXT("The pinned cell is the band's current hover"),Bar->HoverIndex(),2);
@@ -1049,64 +1052,88 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
     View.bHasActiveOffer=true;View.ActiveOffer.OfferId=FGuid(1,2,3,4);View.ActiveOffer.OfferRevision=1;
     for(int32 Index=0;Index<FMath::Min(3,Content.Abilities.Num());++Index){View.ActiveOffer.Options.Add(FName(*Content.Abilities[Index].Id));}
     View.ActiveOffer.SkipPoints=1;
-    ULDWorkshop::FInput Input;Input.Mode=ULDWorkshop::EMode::Full;Input.Progression=&View;Input.Match=1;Input.Content=&Content;
-    Input.bStage=true;Input.bRest=true;Input.Step=ELDRestStep::Build;Input.Stats=L1;
+    ULDWorkshop::FInput Input;Input.Mode=ULDWorkshop::EMode::Open;Input.Progression=&View;Input.Match=1;Input.Content=&Content;
+    Input.bStage=true;Input.bRest=true;Input.Stage=LDProgression::EMatchStage::Rest;Input.Step=ELDRestStep::Build;Input.Stats=L1;
     const FVector2D LayoutSize(1920,1080);
-    const FGeometry Geometry=FGeometry::MakeRoot(LayoutSize,FSlateLayoutTransform(2.f/3.f));
+    float LayoutScale=2.f/3.f;
     const auto Frame=[&]()
     {
-        Workshop->Present(Input);
-        Choices->SetWorkshopPlaces(Workshop->Places());
-        Choices->Present(View,1,1,ELDLifePhase::Alive,LDProgression::EMatchStage::Rest,&Content,L1,{});
-        Slate->SlatePrepass(2.f/3.f);
+        const FGeometry Geometry=FGeometry::MakeRoot(LayoutSize,FSlateLayoutTransform(LayoutScale));
+        Choices->UpdateInputs(View,1,1,ELDLifePhase::Alive,Input.Stage,&Content,L1,{},false);
+        const auto Drawer=Choices->DrawerState(Input.Mode==ULDWorkshop::EMode::Open);
+        const auto Waiting=LDHUD::GrowthPending(&View,1,&Content);
+        Input.Pending=Drawer.bLibraryOnly?0:int32(Waiting.bOffer)+Waiting.Blueprints+int32(Waiting.bCardOffer)+int32(Waiting.bFinalMod);
+        Input.bStage=Drawer.bStage;Input.bFinalStage=Drawer.bFinalStage;
+        Input.bShop=Drawer.bShop;Input.bServices=Drawer.bServices;Input.bCharacterServices=Drawer.bCharacterServices;
+        Workshop->Present(Input,&Geometry);
+        Choices->PresentWithBounds(Workshop->Places(),Workshop->TrayInset(),Workshop->TrayWrapWidth(),Workshop->TrayHeightLimit());
+        Slate->SlatePrepass(LayoutScale);
         FHittestGrid HitTest;FSlateWindowElementList Draw{TSharedPtr<SWindow>()};
-        Slate->Paint(FPaintArgs(nullptr,HitTest,FVector2D::ZeroVector,1.,1.f/60.f),Geometry,FSlateRect(0,0,1280,720),Draw,0,FWidgetStyle(),true);
+        const FVector2D Pixels=LayoutSize*LayoutScale;
+        Slate->Paint(FPaintArgs(nullptr,HitTest,FVector2D::ZeroVector,1.,1.f/60.f),Geometry,FSlateRect(0,0,Pixels.X,Pixels.Y),Draw,0,FWidgetStyle(),true);
         Workshop->NativeTick(Geometry,1.f/60.f);Choices->NativeTick(Geometry,1.f/60.f);
     };
-    Frame();Choices->OpenPanel();
+    Choices->OpenPanel();
     {
-        // UI-05 same-pass convergence: starting from Closed Workshop (stale Places/TrayDesired, bStage=false), one
-        // PresentConverged call opens Full Workshop, updates Stage/Dock rectangles AND reruns Choices->Present + SlatePrepass
-        // so StageBox lands in the final Stage rectangle on pass 0 without waiting a second frame.
-        ULDWorkshop::FInput ClosedIn=Input;ClosedIn.Mode=ULDWorkshop::EMode::Closed;ClosedIn.bStage=false;
-        Workshop->Present(ClosedIn);
-        Choices->SetWorkshopPlaces(Workshop->Places());
-        Choices->Present(View,1,1,ELDLifePhase::Alive,LDProgression::EMatchStage::Rest,&Content,L1,{});
-        Slate->SlatePrepass(2.f/3.f);
-        FHittestGrid ColdHit;FSlateWindowElementList ColdDraw{TSharedPtr<SWindow>()};
-        Slate->Paint(FPaintArgs(nullptr,ColdHit,FVector2D::ZeroVector,1.,1.f/60.f),Geometry,FSlateRect(0,0,1280,720),ColdDraw,0,FWidgetStyle(),true);
-
-        ULDWorkshop::FInput OpenIn=Input;OpenIn.Mode=ULDWorkshop::EMode::Full;OpenIn.bStage=false;OpenIn.TrayDesired=Choices->TrayDesiredSize();
-        ULDWorkshop::PresentConverged(*Workshop,Choices,nullptr,OpenIn,2.f/3.f,[&]()
+        LayoutScale=1.f;
+        Workshop->ApplyTextScale(1.25f);Choices->ApplyTextScale(1.25f);
+        Input.Stage=LDProgression::EMatchStage::Live;
+        Input.bRest=false;
+        View.bHasActiveOffer=false;
+        Frame();
+        const auto Bounds=[](const UWidget* Widget){return Widget->GetCachedGeometry().GetLayoutBoundingRect();};
+        const auto Same=[](const FSlateRect& A,const FSlateRect& B)
         {
-            Choices->Present(View,1,1,ELDLifePhase::Alive,LDProgression::EMatchStage::Rest,&Content,L1,{});
-        });
-        const ULDChoicesPanel::FWorkshopPlaces Converged=Workshop->Places();
-        const UCanvasPanelSlot* StageSlot=Choices->StageBox?Cast<UCanvasPanelSlot>(Choices->StageBox->Slot):nullptr;
-        const FVector2D ExpectedPos=Workshop->Rects.Stage.Min;
-        const FVector2D ExpectedSize=Workshop->Rects.Stage.GetSize();
-        TestTrue(TEXT("PresentConverged converges bStage, WorkshopPlaces and StageBox geometry in a single pass"),
-            OpenIn.bStage&&Choices->IsStageShown()&&Converged.bActive&&Choices->WorkshopPlaces().Equals(Converged)
-            &&StageSlot&&StageSlot->GetPosition().Equals(ExpectedPos,1.f)&&StageSlot->GetSize().Equals(ExpectedSize,1.f));
-
-        // Also verify SlatePrepass updates TrayDesiredSize inside the same pass when wrapping pending blueprint + card offers.
-        FLDProgressionView WrapView=View;WrapView.bHasActiveOffer=false;
-        for(int32 Bp=0;Bp<FMath::Min(4,Content.Abilities.Num());++Bp){WrapView.PendingBlueprints.Add(FName(*Content.Abilities[Bp].Id));}
-        WrapView.bHasCardOffer=true;WrapView.CardOffer.OfferId=FGuid(9,9,9,1);
-        for(int32 Ci=0;Ci<FMath::Min(3,Content.Cards.Num());++Ci){WrapView.CardOffer.Options.Add(FName(*Content.Cards[Ci].Id));}
-        Workshop->Present(ClosedIn);
-        Choices->SetWorkshopPlaces(ULDChoicesPanel::FWorkshopPlaces());Choices->SetTrayInset(16.f,80.f,0.f,0.f);
-        Choices->Present(WrapView,1,1,ELDLifePhase::Alive,LDProgression::EMatchStage::Rest,&Content,L1,{});
-        Slate->SlatePrepass(2.f/3.f);
-        ULDWorkshop::FInput WrapOpen=Input;WrapOpen.Mode=ULDWorkshop::EMode::Full;WrapOpen.Progression=&WrapView;
-        WrapOpen.bStage=false;WrapOpen.Pending=2;WrapOpen.TrayDesired=Choices->TrayDesiredSize();
-        ULDWorkshop::PresentConverged(*Workshop,Choices,nullptr,WrapOpen,2.f/3.f,[&]()
+            return A.Left==B.Left&&A.Top==B.Top&&A.Right==B.Right&&A.Bottom==B.Bottom&&A.Right>A.Left&&A.Bottom>A.Top;
+        };
+        const FSlateRect Character=Bounds(Workshop->CharacterPanel),Board=Bounds(Workshop->BoardPanel);
+        bool bScroll=false;
+        for(UWidgetTree* Tree:{Workshop->WidgetTree.Get(),Choices->WidgetTree.Get()})
         {
-            Choices->Present(WrapView,1,1,ELDLifePhase::Alive,LDProgression::EMatchStage::Rest,&Content,L1,{});
-        });
-        TestTrue(TEXT("PresentConverged prepasses ChoicesPanel so TrayDesiredSize matches Workshop Pending height on pass 0"),
-            WrapOpen.TrayDesired.Equals(Choices->TrayDesiredSize(),.5)&&Workshop->Rects.Pending.bIsValid);
+            Tree->ForEachWidget([&bScroll](UWidget* Widget){bScroll|=Widget->IsA<UScrollBox>();});
+        }
+        TestFalse(TEXT("The 1920x1080 workshop and choices use no ScrollBox at 125%"),bScroll);
+        const auto Stable=[&]()
+        {
+            const FSlateRect Reactions=Bounds(Workshop->ReactionBlock);
+            return Workshop->CharacterPanel->IsVisible()&&Workshop->ReactionBlock->IsVisible()
+                &&Workshop->BoardPanel->IsVisible()&&Same(Bounds(Workshop->CharacterPanel),Character)&&Same(Bounds(Workshop->BoardPanel),Board)
+                &&Reactions.Left>=Character.Left&&Reactions.Right<=Character.Right
+                &&Reactions.Top>=Character.Top&&Reactions.Bottom<=Character.Bottom;
+        };
+        View.bHasActiveOffer=true;
+        for(int32 Tick=0;Tick<3;++Tick)
+        {
+            Frame();
+            TestTrue(TEXT("Field reward immediately shows beside stable character and board panels"),
+                Stable()&&Choices->IsStageShown()&&Choices->StageBox->GetCachedGeometry().GetAbsoluteSize().X>0.f);
+        }
+        View.bHasActiveOffer=false;
+        Input.Stage=LDProgression::EMatchStage::Rest;
+        Input.bRest=true;
+        View.Shop.bStocked=true;View.Shop.Revision=1;
+        for(int32 Index=0;Index<FMath::Min(8,Content.Cards.Num());++Index)
+        {
+            FLDShopSlotView& Slot=View.Shop.Slots.AddDefaulted_GetRef();
+            Slot.DefinitionId=FName(*Content.Cards[Index].Id);Slot.Kind=ELDShopItemKind::Card;Slot.Price=1;
+        }
+        for(int32 Tick=0;Tick<3;++Tick)
+        {
+            Frame();
+            TestTrue(TEXT("Opening the shop keeps the character, reactions and board visible"),Stable()&&Choices->IsShopShown());
+        }
+        TestTrue(TEXT("The shop can be toggled closed"),Choices->ToggleShop());
+        for(int32 Tick=0;Tick<3;++Tick)
+        {
+            Frame();
+            TestTrue(TEXT("Closing the shop keeps the character and board stable"),Stable()&&!Choices->IsShopShown());
+        }
+        View.Shop.bStocked=false;
+        View.bHasActiveOffer=true;
+        LayoutScale=2.f/3.f;
+        Frame();
     }
+    const FGeometry Geometry=FGeometry::MakeRoot(LayoutSize,FSlateLayoutTransform(LayoutScale));
     for(const float TextScale:{1.f,1.25f})
     {
         Workshop->ApplyTextScale(TextScale);Choices->ApplyTextScale(TextScale);
@@ -1180,8 +1207,7 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
     }
     for(const FVector2D Size:{FVector2D(1920,1080),FVector2D(1280,720)})
     {
-        Workshop->Layout(Size);
-        const auto& R=Workshop->Rects;
+        const auto R=ULDWorkshop::ComputeLayout(Size,Input);
         const FString At=FString::Printf(TEXT("Choice stage %.0fx%.0f"),Size.X,Size.Y);
         TestTrue(At+TEXT(": stage and dock fit the screen without overlapping"),
             R.Stage.bIsValid&&R.Dock.bIsValid&&R.Stage.Min.X>=0.&&R.Stage.Max.X<=Size.X
@@ -1189,7 +1215,7 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
             &&R.Dock.Max.Y<=Size.Y);
         TestTrue(At+TEXT(": persistent CharacterPanel stays visible beside Stage without overlap"),
             R.Character.bIsValid&&R.Character.GetSize().X>=200.&&R.Character.GetSize().Y>=200.
-            &&R.Character.Max.X<=R.Stage.Min.X&&R.Character.Max.X<=R.Dock.Min.X);
+            &&R.Character.Max.X<=R.Stage.Min.X&&R.Character.Max.Y<=R.Dock.Min.Y);
     }
     Input.bStage=false;Input.bFinalStage=false;Choices->LeaveStage();
     for(int32 Tick=0;Tick<30;++Tick){Frame();}
@@ -1263,7 +1289,7 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
     Workshop->RefreshDock(FVector2D(-100,-100));
     Input.Mode=ULDWorkshop::EMode::Closed;Input.bDead=false;
     Workshop->Present(Input);
-    Input.Mode=ULDWorkshop::EMode::Full;
+    Input.Mode=ULDWorkshop::EMode::Open;
     Frame();
     Workshop->RefreshDock(FVector2D(-100,-100));
     TestTrue(TEXT("Closing during respawn cannot leave a previous life's recap in the reopened dock"),
@@ -1283,17 +1309,17 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
         if(Row.Form==ELDCardForm::Body&&Count<9){Entry.Target.Kind=ELDCardTargetKind::Body;++Count;}
     }
     const auto KeyOf=[](const FLDCardInstanceView& Entry){return LDHUD::CardKey(Entry.DefinitionId,Entry.Serial);};
-    Input.Progression=&Dense;Input.TrayDesired=FVector2D(200,100);Input.Pending=2;
+    Input.Progression=&Dense;Input.Pending=2;
     ULDComponentStorage::FAnchors NoAnchors;
-    for(const ULDWorkshop::EMode Mode:{ULDWorkshop::EMode::Full,ULDWorkshop::EMode::Field})
+    for(const bool bServices:{true,false})
     for(const float ScreenScale:{1.f,2.f/3.f})
     {
-        Input.Mode=Mode;Input.bServices=Mode==ULDWorkshop::EMode::Full;
+        Input.Mode=ULDWorkshop::EMode::Open;Input.bServices=bServices;
         Workshop->LibraryPage=0;
         const FGeometry Screen=FGeometry::MakeRoot(LayoutSize,FSlateLayoutTransform(ScreenScale));
         const auto DenseFrame=[&]()
         {
-            Workshop->Present(Input);
+            Workshop->Present(Input,&Screen);
             Storage->SetWorkshop(Workshop->StorageLayout());
             Storage->Present(&Dense,1,LDProgression::EMatchStage::Rest,ELDLifePhase::Alive,&Content,L1,NoAnchors,true);
             Slate->SlatePrepass(ScreenScale);
@@ -1304,19 +1330,10 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
         };
         for(int32 Tick=0;Tick<30;++Tick){DenseFrame();}
         const auto& R=Workshop->Rects;
-        const FString At=FString::Printf(TEXT("Dense workshop mode %d scale %.2f"),int32(Mode),ScreenScale);
-        if(Mode==ULDWorkshop::EMode::Full)
-        {
-            TestTrue(At+TEXT(": full-width dock is below all three panels"),
-                R.Dock.Min.X<=R.Character.Min.X&&R.Dock.Max.X>=R.Library.Max.X&&R.Dock.Min.Y>=R.Character.Max.Y
-                &&R.Dock.Min.Y>=R.Board.Max.Y&&R.Dock.Min.Y>=R.Pending.Max.Y);
-        }
-        else
-        {
-            TestTrue(At+TEXT(": field mode keeps compact CharacterPanel visible above Dock with positive LibraryBody height"),
-                R.Character.bIsValid&&R.Character.GetSize().X>=200.&&R.Character.GetSize().Y>=100.
-                &&R.Character.Max.Y<=R.Dock.Min.Y&&R.LibraryBody.bIsValid&&R.LibraryBody.GetSize().Y>30.);
-        }
+        const FString At=FString::Printf(TEXT("Dense workshop services %d scale %.2f"),int32(bServices),ScreenScale);
+        TestTrue(At+TEXT(": dock below three columns"),
+            R.Dock.Min.X<=R.Character.Min.X&&R.Dock.Max.X>=R.Library.Max.X&&R.Dock.Min.Y>=R.Character.Max.Y
+            &&R.Dock.Min.Y>=R.Board.Max.Y&&R.Dock.Min.Y>=R.Pending.Max.Y);
         TestTrue(At+TEXT(": library has a usable page"),Workshop->LibraryFit.bFits&&!Storage->Cards.IsEmpty());
         const int32 Pages=Workshop->LibraryFit.Pages.Num();
         TSet<FName> SeenCards;
@@ -1348,7 +1365,7 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
             Tile=Face->Face->GetCachedGeometry().GetRenderBoundingRect();
             TestTrue(At+TEXT(": installed face fits its column ")+Entry.DefinitionId.ToString(),
                 Tile.Left>=Column.Left&&Tile.Right<=Column.Right&&Tile.Top>=Column.Top&&Tile.Bottom<=Column.Bottom);
-            const float Minimum=Mode==ULDWorkshop::EMode::Full?35.5f:20.f;
+            const float Minimum=35.5f;
             TestTrue(At+FString::Printf(TEXT(": installed face remains usable %s (%.2f x %.2f at %.2f,%.2f)"),
                 *Entry.DefinitionId.ToString(),Tile.Right-Tile.Left,Tile.Bottom-Tile.Top,Tile.Left,Tile.Top),
                 Tile.Right-Tile.Left>=Minimum&&Tile.Bottom-Tile.Top>=Minimum);
@@ -2559,18 +2576,6 @@ bool FLDHUDFlowSmoothnessTest::RunTest(const FString&)
             LDDemoEntry::IsSingleCharTypingEdit(TEXT(""),TEXT("192.168.1.20:7777"))
             ||LDDemoEntry::IsSingleCharTypingEdit(TEXT("127.0.0.1"),TEXT("10.0.0.2:80")));
 
-        // Verify StackedTrayLimit + side-by-side Rest Shop at 1920x1080 with Services + 200px Pending tray keeps positive Library fit.
-        const FIntVector4 StoredCounts(3,1,1,1);
-        const float ShopRightWidth=FMath::Clamp(1920.f*.34f,520.f,680.f);
-        const float TotalRightH=808.f-108.f;
-        const float LibraryChrome=70.f+56.f+14.f,PendingChrome=52.f+58.f;
-        const float LibraryReserve=FMath::Max(36.f,10000.f-LDWorkshop::StackedTrayLimit(StoredCounts,ShopRightWidth-44.f,10000.f,44.f,1.f));
-        const float ShopH=FMath::Clamp(FMath::Min(TotalRightH*.38f,TotalRightH-14.f-(LibraryChrome+LibraryReserve+PendingChrome+116.f)),176.f,296.f);
-        const float AvailLibH=TotalRightH-ShopH-14.f;
-        const float TrayLim=LDWorkshop::StackedTrayLimit(StoredCounts,ShopRightWidth-44.f,FMath::Max(0.f,AvailLibH-LibraryChrome-PendingChrome),44.f,1.f);
-        const float LibBodyH=AvailLibH-(FMath::Min(200.f,TrayLim)+PendingChrome)-LibraryChrome;
-        TestTrue(TEXT("1920x1080 Rest Shop + Services + 200px tray preserves positive fitting LibraryBody height"),
-            LibBodyH>=LibraryReserve-0.5f&&LDWorkshop::FitLibrary(StoredCounts,ShopRightWidth-44.f,LibBodyH,44.f,1.f).bFits);
         TestTrue(TEXT("Withdrawn rest ready returns explicit confirmation"),
             LDHUD::RestReadyText(ELDRestReadyResult::Withdrawn).Contains(TEXT("已取消准备")));
         TestTrue(TEXT("Colorblind mode switches health bar hues"),

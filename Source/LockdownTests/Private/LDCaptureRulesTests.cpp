@@ -997,7 +997,31 @@ bool FLDCaptureViewsTest::RunTest(const FString& Parameters)
     SixHumans.Rows[2].Kind=ELDContenderKind::Human;
     for (int32 Index=3; Index<6; ++Index)
     { SixHumans.Rows.Add({FGuid::NewGuid(),TEXT("Guest"),ELDContenderKind::Human,false,0,0,1}); }
-    TestTrue(TEXT("A result for six human contenders is accepted"),LDCapture::ValidateResultView(SixHumans,Error));
+    for(int32 Index=0;Index<SixHumans.Rows.Num();++Index)
+    {
+        FLDResultRow& Row=SixHumans.Rows[Index];
+        Row.Build.bAvailable=true;Row.Build.CatalogRoot=FString::ChrN(64,TCHAR('a'));
+        Row.Build.StatPoints={18,0,0,0,Index};
+        Row.Growth.SetNum(5);
+        Row.Growth[0].Allocated=18;
+        Row.Growth[2].AcquiredCards={TEXT("card_one")};
+        Row.Combat.bAvailable=true;Row.Combat.KeystoneMask=1;
+        Row.Combat.PhysicalToPlayersP2=200*(Index+1);Row.Combat.MagicalToPlayersP2=300;Row.Combat.ReactionToPlayersP2=100;
+        Row.Combat.DamageTakenP2=100;Row.Combat.ShieldAbsorbedP2=50;
+        Row.Combat.Reactions=1;Row.Combat.PeakReactionP2=100;
+        Row.Combat.Cards.Add({TEXT("card_one"),25,10,1});
+    }
+    FLDResultView SixReceived;
+    TestEqual(TEXT("Result projection accepts the detailed report for six human contenders"),
+        LDCapture::AcceptResultView(SixHumans,SixReceived,Error),ELDLobbyProjectionResult::Accepted);
+    TestTrue(TEXT("Each contender's growth, contribution and combat facts survive result publication"),
+        SixReceived.Rows.Num()==6&&!SixReceived.Rows.ContainsByPredicate([](const FLDResultRow& Row)
+        {
+            return Row.Growth.Num()!=5||Row.Build.StatPoints.Num()!=5||Row.Combat.KeystoneMask!=1||Row.Combat.Cards.Num()!=1
+                ||Row.Combat.Cards[0].Triggers!=1||Row.Combat.ReactionToPlayersP2!=100||Row.Combat.ShieldAbsorbedP2!=50;
+        }));
+    SixHumans.Rows[1].Combat.ShieldAbsorbedP2=101;
+    TestFalse(TEXT("A report cannot absorb more damage than was taken"),LDCapture::ValidateResultView(SixHumans,Error));
     BadResult([](FLDResultView& View) { View.Winner = FGuid::NewGuid(); }, TEXT("The winner must be a listed contender"));
     BadResult([](FLDResultView& View) { View.Rows[0].bLeft = true; }, TEXT("A contender who left cannot win"));
     BadResult([](FLDResultView& View) { View.DurationMs = 1; }, TEXT("Duration comes from the real boundaries"));

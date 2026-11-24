@@ -593,6 +593,12 @@ bool ALDCombatDirector::PulseFog(const FLDCombatFog& Fog, int64 NowMs, FString& 
 void ALDCombatDirector::OnReactionCompleted(const FLDCombatReactionFact& Fact)
 {
     ReactionFacts.Add(Fact);
+    const FLDCombatEntityRecord* Trigger=FindRecord(Fact.TriggerEntity);
+    const FLDBodyCombatState* Primary=FindBody(Fact.Primary);
+    if(Trigger&&Trigger->Kind==ELDVictimKind::Contender&&Primary&&(!Primary->IsolationGroup.IsValid()||Primary->PKSide!=0))
+    {
+        ++ReportCounters.FindOrAdd(Fact.TriggerEntity).Reactions;
+    }
 }
 
 bool ALDCombatDirector::NotifyReactionAssists(const FLDCombatHit& Hit, FString& Error)

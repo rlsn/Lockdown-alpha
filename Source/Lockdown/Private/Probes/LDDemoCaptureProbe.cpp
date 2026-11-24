@@ -489,8 +489,10 @@ public:
             || Result.Reason == ELDMatchEndReason::ClearOut,
             TEXT("C09"), TEXT("The six-player FFA terminates through its objective or bounded no-champion rule, never Host end"));
         Check(Result.Rows.Num() == 6 && Result.EndedAtMs <= FinalEndsAtMs
-            && !Result.Rows.ContainsByPredicate([](const FLDResultRow& Row) { return Row.FinalLevel < 1 || Row.BankedGuardMs < 0; }),
-            TEXT("C10"), TEXT("The server freezes six result rows and objective contributions no later than its deadline"));
+            && !Result.Rows.ContainsByPredicate([](const FLDResultRow& Row) { return Row.FinalLevel < 1 || Row.BankedGuardMs < 0
+                || !Row.Build.bAvailable || Row.Build.StatPoints.Num() != 5 || !Row.Combat.bAvailable
+                || Row.Combat.Attributes.IsEmpty() || Row.Growth.Num() != FLDTimelineParameters::TimedSegments + 2; }),
+            TEXT("C10"), TEXT("Each owner receives all six frozen build, growth and combat report rows no later than the deadline"));
         // A private flagpole's winner has no main-flagpole contribution: his own pole must show his graffiti.
         const bool bPrivateWinner = Result.Reason == ELDMatchEndReason::GuardSucceeded && View.PrivatePoles.ContainsByPredicate(
             [&Result](const FLDPrivatePoleView& Pole) { return Pole.Holder == Result.Winner && Pole.bGraffiti; });

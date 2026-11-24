@@ -55,7 +55,6 @@ namespace LDWorkshop
     // Fit or paginate the groups using the same cell, label and group spacing as the library widgets.
     LOCKDOWN_API FLibraryFit FitLibrary(FIntVector4 Counts,float Width,float Height,float MinIcon,float TextScale);
     // Reserve room for at least one library card when the pending tray shares the same column.
-    LOCKDOWN_API float StackedTrayLimit(FIntVector4 Counts,float Width,float AvailableHeight,float MinIcon,float TextScale);
     struct FPendingPage
     {
         int32 First=0;
@@ -87,6 +86,7 @@ namespace LDWorkshop
         const FLDDemoContentDefinitions* Content);
     // Every element the current build applies: the learned actives' and the installed cards' (their effects' elements and a
     // chosen element).
+    LOCKDOWN_API TArray<ELDDemoElement> CardElements(FName Card,const FLDDemoContentDefinitions* Content);
     LOCKDOWN_API TArray<ELDDemoElement> BuildElements(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);
     // The three element reactions, lit when the build applies both of their elements.
     struct FReactionRow

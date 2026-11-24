@@ -194,7 +194,7 @@ bool ALDCombatDirector::GrantShieldTo(FLDBodyCombatState& Body, int64 AmountP2, 
     ++Body.Resources.Revision;
     ++Body.StateRevision;
     MarkViewChanged(Body.Victim.EntityId);
-    LedgerShieldGranted(Body,AmountP2);
+    LedgerShieldGranted(Body,AmountP2,GrantSource);
     // card_reactive_plating: gaining a new shield while already shielded blasts nearby enemies for a share of the new shield.
     if (bWasShielded && AmountP2>0)
     {

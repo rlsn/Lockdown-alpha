@@ -1088,6 +1088,7 @@ public:
     const FLDBuildLedger& GetBuildLedger() const { return BuildLedger; }
     // This match's committed damage credited to Contender per source, largest first (LDCombatBlueprintLedger.cpp). False for
     // an entity without a contender record; a contender that dealt none has an empty list.
+    bool ReadResultCombat(const FGuid& Contender,struct FLDResultCombat& Out) const;
     bool DamageTotalsOf(const FGuid& Contender, TArray<FLDDamageLine>& Out) const;
     // This match's trigger count of each of Contender's cards (training excluded), by card name; false like DamageTotalsOf.
     bool CardTriggersOf(const FGuid& Contender, TArray<FLDCardTriggerRow>& Out) const;
@@ -1761,10 +1762,10 @@ private:
     // One committed hit on Victim: damage dealt once to the credited contender (the version that created the effect),
     // damage taken, own shield absorption, HP lost and what the victim's own cuts (S16 stance) took off,
     // to the victim contender's current version.
-    void LedgerHitCommitted(const FLDCombatHit& Hit, const FLDBodyCombatState& Victim, const FLDDamageEvaluation& Damage);
+    void LedgerHitCommitted(const FLDCombatHit& Hit, const FLDBodyCombatState& Victim, const FLDDamageEvaluation& Damage, ELDDemoDamageType EffectiveType);
     // HP a one-time heal actually restored to a contender body, and a shield granted to it.
     void LedgerHealed(const FLDBodyCombatState& Body, int64 HealedP2);
-    void LedgerShieldGranted(const FLDBodyCombatState& Body, int64 AmountP2);
+    void LedgerShieldGranted(const FLDBodyCombatState& Body, int64 AmountP2,const FLDCombatSourceRef& Source={});
     // HP natural regeneration actually restored.
     void LedgerRegenerated(const FLDBodyCombatState& Body, int64 RestoredP2);
     // One proc of an installed card of Holder that committed a real result (a hit, heal, shield, momentum, status, cut or
@@ -1911,6 +1912,14 @@ private:
     FLDBuildLedger BuildLedger;
     // Per contender: the match total of committed damage credited to it, one row per source.
     TMap<FGuid,TArray<FLDDamageLine>> DamageTotals;
+    struct FReportCounters
+    {
+        int64 PhysicalToPlayersP2=0,MagicalToPlayersP2=0,ReactionToPlayersP2=0;
+        int64 RecoveryPackP2=0,Reactions=0,PeakReactionP2=0;
+        TMap<FName,int64> CardShields;
+    };
+    TMap<FGuid,FReportCounters> ReportCounters;
+    TMap<FGuid,int64> BoundaryReactionDamage;
     // Per contender: how often each card triggered in this match (training excluded).
     TMap<FGuid,TMap<FName,int32>> CardTriggerCounts;
     // Per contender: the running training combo on a dummy, its window and the previous combo's baseline (#331).

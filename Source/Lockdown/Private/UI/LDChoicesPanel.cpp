@@ -1,4 +1,6 @@
 #include "UI/LDChoicesPanel.h"
+#include "Components/UniformGridPanel.h"
+#include "Components/UniformGridSlot.h"
 #include "UI/LDUIPaint.h"
 #include "Components/ScaleBoxSlot.h"
 #include "Core/LDLog.h"
@@ -45,10 +47,10 @@ constexpr float TrayCardWidth=114.f,TrayCardIcon=64.f,TrayTileSize=54.f,TrayTile
 constexpr float TrayIconRadius=7.f,TrayCardPadding=4.f;
 // Mock 3's centre stage: three wide skill cards with a framed icon and the narrow 不选 card, 40 apart; the final stage keeps
 // room for four cards in the same row. The stage scale box shrinks the row on narrow screens instead of wrapping or scrolling.
-constexpr float StageOfferWidth=400.f,StageOfferIcon=148.f,StageSkipWidth=200.f,StageOfferGap=40.f;
-constexpr float StageFinalWidth=330.f,StageFinalIcon=200.f,StageFinalGap=30.f;
+constexpr float StageOfferWidth=116.f,StageOfferIcon=68.f,StageSkipWidth=78.f,StageOfferGap=6.f;
+constexpr float StageFinalWidth=116.f,StageFinalIcon=68.f,StageFinalGap=6.f;
 constexpr float TrayWidth=4*TrayCardWidth+3*TrayCardGap;
-constexpr float TrayPagerHeight=32.f,TrayMinIconPixels=36.f;
+constexpr float TrayPagerHeight=32.f,TrayMinIconPixels=36.f,TrayLabelWidth=76.f;
 static_assert(8*TrayTileSize+7*TrayTileGap<=TrayWidth,"eight grid tiles fit on one tray line");
 static_assert(TrayTileIcon+2*TrayCardPadding<=TrayTileSize,"a grid tile holds its icon");
 constexpr float ServicePanelWidth=540.f;
@@ -67,7 +69,7 @@ float TrayCellWidth(bool bTile,float Scale,bool bCompact)
 float TrayCellHeight(bool bTile,float TextScale,float Scale,bool bCompact)
 {
     const float Icon=TrayIconSize(bTile,Scale,bCompact);
-    return bTile?Icon+2.f*TrayCardPadding:Icon+2.f*TrayCardPadding+4.f+FMath::CeilToFloat(LDHUDStyle::TypeBody*TextScale*2.7f);
+    return bTile?Icon+2.f*TrayCardPadding:Icon+2.f*TrayCardPadding+4.f+FMath::CeilToFloat((LDHUDStyle::TypeBody*2.7f+28.f)*TextScale);
 }
 // #328 §2: maps a reward card's button to its 3-way surface look (CardActive / CardBuild / CardStone) and optional accent tint.
 void GrowthCardLook(ULDCommandButton* Button,LDUIPaint::EButton Look,const FLinearColor& Color=LDHUDStyle::CardIdle)
@@ -180,7 +182,9 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             OfferLine->SetVisibility(ESlateVisibility::Collapsed);OfferGroup=OfferLine;
             OfferNumber=Text(TEXT(""),LDHUDStyle::TypeBody);OfferNumber->SetAutoWrapText(false);OfferNumber->SetColorAndOpacity(LDHUDStyle::TextAccent);
             ScaleNewText(OfferNumber);RowWidgets.Add(OfferNumber);
-            OfferLine->AddChildToHorizontalBox(OfferNumber)->SetVerticalAlignment(VAlign_Center);
+            auto* OfferLabel=WidgetTree->ConstructWidget<USizeBox>();
+            OfferLabel->SetWidthOverride(TrayLabelWidth-8.f);OfferLabel->SetContent(OfferNumber);
+            OfferLine->AddChildToHorizontalBox(OfferLabel)->SetVerticalAlignment(VAlign_Center);
             OfferRow=TrayRow(WidgetTree);
             auto* OfferFrame=WidgetTree->ConstructWidget<UBorder>();
             OfferFrame->SetBrush(FSlateNoResource());OfferFrame->SetPadding(FMargin(0));OfferFrame->SetContent(OfferRow);
@@ -197,7 +201,9 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             auto* FinalHeading=Text(TEXT("终局改装"),LDHUDStyle::TypeBody);
             FinalHeading->SetColorAndOpacity(LDHUDStyle::TextAccent);
             ScaleNewText(FinalHeading);RowWidgets.Add(FinalHeading);
-            FinalLine->AddChildToHorizontalBox(FinalHeading)->SetVerticalAlignment(VAlign_Center);
+            auto* FinalLabel=WidgetTree->ConstructWidget<USizeBox>();
+            FinalLabel->SetWidthOverride(TrayLabelWidth-8.f);FinalLabel->SetContent(FinalHeading);
+            FinalLine->AddChildToHorizontalBox(FinalLabel)->SetVerticalAlignment(VAlign_Center);
             FinalModRow=TrayRow(WidgetTree);
             FinalLine->AddChildToHorizontalBox(FinalModRow)->SetPadding(FMargin(8,0,0,0));AddRow(FinalLine);
             for(int32 Index=0;Index<4;++Index)
@@ -253,7 +259,21 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             // Spec §3.13 rest shop over the board: vouchers, refresh, the skill point and the pick tickets on the head line, the
             // skill then card slots with their prices, the sell zone a library card is dragged onto. Shrinks to fit, never
             // scrolls.
-            ShopToggleButton=LDWidgets::Button(WidgetTree,TEXT(""),[this](){ToggleShop();},false,TEXT("GrowthShopToggle"));
+            auto* Tabs=WidgetTree->ConstructWidget<UHorizontalBox>();
+            DrawerTabs=Tabs;
+            auto* RewardsTab=LDWidgets::Button(WidgetTree,TEXT("奖励"),[this]()
+            {
+                bLibraryOnly=false;bShopOpen=false;StageLeftFor.Invalidate();RefreshAll();
+            },false,TEXT("GrowthRewardsTab"));
+            Tabs->AddChildToHorizontalBox(RewardsTab)->SetPadding(FMargin(0,0,6,0));
+            ShopToggleButton=LDWidgets::Button(WidgetTree,LDTerms::ShopTitle,[this](){ToggleShop();},false,TEXT("GrowthShopToggle"));
+            Tabs->AddChildToHorizontalBox(ShopToggleButton)->SetPadding(FMargin(0,0,6,0));
+            auto* LibraryTab=LDWidgets::Button(WidgetTree,TEXT("牌库"),[this]()
+            {
+                bLibraryOnly=true;bShopOpen=false;
+                RefreshAll();
+            },false,TEXT("GrowthLibraryTab"));
+            Tabs->AddChildToHorizontalBox(LibraryTab);
             ShopToggleButton->SetVisibility(ESlateVisibility::Collapsed);
             auto* Body=WidgetTree->ConstructWidget<UVerticalBox>();
             auto* Head=WidgetTree->ConstructWidget<UHorizontalBox>();
@@ -271,7 +291,7 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             ShopBlockedText=Wrapped(LDHUDStyle::TypeCaption,900.f);ShopBlockedText->SetColorAndOpacity(LDHUDStyle::TextSecondary);
             ShopBlockedText->SetVisibility(ESlateVisibility::Collapsed);
             Body->AddChildToVerticalBox(ShopBlockedText)->SetPadding(FMargin(0,6,0,0));
-            ShopSlotRow=WidgetTree->ConstructWidget<UHorizontalBox>();
+            ShopSlotRow=WidgetTree->ConstructWidget<UUniformGridPanel>();
             for(int32 Index=0;Index<8;++Index)
             {
                 auto* Cell=WidgetTree->ConstructWidget<UVerticalBox>();
@@ -280,7 +300,7 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
                 UTextBlock* Price=Text(TEXT(""),LDHUDStyle::TypeBody);Price->SetAutoWrapText(false);Price->SetJustification(ETextJustify::Center);
                 Cell->AddChildToVerticalBox(Price)->SetHorizontalAlignment(HAlign_Center);
                 Cell->SetVisibility(ESlateVisibility::Collapsed);
-                ShopSlotRow->AddChildToHorizontalBox(Cell)->SetPadding(FMargin(Index?12:0,0,0,0));
+                ShopSlotRow->AddChildToUniformGrid(Cell,Index/4,Index%4)->SetHorizontalAlignment(HAlign_Center);
                 ShopCards.Add(Card);ShopPrices.Add(Price);ShopCells.Add(Cell);RowWidgets.Add(Cell);
             }
             Body->AddChildToVerticalBox(ShopSlotRow)->SetPadding(FMargin(0,18,0,0));
@@ -290,7 +310,7 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             ShopFrame->SetVisibility(ESlateVisibility::Collapsed);ShopPanel=ShopFrame;
         }
         {
-            // The centre stage: title, chance line and the big cards (moved here from their tray rows).
+            // Active and final-mod choices move from their tray rows into the drawer.
             auto* Box=WidgetTree->ConstructWidget<UVerticalBox>();
             StageTitle=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeHero,NAME_None,LDUIFonts::ERole::Title);StageTitle->SetAutoWrapText(false);
             StageTitle->SetJustification(ETextJustify::Center);ScaleNewText(StageTitle);
@@ -303,7 +323,7 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             UScaleBox* StageFit=LDWidgets::Fit(WidgetTree,Box);
             if(UScaleBoxSlot* FitSlot=Cast<UScaleBoxSlot>(Box->Slot)){FitSlot->SetHorizontalAlignment(HAlign_Center);}
             StageFit->SetVisibility(ESlateVisibility::Collapsed);StageBox=StageFit;
-            StageBack=LDWidgets::Button(WidgetTree,LDTerms::Choice,[this](){LeaveStage();},false,TEXT("GrowthStageBack"));
+            StageBack=LDWidgets::Button(WidgetTree,TEXT("收起"),[this](){LeaveStage();},false,TEXT("GrowthStageBack"));
             StageBack->SetVisibility(ESlateVisibility::Collapsed);
             // The final mod's dock: its one rule sentence, its numbers and the hold that locks it.
             auto* Desc=WidgetTree->ConstructWidget<UVerticalBox>();
@@ -326,7 +346,7 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
         Layer=WidgetTree->ConstructWidget<UCanvasPanel>();Layer->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
         for(UWidget* Item:{StageBox.Get(),static_cast<UWidget*>(StageBack.Get()),FinalDesc.Get(),static_cast<UWidget*>(FinalLockButton.Get()),
             static_cast<UWidget*>(FinalLockNote.Get()),RespecBox.Get(),static_cast<UWidget*>(TrainerPicks.Get()),ServiceDock.Get(),
-            ShopPanel.Get(),static_cast<UWidget*>(ShopToggleButton.Get())})
+            ShopPanel.Get(),DrawerTabs.Get()})
         {UCanvasPanelSlot* ItemSlot=Layer->AddChildToCanvas(Item);ItemSlot->SetAutoSize(true);ItemSlot->SetZOrder(Item==ServiceDock.Get()?3:Item==StageBox.Get()?1:2);LayerSlots.Add(Item,ItemSlot);}
         auto* Layers=WidgetTree->ConstructWidget<UOverlay>();Layers->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
         for(UWidget* Each:{static_cast<UWidget*>(TrayFrame.Get()),static_cast<UWidget*>(Layer.Get())})
@@ -376,41 +396,11 @@ ULDChoicesPanel::FTrayCard ULDChoicesPanel::MakeCard(FName ButtonName,TFunction<
     Card.Name->SetWrapTextAt(TrayCardWidth-2.f*TrayCardPadding);
     Card.Name->SetJustification(ETextJustify::Center);ScaleNewText(Card.Name);RowWidgets.Add(Card.Name);
     auto* NameSlot=Face->AddChildToVerticalBox(Card.Name);NameSlot->SetHorizontalAlignment(HAlign_Fill);NameSlot->SetPadding(FMargin(0,4,0,0));
-    Card.CompatText=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeMicro);Card.CompatText->SetAutoWrapText(false);
-    Card.CompatText->SetJustification(ETextJustify::Center);ScaleNewText(Card.CompatText);RowWidgets.Add(Card.CompatText);
-    UScaleBox* CompatFit=LDWidgets::Fit(WidgetTree,Card.CompatText);RowWidgets.Add(CompatFit);
-    CompatFit->SetVisibility(ESlateVisibility::Collapsed);Card.CompatBox=CompatFit;
-    Face->AddChildToVerticalBox(CompatFit)->SetPadding(FMargin(0,2,0,0));
-    {
-        // The stage face's extra lines: targeting, momentum cost and cooldown; the tags; the element chip on the icon; the 可接 row.
-        const auto Line=[this](int32 Size,const FLinearColor& Ink,LDUIFonts::ERole Role)
-        {
-            UTextBlock* Text=LDWidgets::Text(WidgetTree,TEXT(""),Size,NAME_None,Role);Text->SetAutoWrapText(false);Text->SetJustification(ETextJustify::Center);
-            Text->SetColorAndOpacity(Ink);Text->SetVisibility(ESlateVisibility::Collapsed);ScaleNewText(Text);RowWidgets.Add(Text);return Text;
-        };
-        Card.Facts=Line(LDHUDStyle::TypeSmall,LDHUDStyle::UIText,LDUIFonts::ERole::Number);
-        Face->AddChildToVerticalBox(Card.Facts)->SetPadding(FMargin(0,10,0,0));
-        Card.Tags=Line(LDHUDStyle::TypeTiny,LDHUDStyle::TextSecondary,LDUIFonts::ERole::Body);
-        Face->AddChildToVerticalBox(Card.Tags)->SetPadding(FMargin(0,6,0,0));
-        Card.Element=Line(LDHUDStyle::TypeTiny,LDHUDStyle::UIBase,LDUIFonts::ERole::Strong);Card.Element->SetVisibility(ESlateVisibility::HitTestInvisible);
-        auto* Chip=WidgetTree->ConstructWidget<UBorder>();RowWidgets.Add(Chip);Chip->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,11.f,LDHUDStyle::UIBase,1.f));
-        Chip->SetPadding(FMargin(6,1));Chip->SetContent(Card.Element);Chip->SetVisibility(ESlateVisibility::Collapsed);Chip->SetRenderTranslation(FVector2D(6,6));
-        auto* ChipSlot=IconBox->AddChildToOverlay(Chip);ChipSlot->SetHorizontalAlignment(HAlign_Right);ChipSlot->SetVerticalAlignment(VAlign_Bottom);
-        Card.ElementChip=Chip;
-        Card.Links=WidgetTree->ConstructWidget<UHorizontalBox>();RowWidgets.Add(Card.Links);Card.Links->SetVisibility(ESlateVisibility::Collapsed);
-        UTextBlock* Label=LDWidgets::Text(WidgetTree,LDTerms::OfferLinks,LDHUDStyle::TypeTiny);Label->SetAutoWrapText(false);Label->SetColorAndOpacity(LDHUDStyle::TextSecondary);RowWidgets.Add(Label);
-        Card.Links->AddChildToHorizontalBox(Label)->SetVerticalAlignment(VAlign_Center);
-        for(int32 Link=0;Link<4;++Link)
-        {
-            UImage* Icon=WidgetTree->ConstructWidget<UImage>();RowWidgets.Add(Icon);Icon->SetVisibility(ESlateVisibility::Collapsed);
-            auto* IconBoxSize=WidgetTree->ConstructWidget<USizeBox>();RowWidgets.Add(IconBoxSize);IconBoxSize->SetWidthOverride(34.f);IconBoxSize->SetHeightOverride(34.f);
-            IconBoxSize->SetContent(Icon);
-            Card.Links->AddChildToHorizontalBox(IconBoxSize)->SetPadding(FMargin(8,0,0,0));
-            Card.LinkIcons.Add(Icon);
-        }
-        Face->AddChildToVerticalBox(Card.Links)->SetPadding(FMargin(0,14,0,0));
-        if(UVerticalBoxSlot* LinksSlot=Cast<UVerticalBoxSlot>(Card.Links->Slot)){LinksSlot->SetHorizontalAlignment(HAlign_Center);}
-    }
+    Card.Benefit=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeTiny,NAME_None,LDUIFonts::ERole::Strong);
+    Card.Benefit->SetAutoWrapText(false);Card.Benefit->SetJustification(ETextJustify::Center);
+    Card.Benefit->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
+    Card.Benefit->SetVisibility(ESlateVisibility::Collapsed);ScaleNewText(Card.Benefit);RowWidgets.Add(Card.Benefit);
+    Face->AddChildToVerticalBox(Card.Benefit)->SetPadding(FMargin(0,2,0,0));
     // A world button: picking a card in the field never takes keyboard focus from the game.
     Card.Button=bHold?static_cast<ULDCommandButton*>(LDWidgets::HoldButton(WidgetTree,TEXT(""),MoveTemp(Click),ButtonName))
         :LDWidgets::Button(WidgetTree,TEXT(""),MoveTemp(Click),true,ButtonName);
@@ -433,8 +423,13 @@ bool ULDChoicesPanel::CardStale(const FTrayCard& Card,const FString& Key) const
     return bCardsStale||!Card.ShownKey.Equals(Key,ESearchCase::CaseSensitive);
 }
 void ULDChoicesPanel::ShowFace(FTrayCard& Card,const FString& Key,const FString& Name,const FString& IconId,const FString& Glyph,
-    const LDHUD::FActionDetailView& Detail)
+    const LDHUD::FActionDetailView& Detail,const FString& Rule)
 {
+    // Use an authored opening clause when it already fits on a compact face.
+    int32 End=0;
+    while(End<Rule.Len()&&!FCString::Strchr(TEXT("，。；、：,.;:\n"),Rule[End])){++End;}
+    const FString Benefit=Rule.Left(End).TrimStartAndEnd();
+    GrowthText(Card.Benefit,!Benefit.IsEmpty()&&Benefit.Len()<=10?Benefit:FString());
     Card.ShownKey=Key;Card.Detail=Detail;Card.FullName=Name;
     GrowthText(Card.Name,Name);GrowthText(Card.Glyph,Glyph);
     Card.AppliedIcon=IconId;Card.AppliedEnabled=-1;
@@ -456,12 +451,10 @@ void ULDChoicesPanel::ShowLook(FTrayCard& Card,bool bTile,bool bEnabled,bool bVi
         const float Scale=GetCachedGeometry().Scale>0.f?GetCachedGeometry().Scale:1.f;
         const bool bUseCompact=bCompactTray||bCombatCompact;
         const float Width=TrayCellWidth(bTile,Scale,bUseCompact);
-        const float ExtraBanner=Card.KindBanner&&Card.KindBanner->GetVisibility()!=ESlateVisibility::Collapsed&&!bCombatCompact&&!bTile?18.f:0.f;
-        const float ExtraCompat=Card.CompatBox&&Card.CompatBox->GetVisibility()!=ESlateVisibility::Collapsed&&!bCombatCompact&&!bTile?18.f:0.f;
         // #328 §2: Element stones (medal_*) use a true circular crystal badge silhouette (square aspect Width x Width).
         const float Height=Card.bElementStone&&!bTile
             ?FMath::Max(Width,TrayCellHeight(bTile,AppliedTextScale,Scale,bUseCompact)*.88f)
-            :(TrayCellHeight(bTile,AppliedTextScale,Scale,bUseCompact)+ExtraBanner+ExtraCompat);
+            :TrayCellHeight(bTile,AppliedTextScale,Scale,bUseCompact);
         const float Icon=Card.bElementStone?TrayIconSize(bTile,Scale,bUseCompact)*.86f:TrayIconSize(bTile,Scale,bUseCompact);
         if(!FMath::IsNearlyEqual(Card.Frame->GetWidthOverride(),Width)){Card.Frame->SetWidthOverride(Width);}
         if(!FMath::IsNearlyEqual(Card.Frame->GetHeightOverride(),Height)){Card.Frame->SetHeightOverride(Height);}
@@ -471,6 +464,7 @@ void ULDChoicesPanel::ShowLook(FTrayCard& Card,bool bTile,bool bEnabled,bool bVi
         {Card.Name->SetWrapTextAt(Width-2.f*TrayCardPadding);}
     }
     GrowthShown(Card.Name,!bTile,ESlateVisibility::HitTestInvisible);
+    GrowthShown(Card.Benefit,!bTile&&!bCombatCompact&&!Card.Benefit->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     GrowthEnabled(Card.Button,bEnabled);
     // A card that cannot be taken now greys its picture too; the popup says why.
     if(Card.AppliedEnabled!=int32(bEnabled))
@@ -483,29 +477,17 @@ void ULDChoicesPanel::ShowLook(FTrayCard& Card,bool bTile,bool bEnabled,bool bVi
 }
 void ULDChoicesPanel::SetTrayInset(float Right,float Bottom,float Width,float Height)
 {
-    LastTrayInset=FVector2D(Right,Bottom);
-    LastTrayWrap=Width;
-    LastTrayLimit=Height;
     const FMargin Inset(0,0,Right,Bottom);
     if(TrayFrame&&!(TrayFrame->GetPadding()==Inset)){TrayFrame->SetPadding(Inset);}
     const float Wrap=(Width>0.f?FMath::Min(Width,TrayWidth):TrayWidth)+1.f;
     TrayAvailableWidth=Wrap;
     TrayAvailableHeight=Height;
     for(UWrapBox* Row:TrayRows){if(Row&&!FMath::IsNearlyEqual(Row->GetWrapSize(),Wrap)){Row->SetWrapSize(Wrap);}}
-    const auto FitLabeledRow=[Wrap](UWidget* Group,UWrapBox* Row)
+    const float RowWidth=FMath::Max(0.f,Wrap-TrayLabelWidth);
+    for(UWrapBox* Row:{OfferRow.Get(),FinalModRow.Get()})
     {
-        const UPanelWidget* Line=Cast<UPanelWidget>(Group);
-        const UWidget* Label=Line?Line->GetChildAt(0):nullptr;
-        const float Leading=Label&&Label->IsVisible()?float(Label->GetDesiredSize().X)+8.f:0.f;
-        const float RowWidth=FMath::Max(0.f,Wrap-Leading);
         if(Row&&!FMath::IsNearlyEqual(Row->GetWrapSize(),RowWidth)){Row->SetWrapSize(RowWidth);}
-    };
-    FitLabeledRow(OfferGroup,OfferRow);
-    FitLabeledRow(FinalModGroup,FinalModRow);
-}
-FVector2D ULDChoicesPanel::TrayDesiredSize() const
-{
-    return bOpen&&Tray?Tray->GetDesiredSize():FVector2D::ZeroVector;
+    }
 }
 const UWidget* ULDChoicesPanel::Hovered(FVector2D Pointer,LDHUD::FActionDetailView& Out,FName* OutComponent,FString* OutIcon) const
 {
@@ -557,9 +539,7 @@ void ULDChoicesPanel::OpenPanel()
 {
     if(const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());PC&&PC->BuildBlueprints&&PC->BuildBlueprints->IsViewerOpen())
     {PC->BuildBlueprints->ToggleViewer();}
-    GrowthShown(TrayFrame,true);
-    bOpen=true;SetVisibility(ESlateVisibility::SelfHitTestInvisible);Fold.Opened(false,UiNow());
-    RefreshAll();
+    bOpen=true;bLibraryOnly=false;Fold.Opened(false,UiNow());
 }
 bool ULDChoicesPanel::ClosePanel()
 {
@@ -582,7 +562,7 @@ bool ULDChoicesPanel::IsServiceShown() const
 }
 bool ULDChoicesPanel::IsBlueprintSwapShown() const
 {
-    return bOpen&&Places.bActive&&!bStageShown&&(LatestStage==LDProgression::EMatchStage::Rest||Gate.bDormSwap);
+    return bOpen&&Places.bActive&&!bLibraryOnly&&!bStageShown&&(LatestStage==LDProgression::EMatchStage::Rest||Gate.bDormSwap);
 }
 bool ULDChoicesPanel::LeaveStage()
 {
@@ -595,7 +575,6 @@ void ULDChoicesPanel::SetQuickPick(bool bInQuick,bool bCompact)
 {
     if(bQuick==bInQuick&&bQuickCompact==bCompact){return;}
     bQuick=bInQuick;bQuickCompact=bCompact;bCardsStale=true;
-    RefreshAll();
 }
 bool ULDChoicesPanel::IsQuickHit(FVector2D Absolute) const
 {
@@ -710,7 +689,7 @@ void ULDChoicesPanel::CaptureOfferMotion(int32 Index)
     OfferMotion.Chosen=Capture(bSkip?SkipCard:OfferCards[Index]);
     if(bSkip)
     {
-        const UWidget* Source=SkipCard.Facts&&SkipCard.Facts->IsVisible()?static_cast<const UWidget*>(SkipCard.Facts.Get()):SkipCard.Name.Get();
+        const UWidget* Source=SkipCard.Name.Get();
         if(Source&&Source->IsVisible()){OfferMotion.Chosen.Icon=Source->GetCachedGeometry().GetLayoutBoundingRect();}
     }
     if(!GrowthHasArea(OfferMotion.Chosen.Icon)){return;}
@@ -720,7 +699,7 @@ void ULDChoicesPanel::CaptureOfferMotion(int32 Index)
     }
     if(!bSkip&&SkipCard.Frame&&SkipCard.Frame->IsVisible()){OfferMotion.Others.Add(Capture(SkipCard));}
 }
-void ULDChoicesPanel::Present(const FLDProgressionView& View,uint32 Match,uint32 Life,ELDLifePhase LifePhase,LDProgression::EMatchStage Stage,
+void ULDChoicesPanel::UpdateInputs(const FLDProgressionView& View,uint32 Match,uint32 Life,ELDLifePhase LifePhase,LDProgression::EMatchStage Stage,
     const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats,const LDHUD::FSlotKeys& Keys,bool bDormRested)
 {
     if(OfferMotion.Ticket.Match!=0&&(OfferMotion.Ticket.Match!=Match||OfferMotion.Ticket.Life!=Life)){OfferMotion=FOfferMotion();}
@@ -730,21 +709,53 @@ void ULDChoicesPanel::Present(const FLDProgressionView& View,uint32 Match,uint32
         ||Stats.MaxHPP2!=LatestStats.MaxHPP2||Stats.ArmorP2!=LatestStats.ArmorP2||Stats.bShowScalingFormula!=LatestStats.bShowScalingFormula
         ||Content!=LatestContent||!(Keys==SlotKeys);
     SlotKeys=Keys;
+    if(Match!=LatestMatch||View.ActiveOffer.OfferId!=Latest.ActiveOffer.OfferId||View.CardOffer.OfferId!=Latest.CardOffer.OfferId
+        ||View.FinalModOfferId!=Latest.FinalModOfferId||View.PendingBlueprints.Num()>Latest.PendingBlueprints.Num())
+    {
+        bLibraryOnly=false;
+    }
     Latest=View;LatestMatch=Match;LatestLife=Life;LatestLifePhase=LifePhase;LatestStage=Stage;
     LatestContent=Content;LatestStats=Stats;
     if(Latest.Shop.bStocked&&(Match!=AutoShopMatch||uint32(Latest.Shop.Revision)!=AutoShopStock))
     {
-        bShopOpen=true;
+        bShopOpen=true;bLibraryOnly=false;
         AutoShopMatch=Match;
         AutoShopStock=uint32(Latest.Shop.Revision);
     }
     if(!Tray){return;}
     Gate=Usable()?LDHUD::BuildGate(Stage,LifePhase,bDormRested):LDHUD::FBuildGateView();
     if(bStatsChanged){bCardsStale=true;}
-    // The HUD presents every frame; a collapsed panel only keeps the inputs and refreshes when it opens.
-    if(!bOpen&&!bQuick&&!bQuickShown){return;}
-    RefreshAll();
 }
+void ULDChoicesPanel::Present(const FLDProgressionView& View,uint32 Match,uint32 Life,ELDLifePhase LifePhase,LDProgression::EMatchStage Stage,
+    const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats,const LDHUD::FSlotKeys& Keys,bool bDormRested)
+{
+    UpdateInputs(View,Match,Life,LifePhase,Stage,Content,Stats,Keys,bDormRested);
+    if(bOpen||bQuick||bQuickShown){RefreshAll();}
+}
+
+ULDChoicesPanel::FDrawerState ULDChoicesPanel::DrawerState(bool bWorkshopOpen) const
+{
+    FDrawerState State;
+    if(!bWorkshopOpen||!bOpen){return State;}
+    const bool bOffer=HasAvailableOffer();
+    const bool bFinal=!bOffer&&HasAvailableFinal();
+    const FGuid Key=bOffer?Latest.ActiveOffer.OfferId:bFinal?Latest.FinalModOfferId:FGuid();
+    State.bLibraryOnly=bLibraryOnly;
+    State.bStage=!bLibraryOnly&&(bOffer||bFinal)&&!(Key.IsValid()&&Key==StageLeftFor);
+    State.bFinalStage=State.bStage&&bFinal;
+    State.bCharacterServices=!State.bStage&&LatestStage==LDProgression::EMatchStage::Rest;
+    State.bServices=!bLibraryOnly&&!State.bStage&&(State.bCharacterServices||Gate.bDormSwap);
+    State.bShop=State.bCharacterServices&&bShopOpen&&Usable()&&Latest.Shop.bStocked;
+    return State;
+}
+
+void ULDChoicesPanel::PresentWithBounds(const FWorkshopPlaces& InPlaces,FVector2D Inset,float Width,float Height)
+{
+    Places=InPlaces;
+    SetTrayInset(Inset.X,Inset.Y,Width,Height);
+    if(bOpen||bQuick||bQuickShown){RefreshAll();}
+}
+
 void ULDChoicesPanel::RefreshAll()
 {
     if(!Tray){return;}
@@ -756,14 +767,9 @@ void ULDChoicesPanel::RefreshAll()
     const bool bOpeningOffer=HasAvailableOffer()&&Latest.ActiveOffer.OpportunityOrdinal==1;
     const bool bStashedInCombat=bQuickCompact&&!bOpeningOffer&&!HasPendingRequest();
     const bool bQuickNow=!bOpen&&bQuick&&!bStashedInCombat&&Usable()&&HasCards();
-    if(bQuickNow!=bQuickShown)
-    {
-        bQuickShown=bQuickNow;
-        GrowthShown(TrayFrame,bOpen||bQuickShown);
-        SetVisibility(bOpen||bQuickShown?ESlateVisibility::SelfHitTestInvisible:ESlateVisibility::Collapsed);
-    }
+    bQuickShown=bQuickNow;
+    GrowthShown(this,(bOpen&&Places.bActive)||bQuickShown);
     UpdateStage();
-    GrowthShown(TrayFrame,(bOpen||bQuickShown)&&!bStageShown);
     PlanTrayPages(bTiles);
     RefreshOffer();RefreshFinalMod();RefreshCardOffer(bTiles||bIconOnlyTray);
     RefreshBlueprintCards();RefreshBlueprints();RefreshRest();
@@ -776,7 +782,7 @@ void ULDChoicesPanel::PlanTrayPages(bool bTiles)
 {
     TrayUnits.Reset();TrayPages.Reset();
     bCompactTray=false;bIconOnlyTray=false;
-    if(!bOpen||bStageShown||!Usable())
+    if(!bOpen||bLibraryOnly||bStageShown||!Usable())
     {
         bTrayOverflow=false;bTrayOverflowReported=false;GrowthShown(TrayPager,false);return;
     }
@@ -788,12 +794,6 @@ void ULDChoicesPanel::PlanTrayPages(bool bTiles)
         TrayUnits.Reset();
         TArray<float> Heights;
         bool bFitsWidth=true;
-        const auto LabelWidth=[](const UWidget* Group)
-        {
-            const UPanelWidget* Line=Cast<UPanelWidget>(Group);
-            const UWidget* Label=Line?Line->GetChildAt(0):nullptr;
-            return FMath::Max(80.f,Label?float(Label->GetDesiredSize().X)+8.f:0.f);
-        };
         const auto PerRow=[&](bool bTile,float Leading=0.f)
         {
             bTile|=bIcons;
@@ -819,10 +819,10 @@ void ULDChoicesPanel::PlanTrayPages(bool bTiles)
         // The card offer: its cards and the reroll/skip column.
         if(Latest.bHasCardOffer){Add(ETrayGroup::CardOffer,0,Latest.CardOffer.Options.Num()+1,bTiles);}
         const bool bOffer=HasAvailableOffer();
-        if(bOffer){Add(ETrayGroup::Offer,0,Latest.ActiveOffer.Options.Num()+1,false,LabelWidth(OfferGroup));}
-        else if(!ConfirmedOfferStillShown()&&Latest.QueuedActiveOpportunities>0){Add(ETrayGroup::Offer,0,1,false,LabelWidth(OfferGroup));}
+        if(bOffer){Add(ETrayGroup::Offer,0,Latest.ActiveOffer.Options.Num()+1,false,TrayLabelWidth);}
+        else if(!ConfirmedOfferStillShown()&&Latest.QueuedActiveOpportunities>0){Add(ETrayGroup::Offer,0,1,false,TrayLabelWidth);}
         const bool bFinal=HasAvailableFinal();
-        if(bFinal||!Latest.FinalMod.IsEmpty()){Add(ETrayGroup::FinalMod,0,bFinal?3:1,false,LabelWidth(FinalModGroup));}
+        if(bFinal||!Latest.FinalMod.IsEmpty()){Add(ETrayGroup::FinalMod,0,bFinal?Latest.FinalModOptions.Num():1,false,TrayLabelWidth);}
         return bFitsWidth?LDWorkshop::FitPending(Heights,TrayAvailableHeight,TrayPagerHeight):LDWorkshop::FPendingFit();
     };
     LDWorkshop::FPendingFit Fit=Plan(false,false);
@@ -936,24 +936,12 @@ void ULDChoicesPanel::RefreshOffer()
                 }
             }
             if(!Lines.IsEmpty()){Detail.Body+=TEXT("\n\n")+FString::Join(Lines,TEXT("\n"));}
-            ShowFace(Card,Key,View.Name,View.IconId,View.Glyph,Detail);
+            ShowFace(Card,Key,View.Name,View.IconId,View.Glyph,Detail,View.SentencePlain);
             if(Card.Shape)
             {
                 Card.Shape->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,TrayIconRadius,LDHUDStyle::UIAction,1.8f));
                 Card.Shape->SetBrushColor(LDHUDStyle::ShapeFill);
             }
-            // The stage face: targeting, momentum cost and cooldown, the keywords as tags, the element and the 可接 icons.
-            GrowthText(Card.Facts,View.Target+TEXT("\n")+View.Cost);
-            GrowthText(Card.Tags,FString::Join(LDWorkshop::KeywordNames(View.Keywords),TEXT("  ·  ")));
-            GrowthText(Card.Element,Own.IsEmpty()?FString():LDHUD::ElementName(Own[0]));
-            if(UBorder* Chip=Cast<UBorder>(Card.ElementChip.Get())){Chip->SetBrushColor(Own.IsEmpty()?FLinearColor::Transparent:LDHUDStyle::UIAction);}
-            for(int32 Link=0;Link<Card.LinkIcons.Num();++Link)
-            {
-                const bool bLink=Links.IsValidIndex(Link);
-                if(!bLink){GrowthShown(Card.LinkIcons[Link],false);continue;}
-                LDUIIcons::Apply(Card.LinkIcons[Link],LDHUD::ContentIconId(LatestContent,Links[Link].ToString()),7.f);
-            }
-            Card.Links->SetToolTipText(FText::FromString(LinksLine));
         }
         if(Card.HotkeyText&&Card.HotkeyChip)
         {
@@ -964,13 +952,11 @@ void ULDChoicesPanel::RefreshOffer()
         GrowthCardLook(Card.Button,LDUIPaint::EButton::CardActive,LDHUDStyle::RewardActiveRim);
         if(Card.KindBanner&&Card.KindBannerText)
         {
-            GrowthText(Card.KindBannerText,TEXT("♛ 主动技能"));
+            GrowthText(Card.KindBannerText,TEXT("主动技能"));
             Card.KindBannerText->SetColorAndOpacity(LDHUDStyle::RewardActiveRim);
             GrowthShown(Card.KindBanner,bVisible&&!(bQuickShown&&bQuickCompact),ESlateVisibility::HitTestInvisible);
         }
         ShowLook(Card,false,Gate.bCanChoose&&!PendingRequest,bVisible);
-        GrowthShown(Card.ElementChip,Card.bBig&&!Card.Element->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
-        GrowthShown(Card.Links,Card.bBig&&Card.LinkIcons.Num()>0&&Card.LinkIcons[0]->GetVisibility()!=ESlateVisibility::Collapsed,ESlateVisibility::Visible);
     }
     if(!bOffer){GrowthShown(SkipCard.Frame,false);return;}
     const int64 Points=Latest.ActiveOffer.SkipPoints;
@@ -983,7 +969,6 @@ void ULDChoicesPanel::RefreshOffer()
         Detail.Body=Points>0?FString(TEXT("放弃本组技能，本次机会不再保留。")):FString(TEXT("奖励数据缺失。"));
         if(!Gate.bCanChoose){Detail.Body+=TEXT("\n\n")+Gate.ChooseBlocked;}
         ShowFace(SkipCard,SkipKey,SkipName,FString(),Points>0?FString::Printf(TEXT("+%lld"),Points):FString(TEXT("+")),Detail);
-        GrowthText(SkipCard.Facts,Points>0?LDTerms::OfferSkipPoints(Points):FString());
     }
     ShowLook(SkipCard,bQuickShown&&bQuickCompact,Points>0&&Gate.bCanChoose&&!PendingRequest,bVisible);
     // The skip card's name is only 不选; its points are the glyph on a tile and the facts line on the stage.
@@ -1012,7 +997,6 @@ void ULDChoicesPanel::RefreshFinalMod()
                 const auto View=LDHUD::FinalModCard(Latest.FinalMod.DefinitionId,LatestContent,LatestStats);
                 ShowFace(Card,Key,View.Name,View.IconId,View.Glyph,View.Detail);
             }
-            GrowthText(Card.Facts,LDTerms::FinalTaken);
             ShowLook(Card,false,false,bFinalVisible);
             GrowthTint(Card.Button,LDHUDStyle::SlotArmed);
             continue;
@@ -1027,7 +1011,6 @@ void ULDChoicesPanel::RefreshFinalMod()
             View.Detail.Body+=TEXT("\n\n")+Outcome;
             ShowFace(Card,Key,View.Name,View.IconId,View.Glyph,View.Detail);
         }
-        GrowthText(Card.Facts,FString());
         ShowLook(Card,false,View.bKnown&&Gate.bCanFinalMod&&!PendingRequest,bFinalVisible);
         GrowthTint(Card.Button,PendingFinalOption==Id?(IsFinalStage()?LDHUDStyle::UIEvent*.35f:LDHUDStyle::SlotArmed):LDHUDStyle::CardIdle);
     }
@@ -1081,7 +1064,7 @@ void ULDChoicesPanel::RefreshCardOffer(bool bTiles)
         if(CardStale(Card,Key))
         {
             LDHUD::FActionDetailView Detail=LDHUD::CardChoiceDetail(View,Compat.IsEmpty()?Outcome:Outcome+TEXT("\n")+Compat);
-            ShowFace(Card,Key,Copies>0?View.Name+TEXT(" ")+LDTerms::CopiesBadge(Copies+1):View.Name,View.IconId,View.Glyph,Detail);
+            ShowFace(Card,Key,Copies>0?View.Name+TEXT(" ")+LDTerms::CopiesBadge(Copies+1):View.Name,View.IconId,View.Glyph,Detail,View.SentencePlain);
         }
         if(Card.Shape)
         {
@@ -1096,7 +1079,7 @@ void ULDChoicesPanel::RefreshCardOffer(bool bTiles)
                 Card.Shape->SetBrushColor(LDHUDStyle::RewardStoneBase);
                 if(Card.KindBanner&&Card.KindBannerText)
                 {
-                    GrowthText(Card.KindBannerText,TEXT("◆ 元素石"));
+                    GrowthText(Card.KindBannerText,TEXT("元素石"));
                     Card.KindBannerText->SetColorAndOpacity(LDHUDStyle::RewardStoneRim);
                     GrowthShown(Card.KindBanner,!bTiles&&!bCombatCompact,ESlateVisibility::HitTestInvisible);
                 }
@@ -1123,12 +1106,6 @@ void ULDChoicesPanel::RefreshCardOffer(bool bTiles)
         {
             GrowthText(Card.HotkeyText,FString::Printf(TEXT("Alt+%d"),Index+1));
             GrowthShown(Card.HotkeyChip,bShowHotkeys&&Index<3,ESlateVisibility::HitTestInvisible);
-        }
-        if(Card.CompatText&&Card.CompatBox)
-        {
-            GrowthText(Card.CompatText,Compat);
-            Card.CompatText->SetColorAndOpacity(!bCompatMatch?LDHUDStyle::UIReplace:bCompatFull?LDHUDStyle::CardModify:LDHUDStyle::UILegal);
-            GrowthShown(Card.CompatBox,!Compat.IsEmpty()&&!bTiles&&!bCombatCompact,ESlateVisibility::HitTestInvisible);
         }
         ShowLook(Card,bTiles,bCan,bVisible);
         if(LatestContent)
@@ -1211,13 +1188,13 @@ void ULDChoicesPanel::RefreshBlueprintCards()
         if(CardStale(Card,Key))
         {
             const LDHUD::FActiveCardView View=LDHUD::ActiveCard(Id,LatestContent,LatestStats);
-            ShowFace(Card,Key,View.Name,View.IconId,View.Glyph,LDHUD::ActiveChoiceDetail(View,true,Outcome));
+            ShowFace(Card,Key,View.Name,View.IconId,View.Glyph,LDHUD::ActiveChoiceDetail(View,true,Outcome),View.SentencePlain);
         }
         Card.bElementStone=false;
         GrowthCardLook(Card.Button,LDUIPaint::EButton::CardActive,LDHUDStyle::RewardActiveRim);
         if(Card.KindBanner&&Card.KindBannerText)
         {
-            GrowthText(Card.KindBannerText,TEXT("♛ 技能图纸"));
+            GrowthText(Card.KindBannerText,TEXT("技能图纸"));
             Card.KindBannerText->SetColorAndOpacity(LDHUDStyle::RewardActiveRim);
             GrowthShown(Card.KindBanner,TrayShows(ETrayGroup::Blueprint,Index),ESlateVisibility::HitTestInvisible);
         }
@@ -1437,7 +1414,7 @@ void ULDChoicesPanel::RefreshRest()
     GrowthShown(RestConfirmLine,RestConfirm.Kind!=ELDBuildCommandKind::None,ESlateVisibility::SelfHitTestInvisible);
     const bool bServices=IsServiceShown();
     // A dorm swap on the field confirms in the same dock; respec and forget stay in a rest.
-    GrowthShown(ServiceDock,IsBlueprintSwapShown()&&RestConfirm.Kind!=ELDBuildCommandKind::None,ESlateVisibility::Visible);
+    GrowthShown(ServiceDock,(IsServiceShown()||IsBlueprintSwapShown())&&RestConfirm.Kind!=ELDBuildCommandKind::None,ESlateVisibility::Visible);
     GrowthShown(RespecBox,bServices);
     if(!bShown){return;}
     const auto Service=[this](ULDCommandButton* Button,UTextBlock* Why,const FString& Refusal)
@@ -1549,16 +1526,18 @@ bool ULDChoicesPanel::CloseChildConfirmation()
 }
 bool ULDChoicesPanel::IsShopOffered() const
 {
-    return bOpen&&Places.bActive&&!bStageShown&&Usable()&&LatestStage==LDProgression::EMatchStage::Rest&&Latest.Shop.bStocked;
+    return bOpen&&Places.bActive&&Usable()&&LatestStage==LDProgression::EMatchStage::Rest&&Latest.Shop.bStocked;
 }
 bool ULDChoicesPanel::IsShopShown() const
 {
-    return bShopOpen&&IsShopOffered();
+    return bShopOpen&&!bStageShown&&IsShopOffered();
 }
 bool ULDChoicesPanel::ToggleShop()
 {
     if(!IsShopOffered()){bShopOpen=false;return false;}
-    bShopOpen=!bShopOpen;
+    if(bStageShown){StageLeftFor=StageShownFor;bShopOpen=true;}
+    else{bShopOpen=!bShopOpen;}
+    bLibraryOnly=false;
     if(bShopOpen){CancelRestAction();}
     RefreshAll();
     return true;
@@ -1567,12 +1546,12 @@ void ULDChoicesPanel::RefreshShopPanel()
 {
     if(!ShopPanel){return;}
     const bool bOffered=IsShopOffered();
-    const bool bShown=bShopOpen&&bOffered;
+    const bool bShown=IsShopShown();
+    GrowthShown(DrawerTabs,bOpen&&Places.bActive);
     GrowthShown(ShopToggleButton,bOffered,ESlateVisibility::Visible);
-    GrowthShown(ShopPanel,bShown,ESlateVisibility::Visible);
+    GrowthShown(ShopPanel,bShown&&GrowthHasArea(Places.Shop),ESlateVisibility::Visible);
     if(!bOffered){return;}
     const FLDShopView& Shop=Latest.Shop;
-    GrowthText(Cast<UTextBlock>(ShopToggleButton->GetContent()),bShown?FString(LDTerms::ShopTitle)+TEXT(" ×"):LDTerms::ShopToggle(Latest.UnspentPoints));
     GrowthTint(ShopToggleButton,bShown?LDHUDStyle::UIAction:LDHUDStyle::CardIdle);
     if(!bShown){return;}
     const bool bCan=Gate.bCanShop&&!PendingRequest;
@@ -1609,13 +1588,13 @@ void ULDChoicesPanel::RefreshShopPanel()
             if(Row.Kind==ELDShopItemKind::Skill)
             {
                 const LDHUD::FActiveCardView View=LDHUD::ActiveCard(Row.DefinitionId,LatestContent,LatestStats);
-                ShowFace(Card,Key,View.Name,View.IconId,View.Glyph,LDHUD::ActiveChoiceDetail(View,true,Outcome));
+                ShowFace(Card,Key,View.Name,View.IconId,View.Glyph,LDHUD::ActiveChoiceDetail(View,true,Outcome),View.SentencePlain);
             }
             else
             {
                 const LDHUD::FCardFaceView View=LDHUD::CardFace(Row.DefinitionId,LatestContent,LatestStats);
                 const FString ExtraCompat=(Compat.IsEmpty()||(bNoHost&&!Row.bSold))?Outcome:(Outcome+TEXT("\n")+Compat);
-                ShowFace(Card,Key,View.Name,View.IconId,View.Glyph,LDHUD::CardChoiceDetail(View,ExtraCompat));
+                ShowFace(Card,Key,View.Name,View.IconId,View.Glyph,LDHUD::CardChoiceDetail(View,ExtraCompat),View.SentencePlain);
             }
         }
         if(Row.Kind==ELDShopItemKind::Skill)
@@ -1624,7 +1603,7 @@ void ULDChoicesPanel::RefreshShopPanel()
             GrowthCardLook(Card.Button,LDUIPaint::EButton::CardActive,LDHUDStyle::RewardActiveRim);
             if(Card.KindBanner&&Card.KindBannerText)
             {
-                GrowthText(Card.KindBannerText,TEXT("♛ 主动技能"));
+                GrowthText(Card.KindBannerText,TEXT("主动技能"));
                 Card.KindBannerText->SetColorAndOpacity(LDHUDStyle::RewardActiveRim);
                 GrowthShown(Card.KindBanner,true,ESlateVisibility::HitTestInvisible);
             }
@@ -1644,7 +1623,7 @@ void ULDChoicesPanel::RefreshShopPanel()
                 }
                 if(Card.KindBanner&&Card.KindBannerText)
                 {
-                    GrowthText(Card.KindBannerText,TEXT("◆ 元素石"));
+                    GrowthText(Card.KindBannerText,TEXT("元素石"));
                     Card.KindBannerText->SetColorAndOpacity(LDHUDStyle::RewardStoneRim);
                     GrowthShown(Card.KindBanner,true,ESlateVisibility::HitTestInvisible);
                 }
@@ -1669,12 +1648,6 @@ void ULDChoicesPanel::RefreshShopPanel()
                     GrowthShown(Card.KindBanner,true,ESlateVisibility::HitTestInvisible);
                 }
             }
-        }
-        if(Card.CompatText&&Card.CompatBox)
-        {
-            GrowthText(Card.CompatText,Compat);
-            Card.CompatText->SetColorAndOpacity(!bCompatMatch?LDHUDStyle::UIReplace:bCompatFull?LDHUDStyle::CardModify:LDHUDStyle::UILegal);
-            GrowthShown(Card.CompatBox,!Compat.IsEmpty()&&!Row.bSold,ESlateVisibility::HitTestInvisible);
         }
         ShowLook(Card,false,bCan&&!Row.bSold&&bAfford,true);
         if(Row.Kind==ELDShopItemKind::Card&&LatestContent)
@@ -1853,19 +1826,17 @@ void ULDChoicesPanel::ShowBig(FTrayCard& Card,bool bBig,float Width,float Icon)
     if(!Card.Frame){return;}
     if(Card.bBig==bBig&&(!bBig||FMath::IsNearlyEqual(Card.Frame->GetWidthOverride(),Width))){return;}
     Card.bBig=bBig;Card.bTile=false;Card.AppliedEnabled=-1;
+    LDTween::SetOpacity(Card.Frame,1.f);
     const float Scale=AppliedTextScale>0.f?AppliedTextScale:1.f;
     Card.Frame->SetWidthOverride(bBig?Width:TrayCardWidth);
     if(bBig){Card.Frame->ClearHeightOverride();}
     const float Face=bBig?Icon:TrayCardIcon;
     if(Face>0.f){Card.IconFrame->SetWidthOverride(Face);Card.IconFrame->SetHeightOverride(Face);}
     Card.Name->SetFont(LDUIFonts::Font(bBig?LDUIFonts::ERole::Title:LDUIFonts::ERole::Body,FMath::RoundToFloat((bBig?LDHUDStyle::TypeSection:LDHUDStyle::TypeBody)*Scale)));
-    Card.Name->SetWrapTextAt(bBig?Width-2.f*18.f-8.f:TrayCardWidth-2.f*TrayCardPadding);
-    Card.Facts->SetWrapTextAt(bBig?Width-2.f*18.f-8.f:0.f);
-    GrowthShown(Card.Facts,bBig&&!Card.Facts->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
-    GrowthShown(Card.Tags,bBig&&!Card.Tags->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
-    if(!bBig){GrowthShown(Card.Links,false);GrowthShown(Card.ElementChip,false);GrowthShown(Card.IconFrame,true);}
+    Card.Name->SetWrapTextAt(bBig?Width-16.f:TrayCardWidth-2.f*TrayCardPadding);
+    if(!bBig){GrowthShown(Card.IconFrame,true);}
     auto Style=Card.Button->GetStyle();
-    const FMargin Inner=bBig?FMargin(18,22):FMargin(TrayCardPadding);Style.NormalPadding=Inner;Style.PressedPadding=Inner;Card.Button->SetStyle(Style);
+    const FMargin Inner=bBig?FMargin(4,10):FMargin(TrayCardPadding);Style.NormalPadding=Inner;Style.PressedPadding=Inner;Card.Button->SetStyle(Style);
     // Stage cards stretch to one height: a face with an icon hangs from the top so the icons and names of the row line up,
     // whatever extra lines one card carries; the icon-less 不选 card stays centred.
     if(UButtonSlot* FaceSlot=Cast<UButtonSlot>(Card.Button->GetContentSlot())){FaceSlot->SetVerticalAlignment(bBig&&Icon>0.f?VAlign_Top:VAlign_Center);}
@@ -1876,7 +1847,7 @@ void ULDChoicesPanel::UpdateStage()
     const bool bFinal=HasAvailableFinal();
     const bool bFinalNext=!bOffer&&bFinal;
     const FGuid Key=bOffer?Latest.ActiveOffer.OfferId:bFinal?Latest.FinalModOfferId:FGuid();
-    const bool bShow=bOpen&&Places.bActive&&(bOffer||bFinal)&&!(Key.IsValid()&&Key==StageLeftFor);
+    const bool bShow=DrawerState(Places.bActive).bStage;
     // A newly available choice takes priority over the previous choice's cosmetic flight.
     if(bShow&&OfferMotionActive()){OfferMotion.StartedAt=-1.;OfferMotion.Others.Reset();}
     if(bShow==bStageShown&&(!bShow||(bFinalNext==bStageFinal&&Key==StageShownFor))){return;}
@@ -1907,13 +1878,13 @@ void ULDChoicesPanel::UpdateStage()
     {
         const bool bFourth=Latest.FinalModOptions.Num()==4;
         for(int32 Index=0;Index<FinalCards.Num()&&Latest.FinalModOptions.IsValidIndex(Index);++Index)
-        {OnStage(FinalCards[Index],StageCards,bFourth?22.f:StageFinalGap,bFourth?270.f:StageFinalWidth,bFourth?170.f:StageFinalIcon);}
+        {OnStage(FinalCards[Index],StageCards,StageFinalGap,bFourth?108.f:StageFinalWidth,StageFinalIcon);}
     }
     bCardsStale=true;
 }
 void ULDChoicesPanel::RefreshStage()
 {
-    GrowthShown(TrayFrame,(bOpen&&!bStageShown)||bQuickShown);
+    GrowthShown(TrayFrame,(bOpen&&!bLibraryOnly&&!bStageShown)||bQuickShown);
     GrowthShown(StageBox,bStageShown);
     GrowthShown(StageBack,bStageShown,ESlateVisibility::Visible);
     const bool bFinalStage=IsFinalStage();
@@ -1999,11 +1970,11 @@ void ULDChoicesPanel::LayoutLayer()
     if(!Layer||!Places.bActive){return;}
     if(bStageShown)
     {
-        PlaceOnLayer(StageBox,Places.Stage,FVector2D::ZeroVector,true);
         // Bottom-left of the stage, clear of the phase bar above and the rest actions in the top-right corner.
         const FSlateRect& Stage=Places.Stage;
         const FGeometry& Geometry=EffectiveChoicesGeometry(*this);
         const float Scale=FMath::Max(.01f,Geometry.Scale);
+        PlaceOnLayer(StageBox,FSlateRect(Stage.Left,Stage.Top,Stage.Right,Stage.Bottom-44.f*Scale),FVector2D::ZeroVector,true);
         PlaceOnLayer(StageBack,FSlateRect(Stage.Left+16.f*Scale,Stage.Top,Stage.Right,Stage.Bottom-16.f*Scale),FVector2D(0.f,1.f));
         const FSlateRect& Dock=Places.Dock;
         const FSlateRect Description(Dock.Left+28.f*Scale,Dock.Top+16.f*Scale,Dock.Right-340.f*Scale,Dock.Bottom-16.f*Scale);
@@ -2016,12 +1987,12 @@ void ULDChoicesPanel::LayoutLayer()
         PlaceOnLayer(FinalLockButton,Actions,FVector2D(.5f,.4f));
         PlaceOnLayer(FinalLockNote,Actions,FVector2D(.5f,.78f));
     }
-    PlaceOnLayer(ShopToggleButton,Places.ShopButton,FVector2D(0.f,.5f));
+    PlaceOnLayer(DrawerTabs,Places.DrawerHeader,FVector2D(0.f,.5f));
     if(IsShopShown()){PlaceOnLayer(ShopPanel,Places.Shop,FVector2D::ZeroVector,true);}
-    if(!IsBlueprintSwapShown()){return;}
     if(IsServiceShown()){PlaceOnLayer(RespecBox,Places.CharacterFoot,FVector2D::ZeroVector,true);}
+    if(IsServiceShown()||IsBlueprintSwapShown()){PlaceOnLayer(ServiceDock,Places.Dock,FVector2D::ZeroVector,true);}
+    if(!IsBlueprintSwapShown()){return;}
     PlaceOnLayer(TrainerPicks,Places.PendingTop,FVector2D(0.f,0.f));
-    PlaceOnLayer(ServiceDock,Places.Dock,FVector2D::ZeroVector,true);
     for(uint8 Key=0;Key<3;++Key)
     {
         if(BlueprintRows.IsValidIndex(TrainerBlueprint))
@@ -2044,7 +2015,6 @@ void ULDChoicesPanel::NativeTick(const FGeometry& Geometry,float DeltaSeconds)
     {
         UWidget* Card=StageCards->GetChildAt(Index);
         const float Progress=LDTween::Progress(Age-Index*LDHUDStyle::MotionOfferStagger,LDHUDStyle::MotionOfferCards,LDTween::ECurve::Back);
-        LDTween::SetScale(Card,FMath::Lerp(.86f,1.f,Progress));
         LDTween::SetOpacity(Card,FMath::Lerp(.25f,1.f,FMath::Clamp(Progress,0.f,1.f)));
     }
 }

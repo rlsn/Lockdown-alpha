@@ -1058,10 +1058,55 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
         UE_LOG(LogLDGrowth, Log, TEXT("LD_FINAL_MOD_LOCK t=%lld contender=%s chosen=%s slot=%s forgot=%s"), GameMode->GetAuthorityNowMs(),
             *LDLog::Id(ContenderId), *Receipt.DefinitionId.ToString(), TEXT("-"), TEXT("-"));
     }
+    const auto& Timeline=GameMode->GetTimeline();
+    constexpr int32 FinalPhase=FLDTimelineParameters::TimedSegments+1;
+    const int32 Phase=Timeline.GetStage()==ELDMatchStage::FinalField?FinalPhase:Timeline.GetRestIndex();
+    if(Record->Report.IsEmpty()){Record->Report.SetNum(FinalPhase+1);}
+    FLDResultGrowthPhase& Report=Record->Report[Phase];
+    for(int32 Points:Receipt.PointsSpent){Report.Allocated+=Points;}
+    Report.Refunded+=Receipt.PointsRefunded;
+    const int64 Spent=Record->Build.ShopSpentPoints-ShopSpentBefore;
+    if(Command.Kind==ELDBuildCommandKind::ShopRefresh){Report.RefreshedShop+=Spent;}
+    if(Command.Kind==ELDBuildCommandKind::ShopBuy)
+    {
+        if(Committed){Report.BoughtCards+=Spent;}
+        else{Report.BoughtSkills+=Spent;}
+    }
+    if(Committed&&(Command.Kind==ELDBuildCommandKind::PickCard||Command.Kind==ELDBuildCommandKind::ShopBuy))
+    {
+        Report.AcquiredCards.AddUnique(Committed->Id);
+    }
+    if(Choice.Result==ELDBuildChoiceResult::Learned||Command.Kind==ELDBuildCommandKind::RankUpSkill)
+    {
+        const int32 Learned=Record->Build.ActiveInSlot(Receipt.LearnedSlot);
+        if(Record->Build.Actives.IsValidIndex(Learned))
+        {
+            const FLDLearnedActive& Active=Record->Build.Actives[Learned];
+            if(!Report.Skills.ContainsByPredicate([&](const FLDResultBuildActive& Item)
+                {return Item.DefinitionId==Active.Id&&Item.Slot==Active.Slot&&Item.Branch==Active.Branch;}))
+            {
+                FLDResultBuildActive& Item=Report.Skills.AddDefaulted_GetRef();
+                Item.DefinitionId=Active.Id;Item.Slot=Active.Slot;Item.Branch=Active.Branch;
+            }
+        }
+    }
+    if(Command.Kind==ELDBuildCommandKind::FinalMod){Report.FinalMod=Record->Build.FinalMod.DefinitionId;}
+
     Record->Builds.Finalize(Receipt);
     Record->Unpublished.Add(Receipt);
     GameMode->Growth->MarkDirty(ContenderId);
     return Receipt;
+}
+
+bool ALDDevelopmentDirector::ReadResultGrowth(const FGuid& ContenderId,TArray<FLDResultGrowthPhase>& Out) const
+{
+    Out.Reset();
+    const ALDGameMode* GameMode=Mode();
+    const FRecord* Record=Records.Find(ContenderId);
+    if(!GameMode||!GameMode->HasAuthority()||GameMode->ReadPublicMatch().Phase!=ELDMatchPhase::Results||!Record){return false;}
+    Out=Record->Report;
+    Out.SetNum(FLDTimelineParameters::TimedSegments+2);
+    return true;
 }
 
 ELDGrowthReason ALDDevelopmentDirector::GrantPKPoints(const FGuid& ContenderId, int64 Points, const FGuid& AwardId,

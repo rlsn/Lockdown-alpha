@@ -44,13 +44,27 @@ public:
     // Keys: the key the HUD shows for each Q/W/E slot; every line that names a slot uses it.
     void Present(const FLDProgressionView& View,uint32 Match,uint32 Life,ELDLifePhase LifePhase,LDProgression::EMatchStage Stage,
         const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats,const LDHUD::FSlotKeys& Keys,bool bDormRested=false);
+    void UpdateInputs(const FLDProgressionView& View,uint32 Match,uint32 Life,ELDLifePhase LifePhase,LDProgression::EMatchStage Stage,
+        const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats,const LDHUD::FSlotKeys& Keys,bool bDormRested);
+    struct FWorkshopPlaces;
+    struct FDrawerState
+    {
+        bool bStage=false;
+        bool bLibraryOnly=false;
+        bool bFinalStage=false;
+        bool bShop=false;
+        bool bServices=false;
+        bool bCharacterServices=false;
+    };
+    FDrawerState DrawerState(bool bWorkshopOpen) const;
+    void PresentWithBounds(const FWorkshopPlaces& InPlaces,FVector2D Inset,float Width=0.f,float Height=0.f);
     void HandleSubmit(const FLDSubmitResult& Result);
     void HandleReceipt(const FLDBuildReceiptQueryResult& Result);
     // In a rest's build window the open workshop shows the rest rebuilds (respec, replace, forget) on the objects they act on;
     // the owning authority still admits every command.
     bool IsServiceShown() const;
     bool IsBlueprintSwapShown() const;
-    // Where the workshop puts the build moments and the services (absolute rectangles from its last layout).
+    // Absolute anchors computed from the current workshop layout.
     struct FWorkshopPlaces
     {
         bool bActive=false;
@@ -61,31 +75,9 @@ public:
         FSlateRect CharacterFoot;
         FSlateRect Points;
         FSlateRect PendingTop;
-        // Spec §3.13: the shop shelf takes the board's place while it is open; its toggle stands right of the phase bar.
         FSlateRect Shop;
-        FSlateRect ShopButton;
-        bool Equals(const FWorkshopPlaces& Other,float Tolerance=.5f) const
-        {
-            const auto SameRect=[Tolerance](const FSlateRect& A,const FSlateRect& B)
-            {
-                return FMath::IsNearlyEqual(A.Left,B.Left,Tolerance)&&FMath::IsNearlyEqual(A.Top,B.Top,Tolerance)
-                    &&FMath::IsNearlyEqual(A.Right,B.Right,Tolerance)&&FMath::IsNearlyEqual(A.Bottom,B.Bottom,Tolerance);
-            };
-            if(bActive!=Other.bActive||!SameRect(Stage,Other.Stage)||!SameRect(Dock,Other.Dock)
-                ||!SameRect(CharacterFoot,Other.CharacterFoot)||!SameRect(Points,Other.Points)
-                ||!SameRect(PendingTop,Other.PendingTop)||!SameRect(Shop,Other.Shop)||!SameRect(ShopButton,Other.ShopButton))
-            {
-                return false;
-            }
-            for(int32 Index=0;Index<LDHUD::StorageColumnCount;++Index)
-            {
-                if(!SameRect(Heads[Index],Other.Heads[Index])||!SameRect(HeadIcons[Index],Other.HeadIcons[Index])){return false;}
-            }
-            return true;
-        }
+        FSlateRect DrawerHeader;
     };
-    void SetWorkshopPlaces(const FWorkshopPlaces& InPlaces){Places=InPlaces;}
-    const FWorkshopPlaces& WorkshopPlaces() const {return Places;}
     // The centre stage shows the active offer (and then the final mod) as big cards while the full workshop is open, until
     // the player steps back to the board for that offer.
     bool IsStageShown() const {return bStageShown;}
@@ -101,9 +93,6 @@ public:
     // The tray's distance from the screen's bottom-right corner (the HUD keeps it right above the 构筑 button), and the width
     // its rows wrap at (0: four cards); in the workshop the rows wrap inside the pending area.
     void SetTrayInset(float Right,float Bottom,float Width=0.f,float Height=0.f);
-    FVector2D CurrentTrayInset() const {return LastTrayInset;}
-    float CurrentTrayWrap() const {return LastTrayWrap;}
-    float CurrentTrayLimit() const {return LastTrayLimit;}
     // An offer card click: chooses that active with bLearnIfPossible.
     bool ChooseOffer(int32 Index);
     bool SkipOffer();
@@ -161,7 +150,6 @@ public:
     // The card of the open tray under Pointer (absolute), else the pinned offer card, with its popup lines; or null.
     const UWidget* Hovered(FVector2D Pointer,LDHUD::FActionDetailView& Out,FName* OutComponent=nullptr,FString* OutIcon=nullptr) const;
     // The tray's laid-out size, so the workshop can give its rows the room they take in the pending area.
-    FVector2D TrayDesiredSize() const;
     // The HUD opened the tray for the opening offer (D10): it folds back to the 构筑 button after a few seconds unless the
     // player engages with it (LDHUD::FChoicesFold).
     void MarkOpenedAutomatically();
@@ -197,8 +185,7 @@ private:
         TObjectPtr<UTextBlock> HotkeyText;
         TObjectPtr<UWidget> KindBanner;
         TObjectPtr<UTextBlock> KindBannerText;
-        TObjectPtr<UWidget> CompatBox;
-        TObjectPtr<UTextBlock> CompatText;
+        TObjectPtr<UTextBlock> Benefit;
         bool bElementStone=false;
         // What the face shows (the definition and the outcome it was rendered for), so it is rendered again only on a change.
         FString ShownKey;
@@ -207,13 +194,6 @@ private:
         int32 AppliedEnabled=-1;
         bool bTile=false;
         LDHUD::FActionDetailView Detail;
-        // The stage face: the facts line, the tag line, the element chip and the 可接 row (collapsed on tray cards).
-        TObjectPtr<UTextBlock> Facts;
-        TObjectPtr<UTextBlock> Tags;
-        TObjectPtr<UWidget> ElementChip;
-        TObjectPtr<UTextBlock> Element;
-        TObjectPtr<UHorizontalBox> Links;
-        TArray<TObjectPtr<UImage>> LinkIcons;
         bool bBig=false;
     };
     struct FOfferGhost
@@ -266,8 +246,7 @@ private:
     TArray<FTrayUnit> TrayUnits;
     TArray<FIntPoint> TrayPages;
     int32 TrayPage=0;
-    FVector2D LastTrayInset=FVector2D(-1.f,-1.f);
-    float LastTrayWrap=-1.f,LastTrayLimit=-1.f;
+
     float TrayAvailableWidth=0.f,TrayAvailableHeight=0.f;
     bool bTrayOverflow=false,bTrayOverflowReported=false;
     bool bCompactTray=false,bIconOnlyTray=false;
@@ -322,17 +301,19 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> RestConfirmText;
     UPROPERTY() TObjectPtr<ULDHoldButton> RestConfirmButton;
     FRestConfirm RestConfirm;
+    UPROPERTY() TObjectPtr<UWidget> DrawerTabs;
     UPROPERTY() TObjectPtr<ULDCommandButton> ShopToggleButton;
     UPROPERTY() TObjectPtr<UWidget> ShopPanel;
     UPROPERTY() TObjectPtr<UTextBlock> ShopPoints;
     UPROPERTY() TObjectPtr<UTextBlock> ShopBlockedText;
     UPROPERTY() TObjectPtr<ULDCommandButton> ShopRefreshButton;
     UPROPERTY() TObjectPtr<ULDCommandButton> ShopPointButton;
-    UPROPERTY() TObjectPtr<UHorizontalBox> ShopSlotRow;
+    UPROPERTY() TObjectPtr<class UUniformGridPanel> ShopSlotRow;
     UPROPERTY() TArray<TObjectPtr<UWidget>> ShopCells;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> ShopPrices;
     TArray<FTrayCard> ShopCards;
     bool bShopOpen=true;
+    bool bLibraryOnly=false;
     uint32 AutoShopStock=0;
     uint32 AutoShopMatch=0;
     bool IsShopOffered() const;
@@ -397,7 +378,7 @@ private:
     bool CardStale(const FTrayCard& Card,const FString& Key) const;
     // Fills a card's name, icon and popup for Key.
     void ShowFace(FTrayCard& Card,const FString& Key,const FString& Name,const FString& IconId,const FString& Glyph,
-        const LDHUD::FActionDetailView& Detail);
+        const LDHUD::FActionDetailView& Detail,const FString& Rule=FString());
     // Shows the card as a named card or an icon tile (bTile), enabled or greyed out.
     void ShowLook(FTrayCard& Card,bool bTile,bool bEnabled,bool bVisible=true);
     FTrayCard& BlueprintCardAt(int32 Index);

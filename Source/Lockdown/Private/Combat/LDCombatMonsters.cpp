@@ -138,13 +138,18 @@ bool ALDCombatDirector::RecoverContender(const FLDCombatBodyRef& Ref,int64 Missi
         +Body->Resources.MaxHpP2/10000*MaxBp+Body->Resources.MaxHpP2%10000*MaxBp/10000;
     FString HealError;
     const int64 EffectiveHeal = Heal + FMath::Min(FlatHealP2, MAX_int64 - Heal);
-    if(EffectiveHeal>0){HealBody(*Body,EffectiveHeal,FLDCombatSourceRef(),nullptr,FGuid(),&HealError);}
+    int64 AppliedP2=0;
+    if(EffectiveHeal>0){HealBody(*Body,EffectiveHeal,FLDCombatSourceRef(),&AppliedP2,FGuid(),&HealError);}
     if(!HealError.IsEmpty()){Error=MoveTemp(HealError);return false;}
     if(MomentumP2>0){GrantMomentum(*Body,MomentumP2,ELDMomentumBook::Other);}
     if(Authority()->ValidateWritePermit(Permit,ELDCommitPhase::Transactions)==ELDCommitReject::None)
     {
         Body->Cues.LastPickupAtMs=Authority()->GetAuthorityNowMs();
-        if (FlatHealP2 > 0) { Body->Cues.LastRecoveryPackAtMs = Body->Cues.LastPickupAtMs; }
+        if (FlatHealP2 > 0)
+        {
+            Body->Cues.LastRecoveryPackAtMs = Body->Cues.LastPickupAtMs;
+            if(AppliedP2>0){ReportCounters.FindOrAdd(Ref.Victim.EntityId).RecoveryPackP2+=AppliedP2;}
+        }
         MarkViewChanged(Body->Victim.EntityId);
     }
     return true;

@@ -1853,7 +1853,7 @@ bool ALDCombatDirector::OverhealShield(FLDBodyCombatState& Body, int64 OverflowP
         Body.Resources.ShieldP2+=EffectiveAddP2;
         Body.ShieldGrantedP2=Body.Resources.ShieldP2;
         Body.LastShieldGrantP2=EffectiveAddP2;
-        LedgerShieldGranted(Body,EffectiveAddP2);
+        LedgerShieldGranted(Body,EffectiveAddP2,GrantSource);
     }
     ++Body.Resources.Revision;
     ++Body.StateRevision;

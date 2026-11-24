@@ -760,7 +760,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     {
         if (ALDGameMode* Arena=Core()) { Arena->NoteContenderDamage(Hit.CreditOwner,Body->Victim.EntityId,Damage.DamageP2); }
     }
-    LedgerHitCommitted(Hit,*Body,Damage);
+    LedgerHitCommitted(Hit,*Body,Damage,EffectiveType);
     RecapHitCommitted(Hit,*Body,Damage,NowMs);
     // K04: a mark that amplified a positive hit is consumed (one trigger each).
     if (Source && Damage.DamageP2>0)
