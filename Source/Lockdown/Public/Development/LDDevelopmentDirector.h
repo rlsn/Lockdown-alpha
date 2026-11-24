@@ -223,6 +223,11 @@ private:
     // or the permit was lost before the install.
     ELDGrowthReason InstallBuild(const FGuid& ContenderId, FRecord& Record, FLDGrowthBuild&& NewBuild,
         FLDProgressionState&& NewProgression, bool bProgressionChanged, const FLDGameplayWritePermit& Permit);
+    // The current result-report phase (rest index, or the final field after the last timed segment) of Record, sized on use.
+    FLDResultGrowthPhase& ReportPhase(FRecord& Record) const;
+    // Every card a committed build received (serial at or after FirstNewSerial) joins the current report phase's acquired
+    // cards, whichever path committed it: a pick, a shop buy, an element medal or a level reward.
+    void NoteAcquiredCards(FRecord& Record, uint16 FirstNewSerial) const;
     // The match stage (ALDGameMode::ReadBuildStage), life phase and build safe window of ContenderId now; false
     // (StaleContext) without a life read.
     bool ReadBuildContext(const FGuid& ContenderId, LDProgression::FBuildContext& Out, uint32& OutLife) const;
