@@ -135,6 +135,7 @@ private:
         float HandTop=0.f;
         float HandBottom=0.f;
         bool bWingCompact=false;
+        bool bShopCompact=false;
         float RingBottom=0.f;
         int32 OfferLines=3;
         float CardWidth=0.f;

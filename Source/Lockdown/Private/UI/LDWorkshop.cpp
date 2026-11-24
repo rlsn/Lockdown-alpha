@@ -483,7 +483,21 @@ void ULDWorkshop::ComputeLayout(const FGeometry& Geometry)
             const float Bottom=L.HandTop-PlateBand-RowH*.5f;
             const float Step=Count>1?FMath::Min((Bottom-Top)/(Count-1),RowH+16.f*U):0.f;
             const float Width=Z+T(150.f);
-            for(int32 Index=0;Index<Count;++Index)
+            // Rows that would overlap become a grid of tiles with their prices under them (the hover card names them).
+            L.bShopCompact=Count>1&&Step<RowH+2.f*U;
+            if(L.bShopCompact)
+            {
+                const float CellW=FMath::Max(Z,T(60.f))+10.f*U,CellH=Z+T(18.f)+10.f*U;
+                const float Left0=FMath::Min(ArcX(Top),float(L.Size.X)-16.f*U-CellW*3.f);
+                const int32 Columns=FMath::Max(1,FMath::FloorToInt((float(L.Size.X)-16.f*U-Left0)/CellW));
+                for(int32 Index=0;Index<Count;++Index)
+                {
+                    const FVector2D At(Left0+(Index%Columns)*CellW+CellW*.5f,Top-RowH*.5f+Z*.5f+(Index/Columns)*CellH);
+                    Add(EHit::Shop,INDEX_NONE,Index,Rect(FBox2D(At-FVector2D(Z,Z)*.5,At+FVector2D(Z*.5,Z*.5+T(18.f)))));
+                    L.Anchors.Add(AnchorKey(EHit::Shop,INDEX_NONE,Index),At);
+                }
+            }
+            for(int32 Index=0;Index<Count&&!L.bShopCompact;++Index)
             {
                 const float Y=Top+Index*Step;
                 const float X=FMath::Min(ArcX(Y),float(L.Size.X)-16.f*U-Width+Z*.5f);
@@ -568,7 +582,7 @@ TArray<FString> ULDWorkshop::LayoutProblems() const
 {
     TArray<FString> Out;
     const FLayout& L=Layout;
-    TArray<FBox2D> WingRows;
+    TArray<FBox2D> WingRows,ShopRows;
     for(const FShape& Box:L.Boxes)
     {
         if(Box.bWedge){continue;}
@@ -587,6 +601,14 @@ TArray<FString> ULDWorkshop::LayoutProblems() const
             WingRows.Add(Bounds);
         }
         if(Box.Hit.Kind==EHit::Hand&&Bounds.Max.Y>L.HandBottom+1.){Out.Add(TEXT("below the band line ")+Part);}
+        if(Box.Hit.Kind==EHit::Shop)
+        {
+            for(const FBox2D& Other:ShopRows)
+            {
+                if(!(Bounds.Max.X<=Other.Min.X+.5||Other.Max.X<=Bounds.Min.X+.5||Bounds.Max.Y<=Other.Min.Y+.5||Other.Max.Y<=Bounds.Min.Y+.5)){Out.Add(TEXT("shop overlap ")+Part);}
+            }
+            ShopRows.Add(Bounds);
+        }
     }
     return Out;
 }
@@ -1312,7 +1334,7 @@ void ULDWorkshop::PaintShop(FPainter& P,const TArray<uint64>& Lit) const
     const FVector2D C=L.Centre;
     {
         // The spray-painted arc the shelf hangs from, from the first row to the last.
-        const FVector2D* First=L.Anchors.Find(AnchorKey(EHit::Shop,INDEX_NONE,0));
+        const FVector2D* First=L.bShopCompact?nullptr:L.Anchors.Find(AnchorKey(EHit::Shop,INDEX_NONE,0));
         const FVector2D* Last=L.Anchors.Find(AnchorKey(EHit::Shop,INDEX_NONE,Ring.Shop.Num()-1));
         if(First&&Last)
         {
@@ -1348,13 +1370,21 @@ void ULDWorkshop::PaintShop(FPainter& P,const TArray<uint64>& Lit) const
         const float Saved=P.Opacity;P.Opacity*=Item.bSold?.35f:1.f;
         const bool bHot=Focus().Kind==EHit::Shop&&Focus().Index==Box.Hit.Index;
         const FBox2D Tile=Square(*At,Z);
+        if(L.bShopCompact)
+        {
+            const FString Price=Item.bSold?FString(TEXT("已买")):Diamonds(Item.Price);
+            P.Text(Price,FVector2D(At->X,Tile.Max.Y+2.f*U),RingFont(LDUIFonts::ERole::Strong,14.f,F),Item.bSold?RingSoft:LDBroadcast::Gold,FVector2D(.5,0.));
+        }
         // The text plate first, the tile over its left end.
         const FBox2D Plate(FVector2D(Tile.Max.X-12.f*F,At->Y-22.f*F),FVector2D(Tile.Max.X-12.f*F+150.f*F,At->Y+22.f*F));
+        if(!L.bShopCompact)
+        {
         P.FillShaded(LDRingPaint::Slant(Plate,8.f*F),[&](FVector2D Point){return bHot?Hex(0x1C2438):LDRingPaint::Mix(Hex(0x070A11,.92f),Hex(0x070A11,.7f),float((Point.X-Plate.Min.X)/Plate.GetSize().X));});
         P.Text(Item.Name,FVector2D(Plate.Min.X+18.f*F,Plate.Min.Y+3.f*F),RingFont(LDUIFonts::ERole::Strong,14.f,F),RingText);
         const FString Price=Item.bSold?FString(TEXT("已买")):Diamonds(Item.Price);
         const FVector2D PriceSize=P.Text(Price,FVector2D(Plate.Min.X+18.f*F,Plate.Max.Y-3.f*F),RingFont(LDUIFonts::ERole::Strong,14.f,F),Item.bSold?RingSoft:LDBroadcast::Gold,FVector2D(0.,1.));
         if(!Item.Note.IsEmpty()&&!Item.bSold){P.Text(Item.Note,FVector2D(Plate.Min.X+18.f*F+PriceSize.X+6.f*F,Plate.Max.Y-3.f*F),RingFont(LDUIFonts::ERole::Body,14.f,F),RingSoft,FVector2D(0.,1.));}
+        }
         FCard Face;Face.IconId=Item.IconId;Face.Name=Item.Name;Face.Rarity=Item.Rarity;
         if(Item.Slot==FLDBuildCommand::ShopSkillPointSlot)
         {

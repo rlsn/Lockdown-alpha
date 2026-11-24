@@ -148,7 +148,7 @@ bool FLDBuildRingLayoutTest::RunTest(const FString& Parameters)
     auto* Root=Tree->ConstructWidget<UOverlay>();Tree->RootWidget=Root;
     {auto* Slot=Root->AddChildToOverlay(Ring);Slot->SetHorizontalAlignment(HAlign_Fill);Slot->SetVerticalAlignment(VAlign_Fill);}
     const TSharedRef<SWidget> Slate=Root->TakeWidget();
-    const FLDProgressionView View=RingFixtureView(Content);
+    FLDProgressionView View=RingFixtureView(Content);
     ULDWorkshop::FInput Input;Input.Mode=ULDWorkshop::EMode::Open;Input.bShown=true;Input.Progression=&View;Input.Match=1;Input.Content=&Content;
     Input.Stage=LDProgression::EMatchStage::Live;
     const FLDAttributeProjectionResult Projected=LDAttributeProjection::Project(FLDAttributeBuildValues(16,{}),*Catalog);
@@ -158,8 +158,19 @@ bool FLDBuildRingLayoutTest::RunTest(const FString& Parameters)
         FLDCombatAttributeRowView& Row=Input.Attributes.AddDefaulted_GetRef();Row.Attribute=uint8(Contribution.Attribute);Row.Final=Contribution.Final;
     }
     struct FCase{FVector2D Pixels;float Text;};
+    // The field first, then a rest with a stocked shop (seven items and the skill point) on the right wing.
+    for(const bool bRest:{false,true})
     for(const FCase& Case:{FCase{FVector2D(1920,1080),1.f},FCase{FVector2D(1920,1080),1.25f},FCase{FVector2D(1280,720),1.f},FCase{FVector2D(1280,720),1.25f}})
     {
+        if(bRest&&!View.Shop.bStocked)
+        {
+            View.Shop.bStocked=true;View.Shop.Revision=1;View.Shop.SkillPointPrice=3;View.Shop.SkillPointsMax=2;
+            for(int32 Index=0;Index<7&&Content.Cards.IsValidIndex(Index);++Index)
+            {
+                FLDShopSlotView& Slot=View.Shop.Slots.AddDefaulted_GetRef();Slot.Kind=ELDShopItemKind::Card;Slot.DefinitionId=FName(*Content.Cards[Index].Id);Slot.Price=2;
+            }
+            Input.Stage=LDProgression::EMatchStage::Rest;
+        }
         // The HUD lays out at 1080 units tall with the DPI scale the viewport gives.
         const float Scale=float(Case.Pixels.Y)/1080.f;
         const FVector2D Local=Case.Pixels/Scale;
@@ -174,7 +185,10 @@ bool FLDBuildRingLayoutTest::RunTest(const FString& Parameters)
             Slate->Paint(FPaintArgs(nullptr,HitTest,FVector2D::ZeroVector,1.,1.f/60.f),Geometry,FSlateRect(Origin.X,Origin.Y,Origin.X+Case.Pixels.X,Origin.Y+Case.Pixels.Y),Draw,0,FWidgetStyle(),true);
             Ring->NativeTick(Ring->GetCachedGeometry(),1.f/60.f);
         }
-        const FString At=FString::Printf(TEXT("%.0fx%.0f text %.2f"),Case.Pixels.X,Case.Pixels.Y,Case.Text);
+        const FString At=FString::Printf(TEXT("%s %.0fx%.0f text %.2f"),bRest?TEXT("rest"):TEXT("field"),Case.Pixels.X,Case.Pixels.Y,Case.Text);
+        const TArray<FString> Problems=Ring->LayoutProblems();
+        TestTrue(At+TEXT(": the layout has no faults ")+FString::Join(Problems,TEXT("; ")),Problems.IsEmpty());
+        if(bRest){TestEqual(At+TEXT(": the shop wing lists the shelf and the skill point"),Ring->View().Shop.Num(),8);}
         const auto& L=Ring->Layout;
         TestTrue(At+TEXT(": the ring has its parts"),Ring->View().bValid&&L.Boxes.Num()>20);
         TestEqual(At+TEXT(": the wing lists the derived attributes"),Ring->View().Derived.Num(),LDBuildRing::WingAttributes().Num());
