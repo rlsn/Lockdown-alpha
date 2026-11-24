@@ -1,4 +1,5 @@
 #include "LDDemoVfxImport.h"
+#include "LDDemoVfxNiagara.h"
 #include "LDEditorLog.h"
 #include "Character/LDHitVfx.h"
 #include "Framework/LDDemoEntry.h"
@@ -980,7 +981,7 @@ bool LDDemoVfxImport::Import(FString& Error)
         if (!Material || !VfxCheckMaterial(Material, Kind, Error) || !VfxSave(*Material, Error)) { return false; }
         UE_LOG(LogLDEditor, Display, TEXT("LD_DEMO_VFX_MATERIAL_BUILT %s"), VfxPackageOf(Kind));
     }
-    if (!SliceSync(Slices, true, Error)) { return false; }
+    if (!SliceSync(Slices, true, Error) || !LDDemoVfxNiagara::Build(Error)) { return false; }
     Error.Reset();
     return true;
 }
@@ -1010,5 +1011,5 @@ bool LDDemoVfxImport::Validate(FString& Error)
     {
         if (!VfxCheckMaterial(VfxLoad<UMaterial>(VfxPackageOf(Kind)), Kind, Error)) { return false; }
     }
-    return SliceSync(Slices, false, Error);
+    return SliceSync(Slices, false, Error) && LDDemoVfxNiagara::Validate(Error);
 }
