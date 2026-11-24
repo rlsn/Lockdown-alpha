@@ -2171,6 +2171,10 @@ bool RunAirdrop(FAutomationTestBase& Test)
         Short.Order.POI = TEXT("elsewhere");
         bGood &= Expect(Test, TEXT("A live walk elsewhere stops inside the pickup radius"),
             LDOpponentPolicy::Decide(Short, C, Stopped), EMode::Airdrop, EBody::Stop);
+        FLDOpponentPolicyState Held;
+        LDOpponentPolicy::RecordWalkAdmission(Held, FLDOpponentRetryKey(), true, Short.Self, Short.Public.NowMs, C.Get().Parameters.AI);
+        bGood &= Expect(Test, TEXT("Held walking does not keep a walk elsewhere inside the pickup radius"),
+            LDOpponentPolicy::Decide(Short, C, Held), EMode::Airdrop, EBody::Stop);
         Short = Base;
         Short.Public.AirdropPOI = TEXT("airdrop_s");
         Short.Self.FootCm = FVector(Radius * 1.3, -3300, 0);

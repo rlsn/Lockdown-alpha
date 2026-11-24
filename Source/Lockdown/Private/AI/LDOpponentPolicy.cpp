@@ -529,8 +529,15 @@ FLDOpponentBodyIntent ApproachAirdrop(const FContext& C, const FLDOpponentPOI& D
 {
     const double Distance = C.Distance(Drop.FootCm);
     if (Distance * 2. <= C.AirdropRadiusCm) { return Halt(C); }
-    FLDOpponentBodyIntent Walk = MoveTo(C, Drop);
-    return Distance <= C.AirdropRadiusCm && Walk.Kind == EBody::MoveGround ? Halt(C) : Walk;
+    if (Distance > C.AirdropRadiusCm) { return MoveTo(C, Drop); }
+    // Whether walking is held or not, only a live walk to this drop is kept.
+    const auto& Order = C.Frame.Order;
+    if (!(Order.IsLive() && Order.Kind == ELDOpponentOrderKind::MoveGround && Order.POI == Drop.Id)) { return Halt(C); }
+    FLDOpponentBodyIntent Keep;
+    Keep.Kind = EBody::Keep;
+    Keep.POI = Drop.Id;
+    Keep.Key = FContext::PathKey(Drop.Id);
+    return Keep;
 }
 
 // Keeps any live order without sending anything new.
