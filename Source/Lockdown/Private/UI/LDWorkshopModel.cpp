@@ -96,75 +96,7 @@ float WorkshopLibraryHeight(FIntVector4 Counts,int32 PerRow,float Icon,float Tex
     return Height;
 }
 }
-float LDWorkshop::LibraryMinPageHeight(float MinIcon,float TextScale)
-{
-    return WorkshopLibraryHeight(FIntVector4(0,1,0,0),1,FMath::Max(46.f,MinIcon),TextScale,true);
-}
 // Mirrors the tray tiles of LDChoicesPanel: a 46 icon (never under 36 screen pixels) in 4 padding, and the group's 8 gap.
-float LDWorkshop::PendingTileGroupHeight(float Scale)
-{
-    return FMath::Max(46.f,36.f/FMath::Max(.01f,Scale))+2.f*4.f+8.f;
-}
-float LDWorkshop::PendingPageFloor(float Scale)
-{
-    return PendingTileGroupHeight(Scale)+32.f;
-}
-LDWorkshop::FLibraryFit LDWorkshop::FitLibrary(FIntVector4 Counts,float Width,float Height,float MinIcon,float TextScale)
-{
-    FLibraryFit Result;
-    const int32 Total=Counts.X+Counts.Y+Counts.Z+Counts.W;
-    Result.LabelHeight=WorkshopLibraryLabelHeight(TextScale);
-    const float Tier=FMath::Max(LibraryTier(Total).Icon,MinIcon);
-    Result.Icon=Tier;
-    if(Total<=0){Result.bFits=true;Result.Pages.AddDefaulted();return Result;}
-    for(const bool bCompact:{false,true})
-    {
-        for(const float Choice:{Tier,56.f,46.f})
-        {
-            if(Choice>Tier){continue;}
-            const float Icon=FMath::Max(Choice,MinIcon);
-            const float Gap=bCompact?4.f:14.f;
-            const int32 PerRow=FMath::FloorToInt((Width+Gap)/(Icon+10.f+Gap));
-            const float Needed=WorkshopLibraryHeight(Counts,PerRow,Icon,TextScale,bCompact);
-            Result.Icon=Icon;Result.PerRow=PerRow;Result.RequiredHeight=Needed;Result.bCompact=bCompact;
-            if(PerRow>0&&Needed<=Height)
-            {
-                Result.bFits=true;
-                Result.Pages.AddDefaulted_GetRef().Counts=Counts;
-                return Result;
-            }
-        }
-    }
-
-    Result.Icon=FMath::Max(46.f,MinIcon);
-    Result.bCompact=true;
-    Result.PerRow=FMath::FloorToInt((Width+4.f)/(Result.Icon+14.f));
-    Result.RequiredHeight=0.f;
-    if(Result.PerRow<1){return Result;}
-    FIntVector4 Cursor(0,0,0,0);
-    while(Cursor!=Counts)
-    {
-        FLibraryPage Page;
-        Page.First=Cursor;
-        for(int32 Kind=0;Kind<LibraryGroupCount;++Kind)
-        {
-            while(Cursor[Kind]<Counts[Kind])
-            {
-                FIntVector4 Next=Page.Counts;
-                ++Next[Kind];
-                if(WorkshopLibraryHeight(Next,Result.PerRow,Result.Icon,TextScale,true)>Height){break;}
-                Page.Counts=Next;
-                ++Cursor[Kind];
-            }
-            if(Cursor[Kind]<Counts[Kind]){break;}
-        }
-        if(Page.Counts==FIntVector4(0,0,0,0)){Result.Pages.Reset();return Result;}
-        Result.RequiredHeight=FMath::Max(Result.RequiredHeight,WorkshopLibraryHeight(Page.Counts,Result.PerRow,Result.Icon,TextScale,true));
-        Result.Pages.Add(Page);
-    }
-    Result.bFits=true;
-    return Result;
-}
 LDWorkshop::FPendingFit LDWorkshop::FitPending(const TArray<float>& Heights,float Height,float PagerHeight)
 {
     FPendingFit Result;
@@ -253,47 +185,10 @@ TArray<ELDDemoElement> LDWorkshop::CardElements(FName Card,const FLDDemoContentD
     return Out;
 }
 
-TArray<ELDDemoElement> LDWorkshop::BuildElements(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
-{
-    TArray<ELDDemoElement> Out;
-    for(const FLDActiveSlotView& Held:Progression.Actives)
-    {
-        for(ELDDemoElement Element:ColumnHead(LDHUD::SlotColumn(Held.Slot),Held.DefinitionId,Held.Branch,FString(),Content).Elements)
-        { WorkshopAddElement(Out,Element); }
-    }
-    for(const FLDCardInstanceView& Owned:Progression.Cards)
-    {
-        if(!Owned.IsInstalled()){continue;}
-        WorkshopAddElement(Out,Owned.Target.Element);
-        for(ELDDemoElement Element:CardElements(Owned.DefinitionId,Content)){WorkshopAddElement(Out,Element);}
-    }
-    WorkshopSortElements(Out);
-    return Out;
-}
 FString LDWorkshop::ReactionName(ELDDemoElement First,ELDDemoElement Second)
 {
     // The workshop names unordered pairs.
     return LDTerms::ReactionTerm(uint8(LDCombatElements::ReactionOf(LDCombatElements::FromDemo(First),LDCombatElements::FromDemo(Second))));
-}
-TArray<LDWorkshop::FReactionRow> LDWorkshop::Reactions(const TArray<ELDDemoElement>& BuildApplies)
-{
-    // The 10 pairs in table order: the ones the build sets off first (lit), then the ones one more element would open, then
-    // the rest; the board shows as many rows as it has room for.
-    TArray<FReactionRow> Lit,Near,Rest;
-    for(uint8 A=1;A<=5;++A)
-    {
-        for(uint8 B=A+1;B<=5;++B)
-        {
-            const ELDDemoElement First=static_cast<ELDDemoElement>(A),Second=static_cast<ELDDemoElement>(B);
-            FReactionRow Row;
-            Row.First=First;Row.Second=Second;Row.Name=ReactionName(First,Second);
-            Row.bLit=BuildApplies.Contains(First)&&BuildApplies.Contains(Second);
-            (Row.bLit?Lit:(BuildApplies.Contains(First)||BuildApplies.Contains(Second))?Near:Rest).Add(MoveTemp(Row));
-        }
-    }
-    Lit.Append(MoveTemp(Near));
-    Lit.Append(MoveTemp(Rest));
-    return Lit;
 }
 LDWorkshop::FCapacityView LDWorkshop::Capacity(const FLDProgressionView& Progression,const LDHUD::FStorageView& Storage,const FLDDemoContentDefinitions* Content)
 {
@@ -354,32 +249,6 @@ LDWorkshop::FOfferLinks LDWorkshop::LinkableCards(FName Active,const FLDProgress
         }
     }
     return Out;
-}
-TArray<FString> LDWorkshop::KeywordNames(const TArray<FString>& KeywordLines)
-{
-    TArray<FString> Out;
-    for(const FString& Line:KeywordLines)
-    {
-        int32 Start=Line.Find(TEXT("<b>"));
-        if(Start==INDEX_NONE){continue;}
-        Start+=3;
-        const int32 Stop=Line.Find(TEXT("</>"),ESearchCase::CaseSensitive,ESearchDir::FromStart,Start);
-        if(Stop>Start){Out.AddUnique(Line.Mid(Start,Stop-Start));}
-    }
-    return Out;
-}
-int32 LDWorkshop::RestStepDot(ELDRestStep Step)
-{
-    switch(Step)
-    {
-    case ELDRestStep::Build: return 0;
-    case ELDRestStep::Draw: case ELDRestStep::Betting: return 1;
-    case ELDRestStep::PKReady: return 2;
-    case ELDRestStep::PK: return 3;
-    case ELDRestStep::Settlement: case ELDRestStep::Payout: return 4;
-    case ELDRestStep::Return: return 5;
-    default: return INDEX_NONE;
-    }
 }
 bool LDWorkshop::FullScreen(bool bRest,ELDRestStep Step,bool bDeadWait)
 {

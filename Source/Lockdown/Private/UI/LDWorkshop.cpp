@@ -21,6 +21,7 @@
 #include "UI/LDUIIcons.h"
 #include "UI/LDWidgets.h"
 #include "UI/LDWorkshopModel.h"
+#include "Misc/ScopeExit.h"
 
 using namespace LDBuildRing;
 using LDRingPaint::FPainter;
@@ -791,7 +792,7 @@ void ULDWorkshop::Click(const FHit& Hit,bool bRight)
         }
         default: return;
         }
-    case EHit::OfferPile: case EHit::HandPile: bShowHand=!bShowHand;return;
+    case EHit::OfferPile: case EHit::HandPile: bShowHand=!bShowHand;PageAt=UiNow();return;
     case EHit::Reroll: if(Tray){Tray->RerollCardOffer();}return;
     case EHit::Skip:
         if(!Tray){return;}
@@ -927,11 +928,11 @@ void ULDWorkshop::PaintNode(FPainter& P,const FBox2D& Box,const FCard& Card,floa
 
 void ULDWorkshop::PaintDim(FPainter& P) const
 {
-    // The world darkens around the ring, deepest at the edges, never over the HUD band, the minimap or the top banner.
+    // The world darkens around the ring, deepest at the edges, never over the HUD band or the minimap.
     const FLayout& L=Layout;
     const FGeometry& G=GetCachedGeometry();
     TArray<FBox2D> Holes;
-    for(const FSlateRect& Rect:{Latest.Band,Latest.Map,Latest.Banner})
+    for(const FSlateRect& Rect:{Latest.Band,Latest.Map})
     {
         if(Rect.Right<=Rect.Left||Rect.Bottom<=Rect.Top){continue;}
         Holes.Add(FBox2D(G.AbsoluteToLocal(FVector2D(Rect.Left,Rect.Top))-FVector2D(2.,2.),G.AbsoluteToLocal(FVector2D(Rect.Right,Rect.Bottom))+FVector2D(2.,2.)));
@@ -1481,7 +1482,7 @@ void ULDWorkshop::PaintBottom(FPainter& P,const TArray<uint64>& Lit) const
             const float Ease=1.f-FMath::Square(1.f-Age);
             const float LiftAmount=Lift.FindRef(AnchorKey(EHit::Offer,INDEX_NONE,Face.Hit.Index));
             const FBox2D Box=Shift(Face.Box,FVector2D(0.,(1.f-Ease)*28.f*U-LiftAmount*9.f*U));
-            const float Saved=P.Opacity;P.Opacity*=Ease;
+            const float Saved=P.Opacity;P.Opacity*=Ease*(PageAt<0.?1.f:FMath::Clamp(float((Now-PageAt)/RingRevealTime),0.f,1.f));
             const bool bChosen=Ring.Batch.Kind==EBatch::Blueprint&&SelectedBlueprint==Face.Hit.Index;
             const ERarity Rarity=Option.Rarity;
             const FFrameInk Ink=FrameOf(Rarity);
@@ -1519,7 +1520,10 @@ void ULDWorkshop::PaintBottom(FPainter& P,const TArray<uint64>& Lit) const
             P.Opacity=Saved;
         }
     }
-    // The hand, back to front; the hovered and the selected card rise.
+    // The hand, back to front; the hovered and the selected card rise. A page turn (hand <-> offers) fades it in.
+    const float Page=PageAt<0.?1.f:FMath::Clamp(float((Now-PageAt)/RingRevealTime),0.f,1.f);
+    const float PageSaved=P.Opacity;P.Opacity*=1.f-FMath::Square(1.f-Page);
+    ON_SCOPE_EXIT{P.Opacity=PageSaved;};
     for(const FFace& Face:HandFaces)
     {
         const FCard& Card=Ring.Hand[Face.Hit.Index];

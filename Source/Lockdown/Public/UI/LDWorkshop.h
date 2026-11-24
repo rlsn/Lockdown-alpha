@@ -176,6 +176,8 @@ private:
     // The batch on top as last shown (its kind and options), for the reveal.
     uint32 BatchKey=0;
     double BatchAt=-1.;
+    // The last page turn between the hand and the offers.
+    double PageAt=-1.;
     // Install feedback: the installed keys of the last view and when each new one landed.
     TSet<FName> KnownInstalled;
     TMap<FName,double> Landed;
