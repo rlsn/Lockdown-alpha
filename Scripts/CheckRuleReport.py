@@ -377,6 +377,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.HUDDeathCause",
         "Lockdown.Rules.HUDKillFeedSelf",
         "Lockdown.Rules.HUDEventFeed",
+        "Lockdown.Rules.HUDScoreBug",
         "Lockdown.Rules.HUDScoreboard",
         "Lockdown.Rules.LocalSettingsScoreboardMigration",
         "Lockdown.Rules.LocalSettingsDiagnostics",

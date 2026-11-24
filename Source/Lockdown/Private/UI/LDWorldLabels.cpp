@@ -1061,7 +1061,8 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
                 (bBoss||Label.CampTier>=0)?&TierAccent:nullptr);
 
             float UpperY=BarTop-2.f;
-            if(Label.bContender){DrawSeatPlate(BarLeft,BarTop,TotalInnerH,Label.Presentation);UpperY=FMath::Min(UpperY,BarTop-3.f);}
+            // A training dummy is nobody's seat: it keeps its name and bar only.
+            if(Label.bContender&&!Label.Name.StartsWith(LDTerms::TrainingDummy)){DrawSeatPlate(BarLeft,BarTop,TotalInnerH,Label.Presentation);UpperY=FMath::Min(UpperY,BarTop-3.f);}
             if(!Entry.ElemDiscs.IsEmpty())
             {
                 float ElemRight=BarLeft+Dim.X;

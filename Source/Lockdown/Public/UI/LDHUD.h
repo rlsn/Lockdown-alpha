@@ -485,6 +485,17 @@ private:
     } StripPaint;
     mutable FLDHudTrail StripTrail;
     void PaintStrip(const LDUIPaint::FContext& P) const;
+    // On-air moments, painted over the whole screen and never hit-tested (local real time, from real own events only):
+    // an own kill (LDWorldFeedback Kill) runs letterbox bars in, an orange skew wipe and a hard-cut K.O. with the own and the
+    // victim's plates for at most KillMomentSeconds; a level-up flips an orange level card over the strip's level column.
+    static constexpr double KillMomentSeconds=.8;
+    static constexpr double LevelFlipSeconds=1.4;
+    double KillMomentAt=-1.;
+    int32 KillMomentVictimSeat=INDEX_NONE;
+    double LevelFlipAt=-1.;
+    int32 LevelFlipLevel=0;
+    int64 LevelFlipPoints=0;
+    void PaintMoments(const LDUIPaint::FContext& P) const;
     // The compact build entry in the bottom-right corner: new picks (选) and unspent points (点) beside the B key block.
     UPROPERTY() TObjectPtr<UWidget> PickBadge;
     UPROPERTY() TObjectPtr<UTextBlock> PickBadgeText;

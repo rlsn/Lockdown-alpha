@@ -1696,6 +1696,46 @@ bool FLDHUDScoreboardTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDScoreBugTest,"Lockdown.Rules.HUDScoreBug",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDScoreBugTest::RunTest(const FString& Parameters)
+{
+    FLDPublicMatchView Public;Public.Generation=5;Public.Timeline.Generation=5;
+    TestFalse(TEXT("No stage, no bug"),LDHUD::ScoreBug(Public,true,1000).bKnown);
+    Public.Timeline.Stage=ELDMatchStage::Rest;Public.Timeline.RestIndex=0;Public.Timeline.StepEndsAtMs=31000;
+    LDHUD::FScoreBugView Bug=LDHUD::ScoreBug(Public,true,1000);
+    TestTrue(TEXT("The opening rest is the first beat with its step clock"),Bug.bKnown&&Bug.bRest&&Bug.Beat==0&&Bug.Clock==TEXT("0:30")&&!Bug.bUrgent);
+    TestTrue(TEXT("Without a clock no remainder is guessed"),LDHUD::ScoreBug(Public,false,1000).Clock.IsEmpty());
+    Public.Timeline.RestIndex=FLDTimelineParameters::TimedSegments;Public.Timeline.StepEndsAtMs=9000;
+    Bug=LDHUD::ScoreBug(Public,true,1000);
+    TestTrue(TEXT("The last rest is beat seven of eight, urgent in its last ten seconds"),Bug.Beat==6&&Bug.bUrgent&&Bug.Label==TEXT("最终休息"));
+    Public.Timeline.Stage=ELDMatchStage::Field;Public.Timeline.FieldSegment=1;
+    TestEqual(TEXT("The second field is the fourth beat"),LDHUD::ScoreBug(Public,false,0).Beat,3);
+    Public.Timeline.Stage=ELDMatchStage::FinalField;
+    Bug=LDHUD::ScoreBug(Public,true,1000);
+    TestTrue(TEXT("The final field is the last beat, with no clock before the showdown starts"),Bug.Beat==LDHUD::ScoreBugBeats-1&&Bug.bFinal&&Bug.Clock.IsEmpty());
+    // Seats: the lobby order, the own seat, the graffiti owner and a fresh public KO; nothing private.
+    const FGuid A=FGuid::NewGuid(),B=FGuid::NewGuid();
+    FLDLobbyView Lobby;
+    {FLDLobbyMember Member;Member.ContenderId=A;Member.Name=TEXT("甲");Lobby.Members.Add(Member);}
+    {FLDLobbyMember Member;Member.ContenderId=B;Member.Name=TEXT("乙");Lobby.Members.Add(Member);}
+    TestTrue(TEXT("A seat is the roster position"),LDHUD::SeatOf(Lobby,B)==1&&LDHUD::SeatOf(Lobby,FGuid::NewGuid())==INDEX_NONE);
+    Public.GraffitiOwner=B;
+    FLDKillFeedView Kills;Kills.Generation=5;
+    FLDKillNotice Notice;Notice.Serial=1;Notice.Victim=A;Notice.Killer=B;Notice.Cause=ELDKillCause::Contender;Notice.OccurredAtMs=10000;Kills.Notices.Add(Notice);
+    TArray<LDHUD::FSeatPlateView> Plates=LDHUD::SeatPlates(Lobby,Public,Kills,A,true,12000);
+    TestTrue(TEXT("One plate per seat"),Plates.Num()==2&&Plates[0].Seat==0&&Plates[1].Seat==1);
+    TestTrue(TEXT("The own seat and the graffiti owner are marked"),Plates[0].bSelf&&!Plates[1].bSelf&&Plates[1].bGraffiti&&!Plates[0].bGraffiti);
+    TestTrue(TEXT("A fresh public KO strikes the victim's plate"),Plates[0].bRecentKO&&!Plates[1].bRecentKO);
+    Plates=LDHUD::SeatPlates(Lobby,Public,Kills,A,true,10000+int64(LDHUD::FEventFeed::LineSeconds*1000.));
+    TestFalse(TEXT("The strike leaves with the feed line"),Plates[0].bRecentKO);
+    // A camp death names its camp; a contender kill names nobody here.
+    FLDKillNotice Camp;Camp.Cause=ELDKillCause::CampHigh;
+    TestEqualSensitive(TEXT("A camp death names its approved camp"),LDHUD::KillerLabel(Camp,TEXT("低"),TEXT("高"),TEXT("精"),TEXT("首")),FString(TEXT("高")));
+    TestTrue(TEXT("A contender kill has no camp label"),LDHUD::KillerLabel(Notice,TEXT("低"),TEXT("高"),TEXT("精"),TEXT("首")).IsEmpty());
+    TestTrue(TEXT("Element glyphs follow the element order"),LDHUD::ElementGlyph(uint8(ELDCombatElement::Water))==LDTerms::ElementWater&&LDHUD::ElementGlyph(0).IsEmpty());
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDEventFeedTest,"Lockdown.Rules.HUDEventFeed",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDEventFeedTest::RunTest(const FString& Parameters)
 {
@@ -1723,6 +1763,13 @@ bool FLDHUDEventFeedTest::RunTest(const FString& Parameters)
         LDTerms::LeaderSelf(),LDTerms::GraffitiSprayed(TEXT("甲"))};
     TestTrue(TEXT("Each change is told once, oldest first so the newest sits at the bottom"),Texts()==Told);
     TestTrue(TEXT("Lines about the player are highlighted"),Feed.Lines()[0].bSelf&&!Feed.Lines()[1].bSelf&&Feed.Lines()[4].bSelf&&!Feed.Lines()[5].bSelf);
+    {
+        // The kill line carries the public seats and roster names for the lower third; other lines carry none.
+        const LDHUD::FEventLine& Kill=Feed.Lines()[0];
+        TestTrue(TEXT("A kill line names both seats from the roster"),Kill.bKill&&Kill.KillerSeat==1&&Kill.VictimSeat==0&&Kill.Cause==ELDKillCause::Contender);
+        TestTrue(TEXT("A kill line keeps the public names, not the 你 of its text"),Kill.KillerName==TEXT("甲")&&Kill.VictimName==TEXT("我"));
+        TestFalse(TEXT("A non-kill line is no kill"),Feed.Lines()[1].bKill);
+    }
     In.LocalSeconds=102;Feed.Observe(In);
     TestEqual(TEXT("An unchanged state tells nothing again"),Feed.Lines().Num(),Told.Num());
     // The drop is claimed: everyone hears it is gone until the own claim serial says this screen took it.

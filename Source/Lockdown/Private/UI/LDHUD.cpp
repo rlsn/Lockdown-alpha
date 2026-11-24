@@ -230,9 +230,10 @@ constexpr float HudSeatW=128.f;
 constexpr float HudSeatGap=20.f;
 constexpr float HudLevelW=86.f;
 constexpr float HudColGap=18.f;
-constexpr float HudHealthW=292.f;
-constexpr float HudHealthFigure=64.f;
-constexpr float HudHealthBarH=14.f;
+constexpr float HudHealthW=330.f;
+constexpr float HudHealthFigure=60.f;
+constexpr float HudHealthBarH=12.f;
+constexpr float HudMomentumBarW=104.f;
 constexpr float HudMomentumBarH=8.f;
 constexpr float HudMomentumTextW=40.f;
 constexpr float HudSlotSide=84.f;
@@ -272,7 +273,7 @@ FHudLookStyle HudLookStyle(LDHUD::EActionLook Look)
     case LDHUD::EActionLook::Cooling: return {Face,LDBroadcast::Mute,LDBroadcast::RuleWidth,DarkBand,LDBroadcast::White};
     case LDHUD::EActionLook::MomentumShort: return {Face,LDBroadcast::Mute,LDBroadcast::RuleWidth,DarkBand,LDBroadcast::Orange};
     case LDHUD::EActionLook::Controlled: return {Face,LDBroadcast::LiveRed,3.f,LDBroadcast::LiveRed,LDBroadcast::White};
-    default: return {LDBroadcast::Ink.CopyWithNewOpacity(.7f),LDBroadcast::Mute.CopyWithNewOpacity(.6f),1.f,DarkBand,LDBroadcast::Mute};
+    default: return {LDBroadcast::Ink.CopyWithNewOpacity(.8f),LDBroadcast::White.CopyWithNewOpacity(.28f),LDBroadcast::RuleWidth,DarkBand,LDBroadcast::Grey};
     }
 }
 // Icon square colours under a missing picture: actives raised grey, the innate dash panel grey and an empty slot ink; the
@@ -503,7 +504,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             UOverlay* LabelSlab=Slabbed(ScoreLabelText,[](){return LDBroadcast::Ink.CopyWithNewOpacity(.92f);},FMargin(18,0,18,0));
             if(UOverlaySlot* LabelSlot=Cast<UOverlaySlot>(ScoreLabelText->Slot)){LabelSlot->SetVerticalAlignment(VAlign_Center);}
             Top->AddChildToHorizontalBox(Fixed(LabelSlab,0.f,HudBugRowH))->SetPadding(FMargin(-4,0,0,0));
-            ScoreClockText=Figure(TEXT(""),LDBroadcast::TypeTitle+4.f,LDBroadcast::Ink);ScoreClockText->SetJustification(ETextJustify::Center);
+            ScoreClockText=Figure(TEXT(""),LDBroadcast::TypeTitle,LDBroadcast::Ink);ScoreClockText->SetJustification(ETextJustify::Center);
             UOverlay* ClockSlab=Slabbed(ScoreClockText,[this](){return ShownBug.bUrgent?LDBroadcast::LiveRed:LDBroadcast::White;},FMargin(16,0,16,0));
             if(UOverlaySlot* ClockSlot=Cast<UOverlaySlot>(ScoreClockText->Slot)){ClockSlot->SetVerticalAlignment(VAlign_Center);ClockSlot->SetHorizontalAlignment(HAlign_Center);}
             Top->AddChildToHorizontalBox(Fixed(ClockSlab,HudBugClockW,HudBugRowH))->SetPadding(FMargin(-4,0,0,0));
@@ -562,7 +563,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         TimelineText=Words(TEXT(""),LDBroadcast::TypeBody,LDBroadcast::White,true);
         TimelineText->SetVisibility(ESlateVisibility::Collapsed);
         CircleBox->AddChildToVerticalBox(TimelineText)->SetPadding(FMargin(6,8,0,0));
-        TimelineDetailText=Words(TEXT(""),LDBroadcast::TypeSmall,LDBroadcast::Orange);TimelineDetailText->SetAutoWrapText(false);TimelineDetailText->SetWrapTextAt(HudBugWidth+40.f);
+        TimelineDetailText=Words(TEXT(""),LDBroadcast::TypeSmall,LDBroadcast::Orange);TimelineDetailText->SetAutoWrapText(false);TimelineDetailText->SetWrapTextAt(HudBugWidth+200.f);
         TimelineDetailText->SetVisibility(ESlateVisibility::Collapsed);
         CircleBox->AddChildToVerticalBox(TimelineDetailText)->SetPadding(FMargin(6,2,0,0));
         {
@@ -604,7 +605,8 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             RestLine->AddChildToHorizontalBox(RestReadyButton)->SetPadding(FMargin(20,0,0,0));
             RestAnswerText=OneLine(TEXT(""),LDHUDStyle::TypeSmall,420);RestAnswerText->SetColorAndOpacity(LDHUDStyle::TextSecondary);RestAnswerText->SetVisibility(ESlateVisibility::Collapsed);
             auto* ResultSlot=RestLine->AddChildToHorizontalBox(RestAnswerText);ResultSlot->SetVerticalAlignment(VAlign_Center);ResultSlot->SetPadding(FMargin(10,0,0,0));
-            RestActionsPanel=Panel(RestLine,true);RestActionsPanel->SetVisibility(ESlateVisibility::Collapsed);
+            // On air the rest actions stand bare under the target card, without a rounded panel behind them.
+            RestActionsPanel=Panel(RestLine,true);RestActionsPanel->SetBrush(FSlateNoResource());RestActionsPanel->SetVisibility(ESlateVisibility::Collapsed);
             {
                 // PK actions and public sides stay off the arena centre. No scroll view: when every side, bet and award row
                 // shows at a large text scale the panel scales down to its height cap.
@@ -1017,41 +1019,43 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             if(auto* LevelSlot=Cast<UHorizontalBoxSlot>(LevelCol->GetParent()->Slot)){LevelSlot->SetVerticalAlignment(VAlign_Center);}
         }
         {
-            // Health: the big figure (the strip's loudest element) over the segmented bar, then momentum.
+            // Health: the big figure (the strip's loudest element) with its maximum, momentum and regen to its right, the
+            // segmented bar under both.
             auto* HealthCol=WidgetTree->ConstructWidget<UVerticalBox>();
             auto* Numbers=WidgetTree->ConstructWidget<UHorizontalBox>();
             HealthText=Figure(TEXT(""),HudHealthFigure,LDBroadcast::White);
             Numbers->AddChildToHorizontalBox(HealthText)->SetVerticalAlignment(VAlign_Bottom);
             HealthMaxText=Figure(TEXT(""),LDBroadcast::TypeLabel,LDBroadcast::Grey);
-            auto* MaxSlot=Numbers->AddChildToHorizontalBox(HealthMaxText);MaxSlot->SetVerticalAlignment(VAlign_Bottom);MaxSlot->SetPadding(FMargin(6,0,0,8));
+            auto* MaxSlot=Numbers->AddChildToHorizontalBox(HealthMaxText);MaxSlot->SetVerticalAlignment(VAlign_Bottom);MaxSlot->SetPadding(FMargin(4,0,0,6));
             Numbers->AddChildToHorizontalBox(WidgetTree->ConstructWidget<USpacer>())->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-            HealthRegenText=Figure(TEXT(""),LDBroadcast::TypeSmall,LDBroadcast::Grey);
-            auto* RegenSlot=Numbers->AddChildToHorizontalBox(HealthRegenText);RegenSlot->SetVerticalAlignment(VAlign_Bottom);RegenSlot->SetPadding(FMargin(8,0,0,10));
-            HealthCol->AddChildToVerticalBox(Fixed(Numbers,0.f,HudHealthFigure*.92f));
-            HealthBarSpot=Fixed(Painted(nullptr,[this,Whole](const LDUIPaint::FContext& P)
-            {
-                LDBroadcastPaint::FBar Bar;Bar.bLean=true;
-                Bar.Fraction=StripPaint.bHealth?StripPaint.Health:0.f;Bar.Shield=StripPaint.bHealth?StripPaint.Shield:0.f;
-                Bar.Trail=StripPaint.bHealth?StripTrail.Advance(StripPaint.Health,FPlatformTime::Seconds()):-1.f;
-                Bar.Fill=StripPaint.HealthInk;Bar.Track=LDBroadcast::White.CopyWithNewOpacity(.12f);Bar.Segment=StripPaint.HealthSegment;
-                LDBroadcastPaint::Bar(P,P.Layer,Whole(P),Bar);
-            }),HudHealthW,HudHealthBarH);
-            HealthCol->AddChildToVerticalBox(HealthBarSpot)->SetPadding(FMargin(0,2,0,0));
+            auto* Side=WidgetTree->ConstructWidget<UVerticalBox>();
+            HealthRegenText=Figure(TEXT(""),LDBroadcast::TypeSmall,LDBroadcast::Grey);HealthRegenText->SetJustification(ETextJustify::Right);
+            Side->AddChildToVerticalBox(HealthRegenText)->SetHorizontalAlignment(HAlign_Right);
             auto* MomentumLine=WidgetTree->ConstructWidget<UHorizontalBox>();
             UTextBlock* Jin=Words(LDTerms::Momentum,LDBroadcast::TypeSmall,LDBroadcast::Orange,true);
             MomentumLine->AddChildToHorizontalBox(Jin)->SetVerticalAlignment(VAlign_Center);
             MomentumBarSpot=Fixed(Painted(nullptr,[this,Whole](const LDUIPaint::FContext& P)
             {
                 LDBroadcastPaint::FBar Bar;Bar.Fraction=StripPaint.bMomentum?StripPaint.Momentum:0.f;
-                Bar.Fill=StripPaint.bOverdrive?LDBroadcast::Gold:LDBroadcast::Orange;Bar.Track=LDBroadcast::White.CopyWithNewOpacity(.12f);
+                Bar.Fill=StripPaint.bOverdrive?LDBroadcast::Gold:LDBroadcast::Orange;Bar.Track=LDBroadcast::White.CopyWithNewOpacity(.14f);
                 Bar.Notch=StripPaint.bMomentum?StripPaint.Notch:-1.f;Bar.NotchInk=StripPaint.bOverdrive?LDBroadcast::Gold:LDBroadcast::White;
                 LDBroadcastPaint::Bar(P,P.Layer,Whole(P),Bar);
-            }),0.f,HudMomentumBarH);
-            auto* BarSlot=MomentumLine->AddChildToHorizontalBox(MomentumBarSpot);BarSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-            BarSlot->SetVerticalAlignment(VAlign_Center);BarSlot->SetPadding(FMargin(8,0,8,0));
+            }),HudMomentumBarW,HudMomentumBarH);
+            auto* BarSlot=MomentumLine->AddChildToHorizontalBox(MomentumBarSpot);BarSlot->SetVerticalAlignment(VAlign_Center);BarSlot->SetPadding(FMargin(6,0,6,0));
             MomentumText=Figure(TEXT(""),LDBroadcast::TypeSmall,LDBroadcast::White);MomentumText->SetJustification(ETextJustify::Right);
             MomentumLine->AddChildToHorizontalBox(Fixed(MomentumText,HudMomentumTextW,0.f))->SetVerticalAlignment(VAlign_Center);
-            HealthCol->AddChildToVerticalBox(MomentumLine)->SetPadding(FMargin(0,6,0,0));
+            Side->AddChildToVerticalBox(MomentumLine)->SetPadding(FMargin(0,4,0,0));
+            auto* SideSlot=Numbers->AddChildToHorizontalBox(Side);SideSlot->SetVerticalAlignment(VAlign_Bottom);SideSlot->SetPadding(FMargin(8,0,0,10));
+            HealthCol->AddChildToVerticalBox(Numbers);
+            HealthBarSpot=Fixed(Painted(nullptr,[this,Whole](const LDUIPaint::FContext& P)
+            {
+                LDBroadcastPaint::FBar Bar;Bar.bLean=true;
+                Bar.Fraction=StripPaint.bHealth?StripPaint.Health:0.f;Bar.Shield=StripPaint.bHealth?StripPaint.Shield:0.f;
+                Bar.Trail=StripPaint.bHealth?StripTrail.Advance(StripPaint.Health,FPlatformTime::Seconds()):-1.f;
+                Bar.Fill=StripPaint.HealthInk;Bar.Track=LDBroadcast::White.CopyWithNewOpacity(.14f);Bar.Segment=StripPaint.HealthSegment;
+                LDBroadcastPaint::Bar(P,P.Layer,Whole(P),Bar);
+            }),HudHealthW,HudHealthBarH);
+            HealthCol->AddChildToVerticalBox(HealthBarSpot)->SetPadding(FMargin(0,0,0,0));
             StripRow->AddChildToHorizontalBox(Fixed(HealthCol,HudHealthW,0.f))->SetPadding(FMargin(HudColGap,0,0,0));
             if(auto* HealthSlot=Cast<UHorizontalBoxSlot>(HealthCol->GetParent()->Slot)){HealthSlot->SetVerticalAlignment(VAlign_Center);}
         }
@@ -1196,6 +1200,13 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                 LDBroadcastPaint::FillSlab(P,P.Layer+1,FBox2D(Box.Min,FVector2D(Box.Min.X+10.f,Box.Max.Y)),LDBroadcast::Orange);
             },FMargin(28,8,22,8));
             ToastPanel=WidgetTree->ConstructWidget<UBorder>();ToastPanel->SetBrush(FSlateNoResource());ToastPanel->SetPadding(FMargin(0));ToastPanel->SetContent(ToastSlab);
+        }
+        {
+            // The on-air moments over everything but the open panels; never hit-tested.
+            auto* Moments=WidgetTree->ConstructWidget<ULDPaintLayer>();Moments->Painter=[this](const LDUIPaint::FContext& P){PaintMoments(P);};
+            Moments->SetVisibility(ESlateVisibility::HitTestInvisible);
+            UCanvasPanelSlot* MomentSlot=Canvas->AddChildToCanvas(Moments);MomentSlot->SetAnchors(FAnchors(0,0,1,1));MomentSlot->SetOffsets(FMargin(0));
+            MomentSlot->SetZOrder(13);
         }
         ToastPanel->SetVisibility(ESlateVisibility::Collapsed);
         ToastSlot=Canvas->AddChildToCanvas(ToastPanel);ToastSlot->SetAnchors(FAnchors(.5f,0));ToastSlot->SetAlignment(FVector2D(.5f,0));ToastSlot->SetAutoSize(true);
@@ -1961,7 +1972,22 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     const FLDCombatOwnerView* OwnCombat=bOwnMatch&&O.Life!=0&&PC->CombatView.Generation==O.Match&&PC->CombatView.Life==O.Life?&PC->CombatView:nullptr;
     const bool bEngaged=OwnCombat&&bClock&&NowMs<OwnCombat->BuildSafeAtMs;
     LDWorldFeedback::FSample OwnSample;OwnSample.Match=O.Match;OwnSample.Life=O.Life;OwnSample.LifePhase=O.LifePhase;OwnSample.Self=O.ContenderId;OwnSample.OwnCombat=OwnCombat;
+    // The same tracker tells the own kills and level-ups for the on-air moments (PaintMoments).
+    OwnSample.Progression=PC->ReadOwnProgression();OwnSample.KillFeed=&GS->KillFeed;OwnSample.PublicGeneration=Public.Generation;
+    OwnSample.bClock=bClock;OwnSample.NowMs=NowMs;
     TArray<LDWorldFeedback::FEvent> BodyEvents;OwnHitWatch.Observe(OwnSample,BodyEvents);
+    for(const LDWorldFeedback::FEvent& Event:BodyEvents)
+    {
+        if(Event.Kind==LDWorldFeedback::EKind::Kill)
+        {
+            KillMomentAt=FPlatformTime::Seconds();KillMomentVictimSeat=INDEX_NONE;
+            // The victim's seat from the newest public notice naming the own kill.
+            const FLDKillNotice* Newest=nullptr;
+            for(const FLDKillNotice& Notice:GS->KillFeed.Notices){if(Notice.Killer==O.ContenderId&&(!Newest||Notice.Serial>Newest->Serial)){Newest=&Notice;}}
+            if(Newest){KillMomentVictimSeat=LDHUD::SeatOf(Lobby,Newest->Victim);}
+        }
+        else if(Event.Kind==LDWorldFeedback::EKind::LevelUp){LevelFlipAt=FPlatformTime::Seconds();LevelFlipLevel=Event.Level;LevelFlipPoints=Event.Amount;}
+    }
     const bool bOwnHit=BodyEvents.ContainsByPredicate([](const LDWorldFeedback::FEvent& Event)
     {return Event.bOwn&&(Event.Kind==LDWorldFeedback::EKind::DamageTaken||Event.Kind==LDWorldFeedback::EKind::ShieldAbsorbed);});
     const bool bRestPlanning=Public.Phase==ELDMatchPhase::Rest&&Public.Timeline.Step==ELDRestStep::Build;
@@ -2706,7 +2732,7 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         Entry.Cooldown->SetPercent(View.CooldownFraction);HudSetShown(Entry.Cooldown,bCooling,ESlateVisibility::HitTestInvisible);
         HudSetText(Entry.Countdown,View.Countdown);HudSetShown(Entry.Countdown,bCooling,ESlateVisibility::HitTestInvisible);
         // An empty slot fades as a whole; the ready flash pops the slot and fades out.
-        const float Opacity=Look==LDHUD::EActionLook::Empty?.45f:1.f;
+        const float Opacity=Look==LDHUD::EActionLook::Empty?.75f:1.f;
         if(Entry.AppliedOpacity!=Opacity){Entry.AppliedOpacity=Opacity;Entry.Box->SetRenderOpacity(Opacity);}
         const double FlashAge=Entry.FlashAt>=0?UiNow-Entry.FlashAt:LDHUDStyle::ReadyFlashSeconds;
         const bool bFlash=FlashAge<LDHUDStyle::ReadyFlashSeconds;
@@ -4157,6 +4183,80 @@ void ULDHUD::PaintFeed(const LDUIPaint::FContext& P) const
         LDBroadcastPaint::FillSlab(R,R.Layer,FBox2D(FVector2D(Left,Top),FVector2D(Right,Top+RowH)),LDBroadcast::Ink.CopyWithNewOpacity(.82f));
         if(Line.bSelf){LDBroadcastPaint::FillSlab(R,R.Layer+1,FBox2D(FVector2D(Left,Top),FVector2D(Left+7.f,Top+RowH)),LDBroadcast::Orange);}
         LDBroadcastPaint::Text(R,R.Layer+2,Line.Text,Font,FVector2D(Left+Pad+(Line.bSelf?8.f:0.f),Mid),LDBroadcast::White,FVector2D(0.,.5));
+    }
+}
+void ULDHUD::PaintMoments(const LDUIPaint::FContext& P) const
+{
+    const double Now=FPlatformTime::Seconds();
+    const FVector2D Size(P.Geometry.GetLocalSize());
+    const bool bShown=Band&&Band->IsVisible();
+    // Own kill: 0-150 ms letterbox bars and an orange skew wipe in, a two-frame hard cut to K.O. with the own plate beating
+    // the victim's, everything gone by KillMomentSeconds (so the screen centre is never covered for longer).
+    const double KillAge=Now-KillMomentAt;
+    if(bShown&&KillMomentAt>=0.&&KillAge>=0.&&KillAge<KillMomentSeconds+.15)
+    {
+        const float In=LDTween::Progress(KillAge,.15,LDTween::ECurve::EaseOut);
+        const float Out=KillAge>KillMomentSeconds?1.f-float((KillAge-KillMomentSeconds)/.15):1.f;
+        const float Bar=float(Size.Y)*.075f*In*Out;
+        LDBroadcastPaint::Block(P,P.Layer,FBox2D(FVector2D(0.,0.),FVector2D(Size.X,Bar)),LDBroadcast::Ink);
+        LDBroadcastPaint::Block(P,P.Layer,FBox2D(FVector2D(0.,Size.Y-Bar),Size),LDBroadcast::Ink);
+        if(KillAge<KillMomentSeconds)
+        {
+            // The wipe: an orange slab and a white rule sweeping in from the left over the left third.
+            const float Sweep=LDTween::Progress(KillAge,LDBroadcast::SlideIn,LDTween::ECurve::EaseOut);
+            const float H=float(Size.Y);
+            const float Right=float(Size.X)*(.08f+.22f*Sweep);
+            const float Lean=LDBroadcastPaint::Lean(H);
+            const LDUIPaint::FContext Wipe=P.WithOpacity(.88f);
+            Wipe.Polygon(P.Layer+1,{FVector2D(Right-Size.X*.22f+Lean*.5f,0.),FVector2D(Right+Lean*.5f,0.),FVector2D(Right-Lean*.5f,H),FVector2D(Right-Size.X*.22f-Lean*.5f,H)},
+                LDUIPaint::FFill::Solid(LDBroadcast::Orange));
+            Wipe.Polygon(P.Layer+1,{FVector2D(Right+18.f+Lean*.5f,0.),FVector2D(Right+34.f+Lean*.5f,0.),FVector2D(Right+34.f-Lean*.5f,H),FVector2D(Right+18.f-Lean*.5f,H)},
+                LDUIPaint::FFill::Solid(LDBroadcast::White));
+            // The hard cut: K.O. appears whole after two frames and leaves whole.
+            if(KillAge>=LDBroadcast::HardCut)
+            {
+                const FSlateFontInfo KO=LDBroadcastPaint::FigureFont(220.f);
+                const FVector2D At(Size.X*.16f,Size.Y*.40f);
+                LDBroadcastPaint::Text(P,P.Layer+2,TEXT("K.O."),KO,At+FVector2D(6.,6.),LDBroadcast::Ink,FVector2D(0.,.5));
+                const FBox2D Word=LDBroadcastPaint::Text(P,P.Layer+3,TEXT("K.O."),KO,At,LDBroadcast::White,FVector2D(0.,.5));
+                // The lower third under it: own plate ▸ the victim's plate struck through.
+                const float PlateH=46.f,PlateW=56.f;
+                const FVector2D Left(Word.Min.X+20.,Word.Max.Y-14.);
+                LDBroadcastPaint::FillSlab(P,P.Layer+2,FBox2D(Left,Left+FVector2D(PlateW*2.+120.,PlateH+16.)),LDBroadcast::Ink.CopyWithNewOpacity(.92f));
+                LDBroadcastPaint::SeatPlate(P,P.Layer+3,FBox2D(Left+FVector2D(18.,8.),Left+FVector2D(18.+PlateW,8.+PlateH)),StripPaint.Seat);
+                const FVector2D C=Left+FVector2D(18.+PlateW+30.,8.+PlateH*.5);
+                P.Polygon(P.Layer+3,{C+FVector2D(-7.,-10.),C+FVector2D(9.,0.),C+FVector2D(-7.,10.)},LDUIPaint::FFill::Solid(LDBroadcast::Orange));
+                const FBox2D Victim(Left+FVector2D(18.+PlateW+62.,8.),Left+FVector2D(18.+PlateW*2.+62.,8.+PlateH));
+                LDBroadcastPaint::SeatPlate(P.WithOpacity(.85f),P.Layer+3,Victim,KillMomentVictimSeat);
+                LDBroadcastPaint::Rule(P,P.Layer+5,FVector2D(Victim.Min.X+4.,Victim.Max.Y-4.),FVector2D(Victim.Max.X-4.,Victim.Min.Y+4.),LDBroadcast::LiveRed,4.f);
+            }
+        }
+    }
+    // Level-up: an orange card flips open over the level column (scale Y 0->1 in 120 ms), holds, then flips shut.
+    const double FlipAge=Now-LevelFlipAt;
+    if(bShown&&LevelFlipAt>=0.&&FlipAge>=0.&&FlipAge<LevelFlipSeconds&&LevelBadgeText)
+    {
+        const FGeometry& Level=LevelBadgeText->GetCachedGeometry();
+        const FVector2D TopLeft=P.Geometry.AbsoluteToLocal(Level.LocalToAbsolute(FVector2D::ZeroVector));
+        const FVector2D Extent=P.Geometry.AbsoluteToLocal(Level.LocalToAbsolute(FVector2D(Level.GetLocalSize())))-TopLeft;
+        const float Open=FMath::Min(LDTween::Progress(FlipAge,.12,LDTween::ECurve::EaseOut),1.f-LDTween::Progress(FlipAge-(LevelFlipSeconds-.12),.12,LDTween::ECurve::EaseIn));
+        const FVector2D Centre=TopLeft+Extent*.5;
+        const FVector2D Half(70.,FMath::Max(2.,32.*Open));
+        const FBox2D Card(Centre-Half-FVector2D(14.,0.),Centre+Half-FVector2D(14.,0.));
+        LDBroadcastPaint::FillSlab(P,P.Layer+6,Card,LDBroadcast::Orange);
+        if(Open>.6f)
+        {
+            LDBroadcastPaint::Text(P,P.Layer+7,FString::Printf(TEXT("LV %d"),LevelFlipLevel),LDBroadcastPaint::FigureFont(40.f),Card.GetCenter(),LDBroadcast::Ink,FVector2D(.5,.5));
+            if(LevelFlipPoints>0)
+            {
+                const FVector2D ChipAt(Card.Max.X+10.,Card.Min.Y);
+                const FString Gain=FString::Printf(TEXT("+%lld 点"),LevelFlipPoints);
+                const FSlateFontInfo Font=LDBroadcastPaint::LabelFont(LDBroadcast::TypeBody,true);
+                const FVector2D GainSize=LDBroadcastPaint::Measure(Gain,Font);
+                LDBroadcastPaint::FillSlab(P,P.Layer+6,FBox2D(ChipAt,ChipAt+FVector2D(GainSize.X+28.,Card.GetSize().Y)),LDBroadcast::White);
+                LDBroadcastPaint::Text(P,P.Layer+7,Gain,Font,ChipAt+FVector2D(14.,Card.GetSize().Y*.5),LDBroadcast::Ink,FVector2D(0.,.5));
+            }
+        }
     }
 }
 int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRect& C,FSlateWindowElementList& E,int32 L,const FWidgetStyle& S,bool Enabled) const
