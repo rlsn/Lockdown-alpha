@@ -1297,6 +1297,8 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                 auto* Owner=Cast<ALDPlayerController>(GetOwningPlayer());
                 if(Owner&&Owner->RootUI&&ChoicesPanel&&ChoicesPanel->IsTrayOpen()){Owner->RootUI->ToggleMainPanel(ELDUIMainPanel::Choices);}
             };
+            Workshop->RequestOpen=[this](){if(ChoicesPanel&&!ChoicesPanel->IsTrayOpen()){ToggleWorkshop();}};
+            Workshop->Notify=[this](const FString& Notice){ShowToast(Notice);};
         }
         else{UE_LOG(LogLDUI,Error,TEXT("LD_HUD_WORKSHOP_CREATION_FAILED"));}
         // Normal main panels fill the canvas with a hit-transparent frame, so the world beside them keeps its input.
@@ -1315,11 +1317,15 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         {
             auto* StorageSlot=Canvas->AddChildToCanvas(Storage);StorageSlot->SetAnchors(FAnchors(0,0,1,1));StorageSlot->SetOffsets(FMargin(0));StorageSlot->SetZOrder(12);
             Storage->Notify=[this](const FString& Notice){ShowToast(Notice);};
+            // The build ring draws the library and the installed cards; the storage keeps the commands.
+            Storage->SetHeadless(true);
         }
         else{UE_LOG(LogLDUI,Error,TEXT("LD_HUD_STORAGE_CREATION_FAILED"));}
         if(ChoicesPanel)
         {
             ChoicesPanel->Notify=[this](const FString& Notice){ShowToast(Notice);};
+            // The build ring draws the offers, the shop and the rest services; the tray keeps the commands.
+            ChoicesPanel->SetHeadless(true);
         }
         // Growth's owning-connection entries; the panels only build commands from the views they showed.
         const TWeakObjectPtr<ALDPlayerController> WeakPC(PC);
@@ -1431,9 +1437,10 @@ void ULDHUD::ToggleWorkshop()
     MarkReadModelDirty();
     auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
     if(!PC||!PC->RootUI||!ChoicesPanel){return;}
+    // The build ring opens whenever the own match's HUD shows: the hand and the build are there to tend, not only offers.
     const bool bOpen=ChoicesPanel->IsTrayOpen();
-    const bool bPromptReady=PromptButton&&PromptButton->GetIsEnabled()&&PromptFrame&&PromptFrame->IsVisible();
-    if(bOpen||bPromptReady){PC->RootUI->ToggleMainPanel(ELDUIMainPanel::Choices);}
+    const bool bReady=Workshop&&Workshop->IsVisible();
+    if(bOpen||bReady){PC->RootUI->ToggleMainPanel(ELDUIMainPanel::Choices);}
 }
 void ULDHUD::HandleDevTestResult(const FLDDevTestResult& Result)
 {
@@ -1783,9 +1790,10 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     const bool bRestPhase=bOwnMatch&&Public.Phase==ELDMatchPhase::Rest;
     const bool bAutoWorkshopPhase=LDWorkshop::FullScreen(bRestPhase,Public.Timeline.Step,bDeathWait);
     const bool bWorkshopOpen=bShow&&ChoicesPanel&&ChoicesPanel->IsTrayOpen();
-    HudSetShown(Band,bShow&&!bWorkshopOpen,ESlateVisibility::Visible);
-    HudSetShown(PromptFrame,bShow&&!bWorkshopOpen,ESlateVisibility::Visible);HudSetShown(MapColumn,bShow&&!bWorkshopOpen,ESlateVisibility::Visible);
-    HudSetShown(PhaseBanner,bShow&&!(bWorkshopOpen),ESlateVisibility::HitTestInvisible);
+    // The build ring grows around the character: the band, the minimap and the top banner stay in play while it is open.
+    HudSetShown(Band,bShow,ESlateVisibility::Visible);
+    HudSetShown(PromptFrame,bShow&&!bWorkshopOpen,ESlateVisibility::Visible);HudSetShown(MapColumn,bShow,ESlateVisibility::Visible);
+    HudSetShown(PhaseBanner,bShow,ESlateVisibility::HitTestInvisible);
     HudSetShown(ResultPanel,bResults&&!Overlay,ESlateVisibility::Visible);
     if(bResults&&!Overlay){RefreshResult(*PC,*GS);}
     // The arena rings are world presentation: they follow the PK even while a menu covers the HUD.
@@ -2154,43 +2162,10 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         StatBar->Present(Progression,O.Match,O.Life,BuildStage,O.LifePhase,Content,OwnCombat?OwnCombat->Attributes:TArray<FLDCombatAttributeRowView>(),
             bOwnMatch&&Progression!=nullptr,DisplayContent.Get(),OwnCombat);
     }
-    if(Workshop)
-    {
-        ULDWorkshop::FInput In;
-        In.Mode=bWorkshopOpen?ULDWorkshop::EMode::Open:ULDWorkshop::EMode::Closed;
-        In.Progression=Progression;In.Match=O.Match;In.Content=Content;In.ContentSnapshot=DisplayContent.Get();In.Combat=OwnCombat;
-        In.Stage=BuildStage;In.bFinalField=Public.Timeline.Stage==ELDMatchStage::FinalField;
-        In.Stats=ChoiceStats;In.Keys=HudSlotKeys(*PC);
-        In.DashKey=PC->BindingLabel(TEXT("Dash"));
-        In.HolderName=Name;In.HolderColor=Portrait?Portrait->GetBrushColor():FLinearColor::Gray;In.Level=Level;
-        In.Attributes=OwnCombat?OwnCombat->Attributes:TArray<FLDCombatAttributeRowView>();
-        In.bRest=bRestPhase;In.RestIndex=Public.Timeline.RestIndex;In.Step=Public.Timeline.Step;
-        In.StepStartedAtMs=Public.Timeline.StepStartedAtMs;In.StepEndsAtMs=Public.Timeline.StepEndsAtMs;In.bClock=bClock;In.NowMs=NowMs;
-        In.bDead=bDeathWait&&!bRestPhase;In.DeathTitle=Death.Title;In.DeathCountdown=Death.Countdown;
-        In.DeathClock=Death.Clock;In.DeathProgress=Death.Progress;
-        if(In.bDead){In.DeathRecap=LDHUD::DeathRecap(PC->DeathRecap,O,Lobby,Content);}
-        const LDHUD::FGrowthPending Waiting=LDHUD::GrowthPending(Progression,O.Match,Content);
-        In.Pending=(Waiting.bOffer?1:0)+Waiting.Blueprints+(Waiting.bCardOffer?1:0)+(Waiting.bFinalMod?1:0);
-        In.bLowQuality=Scalability::GetQualityLevels().PostProcessQuality<=0;
-        const auto Drawer=ChoicesPanel?ChoicesPanel->DrawerState(bWorkshopOpen):ULDChoicesPanel::FDrawerState();
-        if(Drawer.bLibraryOnly){In.Pending=0;}
-        In.bStage=Drawer.bStage;In.bFinalStage=Drawer.bFinalStage;
-        In.bServices=Drawer.bServices;In.bShop=Drawer.bShop;In.bCharacterServices=Drawer.bCharacterServices;
-        Workshop->Present(In,&GetCachedGeometry());
-    }
     if(ChoicesPanel)
     {
-        if(Workshop&&Workshop->IsOpen())
-        {
-            ChoicesPanel->PresentWithBounds(Workshop->Places(),Workshop->TrayInset(),Workshop->TrayWrapWidth(),Workshop->TrayHeightLimit());
-        }
-        else
-        {
-            const float Stack=Storage?Storage->StackHeight():0.f;
-            const float PromptHeight=PromptFrame?float(PromptFrame->GetDesiredSize().Y):0.f;
-            ChoicesPanel->PresentWithBounds(ULDChoicesPanel::FWorkshopPlaces(),FVector2D(HudCornerInset,
-                HudCornerInset+FMath::RoundToFloat(PromptHeight+(Stack>0.f?Stack+12.f:0.f))+8.f));
-        }
+        // The tray draws nothing of its own (the build ring shows its decisions); its guards follow the view every frame.
+        ChoicesPanel->PresentWithBounds(ULDChoicesPanel::FWorkshopPlaces(),FVector2D::ZeroVector);
     }
     if(Storage)
     {
@@ -2208,7 +2183,7 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         }
         if(ActionSlots.Num()>3){Anchors.Columns[int32(LDHUD::EStorageColumn::Dash)]=RectOf(ActionSlots[3].Box);}
         Storage->SetEngaged(bEngaged);
-        Storage->SetWorkshop(Workshop?Workshop->StorageLayout():ULDComponentStorage::FWorkshopLayout());
+        Storage->SetWorkshop(ULDComponentStorage::FWorkshopLayout());
         if(ChoicesPanel){Storage->SetWarnings(ChoicesPanel->ConfirmWarnings());}
         {
             // What each installed card did so far: its damage, else how often it triggered (the snapshot of the last rest).
@@ -2226,6 +2201,21 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             Storage->SetContributions(BuildStats.Match==O.Match?BuildStats.Serial:0,Did);
         }
         Storage->Present(Progression,O.Match,BuildStage,O.LifePhase,Content,ChoiceStats,Anchors,bOwnMatch&&Progression!=nullptr,HudSlotKeys(*PC));
+    }
+    if(Workshop)
+    {
+        // The build ring: open while the 构筑 tray is open; otherwise its closed state under the character and by the band.
+        ULDWorkshop::FInput In;
+        In.Mode=bWorkshopOpen?ULDWorkshop::EMode::Open:ULDWorkshop::EMode::Closed;
+        In.bShown=bOwnMatch&&Progression!=nullptr;
+        In.Progression=Progression;In.Match=O.Match;In.Content=Content;In.ContentSnapshot=DisplayContent.Get();In.Combat=OwnCombat;
+        In.Stage=BuildStage;In.Stats=ChoiceStats;In.Keys=HudSlotKeys(*PC);
+        In.DashKey=PC->BindingLabel(TEXT("Dash"));In.OpenKey=PC->BindingLabel(TEXT("Workshop"));
+        In.Attributes=OwnCombat?OwnCombat->Attributes:TArray<FLDCombatAttributeRowView>();
+        In.bRest=bRestPhase;In.bDead=bDeathWait;
+        const auto RingRect=[](const UWidget* Widget){return Widget&&Widget->IsVisible()?Widget->GetCachedGeometry().GetLayoutBoundingRect():FSlateRect();};
+        In.Band=RingRect(Band);In.Map=RingRect(MapColumn);In.Banner=RingRect(PhaseBanner);
+        Workshop->Present(In,&GetCachedGeometry());
     }
     if(ChoicesPanel&&PC->RootUI&&bOwnMatch)
     {
@@ -3157,14 +3147,10 @@ bool ULDHUD::HandleContextualKeyPress(const FKey& Key,bool bAlt,bool bCtrl,bool 
     }
 
     // 3) Alt + 1 / 2 / 3: 3-choice offer quick-pick (works both expanded and combat-folded).
-    if(bAlt&&!bCtrl&&ChoicesPanel)
+    if(bAlt&&!bCtrl&&Workshop&&Workshop->HandleKey(Key))
     {
-        const int32 OfferIdx=Key==EKeys::One?0:Key==EKeys::Two?1:Key==EKeys::Three?2:INDEX_NONE;
-        if(OfferIdx!=INDEX_NONE&&ChoicesPanel->PickByHotkey(OfferIdx))
-        {
-            MarkReadModelDirty();
-            return true;
-        }
+        MarkReadModelDirty();
+        return true;
     }
 
     // 4) Storage inline QuickEquip open: Q / W / E / D installs the selected uninstalled card directly into that slot.
@@ -3185,6 +3171,12 @@ bool ULDHUD::HandleContextualKeyPress(const FKey& Key,bool bAlt,bool bCtrl,bool 
         {
             return true;
         }
+    }
+    // 6) The build ring: [1] / [2] / [3] take an option of the offer on top, open or closed.
+    if(!bCtrl&&!bShift&&Workshop&&Workshop->HandleKey(Key))
+    {
+        MarkReadModelDirty();
+        return true;
     }
     return false;
 }

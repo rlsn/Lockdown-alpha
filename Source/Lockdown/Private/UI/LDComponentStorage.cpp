@@ -306,9 +306,10 @@ void ULDComponentStorage::Present(const FLDProgressionView* View,uint32 Match,LD
     Latest=View?*View:FLDProgressionView();
     Gate=LDHUD::BuildGate(Stage,LifePhase);
     LatestContent=Content;LatestStats=Stats;SlotKeys=InKeys;Anchors=InAnchors;
-    bShownNow=bShown&&Latest.bValid&&(Workshop.bActive||Anchors.bValid);
+    bShownNow=bShown&&Latest.bValid&&(bHeadless||Workshop.bActive||Anchors.bValid);
     if(!bShownNow){CancelInteraction();Press=FPress();bExpanded=false;}
-    StorageShown(StackFrame,bShownNow&&!Workshop.bActive,ESlateVisibility::Visible);
+    StorageShown(StackFrame,bShownNow&&!Workshop.bActive&&!bHeadless,ESlateVisibility::Visible);
+    if(bHeadless&&GetVisibility()!=ESlateVisibility::Collapsed){SetVisibility(ESlateVisibility::Collapsed);}
     const LDHUD::FStorageView Model=LDHUD::CardStorage(Latest,Content,&SeenComponents);
     LatestModel=Model;
     {
@@ -697,7 +698,7 @@ bool ULDComponentStorage::OverExpanded(FVector2D At) const
 }
 bool ULDComponentStorage::IsHit(FVector2D At) const
 {
-    if(!bShownNow){return false;}
+    if(!bShownNow||bHeadless){return false;}
     if(Drag.bActive||StorageUnder(StackFrame,At)){return true;}
     if(!bExpanded){return false;}
     if(StorageUnder(ListFrame,At)||StorageUnder(ChooserFrame,At)||StorageUnder(QuickFrame,At)||StorageUnder(LibraryFrame,At)){return true;}

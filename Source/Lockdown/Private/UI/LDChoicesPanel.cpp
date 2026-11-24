@@ -552,17 +552,28 @@ bool ULDChoicesPanel::ClosePanel()
     const LDHUD::FOfferMotionTicket PendingOffer=OfferMotion.Ticket;
     OfferMotion=FOfferMotion();
     if(PendingRequest){OfferMotion.Ticket=PendingOffer;}
-    if(!bQuickShown){GrowthShown(TrayFrame,false);SetVisibility(ESlateVisibility::Collapsed);}
+    if(!bQuickShown||bHeadless){GrowthShown(TrayFrame,false);SetVisibility(ESlateVisibility::Collapsed);}
     Fold.Closed();RefreshAll();return true;
+}
+FString ULDChoicesPanel::ConfirmLine() const
+{
+    if(RestConfirm.Kind==ELDBuildCommandKind::None){return FString();}
+    const auto Name=[this](FName Id){return LDHUD::ContentName(LatestContent,Id.ToString());};
+    FString Line=RestConfirm.Kind==ELDBuildCommandKind::ReplaceActive
+        ?LDTerms::ReplaceConfirm(Name(RestConfirm.Blueprint),SlotKeys.Of(RestConfirm.Slot),Name(RestConfirm.Active))
+        :LDTerms::ForgetConfirm(SlotKeys.Of(RestConfirm.Slot),Name(RestConfirm.Active));
+    const FString Refusal=RestConfirmRefusal();
+    if(!Refusal.IsEmpty()){Line+=TEXT("（")+Refusal+TEXT("）");}
+    return Line;
 }
 bool ULDChoicesPanel::IsServiceShown() const
 {
     // Only a rest's build windows (build and settlement/payout) offer the rest rebuilds; the locked steps and the return take them away.
-    return bOpen&&Places.bActive&&!bStageShown&&LatestStage==LDProgression::EMatchStage::Rest;
+    return bOpen&&(Places.bActive||bHeadless)&&!bStageShown&&LatestStage==LDProgression::EMatchStage::Rest;
 }
 bool ULDChoicesPanel::IsBlueprintSwapShown() const
 {
-    return bOpen&&Places.bActive&&!bLibraryOnly&&!bStageShown&&(LatestStage==LDProgression::EMatchStage::Rest||Gate.bDormSwap);
+    return bOpen&&(Places.bActive||bHeadless)&&!bLibraryOnly&&!bStageShown&&(LatestStage==LDProgression::EMatchStage::Rest||Gate.bDormSwap);
 }
 bool ULDChoicesPanel::LeaveStage()
 {
@@ -759,6 +770,27 @@ void ULDChoicesPanel::PresentWithBounds(const FWorkshopPlaces& InPlaces,FVector2
 void ULDChoicesPanel::RefreshAll()
 {
     if(!Tray){return;}
+    if(bHeadless)
+    {
+        // The ring shows exactly the current view: the guards every command carries follow it.
+        ShownBlueprints=Usable()?Latest.PendingBlueprints:TArray<FName>();
+        const bool bOffer=HasAvailableOffer();
+        ShownOffer=bOffer?Latest.ActiveOffer.OfferId:FGuid();ShownOfferRevision=bOffer?Latest.ActiveOffer.OfferRevision:0;
+        ShownFinalMod=HasAvailableFinal()?Latest.FinalModOfferId:FGuid();
+        const bool bCards=Usable()&&Latest.bHasCardOffer&&!Latest.CardOffer.Options.IsEmpty();
+        ShownCardOffer=bCards?Latest.CardOffer.OfferId:FGuid();ShownCardRevision=bCards?Latest.CardOffer.OfferRevision:0;
+        ShownCardOptions=bCards?Latest.CardOffer.Options:TArray<FName>();
+        bQuickShown=false;bStageShown=false;
+        const bool bRest=Usable()&&(Gate.bInRest||Gate.bDormSwap);
+        if(RestConfirm.Kind!=ELDBuildCommandKind::None&&(!bRest||!RestConfirmHolds()))
+        {
+            RestConfirm=FRestConfirm();
+            if(bRest){Tell(TEXT("技能槽或图纸已变化，请重新选择。"));}
+        }
+        if(GetVisibility()!=ESlateVisibility::Collapsed){SetVisibility(ESlateVisibility::Collapsed);}
+        bCardsStale=false;
+        return;
+    }
     ShownBlueprints=Usable()?Latest.PendingBlueprints:TArray<FName>();
     const bool bTiles=false;
     // Field quick picks stand above the 构筑 button while the workshop is closed and something waits; while engaged in field
@@ -1526,7 +1558,7 @@ bool ULDChoicesPanel::CloseChildConfirmation()
 }
 bool ULDChoicesPanel::IsShopOffered() const
 {
-    return bOpen&&Places.bActive&&Usable()&&LatestStage==LDProgression::EMatchStage::Rest&&Latest.Shop.bStocked;
+    return bOpen&&(Places.bActive||bHeadless)&&Usable()&&LatestStage==LDProgression::EMatchStage::Rest&&Latest.Shop.bStocked;
 }
 bool ULDChoicesPanel::IsShopShown() const
 {
