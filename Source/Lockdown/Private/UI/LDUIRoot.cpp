@@ -118,16 +118,16 @@ namespace
         if(!Text->GetText().ToString().Equals(Value,ESearchCase::CaseSensitive)){Text->SetText(FText::FromString(Value));}
         Text->SetVisibility(Value.IsEmpty()?ESlateVisibility::Collapsed:ESlateVisibility::HitTestInvisible);
     }
-    using FPainter=TFunction<void(const LDUIPaint::FContext&)>;
+    using FRootPainter=TFunction<void(const LDUIPaint::FContext&)>;
 
-    ULDPaintLayer* PaintLayer(UWidgetTree* Tree,FPainter Painter)
+    ULDPaintLayer* PaintLayer(UWidgetTree* Tree,FRootPainter Painter)
     {
         auto* Layer=Tree->ConstructWidget<ULDPaintLayer>();Layer->Painter=MoveTemp(Painter);
         return Layer;
     }
 
     // Child inset over a painted surface that fills the overlay.
-    UOverlay* Painted(UWidgetTree* Tree,UWidget* Child,const FMargin& Inset,FPainter Painter)
+    UOverlay* Painted(UWidgetTree* Tree,UWidget* Child,const FMargin& Inset,FRootPainter Painter)
     {
         auto* Surface=Tree->ConstructWidget<UOverlay>();
         UOverlaySlot* LayerSlot=Surface->AddChildToOverlay(PaintLayer(Tree,MoveTemp(Painter)));
