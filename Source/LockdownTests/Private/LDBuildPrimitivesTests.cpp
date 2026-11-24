@@ -4979,4 +4979,61 @@ bool FLDIssue345SkillsAndFrameworksTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatCordonBoostTest, "Lockdown.Rules.Combat.Skills.CordonBoost",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatCordonBoostTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    const FLDCombatBodyRef Warden = F.AddBody(), Target = F.AddBody();
+    F.Place(Warden, 0, 0);
+    F.Place(Target, 2000, 2000);
+    if (!InstallCards(*this, F, Warden, 6, {})) { return false; }
+    FString Error;
+    FLDCombatActiveTerms CordonTerms;
+    FLDCombatHit CordonPayload;
+    if (!Released(*this, F, Warden, TEXT("active_cordon_tape"), CordonTerms, CordonPayload)) { return false; }
+    FLDCombatAction CordonAction;
+    CordonAction.TargetPoint = F.Origin + FVector(300, 0, 0);
+    CordonAction.Direction = FVector(1, 0, 0);
+    F.Now(1000);
+    bool bHandled = false;
+    if (!TestTrue(TEXT("active_cordon_tape places its cordon: ") + Error,
+        FAccess::DeliverTerms(*F.Driver, F.Body(Warden), CordonTerms, CordonAction, CordonPayload, 1000, bHandled, Error) && bHandled)
+        || !TestEqual(TEXT("One cordon"), FAccess::Cordons(*F.Driver).Num(), 1))
+    { return false; }
+    const auto& Cordon = FAccess::Cordons(*F.Driver)[0];
+    const int64 RatioBp = Cordon.Terms.RatioBp;
+    if (!TestTrue(TEXT("The approved cordon boosts its owner's flights"), RatioBp > 0)) { return false; }
+    // Shoot straight across the cordon line, from one side of it to a target on the other.
+    const FVector Normal(-Cordon.Tangent.Y, Cordon.Tangent.X, 0);
+    const FVector Centre = Cordon.CentreCm - F.Origin;
+    F.Place(Warden, Centre.X - Normal.X * 250, Centre.Y - Normal.Y * 250);
+    F.Place(Target, Centre.X + Normal.X * 350, Centre.Y + Normal.Y * 350);
+    FLDCombatActiveTerms BoltTerms;
+    FLDCombatHit BoltPayload;
+    if (!Released(*this, F, Warden, TEXT("active_snark_bolt"), BoltTerms, BoltPayload)) { return false; }
+    FLDCombatAction BoltAction;
+    BoltAction.Direction = Normal;
+    if (!TestTrue(TEXT("The owner's bolt is released toward the cordon: ") + Error,
+        FAccess::DeliverPayload(*F.Driver, F.Actor(Warden), F.Body(Warden), BoltTerms, BoltAction, BoltPayload,
+            FLDCombatBodyRef(), FVector::ZeroVector, F.Foot(Warden), 1100, Error))) { return false; }
+    TArray<FLDCombatHit> Contacts;
+    for (int64 At = 1150; At <= 2600 && Contacts.IsEmpty(); At += 50)
+    {
+        F.Now(At);
+        if (!TestTrue(TEXT("The bolt advances through the cordon: ") + Error, FAccess::AdvanceProjectiles(*F.Driver, Error))) { return false; }
+        for (const FLDCombatHit& Hit : FAccess::PendingHits(*F.Driver)) { if (Hit.Target == Target) { Contacts.Add(Hit); } }
+    }
+    if (!TestEqual(TEXT("The boosted bolt reaches the target beyond the cordon"), Contacts.Num(), 1)) { return false; }
+    const int64 Base = BoltPayload.PackageScaleBp;
+    TestEqual(TEXT("The cordon's damage boost rides the package multiplier"), Contacts[0].PackageScaleBp,
+        Base / 10000 * (10000 + RatioBp) + Base % 10000 * (10000 + RatioBp) / 10000);
+    TestTrue(TEXT("The delivery share stays within its domain"), Contacts[0].DeliveryScaleBp >= 0 && Contacts[0].DeliveryScaleBp <= 10000);
+    TestTrue(TEXT("The boosted hit evaluates without an authority fault"), Drain(*this, F));
+    return true;
+}
+
 #endif
