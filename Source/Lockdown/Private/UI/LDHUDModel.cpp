@@ -2543,48 +2543,6 @@ int32 LDHUD::OwnedCopies(const FLDProgressionView& Progression,FName Definition)
     const FName Id=CardDefinition(Definition);
     return Progression.Cards.FilterByPredicate([Id](const FLDCardInstanceView& Card){return Card.DefinitionId==Id;}).Num();
 }
-FString LDHUD::CardTargetText(const FLDCardInstanceView& Card,const FLDDemoContentDefinitions* Content)
-{
-    if(!Card.IsInstalled()){return FString();}
-    TArray<FString> Parts;
-    if(Card.Target.Kind==ELDCardTargetKind::Skill&&!Card.Target.Active.IsNone()){Parts.Add(ContentName(Content,Card.Target.Active.ToString()));}
-    if(Card.Target.Element!=ELDDemoElement::None){Parts.Add(ElementName(Card.Target.Element));}
-    return Parts.IsEmpty()?FString():LDTerms::InstalledOn(FString::Join(Parts,TEXT(" · ")));
-}
-namespace
-{
-// A card's rich text (keywords in <b>…</>, escaped markup) as the plain text of the HUD popup.
-FString HudRichToPlain(const FString& Rich)
-{
-    return Rich.Replace(TEXT("<b>"),TEXT("")).Replace(TEXT("</>"),TEXT("")).Replace(TEXT("&lt;"),TEXT("<")).Replace(TEXT("&gt;"),TEXT(">"))
-        .Replace(TEXT("&amp;"),TEXT("&"));
-}
-FString HudChoiceBody(const FString& Sentence,const TArray<FString>& Keywords,const FString& Outcome)
-{
-    TArray<FString> Lines;
-    Lines.Add(Sentence);
-    if(!Keywords.IsEmpty()){Lines.Add(FString());for(const FString& Keyword:Keywords){Lines.Add(HudRichToPlain(Keyword));}}
-    if(!Outcome.IsEmpty()){Lines.Add(FString());Lines.Add(Outcome);}
-    return FString::Join(Lines,TEXT("\n"));
-}
-}
-LDHUD::FActionDetailView LDHUD::ActiveChoiceDetail(const FActiveCardView& Card,bool bBlueprint,const FString& Outcome)
-{
-    FActionDetailView Detail;
-    Detail.Name=Card.Name;
-    const TCHAR* Kind=bBlueprint?LDTerms::Blueprint:TEXT("技能");
-    Detail.Summary=Card.bKnown?FString::Printf(TEXT("%s · %s · %s"),Kind,*Card.Target,*Card.Cost):FString(Kind);
-    Detail.Body=HudChoiceBody(Card.SentencePlain,Card.Keywords,Outcome);
-    return Detail;
-}
-LDHUD::FActionDetailView LDHUD::CardChoiceDetail(const FCardFaceView& Card,const FString& Outcome)
-{
-    FActionDetailView Detail;
-    Detail.Name=Card.Name;
-    Detail.Summary=Card.KindLine.IsEmpty()?FString(LDTerms::Card):Card.KindLine;
-    Detail.Body=HudChoiceBody(Card.SentencePlain,Card.Keywords,Outcome);
-    return Detail;
-}
 LDHUD::FCardFaceView LDHUD::CardFace(FName DefinitionId,const FLDDemoContentDefinitions* Content,const FCardStats& Stats)
 {
     FCardFaceView Card;
@@ -2862,13 +2820,6 @@ FString LDHUD::SkillCardCompatStrip(FName CardId,const FLDProgressionView& Progr
     bOutAllFull=bWorkshopIsFull;
     return FString(TEXT("可装："))+FString::Join(Chips,TEXT(" "));
 }
-FString LDHUD::DropPreviewText(FName Key,const FCardDrop& Drop,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
-{
-    FString Place=ColumnLabel(Drop.Column);
-    if(Drop.Kind==ELDCardTargetKind::Skill&&!Drop.TargetId.IsNone()){Place=ContentName(Content,Drop.TargetId.ToString());}
-    if(Drop.Replacing.IsNone()){return LDTerms::DropInstallsOn(Place);}
-    return LDTerms::DropReplaces(ContentName(Content,CardDefinition(Drop.Replacing).ToString()),Place);
-}
 LDHUD::FCardConnections LDHUD::CardConnections(FName Key,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
 {
     FCardConnections Out;
@@ -2888,14 +2839,6 @@ LDHUD::FCardConnections LDHUD::CardConnections(FName Key,const FLDProgressionVie
         if(Other&&(Other->VocabMask&Definition->VocabMask)!=0){Out.Cards.AddUnique(Owned.DefinitionId);}
     }
     return Out;
-}
-FString LDHUD::ConnectionsText(FName Key,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
-{
-    const FCardConnections Connections=CardConnections(Key,Progression,Content);
-    TArray<FString> Links;
-    for(const FName Id:Connections.Actives){Links.AddUnique(ContentName(Content,Id.ToString()));}
-    for(const FName Id:Connections.Cards){Links.AddUnique(ContentName(Content,Id.ToString()));}
-    return Links.IsEmpty()?FString():LDTerms::WorksWith(FString::Join(Links,TEXT("、")));
 }
 FString LDHUD::DropColumnsText(const TArray<FCardDrop>& Drops)
 {
@@ -2935,13 +2878,6 @@ LDHUD::FGrowthPending LDHUD::GrowthPending(const FLDProgressionView* Progression
     Pending.CardOffers=Progression->QueuedCardOffers;
     Pending.bFinalMod=Progression->bFinalModPending&&!Progression->FinalModOptions.IsEmpty();
     return Pending;
-}
-FString LDHUD::OfferQueueDots(uint8 Queued)
-{
-    if(Queued==0){return FString();}
-    FString Dots=TEXT("●");
-    for(int32 Index=1;Index<FMath::Min<int32>(Queued,8);++Index){Dots+=TEXT(" ○");}
-    return Dots;
 }
 bool LDHUD::FOfferMotionTicket::Matches(const FLDBuildReceipt& Receipt,uint32 CurrentMatch,uint32 CurrentLife) const
 {

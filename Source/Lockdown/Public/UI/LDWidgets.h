@@ -9,7 +9,7 @@
 #include "UI/LDUIPaint.h"
 #include "LDWidgets.generated.h"
 class UWidgetTree;
-class UTextBlock;class UBorder;class URichTextBlock;class UScaleBox;
+class UTextBlock;class UBorder;class UScaleBox;
 UCLASS()
 class LOCKDOWN_API ULDCommandButton : public UButton
 {
@@ -65,29 +65,6 @@ protected:
 private:
     TSharedPtr<SWidget> Layer;
 };
-// Irreversible confirmations (D5): pressing starts a fill across the face, releasing early cancels, and a full fill after
-// LDHUDStyle::MotionHoldConfirm runs Callback once. Enter and Space hold the focused button the same way.
-UCLASS()
-class LOCKDOWN_API ULDHoldButton : public ULDCommandButton
-{
-    GENERATED_BODY()
-public:
-    // 0 while idle, rising to 1 while held; ULDPanel paints it over the face.
-    float HoldProgress() const;
-    UFUNCTION() void HoldPressed();
-    UFUNCTION() void HoldReleased();
-    UFUNCTION() void InstantClicked();
-    // A confirmation whose current action is reversible commits on a plain click instead.
-    void SetHoldRequired(bool bRequired);
-    bool IsHoldRequired() const {return bHoldRequired;}
-    virtual void ReleaseSlateResources(bool bReleaseChildren) override;
-private:
-    void Repaint() const;
-    bool IsShownAndEnabled() const;
-    double HoldStartedAt=-1.;
-    bool bHoldRequired=true;
-    FTSTicker::FDelegateHandle HoldTicker;
-};
 UCLASS()
 class LOCKDOWN_API ULDWorldButton : public ULDCommandButton
 {
@@ -128,8 +105,6 @@ protected:
 };
 namespace LDWidgets
 {
-    // Withdraws every hold in progress in Tree, so a closed or left page needs a fresh full hold.
-    LOCKDOWN_API void ReleaseHolds(UWidgetTree* Tree);
     // The painted face a command button wears (the dark raised face by default) and the caption colour that goes with it.
     LOCKDOWN_API void SetLook(ULDCommandButton* Button,LDUIPaint::EButton Look);
     LOCKDOWN_API UBorder* Panel(UWidgetTree* Tree,UWidget* Child,FMargin Padding=FMargin(20));
@@ -137,13 +112,6 @@ namespace LDWidgets
     LOCKDOWN_API UTextBlock* Text(UWidgetTree* Tree,const FString& Value,int32 Size=16,FName Name=NAME_None,LDUIFonts::ERole Role=LDUIFonts::ERole::Body);
     // Name gives automation a stable handle that survives copy changes; NAME_None keeps a generated name.
     LOCKDOWN_API ULDCommandButton* Button(UWidgetTree* Tree,const FString& Value,TFunction<void()> Callback,bool World=false,FName Name=NAME_None);
-    // The same face as Button, committing only after a full hold (ULDHoldButton).
-    LOCKDOWN_API ULDHoldButton* HoldButton(UWidgetTree* Tree,const FString& Value,TFunction<void()> Callback,FName Name=NAME_None);
-    // Wrapping rich text in the Text look whose <b>…</> runs are bold and accented (#147 card keywords).
-    LOCKDOWN_API URichTextBlock* RichText(UWidgetTree* Tree,int32 Size=16,FName Name=NAME_None);
-    // Rebuilds Rich's two styles at Size (the text-size preference).
-    LOCKDOWN_API void SetRichTextSize(URichTextBlock* Rich,int32 Size);
-    LOCKDOWN_API int32 RichTextSize(const URichTextBlock* Rich);
     // Native ScaleToFit normalizes measurement before scaling; never enlarge the content.
     LOCKDOWN_API UScaleBox* Fit(UWidgetTree* Tree,UWidget* Content);
     // Plays an interface cue through the game instance's audio subsystem (quietly nothing before it is ready).

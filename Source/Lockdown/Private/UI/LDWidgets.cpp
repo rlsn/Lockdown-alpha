@@ -8,8 +8,6 @@
 #include "Blueprint/WidgetTree.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "Components/TextBlock.h"
-#include "Components/RichTextBlock.h"
-#include "Engine/DataTable.h"
 #include "UI/LDUIFonts.h"
 #include "Audio/LDAudioSubsystem.h"
 #include "Engine/GameInstance.h"
@@ -21,32 +19,6 @@ UTextBlock* LDWidgets::Text(UWidgetTree* Tree,const FString& Value,int32 Size,FN
     auto* W=Tree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(),Name);W->SetText(FText::FromString(Value));W->SetFont(LDUIFonts::Font(Role,Size));
     W->SetColorAndOpacity(LDHUDStyle::TextPrimary);W->SetAutoWrapText(true);W->SetVisibility(ESlateVisibility::HitTestInvisible);return W;
 }
-void LDWidgets::SetRichTextSize(URichTextBlock* Rich,int32 Size)
-{
-    if(!Rich){return;}
-    UDataTable* Styles=NewObject<UDataTable>(Rich);
-    Styles->RowStruct=FRichTextStyleRow::StaticStruct();
-    FRichTextStyleRow Plain;
-    Plain.TextStyle.SetFont(LDUIFonts::Font(LDUIFonts::ERole::Body,Size));
-    Plain.TextStyle.SetColorAndOpacity(FSlateColor(LDHUDStyle::TextPrimary));
-    FRichTextStyleRow Bold=Plain;
-    Bold.TextStyle.SetFont(LDUIFonts::Font(LDUIFonts::ERole::Strong,Size));
-    Bold.TextStyle.SetColorAndOpacity(FSlateColor(LDHUDStyle::TextAccent));
-    FRichTextStyleRow Good=Bold,Cost=Bold;
-    Good.TextStyle.SetColorAndOpacity(FSlateColor(LDHUDStyle::UILegal));
-    Cost.TextStyle.SetColorAndOpacity(FSlateColor(LDHUDStyle::UIReject));
-    Styles->AddRow(TEXT("Default"),Plain);
-    Styles->AddRow(TEXT("b"),Bold);
-    Styles->AddRow(TEXT("good"),Good);
-    Styles->AddRow(TEXT("cost"),Cost);
-    Rich->SetTextStyleSet(Styles);
-}
-int32 LDWidgets::RichTextSize(const URichTextBlock* Rich)
-{
-    const UDataTable* Styles=Rich?Rich->GetTextStyleSet():nullptr;
-    const FRichTextStyleRow* Plain=Styles?Styles->FindRow<FRichTextStyleRow>(TEXT("Default"),TEXT("RichTextSize"),false):nullptr;
-    return Plain?Plain->TextStyle.Font.Size:0;
-}
 UScaleBox* LDWidgets::Fit(UWidgetTree* Tree,UWidget* Content)
 {
     UScaleBox* Box=Tree->ConstructWidget<UScaleBox>();Box->SetStretch(EStretch::ScaleToFit);Box->SetStretchDirection(EStretchDirection::DownOnly);
@@ -54,11 +26,6 @@ UScaleBox* LDWidgets::Fit(UWidgetTree* Tree,UWidget* Content)
     Box->SetContent(Content);
     if(UScaleBoxSlot* FitSlot=Cast<UScaleBoxSlot>(Content->Slot)){FitSlot->SetHorizontalAlignment(HAlign_Left);FitSlot->SetVerticalAlignment(VAlign_Top);}
     return Box;
-}
-URichTextBlock* LDWidgets::RichText(UWidgetTree* Tree,int32 Size,FName Name)
-{
-    auto* W=Tree->ConstructWidget<URichTextBlock>(URichTextBlock::StaticClass(),Name);
-    SetRichTextSize(W,Size);W->SetAutoWrapText(true);W->SetVisibility(ESlateVisibility::HitTestInvisible);return W;
 }
 namespace
 {
@@ -78,13 +45,6 @@ ULDCommandButton* LDWidgets::Button(UWidgetTree* Tree,const FString& Value,TFunc
     ULDCommandButton* W=World?Tree->ConstructWidget<ULDWorldButton>(ULDWorldButton::StaticClass(),Name):Tree->ConstructWidget<ULDCommandButton>(ULDCommandButton::StaticClass(),Name);
     W->Callback=MoveTemp(Callback);LDButtonFace(W,Tree,Value);
     W->OnClicked.AddDynamic(W,&ULDCommandButton::Execute);W->OnClicked.AddDynamic(W,&ULDCommandButton::FeelClicked);return W;
-}
-ULDHoldButton* LDWidgets::HoldButton(UWidgetTree* Tree,const FString& Value,TFunction<void()> Callback,FName Name)
-{
-    ULDHoldButton* W=Tree->ConstructWidget<ULDHoldButton>(ULDHoldButton::StaticClass(),Name);
-    W->Callback=MoveTemp(Callback);LDButtonFace(W,Tree,Value);
-    W->OnPressed.AddDynamic(W,&ULDHoldButton::HoldPressed);W->OnReleased.AddDynamic(W,&ULDHoldButton::HoldReleased);
-    W->OnClicked.AddDynamic(W,&ULDHoldButton::InstantClicked);return W;
 }
 namespace
 {
@@ -247,52 +207,6 @@ void ULDCommandButton::RepeatPressed()
 }
 // A release outside the button raises no click, so the mark of a repeated hold never waits for one.
 void ULDCommandButton::RepeatReleased(){StopTicker(RepeatTicker);if(!IsHovered()){bRepeated=false;}}
-float ULDHoldButton::HoldProgress() const
-{return HoldStartedAt<0.?0.f:FMath::Clamp(float((FPlatformTime::Seconds()-HoldStartedAt)/LDHUDStyle::MotionHoldConfirm),0.f,1.f);}
-void ULDHoldButton::HoldPressed()
-{
-    if(!bHoldRequired||HoldStartedAt>=0.||!GetIsEnabled()){return;}
-    HoldStartedAt=FPlatformTime::Seconds();
-    PlayCue(ELDAudioCue::UIHoldCharge);
-    HoldTicker=FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateWeakLambda(this,[this](float)
-    {
-        // Losing the press, the button or its enablement withdraws the hold; only a full hold commits, and only once.
-        if(!IsPressed()||!IsShownAndEnabled()){HoldStartedAt=-1.;HoldTicker.Reset();Repaint();return false;}
-        Repaint();
-        if(HoldProgress()<1.f){return true;}
-        HoldStartedAt=-1.;HoldTicker.Reset();PlayCue(ELDAudioCue::UIClick);Execute();return false;
-    }));
-}
-bool ULDHoldButton::IsShownAndEnabled() const
-{
-    // The button and every ancestor, across nested user widgets, must still be visible and enabled: hiding or disabling a
-    // window, page or confirm line around a held button withdraws the hold.
-    for(const UWidget* Widget=this;Widget;)
-    {
-        if(!Widget->IsVisible()||!Widget->GetIsEnabled()){return false;}
-        const UWidget* Next=Widget->GetParent();
-        if(!Next)
-        {
-            const UUserWidget* Owner=Widget->GetTypedOuter<UUserWidget>();
-            Next=Owner!=Widget?Owner:nullptr;
-        }
-        Widget=Next;
-    }
-    return true;
-}
-void LDWidgets::ReleaseHolds(UWidgetTree* Tree)
-{
-    if(!Tree){return;}
-    Tree->ForEachWidget([](UWidget* Widget){if(auto* Hold=Cast<ULDHoldButton>(Widget)){Hold->HoldReleased();}});
-}
-void ULDHoldButton::InstantClicked(){if(!bHoldRequired){PlayCue(ELDAudioCue::UIClick);Execute();}}
-void ULDHoldButton::SetHoldRequired(bool bRequired)
-{if(bHoldRequired!=bRequired){bHoldRequired=bRequired;HoldReleased();}}
-void ULDHoldButton::HoldReleased(){StopTicker(HoldTicker);HoldStartedAt=-1.;Repaint();}
-void ULDHoldButton::ReleaseSlateResources(bool bReleaseChildren)
-{StopTicker(HoldTicker);HoldStartedAt=-1.;Super::ReleaseSlateResources(bReleaseChildren);}
-void ULDHoldButton::Repaint() const
-{if(ULDPanel* Panel=GetTypedOuter<ULDPanel>()){Panel->InvalidateLayoutAndVolatility();}}
 
 #include "Components/PanelWidget.h"
 #include "Components/EditableTextBox.h"
@@ -315,7 +229,6 @@ void ULDPanel::ApplyTextScale(float Scale)
     for(UWidget* W:All)
     {
         if(auto* Label=Cast<UTextBlock>(W)){auto Font=Label->GetFont();Font.Size=FMath::RoundToInt(Font.Size*Scale/AppliedTextScale);Label->SetFont(Font);}
-        else if(auto* Rich=Cast<URichTextBlock>(W)){LDWidgets::SetRichTextSize(Rich,FMath::RoundToInt(LDWidgets::RichTextSize(Rich)*Scale/AppliedTextScale));}
     }
     AppliedTextScale=Scale;
 }
@@ -359,8 +272,6 @@ FReply ULDPanel::NativeOnPreviewKeyDown(const FGeometry& G,const FKeyEvent& E)
     {
         for(auto* W:PanelFocusTargets()){if(W->HasKeyboardFocus()||W->HasFocusedDescendants())
         {
-            // A hold button takes the key itself: key down presses it and key up releases it, so the keys hold like the pointer.
-            if(Cast<ULDHoldButton>(W)){break;}
             if(auto* B=Cast<UButton>(W)){if(!E.IsRepeat()){B->OnClicked.Broadcast();}return FReply::Handled();}break;
         }}
     }
@@ -375,15 +286,6 @@ int32 ULDPanel::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateR
         for(const UWidget* Current=Widget;Current;Current=Current->GetParent()){Alpha*=Current->GetRenderOpacity();}
         return Alpha;
     };
-    for(auto* W:PanelFocusTargets())
-    {
-        const auto* Hold=Cast<ULDHoldButton>(W);const float Progress=Hold?Hold->HoldProgress():0.f;
-        if(Progress<=0.f){continue;}
-        const auto& WG=W->GetCachedGeometry();const FVector2D P=G.AbsoluteToLocal(WG.LocalToAbsolute(FVector2D::ZeroVector)),Q=G.AbsoluteToLocal(WG.LocalToAbsolute(WG.GetLocalSize()));
-        const FSlateRoundedBoxBrush Fill(LDHUDStyle::HoldFill,LDHUDStyle::RadiusButton);
-        FSlateDrawElement::MakeBox(E,Base+1,G.ToPaintGeometry(FVector2D((Q.X-P.X)*Progress,Q.Y-P.Y),FSlateLayoutTransform(P)),&Fill,
-            ESlateDrawEffect::None,FLinearColor(1,1,1,Opacity(W)));
-    }
     for(auto* W:PanelFocusTargets()){if(W->HasKeyboardFocus()||W->HasFocusedDescendants())
     {
         const auto& WG=W->GetCachedGeometry();const FVector2D P=G.AbsoluteToLocal(WG.LocalToAbsolute(FVector2D::ZeroVector)),Q=G.AbsoluteToLocal(WG.LocalToAbsolute(WG.GetLocalSize()));
