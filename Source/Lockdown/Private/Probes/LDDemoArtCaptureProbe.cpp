@@ -406,7 +406,7 @@ namespace
         // is legal ground for a body on the flagpole's surface, level with the centre; the dash run is swept by the body
         // capsule and keeps level walkable support along its whole length. From the game camera at its default arm, no
         // collision hides a body's feet, chest or head, and no visual decoration (which has no collision) hides its chest
-        // or head, tested on the decoration bounds as CheckOcclusion does.
+        // or head, tested on the current visual components' bounds.
         bool FindVfxStage(UWorld& Target, FVector& OutFocus, FString& Error) const
         {
             auto* Registry = Target.GetSubsystem<ULDMapRegistry>();
@@ -425,20 +425,12 @@ namespace
             }
             const FLDDemoRational& Reach = Content->Get().Parameters.CaptureRadiusCm;
             const double FlagReach = Reach.Denominator > 0 ? double(Reach.Numerator) / double(Reach.Denominator) : 0.;
-            const ULDArtSubsystem* Art = Target.GetGameInstance() ? Target.GetGameInstance()->GetSubsystem<ULDArtSubsystem>() : nullptr;
-            const ULDArtCatalog* Catalog = Art ? Art->GetCatalog() : nullptr;
-            if (!Catalog)
-            {
-                Error = TEXT("The art catalog is not loaded, so visual decorations cannot be tested for occlusion.");
-                return false;
-            }
-            TMap<FString, const FLDArtProp*> Props;
-            for (const FLDArtProp& Prop : Catalog->Props) { Props.Add(Prop.Id, &Prop); }
+            // The visuals as the loaded level places them now (an author may move, copy or delete them without
+            // refreshing the art catalog): each component's world bounds.
             TArray<FBox> Visuals;
-            for (const FLDArtDecoration& Decoration : Catalog->Decorations)
+            for (const UStaticMeshComponent* Part : LDStaticScene::Visuals(Target))
             {
-                const FLDArtProp* Prop = Props.FindRef(Decoration.Prop);
-                if (Prop && Prop->Mesh) { Visuals.Add(Prop->Mesh->GetBoundingBox().TransformBy(Decoration.Transform)); }
+                if (Part) { Visuals.Add(Part->Bounds.GetBox()); }
             }
             const FVector2D Across(UE_INV_SQRT_2, UE_INV_SQRT_2);
             const FVector2D DashFrom = -Across * 95.;
@@ -495,7 +487,12 @@ namespace
                 for (int32 Step = 0; Step * 25. <= VfxDashRunCm; ++Step)
                 {
                     FVector Surface;
-                    if (!Level(Centre + DashFrom + FVector2D(Step * 25., 0.), Focus, Surface) || (Step % 4 == 0 && !Seen(Eye, Surface, false)))
+                    FLDLegalGround Legal;
+                    ELDWorldQueryFailure Failure = ELDWorldQueryFailure::None;
+                    FString Why;
+                    if (!Level(Centre + DashFrom + FVector2D(Step * 25., 0.), Focus, Surface)
+                        || !Registry->QueryGround(Registry->Revision(), Surface, Capsule, Flag->Surface, Legal, Failure, Why)
+                        || (Step % 4 == 0 && !Seen(Eye, Surface, false)))
                     {
                         return false;
                     }
@@ -894,9 +891,10 @@ namespace
                 if (auto* Body = VfxAttacker.Get())
                 {
                     // The streak holds still at the end of the run the stage search cleared.
-                    const bool bRunning = bVfxDash && FVector::Dist2D(Body->GetOwner()->GetActorLocation(), VfxDashFrom) < VfxDashRunCm;
+                    const double Left = bVfxDash ? VfxDashRunCm - FVector::Dist2D(Body->GetOwner()->GetActorLocation(), VfxDashFrom) : 0.;
+                    const bool bRunning = Left > 0.;
                     const FVector Dash(bRunning ? 1500.f : 0.f, 0.f, 0.f);
-                    if (bRunning) { Body->GetOwner()->AddActorWorldOffset(Dash * Delta); }
+                    if (bRunning) { Body->GetOwner()->AddActorWorldOffset(FVector(FMath::Min(1500. * Delta, Left), 0., 0.)); }
                     Body->Animate(Dash, Delta);
                 }
                 if (auto* Body = VfxVictim.Get()) { Body->Animate(FVector::ZeroVector, Delta); }
