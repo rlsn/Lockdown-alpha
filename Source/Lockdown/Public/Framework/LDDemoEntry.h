@@ -10,7 +10,7 @@ namespace LDDemoEntry
     inline constexpr TCHAR FrontendMap[] = TEXT("/Game/Lockdown/Generated/Maps/L_Frontend");
     inline constexpr TCHAR WorldMap[] = TEXT("/Game/Lockdown/Generated/Maps/L_Demo");
     inline constexpr TCHAR WorldDefinition[] = TEXT("/Game/Lockdown/Generated/Data/DA_DemoWorld");
-    inline constexpr uint32 WireProtocol = 37;
+    inline constexpr uint32 WireProtocol = 38;
 
     // Whether World is the Demo match world (PIE prefix ignored). Game thread only: the answer of the last asked world is
     // kept, so per-step and per-frame callers do not build the package name again.

@@ -39,7 +39,7 @@ class LOCKDOWN_API ULDWorkshop : public UUserWidget
 {
     GENERATED_BODY()
 public:
-    enum class EMode : uint8 { Closed, Full, Field };
+    enum class EMode : uint8 { Closed, Open };
     struct FInput
     {
         EMode Mode=EMode::Closed;
@@ -71,26 +71,18 @@ public:
         FString DeathClock;
         float DeathProgress=0.f;
         LDHUD::FDamageListView DeathRecap;
-        // The tray's size (its rows stack upward in the pending area) and how many decisions wait there.
-        FVector2D TrayDesired=FVector2D::ZeroVector;
         int32 Pending=0;
         // Low quality: the backdrop only darkens, without the blur.
         bool bLowQuality=false;
-        // The tray's centre stage (the active offer, or the pink final mod page) replaces the board; the NPC beside the
-        // player (its name rides on the phase bar) puts its services on the board.
         bool bStage=false;
         bool bFinalStage=false;
-        // Spec §3.13: the open shop shelf takes the board's place (the library stays to sell from).
         bool bShop=false;
         bool bServices=false;
         // The respec takes the foot of the character column.
         bool bCharacterServices=false;
     };
-    void Present(const FInput& Input);
-    static void PresentConverged(ULDWorkshop& Workshop,ULDChoicesPanel* ChoicesPanel,ULDComponentStorage* Storage,
-        FInput& In,float LayoutScale,TFunctionRef<void()> PresentChoices);
+    void Present(const FInput& Input,const FGeometry* HudGeometry=nullptr);
     bool IsOpen() const {return Mode!=EMode::Closed;}
-    EMode GetMode() const {return Mode;}
     // Present still fades the opening in (LDHUDStyle::MotionWorkshopOpen); the HUD presents every sample meanwhile.
     bool IsOpening() const;
     bool IsHit(FVector2D Absolute) const;
@@ -137,6 +129,7 @@ private:
         UWidget* Icon=nullptr;
         UWidget* Meter=nullptr;
         UTextBlock* Points=nullptr;
+        UTextBlock* Keystone=nullptr;
         ULDCommandButton* Plus=nullptr;
         int32 Value=0;
         // Flash only after the applied revision arrives in the owner view.
@@ -211,7 +204,6 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> LevelLine;
     UPROPERTY() TObjectPtr<UBorder> PointsBox;
     // The foot of the character column the trainer's respec takes (no height without the trainer).
-    UPROPERTY() TObjectPtr<USizeBox> RespecSpace;
     // The element reactions title and grid; the trainer's respec foot takes their place.
     UPROPERTY() TObjectPtr<UVerticalBox> ReactionBlock;
     UPROPERTY() TObjectPtr<UTextBlock> PointsText;
@@ -280,14 +272,13 @@ private:
     float DockDividerX=0.f;
     void ScaleFresh(UTextBlock* Text) const;
     EMode Mode=EMode::Closed;
-    EMode ClosingMode=EMode::Closed;
     FInput Latest;
     FLDProgressionView View;
     FLDFinalModSelection PendingFinalFeedback;
     uint64 PendingFinalRevision=0;
     TMap<FName,LDHUD::FCardConnections> LinkConnections;
     FRects Rects;
-    FVector2D LastSize=FVector2D::ZeroVector;
+    FGeometry LayoutGeometry;
     FVector2D ActionsAt=FVector2D::ZeroVector;
     float TrayRight=0.f,TrayBottom=0.f,TrayWrap=0.f,TrayLimit=0.f;
     int32 TagFilter=INDEX_NONE;
@@ -303,11 +294,10 @@ private:
     uint8 DockKindValue=0;
     TWeakObjectPtr<UTexture2D> DockIcon;
     double UiNow() const;
-    void Layout(FVector2D Size);
+    static FRects ComputeLayout(FVector2D Size,const FInput& Input);
+    void ApplyLayout(const FRects& Layout,FVector2D Size,float Scale);
     void AnimateOpening();
     void PaintBackdrop(const LDUIPaint::FContext& Paint) const;
-    // Whether the dock's right column has anything to show (where it sits, what it links with, what to watch).
-    bool DockHasRight() const;
     void Place(UWidget* Widget,const FBox2D& Box);
     void RefreshCharacter();
     void RefreshHeads();

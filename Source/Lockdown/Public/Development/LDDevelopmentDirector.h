@@ -6,6 +6,7 @@
 #include "Development/LDGrowthProtocol.h"
 #include "Development/LDGrowthRequests.h"
 #include "Development/LDProgressionRules.h"
+#include "Framework/LDCaptureTypes.h"
 #include "LDDevelopmentDirector.generated.h"
 
 class ALDGameMode;
@@ -152,6 +153,7 @@ public:
     // succeeds; false with Error only when the commit is refused.
     bool RollMedal(const FGuid& ContenderId, int64 ChanceBp, uint64 Key, const TCHAR* Cause, const FLDGameplayWritePermit& Permit,
         FString& Error);
+    bool ReadResultGrowth(const FGuid& ContenderId,TArray<FLDResultGrowthPhase>& Out) const;
     const FLDGrowthBuild* FindBuild(const FGuid& ContenderId) const;
     const FLDProgressionState* FindProgression(const FGuid& ContenderId) const;
 
@@ -204,6 +206,7 @@ private:
         TLDGrowthRequestStream<FLDBuildCommand, FLDBuildReceipt> Builds;
         FLDExpectedBuildVersions CombatInstalled;
         TArray<FLDBuildReceipt> Unpublished;
+        TArray<FLDResultGrowthPhase> Report;
     };
 
     FLDBuildReceipt RejectPending(FRecord& Record, const FLDBuildCommand& Command, ELDGrowthReason Reason,

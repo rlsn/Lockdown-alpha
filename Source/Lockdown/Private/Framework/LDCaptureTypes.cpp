@@ -1,6 +1,7 @@
 #include "Framework/LDCaptureTypes.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Development/LDGrowthProtocol.h"
+#include "Combat/LDAttributeProjection.h"
 
 namespace
 {
@@ -225,6 +226,50 @@ bool LDCapture::ValidateResultBuild(const FLDResultBuild& Build, FString& Error)
     return true;
 }
 
+namespace
+{
+bool ValidResultReport(const FLDResultRow& Row)
+{
+    const FLDResultCombat& Combat=Row.Combat;
+    if(Combat.KeystoneMask>31||Combat.PhysicalToPlayersP2<0||Combat.MagicalToPlayersP2<0||Combat.ReactionToPlayersP2<0
+        ||Combat.DamageTakenP2<0||Combat.ShieldAbsorbedP2<0||Combat.ShieldAbsorbedP2>Combat.DamageTakenP2
+        ||Combat.HealingP2<0||Combat.RecoveryPackP2<0||Combat.RecoveryPackP2>Combat.HealingP2
+        ||Combat.Reactions<0||Combat.PeakReactionP2<0||Combat.PeakReactionP2>Combat.ReactionToPlayersP2
+        ||Combat.Attributes.Num()>int32(ELDProjectedAttribute::Count)||Combat.Cards.Num()>256)
+    {return false;}
+    TSet<uint8> Attributes;
+    for(const FLDResultAttribute& Attribute:Combat.Attributes)
+    {
+        if(Attribute.Attribute>=uint8(ELDProjectedAttribute::Count)||Attribute.Value.Denominator<=0||Attributes.Contains(Attribute.Attribute))
+        {return false;}
+        Attributes.Add(Attribute.Attribute);
+    }
+    TSet<FName> Cards;
+    for(const FLDResultCardContribution& Card:Combat.Cards)
+    {
+        FLDDefinitionWire Wire;
+        if(!FLDDefinitionWire::Encode(Card.Card,Wire)||Cards.Contains(Card.Card)||Card.DamageP2<0||Card.ShieldP2<0||Card.Triggers<0)
+        {return false;}
+        Cards.Add(Card.Card);
+    }
+    if(!Row.Growth.IsEmpty()&&Row.Growth.Num()!=FLDTimelineParameters::TimedSegments+2){return false;}
+    for(const FLDResultGrowthPhase& Phase:Row.Growth)
+    {
+        if(Phase.Allocated<0||Phase.Refunded<0||Phase.BoughtCards<0||Phase.BoughtSkills<0||Phase.RefreshedShop<0
+            ||Phase.Skills.Num()>256||Phase.AcquiredCards.Num()>256){return false;}
+        FLDDefinitionWire Wire;
+        if(!Phase.FinalMod.IsNone()&&!FLDDefinitionWire::Encode(Phase.FinalMod,Wire)){return false;}
+        for(const FLDResultBuildActive& Skill:Phase.Skills)
+        {
+            if(!FLDDefinitionWire::Encode(Skill.DefinitionId,Wire)||Skill.Slot>=3||uint8(Skill.Branch)>uint8(ELDSkillBranch::B2))
+            {return false;}
+        }
+        for(FName Card:Phase.AcquiredCards){if(!FLDDefinitionWire::Encode(Card,Wire)){return false;}}
+    }
+    return true;
+}
+}
+
 bool LDCapture::ValidateResultView(const FLDResultView& View, FString& Error)
 {
     if (!View.Generation || !View.ResultId.IsValid() || !View.ResultSerial
@@ -250,6 +295,7 @@ bool LDCapture::ValidateResultView(const FLDResultView& View, FString& Error)
         if (Row.BankedGuardMs < 0 || Row.BankedGuardMs > View.DurationMs)
         { return FailCaptureView(Error, TEXT("Invalid result objective contribution.")); }
         if (!ValidateResultBuild(Row.Build, Error)) { return false; }
+        if (!ValidResultReport(Row)) { return FailCaptureView(Error, TEXT("Invalid result report.")); }
         Ids.Add(Row.ContenderId);
         Humans += Row.Kind == ELDContenderKind::Human ? 1 : 0;
         if (Row.ContenderId == View.Winner)

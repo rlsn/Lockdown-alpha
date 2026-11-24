@@ -1,6 +1,7 @@
 #include "Combat/LDCombatDirector.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Framework/LDGameMode.h"
+#include "Framework/LDCaptureTypes.h"
 #include "Framework/LDLifeAuthority.h"
 
 // #198 §10: the build blueprint ledger is fed only from the points where Combat commits a build install, a release, a hit,
@@ -67,7 +68,7 @@ void ALDCombatDirector::LedgerEffectReleased(const FLDBodyCombatState& Body, con
     if (Counted!=ELDBlueprintFact::Count) { BuildLedger.Add(Contender,Version,Counted,1); }
 }
 
-void ALDCombatDirector::LedgerHitCommitted(const FLDCombatHit& Hit, const FLDBodyCombatState& Victim, const FLDDamageEvaluation& Damage)
+void ALDCombatDirector::LedgerHitCommitted(const FLDCombatHit& Hit, const FLDBodyCombatState& Victim, const FLDDamageEvaluation& Damage,ELDDemoDamageType EffectiveType)
 {
     // Training never meets the field: isolation keeps both sides of a training hit inside the owner's group.
     if (LDCombatBlueprintLedgerDetail::IsTraining(Victim)) { return; }
@@ -94,6 +95,20 @@ void ALDCombatDirector::LedgerHitCommitted(const FLDCombatHit& Hit, const FLDBod
         }
     }
     if (Victim.Victim.Kind!=ELDVictimKind::Contender) { return; }
+    if(const FLDCombatEntityRecord* Attacker=FindRecord(Hit.CreditOwner);
+        Attacker&&Attacker->Kind==ELDVictimKind::Contender&&Hit.CreditOwner!=Victim.Victim.EntityId)
+    {
+        FReportCounters& Report=ReportCounters.FindOrAdd(Hit.CreditOwner);
+        if(Hit.ReactionKind!=ELDCombatReaction::None)
+        {
+            Report.ReactionToPlayersP2+=Damage.DamageP2;
+            int64& Burst=BoundaryReactionDamage.FindOrAdd(Hit.EffectId);
+            Burst+=Damage.DamageP2;
+            Report.PeakReactionP2=FMath::Max(Report.PeakReactionP2,Burst);
+        }
+        else if(EffectiveType==ELDDemoDamageType::Physical){Report.PhysicalToPlayersP2+=Damage.DamageP2;}
+        else{Report.MagicalToPlayersP2+=Damage.DamageP2;}
+    }
     const FGuid& Contender=Victim.Victim.EntityId;
     const int32 Version=LedgerVersion(Contender);
     if (Version==INDEX_NONE) { return; }
@@ -109,11 +124,15 @@ void ALDCombatDirector::LedgerHealed(const FLDBodyCombatState& Body, int64 Heale
     if (Version!=INDEX_NONE) { BuildLedger.Add(Body.Victim.EntityId,Version,ELDBlueprintFact::Healing,HealedP2); }
 }
 
-void ALDCombatDirector::LedgerShieldGranted(const FLDBodyCombatState& Body, int64 AmountP2)
+void ALDCombatDirector::LedgerShieldGranted(const FLDBodyCombatState& Body, int64 AmountP2,const FLDCombatSourceRef& Source)
 {
     if (Body.Victim.Kind!=ELDVictimKind::Contender || AmountP2<=0 || LDCombatBlueprintLedgerDetail::IsTraining(Body)) { return; }
     const int32 Version=LedgerVersion(Body.Victim.EntityId);
     if (Version!=INDEX_NONE) { BuildLedger.Add(Body.Victim.EntityId,Version,ELDBlueprintFact::ShieldGranted,AmountP2); }
+    if(Source.Kind==ELDCombatSourceKind::Card&&!Source.DefinitionId.IsNone())
+    {
+        ReportCounters.FindOrAdd(Body.Victim.EntityId).CardShields.FindOrAdd(Source.DefinitionId)+=AmountP2;
+    }
 }
 
 void ALDCombatDirector::LedgerRegenerated(const FLDBodyCombatState& Body, int64 RestoredP2)
@@ -247,5 +266,64 @@ bool ALDCombatDirector::DamageTotalsOf(const FGuid& Contender, TArray<FLDDamageL
     if (!Record || Record->Kind!=ELDVictimKind::Contender) { return false; }
     if (const TArray<FLDDamageLine>* Totals=DamageTotals.Find(Contender)) { Out=*Totals; }
     LDDamageRecap::SortTotals(Out);
+    return true;
+}
+
+bool ALDCombatDirector::ReadResultCombat(const FGuid& Contender,FLDResultCombat& Out) const
+{
+    Out={};
+    const FLDCombatEntityRecord* Record=FindRecord(Contender);
+    if(!Record||Record->Kind!=ELDVictimKind::Contender){return false;}
+
+    Out.bAvailable=true;
+    const FLDAttributeProjection& Projection=Record->Projection;
+    for(const FLDAttributeContributions& Attribute:Projection.Contributions)
+    {
+        FLDResultAttribute& Row=Out.Attributes.AddDefaulted_GetRef();
+        Row.Attribute=uint8(Attribute.Attribute);Row.Value=Attribute.Final;
+    }
+    const FLDKeystoneActivation& Keys=Projection.Keystones;
+    Out.KeystoneMask=uint8(Keys.bPhysique)|(uint8(Keys.bThickSkin)<<1)|(uint8(Keys.bStrength)<<2)
+        |(uint8(Keys.bBrains)<<3)|(uint8(Keys.bAgility)<<4);
+    if(const TArray<FLDBlueprintVersion>* Versions=BuildLedger.Find(Contender))
+    {
+        for(const FLDBlueprintVersion& Version:*Versions)
+        {
+            Out.DamageTakenP2+=Version.Facts[int32(ELDBlueprintFact::DamageTaken)].Value;
+            Out.ShieldAbsorbedP2+=Version.Facts[int32(ELDBlueprintFact::ShieldAbsorbed)].Value;
+            Out.HealingP2+=Version.Facts[int32(ELDBlueprintFact::Healing)].Value;
+        }
+    }
+    TMap<FName,FLDResultCardContribution> Cards;
+    if(const FReportCounters* Report=ReportCounters.Find(Contender))
+    {
+        Out.PhysicalToPlayersP2=Report->PhysicalToPlayersP2;
+        Out.MagicalToPlayersP2=Report->MagicalToPlayersP2;
+        Out.ReactionToPlayersP2=Report->ReactionToPlayersP2;
+        Out.RecoveryPackP2=Report->RecoveryPackP2;
+        Out.Reactions=Report->Reactions;
+        Out.PeakReactionP2=Report->PeakReactionP2;
+        for(const auto& Entry:Report->CardShields){Cards.FindOrAdd(Entry.Key).ShieldP2=Entry.Value;}
+    }
+    if(const TArray<FLDDamageLine>* Lines=DamageTotals.Find(Contender))
+    {
+        for(const FLDDamageLine& Line:*Lines)
+        {
+            if(Line.Source.Kind==ELDCombatSourceKind::Card&&!Line.Source.DefinitionId.IsNone())
+            {
+                Cards.FindOrAdd(Line.Source.DefinitionId).DamageP2+=Line.DamageP2;
+            }
+        }
+    }
+    if(const TMap<FName,int32>* Counts=CardTriggerCounts.Find(Contender))
+    {
+        for(const auto& Entry:*Counts){Cards.FindOrAdd(Entry.Key).Triggers=Entry.Value;}
+    }
+    for(auto& Entry:Cards)
+    {
+        Entry.Value.Card=Entry.Key;
+        Out.Cards.Add(MoveTemp(Entry.Value));
+    }
+    Out.Cards.Sort([](const FLDResultCardContribution& A,const FLDResultCardContribution& B){return A.Card.LexicalLess(B.Card);});
     return true;
 }

@@ -254,6 +254,58 @@ struct FLDResultBuild
 };
 
 USTRUCT()
+struct FLDResultAttribute
+{
+    GENERATED_BODY()
+    UPROPERTY() uint8 Attribute = 0;
+    UPROPERTY() FLDDemoRational Value;
+};
+
+USTRUCT()
+struct FLDResultCardContribution
+{
+    GENERATED_BODY()
+    UPROPERTY() FName Card;
+    UPROPERTY() int64 DamageP2 = 0;
+    UPROPERTY() int64 ShieldP2 = 0;
+    UPROPERTY() int64 Triggers = 0;
+};
+
+USTRUCT()
+struct FLDResultGrowthPhase
+{
+    GENERATED_BODY()
+    UPROPERTY() int64 Allocated = 0;
+    UPROPERTY() int64 Refunded = 0;
+    UPROPERTY() int64 BoughtCards = 0;
+    UPROPERTY() int64 BoughtSkills = 0;
+    UPROPERTY() int64 RefreshedShop = 0;
+    UPROPERTY() TArray<FLDResultBuildActive> Skills;
+    UPROPERTY() TArray<FName> AcquiredCards;
+    UPROPERTY() FName FinalMod;
+};
+
+USTRUCT()
+struct FLDResultCombat
+{
+    GENERATED_BODY()
+    UPROPERTY() bool bAvailable = false;
+    // Physical and magical buckets exclude damage directly tagged as a reaction.
+    UPROPERTY() int64 PhysicalToPlayersP2 = 0;
+    UPROPERTY() int64 MagicalToPlayersP2 = 0;
+    UPROPERTY() int64 ReactionToPlayersP2 = 0;
+    UPROPERTY() int64 DamageTakenP2 = 0;
+    UPROPERTY() int64 ShieldAbsorbedP2 = 0;
+    UPROPERTY() int64 HealingP2 = 0;
+    UPROPERTY() int64 RecoveryPackP2 = 0;
+    UPROPERTY() int64 Reactions = 0;
+    UPROPERTY() int64 PeakReactionP2 = 0;
+    UPROPERTY() TArray<FLDResultAttribute> Attributes;
+    UPROPERTY() uint8 KeystoneMask = 0;
+    UPROPERTY() TArray<FLDResultCardContribution> Cards;
+};
+
+USTRUCT()
 struct FLDResultRow
 {
     GENERATED_BODY()
@@ -268,6 +320,9 @@ struct FLDResultRow
     UPROPERTY() int64 BankedGuardMs = 0;
     UPROPERTY() uint32 CompletedSprays = 0;
     UPROPERTY() FLDResultBuild Build;
+    UPROPERTY() FLDResultCombat Combat;
+    // Opening and R1–R3 include the following field segment. The last entry is the final field.
+    UPROPERTY() TArray<FLDResultGrowthPhase> Growth;
 };
 
 // Frozen public result. Rows follow the locked start roster; statistics never choose the winner.

@@ -152,22 +152,6 @@ LDWorkshop::FLibraryFit LDWorkshop::FitLibrary(FIntVector4 Counts,float Width,fl
     Result.bFits=true;
     return Result;
 }
-float LDWorkshop::StackedTrayLimit(FIntVector4 Counts,float Width,float AvailableHeight,float MinIcon,float TextScale)
-{
-    FIntVector4 First(0,0,0,0);
-    for(int32 Kind=0;Kind<LibraryGroupCount;++Kind)
-    {
-        if(Counts[Kind]>0){First[Kind]=1;break;}
-    }
-    float Reserve=36.f;
-    if(First!=FIntVector4(0,0,0,0))
-    {
-        const FLibraryFit Minimum=FitLibrary(First,Width,TNumericLimits<float>::Max(),MinIcon,TextScale);
-        if(!Minimum.bFits){return 0.f;}
-        Reserve=FMath::Max(Reserve,Minimum.RequiredHeight);
-    }
-    return FMath::Max(0.f,AvailableHeight-Reserve);
-}
 LDWorkshop::FPendingFit LDWorkshop::FitPending(const TArray<float>& Heights,float Height,float PagerHeight)
 {
     FPendingFit Result;
@@ -246,18 +230,29 @@ LDWorkshop::FColumnHead LDWorkshop::ColumnHead(LDHUD::EStorageColumn Column,FNam
     }
     return Head;
 }
+TArray<ELDDemoElement> LDWorkshop::CardElements(FName Card,const FLDDemoContentDefinitions* Content)
+{
+    TArray<ELDDemoElement> Out;
+    if(const FLDDemoCardDefinition* Definition=LDHUD::CardDefinitionOf(Content,Card))
+    {
+        for(const FLDDemoEffectDefinition& Effect:Definition->Effects){WorkshopAddElement(Out,WorkshopEffectElement(Effect));}
+    }
+    return Out;
+}
+
 TArray<ELDDemoElement> LDWorkshop::BuildElements(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
 {
     TArray<ELDDemoElement> Out;
-    for(const FLDActiveSlotView& Held:Progression.Actives){for(ELDDemoElement Element:ActiveElements(Held.DefinitionId,Content)){WorkshopAddElement(Out,Element);}}
+    for(const FLDActiveSlotView& Held:Progression.Actives)
+    {
+        for(ELDDemoElement Element:ColumnHead(LDHUD::SlotColumn(Held.Slot),Held.DefinitionId,Held.Branch,FString(),Content).Elements)
+        { WorkshopAddElement(Out,Element); }
+    }
     for(const FLDCardInstanceView& Owned:Progression.Cards)
     {
         if(!Owned.IsInstalled()){continue;}
         WorkshopAddElement(Out,Owned.Target.Element);
-        if(const FLDDemoCardDefinition* Definition=LDHUD::CardDefinitionOf(Content,Owned.DefinitionId))
-        {
-            for(const FLDDemoEffectDefinition& Effect:Definition->Effects){WorkshopAddElement(Out,WorkshopEffectElement(Effect));}
-        }
+        for(ELDDemoElement Element:CardElements(Owned.DefinitionId,Content)){WorkshopAddElement(Out,Element);}
     }
     WorkshopSortElements(Out);
     return Out;

@@ -557,7 +557,7 @@ inline const TCHAR* KeystoneName(FName StatId)
 inline FString ResultRuleBoardTitle(const FString& Name){return Name.IsEmpty()?FString(TEXT("赢家规则板")):FString::Printf(TEXT("【%s】的规则板"),*Name);}
 inline constexpr TCHAR ResultViewSelf[]=TEXT("查看自己");
 inline constexpr TCHAR ResultInspectSelf[]=TEXT("查看自己");
-inline constexpr TCHAR ResultClickSwitchHint[]=TEXT("点击左侧任意参赛者行可切换查看其完整终局构筑");
+
 inline constexpr TCHAR CopyRoomAddress[]=TEXT("复制房间地址");
 inline constexpr TCHAR RestReadyCommit[]=TEXT("准备完毕");
 inline constexpr TCHAR RestReadyCancel[]=TEXT("已准备（点击取消）");
