@@ -272,6 +272,13 @@ LDSliceVfx::FSkillSystems LDSliceVfx::SkillSystemsOf(uint8 Ability)
     case ELDDemoAbilityId::ActiveCrotchGrab: Out.Release = ESystem::GrabRelease; Out.Hit = ESystem::GrabHit; break;
     case ELDDemoAbilityId::ActiveBailOut: Out.Release = ESystem::BailRelease; break;
     case ELDDemoAbilityId::ActiveChargedRam: Out.Release = ESystem::RamRelease; Out.Hit = ESystem::RamHit; break;
+    case ELDDemoAbilityId::ActiveUnplug: Out.Release = ESystem::UnplugRelease; Out.Hit = ESystem::UnplugHit; break;
+    case ELDDemoAbilityId::ActiveNotMad: Out.Release = ESystem::NotMadRelease; break;
+    case ELDDemoAbilityId::ActiveStareDown: Out.Release = ESystem::StareDownRelease; Out.Aura = ESystem::StareDownAura; break;
+    case ELDDemoAbilityId::ActiveBrace: Out.Release = ESystem::BraceRelease; break;
+    case ELDDemoAbilityId::ActiveTripleCombo: Out.Release = ESystem::TripleRelease; break;
+    case ELDDemoAbilityId::ActiveOpenMic: Out.Release = ESystem::OpenMicRelease; Out.Hit = ESystem::OpenMicHit; break;
+    case ELDDemoAbilityId::ActiveFlurryRush: Out.Release = ESystem::FlurryRelease; Out.Aura = ESystem::FlurryAura; break;
     default: break;
     }
     return Out;
@@ -417,6 +424,21 @@ const TCHAR* LDSliceVfx::SystemName(ESystem System)
     case ESystem::BailRelease: return TEXT("NS_LDBailRelease");
     case ESystem::RamRelease: return TEXT("NS_LDRamRelease");
     case ESystem::RamHit: return TEXT("NS_LDRamHit");
+    case ESystem::ShieldState: return TEXT("NS_LDShieldState");
+    case ESystem::BracedState: return TEXT("NS_LDBracedState");
+    case ESystem::EmpoweredState: return TEXT("NS_LDEmpoweredState");
+    case ESystem::StareDownAura: return TEXT("NS_LDStareDownAura");
+    case ESystem::FlurryAura: return TEXT("NS_LDFlurryAura");
+    case ESystem::UnplugRelease: return TEXT("NS_LDUnplugRelease");
+    case ESystem::UnplugHit: return TEXT("NS_LDUnplugHit");
+    case ESystem::NotMadRelease: return TEXT("NS_LDNotMadRelease");
+    case ESystem::StareDownRelease: return TEXT("NS_LDStareDownRelease");
+    case ESystem::BraceRelease: return TEXT("NS_LDBraceRelease");
+    case ESystem::BraceBurst: return TEXT("NS_LDBraceBurst");
+    case ESystem::TripleRelease: return TEXT("NS_LDTripleRelease");
+    case ESystem::OpenMicRelease: return TEXT("NS_LDOpenMicRelease");
+    case ESystem::OpenMicHit: return TEXT("NS_LDOpenMicHit");
+    case ESystem::FlurryRelease: return TEXT("NS_LDFlurryRelease");
     default: return TEXT("");
     }
 }

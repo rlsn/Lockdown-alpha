@@ -930,6 +930,7 @@ namespace
                     TEXT("kill"),
                     TEXT("casts"),
                     TEXT("skills"),
+                    TEXT("self"),
                 };
                 bool bKnown = false;
                 for (const TCHAR* Category : Known) { bKnown |= Name == Category; }
@@ -1123,6 +1124,47 @@ namespace
                         ChainJobs.Add({Look, FString(TEXT("skills-")) + Skill.Name, OwnSteps, Ahead(Skill.Gap), Home, false, Skill.Windup + .05f, 0.f, 36});
                         ChainJobs.Add({Look, FString(TEXT("skills-")) + Skill.Name + TEXT("-other"), OtherSteps, nullptr, nullptr, false, Skill.Windup + .05f, 0.f, 30});
                     }
+                }
+                else if (Look == TEXT("self"))
+                {
+                    // The self and stance skills: each cast by A (its hit, where it has one, on V1 in front) and as another
+                    // player's by A3 (on V3), A3 also wearing the state its cast leaves (a shield from the cue, braced, the
+                    // empowered basics; A's own statuses come from its character). Then the brace running out on A3 and its
+                    // shove. The approved level-1 windups.
+                    const auto Wear = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, ELDDemoStatusId Status)
+                    {
+                        return [Body, Status]()
+                        {
+                            if (auto* B = Body.Get())
+                            {
+                                TArray<FLDObservedStatus> Statuses;
+                                if (Status != ELDDemoStatusId(0)) { Statuses.AddDefaulted_GetRef().StatusId = uint8(Status); }
+                                B->SetElementStates(Statuses);
+                            }
+                        };
+                    };
+                    const auto Undress = [Home, A3]() { Home(); if (auto* B = A3.Get()) { B->SetCue(0); B->SetElementStates({}); } };
+                    struct FSelfShot { const TCHAR* Name; ELDDemoAbilityId Ability; float Windup; uint8 CueBits; ELDDemoStatusId Status; ELDObservedHitLook Hit; float HitAt; double Gap; float ShowAt; int32 Frames; };
+                    const ELDDemoStatusId NoStatus = ELDDemoStatusId(0);
+                    for (const FSelfShot& Skill : {
+                        FSelfShot{TEXT("unplug"), ELDDemoAbilityId::ActiveUnplug, 0.f, 0, NoStatus, ELDObservedHitLook::None, .2f, 150., .15f, 24},
+                        FSelfShot{TEXT("notmad"), ELDDemoAbilityId::ActiveNotMad, 0.f, ULDHumanoidVisualComponent::Shielded, NoStatus, ELDObservedHitLook::None, -1.f, 250., .1f, 36},
+                        FSelfShot{TEXT("staredown"), ELDDemoAbilityId::ActiveStareDown, .2f, 0, NoStatus, ELDObservedHitLook::None, -1.f, 250., .45f, 45},
+                        FSelfShot{TEXT("brace"), ELDDemoAbilityId::ActiveBrace, .1f, 0, ELDDemoStatusId::Braced, ELDObservedHitLook::None, -1.f, 250., .25f, 36},
+                        FSelfShot{TEXT("triple"), ELDDemoAbilityId::ActiveTripleCombo, 0.f, 0, ELDDemoStatusId::Empowered, ELDObservedHitLook::None, -1.f, 250., .1f, 36},
+                        FSelfShot{TEXT("openmic"), ELDDemoAbilityId::ActiveOpenMic, .15f, ULDHumanoidVisualComponent::Shielded, NoStatus, ELDObservedHitLook::Magic, .2f, 250., .3f, 36},
+                        FSelfShot{TEXT("flurry"), ELDDemoAbilityId::ActiveFlurryRush, 0.f, 0, NoStatus, ELDObservedHitLook::None, -1.f, 250., .6f, 45}})
+                    {
+                        // The cast with its cue's status bits (a shield) from its start.
+                        const auto OtherCast = [Body = A3, Skill]() { if (auto* B = Body.Get()) { B->SetComboStep(0); B->SetCastAbility(uint8(Skill.Ability)); B->SetCue(2 | Skill.CueBits, 0.f, Skill.Windup); } };
+                        TArray<FSeqStep> OwnSteps{{0.f, CastOf(A, Skill.Ability, Skill.Windup)}}, OtherSteps{{0.f, OtherCast}};
+                        if (Skill.Status != NoStatus) { OtherSteps.Add({Skill.Windup + .05f, Wear(A3, Skill.Status)}); }
+                        if (Skill.HitAt > 0.f) { OwnSteps.Add({Skill.HitAt, HitOf(V1, Skill.Hit)}); OtherSteps.Add({Skill.HitAt, HitOf(V3, Skill.Hit)}); }
+                        ChainJobs.Add({Look, FString(TEXT("self-")) + Skill.Name, OwnSteps, Ahead(Skill.Gap), Home, false, Skill.ShowAt, 0.f, Skill.Frames});
+                        ChainJobs.Add({Look, FString(TEXT("self-")) + Skill.Name + TEXT("-other"), OtherSteps, nullptr, Undress, false, Skill.ShowAt + .3f, 0.f, Skill.Frames});
+                    }
+                    ChainJobs.Add({Look, TEXT("self-brace-end"), {{0.f, CastOf(A3, ELDDemoAbilityId::ActiveBrace, .1f)}, {.15f, Wear(A3, ELDDemoStatusId::Braced)},
+                        {3.1f, Wear(A3, NoStatus)}}, nullptr, Undress, false, 3.18f, 2.95f, 24});
                 }
                 else if (Look == TEXT("casts"))
                 {
@@ -1378,6 +1420,7 @@ namespace
                     TEXT("kill"),
                     TEXT("casts"),
                     TEXT("skills"),
+                    TEXT("self"),
                 };
                 bool bLookOnly = false;
                 for (const TCHAR* Category : LookOnly) { bLookOnly |= Look == Category; }

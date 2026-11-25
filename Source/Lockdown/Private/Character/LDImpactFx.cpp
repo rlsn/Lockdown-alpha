@@ -1500,6 +1500,41 @@ float ULDImpactFxSubsystem::SkillEffectRadius(uint8 Ability, uint16 Opcode)
     return 0.f;
 }
 
+float ULDImpactFxSubsystem::SkillSelfRadius(uint8 Ability)
+{
+    OverdriveHoldSeconds();
+    if (!Content) { return 0.f; }
+    for (const FLDDemoAbilityDefinition& Definition : Content->Get().Abilities)
+    {
+        if (Definition.NativeId != Ability) { continue; }
+        for (const FLDDemoEffectDefinition& Effect : Definition.Values.Effects)
+        {
+            const ELDDemoEffectOp Op = static_cast<ELDDemoEffectOp>(Effect.Opcode);
+            if ((Op == ELDDemoEffectOp::ParryStance || Op == ELDDemoEffectOp::Taunt || Op == ELDDemoEffectOp::SelfArea || Op == ELDDemoEffectOp::Brace)
+                && Effect.RadiusCm.Denominator > 0) { return float(double(Effect.RadiusCm.Numerator) / double(Effect.RadiusCm.Denominator)); }
+        }
+    }
+    return 0.f;
+}
+
+float ULDImpactFxSubsystem::SkillHoldSeconds(uint8 Ability)
+{
+    OverdriveHoldSeconds();
+    if (!Content) { return 0.f; }
+    int64 Longest = 0;
+    for (const FLDDemoAbilityDefinition& Definition : Content->Get().Abilities)
+    {
+        if (Definition.NativeId != Ability) { continue; }
+        for (const FLDDemoEffectDefinition& Effect : Definition.Values.Effects)
+        {
+            const ELDDemoEffectOp Op = static_cast<ELDDemoEffectOp>(Effect.Opcode);
+            if (Op == ELDDemoEffectOp::ParryStance || Op == ELDDemoEffectOp::TimedStatBonus || Op == ELDDemoEffectOp::FrenzyWaves || Op == ELDDemoEffectOp::Brace)
+            { Longest = FMath::Max(Longest, Effect.DurationMs); }
+        }
+    }
+    return float(double(Longest) / 1000.);
+}
+
 float ULDImpactFxSubsystem::ConductRadiusCm()
 {
     OverdriveHoldSeconds();

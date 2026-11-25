@@ -37,21 +37,20 @@ namespace LDHumanoidVisualDetail
     // Animate and ApplyLook.
     enum EPart : int32
     {
-        RootRing, RootRim, ShackleLeft, ShackleRight, ShieldHalo,
-        ShieldBar0, ShieldBar1, ShieldBar2, ShieldBar3, ShieldBar4, ShieldBar5, ShieldBar6, ShieldBar7,
+        RootRing, RootRim, ShackleLeft, ShackleRight,
         ProtectionBeam, ProtectionOrb0, ProtectionOrb1, ProtectionOrb2, ProtectionOrb3, ReturnSign,
         Burst, SpawnColumn, PartCount
     };
-    constexpr int32 ShieldBars = 8, ProtectionOrbs = 4;
+    constexpr int32 ProtectionOrbs = 4;
     enum EShape : uint8 { Cube, Sphere, Cylinder };
     struct FPartSpec
     {
         const TCHAR* Name;
         EShape Shape;
-        FVector Scale; // BasicShapes units (100 cm); Layout fits the shield bars to the body's height
+        FVector Scale; // BasicShapes units (100 cm)
     };
-    // Status markers: root is a pulsing disc on a dark rim at the feet with ankle shackles, shield a turning cage of bars
-    // under a halo, protection a beam over the head with orbiting orbs, camp return a sign on the back. Effects: the
+    // Status markers: root is a pulsing disc on a dark rim at the feet with ankle shackles, protection a beam over the head
+    // with orbiting orbs, camp return a sign on the back (a shield is the Niagara ShieldState, UpdateStates). Effects: the
     // release spark and the appear column. The feet discs stand above the own-body marker's.
     const FPartSpec Specs[PartCount] =
     {
@@ -59,15 +58,6 @@ namespace LDHumanoidVisualDetail
         {TEXT("RootRim"), Cylinder, {1.25,1.25,.02}},
         {TEXT("ShackleLeft"), Cylinder, {.3,.3,.08}},
         {TEXT("ShackleRight"), Cylinder, {.3,.3,.08}},
-        {TEXT("ShieldHalo"), Cylinder, {.62,.62,.025}},
-        {TEXT("ShieldBar0"), Cylinder, {.06,.06,1.8}},
-        {TEXT("ShieldBar1"), Cylinder, {.06,.06,1.8}},
-        {TEXT("ShieldBar2"), Cylinder, {.06,.06,1.8}},
-        {TEXT("ShieldBar3"), Cylinder, {.06,.06,1.8}},
-        {TEXT("ShieldBar4"), Cylinder, {.06,.06,1.8}},
-        {TEXT("ShieldBar5"), Cylinder, {.06,.06,1.8}},
-        {TEXT("ShieldBar6"), Cylinder, {.06,.06,1.8}},
-        {TEXT("ShieldBar7"), Cylinder, {.06,.06,1.8}},
         {TEXT("ProtectionBeam"), Cylinder, {.14,.14,1.3}},
         {TEXT("ProtectionOrb0"), Sphere, {.13,.13,.13}},
         {TEXT("ProtectionOrb1"), Sphere, {.13,.13,.13}},
@@ -78,8 +68,8 @@ namespace LDHumanoidVisualDetail
         {TEXT("SpawnColumn"), Cylinder, {.9,.9,3.2}},
     };
     // One fixed colour per status on every unit, apart from all eight seat tints, the turf and the red track:
-    // root hot magenta, shield bright cyan, protection white-gold; each edged in near-black.
-    const FLinearColor RootColour(1.f,.02f,.58f), EdgeColour(.012f,.01f,.016f), ShieldColour(0.f,.78f,1.f);
+    // root hot magenta, protection white-gold; each edged in near-black.
+    const FLinearColor RootColour(1.f,.02f,.58f), EdgeColour(.012f,.01f,.016f);
     const FLinearColor ProtectionColour(1.f,.92f,.62f), ReturnColour(.95f,.95f,.95f);
     const FLinearColor BurstColour(1.f,.95f,.7f), ColumnColour(1.f,.9f,.55f);
     // Emissive over the whole body through the art materials' Flash: a typed hit flashes, then white; an appear glows.
@@ -104,9 +94,6 @@ namespace LDHumanoidVisualDetail
     struct FEdgeSpec { EPart Marker; FVector Grow; };
     const FEdgeSpec EdgeSpecs[] =
     {
-        {ShieldHalo, {.06,.06,0}},
-        {ShieldBar0, {.06,.06,.06}}, {ShieldBar1, {.06,.06,.06}}, {ShieldBar2, {.06,.06,.06}}, {ShieldBar3, {.06,.06,.06}},
-        {ShieldBar4, {.06,.06,.06}}, {ShieldBar5, {.06,.06,.06}}, {ShieldBar6, {.06,.06,.06}}, {ShieldBar7, {.06,.06,.06}},
         {ProtectionBeam, {.06,.06,.06}},
         {ProtectionOrb0, {.06,.06,.06}}, {ProtectionOrb1, {.06,.06,.06}}, {ProtectionOrb2, {.06,.06,.06}},
         {ProtectionOrb3, {.06,.06,.06}},
@@ -116,7 +103,6 @@ namespace LDHumanoidVisualDetail
     {
         if (Index == RootRim) { return EdgeColour; }
         if (Index == RootRing || Index == ShackleLeft || Index == ShackleRight) { return RootColour; }
-        if (Index == ShieldHalo || (Index >= ShieldBar0 && Index < ShieldBar0 + ShieldBars)) { return ShieldColour; }
         if (Index == ProtectionBeam || (Index >= ProtectionOrb0 && Index < ProtectionOrb0 + ProtectionOrbs)) { return ProtectionColour; }
         if (Index == ReturnSign) { return ReturnColour; }
         if (Index == Burst) { return BurstColour; }
@@ -392,6 +378,10 @@ void ULDHumanoidVisualComponent::SetElementStates(const TArray<FLDObservedStatus
         const FLDObservedStatus* Found = Statuses.FindByPredicate([Index](const FLDObservedStatus& Status) { return Status.StatusId == uint8(Ids[Index]); });
         StateStacks[Index] = Found ? FMath::Max<uint8>(Found->Stacks, 1) : 0;
     }
+    const auto Has = [&Statuses](ELDDemoStatusId Id)
+    { return Statuses.ContainsByPredicate([Id](const FLDObservedStatus& Status) { return Status.StatusId == uint8(Id); }); };
+    GuardOn[1] = Has(ELDDemoStatusId::Braced);
+    GuardOn[2] = Has(ELDDemoStatusId::Empowered);
 }
 
 void ULDHumanoidVisualComponent::UpdateStates(bool bFalling, float EffectScale)
@@ -422,6 +412,52 @@ void ULDHumanoidVisualComponent::UpdateStates(bool bFalling, float EffectScale)
             LDSliceVfx::ElementInk(uint8(Index == 0 ? ELDCombatElement::Fire : Index == 1 ? ELDCombatElement::Water : Index == 2 ? ELDCombatElement::Shock
                 : Index == 3 ? ELDCombatElement::Chill : ELDCombatElement::Rot)), .17f * HeightCm, Strength, 1.e4f, bOwnBody);
     }
+    // Guards and stances under the element states, hits and telegraphs: a shield (from the cue), braced, the own empowered
+    // basics; and a self skill's aura from its release for its hold, eased in and out.
+    static constexpr LDSliceVfx::ESystem Guards[GuardStates] = {LDSliceVfx::ESystem::ShieldState, LDSliceVfx::ESystem::BracedState,
+        LDSliceVfx::ESystem::EmpoweredState};
+    const float Guard = 1.5f * (bOwnBody ? 1.f : .75f) * FMath::Clamp(EffectScale, .45f, 1.f);
+    const bool bWorn[GuardStates] = {(Cue & Shielded) != 0, GuardOn[1], GuardOn[2]};
+    for (int32 Index = 0; Index < GuardStates; ++Index)
+    {
+        if (!bShow || !bWorn[Index])
+        {
+            if (IsValid(GuardEffects[Index])) { GuardEffects[Index]->DestroyComponent(); }
+            GuardEffects[Index] = nullptr;
+            continue;
+        }
+        GuardEffects[Index] = Impacts->ShowLoop(*Pivot, GuardEffects[Index], Guards[Index], Feet, Head, FLinearColor::White, .17f * HeightCm,
+            Guard, 1.e4f, bOwnBody);
+    }
+    if (bFalling) { AuraUntil = BraceEndsAt = -1; }
+    if (bShow && AuraSystem != 0 && Clock < AuraUntil)
+    {
+        const float Ease = float(FMath::Clamp((AuraUntil - Clock) / .3, 0., 1.) * FMath::Clamp((Clock - AuraFrom) / .15, 0., 1.));
+        AuraEffect = Impacts->ShowLoop(*Pivot, AuraEffect, LDSliceVfx::ESystem(AuraSystem), Feet, Head, FLinearColor::White, .17f * HeightCm,
+            Guard * Ease, 1.e4f, bOwnBody);
+    }
+    else
+    {
+        if (IsValid(AuraEffect)) { AuraEffect->DestroyComponent(); }
+        AuraEffect = nullptr;
+        if (Clock >= AuraUntil) { AuraSystem = 0; }
+    }
+    // The brace ending at its expected time (not a death, which falls) shoves back over its radius.
+    if (bBracedShown && !GuardOn[1] && BraceEndsAt > 0. && FMath::Abs(Clock - BraceEndsAt) < .4 && bShow)
+    {
+        const float Radius = Impacts->SkillSelfRadius(uint8(ELDDemoAbilityId::ActiveBrace));
+        const FVector Forward = GetOwner() ? GetOwner()->GetActorForwardVector() : FVector::ForwardVector;
+        const FVector Ahead = FVector(Forward.X, Forward.Y, 0.).GetSafeNormal();
+        const FVector Chest = Space.TransformPosition(FVector(0, 0, .55f * HeightCm - HalfHeight));
+        if (Radius > 0.f && !Ahead.IsNearlyZero())
+        {
+            const LDSliceVfx::FLook Look = Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, bOwnBody, bOwnBody);
+            Impacts->Play(LDSliceVfx::ESystem::BraceBurst, *this, Chest, Chest + Ahead * Radius, FLinearColor::White, 70.f * Look.Size,
+                1.1f * Look.Seconds, Look, 0.f);
+        }
+        BraceEndsAt = -1;
+    }
+    bBracedShown = GuardOn[1];
 }
 
 void ULDHumanoidVisualComponent::UpdateRelease(float EffectScale)
@@ -505,9 +541,22 @@ void ULDHumanoidVisualComponent::UpdateRelease(float EffectScale)
         {
             float Range = 0.f, HalfWidth = 0.f;
             if (!Impacts->SkillReach(CastAbility, Range, HalfWidth)) { Range = Impacts->SkillDashCm(CastAbility); }
+            if (Range <= 0.f) { Range = Impacts->SkillSelfRadius(CastAbility); }
             if (Range <= 0.f) { Range = 200.f; }
+            // A self skill's hold: active_unplug's release is its parry stance for that long; an aura is worn that long;
+            // active_brace's shove is due when it runs out.
+            const float Hold = Impacts->SkillHoldSeconds(CastAbility);
+            const bool bStance = CastAbility == uint8(ELDDemoAbilityId::ActiveUnplug) && Hold > 0.f;
             const FVector Chest = Pivot->GetComponentTransform().TransformPosition(FVector(0, 0, .55f * HeightCm - HalfHeight));
-            Impacts->Play(Systems.Release, *this, Chest, Chest + Ahead * Range, LDSliceVfx::StrikeTint(Look), 70.f * Look.Size, .9f * Look.Seconds, Look, Late);
+            Impacts->Play(Systems.Release, *this, Chest, Chest + Ahead * Range, LDSliceVfx::StrikeTint(Look), 70.f * Look.Size,
+                bStance ? Hold : .9f * Look.Seconds, Look, Late);
+            if (Systems.Aura != LDSliceVfx::ESystem::Count && Hold > 0.f)
+            {
+                AuraSystem = uint8(Systems.Aura);
+                AuraFrom = Clock - Late;
+                AuraUntil = AuraFrom + Hold;
+            }
+            if (CastAbility == uint8(ELDDemoAbilityId::ActiveBrace) && Hold > 0.f) { BraceEndsAt = Clock - Late + Hold; }
         }
         Impacts->NoteStrike(*this, LDSliceVfx::EStrike::Skill, At, Facing, bOwnBody, CastAbility);
     }
@@ -934,11 +983,6 @@ void ULDHumanoidVisualComponent::Layout()
     Parts[RootRim]->SetRelativeLocation(FVector(0, 0, Foot + 2.8f));
     Parts[ShackleLeft]->SetRelativeLocation(FVector(0, -11.f * Girth, Foot + 16.f));
     Parts[ShackleRight]->SetRelativeLocation(FVector(0, 11.f * Girth, Foot + 16.f));
-    Parts[ShieldHalo]->SetRelativeLocation(FVector(0, 0, Top + 14.f));
-    for (int32 Bar = 0; Bar < ShieldBars; ++Bar)
-    {
-        Parts[ShieldBar0 + Bar]->SetRelativeScale3D(FVector(.06f, .06f, (HeightCm + 14.f) / 100.f));
-    }
     Parts[ProtectionBeam]->SetRelativeLocation(FVector(0, 0, Top + 79.f));
     Parts[ReturnSign]->SetRelativeLocation(FVector(-24.f * Girth, 0, Foot + .74f * HeightCm));
     Parts[SpawnColumn]->SetRelativeLocation(FVector(0, 0, Foot + 160.f));
@@ -1449,17 +1493,6 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
         const float Pulse = 1.05f * (1.f + .07f * FMath::Sin(Time * 9.f));
         Parts[RootRing]->SetRelativeScale3D(FVector(Pulse, Pulse, .03f));
         Parts[RootRim]->SetRelativeScale3D(FVector(Pulse + .2f, Pulse + .2f, .02f));
-    }
-    const bool bShield = !bFalling && (Cue & Shielded);
-    Parts[ShieldHalo]->SetHiddenInGame(!bShield);
-    for (int32 Bar = 0; Bar < ShieldBars; ++Bar)
-    {
-        Parts[ShieldBar0 + Bar]->SetHiddenInGame(!bShield);
-        if (!bShield) { continue; }
-        const float Angle = FMath::DegreesToRadians(45.f * Bar + 40.f * Time);
-        Parts[ShieldBar0 + Bar]->SetRelativeLocation(
-            FVector(56.f * Girth * FMath::Cos(Angle), 56.f * Girth * FMath::Sin(Angle),
-                Foot + .5f * (HeightCm + 14.f)));
     }
     const bool bProtected = !bFalling && (Cue & Protected);
     Parts[ProtectionBeam]->SetHiddenInGame(!bProtected);

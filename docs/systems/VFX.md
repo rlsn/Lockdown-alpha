@@ -366,24 +366,24 @@
 | `active_elbow` 滚远点 | 无 · 单体击退 | LOCALLY VERIFIED | 前摇：通用族；`NS_LDElbowRelease`：身前加厚的弧形推压波 + 两道回波、被推向前方的暗色尘团；`NS_LDElbowHit`：接触点 0.1 s 暖白冲击核与光、胸口加粗的暖色冲击环、沿 300 cm 击退路径的暗色尘迹与地面拖痕、碎屑 | `production/vfx/batch5e-physical-mass/` | 用户未验收 |
 | `active_pants_down` 扒裤子 | 无 · 直线拉拽 + 定身 | LOCALLY VERIFIED | 前摇：通用族；`NS_LDPantsRelease`：加粗的暖色绳鞭（地面上有暗色影绳）甩出到 440 cm、末端暖色脆响、再回抽；`NS_LDPantsHit`：脚踝暖白冲击核、两道加粗收紧的箍、朝施法者的拉扯线、脚边扬起的暗尘 | `production/vfx/batch5e-physical-mass/` | 用户未验收；脚边暗尘在亮地面上偏淡 |
 | `active_crotch_grab` 掏蛋子 | 无 · 冲刺接触 + 减速 | LOCALLY VERIFIED | 前摇：通用族；`NS_LDGrabRelease`：三条加粗的贴地速度线随冲刺展开、暗色尘迹与终点刹车扬尘；`NS_LDGrabHit`：髋部高度的暖白冲击核与光、加粗的低位爆环、髋部暗尘、下坠暖色火星 | `production/vfx/batch5e-physical-mass/` | 用户未验收 |
-| `active_unplug` 拧你手腕 | 无 · 招架架势 280 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；专属效果无 | — | 专属释放与命中未设计 |
+| `active_unplug` 拧你手腕 | 无 · 招架架势 280 | LOCALLY VERIFIED | `NS_LDUnplugRelease`：招架期间（数据 0.45 s）胸前交叉的钢色双臂 X、颤动，身周细卸力环；`NS_LDUnplugHit`：反震打在出手者身上——绕胸收紧的扭腕螺旋、暖白冲击核、缴械碎屑下落 | `production/vfx/batch6-self/` | 用户未验收 |
 | `active_snark_bolt` 甩你一鞋 | 无 · 投射物 + 落地拖鞋 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：粒子带；落地 `SlipperDrop` | — | 专属释放与命中未设计 |
 | `active_seethe` 烫你屁股 | 火 · 自身圆 300 | LOCALLY VERIFIED | `NS_LDSeetheTell`、`NS_LDSeetheBurst`、`NS_LDFireHit`；贴图 `fire_*` | `production/vfx/batch2/fire/` | 焦地随区域软边；用户未验收 |
 | `active_quick_meeting` 脚底开锅 | 火 · 地点圆 240，3 跳 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：区域粒子（AreaFire） | — | 专属释放与命中未设计 |
 | `active_bail_out` 贴脸补一拳 | 无 · 冲刺 + 强化普攻 | LOCALLY VERIFIED | 前摇：通用族；`NS_LDBailRelease`：肩高两条加粗滑流线随冲刺、身后暗色尘迹、终点双拳暖色亮起 0.5 s；本技能自身无命中 | `production/vfx/batch5e-physical-mass/` | 用户未验收；拳光在俯视下仍偏小 |
-| `active_not_mad` 锅盖挡脸 | 无 · 自身护盾 + 解控 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；护盾仍为旧几何笼 | — | 专属释放与命中未设计 |
-| `active_stare_down` 来打老子啊 | 无 · 自身圆 300 嘲讽 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；专属效果无 | — | 专属释放与命中未设计 |
-| `active_triple_combo` 左右开抽 | 无 · 3 次强化普攻 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；专属效果无 | — | 专属释放与命中未设计 |
+| `active_not_mad` 锅盖挡脸 | 无 · 自身护盾 + 解控 | LOCALLY VERIFIED | `NS_LDNotMadRelease`：脸前弹起的锅盖（圆形钢边 + 闪光）、腰间向外崩碎的解控碎片；护盾见 §7.6 `NS_LDShieldState` | `production/vfx/batch6-self/` | 用户未验收 |
+| `active_stare_down` 来打老子啊 | 无 · 自身圆 300 嘲讽 | LOCALLY VERIFIED | 前摇：通用族；`NS_LDStareDownRelease`：胸前猩红喷气、地面猩红怒视环冲到 300 cm、再从环上向身体回收的 12 道牵引线；`NS_LDStareDownAura`：护甲增益期间（数据 3 s）胸与髋两道分成八块的钢甲环、绕行的猩红闪光 | `production/vfx/batch6-self/` | 用户未验收；被嘲讽者身上无标记（嘲讽状态不公开） |
+| `active_triple_combo` 左右开抽 | 无 · 3 次强化普攻 | LOCALLY VERIFIED | `NS_LDTripleRelease`：胸前双拳暖色亮起、头顶依次点亮三颗充能点；强化期间（仅自己可见的 Empowered）`NS_LDEmpoweredState`：两只绕胸转的暖色拳光带拖尾 | `production/vfx/batch6-self/` | 用户未验收；强化普攻命中仍为通用命中 |
 | `active_calculus_drop` 板砖糊脸 | 无 · 地点延迟落地 200 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：`BookShadow` 粒子 | — | 专属释放与命中未设计 |
 | `active_flyer_trap` 踩一脚试试 | 无 · 地点陷阱 180 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：`FlyerArming/Armed` 粒子 | — | 专属释放与命中未设计 |
-| `active_open_mic` 扯嗓子喷你 | 无 · 自身圆 340 击退 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：`SpeechCone` 粒子 | — | 专属释放与命中未设计 |
+| `active_open_mic` 扯嗓子喷你 | 无 · 自身圆 340 击退 | LOCALLY VERIFIED | 前摇：通用族；`NS_LDOpenMicRelease`：嘴前爆点、腰高三道相继滚出到 340 cm 的声浪环、地面被吹开的暗尘；`NS_LDOpenMicHit`：沿推力方向扫过身体的三道声弧、紫白核、身后被推开的尘；护盾见 §7.6 | `production/vfx/batch6-self/` | 用户未验收 |
 | `active_charged_ram` 蛮牛顶 | 无 · 冲刺撞人 + 护盾 | LOCALLY VERIFIED | 前摇：通用族；`NS_LDRamRelease`：双层楔形冲锋前沿（暗色影层 + 亮前沿）沿 460 cm 推进、船首推开的暗色尘、身后尘迹与地面拖痕；`NS_LDRamHit`：0.1 s 暖白冲击核与 380 cm 光、贴地重冲击环、暗色重尘、向上崩起的碎屑、地面撞痕 | `production/vfx/batch5e-physical-mass/` | 用户未验收 |
-| `active_brace` 顶着揍 | 无 · 架势 3 s | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；专属效果无 | — | 专属释放与命中未设计 |
+| `active_brace` 顶着揍 | 无 · 架势 3 s | LOCALLY VERIFIED | 前摇：通用族；`NS_LDBraceRelease`：粗铜环从胸口砸到脚下并收紧、脚下压出的暗尘；架势见 §7.6 `NS_LDBracedState`；`NS_LDBraceBurst`：架势按期结束时（释放 + 数据 3 s，且 Braced 在此时消失、未倒地）暖白核、铜色冲击波冲到 300 cm、向外推开的暗尘 | `production/vfx/batch6-self/` | 用户未验收；结束反震只在本机按期推断，提前或延长的架势不播 |
 | `active_cola_shake` 冰可乐摇一摇 | 冰 · 扇形 400/60° | LOCALLY VERIFIED | `NS_LDColaTell`、`NS_LDColaBlast`、命中 `NS_LDChillHit`；贴图 `ice_*` | `production/vfx/batch2/chill/` | 喷射本身偏淡；用户未验收 |
 | `active_desk_fan` 电风扇 | 无 · 地点风带 600×200 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：`Wind` 粒子 | — | 专属释放与命中未设计 |
 | `active_stale_takeout` 过期外卖 | 腐 · 投射物 + 瘴气地面 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：粒子带 | — | 专属释放与命中未设计 |
 | `active_school_bag` 占座书包 | 无 · 地点障碍 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：`Bag`、`BagWall` | — | 专属释放与命中未设计 |
-| `active_flurry_rush` 疯狗乱拳 | 无 · 4 s 拳风波 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：`FistWind` 粒子 | — | 专属释放与命中未设计 |
+| `active_flurry_rush` 疯狗乱拳 | 无 · 4 s 拳风波 | LOCALLY VERIFIED | `NS_LDFlurryRelease`：胸口炽热核与爆环、四射火星；`NS_LDFlurryAura`：狂热期间（数据 4 s）绕身螺旋上升的热痕、腰间三道飞旋的热弧、脚下快步踢起的尘 | `production/vfx/batch6-self/` | 用户未验收；拳风波仍为旧 `FistWind` 粒子（飞行物批次） |
 | `active_cordon_tape` 警戒封条 | 无 · 地点封条线 500 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：`CordonTape` | — | 专属释放与命中未设计 |
 | 技能前摇（通用部分） | Cast 提示前摇 | IMPLEMENTED | 没有专属前摇的技能按目标分两族：`NS_LDCastAim`（施法手低亮度聚能 + 地面朝前的细线）、`NS_LDCastBrace`（脚下向内收的细环，中心留空）；旧施法圆盘 `NS_LDCastCharge` 已删除 | `production/vfx/batch4/casts-*` | 用户未验收 |
 | 施法手蓄能 | Cast 提示前摇 | IMPLEMENTED | 旧的盖住身体的同心圆盘已撤除，由上一行的两族前摇代替 | `production/vfx/batch4/casts-*` | |
@@ -429,7 +429,7 @@
 | 状态 | 状态 | 实现 | 证据 | 已知问题 |
 | --- | --- | --- | --- | --- |
 | 定身 Root | NOT STARTED | 旧：品红圆盘 + 脚镣几何体，近黑边 | — | |
-| 护盾 Shield | NOT STARTED | 旧：青色栅栏几何笼 | — | |
+| 护盾 Shield | LOCALLY VERIFIED | `NS_LDShieldState`（由提示位 Shielded 驱动，取代旧几何笼）：胸口宽、头顶窄两道反向慢转的青色壳环，六段亮面绕行，闪光沿胸环走；亮度低于元素状态 | `production/vfx/batch6-self/` | 用户未验收 |
 | 出生保护 RespawnProtection | NOT STARTED | 旧：光柱 + 环绕球 | — | |
 | 减速 Slow、攻速减慢 AttackSlowed | NOT STARTED | 无 | — | |
 | 眩晕 Stun | NOT STARTED | 无 | — | |
@@ -438,7 +438,9 @@
 | 嘲讽 Taunt | NOT STARTED | 无 | — | |
 | 易伤 Exposed | NOT STARTED | 无 | — | |
 | 击退 Knockback | NOT STARTED | 无（身体位移本身可见） | — | |
-| 架势 Braced、属性增益 StatBoost | NOT STARTED | 无 | — | |
+| 架势 Braced | LOCALLY VERIFIED | `NS_LDBracedState`：腰间粗铜带 + 四个每 1.1 s 向内收紧一次的卡箍、脚下低亮铜色光 | `production/vfx/batch6-self/` | 用户未验收 |
+| 强化普攻 Empowered | LOCALLY VERIFIED | `NS_LDEmpoweredState`（只有自己可见）：两只绕胸转的暖色拳光带拖尾 | `production/vfx/batch6-self/` | 用户未验收 |
+| 属性增益 StatBoost | NOT STARTED | 无（来源众多，`active_stare_down` 与 `active_flurry_rush` 的增益由各自释放后的光环按数据时长表现） | — | |
 | 营地回位 CampReturning | NOT STARTED | 旧：背后牌子 | — | 野怪状态 |
 | 野怪激怒 CampEnraged、守卫 CampGuarding | NOT STARTED | 无 | — | |
 

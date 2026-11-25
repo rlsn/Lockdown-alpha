@@ -84,12 +84,18 @@ namespace LDSliceVfx
     //   CastBrace    the windup of a self-centred skill without its own: Start the floor under the feet
     //   <Skill>Release  a skill's own release: Start the chest at the release, End a point ahead along the facing at its reach
     //   <Skill>Hit      a skill's own hit on a body: Start the side it was struck from, End the struck chest
+    //                (a self skill's release: End along the facing at its own radius, Duration its hold where it has one)
+    //   ShieldState, BracedState, EmpoweredState, <Skill>Aura  a guard, stance or empowerment worn on a body, looping while
+    //                it lasts (laid out as the element states; Intensity kept under theirs)
+    //   BraceBurst   active_brace's natural end: Start the chest, End along the facing at its radius
     enum class ESystem : uint8
     {
         Chain, HitBasic, HitFinisher, Swing1, Swing2, Swing3, Field, Tell1, Tell2, Tell3,
         HoseTell, HoseJet, WaterHit, ZapCharge, SeetheTell, SeetheBurst, FireHit, ColaTell, ColaBlast, ChillHit,
         BurnState, WetState, ShockState, ChillState, RotState, PuddleGround, IceGround, FireGround, MiasmaGround, Knockout, CastAim, CastBrace,
-        ElbowRelease, ElbowHit, PantsRelease, PantsHit, GrabRelease, GrabHit, BailRelease, RamRelease, RamHit, Count
+        ElbowRelease, ElbowHit, PantsRelease, PantsHit, GrabRelease, GrabHit, BailRelease, RamRelease, RamHit,
+        ShieldState, BracedState, EmpoweredState, StareDownAura, FlurryAura, UnplugRelease, UnplugHit, NotMadRelease, StareDownRelease,
+        BraceRelease, BraceBurst, TripleRelease, OpenMicRelease, OpenMicHit, FlurryRelease, Count
     };
     LOCKDOWN_API const TCHAR* SystemName(ESystem System);
     LOCKDOWN_API FString SystemPackage(ESystem System);
@@ -185,7 +191,8 @@ namespace LDSliceVfx
     // accent (LDBroadcast), and the HUD's element chips never change an effect. Shock keeps the approved chain's value.
     LOCKDOWN_API FLinearColor ElementInk(uint8 Element);
     // A skill's own release and hit systems (ELDDemoAbilityId); ESystem::Count where it has none and uses the shared look.
-    struct FSkillSystems { ESystem Release = ESystem::Count; ESystem Hit = ESystem::Count; };
+    // Aura: the self skill's state worn on the caster for its hold after the release (where no public status shows it).
+    struct FSkillSystems { ESystem Release = ESystem::Count; ESystem Hit = ESystem::Count; ESystem Aura = ESystem::Count; };
     LOCKDOWN_API FSkillSystems SkillSystemsOf(uint8 Ability);
     // active_zap at its release: the contact spark at the casting hand (the arcs follow the hits it lands).
     LOCKDOWN_API FRecipe ZapRelease(const FVector& Hand, const FLook& Look);
