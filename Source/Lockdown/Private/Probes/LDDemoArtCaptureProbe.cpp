@@ -1098,8 +1098,9 @@ namespace
                 }
                 else if (Look == TEXT("states"))
                 {
-                    // The five element states on five bodies at once (V1 burn, V2 wet, V3 electrified, A2 chilled, A3 rotten),
-                    // one stack each, then V1 at three stacks of burn; cleared at the end.
+                    // The element states on the stage bodies no character drives (A and V1 are characters whose own statuses
+                    // overwrite a probe's): V2 burn, V3 wet, A2 electrified, A3 chilled at one stack; then V2 rotten and V3 at
+                    // three stacks of burn; cleared at the end.
                     const auto State = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, ELDDemoStatusId Id, uint8 Stacks)
                     {
                         return [Body, Id, Stacks]()
@@ -1114,11 +1115,11 @@ namespace
                     };
                     const auto Clear = [State, V1, V2, V3, A2, A3]()
                     { for (const auto& B : {V1, V2, V3, A2, A3}) { State(B, ELDDemoStatusId::Burn, 0)(); } };
-                    ChainJobs.Add({Look, TEXT("states-all"), {{0.f, State(V1, ELDDemoStatusId::Burn, 1)}, {0.f, State(V2, ELDDemoStatusId::Wet, 1)},
-                        {0.f, State(V3, ELDDemoStatusId::Electrified, 1)}, {0.f, State(A2, ELDDemoStatusId::Chilled, 1)}, {0.f, State(A3, ELDDemoStatusId::Rotten, 1)}},
+                    ChainJobs.Add({Look, TEXT("states-four"), {{0.f, State(V2, ELDDemoStatusId::Burn, 1)}, {0.f, State(V3, ELDDemoStatusId::Wet, 1)},
+                        {0.f, State(A2, ELDDemoStatusId::Electrified, 1)}, {0.f, State(A3, ELDDemoStatusId::Chilled, 1)}},
                         nullptr, Clear, false, 1.f, .6f, 45});
-                    ChainJobs.Add({Look, TEXT("states-sunlit"), {{0.f, State(V1, ELDDemoStatusId::Burn, 3)}, {0.f, State(A, ELDDemoStatusId::Chilled, 1)}},
-                        Sunlit, [Clear, Home, State, A]() { Clear(); State(A, ELDDemoStatusId::Burn, 0)(); Home(); }, false, 1.f, .6f, 30});
+                    ChainJobs.Add({Look, TEXT("states-rot-burn3"), {{0.f, State(V2, ELDDemoStatusId::Rotten, 1)}, {0.f, State(V3, ELDDemoStatusId::Burn, 3)}},
+                        nullptr, Clear, false, 1.f, .6f, 30});
                 }
                 else if (Look == TEXT("chill"))
                 {
