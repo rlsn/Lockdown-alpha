@@ -1435,6 +1435,13 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             };
             Workshop->RequestOpen=[this](){if(ChoicesPanel&&!ChoicesPanel->IsTrayOpen()){ToggleWorkshop();}};
             Workshop->Notify=[this](const FString& Notice){ShowToast(Notice);};
+            // The ring's ground darkening lies under the band, the minimap and the rest of the HUD chrome.
+            WorkshopGround=CreateWidget<ULDBuildRingGround>(PC);
+            if(WorkshopGround)
+            {
+                WorkshopGround->Ring=Workshop;
+                auto* GroundSlot=Canvas->AddChildToCanvas(WorkshopGround);GroundSlot->SetAnchors(FAnchors(0,0,1,1));GroundSlot->SetOffsets(FMargin(0));GroundSlot->SetZOrder(-1);
+            }
         }
         else{UE_LOG(LogLDUI,Error,TEXT("LD_HUD_WORKSHOP_CREATION_FAILED"));}
         // The main panels the root opens one at a time. The 构筑 panel draws nothing (the ring shows its decisions), so only the
@@ -2343,6 +2350,8 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         const auto RingRect=[](const UWidget* Widget){return Widget&&Widget->IsVisible()?Widget->GetCachedGeometry().GetLayoutBoundingRect():FSlateRect();};
         // The top HUD block (the banner, and in a rest its actions): the ring's dim and shop wing keep clear of it.
         In.Band=RingRect(Band);In.Map=RingRect(MapColumn);In.Banner=RingRect(TopCentreSlot?TopCentreSlot->Content.Get():PhaseBanner.Get());
+        // The Q, W, E and D faces: a linked skill's face takes the ring's link rule.
+        for(const FLDHUDActionSlot& Entry:ActionSlots){In.Skills.Add(RingRect(Entry.Icon.Get()));}
         Workshop->Present(In,&GetCachedGeometry());
     }
     if(ChoicesPanel&&PC->RootUI&&bOwnMatch)
@@ -2427,7 +2436,7 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     const float BandTop=HudSafeBottom+float(Band->GetDesiredSize().Y);
     if(TopCentreSlot)
     {
-        // The full workshop keeps the rest actions in its top-right corner, beside its own close button.
+        // The open build ring keeps the rest actions in the bottom-right corner beside the HUD band, under its shop.
         // Only the rest's actions leave the top centre (they would meet the ring's top arc); the banner alone stays.
         const bool bCorner=bWorkshopOpen&&Workshop&&RestActionsPanel&&RestActionsPanel->IsVisible();
         // In the full workshop the actions stand bare on the top bar, as buttons of their own; elsewhere they sit on a panel.
@@ -2441,8 +2450,8 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
                 RestActionsPanel->SetPadding(bCorner?FMargin(0):FMargin(12,8));
             }
         }
-        const FAnchors Anchor=bCorner?FAnchors(1,0):FAnchors(.5f,0);const FVector2D Align=bCorner?FVector2D(1,0):FVector2D(.5f,0);
-        const FVector2D Where=bCorner?FVector2D(float(Workshop->ActionsAnchor().X)-float(GetCachedGeometry().GetLocalSize().X),Workshop->ActionsAnchor().Y):FVector2D(0,HudTopCentreY);
+        const FAnchors Anchor=bCorner?FAnchors(1,1):FAnchors(.5f,0);const FVector2D Align=bCorner?FVector2D(1,1):FVector2D(.5f,0);
+        const FVector2D Where=bCorner?Workshop->ActionsAnchor()-GetCachedGeometry().GetLocalSize():FVector2D(0,HudTopCentreY);
         if(!(TopCentreSlot->GetAnchors()==Anchor)){TopCentreSlot->SetAnchors(Anchor);}
         if(!TopCentreSlot->GetAlignment().Equals(Align)){TopCentreSlot->SetAlignment(Align);}
         if(!TopCentreSlot->GetPosition().Equals(Where,.5f)){TopCentreSlot->SetPosition(Where);}

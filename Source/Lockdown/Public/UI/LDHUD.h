@@ -26,6 +26,7 @@ class ULDChoicesPanel;
 class ULDComponentStorage;
 class ULDStatBar;
 class ULDWorkshop;
+class ULDBuildRingGround;
 class UVerticalBox;
 class ULDDevTestPanel;
 struct FLDDevTestResult;
@@ -148,6 +149,8 @@ public:
     UPROPERTY() TObjectPtr<ULDComponentStorage> Storage;
     // The build workshop (APP_SPEC §7 构筑): the full view of the 构筑 tray, open while the tray is open (ULDWorkshop).
     UPROPERTY() TObjectPtr<ULDWorkshop> Workshop;
+    // The open build ring's ground darkening, under every HUD surface (ULDBuildRingGround).
+    UPROPERTY() TObjectPtr<ULDBuildRingGround> WorkshopGround;
     // The own point-bought stats under the name in the band's identity block: hover a stat for its "+", one click commits
     // one point (ULDStatBar). The 属性 entry and the Attributes key swap it for the attribute view and back.
     UPROPERTY() TObjectPtr<ULDStatBar> StatBar;
