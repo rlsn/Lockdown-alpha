@@ -1,6 +1,5 @@
 #include "Character/LDImpactFx.h"
 #include "UI/LDBroadcastStyle.h"
-#include "HAL/IConsoleManager.h"
 #include "Character/LDCombatVfxCatalog.h"
 #include "Character/LDHitFeel.h"
 #include "Character/LDHumanoidVisualComponent.h"
@@ -30,8 +29,6 @@
 
 namespace LDImpactFxDetail
 {
-    TAutoConsoleVariable<int32> CVarChainLook(TEXT("ld.Vfx.ChainLook"), -1,
-        TEXT("Chain look of active_zap while art direction compares candidates: 0 Mesh, 1 NiagaraV1, 2 A, 3 B, 4 C, 5 APlus; -1 uses DA_CombatVfx ChainLook."));
     const FLinearColor WhiteHot(1.f, .28f, .045f), EmberOrange(1.f, .3f, .05f), ShieldCyan(0.f, .78f, 1.f), CritGold(1.f, .55f, .08f);
     constexpr float ReferenceLifeSeconds = .28f, ReferenceSpeed = 900.f, MaxWaitSeconds = .5f;
 
@@ -110,11 +107,11 @@ void ULDImpactFxSubsystem::OnWorldBeginPlay(UWorld& World)
     ImpactSystem = Catalog ? Catalog->Impact.Get() : nullptr;
     BurstSystem = Catalog && Catalog->Burst ? Catalog->Burst.Get() : LoadObject<UNiagaraSystem>(nullptr, ULDCombatVfxCatalog::DefaultBurst);
     ZoneSystem = Catalog && Catalog->Zone ? Catalog->Zone.Get() : LoadObject<UNiagaraSystem>(nullptr, ULDCombatVfxCatalog::DefaultZone);
-    ChainSystems.SetNum(LDSliceVfx::ChainLookCount);
-    for (uint8 Look = 1; Look < LDSliceVfx::ChainLookCount; ++Look)
+    GeneratedSystems.SetNum(int32(LDSliceVfx::ESystem::Count));
+    for (int32 System = 0; System < GeneratedSystems.Num(); ++System)
     {
-        const FString Package = LDSliceVfx::ChainSystemOf(Look);
-        ChainSystems[Look] = LoadObject<UNiagaraSystem>(nullptr, *(Package + TEXT(".") + FPackageName::GetShortName(Package)));
+        const FString Package = LDSliceVfx::SystemPackage(LDSliceVfx::ESystem(System));
+        GeneratedSystems[System] = LoadObject<UNiagaraSystem>(nullptr, *(Package + TEXT(".") + FPackageName::GetShortName(Package)));
     }
     BodyGlowMaterial = LoadObject<UMaterialInterface>(nullptr, *(FString(LDSliceVfx::BodyGlowMaterial) + TEXT(".") + FPackageName::GetShortName(LDSliceVfx::BodyGlowMaterial)));
     if (!BodyGlowMaterial) { UE_LOG(LogLDContent, Error, TEXT("LD_CHAIN_FX asset=missing %s (run Scripts\\ImportDemoArt.ps1 -Mode ImportVFX)"), LDSliceVfx::BodyGlowMaterial); }
@@ -125,7 +122,7 @@ void ULDImpactFxSubsystem::OnWorldBeginPlay(UWorld& World)
     if (Catalog && Catalog->CastCharge) { Catalog->CastCharge->RequestCompile(false); }
     if (BurstSystem) { BurstSystem->RequestCompile(false); }
     if (ZoneSystem) { ZoneSystem->RequestCompile(false); }
-    for (UNiagaraSystem* Chain : ChainSystems) { if (Chain) { Chain->RequestCompile(false); } }
+    for (UNiagaraSystem* Generated : GeneratedSystems) { if (Generated) { Generated->RequestCompile(false); } }
     // The rim shell first draws on a struck body; finish its shaders now rather than skip its first hits.
     if (BodyGlowMaterial && BodyGlowMaterial->GetMaterial())
     {
@@ -142,11 +139,11 @@ void ULDImpactFxSubsystem::OnWorldBeginPlay(UWorld& World)
     {
         UE_LOG(LogLDContent, Error, TEXT("LD_IMPACT_FX asset=missing catalog=%s"), ULDCombatVfxCatalog::AssetPath);
     }
-    for (uint8 Look = 1; Look < LDSliceVfx::ChainLookCount; ++Look)
+    for (int32 System = 0; System < GeneratedSystems.Num(); ++System)
     {
-        if (!ChainSystems[Look])
+        if (!GeneratedSystems[System])
         {
-            UE_LOG(LogLDContent, Error, TEXT("LD_CHAIN_FX asset=missing %s (run Scripts\\ImportDemoArt.ps1 -Mode ImportVFX)"), *LDSliceVfx::ChainSystemOf(Look));
+            UE_LOG(LogLDContent, Error, TEXT("LD_GENERATED_FX asset=missing %s (run Scripts\\ImportDemoArt.ps1 -Mode ImportVFX)"), *LDSliceVfx::SystemPackage(LDSliceVfx::ESystem(System)));
         }
     }
     if (Catalog && !Catalog->SwingTrail)
@@ -178,7 +175,7 @@ void ULDImpactFxSubsystem::Deinitialize()
     ImpactSystem = nullptr;
     BurstSystem = nullptr;
     ZoneSystem = nullptr;
-    ChainSystems.Reset();
+    GeneratedSystems.Reset();
     Catalog = nullptr;
     Super::Deinitialize();
 }
@@ -818,7 +815,7 @@ void ULDImpactFxSubsystem::WarmUp()
     }
     const FVector Under(0., 0., -20000.);
     TArray<UNiagaraSystem*> Systems{ImpactSystem.Get(), BurstSystem.Get(), ZoneSystem.Get()};
-    for (UNiagaraSystem* Chain : ChainSystems) { if (Chain) { Systems.Add(Chain); } }
+    for (UNiagaraSystem* Generated : GeneratedSystems) { if (Generated) { Systems.Add(Generated); } }
     if (Catalog) { Systems.Append({Catalog->SwingTrail.Get(), Catalog->CastCharge.Get()}); }
     for (UNiagaraSystem* System : Systems)
     {
@@ -1047,7 +1044,6 @@ LDSliceVfx::FLook ULDImpactFxSubsystem::SliceLook(ESliceTuning Kind, bool bOwn, 
     LDSliceVfx::FLook Look;
     Look.bOwn = bOwn;
     Look.bFocus = bFocus || bOwn;
-    Look.ChainLook = ChainLookNow();
 
     Look.EffectScale = LocalEffectScale();
     const LDHitFeel::FTuning Feel = LDHitFeel::Read();
@@ -1143,36 +1139,99 @@ ULDImpactFxSubsystem::FStrikeMatch ULDImpactFxSubsystem::MatchHit(const ULDHuman
 
 void ULDImpactFxSubsystem::ShowGroundField(const AActor& Owner, const FVector& Centre, float RadiusCm, float Alpha)
 {
+    UNiagaraSystem* FieldSystem = GetSystem(LDSliceVfx::ESystem::Field);
     int32 Found = INDEX_NONE;
-    for (int32 Index = 0; Index < LiveSlices.Num(); ++Index)
+    for (int32 Index = 0; Index < Live.Num(); ++Index)
     {
-        if (LiveSlices[Index].OwnerActor.Get() == &Owner && LiveSlices[Index].Layer.Tex == LDSliceVfx::ETex::ShockField) { Found = Index; break; }
+        const UNiagaraComponent* Effect = Live[Index].Effect.Get();
+        if (Live[Index].OwnerActor.Get() == &Owner && Effect && Effect->GetAsset() == FieldSystem) { Found = Index; break; }
     }
-    if (!FApp::CanEverRender() || !FMath::IsFinite(Alpha) || Alpha <= 0.f || !FMath::IsFinite(RadiusCm) || RadiusCm <= 0.f || Centre.ContainsNaN())
+    if (!FApp::CanEverRender() || !FieldSystem || !FMath::IsFinite(Alpha) || Alpha <= 0.f || !FMath::IsFinite(RadiusCm) || RadiusCm <= 0.f || Centre.ContainsNaN())
     {
-        if (Found != INDEX_NONE) { ReleaseSlice(Found); }
+        if (Found != INDEX_NONE) { Release(Found); }
         return;
     }
+    FVector Normal;
+    const FVector Floor = GroundUnder(Centre, Normal);
+    // The reduced-effects setting dims a field like every other effect.
+    const float Strength = 2.2f * FMath::Clamp(Alpha, 0.f, 1.f) * (.55f + .45f * LocalEffectScale());
     if (Found == INDEX_NONE)
     {
-        LDSliceVfx::FRecipe Recipe;
-        Recipe.Layers.Add(LDSliceVfx::GroundField(Centre, RadiusCm, SliceLook(ESliceTuning::Impact, false, true)));
-        const int32 Before = LiveSlices.Num();
-        Slice(nullptr, Recipe, 0.f);
-        if (LiveSlices.Num() == Before) { return; }
-        Found = LiveSlices.Num() - 1;
-        LiveSlices[Found].OwnerActor = &Owner;
-        LiveSlices[Found].bBound = true;
+        // A ground state lives until its owner says otherwise: the system's own life is far beyond any state's.
+        UNiagaraComponent* Effect = SpawnGenerated(LDSliceVfx::ESystem::Field, Floor, Floor, LDBroadcast::Shock, RadiusCm, Strength, 1.e4f, true);
+        if (!Effect) { return; }
+        Track(Effect, nullptr, 0.f, &Owner);
+        return;
     }
-    FLiveSlice& Field = LiveSlices[Found];
-    // The reduced-effects setting dims a field like every other layer.
-    Field.ExternalAlpha = FMath::Clamp(Alpha, 0.f, 1.f) * (.55f + .45f * LocalEffectScale());
-    if (!Field.Layer.At.Equals(Centre, 1.) || !FMath::IsNearlyEqual(Field.Layer.SizeCm, LDSliceVfx::FieldSizeCm(RadiusCm), 1.f))
+    if (UNiagaraComponent* Effect = Live[Found].Effect.Get())
     {
-        Field.Layer.At = Centre;
-        Field.Layer.SizeCm = LDSliceVfx::FieldSizeCm(RadiusCm);
-        Field.Ground = GroundUnder(Centre, Field.Normal);
+        Effect->SetVariableVec3(TEXT("User.Start"), Floor);
+        Effect->SetVariableFloat(TEXT("User.Width"), RadiusCm);
+        Effect->SetVariableFloat(TEXT("User.Intensity"), Strength);
     }
+}
+
+void ULDImpactFxSubsystem::FieldPulse(const ULDHumanoidVisualComponent& Source, const FVector& Feet, float RadiusCm, const LDSliceVfx::FLook& Look,
+    float AgeSeconds)
+{
+    if (!Source.CanShowImpact() || !FMath::IsFinite(RadiusCm) || RadiusCm <= 0.f || !FMath::IsFinite(AgeSeconds) || AgeSeconds > .8f) { return; }
+    FVector Normal;
+    const FVector Floor = GroundUnder(Feet, Normal);
+    const float Seconds = .8f * Look.Seconds;
+    UNiagaraComponent* Effect = SpawnGenerated(LDSliceVfx::ESystem::Field, Floor, Floor, LDBroadcast::Shock, RadiusCm,
+        2.2f * Look.Glow * (Look.bFocus ? 1.f : .7f) * (.55f + .45f * FMath::Clamp(Look.EffectScale, 0.f, 1.f)), Seconds, Look.bFocus);
+    if (!Effect) { return; }
+    Track(Effect, &Source, AgeSeconds);
+    Live.Last().StopAfter = Seconds;
+}
+
+UNiagaraComponent* ULDImpactFxSubsystem::SpawnGenerated(LDSliceVfx::ESystem System, const FVector& Start, const FVector& End, const FLinearColor& Tint,
+    float Width, float Intensity, float Seconds, bool bFocus)
+{
+    UNiagaraSystem* Asset = GetSystem(System);
+    if (!FApp::CanEverRender() || !Asset || Start.ContainsNaN() || End.ContainsNaN() || !FMath::IsFinite(Width) || !FMath::IsFinite(Intensity)) { return nullptr; }
+    if (Live.Num() >= LDImpactFx::MaxBursts) { Release(0); }
+    UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), Asset, End, FRotator::ZeroRotator, FVector(1.f),
+        false, false, ENCPoolMethod::ManualRelease, false);
+    if (!Effect)
+    {
+        UE_LOG(LogLDContent, Warning, TEXT("LD_GENERATED_FX spawn=failed %s"), LDSliceVfx::SystemName(System));
+        return nullptr;
+    }
+    Effect->SetVariableVec3(TEXT("User.Start"), Start);
+    Effect->SetVariableVec3(TEXT("User.End"), End);
+    Effect->SetVariableLinearColor(TEXT("User.Tint"), Tint);
+    Effect->SetVariableFloat(TEXT("User.Width"), Width);
+    Effect->SetVariableFloat(TEXT("User.Intensity"), Intensity);
+    Effect->SetVariableFloat(TEXT("User.Duration"), Seconds);
+    Effect->SetVariableFloat(TEXT("User.Focus"), bFocus ? 1.f : 0.f);
+    Effect->Activate(true);
+    return Effect;
+}
+
+void ULDImpactFxSubsystem::Swing(const ULDHumanoidVisualComponent& Owner, uint8 Step, const FVector& Centre, const FVector& Facing,
+    const LDSliceVfx::FLook& Look, float AgeSeconds)
+{
+    if (Step == 0 || !Owner.CanShowImpact() || !FMath::IsFinite(AgeSeconds) || Look.Size <= 0.f || Look.EffectScale <= 0.f) { return; }
+    const LDSliceVfx::ESystem System = Step >= 3 ? LDSliceVfx::ESystem::Swing3 : Step == 2 ? LDSliceVfx::ESystem::Swing2 : LDSliceVfx::ESystem::Swing1;
+    const FVector Ahead = FVector(Facing.X, Facing.Y, 0.).GetSafeNormal();
+    UNiagaraComponent* Effect = SpawnGenerated(System, Centre, Centre + (Ahead.IsNearlyZero() ? FVector::ForwardVector : Ahead) * 100.f,
+        LDSliceVfx::StrikeTint(Look), 70.f * Look.Size, 2.2f * Look.Glow * (Look.bFocus ? 1.f : .7f), .4f * Look.Seconds, Look.bFocus);
+    if (!Effect) { return; }
+    Track(Effect, &Owner, AgeSeconds);
+    // Its ribbons spawn once; stopping the emitters lets the system complete when they have faded.
+    Live.Last().StopAfter = .4f * Look.Seconds;
+}
+
+void ULDImpactFxSubsystem::Hit(const ULDHumanoidVisualComponent& Victim, const FVector& From, const FVector& Chest, bool bFinisher,
+    const LDSliceVfx::FLook& Look, float AgeSeconds)
+{
+    if (!Victim.CanShowImpact() || !FMath::IsFinite(AgeSeconds) || Look.Size <= 0.f || Look.EffectScale <= 0.f) { return; }
+    UNiagaraComponent* Effect = SpawnGenerated(bFinisher ? LDSliceVfx::ESystem::HitFinisher : LDSliceVfx::ESystem::HitBasic, From, Chest,
+        LDSliceVfx::StrikeTint(Look), 70.f * Look.Size, 2.2f * Look.Glow * (Look.bFocus ? 1.f : .7f), .5f * Look.Seconds, Look.bFocus);
+    if (!Effect) { return; }
+    Track(Effect, &Victim, AgeSeconds);
+    Live.Last().StopAfter = .5f * Look.Seconds;
 }
 
 bool ULDImpactFxSubsystem::SkillReach(uint8 Ability, float& OutRangeCm, float& OutHalfWidthCm)
@@ -1203,44 +1262,23 @@ float ULDImpactFxSubsystem::ConductRadiusCm()
 void ULDImpactFxSubsystem::Chain(const ULDHumanoidVisualComponent& Victim, const FVector& From, const FVector& To, bool bChained,
     const LDSliceVfx::FLook& Look, float AgeSeconds)
 {
-    UNiagaraSystem* ChainSystem = GetChainSystem(ChainLookNow());
-    if (!FApp::CanEverRender() || !ChainSystem || !Victim.CanShowImpact() || From.ContainsNaN() || To.ContainsNaN() || !FMath::IsFinite(AgeSeconds)) { return; }
+    if (!FApp::CanEverRender() || !Victim.CanShowImpact() || From.ContainsNaN() || To.ContainsNaN() || !FMath::IsFinite(AgeSeconds)) { return; }
     const float Thin = FMath::Clamp(Look.EffectScale, 0.f, 1.f);
     if (Thin <= 0.f || Look.Size <= 0.f || Look.Seconds <= 0.f || Look.Glow <= 0.f) { return; }
-    if (Live.Num() >= LDImpactFx::MaxBursts) { Release(0); }
-    UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), ChainSystem, To, FRotator::ZeroRotator, FVector(1.f),
-        false, false, ENCPoolMethod::ManualRelease, false);
-    if (!Effect)
-    {
-        UE_LOG(LogLDContent, Warning, TEXT("LD_CHAIN_FX spawn=failed"));
-        return;
-    }
     // Others' links are thinner and dimmer, a bounce thinner than the first hop; reduced effects dim them further.
     const float Focus = Look.bFocus ? 1.f : .7f;
     const float Seconds = .26f * Look.Seconds;
-    Effect->SetVariableVec3(TEXT("User.Start"), From);
-    Effect->SetVariableVec3(TEXT("User.End"), To);
-    Effect->SetVariableLinearColor(TEXT("User.Tint"), LDBroadcast::Shock);
-    Effect->SetVariableFloat(TEXT("User.Width"), (bChained ? 56.f : 70.f) * Look.Size * (Look.bFocus ? 1.f : .8f));
-    Effect->SetVariableFloat(TEXT("User.Intensity"), 2.2f * Look.Glow * Focus * (.55f + .45f * Thin));
-    Effect->SetVariableFloat(TEXT("User.Duration"), Seconds);
-    Effect->SetVariableFloat(TEXT("User.Focus"), Look.bFocus ? 1.f : 0.f);
-    Effect->Activate(true);
+    UNiagaraComponent* Effect = SpawnGenerated(LDSliceVfx::ESystem::Chain, From, To, LDBroadcast::Shock,
+        (bChained ? 56.f : 70.f) * Look.Size * (Look.bFocus ? 1.f : .8f), 2.2f * Look.Glow * Focus * (.55f + .45f * Thin), Seconds, Look.bFocus);
+    if (!Effect) { return; }
     Track(Effect, &Victim, AgeSeconds);
     Live.Last().StopAfter = Seconds;
 }
-uint8 ULDImpactFxSubsystem::ChainLookNow() const
-{
-    const int32 Forced = LDImpactFxDetail::CVarChainLook.GetValueOnGameThread();
-    if (Forced >= 0 && Forced < LDSliceVfx::ChainLookCount) { return uint8(Forced); }
-    return Catalog ? uint8(Catalog->ChainLook) : uint8(ELDChainLook::NiagaraV1);
-}
-
-void ULDImpactFxSubsystem::ForEachChain(TFunctionRef<void(UNiagaraComponent&)> Visit) const
+void ULDImpactFxSubsystem::ForEachGenerated(TFunctionRef<void(UNiagaraComponent&)> Visit) const
 {
     for (const FLive& Shown : Live)
     {
         UNiagaraComponent* Effect = Shown.Effect.Get();
-        if (Effect && ChainSystems.Contains(Effect->GetAsset())) { Visit(*Effect); }
+        if (Effect && GeneratedSystems.Contains(Effect->GetAsset())) { Visit(*Effect); }
     }
 }

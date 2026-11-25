@@ -28,19 +28,12 @@ namespace LDSliceVfx
     constexpr const TCHAR* FlipParameter = TEXT("Flip");
     // (U window start, U window end, dissolve 0..1, U scroll) over the surface's first UV channel.
     constexpr const TCHAR* ShapeParameter = TEXT("Shape");
-    // The field texture's edge radius on the quad (half-UV units; fb_shock_field draws its patch out to 0.74 of the half
-    // frame, vfx_slice_assets.json), so a quad of FieldSizeCm puts the patch edge on the gameplay radius.
-    constexpr float FieldEdge = .74f;
-
     enum class ETex : uint8
     {
-        SlashEdge, DissolveNoise, HitBasic, HitFinisher, HitSkill, WaterJet, WaterSplash, WetDecal, ShockArcs, ShockSpark,
-        ShockField, ChalkLane,
-        // The chain look candidates' elements (vfx_slice_assets.json "candidate" A, B, C), used by their generated Niagara
+        SlashEdge, DissolveNoise, HitSkill, WaterJet, WaterSplash, WetDecal, ChalkLane,
+        // The generated effects' elements (vfx_slice_assets.json, slice_chain_candidates.py), used by the generated Niagara
         // materials and their ground layers.
-        ChainAProfile, ChainAEnergyNoise, ChainASparkStreak, ChainAFlash, ChainAGroundGlow,
-        ChainBStrokeProfile, ChainBShards, ChainBScorchDash,
-        ChainCCoreProfile, ChainCSparkHead, ChainCPinpoint, ChainCGroundTick, Count
+        ChainAProfile, ChainAEnergyNoise, ChainASparkStreak, ChainAFlash, ChainAGroundGlow, ChainBScorchDash, Count
     };
     enum class EMesh : uint8 { Slash1, Slash2, Slash3, Count };
     // The manifest id ("fb_hit_basic", "SM_LD_SlashCombo1") and the package (Folder/T_fb_hit_basic, Folder/SM_LD_SlashCombo1).
@@ -56,25 +49,27 @@ namespace LDSliceVfx
     // head points (UV U = 0 on the outer edge), which the importer checks after every import, in Unreal coordinates.
     LOCKDOWN_API FVector SlashHead(EMesh Mesh);
     // Niagara (LDDemoVfxNiagara, built by the VFX import commandlet). Every asset under GeneratedFolder is owned by the
-    // generator, rebuilt by each import and never edited by hand: the particle form of the slice material and one Chain
-    // system per look (one link of a chain, tether or beam between two world points with sparks at its end).
+    // generator, rebuilt by each import and never edited by hand.
     constexpr const TCHAR* GeneratedFolder = TEXT("/Game/Lockdown/Art/VFX/Niagara/Generated");
-    constexpr const TCHAR* NiagaraMaterial = TEXT("/Game/Lockdown/Art/VFX/Niagara/Generated/M_LDSliceParticle");
+    // The generated systems (GeneratedFolder/NS_LD<name>); every one takes the user parameters below.
+    //   Chain        one hop of a chain: Start the hand or the last body struck, End the body struck
+    //   HitBasic     a basic (combo 1-2) hit at End struck from Start's side; HitFinisher the combo finisher's
+    //   Swing1..3    a basic swing: Start the swing centre at the chest, End a point ahead along the facing
+    //   Field        an electric field on the ground: Start its centre on the floor, Width its radius, Intensity its
+    //                strength (2.2 full), Duration its life (the ground state's: effectively unbounded; conduct's splash)
+    enum class ESystem : uint8 { Chain, HitBasic, HitFinisher, Swing1, Swing2, Swing3, Field, Count };
+    LOCKDOWN_API const TCHAR* SystemName(ESystem System);
+    LOCKDOWN_API FString SystemPackage(ESystem System);
     // The shocked-body rim glow (LDHitVfx::FGhosts::bShell): an additive fresnel shell pushed 1.2 cm out along the normals.
     constexpr const TCHAR* BodyGlowMaterial = TEXT("/Game/Lockdown/Art/VFX/Niagara/Generated/M_LDChainBodyGlow");
-    // The generated chain looks (ELDChainLook without Mesh): their suffix ("V1", "A", "B", "C") and system package.
-    constexpr int32 ChainLookCount = 6;
-    LOCKDOWN_API const TCHAR* ChainLookName(uint8 Look);
-    LOCKDOWN_API FString ChainSystemOf(uint8 Look);
-    // ELDChainLook values (the catalog enum is not visible to these pure recipes).
-    constexpr uint8 ChainMesh = 0, ChainV1 = 1, ChainA = 2, ChainB = 3, ChainC = 4, ChainAPlus = 5;
+    LOCKDOWN_API FString GeneratedPackage(const TCHAR* Name);
     constexpr const TCHAR* ChainStart = TEXT("User.Start");
     constexpr const TCHAR* ChainEnd = TEXT("User.End");
     constexpr const TCHAR* ChainTint = TEXT("User.Tint");
     constexpr const TCHAR* ChainWidth = TEXT("User.Width");
     constexpr const TCHAR* ChainIntensity = TEXT("User.Intensity");
     constexpr const TCHAR* ChainDuration = TEXT("User.Duration");
-    // 1 for the local player's own or focused link, 0 for others' (smaller and dimmer, and some looks drop parts).
+    // 1 for the local player's own or focused effect, 0 for others' (60 % wide, half as bright, fewer parts).
     constexpr const TCHAR* ChainFocus = TEXT("User.Focus");
 
     // The importer-built unit quad: 100 x 100 cm in XY facing +Z, U = (X + 50) / 100, V = (Y + 50) / 100.
@@ -92,7 +87,7 @@ namespace LDSliceVfx
     };
     struct FLayer
     {
-        ETex Tex = ETex::HitBasic;
+        ETex Tex = ETex::HitSkill;
         EMesh Mesh = EMesh::Count;   // Slash and GroundSlash only
         EPlace Place = EPlace::Facing;
         FVector At = FVector::ZeroVector, End = FVector::ZeroVector, Dir = FVector::ForwardVector;
@@ -148,35 +143,25 @@ namespace LDSliceVfx
         float EffectScale = 1;
         // ld.Feel / DA_CombatVfx tuning of this kind of layer: size, duration and brightness multipliers.
         float Size = 1, Seconds = 1, Glow = 1;
-        // The chain look in force (ChainMesh..ChainC): Mesh draws the link as the slice's strip and spark; the candidates
-        // add their ground cue under the struck body; the Niagara looks draw the link itself (ULDImpactFxSubsystem::Chain).
-        uint8 ChainLook = ChainV1;
 
     };
     // The basic swing of combo Step (1..3): the chalk shape of the coming slash on the ground from the start of the
-    // windup, then at the release the slash itself at the chest, revealed head-first and eroding from its tail.
+    // windup (the swing's arc of motion at the release is the Niagara Swing, ULDImpactFxSubsystem::Swing).
     LOCKDOWN_API FRecipe SwingTelegraph(uint8 Step, const FVector& Feet, const FVector& Facing, float WindupSeconds, const FLook& Look);
-    LOCKDOWN_API FRecipe SwingRelease(uint8 Step, const FVector& Centre, const FVector& Facing, const FLook& Look);
+    // The ink of a physical strike's effects (swing, hit): the local player's own a soft orange, others' a pale ivory.
+    LOCKDOWN_API FLinearColor StrikeTint(const FLook& Look);
     // A skill's chalk lane on the ground from the caster's feet along its facing (Length x Width), during the windup.
     LOCKDOWN_API FRecipe SkillTelegraph(const FVector& Feet, const FVector& Facing, float LengthCm, float WidthCm, float WindupSeconds, const FLook& Look);
     // active_hose_down at its release: the water line from the hand along the facing over its range, with a muzzle splash.
     LOCKDOWN_API FRecipe HoseRelease(const FVector& Hand, const FVector& Facing, float LengthCm, const FLook& Look);
     // active_zap at its release: the contact spark at the casting hand (the arcs follow the hits it lands).
     LOCKDOWN_API FRecipe ZapRelease(const FVector& Hand, const FLook& Look);
-    // One landed hit of a strike on a visible body: the tier's burst at the chest along Dir (basic, finisher, or the skill
-    // burst for any skill; white, orange for the local player's, element ink for water and shock), plus the strike's own
-    // follow-through (water splash and wet ground; a zap's arc from From and its contact sparks are the Niagara Chain,
-    // or with Look.bChainMesh the mesh strip and spark layers).
+    // One landed hit of a strike on a visible body, its slice layers: the skill burst at the chest along Dir for a skill
+    // (white, orange for the local player's, element ink for water), water's splash and wet ground, the zap's contact
+    // light and scorch on the ground. The basic and finisher hits themselves are the Niagara Hit
+    // (ULDImpactFxSubsystem::Hit), a zap's link the Niagara Chain.
     LOCKDOWN_API FRecipe Impact(EStrike Strike, const FVector& Chest, const FVector& Feet, const FVector& Dir, const FVector& From,
         bool bChained, const FLook& Look);
-    // The conduct reaction (wet + shock) on a body: a large burst, a few arcs along the ground out to the splash radius
-    // and, for a moment, the quiet field whose edge marks exactly that radius (COMBAT.ConductRadiusCm).
-    LOCKDOWN_API FRecipe Conduct(const FVector& Chest, const FVector& Feet, float RadiusCm, const FLook& Look);
-    // A public electric ground state's field (ELDGroundStateKind::Field): the looping field whose patch edge lies on its
-    // radius (the ground state's own RadiusCm, or COMBAT.ConductRadiusCm for conduct). FieldSizeCm is the quad width that
-    // puts the edge on RadiusCm.
-    LOCKDOWN_API FLayer GroundField(const FVector& Centre, float RadiusCm, const FLook& Look);
-    LOCKDOWN_API float FieldSizeCm(float RadiusCm);
 }
 
 // The shaped hit layers over the Niagara burst (LDImpactFx): a flash star facing the camera, a ground mark under the
@@ -353,7 +338,7 @@ namespace LDHitVfx
     LOCKDOWN_API EBurst ElementBurst(uint8 Element);
     LOCKDOWN_API FRecipe ForReaction(uint8 Element, float EffectScale, const FLayerTuning& Tuning = FLayerTuning());
     // A public ground state (ELDGroundStateKind): looping particles over its footprint under its line pattern, and the
-    // burst a freshly laid one appears with; the electric field has neither (its crackle is LDSliceVfx::GroundField). The
+    // burst a freshly laid one appears with; the electric field has neither (it is the Niagara Field, ULDImpactFxSubsystem::ShowGroundField). The
     // pattern and the owner outline stay (never colour alone).
     LOCKDOWN_API FZone GroundZoneOf(uint8 Kind, float RadiusCm, float EffectScale);
     LOCKDOWN_API bool GroundAppearBurstOf(uint8 Kind, EBurst& Out, FLinearColor& Tint);

@@ -870,7 +870,7 @@ void ALDObservedGroundProxy::Present(double AtServerSec)
         Impacts && bShown && ParticleScale >= 0.f && Impacts->LocalEffectScale() != ParticleScale) { ShowParticles(); }
     if (!bShown) { return; }
     const double Left = FMath::Clamp((ExpiresAtServerSec - AtServerSec) / LifeSeconds, 0., 1.);
-    // The electric field's crackle (LDSliceVfx::GroundField) fades out over the last third of its life.
+    // The electric field (the Niagara Field, ULDImpactFxSubsystem::ShowGroundField) fades out over the last third of its life.
     if (Shown.Kind == uint8(ELDGroundStateKind::Field))
     {
         if (ULDImpactFxSubsystem* Impacts = GetWorld() ? GetWorld()->GetSubsystem<ULDImpactFxSubsystem>() : nullptr)

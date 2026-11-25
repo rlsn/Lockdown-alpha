@@ -921,7 +921,7 @@ namespace
                 Texture = SliceImportTexture(Spec, Error);
                 if (!Texture) { return false; }
             }
-            if (Spec.Tex == LDSliceVfx::ETex::HitBasic) { DefaultMask = Texture; }
+            if (Spec.Tex == LDSliceVfx::ETex::HitSkill) { DefaultMask = Texture; }
             if (Spec.Tex == LDSliceVfx::ETex::DissolveNoise) { DefaultNoise = Texture; }
         }
         UStaticMesh* Quad = VfxLoad<UStaticMesh>(SliceQuadPackage());

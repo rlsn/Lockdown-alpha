@@ -315,7 +315,6 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDBodyMotionSliceLayersTest, "Lockdown.Rules.D
 bool FLDBodyMotionSliceLayersTest::RunTest(const FString& Parameters)
 {
     using namespace LDSliceVfx;
-    const float NaN=std::numeric_limits<float>::quiet_NaN();
     const FVector Chest(0,0,120), Feet(0,0,0), Dir(1,0,0), From(-300,0,120);
     FLook Own; Own.bOwn=Own.bFocus=true;
     FLook Other;
@@ -325,81 +324,43 @@ bool FLDBodyMotionSliceLayersTest::RunTest(const FString& Parameters)
         ShowsHit(ELDObservedHitLook::None,0) && ShowsHit(ELDObservedHitLook::Water,0) && ShowsHit(ELDObservedHitLook::Electric,0)
         && !ShowsHit(ELDObservedHitLook::Fire,0) && !ShowsHit(ELDObservedHitLook::Magic,0) && !ShowsHit(ELDObservedHitLook::None,LDObservation::Critical)
         && !ShowsHit(ELDObservedHitLook::Water,LDObservation::ShieldAbsorbed) && !ShowsHit(ELDObservedHitLook::Electric,LDObservation::Dodged));
-    // Tiers differ by silhouette (their own sheet), not only by size: basic < finisher < skill < reaction.
+    // The basic and finisher hits and the swing are generated Niagara systems; the slice keeps the skill burst, water's
+    // follow-through and the ground contact lights.
     const FRecipe Basic=Impact(EStrike::Basic,Chest,Feet,Dir,From,false,Own), Finisher=Impact(EStrike::Finisher,Chest,Feet,Dir,From,false,Own);
-    const FRecipe Skill=Impact(EStrike::Skill,Chest,Feet,Dir,From,false,Own), Reaction=Conduct(Chest,Feet,450.f,Own);
-    const FLayer* BasicHit=Find(Basic,ETex::HitBasic,EPlace::Facing);
-    const FLayer* FinisherHit=Find(Finisher,ETex::HitFinisher,EPlace::Facing);
+    const FRecipe Skill=Impact(EStrike::Skill,Chest,Feet,Dir,From,false,Own);
     const FLayer* SkillHit=Find(Skill,ETex::HitSkill,EPlace::Facing);
-    const FLayer* ReactionHit=Find(Reaction,ETex::HitSkill,EPlace::Facing);
-    TestTrue(TEXT("Each hit tier has its own burst sheet and grows basic < finisher <= skill < reaction"),
-        BasicHit && FinisherHit && SkillHit && ReactionHit && !Find(Basic,ETex::HitFinisher,EPlace::Facing)
-        && BasicHit->SizeCm<FinisherHit->SizeCm && FinisherHit->SizeCm<=SkillHit->SizeCm && SkillHit->SizeCm<ReactionHit->SizeCm);
-    TestTrue(TEXT("Bursts point along the strike with their hit point at the sheet's pivot"),
-        BasicHit && BasicHit->Dir.Equals(Dir) && FMath::IsNearlyEqual(BasicHit->Pivot,.3f) && BasicHit->bTop);
+    TestTrue(TEXT("Basic and finisher hits leave no slice layer (they are the Niagara Hit)"), Basic.Layers.IsEmpty() && Finisher.Layers.IsEmpty());
+    TestTrue(TEXT("Physical strikes are the soft orange for the local player's own and a pale ivory for others'"),
+        StrikeTint(Own).B<StrikeTint(Own).R*.5f && StrikeTint(Other).B>StrikeTint(Other).R*.8f);
+    TestTrue(TEXT("The skill burst points along the strike with its hit point at the sheet's pivot"),
+        SkillHit && SkillHit->Dir.Equals(Dir) && FMath::IsNearlyEqual(SkillHit->Pivot,.3f) && SkillHit->bTop);
     const FRecipe Hose=Impact(EStrike::Hose,Chest,Feet,Dir,From,false,Own);
     const FLayer* Wet=Find(Hose,ETex::WetDecal,EPlace::Flat);
     TestTrue(TEXT("A water hit bursts in the water ink, splashes along the jet and wets the ground for over a second"),
         Find(Hose,ETex::HitSkill,EPlace::Facing) && Find(Hose,ETex::WaterSplash,EPlace::Facing) && Wet && Wet->Seconds>1.f
         && Find(Hose,ETex::HitSkill,EPlace::Facing)->Glow.B>Find(Hose,ETex::HitSkill,EPlace::Facing)->Glow.R);
     const FRecipe Zap=Impact(EStrike::Zap,Chest,Feet,Dir,From,false,Own), Bounce=Impact(EStrike::Zap,Chest,Feet,Dir,From,true,Own);
-    TestTrue(TEXT("A zap's first hit shows the skill burst and a bounce nothing more; the arcs and sparks are the Niagara Chain"),
-        Find(Zap,ETex::HitSkill,EPlace::Facing) && !Find(Zap,ETex::ShockArcs,EPlace::Strip) && !Find(Zap,ETex::ShockSpark,EPlace::Facing)
-        && Bounce.Layers.IsEmpty());
-    FLook MeshLook=Own;
-    MeshLook.ChainLook=ChainMesh;
-    const FRecipe MeshBounce=Impact(EStrike::Zap,Chest,Feet,Dir,From,true,MeshLook);
-    TestTrue(TEXT("The Mesh chain look draws the link as a strip from the previous body and a contact spark instead"),
-        Find(MeshBounce,ETex::ShockArcs,EPlace::Strip) && Find(MeshBounce,ETex::ShockSpark,EPlace::Facing) && !Find(MeshBounce,ETex::HitSkill,EPlace::Facing));
-    const auto CandidateHit=[&](uint8 Candidate){ FLook L=Own; L.ChainLook=Candidate; return Impact(EStrike::Zap,Chest,Feet,Dir,From,false,L); };
-    const FRecipe HitA=CandidateHit(ChainA), HitB=CandidateHit(ChainB), HitC=CandidateHit(ChainC);
-    TestTrue(TEXT("The chain candidates replace the first hit's skill burst with their own small ground cue"),
-        !Find(HitA,ETex::HitSkill,EPlace::Facing) && Find(HitA,ETex::ChainAGroundGlow,EPlace::Flat) && Find(HitB,ETex::ChainBScorchDash,EPlace::Flat)
-        && Find(HitC,ETex::ChainCGroundTick,EPlace::Flat) && Find(HitC,ETex::ChainCGroundTick,EPlace::Flat)->SizeCm<100.f && HitC.Layers.Num()==1);
-    FLook PlusLook=Own;
-    PlusLook.ChainLook=ChainAPlus;
-    const FRecipe HitPlus=Impact(EStrike::Zap,Chest,Feet,Dir,From,false,PlusLook), BouncePlus=Impact(EStrike::Zap,Chest,Feet,Dir,From,true,PlusLook);
-    TestTrue(TEXT("A+ lights the ground under its target over a faint scorch, a bounce target's a little smaller, and shows no skill burst"),
-        !Find(HitPlus,ETex::HitSkill,EPlace::Facing) && Find(HitPlus,ETex::ChainAGroundGlow,EPlace::Flat) && Find(HitPlus,ETex::ChainBScorchDash,EPlace::Flat)
-        && Find(BouncePlus,ETex::ChainAGroundGlow,EPlace::Flat) && Find(BouncePlus,ETex::ChainAGroundGlow,EPlace::Flat)->SizeCm<Find(HitPlus,ETex::ChainAGroundGlow,EPlace::Flat)->SizeCm);
-    const FLayer* Field=Find(Reaction,ETex::ShockField,EPlace::Flat);
-    TestTrue(TEXT("Conduct arcs along the ground out to its splash radius over a field whose edge is exactly that radius"),
-        Field && FMath::IsNearlyEqual(Field->SizeCm*FieldEdge*.5f,450.f,1.f) && FMath::IsNearlyEqual(FieldSizeCm(220.f)*FieldEdge*.5f,220.f,.1f) && Reaction.Layers.ContainsByPredicate([](const FLayer& L){ return L.Place==EPlace::GroundStrip && FVector::Dist(L.At,L.End)>400.f; })
-        && Reaction.Layers.FilterByPredicate([](const FLayer& L){ return L.Tex==ETex::ShockArcs && L.Place==EPlace::GroundStrip; }).Num()==3
-        && ReactionHit->Ink.B>ReactionHit->Ink.R);
-    // Own strikes: full size with the ball orange; others' are white, smaller and fainter; reduced effects drop the optional layers.
-    const FLayer* OtherHit=Find(Impact(EStrike::Basic,Chest,Feet,Dir,From,false,Other),ETex::HitBasic,EPlace::Facing);
-    TestTrue(TEXT("Others' fights are smaller, fainter and white; the local player's strikes carry the ball orange"),
-        OtherHit && OtherHit->SizeCm<BasicHit->SizeCm && OtherHit->Alpha<BasicHit->Alpha && BasicHit->Glow.R>2.f*BasicHit->Glow.B
-        && FMath::IsNearlyEqual(OtherHit->Glow.R,OtherHit->Glow.B,.01f));
+    TestTrue(TEXT("A zap lights the ground under its target over a faint scorch, a bounce target's a little smaller; the link, burst and sparks are the Niagara Chain"),
+        !Find(Zap,ETex::HitSkill,EPlace::Facing) && Find(Zap,ETex::ChainAGroundGlow,EPlace::Flat) && Find(Zap,ETex::ChainBScorchDash,EPlace::Flat)
+        && Find(Bounce,ETex::ChainAGroundGlow,EPlace::Flat) && Find(Bounce,ETex::ChainAGroundGlow,EPlace::Flat)->SizeCm<Find(Zap,ETex::ChainAGroundGlow,EPlace::Flat)->SizeCm);
     FLook Reduced=Own; Reduced.EffectScale=.45f;
-    TestTrue(TEXT("Reduced effects drop the optional arcs and dim the rest"), Conduct(Chest,Feet,450.f,Reduced).Layers.Num()==Reaction.Layers.Num()-2
-        && Find(Conduct(Chest,Feet,450.f,Reduced),ETex::HitSkill,EPlace::Facing)->Alpha<ReactionHit->Alpha);
+    TestTrue(TEXT("Reduced effects drop the optional contact lights"), Impact(EStrike::Zap,Chest,Feet,Dir,From,false,Reduced).Layers.IsEmpty());
     FLook Off=Own; Off.Size=0.f;
-    FLook Broken=Own; Broken.Seconds=NaN;
-    TestTrue(TEXT("A zero or invalid tuning or effect scale shows nothing"), Impact(EStrike::Basic,Chest,Feet,Dir,From,false,Off).Layers.IsEmpty()
-        && SwingRelease(1,Chest,Dir,Broken).Layers.IsEmpty() && Impact(EStrike::None,Chest,Feet,Dir,From,false,Own).Layers.IsEmpty());
-    // The swing: chalk telegraph on the ground through the windup, then the step's slash at the chest.
+    TestTrue(TEXT("A zero tuning or no strike shows nothing"), Impact(EStrike::Zap,Chest,Feet,Dir,From,false,Off).Layers.IsEmpty()
+        && Impact(EStrike::None,Chest,Feet,Dir,From,false,Own).Layers.IsEmpty());
+    // The swing's chalk telegraph on the ground through the windup (the arc at the release is the Niagara Swing).
     const FRecipe Chalk=SwingTelegraph(2,Feet,Dir,.3f,Own);
-    TestTrue(TEXT("A swing's telegraph is the coming slash in white chalk on the ground, gone after the windup"),
+    TestTrue(TEXT("A swing's telegraph is the coming slash as a faint chalk hint on the ground, gone after the windup"),
         Chalk.Layers.Num()==1 && Chalk.Layers[0].Mesh==EMesh::Slash2 && Chalk.Layers[0].Place==EPlace::GroundSlash && Chalk.Layers[0].bTelegraph
         && Chalk.Layers[0].Glow.R==Chalk.Layers[0].Glow.B && Evaluate(Chalk.Layers[0],.15f).bVisible && !Evaluate(Chalk.Layers[0],.36f).bVisible
         && SwingTelegraph(1,Feet,Dir,.05f,Own).Layers.IsEmpty());
-    const FRecipe Slash1=SwingRelease(1,Chest,Dir,Own), Slash3=SwingRelease(3,Chest,Dir,Own);
-    TestTrue(TEXT("Each combo step has its own slash; the finisher lasts longer"),
-        Slash1.Layers.Num()==1 && Slash1.Layers[0].Mesh==EMesh::Slash1 && Slash3.Layers[0].Mesh==EMesh::Slash3
-        && Slash3.Layers[0].Seconds>Slash1.Layers[0].Seconds && Slash3.Layers[0].SizeCm<Slash1.Layers[0].SizeCm && SwingRelease(2,Chest,Dir,Own).Layers[0].Mesh==EMesh::Slash2);
-    const FLayer& Cut=Slash1.Layers[0];
-    TestTrue(TEXT("A slash reveals from its tail to its head, then erodes"),
-        Evaluate(Cut,0.f).WindowLo>.9f && Evaluate(Cut,Cut.RevealSeconds).WindowLo<0.f && Evaluate(Cut,Cut.ErodeFrom).Dissolve==0.f
-        && Evaluate(Cut,Cut.ErodeFrom+Cut.ErodeSeconds*.5f).Dissolve>.4f);
-    const FLayer& Spark=ZapRelease(Chest,Own).Layers[0];
+    const FLayer& Spark=*SkillHit;
     TestTrue(TEXT("Flipbooks step at their authored rate and hold their last frame; a delayed layer waits"),
-        Evaluate(Spark,0.f).Frame==0.f && Evaluate(Spark,.1f).Frame==3.f && Evaluate(Spark,Spark.Seconds-.01f).Frame==15.f
+        Evaluate(Spark,0.f).Frame==0.f && Evaluate(Spark,.1f).Frame==2.f && Evaluate(Spark,Spark.Seconds-.01f).Frame==15.f
         && !Evaluate(*Find(Hose,ETex::WaterSplash,EPlace::Facing),.01f).bVisible && IsOver(Spark,Spark.Seconds) && !IsOver(Spark,0.f));
-    const FLayer Loop=GroundField(Feet,220.f,Own);
-    TestTrue(TEXT("The ground field loops its frames and never ends on its own"),
-        Loop.bLoop && !IsOver(Loop,100.f) && Evaluate(Loop,1.f+1.f/16.f).Frame==1.f && Evaluate(Loop,0.f).Fade<Evaluate(Loop,1.f).Fade);
+    TestTrue(TEXT("Every generated system has its package under the generated folder"),
+        SystemPackage(ESystem::Chain)==FString(GeneratedFolder)/TEXT("NS_LDChain") && SystemPackage(ESystem::Field).StartsWith(GeneratedFolder)
+        && FCString::Strlen(SystemName(ESystem::Count))==0);
     const FRecipe Lane=SkillTelegraph(Feet,Dir,600.f,160.f,.2f,Own);
     TestTrue(TEXT("A skill's chalk lane covers its footprint along the facing"), Lane.Layers.Num()==1 && Lane.Layers[0].Tex==ETex::ChalkLane
         && Lane.Layers[0].End.Equals(FVector(600,0,0)) && FMath::IsNearlyEqual(Lane.Layers[0].SizeCm,160.f) && Lane.Layers[0].Place==EPlace::GroundStrip);

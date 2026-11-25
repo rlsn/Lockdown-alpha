@@ -335,8 +335,7 @@ void ULDHumanoidVisualComponent::UpdateSlice(float EffectScale)
         if (Late < .2f)
         {
             const FVector Centre = Space.TransformPosition(FVector(0, 0, .55f * HeightCm - HalfHeight));
-            Impacts->Slice(this, LDSliceVfx::SwingRelease(Step, Centre, Facing,
-                Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Swing, bOwnBody, bOwnBody)), Late);
+            Impacts->Swing(*this, Step, Centre, Facing, Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Swing, bOwnBody, bOwnBody), Late);
             Impacts->NoteStrike(*this, Step >= 3 ? LDSliceVfx::EStrike::Finisher : LDSliceVfx::EStrike::Basic, Centre, Facing, bOwnBody);
         }
     }
@@ -975,23 +974,35 @@ void ULDHumanoidVisualComponent::ShowSliceImpact(const FPendingImpact& Impact, c
     if (Match.bOwn) { OwnStrikeAt = Clock; }
     const LDSliceVfx::FLook Look = Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, Match.bOwn, bOwnBody || Match.bOwn);
     Impacts->Slice(this, LDSliceVfx::Impact(Strike, Chest, Feet, Dir, Match.From, Match.bChained, Look), Age);
+    // A basic or finisher hit: the Niagara Hit along the strike, and in the local player's own fight a brief rim on the body.
+    if (Strike == LDSliceVfx::EStrike::Basic || Strike == LDSliceVfx::EStrike::Finisher)
+    {
+        const bool bFinisher = Strike == LDSliceVfx::EStrike::Finisher;
+        Impacts->Hit(*this, Chest - Dir * 100.f, Chest, bFinisher, Look, Age);
+        if (Look.bFocus && Mesh && Age < .1f && Look.EffectScale > 0.f)
+        {
+            LDHitVfx::FGhosts Rim;
+            Rim.bShow = true;
+            Rim.bShell = true;
+            Rim.Seconds = bFinisher ? .18f : .12f;
+            Rim.Glow = LDSliceVfx::StrikeTint(Look) * (bFinisher ? 1.5f : 1.f);
+            Impacts->Ghost(*Mesh, Rim, *this);
+        }
+    }
     // A zap hop: the Niagara Chain from the matched hand or previous body to this one; with no visible source only its
     // contact sparks show (a short link straight down onto the body).
     if (Strike == LDSliceVfx::EStrike::Zap)
     {
         Impacts->Chain(*this, Match.From.ContainsNaN() ? Chest + FVector(0, 0, 60.f) : Match.From, Chest, Match.bChained, Look, Age);
-        // Chain look A warms the struck body for 0.15 s with a pooled glowing copy of its pose (removable, never the
-        // body's own materials).
-        // A+ lights a rim shell instead, brighter and longer, only on the local player's own fights (others' targets get
-        // none); a bounce target (smaller link) a little less.
-        const bool bPlus = Look.ChainLook == LDSliceVfx::ChainAPlus;
-        if ((Look.ChainLook == LDSliceVfx::ChainA || (bPlus && Look.bFocus)) && Mesh && Age < .15f && Look.EffectScale > 0.f)
+        // The struck body lights a warm rim shell, only in the local player's own fights (others' targets get none); a
+        // bounce target (smaller link) a little less.
+        if (Look.bFocus && Mesh && Age < .15f && Look.EffectScale > 0.f)
         {
             LDHitVfx::FGhosts Warm;
             Warm.bShow = true;
-            Warm.bShell = bPlus;
-            Warm.Seconds = bPlus ? .22f : .15f;
-            Warm.Glow = bPlus ? FLinearColor(1.f, .74f, .36f) * (Match.bChained ? 1.3f : 1.6f) : FLinearColor(1.f, .7f, .28f) * (Look.bFocus ? 1.4f : .8f);
+            Warm.bShell = true;
+            Warm.Seconds = .22f;
+            Warm.Glow = FLinearColor(1.f, .74f, .36f) * (Match.bChained ? 1.3f : 1.6f);
             Impacts->Ghost(*Mesh, Warm, *this);
         }
     }
@@ -1253,11 +1264,12 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
                 const FVector Chest = Space.TransformPosition(FVector(0, 0, -HalfHeight + .6f * HeightCm));
                 if (ShownReaction == uint8(ELDCombatReaction::Conduct))
                 {
-                    // Conduct (wet + shock): the reaction tier's burst, arcs out to the splash radius and the electric field.
-                    // It is the local player's fight when it happens to the own body or right after the own strike landed here.
+                    // Conduct (wet + shock): the electric field flashes out to the splash radius round the body (its hit is
+                    // the zap's). It is the local player's fight when it happens to the own body or right after the own
+                    // strike landed here.
                     const bool bMine = OwnStrikeAt >= 0 && Clock - OwnStrikeAt < .6;
-                    Impacts->Slice(this, LDSliceVfx::Conduct(Chest, Space.TransformPosition(Feet), Impacts->ConductRadiusCm(),
-                        Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, bMine, bOwnBody || bMine)), float(Clock - ReactionOnset));
+                    Impacts->FieldPulse(*this, Space.TransformPosition(Feet), Impacts->ConductRadiusCm(),
+                        Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, bMine, bOwnBody || bMine), float(Clock - ReactionOnset));
                 }
                 else
                 {

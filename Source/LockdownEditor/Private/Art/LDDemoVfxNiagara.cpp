@@ -34,12 +34,7 @@ namespace
 {
     constexpr TCHAR BeamTemplate[] = TEXT("/Niagara/DefaultAssets/Templates/Emitters/DynamicBeam.DynamicBeam");
     constexpr TCHAR SparkTemplate[] = TEXT("/Niagara/DefaultAssets/Templates/Emitters/SimpleSpriteBurst.SimpleSpriteBurst");
-    constexpr TCHAR JitterModule[] = TEXT("/Niagara/Modules/Update/Position/JitterPosition.JitterPosition");
-    constexpr TCHAR DragModule[] = TEXT("/Niagara/Modules/Update/Forces/Drag.Drag");
-    constexpr TCHAR VelocityModule[] = TEXT("/Niagara/Modules/Spawn/Velocity/AddVelocityInCone.AddVelocityInCone");
-    constexpr TCHAR SubUVModule[] = TEXT("/Niagara/Modules/Update/SubUV/V2/SubUVAnimation.SubUVAnimation");
     const FName EmitterUpdate(TEXT("EmitterUpdateScript")), ParticleSpawn(TEXT("ParticleSpawnScript")), ParticleUpdate(TEXT("ParticleUpdateScript"));
-    const FName Bolt(TEXT("Bolt")), Spark(TEXT("Spark"));
 
     bool NiagaraFail(FString& Error, const FString& Message) { Error = Message; return false; }
 
@@ -81,18 +76,6 @@ namespace
         return Out;
     }
 
-    void Linked(FSteps& Steps, FName Emitter, FName Script, FName Module, FName Input, const FNiagaraExt_Variable& Variable)
-    {
-        Steps.Run(FString::Printf(TEXT("link %s.%s.%s <- %s"), *Emitter.ToString(), *Module.ToString(), *Input.ToString(), *Variable.Name.ToString()),
-            [&](FNiagaraExternalEditContext& Context)
-            {
-                FNiagaraExt_StackInputValue Value;
-                Value.InitializeAs<FNiagaraExt_StackInputData_Linked>();
-                Value.GetMutable<FNiagaraExt_StackInputData_Linked>().LinkedVariable = Variable;
-                UNiagaraExternalEditUtilities::SetStackInputData(InputOf(Steps.System, Emitter, Script, Module, Input), Value, Context);
-            });
-    }
-
     void Expression(FSteps& Steps, FName Emitter, FName Script, FName Module, FName Input, const TCHAR* Hlsl)
     {
         Steps.Run(FString::Printf(TEXT("expression %s.%s.%s = %s"), *Emitter.ToString(), *Module.ToString(), *Input.ToString(), Hlsl),
@@ -122,20 +105,6 @@ namespace
         FNiagaraFloat Literal;
         Literal.Value = Value;
         Local(Steps, Emitter, Script, Module, Input, Literal, FString::SanitizeFloat(Value));
-    }
-
-    void Int(FSteps& Steps, FName Emitter, FName Script, FName Module, FName Input, int32 Value)
-    {
-        FNiagaraInt32 Literal;
-        Literal.Value = Value;
-        Local(Steps, Emitter, Script, Module, Input, Literal, FString::FromInt(Value));
-    }
-
-    void Bool(FSteps& Steps, FName Emitter, FName Script, FName Module, FName Input, bool bValue)
-    {
-        FNiagaraBool Literal;
-        Literal.SetValue(bValue);
-        Local(Steps, Emitter, Script, Module, Input, Literal, bValue ? TEXT("true") : TEXT("false"));
     }
 
     // An enum input set by the display name of one of its entries ("Infinite", "Direct Set").
@@ -169,26 +138,6 @@ namespace
                 FString Names;
                 for (int32 Index = 0; Index < Data->Enum->NumEnums(); ++Index) { Names += Data->Enum->GetDisplayNameTextByIndex(Index).ToString() + TEXT(", "); }
                 Context.Error(FText::FromString(FString(TEXT("no entry named ")) + DisplayName + TEXT(" in ") + Names));
-            });
-    }
-
-    void AddModule(FSteps& Steps, FName Emitter, FName Script, FName After, const TCHAR* Path)
-    {
-        Steps.Run(FString::Printf(TEXT("add module %s to %s.%s after %s"), Path, *Emitter.ToString(), *Script.ToString(), *After.ToString()),
-            [&](FNiagaraExternalEditContext& Context)
-            {
-                const UNiagaraScript* Module = LoadObject<UNiagaraScript>(nullptr, Path);
-                if (!Module) { Context.Error(FText::FromString(TEXT("module asset missing"))); return; }
-                FNiagaraExt_ModuleTopology Topology;
-                UNiagaraExternalEditUtilities::AddModule(FNiagaraExt_StackItemReference(Steps.System, Emitter, Script, After), Module, Topology, Context);
-                for (const FNiagaraExt_StackInputTopology& Input : Topology.Inputs)
-                {
-                    if (Input.bIsVisible)
-                    {
-                        UE_LOG(LogLDEditor, Display, TEXT("LD_NIAGARA_TOPOLOGY   %s input %s : %s editable=%d switch=%d"), *Topology.ModuleName.ToString(),
-                            *Input.Name.ToString(), *Input.Type.GetName(), Input.bIsEditable, Input.bIsStaticSwitch);
-                    }
-                }
             });
     }
 
@@ -229,83 +178,6 @@ namespace
         return Expression;
     }
 
-    // The particle form of the slice material: the same glow remap (ink 0, Particle Color body at 0.6, white core at 1)
-    // with Particle Color's alpha as the fade; Rows > 1 picks one stacked strip variant, changing VariantHz times a second
-    // (the lightning atlas's flicker). Sprite flipbooks rely on the renderer's sub-image UVs.
-    UMaterial* BuildMaterial(UTexture2D* DefaultMask, FString& Error)
-    {
-        const FString PackageName = LDSliceVfx::NiagaraMaterial;
-        Retire(PackageName);
-        UMaterial* Material = NewObject<UMaterial>(CreatePackage(*PackageName), *FPackageName::GetShortName(PackageName), RF_Public | RF_Standalone);
-        auto* UV = AddExpression<UMaterialExpressionTextureCoordinate>(*Material);
-        auto* Mask = AddExpression<UMaterialExpressionTextureObjectParameter>(*Material);
-        Mask->ParameterName = LDSliceVfx::MaskParameter;
-        Mask->Texture = DefaultMask;
-        Mask->SamplerType = SAMPLERTYPE_LinearColor;
-        auto* Particle = AddExpression<UMaterialExpressionParticleColor>(*Material);
-        auto* Rows = AddExpression<UMaterialExpressionScalarParameter>(*Material);
-        Rows->ParameterName = TEXT("Rows");
-        Rows->DefaultValue = 1.f;
-        auto* Hz = AddExpression<UMaterialExpressionScalarParameter>(*Material);
-        Hz->ParameterName = TEXT("VariantHz");
-        Hz->DefaultValue = 0.f;
-        auto* Time = AddExpression<UMaterialExpressionTime>(*Material);
-        auto* Custom = AddExpression<UMaterialExpressionCustom>(*Material);
-        Custom->OutputType = CMOT_Float4;
-        Custom->Description = TEXT("LDSliceParticle");
-        Custom->Code = TEXT("float R = max(Rows, 1.0);\r\n")
-            TEXT("float Row = fmod(floor(Time * VariantHz) * 3.0, R);\r\n")
-            TEXT("float4 M = Texture2DSample(Mask, MaskSampler, float2(UV.x, (saturate(UV.y) + Row) / R));\r\n")
-            TEXT("float G = M.r;\r\n")
-            TEXT("float3 Body = Tint * saturate(G / 0.6);\r\n")
-            TEXT("float3 Hot = lerp(Body, max(Tint.r, max(Tint.g, Tint.b)) * 1.4, smoothstep(0.7, 1.0, G));\r\n")
-            TEXT("return float4(lerp(float3(0.003, 0.003, 0.004), Hot, saturate(G * 5.0)), M.a * Fade);");
-        Custom->Inputs.Reset();
-        const auto Bind = [Custom](const TCHAR* Name, UMaterialExpression* Source, int32 Output)
-        {
-            FCustomInput& Input = Custom->Inputs.AddDefaulted_GetRef();
-            Input.InputName = Name;
-            Input.Input.Connect(Output, Source);
-        };
-        Bind(TEXT("UV"), UV, 0);
-        Bind(TEXT("Mask"), Mask, 0);
-        Bind(TEXT("Tint"), Particle, 0);
-        Bind(TEXT("Fade"), Particle, 4);
-        Bind(TEXT("Rows"), Rows, 0);
-        Bind(TEXT("VariantHz"), Hz, 0);
-        Bind(TEXT("Time"), Time, 0);
-        auto* Colour = AddExpression<UMaterialExpressionComponentMask>(*Material);
-        Colour->Input.Connect(0, Custom);
-        Colour->R = Colour->G = Colour->B = 1;
-        auto* Coverage = AddExpression<UMaterialExpressionComponentMask>(*Material);
-        Coverage->Input.Connect(0, Custom);
-        Coverage->A = 1;
-        Material->GetEditorOnlyData()->EmissiveColor.Connect(0, Colour);
-        Material->GetEditorOnlyData()->Opacity.Connect(0, Coverage);
-        Material->BlendMode = BLEND_Translucent;
-        Material->TwoSided = true;
-        Material->SetShadingModel(MSM_Unlit);
-        bool bNeedsRecompile = false;
-        Material->SetMaterialUsage(bNeedsRecompile, MATUSAGE_NiagaraSprites);
-        Material->SetMaterialUsage(bNeedsRecompile, MATUSAGE_NiagaraRibbons);
-        Material->PostEditChange();
-        Material->MarkPackageDirty();
-        return Save(*Material, Error) ? Material : nullptr;
-    }
-
-    UMaterialInstanceConstant* BuildInstance(const FString& PackageName, UMaterial& Parent, UTexture2D* Mask, float Rows, float Hz, FString& Error)
-    {
-        Retire(PackageName);
-        auto* Instance = NewObject<UMaterialInstanceConstant>(CreatePackage(*PackageName), *FPackageName::GetShortName(PackageName), RF_Public | RF_Standalone);
-        Instance->SetParentEditorOnly(&Parent);
-        Instance->SetTextureParameterValueEditorOnly(FMaterialParameterInfo(LDSliceVfx::MaskParameter), Mask);
-        Instance->SetScalarParameterValueEditorOnly(FMaterialParameterInfo(TEXT("Rows")), Rows);
-        Instance->SetScalarParameterValueEditorOnly(FMaterialParameterInfo(TEXT("VariantHz")), Hz);
-        Instance->PostEditChange();
-        Instance->MarkPackageDirty();
-        return Save(*Instance, Error) ? Instance : nullptr;
-    }
-
     UTexture2D* SliceTexture(LDSliceVfx::ETex Tex)
     {
         const FString Package = LDSliceVfx::TexturePackage(Tex);
@@ -332,21 +204,9 @@ namespace
 
     // ------------------------------------------------------------------ NiagaraV1: the first Niagara chain look
 
-    // The V1 link: a DynamicBeam re-spawned LoopHz times a second (each burst living LifetimeLoops loops, so the loops
-    // overlap without gaps) with smooth position jitter, the shock arc atlas stretched once over it, and a spark burst.
-    struct FV1Spec
-    {
-        int32 Points = 16;
-        float LoopHz = 15.f, LifetimeLoops = 1.5f;
-        float JitterCm = 14.f, JitterHz = 50.f;
-        float ArcRows = 8.f, ArcHz = 15.f;
-        int32 Sparks = 5;
-        float SparkSpeed = 420.f, SparkDrag = 6.f, SparkSize = 2.2f;
-    };
+    // ------------------------------------------------------------------ the generated systems
 
-    // ------------------------------------------------------------------ candidates A, B and C
-
-    // The trunk of a candidate's link: a piecewise-linear bolt from User.Start to User.End through points spaced about
+    // The trunk of a link: a piecewise-linear bolt from User.Start to User.End through points spaced about
     // SegCm apart (MinPoints..MaxPoints), each interior point slid along the hop by up to Jitter of a segment and pushed
     // sideways by up to Kink (and vertically UpKink) of a segment, the whole bowed upwards by Bow of its length. Step is
     // the HLSL shape index: the offsets are re-drawn whenever it changes (discrete kinks, never a smooth jitter). Amp
@@ -387,7 +247,7 @@ namespace
 
     const TCHAR* const Own = TEXT("float(Particles.UniqueID)");
 
-    // One emitter of a candidate: a ribbon (the DynamicBeam template), a sprite or a light (the SimpleSpriteBurst template,
+    // One emitter of a generated system: a ribbon (the DynamicBeam template), a sprite or a light (the SimpleSpriteBurst template,
     // the light with its sprite renderer swapped for a light renderer). It spawns Count (HLSL int) particles once, each
     // living Lifetime (HLSL seconds), and writes Attributes (HLSL over the user parameters, the particle's age and index,
     // and the attributes set before it) at spawn and every update, after the template's own modules.
@@ -406,14 +266,16 @@ namespace
         ENiagaraSpriteAlignment Align = ENiagaraSpriteAlignment::Unaligned;
         // Ribbon: several ribbons in one emitter, told apart by the int attribute Particles.LDRibbon.
         bool bRibbonIds = false;
+        // Sprite facing (CustomFacingVector lays a sprite on the ground with Particles.SpriteFacing up).
+        ENiagaraSpriteFacingMode Facing = ENiagaraSpriteFacingMode::Automatic;
 
         FPart& Set(const TCHAR* Attribute, const FString& Hlsl) { Attributes.Emplace(Attribute, Hlsl); return *this; }
     };
 
-    // A candidate look: its parts plus the colours of its material instances.
-    struct FCandidate
+    // A generated system: its parts.
+    struct FSystemParts
     {
-        const TCHAR* Look = TEXT("A");
+        LDSliceVfx::ESystem System = LDSliceVfx::ESystem::Chain;
         TArray<FPart> Parts;
     };
 
@@ -423,7 +285,7 @@ namespace
         if (Name == TEXT("Particles.LDRibbon")) { return FNiagaraTypeDefinition::GetIntDef(); }
         if (Name == TEXT("Particles.Color")) { return FNiagaraTypeDefinition::GetColorDef(); }
         if (Name == TEXT("Particles.SpriteSize")) { return FNiagaraTypeDefinition::GetVec2Def(); }
-        if (Name == TEXT("Particles.Velocity") || Name == TEXT("Particles.SpriteAlignment")) { return FNiagaraTypeDefinition::GetVec3Def(); }
+        if (Name == TEXT("Particles.Velocity") || Name == TEXT("Particles.SpriteAlignment") || Name == TEXT("Particles.SpriteFacing")) { return FNiagaraTypeDefinition::GetVec3Def(); }
         return FNiagaraTypeDefinition::GetFloatDef();
     }
 
@@ -461,13 +323,10 @@ namespace
         }
     }
 
-    // The candidates' material: one Custom node over the part's texture (glow in R, coverage in A; B's sheets carry their
-    // warm-dark edge in B), its noise, the Particle Color (RGB brightness, A fade) and the look's three colours.
+    // The generated systems' material: one Custom node over the part's texture (glow in R, coverage in A), its noise, the
+    // Particle Color (RGB tint of the outer layers times brightness, A fade) and three colours.
     //   Mode 0  glow ramp: edge colour -> body colour (glow 0.6) -> core colour (glow 1)
     //   Mode 1  glow ramp with the noise scrolling along U over the soft layer; the core adds more than it covers
-    //   Mode 2  brush stroke: flat body, one highlight band along one edge, the warm-dark edge on the other, dry edges
-    //   Mode 3  flat two-tone sheet: body, core where glow > 0.8, warm-dark edge from B
-    // bTop: drawn over the bodies (no depth test), for the hit sprites whose centre sits inside the struck body.
     UMaterial* BuildChainMaterial(const TCHAR* Name, bool bTop, UTexture2D* DefaultMask, FString& Error)
     {
         const FString PackageName = GeneratedPackage(Name);
@@ -514,35 +373,18 @@ namespace
         Custom->Code = TEXT("float4 M = Texture2DSample(Mask, MaskSampler, UV);\r\n")
             TEXT("float g = M.r;\r\n")
             TEXT("float a = M.a;\r\n")
-            TEXT("float3 C;\r\n")
-            TEXT("if (Mode < 1.5)\r\n")
+            TEXT("float hot = smoothstep(0.62, 0.95, g);\r\n")
+            TEXT("float3 low = lerp(EdgeColor, BodyColor, saturate(g / 0.6)) * BodyGain;\r\n")
+            TEXT("float3 C = lerp(low, CoreColor * CoreGain, hot);\r\n")
+            TEXT("if (Mode > 0.5)\r\n")
             TEXT("{\r\n")
-            TEXT("    float hot = smoothstep(0.62, 0.95, g);\r\n")
-            TEXT("    float3 low = lerp(EdgeColor, BodyColor, saturate(g / 0.6)) * BodyGain;\r\n")
-            TEXT("    C = lerp(low, CoreColor * CoreGain, hot);\r\n")
-            TEXT("    if (Mode > 0.5)\r\n")
-            TEXT("    {\r\n")
-            TEXT("        float n = Texture2DSample(Noise, NoiseSampler, float2(UV.x * NoiseTile - Time * NoiseSpeed, UV.y * 0.5 + 0.25)).g;\r\n")
-            TEXT("        a *= lerp(lerp(1.0, saturate(0.3 + 1.2 * n), 1.0 - hot), 0.5, hot);\r\n")
-            TEXT("        C *= lerp(0.7 + 0.7 * n, 1.0, hot);\r\n")
-            TEXT("    }\r\n")
+            TEXT("    float n = Texture2DSample(Noise, NoiseSampler, float2(UV.x * NoiseTile - Time * NoiseSpeed, UV.y * 0.5 + 0.25)).g;\r\n")
+            TEXT("    a *= lerp(lerp(1.0, saturate(0.3 + 1.2 * n), 1.0 - hot), 0.5, hot);\r\n")
+            TEXT("    C *= lerp(0.7 + 0.7 * n, 1.0, hot);\r\n")
             TEXT("}\r\n")
-            TEXT("else\r\n")
-            TEXT("{\r\n")
-            TEXT("    float edge = saturate(M.b);\r\n")
-            TEXT("    float3 fill = lerp(BodyColor * BodyGain, CoreColor * CoreGain, step(0.8, g));\r\n")
-            TEXT("    if (Mode < 2.5)\r\n")
-            TEXT("    {\r\n")
-            TEXT("        float n = Texture2DSample(Noise, NoiseSampler, float2(UV.x * NoiseTile, UV.y * 2.5)).r;\r\n")
-            TEXT("        float band = step(0.12, UV.y) * step(UV.y, 0.26);\r\n")
-            TEXT("        fill = lerp(BodyColor * BodyGain, CoreColor * CoreGain, band);\r\n")
-            TEXT("        edge = step(0.8, UV.y) * step(UV.y, 0.92);\r\n")
-            TEXT("        float rim = saturate(abs(UV.y - 0.5) * 2.0);\r\n")
-            TEXT("        a = step(0.12, UV.y) * step(UV.y, 0.92) * step(rim * rim * rim * 0.7, n) * lerp(1.0, 0.8, edge);\r\n")
-            TEXT("    }\r\n")
-            TEXT("    C = lerp(fill, EdgeColor, edge);\r\n")
-            TEXT("}\r\n")
-            TEXT("return float4(C * Tint, saturate(a * Fade));");
+            TEXT("// Particle Color tints the outer layers; the core keeps its own warm white, only its brightness follows.\r\n")
+            TEXT("float Level = max(Tint.r, max(Tint.g, Tint.b));\r\n")
+            TEXT("return float4(lerp(C * Tint, C * Level, hot), saturate(a * Fade));");
         Custom->Inputs.Reset();
         const auto Bind = [Custom](const TCHAR* Name, UMaterialExpression* Source, int32 Output)
         {
@@ -634,238 +476,6 @@ namespace
             *FTrunk::Dir(), Forward, *Random(11.f), *Random(12.f), *Random(13.f), Lift);
     }
 
-    // A: stylised 3D energy. A bright warm-white core inside a soft energy layer with a darker amber under-layer, the
-    // energy noise scrolling along the bolt at a constant density per cm; 30-90 cm segments re-drawn at 25 Hz with a
-    // slight upward bow; up to three short branches; a small soft flash, 6-9 velocity-stretched sparks with slight gravity
-    // and a short shadowless warm light at the contact. The bolt then narrows to a dim afterimage over 80 ms.
-    FCandidate CandidateA(UMaterial& Material, UMaterial& Top, FString& Error)
-    {
-        const FPalette Palette{FLinearColor(1.f, .91f, .67f), FLinearColor(.89f, .67f, .12f), FLinearColor(.17f, .098f, .016f), 2.6f, 1.3f};
-        UTexture2D* Noise = SliceTexture(LDSliceVfx::ETex::ChainAEnergyNoise);
-        UMaterialInstanceConstant* Trunk = ChainPaint(TEXT("MI_LDChainA_Bolt"), Material, SliceTexture(LDSliceVfx::ETex::ChainAProfile), Noise, 1.f, Palette, 1.f, 1.6f, Error);
-        UMaterialInstanceConstant* Flash = ChainPaint(TEXT("MI_LDChainA_Flash"), Top, SliceTexture(LDSliceVfx::ETex::ChainAFlash), nullptr, 0.f, Palette, 1.f, 0.f, Error);
-        UMaterialInstanceConstant* Streak = ChainPaint(TEXT("MI_LDChainA_Spark"), Top, SliceTexture(LDSliceVfx::ETex::ChainASparkStreak), nullptr, 0.f, Palette, 1.f, 0.f, Error);
-        FCandidate A;
-        A.Look = TEXT("A");
-        if (!Trunk || !Flash || !Streak) { return A; }
-        FTrunk Shape;
-        Shape.Step = TEXT("floor(min(Particles.Age, User.Duration - 0.04) * 25.0)");
-        // The last 80 ms narrow the bolt to 15 % and dim it to a third: the dissipation and its afterimage frame.
-        const FString Fade = TEXT("saturate((User.Duration - Particles.Age) / 0.08)");
-        FPart& Main = A.Parts.AddDefaulted_GetRef();
-        Main.Name = TEXT("Bolt");
-        Main.Count = Shape.SpawnCount();
-        Main.Lifetime = TEXT("User.Duration + 0.035");
-        Main.Paint = Trunk;
-        Main.TileCm = 60.f;
-        Main.Set(TEXT("Particles.LDT"), Shape.T(Own))
-            .Set(TEXT("Particles.RibbonLinkOrder"), Own)
-            .Set(TEXT("Particles.Position"), Shape.Point(Own, TEXT("Particles.LDT")))
-            .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("User.Width * 0.32 * min(1.0, 0.35 + 2.6 * min(Particles.LDT, 1.0 - Particles.LDT)) * lerp(0.15, 1.0, %s)"), *Fade))
-            .Set(TEXT("Particles.Color"), Rgba(Bright, FString::Printf(TEXT("lerp(0.35, 1.0, %s)"), *Fade)));
-        // Branches leave a trunk point of the same frame at 25-45 degrees, 15-30 % of the hop long, each shown in about
-        // half of the 12 Hz windows (2-4 frames at a time).
-        for (int32 Index = 0; Index < 3; ++Index)
-        {
-            const FString Window = TEXT("floor(Particles.Age * 12.0)");
-            const auto Pick = [&](float Salt) { return FTrunk::Hash(FString::Printf(TEXT("%d.0"), 40 + Index * 7), Window, Salt); };
-            const FString Root = FString::Printf(TEXT("(1.0 + floor(%s * (%s - 2.0)))"), *Pick(.5f), *Shape.Count());
-            const FString Angle = FString::Printf(TEXT("radians(25.0 + 20.0 * %s)"), *Pick(1.5f));
-            const FString Sign = FString::Printf(TEXT("(step(0.5, %s) * 2.0 - 1.0)"), *Pick(2.5f));
-            const FString Reach = FString::Printf(TEXT("(%s * (0.15 + 0.15 * %s))"), *FTrunk::Length(), *Pick(3.5f));
-            const FString Along = FString::Printf(TEXT("(%s / 3.0)"), Own);
-            FPart& Branch = A.Parts.AddDefaulted_GetRef();
-            Branch.Name = *FString::Printf(TEXT("Branch%d"), Index);
-            Branch.Count = TEXT("4");
-            Branch.Lifetime = TEXT("User.Duration");
-            Branch.Paint = Trunk;
-            Branch.TileCm = 60.f;
-            Branch.Set(TEXT("Particles.RibbonLinkOrder"), Own)
-                .Set(TEXT("Particles.Position"), FString::Printf(TEXT("%s + (%s * cos(%s) + %s * sin(%s) * %s) * %s * %s + %s * (%s * 2.0 - 1.0) * 0.2 * %s / 3.0 * step(0.5, %s)"),
-                    *Shape.Point(Root, Shape.T(Root)), *FTrunk::Dir(), *Angle, *FTrunk::Side(), *Angle, *Sign, *Reach, *Along,
-                    *FTrunk::Up(), *FTrunk::Hash(Own, Window, 9.1f + Index), *Reach, Own))
-                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("User.Width * 0.15 * (1.0 - 0.8 * %s) * step(%s, 0.55) * %s"), *Along, *Pick(4.5f), *Fade))
-                .Set(TEXT("Particles.Color"), Rgba(Bright, TEXT("1.0")));
-        }
-        FPart& Hit = A.Parts.AddDefaulted_GetRef();
-        Hit.Name = TEXT("Flash");
-        Hit.Kind = FPart::Sprite;
-        Hit.Lifetime = TEXT("0.08");
-        Hit.Paint = Flash;
-        Hit.Set(TEXT("Particles.Position"), TEXT("User.End"))
-            .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(70.0, 70.0) * %s"), LinkScale))
-            .Set(TEXT("Particles.Color"), Rgba(Bright, TEXT("(1.0 - 0.6 * Particles.NormalizedAge)")));
-        FPart& Sparks = A.Parts.AddDefaulted_GetRef();
-        Sparks.Name = TEXT("Spark");
-        Sparks.Kind = FPart::Sprite;
-        Sparks.Count = FString::Printf(TEXT("int(6.0 + 4.0 * frac(%s))"), *FTrunk::Seed());
-        Sparks.Lifetime = FString::Printf(TEXT("0.15 + 0.1 * %s"), *Random(14.f));
-        Sparks.Paint = Streak;
-        Sparks.Align = ENiagaraSpriteAlignment::VelocityAligned;
-        const FString Launch = FString::Printf(TEXT("(%s * (350.0 + 300.0 * %s))"), *SparkDirection(.6f, .35f), *Random(15.f));
-        Sparks.Set(TEXT("Particles.Velocity"), FString::Printf(TEXT("%s + float3(0.0, 0.0, -600.0) * Particles.Age"), *Launch))
-            .Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.End + %s * Particles.Age + float3(0.0, 0.0, -300.0) * Particles.Age * Particles.Age"), *Launch))
-            .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(26.0, 6.5) * %s"), LinkScale))
-            .Set(TEXT("Particles.SpriteRotation"), Quarter)
-            .Set(TEXT("Particles.Color"), Rgba(Bright, TEXT("(1.0 - Particles.NormalizedAge)")));
-        FPart& Light = A.Parts.AddDefaulted_GetRef();
-        Light.Name = TEXT("Light");
-        Light.Kind = FPart::Light;
-        Light.Lifetime = TEXT("0.15");
-        Light.Set(TEXT("Particles.Position"), TEXT("User.End + float3(0.0, 0.0, -25.0)"))
-            .Set(TEXT("Particles.LightRadius"), FString::Printf(TEXT("170.0 * %s"), LinkScale))
-            .Set(TEXT("Particles.Color"), FString::Printf(TEXT("float4(1.0, 0.72, 0.34, 1.0) * float4(6.0, 6.0, 6.0, 1.0) * %s * (1.0 - Particles.NormalizedAge)"), Bright));
-        return A;
-    }
-
-    // B: refined street / comic energy. A flat two-tone gold brush stroke with a cream highlight along one edge and a thin
-    // warm-dark edge on the other, dry ragged rims, tapering hard from the source to the target; 3-6 long segments with
-    // 30-70 degree kinks held for 2-3 frames then snapped to a new shape (12 Hz, drawn on twos); the first frame is a
-    // fainter, wider, straighter smear; one forked tine near the target; at the hit 3-4 angular shards along the hop that
-    // break into drifting fragments after two frames (the ground scorch is a slice layer, LDSliceVfx::Impact).
-    FCandidate CandidateB(UMaterial& Material, UMaterial& Top, FString& Error)
-    {
-        const FPalette Palette{FLinearColor(1.f, .86f, .6f), FLinearColor(.5f, .32f, .08f), FLinearColor(.069f, .024f, .007f), 1.f, .9f};
-        UMaterialInstanceConstant* Stroke = ChainPaint(TEXT("MI_LDChainB_Stroke"), Material, SliceTexture(LDSliceVfx::ETex::ChainBStrokeProfile),
-            SliceTexture(LDSliceVfx::ETex::DissolveNoise), 2.f, Palette, .6f, 0.f, Error);
-        UMaterialInstanceConstant* Shards = ChainPaint(TEXT("MI_LDChainB_Shards"), Top, SliceTexture(LDSliceVfx::ETex::ChainBShards), nullptr, 3.f, Palette, 1.f, 0.f, Error);
-        FCandidate B;
-        B.Look = TEXT("B");
-        if (!Stroke || !Shards) { return B; }
-        const FString Solid = TEXT("step(0.034, Particles.Age)");
-        FTrunk Shape;
-        Shape.SegCm = 110.f;
-        Shape.MinPoints = 4.f;
-        Shape.MaxPoints = 7.f;
-        Shape.Jitter = .5f;
-        Shape.Kink = .42f;
-        Shape.UpKink = .1f;
-        Shape.Bow = .05f;
-        Shape.Step = TEXT("floor(Particles.Age * 12.0)");
-        Shape.Amp = FString::Printf(TEXT("lerp(0.3, 1.0, %s)"), *Solid);
-        const FString End = TEXT("saturate((User.Duration - Particles.Age) / 0.05)");
-        FPart& Main = B.Parts.AddDefaulted_GetRef();
-        Main.Name = TEXT("Bolt");
-        Main.Count = Shape.SpawnCount();
-        Main.Lifetime = TEXT("User.Duration");
-        Main.Paint = Stroke;
-        Main.TileCm = 160.f;
-        Main.Set(TEXT("Particles.LDT"), Shape.T(Own))
-            .Set(TEXT("Particles.RibbonLinkOrder"), Own)
-            .Set(TEXT("Particles.Position"), Shape.Point(Own, TEXT("Particles.LDT")))
-            .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("User.Width * 0.44 * lerp(1.0, 0.1, pow(Particles.LDT, 0.85)) * min(1.0, Particles.LDT * 12.0 + 0.45) * lerp(1.5, 1.0, %s) * (0.7 + 0.6 * %s)"),
-                *Solid, *FTrunk::Hash(Own, Shape.Step, 8.3f)))
-            .Set(TEXT("Particles.Color"), Rgba(Bright, FString::Printf(TEXT("lerp(0.45, 1.0, %s) * %s"), *Solid, *End)));
-        // The tine forks off the last interior kink, 35 +- 10 degrees to a side redrawn with the trunk.
-        const FString Root = FString::Printf(TEXT("(%s - 2.0)"), *Shape.Count());
-        const auto Pick = [&](float Salt) { return FTrunk::Hash(TEXT("61.0"), Shape.Step, Salt); };
-        const FString Angle = FString::Printf(TEXT("radians(25.0 + 20.0 * %s)"), *Pick(.5f));
-        const FString Sign = FString::Printf(TEXT("(step(0.5, %s) * 2.0 - 1.0)"), *Pick(1.5f));
-        const FString Reach = FString::Printf(TEXT("clamp(0.18 * %s, 40.0, 90.0)"), *FTrunk::Length());
-        FPart& Tine = B.Parts.AddDefaulted_GetRef();
-        Tine.Name = TEXT("Tine");
-        Tine.Count = TEXT("3");
-        Tine.Lifetime = TEXT("User.Duration");
-        Tine.Paint = Stroke;
-        Tine.TileCm = 160.f;
-        Tine.Set(TEXT("Particles.RibbonLinkOrder"), Own)
-            .Set(TEXT("Particles.Position"), FString::Printf(TEXT("%s + (%s * cos(%s) + %s * sin(%s) * %s) * %s * (%s / 2.0)"),
-                *Shape.Point(Root, Shape.T(Root)), *FTrunk::Dir(), *Angle, *FTrunk::Side(), *Angle, *Sign, *Reach, Own))
-            .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("User.Width * 0.1 * (1.0 - 0.85 * %s / 2.0) * %s"), Own, *Solid))
-            .Set(TEXT("Particles.Color"), Rgba(Bright, End));
-        // The shards: one atlas cell (3-4 slivers) at the hit point aimed along the hop; row 0 for two frames, then row 1
-        // (the same set broken up) drifting on along the hop and fading over 0.15 s.
-        const FString Broken = TEXT("step(0.067, Particles.Age)");
-        FPart& Hit = B.Parts.AddDefaulted_GetRef();
-        Hit.Name = TEXT("Shards");
-        Hit.Kind = FPart::Sprite;
-        Hit.Lifetime = TEXT("0.217");
-        Hit.Paint = Shards;
-        Hit.SubImages = FVector2D(4., 2.);
-        Hit.Pivot = FVector2D(.3, .5);
-        Hit.Align = ENiagaraSpriteAlignment::CustomAlignment;
-        Hit.Set(TEXT("Particles.SpriteAlignment"), FTrunk::Dir())
-            .Set(TEXT("Particles.SpriteRotation"), Quarter)
-            .Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.End + %s * max(Particles.Age - 0.067, 0.0) * 140.0"), *FTrunk::Dir()))
-            .Set(TEXT("Particles.SubImageIndex"), FString::Printf(TEXT("floor(frac(%s) * 4.0) + 4.0 * %s"), *FTrunk::Seed(), *Broken))
-            .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(60.0, 60.0) * %s"), LinkScale))
-            .Set(TEXT("Particles.Color"), Rgba(Bright, FString::Printf(TEXT("1.0 - %s * saturate((Particles.Age - 0.067) / 0.15)"), *Broken)));
-        return B;
-    }
-
-    // C: competitive clarity. One thin pale warm-white trunk (8-12 cm, slightly thicker toward the target) of 2-3 long
-    // irregular segments, no branches; a spark head runs from the source to the target in 40 ms ahead of it, the trunk holds
-    // until 120 ms and cuts, re-drawn once; at the target a pinpoint flash and 4 sparks. Others' links are 60 % wide, at
-    // half strength and without sparks. At most 10 particles per hop (the ground tick is a slice layer).
-    FCandidate CandidateC(UMaterial& Material, UMaterial& Top, FString& Error)
-    {
-        const FPalette Palette{FLinearColor(1.f, .91f, .67f), FLinearColor(.79f, .55f, .17f), FLinearColor(.35f, .22f, .06f), 2.2f, 1.2f};
-        UMaterialInstanceConstant* Core = ChainPaint(TEXT("MI_LDChainC_Core"), Material, SliceTexture(LDSliceVfx::ETex::ChainCCoreProfile), nullptr, 0.f, Palette, 1.f, 0.f, Error);
-        UMaterialInstanceConstant* Head = ChainPaint(TEXT("MI_LDChainC_Head"), Top, SliceTexture(LDSliceVfx::ETex::ChainCSparkHead), nullptr, 0.f, Palette, 1.f, 0.f, Error);
-        UMaterialInstanceConstant* Pin = ChainPaint(TEXT("MI_LDChainC_Pinpoint"), Top, SliceTexture(LDSliceVfx::ETex::ChainCPinpoint), nullptr, 0.f, Palette, 1.f, 0.f, Error);
-        FCandidate C;
-        C.Look = TEXT("C");
-        if (!Core || !Head || !Pin) { return C; }
-        const FString Strength = FString::Printf(TEXT("(%s * lerp(0.714, 1.0, User.Focus))"), Bright);
-        const FString Narrow = FString::Printf(TEXT("(%s * lerp(0.75, 1.0, User.Focus))"), LinkScale);
-        const FString Arrive = TEXT("saturate(Particles.Age / 0.04)");
-        FTrunk Shape;
-        Shape.SegCm = 220.f;
-        Shape.MinPoints = 3.f;
-        Shape.MaxPoints = 4.f;
-        Shape.Jitter = .5f;
-        Shape.Kink = .2f;
-        Shape.UpKink = .06f;
-        Shape.Bow = .06f;
-        Shape.Step = TEXT("min(floor(Particles.Age / 0.07), 1.0)");
-        FPart& Main = C.Parts.AddDefaulted_GetRef();
-        Main.Name = TEXT("Bolt");
-        Main.Count = Shape.SpawnCount();
-        Main.Lifetime = TEXT("0.15");
-        Main.Paint = Core;
-        Main.TileCm = 60.f;
-        Main.Set(TEXT("Particles.LDT"), Shape.T(Own))
-            .Set(TEXT("Particles.RibbonLinkOrder"), Own)
-            .Set(TEXT("Particles.Position"), Shape.Point(Own, TEXT("Particles.LDT")))
-            .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("70.0 * 0.15 * %s * lerp(0.7, 1.15, Particles.LDT) * step(Particles.LDT, %s + 0.001) * step(Particles.Age, 0.12)"), *Narrow, *Arrive))
-            .Set(TEXT("Particles.Color"), Rgba(Strength, TEXT("1.0")));
-        FPart& Runner = C.Parts.AddDefaulted_GetRef();
-        Runner.Name = TEXT("Head");
-        Runner.Kind = FPart::Sprite;
-        Runner.Lifetime = TEXT("0.05");
-        Runner.Paint = Head;
-        Runner.Align = ENiagaraSpriteAlignment::CustomAlignment;
-        Runner.Set(TEXT("Particles.SpriteAlignment"), FTrunk::Dir())
-            .Set(TEXT("Particles.SpriteRotation"), Quarter)
-            .Set(TEXT("Particles.Position"), FString::Printf(TEXT("lerp(User.Start, User.End, %s) + float3(0.0, 0.0, %.3f) * %s * (1.0 - %s) * %s"),
-                *Arrive, 4.f * Shape.Bow, *Arrive, *Arrive, *FTrunk::Length()))
-            .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(30.0, 7.5) * %s * step(Particles.Age, 0.045)"), *Narrow))
-            .Set(TEXT("Particles.Color"), Rgba(Strength, TEXT("1.0")));
-        FPart& Flash = C.Parts.AddDefaulted_GetRef();
-        Flash.Name = TEXT("Pinpoint");
-        Flash.Kind = FPart::Sprite;
-        Flash.Lifetime = TEXT("0.15");
-        Flash.Paint = Pin;
-        Flash.Set(TEXT("Particles.Position"), TEXT("User.End"))
-            .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(50.0, 50.0) * %s"), *Narrow))
-            .Set(TEXT("Particles.Color"), Rgba(Strength, TEXT("step(0.04, Particles.Age) * (1.0 - saturate((Particles.Age - 0.04) / 0.08))")));
-        const FString Since = TEXT("max(Particles.Age - 0.04, 0.0)");
-        const FString Launch = FString::Printf(TEXT("(%s * (260.0 + 160.0 * %s))"), *SparkDirection(.8f, .3f), *Random(15.f));
-        FPart& Sparks = C.Parts.AddDefaulted_GetRef();
-        Sparks.Name = TEXT("Spark");
-        Sparks.Kind = FPart::Sprite;
-        Sparks.Count = TEXT("int(4.0 * User.Focus + 0.01)");
-        Sparks.Lifetime = TEXT("0.16");
-        Sparks.Paint = Head;
-        Sparks.Align = ENiagaraSpriteAlignment::VelocityAligned;
-        Sparks.Set(TEXT("Particles.Velocity"), FString::Printf(TEXT("%s + float3(0.0, 0.0, -500.0) * %s"), *Launch, *Since))
-            .Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.End + %s * %s + float3(0.0, 0.0, -250.0) * %s * %s"), *Launch, *Since, *Since, *Since))
-            .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(12.0, 3.0) * %s"), *Narrow))
-            .Set(TEXT("Particles.SpriteRotation"), Quarter)
-            .Set(TEXT("Particles.Color"), Rgba(Strength, FString::Printf(TEXT("step(0.04, Particles.Age) * (1.0 - saturate(%s / 0.12))"), *Since)));
-        return C;
-    }
-
     // The shocked-body rim glow (LDSliceVfx::BodyGlowMaterial): an additive unlit shell of the pose pushed 1.2 cm out along
     // its normals so it never fights the body's own depth, bright at the rim (fresnel) and faint across the front.
     // Parameters Glow (colour) and Fade like the afterimage material.
@@ -912,7 +522,7 @@ namespace
         return Save(*Material, Error) ? Material : nullptr;
     }
 
-    // A+: A's language (warm-white core, soft pale-gold energy layer, no outline, no disc) made richer, with a hit that
+    // The chain (active_zap): warm-white core, soft pale-gold energy layer, no outline, no disc, with a hit that
     // says "this body got shocked". Per hop, scaled by the link (a bounce's 56 cm link is 80 % of the first hop's 70):
     //   Bolt      the trunk: 55 cm segments, discrete kinks re-drawn at 25 Hz, width breathing with every redraw, bright
     //             surges running source -> target; full for 130 ms, one dim afterimage frame, gone at 165 ms
@@ -925,17 +535,17 @@ namespace
     //   Light     a short shadowless warm contact light
     // Others' links (User.Focus 0) are 60 % wide and half as bright. The ground glow and scorch flash are slice layers and
     // the body's rim glow a pooled shell (LDSliceVfx::Impact, ULDHumanoidVisualComponent).
-    FCandidate CandidateAPlus(UMaterial& Material, UMaterial& Top, FString& Error)
+    FSystemParts ChainParts(UMaterial& Material, UMaterial& Top, FString& Error)
     {
         const FPalette Palette{FLinearColor(1.f, .93f, .78f), FLinearColor(1.f, .68f, .26f), FLinearColor(.22f, .1f, .03f), 2.8f, 1.2f};
         UTexture2D* Profile = SliceTexture(LDSliceVfx::ETex::ChainAProfile);
         UTexture2D* Noise = SliceTexture(LDSliceVfx::ETex::ChainAEnergyNoise);
-        UMaterialInstanceConstant* Trunk = ChainPaint(TEXT("MI_LDChainAPlus_Bolt"), Material, Profile, Noise, 1.f, Palette, 1.f, 1.6f, Error);
-        UMaterialInstanceConstant* Thread = ChainPaint(TEXT("MI_LDChainAPlus_Thread"), Material, Profile, nullptr, 0.f, Palette, 1.f, 0.f, Error);
-        UMaterialInstanceConstant* Burst = ChainPaint(TEXT("MI_LDChainAPlus_Burst"), Top, Profile, nullptr, 0.f, Palette, 1.f, 0.f, Error);
-        UMaterialInstanceConstant* Streak = ChainPaint(TEXT("MI_LDChainAPlus_Spark"), Top, SliceTexture(LDSliceVfx::ETex::ChainASparkStreak), nullptr, 0.f, Palette, 1.f, 0.f, Error);
-        FCandidate A;
-        A.Look = TEXT("APlus");
+        UMaterialInstanceConstant* Trunk = ChainPaint(TEXT("MI_LDChain_Bolt"), Material, Profile, Noise, 1.f, Palette, 1.f, 1.6f, Error);
+        UMaterialInstanceConstant* Thread = ChainPaint(TEXT("MI_LDChain_Thread"), Material, Profile, nullptr, 0.f, Palette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Burst = ChainPaint(TEXT("MI_LDChain_Burst"), Top, Profile, nullptr, 0.f, Palette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Streak = ChainPaint(TEXT("MI_LDChain_Spark"), Top, SliceTexture(LDSliceVfx::ETex::ChainASparkStreak), nullptr, 0.f, Palette, 1.f, 0.f, Error);
+        FSystemParts A;
+        A.System = LDSliceVfx::ESystem::Chain;
         if (!Trunk || !Thread || !Burst || !Streak) { return A; }
         FTrunk Shape;
         Shape.SegCm = 55.f;
@@ -1108,6 +718,237 @@ namespace
         return A;
     }
 
+    // The neutral palette of the physical effects: a warm-white core over a white body the Particle Color tints (the
+    // runtime passes the strike's ink: the local player's own in a soft orange, others' a pale ivory).
+    const FPalette Neutral{FLinearColor(1.f, .95f, .86f), FLinearColor(.92f, .92f, .92f), FLinearColor(.22f, .2f, .18f), 2.4f, 1.2f};
+    // The strike's tint times its strength (others' half as bright, the runtime's intensity included).
+    FString Tinted(float Gain, const FString& Alpha)
+    {
+        return FString::Printf(TEXT("float4(User.Tint.r, User.Tint.g, User.Tint.b, 1.0) * float4(%s, %s, %s, 0.0) * %.2f + float4(0.0, 0.0, 0.0, %s)"),
+            Bright, Bright, Bright, Gain, *Alpha);
+    }
+
+    // A directional physical hit at User.End struck from User.Start (the strike direction): straight tapered impact streaks
+    // fanned along the strike, a spray of sparks with slight gravity and, for the finisher, an expanding impact arc in front
+    // of the body and a short warm contact light. Basic < finisher by silhouette and richness, not only size: the basic hit
+    // is five short streaks; the finisher nine long ones, the arc and the light, and its sparks live longer.
+    FSystemParts HitParts(bool bFinisher, UMaterial& Material, UMaterial& Top, FString& Error)
+    {
+        UTexture2D* Profile = SliceTexture(LDSliceVfx::ETex::ChainAProfile);
+        UMaterialInstanceConstant* Streaks = ChainPaint(bFinisher ? TEXT("MI_LDHitFinisher_Streak") : TEXT("MI_LDHitBasic_Streak"), Top, Profile, nullptr, 0.f, Neutral, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Spark = ChainPaint(bFinisher ? TEXT("MI_LDHitFinisher_Spark") : TEXT("MI_LDHitBasic_Spark"), Top, SliceTexture(LDSliceVfx::ETex::ChainASparkStreak), nullptr, 0.f, Neutral, 1.f, 0.f, Error);
+        FSystemParts Hit;
+        Hit.System = bFinisher ? LDSliceVfx::ESystem::HitFinisher : LDSliceVfx::ESystem::HitBasic;
+        if (!Streaks || !Spark) { return Hit; }
+        const FString Scale = FString::Printf(TEXT("(%s * lerp(0.75, 1.0, User.Focus))"), LinkScale);
+        const int32 Rays = bFinisher ? 11 : 7;
+        const float Life = bFinisher ? .16f : .12f;
+        FPart& Jag = Hit.Parts.AddDefaulted_GetRef();
+        Jag.Name = TEXT("Streaks");
+        Jag.Count = FString::Printf(TEXT("%d"), Rays * 3);
+        Jag.Lifetime = FString::Printf(TEXT("%.3f"), Life);
+        Jag.Paint = Streaks;
+        Jag.TileCm = 60.f;
+        Jag.bRibbonIds = true;
+        {
+            const FString Ray = TEXT("float(Particles.LDRibbon) + 90.0");
+            const auto Pick = [&](float Salt) { return FTrunk::Hash(Ray, TEXT("0.0"), Salt); };
+            // Fanned along the strike: the cone narrows with the forward weight.
+            const FString Out = FString::Printf(TEXT("normalize(%s * %.2f + float3(%s * 2.0 - 1.0, %s * 2.0 - 1.0, (%s * 2.0 - 1.0) * 0.7))"),
+                *FTrunk::Dir(), bFinisher ? 1.3f : 1.6f, *Pick(1.f), *Pick(2.f), *Pick(3.f));
+            const FString Length = FString::Printf(TEXT("((%.1f + %.1f * %s) * %s * saturate(Particles.Age / 0.02 + 0.35))"),
+                bFinisher ? 70.f : 45.f, bFinisher ? 50.f : 35.f, *Pick(4.f), *Scale);
+            const FString Across = FString::Printf(TEXT("normalize(cross(%s, float3(0.0, 0.0, 1.0)) + float3(0.0001, 0.0001, 0.0))"), *Out);
+            // Streaks start a little out from the contact so the centre stays open (no disc).
+            Jag.Set(TEXT("Particles.LDRibbon"), FString::Printf(TEXT("int(floor(%s / 3.0))"), Own))
+                .Set(TEXT("Particles.LDJ"), FString::Printf(TEXT("(%s - float(Particles.LDRibbon) * 3.0)"), Own))
+                .Set(TEXT("Particles.RibbonLinkOrder"), TEXT("Particles.LDJ"))
+                .Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.End + %s * (10.0 * %s + %s * (Particles.LDJ / 2.0)) + %s * (%s * 2.0 - 1.0) * 0.1 * %s * step(0.5, Particles.LDJ) * step(Particles.LDJ, 1.5)"),
+                    *Out, *Scale, *Length, *Across, *Pick(5.f), *Length))
+                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("%.1f * %s * (1.0 - 0.9 * Particles.LDJ / 2.0) * (1.0 - 0.7 * Particles.NormalizedAge)"), bFinisher ? 18.f : 14.f, *Scale))
+                .Set(TEXT("Particles.Color"), Tinted(bFinisher ? 3.2f : 2.8f, TEXT("1.0")));
+        }
+        if (bFinisher)
+        {
+            // The impact arc: half a ring in front of the body, facing the strike, opening from 20 to 75 cm over 0.12 s.
+            FPart& Ring = Hit.Parts.AddDefaulted_GetRef();
+            Ring.Name = TEXT("Arc");
+            Ring.Count = TEXT("9");
+            Ring.Lifetime = TEXT("0.18");
+            Ring.Paint = Streaks;
+            Ring.TileCm = 60.f;
+            const FString Theta = FString::Printf(TEXT("((%s / 8.0 - 0.5) * 3.1416)"), Own);
+            const FString Across = FString::Printf(TEXT("normalize(cross(%s, float3(0.0, 0.0, 1.0)) + float3(0.0001, 0.0001, 0.0))"), *FTrunk::Dir());
+            const FString Radius = FString::Printf(TEXT("(lerp(30.0, 110.0, 1.0 - pow(1.0 - Particles.NormalizedAge, 2.0)) * %s)"), *Scale);
+            Ring.Set(TEXT("Particles.RibbonLinkOrder"), Own)
+                .Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.End + %s * 18.0 * %s + (%s * sin(%s) + float3(0.0, 0.0, 1.0) * cos(%s) * 0.8) * %s - %s * (1.0 - cos(%s)) * 10.0"),
+                    *FTrunk::Dir(), *Scale, *Across, *Theta, *Theta, *Radius, *FTrunk::Dir(), *Theta))
+                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("14.0 * %s * cos(%s) * (1.0 - Particles.NormalizedAge)"), *Scale, *Theta))
+                .Set(TEXT("Particles.Color"), Tinted(2.4f, TEXT("1.0")));
+        }
+        const FString Launch = FString::Printf(TEXT("(%s * (260.0 + 220.0 * %s))"), *SparkDirection(1.1f, .4f), *Random(15.f));
+        FPart& Sparks = Hit.Parts.AddDefaulted_GetRef();
+        Sparks.Name = TEXT("Spark");
+        Sparks.Kind = FPart::Sprite;
+        Sparks.Count = FString::Printf(TEXT("int(lerp(%.1f, %.1f, User.Focus) + 0.5)"), bFinisher ? 5.f : 3.f, bFinisher ? 14.f : 8.f);
+        Sparks.Lifetime = FString::Printf(TEXT("%.2f + 0.15 * %s"), bFinisher ? .3f : .2f, *Random(14.f));
+        Sparks.Paint = Spark;
+        Sparks.Align = ENiagaraSpriteAlignment::VelocityAligned;
+        Sparks.Set(TEXT("Particles.Velocity"), FString::Printf(TEXT("%s + float3(0.0, 0.0, -500.0) * Particles.Age"), *Launch))
+            .Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.End + %s * Particles.Age + float3(0.0, 0.0, -250.0) * Particles.Age * Particles.Age"), *Launch))
+            .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(44.0, 10.0) * %s"), *Scale))
+            .Set(TEXT("Particles.SpriteRotation"), Quarter)
+            .Set(TEXT("Particles.Color"), Tinted(2.4f, TEXT("(1.0 - pow(Particles.NormalizedAge, 1.5))")));
+        if (bFinisher)
+        {
+            FPart& Light = Hit.Parts.AddDefaulted_GetRef();
+            Light.Name = TEXT("Light");
+            Light.Kind = FPart::Light;
+            Light.Lifetime = TEXT("0.14");
+            Light.Set(TEXT("Particles.Position"), TEXT("User.End"))
+                .Set(TEXT("Particles.LightRadius"), FString::Printf(TEXT("160.0 * %s"), *Scale))
+                .Set(TEXT("Particles.Color"), FString::Printf(TEXT("float4(User.Tint.r, User.Tint.g, User.Tint.b, 1.0) * float4(6.0, 6.0, 6.0, 1.0) * %s * (1.0 - Particles.NormalizedAge)"), Bright));
+        }
+        return Hit;
+    }
+
+    // The basic swing of combo step Step as a 3D arc of motion: a ribbon whose head sweeps an ellipse round the chest
+    // (User.Start, the swing centre) in a tilted plane facing User.End - User.Start, its tail following, so the trail is
+    // the path just swept, thick at the head and thin at the tail. Two ribbons: a soft tinted body and a thin warm-white
+    // edge; the finisher adds an echo arc a little inside and behind, and sweeps wider and slower. Steps 1 and 2 sweep
+    // opposite ways (1 right to left, 2 left to right), each tilted the other way.
+    FSystemParts SwingParts(uint8 Step, UMaterial& Material, FString& Error)
+    {
+        UTexture2D* Profile = SliceTexture(LDSliceVfx::ETex::ChainAProfile);
+        UMaterialInstanceConstant* Trail = ChainPaint(*FString::Printf(TEXT("MI_LDSwing%d_Trail"), Step), Material, Profile,
+            SliceTexture(LDSliceVfx::ETex::DissolveNoise), 1.f, Neutral, .6f, 2.f, Error);
+        FSystemParts Swing;
+        Swing.System = Step == 1 ? LDSliceVfx::ESystem::Swing1 : Step == 2 ? LDSliceVfx::ESystem::Swing2 : LDSliceVfx::ESystem::Swing3;
+        if (!Trail) { return Swing; }
+        const bool bFinisher = Step >= 3;
+        // Ellipse radii along the facing and across (cm), the sweep (degrees, + = towards the left), the plane's tilt
+        // (rise per unit across) and the time the head takes to sweep.
+        const float Ahead = bFinisher ? 120.f : Step == 1 ? 92.f : 100.f, Side = bFinisher ? 100.f : Step == 1 ? 62.f : 68.f;
+        const float From = bFinisher ? -95.f : Step == 1 ? -58.f : 60.f, To = bFinisher ? 95.f : Step == 1 ? 58.f : -60.f;
+        const float Tilt = bFinisher ? .12f : Step == 1 ? -.45f : .4f, Sweep = bFinisher ? .1f : .065f, Hold = bFinisher ? .16f : .1f;
+        const int32 Points = bFinisher ? 16 : 12;
+        const FString Scale = FString::Printf(TEXT("(%s * lerp(0.8, 1.0, User.Focus))"), LinkScale);
+        const FString Forward = TEXT("normalize(float3((User.End - User.Start).x, (User.End - User.Start).y, 0.0) + float3(0.0001, 0.0, 0.0))");
+        const FString Left = FString::Printf(TEXT("cross(%s, float3(0.0, 0.0, 1.0))"), *Forward);
+        // The head leaves at the swing's start and eases out to the end over Sweep; the tail follows, catching up over Hold.
+        const FString Head = FString::Printf(TEXT("radians(lerp(%.1f, %.1f, 1.0 - pow(1.0 - saturate(Particles.Age / %.3f), 2.0)))"), From, To, Sweep);
+        const FString Tail = FString::Printf(TEXT("radians(lerp(%.1f, %.1f, saturate((Particles.Age - %.3f) / %.3f)))"), From, To, Sweep * .5f, Hold + Sweep * .5f);
+        const FString Life = FString::Printf(TEXT("%.3f"), Sweep * .5f + Hold + Sweep * .5f + .034f);
+        const auto Arc = [&](FPart& Part, const FString& Along, float Radius, float Lag, float Width, float Gain, float Alpha)
+        {
+            const FString Theta = FString::Printf(TEXT("lerp(%s, %s, %s)"),
+                *Tail.Replace(TEXT("Particles.Age"), *FString::Printf(TEXT("(Particles.Age - %.3f)"), Lag)),
+                *Head.Replace(TEXT("Particles.Age"), *FString::Printf(TEXT("(Particles.Age - %.3f)"), Lag)), *Along);
+            Part.Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.Start + (%s * cos(%s) * %.1f + %s * sin(%s) * %.1f) * %.2f * %s + float3(0.0, 0.0, 1.0) * sin(%s) * %.1f * %.2f * %s"),
+                    *Forward, *Theta, Ahead, *Left, *Theta, Side, Radius, *Scale, *Theta, Side, Tilt * Radius, *Scale))
+                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("%.1f * %s * pow(%s, 0.7) * step(%.3f, Particles.Age) * lerp(1.0, 0.35, step(%.3f, Particles.Age))"),
+                    Width, *Scale, *Along, Lag, Sweep * .5f + Hold + Sweep * .5f + Lag))
+                .Set(TEXT("Particles.Color"), Tinted(Gain, FString::Printf(TEXT("%.2f * lerp(1.0, 0.35, step(%.3f, Particles.Age))"), Alpha, Sweep * .5f + Hold + Sweep * .5f + Lag)));
+        };
+        const int32 Ribbons = bFinisher ? 3 : 2;
+        FPart& Main = Swing.Parts.AddDefaulted_GetRef();
+        Main.Name = TEXT("Trail");
+        Main.Count = FString::Printf(TEXT("%d"), Points * Ribbons);
+        Main.Lifetime = Life;
+        Main.Paint = Trail;
+        Main.TileCm = 80.f;
+        Main.bRibbonIds = true;
+        Main.Set(TEXT("Particles.LDRibbon"), FString::Printf(TEXT("int(floor(%s / %d.0))"), Own, Points))
+            .Set(TEXT("Particles.LDJ"), FString::Printf(TEXT("(%s - float(Particles.LDRibbon) * %d.0)"), Own, Points))
+            .Set(TEXT("Particles.RibbonLinkOrder"), TEXT("Particles.LDJ"));
+        // One emitter, each ribbon its own arc: 0 the soft body, 1 the thin bright edge just outside it, 2 (finisher) the
+        // echo inside and 25 ms behind. The attributes switch on the ribbon index.
+        FPart Body, Edge, Echo;
+        const FString Along = FString::Printf(TEXT("(Particles.LDJ / %d.0)"), Points - 1);
+        Arc(Body, Along, 1.f, 0.f, bFinisher ? 48.f : 34.f, 1.f, .85f);
+        Arc(Edge, Along, 1.06f, 0.f, bFinisher ? 13.f : 10.f, 2.2f, 1.f);
+        Arc(Echo, Along, .8f, .025f, bFinisher ? 28.f : 0.f, .9f, .6f);
+        const FString R = TEXT("float(Particles.LDRibbon)");
+        for (int32 Index = 0; Index < Body.Attributes.Num(); ++Index)
+        {
+            Main.Set(*Body.Attributes[Index].Key, FString::Printf(TEXT("lerp(lerp(%s, %s, step(0.5, %s)), %s, step(1.5, %s))"),
+                *Body.Attributes[Index].Value, *Edge.Attributes[Index].Value, *R, *Echo.Attributes[Index].Value, *R));
+        }
+        return Swing;
+    }
+
+    // The electric field ground state (and the conduct reaction's splash) at its authoritative radius User.Width round
+    // User.Start on the ground: a faint warm floor glow, a thin broken electric edge exactly on the radius whose points
+    // re-draw at 12 Hz, and short arcs crawling over the floor inside. It opens from 90 % of the radius over 0.25 s and
+    // fades with User.Intensity (the ground state's remaining share) and over the last 0.3 s of User.Duration.
+    FSystemParts FieldParts(UMaterial& Material, FString& Error)
+    {
+        const FPalette Palette{FLinearColor(1.f, .93f, .78f), FLinearColor(1.f, .68f, .26f), FLinearColor(.22f, .1f, .03f), 1.4f, 1.6f};
+        UTexture2D* Profile = SliceTexture(LDSliceVfx::ETex::ChainAProfile);
+        UMaterialInstanceConstant* Thread = ChainPaint(TEXT("MI_LDField_Thread"), Material, Profile, nullptr, 0.f, Palette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Floor = ChainPaint(TEXT("MI_LDField_Floor"), Material, SliceTexture(LDSliceVfx::ETex::ChainAGroundGlow), nullptr, 0.f, Palette, 1.f, 0.f, Error);
+        FSystemParts Field;
+        Field.System = LDSliceVfx::ESystem::Field;
+        if (!Thread || !Floor) { return Field; }
+        const FString Open = TEXT("saturate(Particles.Age / 0.25)");
+        const FString Fade = FString::Printf(TEXT("(%s * saturate((User.Duration - Particles.Age) / 0.3) * saturate(User.Intensity / 2.2))"), *Open);
+        const FString Radius = FString::Printf(TEXT("(User.Width * lerp(0.9, 1.0, %s))"), *Open);
+        FPart& Glow = Field.Parts.AddDefaulted_GetRef();
+        Glow.Name = TEXT("Floor");
+        Glow.Kind = FPart::Sprite;
+        Glow.Lifetime = TEXT("User.Duration");
+        Glow.Paint = Floor;
+        Glow.Facing = ENiagaraSpriteFacingMode::CustomFacingVector;
+        Glow.Set(TEXT("Particles.SpriteFacing"), TEXT("float3(0.0, 0.0, 1.0)"))
+            .Set(TEXT("Particles.Position"), TEXT("User.Start + float3(0.0, 0.0, 2.0)"))
+            .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(2.2, 2.2) * %s"), *Radius))
+            .Set(TEXT("Particles.Color"), FString::Printf(TEXT("float4(1.6, 1.6, 1.6, 0.3 * %s)"), *Fade));
+        const int32 Ring = 49;
+        FPart& Edge = Field.Parts.AddDefaulted_GetRef();
+        Edge.Name = TEXT("Edge");
+        Edge.Count = FString::Printf(TEXT("%d"), Ring);
+        Edge.Lifetime = TEXT("User.Duration");
+        Edge.Paint = Thread;
+        Edge.TileCm = 60.f;
+        {
+            const FString Window = TEXT("floor(Particles.Age * 12.0)");
+            const FString Index = FString::Printf(TEXT("fmod(%s, %d.0)"), Own, Ring - 1);
+            const FString Angle = FString::Printf(TEXT("(%s / %d.0 * 6.2832)"), Own, Ring - 1);
+            const FString Jog = FTrunk::Hash(Index, Window, 3.f);
+            Edge.Set(TEXT("Particles.RibbonLinkOrder"), Own)
+                .Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.Start + float3(cos(%s), sin(%s), 0.0) * %s * (1.0 + (%s - 0.5) * 0.05) + float3(0.0, 0.0, 4.0 + 4.0 * %s)"),
+                    *Angle, *Angle, *Radius, *Jog, *FTrunk::Hash(Index, Window, 4.f)))
+                // The edge breaks in about a quarter of its segments, a different quarter every redraw.
+                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("9.0 * step(0.25, %s)"), *FTrunk::Hash(Index, Window, 5.f)))
+                .Set(TEXT("Particles.Color"), Rgba(TEXT("2.2"), *Fade));
+        }
+        const int32 Arcs = 10;
+        FPart& Crawl = Field.Parts.AddDefaulted_GetRef();
+        Crawl.Name = TEXT("Crawl");
+        Crawl.Count = FString::Printf(TEXT("%d"), Arcs * 5);
+        Crawl.Lifetime = TEXT("User.Duration");
+        Crawl.Paint = Thread;
+        Crawl.TileCm = 60.f;
+        Crawl.bRibbonIds = true;
+        {
+            const FString Arc = TEXT("float(Particles.LDRibbon) + 150.0");
+            const FString Window = TEXT("floor(Particles.Age * 8.0)");
+            const auto Pick = [&](float Salt) { return FTrunk::Hash(Arc, Window, Salt); };
+            const FString Spot = FString::Printf(TEXT("(float3(cos(%s * 6.2832), sin(%s * 6.2832), 0.0) * sqrt(%s) * 0.8 * %s)"), *Pick(1.f), *Pick(1.f), *Pick(2.f), *Radius);
+            const FString Heading = FString::Printf(TEXT("float3(cos(%s * 6.2832), sin(%s * 6.2832), 0.0)"), *Pick(3.f), *Pick(3.f));
+            const FString Across = FString::Printf(TEXT("float3(-sin(%s * 6.2832), cos(%s * 6.2832), 0.0)"), *Pick(3.f), *Pick(3.f));
+            const FString Reach = FString::Printf(TEXT("(50.0 + 50.0 * %s)"), *Pick(4.f));
+            Crawl.Set(TEXT("Particles.LDRibbon"), FString::Printf(TEXT("int(floor(%s / 5.0))"), Own))
+                .Set(TEXT("Particles.LDJ"), FString::Printf(TEXT("(%s - float(Particles.LDRibbon) * 5.0)"), Own))
+                .Set(TEXT("Particles.RibbonLinkOrder"), TEXT("Particles.LDJ"))
+                .Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.Start + %s + %s * %s * (Particles.LDJ / 4.0 - 0.5) + %s * (%s * 2.0 - 1.0) * 9.0 * step(0.5, Particles.LDJ) * step(Particles.LDJ, 3.5) + float3(0.0, 0.0, 3.0)"),
+                    *Spot, *Heading, *Reach, *Across, *FTrunk::Hash(FString::Printf(TEXT("Particles.LDJ + %s"), *Arc), Window, 6.f)))
+                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("8.0 * sin(3.1416 * Particles.LDJ / 4.0) * step(%s, 0.7)"), *Pick(7.f)))
+                .Set(TEXT("Particles.Color"), Rgba(TEXT("3.0"), *Fade));
+        }
+        return Field;
+    }
+
     // A compact, order-stable description of a built system: user parameters, emitters, modules with their input count and
     // renderer properties. Two builds of the same code give the same text.
     FString SummaryOf(UNiagaraSystem& System)
@@ -1213,71 +1054,13 @@ namespace
         return nullptr;
     }
 
-    bool BuildV1(const FV1Spec& Spec, UMaterial& Material, UTexture2D& Arcs, UTexture2D& Sparks, UNiagaraEmitter& BeamEmitter,
-        UNiagaraEmitter& SparkEmitter, FString& Error)
-    {
-        UMaterialInstanceConstant* ArcPaint = BuildInstance(GeneratedPackage(TEXT("MI_LDChainArc_V1")), Material, &Arcs, Spec.ArcRows, Spec.ArcHz, Error);
-        UMaterialInstanceConstant* SparkPaint = BuildInstance(GeneratedPackage(TEXT("MI_LDChainSpark_V1")), Material, &Sparks, 1.f, 0.f, Error);
-        if (!ArcPaint || !SparkPaint) { return false; }
-        const FString PackageName = GeneratedPackage(TEXT("NS_LDChain_V1"));
-        FSteps Steps;
-        UNiagaraSystem* System = CreateChainSystem(PackageName, Steps, Error);
-        if (!System) { return Error.IsEmpty() ? NiagaraFail(Error, TEXT("Chain V1 user parameters: ") + Steps.Failed) : false; }
-        Steps.Run(TEXT("add emitter Bolt (DynamicBeam)"), [&](FNiagaraExternalEditContext& Context)
-        { FNiagaraExt_EmitterTopology Topology; UNiagaraExternalEditUtilities::AddEmitter(&BeamEmitter, Bolt, Topology, Context); });
-        Steps.Run(TEXT("add emitter Spark (SimpleSpriteBurst)"), [&](FNiagaraExternalEditContext& Context)
-        { FNiagaraExt_EmitterTopology Topology; UNiagaraExternalEditUtilities::AddEmitter(&SparkEmitter, Spark, Topology, Context); });
-        const FNiagaraExt_Variable StartVar = Var(LDSliceVfx::ChainStart, FNiagaraTypeDefinition::GetVec3Def()), EndVar = Var(LDSliceVfx::ChainEnd, FNiagaraTypeDefinition::GetVec3Def());
-        const FNiagaraExt_Variable DurationVar = Var(LDSliceVfx::ChainDuration, FNiagaraTypeDefinition::GetFloatDef());
-        const TCHAR* TintTimesIntensity = TEXT("User.Tint * float4(User.Intensity, User.Intensity, User.Intensity, 1.0)");
-        Linked(Steps, Bolt, EmitterUpdate, TEXT("BeamEmitterSetup"), TEXT("Beam Start"), StartVar);
-        Linked(Steps, Bolt, EmitterUpdate, TEXT("BeamEmitterSetup"), TEXT("Beam End"), EndVar);
-        Bool(Steps, Bolt, EmitterUpdate, TEXT("BeamEmitterSetup"), TEXT("Absolute Beam Start"), true);
-        Bool(Steps, Bolt, EmitterUpdate, TEXT("BeamEmitterSetup"), TEXT("Absolute Beam End"), true);
-        Enum(Steps, Bolt, EmitterUpdate, TEXT("EmitterState"), TEXT("Loop Behavior"), TEXT("Infinite"));
-        Float(Steps, Bolt, EmitterUpdate, TEXT("EmitterState"), TEXT("Loop Duration"), 1.f / Spec.LoopHz);
-        Int(Steps, Bolt, EmitterUpdate, TEXT("SpawnBurst_Instantaneous"), TEXT("Spawn Count"), Spec.Points);
-        Float(Steps, Bolt, ParticleSpawn, TEXT("InitializeParticle"), TEXT("Lifetime"), Spec.LifetimeLoops / Spec.LoopHz);
-        Expression(Steps, Bolt, ParticleSpawn, TEXT("BeamWidth"), TEXT("Beam Width"), TEXT("User.Width * 1.00"));
-        Expression(Steps, Bolt, ParticleUpdate, TEXT("Color"), TEXT("Color"), TintTimesIntensity);
-        AddModule(Steps, Bolt, ParticleUpdate, TEXT("UpdateBeam"), JitterModule);
-        Float(Steps, Bolt, ParticleUpdate, TEXT("JitterPosition"), TEXT("Jitter Amount"), Spec.JitterCm);
-        Float(Steps, Bolt, ParticleUpdate, TEXT("JitterPosition"), TEXT("Jitter Delay"), 1.f / Spec.JitterHz);
-        // The end sparks: a burst at End flying out with drag, each playing the contact spark flipbook, fading over Duration.
-        Enum(Steps, Spark, ParticleSpawn, TEXT("InitializeParticle"), TEXT("Position Mode"), TEXT("Direct Set"));
-        Expression(Steps, Spark, ParticleSpawn, TEXT("InitializeParticle"), TEXT("Position"), TEXT("User.End"));
-        Linked(Steps, Spark, ParticleSpawn, TEXT("InitializeParticle"), TEXT("Lifetime"), DurationVar);
-        Expression(Steps, Spark, ParticleSpawn, TEXT("InitializeParticle"), TEXT("Color"), TintTimesIntensity);
-        Expression(Steps, Spark, ParticleSpawn, TEXT("InitializeParticle"), TEXT("Uniform Sprite Size"), *FString::Printf(TEXT("User.Width * %.2f"), Spec.SparkSize));
-        Int(Steps, Spark, EmitterUpdate, TEXT("SpawnBurst_Instantaneous"), TEXT("Spawn Count"), Spec.Sparks);
-        AddModule(Steps, Spark, ParticleSpawn, TEXT("InitializeParticle"), VelocityModule);
-        Float(Steps, Spark, ParticleSpawn, TEXT("AddVelocityInCone"), TEXT("Velocity Strength"), Spec.SparkSpeed);
-        AddModule(Steps, Spark, ParticleUpdate, TEXT("ScaleColor"), DragModule);
-        Float(Steps, Spark, ParticleUpdate, TEXT("Drag"), TEXT("Drag"), Spec.SparkDrag);
-        AddModule(Steps, Spark, ParticleUpdate, TEXT("ScaleColor"), SubUVModule);
-        if (!Steps.Failed.IsEmpty()) { return NiagaraFail(Error, TEXT("Niagara Chain V1 build step failed: ") + Steps.Failed); }
-
-        auto* Ribbon = Cast<UNiagaraRibbonRendererProperties>(RendererOf(*System, Bolt));
-        auto* Sprite = Cast<UNiagaraSpriteRendererProperties>(RendererOf(*System, Spark));
-        if (!Ribbon || !Sprite) { return NiagaraFail(Error, TEXT("Chain V1 lost a template renderer.")); }
-        Ribbon->Material = ArcPaint;
-        Ribbon->bCastShadows = false;
-        Ribbon->PostEditChange();
-        Sprite->Material = SparkPaint;
-        Sprite->SubImageSize = FVector2D(4., 4.);
-        Sprite->bSubImageBlend = false;
-        Sprite->bCastShadows = false;
-        Sprite->PostEditChange();
-        return CompileAndSave(*System, TEXT("V1"), PackageName, Error);
-    }
-
-    bool BuildCandidate(const FCandidate& Look, UNiagaraEmitter& BeamEmitter, UNiagaraEmitter& SparkEmitter, FString& Error)
+    bool BuildSystem(const FSystemParts& Look, UNiagaraEmitter& BeamEmitter, UNiagaraEmitter& SparkEmitter, FString& Error)
     {
         if (!Error.IsEmpty()) { return false; }
-        const FString PackageName = GeneratedPackage(FString(TEXT("NS_LDChain_")) + Look.Look);
+        const FString PackageName = LDSliceVfx::SystemPackage(Look.System);
         FSteps Steps;
         UNiagaraSystem* System = CreateChainSystem(PackageName, Steps, Error);
-        if (!System) { return Error.IsEmpty() ? NiagaraFail(Error, FString::Printf(TEXT("Chain %s user parameters: %s"), Look.Look, *Steps.Failed)) : false; }
+        if (!System) { return Error.IsEmpty() ? NiagaraFail(Error, FString::Printf(TEXT("Chain %s user parameters: %s"), LDSliceVfx::SystemName(Look.System), *Steps.Failed)) : false; }
         for (const FPart& Part : Look.Parts)
         {
             const bool bRibbon = Part.Kind == FPart::Ribbon;
@@ -1306,13 +1089,13 @@ namespace
                 });
             }
         }
-        if (!Steps.Failed.IsEmpty()) { return NiagaraFail(Error, FString::Printf(TEXT("Niagara Chain %s build step failed: %s"), Look.Look, *Steps.Failed)); }
+        if (!Steps.Failed.IsEmpty()) { return NiagaraFail(Error, FString::Printf(TEXT("Niagara Chain %s build step failed: %s"), LDSliceVfx::SystemName(Look.System), *Steps.Failed)); }
 
         // Emitter and renderer properties are plain UPROPERTY edits.
         for (const FPart& Part : Look.Parts)
         {
             FVersionedNiagaraEmitterData* Data = EmitterDataOf(*System, Part.Name);
-            if (!Data || Data->GetRenderers().Num() != 1) { return NiagaraFail(Error, FString::Printf(TEXT("Chain %s emitter %s should have one renderer."), Look.Look, *Part.Name.ToString())); }
+            if (!Data || Data->GetRenderers().Num() != 1) { return NiagaraFail(Error, FString::Printf(TEXT("Chain %s emitter %s should have one renderer."), LDSliceVfx::SystemName(Look.System), *Part.Name.ToString())); }
             // Every part writes world positions.
             Data->bLocalSpace = false;
             UNiagaraRendererProperties* Renderer = Data->GetRenderers()[0];
@@ -1337,6 +1120,7 @@ namespace
                 Sprite->bSubImageBlend = false;
                 Sprite->PivotInUVSpace = Part.Pivot;
                 Sprite->Alignment = Part.Align;
+                Sprite->FacingMode = Part.Facing;
             }
             else if (auto* Light = Cast<UNiagaraLightRendererProperties>(Renderer))
             {
@@ -1344,10 +1128,10 @@ namespace
                 Light->DefaultExponent = 2.f;
                 Light->bAffectsTranslucency = false;
             }
-            else { return NiagaraFail(Error, FString::Printf(TEXT("Chain %s emitter %s has an unexpected renderer."), Look.Look, *Part.Name.ToString())); }
+            else { return NiagaraFail(Error, FString::Printf(TEXT("Chain %s emitter %s has an unexpected renderer."), LDSliceVfx::SystemName(Look.System), *Part.Name.ToString())); }
             Renderer->PostEditChange();
         }
-        return CompileAndSave(*System, Look.Look, PackageName, Error);
+        return CompileAndSave(*System, LDSliceVfx::SystemName(Look.System), PackageName, Error);
     }
 }
 
@@ -1356,22 +1140,27 @@ bool LDDemoVfxNiagara::Build(FString& Error)
     SavedPackages.Reset();
     UNiagaraEmitter* BeamEmitter = LoadObject<UNiagaraEmitter>(nullptr, BeamTemplate);
     UNiagaraEmitter* SparkEmitter = LoadObject<UNiagaraEmitter>(nullptr, SparkTemplate);
-    UTexture2D* Arcs = SliceTexture(LDSliceVfx::ETex::ShockArcs);
-    UTexture2D* Sparks = SliceTexture(LDSliceVfx::ETex::ShockSpark);
     if (!BeamEmitter || !SparkEmitter) { return NiagaraFail(Error, TEXT("The engine Niagara emitter templates DynamicBeam / SimpleSpriteBurst are missing.")); }
     for (int32 Tex = 0; Tex < int32(LDSliceVfx::ETex::Count); ++Tex)
     {
         if (!SliceTexture(LDSliceVfx::ETex(Tex))) { return NiagaraFail(Error, FString::Printf(TEXT("The slice texture %s is missing; the slice import must run first."), LDSliceVfx::TexId(LDSliceVfx::ETex(Tex)))); }
     }
-    UMaterial* Particle = BuildMaterial(Arcs, Error);
-    UMaterial* Chain = Particle ? BuildChainMaterial(TEXT("M_LDChain"), false, Arcs, Error) : nullptr;
-    UMaterial* Top = Chain ? BuildChainMaterial(TEXT("M_LDChainTop"), true, Arcs, Error) : nullptr;
-    if (!Particle || !Chain || !Top || !BuildBodyGlowMaterial(Error)) { return false; }
-    if (!BuildV1(FV1Spec(), *Particle, *Arcs, *Sparks, *BeamEmitter, *SparkEmitter, Error)) { return false; }
-    for (FCandidate (*Make)(UMaterial&, UMaterial&, FString&) : {&CandidateA, &CandidateB, &CandidateC, &CandidateAPlus})
+    UTexture2D* Default = SliceTexture(LDSliceVfx::ETex::ChainAProfile);
+    UMaterial* Chain = BuildChainMaterial(TEXT("M_LDChain"), false, Default, Error);
+    UMaterial* Top = Chain ? BuildChainMaterial(TEXT("M_LDChainTop"), true, Default, Error) : nullptr;
+    if (!Chain || !Top || !BuildBodyGlowMaterial(Error)) { return false; }
+    const TArray<TFunction<FSystemParts()>> Systems = {
+        [&]() { return ChainParts(*Chain, *Top, Error); },
+        [&]() { return HitParts(false, *Chain, *Top, Error); },
+        [&]() { return HitParts(true, *Chain, *Top, Error); },
+        [&]() { return SwingParts(1, *Chain, Error); },
+        [&]() { return SwingParts(2, *Chain, Error); },
+        [&]() { return SwingParts(3, *Chain, Error); },
+        [&]() { return FieldParts(*Chain, Error); }};
+    for (const TFunction<FSystemParts()>& Make : Systems)
     {
-        const FCandidate Look = Make(*Chain, *Top, Error);
-        if (!BuildCandidate(Look, *BeamEmitter, *SparkEmitter, Error)) { return false; }
+        const FSystemParts Parts = Make();
+        if (!BuildSystem(Parts, *BeamEmitter, *SparkEmitter, Error)) { return false; }
     }
     // The folder is the generator's: a package it no longer builds is deleted.
     TArray<FString> Files;
@@ -1392,9 +1181,9 @@ bool LDDemoVfxNiagara::Build(FString& Error)
 
 bool LDDemoVfxNiagara::Validate(FString& Error)
 {
-    for (const TCHAR* Look : {TEXT("V1"), TEXT("A"), TEXT("B"), TEXT("C"), TEXT("APlus")})
+    for (int32 Index = 0; Index < int32(LDSliceVfx::ESystem::Count); ++Index)
     {
-        const FString PackageName = GeneratedPackage(FString(TEXT("NS_LDChain_")) + Look);
+        const FString PackageName = LDSliceVfx::SystemPackage(LDSliceVfx::ESystem(Index));
         UNiagaraSystem* System = FPackageName::DoesPackageExist(PackageName)
             ? LoadObject<UNiagaraSystem>(nullptr, *(PackageName + TEXT(".") + FPackageName::GetShortName(PackageName))) : nullptr;
         if (!System) { return NiagaraFail(Error, PackageName + TEXT(" is missing; run ImportDemoArt.ps1 -Mode ImportVFX.")); }

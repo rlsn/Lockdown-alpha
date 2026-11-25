@@ -94,28 +94,17 @@ const TCHAR* LDSliceVfx::TexId(ETex Tex)
     {
     case ETex::SlashEdge: return TEXT("tex_slash_edge");
     case ETex::DissolveNoise: return TEXT("tex_dissolve_noise");
-    case ETex::HitBasic: return TEXT("fb_hit_basic");
-    case ETex::HitFinisher: return TEXT("fb_hit_finisher");
     case ETex::HitSkill: return TEXT("fb_hit_skill");
     case ETex::WaterJet: return TEXT("tex_water_jet");
     case ETex::WaterSplash: return TEXT("fb_water_splash");
     case ETex::WetDecal: return TEXT("tex_wet_decal");
-    case ETex::ShockArcs: return TEXT("tex_shock_arcs");
-    case ETex::ShockSpark: return TEXT("fb_shock_spark");
-    case ETex::ShockField: return TEXT("fb_shock_field");
     case ETex::ChalkLane: return TEXT("tex_chalk_lane");
     case ETex::ChainAProfile: return TEXT("chainA_profile");
     case ETex::ChainAEnergyNoise: return TEXT("chainA_energy_noise");
     case ETex::ChainASparkStreak: return TEXT("chainA_spark_streak");
     case ETex::ChainAFlash: return TEXT("chainA_flash");
     case ETex::ChainAGroundGlow: return TEXT("chainA_ground_glow");
-    case ETex::ChainBStrokeProfile: return TEXT("chainB_stroke_profile");
-    case ETex::ChainBShards: return TEXT("chainB_shards");
     case ETex::ChainBScorchDash: return TEXT("chainB_scorch_dash");
-    case ETex::ChainCCoreProfile: return TEXT("chainC_core_profile");
-    case ETex::ChainCSparkHead: return TEXT("chainC_spark_head");
-    case ETex::ChainCPinpoint: return TEXT("chainC_pinpoint");
-    case ETex::ChainCGroundTick: return TEXT("chainC_ground_tick");
     default: return TEXT("");
     }
 }
@@ -141,10 +130,8 @@ float LDSliceVfx::FlipbookFps(ETex Tex)
     // vfx_slice_assets.json flip.fps of each flipbook.
     switch (Tex)
     {
-    case ETex::HitBasic: case ETex::ShockSpark: return 36.f;
-    case ETex::HitFinisher: case ETex::WaterSplash: return 30.f;
+    case ETex::WaterSplash: return 30.f;
     case ETex::HitSkill: return 28.f;
-    case ETex::ShockField: return 16.f;
     default: return 0.f;
     }
 }
@@ -197,35 +184,12 @@ namespace LDSliceVfxDetail
         Layer.Dir = Dir.IsNearlyZero() ? FVector::ForwardVector : Dir.GetSafeNormal();
         Layer.SizeCm = SizeCm * Look.Size;
         // The hit sheets put the hit point at U 0.3 of the frame; the spark is centred.
-        Layer.Pivot = Tex == ETex::ShockSpark ? .5f : .3f;
+        Layer.Pivot = .3f;
         Layer.Seconds = Seconds * Look.Seconds;
         Layer.FadeInSeconds = 0.f;
         Layer.FadeOutSeconds = .04f;
         Layer.Ink = InkEdge;
         Layer.bTop = true;
-        return Layer;
-    }
-
-    FLayer Arc(const FVector& From, const FVector& To, float WidthCm, float Seconds, const FLinearColor& Glow, const FLook& Look, bool bGround)
-    {
-        FLayer Layer;
-        Layer.Tex = ETex::ShockArcs;
-        Layer.Place = bGround ? EPlace::GroundStrip : EPlace::Strip;
-        Layer.At = From;
-        Layer.End = To;
-        Layer.Dir = (To - From).GetSafeNormal();
-        Layer.SizeCm = WidthCm * Look.Size;
-        Layer.Seconds = Seconds * Look.Seconds;
-        Layer.FadeInSeconds = 0.f;
-        Layer.FadeOutSeconds = .08f;
-        Layer.RevealSeconds = .03f;
-        Layer.ErodeFrom = Layer.Seconds * .55f;
-        Layer.ErodeSeconds = Layer.Seconds * .4f;
-        Layer.Variants = 8;
-        Layer.VariantHz = 15.f;
-        Layer.Glow = Glow;
-        Layer.Core = CoreGlow(Look);
-        Layer.Ink = InkEdge;
         return Layer;
     }
 
@@ -305,46 +269,22 @@ LDSliceVfx::FRecipe LDSliceVfx::SwingTelegraph(uint8 Step, const FVector& Feet, 
     Chalked.Seconds = WindupSeconds + .05f;
     Chalked.FadeInSeconds = WindupSeconds * .5f;
     Chalked.FadeOutSeconds = .06f;
-    Chalked.Alpha = .65f;
+    // A faint chalk hint, never an inked crescent on the floor.
+    Chalked.Alpha = .45f;
     Chalked.RevealSeconds = WindupSeconds * .8f;
     Chalked.bRevealFromTail = true;
     Chalked.ChalkErode = .3f;
     Chalked.Glow = Chalked.Core = Chalk();
-    Chalked.Ink = InkEdge;
+    Chalked.Ink = Chalk();
     Chalked.bTelegraph = true;
     Recipe.Layers.Add(Chalked);
     Finish(Recipe, Look);
     return Recipe;
 }
 
-LDSliceVfx::FRecipe LDSliceVfx::SwingRelease(uint8 Step, const FVector& Centre, const FVector& Facing, const FLook& Look)
+FLinearColor LDSliceVfx::StrikeTint(const FLook& Look)
 {
-    using namespace LDSliceVfxDetail;
-    FRecipe Recipe;
-    if (Step == 0) { return Recipe; }
-    const bool bFinisher = Step >= 3;
-    FLayer Slash;
-    Slash.Tex = ETex::SlashEdge;
-    Slash.Mesh = SlashOf(Step);
-    Slash.Place = EPlace::Slash;
-    Slash.At = Centre;
-    Slash.Dir = Planar(Facing);
-    Slash.SizeCm = SlashScale(Step) * Look.Size;
-    // The finisher sweeps slower and holds at its thickest before it erodes.
-    Slash.Seconds = (bFinisher ? .36f : .24f) * Look.Seconds;
-    Slash.FadeInSeconds = 0.f;
-    Slash.FadeOutSeconds = .05f;
-    Slash.RevealSeconds = (bFinisher ? .09f : .06f) * Look.Seconds;
-    Slash.bRevealFromTail = true;
-    Slash.ErodeFrom = (bFinisher ? .17f : .1f) * Look.Seconds;
-    Slash.ErodeSeconds = (bFinisher ? .17f : .12f) * Look.Seconds;
-    Slash.Glow = BodyGlow(Look);
-    // The finisher's wide fill reads as the ink-edged body colour with a light centre, not a solid white sheet.
-    Slash.Core = bFinisher ? FMath::Lerp(Slash.Glow, CoreGlow(Look), .35f) : CoreGlow(Look);
-    Slash.Ink = InkEdge;
-    Recipe.Layers.Add(Slash);
-    Finish(Recipe, Look);
-    return Recipe;
+    return Look.bOwn ? FLinearColor(1.f, .64f, .36f) : FLinearColor(1.f, .94f, .84f);
 }
 
 LDSliceVfx::FRecipe LDSliceVfx::SkillTelegraph(const FVector& Feet, const FVector& Facing, float LengthCm, float WidthCm, float WindupSeconds, const FLook& Look)
@@ -414,30 +354,13 @@ LDSliceVfx::FRecipe LDSliceVfx::ZapRelease(const FVector& Hand, const FLook& Loo
 {
     using namespace LDSliceVfxDetail;
     FRecipe Recipe;
-    // The chain candidates start their link at the hand without the comic spark: A with a small soft glow, C with a
-    // pinpoint, B with nothing (its stroke is widest there).
-    if (Look.ChainLook >= ChainA)
-    {
-        if (Look.ChainLook != ChainB)
-        {
-            const bool bA = Look.ChainLook == ChainA || Look.ChainLook == ChainAPlus;
-            // A+ charges a larger glow that lasts until its link leaves the hand.
-            const bool bPlus = Look.ChainLook == ChainAPlus;
-            FLayer Glow = Burst(bA ? ETex::ChainAFlash : ETex::ChainCPinpoint, Hand, FVector::ForwardVector, bPlus ? 40.f : bA ? 50.f : 30.f,
-                bPlus ? .3f : bA ? .12f : .08f, Look);
-            Glow.Pivot = .5f;
-            Glow.Glow = Hdr(FLinearColor(1.f, .78f, .36f), 1.4f * Look.Glow);
-            Glow.Core = Hdr(FLinearColor(1.f, .9f, .67f), 2.f * Look.Glow);
-            Glow.Ink = Glow.Glow;
-            Recipe.Layers.Add(Glow);
-        }
-        Finish(Recipe, Look);
-        return Recipe;
-    }
-    FLayer Spark = Burst(ETex::ShockSpark, Hand, FVector::ForwardVector, 90.f, .44f, Look);
-    Spark.Glow = ElementGlow(LDBroadcast::Shock, Look);
-    Spark.Core = CoreGlow(Look);
-    Recipe.Layers.Add(Spark);
+    // A small charged warm glow at the hand that lasts until the link leaves it; no star.
+    FLayer Glow = Burst(ETex::ChainAFlash, Hand, FVector::ForwardVector, 40.f, .3f, Look);
+    Glow.Pivot = .5f;
+    Glow.Glow = Hdr(FLinearColor(1.f, .78f, .36f), 1.4f * Look.Glow);
+    Glow.Core = Hdr(FLinearColor(1.f, .9f, .67f), 2.f * Look.Glow);
+    Glow.Ink = Glow.Glow;
+    Recipe.Layers.Add(Glow);
     Finish(Recipe, Look);
     return Recipe;
 }
@@ -450,16 +373,8 @@ LDSliceVfx::FRecipe LDSliceVfx::Impact(EStrike Strike, const FVector& Chest, con
     const FVector Along = Dir.IsNearlyZero() ? FVector::ForwardVector : Dir.GetSafeNormal();
     switch (Strike)
     {
-    case EStrike::Basic:
-    case EStrike::Finisher:
-    {
-        const bool bFinisher = Strike == EStrike::Finisher;
-        FLayer Hit = Burst(bFinisher ? ETex::HitFinisher : ETex::HitBasic, Chest, Along, bFinisher ? 200.f : 140.f, bFinisher ? .53f : .44f, Look);
-        Hit.Glow = BodyGlow(Look);
-        Hit.Core = CoreGlow(Look);
-        Recipe.Layers.Add(Hit);
-        break;
-    }
+    // The basic and finisher hits are the Niagara Hit (ULDImpactFxSubsystem::Hit), the finisher's contact light its own.
+    case EStrike::Basic: case EStrike::Finisher: break;
     case EStrike::Skill:
     {
         FLayer Hit = Burst(ETex::HitSkill, Chest, Along, 200.f, .57f, Look);
@@ -501,84 +416,40 @@ LDSliceVfx::FRecipe LDSliceVfx::Impact(EStrike Strike, const FVector& Chest, con
     }
     case EStrike::Zap:
     {
-        // The link itself (the arc from the hand or the previous body and its contact sparks) is the Niagara Chain
-        // (ULDImpactFxSubsystem::Chain), or with the mesh look a strip and a spark here. The old looks mark the cast's
-        // first target with the skill tier's burst; the candidates have no burst, only their small ground cue.
+        // The link itself, its contact burst, body arcs and sparks are the Niagara Chain (ULDImpactFxSubsystem::Chain);
+        // here a warm contact glow on the ground for a quarter second over a faint scorch flash along the hop. A bounce
+        // target's is the same at its smaller link scale (Look.Size).
         const FVector Hop = !From.ContainsNaN() && FVector::DistSquared(From, Chest) > 100.f ? Planar(Chest - From) : Planar(Along);
-        if (Look.ChainLook == ChainMesh)
-        {
-            const FLinearColor Glow = ElementGlow(LDBroadcast::Shock, Look);
-            if (!From.ContainsNaN() && FVector::DistSquared(From, Chest) > 100.f) { Recipe.Layers.Add(Arc(From, Chest, bChained ? 46.f : 56.f, .26f, Glow, Look, false)); }
-            FLayer Spark = Burst(ETex::ShockSpark, Chest, Along, bChained ? 120.f : 140.f, .44f, Look);
-            Spark.Glow = Glow;
-            Spark.Core = CoreGlow(Look);
-            Recipe.Layers.Add(Spark);
-        }
-        if (Look.ChainLook <= ChainV1 && !bChained)
-        {
-            FLayer Hit = Burst(ETex::HitSkill, Chest, Along, 200.f, .57f, Look);
-            Hit.Glow = ElementGlow(LDBroadcast::Shock, Look);
-            Hit.Core = CoreGlow(Look);
-            Hit.DelaySeconds = .02f;
-            Recipe.Layers.Add(Hit);
-        }
-        if (Look.ChainLook == ChainAPlus)
-        {
-            // A+: a warm contact glow on the ground for a quarter second over a faint scorch flash along the hop; a bounce
-            // target's is the same at its smaller link scale (Look.Size).
-            FLayer Glow;
-            Glow.Tex = ETex::ChainAGroundGlow;
-            Glow.Place = EPlace::Flat;
-            Glow.At = Feet;
-            Glow.Dir = Hop;
-            Glow.SizeCm = (bChained ? 130.f : 160.f) * Look.Size;
-            Glow.Seconds = .26f * Look.Seconds;
-            Glow.FadeInSeconds = 0.f;
-            Glow.FadeOutSeconds = .16f;
-            Glow.Alpha = Look.bFocus ? 1.f : .65f;
-            Glow.Glow = Hdr(FLinearColor(1.f, .78f, .36f), 2.f);
-            Glow.Core = Hdr(FLinearColor(1.f, .9f, .67f), 2.4f);
-            Glow.Ink = Glow.Glow;
-            Glow.bOptional = true;
-            Recipe.Layers.Add(Glow);
-            FLayer Scorch;
-            Scorch.Tex = ETex::ChainBScorchDash;
-            Scorch.Place = EPlace::Flat;
-            Scorch.At = Feet;
-            Scorch.Dir = Hop;
-            Scorch.SizeCm = (bChained ? 80.f : 100.f) * Look.Size;
-            Scorch.Seconds = .55f * Look.Seconds;
-            Scorch.FadeInSeconds = 0.f;
-            Scorch.FadeOutSeconds = .4f;
-            Scorch.Alpha = .4f;
-            Scorch.Glow = Hdr(FLinearColor(1.f, .62f, .2f), 1.6f);
-            Scorch.Core = Scorch.Glow;
-            Scorch.Ink = FLinearColor(.06f, .03f, .012f);
-            Scorch.bOptional = true;
-            Recipe.Layers.Add(Scorch);
-        }
-        else if (Look.ChainLook >= ChainA)
-        {
-            // A: a soft warm glow on the ground for 0.15 s; B: an angular scorch dash along the hop fading over 0.6 s, the
-            // scorch in a warm dark (never black) with its ember seam in gold; C: a small open tick under the target for 0.4 s.
-            const uint8 Candidate = Look.ChainLook;
-            FLayer Ground;
-            Ground.Tex = Candidate == ChainA ? ETex::ChainAGroundGlow : Candidate == ChainB ? ETex::ChainBScorchDash : ETex::ChainCGroundTick;
-            Ground.Place = EPlace::Flat;
-            Ground.At = Feet;
-            Ground.Dir = Hop;
-            Ground.SizeCm = (Candidate == ChainA ? 110.f : Candidate == ChainB ? 130.f : 64.f) * Look.Size;
-            Ground.Seconds = (Candidate == ChainA ? .15f : Candidate == ChainB ? .6f : .4f) * Look.Seconds;
-            Ground.FadeInSeconds = 0.f;
-            Ground.FadeOutSeconds = Candidate == ChainA ? .1f : Candidate == ChainB ? .45f : .12f;
-            Ground.Alpha = Candidate == ChainB ? .85f : Look.bFocus ? 1.f : .6f;
-            const FLinearColor Warm(1.f, .78f, .36f);
-            Ground.Glow = Candidate == ChainB ? FLinearColor(.5f, .32f, .08f) : Hdr(Warm, Candidate == ChainA ? 1.6f : 2.f);
-            Ground.Core = Hdr(FLinearColor(1.f, .9f, .67f), 1.6f);
-            Ground.Ink = Candidate == ChainB ? FLinearColor(.05f, .02f, .006f) : Ground.Glow;
-            Ground.bOptional = Candidate != ChainC;
-            Recipe.Layers.Add(Ground);
-        }
+        FLayer Glow;
+        Glow.Tex = ETex::ChainAGroundGlow;
+        Glow.Place = EPlace::Flat;
+        Glow.At = Feet;
+        Glow.Dir = Hop;
+        Glow.SizeCm = (bChained ? 130.f : 160.f) * Look.Size;
+        Glow.Seconds = .26f * Look.Seconds;
+        Glow.FadeInSeconds = 0.f;
+        Glow.FadeOutSeconds = .16f;
+        Glow.Alpha = Look.bFocus ? 1.f : .65f;
+        Glow.Glow = Hdr(FLinearColor(1.f, .78f, .36f), 2.f);
+        Glow.Core = Hdr(FLinearColor(1.f, .9f, .67f), 2.4f);
+        Glow.Ink = Glow.Glow;
+        Glow.bOptional = true;
+        Recipe.Layers.Add(Glow);
+        FLayer Scorch;
+        Scorch.Tex = ETex::ChainBScorchDash;
+        Scorch.Place = EPlace::Flat;
+        Scorch.At = Feet;
+        Scorch.Dir = Hop;
+        Scorch.SizeCm = (bChained ? 80.f : 100.f) * Look.Size;
+        Scorch.Seconds = .55f * Look.Seconds;
+        Scorch.FadeInSeconds = 0.f;
+        Scorch.FadeOutSeconds = .4f;
+        Scorch.Alpha = .4f;
+        Scorch.Glow = Hdr(FLinearColor(1.f, .62f, .2f), 1.6f);
+        Scorch.Core = Scorch.Glow;
+        Scorch.Ink = FLinearColor(.06f, .03f, .012f);
+        Scorch.bOptional = true;
+        Recipe.Layers.Add(Scorch);
         break;
     }
     default: break;
@@ -587,77 +458,24 @@ LDSliceVfx::FRecipe LDSliceVfx::Impact(EStrike Strike, const FVector& Chest, con
     return Recipe;
 }
 
-LDSliceVfx::FRecipe LDSliceVfx::Conduct(const FVector& Chest, const FVector& Feet, float RadiusCm, const FLook& Look)
+FString LDSliceVfx::GeneratedPackage(const TCHAR* Name) { return FString(GeneratedFolder) / Name; }
+
+const TCHAR* LDSliceVfx::SystemName(ESystem System)
 {
-    using namespace LDSliceVfxDetail;
-    FRecipe Recipe;
-    if (!FMath::IsFinite(RadiusCm) || RadiusCm <= 0.f) { return Recipe; }
-    const FLinearColor Glow = ElementGlow(LDBroadcast::Shock, Look);
-    // The reaction's burst carries the water ink as its second colour: wet + shock.
-    FLayer Hit = Burst(ETex::HitSkill, Chest, FVector::ForwardVector, 280.f, .6f, Look);
-    Hit.Glow = Glow;
-    Hit.Core = CoreGlow(Look);
-    Hit.Ink = Hdr(LDBroadcast::Water, .35f);
-    Recipe.Layers.Add(Hit);
-    FLayer Spark = Burst(ETex::ShockSpark, Chest, FVector::ForwardVector, 200.f, .44f, Look);
-    Spark.DelaySeconds = .04f;
-    Spark.Glow = Glow;
-    Spark.Core = Hit.Core;
-    Recipe.Layers.Add(Spark);
-    // Three short-lived thin arcs run along the ground out to the splash radius: the shock reaching the other wet bodies.
-    for (int32 Spoke = 0; Spoke < 3; ++Spoke)
+    switch (System)
     {
-        const FVector Out = FVector::ForwardVector.RotateAngleAxis(30.f + 120.f * Spoke, FVector::UpVector);
-        FLayer Ray = Arc(Feet, Feet + Out * RadiusCm * .9f, 22.f, .3f, Glow, Look, true);
-        Ray.DelaySeconds = .02f + .02f * Spoke;
-        Ray.RevealSeconds = .06f;
-        Ray.bOptional = Spoke > 0;
-        Recipe.Layers.Add(Ray);
+    case ESystem::Chain: return TEXT("NS_LDChain");
+    case ESystem::HitBasic: return TEXT("NS_LDHitBasic");
+    case ESystem::HitFinisher: return TEXT("NS_LDHitFinisher");
+    case ESystem::Swing1: return TEXT("NS_LDSwing1");
+    case ESystem::Swing2: return TEXT("NS_LDSwing2");
+    case ESystem::Swing3: return TEXT("NS_LDSwing3");
+    case ESystem::Field: return TEXT("NS_LDField");
+    default: return TEXT("");
     }
-    // The quiet field marks exactly the splash radius (COMBAT.ConductRadiusCm) for a moment, then fades.
-    FLayer Field = GroundField(Feet, RadiusCm, Look);
-    Field.Seconds = 1.2f * Look.Seconds;
-    Field.bLoop = false;
-    Field.FadeInSeconds = .08f;
-    Field.FadeOutSeconds = .8f * Look.Seconds;
-    Recipe.Layers.Add(Field);
-    Finish(Recipe, Look);
-    return Recipe;
 }
 
-float LDSliceVfx::FieldSizeCm(float RadiusCm)
-{
-    return 2.f * FMath::Max(RadiusCm, 1.f) / FieldEdge;
-}
-
-LDSliceVfx::FLayer LDSliceVfx::GroundField(const FVector& Centre, float RadiusCm, const FLook& Look)
-{
-    using namespace LDSliceVfxDetail;
-    FLayer Field;
-    Field.Tex = ETex::ShockField;
-    Field.Place = EPlace::Flat;
-    Field.At = Centre;
-    Field.SizeCm = FieldSizeCm(RadiusCm);
-    Field.Seconds = 1.f;
-    Field.bLoop = true;
-    Field.FadeInSeconds = .2f;
-    Field.Alpha = .55f;
-    Field.Glow = Hdr(LDBroadcast::Shock, 1.6f * Look.Glow);
-    Field.Core = Hdr(LDBroadcast::White, 2.f * Look.Glow);
-    Field.Ink = InkEdge;
-    return Field;
-}
-
-const TCHAR* LDSliceVfx::ChainLookName(uint8 Look)
-{
-    static const TCHAR* Names[ChainLookCount] = { TEXT("Mesh"), TEXT("V1"), TEXT("A"), TEXT("B"), TEXT("C"), TEXT("APlus") };
-    return Look < ChainLookCount ? Names[Look] : TEXT("");
-}
-
-FString LDSliceVfx::ChainSystemOf(uint8 Look)
-{
-    return Look == 0 || Look >= ChainLookCount ? FString() : FString(GeneratedFolder) / TEXT("NS_LDChain_") + ChainLookName(Look);
-}
+FString LDSliceVfx::SystemPackage(ESystem System) { return GeneratedPackage(SystemName(System)); }
 
 const TCHAR* LDHitVfx::MaskId(EMask Mask)
 {
@@ -1322,7 +1140,7 @@ LDHitVfx::FZone LDHitVfx::GroundZoneOf(uint8 Kind, float RadiusCm, float EffectS
     case ELDGroundStateKind::Miasma:
         Density = 32.f; Z.Lifetime = 1.6f; Z.Scale = 2.2f; Z.Velocity = FVector(0, 0, 55); Z.Colour = Hot(FLinearColor(.3f, .8f, .08f), 1.6f);
         break;
-    // The electric field is the designed looping crackle (LDSliceVfx::GroundField), not particles.
+    // The electric field is the designed looping crackle (the Niagara Field, ULDImpactFxSubsystem::ShowGroundField), not the kit particles.
     default: return Z;
     }
     Z.bShow = true;
@@ -1338,7 +1156,7 @@ bool LDHitVfx::GroundAppearBurstOf(uint8 Kind, EBurst& Out, FLinearColor& Tint)
     case ELDGroundStateKind::Ice: Out = EBurst::Frost; Tint = FLinearColor(.45f, .95f, 1.f); return true;
     case ELDGroundStateKind::Fire: Out = EBurst::Flame; Tint = FLinearColor(1.f, .3f, .04f); return true;
     case ELDGroundStateKind::Miasma: Out = EBurst::Rot; Tint = FLinearColor(.4f, .85f, .12f); return true;
-    // The electric field fades in as its designed crackle (LDSliceVfx::GroundField).
+    // The electric field fades in as the Niagara Field (ULDImpactFxSubsystem::ShowGroundField).
     default: return false;
     }
 }

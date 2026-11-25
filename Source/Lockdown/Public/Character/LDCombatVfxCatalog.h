@@ -6,12 +6,6 @@
 
 class UNiagaraSystem;
 
-// The look of a chain hop (active_zap) while art direction compares candidates: the slice's mesh strip and spark
-// layers, the first Niagara Chain, or one of the generated candidates A/B/C (LDSliceVfx::ChainSystemOf). The console
-// variable ld.Vfx.ChainLook (0..5, -1 = this asset's choice) overrides it at runtime. Presentation only.
-UENUM()
-enum class ELDChainLook : uint8 { Mesh, NiagaraV1, A, B, C, APlus };
-
 // Artist-editable presentation assets. Runtime parameters are supplied by the hit-feel controls.
 UCLASS(BlueprintType)
 class LOCKDOWN_API ULDCombatVfxCatalog : public UDataAsset
@@ -26,8 +20,6 @@ public:
     // The particle kit (LDHitVfx::FBurst / FZone): skill releases, element hits, launches, landings, dashes and falls.
     UPROPERTY(EditAnywhere, Category="Combat VFX") TObjectPtr<UNiagaraSystem> Burst;
     UPROPERTY(EditAnywhere, Category="Combat VFX") TObjectPtr<UNiagaraSystem> Zone;
-    // Which chain look active_zap draws its hops with (generator-built systems under LDSliceVfx::GeneratedFolder).
-    UPROPERTY(EditAnywhere, Category="Combat VFX") ELDChainLook ChainLook = ELDChainLook::NiagaraV1;
     // Saved artist tuning of the shaped hit layers (LDHitVfx::FLayerTuning) and of the particle kit; the live ld.Feel.*
     // controls multiply these.
     UPROPERTY(EditAnywhere, Category="Hit Layers", meta=(ClampMin="0", ClampMax="4", UIMin="0", UIMax="3")) float LayerSize = 1.f;

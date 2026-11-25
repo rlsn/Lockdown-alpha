@@ -1,4 +1,4 @@
-# Assembles the chain look evidence of a CaptureDemoArt.ps1 -ChainLooks run (DemoArt.json chain_runs / chain_perf):
+# Assembles the effect proof evidence of CaptureDemoArt.ps1 -VfxProof runs (DemoArt.json chain_runs / chain_perf):
 #   sheet-impact.png        rows = looks, columns = scenarios at the impact frame: a native 800 x 540 crop around the
 #                           action (gameplay scale, no scaling) and under it a 2x crop of the same frame
 #   <look>/<scenario>.png   keyframes at normal speed: six consecutive 1/30 s frames from the one before the impact
@@ -6,29 +6,40 @@
 #   <look>-0.25x.mp4        the same at quarter speed (labelled 0.25x)
 #   combined.mp4            all looks side by side, frame-locked, at real game speed
 #   perf-<look>.json        the frame-cost runs of that look and their mean and spread of the eight-caster deltas
-#   python -B Scripts/MakeChainLookEvidence.py <capture folder> <output folder> [ffmpeg.exe] [look,look,... shown]
+#   python -B Scripts/MakeVfxProofEvidence.py <capture folder> <output folder> [ffmpeg.exe] [look,look,... shown]
+# Several captures compare as "label=folder;label=folder" (old=...;new=...): each run's look becomes "<label>-<look>".
 import json, os, shutil, subprocess, sys, tempfile
 import numpy as np
 from PIL import Image, ImageDraw
 
-capture, out = sys.argv[1], sys.argv[2]
+out = sys.argv[2]
 ffmpeg = sys.argv[3] if len(sys.argv) > 3 else "ffmpeg"
 os.makedirs(out, exist_ok=True)
-report = json.load(open(os.path.join(capture, "DemoArt.json"), encoding="utf-8"))
-runs = report.get("chain_runs", [])
+runs, perfs_all = [], []
+for part in sys.argv[1].split(";"):
+    label, _, folder = part.rpartition("=")
+    report = json.load(open(os.path.join(folder, "DemoArt.json"), encoding="utf-8"))
+    for run in report.get("chain_runs", []):
+        run = dict(run, _root=folder, look=(label + "-" if label else "") + run["look"])
+        runs.append(run)
+    for perf in report.get("chain_perf", []):
+        perfs_all.append(dict(perf, look=(label + "-" if label else "") + perf["look"]))
 looks = list(dict.fromkeys(run["look"] for run in runs))
 if len(sys.argv) > 4:
     looks = [look for look in sys.argv[4].split(",") if look in looks]
-scenarios = list(dict.fromkeys(run["scenario"] for run in runs))
+# A scenario named after its category ("hit-combo1") lines up across labels and categories by what follows the category.
+def key(run):
+    return run["scenario"]
+scenarios = list(dict.fromkeys(key(run) for run in runs if run["look"] in looks))
 W, H = 800, 540
 LABEL = (255, 0, 255)
 
 def run_of(look, scenario):
-    return next((r for r in runs if r["look"] == look and r["scenario"] == scenario), None)
+    return next((r for r in runs if r["look"] == look and key(r) == scenario), None)
 
 def frame(run, index):
     index = max(0, min(index, len(run["frame_game_seconds"]) - 1))
-    return Image.open(os.path.join(capture, run["folder"], "%03d.png" % index)).convert("RGB")
+    return Image.open(os.path.join(run["_root"], run["folder"], "%03d.png" % index)).convert("RGB")
 
 def impact_frame(run):
     hit = run["first_hit_seconds"] + 0.06  # the hit shows on the second frame after the event
@@ -117,7 +128,7 @@ encode(grid, os.path.join(out, "combined.mp4"), 1.0)
 shutil.rmtree(work)
 import statistics
 perfs = {}
-for perf in report.get("chain_perf", []):
+for perf in perfs_all:
     perfs.setdefault(perf["look"], []).append(perf)
 for look, list_ in perfs.items():
     summary = {"look": look, "runs": list_}

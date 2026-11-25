@@ -10,7 +10,7 @@ import slice_lib as L
 
 ROOT = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 SLICE = os.path.join(ROOT, "Slice")
-GENERATORS = ["Blender/slice_lib.py", "Blender/slice_slash.py", "Blender/slice_impact.py", "Blender/slice_water.py", "Blender/slice_shock.py",
+GENERATORS = ["Blender/slice_lib.py", "Blender/slice_slash.py", "Blender/slice_impact.py", "Blender/slice_water.py",
               "Blender/slice_chalk.py", "Blender/slice_render.py",
               "Blender/slice_chain_candidates.py"]
 TOOLS = ["Blender/slice_preview.py", "Blender/slice_manifest.py"]
@@ -28,8 +28,6 @@ MATERIAL_HINT = ("Same graph as the existing Layer material: emissive = Glow * t
                  "translucent unlit, two-sided. Recommended glow remap: color = lerp(Glow * saturate(g / 0.6), 1, smoothstep(0.8, 1.0, g)); Ink (0A0B0D) shows where g = 0 and A > 0.")
 
 FLIP = lambda **kw: kw
-EDGE_PACKING = ("R = G = glow (0 none, 0.6 gold body, 1.0 cream core), B = warm-dark edge mask (1 on the edge band), A = coverage with the edge band "
-                "baked at 0.6; M_LDSlice reads only R, so there the edge shows as Ink at 60 percent alpha; a candidate material tints B deep brown")
 ASSETS = [
     dict(id="SM_LD_SlashCombo1", kind="static_mesh", file="Slice/SM_LD_SlashCombo1.fbx", purpose="Basic attack combo stage 1: short flat crescent, swings right to left (head on the left of forward).",
          usage="StaticMeshComponent attached to the character at chest height (or spawned at the muzzle transform), unlit translucent two-sided material using tex_slash_edge; scroll U / dissolve with tex_dissolve_noise over ~0.18 s; rotate with the character facing.",
@@ -51,16 +49,9 @@ ASSETS = [
          purpose="Tileable erosion / dissolve utility: R = blobby fBm, G = streaks stretched along texture X (U), B = cellular crackle.", usage="Sample with tiling UV, compare against a progress parameter (opacity = A * step(progress, noise)); G is the along-arc streak dissolve for slashes and jets.",
          uv="tiles in both axes (periodic noise lattice)", alpha_packing="RGB = three independent noise channels in [0,1], A = 1 (utility mask, not a glow mask)", srgb=False, compression="TC_Masks (BC1, no sRGB)", mips="generate", streaming="NeverStream = true",
          budget="0.17 MB with BC1 + mips"),
-    dict(id="fb_hit_basic", kind="flipbook", file="Slice/fb_hit_basic.png", width=1024, height=1024, flip=FLIP(cols=4, rows=4, frames=16, frame_size=256, fps=36, duration_s=0.44, loop=False),
-         purpose="Directional basic hit: elongated four-point sparkle with a long forward tip, fanned speed lines and thin shards; erodes through the shape.",
-         usage="Single quad sprite at the contact point, lying flat or camera-facing, rotated so +X (image right) points along the attack direction; translucent unlit; tint = owner element colour (no element = white, orange only for the local player). 1-2 frame white flash = frames 0-2.",
-         pivot="hit point at frame UV (0.30, 0.50); frame spans x -0.6..1.4, y -1..1 in unit space, so one frame = 2 units = suggested 90 cm", uv="frame i at column i % 4, row i / 4 (row 0 on top); +X = hit direction", **MASK, budget="~0.9 m2 quad (90 cm), mean coverage about 7 percent; one quad per hit"),
-    dict(id="fb_hit_finisher", kind="flipbook", file="Slice/fb_hit_finisher.png", width=1024, height=1024, flip=FLIP(cols=4, rows=4, frames=16, frame_size=256, fps=30, duration_s=0.53, loop=False),
-         purpose="Finisher hit: heavy irregular eight-spike burst with a long forward spike, an expanding forward crescent shock front, chunky debris and long speed lines. Silhouette differs from the basic hit (crescent + chunks), not just scale.",
-         usage="As fb_hit_basic; use at about 1.25 x the basic quad size. Basic 3rd-hit only.", pivot="hit point at frame UV (0.30, 0.50)", uv="as fb_hit_basic", **MASK, budget="~1.4 m2 quad (120 cm), mean coverage about 17 percent; one quad per finisher"),
     dict(id="fb_hit_skill", kind="flipbook", file="Slice/fb_hit_skill.png", width=1024, height=1024, flip=FLIP(cols=4, rows=4, frames=16, frame_size=256, fps=28, duration_s=0.57, loop=False),
          purpose="Skill hit: ten-spike comic burst with diagonal broadcast-stripe cut-outs that widen until the burst slices into bars, plus three forward chevrons.",
-         usage="As fb_hit_basic; direction-neutral burst with forward chevrons (+X = skill direction). Tint with element colour; use for active skills.", pivot="hit point at frame UV (0.30, 0.50)", uv="as fb_hit_basic", **MASK, budget="~1.4 m2 quad (120 cm), mean coverage about 22 percent early; one quad per skill hit"),
+         usage="Single quad sprite at the contact point, +X along the attack direction, hit point at frame UV (0.30, 0.50); direction-neutral burst with forward chevrons (+X = skill direction). Tint with element colour; use for active skills.", pivot="hit point at frame UV (0.30, 0.50)", uv="as fb_hit_basic", **MASK, budget="~1.4 m2 quad (120 cm), mean coverage about 22 percent early; one quad per skill hit"),
     dict(id="tex_water_jet", kind="texture", file="Slice/tex_water_jet.png", width=512, height=128,
          purpose="Water jet strip for active_hose_down: turbulent-edged body, white-hot centre band and flow streaks, torn-off droplets with ink halos, ink edge on both sides.",
          usage="Ribbon / beam mesh or stretched quad from the caster to the target; U (x) runs along the jet and tiles seamlessly, scroll U at 1.5-3 per second; V (y) is across, centre = 0.5. Translucent, tint = water element colour.",
@@ -72,17 +63,6 @@ ASSETS = [
          purpose="Wet ground puddle mask: organic lobed puddle with run-off tongues, satellite drops, wet-edge shading, white glints and a crisp ink rim.",
          usage="Deferred or mesh decal (or a flat quad just above the ground) at the target; opacity from A times a 1-2 s fade; tint = cool dark water colour; decal size about 160 cm; project along -Z.",
          uv="decal space (U = X, V = Y of the decal projector), puddle centre at (0.5, 0.5)", **MASK, budget="one decal per wet target, 0.5-1 m2, fade 1-2 s"),
-    dict(id="tex_shock_arcs", kind="texture", file="Slice/tex_shock_arcs.png", width=512, height=512, variants=8, variant_size=[512, 64],
-         purpose="Atlas of 8 lightning strip variants (each 512 x 64, stacked vertically), rendered from Blender stroke geometry: one thick main bolt with irregular segment lengths (long runs, short steep kicks) and a varying-width profile that tapers at both ends, 1-3 thin short tapered forks; white-hot core inside the shock body inside a black ink rim. Both ends sit on the strip centre line so chained arcs meet.",
-         usage="Ribbon / beam between chain targets for active_zap; pick variant row v (UV V = v/8 .. (v+1)/8), U runs along the arc and can be stretched 2-8x; flicker by swapping the variant every 1-2 frames (about 15 Hz).",
-         uv="U along the arc (x), variant row index = floor(V * 8); the bolt crosses the centre line at U = 0 and U = 1", **MASK, budget="one strip per chain link, 1-3 links per cast, translucent additive-or-alpha"),
-    dict(id="fb_shock_spark", kind="flipbook", file="Slice/fb_shock_spark.png", width=1024, height=1024, flip=FLIP(cols=4, rows=4, frames=16, frame_size=256, fps=36, duration_s=0.44, loop=False, flicker="a new bolt set every second frame"),
-         purpose="Contact spark burst at each shocked target: seven forked angular bolts radiating from a four-point flash, detached zig-zag fragments, bolts truncate and break up; last frame is sparse specks.",
-         usage="Camera-facing or flat sprite at the contact point, omnidirectional; tint = shock colour (white core remains).", pivot="centre of frame (0.5, 0.5); frame spans -1..1, suggested 100 cm", uv="frame i at column i % 4, row i / 4", **MASK, budget="~1.0 m2 quad, mean coverage about 5 percent"),
-    dict(id="fb_shock_field", kind="flipbook", file="Slice/fb_shock_field.png", width=1024, height=1024, flip=FLIP(cols=4, rows=4, frames=16, frame_size=256, fps=16, duration_s=1.0, loop=True, loop_note="frame 15 -> 0 is seamless: hatch scrolls exactly one period, crackle flicker repeats every 4 frames, bolt sets every 2 frames over 8 sets"),
-         purpose="Electric ground field for electrified targets and the conduct reaction: domain-warped crackle net, diagonal court hatch, three bolts that jump across the patch, dashed chalk boundary. Readable from above; not a glow blob.",
-         usage="Decal (or flat quad) under the affected area, looped while the field lives; opacity fades in/out at runtime (no fade baked in); size = patch about 150 percent of the gameplay radius (patch fills 0.74 of the half frame); tint = shock colour.",
-         pivot="centre (0.5, 0.5)", uv="frame i at column i % 4, row i / 4; looping", **MASK, budget="one decal per electrified area; mean coverage about 11 percent; sample 2 frames at 16 fps or a single frame via Flipbook node"),
     dict(id="tex_chalk_lane", kind="texture", file="Slice/tex_chalk_lane.png", width=512, height=128,
          purpose="Chalk court lane for a skill's anticipation: two hand-drawn border lines and four forward chevrons per tile, chalk-grained, white with a thin ink rim.",
          usage="Flat strip on the ground over the skill's footprint before its release; U (x) runs along the lane in the cast direction and tiles seamlessly, V (y) across; shown white only (no element colour).",
@@ -108,34 +88,10 @@ ASSETS = [
     dict(id="chainA_ground_glow", kind="texture", file="Slice/chainA_ground_glow.png", width=256, height=256, candidate="A",
          purpose="Candidate A soft ground-glow mask under a hit (stands in for a small shadowless point light): smooth falloff, gently uneven rim, hotter centre.",
          usage="Additive flat quad or decal under the hit body for about 0.15 s; about 110 cm.", pivot="centre", uv="decal space", **MASK, budget="one per hit"),
-    dict(id="chainB_stroke_profile", kind="texture", file="Slice/chainB_stroke_profile.png", width=512, height=64, candidate="B",
-         purpose="Candidate B brush-stroke profile, tileable along U: flat cream core and gold body (two-tone), ragged dry-brush edges, a thin warm-dark edge band in its own channel.",
-         usage="Niagara ribbon material: U = world length / tile length, V across; taper the ribbon width from source to target. Tint the B channel deep brown; scale its alpha (baked 0.6) as needed.",
-         uv="seamless along U; V across, centre 0.5", alpha_packing=EDGE_PACKING, srgb=False, compression="TC_BC7 (four independent channels)",
-         mips="generate (TMGS_FromTextureGroup)", streaming="NeverStream = true, LODGroup Effects", budget="one ribbon per hop plus one short tine"),
-    dict(id="chainB_shards", kind="texture", file="Slice/chainB_shards.png", width=1024, height=512, candidate="B", atlas=dict(cols=4, rows=2, cell=256),
-         purpose="Candidate B hit shards: 4 variants (columns) of 3-4 thin angular slivers fanned narrowly around +X (not radial); row 0 = solid frame, row 1 = the same set broken into 2-3 drifting fragments each.",
-         usage="Sprite at the hit, +X along the hop direction; show row 0 for 2 frames, then row 1 drifting and fading over 0.15 s; quad about 100 cm so the shards stay within body width.",
-         pivot="hit point at cell UV (0.30, 0.50); cell spans x -0.6..1.4, y -1..1", uv="cell (c, r) = variant c, frame r (row 0 on top)",
-         alpha_packing=EDGE_PACKING, srgb=False, compression="TC_BC7", mips="generate", streaming="NeverStream = true, LODGroup Effects", budget="one sprite per hit"),
     dict(id="chainB_scorch_dash", kind="texture", file="Slice/chainB_scorch_dash.png", width=256, height=128, candidate="B",
          purpose="Candidate B angular scorch dash decal: tapered slash with two side chips, burnt ragged edge and soot feather (glow 0 = scorch), short ember seam inside (glow 0.6).",
          usage="Ground decal under the target, X along the hop, about 130 cm, fades over 0.6 s; tint the ink a warm dark (not black).", pivot="dash starts at U 0.05",
          uv="x = hop direction", **MASK, budget="one decal per hit"),
-    dict(id="chainC_core_profile", kind="texture", file="Slice/chainC_core_profile.png", width=128, height=32, candidate="C",
-         purpose="Candidate C thin crisp core profile: flat warm-white core over the middle 60 %, a narrow amber falloff to 1.5 x the core, nothing beyond (no halo, no outline).",
-         usage="Niagara ribbon 8-12 cm wide, slightly wider toward the target; constant along U so any tiling works.", uv="constant along U; V across", **MASK,
-         budget="one ribbon per hop"),
-    dict(id="chainC_spark_head", kind="texture", file="Slice/chainC_spark_head.png", width=128, height=32, candidate="C",
-         purpose="Candidate C spark head: small bright crisp capsule head at U 0.78 with a short tapered tail, narrow amber rim.",
-         usage="Sprite travelling source -> target in about 40 ms ahead of the trunk (about 30 cm); also reused small for the 3-4 hit sparks.", pivot="head at frame UV (0.78, 0.5)",
-         uv="+X = travel", **MASK, budget="1 + 3-4 sprites per hop"),
-    dict(id="chainC_pinpoint", kind="texture", file="Slice/chainC_pinpoint.png", width=64, height=64, candidate="C",
-         purpose="Candidate C pinpoint hit flash: crisp white dot, narrow amber falloff, two hair-thin crossing glints.",
-         usage="Sprite at the contact, quad about 50 cm (dot under 40 % of body width).", pivot="centre", uv="+X = long glint", **MASK, budget="one per hit"),
-    dict(id="chainC_ground_tick", kind="texture", file="Slice/chainC_ground_tick.png", width=128, height=128, candidate="C",
-         purpose="Candidate C ground tick under the hit target: four short tapered ticks pointing at the centre (open, not a ring).",
-         usage="Flat quad or decal at the target's feet for 0.4 s, about 64 cm.", pivot="centre", uv="decal space", **MASK, budget="one per hit"),
 ]
 
 
@@ -171,7 +127,7 @@ def checks(asset, img):
         out["seam_mean_abs_diff_left_right_columns"] = round(float(np.abs(img[:, 0] - img[:, -1]).mean()), 5)
         out["adjacent_column_mean_abs_diff"] = round(float(np.abs(img[:, 100] - img[:, 101]).mean()), 5)
     if asset["id"].startswith("chain"):
-        if asset["id"] in ("chainA_profile", "chainB_stroke_profile", "chainC_core_profile", "chainA_energy_noise"):
+        if asset["id"] in ("chainA_profile", "chainA_energy_noise"):
             out["seam_mean_abs_diff_left_right_columns"] = round(float(np.abs(img[:, 0] - img[:, -1]).mean()), 5)
             out["adjacent_column_mean_abs_diff"] = round(float(np.abs(img[:, 100] - img[:, 101]).mean()), 5)
         else:
