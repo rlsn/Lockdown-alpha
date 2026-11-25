@@ -263,6 +263,8 @@ bool ULDAudioSubsystem::Play(ELDAudioCue Cue, float VolumeMultiplier, float Pitc
     const int32 Take = PickTake(CueTakes[int32(Cue)], LastCueTake[int32(Cue)]);
     if (Take == INDEX_NONE) { return false; }
     const bool bInterface = ULDAudioCatalog::BusOf(Cue) == ELDAudioBus::UI;
+    // The shield break reuses the punch body, pitched up so it reads as a brittle shell rather than flesh.
+    if (Cue == ELDAudioCue::SelfShieldBreak) { Pitch *= 1.35f; }
     return Emit(LDAudio::CueId(Cue), Take, false, FVector::ZeroVector, VolumeMultiplier, Pitch, bInterface);
 }
 
