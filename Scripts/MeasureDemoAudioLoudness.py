@@ -66,21 +66,32 @@ def main():
     args = parser.parse_args()
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     measured = []
-    for cue in manifest["cues"]:
-        samples, rate = soundfile.read(ROOT / cue["source"], dtype="float64", always_2d=True)
-        measured.append((cue, max_momentary_loudness(samples, rate), float(np.abs(samples).max())))
-    # A file reused by several cues counts once for the target.
+    # Cues and skill releases; a sound with several takes is measured by its loudest take and all takes share its volume.
+    for cue in manifest["cues"] + manifest.get("skills", []):
+        sources = [take["source"] for take in cue["takes"]] if "takes" in cue else [cue["source"]]
+        best = None
+        for source in sources:
+            samples, rate = soundfile.read(ROOT / source, dtype="float64", always_2d=True)
+            loudness, peak = max_momentary_loudness(samples, rate), float(np.abs(samples).max())
+            if best is None or loudness > best[0]:
+                best = (loudness, peak)
+            # Every take must stay under the peak limit at the shared volume.
+            best = (best[0], max(best[1], peak))
+        measured.append((cue, sources[0], best[0], best[1]))
+    # A file reused by several cues counts once for the target; only the third-party CC0 files set it, so the original
+    # sounds are levelled to the established cue loudness instead of moving it.
     first = {}
-    for cue, loudness, _ in measured:
-        first.setdefault(cue["source"], loudness)
+    for cue, source, loudness, _ in measured:
+        if cue["pack"].startswith("kenney"):
+            first.setdefault(source, loudness)
     target = float(np.median(list(first.values())))
     print(f"target {target:.2f} LUFS (median max momentary loudness)")
-    for cue, loudness, peak in measured:
+    for cue, _, loudness, peak in measured:
         volume = min(10 ** ((target - loudness) / 20), PEAK_LIMIT / peak) * 10 ** (cue.get("level_db", 0.0) / 20)
         volume = round(max(volume, MIN_VOLUME), 3)
         cue["loudness_lufs"] = round(loudness, 2)
         cue["volume"] = volume
-        print(f"{cue['cue']:<20} {loudness:7.2f} LUFS  peak {peak:5.3f}  volume {volume:5.3f}")
+        print(f"{cue.get('cue', cue.get('ability')):<20} {loudness:7.2f} LUFS  peak {peak:5.3f}  volume {volume:5.3f}")
     if args.write:
         MANIFEST.write_bytes((json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
         print(f"wrote {MANIFEST}")

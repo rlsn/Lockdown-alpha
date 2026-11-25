@@ -9,6 +9,7 @@
 | 任何任务 | 本页 |
 | 改关卡、场景、生成、碰撞、导航、镜头、视野、材质或特效 | [关卡创作自由与开发约束](docs/LEVEL_AUTHORING_CONTRACT.md)，再读对应系统手册 |
 | 做或改世界空间战斗特效（VFX） | [VFX 手册](docs/systems/VFX.md)：美术方向、已批准特效（视觉回归基准）、决策记录与生产流程 |
+| 做或改声音、动作节奏、打击感或音量设置 | [音频、动画与打击感手册](docs/systems/AUDIO_AND_FEEL.md)：事件同步表、总线与设置 API、素材授权、覆盖清单 |
 | 改玩法规则或界面 | [App Spec 任务导航](docs/APP_SPEC.md#按任务查规则)中的相关章节 |
 | 改某个系统的实现 | [开发指南](docs/DEVELOPMENT.md#按任务读取系统手册)索引里对应的那一份系统手册 |
 | 改内容或数值 | [内容与数值](docs/demo/CONTENT_AND_BALANCE.md)的相关章节，[开发指南](docs/DEVELOPMENT.md#数据修改)的数据修改 |

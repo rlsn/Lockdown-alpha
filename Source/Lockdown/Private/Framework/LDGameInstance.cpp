@@ -369,6 +369,8 @@ ULDControlSettings* ULDGameInstance::GetLocalControlSettings()
             LocalControlSettings->PlayerName = Loaded.RecoverablePreferences->PlayerName;
             LocalControlSettings->MasterVolume = Loaded.RecoverablePreferences->MasterVolume;
             LocalControlSettings->MusicVolume = Loaded.RecoverablePreferences->MusicVolume;
+            LocalControlSettings->SfxVolume = Loaded.RecoverablePreferences->SfxVolume;
+            LocalControlSettings->UiVolume = Loaded.RecoverablePreferences->UiVolume;
             LocalControlSettings->CameraPanCmPerSec = Loaded.RecoverablePreferences->CameraPanCmPerSec;
             LocalControlSettings->MinimapOrientation = Loaded.RecoverablePreferences->MinimapOrientation;
             LocalControlSettings->bQuickCast = Loaded.RecoverablePreferences->bQuickCast;
@@ -415,8 +417,11 @@ void ULDGameInstance::ApplyAudioPreferences()
     if (auto* AudioOutput = GetSubsystem<ULDAudioSubsystem>())
     {
         const auto* Defaults = GetDefault<ULDControlSettings>();
-        AudioOutput->ApplyMasterVolume(LocalControlSettings ? LocalControlSettings->MasterVolume : Defaults->MasterVolume);
-        AudioOutput->ApplyMusicVolume(LocalControlSettings ? LocalControlSettings->MusicVolume : Defaults->MusicVolume);
+        for (int32 Bus = 0; Bus < LDAudio::BusCount; ++Bus)
+        {
+            const ULDControlSettings* From = LocalControlSettings ? LocalControlSettings.Get() : Defaults;
+            AudioOutput->ApplyBusVolume(ELDAudioBus(Bus), From->BusVolume(ELDAudioBus(Bus)));
+        }
     }
 }
 
@@ -433,10 +438,10 @@ FLDLocalSettingsSaveResult ULDGameInstance::ApplyLocalSettings(const ULDControlS
     return FlushLocalSettings();
 }
 
-FLDLocalSettingsSaveResult ULDGameInstance::SetAppliedMasterVolume(float Linear)
+FLDLocalSettingsSaveResult ULDGameInstance::SetAppliedBusVolume(ELDAudioBus Bus, float Linear)
 {
     FString Error;
-    if (!LocalControlSettings || !LocalControlSettings->SetAppliedMasterVolume(Linear, Error))
+    if (!LocalControlSettings || !LocalControlSettings->SetAppliedBusVolume(Bus, Linear, Error))
     {
         LocalSettingsMessage = Error.IsEmpty() ? TEXT("本地设置不可用。") : Error;
         return { ELDLocalSettingsSaveStatus::Invalid, LocalSettingsMessage };
@@ -444,29 +449,19 @@ FLDLocalSettingsSaveResult ULDGameInstance::SetAppliedMasterVolume(float Linear)
     ApplyAudioPreferences();
     RequestLocalSettingsFlush();
     // Nothing is written yet; a recovery-gated file is not replaced by the coming flush either.
-    const int32 Percent = FMath::RoundToInt(100 * LocalControlSettings->MasterVolume);
+    const TCHAR* const Names[] = { TEXT("主音量"), TEXT("音乐音量"), TEXT("音效音量"), TEXT("界面音量") };
+    static_assert(UE_ARRAY_COUNT(Names) == LDAudio::BusCount, "Every bus needs its settings name.");
+    const TCHAR* Name = Names[int32(Bus)];
+    const int32 Percent = FMath::RoundToInt(100 * LocalControlSettings->BusVolume(Bus));
     LocalSettingsMessage = LocalControlSettings->NeedsRecovery()
-        ? FString::Printf(TEXT("主音量 %d%% 已在本次运行中应用；原设置文件保持不变，请先在设置中确认替换再保存。"), Percent)
-        : FString::Printf(TEXT("主音量 %d%% 已应用，稍后自动保存。"), Percent);
+        ? FString::Printf(TEXT("%s %d%% 已在本次运行中应用；原设置文件保持不变，请先在设置中确认替换再保存。"), Name, Percent)
+        : FString::Printf(TEXT("%s %d%% 已应用，稍后自动保存。"), Name, Percent);
     return { ELDLocalSettingsSaveStatus::NoChanges, LocalSettingsMessage };
 }
 
-FLDLocalSettingsSaveResult ULDGameInstance::SetAppliedMusicVolume(float Linear)
+float ULDGameInstance::GetAppliedBusVolume(ELDAudioBus Bus) const
 {
-    FString Error;
-    if (!LocalControlSettings || !LocalControlSettings->SetAppliedMusicVolume(Linear, Error))
-    {
-        LocalSettingsMessage = Error.IsEmpty() ? TEXT("本地设置不可用。") : Error;
-        return { ELDLocalSettingsSaveStatus::Invalid, LocalSettingsMessage };
-    }
-    ApplyAudioPreferences();
-    RequestLocalSettingsFlush();
-    // Nothing is written yet; a recovery-gated file is not replaced by the coming flush either.
-    const int32 Percent = FMath::RoundToInt(100 * LocalControlSettings->MusicVolume);
-    LocalSettingsMessage = LocalControlSettings->NeedsRecovery()
-        ? FString::Printf(TEXT("音乐音量 %d%% 已在本次运行中应用；原设置文件保持不变，请先在设置中确认替换再保存。"), Percent)
-        : FString::Printf(TEXT("音乐音量 %d%% 已应用，稍后自动保存。"), Percent);
-    return { ELDLocalSettingsSaveStatus::NoChanges, LocalSettingsMessage };
+    return LocalControlSettings ? LocalControlSettings->BusVolume(Bus) : GetDefault<ULDControlSettings>()->BusVolume(Bus);
 }
 
 FLDLocalSettingsSaveResult ULDGameInstance::FlushLocalSettings(bool VerifyCurrent)

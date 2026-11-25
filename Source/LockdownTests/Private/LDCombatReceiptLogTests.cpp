@@ -22,7 +22,7 @@ bool FLDCombatReceiptBurstTest::RunTest(const FString& Parameters)
     FLDCombatReceiptLog Log;
     uint32 Seen=Log.Serial();
     TestTrue(TEXT("An empty log has no receipt"),Seen==0&&!Log.Latest());
-    Log.Push(BurstReceipt(10,ELDCombatEntry::Q,ELDCombatPhase::Finished,ELDCombatReject::None));
+    Log.Push(BurstReceipt(10,ELDCombatEntry::Dash,ELDCombatPhase::Finished,ELDCombatReject::None));
     Log.Push(BurstReceipt(11,ELDCombatEntry::W,ELDCombatPhase::Accepted,ELDCombatReject::None));
     TArray<ELDAudioCue> Out;
     {
@@ -36,7 +36,7 @@ bool FLDCombatReceiptBurstTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Both receipts arrive oldest first and the cursor reaches the newest"),Seen==2&&Arrived.Num()==2
         &&Arrived[0].DirectSequence==10&&Arrived[1].DirectSequence==11);
     for(const FLDCombatActionReceipt& Receipt:Arrived){Tracker.ObserveCombatReceipt(Receipt,4,1,Out);}
-    TestTrue(TEXT("The earlier request's release sounds"),Out==TArray<ELDAudioCue>({ELDAudioCue::SelfCast}));
+    TestTrue(TEXT("The earlier request's release sounds"),Out==TArray<ELDAudioCue>({ELDAudioCue::SelfDash}));
     Arrived.Reset();Out.Reset();
     Log.ReadSince(Seen,Arrived);
     TestTrue(TEXT("A read cursor never replays a receipt"),Arrived.IsEmpty()&&Seen==2);
@@ -48,10 +48,11 @@ bool FLDCombatReceiptBurstTest::RunTest(const FString& Parameters)
     Arrived.Reset();
 
     Log.Push(BurstReceipt(11,ELDCombatEntry::W,ELDCombatPhase::Finished,ELDCombatReject::None));
-    Log.Push(BurstReceipt(12,ELDCombatEntry::Q,ELDCombatPhase::Released,ELDCombatReject::None));
+    Log.Push(BurstReceipt(12,ELDCombatEntry::Dash,ELDCombatPhase::Released,ELDCombatReject::None));
     Log.ReadSince(Seen,Arrived);
     for(const FLDCombatActionReceipt& Receipt:Arrived){Tracker.ObserveCombatReceipt(Receipt,4,1,Out);}
-    TestTrue(TEXT("Two releases in one frame are one mixed cue"),Out==TArray<ELDAudioCue>({ELDAudioCue::SelfCast}));
+    TestTrue(TEXT("A skill and a dash released in one frame sound only the dash (skills sound at their presented release)"),
+        Out==TArray<ELDAudioCue>({ELDAudioCue::SelfDash}));
     Out.Reset();
     for(const FLDCombatActionReceipt& Receipt:Arrived){Tracker.ObserveCombatReceipt(Receipt,4,1,Out);}
     TestTrue(TEXT("A release already sounded never sounds again"),Out.IsEmpty());
