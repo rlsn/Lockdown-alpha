@@ -7,7 +7,8 @@
 #include "Components/Overlay.h"
 #include "Components/OverlaySlot.h"
 #include "Components/SizeBox.h"
-#include "Components/ScrollBox.h"
+#include "Components/ScaleBox.h"
+#include "Components/ScaleBoxSlot.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
@@ -18,6 +19,7 @@
 #include "Engine/Texture2D.h"
 #include "Framework/LDCaptureTypes.h"
 #include "UI/LDHUDModel.h"
+#include "UI/LDBroadcastStyle.h"
 #include "UI/LDHUDStyle.h"
 #include "UI/LDTerms.h"
 #include "UI/LDUIIcons.h"
@@ -182,7 +184,7 @@ UWidget* LDResultBuild::Make(UWidgetTree* Tree, const FLDResultBuild& Build, con
                     if (bExpanded)
                     {
                         UTextBlock* Dots = BoardText(Tree, LDHUD::RankDots(Rank), FMath::Max(8, FMath::RoundToInt(9 * TextScale)));
-                        Dots->SetColorAndOpacity(Rank >= 3 ? LDHUDStyle::UIAction : LDHUDStyle::TextAccent);
+                        Dots->SetColorAndOpacity(Rank >= 3 ? LDBroadcast::Gold : LDBroadcast::White);
                         auto* DotsSlot = Head->AddChildToHorizontalBox(Dots);
                         DotsSlot->SetVerticalAlignment(VAlign_Bottom);
                         DotsSlot->SetPadding(FMargin(2, 0, 0, 0));
@@ -232,7 +234,7 @@ UWidget* LDResultBuild::Make(UWidgetTree* Tree, const FLDResultBuild& Build, con
             const FString StatName = LDHUD::ContentName(Content, StatOrder[StatIdx]->Id);
             const FString EntryText = FString::Printf(TEXT("%s %d%s"), *StatName, Pts, Pts >= Threshold ? TEXT("★") : TEXT(""));
             UTextBlock* Chip = BoardText(Tree, EntryText, FMath::Max(10, FMath::RoundToInt(13 * TextScale)));
-            Chip->SetColorAndOpacity(Pts >= Threshold ? LDHUDStyle::UIAction : LDHUDStyle::UIText);
+            Chip->SetColorAndOpacity(Pts >= Threshold ? LDBroadcast::Gold : LDBroadcast::White);
             StatRow->AddChildToHorizontalBox(Chip)->SetPadding(FMargin(StatIdx ? 14.f : 0.f, 0, 0, 0));
         }
         Outer->AddChildToVerticalBox(StatRow)->SetPadding(FMargin(0, 6, 0, 0));
@@ -252,7 +254,7 @@ UTextBlock* ReportLine(UWidgetTree* Tree,UVerticalBox* Body,const FString& Value
     auto* Line=LDWidgets::Text(Tree,Value,FMath::RoundToInt((bHeading?17.f:14.f)*TextScale),NAME_None,
         bHeading?LDUIFonts::ERole::Strong:LDUIFonts::ERole::Body);
     Line->SetAutoWrapText(true);
-    Line->SetColorAndOpacity(bHeading?LDHUDStyle::TextAccent:LDHUDStyle::UIText);
+    Line->SetColorAndOpacity(bHeading?LDBroadcast::White:LDBroadcast::Grey);
     Body->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,bHeading?9.f:3.f,8.f,2.f));
     return Line;
 }
@@ -361,17 +363,22 @@ UWidget* LDResultBuild::MakeReport(UWidgetTree* Tree,const FLDResultView& Result
     auto* Size=Tree->ConstructWidget<USizeBox>();
     Size->SetWidthOverride(Width);
     Size->SetHeightOverride(282.f);
-    auto* Scroll=Tree->ConstructWidget<UScrollBox>();
-    Size->SetContent(Scroll);
+    // No scroll in game UI: the report scales down as one piece when a tab holds more than the board's height.
+    auto* Fit=Tree->ConstructWidget<UScaleBox>();Fit->SetStretch(EStretch::ScaleToFit);Fit->SetStretchDirection(EStretchDirection::DownOnly);
+    Size->SetContent(Fit);
     auto* Body=Tree->ConstructWidget<UVerticalBox>();
-    Scroll->AddChild(Body);
+    Fit->SetContent(Body);
+    if(auto* FitSlot=Cast<UScaleBoxSlot>(Fit->GetContentSlot())){FitSlot->SetHorizontalAlignment(HAlign_Left);FitSlot->SetVerticalAlignment(VAlign_Top);}
     if(Tab==EReportTab::Comparison){AddComparison(Tree,Body,Result,Row.ContenderId,TextScale);return Size;}
     if(Tab==EReportTab::Timeline){AddTimeline(Tree,Body,Row,Content,TextScale);return Size;}
 
     Body->AddChildToVerticalBox(Make(Tree,Row.Build,Content,Width-18.f,198.f,TextScale));
     if(Content&&Row.Build.bAvailable&&Row.Combat.bAvailable)
     {
+        // The five stats side by side: name and points over a meter of the keystone threshold.
         const auto Stats=Content->StatsInDesignOrder();
+        auto* StatRow=Tree->ConstructWidget<UHorizontalBox>();
+        Body->AddChildToVerticalBox(StatRow)->SetPadding(FMargin(0,6,0,0));
         for(int32 Index=0;Index<Stats.Num()&&Row.Build.StatPoints.IsValidIndex(Index);++Index)
         {
             const FName StatId(*Stats[Index]->Id);
@@ -381,7 +388,10 @@ UWidget* LDResultBuild::MakeReport(UWidgetTree* Tree,const FLDResultView& Result
             {
                 if(const TCHAR* Keystone=LDTerms::KeystoneName(StatId)){Text+=FString::Printf(TEXT(" ★%s"),Keystone);}
             }
-            ReportLine(Tree,Body,Text,TextScale,true);
+            auto* Column=Tree->ConstructWidget<UVerticalBox>();
+            UHorizontalBoxSlot* ColumnSlot=StatRow->AddChildToHorizontalBox(Column);ColumnSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+            ColumnSlot->SetPadding(FMargin(0,0,10,0));
+            ReportLine(Tree,Column,Text,TextScale,true);
             const int32 Cells=int32(Content->Parameters.KeystoneThresholdPoints);
             const int32 Lit=FMath::Clamp(Row.Build.StatPoints[Index],0,Cells);
             if(Cells<=0){continue;}
@@ -392,13 +402,13 @@ UWidget* LDResultBuild::MakeReport(UWidgetTree* Tree,const FLDResultView& Result
                 const double Step=Size.X/Cells;
                 for(int32 Cell=0;Cell<Cells;++Cell)
                 {
-                    const FLinearColor Tint=Cell<Lit?(bKeystone?LDHUDStyle::UIAction:LDHUDStyle::TextAccent):LDHUDStyle::PanelRim;
-                    Paint.Fill(Paint.Layer,FBox2D(FVector2D(Step*Cell,0),FVector2D(Step*(Cell+1)-2.,Size.Y)),Tint,2.f);
+                    const FLinearColor Tint=Cell<Lit?(bKeystone?LDBroadcast::Gold:LDBroadcast::White):LDBroadcast::Raised;
+                    Paint.Fill(Paint.Layer,FBox2D(FVector2D(Step*Cell,0),FVector2D(Step*(Cell+1)-1.,Size.Y)),Tint,0.f);
                 }
             };
             auto* Strip=Tree->ConstructWidget<USizeBox>();
             Strip->SetHeightOverride(7.f);Strip->SetContent(Meter);
-            Body->AddChildToVerticalBox(Strip)->SetPadding(FMargin(0,0,18,3));
+            Column->AddChildToVerticalBox(Strip)->SetPadding(FMargin(0,2,0,3));
         }
     }
     if(!Row.Combat.bAvailable){ReportLine(Tree,Body,TEXT("战斗属性不可用"),TextScale);return Size;}
