@@ -1095,7 +1095,8 @@ LDSliceVfx::FLook ULDImpactFxSubsystem::SliceLook(ESliceTuning Kind, bool bOwn, 
     return Look;
 }
 
-void ULDImpactFxSubsystem::NoteStrike(const ULDHumanoidVisualComponent& Source, LDSliceVfx::EStrike Strike, const FVector& From, const FVector& Dir, bool bOwn)
+void ULDImpactFxSubsystem::NoteStrike(const ULDHumanoidVisualComponent& Source, LDSliceVfx::EStrike Strike, const FVector& From, const FVector& Dir, bool bOwn,
+    uint8 Ability)
 {
     if (!GetWorld() || Strike == LDSliceVfx::EStrike::None || From.ContainsNaN() || Dir.ContainsNaN()) { return; }
     const double Now = GetWorld()->GetTimeSeconds();
@@ -1108,6 +1109,7 @@ void ULDImpactFxSubsystem::NoteStrike(const ULDHumanoidVisualComponent& Source, 
     Added.Dir = FVector(Dir.X, Dir.Y, 0.).GetSafeNormal();
     Added.At = Now;
     Added.bOwn = bOwn;
+    Added.Ability = Ability;
 }
 
 ULDImpactFxSubsystem::FStrikeMatch ULDImpactFxSubsystem::MatchHit(const ULDHumanoidVisualComponent& Victim, const FVector& Chest,
@@ -1125,12 +1127,14 @@ ULDImpactFxSubsystem::FStrikeMatch ULDImpactFxSubsystem::MatchHit(const ULDHuman
         if (Strike.Source.Get() == &Victim || !Strike.Source.IsValid()) { continue; }
         const bool bFits = Look == ELDObservedHitLook::Water ? Strike.Strike == EStrike::Hose
             : Look == ELDObservedHitLook::Electric ? Strike.Strike == EStrike::Zap
+            : Look == ELDObservedHitLook::Magic || Look == ELDObservedHitLook::Fire ? Strike.Strike == EStrike::Skill
             : Look == ELDObservedHitLook::None && (Strike.Strike == EStrike::Basic || Strike.Strike == EStrike::Finisher);
         if (!bFits) { continue; }
         const double Gap = HitAt - Strike.At;
         // A chain's later links land one interval after another (chain_bounce.interval) from the last body struck.
         const double Late = Strike.Strike == EStrike::Zap ? .45 + .25 * Strike.Hits : .45;
-        const double Reach = Strike.Strike == EStrike::Hose ? 900. : Strike.Strike == EStrike::Zap ? (Strike.Hits ? 600. : 950.) : 420.;
+        const double Reach = Strike.Strike == EStrike::Hose ? 900. : Strike.Strike == EStrike::Zap ? (Strike.Hits ? 600. : 950.)
+            : Strike.Strike == EStrike::Skill ? 800. : 420.;
         const FVector Origin = Strike.Strike == EStrike::Zap ? Strike.Last : Strike.From;
         if (Gap < -.25 || Gap > Late || FVector::Dist2D(Origin, Chest) > Reach) { continue; }
         if (FMath::Abs(Gap) < BestGap)
@@ -1144,6 +1148,7 @@ ULDImpactFxSubsystem::FStrikeMatch ULDImpactFxSubsystem::MatchHit(const ULDHuman
     Out.Strike = Strike.Strike;
     Out.bOwn = Strike.bOwn;
     Out.bChained = Strike.Strike == EStrike::Zap && Strike.Hits > 0;
+    Out.Ability = Strike.Ability;
     Out.From = Strike.Strike == EStrike::Zap ? Strike.Last : Strike.From;
     const FVector Toward = FVector(Chest.X - Out.From.X, Chest.Y - Out.From.Y, 0.);
     Out.Dir = Toward.SizeSquared() > 1.f ? Toward.GetSafeNormal() : Strike.Dir;

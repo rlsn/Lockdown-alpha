@@ -216,6 +216,7 @@ void ALDCharacter::Tick(float Delta)
             bCue ? float(FMath::Max<int64>(0,ImpactAtMs-Selected.AtMs))/1000.f : -1.f,PresentationKnockback(Statuses),bHandover);
     }
     bShownPredicted=bPredicted;
+    Body->SetElementStates(Statuses);
     // The shown cast's own skill look (LDHitVfx::SkillLookOf): the authority's cue facts name the acting or released
     // learned ability, so a release snapshot that already cleared the action slot keeps it.
     uint8 CastAbility=0;

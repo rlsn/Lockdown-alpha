@@ -57,6 +57,9 @@ public:
     // start even within the jitter window (a confirmed prediction hands over to the authority's timeline).
     void SetCue(uint8 Value, float ActionAgeSeconds = -1.f, float ImpactDelaySeconds = -1.f, bool bKnockback = false,
         bool bAdoptOnset = false);
+    // The body's public element states (burn, wet, electrified, chilled, rotten; ELDDemoStatusId) and their stacks: each
+    // shows its own looping effect on the body while it lasts (LDSliceVfx::ESystem BurnState..RotState).
+    void SetElementStates(const TArray<FLDObservedStatus>& Statuses);
     // The victim's overlay only (flash and impact particles); the body's pose and position never react to a hit.
     bool SetHitReaction(float AgeSeconds, ELDObservedHitLook HitLook = ELDObservedHitLook::None, uint8 HitFlags = 0,
         const FGuid& HitId = FGuid(), int64 HitAtMs = 0);
@@ -133,6 +136,11 @@ private:
     UPROPERTY() TObjectPtr<USkeletalMeshComponent> Mesh;
     UPROPERTY() TObjectPtr<UStaticMeshComponent> Basketball;
     UPROPERTY() TObjectPtr<UNiagaraComponent> CastCharge;
+    // One looping effect per element state (burn, wet, electrified, chilled, rotten) while it shows.
+    static constexpr int32 ElementStates = 5;
+    uint8 StateStacks[ElementStates] = {0, 0, 0, 0, 0};
+    UPROPERTY() TObjectPtr<UNiagaraComponent> StateEffects[ElementStates];
+    void UpdateStates(bool bFalling, float EffectScale);
     UPROPERTY() TObjectPtr<UNiagaraComponent> DashTrail;
     UPROPERTY() TObjectPtr<UNiagaraComponent> ChargeColumn;
     // Built by the constructor from the fixed part specs; never saved, so a map saved with another part list cannot
@@ -186,6 +194,9 @@ private:
     };
     // A hit the designed slice presentation shows (an unflagged plain, water or electric hit); others keep the hit layers.
     void ShowSliceImpact(const FPendingImpact& Impact, const FVector& Chest, const FVector& Feet, float EffectScale);
+    // A plain hit matched to a visible skill cast whose skill has its own designed hit (ULDImpactFxSubsystem::MatchHit);
+    // false when it has none, so the hit keeps its look's layers.
+    bool ShowSkillHit(const FPendingImpact& Impact, const FVector& Chest, float EffectScale);
     TArray<FPendingImpact, TInlineAllocator<4>> PendingImpacts;
     // The shown mesh's shared picking model and this body's pose of it, posed at most once per frame.
     mutable TSharedPtr<const LDModelPicking::FSkinnedModel> PickingModel;

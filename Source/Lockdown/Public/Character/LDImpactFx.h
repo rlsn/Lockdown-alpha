@@ -94,7 +94,9 @@ public:
     LDSliceVfx::FLook SliceLook(ESliceTuning Kind, bool bOwn, bool bFocus) const;
     // A visible body's strike reached its release: hits that follow on visible bodies take its tier, direction and
     // owner (MatchHit). Only visible bodies note strikes, so a hit never reveals a hidden source.
-    void NoteStrike(const ULDHumanoidVisualComponent& Source, LDSliceVfx::EStrike Strike, const FVector& From, const FVector& Dir, bool bOwn);
+    // Ability: the visible cast's ELDDemoAbilityId for a skill strike (its hits then show that skill's hit), 0 otherwise.
+    void NoteStrike(const ULDHumanoidVisualComponent& Source, LDSliceVfx::EStrike Strike, const FVector& From, const FVector& Dir, bool bOwn,
+        uint8 Ability = 0);
     struct FStrikeMatch
     {
         LDSliceVfx::EStrike Strike = LDSliceVfx::EStrike::None;
@@ -102,6 +104,7 @@ public:
         FVector Dir = FVector::ZeroVector;
         bool bOwn = false;
         bool bChained = false;   // a later link of a chain: its arc starts at the previous body struck
+        uint8 Ability = 0;       // the matched skill strike's ability (ELDDemoAbilityId), 0 for others
     };
     // The strike a hit HitAgeSeconds old on Victim's Chest belongs to: the nearest in time of the strikes whose kind
     // fits the hit's look, timing and reach; None when no visible strike fits.
@@ -212,6 +215,7 @@ private:
         double At = 0;
         bool bOwn = false;
         int32 Hits = 0;
+        uint8 Ability = 0;
     };
     TArray<FStrike> Strikes;
     void Release(int32 Index);

@@ -348,7 +348,7 @@
 | --- | --- | --- | --- | --- | --- |
 | 连段 1、2 挥击 | Attack 提示，步 1–2，释放时刻 | IMPLEMENTED | `NS_LDSwing1/2`（`SwingParts`） | — | 用户未验收 |
 | 连段 3 终结挥击 | Attack 提示，步 3 | IMPLEMENTED | `NS_LDSwing3` | — | 用户未验收 |
-| 挥击预兆 | Attack 提示的前摇 | IMPLEMENTED | `NS_LDTell1-3`：地面暖色细弧随前摇展开 | `production/vfx/batch1-selfmade/``swing/` | 游戏镜头下几乎看不见，需加强或换素材 |
+| 挥击预兆 | Attack 提示的前摇 | IMPLEMENTED | `NS_LDTell1-3`：地面暖色细弧随前摇展开 | `production/vfx/batch1-selfmade/``swing/` | 已加宽加亮并加内侧扫掠带，待重新采集 |
 | 普攻命中、终结命中 | 命中（无元素、无标志）匹配到挥击 | IMPLEMENTED | `NS_LDHitBasic`、`NS_LDHitFinisher` | — | 用户未验收 |
 | 暴击命中 | 命中标志 Critical | NOT STARTED | 旧：十字星 + 双金环（`LDHitVfx::ForHit`） | — | 星爆属否决语言 |
 | 护盾吸收、护盾破碎 | 命中标志 Shield / ShieldBroken | NOT STARTED | 旧：六角壳 | — | |
@@ -368,7 +368,7 @@
 | `active_crotch_grab` 掏蛋子 | 无 · 冲刺接触 + 减速 | NOT STARTED | 旧：冲刺粒子带 | — | |
 | `active_unplug` 拧你手腕 | 无 · 招架架势 280 | NOT STARTED | 旧：粒子包 | — | |
 | `active_snark_bolt` 甩你一鞋 | 无 · 投射物 + 落地拖鞋 | NOT STARTED | 旧：粒子带；落地 `SlipperDrop` | — | |
-| `active_seethe` 烫你屁股 | 火 · 自身圆 300 | IMPLEMENTED | `NS_LDSeetheTell`、`NS_LDSeetheBurst`、`NS_LDFireHit`；贴图 `fire_*` | `production/vfx/batch1-selfmade/``fire/` | 火舌环与焦裂纹成立；焦地与烟的地面贴片露出方形边缘 |
+| `active_seethe` 烫你屁股 | 火 · 自身圆 300 | IMPLEMENTED | `NS_LDSeetheTell`、`NS_LDSeetheBurst`、`NS_LDFireHit`；贴图 `fire_*` | `production/vfx/batch1-selfmade/``fire/` | 火舌环与焦裂纹成立；焦地已改为随区域的软边，待重新采集 |
 | `active_quick_meeting` 脚底开锅 | 火 · 地点圆 240，3 跳 | NOT STARTED | 旧：区域粒子（AreaFire） | — | |
 | `active_bail_out` 贴脸补一拳 | 无 · 冲刺 + 强化普攻 | NOT STARTED | 旧：冲刺粒子带 | — | |
 | `active_not_mad` 锅盖挡脸 | 无 · 自身护盾 + 解控 | NOT STARTED | 旧：护盾几何笼 | — | |
@@ -379,7 +379,7 @@
 | `active_open_mic` 扯嗓子喷你 | 无 · 自身圆 340 击退 | NOT STARTED | 旧：`SpeechCone` 粒子 | — | |
 | `active_charged_ram` 蛮牛顶 | 无 · 冲刺撞人 + 护盾 | NOT STARTED | 旧：冲刺粒子带 | — | |
 | `active_brace` 顶着揍 | 无 · 架势 3 s | NOT STARTED | 无 | — | |
-| `active_cola_shake` 冰可乐摇一摇 | 冰 · 扇形 400/60° | IMPLEMENTED | `NS_LDColaTell`、`NS_LDColaBlast`；贴图 `ice_*` | `production/vfx/batch1-selfmade/``chill/` | 喷射被旧的魔法命中星爆遮住；霜地贴片露方形边缘 |
+| `active_cola_shake` 冰可乐摇一摇 | 冰 · 扇形 400/60° | IMPLEMENTED | `NS_LDColaTell`、`NS_LDColaBlast`、命中 `NS_LDChillHit`；贴图 `ice_*` | `production/vfx/batch1-selfmade/``chill/` | 已改为冰命中、霜地软边，待重新采集 |
 | `active_desk_fan` 电风扇 | 无 · 地点风带 600×200 | NOT STARTED | 旧：`Wind` 粒子 | — | |
 | `active_stale_takeout` 过期外卖 | 腐 · 投射物 + 瘴气地面 | NOT STARTED | 旧：粒子带 | — | |
 | `active_school_bag` 占座书包 | 无 · 地点障碍 | NOT STARTED | 旧：`Bag`、`BagWall` | — | |
@@ -392,11 +392,11 @@
 
 | 状态 | 状态编号 | 状态 | 实现 | 证据 | 已知问题 |
 | --- | --- | --- | --- | --- | --- |
-| 灼烧 Burn | 26 | NOT STARTED | 无世界表现，只有头顶图标 | — | |
-| 潮湿 Wet | 30 | NOT STARTED | 无 | — | |
-| 带电 Electrified | 31 | NOT STARTED | 无 | — | |
-| 冰冷 Chilled | 36 | NOT STARTED | 无 | — | |
-| 腐坏 Rotten | 37 | NOT STARTED | 无 | — | |
+| 灼烧 Burn | 26 | IMPLEMENTED | `NS_LDBurnState`：身侧火舌循环上舔、火星上飘，层数提高强度 | — | 待采集 |
+| 潮湿 Wet | 30 | IMPLEMENTED | `NS_LDWetState`：衣摆与手上挂水滴下落、脚下湿印 | — | 待采集 |
+| 带电 Electrified | 31 | IMPLEMENTED | `NS_LDShockState`：身上短折线电弧间歇爬行（链的材质） | — | 待采集 |
+| 冰冷 Chilled | 36 | IMPLEMENTED | `NS_LDChillState`：小腿冰晶、冷雾下沉、脚下霜环 | — | 待采集 |
+| 腐坏 Rotten | 37 | IMPLEMENTED | `NS_LDRotState`：身上鼓起破裂的气泡、腰间酸腐雾 | — | 待采集 |
 
 ### 7.4 元素反应
 
@@ -478,7 +478,7 @@
 
 | 项 | 事件 | 状态 | 实现 | 证据 | 已知问题 |
 | --- | --- | --- | --- | --- | --- |
-| 元素命中（火、水、电、魔法） | 命中外观 | NOT STARTED | 旧：星形 + 签名层（`ForHit`） | — | 电命中只在链内批准 |
+| 元素命中（火、水、电、魔法） | 命中外观 | IN PROGRESS | 水 `NS_LDWaterHit`、火 `NS_LDFireHit`、冰可乐的魔法命中 `NS_LDChillHit`（按匹配到的施法技能路由）；其余魔法命中仍是旧星形 + 法阵层（`ForHit`），未重做 | — | 电命中只在链内批准；其余魔法技能（板砖、扯嗓子、外卖等）的命中待各自设计 |
 | 阵亡 | 阵亡通知 | NOT STARTED | 旧：地裂 + 双环 | — | |
 | 升级 | 单位 Level 增加 | NOT STARTED | 无世界表现 | — | |
 | 自身脚下标记 | 本人身体 | NOT STARTED | `ALDOwnBodyMarker` | — | 在共享文件 `LDWorldViewRelay` |
