@@ -11,7 +11,8 @@ import slice_lib as L
 ROOT = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 SLICE = os.path.join(ROOT, "Slice")
 GENERATORS = ["Blender/slice_lib.py", "Blender/slice_slash.py", "Blender/slice_impact.py", "Blender/slice_water.py", "Blender/slice_shock.py",
-              "Blender/slice_chalk.py", "Blender/slice_render.py"]
+              "Blender/slice_chalk.py", "Blender/slice_render.py",
+              "Blender/slice_chain_candidates.py"]
 TOOLS = ["Blender/slice_preview.py", "Blender/slice_manifest.py"]
 
 GEOMETRY_SHA = {  # printed by slice_slash.py; the FBX header carries a timestamp, so file bytes differ per export
@@ -27,6 +28,8 @@ MATERIAL_HINT = ("Same graph as the existing Layer material: emissive = Glow * t
                  "translucent unlit, two-sided. Recommended glow remap: color = lerp(Glow * saturate(g / 0.6), 1, smoothstep(0.8, 1.0, g)); Ink (0A0B0D) shows where g = 0 and A > 0.")
 
 FLIP = lambda **kw: kw
+EDGE_PACKING = ("R = G = glow (0 none, 0.6 gold body, 1.0 cream core), B = warm-dark edge mask (1 on the edge band), A = coverage with the edge band "
+                "baked at 0.6; M_LDSlice reads only R, so there the edge shows as Ink at 60 percent alpha; a candidate material tints B deep brown")
 ASSETS = [
     dict(id="SM_LD_SlashCombo1", kind="static_mesh", file="Slice/SM_LD_SlashCombo1.fbx", purpose="Basic attack combo stage 1: short flat crescent, swings right to left (head on the left of forward).",
          usage="StaticMeshComponent attached to the character at chest height (or spawned at the muzzle transform), unlit translucent two-sided material using tex_slash_edge; scroll U / dissolve with tex_dissolve_noise over ~0.18 s; rotate with the character facing.",
@@ -84,6 +87,55 @@ ASSETS = [
          purpose="Chalk court lane for a skill's anticipation: two hand-drawn border lines and four forward chevrons per tile, chalk-grained, white with a thin ink rim.",
          usage="Flat strip on the ground over the skill's footprint before its release; U (x) runs along the lane in the cast direction and tiles seamlessly, V (y) across; shown white only (no element colour).",
          uv="tileable along U, chevrons point to +U; V across (row 0 = top edge)", **MASK, budget="one ground strip per casting body during its windup"),
+    # ---- chain-lightning art-direction candidates (vfx-direction/CANDIDATES.md); element assets only, trunk shapes come from Niagara points
+    dict(id="chainA_profile", kind="texture", file="Slice/chainA_profile.png", width=256, height=64, candidate="A",
+         purpose="Candidate A cross-section strip: warm-white core (about 25 % of the width) inside a soft energy layer that falls off to transparent, over a wider dim amber under-layer (glow about 0.3). No outline.",
+         usage="Niagara ribbon / beam material: U = world length / tile length (tiles, constant density per cm), V across the trunk; core additive, under-layer alpha. Multiply by chainA_energy_noise scrolling along U.",
+         uv="seamless along U; V across, centre 0.5", **MASK, budget="one ribbon per hop plus 1-3 thin branch ribbons"),
+    dict(id="chainA_energy_noise", kind="texture", file="Slice/chainA_energy_noise.png", width=256, height=256, candidate="A",
+         purpose="Candidate A tileable flowing energy noise: R domain-warped flow, G ridged filaments stretched along U, B a second filament phase.",
+         usage="Scroll along the ribbon U (tiled by world length) and multiply the trunk opacity, or cross-fade G and B for flow.",
+         uv="tiles in both axes", alpha_packing="utility noise: R flow, G filaments, B second filament phase, A = 1 (not a glow mask)", srgb=False,
+         compression="TC_Masks (no sRGB)", mips="generate", streaming="NeverStream = true", budget="shared by all A hops"),
+    dict(id="chainA_spark_streak", kind="texture", file="Slice/chainA_spark_streak.png", width=128, height=32, candidate="A",
+         purpose="Candidate A velocity-stretched spark: +X = velocity, hot round head at U 0.83, thin tail fading to the left, soft halo.",
+         usage="Velocity-aligned sprite for 6-10 hit sparks (0.15-0.25 s, slight gravity), stretch length by speed.", pivot="head at frame UV (0.83, 0.5)",
+         uv="+X = velocity", **MASK, budget="6-10 sprites per hit"),
+    dict(id="chainA_flash", kind="texture", file="Slice/chainA_flash.png", width=128, height=128, candidate="A",
+         purpose="Candidate A small soft hit flash: warm-white soft core with faint anamorphic streaks (longer along X); no spikes, no outline.",
+         usage="Sprite at the contact point for 2-3 frames; core diameter about 0.32 of the quad, so a 70 cm quad keeps the flash under half the body width.", pivot="centre",
+         uv="+X = long streak axis", **MASK, budget="one sprite per hit"),
+    dict(id="chainA_ground_glow", kind="texture", file="Slice/chainA_ground_glow.png", width=256, height=256, candidate="A",
+         purpose="Candidate A soft ground-glow mask under a hit (stands in for a small shadowless point light): smooth falloff, gently uneven rim, hotter centre.",
+         usage="Additive flat quad or decal under the hit body for about 0.15 s; about 110 cm.", pivot="centre", uv="decal space", **MASK, budget="one per hit"),
+    dict(id="chainB_stroke_profile", kind="texture", file="Slice/chainB_stroke_profile.png", width=512, height=64, candidate="B",
+         purpose="Candidate B brush-stroke profile, tileable along U: flat cream core and gold body (two-tone), ragged dry-brush edges, a thin warm-dark edge band in its own channel.",
+         usage="Niagara ribbon material: U = world length / tile length, V across; taper the ribbon width from source to target. Tint the B channel deep brown; scale its alpha (baked 0.6) as needed.",
+         uv="seamless along U; V across, centre 0.5", alpha_packing=EDGE_PACKING, srgb=False, compression="TC_BC7 (four independent channels)",
+         mips="generate (TMGS_FromTextureGroup)", streaming="NeverStream = true, LODGroup Effects", budget="one ribbon per hop plus one short tine"),
+    dict(id="chainB_shards", kind="texture", file="Slice/chainB_shards.png", width=1024, height=512, candidate="B", atlas=dict(cols=4, rows=2, cell=256),
+         purpose="Candidate B hit shards: 4 variants (columns) of 3-4 thin angular slivers fanned narrowly around +X (not radial); row 0 = solid frame, row 1 = the same set broken into 2-3 drifting fragments each.",
+         usage="Sprite at the hit, +X along the hop direction; show row 0 for 2 frames, then row 1 drifting and fading over 0.15 s; quad about 100 cm so the shards stay within body width.",
+         pivot="hit point at cell UV (0.30, 0.50); cell spans x -0.6..1.4, y -1..1", uv="cell (c, r) = variant c, frame r (row 0 on top)",
+         alpha_packing=EDGE_PACKING, srgb=False, compression="TC_BC7", mips="generate", streaming="NeverStream = true, LODGroup Effects", budget="one sprite per hit"),
+    dict(id="chainB_scorch_dash", kind="texture", file="Slice/chainB_scorch_dash.png", width=256, height=128, candidate="B",
+         purpose="Candidate B angular scorch dash decal: tapered slash with two side chips, burnt ragged edge and soot feather (glow 0 = scorch), short ember seam inside (glow 0.6).",
+         usage="Ground decal under the target, X along the hop, about 130 cm, fades over 0.6 s; tint the ink a warm dark (not black).", pivot="dash starts at U 0.05",
+         uv="x = hop direction", **MASK, budget="one decal per hit"),
+    dict(id="chainC_core_profile", kind="texture", file="Slice/chainC_core_profile.png", width=128, height=32, candidate="C",
+         purpose="Candidate C thin crisp core profile: flat warm-white core over the middle 60 %, a narrow amber falloff to 1.5 x the core, nothing beyond (no halo, no outline).",
+         usage="Niagara ribbon 8-12 cm wide, slightly wider toward the target; constant along U so any tiling works.", uv="constant along U; V across", **MASK,
+         budget="one ribbon per hop"),
+    dict(id="chainC_spark_head", kind="texture", file="Slice/chainC_spark_head.png", width=128, height=32, candidate="C",
+         purpose="Candidate C spark head: small bright crisp capsule head at U 0.78 with a short tapered tail, narrow amber rim.",
+         usage="Sprite travelling source -> target in about 40 ms ahead of the trunk (about 30 cm); also reused small for the 3-4 hit sparks.", pivot="head at frame UV (0.78, 0.5)",
+         uv="+X = travel", **MASK, budget="1 + 3-4 sprites per hop"),
+    dict(id="chainC_pinpoint", kind="texture", file="Slice/chainC_pinpoint.png", width=64, height=64, candidate="C",
+         purpose="Candidate C pinpoint hit flash: crisp white dot, narrow amber falloff, two hair-thin crossing glints.",
+         usage="Sprite at the contact, quad about 50 cm (dot under 40 % of body width).", pivot="centre", uv="+X = long glint", **MASK, budget="one per hit"),
+    dict(id="chainC_ground_tick", kind="texture", file="Slice/chainC_ground_tick.png", width=128, height=128, candidate="C",
+         purpose="Candidate C ground tick under the hit target: four short tapered ticks pointing at the centre (open, not a ring).",
+         usage="Flat quad or decal at the target's feet for 0.4 s, about 64 cm.", pivot="centre", uv="decal space", **MASK, budget="one per hit"),
 ]
 
 
@@ -118,6 +170,16 @@ def checks(asset, img):
     if asset["id"] in ("tex_water_jet", "tex_chalk_lane"):
         out["seam_mean_abs_diff_left_right_columns"] = round(float(np.abs(img[:, 0] - img[:, -1]).mean()), 5)
         out["adjacent_column_mean_abs_diff"] = round(float(np.abs(img[:, 100] - img[:, 101]).mean()), 5)
+    if asset["id"].startswith("chain"):
+        if asset["id"] in ("chainA_profile", "chainB_stroke_profile", "chainC_core_profile", "chainA_energy_noise"):
+            out["seam_mean_abs_diff_left_right_columns"] = round(float(np.abs(img[:, 0] - img[:, -1]).mean()), 5)
+            out["adjacent_column_mean_abs_diff"] = round(float(np.abs(img[:, 100] - img[:, 101]).mean()), 5)
+        else:
+            a = img[..., 3]
+            cell = asset.get("atlas", {}).get("cell")
+            tiles = [a[r:r + cell, c:c + cell] for r in range(0, a.shape[0], cell) for c in range(0, a.shape[1], cell)] if cell else [a]
+            out["max_alpha_on_2px_border"] = round(max(float(np.concatenate([t[[0, 1, -2, -1]].ravel(), t[:, [0, 1, -2, -1]].ravel()]).max()) for t in tiles), 4)
+        out["mean_coverage"] = round(float(img[..., 3].mean()), 4)
     if asset["id"] == "tex_dissolve_noise":
         out["seam_mean_abs_diff_x"] = round(float(np.abs(img[:, 0, :3] - img[:, -1, :3]).mean()), 5)
         out["seam_mean_abs_diff_y"] = round(float(np.abs(img[0, :, :3] - img[-1, :, :3]).mean()), 5)
@@ -146,7 +208,7 @@ def main():
         if e["material_hint"] is None:
             del e["material_hint"]
         entries.append(e)
-    doc = dict(schema=1, provenance="Generated for this project by SourceData/VFX/Blender/slice_*.py in Blender 5.2.4 headless (bpy mesh + FBX export; Workbench renders of curve geometry via slice_render.py; numpy 2.x raster and noise with fixed seeds); no third-party material.",
+    doc = dict(schema=1, provenance="Generated for this project by SourceData/VFX/Blender/slice_*.py in Blender 5.2.4 headless (bpy mesh + FBX export; Workbench renders of curve geometry via slice_render.py; chain* entries are art-direction candidate elements; numpy 2.x raster and noise with fixed seeds); no third-party material.",
                generators={g: L.sha256_file(os.path.join(ROOT, g)) for g in GENERATORS}, tools={t: L.sha256_file(os.path.join(ROOT, t)) for t in TOOLS},
                glow_levels=dict(ink=0.0, body=L.GLOW_BODY, core=L.GLOW_CORE),
                ground_swatches_rgb=dict(dark_vfx_capture=[22, 26, 24], shaded_paving=[116, 121, 126], sunlit_warm_paving=[189, 181, 166]),
