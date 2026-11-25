@@ -142,6 +142,8 @@ namespace
             TArray<FSeqStep> Steps;
             TFunction<void()> Setup, Teardown;
             bool bPerf = false;
+            // The hit the comparison sheet judges (its frame is the second after it).
+            float ShowAt = .27f;
         };
         TArray<FChainJob> ChainJobs;
         int32 ChainJob = 0, ChainPhase = 0, ChainFrame = 0, ChainStep = 0;
@@ -710,7 +712,7 @@ namespace
             }
             else if (!BuildSequences(Target, Focus)) { return false; }
             FString Looks;
-            if (FParse::Value(FCommandLine::Get(), TEXT("LDDemoChainLooks="), Looks))
+            if (FParse::Value(FCommandLine::Get(), TEXT("LDDemoChainLooks="), Looks, false))
             {
                 // The chain harness replaces the keyframe sequences and the single shots (only the idle frame stays).
                 Sequences.Reset();
@@ -946,11 +948,12 @@ namespace
                 ChainJobs.Add({Look, TEXT("c-first-hit"), {{0.f, Cast(A)}, {.27f, Hit(V1)}}, nullptr, nullptr});
                 // (d) a chain with two bounces.
                 ChainJobs.Add({Look, TEXT("d-two-bounces"), {{0.f, Cast(A)}, {.27f, Hit(V1)}, {.42f, Hit(V2)}, {.57f, Hit(V3)}}, nullptr, nullptr});
-                // (e) the own cast and another player's at the same moment.
-                ChainJobs.Add({Look, TEXT("e-own-vs-other"), {{0.f, Cast(A)}, {0.f, Cast(A3)}, {.27f, Hit(V1)}, {.28f, Hit(V3)}}, nullptr, nullptr});
-                // (f) three casters at once with bounces.
-                ChainJobs.Add({Look, TEXT("f-several-casters"), {{0.f, Cast(A)}, {0.f, Cast(A2)}, {0.f, Cast(A3)}, {.27f, Hit(V1)}, {.28f, Hit(V2)},
-                    {.29f, Hit(V3)}, {.42f, Hit(V2)}, {.44f, Hit(V3)}}, nullptr, nullptr});
+                // (e) the own cast and another player's 50 ms later. A hit carries no caster: the strike registry gives it to
+                // the strike whose release is closest in time, so the casts are staggered for each hit to find its own.
+                ChainJobs.Add({Look, TEXT("e-own-vs-other"), {{0.f, Cast(A)}, {.05f, Cast(A3)}, {.27f, Hit(V1)}, {.32f, Hit(V3)}}, nullptr, nullptr, false, .32f});
+                // (f) three casters 60 ms apart, each hitting its own target.
+                ChainJobs.Add({Look, TEXT("f-several-casters"), {{0.f, Cast(A)}, {.06f, Cast(A2)}, {.12f, Cast(A3)}, {.26f, Hit(V1)}, {.32f, Hit(V2)},
+                    {.38f, Hit(V3)}}, nullptr, nullptr, false, .32f});
                 FChainJob Perf;
                 Perf.Look = Look;
                 Perf.Scenario = TEXT("perf-eight-casters");
@@ -1053,7 +1056,7 @@ namespace
                 {
                     const float Width = Effect.GetOverrideParameters().GetParameterValue<float>(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("User.Width")));
                     const FVector3f Start = Effect.GetOverrideParameters().GetParameterValue<FVector3f>(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("User.Start")));
-                    const FString Key = FString::Printf(TEXT("%p"), &Effect);
+                    const FString Key = FString::Printf(TEXT("%p %s"), &Effect, *FVector(Start).ToCompactString());
                     if (!ChainCheck->HasField(Key))
                     {
                         auto Entry = MakeShared<FJsonObject>();
@@ -1063,6 +1066,8 @@ namespace
                             FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("User.End")))).ToCompactString());
                         Entry->SetNumberField(TEXT("intensity"), Effect.GetOverrideParameters().GetParameterValue<float>(
                             FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("User.Intensity"))));
+                        Entry->SetNumberField(TEXT("focus"), Effect.GetOverrideParameters().GetParameterValue<float>(
+                            FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("User.Focus"))));
                         ChainCheck->SetObjectField(Key, Entry);
                     }
                 });
@@ -1093,7 +1098,7 @@ namespace
                 Run->SetStringField(TEXT("scenario"), Job.Scenario);
                 Run->SetStringField(TEXT("folder"), Folder);
                 Run->SetArrayField(TEXT("frame_game_seconds"), ChainFrameTimes);
-                Run->SetNumberField(TEXT("first_hit_seconds"), .27);
+                Run->SetNumberField(TEXT("first_hit_seconds"), Job.ShowAt);
                 Run->SetBoolField(TEXT("released"), bReleased);
                 Run->SetNumberField(TEXT("release_seconds"), Now - ChainPhaseAt);
                 Run->SetObjectField(TEXT("links"), ChainCheck);
