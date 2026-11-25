@@ -233,8 +233,6 @@ public:
                 }
                 return false;
             },75.});
-        Pages.Add({TEXT("Match_DeathLate"),[this](ALDPlayerController& PC,double Now)
-            {return PC.OwnerState.LifePhase==ELDLifePhase::Dead&&Settled(Now,2.5);},20.});
         Pages.Add({TEXT("Match_Respawned"),[this](ALDPlayerController& PC,double Now)
             {
                 if(PC.OwnerState.LifePhase!=ELDLifePhase::Alive){return false;}

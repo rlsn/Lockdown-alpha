@@ -757,7 +757,8 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         DeathWorkshopButton->SetVisibility(ESlateVisibility::Collapsed);
         auto* DeathBtnSlot=DeathBox->AddChildToVerticalBox(DeathWorkshopButton);DeathBtnSlot->SetHorizontalAlignment(HAlign_Center);DeathBtnSlot->SetPadding(FMargin(0,10,0,0));
         DeathBanner=Panel(DeathBox,false);DeathBanner->SetVisibility(ESlateVisibility::Collapsed);
-        Place(DeathBanner,FAnchors(.5f,0),FVector2D(.5f,0),FVector2D(0,176));
+        // Centred on the screen, clear of the top-centre block (spawn choice, toasts) above it.
+        Place(DeathBanner,FAnchors(.5f,.5f),FVector2D(.5f,.5f),FVector2D(0,-40));
         // #198: the rest return countdown, large in the screen centre; it never takes pointer input.
         ReturnCountdownText=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeGiant,TEXT("ReturnCountdownText"));ReturnCountdownText->SetAutoWrapText(false);
         ReturnCountdownText->SetJustification(ETextJustify::Center);HudFace(ReturnCountdownText,true,4);
@@ -1298,7 +1299,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                 RankCards.Add(Button);RankCardNames.Add(Name);RankCardLines.Add(Line);RankCardIcons.Add(Icon);
             }
             PageBox->AddChildToVerticalBox(CardRow)->SetPadding(FMargin(0,14,0,0));
-            ULDCommandButton* Close=LDWidgets::Button(WidgetTree,LDTerms::Close,[this](){RankSlot=INDEX_NONE;MarkReadModelDirty();},true,TEXT("HUDRankClose"));
+            ULDCommandButton* Close=LDWidgets::Button(WidgetTree,LDTerms::Close,[this](){CloseRankUp();},true,TEXT("HUDRankClose"));
             PageBox->AddChildToVerticalBox(Close)->SetPadding(FMargin(0,14,0,0));
             RankPage=LDWidgets::Panel(WidgetTree,PageBox,FMargin(28,22));RankPage->SetBrushColor(LDBroadcast::Ink.CopyWithNewOpacity(.96f));
             RankPage->SetVisibility(ESlateVisibility::Collapsed);
@@ -1889,8 +1890,10 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     SyncObjectiveRing(Public,bOwnMatch);
     if(!bShow)
     {
-        // A covered HUD keeps no armed throw: the next world click must not throw blind.
+        // A covered HUD keeps no armed throw: the next world click must not throw blind. Its rank-up page closes: the
+        // page that covers the HUD (menu, settings, result) is the one on top.
         bPKThrowArmed=false;
+        CloseRankUp();
         if(StatBar){StatBar->SetDetailsHeld(false);}
         if(Workshop){Workshop->Present(ULDWorkshop::FInput());}
         if(Storage){Storage->Present(nullptr,O.Match,LDProgression::EMatchStage::Closed,O.LifePhase,nullptr,false);}
@@ -2988,10 +2991,11 @@ void ULDHUD::OpenRankUp(int32 ProgressionSlot)
 
 bool ULDHUD::CloseRankUp()
 {
+    // Hidden at once, even when the slot was already cleared (its close button): a page opened over the HUD (menu,
+    // settings) stops the read-model refresh that would otherwise hide it.
+    HudSetShown(RankPage,false,ESlateVisibility::Visible);
     if(RankSlot==INDEX_NONE){return false;}
     RankSlot=INDEX_NONE;
-    // Hidden at once: a page opened over it (menu, settings) can stop the HUD's read-model refresh.
-    HudSetShown(RankPage,false,ESlateVisibility::Visible);
     MarkReadModelDirty();
     return true;
 }
@@ -3030,9 +3034,9 @@ void ULDHUD::RefreshRankUp(const FLDProgressionView* Progression,const FLDDemoCo
             const TCHAR* Code=(SubBranches[Sub]==ELDSkillBranch::A1)?TEXT("3A1")
                 :(SubBranches[Sub]==ELDSkillBranch::A2)?TEXT("3A2")
                 :(SubBranches[Sub]==ELDSkillBranch::B1)?TEXT("3B1"):TEXT("3B2");
-            HudSetText(RankSubNames[ChipIdx],FString::Printf(TEXT("%s · %s"),Code,*SubView.Name));
+            HudSetText(RankSubNames[ChipIdx],SubView.Name);
+            RankSubChips[ChipIdx]->SetToolTipText(FText::FromString(FString::Printf(TEXT("%s · %s"),Code,*SubView.Detail)));
             LDUIIcons::Apply(RankSubIcons[ChipIdx],SubView.IconId,4.f,FLinearColor::White);
-            RankSubChips[ChipIdx]->SetToolTipText(FText::FromString(SubView.Detail));
         }
     }
 }
