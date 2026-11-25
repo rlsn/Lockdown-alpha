@@ -95,6 +95,12 @@ void LDAudioFeel::StateOnset(const UObject& BodyContext, bool bOwnBody, int32 In
     if (ULDAudioSubsystem* Audio = AudioOf(BodyContext)) { Body(*Audio, Cues[Index], bOwnBody, At, bOwnBody ? 1.f : OtherStateGain / OtherGain); }
 }
 
+void LDAudioFeel::Fall(const UObject& BodyContext, const FVector& At)
+{
+    // A knockout is a high-value event for everyone who sees it, so it plays at the threat level, not as a plain blow.
+    if (ULDAudioSubsystem* Audio = AudioOf(BodyContext)) { Audio->PlayAt(ELDAudioCue::BodyFall, At, OtherDangerGain); }
+}
+
 void LDAudioFeel::Confirm(const UObject& Context, uint8 HitFlags, float Volume)
 {
     ULDAudioSubsystem* Audio = AudioOf(Context);

@@ -21,7 +21,7 @@ namespace
         TEXT("HitWater"), TEXT("HitMagic"), TEXT("CastCharge"), TEXT("CastRelease"), TEXT("SelfDealtCrit"), TEXT("SelfDealtKill"),
         TEXT("ReactionFog"), TEXT("ReactionConduct"), TEXT("ReactionOverload"), TEXT("ReactionMelt"), TEXT("ReactionMethane"),
         TEXT("ReactionFreeze"), TEXT("ReactionFerment"), TEXT("ReactionShatter"), TEXT("ReactionCorrode"), TEXT("ReactionFrostbite"),
-        TEXT("StateBurn"), TEXT("StateWet"), TEXT("StateShock"), TEXT("StateChill"), TEXT("StateRot"), TEXT("MatchStart")
+        TEXT("StateBurn"), TEXT("StateWet"), TEXT("StateShock"), TEXT("StateChill"), TEXT("StateRot"), TEXT("MatchStart"), TEXT("BodyFall")
     };
     static_assert(UE_ARRAY_COUNT(AudioCueIds) == int32(ELDAudioCue::Count), "Every cue number needs exactly one stable id or a retired hole.");
 

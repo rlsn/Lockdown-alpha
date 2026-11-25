@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$EngineRoot,[string]$FFmpeg,[ValidateRange(1280,2560)][int]$Width=1600,[ValidateRange(720,1440)][int]$Height=900,[ValidateRange(60,900)][int]$TimeoutSeconds=300,[ValidateSet('feel','reel')][string]$Scenario='feel')
+param([string]$EngineRoot,[string]$FFmpeg,[ValidateRange(1280,2560)][int]$Width=1600,[ValidateRange(720,1440)][int]$Height=900,[ValidateRange(60,900)][int]$TimeoutSeconds=300,[ValidateSet('feel','reel','combat')][string]$Scenario='feel',[ValidateSet('720p','1080p')][string]$CombatResolution='720p')
 # Audiovisual game-feel sample (docs/systems/AUDIO_AND_FEEL.md): the combat proof stage plays the "feel" scenario at real game
 # speed with the audio device on. The game records its own master submix (game_audio.wav); ffmpeg records the game window;
 # the speaker output is recorded by WASAPI loopback (Scripts/RecordAudioLoopback.py); MakeFeelEvidence.py muxes the window
@@ -15,6 +15,61 @@ if(-not $FFmpeg -or -not(Test-Path -LiteralPath $FFmpeg)){throw 'ffmpeg is requi
 $binary=Join-Path $engine 'Engine\Binaries\Win64\UnrealEditor.exe'
 $project=Join-Path (Get-LDProjectRoot) 'Lockdown.uproject'
 $output=New-LDArtifactDirectory ('FeelSample-'+$Scenario+'-'+$Width+'x'+$Height)
+if($Scenario -eq 'combat'){
+    # A real owned fight (RunDemoCombatCheck: Host and Client1 attack, cast, die and respawn) at 1080p: the Host window and
+    # the speaker output are recorded for the whole check and muxed on their UTC clocks into combat.mp4. The check's own
+    # verdict and screenshots stay in its evidence folder.
+    $stopFlag=Join-Path $output 'loopback.stop'
+    $listener=Start-Process -FilePath python -ArgumentList @('-B',('"'+(Join-Path $PSScriptRoot 'RecordAudioLoopback.py')+'"'),'--out',('"'+(Join-Path $output 'loopback.wav')+'"'),'--stop',('"'+$stopFlag+'"')) -PassThru -WindowStyle Hidden -RedirectStandardError (Join-Path $output 'loopback.log')
+    $listener.PriorityClass='High'
+    $check=Start-Process -FilePath pwsh -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'RunDemoCombatCheck.ps1')+'"'),'-Resolution',$CombatResolution,'-Audible') -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $output 'check.log') -RedirectStandardError (Join-Path $output 'check.err')
+    Add-Type -Namespace LDFeel -Name Win -MemberDefinition @'
+[DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+[DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr h, out RECT r);
+[DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr h, ref POINT p);
+[DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
+[DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+public delegate bool EnumProc(IntPtr h, IntPtr l);
+[DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc f, IntPtr l);
+[DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+public struct RECT { public int Left, Top, Right, Bottom; }
+public struct POINT { public int X, Y; }
+public static IntPtr LargestWindowOf(uint pid) {
+    IntPtr best = IntPtr.Zero; int area = 0;
+    EnumWindows((h, l) => { uint p; GetWindowThreadProcessId(h, out p); if (p == pid) { RECT r; GetClientRect(h, out r);
+        int a = (r.Right - r.Left) * (r.Bottom - r.Top); if (a > area) { area = a; best = h; } } return true; }, IntPtr.Zero);
+    return best; }
+'@
+    [LDFeel.Win]::SetProcessDPIAware() | Out-Null
+    # The harness starts every role hidden: find the Host by its command line and show its game window.
+    $deadline=(Get-Date).AddSeconds($TimeoutSeconds); $host_=$null; $window=[IntPtr]::Zero
+    while($window -eq [IntPtr]::Zero -and (Get-Date) -lt $deadline -and -not $check.HasExited){
+        Start-Sleep -Milliseconds 500
+        $found=Get-CimInstance Win32_Process -Filter "Name='UnrealEditor.exe'" | Where-Object { $_.CommandLine -like '*DemoCombatHost*' } | Select-Object -First 1
+        if($found){ $host_=Get-Process -Id $found.ProcessId -ErrorAction SilentlyContinue; $window=[LDFeel.Win]::LargestWindowOf([uint32]$found.ProcessId) }
+        if($window -ne [IntPtr]::Zero){ $probe=New-Object LDFeel.Win+RECT; [LDFeel.Win]::GetClientRect($window,[ref]$probe) | Out-Null; if(($probe.Right-$probe.Left) -lt 640){ $window=[IntPtr]::Zero } }
+    }
+    if($window -eq [IntPtr]::Zero){ New-Item -ItemType File -Path $stopFlag | Out-Null; throw "The combat Host window never appeared: $output" }
+    [LDFeel.Win]::ShowWindow($window,1) | Out-Null; [LDFeel.Win]::SetForegroundWindow($window) | Out-Null
+    Start-Sleep -Seconds 2
+    $client=New-Object LDFeel.Win+RECT; [LDFeel.Win]::GetClientRect($window,[ref]$client) | Out-Null
+    $origin=New-Object LDFeel.Win+POINT; [LDFeel.Win]::ClientToScreen($window,[ref]$origin) | Out-Null
+    $video=Join-Path $output 'window.mkv'
+    $recordStart=(Get-Date).ToUniversalTime().ToString('o')
+    $recorder=Start-Process -FilePath $FFmpeg -ArgumentList @('-hide_banner','-loglevel','error','-y','-f','lavfi','-i',('ddagrab=output_idx=0:framerate=30:offset_x={0}:offset_y={1}:video_size={2}x{3}' -f $origin.X,$origin.Y,($client.Right-$client.Left),($client.Bottom-$client.Top)),'-vf','hwdownload,format=bgra,scale=1600:-2','-fps_mode','passthrough','-c:v','libx264','-preset','ultrafast','-pix_fmt','yuv420p',('"'+$video+'"')) -PassThru -WindowStyle Hidden -RedirectStandardError (Join-Path $output 'ffmpeg.log')
+    $host_.WaitForExit([int](($deadline-(Get-Date)).TotalMilliseconds)) | Out-Null
+    if(-not $recorder.HasExited){Stop-Process -Id $recorder.Id; $recorder.WaitForExit()}
+    New-Item -ItemType File -Path $stopFlag | Out-Null
+    $listener.WaitForExit(20000) | Out-Null
+    $check.WaitForExit(120000) | Out-Null
+    $loop=Get-Content -LiteralPath (Join-Path $output 'loopback.json') -Raw | ConvertFrom-Json
+    $offset=([datetime]::Parse($recordStart).ToUniversalTime()-[datetime]::Parse($loop.start_utc).ToUniversalTime()).TotalSeconds
+    & $FFmpeg -hide_banner -loglevel error -y -i $video -ss ([math]::Max($offset,0)).ToString('0.000',[cultureinfo]::InvariantCulture) -i (Join-Path $output 'loopback.wav') -map 0:v -map 1:a -vf fps=30 -c:v libx264 -preset medium -crf 22 -pix_fmt yuv420p -c:a aac -b:a 192k -shortest (Join-Path $output 'combat.mp4')
+    $verdict=(Get-Content -LiteralPath (Join-Path $output 'check.log') -Raw) -split "`n" | Where-Object { $_ -match 'passed|failed|Evidence' } | Select-Object -Last 3
+    Write-Host "Combat feel recorded (loopback offset $([math]::Round($offset,3)) s): $output"
+    Write-Host ($verdict -join "`n")
+    return
+}
 $user=Join-Path $output 'User'
 New-Item -ItemType Directory -Path $user | Out-Null
 $world=(Get-LDDemoMaps)[1]+'?listen'

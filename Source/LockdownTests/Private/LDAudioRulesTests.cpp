@@ -2,6 +2,7 @@
 #include "Audio/LDAudioCueTracker.h"
 #include "Audio/LDAudioFeel.h"
 #include "Character/LDActionMotion.h"
+#include "Character/LDBasketballMotion.h"
 #include "Character/LDHitFeel.h"
 #include "Audio/LDAudioTypes.h"
 #include "Audio/LDMusicSelection.h"
@@ -312,6 +313,17 @@ bool FLDActionMotionFamiliesTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Jab and cross wind and snap in opposite directions"),JabRelease.YawDeg<0&&CrossRelease.YawDeg>0&&JabWind.YawDeg>0&&CrossWind.YawDeg<0
         &&FMath::Abs(CrossRelease.YawDeg)>FMath::Abs(JabRelease.YawDeg)&&CrossRelease.SideCm>0&&JabRelease.SideCm==0);
     TestTrue(TEXT("The finisher drives in hardest"),LDActionMotion::ShapeOf(EFamily::Finisher,.18f,.18f).LungeScale>CrossRelease.LungeScale);
+    // An instant cast still shows its gesture: the release lands on the impact and the follow-through plays at FollowRate;
+    // a basic's windup (warp under MaxWarp) keeps its own scale.
+    {
+        FLDBasketballActionClip Clip;Clip.Start=0.f;Clip.Release=.7f;Clip.End=2.3f;
+        TestTrue(TEXT("An instant cast releases at once and follows through at the follow rate"),
+            FMath::IsNearlyEqual(LDBasketballMotion::SampleTime(Clip,.001f,.001f),Clip.Release,1e-4f)
+            &&FMath::IsNearlyEqual(LDBasketballMotion::SampleTime(Clip,.501f,.001f),Clip.Release+LDBasketballMotion::FollowRate*.5f,1e-3f)
+            &&FMath::IsNearlyEqual(LDBasketballMotion::Duration(Clip,.001f),.001f+(Clip.End-Clip.Release)/LDBasketballMotion::FollowRate,1e-4f));
+        TestTrue(TEXT("A basic windup keeps its warp after the release"),
+            FMath::IsNearlyEqual(LDBasketballMotion::SampleTime(Clip,.28f,.18f),Clip.Release+.1f*(.7f/.18f),1e-3f));
+    }
     TestTrue(TEXT("The finisher shifts the whole body, the jab only the upper body"),
         LDActionMotion::BlendOf(EFamily::Finisher,false).Full==1.f&&LDActionMotion::BlendOf(EFamily::Jab,false).Full==0.f
         &&LDActionMotion::BlendOf(EFamily::Cross,false).Upper>LDActionMotion::BlendOf(EFamily::Jab,false).Upper);

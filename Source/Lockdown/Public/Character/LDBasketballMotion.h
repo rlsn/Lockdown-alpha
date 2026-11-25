@@ -50,6 +50,9 @@ namespace LDBasketballMotion
 {
     // Match the authored release exactly to the existing authority/prediction action's impact delay.
     // Recovery uses the same scale; no new attack interval is introduced by the animation.
+    // A windup shorter than (Release - Start) / MaxWarp would blur the gesture: its follow-through plays at FollowRate.
+    constexpr float MaxWarp = 6.f;
+    constexpr float FollowRate = 2.f;
     LOCKDOWN_API float SampleTime(const FLDBasketballActionClip& Clip, float Age, float ImpactSeconds);
     LOCKDOWN_API float Duration(const FLDBasketballActionClip& Clip, float ImpactSeconds);
 }
