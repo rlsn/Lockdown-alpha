@@ -89,13 +89,15 @@
 5. 程序化运行时声音：MetaSound Builder API 在本机无头编辑器里实测可用（`MetaSoundBuilderSubsystem.create_source_builder` →
    `add_node_by_class_name` → `connect_nodes` → `build` 或 `MetaSoundEditorSubsystem.build_to_asset`，均 SUCCEEDED）。
    用于真正需要运行时参数的声音（持续电场嗡鸣随人数变化、蓄能随进度变化）；一次性声音仍用 WAV，不为简单音效强加 MetaSound。
-6. 证据：`Scripts/CaptureFeelSample.ps1 -FFmpeg <ffmpeg.exe>`，再 `python Scripts/MakeFeelEvidence.py --run <输出目录> --ffmpeg <ffmpeg.exe> --out <目录>`。
-   - 在战斗演示台以真实速度、开声卡播放“feel”场景（只静音音乐轨）；`ffmpeg ddagrab` 录游戏窗口客户区
-     （`gdigrab` 读不到 D3D12 翻转模型窗口），`Scripts/RecordAudioLoopback.py` 用 WASAPI 回环录扬声器实际输出
-     （需 `pip install soundcard`；录制时自身播放数字静音保持端点运转，否则静音段会丢帧导致时间轴错位）。
-   - 两个录制进程的启动时钟不可信（实测偏差上百毫秒），对齐按内容：音频按日志里每个 take 在回环里的匹配位置；
-     画面以移除大厅界面那一帧（与日志的录制开始同一 tick）为零点，并用每次出手的画面变化峰值复核。
-   - UE 5.8 的 `StartRecordingOutput` 子混音录制在本机只录到约一半时长（开启渲染调度时），不用作证据。
+6. 证据：`Scripts/CaptureFeelSample.ps1 -FFmpeg <ffmpeg.exe>`，再 `python Scripts/MakeFeelEvidence.py --run <输出目录> --ffmpeg <ffmpeg.exe> --out <目录>`；
+   真实对战用 `-Scenario combat`（`RunDemoCombatCheck.ps1 -CaptureOnly -RecordGame <目录>`，直接得到 `combat.mp4`）。
+   - 只录游戏自己：`-LDRecordGame=<目录>`（`Probes/LDGameRecorder.h`）从游戏视口的后台缓冲抓帧（含界面），声音取主子混音
+     的缓冲。游戏在屏幕外运行，不读桌面、不录系统声音，用户的窗口、视频和声音不会进入录像；`Scripts/AssembleGameRecording.py`
+     按帧时间和声音起点合成 mp4。禁止再用屏幕区域录制或系统回环录音。
+   - 主子混音缓冲按录像时钟落位：渲染停顿处补静音，时间轴不被压缩（UE 5.8 的 `StartRecordingOutput` 在本机只录到约一半
+     时长，不用）。
+   - 对齐按内容：音频按日志里每个 take 在录音里的匹配位置；画面以移除大厅界面那一帧（与日志的录制开始同一 tick）为零点，
+     并用每次出手的画面变化峰值复核。
    - 声音的听感验收只能由人完成；Agent 只能看时序、波形、频谱与响度，并须如实说明。
 
 ## 5. 素材来源与授权
