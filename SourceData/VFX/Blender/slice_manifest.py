@@ -10,9 +10,8 @@ import slice_lib as L
 
 ROOT = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 SLICE = os.path.join(ROOT, "Slice")
-GENERATORS = ["Blender/slice_lib.py", "Blender/slice_slash.py", "Blender/slice_impact.py", "Blender/slice_water.py",
-              "Blender/slice_chalk.py", "Blender/slice_render.py",
-              "Blender/slice_chain_candidates.py", "Blender/slice_field.py"]
+GENERATORS = ["Blender/slice_lib.py", "Blender/slice_slash.py", "Blender/slice_impact.py", "Blender/slice_render.py",
+              "Blender/slice_chain_candidates.py", "Blender/slice_field.py", "Blender/slice_elements.py"]
 TOOLS = ["Blender/slice_preview.py", "Blender/slice_manifest.py"]
 
 GEOMETRY_SHA = {  # printed by slice_slash.py; the FBX header carries a timestamp, so file bytes differ per export
@@ -52,21 +51,6 @@ ASSETS = [
     dict(id="fb_hit_skill", kind="flipbook", file="Slice/fb_hit_skill.png", width=1024, height=1024, flip=FLIP(cols=4, rows=4, frames=16, frame_size=256, fps=28, duration_s=0.57, loop=False),
          purpose="Skill hit: ten-spike comic burst with diagonal broadcast-stripe cut-outs that widen until the burst slices into bars, plus three forward chevrons.",
          usage="Single quad sprite at the contact point, +X along the attack direction, hit point at frame UV (0.30, 0.50); direction-neutral burst with forward chevrons (+X = skill direction). Tint with element colour; use for active skills.", pivot="hit point at frame UV (0.30, 0.50)", uv="as fb_hit_basic", **MASK, budget="~1.4 m2 quad (120 cm), mean coverage about 22 percent early; one quad per skill hit"),
-    dict(id="tex_water_jet", kind="texture", file="Slice/tex_water_jet.png", width=512, height=128,
-         purpose="Water jet strip for active_hose_down: turbulent-edged body, white-hot centre band and flow streaks, torn-off droplets with ink halos, ink edge on both sides.",
-         usage="Ribbon / beam mesh or stretched quad from the caster to the target; U (x) runs along the jet and tiles seamlessly, scroll U at 1.5-3 per second; V (y) is across, centre = 0.5. Translucent, tint = water element colour.",
-         uv="tileable along U; V across (row 0 = top edge)", **MASK, budget="one strip surface, ~0.3 m wide x range; 4 simultaneous jets ~ 4 translucent strips"),
-    dict(id="fb_water_splash", kind="flipbook", file="Slice/fb_water_splash.png", width=1024, height=1024, flip=FLIP(cols=4, rows=4, frames=16, frame_size=256, fps=30, duration_s=0.53, loop=False),
-         purpose="Splash crown at the water impact: fan of curved blades with white-hot veins over the forward half-plane, detached drops, short-lived splat; last frame empty.",
-         usage="Sprite at the impact, +X = jet direction; use together with tex_wet_decal on the ground; tint = water colour.", pivot="impact at frame UV (0.30, 0.50)", uv="as fb_hit_basic", **MASK, budget="~0.9 m2 quad, mean coverage about 9 percent"),
-    dict(id="tex_wet_decal", kind="texture", file="Slice/tex_wet_decal.png", width=512, height=512,
-         purpose="Wet ground puddle mask: organic lobed puddle with run-off tongues, satellite drops, wet-edge shading, white glints and a crisp ink rim.",
-         usage="Deferred or mesh decal (or a flat quad just above the ground) at the target; opacity from A times a 1-2 s fade; tint = cool dark water colour; decal size about 160 cm; project along -Z.",
-         uv="decal space (U = X, V = Y of the decal projector), puddle centre at (0.5, 0.5)", **MASK, budget="one decal per wet target, 0.5-1 m2, fade 1-2 s"),
-    dict(id="tex_chalk_lane", kind="texture", file="Slice/tex_chalk_lane.png", width=512, height=128,
-         purpose="Chalk court lane for a skill's anticipation: two hand-drawn border lines and four forward chevrons per tile, chalk-grained, white with a thin ink rim.",
-         usage="Flat strip on the ground over the skill's footprint before its release; U (x) runs along the lane in the cast direction and tiles seamlessly, V (y) across; shown white only (no element colour).",
-         uv="tileable along U, chevrons point to +U; V across (row 0 = top edge)", **MASK, budget="one ground strip per casting body during its windup"),
     # ---- chain-lightning art-direction candidates (vfx-direction/CANDIDATES.md); element assets only, trunk shapes come from Niagara points
     dict(id="chainA_profile", kind="texture", file="Slice/chainA_profile.png", width=256, height=64, candidate="A",
          purpose="Candidate A cross-section strip: warm-white core (about 25 % of the width) inside a soft energy layer that falls off to transparent, over a wider dim amber under-layer (glow about 0.3). No outline.",
@@ -102,6 +86,40 @@ ASSETS = [
          usage="R/G mask where the web shows (slow drift); B picks the cells that flare briefly.",
          uv="tiles in both axes, same tile as field_web", alpha_packing="utility noise: R, G soft blobs, B web cell id, A = 1 (not a glow mask)", srgb=False,
          compression="TC_Masks (no sRGB)", mips="generate", streaming="NeverStream = true", budget="shared by every field"),
+    # ---- the other elements' surfaces (slice_elements.py); each element its own, no outline
+    dict(id="water_flow", kind="texture", file="Slice/water_flow.png", width=256, height=128,
+         purpose="A water stream's surface: a see-through body thicker towards its ragged soft sides, long flow streaks and sparse cool glints; no outline.",
+         usage="Niagara ribbon of active_hose_down's stream and the floor sheet of its windup band: U along the flow (tiled by world length), V across; also its own scrolling noise (G) so the surface flows.",
+         uv="tileable along U; V across, centre 0.5", **MASK, budget="one ribbon per stream, one floor sprite per windup"),
+    dict(id="water_drop", kind="texture", file="Slice/water_drop.png", width=64, height=64,
+         purpose="One droplet: a translucent bead with a thicker rim and an upper-left highlight.",
+         usage="Velocity-aligned sprites of beads, crowns and drips (5-15 cm), stretched a little by speed.", pivot="centre", uv="centred", **MASK, budget="up to about 70 sprites per own stream"),
+    dict(id="water_wet", kind="texture", file="Slice/water_wet.png", width=256, height=256,
+         purpose="A soaked floor: dark irregular damp blotches (glow 0 darkens the floor) with rare small glints.",
+         usage="Floor-laid sprites under a stream's band and a struck body, fading over about a second.", uv="tiles in both axes", **MASK, budget="six patches per stream, one per water hit"),
+    dict(id="soft_puff", kind="texture", file="Slice/soft_puff.png", width=128, height=128,
+         purpose="A soft lumpy cloud puff, uniform glow 0.3 (between a palette's edge and body), fading to a clear border.",
+         usage="Camera-facing sprites of mist, steam, dust and smoke, tinted by their palette.", pivot="centre", uv="centred", **MASK, budget="a few per effect"),
+
+    dict(id="fire_tongue", kind="texture", file="Slice/fire_tongue.png", width=256, height=512, atlas=dict(cols=2, rows=2, cell_width=128, cell_height=256),
+         purpose="Four flame tongues (2 x 2 atlas, base at the bottom of each cell): soft sides, rising streaks, a soft hot core low in the middle and a licking tip that thins into wisps; no outline, no flat fill.",
+         usage="Camera-facing sprites of fire effects with the pivot at the base (U 0.5, V 1.0 of the cell), one random cell each; rising and shrinking over their life.",
+         pivot="base at cell UV (0.5, 1.0)", uv="2 x 2 sub-images", **MASK, budget="tens per fire effect"),
+    dict(id="fire_char", kind="texture", file="Slice/fire_char.png", width=256, height=256,
+         purpose="A scorched floor: soft soot blotches (glow 0 darkens) crossed by thin glowing ember cracks along cell borders.",
+         usage="Floor-laid sprites under fire areas and burnt ground, the cracks flickering by intensity.", uv="tiles in both axes", **MASK, budget="one or a few per fire area"),
+    dict(id="ice_shard", kind="texture", file="Slice/ice_shard.png", width=256, height=256, atlas=dict(cols=2, rows=2, cell_width=128, cell_height=128),
+         purpose="Four ice crystals (2 x 2 atlas): faceted see-through shards, each facet its own brightness, bright ridges and a glint; no outline.",
+         usage="Sprites of chill effects (shards bursting, growing or shattering), one random cell each, tip up.", pivot="centre", uv="2 x 2 sub-images", **MASK, budget="tens per chill effect"),
+    dict(id="ice_frost", kind="texture", file="Slice/ice_frost.png", width=256, height=256,
+         purpose="A frosted floor: a pale sheen crossed by thin branching frost needles at three scales.",
+         usage="Floor-laid sprites of ice ground and the chill cone's frosted floor.", uv="tiles in both axes", **MASK, budget="one or a few per chill area"),
+    dict(id="rot_murk", kind="texture", file="Slice/rot_murk.png", width=256, height=256,
+         purpose="A rotten murk: soft lumpy clouds, darker cores and scattered thin bubble rims.",
+         usage="Floor-laid and low camera-facing sprites of miasma and rot effects, slowly drifting.", uv="tiles in both axes", **MASK, budget="a few per rot area"),
+    dict(id="rot_bubble", kind="texture", file="Slice/rot_bubble.png", width=64, height=64,
+         purpose="One bubble: a thin rim with a highlight and a nearly clear middle.",
+         usage="Sprites of bubbles rising and popping over rot effects.", pivot="centre", uv="centred", **MASK, budget="tens per rot area"),
 ]
 
 
@@ -133,7 +151,7 @@ def checks(asset, img):
                 return img[r * fs:(r + 1) * fs, c * fs:(c + 1) * fs, 3]
             out["loop_seam_mean_abs_alpha_diff_15_to_0"] = round(float(np.abs(frame(15) - frame(0)).mean()), 5)
             out["adjacent_frame_mean_abs_alpha_diff"] = round(float(np.mean([np.abs(frame(i) - frame(i + 1)).mean() for i in range(15)])), 5)
-    if asset["id"] in ("tex_water_jet", "tex_chalk_lane"):
+    if asset["id"] == "water_flow":
         out["seam_mean_abs_diff_left_right_columns"] = round(float(np.abs(img[:, 0] - img[:, -1]).mean()), 5)
         out["adjacent_column_mean_abs_diff"] = round(float(np.abs(img[:, 100] - img[:, 101]).mean()), 5)
     if asset["id"].startswith("chain"):
