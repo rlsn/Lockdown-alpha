@@ -172,6 +172,10 @@ private:
     // Body sounds (LDAudioFeel) on the same hooks as the effects: the swing and cast onsets already sounded, and the
     // playing cast charge that the release cuts.
     double SwingSoundOnset = -1, ChargeSoundOnset = -1, ReleaseSoundOnset = -1;
+    // The skill whose visible strike the current impact was matched to (0 = none), for its own hit sound.
+    uint8 HitAbility = 0;
+    // The element states already sounded (their onset sting plays once per start).
+    bool StateSounded[5] = {false, false, false, false, false};
     TWeakObjectPtr<class UAudioComponent> ChargeSound;
     void UpdateSound();
     uint8 CastAbility = 0;

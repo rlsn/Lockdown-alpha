@@ -61,8 +61,10 @@ void ULDAudioSubsystem::Initialize(FSubsystemCollectionBase& Collection)
             };
             Flatten(Resolved.Cues, CueTakes);
             Flatten(Resolved.Skills, SkillTakes);
+            Flatten(Resolved.SkillHits, SkillHitTakes);
             LastCueTake.Init(INDEX_NONE, CueTakes.Num());
             LastSkillTake.Init(INDEX_NONE, SkillTakes.Num());
+            LastSkillHitTake.Init(INDEX_NONE, SkillHitTakes.Num());
             MusicSounds.Reset();
             for (USoundWave* Sound : Resolved.Music) { MusicSounds.Add(Sound); }
             for (int32 Bus = 0; Bus < LDAudio::BusCount; ++Bus) { BusClasses[Bus] = Resolved.Buses[Bus]; }
@@ -279,6 +281,14 @@ bool ULDAudioSubsystem::PlaySkillRelease(uint8 Ability, bool bSpatial, const FVe
     }
     const int32 Take = PickTake(SkillTakes[Ability], LastSkillTake[Ability]);
     return Emit(FString::Printf(TEXT("Skill%d"), Ability), Take, bSpatial, Location, VolumeMultiplier, 1.f, false);
+}
+
+bool ULDAudioSubsystem::PlaySkillHit(uint8 Ability, const FVector& Location, float VolumeMultiplier)
+{
+    if (!SkillHitTakes.IsValidIndex(Ability) || SkillHitTakes[Ability].IsEmpty()) { return false; }
+    const int32 Take = PickTake(SkillHitTakes[Ability], LastSkillHitTake[Ability]);
+    Emit(FString::Printf(TEXT("SkillHit%d"), Ability), Take, true, Location, VolumeMultiplier, 1.f, false);
+    return true;
 }
 
 UAudioComponent* ULDAudioSubsystem::Start(ELDAudioCue Cue, bool bSpatial, const FVector& Location, float VolumeMultiplier)

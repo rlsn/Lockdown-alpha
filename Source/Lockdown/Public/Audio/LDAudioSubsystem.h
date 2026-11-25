@@ -51,6 +51,8 @@ public:
     // A cue that its caller may cut short (a cast charge): the playing component, or null when nothing plays.
     UAudioComponent* Start(ELDAudioCue Cue, bool bSpatial, const FVector& Location, float VolumeMultiplier = 1.f);
     bool HasOwnSkillRelease(uint8 Ability) const;
+    // A skill's own hit at a visible body's location; false (nothing played) when the skill has no hit of its own.
+    bool PlaySkillHit(uint8 Ability, const FVector& Location, float VolumeMultiplier = 1.f);
     bool IsCatalogReady() const { return Catalog != nullptr; }
     const FString& GetCatalogError() const { return CatalogError; }
 private:
@@ -66,8 +68,10 @@ private:
     UPROPERTY(Transient) TArray<TObjectPtr<UAudioComponent>> FadingMusic;
     TArray<TArray<int32>> CueTakes;
     TArray<TArray<int32>> SkillTakes;
+    TArray<TArray<int32>> SkillHitTakes;
     TArray<int32> LastCueTake;
     TArray<int32> LastSkillTake;
+    TArray<int32> LastSkillHitTake;
     USoundClass* BusClasses[LDAudio::BusCount] = {};
     ELDMusicTrack MusicTrack = ELDMusicTrack::None;
     FString CatalogError;

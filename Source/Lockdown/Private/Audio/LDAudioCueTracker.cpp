@@ -21,12 +21,22 @@ void FLDAudioCueTracker::ObservePublic(const FLDAudioFrame& Frame, TArray<ELDAud
     {
         // A match seen for the first time only primes: transitions before this sample are never replayed.
         PublicGeneration = Public->Generation;
+        // A match first sampled anywhere past its opening rest has already started.
+        bFieldSeen = !(Public->Phase == ELDMatchPhase::Lobby || Public->Phase == ELDMatchPhase::Starting
+            || (Public->Phase == ELDMatchPhase::Rest && Public->Timeline.RestIndex == 0));
         bOpenSeen = bOpen;
         CircleEpoch = Public->CaptureEpoch;
         GraffitiSeen = Public->GraffitiOwner;
     }
     else
     {
+        // The match's first field segment starting after the opening rest is the match start; later segments, and a
+        // match first sampled already in the field, stay silent.
+        if (!bFieldSeen && Public->Phase == ELDMatchPhase::Development && Public->Timeline.FieldSegment == 0)
+        {
+            bFieldSeen = true;
+            LDAudio::AddUnique(Out, ELDAudioCue::MatchStart);
+        }
         // At most one capture cue per sample; the opening outranks a simultaneous first occupier.
         bool bCaptureCue = false;
         if (bOpen && !bOpenSeen)

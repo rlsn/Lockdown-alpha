@@ -45,6 +45,7 @@ private:
     void ObserveOwn(const FLDAudioFrame& Frame, TArray<ELDAudioCue>& Out);
 
     uint32 PublicGeneration = 0;
+    bool bFieldSeen = false;
     bool bOpenSeen = false;
     uint64 CircleEpoch = 0;
     FGuid GraffitiSeen;

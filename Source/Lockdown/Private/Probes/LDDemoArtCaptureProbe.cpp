@@ -1287,7 +1287,7 @@ namespace
                     UAudioMixerBlueprintLibrary::StartRecordingOutput(&Target, Job.Seconds + 1.f);
                     // The wall clock of the recording start lets the window recording be aligned to the game audio.
                     UE_LOG(LogLDTest, Display, TEXT("LD_FEEL_RECORDING_START utc=%s"), *FDateTime::UtcNow().ToIso8601());
-                    ChainPhase = 4;
+                    ChainPhase = 5;
                     return true;
                 }
                 if (Job.bPerf)
@@ -1350,7 +1350,7 @@ namespace
                 ChainPhaseAt = Now;
                 return true;
             }
-            if (ChainPhase == 4)
+            if (ChainPhase == 5)
             {
                 // Real game speed: the scenario clock is the world's own delta, the steps fire on it, and the audio device
                 // plays and records exactly what a match would.
