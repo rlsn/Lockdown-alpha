@@ -446,9 +446,6 @@ private:
     // One icon chain per recap row (LDRecapChain), rebuilt only when its row changes.
     UPROPERTY() TArray<TObjectPtr<UHorizontalBox>> DeathRecapRows;
     TArray<LDHUD::FRecapChain> DeathRecapShown;
-    // #198: the centre-screen rest return countdown ("5" .. "1", then "开淫！" as the field starts; LDHUD::RestReturnCountdown);
-    // click-through.
-    UPROPERTY() TObjectPtr<UTextBlock> ReturnCountdownText;
     UPROPERTY() TObjectPtr<UBorder> MapColumn;
     UPROPERTY() TObjectPtr<USizeBox> MapFrame;
     // The elapsed match time (LDHUD::MatchTimer), centred right above the minimap frame; click-through.
@@ -481,21 +478,34 @@ private:
     mutable FLDHudTrail StripTrail;
     void PaintStrip(const LDUIPaint::FContext& P) const;
     // On-air moments, painted over the whole screen and never hit-tested (local real time, from real own events only):
-    // an own kill (LDWorldFeedback Kill) runs letterbox bars in, an orange skew wipe and a hard-cut K.O. with the own and the
-    // victim's plates for at most KillMomentSeconds; a level-up flips an orange level card over the strip's level column.
-    static constexpr double KillMomentSeconds=.8;
+    // an own kill (LDWorldFeedback Kill) wipes a compact K.O. plate with the own and the victim's plates in under the score
+    // strip for KillMomentSeconds, the fight staying in view; a level-up flips an orange level card over the level column.
+    static constexpr double KillMomentSeconds=1.4;
     static constexpr double LevelFlipSeconds=1.4;
     double KillMomentAt=-1.;
     int32 KillMomentVictimSeat=INDEX_NONE;
     double LevelFlipAt=-1.;
     int32 LevelFlipLevel=0;
     int64 LevelFlipPoints=0;
+    // Stage change (field <-> rest, the final field): the stage last seen, when its title card began, and this frame's
+    // countdown figure, beat (1 as a second lands, falling to 0), closing wipe (0..1) and the title of the stage ahead.
+    static constexpr double StageCardSeconds=1.1;
+    ELDMatchStage SeenStage=ELDMatchStage::None;
+    uint32 SeenStageMatch=0;
+    double StageWipeAt=-1.;
+    FString StageWipeTitle,StageWipeSub,StageCount,StageNextTitle;
+    float StageBeat=0.f,StagePreCover=0.f;
     void PaintMoments(const LDUIPaint::FContext& P) const;
     // DEV capture only (probes): a fixed age for the moments' clock (<0 releases it); the moments themselves still come
     // only from real events.
     float MomentFreezeAge=-1.f;
 public:
     void FreezeMoments(float Age){MomentFreezeAge=Age;}
+    // When the last own-kill moment began (local seconds), <0 before the first.
+    double MomentKillAt() const {return KillMomentAt;}
+    // When the last stage title card began (local seconds), <0 before the first; whether a stage countdown shows now.
+    double MomentStageAt() const {return StageWipeAt;}
+    bool HasStageCount() const {return !StageCount.IsEmpty();}
     bool HasMomentLevelUp() const {return LevelFlipAt>=0.;}
 private:
     // The own stat attribute view (ULDStatBar) as a flyout above the strip, shown while the Attributes key holds it open.

@@ -11,8 +11,6 @@ namespace LDTerms
 {
 // 门面
 inline constexpr TCHAR Title[]=TEXT("谁是雾港最强淫人王");
-inline constexpr TCHAR Tagline[]=TEXT("脆皮大学生无差别大乱斗 · 旗杆上插谁的名，谁就是淫人王");
-inline constexpr TCHAR SlangNote[]=TEXT("雾港黑话：淫 = 把人揍趴下，跟色情没关系");
 
 // 资源与属性
 inline constexpr TCHAR Health[]=TEXT("生命");
@@ -299,7 +297,7 @@ inline FString FieldRewardBlueprintHeld(){return FString(Blueprint)+TEXT("池已
 
 // 阶段与旗杆（喷漆守护终局）
 // 对局流程（#198）：开局休息 R0，之后三段野外各接一次休息 R1–R3，最后一段野外开放旗杆。
-// 休息的返回倒计时在屏幕中央整秒倒数，每段野外开始时显示“开淫！”。
+// 阶段切换前在比分条下整秒倒数；每段野外开始时，阶段标题卡下显示“开淫！”。
 inline constexpr TCHAR CountdownGo[]=TEXT("开淫！");
 inline constexpr TCHAR NotStartedYet[]=TEXT("还没开始呢，急什么");
 inline constexpr TCHAR RestPhase[]=TEXT("课间休息，抓紧配装");
