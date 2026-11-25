@@ -43,6 +43,7 @@
 #include "Engine/NetDriver.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "World/LDNativeGround.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformMisc.h"
@@ -102,6 +103,12 @@ constexpr int32 CombatProbeChaseBearings = 16;
 constexpr double CombatProbeChaseStepCm = 25.0;
 constexpr double CombatProbeChaseReachCm = 3000.0;
 constexpr double CombatProbeChaseResolutionCm = 0.5;
+// A trunk-like native blocker: its whole body (a tree's canopy included) spans no more than this (not a wall or a house),
+// and at capsule height it is solid at its centre and free this far out all around (a trunk or a post).
+constexpr double CombatProbeTrunkMaxSpanCm = 800.0;
+constexpr double CombatProbeTrunkRadiusCm = 120.0;
+// The trunk stands on the Host's level: its beside-navmesh height is within one step (35 cm) plus voxel slack.
+constexpr double CombatProbeTrunkLevelCm = 50.0;
 // Skills: Client1's skill site lies on the open duel line midway between the Host's approved basic range and the snare's
 // approved range (both read from the catalog in PrepareSites), so it stays inside the snare's range and beyond the basic
 // range even when both bodies stop at the far edge of Navigation's goal acceptance, and the Host's basic chase must close in
@@ -621,12 +628,14 @@ public:
         if(Now-Feel.SpawnAt<double(RegenParameters.OutOfCombatRegenDelayMs)/1000.+.5){return true;}
         const auto& View=PC.CombatView;
         const auto HP=View.Attributes.FindByPredicate([](const FLDCombatAttributeRowView& Row){return Row.Attribute==uint8(ELDProjectedAttribute::HPRegen);});
-        const double ExpectedHP=HP?LDDemoCombatScenario::CombatProbeRational(HP->Final)+double(View.MaxHPP2)*double(RegenParameters.OutOfCombatMaxHPRegenBp)/1000000.:-1;
+        // A random field start inside a 躺平角 (D21) also publishes the dorm term.
+        const int64 RecoveryBp=RegenParameters.OutOfCombatMaxHPRegenBp+(View.bDormRegenActive?RegenParameters.DormMaxHPRegenBp:0);
+        const double ExpectedHP=HP?LDDemoCombatScenario::CombatProbeRational(HP->Final)+double(View.MaxHPP2)*double(RecoveryBp)/1000000.:-1;
         if(!Check(View.Generation==PC.OwnerState.Match&&View.Life==PC.OwnerState.Life&&View.bHasBody
             &&View.HPP2==View.MaxHPP2&&View.MomentumP2==RegenParameters.Momentum.StartP2&&ExpectedHP>0
             &&FMath::IsNearlyEqual(View.HPRegenPerSec,ExpectedHP),TEXT("Start"),
             TEXT("Full HP still publishes its effective regen after the recovery delay and an idle bar rests at MOMENTUM.Start"),
-            FString::Printf(TEXT("hp_regen=%.3f expected=%.3f momentum=%lld"),View.HPRegenPerSec,ExpectedHP,View.MomentumP2)))
+            FString::Printf(TEXT("hp_regen=%.3f expected=%.3f dorm=%d momentum=%lld"),View.HPRegenPerSec,ExpectedHP,int32(View.bDormRegenActive),View.MomentumP2)))
         {return Finish();}
         const FGuid StagedHost = HostId, StagedClient = ClientId;
         if (!ResolveRoster(PC, Lobby) || !PrepareSites(Registry)) { return Finish(); }
@@ -963,8 +972,9 @@ public:
     // Deterministic chase-goal regression on the real Demo world and navmesh. Along fixed bearings from the Host's public
     // duel site (anchors and approved radii only, never where a body stopped), the first legal foot just outside the
     // eroded navmesh edge stands where a target pressed against a wall or another body, or cutting a corner, stands. As
-    // a clicked ground goal it projects to the nearest reachable navmesh stand (#80); as a chased body's goal (the planner
-    // of AttackUnit admission and chase replans) it routes to its nearest navmesh point within one capsule radius.
+    // a clicked ground goal it plans a complete route to a reachable stand within one capsule radius (#80): the navmesh
+    // or, when the foot itself is legal, a physically clear short approach from it (LDMapRegistry::QueryCompletePath);
+    // as a chased body's goal (the planner of AttackUnit admission and chase replans) it routes within one capsule radius.
     bool CheckChaseGoal(const ALDPlayerController& PC)
     {
         const ULDMapRegistry* Registry = PC.GetWorld()->GetSubsystem<ULDMapRegistry>();
@@ -1036,32 +1046,68 @@ public:
         const bool bChase = LDPathSteering::PlanRoute(*Registry, HostGround, Margin, Surface, LDPathSteering::EGoal::Body,
             Capsule, Chase, ChaseGoal, ChaseFailure, ChaseError);
         const FString Where = TEXT("foot=") + Margin.ToCompactString();
-        Check(bStrict && !Strict.Points.IsEmpty() && OnMesh(StrictGoal.SurfaceCm)
+        Check(bStrict && !Strict.Points.IsEmpty() && FVector::Dist2D(Strict.Points.Last(), StrictGoal.SurfaceCm) <= 1.
             && FVector::Dist2D(StrictGoal.SurfaceCm, Margin) <= Capsule.GetCapsuleRadius(),
-            TEXT("ChaseGoal"), TEXT("A legal foot just outside the eroded navmesh edge, clicked as ground, projects to a reachable navmesh stand within one capsule radius"),
+            TEXT("ChaseGoal"), TEXT("A legal foot just outside the eroded navmesh edge, clicked as ground, plans a complete route to a stand within one capsule radius"),
             Where + TEXT(" planned=") + StrictGoal.SurfaceCm.ToCompactString() + TEXT(" ") + StrictError);
         const bool bChaseOk = Check(bChase && !Chase.Points.IsEmpty() && FVector::Dist2D(ChaseGoal.SurfaceCm, Margin) <= Capsule.GetCapsuleRadius(),
             TEXT("ChaseGoal"),
             TEXT("The same foot as a chased body's goal routes completely to its nearest navmesh point within one capsule radius"),
             Where + TEXT(" planned=") + ChaseGoal.SurfaceCm.ToCompactString() + TEXT(" ") + ChaseError);
         // #97: a click on a trunk lands beside that trunk. The navmesh around a forest has thousands of polygons, and a
-        // projection that ranks only some of them sends the body to an unrelated spot across the map.
-        const FLDDemoWorldBlocker* Tree = nullptr;
-        double TreeDistance = DBL_MAX;
-        FVector TreeCentre = FVector::ZeroVector;
-        for (const FLDDemoWorldBlocker& Blocker : Registry->GetGeometry()->Blockers)
+        // projection that ranks only some of them sends the body to an unrelated spot across the map. Blocking, sight and
+        // ground read the level's native bodies (LEVEL_AUTHORING_CONTRACT rule 3), so the trunk is the nearest narrow, tall
+        // native static blocker (a tree trunk, a post), found by its collision, never by its model or name. A tree's body
+        // may be its whole mesh (canopy included), so narrowness is measured where a body walks: solid at the centre at
+        // capsule height, free all around one trunk radius out.
+        struct FTrunk { const UPrimitiveComponent* Part; FVector Centre; double Radius, Distance; };
+        TArray<FTrunk> Trunks;
+        for (TActorIterator<AActor> It(PC.GetWorld()); It; ++It)
         {
-            FVector Centre;
-            FString Ignored;
-            if (Blocker.Shape != ELDDemoWorldBlockerShape::Cylinder || !Blocker.CenterCm.ToVector(Centre, Ignored)) { continue; }
-            const double Distance = FVector::Dist2D(Centre, HostSite);
-            if (Distance < TreeDistance) { Tree = &Blocker; TreeDistance = Distance; TreeCentre = Centre; }
+            TInlineComponentArray<UPrimitiveComponent*> Parts(*It);
+            for (const UPrimitiveComponent* Part : Parts)
+            {
+                if (!LDNativeGround::IsSupport(*Part)) { continue; }
+                const FBox Body = Part->GetBodyInstance()->GetBodyBounds();
+                const FVector Size = Body.GetSize();
+                if (Size.X > LDDemoCombatScenario::CombatProbeTrunkMaxSpanCm || Size.Y > LDDemoCombatScenario::CombatProbeTrunkMaxSpanCm
+                    || Size.Z < 2 * HalfHeight || FMath::Abs(Body.Min.Z - Start.SurfaceCm.Z) > HalfHeight) { continue; }
+                const FVector Centre(Body.GetCenter().X, Body.GetCenter().Y, Start.SurfaceCm.Z);
+                Trunks.Add({Part, Centre, LDDemoCombatScenario::CombatProbeTrunkRadiusCm, FVector::Dist2D(Centre, HostSite)});
+            }
+        }
+        Trunks.Sort([](const FTrunk& A, const FTrunk& B) { return A.Distance < B.Distance; });
+        // The nearest one standing on the Host's own level and reachable from it (#97 clicks a trunk on the ground the
+        // body walks; a post on a terrace above or below is another level's click, not this check).
+        const UPrimitiveComponent* Tree = nullptr;
+        double TrunkRadius = 0;
+        FVector TreeCentre = FVector::ZeroVector;
+        const FCollisionQueryParams Solid = LDNativeGround::Query(*PC.GetWorld());
+        const FCollisionShape Probe = FCollisionShape::MakeSphere(10.f);
+        for (const FTrunk& Trunk : Trunks)
+        {
+            const FVector Waist = Trunk.Centre + FVector(0, 0, HalfHeight);
+            bool bNarrow = LDNativeGround::Overlaps(*PC.GetWorld(), Waist, Probe, Solid);
+            for (int32 Side = 0; Side < 8 && bNarrow; ++Side)
+            {
+                const FVector Out = FVector::ForwardVector.RotateAngleAxis(45.0 * Side, FVector::UpVector) * Trunk.Radius;
+                bNarrow = !LDNativeGround::Overlaps(*PC.GetWorld(), Waist + Out, Probe, Solid);
+            }
+            if (!bNarrow) { continue; }
+            const double Reach = Trunk.Radius + 4 * Capsule.GetCapsuleRadius();
+            FNavLocation Beside;
+            if (!Nav->ProjectPointToNavigation(Trunk.Centre, Beside, FVector(Reach, Reach, HalfHeight), Data)
+                || FMath::Abs(Beside.Location.Z - Start.SurfaceCm.Z) > LDDemoCombatScenario::CombatProbeTrunkLevelCm) { continue; }
+            FPathFindingQuery Query(PC.GetWorld(), *Data, Start.SurfaceCm, Beside.Location);
+            const FPathFindingResult Route = Nav->FindPathSync(Data->GetConfig(), Query);
+            if (!Route.IsSuccessful() || Route.IsPartial()) { continue; }
+            Tree = Trunk.Part; TrunkRadius = Trunk.Radius; TreeCentre = Trunk.Centre;
+            break;
         }
         if (!Tree)
         {
-            return Check(false, TEXT("ChaseGoal"), TEXT("The world has a tree trunk to click for the trunk-click check"), HostSite.ToCompactString());
+            return Check(false, TEXT("ChaseGoal"), TEXT("The world has a narrow native blocker (a trunk) to click for the trunk-click check"), HostSite.ToCompactString());
         }
-        const double TrunkRadius = double(Tree->RadiusCm.Numerator) / double(Tree->RadiusCm.Denominator);
         FLDCompletePath Around;
         FLDLegalGround AroundGoal;
         ELDWorldQueryFailure AroundFailure = ELDWorldQueryFailure::None;
@@ -1071,7 +1117,7 @@ public:
         const double Beside = TrunkRadius + 4 * Capsule.GetCapsuleRadius();
         return Check(bAround && !Around.Points.IsEmpty() && FVector::Dist2D(AroundGoal.SurfaceCm, TreeCentre) <= Beside, TEXT("ChaseGoal"),
             TEXT("A ground click on the trunk nearest the Host projects to a reachable stand beside that trunk"),
-            FString::Printf(TEXT("tree=%s centre=%s planned=%s distance=%.0f limit=%.0f %s"), *Tree->Id, *TreeCentre.ToCompactString(),
+            FString::Printf(TEXT("tree=%s centre=%s planned=%s distance=%.0f limit=%.0f %s"), *GetPathNameSafe(Tree), *TreeCentre.ToCompactString(),
                 *AroundGoal.SurfaceCm.ToCompactString(), FVector::Dist2D(AroundGoal.SurfaceCm, TreeCentre), Beside, *AroundError)) && bChaseOk;
     }
 
@@ -2648,6 +2694,7 @@ public:
 
     // The Host's current frame shows the hover ring under Handle with the plain arrow (hovering never changes the
     // pointer), or the attack marker.
+    mutable FString PointerMiss;
     bool ShowsPointer(const FGuid& Handle, bool bHover, FString& Facts) const
     {
         const ALDPlayerController* PC = Controller.Get();
@@ -2658,7 +2705,13 @@ public:
             ? PC->Navigation->ReadHovered(Hovered, Epoch) && Hovered == Handle && Feedback->ShowsHover()
                 && PC->CurrentMouseCursor == EMouseCursor::Default
             : Feedback->ShowsAttack());
-        if (!bShown) { return false; }
+        if (!bShown)
+        {
+            PointerMiss = FString::Printf(TEXT("last miss: hovered=%d match=%d ring=%d attack=%d cursor=%d"),
+                int32(Hovered.IsValid()), int32(Hovered == Handle), int32(Feedback && Feedback->ShowsHover()),
+                int32(Feedback && Feedback->ShowsAttack()), int32(PC ? PC->CurrentMouseCursor.GetValue() : -1));
+            return false;
+        }
         Facts = FString::Printf(TEXT("%s cursor=%d"), bHover ? TEXT("hover_ring") : TEXT("attack_marker"), int32(PC->CurrentMouseCursor.GetValue()));
         return true;
     }
@@ -2815,7 +2868,7 @@ public:
         }
         if (bOpen)
         {
-            Shot->Problem = FString::Printf(TEXT("no rendered frame showed the moment before the deadline (%d read-backs)"), Shot->ReadBacks);
+            Shot->Problem = FString::Printf(TEXT("no rendered frame showed the moment before the deadline (%d read-backs) %s"), Shot->ReadBacks, *PointerMiss);
         }
         // An unanswered request must not be written by the engine once nothing checks its frame.
         if (FScreenshotRequest::IsScreenshotRequested()) { FScreenshotRequest::Reset(); }
