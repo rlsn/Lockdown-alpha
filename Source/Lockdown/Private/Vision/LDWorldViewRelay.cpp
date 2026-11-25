@@ -776,11 +776,7 @@ void ALDObservedGroundProxy::Pattern(const FLDObservedGroundState& Ground, TArra
         { Ring(At, S * .18, 6); }
         break;
     case ELDGroundStateKind::Field:
-        // A lightning zigzag.
-        Seg(FVector(-S, -S * .2, 0), FVector(-S * .35, S * .35, 0));
-        Seg(FVector(-S * .35, S * .35, 0), FVector(0, -S * .3, 0));
-        Seg(FVector(0, -S * .3, 0), FVector(S * .35, S * .35, 0));
-        Seg(FVector(S * .35, S * .35, 0), FVector(S, -S * .2, 0));
+        // No pattern: the electric field effect (its living edge and charged floor) already names the kind.
         break;
     default: break;
     }

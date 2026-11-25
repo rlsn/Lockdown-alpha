@@ -725,7 +725,7 @@ namespace
 
     // The neutral palette of the physical effects: a warm-white core over a white body the Particle Color tints (the
     // runtime passes the strike's ink: the local player's own in a soft orange, others' a pale ivory).
-    const FPalette Neutral{FLinearColor(1.f, .95f, .86f), FLinearColor(.92f, .92f, .92f), FLinearColor(.22f, .2f, .18f), 2.4f, 1.2f};
+    const FPalette NeutralPalette{FLinearColor(1.f, .95f, .86f), FLinearColor(.92f, .92f, .92f), FLinearColor(.22f, .2f, .18f), 2.4f, 1.2f};
     // The strike's tint times its strength (others' half as bright, the runtime's intensity included).
     FString Tinted(float Gain, const FString& Alpha)
     {
@@ -740,8 +740,8 @@ namespace
     FSystemParts HitParts(bool bFinisher, UMaterial& Material, UMaterial& Top, FString& Error)
     {
         UTexture2D* Profile = SliceTexture(LDSliceVfx::ETex::ChainAProfile);
-        UMaterialInstanceConstant* Streaks = ChainPaint(bFinisher ? TEXT("MI_LDHitFinisher_Streak") : TEXT("MI_LDHitBasic_Streak"), Top, Profile, nullptr, 0.f, Neutral, 1.f, 0.f, Error);
-        UMaterialInstanceConstant* Spark = ChainPaint(bFinisher ? TEXT("MI_LDHitFinisher_Spark") : TEXT("MI_LDHitBasic_Spark"), Top, SliceTexture(LDSliceVfx::ETex::ChainASparkStreak), nullptr, 0.f, Neutral, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Streaks = ChainPaint(bFinisher ? TEXT("MI_LDHitFinisher_Streak") : TEXT("MI_LDHitBasic_Streak"), Top, Profile, nullptr, 0.f, NeutralPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Spark = ChainPaint(bFinisher ? TEXT("MI_LDHitFinisher_Spark") : TEXT("MI_LDHitBasic_Spark"), Top, SliceTexture(LDSliceVfx::ETex::ChainASparkStreak), nullptr, 0.f, NeutralPalette, 1.f, 0.f, Error);
         FSystemParts Hit;
         Hit.System = bFinisher ? LDSliceVfx::ESystem::HitFinisher : LDSliceVfx::ESystem::HitBasic;
         if (!Streaks || !Spark) { return Hit; }
@@ -828,7 +828,7 @@ namespace
     {
         UTexture2D* Profile = SliceTexture(LDSliceVfx::ETex::ChainAProfile);
         UMaterialInstanceConstant* Trail = ChainPaint(*FString::Printf(TEXT("MI_LDSwing%d_Trail"), Step), Material, Profile,
-            SliceTexture(LDSliceVfx::ETex::DissolveNoise), 1.f, Neutral, .6f, 2.f, Error);
+            SliceTexture(LDSliceVfx::ETex::DissolveNoise), 1.f, NeutralPalette, .6f, 2.f, Error);
         FSystemParts Swing;
         Swing.System = Step == 1 ? LDSliceVfx::ESystem::Swing1 : Step == 2 ? LDSliceVfx::ESystem::Swing2 : LDSliceVfx::ESystem::Swing3;
         if (!Trail) { return Swing; }
@@ -890,7 +890,7 @@ namespace
     FSystemParts TellParts(uint8 Step, UMaterial& Material, FString& Error)
     {
         UMaterialInstanceConstant* Line = ChainPaint(*FString::Printf(TEXT("MI_LDTell%d_Line"), Step), Material, SliceTexture(LDSliceVfx::ETex::ChainAProfile),
-            nullptr, 0.f, Neutral, 1.f, 0.f, Error);
+            nullptr, 0.f, NeutralPalette, 1.f, 0.f, Error);
         FSystemParts Tell;
         Tell.System = Step == 1 ? LDSliceVfx::ESystem::Tell1 : Step == 2 ? LDSliceVfx::ESystem::Tell2 : LDSliceVfx::ESystem::Tell3;
         if (!Line) { return Tell; }
