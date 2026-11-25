@@ -15,5 +15,8 @@ namespace LDDemoVfxImport
     bool Import(FString& Error);
     // Checks the manifest, hashes, the generator script and unlisted files, that every texture exists with effect
     // settings and was imported from the current source bytes, and that all three materials hold the importer's graph.
+    // Every material, instance and generated Niagara system in the importer's and generator's folders must hold only
+    // existing textures the manifests list (a lost texture leaves a material drawing the engine's opaque default surface)
+    // and blend translucent or additive.
     bool Validate(FString& Error);
 }

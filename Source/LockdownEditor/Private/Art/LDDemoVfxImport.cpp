@@ -30,7 +30,14 @@
 #include "Materials/MaterialExpressionTextureCoordinate.h"
 #include "Materials/MaterialExpressionTextureSampleParameter2D.h"
 #include "Materials/MaterialExpressionVectorParameter.h"
+#include "Materials/MaterialExpressionTextureBase.h"
+#include "Materials/MaterialInstance.h"
 #include "Misc/FileHelper.h"
+#include "NiagaraEmitter.h"
+#include "NiagaraLightRendererProperties.h"
+#include "NiagaraRibbonRendererProperties.h"
+#include "NiagaraSpriteRendererProperties.h"
+#include "NiagaraSystem.h"
 #include "Misc/PackageName.h"
 #include "Misc/Paths.h"
 #include "Serialization/JsonReader.h"
@@ -869,7 +876,9 @@ namespace
             if (const auto* Mask = Cast<UMaterialExpressionComponentMask>(Expression))
             { Out += FString::Printf(TEXT("|mask=%d%d%d%d"), Mask->R, Mask->G, Mask->B, Mask->A); }
             if (const auto* Object = Cast<UMaterialExpressionTextureObjectParameter>(Expression))
-            { Out += FString::Printf(TEXT("|object=%s s=%d"), *Object->GetParameterName().ToString(), int32(Object->SamplerType)); }
+            // The default textures too: a default that no longer exists leaves the material uncompilable.
+            { Out += FString::Printf(TEXT("|object=%s s=%d t=%s"), *Object->GetParameterName().ToString(), int32(Object->SamplerType),
+                Object->Texture ? *Object->Texture->GetPathName() : TEXT("none")); }
         }
         return Out;
     }
@@ -938,6 +947,113 @@ namespace
             if (!Material || !SliceCheckMaterial(Material, DefaultMask, DefaultNoise, Error) || !VfxSave(*Material, Error)) { return false; }
             UE_LOG(LogLDEditor, Display, TEXT("LD_DEMO_VFX_MATERIAL_BUILT %s"), LDSliceVfx::Material);
         }
+        return true;
+    }
+
+    // The folders the importer and the Niagara generator own.
+    const TCHAR* const OwnedFolders[] = {LDHitVfx::Folder, LDSliceVfx::Folder, LDSliceVfx::GeneratedFolder};
+
+    bool VfxOwned(const FString& Package)
+    {
+        for (const TCHAR* Folder : OwnedFolders) { if (FPackageName::GetLongPackagePath(Package) == Folder) { return true; } }
+        return false;
+    }
+
+    // A texture slot that lost its texture (a deleted default or override) leaves the material uncompilable, and the
+    // engine then draws its opaque default surface instead of the effect: a grey square on the floor. Every texture an
+    // owned material or instance holds must therefore exist and be one the manifests list.
+    bool VfxCheckTexture(const UTexture* Texture, const TSet<FString>& Listed, const FString& Owner, const FString& Slot, FString& Error)
+    {
+        const FString Package = Texture ? Texture->GetOutermost()->GetName() : FString();
+        if (!Texture || !FPackageName::DoesPackageExist(Package))
+        {
+            return VfxFail(Error, FString::Printf(TEXT("%s: texture slot %s holds no existing texture (%s); a deleted texture leaves it drawing the default ")
+                TEXT("surface. Run ImportDemoArt.ps1 -Mode ImportVFX after pointing it at a listed texture."), *Owner, *Slot, Package.IsEmpty() ? TEXT("none") : *Package));
+        }
+        if (!Listed.Contains(Package))
+        {
+            return VfxFail(Error, FString::Printf(TEXT("%s: texture slot %s uses %s, which neither vfx_textures.json nor vfx_slice_assets.json lists."), *Owner, *Slot, *Package));
+        }
+        return true;
+    }
+
+    bool VfxCheckMaterialInterface(const UMaterialInterface* Material, const TSet<FString>& Listed, const FString& Owner, FString& Error)
+    {
+        if (!Material) { return VfxFail(Error, Owner + TEXT(" has no material.")); }
+        const FString Package = Material->GetOutermost()->GetName();
+        if (!VfxOwned(Package) || !FPackageName::DoesPackageExist(Package))
+        {
+            return VfxFail(Error, FString::Printf(TEXT("%s uses %s, which is not an existing importer or generator material."), *Owner, *Package));
+        }
+        if (const auto* Instance = Cast<UMaterialInstance>(Material))
+        {
+            for (const FTextureParameterValue& Value : Instance->TextureParameterValues)
+            {
+                if (!VfxCheckTexture(Value.ParameterValue, Listed, Package, Value.ParameterInfo.Name.ToString(), Error)) { return false; }
+            }
+            return VfxCheckMaterialInterface(Instance->Parent, Listed, Package + TEXT(" (parent)"), Error);
+        }
+        const UMaterial* Base = Cast<UMaterial>(Material);
+        if (!Base) { return VfxFail(Error, Package + TEXT(" is neither a material nor a material instance.")); }
+        // Effects are see-through: an opaque or masked owned material would cover the floor.
+        if (Base->BlendMode != BLEND_Translucent && Base->BlendMode != BLEND_Additive)
+        {
+            return VfxFail(Error, FString::Printf(TEXT("%s blends as %d; effect materials are translucent or additive."), *Package, int32(Base->BlendMode)));
+        }
+        for (const UMaterialExpression* Expression : Base->GetExpressions())
+        {
+            if (const auto* Texture = Cast<UMaterialExpressionTextureBase>(Expression))
+            {
+                const FString Slot = Texture->HasAParameterName() ? Texture->GetParameterName().ToString() : Texture->GetName();
+                if (!VfxCheckTexture(Texture->Texture, Listed, Package, Slot, Error)) { return false; }
+            }
+        }
+        return true;
+    }
+
+    // Every material, material instance and generated Niagara system in the owned folders, as saved on disk.
+    bool VfxCheckReferences(const TArray<FVfxSpec>& Hits, const TArray<FSliceSpec>& Slices, FString& Error)
+    {
+        TSet<FString> Listed;
+        for (const FVfxSpec& Spec : Hits) { Listed.Add(Spec.Package); }
+        for (const FSliceSpec& Spec : Slices) { if (!Spec.bMesh) { Listed.Add(Spec.Package); } }
+        int32 Checked = 0;
+        for (const TCHAR* Folder : OwnedFolders)
+        {
+            TArray<FString> Files;
+            IFileManager::Get().FindFiles(Files, *(FPackageName::LongPackageNameToFilename(Folder) / TEXT("*") + FPackageName::GetAssetPackageExtension()), true, false);
+            for (const FString& File : Files)
+            {
+                const FString Package = FString(Folder) / FPaths::GetBaseFilename(File);
+                const UObject* Asset = LoadObject<UObject>(nullptr, *(Package + TEXT(".") + FPackageName::GetShortName(Package)));
+                if (!Asset) { return VfxFail(Error, Package + TEXT(" does not load.")); }
+                if (const auto* Material = Cast<UMaterialInterface>(Asset))
+                {
+                    if (!VfxCheckMaterialInterface(Material, Listed, Package, Error)) { return false; }
+                    ++Checked;
+                }
+                else if (const auto* System = Cast<UNiagaraSystem>(Asset))
+                {
+                    for (const FNiagaraEmitterHandle& Handle : System->GetEmitterHandles())
+                    {
+                        const FVersionedNiagaraEmitterData* Data = Handle.GetEmitterData();
+                        if (!Data) { return VfxFail(Error, FString::Printf(TEXT("%s emitter %s has no data."), *Package, *Handle.GetName().ToString())); }
+                        for (const UNiagaraRendererProperties* Renderer : Data->GetRenderers())
+                        {
+                            const FString Owner = FString::Printf(TEXT("%s emitter %s"), *Package, *Handle.GetName().ToString());
+                            if (const auto* Ribbon = Cast<UNiagaraRibbonRendererProperties>(Renderer))
+                            { if (!VfxCheckMaterialInterface(Ribbon->Material, Listed, Owner, Error)) { return false; } }
+                            else if (const auto* Sprite = Cast<UNiagaraSpriteRendererProperties>(Renderer))
+                            { if (!VfxCheckMaterialInterface(Sprite->Material, Listed, Owner, Error)) { return false; } }
+                            else if (!Cast<UNiagaraLightRendererProperties>(Renderer))
+                            { return VfxFail(Error, Owner + TEXT(" has a renderer the reference check does not know.")); }
+                        }
+                    }
+                    ++Checked;
+                }
+            }
+        }
+        UE_LOG(LogLDEditor, Display, TEXT("LD_DEMO_VFX_REFERENCES_OK %d materials, instances and systems hold existing, listed textures"), Checked);
         return true;
     }
 }
@@ -1012,5 +1128,5 @@ bool LDDemoVfxImport::Validate(FString& Error)
     {
         if (!VfxCheckMaterial(VfxLoad<UMaterial>(VfxPackageOf(Kind)), Kind, Error)) { return false; }
     }
-    return SliceSync(Slices, false, Error) && LDDemoVfxNiagara::Validate(Error);
+    return VfxCheckReferences(Specs, Slices, Error) && SliceSync(Slices, false, Error) && LDDemoVfxNiagara::Validate(Error);
 }
