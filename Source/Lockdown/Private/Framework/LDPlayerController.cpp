@@ -21,6 +21,7 @@
 #include "Probes/LDBuildEvaluationProbe.h"
 #include "Probes/LDBuildRingProbe.h"
 #include "Probes/LDUICoverageProbe.h"
+#include "Probes/LDGameRecorder.h"
 #include "UI/LDUIRoot.h"
 #include "UI/LDControlSettings.h"
 #include "Vision/LDWorldViewRelay.h"
@@ -75,6 +76,7 @@ void ALDPlayerController::BeginPlay()
     LDDemoTests::StartBuildEvaluation(*this);
     LDDemoTests::StartBuildRingProbe(*this);
     LDDemoTests::StartUICoverageProbe(*this);
+    LDDemoTests::StartGameRecorder();
 #endif
 }
 

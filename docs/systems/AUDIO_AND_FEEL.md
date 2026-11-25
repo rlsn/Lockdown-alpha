@@ -89,13 +89,15 @@
 5. 程序化运行时声音：MetaSound Builder API 在本机无头编辑器里实测可用（`MetaSoundBuilderSubsystem.create_source_builder` →
    `add_node_by_class_name` → `connect_nodes` → `build` 或 `MetaSoundEditorSubsystem.build_to_asset`，均 SUCCEEDED）。
    用于真正需要运行时参数的声音（持续电场嗡鸣随人数变化、蓄能随进度变化）；一次性声音仍用 WAV，不为简单音效强加 MetaSound。
-6. 证据：`Scripts/CaptureFeelSample.ps1 -FFmpeg <ffmpeg.exe>`，再 `python Scripts/MakeFeelEvidence.py --run <输出目录> --ffmpeg <ffmpeg.exe> --out <目录>`。
-   - 在战斗演示台以真实速度、开声卡播放“feel”场景（只静音音乐轨）；`ffmpeg ddagrab` 录游戏窗口客户区
-     （`gdigrab` 读不到 D3D12 翻转模型窗口），`Scripts/RecordAudioLoopback.py` 用 WASAPI 回环录扬声器实际输出
-     （需 `pip install soundcard`；录制时自身播放数字静音保持端点运转，否则静音段会丢帧导致时间轴错位）。
-   - 两个录制进程的启动时钟不可信（实测偏差上百毫秒），对齐按内容：音频按日志里每个 take 在回环里的匹配位置；
-     画面以移除大厅界面那一帧（与日志的录制开始同一 tick）为零点，并用每次出手的画面变化峰值复核。
-   - UE 5.8 的 `StartRecordingOutput` 子混音录制在本机只录到约一半时长（开启渲染调度时），不用作证据。
+6. 证据：`Scripts/CaptureFeelSample.ps1 -FFmpeg <ffmpeg.exe>`，再 `python Scripts/MakeFeelEvidence.py --run <输出目录> --ffmpeg <ffmpeg.exe> --out <目录>`；
+   真实对战用 `-Scenario combat`（`RunDemoCombatCheck.ps1 -CaptureOnly -RecordGame <目录>`，直接得到 `combat.mp4`）。
+   - 只录游戏自己：`-LDRecordGame=<目录>`（`Probes/LDGameRecorder.h`）从游戏视口的后台缓冲抓帧（含界面），声音取主子混音
+     的缓冲。游戏在屏幕外运行，不读桌面、不录系统声音，用户的窗口、视频和声音不会进入录像；`Scripts/AssembleGameRecording.py`
+     按帧时间和声音起点合成 mp4。禁止再用屏幕区域录制或系统回环录音。
+   - 主子混音缓冲按录像时钟落位：渲染停顿处补静音，时间轴不被压缩（UE 5.8 的 `StartRecordingOutput` 在本机只录到约一半
+     时长，不用）。
+   - 对齐按内容：音频按日志里每个 take 在录音里的匹配位置；画面以移除大厅界面那一帧（与日志的录制开始同一 tick）为零点，
+     并用每次出手的画面变化峰值复核。
    - 声音的听感验收只能由人完成；Agent 只能看时序、波形、频谱与响度，并须如实说明。
 
 ## 5. 素材来源与授权
@@ -137,7 +139,7 @@ Kenney 的 Impact、Interface、RPG、Sci-Fi 全包（CC0）由用户决定采�
 
 ## 7. 覆盖清单
 
-状态：NOT STARTED / IN PROGRESS / IMPLEMENTED / LOCALLY VERIFIED / USER APPROVED / BLOCKED。
+状态：NOT STARTED / IN PROGRESS / IMPLEMENTED / LOCALLY VERIFIED / USER ACCEPTED（暂用，待质量复做）/ USER APPROVED / BLOCKED。
 
 ### 7.1 音频
 
@@ -154,12 +156,12 @@ Kenney 的 Impact、Interface、RPG、Sci-Fi 全包（CC0）由用户决定采�
 | 冰、腐（毒）命中 | IMPLEMENTED | 施法者可见时，命中按 VFX 的击打匹配归到技能（冰可乐 → 冰裂命中，过期外卖 → 湿拍腐烂命中） | 施法者不可见时只剩 Magic 外观，落回 `HitMagic`；彻底区分需要命中投影带元素（网络改动，非本流） |
 | 技能前摇蓄能 | USER APPROVED | `CastCharge`，出手 30 ms 切断 | — |
 | 技能释放：电你个哆嗦 | USER APPROVED | 技能表 `active_zap` ×2 | 样板（§6） |
-| 技能释放：其余 23 个 | IMPLEMENTED | 技能表各 ×2 take，按玩法语义合成（推、抓、冲刺、护盾、投掷、区域、元素），见生成器 `skill_*` | 波形与频谱已查（主瞬态在出手时刻、≤ 8.5 kHz）；未实机采集、未听感验收 |
-| 每技能专属命中声 | IMPLEMENTED | `skill_hits` 表 18 个技能各 ×2 take（骨撞、拍脸、砖裂、水柱、冰裂、腐烂、书包、鞭响……），按 VFX 击打匹配（`FStrikeMatch::Ability`）播放；电你个哆嗦沿用已批准的 `HitElectric`，强化普攻类走普攻命中 | 施法者不可见时落回外观族。物理伤害技能（滚远点、扒裤子、掏蛋子、甩你一鞋、蛮牛顶）的命中外观是 None，VFX 击打匹配目前只把 None 配给普攻，滋你一脸的匹配不带技能号，所以这 6 个技能实际仍播普攻/水命中声；已请 Stream B 调整匹配 |
-| 元素反应（10 种） | IMPLEMENTED | `Reaction*` 线索，挂在 `SetReaction` 钩子，与特效强度无关；按反应的两个元素设计（雾=蒸汽、导电=扩散放电、超载=爆裂、融化、沼气闷爆、冻结、发酵、碎冰、腐蚀、冻伤） | 未实机采集 |
+| 技能释放：其余 23 个 | USER ACCEPTED（待质量复做） | 技能表各 ×2 take，按玩法语义合成（推、抓、冲刺、护盾、投掷、区域、元素），见生成器 `skill_*` | 波形与频谱已查（主瞬态在出手时刻、≤ 8.5 kHz）；未实机采集、未听感验收 |
+| 每技能专属命中声 | USER ACCEPTED（待质量复做） | `skill_hits` 表 18 个技能各 ×2 take（骨撞、拍脸、砖裂、水柱、冰裂、腐烂、书包、鞭响……），按 VFX 击打匹配（`FStrikeMatch::Ability`）播放；电你个哆嗦沿用已批准的 `HitElectric`，强化普攻类走普攻命中 | 施法者不可见时落回外观族。物理伤害技能（滚远点、扒裤子、掏蛋子、甩你一鞋、蛮牛顶）的命中外观是 None，VFX 击打匹配目前只把 None 配给普攻，滋你一脸的匹配不带技能号，所以这 6 个技能实际仍播普攻/水命中声；已请 Stream B 调整匹配 |
+| 元素反应（10 种） | USER ACCEPTED（待质量复做） | `Reaction*` 线索，挂在 `SetReaction` 钩子，与特效强度无关；按反应的两个元素设计（雾=蒸汽、导电=扩散放电、超载=爆裂、融化、沼气闷爆、冻结、发酵、碎冰、腐蚀、冻伤） | 未实机采集 |
 | 地面状态循环（水洼、冰、火、瘴气、电场） | NOT STARTED | — | — |
 | 投射物飞行与落点 | NOT STARTED | — | — |
-| 元素状态挂上（着火、湿身、带电、冰冷、腐烂） | IMPLEMENTED | `State*` 短促提示，状态从无到有时响一次，不做循环（避免混战堆积） | 未实机采集 |
+| 元素状态挂上（着火、湿身、带电、冰冷、腐烂） | USER ACCEPTED（待质量复做） | `State*` 短促提示，状态从无到有时响一次，不做循环（避免混战堆积） | 未实机采集 |
 | 被动触发与强化普攻 | NOT STARTED | — | — |
 | 本人受击、护盾、破盾、闪避、招架、冲刺、拾取 | IMPLEMENTED | 受击、护盾、破盾（重击音提高到 1.35 倍音高）、招架、拾取沿用 Kenney；冲刺（低沉疾风与球鞋摩擦）与精准闪避（擦身风声与清脆一响）改为原创 | 未听感验收 |
 | 死亡、复活、升级 | IMPLEMENTED | 死亡（重重倒地与下坠低音）、升级（温暖上扬的和弦与细碎闪光）改为原创，替换廉价电子音；复活沿用 Kenney | 未听感验收 |

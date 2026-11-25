@@ -6,9 +6,12 @@ param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(300,1500)][int]$
     [ValidateSet('720p','1080p')][string]$Resolution='720p',
     [switch]$RenderClient,
     # Capture tool, not a check (Scripts/CaptureFeelSample.ps1 -Scenario combat; Stream A's kill-banner capture): the same
-    # real owned fight with the Host window visible, sound on and every played sound logged, without the Host's chase-goal
-    # assertions. It reports no verdict: the run ends after both reports are written.
-    [switch]$CaptureOnly)
+    # real owned fight with sound on and every played sound logged, without the Host's chase-goal assertions. It reports no
+    # verdict: the run ends after both reports are written.
+    [switch]$CaptureOnly,
+    # With CaptureOnly: the Host records its own frames and game audio into this folder (Probes/LDGameRecorder.h). The Host
+    # stays off screen; nothing on the desktop is recorded.
+    [string]$RecordGame)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
 Assert-LDDemoInputs
@@ -39,15 +42,16 @@ $screenshots = @('HostSees-DuelSite.png','HostSees-MoveMarker.png','HostSees-Own
 
 function Start-CombatRole {
     param([string]$Role,[string]$Url)
-    Start-LDDemoRole -Harness $harness -Role $Role -Url $Url -Visible:($CaptureOnly -and $Role -eq 'Host') -Arguments {
+    Start-LDDemoRole -Harness $harness -Role $Role -Url $Url -Arguments {
         param($user, $log)
         # The Host always renders. RenderClient also exercises the cooked skeletal data on the real owning client.
-        $render = if ($Role -eq 'Host') { "-windowed $(if ($CaptureOnly) { '' } else { '-RenderOffScreen' }) $resolutionArguments -port=$port $fixtureSwitch" }
+        $render = if ($Role -eq 'Host') { "-windowed -RenderOffScreen $resolutionArguments -port=$port $fixtureSwitch" }
             elseif ($RenderClient) { "-windowed -RenderOffScreen $resolutionArguments" } else { '-nullrhi' }
         $arguments = '-unattended -nop4 -nosound -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoCombatProbe -LDDemoCombatRole={2} -LDDemoCombatTimeout={3} -LDDemoCombatOutput="{4}" -abslog="{5}"' -f $render,$user,$Role,$TimeoutSeconds,$evidence,$log
         if ($NetEmulation) { $arguments += " $NetEmulation" }
         if ($CaptureOnly) { $arguments += ' -LDDemoCombatCaptureOnly' }
         if ($CaptureOnly -and $Role -eq 'Host') { $arguments = $arguments.Replace(' -nosound', '') + ' -LDAudioEventLog' }
+        if ($CaptureOnly -and $RecordGame -and $Role -eq 'Host') { $arguments += ' -LDRecordGame="{0}"' -f $RecordGame }
         $arguments
     }
 }
