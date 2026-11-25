@@ -2359,6 +2359,32 @@ namespace
         return Cast;
     }
 
+    // A heavy physical strike's shared values: a warm-white impact core over amber, dark shadowed dust with a lighter rim,
+    // and a dark scuff for the ground's response. The skills differ by shape and motion; these give them mass.
+    const FPalette ImpactPalette{FLinearColor(1.f, .96f, .88f), FLinearColor(1.f, .74f, .42f), FLinearColor(.45f, .22f, .08f), 2.4f, 1.3f};
+    const FPalette HeavyDustPalette{FLinearColor(.62f, .58f, .52f), FLinearColor(.34f, .31f, .28f), FLinearColor(.12f, .11f, .1f), 1.f, 1.f};
+
+    // The impact punch of a physical hit: a warm core at the contact for three frames (0-100 ms, inside the sync table's
+    // 0-180 ms victim flash) of Size cm, and its light.
+    void ImpactCore(FSystemParts& Hit, UMaterialInstanceConstant* Flash, float Size, float LightRadius, const FString& At)
+    {
+        FPart& Core = Hit.Parts.AddDefaulted_GetRef();
+        Core.Name = TEXT("Core");
+        Core.Kind = FPart::Sprite;
+        Core.Lifetime = TEXT("0.1");
+        Core.Paint = Flash;
+        Core.Set(TEXT("Particles.Position"), At)
+            .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(1.0, 1.0) * %.1f * (1.0 - 0.3 * Particles.NormalizedAge)"), Size))
+            .Set(TEXT("Particles.Color"), Glowing(2.6f, TEXT("(1.0 - pow(Particles.NormalizedAge, 2.0))")));
+        FPart& Light = Hit.Parts.AddDefaulted_GetRef();
+        Light.Name = TEXT("Light");
+        Light.Kind = FPart::Light;
+        Light.Lifetime = TEXT("0.14");
+        Light.Set(TEXT("Particles.Position"), At)
+            .Set(TEXT("Particles.LightRadius"), FString::Printf(TEXT("%.1f"), LightRadius))
+            .Set(TEXT("Particles.Color"), FString::Printf(TEXT("float4(1.0, 0.75, 0.45, 1.0) * float4(6.0, 6.0, 6.0, 1.0) * %s * (1.0 - Particles.NormalizedAge)"), Bright));
+    }
+
     // ------------------------------------------------------------------ active_elbow (a close shove that knocks back 300 cm)
     // Physical, no element: weight comes from shape and motion in the strike's ink, not colour. Release: a curved pressure
     // sheet shoved out in front of the body with two thinner echoes behind it and dust kicked from the planted foot. Hit: a
@@ -2367,7 +2393,7 @@ namespace
     FSystemParts ElbowReleaseParts(UMaterial& Material, FString& Error)
     {
         UMaterialInstanceConstant* Sheet = ChainPaint(TEXT("MI_LDElbow_Wave"), Material, SliceTexture(LDSliceVfx::ETex::ChainAProfile), SliceTexture(LDSliceVfx::ETex::DissolveNoise), 1.f, NeutralPalette, 1.f, 3.f, Error);
-        UMaterialInstanceConstant* Dust = ChainPaint(TEXT("MI_LDElbow_Dust"), Material, SliceTexture(LDSliceVfx::ETex::SoftPuff), nullptr, 0.f, DustPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Dust = ChainPaint(TEXT("MI_LDElbow_Dust"), Material, SliceTexture(LDSliceVfx::ETex::SoftPuff), nullptr, 0.f, HeavyDustPalette, 1.f, 0.f, Error);
         FSystemParts Release;
         Release.System = LDSliceVfx::ESystem::ElbowRelease;
         if (!Sheet || !Dust) { return Release; }
@@ -2393,31 +2419,46 @@ namespace
                 .Set(TEXT("Particles.RibbonLinkOrder"), TEXT("Particles.LDJ"))
                 .Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.Start + %s * ((30.0 + 130.0 * %s) * (1.0 - 0.25 * %s * %s) - %s * 18.0) + %s * %s * (35.0 + 45.0 * %s) + float3(0.0, 0.0, -10.0 * %s)"),
                     *Fwd, *Out, *A, *A, *R, *Side, *A, *Out, *R))
-                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("(22.0 - 14.0 * %s) * (1.0 - 0.45 * %s) * step(%s, Particles.Age) * (1.0 - abs(%s) * 0.6)"), *Out, *R, *Lag, *A))
+                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("(40.0 - 24.0 * %s) * (1.0 - 0.45 * %s) * step(%s, Particles.Age) * (1.0 - abs(%s) * 0.6)"), *Out, *R, *Lag, *A))
                 .Set(TEXT("Particles.Color"), Tinted(2.2f, FString::Printf(TEXT("(1.0 - %s) * (1.0 - 0.35 * %s)"), *T, *R)));
         }
         FPart& Kick = Release.Parts.AddDefaulted_GetRef();
         Kick.Name = TEXT("Kick");
         Kick.Kind = FPart::Sprite;
-        Kick.Count = TEXT("int(lerp(1.0, 3.0, User.Focus) + 0.5)");
-        Kick.Lifetime = TEXT("0.7");
+        Kick.Count = TEXT("int(lerp(4.0, 7.0, User.Focus) + 0.5)");
+        Kick.Lifetime = TEXT("0.9");
         Kick.Paint = Dust;
-        Kick.Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.Start - %s * (25.0 + 35.0 * Particles.NormalizedAge) + %s * (%s * 2.0 - 1.0) * 25.0 + float3(0.0, 0.0, -95.0 + 30.0 * Particles.NormalizedAge)"),
-                *Fwd, *Side, *Random(701.f)))
-            .Set(TEXT("Particles.SpriteSize"), TEXT("float2(1.0, 1.0) * (30.0 + 60.0 * sqrt(Particles.NormalizedAge))"))
+        // Dust shoved out ahead of the body by the wave (and a little kicked back from the planted foot).
+        Kick.Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.Start + %s * (20.0 + 150.0 * (1.0 - exp(-5.0 * Particles.Age)) * (0.5 + 0.5 * %s)) + %s * (%s * 2.0 - 1.0) * 55.0 + float3(0.0, 0.0, -80.0 + 35.0 * Particles.NormalizedAge)"),
+                *Fwd, *Random(703.f), *Side, *Random(701.f)))
+            .Set(TEXT("Particles.SpriteSize"), TEXT("float2(1.0, 1.0) * (60.0 + 100.0 * sqrt(Particles.NormalizedAge))"))
             .Set(TEXT("Particles.SpriteRotation"), FString::Printf(TEXT("%s * 360.0"), *Random(702.f)))
-            .Set(TEXT("Particles.Color"), Glowing(1.f, TEXT("0.35 * (1.0 - Particles.NormalizedAge)")));
+            .Set(TEXT("Particles.Color"), Glowing(.9f, TEXT("0.8 * saturate(Particles.Age / 0.04) * (1.0 - Particles.NormalizedAge)")));
         return Release;
     }
 
     FSystemParts ElbowHitParts(UMaterial& Material, UMaterial& Top, FString& Error)
     {
-        UMaterialInstanceConstant* Ring = ChainPaint(TEXT("MI_LDElbowHit_Ring"), Top, SliceTexture(LDSliceVfx::ETex::ChainAProfile), nullptr, 0.f, NeutralPalette, 1.f, 0.f, Error);
-        UMaterialInstanceConstant* Dust = ChainPaint(TEXT("MI_LDElbowHit_Dust"), Material, SliceTexture(LDSliceVfx::ETex::SoftPuff), nullptr, 0.f, DustPalette, 1.f, 0.f, Error);
-        UMaterialInstanceConstant* Chip = ChainPaint(TEXT("MI_LDElbowHit_Chip"), Top, SliceTexture(LDSliceVfx::ETex::ChainASparkStreak), nullptr, 0.f, NeutralPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Ring = ChainPaint(TEXT("MI_LDElbowHit_Ring"), Top, SliceTexture(LDSliceVfx::ETex::ChainAProfile), nullptr, 0.f, ImpactPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Dust = ChainPaint(TEXT("MI_LDElbowHit_Dust"), Material, SliceTexture(LDSliceVfx::ETex::SoftPuff), nullptr, 0.f, HeavyDustPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Chip = ChainPaint(TEXT("MI_LDElbowHit_Chip"), Top, SliceTexture(LDSliceVfx::ETex::ChainASparkStreak), nullptr, 0.f, ImpactPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Flash = ChainPaint(TEXT("MI_LDElbowHit_Flash"), Top, SliceTexture(LDSliceVfx::ETex::ChainAFlash), nullptr, 0.f, ImpactPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Scuff = ChainPaint(TEXT("MI_LDElbowHit_Skid"), Material, SliceTexture(LDSliceVfx::ETex::WaterWet), SliceTexture(LDSliceVfx::ETex::DissolveNoise), 2.f, ScuffPalette, 1.f, 0.f, Error);
         FSystemParts Hit;
         Hit.System = LDSliceVfx::ESystem::ElbowHit;
-        if (!Ring || !Dust || !Chip) { return Hit; }
+        if (!Ring || !Dust || !Chip || !Flash || !Scuff) { return Hit; }
+        ImpactCore(Hit, Flash, 130.f, 320.f, TEXT("User.End - normalize(User.End - User.Start) * 15.0"));
+        // The slide's skid: dark marks along the knock-back path where the feet drag.
+        FPart& Skid = Hit.Parts.AddDefaulted_GetRef();
+        Skid.Name = TEXT("Skid");
+        Skid.Count = TEXT("3");
+        Skid.Lifetime = TEXT("User.Duration");
+        Skid.Paint = Scuff;
+        Floor(Skid, TEXT("normalize(float3((User.End - User.Start).x, (User.End - User.Start).y, 0.0) + float3(0.0001, 0.0, 0.0))"));
+        Skid.Set(TEXT("Particles.Position"), TEXT("float3(User.End.x, User.End.y, User.End.z - 93.0) + normalize(float3((User.End - User.Start).x, (User.End - User.Start).y, 0.0) + float3(0.0001, 0.0, 0.0)) * (float(Particles.UniqueID) + 0.5) * 95.0"))
+            .Set(TEXT("Particles.SpriteSize"), TEXT("float2(120.0, 60.0) * step((float(Particles.UniqueID) + 0.5) / 3.0 * 0.25, Particles.Age)"))
+            .Set(TEXT("Particles.SpriteRotation"), Quarter)
+            .Set(TEXT("Particles.Color"), Glowing(1.f, TEXT("0.8 * (1.0 - saturate((Particles.Age - 0.5) / max(User.Duration - 0.55, 0.1)))")));
         const FString Dir = TEXT("normalize(float3((User.End - User.Start).x, (User.End - User.Start).y, 0.0) + float3(0.0001, 0.0, 0.0))");
         const FString Side = FString::Printf(TEXT("normalize(cross(%s, float3(0.0, 0.0, 1.0)))"), *Dir);
         const FString Scale = FString::Printf(TEXT("(%s * lerp(0.8, 1.0, User.Focus))"), LinkScale);
@@ -2435,8 +2476,8 @@ namespace
             Shock.Set(TEXT("Particles.RibbonLinkOrder"), Own)
                 .Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.End + %s * (8.0 + 25.0 * %s) + (%s * cos(%s) + float3(0.0, 0.0, 1.0) * sin(%s) * 0.8) * (20.0 + 75.0 * %s) * %s"),
                     *Dir, *Open, *Side, *Theta, *Theta, *Open, *Scale))
-                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("(16.0 - 12.0 * %s) * %s"), *Open, *Scale))
-                .Set(TEXT("Particles.Color"), Tinted(2.6f, FString::Printf(TEXT("(1.0 - %s)"), *Open)));
+                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("(30.0 - 22.0 * %s) * %s"), *Open, *Scale))
+                .Set(TEXT("Particles.Color"), Glowing(2.f, FString::Printf(TEXT("(1.0 - %s)"), *Open)));
         }
         FPart& Plume = Hit.Parts.AddDefaulted_GetRef();
         Plume.Name = TEXT("Plume");
@@ -2451,9 +2492,9 @@ namespace
             const FString Tau = FString::Printf(TEXT("max(Particles.Age - %s, 0.0)"), *Born);
             Plume.Set(TEXT("Particles.Position"), FString::Printf(TEXT("float3(User.End.x, User.End.y, User.End.z - 85.0) + %s * 280.0 * %s + %s * (%s * 2.0 - 1.0) * 20.0 + float3(0.0, 0.0, 20.0 * sqrt(%s))"),
                     *Dir, *K, *Side, *Random(711.f), *Tau))
-                .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(1.0, 1.0) * (35.0 + 70.0 * sqrt(%s)) * step(%s, Particles.Age)"), *Tau, *Born))
+                .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(1.0, 1.0) * (60.0 + 100.0 * sqrt(%s)) * step(%s, Particles.Age)"), *Tau, *Born))
                 .Set(TEXT("Particles.SpriteRotation"), FString::Printf(TEXT("%s * 360.0"), *Random(712.f)))
-                .Set(TEXT("Particles.Color"), Glowing(1.f, FString::Printf(TEXT("0.6 * saturate(%s / 0.05) * (1.0 - saturate(%s / 0.8))"), *Tau, *Tau)));
+                .Set(TEXT("Particles.Color"), Glowing(.9f, FString::Printf(TEXT("0.85 * saturate(%s / 0.05) * (1.0 - saturate(%s / 0.85))"), *Tau, *Tau)));
         }
         FPart& Chips = Hit.Parts.AddDefaulted_GetRef();
         Chips.Name = TEXT("Chips");
@@ -2467,9 +2508,9 @@ namespace
                 *Dir, *Side, *Random(722.f), *Random(723.f), *Random(724.f));
             Chips.Set(TEXT("Particles.Velocity"), FString::Printf(TEXT("%s + float3(0.0, 0.0, -900.0) * Particles.Age"), *V))
                 .Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.End + %s * Particles.Age + float3(0.0, 0.0, -450.0) * Particles.Age * Particles.Age"), *V))
-                .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(26.0, 6.0) * %s"), *Scale))
+                .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(30.0, 7.0) * %s"), *Scale))
                 .Set(TEXT("Particles.SpriteRotation"), Quarter)
-                .Set(TEXT("Particles.Color"), Tinted(2.4f, TEXT("(1.0 - Particles.NormalizedAge)")));
+                .Set(TEXT("Particles.Color"), Glowing(2.f, TEXT("(1.0 - Particles.NormalizedAge)")));
         }
         return Hit;
     }
@@ -2494,18 +2535,19 @@ namespace
         const FString Tau = FString::Printf(TEXT("max(Particles.Age - %s, 0.0)"), *Born);
         Part.Set(TEXT("Particles.Position"), FString::Printf(TEXT("float3(User.Start.x, User.Start.y, User.Start.z - 85.0) + %s * %s * %s + %s * (%s * 2.0 - 1.0) * 22.0 + float3(0.0, 0.0, 18.0 * sqrt(%s))"),
                 ShotFwd, ShotLength, *K, ShotSide, *Random(Salt), *Tau))
-            .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(1.0, 1.0) * (30.0 + 60.0 * sqrt(%s)) * step(%s, Particles.Age)"), *Tau, *Born))
+            .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(1.0, 1.0) * (50.0 + 90.0 * sqrt(%s)) * step(%s, Particles.Age)"), *Tau, *Born))
             .Set(TEXT("Particles.SpriteRotation"), FString::Printf(TEXT("%s * 360.0"), *Random(Salt + 1.f)))
-            .Set(TEXT("Particles.Color"), Glowing(1.f, FString::Printf(TEXT("0.36 * saturate(%s / 0.05) * (1.0 - saturate(%s / 0.75))"), *Tau, *Tau)));
+            .Set(TEXT("Particles.Color"), Glowing(.9f, FString::Printf(TEXT("0.75 * saturate(%s / 0.05) * (1.0 - saturate(%s / 0.85))"), *Tau, *Tau)));
     }
 
     FSystemParts PantsReleaseParts(UMaterial& Material, UMaterial& Top, FString& Error)
     {
-        UMaterialInstanceConstant* Cord = ChainPaint(TEXT("MI_LDPants_Cord"), Top, SliceTexture(LDSliceVfx::ETex::ChainAProfile), nullptr, 0.f, NeutralPalette, 1.f, 0.f, Error);
-        UMaterialInstanceConstant* Flash = ChainPaint(TEXT("MI_LDPants_Snap"), Top, SliceTexture(LDSliceVfx::ETex::ChainAFlash), nullptr, 0.f, NeutralPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Cord = ChainPaint(TEXT("MI_LDPants_Cord"), Top, SliceTexture(LDSliceVfx::ETex::ChainAProfile), nullptr, 0.f, ImpactPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Shade = ChainPaint(TEXT("MI_LDPants_Shade"), Material, SliceTexture(LDSliceVfx::ETex::ChainAProfile), nullptr, 0.f, HeavyDustPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Flash = ChainPaint(TEXT("MI_LDPants_Snap"), Top, SliceTexture(LDSliceVfx::ETex::ChainAFlash), nullptr, 0.f, ImpactPalette, 1.f, 0.f, Error);
         FSystemParts Release;
         Release.System = LDSliceVfx::ESystem::PantsRelease;
-        if (!Cord || !Flash) { return Release; }
+        if (!Cord || !Shade || !Flash) { return Release; }
         // The cord's tip flies out to the reach in 0.08 s with a whip running down it, snaps, then is yanked back to the hand
         // by 0.32 s.
         const int32 Points = 18;
@@ -2513,35 +2555,57 @@ namespace
         const FString Back = TEXT("pow(saturate((Particles.Age - 0.12) / 0.2), 1.6)");
         const FString Reach = FString::Printf(TEXT("(%s * (%s - %s))"), ShotLength, *Out, *Back);
         const FString T = FString::Printf(TEXT("(%s / %d.0)"), Own, Points - 1);
-        FPart& Lash = Release.Parts.AddDefaulted_GetRef();
-        Lash.Name = TEXT("Lash");
-        Lash.Count = FString::Printf(TEXT("%d"), Points);
-        Lash.Lifetime = TEXT("0.34");
-        Lash.Paint = Cord;
-        Lash.TileCm = 50.f;
-        Lash.Set(TEXT("Particles.RibbonLinkOrder"), Own)
-            .Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.Start + %s * %s * %s + %s * sin(%s * 9.0 - Particles.Age * 50.0) * 14.0 * (1.0 - %s) * %s + float3(0.0, 0.0, -30.0 * %s)"),
-                ShotFwd, *Reach, *T, ShotSide, *T, *Out, *T, *T))
-            .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("(5.0 + 3.0 * %s) * step(0.01, %s)"), *T, *Reach))
-            .Set(TEXT("Particles.Color"), Tinted(2.4f, TEXT("1.0")));
+        // The cord over its own dark shadow on the floor (so it reads on the bright floor and has weight).
+        const auto Cordage = [&](FPart& Lash, const TCHAR* Name, UMaterialInstanceConstant* Paint, float Drop, float Width, const FString& Colour)
+        {
+            Lash.Name = Name;
+            Lash.Count = FString::Printf(TEXT("%d"), Points);
+            Lash.Lifetime = TEXT("0.34");
+            Lash.Paint = Paint;
+            Lash.TileCm = 50.f;
+            Lash.Set(TEXT("Particles.RibbonLinkOrder"), Own)
+                .Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.Start + %s * %s * %s + %s * sin(%s * 9.0 - Particles.Age * 50.0) * 18.0 * (1.0 - %s) * %s + float3(0.0, 0.0, -30.0 * %s - %.1f)"),
+                    ShotFwd, *Reach, *T, ShotSide, *T, *Out, *T, *T, Drop))
+                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("(%.1f + %.1f * %s) * step(0.01, %s)"), Width, Width * .6f, *T, *Reach))
+                .Set(TEXT("Particles.Color"), Colour);
+        };
+        Cordage(Release.Parts.AddDefaulted_GetRef(), TEXT("Shadow"), Shade, 55.f, 20.f, Glowing(.8f, TEXT("0.75")));
+        Cordage(Release.Parts.AddDefaulted_GetRef(), TEXT("Lash"), Cord, 0.f, 10.f, Glowing(2.f, TEXT("1.0")));
         FPart& Snap = Release.Parts.AddDefaulted_GetRef();
         Snap.Name = TEXT("Snap");
         Snap.Kind = FPart::Sprite;
         Snap.Lifetime = TEXT("0.2");
         Snap.Paint = Flash;
         Snap.Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.Start + %s * %s + float3(0.0, 0.0, -30.0)"), ShotFwd, ShotLength))
-            .Set(TEXT("Particles.SpriteSize"), TEXT("float2(1.0, 1.0) * 55.0 * step(0.07, Particles.Age)"))
-            .Set(TEXT("Particles.Color"), Tinted(2.4f, TEXT("saturate(1.0 - (Particles.Age - 0.07) / 0.09)")));
+            .Set(TEXT("Particles.SpriteSize"), TEXT("float2(1.0, 1.0) * 90.0 * step(0.07, Particles.Age)"))
+            .Set(TEXT("Particles.Color"), Glowing(2.6f, TEXT("saturate(1.0 - (Particles.Age - 0.07) / 0.09)")));
         return Release;
     }
 
     FSystemParts PantsHitParts(UMaterial& Material, UMaterial& Top, FString& Error)
     {
-        UMaterialInstanceConstant* Cord = ChainPaint(TEXT("MI_LDPantsHit_Cord"), Top, SliceTexture(LDSliceVfx::ETex::ChainAProfile), nullptr, 0.f, NeutralPalette, 1.f, 0.f, Error);
-        UMaterialInstanceConstant* Streak = ChainPaint(TEXT("MI_LDPantsHit_Tug"), Top, SliceTexture(LDSliceVfx::ETex::ChainASparkStreak), nullptr, 0.f, NeutralPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Cord = ChainPaint(TEXT("MI_LDPantsHit_Cord"), Top, SliceTexture(LDSliceVfx::ETex::ChainAProfile), nullptr, 0.f, ImpactPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Streak = ChainPaint(TEXT("MI_LDPantsHit_Tug"), Top, SliceTexture(LDSliceVfx::ETex::ChainASparkStreak), nullptr, 0.f, ImpactPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Flash = ChainPaint(TEXT("MI_LDPantsHit_Flash"), Top, SliceTexture(LDSliceVfx::ETex::ChainAFlash), nullptr, 0.f, ImpactPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Dust = ChainPaint(TEXT("MI_LDPantsHit_Dust"), Material, SliceTexture(LDSliceVfx::ETex::SoftPuff), nullptr, 0.f, HeavyDustPalette, 1.f, 0.f, Error);
         FSystemParts Hit;
         Hit.System = LDSliceVfx::ESystem::PantsHit;
-        if (!Cord || !Streak) { return Hit; }
+        if (!Cord || !Streak || !Flash || !Dust) { return Hit; }
+        ImpactCore(Hit, Flash, 90.f, 240.f, TEXT("float3(User.End.x, User.End.y, User.End.z - 60.0)"));
+        // The yank stirs dust round the feet.
+        FPart& Stir = Hit.Parts.AddDefaulted_GetRef();
+        Stir.Name = TEXT("Stir");
+        Stir.Kind = FPart::Sprite;
+        Stir.Count = TEXT("int(lerp(3.0, 5.0, User.Focus) + 0.5)");
+        Stir.Lifetime = TEXT("0.8");
+        Stir.Paint = Dust;
+        {
+            const FString A = FString::Printf(TEXT("(%s * 6.2832)"), *Random(735.f));
+            Stir.Set(TEXT("Particles.Position"), FString::Printf(TEXT("float3(User.End.x, User.End.y, User.End.z - 80.0) + float3(cos(%s), sin(%s), 0.0) * (25.0 + 60.0 * (1.0 - exp(-4.0 * Particles.Age))) + float3(0.0, 0.0, 15.0 * Particles.NormalizedAge)"), *A, *A))
+                .Set(TEXT("Particles.SpriteSize"), TEXT("float2(1.0, 1.0) * (50.0 + 70.0 * sqrt(Particles.NormalizedAge))"))
+                .Set(TEXT("Particles.SpriteRotation"), FString::Printf(TEXT("%s * 360.0"), *Random(736.f)))
+                .Set(TEXT("Particles.Color"), Glowing(.9f, TEXT("0.75 * saturate(Particles.Age / 0.04) * (1.0 - Particles.NormalizedAge)")));
+        }
         // Two bands cinch round the ankles (the root takes hold), and tug streaks pull from the body back towards the caster.
         const int32 Points = 20;
         FPart& Cinch = Hit.Parts.AddDefaulted_GetRef();
@@ -2559,8 +2623,8 @@ namespace
                 .Set(TEXT("Particles.RibbonLinkOrder"), TEXT("Particles.LDJ"))
                 .Set(TEXT("Particles.Position"), FString::Printf(TEXT("float3(User.End.x, User.End.y, User.End.z - 78.0 + float(Particles.LDRibbon) * 14.0) + float3(cos(%s), sin(%s), 0.0) * (60.0 - 30.0 * %s)"),
                     *Theta, *Theta, *Close))
-                .Set(TEXT("Particles.RibbonWidth"), TEXT("6.0"))
-                .Set(TEXT("Particles.Color"), Tinted(2.2f, TEXT("(1.0 - saturate((Particles.Age - 0.35) / 0.25))")));
+                .Set(TEXT("Particles.RibbonWidth"), TEXT("12.0"))
+                .Set(TEXT("Particles.Color"), Glowing(2.f, TEXT("(1.0 - saturate((Particles.Age - 0.35) / 0.25))")));
         }
         FPart& Tug = Hit.Parts.AddDefaulted_GetRef();
         Tug.Name = TEXT("Tug");
@@ -2574,9 +2638,9 @@ namespace
             Tug.Set(TEXT("Particles.Velocity"), FString::Printf(TEXT("%s * 500.0"), *Back))
                 .Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.End + %s * 300.0 * Particles.Age + %s * (%s * 2.0 - 1.0) * 30.0 + float3(0.0, 0.0, (%s * 2.0 - 1.0) * 30.0)"),
                     *Back, ShotSide, *Random(731.f), *Random(732.f)))
-                .Set(TEXT("Particles.SpriteSize"), TEXT("float2(40.0, 6.0)"))
+                .Set(TEXT("Particles.SpriteSize"), TEXT("float2(60.0, 9.0)"))
                 .Set(TEXT("Particles.SpriteRotation"), Quarter)
-                .Set(TEXT("Particles.Color"), Tinted(2.2f, TEXT("(1.0 - Particles.NormalizedAge)")));
+                .Set(TEXT("Particles.Color"), Glowing(2.f, TEXT("(1.0 - Particles.NormalizedAge)")));
         }
         return Hit;
     }
@@ -2584,7 +2648,7 @@ namespace
     FSystemParts GrabReleaseParts(UMaterial& Material, FString& Error)
     {
         UMaterialInstanceConstant* Line = ChainPaint(TEXT("MI_LDGrab_Line"), Material, SliceTexture(LDSliceVfx::ETex::ChainAProfile), nullptr, 0.f, NeutralPalette, 1.f, 0.f, Error);
-        UMaterialInstanceConstant* Dust = ChainPaint(TEXT("MI_LDGrab_Dust"), Material, SliceTexture(LDSliceVfx::ETex::SoftPuff), nullptr, 0.f, DustPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Dust = ChainPaint(TEXT("MI_LDGrab_Dust"), Material, SliceTexture(LDSliceVfx::ETex::SoftPuff), nullptr, 0.f, HeavyDustPalette, 1.f, 0.f, Error);
         FSystemParts Release;
         Release.System = LDSliceVfx::ESystem::GrabRelease;
         if (!Line || !Dust) { return Release; }
@@ -2606,20 +2670,33 @@ namespace
                 .Set(TEXT("Particles.RibbonLinkOrder"), TEXT("Particles.LDJ"))
                 .Set(TEXT("Particles.Position"), FString::Printf(TEXT("float3(User.Start.x, User.Start.y, User.Start.z - 80.0 + abs(%s) * 12.0) + %s * %s * %s * %s + %s * %s * 26.0"),
                     *R, ShotFwd, ShotLength, *Head, *T, ShotSide, *R))
-                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("(3.0 + 4.0 * %s) * (1.0 - saturate((Particles.Age - 0.18) / 0.25))"), *T))
-                .Set(TEXT("Particles.Color"), Tinted(1.9f, FString::Printf(TEXT("(0.3 + 0.7 * %s)"), *T)));
+                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("(5.0 + 9.0 * %s) * (1.0 - saturate((Particles.Age - 0.18) / 0.25))"), *T))
+                .Set(TEXT("Particles.Color"), Tinted(2.f, FString::Printf(TEXT("(0.3 + 0.7 * %s)"), *T)));
         }
-        Wake(Release.Parts.AddDefaulted_GetRef(), Dust, TEXT("3.0"), .16f, 741.f);
+        Wake(Release.Parts.AddDefaulted_GetRef(), Dust, TEXT("5.0"), .16f, 741.f);
         return Release;
     }
 
     FSystemParts GrabHitParts(UMaterial& Material, UMaterial& Top, FString& Error)
     {
-        UMaterialInstanceConstant* Ring = ChainPaint(TEXT("MI_LDGrabHit_Ring"), Top, SliceTexture(LDSliceVfx::ETex::ChainAProfile), nullptr, 0.f, NeutralPalette, 1.f, 0.f, Error);
-        UMaterialInstanceConstant* Spark = ChainPaint(TEXT("MI_LDGrabHit_Spark"), Top, SliceTexture(LDSliceVfx::ETex::ChainASparkStreak), nullptr, 0.f, NeutralPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Ring = ChainPaint(TEXT("MI_LDGrabHit_Ring"), Top, SliceTexture(LDSliceVfx::ETex::ChainAProfile), nullptr, 0.f, ImpactPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Spark = ChainPaint(TEXT("MI_LDGrabHit_Spark"), Top, SliceTexture(LDSliceVfx::ETex::ChainASparkStreak), nullptr, 0.f, ImpactPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Flash = ChainPaint(TEXT("MI_LDGrabHit_Flash"), Top, SliceTexture(LDSliceVfx::ETex::ChainAFlash), nullptr, 0.f, ImpactPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Dust = ChainPaint(TEXT("MI_LDGrabHit_Dust"), Material, SliceTexture(LDSliceVfx::ETex::SoftPuff), nullptr, 0.f, HeavyDustPalette, 1.f, 0.f, Error);
         FSystemParts Hit;
         Hit.System = LDSliceVfx::ESystem::GrabHit;
-        if (!Ring || !Spark) { return Hit; }
+        if (!Ring || !Spark || !Flash || !Dust) { return Hit; }
+        ImpactCore(Hit, Flash, 110.f, 260.f, TEXT("float3(User.End.x, User.End.y, User.End.z - 38.0)"));
+        FPart& Puff = Hit.Parts.AddDefaulted_GetRef();
+        Puff.Name = TEXT("Puff");
+        Puff.Kind = FPart::Sprite;
+        Puff.Count = TEXT("int(lerp(2.0, 4.0, User.Focus) + 0.5)");
+        Puff.Lifetime = TEXT("0.7");
+        Puff.Paint = Dust;
+        Puff.Set(TEXT("Particles.Position"), FString::Printf(TEXT("float3(User.End.x, User.End.y, User.End.z - 50.0) + float3((%s * 2.0 - 1.0) * 30.0, (%s * 2.0 - 1.0) * 30.0, -20.0 * Particles.NormalizedAge)"), *Random(755.f), *Random(756.f)))
+            .Set(TEXT("Particles.SpriteSize"), TEXT("float2(1.0, 1.0) * (50.0 + 70.0 * sqrt(Particles.NormalizedAge))"))
+            .Set(TEXT("Particles.SpriteRotation"), FString::Printf(TEXT("%s * 360.0"), *Random(757.f)))
+            .Set(TEXT("Particles.Color"), Glowing(.9f, TEXT("0.75 * saturate(Particles.Age / 0.04) * (1.0 - Particles.NormalizedAge)")));
         // A low, sharp pop at hip height (a small flat ring snapping open) and sparks that droop and fall: a mean, low blow.
         const int32 Points = 18;
         FPart& Pop = Hit.Parts.AddDefaulted_GetRef();
@@ -2633,8 +2710,8 @@ namespace
             const FString Open = TEXT("(1.0 - pow(1.0 - saturate(Particles.Age / 0.1), 2.0))");
             Pop.Set(TEXT("Particles.RibbonLinkOrder"), Own)
                 .Set(TEXT("Particles.Position"), FString::Printf(TEXT("float3(User.End.x, User.End.y, User.End.z - 38.0) + float3(cos(%s), sin(%s), 0.0) * (12.0 + 55.0 * %s)"), *Theta, *Theta, *Open))
-                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("10.0 * (1.0 - %s)"), *Open))
-                .Set(TEXT("Particles.Color"), Tinted(2.6f, FString::Printf(TEXT("(1.0 - %s)"), *Open)));
+                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("20.0 * (1.0 - 0.8 * %s)"), *Open))
+                .Set(TEXT("Particles.Color"), Glowing(2.f, FString::Printf(TEXT("(1.0 - %s)"), *Open)));
         }
         FPart& Droop = Hit.Parts.AddDefaulted_GetRef();
         Droop.Name = TEXT("Droop");
@@ -2648,9 +2725,9 @@ namespace
             const FString V = FString::Printf(TEXT("(float3(cos(%s), sin(%s), 0.0) * (160.0 + 120.0 * %s) + float3(0.0, 0.0, 60.0))"), *A, *A, *Random(753.f));
             Droop.Set(TEXT("Particles.Velocity"), FString::Printf(TEXT("%s + float3(0.0, 0.0, -1100.0) * Particles.Age"), *V))
                 .Set(TEXT("Particles.Position"), FString::Printf(TEXT("float3(User.End.x, User.End.y, User.End.z - 38.0) + %s * Particles.Age + float3(0.0, 0.0, -550.0) * Particles.Age * Particles.Age"), *V))
-                .Set(TEXT("Particles.SpriteSize"), TEXT("float2(20.0, 4.0)"))
+                .Set(TEXT("Particles.SpriteSize"), TEXT("float2(28.0, 6.0)"))
                 .Set(TEXT("Particles.SpriteRotation"), Quarter)
-                .Set(TEXT("Particles.Color"), Tinted(2.2f, TEXT("(1.0 - Particles.NormalizedAge)")));
+                .Set(TEXT("Particles.Color"), Glowing(2.f, TEXT("(1.0 - Particles.NormalizedAge)")));
         }
         return Hit;
     }
@@ -2658,10 +2735,12 @@ namespace
     FSystemParts BailReleaseParts(UMaterial& Material, FString& Error)
     {
         UMaterialInstanceConstant* Line = ChainPaint(TEXT("MI_LDBail_Slip"), Material, SliceTexture(LDSliceVfx::ETex::ChainAProfile), nullptr, 0.f, NeutralPalette, 1.f, 0.f, Error);
-        UMaterialInstanceConstant* Glow = ChainPaint(TEXT("MI_LDBail_Fist"), Material, SliceTexture(LDSliceVfx::ETex::ChainAFlash), nullptr, 0.f, NeutralPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Glow = ChainPaint(TEXT("MI_LDBail_Fist"), Material, SliceTexture(LDSliceVfx::ETex::ChainAFlash), nullptr, 0.f, ImpactPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Dust = ChainPaint(TEXT("MI_LDBail_Dust"), Material, SliceTexture(LDSliceVfx::ETex::SoftPuff), nullptr, 0.f, HeavyDustPalette, 1.f, 0.f, Error);
         FSystemParts Release;
         Release.System = LDSliceVfx::ESystem::BailRelease;
-        if (!Line || !Glow) { return Release; }
+        if (!Line || !Glow || !Dust) { return Release; }
+        Wake(Release.Parts.AddDefaulted_GetRef(), Dust, TEXT("5.0"), .2f, 745.f);
         // Two slipstream lines at shoulder height trail the 0.2 s dash through, and at its end both fists light up and stay
         // lit a moment (the empowered punch it sets up).
         const int32 Points = 10;
@@ -2682,8 +2761,8 @@ namespace
                 .Set(TEXT("Particles.RibbonLinkOrder"), TEXT("Particles.LDJ"))
                 .Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.Start + %s * %s * lerp(%s, %s, %s) + %s * %s * 32.0 + float3(0.0, 0.0, 10.0)"),
                     ShotFwd, ShotLength, *Tail, *Head, *T, ShotSide, *R))
-                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("(2.0 + 6.0 * %s)"), *T))
-                .Set(TEXT("Particles.Color"), Tinted(2.f, FString::Printf(TEXT("(0.3 + 0.7 * %s)"), *T)));
+                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("(4.0 + 10.0 * %s)"), *T))
+                .Set(TEXT("Particles.Color"), Tinted(2.2f, FString::Printf(TEXT("(0.3 + 0.7 * %s)"), *T)));
         }
         FPart& Fists = Release.Parts.AddDefaulted_GetRef();
         Fists.Name = TEXT("Fists");
@@ -2692,39 +2771,77 @@ namespace
         Fists.Lifetime = TEXT("0.75");
         Fists.Paint = Glow;
         Fists.Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.Start + %s * %s + %s * (float(Particles.UniqueID) * 2.0 - 1.0) * 24.0 + float3(0.0, 0.0, 5.0)"), ShotFwd, ShotLength, ShotSide))
-            .Set(TEXT("Particles.SpriteSize"), TEXT("float2(1.0, 1.0) * 34.0 * step(0.18, Particles.Age) * (0.85 + 0.15 * sin(Particles.Age * 30.0))"))
-            .Set(TEXT("Particles.Color"), Tinted(2.4f, TEXT("(1.0 - saturate((Particles.Age - 0.45) / 0.3))")));
+            .Set(TEXT("Particles.SpriteSize"), TEXT("float2(1.0, 1.0) * 60.0 * step(0.18, Particles.Age) * (0.85 + 0.15 * sin(Particles.Age * 30.0))"))
+            .Set(TEXT("Particles.Color"), Glowing(2.6f, TEXT("(1.0 - saturate((Particles.Age - 0.45) / 0.3))")));
         return Release;
     }
 
     FSystemParts RamReleaseParts(UMaterial& Material, UMaterial& Top, FString& Error)
     {
-        UMaterialInstanceConstant* Line = ChainPaint(TEXT("MI_LDRam_Front"), Top, SliceTexture(LDSliceVfx::ETex::ChainAProfile), nullptr, 0.f, NeutralPalette, 1.f, 0.f, Error);
-        UMaterialInstanceConstant* Dust = ChainPaint(TEXT("MI_LDRam_Dust"), Material, SliceTexture(LDSliceVfx::ETex::SoftPuff), nullptr, 0.f, DustPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Air = ChainPaint(TEXT("MI_LDRam_Air"), Material, SliceTexture(LDSliceVfx::ETex::ChainAProfile), SliceTexture(LDSliceVfx::ETex::DissolveNoise), 1.f, ImpactPalette, 1.f, 4.f, Error);
+        UMaterialInstanceConstant* Shade = ChainPaint(TEXT("MI_LDRam_Shade"), Material, SliceTexture(LDSliceVfx::ETex::ChainAProfile), SliceTexture(LDSliceVfx::ETex::DissolveNoise), 1.f, HeavyDustPalette, 1.f, 3.f, Error);
+        UMaterialInstanceConstant* Dust = ChainPaint(TEXT("MI_LDRam_Dust"), Material, SliceTexture(LDSliceVfx::ETex::SoftPuff), nullptr, 0.f, HeavyDustPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Skid = ChainPaint(TEXT("MI_LDRam_Skid"), Material, SliceTexture(LDSliceVfx::ETex::WaterWet), SliceTexture(LDSliceVfx::ETex::DissolveNoise), 2.f, ScuffPalette, 1.f, 0.f, Error);
         FSystemParts Release;
         Release.System = LDSliceVfx::ESystem::RamRelease;
-        if (!Line || !Dust) { return Release; }
-        // A wedge of pressure ahead of the body drives down the 460 cm path in 0.28 s (two nested chevrons), and the path
-        // behind it fills with dust.
-        const int32 Points = 9;
-        FPart& Wedge = Release.Parts.AddDefaulted_GetRef();
-        Wedge.Name = TEXT("Wedge");
-        Wedge.Count = FString::Printf(TEXT("%d"), Points * 2);
-        Wedge.Lifetime = TEXT("0.36");
-        Wedge.Paint = Line;
-        Wedge.TileCm = 50.f;
-        Wedge.bRibbonIds = true;
+        if (!Air || !Shade || !Dust || !Skid) { return Release; }
+        // The charge drives a body-wide wedge down its 460 cm path in 0.28 s: a dark shadow of displaced dust hugging the floor
+        // under a warm pressure front, a bow wave of dark dust shoved out to both sides as it passes, skid marks torn into the
+        // floor behind it and dust hanging in the wake.
+        const int32 Points = 11;
+        const FString Travel = FString::Printf(TEXT("(%s * (1.0 - pow(1.0 - saturate(Particles.Age / 0.28), 1.5)))"), ShotLength);
+        const FString End = TEXT("(1.0 - saturate((Particles.Age - 0.28) / 0.12))");
+        const auto Wedge = [&](FPart& Part, const TCHAR* Name, UMaterialInstanceConstant* Paint, float Lift, float Behind, float Half, float Width, const FString& Colour)
         {
-            const FString R = TEXT("float(Particles.LDRibbon)");
-            const FString A = FString::Printf(TEXT("((Particles.LDJ / %d.0 - 0.5) * 2.0)"), Points - 1);
-            const FString Travel = FString::Printf(TEXT("(%s * saturate(Particles.Age / 0.28))"), ShotLength);
-            Wedge.Set(TEXT("Particles.LDRibbon"), FString::Printf(TEXT("int(floor(%s / %d.0))"), Own, Points))
-                .Set(TEXT("Particles.LDJ"), FString::Printf(TEXT("(%s - float(Particles.LDRibbon) * %d.0)"), Own, Points))
-                .Set(TEXT("Particles.RibbonLinkOrder"), TEXT("Particles.LDJ"))
-                .Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.Start + %s * (%s + 45.0 - abs(%s) * 40.0 - %s * 22.0) + %s * %s * (50.0 - %s * 10.0) + float3(0.0, 0.0, -25.0)"),
-                    ShotFwd, *Travel, *A, *R, ShotSide, *A, *R))
-                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("(16.0 - 7.0 * %s) * (1.0 - abs(%s) * 0.5)"), *R, *A))
-                .Set(TEXT("Particles.Color"), Tinted(2.4f, FString::Printf(TEXT("(1.0 - 0.4 * %s) * (1.0 - saturate((Particles.Age - 0.28) / 0.08))"), *R)));
+            Part.Name = Name;
+            Part.Count = FString::Printf(TEXT("%d"), Points);
+            Part.Lifetime = TEXT("0.42");
+            Part.Paint = Paint;
+            Part.TileCm = 80.f;
+            const FString A = FString::Printf(TEXT("((%s / %d.0 - 0.5) * 2.0)"), Own, Points - 1);
+            Part.Set(TEXT("Particles.RibbonLinkOrder"), Own)
+                .Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.Start + %s * (%s + 55.0 - %.1f - abs(%s) * 55.0) + %s * %s * %.1f + float3(0.0, 0.0, %.1f)"),
+                    ShotFwd, *Travel, Behind, *A, ShotSide, *A, Half, Lift))
+                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("%.1f * (1.0 - abs(%s) * 0.55) * %s"), Width, *A, *End))
+                .Set(TEXT("Particles.Color"), Colour);
+        };
+        Wedge(Release.Parts.AddDefaulted_GetRef(), TEXT("Shadow"), Shade, -80.f, 22.f, 105.f, 130.f, Glowing(.8f, TEXT("1.0")));
+        Wedge(Release.Parts.AddDefaulted_GetRef(), TEXT("Front"), Air, -30.f, 0.f, 85.f, 60.f, Glowing(1.4f, TEXT("0.9")));
+        // Bow wave: dust thrown out sideways from the front as it passes each point.
+        FPart& Bow = Release.Parts.AddDefaulted_GetRef();
+        Bow.Name = TEXT("Bow");
+        Bow.Kind = FPart::Sprite;
+        Bow.Count = TEXT("int(lerp(8.0, 14.0, User.Focus) + 0.5)");
+        Bow.Lifetime = TEXT("1.2");
+        Bow.Paint = Dust;
+        {
+            const FString K = TEXT("((float(Particles.UniqueID) + 0.5) / max(float(int(lerp(8.0, 14.0, User.Focus) + 0.5)), 1.0))");
+            const FString Born = FString::Printf(TEXT("(%s * 0.28)"), *K);
+            const FString Tau = FString::Printf(TEXT("max(Particles.Age - %s, 0.0)"), *Born);
+            const FString Out = FString::Printf(TEXT("(1.0 - exp(-3.5 * %s))"), *Tau);
+            const FString Sign = TEXT("(step(0.5, frac(float(Particles.UniqueID) * 0.5)) * 2.0 - 1.0)");
+            Bow.Set(TEXT("Particles.Position"), FString::Printf(TEXT("float3(User.Start.x, User.Start.y, User.Start.z - 80.0) + %s * %s * %s + %s * %s * (40.0 + 130.0 * %s) + float3(0.0, 0.0, 15.0 + 45.0 * %s)"),
+                    ShotFwd, ShotLength, *K, ShotSide, *Sign, *Out, *Out))
+                .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(1.0, 1.0) * (90.0 + 140.0 * sqrt(saturate(%s / 1.0))) * step(%s, Particles.Age)"), *Tau, *Born))
+                .Set(TEXT("Particles.SpriteRotation"), FString::Printf(TEXT("%s * 360.0 + %s * 40.0"), *Random(791.f), *Tau))
+                .Set(TEXT("Particles.Color"), Glowing(.9f, FString::Printf(TEXT("1.0 * saturate(%s / 0.04) * (1.0 - saturate(%s / 0.95))"), *Tau, *Tau)));
+        }
+        // Skid marks: two dark tracks torn into the floor behind the front, fading over a second and a half.
+        FPart& Marks = Release.Parts.AddDefaulted_GetRef();
+        Marks.Name = TEXT("Skid");
+        Marks.Count = TEXT("8");
+        Marks.Lifetime = TEXT("1.6");
+        Marks.Paint = Skid;
+        Floor(Marks, ShotFwd);
+        {
+            const FString K = TEXT("((floor(float(Particles.UniqueID) / 2.0) + 0.5) / 4.0)");
+            const FString Track = TEXT("(frac(float(Particles.UniqueID) * 0.5) * 4.0 - 1.0)");
+            const FString Born = FString::Printf(TEXT("(%s * 0.28)"), *K);
+            Marks.Set(TEXT("Particles.Position"), FString::Printf(TEXT("float3(User.Start.x, User.Start.y, User.Start.z - 93.0) + %s * %s * %s + %s * %s * 22.0"),
+                    ShotFwd, ShotLength, *K, ShotSide, *Track))
+                .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(%s / 4.0 * 1.3, 46.0) * step(%s, Particles.Age)"), ShotLength, *Born))
+                .Set(TEXT("Particles.SpriteRotation"), Quarter)
+                .Set(TEXT("Particles.Color"), Glowing(1.f, TEXT("0.9 * (1.0 - saturate((Particles.Age - 0.6) / 1.0))")));
         }
         Wake(Release.Parts.AddDefaulted_GetRef(), Dust, TEXT("7.0"), .28f, 761.f);
         return Release;
@@ -2732,57 +2849,87 @@ namespace
 
     FSystemParts RamHitParts(UMaterial& Material, UMaterial& Top, FString& Error)
     {
-        UMaterialInstanceConstant* Ring = ChainPaint(TEXT("MI_LDRamHit_Ring"), Top, SliceTexture(LDSliceVfx::ETex::ChainAProfile), nullptr, 0.f, NeutralPalette, 1.f, 0.f, Error);
-        UMaterialInstanceConstant* Chip = ChainPaint(TEXT("MI_LDRamHit_Chip"), Top, SliceTexture(LDSliceVfx::ETex::ChainASparkStreak), nullptr, 0.f, NeutralPalette, 1.f, 0.f, Error);
-        UMaterialInstanceConstant* Dust = ChainPaint(TEXT("MI_LDRamHit_Dust"), Material, SliceTexture(LDSliceVfx::ETex::SoftPuff), nullptr, 0.f, DustPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Flash = ChainPaint(TEXT("MI_LDRamHit_Flash"), Top, SliceTexture(LDSliceVfx::ETex::ChainAFlash), nullptr, 0.f, ImpactPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Ring = ChainPaint(TEXT("MI_LDRamHit_Ring"), Material, SliceTexture(LDSliceVfx::ETex::ChainAProfile), SliceTexture(LDSliceVfx::ETex::DissolveNoise), 1.f, ImpactPalette, 1.f, 3.f, Error);
+        UMaterialInstanceConstant* Chip = ChainPaint(TEXT("MI_LDRamHit_Chip"), Top, SliceTexture(LDSliceVfx::ETex::ChainASparkStreak), nullptr, 0.f, ImpactPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Dust = ChainPaint(TEXT("MI_LDRamHit_Dust"), Material, SliceTexture(LDSliceVfx::ETex::SoftPuff), nullptr, 0.f, HeavyDustPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Scuff = ChainPaint(TEXT("MI_LDRamHit_Scuff"), Material, SliceTexture(LDSliceVfx::ETex::WaterWet), SliceTexture(LDSliceVfx::ETex::DissolveNoise), 2.f, ScuffPalette, 1.f, 0.f, Error);
         FSystemParts Hit;
         Hit.System = LDSliceVfx::ESystem::RamHit;
-        if (!Ring || !Chip || !Dust) { return Hit; }
-        // Trampled: a heavy ring slams out over the floor under the body, chips burst upwards and dust blows out round it.
-        const int32 Points = 28;
-        FPart& Slam = Hit.Parts.AddDefaulted_GetRef();
-        Slam.Name = TEXT("Slam");
-        Slam.Count = FString::Printf(TEXT("%d"), Points);
-        Slam.Lifetime = TEXT("0.3");
-        Slam.Paint = Ring;
-        Slam.TileCm = 50.f;
+        if (!Flash || !Ring || !Chip || !Dust || !Scuff) { return Hit; }
+        const FString Floor0 = TEXT("float3(User.End.x, User.End.y, User.End.z - 92.0)");
+        // The impact punch: a body-wide warm core at the contact for three frames (0-100 ms, inside C's 0-180 ms victim flash),
+        // with its light.
+        FPart& Core = Hit.Parts.AddDefaulted_GetRef();
+        Core.Name = TEXT("Core");
+        Core.Kind = FPart::Sprite;
+        Core.Lifetime = TEXT("0.1");
+        Core.Paint = Flash;
+        Core.Set(TEXT("Particles.Position"), TEXT("User.End - normalize(User.End - User.Start) * 20.0"))
+            .Set(TEXT("Particles.SpriteSize"), TEXT("float2(1.0, 1.0) * (170.0 - 50.0 * Particles.NormalizedAge)"))
+            .Set(TEXT("Particles.Color"), Glowing(2.6f, TEXT("(1.0 - pow(Particles.NormalizedAge, 2.0))")));
+        FPart& Light = Hit.Parts.AddDefaulted_GetRef();
+        Light.Name = TEXT("Light");
+        Light.Kind = FPart::Light;
+        Light.Lifetime = TEXT("0.14");
+        Light.Set(TEXT("Particles.Position"), TEXT("User.End"))
+            .Set(TEXT("Particles.LightRadius"), TEXT("380.0"))
+            .Set(TEXT("Particles.Color"), FString::Printf(TEXT("float4(1.0, 0.75, 0.45, 1.0) * float4(7.0, 7.0, 7.0, 1.0) * %s * (1.0 - Particles.NormalizedAge)"), Bright));
+        // The ground answers: a thick warm shock ring rolls out over the floor, a ring of dark dust heaves up behind it, and a
+        // crater scuff stays.
+        const int32 Points = 32;
+        FPart& Shock = Hit.Parts.AddDefaulted_GetRef();
+        Shock.Name = TEXT("Shock");
+        Shock.Count = FString::Printf(TEXT("%d"), Points);
+        Shock.Lifetime = TEXT("0.32");
+        Shock.Paint = Ring;
+        Shock.TileCm = 60.f;
         {
             const FString Theta = FString::Printf(TEXT("(%s / %d.0 * 6.2832)"), Own, Points - 1);
-            const FString Open = TEXT("(1.0 - pow(1.0 - saturate(Particles.Age / 0.25), 2.5))");
-            Slam.Set(TEXT("Particles.RibbonLinkOrder"), Own)
-                .Set(TEXT("Particles.Position"), FString::Printf(TEXT("float3(User.End.x, User.End.y, User.End.z - 92.0) + float3(cos(%s), sin(%s), 0.0) * (30.0 + 120.0 * %s)"), *Theta, *Theta, *Open))
-                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("18.0 * (1.0 - 0.8 * %s)"), *Open))
-                .Set(TEXT("Particles.Color"), Tinted(2.4f, FString::Printf(TEXT("(1.0 - %s)"), *Open)));
+            const FString Open = TEXT("(1.0 - pow(1.0 - saturate(Particles.Age / 0.28), 2.5))");
+            Shock.Set(TEXT("Particles.RibbonLinkOrder"), Own)
+                .Set(TEXT("Particles.Position"), FString::Printf(TEXT("%s + float3(cos(%s), sin(%s), 0.0) * (40.0 + 150.0 * %s) + float3(0.0, 0.0, 3.0)"), *Floor0, *Theta, *Theta, *Open))
+                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("34.0 * (1.0 - 0.75 * %s)"), *Open))
+                .Set(TEXT("Particles.Color"), Glowing(1.8f, FString::Printf(TEXT("(1.0 - %s)"), *Open)));
+        }
+        FPart& Heave = Hit.Parts.AddDefaulted_GetRef();
+        Heave.Name = TEXT("Heave");
+        Heave.Kind = FPart::Sprite;
+        Heave.Count = TEXT("int(lerp(7.0, 12.0, User.Focus) + 0.5)");
+        Heave.Lifetime = TEXT("1.1");
+        Heave.Paint = Dust;
+        {
+            const FString A = FString::Printf(TEXT("((float(Particles.UniqueID) + %s * 0.6) / max(float(int(lerp(7.0, 12.0, User.Focus) + 0.5)), 1.0) * 6.2832)"), *Random(801.f));
+            const FString Out = TEXT("(1.0 - exp(-4.0 * Particles.Age))");
+            Heave.Set(TEXT("Particles.Position"), FString::Printf(TEXT("%s + float3(cos(%s), sin(%s), 0.0) * (40.0 + 120.0 * %s) + float3(0.0, 0.0, 20.0 + 55.0 * %s)"), *Floor0, *A, *A, *Out, *Out))
+                .Set(TEXT("Particles.SpriteSize"), TEXT("float2(1.0, 1.0) * (70.0 + 110.0 * sqrt(Particles.NormalizedAge))"))
+                .Set(TEXT("Particles.SpriteRotation"), FString::Printf(TEXT("%s * 360.0 + Particles.Age * 30.0"), *Random(802.f)))
+                .Set(TEXT("Particles.Color"), Glowing(1.f, TEXT("0.72 * saturate(Particles.Age / 0.04) * (1.0 - Particles.NormalizedAge)")));
         }
         FPart& Chips = Hit.Parts.AddDefaulted_GetRef();
         Chips.Name = TEXT("Chips");
         Chips.Kind = FPart::Sprite;
-        Chips.Count = TEXT("int(lerp(6.0, 12.0, User.Focus) + 0.5)");
-        Chips.Lifetime = FString::Printf(TEXT("0.4 + 0.25 * %s"), *Random(771.f));
+        Chips.Count = TEXT("int(lerp(8.0, 14.0, User.Focus) + 0.5)");
+        Chips.Lifetime = FString::Printf(TEXT("0.45 + 0.25 * %s"), *Random(771.f));
         Chips.Paint = Chip;
         Chips.Align = ENiagaraSpriteAlignment::VelocityAligned;
         {
             const FString A = FString::Printf(TEXT("(%s * 6.2832)"), *Random(772.f));
-            const FString V = FString::Printf(TEXT("(float3(cos(%s), sin(%s), 0.0) * (120.0 + 160.0 * %s) + float3(0.0, 0.0, 420.0 + 260.0 * %s))"), *A, *A, *Random(773.f), *Random(774.f));
+            const FString V = FString::Printf(TEXT("(float3(cos(%s), sin(%s), 0.0) * (160.0 + 220.0 * %s) + float3(0.0, 0.0, 480.0 + 300.0 * %s))"), *A, *A, *Random(773.f), *Random(774.f));
             Chips.Set(TEXT("Particles.Velocity"), FString::Printf(TEXT("%s + float3(0.0, 0.0, -1100.0) * Particles.Age"), *V))
                 .Set(TEXT("Particles.Position"), FString::Printf(TEXT("float3(User.End.x, User.End.y, User.End.z - 80.0) + %s * Particles.Age + float3(0.0, 0.0, -550.0) * Particles.Age * Particles.Age"), *V))
-                .Set(TEXT("Particles.SpriteSize"), TEXT("float2(24.0, 6.0)"))
+                .Set(TEXT("Particles.SpriteSize"), TEXT("float2(30.0, 7.0)"))
                 .Set(TEXT("Particles.SpriteRotation"), Quarter)
-                .Set(TEXT("Particles.Color"), Tinted(2.2f, TEXT("(1.0 - Particles.NormalizedAge)")));
+                .Set(TEXT("Particles.Color"), Glowing(2.f, TEXT("(1.0 - Particles.NormalizedAge)")));
         }
-        FPart& Blow = Hit.Parts.AddDefaulted_GetRef();
-        Blow.Name = TEXT("Blow");
-        Blow.Kind = FPart::Sprite;
-        Blow.Count = TEXT("int(lerp(3.0, 6.0, User.Focus) + 0.5)");
-        Blow.Lifetime = TEXT("0.9");
-        Blow.Paint = Dust;
-        {
-            const FString A = FString::Printf(TEXT("(%s * 6.2832)"), *Random(781.f));
-            Blow.Set(TEXT("Particles.Position"), FString::Printf(TEXT("float3(User.End.x, User.End.y, User.End.z - 80.0) + float3(cos(%s), sin(%s), 0.0) * (30.0 + 90.0 * (1.0 - exp(-4.0 * Particles.Age))) + float3(0.0, 0.0, 20.0 * Particles.NormalizedAge)"), *A, *A))
-                .Set(TEXT("Particles.SpriteSize"), TEXT("float2(1.0, 1.0) * (35.0 + 70.0 * sqrt(Particles.NormalizedAge))"))
-                .Set(TEXT("Particles.SpriteRotation"), FString::Printf(TEXT("%s * 360.0"), *Random(782.f)))
-                .Set(TEXT("Particles.Color"), Glowing(1.f, TEXT("0.38 * (1.0 - Particles.NormalizedAge)")));
-        }
+        FPart& Crater = Hit.Parts.AddDefaulted_GetRef();
+        Crater.Name = TEXT("Crater");
+        Crater.Lifetime = TEXT("User.Duration");
+        Crater.Paint = Scuff;
+        Floor(Crater, TEXT("float3(1.0, 0.0, 0.0)"));
+        Crater.Set(TEXT("Particles.Position"), Floor0 + TEXT(" + float3(0.0, 0.0, 1.5)"))
+            .Set(TEXT("Particles.SpriteSize"), TEXT("float2(1.0, 1.0) * 200.0 * (0.6 + 0.4 * saturate(Particles.Age / 0.15))"))
+            .Set(TEXT("Particles.Color"), Glowing(1.f, TEXT("0.65 * saturate(Particles.Age / 0.05) * (1.0 - saturate((Particles.Age - 0.5) / max(User.Duration - 0.55, 0.1)))")));
         return Hit;
     }
 
