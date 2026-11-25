@@ -61,8 +61,8 @@ private:
     UPROPERTY(Transient) TArray<TObjectPtr<USoundWave>> Takes;
     UPROPERTY(Transient) TArray<TObjectPtr<USoundWave>> MusicSounds;
     UPROPERTY(Transient) TObjectPtr<USoundAttenuation> BodyAttenuation;
-    UPROPERTY(Transient) TObjectPtr<USoundConcurrency> BodyConcurrency;
-    UPROPERTY(Transient) TObjectPtr<USoundConcurrency> InterfaceConcurrency;
+    // One concurrency group per sound (a cue, a skill's release, a skill's hit), made on first use.
+    UPROPERTY(Transient) TMap<FName, TObjectPtr<USoundConcurrency>> Concurrency;
     // The current track's component and the outgoing ones still fading; all persist across level transitions.
     UPROPERTY(Transient) TObjectPtr<UAudioComponent> MusicComponent;
     UPROPERTY(Transient) TArray<TObjectPtr<UAudioComponent>> FadingMusic;
@@ -96,5 +96,8 @@ private:
     // Plays one take (logged first under -LDAudioEventLog); with Keep, a component the caller may stop is returned there.
     bool Emit(const FString& What, int32 Take, bool bSpatial, const FVector& Location, float Volume, float Pitch, bool bInterface,
         UAudioComponent** Keep = nullptr);
+    // The sound's own voice limit (AUDIO_AND_FEEL §3): interface 2, element states and reactions 3, every other sound 4;
+    // the oldest voice of the group stops, and a retrigger inside 25 ms is one sound.
+    USoundConcurrency* ConcurrencyOf(const FString& What, bool bInterface);
     void StopMusic();
 };

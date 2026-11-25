@@ -316,7 +316,18 @@ namespace
         return FString(Root) + Name + (Index == 0 ? FString() : FString::Printf(TEXT("_%d"), Index));
     }
 
-    // Imports every take of Sound onto Class at its volume.
+    // The voice priority of a sound when the engine runs out of voices (AUDIO_AND_FEEL §3): the own confirmation and
+    // hurt first, then match events, blows and skills, element states, the interface last.
+    float AudioPriorityOf(const FString& Name)
+    {
+        if (Name.StartsWith(TEXT("SelfDealt")) || Name.StartsWith(TEXT("SelfHit")) || Name.StartsWith(TEXT("SelfShield")) || Name.StartsWith(TEXT("SelfDeath"))) { return 3.f; }
+        if (Name.StartsWith(TEXT("Match")) || Name.StartsWith(TEXT("Kill")) || Name.StartsWith(TEXT("Capture")) || Name.StartsWith(TEXT("LevelUp"))) { return 2.5f; }
+        if (Name.StartsWith(TEXT("State"))) { return 1.f; }
+        if (Name.StartsWith(TEXT("UI"))) { return .8f; }
+        return 2.f;
+    }
+
+    // Imports every take of Sound onto Class at its volume and priority.
     bool AudioImportTakes(USoundFactory& Factory, const TCHAR* Root, const FAudioManifestSound& Sound, USoundClass* Class,
         TArray<USoundWave*>& OutTakes, TArray<UObject*>& Assets, FString& Error)
     {
@@ -328,6 +339,7 @@ namespace
             Wave->bLooping = false;
             Wave->AttenuationSettings = nullptr;
             Wave->Volume = Sound.Volume;
+            Wave->Priority = AudioPriorityOf(Sound.Name);
             Wave->MarkPackageDirty();
             OutTakes.Add(Wave);
             Assets.Add(Wave);
@@ -348,6 +360,8 @@ namespace
             if (!AudioImportedFromCurrentBytes(*Wave, Sound.Sources[Index], Error)) { return false; }
             if (!FMath::IsNearlyEqual(Wave->Volume, Sound.Volume, 1e-4f))
             { return AudioFail(Error, FString::Printf(TEXT("%s plays at volume %.3f, the manifest says %.3f; run ImportDemoAudio.ps1 -Mode Import."), *Wave->GetPathName(), Wave->Volume, Sound.Volume)); }
+            if (!FMath::IsNearlyEqual(Wave->Priority, AudioPriorityOf(Sound.Name), 1e-4f))
+            { return AudioFail(Error, Wave->GetPathName() + TEXT(" has a stale voice priority; run ImportDemoAudio.ps1 -Mode Import.")); }
         }
         return true;
     }

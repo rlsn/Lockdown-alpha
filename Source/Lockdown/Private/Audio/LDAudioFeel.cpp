@@ -41,7 +41,7 @@ void LDAudioFeel::Swing(const UObject& BodyContext, bool bOwnBody, uint8 ComboSt
 UAudioComponent* LDAudioFeel::Charge(const UObject& BodyContext, bool bOwnBody, const FVector& At)
 {
     ULDAudioSubsystem* Audio = AudioOf(BodyContext);
-    return Audio ? Audio->Start(ELDAudioCue::CastCharge, !bOwnBody, At, bOwnBody ? 1.f : OtherGain) : nullptr;
+    return Audio ? Audio->Start(ELDAudioCue::CastCharge, !bOwnBody, At, bOwnBody ? 1.f : OtherDangerGain) : nullptr;
 }
 
 void LDAudioFeel::CutCharge(UAudioComponent* Charge)
@@ -53,7 +53,7 @@ void LDAudioFeel::Release(const UObject& BodyContext, bool bOwnBody, uint8 Abili
 {
     if (ULDAudioSubsystem* Audio = AudioOf(BodyContext))
     {
-        Audio->PlaySkillRelease(Ability, !bOwnBody, At, bOwnBody ? 1.f : OtherGain);
+        Audio->PlaySkillRelease(Ability, !bOwnBody, At, bOwnBody ? 1.f : OtherDangerGain);
         if (bOverdrive) { Body(*Audio, ELDAudioCue::SwingFinisher, bOwnBody, At, .8f, .8f); }
     }
 }
@@ -85,14 +85,14 @@ void LDAudioFeel::Reaction(const UObject& BodyContext, bool bOwnBody, uint8 Reac
         ELDAudioCue::ReactionShatter, ELDAudioCue::ReactionCorrode, ELDAudioCue::None, ELDAudioCue::ReactionFrostbite };
     static_assert(UE_ARRAY_COUNT(Cues) == LDCombatReactionCount, "Every reaction number needs its cue or a hole.");
     if (Reaction >= LDCombatReactionCount || Cues[Reaction] == ELDAudioCue::None) { return; }
-    if (ULDAudioSubsystem* Audio = AudioOf(BodyContext)) { Body(*Audio, Cues[Reaction], bOwnBody, At); }
+    if (ULDAudioSubsystem* Audio = AudioOf(BodyContext)) { Body(*Audio, Cues[Reaction], bOwnBody, At, bOwnBody ? 1.f : OtherDangerGain / OtherGain); }
 }
 
 void LDAudioFeel::StateOnset(const UObject& BodyContext, bool bOwnBody, int32 Index, const FVector& At)
 {
     static constexpr ELDAudioCue Cues[] = { ELDAudioCue::StateBurn, ELDAudioCue::StateWet, ELDAudioCue::StateShock, ELDAudioCue::StateChill, ELDAudioCue::StateRot };
     if (Index < 0 || Index >= int32(UE_ARRAY_COUNT(Cues))) { return; }
-    if (ULDAudioSubsystem* Audio = AudioOf(BodyContext)) { Body(*Audio, Cues[Index], bOwnBody, At); }
+    if (ULDAudioSubsystem* Audio = AudioOf(BodyContext)) { Body(*Audio, Cues[Index], bOwnBody, At, bOwnBody ? 1.f : OtherStateGain / OtherGain); }
 }
 
 void LDAudioFeel::Confirm(const UObject& Context, uint8 HitFlags, float Volume)

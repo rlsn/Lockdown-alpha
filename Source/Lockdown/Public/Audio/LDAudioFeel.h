@@ -11,8 +11,11 @@ class UObject;
 // Presentation only: nothing here reads or changes gameplay state or timing.
 namespace LDAudioFeel
 {
-    // Others' body sounds relative to the own body's.
+    // Others' sounds relative to the own body's: blows and states quieter, but what threatens the local player (another's
+    // skill windup and release, a reaction) stays near full so a danger is never downgraded just for being someone else's.
     constexpr float OtherGain = .7f;
+    constexpr float OtherDangerGain = .9f;
+    constexpr float OtherStateGain = .55f;
     // A swing's whoosh starts this long before its release so its peak lands on the release frame; never before 80 % of
     // the windup, so a predicted swing held at 75 % (LDHitFeel::SwingHoldFraction) stays silent until confirmed.
     LOCKDOWN_API float SwingPreRollSeconds(float WindupSeconds);

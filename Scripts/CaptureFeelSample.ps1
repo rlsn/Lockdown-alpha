@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$EngineRoot,[string]$FFmpeg,[ValidateRange(1280,2560)][int]$Width=1600,[ValidateRange(720,1440)][int]$Height=900,[ValidateRange(60,900)][int]$TimeoutSeconds=300)
+param([string]$EngineRoot,[string]$FFmpeg,[ValidateRange(1280,2560)][int]$Width=1600,[ValidateRange(720,1440)][int]$Height=900,[ValidateRange(60,900)][int]$TimeoutSeconds=300,[ValidateSet('feel','reel')][string]$Scenario='feel')
 # Audiovisual game-feel sample (docs/systems/AUDIO_AND_FEEL.md): the combat proof stage plays the "feel" scenario at real game
 # speed with the audio device on. The game records its own master submix (game_audio.wav); ffmpeg records the game window;
 # the speaker output is recorded by WASAPI loopback (Scripts/RecordAudioLoopback.py); MakeFeelEvidence.py muxes the window
@@ -14,12 +14,12 @@ if(-not $FFmpeg){$FFmpeg=(Get-Command ffmpeg -ErrorAction SilentlyContinue).Sour
 if(-not $FFmpeg -or -not(Test-Path -LiteralPath $FFmpeg)){throw 'ffmpeg is required: pass -FFmpeg <path to ffmpeg.exe>.'}
 $binary=Join-Path $engine 'Engine\Binaries\Win64\UnrealEditor.exe'
 $project=Join-Path (Get-LDProjectRoot) 'Lockdown.uproject'
-$output=New-LDArtifactDirectory ('FeelSample-'+$Width+'x'+$Height)
+$output=New-LDArtifactDirectory ('FeelSample-'+$Scenario+'-'+$Width+'x'+$Height)
 $user=Join-Path $output 'User'
 New-Item -ItemType Directory -Path $user | Out-Null
 $world=(Get-LDDemoMaps)[1]+'?listen'
 $log=Join-Path $output 'Art.log'
-$arguments='"{0}" {1} -game -windowed -ForceRes -ResX={2} -ResY={3} -nop4 -DisablePlugins=AllToolsets,ModelContextProtocol,Fab -UserDir="{4}" -LDDemoArtCapture -LDDemoArtCaptureOutput="{5}" -abslog="{6}" -LDDemoCombatVfxCapture -LDDemoVfxProof=feel -LDDemoVfxProofLabel=feel -LDAudioEventLog' -f $project,$world,$Width,$Height,$user,$output,$log
+$arguments='"{0}" {1} -game -windowed -ForceRes -ResX={2} -ResY={3} -nop4 -DisablePlugins=AllToolsets,ModelContextProtocol,Fab -UserDir="{4}" -LDDemoArtCapture -LDDemoArtCaptureOutput="{5}" -abslog="{6}" -LDDemoCombatVfxCapture -LDDemoVfxProof={7} -LDDemoVfxProofLabel=feel -LDAudioEventLog' -f $project,$world,$Width,$Height,$user,$output,$log,$(if($Scenario -eq 'reel'){'feel,reel'}else{'feel'})
 # The device output itself (WASAPI loopback): what a player hears, with the real output latency. It starts before the game so
 # the game's heavy start-up cannot make it fall behind, at high priority.
 $stopFlag=Join-Path $output 'loopback.stop'
