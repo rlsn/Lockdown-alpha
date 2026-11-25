@@ -6,7 +6,7 @@
 #include "Character/LDHitFeel.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Character/LDImpactFx.h"
-#include "Audio/LDAudioSubsystem.h"
+#include "Audio/LDAudioFeel.h"
 #include "Camera/CameraComponent.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
@@ -269,14 +269,7 @@ void ALDCharacter::Tick(float Delta)
             // A kill, critical hit or broken shield flashes the screen edge and fringes the lens (off when reduced).
             if (ULDImpactFxSubsystem* Impacts=GetWorld()?GetWorld()->GetSubsystem<ULDImpactFxSubsystem>():nullptr)
             { Impacts->FlashScreen(LDHitVfx::ScreenFlashOf(View.Cues.LastDealtFlags,bReduced)); }
-            UGameInstance* Instance=GetGameInstance();
-            ULDAudioSubsystem* Audio=Instance?Instance->GetSubsystem<ULDAudioSubsystem>():nullptr;
-            if (Audio)
-            {
-                Audio->Play(ELDAudioCue::SelfDealtImpact,Feel.ConfirmVolume);
-                Audio->Play(ELDAudioCue::SelfDealtAccent,Feel.ConfirmVolume);
-            }
-            else { UE_LOG(LogLDContent,Warning,TEXT("LD_AUDIO_SUBSYSTEM_UNAVAILABLE confirmed hit layers not played.")); }
+            LDAudioFeel::Confirm(*this,View.Cues.LastDealtFlags,Feel.ConfirmVolume);
         }
     }
     Body->Animate(GetVelocity(),Delta);

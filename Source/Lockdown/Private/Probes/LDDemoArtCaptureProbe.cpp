@@ -1,4 +1,9 @@
 #include "Probes/LDDemoArtCaptureProbe.h"
+#include "AudioMixerBlueprintLibrary.h"
+#include "Audio/LDAudioFeel.h"
+#include "Audio/LDAudioSubsystem.h"
+#include "Engine/GameViewportClient.h"
+#include "Character/LDHitFeel.h"
 #include "Core/LDLog.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -147,6 +152,10 @@ namespace
             // Frames captured from From seconds on.
             float From = .2f;
             int32 Frames = 24;
+            // Audiovisual feel sample (-LDDemoVfxProof=feel): played at real game speed with the audio device on; the master
+            // submix is recorded to <folder>/game_audio.wav (the game's own mix, not a re-render) for Seconds.
+            bool bRealtime = false;
+            float Seconds = 0.f;
         };
         FString ProofLabel;
         TArray<FChainJob> ChainJobs;
@@ -914,7 +923,7 @@ namespace
             Categories.ParseIntoArray(Wanted, TEXT(","), true);
             for (const FString& Name : Wanted)
             {
-                if (!Check(Name == TEXT("chain") || Name == TEXT("hit") || Name == TEXT("swing") || Name == TEXT("field") || Name == TEXT("water") || Name == TEXT("fire") || Name == TEXT("chill") || Name == TEXT("states"),
+                if (!Check(Name == TEXT("chain") || Name == TEXT("hit") || Name == TEXT("swing") || Name == TEXT("field") || Name == TEXT("water") || Name == TEXT("fire") || Name == TEXT("chill") || Name == TEXT("states") || Name == TEXT("feel"),
                     TEXT("Proof category known: ") + Name)) { return false; }
             }
             const TWeakObjectPtr<ULDHumanoidVisualComponent> A = VfxAttacker, V1 = VfxVictim, V2 = VfxExtras[0], V3 = VfxExtras[1], A2 = VfxExtras[2], A3 = VfxExtras[3];
@@ -1123,6 +1132,45 @@ namespace
                     ChainJobs.Add({Look, TEXT("chill-sunlit"), Blast(A, V1), Sunlit, Home, false, Cola + .12f, .1f, 30});
                     ChainJobs.Add({Look, TEXT("chill-other"), Blast(A3, V3), nullptr, nullptr, false, Cola + .12f, .1f, 30});
                 }
+                else if (Look == TEXT("feel"))
+                {
+                    // The own body A runs a full basic combo on V1 at the base cadence (1/0.85 s apart), each blow landing at
+                    // its release with the owner's confirmation, then casts the approved chain: V1, then two bounces 150 ms
+                    // apart (active_zap data). Every sound comes from the same presentation hooks as in a match.
+                    const float Interval = 1.f / .85f;
+                    const auto Confirmed = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Attacker, uint8 Flags)
+                    {
+                        return [Attacker, Flags]()
+                        {
+                            if (auto* B = Attacker.Get())
+                            {
+                                const LDHitFeel::FTuning Feel = LDHitFeel::Read();
+                                const LDHitFeel::FConfirm Confirm = LDHitFeel::ConfirmOf(Feel, Flags);
+                                B->SetConfirm(0.f, Confirm.StopSeconds, Confirm.SparkScale);
+                                LDAudioFeel::Confirm(*B, Flags, Feel.ConfirmVolume);
+                            }
+                        };
+                    };
+                    FChainJob Feel{Look, TEXT("feel-combo-zap"), {}, [Close, A, V1]() { Close(); if (auto* B = A.Get()) { B->SetOwnBody(true); } if (auto* B = V1.Get()) { B->SetOwnBody(false); } },
+                        [Home, A]() { Home(); if (auto* B = A.Get()) { B->SetOwnBody(false); } }};
+                    for (uint8 Step = 1; Step <= 3; ++Step)
+                    {
+                        const float At = .5f + (Step - 1) * Interval;
+                        Feel.Steps.Add({At, Swing(A, Step, W)});
+                        Feel.Steps.Add({At + W + .02f, Plain(V1)});
+                        Feel.Steps.Add({At + W + .02f, Confirmed(A, 0)});
+                    }
+                    const float ZapAt = .5f + 3.f * Interval + .3f;
+                    Feel.Steps.Add({ZapAt, Cast(A)});
+                    Feel.Steps.Add({ZapAt + .27f, Hit(V1)});
+                    Feel.Steps.Add({ZapAt + .27f, Confirmed(A, 0)});
+                    Feel.Steps.Add({ZapAt + .42f, Hit(V2)});
+                    Feel.Steps.Add({ZapAt + .57f, Hit(V3)});
+                    Feel.bRealtime = true;
+                    Feel.Seconds = ZapAt + 1.6f;
+                    ChainJobs.Add(Feel);
+                    continue;
+                }
                 else
                 {
                 // (a) a short hop of 250 cm along the checked dash line in front of A.
@@ -1227,6 +1275,20 @@ namespace
                 ChainPhaseAt = Now;
                 ChainFrameTimes.Reset();
                 ChainCheck = MakeShared<FJsonObject>();
+                if (Job.bRealtime)
+                {
+                    IFileManager::Get().MakeDirectory(*(Directory / Folder), true);
+                    // The window shows the stage as the real-time recording sees it: no lobby or HUD widgets over it.
+                    if (UGameViewportClient* Viewport = Target.GetGameViewport()) { Viewport->RemoveAllViewportWidgets(); }
+                    // Only the music bus is muted so the combat sounds can be judged on their own; every other bus plays as set.
+                    if (UGameInstance* Instance = Target.GetGameInstance())
+                    { if (auto* Audio = Instance->GetSubsystem<ULDAudioSubsystem>()) { Audio->ApplyBusVolume(ELDAudioBus::Music, 0.f); } }
+                    UAudioMixerBlueprintLibrary::StartRecordingOutput(&Target, Job.Seconds + 1.f);
+                    // The wall clock of the recording start lets the window recording be aligned to the game audio.
+                    UE_LOG(LogLDTest, Display, TEXT("LD_FEEL_RECORDING_START utc=%s"), *FDateTime::UtcNow().ToIso8601());
+                    ChainPhase = 4;
+                    return true;
+                }
                 if (Job.bPerf)
                 {
                     for (const auto* List : {&PerfCasters, &PerfVictims}) { for (const auto& Body : *List) { if (Body.IsValid()) { Body->SetVisibility(true, true); } } }
@@ -1285,6 +1347,25 @@ namespace
                 if (Job.Teardown) { Job.Teardown(); }
                 ChainPhase = 2;
                 ChainPhaseAt = Now;
+                return true;
+            }
+            if (ChainPhase == 4)
+            {
+                // Real game speed: the scenario clock is the world's own delta, the steps fire on it, and the audio device
+                // plays and records exactly what a match would.
+                ChainClock += SimDelta;
+                while (ChainStep < Job.Steps.Num() && Job.Steps[ChainStep].At <= ChainClock)
+                {
+                    UE_LOG(LogLDTest, Display, TEXT("LD_FEEL_STEP t=%.4f world=%.4f step=%d"), ChainClock, Target.GetTimeSeconds(), ChainStep);
+                    Job.Steps[ChainStep++].Do();
+                }
+                if (ChainClock < Job.Seconds) { return true; }
+                const FString Wav = FPaths::ConvertRelativePathToFull(Directory / Folder);
+                UAudioMixerBlueprintLibrary::StopRecordingOutput(&Target, EAudioRecordingExportType::WavFile, TEXT("game_audio"), Wav);
+                UE_LOG(LogLDTest, Display, TEXT("LD_FEEL_RECORDING_STOP utc=%s file=%s/game_audio.wav"), *FDateTime::UtcNow().ToIso8601(), *Wav);
+                if (Job.Teardown) { Job.Teardown(); }
+                ChainPhaseAt = Now;
+                ChainPhase = 2;
                 return true;
             }
             if (ChainPhase == 2)

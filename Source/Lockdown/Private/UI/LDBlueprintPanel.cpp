@@ -1,5 +1,6 @@
 #include "UI/LDBlueprintPanel.h"
 #include "UI/LDHUDModel.h"
+#include "UI/LDBroadcastStyle.h"
 #include "UI/LDHUDStyle.h"
 #include "UI/LDTerms.h"
 #include "UI/LDUIIcons.h"
@@ -31,7 +32,7 @@ static_assert(UE_ARRAY_COUNT(LDTerms::BlueprintFactLabels)==int32(ELDBlueprintFa
 namespace
 {
 constexpr int32 BlueprintListLimit=50;
-const FLinearColor BlueprintBright(.9f,.94f,.96f),BlueprintDim(.55f,.63f,.68f);
+const FLinearColor BlueprintBright=LDBroadcast::White,BlueprintDim=LDBroadcast::Grey;
 
 void BlueprintText(UTextBlock* Label,const FString& Value)
 {
@@ -200,10 +201,10 @@ TSharedRef<SWidget> ULDBlueprintPanel::RebuildWidget()
         ActionText=MakeText(TEXT(""),LDHUDStyle::TypeCaption,BlueprintDim);Root->AddChildToVerticalBox(ActionText)->SetPadding(FMargin(0,8,0,0));
         for(UTextBlock* Label:{SourceText.Get(),StatusText.Get(),NoticeText.Get(),ActionText.Get()})
         {Label->SetAutoWrapText(false);Label->SetWrapTextAt(1020);}
-        MainPanel=LDWidgets::Panel(WidgetTree,Root,FMargin(20));MainPanel->SetBrushColor(LDHUDStyle::PanelFill.CopyWithNewOpacity(1.f));
+        MainPanel=LDWidgets::Panel(WidgetTree,Root,FMargin(20));MainPanel->SetBrushColor(LDBroadcast::Ink.CopyWithNewOpacity(.97f));
         auto* WidthBox=WidgetTree->ConstructWidget<USizeBox>();WidthBox->SetWidthOverride(1080);WidthBox->SetContent(MainPanel);
         auto* Scale=WidgetTree->ConstructWidget<UScaleBox>();Scale->SetStretch(EStretch::ScaleToFit);Scale->SetStretchDirection(EStretchDirection::DownOnly);Scale->SetContent(WidthBox);
-        auto* Frame=WidgetTree->ConstructWidget<UBorder>();Frame->SetBrushColor(FLinearColor::Transparent);Frame->SetHorizontalAlignment(HAlign_Center);Frame->SetVerticalAlignment(VAlign_Center);
+        auto* Frame=WidgetTree->ConstructWidget<UBorder>();Frame->SetBrushColor(LDBroadcast::Ink.CopyWithNewOpacity(.6f));Frame->SetHorizontalAlignment(HAlign_Center);Frame->SetVerticalAlignment(VAlign_Center);
         Frame->SetPadding(FMargin(32,90,32,175));Frame->SetVisibility(ESlateVisibility::SelfHitTestInvisible);Frame->SetContent(Scale);
         WidgetTree->RootWidget=Frame;
         SetVisibility(bOpen?ESlateVisibility::SelfHitTestInvisible:ESlateVisibility::Collapsed);

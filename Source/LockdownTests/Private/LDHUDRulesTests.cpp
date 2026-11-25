@@ -8,6 +8,7 @@
 #include "UI/LDUIIcons.h"
 #include "UI/LDDevTestPanel.h"
 #include "Development/LDDevTestProtocol.h"
+#include "Development/LDProgressionRules.h"
 #include "Development/LDGrowthProtocol.h"
 #include "Combat/LDCombatTypes.h"
 #include "UI/LDMinimap.h"
@@ -1518,23 +1519,6 @@ bool FLDHUDChoicesFoldTest::RunTest(const FString& Parameters)
         Combat.Revision=4;Combat.HPP2=48100;Combat.AsOfMs=3000;
         TestFalse(TEXT("Regeneration is not a hit"),IsHit(Observe()));
     }
-    {
-        // Stashed in-combat badge counts all queued active opportunities and queued card offers, with current-offer fallback.
-        FLDProgressionView Prog;
-        Prog.bValid=true;Prog.Generation=7;
-        Prog.bHasActiveOffer=true;Prog.ActiveOffer.Options={FName(TEXT("active_elbow"))};
-        Prog.QueuedActiveOpportunities=3;
-        Prog.Actives={{FName(TEXT("active_seethe")),0,ELDSkillBranch::None}};
-        Prog.PendingBlueprints={FName(TEXT("active_zap"))};
-        Prog.bHasCardOffer=true;Prog.CardOffer.Options={FName(TEXT("card_hard_skin"))};
-        Prog.QueuedCardOffers=2;
-        const LDHUD::FGrowthPending Pending=LDHUD::GrowthPending(&Prog,7,nullptr);
-        TestEqual(TEXT("StashedCount sums all 3 queued active offers, 1 installable blueprint, and 2 queued card offers"),
-            Pending.StashedCount(),6);
-        Prog.QueuedActiveOpportunities=0;Prog.QueuedCardOffers=0;
-        TestEqual(TEXT("StashedCount falls back to 1 when a current offer has zero reported queue count"),
-            LDHUD::GrowthPending(&Prog,7,nullptr).StashedCount(),3);
-    }
     return true;
 }
 // Spec §12 结算“本局最离谱”: one row per contender of the result in its order (at most six), its longest chain as step names and its
@@ -1696,23 +1680,8 @@ bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
         }
     }
 
-    // The 构筑 button is lit by what the tray has cards for: the shown offer and learnable blueprints of the current match's
-    // own view; unspent points wait on the HUD's stat icons instead.
     FLDProgressionView View;View.bValid=true;View.Generation=5;View.QueuedActiveOpportunities=2;View.UnspentPoints=3;
-    LDHUD::FGrowthPending Pending=LDHUD::GrowthPending(&View,5,nullptr);
-    TestTrue(TEXT("Queued opportunities without a shown offer have no card to light the button"),!Pending.Any()&&Pending.Offers==2);
-    View.bHasActiveOffer=true;View.ActiveOffer.Options={FName(TEXT("active_elbow")),FName(TEXT("active_bolt"))};
-    Pending=LDHUD::GrowthPending(&View,5,nullptr);
-    TestTrue(TEXT("A shown offer lights the button and keeps the queue count for the pulse"),Pending.Any()&&Pending.bOffer&&Pending.Offers==2);
-    View.bHasActiveOffer=false;View.ActiveOffer.Options.Reset();View.QueuedActiveOpportunities=0;
-    TestFalse(TEXT("Unspent points alone do not light the button"),LDHUD::GrowthPending(&View,5,nullptr).Any());
-    View.bHasActiveOffer=true;View.ActiveOffer.Options={FName(TEXT("active_elbow"))};
-    TestFalse(TEXT("Another match's view lights nothing"),LDHUD::GrowthPending(&View,4,nullptr).Any()||LDHUD::GrowthPending(nullptr,5,nullptr).Any());
-    View.bHasActiveOffer=false;View.ActiveOffer.Options.Reset();View.UnspentPoints=0;View.PendingBlueprints={FName(TEXT("active_elbow"))};
-    Pending=LDHUD::GrowthPending(&View,5,nullptr);
-    TestTrue(TEXT("A blueprint with an empty slot lights it alone"),Pending.Any()&&Pending.Blueprints==1);
     for(uint8 Key=0;Key<3;++Key){FLDActiveSlotView& Held=View.Actives.AddDefaulted_GetRef();Held.Slot=Key;Held.DefinitionId=FName(*FString::Printf(TEXT("held_%d"),Key));}
-    TestFalse(TEXT("A blueprint waiting for the rest-only replacement does not light it"),LDHUD::GrowthPending(&View,5,nullptr).Any());
     TestTrue(TEXT("The slot reads come from the view"),LDHUD::ActiveInSlot(View,1)==FName(TEXT("held_1"))&&LDHUD::SlotKey(1)==TEXT("W"));
     FLDStatPointsView& Physique=View.StatPoints.AddDefaulted_GetRef();Physique.StatId=TEXT("stat_physique");Physique.Points=4;
     TestTrue(TEXT("Stat points come from the view, 0 for an unlisted stat"),LDHUD::StatPointsOf(View,TEXT("stat_physique"))==4&&LDHUD::StatPointsOf(View,TEXT("stat_brains"))==0);
@@ -1785,13 +1754,6 @@ bool FLDHUDFieldRewardNoticesTest::RunTest(const FString& Parameters)
     View.Generation=4;
     TestTrue(TEXT("A new match primes again"),Watch.Observe(&View,4).IsEmpty());
 
-    // The 构筑 button is lit by a pending card offer.
-    FLDProgressionView Pending;Pending.bValid=true;Pending.Generation=5;
-    Pending.bHasCardOffer=true;Pending.CardOffer.OfferId=FGuid(1,2,3,4);Pending.QueuedCardOffers=2;
-    Pending.CardOffer.Options={FName(TEXT("hud_fixture_a")),FName(TEXT("hud_fixture_b")),FName(TEXT("hud_fixture_c"))};
-    const LDHUD::FGrowthPending Counts=LDHUD::GrowthPending(&Pending,5,nullptr);
-    TestTrue(TEXT("A pending card offer lights the button and counts the queue"),Counts.Any()&&Counts.bCardOffer&&Counts.CardOffers==2);
-    TestFalse(TEXT("Another match's view lights nothing"),LDHUD::GrowthPending(&Pending,6,nullptr).Any());
     return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDDevTestPanelTest,"Lockdown.Rules.HUDDevTestPanel",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
@@ -2067,21 +2029,15 @@ bool FLDHUDFlowSmoothnessTest::RunTest(const FString&)
         const FLDDemoCardDefinition* SkillCardDef=Content.Cards.FindByPredicate([](const FLDDemoCardDefinition& C){return C.Form==ELDCardForm::Skill;});
         if(TestNotNull(TEXT("Catalog contains a skill-form card"),SkillCardDef)&&!Content.Abilities.IsEmpty())
         {
-            FLDProgressionView EmptyProg;EmptyProg.bValid=true;EmptyProg.Level=5;
-            bool bHasHost=true,bAllFull=false;
-            const FString NoHostText=LDHUD::SkillCardCompatStrip(FName(*SkillCardDef->Id),EmptyProg,&Content,LDHUD::FSlotKeys(),bHasHost,bAllFull);
-            TestTrue(TEXT("Skill card without compatible active warns in amber"),!bHasHost&&NoHostText.Contains(TEXT("暂无可装槽")));
-
             // Find an active compatible with SkillCardDef and fill its column with 4 cards to test 1-click replacement drops.
             for(const FLDDemoAbilityDefinition& Abil:Content.Abilities)
             {
                 FLDProgressionView FullColProg;FullColProg.bValid=true;FullColProg.Level=8;
                 FLDActiveSlotView Slot0;Slot0.DefinitionId=FName(*Abil.Id);Slot0.Slot=0;Slot0.Branch=ELDSkillBranch::None;
                 FullColProg.Actives.Add(Slot0);
-                bool bFitsAbil=false,bColFull=false;
-                const FString FitText=LDHUD::SkillCardCompatStrip(FName(*SkillCardDef->Id),FullColProg,&Content,LDHUD::FSlotKeys(),bFitsAbil,bColFull);
-                if(!bFitsAbil){continue;}
-                TestTrue(TEXT("Compatible active appears on skill card strip"),FitText.Contains(TEXT("可装：")));
+                FLDCardTarget FitTarget;FitTarget.Kind=ELDCardTargetKind::Skill;FitTarget.Active=FName(*Abil.Id);
+                FitTarget.Element=SkillCardDef->ChooseElements.IsEmpty()?ELDDemoElement::None:SkillCardDef->ChooseElements[0];
+                if(LDProgression::CardTargetReason(Content,LDProgression::BuildFromView(Content,FullColProg),FName(*SkillCardDef->Id),FitTarget)!=ELDGrowthReason::None){continue;}
 
                 // Install 4 cards on Q and add 1 uninstalled copy to storage.
                 for(int32 i=0;i<4;++i)
@@ -2174,9 +2130,6 @@ bool FLDHUDFlowSmoothnessTest::RunTest(const FString&)
 
         TestTrue(TEXT("Withdrawn rest ready returns explicit confirmation"),
             LDHUD::RestReadyText(ELDRestReadyResult::Withdrawn).Contains(TEXT("已取消准备")));
-        TestTrue(TEXT("Colorblind mode switches health bar hues"),
-            LDHUDStyle::OwnHealthOf(true)!=LDHUDStyle::OwnHealthOf(false)
-            &&LDHUDStyle::EnemyHealthOf(true)!=LDHUDStyle::EnemyHealthOf(false));
 
         FLDPublicMatchView Public;Public.Generation=1;Public.Phase=ELDMatchPhase::Rest;
         Public.Timeline.Generation=1;Public.Timeline.Stage=ELDMatchStage::Rest;Public.Timeline.RestIndex=1;Public.Timeline.Step=ELDRestStep::Betting;

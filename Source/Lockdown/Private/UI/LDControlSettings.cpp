@@ -56,6 +56,8 @@ namespace
     constexpr uint32 ColorblindlessSchema = 23;
     // Schema 24 predates default-on QuickCast and EKeys::Y Follow; saved bindings and bQuickCast bytes are preserved.
     constexpr uint32 PreDefaultQuickCastSchema = 24;
+    // Schema 25 predates the SFX and interface volumes (both start at 100 %).
+    constexpr uint32 BuslessSchema = 25;
     constexpr float LegacyMinZoom = 1100.f;
     constexpr float LegacyMaxZoom = 1700.f;
     constexpr float NearZoomMax = 1900.f;
@@ -322,6 +324,8 @@ bool ULDControlSettings::ValidatePreferences(FString& Error) const
     { Error = TEXT("主音量超出 0–100% 的支持范围。"); return false; }
     if (!FMath::IsFinite(MusicVolume) || MusicVolume < 0 || MusicVolume > 1)
     { Error = TEXT("音乐音量超出 0–100% 的支持范围。"); return false; }
+    if (!FMath::IsFinite(SfxVolume) || SfxVolume < 0 || SfxVolume > 1 || !FMath::IsFinite(UiVolume) || UiVolume < 0 || UiVolume > 1)
+    { Error = TEXT("音效或界面音量超出 0–100% 的支持范围。"); return false; }
     if (!FMath::IsFinite(CameraPanCmPerSec) || CameraPanCmPerSec < MinCameraPanCmPerSec || CameraPanCmPerSec > MaxCameraPanCmPerSec)
     {
         Error = FString::Printf(TEXT("镜头平移速度超出 %.0f–%.0f cm/s 的支持范围。"), MinCameraPanCmPerSec, MaxCameraPanCmPerSec);
@@ -378,6 +382,8 @@ void ULDControlSettings::CopyPreferences(const ULDControlSettings& Other)
     PlayerName = Other.PlayerName;
     MasterVolume = Other.MasterVolume;
     MusicVolume = Other.MusicVolume;
+    SfxVolume = Other.SfxVolume;
+    UiVolume = Other.UiVolume;
     CameraPanCmPerSec = Other.CameraPanCmPerSec;
     MinimapOrientation = Other.MinimapOrientation;
     bQuickCast = Other.bQuickCast;
@@ -425,25 +431,30 @@ bool ULDControlSettings::SetAppliedZoom(float Value, FString& Error)
     return true;
 }
 
-bool ULDControlSettings::SetAppliedMasterVolume(float Value, FString& Error)
+float ULDControlSettings::BusVolume(ELDAudioBus Bus) const
 {
-    if (Phase == ELDLocalSettingsPhase::EditingDraft)
-    { Error = TEXT("主音量未应用：只能修改当前生效的本地设置，不能修改草稿。"); return false; }
-    if (!FMath::IsFinite(Value) || Value < 0 || Value > 1)
-    { Error = TEXT("主音量未应用：音量必须在 0–100% 之间。"); return false; }
-    MasterVolume = Value;
-    Phase = ELDLocalSettingsPhase::ConfirmedApplied;
-    Error.Empty();
-    return true;
+    switch (Bus)
+    {
+    case ELDAudioBus::Master: return MasterVolume;
+    case ELDAudioBus::Music: return MusicVolume;
+    case ELDAudioBus::Sfx: return SfxVolume;
+    case ELDAudioBus::UI: return UiVolume;
+    default: return 0.f;
+    }
 }
 
-bool ULDControlSettings::SetAppliedMusicVolume(float Value, FString& Error)
+bool ULDControlSettings::SetAppliedBusVolume(ELDAudioBus Bus, float Value, FString& Error)
 {
+    const TCHAR* const Names[] = { TEXT("主音量"), TEXT("音乐音量"), TEXT("音效音量"), TEXT("界面音量") };
+    static_assert(UE_ARRAY_COUNT(Names) == LDAudio::BusCount, "Every bus needs its settings name.");
+    float* const Fields[] = { &MasterVolume, &MusicVolume, &SfxVolume, &UiVolume };
+    const int32 Index = int32(Bus);
+    if (Index < 0 || Index >= LDAudio::BusCount) { Error = TEXT("音量未应用：没有这个音量分轨。"); return false; }
     if (Phase == ELDLocalSettingsPhase::EditingDraft)
-    { Error = TEXT("音乐音量未应用：只能修改当前生效的本地设置，不能修改草稿。"); return false; }
+    { Error = FString::Printf(TEXT("%s未应用：只能修改当前生效的本地设置，不能修改草稿。"), Names[Index]); return false; }
     if (!FMath::IsFinite(Value) || Value < 0 || Value > 1)
-    { Error = TEXT("音乐音量未应用：音量必须在 0–100% 之间。"); return false; }
-    MusicVolume = Value;
+    { Error = FString::Printf(TEXT("%s未应用：音量必须在 0–100%% 之间。"), Names[Index]); return false; }
+    *Fields[Index] = Value;
     Phase = ELDLocalSettingsPhase::ConfirmedApplied;
     Error.Empty();
     return true;
@@ -546,6 +557,8 @@ void ULDControlSettings::ResetPreferenceGroup(ELDPreferenceGroup Group)
     case ELDPreferenceGroup::Audio:
         MasterVolume = CurrentDefaults->MasterVolume;
         MusicVolume = CurrentDefaults->MusicVolume;
+        SfxVolume = CurrentDefaults->SfxVolume;
+        UiVolume = CurrentDefaults->UiVolume;
         break;
     case ELDPreferenceGroup::Controls:
         bQuickCast = CurrentDefaults->bQuickCast;
@@ -610,7 +623,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
             || SavedSchema == DiagnosticslessSchema || SavedSchema == MarklessSchema || SavedSchema == ItemKeysSchema
             || SavedSchema == AutoAttacklessSchema || SavedSchema == SkillElessSchema || SavedSchema == MusiclessSchema
             || SavedSchema == DetailslessSchema || SavedSchema == CombatFeelLessSchema || SavedSchema == WorkshoplessSchema
-            || SavedSchema == ColorblindlessSchema || SavedSchema == PreDefaultQuickCastSchema);
+            || SavedSchema == ColorblindlessSchema || SavedSchema == PreDefaultQuickCastSchema || SavedSchema == BuslessSchema);
     if (Magic == LegacySaveGameMagic || (Magic == LocalSettingsMagic && SavedSchema != CurrentSchema && !RetiredRegistry && !Migrating))
     { return { ELDLocalSettingsLoadStatus::UnsupportedSchema, nullptr, nullptr, TEXT("不支持此本地设置格式。请在设置中使用恢复操作明确替换。") }; }
     if (Magic != LocalSettingsMagic || Checksum != FCrc::MemCrc32(Bytes.GetData() + 12, Bytes.Num() - 12))
@@ -641,6 +654,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     if (SavedSchema > MusiclessSchema) { Reader << Settings->MusicVolume; }
     if (SavedSchema >= CombatFeelSchema) { Reader << ReduceEffects << CameraShake; }
     if (SavedSchema > ColorblindlessSchema) { Reader << Colorblind; }
+    if (SavedSchema > BuslessSchema) { Reader << Settings->SfxVolume << Settings->UiVolume; }
     Reader << Count;
     if (Reader.IsError() || Edge > 1 || Follow > 1 || Quick > 1 || Network > 1 || FPS > 1 || AutoAttack > 1
         || ReduceEffects > 1 || CameraShake > 1 || Colorblind > 1 || Count < 0 || Count > MaxBindingCount)
@@ -751,9 +765,10 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
         if (SavedSchema <= MusiclessSchema)
         { MigrationNotes += FString::Printf(TEXT("音乐音量使用默认值 %d%%。"), FMath::RoundToInt(100 * Settings->MusicVolume)); }
         if (SavedSchema < CombatFeelSchema) { MigrationNotes += TEXT("降低战斗特效关闭、镜头震动开启。"); }
+        if (SavedSchema <= BuslessSchema) { MigrationNotes += TEXT("音效与界面音量使用默认值 100%。"); }
         if (SavedSchema == AutoAttacklessSchema || SavedSchema == SkillElessSchema || SavedSchema == MusiclessSchema
             || SavedSchema == DetailslessSchema || SavedSchema == CombatFeelLessSchema || SavedSchema == WorkshoplessSchema
-            || SavedSchema == ColorblindlessSchema || SavedSchema == PreDefaultQuickCastSchema)
+            || SavedSchema == ColorblindlessSchema || SavedSchema == PreDefaultQuickCastSchema || SavedSchema == BuslessSchema)
         {
             const FString Preserved = SavedSchema >= WorkshoplessSchema
                 ? TEXT("已从旧版本设置迁移：全部偏好与按键已保留，下次保存时写入新格式。")
@@ -810,10 +825,11 @@ FLDLocalSettingsSaveResult ULDControlSettings::SaveLocalSettings()
     uint8 Network = bShowNetworkDiagnostics ? 1 : 0, FPS = bShowFPS ? 1 : 0, AutoAttack = bAutoAttackAfterCast ? 1 : 0;
     uint8 ReduceEffects = bReduceCombatEffects ? 1 : 0, CameraShake = bCameraShake ? 1 : 0, Colorblind = bColorblindMode ? 1 : 0;
     float SavedTextScale = TextScale, SavedZoom = Zoom, SavedVolume = MasterVolume, SavedPanSpeed = CameraPanCmPerSec, SavedMusic = MusicVolume;
+    float SavedSfx = SfxVolume, SavedUi = UiVolume;
     FString SavedName = PlayerName;
     int32 Count = Definitions().Num();
     Payload << Edge << Follow << SavedTextScale << SavedZoom << SavedName << SavedVolume << SavedPanSpeed << SavedOrientation
-        << SavedQuick << Network << FPS << AutoAttack << SavedMusic << ReduceEffects << CameraShake << Colorblind << Count;
+        << SavedQuick << Network << FPS << AutoAttack << SavedMusic << ReduceEffects << CameraShake << Colorblind << SavedSfx << SavedUi << Count;
     for (const auto& Binding : Definitions())
     {
         FString Action = Binding.Action.ToString(), KeyName = Key(Binding.Action).GetFName().ToString();

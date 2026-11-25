@@ -888,9 +888,6 @@ namespace LDHUD
     // Atomic replace drops in a specific column of a full workshop.
     LOCKDOWN_API TArray<FCardDrop> ColumnReplaceDrops(FName Key,EStorageColumn Column,const FLDProgressionView& Progression,
         const FLDDemoContentDefinitions* Content);
-    // Live host-compatibility strip for a skill-form card on 3-choice offers and the rest shop (#331). Empty for non-skill cards.
-    LOCKDOWN_API FString SkillCardCompatStrip(FName CardId,const FLDProgressionView& Progression,
-        const FLDDemoContentDefinitions* Content,const FSlotKeys& Keys,bool& bOutHasMatch,bool& bOutAllFull);
     // The learned skills and owned cards sharing a vocabulary key with the card (spec §6.3), for the popup's 联动 line and
     // the workshop's link lines.
     struct FCardConnections
@@ -908,27 +905,6 @@ namespace LDHUD
     // The where line of a stored card's popup: the columns it reaches, or that the workshop is full.
     LOCKDOWN_API FString StoredPlaceText(FName Key,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);
 
-    // What the 构筑 tray has cards for in the own view of Match: the shown active offer, blueprints while a Q/W/E slot is
-    // empty, the current card offer and the final mod. The 构筑 button is lit while any is pending and greyed out (unclickable)
-    // otherwise. Offers counts the queued active opportunities and CardOffers the queued card offers, so a new one pulses the
-    // button. Owned cards wait in the storage stack; unspent points wait on the HUD's stat icons and the portrait's badge.
-    struct FGrowthPending
-    {
-        bool bOffer=false;
-        int32 Offers=0;
-        int32 Blueprints=0;
-        bool bCardOffer=false;
-        int32 CardOffers=0;
-        // Phase 9: an untaken final mod three-choice.
-        bool bFinalMod=false;
-        bool Any() const {return bOffer||Blueprints>0||bCardOffer||bFinalMod;}
-        int32 StashedCount() const
-        {
-            return FMath::Max<int32>(Offers, bOffer ? 1 : 0) + Blueprints
-                + FMath::Max<int32>(CardOffers, bCardOffer ? 1 : 0) + (bFinalMod ? 1 : 0);
-        }
-    };
-    LOCKDOWN_API FGrowthPending GrowthPending(const FLDProgressionView* Progression,uint32 Match,const FLDDemoContentDefinitions* Content);
     // Match a consumed opportunity to the applied receipt of the exact request and life that submitted it.
     struct FOfferMotionTicket
     {

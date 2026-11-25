@@ -78,6 +78,8 @@ constexpr uint32 NearZoomFixtureSchema = 12;
     constexpr uint32 CombatFeelLessFixtureSchema = 21;
     constexpr uint32 CombatFeelFixtureSchema = 22;
     constexpr uint32 ColorblindlessFixtureSchema = 23;
+    // Schema 25 predates the SFX and interface volumes.
+    constexpr uint32 BuslessFixtureSchema = 25;
 
     TArray<uint8> FixtureBytes(const ULDControlSettings& Values, uint32 Schema = ULDControlSettings::CurrentSchema, uint8 Edge = 1, bool Extra = false)
     {
@@ -110,6 +112,7 @@ constexpr uint32 NearZoomFixtureSchema = 12;
             uint8 Colorblind=Values.bColorblindMode?1:0;
             Payload << Colorblind;
         }
+        if (Schema > BuslessFixtureSchema) { float Sfx = Values.SfxVolume, Ui = Values.UiVolume; Payload << Sfx << Ui; }
         Payload << Count;
         for (const auto& Pair : Values.Bindings)
         {
@@ -531,7 +534,7 @@ bool FLDLocalSettingsMusicVolumeTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("The default music volume is 60%"), Applied->MusicVolume, .6f);
     TestEqual(TEXT("The music default leaves the master volume full"), Applied->MasterVolume, 1.f);
     TestTrue(TEXT("The applied owner accepts a non-default music volume and marks it unsaved"),
-        Applied->SetAppliedMusicVolume(.35f, Error) && Error.IsEmpty() && Applied->IsDirty() && Applied->MasterVolume == 1.f);
+        Applied->SetAppliedBusVolume(ELDAudioBus::Music, .35f, Error) && Error.IsEmpty() && Applied->IsDirty() && Applied->MasterVolume == 1.f);
     TestTrue(TEXT("The music volume is saved and verified from disk"), Applied->SaveLocalSettings().IsSaved());
     const auto Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
     TestTrue(TEXT("A current-schema round trip restores the exact music volume"),
@@ -539,17 +542,30 @@ bool FLDLocalSettingsMusicVolumeTest::RunTest(const FString& Parameters)
         && Loaded.Settings->MasterVolume == 1.f);
 
     auto* Draft = Applied->CreateDraft();
-    TestFalse(TEXT("A draft cannot set the applied music volume"), Draft->SetAppliedMusicVolume(.5f, Error));
+    TestFalse(TEXT("A draft cannot set the applied music volume"), Draft->SetAppliedBusVolume(ELDAudioBus::Music, .5f, Error));
     TestTrue(TEXT("A refused draft music volume is explained and leaves the draft unchanged"), !Error.IsEmpty() && Draft->MusicVolume == .35f);
     for (float Invalid : { std::numeric_limits<float>::quiet_NaN(), -.01f, 1.01f, std::numeric_limits<float>::infinity() })
     {
-        TestFalse(TEXT("A non-finite or out-of-range music volume is refused"), Applied->SetAppliedMusicVolume(Invalid, Error));
+        TestFalse(TEXT("A non-finite or out-of-range music volume is refused"), Applied->SetAppliedBusVolume(ELDAudioBus::Music, Invalid, Error));
         TestTrue(TEXT("A refused music volume is explained and keeps the applied value"), !Error.IsEmpty() && Applied->MusicVolume == .35f);
     }
-    TestTrue(TEXT("Silent music is supported"), Applied->SetAppliedMusicVolume(0.f, Error) && Applied->MusicVolume == 0.f);
-    TestTrue(TEXT("Full music is supported"), Applied->SetAppliedMusicVolume(1.f, Error) && Applied->MusicVolume == 1.f);
+    TestTrue(TEXT("Silent music is supported"), Applied->SetAppliedBusVolume(ELDAudioBus::Music, 0.f, Error) && Applied->MusicVolume == 0.f);
+    TestTrue(TEXT("Full music is supported"), Applied->SetAppliedBusVolume(ELDAudioBus::Music, 1.f, Error) && Applied->MusicVolume == 1.f);
     Applied->ResetPreferenceGroup(ELDPreferenceGroup::Audio);
     TestTrue(TEXT("Restoring the audio page returns the music volume to 60%"), Applied->MusicVolume == .6f && Applied->MasterVolume == 1.f);
+    // The SFX and interface buses: applied, saved and read back on their own, restored with the audio page.
+    TestTrue(TEXT("SFX and interface volumes start at 100%"), Applied->SfxVolume == 1.f && Applied->UiVolume == 1.f);
+    TestTrue(TEXT("The SFX and interface volumes apply"), Applied->SetAppliedBusVolume(ELDAudioBus::Sfx, .4f, Error)
+        && Applied->SetAppliedBusVolume(ELDAudioBus::UI, .25f, Error) && Applied->BusVolume(ELDAudioBus::Sfx) == .4f
+        && Applied->BusVolume(ELDAudioBus::UI) == .25f && Applied->MusicVolume == .6f);
+    TestTrue(TEXT("The SFX and interface volumes save"), Applied->SaveLocalSettings().IsSaved());
+    {
+        const FLDLocalSettingsLoadResult Buses = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+        TestTrue(TEXT("The SFX and interface volumes load back"), Buses.Status == ELDLocalSettingsLoadStatus::Loaded && Buses.Settings
+            && Buses.Settings->SfxVolume == .4f && Buses.Settings->UiVolume == .25f);
+    }
+    Applied->ResetPreferenceGroup(ELDPreferenceGroup::Audio);
+    TestTrue(TEXT("Restoring the audio page returns SFX and interface to 100%"), Applied->SfxVolume == 1.f && Applied->UiVolume == 1.f);
 
     // A saved music volume outside 0..1 rejects the whole file, which is left alone.
     auto* Values = NewObject<ULDControlSettings>();
@@ -649,7 +665,7 @@ bool FLDLocalSettingsMasterVolumeTest::RunTest(const FString& Parameters)
     auto* Applied = ULDControlSettings::CreateSessionSettings(Fixture.Storage);
     TestEqual(TEXT("The default master volume is full, without attenuation"), Applied->MasterVolume, 1.f);
     TestTrue(TEXT("The applied owner accepts a non-default volume and marks it unsaved"),
-        Applied->SetAppliedMasterVolume(.35f, Error) && Error.IsEmpty() && Applied->IsDirty());
+        Applied->SetAppliedBusVolume(ELDAudioBus::Master, .35f, Error) && Error.IsEmpty() && Applied->IsDirty());
     TestTrue(TEXT("The volume is saved and verified from disk"), Applied->SaveLocalSettings().IsSaved());
     TestTrue(TEXT("The verified file declares the current schema"),
         FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == uint32(ULDControlSettings::CurrentSchema));
@@ -660,20 +676,20 @@ bool FLDLocalSettingsMasterVolumeTest::RunTest(const FString& Parameters)
 
     // Only finite 0..1 values reach the applied owner; a draft never takes one.
     auto* Draft = Applied->CreateDraft();
-    TestFalse(TEXT("A draft cannot set the applied volume"), Draft->SetAppliedMasterVolume(.5f, Error));
+    TestFalse(TEXT("A draft cannot set the applied volume"), Draft->SetAppliedBusVolume(ELDAudioBus::Master, .5f, Error));
     TestTrue(TEXT("A refused draft volume is explained and leaves the draft unchanged"), !Error.IsEmpty() && Draft->MasterVolume == .35f);
     for (float Invalid : { std::numeric_limits<float>::quiet_NaN(), -.01f, 1.01f, std::numeric_limits<float>::infinity() })
     {
-        TestFalse(TEXT("A non-finite or out-of-range volume is refused"), Applied->SetAppliedMasterVolume(Invalid, Error));
+        TestFalse(TEXT("A non-finite or out-of-range volume is refused"), Applied->SetAppliedBusVolume(ELDAudioBus::Master, Invalid, Error));
         TestTrue(TEXT("A refused volume is explained and keeps the applied value"), !Error.IsEmpty() && Applied->MasterVolume == .35f);
     }
     TestTrue(TEXT("Refused volumes never mark the verified owner dirty"), Applied->GetPhase() == ELDLocalSettingsPhase::PersistenceVerified);
-    TestTrue(TEXT("Silence is a supported volume"), Applied->SetAppliedMasterVolume(0.f, Error) && Applied->MasterVolume == 0.f);
-    TestTrue(TEXT("Full volume is a supported volume"), Applied->SetAppliedMasterVolume(1.f, Error) && Applied->MasterVolume == 1.f);
+    TestTrue(TEXT("Silence is a supported volume"), Applied->SetAppliedBusVolume(ELDAudioBus::Master, 0.f, Error) && Applied->MasterVolume == 0.f);
+    TestTrue(TEXT("Full volume is a supported volume"), Applied->SetAppliedBusVolume(ELDAudioBus::Master, 1.f, Error) && Applied->MasterVolume == 1.f);
 
     // Restoring local defaults covers the volume but never the player name.
     TestTrue(TEXT("Prepare a chosen name"), Applied->SetAppliedPlayerName(TEXT("王小明"), Error));
-    TestTrue(TEXT("Prepare a non-default volume"), Applied->SetAppliedMasterVolume(.2f, Error));
+    TestTrue(TEXT("Prepare a non-default volume"), Applied->SetAppliedBusVolume(ELDAudioBus::Master, .2f, Error));
     Applied->ResetLocalDefaults();
     TestTrue(TEXT("Restoring local defaults returns the volume to full and keeps the player name"),
         Applied->MasterVolume == GetDefault<ULDControlSettings>()->MasterVolume && Applied->MasterVolume == 1.f
@@ -755,14 +771,14 @@ bool FLDLocalSettingsMasterVolumeTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The migrated values flush as the current schema and leave the owner clean"), Instance->FlushLocalSettings().IsSaved() && !Session->IsDirty());
     TArray<uint8> Verified;
     TestTrue(TEXT("Read the verified bytes"), FFileHelper::LoadFileToArray(Verified, *Fixture.Storage.Filename()));
-    const auto Changed = Instance->SetAppliedMasterVolume(.6f);
+    const auto Changed = Instance->SetAppliedBusVolume(ELDAudioBus::Master, .6f);
     TestTrue(TEXT("Without an audio subsystem the volume still applies to the live owner and marks it unsaved"),
         Changed.Status == ELDLocalSettingsSaveStatus::NoChanges && Changed.Message.Contains(TEXT("60%"))
         && Session->MasterVolume == .6f && Session->IsDirty());
     TestEqual(TEXT("The game instance reports the volume message"), Instance->GetLocalSettingsMessage(), Changed.Message);
     TestTrue(TEXT("A slider value waits for the debounced flush instead of writing the file"),
         Instance->IsLocalSettingsFlushPending() && OnDisk(Verified));
-    const auto Refused = Instance->SetAppliedMasterVolume(std::numeric_limits<float>::quiet_NaN());
+    const auto Refused = Instance->SetAppliedBusVolume(ELDAudioBus::Master, std::numeric_limits<float>::quiet_NaN());
     TestTrue(TEXT("A non-finite volume is refused explicitly and keeps the applied value"),
         Refused.Status == ELDLocalSettingsSaveStatus::Invalid && !Refused.Message.IsEmpty() && Session->MasterVolume == .6f);
     TestTrue(TEXT("The flush writes the applied volume"), Instance->FlushLocalSettings().IsSaved() && !Session->IsDirty());
@@ -784,7 +800,7 @@ bool FLDLocalSettingsMasterVolumeTest::RunTest(const FString& Parameters)
     if (!TestNotNull(TEXT("The rejected fixture still supplies session settings"), Recovered)) { return false; }
     TestTrue(TEXT("Recovery keeps the validated volume for the session and requires explicit replacement"),
         Recovered->MasterVolume == .4f && Recovered->NeedsRecovery());
-    const auto Gated = RecoveryInstance->SetAppliedMasterVolume(.5f);
+    const auto Gated = RecoveryInstance->SetAppliedBusVolume(ELDAudioBus::Master, .5f);
     TestTrue(TEXT("A recovery-gated volume change applies without promising an automatic save"),
         Gated.Status == ELDLocalSettingsSaveStatus::NoChanges && Recovered->MasterVolume == .5f && !Gated.Message.Contains(TEXT("稍后自动保存")));
     TestTrue(TEXT("The gated flush keeps the rejected file byte-identical"),
