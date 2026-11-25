@@ -1,4 +1,5 @@
 #include "Character/LDBasketballAnimInstance.h"
+#include "Character/LDActionMotion.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Animation/AnimInstanceProxy.h"
 #include "Animation/AnimSequence.h"
@@ -142,12 +143,25 @@ void ULDBasketballAnimInstance::Prepare(double Clock,float Speed,float FacingYaw
     }
     else if(Action!=LDBodyMotion::EAction::None)
     {
+        const LDActionMotion::EFamily Family=LDActionMotion::FamilyOf(Action==LDBodyMotion::EAction::Attack,StyleStep,StyleAbility);
         if(Action!=LastAction||FMath::Abs(Identity-LastActionIdentity)>LDBodyMotion::SameInstanceSeconds)
         {
-            const auto& Choices=Action==LDBodyMotion::EAction::Attack?Motion->Passes:(Speed>60?Motion->MovingShots:Motion->StandingShots);
-            // Follow the current dribbling hand; alternate only between clips with the same hand.
-            const bool Left=GetCurveValue(TEXT("BallLeft"))>.5f;TArray<int32,TInlineAllocator<8>> Candidates;
-            for(int32 I=0;I<Choices.Num();++I){if(Choices[I].bLeftHand==Left){Candidates.Add(I);}}
+            using LDActionMotion::EFamily;
+            const bool bMoving=Speed>60;
+            // The family's bank: passes for jabs, crosses and throws; the jump shot for the finisher and slams; the set
+            // shot for two-hand casts; ball handling for stances. A moving body shoots on the move.
+            const bool bJump=Family==EFamily::Finisher||Family==EFamily::HeavySlam;
+            const auto& Choices=Family==EFamily::Jab||Family==EFamily::Cross||Family==EFamily::OneHandThrow?Motion->Passes
+                :Family==EFamily::Ready?Motion->Handling:bMoving?Motion->MovingShots:Motion->StandingShots;
+            // The hand: the jab is right, the cross left, everything else follows the dribbling hand.
+            const bool Left=Family==EFamily::Jab?false:Family==EFamily::Cross?true:GetCurveValue(TEXT("BallLeft"))>.5f;
+            TArray<int32,TInlineAllocator<8>> Candidates;
+            for(int32 I=0;I<Choices.Num();++I)
+            {
+                const bool bIsJump=Choices[I].Animation&&Choices[I].Animation->GetName().Contains(TEXT("Jump_Shot"));
+                const bool bShape=&Choices!=&Motion->StandingShots||bIsJump==bJump;
+                if(bShape&&(Choices[I].bLeftHand==Left||&Choices==&Motion->Handling)){Candidates.Add(I);}
+            }
             Active=Choices[Candidates.IsEmpty()?0:Candidates[Variation++%Candidates.Num()]];
             bWasReleased=false;LastActionIdentity=Identity;TurnAt=-1;
         }
@@ -155,8 +169,8 @@ void ULDBasketballAnimInstance::Prepare(double Clock,float Speed,float FacingYaw
         ActionSequence=Active.Animation;ActionTime=LDBasketballMotion::SampleTime(Active,Age,CurrentImpact);bLeft=Active.bLeftHand;
         const float BlendIn=FMath::Min(.035f,CurrentImpact*.25f),BlendOut=FMath::Min(.14f,CurrentDuration*.28f);
         ActionWeight=FMath::Min(FMath::SmoothStep(0.f,BlendIn,FMath::Max(Age,0.f)),FMath::SmoothStep(0.f,BlendOut,CurrentDuration-Age));
-        if(Action==LDBodyMotion::EAction::Attack){UpperWeight=ActionWeight*.42f;ArmWeight=ActionWeight;}
-        else if(Speed>60){UpperWeight=ActionWeight;}else{FullWeight=ActionWeight;}
+        const LDActionMotion::FBlend Blend=LDActionMotion::BlendOf(Family,Speed>60);
+        FullWeight=ActionWeight*Blend.Full;UpperWeight=ActionWeight*Blend.Upper;ArmWeight=ActionWeight*Blend.Arm;
         bThrowing=Age>=0&&Age<CurrentDuration;
     }
     else

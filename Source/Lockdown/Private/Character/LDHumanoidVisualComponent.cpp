@@ -1259,6 +1259,7 @@ void ULDHumanoidVisualComponent::PlayClip(bool bFalling, float Speed)
         if (auto* Animation=Cast<ULDBasketballAnimInstance>(Mesh->GetAnimInstance()))
         {
             const bool bOverride=bPosed&&State!=ELDArtAnim::Attack&&State!=ELDArtAnim::Cast;
+            Animation->SetActionStyle(ComboStep,CastAbility);
             Animation->Prepare(Clock,Speed,GetOwner()?GetOwner()->GetActorRotation().Yaw:0.f,Showing,ActionAge,
                 ImpactSeconds,ActionOnset,bOverride?Entry->Sequence.Get():nullptr,Time,
                 Showing==EAction::Cast&&CastAbility==0&&LDHitVfx::IsDashing(Speed,bKnockback,bFalling),CanShowImpact());
