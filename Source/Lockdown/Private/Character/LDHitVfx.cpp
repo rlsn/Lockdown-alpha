@@ -447,9 +447,6 @@ const TCHAR* LDSliceVfx::SystemName(ESystem System)
     case ESystem::Tell1: return TEXT("NS_LDTell1");
     case ESystem::Tell2: return TEXT("NS_LDTell2");
     case ESystem::Tell3: return TEXT("NS_LDTell3");
-    case ESystem::FieldF1: return TEXT("NS_LDFieldF1");
-    case ESystem::FieldF2: return TEXT("NS_LDFieldF2");
-    case ESystem::FieldF3: return TEXT("NS_LDFieldF3");
     default: return TEXT("");
     }
 }

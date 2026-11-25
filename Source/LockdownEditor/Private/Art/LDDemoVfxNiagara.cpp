@@ -328,7 +328,7 @@ namespace
     // Particle Color (RGB tint of the outer layers times brightness, A fade) and three colours.
     //   Mode 0  glow ramp: edge colour -> body colour (glow 0.6) -> core colour (glow 1)
     //   Mode 1  glow ramp with the noise scrolling along U over the soft layer; the core adds more than it covers
-    UMaterial* BuildChainMaterial(const TCHAR* Name, bool bTop, UTexture2D* DefaultMask, FString& Error, bool bAdditive = false)
+    UMaterial* BuildChainMaterial(const TCHAR* Name, bool bTop, UTexture2D* DefaultMask, FString& Error)
     {
         const FString PackageName = GeneratedPackage(Name);
         Retire(PackageName);
@@ -361,7 +361,6 @@ namespace
             return Parameter;
         };
         auto* Mode = Scalar(TEXT("Mode"), 0.f);
-        auto* Additive = Scalar(TEXT("Additive"), bAdditive ? 1.f : 0.f);
         auto* CoreGain = Scalar(TEXT("CoreGain"), 1.f);
         auto* BodyGain = Scalar(TEXT("BodyGain"), 1.f);
         auto* NoiseTile = Scalar(TEXT("NoiseTile"), 1.f);
@@ -386,9 +385,7 @@ namespace
             TEXT("}\r\n")
             TEXT("// Particle Color tints the outer layers; the core keeps its own warm white, only its brightness follows.\r\n")
             TEXT("float Level = max(Tint.r, max(Tint.g, Tint.b));\r\n")
-            TEXT("// Additive: the coverage scales the light itself (a warm glow, never a patch).\r\n")
-            TEXT("float Cover = saturate(a * Fade);\r\n")
-            TEXT("return float4(lerp(C * Tint, C * Level, hot) * lerp(1.0, Cover, Additive), Cover);");
+            TEXT("return float4(lerp(C * Tint, C * Level, hot), saturate(a * Fade));");
         Custom->Inputs.Reset();
         const auto Bind = [Custom](const TCHAR* Name, UMaterialExpression* Source, int32 Output)
         {
@@ -403,7 +400,6 @@ namespace
         Bind(TEXT("Fade"), Particle, 4);
         Bind(TEXT("Time"), Time, 0);
         Bind(TEXT("Mode"), Mode, 0);
-        Bind(TEXT("Additive"), Additive, 0);
         Bind(TEXT("CoreGain"), CoreGain, 0);
         Bind(TEXT("BodyGain"), BodyGain, 0);
         Bind(TEXT("NoiseTile"), NoiseTile, 0);
@@ -419,7 +415,7 @@ namespace
         Coverage->A = 1;
         Material->GetEditorOnlyData()->EmissiveColor.Connect(0, Rgb);
         Material->GetEditorOnlyData()->Opacity.Connect(0, Coverage);
-        Material->BlendMode = bAdditive ? BLEND_Additive : BLEND_Translucent;
+        Material->BlendMode = BLEND_Translucent;
         Material->TwoSided = true;
         Material->bDisableDepthTest = bTop;
         Material->SetShadingModel(MSM_Unlit);
@@ -920,125 +916,12 @@ namespace
         return Tell;
     }
 
-    // A bolt between two HLSL points A and B in the chain's construction (ChainParts' trunk): Points points, interior
-    // points slid along and pushed off the line by hashed amounts re-drawn whenever Step changes, bowed up by Bow of its
-    // length. Index is the point's index along it, Salt sets the bolt apart from its neighbours.
-    FString BoltPoint(const FString& A, const FString& B, const FString& Index, const FString& Salt, const FString& Step, int32 Points,
-        float Kink, float UpKink, float Bow)
-    {
-        const FString Length = FString::Printf(TEXT("length((%s) - (%s))"), *B, *A);
-        const FString Dir = FString::Printf(TEXT("(((%s) - (%s)) / max(%s, 1.0))"), *B, *A, *Length);
-        const FString Side = FString::Printf(TEXT("normalize(cross(%s, float3(0.0, 0.0, 1.0)) + float3(0.0001, 0.0001, 0.0))"), *Dir);
-        const FString Up = FString::Printf(TEXT("cross(%s, %s)"), *Side, *Dir);
-        const FString Key = FString::Printf(TEXT("(%s + (%s) * 17.0)"), *Index, *Salt);
-        const FString Interior = FString::Printf(TEXT("(step(0.5, %s) * step(%s, %.1f))"), *Index, *Index, Points - 1.5f);
-        const FString T = FString::Printf(TEXT("saturate((%s + (%s - 0.5) * 0.35 * %s) / %.1f)"), *Index, *FTrunk::Hash(Key, Step, 1.7f), *Interior, Points - 1.f);
-        return FString::Printf(TEXT("(lerp(%s, %s, %s) + (%s * (%s * 2.0 - 1.0) * %.2f + %s * (%s * 2.0 - 1.0) * %.2f) * (%s / %.1f) * %s + float3(0.0, 0.0, %.3f) * %s * (1.0 - %s) * %s)"),
-            *A, *B, *T, *Side, *FTrunk::Hash(Key, Step, 3.1f), Kink, *Up, *FTrunk::Hash(Key, Step, 5.3f), UpKink, *Length, Points - 1.f, *Interior,
-            4.f * Bow, *T, *T, *Length);
-    }
-
-    // The electric field ground state and the conduct reaction's splash, at its authoritative radius User.Width round
-    // User.Start on the floor, built from the chain's parts in the chain's material:
-    //   Edge    fourteen chain trunks joined end to end round the radius, discrete kinks re-drawn at 25 Hz, width breathing,
-    //           a segment or two dark at a time (12 Hz), two bright surges running round it
-    //   Arcs    five short chain arcs jumping between floor points inside, re-picked four times a second
-    //   Floor   an additive warm ground light (never a patch)
-    // (the arcs that reach the people standing inside are the runtime's reduced chain hops, ULDImpactFxSubsystem::Bite).
-    // It opens from 90 % of the radius over 0.25 s and fades with User.Intensity (the ground state's remaining share) and
-    // over the last 0.3 s of User.Duration.
-    FSystemParts FieldParts(UMaterial& Material, UMaterial& Additive, FString& Error)
-    {
-        const FPalette Palette{FLinearColor(1.f, .93f, .78f), FLinearColor(1.f, .68f, .26f), FLinearColor(.22f, .1f, .03f), 2.8f, 1.2f};
-        UTexture2D* Profile = SliceTexture(LDSliceVfx::ETex::ChainAProfile);
-        UMaterialInstanceConstant* Bolt = ChainPaint(TEXT("MI_LDField_Bolt"), Material, Profile, SliceTexture(LDSliceVfx::ETex::ChainAEnergyNoise), 1.f, Palette, 1.f, 1.6f, Error);
-        UMaterialInstanceConstant* Floor = ChainPaint(TEXT("MI_LDField_Floor"), Additive, SliceTexture(LDSliceVfx::ETex::ChainAGroundGlow), nullptr, 0.f, Palette, 1.f, 0.f, Error);
-        FSystemParts Field;
-        Field.System = LDSliceVfx::ESystem::Field;
-        if (!Bolt || !Floor) { return Field; }
-        const FString Open = TEXT("saturate(Particles.Age / 0.25)");
-        const FString Fade = FString::Printf(TEXT("(%s * saturate((User.Duration - Particles.Age) / 0.3) * saturate(User.Intensity / 2.2))"), *Open);
-        const FString Radius = FString::Printf(TEXT("(User.Width * lerp(0.9, 1.0, %s))"), *Open);
-        const FString Step = TEXT("floor(Particles.Age * 25.0)");
-        const FString J = TEXT("Particles.LDJ"), R = TEXT("float(Particles.LDRibbon)");
-        const auto Ribbons = [&](FPart& Part, int32 Points)
-        {
-            Part.bRibbonIds = true;
-            Part.Set(TEXT("Particles.LDRibbon"), FString::Printf(TEXT("int(floor(%s / %d.0))"), Own, Points))
-                .Set(TEXT("Particles.LDJ"), FString::Printf(TEXT("(%s - float(Particles.LDRibbon) * %d.0)"), Own, Points))
-                .Set(TEXT("Particles.RibbonLinkOrder"), J);
-        };
-        FPart& Glow = Field.Parts.AddDefaulted_GetRef();
-        Glow.Name = TEXT("Floor");
-        Glow.Kind = FPart::Sprite;
-        Glow.Lifetime = TEXT("User.Duration");
-        Glow.Paint = Floor;
-        Glow.Facing = ENiagaraSpriteFacingMode::CustomFacingVector;
-        Glow.Set(TEXT("Particles.SpriteFacing"), TEXT("float3(0.0, 0.0, 1.0)"))
-            .Set(TEXT("Particles.Position"), TEXT("User.Start + float3(0.0, 0.0, 2.0)"))
-            .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(2.3, 2.3) * %s"), *Radius))
-            .Set(TEXT("Particles.Color"), FString::Printf(TEXT("float4(0.9, 0.9, 0.9, %s)"), *Fade));
-        const int32 Segments = 14, EdgePoints = 5;
-        FPart& Edge = Field.Parts.AddDefaulted_GetRef();
-        Edge.Name = TEXT("Edge");
-        Edge.Count = FString::Printf(TEXT("%d"), Segments * EdgePoints);
-        Edge.Lifetime = TEXT("User.Duration");
-        Edge.Paint = Bolt;
-        Edge.TileCm = 60.f;
-        Ribbons(Edge, EdgePoints);
-        {
-            const auto Corner = [&](const FString& K) { return FString::Printf(TEXT("(User.Start + float3(cos(%s * %.5f), sin(%s * %.5f), 0.0) * %s + float3(0.0, 0.0, 8.0))"),
-                *K, 6.2832f / Segments, *K, 6.2832f / Segments, *Radius); };
-            const FString Along = FString::Printf(TEXT("((%s + %s / %d.0) / %d.0)"), *R, *J, EdgePoints - 1, Segments);
-            const auto Surge = [&](float Phase) { return FString::Printf(TEXT("exp(-pow((abs(frac(%s - Particles.Age * 0.45 - %.2f + 0.5) - 0.5)) / 0.035, 2.0))"), *Along, Phase); };
-            const FString Surges = FString::Printf(TEXT("(%s + %s)"), *Surge(0.f), *Surge(.5f));
-            const FString Window = TEXT("floor(Particles.Age * 12.0)");
-            const FString Breath = FString::Printf(TEXT("(0.75 + 0.5 * %s)"), *FTrunk::Hash(R, Step, 21.f));
-            const FString Shown = FString::Printf(TEXT("max(step(0.2, %s), step(0.3, %s))"), *FTrunk::Hash(FString::Printf(TEXT("%s + 300.0"), *R), Window, 2.f), *Surges);
-            Edge.Set(TEXT("Particles.Position"), BoltPoint(Corner(R), Corner(FString::Printf(TEXT("(%s + 1.0)"), *R)), J, R, Step, EdgePoints, .28f, .15f, .06f))
-                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("16.0 * min(1.0, 0.45 + 2.0 * min(%s / %d.0, 1.0 - %s / %d.0) + step(0.5, %s) * step(%s, %d.5)) * %s * (1.0 + 0.8 * %s) * %s"),
-                    *J, EdgePoints - 1, *J, EdgePoints - 1, *J, *J, EdgePoints - 2, *Breath, *Surges, *Shown))
-                .Set(TEXT("Particles.Color"), Rgba(FString::Printf(TEXT("%s * (0.85 + 1.4 * %s)"), Bright, *Surges), *Fade));
-        }
-        const int32 Arcs = 5, ArcPoints = 6;
-        FPart& Inside = Field.Parts.AddDefaulted_GetRef();
-        Inside.Name = TEXT("Arcs");
-        Inside.Count = FString::Printf(TEXT("%d"), Arcs * ArcPoints);
-        Inside.Lifetime = TEXT("User.Duration");
-        Inside.Paint = Bolt;
-        Inside.TileCm = 60.f;
-        Ribbons(Inside, ArcPoints);
-        {
-            const FString Pick = TEXT("floor(Particles.Age * 4.0)");
-            const auto Spot = [&](float Salt)
-            {
-                const FString Angle = FTrunk::Hash(FString::Printf(TEXT("%s + 400.0"), *R), Pick, Salt);
-                const FString Reach = FTrunk::Hash(FString::Printf(TEXT("%s + 400.0"), *R), Pick, Salt + .5f);
-                return FString::Printf(TEXT("(User.Start + float3(cos(%s * 6.2832), sin(%s * 6.2832), 0.0) * sqrt(%s) * 0.8 * %s + float3(0.0, 0.0, 6.0))"),
-                    *Angle, *Angle, *Reach, *Radius);
-            };
-            const FString From = Spot(1.f);
-            // The far end lands 60-140 cm away from the first, still inside the radius.
-            const FString Toward = FTrunk::Hash(FString::Printf(TEXT("%s + 400.0"), *R), Pick, 3.f);
-            const FString To = FString::Printf(TEXT("(%s + float3(cos(%s * 6.2832), sin(%s * 6.2832), 0.0) * (60.0 + 80.0 * %s))"),
-                *From, *Toward, *Toward, *FTrunk::Hash(FString::Printf(TEXT("%s + 400.0"), *R), Pick, 4.f));
-            const FString Clamped = FString::Printf(TEXT("(User.Start + float3(1.0, 1.0, 0.0) * ((%s) - User.Start) * min(1.0, 0.85 * %s / max(length(((%s) - User.Start) * float3(1.0, 1.0, 0.0)), 1.0)) + float3(0.0, 0.0, 6.0))"),
-                *To, *Radius, *To);
-            const FString Shown = FString::Printf(TEXT("step(%s, 0.6)"), *FTrunk::Hash(FString::Printf(TEXT("%s + 500.0"), *R), TEXT("floor(Particles.Age * 12.0)"), 6.f));
-            Inside.Set(TEXT("Particles.Position"), BoltPoint(From, Clamped, J, FString::Printf(TEXT("(%s + 50.0)"), *R), Step, ArcPoints, .3f, .2f, .3f))
-                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("12.0 * min(1.0, 0.35 + 2.4 * min(%s / %d.0, 1.0 - %s / %d.0)) * %s"), *J, ArcPoints - 1, *J, ArcPoints - 1, *Shown))
-                .Set(TEXT("Particles.Color"), Rgba(FString::Printf(TEXT("%s * 0.9"), Bright), *Fade));
-        }
-        return Field;
-    }
-
-    // The field candidates' materials: one Custom node (Code) over the first UV, the Particle Color's four channels
-    // (PR, PG, PB, PA: each candidate says what they carry), a sprite's size (bSize; ribbons have none), the time, the
-    // vein noise and, when given, the charged floor's Web and Energy textures, returning the emissive colour and the
-    // coverage. Translucent, unlit, two-sided; the palette is the chain's (warm-white core,
-    // pale-gold body, a dark amber fringe that keeps the edge readable on the bright floor).
-    UMaterial* BuildFieldMaterial(const TCHAR* Name, const TCHAR* Code, UTexture2D* Noise, bool bSize, FString& Error,
-        UTexture2D* WebTexture = nullptr, UTexture2D* EnergyTexture = nullptr)
+    // The field's material: one Custom node (Code) over the first UV, the Particle Color's four channels (PR, PG, PB, PA:
+    // FieldParts says what they carry), the sprite's size, the time, the edge's crackle noise and the charged floor's Web
+    // and Energy textures, returning the emissive colour and the coverage. Translucent, unlit, two-sided; the palette is
+    // the chain's (warm-white core, pale-gold body, a dark amber fringe that keeps the edge readable on the bright floor).
+    UMaterial* BuildFieldMaterial(const TCHAR* Name, const TCHAR* Code, UTexture2D* Noise, UTexture2D* WebTexture, UTexture2D* EnergyTexture,
+        FString& Error)
     {
         const FString PackageName = GeneratedPackage(Name);
         Retire(PackageName);
@@ -1048,19 +931,18 @@ namespace
         Vein->ParameterName = LDSliceVfx::NoiseParameter;
         Vein->Texture = Noise;
         Vein->SamplerType = SAMPLERTYPE_LinearColor;
-        const auto Extra = [&](const TCHAR* Parameter, UTexture2D* Texture) -> UMaterialExpression*
+        const auto Extra = [&](const TCHAR* Parameter, UTexture2D* Texture)
         {
-            if (!Texture) { return nullptr; }
             auto* Object = AddExpression<UMaterialExpressionTextureObjectParameter>(*Material);
             Object->ParameterName = Parameter;
             Object->Texture = Texture;
             Object->SamplerType = SAMPLERTYPE_LinearColor;
             return Object;
         };
-        UMaterialExpression* Web = Extra(TEXT("Web"), WebTexture);
-        UMaterialExpression* Energy = Extra(TEXT("Energy"), EnergyTexture);
+        auto* Web = Extra(TEXT("Web"), WebTexture);
+        auto* Energy = Extra(TEXT("Energy"), EnergyTexture);
         auto* Particle = AddExpression<UMaterialExpressionParticleColor>(*Material);
-        UMaterialExpression* Size = bSize ? static_cast<UMaterialExpression*>(AddExpression<UMaterialExpressionParticleSize>(*Material)) : nullptr;
+        auto* Size = AddExpression<UMaterialExpressionParticleSize>(*Material);
         auto* Time = AddExpression<UMaterialExpressionTime>(*Material);
         auto* Custom = AddExpression<UMaterialExpressionCustom>(*Material);
         Custom->OutputType = CMOT_Float4;
@@ -1082,9 +964,9 @@ namespace
         Bind(TEXT("PG"), Particle, 2);
         Bind(TEXT("PB"), Particle, 3);
         Bind(TEXT("PA"), Particle, 4);
-        if (Size) { Bind(TEXT("Size"), Size, 0); }
-        if (Web) { Bind(TEXT("Web"), Web, 0); }
-        if (Energy) { Bind(TEXT("Energy"), Energy, 0); }
+        Bind(TEXT("Size"), Size, 0);
+        Bind(TEXT("Web"), Web, 0);
+        Bind(TEXT("Energy"), Energy, 0);
         Bind(TEXT("Time"), Time, 0);
         auto* Rgb = AddExpression<UMaterialExpressionComponentMask>(*Material);
         Rgb->Input.Connect(0, Custom);
@@ -1121,171 +1003,10 @@ namespace
     // the last third of its life) and the last 0.3 s of User.Duration (the conduct splash's own end).
     const TCHAR* const FieldShare = TEXT("(saturate(User.Intensity / 2.2) * saturate((User.Duration - Particles.Age) / 0.3))");
 
-    // Field candidate F1, the energy fence: the boundary carries the identity, the inside stays empty.
-    //   Fence   one disc on the floor 1.1 x the radius drawing only a 30 cm electric band on the radius: a hot centre
-    //           line with crackle re-drawn at 12 Hz along it; living: the band trembles across the radius at 12 Hz, 45 cm
-    //           stretches go dark and come back ten times a second, three bright surges run round it. Particle Color:
-    //           R brightness, G the opening (the band runs round the circle from one point with a bright front), B the
-    //           band's width share (it widens as it opens and narrows at the end), A the coverage.
-    //   Arches  arcs leaping 35-60 cm high between two points of the fence 50-90 cm apart, the fence's height
-    //           (decoration: seven for the own or focused field, three for others').
-    // The boundary is the same for everyone's field; only the arches thin out.
-    FSystemParts FieldFenceParts(UMaterial& Bolts, FString& Error)
-    {
-        UMaterial* Material = BuildFieldMaterial(TEXT("M_LDFieldFence"),
-            TEXT("float K = 1.1;\r\n")
-            TEXT("float2 q = (UV * 2.0 - 1.0) * K;\r\n")
-            TEXT("float r = length(q);\r\n")
-            TEXT("float R = max(Size.x * 0.5 / K, 1.0);\r\n")
-            TEXT("float ang = frac(atan2(q.y, q.x) / 6.2832 + 1.0);\r\n")
-            TEXT("float along = ang * 6.2832 * R / 60.0;\r\n")
-            TEXT("float t = floor(Time * 12.0);\r\n")
-            TEXT("float wob = (Texture2DSample(Noise, NoiseSampler, float2(along * 0.35, frac(t * 0.071))).g - 0.5) * 14.0;\r\n")
-            TEXT("float d = ((r - 1.0) * R + wob) / max(PB, 0.05);\r\n")
-            TEXT("float core = exp(-pow(d / 6.0, 2.0));\r\n")
-            TEXT("float n = Texture2DSample(Noise, NoiseSampler, float2(along * 0.5 + frac(t * 0.137), d / 40.0 + frac(t * 0.071))).g;\r\n")
-            TEXT("float crackle = smoothstep(0.4, 0.9, n) * exp(-pow(d / 16.0, 2.0));\r\n")
-            TEXT("float fringe = exp(-pow(d / 16.0, 2.0)) * 0.3;\r\n")
-            TEXT("float seg = floor(along / 0.75);\r\n")
-            TEXT("float h = frac(sin(seg * 12.9898 + floor(Time * 10.0) * 78.233) * 43758.5453);\r\n")
-            TEXT("float gap = PG < 0.999 ? 1.0 : step(0.17, h);\r\n")
-            TEXT("float shown = step(ang, PG * 1.02);\r\n")
-            TEXT("float front = PG < 0.999 ? exp(-pow((ang - PG) / 0.04, 2.0)) : 0.0;\r\n")
-            TEXT("float s0 = abs(frac(ang - Time * 0.3) - 0.5), s1 = abs(frac(ang - Time * 0.3 + 0.3333) - 0.5), s2 = abs(frac(ang - Time * 0.3 + 0.6667) - 0.5);\r\n")
-            TEXT("float surge = exp(-pow((0.5 - s0) / 0.025, 2.0)) + exp(-pow((0.5 - s1) / 0.025, 2.0)) + exp(-pow((0.5 - s2) / 0.025, 2.0));\r\n")
-            TEXT("float g = saturate(core * 0.95 + crackle * 0.75);\r\n")
-            TEXT("float3 low = lerp(EdgeC, BodyC, saturate(g / 0.6));\r\n")
-            TEXT("float3 C = lerp(low, CoreC, smoothstep(0.62, 0.95, g)) * PR * (1.0 + 1.6 * surge + 2.0 * front);\r\n")
-            TEXT("float a = saturate(core * 0.9 + crackle * 0.65 + fringe) * gap * shown * PA * step(r, K);\r\n")
-            TEXT("return float4(C, a);"),
-            SliceTexture(LDSliceVfx::ETex::ChainAEnergyNoise), true, Error);
-        const FPalette Palette{FLinearColor(1.f, .93f, .78f), FLinearColor(1.f, .68f, .26f), FLinearColor(.22f, .1f, .03f), 2.8f, 1.2f};
-        UMaterialInstanceConstant* Arc = ChainPaint(TEXT("MI_LDFieldF1_Arc"), Bolts, SliceTexture(LDSliceVfx::ETex::ChainAProfile),
-            SliceTexture(LDSliceVfx::ETex::ChainAEnergyNoise), 1.f, Palette, 1.f, 1.6f, Error);
-        UMaterialInstanceConstant* Band = Material ? ChainPaintOf(TEXT("MI_LDFieldF1_Fence"), *Material, Error) : nullptr;
-        FSystemParts Field;
-        Field.System = LDSliceVfx::ESystem::FieldF1;
-        if (!Band || !Arc) { return Field; }
-        const FString Share = FieldShare;
-        const FString Radius = TEXT("User.Width");
-        const FString Hold = FString::Printf(TEXT("saturate(%s * 2.5)"), *Share);
-        const FString Rise = FString::Printf(TEXT("lerp(0.15, 1.0, saturate(Particles.Age / 0.25)) * lerp(0.25, 1.0, %s)"), *Hold);
-        FPart& Fence = Field.Parts.AddDefaulted_GetRef();
-        Fence.Name = TEXT("Fence");
-        Fence.Kind = FPart::Sprite;
-        Fence.Lifetime = TEXT("User.Duration");
-        Fence.Paint = Band;
-        Fence.Facing = ENiagaraSpriteFacingMode::CustomFacingVector;
-        Fence.Set(TEXT("Particles.SpriteFacing"), TEXT("float3(0.0, 0.0, 1.0)"))
-            .Set(TEXT("Particles.Position"), TEXT("User.Start + float3(0.0, 0.0, 2.5)"))
-            .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(2.2, 2.2) * %s"), *Radius))
-            .Set(TEXT("Particles.Color"), FString::Printf(TEXT("float4(1.0, saturate(Particles.Age / 0.3), %s, saturate(Particles.Age / 0.04) * %s * %s)"),
-                *Rise, *Hold, *Share));
-        // Arches: arc k of the emitter's ribbons spans the fence from angle A to A + 40-70 cm, re-picked every 0.18 s and
-        // shown in about six windows of ten; its five points rise to 25-45 cm with kinks re-drawn at 20 Hz.
-        const int32 ArchPoints = 5;
-        FPart& Arches = Field.Parts.AddDefaulted_GetRef();
-        Arches.Name = TEXT("Arches");
-        Arches.Count = FString::Printf(TEXT("int(lerp(3.0, 7.0, User.Focus) + 0.01) * %d"), ArchPoints);
-        Arches.Lifetime = TEXT("User.Duration");
-        Arches.Paint = Arc;
-        Arches.TileCm = 60.f;
-        Arches.bRibbonIds = true;
-        {
-            const FString R = TEXT("float(Particles.LDRibbon)");
-            const FString K = TEXT("Particles.LDJ");
-            const FString Pick = TEXT("floor(Particles.Age / 0.18)");
-            const FString Seed = FString::Printf(TEXT("(%s + 600.0)"), *R);
-            const FString From = FString::Printf(TEXT("(%s * 6.2832)"), *FTrunk::Hash(Seed, Pick, 1.f));
-            const FString Span = FString::Printf(TEXT("((50.0 + 40.0 * %s) / max(%s, 1.0))"), *FTrunk::Hash(Seed, Pick, 2.f), *Radius);
-            const FString S = FString::Printf(TEXT("(%s / %d.0)"), *K, ArchPoints - 1);
-            const FString A = FString::Printf(TEXT("(%s + %s * %s)"), *From, *Span, *S);
-            const FString Lift = FString::Printf(TEXT("((35.0 + 25.0 * %s) * sin(3.1416 * %s))"), *FTrunk::Hash(Seed, Pick, 3.f), *S);
-            const FString Kink = FString::Printf(TEXT("((%s - 0.5) * 12.0 * step(0.5, %s) * step(%s, %d.5))"),
-                *FTrunk::Hash(FString::Printf(TEXT("%s * 7.0 + %s"), *Seed, *K), TEXT("floor(Particles.Age * 20.0)"), 4.f), *K, *K, ArchPoints - 2);
-            const FString On = FString::Printf(TEXT("step(%s, 0.6) * step(0.3, Particles.Age)"), *FTrunk::Hash(Seed, Pick, 5.f));
-            Arches.Set(TEXT("Particles.LDRibbon"), FString::Printf(TEXT("int(floor(%s / %d.0))"), Own, ArchPoints))
-                .Set(TEXT("Particles.LDJ"), FString::Printf(TEXT("(%s - float(Particles.LDRibbon) * %d.0)"), Own, ArchPoints))
-                .Set(TEXT("Particles.RibbonLinkOrder"), K)
-                .Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.Start + float3(cos(%s), sin(%s), 0.0) * (%s + %s) + float3(0.0, 0.0, 2.0 + %s + %s * 0.5)"),
-                    *A, *A, *Radius, *Kink, *Lift, *Kink))
-                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("9.0 * min(1.0, 0.4 + 2.4 * min(%s, 1.0 - %s)) * %s"), *S, *S, *On))
-                .Set(TEXT("Particles.Color"), Rgba(TEXT("1.7"), FString::Printf(TEXT("%s * %s"), *Hold, *Share)));
-        }
-        return Field;
-    }
-
-    // Field candidate F2, the charged surface: the floor itself is the state.
-    //   Surface  one disc on the floor 1.12 x the radius: a soft but clear rim (a thin warm-white line with a dark-amber
-    //            fringe and a 40 cm glow falling inwards) whose edge trembles at 12 Hz with two slow surges running round
-    //            it, and inside a faint electric vein network crawling over the floor (re-drawn ten times a second) with a
-    //            slow ripple travelling outwards. Particle Color: R brightness, G the inside's share, B the rim's opening
-    //            flash, A the coverage. Opens by expanding from 75 % of the radius with a bright rim, the inside filling in
-    //            after it; at the end the inside goes first, then the rim tightens and fades.
-    // Others' fields keep the same rim; their veins are fainter.
-    FSystemParts FieldSurfaceParts(FString& Error)
-    {
-        UMaterial* Material = BuildFieldMaterial(TEXT("M_LDFieldSurface"),
-            TEXT("float K = 1.12;\r\n")
-            TEXT("float2 q = (UV * 2.0 - 1.0) * K;\r\n")
-            TEXT("float r = length(q);\r\n")
-            TEXT("float R = max(Size.x * 0.5 / K, 1.0);\r\n")
-            TEXT("float2 P = q * R;\r\n")
-            TEXT("float t = floor(Time * 12.0);\r\n")
-            TEXT("float ang = atan2(q.y, q.x) / 6.2832;\r\n")
-            TEXT("float along = ang * R / 60.0;\r\n")
-            // The edge trembles and its brightness breaks up along it, both re-drawn twelve times a second.
-            TEXT("float wob = Texture2DSample(Noise, NoiseSampler, float2(along * 0.35, frac(t * 0.071))).g - 0.5;\r\n")
-            TEXT("float crack = 0.45 + 1.1 * Texture2DSample(Noise, NoiseSampler, float2(frac(t * 0.113), along * 0.5)).g;\r\n")
-            TEXT("float d = (r - 1.0) * R + wob * 10.0;\r\n")
-            TEXT("float s1 = abs(frac(ang - Time * 0.18) - 0.5);\r\n")
-            TEXT("float s2 = abs(frac(ang - Time * 0.18 + 0.5) - 0.5);\r\n")
-            TEXT("float surge = exp(-pow((0.5 - s1) / 0.05, 2.0)) + exp(-pow((0.5 - s2) / 0.05, 2.0));\r\n")
-            // Layers, each a colour and a coverage: the rim rimv, a thin dark-amber shade just outside it (contrast on the
-            // sunlit floor), the warm glow falling inwards, the veins and a faint warm fill.
-            TEXT("float rimv = exp(-pow(d / 5.5, 2.0)) * saturate(crack + surge) * (1.0 + PB);\r\n")
-            TEXT("float shade = d > 0.0 ? exp(-pow((d - 8.0) / 7.0, 2.0)) * 0.45 : 0.0;\r\n")
-            TEXT("float glow = d < 0.0 ? exp(d / 45.0) * 0.24 : 0.0;\r\n")
-            TEXT("float tv = floor(Time * 10.0) * 0.1;\r\n")
-            TEXT("float va = Texture2DSample(Noise, NoiseSampler, P / 420.0 + float2(tv * 0.37, tv * 0.21)).g;\r\n")
-            TEXT("float vb = Texture2DSample(Noise, NoiseSampler, float2(P.y, -P.x) / 340.0 + float2(-tv * 0.29, tv * 0.43)).g;\r\n")
-            // Veins flicker in patches: a slow blob noise thresholded anew ten times a second.
-            TEXT("float blot = Texture2DSample(Noise, NoiseSampler, P / 900.0 + float2(0.5, frac(tv * 0.17))).g;\r\n")
-            TEXT("float veins = smoothstep(0.82, 0.98, max(va, vb)) * smoothstep(0.3, 0.55, blot + 0.25 * sin(r * 8.0 - Time * 4.0));\r\n")
-            TEXT("float inside = d < 0.0 ? PG : 0.0;\r\n")
-            TEXT("float vein = veins * inside * saturate(-d / 25.0) * 0.6;\r\n")
-            TEXT("float fill = inside * 0.05;\r\n")
-            TEXT("float3 LineC = lerp(BodyC * 1.4, CoreC, 0.25) * (1.0 + 0.6 * surge);\r\n")
-            TEXT("float a1 = saturate(rimv), a2 = shade * PG, a3 = glow, a4 = vein, a5 = fill;\r\n")
-            TEXT("float a = 1.0 - (1.0 - a1) * (1.0 - a2) * (1.0 - a3) * (1.0 - a4) * (1.0 - a5);\r\n")
-            TEXT("float3 C = (LineC * a1 + EdgeC * a2 + BodyC * a3 + lerp(BodyC * 1.6, CoreC, 0.3) * a4 + BodyC * 0.8 * a5) / max(a1 + a2 + a3 + a4 + a5, 0.001);\r\n")
-            TEXT("return float4(C * PR, saturate(a) * PA * step(r, K));"),
-            SliceTexture(LDSliceVfx::ETex::ChainAEnergyNoise), true, Error);
-        UMaterialInstanceConstant* Paint = Material ? ChainPaintOf(TEXT("MI_LDFieldF2_Surface"), *Material, Error) : nullptr;
-        FSystemParts Field;
-        Field.System = LDSliceVfx::ESystem::FieldF2;
-        if (!Paint) { return Field; }
-        const FString Share = FieldShare;
-        const FString Hold = FString::Printf(TEXT("saturate(%s * 2.5)"), *Share);
-        const FString Open = TEXT("(1.0 - pow(1.0 - saturate(Particles.Age / 0.3), 3.0))");
-        const FString Inside = FString::Printf(TEXT("(saturate((Particles.Age - 0.12) / 0.3) * saturate(%s * 1.6 - 0.4) * lerp(0.55, 1.0, User.Focus))"), *Share);
-        FPart& Surface = Field.Parts.AddDefaulted_GetRef();
-        Surface.Name = TEXT("Surface");
-        Surface.Kind = FPart::Sprite;
-        Surface.Lifetime = TEXT("User.Duration");
-        Surface.Paint = Paint;
-        Surface.Facing = ENiagaraSpriteFacingMode::CustomFacingVector;
-        Surface.Set(TEXT("Particles.SpriteFacing"), TEXT("float3(0.0, 0.0, 1.0)"))
-            .Set(TEXT("Particles.Position"), TEXT("User.Start + float3(0.0, 0.0, 2.0)"))
-            .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(2.24, 2.24) * User.Width * lerp(0.75, 1.0, %s) * lerp(0.92, 1.0, %s)"), *Open, *Hold))
-            .Set(TEXT("Particles.Color"), FString::Printf(TEXT("float4(1.0, %s, 1.5 * exp(-Particles.Age / 0.12), saturate(Particles.Age / 0.06) * %s * %s)"),
-                *Inside, *Hold, *Share));
-        return Field;
-    }
-
-    // Field candidate F3, F1's edge over a charged floor (the user's pick of F1's boundary and F2's floor):
+    // The electric field ground state and the conduct reaction's splash, at its authoritative radius User.Width round
+    // User.Start on the floor: a living electric edge over a charged floor.
     //   Field   one disc on the floor 1.12 x the radius:
-    //           edge   F1's living electric band on the radius (hot core, crackle re-drawn at 12 Hz, 12 Hz tremble, three
+    //           edge   a living electric band on the radius (hot core, crackle re-drawn at 12 Hz, 12 Hz tremble, three
     //                  travelling surges), warm gold rather than white, over a narrow dark-amber under-edge just outside it
     //                  (contrast on sunlit floors); its dark stretches dim to a third instead of vanishing, so the danger
     //                  edge never breaks
@@ -1295,11 +1016,12 @@ namespace
     //           Particle Color: R brightness (the opening flash), G the floor's share, B the edge's width share, A coverage.
     //           Opens by expanding from 75 % of the radius with a bright edge, the floor filling in after it; at the end
     //           the floor goes first, then the edge narrows, tightens and fades.
-    //   Arches  F1's arcs leaping over the edge, thicker (decoration: seven for the own or focused field, three for
-    //           others'). Others' fields keep the same edge; their floor web is fainter.
-    FSystemParts FieldChargedParts(UMaterial& Bolts, FString& Error)
+    //   Arches  arcs leaping 35-60 cm high between two points of the edge 50-90 cm apart (decoration: seven for the own or
+    //           focused field, three for others'). Others' fields keep the same edge; their floor web is fainter.
+    // The arcs that reach the people standing inside are the runtime's reduced chain hops (ULDImpactFxSubsystem::Bite).
+    FSystemParts FieldParts(UMaterial& Bolts, FString& Error)
     {
-        UMaterial* Material = BuildFieldMaterial(TEXT("M_LDFieldCharged"),
+        UMaterial* Material = BuildFieldMaterial(TEXT("M_LDField"),
             TEXT("float K = 1.12;\r\n")
             TEXT("float2 q = (UV * 2.0 - 1.0) * K;\r\n")
             TEXT("float r = length(q);\r\n")
@@ -1308,7 +1030,7 @@ namespace
             TEXT("float ang = frac(atan2(q.y, q.x) / 6.2832 + 1.0);\r\n")
             TEXT("float along = ang * 6.2832 * R / 60.0;\r\n")
             TEXT("float t = floor(Time * 12.0);\r\n")
-            // The edge: F1's band.
+            // The edge band.
             TEXT("float wob = (Texture2DSample(Noise, NoiseSampler, float2(along * 0.35, frac(t * 0.071))).g - 0.5) * 14.0;\r\n")
             TEXT("float d0 = (r - 1.0) * R + wob;\r\n")
             TEXT("float d = d0 / max(PB, 0.05);\r\n")
@@ -1346,14 +1068,14 @@ namespace
             TEXT("float a = 1.0 - (1.0 - aE) * (1.0 - aS) * (1.0 - aG) * (1.0 - aW) * (1.0 - aF);\r\n")
             TEXT("float3 C = (CE * aE + EdgeC * aS + BodyC * aG + CW * aW + BodyC * 0.8 * aF) / max(aE + aS + aG + aW + aF, 0.001);\r\n")
             TEXT("return float4(C * PR, saturate(a) * PA * step(r, K));"),
-            SliceTexture(LDSliceVfx::ETex::ChainAEnergyNoise), true, Error,
-            SliceTexture(LDSliceVfx::ETex::FieldWeb), SliceTexture(LDSliceVfx::ETex::FieldEnergyNoise));
+            SliceTexture(LDSliceVfx::ETex::ChainAEnergyNoise), SliceTexture(LDSliceVfx::ETex::FieldWeb),
+            SliceTexture(LDSliceVfx::ETex::FieldEnergyNoise), Error);
         const FPalette Palette{FLinearColor(1.f, .93f, .78f), FLinearColor(1.f, .68f, .26f), FLinearColor(.22f, .1f, .03f), 2.8f, 1.2f};
-        UMaterialInstanceConstant* Arc = ChainPaint(TEXT("MI_LDFieldF3_Arc"), Bolts, SliceTexture(LDSliceVfx::ETex::ChainAProfile),
+        UMaterialInstanceConstant* Arc = ChainPaint(TEXT("MI_LDField_Arc"), Bolts, SliceTexture(LDSliceVfx::ETex::ChainAProfile),
             SliceTexture(LDSliceVfx::ETex::ChainAEnergyNoise), 1.f, Palette, 1.f, 1.6f, Error);
-        UMaterialInstanceConstant* Paint = Material ? ChainPaintOf(TEXT("MI_LDFieldF3_Field"), *Material, Error) : nullptr;
+        UMaterialInstanceConstant* Paint = Material ? ChainPaintOf(TEXT("MI_LDField_Disc"), *Material, Error) : nullptr;
         FSystemParts Field;
-        Field.System = LDSliceVfx::ESystem::FieldF3;
+        Field.System = LDSliceVfx::ESystem::Field;
         if (!Paint || !Arc) { return Field; }
         const FString Share = FieldShare;
         const FString Radius = TEXT("User.Width");
@@ -1372,7 +1094,7 @@ namespace
             .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(2.24, 2.24) * %s * lerp(0.75, 1.0, %s) * lerp(0.92, 1.0, %s)"), *Radius, *Open, *Hold))
             .Set(TEXT("Particles.Color"), FString::Printf(TEXT("float4(1.0 + 1.5 * exp(-Particles.Age / 0.12), %s, %s, saturate(Particles.Age / 0.04) * %s * %s)"),
                 *Inside, *Rise, *Hold, *Share));
-        // Arches over the edge, as F1's, a little thicker.
+        // Arches over the edge.
         const int32 ArchPoints = 5;
         FPart& Arches = Field.Parts.AddDefaulted_GetRef();
         Arches.Name = TEXT("Arches");
@@ -1604,8 +1326,7 @@ bool LDDemoVfxNiagara::Build(FString& Error)
     UTexture2D* Default = SliceTexture(LDSliceVfx::ETex::ChainAProfile);
     UMaterial* Chain = BuildChainMaterial(TEXT("M_LDChain"), false, Default, Error);
     UMaterial* Top = Chain ? BuildChainMaterial(TEXT("M_LDChainTop"), true, Default, Error) : nullptr;
-    UMaterial* Light = Top ? BuildChainMaterial(TEXT("M_LDChainAdd"), false, Default, Error, true) : nullptr;
-    if (!Chain || !Top || !Light || !BuildBodyGlowMaterial(Error)) { return false; }
+    if (!Chain || !Top || !BuildBodyGlowMaterial(Error)) { return false; }
     const TArray<TFunction<FSystemParts()>> Systems = {
         [&]() { return ChainParts(*Chain, *Top, Error); },
         [&]() { return HitParts(false, *Chain, *Top, Error); },
@@ -1616,10 +1337,7 @@ bool LDDemoVfxNiagara::Build(FString& Error)
         [&]() { return TellParts(1, *Chain, Error); },
         [&]() { return TellParts(2, *Chain, Error); },
         [&]() { return TellParts(3, *Chain, Error); },
-        [&]() { return FieldParts(*Chain, *Light, Error); },
-        [&]() { return FieldFenceParts(*Chain, Error); },
-        [&]() { return FieldSurfaceParts(Error); },
-        [&]() { return FieldChargedParts(*Chain, Error); }};
+        [&]() { return FieldParts(*Chain, Error); }};
     for (const TFunction<FSystemParts()>& Make : Systems)
     {
         const FSystemParts Parts = Make();

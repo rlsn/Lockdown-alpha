@@ -27,12 +27,9 @@
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
 #include "UObject/UObjectIterator.h"
-#include "HAL/IConsoleManager.h"
 
 namespace LDImpactFxDetail
 {
-    TAutoConsoleVariable<int32> CVarFieldLook(TEXT("ld.Vfx.FieldLook"), 0,
-        TEXT("Electric field look while art direction compares the redesign: 0 the first field, 1 F1 energy fence, 2 F2 charged surface, 3 F3 F1's edge over a charged floor."));
     const FLinearColor WhiteHot(1.f, .28f, .045f), EmberOrange(1.f, .3f, .05f), ShieldCyan(0.f, .78f, 1.f), CritGold(1.f, .55f, .08f);
     constexpr float ReferenceLifeSeconds = .28f, ReferenceSpeed = 900.f, MaxWaitSeconds = .5f;
 
@@ -1155,27 +1152,15 @@ ULDImpactFxSubsystem::FStrikeMatch ULDImpactFxSubsystem::MatchHit(const ULDHuman
     return Out;
 }
 
-LDSliceVfx::ESystem ULDImpactFxSubsystem::FieldSystemNow() const
-{
-    switch (LDImpactFxDetail::CVarFieldLook.GetValueOnGameThread())
-    {
-    case 1: return LDSliceVfx::ESystem::FieldF1;
-    case 2: return LDSliceVfx::ESystem::FieldF2;
-    case 3: return LDSliceVfx::ESystem::FieldF3;
-    default: return LDSliceVfx::ESystem::Field;
-    }
-}
-
 bool ULDImpactFxSubsystem::IsField(const UNiagaraComponent* Effect) const
 {
     const UNiagaraSystem* Asset = Effect ? Effect->GetAsset() : nullptr;
-    return Asset && (Asset == GetSystem(LDSliceVfx::ESystem::Field) || Asset == GetSystem(LDSliceVfx::ESystem::FieldF1)
-        || Asset == GetSystem(LDSliceVfx::ESystem::FieldF2) || Asset == GetSystem(LDSliceVfx::ESystem::FieldF3));
+    return Asset && Asset == GetSystem(LDSliceVfx::ESystem::Field);
 }
 
 void ULDImpactFxSubsystem::ShowGroundField(const AActor& Owner, const FVector& Centre, float RadiusCm, float Alpha, uint8 OwnerSeat)
 {
-    UNiagaraSystem* FieldSystem = GetSystem(FieldSystemNow());
+    UNiagaraSystem* FieldSystem = GetSystem(LDSliceVfx::ESystem::Field);
     int32 Found = INDEX_NONE;
     for (int32 Index = 0; Index < Live.Num(); ++Index)
     {
@@ -1197,7 +1182,7 @@ void ULDImpactFxSubsystem::ShowGroundField(const AActor& Owner, const FVector& C
         bool bOwn = false;
         for (TObjectIterator<ULDHumanoidVisualComponent> It; It && !bOwn && OwnerSeat != MAX_uint8; ++It)
         { bOwn = It->GetWorld() == GetWorld() && It->IsOwnBody() && It->PaletteSlot() == OwnerSeat; }
-        UNiagaraComponent* Effect = SpawnGenerated(FieldSystemNow(), Floor, Floor, LDBroadcast::Shock, RadiusCm, Strength, 1.e4f, bOwn);
+        UNiagaraComponent* Effect = SpawnGenerated(LDSliceVfx::ESystem::Field, Floor, Floor, LDBroadcast::Shock, RadiusCm, Strength, 1.e4f, bOwn);
         if (!Effect) { return; }
         Track(Effect, nullptr, 0.f, &Owner);
         return;
@@ -1217,7 +1202,7 @@ void ULDImpactFxSubsystem::FieldPulse(const ULDHumanoidVisualComponent& Source, 
     FVector Normal;
     const FVector Floor = GroundUnder(Feet, Normal);
     const float Seconds = .8f * Look.Seconds;
-    UNiagaraComponent* Effect = SpawnGenerated(FieldSystemNow(), Floor, Floor, LDBroadcast::Shock, RadiusCm,
+    UNiagaraComponent* Effect = SpawnGenerated(LDSliceVfx::ESystem::Field, Floor, Floor, LDBroadcast::Shock, RadiusCm,
         2.2f * Look.Glow * (Look.bFocus ? 1.f : .7f) * (.55f + .45f * FMath::Clamp(Look.EffectScale, 0.f, 1.f)), Seconds, Look.bFocus);
     if (!Effect) { return; }
     Track(Effect, &Source, AgeSeconds);

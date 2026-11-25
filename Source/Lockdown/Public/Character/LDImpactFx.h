@@ -124,8 +124,7 @@ public:
     // A public electric ground state's field on Owner at its authoritative radius (fades with Alpha; Alpha <= 0 removes it).
     // OwnerSeat is the state's public owner seat: the own body's seat shows the field's decoration in full.
     void ShowGroundField(const AActor& Owner, const FVector& Centre, float RadiusCm, float Alpha, uint8 OwnerSeat);
-    // The field look shown now (ld.Vfx.FieldLook while art direction compares the redesign) and whether an effect is a field.
-    LDSliceVfx::ESystem FieldSystemNow() const;
+    // Whether an effect is the electric field (NS_LDField).
     bool IsField(const UNiagaraComponent* Effect) const;
     // The conduct reaction's splash field round Source's feet at the authoritative radius, for 0.8 s.
     void FieldPulse(const ULDHumanoidVisualComponent& Source, const FVector& Feet, float RadiusCm, const LDSliceVfx::FLook& Look, float AgeSeconds);
