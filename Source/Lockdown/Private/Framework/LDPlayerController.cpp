@@ -20,6 +20,7 @@
 #include "Probes/LDDemoSessionFaultProbe.h"
 #include "Probes/LDBuildEvaluationProbe.h"
 #include "Probes/LDBuildRingProbe.h"
+#include "Probes/LDUICoverageProbe.h"
 #include "UI/LDUIRoot.h"
 #include "UI/LDControlSettings.h"
 #include "Vision/LDWorldViewRelay.h"
@@ -73,6 +74,7 @@ void ALDPlayerController::BeginPlay()
     LDDemoTests::StartSessionFaultProbe(*this);
     LDDemoTests::StartBuildEvaluation(*this);
     LDDemoTests::StartBuildRingProbe(*this);
+    LDDemoTests::StartUICoverageProbe(*this);
 #endif
 }
 
