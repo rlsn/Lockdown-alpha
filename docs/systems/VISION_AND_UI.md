@@ -53,7 +53,7 @@
 | 开始页：我开房 / 我加入 | LOCALLY VERIFIED | `ULDUIRoot` StartPage | `Front_Start*` | 开房/加入进行中与失败提示未拍；输入框字号按建页时的字号，运行中改字号不重排 |
 | 退出确认 | LOCALLY VERIFIED | `ULDUIRoot::BuildConfirm` | `Front_Exit*` |  |
 | 设置：画面 / 音频 / 操作 / 镜头 / 界面 / 特效 | IN PROGRESS | `ULDControlsPanel`（菜单页，可滚动） | `*_Settings_<页签>*` | 音频页待接 Stream C 的分轨 API；画面页在离屏拍摄下只显示“需要可交互窗口” |
-| Lobby（房主、AI 数、席位、准备、开始） | LOCALLY VERIFIED | `ULDUIRoot::BuildWorld`、`RebuildRoster`、`RefreshLobby` | `production/ui/m1/A2-lobby.jpg`、`Lobby_*` | 客机视角（准备 / 已准备）未拍 |
+| Lobby（角色集结卡：8 张席位卡、房主 / 客机 / 满员 / 无 AI、准备与开始） | LOCALLY VERIFIED | `ULDUIRoot::BuildWorld`、`RebuildRoster`、`RefreshLobby`；席位立绘 `LDUIBackgrounds::SeatAsset` ← `lobby_seat_1..8`（`Scripts/MakeLobbySeats.py`） | `production/ui/lobby/impl/`、`Lobby_*`（客机视角由真实第二进程拍摄） | — |
 | 构筑蓝图查看 | LOCALLY VERIFIED | `ULDBlueprintPanel` | `Lobby_Blueprint*` | 只拍到无记录状态 |
 | 离开房间确认 | LOCALLY VERIFIED | `ULDUIRoot::BuildConfirm` | `Match_MenuLeave*` |  |
 | 战斗 HUD（比分条、目标卡、事件流、底部操作条、小地图） | USER APPROVED | `ULDHUD`、`LDBroadcastPaint` | `hud/iter2-*`、`Match_Field*` |  |

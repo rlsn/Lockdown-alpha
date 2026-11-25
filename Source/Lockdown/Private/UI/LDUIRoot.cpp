@@ -35,6 +35,7 @@
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/Image.h"
+#include "Components/ScaleBoxSlot.h"
 #include "Components/Overlay.h"
 #include "Components/OverlaySlot.h"
 #include "Components/ScaleBox.h"
@@ -491,80 +492,101 @@ void ULDUIRoot::BuildWorld(UCanvasPanel& Canvas)
     HeaderSlot->SetOffsets(FMargin(18,18,18,84));
     HeaderPanel->SetVisibility(ESlateVisibility::Collapsed);
 
-    // The Lobby (on air): the room is the pre-game show. The picture darkened to ink on the left; the left column carries LIVE,
-    // the room title, the host's address, the AI count and the actions (one orange slab for the one thing to do now); the right
-    // column is the eight-seat roster of seat plates. Full screen inside the safe area, no panel box.
+    // The Lobby (approved candidate C, "character ready room"): a top strip says what is played and how it is won; eight
+    // equal seat cards across the screen carry who is here (the seat's hooper, number, name), who hosts, who is AI and who
+    // is ready (the card's foot); under the cards the ready count, the one reason line and the one main action; the host's
+    // address and AI count on the left, the side commands on the right; the slang ticker along the bottom.
     LobbyBackground=AddBackground(Canvas,LDUIBackgrounds::LobbyAsset);
-    if(LobbyBackground){LobbyBackground->SetVisibility(ESlateVisibility::Collapsed);}
-    const auto WholeBox=[](const LDUIPaint::FContext& Paint){return FBox2D(FVector2D::ZeroVector,FVector2D(Paint.Geometry.GetLocalSize()));};
-    LobbyPage=WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(),TEXT("LobbyPage"));
+    if(LobbyBackground)
     {
-        UCanvasPanelSlot* PageSlot=Canvas.AddChildToCanvas(LobbyPage);
-        PageSlot->SetAnchors(FAnchors(0,0,1,1));PageSlot->SetOffsets(FMargin(0));
+        LobbyBackground->SetVisibility(ESlateVisibility::Collapsed);
+        if(UScaleBox* Fill=Cast<UScaleBox>(LobbyBackground)){if(UImage* Picture=Cast<UImage>(Fill->GetContent())){Picture->SetColorAndOpacity(FLinearColor(.22f,.22f,.24f));}}
     }
+    const auto WholeBox=[](const LDUIPaint::FContext& Paint){return FBox2D(FVector2D::ZeroVector,FVector2D(Paint.Geometry.GetLocalSize()));};
+    const auto Px=[this](float Size){return FMath::Max(1,FMath::RoundToInt(LDBroadcastPaint::PointsOf(Size)*AppliedTextScale));};
+    LobbyPage=WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(),TEXT("LobbyPage"));
+    {UCanvasPanelSlot* PageSlot=Canvas.AddChildToCanvas(LobbyPage);PageSlot->SetAnchors(FAnchors(0,0,1,1));PageSlot->SetOffsets(FMargin(0));}
     LobbyPage->SetVisibility(ESlateVisibility::Collapsed);
     auto* Stage=WidgetTree->ConstructWidget<UOverlay>();
     LobbyPage->SetContent(Stage);
+    auto* LobbyColumn=WidgetTree->ConstructWidget<UVerticalBox>();
+    {UOverlaySlot* ColumnSlot=Stage->AddChildToOverlay(LobbyColumn);ColumnSlot->SetHorizontalAlignment(HAlign_Fill);ColumnSlot->SetVerticalAlignment(VAlign_Fill);}
+    const auto Words=[this,&Px](const FString& Text,float Size,const FLinearColor& Ink,LDUIFonts::ERole Role=LDUIFonts::ERole::Strong)
     {
-        UWidget* Shade=PaintLayer(WidgetTree,[WholeBox](const LDUIPaint::FContext& Paint)
-        {
-            Paint.Shape(Paint.Layer,LDUIPaint::EShape::Rounded,WholeBox(Paint),0.f,LDUIPaint::FFill::Linear(90.f,
-                {{0.f,LDBroadcast::Ink.CopyWithNewOpacity(.9f)},{.5f,LDBroadcast::Ink.CopyWithNewOpacity(.62f)},{1.f,LDBroadcast::Ink.CopyWithNewOpacity(.5f)}}));
-        });
-        UOverlaySlot* ShadeSlot=Stage->AddChildToOverlay(Shade);ShadeSlot->SetHorizontalAlignment(HAlign_Fill);ShadeSlot->SetVerticalAlignment(VAlign_Fill);
-    }
-    auto* Columns=WidgetTree->ConstructWidget<UHorizontalBox>();
+        UTextBlock* Line=LDWidgets::Text(WidgetTree,Text,Px(Size),NAME_None,Role);
+        Line->SetColorAndOpacity(Ink);Line->SetAutoWrapText(false);return Line;
+    };
     {
-        UOverlaySlot* ColumnsSlot=Stage->AddChildToOverlay(Columns);ColumnsSlot->SetHorizontalAlignment(HAlign_Fill);ColumnsSlot->SetVerticalAlignment(VAlign_Fill);
-        ColumnsSlot->SetPadding(FMargin(96,54,96,54));
-    }
-    auto* Left=WidgetTree->ConstructWidget<UVerticalBox>();
-    {
-        UHorizontalBoxSlot* LeftSlot=Columns->AddChildToHorizontalBox(Left);LeftSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-        LeftSlot->SetVerticalAlignment(VAlign_Fill);
-    }
-    {
-        auto* Head=WidgetTree->ConstructWidget<UHorizontalBox>();
-        UTextBlock* Live=LDWidgets::Text(WidgetTree,TEXT("LIVE"),Scaled(16),NAME_None,LDUIFonts::ERole::Figure);Live->SetColorAndOpacity(LDBroadcast::White);
-        Head->AddChildToHorizontalBox(Painted(WidgetTree,Live,FMargin(16,3,14,3),[WholeBox](const LDUIPaint::FContext& Paint)
+        // The top strip: LIVE, the mode, the map; then the eight beats, how it is won and the day's draw.
+        auto* Top=WidgetTree->ConstructWidget<UHorizontalBox>();
+        UVerticalBoxSlot* TopSlot=LobbyColumn->AddChildToVerticalBox(Top);TopSlot->SetPadding(FMargin(96,40,96,0));
+        UTextBlock* Live=Words(TEXT("LIVE"),24.f,LDBroadcast::White,LDUIFonts::ERole::Figure);
+        Top->AddChildToHorizontalBox(Painted(WidgetTree,Live,FMargin(16,2,16,2),[WholeBox](const LDUIPaint::FContext& Paint)
         {LDBroadcastPaint::FillSlab(Paint,Paint.Layer,WholeBox(Paint),LDBroadcast::LiveRed);}))->SetVerticalAlignment(VAlign_Center);
-        UTextBlock* Kicker=Label(TEXT("赛前 · 房间"),18,LDBroadcast::White);Kicker->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Strong,Scaled(18)));
-        Kicker->SetAutoWrapText(false);
-        UHorizontalBoxSlot* KickerSlot=Head->AddChildToHorizontalBox(Kicker);KickerSlot->SetPadding(FMargin(16,0,0,0));KickerSlot->SetVerticalAlignment(VAlign_Center);
-        Left->AddChildToVerticalBox(Head);
-        UTextBlock* Title=LDWidgets::Text(WidgetTree,TEXT("等待开赛"),Scaled(66),NAME_None,LDUIFonts::ERole::Title);
-        Title->SetColorAndOpacity(LDBroadcast::White);Title->SetAutoWrapText(false);
-        Left->AddChildToVerticalBox(Title)->SetPadding(FMargin(0,6,0,0));
+        UTextBlock* Mode=Words(FString(LDTerms::Winner)+TEXT(" · 混战"),36.f,LDBroadcast::White,LDUIFonts::ERole::Title);
+        UHorizontalBoxSlot* ModeSlot=Top->AddChildToHorizontalBox(Mode);ModeSlot->SetPadding(FMargin(20,0,0,0));ModeSlot->SetVerticalAlignment(VAlign_Center);
+        UHorizontalBoxSlot* MapSlot=Top->AddChildToHorizontalBox(Words(FString::Printf(TEXT("雾港 · 最多 %d 人"),LDMatchLifecycle::MaxContenders),20.f,LDBroadcast::Grey,LDUIFonts::ERole::Body));
+        MapSlot->SetPadding(FMargin(16,0,0,0));MapSlot->SetVerticalAlignment(VAlign_Center);
+        Top->AddChildToHorizontalBox(WidgetTree->ConstructWidget<USpacer>())->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+        auto* Beats=WidgetTree->ConstructWidget<USizeBox>();Beats->SetWidthOverride(260.f);Beats->SetHeightOverride(8.f);
+        Beats->SetContent(PaintLayer(WidgetTree,[](const LDUIPaint::FContext& Paint)
+        {
+            const FVector2D Size(Paint.Geometry.GetLocalSize());const float Step=float(Size.X+4.)/8.f;
+            for(int32 Beat=0;Beat<8;++Beat){LDBroadcastPaint::Block(Paint,Paint.Layer,FBox2D(FVector2D(Beat*Step,0.),FVector2D(Beat*Step+Step-4.f,Size.Y)),LDBroadcast::White.CopyWithNewOpacity(.85f));}
+        }));
+        Top->AddChildToHorizontalBox(Beats)->SetVerticalAlignment(VAlign_Center);
+        for(const TCHAR* Rule:{TEXT("终局旗杆"),TEXT("喷漆 3.5 秒"),TEXT("守满 20 秒")})
+        {
+            UTextBlock* Chip=Words(Rule,22.f,LDBroadcast::White);
+            UHorizontalBoxSlot* ChipSlot=Top->AddChildToHorizontalBox(Painted(WidgetTree,Chip,FMargin(12,6,12,4),[WholeBox](const LDUIPaint::FContext& Paint)
+            {
+                const FBox2D Box=WholeBox(Paint);
+                LDBroadcastPaint::Block(Paint,Paint.Layer,Box,LDBroadcast::Ink.CopyWithNewOpacity(.92f));
+                LDBroadcastPaint::Block(Paint,Paint.Layer+1,FBox2D(Box.Min,FVector2D(Box.Max.X,Box.Min.Y+2.)),LDBroadcast::White);
+            }));
+            ChipSlot->SetPadding(FMargin(Rule[0]==TEXT('终')?18.f:6.f,0,0,0));ChipSlot->SetVerticalAlignment(VAlign_Center);
+        }
+        UHorizontalBoxSlot* DailySlot=Top->AddChildToHorizontalBox(Words(TEXT("今日热点 2 个 · 开局揭晓"),20.f,LDBroadcast::Gold,LDUIFonts::ERole::Body));
+        DailySlot->SetPadding(FMargin(16,0,0,0));DailySlot->SetVerticalAlignment(VAlign_Center);
     }
-    // The host's address plate: what friends type to join, with its copy key.
-    RoomAddressRow=WidgetTree->ConstructWidget<UHorizontalBox>();
-    Left->AddChildToVerticalBox(RoomAddressRow)->SetPadding(FMargin(0,18,0,0));
     {
-        UTextBlock* Caption=Label(TEXT("房间地址"),16,LDBroadcast::Grey);Caption->SetAutoWrapText(false);
-        RoomAddressRow->AddChildToHorizontalBox(Caption)->SetVerticalAlignment(VAlign_Center);
-        RoomAddressLabel=LDWidgets::Text(WidgetTree,FString(),Scaled(22),NAME_None,LDUIFonts::ERole::Figure);
-        RoomAddressLabel->SetColorAndOpacity(LDBroadcast::White);RoomAddressLabel->SetAutoWrapText(false);
-        UHorizontalBoxSlot* AddrTextSlot=RoomAddressRow->AddChildToHorizontalBox(RoomAddressLabel);
-        AddrTextSlot->SetVerticalAlignment(VAlign_Center);AddrTextSlot->SetPadding(FMargin(14,0,18,0));
-        CopyAddressButton=MakeButton(LDTerms::CopyRoomAddress,TEXT("CopyRoomAddress"),[this](){CopyRoomAddress();},14);
-        RoomAddressRow->AddChildToHorizontalBox(CopyAddressButton)->SetVerticalAlignment(VAlign_Center);
+        // The seat cards (RebuildRoster fills the row).
+        RosterRows=WidgetTree->ConstructWidget<UVerticalBox>();
+        UVerticalBoxSlot* RowSlot=LobbyColumn->AddChildToVerticalBox(RosterRows);RowSlot->SetPadding(FMargin(96,26,96,0));
+        RowSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
     }
-    RoomAddressRow->SetVisibility(ESlateVisibility::Collapsed);
-    // AI opponents: eight square counters; the chosen count is the white block (RefreshLobby marks it through the button tint).
-    AIButtonRow=WidgetTree->ConstructWidget<UHorizontalBox>();
-    Left->AddChildToVerticalBox(AIButtonRow)->SetPadding(FMargin(0,22,0,0));
     {
-        auto* AICaption=Label(TEXT("AI 对手"),16,LDBroadcast::Grey);AICaption->SetAutoWrapText(false);
-        AIButtonRow->AddChildToHorizontalBox(AICaption)->SetVerticalAlignment(VAlign_Center);
+        // Under the cards: host tools (left), the ready count, reason and main action (centre), side commands (right).
+        auto* Bottom=WidgetTree->ConstructWidget<UHorizontalBox>();
+        UVerticalBoxSlot* BottomSlot=LobbyColumn->AddChildToVerticalBox(Bottom);BottomSlot->SetPadding(FMargin(96,24,96,22));
+        auto* Left=WidgetTree->ConstructWidget<UVerticalBox>();
+        auto* LeftBox=WidgetTree->ConstructWidget<USizeBox>();LeftBox->SetWidthOverride(600.f);LeftBox->SetContent(Left);
+        Bottom->AddChildToHorizontalBox(LeftBox)->SetVerticalAlignment(VAlign_Center);
+        // The address block (caption and row) is the host's; RefreshLobby collapses the whole block for a guest.
+        auto* AddressBlock=WidgetTree->ConstructWidget<UVerticalBox>();
+        Left->AddChildToVerticalBox(AddressBlock);
+        RoomAddressRow=WidgetTree->ConstructWidget<UHorizontalBox>();
+        AddressBlock->AddChildToVerticalBox(Words(TEXT("房间地址"),18.f,LDBroadcast::Grey,LDUIFonts::ERole::Body));
+        AddressBlock->AddChildToVerticalBox(RoomAddressRow)->SetPadding(FMargin(0,4,0,0));
+        RoomAddressLabel=Words(FString(),34.f,LDBroadcast::White,LDUIFonts::ERole::Figure);
+        RoomAddressRow->AddChildToHorizontalBox(RoomAddressLabel)->SetVerticalAlignment(VAlign_Center);
+        CopyAddressButton=MakeButton(LDTerms::CopyRoomAddress,TEXT("CopyRoomAddress"),[this](){CopyRoomAddress();},15);
+        UHorizontalBoxSlot* CopySlot=RoomAddressRow->AddChildToHorizontalBox(CopyAddressButton);CopySlot->SetVerticalAlignment(VAlign_Center);CopySlot->SetPadding(FMargin(16,0,0,0));
+        RoomAddressRow->SetVisibility(ESlateVisibility::Collapsed);
+        AddressBlock->SetVisibility(ESlateVisibility::Collapsed);
+        // AI opponents: eight square counters; the chosen count is the white block (RefreshLobby marks it through the tint).
+        AIButtonRow=WidgetTree->ConstructWidget<UHorizontalBox>();
+        Left->AddChildToVerticalBox(AIButtonRow)->SetPadding(FMargin(0,12,0,0));
+        AIButtonRow->AddChildToHorizontalBox(Words(TEXT("AI 对手"),18.f,LDBroadcast::Grey,LDUIFonts::ERole::Body))->SetVerticalAlignment(VAlign_Center);
         for(int32 Count=0;Count<=LDMatchLifecycle::MaxOpponents;++Count)
         {
             ULDCommandButton* Choice=MakeButton(FString::FromInt(Count),FName(*FString::Printf(TEXT("AICount%d"),Count)),
                 [this,Count](){if(auto* PC=Cast<ALDPlayerController>(GetOwningPlayer())){PC->SetDemoAICount(uint8(Count));}},18);
-            if(auto* Caption=Cast<UTextBlock>(Choice->GetContent())){Caption->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Figure,Scaled(20)));}
-            FButtonStyle Style=Choice->GetStyle();Style.NormalPadding=Style.PressedPadding=FMargin(0,6);Choice->SetStyle(Style);
+            if(auto* Caption=Cast<UTextBlock>(Choice->GetContent())){Caption->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Figure,Px(24.f)));}
+            FButtonStyle Style=Choice->GetStyle();Style.NormalPadding=Style.PressedPadding=FMargin(0,4);Choice->SetStyle(Style);
             LDWidgets::SetLook(Choice,LDUIPaint::EButton::Ghost);
             TWeakObjectPtr<ULDCommandButton> Weak(Choice);
-            auto* Cell=WidgetTree->ConstructWidget<USizeBox>();Cell->SetWidthOverride(48.f);Cell->SetHeightOverride(48.f);
+            auto* Cell=WidgetTree->ConstructWidget<USizeBox>();Cell->SetWidthOverride(44.f);Cell->SetHeightOverride(44.f);
             auto* Face=WidgetTree->ConstructWidget<UOverlay>();
             UOverlaySlot* FaceLayer=Face->AddChildToOverlay(PaintLayer(WidgetTree,[Weak,WholeBox](const LDUIPaint::FContext& Paint)
             {
@@ -578,73 +600,73 @@ void ULDUIRoot::BuildWorld(UCanvasPanel& Canvas)
             FaceLayer->SetHorizontalAlignment(HAlign_Fill);FaceLayer->SetVerticalAlignment(VAlign_Fill);
             UOverlaySlot* ButtonLayer=Face->AddChildToOverlay(Choice);ButtonLayer->SetHorizontalAlignment(HAlign_Fill);ButtonLayer->SetVerticalAlignment(VAlign_Fill);
             Cell->SetContent(Face);
-            AIButtonRow->AddChildToHorizontalBox(Cell)->SetPadding(FMargin(Count==0?16.f:6.f,0,0,0));
+            AIButtonRow->AddChildToHorizontalBox(Cell)->SetPadding(FMargin(Count==0?14.f:5.f,0,0,0));
             AIButtons.Add(Choice);
         }
-    }
-    AIButtonRow->SetVisibility(ESlateVisibility::Collapsed);
-    AIReadOnly=Label(FString(),18,LDBroadcast::White);
-    Left->AddChildToVerticalBox(AIReadOnly)->SetPadding(FMargin(0,22,0,0));
-    Left->AddChildToVerticalBox(WidgetTree->ConstructWidget<USpacer>())->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-    // One line each, newest state only: the DEV room marker, why the host cannot start yet, and the last intent answer.
-    LobbyDevMarker=Label(FString(),15,LDBroadcast::Gold);
-    Left->AddChildToVerticalBox(LobbyDevMarker)->SetPadding(FMargin(0,4));
-    LobbyBlocker=Label(FString(),16,LDBroadcast::Orange);
-    Left->AddChildToVerticalBox(LobbyBlocker)->SetPadding(FMargin(0,4));
-    LobbyFeedback=Label(FString(),16,LDBroadcast::White);
-    Left->AddChildToVerticalBox(LobbyFeedback)->SetPadding(FMargin(0,4));
-    {
-        // The one thing to do now: the host's 开始对局 or a guest's 准备, as the big slab; the rest are plain commands beside it.
-        auto* Actions=WidgetTree->ConstructWidget<UHorizontalBox>();
-        Left->AddChildToVerticalBox(Actions)->SetPadding(FMargin(0,14,0,0));
-        const auto Big=[this](ULDCommandButton* Button)
+        AIButtonRow->SetVisibility(ESlateVisibility::Collapsed);
+        // A guest reads the host and the AI count instead of the host tools.
+        LobbyHostName=Words(FString(),30.f,LDBroadcast::White,LDUIFonts::ERole::Title);
+        Left->AddChildToVerticalBox(LobbyHostName)->SetPadding(FMargin(0,2,0,0));
+        AIReadOnly=Words(FString(),18.f,LDBroadcast::Grey,LDUIFonts::ERole::Body);
+        Left->AddChildToVerticalBox(AIReadOnly)->SetPadding(FMargin(0,6,0,0));
+        LobbyDevMarker=Words(FString(),16.f,LDBroadcast::Gold,LDUIFonts::ERole::Body);LobbyDevMarker->SetAutoWrapText(true);
+        Left->AddChildToVerticalBox(LobbyDevMarker)->SetPadding(FMargin(0,8,0,0));
+
+        auto* Centre=WidgetTree->ConstructWidget<UVerticalBox>();
+        UHorizontalBoxSlot* CentreSlot=Bottom->AddChildToHorizontalBox(Centre);CentreSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+        CentreSlot->SetHorizontalAlignment(HAlign_Center);CentreSlot->SetVerticalAlignment(VAlign_Center);
+        auto* Meter=WidgetTree->ConstructWidget<UHorizontalBox>();
+        UVerticalBoxSlot* MeterSlot=Centre->AddChildToVerticalBox(Meter);MeterSlot->SetHorizontalAlignment(HAlign_Center);
+        LobbyMeterFigure=Words(FString(),58.f,LDBroadcast::White,LDUIFonts::ERole::Figure);
+        Meter->AddChildToHorizontalBox(LobbyMeterFigure)->SetVerticalAlignment(VAlign_Center);
+        LobbyMeterLabel=Words(TEXT("真人已准备"),24.f,LDBroadcast::White,LDUIFonts::ERole::Title);
+        UHorizontalBoxSlot* LabelSlot=Meter->AddChildToHorizontalBox(LobbyMeterLabel);LabelSlot->SetVerticalAlignment(VAlign_Center);LabelSlot->SetPadding(FMargin(14,0,0,0));
+        LobbyBlocker=Words(FString(),21.f,LDBroadcast::Orange);
+        UVerticalBoxSlot* ReasonSlot=Centre->AddChildToVerticalBox(LobbyBlocker);ReasonSlot->SetHorizontalAlignment(HAlign_Center);ReasonSlot->SetPadding(FMargin(0,4,0,8));
+        const auto Big=[this,&Px](ULDCommandButton* Button)
         {
-            if(auto* Caption=Cast<UTextBlock>(Button->GetContent())){Caption->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Title,Scaled(28)));}
-            FButtonStyle Style=Button->GetStyle();Style.NormalPadding=Style.PressedPadding=FMargin(56,14);Button->SetStyle(Style);
-            return Button;
+            if(auto* Caption=Cast<UTextBlock>(Button->GetContent())){Caption->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Title,Px(40.f)));}
+            FButtonStyle Style=Button->GetStyle();Style.NormalPadding=Style.PressedPadding=FMargin(0,14);Button->SetStyle(Style);
+            auto* Width=WidgetTree->ConstructWidget<USizeBox>();Width->SetWidthOverride(460.f);Width->SetContent(Button);
+            return Width;
         };
-        ReadyButton=Big(MakeButton(TEXT("准备"),TEXT("Ready"),[this](){Ready();}));
+        ReadyButton=MakeButton(TEXT("准备"),TEXT("Ready"),[this](){Ready();});
         LDWidgets::SetLook(ReadyButton,LDUIPaint::EButton::Primary);
-        Actions->AddChildToHorizontalBox(ReadyButton)->SetVerticalAlignment(VAlign_Center);
-        StartMatchButton=Big(MakeButton(TEXT("开始对局"),TEXT("StartMatch"),[this](){StartMatch();}));
-        // While the room can start, a white rule breathes around the start slab (RefreshLobby); a rule, never a halo.
-        StartMatchGlow=PaintLayer(WidgetTree,[WholeBox](const LDUIPaint::FContext& Paint)
+        Centre->AddChildToVerticalBox(Big(ReadyButton))->SetHorizontalAlignment(HAlign_Center);
+        StartMatchButton=MakeButton(TEXT("开始对局"),TEXT("StartMatch"),[this](){StartMatch();});
+        Centre->AddChildToVerticalBox(Big(StartMatchButton))->SetHorizontalAlignment(HAlign_Center);
+        LobbyFeedback=Words(FString(),18.f,LDBroadcast::White,LDUIFonts::ERole::Body);
+        UVerticalBoxSlot* FeedbackSlot=Centre->AddChildToVerticalBox(LobbyFeedback);FeedbackSlot->SetHorizontalAlignment(HAlign_Center);FeedbackSlot->SetPadding(FMargin(0,6,0,0));
+
+        auto* Right=WidgetTree->ConstructWidget<UHorizontalBox>();
+        auto* RightBox=WidgetTree->ConstructWidget<USizeBox>();RightBox->SetWidthOverride(600.f);RightBox->SetContent(Right);
+        Bottom->AddChildToHorizontalBox(RightBox)->SetVerticalAlignment(VAlign_Center);
+        Right->AddChildToHorizontalBox(WidgetTree->ConstructWidget<USpacer>())->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+        const auto Side=[this,Right,&Px](ULDCommandButton* Button)
         {
-            const float Pulse=.35f+.65f*LDTween::PingPong(FPlatformTime::Seconds(),1.6);
-            const FBox2D Box=WholeBox(Paint);
-            Paint.Polygon(Paint.Layer,LDBroadcastPaint::Slab(FBox2D(Box.Min-FVector2D(5,5),Box.Max+FVector2D(5,5))),
-                LDUIPaint::FFill::Solid(LDBroadcast::White.CopyWithNewOpacity(Pulse)));
-            Paint.Polygon(Paint.Layer+1,LDBroadcastPaint::Slab(FBox2D(Box.Min-FVector2D(2,2),Box.Max+FVector2D(2,2))),
-                LDUIPaint::FFill::Solid(LDBroadcast::Ink));
-        });
-        StartMatchGlow->SetVisibility(ESlateVisibility::Collapsed);
-        auto* StartWrap=WidgetTree->ConstructWidget<UOverlay>();
-        for(UWidget* Layer:{StartMatchGlow.Get(),static_cast<UWidget*>(StartMatchButton.Get())})
-        {UOverlaySlot* LayerSlot=StartWrap->AddChildToOverlay(Layer);LayerSlot->SetHorizontalAlignment(HAlign_Fill);LayerSlot->SetVerticalAlignment(VAlign_Fill);}
-        Actions->AddChildToHorizontalBox(StartWrap)->SetVerticalAlignment(VAlign_Center);
-        StartMatchButton->SetVisibility(ESlateVisibility::Collapsed);
-        const auto Side=[Actions](ULDCommandButton* Button)
-        {
-            UHorizontalBoxSlot* ButtonSlot=Actions->AddChildToHorizontalBox(Button);
-            ButtonSlot->SetPadding(FMargin(18,0,0,0));ButtonSlot->SetVerticalAlignment(VAlign_Center);
+            if(auto* Caption=Cast<UTextBlock>(Button->GetContent())){Caption->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Strong,Px(22.f)));}
+            FButtonStyle Style=Button->GetStyle();Style.NormalPadding=Style.PressedPadding=FMargin(26,12);Button->SetStyle(Style);
+            UHorizontalBoxSlot* ButtonSlot=Right->AddChildToHorizontalBox(Button);ButtonSlot->SetPadding(FMargin(8,0,0,0));ButtonSlot->SetVerticalAlignment(VAlign_Center);
         };
         // #198 §10: the own last build blueprint and the read-only import view, outside any match.
         Side(MakeButton(LDTerms::BuildBlueprint,TEXT("LobbyBuildBlueprint"),[this]()
         {
             if(auto* PC=Cast<ALDPlayerController>(GetOwningPlayer())){if(PC->BuildBlueprints){PC->BuildBlueprints->ToggleViewer();}}
-        },16));
-        Side(MakeButton(TEXT("设置"),TEXT("LobbySettings"),[this](){ToggleMainPanel(ELDUIMainPanel::Settings);},16));
-        Side(MakeButton(TEXT("离开房间"),TEXT("LeaveRoom"),[this](){OpenConfirm(ELDRootConfirm::LeaveRoom);},16));
+        }));
+        Side(MakeButton(TEXT("设置"),TEXT("LobbySettings"),[this](){ToggleMainPanel(ELDUIMainPanel::Settings);}));
+        Side(MakeButton(TEXT("离开房间"),TEXT("LeaveRoom"),[this](){OpenConfirm(ELDRootConfirm::LeaveRoom);}));
     }
     {
-        // The roster: eight seat plates in two columns under the seat count.
-        auto* Right=WidgetTree->ConstructWidget<UVerticalBox>();
-        UHorizontalBoxSlot* RightSlot=Columns->AddChildToHorizontalBox(Right);RightSlot->SetVerticalAlignment(VAlign_Center);
-        RightSlot->SetPadding(FMargin(48,0,0,0));
-        LobbySeatCount=Label(FString(),16,LDBroadcast::Grey);LobbySeatCount->SetAutoWrapText(false);
-        Right->AddChildToVerticalBox(LobbySeatCount)->SetPadding(FMargin(0,0,0,10));
-        RosterRows=WidgetTree->ConstructWidget<UVerticalBox>();
-        Right->AddChildToVerticalBox(RosterRows);
+        // The slang ticker of the title screen, along the bottom.
+        auto* Ticker=WidgetTree->ConstructWidget<UHorizontalBox>();
+        UTextBlock* Tag=Words(TEXT("黑话"),20.f,LDBroadcast::Ink);
+        Ticker->AddChildToHorizontalBox(Painted(WidgetTree,Tag,FMargin(36,12,40,12),[WholeBox](const LDUIPaint::FContext& Paint)
+        {LDBroadcastPaint::FillSlab(Paint,Paint.Layer,WholeBox(Paint),LDBroadcast::Orange,true,false);}));
+        UHorizontalBoxSlot* NoteSlot=Ticker->AddChildToHorizontalBox(Words(LDTerms::SlangNote,18.f,LDBroadcast::White,LDUIFonts::ERole::Body));
+        NoteSlot->SetVerticalAlignment(VAlign_Center);NoteSlot->SetPadding(FMargin(22,0,0,0));
+        UOverlay* Band=Painted(WidgetTree,Ticker,FMargin(0),[WholeBox](const LDUIPaint::FContext& Paint)
+        {LDBroadcastPaint::Block(Paint,Paint.Layer,WholeBox(Paint),LDBroadcast::Ink.CopyWithNewOpacity(.95f));});
+        LobbyColumn->AddChildToVerticalBox(Band);
     }
 
     // The in-match menu (on air): a full-height ink strip on the left, like the title screen's menu column; the match keeps
@@ -1065,6 +1087,7 @@ void ULDUIRoot::RefreshLobby(const ALDPlayerController& PC,const ALDGameState& P
     if(RoomAddressRow&&RoomAddressLabel)
     {
         RoomAddressRow->SetVisibility(bHost?ESlateVisibility::SelfHitTestInvisible:ESlateVisibility::Collapsed);
+        if(UWidget* AddressBlock=RoomAddressRow->GetParent()){AddressBlock->SetVisibility(RoomAddressRow->GetVisibility());}
         if(bHost)
         {
             const UWorld* World=GetWorld();
@@ -1084,27 +1107,27 @@ void ULDUIRoot::RefreshLobby(const ALDPlayerController& PC,const ALDGameState& P
     }
     AIButtonRow->SetVisibility(bHost?ESlateVisibility::SelfHitTestInvisible:ESlateVisibility::Collapsed);
     SetLine(AIReadOnly,bHost||!bCurrent?FString():FString::Printf(TEXT("AI 对手  %d"),int32(Lobby.AICount)));
+    // A guest reads who hosts where the host's tools stand.
+    {
+        const FLDLobbyMember* HostMember=Lobby.Members.FindByPredicate([](const FLDLobbyMember& Member){return Member.Host;});
+        SetLine(LobbyHostName,bHost||!bCurrent||!HostMember?FString():TEXT("房主  ")+HostMember->Name);
+    }
     // A DEV test room says so before anyone starts: its results are fixture evidence, never a cheat-free match.
     SetLine(LobbyDevMarker,!bCurrent||(!Lobby.DevTestSession&&!Lobby.DevContentReload)?FString()
         :FString(Lobby.DevTestSession?TEXT("测试模式房间：对局中可用“测试”面板改自己的状态"):TEXT("开发房间"))
         +(Lobby.DevContentReload?TEXT(" · 内容热重载：只接受房主与 AI"):TEXT(""))+TEXT("；结果不算无作弊对局。"));
-    StartMatchButton->SetVisibility(bHost?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
-    if(UWidget* StartWrap=StartMatchButton->GetParent())
-    {
-        StartWrap->SetVisibility(bHost?ESlateVisibility::SelfHitTestInvisible:ESlateVisibility::Collapsed);
-    }
-    StartMatchButton->SetIsEnabled(bCurrent&&Lobby.CanStart);
+    // The one main action: the host's 开始对局 (orange once the room can start, grey with the reason otherwise) or a guest's
+    // 准备 (orange) / 取消准备 (white, the taken choice that can be undone). The other button's place collapses.
     const bool bCanStart=bHost&&bCurrent&&Lobby.CanStart;
+    if(UWidget* StartBox=StartMatchButton->GetParent()){StartBox->SetVisibility(bHost?ESlateVisibility::SelfHitTestInvisible:ESlateVisibility::Collapsed);}
+    StartMatchButton->SetIsEnabled(bCanStart);
     const LDUIPaint::EButton StartLook=bCanStart?LDUIPaint::EButton::Primary:LDUIPaint::EButton::Normal;
     if(StartMatchButton->Look!=StartLook){LDWidgets::SetLook(StartMatchButton,StartLook);}
-    StartMatchGlow->SetVisibility(bCanStart?ESlateVisibility::HitTestInvisible:ESlateVisibility::Collapsed);
-    // #337 §4: hide ReadyButton for the Host; only guests see Ready / Cancel Ready.
-    ReadyButton->SetVisibility(!bHost?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
+    if(UWidget* ReadyBox=ReadyButton->GetParent()){ReadyBox->SetVisibility(!bHost?ESlateVisibility::SelfHitTestInvisible:ESlateVisibility::Collapsed);}
     ReadyButton->SetIsEnabled(bOwnerCurrent&&!bHost);
-    if(UTextBlock* ReadyCap=Cast<UTextBlock>(ReadyButton->GetContent()))
-    {
-        SetLine(ReadyCap,Mine.bReady?TEXT("取消准备"):TEXT("准备"));
-    }
+    const LDUIPaint::EButton ReadyLook=Mine.bReady?LDUIPaint::EButton::White:LDUIPaint::EButton::Primary;
+    if(ReadyButton->Look!=ReadyLook){LDWidgets::SetLook(ReadyButton,ReadyLook);}
+    if(UTextBlock* ReadyCap=Cast<UTextBlock>(ReadyButton->GetContent())){SetLine(ReadyCap,Mine.bReady?TEXT("取消准备"):TEXT("准备"));}
     int32 GuestTotal=0,GuestReady=0;
     for(const FLDLobbyMember& Member:Lobby.Members)
     {
@@ -1114,19 +1137,25 @@ void ULDUIRoot::RefreshLobby(const ALDPlayerController& PC,const ALDGameState& P
             if(Member.Ready){++GuestReady;}
         }
     }
-    FString BlockerLine;
+    // The ready count over the action: guests only (the host is exempt). A room without guests says the host can start.
+    SetLine(LobbyMeterFigure,bCurrent&&GuestTotal>0?FString::Printf(TEXT("%d/%d"),GuestReady,GuestTotal):FString());
+    SetLine(LobbyMeterLabel,!bCurrent?FString():GuestTotal>0?FString(TEXT("真人已准备")):FString(TEXT("只有你一位真人")));
+    FString ReasonLine;
+    FLinearColor ReasonInk=LDBroadcast::Orange;
     if(bCurrent&&!Lobby.CanStart)
     {
-        if(bHost&&GuestTotal>0&&GuestReady<GuestTotal)
-        {
-            BlockerLine=FString::Printf(TEXT("等待其他玩家准备 (%d/%d)"),GuestReady,GuestTotal);
-        }
-        else if(!Lobby.StartBlocker.IsEmpty())
-        {
-            BlockerLine=TEXT("暂不能开始：")+Lobby.StartBlocker;
-        }
+        if(GuestTotal>0&&GuestReady<GuestTotal){ReasonLine=FString::Printf(TEXT("等待其他玩家准备 (%d/%d)"),GuestReady,GuestTotal);}
+        else if(!Lobby.StartBlocker.IsEmpty()){ReasonLine=TEXT("暂不能开始：")+Lobby.StartBlocker;}
+        if(!bHost&&!Mine.bReady){ReasonLine=TEXT("你还没准备");}
     }
-    SetLine(LobbyBlocker,BlockerLine);
+    else if(bCurrent)
+    {
+        ReasonLine=bHost?FString(TEXT("全员到齐，可以开局")):FString(TEXT("等房主开局"));
+        ReasonInk=LDBroadcast::White;
+    }
+    if(!bHost&&Mine.bReady&&bCurrent&&!Lobby.CanStart){ReasonLine=TEXT("等其他玩家准备");ReasonInk=LDBroadcast::White;}
+    SetLine(LobbyBlocker,ReasonLine);
+    if(LobbyBlocker){LobbyBlocker->SetColorAndOpacity(ReasonInk);}
     SetLine(LobbyFeedback,!PC.IntentFeedback.IsEmpty()?PC.IntentFeedback:CopiedAddressFeedback);
 }
 
@@ -1147,89 +1176,126 @@ const FLDDemoContentDefinitions* ULDUIRoot::ResultDefinitions()
 
 void ULDUIRoot::RebuildRoster(const ALDGameState& Public,const FGuid& Self)
 {
-    // One seat plate per roster seat (on air): the seat block in its seat ink with the jersey number, the name in white heavy,
-    // and square tags on the right (房主 white rule, AI grey, 已准备 orange, 未准备 grey). The own seat carries the 2 px orange
-    // rule along its bottom edge; empty seats are a dim ink plate with their number only.
+    // Eight equal seat cards (approved candidate C). A taken seat shows the seat's hooper portrait, the 6 px seat-ink stripe,
+    // the big seat number, a 房主 or AI tag, the name block and the status foot: 已准备 orange, 未准备 grey stripes, 房主 ·
+    // 免准备 white, AI 随时就绪 dark. The own card wears the 4 px orange rule and 你. An open seat is a dashed card with its
+    // number. A card whose member or readiness changed wipes its foot in over 200 ms (on-air motion, no bounce).
     RosterRows->ClearChildren();
-    auto* Seats=WidgetTree->ConstructWidget<UUniformGridPanel>();Seats->SetSlotPadding(FMargin(5));
-    RosterRows->AddChildToVerticalBox(Seats);
+    auto* Row=WidgetTree->ConstructWidget<UHorizontalBox>();
+    UVerticalBoxSlot* RowSlot=RosterRows->AddChildToVerticalBox(Row);RowSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
     constexpr int32 SeatCount=LDMatchLifecycle::MaxContenders;
     const bool bHasPrevious=Public.DemoLobby.PreviousResultId.IsValid();
     const bool bPreviousReady=bHasPrevious&&Public.MatchResult.ResultId==Public.DemoLobby.PreviousResultId
         &&Public.MatchResult.Generation>0&&Public.MatchResult.Generation<Public.DemoLobby.Generation;
     const auto Whole=[](const LDUIPaint::FContext& Paint){return FBox2D(FVector2D::ZeroVector,FVector2D(Paint.Geometry.GetLocalSize()));};
-    int32 SeatIndex=0;
-    const auto Seat=[this,Seats,bHasPrevious,&SeatIndex](UWidget* Card)
+    const auto Px=[this](float Size){return FMath::Max(1,FMath::RoundToInt(LDBroadcastPaint::PointsOf(Size)*AppliedTextScale));};
+    const auto Words=[this,&Px](const FString& Text,float Size,const FLinearColor& Ink,LDUIFonts::ERole Role)
+    {UTextBlock* Line=LDWidgets::Text(WidgetTree,Text,Px(Size),NAME_None,Role);Line->SetColorAndOpacity(Ink);Line->SetAutoWrapText(false);return Line;};
+    const double Now=FPlatformTime::Seconds();
+    for(int32 Seat=0;Seat<SeatCount;++Seat)
     {
-        auto* Place=WidgetTree->ConstructWidget<USizeBox>();Place->SetWidthOverride(390.f);Place->SetHeightOverride(bHasPrevious?150.f:72.f);Place->SetContent(Card);
-        auto* SeatSlot=Seats->AddChildToUniformGrid(Place,SeatIndex/2,SeatIndex%2);
-        SeatSlot->SetHorizontalAlignment(HAlign_Fill);SeatSlot->SetVerticalAlignment(VAlign_Fill);
-        ++SeatIndex;
-    };
-    const auto Tag=[this,Whole](const TCHAR* Text,const FLinearColor& Fill,const FLinearColor& Ink,bool bRule)
-    {
-        UTextBlock* Caption=Label(Text,14,Ink);Caption->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Strong,Scaled(14)));Caption->SetAutoWrapText(false);
-        return Painted(WidgetTree,Caption,FMargin(10,2),[Whole,Fill,bRule](const LDUIPaint::FContext& Paint)
+        const FLDLobbyMember* Member=Public.DemoLobby.Members.IsValidIndex(Seat)?&Public.DemoLobby.Members[Seat]:nullptr;
+        // The stamp of what the card says: who sits there and whether they are ready.
+        const uint32 Key=Member?HashCombine(GetTypeHash(Member->ContenderId),uint32(Member->Ready)+1):0;
+        if(SeatCardKeys[Seat]!=Key){SeatCardKeys[Seat]=Key;SeatCardAt[Seat]=Now;}
+        const double ChangedAt=SeatCardAt[Seat];
+        auto* Card=WidgetTree->ConstructWidget<UOverlay>();Card->SetClipping(EWidgetClipping::ClipToBounds);
+        UHorizontalBoxSlot* CardSlot=Row->AddChildToHorizontalBox(Card);CardSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+        CardSlot->SetPadding(FMargin(Seat?12.f:0.f,0,0,0));
+        const auto Layer=[Card](UWidget* Child,EHorizontalAlignment H,EVerticalAlignment V,const FMargin& Pad=FMargin(0))
+        {UOverlaySlot* S=Card->AddChildToOverlay(Child);S->SetHorizontalAlignment(H);S->SetVerticalAlignment(V);S->SetPadding(Pad);return S;};
+        const FLinearColor Ink=LDBroadcast::SeatInk(uint8(Seat));
+        if(!Member)
         {
-            LDBroadcastPaint::Block(Paint,Paint.Layer,Whole(Paint),Fill);
-            if(bRule){LDBroadcastPaint::Frame(Paint,Paint.Layer+1,Whole(Paint),LDBroadcast::White,1.5f);}
-        });
-    };
-    const int32 Taken=Public.DemoLobby.Members.Num();
-    SetLine(LobbySeatCount,FString::Printf(TEXT("参赛席位  %d / %d"),Taken,SeatCount));
-    int32 Shown=0;
-    for(const FLDLobbyMember& Member:Public.DemoLobby.Members)
-    {
-        const bool bMine=Self.IsValid()&&Member.ContenderId==Self;
-        const bool bHuman=Member.Kind==ELDContenderKind::Human;
-        const uint8 SeatSlot=uint8(Shown);
-        auto* Box=WidgetTree->ConstructWidget<UVerticalBox>();
-        auto* Head=WidgetTree->ConstructWidget<UHorizontalBox>();
-        UTextBlock* Name=Label(Member.Name+(bMine?TEXT("（你）"):TEXT("")),20,LDBroadcast::White);
-        Name->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Title,Scaled(20)));Name->SetAutoWrapText(false);
-        Name->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
-        Name->SetClipping(EWidgetClipping::ClipToBounds);
-        UHorizontalBoxSlot* NameSlot=Head->AddChildToHorizontalBox(Name);NameSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));NameSlot->SetVerticalAlignment(VAlign_Center);
-        const auto AddTag=[Head](UWidget* Chip){UHorizontalBoxSlot* ChipSlot=Head->AddChildToHorizontalBox(Chip);ChipSlot->SetVerticalAlignment(VAlign_Center);ChipSlot->SetPadding(FMargin(6,0,0,0));};
-        if(Member.Host){AddTag(Tag(TEXT("房主"),LDBroadcast::Ink,LDBroadcast::White,true));}
-        if(!bHuman){AddTag(Tag(TEXT("AI"),LDBroadcast::Raised,LDBroadcast::Grey,false));}
-        if(bHuman&&!Member.Host){AddTag(Member.Ready?Tag(TEXT("已准备"),LDBroadcast::Orange,LDBroadcast::Ink,false):Tag(TEXT("未准备"),LDBroadcast::Raised,LDBroadcast::Grey,false));}
-        Box->AddChildToVerticalBox(Head);
+            Layer(PaintLayer(WidgetTree,[Whole](const LDUIPaint::FContext& Paint)
+            {
+                const FBox2D Box=Whole(Paint);
+                LDBroadcastPaint::Block(Paint,Paint.Layer,Box,LDBroadcast::Panel.CopyWithNewOpacity(.45f));
+                Paint.DashedEdge(Paint.Layer+1,LDUIPaint::EShape::Rounded,LDUIPaint::Grow(Box,-8.f),0.f,LDBroadcast::Mute,2.f,8.f,6.f);
+            }),HAlign_Fill,VAlign_Fill);
+            Layer(Words(FString::FromInt(Seat+1),110.f,LDBroadcast::Mute,LDUIFonts::ERole::Figure),HAlign_Left,VAlign_Top,FMargin(16,4,0,0));
+            Layer(Words(TEXT("空位"),24.f,LDBroadcast::Mute,LDUIFonts::ERole::Strong),HAlign_Center,VAlign_Center);
+            continue;
+        }
+        const bool bMine=Self.IsValid()&&Member->ContenderId==Self;
+        const bool bHuman=Member->Kind==ELDContenderKind::Human;
+        // Seat portrait over the panel, faded into the name block.
+        Layer(PaintLayer(WidgetTree,[Whole](const LDUIPaint::FContext& Paint){LDBroadcastPaint::Block(Paint,Paint.Layer,Whole(Paint),LDBroadcast::Panel);}),HAlign_Fill,VAlign_Fill);
+        if(UTexture2D* Portrait=LoadObject<UTexture2D>(nullptr,*LDUIBackgrounds::SeatAsset(Seat)))
+        {
+            auto* Picture=WidgetTree->ConstructWidget<UImage>();Picture->SetBrushFromTexture(Portrait,true);
+            auto* Fill=WidgetTree->ConstructWidget<UScaleBox>();Fill->SetStretch(EStretch::ScaleToFill);Fill->SetContent(Picture);
+            if(auto* FillSlot=Cast<UScaleBoxSlot>(Fill->GetContentSlot())){FillSlot->SetVerticalAlignment(VAlign_Top);}
+            Layer(Fill,HAlign_Fill,VAlign_Fill,FMargin(0,0,0,150));
+        }
+        Layer(PaintLayer(WidgetTree,[Whole,Ink,bMine](const LDUIPaint::FContext& Paint)
+        {
+            const FBox2D Box=Whole(Paint);
+            const float FadeTop=float(Box.Max.Y)-150.f-140.f;
+            Paint.Shape(Paint.Layer,LDUIPaint::EShape::Rounded,FBox2D(FVector2D(Box.Min.X,FadeTop),FVector2D(Box.Max.X,Box.Max.Y-150.)),0.f,
+                LDUIPaint::FFill::Linear(180.f,{{0.f,LDBroadcast::Ink.CopyWithNewOpacity(0.f)},{1.f,LDBroadcast::Ink.CopyWithNewOpacity(.95f)}}));
+            LDBroadcastPaint::Block(Paint,Paint.Layer+1,FBox2D(FVector2D(Box.Min.X,Box.Max.Y-150.),Box.Max),LDBroadcast::Ink);
+            LDBroadcastPaint::Block(Paint,Paint.Layer+1,FBox2D(Box.Min,FVector2D(Box.Max.X,Box.Min.Y+6.)),Ink);
+            if(bMine){LDBroadcastPaint::Frame(Paint,Paint.Layer+3,Box,LDBroadcast::Orange,4.f);}
+        }),HAlign_Fill,VAlign_Fill);
+        Layer(Words(FString::FromInt(Seat+1),110.f,Ink,LDUIFonts::ERole::Figure),HAlign_Left,VAlign_Top,FMargin(14,2,0,0));
+        if(Member->Host||!bHuman)
+        {
+            const bool bHostTag=Member->Host;
+            UTextBlock* Tag=Words(bHostTag?TEXT("房主"):TEXT("AI"),17.f,bHostTag?LDBroadcast::Ink:LDBroadcast::Grey,bHostTag?LDUIFonts::ERole::Strong:LDUIFonts::ERole::Figure);
+            Layer(Painted(WidgetTree,Tag,FMargin(10,2,10,2),[Whole,bHostTag](const LDUIPaint::FContext& Paint)
+            {LDBroadcastPaint::Block(Paint,Paint.Layer,Whole(Paint),bHostTag?LDBroadcast::White:LDBroadcast::Raised);}),HAlign_Right,VAlign_Top,FMargin(0,14,10,0));
+        }
+        if(bMine)
+        {
+            UTextBlock* You=Words(TEXT("你"),17.f,LDBroadcast::Ink,LDUIFonts::ERole::Strong);
+            Layer(Painted(WidgetTree,You,FMargin(10,2,10,2),[Whole](const LDUIPaint::FContext& Paint)
+            {LDBroadcastPaint::Block(Paint,Paint.Layer,Whole(Paint),LDBroadcast::Orange);}),HAlign_Left,VAlign_Bottom,FMargin(16,0,0,166));
+        }
+        // The name block: the name shrinks to the card width rather than cutting off; the kind below; the last build after
+        // a match when one is public.
+        auto* NameBlock=WidgetTree->ConstructWidget<UVerticalBox>();
+        UTextBlock* Name=Words(Member->Name,30.f,LDBroadcast::White,LDUIFonts::ERole::Title);
+        NameBlock->AddChildToVerticalBox(LDWidgets::Fit(WidgetTree,Name))->SetHorizontalAlignment(HAlign_Left);
+        NameBlock->AddChildToVerticalBox(Words(bHuman?TEXT("真人"):TEXT("AI 对手"),17.f,LDBroadcast::Grey,LDUIFonts::ERole::Body));
         if(bHasPrevious)
         {
-            const FLDResultRow* Previous=LDCapture::PreviousLobbyResult(Public.MatchResult,Public.DemoLobby,Member);
-            UWidget* Build=Previous?LDResultBuild::Make(WidgetTree,Previous->Build,ResultDefinitions(),300.f,66.f,AppliedTextScale)
-                :Label(bPreviousReady?TEXT("暂无上局构筑"):TEXT("上局构筑同步中…"),14,LDBroadcast::Grey);
-            Box->AddChildToVerticalBox(Build)->SetPadding(FMargin(0,8,0,0));
+            const FLDResultRow* Previous=LDCapture::PreviousLobbyResult(Public.MatchResult,Public.DemoLobby,*Member);
+            UWidget* Build=Previous?LDResultBuild::Make(WidgetTree,Previous->Build,ResultDefinitions(),180.f,44.f,AppliedTextScale)
+                :static_cast<UWidget*>(Words(bPreviousReady?TEXT("暂无上局构筑"):TEXT("上局构筑同步中…"),15.f,LDBroadcast::Grey,LDUIFonts::ERole::Body));
+            NameBlock->AddChildToVerticalBox(LDWidgets::Fit(WidgetTree,Build))->SetPadding(FMargin(0,4,0,0));
         }
-        UOverlay* Card=Painted(WidgetTree,Box,FMargin(84,10,14,10),[Whole,SeatSlot,bMine](const LDUIPaint::FContext& Paint)
+        auto* NameSize=WidgetTree->ConstructWidget<USizeBox>();NameSize->SetHeightOverride(88.f);NameSize->SetContent(NameBlock);
+        Layer(NameSize,HAlign_Fill,VAlign_Bottom,FMargin(16,0,16,62));
+        // The status foot: wipes in from the left over 200 ms when the seat or its readiness changes.
+        enum class EFoot : uint8 {Ready,Waiting,Host,AI};
+        const EFoot Foot=Member->Host?EFoot::Host:!bHuman?EFoot::AI:Member->Ready?EFoot::Ready:EFoot::Waiting;
+        auto* FootBox=WidgetTree->ConstructWidget<USizeBox>();FootBox->SetHeightOverride(62.f);
+        UTextBlock* FootText=Words(Foot==EFoot::Ready?TEXT("已准备"):Foot==EFoot::Waiting?TEXT("未准备"):Foot==EFoot::Host?TEXT("房主 · 免准备"):TEXT("AI 随时就绪"),
+            26.f,Foot==EFoot::Ready||Foot==EFoot::Host?LDBroadcast::Ink:Foot==EFoot::Waiting?LDBroadcast::Grey:LDBroadcast::Mute,LDUIFonts::ERole::Title);
+        FootBox->SetContent(Painted(WidgetTree,LDWidgets::Fit(WidgetTree,FootText),FMargin(8,0),[Whole,Foot,ChangedAt](const LDUIPaint::FContext& Paint)
         {
             const FBox2D Box=Whole(Paint);
-            LDBroadcastPaint::Block(Paint,Paint.Layer,Box,LDBroadcast::Ink.CopyWithNewOpacity(.9f));
-            LDBroadcastPaint::SeatPlate(Paint,Paint.Layer+1,FBox2D(Box.Min+FVector2D(10.,10.),FVector2D(Box.Min.X+70.,Box.Min.Y+62.)),SeatSlot,1.f,34.f);
-            if(bMine){LDBroadcastPaint::Block(Paint,Paint.Layer+1,FBox2D(FVector2D(Box.Min.X,Box.Max.Y-3.),Box.Max),LDBroadcast::Orange);}
-        });
-        Cast<UOverlaySlot>(Box->Slot)->SetVerticalAlignment(VAlign_Center);
-        Seat(Card);
-        ++Shown;
+            const float Wipe=LDTween::Progress(FPlatformTime::Seconds()-ChangedAt,LDBroadcast::SlideIn,LDTween::ECurve::EaseOut);
+            const FBox2D Shown(Box.Min,FVector2D(Box.Min.X+(Box.Max.X-Box.Min.X)*Wipe,Box.Max.Y));
+            if(Foot==EFoot::Waiting)
+            {
+                LDBroadcastPaint::Block(Paint,Paint.Layer,Box,LDBroadcast::Panel);
+                for(float X=float(Box.Min.X)-60.f;X<Box.Max.X;X+=20.f)
+                {Paint.Polygon(Paint.Layer+1,{FVector2D(X,Box.Max.Y),FVector2D(X+10.,Box.Max.Y),FVector2D(X+10.+Box.GetSize().Y,Box.Min.Y),FVector2D(X+Box.GetSize().Y,Box.Min.Y)},
+                    LDUIPaint::FFill::Solid(LDBroadcast::Raised),FMath::Clamp(Wipe,0.f,1.f));}
+                return;
+            }
+            const FLinearColor Fill=Foot==EFoot::Ready?LDBroadcast::Orange:Foot==EFoot::Host?LDBroadcast::White:LDBroadcast::Panel;
+            LDBroadcastPaint::Block(Paint,Paint.Layer,Box,LDBroadcast::Panel);
+            LDBroadcastPaint::Block(Paint,Paint.Layer+1,Shown,Fill);
+        }));
+        if(auto* TextSlot=Cast<UOverlaySlot>(FootBox->GetContent()?Cast<UOverlay>(FootBox->GetContent())->GetChildAt(1)->Slot:nullptr))
+        {TextSlot->SetHorizontalAlignment(HAlign_Center);TextSlot->SetVerticalAlignment(VAlign_Center);}
+        Layer(FootBox,HAlign_Fill,VAlign_Bottom);
     }
-    for(;Shown<SeatCount;++Shown)
-    {
-        const uint8 SeatSlot=uint8(Shown);
-        UTextBlock* Empty=Label(TEXT("空位"),16,LDBroadcast::Mute);
-        UOverlay* Card=Painted(WidgetTree,Empty,FMargin(84,0,14,0),[Whole,SeatSlot](const LDUIPaint::FContext& Paint)
-        {
-            const FBox2D Box=Whole(Paint);
-            LDBroadcastPaint::Block(Paint,Paint.Layer,Box,LDBroadcast::Ink.CopyWithNewOpacity(.55f));
-            const FBox2D Plate(Box.Min+FVector2D(10.,10.),FVector2D(Box.Min.X+70.,Box.Min.Y+62.));
-            LDBroadcastPaint::Frame(Paint,Paint.Layer+1,Plate,LDBroadcast::Mute,1.5f);
-            LDBroadcastPaint::Text(Paint,Paint.Layer+2,FString::FromInt(SeatSlot+1),LDBroadcastPaint::FigureFont(30.f),Plate.GetCenter(),LDBroadcast::Mute,FVector2D(.5,.5));
-        });
-        Cast<UOverlaySlot>(Empty->Slot)->SetVerticalAlignment(VAlign_Center);
-        Seat(Card);
-    }
-    // Rebuilding during a tick can otherwise paint the grid before its first layout prepass.
-    Seats->ForceLayoutPrepass();
+    // The wipes and the start of a new card need a few repaints after a change; the painters read the clock themselves.
+    Row->ForceLayoutPrepass();
 }
 
 void ULDUIRoot::SetFrontendPage(bool bStart)

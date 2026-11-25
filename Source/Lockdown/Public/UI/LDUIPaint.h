@@ -73,8 +73,9 @@ namespace LDUIPaint
     // A panel (on air): square ink under a 2 px white top rule; bFolds adds the short orange heading tab at its left end.
     LOCKDOWN_API void Panel(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry,const FBox2D& Box,bool bFolds=true,float Opacity=1.f);
     // Command faces (on air): Normal is a panel slab that takes a white rule on hover; Primary the orange slab of the one
-    // thing to do now; Key a square key cap; TagOn an orange chip; Ghost no face (the caller paints one).
-    enum class EButton : uint8 { Normal, Primary, Key, TagOn, Ghost };
+    // thing to do now; White the white slab of a taken choice that can be undone (取消准备); Key a square key cap; TagOn an
+    // orange chip; Ghost no face (the caller paints one).
+    enum class EButton : uint8 { Normal, Primary, White, Key, TagOn, Ghost };
     struct FButtonState
     {
         bool bHovered=false;
