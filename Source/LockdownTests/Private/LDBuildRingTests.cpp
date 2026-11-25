@@ -95,34 +95,48 @@ FLDProgressionView RingFixtureView(const FLDDemoContentDefinitions& Content)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDBuildRingGeometryTest,"Lockdown.Rules.BuildRingGeometry",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDBuildRingGeometryTest::RunTest(const FString& Parameters)
 {
-    // The approved scale rules: ring never under 0.8, text never under 0.875 (times the player's size), layout H / 1080.
+    // The scale rules: layout H / 1080; ring and text never under 2/3 (a card icon keeps 36 px and 18 px text keeps 12 px),
+    // the text times the player's size.
     const LDBuildRing::FScale Full=LDBuildRing::ScaleFor(1080.f,1.f),Small=LDBuildRing::ScaleFor(720.f,1.f),Large=LDBuildRing::ScaleFor(720.f,1.25f);
     TestTrue(TEXT("1080p scales are one"),FMath::IsNearlyEqual(Full.Layout,1.f)&&FMath::IsNearlyEqual(Full.Ring,1.f)&&FMath::IsNearlyEqual(Full.Text,1.f));
-    TestTrue(TEXT("720p keeps the ring at 0.8 and the text at 0.875"),FMath::IsNearlyEqual(Small.Layout,720.f/1080.f)
-        &&FMath::IsNearlyEqual(Small.Ring,.8f)&&FMath::IsNearlyEqual(Small.Text,.875f));
-    TestTrue(TEXT("The text size multiplies the text floor"),FMath::IsNearlyEqual(Large.Text,.875f*1.25f));
-    TestTrue(TEXT("Ring icons stay at least 36 px at 720p"),LDBuildRing::NodeSize*Small.Ring>=36.f);
-    TestTrue(TEXT("The smallest label stays at least 12 px at 720p"),14.f*Small.Text>=12.f);
+    TestTrue(TEXT("720p scales the ring and the text with the layout"),FMath::IsNearlyEqual(Small.Layout,720.f/1080.f)
+        &&FMath::IsNearlyEqual(Small.Ring,2.f/3.f)&&FMath::IsNearlyEqual(Small.Text,2.f/3.f));
+    TestTrue(TEXT("The text size multiplies the text floor"),FMath::IsNearlyEqual(Large.Text,2.f/3.f*1.25f));
+    TestTrue(TEXT("Card icons (the tile less its 2 px rules) stay at least 36 px at 720p"),(LDBuildRing::NodeSize-4.f)*Small.Ring>=35.9f);
+    TestTrue(TEXT("The smallest text (18 design px) stays at least 12 px at 720p"),18.f*Small.Text>=11.9f);
     // The 3 + 4 + 5 places fill from the middle outwards and never move when another card comes or goes.
     TestEqual(TEXT("One place takes one row"),LDBuildRing::RowsFor(1),1);
+    TestEqual(TEXT("Seven places take two rows"),LDBuildRing::RowsFor(7),2);
     TestEqual(TEXT("Twelve places take three rows"),LDBuildRing::RowsFor(12),3);
     TestEqual(TEXT("A thirteenth place opens the fourth row"),LDBuildRing::RowsFor(13),4);
+    TestTrue(TEXT("Two rows keep the band's own edge"),FMath::IsNearlyEqual(LDBuildRing::OuterFor(7),LDBuildRing::BandOuter));
+    TestTrue(TEXT("A third row pushes the sector's edge past it"),LDBuildRing::OuterFor(8)>=LDBuildRing::RowRadius[2]+LDBuildRing::NodeSize*.5f);
     const FVector2D First=LDBuildRing::SlotPolar(0,0.f);
     TestTrue(TEXT("The first place is the middle of the first row"),FMath::IsNearlyEqual(First.X,LDBuildRing::RowRadius[0])&&FMath::IsNearlyZero(First.Y));
+    TestTrue(TEXT("The first row clears the host"),LDBuildRing::RowRadius[0]-LDBuildRing::NodeSize*.5f>LDBuildRing::HostRadius+LDBuildRing::HostSize*.5f);
+    TestTrue(TEXT("The host clears the sector's inner rule"),LDBuildRing::HostRadius-LDBuildRing::HostSize*.5f>LDBuildRing::SectorInner);
+    TestTrue(TEXT("Two rows sit inside the band's edge"),LDBuildRing::RowRadius[1]+LDBuildRing::NodeSize*.5f<LDBuildRing::BandOuter);
     TSet<FIntPoint> Seen;
-    for(int32 Index=0;Index<12;++Index)
+    for(int32 Index=0;Index<17;++Index)
     {
-        const FVector2D Polar=LDBuildRing::SlotPolar(Index,44.f);
+        const FVector2D Polar=LDBuildRing::SlotPolar(Index,43.f);
         const FIntPoint Key(FMath::RoundToInt(Polar.X),FMath::RoundToInt(Polar.Y*100.));
         TestFalse(FString::Printf(TEXT("Place %d is its own"),Index),Seen.Contains(Key));Seen.Add(Key);
-        TestTrue(FString::Printf(TEXT("Place %d stays inside its sector"),Index),FMath::Abs(Polar.Y-44.f)<LDBuildRing::SectorHalf);
+        // The whole tile stays inside its sector, not only its centre.
+        const float Reach=FMath::Abs(float(Polar.Y)-43.f)+FMath::RadiansToDegrees(LDBuildRing::NodeSize*.5f/float(Polar.X));
+        TestTrue(FString::Printf(TEXT("Place %d stays inside its sector"),Index),Reach<=LDBuildRing::SectorHalf);
         for(int32 Other=0;Other<Index;++Other)
         {
             const FVector2D A=LDRingPaint::Polar(FVector2D::ZeroVector,float(Polar.X),float(Polar.Y));
-            const FVector2D B0=LDBuildRing::SlotPolar(Other,44.f);
+            const FVector2D B0=LDBuildRing::SlotPolar(Other,43.f);
             const FVector2D B=LDRingPaint::Polar(FVector2D::ZeroVector,float(B0.X),float(B0.Y));
             TestTrue(FString::Printf(TEXT("Places %d and %d do not overlap"),Index,Other),FVector2D::Distance(A,B)>=LDBuildRing::NodeSize-.5f);
         }
+    }
+    // Neighbouring sectors never share a degree.
+    for(int32 Host=1;Host<LDBuildRing::HostCount;++Host)
+    {
+        TestTrue(FString::Printf(TEXT("Sectors %d and %d stay apart"),Host-1,Host),LDBuildRing::HostAngle[Host]-LDBuildRing::HostAngle[Host-1]>=2.f*LDBuildRing::SectorHalf);
     }
     return true;
 }
@@ -130,9 +144,10 @@ bool FLDBuildRingGeometryTest::RunTest(const FString& Parameters)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDBuildRingLayoutTest,"Lockdown.Rules.BuildRingLayout",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDBuildRingLayoutTest::RunTest(const FString& Parameters)
 {
-    // The open ring over a level-16 build at 1920x1080 and 1280x720 with 100% and 125% text: every part on screen, no part
-    // under the inspector's corner, the hand above the band, the wing rows apart, icons at least 36 physical pixels, and
-    // links only between parts sharing a vocabulary key.
+    // The open ring over a level-16 build at 1920x1080 and 1280x720 with 100% and 125% text, plain and with the most linked
+    // card hovered: every part on screen, no side column, bar or row reaching into the band, the table and shop rows apart,
+    // the row above the build bar, the hover card clear of the ring's cards, icons at least 36 physical pixels and text at
+    // least 12, the table reading the real per-point mapping, and links only between parts sharing a vocabulary key.
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if(!LDTestApprovedFixture::Read(*this,Catalog)){return false;}
     const FLDDemoContentDefinitions& Content=Catalog->Get();
@@ -188,31 +203,32 @@ bool FLDBuildRingLayoutTest::RunTest(const FString& Parameters)
         const FString At=FString::Printf(TEXT("%s %.0fx%.0f text %.2f"),bRest?TEXT("rest"):TEXT("field"),Case.Pixels.X,Case.Pixels.Y,Case.Text);
         const TArray<FString> Problems=Ring->LayoutProblems();
         TestTrue(At+TEXT(": the layout has no faults ")+FString::Join(Problems,TEXT("; ")),Problems.IsEmpty());
-        if(bRest){TestEqual(At+TEXT(": the shop wing lists the shelf and the skill point"),Ring->View().Shop.Num(),8);}
+        if(bRest){TestEqual(At+TEXT(": the shop lists the shelf and the skill point"),Ring->View().Shop.Num(),8);}
         const auto& L=Ring->Layout;
-        TestTrue(At+TEXT(": the ring has its parts"),Ring->View().bValid&&L.Boxes.Num()>20);
-        TestEqual(At+TEXT(": the wing lists the derived attributes"),Ring->View().Derived.Num(),LDBuildRing::WingAttributes().Num());
-        TestTrue(At+TEXT(": card icons are at least 36 physical pixels"),LDBuildRing::NodeSize*L.R*L.K>=35.9f);
-        TArray<FBox2D> WingRows;
-        for(const ULDWorkshop::FShape& Box:L.Boxes)
+        TestTrue(At+TEXT(": the ring has its parts"),Ring->View().bValid&&L.Boxes.Num()>20&&L.Segments.Num()==4);
+        TestTrue(At+TEXT(": card icons are at least 36 physical pixels"),(LDBuildRing::NodeSize-4.f)*L.R*L.K>=35.9f);
+        TestTrue(At+TEXT(": table icons are at least 36 physical pixels"),54.f*L.TableScale*L.K>=35.9f);
+        TestTrue(At+TEXT(": the build bar stands over the HUD band"),L.Bar.bIsValid&&L.Bar.Max.Y<=L.Size.Y-120.f*L.U);
+        TestTrue(At+TEXT(": the rest actions' corner stays right of the bar"),Ring->ActionsAnchor().X>L.Bar.Max.X);
+        // The hovered card of the most links: its card above the ring, still no faults.
+        int32 BestHost=INDEX_NONE,BestIndex=INDEX_NONE,Most=-1;
+        for(int32 Host=0;Host<Ring->View().Hosts.Num();++Host)
         {
-            if(Box.bWedge){continue;}
-            FBox2D Bounds(ForceInit);
-            for(const FVector2D& Point:Box.Shape){Bounds+=Point;}
-            const FString Part=FString::Printf(TEXT(" part %d/%d/%d"),int32(Box.Hit.Kind),Box.Hit.Host,Box.Hit.Index);
-            TestTrue(At+TEXT(": on screen")+Part,Bounds.Min.X>=-1.&&Bounds.Min.Y>=-1.&&Bounds.Max.X<=L.Size.X+1.&&Bounds.Max.Y<=L.Size.Y+1.);
-            if(Box.Hit.Kind==ULDWorkshop::EHit::Wing)
+            for(int32 Index=0;Index<Ring->View().Hosts[Host].Cards.Num();++Index)
             {
-                TestTrue(At+TEXT(": a wing row stays under the inspector's corner")+Part,Bounds.Min.Y>=L.InspectorBottom);
-                TestTrue(At+TEXT(": a wing row stays above the hand")+Part,Bounds.Max.Y<=L.HandTop);
-                for(const FBox2D& Other:WingRows)
-                {
-                    const bool bApart=Bounds.Max.X<=Other.Min.X+.5||Other.Max.X<=Bounds.Min.X+.5||Bounds.Max.Y<=Other.Min.Y+.5||Other.Max.Y<=Bounds.Min.Y+.5;
-                    TestTrue(At+TEXT(": wing rows do not overlap")+Part,bApart);
-                }
-                WingRows.Add(Bounds);
+                const int32 Links=Ring->LinkCount(ULDWorkshop::EHit::Installed,Host,Index);
+                if(Links>Most){Most=Links;BestHost=Host;BestIndex=Index;}
             }
-            if(Box.Hit.Kind==ULDWorkshop::EHit::Hand){TestTrue(At+TEXT(": the hand stands above the band line")+Part,Bounds.Max.Y<=L.HandBottom+1.);}
+        }
+        if(TestTrue(At+TEXT(": the build has an installed card"),BestHost!=INDEX_NONE))
+        {
+            Ring->PinHover(ULDWorkshop::EHit::Installed,BestHost,BestIndex);
+            Ring->NativeTick(Ring->GetCachedGeometry(),1.f/60.f);
+            const TArray<FString> Hovered=Ring->LayoutProblems();
+            TestTrue(At+TEXT(": the hovered layout has no faults ")+FString::Join(Hovered,TEXT("; ")),Hovered.IsEmpty());
+            TestTrue(At+TEXT(": the hover card stands above the ring"),L.Card.bIsValid&&L.Card.Max.Y<=L.Centre.Y);
+            Ring->PinHover(ULDWorkshop::EHit::None,INDEX_NONE,INDEX_NONE);
+            Ring->NativeTick(Ring->GetCachedGeometry(),1.f/60.f);
         }
         // Links: every lit part shares a vocabulary key with the hovered one.
         for(int32 Host=0;Host<Ring->View().Hosts.Num();++Host)
@@ -229,6 +245,20 @@ bool FLDBuildRingLayoutTest::RunTest(const FString& Parameters)
                     TestTrue(At+TEXT(": a link shares a vocabulary key"),(Mask&Other)!=0);
                 }
             }
+        }
+    }
+    // The five-stat table reads the projection's own per-point mapping: each stat's attributes in the order StatEffects lists
+    // them for the stat's hover, every one of them present.
+    {
+        const TArray<const FLDDemoStatDefinition*> Stats=Content.StatsInDesignOrder();
+        TestEqual(TEXT("The table lists one row per stat"),Ring->View().Stats.Num(),Stats.Num());
+        TestEqual(TEXT("The table lists every per-point attribute once"),Ring->View().Derived.Num(),LDBuildRing::StatAttributes(&Content).Num());
+        for(int32 Stat=0;Stat<Stats.Num();++Stat)
+        {
+            TArray<FString> Expected,Shown;
+            for(const LDHUD::FStatEffectView& Effect:LDHUD::StatEffects(*Stats[Stat],Input.Attributes)){Expected.AddUnique(Effect.Attribute);}
+            for(const LDBuildRing::FDerived& Row:Ring->View().Derived){if(Row.Source==Stat){Shown.Add(Row.Name);}}
+            TestEqual(FString::Printf(TEXT("Stat %d's row reads the attributes its points raise"),Stat),FString::Join(Shown,TEXT(",")),FString::Join(Expected,TEXT(",")));
         }
     }
     TestTrue(TEXT("The fixture installs two copies of one body card as one face"),Ring->View().Hosts[0].Cards.ContainsByPredicate([](const LDBuildRing::FCard& Card){return Card.Copies==2;}));

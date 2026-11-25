@@ -338,8 +338,11 @@ public:
         {
             const FString Suffix=FString::Printf(TEXT("%dx%d_%d"),Case.X,Case.Y,Case.Z);
             FShot& Rest=Plan.AddDefaulted_GetRef();Rest.Name=TEXT("Ring_Rest_")+Suffix+TEXT(".png");Rest.Width=Case.X;Rest.Height=Case.Y;Rest.Text=Case.Z/100.f;
-            Rest.Setup=[](ALDPlayerController&,ULDWorkshop& W){W.PinHover(EHit::Shop,INDEX_NONE,0);};
         }
+        FShot& Shop=Plan.AddDefaulted_GetRef();Shop.Name=TEXT("Ring_Rest_Shop_1920x1080_100.png");
+        Shop.Setup=[](ALDPlayerController&,ULDWorkshop& W){W.PinHover(EHit::Shop,INDEX_NONE,0);};
+        FShot& Stat=Plan.AddDefaulted_GetRef();Stat.Name=TEXT("Ring_Rest_Stat_1920x1080_100.png");
+        Stat.Setup=[](ALDPlayerController&,ULDWorkshop& W){W.PinHover(EHit::Stat,INDEX_NONE,0);};
         FShot& Hand=Plan.AddDefaulted_GetRef();Hand.Name=TEXT("Ring_Rest_Hand_1920x1080_100.png");
         Hand.Setup=[](ALDPlayerController&,ULDWorkshop& W){W.ShowHand(true);};
     }
