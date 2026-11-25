@@ -53,6 +53,7 @@
 #include "Misc/Paths.h"
 #include "NavigationSystem.h"
 #include "NiagaraComponent.h"
+#include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
 #include "Region/LDMapDefinition.h"
 #include "Region/LDMapGeometry.h"
@@ -931,6 +932,7 @@ namespace
                     TEXT("casts"),
                     TEXT("skills"),
                     TEXT("self"),
+                    TEXT("packs"),
                 };
                 bool bKnown = false;
                 for (const TCHAR* Category : Known) { bKnown |= Name == Category; }
@@ -1123,6 +1125,60 @@ namespace
                         if (Skill.HitAt > 0.f) { OwnSteps.Add({Skill.HitAt, HitOf(V1, Skill.Hit)}); OtherSteps.Add({Skill.HitAt, HitOf(V3, Skill.Hit)}); }
                         ChainJobs.Add({Look, FString(TEXT("skills-")) + Skill.Name, OwnSteps, Ahead(Skill.Gap), Home, false, Skill.Windup + .05f, 0.f, 36});
                         ChainJobs.Add({Look, FString(TEXT("skills-")) + Skill.Name + TEXT("-other"), OtherSteps, nullptr, nullptr, false, Skill.Windup + .05f, 0.f, 30});
+                    }
+                }
+                else if (Look == TEXT("packs"))
+                {
+                    // A survey of the third-party CC-BY packs (Content/ThirdParty/CCBY): five of their systems at a time, one at
+                    // each stage body's feet, as shipped, to judge their look and scale at the gameplay camera before a
+                    // project effect is built on them. A missing system is logged and skipped.
+                    UWorld* const PackWorld = &Target;
+                    const TSharedRef<TArray<TWeakObjectPtr<UNiagaraComponent>>> Shown = MakeShared<TArray<TWeakObjectPtr<UNiagaraComponent>>>();
+                    const auto Clear = [Shown]()
+                    {
+                        for (const TWeakObjectPtr<UNiagaraComponent>& Effect : *Shown) { if (UNiagaraComponent* Old = Effect.Get()) { Old->DestroyComponent(); } }
+                        Shown->Reset();
+                    };
+                    const TArray<TWeakObjectPtr<ULDHumanoidVisualComponent>> Spots{A, V1, V2, V3, A2};
+                    const auto Show = [PackWorld, Shown, Spots](TArray<FString> Paths)
+                    {
+                        return [PackWorld, Shown, Spots, Paths]()
+                        {
+                            for (int32 Index = 0; Index < Paths.Num() && Index < Spots.Num(); ++Index)
+                            {
+                                const ULDHumanoidVisualComponent* Spot = Spots[Index].Get();
+                                const FString Path = FString(TEXT("/Game/ThirdParty/CCBY/")) + Paths[Index];
+                                UNiagaraSystem* System = LoadObject<UNiagaraSystem>(nullptr, *Path);
+                                if (!Spot || !System) { UE_LOG(LogLDTest, Warning, TEXT("LD_PACK_SURVEY missing %s"), *Path); continue; }
+                                Shown->Add(UNiagaraFunctionLibrary::SpawnSystemAtLocation(PackWorld, System, Spot->GetOwner()->GetActorLocation() + FVector(120., 0., -60.),
+                                    Spot->GetOwner()->GetActorRotation(), FVector::OneVector, false, true, ENCPoolMethod::None));
+                            }
+                        };
+                    };
+                    struct FPackSet { const TCHAR* Name; TArray<FString> Paths; };
+                    const FString Mixed = TEXT("MixedVFX/Particles/");
+                    const auto Of = [](const FString& Folder, const TCHAR* Name) { return Folder + Name + TEXT(".") + Name; };
+                    for (const FPackSet& Set : {
+                        FPackSet{TEXT("explosions"), {Of(Mixed + TEXT("Explosions/"), TEXT("NS_ExplosionGroundSmall")), Of(Mixed + TEXT("Explosions/"), TEXT("NS_ExplosionGroundMedium")),
+                            Of(Mixed + TEXT("Explosions/"), TEXT("NS_ExplosionGroundBig")), Of(Mixed + TEXT("Explosions/"), TEXT("NS_ExplosionMidAirSmall")), Of(Mixed + TEXT("Explosions/"), TEXT("NS_ExplosionMidAirBig"))}},
+                        FPackSet{TEXT("slash-hits"), {Of(Mixed + TEXT("Slashes/SeparateParts/Hits/"), TEXT("NS_FireSlash_Hit")), Of(Mixed + TEXT("Slashes/SeparateParts/Hits/"), TEXT("NS_HolySlash_Hit")),
+                            Of(Mixed + TEXT("Slashes/SeparateParts/Hits/"), TEXT("NS_LightningSlash_Hit")), Of(Mixed + TEXT("Slashes/SeparateParts/Hits/"), TEXT("NS_GalaxySlash_Hit")), Of(Mixed + TEXT("Slashes/SeparateParts/Hits/"), TEXT("NS_VampireSlash_Hit"))}},
+                        FPackSet{TEXT("slashes"), {Of(Mixed + TEXT("Slashes/SeparateParts/Slashes/"), TEXT("NS_FireSlash_OnlySlash")), Of(Mixed + TEXT("Slashes/SeparateParts/Slashes/"), TEXT("NS_HolySlash_OnlySlash")),
+                            Of(Mixed + TEXT("Slashes/SeparateParts/Slashes/"), TEXT("NS_LightningSlash_OnlySlash")), Of(Mixed + TEXT("Slashes/SeparateParts/Slashes/"), TEXT("NS_GalaxySlash_OnlySlash")), Of(Mixed + TEXT("Slashes/"), TEXT("NS_VampireSlash"))}},
+                        FPackSet{TEXT("fires"), {Of(Mixed + TEXT("Fires/"), TEXT("NS_TorchFire")), Of(Mixed + TEXT("Fires/"), TEXT("NS_Campfire")), Of(Mixed + TEXT("Fires/"), TEXT("NS_BigFire")),
+                            Of(Mixed + TEXT("Fires/"), TEXT("NS_FireBarrier")), Of(Mixed + TEXT("Fires/"), TEXT("NS_FlameThrower"))}},
+                        FPackSet{TEXT("mix"), {Of(Mixed + TEXT("Mix/"), TEXT("NS_ElectricField")), Of(Mixed + TEXT("Mix/"), TEXT("NS_Wind")), Of(Mixed + TEXT("Mix/"), TEXT("NS_Mix_01")),
+                            Of(Mixed + TEXT("Mix/"), TEXT("NS_Mix_02")), Of(Mixed + TEXT("Mix/"), TEXT("NS_Mix_03"))}},
+                        FPackSet{TEXT("projectile-hits"), {Of(Mixed + TEXT("Projectiles/Hits/"), TEXT("NS_LightningBolt_Hit")), Of(Mixed + TEXT("Projectiles/Hits/"), TEXT("NS_Projectile_01_Hit")),
+                            Of(Mixed + TEXT("Projectiles/Hits/"), TEXT("NS_Projectile_03_Hit")), Of(Mixed + TEXT("Projectiles/Hits/"), TEXT("NS_Shuriken_01_Hit")), Of(Mixed + TEXT("Projectiles/Hits/"), TEXT("NS_FireArrow_Hit"))}},
+                        FPackSet{TEXT("projectiles"), {Of(Mixed + TEXT("Projectiles/"), TEXT("NS_LightningBolt")), Of(Mixed + TEXT("Projectiles/"), TEXT("NS_Projectile_01")),
+                            Of(Mixed + TEXT("Projectiles/"), TEXT("NS_Projectile_03")), Of(Mixed + TEXT("Projectiles/"), TEXT("NS_Shuriken_01")), Of(Mixed + TEXT("Projectiles/"), TEXT("NS_FireArrow"))}},
+                        FPackSet{TEXT("smoke"), {Of(TEXT("PotaVFX_Smoke/VFX/System/ColorSmoke/"), TEXT("NS_SmokeGradient_Loop")), Of(TEXT("PotaVFX_Smoke/VFX/System/ColorSmoke/"), TEXT("NS_SmokeGradient_Loop_Masked")),
+                            Of(TEXT("PotaVFX_Smoke/VFX/System/SmokeBurst/"), TEXT("NS_MagicSmokeBurstAir")), Of(TEXT("PotaVFX_Smoke/VFX/System/SmokeRing/"), TEXT("NS_SmokeRing")), Of(TEXT("PotaVFX_Smoke/VFX/System/SmokeRing/"), TEXT("NS_SmokeRing_Masked"))}},
+                        FPackSet{TEXT("sparkles"), {Of(TEXT("FreeParticle_SoftTofu/Niagara/"), TEXT("NS_Sparkling")), Of(TEXT("FreeParticle_SoftTofu/Niagara/"), TEXT("NS_Sparkling_Glow")),
+                            Of(TEXT("FreeParticle_SoftTofu/Niagara/"), TEXT("NS_Sparkling_Star")), Of(TEXT("FreeParticle_SoftTofu/Niagara/"), TEXT("NS_Sparkling_Noise")), Of(TEXT("FreeParticle_SoftTofu/Niagara/"), TEXT("NS_feather"))}}})
+                    {
+                        ChainJobs.Add({Look, FString(TEXT("packs-")) + Set.Name, {{0.f, Show(Set.Paths)}}, nullptr, Clear, false, .4f, 0.f, 45});
                     }
                 }
                 else if (Look == TEXT("self"))
@@ -1416,6 +1472,7 @@ namespace
                     TEXT("casts"),
                     TEXT("skills"),
                     TEXT("self"),
+                    TEXT("packs"),
                 };
                 bool bLookOnly = false;
                 for (const TCHAR* Category : LookOnly) { bLookOnly |= Look == Category; }
