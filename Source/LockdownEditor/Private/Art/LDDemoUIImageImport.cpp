@@ -177,8 +177,12 @@ namespace
     // small enough to stay uncompressed ("UserInterface2D (RGBA)"), so their painted edges keep every pixel.
     TextureCompressionSettings UICompression(const FUIImageSpec& Spec) { return Spec.bIcon ? TC_EditorIcon : TC_BC7; }
 
+    // The Lobby picture is only a dark texture behind the seat board: nearly grey, so the seat cards are the page's colour.
+    float UISaturation(const FUIImageSpec& Spec) { return Spec.Id == LDUIBackgrounds::LobbyId ? .12f : 1.f; }
+
     void UIApplySettings(UTexture2D& Texture, const FUIImageSpec& Spec)
     {
+        Texture.AdjustSaturation = UISaturation(Spec);
         Texture.LODGroup = TEXTUREGROUP_UI;
         Texture.MipGenSettings = TMGS_NoMipmaps;
         Texture.CompressionSettings = UICompression(Spec);
@@ -189,7 +193,8 @@ namespace
     bool UISettingsMatch(const UTexture2D& Texture, const FUIImageSpec& Spec)
     {
         return Texture.LODGroup == TEXTUREGROUP_UI && Texture.MipGenSettings == TMGS_NoMipmaps
-            && Texture.CompressionSettings == UICompression(Spec) && Texture.SRGB && Texture.NeverStream;
+            && Texture.CompressionSettings == UICompression(Spec) && Texture.SRGB && Texture.NeverStream
+            && FMath::IsNearlyEqual(Texture.AdjustSaturation, UISaturation(Spec));
     }
 
     UTexture2D* UILoad(const FUIImageSpec& Spec)

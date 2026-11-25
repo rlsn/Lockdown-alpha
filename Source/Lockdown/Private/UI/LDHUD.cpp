@@ -759,13 +759,6 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         DeathBanner=Panel(DeathBox,false);DeathBanner->SetVisibility(ESlateVisibility::Collapsed);
         // Centred on the screen, clear of the top-centre block (spawn choice, toasts) above it.
         Place(DeathBanner,FAnchors(.5f,.5f),FVector2D(.5f,.5f),FVector2D(0,-40));
-        // #198: the rest return countdown, large in the screen centre; it never takes pointer input.
-        ReturnCountdownText=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeGiant,TEXT("ReturnCountdownText"));ReturnCountdownText->SetAutoWrapText(false);
-        ReturnCountdownText->SetJustification(ETextJustify::Center);HudFace(ReturnCountdownText,true,4);
-        ReturnCountdownText->SetColorAndOpacity(LDBroadcast::Orange);
-        Place(ReturnCountdownText,FAnchors(.5f,.5f),FVector2D(.5f,.5f),FVector2D(0,-120));ReturnCountdownText->SetVisibility(ESlateVisibility::Collapsed);
-        // The return countdown shows over the workshop.
-        if(auto* CountdownSlot=Cast<UCanvasPanelSlot>(ReturnCountdownText->Slot)){CountdownSlot->SetZOrder(11);}
 
         // Centre: the one frozen result; it replaces the gameplay HUD instead of overlaying it.
         auto* ResultBox=WidgetTree->ConstructWidget<UVerticalBox>();
@@ -1898,7 +1891,7 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         if(Workshop){Workshop->Present(ULDWorkshop::FInput());}
         if(Storage){Storage->Present(nullptr,O.Match,LDProgression::EMatchStage::Closed,O.LifePhase,nullptr,false);}
         for(UWidget* Hidden:{static_cast<UWidget*>(TargetCard.Get()),static_cast<UWidget*>(DeathBanner.Get()),static_cast<UWidget*>(ToastPanel.Get()),static_cast<UWidget*>(EventFeedPanel.Get()),
-            static_cast<UWidget*>(ReturnCountdownText.Get()),static_cast<UWidget*>(RestActionsPanel.Get()),static_cast<UWidget*>(PKPanelBorder.Get()),static_cast<UWidget*>(PKCompactBar.Get()),
+            static_cast<UWidget*>(RestActionsPanel.Get()),static_cast<UWidget*>(PKPanelBorder.Get()),static_cast<UWidget*>(PKCompactBar.Get()),
             static_cast<UWidget*>(SpawnChoicePanel.Get()),static_cast<UWidget*>(StatFlyout.Get()),static_cast<UWidget*>(SlotRejectPanel.Get()),static_cast<UWidget*>(LootQueueBox.Get()),
             static_cast<UWidget*>(ScorePanel.Get()),ActionDetailSlot?ActionDetailSlot->Content.Get():nullptr}){HudSetShown(Hidden,false,ESlateVisibility::Visible);}
         // The result enters row by row until AnimateResult settles it, and the showdown ring shrinks: both move with time.
@@ -2052,8 +2045,43 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     }
     RefreshEventFeed(*GS,O,Content,bClock,NowMs);
     RefreshScoreboard(*GS,O);
-    HudSetText(ReturnCountdownText,LDHUD::RestReturnCountdown(Public,bClock,NowMs));
-    HudSetShown(ReturnCountdownText,!ReturnCountdownText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
+    // Stage changes (field <-> rest, the final field), for PaintMoments: the last five seconds before a scheduled change
+    // count down under the score strip, the screen wipes shut over the last 350 ms, and the new stage's title card holds
+    // and wipes away once the authority's change has arrived, so the cut itself is never seen.
+    {
+        const FLDTimelineView& Timeline=Public.Timeline;
+        const ELDMatchStage Stage=Playing&&Timeline.Generation==Public.Generation?Timeline.Stage:ELDMatchStage::None;
+        const auto Title=[](ELDMatchStage Of,int32 Rest,int32 Segment)
+        {
+            return Of==ELDMatchStage::Rest?LDTerms::RestLabel(Rest):Of==ELDMatchStage::FinalField||Segment>=FLDTimelineParameters::TimedSegments
+                ?FString(LDTerms::FinalField):FString::Printf(TEXT("野外 %d/%d"),Segment+1,int32(FLDTimelineParameters::TimedSegments));
+        };
+        if(Stage!=SeenStage||Public.Generation!=SeenStageMatch)
+        {
+            if(Stage!=ELDMatchStage::None&&SeenStage!=ELDMatchStage::None&&Public.Generation==SeenStageMatch)
+            {
+                StageWipeAt=FPlatformTime::Seconds();StageWipeTitle=Title(Stage,Timeline.RestIndex,Timeline.FieldSegment);
+                StageWipeSub=Stage==ELDMatchStage::Rest?FString():FString(LDTerms::CountdownGo);
+            }
+            SeenStage=Stage;SeenStageMatch=Public.Generation;
+        }
+        StageCount.Reset();StageNextTitle.Reset();StageBeat=0.f;StagePreCover=0.f;
+        const bool bScheduled=Stage==ELDMatchStage::Field||(Stage==ELDMatchStage::Rest&&Timeline.Step==ELDRestStep::Return);
+        // The rest's return step counts all the way (LDHUD::RestReturnCountdown holds "1" until the field has begun).
+        if(Stage==ELDMatchStage::Rest&&Timeline.Step==ELDRestStep::Return)
+        {
+            StageCount=LDHUD::RestReturnCountdown(Public,bClock,NowMs);
+            StageNextTitle=Title(ELDMatchStage::Field,0,Timeline.FieldSegment);
+        }
+        if(bScheduled&&bClock&&!Timeline.bCountdownPaused&&Timeline.StepEndsAtMs>NowMs&&Timeline.StepEndsAtMs-NowMs<=5000)
+        {
+            const int64 Left=Timeline.StepEndsAtMs-NowMs;
+            StageCount=FString::Printf(TEXT("%lld"),(Left+999)/1000);
+            StageBeat=float((Left-1)%1000+1)/1000.f;
+            StagePreCover=Left<=350?1.f-float(Left)/350.f:0.f;
+            StageNextTitle=Stage==ELDMatchStage::Field?Title(ELDMatchStage::Rest,Timeline.RestIndex+1,0):Title(ELDMatchStage::Field,0,Timeline.FieldSegment);
+        }
+    }
     HudSetText(MatchTimerText,LDHUD::MatchTimer(Public,bClock,NowMs));
     HudSetShown(MatchTimerText,!MatchTimerText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     HudSetShown(DeathBanner,Death.bVisible&&!(bWorkshopOpen),ESlateVisibility::SelfHitTestInvisible);
@@ -4099,50 +4127,88 @@ void ULDHUD::PaintMoments(const LDUIPaint::FContext& P) const
     const double Now=FPlatformTime::Seconds();
     const FVector2D Size(P.Geometry.GetLocalSize());
     const bool bShown=Band&&Band->IsVisible();
-    // Own kill: 0-150 ms letterbox bars and an orange skew wipe in, a two-frame hard cut to K.O. with the own plate beating
-    // the victim's, everything gone by KillMomentSeconds (so the screen centre is never covered for longer).
-    const double KillAge=MomentFreezeAge>=0.f&&KillMomentAt>=0.?double(MomentFreezeAge):Now-KillMomentAt;
-    if(bShown&&KillMomentAt>=0.&&KillAge>=0.&&KillAge<KillMomentSeconds+.15)
+    // Own kill: one compact plate under the score strip (orange K.O. block, own plate beating the victim's struck plate).
+    // It wipes in from the left in 200 ms, holds and wipes out; nothing else is drawn, so the fight stays in full view.
+    // A DEV freeze holds only the newest moment at its fixed age.
+    const double Newest=FMath::Max3(KillMomentAt,LevelFlipAt,StageWipeAt);
+    const auto AgeOf=[this,Now,Newest](double At){return MomentFreezeAge>=0.f&&At>=0.&&At==Newest?double(MomentFreezeAge):Now-At;};
+    const double KillAge=AgeOf(KillMomentAt);
+    if(bShown&&KillMomentAt>=0.&&KillAge>=0.&&KillAge<KillMomentSeconds)
     {
-        const float In=LDTween::Progress(KillAge,.15,LDTween::ECurve::EaseOut);
-        const float Out=KillAge>KillMomentSeconds?1.f-float((KillAge-KillMomentSeconds)/.15):1.f;
-        const float Bar=float(Size.Y)*.075f*In*Out;
-        LDBroadcastPaint::Block(P,P.Layer,FBox2D(FVector2D(0.,0.),FVector2D(Size.X,Bar)),LDBroadcast::Ink);
-        LDBroadcastPaint::Block(P,P.Layer,FBox2D(FVector2D(0.,Size.Y-Bar),Size),LDBroadcast::Ink);
-        if(KillAge<KillMomentSeconds)
+        const float In=LDTween::Progress(KillAge,LDBroadcast::SlideIn,LDTween::ECurve::EaseOut);
+        const float Out=1.f-LDTween::Progress(KillAge-(KillMomentSeconds-.15),.15,LDTween::ECurve::EaseIn);
+        const float Shown=FMath::Min(In,Out);
+        const float PlateH=44.f,PlateW=54.f,WordW=132.f,H=60.f;
+        const float W=WordW+PlateW*2.f+96.f;
+        const FVector2D TopLeft(Size.X*.5-W*.5,Size.Y*.185);
+        // The wipe: the plate's right edge travels, the content is clipped by what is open.
+        const float Open=W*Shown;
+        const LDUIPaint::FContext Fade=P.WithOpacity(Shown);
+        LDBroadcastPaint::FillSlab(Fade,P.Layer+1,FBox2D(TopLeft,TopLeft+FVector2D(Open,H)),LDBroadcast::Ink.CopyWithNewOpacity(.92f));
+        LDBroadcastPaint::FillSlab(Fade,P.Layer+2,FBox2D(TopLeft,TopLeft+FVector2D(FMath::Min(Open,WordW),H)),LDBroadcast::Orange);
+        if(Shown>.7f)
         {
-            // The wipe: an orange slab and a white rule sweeping in from the left over the left third.
-            const float Sweep=LDTween::Progress(KillAge,LDBroadcast::SlideIn,LDTween::ECurve::EaseOut);
-            const float H=float(Size.Y);
-            const float Right=float(Size.X)*(.08f+.22f*Sweep);
-            const float Lean=LDBroadcastPaint::Lean(H);
-            const LDUIPaint::FContext Wipe=P.WithOpacity(.88f);
-            Wipe.Polygon(P.Layer+1,{FVector2D(Right-Size.X*.22f+Lean*.5f,0.),FVector2D(Right+Lean*.5f,0.),FVector2D(Right-Lean*.5f,H),FVector2D(Right-Size.X*.22f-Lean*.5f,H)},
-                LDUIPaint::FFill::Solid(LDBroadcast::Orange));
-            Wipe.Polygon(P.Layer+1,{FVector2D(Right+18.f+Lean*.5f,0.),FVector2D(Right+34.f+Lean*.5f,0.),FVector2D(Right+34.f-Lean*.5f,H),FVector2D(Right+18.f-Lean*.5f,H)},
-                LDUIPaint::FFill::Solid(LDBroadcast::White));
-            // The hard cut: K.O. appears whole after two frames and leaves whole.
-            if(KillAge>=LDBroadcast::HardCut)
+            LDBroadcastPaint::Text(Fade,P.Layer+3,TEXT("K.O."),LDBroadcastPaint::FigureFont(46.f),TopLeft+FVector2D(WordW*.5,H*.5),LDBroadcast::Ink,FVector2D(.5,.5));
+            const FVector2D Left=TopLeft+FVector2D(WordW+22.,(H-PlateH)*.5);
+            LDBroadcastPaint::SeatPlate(Fade,P.Layer+3,FBox2D(Left,Left+FVector2D(PlateW,PlateH)),StripPaint.Seat);
+            const FVector2D C=Left+FVector2D(PlateW+22.,PlateH*.5);
+            Fade.Polygon(P.Layer+3,{C+FVector2D(-7.,-10.),C+FVector2D(9.,0.),C+FVector2D(-7.,10.)},LDUIPaint::FFill::Solid(LDBroadcast::Orange));
+            const FBox2D Victim(Left+FVector2D(PlateW+44.,0.),Left+FVector2D(PlateW*2.+44.,PlateH));
+            LDBroadcastPaint::SeatPlate(Fade.WithOpacity(.85f*Shown),P.Layer+3,Victim,KillMomentVictimSeat);
+            LDBroadcastPaint::Rule(Fade,P.Layer+5,FVector2D(Victim.Min.X+4.,Victim.Max.Y-4.),FVector2D(Victim.Max.X-4.,Victim.Min.Y+4.),LDBroadcast::LiveRed,4.f);
+        }
+    }
+    // Stage change: the countdown, then two leaning slabs (orange edge, ink body) close from the left, hold the stage's
+    // title and open to the right.
+    {
+        const double WipeAge=StageWipeAt>=0.?AgeOf(StageWipeAt):-1.;
+        const bool bCard=WipeAge>=0.&&WipeAge<StageCardSeconds;
+        const bool bOpening=bCard&&WipeAge>=StageCardSeconds-.3;
+        const float Cover=bCard?(bOpening?1.f-LDTween::Progress(WipeAge-(StageCardSeconds-.3),.3,LDTween::ECurve::EaseIn):1.f)
+            :LDTween::Progress(double(StagePreCover),1.,LDTween::ECurve::EaseIn);
+        const float H=float(Size.Y),Lean=LDBroadcastPaint::Lean(H),Edge=90.f;
+        if(Cover>0.f)
+        {
+            const float Travel=float(Size.X)+Lean+Edge;
+            const auto Slab=[&P,H,Lean](float X0,float X1,const FLinearColor& Ink,int32 Layer)
+            {P.Polygon(Layer,{FVector2D(X0+Lean*.5f,0.),FVector2D(X1+Lean*.5f,0.),FVector2D(X1-Lean*.5f,H),FVector2D(X0-Lean*.5f,H)},LDUIPaint::FFill::Solid(Ink));};
+            if(bOpening)
             {
-                const FSlateFontInfo KO=LDBroadcastPaint::FigureFont(220.f);
-                const FVector2D At(Size.X*.16f,Size.Y*.40f);
-                LDBroadcastPaint::Text(P,P.Layer+2,TEXT("K.O."),KO,At+FVector2D(6.,6.),LDBroadcast::Ink,FVector2D(0.,.5));
-                const FBox2D Word=LDBroadcastPaint::Text(P,P.Layer+3,TEXT("K.O."),KO,At,LDBroadcast::White,FVector2D(0.,.5));
-                // The lower third under it: own plate ▸ the victim's plate struck through.
-                const float PlateH=46.f,PlateW=56.f;
-                const FVector2D Left(Word.Min.X+20.,Word.Max.Y-14.);
-                LDBroadcastPaint::FillSlab(P,P.Layer+2,FBox2D(Left,Left+FVector2D(PlateW*2.+120.,PlateH+16.)),LDBroadcast::Ink.CopyWithNewOpacity(.92f));
-                LDBroadcastPaint::SeatPlate(P,P.Layer+3,FBox2D(Left+FVector2D(18.,8.),Left+FVector2D(18.+PlateW,8.+PlateH)),StripPaint.Seat);
-                const FVector2D C=Left+FVector2D(18.+PlateW+30.,8.+PlateH*.5);
-                P.Polygon(P.Layer+3,{C+FVector2D(-7.,-10.),C+FVector2D(9.,0.),C+FVector2D(-7.,10.)},LDUIPaint::FFill::Solid(LDBroadcast::Orange));
-                const FBox2D Victim(Left+FVector2D(18.+PlateW+62.,8.),Left+FVector2D(18.+PlateW*2.+62.,8.+PlateH));
-                LDBroadcastPaint::SeatPlate(P.WithOpacity(.85f),P.Layer+3,Victim,KillMomentVictimSeat);
-                LDBroadcastPaint::Rule(P,P.Layer+5,FVector2D(Victim.Min.X+4.,Victim.Max.Y-4.),FVector2D(Victim.Max.X-4.,Victim.Min.Y+4.),LDBroadcast::LiveRed,4.f);
+                const float X=-Lean*.5f+Travel*(1.f-Cover);
+                Slab(X,float(Size.X)+Lean,LDBroadcast::Ink,P.Layer+8);Slab(X-Edge,X,LDBroadcast::Orange,P.Layer+8);
             }
+            else
+            {
+                const float X=-Lean*.5f-Edge+Travel*Cover;
+                Slab(-Lean,X,LDBroadcast::Ink,P.Layer+8);Slab(X,X+Edge,LDBroadcast::Orange,P.Layer+8);
+            }
+            if(Cover>.97f)
+            {
+                const FString& Title=bCard?StageWipeTitle:StageNextTitle;
+                const FVector2D Centre(Size.X*.5,Size.Y*.46);
+                const FBox2D Word=LDBroadcastPaint::Text(P,P.Layer+9,Title,LDBroadcastPaint::FigureFont(110.f),Centre,LDBroadcast::White,FVector2D(.5,.5));
+                LDBroadcastPaint::Rule(P,P.Layer+9,FVector2D(Word.Min.X,Word.Max.Y+10.),FVector2D(Word.Max.X,Word.Max.Y+10.),LDBroadcast::White,2.f);
+                if(bCard&&!StageWipeSub.IsEmpty())
+                {LDBroadcastPaint::Text(P,P.Layer+9,StageWipeSub,LDBroadcastPaint::LabelFont(40.f,true),FVector2D(Centre.X,Word.Max.Y+52.),LDBroadcast::Orange,FVector2D(.5,.5));}
+            }
+        }
+        if(!bCard&&!StageCount.IsEmpty()&&Cover<.97f)
+        {
+            // Each second lands big and settles (no bounce); the stage it leads to sits on a small slab under it.
+            const float Hit=FMath::Pow(StageBeat,6.f);
+            const FVector2D At(Size.X*.5,Size.Y*.21);
+            const FSlateFontInfo Figure=LDBroadcastPaint::FigureFont(150.f*(1.f+.35f*Hit));
+            LDBroadcastPaint::Text(P,P.Layer+6,StageCount,Figure,At+FVector2D(5.,5.),LDBroadcast::Ink,FVector2D(.5,.5));
+            LDBroadcastPaint::Text(P,P.Layer+7,StageCount,Figure,At,StageCount==TEXT("1")||StageCount==TEXT("2")||StageCount==TEXT("3")?LDBroadcast::Orange:LDBroadcast::White,FVector2D(.5,.5));
+            const FSlateFontInfo Label=LDBroadcastPaint::LabelFont(26.f,true);
+            const FVector2D NextSize=LDBroadcastPaint::Measure(StageNextTitle,Label);
+            const FVector2D Mid(At.X,At.Y+104.);
+            LDBroadcastPaint::FillSlab(P,P.Layer+6,FBox2D(Mid-FVector2D(NextSize.X*.5+22.,22.),Mid+FVector2D(NextSize.X*.5+22.,22.)),LDBroadcast::Ink.CopyWithNewOpacity(.92f));
+            LDBroadcastPaint::Text(P,P.Layer+7,StageNextTitle,Label,Mid,LDBroadcast::White,FVector2D(.5,.5));
         }
     }
     // Level-up: an orange card flips open over the level column (scale Y 0->1 in 120 ms), holds, then flips shut.
-    const double FlipAge=MomentFreezeAge>=0.f&&LevelFlipAt>=0.?double(MomentFreezeAge):Now-LevelFlipAt;
+    const double FlipAge=AgeOf(LevelFlipAt);
     if(bShown&&LevelFlipAt>=0.&&FlipAge>=0.&&FlipAge<LevelFlipSeconds&&LevelBadgeText)
     {
         const FGeometry& Level=LevelBadgeText->GetCachedGeometry();
