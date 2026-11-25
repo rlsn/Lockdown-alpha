@@ -22,7 +22,7 @@ if($Scenario -eq 'combat'){
     $stopFlag=Join-Path $output 'loopback.stop'
     $listener=Start-Process -FilePath python -ArgumentList @('-B',('"'+(Join-Path $PSScriptRoot 'RecordAudioLoopback.py')+'"'),'--out',('"'+(Join-Path $output 'loopback.wav')+'"'),'--stop',('"'+$stopFlag+'"')) -PassThru -WindowStyle Hidden -RedirectStandardError (Join-Path $output 'loopback.log')
     $listener.PriorityClass='High'
-    $check=Start-Process -FilePath pwsh -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'RunDemoCombatCheck.ps1')+'"'),'-Resolution',$CombatResolution,'-Audible') -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $output 'check.log') -RedirectStandardError (Join-Path $output 'check.err')
+    $check=Start-Process -FilePath pwsh -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'RunDemoCombatCheck.ps1')+'"'),'-Resolution',$CombatResolution,'-CaptureOnly') -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $output 'check.log') -RedirectStandardError (Join-Path $output 'check.err')
     Add-Type -Namespace LDFeel -Name Win -MemberDefinition @'
 [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
 [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr h, out RECT r);
@@ -45,9 +45,11 @@ public static IntPtr LargestWindowOf(uint pid) {
     $deadline=(Get-Date).AddSeconds($TimeoutSeconds); $host_=$null; $window=[IntPtr]::Zero
     while($window -eq [IntPtr]::Zero -and (Get-Date) -lt $deadline -and -not $check.HasExited){
         Start-Sleep -Milliseconds 500
-        $found=Get-CimInstance Win32_Process -Filter "Name='UnrealEditor.exe'" | Where-Object { $_.CommandLine -like '*DemoCombatHost*' } | Select-Object -First 1
-        if($found){ $host_=Get-Process -Id $found.ProcessId -ErrorAction SilentlyContinue; $window=[LDFeel.Win]::LargestWindowOf([uint32]$found.ProcessId) }
-        if($window -ne [IntPtr]::Zero){ $probe=New-Object LDFeel.Win+RECT; [LDFeel.Win]::GetClientRect($window,[ref]$probe) | Out-Null; if(($probe.Right-$probe.Left) -lt 640){ $window=[IntPtr]::Zero } }
+        $found=Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'" | Where-Object { $_.CommandLine -like '*DemoCombatHost*' } | Select-Object -First 1
+        if($found){ $host_=Get-Process -Id $found.ProcessId -ErrorAction SilentlyContinue; $window=[LDFeel.Win]::LargestWindowOf([uint32]$found.ProcessId)
+            Add-Content -LiteralPath (Join-Path $output 'window-search.log') -Value ("{0} pid={1} hwnd={2}" -f (Get-Date -Format o),$found.ProcessId,$window) }
+        # The game window, not the splash: it carries the game title once the map is up.
+        if($host_){ $host_.Refresh(); $window=if($host_.MainWindowTitle -like 'Lockdown*'){ $host_.MainWindowHandle }else{ [IntPtr]::Zero } }
     }
     if($window -eq [IntPtr]::Zero){ New-Item -ItemType File -Path $stopFlag | Out-Null; throw "The combat Host window never appeared: $output" }
     [LDFeel.Win]::ShowWindow($window,1) | Out-Null; [LDFeel.Win]::SetForegroundWindow($window) | Out-Null

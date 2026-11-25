@@ -256,6 +256,9 @@ public:
 
     // Host: the hits it took, its kill and the audited respawn.
     bool bChaseGoalChecked = false;
+    // -LDDemoCombatCaptureOnly (CaptureFeelSample.ps1 -Scenario combat): the same real owned fight for audio/feel and UI
+    // capture, without the Host's chase-goal assertions; its report is marked capture_only and judges nothing.
+    bool bCaptureOnly = false;
     int64 HpAtStopP2 = -1, BasicIntervalMs = 0, RespawnAtMs = 0, ProtectedUntilMs = 0;
     double StopSampledAt = 0;
     FLDMoveIdentity KillOrder;
@@ -905,7 +908,7 @@ public:
             if (IsHost() && !bChaseGoalChecked)
             {
                 bChaseGoalChecked = true;
-                if (!CheckChaseGoal(PC)) { return Finish(); }
+                if (!bCaptureOnly && !CheckChaseGoal(PC)) { return Finish(); }
             }
             // The first read-back of a rendered view can stall the game thread for seconds, so the Host takes it here,
             // before any timed moment, and keeps it as its view of the duel site.
@@ -2608,7 +2611,9 @@ public:
         if (ShotPending()) { return true; }
         if (KillClick == EClickStep::Shot)
         {
-            if (!ShotSaved(TEXT("the hover ring and attack cursor on Client1 under its pointer"))) { return Finish(); }
+            // A capture-only run draws a real window where the OS pointer, not the DEV pointer, owns the hover: its pointer
+            // shots may miss, and the fight goes on (the miss stays in its report, which judges nothing).
+            if (!ShotSaved(TEXT("the hover ring and attack cursor on Client1 under its pointer")) && !bCaptureOnly) { return Finish(); }
             PC.Navigation->DevSetPointer(Screen);
             const uint32 Before = PC.Navigation->LocalIdentity().Order;
             PC.Navigation->ClickMove();
@@ -2625,7 +2630,7 @@ public:
             return true;
         }
         PC.Navigation->DevSetPointer(TOptional<FVector2D>());
-        if (!ShotSaved(TEXT("the attack marker closing on the right-clicked Client1"))) { return Finish(); }
+        if (!ShotSaved(TEXT("the attack marker closing on the right-clicked Client1")) && !bCaptureOnly) { return Finish(); }
         KillClick = EClickStep::Done;
         SetStage(EStage::KillWait);
         return true;
@@ -2936,6 +2941,7 @@ public:
         Report->SetBoolField(TEXT("passed"), Passed);
         Report->SetStringField(TEXT("role"), Role);
         Report->SetBoolField(TEXT("dev_probe"), true);
+        Report->SetBoolField(TEXT("capture_only"), bCaptureOnly);
         Report->SetBoolField(TEXT("normal_start"), true);
         Report->SetStringField(TEXT("scope"), IsHost()
             ? TEXT("DEV-only owned-connection combat/orders scenario, target and killer role: a participating Listen Host that is attacked, audits the hits, kills with a right-click order and audits the respawn; then, through its DEV growth fixture's preset offers and XP grants, learns active_pants_down from its opening offer through an ordinary build command, roots Client1, observes its shield, is hit and slowed by Client1's snark bolt and lands a basic hit after a chase. It renders its main view and keeps captures of the observed root, shield and bolt flight for presentation review (not compared by pixels). Not camps, AI, capture or full-match acceptance.")
@@ -3004,6 +3010,7 @@ void LDDemoTests::StartCombatProbe(ALDPlayerController& Controller)
     }
     Probe->Controller = &Controller;
     Probe->World = Controller.GetWorld();
+    Probe->bCaptureOnly = FParse::Param(FCommandLine::Get(), TEXT("LDDemoCombatCaptureOnly"));
     Probe->Deadline = FPlatformTime::Seconds() + Timeout;
     FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Probe](float) { return Probe->Tick(); }), .1f);
 }
