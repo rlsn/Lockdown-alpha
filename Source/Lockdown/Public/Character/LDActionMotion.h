@@ -32,4 +32,17 @@ namespace LDActionMotion
     };
     // Moving bodies keep their legs (no full-body family while running).
     LOCKDOWN_API FBlend BlendOf(EFamily Family, bool bMoving);
+
+    // The body's shape over a strike, read from above: the chest winds one way through the windup and snaps through the
+    // other at the release, the cross steps aside, the finisher sinks then drives in. Degrees of yaw (positive turns the
+    // body to its right), centimetres to its right and a scale on the forward lunge. Rest before the onset and after
+    // Impact + SettleSeconds, peaking exactly at Impact, so the authoritative release time is the body's turning point.
+    struct FShape
+    {
+        float YawDeg = 0.f;
+        float SideCm = 0.f;
+        float LungeScale = 1.f;
+    };
+    constexpr float SettleSeconds = .25f;
+    LOCKDOWN_API FShape ShapeOf(EFamily Family, float AgeSeconds, float ImpactSeconds);
 }

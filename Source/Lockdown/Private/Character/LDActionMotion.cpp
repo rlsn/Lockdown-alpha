@@ -50,6 +50,28 @@ const TCHAR* LDActionMotion::FamilyName(EFamily Family)
     }
 }
 
+LDActionMotion::FShape LDActionMotion::ShapeOf(EFamily Family, float Age, float Impact)
+{
+    FShape Out;
+    if (!FMath::IsFinite(Age) || !FMath::IsFinite(Impact) || Age < 0.f || Impact <= 0.f || Age > Impact + SettleSeconds) { return Out; }
+    // Wind-up to 70 % of the windup, snap through at the release, settle back to rest.
+    const float Wind = FMath::SmoothStep(0.f, .7f * Impact, Age) * (1.f - FMath::SmoothStep(.7f * Impact, Impact, Age));
+    const float Snap = Age <= Impact ? FMath::SmoothStep(.7f * Impact, Impact, Age) : 1.f - FMath::SmoothStep(Impact, Impact + SettleSeconds, Age);
+    switch (Family)
+    {
+    // The right jab loads the right shoulder back, then turns the chest left into the blow.
+    case EFamily::Jab: Out.YawDeg = 10.f * Wind - 16.f * Snap; break;
+    // The left cross loads the other way and turns further, stepping to the right side.
+    case EFamily::Cross: Out.YawDeg = -16.f * Wind + 30.f * Snap; Out.SideCm = 14.f * Snap; Out.LungeScale = 1.3f; break;
+    // The finisher sinks back through the windup and drives forward hardest.
+    case EFamily::Finisher: Out.YawDeg = -6.f * Snap; Out.LungeScale = 1.8f; break;
+    case EFamily::OneHandThrow: Out.YawDeg = 8.f * Wind - 18.f * Snap; break;
+    case EFamily::HeavySlam: Out.LungeScale = 1.6f; break;
+    default: break;
+    }
+    return Out;
+}
+
 LDActionMotion::FBlend LDActionMotion::BlendOf(EFamily Family, bool bMoving)
 {
     switch (Family)

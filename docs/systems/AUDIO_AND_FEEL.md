@@ -132,6 +132,8 @@ Kenney 的 Impact、Interface、RPG、Sci-Fi 全包（CC0）由用户决定采�
   原 `SelfAttack`(17)、`SelfCast`(9) 编号退役。
 - 他人受击声改为世界位置空间化（PROVISIONAL · Agent）：原先是 0.38 音量的 2D 声，听不出方位。
 - 本人命中确认的 Kenney 重击降为 -10 dB 的手感层（PROVISIONAL · Agent）：受击者身上的命中声才是主体，避免双重重击。
+- 受击方不做受击动作（APPROVED · 用户，[#286](https://github.com/rlsn/Lockdown-alpha/issues/286) 原话“彻底取消受击”）：普通命中时受击方姿势、位置、朝向与节奏不变，只有闪白、特效、
+  音效与飘字；身体位移只来自权威控制状态（击退、定身）。打击感放在攻击方：出手姿态、命中确认、停顿与推镜。
 
 ## 7. 覆盖清单
 
@@ -175,11 +177,11 @@ Kenney 的 Impact、Interface、RPG、Sci-Fi 全包（CC0）由用户决定采�
 | 项 | 状态 | 实现与资产 | 证据 / 已知问题 |
 | --- | --- | --- | --- |
 | 篮球手 Idle、跑、转身、运球 | IMPLEMENTED | `ULDBasketballMotionSet`（KB_ 系列，项目自有） | — |
-| 普攻三段连击 | LOCALLY VERIFIED（时序与姿态，实机帧） | `LDActionMotion`：第 1 段右手刺拳（KB_078，上身 0.42）、第 2 段左手交叉（KB_079，上身 0.7，躯干转得更多）、第 3 段终结（KB_152 跳投，静止时全身，重心上提再送出）；出手帧仍按 `LDBasketballMotion::SampleTime` 对齐权威命中 | `production/feel/motion-combo/`；游戏镜头距离下姿态差异偏小；未经用户验收 |
-| 技能施法动作家族 | IMPLEMENTED | 按技能语义分四族：单手投掷（甩鞋、外卖、电、肘、封条、夹子、扒裤子；传球片段）、双手定点（区域、吼叫、喷水、风扇、可乐；罚球）、全身重砸（板砖、书包、蛮牛、乱拳；跳投）、架势（锅盖、顶着揍、拧手腕、左右开抽、挑衅、补一拳；运球架势）；移动中只驱动上身 | 规则测试 `ActionMotionFamilies`；未实机采集各族 |
+| 普攻三段连击 | IMPLEMENTED | `LDActionMotion`：第 1 段右手刺拳（KB_078，上身 0.42，胸口先右蓄后左转 16°）、第 2 段左手交叉（KB_079，上身 0.7，反向蓄力后右转 30° 并侧移 14 cm）、第 3 段终结（KB_152 跳投，静止时全身，重心上提再送出）；出手帧仍按 `LDBasketballMotion::SampleTime` 对齐权威命中 | 实机帧 `production/feel/motion-combo/`；转身与侧移只作用于网格与枢轴，胶囊、朝向与时序不变；未经用户验收 |
+| 技能施法动作家族 | IMPLEMENTED | 按技能语义分四族：单手投掷（甩鞋、外卖、电、肘、封条、夹子、扒裤子；传球片段）、双手定点（区域、吼叫、喷水、风扇、可乐；罚球）、全身重砸（板砖、书包、蛮牛、乱拳；跳投）、架势（锅盖、顶着揍、拧手腕、左右开抽、挑衅、补一拳；运球架势）；移动中只驱动上身 | 规则测试 `ActionMotionFamilies`；实机帧 `production/feel/motion-skill-families/`：四族可区分，但 VFX 旧的施法圆盘在施法期间遮住身体，要等 VFX 重做施法后再判断；未经用户验收 |
 | 受击、死亡、出生 | IMPLEMENTED | Quaternius CC0 重定向 | 受击无方向与轻重之分 |
 | NPC 动作 | IMPLEMENTED | Quaternius CC0 片段 | — |
-| 连段专属动作、技能动作家族、蓄力、硬直、击退 | NOT STARTED | — | 需要外部动作资产或制作 |
+| 受击反应 | 按决定关闭（[#286](https://github.com/rlsn/Lockdown-alpha/issues/286)） | 普通命中无受击动作，见 §6；击退时的后仰与 Hit 片段保留 | — |
 
 ### 7.3 镜头与屏幕反馈
 
