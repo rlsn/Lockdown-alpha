@@ -366,8 +366,10 @@ UWidget* LDResultBuild::MakeReport(UWidgetTree* Tree,const FLDResultView& Result
     // No scroll in game UI: the report scales down as one piece when a tab holds more than the board's height.
     auto* Fit=Tree->ConstructWidget<UScaleBox>();Fit->SetStretch(EStretch::ScaleToFit);Fit->SetStretchDirection(EStretchDirection::DownOnly);
     Size->SetContent(Fit);
+    // The body holds the board's width, so only a tab taller than the board shrinks (lines wrap at the width instead).
     auto* Body=Tree->ConstructWidget<UVerticalBox>();
-    Fit->SetContent(Body);
+    auto* BodyWidth=Tree->ConstructWidget<USizeBox>();BodyWidth->SetWidthOverride(Width);BodyWidth->SetContent(Body);
+    Fit->SetContent(BodyWidth);
     if(auto* FitSlot=Cast<UScaleBoxSlot>(Fit->GetContentSlot())){FitSlot->SetHorizontalAlignment(HAlign_Left);FitSlot->SetVerticalAlignment(VAlign_Top);}
     if(Tab==EReportTab::Comparison){AddComparison(Tree,Body,Result,Row.ContenderId,TextScale);return Size;}
     if(Tab==EReportTab::Timeline){AddTimeline(Tree,Body,Row,Content,TextScale);return Size;}

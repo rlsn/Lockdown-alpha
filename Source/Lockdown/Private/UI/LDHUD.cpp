@@ -1280,7 +1280,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                     ChipLine->AddChildToHorizontalBox(SubIconBox)->SetVerticalAlignment(VAlign_Center);
                     UTextBlock* SubName=OneLine(TEXT(""),LDHUDStyle::TypeSmall,0);SubName->SetColorAndOpacity(LDBroadcast::White);
                     SubName->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);SubName->SetClipping(EWidgetClipping::ClipToBounds);
-                    auto* SubNameSlot=ChipLine->AddChildToHorizontalBox(SubName);SubNameSlot->SetPadding(FMargin(5,0,0,0));SubNameSlot->SetVerticalAlignment(VAlign_Center);
+                    auto* SubNameSlot=ChipLine->AddChildToHorizontalBox(SubName);SubNameSlot->SetPadding(FMargin(5,0,0,0));SubNameSlot->SetVerticalAlignment(VAlign_Center);SubNameSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
                     auto* Chip=WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(),FName(*FString::Printf(TEXT("HUDRankSubChip_%d_%d"),Card,Sub)));
                     Chip->SetBrush(HudRound(0.f,FLinearColor(1,1,1,.16f),1.f));Chip->SetBrushColor(LDBroadcast::Ink.CopyWithNewOpacity(.92f));
                     Chip->SetPadding(FMargin(6,5));Chip->SetContent(ChipLine);
