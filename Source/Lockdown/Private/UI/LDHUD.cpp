@@ -4201,9 +4201,9 @@ void ULDHUD::PaintMoments(const LDUIPaint::FContext& P) const
             LDBroadcastPaint::Text(P,P.Layer+6,StageCount,Figure,At+FVector2D(5.,5.),LDBroadcast::Ink,FVector2D(.5,.5));
             LDBroadcastPaint::Text(P,P.Layer+7,StageCount,Figure,At,StageCount==TEXT("1")||StageCount==TEXT("2")||StageCount==TEXT("3")?LDBroadcast::Orange:LDBroadcast::White,FVector2D(.5,.5));
             const FSlateFontInfo Label=LDBroadcastPaint::LabelFont(26.f,true);
-            const FVector2D LabelSize=LDBroadcastPaint::Measure(StageNextTitle,Label);
+            const FVector2D NextSize=LDBroadcastPaint::Measure(StageNextTitle,Label);
             const FVector2D Mid(At.X,At.Y+104.);
-            LDBroadcastPaint::FillSlab(P,P.Layer+6,FBox2D(Mid-FVector2D(LabelSize.X*.5+22.,22.),Mid+FVector2D(LabelSize.X*.5+22.,22.)),LDBroadcast::Ink.CopyWithNewOpacity(.92f));
+            LDBroadcastPaint::FillSlab(P,P.Layer+6,FBox2D(Mid-FVector2D(NextSize.X*.5+22.,22.),Mid+FVector2D(NextSize.X*.5+22.,22.)),LDBroadcast::Ink.CopyWithNewOpacity(.92f));
             LDBroadcastPaint::Text(P,P.Layer+7,StageNextTitle,Label,Mid,LDBroadcast::White,FVector2D(.5,.5));
         }
     }
