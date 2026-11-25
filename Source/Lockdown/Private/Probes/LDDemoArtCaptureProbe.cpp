@@ -1,6 +1,8 @@
 #include "Probes/LDDemoArtCaptureProbe.h"
 #include "AudioMixerBlueprintLibrary.h"
 #include "Audio/LDAudioFeel.h"
+#include "Audio/LDAudioSubsystem.h"
+#include "Engine/GameViewportClient.h"
 #include "Character/LDHitFeel.h"
 #include "Core/LDLog.h"
 
@@ -1190,6 +1192,11 @@ namespace
                 if (Job.bRealtime)
                 {
                     IFileManager::Get().MakeDirectory(*(Directory / Folder), true);
+                    // The window shows the stage as the real-time recording sees it: no lobby or HUD widgets over it.
+                    if (UGameViewportClient* Viewport = Target.GetGameViewport()) { Viewport->RemoveAllViewportWidgets(); }
+                    // Only the music bus is muted so the combat sounds can be judged on their own; every other bus plays as set.
+                    if (UGameInstance* Instance = Target.GetGameInstance())
+                    { if (auto* Audio = Instance->GetSubsystem<ULDAudioSubsystem>()) { Audio->ApplyBusVolume(ELDAudioBus::Music, 0.f); } }
                     UAudioMixerBlueprintLibrary::StartRecordingOutput(&Target, Job.Seconds + 1.f);
                     // The wall clock of the recording start lets the window recording be aligned to the game audio.
                     UE_LOG(LogLDTest, Display, TEXT("LD_FEEL_RECORDING_START utc=%s"), *FDateTime::UtcNow().ToIso8601());

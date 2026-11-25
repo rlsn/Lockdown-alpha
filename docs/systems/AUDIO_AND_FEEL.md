@@ -83,9 +83,17 @@
 3. 响度：`python Scripts/MeasureDemoAudioLoudness.py --write`：先把每个声音拉到 Kenney 源的中位响度，再按 `level_db` 定混音；
    峰值限 0.95。混音意图写在 `level_db`，不改源文件。
 4. 导入：`Scripts/ImportDemoAudio.ps1 -Mode Import`，校验：`-Mode Validate`（打包前置检查也会跑）。
-5. 证据：`Scripts/CaptureFeelSample.ps1 -FFmpeg <ffmpeg.exe>`：在战斗演示台以真实速度、开声卡播放“feel”场景；
-   游戏自己录制主混音（`game_audio.wav`，不是离线重渲染），ffmpeg 录窗口，按两边记录的 UTC 对齐合成。
-   声音的听感验收只能由人完成；Agent 只能看波形、频谱与响度，并须如实说明。
+5. 程序化运行时声音：MetaSound Builder API 在本机无头编辑器里实测可用（`MetaSoundBuilderSubsystem.create_source_builder` →
+   `add_node_by_class_name` → `connect_nodes` → `build` 或 `MetaSoundEditorSubsystem.build_to_asset`，均 SUCCEEDED）。
+   用于真正需要运行时参数的声音（持续电场嗡鸣随人数变化、蓄能随进度变化）；一次性声音仍用 WAV，不为简单音效强加 MetaSound。
+6. 证据：`Scripts/CaptureFeelSample.ps1 -FFmpeg <ffmpeg.exe>`，再 `python Scripts/MakeFeelEvidence.py --run <输出目录> --ffmpeg <ffmpeg.exe> --out <目录>`。
+   - 在战斗演示台以真实速度、开声卡播放“feel”场景（只静音音乐轨）；`ffmpeg ddagrab` 录游戏窗口客户区
+     （`gdigrab` 读不到 D3D12 翻转模型窗口），`Scripts/RecordAudioLoopback.py` 用 WASAPI 回环录扬声器实际输出
+     （需 `pip install soundcard`；录制时自身播放数字静音保持端点运转，否则静音段会丢帧导致时间轴错位）。
+   - 两个录制进程的启动时钟不可信（实测偏差上百毫秒），对齐按内容：音频按日志里每个 take 在回环里的匹配位置；
+     画面以移除大厅界面那一帧（与日志的录制开始同一 tick）为零点，并用每次出手的画面变化峰值复核。
+   - UE 5.8 的 `StartRecordingOutput` 子混音录制在本机只录到约一半时长（开启渲染调度时），不用作证据。
+   - 声音的听感验收只能由人完成；Agent 只能看时序、波形、频谱与响度，并须如实说明。
 
 ## 5. 素材来源与授权
 
@@ -96,7 +104,7 @@
 | Fab “Free Modular Magic SFX”（Le Binh Son，290 个，含 22 个 MetaSound） | 描述写 CC BY 4.0，不要求署名 | 能（保留出处） | 待用户在 Fab 领取 |
 | Fab “500 Free Essential Game SFX Starter Pack”（HomkaH） | 描述写 CC BY 4.0 | 能，须署名 | 待用户在 Fab 领取 |
 | Fab “100 RPG Fantasy SFX Pack” | 页面未写授权，标注 AI 生成 | 不用 | 排除 |
-| Sonniss #GameAudioGDC（2015–2026 各年，GDC 2026 约 7.5 GB） | 可商用、免署名；禁止把音效本身再分发 | **不能**：本仓库是公开的，原始文件与导入后的 `.uasset` 都不能提交 | 需用户决定私有存放方式 |
+| Sonniss #GameAudioGDC（2015–2026 各年，GDC 2026 约 7.5 GB） | 可商用、免署名；禁止把音效本身再分发 | **不能**：本仓库是公开的，原始文件与导入后的 `.uasset` 都不能提交；按 VFX 已定的做法只放本机 | 待用户下载 |
 | Freesound | 只用 CC0 | 能 | 未开始（需登录下载） |
 
 本仓库在 GitHub 上公开。第三方原始音频只有在授权允许公开再分发时才进入 `SourceData/Audio`；
@@ -120,17 +128,17 @@
 
 | 项 | 状态 | 实现与资产 | 证据 / 已知问题 |
 | --- | --- | --- | --- |
-| 普攻挥击 1–2 段 | IMPLEMENTED | `SwingLight` ×3 take，第 2 段音高 0.94 | 未实机听感验收 |
+| 普攻挥击 1–2 段 | IMPLEMENTED | `SwingLight` ×3 take，第 2 段音高 0.94 | 实机样板时序已验（`production/feel/sample-combo-zap/`）；未听感验收 |
 | 普攻终结挥击 | IMPLEMENTED | `SwingFinisher` ×2 | 同上 |
 | 落空 | IMPLEMENTED | 只有挥击声（设计如此） | — |
-| 普通命中（他人身体） | IMPLEMENTED | `HitBasic` ×3（合成 + Kenney 重击） | 网络下与本人确认层可能相差 1–2 帧，待实机确认 |
+| 普通命中（他人身体） | IMPLEMENTED | `HitBasic` ×3（合成 + Kenney 重击） | 样板时序已验；联网时与本人确认层可能相差 1–2 帧，未在真实对局确认 |
 | 终结命中 | IMPLEMENTED | `HitFinisher` ×2 | 依赖 VFX 击打匹配判断终结 |
 | 本人命中确认（普通/暴击/破盾/击杀） | IMPLEMENTED | `SelfDealtImpact` + `SelfDealtAccent`/`Crit`/`ShieldBreak`/`Kill` | — |
-| 电命中 / 闪电链每跳 | IMPLEMENTED | `HitElectric` ×3 | — |
+| 电命中 / 闪电链每跳 | IMPLEMENTED | `HitElectric` ×3 | 样板时序已验：三跳各在日志时刻 ±7 ms |
 | 火、水、魔法命中 | IMPLEMENTED | `HitFire`、`HitWater`、`HitMagic` 各 ×2 | — |
 | 冰、腐（毒）命中 | BLOCKED | 命中外观只有 Magic/Fire/Water/Electric 四种，冰与腐没有外观字段 | 需要新的命中外观（网络投影改动，非本流可做） |
 | 技能前摇蓄能 | IMPLEMENTED | `CastCharge`，出手 30 ms 切断 | — |
-| 技能释放：电你个哆嗦 | IMPLEMENTED | 技能表 `active_zap` ×2 | 样板 |
+| 技能释放：电你个哆嗦 | IMPLEMENTED | 技能表 `active_zap` ×2 | 样板时序已验；待用户听感 |
 | 技能释放：其余 23 个 | IN PROGRESS | 暂用 `CastRelease` 通用声 | 待逐个设计 |
 | 每技能专属命中声 | BLOCKED | 命中不携带技能编号；只能按外观族与 VFX 击打匹配区分 | 同上 |
 | 元素反应（10 种） | NOT STARTED | — | — |
