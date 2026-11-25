@@ -4,7 +4,10 @@ param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(300,1500)][int]$
     [ValidatePattern('^-Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+( -Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+)*$')][string]$NetEmulation,
     # The Host's rendered main view; the screenshots are reviewed at both supported sizes.
     [ValidateSet('720p','1080p')][string]$Resolution='720p',
-    [switch]$RenderClient)
+    [switch]$RenderClient,
+    # Audio/feel evidence (Scripts/CaptureFeelSample.ps1 -Scenario combat): the Host window is visible with sound on and
+    # logs every played sound; the checks themselves are unchanged.
+    [switch]$Audible)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
 Assert-LDDemoInputs
@@ -38,10 +41,11 @@ function Start-CombatRole {
     Start-LDDemoRole -Harness $harness -Role $Role -Url $Url -Arguments {
         param($user, $log)
         # The Host always renders. RenderClient also exercises the cooked skeletal data on the real owning client.
-        $render = if ($Role -eq 'Host') { "-windowed -RenderOffScreen $resolutionArguments -port=$port $fixtureSwitch" }
+        $render = if ($Role -eq 'Host') { "-windowed $(if ($Audible) { '' } else { '-RenderOffScreen' }) $resolutionArguments -port=$port $fixtureSwitch" }
             elseif ($RenderClient) { "-windowed -RenderOffScreen $resolutionArguments" } else { '-nullrhi' }
         $arguments = '-unattended -nop4 -nosound -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoCombatProbe -LDDemoCombatRole={2} -LDDemoCombatTimeout={3} -LDDemoCombatOutput="{4}" -abslog="{5}"' -f $render,$user,$Role,$TimeoutSeconds,$evidence,$log
         if ($NetEmulation) { $arguments += " $NetEmulation" }
+        if ($Audible -and $Role -eq 'Host') { $arguments = $arguments.Replace(' -nosound', '') + ' -LDAudioEventLog' }
         $arguments
     }
 }

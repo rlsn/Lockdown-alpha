@@ -24,13 +24,27 @@ bool ULDBasketballMotionSet::Validate(const USkeletalMesh& Body, FString& Error)
     Error.Reset(); return true;
 }
 
+namespace
+{
+    // The rate of the clip after its release: the windup's own warp, except that a windup so short that the warp would be a
+    // blur (an instant cast) lets the follow-through play at FollowRate so the gesture still reads.
+    float FollowScale(const FLDBasketballActionClip& Clip, float ImpactSeconds)
+    {
+        const float Scale = ImpactSeconds > 0 ? (Clip.Release - Clip.Start) / ImpactSeconds : 0;
+        return ImpactSeconds <= 0 || Scale > LDBasketballMotion::MaxWarp ? LDBasketballMotion::FollowRate : Scale;
+    }
+}
+
 float LDBasketballMotion::SampleTime(const FLDBasketballActionClip& Clip, float Age, float ImpactSeconds)
 {
     const float Scale = ImpactSeconds > 0 ? (Clip.Release - Clip.Start) / ImpactSeconds : 0;
-    return FMath::Clamp(Clip.Start + FMath::Max(Age,0.f) * Scale, Clip.Start, Clip.End);
+    Age = FMath::Max(Age, 0.f);
+    const float Time = Age <= ImpactSeconds ? Clip.Start + Age * Scale
+        : Clip.Release + (Age - FMath::Max(ImpactSeconds, 0.f)) * FollowScale(Clip, ImpactSeconds);
+    return FMath::Clamp(Time, Clip.Start, Clip.End);
 }
 
 float LDBasketballMotion::Duration(const FLDBasketballActionClip& Clip, float ImpactSeconds)
 {
-    return Clip.Release > Clip.Start ? FMath::Max(ImpactSeconds,0.f) * (Clip.End - Clip.Start) / (Clip.Release - Clip.Start) : 0;
+    return Clip.Release > Clip.Start ? FMath::Max(ImpactSeconds, 0.f) + (Clip.End - Clip.Release) / FollowScale(Clip, ImpactSeconds) : 0;
 }

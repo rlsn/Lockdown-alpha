@@ -1153,6 +1153,8 @@ bool ULDHumanoidVisualComponent::ShowSliceImpact(const FPendingImpact& Impact, c
 
 void ULDHumanoidVisualComponent::PlayFall()
 {
+    // A visible other body's knockout sounds with its dust ring; the own death sounds from the owner tracker.
+    if (FallAt < 0 && !bOwnBody && CanShowImpact() && Pivot) { LDAudioFeel::Fall(*this, Pivot->GetComponentLocation()); }
     ClearImpacts();
     // A visible fall knocks a ring of dust out over the floor and leaves a scuff; it plays out on its own while the body sinks.
     UWorld* World = GetWorld();

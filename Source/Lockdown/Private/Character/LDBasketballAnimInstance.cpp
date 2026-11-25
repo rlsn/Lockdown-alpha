@@ -149,10 +149,11 @@ void ULDBasketballAnimInstance::Prepare(double Clock,float Speed,float FacingYaw
             using LDActionMotion::EFamily;
             const bool bMoving=Speed>60;
             // The family's bank: passes for jabs, crosses and throws; the jump shot for the finisher and slams; the set
-            // shot for two-hand casts; ball handling for stances. A moving body shoots on the move.
+            // shot for two-hand casts; the spin move for stances and buffs (a gesture readable from above). A moving body
+            // shoots on the move.
             const bool bJump=Family==EFamily::Finisher||Family==EFamily::HeavySlam;
             const auto& Choices=Family==EFamily::Jab||Family==EFamily::Cross||Family==EFamily::OneHandThrow?Motion->Passes
-                :Family==EFamily::Ready?Motion->Handling:bMoving?Motion->MovingShots:Motion->StandingShots;
+                :Family==EFamily::Ready?Motion->Turns:bMoving?Motion->MovingShots:Motion->StandingShots;
             // The hand: the jab is right, the cross left, everything else follows the dribbling hand.
             const bool Left=Family==EFamily::Jab?false:Family==EFamily::Cross?true:GetCurveValue(TEXT("BallLeft"))>.5f;
             TArray<int32,TInlineAllocator<8>> Candidates;
@@ -160,7 +161,7 @@ void ULDBasketballAnimInstance::Prepare(double Clock,float Speed,float FacingYaw
             {
                 const bool bIsJump=Choices[I].Animation&&Choices[I].Animation->GetName().Contains(TEXT("Jump_Shot"));
                 const bool bShape=&Choices!=&Motion->StandingShots||bIsJump==bJump;
-                if(bShape&&(Choices[I].bLeftHand==Left||&Choices==&Motion->Handling)){Candidates.Add(I);}
+                if(bShape&&(Choices[I].bLeftHand==Left||&Choices==&Motion->Turns)){Candidates.Add(I);}
             }
             Active=Choices[Candidates.IsEmpty()?0:Candidates[Variation++%Candidates.Num()]];
             bWasReleased=false;LastActionIdentity=Identity;TurnAt=-1;

@@ -321,7 +321,7 @@ namespace
     float AudioPriorityOf(const FString& Name)
     {
         if (Name.StartsWith(TEXT("SelfDealt")) || Name.StartsWith(TEXT("SelfHit")) || Name.StartsWith(TEXT("SelfShield")) || Name.StartsWith(TEXT("SelfDeath"))) { return 3.f; }
-        if (Name.StartsWith(TEXT("Match")) || Name.StartsWith(TEXT("Kill")) || Name.StartsWith(TEXT("Capture")) || Name.StartsWith(TEXT("LevelUp"))) { return 2.5f; }
+        if (Name.StartsWith(TEXT("Match")) || Name.StartsWith(TEXT("Kill")) || Name.StartsWith(TEXT("BodyFall")) || Name.StartsWith(TEXT("Capture")) || Name.StartsWith(TEXT("LevelUp"))) { return 2.5f; }
         if (Name.StartsWith(TEXT("State"))) { return 1.f; }
         if (Name.StartsWith(TEXT("UI"))) { return .8f; }
         return 2.f;
