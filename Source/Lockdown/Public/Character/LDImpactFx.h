@@ -109,7 +109,11 @@ public:
     // One hop of a chain (active_zap) as the Niagara Chain: the bolt from From to To and its end sparks, in Look's size
     // and brightness, bound to Victim (cleared with it) and stopped after its duration.
     void Chain(const ULDHumanoidVisualComponent& Victim, const FVector& From, const FVector& To, bool bChained, const LDSliceVfx::FLook& Look, float AgeSeconds);
-    UNiagaraSystem* GetChainSystem() const { return ChainSystem; }
+    // The chain look in force (ld.Vfx.ChainLook, else DA_CombatVfx ChainLook; ELDChainLook) and its system (null for Mesh).
+    uint8 ChainLookNow() const;
+    UNiagaraSystem* GetChainSystem(uint8 Look) const { return ChainSystems.IsValidIndex(Look) ? ChainSystems[Look].Get() : nullptr; }
+    // Every live chain component (capture probes count their particles and read their user parameters).
+    void ForEachChain(TFunctionRef<void(UNiagaraComponent&)> Visit) const;
     // A public electric ground state's looping field on Owner (fades with Alpha; Alpha <= 0 removes it).
     void ShowGroundField(const AActor& Owner, const FVector& Centre, float RadiusCm, float Alpha);
     // The approved reach of a skill's level-1 target (its range and, for a direction line, the band's half width) and
@@ -232,7 +236,7 @@ private:
     UPROPERTY() TObjectPtr<UNiagaraSystem> ImpactSystem;
     UPROPERTY() TObjectPtr<UNiagaraSystem> BurstSystem;
     UPROPERTY() TObjectPtr<UNiagaraSystem> ZoneSystem;
-    UPROPERTY() TObjectPtr<UNiagaraSystem> ChainSystem;
+    UPROPERTY() TArray<TObjectPtr<UNiagaraSystem>> ChainSystems;
     void Track(UNiagaraComponent* Effect, const ULDHumanoidVisualComponent* Source, float AgeSeconds, const AActor* OwnerActor = nullptr);
     UNiagaraComponent* SpawnKit(const FVector& At, const LDHitVfx::FBurst& Burst);
     TArray<FLive> Live;

@@ -50,14 +50,15 @@ namespace LDSliceVfx
     // right to left with its head on the left of forward, stage 2 the reverse, stage 3 is the wide finisher. Their imported
     // head points (UV U = 0 on the outer edge), which the importer checks after every import, in Unreal coordinates.
     LOCKDOWN_API FVector SlashHead(EMesh Mesh);
-    // Niagara (LDDemoVfxNiagara, built by the VFX import commandlet): the particle form of the slice material and the
-    // Chain template, one link of a chain, tether or beam between two world points with sparks at its end.
-    constexpr const TCHAR* NiagaraMaterial = TEXT("/Game/Lockdown/Art/VFX/Niagara/M_LDSliceParticle");
-    constexpr const TCHAR* ChainArcMaterial = TEXT("/Game/Lockdown/Art/VFX/Niagara/MI_LDChainArc");
-    constexpr const TCHAR* ChainSparkMaterial = TEXT("/Game/Lockdown/Art/VFX/Niagara/MI_LDChainSpark");
-    constexpr const TCHAR* ChainSystem = TEXT("/Game/Lockdown/Art/VFX/Niagara/NS_LDChain");
-    // The Chain's user parameters: world Start and End (vectors), Tint (colour), Width (cm), Intensity and Duration (s).
-    constexpr const TCHAR* ChainStart = TEXT("User.Start");
+    // Niagara (LDDemoVfxNiagara, built by the VFX import commandlet). Every asset under GeneratedFolder is owned by the
+    // generator, rebuilt by each import and never edited by hand: the particle form of the slice material and one Chain
+    // system per look (one link of a chain, tether or beam between two world points with sparks at its end).
+    constexpr const TCHAR* GeneratedFolder = TEXT("/Game/Lockdown/Art/VFX/Niagara/Generated");
+    constexpr const TCHAR* NiagaraMaterial = TEXT("/Game/Lockdown/Art/VFX/Niagara/Generated/M_LDSliceParticle");
+    // The generated chain looks (ELDChainLook without Mesh): their suffix ("V1", "A", "B", "C") and system package.
+    constexpr int32 ChainLookCount = 5;
+    LOCKDOWN_API const TCHAR* ChainLookName(uint8 Look);
+    LOCKDOWN_API FString ChainSystemOf(uint8 Look);    constexpr const TCHAR* ChainStart = TEXT("User.Start");
     constexpr const TCHAR* ChainEnd = TEXT("User.End");
     constexpr const TCHAR* ChainTint = TEXT("User.Tint");
     constexpr const TCHAR* ChainWidth = TEXT("User.Width");
@@ -133,6 +134,8 @@ namespace LDSliceVfx
         float EffectScale = 1;
         // ld.Feel / DA_CombatVfx tuning of this kind of layer: size, duration and brightness multipliers.
         float Size = 1, Seconds = 1, Glow = 1;
+        // The chain look is the slice's mesh strip and spark (ELDChainLook::Mesh) rather than a Niagara Chain.
+        bool bChainMesh = false;
 
     };
     // The basic swing of combo Step (1..3): the chalk shape of the coming slash on the ground from the start of the
@@ -147,7 +150,8 @@ namespace LDSliceVfx
     LOCKDOWN_API FRecipe ZapRelease(const FVector& Hand, const FLook& Look);
     // One landed hit of a strike on a visible body: the tier's burst at the chest along Dir (basic, finisher, or the skill
     // burst for any skill; white, orange for the local player's, element ink for water and shock), plus the strike's own
-    // follow-through (water splash and wet ground; a zap's arc from From and its contact sparks are the Niagara Chain).
+    // follow-through (water splash and wet ground; a zap's arc from From and its contact sparks are the Niagara Chain,
+    // or with Look.bChainMesh the mesh strip and spark layers).
     LOCKDOWN_API FRecipe Impact(EStrike Strike, const FVector& Chest, const FVector& Feet, const FVector& Dir, const FVector& From,
         bool bChained, const FLook& Look);
     // The conduct reaction (wet + shock) on a body: a large burst, a few arcs along the ground out to the splash radius

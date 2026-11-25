@@ -346,6 +346,11 @@ bool FLDBodyMotionSliceLayersTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A zap's first hit shows the skill burst and a bounce nothing more; the arcs and sparks are the Niagara Chain"),
         Find(Zap,ETex::HitSkill,EPlace::Facing) && !Find(Zap,ETex::ShockArcs,EPlace::Strip) && !Find(Zap,ETex::ShockSpark,EPlace::Facing)
         && Bounce.Layers.IsEmpty());
+    FLook MeshLook=Own;
+    MeshLook.bChainMesh=true;
+    const FRecipe MeshBounce=Impact(EStrike::Zap,Chest,Feet,Dir,From,true,MeshLook);
+    TestTrue(TEXT("The Mesh chain look draws the link as a strip from the previous body and a contact spark instead"),
+        Find(MeshBounce,ETex::ShockArcs,EPlace::Strip) && Find(MeshBounce,ETex::ShockSpark,EPlace::Facing) && !Find(MeshBounce,ETex::HitSkill,EPlace::Facing));
     const FLayer* Field=Find(Reaction,ETex::ShockField,EPlace::Flat);
     TestTrue(TEXT("Conduct arcs along the ground out to its splash radius over a field whose edge is exactly that radius"),
         Field && FMath::IsNearlyEqual(Field->SizeCm*FieldEdge*.5f,450.f,1.f) && FMath::IsNearlyEqual(FieldSizeCm(220.f)*FieldEdge*.5f,220.f,.1f) && Reaction.Layers.ContainsByPredicate([](const FLayer& L){ return L.Place==EPlace::GroundStrip && FVector::Dist(L.At,L.End)>400.f; })

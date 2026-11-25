@@ -470,7 +470,17 @@ LDSliceVfx::FRecipe LDSliceVfx::Impact(EStrike Strike, const FVector& Chest, con
     case EStrike::Zap:
     {
         // The link itself (the arc from the hand or the previous body and its contact sparks) is the Niagara Chain
-        // (LDSliceVfx::ChainSystem, ULDImpactFxSubsystem::Chain); the first target of the cast also shows the skill tier's burst.
+        // (ULDImpactFxSubsystem::Chain), or with the mesh look a strip and a spark here; the first target of the cast
+        // also shows the skill tier's burst.
+        if (Look.bChainMesh)
+        {
+            const FLinearColor Glow = ElementGlow(LDBroadcast::Shock, Look);
+            if (!From.ContainsNaN() && FVector::DistSquared(From, Chest) > 100.f) { Recipe.Layers.Add(Arc(From, Chest, bChained ? 46.f : 56.f, .26f, Glow, Look, false)); }
+            FLayer Spark = Burst(ETex::ShockSpark, Chest, Along, bChained ? 120.f : 140.f, .44f, Look);
+            Spark.Glow = Glow;
+            Spark.Core = CoreGlow(Look);
+            Recipe.Layers.Add(Spark);
+        }
         if (!bChained)
         {
             FLayer Hit = Burst(ETex::HitSkill, Chest, Along, 200.f, .57f, Look);
@@ -546,6 +556,17 @@ LDSliceVfx::FLayer LDSliceVfx::GroundField(const FVector& Centre, float RadiusCm
     Field.Core = Hdr(LDBroadcast::White, 2.f * Look.Glow);
     Field.Ink = InkEdge;
     return Field;
+}
+
+const TCHAR* LDSliceVfx::ChainLookName(uint8 Look)
+{
+    static const TCHAR* Names[ChainLookCount] = { TEXT("Mesh"), TEXT("V1"), TEXT("A"), TEXT("B"), TEXT("C") };
+    return Look < ChainLookCount ? Names[Look] : TEXT("");
+}
+
+FString LDSliceVfx::ChainSystemOf(uint8 Look)
+{
+    return Look == 0 || Look >= ChainLookCount ? FString() : FString(GeneratedFolder) / TEXT("NS_LDChain_") + ChainLookName(Look);
 }
 
 const TCHAR* LDHitVfx::MaskId(EMask Mask)

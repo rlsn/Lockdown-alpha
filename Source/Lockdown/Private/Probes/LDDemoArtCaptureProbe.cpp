@@ -34,6 +34,13 @@
 #include "GameFramework/PlayerController.h"
 #include "HAL/FileManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "HAL/IConsoleManager.h"
+#include "NiagaraEmitterInstance.h"
+#include "NiagaraSystemInstance.h"
+#include "NiagaraSystemInstanceController.h"
+#include "RenderTimer.h"
+#include "DynamicRHI.h"
+#include "Misc/App.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Misc/CommandLine.h"
@@ -125,6 +132,28 @@ namespace
         double SeqClock = 0., SeqWarmUntil = -1.;
         static constexpr float SeqDilation = .1f, SeqFreeze = .0001f;
         TWeakObjectPtr<ALDObservedGroundProxy> SeqGround;
+        // Chain look harness (-LDDemoChainLooks=Mesh,NiagaraV1,...): per look, six real-zap scenarios captured frame by frame
+        // at real game speed (a fixed 1/30 s step, the world held while each frame is written), then a frame-cost run of eight
+        // casters against an idle baseline. Results in DemoArt.json chain_runs / chain_perf.
+        struct FChainJob
+        {
+            uint8 Look = 0;
+            FString Scenario;
+            TArray<FSeqStep> Steps;
+            TFunction<void()> Setup, Teardown;
+            bool bPerf = false;
+        };
+        TArray<FChainJob> ChainJobs;
+        int32 ChainJob = 0, ChainPhase = 0, ChainFrame = 0, ChainStep = 0;
+        double ChainClock = 0., ChainPhaseAt = 0., ChainNextWave = 0.;
+        int32 ChainWave = 0;
+        TArray<TSharedPtr<FJsonValue>> ChainRuns, ChainPerf, ChainFrameTimes;
+        TArray<TWeakObjectPtr<ULDHumanoidVisualComponent>> PerfCasters, PerfVictims;
+        struct FFrameStats { int32 Frames = 0; double RealMs = 0, GameMs = 0, RenderMs = 0, GpuMs = 0; int32 MaxComponents = 0, MaxParticles = 0, MaxLayers = 0; };
+        FFrameStats PerfIdle, PerfLoad;
+        TSharedPtr<FJsonObject> ChainCheck;
+        static constexpr float ChainStep_ = 1.f / 30.f, ChainFrom = .2f;
+        static constexpr int32 ChainFrames = 24;
         FVector VfxFocus = FVector::ZeroVector;
         float BasicWindupSeconds = .18f;
 
@@ -154,6 +183,9 @@ namespace
             Report->SetArrayField(TEXT("decorations"), Decorations);
             Report->SetArrayField(TEXT("occluders"), Occluders);
             Report->SetArrayField(TEXT("occluded_points"), OccludedPoints);
+            if (!ChainRuns.IsEmpty()) { Report->SetArrayField(TEXT("chain_runs"), ChainRuns); }
+            if (!ChainPerf.IsEmpty()) { Report->SetArrayField(TEXT("chain_perf"), ChainPerf); }
+            FApp::SetUseFixedTimeStep(false);
             FString Json;
             const FString Path = Directory / TEXT("DemoArt.json");
             const bool Written = FJsonSerializer::Serialize(Report, TJsonWriterFactory<>::Create(&Json))
@@ -677,6 +709,14 @@ namespace
                 Shots.RemoveAll([](const FArtShot& Shot) { return Shot.Name != TEXT("VFX-Idle") && Shot.Name != TEXT("VFX-Cast"); });
             }
             else if (!BuildSequences(Target, Focus)) { return false; }
+            FString Looks;
+            if (FParse::Value(FCommandLine::Get(), TEXT("LDDemoChainLooks="), Looks))
+            {
+                // The chain harness replaces the keyframe sequences and the single shots (only the idle frame stays).
+                Sequences.Reset();
+                Shots.RemoveAll([](const FArtShot& Shot) { return Shot.Name != TEXT("VFX-Idle"); });
+                if (!BuildChainHarness(Target, Focus, Looks)) { return false; }
+            }
             FActorSpawnParameters Spawn;
             Spawn.ObjectFlags |= RF_Transient;
             ACameraActor* View = Target.SpawnActor<ACameraActor>(Spawn);
@@ -848,6 +888,265 @@ namespace
                 // The single shots that follow stage only the attacker and the first victim, as the earlier captures did.
                 if (++SeqIndex == Sequences.Num()) { for (const TWeakObjectPtr<ULDHumanoidVisualComponent>& Extra : VfxExtras) { if (Extra.IsValid()) { Extra->SetVisibility(false, true); } } }
             }
+            return true;
+        }
+
+        static int32 ParticlesOf(UNiagaraComponent& Effect)
+        {
+            int32 Count = 0;
+            if (FNiagaraSystemInstanceControllerConstPtr Controller = Effect.GetSystemInstanceController())
+            {
+                if (const FNiagaraSystemInstance* Instance = Controller->GetSystemInstance_Unsafe())
+                {
+                    for (const FNiagaraEmitterInstanceRef& Emitter : Instance->GetEmitters()) { Count += Emitter->GetNumParticles(); }
+                }
+            }
+            return Count;
+        }
+
+        static void SetChainLook(uint8 Look)
+        {
+            if (IConsoleVariable* Variable = IConsoleManager::Get().FindConsoleVariable(TEXT("ld.Vfx.ChainLook"))) { Variable->Set(int32(Look), ECVF_SetByCode); }
+        }
+
+        // The six judging scenarios of every requested look, then its frame-cost run. Real zap casts and hits on the stage
+        // bodies: A (own) at the near diagonal, V1 across it, V2 and V3 on the checked ring, A2 and A3 the other casters.
+        bool BuildChainHarness(UWorld& Target, const FVector& Focus, const FString& Looks)
+        {
+            TArray<FString> Names;
+            Looks.ParseIntoArray(Names, TEXT(","), true);
+            TArray<uint8> Wanted;
+            for (const FString& Name : Names)
+            {
+                bool bFound = false;
+                for (uint8 Look = 0; Look < LDSliceVfx::ChainLookCount; ++Look)
+                {
+                    const FString Known = Look == 1 ? TEXT("NiagaraV1") : LDSliceVfx::ChainLookName(Look);
+                    if (Name.Equals(Known, ESearchCase::IgnoreCase)) { Wanted.Add(Look); bFound = true; }
+                }
+                if (!Check(bFound, TEXT("Chain look known: ") + Name)) { return false; }
+            }
+            const TWeakObjectPtr<ULDHumanoidVisualComponent> A = VfxAttacker, V1 = VfxVictim, V2 = VfxExtras[0], V3 = VfxExtras[1], A2 = VfxExtras[2], A3 = VfxExtras[3];
+            const auto Cast = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body)
+            { return [Body]() { if (auto* B = Body.Get()) { B->SetComboStep(0); B->SetCastAbility(uint8(ELDDemoAbilityId::ActiveZap)); B->SetCue(2, 0.f, .25f); } }; };
+            const auto Hit = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body)
+            { return [Body]() { if (auto* B = Body.Get()) { B->SetHitReaction(0.f, ELDObservedHitLook::Electric, 0, FGuid::NewGuid()); } }; };
+            const auto Own = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, bool bOwn) { if (auto* B = Body.Get()) { B->SetOwnBody(bOwn); } };
+            const FVector V1Home = V1.IsValid() ? V1->GetOwner()->GetActorLocation() : FVector::ZeroVector;
+            const FVector AHome = A.IsValid() ? A->GetOwner()->GetActorLocation() : FVector::ZeroVector;
+            for (const uint8 Look : Wanted)
+            {
+                // (a) a short hop of 250 cm along the checked dash line in front of A.
+                ChainJobs.Add({Look, TEXT("a-short-hop"), {{0.f, Cast(A)}, {.27f, Hit(V1)}},
+                    [V1, AHome]() { if (auto* B = V1.Get()) { B->GetOwner()->SetActorLocation(AHome + FVector(250., 0., 0.)); B->GetOwner()->SetActorRotation(FRotator(0, 180.f, 0)); } },
+                    [V1, V1Home]() { if (auto* B = V1.Get()) { B->GetOwner()->SetActorLocation(V1Home); B->GetOwner()->SetActorRotation(FRotator(0, 225.f, 0)); } }});
+                // (b) the longest real hop: A2 across the ring to V2, 640 cm (zap's range is 650 cm), shown as the own cast.
+                ChainJobs.Add({Look, TEXT("b-long-hop"), {{0.f, Cast(A2)}, {.27f, Hit(V2)}}, [Own, A2]() { Own(A2, true); }, [Own, A2]() { Own(A2, false); }});
+                // (c) a first hit only.
+                ChainJobs.Add({Look, TEXT("c-first-hit"), {{0.f, Cast(A)}, {.27f, Hit(V1)}}, nullptr, nullptr});
+                // (d) a chain with two bounces.
+                ChainJobs.Add({Look, TEXT("d-two-bounces"), {{0.f, Cast(A)}, {.27f, Hit(V1)}, {.42f, Hit(V2)}, {.57f, Hit(V3)}}, nullptr, nullptr});
+                // (e) the own cast and another player's at the same moment.
+                ChainJobs.Add({Look, TEXT("e-own-vs-other"), {{0.f, Cast(A)}, {0.f, Cast(A3)}, {.27f, Hit(V1)}, {.28f, Hit(V3)}}, nullptr, nullptr});
+                // (f) three casters at once with bounces.
+                ChainJobs.Add({Look, TEXT("f-several-casters"), {{0.f, Cast(A)}, {0.f, Cast(A2)}, {0.f, Cast(A3)}, {.27f, Hit(V1)}, {.28f, Hit(V2)},
+                    {.29f, Hit(V3)}, {.42f, Hit(V2)}, {.44f, Hit(V3)}}, nullptr, nullptr});
+                FChainJob Perf;
+                Perf.Look = Look;
+                Perf.Scenario = TEXT("perf-eight-casters");
+                Perf.bPerf = true;
+                ChainJobs.Add(MoveTemp(Perf));
+            }
+            // Eight casters and eight victims for the frame-cost run, hidden outside it.
+            for (int32 Index = 0; Index < 8; ++Index)
+            {
+                const double X = -350. + Index * 100.;
+                PerfCasters.Add(SpawnVfxBody(Target, Focus + FVector(X, -260., 0.), 90.f, uint8(Index)));
+                PerfVictims.Add(SpawnVfxBody(Target, Focus + FVector(X, 140., 0.), 270.f, uint8((Index + 4) % 8)));
+            }
+            for (const TWeakObjectPtr<ULDHumanoidVisualComponent>& Body : PerfCasters) { if (Body.IsValid()) { Body->SetVisibility(false, true); } }
+            for (const TWeakObjectPtr<ULDHumanoidVisualComponent>& Body : PerfVictims) { if (Body.IsValid()) { Body->SetVisibility(false, true); } }
+            return Check(PerfCasters.Num() == 8 && PerfVictims.Num() == 8, TEXT("Chain harness: eight casters and eight victims for the frame-cost run"));
+        }
+
+        void SampleFrame(UWorld& Target, FFrameStats& Stats)
+        {
+            auto* Impacts = Target.GetSubsystem<ULDImpactFxSubsystem>();
+            ++Stats.Frames;
+            Stats.RealMs += FApp::GetDeltaTime() * 1000.;
+            Stats.GameMs += FPlatformTime::ToMilliseconds(GGameThreadTime);
+            Stats.RenderMs += FPlatformTime::ToMilliseconds(GRenderThreadTime);
+            Stats.GpuMs += FPlatformTime::ToMilliseconds(RHIGetGPUFrameCycles(0));
+            if (!Impacts) { return; }
+            int32 Components = 0, Particles = 0;
+            Impacts->ForEachChain([&](UNiagaraComponent& Effect) { ++Components; Particles += ParticlesOf(Effect); });
+            Stats.MaxComponents = FMath::Max(Stats.MaxComponents, Components);
+            Stats.MaxParticles = FMath::Max(Stats.MaxParticles, Particles);
+            Stats.MaxLayers = FMath::Max(Stats.MaxLayers, Impacts->LiveSliceCount());
+        }
+
+        static TSharedPtr<FJsonObject> StatsJson(const FFrameStats& Stats)
+        {
+            auto Out = MakeShared<FJsonObject>();
+            const double N = FMath::Max(Stats.Frames, 1);
+            Out->SetNumberField(TEXT("frames"), Stats.Frames);
+            Out->SetNumberField(TEXT("frame_ms"), Stats.RealMs / N);
+            Out->SetNumberField(TEXT("game_ms"), Stats.GameMs / N);
+            Out->SetNumberField(TEXT("render_ms"), Stats.RenderMs / N);
+            Out->SetNumberField(TEXT("gpu_ms"), Stats.GpuMs / N);
+            Out->SetNumberField(TEXT("max_chain_components"), Stats.MaxComponents);
+            Out->SetNumberField(TEXT("max_chain_particles"), Stats.MaxParticles);
+            Out->SetNumberField(TEXT("max_slice_layers"), Stats.MaxLayers);
+            return Out;
+        }
+
+        // One tick of the chain harness; false ends the probe.
+        bool TickChain(UWorld& Target, double Now, float SimDelta)
+        {
+            auto* Impacts = Target.GetSubsystem<ULDImpactFxSubsystem>();
+            if (!Impacts) { return Finish(TEXT("No impact effect subsystem for the chain harness")); }
+            FChainJob& Job = ChainJobs[ChainJob];
+            const FString Folder = FString::Printf(TEXT("chain/%s/%s"), LDSliceVfx::ChainLookName(Job.Look), *Job.Scenario);
+            if (!PendingImage.IsEmpty())
+            {
+                if (IFileManager::Get().FileSize(*PendingImage) <= 0) { return true; }
+                PendingImage.Reset();
+                UGameplayStatics::SetGlobalTimeDilation(&Target, 1.f);
+                return true;
+            }
+            if (ChainPhase == 0)
+            {
+                // A clean stage on a wall clock: every body idle, no effect left, shaders done.
+                FApp::SetUseFixedTimeStep(false);
+                UGameplayStatics::SetGlobalTimeDilation(&Target, 1.f);
+                SeqBodies([Impacts](ULDHumanoidVisualComponent& Body) { Body.SetCue(0); Body.SetCastAbility(0); Impacts->ClearFor(Body); });
+                if (GShaderCompilingManager && GShaderCompilingManager->IsCompiling()) { return true; }
+                SetChainLook(Job.Look);
+                Check(Impacts->ChainLookNow() == Job.Look, FString::Printf(TEXT("Chain look %s is in force"), LDSliceVfx::ChainLookName(Job.Look)));
+                if (Job.Setup) { Job.Setup(); }
+                ChainClock = 0.;
+                ChainFrame = ChainStep = 0;
+                ChainPhaseAt = Now;
+                ChainFrameTimes.Reset();
+                ChainCheck = MakeShared<FJsonObject>();
+                if (Job.bPerf)
+                {
+                    for (const auto* List : {&PerfCasters, &PerfVictims}) { for (const auto& Body : *List) { if (Body.IsValid()) { Body->SetVisibility(true, true); } } }
+                    PerfIdle = PerfLoad = FFrameStats();
+                    ChainPhase = 3;
+                    return true;
+                }
+                IFileManager::Get().MakeDirectory(*(Directory / Folder), true);
+                // Real game speed: every frame advances exactly 1/30 s of game time and is captured.
+                FApp::SetUseFixedTimeStep(true);
+                FApp::SetFixedDeltaTime(ChainStep_);
+                ChainPhase = 1;
+                return true;
+            }
+            if (ChainPhase == 1)
+            {
+                ChainClock += SimDelta;
+                while (ChainStep < Job.Steps.Num() && Job.Steps[ChainStep].At <= ChainClock) { Job.Steps[ChainStep++].Do(); }
+                // The user parameters of every live link: own links full width, others' thinner; each starts at its caster
+                // or the previous body struck.
+                Impacts->ForEachChain([this](UNiagaraComponent& Effect)
+                {
+                    const float Width = Effect.GetOverrideParameters().GetParameterValue<float>(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("User.Width")));
+                    const FVector3f Start = Effect.GetOverrideParameters().GetParameterValue<FVector3f>(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("User.Start")));
+                    const FString Key = FString::Printf(TEXT("%p"), &Effect);
+                    if (!ChainCheck->HasField(Key))
+                    {
+                        auto Entry = MakeShared<FJsonObject>();
+                        Entry->SetNumberField(TEXT("width"), Width);
+                        Entry->SetStringField(TEXT("start"), FVector(Start).ToCompactString());
+                        Entry->SetStringField(TEXT("end"), FVector(Effect.GetOverrideParameters().GetParameterValue<FVector3f>(
+                            FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("User.End")))).ToCompactString());
+                        Entry->SetNumberField(TEXT("intensity"), Effect.GetOverrideParameters().GetParameterValue<float>(
+                            FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("User.Intensity"))));
+                        ChainCheck->SetObjectField(Key, Entry);
+                    }
+                });
+                if (ChainClock + .5 * ChainStep_ < ChainFrom) { return true; }
+                if (ChainFrame < ChainFrames)
+                {
+                    UGameplayStatics::SetGlobalTimeDilation(&Target, .0001f);
+                    PendingImage = Directory / Folder / FString::Printf(TEXT("%03d.png"), ChainFrame);
+                    Images.Add(MakeShared<FJsonValueString>(Folder / FString::Printf(TEXT("%03d.png"), ChainFrame)));
+                    ChainFrameTimes.Add(MakeShared<FJsonValueNumber>(ChainClock));
+                    FScreenshotRequest::RequestScreenshot(PendingImage, false, false);
+                    ++ChainFrame;
+                    return true;
+                }
+                // Every link and layer is released once its effect ends.
+                FApp::SetUseFixedTimeStep(false);
+                ChainPhase = 2;
+                ChainPhaseAt = Now;
+                return true;
+            }
+            if (ChainPhase == 2)
+            {
+                const bool bReleased = Impacts->LiveCount() == 0 && Impacts->LiveSliceCount() == 0;
+                if (!bReleased && Now - ChainPhaseAt < 4.) { return true; }
+                Check(bReleased, FString::Printf(TEXT("Chain %s %s: every effect released afterwards"), LDSliceVfx::ChainLookName(Job.Look), *Job.Scenario));
+                auto Run = MakeShared<FJsonObject>();
+                Run->SetStringField(TEXT("look"), LDSliceVfx::ChainLookName(Job.Look));
+                Run->SetStringField(TEXT("scenario"), Job.Scenario);
+                Run->SetStringField(TEXT("folder"), Folder);
+                Run->SetArrayField(TEXT("frame_game_seconds"), ChainFrameTimes);
+                Run->SetNumberField(TEXT("first_hit_seconds"), .27);
+                Run->SetBoolField(TEXT("released"), bReleased);
+                Run->SetNumberField(TEXT("release_seconds"), Now - ChainPhaseAt);
+                Run->SetObjectField(TEXT("links"), ChainCheck);
+                ChainRuns.Add(MakeShared<FJsonValueObject>(Run));
+                if (Job.Teardown) { Job.Teardown(); }
+                ChainPhase = 0;
+                ++ChainJob;
+                return true;
+            }
+            // Frame cost: 3 s idle, then 5 s of all eight casters firing a zap with one bounce every 0.6 s.
+            const double Age = Now - ChainPhaseAt;
+            if (ChainPhase == 3)
+            {
+                if (Age > 1.) { SampleFrame(Target, PerfIdle); }
+                if (Age >= 4.) { ChainPhase = 4; ChainPhaseAt = Now; ChainNextWave = 0.; ChainWave = 0; }
+                return true;
+            }
+            if (Age >= ChainNextWave * 1.)
+            {
+                // Waves on the wall clock: casts now, the hits and bounces on their own delays below.
+                ChainNextWave += .6;
+                ++ChainWave;
+                for (const auto& Body : PerfCasters) { if (auto* B = Body.Get()) { B->SetCastAbility(uint8(ELDDemoAbilityId::ActiveZap)); B->SetCue(2, 0.f, .25f); } }
+                ChainClock = Age;
+            }
+            const double WaveAge = Age - ChainClock;
+            for (int32 Index = 0; Index < PerfVictims.Num(); ++Index)
+            {
+                if (auto* Victim = PerfVictims[Index].Get())
+                {
+                    if (WaveAge >= .27 && WaveAge - SimDelta < .27) { Victim->SetHitReaction(0.f, ELDObservedHitLook::Electric, 0, FGuid::NewGuid()); }
+                }
+                if (auto* Next = PerfVictims[(Index + 1) % PerfVictims.Num()].Get())
+                {
+                    if (WaveAge >= .42 && WaveAge - SimDelta < .42) { Next->SetHitReaction(0.f, ELDObservedHitLook::Electric, 0, FGuid::NewGuid()); }
+                }
+            }
+            for (const auto& Body : PerfCasters) { if (auto* B = Body.Get()) { B->Animate(FVector::ZeroVector, SimDelta); } }
+            for (const auto& Body : PerfVictims) { if (auto* B = Body.Get()) { B->Animate(FVector::ZeroVector, SimDelta); } }
+            if (Age > 1.) { SampleFrame(Target, PerfLoad); }
+            if (Age < 6.) { return true; }
+            auto Run = MakeShared<FJsonObject>();
+            Run->SetStringField(TEXT("look"), LDSliceVfx::ChainLookName(Job.Look));
+            Run->SetObjectField(TEXT("idle"), StatsJson(PerfIdle));
+            Run->SetObjectField(TEXT("eight_casters"), StatsJson(PerfLoad));
+            Run->SetNumberField(TEXT("waves"), ChainWave);
+            ChainPerf.Add(MakeShared<FJsonValueObject>(Run));
+            for (const auto* List : {&PerfCasters, &PerfVictims})
+            {
+                for (const auto& Body : *List) { if (auto* B = Body.Get()) { B->SetCue(0); Impacts->ClearFor(*B); B->SetVisibility(false, true); } }
+            }
+            ChainPhase = 0;
+            ++ChainJob;
             return true;
         }
 
@@ -1056,7 +1355,7 @@ namespace
         bool Tick(float Delta)
         {
             const double Now = FPlatformTime::Seconds();
-            if (Now - StartedAt > 600.) { return Finish(TEXT("Art capture timed out")); }
+            if (Now - StartedAt > (ChainJobs.IsEmpty() ? 600. : 1800.)) { return Finish(TEXT("Art capture timed out")); }
             if (!World.IsValid()) { return Finish(TEXT("The Demo world ended before the art capture completed")); }
             // The stage bodies run on the world's own (dilated) frame time, which the keyframe sequences slow down, so a
             // slow frame moves the bodies, the effects and the sequence clock by the same step.
@@ -1093,6 +1392,7 @@ namespace
                 }
                 if (auto* Body = VfxVictim.Get()) { Body->Animate(FVector::ZeroVector, SimDelta); }
             }
+            if (bCombatVfx && Stage == 2 && ChainJob < ChainJobs.Num() && World.IsValid()) { return TickChain(*World.Get(), Now, SimDelta); }
             if (bCombatVfx && Stage == 2 && SeqIndex < Sequences.Num() && World.IsValid()) { return TickSequence(*World.Get(), Now, SimDelta); }
             if (!PendingImage.IsEmpty())
             {

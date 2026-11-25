@@ -6,6 +6,12 @@
 
 class UNiagaraSystem;
 
+// The look of a chain hop (active_zap) while art direction compares candidates: the slice's mesh strip and spark
+// layers, the first Niagara Chain, or one of the generated candidates A/B/C (LDSliceVfx::ChainSystemOf). The console
+// variable ld.Vfx.ChainLook (0..4, -1 = this asset's choice) overrides it at runtime. Presentation only.
+UENUM()
+enum class ELDChainLook : uint8 { Mesh, NiagaraV1, A, B, C };
+
 // Artist-editable presentation assets. Runtime parameters are supplied by the hit-feel controls.
 UCLASS(BlueprintType)
 class LOCKDOWN_API ULDCombatVfxCatalog : public UDataAsset
@@ -20,9 +26,8 @@ public:
     // The particle kit (LDHitVfx::FBurst / FZone): skill releases, element hits, launches, landings, dashes and falls.
     UPROPERTY(EditAnywhere, Category="Combat VFX") TObjectPtr<UNiagaraSystem> Burst;
     UPROPERTY(EditAnywhere, Category="Combat VFX") TObjectPtr<UNiagaraSystem> Zone;
-    // The Chain template (one link of a chain, tether or beam between User.Start and User.End; LDSliceVfx::Chain*):
-    // built by the VFX import commandlet as NS_LDChain; active_zap draws each hop of its chain with it.
-    UPROPERTY(EditAnywhere, Category="Combat VFX") TObjectPtr<UNiagaraSystem> Chain;
+    // Which chain look active_zap draws its hops with (generator-built systems under LDSliceVfx::GeneratedFolder).
+    UPROPERTY(EditAnywhere, Category="Combat VFX") ELDChainLook ChainLook = ELDChainLook::NiagaraV1;
     // Saved artist tuning of the shaped hit layers (LDHitVfx::FLayerTuning) and of the particle kit; the live ld.Feel.*
     // controls multiply these.
     UPROPERTY(EditAnywhere, Category="Hit Layers", meta=(ClampMin="0", ClampMax="4", UIMin="0", UIMax="3")) float LayerSize = 1.f;
@@ -36,6 +41,5 @@ public:
     UPROPERTY(EditAnywhere, Category="Particle Kit", meta=(ClampMin="0", ClampMax="4", UIMin="0", UIMax="3")) float KitSize = 1.f;
     static constexpr const TCHAR* DefaultBurst = TEXT("/Game/Lockdown/Art/VFX/NS_LDBurst.NS_LDBurst");
     static constexpr const TCHAR* DefaultZone = TEXT("/Game/Lockdown/Art/VFX/NS_LDZone.NS_LDZone");
-    static constexpr const TCHAR* DefaultChain = TEXT("/Game/Lockdown/Art/VFX/Niagara/NS_LDChain.NS_LDChain");
     UPROPERTY(EditAnywhere, Category="Combat VFX") FLinearColor CastTint = FLinearColor(.16f, .62f, 1.f, .8f);
 };

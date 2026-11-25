@@ -1,5 +1,6 @@
 #include "Character/LDImpactFx.h"
 #include "UI/LDBroadcastStyle.h"
+#include "HAL/IConsoleManager.h"
 #include "Character/LDCombatVfxCatalog.h"
 #include "Character/LDHitFeel.h"
 #include "Character/LDHumanoidVisualComponent.h"
@@ -27,6 +28,8 @@
 
 namespace LDImpactFxDetail
 {
+    TAutoConsoleVariable<int32> CVarChainLook(TEXT("ld.Vfx.ChainLook"), -1,
+        TEXT("Chain look of active_zap while art direction compares candidates: 0 Mesh, 1 NiagaraV1, 2 A, 3 B, 4 C; -1 uses DA_CombatVfx ChainLook."));
     const FLinearColor WhiteHot(1.f, .28f, .045f), EmberOrange(1.f, .3f, .05f), ShieldCyan(0.f, .78f, 1.f), CritGold(1.f, .55f, .08f);
     constexpr float ReferenceLifeSeconds = .28f, ReferenceSpeed = 900.f, MaxWaitSeconds = .5f;
 
@@ -105,7 +108,12 @@ void ULDImpactFxSubsystem::OnWorldBeginPlay(UWorld& World)
     ImpactSystem = Catalog ? Catalog->Impact.Get() : nullptr;
     BurstSystem = Catalog && Catalog->Burst ? Catalog->Burst.Get() : LoadObject<UNiagaraSystem>(nullptr, ULDCombatVfxCatalog::DefaultBurst);
     ZoneSystem = Catalog && Catalog->Zone ? Catalog->Zone.Get() : LoadObject<UNiagaraSystem>(nullptr, ULDCombatVfxCatalog::DefaultZone);
-    ChainSystem = Catalog && Catalog->Chain ? Catalog->Chain.Get() : LoadObject<UNiagaraSystem>(nullptr, ULDCombatVfxCatalog::DefaultChain);
+    ChainSystems.SetNum(LDSliceVfx::ChainLookCount);
+    for (uint8 Look = 1; Look < LDSliceVfx::ChainLookCount; ++Look)
+    {
+        const FString Package = LDSliceVfx::ChainSystemOf(Look);
+        ChainSystems[Look] = LoadObject<UNiagaraSystem>(nullptr, *(Package + TEXT(".") + FPackageName::GetShortName(Package)));
+    }
 #if WITH_EDITOR
     // Start editor-only Niagara compilation during world startup rather than on the first swing.
     if (ImpactSystem) { ImpactSystem->RequestCompile(false); }
@@ -113,7 +121,7 @@ void ULDImpactFxSubsystem::OnWorldBeginPlay(UWorld& World)
     if (Catalog && Catalog->CastCharge) { Catalog->CastCharge->RequestCompile(false); }
     if (BurstSystem) { BurstSystem->RequestCompile(false); }
     if (ZoneSystem) { ZoneSystem->RequestCompile(false); }
-    if (ChainSystem) { ChainSystem->RequestCompile(false); }
+    for (UNiagaraSystem* Chain : ChainSystems) { if (Chain) { Chain->RequestCompile(false); } }
 #endif
     WarmUp();
     if (!BurstSystem || !ZoneSystem)
@@ -125,9 +133,12 @@ void ULDImpactFxSubsystem::OnWorldBeginPlay(UWorld& World)
     {
         UE_LOG(LogLDContent, Error, TEXT("LD_IMPACT_FX asset=missing catalog=%s"), ULDCombatVfxCatalog::AssetPath);
     }
-    if (!ChainSystem)
+    for (uint8 Look = 1; Look < LDSliceVfx::ChainLookCount; ++Look)
     {
-        UE_LOG(LogLDContent, Error, TEXT("LD_CHAIN_FX asset=missing %s (run Scripts\\ImportDemoArt.ps1 -Mode ImportVFX)"), ULDCombatVfxCatalog::DefaultChain);
+        if (!ChainSystems[Look])
+        {
+            UE_LOG(LogLDContent, Error, TEXT("LD_CHAIN_FX asset=missing %s (run Scripts\\ImportDemoArt.ps1 -Mode ImportVFX)"), *LDSliceVfx::ChainSystemOf(Look));
+        }
     }
     if (Catalog && !Catalog->SwingTrail)
     {
@@ -157,7 +168,7 @@ void ULDImpactFxSubsystem::Deinitialize()
     ImpactSystem = nullptr;
     BurstSystem = nullptr;
     ZoneSystem = nullptr;
-    ChainSystem = nullptr;
+    ChainSystems.Reset();
     Catalog = nullptr;
     Super::Deinitialize();
 }
@@ -779,7 +790,8 @@ void ULDImpactFxSubsystem::WarmUp()
         for (uint8 Kind = SlotQuad; Kind < SlotSlash + uint8(LDSliceVfx::EMesh::Count); ++Kind) { FreeSlots.Add(TakeSlot(Kind)); }
     }
     const FVector Under(0., 0., -20000.);
-    TArray<UNiagaraSystem*> Systems{ImpactSystem.Get(), BurstSystem.Get(), ZoneSystem.Get(), ChainSystem.Get()};
+    TArray<UNiagaraSystem*> Systems{ImpactSystem.Get(), BurstSystem.Get(), ZoneSystem.Get()};
+    for (UNiagaraSystem* Chain : ChainSystems) { if (Chain) { Systems.Add(Chain); } }
     if (Catalog) { Systems.Append({Catalog->SwingTrail.Get(), Catalog->CastCharge.Get()}); }
     for (UNiagaraSystem* System : Systems)
     {
@@ -1008,6 +1020,7 @@ LDSliceVfx::FLook ULDImpactFxSubsystem::SliceLook(ESliceTuning Kind, bool bOwn, 
     LDSliceVfx::FLook Look;
     Look.bOwn = bOwn;
     Look.bFocus = bFocus || bOwn;
+    Look.bChainMesh = ChainLookNow() == uint8(ELDChainLook::Mesh);
 
     Look.EffectScale = LocalEffectScale();
     const LDHitFeel::FTuning Feel = LDHitFeel::Read();
@@ -1163,6 +1176,7 @@ float ULDImpactFxSubsystem::ConductRadiusCm()
 void ULDImpactFxSubsystem::Chain(const ULDHumanoidVisualComponent& Victim, const FVector& From, const FVector& To, bool bChained,
     const LDSliceVfx::FLook& Look, float AgeSeconds)
 {
+    UNiagaraSystem* ChainSystem = GetChainSystem(ChainLookNow());
     if (!FApp::CanEverRender() || !ChainSystem || !Victim.CanShowImpact() || From.ContainsNaN() || To.ContainsNaN() || !FMath::IsFinite(AgeSeconds)) { return; }
     const float Thin = FMath::Clamp(Look.EffectScale, 0.f, 1.f);
     if (Thin <= 0.f || Look.Size <= 0.f || Look.Seconds <= 0.f || Look.Glow <= 0.f) { return; }
@@ -1186,4 +1200,19 @@ void ULDImpactFxSubsystem::Chain(const ULDHumanoidVisualComponent& Victim, const
     Effect->Activate(true);
     Track(Effect, &Victim, AgeSeconds);
     Live.Last().StopAfter = Seconds;
+}
+uint8 ULDImpactFxSubsystem::ChainLookNow() const
+{
+    const int32 Forced = LDImpactFxDetail::CVarChainLook.GetValueOnGameThread();
+    if (Forced >= 0 && Forced < LDSliceVfx::ChainLookCount) { return uint8(Forced); }
+    return Catalog ? uint8(Catalog->ChainLook) : uint8(ELDChainLook::NiagaraV1);
+}
+
+void ULDImpactFxSubsystem::ForEachChain(TFunctionRef<void(UNiagaraComponent&)> Visit) const
+{
+    for (const FLive& Shown : Live)
+    {
+        UNiagaraComponent* Effect = Shown.Effect.Get();
+        if (Effect && ChainSystems.Contains(Effect->GetAsset())) { Visit(*Effect); }
+    }
 }

@@ -17,6 +17,7 @@
 #include "Misc/Paths.h"
 #include "NiagaraEmitter.h"
 #include "NiagaraExternalSystemEditorUtilities.h"
+#include "NiagaraLightRendererProperties.h"
 #include "NiagaraRibbonRendererProperties.h"
 #include "NiagaraScript.h"
 #include "NiagaraSpriteRendererProperties.h"
@@ -189,6 +190,8 @@ namespace
 
     bool Save(UObject& Asset, FString& Error)
     {
+        if (!Asset.GetOutermost()->GetName().StartsWith(FString(LDSliceVfx::GeneratedFolder) + TEXT("/")))
+        { return NiagaraFail(Error, TEXT("The Niagara generator only writes under the generated folder: ") + Asset.GetOutermost()->GetName()); }
         const FString File = FPackageName::LongPackageNameToFilename(Asset.GetOutermost()->GetName(), FPackageName::GetAssetPackageExtension());
         IFileManager::Get().MakeDirectory(*FPaths::GetPath(File), true);
         FSavePackageArgs Args;
@@ -199,6 +202,8 @@ namespace
     // An existing asset of this package is moved out of the way, so the build always starts from the same templates.
     void Retire(const FString& PackageName)
     {
+        // The generator owns only LDSliceVfx::GeneratedFolder; it never replaces anything outside it.
+        if (!ensureMsgf(PackageName.StartsWith(FString(LDSliceVfx::GeneratedFolder) + TEXT("/")), TEXT("%s is outside the generated folder"), *PackageName)) { return; }
         if (!FPackageName::DoesPackageExist(PackageName)) { return; }
         if (UObject* Old = LoadObject<UObject>(nullptr, *(PackageName + TEXT(".") + FPackageName::GetShortName(PackageName))))
         {
@@ -313,6 +318,262 @@ namespace
     }
 }
 
+namespace
+{
+    // What one chain look is made of. Every candidate is a set of these generator options, not new user parameters.
+    struct FChainSpec
+    {
+        const TCHAR* Look = TEXT("V1");     // system NS_LDChain_<Look>, materials MI_LDChain{Arc,Spark}_<Look>
+        // Bolt: points per beam, re-spawned LoopHz times a second, each living LifetimeLoops loops (overlap = no gaps).
+        int32 Points = 16;
+        float LoopHz = 15.f, LifetimeLoops = 1.5f;
+        // Ribbon UV: 0 stretches the arc texture once over the beam; > 0 repeats it every TileCm of world length.
+        float TileCm = 0.f;
+        // Kinks: off = smooth jitter on a tessellated ribbon; on = untessellated straight segments between points whose
+        // offsets (KinkCm) are re-randomised KinkHz times a second.
+        bool bKinks = false;
+        float JitterCm = 14.f, JitterHz = 50.f, KinkCm = 24.f, KinkHz = 15.f;
+        // Short side branches leaving the beam part way (0..2), as a share of the bolt width.
+        int32 Branches = 0;
+        float BranchCm = 70.f;
+        // Width taper towards both ends (0 none, 1 to nothing), along the beam's link order.
+        float Taper = 0.f;
+        // A small dynamic light on each end spark (its radius as a share of the sprite size); 0 none.
+        float LightRadius = 0.f;
+        // Material: arc atlas rows and flicker rate.
+        float ArcRows = 8.f, ArcHz = 15.f;
+        // End sparks: count, speed, drag and size as a share of the width.
+        int32 Sparks = 5;
+        float SparkSpeed = 420.f, SparkDrag = 6.f, SparkSize = 2.2f;
+    };
+
+    // NiagaraV1 and, until their designs land, candidates A/B/C share one spec; Capabilities switches every option on so
+    // each import proves they still build and compile (it is never shown).
+    TArray<FChainSpec> ChainSpecs()
+    {
+        FChainSpec V1;
+        FChainSpec A = V1, B = V1, C = V1;
+        A.Look = TEXT("A");
+        B.Look = TEXT("B");
+        C.Look = TEXT("C");
+        FChainSpec Capabilities = V1;
+        Capabilities.Look = TEXT("Capabilities");
+        Capabilities.Points = 8;
+        Capabilities.TileCm = 120.f;
+        Capabilities.bKinks = true;
+        Capabilities.Branches = 2;
+        Capabilities.Taper = .6f;
+        Capabilities.LightRadius = 1.5f;
+        return {V1, A, B, C, Capabilities};
+    }
+
+    FString GeneratedPackage(const FString& Name) { return FString(LDSliceVfx::GeneratedFolder) / Name; }
+
+    // A compact, order-stable description of a built system: user parameters, emitters, modules with their input count and
+    // renderer properties. Two builds of the same code give the same text.
+    FString SummaryOf(UNiagaraSystem& System)
+    {
+        FString Out;
+        FNiagaraExternalEditContext Context(&System);
+        FNiagaraExt_SystemSummary Summary;
+        UNiagaraExternalEditUtilities::GetSystemSummary(&System, Summary, Context);
+        for (const FNiagaraExt_UserVariable& Variable : Summary.UserVariables) { Out += FString::Printf(TEXT("user %s:%s;"), *Variable.Name.ToString(), *Variable.Type.GetName()); }
+        for (const FNiagaraExt_EmitterSummary& Emitter : Summary.Emitters)
+        {
+            FNiagaraExt_EmitterTopology Topology;
+            UNiagaraExternalEditUtilities::GetEmitterTopology(FNiagaraExt_StackItemReference(&System, Emitter.EmitterName), Topology, Context);
+            Out += FString::Printf(TEXT("|emitter %s"), *Emitter.EmitterName.ToString());
+            for (const FNiagaraExt_ScriptStackTopology* Stack : {&Topology.EmitterSpawnScript, &Topology.EmitterUpdateScript, &Topology.ParticleSpawnScript, &Topology.ParticleUpdateScript})
+            {
+                for (const FNiagaraExt_ModuleTopology& Module : Stack->Modules) { Out += FString::Printf(TEXT(" %s(%d)"), *Module.ModuleName.ToString(), Module.Inputs.Num()); }
+            }
+            for (const FNiagaraExt_RendererRef& Renderer : Topology.Renderers)
+            {
+                FNiagaraExt_StackItemReference Ref(&System, Emitter.EmitterName);
+                Ref.RendererIndex = Renderer.RendererIndex;
+                FNiagaraExt_RendererData Data;
+                UNiagaraExternalEditUtilities::GetRendererData(Ref, Data, Context);
+                Out += FString::Printf(TEXT(" renderer %s %08x"), Renderer.RendererClass ? *Renderer.RendererClass->GetName() : TEXT("?"), FCrc::StrCrc32(*Data.PropertyValues));
+            }
+        }
+        return Out;
+    }
+
+    bool BuildChain(const FChainSpec& Spec, UMaterial& Material, UTexture2D& Arcs, UTexture2D& Sparks, UNiagaraEmitter& BeamEmitter,
+        UNiagaraEmitter& SparkEmitter, FString& Error)
+    {
+        UMaterialInstanceConstant* ArcPaint = BuildInstance(GeneratedPackage(FString(TEXT("MI_LDChainArc_")) + Spec.Look), Material, &Arcs, Spec.ArcRows, Spec.ArcHz, Error);
+        UMaterialInstanceConstant* SparkPaint = BuildInstance(GeneratedPackage(FString(TEXT("MI_LDChainSpark_")) + Spec.Look), Material, &Sparks, 1.f, 0.f, Error);
+        if (!ArcPaint || !SparkPaint) { return false; }
+        const FString PackageName = GeneratedPackage(FString(TEXT("NS_LDChain_")) + Spec.Look);
+        Retire(PackageName);
+        FNiagaraExternalEditContext Create;
+        UNiagaraSystem* System = UNiagaraExternalEditUtilities::CreateNiagaraSystem(FPackageName::GetShortName(PackageName),
+            FPackageName::GetLongPackagePath(PackageName), nullptr, Create);
+        UE_LOG(LogLDEditor, Display, TEXT("LD_NIAGARA_STEP create %s %s"), *PackageName, System ? TEXT("ok") : *(TEXT("FAILED ") + Errors(Create)));
+        if (!System) { return NiagaraFail(Error, TEXT("CreateNiagaraSystem failed: ") + Errors(Create)); }
+        FSteps Steps;
+        Steps.System = System;
+
+        // User parameters (LDSliceVfx::Chain*): every one has a typed default, never an empty value.
+        const FNiagaraTypeDefinition Vec3 = FNiagaraTypeDefinition::GetVec3Def(), FloatType = FNiagaraTypeDefinition::GetFloatDef(), Colour = FNiagaraTypeDefinition::GetColorDef();
+        const auto User = [&Steps](const TCHAR* Name, const FNiagaraTypeDefinition& Type, const void* Default, int32 Size, const TCHAR* Description)
+        {
+            Steps.Run(FString(TEXT("add user parameter ")) + Name, [&](FNiagaraExternalEditContext& Context)
+            {
+                FNiagaraExt_UserVariable Variable;
+                Variable.Name = Name;
+                Variable.Type = Type;
+                Variable.Description = FText::FromString(Description);
+                FNiagaraVariant Value;
+                Value.SetBytes(static_cast<const uint8*>(Default), Size);
+                Variable.DefaultValue.Set(Type, Value);
+                UNiagaraExternalEditUtilities::AddUserVariable(Steps.System, Variable, Context);
+            });
+        };
+        const FVector3f Origin(0.f, 0.f, 0.f), Ahead(300.f, 0.f, 0.f);
+        const FLinearColor Shock = LDBroadcast::Shock;
+        const float Width = 40.f, Intensity = 2.2f, Duration = .26f;
+        User(LDSliceVfx::ChainStart, Vec3, &Origin, sizeof(Origin), TEXT("World start of the link (the caster's hand or the last body struck)."));
+        User(LDSliceVfx::ChainEnd, Vec3, &Ahead, sizeof(Ahead), TEXT("World end of the link (the body struck)."));
+        User(LDSliceVfx::ChainTint, Colour, &Shock, sizeof(Shock), TEXT("Element ink of the body (LDBroadcast element colour)."));
+        User(LDSliceVfx::ChainWidth, FloatType, &Width, sizeof(Width), TEXT("Bolt width in centimetres; the end sparks scale with it."));
+        User(LDSliceVfx::ChainIntensity, FloatType, &Intensity, sizeof(Intensity), TEXT("Brightness multiplier of the tint."));
+        User(LDSliceVfx::ChainDuration, FloatType, &Duration, sizeof(Duration), TEXT("Seconds the link crackles; the end sparks live this long."));
+
+        TArray<FName> Bolts = {Bolt};
+        for (int32 Index = 0; Index < Spec.Branches; ++Index) { Bolts.Add(*FString::Printf(TEXT("Branch%d"), Index)); }
+        for (const FName& Name : Bolts)
+        {
+            Steps.Run(FString::Printf(TEXT("add emitter %s (DynamicBeam)"), *Name.ToString()), [&](FNiagaraExternalEditContext& Context)
+            { FNiagaraExt_EmitterTopology Topology; UNiagaraExternalEditUtilities::AddEmitter(&BeamEmitter, Name, Topology, Context); });
+        }
+        Steps.Run(TEXT("add emitter Spark (SimpleSpriteBurst)"), [&](FNiagaraExternalEditContext& Context)
+        { FNiagaraExt_EmitterTopology Topology; UNiagaraExternalEditUtilities::AddEmitter(&SparkEmitter, Spark, Topology, Context); });
+
+        const FNiagaraExt_Variable StartVar = Var(LDSliceVfx::ChainStart, Vec3), EndVar = Var(LDSliceVfx::ChainEnd, Vec3);
+        const FNiagaraExt_Variable DurationVar = Var(LDSliceVfx::ChainDuration, FloatType);
+        const TCHAR* TintTimesIntensity = TEXT("User.Tint * float4(User.Intensity, User.Intensity, User.Intensity, 1.0)");
+        for (int32 Index = 0; Index < Bolts.Num(); ++Index)
+        {
+            const FName Name = Bolts[Index];
+            const bool bBranch = Index > 0;
+            // The main bolt spans Start to End; a branch leaves it part way and runs off to one side.
+            if (!bBranch)
+            {
+                Linked(Steps, Name, EmitterUpdate, TEXT("BeamEmitterSetup"), TEXT("Beam Start"), StartVar);
+                Linked(Steps, Name, EmitterUpdate, TEXT("BeamEmitterSetup"), TEXT("Beam End"), EndVar);
+            }
+            else
+            {
+                const float At = Index == 1 ? .4f : .65f, Side = Index == 1 ? 1.f : -1.f;
+                Expression(Steps, Name, EmitterUpdate, TEXT("BeamEmitterSetup"), TEXT("Beam Start"),
+                    *FString::Printf(TEXT("lerp(User.Start, User.End, %.2f)"), At));
+                Expression(Steps, Name, EmitterUpdate, TEXT("BeamEmitterSetup"), TEXT("Beam End"), *FString::Printf(
+                    TEXT("lerp(User.Start, User.End, %.2f) + normalize(cross(User.End - User.Start, float3(0.0, 0.0, 1.0)) + float3(0.0, 0.0, 0.001)) * %.1f"),
+                    At + .15f, Side * Spec.BranchCm));
+            }
+            Bool(Steps, Name, EmitterUpdate, TEXT("BeamEmitterSetup"), TEXT("Absolute Beam Start"), true);
+            Bool(Steps, Name, EmitterUpdate, TEXT("BeamEmitterSetup"), TEXT("Absolute Beam End"), true);
+            Enum(Steps, Name, EmitterUpdate, TEXT("EmitterState"), TEXT("Loop Behavior"), TEXT("Infinite"));
+            Float(Steps, Name, EmitterUpdate, TEXT("EmitterState"), TEXT("Loop Duration"), 1.f / Spec.LoopHz);
+            Int(Steps, Name, EmitterUpdate, TEXT("SpawnBurst_Instantaneous"), TEXT("Spawn Count"), bBranch ? FMath::Max(Spec.Points / 2, 3) : Spec.Points);
+            Float(Steps, Name, ParticleSpawn, TEXT("InitializeParticle"), TEXT("Lifetime"), Spec.LifetimeLoops / Spec.LoopHz);
+            const FString WidthExpression = Spec.Taper > 0.f
+                ? FString::Printf(TEXT("User.Width * %.2f * (1.0 - %.2f * abs(Particles.RibbonLinkOrder * 2.0 - 1.0))"), bBranch ? .5f : 1.f, Spec.Taper)
+                : FString::Printf(TEXT("User.Width * %.2f"), bBranch ? .5f : 1.f);
+            Expression(Steps, Name, ParticleSpawn, TEXT("BeamWidth"), TEXT("Beam Width"), *WidthExpression);
+            Expression(Steps, Name, ParticleUpdate, TEXT("Color"), TEXT("Color"), TintTimesIntensity);
+            AddModule(Steps, Name, ParticleUpdate, TEXT("UpdateBeam"), JitterModule);
+            Float(Steps, Name, ParticleUpdate, TEXT("JitterPosition"), TEXT("Jitter Amount"), Spec.bKinks ? Spec.KinkCm : Spec.JitterCm);
+            Float(Steps, Name, ParticleUpdate, TEXT("JitterPosition"), TEXT("Jitter Delay"), 1.f / (Spec.bKinks ? Spec.KinkHz : Spec.JitterHz));
+        }
+
+        // The end sparks: a burst at End flying out with drag, each playing the contact spark flipbook, fading over Duration.
+        Enum(Steps, Spark, ParticleSpawn, TEXT("InitializeParticle"), TEXT("Position Mode"), TEXT("Direct Set"));
+        Expression(Steps, Spark, ParticleSpawn, TEXT("InitializeParticle"), TEXT("Position"), TEXT("User.End"));
+        Linked(Steps, Spark, ParticleSpawn, TEXT("InitializeParticle"), TEXT("Lifetime"), DurationVar);
+        Expression(Steps, Spark, ParticleSpawn, TEXT("InitializeParticle"), TEXT("Color"), TintTimesIntensity);
+        Expression(Steps, Spark, ParticleSpawn, TEXT("InitializeParticle"), TEXT("Uniform Sprite Size"), *FString::Printf(TEXT("User.Width * %.2f"), Spec.SparkSize));
+        Int(Steps, Spark, EmitterUpdate, TEXT("SpawnBurst_Instantaneous"), TEXT("Spawn Count"), Spec.Sparks);
+        AddModule(Steps, Spark, ParticleSpawn, TEXT("InitializeParticle"), VelocityModule);
+        Float(Steps, Spark, ParticleSpawn, TEXT("AddVelocityInCone"), TEXT("Velocity Strength"), Spec.SparkSpeed);
+        AddModule(Steps, Spark, ParticleUpdate, TEXT("ScaleColor"), DragModule);
+        Float(Steps, Spark, ParticleUpdate, TEXT("Drag"), TEXT("Drag"), Spec.SparkDrag);
+        AddModule(Steps, Spark, ParticleUpdate, TEXT("ScaleColor"), SubUVModule);
+        if (Spec.LightRadius > 0.f)
+        {
+            Steps.Run(TEXT("add light renderer to Spark"), [&](FNiagaraExternalEditContext& Context)
+            {
+                FNiagaraExt_RendererRef Added;
+                UNiagaraExternalEditUtilities::AddRenderer(FNiagaraExt_StackItemReference(System, Spark), UNiagaraLightRendererProperties::StaticClass(), Added, Context);
+            });
+        }
+        if (!Steps.Failed.IsEmpty()) { return NiagaraFail(Error, FString::Printf(TEXT("Niagara Chain %s build step failed: %s"), Spec.Look, *Steps.Failed)); }
+
+        // Renderer properties are plain UPROPERTY edits.
+        for (const FName& Name : Bolts)
+        {
+            auto* Ribbon = Cast<UNiagaraRibbonRendererProperties>(RendererOf(*System, Name));
+            if (!Ribbon) { return NiagaraFail(Error, FString::Printf(TEXT("Chain %s emitter %s lost its ribbon renderer."), Spec.Look, *Name.ToString())); }
+            Ribbon->Material = ArcPaint;
+            Ribbon->bCastShadows = false;
+            if (Spec.TileCm > 0.f)
+            {
+                Ribbon->UV0Settings.DistributionMode = ENiagaraRibbonUVDistributionMode::TiledOverRibbonLength;
+                Ribbon->UV0Settings.TilingLength = Spec.TileCm;
+            }
+            if (Spec.bKinks) { Ribbon->TessellationMode = ENiagaraRibbonTessellationMode::Disabled; }
+            Ribbon->PostEditChange();
+        }
+        auto* Sprite = Cast<UNiagaraSpriteRendererProperties>(RendererOf(*System, Spark));
+        if (!Sprite) { return NiagaraFail(Error, FString::Printf(TEXT("Chain %s lost its spark sprite renderer."), Spec.Look)); }
+        Sprite->Material = SparkPaint;
+        Sprite->SubImageSize = FVector2D(4., 4.);
+        Sprite->bSubImageBlend = false;
+        Sprite->bCastShadows = false;
+        Sprite->PostEditChange();
+        if (Spec.LightRadius > 0.f)
+        {
+            for (FNiagaraEmitterHandle& Handle : System->GetEmitterHandles())
+            {
+                if (Handle.GetName() != Spark || !Handle.GetEmitterData()) { continue; }
+                for (UNiagaraRendererProperties* Renderer : Handle.GetEmitterData()->GetRenderers())
+                {
+                    if (auto* Light = Cast<UNiagaraLightRendererProperties>(Renderer))
+                    {
+                        Light->RadiusScale = Spec.LightRadius;
+                        Light->bAffectsTranslucency = false;
+                        Light->PostEditChange();
+                    }
+                }
+            }
+        }
+
+        System->RequestCompile(false);
+        System->WaitForCompilationComplete(true, false);
+        FNiagaraExternalEditContext Diagnose(System);
+        FNiagaraExt_SystemCompileState State;
+        UNiagaraExternalEditUtilities::GetSystemCompileState(System, State, Diagnose);
+        for (const FNiagaraExt_ScriptCompileInfo& Script : State.Scripts)
+        {
+            for (const FNiagaraExt_CompileEvent& Event : Script.CompileEvents)
+            {
+                UE_LOG(LogLDEditor, Display, TEXT("LD_NIAGARA_COMPILE %s %s/%s %d %s"), Spec.Look, *Script.EmitterName.ToString(), *Script.ScriptName.ToString(),
+                    int32(Event.Severity), *Event.Message);
+            }
+        }
+        UE_LOG(LogLDEditor, Display, TEXT("LD_NIAGARA_STEP compile %s errors=%d warnings=%d compiling=%d"), Spec.Look, State.bHasErrors, State.bHasWarnings, State.bIsCompiling);
+        if (State.bHasErrors) { return NiagaraFail(Error, FString::Printf(TEXT("The Chain %s system does not compile; see LD_NIAGARA_COMPILE lines."), Spec.Look)); }
+        const FString Summary = SummaryOf(*System);
+        UE_LOG(LogLDEditor, Display, TEXT("LD_NIAGARA_SUMMARY %s %08x %s"), Spec.Look, FCrc::StrCrc32(*Summary), *Summary);
+        System->MarkPackageDirty();
+        if (!Save(*System, Error)) { return false; }
+        UE_LOG(LogLDEditor, Display, TEXT("LD_NIAGARA_STEP saved %s"), *PackageName);
+        return true;
+    }
+}
+
 bool LDDemoVfxNiagara::Build(FString& Error)
 {
     UNiagaraEmitter* BeamEmitter = LoadObject<UNiagaraEmitter>(nullptr, BeamTemplate);
@@ -321,135 +582,32 @@ bool LDDemoVfxNiagara::Build(FString& Error)
     UTexture2D* Sparks = SliceTexture(LDSliceVfx::ETex::ShockSpark);
     if (!BeamEmitter || !SparkEmitter) { return NiagaraFail(Error, TEXT("The engine Niagara emitter templates DynamicBeam / SimpleSpriteBurst are missing.")); }
     if (!Arcs || !Sparks) { return NiagaraFail(Error, TEXT("The slice shock textures are missing; the slice import must run first.")); }
-
-    // Particle material and its two instances: the lightning atlas (8 stacked variants, 15 Hz flicker) and the spark flipbook.
     UMaterial* Material = BuildMaterial(Arcs, Error);
-    UMaterialInstanceConstant* ArcPaint = Material ? BuildInstance(LDSliceVfx::ChainArcMaterial, *Material, Arcs, 8.f, 15.f, Error) : nullptr;
-    UMaterialInstanceConstant* SparkPaint = Material ? BuildInstance(LDSliceVfx::ChainSparkMaterial, *Material, Sparks, 1.f, 0.f, Error) : nullptr;
-    if (!ArcPaint || !SparkPaint) { return false; }
-
-    const FString PackageName = LDSliceVfx::ChainSystem;
-    Retire(PackageName);
-    FNiagaraExternalEditContext Create;
-    UNiagaraSystem* System = UNiagaraExternalEditUtilities::CreateNiagaraSystem(FPackageName::GetShortName(PackageName),
-        FPackageName::GetLongPackagePath(PackageName), nullptr, Create);
-    UE_LOG(LogLDEditor, Display, TEXT("LD_NIAGARA_STEP create %s %s"), *PackageName, System ? TEXT("ok") : *(TEXT("FAILED ") + Errors(Create)));
-    if (!System) { return NiagaraFail(Error, TEXT("CreateNiagaraSystem failed: ") + Errors(Create)); }
-    FSteps Steps;
-    Steps.System = System;
-
-    // User parameters (LDSliceVfx::Chain*): every one has a typed default, never an empty value.
-    const FNiagaraTypeDefinition Vec3 = FNiagaraTypeDefinition::GetVec3Def(), FloatType = FNiagaraTypeDefinition::GetFloatDef(), Colour = FNiagaraTypeDefinition::GetColorDef();
-    const auto User = [&Steps](const TCHAR* Name, const FNiagaraTypeDefinition& Type, const void* Default, int32 Size, const TCHAR* Description)
+    if (!Material) { return false; }
+    for (const FChainSpec& Spec : ChainSpecs())
     {
-        Steps.Run(FString(TEXT("add user parameter ")) + Name, [&](FNiagaraExternalEditContext& Context)
-        {
-            FNiagaraExt_UserVariable Variable;
-            Variable.Name = Name;
-            Variable.Type = Type;
-            Variable.Description = FText::FromString(Description);
-            FNiagaraVariant Value;
-            Value.SetBytes(static_cast<const uint8*>(Default), Size);
-            Variable.DefaultValue.Set(Type, Value);
-            UNiagaraExternalEditUtilities::AddUserVariable(Steps.System, Variable, Context);
-        });
-    };
-    const FVector3f Origin(0.f, 0.f, 0.f), Ahead(300.f, 0.f, 0.f);
-    const FLinearColor Shock = LDBroadcast::Shock;
-    const float Width = 40.f, Intensity = 2.2f, Duration = .26f;
-    User(LDSliceVfx::ChainStart, Vec3, &Origin, sizeof(Origin), TEXT("World start of the link (the caster's hand or the last body struck)."));
-    User(LDSliceVfx::ChainEnd, Vec3, &Ahead, sizeof(Ahead), TEXT("World end of the link (the body struck)."));
-    User(LDSliceVfx::ChainTint, Colour, &Shock, sizeof(Shock), TEXT("Element ink of the body (LDBroadcast element colour)."));
-    User(LDSliceVfx::ChainWidth, FloatType, &Width, sizeof(Width), TEXT("Bolt width in centimetres; the end sparks scale with it."));
-    User(LDSliceVfx::ChainIntensity, FloatType, &Intensity, sizeof(Intensity), TEXT("Brightness multiplier of the tint."));
-    User(LDSliceVfx::ChainDuration, FloatType, &Duration, sizeof(Duration), TEXT("Seconds the link crackles; the end sparks live this long."));
-
-    Steps.Run(TEXT("add emitter Bolt (DynamicBeam)"), [&](FNiagaraExternalEditContext& Context)
-    { FNiagaraExt_EmitterTopology Topology; UNiagaraExternalEditUtilities::AddEmitter(BeamEmitter, Bolt, Topology, Context); });
-    Steps.Run(TEXT("add emitter Spark (SimpleSpriteBurst)"), [&](FNiagaraExternalEditContext& Context)
-    { FNiagaraExt_EmitterTopology Topology; UNiagaraExternalEditUtilities::AddEmitter(SparkEmitter, Spark, Topology, Context); });
-
-    const FNiagaraExt_Variable StartVar = Var(LDSliceVfx::ChainStart, Vec3), EndVar = Var(LDSliceVfx::ChainEnd, Vec3);
-    const FNiagaraExt_Variable WidthVar = Var(LDSliceVfx::ChainWidth, FloatType), DurationVar = Var(LDSliceVfx::ChainDuration, FloatType);
-    // The bolt: a beam from Start to End re-spawned every 1/15 s (a new zig-zag each time), jittered so it crackles.
-    Linked(Steps, Bolt, EmitterUpdate, TEXT("BeamEmitterSetup"), TEXT("Beam Start"), StartVar);
-    Bool(Steps, Bolt, EmitterUpdate, TEXT("BeamEmitterSetup"), TEXT("Absolute Beam Start"), true);
-    Linked(Steps, Bolt, EmitterUpdate, TEXT("BeamEmitterSetup"), TEXT("Beam End"), EndVar);
-    Bool(Steps, Bolt, EmitterUpdate, TEXT("BeamEmitterSetup"), TEXT("Absolute Beam End"), true);
-    Enum(Steps, Bolt, EmitterUpdate, TEXT("EmitterState"), TEXT("Loop Behavior"), TEXT("Infinite"));
-    Float(Steps, Bolt, EmitterUpdate, TEXT("EmitterState"), TEXT("Loop Duration"), 1.f / 15.f);
-    Int(Steps, Bolt, EmitterUpdate, TEXT("SpawnBurst_Instantaneous"), TEXT("Spawn Count"), 16);
-    // Each bolt outlives its loop by half, so consecutive zig-zags overlap: a continuous crackle, never an empty frame.
-    Float(Steps, Bolt, ParticleSpawn, TEXT("InitializeParticle"), TEXT("Lifetime"), 1.5f / 15.f);
-    Linked(Steps, Bolt, ParticleSpawn, TEXT("BeamWidth"), TEXT("Beam Width"), WidthVar);
-    Expression(Steps, Bolt, ParticleUpdate, TEXT("Color"), TEXT("Color"), TEXT("User.Tint * float4(User.Intensity, User.Intensity, User.Intensity, 1.0)"));
-    AddModule(Steps, Bolt, ParticleUpdate, TEXT("UpdateBeam"), JitterModule);
-    Float(Steps, Bolt, ParticleUpdate, TEXT("JitterPosition"), TEXT("Jitter Amount"), 14.f);
-    Float(Steps, Bolt, ParticleUpdate, TEXT("JitterPosition"), TEXT("Jitter Delay"), .02f);
-
-    // The end sparks: a burst at End flying out with drag, each playing the contact spark flipbook, fading over Duration.
-    Enum(Steps, Spark, ParticleSpawn, TEXT("InitializeParticle"), TEXT("Position Mode"), TEXT("Direct Set"));
-    Expression(Steps, Spark, ParticleSpawn, TEXT("InitializeParticle"), TEXT("Position"), TEXT("User.End"));
-    Linked(Steps, Spark, ParticleSpawn, TEXT("InitializeParticle"), TEXT("Lifetime"), DurationVar);
-    Expression(Steps, Spark, ParticleSpawn, TEXT("InitializeParticle"), TEXT("Color"), TEXT("User.Tint * float4(User.Intensity, User.Intensity, User.Intensity, 1.0)"));
-    Expression(Steps, Spark, ParticleSpawn, TEXT("InitializeParticle"), TEXT("Uniform Sprite Size"), TEXT("User.Width * 2.2"));
-    Int(Steps, Spark, EmitterUpdate, TEXT("SpawnBurst_Instantaneous"), TEXT("Spawn Count"), 5);
-    AddModule(Steps, Spark, ParticleSpawn, TEXT("InitializeParticle"), VelocityModule);
-    Float(Steps, Spark, ParticleSpawn, TEXT("AddVelocityInCone"), TEXT("Velocity Strength"), 420.f);
-    AddModule(Steps, Spark, ParticleUpdate, TEXT("ScaleColor"), DragModule);
-    Float(Steps, Spark, ParticleUpdate, TEXT("Drag"), TEXT("Drag"), 6.f);
-    AddModule(Steps, Spark, ParticleUpdate, TEXT("ScaleColor"), SubUVModule);
-    if (!Steps.Failed.IsEmpty()) { return NiagaraFail(Error, TEXT("Niagara Chain build step failed: ") + Steps.Failed); }
-
-    // Renderer properties are plain UPROPERTY edits.
-    auto* Ribbon = Cast<UNiagaraRibbonRendererProperties>(RendererOf(*System, Bolt));
-    auto* Sprite = Cast<UNiagaraSpriteRendererProperties>(RendererOf(*System, Spark));
-    if (!Ribbon || !Sprite) { return NiagaraFail(Error, TEXT("The Chain emitters lost their ribbon or sprite renderer.")); }
-    Ribbon->Material = ArcPaint;
-    Ribbon->bCastShadows = false;
-    Ribbon->PostEditChange();
-    Sprite->Material = SparkPaint;
-    Sprite->SubImageSize = FVector2D(4., 4.);
-    Sprite->bSubImageBlend = false;
-    Sprite->bCastShadows = false;
-    Sprite->PostEditChange();
-
-    System->RequestCompile(false);
-    System->WaitForCompilationComplete(true, false);
-    FNiagaraExternalEditContext Diagnose(System);
-    FNiagaraExt_SystemCompileState State;
-    UNiagaraExternalEditUtilities::GetSystemCompileState(System, State, Diagnose);
-    for (const FNiagaraExt_ScriptCompileInfo& Script : State.Scripts)
-    {
-        UE_LOG(LogLDEditor, Display, TEXT("LD_NIAGARA_COMPILE %s/%s status=%d %s"), *Script.EmitterName.ToString(), *Script.ScriptName.ToString(),
-            int32(Script.LastCompileStatus), *Script.ErrorSummary);
-        for (const FNiagaraExt_CompileEvent& Event : Script.CompileEvents)
-        {
-            UE_LOG(LogLDEditor, Display, TEXT("LD_NIAGARA_COMPILE   %d %s"), int32(Event.Severity), *Event.Message);
-        }
+        if (!BuildChain(Spec, *Material, *Arcs, *Sparks, *BeamEmitter, *SparkEmitter, Error)) { return false; }
     }
-    UE_LOG(LogLDEditor, Display, TEXT("LD_NIAGARA_STEP compile errors=%d warnings=%d compiling=%d"), State.bHasErrors, State.bHasWarnings, State.bIsCompiling);
-    if (State.bHasErrors) { return NiagaraFail(Error, TEXT("The Chain system does not compile; see LD_NIAGARA_COMPILE lines.")); }
-    System->MarkPackageDirty();
-    if (!Save(*System, Error)) { return false; }
-    UE_LOG(LogLDEditor, Display, TEXT("LD_NIAGARA_STEP saved %s"), *PackageName);
     Error.Reset();
     return true;
 }
 
 bool LDDemoVfxNiagara::Validate(FString& Error)
 {
-    const FString PackageName = LDSliceVfx::ChainSystem;
-    UNiagaraSystem* System = FPackageName::DoesPackageExist(PackageName)
-        ? LoadObject<UNiagaraSystem>(nullptr, *(PackageName + TEXT(".") + FPackageName::GetShortName(PackageName))) : nullptr;
-    if (!System) { return NiagaraFail(Error, PackageName + TEXT(" is missing; run ImportDemoArt.ps1 -Mode ImportVFX.")); }
-    TArray<FNiagaraVariable> Parameters;
-    System->GetExposedParameters().GetUserParameters(Parameters);
-    for (const TCHAR* Name : {LDSliceVfx::ChainStart, LDSliceVfx::ChainEnd, LDSliceVfx::ChainTint, LDSliceVfx::ChainWidth, LDSliceVfx::ChainIntensity, LDSliceVfx::ChainDuration})
+    for (const FChainSpec& Spec : ChainSpecs())
     {
-        const FString Short = FString(Name).RightChop(5);
-        if (!Parameters.ContainsByPredicate([&Short](const FNiagaraVariable& Variable) { return Variable.GetName().ToString().EndsWith(Short); }))
-        { return NiagaraFail(Error, PackageName + TEXT(" lacks its user parameter ") + Name + TEXT("; run ImportDemoArt.ps1 -Mode ImportVFX.")); }
+        const FString PackageName = GeneratedPackage(FString(TEXT("NS_LDChain_")) + Spec.Look);
+        UNiagaraSystem* System = FPackageName::DoesPackageExist(PackageName)
+            ? LoadObject<UNiagaraSystem>(nullptr, *(PackageName + TEXT(".") + FPackageName::GetShortName(PackageName))) : nullptr;
+        if (!System) { return NiagaraFail(Error, PackageName + TEXT(" is missing; run ImportDemoArt.ps1 -Mode ImportVFX.")); }
+        TArray<FNiagaraVariable> Parameters;
+        System->GetExposedParameters().GetUserParameters(Parameters);
+        for (const TCHAR* Name : {LDSliceVfx::ChainStart, LDSliceVfx::ChainEnd, LDSliceVfx::ChainTint, LDSliceVfx::ChainWidth, LDSliceVfx::ChainIntensity, LDSliceVfx::ChainDuration})
+        {
+            const FString Short = FString(Name).RightChop(5);
+            if (!Parameters.ContainsByPredicate([&Short](const FNiagaraVariable& Variable) { return Variable.GetName().ToString().EndsWith(Short); }))
+            { return NiagaraFail(Error, PackageName + TEXT(" lacks its user parameter ") + Name + TEXT("; run ImportDemoArt.ps1 -Mode ImportVFX.")); }
+        }
     }
     Error.Reset();
     return true;
