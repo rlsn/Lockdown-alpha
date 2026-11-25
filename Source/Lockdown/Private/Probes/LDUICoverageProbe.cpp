@@ -8,6 +8,10 @@
 #include "Dom/JsonObject.h"
 #include "Engine/World.h"
 #include "Framework/LDGameState.h"
+#include "Character/LDCharacter.h"
+#include "Camera/CameraActor.h"
+#include "Camera/CameraComponent.h"
+#include "EngineUtils.h"
 #include "Combat/LDCombatElements.h"
 #include "Framework/LDPlayerController.h"
 #include "InputKeyEventArgs.h"
@@ -214,6 +218,57 @@ public:
                 if(Ring&&Ring->IsOpen()&&Once(Now,0)){PC.HUDUI->ToggleWorkshop();}
                 return Settled(Now,1.);
             }});
+        // Design reference only (the Lobby candidates): UI-free front portraits of each contender standing in the opening rest
+        // (real seat-tinted bodies), then a low group view, at 1080p, through the DEV art-capture camera hook.
+        for(int32 Shot=0;Shot<9;++Shot)
+        {
+            FPage& Line=Pages.Add_GetRef({FString::Printf(TEXT("Ref_Lineup%d"),Shot),[this,Shot](ALDPlayerController& PC,double Now)
+            {
+                if(Once(Now,0))
+                {
+                    Resize(PC,1920,1080);
+                    TArray<AActor*> Bodies;
+                    for(TActorIterator<ALDCharacter> It(PC.GetWorld());It;++It){Bodies.Add(*It);}
+                    FVector Eye,Look;float Fov=28.f;
+                    if(Shot<8)
+                    {
+                        if(!Bodies.IsValidIndex(Shot)){return true;}
+                        const AActor* Body=Bodies[Shot];
+                        const FVector Foot=Body->GetActorLocation()-FVector(0,0,90.f);
+                        Eye=Foot+Body->GetActorForwardVector()*420.f+FVector(0,0,150.f);
+                        Look=Foot+FVector(0,0,95.f);
+                    }
+                    else
+                    {
+                        FVector Centre=FVector::ZeroVector;for(AActor* Body:Bodies){Centre+=Body->GetActorLocation();}
+                        if(Bodies.Num()){Centre/=Bodies.Num();}
+                        Eye=Centre+FVector(0,-1400.f,260.f);Look=Centre+FVector(0,0,40.f);Fov=45.f;
+                    }
+                    FActorSpawnParameters Spawn;Spawn.ObjectFlags|=RF_Transient;
+                    if(!LineupCamera.IsValid()){LineupCamera=PC.GetWorld()->SpawnActor<ACameraActor>(Spawn);}
+                    if(ACameraActor* Cam=LineupCamera.Get())
+                    {
+                        Cam->SetActorLocationAndRotation(Eye,(Look-Eye).Rotation());
+                        Cam->GetCameraComponent()->SetFieldOfView(Fov);Cam->GetCameraComponent()->bConstrainAspectRatio=false;
+                        PC.SetDevArtCaptureCamera(Cam);
+                    }
+                    if(PC.RootUI&&PC.RootUI->GetVisibility()!=ESlateVisibility::Hidden){RootShown=PC.RootUI->GetVisibility();PC.RootUI->SetVisibility(ESlateVisibility::Hidden);}
+                    if(PC.HUDUI&&PC.HUDUI->GetVisibility()!=ESlateVisibility::Hidden){HudShown=PC.HUDUI->GetVisibility();PC.HUDUI->SetVisibility(ESlateVisibility::Hidden);}
+                }
+                return Settled(Now,1.2);
+            },10.});
+            Line.Only=0;
+        }
+        Pages.Add({TEXT("Ref_LineupEnd"),[this](ALDPlayerController& PC,double Now)
+            {
+                if(Once(Now,0))
+                {
+                    PC.SetDevArtCaptureCamera(nullptr);
+                    if(PC.RootUI){PC.RootUI->SetVisibility(RootShown);}
+                    if(PC.HUDUI){PC.HUDUI->SetVisibility(HudShown);}
+                }
+                return Settled(Now,.5);
+            },10.,false});
         Pages.Add({TEXT("Match_Field"),[this](ALDPlayerController& PC,double Now)
             {
                 if(Once(Now,0)){Dev(PC,ELDDevTestOp::SkipPreparation,0);}
@@ -297,6 +352,8 @@ public:
             }});
     }
     double ResultsSeen=-1.;
+    TWeakObjectPtr<ACameraActor> LineupCamera;
+    ESlateVisibility RootShown=ESlateVisibility::SelfHitTestInvisible,HudShown=ESlateVisibility::SelfHitTestInvisible;
     double DeadAt=0.;
 
     bool Tick(float)
