@@ -722,8 +722,8 @@ void ALDObservedGroundProxy::Outline(const FLDObservedGroundState& Ground, TArra
     if (Ground.Shape == ELDObservedGroundShape::Band)
     {
         const double H = Ground.ExtentCm;
-        Arc(FVector(H, 0, 0), R, -90., 90., 6);
-        Arc(FVector(-H, 0, 0), R, 90., 270., 6);
+        Arc(FVector(H, 0, 0), R, -90., 90., 16);
+        Arc(FVector(-H, 0, 0), R, 90., 270., 16);
         // A copy: adding an element of the array to itself may reallocate under the reference.
         const FVector First = Out[0];
         Out.Add(First);
@@ -732,10 +732,11 @@ void ALDObservedGroundProxy::Outline(const FLDObservedGroundState& Ground, TArra
     {
         const double Half = Ground.ExtentCm * .5;
         Out.Add(FVector::ZeroVector);
-        Arc(FVector::ZeroVector, R, -Half, Half, 12);
+        Arc(FVector::ZeroVector, R, -Half, Half, 32);
         Out.Add(FVector::ZeroVector);
     }
-    else { Arc(FVector::ZeroVector, R, 0., 360., 20); }
+    // Enough segments that the outline reads as a curve at gameplay zoom (no visible corners).
+    else { Arc(FVector::ZeroVector, R, 0., 360., 64); }
 }
 
 void ALDObservedGroundProxy::Pattern(const FLDObservedGroundState& Ground, TArray<TPair<FVector,FVector>>& Out)

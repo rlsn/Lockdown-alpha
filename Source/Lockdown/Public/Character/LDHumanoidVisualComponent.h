@@ -128,14 +128,12 @@ private:
     void QueueImpact(double Onset, ELDObservedHitLook HitLook, uint8 HitFlags);
     // The designed swing and skill presentation (LDSliceVfx): telegraph from the windup's start, release at its impact.
     void UpdateSlice(float EffectScale);
-    void UpdateCastCharge(float Charge, float EffectScale);
     void UpdateRelease(float EffectScale);
     void UpdateDash(const FVector& Velocity, bool bFalling, float EffectScale);
     void UpdateOverdrive(float EffectScale);
     UPROPERTY() TObjectPtr<USceneComponent> Pivot;
     UPROPERTY() TObjectPtr<USkeletalMeshComponent> Mesh;
     UPROPERTY() TObjectPtr<UStaticMeshComponent> Basketball;
-    UPROPERTY() TObjectPtr<UNiagaraComponent> CastCharge;
     // One looping effect per element state (burn, wet, electrified, chilled, rotten) while it shows.
     static constexpr int32 ElementStates = 5;
     uint8 StateStacks[ElementStates] = {0, 0, 0, 0, 0};
@@ -167,7 +165,6 @@ private:
     bool bOwnBody = false;
     // When a strike of the local player last landed on this body (a reaction right after it is the local player's).
     double OwnStrikeAt = -1;
-    double CastActionOnset = -1;
     double ReleasedOnset = -1;
     // Body sounds (LDAudioFeel) on the same hooks as the effects: the swing and cast onsets already sounded, and the
     // playing cast charge that the release cuts.
@@ -194,7 +191,6 @@ private:
     TArray<FGuid, TInlineAllocator<16>> SeenHitIds;
     uint8 LookSlot = MAX_uint8, LookCreature = 0;
     bool bCueSeen = false, bFlashing = false, bHitSeen = false, bVisualPoseInitialized = false, bKnockback = false;
-    bool bCastEmitting = false;
     struct FPendingImpact
     {
         double Onset;
