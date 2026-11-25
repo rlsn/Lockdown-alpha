@@ -13,7 +13,8 @@ Assert-LDEditorModules
 Set-LDPlatformValidation Skip
 if(-not $FFmpeg){$FFmpeg=(Get-Command ffmpeg -ErrorAction SilentlyContinue).Source}
 if(-not $FFmpeg -or -not(Test-Path -LiteralPath $FFmpeg)){throw 'ffmpeg is required: pass -FFmpeg <path to ffmpeg.exe>.'}
-$binary=Join-Path $engine 'Engine\Binaries\Win64\UnrealEditor.exe'
+# The -Cmd binary keeps the recorder's per-app speaker mute away from the interactive editor's mixer entry.
+$binary=Join-Path $engine 'Engine\Binaries\Win64\UnrealEditor-Cmd.exe'
 $project=Join-Path (Get-LDProjectRoot) 'Lockdown.uproject'
 $output=New-LDArtifactDirectory ('FeelSample-'+$Scenario+'-'+$Width+'x'+$Height)
 $game=Join-Path $output 'game'
