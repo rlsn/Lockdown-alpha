@@ -519,13 +519,13 @@ namespace
 
     // ---------------------------------------------------------------- slice textures, meshes and material
 
-    // Thin-line sheets keep their edges with BC7; the dissolve and chain energy noises are plain masks; the wet decal is a
+    // Thin-line sheets keep their edges with BC7; the dissolve, chain and field energy noises are plain masks; the wet decal is a
     // soft BC3 mask.
     TextureCompressionSettings SliceCompression(LDSliceVfx::ETex Tex)
     {
         switch (Tex)
         {
-        case LDSliceVfx::ETex::DissolveNoise: case LDSliceVfx::ETex::ChainAEnergyNoise: return TC_Masks;
+        case LDSliceVfx::ETex::DissolveNoise: case LDSliceVfx::ETex::ChainAEnergyNoise: case LDSliceVfx::ETex::FieldEnergyNoise: return TC_Masks;
         case LDSliceVfx::ETex::WetDecal: return TC_Default;
         default: return TC_BC7;
         }

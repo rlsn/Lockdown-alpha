@@ -32,7 +32,7 @@
 namespace LDImpactFxDetail
 {
     TAutoConsoleVariable<int32> CVarFieldLook(TEXT("ld.Vfx.FieldLook"), 0,
-        TEXT("Electric field look while art direction compares the redesign: 0 the first field, 1 F1 energy fence, 2 F2 charged surface."));
+        TEXT("Electric field look while art direction compares the redesign: 0 the first field, 1 F1 energy fence, 2 F2 charged surface, 3 F3 F1's edge over a charged floor."));
     const FLinearColor WhiteHot(1.f, .28f, .045f), EmberOrange(1.f, .3f, .05f), ShieldCyan(0.f, .78f, 1.f), CritGold(1.f, .55f, .08f);
     constexpr float ReferenceLifeSeconds = .28f, ReferenceSpeed = 900.f, MaxWaitSeconds = .5f;
 
@@ -1161,6 +1161,7 @@ LDSliceVfx::ESystem ULDImpactFxSubsystem::FieldSystemNow() const
     {
     case 1: return LDSliceVfx::ESystem::FieldF1;
     case 2: return LDSliceVfx::ESystem::FieldF2;
+    case 3: return LDSliceVfx::ESystem::FieldF3;
     default: return LDSliceVfx::ESystem::Field;
     }
 }
@@ -1169,7 +1170,7 @@ bool ULDImpactFxSubsystem::IsField(const UNiagaraComponent* Effect) const
 {
     const UNiagaraSystem* Asset = Effect ? Effect->GetAsset() : nullptr;
     return Asset && (Asset == GetSystem(LDSliceVfx::ESystem::Field) || Asset == GetSystem(LDSliceVfx::ESystem::FieldF1)
-        || Asset == GetSystem(LDSliceVfx::ESystem::FieldF2));
+        || Asset == GetSystem(LDSliceVfx::ESystem::FieldF2) || Asset == GetSystem(LDSliceVfx::ESystem::FieldF3));
 }
 
 void ULDImpactFxSubsystem::ShowGroundField(const AActor& Owner, const FVector& Centre, float RadiusCm, float Alpha, uint8 OwnerSeat)

@@ -12,7 +12,7 @@ ROOT = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.pat
 SLICE = os.path.join(ROOT, "Slice")
 GENERATORS = ["Blender/slice_lib.py", "Blender/slice_slash.py", "Blender/slice_impact.py", "Blender/slice_water.py",
               "Blender/slice_chalk.py", "Blender/slice_render.py",
-              "Blender/slice_chain_candidates.py"]
+              "Blender/slice_chain_candidates.py", "Blender/slice_field.py"]
 TOOLS = ["Blender/slice_preview.py", "Blender/slice_manifest.py"]
 
 GEOMETRY_SHA = {  # printed by slice_slash.py; the FBX header carries a timestamp, so file bytes differ per export
@@ -92,6 +92,16 @@ ASSETS = [
          purpose="Candidate B angular scorch dash decal: tapered slash with two side chips, burnt ragged edge and soot feather (glow 0 = scorch), short ember seam inside (glow 0.6).",
          usage="Ground decal under the target, X along the hop, about 130 cm, fades over 0.6 s; tint the ink a warm dark (not black).", pivot="dash starts at U 0.05",
          uv="x = hop direction", **MASK, budget="one decal per hit"),
+    # ---- electric field charged floor (field redesign candidate F3); slice_field.py
+    dict(id="field_web", kind="texture", file="Slice/field_web.png", width=512, height=512,
+         purpose="Tileable isotropic branching electric crack web: jittered points joined to their neighbours by kinked strokes with short forks, warm-white core inside an element body and a soft halo. No outline.",
+         usage="Charged-floor layer of the electric field: sampled in world space (about 320 cm per tile) inside the field's radius, low opacity, re-randomised by UV jumps a few times a second; cells flare with field_energy_noise B.",
+         uv="tiles in both axes", **MASK, budget="shared by every field; one floor disc per field"),
+    dict(id="field_energy_noise", kind="texture", file="Slice/field_energy_noise.png", width=256, height=256,
+         purpose="Tileable utility noise of the charged floor: R soft energy blobs, G a second blob phase, B the field_web cell id (one random value per web point's cell, aligned with field_web at the same UV).",
+         usage="R/G mask where the web shows (slow drift); B picks the cells that flare briefly.",
+         uv="tiles in both axes, same tile as field_web", alpha_packing="utility noise: R, G soft blobs, B web cell id, A = 1 (not a glow mask)", srgb=False,
+         compression="TC_Masks (no sRGB)", mips="generate", streaming="NeverStream = true", budget="shared by every field"),
 ]
 
 
@@ -135,6 +145,11 @@ def checks(asset, img):
             cell = asset.get("atlas", {}).get("cell")
             tiles = [a[r:r + cell, c:c + cell] for r in range(0, a.shape[0], cell) for c in range(0, a.shape[1], cell)] if cell else [a]
             out["max_alpha_on_2px_border"] = round(max(float(np.concatenate([t[[0, 1, -2, -1]].ravel(), t[:, [0, 1, -2, -1]].ravel()]).max()) for t in tiles), 4)
+        out["mean_coverage"] = round(float(img[..., 3].mean()), 4)
+    if asset["id"].startswith("field_"):
+        out["seam_mean_abs_diff_x"] = round(float(np.abs(img[:, 0] - img[:, -1]).mean()), 5)
+        out["seam_mean_abs_diff_y"] = round(float(np.abs(img[0] - img[-1]).mean()), 5)
+        out["adjacent_pixel_mean_abs_diff"] = round(float(np.abs(img[:, 100] - img[:, 101]).mean()), 5)
         out["mean_coverage"] = round(float(img[..., 3].mean()), 4)
     if asset["id"] == "tex_dissolve_noise":
         out["seam_mean_abs_diff_x"] = round(float(np.abs(img[:, 0, :3] - img[:, -1, :3]).mean()), 5)

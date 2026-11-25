@@ -33,7 +33,9 @@ namespace LDSliceVfx
         SlashEdge, DissolveNoise, HitSkill, WaterJet, WaterSplash, WetDecal, ChalkLane,
         // The generated effects' elements (vfx_slice_assets.json, slice_chain_candidates.py), used by the generated Niagara
         // materials and their ground layers.
-        ChainAProfile, ChainAEnergyNoise, ChainASparkStreak, ChainAFlash, ChainAGroundGlow, ChainBScorchDash, Count
+        ChainAProfile, ChainAEnergyNoise, ChainASparkStreak, ChainAFlash, ChainAGroundGlow, ChainBScorchDash,
+        // The electric field's charged floor (slice_field.py): the crack web and its utility noise.
+        FieldWeb, FieldEnergyNoise, Count
     };
     enum class EMesh : uint8 { Slash1, Slash2, Slash3, Count };
     // The manifest id ("fb_hit_basic", "SM_LD_SlashCombo1") and the package (Folder/T_fb_hit_basic, Folder/SM_LD_SlashCombo1).
@@ -58,9 +60,9 @@ namespace LDSliceVfx
     //   Field        an electric field on the ground: Start its centre on the floor, Width its radius, Intensity its
     //                strength (2.2 full), Duration its life (the ground state's: effectively unbounded; conduct's splash)
     //   Tell1..3     a basic swing's anticipation on the floor: Start the feet, End ahead, Duration the windup
-    //   FieldF1, F2  the field redesign's candidates (F1 energy fence, F2 charged surface) with Field's parameters, shown in
-    //                its place while art direction compares them (ld.Vfx.FieldLook)
-    enum class ESystem : uint8 { Chain, HitBasic, HitFinisher, Swing1, Swing2, Swing3, Field, Tell1, Tell2, Tell3, FieldF1, FieldF2, Count };
+    //   FieldF1..F3  the field redesign's candidates (F1 energy fence, F2 charged surface, F3 F1's edge over a charged
+    //                floor) with Field's parameters, shown in its place while art direction compares them (ld.Vfx.FieldLook)
+    enum class ESystem : uint8 { Chain, HitBasic, HitFinisher, Swing1, Swing2, Swing3, Field, Tell1, Tell2, Tell3, FieldF1, FieldF2, FieldF3, Count };
     LOCKDOWN_API const TCHAR* SystemName(ESystem System);
     LOCKDOWN_API FString SystemPackage(ESystem System);
     // The shocked-body rim glow (LDHitVfx::FGhosts::bShell): an additive fresnel shell pushed 1.2 cm out along the normals.

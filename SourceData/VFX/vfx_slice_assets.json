@@ -8,11 +8,12 @@
     "Blender/slice_water.py": "f937d1547b87a0d4aeb06d9adbba1f423f39b57bc9d6b4d653967d68ab7b1e24",
     "Blender/slice_chalk.py": "dfc522c375555a2dda968df184ebc64b827df69e82646e0f722c519ed2466697",
     "Blender/slice_render.py": "c79c3b5fb4239aaebbac5ac0e1d9e8715f1fd1394575bb371e64dab85ce3013f",
-    "Blender/slice_chain_candidates.py": "910cc6d3c50b73e7b6906d7668c2f283bacfedfafe0eedc958553b9c918aa53a"
+    "Blender/slice_chain_candidates.py": "910cc6d3c50b73e7b6906d7668c2f283bacfedfafe0eedc958553b9c918aa53a",
+    "Blender/slice_field.py": "cafda59fece4c94fafd389fbf660ac3397e5220882dcc1c6f9460d22b369f9db"
   },
   "tools": {
     "Blender/slice_preview.py": "99b8da0373aa846dfbfbb0f2ab3f99e9ad1156bab305d360070d5639fe9e643d",
-    "Blender/slice_manifest.py": "0f3023d556fc6663f4357bdaed491fed01c2ab165d5be2cd0d2e2afc0cb9e286"
+    "Blender/slice_manifest.py": "aa09fbd36098cc0b1cab7fb918153847f3d6fa832721e92c493d8c97ede22a58"
   },
   "glow_levels": {
     "ink": 0.0,
@@ -469,6 +470,58 @@
       "checks": {
         "max_alpha_on_2px_border": 0.0,
         "mean_coverage": 0.1707
+      },
+      "material_hint": "Same graph as the existing Layer material: emissive = Glow * tex.rgb (+ white lerp above 0.8) + Ink, opacity = tex.a * Fade, translucent unlit, two-sided. Recommended glow remap: color = lerp(Glow * saturate(g / 0.6), 1, smoothstep(0.8, 1.0, g)); Ink (0A0B0D) shows where g = 0 and A > 0."
+    },
+    {
+      "id": "field_web",
+      "kind": "texture",
+      "file": "Slice/field_web.png",
+      "width": 512,
+      "height": 512,
+      "purpose": "Tileable isotropic branching electric crack web: jittered points joined to their neighbours by kinked strokes with short forks, warm-white core inside an element body and a soft halo. No outline.",
+      "usage": "Charged-floor layer of the electric field: sampled in world space (about 320 cm per tile) inside the field's radius, low opacity, re-randomised by UV jumps a few times a second; cells flare with field_energy_noise B.",
+      "uv": "tiles in both axes",
+      "alpha_packing": "RGB = glow mask (R = G = B; 0 ink only, 0.6 element body, 1.0 white-hot core), A = coverage; ink = A > 0 with RGB = 0",
+      "srgb": false,
+      "compression": "TC_Default (BC3/DXT5 with alpha) as the existing hit masks; TC_BC7 recommended for thin-line sheets",
+      "mips": "generate (TMGS_FromTextureGroup)",
+      "streaming": "NeverStream = true, LODGroup Effects (same as VfxApplySettings)",
+      "budget": "shared by every field; one floor disc per field",
+      "sha256": "9bbacf36af0cd1bd0f0a2cc78935ea0ecbaa2a63f84901918132a5d534b8fa35",
+      "uncompressed_rgba8_bytes": 1398101,
+      "bc3_bc7_with_mips_bytes": 349525,
+      "checks": {
+        "seam_mean_abs_diff_x": 0.02443,
+        "seam_mean_abs_diff_y": 0.03917,
+        "adjacent_pixel_mean_abs_diff": 0.03803,
+        "mean_coverage": 0.1139
+      },
+      "material_hint": "Same graph as the existing Layer material: emissive = Glow * tex.rgb (+ white lerp above 0.8) + Ink, opacity = tex.a * Fade, translucent unlit, two-sided. Recommended glow remap: color = lerp(Glow * saturate(g / 0.6), 1, smoothstep(0.8, 1.0, g)); Ink (0A0B0D) shows where g = 0 and A > 0."
+    },
+    {
+      "id": "field_energy_noise",
+      "kind": "texture",
+      "file": "Slice/field_energy_noise.png",
+      "width": 256,
+      "height": 256,
+      "purpose": "Tileable utility noise of the charged floor: R soft energy blobs, G a second blob phase, B the field_web cell id (one random value per web point's cell, aligned with field_web at the same UV).",
+      "usage": "R/G mask where the web shows (slow drift); B picks the cells that flare briefly.",
+      "uv": "tiles in both axes, same tile as field_web",
+      "alpha_packing": "utility noise: R, G soft blobs, B web cell id, A = 1 (not a glow mask)",
+      "srgb": false,
+      "compression": "TC_Masks (no sRGB)",
+      "mips": "generate",
+      "streaming": "NeverStream = true",
+      "budget": "shared by every field",
+      "sha256": "ab4f5cbb96b01bac8bf0e6d1d14878855976f4e0f32bc7a76d1ca7c61d362778",
+      "uncompressed_rgba8_bytes": 349525,
+      "bc3_bc7_with_mips_bytes": 87381,
+      "checks": {
+        "seam_mean_abs_diff_x": 0.003,
+        "seam_mean_abs_diff_y": 0.00358,
+        "adjacent_pixel_mean_abs_diff": 0.00555,
+        "mean_coverage": 1.0
       },
       "material_hint": "Same graph as the existing Layer material: emissive = Glow * tex.rgb (+ white lerp above 0.8) + Ink, opacity = tex.a * Fade, translucent unlit, two-sided. Recommended glow remap: color = lerp(Glow * saturate(g / 0.6), 1, smoothstep(0.8, 1.0, g)); Ink (0A0B0D) shows where g = 0 and A > 0."
     }

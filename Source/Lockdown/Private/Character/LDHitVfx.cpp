@@ -105,6 +105,8 @@ const TCHAR* LDSliceVfx::TexId(ETex Tex)
     case ETex::ChainAFlash: return TEXT("chainA_flash");
     case ETex::ChainAGroundGlow: return TEXT("chainA_ground_glow");
     case ETex::ChainBScorchDash: return TEXT("chainB_scorch_dash");
+    case ETex::FieldWeb: return TEXT("field_web");
+    case ETex::FieldEnergyNoise: return TEXT("field_energy_noise");
     default: return TEXT("");
     }
 }
@@ -447,6 +449,7 @@ const TCHAR* LDSliceVfx::SystemName(ESystem System)
     case ESystem::Tell3: return TEXT("NS_LDTell3");
     case ESystem::FieldF1: return TEXT("NS_LDFieldF1");
     case ESystem::FieldF2: return TEXT("NS_LDFieldF2");
+    case ESystem::FieldF3: return TEXT("NS_LDFieldF3");
     default: return TEXT("");
     }
 }
