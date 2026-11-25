@@ -497,8 +497,18 @@ void ULDHumanoidVisualComponent::UpdateRelease(float EffectScale)
     }
     else
     {
-        // No release burst: the old particle-kit burst over the caster is retired; the motion, the hits and the skill's own
-        // effects (its flight, zone or shield) carry the release.
+        // The skill's own release where it has one (reaching out along the facing to its approved range); the old
+        // particle-kit burst over the caster is retired.
+        const LDSliceVfx::FSkillSystems Systems = LDSliceVfx::SkillSystemsOf(CastAbility);
+        const FVector Ahead = FVector(Facing.X, Facing.Y, 0.).GetSafeNormal();
+        if (Systems.Release != LDSliceVfx::ESystem::Count && !Ahead.IsNearlyZero())
+        {
+            float Range = 0.f, HalfWidth = 0.f;
+            if (!Impacts->SkillReach(CastAbility, Range, HalfWidth)) { Range = Impacts->SkillDashCm(CastAbility); }
+            if (Range <= 0.f) { Range = 200.f; }
+            const FVector Chest = Pivot->GetComponentTransform().TransformPosition(FVector(0, 0, .55f * HeightCm - HalfHeight));
+            Impacts->Play(Systems.Release, *this, Chest, Chest + Ahead * Range, LDSliceVfx::StrikeTint(Look), 70.f * Look.Size, .9f * Look.Seconds, Look, Late);
+        }
         Impacts->NoteStrike(*this, LDSliceVfx::EStrike::Skill, At, Facing, bOwnBody, CastAbility);
     }
 }
@@ -1090,8 +1100,14 @@ bool ULDHumanoidVisualComponent::ShowSliceImpact(const FPendingImpact& Impact, c
             70.f * Look.Size, .9f * Look.Seconds, Look, Age);
         return false;
     }
-    // A plain hit of a physical skill (its look is None) shows the heavier Niagara Hit, not the old skill burst; the return
-    // value still names only a combo finisher.
+    // A skill with its own hit shows it; another plain physical skill hit (its look is None) shows the heavier Niagara hit,
+    // not the old skill burst. The return value still names only a combo finisher.
+    if (const LDSliceVfx::FSkillSystems Systems = LDSliceVfx::SkillSystemsOf(Match.Ability); Match.Strike == LDSliceVfx::EStrike::Skill
+        && Systems.Hit != LDSliceVfx::ESystem::Count)
+    {
+        Impacts->Play(Systems.Hit, *this, Chest - Dir * 100.f, Chest, LDSliceVfx::StrikeTint(Look), 70.f * Look.Size, 1.2f * Look.Seconds, Look, Age);
+        return false;
+    }
     const LDSliceVfx::EStrike Visual = Strike == LDSliceVfx::EStrike::Skill && Impact.Look == ELDObservedHitLook::None ? LDSliceVfx::EStrike::Finisher : Strike;
     Impacts->Slice(this, LDSliceVfx::Impact(Visual, Chest, Feet, Dir, Match.From, Match.bChained, Look), Age);
     // A basic or finisher hit: the Niagara Hit along the strike, and in the local player's own fight a brief rim on the body.

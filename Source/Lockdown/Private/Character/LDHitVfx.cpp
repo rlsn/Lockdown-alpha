@@ -262,6 +262,21 @@ FLinearColor LDSliceVfx::StrikeTint(const FLook& Look)
     return Look.bOwn ? FLinearColor(1.f, .64f, .36f) : FLinearColor(1.f, .94f, .84f);
 }
 
+LDSliceVfx::FSkillSystems LDSliceVfx::SkillSystemsOf(uint8 Ability)
+{
+    FSkillSystems Out;
+    switch (static_cast<ELDDemoAbilityId>(Ability))
+    {
+    case ELDDemoAbilityId::ActiveElbow: Out.Release = ESystem::ElbowRelease; Out.Hit = ESystem::ElbowHit; break;
+    case ELDDemoAbilityId::ActivePantsDown: Out.Release = ESystem::PantsRelease; Out.Hit = ESystem::PantsHit; break;
+    case ELDDemoAbilityId::ActiveCrotchGrab: Out.Release = ESystem::GrabRelease; Out.Hit = ESystem::GrabHit; break;
+    case ELDDemoAbilityId::ActiveBailOut: Out.Release = ESystem::BailRelease; break;
+    case ELDDemoAbilityId::ActiveChargedRam: Out.Release = ESystem::RamRelease; Out.Hit = ESystem::RamHit; break;
+    default: break;
+    }
+    return Out;
+}
+
 FLinearColor LDSliceVfx::ElementInk(uint8 Element)
 {
     // Their own values; today they equal the broadcast inks they started from (#FF6A3D, #42B4FF, #FFD23D, #A6ECFF, #A4D24A).
@@ -393,6 +408,15 @@ const TCHAR* LDSliceVfx::SystemName(ESystem System)
     case ESystem::Knockout: return TEXT("NS_LDKnockout");
     case ESystem::CastAim: return TEXT("NS_LDCastAim");
     case ESystem::CastBrace: return TEXT("NS_LDCastBrace");
+    case ESystem::ElbowRelease: return TEXT("NS_LDElbowRelease");
+    case ESystem::ElbowHit: return TEXT("NS_LDElbowHit");
+    case ESystem::PantsRelease: return TEXT("NS_LDPantsRelease");
+    case ESystem::PantsHit: return TEXT("NS_LDPantsHit");
+    case ESystem::GrabRelease: return TEXT("NS_LDGrabRelease");
+    case ESystem::GrabHit: return TEXT("NS_LDGrabHit");
+    case ESystem::BailRelease: return TEXT("NS_LDBailRelease");
+    case ESystem::RamRelease: return TEXT("NS_LDRamRelease");
+    case ESystem::RamHit: return TEXT("NS_LDRamHit");
     default: return TEXT("");
     }
 }

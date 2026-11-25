@@ -157,6 +157,8 @@ public:
     bool SkillReach(uint8 Ability, float& OutRangeCm, float& OutHalfWidthCm);
     // Whether a skill's level-1 target is itself (a self-centred skill), from the approved content.
     bool IsSelfSkill(uint8 Ability);
+    // The approved level-1 distance of a skill's own dash (cm); 0 when it has none.
+    float SkillDashCm(uint8 Ability);
     // Whether a skill carries an element (its windup and hits then take the element's ink).
     bool IsElementalSkill(uint8 Ability);
     // Whether a skill's own damage is physical (its hits are observed with no look, like a basic hit's).

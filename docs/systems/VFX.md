@@ -363,21 +363,21 @@
 | --- | --- | --- | --- | --- | --- |
 | `active_zap` 电你个哆嗦 | 电 · 单体链 | USER APPROVED（链） | `NS_LDChain`（§2.1）；前摇 `NS_LDZapCharge` 手部蓄电（IMPLEMENTED） | `vfx/approved/chain*`；`production/vfx/batch1-selfmade/water/zap-charge` | 蓄电在游戏镜头下几乎看不见 |
 | `active_hose_down` 滋你一脸 | 水 · 直线 600×160 | IMPLEMENTED | `NS_LDHoseTell` 地面水带预兆、`NS_LDHoseJet` 水柱、`NS_LDWaterHit` 命中；贴图 `water_*` | `production/vfx/batch1-selfmade/water/` | 预兆边界清楚；水柱读成蓝色激光、湿地像污渍，质感不足，等素材候选 |
-| `active_elbow` 滚远点 | 无 · 单体击退 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；专属效果无 | — | 专属释放与命中未设计 |
-| `active_pants_down` 扒裤子 | 无 · 直线拉拽 + 定身 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；专属效果无 | — | 专属释放与命中未设计 |
-| `active_crotch_grab` 掏蛋子 | 无 · 冲刺接触 + 减速 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；冲刺拖尾仍为旧粒子带 | — | 专属释放与命中未设计 |
+| `active_elbow` 滚远点 | 无 · 单体击退 | LOCALLY VERIFIED | 前摇：通用族；`NS_LDElbowRelease`：身前弧形推压波 + 两道回波、支撑脚扬尘；`NS_LDElbowHit`：胸口垂直于推力的冲击环、沿 300 cm 击退路径拖出的尘迹、碎屑 | `production/vfx/batch5/` | 用户未验收；尘迹在亮地面上偏淡 |
+| `active_pants_down` 扒裤子 | 无 · 直线拉拽 + 定身 | LOCALLY VERIFIED | 前摇：通用族；`NS_LDPantsRelease`：绳鞭甩出到 440 cm、末端脆响、再回抽；`NS_LDPantsHit`：脚踝两道收紧的箍、朝施法者的拉扯线 | `production/vfx/batch5/` | 用户未验收 |
+| `active_crotch_grab` 掏蛋子 | 无 · 冲刺接触 + 减速 | LOCALLY VERIFIED | 前摇：通用族；`NS_LDGrabRelease`：三条贴地速度线随冲刺展开、终点刹车扬尘；`NS_LDGrabHit`：髋部高度的低位爆点、下坠火星 | `production/vfx/batch5/` | 用户未验收；命中爆点偏小 |
 | `active_unplug` 拧你手腕 | 无 · 招架架势 280 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；专属效果无 | — | 专属释放与命中未设计 |
 | `active_snark_bolt` 甩你一鞋 | 无 · 投射物 + 落地拖鞋 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：粒子带；落地 `SlipperDrop` | — | 专属释放与命中未设计 |
 | `active_seethe` 烫你屁股 | 火 · 自身圆 300 | LOCALLY VERIFIED | `NS_LDSeetheTell`、`NS_LDSeetheBurst`、`NS_LDFireHit`；贴图 `fire_*` | `production/vfx/batch2/fire/` | 焦地随区域软边；用户未验收 |
 | `active_quick_meeting` 脚底开锅 | 火 · 地点圆 240，3 跳 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：区域粒子（AreaFire） | — | 专属释放与命中未设计 |
-| `active_bail_out` 贴脸补一拳 | 无 · 冲刺 + 强化普攻 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；冲刺拖尾仍为旧粒子带 | — | 专属释放与命中未设计 |
+| `active_bail_out` 贴脸补一拳 | 无 · 冲刺 + 强化普攻 | LOCALLY VERIFIED | 前摇：通用族；`NS_LDBailRelease`：肩高两条滑流线随冲刺、终点双拳亮起 0.5 s；本技能自身无命中 | `production/vfx/batch5/` | 用户未验收；拳光偏弱 |
 | `active_not_mad` 锅盖挡脸 | 无 · 自身护盾 + 解控 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；护盾仍为旧几何笼 | — | 专属释放与命中未设计 |
 | `active_stare_down` 来打老子啊 | 无 · 自身圆 300 嘲讽 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；专属效果无 | — | 专属释放与命中未设计 |
 | `active_triple_combo` 左右开抽 | 无 · 3 次强化普攻 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；专属效果无 | — | 专属释放与命中未设计 |
 | `active_calculus_drop` 板砖糊脸 | 无 · 地点延迟落地 200 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：`BookShadow` 粒子 | — | 专属释放与命中未设计 |
 | `active_flyer_trap` 踩一脚试试 | 无 · 地点陷阱 180 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：`FlyerArming/Armed` 粒子 | — | 专属释放与命中未设计 |
 | `active_open_mic` 扯嗓子喷你 | 无 · 自身圆 340 击退 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：`SpeechCone` 粒子 | — | 专属释放与命中未设计 |
-| `active_charged_ram` 蛮牛顶 | 无 · 冲刺撞人 + 护盾 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；冲刺拖尾仍为旧粒子带 | — | 专属释放与命中未设计 |
+| `active_charged_ram` 蛮牛顶 | 无 · 冲刺撞人 + 护盾 | LOCALLY VERIFIED | 前摇：通用族；`NS_LDRamRelease`：楔形冲锋前沿沿 460 cm 推进、身后尘迹；`NS_LDRamHit`：地面重冲击环、向上崩起的碎屑、四散尘土 | `production/vfx/batch5/` | 用户未验收 |
 | `active_brace` 顶着揍 | 无 · 架势 3 s | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；专属效果无 | — | 专属释放与命中未设计 |
 | `active_cola_shake` 冰可乐摇一摇 | 冰 · 扇形 400/60° | LOCALLY VERIFIED | `NS_LDColaTell`、`NS_LDColaBlast`、命中 `NS_LDChillHit`；贴图 `ice_*` | `production/vfx/batch2/chill/` | 喷射本身偏淡；用户未验收 |
 | `active_desk_fan` 电风扇 | 无 · 地点风带 600×200 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：`Wind` 粒子 | — | 专属释放与命中未设计 |
