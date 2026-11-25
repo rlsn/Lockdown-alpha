@@ -114,6 +114,16 @@ void ULDBasketballAnimInstance::Prepare(double Clock,float Speed,float FacingYaw
 {
     if(!Motion){return;}
     const float Delta=LastClock<0?0:FMath::Clamp(float(Clock-LastClock),0.f,.25f);LastClock=Clock;
+    if(HeldSequence)
+    {
+        // A held still: the clip is the whole base pose at its time; no action, turn or run layer is mixed in.
+        BaseSequence=HeldSequence;BaseTime=HeldTime;PreviousSequence=nullptr;BaseBlend=1;
+        FullWeight=UpperWeight=ArmWeight=ActionWeight=RunDribbleWeight=0;ActionSequence=nullptr;
+        bNormalizeTurn=false;bThrowing=false;bWasReleased=false;TurnAt=-1;bBallVisible=bShowBall;
+        LastAction=LDBodyMotion::EAction::None;
+        if(Ball&&!bBallVisible){Ball->SetHiddenInGame(true);}
+        return;
+    }
     // A released ball can finish its local follow-through after the authority cue ends. A cancelled windup cannot
     // invent a release; prediction's existing retract pose remains in control until it reaches rest.
     if(Action==LDBodyMotion::EAction::None&&LastAction!=LDBodyMotion::EAction::None&&bWasReleased

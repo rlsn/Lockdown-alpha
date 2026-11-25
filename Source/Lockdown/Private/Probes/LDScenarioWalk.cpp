@@ -124,7 +124,10 @@ void FPlanner::Begin(const FLDLegalGround& From, const FLDLegalGround& InGoal, c
 {
     *this = FPlanner();
     Goal = InGoal;
-    Zones = Keepouts;
+    // A start inside an exclusion (a random respawn in a camp home or the Boss band) can only walk out of it: that zone
+    // cannot be kept clear of, so the plan keeps clear of the others.
+    Zones = Keepouts.FilterByPredicate([&From](const FKeepout& Zone)
+    { return FVector::Dist2D(From.SurfaceCm, Zone.Centre) > Zone.Radius; });
     Arrival = InArrival;
     Visits.Add({From, {}, 0, FVector::Dist2D(From.SurfaceCm, Goal.SurfaceCm), false});
 }

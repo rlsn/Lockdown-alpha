@@ -139,7 +139,7 @@ Kenney 的 Impact、Interface、RPG、Sci-Fi 全包（CC0）由用户决定采�
 
 ## 7. 覆盖清单
 
-状态：NOT STARTED / IN PROGRESS / IMPLEMENTED / LOCALLY VERIFIED / USER APPROVED / BLOCKED。
+状态：NOT STARTED / IN PROGRESS / IMPLEMENTED / LOCALLY VERIFIED / USER ACCEPTED（暂用，待质量复做）/ USER APPROVED / BLOCKED。
 
 ### 7.1 音频
 
@@ -156,12 +156,12 @@ Kenney 的 Impact、Interface、RPG、Sci-Fi 全包（CC0）由用户决定采�
 | 冰、腐（毒）命中 | IMPLEMENTED | 施法者可见时，命中按 VFX 的击打匹配归到技能（冰可乐 → 冰裂命中，过期外卖 → 湿拍腐烂命中） | 施法者不可见时只剩 Magic 外观，落回 `HitMagic`；彻底区分需要命中投影带元素（网络改动，非本流） |
 | 技能前摇蓄能 | USER APPROVED | `CastCharge`，出手 30 ms 切断 | — |
 | 技能释放：电你个哆嗦 | USER APPROVED | 技能表 `active_zap` ×2 | 样板（§6） |
-| 技能释放：其余 23 个 | IMPLEMENTED | 技能表各 ×2 take，按玩法语义合成（推、抓、冲刺、护盾、投掷、区域、元素），见生成器 `skill_*` | 波形与频谱已查（主瞬态在出手时刻、≤ 8.5 kHz）；未实机采集、未听感验收 |
-| 每技能专属命中声 | IMPLEMENTED | `skill_hits` 表 18 个技能各 ×2 take（骨撞、拍脸、砖裂、水柱、冰裂、腐烂、书包、鞭响……），按 VFX 击打匹配（`FStrikeMatch::Ability`）播放；电你个哆嗦沿用已批准的 `HitElectric`，强化普攻类走普攻命中 | 施法者不可见时落回外观族。物理伤害技能（滚远点、扒裤子、掏蛋子、甩你一鞋、蛮牛顶）的命中外观是 None，VFX 击打匹配目前只把 None 配给普攻，滋你一脸的匹配不带技能号，所以这 6 个技能实际仍播普攻/水命中声；已请 Stream B 调整匹配 |
-| 元素反应（10 种） | IMPLEMENTED | `Reaction*` 线索，挂在 `SetReaction` 钩子，与特效强度无关；按反应的两个元素设计（雾=蒸汽、导电=扩散放电、超载=爆裂、融化、沼气闷爆、冻结、发酵、碎冰、腐蚀、冻伤） | 未实机采集 |
+| 技能释放：其余 23 个 | USER ACCEPTED（待质量复做） | 技能表各 ×2 take，按玩法语义合成（推、抓、冲刺、护盾、投掷、区域、元素），见生成器 `skill_*` | 波形与频谱已查（主瞬态在出手时刻、≤ 8.5 kHz）；未实机采集、未听感验收 |
+| 每技能专属命中声 | USER ACCEPTED（待质量复做） | `skill_hits` 表 18 个技能各 ×2 take（骨撞、拍脸、砖裂、水柱、冰裂、腐烂、书包、鞭响……），按 VFX 击打匹配（`FStrikeMatch::Ability`）播放；电你个哆嗦沿用已批准的 `HitElectric`，强化普攻类走普攻命中 | 施法者不可见时落回外观族。物理伤害技能（滚远点、扒裤子、掏蛋子、甩你一鞋、蛮牛顶）的命中外观是 None，VFX 击打匹配目前只把 None 配给普攻，滋你一脸的匹配不带技能号，所以这 6 个技能实际仍播普攻/水命中声；已请 Stream B 调整匹配 |
+| 元素反应（10 种） | USER ACCEPTED（待质量复做） | `Reaction*` 线索，挂在 `SetReaction` 钩子，与特效强度无关；按反应的两个元素设计（雾=蒸汽、导电=扩散放电、超载=爆裂、融化、沼气闷爆、冻结、发酵、碎冰、腐蚀、冻伤） | 未实机采集 |
 | 地面状态循环（水洼、冰、火、瘴气、电场） | NOT STARTED | — | — |
 | 投射物飞行与落点 | NOT STARTED | — | — |
-| 元素状态挂上（着火、湿身、带电、冰冷、腐烂） | IMPLEMENTED | `State*` 短促提示，状态从无到有时响一次，不做循环（避免混战堆积） | 未实机采集 |
+| 元素状态挂上（着火、湿身、带电、冰冷、腐烂） | USER ACCEPTED（待质量复做） | `State*` 短促提示，状态从无到有时响一次，不做循环（避免混战堆积） | 未实机采集 |
 | 被动触发与强化普攻 | NOT STARTED | — | — |
 | 本人受击、护盾、破盾、闪避、招架、冲刺、拾取 | IMPLEMENTED | 受击、护盾、破盾（重击音提高到 1.35 倍音高）、招架、拾取沿用 Kenney；冲刺（低沉疾风与球鞋摩擦）与精准闪避（擦身风声与清脆一响）改为原创 | 未听感验收 |
 | 死亡、复活、升级 | IMPLEMENTED | 死亡（重重倒地与下坠低音）、升级（温暖上扬的和弦与细碎闪光）改为原创，替换廉价电子音；复活沿用 Kenney | 未听感验收 |
