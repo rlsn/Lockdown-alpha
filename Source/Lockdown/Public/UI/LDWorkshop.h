@@ -59,6 +59,10 @@ public:
         FSlateRect Banner;
         // The HUD band's Q, W, E and D faces (absolute; empty when hidden): a linked skill's face takes the link's rule.
         TArray<FSlateRect> Skills;
+        // The HUD's one-line toast (absolute; empty when hidden): the hover card keeps clear of it.
+        FSlateRect Toast;
+        // The rest actions' size (local units; zero when hidden): the ring keeps their corner clear.
+        FVector2D Actions=FVector2D::ZeroVector;
     };
     void Present(const FInput& Input,const FGeometry* HudGeometry=nullptr);
     bool IsOpen() const {return Mode==EMode::Open;}
@@ -67,7 +71,7 @@ public:
     // Over a part of the ring that takes the pointer (world clicks elsewhere still move the character).
     bool IsHit(FVector2D Absolute) const;
     // Where the rest actions (重置训练, 准备完毕) stand while the ring is open: the bottom-right corner beside the HUD band,
-    // clear of the ring and the build bar (local units, the bottom-right corner of the actions).
+    // or over the build bar's line when they would reach the band (local units, the actions' bottom-right corner).
     FVector2D ActionsAnchor() const {return ActionsAt;}
     // Keys 1/2/3 take an option of the offer on top, open or closed; true when the key was taken.
     bool HandleKey(const FKey& Key);

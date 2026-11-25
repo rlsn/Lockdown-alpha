@@ -2352,6 +2352,8 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         In.Band=RingRect(Band);In.Map=RingRect(MapColumn);In.Banner=RingRect(TopCentreSlot?TopCentreSlot->Content.Get():PhaseBanner.Get());
         // The Q, W, E and D faces: a linked skill's face takes the ring's link rule.
         for(const FLDHUDActionSlot& Entry:ActionSlots){In.Skills.Add(RingRect(Entry.Icon.Get()));}
+        In.Toast=RingRect(ToastPanel);
+        if(RestActionsPanel&&RestActionsPanel->IsVisible()&&TopCentreSlot&&TopCentreSlot->Content){In.Actions=TopCentreSlot->Content->GetDesiredSize();}
         Workshop->Present(In,&GetCachedGeometry());
     }
     if(ChoicesPanel&&PC->RootUI&&bOwnMatch)

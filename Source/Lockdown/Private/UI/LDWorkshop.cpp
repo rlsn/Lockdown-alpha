@@ -385,6 +385,11 @@ void ULDWorkshop::ComputeLayout(const FGeometry& Geometry)
         Command(EHit::Close,CloseW-14.f*F);
         L.Bar=FBox2D(L.Segments[0].Min,L.Segments.Last().Max);
     }
+    // The rest actions stand beside the band; when they are too wide for that corner they rise over the bar's line.
+    if(Latest.Actions.X>0.f&&Band.bIsValid&&float(ActionsAt.X)-float(Latest.Actions.X)<float(Band.Max.X)+12.f*U)
+    {
+        ActionsAt.Y=float(L.Bar.Min.Y)-8.f*U;
+    }
     LayoutTable();
     LayoutShop(Geometry);
     LayoutRow();
@@ -493,10 +498,10 @@ void ULDWorkshop::LayoutShop(const FGeometry& Geometry)
     const float Width=FMath::Max(400.f,90.f+NameW/F+16.f+PriceW/F+16.f);
     const float Height=44.f+Ring.Shop.Num()*64.f-6.f;
     const float Floor=12.f/(18.f*F*L.K);
-    const float Top=252.f*U;
+    float Top=252.f*U;
     // Above the rest actions in the bottom-right corner.
-    const float Limit=float(ActionsAt.Y)-66.f*U-12.f*U;
-    const auto Fit=[&](float Right)
+    const float Limit=float(ActionsAt.Y)-FMath::Max(66.f*U,float(Latest.Actions.Y))-12.f*U;
+    const auto Fit=[&](float Right,float From)
     {
         float Scale=1.f;
         for(int32 Pass=0;Pass<3;++Pass)
@@ -505,19 +510,21 @@ void ULDWorkshop::LayoutShop(const FGeometry& Geometry)
             float Room=TNumericLimits<float>::Max();
             for(int32 Row=0;Row<Ring.Shop.Num();++Row)
             {
-                const float Y0=Top+(44.f+Row*64.f)*S,Y1=Y0+58.f*S;
+                const float Y0=From+(44.f+Row*64.f)*S,Y1=Y0+58.f*S;
                 for(const float Y:{Y0,(Y0+Y1)*.5f,Y1})
                 {
                     for(float X=Right;X>float(L.Centre.X);X-=2.f*U){if(OnBand(FVector2D(X,Y),0.f)){Room=FMath::Min(Room,Right-X-8.f*U);break;}}
                 }
             }
-            Scale=FMath::Min3(1.f,Room/(Width*F),(Limit-Top)/(Height*F));
+            Scale=FMath::Min3(1.f,Room/(Width*F),(Limit-From)/(Height*F));
         }
         return Scale;
     };
     float Right=float(L.Size.X)-80.f*U;
-    float Scale=Fit(Right);
-    if(Scale<1.f){Right=float(L.Size.X)-40.f*U;Scale=Fit(Right);}
+    float Scale=Fit(Right,Top);
+    if(Scale<1.f){Right=float(L.Size.X)-40.f*U;Scale=Fit(Right,Top);}
+    // A long shelf over risen rest actions starts higher, under the top corner.
+    if(Scale<Floor){Top=140.f*U;Scale=Fit(Right,Top);}
     Scale=FMath::Max(Scale,Floor);
     const float S=F*Scale;
     L.ShopScale=S;L.ShopWidth=Width*S;
@@ -546,6 +553,8 @@ void ULDWorkshop::LayoutRow()
     // The row ends left of the shop where the two would meet.
     float Limit=float(L.Size.X)-40.f*U;
     if(L.ShopWidth>0.f){Limit=FMath::Min(Limit,float(L.Shop.X)-12.f*U);}
+    // Risen rest actions share the row's line.
+    if(Latest.Actions.X>0.f&&ActionsAt.Y<L.Bar.Min.Y){Limit=FMath::Min(Limit,float(ActionsAt.X-Latest.Actions.X)-12.f*U);}
     const auto Add=[&L](EHit Kind,int32 Host,int32 Index,TArray<FVector2D> Shape){FShape& Box=L.Boxes.AddDefaulted_GetRef();Box.Hit={Kind,Host,Index};Box.Shape=MoveTemp(Shape);};
     const FSlateFontInfo Chip=Face(EFace::Bold,18.f,F);
     const float ChipH=30.f*F;
@@ -596,9 +605,10 @@ void ULDWorkshop::LayoutRow()
         Add(EHit::Hand,INDEX_NONE,Index,RectOf(Face0.Box));
         L.Anchors.Add(AnchorKey(EHit::Hand,INDEX_NONE,Index),Face0.Box.GetCenter());
     }
-    const float HeadTop=Top-6.f*U-ChipH;
+    // The header clears a raised selected card and its 新 tab.
+    const float HeadTop=Top-22.f*U-ChipH;
     L.RowTop=HeadTop;
-    if(Ring.Batch.Kind!=EBatch::None){RightChip(EHit::OfferPile,FString::Printf(TEXT("待选 %d"),Ring.Batch.Queued+1),FMath::Max(X0+FMath::Max(Count,6)*Pitch,X0+300.f*U),HeadTop);}
+    if(Ring.Batch.Kind!=EBatch::None){RightChip(EHit::OfferPile,FString::Printf(TEXT("待选 %d"),Ring.Batch.Queued+1),FMath::Min(Limit,X0+3.f*312.f*U-12.f*U),HeadTop);}
 }
 
 void ULDWorkshop::LayoutCard()
@@ -614,14 +624,15 @@ void ULDWorkshop::LayoutCard()
     const float TextW=W-(18.f*U+Icon+16.f*U)-30.f*U;
     const int32 Lines=LDRingPaint::Wrap(Info.Body,Face(EFace::Regular,20.f,F),TextW,3).Num();
     const float H=FMath::Max(Icon+28.f*U,12.f*U+34.f*F+26.f*F+(Info.Gain.IsEmpty()?0.f:26.f*F)+Lines*26.f*F+12.f*U);
-    // Above the ring's top; where that would cover the hovered part, in the top-right corner.
+    // Above the ring's top; where that would cover the hovered part or the HUD's toast, in the top-right corner.
     FBox2D Card=BoxAt(FVector2D(FMath::Clamp(float(L.Centre.X)-W*.5f,16.f*U,float(L.Size.X)-16.f*U-W),8.f*U),FVector2D(W,H));
     const FHit Shown=Focus();
-    for(const FShape& Box:L.Boxes)
+    const FGeometry& G=GetCachedGeometry();
+    const FBox2D Toast=Latest.Toast.Right>Latest.Toast.Left?FBox2D(G.AbsoluteToLocal(FVector2D(Latest.Toast.Left,Latest.Toast.Top)),G.AbsoluteToLocal(FVector2D(Latest.Toast.Right,Latest.Toast.Bottom))):FBox2D(ForceInit);
+    const FShape* Hovered0=L.Boxes.FindByPredicate([&Shown](const FShape& Box){return Box.Hit==Shown&&!Box.bWedge;});
+    if((Hovered0&&Touches(Card,BoundsOf(Hovered0->Shape)))||(Toast.bIsValid&&Touches(Card,Toast)))
     {
-        if(!(Box.Hit==Shown)||Box.bWedge){continue;}
-        if(Touches(Card,BoundsOf(Box.Shape))){Card=BoxAt(FVector2D(float(L.Size.X)-40.f*U-W,8.f*U),FVector2D(W,H));}
-        break;
+        Card=BoxAt(FVector2D(float(L.Size.X)-40.f*U-W,8.f*U),FVector2D(W,H));
     }
     L.Card=Card;
 }
@@ -697,6 +708,15 @@ TArray<FString> ULDWorkshop::LayoutProblems() const
             break;
         default: break;
         }
+    }
+    // The rest actions' corner (the HUD's buttons) against the band, the bar and every part.
+    if(IsOpen()&&Latest.Actions.X>0.f)
+    {
+        const FBox2D Actions(ActionsAt-Latest.Actions,ActionsAt);
+        Probe(Actions,TEXT("rest actions"));
+        if(Band.bIsValid&&Touches(Actions,Band)){Out.Add(TEXT("rest actions on the HUD band"));}
+        for(const FBox2D& Segment:L.Segments){if(Touches(Actions,Segment)){Out.Add(TEXT("rest actions on the build bar"));}}
+        for(const FShape& Box:L.Boxes){if(!Box.bWedge&&Touches(Actions,BoundsOf(Box.Shape))){Out.Add(FString::Printf(TEXT("rest actions on part %d/%d/%d"),int32(Box.Hit.Kind),Box.Hit.Host,Box.Hit.Index));}}
     }
     if(L.TableScale*L.K*18.f<11.9f){Out.Add(FString::Printf(TEXT("table text %.1f px"),L.TableScale*L.K*18.f));}
     if(L.ShopWidth>0.f&&L.ShopScale*L.K*18.f<11.9f){Out.Add(FString::Printf(TEXT("shop text %.1f px"),L.ShopScale*L.K*18.f));}
@@ -995,11 +1015,12 @@ ULDWorkshop::FInfo ULDWorkshop::InfoOf(const FHit& Hit) const
         Out.Name=Stat.Name;Out.IconId=Stat.IconId;
         Out.Meta=Stat.bKeystone?FString::Printf(TEXT("%d 点 · 关键石已激活"),Stat.Points):FString::Printf(TEXT("%d 点 · 再投 %d 点激活关键石"),Stat.Points,FMath::Max(0,Ring.Keystone-Stat.Points));
         if(!Stats.IsValidIndex(Index)){return;}
-        Out.Body=LDHUD::StatRow(*Stats[Index],Stat.Points,Content).PerPoint;
-        // One more point: the orange gain of every attribute it raises.
+        // One more point: the orange gain of every attribute it raises (the catalog's per-point line says the same, so it
+        // stands in for it).
         TArray<FString> Gains;
         for(const LDHUD::FStatEffectView& Effect:LDHUD::StatEffects(*Stats[Index],Latest.Attributes)){Gains.Add(Effect.Attribute+TEXT(" ")+Effect.PerPoint);}
         Out.Gain=FString(TEXT("每点 "))+FString::Join(Gains,TEXT(" · "));
+        if(Gains.IsEmpty()){Out.Body=LDHUD::StatRow(*Stats[Index],Stat.Points,Content).PerPoint;}
     };
     switch(Hit.Kind)
     {

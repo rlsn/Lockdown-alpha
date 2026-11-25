@@ -191,6 +191,13 @@ bool FLDBuildRingLayoutTest::RunTest(const FString& Parameters)
         const FVector2D Local=Case.Pixels/Scale;
         const FVector2D Origin(-1000000.,-1000000.);
         const FGeometry Geometry=FGeometry::MakeRoot(Local,FSlateLayoutTransform(Scale,Origin));
+        // The HUD band (its 1080-unit place) and, in a rest, the two rest actions growing with the text size.
+        const auto Absolute=[&](float X,float Y){return Origin+FVector2D(X,Y)*Scale;};
+        {
+            const FVector2D Min=Absolute(467.f,950.f),Max=Absolute(1453.f,1062.f);
+            Input.Band=FSlateRect(Min.X,Min.Y,Max.X,Max.Y);
+        }
+        Input.Actions=bRest?FVector2D(360.f*Case.Text+40.f,66.f*Case.Text):FVector2D::ZeroVector;
         Ring->ApplyTextScale(Case.Text);
         for(int32 Tick=0;Tick<3;++Tick)
         {
