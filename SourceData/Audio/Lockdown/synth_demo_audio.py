@@ -842,6 +842,88 @@ for _name, _make, _seed in (("react_fog", r_fog, 3001), ("react_conduct", r_cond
     SOUNDS[_name] = ((lambda make: lambda seed: finish(low(make(seed), 9000, 4)))(_make), _seed)
 
 
+# ---------------------------------------------------------------- match events and own moments (street, not beeps)
+
+def spray(rng, seconds, rattle=True):
+    """A spray can: a bead rattle then a pressurised hiss."""
+    n = int(seconds * RATE)
+    t = np.arange(n) / RATE
+    hiss = band(noise(rng, seconds), 2500, 8000) * np.clip((t - 0.12) / 0.03, 0, 1) * np.exp(-np.clip(t - 0.4, 0, None) / 0.15)
+    clack = np.zeros(n)
+    if rattle:
+        for i in range(4):
+            start = int((0.02 + i * 0.028) * RATE)
+            hit = ring([2400 + 300 * i, 3900], 0.03, [0.008, 0.006], [0.6, 0.3])
+            clack[start:start + len(hit)] += hit[: n - start]
+    return clack + 0.7 * hiss
+
+
+def capture_opened(seed):  # the flagpole opening: a deep bell-iron hit and a rising crowd-less swell
+    rng = np.random.default_rng(seed)
+    n = int(1.2 * RATE)
+    t = np.arange(n) / RATE
+    bell = ring([196, 392, 588, 951], 1.2, [0.5, 0.35, 0.2, 0.12], [0.8, 0.5, 0.3, 0.2])
+    swell = sweep_band(noise(rng, 1.2), 400 + 1600 * np.clip(t / 0.8, 0, 1), q=1.5) * np.clip(t / 0.6, 0, 1) * np.exp(-np.clip(t - 0.8, 0, None) / 0.15)
+    return mix(1.2, (0, thud(80, 45, 0.4, 0.12), 0.8), (0, bell, 0.6), (0, swell, 0.35))
+
+
+def capture_started(seed):  # someone starts spraying the flag: a can rattle and a spray burst
+    rng = np.random.default_rng(seed)
+    return mix(0.7, (0, spray(rng, 0.7), 1.0))
+
+
+def capture_contested(seed):  # the flag contested: two tense low knocks and a broken spray
+    rng = np.random.default_rng(seed)
+    knock = lambda: thud(150, 80, 0.12, 0.03) + pad(click(rng, 0.004, 1500), int(0.12 * RATE))
+    hiss = band(noise(rng, 0.4), 2500, 7000) * (rng.random(int(0.4 * RATE)) < 0.5) * env_ad(int(0.4 * RATE), 0.01, 0.08)
+    return mix(0.6, (0, knock(), 1.0), (0.16, knock(), 0.9), (0.2, hiss, 0.4))
+
+
+def level_up(seed):  # growing stronger: a warm rising major chord swell with a light sparkle on top
+    rng = np.random.default_rng(seed)
+    n = int(0.9 * RATE)
+    t = np.arange(n) / RATE
+    chord = sum(np.sin(2 * np.pi * f * t * (1 + 0.04 * np.clip(t / 0.3, 0, 1))) * g for f, g in ((262, 0.6), (330, 0.45), (392, 0.4), (523, 0.3)))
+    chord *= np.clip(t / 0.18, 0, 1) * np.exp(-np.clip(t - 0.35, 0, None) / 0.2)
+    sparkle = crackle(rng, 0.9, 30, 120, 4000, 9000) * np.clip((t - 0.2) / 0.2, 0, 1) * np.exp(-np.clip(t - 0.4, 0, None) / 0.2)
+    return mix(0.95, (0, low(chord, 3000), 0.7), (0, sparkle, 0.25), (0, thud(110, 70, 0.15, 0.05), 0.4))
+
+
+def self_death(seed):  # going down: a heavy body drop and a falling low tone
+    rng = np.random.default_rng(seed)
+    n = int(0.9 * RATE)
+    t = np.arange(n) / RATE
+    fall = np.sin(2 * np.pi * np.cumsum(180 * np.exp(-t / 0.4) + 50) / RATE) * np.clip(t / 0.02, 0, 1) * np.exp(-t / 0.35)
+    return mix(0.95, (0, body(rng, 2.0), 0.9), (0, low(fall, 1200), 0.6), (0.05, cloth(rng, 0.3, 0.08), 0.4))
+
+
+def self_dash(seed):  # the innate dash: a fast low rush with a sneaker squeak
+    rng = np.random.default_rng(seed)
+    squeak = band(chirp(1800, 2600, 0.05, 1.0) + 0.2 * np.sign(chirp(1800, 2600, 0.05, 1.0)), 1500, 5000) * env_ad(int(0.05 * RATE), 0.003, 0.012)
+    return mix(0.36, (0, whoosh(rng, 0.32, 300, 1800, 0.03, 1.1, 0.07), 1.0), (0, squeak, 0.5))
+
+
+def perfect_dodge(seed):  # a perfect dodge: a clean air slip and a bright snap of timing
+    rng = np.random.default_rng(seed)
+    return mix(0.45, (0, whoosh(rng, 0.3, 1200, 4000, 0.02, 2.0, 0.05), 0.8), (0.03, ring([2800, 4200], 0.25, [0.06, 0.04], [0.4, 0.25]), 0.6))
+
+
+def medal_fuse(seed):  # two element medals fusing: a metallic clink pair and a rising shimmer
+    rng = np.random.default_rng(seed)
+    n = int(0.8 * RATE)
+    t = np.arange(n) / RATE
+    shimmer = sum(np.sin(2 * np.pi * f * t) for f in (1320, 1980, 2640)) * np.clip(t / 0.3, 0, 1) * np.exp(-np.clip(t - 0.3, 0, None) / 0.18)
+    return mix(0.85, (0, ring([1500, 2380], 0.25, [0.05, 0.03], [0.6, 0.3]), 0.8), (0.08, ring([1700, 2690], 0.25, [0.05, 0.03], [0.6, 0.3]), 0.8),
+               (0.1, shimmer, 0.15))
+
+
+for _name, _make, _seed in (("capture_opened", capture_opened, 4001), ("capture_started", capture_started, 4002),
+                            ("capture_contested", capture_contested, 4003), ("level_up", level_up, 4004),
+                            ("self_death", self_death, 4005), ("self_dash", self_dash, 4006),
+                            ("perfect_dodge", perfect_dodge, 4007), ("medal_fuse", medal_fuse, 4008)):
+    SOUNDS[_name] = ((lambda make: lambda seed: finish(low(make(seed), 9000, 4)))(_make), _seed)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--only", default="", help="write only the sounds whose name contains this text")

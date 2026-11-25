@@ -161,11 +161,11 @@ Kenney 的 Impact、Interface、RPG、Sci-Fi 全包（CC0）由用户决定采�
 | 投射物飞行与落点 | NOT STARTED | — | — |
 | 元素状态挂上（着火、湿身、带电、冰冷、腐烂） | IMPLEMENTED | `State*` 短促提示，状态从无到有时响一次，不做循环（避免混战堆积） | 未实机采集 |
 | 被动触发与强化普攻 | NOT STARTED | — | — |
-| 本人受击、护盾、破盾、闪避、招架、冲刺、拾取 | IMPLEMENTED | 既有 Kenney 线索 | 质量待按新方向复审 |
-| 死亡、复活、升级 | IMPLEMENTED | 既有 Kenney 线索 | 同上 |
-| 击杀播报、开旗、占领、争夺 | IMPLEMENTED | 既有 Kenney 线索 | 同上 |
+| 本人受击、护盾、破盾、闪避、招架、冲刺、拾取 | IMPLEMENTED | 受击、护盾、破盾（重击音提高到 1.35 倍音高）、招架、拾取沿用 Kenney；冲刺（低沉疾风与球鞋摩擦）与精准闪避（擦身风声与清脆一响）改为原创 | 未听感验收 |
+| 死亡、复活、升级 | IMPLEMENTED | 死亡（重重倒地与下坠低音）、升级（温暖上扬的和弦与细碎闪光）改为原创，替换廉价电子音；复活沿用 Kenney | 未听感验收 |
+| 击杀播报、开旗、占领、争夺 | IMPLEMENTED | 开旗（铁钟一击与上扬）、开始喷漆（喷漆罐摇珠与喷气，对应喷漆占点）、争夺（两下闷敲与断续喷气）改为原创；击杀播报沿用 Kenney 乐句；本人击杀另有 `SelfDealtKill` 重音 | 未听感验收 |
 | 开局、胜、负、无胜者 | IMPLEMENTED | `MatchStart`（开局休息后的第一段场地，中途加入不补放）；胜负为既有 Kenney 乐句 | 规则测试 `AudioFeelSync` 覆盖开局判定 |
-| 界面：悬停、点击、拒绝、构筑工坊全套 | IMPLEMENTED | 既有 Kenney 线索 | UI 样板（悬停/选择/确认/购买/拒绝/奖励）未做 |
+| 界面：悬停、点击、拒绝、构筑工坊全套 | IMPLEMENTED | Kenney Interface 线索：通用命令按钮悬停与按下、拒绝、发牌、选定、安装、获得（奖励）、加点、按住确认、终局锁定；元素石融合改为原创；游戏无商店，“购买”即构筑安装与选定，均在回执后播放 | 接线在 UI（Stream A）；声音质量待 Kenney 全包后复审 |
 | 菜单、大厅、设置、赛后 | IN PROGRESS | 点击、悬停共用；音乐已有 | — |
 | 环境氛围 | NOT STARTED | — | — |
 | 音乐 | IMPLEMENTED | 用户提供的三首 | — |
@@ -178,7 +178,7 @@ Kenney 的 Impact、Interface、RPG、Sci-Fi 全包（CC0）由用户决定采�
 | --- | --- | --- | --- |
 | 篮球手 Idle、跑、转身、运球 | IMPLEMENTED | `ULDBasketballMotionSet`（KB_ 系列，项目自有） | — |
 | 普攻三段连击 | IMPLEMENTED | `LDActionMotion`：第 1 段右手刺拳（KB_078，上身 0.42，胸口先右蓄后左转 16°）、第 2 段左手交叉（KB_079，上身 0.7，反向蓄力后右转 30° 并侧移 14 cm）、第 3 段终结（KB_152 跳投，静止时全身，重心上提再送出）；出手帧仍按 `LDBasketballMotion::SampleTime` 对齐权威命中 | 实机帧 `production/feel/motion-combo/`；转身与侧移只作用于网格与枢轴，胶囊、朝向与时序不变；未经用户验收 |
-| 技能施法动作家族 | IMPLEMENTED | 按技能语义分四族：单手投掷（甩鞋、外卖、电、肘、封条、夹子、扒裤子；传球片段）、双手定点（区域、吼叫、喷水、风扇、可乐；罚球）、全身重砸（板砖、书包、蛮牛、乱拳；跳投）、架势（锅盖、顶着揍、拧手腕、左右开抽、挑衅、补一拳；运球架势）；移动中只驱动上身 | 规则测试 `ActionMotionFamilies`；实机帧 `production/feel/motion-skill-families/`：四族可区分，但 VFX 旧的施法圆盘在施法期间遮住身体，要等 VFX 重做施法后再判断；未经用户验收 |
+| 技能施法动作家族 | IMPLEMENTED | 按技能语义分四族：单手投掷（甩鞋、外卖、电、肘、封条、夹子、扒裤子；传球片段）、双手定点（区域、吼叫、喷水、风扇、可乐；罚球）、全身重砸（板砖、书包、蛮牛、乱拳；跳投）、架势（锅盖、顶着揍、拧手腕、左右开抽、挑衅、补一拳；运球架势）；移动中只驱动上身 | 规则测试 `ActionMotionFamilies`；实机帧 `production/feel/motion-skill-families/`：投掷、双手定点、重砸从俯视角清楚可分；架势族动作幅度太小，自增益技能不易读；未经用户验收 |
 | 受击、死亡、出生 | IMPLEMENTED | Quaternius CC0 重定向 | 受击无方向与轻重之分 |
 | NPC 动作 | IMPLEMENTED | Quaternius CC0 片段 | — |
 | 受击反应 | 按决定关闭（[#286](https://github.com/rlsn/Lockdown-alpha/issues/286)） | 普通命中无受击动作，见 §6；击退时的后仰与 Hit 片段保留 | — |
@@ -187,9 +187,9 @@ Kenney 的 Impact、Interface、RPG、Sci-Fi 全包（CC0）由用户决定采�
 
 | 项 | 状态 | 实现 | 证据 / 已知问题 |
 | --- | --- | --- | --- |
-| 本人命中停顿（普通/暴击/击杀/破盾） | IMPLEMENTED | `ld.Feel.*HitStopMs` | 起点值，非批准值 |
-| 推镜 | IMPLEMENTED | `ld.Feel.KickCm/KickMs`，设置可关 | 同上 |
-| 屏幕边缘闪光与色散 | IMPLEMENTED | `LDHitVfx::ScreenFlashOf`，降低特效时关闭 | 同上 |
+| 本人命中停顿（普通/暴击/击杀/破盾） | IMPLEMENTED | `ld.Feel.*HitStopMs`（60/100/160/90 ms），只停本人出手姿态，不停输入、移动与权威时间；样板中已被用户接受 | 数值是起点值，未正式批准 |
+| 推镜 | IMPLEMENTED | `ld.Feel.KickCm/KickMs`（6 cm、120 ms，击杀 2 倍），设置“镜头震动”可关，“降低战斗特效”减到 45 %；受击方从不推镜（#286） | 起点值 |
+| 屏幕边缘闪光与色散 | IMPLEMENTED | 只在击杀、暴击、破盾时出现（`LDHitVfx::ScreenFlashOf`）；本人受击只有很淡的红边；降低特效时关闭 | 起点值 |
 
 ## 8. 检查入口
 
