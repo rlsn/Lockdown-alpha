@@ -363,30 +363,30 @@
 | --- | --- | --- | --- | --- | --- |
 | `active_zap` 电你个哆嗦 | 电 · 单体链 | USER APPROVED（链） | `NS_LDChain`（§2.1）；前摇 `NS_LDZapCharge` 手部蓄电（IMPLEMENTED） | `vfx/approved/chain*`；`production/vfx/batch1-selfmade/water/zap-charge` | 蓄电在游戏镜头下几乎看不见 |
 | `active_hose_down` 滋你一脸 | 水 · 直线 600×160 | IMPLEMENTED | `NS_LDHoseTell` 地面水带预兆、`NS_LDHoseJet` 水柱、`NS_LDWaterHit` 命中；贴图 `water_*` | `production/vfx/batch1-selfmade/water/` | 预兆边界清楚；水柱读成蓝色激光、湿地像污渍，质感不足，等素材候选 |
-| `active_elbow` 滚远点 | 无 · 单体击退 | NOT STARTED | 旧：粒子包 | — | |
-| `active_pants_down` 扒裤子 | 无 · 直线拉拽 + 定身 | NOT STARTED | 旧：粒子包 | — | |
-| `active_crotch_grab` 掏蛋子 | 无 · 冲刺接触 + 减速 | NOT STARTED | 旧：冲刺粒子带 | — | |
-| `active_unplug` 拧你手腕 | 无 · 招架架势 280 | NOT STARTED | 旧：粒子包 | — | |
-| `active_snark_bolt` 甩你一鞋 | 无 · 投射物 + 落地拖鞋 | NOT STARTED | 旧：粒子带；落地 `SlipperDrop` | — | |
+| `active_elbow` 滚远点 | 无 · 单体击退 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；专属效果无 | — | 专属释放与命中未设计 |
+| `active_pants_down` 扒裤子 | 无 · 直线拉拽 + 定身 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；专属效果无 | — | 专属释放与命中未设计 |
+| `active_crotch_grab` 掏蛋子 | 无 · 冲刺接触 + 减速 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；冲刺拖尾仍为旧粒子带 | — | 专属释放与命中未设计 |
+| `active_unplug` 拧你手腕 | 无 · 招架架势 280 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；专属效果无 | — | 专属释放与命中未设计 |
+| `active_snark_bolt` 甩你一鞋 | 无 · 投射物 + 落地拖鞋 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：粒子带；落地 `SlipperDrop` | — | 专属释放与命中未设计 |
 | `active_seethe` 烫你屁股 | 火 · 自身圆 300 | LOCALLY VERIFIED | `NS_LDSeetheTell`、`NS_LDSeetheBurst`、`NS_LDFireHit`；贴图 `fire_*` | `production/vfx/batch2/fire/` | 焦地随区域软边；用户未验收 |
-| `active_quick_meeting` 脚底开锅 | 火 · 地点圆 240，3 跳 | NOT STARTED | 旧：区域粒子（AreaFire） | — | |
-| `active_bail_out` 贴脸补一拳 | 无 · 冲刺 + 强化普攻 | NOT STARTED | 旧：冲刺粒子带 | — | |
-| `active_not_mad` 锅盖挡脸 | 无 · 自身护盾 + 解控 | NOT STARTED | 旧：护盾几何笼 | — | |
-| `active_stare_down` 来打老子啊 | 无 · 自身圆 300 嘲讽 | NOT STARTED | 旧：粒子包 | — | |
-| `active_triple_combo` 左右开抽 | 无 · 3 次强化普攻 | NOT STARTED | 旧：粒子包 | — | |
-| `active_calculus_drop` 板砖糊脸 | 无 · 地点延迟落地 200 | NOT STARTED | 旧：`BookShadow` 粒子 | — | |
-| `active_flyer_trap` 踩一脚试试 | 无 · 地点陷阱 180 | NOT STARTED | 旧：`FlyerArming/Armed` 粒子 | — | |
-| `active_open_mic` 扯嗓子喷你 | 无 · 自身圆 340 击退 | NOT STARTED | 旧：`SpeechCone` 粒子 | — | |
-| `active_charged_ram` 蛮牛顶 | 无 · 冲刺撞人 + 护盾 | NOT STARTED | 旧：冲刺粒子带 | — | |
-| `active_brace` 顶着揍 | 无 · 架势 3 s | NOT STARTED | 无 | — | |
+| `active_quick_meeting` 脚底开锅 | 火 · 地点圆 240，3 跳 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：区域粒子（AreaFire） | — | 专属释放与命中未设计 |
+| `active_bail_out` 贴脸补一拳 | 无 · 冲刺 + 强化普攻 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；冲刺拖尾仍为旧粒子带 | — | 专属释放与命中未设计 |
+| `active_not_mad` 锅盖挡脸 | 无 · 自身护盾 + 解控 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；护盾仍为旧几何笼 | — | 专属释放与命中未设计 |
+| `active_stare_down` 来打老子啊 | 无 · 自身圆 300 嘲讽 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；专属效果无 | — | 专属释放与命中未设计 |
+| `active_triple_combo` 左右开抽 | 无 · 3 次强化普攻 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；专属效果无 | — | 专属释放与命中未设计 |
+| `active_calculus_drop` 板砖糊脸 | 无 · 地点延迟落地 200 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：`BookShadow` 粒子 | — | 专属释放与命中未设计 |
+| `active_flyer_trap` 踩一脚试试 | 无 · 地点陷阱 180 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：`FlyerArming/Armed` 粒子 | — | 专属释放与命中未设计 |
+| `active_open_mic` 扯嗓子喷你 | 无 · 自身圆 340 击退 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：`SpeechCone` 粒子 | — | 专属释放与命中未设计 |
+| `active_charged_ram` 蛮牛顶 | 无 · 冲刺撞人 + 护盾 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；冲刺拖尾仍为旧粒子带 | — | 专属释放与命中未设计 |
+| `active_brace` 顶着揍 | 无 · 架势 3 s | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；专属效果无 | — | 专属释放与命中未设计 |
 | `active_cola_shake` 冰可乐摇一摇 | 冰 · 扇形 400/60° | LOCALLY VERIFIED | `NS_LDColaTell`、`NS_LDColaBlast`、命中 `NS_LDChillHit`；贴图 `ice_*` | `production/vfx/batch2/chill/` | 喷射本身偏淡；用户未验收 |
-| `active_desk_fan` 电风扇 | 无 · 地点风带 600×200 | NOT STARTED | 旧：`Wind` 粒子 | — | |
-| `active_stale_takeout` 过期外卖 | 腐 · 投射物 + 瘴气地面 | NOT STARTED | 旧：粒子带 | — | |
-| `active_school_bag` 占座书包 | 无 · 地点障碍 | NOT STARTED | 旧：`Bag`、`BagWall` | — | |
-| `active_flurry_rush` 疯狗乱拳 | 无 · 4 s 拳风波 | NOT STARTED | 旧：`FistWind` 粒子 | — | |
-| `active_cordon_tape` 警戒封条 | 无 · 地点封条线 500 | NOT STARTED | 旧：`CordonTape` | — | |
-| 技能前摇（通用部分） | Cast 提示前摇 | IN PROGRESS | 粉笔线已删除；前摇随各技能设计（水带、火圈、冰扇） | — | 其余技能仍无前摇 |
-| 施法手蓄能 | Cast 提示前摇 | NOT STARTED | 旧：`CastCharge` 蓝色粒子 | — | |
+| `active_desk_fan` 电风扇 | 无 · 地点风带 600×200 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：`Wind` 粒子 | — | 专属释放与命中未设计 |
+| `active_stale_takeout` 过期外卖 | 腐 · 投射物 + 瘴气地面 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：粒子带 | — | 专属释放与命中未设计 |
+| `active_school_bag` 占座书包 | 无 · 地点障碍 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：`Bag`、`BagWall` | — | 专属释放与命中未设计 |
+| `active_flurry_rush` 疯狗乱拳 | 无 · 4 s 拳风波 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：`FistWind` 粒子 | — | 专属释放与命中未设计 |
+| `active_cordon_tape` 警戒封条 | 无 · 地点封条线 500 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：`CordonTape` | — | 专属释放与命中未设计 |
+| 技能前摇（通用部分） | Cast 提示前摇 | IMPLEMENTED | 没有专属前摇的技能按目标分两族：`NS_LDCastAim`（施法手低亮度聚能 + 地面朝前的细线）、`NS_LDCastBrace`（脚下向内收的细环，中心留空）；旧施法圆盘 `NS_LDCastCharge` 已删除 | `production/vfx/batch4/casts-*` | 用户未验收 |
+| 施法手蓄能 | Cast 提示前摇 | IMPLEMENTED | 旧的盖住身体的同心圆盘已撤除，由上一行的两族前摇代替 | `production/vfx/batch4/casts-*` | |
 
 ### 7.3 元素状态（附着在身上）
 
@@ -479,7 +479,7 @@
 | 项 | 事件 | 状态 | 实现 | 证据 | 已知问题 |
 | --- | --- | --- | --- | --- | --- |
 | 元素命中（火、水、电、魔法） | 命中外观 | IN PROGRESS | 水 `NS_LDWaterHit`、火 `NS_LDFireHit`、冰可乐的魔法命中 `NS_LDChillHit`（按匹配到的施法技能路由）；其余魔法命中仍是旧星形 + 法阵层（`ForHit`），未重做 | — | 电命中只在链内批准；其余魔法技能（板砖、扯嗓子、外卖等）的命中待各自设计 |
-| 阵亡 | 阵亡通知 | NOT STARTED | 旧：地裂 + 双环 | — | |
+| 阵亡 | 阵亡通知 | LOCALLY VERIFIED | `NS_LDKnockout`：胸口一下亮、地面一圈暖白冲击环滚出、扬尘、留下 2 s 渐淡的擦痕；不绑定倒下的身体；旧地裂 + 双环已删除 | `production/vfx/batch4/kill-*` | 用户未验收 |
 | 升级 | 单位 Level 增加 | NOT STARTED | 无世界表现 | — | |
 | 自身脚下标记 | 本人身体 | NOT STARTED | `ALDOwnBodyMarker` | — | 在共享文件 `LDWorldViewRelay` |
 | 旗杆圈与占领 | 占领圈与进度 | NOT STARTED | `LDCaptureMarker`、`LDCaptureFence` | — | |

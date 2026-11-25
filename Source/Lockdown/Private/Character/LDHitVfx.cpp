@@ -16,7 +16,6 @@ namespace LDHitVfxDetail
     const FLinearColor WaterGlow(.25f, 1.4f, 3.5f), WaterInk(.02f, .3f, .75f);
     const FLinearColor BoltGlow(3.f, 3.f, 1.2f), BoltInk(.6f, .6f, .15f);
     const FLinearColor MagicGlow(2.2f, .6f, 3.8f), MagicInk(.6f, .1f, 1.f);
-    const FLinearColor KillGlow(5.f, .7f, .25f), CrackInk(.012f, .008f, .006f), CrackGlow(3.5f, .8f, .12f);
 
     FLayer Make(EMask Mask, EPlace Place, float SizeCm, float Seconds, const FLinearColor& Glow, const FLinearColor& Ink,
         float FromScale = 1.f, float ToScale = 1.f, float PeakAt = .2f)
@@ -391,6 +390,9 @@ const TCHAR* LDSliceVfx::SystemName(ESystem System)
     case ESystem::IceGround: return TEXT("NS_LDIceGround");
     case ESystem::FireGround: return TEXT("NS_LDFireGround");
     case ESystem::MiasmaGround: return TEXT("NS_LDMiasmaGround");
+    case ESystem::Knockout: return TEXT("NS_LDKnockout");
+    case ESystem::CastAim: return TEXT("NS_LDCastAim");
+    case ESystem::CastBrace: return TEXT("NS_LDCastBrace");
     default: return TEXT("");
     }
 }
@@ -534,22 +536,6 @@ LDHitVfx::FRecipe LDHitVfx::ForHit(ELDObservedHitLook Look, uint8 HitFlags, floa
     }
     default: break;
     }
-    Thin(Recipe, EffectScale);
-    Tune(Recipe, Tuning);
-    return Recipe;
-}
-
-LDHitVfx::FRecipe LDHitVfx::ForKill(float EffectScale, const FLayerTuning& Tuning)
-{
-    using namespace LDHitVfxDetail;
-    FRecipe Recipe;
-    if (!FMath::IsFinite(EffectScale) || EffectScale <= 0.f) { return Recipe; }
-    Recipe.Layers.Add(Make(EMask::Crack, EPlace::Ground, 260.f, 2.f, CrackGlow, CrackInk, .85f, 1.f, .05f));
-    Recipe.Layers.Add(Make(EMask::Ring, EPlace::Ground, 260.f, .4f, KillGlow, WarmInk, .25f, 1.f, .08f));
-    FLayer Echo = Make(EMask::Ring, EPlace::Ground, 360.f, .45f, KillGlow * .6f, WarmInk, .25f, 1.f, .08f);
-    Echo.DelaySeconds = .09f;
-    Echo.bOptional = true;
-    Recipe.Layers.Add(Echo);
     Thin(Recipe, EffectScale);
     Tune(Recipe, Tuning);
     return Recipe;
@@ -714,10 +700,6 @@ LDHitVfx::FBurst LDHitVfx::BurstOf(EBurst Kind, const FLinearColor& Tint, float 
         B.CoreColour = Hot(OverdriveTint(), 2.4f, .7f);
         B.SmokeColour = FLinearColor(.35f, .04f, .25f, .6f);
         B.ShardColour = FLinearColor(.3f, .05f, .22f, 1.f);
-        break;
-    case EBurst::Kill:
-        B.Sparks = 28; B.Smoke = 14; B.Shards = 14; B.Speed = 1.4f; B.Scale = 1.7f; B.Life = 1.3f; B.Gravity = FVector(0, 0, -1200);
-        B.SmokeColour = FLinearColor(.1f, .07f, .06f, .65f);
         break;
     default: return FBurst();
     }

@@ -259,11 +259,9 @@ void ULDHumanoidVisualComponent::ClearImpacts()
     PendingImpacts.Reset();
     UWorld* World = GetWorld();
     if (auto* Impacts = World ? World->GetSubsystem<ULDImpactFxSubsystem>() : nullptr) { Impacts->ClearFor(*this); }
-    if (IsValid(CastCharge)) { CastCharge->DeactivateImmediate(); }
     if (IsValid(DashTrail)) { DashTrail->DeactivateImmediate(); }
     if (IsValid(ChargeColumn)) { ChargeColumn->DeactivateImmediate(); }
     bTelegraphShown = false;
-    bCastEmitting = false;
     bDashing = false;
     bChargeShown = false;
     bChargeReady = false;
@@ -281,8 +279,8 @@ namespace LDHumanoidVisualSlice
     // The skills with a designed presentation (LDSliceVfx); every other cast keeps its charge and release burst.
     bool IsSliceCast(uint8 Ability)
     {
-        return Ability == uint8(ELDDemoAbilityId::ActiveHoseDown) || Ability == uint8(ELDDemoAbilityId::ActiveZap)
-            || Ability == uint8(ELDDemoAbilityId::ActiveSeethe) || Ability == uint8(ELDDemoAbilityId::ActiveColaShake);
+        // Every skill's windup and release now go through the designed slice path (its own effect or a family windup).
+        return Ability != 0;
     }
 }
 
@@ -350,6 +348,19 @@ void ULDHumanoidVisualComponent::UpdateSlice(float EffectScale)
                 bTelegraphShown |= Radius > 0.f && Impacts->Play(LDSliceVfx::ESystem::SeetheTell, *this, Floor, Floor,
                     LDSliceVfx::ElementInk(uint8(ELDCombatElement::Fire)), Radius, ActionImpactSeconds, Look, Age, true) != nullptr;
             }
+            else if (Mesh && CastAbility != uint8(ELDDemoAbilityId::ActiveZap))
+            {
+                // A skill without a windup of its own: its family's (a self-centred one at the feet, a directed one at the hand
+                // pointing along the facing), in the element's ink or, for a skill without an element, the strike's.
+                const LDHitVfx::FSkillLook* Skill = LDHitVfx::SkillLookOf(CastAbility);
+                const FLinearColor Tint = Skill && Impacts->IsElementalSkill(CastAbility) ? Skill->Tint : LDSliceVfx::StrikeTint(Look);
+                const FVector Floor = Impacts->FloorUnder(Feet);
+                const FVector Ahead = FVector(Facing.X, Facing.Y, 0.).GetSafeNormal();
+                bTelegraphShown |= (Impacts->IsSelfSkill(CastAbility)
+                    ? Impacts->Play(LDSliceVfx::ESystem::CastBrace, *this, Floor, Floor, Tint, 95.f, ActionImpactSeconds, Look, Age, true)
+                    : Impacts->Play(LDSliceVfx::ESystem::CastAim, *this, Mesh->GetSocketLocation(Art->HandBone), Floor + Ahead * 40.f, Tint, 40.f,
+                        ActionImpactSeconds, Look, Age, true)) != nullptr;
+            }
             else if (Mesh)
             {
                 // A unit-targeted chain: its target is never public, so only the casting hand charges.
@@ -413,62 +424,6 @@ void ULDHumanoidVisualComponent::UpdateStates(bool bFalling, float EffectScale)
     }
 }
 
-void ULDHumanoidVisualComponent::UpdateCastCharge(float Charge, float EffectScale)
-{
-    const LDHitFeel::FTuning Tuning = LDHitFeel::Read();
-    const bool bWindow = FApp::CanEverRender() && CanShowImpact() && Art
-        && Action == LDBodyMotion::EAction::Cast && Charge > .02f && EffectScale > 0.f
-        && Tuning.CastScale > 0.f && Tuning.CastGlow > 0.f && (bOverdriveCast || !LDHumanoidVisualSlice::IsSliceCast(CastAbility));
-    if (!bWindow)
-    {
-        if (bCastEmitting && IsValid(CastCharge)) { CastCharge->Deactivate(); }
-        bCastEmitting = false;
-        return;
-    }
-    const UWorld* World = GetWorld();
-    const ULDImpactFxSubsystem* Effects = World ? World->GetSubsystem<ULDImpactFxSubsystem>() : nullptr;
-    const ULDCombatVfxCatalog* Catalog = Effects ? Effects->GetCatalog() : nullptr;
-    if (!Catalog || !Catalog->CastCharge) { return; }
-    if (!IsValid(CastCharge))
-    {
-        CastCharge = NewObject<UNiagaraComponent>(GetOwner(), NAME_None, RF_Transient);
-        if (!CastCharge)
-        {
-            UE_LOG(LogLDContent, Warning, TEXT("LD_CAST_FX spawn=failed"));
-            return;
-        }
-        CastCharge->SetAutoActivate(false);
-        CastCharge->SetAsset(Catalog->CastCharge);
-        // The hand bone can carry import scale; Niagara sizes are authored in world centimeters.
-        CastCharge->SetAbsolute(false, false, true);
-        CastCharge->SetupAttachment(Mesh, Art->HandBone);
-        CastCharge->RegisterComponent();
-    }
-    else if (CastCharge->GetAttachSocketName() != Art->HandBone)
-    {
-        CastCharge->DeactivateImmediate();
-        CastCharge->AttachToComponent(Mesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, Art->HandBone);
-        bCastEmitting = false;
-    }
-
-    const float Strength = FMath::Clamp(Charge, 0.f, 1.f);
-    const float Thin = FMath::Clamp(EffectScale, 0.f, 1.f);
-    const bool bStart = !bCastEmitting || ActionOnset != CastActionOnset;
-    if (bStart && bCastEmitting) { CastCharge->DeactivateImmediate(); }
-    const LDHitVfx::FSkillLook* Skill = LDHitVfx::SkillLookOf(CastAbility);
-    FLinearColor Colour = (Skill ? Skill->Tint : Catalog->CastTint) * Tuning.CastGlow;
-    Colour.A = Catalog->CastTint.A * Strength * Thin;
-    CastCharge->SetVariableFloat(TEXT("User.Scale"), Tuning.CastScale * (.25f + .75f * Strength) * FMath::Sqrt(Thin));
-    CastCharge->SetVariableFloat(TEXT("User.SparkRate"), Tuning.CastSparksPerSecond * Strength * Thin);
-    CastCharge->SetVariableLinearColor(TEXT("User.Colour"), Colour);
-    if (bStart)
-    {
-        CastActionOnset = ActionOnset;
-        bCastEmitting = true;
-        CastCharge->Activate(true);
-    }
-}
-
 void ULDHumanoidVisualComponent::UpdateRelease(float EffectScale)
 {
     // Once per cast, when its timeline reaches the release: the skill's own burst at the casting hand (an aura or a
@@ -506,7 +461,7 @@ void ULDHumanoidVisualComponent::UpdateRelease(float EffectScale)
             Impacts->Play(LDSliceVfx::ESystem::HoseJet, *this, Floor, Floor + Ahead * Range, LDSliceVfx::ElementInk(uint8(ELDCombatElement::Water)),
                 HalfWidth, 1.4f * Look.Seconds, Look, Late);
         }
-        Impacts->NoteStrike(*this, LDSliceVfx::EStrike::Hose, At, Facing, bOwnBody);
+        Impacts->NoteStrike(*this, LDSliceVfx::EStrike::Hose, At, Facing, bOwnBody, CastAbility);
     }
     else if (CastAbility == uint8(ELDDemoAbilityId::ActiveColaShake) && !bOverdriveCast)
     {
@@ -538,11 +493,12 @@ void ULDHumanoidVisualComponent::UpdateRelease(float EffectScale)
     {
         // Release: the spark at the hand; each hit of the chain draws its arc from here or the previous body struck.
         Impacts->Slice(this, LDSliceVfx::ZapRelease(At, Look), Late);
-        Impacts->NoteStrike(*this, LDSliceVfx::EStrike::Zap, At, Facing, bOwnBody);
+        Impacts->NoteStrike(*this, LDSliceVfx::EStrike::Zap, At, Facing, bOwnBody, CastAbility);
     }
     else
     {
-        Impacts->Kit(At, LDHitVfx::BurstOf(Skill->Release, Skill->Tint, EffectScale), this);
+        // No release burst: the old particle-kit burst over the caster is retired; the motion, the hits and the skill's own
+        // effects (its flight, zone or shield) carry the release.
         Impacts->NoteStrike(*this, LDSliceVfx::EStrike::Skill, At, Facing, bOwnBody, CastAbility);
     }
 }
@@ -1096,11 +1052,19 @@ bool ULDHumanoidVisualComponent::ShowSkillHit(const FPendingImpact& Impact, cons
     const float Age = float(Clock - Impact.Onset);
     const ULDImpactFxSubsystem::FStrikeMatch Match = Impacts->MatchHit(*this, Chest, Impact.Look, Age);
     HitAbility = Match.Ability;
-    if (Match.Ability != uint8(ELDDemoAbilityId::ActiveColaShake)) { return false; }
     if (Match.bOwn) { OwnStrikeAt = Clock; }
     const LDSliceVfx::FLook Look = Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, Match.bOwn, bOwnBody || Match.bOwn);
-    Impacts->Play(LDSliceVfx::ESystem::ChillHit, *this, Match.From.ContainsNaN() ? Chest - Match.Dir * 100.f : Match.From, Chest,
-        LDSliceVfx::ElementInk(uint8(ELDCombatElement::Chill)), 70.f * Look.Size, 1.2f * Look.Seconds, Look, Age);
+    const FVector Dir = !Match.Dir.IsNearlyZero() ? Match.Dir : (GetOwner() ? -GetOwner()->GetActorForwardVector() : FVector::ForwardVector);
+    const FVector From = Match.From.ContainsNaN() ? Chest - Dir * 100.f : Match.From;
+    if (Match.Ability == uint8(ELDDemoAbilityId::ActiveColaShake))
+    {
+        Impacts->Play(LDSliceVfx::ESystem::ChillHit, *this, From, Chest, LDSliceVfx::ElementInk(uint8(ELDCombatElement::Chill)), 70.f * Look.Size,
+            1.2f * Look.Seconds, Look, Age);
+        return true;
+    }
+    // Every other plain magic hit: the heavier Niagara hit in the strike's ink until its skill has a hit of its own (the old
+    // magenta star and sigil layers are retired).
+    Impacts->Hit(*this, Chest - Dir * 100.f, Chest, true, Look, Age);
     return true;
 }
 
@@ -1126,11 +1090,14 @@ bool ULDHumanoidVisualComponent::ShowSliceImpact(const FPendingImpact& Impact, c
             70.f * Look.Size, .9f * Look.Seconds, Look, Age);
         return false;
     }
-    Impacts->Slice(this, LDSliceVfx::Impact(Strike, Chest, Feet, Dir, Match.From, Match.bChained, Look), Age);
+    // A plain hit of a physical skill (its look is None) shows the heavier Niagara Hit, not the old skill burst; the return
+    // value still names only a combo finisher.
+    const LDSliceVfx::EStrike Visual = Strike == LDSliceVfx::EStrike::Skill && Impact.Look == ELDObservedHitLook::None ? LDSliceVfx::EStrike::Finisher : Strike;
+    Impacts->Slice(this, LDSliceVfx::Impact(Visual, Chest, Feet, Dir, Match.From, Match.bChained, Look), Age);
     // A basic or finisher hit: the Niagara Hit along the strike, and in the local player's own fight a brief rim on the body.
-    if (Strike == LDSliceVfx::EStrike::Basic || Strike == LDSliceVfx::EStrike::Finisher)
+    if (Visual == LDSliceVfx::EStrike::Basic || Visual == LDSliceVfx::EStrike::Finisher)
     {
-        const bool bFinisher = Strike == LDSliceVfx::EStrike::Finisher;
+        const bool bFinisher = Visual == LDSliceVfx::EStrike::Finisher;
         Impacts->Hit(*this, Chest - Dir * 100.f, Chest, bFinisher, Look, Age);
         if (Look.bFocus && Mesh && Age < .1f && Look.EffectScale > 0.f)
         {
@@ -1171,7 +1138,7 @@ bool ULDHumanoidVisualComponent::ShowSliceImpact(const FPendingImpact& Impact, c
 void ULDHumanoidVisualComponent::PlayFall()
 {
     ClearImpacts();
-    // A visible fall cracks the ground under it; the crack plays out on its own while the body sinks.
+    // A visible fall knocks a ring of dust out over the floor and leaves a scuff; it plays out on its own while the body sinks.
     UWorld* World = GetWorld();
     if (auto* Impacts = World && FallAt < 0 ? World->GetSubsystem<ULDImpactFxSubsystem>() : nullptr)
     {
@@ -1179,10 +1146,11 @@ void ULDHumanoidVisualComponent::PlayFall()
         const ALDPlayerController* LocalController = Cast<ALDPlayerController>(Viewer);
         const float EffectScale = LocalController && LocalController->Controls && LocalController->Controls->bReduceCombatEffects ? .45f : 1.f;
         const FTransform& Space = GetComponentTransform();
-        Impacts->Layers(nullptr, Space.TransformPosition(FVector(0, 0, .5f * HeightCm - HalfHeight)),
-            Space.TransformPosition(FVector(0, 0, -HalfHeight)), LDHitVfx::ForKill(EffectScale, Impacts->LayerTuning()), 0.f);
-        Impacts->Kit(Space.TransformPosition(FVector(0, 0, .3f * HeightCm - HalfHeight)),
-            LDHitVfx::BurstOf(LDHitVfx::EBurst::Kill, FLinearColor(1.f, .25f, .08f), EffectScale));
+        LDSliceVfx::FLook Look = Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, bOwnBody, true);
+        Look.EffectScale = FMath::Min(Look.EffectScale, EffectScale);
+        const FVector Floor = Impacts->FloorUnder(Space.TransformPosition(FVector(0, 0, -HalfHeight)));
+        Impacts->PlayFree(LDSliceVfx::ESystem::Knockout, Floor, Space.TransformPosition(FVector(0, 0, .5f * HeightCm - HalfHeight)),
+            FLinearColor(1.f, .95f, .88f), 70.f, 2.2f, Look);
     }
     FallAt = Clock;
     Action = LDBodyMotion::EAction::None;
@@ -1351,7 +1319,6 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
     PlayClip(bFalling, bRooted || bFalling ? 0.f : float(Velocity.Size2D()));
     UpdateSlice(EffectScale);
     UpdateStates(bFalling, EffectScale);
-    UpdateCastCharge(Shown.Charge, EffectScale);
     UpdateRelease(EffectScale);
     UpdateDash(Velocity, bFalling, EffectScale);
     UpdateOverdrive(EffectScale);

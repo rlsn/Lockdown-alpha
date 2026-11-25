@@ -79,11 +79,14 @@ namespace LDSliceVfx
     //                Width the body's radius, Intensity its strength (stacks), Duration effectively unbounded
     //   PuddleGround..MiasmaGround  a public ground state, looping: Start its floor centre, Width its radius, Intensity its
     //                strength (fading with its life), Focus 1 when the local player laid it
+    //   Knockout     a visible body's fall: Start the floor under it, End its chest, Duration the scuff's life
+    //   CastAim      the windup of a directed skill without its own: Start the casting hand, End the floor a step ahead
+    //   CastBrace    the windup of a self-centred skill without its own: Start the floor under the feet
     enum class ESystem : uint8
     {
         Chain, HitBasic, HitFinisher, Swing1, Swing2, Swing3, Field, Tell1, Tell2, Tell3,
         HoseTell, HoseJet, WaterHit, ZapCharge, SeetheTell, SeetheBurst, FireHit, ColaTell, ColaBlast, ChillHit,
-        BurnState, WetState, ShockState, ChillState, RotState, PuddleGround, IceGround, FireGround, MiasmaGround, Count
+        BurnState, WetState, ShockState, ChillState, RotState, PuddleGround, IceGround, FireGround, MiasmaGround, Knockout, CastAim, CastBrace, Count
     };
     LOCKDOWN_API const TCHAR* SystemName(ESystem System);
     LOCKDOWN_API FString SystemPackage(ESystem System);
@@ -249,8 +252,6 @@ namespace LDHitVfx
     // hit replaces the star with a large magenta cross and adds its own wide ring and spinning ground sigil.
     // Reduced effects drop the optional layers and dim the rest; no layer that tells the tier or the look is removed.
     LOCKDOWN_API FRecipe ForHit(ELDObservedHitLook Look, uint8 HitFlags, float EffectScale, const FLayerTuning& Tuning = FLayerTuning());
-    // A visible body's fall: a glowing ground crack that stays two seconds and a double shock ring.
-    LOCKDOWN_API FRecipe ForKill(float EffectScale, const FLayerTuning& Tuning = FLayerTuning());
     // Ground dust shock-ring at dash launch and golden flare ring on PerfectDodge (#335 §3.1).
     LOCKDOWN_API FRecipe ForDashStart(const FLinearColor& Tint, float EffectScale, const FLayerTuning& Tuning = FLayerTuning());
     LOCKDOWN_API FRecipe ForPerfectDodge(float EffectScale, const FLayerTuning& Tuning = FLayerTuning());
@@ -286,7 +287,7 @@ namespace LDHitVfx
     // Particle kit (Niagara NS_LDBurst, its user parameters): one burst of velocity-stretched sparks with a settable
     // gravity and drag (rising embers, falling droplets, hanging motes, fast arcs), soft smoke, a core flash and mesh
     // shards. Every skill release, element hit, landing, muzzle, dash and fall picks a preset tinted by its source.
-    enum class EBurst : uint8 { Strike, Muzzle, Flame, Splash, Zap, Frost, Rot, Gust, Arcane, Dash, Aura, Slam, Kill, Overdrive, Count };
+    enum class EBurst : uint8 { Strike, Muzzle, Flame, Splash, Zap, Frost, Rot, Gust, Arcane, Dash, Aura, Slam, Overdrive, Count };
     struct FBurst
     {
         int32 Sparks = 0, Smoke = 0, Shards = 0;

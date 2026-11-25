@@ -364,14 +364,14 @@ bool FLDBodyMotionHitLayersTest::RunTest(const FString& Parameters)
     using namespace LDHitVfx;
     auto Has=[](const FRecipe& Recipe, EMask Mask, EPlace Place)
     { return Recipe.Layers.ContainsByPredicate([Mask,Place](const FLayer& Layer){ return Layer.Mask==Mask && Layer.Place==Place; }); };
-    // Unflagged plain, water and electric hits are the slice's (LDSliceVfx::Impact): no hit layers here.
+    // Unflagged plain, water, electric and fire hits are the slice's (LDSliceVfx::Impact): no hit layers here.
     TestTrue(TEXT("The slice's hits have no hit layers; every other hit keeps them"),
         ForHit(ELDObservedHitLook::None,0,1.f).Layers.IsEmpty() && ForHit(ELDObservedHitLook::Water,0,1.f).Layers.IsEmpty()
-        && ForHit(ELDObservedHitLook::Electric,0,1.f).Layers.IsEmpty() && !ForHit(ELDObservedHitLook::None,LDObservation::Critical,1.f).Layers.IsEmpty()
-        && !ForHit(ELDObservedHitLook::Fire,0,1.f).Layers.IsEmpty());
-    const FRecipe Plain=ForHit(ELDObservedHitLook::Fire,0,1.f);
+        && ForHit(ELDObservedHitLook::Electric,0,1.f).Layers.IsEmpty() && ForHit(ELDObservedHitLook::Fire,0,1.f).Layers.IsEmpty()
+        && !ForHit(ELDObservedHitLook::None,LDObservation::Critical,1.f).Layers.IsEmpty() && !ForHit(ELDObservedHitLook::Magic,0,1.f).Layers.IsEmpty());
+    const FRecipe Plain=ForHit(ELDObservedHitLook::Magic,0,1.f);
     const FRecipe Crit=ForHit(ELDObservedHitLook::None,LDObservation::Critical,1.f);
-    TestTrue(TEXT("A fire hit flashes a star and burns the ground"), Has(Plain,EMask::Star,EPlace::Sprite) && Has(Plain,EMask::Burn,EPlace::Ground));
+    TestTrue(TEXT("A magic hit flashes its cross and turns its sigil on the ground"), Has(Plain,EMask::Cross,EPlace::Sprite) && Has(Plain,EMask::Sigil,EPlace::Ground));
     const FLayer* PlainStar=Plain.Layers.FindByPredicate([](const FLayer& L){ return L.Place==EPlace::Sprite; });
     const FLayer* CritStar=Crit.Layers.FindByPredicate([](const FLayer& L){ return L.Place==EPlace::Sprite; });
     TestTrue(TEXT("A critical hit changes shape, not only colour: a larger cross star and a second ring"),
@@ -384,7 +384,7 @@ bool FLDBodyMotionHitLayersTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A shield shows its hex shell and a broken one bursts outwards over a wide ring"),
         Shell && Shell->Mask==EMask::Hex && Burst && Burst->ToScale>Shell->ToScale && Has(Broken,EMask::Ring,EPlace::Ground));
     TestTrue(TEXT("Each look has its own signature"),
-        Has(ForHit(ELDObservedHitLook::Fire,0,1.f),EMask::Burn,EPlace::Ground) && Has(ForHit(ELDObservedHitLook::Water,LDObservation::Critical,1.f),EMask::Ripple,EPlace::Ground)
+        Has(ForHit(ELDObservedHitLook::Fire,LDObservation::Critical,1.f),EMask::Burn,EPlace::Ground) && Has(ForHit(ELDObservedHitLook::Water,LDObservation::Critical,1.f),EMask::Ripple,EPlace::Ground)
         && Has(ForHit(ELDObservedHitLook::Electric,LDObservation::Critical,1.f),EMask::Bolt,EPlace::Upright) && Has(ForHit(ELDObservedHitLook::Magic,0,1.f),EMask::Sigil,EPlace::Ground)
         && Has(Shield,EMask::Burn,EPlace::Ground));
     const FRecipe Reduced=ForHit(ELDObservedHitLook::None,LDObservation::Critical,.45f);
@@ -393,11 +393,7 @@ bool FLDBodyMotionHitLayersTest::RunTest(const FString& Parameters)
         && Reduced.Layers[0].Glow.R<Crit.Layers[0].Glow.R && Has(ForHit(ELDObservedHitLook::Electric,LDObservation::Critical,.45f),EMask::Bolt,EPlace::Upright));
     const float NaN=std::numeric_limits<float>::quiet_NaN();
     TestTrue(TEXT("A zero or invalid effect scale shows nothing"),
-        ForHit(ELDObservedHitLook::Fire,0,0.f).Layers.IsEmpty() && ForHit(ELDObservedHitLook::Fire,0,NaN).Layers.IsEmpty() && ForKill(NaN).Layers.IsEmpty());
-    const FRecipe Kill=ForKill(1.f);
-    const FLayer* Crack=Kill.Layers.FindByPredicate([](const FLayer& L){ return L.Mask==EMask::Crack; });
-    TestTrue(TEXT("A fall cracks the ground for two seconds under a shock ring"), Crack && Crack->Place==EPlace::Ground
-        && FMath::IsNearlyEqual(Crack->Seconds,2.f) && Has(Kill,EMask::Ring,EPlace::Ground) && ForKill(.45f).Layers.Num()==Kill.Layers.Num()-1);
+        ForHit(ELDObservedHitLook::Magic,0,0.f).Layers.IsEmpty() && ForHit(ELDObservedHitLook::Magic,0,NaN).Layers.IsEmpty());
     for (int32 Look=0; Look<=int32(ELDObservedHitLook::Electric); ++Look)
     {
         for (uint8 Flags=0; Flags<=LDObservation::HitFlagsMask; ++Flags)
@@ -428,7 +424,7 @@ bool FLDBodyMotionHitLayersTest::RunTest(const FString& Parameters)
     const FLayerTuning Neutral=TuningOf(Start,1.f,1.f,1.f);
     TestTrue(TEXT("At the starting controls and neutral asset values the layers are unchanged"), FMath::IsNearlyEqual(Neutral.Size,1.f)
         && FMath::IsNearlyEqual(Neutral.Seconds,1.f) && FMath::IsNearlyEqual(Neutral.Glow,1.f)
-        && FMath::IsNearlyEqual(ForHit(ELDObservedHitLook::Fire,0,1.f,Neutral).Layers[0].SizeCm,PlainStar->SizeCm));
+        && FMath::IsNearlyEqual(ForHit(ELDObservedHitLook::Magic,0,1.f,Neutral).Layers[0].SizeCm,PlainStar->SizeCm));
     LDHitFeel::FTuning Bigger=Start; Bigger.ImpactScale*=2.f; Bigger.ImpactSeconds*=2.f;
     const FRecipe Tuned=ForHit(ELDObservedHitLook::None,LDObservation::Critical,1.f,TuningOf(Bigger,1.f,1.f,.5f));
     TestTrue(TEXT("Live size and duration and the saved glow scale every layer, delays included"),
@@ -437,8 +433,8 @@ bool FLDBodyMotionHitLayersTest::RunTest(const FString& Parameters)
     LDHitFeel::FTuning NoSize=Start; NoSize.ImpactScale=0.f;
     LDHitFeel::FTuning NoTime=Start; NoTime.ImpactSeconds=0.f;
     TestTrue(TEXT("An impact size or duration of zero, or a zero asset value, shows no layers"),
-        ForHit(ELDObservedHitLook::Fire,0,1.f,TuningOf(NoSize,1.f,1.f,1.f)).Layers.IsEmpty()
-        && ForKill(1.f,TuningOf(NoTime,1.f,1.f,1.f)).Layers.IsEmpty() && ForHit(ELDObservedHitLook::Fire,0,1.f,TuningOf(Start,0.f,1.f,1.f)).Layers.IsEmpty());
+        ForHit(ELDObservedHitLook::Magic,0,1.f,TuningOf(NoSize,1.f,1.f,1.f)).Layers.IsEmpty()
+        && ForHit(ELDObservedHitLook::Magic,0,1.f,TuningOf(NoTime,1.f,1.f,1.f)).Layers.IsEmpty() && ForHit(ELDObservedHitLook::Magic,0,1.f,TuningOf(Start,0.f,1.f,1.f)).Layers.IsEmpty());
     const FScreenFlash KillFlash=ScreenFlashOf(LDCombatCues::DealtLethal|LDObservation::Critical,false);
     const FScreenFlash CritFlash=ScreenFlashOf(LDObservation::Critical,false);
     TestTrue(TEXT("A kill flashes red over a critical hit's gold, a broken shield cyan, an ordinary hit nothing"),

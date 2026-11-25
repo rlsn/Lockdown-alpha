@@ -9,6 +9,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Development/LDDemoContentCatalog.h"
+#include "Development/LDDemoContentIds.h"
 #include "Framework/LDDemoEntry.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
@@ -120,7 +121,6 @@ void ULDImpactFxSubsystem::OnWorldBeginPlay(UWorld& World)
     // Start editor-only Niagara compilation during world startup rather than on the first swing.
     if (ImpactSystem) { ImpactSystem->RequestCompile(false); }
     if (Catalog && Catalog->SwingTrail) { Catalog->SwingTrail->RequestCompile(false); }
-    if (Catalog && Catalog->CastCharge) { Catalog->CastCharge->RequestCompile(false); }
     if (BurstSystem) { BurstSystem->RequestCompile(false); }
     if (ZoneSystem) { ZoneSystem->RequestCompile(false); }
     for (UNiagaraSystem* Generated : GeneratedSystems) { if (Generated) { Generated->RequestCompile(false); } }
@@ -150,10 +150,6 @@ void ULDImpactFxSubsystem::OnWorldBeginPlay(UWorld& World)
     if (Catalog && !Catalog->SwingTrail)
     {
         UE_LOG(LogLDContent, Error, TEXT("LD_SWING_FX asset=missing catalog=%s"), ULDCombatVfxCatalog::AssetPath);
-    }
-    if (Catalog && !Catalog->CastCharge)
-    {
-        UE_LOG(LogLDContent, Error, TEXT("LD_CAST_FX asset=missing catalog=%s"), ULDCombatVfxCatalog::AssetPath);
     }
 }
 
@@ -827,7 +823,7 @@ void ULDImpactFxSubsystem::WarmUp()
     const FVector Under(0., 0., -20000.);
     TArray<UNiagaraSystem*> Systems{ImpactSystem.Get(), BurstSystem.Get(), ZoneSystem.Get()};
     for (UNiagaraSystem* Generated : GeneratedSystems) { if (Generated) { Systems.Add(Generated); } }
-    if (Catalog) { Systems.Append({Catalog->SwingTrail.Get(), Catalog->CastCharge.Get()}); }
+    if (Catalog) { Systems.Add(Catalog->SwingTrail.Get()); }
     for (UNiagaraSystem* System : Systems)
     {
         if (!System) { continue; }
@@ -1128,13 +1124,15 @@ ULDImpactFxSubsystem::FStrikeMatch ULDImpactFxSubsystem::MatchHit(const ULDHuman
         const bool bFits = Look == ELDObservedHitLook::Water ? Strike.Strike == EStrike::Hose
             : Look == ELDObservedHitLook::Electric ? Strike.Strike == EStrike::Zap
             : Look == ELDObservedHitLook::Magic || Look == ELDObservedHitLook::Fire ? Strike.Strike == EStrike::Skill
-            : Look == ELDObservedHitLook::None && (Strike.Strike == EStrike::Basic || Strike.Strike == EStrike::Finisher);
+            : Look == ELDObservedHitLook::None && (Strike.Strike == EStrike::Basic || Strike.Strike == EStrike::Finisher
+                || (Strike.Strike == EStrike::Skill && IsPhysicalSkill(Strike.Ability)));
         if (!bFits) { continue; }
         const double Gap = HitAt - Strike.At;
         // A chain's later links land one interval after another (chain_bounce.interval) from the last body struck.
-        const double Late = Strike.Strike == EStrike::Zap ? .45 + .25 * Strike.Hits : .45;
+        // A skill's flight (a thrown shoe at 1650 cm/s over 850 cm) lands up to about half a second after its release.
+        const double Late = Strike.Strike == EStrike::Zap ? .45 + .25 * Strike.Hits : Strike.Strike == EStrike::Skill ? .9 : .45;
         const double Reach = Strike.Strike == EStrike::Hose ? 900. : Strike.Strike == EStrike::Zap ? (Strike.Hits ? 600. : 950.)
-            : Strike.Strike == EStrike::Skill ? 800. : 420.;
+            : Strike.Strike == EStrike::Skill ? 950. : 420.;
         const FVector Origin = Strike.Strike == EStrike::Zap ? Strike.Last : Strike.From;
         if (Gap < -.25 || Gap > Late || FVector::Dist2D(Origin, Chest) > Reach) { continue; }
         if (FMath::Abs(Gap) < BestGap)
@@ -1400,6 +1398,19 @@ UNiagaraComponent* ULDImpactFxSubsystem::ShowLoop(USceneComponent& Owner, UNiaga
     return Effect;
 }
 
+UNiagaraComponent* ULDImpactFxSubsystem::PlayFree(LDSliceVfx::ESystem System, const FVector& Start, const FVector& End, const FLinearColor& Tint,
+    float Width, float Seconds, const LDSliceVfx::FLook& Look)
+{
+    if (!FApp::CanEverRender() || Start.ContainsNaN() || End.ContainsNaN() || !FMath::IsFinite(Seconds) || Seconds <= 0.f || Look.Size <= 0.f
+        || Look.Glow <= 0.f || Look.EffectScale <= 0.f) { return nullptr; }
+    const float Thin = FMath::Clamp(Look.EffectScale, 0.f, 1.f);
+    UNiagaraComponent* Effect = SpawnGenerated(System, Start, End, Tint, Width, 2.2f * Look.Glow * (Look.bFocus ? 1.f : .7f) * (.55f + .45f * Thin), Seconds, Look.bFocus);
+    if (!Effect) { return nullptr; }
+    Track(Effect, nullptr, 0.f);
+    Live.Last().StopAfter = Seconds;
+    return Effect;
+}
+
 bool ULDImpactFxSubsystem::SkillReach(uint8 Ability, float& OutRangeCm, float& OutHalfWidthCm)
 {
     OutRangeCm = OutHalfWidthCm = 0.f;
@@ -1413,6 +1424,36 @@ bool ULDImpactFxSubsystem::SkillReach(uint8 Ability, float& OutRangeCm, float& O
         OutRangeCm = Cm(Definition.Target.RangeCm);
         OutHalfWidthCm = Cm(Definition.Target.LineHalfWidthCm);
         return OutRangeCm > 0.f;
+    }
+    return false;
+}
+
+bool ULDImpactFxSubsystem::IsElementalSkill(uint8 Ability)
+{
+    OverdriveHoldSeconds();
+    if (!Content || Ability == 0) { return false; }
+    const FLDDemoAbilityDefinition* Definition = Content->Get().Abilities.FindByPredicate([Ability](const FLDDemoAbilityDefinition& Row) { return Row.NativeId == Ability; });
+    return Definition && Definition->Element != ELDDemoSkillElement::None;
+}
+
+bool ULDImpactFxSubsystem::IsSelfSkill(uint8 Ability)
+{
+    OverdriveHoldSeconds();
+    if (!Content || Ability == 0) { return false; }
+    const FLDDemoAbilityDefinition* Definition = Content->Get().Abilities.FindByPredicate([Ability](const FLDDemoAbilityDefinition& Row) { return Row.NativeId == Ability; });
+    return Definition && Definition->Target.Mode == ELDDemoTargetMode::Self;
+}
+
+bool ULDImpactFxSubsystem::IsPhysicalSkill(uint8 Ability)
+{
+    OverdriveHoldSeconds();
+    if (!Content || Ability == 0) { return false; }
+    for (const FLDDemoAbilityDefinition& Definition : Content->Get().Abilities)
+    {
+        if (Definition.NativeId != Ability) { continue; }
+        // Its own damage is physical (a physical hit is observed with no look).
+        return Definition.Values.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect)
+            { return Effect.Opcode == uint16(ELDDemoEffectOp::Damage) && Effect.DamageType == ELDDemoDamageType::Physical; });
     }
     return false;
 }

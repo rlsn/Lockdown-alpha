@@ -16,7 +16,6 @@ public:
     UPROPERTY(EditAnywhere, Category="Combat VFX") TObjectPtr<UNiagaraSystem> Impact;
     // The ribbon of dashes and flights (the basic swing is the designed slash, LDSliceVfx).
     UPROPERTY(EditAnywhere, Category="Combat VFX") TObjectPtr<UNiagaraSystem> SwingTrail;
-    UPROPERTY(EditAnywhere, Category="Combat VFX") TObjectPtr<UNiagaraSystem> CastCharge;
     // The particle kit (LDHitVfx::FBurst / FZone): skill releases, element hits, launches, landings, dashes and falls.
     UPROPERTY(EditAnywhere, Category="Combat VFX") TObjectPtr<UNiagaraSystem> Burst;
     UPROPERTY(EditAnywhere, Category="Combat VFX") TObjectPtr<UNiagaraSystem> Zone;
@@ -33,5 +32,4 @@ public:
     UPROPERTY(EditAnywhere, Category="Particle Kit", meta=(ClampMin="0", ClampMax="4", UIMin="0", UIMax="3")) float KitSize = 1.f;
     static constexpr const TCHAR* DefaultBurst = TEXT("/Game/Lockdown/Art/VFX/NS_LDBurst.NS_LDBurst");
     static constexpr const TCHAR* DefaultZone = TEXT("/Game/Lockdown/Art/VFX/NS_LDZone.NS_LDZone");
-    UPROPERTY(EditAnywhere, Category="Combat VFX") FLinearColor CastTint = FLinearColor(.16f, .62f, 1.f, .8f);
 };

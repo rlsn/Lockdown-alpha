@@ -594,12 +594,6 @@ namespace
             Trail->WaitForCompilationComplete(true, false);
 #endif
             if (!Check(Trail->IsReadyToRun(), TEXT("The authored swing trail compiled"))) { return false; }
-            UNiagaraSystem* Charge = Effects ? Effects->CastCharge.Get() : nullptr;
-            if (!Check(Charge != nullptr, TEXT("The authored cast charge is available"))) { return false; }
-#if WITH_EDITORONLY_DATA
-            Charge->WaitForCompilationComplete(true, false);
-#endif
-            if (!Check(Charge->IsReadyToRun(), TEXT("The authored cast charge compiled"))) { return false; }
             FVector Focus = FVector::ZeroVector;
             FString StageError;
             if (!Check(FindVfxStage(Target, Focus, StageError), TEXT("The level has open floor around the flagpole for the combat VFX stage ") + StageError)) { return false; }
@@ -617,22 +611,18 @@ namespace
                 if (LDDemoEntry::LoadRuntimeContent(Content, Ignored) && Content && Content->Get().Parameters.BasicAttackWindupMs > 0)
                 { BasicWindupSeconds = float(Content->Get().Parameters.BasicAttackWindupMs) / 1000.f; }
             }
-            VfxAttacker->SetCue(2, .2f, .4f);
-            VfxAttacker->Animate(FVector::ZeroVector, .04f);
-            TInlineComponentArray<UNiagaraComponent*> EffectsOnAttacker;
-            VfxAttacker->GetOwner()->GetComponents(EffectsOnAttacker);
-            UNiagaraComponent* CastEffect = nullptr;
-            for (UNiagaraComponent* Effect : EffectsOnAttacker)
-            {
-                if (Effect && Effect->GetAsset() == Charge) { CastEffect = Effect; break; }
-            }
-            Check(CastEffect && CastEffect->IsActive(), TEXT("A visible cast starts its authored hand effect"));
-            if (!Check(CastEffect && CastEffect->GetComponentScale().Equals(FVector::OneVector, .001f),
-                TEXT("The cast effect uses world scale independently of the hand bone"))) { return false; }
+            // A skill without a windup of its own shows its family's (a thrown shoe: the hand gather and the aim line), bound to
+            // the caster: hiding the caster clears it at once.
+            const int32 BeforeCast = Impacts ? Impacts->LiveCount() : 0;
+            VfxAttacker->SetCastAbility(uint8(ELDDemoAbilityId::ActiveSnarkBolt));
+            VfxAttacker->SetCue(2, .05f, .18f);
+            VfxAttacker->Animate(FVector::ZeroVector, .02f);
+            Check(Impacts && Impacts->LiveCount() > BeforeCast, TEXT("A visible cast starts its family windup"));
             VfxAttacker->SetVisibility(false, true);
-            Check(CastEffect && !CastEffect->IsActive(), TEXT("Hiding the caster immediately clears its cast effect"));
+            Check(Impacts && Impacts->LiveCount() == BeforeCast, TEXT("Hiding the caster immediately clears its windup"));
             VfxAttacker->SetVisibility(true, true);
             VfxAttacker->SetCue(0);
+            VfxAttacker->SetCastAbility(0);
             // Every live effect of either kind: Niagara bursts, hit layers and slice layers.
             const auto LiveEffects = [Impacts]() { return Impacts ? Impacts->LiveCount() + Impacts->LiveLayerCount() + Impacts->LiveSliceCount() : 0; };
             VfxAttacker->SetHitReaction(.03f);
@@ -924,8 +914,25 @@ namespace
             Categories.ParseIntoArray(Wanted, TEXT(","), true);
             for (const FString& Name : Wanted)
             {
-                if (!Check(Name == TEXT("chain") || Name == TEXT("hit") || Name == TEXT("swing") || Name == TEXT("field") || Name == TEXT("water") || Name == TEXT("fire") || Name == TEXT("chill") || Name == TEXT("states") || Name == TEXT("feel") || Name == TEXT("grounds") || Name == TEXT("reel"),
-                    TEXT("Proof category known: ") + Name)) { return false; }
+                // One category per line, so streams adding categories never edit the same line.
+                static const TCHAR* const Known[] = {
+                    TEXT("chain"),
+                    TEXT("hit"),
+                    TEXT("swing"),
+                    TEXT("field"),
+                    TEXT("water"),
+                    TEXT("fire"),
+                    TEXT("chill"),
+                    TEXT("states"),
+                    TEXT("feel"),
+                    TEXT("grounds"),
+                    TEXT("reel"),
+                    TEXT("kill"),
+                    TEXT("casts"),
+                };
+                bool bKnown = false;
+                for (const TCHAR* Category : Known) { bKnown |= Name == Category; }
+                if (!Check(bKnown, TEXT("Proof category known: ") + Name)) { return false; }
             }
             const TWeakObjectPtr<ULDHumanoidVisualComponent> A = VfxAttacker, V1 = VfxVictim, V2 = VfxExtras[0], V3 = VfxExtras[1], A2 = VfxExtras[2], A3 = VfxExtras[3];
             const auto Cast = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body)
@@ -1098,6 +1105,45 @@ namespace
                     ChainJobs.Add({Look, TEXT("fire-seethe"), Burnt(A, V1), Ahead(200.), Home, false, Seethe + .1f, 0.f, 60});
                     ChainJobs.Add({Look, TEXT("fire-sunlit"), Burnt(A, V1), Sunlit, Home, false, Seethe + .1f, .15f, 30});
                     ChainJobs.Add({Look, TEXT("fire-other"), Burnt(A3, V3), nullptr, nullptr, false, Seethe + .1f, .15f, 30});
+                }
+                else if (Look == TEXT("casts"))
+                {
+                    // One skill of each cast family without a windup of its own, from its windup through its hit on V1 2.5 m
+                    // ahead: a throw (active_snark_bolt, 0.18 s), a two-hand line (active_pants_down, 0.14 s), a ground slam
+                    // (active_calculus_drop, 0.25 s, magic) and a self-centred one (active_stare_down, 0.2 s).
+                    struct FFamily { const TCHAR* Name; ELDDemoAbilityId Ability; float Windup; ELDObservedHitLook Hit; float HitAt; };
+                    for (const FFamily& Family : {FFamily{TEXT("casts-throw"), ELDDemoAbilityId::ActiveSnarkBolt, .18f, ELDObservedHitLook::None, .33f},
+                        FFamily{TEXT("casts-twohand"), ELDDemoAbilityId::ActivePantsDown, .14f, ELDObservedHitLook::None, .17f},
+                        FFamily{TEXT("casts-slam"), ELDDemoAbilityId::ActiveCalculusDrop, .25f, ELDObservedHitLook::Magic, .82f},
+                        FFamily{TEXT("casts-self"), ELDDemoAbilityId::ActiveStareDown, .2f, ELDObservedHitLook::None, -1.f}})
+                    {
+                        TArray<FSeqStep> Steps{{0.f, CastOf(A, Family.Ability, Family.Windup)}};
+                        if (Family.HitAt > 0.f) { Steps.Add({Family.HitAt, HitOf(V1, Family.Hit)}); }
+                        ChainJobs.Add({Look, Family.Name, Steps, Ahead(250.), Home, false, Family.Windup * .7f, 0.f, 36});
+                    }
+                }
+                else if (Look == TEXT("kill"))
+                {
+                    // A visible fall (the knockout): a fallen body stays fallen, so each scenario spawns its own body 1.5 m
+                    // beside V1 (or V3), drops it and removes it afterwards; one in the own fight, one in another's.
+                    UWorld* const KillWorld = &Target;
+                    const auto FallNear = [this, KillWorld](TWeakObjectPtr<ULDHumanoidVisualComponent> Near, uint8 Slot, bool bOwn)
+                    {
+                        const TSharedRef<TWeakObjectPtr<ULDHumanoidVisualComponent>> Body = MakeShared<TWeakObjectPtr<ULDHumanoidVisualComponent>>();
+                        TFunction<void()> Setup = [this, KillWorld, Near, Slot, bOwn, Body]()
+                        {
+                            if (!Near.IsValid()) { return; }
+                            const FVector Foot = Near->GetOwner()->GetActorLocation() + FVector(150., 0., -90.);
+                            *Body = SpawnVfxBody(*KillWorld, Foot, 180.f, Slot);
+                            if (auto* B = Body->Get()) { B->SetOwnBody(bOwn); }
+                        };
+                        TFunction<void()> Drop = [Body]() { if (auto* B = Body->Get()) { B->PlayFall(); } };
+                        TFunction<void()> Remove = [Body]() { if (auto* B = Body->Get()) { B->GetOwner()->Destroy(); } };
+                        return MakeTuple(Setup, Drop, Remove);
+                    };
+                    const auto OwnFall = FallNear(V1, 5, true), OtherFall = FallNear(V3, 6, false);
+                    ChainJobs.Add({Look, TEXT("kill-own"), {{.05f, OwnFall.Get<1>()}}, OwnFall.Get<0>(), OwnFall.Get<2>(), false, .3f, 0.f, 60});
+                    ChainJobs.Add({Look, TEXT("kill-other"), {{.05f, OtherFall.Get<1>()}}, OtherFall.Get<0>(), OtherFall.Get<2>(), false, .3f, 0.f, 40});
                 }
                 else if (Look == TEXT("grounds"))
                 {
@@ -1305,7 +1351,18 @@ namespace
                 ChainJobs.Add({Look, TEXT("g-sunlit-hop"), {{0.f, Cast(A)}, {.27f, Hit(V1)}}, Sunlit, Home});
                 }
                 // New categories are judged on their looks first; their frame cost is measured once a look is chosen.
-                if (Look == TEXT("water") || Look == TEXT("fire") || Look == TEXT("chill") || Look == TEXT("states") || Look == TEXT("grounds")) { continue; }
+                static const TCHAR* const LookOnly[] = {
+                    TEXT("water"),
+                    TEXT("fire"),
+                    TEXT("chill"),
+                    TEXT("states"),
+                    TEXT("grounds"),
+                    TEXT("kill"),
+                    TEXT("casts"),
+                };
+                bool bLookOnly = false;
+                for (const TCHAR* Category : LookOnly) { bLookOnly |= Look == Category; }
+                if (bLookOnly) { continue; }
                 FChainJob Perf;
                 Perf.Category = Look;
                 Perf.Scenario = TEXT("perf-eight-casters");
@@ -1692,7 +1749,7 @@ namespace
             if (Current.bKill && Impacts)
             {
                 Victim->PlayFall();
-                Check(Impacts->LiveLayerCount() == LDHitVfx::ForKill(1.f, Impacts->LayerTuning()).Layers.Num(), TEXT("A visible fall cracks the ground"));
+                Check(Impacts->LiveCount() > 0, TEXT("A visible fall knocks a ring of dust over the floor"));
                 Impacts->FlashScreen(LDHitVfx::ScreenFlashOf(LDCombatCues::DealtLethal, false));
             }
             return true;

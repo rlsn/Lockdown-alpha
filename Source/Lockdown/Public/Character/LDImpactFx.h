@@ -134,6 +134,9 @@ public:
     // render-less process removes Existing and returns null. The caller keeps the result and destroys it with itself.
     UNiagaraComponent* ShowLoop(USceneComponent& Owner, UNiagaraComponent* Existing, LDSliceVfx::ESystem System, const FVector& Start,
         const FVector& End, const FLinearColor& Tint, float Width, float Intensity, float Seconds, bool bFocus);
+    // A generated system bound to nothing (a fall's knockout plays out after the body is gone), stopped after Seconds.
+    UNiagaraComponent* PlayFree(LDSliceVfx::ESystem System, const FVector& Start, const FVector& End, const FLinearColor& Tint, float Width,
+        float Seconds, const LDSliceVfx::FLook& Look);
     // The supporting floor under At (the point itself when nothing is below it within reach).
     FVector FloorUnder(const FVector& At) const { FVector Normal; return GroundUnder(At, Normal); }
     // A basic or finisher hit on Victim's Chest struck from From's side, bound to Victim.
@@ -152,6 +155,12 @@ public:
     // The approved reach of a skill's level-1 target (its range and, for a direction line, the band's half width) and
     // the conduct reaction's splash radius; 0 when the content is unavailable.
     bool SkillReach(uint8 Ability, float& OutRangeCm, float& OutHalfWidthCm);
+    // Whether a skill's level-1 target is itself (a self-centred skill), from the approved content.
+    bool IsSelfSkill(uint8 Ability);
+    // Whether a skill carries an element (its windup and hits then take the element's ink).
+    bool IsElementalSkill(uint8 Ability);
+    // Whether a skill's own damage is physical (its hits are observed with no look, like a basic hit's).
+    bool IsPhysicalSkill(uint8 Ability);
     // The approved full angle of a skill's level-1 cone target (degrees); 0 when it has none.
     float SkillConeDegrees(uint8 Ability);
     float ConductRadiusCm();
