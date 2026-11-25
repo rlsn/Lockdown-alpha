@@ -2015,8 +2015,10 @@ namespace
 
     FSystemParts PuddleParts(UMaterial& Material, FString& Error)
     {
-        UMaterialInstanceConstant* Wet = ChainPaint(TEXT("MI_LDPuddle_Wet"), Material, SliceTexture(LDSliceVfx::ETex::WaterWet), SliceTexture(LDSliceVfx::ETex::DissolveNoise), 2.f, WetPalette, 1.f, 0.f, Error);
-        UMaterialInstanceConstant* Sheen = ChainPaint(TEXT("MI_LDPuddle_Sheen"), Material, SliceTexture(LDSliceVfx::ETex::WaterFlow), SliceTexture(LDSliceVfx::ETex::DissolveNoise), 2.f, WaterPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Wet = ChainPaint(TEXT("MI_LDPuddle_Wet"), Material, SliceTexture(LDSliceVfx::ETex::SoftPuff), SliceTexture(LDSliceVfx::ETex::DissolveNoise), 2.f, WetPalette, 1.f, 0.f, Error);
+        // The soaked floor and the water body use the even soft mask: the wet and flow sheets' streaks stretch into curtains
+        // over a whole disc.
+        UMaterialInstanceConstant* Sheen = ChainPaint(TEXT("MI_LDPuddle_Sheen"), Material, SliceTexture(LDSliceVfx::ETex::SoftPuff), SliceTexture(LDSliceVfx::ETex::DissolveNoise), 2.f, WaterPalette, 1.f, 0.f, Error);
         UMaterialInstanceConstant* Line = ChainPaint(TEXT("MI_LDPuddle_Line"), Material, SliceTexture(LDSliceVfx::ETex::ChainAProfile), nullptr, 0.f, WaterPalette, 1.f, 0.f, Error);
         FSystemParts Ground;
         Ground.System = LDSliceVfx::ESystem::PuddleGround;
@@ -2027,13 +2029,13 @@ namespace
         // The standing water itself: a cool blue body over the soaked floor, with the flowing sheen on top.
         // A second soak layer: with the kind's own surface the only sign of the state, the water reads as a body, not an edge.
         Sheet(Ground.Parts.AddDefaulted_GetRef(), TEXT("Soak2"), Wet, .96f, FString::Printf(TEXT("float4(1.0, 1.0, 1.0, 0.0) * %s + float4(0.0, 0.0, 0.0, 0.6 * %s)"), Bright, GroundOn));
-        Sheet(Ground.Parts.AddDefaulted_GetRef(), TEXT("Water"), Sheen, .97f, Tinted(.9f, FString::Printf(TEXT("0.55 * %s"), GroundOn)));
-        Sheet(Ground.Parts.AddDefaulted_GetRef(), TEXT("Sheen"), Sheen, .9f, Tinted(1.6f, FString::Printf(TEXT("0.45 * %s * (0.8 + 0.2 * sin(Particles.Age * 2.0))"), GroundOn)));
+        Sheet(Ground.Parts.AddDefaulted_GetRef(), TEXT("Water"), Sheen, .97f, Tinted(1.f, FString::Printf(TEXT("0.75 * %s"), GroundOn)));
+        Sheet(Ground.Parts.AddDefaulted_GetRef(), TEXT("Sheen"), Sheen, .9f, Tinted(1.5f, FString::Printf(TEXT("0.5 * %s * (0.8 + 0.2 * sin(Particles.Age * 2.0))"), GroundOn)));
         EdgeRing(Ground.Parts.AddDefaulted_GetRef(), TEXT("Edge"), Line, .99f, 12.f, Tinted(1.8f, FString::Printf(TEXT("0.85 * %s"), GroundOn)));
         const int32 Points = 16;
         FPart& Rings = Ground.Parts.AddDefaulted_GetRef();
         Rings.Name = TEXT("Ripples");
-        Rings.Count = FString::Printf(TEXT("int(lerp(3.0, 5.0, User.Focus) + 0.01) * %d"), Points);
+        Rings.Count = FString::Printf(TEXT("int(lerp(5.0, 7.0, User.Focus) + 0.01) * %d"), Points);
         Rings.Lifetime = TEXT("User.Duration");
         Rings.Paint = Line;
         Rings.TileCm = 60.f;
@@ -3493,7 +3495,7 @@ namespace
     }
 
     // The roar's air: a pale lilac-grey haze, darker at its edge, so the wave reads as disturbed air and not as a line.
-    const FPalette RoarPalette{FLinearColor(.82f, .74f, .96f), FLinearColor(.5f, .44f, .62f), FLinearColor(.18f, .15f, .24f), 1.f, 1.f};
+    const FPalette RoarPalette{FLinearColor(1.f, .95f, 1.f), FLinearColor(.8f, .68f, 1.f), FLinearColor(.3f, .22f, .45f), 2.f, 1.3f};
     // The churned air itself: a dense dark violet-grey haze, darker than the floor so the shock front reads as a mass.
     const FPalette AirPalette{FLinearColor(.58f, .54f, .66f), FLinearColor(.3f, .27f, .36f), FLinearColor(.1f, .09f, .13f), 1.f, 1.f};
 
@@ -3530,9 +3532,9 @@ namespace
             const FString A = RingAngle(Points, FString::Printf(TEXT("%s * 0.7"), *K));
             const FString T = FString::Printf(TEXT("saturate((Particles.Age - %s * 0.09) / 0.32)"), *K);
             Waves.Set(TEXT("Particles.Position"), Round(Centre, A, Front(K, A)))
-                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("(46.0 - 30.0 * %s) * (1.0 - 0.4 * %s) * (0.35 + 0.65 * saturate(0.5 + 0.5 * sin(%s * 5.0 + %s * 3.0) + 0.3 * sin(%s * 11.0))) * step(%s * 0.09, Particles.Age)"),
+                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("(60.0 - 36.0 * %s) * (1.0 - 0.4 * %s) * (0.5 + 0.5 * saturate(0.5 + 0.5 * sin(%s * 5.0 + %s * 3.0) + 0.3 * sin(%s * 11.0))) * step(%s * 0.09, Particles.Age)"),
                     *T, *K, *A, *K, *A, *K))
-                .Set(TEXT("Particles.Color"), FString::Printf(TEXT("float4(1.0, 1.0, 1.0, 0.45 * (1.0 - %s) * (1.0 - 0.35 * %s))"), *T, *K));
+                .Set(TEXT("Particles.Color"), Glowing(2.2f, FString::Printf(TEXT("saturate(1.6 * (1.0 - %s)) * (1.0 - 0.35 * %s)"), *T, *K)));
         }
         FPart& Air = Release.Parts.AddDefaulted_GetRef();
         Air.Name = TEXT("Air");
@@ -3549,8 +3551,8 @@ namespace
                 .Set(TEXT("Particles.SpriteRotation"), FString::Printf(TEXT("%s * 360.0 + Particles.Age * 90.0"), *Random(903.f)))
                 .Set(TEXT("Particles.Color"), FString::Printf(TEXT("float4(1.0, 1.0, 1.0, 0.7 * saturate(Particles.Age / 0.05) * (1.0 - pow(%s, 1.5)) * (1.0 - 0.4 * %s))"), *T, *Kk));
         }
-        Puffs(Release, TEXT("Dust"), Dust, TEXT("int(lerp(12.0, 16.0, User.Focus) + 0.5)"), .9f, 861.f,
-            [](const FString& A, const FString& T) { return FString::Printf(TEXT("%s + float3(cos(%s), sin(%s), 0.0) * lerp(%s * 0.2, %s * 0.95, %s)"), SelfFloor, *A, *A, SelfReach, SelfReach, *T); }, 75.f, .75f);
+        Puffs(Release, TEXT("Dust"), Dust, TEXT("int(lerp(12.0, 16.0, User.Focus) + 0.5)"), .6f, 861.f,
+            [](const FString& A, const FString& T) { return FString::Printf(TEXT("%s + float3(cos(%s), sin(%s), 0.0) * lerp(%s * 0.2, %s * 0.95, %s)"), SelfFloor, *A, *A, SelfReach, SelfReach, *T); }, 110.f, .32f);
         return Release;
     }
 
