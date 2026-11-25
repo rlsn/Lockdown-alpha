@@ -978,7 +978,19 @@ void ULDHumanoidVisualComponent::ShowSliceImpact(const FPendingImpact& Impact, c
     // A zap hop: the Niagara Chain from the matched hand or previous body to this one; with no visible source only its
     // contact sparks show (a short link straight down onto the body).
     if (Strike == LDSliceVfx::EStrike::Zap)
-    { Impacts->Chain(*this, Match.From.ContainsNaN() ? Chest + FVector(0, 0, 60.f) : Match.From, Chest, Match.bChained, Look, Age); }
+    {
+        Impacts->Chain(*this, Match.From.ContainsNaN() ? Chest + FVector(0, 0, 60.f) : Match.From, Chest, Match.bChained, Look, Age);
+        // Chain look A warms the struck body for 0.15 s with a pooled glowing copy of its pose (removable, never the
+        // body's own materials).
+        if (Look.ChainLook == LDSliceVfx::ChainA && Mesh && Age < .15f && Look.EffectScale > 0.f)
+        {
+            LDHitVfx::FGhosts Warm;
+            Warm.bShow = true;
+            Warm.Seconds = .15f;
+            Warm.Glow = FLinearColor(1.f, .7f, .28f) * (Look.bFocus ? 1.4f : .8f);
+            Impacts->Ghost(*Mesh, Warm, *this);
+        }
+    }
 }
 
 void ULDHumanoidVisualComponent::PlayFall()

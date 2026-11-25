@@ -347,10 +347,15 @@ bool FLDBodyMotionSliceLayersTest::RunTest(const FString& Parameters)
         Find(Zap,ETex::HitSkill,EPlace::Facing) && !Find(Zap,ETex::ShockArcs,EPlace::Strip) && !Find(Zap,ETex::ShockSpark,EPlace::Facing)
         && Bounce.Layers.IsEmpty());
     FLook MeshLook=Own;
-    MeshLook.bChainMesh=true;
+    MeshLook.ChainLook=ChainMesh;
     const FRecipe MeshBounce=Impact(EStrike::Zap,Chest,Feet,Dir,From,true,MeshLook);
     TestTrue(TEXT("The Mesh chain look draws the link as a strip from the previous body and a contact spark instead"),
         Find(MeshBounce,ETex::ShockArcs,EPlace::Strip) && Find(MeshBounce,ETex::ShockSpark,EPlace::Facing) && !Find(MeshBounce,ETex::HitSkill,EPlace::Facing));
+    const auto CandidateHit=[&](uint8 Candidate){ FLook L=Own; L.ChainLook=Candidate; return Impact(EStrike::Zap,Chest,Feet,Dir,From,false,L); };
+    const FRecipe HitA=CandidateHit(ChainA), HitB=CandidateHit(ChainB), HitC=CandidateHit(ChainC);
+    TestTrue(TEXT("The chain candidates replace the first hit's skill burst with their own small ground cue"),
+        !Find(HitA,ETex::HitSkill,EPlace::Facing) && Find(HitA,ETex::ChainAGroundGlow,EPlace::Flat) && Find(HitB,ETex::ChainBScorchDash,EPlace::Flat)
+        && Find(HitC,ETex::ChainCGroundTick,EPlace::Flat) && Find(HitC,ETex::ChainCGroundTick,EPlace::Flat)->SizeCm<100.f && HitC.Layers.Num()==1);
     const FLayer* Field=Find(Reaction,ETex::ShockField,EPlace::Flat);
     TestTrue(TEXT("Conduct arcs along the ground out to its splash radius over a field whose edge is exactly that radius"),
         Field && FMath::IsNearlyEqual(Field->SizeCm*FieldEdge*.5f,450.f,1.f) && FMath::IsNearlyEqual(FieldSizeCm(220.f)*FieldEdge*.5f,220.f,.1f) && Reaction.Layers.ContainsByPredicate([](const FLayer& L){ return L.Place==EPlace::GroundStrip && FVector::Dist(L.At,L.End)>400.f; })

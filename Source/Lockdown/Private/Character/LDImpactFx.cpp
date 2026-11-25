@@ -1020,7 +1020,7 @@ LDSliceVfx::FLook ULDImpactFxSubsystem::SliceLook(ESliceTuning Kind, bool bOwn, 
     LDSliceVfx::FLook Look;
     Look.bOwn = bOwn;
     Look.bFocus = bFocus || bOwn;
-    Look.bChainMesh = ChainLookNow() == uint8(ELDChainLook::Mesh);
+    Look.ChainLook = ChainLookNow();
 
     Look.EffectScale = LocalEffectScale();
     const LDHitFeel::FTuning Feel = LDHitFeel::Read();
@@ -1197,6 +1197,7 @@ void ULDImpactFxSubsystem::Chain(const ULDHumanoidVisualComponent& Victim, const
     Effect->SetVariableFloat(TEXT("User.Width"), (bChained ? 56.f : 70.f) * Look.Size * (Look.bFocus ? 1.f : .8f));
     Effect->SetVariableFloat(TEXT("User.Intensity"), 2.2f * Look.Glow * Focus * (.55f + .45f * Thin));
     Effect->SetVariableFloat(TEXT("User.Duration"), Seconds);
+    Effect->SetVariableFloat(TEXT("User.Focus"), Look.bFocus ? 1.f : 0.f);
     Effect->Activate(true);
     Track(Effect, &Victim, AgeSeconds);
     Live.Last().StopAfter = Seconds;

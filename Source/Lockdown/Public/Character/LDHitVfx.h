@@ -35,7 +35,12 @@ namespace LDSliceVfx
     enum class ETex : uint8
     {
         SlashEdge, DissolveNoise, HitBasic, HitFinisher, HitSkill, WaterJet, WaterSplash, WetDecal, ShockArcs, ShockSpark,
-        ShockField, ChalkLane, Count
+        ShockField, ChalkLane,
+        // The chain look candidates' elements (vfx_slice_assets.json "candidate" A, B, C), used by their generated Niagara
+        // materials and their ground layers.
+        ChainAProfile, ChainAEnergyNoise, ChainASparkStreak, ChainAFlash, ChainAGroundGlow,
+        ChainBStrokeProfile, ChainBShards, ChainBScorchDash,
+        ChainCCoreProfile, ChainCSparkHead, ChainCPinpoint, ChainCGroundTick, Count
     };
     enum class EMesh : uint8 { Slash1, Slash2, Slash3, Count };
     // The manifest id ("fb_hit_basic", "SM_LD_SlashCombo1") and the package (Folder/T_fb_hit_basic, Folder/SM_LD_SlashCombo1).
@@ -58,12 +63,19 @@ namespace LDSliceVfx
     // The generated chain looks (ELDChainLook without Mesh): their suffix ("V1", "A", "B", "C") and system package.
     constexpr int32 ChainLookCount = 5;
     LOCKDOWN_API const TCHAR* ChainLookName(uint8 Look);
-    LOCKDOWN_API FString ChainSystemOf(uint8 Look);    constexpr const TCHAR* ChainStart = TEXT("User.Start");
+    LOCKDOWN_API FString ChainSystemOf(uint8 Look);
+    // ELDChainLook values (the catalog enum is not visible to these pure recipes).
+    constexpr uint8 ChainMesh = 0, ChainV1 = 1, ChainA = 2, ChainB = 3, ChainC = 4;
+    constexpr const TCHAR* ChainStart = TEXT("User.Start");
     constexpr const TCHAR* ChainEnd = TEXT("User.End");
     constexpr const TCHAR* ChainTint = TEXT("User.Tint");
     constexpr const TCHAR* ChainWidth = TEXT("User.Width");
     constexpr const TCHAR* ChainIntensity = TEXT("User.Intensity");
-    constexpr const TCHAR* ChainDuration = TEXT("User.Duration");    // The importer-built unit quad: 100 x 100 cm in XY facing +Z, U = (X + 50) / 100, V = (Y + 50) / 100.
+    constexpr const TCHAR* ChainDuration = TEXT("User.Duration");
+    // 1 for the local player's own or focused link, 0 for others' (smaller and dimmer, and some looks drop parts).
+    constexpr const TCHAR* ChainFocus = TEXT("User.Focus");
+
+    // The importer-built unit quad: 100 x 100 cm in XY facing +Z, U = (X + 50) / 100, V = (Y + 50) / 100.
     constexpr const TCHAR* QuadMesh = TEXT("/Game/Lockdown/Art/VFX/Slice/SM_LDSliceQuad");
 
     // How a layer stands in the world. Every placement keeps the texture's +U along Dir.
@@ -134,8 +146,9 @@ namespace LDSliceVfx
         float EffectScale = 1;
         // ld.Feel / DA_CombatVfx tuning of this kind of layer: size, duration and brightness multipliers.
         float Size = 1, Seconds = 1, Glow = 1;
-        // The chain look is the slice's mesh strip and spark (ELDChainLook::Mesh) rather than a Niagara Chain.
-        bool bChainMesh = false;
+        // The chain look in force (ChainMesh..ChainC): Mesh draws the link as the slice's strip and spark; the candidates
+        // add their ground cue under the struck body; the Niagara looks draw the link itself (ULDImpactFxSubsystem::Chain).
+        uint8 ChainLook = ChainV1;
 
     };
     // The basic swing of combo Step (1..3): the chalk shape of the coming slash on the ground from the start of the

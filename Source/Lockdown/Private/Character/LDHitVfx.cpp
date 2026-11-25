@@ -104,6 +104,18 @@ const TCHAR* LDSliceVfx::TexId(ETex Tex)
     case ETex::ShockSpark: return TEXT("fb_shock_spark");
     case ETex::ShockField: return TEXT("fb_shock_field");
     case ETex::ChalkLane: return TEXT("tex_chalk_lane");
+    case ETex::ChainAProfile: return TEXT("chainA_profile");
+    case ETex::ChainAEnergyNoise: return TEXT("chainA_energy_noise");
+    case ETex::ChainASparkStreak: return TEXT("chainA_spark_streak");
+    case ETex::ChainAFlash: return TEXT("chainA_flash");
+    case ETex::ChainAGroundGlow: return TEXT("chainA_ground_glow");
+    case ETex::ChainBStrokeProfile: return TEXT("chainB_stroke_profile");
+    case ETex::ChainBShards: return TEXT("chainB_shards");
+    case ETex::ChainBScorchDash: return TEXT("chainB_scorch_dash");
+    case ETex::ChainCCoreProfile: return TEXT("chainC_core_profile");
+    case ETex::ChainCSparkHead: return TEXT("chainC_spark_head");
+    case ETex::ChainCPinpoint: return TEXT("chainC_pinpoint");
+    case ETex::ChainCGroundTick: return TEXT("chainC_ground_tick");
     default: return TEXT("");
     }
 }
@@ -402,6 +414,23 @@ LDSliceVfx::FRecipe LDSliceVfx::ZapRelease(const FVector& Hand, const FLook& Loo
 {
     using namespace LDSliceVfxDetail;
     FRecipe Recipe;
+    // The chain candidates start their link at the hand without the comic spark: A with a small soft glow, C with a
+    // pinpoint, B with nothing (its stroke is widest there).
+    if (Look.ChainLook >= ChainA)
+    {
+        if (Look.ChainLook != ChainB)
+        {
+            const bool bA = Look.ChainLook == ChainA;
+            FLayer Glow = Burst(bA ? ETex::ChainAFlash : ETex::ChainCPinpoint, Hand, FVector::ForwardVector, bA ? 50.f : 30.f, bA ? .12f : .08f, Look);
+            Glow.Pivot = .5f;
+            Glow.Glow = Hdr(FLinearColor(1.f, .78f, .36f), 1.4f * Look.Glow);
+            Glow.Core = Hdr(FLinearColor(1.f, .9f, .67f), 2.f * Look.Glow);
+            Glow.Ink = Glow.Glow;
+            Recipe.Layers.Add(Glow);
+        }
+        Finish(Recipe, Look);
+        return Recipe;
+    }
     FLayer Spark = Burst(ETex::ShockSpark, Hand, FVector::ForwardVector, 90.f, .44f, Look);
     Spark.Glow = ElementGlow(LDBroadcast::Shock, Look);
     Spark.Core = CoreGlow(Look);
@@ -470,9 +499,10 @@ LDSliceVfx::FRecipe LDSliceVfx::Impact(EStrike Strike, const FVector& Chest, con
     case EStrike::Zap:
     {
         // The link itself (the arc from the hand or the previous body and its contact sparks) is the Niagara Chain
-        // (ULDImpactFxSubsystem::Chain), or with the mesh look a strip and a spark here; the first target of the cast
-        // also shows the skill tier's burst.
-        if (Look.bChainMesh)
+        // (ULDImpactFxSubsystem::Chain), or with the mesh look a strip and a spark here. The old looks mark the cast's
+        // first target with the skill tier's burst; the candidates have no burst, only their small ground cue.
+        const FVector Hop = !From.ContainsNaN() && FVector::DistSquared(From, Chest) > 100.f ? Planar(Chest - From) : Planar(Along);
+        if (Look.ChainLook == ChainMesh)
         {
             const FLinearColor Glow = ElementGlow(LDBroadcast::Shock, Look);
             if (!From.ContainsNaN() && FVector::DistSquared(From, Chest) > 100.f) { Recipe.Layers.Add(Arc(From, Chest, bChained ? 46.f : 56.f, .26f, Glow, Look, false)); }
@@ -481,13 +511,35 @@ LDSliceVfx::FRecipe LDSliceVfx::Impact(EStrike Strike, const FVector& Chest, con
             Spark.Core = CoreGlow(Look);
             Recipe.Layers.Add(Spark);
         }
-        if (!bChained)
+        if (Look.ChainLook <= ChainV1 && !bChained)
         {
             FLayer Hit = Burst(ETex::HitSkill, Chest, Along, 200.f, .57f, Look);
             Hit.Glow = ElementGlow(LDBroadcast::Shock, Look);
             Hit.Core = CoreGlow(Look);
             Hit.DelaySeconds = .02f;
             Recipe.Layers.Add(Hit);
+        }
+        if (Look.ChainLook >= ChainA)
+        {
+            // A: a soft warm glow on the ground for 0.15 s; B: an angular scorch dash along the hop fading over 0.6 s, the
+            // scorch in a warm dark (never black) with its ember seam in gold; C: a small open tick under the target for 0.4 s.
+            const uint8 Candidate = Look.ChainLook;
+            FLayer Ground;
+            Ground.Tex = Candidate == ChainA ? ETex::ChainAGroundGlow : Candidate == ChainB ? ETex::ChainBScorchDash : ETex::ChainCGroundTick;
+            Ground.Place = EPlace::Flat;
+            Ground.At = Feet;
+            Ground.Dir = Hop;
+            Ground.SizeCm = (Candidate == ChainA ? 110.f : Candidate == ChainB ? 130.f : 64.f) * Look.Size;
+            Ground.Seconds = (Candidate == ChainA ? .15f : Candidate == ChainB ? .6f : .4f) * Look.Seconds;
+            Ground.FadeInSeconds = 0.f;
+            Ground.FadeOutSeconds = Candidate == ChainA ? .1f : Candidate == ChainB ? .45f : .12f;
+            Ground.Alpha = Candidate == ChainB ? .85f : Look.bFocus ? 1.f : .6f;
+            const FLinearColor Warm(1.f, .78f, .36f);
+            Ground.Glow = Candidate == ChainB ? FLinearColor(.5f, .32f, .08f) : Hdr(Warm, Candidate == ChainA ? 1.6f : 2.f);
+            Ground.Core = Hdr(FLinearColor(1.f, .9f, .67f), 1.6f);
+            Ground.Ink = Candidate == ChainB ? FLinearColor(.05f, .02f, .006f) : Ground.Glow;
+            Ground.bOptional = Candidate != ChainC;
+            Recipe.Layers.Add(Ground);
         }
         break;
     }
