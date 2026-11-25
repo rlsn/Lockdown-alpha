@@ -293,7 +293,8 @@
   - F1：电感最强，但白色电带在日照地面上对比不足，熄灭段让边界断开（Agent）。
   - F2：日照下最稳，但内部像粉笔划痕，整体读成“发光圆圈加一层染色”（Agent）。
 - **Decision**：用户选“F1 的边 + F2 的带电地面”。由此做出 F3，修了 F1 的对比与断边，内部换成新的电裂网贴图。用户批准 F3。
-- **玩法侧地面图案**：首版说的“普通白圈”，有一部分其实是玩法侧按座位色画的寿命轮廓（实测）。电场的黄色折线种类图案，按用户要求删除，因为电场效果本身已经能表明种类。其他地面状态的种类图案还保留，等各自的特效做好再定。
+- **玩法侧地面图案**：首版说的“普通白圈”，有一部分其实是玩法侧按座位色画的寿命轮廓（实测），保留。
+- **种类图案（APPROVED · 用户）**：五种地面状态的玩法侧几何种类图案（电场折线、水洼同心圆、冰面条纹、火地八角星、瘴气六边形）全部删除，种类只由各自设计的特效表明；评审开关 `ld.Vfx.GroundKindPatterns` 一并删除。水洼和瘴气失去图案后加厚了主体（水洼两层浸湿面与更实的水体，瘴气两层腐渍与更浓的低云）。地面状态的玩法与范围不变。
 - **Evidence**：`vfx/approved/field-*`；本机 `vfx-direction/field-redesign/`（三候选对比）。
 
 ## 4. 技术缺陷
@@ -371,12 +372,12 @@
 | `active_seethe` 烫你屁股 | 火 · 自身圆 300 | LOCALLY VERIFIED | `NS_LDSeetheTell`、`NS_LDSeetheBurst`、`NS_LDFireHit`；贴图 `fire_*` | `production/vfx/batch2/fire/` | 焦地随区域软边；用户未验收 |
 | `active_quick_meeting` 脚底开锅 | 火 · 地点圆 240，3 跳 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：区域粒子（AreaFire） | — | 专属释放与命中未设计 |
 | `active_bail_out` 贴脸补一拳 | 无 · 冲刺 + 强化普攻 | LOCALLY VERIFIED | 前摇：通用族；`NS_LDBailRelease`：肩高两条加粗滑流线随冲刺、身后暗色尘迹、终点双拳暖色亮起 0.5 s；本技能自身无命中 | `production/vfx/batch5e-physical-mass/` | 用户未验收；拳光在俯视下仍偏小 |
-| `active_not_mad` 锅盖挡脸 | 无 · 自身护盾 + 解控 | LOCALLY VERIFIED | `NS_LDNotMadRelease`：脸前弹起的锅盖（圆形钢边 + 闪光）、腰间向外崩碎的解控碎片；护盾见 §7.6 `NS_LDShieldState` | `production/vfx/batch6-self/` | 用户未验收 |
+| `active_not_mad` 锅盖挡脸 | 无 · 自身护盾 + 解控 | LOCALLY VERIFIED | `NS_LDNotMadRelease`：脸前弹起并举住 0.5 s 的实心锅盖（90 cm 钢盘：暖白高光到灰到暗边的明暗、亮边、暗色把手）、格挡瞬间的暖白闪光、腰间向外崩碎的解控碎片；护盾见 §7.6 `NS_LDShieldState` | `production/vfx/batch6-self-rework/` | 用户未验收 |
 | `active_stare_down` 来打老子啊 | 无 · 自身圆 300 嘲讽 | LOCALLY VERIFIED | 前摇：通用族；`NS_LDStareDownRelease`：胸前猩红喷气、地面猩红怒视环冲到 300 cm、再从环上向身体回收的 12 道牵引线；`NS_LDStareDownAura`：护甲增益期间（数据 3 s）胸与髋两道分成八块的钢甲环、绕行的猩红闪光 | `production/vfx/batch6-self/` | 用户未验收；被嘲讽者身上无标记（嘲讽状态不公开） |
 | `active_triple_combo` 左右开抽 | 无 · 3 次强化普攻 | LOCALLY VERIFIED | `NS_LDTripleRelease`：胸前双拳暖色亮起、头顶依次点亮三颗充能点；强化期间（仅自己可见的 Empowered）`NS_LDEmpoweredState`：两只绕胸转的暖色拳光带拖尾 | `production/vfx/batch6-self/` | 用户未验收；强化普攻命中仍为通用命中 |
 | `active_calculus_drop` 板砖糊脸 | 无 · 地点延迟落地 200 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：`BookShadow` 粒子 | — | 专属释放与命中未设计 |
 | `active_flyer_trap` 踩一脚试试 | 无 · 地点陷阱 180 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：`FlyerArming/Armed` 粒子 | — | 专属释放与命中未设计 |
-| `active_open_mic` 扯嗓子喷你 | 无 · 自身圆 340 击退 | LOCALLY VERIFIED | 前摇：通用族；`NS_LDOpenMicRelease`：嘴前爆点、腰高三道相继滚出到 340 cm 的声浪环、地面被吹开的暗尘；`NS_LDOpenMicHit`：沿推力方向扫过身体的三道声弧、紫白核、身后被推开的尘；护盾见 §7.6 | `production/vfx/batch6-self/` | 用户未验收 |
+| `active_open_mic` 扯嗓子喷你 | 无 · 自身圆 340 击退 | LOCALLY VERIFIED | 前摇：通用族；`NS_LDOpenMicRelease`：嘴前暖白爆点与光；两道相继滚出到 340 cm 的冲击前沿——以浓密暗紫灰的翻涌空气为主体（不规则、起伏、前重后轻），其上一层粗细不均的淡紫噪声带，不是清晰的线圈；地面被推到半径边的暗尘；`NS_LDOpenMicHit`：沿推力方向扫过身体的三道声弧、紫白核、身后被推开的尘；护盾见 §7.6 | `production/vfx/batch6-self-rework/` | 用户未验收 |
 | `active_charged_ram` 蛮牛顶 | 无 · 冲刺撞人 + 护盾 | LOCALLY VERIFIED | 前摇：通用族；`NS_LDRamRelease`：双层楔形冲锋前沿（暗色影层 + 亮前沿）沿 460 cm 推进、船首推开的暗色尘、身后尘迹与地面拖痕；`NS_LDRamHit`：0.1 s 暖白冲击核与 380 cm 光、贴地重冲击环、暗色重尘、向上崩起的碎屑、地面撞痕 | `production/vfx/batch5e-physical-mass/` | 用户未验收 |
 | `active_brace` 顶着揍 | 无 · 架势 3 s | LOCALLY VERIFIED | 前摇：通用族；`NS_LDBraceRelease`：粗铜环从胸口砸到脚下并收紧、脚下压出的暗尘；架势见 §7.6 `NS_LDBracedState`；`NS_LDBraceBurst`：架势按期结束时（释放 + 数据 3 s，且 Braced 在此时消失、未倒地）暖白核、铜色冲击波冲到 300 cm、向外推开的暗尘 | `production/vfx/batch6-self/` | 用户未验收；结束反震只在本机按期推断，提前或延长的架势不播 |
 | `active_cola_shake` 冰可乐摇一摇 | 冰 · 扇形 400/60° | LOCALLY VERIFIED | `NS_LDColaTell`、`NS_LDColaBlast`、命中 `NS_LDChillHit`；贴图 `ice_*` | `production/vfx/batch2/chill/` | 喷射本身偏淡；用户未验收 |
@@ -418,10 +419,10 @@
 | 项 | 事件 | 状态 | 实现 | 证据 | 已知问题 |
 | --- | --- | --- | --- | --- | --- |
 | 电场 Field | 地面状态 5 | USER APPROVED | `NS_LDField` 220（经 `ShowGround` 按种类选系统） | `vfx/approved/field*` | §2.2 已知小问题 |
-| 水洼 Puddle | 地面状态 1 | IMPLEMENTED | `NS_LDPuddleGround`：浸湿暗面、冷色反光、湿亮边、落水涟漪 | `production/vfx/batch3/` | 偏弱，主要只读到边；旧种类图案（同心圆）仍在，替换待用户批准 |
-| 冰面 Ice | 地面状态 2 | LOCALLY VERIFIED | `NS_LDIceGround`：霜纹釉面、清晰冷边、边上小冰晶、表面闪光 | `production/vfx/batch3/` | 旧种类图案（条纹）仍在，替换待用户批准 |
-| 火地 Fire | 地面状态 3 | LOCALLY VERIFIED | `NS_LDFireGround`：焦地裂纹脉动、边缘低火舌、内部偶发火苗与火星 | `production/vfx/batch3/` | 旧种类图案（八角星）仍在，替换待用户批准 |
-| 瘴气 Miasma | 地面状态 4 | IMPLEMENTED | `NS_LDMiasmaGround`：腐渍、缓慢低云、鼓起破裂的气泡、雾化边缘 | `production/vfx/batch3/` | 偏弱；旧种类图案（六边形）仍在，替换待用户批准 |
+| 水洼 Puddle | 地面状态 1 | IMPLEMENTED | `NS_LDPuddleGround`：两层浸湿暗面、冷色水体与流动反光、湿亮边、落水涟漪 | `production/vfx/batch6-grounds/` | 主体加厚后待用户评估 |
+| 冰面 Ice | 地面状态 2 | LOCALLY VERIFIED | `NS_LDIceGround`：霜纹釉面、清晰冷边、边上小冰晶、表面闪光 | `production/vfx/batch3/` | |
+| 火地 Fire | 地面状态 3 | LOCALLY VERIFIED | `NS_LDFireGround`：焦地裂纹脉动、边缘低火舌、内部偶发火苗与火星 | `production/vfx/batch3/` | |
+| 瘴气 Miasma | 地面状态 4 | IMPLEMENTED | `NS_LDMiasmaGround`：两层腐渍、较浓的缓慢低云、鼓起破裂的气泡、雾化边缘 | `production/vfx/batch6-grounds/` | 主体加厚后待用户评估 |
 | 技能区域 Area* | 投射物 AreaPlain/Magic/Fire/Water/Electric | NOT STARTED | 旧：`NS_LDZone` 粒子 | — | 随各自技能设计 |
 
 ### 7.6 控制与增益状态

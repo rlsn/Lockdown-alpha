@@ -1233,11 +1233,6 @@ namespace
                     ChainJobs.Add({Look, TEXT("grounds-four"), {{.05f, GroundOf(V1, ELDGroundStateKind::Puddle, 31, OwnSeat)}, {.05f, GroundOf(V2, ELDGroundStateKind::Ice, 32, OwnSeat)},
                         {.05f, GroundOf(V3, ELDGroundStateKind::Fire, 33, OtherSeat)}, {.05f, GroundOf(A2, ELDGroundStateKind::Miasma, 34, OtherSeat)}},
                         nullptr, ClearGrounds, false, 1.2f, 0.f, 75});
-                    // The same four with the kind patterns hidden (ld.Vfx.GroundKindPatterns 0), for the pattern decision.
-                    const auto Patterns = [](int32 Value) { return [Value]() { if (IConsoleVariable* Var = IConsoleManager::Get().FindConsoleVariable(TEXT("ld.Vfx.GroundKindPatterns"))) { Var->Set(Value); } }; };
-                    ChainJobs.Add({Look, TEXT("grounds-nopattern"), {{.05f, GroundOf(V1, ELDGroundStateKind::Puddle, 37, OwnSeat)}, {.05f, GroundOf(V2, ELDGroundStateKind::Ice, 38, OwnSeat)},
-                        {.05f, GroundOf(V3, ELDGroundStateKind::Fire, 39, OtherSeat)}, {.05f, GroundOf(A2, ELDGroundStateKind::Miasma, 40, OtherSeat)}},
-                        Patterns(0), [ClearGrounds, Patterns]() { ClearGrounds(); Patterns(1)(); }, false, 1.2f, .6f, 30});
                     ChainJobs.Add({Look, TEXT("grounds-sunlit"), {{.05f, GroundOf(V1, ELDGroundStateKind::Fire, 35, OwnSeat)}, {.05f, GroundOf(A, ELDGroundStateKind::Miasma, 36, OwnSeat)}},
                         Sunlit, [Home, ClearGrounds]() { ClearGrounds(); Home(); }, false, 1.2f, .6f, 30});
                 }

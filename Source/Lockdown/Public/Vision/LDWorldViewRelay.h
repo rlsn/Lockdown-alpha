@@ -326,9 +326,9 @@ private:
     bool bPlaced = false;
 };
 
-// Client-only presentation of one public ground state (spec §12): the kind's own line pattern in its colour (never colour
-// alone) and the owner's seat-coloured outline, which drains around the footprint as its life runs out. Two instanced
-// meshes per state; it never collides, blocks or hides anything.
+// Client-only presentation of one public ground state (spec §12): the kind's own designed effect (each element its own
+// surface and motion, never colour alone; ULDImpactFxSubsystem::ShowGround) and the owner's seat-coloured outline, which
+// drains around the footprint as its life runs out. It never collides, blocks or hides anything.
 UCLASS()
 class LOCKDOWN_API ALDObservedGroundProxy : public AActor
 {
@@ -337,21 +337,19 @@ public:
     ALDObservedGroundProxy();
     void Apply(const FLDObservedGroundState& Ground, double SampledAtServerSec);
     void Present(double AtServerSec);
-    static FLinearColor KindColor(uint8 Kind);
-    // The footprint outline (closed, local space) and the kind's pattern segments for a state of this shape.
+    // The footprint outline (closed, local space) for a state of this shape; the kind shows through its designed
+    // effect (ULDImpactFxSubsystem::ShowGround).
     static void Outline(const FLDObservedGroundState& Ground, TArray<FVector>& Out);
-    static void Pattern(const FLDObservedGroundState& Ground, TArray<TPair<FVector,FVector>>& Out);
     int32 OutlineShown() const { return ShownOutline; }
     virtual void EndPlay(const EEndPlayReason::Type Reason) override;
     const class UNiagaraComponent* GetParticles() const { return Particles; }
 private:
-    // The kind's looping particles (LDHitVfx::GroundZoneOf) over the pattern, rebuilt with the shape or the effect scale.
+    // The kind's looping particles (LDHitVfx::GroundZoneOf) where it has no designed effect, rebuilt with the shape or the
+    // effect scale.
     UPROPERTY() TObjectPtr<class UNiagaraComponent> Particles;
     float ParticleScale = -1.f;
     void ShowParticles();
-    UPROPERTY() TObjectPtr<UInstancedStaticMeshComponent> Lines;
     UPROPERTY() TObjectPtr<UInstancedStaticMeshComponent> Rim;
-    UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> KindTint;
     UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> SeatTint;
     FLDObservedGroundState Shown;
     bool bShown=false;
