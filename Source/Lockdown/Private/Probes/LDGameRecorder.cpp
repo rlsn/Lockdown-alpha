@@ -22,6 +22,13 @@
 #include "Misc/Paths.h"
 #include "Serialization/JsonSerializer.h"
 #include "Slate/SceneViewport.h"
+#if PLATFORM_WINDOWS
+#include "Windows/WindowsHWrapper.h"
+#include "Windows/AllowWindowsPlatformTypes.h"
+#include <mmdeviceapi.h>
+#include <audiopolicy.h>
+#include "Windows/HideWindowsPlatformTypes.h"
+#endif
 
 DEFINE_LOG_CATEGORY_STATIC(LogLDGameRecorder, Log, All);
 
@@ -29,6 +36,45 @@ namespace LDDemoTests
 {
 namespace
 {
+    // Mutes or unmutes this process's own audio session on every active output device (the per-app entry of the Windows
+    // volume mixer). The engine's mix, and the submix tap below, are untouched; only what reaches the speakers is
+    // silenced, so a background recording never plays over the user's work. Windows remembers an app's mute by its
+    // executable, so the recorder unmutes on exit (the next recorder run re-mutes and unmutes again if a run was killed).
+    // Returns how many sessions were set.
+    int32 SetOwnSpeakerMute(bool bMute)
+    {
+        int32 Muted = 0;
+#if PLATFORM_WINDOWS
+        IMMDeviceEnumerator* Enumerator = nullptr;
+        if (FAILED(CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, IID_PPV_ARGS(&Enumerator))) || !Enumerator) { return 0; }
+        IMMDeviceCollection* Devices = nullptr;
+        if (SUCCEEDED(Enumerator->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &Devices)) && Devices)
+        {
+            UINT Count = 0;
+            Devices->GetCount(&Count);
+            for (UINT Index = 0; Index < Count; ++Index)
+            {
+                IMMDevice* Device = nullptr;
+                IAudioSessionManager* Sessions = nullptr;
+                ISimpleAudioVolume* Volume = nullptr;
+                if (SUCCEEDED(Devices->Item(Index, &Device)) && Device
+                    && SUCCEEDED(Device->Activate(__uuidof(IAudioSessionManager), CLSCTX_ALL, nullptr, reinterpret_cast<void**>(&Sessions))) && Sessions
+                    && SUCCEEDED(Sessions->GetSimpleAudioVolume(nullptr, 0, &Volume)) && Volume
+                    && SUCCEEDED(Volume->SetMute(bMute ? 1 : 0, nullptr)))
+                {
+                    ++Muted;
+                }
+                if (Volume) { Volume->Release(); }
+                if (Sessions) { Sessions->Release(); }
+                if (Device) { Device->Release(); }
+            }
+            Devices->Release();
+        }
+        Enumerator->Release();
+#endif
+        return Muted;
+    }
+
     struct FStamp final : IFramePayload
     {
         explicit FStamp(double InSeconds) : Seconds(InSeconds) {}
@@ -101,6 +147,7 @@ namespace
         int32 Width = 1600;
         double StartSeconds = 0.0;
         double LastCapture = -1.0;
+        double LastMute = -1.0;
         FDateTime StartUtc;
         TUniquePtr<FFrameGrabber> Grabber;
         FTSTicker::FDelegateHandle Tick;
@@ -142,9 +189,6 @@ namespace
             {
                 // The recorded game runs off screen, never focused; the engine default mutes an unfocused game's mix.
                 FApp::SetUnfocusedVolumeMultiplier(1.f);
-                // The mix still renders and reaches the tap below, but the device output is faded to silence, so a
-                // recording never plays through the user's speakers while they work.
-                Device->FadeOut();
                 Tap = MakeShared<FAudioTap, ESPMode::ThreadSafe>();
                 Tap->StartSeconds = StartSeconds;
                 Device->RegisterSubmixBufferListener(Tap.ToSharedRef(), Device->GetMainSubmixObject());
@@ -184,6 +228,13 @@ namespace
         bool OnTick(float)
         {
             if (bFinished) { return false; }
+            const double Wall = FPlatformTime::Seconds();
+            if (LastMute < 0.0 || Wall - LastMute > 1.0)
+            {
+                const int32 Sessions = SetOwnSpeakerMute(true);
+                if (LastMute < 0.0) { UE_LOG(LogLDGameRecorder, Display, TEXT("LD_GAME_RECORDER_SPEAKERS_MUTED sessions=%d"), Sessions); }
+                LastMute = Wall;
+            }
             if (!Grabber && !TryBegin()) { return true; }
             const double Now = FPlatformTime::Seconds() - StartSeconds;
             if (LastCapture < 0.0 || Now - LastCapture >= 1.0 / Fps - 0.002)
@@ -198,8 +249,10 @@ namespace
 
         void Finish()
         {
-            if (bFinished || !Grabber) { bFinished = true; return; }
+            if (bFinished) { return; }
             bFinished = true;
+            SetOwnSpeakerMute(false);
+            if (!Grabber) { return; }
             const double EndSeconds = FPlatformTime::Seconds() - StartSeconds;
             bool bAudio = false;
             if (Tap.IsValid())
