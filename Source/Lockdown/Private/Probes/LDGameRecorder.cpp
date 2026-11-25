@@ -140,8 +140,11 @@ namespace
             Device = World->GetAudioDevice();
             if (Device.IsValid())
             {
-                // The recorded game runs off screen, never focused; the engine default mutes an unfocused game.
+                // The recorded game runs off screen, never focused; the engine default mutes an unfocused game's mix.
                 FApp::SetUnfocusedVolumeMultiplier(1.f);
+                // The mix still renders and reaches the tap below, but the device output is faded to silence, so a
+                // recording never plays through the user's speakers while they work.
+                Device->FadeOut();
                 Tap = MakeShared<FAudioTap, ESPMode::ThreadSafe>();
                 Tap->StartSeconds = StartSeconds;
                 Device->RegisterSubmixBufferListener(Tap.ToSharedRef(), Device->GetMainSubmixObject());
