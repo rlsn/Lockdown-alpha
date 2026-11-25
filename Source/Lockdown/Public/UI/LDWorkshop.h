@@ -149,7 +149,6 @@ private:
         FBox2D Bar=FBox2D(ForceInit);
         TArray<FBox2D> Segments;
         float RowTop=0.f;
-        float RowBottom=0.f;
         // The left table and the shop: their top-left corner and their own scale (the text scale, fitted beside the ring).
         FVector2D Table=FVector2D::ZeroVector;
         float TableScale=1.f;
@@ -183,7 +182,6 @@ private:
     TArray<FFace> OfferFaces;
     FHit Hovered;
     FHit Pinned;
-    double HoveredAt=-1.;
     // The selected hand card (its first copy's key), or a blueprint of the blueprint batch.
     FName Selected;
     int32 SelectedBlueprint=INDEX_NONE;
@@ -202,7 +200,6 @@ private:
     // Install feedback: the installed keys of the last view and when each new one landed.
     TSet<FName> KnownInstalled;
     TMap<FName,double> Landed;
-    double LastTick=-1.;
     FVector2D ActionsAt=FVector2D::ZeroVector;
     FVector2D SmoothedCentre=FVector2D::ZeroVector;
     bool bHasCentre=false;
@@ -213,7 +210,7 @@ private:
     void Rebuild();
     void ComputeLayout(const FGeometry& Geometry);
     void LayoutTable();
-    void LayoutShop(const FGeometry& Geometry);
+    void LayoutShop();
     void LayoutRow();
     void LayoutCard();
     void UpdateRadar();

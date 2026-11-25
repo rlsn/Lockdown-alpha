@@ -272,7 +272,7 @@ void ULDWorkshop::ComputeLayout(const FGeometry& Geometry)
 {
     FLayout& L=Layout;
     L.Boxes.Reset();L.Anchors.Reset();L.Segments.Reset();HandFaces.Reset();OfferFaces.Reset();
-    L.Card=FBox2D(ForceInit);L.Bar=FBox2D(ForceInit);L.RowTop=L.RowBottom=0.f;
+    L.Card=FBox2D(ForceInit);L.Bar=FBox2D(ForceInit);L.RowTop=0.f;
     L.Size=Geometry.GetLocalSize();
     if(L.Size.X<2.||L.Size.Y<2.){L.Size=FVector2D(1920.,1080.);}
     L.K=FMath::Max(.01f,Geometry.Scale);
@@ -391,7 +391,7 @@ void ULDWorkshop::ComputeLayout(const FGeometry& Geometry)
         ActionsAt.Y=float(L.Bar.Min.Y)-8.f*U;
     }
     LayoutTable();
-    LayoutShop(Geometry);
+    LayoutShop();
     LayoutRow();
     // The element chooser of a card that asks for one, and a rest service's confirm line, over the ring's top.
     if(Storage.IsValid()&&Storage->IsChoosing())
@@ -483,7 +483,7 @@ void ULDWorkshop::LayoutTable()
     }
 }
 
-void ULDWorkshop::LayoutShop(const FGeometry& Geometry)
+void ULDWorkshop::LayoutShop()
 {
     FLayout& L=Layout;
     L.ShopWidth=0.f;
@@ -542,7 +542,6 @@ void ULDWorkshop::LayoutShop(const FGeometry& Geometry)
     const float RefreshW=WidthOf(Refresh,Face(EFace::Bold,18.f,S))+28.f*S;
     FShape& Button=L.Boxes.AddDefaulted_GetRef();Button.Hit={EHit::ShopRefresh,INDEX_NONE,INDEX_NONE};
     Button.Shape=Lean(BoxAt(FVector2D(L.Shop.X+HeadW,Top),FVector2D(RefreshW,30.f*S)),9.f*S,9.f*S);
-    (void)Geometry;
 }
 
 void ULDWorkshop::LayoutRow()
@@ -561,7 +560,6 @@ void ULDWorkshop::LayoutRow()
     const float ChipH=30.f*F;
     // A header chip right-aligned at Right: returns its left edge.
     const auto RightChip=[&](EHit Kind,const FString& Text,float Right,float Top){const float W=WidthOf(Text,Chip)+24.f*F;Add(Kind,INDEX_NONE,INDEX_NONE,Lean(FBox2D(FVector2D(Right-W,Top),FVector2D(Right,Top+ChipH)),7.f*F,7.f*F));return Right-W-6.f*U;};
-    L.RowBottom=Bottom;
     if(Ring.Batch.Kind!=EBatch::None&&!bShowHand)
     {
         const int32 Count=Ring.Batch.Options.Num();
@@ -787,14 +785,13 @@ void ULDWorkshop::NativeTick(const FGeometry& Geometry,float DeltaSeconds)
     if(FrozenOpen>=0.f&&IsOpen()){OpenedAt=Now-FrozenOpen;}
     if(FrozenReveal>=0.f&&BatchAt>=0.){BatchAt=Now-FrozenReveal;}
     ComputeLayout(Geometry);
-    LastTick=Now;
     FHit Next;
     if(FSlateApplication::IsInitialized()&&Ring.bValid)
     {
         const FVector2D Pointer=Geometry.AbsoluteToLocal(FSlateApplication::Get().GetCursorPos());
         if(Pointer.X>=0.&&Pointer.Y>=0.&&Pointer.X<=Layout.Size.X&&Pointer.Y<=Layout.Size.Y){Next=HitAt(Pointer);}
     }
-    if(!(Next==Hovered)){Hovered=Next;HoveredAt=Now;LayoutCard();}
+    if(!(Next==Hovered)){Hovered=Next;LayoutCard();}
     // A hand card looked at loses its 新 mark.
     const FHit Shown=Focus();
     if(Shown.Kind==EHit::Hand&&Ring.Hand.IsValidIndex(Shown.Index)&&Ring.Hand[Shown.Index].bFresh&&Storage.IsValid())
