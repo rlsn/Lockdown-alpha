@@ -20,6 +20,9 @@
 # VFX: hit-effect masks rendered by SourceData/VFX/Blender/hit_textures.py.
 /SourceData/VFX/*.png filter=lfs diff=lfs merge=lfs -text
 
+# Docs: visual evidence for the VFX manual (approved and rejected references).
+/docs/systems/vfx/** filter=lfs diff=lfs merge=lfs -text
+
 # Human-readable documentation uses one portable text format.
 *.md text eol=lf
 
