@@ -11,7 +11,10 @@
 #include "Materials/MaterialExpressionScalarParameter.h"
 #include "Materials/MaterialExpressionTextureCoordinate.h"
 #include "Materials/MaterialExpressionTextureObjectParameter.h"
+#include "Materials/MaterialExpressionFresnel.h"
+#include "Materials/MaterialExpressionMultiply.h"
 #include "Materials/MaterialExpressionTime.h"
+#include "Materials/MaterialExpressionVertexNormalWS.h"
 #include "Materials/MaterialExpressionVectorParameter.h"
 #include "Materials/MaterialInstanceConstant.h"
 #include "Misc/PackageName.h"
@@ -401,6 +404,8 @@ namespace
         FVector2D SubImages = FVector2D(1., 1.);              // sprite atlas columns and rows
         FVector2D Pivot = FVector2D(.5, .5);                  // sprite pivot in UV space
         ENiagaraSpriteAlignment Align = ENiagaraSpriteAlignment::Unaligned;
+        // Ribbon: several ribbons in one emitter, told apart by the int attribute Particles.LDRibbon.
+        bool bRibbonIds = false;
 
         FPart& Set(const TCHAR* Attribute, const FString& Hlsl) { Attributes.Emplace(Attribute, Hlsl); return *this; }
     };
@@ -415,6 +420,7 @@ namespace
     FNiagaraTypeDefinition AttributeType(const FString& Name)
     {
         if (Name == TEXT("Particles.Position")) { return FNiagaraTypeDefinition::GetPositionDef(); }
+        if (Name == TEXT("Particles.LDRibbon")) { return FNiagaraTypeDefinition::GetIntDef(); }
         if (Name == TEXT("Particles.Color")) { return FNiagaraTypeDefinition::GetColorDef(); }
         if (Name == TEXT("Particles.SpriteSize")) { return FNiagaraTypeDefinition::GetVec2Def(); }
         if (Name == TEXT("Particles.Velocity") || Name == TEXT("Particles.SpriteAlignment")) { return FNiagaraTypeDefinition::GetVec3Def(); }
@@ -860,6 +866,248 @@ namespace
         return C;
     }
 
+    // The shocked-body rim glow (LDSliceVfx::BodyGlowMaterial): an additive unlit shell of the pose pushed 1.2 cm out along
+    // its normals so it never fights the body's own depth, bright at the rim (fresnel) and faint across the front.
+    // Parameters Glow (colour) and Fade like the afterimage material.
+    UMaterial* BuildBodyGlowMaterial(FString& Error)
+    {
+        const FString PackageName = LDSliceVfx::BodyGlowMaterial;
+        Retire(PackageName);
+        UMaterial* Material = NewObject<UMaterial>(CreatePackage(*PackageName), *FPackageName::GetShortName(PackageName), RF_Public | RF_Standalone);
+        auto* Glow = AddExpression<UMaterialExpressionVectorParameter>(*Material);
+        Glow->ParameterName = LDHitVfx::GlowParameter;
+        Glow->DefaultValue = FLinearColor(1.f, .74f, .36f);
+        auto* Fade = AddExpression<UMaterialExpressionScalarParameter>(*Material);
+        Fade->ParameterName = LDHitVfx::FadeParameter;
+        Fade->DefaultValue = 0.f;
+        auto* Rim = AddExpression<UMaterialExpressionFresnel>(*Material);
+        Rim->Exponent = 2.5f;
+        Rim->BaseReflectFraction = 0.f;
+        auto* Custom = AddExpression<UMaterialExpressionCustom>(*Material);
+        Custom->OutputType = CMOT_Float3;
+        Custom->Description = TEXT("LDChainBodyGlow");
+        Custom->Code = TEXT("return Glow.rgb * Fade * (0.04 + 1.4 * Rim * Rim);");
+        Custom->Inputs.Reset();
+        const auto Bind = [Custom](const TCHAR* Name, UMaterialExpression* Source)
+        {
+            FCustomInput& Input = Custom->Inputs.AddDefaulted_GetRef();
+            Input.InputName = Name;
+            Input.Input.Connect(0, Source);
+        };
+        Bind(TEXT("Glow"), Glow);
+        Bind(TEXT("Fade"), Fade);
+        Bind(TEXT("Rim"), Rim);
+        auto* Normal = AddExpression<UMaterialExpressionVertexNormalWS>(*Material);
+        auto* Push = AddExpression<UMaterialExpressionMultiply>(*Material);
+        Push->A.Connect(0, Normal);
+        Push->ConstB = 1.2f;
+        Material->GetEditorOnlyData()->EmissiveColor.Connect(0, Custom);
+        Material->GetEditorOnlyData()->WorldPositionOffset.Connect(0, Push);
+        Material->BlendMode = BLEND_Additive;
+        Material->SetShadingModel(MSM_Unlit);
+        bool bNeedsRecompile = false;
+        Material->SetMaterialUsage(bNeedsRecompile, MATUSAGE_SkeletalMesh);
+        Material->PostEditChange();
+        Material->MarkPackageDirty();
+        return Save(*Material, Error) ? Material : nullptr;
+    }
+
+    // A+: A's language (warm-white core, soft pale-gold energy layer, no outline, no disc) made richer, with a hit that
+    // says "this body got shocked". Per hop, scaled by the link (a bounce's 56 cm link is 80 % of the first hop's 70):
+    //   Bolt      the trunk: 55 cm segments, discrete kinks re-drawn at 25 Hz, width breathing with every redraw, bright
+    //             surges running source -> target; full for 130 ms, one dim afterimage frame, gone at 165 ms
+    //   Strands   two thin filaments twisting round the trunk through its kinks with their own phase (own links only)
+    //   Branches  three short kinked forks from the trunk's middle, each shown in about half of the 15 Hz windows
+    //   Burst     seven short jagged streaks out of the contact, biased along the hop, 100 ms
+    //   Crawl     three small arcs crawling over the struck body for 0.3 s, one at the source
+    //   Spark     a spray of velocity-stretched sparks with slight gravity, 0.35-0.55 s (others' links: fewer)
+    //   Crackle   tiny sparks shed off the trunk while it lives
+    //   Light     a short shadowless warm contact light
+    // Others' links (User.Focus 0) are 60 % wide and half as bright. The ground glow and scorch flash are slice layers and
+    // the body's rim glow a pooled shell (LDSliceVfx::Impact, ULDHumanoidVisualComponent).
+    FCandidate CandidateAPlus(UMaterial& Material, UMaterial& Top, FString& Error)
+    {
+        const FPalette Palette{FLinearColor(1.f, .93f, .78f), FLinearColor(1.f, .68f, .26f), FLinearColor(.22f, .1f, .03f), 2.8f, 1.2f};
+        UTexture2D* Profile = SliceTexture(LDSliceVfx::ETex::ChainAProfile);
+        UTexture2D* Noise = SliceTexture(LDSliceVfx::ETex::ChainAEnergyNoise);
+        UMaterialInstanceConstant* Trunk = ChainPaint(TEXT("MI_LDChainAPlus_Bolt"), Material, Profile, Noise, 1.f, Palette, 1.f, 1.6f, Error);
+        UMaterialInstanceConstant* Thread = ChainPaint(TEXT("MI_LDChainAPlus_Thread"), Material, Profile, nullptr, 0.f, Palette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Burst = ChainPaint(TEXT("MI_LDChainAPlus_Burst"), Top, Profile, nullptr, 0.f, Palette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Streak = ChainPaint(TEXT("MI_LDChainAPlus_Spark"), Top, SliceTexture(LDSliceVfx::ETex::ChainASparkStreak), nullptr, 0.f, Palette, 1.f, 0.f, Error);
+        FCandidate A;
+        A.Look = TEXT("APlus");
+        if (!Trunk || !Thread || !Burst || !Streak) { return A; }
+        FTrunk Shape;
+        Shape.SegCm = 55.f;
+        Shape.Jitter = .35f;
+        Shape.Step = TEXT("floor(min(Particles.Age, 0.13) * 25.0)");
+        const FString Focus = TEXT("lerp(0.75, 1.0, User.Focus)");
+        const FString Strength = FString::Printf(TEXT("(%s * lerp(0.714, 1.0, User.Focus))"), Bright);
+        const FString Scale = FString::Printf(TEXT("(%s * %s)"), LinkScale, *Focus);
+        // Full for 130 ms, then one dim, thin afterimage frame.
+        const FString After = TEXT("step(0.13, Particles.Age)");
+        const FString Breath = FString::Printf(TEXT("(0.75 + 0.5 * %s)"), *FTrunk::Hash(TEXT("0.0"), Shape.Step, 21.f));
+        const auto Surge = [](const FString& T) { return FString::Printf(TEXT("exp(-pow((%s - frac(Particles.Age / 0.065)) / 0.14, 2.0))"), *T); };
+        const FString Count = Shape.Count();
+
+        FPart& Main = A.Parts.AddDefaulted_GetRef();
+        Main.Name = TEXT("Bolt");
+        Main.Count = Shape.SpawnCount();
+        Main.Lifetime = TEXT("0.165");
+        Main.Paint = Trunk;
+        Main.TileCm = 60.f;
+        Main.Set(TEXT("Particles.LDT"), Shape.T(Own))
+            .Set(TEXT("Particles.RibbonLinkOrder"), Own)
+            .Set(TEXT("Particles.Position"), Shape.Point(Own, TEXT("Particles.LDT")))
+            .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("70.0 * 0.32 * %s * min(1.0, 0.35 + 2.6 * min(Particles.LDT, 1.0 - Particles.LDT)) * %s * (1.0 + 0.7 * %s) * lerp(1.0, 0.4, %s)"),
+                *Scale, *Breath, *Surge(TEXT("Particles.LDT")), *After))
+            .Set(TEXT("Particles.Color"), Rgba(FString::Printf(TEXT("%s * (1.0 + 1.4 * %s)"), *Strength, *Surge(TEXT("Particles.LDT"))), FString::Printf(TEXT("lerp(1.0, 0.35, %s)"), *After)));
+
+        // Two filaments: ribbon r of the emitter, point j of the trunk's points; each passes through the trunk's kinks
+        // offset round it by a twist of its own (phase per filament and redraw), meeting the trunk at both ends.
+        FPart& Strands = A.Parts.AddDefaulted_GetRef();
+        Strands.Name = TEXT("Strands");
+        // Others' links (User.Focus 0) go without the filaments: a single thinner, dimmer trunk.
+        Strands.Count = FString::Printf(TEXT("int(2.0 * %s * User.Focus + 0.01)"), *Count);
+        Strands.Lifetime = TEXT("0.165");
+        Strands.Paint = Thread;
+        Strands.TileCm = 60.f;
+        Strands.bRibbonIds = true;
+        const FString J = TEXT("Particles.LDJ");
+        const FString Twist = FString::Printf(TEXT("(%s * 1.9 + float(Particles.LDRibbon) * 3.1416 + %s * 2.4)"), *J, *FTrunk::Hash(TEXT("float(Particles.LDRibbon) + 70.0"), Shape.Step, 4.4f));
+        Strands.Set(TEXT("Particles.LDRibbon"), FString::Printf(TEXT("int(floor(%s / %s))"), Own, *Count))
+            .Set(TEXT("Particles.LDJ"), FString::Printf(TEXT("(%s - float(Particles.LDRibbon) * %s)"), Own, *Count))
+            .Set(TEXT("Particles.LDT"), Shape.T(J))
+            .Set(TEXT("Particles.RibbonLinkOrder"), J)
+            .Set(TEXT("Particles.Position"), FString::Printf(TEXT("%s + (%s * cos(%s) + %s * sin(%s)) * 10.0 * %s * sin(3.1416 * Particles.LDT) * (0.6 + 0.8 * %s)"),
+                *Shape.Point(J, TEXT("Particles.LDT")), *FTrunk::Side(), *Twist, *FTrunk::Up(), *Twist, *Scale, *FTrunk::Hash(J, Shape.Step, 6.6f)))
+            .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("70.0 * 0.09 * %s * lerp(1.0, 0.4, %s)"), *Scale, *After))
+            .Set(TEXT("Particles.Color"), Rgba(FString::Printf(TEXT("%s * 0.9"), *Strength), FString::Printf(TEXT("lerp(0.9, 0.3, %s)"), *After)));
+
+        // Three kinked forks from the trunk's middle third, 12-22 % of the hop (at most 110 cm), at 25-45 degrees, each
+        // shown in about half of the 15 Hz windows (two frames at a time).
+        FPart& Branches = A.Parts.AddDefaulted_GetRef();
+        Branches.Name = TEXT("Branches");
+        Branches.Count = TEXT("12");
+        Branches.Lifetime = TEXT("0.13");
+        Branches.Paint = Thread;
+        Branches.TileCm = 60.f;
+        Branches.bRibbonIds = true;
+        {
+            const FString Window = TEXT("floor(Particles.Age * 15.0)");
+            const FString Fork = TEXT("float(Particles.LDRibbon) * 7.0 + 40.0");
+            const auto Pick = [&](float Salt) { return FTrunk::Hash(Fork, Window, Salt); };
+            const FString Root = FString::Printf(TEXT("floor(%s * (0.35 + 0.3 * %s))"), *Count, *Pick(.5f));
+            const FString Angle = FString::Printf(TEXT("radians(25.0 + 20.0 * %s)"), *Pick(1.5f));
+            const FString Sign = FString::Printf(TEXT("(step(0.5, %s) * 2.0 - 1.0)"), *Pick(2.5f));
+            const FString Reach = FString::Printf(TEXT("min(%s * (0.12 + 0.1 * %s), 110.0)"), *FTrunk::Length(), *Pick(3.5f));
+            const FString Along = TEXT("(Particles.LDJ / 3.0)");
+            Branches.Set(TEXT("Particles.LDRibbon"), FString::Printf(TEXT("int(floor(%s / 4.0))"), Own))
+                .Set(TEXT("Particles.LDJ"), FString::Printf(TEXT("(%s - float(Particles.LDRibbon) * 4.0)"), Own))
+                .Set(TEXT("Particles.RibbonLinkOrder"), TEXT("Particles.LDJ"))
+                .Set(TEXT("Particles.Position"), FString::Printf(TEXT("%s + (%s * cos(%s) + %s * sin(%s) * %s) * %s * %s + %s * (%s * 2.0 - 1.0) * 0.3 * %s / 3.0 * step(0.5, Particles.LDJ)"),
+                    *Shape.Point(Root, Shape.T(Root)), *FTrunk::Dir(), *Angle, *FTrunk::Side(), *Angle, *Sign, *Reach, *Along,
+                    *FTrunk::Up(), *FTrunk::Hash(FString::Printf(TEXT("Particles.LDJ + %s"), *Fork), Window, 9.1f), *Reach))
+                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("70.0 * 0.12 * %s * (1.0 - 0.8 * %s) * step(%s, 0.55)"), *Scale, *Along, *Pick(4.5f)))
+                .Set(TEXT("Particles.Color"), Rgba(Strength, TEXT("1.0")));
+        }
+
+        // The contact burst: seven jagged streaks out of the hit point, along the hop more than back, each with one kink
+        // re-drawn at 30 Hz, growing over 25 ms and thinning out over 100 ms.
+        FPart& Jag = A.Parts.AddDefaulted_GetRef();
+        Jag.Name = TEXT("Burst");
+        Jag.Count = TEXT("21");
+        Jag.Lifetime = TEXT("0.1");
+        Jag.Paint = Burst;
+        Jag.TileCm = 60.f;
+        Jag.bRibbonIds = true;
+        {
+            const FString Ray = TEXT("float(Particles.LDRibbon) + 90.0");
+            const auto Pick = [&](float Salt) { return FTrunk::Hash(Ray, TEXT("0.0"), Salt); };
+            const FString Out = FString::Printf(TEXT("normalize(%s * 1.1 + float3(%s * 2.0 - 1.0, %s * 2.0 - 1.0, (%s * 2.0 - 1.0) * 0.8))"),
+                *FTrunk::Dir(), *Pick(1.f), *Pick(2.f), *Pick(3.f));
+            const FString Length = FString::Printf(TEXT("((40.0 + 35.0 * %s) * %s * saturate(Particles.Age / 0.025 + 0.4))"), *Pick(4.f), *Scale);
+            const FString Across = FString::Printf(TEXT("normalize(cross(%s, float3(0.0, 0.0, 1.0)) + float3(0.0001, 0.0001, 0.0))"), *Out);
+            Jag.Set(TEXT("Particles.LDRibbon"), FString::Printf(TEXT("int(floor(%s / 3.0))"), Own))
+                .Set(TEXT("Particles.LDJ"), FString::Printf(TEXT("(%s - float(Particles.LDRibbon) * 3.0)"), Own))
+                .Set(TEXT("Particles.RibbonLinkOrder"), TEXT("Particles.LDJ"))
+                .Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.End + %s * %s * (Particles.LDJ / 2.0) + %s * (%s * 2.0 - 1.0) * 0.35 * %s * 0.5 * step(0.5, Particles.LDJ) * step(Particles.LDJ, 1.5)"),
+                    *Out, *Length, *Across, *FTrunk::Hash(FString::Printf(TEXT("%s * 3.0"), *Ray), TEXT("floor(Particles.Age * 30.0)"), 5.f), *Length))
+                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("11.0 * %s * (1.0 - 0.85 * Particles.LDJ / 2.0) * (1.0 - 0.6 * Particles.NormalizedAge)"), *Scale))
+                .Set(TEXT("Particles.Color"), Rgba(FString::Printf(TEXT("%s * 2.4"), *Strength), TEXT("1.0")));
+        }
+
+        // Small arcs crawling over the struck body for 0.3 s (ribbons 0-2 round User.End at different heights, ribbon 3
+        // small round User.Start), redrawn at 20 Hz while their start angle keeps turning.
+        FPart& Crawl = A.Parts.AddDefaulted_GetRef();
+        Crawl.Name = TEXT("Crawl");
+        Crawl.Count = TEXT("20");
+        Crawl.Lifetime = TEXT("0.3");
+        Crawl.Paint = Thread;
+        Crawl.TileCm = 60.f;
+        Crawl.bRibbonIds = true;
+        {
+            const FString Arc = TEXT("float(Particles.LDRibbon) + 120.0");
+            const FString Window = TEXT("floor(Particles.Age * 20.0)");
+            const FString AtSource = TEXT("step(2.5, float(Particles.LDRibbon))");
+            const FString Centre = FString::Printf(TEXT("lerp(User.End + float3(0.0, 0.0, (%s - 0.6) * 70.0), User.Start, %s)"), *FTrunk::Hash(Arc, TEXT("0.0"), 1.f), *AtSource);
+            const FString Turn = FString::Printf(TEXT("(%s * 6.2832 + Particles.Age * 9.0 * (%s * 2.0 - 1.0) + Particles.LDJ * 0.5)"),
+                *FTrunk::Hash(Arc, TEXT("0.0"), 2.f), *FTrunk::Hash(Arc, TEXT("0.0"), 3.f));
+            const FString Radius = FString::Printf(TEXT("(lerp(34.0, 16.0, %s) * %s)"), *AtSource, *Scale);
+            Crawl.Set(TEXT("Particles.LDRibbon"), FString::Printf(TEXT("int(floor(%s / 5.0))"), Own))
+                .Set(TEXT("Particles.LDJ"), FString::Printf(TEXT("(%s - float(Particles.LDRibbon) * 5.0)"), Own))
+                .Set(TEXT("Particles.RibbonLinkOrder"), TEXT("Particles.LDJ"))
+                .Set(TEXT("Particles.Position"), FString::Printf(TEXT("%s + float3(cos(%s), sin(%s), 0.0) * %s * (0.85 + 0.3 * %s) + float3(0.0, 0.0, (%s - 0.5) * 18.0 * %s)"),
+                    *Centre, *Turn, *Turn, *Radius, *FTrunk::Hash(FString::Printf(TEXT("Particles.LDJ + %s"), *Arc), Window, 4.f),
+                    *FTrunk::Hash(FString::Printf(TEXT("Particles.LDJ + %s"), *Arc), Window, 5.f), *Scale))
+                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("8.0 * %s * sin(3.1416 * Particles.LDJ / 4.0) * step(%s, 0.8)"), *Scale, *FTrunk::Hash(Arc, Window, 6.f)))
+                .Set(TEXT("Particles.Color"), Rgba(FString::Printf(TEXT("%s * 2.2"), *Strength), TEXT("(1.0 - Particles.NormalizedAge * Particles.NormalizedAge)")));
+        }
+
+        const FString Launch = FString::Printf(TEXT("(%s * (250.0 + 230.0 * %s))"), *SparkDirection(.7f, .5f), *Random(15.f));
+        FPart& Sparks = A.Parts.AddDefaulted_GetRef();
+        Sparks.Name = TEXT("Spark");
+        Sparks.Kind = FPart::Sprite;
+        Sparks.Count = FString::Printf(TEXT("int(lerp(5.0, 14.0, User.Focus) * %s + 0.5)"), LinkScale);
+        Sparks.Lifetime = FString::Printf(TEXT("0.35 + 0.2 * %s"), *Random(14.f));
+        Sparks.Paint = Streak;
+        Sparks.Align = ENiagaraSpriteAlignment::VelocityAligned;
+        Sparks.Set(TEXT("Particles.Velocity"), FString::Printf(TEXT("%s + float3(0.0, 0.0, -500.0) * Particles.Age"), *Launch))
+            .Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.End + %s * Particles.Age + float3(0.0, 0.0, -250.0) * Particles.Age * Particles.Age"), *Launch))
+            .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(40.0, 9.0) * %s"), *Scale))
+            .Set(TEXT("Particles.SpriteRotation"), Quarter)
+            .Set(TEXT("Particles.Color"), Rgba(FString::Printf(TEXT("%s * 2.0"), *Strength), TEXT("(1.0 - pow(Particles.NormalizedAge, 1.5))")));
+
+        // Crackle: eight tiny sparks shed off trunk points while the trunk lives, each for 50 ms at its own moment.
+        FPart& Crackle = A.Parts.AddDefaulted_GetRef();
+        Crackle.Name = TEXT("Crackle");
+        Crackle.Kind = FPart::Sprite;
+        Crackle.Count = TEXT("8");
+        Crackle.Lifetime = TEXT("0.165");
+        Crackle.Paint = Streak;
+        Crackle.Align = ENiagaraSpriteAlignment::VelocityAligned;
+        {
+            const FString Root = FString::Printf(TEXT("(1.0 + floor(%s * (%s - 2.0)))"), *Random(21.f), *Count);
+            const FString From = FString::Printf(TEXT("(%s * 0.11)"), *Random(22.f));
+            const FString Since = FString::Printf(TEXT("max(Particles.Age - %s, 0.0)"), *From);
+            const FString Kick = FString::Printf(TEXT("(normalize(float3(%s * 2.0 - 1.0, %s * 2.0 - 1.0, 0.6)) * 180.0)"), *Random(23.f), *Random(24.f));
+            Crackle.Set(TEXT("Particles.Velocity"), Kick)
+                .Set(TEXT("Particles.Position"), FString::Printf(TEXT("%s + %s * %s"), *Shape.Point(Root, Shape.T(Root)), *Kick, *Since))
+                .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(16.0, 4.0) * %s * step(%s, Particles.Age) * step(Particles.Age, %s + 0.05)"), *Scale, *From, *From))
+                .Set(TEXT("Particles.SpriteRotation"), Quarter)
+                .Set(TEXT("Particles.Color"), Rgba(FString::Printf(TEXT("%s * 1.6"), *Strength), TEXT("1.0")));
+        }
+
+        FPart& Light = A.Parts.AddDefaulted_GetRef();
+        Light.Name = TEXT("Light");
+        Light.Kind = FPart::Light;
+        Light.Lifetime = TEXT("0.2");
+        Light.Set(TEXT("Particles.Position"), TEXT("User.End + float3(0.0, 0.0, -20.0)"))
+            .Set(TEXT("Particles.LightRadius"), FString::Printf(TEXT("220.0 * %s"), *Scale))
+            .Set(TEXT("Particles.Color"), FString::Printf(TEXT("float4(1.0, 0.74, 0.38, 1.0) * float4(9.0, 9.0, 9.0, 1.0) * %s * (1.0 - Particles.NormalizedAge)"), *Strength));
+        return A;
+    }
+
     // A compact, order-stable description of a built system: user parameters, emitters, modules with their input count and
     // renderer properties. Two builds of the same code give the same text.
     FString SummaryOf(UNiagaraSystem& System)
@@ -1075,6 +1323,11 @@ namespace
                 Ribbon->TessellationMode = ENiagaraRibbonTessellationMode::Disabled;
                 Ribbon->UV0Settings.DistributionMode = ENiagaraRibbonUVDistributionMode::TiledOverRibbonLength;
                 Ribbon->UV0Settings.TilingLength = Part.TileCm;
+                if (Part.bRibbonIds)
+                {
+                    const FNiagaraVariable Id(FNiagaraTypeDefinition::GetIntDef(), TEXT("Particles.LDRibbon"));
+                    Ribbon->RibbonIdBinding.Setup(Id, Id);
+                }
             }
             else if (auto* Sprite = Cast<UNiagaraSpriteRendererProperties>(Renderer))
             {
@@ -1113,9 +1366,9 @@ bool LDDemoVfxNiagara::Build(FString& Error)
     UMaterial* Particle = BuildMaterial(Arcs, Error);
     UMaterial* Chain = Particle ? BuildChainMaterial(TEXT("M_LDChain"), false, Arcs, Error) : nullptr;
     UMaterial* Top = Chain ? BuildChainMaterial(TEXT("M_LDChainTop"), true, Arcs, Error) : nullptr;
-    if (!Particle || !Chain || !Top) { return false; }
+    if (!Particle || !Chain || !Top || !BuildBodyGlowMaterial(Error)) { return false; }
     if (!BuildV1(FV1Spec(), *Particle, *Arcs, *Sparks, *BeamEmitter, *SparkEmitter, Error)) { return false; }
-    for (FCandidate (*Make)(UMaterial&, UMaterial&, FString&) : {&CandidateA, &CandidateB, &CandidateC})
+    for (FCandidate (*Make)(UMaterial&, UMaterial&, FString&) : {&CandidateA, &CandidateB, &CandidateC, &CandidateAPlus})
     {
         const FCandidate Look = Make(*Chain, *Top, Error);
         if (!BuildCandidate(Look, *BeamEmitter, *SparkEmitter, Error)) { return false; }
@@ -1139,7 +1392,7 @@ bool LDDemoVfxNiagara::Build(FString& Error)
 
 bool LDDemoVfxNiagara::Validate(FString& Error)
 {
-    for (const TCHAR* Look : {TEXT("V1"), TEXT("A"), TEXT("B"), TEXT("C")})
+    for (const TCHAR* Look : {TEXT("V1"), TEXT("A"), TEXT("B"), TEXT("C"), TEXT("APlus")})
     {
         const FString PackageName = GeneratedPackage(FString(TEXT("NS_LDChain_")) + Look);
         UNiagaraSystem* System = FPackageName::DoesPackageExist(PackageName)

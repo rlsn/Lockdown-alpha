@@ -194,6 +194,8 @@ private:
     struct FLiveGhost
     {
         TWeakObjectPtr<const ULDHumanoidVisualComponent> Owner;
+        // A rim shell (FGhosts::bShell) keeps following this body's pose; an afterimage stays where it was left.
+        TWeakObjectPtr<const USkeletalMeshComponent> Source;
         int32 Slot = INDEX_NONE;
         float Age = 0;
         LDHitVfx::FGhosts Look;
@@ -221,6 +223,10 @@ private:
     UPROPERTY() TObjectPtr<UMaterialInterface> GhostMaterial;
     UPROPERTY() TArray<TObjectPtr<UPoseableMeshComponent>> GhostSlots;
     UPROPERTY() TArray<TObjectPtr<UMaterialInstanceDynamic>> GhostPaints;
+    // The rim shell paint of each ghost slot (FGhosts::bShell), made on first use.
+    UPROPERTY() TObjectPtr<UMaterialInterface> BodyGlowMaterial;
+    UPROPERTY() TArray<TObjectPtr<UMaterialInstanceDynamic>> ShellPaints;
+    UMaterialInstanceDynamic* PaintOf(int32 Slot, bool bShell);
     TArray<int32> FreeGhosts;
     TArray<FLiveGhost> LiveGhosts;
     TSharedPtr<const FLDDemoContentSnapshot> Content;

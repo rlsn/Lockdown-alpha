@@ -982,12 +982,16 @@ void ULDHumanoidVisualComponent::ShowSliceImpact(const FPendingImpact& Impact, c
         Impacts->Chain(*this, Match.From.ContainsNaN() ? Chest + FVector(0, 0, 60.f) : Match.From, Chest, Match.bChained, Look, Age);
         // Chain look A warms the struck body for 0.15 s with a pooled glowing copy of its pose (removable, never the
         // body's own materials).
-        if (Look.ChainLook == LDSliceVfx::ChainA && Mesh && Age < .15f && Look.EffectScale > 0.f)
+        // A+ lights a rim shell instead, brighter and longer, only on the local player's own fights (others' targets get
+        // none); a bounce target (smaller link) a little less.
+        const bool bPlus = Look.ChainLook == LDSliceVfx::ChainAPlus;
+        if ((Look.ChainLook == LDSliceVfx::ChainA || (bPlus && Look.bFocus)) && Mesh && Age < .15f && Look.EffectScale > 0.f)
         {
             LDHitVfx::FGhosts Warm;
             Warm.bShow = true;
-            Warm.Seconds = .15f;
-            Warm.Glow = FLinearColor(1.f, .7f, .28f) * (Look.bFocus ? 1.4f : .8f);
+            Warm.bShell = bPlus;
+            Warm.Seconds = bPlus ? .22f : .15f;
+            Warm.Glow = bPlus ? FLinearColor(1.f, .74f, .36f) * (Match.bChained ? 1.3f : 1.6f) : FLinearColor(1.f, .7f, .28f) * (Look.bFocus ? 1.4f : .8f);
             Impacts->Ghost(*Mesh, Warm, *this);
         }
     }

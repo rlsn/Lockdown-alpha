@@ -356,6 +356,12 @@ bool FLDBodyMotionSliceLayersTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The chain candidates replace the first hit's skill burst with their own small ground cue"),
         !Find(HitA,ETex::HitSkill,EPlace::Facing) && Find(HitA,ETex::ChainAGroundGlow,EPlace::Flat) && Find(HitB,ETex::ChainBScorchDash,EPlace::Flat)
         && Find(HitC,ETex::ChainCGroundTick,EPlace::Flat) && Find(HitC,ETex::ChainCGroundTick,EPlace::Flat)->SizeCm<100.f && HitC.Layers.Num()==1);
+    FLook PlusLook=Own;
+    PlusLook.ChainLook=ChainAPlus;
+    const FRecipe HitPlus=Impact(EStrike::Zap,Chest,Feet,Dir,From,false,PlusLook), BouncePlus=Impact(EStrike::Zap,Chest,Feet,Dir,From,true,PlusLook);
+    TestTrue(TEXT("A+ lights the ground under its target over a faint scorch, a bounce target's a little smaller, and shows no skill burst"),
+        !Find(HitPlus,ETex::HitSkill,EPlace::Facing) && Find(HitPlus,ETex::ChainAGroundGlow,EPlace::Flat) && Find(HitPlus,ETex::ChainBScorchDash,EPlace::Flat)
+        && Find(BouncePlus,ETex::ChainAGroundGlow,EPlace::Flat) && Find(BouncePlus,ETex::ChainAGroundGlow,EPlace::Flat)->SizeCm<Find(HitPlus,ETex::ChainAGroundGlow,EPlace::Flat)->SizeCm);
     const FLayer* Field=Find(Reaction,ETex::ShockField,EPlace::Flat);
     TestTrue(TEXT("Conduct arcs along the ground out to its splash radius over a field whose edge is exactly that radius"),
         Field && FMath::IsNearlyEqual(Field->SizeCm*FieldEdge*.5f,450.f,1.f) && FMath::IsNearlyEqual(FieldSizeCm(220.f)*FieldEdge*.5f,220.f,.1f) && Reaction.Layers.ContainsByPredicate([](const FLayer& L){ return L.Place==EPlace::GroundStrip && FVector::Dist(L.At,L.End)>400.f; })

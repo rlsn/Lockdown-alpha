@@ -420,8 +420,11 @@ LDSliceVfx::FRecipe LDSliceVfx::ZapRelease(const FVector& Hand, const FLook& Loo
     {
         if (Look.ChainLook != ChainB)
         {
-            const bool bA = Look.ChainLook == ChainA;
-            FLayer Glow = Burst(bA ? ETex::ChainAFlash : ETex::ChainCPinpoint, Hand, FVector::ForwardVector, bA ? 50.f : 30.f, bA ? .12f : .08f, Look);
+            const bool bA = Look.ChainLook == ChainA || Look.ChainLook == ChainAPlus;
+            // A+ charges a larger glow that lasts until its link leaves the hand.
+            const bool bPlus = Look.ChainLook == ChainAPlus;
+            FLayer Glow = Burst(bA ? ETex::ChainAFlash : ETex::ChainCPinpoint, Hand, FVector::ForwardVector, bPlus ? 40.f : bA ? 50.f : 30.f,
+                bPlus ? .3f : bA ? .12f : .08f, Look);
             Glow.Pivot = .5f;
             Glow.Glow = Hdr(FLinearColor(1.f, .78f, .36f), 1.4f * Look.Glow);
             Glow.Core = Hdr(FLinearColor(1.f, .9f, .67f), 2.f * Look.Glow);
@@ -519,7 +522,42 @@ LDSliceVfx::FRecipe LDSliceVfx::Impact(EStrike Strike, const FVector& Chest, con
             Hit.DelaySeconds = .02f;
             Recipe.Layers.Add(Hit);
         }
-        if (Look.ChainLook >= ChainA)
+        if (Look.ChainLook == ChainAPlus)
+        {
+            // A+: a warm contact glow on the ground for a quarter second over a faint scorch flash along the hop; a bounce
+            // target's is the same at its smaller link scale (Look.Size).
+            FLayer Glow;
+            Glow.Tex = ETex::ChainAGroundGlow;
+            Glow.Place = EPlace::Flat;
+            Glow.At = Feet;
+            Glow.Dir = Hop;
+            Glow.SizeCm = (bChained ? 130.f : 160.f) * Look.Size;
+            Glow.Seconds = .26f * Look.Seconds;
+            Glow.FadeInSeconds = 0.f;
+            Glow.FadeOutSeconds = .16f;
+            Glow.Alpha = Look.bFocus ? 1.f : .65f;
+            Glow.Glow = Hdr(FLinearColor(1.f, .78f, .36f), 2.f);
+            Glow.Core = Hdr(FLinearColor(1.f, .9f, .67f), 2.4f);
+            Glow.Ink = Glow.Glow;
+            Glow.bOptional = true;
+            Recipe.Layers.Add(Glow);
+            FLayer Scorch;
+            Scorch.Tex = ETex::ChainBScorchDash;
+            Scorch.Place = EPlace::Flat;
+            Scorch.At = Feet;
+            Scorch.Dir = Hop;
+            Scorch.SizeCm = (bChained ? 80.f : 100.f) * Look.Size;
+            Scorch.Seconds = .55f * Look.Seconds;
+            Scorch.FadeInSeconds = 0.f;
+            Scorch.FadeOutSeconds = .4f;
+            Scorch.Alpha = .4f;
+            Scorch.Glow = Hdr(FLinearColor(1.f, .62f, .2f), 1.6f);
+            Scorch.Core = Scorch.Glow;
+            Scorch.Ink = FLinearColor(.06f, .03f, .012f);
+            Scorch.bOptional = true;
+            Recipe.Layers.Add(Scorch);
+        }
+        else if (Look.ChainLook >= ChainA)
         {
             // A: a soft warm glow on the ground for 0.15 s; B: an angular scorch dash along the hop fading over 0.6 s, the
             // scorch in a warm dark (never black) with its ember seam in gold; C: a small open tick under the target for 0.4 s.
@@ -612,7 +650,7 @@ LDSliceVfx::FLayer LDSliceVfx::GroundField(const FVector& Centre, float RadiusCm
 
 const TCHAR* LDSliceVfx::ChainLookName(uint8 Look)
 {
-    static const TCHAR* Names[ChainLookCount] = { TEXT("Mesh"), TEXT("V1"), TEXT("A"), TEXT("B"), TEXT("C") };
+    static const TCHAR* Names[ChainLookCount] = { TEXT("Mesh"), TEXT("V1"), TEXT("A"), TEXT("B"), TEXT("C"), TEXT("APlus") };
     return Look < ChainLookCount ? Names[Look] : TEXT("");
 }
 

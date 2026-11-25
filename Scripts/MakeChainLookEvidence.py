@@ -5,8 +5,8 @@
 #   <look>.mp4              every scenario of the look back to back at real game speed (30 fps, H.264), labelled
 #   <look>-0.25x.mp4        the same at quarter speed (labelled 0.25x)
 #   combined.mp4            all looks side by side, frame-locked, at real game speed
-#   perf-<look>.json        the frame-cost run of that look
-#   python -B Scripts/MakeChainLookEvidence.py <capture folder> <output folder> [ffmpeg.exe]
+#   perf-<look>.json        the frame-cost runs of that look and their mean and spread of the eight-caster deltas
+#   python -B Scripts/MakeChainLookEvidence.py <capture folder> <output folder> [ffmpeg.exe] [look,look,... shown]
 import json, os, shutil, subprocess, sys, tempfile
 import numpy as np
 from PIL import Image, ImageDraw
@@ -17,6 +17,8 @@ os.makedirs(out, exist_ok=True)
 report = json.load(open(os.path.join(capture, "DemoArt.json"), encoding="utf-8"))
 runs = report.get("chain_runs", [])
 looks = list(dict.fromkeys(run["look"] for run in runs))
+if len(sys.argv) > 4:
+    looks = [look for look in sys.argv[4].split(",") if look in looks]
 scenarios = list(dict.fromkeys(run["scenario"] for run in runs))
 W, H = 800, 540
 LABEL = (255, 0, 255)
@@ -113,6 +115,17 @@ for index in range(min(lengths.values())):
     tile.save(os.path.join(grid, "%05d.png" % index))
 encode(grid, os.path.join(out, "combined.mp4"), 1.0)
 shutil.rmtree(work)
+import statistics
+perfs = {}
 for perf in report.get("chain_perf", []):
-    json.dump(perf, open(os.path.join(out, "perf-%s.json" % perf["look"]), "w", encoding="utf-8"), indent=2)
+    perfs.setdefault(perf["look"], []).append(perf)
+for look, list_ in perfs.items():
+    summary = {"look": look, "runs": list_}
+    for key in ("frame_ms", "game_ms", "render_ms", "gpu_ms"):
+        deltas = [p["eight_casters"][key] - p["idle"][key] for p in list_]
+        summary["delta_" + key] = {"mean": statistics.mean(deltas), "min": min(deltas), "max": max(deltas),
+                                   "stdev": statistics.stdev(deltas) if len(deltas) > 1 else 0.0}
+    for key in ("max_chain_components", "max_chain_particles", "max_slice_layers"):
+        summary[key] = max(p["eight_casters"][key] for p in list_)
+    json.dump(summary, open(os.path.join(out, "perf-%s.json" % look), "w", encoding="utf-8"), indent=2)
 print("looks", looks, "scenarios", scenarios, "centres", centres, "->", out)

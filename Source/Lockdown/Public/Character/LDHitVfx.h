@@ -60,12 +60,14 @@ namespace LDSliceVfx
     // system per look (one link of a chain, tether or beam between two world points with sparks at its end).
     constexpr const TCHAR* GeneratedFolder = TEXT("/Game/Lockdown/Art/VFX/Niagara/Generated");
     constexpr const TCHAR* NiagaraMaterial = TEXT("/Game/Lockdown/Art/VFX/Niagara/Generated/M_LDSliceParticle");
+    // The shocked-body rim glow (LDHitVfx::FGhosts::bShell): an additive fresnel shell pushed 1.2 cm out along the normals.
+    constexpr const TCHAR* BodyGlowMaterial = TEXT("/Game/Lockdown/Art/VFX/Niagara/Generated/M_LDChainBodyGlow");
     // The generated chain looks (ELDChainLook without Mesh): their suffix ("V1", "A", "B", "C") and system package.
-    constexpr int32 ChainLookCount = 5;
+    constexpr int32 ChainLookCount = 6;
     LOCKDOWN_API const TCHAR* ChainLookName(uint8 Look);
     LOCKDOWN_API FString ChainSystemOf(uint8 Look);
     // ELDChainLook values (the catalog enum is not visible to these pure recipes).
-    constexpr uint8 ChainMesh = 0, ChainV1 = 1, ChainA = 2, ChainB = 3, ChainC = 4;
+    constexpr uint8 ChainMesh = 0, ChainV1 = 1, ChainA = 2, ChainB = 3, ChainC = 4, ChainAPlus = 5;
     constexpr const TCHAR* ChainStart = TEXT("User.Start");
     constexpr const TCHAR* ChainEnd = TEXT("User.End");
     constexpr const TCHAR* ChainTint = TEXT("User.Tint");
@@ -338,6 +340,8 @@ namespace LDHitVfx
         bool bShow = false;
         float IntervalSeconds = 0, Seconds = 0;
         FLinearColor Glow = FLinearColor::Black;
+        // An additive rim shell just outside the pose (LDSliceVfx::BodyGlowMaterial) instead of the afterimage material.
+        bool bShell = false;
     };
     LOCKDOWN_API FGhosts GhostsOf(const FLinearColor& Tint, float EffectScale);
     LOCKDOWN_API float GhostFade(const FGhosts& Ghosts, float AgeSeconds);

@@ -8,9 +8,9 @@ class UNiagaraSystem;
 
 // The look of a chain hop (active_zap) while art direction compares candidates: the slice's mesh strip and spark
 // layers, the first Niagara Chain, or one of the generated candidates A/B/C (LDSliceVfx::ChainSystemOf). The console
-// variable ld.Vfx.ChainLook (0..4, -1 = this asset's choice) overrides it at runtime. Presentation only.
+// variable ld.Vfx.ChainLook (0..5, -1 = this asset's choice) overrides it at runtime. Presentation only.
 UENUM()
-enum class ELDChainLook : uint8 { Mesh, NiagaraV1, A, B, C };
+enum class ELDChainLook : uint8 { Mesh, NiagaraV1, A, B, C, APlus };
 
 // Artist-editable presentation assets. Runtime parameters are supplied by the hit-feel controls.
 UCLASS(BlueprintType)

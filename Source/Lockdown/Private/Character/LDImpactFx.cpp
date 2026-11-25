@@ -19,7 +19,9 @@
 #include "UI/LDControlSettings.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/PlayerController.h"
+#include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "MaterialShared.h"
 #include "Misc/App.h"
 #include "Misc/PackageName.h"
 #include "NiagaraComponent.h"
@@ -29,7 +31,7 @@
 namespace LDImpactFxDetail
 {
     TAutoConsoleVariable<int32> CVarChainLook(TEXT("ld.Vfx.ChainLook"), -1,
-        TEXT("Chain look of active_zap while art direction compares candidates: 0 Mesh, 1 NiagaraV1, 2 A, 3 B, 4 C; -1 uses DA_CombatVfx ChainLook."));
+        TEXT("Chain look of active_zap while art direction compares candidates: 0 Mesh, 1 NiagaraV1, 2 A, 3 B, 4 C, 5 APlus; -1 uses DA_CombatVfx ChainLook."));
     const FLinearColor WhiteHot(1.f, .28f, .045f), EmberOrange(1.f, .3f, .05f), ShieldCyan(0.f, .78f, 1.f), CritGold(1.f, .55f, .08f);
     constexpr float ReferenceLifeSeconds = .28f, ReferenceSpeed = 900.f, MaxWaitSeconds = .5f;
 
@@ -114,6 +116,8 @@ void ULDImpactFxSubsystem::OnWorldBeginPlay(UWorld& World)
         const FString Package = LDSliceVfx::ChainSystemOf(Look);
         ChainSystems[Look] = LoadObject<UNiagaraSystem>(nullptr, *(Package + TEXT(".") + FPackageName::GetShortName(Package)));
     }
+    BodyGlowMaterial = LoadObject<UMaterialInterface>(nullptr, *(FString(LDSliceVfx::BodyGlowMaterial) + TEXT(".") + FPackageName::GetShortName(LDSliceVfx::BodyGlowMaterial)));
+    if (!BodyGlowMaterial) { UE_LOG(LogLDContent, Error, TEXT("LD_CHAIN_FX asset=missing %s (run Scripts\\ImportDemoArt.ps1 -Mode ImportVFX)"), LDSliceVfx::BodyGlowMaterial); }
 #if WITH_EDITOR
     // Start editor-only Niagara compilation during world startup rather than on the first swing.
     if (ImpactSystem) { ImpactSystem->RequestCompile(false); }
@@ -122,6 +126,11 @@ void ULDImpactFxSubsystem::OnWorldBeginPlay(UWorld& World)
     if (BurstSystem) { BurstSystem->RequestCompile(false); }
     if (ZoneSystem) { ZoneSystem->RequestCompile(false); }
     for (UNiagaraSystem* Chain : ChainSystems) { if (Chain) { Chain->RequestCompile(false); } }
+    // The rim shell first draws on a struck body; finish its shaders now rather than skip its first hits.
+    if (BodyGlowMaterial && BodyGlowMaterial->GetMaterial())
+    {
+        if (FMaterialResource* Resource = BodyGlowMaterial->GetMaterial()->GetMaterialResource(GMaxRHIShaderPlatform)) { Resource->FinishCompilation(); }
+    }
 #endif
     WarmUp();
     if (!BurstSystem || !ZoneSystem)
@@ -159,6 +168,7 @@ void ULDImpactFxSubsystem::Deinitialize()
     while (!LiveGhosts.IsEmpty()) { ReleaseGhost(LiveGhosts.Num() - 1); }
     GhostSlots.Reset();
     GhostPaints.Reset();
+    ShellPaints.Reset();
     FreeGhosts.Reset();
     if (IsValid(LayerHost)) { LayerHost->Destroy(); }
     LayerHost = nullptr;
@@ -321,7 +331,7 @@ void ULDImpactFxSubsystem::Ghost(const USkeletalMeshComponent& Source, const LDH
         GhostPaints.Add(UMaterialInstanceDynamic::Create(GhostMaterial, this));
     }
     UPoseableMeshComponent* Copy = GhostSlots[Slot];
-    UMaterialInstanceDynamic* Paint = GhostPaints[Slot];
+    UMaterialInstanceDynamic* Paint = PaintOf(Slot, Ghosts.bShell);
     if (!IsValid(Copy) || !Paint) { return; }
     if (Copy->GetSkinnedAsset() != Source.GetSkinnedAsset()) { Copy->SetSkinnedAssetAndUpdate(Source.GetSkinnedAsset()); }
     for (int32 Index = 0; Index < Copy->GetNumMaterials(); ++Index) { Copy->SetMaterial(Index, Paint); }
@@ -334,6 +344,7 @@ void ULDImpactFxSubsystem::Ghost(const USkeletalMeshComponent& Source, const LDH
     Copy->SetComponentTickEnabled(true);
     FLiveGhost& Added = LiveGhosts.AddDefaulted_GetRef();
     Added.Owner = &Owner;
+    Added.Source = &Source;
     Added.Slot = Slot;
     Added.Look = Ghosts;
 }
@@ -682,8 +693,24 @@ void ULDImpactFxSubsystem::Tick(float DeltaTime)
             ReleaseGhost(Index);
             continue;
         }
-        if (GhostPaints.IsValidIndex(Ghost.Slot) && GhostPaints[Ghost.Slot]) { GhostPaints[Ghost.Slot]->SetScalarParameterValue(LDHitVfx::FadeParameter, Fade); }
+        if (UMaterialInstanceDynamic* Paint = PaintOf(Ghost.Slot, Ghost.Look.bShell)) { Paint->SetScalarParameterValue(LDHitVfx::FadeParameter, Fade); }
+        const USkeletalMeshComponent* Body = Ghost.Look.bShell ? Ghost.Source.Get() : nullptr;
+        if (Body && GhostSlots.IsValidIndex(Ghost.Slot) && IsValid(GhostSlots[Ghost.Slot]))
+        {
+            GhostSlots[Ghost.Slot]->SetWorldTransform(Body->GetComponentTransform());
+            // The engine reads the source pose only; its parameter is not const.
+            GhostSlots[Ghost.Slot]->CopyPoseFromSkeletalComponent(const_cast<USkeletalMeshComponent*>(Body));
+        }
     }
+}
+
+UMaterialInstanceDynamic* ULDImpactFxSubsystem::PaintOf(int32 Slot, bool bShell)
+{
+    if (!bShell) { return GhostPaints.IsValidIndex(Slot) ? GhostPaints[Slot].Get() : nullptr; }
+    if (!BodyGlowMaterial || Slot < 0) { return nullptr; }
+    if (ShellPaints.Num() <= Slot) { ShellPaints.SetNum(Slot + 1); }
+    if (!ShellPaints[Slot]) { ShellPaints[Slot] = UMaterialInstanceDynamic::Create(BodyGlowMaterial, this); }
+    return ShellPaints[Slot];
 }
 
 LDHitVfx::FLayerTuning ULDImpactFxSubsystem::LayerTuning() const

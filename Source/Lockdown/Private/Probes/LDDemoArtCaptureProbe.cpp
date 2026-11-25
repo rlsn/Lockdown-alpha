@@ -936,6 +936,8 @@ namespace
             const auto Own = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, bool bOwn) { if (auto* B = Body.Get()) { B->SetOwnBody(bOwn); } };
             const FVector V1Home = V1.IsValid() ? V1->GetOwner()->GetActorLocation() : FVector::ZeroVector;
             const FVector AHome = A.IsValid() ? A->GetOwner()->GetActorLocation() : FVector::ZeroVector;
+            const FRotator AFacing = A.IsValid() ? A->GetOwner()->GetActorRotation() : FRotator::ZeroRotator;
+            UWorld* const SunWorld = &Target;
             for (const uint8 Look : Wanted)
             {
                 // (a) a short hop of 250 cm along the checked dash line in front of A.
@@ -951,14 +953,36 @@ namespace
                 // (e) the own cast and another player's 50 ms later. A hit carries no caster: the strike registry gives it to
                 // the strike whose release is closest in time, so the casts are staggered for each hit to find its own.
                 ChainJobs.Add({Look, TEXT("e-own-vs-other"), {{0.f, Cast(A)}, {.05f, Cast(A3)}, {.27f, Hit(V1)}, {.32f, Hit(V3)}}, nullptr, nullptr, false, .32f});
-                // (f) three casters 60 ms apart, each hitting its own target.
-                ChainJobs.Add({Look, TEXT("f-several-casters"), {{0.f, Cast(A)}, {.06f, Cast(A2)}, {.12f, Cast(A3)}, {.26f, Hit(V1)}, {.32f, Hit(V2)},
-                    {.38f, Hit(V3)}}, nullptr, nullptr, false, .32f});
+                // (f) three casters 60 ms apart, each hitting its own target 40 ms after its release (a hit in the same frame
+                // as the release would find no strike yet); A is the own one.
+                ChainJobs.Add({Look, TEXT("f-several-casters"), {{0.f, Cast(A)}, {.06f, Cast(A2)}, {.12f, Cast(A3)}, {.29f, Hit(V1)}, {.35f, Hit(V2)},
+                    {.41f, Hit(V3)}}, nullptr, nullptr, false, .35f});
+                // (g) a short own hop with both bodies on the warm sunlit floor: the floor points under two screen points of
+                // the sunlit band below the stage, 140 px (about 250 cm) apart.
+                ChainJobs.Add({Look, TEXT("g-sunlit-hop"), {{0.f, Cast(A)}, {.27f, Hit(V1)}},
+                    [SunWorld, A, V1, AHome]()
+                    {
+                        APlayerController* Viewer = UGameplayStatics::GetPlayerController(SunWorld, 0);
+                        const auto Floor = [Viewer, AHome](const FVector2D& Pixel)
+                        {
+                            FVector Origin, Dir;
+                            if (!Viewer || !Viewer->DeprojectScreenPositionToWorld(Pixel.X, Pixel.Y, Origin, Dir) || FMath::IsNearlyZero(Dir.Z)) { return AHome; }
+                            return Origin + Dir * ((AHome.Z - Origin.Z) / Dir.Z);
+                        };
+                        if (auto* B = A.Get()) { B->GetOwner()->SetActorLocation(Floor(FVector2D(640., 820.))); B->GetOwner()->SetActorRotation(FRotator(0, 0.f, 0)); }
+                        if (auto* B = V1.Get()) { B->GetOwner()->SetActorLocation(Floor(FVector2D(780., 820.))); B->GetOwner()->SetActorRotation(FRotator(0, 180.f, 0)); }
+                    },
+                    [A, V1, AHome, AFacing, V1Home]()
+                    {
+                        if (auto* B = A.Get()) { B->GetOwner()->SetActorLocation(AHome); B->GetOwner()->SetActorRotation(AFacing); }
+                        if (auto* B = V1.Get()) { B->GetOwner()->SetActorLocation(V1Home); B->GetOwner()->SetActorRotation(FRotator(0, 225.f, 0)); }
+                    }});
                 FChainJob Perf;
                 Perf.Look = Look;
                 Perf.Scenario = TEXT("perf-eight-casters");
                 Perf.bPerf = true;
-                ChainJobs.Add(MoveTemp(Perf));
+                // Three frame-cost runs per look, so the spread can be read.
+                for (int32 Run = 0; Run < 3; ++Run) { ChainJobs.Add(Perf); }
             }
             // Eight casters and eight victims for the frame-cost run, hidden outside it.
             for (int32 Index = 0; Index < 8; ++Index)
