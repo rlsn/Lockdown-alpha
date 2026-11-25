@@ -1237,37 +1237,40 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             // The rank-up page (#287 spec §12 + #331 3-rank tree preview): two branch cards ([1]/[2]), with Rank 3 sub-nodes
             // beneath 2A and 2B during 1->2 selection so players can hover 3A1/3A2/3B1/3B2 before committing.
             auto* PageBox=WidgetTree->ConstructWidget<UVerticalBox>();
-            RankTitle=Text(TEXT(""),LDHUDStyle::TypeBanner);HudFace(RankTitle,true,0);RankTitle->SetJustification(ETextJustify::Center);
+            // On air: the skill and its next rank as one white heavy line; the keys and the rank-3 preview read from the
+            // cards themselves (key blocks, sub-node chips with hover detail), so the page carries no instructions.
+            RankTitle=Words(TEXT(""),LDBroadcast::TypeTitle,LDBroadcast::White,true);RankTitle->SetJustification(ETextJustify::Center);
             PageBox->AddChildToVerticalBox(RankTitle)->SetHorizontalAlignment(HAlign_Center);
-            RankHint=OneLine(TEXT("按 [1] / [2] 选择分支 · 悬停下方三级节点预览终极形态 · [Esc] 关闭"),LDHUDStyle::TypeCaption,0);
-            RankHint->SetColorAndOpacity(LDHUDStyle::TextSecondary);RankHint->SetJustification(ETextJustify::Center);
-            PageBox->AddChildToVerticalBox(RankHint)->SetPadding(FMargin(0,4,0,0));
             auto* CardRow=WidgetTree->ConstructWidget<UHorizontalBox>();
             RankSubRows.Reset();RankSubChips.Reset();RankSubNames.Reset();RankSubIcons.Reset();
             for(int32 Card=0;Card<2;++Card)
             {
                 auto* Column=WidgetTree->ConstructWidget<UVerticalBox>();
                 auto* CardBox=WidgetTree->ConstructWidget<UVerticalBox>();
-                auto* TopKey=OneLine(FString::Printf(TEXT("[%d]"),Card+1),LDHUDStyle::TypeCaption,0);
-                HudFace(TopKey,true,1);TopKey->SetColorAndOpacity(LDHUDStyle::TextAccent);
-                CardBox->AddChildToVerticalBox(TopKey)->SetHorizontalAlignment(HAlign_Right);
+                // The card's key: an orange block with its ink figure (orange = what you can press now).
+                UTextBlock* TopKey=Figure(FString::FromInt(Card+1),LDBroadcast::TypeLabel,LDBroadcast::Ink);
+                auto* KeyBlock=WidgetTree->ConstructWidget<UBorder>();KeyBlock->SetBrush(FSlateColorBrush(FLinearColor::White));
+                KeyBlock->SetBrushColor(LDBroadcast::Orange);KeyBlock->SetPadding(FMargin(10,0));KeyBlock->SetContent(TopKey);
+                CardBox->AddChildToVerticalBox(KeyBlock)->SetHorizontalAlignment(HAlign_Left);
                 auto* Icon=WidgetTree->ConstructWidget<UImage>();
                 auto* IconBox=WidgetTree->ConstructWidget<USizeBox>();IconBox->SetWidthOverride(68);IconBox->SetHeightOverride(68);IconBox->SetContent(Icon);
                 CardBox->AddChildToVerticalBox(IconBox)->SetHorizontalAlignment(HAlign_Center);
-                UTextBlock* Name=Text(TEXT(""),LDHUDStyle::TypeLabel);HudFace(Name,true,0);Name->SetJustification(ETextJustify::Center);
+                UTextBlock* Name=Words(TEXT(""),LDBroadcast::TypeLabel,LDBroadcast::White,true);Name->SetJustification(ETextJustify::Center);
                 CardBox->AddChildToVerticalBox(Name)->SetPadding(FMargin(0,6,0,0));
                 UTextBlock* Line=Text(TEXT(""),LDHUDStyle::TypeSmall);Line->SetAutoWrapText(true);Line->SetJustification(ETextJustify::Center);
+                Line->SetColorAndOpacity(LDBroadcast::Grey);
                 CardBox->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,6,0,0));
-                auto* CardPanel=LDWidgets::Panel(WidgetTree,CardBox,FMargin(14,10));CardPanel->SetBrushColor(FLinearColor(.04f,.06f,.09f,.96f));
-                auto* CardSize=WidgetTree->ConstructWidget<USizeBox>();CardSize->SetWidthOverride(260);CardSize->SetHeightOverride(228);CardSize->SetContent(CardPanel);
+                auto* CardPanel=LDWidgets::Panel(WidgetTree,CardBox,FMargin(14,10));CardPanel->SetBrushColor(LDBroadcast::Panel);
+                auto* CardSize=WidgetTree->ConstructWidget<USizeBox>();CardSize->SetWidthOverride(320);CardSize->SetMinDesiredHeight(240);CardSize->SetContent(CardPanel);
                 ULDCommandButton* Button=LDWidgets::Button(WidgetTree,TEXT(""),[this,Card](){SubmitRankUp(Card);},true,FName(*FString::Printf(TEXT("HUDRankCard%d"),Card)));
                 Button->SetContent(CardSize);
                 Column->AddChildToVerticalBox(Button);
 
                 auto* SubWrap=WidgetTree->ConstructWidget<UVerticalBox>();
-                auto* Connector=OneLine(TEXT("▼ 后续三级终极分化（悬停看完整数值）"),11,0);
-                Connector->SetColorAndOpacity(LDHUDStyle::TextSecondary);Connector->SetJustification(ETextJustify::Center);
-                SubWrap->AddChildToVerticalBox(Connector)->SetPadding(FMargin(0,6,0,4));
+                // The rank-3 forms this branch leads to: a 2 px white tick down from the card, then their chips.
+                auto* Tick=WidgetTree->ConstructWidget<UBorder>();Tick->SetBrush(FSlateColorBrush(FLinearColor::White));Tick->SetBrushColor(LDBroadcast::White);
+                auto* TickSize=WidgetTree->ConstructWidget<USizeBox>();TickSize->SetWidthOverride(2);TickSize->SetHeightOverride(10);TickSize->SetContent(Tick);
+                SubWrap->AddChildToVerticalBox(TickSize)->SetHorizontalAlignment(HAlign_Center);
                 auto* SubRow=WidgetTree->ConstructWidget<UHorizontalBox>();
                 for(int32 Sub=0;Sub<2;++Sub)
                 {
@@ -1275,12 +1278,13 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                     UImage* SubIcon=WidgetTree->ConstructWidget<UImage>();
                     auto* SubIconBox=WidgetTree->ConstructWidget<USizeBox>();SubIconBox->SetWidthOverride(22);SubIconBox->SetHeightOverride(22);SubIconBox->SetContent(SubIcon);
                     ChipLine->AddChildToHorizontalBox(SubIconBox)->SetVerticalAlignment(VAlign_Center);
-                    UTextBlock* SubName=OneLine(TEXT(""),12,0);SubName->SetColorAndOpacity(LDHUDStyle::TextPrimary);
+                    UTextBlock* SubName=OneLine(TEXT(""),LDHUDStyle::TypeSmall,0);SubName->SetColorAndOpacity(LDBroadcast::White);
+                    SubName->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);SubName->SetClipping(EWidgetClipping::ClipToBounds);
                     auto* SubNameSlot=ChipLine->AddChildToHorizontalBox(SubName);SubNameSlot->SetPadding(FMargin(5,0,0,0));SubNameSlot->SetVerticalAlignment(VAlign_Center);
                     auto* Chip=WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(),FName(*FString::Printf(TEXT("HUDRankSubChip_%d_%d"),Card,Sub)));
-                    Chip->SetBrush(HudRound(5.f,LDHUDStyle::PanelRim,1.f));Chip->SetBrushColor(FLinearColor(.03f,.045f,.07f,.92f));
+                    Chip->SetBrush(HudRound(0.f,FLinearColor(1,1,1,.16f),1.f));Chip->SetBrushColor(LDBroadcast::Ink.CopyWithNewOpacity(.92f));
                     Chip->SetPadding(FMargin(6,5));Chip->SetContent(ChipLine);
-                    auto* ChipSize=WidgetTree->ConstructWidget<USizeBox>();ChipSize->SetWidthOverride(126);ChipSize->SetContent(Chip);
+                    auto* ChipSize=WidgetTree->ConstructWidget<USizeBox>();ChipSize->SetWidthOverride(156);ChipSize->SetContent(Chip);
                     SubRow->AddChildToHorizontalBox(ChipSize)->SetPadding(FMargin(Sub==0?0:8,0,0,0));
                     RankSubChips.Add(Chip);RankSubNames.Add(SubName);RankSubIcons.Add(SubIcon);
                 }
@@ -1295,7 +1299,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             PageBox->AddChildToVerticalBox(CardRow)->SetPadding(FMargin(0,14,0,0));
             ULDCommandButton* Close=LDWidgets::Button(WidgetTree,LDTerms::Close,[this](){RankSlot=INDEX_NONE;MarkReadModelDirty();},true,TEXT("HUDRankClose"));
             PageBox->AddChildToVerticalBox(Close)->SetPadding(FMargin(0,14,0,0));
-            RankPage=LDWidgets::Panel(WidgetTree,PageBox,FMargin(24,18));RankPage->SetBrushColor(FLinearColor(.02f,.03f,.05f,.97f));
+            RankPage=LDWidgets::Panel(WidgetTree,PageBox,FMargin(28,22));RankPage->SetBrushColor(LDBroadcast::Ink.CopyWithNewOpacity(.96f));
             RankPage->SetVisibility(ESlateVisibility::Collapsed);
             HitPanels.Add(RankPage);
             auto* PageSlot=Canvas->AddChildToCanvas(RankPage);PageSlot->SetAnchors(FAnchors(.5f,.5f));PageSlot->SetAlignment(FVector2D(.5f,.5f));
@@ -3003,12 +3007,6 @@ void ULDHUD::RefreshRankUp(const FLDProgressionView* Progression,const FLDDemoCo
     LDHUD::ContentText(Content,RankAbility.ToString(),false,SkillName);
     const uint8 NextRank=LDSkillBranch::RankOf(RankOptions[0]);
     HudSetText(RankTitle,FString::Printf(TEXT("%s · %s %u"),*SkillName,LDTerms::SkillRank,uint32(NextRank)));
-    if(RankHint)
-    {
-        HudSetText(RankHint,NextRank==2
-            ?FString(TEXT("按 [1] / [2] 选择二级分化 · 悬停下方三级节点预览终极形态 · [Esc] 关闭"))
-            :FString(TEXT("按 [1] / [2] 选择三级终极形态 · [Esc] 关闭")));
-    }
     for(int32 Card=0;Card<RankCards.Num();++Card)
     {
         const LDHUD::FBranchCardView View=LDHUD::BranchCard(Content,RankAbility,RankOptions[Card],Stats);

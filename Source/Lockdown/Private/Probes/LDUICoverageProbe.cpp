@@ -224,24 +224,13 @@ public:
             },45.});
         Pages.Add({TEXT("Match_Scoreboard"),[this](ALDPlayerController& PC,double Now)
             {if(Once(Now,0)){Key(PC,PC.BindingKey(TEXT("Scoreboard")),true);}return Settled(Now,.8);}});
-        // The live skill card under the pointer, then its Alt formula, then the rank-up page of a slot that can rank up.
-        Pages.Add({TEXT("Match_SkillHover"),[this](ALDPlayerController& PC,double Now)
-            {
-                if(Once(Now,0)){Key(PC,PC.BindingKey(TEXT("Scoreboard")),false);}
-                if(ULDCommandButton* Slot=FindButton(PC.HUDUI,TEXT("HUDActionQ"))){LDSlateProbeInput::Pointer(Slot,EKeys::LeftMouseButton,false,false);}
-                return Settled(Now,1.);
-            }});
-        Pages.Add({TEXT("Match_SkillFormula"),[this](ALDPlayerController& PC,double Now)
-            {
-                if(Once(Now,0)){Key(PC,EKeys::LeftAlt,true);}
-                if(ULDCommandButton* Slot=FindButton(PC.HUDUI,TEXT("HUDActionQ"))){LDSlateProbeInput::Pointer(Slot,EKeys::LeftMouseButton,false,false);}
-                return Settled(Now,.8);
-            }});
+        // The rank-up page of a slot that can rank up. (The live skill card follows the OS cursor, which the probe leaves
+        // alone, so it is not shot here.)
         Pages.Add({TEXT("Match_RankUp"),[this](ALDPlayerController& PC,double Now)
             {
                 if(Once(Now,0))
                 {
-                    Key(PC,EKeys::LeftAlt,false);
+                    Key(PC,PC.BindingKey(TEXT("Scoreboard")),false);
                     for(int32 Index=0;Index<4;++Index){if(Click(PC.HUDUI,*FString::Printf(TEXT("HUDRankUp%d"),Index))){break;}}
                 }
                 return Settled(Now,1.);

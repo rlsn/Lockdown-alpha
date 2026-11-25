@@ -527,7 +527,6 @@ private:
     // Rank 3 sub-branch preview chips beneath 2A and 2B during 1->2 selection; a click or 1/2 submits RankUpSkill.
     UPROPERTY() TObjectPtr<UBorder> RankPage;
     UPROPERTY() TObjectPtr<UTextBlock> RankTitle;
-    UPROPERTY() TObjectPtr<UTextBlock> RankHint;
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> RankCards;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> RankCardNames;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> RankCardLines;
