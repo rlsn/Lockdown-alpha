@@ -82,11 +82,14 @@ namespace LDSliceVfx
     //   Knockout     a visible body's fall: Start the floor under it, End its chest, Duration the scuff's life
     //   CastAim      the windup of a directed skill without its own: Start the casting hand, End the floor a step ahead
     //   CastBrace    the windup of a self-centred skill without its own: Start the floor under the feet
+    //   <Skill>Release  a skill's own release: Start the chest at the release, End a point ahead along the facing at its reach
+    //   <Skill>Hit      a skill's own hit on a body: Start the side it was struck from, End the struck chest
     enum class ESystem : uint8
     {
         Chain, HitBasic, HitFinisher, Swing1, Swing2, Swing3, Field, Tell1, Tell2, Tell3,
         HoseTell, HoseJet, WaterHit, ZapCharge, SeetheTell, SeetheBurst, FireHit, ColaTell, ColaBlast, ChillHit,
-        BurnState, WetState, ShockState, ChillState, RotState, PuddleGround, IceGround, FireGround, MiasmaGround, Knockout, CastAim, CastBrace, Count
+        BurnState, WetState, ShockState, ChillState, RotState, PuddleGround, IceGround, FireGround, MiasmaGround, Knockout, CastAim, CastBrace,
+        ElbowRelease, ElbowHit, PantsRelease, PantsHit, GrabRelease, GrabHit, BailRelease, RamRelease, RamHit, Count
     };
     LOCKDOWN_API const TCHAR* SystemName(ESystem System);
     LOCKDOWN_API FString SystemPackage(ESystem System);
@@ -181,6 +184,9 @@ namespace LDSliceVfx
     // The world effects' element colours (ELDCombatElement), a token of their own: retuning one never changes a HUD
     // accent (LDBroadcast), and the HUD's element chips never change an effect. Shock keeps the approved chain's value.
     LOCKDOWN_API FLinearColor ElementInk(uint8 Element);
+    // A skill's own release and hit systems (ELDDemoAbilityId); ESystem::Count where it has none and uses the shared look.
+    struct FSkillSystems { ESystem Release = ESystem::Count; ESystem Hit = ESystem::Count; };
+    LOCKDOWN_API FSkillSystems SkillSystemsOf(uint8 Ability);
     // active_zap at its release: the contact spark at the casting hand (the arcs follow the hits it lands).
     LOCKDOWN_API FRecipe ZapRelease(const FVector& Hand, const FLook& Look);
     // One landed hit of a strike on a visible body, its slice layers: the skill burst at the chest along Dir for a skill

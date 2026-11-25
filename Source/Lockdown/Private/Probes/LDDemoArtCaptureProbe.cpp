@@ -929,6 +929,7 @@ namespace
                     TEXT("reel"),
                     TEXT("kill"),
                     TEXT("casts"),
+                    TEXT("skills"),
                 };
                 bool bKnown = false;
                 for (const TCHAR* Category : Known) { bKnown |= Name == Category; }
@@ -1105,6 +1106,23 @@ namespace
                     ChainJobs.Add({Look, TEXT("fire-seethe"), Burnt(A, V1), Ahead(200.), Home, false, Seethe + .1f, 0.f, 60});
                     ChainJobs.Add({Look, TEXT("fire-sunlit"), Burnt(A, V1), Sunlit, Home, false, Seethe + .1f, .15f, 30});
                     ChainJobs.Add({Look, TEXT("fire-other"), Burnt(A3, V3), nullptr, nullptr, false, Seethe + .1f, .15f, 30});
+                }
+                else if (Look == TEXT("skills"))
+                {
+                    // Skills with their own release and hit, each from its windup through its hit on V1 in front of A, then
+                    // the same as another player's cast (A3 on V3). The approved level-1 windups.
+                    struct FSkillShot { const TCHAR* Name; ELDDemoAbilityId Ability; float Windup; ELDObservedHitLook Hit; float HitAt; double Gap; };
+                    for (const FSkillShot& Skill : {FSkillShot{TEXT("elbow"), ELDDemoAbilityId::ActiveElbow, .15f, ELDObservedHitLook::None, .17f, 150.},
+                        FSkillShot{TEXT("pants"), ELDDemoAbilityId::ActivePantsDown, .14f, ELDObservedHitLook::None, .17f, 300.},
+                        FSkillShot{TEXT("grab"), ELDDemoAbilityId::ActiveCrotchGrab, .12f, ELDObservedHitLook::None, .26f, 220.},
+                        FSkillShot{TEXT("bail"), ELDDemoAbilityId::ActiveBailOut, .0f, ELDObservedHitLook::None, -1.f, 300.},
+                        FSkillShot{TEXT("ram"), ELDDemoAbilityId::ActiveChargedRam, .1f, ELDObservedHitLook::None, .3f, 300.}})
+                    {
+                        TArray<FSeqStep> OwnSteps{{0.f, CastOf(A, Skill.Ability, Skill.Windup)}}, OtherSteps{{0.f, CastOf(A3, Skill.Ability, Skill.Windup)}};
+                        if (Skill.HitAt > 0.f) { OwnSteps.Add({Skill.HitAt, HitOf(V1, Skill.Hit)}); OtherSteps.Add({Skill.HitAt, HitOf(V3, Skill.Hit)}); }
+                        ChainJobs.Add({Look, FString(TEXT("skills-")) + Skill.Name, OwnSteps, Ahead(Skill.Gap), Home, false, Skill.Windup + .05f, 0.f, 36});
+                        ChainJobs.Add({Look, FString(TEXT("skills-")) + Skill.Name + TEXT("-other"), OtherSteps, nullptr, nullptr, false, Skill.Windup + .05f, 0.f, 30});
+                    }
                 }
                 else if (Look == TEXT("casts"))
                 {
@@ -1359,6 +1377,7 @@ namespace
                     TEXT("grounds"),
                     TEXT("kill"),
                     TEXT("casts"),
+                    TEXT("skills"),
                 };
                 bool bLookOnly = false;
                 for (const TCHAR* Category : LookOnly) { bLookOnly |= Look == Category; }

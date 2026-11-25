@@ -1428,6 +1428,21 @@ bool ULDImpactFxSubsystem::SkillReach(uint8 Ability, float& OutRangeCm, float& O
     return false;
 }
 
+float ULDImpactFxSubsystem::SkillDashCm(uint8 Ability)
+{
+    OverdriveHoldSeconds();
+    if (!Content || Ability == 0) { return 0.f; }
+    for (const FLDDemoAbilityDefinition& Definition : Content->Get().Abilities)
+    {
+        if (Definition.NativeId != Ability) { continue; }
+        for (const FLDDemoEffectDefinition& Effect : Definition.Values.Effects)
+        {
+            if (Effect.Opcode == uint16(ELDDemoEffectOp::Dash) && Effect.DistanceCm.Denominator > 0) { return float(double(Effect.DistanceCm.Numerator) / double(Effect.DistanceCm.Denominator)); }
+        }
+    }
+    return 0.f;
+}
+
 bool ULDImpactFxSubsystem::IsElementalSkill(uint8 Ability)
 {
     OverdriveHoldSeconds();
