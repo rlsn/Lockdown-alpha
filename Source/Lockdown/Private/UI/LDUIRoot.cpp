@@ -275,7 +275,7 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
         HowToCount=LDWidgets::Text(WidgetTree,FString(),Scaled(54),NAME_None,LDUIFonts::ERole::Figure);HowToCount->SetColorAndOpacity(LDBroadcast::White);
         HowToCount->SetAutoWrapText(false);
         Head->AddChildToHorizontalBox(HowToCount)->SetVerticalAlignment(VAlign_Bottom);
-        UTextBlock* Tag=Label(LDTerms::HowTo,LDHUDStyle::TypeLead,LDBroadcast::Grey);
+        UTextBlock* Tag=Label(LDTerms::HowTo,LDHUDStyle::TypeLead,LDBroadcast::Grey);Tag->SetAutoWrapText(false);
         auto* TagSlot=Head->AddChildToHorizontalBox(Tag);TagSlot->SetVerticalAlignment(VAlign_Bottom);TagSlot->SetPadding(FMargin(16,0,0,10));
         Add(HowTo,Head,0);
         HowToTitle=Label(FString(),LDHUDStyle::TypePage,LDBroadcast::White);
@@ -393,7 +393,7 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
         Add(Body,Label(TEXT("房主 IP 与端口"),LDHUDStyle::TypeText,LDBroadcast::Grey),2);
         auto* EndpointRow=WidgetTree->ConstructWidget<UHorizontalBox>();
         Add(Body,EndpointRow,4);
-        AddressBox=MakeTextBox(TEXT("房主 IP / IP:端口（可直接粘贴）"),TEXT("JoinAddress"));
+        AddressBox=MakeTextBox(TEXT("房主 IP"),TEXT("JoinAddress"));
         LastAddressInput=Draft?Draft->Address:FString();
         AddressBox->SetText(FText::FromString(LastAddressInput));
         AddressBox->OnTextChanged.AddDynamic(this,&ULDUIRoot::AddressTextChanged);
@@ -805,8 +805,8 @@ UEditableTextBox* ULDUIRoot::MakeTextBox(const FString& Hint,FName Name)
     auto* Box=WidgetTree->ConstructWidget<UEditableTextBox>(UEditableTextBox::StaticClass(),Name);
     Box->SetHintText(FText::FromString(Hint));
     FEditableTextBoxStyle Style=Box->GetWidgetStyle();
-    Style.TextStyle.SetFont(LDUIFonts::Font(LDUIFonts::ERole::Body,Scaled(LDHUDStyle::TypeLead)));
-    Style.Padding=FMargin(12,11);
+    Style.TextStyle.SetFont(LDUIFonts::Font(LDUIFonts::ERole::Body,Scaled(18)));
+    Style.Padding=FMargin(14,10);
     // On air: a square raised field under a white hairline; the focused field takes the 2 px orange rule (typing now).
     Style.BackgroundImageNormal=FSlateRoundedBoxBrush(LDBroadcast::Raised,0.f,LDBroadcast::White.CopyWithNewOpacity(.35f),1.f);
     Style.BackgroundImageHovered=FSlateRoundedBoxBrush(LDBroadcast::Raised,0.f,LDBroadcast::White,1.f);
@@ -1698,6 +1698,7 @@ void ULDUIRoot::ToggleMainPanel(ELDUIMainPanel Panel)
         if(bOpening){PC->CancelArmedCombat();}
         // One page at a time: the read-only blueprint viewer gives way to Settings instead of lying over it.
         if(bOpening&&PC->BuildBlueprints&&PC->BuildBlueprints->IsViewerOpen()){PC->BuildBlueprints->ToggleViewer();}
+        if(bOpening&&PC->HUDUI){PC->HUDUI->CloseRankUp();}
         PC->ToggleControlsPanel();
         return;
     }
@@ -1777,6 +1778,8 @@ void ULDUIRoot::OpenMenu()
 {
     auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
     if(!PC||!MenuPage){return;}
+    // One page at a time, the newest on top: the menu replaces the HUD's skill rank-up page.
+    if(PC->HUDUI){PC->HUDUI->CloseRankUp();}
     bMenuOpen=true;
     MenuPage->SetVisibility(ESlateVisibility::Visible);
     PC->SetMenuOpen(true);

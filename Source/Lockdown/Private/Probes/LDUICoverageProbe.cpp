@@ -8,6 +8,7 @@
 #include "Dom/JsonObject.h"
 #include "Engine/World.h"
 #include "Framework/LDGameState.h"
+#include "Combat/LDCombatElements.h"
 #include "Framework/LDPlayerController.h"
 #include "InputKeyEventArgs.h"
 #include "Misc/CommandLine.h"
@@ -216,12 +217,33 @@ public:
         Pages.Add({TEXT("Match_Field"),[this](ALDPlayerController& PC,double Now)
             {
                 if(Once(Now,0)){Dev(PC,ELDDevTestOp::SkipPreparation,0);}
-                if(Once(Now,1,1.)){Dev(PC,ELDDevTestOp::SetInvulnerable,1);}
-                if(InPhase(PC,ELDMatchPhase::Development)&&Once(Now,2,2.)){Dev(PC,ELDDevTestOp::ApplyBreakoutPreset,0,TEXT("breakout_lifesteal"));}
                 ULDWorkshop* Ring=PC.HUDUI?PC.HUDUI->Workshop.Get():nullptr;
                 if(Ring&&Ring->IsOpen()&&Once(Now,3,5.)){PC.HUDUI->ToggleWorkshop();}
                 return InPhase(PC,ELDMatchPhase::Development)&&Settled(Now,7.);
             },45.});
+        // A real death: the level-1 host, not invulnerable, stands in DEV ownerless fire and miasma at its feet until it
+        // falls; the death banner, the damage recap and the spawn choice follow from the authority.
+        Pages.Add({TEXT("Match_Death"),[this](ALDPlayerController& PC,double Now)
+            {
+                if(PC.OwnerState.LifePhase==ELDLifePhase::Dead){return Settled(Now,1.)&&Now-DeadAt>=1.5;}
+                DeadAt=Now;
+                for(int32 Try=0;Try<30;++Try)
+                {
+                    if(Once(Now,Try,.5+Try*2.)){Dev(PC,ELDDevTestOp::SpawnGroundState,Try%2==0?int64(ELDGroundStateKind::Fire):int64(ELDGroundStateKind::Miasma));}
+                }
+                return false;
+            },75.});
+        Pages.Add({TEXT("Match_DeathLate"),[this](ALDPlayerController& PC,double Now)
+            {return PC.OwnerState.LifePhase==ELDLifePhase::Dead&&Settled(Now,2.5);},20.});
+        Pages.Add({TEXT("Match_Respawned"),[this](ALDPlayerController& PC,double Now)
+            {
+                if(PC.OwnerState.LifePhase!=ELDLifePhase::Alive){return false;}
+                if(Once(Now,1)){Dev(PC,ELDDevTestOp::SetInvulnerable,1);}
+                if(Once(Now,2,1.)){Dev(PC,ELDDevTestOp::ApplyBreakoutPreset,0,TEXT("breakout_lifesteal"));}
+                ULDWorkshop* Ring=PC.HUDUI?PC.HUDUI->Workshop.Get():nullptr;
+                if(Ring&&Ring->IsOpen()&&Once(Now,3,3.)){PC.HUDUI->ToggleWorkshop();}
+                return Settled(Now,6.);
+            },90.});
         Pages.Add({TEXT("Match_Scoreboard"),[this](ALDPlayerController& PC,double Now)
             {if(Once(Now,0)){Key(PC,PC.BindingKey(TEXT("Scoreboard")),true);}return Settled(Now,.8);}});
         // The rank-up page of a slot that can rank up. (The live skill card follows the OS cursor, which the probe leaves
@@ -251,7 +273,9 @@ public:
         Pages.Add({TEXT("Match_Final"),[this](ALDPlayerController& PC,double Now)
             {
                 if(Once(Now,0)&&PC.RootUI){PC.RootUI->CloseTopModal();PC.RootUI->CloseTopPanel();if(PC.RootUI->IsMenuOpen()){PC.RootUI->ToggleMenu();}}
-                for(int32 Try=0;Try<10;++Try){if(InPhase(PC,ELDMatchPhase::Development)&&Once(Now,10+Try,1.+Try*6.)){Dev(PC,ELDDevTestOp::OpenCapture,0);}}
+                // One request; a second one while the queued opening is pending is refused (StaleContext) and toasts.
+                if(InPhase(PC,ELDMatchPhase::Development)&&Once(Now,10,1.)){Dev(PC,ELDDevTestOp::OpenCapture,0);}
+                if(InPhase(PC,ELDMatchPhase::Development)&&Once(Now,11,40.)){Dev(PC,ELDDevTestOp::OpenCapture,0);}
                 return InPhase(PC,ELDMatchPhase::CaptureOpen)&&Settled(Now,10.);
             },120.});
         Pages.Add({TEXT("Match_Results"),[this](ALDPlayerController& PC,double Now)
@@ -275,6 +299,7 @@ public:
             }});
     }
     double ResultsSeen=-1.;
+    double DeadAt=0.;
 
     bool Tick(float)
     {

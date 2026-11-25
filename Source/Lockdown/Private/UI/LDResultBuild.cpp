@@ -362,7 +362,7 @@ UWidget* LDResultBuild::MakeReport(UWidgetTree* Tree,const FLDResultView& Result
 {
     auto* Size=Tree->ConstructWidget<USizeBox>();
     Size->SetWidthOverride(Width);
-    Size->SetHeightOverride(282.f);
+    Size->SetHeightOverride(340.f);
     // No scroll in game UI: the report scales down as one piece when a tab holds more than the board's height.
     auto* Fit=Tree->ConstructWidget<UScaleBox>();Fit->SetStretch(EStretch::ScaleToFit);Fit->SetStretchDirection(EStretchDirection::DownOnly);
     Size->SetContent(Fit);
