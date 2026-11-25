@@ -18,6 +18,7 @@
 | 对手 AI 的接口与策略 | [对手 AI](systems/OPPONENT_AI.md) |
 | 战争迷雾、观测句柄、HUD、界面页面、设置页与隐私 | [视野与 UI](systems/VISION_AND_UI.md) |
 | 世界空间战斗特效：美术方向、已批准特效、Niagara 生成与资产所有权 | [VFX 手册](systems/VFX.md) |
+| 第三方素材：授权维度、NoAI 规则、本机素材库与工作区同步 | [第三方素材](systems/THIRD_PARTY_ASSETS.md) |
 | 地形、碰撞、世界查询、营地、SourceData、资产 | [世界与数据管线](systems/WORLD_AND_DATA_PIPELINE.md) |
 | 每个检查与场景覆盖什么、规则测试集合、里程碑清单、共用机器 | [验证手册](systems/VERIFICATION.md) |
 | 打包、产品版本、PR 检查、每日试玩包、自托管 runner | [CI 与发布](systems/CI_AND_RELEASE.md) |

@@ -62,3 +62,7 @@ Desktop.ini
 # Source, Config, Content, Build resources, docs and .uproject stay tracked.
 # In particular, never ignore .uasset, .umap, or World Partition external actors.
 /.workbuddy
+
+# Fab Standard-license packs: shared only privately (Fab EULA 5a) and this repository is public. Local only;
+# docs/systems/VFX.md section 8 lists each pack and how to reproduce it. CC-BY packs live in Content/ThirdParty/CCBY (tracked).
+/Content/ThirdParty/Fab/

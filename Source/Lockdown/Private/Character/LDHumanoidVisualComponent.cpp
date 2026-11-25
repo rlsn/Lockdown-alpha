@@ -279,7 +279,8 @@ namespace LDHumanoidVisualSlice
     // The skills with a designed presentation (LDSliceVfx); every other cast keeps its charge and release burst.
     bool IsSliceCast(uint8 Ability)
     {
-        return Ability == uint8(ELDDemoAbilityId::ActiveHoseDown) || Ability == uint8(ELDDemoAbilityId::ActiveZap);
+        return Ability == uint8(ELDDemoAbilityId::ActiveHoseDown) || Ability == uint8(ELDDemoAbilityId::ActiveZap)
+            || Ability == uint8(ELDDemoAbilityId::ActiveSeethe) || Ability == uint8(ELDDemoAbilityId::ActiveColaShake);
     }
 }
 
@@ -304,12 +305,11 @@ void ULDHumanoidVisualComponent::UpdateSlice(float EffectScale)
     if (TelegraphOnset != ActionOnset)
     {
         TelegraphOnset = ActionOnset;
-        // Anticipation of what is coming, from the windup's start to its release (a swing's arc on the floor, a skill's
-        // chalk lane); a windup first seen after its release shows none.
+        // Anticipation of what is coming, from the windup's start to its release (a swing's arc on the floor, the hose's
+        // band, the zap's charge at the hand); a windup first seen after its release shows none.
         if (Age < ActionImpactSeconds)
         {
             const LDSliceVfx::FLook Look = Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Telegraph, bOwnBody, bOwnBody);
-            LDSliceVfx::FRecipe Recipe;
             if (bAttack)
             {
                 Impacts->SwingTell(*this, Step, Feet, Facing, ActionImpactSeconds, Look, Age);
@@ -317,17 +317,43 @@ void ULDHumanoidVisualComponent::UpdateSlice(float EffectScale)
             }
             else if (CastAbility == uint8(ELDDemoAbilityId::ActiveHoseDown))
             {
+                // The band it will soak, at the approved reach and width (danger information: never scaled by tuning).
                 float Range = 0.f, HalfWidth = 0.f;
-                if (Impacts->SkillReach(CastAbility, Range, HalfWidth))
-                { Recipe = LDSliceVfx::SkillTelegraph(Feet, Facing, Range, 2.f * HalfWidth, ActionImpactSeconds, Look); }
+                const FVector Ahead = FVector(Facing.X, Facing.Y, 0.).GetSafeNormal();
+                if (Impacts->SkillReach(CastAbility, Range, HalfWidth) && !Ahead.IsNearlyZero())
+                {
+                    const FVector Floor = Impacts->FloorUnder(Feet);
+                    bTelegraphShown |= Impacts->Play(LDSliceVfx::ESystem::HoseTell, *this, Floor, Floor + Ahead * Range,
+                        LDSliceVfx::ElementInk(uint8(ELDCombatElement::Water)), HalfWidth, ActionImpactSeconds, Look, Age, true) != nullptr;
+                }
             }
-            else
+            else if (CastAbility == uint8(ELDDemoAbilityId::ActiveColaShake))
             {
-                // A unit-targeted chain: a short lane towards the facing (the target itself is never public).
-                Recipe = LDSliceVfx::SkillTelegraph(Feet, Facing, 180.f, 70.f, ActionImpactSeconds, Look);
+                // The cone it will blast, at the approved reach and angle.
+                float Range = 0.f, HalfWidth = 0.f;
+                const float Degrees = Impacts->SkillConeDegrees(CastAbility);
+                const FVector Ahead = FVector(Facing.X, Facing.Y, 0.).GetSafeNormal();
+                if (Impacts->SkillReach(CastAbility, Range, HalfWidth) && Degrees > 0.f && !Ahead.IsNearlyZero())
+                {
+                    const FVector Floor = Impacts->FloorUnder(Feet);
+                    bTelegraphShown |= Impacts->Play(LDSliceVfx::ESystem::ColaTell, *this, Floor, Floor + Ahead * Range,
+                        LDSliceVfx::ElementInk(uint8(ELDCombatElement::Chill)), .5f * Degrees, ActionImpactSeconds, Look, Age, true) != nullptr;
+                }
             }
-            Impacts->Slice(this, Recipe, Age);
-            bTelegraphShown = bTelegraphShown || !Recipe.Layers.IsEmpty();
+            else if (CastAbility == uint8(ELDDemoAbilityId::ActiveSeethe))
+            {
+                // Its self area at the approved radius, heat gathering at the feet.
+                const float Radius = Impacts->SkillEffectRadius(CastAbility, uint16(ELDDemoEffectOp::SelfArea));
+                const FVector Floor = Impacts->FloorUnder(Feet);
+                bTelegraphShown |= Radius > 0.f && Impacts->Play(LDSliceVfx::ESystem::SeetheTell, *this, Floor, Floor,
+                    LDSliceVfx::ElementInk(uint8(ELDCombatElement::Fire)), Radius, ActionImpactSeconds, Look, Age, true) != nullptr;
+            }
+            else if (Mesh)
+            {
+                // A unit-targeted chain: its target is never public, so only the casting hand charges.
+                bTelegraphShown |= Impacts->Play(LDSliceVfx::ESystem::ZapCharge, *this, Mesh->GetSocketLocation(Art->HandBone), Mesh->GetSocketLocation(Art->HandBone),
+                    LDSliceVfx::ElementInk(uint8(ELDCombatElement::Shock)), 40.f * Look.Size, ActionImpactSeconds, Look, Age, true) != nullptr;
+            }
         }
     }
     // Release of a basic swing at its authoritative impact time: the slash at the chest (skills release in UpdateRelease).
@@ -428,11 +454,42 @@ void ULDHumanoidVisualComponent::UpdateRelease(float EffectScale)
     const LDSliceVfx::FLook Look = Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, bOwnBody, bOwnBody);
     if (CastAbility == uint8(ELDDemoAbilityId::ActiveHoseDown) && !bOverdriveCast)
     {
-        // Release: the water line along the cast direction over the approved range; its hits splash and wet the ground.
+        // Release: the stream over the approved band from the hand along the cast direction; its hits splash.
         float Range = 0.f, HalfWidth = 0.f;
-        Impacts->SkillReach(CastAbility, Range, HalfWidth);
-        Impacts->Slice(this, LDSliceVfx::HoseRelease(At, Facing, Range, Look), Late);
+        const FVector Ahead = FVector(Facing.X, Facing.Y, 0.).GetSafeNormal();
+        if (Impacts->SkillReach(CastAbility, Range, HalfWidth) && !Ahead.IsNearlyZero())
+        {
+            const FVector Floor = Impacts->FloorUnder(Pivot->GetComponentTransform().TransformPosition(FVector(0, 0, -HalfHeight)));
+            Impacts->Play(LDSliceVfx::ESystem::HoseJet, *this, Floor, Floor + Ahead * Range, LDSliceVfx::ElementInk(uint8(ELDCombatElement::Water)),
+                HalfWidth, 1.4f * Look.Seconds, Look, Late);
+        }
         Impacts->NoteStrike(*this, LDSliceVfx::EStrike::Hose, At, Facing, bOwnBody);
+    }
+    else if (CastAbility == uint8(ELDDemoAbilityId::ActiveColaShake) && !bOverdriveCast)
+    {
+        // Release: the icy fizz blast over the approved cone and its frosted floor.
+        float Range = 0.f, HalfWidth = 0.f;
+        const float Degrees = Impacts->SkillConeDegrees(CastAbility);
+        const FVector Ahead = FVector(Facing.X, Facing.Y, 0.).GetSafeNormal();
+        if (Impacts->SkillReach(CastAbility, Range, HalfWidth) && Degrees > 0.f && !Ahead.IsNearlyZero())
+        {
+            const FVector Floor = Impacts->FloorUnder(Pivot->GetComponentTransform().TransformPosition(FVector(0, 0, -HalfHeight)));
+            Impacts->Play(LDSliceVfx::ESystem::ColaBlast, *this, Floor, Floor + Ahead * Range, LDSliceVfx::ElementInk(uint8(ELDCombatElement::Chill)),
+                .5f * Degrees, 1.5f * Look.Seconds, Look, Late);
+        }
+        Impacts->NoteStrike(*this, LDSliceVfx::EStrike::Skill, At, Facing, bOwnBody);
+    }
+    else if (CastAbility == uint8(ELDDemoAbilityId::ActiveSeethe) && !bOverdriveCast)
+    {
+        // Release: the flame wall out to the approved radius and the scorched floor; its hits burn.
+        const float Radius = Impacts->SkillEffectRadius(CastAbility, uint16(ELDDemoEffectOp::SelfArea));
+        const FVector Floor = Impacts->FloorUnder(Pivot->GetComponentTransform().TransformPosition(FVector(0, 0, -HalfHeight)));
+        if (Radius > 0.f)
+        {
+            Impacts->Play(LDSliceVfx::ESystem::SeetheBurst, *this, Floor, Floor, LDSliceVfx::ElementInk(uint8(ELDCombatElement::Fire)), Radius,
+                1.8f * Look.Seconds, Look, Late);
+        }
+        Impacts->NoteStrike(*this, LDSliceVfx::EStrike::Skill, At, Facing, bOwnBody);
     }
     else if (CastAbility == uint8(ELDDemoAbilityId::ActiveZap) && !bOverdriveCast)
     {
@@ -977,6 +1034,13 @@ void ULDHumanoidVisualComponent::ShowSliceImpact(const FPendingImpact& Impact, c
     const FVector Dir = !Match.Dir.IsNearlyZero() ? Match.Dir : (GetOwner() ? -GetOwner()->GetActorForwardVector() : FVector::ForwardVector);
     if (Match.bOwn) { OwnStrikeAt = Clock; }
     const LDSliceVfx::FLook Look = Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, Match.bOwn, bOwnBody || Match.bOwn);
+    // A fire hit (a fire skill, a burn tick, a fire floor) is the Niagara FireHit whatever struck it.
+    if (Impact.Look == ELDObservedHitLook::Fire)
+    {
+        Impacts->Play(LDSliceVfx::ESystem::FireHit, *this, Chest - Dir * 100.f, Chest, LDSliceVfx::ElementInk(uint8(ELDCombatElement::Fire)),
+            70.f * Look.Size, .9f * Look.Seconds, Look, Age);
+        return;
+    }
     Impacts->Slice(this, LDSliceVfx::Impact(Strike, Chest, Feet, Dir, Match.From, Match.bChained, Look), Age);
     // A basic or finisher hit: the Niagara Hit along the strike, and in the local player's own fight a brief rim on the body.
     if (Strike == LDSliceVfx::EStrike::Basic || Strike == LDSliceVfx::EStrike::Finisher)
@@ -992,6 +1056,12 @@ void ULDHumanoidVisualComponent::ShowSliceImpact(const FPendingImpact& Impact, c
             Rim.Glow = LDSliceVfx::StrikeTint(Look) * (bFinisher ? 1.5f : 1.f);
             Impacts->Ghost(*Mesh, Rim, *this);
         }
+    }
+    // A water hit: the splash at the chest away from the stream and the soaked floor under the body.
+    if (Strike == LDSliceVfx::EStrike::Hose)
+    {
+        Impacts->Play(LDSliceVfx::ESystem::WaterHit, *this, Match.From.ContainsNaN() ? Chest - Dir * 100.f : Match.From, Chest,
+            LDSliceVfx::ElementInk(uint8(ELDCombatElement::Water)), 70.f * Look.Size, 1.6f * Look.Seconds, Look, Age);
     }
     // A zap hop: the Niagara Chain from the matched hand or previous body to this one; with no visible source only its
     // contact sparks show (a short link straight down onto the body).

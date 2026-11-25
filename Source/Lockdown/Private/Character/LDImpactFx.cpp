@@ -1,5 +1,5 @@
 #include "Character/LDImpactFx.h"
-#include "UI/LDBroadcastStyle.h"
+#include "Combat/LDCombatElements.h"
 #include "Character/LDCombatVfxCatalog.h"
 #include "Character/LDHitFeel.h"
 #include "Character/LDHumanoidVisualComponent.h"
@@ -1182,7 +1182,7 @@ void ULDImpactFxSubsystem::ShowGroundField(const AActor& Owner, const FVector& C
         bool bOwn = false;
         for (TObjectIterator<ULDHumanoidVisualComponent> It; It && !bOwn && OwnerSeat != MAX_uint8; ++It)
         { bOwn = It->GetWorld() == GetWorld() && It->IsOwnBody() && It->PaletteSlot() == OwnerSeat; }
-        UNiagaraComponent* Effect = SpawnGenerated(LDSliceVfx::ESystem::Field, Floor, Floor, LDBroadcast::Shock, RadiusCm, Strength, 1.e4f, bOwn);
+        UNiagaraComponent* Effect = SpawnGenerated(LDSliceVfx::ESystem::Field, Floor, Floor, LDSliceVfx::ElementInk(uint8(ELDCombatElement::Shock)), RadiusCm, Strength, 1.e4f, bOwn);
         if (!Effect) { return; }
         Track(Effect, nullptr, 0.f, &Owner);
         return;
@@ -1202,7 +1202,7 @@ void ULDImpactFxSubsystem::FieldPulse(const ULDHumanoidVisualComponent& Source, 
     FVector Normal;
     const FVector Floor = GroundUnder(Feet, Normal);
     const float Seconds = .8f * Look.Seconds;
-    UNiagaraComponent* Effect = SpawnGenerated(LDSliceVfx::ESystem::Field, Floor, Floor, LDBroadcast::Shock, RadiusCm,
+    UNiagaraComponent* Effect = SpawnGenerated(LDSliceVfx::ESystem::Field, Floor, Floor, LDSliceVfx::ElementInk(uint8(ELDCombatElement::Shock)), RadiusCm,
         2.2f * Look.Glow * (Look.bFocus ? 1.f : .7f) * (.55f + .45f * FMath::Clamp(Look.EffectScale, 0.f, 1.f)), Seconds, Look.bFocus);
     if (!Effect) { return; }
     Track(Effect, &Source, AgeSeconds);
@@ -1312,6 +1312,55 @@ void ULDImpactFxSubsystem::Hit(const ULDHumanoidVisualComponent& Victim, const F
     Live.Last().StopAfter = .5f * Look.Seconds;
 }
 
+UNiagaraComponent* ULDImpactFxSubsystem::Play(LDSliceVfx::ESystem System, const ULDHumanoidVisualComponent& Owner, const FVector& Start,
+    const FVector& End, const FLinearColor& Tint, float Width, float Seconds, const LDSliceVfx::FLook& Look, float AgeSeconds, bool bTelegraph)
+{
+    if (!FApp::CanEverRender() || !Owner.CanShowImpact() || Start.ContainsNaN() || End.ContainsNaN() || !FMath::IsFinite(AgeSeconds)
+        || !FMath::IsFinite(Seconds) || Seconds <= 0.f || AgeSeconds >= Seconds || Look.Size <= 0.f || Look.Seconds <= 0.f || Look.Glow <= 0.f
+        || Look.EffectScale <= 0.f) { return nullptr; }
+    const float Thin = FMath::Clamp(Look.EffectScale, 0.f, 1.f);
+    UNiagaraComponent* Effect = SpawnGenerated(System, Start, End, Tint, Width, 2.2f * Look.Glow * (Look.bFocus ? 1.f : .7f) * (.55f + .45f * Thin),
+        Seconds, Look.bFocus);
+    if (!Effect) { return nullptr; }
+    Track(Effect, &Owner, AgeSeconds);
+    Live.Last().bTelegraph = bTelegraph;
+    Live.Last().StopAfter = Seconds;
+    return Effect;
+}
+
+UNiagaraComponent* ULDImpactFxSubsystem::ShowLoop(USceneComponent& Owner, UNiagaraComponent* Existing, LDSliceVfx::ESystem System,
+    const FVector& Start, const FVector& End, const FLinearColor& Tint, float Width, float Intensity, float Seconds, bool bFocus)
+{
+    UNiagaraSystem* Wanted = FApp::CanEverRender() && System != LDSliceVfx::ESystem::Count ? GetSystem(System) : nullptr;
+    if (IsValid(Existing) && (!Wanted || Existing->GetAsset() != Wanted))
+    {
+        Existing->DestroyComponent();
+        Existing = nullptr;
+    }
+    if (!Wanted || !Owner.GetOwner()) { return nullptr; }
+    UNiagaraComponent* Effect = Existing;
+    if (!IsValid(Effect))
+    {
+        Effect = NewObject<UNiagaraComponent>(Owner.GetOwner(), NAME_None, RF_Transient);
+        if (!Effect) { return nullptr; }
+        Effect->SetAutoActivate(false);
+        Effect->SetAsset(Wanted);
+        // The parameters are world positions; the component only follows Owner for culling and lifetime.
+        Effect->SetAbsolute(true, true, true);
+        Effect->SetupAttachment(&Owner);
+        Effect->RegisterComponent();
+    }
+    Effect->SetVariableVec3(TEXT("User.Start"), Start);
+    Effect->SetVariableVec3(TEXT("User.End"), End);
+    Effect->SetVariableLinearColor(TEXT("User.Tint"), Tint);
+    Effect->SetVariableFloat(TEXT("User.Width"), Width);
+    Effect->SetVariableFloat(TEXT("User.Intensity"), Intensity);
+    Effect->SetVariableFloat(TEXT("User.Duration"), Seconds);
+    Effect->SetVariableFloat(TEXT("User.Focus"), bFocus ? 1.f : 0.f);
+    if (!Effect->IsActive()) { Effect->Activate(true); }
+    return Effect;
+}
+
 bool ULDImpactFxSubsystem::SkillReach(uint8 Ability, float& OutRangeCm, float& OutHalfWidthCm)
 {
     OutRangeCm = OutHalfWidthCm = 0.f;
@@ -1327,6 +1376,33 @@ bool ULDImpactFxSubsystem::SkillReach(uint8 Ability, float& OutRangeCm, float& O
         return OutRangeCm > 0.f;
     }
     return false;
+}
+
+float ULDImpactFxSubsystem::SkillConeDegrees(uint8 Ability)
+{
+    OverdriveHoldSeconds();
+    if (!Content) { return 0.f; }
+    for (const FLDDemoAbilityDefinition& Definition : Content->Get().Abilities)
+    {
+        const FLDDemoRational& Angle = Definition.Target.AngleDegrees;
+        if (Definition.NativeId == Ability && Angle.Denominator > 0) { return float(double(Angle.Numerator) / double(Angle.Denominator)); }
+    }
+    return 0.f;
+}
+
+float ULDImpactFxSubsystem::SkillEffectRadius(uint8 Ability, uint16 Opcode)
+{
+    OverdriveHoldSeconds();
+    if (!Content) { return 0.f; }
+    for (const FLDDemoAbilityDefinition& Definition : Content->Get().Abilities)
+    {
+        if (Definition.NativeId != Ability) { continue; }
+        for (const FLDDemoEffectDefinition& Effect : Definition.Values.Effects)
+        {
+            if (Effect.Opcode == Opcode && Effect.RadiusCm.Denominator > 0) { return float(double(Effect.RadiusCm.Numerator) / double(Effect.RadiusCm.Denominator)); }
+        }
+    }
+    return 0.f;
 }
 
 float ULDImpactFxSubsystem::ConductRadiusCm()
@@ -1346,7 +1422,7 @@ void ULDImpactFxSubsystem::Chain(const ULDHumanoidVisualComponent& Victim, const
     // Others' links are thinner and dimmer, a bounce thinner than the first hop; reduced effects dim them further.
     const float Focus = Look.bFocus ? 1.f : .7f;
     const float Seconds = .26f * Look.Seconds;
-    UNiagaraComponent* Effect = SpawnGenerated(LDSliceVfx::ESystem::Chain, From, To, LDBroadcast::Shock,
+    UNiagaraComponent* Effect = SpawnGenerated(LDSliceVfx::ESystem::Chain, From, To, LDSliceVfx::ElementInk(uint8(ELDCombatElement::Shock)),
         (bChained ? 56.f : 70.f) * Look.Size * (Look.bFocus ? 1.f : .8f), 2.2f * Look.Glow * Focus * (.55f + .45f * Thin), Seconds, Look.bFocus);
     if (!Effect) { return; }
     Track(Effect, &Victim, AgeSeconds);

@@ -833,8 +833,6 @@ namespace
                     const FVector At = VfxFocus + FVector(0, 0, 100);
                     for (uint8 Strike = uint8(LDSliceVfx::EStrike::Basic); Strike <= uint8(LDSliceVfx::EStrike::Zap); ++Strike)
                     { Impacts->Slice(nullptr, LDSliceVfx::Impact(LDSliceVfx::EStrike(Strike), At, VfxFocus, FVector::ForwardVector, VfxFocus, false, Look), 0.f); }
-                    Impacts->Slice(nullptr, LDSliceVfx::SkillTelegraph(VfxFocus, FVector::ForwardVector, 300.f, 100.f, .3f, Look), 0.f);
-                    Impacts->Slice(nullptr, LDSliceVfx::HoseRelease(At, FVector::ForwardVector, 300.f, Look), 0.f);
                     SeqWarmUntil = Now + 3.;
                 }
                 if (Now < SeqWarmUntil || (GShaderCompilingManager && GShaderCompilingManager->IsCompiling())) { return true; }
@@ -916,7 +914,8 @@ namespace
             Categories.ParseIntoArray(Wanted, TEXT(","), true);
             for (const FString& Name : Wanted)
             {
-                if (!Check(Name == TEXT("chain") || Name == TEXT("hit") || Name == TEXT("swing") || Name == TEXT("field"), TEXT("Proof category known: ") + Name)) { return false; }
+                if (!Check(Name == TEXT("chain") || Name == TEXT("hit") || Name == TEXT("swing") || Name == TEXT("field") || Name == TEXT("water") || Name == TEXT("fire") || Name == TEXT("chill"),
+                    TEXT("Proof category known: ") + Name)) { return false; }
             }
             const TWeakObjectPtr<ULDHumanoidVisualComponent> A = VfxAttacker, V1 = VfxVictim, V2 = VfxExtras[0], V3 = VfxExtras[1], A2 = VfxExtras[2], A3 = VfxExtras[3];
             const auto Cast = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body)
@@ -997,6 +996,17 @@ namespace
                 ProofGrounds.Reset();
                 ProofGroundsAt.Reset();
             };
+            // Any active cast with its windup (the approved level-1 timing a viewer sees), and a hit of a look.
+            const auto CastOf = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, ELDDemoAbilityId Ability, float Windup)
+            { return [Body, Ability, Windup]() { if (auto* B = Body.Get()) { B->SetComboStep(0); B->SetCastAbility(uint8(Ability)); B->SetCue(2, 0.f, Windup); } }; };
+            const auto HitOf = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, ELDObservedHitLook HitLook)
+            { return [Body, HitLook]() { if (auto* B = Body.Get()) { B->SetHitReaction(0.f, HitLook, 0, FGuid::NewGuid()); } }; };
+            // V1 at Range ahead of A (A's facing), facing it.
+            const auto Ahead = [A, V1, AHome, AFacing](double Range)
+            {
+                return [A, V1, AHome, AFacing, Range]()
+                { if (auto* B = V1.Get()) { B->GetOwner()->SetActorLocation(AHome + AFacing.Vector() * Range); B->GetOwner()->SetActorRotation((-AFacing.Vector()).Rotation()); } };
+            };
             // The own contender's seat (A is the local player's body) and another's.
             const uint8 OwnSeat = A.IsValid() ? A->PaletteSlot() : 255, OtherSeat = V2.IsValid() ? V2->PaletteSlot() : 255;
             for (const FString& Look : Wanted)
@@ -1039,6 +1049,56 @@ namespace
                     ChainJobs.Add({Look, TEXT("field-own-other"), {{.05f, Field(V1, 220.f, 1200, 25, OwnSeat)}, {.05f, Field(V2, 220.f, 1200, 26, OtherSeat)}},
                         nullptr, ClearGrounds, false, .6f, 0.f, 48});
                 }
+                else if (Look == TEXT("water"))
+                {
+                    // active_hose_down (windup 0.2 s): its band during the windup, the stream and a hit 3 m ahead, the same on the
+                    // sunlit floor and another player's; active_zap's hand charge during its windup (0.25 s).
+                    const float Hose = .2f, Zap = .25f;
+                    const auto Sun = [Sunlit, A, V1]()
+                    {
+                        Sunlit();
+                        if (A.IsValid() && V1.IsValid())
+                        {
+                            const FVector From = A->GetOwner()->GetActorLocation(), To = V1->GetOwner()->GetActorLocation();
+                            A->GetOwner()->SetActorRotation((To - From).Rotation());
+                            V1->GetOwner()->SetActorLocation(From + (To - From).GetSafeNormal2D() * 300.);
+                        }
+                    };
+                    ChainJobs.Add({Look, TEXT("water-tell"), {{0.f, CastOf(A, ELDDemoAbilityId::ActiveHoseDown, Hose)}, {Hose + .03f, HitOf(V1, ELDObservedHitLook::Water)}},
+                        Ahead(300.), Home, false, Hose * .6f, 0.f, 12});
+                    ChainJobs.Add({Look, TEXT("water-hose"), {{0.f, CastOf(A, ELDDemoAbilityId::ActiveHoseDown, Hose)}, {Hose + .03f, HitOf(V1, ELDObservedHitLook::Water)}},
+                        Ahead(300.), Home, false, Hose + .06f, 0.f, 45});
+                    ChainJobs.Add({Look, TEXT("water-sunlit"), {{0.f, CastOf(A, ELDDemoAbilityId::ActiveHoseDown, Hose)}, {Hose + .03f, HitOf(V1, ELDObservedHitLook::Water)}},
+                        Sun, Home, false, Hose + .06f, .1f, 30});
+                    ChainJobs.Add({Look, TEXT("water-other"), {{0.f, CastOf(A3, ELDDemoAbilityId::ActiveHoseDown, Hose)}, {Hose + .03f, HitOf(V3, ELDObservedHitLook::Water)}},
+                        nullptr, nullptr, false, Hose + .06f, .1f, 30});
+                    ChainJobs.Add({Look, TEXT("zap-charge"), {{0.f, CastOf(A, ELDDemoAbilityId::ActiveZap, Zap)}, {Zap + .02f, HitOf(V1, ELDObservedHitLook::Electric)}},
+                        Close, Home, false, Zap * .7f, 0.f, 15});
+                }
+                else if (Look == TEXT("fire"))
+                {
+                    // active_seethe (windup 0.25 s, radius 300): its windup, the burst with V1 burnt 2 m away, the scorch
+                    // fading, the same on the sunlit floor, and another player's.
+                    const float Seethe = .25f;
+                    const auto Burnt = [&](TWeakObjectPtr<ULDHumanoidVisualComponent> Caster, TWeakObjectPtr<ULDHumanoidVisualComponent> Victim)
+                    { return TArray<FSeqStep>{{0.f, CastOf(Caster, ELDDemoAbilityId::ActiveSeethe, Seethe)}, {Seethe + .03f, HitOf(Victim, ELDObservedHitLook::Fire)}}; };
+                    ChainJobs.Add({Look, TEXT("fire-tell"), Burnt(A, V1), Ahead(200.), Home, false, Seethe * .7f, 0.f, 12});
+                    ChainJobs.Add({Look, TEXT("fire-seethe"), Burnt(A, V1), Ahead(200.), Home, false, Seethe + .1f, 0.f, 60});
+                    ChainJobs.Add({Look, TEXT("fire-sunlit"), Burnt(A, V1), Sunlit, Home, false, Seethe + .1f, .15f, 30});
+                    ChainJobs.Add({Look, TEXT("fire-other"), Burnt(A3, V3), nullptr, nullptr, false, Seethe + .1f, .15f, 30});
+                }
+                else if (Look == TEXT("chill"))
+                {
+                    // active_cola_shake (windup 0.15 s, cone 400 cm / 60 degrees): its windup, the blast hitting V1 2.5 m ahead,
+                    // the same on the sunlit floor, and another player's.
+                    const float Cola = .15f;
+                    const auto Blast = [&](TWeakObjectPtr<ULDHumanoidVisualComponent> Caster, TWeakObjectPtr<ULDHumanoidVisualComponent> Victim)
+                    { return TArray<FSeqStep>{{0.f, CastOf(Caster, ELDDemoAbilityId::ActiveColaShake, Cola)}, {Cola + .05f, HitOf(Victim, ELDObservedHitLook::Magic)}}; };
+                    ChainJobs.Add({Look, TEXT("chill-tell"), Blast(A, V1), Ahead(250.), Home, false, Cola * .7f, 0.f, 8});
+                    ChainJobs.Add({Look, TEXT("chill-blast"), Blast(A, V1), Ahead(250.), Home, false, Cola + .12f, 0.f, 50});
+                    ChainJobs.Add({Look, TEXT("chill-sunlit"), Blast(A, V1), Sunlit, Home, false, Cola + .12f, .1f, 30});
+                    ChainJobs.Add({Look, TEXT("chill-other"), Blast(A3, V3), nullptr, nullptr, false, Cola + .12f, .1f, 30});
+                }
                 else
                 {
                 // (a) a short hop of 250 cm along the checked dash line in front of A.
@@ -1062,6 +1122,8 @@ namespace
                 // the sunlit band below the stage, 140 px (about 250 cm) apart.
                 ChainJobs.Add({Look, TEXT("g-sunlit-hop"), {{0.f, Cast(A)}, {.27f, Hit(V1)}}, Sunlit, Home});
                 }
+                // New categories are judged on their looks first; their frame cost is measured once a look is chosen.
+                if (Look == TEXT("water") || Look == TEXT("fire") || Look == TEXT("chill")) { continue; }
                 FChainJob Perf;
                 Perf.Category = Look;
                 Perf.Scenario = TEXT("perf-eight-casters");

@@ -10,7 +10,6 @@
 #include "Combat/LDCombatCues.h"
 #include "Combat/LDCombatEvaluationTypes.h"
 #include "Development/LDDemoContentIds.h"
-#include "UI/LDBroadcastStyle.h"
 #include "Vision/LDViewTypes.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -320,9 +319,9 @@ bool FLDBodyMotionSliceLayersTest::RunTest(const FString& Parameters)
     FLook Other;
     const auto Find=[](const FRecipe& Recipe, ETex Tex, EPlace Place)
     { return Recipe.Layers.FindByPredicate([Tex,Place](const FLayer& Layer){ return Layer.Tex==Tex && Layer.Place==Place; }); };
-    TestTrue(TEXT("The slice shows unflagged plain, water and electric hits; any outcome flag or other look keeps the hit layers"),
+    TestTrue(TEXT("The slice shows unflagged plain, water, electric and fire hits; any outcome flag or other look keeps the hit layers"),
         ShowsHit(ELDObservedHitLook::None,0) && ShowsHit(ELDObservedHitLook::Water,0) && ShowsHit(ELDObservedHitLook::Electric,0)
-        && !ShowsHit(ELDObservedHitLook::Fire,0) && !ShowsHit(ELDObservedHitLook::Magic,0) && !ShowsHit(ELDObservedHitLook::None,LDObservation::Critical)
+        && ShowsHit(ELDObservedHitLook::Fire,0) && !ShowsHit(ELDObservedHitLook::Magic,0) && !ShowsHit(ELDObservedHitLook::None,LDObservation::Critical)
         && !ShowsHit(ELDObservedHitLook::Water,LDObservation::ShieldAbsorbed) && !ShowsHit(ELDObservedHitLook::Electric,LDObservation::Dodged));
     // The basic and finisher hits and the swing are generated Niagara systems; the slice keeps the skill burst, water's
     // follow-through and the ground contact lights.
@@ -334,11 +333,7 @@ bool FLDBodyMotionSliceLayersTest::RunTest(const FString& Parameters)
         StrikeTint(Own).B<StrikeTint(Own).R*.5f && StrikeTint(Other).B>StrikeTint(Other).R*.8f);
     TestTrue(TEXT("The skill burst points along the strike with its hit point at the sheet's pivot"),
         SkillHit && SkillHit->Dir.Equals(Dir) && FMath::IsNearlyEqual(SkillHit->Pivot,.3f) && SkillHit->bTop);
-    const FRecipe Hose=Impact(EStrike::Hose,Chest,Feet,Dir,From,false,Own);
-    const FLayer* Wet=Find(Hose,ETex::WetDecal,EPlace::Flat);
-    TestTrue(TEXT("A water hit bursts in the water ink, splashes along the jet and wets the ground for over a second"),
-        Find(Hose,ETex::HitSkill,EPlace::Facing) && Find(Hose,ETex::WaterSplash,EPlace::Facing) && Wet && Wet->Seconds>1.f
-        && Find(Hose,ETex::HitSkill,EPlace::Facing)->Glow.B>Find(Hose,ETex::HitSkill,EPlace::Facing)->Glow.R);
+    TestTrue(TEXT("A water hit leaves no slice layer (it is the Niagara WaterHit)"), Impact(EStrike::Hose,Chest,Feet,Dir,From,false,Own).Layers.IsEmpty());
     const FRecipe Zap=Impact(EStrike::Zap,Chest,Feet,Dir,From,false,Own), Bounce=Impact(EStrike::Zap,Chest,Feet,Dir,From,true,Own);
     TestTrue(TEXT("A zap lights the ground under its target over a faint scorch, a bounce target's a little smaller; the link, burst and sparks are the Niagara Chain"),
         !Find(Zap,ETex::HitSkill,EPlace::Facing) && Find(Zap,ETex::ChainAGroundGlow,EPlace::Flat) && Find(Zap,ETex::ChainBScorchDash,EPlace::Flat)
@@ -349,17 +344,15 @@ bool FLDBodyMotionSliceLayersTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A zero tuning or no strike shows nothing"), Impact(EStrike::Zap,Chest,Feet,Dir,From,false,Off).Layers.IsEmpty()
         && Impact(EStrike::None,Chest,Feet,Dir,From,false,Own).Layers.IsEmpty());
     const FLayer& Spark=*SkillHit;
-    TestTrue(TEXT("Flipbooks step at their authored rate and hold their last frame; a delayed layer waits"),
+    TestTrue(TEXT("Flipbooks step at their authored rate and hold their last frame"),
         Evaluate(Spark,0.f).Frame==0.f && Evaluate(Spark,.1f).Frame==2.f && Evaluate(Spark,Spark.Seconds-.01f).Frame==15.f
-        && !Evaluate(*Find(Hose,ETex::WaterSplash,EPlace::Facing),.01f).bVisible && IsOver(Spark,Spark.Seconds) && !IsOver(Spark,0.f));
+        && IsOver(Spark,Spark.Seconds) && !IsOver(Spark,0.f));
     TestTrue(TEXT("Every generated system has its package under the generated folder"),
         SystemPackage(ESystem::Chain)==FString(GeneratedFolder)/TEXT("NS_LDChain") && SystemPackage(ESystem::Field).StartsWith(GeneratedFolder)
         && FCString::Strlen(SystemName(ESystem::Count))==0);
-    const FRecipe Lane=SkillTelegraph(Feet,Dir,600.f,160.f,.2f,Own);
-    TestTrue(TEXT("A skill's chalk lane covers its footprint along the facing"), Lane.Layers.Num()==1 && Lane.Layers[0].Tex==ETex::ChalkLane
-        && Lane.Layers[0].End.Equals(FVector(600,0,0)) && FMath::IsNearlyEqual(Lane.Layers[0].SizeCm,160.f) && Lane.Layers[0].Place==EPlace::GroundStrip);
-    TestTrue(TEXT("The shock element is the broadcast shock ink"), LDHitVfx::ElementTint(uint8(ELDCombatElement::Shock))==LDBroadcast::Shock
-        && LDHitVfx::ElementTint(uint8(ELDCombatElement::Water))==LDBroadcast::Water);
+    TestTrue(TEXT("The effects' element inks are their own tokens; shock keeps the approved chain's value"),
+        ElementInk(uint8(ELDCombatElement::Shock))==FLinearColor(FColor(0xFF,0xD2,0x3D)) && LDHitVfx::ElementTint(uint8(ELDCombatElement::Water))==ElementInk(uint8(ELDCombatElement::Water))
+        && ElementInk(uint8(ELDCombatElement::Water)).B>ElementInk(uint8(ELDCombatElement::Water)).R);
     return true;
 }
 

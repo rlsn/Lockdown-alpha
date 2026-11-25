@@ -17,9 +17,8 @@ TINTS = {"white": (255, 255, 255), "water": (0x42, 0xB4, 0xFF), "shock": (0xFF, 
 # id -> (columns, rows, tint used on the sheet)
 FLIPBOOKS = {
     "fb_hit_skill": (4, 4, "white"),
-    "fb_water_splash": (4, 4, "water"),
 }
-STRIPS = {"tex_slash_edge": "white", "tex_water_jet": "water", "tex_wet_decal": "water"}
+STRIPS = {"tex_slash_edge": "white"}
 
 
 def composite(rgba, ground, tint):

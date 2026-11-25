@@ -30,12 +30,15 @@ namespace LDSliceVfx
     constexpr const TCHAR* ShapeParameter = TEXT("Shape");
     enum class ETex : uint8
     {
-        SlashEdge, DissolveNoise, HitSkill, WaterJet, WaterSplash, WetDecal, ChalkLane,
+        SlashEdge, DissolveNoise, HitSkill,
         // The generated effects' elements (vfx_slice_assets.json, slice_chain_candidates.py), used by the generated Niagara
         // materials and their ground layers.
         ChainAProfile, ChainAEnergyNoise, ChainASparkStreak, ChainAFlash, ChainAGroundGlow, ChainBScorchDash,
         // The electric field's charged floor (slice_field.py): the crack web and its utility noise.
-        FieldWeb, FieldEnergyNoise, Count
+        FieldWeb, FieldEnergyNoise,
+        // The other elements' surfaces (slice_elements.py): a stream, a droplet, a wet floor; a soft cloud puff; flame
+        // tongues (2 x 2 atlas) and a scorched floor; ice shards (2 x 2 atlas) and a frosted floor; a rotten murk and a bubble.
+        WaterFlow, WaterDrop, WaterWet, SoftPuff, FireTongue, FireChar, IceShard, IceFrost, RotMurk, RotBubble, Count
     };
     enum class EMesh : uint8 { Slash1, Slash2, Slash3, Count };
     // The manifest id ("fb_hit_basic", "SM_LD_SlashCombo1") and the package (Folder/T_fb_hit_basic, Folder/SM_LD_SlashCombo1).
@@ -60,7 +63,22 @@ namespace LDSliceVfx
     //   Field        an electric field on the ground: Start its centre on the floor, Width its radius, Intensity its
     //                strength (2.2 full), Duration its life (the ground state's: effectively unbounded; conduct's splash)
     //   Tell1..3     a basic swing's anticipation on the floor: Start the feet, End ahead, Duration the windup
-    enum class ESystem : uint8 { Chain, HitBasic, HitFinisher, Swing1, Swing2, Swing3, Field, Tell1, Tell2, Tell3, Count };
+    //   HoseTell     active_hose_down's windup: its band on the floor from Start (the floor under the feet) to End (the
+    //                floor at its range), Width the band's half width, Duration the windup
+    //   HoseJet      active_hose_down's release: the stream over the same band (Start, End, Width as HoseTell)
+    //   WaterHit     a water hit at End struck from Start's side
+    //   ZapCharge    active_zap's windup at the casting hand (Start), Duration the windup
+    //   SeetheTell   active_seethe's windup round Start (the floor under the caster), Width its radius, Duration the windup
+    //   SeetheBurst  active_seethe's release round Start at radius Width, Duration the scorch's life
+    //   FireHit      a fire hit at End struck from Start's side
+    //   ColaTell     active_cola_shake's windup: its cone on the floor from Start (under the feet) to End (at its reach),
+    //                Width its half angle in degrees, Duration the windup
+    //   ColaBlast    active_cola_shake's release over the same cone, Duration the frost's life
+    enum class ESystem : uint8
+    {
+        Chain, HitBasic, HitFinisher, Swing1, Swing2, Swing3, Field, Tell1, Tell2, Tell3,
+        HoseTell, HoseJet, WaterHit, ZapCharge, SeetheTell, SeetheBurst, FireHit, ColaTell, ColaBlast, Count
+    };
     LOCKDOWN_API const TCHAR* SystemName(ESystem System);
     LOCKDOWN_API FString SystemPackage(ESystem System);
     // The shocked-body rim glow (LDHitVfx::FGhosts::bShell): an additive fresnel shell pushed 1.2 cm out along the normals.
@@ -133,7 +151,7 @@ namespace LDSliceVfx
     // Which visible strike a hit belongs to (ULDImpactFxSubsystem::NoteStrike / MatchHit); its tier picks the silhouette:
     // basic < finisher (the 3rd basic) < skill < reaction.
     enum class EStrike : uint8 { None, Basic, Finisher, Skill, Hose, Zap };
-    // The hits the slice shows (Impact): a plain, water or electric hit without a critical, shield, overdrive, dodge or
+    // The hits the slice shows (Impact): a plain, water, electric or fire hit without a critical, shield, overdrive, dodge or
     // parry outcome. Every other hit keeps its hit layers (LDHitVfx::ForHit).
     LOCKDOWN_API bool ShowsHit(ELDObservedHitLook Look, uint8 HitFlags);
     // bOwn: the strike is the local player's (white with the ball orange; others' strikes are white only). bFocus: the
@@ -151,10 +169,9 @@ namespace LDSliceVfx
     // A basic swing's anticipation and arc are the Niagara Tell and Swing (ULDImpactFxSubsystem::SwingTell, Swing).
     // The ink of a physical strike's effects (swing, hit): the local player's own a soft orange, others' a pale ivory.
     LOCKDOWN_API FLinearColor StrikeTint(const FLook& Look);
-    // A skill's chalk lane on the ground from the caster's feet along its facing (Length x Width), during the windup.
-    LOCKDOWN_API FRecipe SkillTelegraph(const FVector& Feet, const FVector& Facing, float LengthCm, float WidthCm, float WindupSeconds, const FLook& Look);
-    // active_hose_down at its release: the water line from the hand along the facing over its range, with a muzzle splash.
-    LOCKDOWN_API FRecipe HoseRelease(const FVector& Hand, const FVector& Facing, float LengthCm, const FLook& Look);
+    // The world effects' element colours (ELDCombatElement), a token of their own: retuning one never changes a HUD
+    // accent (LDBroadcast), and the HUD's element chips never change an effect. Shock keeps the approved chain's value.
+    LOCKDOWN_API FLinearColor ElementInk(uint8 Element);
     // active_zap at its release: the contact spark at the casting hand (the arcs follow the hits it lands).
     LOCKDOWN_API FRecipe ZapRelease(const FVector& Hand, const FLook& Look);
     // One landed hit of a strike on a visible body, its slice layers: the skill burst at the chest along Dir for a skill

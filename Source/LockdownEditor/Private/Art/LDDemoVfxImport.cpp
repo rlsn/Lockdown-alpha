@@ -526,7 +526,6 @@ namespace
         switch (Tex)
         {
         case LDSliceVfx::ETex::DissolveNoise: case LDSliceVfx::ETex::ChainAEnergyNoise: case LDSliceVfx::ETex::FieldEnergyNoise: return TC_Masks;
-        case LDSliceVfx::ETex::WetDecal: return TC_Default;
         default: return TC_BC7;
         }
     }
