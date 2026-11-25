@@ -1,10 +1,11 @@
-"""Turn a Scripts/CaptureFeelSample.ps1 run into evidence: feel.mp4 (the game window and the speaker output, both placed on
-the game's own event clock) and timing.png / timing.json (the speaker output with every logged step and sound).
+"""Turn a Scripts/CaptureFeelSample.ps1 run into evidence: feel.mp4 (the game's own frames and its own audio, both placed on
+the game's own event clock) and timing.png / timing.json (the game audio with every logged step and sound).
 
     python Scripts/MakeFeelEvidence.py --run Artifacts/<stamp>-FeelSample-1600x900 --ffmpeg <ffmpeg.exe> --out <folder>
-Needs numpy, soundfile and matplotlib. The audio is what the speaker received from the running game (WASAPI loopback), not
-a re-render. Process start clocks of the recorders are not trusted: the loopback is placed where the logged takes match it,
-the video where its frame changes match the logged releases; both raw offsets are reported.
+Needs numpy, soundfile and matplotlib. The audio is the game's master submix as it played (game_audio.wav), not a
+re-render; the video is the game's own frames (Probes/LDGameRecorder.h, game.mp4). Neither reads the desktop or the system
+audio. The audio is placed where the logged takes match it, the video where its frame changes match the logged releases;
+both raw offsets are reported.
 """
 import argparse
 import datetime
@@ -103,11 +104,13 @@ def main():
     seconds = max(r["t"] for r in rows) + 1.2
 
     # Audio: where the speaker output carries each logged take (around the wall-clock estimate of the scenario start).
-    meta = json.loads((run / "Feel.json").read_text(encoding="utf-8-sig"))
-    game_start = datetime.datetime.fromisoformat(next(l for l in log if "LD_FEEL_RECORDING_START" in l).split("utc=")[1].strip().replace("Z", "+00:00"))
-    loop_start = datetime.datetime.fromisoformat(meta["loopback_start_utc"])
-    estimate = (game_start - loop_start).total_seconds()
-    audio, rate = soundfile.read(run / "loopback.wav", always_2d=True)
+    # The recorder's audio starts before the scenario: the takes are searched near the scenario start on its clock.
+    recording = json.loads((run / "game" / "recorder.json").read_text(encoding="utf-8"))
+    scenario = datetime.datetime.fromisoformat(next(l for l in log if "LD_FEEL_RECORDING_START" in l).split("utc=")[1].strip().replace("Z", "+00:00"))
+    recorder = datetime.datetime.fromisoformat(recording["start_utc"].replace("Z", "+00:00"))
+    estimate = (scenario - recorder).total_seconds() - float(recording["audio_start_seconds"])
+    game_audio = run / "game" / "game_audio.wav"
+    audio, rate = soundfile.read(game_audio, always_2d=True)
     mono = audio.mean(axis=1)
     sources = take_sources()
     placed = []
@@ -121,21 +124,21 @@ def main():
             continue
         at, score = match(mono, rate, ref, estimate + row["t"], before=0.3, after=0.8)
         if at is not None:
-            row["loopback_at"], row["match"] = round(at, 4), round(score, 2)
+            row["audio_at"], row["match"] = round(at, 4), round(score, 2)
             if score > 0.5:
                 placed.append(at - row["t"])
     if not placed:
-        raise SystemExit("No logged take was found in the speaker output.")
+        raise SystemExit("No logged take was found in the game audio.")
     audio_zero = float(np.median(placed))
     for row in rows:
-        if "loopback_at" in row:
-            row["residual_ms"] = round((row["loopback_at"] - audio_zero - row["t"]) * 1000, 1)
+        if "audio_at" in row:
+            row["residual_ms"] = round((row["audio_at"] - audio_zero - row["t"]) * 1000, 1)
 
     # Video: the scenario starts in the frame where the lobby widgets are removed (the probe removes them in the same tick
     # that it logs the recording start), the largest frame change of the recording. The swing and cast releases are then
     # checked against the local frame-change peaks.
     releases = [r["t"] for r in rows if r["cue"].startswith("Swing")] + [r["t"] for r in rows if r["cue"].startswith("Skill")]
-    times, change = frame_changes(args.ffmpeg, run / "window.mkv")
+    times, change = frame_changes(args.ffmpeg, run / "game.mp4")
     video_zero = float(times[int(np.argmax(change))])
     spikes = {}
     for r in releases:
@@ -154,7 +157,7 @@ def main():
         ax.axvline(row["t"], color="#d40", lw=0.8)
         ax.text(row["t"], 0.92 - 0.11 * (i % 7), row["cue"], fontsize=7, color="#d40")
     ax.set_ylim(-1, 1)
-    ax.set_title("Speaker output (WASAPI loopback) on the game's event clock; green: scenario steps, red: sounds the game played")
+    ax.set_title("Game audio (master submix) on the game's event clock; green: scenario steps, red: sounds the game played")
     vt = times - video_zero
     keep = (vt >= 0) & (vt <= seconds)
     bx.plot(vt[keep], np.minimum(change[keep], np.percentile(change[keep], 99) if keep.any() else 1), lw=0.8, color="#36c")
@@ -166,22 +169,20 @@ def main():
     plt.tight_layout()
     plt.savefig(out / "timing.png", dpi=110)
     report = {"steps": [{"t": s_t, "step": s} for s_t, _, s in steps], "sounds": rows,
-              "loopback_scenario_start_s": round(audio_zero, 4), "loopback_wallclock_estimate_s": round(estimate, 4),
-              "speaker_lag_vs_wallclock_ms": round((audio_zero - estimate) * 1000, 1),
+              "audio_scenario_start_s": round(audio_zero, 4),
               "video_scenario_start_s": round(video_zero, 4), "video_release_spike_residual_ms": spikes}
     (out / "timing.json").write_text(json.dumps(report, indent=1), encoding="utf-8")
     video_filter = "fps=30"
     if labels:
         subtitles(labels, seconds, out / "labels.ass")
         video_filter += ",subtitles=labels.ass"
-    cmd = [args.ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-ss", f"{video_zero:.3f}", "-i", str((run / "window.mkv").resolve()),
-           "-ss", f"{audio_zero:.3f}", "-i", str((run / "loopback.wav").resolve()), "-t", f"{seconds:.2f}",
+    cmd = [args.ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-ss", f"{video_zero:.3f}", "-i", str((run / "game.mp4").resolve()),
+           "-ss", f"{audio_zero:.3f}", "-i", str(game_audio.resolve()), "-t", f"{seconds:.2f}",
            "-map", "0:v", "-map", "1:a", "-vf", video_filter, "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
            "-c:a", "aac", "-b:a", "192k", "feel.mp4"]
     subprocess.run(cmd, check=True, cwd=out)
     residuals = [r["residual_ms"] for r in rows if r.get("match", 0) > 0.5]
-    print(f"audio: {len(placed)} takes placed, residual {min(residuals):.1f}..{max(residuals):.1f} ms; "
-          f"speaker vs wall clock {report['speaker_lag_vs_wallclock_ms']} ms")
+    print(f"audio: {len(placed)} takes placed, residual {min(residuals):.1f}..{max(residuals):.1f} ms")
     print(f"video: release spikes {spikes} ms from the logged releases")
     print(f"wrote {out / 'feel.mp4'} and {out / 'timing.png'}")
 

@@ -116,15 +116,13 @@ function New-LDDemoHarness {
 
 function Start-LDDemoRole {
     param([Parameter(Mandatory)]$Harness, [Parameter(Mandatory)][string]$Role,
-        [Parameter(Mandatory)][string]$Url, [Parameter(Mandatory)][scriptblock]$Arguments,
-        # A role recorded on screen (capture tools only): its window is shown instead of hidden.
-        [switch]$Visible)
+        [Parameter(Mandatory)][string]$Url, [Parameter(Mandatory)][scriptblock]$Arguments)
     $user = Join-Path $Harness.Launch.Output "$Role-User"
     New-Item -ItemType Directory -Path $user | Out-Null
     $log = Join-Path $Harness.Launch.Output "$Role.log"
     $roleArguments = & $Arguments $user $log
     $formatted = Format-LDGameArguments -Launch $Harness.Launch -Url $Url -Arguments $roleArguments
-    $Harness.Processes.Add((Start-Process -FilePath $Harness.Launch.Binary -ArgumentList $formatted -WindowStyle $(if ($Visible) { 'Normal' } else { 'Hidden' }) -PassThru))
+    $Harness.Processes.Add((Start-Process -FilePath $Harness.Launch.Binary -ArgumentList $formatted -WindowStyle Hidden -PassThru))
 }
 
 function Wait-LDDemoEvidence {

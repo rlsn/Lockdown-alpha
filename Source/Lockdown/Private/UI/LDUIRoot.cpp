@@ -430,23 +430,12 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
     UTextBlock* VersionLine=LDWidgets::Text(WidgetTree,LDDemoEntry::ReadProductVersion(Version,VersionError)?LDDemoEntry::TitleVersion(Version):TEXT("版本读取失败：")+VersionError,
         Scaled(14),NAME_None,LDUIFonts::ERole::Figure);
     VersionLine->SetColorAndOpacity(LDBroadcast::Grey);VersionLine->SetAutoWrapText(false);
-    // The slang note stays on the front page (#111) so the title's slang is never read as anything else: the bottom ticker
-    // of the broadcast, its "黑话" tag on an orange block, the version at its right end.
-    UTextBlock* SlangNote=Label(LDTerms::SlangNote,15,LDBroadcast::White);SlangNote->SetAutoWrapText(false);
+    // The version sits alone in the bottom right corner of the front page.
     {
-        auto* Ticker=WidgetTree->ConstructWidget<UHorizontalBox>();
-        UTextBlock* Tag=LDWidgets::Text(WidgetTree,TEXT("黑话"),Scaled(18),NAME_None,LDUIFonts::ERole::Strong);Tag->SetColorAndOpacity(LDBroadcast::Ink);Tag->SetAutoWrapText(false);
-        Ticker->AddChildToHorizontalBox(Painted(WidgetTree,Tag,FMargin(40,10,40,10),[Whole](const LDUIPaint::FContext& Paint)
-        {LDBroadcastPaint::FillSlab(Paint,Paint.Layer,Whole(Paint),LDBroadcast::Orange,true,false);}));
-        auto* NoteSlot=Ticker->AddChildToHorizontalBox(SlangNote);NoteSlot->SetVerticalAlignment(VAlign_Center);NoteSlot->SetPadding(FMargin(24,0,0,0));
-        NoteSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-        auto* VersionSlot=Ticker->AddChildToHorizontalBox(VersionLine);VersionSlot->SetVerticalAlignment(VAlign_Center);VersionSlot->SetPadding(FMargin(0,0,36,0));
-        UOverlay* Band=Painted(WidgetTree,Ticker,FMargin(0),[Whole](const LDUIPaint::FContext& Paint)
-        {LDBroadcastPaint::Block(Paint,Paint.Layer,Whole(Paint),LDBroadcast::Ink.CopyWithNewOpacity(.92f));});
-        Band->SetVisibility(ESlateVisibility::HitTestInvisible);
-        UCanvasPanelSlot* BandSlot=Canvas.AddChildToCanvas(Band);BandSlot->SetAnchors(FAnchors(0,1,1,1));BandSlot->SetAlignment(FVector2D(0,1));
-        BandSlot->SetOffsets(FMargin(0,0,0,0));BandSlot->SetAutoSize(true);
-        FrontendCorners.Add(Band);
+        VersionLine->SetVisibility(ESlateVisibility::HitTestInvisible);
+        UCanvasPanelSlot* VersionSlot=Canvas.AddChildToCanvas(VersionLine);VersionSlot->SetAnchors(FAnchors(1,1,1,1));VersionSlot->SetAlignment(FVector2D(1,1));
+        VersionSlot->SetOffsets(FMargin(-36,-20,0,0));VersionSlot->SetAutoSize(true);
+        FrontendCorners.Add(VersionLine);
     }
     bMenuOpen=true;
     SetFrontendPage(Draft&&Draft->bStartPage);
@@ -495,12 +484,14 @@ void ULDUIRoot::BuildWorld(UCanvasPanel& Canvas)
     // The Lobby (approved candidate C, "character ready room"): a top strip says what is played and how it is won; eight
     // equal seat cards across the screen carry who is here (the seat's hooper, number, name), who hosts, who is AI and who
     // is ready (the card's foot); under the cards the ready count, the one reason line and the one main action; the host's
-    // address and AI count on the left, the side commands on the right; the slang ticker along the bottom.
+    // address and AI count on the left, the side commands on the right.
     LobbyBackground=AddBackground(Canvas,LDUIBackgrounds::LobbyAsset);
     if(LobbyBackground)
     {
+        // The key art is only a dark, nearly grey texture behind the board (imported desaturated, tinted down here), so the
+        // seat cards are the page's only colour.
         LobbyBackground->SetVisibility(ESlateVisibility::Collapsed);
-        if(UScaleBox* Fill=Cast<UScaleBox>(LobbyBackground)){if(UImage* Picture=Cast<UImage>(Fill->GetContent())){Picture->SetColorAndOpacity(FLinearColor(.22f,.22f,.24f));}}
+        if(UScaleBox* Fill=Cast<UScaleBox>(LobbyBackground)){if(UImage* Picture=Cast<UImage>(Fill->GetContent())){Picture->SetColorAndOpacity(FLinearColor(.07f,.07f,.075f));}}
     }
     const auto WholeBox=[](const LDUIPaint::FContext& Paint){return FBox2D(FVector2D::ZeroVector,FVector2D(Paint.Geometry.GetLocalSize()));};
     const auto Px=[this](float Size){return FMath::Max(1,FMath::RoundToInt(LDBroadcastPaint::PointsOf(Size)*AppliedTextScale));};
@@ -558,7 +549,7 @@ void ULDUIRoot::BuildWorld(UCanvasPanel& Canvas)
     {
         // Under the cards: host tools (left), the ready count, reason and main action (centre), side commands (right).
         auto* Bottom=WidgetTree->ConstructWidget<UHorizontalBox>();
-        UVerticalBoxSlot* BottomSlot=LobbyColumn->AddChildToVerticalBox(Bottom);BottomSlot->SetPadding(FMargin(96,24,96,22));
+        UVerticalBoxSlot* BottomSlot=LobbyColumn->AddChildToVerticalBox(Bottom);BottomSlot->SetPadding(FMargin(96,24,96,48));
         auto* Left=WidgetTree->ConstructWidget<UVerticalBox>();
         auto* LeftBox=WidgetTree->ConstructWidget<USizeBox>();LeftBox->SetWidthOverride(600.f);LeftBox->SetContent(Left);
         Bottom->AddChildToHorizontalBox(LeftBox)->SetVerticalAlignment(VAlign_Center);
@@ -655,18 +646,6 @@ void ULDUIRoot::BuildWorld(UCanvasPanel& Canvas)
         }));
         Side(MakeButton(TEXT("设置"),TEXT("LobbySettings"),[this](){ToggleMainPanel(ELDUIMainPanel::Settings);}));
         Side(MakeButton(TEXT("离开房间"),TEXT("LeaveRoom"),[this](){OpenConfirm(ELDRootConfirm::LeaveRoom);}));
-    }
-    {
-        // The slang ticker of the title screen, along the bottom.
-        auto* Ticker=WidgetTree->ConstructWidget<UHorizontalBox>();
-        UTextBlock* Tag=Words(TEXT("黑话"),20.f,LDBroadcast::Ink);
-        Ticker->AddChildToHorizontalBox(Painted(WidgetTree,Tag,FMargin(36,12,40,12),[WholeBox](const LDUIPaint::FContext& Paint)
-        {LDBroadcastPaint::FillSlab(Paint,Paint.Layer,WholeBox(Paint),LDBroadcast::Orange,true,false);}));
-        UHorizontalBoxSlot* NoteSlot=Ticker->AddChildToHorizontalBox(Words(LDTerms::SlangNote,18.f,LDBroadcast::White,LDUIFonts::ERole::Body));
-        NoteSlot->SetVerticalAlignment(VAlign_Center);NoteSlot->SetPadding(FMargin(22,0,0,0));
-        UOverlay* Band=Painted(WidgetTree,Ticker,FMargin(0),[WholeBox](const LDUIPaint::FContext& Paint)
-        {LDBroadcastPaint::Block(Paint,Paint.Layer,WholeBox(Paint),LDBroadcast::Ink.CopyWithNewOpacity(.95f));});
-        LobbyColumn->AddChildToVerticalBox(Band);
     }
 
     // The in-match menu (on air): a full-height ink strip on the left, like the title screen's menu column; the match keeps

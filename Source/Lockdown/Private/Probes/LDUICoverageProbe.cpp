@@ -5,6 +5,7 @@
 #include "Components/EditableTextBox.h"
 #include "Containers/Ticker.h"
 #include "Development/LDDevTestProtocol.h"
+#include "Development/LDDemoContentDefinitions.h"
 #include "Dom/JsonObject.h"
 #include "Engine/World.h"
 #include "Framework/LDGameState.h"
@@ -28,6 +29,8 @@
 #include "UI/LDWorkshop.h"
 #include "UnrealClient.h"
 #include "Probes/LDSlateProbeInput.h"
+#include "World/LDCampMember.h"
+#include "Navigation/LDNavigationComponent.h"
 #include "Framework/Application/SlateApplication.h"
 
 namespace LDDemoTests
@@ -272,9 +275,32 @@ public:
                 }
                 return Settled(Now,.5);
             },10.,false});
+        // Leaving the opening rest: the return countdown (one size, it lasts seconds) and the stage title card, held at a
+        // fixed age for the shots and released by Match_Field.
+        {
+            FPage& Count=Pages.Add_GetRef({TEXT("Match_StageCount"),[this](ALDPlayerController& PC,double Now)
+            {
+                // The opening rest runs out by itself (REST.OpeningBuildSec): its own last seconds are the countdown.
+                if(Once(Now,0)){Resize(PC,1920,1080);StageBase=PC.HUDUI?PC.HUDUI->MomentStageAt():-1.;}
+                ULDWorkshop* Ring=PC.HUDUI?PC.HUDUI->Workshop.Get():nullptr;
+                if(Ring&&Ring->IsOpen()&&Once(Now,3,.3)){PC.HUDUI->ToggleWorkshop();}
+                return PC.HUDUI&&PC.HUDUI->HasStageCount()&&Settled(Now,.6);
+            },50.});
+            Count.Only=0;
+        }
+        Pages.Add({TEXT("Match_StageCard"),[this](ALDPlayerController& PC,double Now)
+            {
+                if(!PC.HUDUI){return false;}
+                if(Once(Now,0)){KillSeenAt=-1.;}
+                // Past its natural end the rest is skipped by the DEV op, which enters the field at once.
+                if(Once(Now,5,12.)&&PC.HUDUI->MomentStageAt()==StageBase){Dev(PC,ELDDevTestOp::SkipPreparation,0);}
+                if(PC.HUDUI->MomentStageAt()==StageBase){return false;}
+                if(KillSeenAt<0.){KillSeenAt=Now;PC.HUDUI->FreezeMoments(.5f);}
+                return Now-KillSeenAt>=.3;
+            },30.});
         Pages.Add({TEXT("Match_Field"),[this](ALDPlayerController& PC,double Now)
             {
-                if(Once(Now,0)){Dev(PC,ELDDevTestOp::SkipPreparation,0);}
+                if(Once(Now,0)&&PC.HUDUI){PC.HUDUI->FreezeMoments(-1.f);}
                 ULDWorkshop* Ring=PC.HUDUI?PC.HUDUI->Workshop.Get():nullptr;
                 if(Ring&&Ring->IsOpen()&&Once(Now,3,5.)){PC.HUDUI->ToggleWorkshop();}
                 return InPhase(PC,ELDMatchPhase::Development)&&Settled(Now,7.);
@@ -300,6 +326,59 @@ public:
                 if(Ring&&Ring->IsOpen()&&Once(Now,3,3.)){PC.HUDUI->ToggleWorkshop();}
                 return Settled(Now,6.);
             },90.});
+        // A real own kill: the max-level, invulnerable host jumps beside the nearest rival (DEV teleport) and right-clicks it
+        // through the ordinary pointer order until the authority's kill reaches the HUD; the K.O. moment is then held at a
+        // fixed age for the shots and released by the next page.
+        Pages.Add({TEXT("Match_Kill"),[this](ALDPlayerController& PC,double Now)
+            {
+                if(!PC.HUDUI||!PC.Navigation){return false;}
+                if(Once(Now,0))
+                {
+                    KillBase=PC.HUDUI->MomentKillAt();KillSeenAt=-1.;
+                    // One hit decides it: a DEV attack-damage term (P2 points), removed again by Match_KillEnd.
+                    ELDGrowthReason Reason=ELDGrowthReason::None;
+                    PC.SubmitDevTest(ELDDevTestOp::SetAttribute,150000,Reason,NAME_None,0,uint8(ELDDemoBonusStat::ADFlat));
+                }
+                if(PC.HUDUI->MomentKillAt()!=KillBase)
+                {
+                    if(KillSeenAt<0.){KillSeenAt=Now;PC.HUDUI->FreezeMoments(.45f);PC.Navigation->DevSetPointer(TOptional<FVector2D>());}
+                    return Now-KillSeenAt>=.4;
+                }
+                const APawn* Self=PC.GetPawn();
+                if(!Self){return false;}
+                for(int32 Try=0;Try<50;++Try)
+                {
+                    if(!Once(Now,1+Try,1.+Try*1.2)){continue;}
+                    const ALDCharacter* Rival=nullptr;double Best=TNumericLimits<double>::Max();
+                    for(TActorIterator<ALDCharacter> It(PC.GetWorld());It;++It)
+                    {
+                        if(*It==Self||!It->GetController()||It->IsA<ALDCampMemberCharacter>()||It->IsHidden()){continue;}
+                        const double Distance=FVector::DistSquared(It->GetActorLocation(),Self->GetActorLocation());
+                        if(Distance<Best){Best=Distance;Rival=*It;}
+                    }
+                    if(!Rival){continue;}
+                    if(Best>FMath::Square(320.))
+                    {
+                        ELDGrowthReason Reason=ELDGrowthReason::None;
+                        PC.SubmitDevTest(ELDDevTestOp::TeleportToCamera,0,Reason,NAME_None,0,0,Rival->GetActorLocation()+FVector(140,0,0));
+                        continue;
+                    }
+                    FVector2D Screen;
+                    if(PC.ProjectWorldLocationToScreen(Rival->GetActorLocation(),Screen)){PC.Navigation->DevSetPointer(Screen);PC.Navigation->ClickMove();}
+                }
+                return false;
+            },75.});
+        Pages.Add({TEXT("Match_KillEnd"),[this](ALDPlayerController& PC,double Now)
+            {
+                if(Once(Now,0))
+                {
+                    if(PC.HUDUI){PC.HUDUI->FreezeMoments(-1.f);}
+                    if(PC.Navigation){PC.Navigation->DevSetPointer(TOptional<FVector2D>());}
+                    ELDGrowthReason Reason=ELDGrowthReason::None;
+                    PC.SubmitDevTest(ELDDevTestOp::SetAttribute,0,Reason,NAME_None,0,uint8(ELDDemoBonusStat::ADFlat));
+                }
+                return Settled(Now,1.5);
+            },10.,false});
         Pages.Add({TEXT("Match_Scoreboard"),[this](ALDPlayerController& PC,double Now)
             {if(Once(Now,0)){Key(PC,PC.BindingKey(TEXT("Scoreboard")),true);}return Settled(Now,.8);}});
         // The rank-up page of a slot that can rank up. (The live skill card follows the OS cursor, which the probe leaves
@@ -379,6 +458,7 @@ public:
     }
     TWeakObjectPtr<ACameraActor> LineupCamera;
     ESlateVisibility RootShown=ESlateVisibility::SelfHitTestInvisible,HudShown=ESlateVisibility::SelfHitTestInvisible;
+    double KillBase=-1.,KillSeenAt=-1.,StageBase=-1.;
     double DeadAt=0.;
 
     bool Tick(float)
