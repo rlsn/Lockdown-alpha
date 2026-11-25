@@ -83,6 +83,56 @@ public:
     static void ApplyZone(UNiagaraComponent& Effect, const LDHitVfx::FZone& Zone, float RadiusCm, const FVector& Velocity);
     // The catalog's saved layer tuning times the live impact controls (LDHitVfx::TuningOf).
     LDHitVfx::FLayerTuning LayerTuning() const;
+    // The designed slice layers (LDSliceVfx) of one recipe. A recipe bound to Source goes with it (hidden, fallen or
+    // removed); an unbound one plays out alone. AgeSeconds starts it part way (a late-seen event).
+    void Slice(const ULDHumanoidVisualComponent* Source, const LDSliceVfx::FRecipe& Recipe, float AgeSeconds);
+    // Removes Source's telegraphs (a withdrawn or cancelled windup).
+    void ClearTelegraphs(const ULDHumanoidVisualComponent& Source);
+    // The look of one kind of slice layer: own or another body's, the reduced-effects scale and the live tuning
+    // (impacts: ld.Feel.Impact* x DA_CombatVfx Layer*; swings: ld.Feel.Trail* x SwingSize/SwingSeconds; telegraphs: Cast*).
+    enum class ESliceTuning : uint8 { Impact, Swing, Telegraph };
+    LDSliceVfx::FLook SliceLook(ESliceTuning Kind, bool bOwn, bool bFocus) const;
+    // A visible body's strike reached its release: hits that follow on visible bodies take its tier, direction and
+    // owner (MatchHit). Only visible bodies note strikes, so a hit never reveals a hidden source.
+    void NoteStrike(const ULDHumanoidVisualComponent& Source, LDSliceVfx::EStrike Strike, const FVector& From, const FVector& Dir, bool bOwn);
+    struct FStrikeMatch
+    {
+        LDSliceVfx::EStrike Strike = LDSliceVfx::EStrike::None;
+        FVector From = FVector(NAN);
+        FVector Dir = FVector::ZeroVector;
+        bool bOwn = false;
+        bool bChained = false;   // a later link of a chain: its arc starts at the previous body struck
+    };
+    // The strike a hit HitAgeSeconds old on Victim's Chest belongs to: the nearest in time of the strikes whose kind
+    // fits the hit's look, timing and reach; None when no visible strike fits.
+    FStrikeMatch MatchHit(const ULDHumanoidVisualComponent& Victim, const FVector& Chest, ELDObservedHitLook Look, float HitAgeSeconds);
+    // One hop of a chain (active_zap) as the Niagara Chain: the bolt from From to To and its end sparks, in Look's size
+    // and brightness, bound to Victim (cleared with it) and stopped after its duration.
+    void Chain(const ULDHumanoidVisualComponent& Victim, const FVector& From, const FVector& To, bool bChained, const LDSliceVfx::FLook& Look, float AgeSeconds);
+    // A generated system (LDSliceVfx::ESystem); null when its asset is missing (logged at world start).
+    UNiagaraSystem* GetSystem(LDSliceVfx::ESystem System) const { return GeneratedSystems.IsValidIndex(int32(System)) ? GeneratedSystems[int32(System)].Get() : nullptr; }
+    // Every live component of a generated system (capture probes count their particles and read their user parameters).
+    void ForEachGenerated(TFunctionRef<void(UNiagaraComponent&)> Visit) const;
+    // A basic swing's anticipation (combo Step 1-3) on the floor round Feet along Facing over WindupSeconds, bound to
+    // Owner and cleared with its telegraphs.
+    void SwingTell(const ULDHumanoidVisualComponent& Owner, uint8 Step, const FVector& Feet, const FVector& Facing, float WindupSeconds,
+        const LDSliceVfx::FLook& Look, float AgeSeconds);
+    // A basic swing's arc of motion (combo Step 1-3) round Centre along Facing, bound to Owner.
+    void Swing(const ULDHumanoidVisualComponent& Owner, uint8 Step, const FVector& Centre, const FVector& Facing, const LDSliceVfx::FLook& Look, float AgeSeconds);
+    // A basic or finisher hit on Victim's Chest struck from From's side, bound to Victim.
+    void Hit(const ULDHumanoidVisualComponent& Victim, const FVector& From, const FVector& Chest, bool bFinisher, const LDSliceVfx::FLook& Look, float AgeSeconds);
+    // A public electric ground state's field on Owner at its authoritative radius (fades with Alpha; Alpha <= 0 removes it).
+    // OwnerSeat is the state's public owner seat: the own body's seat shows the field's decoration in full.
+    void ShowGroundField(const AActor& Owner, const FVector& Centre, float RadiusCm, float Alpha, uint8 OwnerSeat);
+    // Whether an effect is the electric field (NS_LDField).
+    bool IsField(const UNiagaraComponent* Effect) const;
+    // The conduct reaction's splash field round Source's feet at the authoritative radius, for 0.8 s.
+    void FieldPulse(const ULDHumanoidVisualComponent& Source, const FVector& Feet, float RadiusCm, const LDSliceVfx::FLook& Look, float AgeSeconds);
+    // The approved reach of a skill's level-1 target (its range and, for a direction line, the band's half width) and
+    // the conduct reaction's splash radius; 0 when the content is unavailable.
+    bool SkillReach(uint8 Ability, float& OutRangeCm, float& OutHalfWidthCm);
+    float ConductRadiusCm();
+    int32 LiveSliceCount() const { return LiveSlices.Num(); }
     // A visible skill effect's own particles: its flight trail or ground zone on Owner, and its appear burst.
     UNiagaraComponent* ShowEffect(USceneComponent& Owner, UNiagaraComponent* Existing, ELDObservedProjectileLook Look,
         float RadiusCm, const FRotator& Heading);
@@ -93,7 +143,8 @@ public:
     void ClearForActor(const AActor& Owner);
     int32 LiveCount() const { return Live.Num(); }
     int32 LiveLayerCount() const { return LiveLayers.Num(); }
-    static constexpr int32 MaxLayers = 48;
+    // The pooled layer components shared by the hit layers and the slice layers.
+    static constexpr int32 MaxLayers = 96;
     const ULDCombatVfxCatalog* GetCatalog() const { return Catalog; }
 private:
     struct FLive
@@ -105,6 +156,12 @@ private:
         float InitialAge = 0;
         float WaitingSeconds = 0;
         bool bStarted = false;
+        // A looping effect (the Chain) is deactivated once it has run this long; negative never.
+        float StopAfter = -1, Age = 0;
+        // An anticipation (a swing's telegraph), cleared with ClearTelegraphs.
+        bool bTelegraph = false;
+        // A field: the next time (its age) its arcs reach for the bodies standing in it.
+        float NextBite = 0;
     };
     struct FLiveLayer
     {
@@ -116,19 +173,60 @@ private:
         FVector At = FVector::ZeroVector;
         FVector Normal = FVector::UpVector;  // a ground mark's supporting surface at spawn
     };
+    struct FLiveSlice
+    {
+        TWeakObjectPtr<const ULDHumanoidVisualComponent> Source;
+        TWeakObjectPtr<const AActor> OwnerActor;
+        bool bBound = false;
+        int32 Slot = INDEX_NONE;
+        LDSliceVfx::FLayer Layer;
+        float Age = 0;
+        float ExternalAlpha = 1;
+        FVector Ground = FVector::ZeroVector;   // flat layers: the supporting surface under At at spawn
+        FVector Normal = FVector::UpVector;
+    };
+    TArray<FLiveSlice> LiveSlices;
+    struct FStrike
+    {
+        TWeakObjectPtr<const ULDHumanoidVisualComponent> Source;
+        LDSliceVfx::EStrike Strike = LDSliceVfx::EStrike::None;
+        FVector From = FVector::ZeroVector, Dir = FVector::ZeroVector, Last = FVector::ZeroVector;
+        double At = 0;
+        bool bOwn = false;
+        int32 Hits = 0;
+    };
+    TArray<FStrike> Strikes;
     void Release(int32 Index);
     void ReleaseLayer(int32 Index);
+    void ReleaseSlice(int32 Index);
+    void PlaceSlice(FLiveSlice& Shown);
+    FVector GroundUnder(const FVector& At, FVector& OutNormal) const;
+    // A field's arcs reaching for the bodies standing in it (Tick, every 0.4 s of the field's life).
+    void Bite(const UNiagaraComponent& Field);
+    // A pooled generated system with the common user parameters set and activated; null when it cannot show.
+    UNiagaraComponent* SpawnGenerated(LDSliceVfx::ESystem System, const FVector& Start, const FVector& End, const FLinearColor& Tint, float Width,
+        float Intensity, float Seconds, bool bFocus);
+    bool LoadSliceAssets();
+    bool bSliceAssetsTried = false, bSliceAssetsReady = false;
+    UPROPERTY() TObjectPtr<UMaterialInterface> SliceMaterial;
+    UPROPERTY() TObjectPtr<UStaticMesh> SliceQuad;
+    UPROPERTY() TArray<TObjectPtr<UStaticMesh>> SlashMeshes;
+    UPROPERTY() TArray<TObjectPtr<UTexture2D>> SliceTextures;
     struct FLiveGhost
     {
         TWeakObjectPtr<const ULDHumanoidVisualComponent> Owner;
+        // A rim shell (FGhosts::bShell) keeps following this body's pose; an afterimage stays where it was left.
+        TWeakObjectPtr<const USkeletalMeshComponent> Source;
         int32 Slot = INDEX_NONE;
         float Age = 0;
         LDHitVfx::FGhosts Look;
     };
     void ReleaseGhost(int32 Index);
     bool LoadLayerAssets();
-    int32 TakeSlot(bool bShell);
-    void Configure(UStaticMeshComponent& Mesh, bool bShell);
+    // Slot kinds: a hit layer plane, a shield shell sphere, a slice quad, then one per slash mesh.
+    enum ESlotKind : uint8 { SlotPlane, SlotShell, SlotQuad, SlotSlash };
+    int32 TakeSlot(uint8 Kind);
+    void Configure(UStaticMeshComponent& Mesh, uint8 Kind);
     void PlaceLayer(FLiveLayer& Live, float Brightness);
     UPROPERTY() TObjectPtr<ULDCombatVfxCatalog> Catalog;
     UPROPERTY() TObjectPtr<AActor> LayerHost;
@@ -140,12 +238,16 @@ private:
     UPROPERTY() TObjectPtr<UTexture2D> ScreenEdge;
     // Pooled layer components; a slot is free while no live layer uses it.
     UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> Slots;
-    TArray<bool> SlotShell;
+    TArray<uint8> SlotKinds;
     TArray<int32> FreeSlots;
     TArray<FLiveLayer> LiveLayers;
     UPROPERTY() TObjectPtr<UMaterialInterface> GhostMaterial;
     UPROPERTY() TArray<TObjectPtr<UPoseableMeshComponent>> GhostSlots;
     UPROPERTY() TArray<TObjectPtr<UMaterialInstanceDynamic>> GhostPaints;
+    // The rim shell paint of each ghost slot (FGhosts::bShell), made on first use.
+    UPROPERTY() TObjectPtr<UMaterialInterface> BodyGlowMaterial;
+    UPROPERTY() TArray<TObjectPtr<UMaterialInstanceDynamic>> ShellPaints;
+    UMaterialInstanceDynamic* PaintOf(int32 Slot, bool bShell);
     TArray<int32> FreeGhosts;
     TArray<FLiveGhost> LiveGhosts;
     TSharedPtr<const FLDDemoContentSnapshot> Content;
@@ -161,6 +263,7 @@ private:
     UPROPERTY() TObjectPtr<UNiagaraSystem> ImpactSystem;
     UPROPERTY() TObjectPtr<UNiagaraSystem> BurstSystem;
     UPROPERTY() TObjectPtr<UNiagaraSystem> ZoneSystem;
+    UPROPERTY() TArray<TObjectPtr<UNiagaraSystem>> GeneratedSystems;
     void Track(UNiagaraComponent* Effect, const ULDHumanoidVisualComponent* Source, float AgeSeconds, const AActor* OwnerActor = nullptr);
     UNiagaraComponent* SpawnKit(const FVector& At, const LDHitVfx::FBurst& Burst);
     TArray<FLive> Live;

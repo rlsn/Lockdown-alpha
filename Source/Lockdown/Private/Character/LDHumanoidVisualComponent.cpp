@@ -11,6 +11,7 @@
 #include "Character/LDHitFeel.h"
 #include "Character/LDImpactFx.h"
 #include "Character/LDModelPicking.h"
+#include "Combat/LDCombatElements.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -256,11 +257,10 @@ void ULDHumanoidVisualComponent::ClearImpacts()
     PendingImpacts.Reset();
     UWorld* World = GetWorld();
     if (auto* Impacts = World ? World->GetSubsystem<ULDImpactFxSubsystem>() : nullptr) { Impacts->ClearFor(*this); }
-    if (IsValid(SwingTrail)) { SwingTrail->DeactivateImmediate(); }
     if (IsValid(CastCharge)) { CastCharge->DeactivateImmediate(); }
     if (IsValid(DashTrail)) { DashTrail->DeactivateImmediate(); }
     if (IsValid(ChargeColumn)) { ChargeColumn->DeactivateImmediate(); }
-    bTrailEmitting = false;
+    bTelegraphShown = false;
     bCastEmitting = false;
     bDashing = false;
     bChargeShown = false;
@@ -274,73 +274,82 @@ bool ULDHumanoidVisualComponent::CanShowImpact() const
         && Mesh && Mesh->IsVisible() && !Mesh->bHiddenInGame;
 }
 
-void ULDHumanoidVisualComponent::UpdateSwingTrail(float AgeSeconds, float EffectScale)
+namespace LDHumanoidVisualSlice
 {
-    const LDHitFeel::FTuning Tuning = LDHitFeel::Read();
-    const bool bWindow = FApp::CanEverRender() && CanShowImpact() && Art
-        && Action == LDBodyMotion::EAction::Attack && LDHitFeel::SwingTrailWindow(AgeSeconds, ActionImpactSeconds)
-        && EffectScale > 0.f && Tuning.TrailWidthCm > 0.f && Tuning.TrailSeconds > 0.f && Tuning.TrailGlow > 0.f;
-    if (!bWindow)
+    // The skills with a designed presentation (LDSliceVfx); every other cast keeps its charge and release burst.
+    bool IsSliceCast(uint8 Ability)
     {
-        if (bTrailEmitting && IsValid(SwingTrail)) { SwingTrail->Deactivate(); }
-        bTrailEmitting = false;
-        return;
-    }
-    const UWorld* World = GetWorld();
-    const ULDImpactFxSubsystem* Effects = World ? World->GetSubsystem<ULDImpactFxSubsystem>() : nullptr;
-    const ULDCombatVfxCatalog* Catalog = Effects ? Effects->GetCatalog() : nullptr;
-    if (!Catalog || !Catalog->SwingTrail) { return; }
-    if (!IsValid(SwingTrail))
-    {
-        SwingTrail = NewObject<UNiagaraComponent>(GetOwner(), NAME_None, RF_Transient);
-        if (!SwingTrail)
-        {
-            UE_LOG(LogLDContent, Warning, TEXT("LD_SWING_FX spawn=failed"));
-            return;
-        }
-        SwingTrail->SetAutoActivate(false);
-        SwingTrail->SetAsset(Catalog->SwingTrail);
-        SwingTrail->SetupAttachment(Mesh, Art->HandBone);
-        SwingTrail->RegisterComponent();
-    }
-    else if (SwingTrail->GetAttachSocketName() != Art->HandBone)
-    {
-        SwingTrail->DeactivateImmediate();
-        SwingTrail->AttachToComponent(Mesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, Art->HandBone);
-        bTrailEmitting = false;
-    }
-
-    const FVector Hand = Mesh->GetSocketLocation(Art->HandBone);
-    const FVector Centre = GetOwner()->GetActorLocation();
-    FVector HandOffset = Hand - Centre;
-    HandOffset.X *= Tuning.TrailReach;
-    HandOffset.Y *= Tuning.TrailReach;
-    const FVector TrailPoint = Centre + HandOffset;
-    SwingTrail->SetWorldLocation(TrailPoint);
-    const bool bStart = !bTrailEmitting || ActionOnset != TrailActionOnset;
-    const bool bMoved = bStart || FVector::DistSquared(TrailPoint, PreviousTrailPoint) > 1.f;
-    if (bStart && bTrailEmitting) { SwingTrail->DeactivateImmediate(); }
-    FLinearColor Colour = Catalog->SwingTint * Tuning.TrailGlow;
-    Colour.A = Catalog->SwingTint.A * EffectScale;
-    SwingTrail->SetVariableFloat(TEXT("User.Width"), Tuning.TrailWidthCm * EffectScale);
-    SwingTrail->SetVariableFloat(TEXT("User.Lifetime"), Tuning.TrailSeconds);
-    SwingTrail->SetVariableFloat(TEXT("User.SpawnRate"), bMoved ? 120.f : 0.f);
-    SwingTrail->SetVariableLinearColor(TEXT("User.Colour"), Colour);
-    if (bMoved) { PreviousTrailPoint = TrailPoint; }
-    if (bStart)
-    {
-        TrailActionOnset = ActionOnset;
-        bTrailEmitting = true;
-        SwingTrail->Activate(true);
+        return Ability == uint8(ELDDemoAbilityId::ActiveHoseDown) || Ability == uint8(ELDDemoAbilityId::ActiveZap);
     }
 }
 
+void ULDHumanoidVisualComponent::UpdateSlice(float EffectScale)
+{
+    UWorld* World = GetWorld();
+    ULDImpactFxSubsystem* Impacts = World ? World->GetSubsystem<ULDImpactFxSubsystem>() : nullptr;
+    const bool bAttack = Action == LDBodyMotion::EAction::Attack;
+    const bool bSkill = Action == LDBodyMotion::EAction::Cast && !bOverdriveCast && LDHumanoidVisualSlice::IsSliceCast(CastAbility);
+    if (!Impacts || !Art || !FApp::CanEverRender() || !CanShowImpact() || EffectScale <= 0.f || (!bAttack && !bSkill))
+    {
+        // A withdrawn, cancelled or ended windup takes its telegraph with it.
+        if (bTelegraphShown && Impacts) { Impacts->ClearTelegraphs(*this); }
+        bTelegraphShown = false;
+        return;
+    }
+    const FTransform& Space = Pivot->GetComponentTransform();
+    const FVector Feet = Space.TransformPosition(FVector(0, 0, -HalfHeight));
+    const FVector Facing = GetOwner() ? GetOwner()->GetActorForwardVector() : Space.GetUnitAxis(EAxis::X);
+    const float Age = ShownAge();
+    const uint8 Step = FMath::Clamp<uint8>(ComboStep, 1, 3);
+    if (TelegraphOnset != ActionOnset)
+    {
+        TelegraphOnset = ActionOnset;
+        // Anticipation of what is coming, from the windup's start to its release (a swing's arc on the floor, a skill's
+        // chalk lane); a windup first seen after its release shows none.
+        if (Age < ActionImpactSeconds)
+        {
+            const LDSliceVfx::FLook Look = Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Telegraph, bOwnBody, bOwnBody);
+            LDSliceVfx::FRecipe Recipe;
+            if (bAttack)
+            {
+                Impacts->SwingTell(*this, Step, Feet, Facing, ActionImpactSeconds, Look, Age);
+                bTelegraphShown = true;
+            }
+            else if (CastAbility == uint8(ELDDemoAbilityId::ActiveHoseDown))
+            {
+                float Range = 0.f, HalfWidth = 0.f;
+                if (Impacts->SkillReach(CastAbility, Range, HalfWidth))
+                { Recipe = LDSliceVfx::SkillTelegraph(Feet, Facing, Range, 2.f * HalfWidth, ActionImpactSeconds, Look); }
+            }
+            else
+            {
+                // A unit-targeted chain: a short lane towards the facing (the target itself is never public).
+                Recipe = LDSliceVfx::SkillTelegraph(Feet, Facing, 180.f, 70.f, ActionImpactSeconds, Look);
+            }
+            Impacts->Slice(this, Recipe, Age);
+            bTelegraphShown = bTelegraphShown || !Recipe.Layers.IsEmpty();
+        }
+    }
+    // Release of a basic swing at its authoritative impact time: the slash at the chest (skills release in UpdateRelease).
+    if (bAttack && SwingReleasedOnset != ActionOnset && Age >= ActionImpactSeconds)
+    {
+        SwingReleasedOnset = ActionOnset;
+        bTelegraphShown = false;
+        const float Late = Age - ActionImpactSeconds;
+        if (Late < .2f)
+        {
+            const FVector Centre = Space.TransformPosition(FVector(0, 0, .55f * HeightCm - HalfHeight));
+            Impacts->Swing(*this, Step, Centre, Facing, Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Swing, bOwnBody, bOwnBody), Late);
+            Impacts->NoteStrike(*this, Step >= 3 ? LDSliceVfx::EStrike::Finisher : LDSliceVfx::EStrike::Basic, Centre, Facing, bOwnBody);
+        }
+    }
+}
 void ULDHumanoidVisualComponent::UpdateCastCharge(float Charge, float EffectScale)
 {
     const LDHitFeel::FTuning Tuning = LDHitFeel::Read();
     const bool bWindow = FApp::CanEverRender() && CanShowImpact() && Art
         && Action == LDBodyMotion::EAction::Cast && Charge > .02f && EffectScale > 0.f
-        && Tuning.CastScale > 0.f && Tuning.CastGlow > 0.f;
+        && Tuning.CastScale > 0.f && Tuning.CastGlow > 0.f && (bOverdriveCast || !LDHumanoidVisualSlice::IsSliceCast(CastAbility));
     if (!bWindow)
     {
         if (bCastEmitting && IsValid(CastCharge)) { CastCharge->Deactivate(); }
@@ -414,7 +423,28 @@ void ULDHumanoidVisualComponent::UpdateRelease(float EffectScale)
     const bool bBody = Skill->Release == LDHitVfx::EBurst::Aura || Skill->Release == LDHitVfx::EBurst::Dash;
     const FVector At = bBody ? Pivot->GetComponentTransform().TransformPosition(FVector(0, 0, .45f * HeightCm - HalfHeight))
         : Mesh->GetSocketLocation(Art->HandBone);
-    Impacts->Kit(At, LDHitVfx::BurstOf(Skill->Release, Skill->Tint, EffectScale), this);
+    const FVector Facing = GetOwner() ? GetOwner()->GetActorForwardVector() : FVector::ForwardVector;
+    const float Late = FMath::Max(ShownAge() - ActionImpactSeconds, 0.f);
+    const LDSliceVfx::FLook Look = Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, bOwnBody, bOwnBody);
+    if (CastAbility == uint8(ELDDemoAbilityId::ActiveHoseDown) && !bOverdriveCast)
+    {
+        // Release: the water line along the cast direction over the approved range; its hits splash and wet the ground.
+        float Range = 0.f, HalfWidth = 0.f;
+        Impacts->SkillReach(CastAbility, Range, HalfWidth);
+        Impacts->Slice(this, LDSliceVfx::HoseRelease(At, Facing, Range, Look), Late);
+        Impacts->NoteStrike(*this, LDSliceVfx::EStrike::Hose, At, Facing, bOwnBody);
+    }
+    else if (CastAbility == uint8(ELDDemoAbilityId::ActiveZap) && !bOverdriveCast)
+    {
+        // Release: the spark at the hand; each hit of the chain draws its arc from here or the previous body struck.
+        Impacts->Slice(this, LDSliceVfx::ZapRelease(At, Look), Late);
+        Impacts->NoteStrike(*this, LDSliceVfx::EStrike::Zap, At, Facing, bOwnBody);
+    }
+    else
+    {
+        Impacts->Kit(At, LDHitVfx::BurstOf(Skill->Release, Skill->Tint, EffectScale), this);
+        Impacts->NoteStrike(*this, LDSliceVfx::EStrike::Skill, At, Facing, bOwnBody);
+    }
     // Visible observed enemy cast feedback strictly within the local sight-authorized proxy.
     if (GetOwner() && !GetOwner()->IsA<ALDCharacter>())
     {
@@ -933,6 +963,55 @@ float ULDHumanoidVisualComponent::ShownAge() const
     return Action == LDBodyMotion::EAction::None && RetractAt >= 0 ? LDBodyMotion::RetractAge(RetractFrom, float(Clock - RetractAt)) : PoseAge();
 }
 
+void ULDHumanoidVisualComponent::ShowSliceImpact(const FPendingImpact& Impact, const FVector& Chest, const FVector& Feet, float EffectScale)
+{
+    ULDImpactFxSubsystem* Impacts = GetWorld() ? GetWorld()->GetSubsystem<ULDImpactFxSubsystem>() : nullptr;
+    if (!Impacts || EffectScale <= 0.f) { return; }
+    const float Age = float(Clock - Impact.Onset);
+    // The visible strike this hit belongs to gives its tier, direction and owner; with none in sight the hit shows the
+    // tier its look implies, struck from the front.
+    const ULDImpactFxSubsystem::FStrikeMatch Match = Impacts->MatchHit(*this, Chest, Impact.Look, Age);
+    const LDSliceVfx::EStrike Strike = Match.Strike != LDSliceVfx::EStrike::None ? Match.Strike
+        : Impact.Look == ELDObservedHitLook::Water ? LDSliceVfx::EStrike::Hose
+        : Impact.Look == ELDObservedHitLook::Electric ? LDSliceVfx::EStrike::Zap : LDSliceVfx::EStrike::Basic;
+    const FVector Dir = !Match.Dir.IsNearlyZero() ? Match.Dir : (GetOwner() ? -GetOwner()->GetActorForwardVector() : FVector::ForwardVector);
+    if (Match.bOwn) { OwnStrikeAt = Clock; }
+    const LDSliceVfx::FLook Look = Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, Match.bOwn, bOwnBody || Match.bOwn);
+    Impacts->Slice(this, LDSliceVfx::Impact(Strike, Chest, Feet, Dir, Match.From, Match.bChained, Look), Age);
+    // A basic or finisher hit: the Niagara Hit along the strike, and in the local player's own fight a brief rim on the body.
+    if (Strike == LDSliceVfx::EStrike::Basic || Strike == LDSliceVfx::EStrike::Finisher)
+    {
+        const bool bFinisher = Strike == LDSliceVfx::EStrike::Finisher;
+        Impacts->Hit(*this, Chest - Dir * 100.f, Chest, bFinisher, Look, Age);
+        if (Look.bFocus && Mesh && Age < .1f && Look.EffectScale > 0.f)
+        {
+            LDHitVfx::FGhosts Rim;
+            Rim.bShow = true;
+            Rim.bShell = true;
+            Rim.Seconds = bFinisher ? .18f : .12f;
+            Rim.Glow = LDSliceVfx::StrikeTint(Look) * (bFinisher ? 1.5f : 1.f);
+            Impacts->Ghost(*Mesh, Rim, *this);
+        }
+    }
+    // A zap hop: the Niagara Chain from the matched hand or previous body to this one; with no visible source only its
+    // contact sparks show (a short link straight down onto the body).
+    if (Strike == LDSliceVfx::EStrike::Zap)
+    {
+        Impacts->Chain(*this, Match.From.ContainsNaN() ? Chest + FVector(0, 0, 60.f) : Match.From, Chest, Match.bChained, Look, Age);
+        // The struck body lights a warm rim shell, only in the local player's own fights (others' targets get none); a
+        // bounce target (smaller link) a little less.
+        if (Look.bFocus && Mesh && Age < .15f && Look.EffectScale > 0.f)
+        {
+            LDHitVfx::FGhosts Warm;
+            Warm.bShow = true;
+            Warm.bShell = true;
+            Warm.Seconds = .22f;
+            Warm.Glow = FLinearColor(1.f, .74f, .36f) * (Match.bChained ? 1.3f : 1.6f);
+            Impacts->Ghost(*Mesh, Warm, *this);
+        }
+    }
+}
+
 void ULDHumanoidVisualComponent::PlayFall()
 {
     ClearImpacts();
@@ -1107,7 +1186,7 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
     // A rooted body stands even while a correction still moves it.
     const bool bRooted = (Cue & Rooted) != 0;
     PlayClip(bFalling, bRooted || bFalling ? 0.f : float(Velocity.Size2D()));
-    UpdateSwingTrail(ShownAge(), EffectScale);
+    UpdateSlice(EffectScale);
     UpdateCastCharge(Shown.Charge, EffectScale);
     UpdateRelease(EffectScale);
     UpdateDash(Velocity, bFalling, EffectScale);
@@ -1133,8 +1212,13 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
             for (const FPendingImpact& Impact : PendingImpacts)
             {
                 const float Age = float(Clock - Impact.Onset);
-                Impacts->Burst(*this, At, Impact.Look, Impact.Flags, Age, EffectScale);
-                Impacts->Layers(this, At, Ground, LDHitVfx::ForHit(Impact.Look, Impact.Flags, EffectScale, Impacts->LayerTuning()), Age);
+                const bool bSlice = LDSliceVfx::ShowsHit(Impact.Look, Impact.Flags);
+                if (bSlice) { ShowSliceImpact(Impact, At, Ground, EffectScale); }
+                else
+                {
+                    Impacts->Burst(*this, At, Impact.Look, Impact.Flags, Age, EffectScale);
+                    Impacts->Layers(this, At, Ground, LDHitVfx::ForHit(Impact.Look, Impact.Flags, EffectScale, Impacts->LayerTuning()), Age);
+                }
                 LDHitVfx::EBurst Element;
                 FLinearColor Tint;
                 // The extra hit particles follow the same impact controls as the Niagara burst and the layers.
@@ -1150,7 +1234,7 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
                 {
                     Impacts->Kit(At, LDHitVfx::BurstOf(LDHitVfx::EBurst::Aura, FLinearColor(.55f, .95f, 1.f), EffectScale), this);
                 }
-                if (bImpactOn && Age < .3f && LDHitVfx::HitBurstOf(Impact.Look, Element, Tint))
+                if (!bSlice && bImpactOn && Age < .3f && LDHitVfx::HitBurstOf(Impact.Look, Element, Tint))
                 { Impacts->Kit(At, LDHitVfx::BurstOf(Element, Tint, EffectScale), this); }
                 if (bImpactOn && Age < .3f && (Impact.Flags & LDObservation::Overdriven))
                 { Impacts->Kit(At, LDHitVfx::BurstOf(LDHitVfx::EBurst::Overdrive, LDHitVfx::OverdriveTint(), EffectScale), this); }
@@ -1182,10 +1266,22 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
             if (Feel.ImpactScale > 0.f && Feel.ImpactSeconds > 0.f)
             {
                 const FVector Chest = Space.TransformPosition(FVector(0, 0, -HalfHeight + .6f * HeightCm));
-                Impacts->Layers(this, Chest, Space.TransformPosition(Feet),
-                    LDHitVfx::ForReaction(PendingReactionElement, EffectScale, Impacts->LayerTuning()), float(Clock - ReactionOnset));
-                Impacts->Kit(Chest, LDHitVfx::BurstOf(LDHitVfx::ElementBurst(PendingReactionElement),
-                    LDHitVfx::ElementTint(PendingReactionElement), EffectScale), this);
+                if (ShownReaction == uint8(ELDCombatReaction::Conduct))
+                {
+                    // Conduct (wet + shock): the electric field flashes out to the splash radius round the body (its hit is
+                    // the zap's). It is the local player's fight when it happens to the own body or right after the own
+                    // strike landed here.
+                    const bool bMine = OwnStrikeAt >= 0 && Clock - OwnStrikeAt < .6;
+                    Impacts->FieldPulse(*this, Space.TransformPosition(Feet), Impacts->ConductRadiusCm(),
+                        Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, bMine, bOwnBody || bMine), float(Clock - ReactionOnset));
+                }
+                else
+                {
+                    Impacts->Layers(this, Chest, Space.TransformPosition(Feet),
+                        LDHitVfx::ForReaction(PendingReactionElement, EffectScale, Impacts->LayerTuning()), float(Clock - ReactionOnset));
+                    Impacts->Kit(Chest, LDHitVfx::BurstOf(LDHitVfx::ElementBurst(PendingReactionElement),
+                        LDHitVfx::ElementTint(PendingReactionElement), EffectScale), this);
+                }
             }
         }
         bPendingReaction = false;

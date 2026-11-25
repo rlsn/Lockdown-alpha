@@ -71,6 +71,15 @@ public:
     // The ability of the shown cast (ELDDemoAbilityId; 0 = none or the innate dash): its own tint on the cast charge,
     // its release burst at the action's release and its dash trail colour (LDHitVfx::SkillLookOf).
     void SetCastAbility(uint8 Ability) { CastAbility = Ability; }
+    // The combo step (1..3) of the shown basic attack (FLDObservedUnitView::ActionComboStep; the own body's from its
+    // projection): its slash shape and, on the third, the finisher's hit tier. 0 shows the first stage's shape.
+    void SetComboStep(uint8 Step) { ComboStep = Step; }
+    // The local player's own body: its strikes show at full size with the ball orange; every other body's are smaller,
+    // fainter and white (LDSliceVfx::FLook).
+    void SetOwnBody(bool bOwn) { bOwnBody = bOwn; }
+    bool IsOwnBody() const { return bOwnBody; }
+    // The roster seat whose palette the body wears (MAX_uint8 for none).
+    uint8 PaletteSlot() const { return LookSlot; }
     // The public overdrive charge (FLDObservedUnitView::bCharging; the own body's ChargingEntry): an energy column while
     // held, a ready flare once OVERDRIVE.HoldSec passes, and the release shockwave when it ends as a cast begins.
     // AgeSeconds: how long the charge has been held (authority age for a proxy); Progress: the own key's hold progress
@@ -114,7 +123,8 @@ private:
     void SetFlash(const FLinearColor& Emissive);
     void ClearImpacts();
     void QueueImpact(double Onset, ELDObservedHitLook HitLook, uint8 HitFlags);
-    void UpdateSwingTrail(float AgeSeconds, float EffectScale);
+    // The designed swing and skill presentation (LDSliceVfx): telegraph from the windup's start, release at its impact.
+    void UpdateSlice(float EffectScale);
     void UpdateCastCharge(float Charge, float EffectScale);
     void UpdateRelease(float EffectScale);
     void UpdateDash(const FVector& Velocity, bool bFalling, float EffectScale);
@@ -122,7 +132,6 @@ private:
     UPROPERTY() TObjectPtr<USceneComponent> Pivot;
     UPROPERTY() TObjectPtr<USkeletalMeshComponent> Mesh;
     UPROPERTY() TObjectPtr<UStaticMeshComponent> Basketball;
-    UPROPERTY() TObjectPtr<UNiagaraComponent> SwingTrail;
     UPROPERTY() TObjectPtr<UNiagaraComponent> CastCharge;
     UPROPERTY() TObjectPtr<UNiagaraComponent> DashTrail;
     UPROPERTY() TObjectPtr<UNiagaraComponent> ChargeColumn;
@@ -144,8 +153,12 @@ private:
     float ConfirmStopSeconds = 0, ConfirmSparkScale = 0, HoldSeconds = -1, RetractFrom = 0, RetractImpact = LDBodyMotion::StrikeAt;
     float VisualYaw = 0, LeanPitch = 0, LeanRoll = 0;
     FVector PreviousVelocity = FVector::ZeroVector;
-    FVector PreviousTrailPoint = FVector::ZeroVector;
-    double TrailActionOnset = -1;
+    double TelegraphOnset = -1, SwingReleasedOnset = -1;
+    bool bTelegraphShown = false;
+    uint8 ComboStep = 0;
+    bool bOwnBody = false;
+    // When a strike of the local player last landed on this body (a reaction right after it is the local player's).
+    double OwnStrikeAt = -1;
     double CastActionOnset = -1;
     double ReleasedOnset = -1;
     uint8 CastAbility = 0;
@@ -164,13 +177,15 @@ private:
     TArray<FGuid, TInlineAllocator<16>> SeenHitIds;
     uint8 LookSlot = MAX_uint8, LookCreature = 0;
     bool bCueSeen = false, bFlashing = false, bHitSeen = false, bVisualPoseInitialized = false, bKnockback = false;
-    bool bTrailEmitting = false, bCastEmitting = false;
+    bool bCastEmitting = false;
     struct FPendingImpact
     {
         double Onset;
         ELDObservedHitLook Look;
         uint8 Flags;
     };
+    // A hit the designed slice presentation shows (an unflagged plain, water or electric hit); others keep the hit layers.
+    void ShowSliceImpact(const FPendingImpact& Impact, const FVector& Chest, const FVector& Feet, float EffectScale);
     TArray<FPendingImpact, TInlineAllocator<4>> PendingImpacts;
     // The shown mesh's shared picking model and this body's pose of it, posed at most once per frame.
     mutable TSharedPtr<const LDModelPicking::FSkinnedModel> PickingModel;

@@ -1,4 +1,5 @@
 #include "Character/LDImpactFx.h"
+#include "UI/LDBroadcastStyle.h"
 #include "Character/LDCombatVfxCatalog.h"
 #include "Character/LDHitFeel.h"
 #include "Character/LDHumanoidVisualComponent.h"
@@ -17,12 +18,15 @@
 #include "UI/LDControlSettings.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/PlayerController.h"
+#include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "MaterialShared.h"
 #include "Misc/App.h"
 #include "Misc/PackageName.h"
 #include "NiagaraComponent.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
+#include "UObject/UObjectIterator.h"
 
 namespace LDImpactFxDetail
 {
@@ -104,6 +108,14 @@ void ULDImpactFxSubsystem::OnWorldBeginPlay(UWorld& World)
     ImpactSystem = Catalog ? Catalog->Impact.Get() : nullptr;
     BurstSystem = Catalog && Catalog->Burst ? Catalog->Burst.Get() : LoadObject<UNiagaraSystem>(nullptr, ULDCombatVfxCatalog::DefaultBurst);
     ZoneSystem = Catalog && Catalog->Zone ? Catalog->Zone.Get() : LoadObject<UNiagaraSystem>(nullptr, ULDCombatVfxCatalog::DefaultZone);
+    GeneratedSystems.SetNum(int32(LDSliceVfx::ESystem::Count));
+    for (int32 System = 0; System < GeneratedSystems.Num(); ++System)
+    {
+        const FString Package = LDSliceVfx::SystemPackage(LDSliceVfx::ESystem(System));
+        GeneratedSystems[System] = LoadObject<UNiagaraSystem>(nullptr, *(Package + TEXT(".") + FPackageName::GetShortName(Package)));
+    }
+    BodyGlowMaterial = LoadObject<UMaterialInterface>(nullptr, *(FString(LDSliceVfx::BodyGlowMaterial) + TEXT(".") + FPackageName::GetShortName(LDSliceVfx::BodyGlowMaterial)));
+    if (!BodyGlowMaterial) { UE_LOG(LogLDContent, Error, TEXT("LD_CHAIN_FX asset=missing %s (run Scripts\\ImportDemoArt.ps1 -Mode ImportVFX)"), LDSliceVfx::BodyGlowMaterial); }
 #if WITH_EDITOR
     // Start editor-only Niagara compilation during world startup rather than on the first swing.
     if (ImpactSystem) { ImpactSystem->RequestCompile(false); }
@@ -111,6 +123,12 @@ void ULDImpactFxSubsystem::OnWorldBeginPlay(UWorld& World)
     if (Catalog && Catalog->CastCharge) { Catalog->CastCharge->RequestCompile(false); }
     if (BurstSystem) { BurstSystem->RequestCompile(false); }
     if (ZoneSystem) { ZoneSystem->RequestCompile(false); }
+    for (UNiagaraSystem* Generated : GeneratedSystems) { if (Generated) { Generated->RequestCompile(false); } }
+    // The rim shell first draws on a struck body; finish its shaders now rather than skip its first hits.
+    if (BodyGlowMaterial && BodyGlowMaterial->GetMaterial())
+    {
+        if (FMaterialResource* Resource = BodyGlowMaterial->GetMaterial()->GetMaterialResource(GMaxRHIShaderPlatform)) { Resource->FinishCompilation(); }
+    }
 #endif
     WarmUp();
     if (!BurstSystem || !ZoneSystem)
@@ -121,6 +139,13 @@ void ULDImpactFxSubsystem::OnWorldBeginPlay(UWorld& World)
     if (!ImpactSystem)
     {
         UE_LOG(LogLDContent, Error, TEXT("LD_IMPACT_FX asset=missing catalog=%s"), ULDCombatVfxCatalog::AssetPath);
+    }
+    for (int32 System = 0; System < GeneratedSystems.Num(); ++System)
+    {
+        if (!GeneratedSystems[System])
+        {
+            UE_LOG(LogLDContent, Error, TEXT("LD_GENERATED_FX asset=missing %s (run Scripts\\ImportDemoArt.ps1 -Mode ImportVFX)"), *LDSliceVfx::SystemPackage(LDSliceVfx::ESystem(System)));
+        }
     }
     if (Catalog && !Catalog->SwingTrail)
     {
@@ -136,18 +161,22 @@ void ULDImpactFxSubsystem::Deinitialize()
 {
     while (!Live.IsEmpty()) { Release(Live.Num() - 1); }
     while (!LiveLayers.IsEmpty()) { ReleaseLayer(LiveLayers.Num() - 1); }
+    while (!LiveSlices.IsEmpty()) { ReleaseSlice(LiveSlices.Num() - 1); }
+    Strikes.Reset();
     while (!LiveGhosts.IsEmpty()) { ReleaseGhost(LiveGhosts.Num() - 1); }
     GhostSlots.Reset();
     GhostPaints.Reset();
+    ShellPaints.Reset();
     FreeGhosts.Reset();
     if (IsValid(LayerHost)) { LayerHost->Destroy(); }
     LayerHost = nullptr;
     Slots.Reset();
-    SlotShell.Reset();
+    SlotKinds.Reset();
     FreeSlots.Reset();
     ImpactSystem = nullptr;
     BurstSystem = nullptr;
     ZoneSystem = nullptr;
+    GeneratedSystems.Reset();
     Catalog = nullptr;
     Super::Deinitialize();
 }
@@ -263,10 +292,16 @@ void ULDImpactFxSubsystem::ClearFor(const ULDHumanoidVisualComponent& Source)
     {
         if (LiveLayers[Index].bBound && LiveLayers[Index].Source.Get() == &Source) { ReleaseLayer(Index); }
     }
+    for (int32 Index = LiveSlices.Num() - 1; Index >= 0; --Index)
+    {
+        if (LiveSlices[Index].bBound && LiveSlices[Index].Source.Get() == &Source) { ReleaseSlice(Index); }
+    }
     for (int32 Index = LiveGhosts.Num() - 1; Index >= 0; --Index)
     {
         if (LiveGhosts[Index].Owner.Get() == &Source) { ReleaseGhost(Index); }
     }
+    // A hidden or fallen body's strikes no longer give a later hit its tier.
+    Strikes.RemoveAll([&Source](const FStrike& Strike) { return Strike.Source.Get() == &Source; });
 }
 
 void ULDImpactFxSubsystem::Ghost(const USkeletalMeshComponent& Source, const LDHitVfx::FGhosts& Ghosts, const ULDHumanoidVisualComponent& Owner)
@@ -294,7 +329,7 @@ void ULDImpactFxSubsystem::Ghost(const USkeletalMeshComponent& Source, const LDH
         GhostPaints.Add(UMaterialInstanceDynamic::Create(GhostMaterial, this));
     }
     UPoseableMeshComponent* Copy = GhostSlots[Slot];
-    UMaterialInstanceDynamic* Paint = GhostPaints[Slot];
+    UMaterialInstanceDynamic* Paint = PaintOf(Slot, Ghosts.bShell);
     if (!IsValid(Copy) || !Paint) { return; }
     if (Copy->GetSkinnedAsset() != Source.GetSkinnedAsset()) { Copy->SetSkinnedAssetAndUpdate(Source.GetSkinnedAsset()); }
     for (int32 Index = 0; Index < Copy->GetNumMaterials(); ++Index) { Copy->SetMaterial(Index, Paint); }
@@ -307,6 +342,7 @@ void ULDImpactFxSubsystem::Ghost(const USkeletalMeshComponent& Source, const LDH
     Copy->SetComponentTickEnabled(true);
     FLiveGhost& Added = LiveGhosts.AddDefaulted_GetRef();
     Added.Owner = &Owner;
+    Added.Source = &Source;
     Added.Slot = Slot;
     Added.Look = Ghosts;
 }
@@ -354,6 +390,10 @@ void ULDImpactFxSubsystem::ClearForActor(const AActor& Owner)
     {
         if (Live[Index].OwnerActor.Get() == &Owner) { Release(Index); }
     }
+    for (int32 Index = LiveSlices.Num() - 1; Index >= 0; --Index)
+    {
+        if (LiveSlices[Index].OwnerActor.Get() == &Owner) { ReleaseSlice(Index); }
+    }
 }
 
 bool ULDImpactFxSubsystem::LoadLayerAssets()
@@ -400,22 +440,25 @@ bool ULDImpactFxSubsystem::LoadLayerAssets()
     return true;
 }
 
-void ULDImpactFxSubsystem::Configure(UStaticMeshComponent& Mesh, bool bShell)
+void ULDImpactFxSubsystem::Configure(UStaticMeshComponent& Mesh, uint8 Kind)
 {
-    Mesh.SetStaticMesh(bShell ? SphereMesh.Get() : PlaneMesh.Get());
-    Mesh.CreateDynamicMaterialInstance(0, bShell ? ShellMaterial.Get() : LayerMaterial.Get());
+    UStaticMesh* Shape = Kind == SlotPlane ? PlaneMesh.Get() : Kind == SlotShell ? SphereMesh.Get() : Kind == SlotQuad ? SliceQuad.Get()
+        : SlashMeshes.IsValidIndex(Kind - SlotSlash) ? SlashMeshes[Kind - SlotSlash].Get() : nullptr;
+    UMaterialInterface* Paint = Kind == SlotPlane ? LayerMaterial.Get() : Kind == SlotShell ? ShellMaterial.Get() : SliceMaterial.Get();
+    Mesh.SetStaticMesh(Shape);
+    Mesh.CreateDynamicMaterialInstance(0, Paint);
 }
 
-int32 ULDImpactFxSubsystem::TakeSlot(bool bShell)
+int32 ULDImpactFxSubsystem::TakeSlot(uint8 Kind)
 {
-    // An idle slot of the same kind first; then an idle slot of the other kind, re-meshed, so the pool never holds
-    // more than MaxLayers components whatever the mix of hits.
+    // An idle slot of the same kind first; then an idle slot of another kind, re-meshed, so the pool never holds
+    // more than MaxLayers components whatever the mix of effects.
     int32 Other = INDEX_NONE;
     for (int32 Index = FreeSlots.Num() - 1; Index >= 0; --Index)
     {
         const int32 Slot = FreeSlots[Index];
         if (!IsValid(Slots[Slot])) { continue; }
-        if (SlotShell[Slot] == bShell)
+        if (SlotKinds[Slot] == Kind)
         {
             FreeSlots.RemoveAtSwap(Index, EAllowShrinking::No);
             return Slot;
@@ -426,8 +469,8 @@ int32 ULDImpactFxSubsystem::TakeSlot(bool bShell)
     {
         const int32 Slot = FreeSlots[Other];
         FreeSlots.RemoveAtSwap(Other, EAllowShrinking::No);
-        Configure(*Slots[Slot], bShell);
-        SlotShell[Slot] = bShell;
+        Configure(*Slots[Slot], Kind);
+        SlotKinds[Slot] = Kind;
         return Slot;
     }
     auto* Mesh = NewObject<UStaticMeshComponent>(LayerHost, NAME_None, RF_Transient);
@@ -442,8 +485,8 @@ int32 ULDImpactFxSubsystem::TakeSlot(bool bShell)
     Mesh->SetUsingAbsoluteScale(true);
     Mesh->SetHiddenInGame(true);
     Mesh->RegisterComponent();
-    Configure(*Mesh, bShell);
-    SlotShell.Add(bShell);
+    Configure(*Mesh, Kind);
+    SlotKinds.Add(Kind);
     return Slots.Add(Mesh);
 }
 
@@ -455,8 +498,8 @@ void ULDImpactFxSubsystem::Layers(const ULDHumanoidVisualComponent* Source, cons
     { return; }
     for (const LDHitVfx::FLayer& Layer : Recipe.Layers)
     {
-        if (LiveLayers.Num() >= MaxLayers) { ReleaseLayer(0); }
-        const int32 Slot = TakeSlot(Layer.Place == LDHitVfx::EPlace::Shell);
+        if (LiveLayers.Num() + LiveSlices.Num() >= MaxLayers) { LiveLayers.IsEmpty() ? ReleaseSlice(0) : ReleaseLayer(0); }
+        const int32 Slot = TakeSlot(Layer.Place == LDHitVfx::EPlace::Shell ? SlotShell : SlotPlane);
         UStaticMeshComponent* Mesh = Slots[Slot];
         if (auto* Paint = Cast<UMaterialInstanceDynamic>(Mesh->GetMaterial(0)))
         {
@@ -577,6 +620,8 @@ void ULDImpactFxSubsystem::Tick(float DeltaTime)
             Warming.Reset();
         }
     }
+    // Fields due to reach for the bodies in them; their hops are spawned after this pass, which they would reorder.
+    TArray<TWeakObjectPtr<UNiagaraComponent>, TInlineAllocator<4>> Biting;
     for (int32 Index = Live.Num() - 1; Index >= 0; --Index)
     {
         FLive& Burst = Live[Index];
@@ -605,7 +650,20 @@ void ULDImpactFxSubsystem::Tick(float DeltaTime)
             }
         }
         else if (Effect->IsComplete()) { Release(Index); }
+        else
+        {
+            Burst.Age += Step;
+            if (Burst.StopAfter >= 0.f && Burst.Age + Burst.InitialAge >= Burst.StopAfter && Effect->IsActive()) { Effect->Deactivate(); }
+            if (IsField(Effect) && Burst.Age >= Burst.NextBite && Effect->IsActive())
+            {
+                // Others' fields reach less often (decoration).
+                const float Focus = Effect->GetOverrideParameters().GetParameterValue<float>(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("User.Focus")));
+                Burst.NextBite = Burst.Age + (Focus > .5f ? .4f : .8f);
+                Biting.Add(Effect);
+            }
+        }
     }
+    for (const TWeakObjectPtr<UNiagaraComponent>& Field : Biting) { if (const UNiagaraComponent* Shown = Field.Get()) { Bite(*Shown); } }
     for (int32 Index = LiveLayers.Num() - 1; Index >= 0; --Index)
     {
         FLiveLayer& Shown = LiveLayers[Index];
@@ -618,6 +676,20 @@ void ULDImpactFxSubsystem::Tick(float DeltaTime)
         }
         PlaceLayer(Shown, LDHitVfx::Brightness(Shown.Layer, Shown.Age));
     }
+    for (int32 Index = LiveSlices.Num() - 1; Index >= 0; --Index)
+    {
+        FLiveSlice& Shown = LiveSlices[Index];
+        Shown.Age += Step;
+        const ULDHumanoidVisualComponent* Source = Shown.Source.Get();
+        const bool bGone = Shown.bBound && (Shown.OwnerActor.IsExplicitlyNull() ? (!Source || !Source->CanShowImpact())
+            : (!Shown.OwnerActor.IsValid() || Shown.OwnerActor->IsActorBeingDestroyed()));
+        if (bGone || LDSliceVfx::IsOver(Shown.Layer, Shown.Age))
+        {
+            ReleaseSlice(Index);
+            continue;
+        }
+        PlaceSlice(Shown);
+    }
     for (int32 Index = LiveGhosts.Num() - 1; Index >= 0; --Index)
     {
         FLiveGhost& Ghost = LiveGhosts[Index];
@@ -629,8 +701,24 @@ void ULDImpactFxSubsystem::Tick(float DeltaTime)
             ReleaseGhost(Index);
             continue;
         }
-        if (GhostPaints.IsValidIndex(Ghost.Slot) && GhostPaints[Ghost.Slot]) { GhostPaints[Ghost.Slot]->SetScalarParameterValue(LDHitVfx::FadeParameter, Fade); }
+        if (UMaterialInstanceDynamic* Paint = PaintOf(Ghost.Slot, Ghost.Look.bShell)) { Paint->SetScalarParameterValue(LDHitVfx::FadeParameter, Fade); }
+        const USkeletalMeshComponent* Body = Ghost.Look.bShell ? Ghost.Source.Get() : nullptr;
+        if (Body && GhostSlots.IsValidIndex(Ghost.Slot) && IsValid(GhostSlots[Ghost.Slot]))
+        {
+            GhostSlots[Ghost.Slot]->SetWorldTransform(Body->GetComponentTransform());
+            // The engine reads the source pose only; its parameter is not const.
+            GhostSlots[Ghost.Slot]->CopyPoseFromSkeletalComponent(const_cast<USkeletalMeshComponent*>(Body));
+        }
     }
+}
+
+UMaterialInstanceDynamic* ULDImpactFxSubsystem::PaintOf(int32 Slot, bool bShell)
+{
+    if (!bShell) { return GhostPaints.IsValidIndex(Slot) ? GhostPaints[Slot].Get() : nullptr; }
+    if (!BodyGlowMaterial || Slot < 0) { return nullptr; }
+    if (ShellPaints.Num() <= Slot) { ShellPaints.SetNum(Slot + 1); }
+    if (!ShellPaints[Slot]) { ShellPaints[Slot] = UMaterialInstanceDynamic::Create(BodyGlowMaterial, this); }
+    return ShellPaints[Slot];
 }
 
 LDHitVfx::FLayerTuning ULDImpactFxSubsystem::LayerTuning() const
@@ -727,11 +815,18 @@ void ULDImpactFxSubsystem::WarmUp()
     OverdriveHoldSeconds();
     if (bLayers)
     {
-        FreeSlots.Add(TakeSlot(false));
-        FreeSlots.Add(TakeSlot(true));
+        FreeSlots.Add(TakeSlot(SlotPlane));
+        FreeSlots.Add(TakeSlot(SlotShell));
+    }
+    // One slot of each slice shape: their PSOs precache at registration, before the first swing or skill.
+    const bool bSlices = bLayers && LoadSliceAssets();
+    if (bSlices)
+    {
+        for (uint8 Kind = SlotQuad; Kind < SlotSlash + uint8(LDSliceVfx::EMesh::Count); ++Kind) { FreeSlots.Add(TakeSlot(Kind)); }
     }
     const FVector Under(0., 0., -20000.);
     TArray<UNiagaraSystem*> Systems{ImpactSystem.Get(), BurstSystem.Get(), ZoneSystem.Get()};
+    for (UNiagaraSystem* Generated : GeneratedSystems) { if (Generated) { Systems.Add(Generated); } }
     if (Catalog) { Systems.Append({Catalog->SwingTrail.Get(), Catalog->CastCharge.Get()}); }
     for (UNiagaraSystem* System : Systems)
     {
@@ -742,7 +837,8 @@ void ULDImpactFxSubsystem::WarmUp()
         Warming.Add(Effect);
         ++WarmedCount;
     }
-    UE_LOG(LogLDContent, Display, TEXT("LD_VFX_WARMUP systems=%d layers=%d"), WarmedCount, bLayers ? 2 : 0);
+    UE_LOG(LogLDContent, Display, TEXT("LD_VFX_WARMUP systems=%d layers=%d slices=%d"), WarmedCount, bLayers ? 2 : 0,
+        bSlices ? 1 + int32(LDSliceVfx::EMesh::Count) : 0);
 }
 
 void ULDImpactFxSubsystem::WarmGhost(const USkeletalMeshComponent& Source)
@@ -768,4 +864,499 @@ void ULDImpactFxSubsystem::WarmGhost(const USkeletalMeshComponent& Source)
     for (int32 Index = 0; Index < Copy->GetNumMaterials(); ++Index) { Copy->SetMaterial(Index, Paint); }
     FreeGhosts.Add(GhostSlots.Add(Copy));
     GhostPaints.Add(Paint);
+}
+
+bool ULDImpactFxSubsystem::LoadSliceAssets()
+{
+    if (bSliceAssetsTried) { return bSliceAssetsReady; }
+    bSliceAssetsTried = true;
+    auto LoadPackage = [](const FString& Package) -> UObject*
+    { return LoadObject<UObject>(nullptr, *(Package + TEXT(".") + FPackageName::GetShortName(Package))); };
+    FString Missing;
+    SliceMaterial = Cast<UMaterialInterface>(LoadPackage(LDSliceVfx::Material));
+    if (!SliceMaterial) { Missing += FString(LDSliceVfx::Material) + TEXT(" "); }
+    SliceQuad = Cast<UStaticMesh>(LoadPackage(LDSliceVfx::QuadMesh));
+    if (!SliceQuad) { Missing += FString(LDSliceVfx::QuadMesh) + TEXT(" "); }
+    SlashMeshes.Reset();
+    for (int32 Mesh = 0; Mesh < int32(LDSliceVfx::EMesh::Count); ++Mesh)
+    {
+        const FString Package = LDSliceVfx::MeshPackage(LDSliceVfx::EMesh(Mesh));
+        UStaticMesh* Loaded = Cast<UStaticMesh>(LoadPackage(Package));
+        if (!Loaded) { Missing += Package + TEXT(" "); }
+        SlashMeshes.Add(Loaded);
+    }
+    SliceTextures.Reset();
+    for (int32 Tex = 0; Tex < int32(LDSliceVfx::ETex::Count); ++Tex)
+    {
+        const FString Package = LDSliceVfx::TexturePackage(LDSliceVfx::ETex(Tex));
+        UTexture2D* Loaded = Cast<UTexture2D>(LoadPackage(Package));
+        if (!Loaded) { Missing += Package + TEXT(" "); }
+        SliceTextures.Add(Loaded);
+    }
+    if (!Missing.IsEmpty())
+    {
+        UE_LOG(LogLDContent, Error, TEXT("LD_SLICE_VFX asset=missing %s(run Scripts\\ImportDemoArt.ps1 -Mode ImportVFX)"), *Missing);
+        return false;
+    }
+    bSliceAssetsReady = true;
+    return true;
+}
+
+FVector ULDImpactFxSubsystem::GroundUnder(const FVector& At, FVector& OutNormal) const
+{
+    FHitResult Ground;
+    FCollisionQueryParams Query(SCENE_QUERY_STAT(LDSliceGround), false);
+    const bool bGround = GetWorld() && GetWorld()->LineTraceSingleByObjectType(Ground, At + FVector(0, 0, 60.f), At - FVector(0, 0, 160.f),
+        FCollisionObjectQueryParams(ECC_WorldStatic), Query);
+    OutNormal = bGround && Ground.ImpactNormal.Z > .3f ? FVector(Ground.ImpactNormal) : FVector::UpVector;
+    return bGround ? FVector(Ground.ImpactPoint) : At;
+}
+
+void ULDImpactFxSubsystem::Slice(const ULDHumanoidVisualComponent* Source, const LDSliceVfx::FRecipe& Recipe, float AgeSeconds)
+{
+    if (!FApp::CanEverRender() || Recipe.Layers.IsEmpty() || !FMath::IsFinite(AgeSeconds) || (Source && !Source->CanShowImpact())
+        || !LoadLayerAssets() || !LoadSliceAssets())
+    { return; }
+    using LDSliceVfx::EPlace;
+    for (const LDSliceVfx::FLayer& Layer : Recipe.Layers)
+    {
+        if (Layer.At.ContainsNaN() || Layer.End.ContainsNaN() || Layer.Dir.ContainsNaN() || LDSliceVfx::IsOver(Layer, FMath::Max(AgeSeconds, 0.f))) { continue; }
+        if (LiveLayers.Num() + LiveSlices.Num() >= MaxLayers) { LiveSlices.IsEmpty() ? ReleaseLayer(0) : ReleaseSlice(0); }
+        const bool bMesh = Layer.Place == EPlace::Slash || Layer.Place == EPlace::GroundSlash;
+        const uint8 Kind = bMesh ? uint8(SlotSlash + uint8(Layer.Mesh)) : uint8(SlotQuad);
+        if (bMesh && !SlashMeshes.IsValidIndex(int32(Layer.Mesh))) { continue; }
+        const int32 Slot = TakeSlot(Kind);
+        UStaticMeshComponent* Mesh = Slots[Slot];
+        if (auto* Paint = Cast<UMaterialInstanceDynamic>(Mesh->GetMaterial(0)))
+        {
+            Paint->SetTextureParameterValue(LDSliceVfx::MaskParameter, SliceTextures[int32(Layer.Tex)]);
+            Paint->SetTextureParameterValue(LDSliceVfx::NoiseParameter, SliceTextures[int32(LDSliceVfx::ETex::DissolveNoise)]);
+            Paint->SetVectorParameterValue(LDSliceVfx::GlowParameter, Layer.Glow);
+            Paint->SetVectorParameterValue(LDSliceVfx::InkParameter, Layer.Ink);
+            Paint->SetVectorParameterValue(LDSliceVfx::CoreParameter, Layer.Core);
+
+        }
+        // Ground marks first, then the slash, then sprites and strips; the tier's burst on top.
+        const bool bGround = Layer.Place == EPlace::Flat || Layer.Place == EPlace::GroundStrip || Layer.Place == EPlace::GroundSlash;
+        Mesh->SetTranslucentSortPriority(bGround ? 1 : Layer.Place == EPlace::Slash ? 2 : Layer.bTop ? 4 : 3);
+        FLiveSlice& Added = LiveSlices.AddDefaulted_GetRef();
+        Added.Source = Source;
+        Added.bBound = Source != nullptr;
+        Added.Slot = Slot;
+        Added.Layer = Layer;
+        Added.Age = FMath::Max(AgeSeconds, 0.f);
+        if (bGround) { Added.Ground = GroundUnder(Layer.At, Added.Normal); }
+        PlaceSlice(Added);
+    }
+}
+
+void ULDImpactFxSubsystem::ClearTelegraphs(const ULDHumanoidVisualComponent& Source)
+{
+    for (int32 Index = Live.Num() - 1; Index >= 0; --Index)
+    {
+        if (Live[Index].bTelegraph && Live[Index].Source.Get() == &Source) { Release(Index); }
+    }
+    for (int32 Index = LiveSlices.Num() - 1; Index >= 0; --Index)
+    {
+        if (LiveSlices[Index].Layer.bTelegraph && LiveSlices[Index].Source.Get() == &Source) { ReleaseSlice(Index); }
+    }
+}
+
+void ULDImpactFxSubsystem::ReleaseSlice(int32 Index)
+{
+    const int32 Slot = LiveSlices[Index].Slot;
+    if (Slots.IsValidIndex(Slot) && IsValid(Slots[Slot]))
+    {
+        Slots[Slot]->SetHiddenInGame(true);
+        FreeSlots.Add(Slot);
+    }
+    LiveSlices.RemoveAt(Index, EAllowShrinking::No);
+}
+
+void ULDImpactFxSubsystem::PlaceSlice(FLiveSlice& Shown)
+{
+    using LDSliceVfx::EPlace;
+    UStaticMeshComponent* Mesh = Slots.IsValidIndex(Shown.Slot) ? Slots[Shown.Slot].Get() : nullptr;
+    if (!Mesh) { return; }
+    const LDSliceVfx::FLayer& Layer = Shown.Layer;
+    const LDSliceVfx::FState State = LDSliceVfx::Evaluate(Layer, Shown.Age);
+    const float Fade = State.Fade * FMath::Clamp(Shown.ExternalAlpha, 0.f, 1.f);
+    const bool bVisible = State.bVisible && Fade > .002f;
+    Mesh->SetHiddenInGame(!bVisible);
+    if (!bVisible) { return; }
+    const APlayerController* Viewer = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
+    const APlayerCameraManager* Camera = Viewer ? Viewer->PlayerCameraManager.Get() : nullptr;
+    const FVector Eye = Camera ? Camera->GetCameraLocation() : Layer.At + FVector(0, 0, 1000.f);
+    const float Size = Layer.SizeCm * State.Scale;
+    FVector Location = Layer.At;
+    FQuat Rotation = FQuat::Identity;
+    FVector Scale(Size / 100.f, Size / 100.f, 1.f);
+    float TileU = 1.f;
+    const FVector Planar = FVector(Layer.Dir.X, Layer.Dir.Y, 0.).GetSafeNormal();
+    const FQuat Yaw = FRotationMatrix::MakeFromX(Planar.IsNearlyZero() ? FVector::ForwardVector : Planar).ToQuat();
+    switch (Layer.Place)
+    {
+    case EPlace::Facing:
+    {
+        FVector ToEye = (Eye - Layer.At).GetSafeNormal();
+        if (ToEye.IsNearlyZero()) { ToEye = FVector::UpVector; }
+        // +U follows the strike as seen on screen: its direction projected onto the sprite plane (else screen right).
+        FVector Along = Layer.Dir - ToEye * FVector::DotProduct(Layer.Dir, ToEye);
+        if (Along.SizeSquared() < 1e-4) { Along = Camera ? Camera->GetCameraRotation().Quaternion().GetRightVector() : FVector::RightVector; }
+        Along.Normalize();
+        const float Drawn = Size * (Camera ? LDHitVfx::SpriteCompensation(FVector::Dist(Eye, Layer.At), Camera->GetFOVAngle()) : 1.f);
+        Scale = FVector(Drawn / 100.f, Drawn / 100.f, 1.f);
+        // Pulled towards the camera so it draws over the body, and shifted so the hit point sits on At.
+        Location = Layer.At + ToEye * 35.f + Along * (.5f - Layer.Pivot) * Drawn;
+        Rotation = FRotationMatrix::MakeFromZX(ToEye, Along).ToQuat();
+        break;
+    }
+    case EPlace::Flat:
+        Location = Shown.Ground + Shown.Normal * 2.5f;
+        Rotation = FQuat::FindBetweenNormals(FVector::UpVector, Shown.Normal) * Yaw;
+        break;
+    case EPlace::Strip:
+    case EPlace::GroundStrip:
+    {
+        const bool bOnGround = Layer.Place == EPlace::GroundStrip;
+        const FVector Lift = bOnGround ? FVector(0, 0, Shown.Ground.Z - Layer.At.Z + 3.f) : FVector::ZeroVector;
+        const FVector From = Layer.At + Lift, To = Layer.End + Lift;
+        const FVector Axis = To - From;
+        const float Length = FMath::Max(float(Axis.Size()), 1.f);
+        const FVector X = Axis / Length;
+        FVector Face = bOnGround ? FVector::UpVector : (Eye - (From + To) * .5f).GetSafeNormal();
+        if (FMath::Abs(FVector::DotProduct(Face, X)) > .98f) { Face = FVector::UpVector; }
+        Location = (From + To) * .5f;
+        Rotation = FRotationMatrix::MakeFromXZ(X, Face).ToQuat();
+        Scale = FVector(Length / 100.f, Size / 100.f, 1.f);
+        TileU = Layer.TileCm > 0.f ? Length / Layer.TileCm : 1.f;
+        break;
+    }
+    case EPlace::Slash:
+        Rotation = Yaw;
+        Scale = FVector(Size / 100.f);
+        break;
+    case EPlace::GroundSlash:
+        Location = Shown.Ground + Shown.Normal * 3.f;
+        Rotation = FQuat::FindBetweenNormals(FVector::UpVector, Shown.Normal) * Yaw;
+        Scale = FVector(Size / 100.f);
+        break;
+    }
+    if (auto* Paint = Cast<UMaterialInstanceDynamic>(Mesh->GetMaterial(0)))
+    {
+        const bool bFlip = LDSliceVfx::IsFlipbook(Layer.Tex);
+        Paint->SetScalarParameterValue(LDSliceVfx::FadeParameter, Fade);
+        Paint->SetVectorParameterValue(LDSliceVfx::FlipParameter, FLinearColor(bFlip ? 4.f : 1.f, bFlip ? 4.f : float(FMath::Max(Layer.Variants, 1)),
+            State.Frame, TileU));
+        Paint->SetVectorParameterValue(LDSliceVfx::ShapeParameter, FLinearColor(State.WindowLo, State.WindowHi, State.Dissolve, State.Scroll));
+    }
+    Mesh->SetWorldLocationAndRotation(Location, Rotation);
+    Mesh->SetWorldScale3D(Scale);
+}
+
+LDSliceVfx::FLook ULDImpactFxSubsystem::SliceLook(ESliceTuning Kind, bool bOwn, bool bFocus) const
+{
+    LDSliceVfx::FLook Look;
+    Look.bOwn = bOwn;
+    Look.bFocus = bFocus || bOwn;
+
+    Look.EffectScale = LocalEffectScale();
+    const LDHitFeel::FTuning Feel = LDHitFeel::Read();
+    const auto Ratio = [](float Value, const TCHAR* Field)
+    {
+        for (const LDHitFeel::FField& Each : LDHitFeel::Fields())
+        {
+            if (FCString::Strcmp(Each.ConsoleName, Field) == 0) { return Each.Default > 0.f ? Value / Each.Default : 0.f; }
+        }
+        return 1.f;
+    };
+    switch (Kind)
+    {
+    case ESliceTuning::Impact:
+    {
+        const LDHitVfx::FLayerTuning Tuning = LayerTuning();
+        Look.Size = Tuning.Size;
+        Look.Seconds = Tuning.Seconds;
+        Look.Glow = Tuning.Glow;
+        break;
+    }
+    case ESliceTuning::Swing:
+        // ld.Feel.TrailWidth and TrailReach both size the slash; TrailMs times it; TrailGlow lights it.
+        Look.Size = Ratio(Feel.TrailWidthCm, TEXT("ld.Feel.TrailWidth")) * Ratio(Feel.TrailReach, TEXT("ld.Feel.TrailReach"))
+            * (Catalog ? Catalog->SwingSize : 1.f);
+        Look.Seconds = Ratio(Feel.TrailSeconds * 1000.f, TEXT("ld.Feel.TrailMs")) * (Catalog ? Catalog->SwingSeconds : 1.f);
+        Look.Glow = Ratio(Feel.TrailGlow, TEXT("ld.Feel.TrailGlow"));
+        break;
+    case ESliceTuning::Telegraph:
+        Look.Size = Ratio(Feel.CastScale, TEXT("ld.Feel.CastScale"));
+        Look.Glow = Ratio(Feel.CastGlow, TEXT("ld.Feel.CastGlow"));
+        break;
+    }
+    return Look;
+}
+
+void ULDImpactFxSubsystem::NoteStrike(const ULDHumanoidVisualComponent& Source, LDSliceVfx::EStrike Strike, const FVector& From, const FVector& Dir, bool bOwn)
+{
+    if (!GetWorld() || Strike == LDSliceVfx::EStrike::None || From.ContainsNaN() || Dir.ContainsNaN()) { return; }
+    const double Now = GetWorld()->GetTimeSeconds();
+    Strikes.RemoveAll([Now](const FStrike& Old) { return Now - Old.At > 1.5 || !Old.Source.IsValid(); });
+    if (Strikes.Num() >= 32) { Strikes.RemoveAt(0); }
+    FStrike& Added = Strikes.AddDefaulted_GetRef();
+    Added.Source = &Source;
+    Added.Strike = Strike;
+    Added.From = Added.Last = From;
+    Added.Dir = FVector(Dir.X, Dir.Y, 0.).GetSafeNormal();
+    Added.At = Now;
+    Added.bOwn = bOwn;
+}
+
+ULDImpactFxSubsystem::FStrikeMatch ULDImpactFxSubsystem::MatchHit(const ULDHumanoidVisualComponent& Victim, const FVector& Chest,
+    ELDObservedHitLook Look, float HitAgeSeconds)
+{
+    using LDSliceVfx::EStrike;
+    FStrikeMatch Out;
+    if (!GetWorld() || Chest.ContainsNaN() || !FMath::IsFinite(HitAgeSeconds)) { return Out; }
+    const double HitAt = GetWorld()->GetTimeSeconds() - FMath::Max(HitAgeSeconds, 0.f);
+    int32 Best = INDEX_NONE;
+    double BestGap = TNumericLimits<double>::Max();
+    for (int32 Index = 0; Index < Strikes.Num(); ++Index)
+    {
+        const FStrike& Strike = Strikes[Index];
+        if (Strike.Source.Get() == &Victim || !Strike.Source.IsValid()) { continue; }
+        const bool bFits = Look == ELDObservedHitLook::Water ? Strike.Strike == EStrike::Hose
+            : Look == ELDObservedHitLook::Electric ? Strike.Strike == EStrike::Zap
+            : Look == ELDObservedHitLook::None && (Strike.Strike == EStrike::Basic || Strike.Strike == EStrike::Finisher);
+        if (!bFits) { continue; }
+        const double Gap = HitAt - Strike.At;
+        // A chain's later links land one interval after another (chain_bounce.interval) from the last body struck.
+        const double Late = Strike.Strike == EStrike::Zap ? .45 + .25 * Strike.Hits : .45;
+        const double Reach = Strike.Strike == EStrike::Hose ? 900. : Strike.Strike == EStrike::Zap ? (Strike.Hits ? 600. : 950.) : 420.;
+        const FVector Origin = Strike.Strike == EStrike::Zap ? Strike.Last : Strike.From;
+        if (Gap < -.25 || Gap > Late || FVector::Dist2D(Origin, Chest) > Reach) { continue; }
+        if (FMath::Abs(Gap) < BestGap)
+        {
+            BestGap = FMath::Abs(Gap);
+            Best = Index;
+        }
+    }
+    if (Best == INDEX_NONE) { return Out; }
+    FStrike& Strike = Strikes[Best];
+    Out.Strike = Strike.Strike;
+    Out.bOwn = Strike.bOwn;
+    Out.bChained = Strike.Strike == EStrike::Zap && Strike.Hits > 0;
+    Out.From = Strike.Strike == EStrike::Zap ? Strike.Last : Strike.From;
+    const FVector Toward = FVector(Chest.X - Out.From.X, Chest.Y - Out.From.Y, 0.);
+    Out.Dir = Toward.SizeSquared() > 1.f ? Toward.GetSafeNormal() : Strike.Dir;
+    Strike.Last = Chest;
+    ++Strike.Hits;
+    return Out;
+}
+
+bool ULDImpactFxSubsystem::IsField(const UNiagaraComponent* Effect) const
+{
+    const UNiagaraSystem* Asset = Effect ? Effect->GetAsset() : nullptr;
+    return Asset && Asset == GetSystem(LDSliceVfx::ESystem::Field);
+}
+
+void ULDImpactFxSubsystem::ShowGroundField(const AActor& Owner, const FVector& Centre, float RadiusCm, float Alpha, uint8 OwnerSeat)
+{
+    UNiagaraSystem* FieldSystem = GetSystem(LDSliceVfx::ESystem::Field);
+    int32 Found = INDEX_NONE;
+    for (int32 Index = 0; Index < Live.Num(); ++Index)
+    {
+        if (Live[Index].OwnerActor.Get() == &Owner && IsField(Live[Index].Effect.Get())) { Found = Index; break; }
+    }
+    if (!FApp::CanEverRender() || !FieldSystem || !FMath::IsFinite(Alpha) || Alpha <= 0.f || !FMath::IsFinite(RadiusCm) || RadiusCm <= 0.f || Centre.ContainsNaN())
+    {
+        if (Found != INDEX_NONE) { Release(Found); }
+        return;
+    }
+    FVector Normal;
+    const FVector Floor = GroundUnder(Centre, Normal);
+    // The reduced-effects setting dims a field like every other effect.
+    const float Strength = 2.2f * FMath::Clamp(Alpha, 0.f, 1.f) * (.55f + .45f * LocalEffectScale());
+    if (Found == INDEX_NONE)
+    {
+        // A ground state lives until its owner says otherwise: the system's own life is far beyond any state's. The local
+        // player's own field (its seat is the own body's) shows its decoration in full; others' fields thin it.
+        bool bOwn = false;
+        for (TObjectIterator<ULDHumanoidVisualComponent> It; It && !bOwn && OwnerSeat != MAX_uint8; ++It)
+        { bOwn = It->GetWorld() == GetWorld() && It->IsOwnBody() && It->PaletteSlot() == OwnerSeat; }
+        UNiagaraComponent* Effect = SpawnGenerated(LDSliceVfx::ESystem::Field, Floor, Floor, LDBroadcast::Shock, RadiusCm, Strength, 1.e4f, bOwn);
+        if (!Effect) { return; }
+        Track(Effect, nullptr, 0.f, &Owner);
+        return;
+    }
+    if (UNiagaraComponent* Effect = Live[Found].Effect.Get())
+    {
+        Effect->SetVariableVec3(TEXT("User.Start"), Floor);
+        Effect->SetVariableFloat(TEXT("User.Width"), RadiusCm);
+        Effect->SetVariableFloat(TEXT("User.Intensity"), Strength);
+    }
+}
+
+void ULDImpactFxSubsystem::FieldPulse(const ULDHumanoidVisualComponent& Source, const FVector& Feet, float RadiusCm, const LDSliceVfx::FLook& Look,
+    float AgeSeconds)
+{
+    if (!Source.CanShowImpact() || !FMath::IsFinite(RadiusCm) || RadiusCm <= 0.f || !FMath::IsFinite(AgeSeconds) || AgeSeconds > .8f) { return; }
+    FVector Normal;
+    const FVector Floor = GroundUnder(Feet, Normal);
+    const float Seconds = .8f * Look.Seconds;
+    UNiagaraComponent* Effect = SpawnGenerated(LDSliceVfx::ESystem::Field, Floor, Floor, LDBroadcast::Shock, RadiusCm,
+        2.2f * Look.Glow * (Look.bFocus ? 1.f : .7f) * (.55f + .45f * FMath::Clamp(Look.EffectScale, 0.f, 1.f)), Seconds, Look.bFocus);
+    if (!Effect) { return; }
+    Track(Effect, &Source, AgeSeconds);
+    Live.Last().StopAfter = Seconds;
+}
+
+void ULDImpactFxSubsystem::Bite(const UNiagaraComponent& Field)
+{
+    // The field's arcs reach for up to three visible bodies standing in it: a short, reduced chain hop from the floor
+    // nearest the body's side of the field to its knees, with the chain's own (others') body crawl and sparks.
+    const FNiagaraParameterStore& Parameters = Field.GetOverrideParameters();
+    const FVector Centre = FVector(Parameters.GetParameterValue<FVector3f>(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("User.Start"))));
+    const float Radius = Parameters.GetParameterValue<float>(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("User.Width")));
+    const float Strength = Parameters.GetParameterValue<float>(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("User.Intensity")));
+    const float Focus = Parameters.GetParameterValue<float>(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("User.Focus")));
+    if (!GetWorld() || Radius <= 0.f || Strength <= .2f) { return; }
+    // Decoration: others' fields reach for one body at a time.
+    const int32 Most = Focus > .5f ? 3 : 1;
+    int32 Bitten = 0;
+    for (TObjectIterator<ULDHumanoidVisualComponent> It; It && Bitten < Most; ++It)
+    {
+        const ULDHumanoidVisualComponent* Body = *It;
+        const AActor* Owner = Body ? Body->GetOwner() : nullptr;
+        if (!Owner || Body->GetWorld() != GetWorld() || !Body->CanShowImpact() || !Body->IsVisible()) { continue; }
+        const FVector At = Owner->GetActorLocation();
+        const FVector Out = FVector(At.X - Centre.X, At.Y - Centre.Y, 0.);
+        if (Out.Size() > Radius * .95f) { continue; }
+        const float Turn = FMath::FRandRange(-.6f, .6f);
+        const FVector Side = (Out.IsNearlyZero() ? FVector::ForwardVector : Out.GetSafeNormal()).RotateAngleAxis(FMath::RadiansToDegrees(Turn), FVector::UpVector);
+        LDSliceVfx::FLook Look = SliceLook(ESliceTuning::Impact, false, false);
+        Look.Size *= .45f;
+        Look.Glow *= FMath::Clamp(Strength / 2.2f, 0.f, 1.f);
+        Chain(*Body, Centre + Side * Radius * .85f + FVector(0, 0, 10.f), At - FVector(0, 0, 45.f), true, Look, 0.f);
+        ++Bitten;
+    }
+}
+
+UNiagaraComponent* ULDImpactFxSubsystem::SpawnGenerated(LDSliceVfx::ESystem System, const FVector& Start, const FVector& End, const FLinearColor& Tint,
+    float Width, float Intensity, float Seconds, bool bFocus)
+{
+    UNiagaraSystem* Asset = GetSystem(System);
+    if (!FApp::CanEverRender() || !Asset || Start.ContainsNaN() || End.ContainsNaN() || !FMath::IsFinite(Width) || !FMath::IsFinite(Intensity)) { return nullptr; }
+    if (Live.Num() >= LDImpactFx::MaxBursts)
+    {
+        // The oldest short effect makes room; a standing field stays while its ground state does.
+        const int32 Oldest = Live.IndexOfByPredicate([this](const FLive& Shown) { return !IsField(Shown.Effect.Get()) || Shown.StopAfter >= 0.f; });
+        Release(Oldest == INDEX_NONE ? 0 : Oldest);
+    }
+    UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), Asset, End, FRotator::ZeroRotator, FVector(1.f),
+        false, false, ENCPoolMethod::ManualRelease, false);
+    if (!Effect)
+    {
+        UE_LOG(LogLDContent, Warning, TEXT("LD_GENERATED_FX spawn=failed %s"), LDSliceVfx::SystemName(System));
+        return nullptr;
+    }
+    Effect->SetVariableVec3(TEXT("User.Start"), Start);
+    Effect->SetVariableVec3(TEXT("User.End"), End);
+    Effect->SetVariableLinearColor(TEXT("User.Tint"), Tint);
+    Effect->SetVariableFloat(TEXT("User.Width"), Width);
+    Effect->SetVariableFloat(TEXT("User.Intensity"), Intensity);
+    Effect->SetVariableFloat(TEXT("User.Duration"), Seconds);
+    Effect->SetVariableFloat(TEXT("User.Focus"), bFocus ? 1.f : 0.f);
+    Effect->Activate(true);
+    return Effect;
+}
+
+void ULDImpactFxSubsystem::SwingTell(const ULDHumanoidVisualComponent& Owner, uint8 Step, const FVector& Feet, const FVector& Facing,
+    float WindupSeconds, const LDSliceVfx::FLook& Look, float AgeSeconds)
+{
+    // Too short a windup to read (or one already past) draws nothing rather than a flash.
+    if (Step == 0 || !Owner.CanShowImpact() || !FMath::IsFinite(WindupSeconds) || WindupSeconds < .08f || !FMath::IsFinite(AgeSeconds)
+        || AgeSeconds >= WindupSeconds || Look.Size <= 0.f || Look.EffectScale <= 0.f) { return; }
+    const LDSliceVfx::ESystem System = Step >= 3 ? LDSliceVfx::ESystem::Tell3 : Step == 2 ? LDSliceVfx::ESystem::Tell2 : LDSliceVfx::ESystem::Tell1;
+    const FVector Ahead = FVector(Facing.X, Facing.Y, 0.).GetSafeNormal();
+    FVector Normal;
+    const FVector Floor = GroundUnder(Feet, Normal);
+    UNiagaraComponent* Effect = SpawnGenerated(System, Floor, Floor + (Ahead.IsNearlyZero() ? FVector::ForwardVector : Ahead) * 100.f,
+        LDSliceVfx::StrikeTint(Look), 70.f * Look.Size, 2.2f * Look.Glow * (Look.bFocus ? 1.f : .7f), WindupSeconds, Look.bFocus);
+    if (!Effect) { return; }
+    Track(Effect, &Owner, AgeSeconds);
+    Live.Last().bTelegraph = true;
+    Live.Last().StopAfter = WindupSeconds;
+}
+
+void ULDImpactFxSubsystem::Swing(const ULDHumanoidVisualComponent& Owner, uint8 Step, const FVector& Centre, const FVector& Facing,
+    const LDSliceVfx::FLook& Look, float AgeSeconds)
+{
+    if (Step == 0 || !Owner.CanShowImpact() || !FMath::IsFinite(AgeSeconds) || Look.Size <= 0.f || Look.EffectScale <= 0.f) { return; }
+    const LDSliceVfx::ESystem System = Step >= 3 ? LDSliceVfx::ESystem::Swing3 : Step == 2 ? LDSliceVfx::ESystem::Swing2 : LDSliceVfx::ESystem::Swing1;
+    const FVector Ahead = FVector(Facing.X, Facing.Y, 0.).GetSafeNormal();
+    UNiagaraComponent* Effect = SpawnGenerated(System, Centre, Centre + (Ahead.IsNearlyZero() ? FVector::ForwardVector : Ahead) * 100.f,
+        LDSliceVfx::StrikeTint(Look), 70.f * Look.Size, 2.2f * Look.Glow * (Look.bFocus ? 1.f : .7f), .4f * Look.Seconds, Look.bFocus);
+    if (!Effect) { return; }
+    Track(Effect, &Owner, AgeSeconds);
+    // Its ribbons spawn once; stopping the emitters lets the system complete when they have faded.
+    Live.Last().StopAfter = .4f * Look.Seconds;
+}
+
+void ULDImpactFxSubsystem::Hit(const ULDHumanoidVisualComponent& Victim, const FVector& From, const FVector& Chest, bool bFinisher,
+    const LDSliceVfx::FLook& Look, float AgeSeconds)
+{
+    if (!Victim.CanShowImpact() || !FMath::IsFinite(AgeSeconds) || Look.Size <= 0.f || Look.EffectScale <= 0.f) { return; }
+    UNiagaraComponent* Effect = SpawnGenerated(bFinisher ? LDSliceVfx::ESystem::HitFinisher : LDSliceVfx::ESystem::HitBasic, From, Chest,
+        LDSliceVfx::StrikeTint(Look), 70.f * Look.Size, 2.2f * Look.Glow * (Look.bFocus ? 1.f : .7f), .5f * Look.Seconds, Look.bFocus);
+    if (!Effect) { return; }
+    Track(Effect, &Victim, AgeSeconds);
+    Live.Last().StopAfter = .5f * Look.Seconds;
+}
+
+bool ULDImpactFxSubsystem::SkillReach(uint8 Ability, float& OutRangeCm, float& OutHalfWidthCm)
+{
+    OutRangeCm = OutHalfWidthCm = 0.f;
+    OverdriveHoldSeconds();
+    if (!Content) { return false; }
+    const auto Cm = [](const FLDDemoRational& Value) { return Value.Denominator > 0 ? float(double(Value.Numerator) / double(Value.Denominator)) : 0.f; };
+    for (const FLDDemoAbilityDefinition& Definition : Content->Get().Abilities)
+    {
+        if (Definition.NativeId != Ability) { continue; }
+        // The level-1 target: a viewer never knows another contender's rank, so every body shows the approved base reach.
+        OutRangeCm = Cm(Definition.Target.RangeCm);
+        OutHalfWidthCm = Cm(Definition.Target.LineHalfWidthCm);
+        return OutRangeCm > 0.f;
+    }
+    return false;
+}
+
+float ULDImpactFxSubsystem::ConductRadiusCm()
+{
+    OverdriveHoldSeconds();
+    if (!Content) { return 0.f; }
+    const FLDDemoRational& Radius = Content->Get().Parameters.ConductRadiusCm;
+    return Radius.Denominator > 0 ? float(double(Radius.Numerator) / double(Radius.Denominator)) : 0.f;
+}
+
+void ULDImpactFxSubsystem::Chain(const ULDHumanoidVisualComponent& Victim, const FVector& From, const FVector& To, bool bChained,
+    const LDSliceVfx::FLook& Look, float AgeSeconds)
+{
+    if (!FApp::CanEverRender() || !Victim.CanShowImpact() || From.ContainsNaN() || To.ContainsNaN() || !FMath::IsFinite(AgeSeconds)) { return; }
+    const float Thin = FMath::Clamp(Look.EffectScale, 0.f, 1.f);
+    if (Thin <= 0.f || Look.Size <= 0.f || Look.Seconds <= 0.f || Look.Glow <= 0.f) { return; }
+    // Others' links are thinner and dimmer, a bounce thinner than the first hop; reduced effects dim them further.
+    const float Focus = Look.bFocus ? 1.f : .7f;
+    const float Seconds = .26f * Look.Seconds;
+    UNiagaraComponent* Effect = SpawnGenerated(LDSliceVfx::ESystem::Chain, From, To, LDBroadcast::Shock,
+        (bChained ? 56.f : 70.f) * Look.Size * (Look.bFocus ? 1.f : .8f), 2.2f * Look.Glow * Focus * (.55f + .45f * Thin), Seconds, Look.bFocus);
+    if (!Effect) { return; }
+    Track(Effect, &Victim, AgeSeconds);
+    Live.Last().StopAfter = Seconds;
+}
+void ULDImpactFxSubsystem::ForEachGenerated(TFunctionRef<void(UNiagaraComponent&)> Visit) const
+{
+    for (const FLive& Shown : Live)
+    {
+        UNiagaraComponent* Effect = Shown.Effect.Get();
+        if (Effect && GeneratedSystems.Contains(Effect->GetAsset())) { Visit(*Effect); }
+    }
 }

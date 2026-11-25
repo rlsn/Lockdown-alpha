@@ -3,6 +3,7 @@
 #include "Combat/LDCombatCues.h"
 #include "Combat/LDCombatElements.h"
 #include "Development/LDDemoContentIds.h"
+#include "UI/LDBroadcastStyle.h"
 
 namespace LDHitVfxDetail
 {
@@ -87,6 +88,371 @@ namespace LDHitVfxDetail
     }
 }
 
+const TCHAR* LDSliceVfx::TexId(ETex Tex)
+{
+    switch (Tex)
+    {
+    case ETex::SlashEdge: return TEXT("tex_slash_edge");
+    case ETex::DissolveNoise: return TEXT("tex_dissolve_noise");
+    case ETex::HitSkill: return TEXT("fb_hit_skill");
+    case ETex::WaterJet: return TEXT("tex_water_jet");
+    case ETex::WaterSplash: return TEXT("fb_water_splash");
+    case ETex::WetDecal: return TEXT("tex_wet_decal");
+    case ETex::ChalkLane: return TEXT("tex_chalk_lane");
+    case ETex::ChainAProfile: return TEXT("chainA_profile");
+    case ETex::ChainAEnergyNoise: return TEXT("chainA_energy_noise");
+    case ETex::ChainASparkStreak: return TEXT("chainA_spark_streak");
+    case ETex::ChainAFlash: return TEXT("chainA_flash");
+    case ETex::ChainAGroundGlow: return TEXT("chainA_ground_glow");
+    case ETex::ChainBScorchDash: return TEXT("chainB_scorch_dash");
+    case ETex::FieldWeb: return TEXT("field_web");
+    case ETex::FieldEnergyNoise: return TEXT("field_energy_noise");
+    default: return TEXT("");
+    }
+}
+
+const TCHAR* LDSliceVfx::MeshId(EMesh Mesh)
+{
+    switch (Mesh)
+    {
+    case EMesh::Slash1: return TEXT("SM_LD_SlashCombo1");
+    case EMesh::Slash2: return TEXT("SM_LD_SlashCombo2");
+    case EMesh::Slash3: return TEXT("SM_LD_SlashCombo3");
+    default: return TEXT("");
+    }
+}
+
+FString LDSliceVfx::TexturePackage(ETex Tex) { return FString(Folder) / TEXT("T_") + TexId(Tex); }
+FString LDSliceVfx::MeshPackage(EMesh Mesh) { return FString(Folder) / MeshId(Mesh); }
+
+bool LDSliceVfx::IsFlipbook(ETex Tex) { return FlipbookFps(Tex) > 0.f; }
+
+float LDSliceVfx::FlipbookFps(ETex Tex)
+{
+    // vfx_slice_assets.json flip.fps of each flipbook.
+    switch (Tex)
+    {
+    case ETex::WaterSplash: return 30.f;
+    case ETex::HitSkill: return 28.f;
+    default: return 0.f;
+    }
+}
+
+FVector LDSliceVfx::SlashHead(EMesh Mesh)
+{
+    // The handoff's Blender head points (+Y = left of forward) with Y mirrored: the FBX import turns the right-handed
+    // source into Unreal's left-handed space, where -Y is left of forward.
+    switch (Mesh)
+    {
+    case EMesh::Slash1: return FVector(59.1, -45.7, 0.);
+    case EMesh::Slash2: return FVector(59.3, 54.7, 0.);
+    case EMesh::Slash3: return FVector(13.4, -103.4, 0.);
+    default: return FVector::ZeroVector;
+    }
+}
+
+namespace LDSliceVfxDetail
+{
+    using namespace LDSliceVfx;
+
+    FLinearColor Hdr(const FLinearColor& Colour, float Glow) { return FLinearColor(Colour.R * Glow, Colour.G * Glow, Colour.B * Glow, 1.f); }
+    float EaseOut(float T) { return 1.f - FMath::Pow(1.f - FMath::Clamp(T, 0.f, 1.f), 3.f); }
+
+    // Ink edges carry the contrast on the bright warm map; the core is white-hot; the body is the element ink, or for no
+    // element white, with the ball orange only on the local player's own strikes.
+    const FLinearColor InkEdge = LDBroadcast::Ink;
+    FLinearColor BodyGlow(const FLook& Look) { return Look.bOwn ? Hdr(LDBroadcast::Orange, 2.f * Look.Glow) : Hdr(LDBroadcast::White, 1.25f * Look.Glow); }
+    FLinearColor CoreGlow(const FLook& Look) { return Hdr(LDBroadcast::White, (Look.bOwn ? 3.f : 2.2f) * Look.Glow); }
+    FLinearColor ElementGlow(const FLinearColor& Element, const FLook& Look) { return Hdr(Element, 2.2f * Look.Glow); }
+    FLinearColor Chalk() { return Hdr(LDBroadcast::White, 1.15f); }
+
+    EMesh SlashOf(uint8 Step) { return Step >= 3 ? EMesh::Slash3 : Step == 2 ? EMesh::Slash2 : EMesh::Slash1; }
+    // The finisher's crescent is far wider than the first two cuts: drawn at three quarters of their scale so the struck
+    // body stays visible behind its impact star.
+    float SlashScale(uint8 Step) { return Step >= 3 ? 105.f : 140.f; }
+
+    FVector Planar(const FVector& Dir)
+    {
+        const FVector Flat(Dir.X, Dir.Y, 0.);
+        return Flat.IsNearlyZero() ? FVector::ForwardVector : Flat.GetSafeNormal();
+    }
+
+    FLayer Burst(ETex Tex, const FVector& At, const FVector& Dir, float SizeCm, float Seconds, const FLook& Look)
+    {
+        FLayer Layer;
+        Layer.Tex = Tex;
+        Layer.Place = EPlace::Facing;
+        Layer.At = At;
+        Layer.Dir = Dir.IsNearlyZero() ? FVector::ForwardVector : Dir.GetSafeNormal();
+        Layer.SizeCm = SizeCm * Look.Size;
+        // The hit sheets put the hit point at U 0.3 of the frame; the spark is centred.
+        Layer.Pivot = .3f;
+        Layer.Seconds = Seconds * Look.Seconds;
+        Layer.FadeInSeconds = 0.f;
+        Layer.FadeOutSeconds = .04f;
+        Layer.Ink = InkEdge;
+        Layer.bTop = true;
+        return Layer;
+    }
+
+    // Own strikes at full size; others' at 80 % size and 70 % strength; reduced effects drop the optional layers and dim.
+    void Finish(FRecipe& Recipe, const FLook& Look)
+    {
+        const float Thin = FMath::Clamp(Look.EffectScale, 0.f, 1.f);
+        if (!FMath::IsFinite(Look.EffectScale) || Thin <= 0.f || !FMath::IsFinite(Look.Size) || !FMath::IsFinite(Look.Seconds)
+            || !FMath::IsFinite(Look.Glow) || Look.Size <= 0.f || Look.Seconds <= 0.f || Look.Glow <= 0.f)
+        {
+            Recipe.Layers.Reset();
+            return;
+        }
+        Recipe.Layers.RemoveAll([Thin](const FLayer& Layer) { return Layer.bOptional && Thin < 1.f; });
+        for (FLayer& Layer : Recipe.Layers)
+        {
+            Layer.Alpha *= (.55f + .45f * Thin) * (Look.bFocus ? 1.f : .7f);
+            if (!Look.bFocus && Layer.Place != EPlace::GroundSlash && Layer.Place != EPlace::GroundStrip) { Layer.SizeCm *= .8f; }
+        }
+    }
+}
+
+bool LDSliceVfx::ShowsHit(ELDObservedHitLook Look, uint8 HitFlags)
+{
+    return (Look == ELDObservedHitLook::None || Look == ELDObservedHitLook::Water || Look == ELDObservedHitLook::Electric)
+        && (HitFlags & LDObservation::HitFlagsMask) == 0;
+}
+
+LDSliceVfx::FState LDSliceVfx::Evaluate(const FLayer& Layer, float AgeSeconds)
+{
+    using namespace LDSliceVfxDetail;
+    FState State;
+    const float T = AgeSeconds - Layer.DelaySeconds;
+    if (!FMath::IsFinite(T) || T < 0.f || Layer.Seconds <= 0.f || (!Layer.bLoop && T >= Layer.Seconds)) { return State; }
+    const float In = Layer.FadeInSeconds > 0.f ? FMath::Clamp(T / Layer.FadeInSeconds, 0.f, 1.f) : 1.f;
+    const float Out = Layer.bLoop || Layer.FadeOutSeconds <= 0.f ? 1.f : FMath::Clamp((Layer.Seconds - T) / Layer.FadeOutSeconds, 0.f, 1.f);
+    State.Fade = FMath::Clamp(Layer.Alpha, 0.f, 1.f) * In * Out;
+    if (const float Fps = FlipbookFps(Layer.Tex); Fps > 0.f)
+    {
+        const int32 Frame = FMath::FloorToInt(T * Fps);
+        State.Frame = float(Layer.bLoop ? Frame % 16 : FMath::Min(Frame, 15));
+    }
+    else if (Layer.Variants > 1)
+    {
+        // A jumpy order (3 is coprime with 8), so consecutive flickers never look like a slide.
+        State.Frame = float((FMath::FloorToInt(T * FMath::Max(Layer.VariantHz, 1.f)) * 3) % Layer.Variants);
+    }
+    const float Reveal = Layer.RevealSeconds > 0.f ? EaseOut(T / Layer.RevealSeconds) : 1.f;
+    if (Layer.bRevealFromTail) { State.WindowLo = 1.f - Reveal * 1.05f; }
+    else if (Layer.RevealSeconds > 0.f) { State.WindowHi = Reveal * 1.05f; }
+    State.Dissolve = FMath::Max(Layer.ChalkErode, Layer.ErodeFrom >= 0.f && Layer.ErodeSeconds > 0.f
+        ? FMath::Clamp((T - Layer.ErodeFrom) / Layer.ErodeSeconds, 0.f, 1.f) : 0.f);
+    State.Scroll = Layer.ScrollPerSecond * T;
+    State.Scale = Layer.GrowFrom >= 1.f ? 1.f : FMath::Lerp(Layer.GrowFrom, 1.f, EaseOut(T / FMath::Max(Layer.Seconds * .25f, .01f)));
+    State.bVisible = State.Fade > .002f && State.Dissolve < .999f;
+    return State;
+}
+
+bool LDSliceVfx::IsOver(const FLayer& Layer, float AgeSeconds)
+{
+    return !Layer.bLoop && (!FMath::IsFinite(AgeSeconds) || AgeSeconds >= Layer.DelaySeconds + Layer.Seconds);
+}
+
+FLinearColor LDSliceVfx::StrikeTint(const FLook& Look)
+{
+    return Look.bOwn ? FLinearColor(1.f, .64f, .36f) : FLinearColor(1.f, .94f, .84f);
+}
+
+LDSliceVfx::FRecipe LDSliceVfx::SkillTelegraph(const FVector& Feet, const FVector& Facing, float LengthCm, float WidthCm, float WindupSeconds, const FLook& Look)
+{
+    using namespace LDSliceVfxDetail;
+    FRecipe Recipe;
+    if (!FMath::IsFinite(WindupSeconds) || WindupSeconds < .08f || !FMath::IsFinite(LengthCm) || !FMath::IsFinite(WidthCm)
+        || LengthCm <= 0.f || WidthCm <= 0.f) { return Recipe; }
+    FLayer Lane;
+    Lane.Tex = ETex::ChalkLane;
+    Lane.Place = EPlace::GroundStrip;
+    Lane.At = Feet;
+    Lane.Dir = Planar(Facing);
+    Lane.End = Feet + Lane.Dir * LengthCm;
+    Lane.SizeCm = WidthCm;
+    // The lane texture is four times as long as it is wide.
+    Lane.TileCm = WidthCm * 4.f;
+    Lane.Seconds = WindupSeconds + .05f;
+    Lane.FadeInSeconds = .05f;
+    Lane.FadeOutSeconds = .06f;
+    Lane.Alpha = .85f;
+    Lane.RevealSeconds = WindupSeconds * .7f;
+    Lane.Glow = Lane.Core = Chalk();
+    Lane.Ink = InkEdge;
+    Lane.bTelegraph = true;
+    Recipe.Layers.Add(Lane);
+    Finish(Recipe, Look);
+    return Recipe;
+}
+
+LDSliceVfx::FRecipe LDSliceVfx::HoseRelease(const FVector& Hand, const FVector& Facing, float LengthCm, const FLook& Look)
+{
+    using namespace LDSliceVfxDetail;
+    FRecipe Recipe;
+    if (!FMath::IsFinite(LengthCm) || LengthCm <= 0.f) { return Recipe; }
+    const FVector Dir = Planar(Facing);
+    FLayer Jet;
+    Jet.Tex = ETex::WaterJet;
+    Jet.Place = EPlace::Strip;
+    Jet.At = Hand;
+    Jet.End = Hand + Dir * LengthCm;
+    Jet.Dir = Dir;
+    Jet.SizeCm = 70.f * Look.Size;
+    Jet.TileCm = 280.f * Look.Size;
+    // The flow runs from the hand outwards (+U).
+    Jet.ScrollPerSecond = -2.5f;
+    Jet.Seconds = .42f * Look.Seconds;
+    Jet.FadeInSeconds = 0.f;
+    Jet.FadeOutSeconds = .08f;
+    Jet.RevealSeconds = .07f * Look.Seconds;
+    Jet.ErodeFrom = .22f * Look.Seconds;
+    Jet.ErodeSeconds = .18f * Look.Seconds;
+    Jet.Glow = ElementGlow(LDBroadcast::Water, Look);
+    Jet.Core = CoreGlow(Look);
+    Jet.Ink = InkEdge;
+    Recipe.Layers.Add(Jet);
+    FLayer Muzzle = Burst(ETex::WaterSplash, Hand, Dir, 100.f, .5f, Look);
+    Muzzle.Glow = Jet.Glow;
+    Muzzle.Core = Jet.Core;
+    Muzzle.bOptional = true;
+    Recipe.Layers.Add(Muzzle);
+    Finish(Recipe, Look);
+    return Recipe;
+}
+
+LDSliceVfx::FRecipe LDSliceVfx::ZapRelease(const FVector& Hand, const FLook& Look)
+{
+    using namespace LDSliceVfxDetail;
+    FRecipe Recipe;
+    // A small charged warm glow at the hand that lasts until the link leaves it; no star.
+    FLayer Glow = Burst(ETex::ChainAFlash, Hand, FVector::ForwardVector, 40.f, .3f, Look);
+    Glow.Pivot = .5f;
+    Glow.Glow = Hdr(FLinearColor(1.f, .78f, .36f), 1.4f * Look.Glow);
+    Glow.Core = Hdr(FLinearColor(1.f, .9f, .67f), 2.f * Look.Glow);
+    Glow.Ink = Glow.Glow;
+    Recipe.Layers.Add(Glow);
+    Finish(Recipe, Look);
+    return Recipe;
+}
+
+LDSliceVfx::FRecipe LDSliceVfx::Impact(EStrike Strike, const FVector& Chest, const FVector& Feet, const FVector& Dir, const FVector& From,
+    bool bChained, const FLook& Look)
+{
+    using namespace LDSliceVfxDetail;
+    FRecipe Recipe;
+    const FVector Along = Dir.IsNearlyZero() ? FVector::ForwardVector : Dir.GetSafeNormal();
+    switch (Strike)
+    {
+    // The basic and finisher hits are the Niagara Hit (ULDImpactFxSubsystem::Hit), the finisher's contact light its own.
+    case EStrike::Basic: case EStrike::Finisher: break;
+    case EStrike::Skill:
+    {
+        FLayer Hit = Burst(ETex::HitSkill, Chest, Along, 200.f, .57f, Look);
+        Hit.Glow = BodyGlow(Look);
+        Hit.Core = CoreGlow(Look);
+        Recipe.Layers.Add(Hit);
+        break;
+    }
+    case EStrike::Hose:
+    {
+        const FLinearColor Glow = ElementGlow(LDBroadcast::Water, Look);
+        FLayer Hit = Burst(ETex::HitSkill, Chest, Along, 200.f, .57f, Look);
+        Hit.Glow = Glow;
+        Hit.Core = CoreGlow(Look);
+        Recipe.Layers.Add(Hit);
+        FLayer Splash = Burst(ETex::WaterSplash, Chest, Along, 150.f, .53f, Look);
+        Splash.DelaySeconds = .03f;
+        Splash.Glow = Glow;
+        Splash.Core = Hit.Core;
+        Recipe.Layers.Add(Splash);
+        // The wet mark stays under the body and fades over a second and a half.
+        FLayer Wet;
+        Wet.Tex = ETex::WetDecal;
+        Wet.Place = EPlace::Flat;
+        Wet.At = Feet;
+        Wet.Dir = Planar(Along);
+        Wet.SizeCm = 170.f * Look.Size;
+        Wet.DelaySeconds = .08f;
+        Wet.Seconds = 1.7f * Look.Seconds;
+        Wet.FadeInSeconds = .12f;
+        Wet.FadeOutSeconds = 1.1f * Look.Seconds;
+        Wet.Alpha = .85f;
+        Wet.GrowFrom = .6f;
+        Wet.Glow = Hdr(LDBroadcast::Water, .7f);
+        Wet.Core = Hdr(LDBroadcast::White, 1.2f);
+        Wet.Ink = InkEdge;
+        Recipe.Layers.Add(Wet);
+        break;
+    }
+    case EStrike::Zap:
+    {
+        // The link itself, its contact burst, body arcs and sparks are the Niagara Chain (ULDImpactFxSubsystem::Chain);
+        // here a warm contact glow on the ground for a quarter second over a faint scorch flash along the hop. A bounce
+        // target's is the same at its smaller link scale (Look.Size).
+        const FVector Hop = !From.ContainsNaN() && FVector::DistSquared(From, Chest) > 100.f ? Planar(Chest - From) : Planar(Along);
+        FLayer Glow;
+        Glow.Tex = ETex::ChainAGroundGlow;
+        Glow.Place = EPlace::Flat;
+        Glow.At = Feet;
+        Glow.Dir = Hop;
+        Glow.SizeCm = (bChained ? 130.f : 160.f) * Look.Size;
+        Glow.Seconds = .26f * Look.Seconds;
+        Glow.FadeInSeconds = 0.f;
+        Glow.FadeOutSeconds = .16f;
+        Glow.Alpha = Look.bFocus ? 1.f : .65f;
+        Glow.Glow = Hdr(FLinearColor(1.f, .78f, .36f), 2.f);
+        Glow.Core = Hdr(FLinearColor(1.f, .9f, .67f), 2.4f);
+        Glow.Ink = Glow.Glow;
+        Glow.bOptional = true;
+        Recipe.Layers.Add(Glow);
+        FLayer Scorch;
+        Scorch.Tex = ETex::ChainBScorchDash;
+        Scorch.Place = EPlace::Flat;
+        Scorch.At = Feet;
+        Scorch.Dir = Hop;
+        Scorch.SizeCm = (bChained ? 80.f : 100.f) * Look.Size;
+        Scorch.Seconds = .55f * Look.Seconds;
+        Scorch.FadeInSeconds = 0.f;
+        Scorch.FadeOutSeconds = .4f;
+        Scorch.Alpha = .4f;
+        Scorch.Glow = Hdr(FLinearColor(1.f, .62f, .2f), 1.6f);
+        Scorch.Core = Scorch.Glow;
+        Scorch.Ink = FLinearColor(.06f, .03f, .012f);
+        Scorch.bOptional = true;
+        Recipe.Layers.Add(Scorch);
+        break;
+    }
+    default: break;
+    }
+    Finish(Recipe, Look);
+    return Recipe;
+}
+
+FString LDSliceVfx::GeneratedPackage(const TCHAR* Name) { return FString(GeneratedFolder) / Name; }
+
+const TCHAR* LDSliceVfx::SystemName(ESystem System)
+{
+    switch (System)
+    {
+    case ESystem::Chain: return TEXT("NS_LDChain");
+    case ESystem::HitBasic: return TEXT("NS_LDHitBasic");
+    case ESystem::HitFinisher: return TEXT("NS_LDHitFinisher");
+    case ESystem::Swing1: return TEXT("NS_LDSwing1");
+    case ESystem::Swing2: return TEXT("NS_LDSwing2");
+    case ESystem::Swing3: return TEXT("NS_LDSwing3");
+    case ESystem::Field: return TEXT("NS_LDField");
+    case ESystem::Tell1: return TEXT("NS_LDTell1");
+    case ESystem::Tell2: return TEXT("NS_LDTell2");
+    case ESystem::Tell3: return TEXT("NS_LDTell3");
+    default: return TEXT("");
+    }
+}
+
+FString LDSliceVfx::SystemPackage(ESystem System) { return GeneratedPackage(SystemName(System)); }
+
 const TCHAR* LDHitVfx::MaskId(EMask Mask)
 {
     switch (Mask)
@@ -132,7 +498,7 @@ LDHitVfx::FRecipe LDHitVfx::ForHit(ELDObservedHitLook Look, uint8 HitFlags, floa
         return ForPerfectDodge(EffectScale, Tuning);
     }
     FRecipe Recipe;
-    if (!FMath::IsFinite(EffectScale) || EffectScale <= 0.f) { return Recipe; }
+    if (!FMath::IsFinite(EffectScale) || EffectScale <= 0.f || LDSliceVfx::ShowsHit(Look, HitFlags)) { return Recipe; }
     if (HitFlags & LDObservation::Parried)
     {
         const FLinearColor ParryGlow(1.4f, 3.0f, 3.6f), ParryInk(.08f, .32f, .42f);
@@ -687,13 +1053,14 @@ LDHitVfx::FRecipe LDHitVfx::ForOverdriveRelease(float EffectScale, const FLayerT
 
 FLinearColor LDHitVfx::ElementTint(uint8 Element)
 {
+    // The broadcast element inks, so an element reads as one colour on HUD chips, the build ring and every effect.
     switch (static_cast<ELDCombatElement>(Element))
     {
-    case ELDCombatElement::Fire: return FLinearColor(1.f, .45f, .12f);
-    case ELDCombatElement::Water: return FLinearColor(.3f, .65f, 1.f);
-    case ELDCombatElement::Shock: return FLinearColor(.75f, .45f, 1.f);
-    case ELDCombatElement::Chill: return FLinearColor(.45f, .95f, 1.f);
-    case ELDCombatElement::Rot: return FLinearColor(.55f, .9f, .25f);
+    case ELDCombatElement::Fire: return LDBroadcast::Fire;
+    case ELDCombatElement::Water: return LDBroadcast::Water;
+    case ELDCombatElement::Shock: return LDBroadcast::Shock;
+    case ELDCombatElement::Chill: return LDBroadcast::Chill;
+    case ELDCombatElement::Rot: return LDBroadcast::Rot;
     default: return FLinearColor(1.f, .85f, .35f);
     }
 }
@@ -749,9 +1116,7 @@ LDHitVfx::FZone LDHitVfx::GroundZoneOf(uint8 Kind, float RadiusCm, float EffectS
     case ELDGroundStateKind::Miasma:
         Density = 32.f; Z.Lifetime = 1.6f; Z.Scale = 2.2f; Z.Velocity = FVector(0, 0, 55); Z.Colour = Hot(FLinearColor(.3f, .8f, .08f), 1.6f);
         break;
-    case ELDGroundStateKind::Field:
-        Density = 90.f; Z.Lifetime = .25f; Z.Scale = 1.5f; Z.Velocity = FVector(0, 0, 30); Z.Colour = Hot(FLinearColor(.6f, .25f, 1.f), 2.8f);
-        break;
+    // The electric field is the designed looping crackle (the Niagara Field, ULDImpactFxSubsystem::ShowGroundField), not the kit particles.
     default: return Z;
     }
     Z.bShow = true;
@@ -767,7 +1132,7 @@ bool LDHitVfx::GroundAppearBurstOf(uint8 Kind, EBurst& Out, FLinearColor& Tint)
     case ELDGroundStateKind::Ice: Out = EBurst::Frost; Tint = FLinearColor(.45f, .95f, 1.f); return true;
     case ELDGroundStateKind::Fire: Out = EBurst::Flame; Tint = FLinearColor(1.f, .3f, .04f); return true;
     case ELDGroundStateKind::Miasma: Out = EBurst::Rot; Tint = FLinearColor(.4f, .85f, .12f); return true;
-    case ELDGroundStateKind::Field: Out = EBurst::Zap; Tint = FLinearColor(.66f, .3f, 1.f); return true;
+    // The electric field fades in as the Niagara Field (ULDImpactFxSubsystem::ShowGroundField).
     default: return false;
     }
 }

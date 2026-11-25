@@ -1,4 +1,5 @@
 #include "LDDemoVfxImport.h"
+#include "LDDemoVfxNiagara.h"
 #include "LDEditorLog.h"
 #include "Character/LDHitVfx.h"
 #include "Framework/LDDemoEntry.h"
@@ -8,14 +9,35 @@
 #include "Factories/TextureFactory.h"
 #include "HAL/FileManager.h"
 #include "Materials/Material.h"
+#include "Engine/StaticMesh.h"
+#include "InterchangeGenericAnimationPipeline.h"
+#include "InterchangeGenericAssetsPipeline.h"
+#include "InterchangeGenericAssetsPipelineSharedSettings.h"
+#include "InterchangeGenericMaterialPipeline.h"
+#include "InterchangeGenericMeshPipeline.h"
+#include "InterchangeGenericTexturePipeline.h"
+#include "InterchangeManager.h"
+#include "InterchangeSourceData.h"
 #include "Materials/MaterialExpressionAdd.h"
+#include "Materials/MaterialExpressionComponentMask.h"
+#include "Materials/MaterialExpressionCustom.h"
 #include "Materials/MaterialExpressionFresnel.h"
+#include "Materials/MaterialExpressionTextureObjectParameter.h"
+#include "MeshDescription.h"
+#include "StaticMeshAttributes.h"
 #include "Materials/MaterialExpressionMultiply.h"
 #include "Materials/MaterialExpressionScalarParameter.h"
 #include "Materials/MaterialExpressionTextureCoordinate.h"
 #include "Materials/MaterialExpressionTextureSampleParameter2D.h"
 #include "Materials/MaterialExpressionVectorParameter.h"
+#include "Materials/MaterialExpressionTextureBase.h"
+#include "Materials/MaterialInstance.h"
 #include "Misc/FileHelper.h"
+#include "NiagaraEmitter.h"
+#include "NiagaraLightRendererProperties.h"
+#include "NiagaraRibbonRendererProperties.h"
+#include "NiagaraSpriteRendererProperties.h"
+#include "NiagaraSystem.h"
 #include "Misc/PackageName.h"
 #include "Misc/Paths.h"
 #include "Serialization/JsonReader.h"
@@ -91,29 +113,145 @@ namespace
         {
             if (!Listed.Contains(Id)) { return VfxFail(Error, TEXT("vfx_textures.json does not list the mask ") + Id); }
         }
-        TArray<FString> Found;
-        IFileManager::Get().FindFiles(Found, *(VfxRoot() / TEXT("*")), true, false);
-        for (const FString& File : Found)
-        {
-            if (File != Manifest && !(File.EndsWith(TEXT(".png"), ESearchCase::CaseSensitive) && Listed.Contains(FPaths::GetBaseFilename(File))))
-            {
-                return VfxFail(Error, TEXT("Unlisted file under SourceData/VFX: ") + File);
-            }
-        }
-        TArray<FString> Folders;
-        IFileManager::Get().FindFiles(Folders, *(VfxRoot() / TEXT("*")), false, true);
-        for (const FString& Folder : Folders)
-        {
-            if (Folder != GeneratorFolder) { return VfxFail(Error, TEXT("SourceData/VFX holds only the Blender folder: ") + Folder); }
-        }
-        TArray<FString> Scripts;
-        IFileManager::Get().FindFiles(Scripts, *(VfxRoot() / GeneratorFolder / TEXT("*")), true, false);
-        for (const FString& File : Scripts)
-        {
-            if (File != TEXT("hit_textures.py")) { return VfxFail(Error, TEXT("SourceData/VFX/Blender holds only hit_textures.py: ") + File); }
-        }
         Error.Reset();
         return true;
+    }
+
+    // One slice asset of vfx_slice_assets.json: a texture or flipbook (Folder/T_<id>) or a slash mesh (Folder/<id>).
+    struct FSliceSpec
+    {
+        FString Id;
+        FString File;       // relative to SourceData/VFX ("Slice/fb_hit_basic.png")
+        FString Package;
+        bool bMesh = false;
+        int32 Width = 0;
+        int32 Height = 0;
+        LDSliceVfx::ETex Tex = LDSliceVfx::ETex::Count;
+        LDSliceVfx::EMesh Mesh = LDSliceVfx::EMesh::Count;
+    };
+    constexpr TCHAR SliceManifest[] = TEXT("vfx_slice_assets.json");
+    constexpr TCHAR SliceFolder[] = TEXT("Slice");
+
+    // The slice manifest lists exactly the textures and meshes the runtime loads (LDSliceVfx::ETex and EMesh), each with
+    // the SHA-256 of its committed bytes, and the SHA-256 of every generator and tool script that made or checked them.
+    bool SliceLoadManifest(TArray<FSliceSpec>& Out, TSet<FString>& Scripts, FString& Error)
+    {
+        Out.Reset();
+        Scripts.Reset();
+        FString Text;
+        if (!FFileHelper::LoadFileToString(Text, *(VfxRoot() / SliceManifest))) { return VfxFail(Error, TEXT("SourceData/VFX/vfx_slice_assets.json is missing.")); }
+        TSharedPtr<FJsonObject> Json;
+        int32 Schema = 0;
+        FString Provenance;
+        const TSharedPtr<FJsonObject>* Generators = nullptr;
+        const TSharedPtr<FJsonObject>* Tools = nullptr;
+        const TArray<TSharedPtr<FJsonValue>>* Assets = nullptr;
+        if (!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Json) || !Json.IsValid()
+            || !Json->TryGetNumberField(TEXT("schema"), Schema) || Schema != 1 || !Json->TryGetStringField(TEXT("provenance"), Provenance)
+            || Provenance.IsEmpty() || !Json->TryGetObjectField(TEXT("generators"), Generators) || !Json->TryGetObjectField(TEXT("tools"), Tools)
+            || !Json->TryGetArrayField(TEXT("assets"), Assets))
+        {
+            return VfxFail(Error, TEXT("vfx_slice_assets.json must be valid JSON with schema 1, provenance, generators, tools and an assets list."));
+        }
+        FString HashError;
+        for (const TSharedPtr<FJsonObject>* Group : {Generators, Tools})
+        {
+            for (const TPair<FString, TSharedPtr<FJsonValue>>& Script : (*Group)->Values)
+            {
+                FString Hash;
+                if (!Script.Key.StartsWith(FString(GeneratorFolder) + TEXT("/"), ESearchCase::CaseSensitive) || !Script.Key.EndsWith(TEXT(".py"), ESearchCase::CaseSensitive)
+                    || Script.Key.Mid(FCString::Strlen(GeneratorFolder) + 1).Contains(TEXT("/")) || !Script.Value->TryGetString(Hash))
+                {
+                    return VfxFail(Error, TEXT("vfx_slice_assets.json lists a script outside SourceData/VFX/Blender: ") + Script.Key);
+                }
+                if (!LDDemoEntry::VerifyFileHash(VfxRoot() / Script.Key, Hash, HashError))
+                {
+                    return VfxFail(Error, FString::Printf(TEXT("SourceData/VFX/%s is missing or differs from its slice manifest SHA-256; rerun slice_manifest.py."), *Script.Key));
+                }
+                Scripts.Add(FPaths::GetCleanFilename(Script.Key));
+            }
+        }
+        TMap<FString, LDSliceVfx::ETex> Textures;
+        TMap<FString, LDSliceVfx::EMesh> Meshes;
+        for (int32 Tex = 0; Tex < int32(LDSliceVfx::ETex::Count); ++Tex) { Textures.Add(LDSliceVfx::TexId(LDSliceVfx::ETex(Tex)), LDSliceVfx::ETex(Tex)); }
+        for (int32 Mesh = 0; Mesh < int32(LDSliceVfx::EMesh::Count); ++Mesh) { Meshes.Add(LDSliceVfx::MeshId(LDSliceVfx::EMesh(Mesh)), LDSliceVfx::EMesh(Mesh)); }
+        TSet<FString> Listed;
+        for (const TSharedPtr<FJsonValue>& Value : *Assets)
+        {
+            const TSharedPtr<FJsonObject>* Object = nullptr;
+            FSliceSpec Spec;
+            FString Kind, Hash, Purpose;
+            if (!Value->TryGetObject(Object) || !(*Object)->TryGetStringField(TEXT("id"), Spec.Id) || Listed.Contains(Spec.Id)
+                || !(*Object)->TryGetStringField(TEXT("kind"), Kind) || !(*Object)->TryGetStringField(TEXT("file"), Spec.File)
+                || !(*Object)->TryGetStringField(TEXT("sha256"), Hash) || !(*Object)->TryGetStringField(TEXT("purpose"), Purpose) || Purpose.IsEmpty())
+            {
+                return VfxFail(Error, TEXT("Every slice asset needs a unique id, kind, file, sha256 and purpose."));
+            }
+            Spec.bMesh = Kind == TEXT("static_mesh");
+            if (Spec.bMesh)
+            {
+                if (!Meshes.Contains(Spec.Id) || Spec.File != FString(SliceFolder) / Spec.Id + TEXT(".fbx"))
+                { return VfxFail(Error, TEXT("vfx_slice_assets.json lists a mesh the game does not use or at another path: ") + Spec.Id); }
+                Spec.Mesh = Meshes[Spec.Id];
+                Spec.Package = LDSliceVfx::MeshPackage(Spec.Mesh);
+            }
+            else
+            {
+                if ((Kind != TEXT("texture") && Kind != TEXT("flipbook")) || !Textures.Contains(Spec.Id) || Spec.File != FString(SliceFolder) / Spec.Id + TEXT(".png")
+                    || (Kind == TEXT("flipbook")) != LDSliceVfx::IsFlipbook(Textures[Spec.Id]))
+                { return VfxFail(Error, TEXT("vfx_slice_assets.json lists a texture the game does not use, of another kind or at another path: ") + Spec.Id); }
+                if (!(*Object)->TryGetNumberField(TEXT("width"), Spec.Width) || !(*Object)->TryGetNumberField(TEXT("height"), Spec.Height)
+                    || Spec.Width <= 0 || Spec.Height <= 0)
+                { return VfxFail(Error, TEXT("A slice texture needs its width and height: ") + Spec.Id); }
+                Spec.Tex = Textures[Spec.Id];
+                Spec.Package = LDSliceVfx::TexturePackage(Spec.Tex);
+            }
+            if (!LDDemoEntry::VerifyFileHash(VfxRoot() / Spec.File, Hash, HashError))
+            {
+                return VfxFail(Error, FString::Printf(TEXT("SourceData/VFX/%s is missing or differs from its slice manifest SHA-256."), *Spec.File));
+            }
+            Listed.Add(Spec.Id);
+            Out.Add(MoveTemp(Spec));
+        }
+        for (const TPair<FString, LDSliceVfx::ETex>& Tex : Textures) { if (!Listed.Contains(Tex.Key)) { return VfxFail(Error, TEXT("vfx_slice_assets.json does not list ") + Tex.Key); } }
+        for (const TPair<FString, LDSliceVfx::EMesh>& Mesh : Meshes) { if (!Listed.Contains(Mesh.Key)) { return VfxFail(Error, TEXT("vfx_slice_assets.json does not list ") + Mesh.Key); } }
+        Error.Reset();
+        return true;
+    }
+
+    // SourceData/VFX holds the two manifests, the listed hit masks, the Blender folder (hit_textures.py and the listed
+    // slice scripts) and the Slice folder (the listed slice assets), and nothing else.
+    bool VfxCheckFiles(const TArray<FVfxSpec>& Hits, const TArray<FSliceSpec>& Slices, const TSet<FString>& SliceScripts, FString& Error)
+    {
+        TSet<FString> Masks, SliceFiles;
+        for (const FVfxSpec& Spec : Hits) { Masks.Add(Spec.Id + TEXT(".png")); }
+        for (const FSliceSpec& Spec : Slices) { SliceFiles.Add(FPaths::GetCleanFilename(Spec.File)); }
+        const auto Only = [&Error](const FString& Folder, bool bFiles, TFunctionRef<bool(const FString&)> Allowed, const TCHAR* What)
+        {
+            TArray<FString> Found;
+            IFileManager::Get().FindFiles(Found, *(Folder / TEXT("*")), bFiles, !bFiles);
+            for (const FString& Name : Found)
+            {
+                if (!Allowed(Name)) { return VfxFail(Error, FString::Printf(TEXT("%s: %s"), What, *Name)); }
+            }
+            return true;
+        };
+        return Only(VfxRoot(), true, [&Masks](const FString& Name) { return Name == Manifest || Name == SliceManifest || Masks.Contains(Name); },
+                TEXT("Unlisted file under SourceData/VFX"))
+            && Only(VfxRoot(), false, [](const FString& Name) { return Name == GeneratorFolder || Name == SliceFolder; },
+                TEXT("SourceData/VFX holds only the Blender and Slice folders"))
+            && Only(VfxRoot() / GeneratorFolder, true, [&SliceScripts](const FString& Name) { return Name == TEXT("hit_textures.py") || SliceScripts.Contains(Name); },
+                TEXT("SourceData/VFX/Blender holds only hit_textures.py and the scripts vfx_slice_assets.json lists"))
+            && Only(VfxRoot() / GeneratorFolder, false, [](const FString&) { return false; }, TEXT("SourceData/VFX/Blender holds no folders"))
+            && Only(VfxRoot() / SliceFolder, true, [&SliceFiles](const FString& Name) { return SliceFiles.Contains(Name); },
+                TEXT("Unlisted file under SourceData/VFX/Slice"))
+            && Only(VfxRoot() / SliceFolder, false, [](const FString&) { return false; }, TEXT("SourceData/VFX/Slice holds no folders"));
+    }
+
+    bool VfxLoadAll(TArray<FVfxSpec>& Hits, TArray<FSliceSpec>& Slices, FString& Error)
+    {
+        TSet<FString> Scripts;
+        return VfxLoadManifest(Hits, Error) && SliceLoadManifest(Slices, Scripts, Error) && VfxCheckFiles(Hits, Slices, Scripts, Error);
     }
 
     // Masks are linear data (RGB glow, A coverage): filtered with mips, never streamed out.
@@ -378,12 +516,553 @@ namespace
     {
         return GIsClient || VfxFail(Error, TEXT("Effect import and validation need a client process; a dedicated-server load drops material graphs."));
     }
+
+    // ---------------------------------------------------------------- slice textures, meshes and material
+
+    // Thin-line sheets keep their edges with BC7; the dissolve, chain and field energy noises are plain masks; the wet decal is a
+    // soft BC3 mask.
+    TextureCompressionSettings SliceCompression(LDSliceVfx::ETex Tex)
+    {
+        switch (Tex)
+        {
+        case LDSliceVfx::ETex::DissolveNoise: case LDSliceVfx::ETex::ChainAEnergyNoise: case LDSliceVfx::ETex::FieldEnergyNoise: return TC_Masks;
+        case LDSliceVfx::ETex::WetDecal: return TC_Default;
+        default: return TC_BC7;
+        }
+    }
+
+    void SliceApplySettings(UTexture2D& Texture, LDSliceVfx::ETex Tex)
+    {
+        Texture.LODGroup = TEXTUREGROUP_Effects;
+        Texture.CompressionSettings = SliceCompression(Tex);
+        Texture.MipGenSettings = TMGS_FromTextureGroup;
+        Texture.SRGB = false;
+        Texture.NeverStream = true;
+    }
+
+    bool SliceSettingsMatch(const UTexture2D& Texture, LDSliceVfx::ETex Tex)
+    {
+        return Texture.LODGroup == TEXTUREGROUP_Effects && Texture.CompressionSettings == SliceCompression(Tex)
+            && Texture.MipGenSettings == TMGS_FromTextureGroup && !Texture.SRGB && Texture.NeverStream;
+    }
+
+    bool SliceImportedFromCurrent(const UAssetImportData* Data, const FSliceSpec& Spec)
+    {
+        const FMD5Hash Current = FMD5Hash::HashFile(*(VfxRoot() / Spec.File));
+        return Data && !Data->SourceData.SourceFiles.IsEmpty() && Current.IsValid() && Data->SourceData.SourceFiles[0].FileHash == Current
+            && FPaths::GetCleanFilename(Data->SourceData.SourceFiles[0].RelativeFilename).Equals(FPaths::GetCleanFilename(Spec.File), ESearchCase::CaseSensitive);
+    }
+
+    UTexture2D* SliceImportTexture(const FSliceSpec& Spec, FString& Error)
+    {
+        UPackage* Package = CreatePackage(*Spec.Package);
+        Package->FullyLoad();
+        auto* Factory = NewObject<UTextureFactory>(GetTransientPackage());
+        Factory->AddToRoot();
+        UTextureFactory::SuppressImportOverwriteDialog();
+        bool bCancelled = false;
+        UObject* Imported = UFactory::StaticImportObject(UTexture2D::StaticClass(), Package, FName(*FPackageName::GetShortName(Spec.Package)),
+            RF_Public | RF_Standalone, bCancelled, *(VfxRoot() / Spec.File), nullptr, Factory);
+        Factory->RemoveFromRoot();
+        auto* Texture = Cast<UTexture2D>(Imported);
+        if (!Texture || bCancelled) { VfxFail(Error, TEXT("Slice texture import failed: ") + Spec.Id); return nullptr; }
+        SliceApplySettings(*Texture, Spec.Tex);
+        Texture->PostEditChange();
+        Texture->MarkPackageDirty();
+        if (!VfxSave(*Texture, Error)) { return nullptr; }
+        UE_LOG(LogLDEditor, Display, TEXT("LD_DEMO_VFX_TEXTURE_IMPORTED %s <- SourceData/VFX/%s"), *Spec.Package, *Spec.File);
+        return Texture;
+    }
+
+    // The slash ribbon as Unreal reads it: the outer-edge vertex (V >= 0.95) with the lowest U is the head of the swing.
+    bool SliceHeadOf(const UStaticMesh& Mesh, FVector& Out)
+    {
+        const FMeshDescription* Description = Mesh.GetMeshDescription(0);
+        if (!Description || Description->VertexInstances().Num() == 0) { return false; }
+        FStaticMeshConstAttributes Attributes(*Description);
+        const auto Positions = Attributes.GetVertexPositions();
+        const auto UVs = Attributes.GetVertexInstanceUVs();
+        if (UVs.GetNumChannels() < 1) { return false; }
+        float Best = TNumericLimits<float>::Max();
+        for (const FVertexInstanceID Instance : Description->VertexInstances().GetElementIDs())
+        {
+            const FVector2f UV = UVs.Get(Instance, 0);
+            if (UV.Y >= .95f && UV.X < Best)
+            {
+                Best = UV.X;
+                Out = FVector(Positions[Description->GetVertexInstanceVertex(Instance)]);
+            }
+        }
+        return Best < .05f;
+    }
+
+    // Every slash mesh must arrive in the orientation the runtime places it in (LDSliceVfx::SlashHead): forward +X, its
+    // head on the side the combo stage swings to, the swing centre at the origin.
+    bool SliceCheckMesh(const UStaticMesh* Mesh, const FSliceSpec& Spec, bool bSourceCheck, FString& Error)
+    {
+        if (!Mesh) { return VfxFail(Error, Spec.Package + TEXT(" is missing; run ImportDemoArt.ps1 -Mode ImportVFX.")); }
+        if (bSourceCheck && !SliceImportedFromCurrent(Mesh->GetAssetImportData(), Spec))
+        {
+            return VfxFail(Error, Spec.Package + TEXT(" was not imported from the current bytes of SourceData/VFX/") + Spec.File + TEXT("; run ImportDemoArt.ps1 -Mode ImportVFX."));
+        }
+        FVector Head;
+        if (!SliceHeadOf(*Mesh, Head)) { return VfxFail(Error, Spec.Package + TEXT(" has no slash head (outer edge vertex at U = 0) in its first UV channel.")); }
+        const FVector Expected = LDSliceVfx::SlashHead(Spec.Mesh);
+        if (!Head.Equals(Expected, 3.))
+        {
+            return VfxFail(Error, FString::Printf(TEXT("%s imported its head at %s, the runtime expects %s (forward +X, head on the swing's side)."),
+                *Spec.Package, *Head.ToCompactString(), *Expected.ToCompactString()));
+        }
+        return true;
+    }
+
+    UStaticMesh* SliceImportMesh(const FSliceSpec& Spec, FString& Error)
+    {
+        UInterchangeManager& Manager = UInterchangeManager::GetInterchangeManager();
+        UInterchangeSourceData* Source = UInterchangeManager::CreateSourceData(VfxRoot() / Spec.File);
+        auto* Pipeline = NewObject<UInterchangeGenericAssetsPipeline>(GetTransientPackage());
+        if (!Source || !Pipeline || !Pipeline->CommonMeshesProperties || !Pipeline->MeshPipeline || !Pipeline->MaterialPipeline)
+        {
+            VfxFail(Error, TEXT("Interchange pipeline is unavailable for ") + Spec.File);
+            return nullptr;
+        }
+        Pipeline->bUseSourceNameForAsset = true;
+        auto* Common = Pipeline->CommonMeshesProperties.Get();
+        Common->ForceAllMeshAsType = EInterchangeForceMeshType::IFMT_StaticMesh;
+        Common->bImportLods = false;
+        Common->bBakeMeshes = true;
+        Common->bRecomputeNormals = false;
+        Common->VertexColorImportOption = EInterchangeVertexColorImportOption::IVCIO_Ignore;
+        auto* Meshes = Pipeline->MeshPipeline.Get();
+        Meshes->bImportStaticMeshes = true;
+        Meshes->bImportSkeletalMeshes = false;
+        Meshes->CombineStaticMeshesBehavior = EInterchangeCombineStaticMeshesBehavior::All;
+        Meshes->bCollision = false;
+        Meshes->bImportCollisionAccordingToMeshName = false;
+        Meshes->bBuildNanite = false;
+        Meshes->bGenerateLightmapUVs = false;
+        Meshes->bImportMorphTargets = false;
+        Meshes->bImportGeometryCaches = false;
+        if (Pipeline->AnimationPipeline) { Pipeline->AnimationPipeline->bImportAnimations = false; }
+        Pipeline->MaterialPipeline->bImportMaterials = false;
+        if (Pipeline->MaterialPipeline->TexturePipeline) { Pipeline->MaterialPipeline->TexturePipeline->bImportTextures = false; }
+        FImportAssetParameters Parameters;
+        Parameters.bIsAutomated = true;
+        Parameters.bReplaceExisting = true;
+        Parameters.OverridePipelines.Add(FSoftObjectPath(Pipeline));
+        TArray<UObject*> Imported;
+        if (!Manager.ImportAsset(FString(LDSliceVfx::Folder) + TEXT("/"), Source, Parameters, Imported) || Imported.IsEmpty())
+        {
+            VfxFail(Error, TEXT("Interchange import failed: ") + Spec.File);
+            return nullptr;
+        }
+        UStaticMesh* Mesh = nullptr;
+        for (UObject* Object : Imported) { if (auto* Found = Cast<UStaticMesh>(Object)) { Mesh = Found; } }
+        if (!Mesh || Mesh->GetOutermost()->GetName() != Spec.Package)
+        {
+            VfxFail(Error, FString::Printf(TEXT("%s did not import as %s (got %s)."), *Spec.File, *Spec.Package, Mesh ? *Mesh->GetOutermost()->GetName() : TEXT("no static mesh")));
+            return nullptr;
+        }
+        Mesh->GetStaticMaterials().Reset();
+        Mesh->GetStaticMaterials().Add(FStaticMaterial(nullptr, TEXT("Slash")));
+        Mesh->PostEditChange();
+        Mesh->MarkPackageDirty();
+        if (!VfxSave(*Mesh, Error)) { return nullptr; }
+        UE_LOG(LogLDEditor, Display, TEXT("LD_DEMO_VFX_MESH_IMPORTED %s <- SourceData/VFX/%s"), *Spec.Package, *Spec.File);
+        return Mesh;
+    }
+
+    // The unit quad every slice sprite, strip and ground mark is drawn on: 100 x 100 cm in XY facing +Z, U = (X + 50) / 100
+    // and V = (Y + 50) / 100, so a texture's +U runs along the quad's +X wherever it is turned.
+    constexpr TCHAR SliceQuadName[] = TEXT("SM_LDSliceQuad");
+    FString SliceQuadPackage() { return FString(LDSliceVfx::Folder) / SliceQuadName; }
+
+    bool SliceQuadMatches(const UStaticMesh& Mesh)
+    {
+        const FMeshDescription* Description = Mesh.GetMeshDescription(0);
+        if (!Description || Description->Vertices().Num() != 4 || Description->Triangles().Num() != 2) { return false; }
+        FStaticMeshConstAttributes Attributes(*Description);
+        const auto Positions = Attributes.GetVertexPositions();
+        const auto UVs = Attributes.GetVertexInstanceUVs();
+        for (const FVertexInstanceID Instance : Description->VertexInstances().GetElementIDs())
+        {
+            const FVector3f P = Positions[Description->GetVertexInstanceVertex(Instance)];
+            const FVector2f UV = UVs.Get(Instance, 0);
+            if (FMath::Abs(FMath::Abs(P.X) - 50.f) > .01f || FMath::Abs(FMath::Abs(P.Y) - 50.f) > .01f || P.Z != 0.f
+                || !FMath::IsNearlyEqual(UV.X, (P.X + 50.f) / 100.f) || !FMath::IsNearlyEqual(UV.Y, (P.Y + 50.f) / 100.f))
+            { return false; }
+        }
+        return true;
+    }
+
+    UStaticMesh* SliceBuildQuad(FString& Error)
+    {
+        const FString PackageName = SliceQuadPackage();
+        UStaticMesh* Mesh = VfxLoad<UStaticMesh>(PackageName);
+        if (Mesh && SliceQuadMatches(*Mesh)) { return Mesh; }
+        if (!Mesh) { Mesh = NewObject<UStaticMesh>(CreatePackage(*PackageName), SliceQuadName, RF_Public | RF_Standalone); }
+        Mesh->GetOutermost()->FullyLoad();
+        Mesh->SetNumSourceModels(1);
+        FMeshDescription Description;
+        FStaticMeshAttributes Attributes(Description);
+        Attributes.Register();
+        auto Positions = Attributes.GetVertexPositions();
+        auto UVs = Attributes.GetVertexInstanceUVs();
+        UVs.SetNumChannels(1);
+        const FPolygonGroupID Group = Description.CreatePolygonGroup();
+        Attributes.GetPolygonGroupMaterialSlotNames()[Group] = TEXT("Slice");
+        const FVector3f Corners[] = { {-50.f, -50.f, 0.f}, {50.f, -50.f, 0.f}, {50.f, 50.f, 0.f}, {-50.f, 50.f, 0.f} };
+        TArray<FVertexID> Vertices;
+        for (const FVector3f& Corner : Corners)
+        {
+            const FVertexID Vertex = Description.CreateVertex();
+            Positions[Vertex] = Corner;
+            Vertices.Add(Vertex);
+        }
+        // Unreal reads a triangle's front from Cross(P2 - P0, P1 - P0): listed this way both triangles face +Z.
+        for (const TArray<int32>& Triangle : { TArray<int32>{0, 2, 1}, TArray<int32>{0, 3, 2} })
+        {
+            TArray<FVertexInstanceID> Instances;
+            for (const int32 Index : Triangle)
+            {
+                const FVertexInstanceID Instance = Description.CreateVertexInstance(Vertices[Index]);
+                UVs.Set(Instance, 0, FVector2f((Corners[Index].X + 50.f) / 100.f, (Corners[Index].Y + 50.f) / 100.f));
+                Instances.Add(Instance);
+            }
+            Description.CreatePolygon(Group, Instances);
+        }
+        auto& Settings = Mesh->GetSourceModel(0).BuildSettings;
+        Settings.bRecomputeNormals = true;
+        Settings.bRecomputeTangents = true;
+        Mesh->CreateMeshDescription(0, MoveTemp(Description));
+        Mesh->CommitMeshDescription(0);
+        Mesh->GetStaticMaterials().Reset();
+        Mesh->GetStaticMaterials().Add(FStaticMaterial(nullptr, TEXT("Slice")));
+        Mesh->Build(false);
+        Mesh->PostEditChange();
+        Mesh->MarkPackageDirty();
+        if (!VfxSave(*Mesh, Error)) { return nullptr; }
+        UE_LOG(LogLDEditor, Display, TEXT("LD_DEMO_VFX_MESH_BUILT %s"), *PackageName);
+        return Mesh;
+    }
+
+    // The slice material: one Custom node reads the atlas cell (flipbook frame or strip variant: Flip = columns, rows,
+    // frame, U repeats; Shape = U window start and end, dissolve, U scroll; U repeats and scroll
+    // with gradients taken before the wrap so mips stay continuous), remaps the glow (ink 0, body 0.6, core 1) and
+    // multiplies the coverage by Fade, a soft U window and a noise erosion.
+    const TCHAR* SliceCode()
+    {
+        return TEXT("float Cols = max(Flip.x, 1.0);\r\n")
+            TEXT("float Rows = max(Flip.y, 1.0);\r\n")
+            TEXT("float Frame = floor(Flip.z + 0.5);\r\n")
+            TEXT("float Row = floor(Frame / Cols);\r\n")
+            TEXT("float Col = Frame - Cols * Row;\r\n")
+            TEXT("float2 Along = float2(UV.x * max(FlipW, 0.001) + ShapeW, UV.y);\r\n")
+            TEXT("float2 Cell = float2((frac(Along.x) + Col) / Cols, (saturate(Along.y) + Row) / Rows);\r\n")
+            TEXT("float2 Scale = float2(1.0 / Cols, 1.0 / Rows);\r\n")
+            TEXT("float4 M = Texture2DSampleGrad(Mask, MaskSampler, Cell, ddx(Along) * Scale, ddy(Along) * Scale);\r\n")
+            TEXT("float N = Texture2DSample(Noise, NoiseSampler, UV * float2(2.0, 1.0)).r;\r\n")
+            TEXT("float Window = saturate((UV.x - Shape.x) * 24.0) * saturate((Shape.y - UV.x) * 24.0);\r\n")
+            TEXT("float Erode = saturate((N - Shape.z * 1.25 + 0.25) * 5.0);\r\n")
+            TEXT("float G = M.r;\r\n")
+            TEXT("float3 Body = Glow * saturate(G / 0.6);\r\n")
+            TEXT("float3 Hot = lerp(Body, Core, smoothstep(0.7, 1.0, G));\r\n")
+            TEXT("float3 Colour = lerp(Ink, Hot, saturate(G * 5.0));\r\n")
+            TEXT("return float4(Colour, M.a * Fade * Window * Erode);");
+    }
+
+    UMaterial* SliceBuildMaterial(UTexture2D* DefaultMask, UTexture2D* DefaultNoise, FString& Error, UMaterial* Scratch = nullptr)
+    {
+        const FString Name = FPackageName::GetShortName(LDSliceVfx::Material);
+        UMaterial* Material = Scratch ? Scratch : VfxLoad<UMaterial>(LDSliceVfx::Material);
+        if (!Material) { Material = NewObject<UMaterial>(CreatePackage(LDSliceVfx::Material), *Name, RF_Public | RF_Standalone); }
+        if (!Material || !DefaultMask || !DefaultNoise) { VfxFail(Error, FString(TEXT("Cannot create the slice material ")) + LDSliceVfx::Material); return nullptr; }
+        if (!Scratch) { Material->PreEditChange(nullptr); }
+        FMaterialExpressionCollection& Collection = Material->GetExpressionCollection();
+        TArray<UObject*> Previous(Collection.Expressions);
+        Previous.Append(Collection.EditorComments);
+        for (UObject* Old : Previous) { if (Old) { Old->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional); } }
+        Collection.Empty();
+        for (int32 Property = 0; Property < MP_MAX; ++Property)
+        {
+            if (FExpressionInput* Input = Material->GetExpressionInputForProperty(EMaterialProperty(Property))) { Input->Expression = nullptr; }
+        }
+        UMaterialEditorOnlyData* Inputs = Material->GetEditorOnlyData();
+        auto* UV = VfxAdd<UMaterialExpressionTextureCoordinate>(*Material);
+        auto* Mask = VfxAdd<UMaterialExpressionTextureObjectParameter>(*Material);
+        Mask->ParameterName = LDSliceVfx::MaskParameter;
+        Mask->Texture = DefaultMask;
+        Mask->SamplerType = SAMPLERTYPE_LinearColor;
+        auto* Noise = VfxAdd<UMaterialExpressionTextureObjectParameter>(*Material);
+        Noise->ParameterName = LDSliceVfx::NoiseParameter;
+        Noise->Texture = DefaultNoise;
+        Noise->SamplerType = SAMPLERTYPE_Masks;
+        const auto Vector = [Material](const TCHAR* Parameter, const FLinearColor& Default)
+        {
+            auto* Expression = VfxAdd<UMaterialExpressionVectorParameter>(*Material);
+            Expression->ParameterName = Parameter;
+            Expression->DefaultValue = Default;
+            return Expression;
+        };
+        auto* Glow = Vector(LDSliceVfx::GlowParameter, FLinearColor::White);
+        auto* Ink = Vector(LDSliceVfx::InkParameter, FLinearColor::Black);
+        auto* Core = Vector(LDSliceVfx::CoreParameter, FLinearColor::White);
+        auto* Flip = Vector(LDSliceVfx::FlipParameter, FLinearColor(1.f, 1.f, 0.f, 1.f));
+        auto* Shape = Vector(LDSliceVfx::ShapeParameter, FLinearColor(-1.f, 2.f, 0.f, 0.f));
+        auto* Fade = VfxAdd<UMaterialExpressionScalarParameter>(*Material);
+        Fade->ParameterName = LDSliceVfx::FadeParameter;
+        Fade->DefaultValue = 1.f;
+        auto* Custom = VfxAdd<UMaterialExpressionCustom>(*Material);
+        Custom->OutputType = CMOT_Float4;
+        Custom->Description = TEXT("LDSlice");
+        Custom->Code = SliceCode();
+        Custom->Inputs.Reset();
+        const auto Bind = [Custom](const TCHAR* Name, UMaterialExpression* Source, int32 Output)
+        {
+            FCustomInput& Input = Custom->Inputs.AddDefaulted_GetRef();
+            Input.InputName = Name;
+            Input.Input.Connect(Output, Source);
+        };
+        Bind(TEXT("UV"), UV, 0);
+        Bind(TEXT("Mask"), Mask, 0);
+        Bind(TEXT("Noise"), Noise, 0);
+        Bind(TEXT("Glow"), Glow, 0);
+        Bind(TEXT("Ink"), Ink, 0);
+        Bind(TEXT("Core"), Core, 0);
+        // A vector parameter's first output is its RGB; the fourth channel (output 4) comes in on its own.
+        Bind(TEXT("Flip"), Flip, 0);
+        Bind(TEXT("FlipW"), Flip, 4);
+        Bind(TEXT("Shape"), Shape, 0);
+        Bind(TEXT("ShapeW"), Shape, 4);
+        Bind(TEXT("Fade"), Fade, 0);
+        auto* Colour = VfxAdd<UMaterialExpressionComponentMask>(*Material);
+        Colour->Input.Connect(0, Custom);
+        Colour->R = Colour->G = Colour->B = 1;
+        Colour->A = 0;
+        auto* Coverage = VfxAdd<UMaterialExpressionComponentMask>(*Material);
+        Coverage->Input.Connect(0, Custom);
+        Coverage->R = Coverage->G = Coverage->B = 0;
+        Coverage->A = 1;
+        Inputs->EmissiveColor.Connect(0, Colour);
+        Inputs->Opacity.Connect(0, Coverage);
+        Material->BlendMode = BLEND_Translucent;
+        Material->TwoSided = true;
+        Material->SetShadingModel(MSM_Unlit);
+        Material->bUseEmissiveForDynamicAreaLighting = false;
+        Material->SetUsageByFlag(MATUSAGE_StaticLighting, false);
+        const uint32 Seed = FCrc::StrCrc32(LDSliceVfx::Material);
+        for (int32 Index = 0; Index < Collection.Expressions.Num(); ++Index)
+        {
+            UMaterialExpression* Expression = Collection.Expressions[Index];
+            Expression->MaterialExpressionGuid = FGuid(Seed, uint32(Index), 0x4C44u, 3u);
+            if (Expression->HasAParameterName()) { Expression->GetParameterExpressionId() = FGuid(Seed, uint32(Index), 0x4C44u, 4u); }
+        }
+        if (Scratch) { return Material; }
+        Material->PostEditChange();
+        Material->MarkPackageDirty();
+        return Material;
+    }
+
+    FString SliceSignature(const UMaterial& Material)
+    {
+        FString Out = VfxSignature(Material);
+        for (const UMaterialExpression* Expression : Material.GetExpressions())
+        {
+            if (const auto* Custom = Cast<UMaterialExpressionCustom>(Expression))
+            {
+                Out += FString::Printf(TEXT("|code=%08x out=%d"), FCrc::StrCrc32(*Custom->Code), int32(Custom->OutputType));
+                for (const FCustomInput& Input : Custom->Inputs) { Out += TEXT(" ") + Input.InputName.ToString(); }
+            }
+            if (const auto* Mask = Cast<UMaterialExpressionComponentMask>(Expression))
+            { Out += FString::Printf(TEXT("|mask=%d%d%d%d"), Mask->R, Mask->G, Mask->B, Mask->A); }
+            if (const auto* Object = Cast<UMaterialExpressionTextureObjectParameter>(Expression))
+            // The default textures too: a default that no longer exists leaves the material uncompilable.
+            { Out += FString::Printf(TEXT("|object=%s s=%d t=%s"), *Object->GetParameterName().ToString(), int32(Object->SamplerType),
+                Object->Texture ? *Object->Texture->GetPathName() : TEXT("none")); }
+        }
+        return Out;
+    }
+
+    bool SliceCheckMaterial(const UMaterial* Material, UTexture2D* DefaultMask, UTexture2D* DefaultNoise, FString& Error)
+    {
+        if (!Material) { return VfxFail(Error, FString(LDSliceVfx::Material) + TEXT(" is missing; run ImportDemoArt.ps1 -Mode ImportVFX.")); }
+        UMaterial* Reference = NewObject<UMaterial>(GetTransientPackage());
+        FString Ignored;
+        if (!DefaultMask || !DefaultNoise || !SliceBuildMaterial(DefaultMask, DefaultNoise, Ignored, Reference)
+            || SliceSignature(*Material) != SliceSignature(*Reference) || Material->BlendMode != BLEND_Translucent
+            || !Material->GetShadingModels().HasOnlyShadingModel(MSM_Unlit) || !Material->TwoSided)
+        {
+            return VfxFail(Error, FString(LDSliceVfx::Material) + TEXT(" differs from the importer's graph; run ImportDemoArt.ps1 -Mode ImportVFX to rebuild it."));
+        }
+        return true;
+    }
+
+    // Imports or checks every slice asset; with bImport an asset that is missing, unsettled or from older bytes is
+    // (re)imported and the material and quad are rebuilt when their graph or geometry differs.
+    bool SliceSync(const TArray<FSliceSpec>& Specs, bool bImport, FString& Error)
+    {
+        UTexture2D* DefaultMask = nullptr;
+        UTexture2D* DefaultNoise = nullptr;
+        for (const FSliceSpec& Spec : Specs)
+        {
+            if (Spec.bMesh)
+            {
+                UStaticMesh* Mesh = VfxLoad<UStaticMesh>(Spec.Package);
+                FString Why;
+                if (!SliceCheckMesh(Mesh, Spec, true, Why))
+                {
+                    if (!bImport) { return VfxFail(Error, Why); }
+                    Mesh = SliceImportMesh(Spec, Error);
+                    if (!Mesh || !SliceCheckMesh(Mesh, Spec, true, Error)) { return false; }
+                }
+                continue;
+            }
+            UTexture2D* Texture = VfxLoad<UTexture2D>(Spec.Package);
+            const bool bCurrent = Texture && SliceSettingsMatch(*Texture, Spec.Tex) && Texture->Source.GetSizeX() == Spec.Width
+                && Texture->Source.GetSizeY() == Spec.Height && SliceImportedFromCurrent(Texture->AssetImportData, Spec);
+            if (!bCurrent)
+            {
+                if (!bImport)
+                {
+                    return VfxFail(Error, Spec.Package + TEXT(" is missing, lost its slice settings or was not imported from the current bytes of SourceData/VFX/")
+                        + Spec.File + TEXT("; run ImportDemoArt.ps1 -Mode ImportVFX."));
+                }
+                Texture = SliceImportTexture(Spec, Error);
+                if (!Texture) { return false; }
+            }
+            if (Spec.Tex == LDSliceVfx::ETex::HitSkill) { DefaultMask = Texture; }
+            if (Spec.Tex == LDSliceVfx::ETex::DissolveNoise) { DefaultNoise = Texture; }
+        }
+        UStaticMesh* Quad = VfxLoad<UStaticMesh>(SliceQuadPackage());
+        if (!Quad || !SliceQuadMatches(*Quad))
+        {
+            if (!bImport) { return VfxFail(Error, SliceQuadPackage() + TEXT(" is missing or not the importer's quad; run ImportDemoArt.ps1 -Mode ImportVFX.")); }
+            if (!SliceBuildQuad(Error)) { return false; }
+        }
+        FString Why;
+        if (!SliceCheckMaterial(VfxLoad<UMaterial>(LDSliceVfx::Material), DefaultMask, DefaultNoise, Why))
+        {
+            if (!bImport) { return VfxFail(Error, Why); }
+            UMaterial* Material = SliceBuildMaterial(DefaultMask, DefaultNoise, Error);
+            if (!Material || !SliceCheckMaterial(Material, DefaultMask, DefaultNoise, Error) || !VfxSave(*Material, Error)) { return false; }
+            UE_LOG(LogLDEditor, Display, TEXT("LD_DEMO_VFX_MATERIAL_BUILT %s"), LDSliceVfx::Material);
+        }
+        return true;
+    }
+
+    // The folders the importer and the Niagara generator own.
+    const TCHAR* const OwnedFolders[] = {LDHitVfx::Folder, LDSliceVfx::Folder, LDSliceVfx::GeneratedFolder};
+
+    bool VfxOwned(const FString& Package)
+    {
+        for (const TCHAR* Folder : OwnedFolders) { if (FPackageName::GetLongPackagePath(Package) == Folder) { return true; } }
+        return false;
+    }
+
+    // A texture slot that lost its texture (a deleted default or override) leaves the material uncompilable, and the
+    // engine then draws its opaque default surface instead of the effect: a grey square on the floor. Every texture an
+    // owned material or instance holds must therefore exist and be one the manifests list.
+    bool VfxCheckTexture(const UTexture* Texture, const TSet<FString>& Listed, const FString& Owner, const FString& Slot, FString& Error)
+    {
+        const FString Package = Texture ? Texture->GetOutermost()->GetName() : FString();
+        if (!Texture || !FPackageName::DoesPackageExist(Package))
+        {
+            return VfxFail(Error, FString::Printf(TEXT("%s: texture slot %s holds no existing texture (%s); a deleted texture leaves it drawing the default ")
+                TEXT("surface. Run ImportDemoArt.ps1 -Mode ImportVFX after pointing it at a listed texture."), *Owner, *Slot, Package.IsEmpty() ? TEXT("none") : *Package));
+        }
+        if (!Listed.Contains(Package))
+        {
+            return VfxFail(Error, FString::Printf(TEXT("%s: texture slot %s uses %s, which neither vfx_textures.json nor vfx_slice_assets.json lists."), *Owner, *Slot, *Package));
+        }
+        return true;
+    }
+
+    bool VfxCheckMaterialInterface(const UMaterialInterface* Material, const TSet<FString>& Listed, const FString& Owner, FString& Error)
+    {
+        if (!Material) { return VfxFail(Error, Owner + TEXT(" has no material.")); }
+        const FString Package = Material->GetOutermost()->GetName();
+        if (!VfxOwned(Package) || !FPackageName::DoesPackageExist(Package))
+        {
+            return VfxFail(Error, FString::Printf(TEXT("%s uses %s, which is not an existing importer or generator material."), *Owner, *Package));
+        }
+        if (const auto* Instance = Cast<UMaterialInstance>(Material))
+        {
+            for (const FTextureParameterValue& Value : Instance->TextureParameterValues)
+            {
+                if (!VfxCheckTexture(Value.ParameterValue, Listed, Package, Value.ParameterInfo.Name.ToString(), Error)) { return false; }
+            }
+            return VfxCheckMaterialInterface(Instance->Parent, Listed, Package + TEXT(" (parent)"), Error);
+        }
+        const UMaterial* Base = Cast<UMaterial>(Material);
+        if (!Base) { return VfxFail(Error, Package + TEXT(" is neither a material nor a material instance.")); }
+        // Effects are see-through: an opaque or masked owned material would cover the floor.
+        if (Base->BlendMode != BLEND_Translucent && Base->BlendMode != BLEND_Additive)
+        {
+            return VfxFail(Error, FString::Printf(TEXT("%s blends as %d; effect materials are translucent or additive."), *Package, int32(Base->BlendMode)));
+        }
+        for (const UMaterialExpression* Expression : Base->GetExpressions())
+        {
+            if (const auto* Texture = Cast<UMaterialExpressionTextureBase>(Expression))
+            {
+                const FString Slot = Texture->HasAParameterName() ? Texture->GetParameterName().ToString() : Texture->GetName();
+                if (!VfxCheckTexture(Texture->Texture, Listed, Package, Slot, Error)) { return false; }
+            }
+        }
+        return true;
+    }
+
+    // Every material, material instance and generated Niagara system in the owned folders, as saved on disk.
+    bool VfxCheckReferences(const TArray<FVfxSpec>& Hits, const TArray<FSliceSpec>& Slices, FString& Error)
+    {
+        TSet<FString> Listed;
+        for (const FVfxSpec& Spec : Hits) { Listed.Add(Spec.Package); }
+        for (const FSliceSpec& Spec : Slices) { if (!Spec.bMesh) { Listed.Add(Spec.Package); } }
+        int32 Checked = 0;
+        for (const TCHAR* Folder : OwnedFolders)
+        {
+            TArray<FString> Files;
+            IFileManager::Get().FindFiles(Files, *(FPackageName::LongPackageNameToFilename(Folder) / TEXT("*") + FPackageName::GetAssetPackageExtension()), true, false);
+            for (const FString& File : Files)
+            {
+                const FString Package = FString(Folder) / FPaths::GetBaseFilename(File);
+                const UObject* Asset = LoadObject<UObject>(nullptr, *(Package + TEXT(".") + FPackageName::GetShortName(Package)));
+                if (!Asset) { return VfxFail(Error, Package + TEXT(" does not load.")); }
+                if (const auto* Material = Cast<UMaterialInterface>(Asset))
+                {
+                    if (!VfxCheckMaterialInterface(Material, Listed, Package, Error)) { return false; }
+                    ++Checked;
+                }
+                else if (const auto* System = Cast<UNiagaraSystem>(Asset))
+                {
+                    for (const FNiagaraEmitterHandle& Handle : System->GetEmitterHandles())
+                    {
+                        const FVersionedNiagaraEmitterData* Data = Handle.GetEmitterData();
+                        if (!Data) { return VfxFail(Error, FString::Printf(TEXT("%s emitter %s has no data."), *Package, *Handle.GetName().ToString())); }
+                        for (const UNiagaraRendererProperties* Renderer : Data->GetRenderers())
+                        {
+                            const FString Owner = FString::Printf(TEXT("%s emitter %s"), *Package, *Handle.GetName().ToString());
+                            if (const auto* Ribbon = Cast<UNiagaraRibbonRendererProperties>(Renderer))
+                            { if (!VfxCheckMaterialInterface(Ribbon->Material, Listed, Owner, Error)) { return false; } }
+                            else if (const auto* Sprite = Cast<UNiagaraSpriteRendererProperties>(Renderer))
+                            { if (!VfxCheckMaterialInterface(Sprite->Material, Listed, Owner, Error)) { return false; } }
+                            else if (!Cast<UNiagaraLightRendererProperties>(Renderer))
+                            { return VfxFail(Error, Owner + TEXT(" has a renderer the reference check does not know.")); }
+                        }
+                    }
+                    ++Checked;
+                }
+            }
+        }
+        UE_LOG(LogLDEditor, Display, TEXT("LD_DEMO_VFX_REFERENCES_OK %d materials, instances and systems hold existing, listed textures"), Checked);
+        return true;
+    }
 }
 
 bool LDDemoVfxImport::Import(FString& Error)
 {
     TArray<FVfxSpec> Specs;
-    if (!VfxRequireClient(Error) || !VfxLoadManifest(Specs, Error)) { return false; }
+    TArray<FSliceSpec> Slices;
+    if (!VfxRequireClient(Error) || !VfxLoadAll(Specs, Slices, Error)) { return false; }
     UTexture2D* Star = nullptr;
     for (const FVfxSpec& Spec : Specs)
     {
@@ -419,6 +1098,7 @@ bool LDDemoVfxImport::Import(FString& Error)
         if (!Material || !VfxCheckMaterial(Material, Kind, Error) || !VfxSave(*Material, Error)) { return false; }
         UE_LOG(LogLDEditor, Display, TEXT("LD_DEMO_VFX_MATERIAL_BUILT %s"), VfxPackageOf(Kind));
     }
+    if (!SliceSync(Slices, true, Error) || !LDDemoVfxNiagara::Build(Error)) { return false; }
     Error.Reset();
     return true;
 }
@@ -426,7 +1106,8 @@ bool LDDemoVfxImport::Import(FString& Error)
 bool LDDemoVfxImport::Validate(FString& Error)
 {
     TArray<FVfxSpec> Specs;
-    if (!VfxRequireClient(Error) || !VfxLoadManifest(Specs, Error)) { return false; }
+    TArray<FSliceSpec> Slices;
+    if (!VfxRequireClient(Error) || !VfxLoadAll(Specs, Slices, Error)) { return false; }
     for (const FVfxSpec& Spec : Specs)
     {
         const UTexture2D* Texture = VfxLoad<UTexture2D>(Spec.Package);
@@ -447,5 +1128,5 @@ bool LDDemoVfxImport::Validate(FString& Error)
     {
         if (!VfxCheckMaterial(VfxLoad<UMaterial>(VfxPackageOf(Kind)), Kind, Error)) { return false; }
     }
-    return true;
+    return VfxCheckReferences(Specs, Slices, Error) && SliceSync(Slices, false, Error) && LDDemoVfxNiagara::Validate(Error);
 }

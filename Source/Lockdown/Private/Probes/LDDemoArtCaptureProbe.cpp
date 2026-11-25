@@ -33,6 +33,13 @@
 #include "Framework/LDPlayerController.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/FileManager.h"
+#include "Kismet/GameplayStatics.h"
+#include "NiagaraEmitterInstance.h"
+#include "NiagaraSystemInstance.h"
+#include "NiagaraSystemInstanceController.h"
+#include "RenderTimer.h"
+#include "DynamicRHI.h"
+#include "Misc/App.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Misc/CommandLine.h"
@@ -111,6 +118,52 @@ namespace
         FVector VfxDashFrom = FVector::ZeroVector;
         TWeakObjectPtr<ALDObservedProjectileProxy> VfxEffect;
         bool Failed = false, bCombatVfx = false;
+        // Keyframe sequences of the designed slice effects (LDSliceVfx), played in slowed world time so every phase
+        // (anticipation, release, impact, follow-through, dissipation) is captured at its own moment; time stands still
+        // while a frame is written. Extra bodies on the stage: two more victims for the chain and two more attackers.
+        struct FSeqStep { float At = 0; TFunction<void()> Do; };
+        struct FSeqShot { float At = 0; FString Label; };
+        struct FSequence { FString Name; TArray<FSeqStep> Steps; TArray<FSeqShot> Shots; };
+        TArray<TWeakObjectPtr<ULDHumanoidVisualComponent>> VfxExtras;
+        TArray<FSequence> Sequences;
+        int32 SeqIndex = 0, SeqStep = 0, SeqShot = 0;
+        bool bSeqStarted = false, bSeqWarmed = false;
+        double SeqClock = 0., SeqWarmUntil = -1.;
+        static constexpr float SeqDilation = .1f, SeqFreeze = .0001f;
+        TWeakObjectPtr<ALDObservedGroundProxy> SeqGround;
+        // Effect proof harness (-LDDemoVfxProof=chain,hit,swing,field): per category, its judging scenarios captured frame by
+        // frame at real game speed (a fixed 1/30 s step, the world held while each frame is written), then three frame-cost
+        // runs of eight casters against an idle baseline. Results in DemoArt.json chain_runs / chain_perf, each tagged with
+        // its category ("look") and -LDDemoVfxProofLabel (old / new).
+        struct FChainJob
+        {
+            FString Category;
+            FString Scenario;
+            TArray<FSeqStep> Steps;
+            TFunction<void()> Setup, Teardown;
+            bool bPerf = false;
+            // The moment the comparison sheet judges (its frame is the second after it).
+            float ShowAt = .27f;
+            // Frames captured from From seconds on.
+            float From = .2f;
+            int32 Frames = 24;
+        };
+        FString ProofLabel;
+        TArray<FChainJob> ChainJobs;
+        int32 ChainJob = 0, ChainPhase = 0, ChainFrame = 0, ChainStep = 0;
+        double ChainClock = 0., ChainPhaseAt = 0., ChainNextWave = 0.;
+        int32 ChainWave = 0;
+        TArray<TSharedPtr<FJsonValue>> ChainRuns, ChainPerf, ChainFrameTimes;
+        TArray<TWeakObjectPtr<ULDHumanoidVisualComponent>> PerfCasters, PerfVictims;
+        struct FFrameStats { int32 Frames = 0; double RealMs = 0, GameMs = 0, RenderMs = 0, GpuMs = 0; int32 MaxComponents = 0, MaxParticles = 0, MaxLayers = 0, MaxLive = 0; };
+        TArray<TWeakObjectPtr<ALDObservedGroundProxy>> ProofGrounds;
+        // The scenario clock at which each proof ground state was laid: its life runs on that clock (Present).
+        TArray<double> ProofGroundsAt;
+        FFrameStats PerfIdle, PerfLoad;
+        TSharedPtr<FJsonObject> ChainCheck;
+        static constexpr float ChainStep_ = 1.f / 30.f;
+        FVector VfxFocus = FVector::ZeroVector;
+        float BasicWindupSeconds = .18f;
 
         bool Check(bool Passed, const FString& Name)
         {
@@ -138,6 +191,9 @@ namespace
             Report->SetArrayField(TEXT("decorations"), Decorations);
             Report->SetArrayField(TEXT("occluders"), Occluders);
             Report->SetArrayField(TEXT("occluded_points"), OccludedPoints);
+            if (!ChainRuns.IsEmpty()) { Report->SetArrayField(TEXT("chain_runs"), ChainRuns); }
+            if (!ChainPerf.IsEmpty()) { Report->SetArrayField(TEXT("chain_perf"), ChainPerf); }
+            FApp::SetUseFixedTimeStep(false);
             FString Json;
             const FString Path = Directory / TEXT("DemoArt.json");
             const bool Written = FJsonSerializer::Serialize(Report, TJsonWriterFactory<>::Create(&Json))
@@ -539,9 +595,18 @@ namespace
             if (!Check(FindVfxStage(Target, Focus, StageError), TEXT("The level has open floor around the flagpole for the combat VFX stage ") + StageError)) { return false; }
             Check(true, TEXT("Combat VFX stage at ") + Focus.ToCompactString());
             const FVector Across(UE_INV_SQRT_2, UE_INV_SQRT_2, 0.);
+            VfxFocus = Focus;
             VfxAttacker = SpawnVfxBody(Target, Focus - Across * 95., 45.f, 0);
             VfxVictim = SpawnVfxBody(Target, Focus + Across * 95., 225.f, 1);
             if (!Check(VfxAttacker.IsValid() && VfxVictim.IsValid(), TEXT("Combat VFX bodies spawned"))) { return false; }
+            // The attacker stands in for the local player's own body (full size, ball orange).
+            VfxAttacker->SetOwnBody(true);
+            {
+                TSharedPtr<const FLDDemoContentSnapshot> Content;
+                FString Ignored;
+                if (LDDemoEntry::LoadRuntimeContent(Content, Ignored) && Content && Content->Get().Parameters.BasicAttackWindupMs > 0)
+                { BasicWindupSeconds = float(Content->Get().Parameters.BasicAttackWindupMs) / 1000.f; }
+            }
             VfxAttacker->SetCue(2, .2f, .4f);
             VfxAttacker->Animate(FVector::ZeroVector, .04f);
             TInlineComponentArray<UNiagaraComponent*> EffectsOnAttacker;
@@ -558,16 +623,17 @@ namespace
             Check(CastEffect && !CastEffect->IsActive(), TEXT("Hiding the caster immediately clears its cast effect"));
             VfxAttacker->SetVisibility(true, true);
             VfxAttacker->SetCue(0);
+            // Every live effect of either kind: Niagara bursts, hit layers and slice layers.
+            const auto LiveEffects = [Impacts]() { return Impacts ? Impacts->LiveCount() + Impacts->LiveLayerCount() + Impacts->LiveSliceCount() : 0; };
             VfxAttacker->SetHitReaction(.03f);
             VfxAttacker->Animate(FVector::ZeroVector, 0.f);
-            const int32 OtherParticles = Impacts ? Impacts->LiveCount() : 0;
+            const int32 OtherParticles = LiveEffects();
             VfxVictim->SetHitReaction(.03f);
             VfxVictim->Animate(FVector::ZeroVector, 0.f);
-            const int32 BothParticles = Impacts ? Impacts->LiveCount() : 0;
+            const int32 BothParticles = LiveEffects();
             Check(OtherParticles > 0 && BothParticles > OtherParticles, TEXT("Two visible bodies produce independent impact effects"));
             VfxVictim->SetVisibility(false, true);
-            Check(Impacts && Impacts->LiveCount() == OtherParticles,
-                TEXT("Hiding one body immediately clears only its impact effects"));
+            Check(LiveEffects() == OtherParticles, TEXT("Hiding one body immediately clears only its impact effects"));
             VfxVictim->SetVisibility(true, true);
 
             auto* Proxy = Target.SpawnActor<ALDObservedEntityProxy>();
@@ -580,9 +646,9 @@ namespace
                 Unit.RecentHitId = FGuid::NewGuid();
                 Proxy->Apply(Unit, GetDefault<ALDCharacter>()->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight(), 100.);
                 Proxy->Present(100., 0.f);
-                const int32 BeforeConceal = Impacts ? Impacts->LiveCount() : 0;
+                const int32 BeforeConceal = LiveEffects();
                 Proxy->Destroy();
-                Check(Impacts && BeforeConceal > OtherParticles && Impacts->LiveCount() == OtherParticles,
+                Check(BeforeConceal > OtherParticles && LiveEffects() == OtherParticles,
                     TEXT("Removing an observed proxy immediately clears only its impact effects"));
             }
             if (Impacts)
@@ -650,6 +716,16 @@ namespace
             {
                 Shots.RemoveAll([](const FArtShot& Shot) { return Shot.Name != TEXT("VFX-Idle") && Shot.Name != TEXT("VFX-Cast"); });
             }
+            else if (!BuildSequences(Target, Focus)) { return false; }
+            FString Categories;
+            if (FParse::Value(FCommandLine::Get(), TEXT("LDDemoVfxProof="), Categories, false))
+            {
+                // The proof harness replaces the keyframe sequences and the single shots (only the idle frame stays).
+                Sequences.Reset();
+                Shots.RemoveAll([](const FArtShot& Shot) { return Shot.Name != TEXT("VFX-Idle"); });
+                FParse::Value(FCommandLine::Get(), TEXT("LDDemoVfxProofLabel="), ProofLabel);
+                if (!BuildChainHarness(Target, Focus, Categories)) { return false; }
+            }
             FActorSpawnParameters Spawn;
             Spawn.ObjectFlags |= RF_Transient;
             ACameraActor* View = Target.SpawnActor<ACameraActor>(Spawn);
@@ -666,6 +742,565 @@ namespace
             return true;
         }
 
+        // Extra stage bodies on the stage search's checked ring (320 cm around the focus) and the keyframe sequences.
+        bool BuildSequences(UWorld& Target, const FVector& Focus)
+        {
+            const auto Ring = [&Focus](float Degrees) { return Focus + FVector(320., 0., 0.).RotateAngleAxis(Degrees, FVector::UpVector); };
+            VfxExtras = { SpawnVfxBody(Target, Ring(0.f), 180.f, 2), SpawnVfxBody(Target, Ring(45.f), 225.f, 3),
+                SpawnVfxBody(Target, Ring(180.f), 0.f, 4), SpawnVfxBody(Target, Ring(270.f), 90.f, 5) };
+            if (!Check(!VfxExtras.ContainsByPredicate([](const TWeakObjectPtr<ULDHumanoidVisualComponent>& Body) { return !Body.IsValid(); }),
+                TEXT("Combat VFX sequence bodies spawned on the checked stage ring"))) { return false; }
+            const TWeakObjectPtr<ULDHumanoidVisualComponent> A = VfxAttacker, V1 = VfxVictim, V2 = VfxExtras[0], V3 = VfxExtras[1], A2 = VfxExtras[2], A3 = VfxExtras[3];
+            const float W = BasicWindupSeconds;
+            const auto Swing = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, uint8 Step, float Windup)
+            { return [Body, Step, Windup]() { if (auto* B = Body.Get()) { B->SetComboStep(Step); B->SetCastAbility(0); B->SetCue(1, 0.f, Windup); } }; };
+            const auto Cast = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, ELDDemoAbilityId Ability, float Windup)
+            { return [Body, Ability, Windup]() { if (auto* B = Body.Get()) { B->SetComboStep(0); B->SetCastAbility(uint8(Ability)); B->SetCue(2, 0.f, Windup); } }; };
+            const auto Hit = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, ELDObservedHitLook Look)
+            { return [Body, Look]() { if (auto* B = Body.Get()) { B->SetHitReaction(0.f, Look, 0, FGuid::NewGuid()); } }; };
+            const auto Stop = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body)
+            { return [Body]() { if (auto* B = Body.Get()) { B->SetCue(0); B->SetCastAbility(0); B->SetComboStep(0); } }; };
+            const auto Conduct = [this](TWeakObjectPtr<ULDHumanoidVisualComponent> Body)
+            { return [this, Body]() { if (auto* B = Body.Get()) { B->SetReaction(uint8(ELDCombatReaction::Conduct), uint8(ELDCombatElement::Shock), 0.f, 500. + SeqIndex); } }; };
+            const auto Shots_ = [](std::initializer_list<float> Times)
+            {
+                TArray<FSeqShot> Out;
+                int32 Index = 0;
+                for (const float At : Times) { Out.Add({At, FString::Printf(TEXT("%02d"), ++Index)}); }
+                return Out;
+            };
+            for (uint8 Step = 1; Step <= 3; ++Step)
+            {
+                // Anticipation (chalk), release (slash), impact (the step's tier), follow-through, dissipation, clear.
+                Sequences.Add({FString::Printf(TEXT("combo%d"), Step), {{0.f, Swing(A, Step, W)}, {W + .02f, Hit(V1, ELDObservedHitLook::None)}, {1.2f, Stop(A)}},
+                    Shots_({W * .5f, W + .01f, W + .06f, W + .16f, W + .34f, W + .7f})});
+            }
+            Sequences.Add({TEXT("hose_down"), {{0.f, Cast(A, ELDDemoAbilityId::ActiveHoseDown, .2f)}, {.23f, Hit(V1, ELDObservedHitLook::Water)}, {1.2f, Stop(A)}},
+                Shots_({.1f, .215f, .27f, .4f, .8f, 1.5f})});
+            // The zap chain is the Niagara Chain template: the own cast (full width and brightness), then another body's cast
+            // over the same bodies (thinner and dimmer), so the user parameters show in the frames.
+            Sequences.Add({TEXT("zap-niagara"), {{0.f, Cast(A, ELDDemoAbilityId::ActiveZap, .25f)}, {.27f, Hit(V1, ELDObservedHitLook::Electric)},
+                {.42f, Hit(V2, ELDObservedHitLook::Electric)}, {.57f, Hit(V3, ELDObservedHitLook::Electric)}, {1.2f, Stop(A)}},
+                Shots_({.12f, .26f, .29f, .33f, .45f, .6f, .75f, .95f})});
+            Sequences.Add({TEXT("zap-niagara-others"), {{0.f, Cast(A3, ELDDemoAbilityId::ActiveZap, .25f)}, {.27f, Hit(V3, ELDObservedHitLook::Electric)},
+                {.42f, Hit(V2, ELDObservedHitLook::Electric)}, {.57f, Hit(V1, ELDObservedHitLook::Electric)}, {1.2f, Stop(A3)}},
+                Shots_({.12f, .26f, .29f, .33f, .45f, .6f, .75f, .95f})});
+            Sequences.Add({TEXT("conduct"), {{0.f, Cast(A, ELDDemoAbilityId::ActiveZap, .25f)}, {.27f, Hit(V1, ELDObservedHitLook::Electric)}, {.28f, Conduct(V1)},
+                {1.2f, Stop(A)}}, Shots_({.2f, .32f, .4f, .6f, 1.f, 1.6f})});
+            Sequences.Add({TEXT("ground_field"), {{0.f, [this, V1]()
+                {
+                    FActorSpawnParameters Spawn;
+                    Spawn.ObjectFlags |= RF_Transient;
+                    ALDObservedGroundProxy* Ground = World->SpawnActor<ALDObservedGroundProxy>(Spawn);
+                    if (!Check(Ground != nullptr && V1.IsValid(), TEXT("Sequence ground state proxy spawned"))) { return; }
+                    FLDObservedGroundState State;
+                    State.Id = 2;
+                    State.Kind = uint8(ELDGroundStateKind::Field);
+                    State.CentreCm = V1->GetOwner()->GetActorLocation() - FVector(0, 0, 90);
+                    State.RadiusCm = 220.f;
+                    State.RemainingMs = State.TotalMs = 6000;
+                    Ground->Apply(State, 100.);
+                    SeqGround = Ground;
+                }}, {2.3f, [this]() { if (ALDObservedGroundProxy* Old = SeqGround.Get()) { Old->Destroy(); } }}},
+                Shots_({.1f, .4f, .8f, 1.3f, 2.f, 2.4f})});
+            // Several casters at once: the own finisher and two other bodies' hose and zap, then a conduct on the first victim.
+            Sequences.Add({TEXT("crowded"), {{0.f, Swing(A, 3, W)}, {0.f, Cast(A2, ELDDemoAbilityId::ActiveHoseDown, .2f)},
+                {0.f, Cast(A3, ELDDemoAbilityId::ActiveZap, .25f)}, {W + .02f, Hit(V1, ELDObservedHitLook::None)},
+                {.23f, Hit(V1, ELDObservedHitLook::Water)}, {.27f, Hit(V3, ELDObservedHitLook::Electric)}, {.42f, Hit(V2, ELDObservedHitLook::Electric)},
+                {.45f, Conduct(V1)}, {1.2f, Stop(A)}, {1.2f, Stop(A2)}, {1.2f, Stop(A3)}},
+                Shots_({.1f, .22f, .3f, .48f, .7f, 1.1f})});
+            return true;
+        }
+
+        void SeqBodies(TFunctionRef<void(ULDHumanoidVisualComponent&)> Each)
+        {
+            for (const TWeakObjectPtr<ULDHumanoidVisualComponent>& Body : {VfxAttacker, VfxVictim}) { if (Body.IsValid()) { Each(*Body.Get()); } }
+            for (const TWeakObjectPtr<ULDHumanoidVisualComponent>& Body : VfxExtras) { if (Body.IsValid()) { Each(*Body.Get()); } }
+        }
+
+        // One tick of the keyframe sequences; false ends the probe. Runs before the single shots.
+        bool TickSequence(UWorld& Target, double Now, float SimDelta)
+        {
+            auto* Impacts = Target.GetSubsystem<ULDImpactFxSubsystem>();
+            if (!Impacts) { return Finish(TEXT("No impact effect subsystem for the sequences")); }
+            if (!bSeqWarmed)
+            {
+                // Show every slice recipe once and wait for its shaders, so no keyframe shows a default material.
+                if (SeqWarmUntil < 0.)
+                {
+                    LDSliceVfx::FLook Look;
+                    Look.bOwn = Look.bFocus = true;
+                    const FVector At = VfxFocus + FVector(0, 0, 100);
+                    for (uint8 Strike = uint8(LDSliceVfx::EStrike::Basic); Strike <= uint8(LDSliceVfx::EStrike::Zap); ++Strike)
+                    { Impacts->Slice(nullptr, LDSliceVfx::Impact(LDSliceVfx::EStrike(Strike), At, VfxFocus, FVector::ForwardVector, VfxFocus, false, Look), 0.f); }
+                    Impacts->Slice(nullptr, LDSliceVfx::SkillTelegraph(VfxFocus, FVector::ForwardVector, 300.f, 100.f, .3f, Look), 0.f);
+                    Impacts->Slice(nullptr, LDSliceVfx::HoseRelease(At, FVector::ForwardVector, 300.f, Look), 0.f);
+                    SeqWarmUntil = Now + 3.;
+                }
+                if (Now < SeqWarmUntil || (GShaderCompilingManager && GShaderCompilingManager->IsCompiling())) { return true; }
+                Check(Impacts->LiveSliceCount() == 0, TEXT("The warm-up slice layers expired on their own"));
+                bSeqWarmed = true;
+                return true;
+            }
+            FSequence& Sequence = Sequences[SeqIndex];
+            if (!PendingImage.IsEmpty())
+            {
+                if (IFileManager::Get().FileSize(*PendingImage) <= 0) { return true; }
+                Check(true, TEXT("Rendered keyframe: ") + PendingImage.RightChop(Directory.Len() + 1));
+                PendingImage.Reset();
+                UGameplayStatics::SetGlobalTimeDilation(&Target, SeqDilation);
+                return true;
+            }
+            if (!bSeqStarted)
+            {
+                // A clean stage: every body idle and visible, no effect from the previous sequence.
+                SeqBodies([Impacts](ULDHumanoidVisualComponent& Body)
+                {
+                    Body.SetCue(0);
+                    Body.SetCastAbility(0);
+                    Body.SetComboStep(0);
+                    Impacts->ClearFor(Body);
+                });
+                if (GShaderCompilingManager && GShaderCompilingManager->IsCompiling()) { return true; }
+                IFileManager::Get().MakeDirectory(*(Directory / (TEXT("seq-") + Sequence.Name)), true);
+                bSeqStarted = true;
+                SeqClock = 0.;
+                SeqStep = SeqShot = 0;
+                UGameplayStatics::SetGlobalTimeDilation(&Target, SeqDilation);
+                return true;
+            }
+            SeqClock += SimDelta;
+            const int32 Fired = SeqStep;
+            while (SeqStep < Sequence.Steps.Num() && Sequence.Steps[SeqStep].At <= SeqClock) { Sequence.Steps[SeqStep++].Do(); }
+            // A step fired now reaches the bodies on their next frame: never capture before it shows.
+            if (SeqStep != Fired) { return true; }
+            if (SeqShot < Sequence.Shots.Num() && SeqClock >= Sequence.Shots[SeqShot].At)
+            {
+                // Time stands (almost) still while this frame renders and is written.
+                UGameplayStatics::SetGlobalTimeDilation(&Target, SeqFreeze);
+                PendingImage = Directory / (TEXT("seq-") + Sequence.Name) / (Sequence.Shots[SeqShot].Label + TEXT(".png"));
+                Images.Add(MakeShared<FJsonValueString>(PendingImage.RightChop(Directory.Len() + 1)));
+                FScreenshotRequest::RequestScreenshot(PendingImage, false, false);
+                ++SeqShot;
+                return true;
+            }
+            if (SeqShot >= Sequence.Shots.Num() && SeqStep >= Sequence.Steps.Num())
+            {
+                UGameplayStatics::SetGlobalTimeDilation(&Target, 1.f);
+                bSeqStarted = false;
+                // The single shots that follow stage only the attacker and the first victim, as the earlier captures did.
+                if (++SeqIndex == Sequences.Num()) { for (const TWeakObjectPtr<ULDHumanoidVisualComponent>& Extra : VfxExtras) { if (Extra.IsValid()) { Extra->SetVisibility(false, true); } } }
+            }
+            return true;
+        }
+
+        static int32 ParticlesOf(UNiagaraComponent& Effect)
+        {
+            int32 Count = 0;
+            if (FNiagaraSystemInstanceControllerConstPtr Controller = Effect.GetSystemInstanceController())
+            {
+                if (const FNiagaraSystemInstance* Instance = Controller->GetSystemInstance_Unsafe())
+                {
+                    for (const FNiagaraEmitterInstanceRef& Emitter : Instance->GetEmitters()) { Count += Emitter->GetNumParticles(); }
+                }
+            }
+            return Count;
+        }
+
+        // The judging scenarios of every requested category, then its frame-cost runs. Real casts, swings, hits and ground
+        // states on the stage bodies: A (own) at the near diagonal, V1 across it, V2 and V3 on the checked ring, A2 and A3
+        // the other casters.
+        bool BuildChainHarness(UWorld& Target, const FVector& Focus, const FString& Categories)
+        {
+            TArray<FString> Wanted;
+            Categories.ParseIntoArray(Wanted, TEXT(","), true);
+            for (const FString& Name : Wanted)
+            {
+                if (!Check(Name == TEXT("chain") || Name == TEXT("hit") || Name == TEXT("swing") || Name == TEXT("field"), TEXT("Proof category known: ") + Name)) { return false; }
+            }
+            const TWeakObjectPtr<ULDHumanoidVisualComponent> A = VfxAttacker, V1 = VfxVictim, V2 = VfxExtras[0], V3 = VfxExtras[1], A2 = VfxExtras[2], A3 = VfxExtras[3];
+            const auto Cast = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body)
+            { return [Body]() { if (auto* B = Body.Get()) { B->SetComboStep(0); B->SetCastAbility(uint8(ELDDemoAbilityId::ActiveZap)); B->SetCue(2, 0.f, .25f); } }; };
+            const auto Hit = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body)
+            { return [Body]() { if (auto* B = Body.Get()) { B->SetHitReaction(0.f, ELDObservedHitLook::Electric, 0, FGuid::NewGuid()); } }; };
+            const auto Own = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, bool bOwn) { if (auto* B = Body.Get()) { B->SetOwnBody(bOwn); } };
+            const FVector V1Home = V1.IsValid() ? V1->GetOwner()->GetActorLocation() : FVector::ZeroVector;
+            const FVector AHome = A.IsValid() ? A->GetOwner()->GetActorLocation() : FVector::ZeroVector;
+            const FRotator AFacing = A.IsValid() ? A->GetOwner()->GetActorRotation() : FRotator::ZeroRotator;
+            UWorld* const SunWorld = &Target;
+            // Both bodies of an own exchange moved onto the warm sunlit floor: the floor points under two screen points of
+            // the sunlit band below the stage, 140 px (about 250 cm) apart.
+            const auto Sunlit = [SunWorld, A, V1, AHome]()
+            {
+                APlayerController* Viewer = UGameplayStatics::GetPlayerController(SunWorld, 0);
+                const auto Floor = [Viewer, AHome](const FVector2D& Pixel)
+                {
+                    FVector Origin, Dir;
+                    if (!Viewer || !Viewer->DeprojectScreenPositionToWorld(Pixel.X, Pixel.Y, Origin, Dir) || FMath::IsNearlyZero(Dir.Z)) { return AHome; }
+                    return Origin + Dir * ((AHome.Z - Origin.Z) / Dir.Z);
+                };
+                if (auto* B = A.Get()) { B->GetOwner()->SetActorLocation(Floor(FVector2D(640., 820.))); B->GetOwner()->SetActorRotation(FRotator(0, 0.f, 0)); }
+                if (auto* B = V1.Get()) { B->GetOwner()->SetActorLocation(Floor(FVector2D(780., 820.))); B->GetOwner()->SetActorRotation(FRotator(0, 180.f, 0)); }
+            };
+            const auto Home = [A, V1, AHome, AFacing, V1Home]()
+            {
+                if (auto* B = A.Get()) { B->GetOwner()->SetActorLocation(AHome); B->GetOwner()->SetActorRotation(AFacing); }
+                if (auto* B = V1.Get()) { B->GetOwner()->SetActorLocation(V1Home); B->GetOwner()->SetActorRotation(FRotator(0, 225.f, 0)); }
+            };
+            // V1 right in front of A (140 cm), facing it, for the melee exchanges.
+            const auto Close = [A, V1, AHome, AFacing]()
+            {
+                if (auto* B = V1.Get()) { B->GetOwner()->SetActorLocation(AHome + AFacing.Vector() * 140.); B->GetOwner()->SetActorRotation((-AFacing.Vector()).Rotation()); }
+            };
+            const auto CloseSunlit = [Sunlit, A, V1]()
+            {
+                Sunlit();
+                if (A.IsValid() && V1.IsValid())
+                {
+                    const FVector From = A->GetOwner()->GetActorLocation(), To = V1->GetOwner()->GetActorLocation();
+                    A->GetOwner()->SetActorRotation((To - From).Rotation());
+                    V1->GetOwner()->SetActorLocation(From + (To - From).GetSafeNormal() * 140.);
+                }
+            };
+            const float W = BasicWindupSeconds;
+            const auto Swing = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, uint8 Step, float Windup)
+            { return [Body, Step, Windup]() { if (auto* B = Body.Get()) { B->SetComboStep(Step); B->SetCastAbility(0); B->SetCue(1, 0.f, Windup); } }; };
+            const auto Plain = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body)
+            { return [Body]() { if (auto* B = Body.Get()) { B->SetHitReaction(0.f, ELDObservedHitLook::None, 0, FGuid::NewGuid()); } }; };
+            const auto Conduct = [this](TWeakObjectPtr<ULDHumanoidVisualComponent> Body)
+            { return [this, Body]() { if (auto* B = Body.Get()) { B->SetReaction(uint8(ELDCombatReaction::Conduct), uint8(ELDCombatElement::Shock), 0.f, 900. + ChainJob); } }; };
+            // A ground electric field of this radius under a body for TotalMs (its authoritative state as the server sends it),
+            // laid by the contender in seat OwnerSeat (255 none); its life runs on the scenario clock to its end.
+            const auto Field = [this](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, float RadiusCm, int32 TotalMs, uint32 Id, uint8 OwnerSeat = 255)
+            {
+                return [this, Body, RadiusCm, TotalMs, Id, OwnerSeat]()
+                {
+                    FActorSpawnParameters Spawn;
+                    Spawn.ObjectFlags |= RF_Transient;
+                    ALDObservedGroundProxy* Ground = World->SpawnActor<ALDObservedGroundProxy>(Spawn);
+                    if (!Check(Ground != nullptr && Body.IsValid(), TEXT("Proof ground state proxy spawned"))) { return; }
+                    FLDObservedGroundState State;
+                    State.Id = Id;
+                    State.Kind = uint8(ELDGroundStateKind::Field);
+                    State.CentreCm = Body->GetOwner()->GetActorLocation() - FVector(0, 0, 90);
+                    State.RadiusCm = RadiusCm;
+                    State.OwnerSeat = OwnerSeat;
+                    State.RemainingMs = State.TotalMs = TotalMs;
+                    Ground->Apply(State, 100.);
+                    ProofGrounds.Add(Ground);
+                    ProofGroundsAt.Add(ChainClock);
+                };
+            };
+            const auto ClearGrounds = [this]()
+            {
+                for (const TWeakObjectPtr<ALDObservedGroundProxy>& Ground : ProofGrounds) { if (ALDObservedGroundProxy* Old = Ground.Get()) { Old->Destroy(); } }
+                ProofGrounds.Reset();
+                ProofGroundsAt.Reset();
+            };
+            // The own contender's seat (A is the local player's body) and another's.
+            const uint8 OwnSeat = A.IsValid() ? A->PaletteSlot() : 255, OtherSeat = V2.IsValid() ? V2->PaletteSlot() : 255;
+            for (const FString& Look : Wanted)
+            {
+                if (Look == TEXT("hit") || Look == TEXT("swing"))
+                {
+                    // The same exchanges judged at the hit (hit) or just after the release (swing): combo steps 1-3 on V1 in
+                    // front of A, the finisher on the sunlit floor, and A's finisher with A2 and A3 swinging at V2 and V3.
+                    const bool bHit = Look == TEXT("hit");
+                    for (uint8 Step = 1; Step <= 3; ++Step)
+                    {
+                        ChainJobs.Add({Look, FString::Printf(TEXT("%s-combo%d"), *Look, Step), {{0.f, Swing(A, Step, W)}, {W + .02f, Plain(V1)}},
+                            Close, Home, false, bHit ? W + .02f : W - .02f, .1f, 24});
+                    }
+                    ChainJobs.Add({Look, Look + TEXT("-sunlit"), {{0.f, Swing(A, 3, W)}, {W + .02f, Plain(V1)}}, CloseSunlit, Home, false, bHit ? W + .02f : W - .02f, .1f, 24});
+                    // The anticipation: the finisher's floor arc judged in the middle of its windup.
+                    if (!bHit) { ChainJobs.Add({Look, TEXT("swing-tell"), {{0.f, Swing(A, 3, W)}, {W + .02f, Plain(V1)}}, Close, Home, false, W * .6f - .06f, 0.f, 24}); }
+                    // The local player as the attacker (its own soft orange): A's finisher on V1, A own and V1 not for once.
+                    const bool bVictimOwn = V1.IsValid() && V1->IsOwnBody();
+                    ChainJobs.Add({Look, Look + TEXT("-own"), {{0.f, Swing(A, 3, W)}, {W + .02f, Plain(V1)}},
+                        [Close, A, V1]() { Close(); if (auto* B = A.Get()) { B->SetOwnBody(true); } if (auto* B = V1.Get()) { B->SetOwnBody(false); } },
+                        [Home, A, V1, bVictimOwn]() { Home(); if (auto* B = A.Get()) { B->SetOwnBody(false); } if (auto* B = V1.Get()) { B->SetOwnBody(bVictimOwn); } },
+                        false, bHit ? W + .02f : W - .02f, .1f, 24});
+                    ChainJobs.Add({Look, Look + TEXT("-crowd"), {{0.f, Swing(A, 3, W)}, {.05f, Swing(A2, 1, W)}, {.1f, Swing(A3, 2, W)},
+                        {W + .02f, Plain(V1)}, {W + .07f, Plain(V2)}, {W + .12f, Plain(V3)}}, Close, Home, false, bHit ? W + .07f : W + .03f, .1f, 24});
+                }
+                else if (Look == TEXT("field"))
+                {
+                    // The persistent electric field at its authoritative radius from its start to its end (1.2 s here), with
+                    // bodies standing in it; on the sunlit floor; the conduct reaction's splash field; two fields with an
+                    // exchange over them.
+                    ChainJobs.Add({Look, TEXT("field-ground"), {{.05f, Field(V1, 220.f, 1200, 21, OwnSeat)}}, nullptr, ClearGrounds, false, .6f, 0.f, 48});
+                    ChainJobs.Add({Look, TEXT("field-sunlit"), {{.05f, Field(V1, 220.f, 1200, 22, OwnSeat)}}, Sunlit, [Home, ClearGrounds]() { ClearGrounds(); Home(); }, false, .6f, 0.f, 48});
+                    ChainJobs.Add({Look, TEXT("field-conduct"), {{0.f, [A]() { if (auto* B = A.Get()) { B->SetComboStep(0); B->SetCastAbility(uint8(ELDDemoAbilityId::ActiveZap)); B->SetCue(2, 0.f, .25f); } }},
+                        {.27f, [V1]() { if (auto* B = V1.Get()) { B->SetHitReaction(0.f, ELDObservedHitLook::Electric, 0, FGuid::NewGuid()); } }}, {.28f, Conduct(V1)}},
+                        nullptr, nullptr, false, .45f, .2f, 36});
+                    ChainJobs.Add({Look, TEXT("field-crowd"), {{.05f, Field(V1, 220.f, 1500, 23, OwnSeat)}, {.05f, Field(V3, 220.f, 1500, 24, OtherSeat)}, {.2f, Swing(A, 3, W)},
+                        {.2f + W + .02f, Plain(V1)}}, nullptr, ClearGrounds, false, .45f, 0.f, 36});
+                    // The own field beside another contender's, both at the state's radius with a body in each.
+                    ChainJobs.Add({Look, TEXT("field-own-other"), {{.05f, Field(V1, 220.f, 1200, 25, OwnSeat)}, {.05f, Field(V2, 220.f, 1200, 26, OtherSeat)}},
+                        nullptr, ClearGrounds, false, .6f, 0.f, 48});
+                }
+                else
+                {
+                // (a) a short hop of 250 cm along the checked dash line in front of A.
+                ChainJobs.Add({Look, TEXT("a-short-hop"), {{0.f, Cast(A)}, {.27f, Hit(V1)}},
+                    [V1, AHome]() { if (auto* B = V1.Get()) { B->GetOwner()->SetActorLocation(AHome + FVector(250., 0., 0.)); B->GetOwner()->SetActorRotation(FRotator(0, 180.f, 0)); } },
+                    [V1, V1Home]() { if (auto* B = V1.Get()) { B->GetOwner()->SetActorLocation(V1Home); B->GetOwner()->SetActorRotation(FRotator(0, 225.f, 0)); } }});
+                // (b) the longest real hop: A2 across the ring to V2, 640 cm (zap's range is 650 cm), shown as the own cast.
+                ChainJobs.Add({Look, TEXT("b-long-hop"), {{0.f, Cast(A2)}, {.27f, Hit(V2)}}, [Own, A2]() { Own(A2, true); }, [Own, A2]() { Own(A2, false); }});
+                // (c) a first hit only.
+                ChainJobs.Add({Look, TEXT("c-first-hit"), {{0.f, Cast(A)}, {.27f, Hit(V1)}}, nullptr, nullptr});
+                // (d) a chain with two bounces.
+                ChainJobs.Add({Look, TEXT("d-two-bounces"), {{0.f, Cast(A)}, {.27f, Hit(V1)}, {.42f, Hit(V2)}, {.57f, Hit(V3)}}, nullptr, nullptr});
+                // (e) the own cast and another player's 50 ms later. A hit carries no caster: the strike registry gives it to
+                // the strike whose release is closest in time, so the casts are staggered for each hit to find its own.
+                ChainJobs.Add({Look, TEXT("e-own-vs-other"), {{0.f, Cast(A)}, {.05f, Cast(A3)}, {.27f, Hit(V1)}, {.32f, Hit(V3)}}, nullptr, nullptr, false, .32f});
+                // (f) three casters 60 ms apart, each hitting its own target 40 ms after its release (a hit in the same frame
+                // as the release would find no strike yet); A is the own one.
+                ChainJobs.Add({Look, TEXT("f-several-casters"), {{0.f, Cast(A)}, {.06f, Cast(A2)}, {.12f, Cast(A3)}, {.29f, Hit(V1)}, {.35f, Hit(V2)},
+                    {.41f, Hit(V3)}}, nullptr, nullptr, false, .35f});
+                // (g) a short own hop with both bodies on the warm sunlit floor: the floor points under two screen points of
+                // the sunlit band below the stage, 140 px (about 250 cm) apart.
+                ChainJobs.Add({Look, TEXT("g-sunlit-hop"), {{0.f, Cast(A)}, {.27f, Hit(V1)}}, Sunlit, Home});
+                }
+                FChainJob Perf;
+                Perf.Category = Look;
+                Perf.Scenario = TEXT("perf-eight-casters");
+                Perf.bPerf = true;
+                // Three frame-cost runs per look, so the spread can be read.
+                for (int32 Run = 0; Run < 3; ++Run) { ChainJobs.Add(Perf); }
+            }
+            // Eight casters and eight victims for the frame-cost run, hidden outside it.
+            for (int32 Index = 0; Index < 8; ++Index)
+            {
+                const double X = -350. + Index * 100.;
+                PerfCasters.Add(SpawnVfxBody(Target, Focus + FVector(X, -260., 0.), 90.f, uint8(Index)));
+                PerfVictims.Add(SpawnVfxBody(Target, Focus + FVector(X, 140., 0.), 270.f, uint8((Index + 4) % 8)));
+            }
+            for (const TWeakObjectPtr<ULDHumanoidVisualComponent>& Body : PerfCasters) { if (Body.IsValid()) { Body->SetVisibility(false, true); } }
+            for (const TWeakObjectPtr<ULDHumanoidVisualComponent>& Body : PerfVictims) { if (Body.IsValid()) { Body->SetVisibility(false, true); } }
+            return Check(PerfCasters.Num() == 8 && PerfVictims.Num() == 8, TEXT("Chain harness: eight casters and eight victims for the frame-cost run"));
+        }
+
+        void SampleFrame(UWorld& Target, FFrameStats& Stats)
+        {
+            auto* Impacts = Target.GetSubsystem<ULDImpactFxSubsystem>();
+            ++Stats.Frames;
+            Stats.RealMs += FApp::GetDeltaTime() * 1000.;
+            Stats.GameMs += FPlatformTime::ToMilliseconds(GGameThreadTime);
+            Stats.RenderMs += FPlatformTime::ToMilliseconds(GRenderThreadTime);
+            Stats.GpuMs += FPlatformTime::ToMilliseconds(RHIGetGPUFrameCycles(0));
+            if (!Impacts) { return; }
+            int32 Components = 0, Particles = 0;
+            Impacts->ForEachGenerated([&](UNiagaraComponent& Effect) { ++Components; Particles += ParticlesOf(Effect); });
+            Stats.MaxComponents = FMath::Max(Stats.MaxComponents, Components);
+            Stats.MaxParticles = FMath::Max(Stats.MaxParticles, Particles);
+            Stats.MaxLayers = FMath::Max(Stats.MaxLayers, Impacts->LiveSliceCount());
+            Stats.MaxLive = FMath::Max(Stats.MaxLive, Impacts->LiveCount());
+        }
+
+        static TSharedPtr<FJsonObject> StatsJson(const FFrameStats& Stats)
+        {
+            auto Out = MakeShared<FJsonObject>();
+            const double N = FMath::Max(Stats.Frames, 1);
+            Out->SetNumberField(TEXT("frames"), Stats.Frames);
+            Out->SetNumberField(TEXT("frame_ms"), Stats.RealMs / N);
+            Out->SetNumberField(TEXT("game_ms"), Stats.GameMs / N);
+            Out->SetNumberField(TEXT("render_ms"), Stats.RenderMs / N);
+            Out->SetNumberField(TEXT("gpu_ms"), Stats.GpuMs / N);
+            Out->SetNumberField(TEXT("max_chain_components"), Stats.MaxComponents);
+            Out->SetNumberField(TEXT("max_chain_particles"), Stats.MaxParticles);
+            Out->SetNumberField(TEXT("max_slice_layers"), Stats.MaxLayers);
+            Out->SetNumberField(TEXT("max_live_niagara"), Stats.MaxLive);
+            return Out;
+        }
+
+        // One tick of the chain harness; false ends the probe.
+        bool TickChain(UWorld& Target, double Now, float SimDelta)
+        {
+            auto* Impacts = Target.GetSubsystem<ULDImpactFxSubsystem>();
+            if (!Impacts) { return Finish(TEXT("No impact effect subsystem for the chain harness")); }
+            FChainJob& Job = ChainJobs[ChainJob];
+            const FString Folder = FString::Printf(TEXT("proof/%s/%s"), *Job.Category, *Job.Scenario);
+            if (!PendingImage.IsEmpty())
+            {
+                if (IFileManager::Get().FileSize(*PendingImage) <= 0) { return true; }
+                PendingImage.Reset();
+                UGameplayStatics::SetGlobalTimeDilation(&Target, 1.f);
+                return true;
+            }
+            if (ChainPhase == 0)
+            {
+                // A clean stage on a wall clock: every body idle, no effect left, shaders done.
+                FApp::SetUseFixedTimeStep(false);
+                UGameplayStatics::SetGlobalTimeDilation(&Target, 1.f);
+                SeqBodies([Impacts](ULDHumanoidVisualComponent& Body) { Body.SetCue(0); Body.SetCastAbility(0); Impacts->ClearFor(Body); });
+                if (GShaderCompilingManager && GShaderCompilingManager->IsCompiling()) { return true; }
+                if (Job.Setup) { Job.Setup(); }
+                ChainClock = 0.;
+                ChainFrame = ChainStep = 0;
+                ChainPhaseAt = Now;
+                ChainFrameTimes.Reset();
+                ChainCheck = MakeShared<FJsonObject>();
+                if (Job.bPerf)
+                {
+                    for (const auto* List : {&PerfCasters, &PerfVictims}) { for (const auto& Body : *List) { if (Body.IsValid()) { Body->SetVisibility(true, true); } } }
+                    PerfIdle = PerfLoad = FFrameStats();
+                    ChainPhase = 3;
+                    return true;
+                }
+                IFileManager::Get().MakeDirectory(*(Directory / Folder), true);
+                // Real game speed: every frame advances exactly 1/30 s of game time and is captured.
+                FApp::SetUseFixedTimeStep(true);
+                FApp::SetFixedDeltaTime(ChainStep_);
+                ChainPhase = 1;
+                return true;
+            }
+            if (ChainPhase == 1)
+            {
+                ChainClock += SimDelta;
+                while (ChainStep < Job.Steps.Num() && Job.Steps[ChainStep].At <= ChainClock) { Job.Steps[ChainStep++].Do(); }
+                // Proof ground states age on the scenario clock (Apply sampled them at server time 100), so they end.
+                for (int32 Index = 0; Index < ProofGrounds.Num() && Index < ProofGroundsAt.Num(); ++Index)
+                { if (ALDObservedGroundProxy* Ground = ProofGrounds[Index].Get()) { Ground->Present(100. + ChainClock - ProofGroundsAt[Index]); } }
+                // The user parameters of every live link: own links full width, others' thinner; each starts at its caster
+                // or the previous body struck.
+                Impacts->ForEachGenerated([this](UNiagaraComponent& Effect)
+                {
+                    const float Width = Effect.GetOverrideParameters().GetParameterValue<float>(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("User.Width")));
+                    const FVector3f Start = Effect.GetOverrideParameters().GetParameterValue<FVector3f>(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("User.Start")));
+                    const FString Key = FString::Printf(TEXT("%p %s"), &Effect, *FVector(Start).ToCompactString());
+                    if (!ChainCheck->HasField(Key))
+                    {
+                        auto Entry = MakeShared<FJsonObject>();
+                        Entry->SetNumberField(TEXT("width"), Width);
+                        Entry->SetStringField(TEXT("start"), FVector(Start).ToCompactString());
+                        Entry->SetStringField(TEXT("end"), FVector(Effect.GetOverrideParameters().GetParameterValue<FVector3f>(
+                            FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("User.End")))).ToCompactString());
+                        Entry->SetNumberField(TEXT("intensity"), Effect.GetOverrideParameters().GetParameterValue<float>(
+                            FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("User.Intensity"))));
+                        Entry->SetNumberField(TEXT("focus"), Effect.GetOverrideParameters().GetParameterValue<float>(
+                            FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("User.Focus"))));
+                        ChainCheck->SetObjectField(Key, Entry);
+                    }
+                });
+                if (ChainClock + .5 * ChainStep_ < Job.From) { return true; }
+                if (ChainFrame < Job.Frames)
+                {
+                    UGameplayStatics::SetGlobalTimeDilation(&Target, .0001f);
+                    PendingImage = Directory / Folder / FString::Printf(TEXT("%03d.png"), ChainFrame);
+                    Images.Add(MakeShared<FJsonValueString>(Folder / FString::Printf(TEXT("%03d.png"), ChainFrame)));
+                    ChainFrameTimes.Add(MakeShared<FJsonValueNumber>(ChainClock));
+                    FScreenshotRequest::RequestScreenshot(PendingImage, false, false);
+                    ++ChainFrame;
+                    return true;
+                }
+                // Every link and layer is released once its effect ends (a scenario's ground states end with its teardown).
+                FApp::SetUseFixedTimeStep(false);
+                if (Job.Teardown) { Job.Teardown(); }
+                ChainPhase = 2;
+                ChainPhaseAt = Now;
+                return true;
+            }
+            if (ChainPhase == 2)
+            {
+                const bool bReleased = Impacts->LiveCount() == 0 && Impacts->LiveSliceCount() == 0;
+                if (!bReleased && Now - ChainPhaseAt < 4.) { return true; }
+                Check(bReleased, FString::Printf(TEXT("Proof %s %s: every effect released afterwards"), *Job.Category, *Job.Scenario));
+                auto Run = MakeShared<FJsonObject>();
+                Run->SetStringField(TEXT("look"), Job.Category);
+                Run->SetStringField(TEXT("label"), ProofLabel);
+                Run->SetStringField(TEXT("scenario"), Job.Scenario);
+                Run->SetStringField(TEXT("folder"), Folder);
+                Run->SetArrayField(TEXT("frame_game_seconds"), ChainFrameTimes);
+                Run->SetNumberField(TEXT("first_hit_seconds"), Job.ShowAt);
+                Run->SetBoolField(TEXT("released"), bReleased);
+                Run->SetNumberField(TEXT("release_seconds"), Now - ChainPhaseAt);
+                Run->SetObjectField(TEXT("links"), ChainCheck);
+                ChainRuns.Add(MakeShared<FJsonValueObject>(Run));
+                ChainPhase = 0;
+                ++ChainJob;
+                return true;
+            }
+            // Frame cost: 3 s idle, then 5 s of all eight casters acting every 0.6 s: chain a zap with one bounce; hit and
+            // swing the combo steps in turn on their victims; field the same with an electric field under every victim.
+            const double Age = Now - ChainPhaseAt;
+            const bool bChain = Job.Category == TEXT("chain"), bField = Job.Category == TEXT("field");
+            if (ChainPhase == 3)
+            {
+                if (Age > 1.) { SampleFrame(Target, PerfIdle); }
+                if (Age >= 4.)
+                {
+                    ChainPhase = 4; ChainPhaseAt = Now; ChainNextWave = 0.; ChainWave = 0;
+                    for (int32 Index = 0; bField && Index < PerfVictims.Num(); ++Index)
+                    {
+                        FActorSpawnParameters Spawn;
+                        Spawn.ObjectFlags |= RF_Transient;
+                        ALDObservedGroundProxy* Ground = PerfVictims[Index].IsValid() ? World->SpawnActor<ALDObservedGroundProxy>(Spawn) : nullptr;
+                        if (!Ground) { continue; }
+                        FLDObservedGroundState State;
+                        State.Id = 300 + Index;
+                        State.Kind = uint8(ELDGroundStateKind::Field);
+                        State.CentreCm = PerfVictims[Index]->GetOwner()->GetActorLocation() - FVector(0, 0, 90);
+                        State.RadiusCm = 220.f;
+                        State.RemainingMs = State.TotalMs = 8000;
+                        Ground->Apply(State, 100.);
+                        ProofGrounds.Add(Ground);
+                    }
+                }
+                return true;
+            }
+            const float W = BasicWindupSeconds;
+            if (Age >= ChainNextWave * 1.)
+            {
+                // Waves on the wall clock: casts or swings now, the hits and bounces on their own delays below.
+                ChainNextWave += .6;
+                ++ChainWave;
+                for (const auto& Body : PerfCasters)
+                {
+                    if (auto* B = Body.Get())
+                    {
+                        if (bChain) { B->SetCastAbility(uint8(ELDDemoAbilityId::ActiveZap)); B->SetCue(2, 0.f, .25f); }
+                        else { B->SetComboStep(uint8(1 + (ChainWave - 1) % 3)); B->SetCastAbility(0); B->SetCue(1, 0.f, W); }
+                    }
+                }
+                ChainClock = Age;
+            }
+            const double WaveAge = Age - ChainClock;
+            const double HitAt = bChain ? .27 : W + .02;
+            for (int32 Index = 0; Index < PerfVictims.Num(); ++Index)
+            {
+                if (auto* Victim = PerfVictims[Index].Get())
+                {
+                    if (WaveAge >= HitAt && WaveAge - SimDelta < HitAt) { Victim->SetHitReaction(0.f, bChain ? ELDObservedHitLook::Electric : ELDObservedHitLook::None, 0, FGuid::NewGuid()); }
+                }
+                if (auto* Next = bChain ? PerfVictims[(Index + 1) % PerfVictims.Num()].Get() : nullptr)
+                {
+                    if (WaveAge >= .42 && WaveAge - SimDelta < .42) { Next->SetHitReaction(0.f, ELDObservedHitLook::Electric, 0, FGuid::NewGuid()); }
+                }
+            }
+            for (const auto& Body : PerfCasters) { if (auto* B = Body.Get()) { B->Animate(FVector::ZeroVector, SimDelta); } }
+            for (const auto& Body : PerfVictims) { if (auto* B = Body.Get()) { B->Animate(FVector::ZeroVector, SimDelta); } }
+            if (Age > 1.) { SampleFrame(Target, PerfLoad); }
+            if (Age < 6.) { return true; }
+            auto Run = MakeShared<FJsonObject>();
+            Run->SetStringField(TEXT("look"), Job.Category);
+            Run->SetStringField(TEXT("label"), ProofLabel);
+            Run->SetObjectField(TEXT("idle"), StatsJson(PerfIdle));
+            Run->SetObjectField(TEXT("eight_casters"), StatsJson(PerfLoad));
+            Run->SetNumberField(TEXT("waves"), ChainWave);
+            ChainPerf.Add(MakeShared<FJsonValueObject>(Run));
+            for (const TWeakObjectPtr<ALDObservedGroundProxy>& Ground : ProofGrounds) { if (ALDObservedGroundProxy* Old = Ground.Get()) { Old->Destroy(); } }
+            ProofGrounds.Reset();
+            ProofGroundsAt.Reset();
+            for (const auto* List : {&PerfCasters, &PerfVictims})
+            {
+                for (const auto& Body : *List) { if (auto* B = Body.Get()) { B->SetCue(0); Impacts->ClearFor(*B); B->SetVisibility(false, true); } }
+            }
+            ChainPhase = 0;
+            ++ChainJob;
+            return true;
+        }
+
         bool PrepareVfxShot(const FArtShot& Current)
         {
             auto* Attacker = VfxAttacker.Get();
@@ -678,7 +1313,7 @@ namespace
             if (ALDObservedGroundProxy* Old = VfxGround.Get()) { Old->Destroy(); }
             VfxGround.Reset();
             VfxFlightAt = -1.;
-            Check(Impacts && Impacts->WarmedSystems() >= 5, TEXT("Every effect system was warmed up at world start"));
+            Check(Impacts && Impacts->WarmedSystems() >= 6, TEXT("Every effect system, the Niagara Chain included, was warmed up at world start"));
             if (bVfxDash) { Attacker->GetOwner()->SetActorLocation(VfxDashFrom); }
             bVfxDash = false;
             Attacker->SetCastAbility(Current.CastAbility);
@@ -694,12 +1329,15 @@ namespace
                 Victim->Animate(FVector::ZeroVector, 0.f);
                 LDHitVfx::EBurst Element;
                 FLinearColor ElementTint;
-                const int32 Expected = 1 + (LDHitVfx::HitBurstOf(Current.HitLook, Element, ElementTint) ? 1 : 0)
+                const bool bSlice = LDSliceVfx::ShowsHit(Current.HitLook, Current.HitFlags);
+                // A slice hit spawns no burst system; an electric one the Niagara Chain of its hop.
+                const int32 Expected = bSlice ? (Current.HitLook == ELDObservedHitLook::Electric ? 1 : 0) : 1 + (LDHitVfx::HitBurstOf(Current.HitLook, Element, ElementTint) ? 1 : 0)
                     + ((Current.HitFlags & LDObservation::Overdriven) ? 1 : 0);
                 if (!Check(Impacts && Impacts->LiveCount() == Expected,
-                    TEXT("A fresh shown hit creates one impact effect, plus its element and overdrive particles"))) { return false; }
+                    TEXT("A fresh shown hit creates one impact effect, plus its element and overdrive particles; a slice hit none"))) { return false; }
                 Check(Impacts->LiveLayerCount() == LDHitVfx::ForHit(Current.HitLook, Current.HitFlags, 1.f, Impacts->LayerTuning()).Layers.Num(),
                     TEXT("A fresh shown hit spawns its shaped layers"));
+                Check(!bSlice || Impacts->LiveSliceCount() > 0, TEXT("A plain, water or electric hit shows its designed slice burst"));
                 // The own receipt of the same tier flashes the screen edge (drawn by the world feedback layer).
                 Impacts->FlashScreen(LDHitVfx::ScreenFlashOf(Current.HitFlags, false));
             }
@@ -768,7 +1406,9 @@ namespace
                 State.RadiusCm = 220.f;
                 State.RemainingMs = State.TotalMs = 6000;
                 Ground->Apply(State, 100.);
-                Check(Ground->GetParticles() != nullptr, TEXT("A ground state shows its kind's particles over its pattern"));
+                // The electric field shows its designed crackle (LDSliceVfx::GroundField); every other kind its particles.
+                Check(Current.GroundKind == uint8(ELDGroundStateKind::Field) ? Impacts && Impacts->LiveSliceCount() > 0 : Ground->GetParticles() != nullptr,
+                    TEXT("A ground state shows its kind's particles or its field over its pattern"));
                 VfxGround = Ground;
             }
             if (Current.bKill && Impacts)
@@ -866,10 +1506,14 @@ namespace
         bool Tick(float Delta)
         {
             const double Now = FPlatformTime::Seconds();
-            if (Now - StartedAt > 600.) { return Finish(TEXT("Art capture timed out")); }
+            if (Now - StartedAt > (ChainJobs.IsEmpty() ? 600. : 1800.)) { return Finish(TEXT("Art capture timed out")); }
             if (!World.IsValid()) { return Finish(TEXT("The Demo world ended before the art capture completed")); }
+            // The stage bodies run on the world's own (dilated) frame time, which the keyframe sequences slow down, so a
+            // slow frame moves the bodies, the effects and the sequence clock by the same step.
+            const float SimDelta = World.IsValid() ? World->GetDeltaSeconds() : Delta;
             if (bCombatVfx)
             {
+                for (const TWeakObjectPtr<ULDHumanoidVisualComponent>& Extra : VfxExtras) { if (auto* Body = Extra.Get()) { Body->Animate(FVector::ZeroVector, SimDelta); } }
                 if (ALDObservedProjectileProxy* Flight = VfxEffect.Get(); Flight && VfxFlightAt > 0.)
                 {
                     // The chalk keeps flying towards the victim at 900 cm/s on its own authority timeline.
@@ -895,10 +1539,12 @@ namespace
                     const bool bRunning = Left > 0.;
                     const FVector Dash(bRunning ? 1500.f : 0.f, 0.f, 0.f);
                     if (bRunning) { Body->GetOwner()->AddActorWorldOffset(FVector(FMath::Min(1500. * Delta, Left), 0., 0.)); }
-                    Body->Animate(Dash, Delta);
+                    Body->Animate(Dash, SimDelta);
                 }
-                if (auto* Body = VfxVictim.Get()) { Body->Animate(FVector::ZeroVector, Delta); }
+                if (auto* Body = VfxVictim.Get()) { Body->Animate(FVector::ZeroVector, SimDelta); }
             }
+            if (bCombatVfx && Stage == 2 && ChainJob < ChainJobs.Num() && World.IsValid()) { return TickChain(*World.Get(), Now, SimDelta); }
+            if (bCombatVfx && Stage == 2 && SeqIndex < Sequences.Num() && World.IsValid()) { return TickSequence(*World.Get(), Now, SimDelta); }
             if (!PendingImage.IsEmpty())
             {
                 if (IFileManager::Get().FileSize(*PendingImage) <= 0) { return true; }

@@ -107,11 +107,6 @@ LDHitFeel::FTuning LDHitFeel::Read()
     return Tuning;
 }
 
-bool LDHitFeel::SwingTrailWindow(float AgeSeconds, float ImpactSeconds)
-{
-    return FMath::IsFinite(AgeSeconds) && FMath::IsFinite(ImpactSeconds) && ImpactSeconds > 0.f
-        && AgeSeconds >= ImpactSeconds * .5f && AgeSeconds < ImpactSeconds * 1.25f;
-}
 
 TConstArrayView<LDHitFeel::FField> LDHitFeel::Fields()
 {

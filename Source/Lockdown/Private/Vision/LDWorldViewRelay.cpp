@@ -1,4 +1,5 @@
 #include "Vision/LDWorldViewRelay.h"
+#include "UI/LDBroadcastStyle.h"
 #include "World/LDRecoveryOrbMarker.h"
 #include "Art/LDArtSubsystem.h"
 #include "Character/LDImpactFx.h"
@@ -513,6 +514,7 @@ void ALDObservedEntityProxy::Apply(const FLDObservedUnitView& Unit, double Visua
     Shown.CueAgeMs = Unit.ActionCueAgeMs;
     Shown.CueImpactDelayMs = Unit.ActionCueImpactDelayMs;
     Shown.ActionAbility = Unit.ActionAbility;
+    Shown.ActionComboStep = Unit.ActionComboStep;
     Shown.bCharging = Unit.bCharging;
     Shown.ChargeAgeMs = Unit.ChargeAgeMs;
     Shown.bOverdriveCast = Unit.bOverdriveCast;
@@ -556,6 +558,7 @@ void ALDObservedEntityProxy::Present(double AtServerSec, float Delta)
         Body->SetCue(ALDCharacter::PresentationCue(Reached.Cue, Reached.Statuses), Age,
             float(Reached.CueImpactDelayMs) / 1000.f, ALDCharacter::PresentationKnockback(Reached.Statuses));
         Body->SetCastAbility(Reached.Cue == ELDObservedActionCue::Cast ? Reached.ActionAbility : 0);
+        Body->SetComboStep(Reached.Cue == ELDObservedActionCue::Attack ? Reached.ActionComboStep : 0);
         Body->SetCharging(Reached.bCharging,
             float(double(Reached.ChargeAgeMs) / 1000.0 + FMath::Max(0.0, AtServerSec - Points[Pose.Reached].At)));
         Body->SetOverdriveCast(Reached.Cue == ELDObservedActionCue::Cast && Reached.bOverdriveCast);
@@ -691,7 +694,7 @@ FLinearColor ALDObservedGroundProxy::KindColor(uint8 Kind)
     case ELDGroundStateKind::Ice: return FLinearColor(.55f,.98f,1.f);
     case ELDGroundStateKind::Fire: return FLinearColor(1.f,.3f,.04f);
     case ELDGroundStateKind::Miasma: return FLinearColor(.4f,.85f,.12f);
-    case ELDGroundStateKind::Field: return FLinearColor(.66f,.3f,1.f);
+    case ELDGroundStateKind::Field: return LDBroadcast::Shock;
     default: return FLinearColor::White;
     }
 }
@@ -773,11 +776,7 @@ void ALDObservedGroundProxy::Pattern(const FLDObservedGroundState& Ground, TArra
         { Ring(At, S * .18, 6); }
         break;
     case ELDGroundStateKind::Field:
-        // A lightning zigzag.
-        Seg(FVector(-S, -S * .2, 0), FVector(-S * .35, S * .35, 0));
-        Seg(FVector(-S * .35, S * .35, 0), FVector(0, -S * .3, 0));
-        Seg(FVector(0, -S * .3, 0), FVector(S * .35, S * .35, 0));
-        Seg(FVector(S * .35, S * .35, 0), FVector(S, -S * .2, 0));
+        // No pattern: the electric field effect (its living edge and charged floor) already names the kind.
         break;
     default: break;
     }
@@ -865,9 +864,16 @@ void ALDObservedGroundProxy::Present(double AtServerSec)
     // The reduced-effects setting changed: rebuild the particles at the new density.
     if (const ULDImpactFxSubsystem* Impacts = GetWorld() ? GetWorld()->GetSubsystem<ULDImpactFxSubsystem>() : nullptr;
         Impacts && bShown && ParticleScale >= 0.f && Impacts->LocalEffectScale() != ParticleScale) { ShowParticles(); }
-    if (!bShown || RimPoints.Num() < 2) { return; }
-    // The outline drains with the remaining life (spec §12): the first Remaining/Life of its segments stay.
+    if (!bShown) { return; }
     const double Left = FMath::Clamp((ExpiresAtServerSec - AtServerSec) / LifeSeconds, 0., 1.);
+    // The electric field (the Niagara Field, ULDImpactFxSubsystem::ShowGroundField) fades out over the last third of its life.
+    if (Shown.Kind == uint8(ELDGroundStateKind::Field))
+    {
+        if (ULDImpactFxSubsystem* Impacts = GetWorld() ? GetWorld()->GetSubsystem<ULDImpactFxSubsystem>() : nullptr)
+        { Impacts->ShowGroundField(*this, GetActorLocation(), Shown.RadiusCm, float(FMath::Min(Left * 3., 1.)), Shown.OwnerSeat); }
+    }
+    if (RimPoints.Num() < 2) { return; }
+    // The outline drains with the remaining life (spec §12): the first Remaining/Life of its segments stay.
     const int32 Segments = RimPoints.Num() - 1;
     const int32 Keep = FMath::Clamp(FMath::CeilToInt(Left * Segments), 0, Segments);
     if (Keep == ShownOutline) { return; }

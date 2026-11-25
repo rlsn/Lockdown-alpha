@@ -12,6 +12,8 @@ public class LockdownEditor : ModuleRules
         PrivateDependencyModuleNames.AddRange(new[] { "InterchangeCore", "InterchangeEngine", "InterchangePipelines" });
         // Art: authored bodies are measured from their clips (AnimPose) as MeasureDemoArt.py measures glTF bodies.
         PrivateDependencyModuleNames.Add("AnimationBlueprintLibrary");
+        // VFX: Niagara systems built from code through the engine's external edit utilities.
+        PrivateDependencyModuleNames.AddRange(new[] { "Niagara", "NiagaraCore", "NiagaraEditor", "JsonUtilities" });
         AddEngineThirdPartyPrivateStaticDependencies(Target, "OpenSSL");
     }
 }
