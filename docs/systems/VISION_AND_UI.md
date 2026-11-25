@@ -41,6 +41,41 @@
 
 正式音效登记于 `SourceData/Audio/audio_cues.json`（CC0 来源 + SHA-256），经 `Scripts/ImportDemoAudio.ps1 -Mode Import` 生成 `SW_*` 与 `DA_DemoAudio`，全部归入 `SC_DemoMaster` 子混音分类（覆盖普攻/施放/命中/重击/死亡、原生精准闪避 `SelfPerfectDodge`、招架格挡 `SelfParry`、拾取拖鞋/回复球 `SelfPickup`、同色元素石融合 `UIMedalFuse` 及全局提示音）；敌方施放与受击音效仅在当前授权观察帧可见时衰减播放，绝不通过声音泄露迷雾内隐藏动作。
 
+## 表现层覆盖清单
+
+全流程界面的覆盖与状态（启动 → 主菜单 → 开房/加入 → Lobby → 对局 → 结算 → 复盘）。状态：NOT STARTED / IN PROGRESS / IMPLEMENTED / LOCALLY VERIFIED / USER APPROVED / BLOCKED。证据为运行时截图，由 `Scripts/CaptureUICoverage.ps1`（探针 `LDUICoverageProbe`）在 1920×1080 与 1280×720、100% 与 125% 字号下拍摄，文件名 `<页面>_<1080|720>_<100|125>.png`，整理后存于主仓 `Artifacts/Audits/PresentationOverhaul/production/ui/`。
+
+| 项 | 状态 | 实现 | 证据 | 已知问题 |
+| --- | --- | --- | --- | --- |
+| 标题页 / 主菜单 | LOCALLY VERIFIED | `ULDUIRoot::BuildFrontend`、`StyleRow` | `production/ui/m1/A1-frontend.jpg`、`Front_Menu*` |  |
+| 怎么玩（六张卡） | LOCALLY VERIFIED | `ULDUIRoot` HowTo 页 | `Front_HowTo*` |  |
+| 连锁图鉴 | LOCALLY VERIFIED | `ULDUIRoot` Codex 页（菜单页，可滚动） | `Front_Codex*` | 只拍到空图鉴状态 |
+| 开始页：我开房 / 我加入 | LOCALLY VERIFIED | `ULDUIRoot` StartPage | `Front_Start*` | 开房/加入进行中与失败提示未拍 |
+| 退出确认 | LOCALLY VERIFIED | `ULDUIRoot::BuildConfirm` | `Front_Exit*` |  |
+| 设置：画面 / 音频 / 操作 / 镜头 / 界面 / 特效 | IN PROGRESS | `ULDControlsPanel`（菜单页，可滚动） | `*_Settings_<页签>*` | 音频页待接 Stream C 的分轨 API；画面页在离屏拍摄下只显示“需要可交互窗口” |
+| Lobby（房主、AI 数、席位、准备、开始） | LOCALLY VERIFIED | `ULDUIRoot::BuildWorld`、`RebuildRoster`、`RefreshLobby` | `production/ui/m1/A2-lobby.jpg`、`Lobby_*` | 客机视角（准备 / 已准备）未拍 |
+| 构筑蓝图查看 | LOCALLY VERIFIED | `ULDBlueprintPanel` | `Lobby_Blueprint*` | 只拍到无记录状态 |
+| 离开房间确认 | LOCALLY VERIFIED | `ULDUIRoot::BuildConfirm` | `Match_MenuLeave*` |  |
+| 战斗 HUD（比分条、目标卡、事件流、底部操作条、小地图） | USER APPROVED | `ULDHUD`、`LDBroadcastPaint` | `hud/iter2-*`、`Match_Field*` |  |
+| 构筑气场环（雷达、宿主、牌、属性表、商店、三选一） | USER APPROVED | `ULDWorkshop`、`LDBuildRing*` | `build-v2/compare-*-r3.png`、`Match_RestOpening*` |  |
+| 休息期 HUD 与休息按钮 | LOCALLY VERIFIED | `ULDHUD` RestActions | `Match_RestRingClosed*` |  |
+| 长按 Tab 战术计分板 | LOCALLY VERIFIED | `ULDHUD::PaintScoreboard` | `production/ui/m1/A3-match.jpg`、`Match_Scoreboard*` |  |
+| 局内菜单 | LOCALLY VERIFIED | `ULDUIRoot::BuildWorld` 菜单条 | `Match_Menu*` |  |
+| 技能悬停说明与 Alt 公式 | IMPLEMENTED | `ULDHUD` ActionDetail | — | 说明卡跟随系统光标，探针不移动用户鼠标，未截到 |
+| 死亡横幅、承伤回放与复活选点 | NOT STARTED | `ULDHUD` DeathBanner、SpawnChoice、`LDRecapChain` | — |  |
+| PK 报名与 PK 面板 | NOT STARTED | `ULDHUD::RefreshPK` | — |  |
+| NPC：外卖柜读条、二手贩子、画饼老板 | NOT STARTED | `LDWorldLabels`、`LDWorldFeedback` | — |  |
+| 升级时刻 | LOCALLY VERIFIED | `ULDHUD::PaintMoments`、`LDWorldFeedback` | `hud/seq-levelup/` |  |
+| 击杀时刻（本人击杀 K.O.） | BLOCKED | `ULDHUD::PaintMoments` | — | 现成流程在截图前失败于导航检查 |
+| 技能升阶页（二级分化与三级预览） | LOCALLY VERIFIED | `ULDHUD::RefreshRankUp` | `Match_RankUp*` |  |
+| 开局横幅与世界反馈文字 | NOT STARTED | `LDWorldFeedback` | `Match_Field*` |  |
+| 头顶标签与构筑环的重叠 | IMPLEMENTED | `LDWorldLabels` | — | 开环时落在环部件上的头顶标签不绘制；待开环截图确认 |
+| 终局（终局改装、旗杆） | LOCALLY VERIFIED | `ULDHUD`、构筑环 | `Match_Final*` | 终局改装三选一未拍 |
+| 结算页 | LOCALLY VERIFIED | `ULDHUD` Result 区块、`LDResultBuild` | `production/ui/m1/A4-results.jpg`、`Match_Results*` | 规则板按宽度换行的修正尚未重拍 |
+| 赛后复盘（切换席位查看构筑） | LOCALLY VERIFIED | `ULDHUD::SelectResultContender`、`RefreshResultInspectedBuild` | `Match_ResultsReplay*` | “成长与卡牌”“全员战斗数据”页签未拍 |
+| 网络卡顿提示与诊断 | NOT STARTED | `ULDHUD` NetSpike、Diagnostics | — |  |
+| 按钮交互态与页面转场 | IN PROGRESS | `LDUIPaint::Button`、`ULDCommandButton` | `Front_MenuHover*` | 只拍到悬停；转场只有结算标题的 200 ms 滑入 |
+
 ## 检查入口
 
 - 纯规则：`Lockdown.Rules.Vision.*`、`Lockdown.Rules.Minimap.*`、`Lockdown.Rules.WorldLabels.*`、`Lockdown.Rules.HUD*`、`Lockdown.Rules.ViewPrivacySchema`、`Scripts/TestDemoArtImport.py`。

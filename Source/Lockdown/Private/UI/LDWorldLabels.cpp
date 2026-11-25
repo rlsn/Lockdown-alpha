@@ -550,6 +550,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     TArray<FSlateRect> Placed;
     TArray<FSlateRect> OwnMarkRects;
     const TArray<FSlateRect> HudReserved=PC->HUDUI?PC->HUDUI->WorldLabelReservedAreas(G):TArray<FSlateRect>();
+    const ULDWorkshop* Ring=PC->HUDUI?PC->HUDUI->Workshop.Get():nullptr;
     int64 NowServerMs=0;
     const bool bHasServerMs=PC->ReadDemoAuthorityTimeMs(NowServerMs);
     const double FrameServerSec=Frame?Frame->SampledAtServerSec:(bHasServerMs?double(NowServerMs)/1000.:0.);
@@ -1017,6 +1018,14 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
         {
             for(const FSlateRect& Other:HudReserved)
             {if(Left-4.f<Other.Right&&Right+4.f>Other.Left&&AtBottom-Entry.Height-4.f<Other.Bottom&&AtBottom>Other.Top){return true;}}
+            // The open build ring wins too: a label that would sit on a ring part (band, host, card, table) is not drawn,
+            // sampled at the label's corners and centre.
+            if(Ring&&Ring->IsOpen())
+            {
+                const float Top=AtBottom-Entry.Height;
+                const FVector2D Samples[]={{Left,Top},{Right,Top},{Left,AtBottom},{Right,AtBottom},{(Left+Right)*.5f,(Top+AtBottom)*.5f}};
+                for(const FVector2D& Sample:Samples){if(Ring->IsHit(G.LocalToAbsolute(Sample))){return true;}}
+            }
             return false;
         };
         if(OnChrome(Bottom)){continue;}

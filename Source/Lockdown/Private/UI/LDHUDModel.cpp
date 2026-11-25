@@ -2794,32 +2794,6 @@ TArray<LDHUD::FCardDrop> LDHUD::ColumnReplaceDrops(FName Key,EStorageColumn Colu
     }
     return Out;
 }
-FString LDHUD::SkillCardCompatStrip(FName CardId,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content,
-    const FSlotKeys& Keys,bool& bOutHasMatch,bool& bOutAllFull)
-{
-    bOutHasMatch=false;bOutAllFull=false;
-    const FLDDemoCardDefinition* Definition=CardDefinitionOf(Content,CardId);
-    if(!Definition||Definition->Form!=ELDCardForm::Skill||!Progression.bValid||!Content){return FString();}
-    const FLDGrowthBuild Build=LDProgression::BuildFromView(*Content,Progression);
-    const ELDDemoElement Element=Definition->ChooseElements.IsEmpty()?ELDDemoElement::None:Definition->ChooseElements[0];
-    const bool bWorkshopIsFull=WorkshopFull(Progression,Content);
-    TArray<FString> Chips;
-    for(uint8 Slot=0;Slot<3;++Slot)
-    {
-        const FName Held=ActiveInSlot(Progression,Slot);
-        if(Held.IsNone()){continue;}
-        if(LDProgression::CardTargetReason(*Content,Build,FName(*Definition->Id),HudTarget(ELDCardTargetKind::Skill,Held,Element))!=ELDGrowthReason::None)
-        {continue;}
-        Chips.Add(FString::Printf(TEXT("[%s %s]"),*Keys.Of(Slot),*ContentName(Content,Held.ToString())));
-    }
-    if(Chips.IsEmpty())
-    {
-        return FString(LDTerms::NoCompatibleSkillHost);
-    }
-    bOutHasMatch=true;
-    bOutAllFull=bWorkshopIsFull;
-    return FString(TEXT("可装："))+FString::Join(Chips,TEXT(" "));
-}
 LDHUD::FCardConnections LDHUD::CardConnections(FName Key,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
 {
     FCardConnections Out;
@@ -2866,18 +2840,6 @@ FString LDHUD::StoredPlaceText(FName Key,const FLDProgressionView& Progression,c
             :LDTerms::WorkshopFullHint(Progression.CardCapacity);
     }
     return DropColumnsText(Drops);
-}
-LDHUD::FGrowthPending LDHUD::GrowthPending(const FLDProgressionView* Progression,uint32 Match,const FLDDemoContentDefinitions* Content)
-{
-    FGrowthPending Pending;
-    if(!Progression||!Progression->bValid||Match==0||Progression->Generation!=Match){return Pending;}
-    Pending.bOffer=Progression->bHasActiveOffer&&!Progression->ActiveOffer.Options.IsEmpty();
-    Pending.Offers=Progression->QueuedActiveOpportunities;
-    Pending.Blueprints=Progression->Actives.Num()<3?Progression->PendingBlueprints.Num():0;
-    Pending.bCardOffer=Progression->bHasCardOffer&&!Progression->CardOffer.Options.IsEmpty();
-    Pending.CardOffers=Progression->QueuedCardOffers;
-    Pending.bFinalMod=Progression->bFinalModPending&&!Progression->FinalModOptions.IsEmpty();
-    return Pending;
 }
 bool LDHUD::FOfferMotionTicket::Matches(const FLDBuildReceipt& Receipt,uint32 CurrentMatch,uint32 CurrentLife) const
 {

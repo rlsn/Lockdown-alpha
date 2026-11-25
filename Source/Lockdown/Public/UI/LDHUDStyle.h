@@ -23,13 +23,9 @@ namespace LDHUDStyle
 
     // Resources. Values are linear (Slate converts to sRGB), so saturated fills need low channels; white bar text with a
     // dark outline then keeps its contrast.
-    inline const FLinearColor OwnHealth(.05f,.45f,.08f);
     inline const FLinearColor EnemyHealth(.70f,.07f,.05f);
     // Red-green colorblind friendly Okabe-Ito palette (#331): own crisp sky-blue, hostile vivid orange-vermilion.
-    inline const FLinearColor OwnHealthColorblind(.06f,.48f,.88f);
     inline const FLinearColor EnemyHealthColorblind(.90f,.32f,.02f);
-    inline FLinearColor OwnHealthOf(bool bColorblind){return bColorblind?OwnHealthColorblind:OwnHealth;}
-    inline FLinearColor EnemyHealthOf(bool bColorblind){return bColorblind?EnemyHealthColorblind:EnemyHealth;}
     // A contender who cannot be attacked right now (anyone in a rest outside the PK, a PK teammate): never the hostile red.
     inline const FLinearColor PeacefulHealth(.16f,.42f,.78f);
     inline const FLinearColor CampHealth(.85f,.32f,.03f);
@@ -51,7 +47,6 @@ namespace LDHUDStyle
     inline const FLinearColor Momentum(.95f,.30f,.02f);
     inline const FLinearColor Overdrive(1.f,.80f,.10f);
     inline const FLinearColor Shield(0.f,.78f,1.f);
-    inline const FLinearColor Experience(.70f,.45f,.05f);
     inline const FLinearColor BarTrack(.04f,.05f,.07f,.85f);
 
     // Floating feedback
@@ -62,27 +57,13 @@ namespace LDHUDStyle
     inline const FLinearColor ExperienceGain(.80f,.66f,1.f);
     inline const FLinearColor Celebration(1.f,.86f,.36f);
 
-    // Action slot states: each limit has its own fill, and the slot text names it, so no state relies on colour alone.
-    inline const FLinearColor SlotReady(.06f,.22f,.24f,.98f);
-    inline const FLinearColor SlotArmed(.36f,.27f,.06f,.98f);
-    inline const FLinearColor SlotBlocked(.05f,.06f,.08f,.96f);
-    inline const FLinearColor SlotMomentumShort(.20f,.09f,.03f,.98f);
-    // Combo pips of the basic slot: lit steps, the third in gold.
-    inline const FLinearColor ComboPip(.95f,.92f,.85f);
-    inline const FLinearColor ComboPipDim(.20f,.22f,.26f,.9f);
-    inline const FLinearColor SlotControlled(.28f,.10f,.32f,.98f);
-    inline const FLinearColor SlotCooldownMask(0.f,0.f,0.f,.62f);
     inline const FLinearColor SlotReadyFlash(1.f,.92f,.55f);
 
-    // Build interface palette (sRGB hex, converted to linear). Surfaces step from the base through panels to raised
-    // panels; yellow marks what the player can act on, pink marks events; green, orange and red mark a legal place, a
-    // replacement and a refusal; the three component types each own one colour. Combat colours above stay separate.
-    inline const FLinearColor UIBase=FLinearColor(FColor(0x07,0x09,0x0F));
-    inline const FLinearColor UIPanel=FLinearColor(FColor(0x15,0x1B,0x29));
+    // Build interface palette (sRGB hex, converted to linear): the raised surface, the text, the action, legal, replace and
+    // reject marks, and one colour per component type. Combat colours above stay separate.
     inline const FLinearColor UIRaised=FLinearColor(FColor(0x1F,0x27,0x38));
     inline const FLinearColor UIText=FLinearColor(FColor(0xF4,0xEC,0xDE));
     inline const FLinearColor UIAction=FLinearColor(FColor(0xFF,0xE1,0x4A));
-    inline const FLinearColor UIEvent=FLinearColor(FColor(0xFF,0x3F,0x7F));
     inline const FLinearColor UILegal=FLinearColor(FColor(0x57,0xE3,0x89));
     inline const FLinearColor UIReplace=FLinearColor(FColor(0xFF,0x9A,0x3D));
     inline const FLinearColor UIReject=FLinearColor(FColor(0xFF,0x6A,0x5D));
@@ -92,75 +73,28 @@ namespace LDHUDStyle
     inline const FLinearColor CardConvert=FLinearColor(FColor(0xB5,0x8C,0xFF));
     inline const FLinearColor CardGrow=FLinearColor(FColor(0x7E,0xE0,0x81));
     inline const FLinearColor CardElement=FLinearColor(FColor(0x10,0xB9,0x81));
-    // #328 §2 3-way reward palette: Active Skill (#F59E0B / #451A03), Build Card (#3B82F6 / #172554), Element Stone (#10B981 / #064E3B).
+    // #328 §2 3-way reward rims: Active Skill #F59E0B, Build Card #3B82F6, Element Stone #10B981.
     inline const FLinearColor RewardActiveRim=FLinearColor(FColor(0xF5,0x9E,0x0B));
-    inline const FLinearColor RewardActiveBase=FLinearColor(FColor(0x45,0x1A,0x03));
     inline const FLinearColor RewardCardRim=FLinearColor(FColor(0x3B,0x82,0xF6));
-    inline const FLinearColor RewardCardBase=FLinearColor(FColor(0x17,0x25,0x54));
-    inline const FLinearColor RewardCardRare=FLinearColor(FColor(0xA8,0x55,0xF7));
-    inline const FLinearColor RewardCardLegend=FLinearColor(FColor(0xFA,0xCC,0x15));
     inline const FLinearColor RewardStoneRim=FLinearColor(FColor(0x10,0xB9,0x81));
-    inline const FLinearColor RewardStoneBase=FLinearColor(FColor(0x06,0x4E,0x3B));
-    constexpr float RadiusPanel=6.f;
-    constexpr float RadiusButton=5.f;
 
-    // Menu and lobby text
-    inline const FLinearColor MenuTitle(1.f,.82f,.28f);
-    inline const FLinearColor MenuSection(.55f,.86f,.92f);
-    inline const FLinearColor MenuMuted(.66f,.74f,.78f);
-    inline const FLinearColor MenuWarning(1.f,.78f,.55f);
-    inline const FLinearColor ModalScrim(0.f,0.f,0.f,.62f);
-    inline const FLinearColor InputText(.04f,.07f,.07f);
-    inline const FLinearColor RosterHeader(.035f,.07f,.09f);
-    inline const FLinearColor RosterRow(.045f,.09f,.12f);
-    inline const FLinearColor RosterOwnRow(.07f,.17f,.21f);
-
-    // Command buttons: flat rounded faces from one teal family; keyboard focus draws an action-yellow outline.
-    inline const FLinearColor ButtonNormalFill(.045f,.12f,.15f);
-    inline const FLinearColor ButtonNormalEdge(.12f,.30f,.33f);
-    inline const FLinearColor ButtonHoveredFill(.09f,.24f,.27f);
-    inline const FLinearColor ButtonHoveredEdge(.30f,.62f,.62f);
-    inline const FLinearColor ButtonPressedFill(.12f,.32f,.32f);
-    inline const FLinearColor ButtonPressedEdge(.40f,.75f,.72f);
-    inline const FLinearColor ButtonDisabledFill(.035f,.05f,.065f);
-    inline const FLinearColor ButtonDisabledEdge(.08f,.11f,.13f);
-    inline const FLinearColor FocusOutline(1.f,.82f,.28f);
-    // Hold-to-confirm fill sweeping across the button face.
-    inline const FLinearColor HoldFill(1.f,.70f,.45f,.45f);
-
-    // Cards, component tiles and their columns
-    inline const FLinearColor CardFill(.035f,.06f,.09f,.97f);
-    inline const FLinearColor CardIdle(.045f,.12f,.15f);
-    inline const FLinearColor ColumnFill(.02f,.03f,.05f,.84f);
-    inline const FLinearColor OverlayFill(.02f,.035f,.055f,.94f);
-    inline const FLinearColor IconFill(.16f,.26f,.36f);
-    inline const FLinearColor IconRim(1.f,1.f,1.f,.18f);
-    inline const FLinearColor IconBlocked(.42f,.42f,.42f);
-    inline const FLinearColor ShapeFill(.12f,.13f,.15f);
-    inline const FLinearColor ShapeRim(1.f,1.f,1.f,.55f);
-    inline const FLinearColor DropLegal=StatusPositive;
-    inline const FLinearColor DropReplace(1.f,.72f,.25f);
-
-    // Type scale calibrated for FontDPI=96 (1 pt = 4/3 px at 1080p): helper 11pt (~14.7px), body 12pt (16px),
-    // key labels/numbers 14-15pt (18.7-20px). Every size the interface draws comes from here; TextScale multiplies it.
-    constexpr int32 TypeMicro=11;
-    constexpr int32 TypeTiny=11;
-    constexpr int32 TypeCaption=11;
-    constexpr int32 TypeSmall=11;
-    constexpr int32 TypeBody=12;
+    // Type scale calibrated for FontDPI=96 (1 pt = 4/3 px at 1080p; the UI scales by 2/3 at 720p): the smallest step is 14pt
+    // (18.7px at 1080p, 12.4px at 720p), so no text drops under 12 px at 720p; key labels and numbers 14-15pt.
+    // Every size the interface draws comes from here; TextScale multiplies it.
+    constexpr int32 TypeMicro=14;
+    constexpr int32 TypeTiny=14;
+    constexpr int32 TypeCaption=14;
+    constexpr int32 TypeSmall=14;
+    constexpr int32 TypeBody=14;
     constexpr int32 TypeText=15;
     constexpr int32 TypeLabel=14;
     constexpr int32 TypeLead=15;
     constexpr int32 TypeHeading=16;
     constexpr int32 TypeTitle=17;
     constexpr int32 TypeSection=18;
-    constexpr int32 TypeSubBanner=20;
-    constexpr int32 TypeVerdict=22;
     constexpr int32 TypePage=23;
     constexpr int32 TypeBanner=25;
     constexpr int32 TypeDisplay=26;
-    constexpr int32 TypeMenuTitle=30;
-    constexpr int32 TypeHero=33;
     constexpr int32 TypeGiant=72;
     // Title role: the heavy face leans right by 8 degrees.
     constexpr float TitleSkew=.1405f;

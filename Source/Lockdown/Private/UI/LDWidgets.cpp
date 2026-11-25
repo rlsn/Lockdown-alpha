@@ -4,6 +4,7 @@
 #include "Widgets/Input/SButton.h"
 #include "Components/ButtonSlot.h"
 #include "Framework/LDPlayerController.h"
+#include "UI/LDBroadcastStyle.h"
 #include "UI/LDHUDStyle.h"
 #include "Blueprint/WidgetTree.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
@@ -32,7 +33,7 @@ namespace
     void LDButtonFace(ULDCommandButton* W,UWidgetTree* Tree,const FString& Value)
     {
         auto* Caption=LDWidgets::Text(Tree,Value,LDHUDStyle::TypeBody,NAME_None,LDUIFonts::ERole::Strong);Caption->SetAutoWrapText(false);
-        Caption->SetColorAndOpacity(LDHUDStyle::UIText);W->SetContent(Caption);
+        Caption->SetColorAndOpacity(LDBroadcast::White);W->SetContent(Caption);
         // The face is painted under the caption (LDUIPaint::Button); the engine chrome stays empty, and the same padding
         // pressed or released keeps the caption still.
         auto Style=W->GetStyle();
@@ -135,8 +136,8 @@ void LDWidgets::SetLook(ULDCommandButton* Button,LDUIPaint::EButton Look)
     // Yellow and pink faces carry dark or white captions; the dark faces carry the paper colour.
     if(UTextBlock* Caption=Cast<UTextBlock>(Button->GetContent()))
     {
-        const FLinearColor Ink=Look==LDUIPaint::EButton::Primary||Look==LDUIPaint::EButton::Plus||Look==LDUIPaint::EButton::TagOn?LDUIPaint::Hex(0x15130A)
-            :Look==LDUIPaint::EButton::Event?FLinearColor::White:Look==LDUIPaint::EButton::Tag||Look==LDUIPaint::EButton::Key?LDHUDStyle::TextSecondary:LDHUDStyle::UIText;
+        const FLinearColor Ink=Look==LDUIPaint::EButton::Primary||Look==LDUIPaint::EButton::TagOn?LDBroadcast::Ink
+            :Look==LDUIPaint::EButton::Key?LDBroadcast::Grey:LDBroadcast::White;
         Caption->SetColorAndOpacity(Ink);
     }
     if(TSharedPtr<SWidget> Cached=Button->GetCachedWidget()){Cached->Invalidate(EInvalidateWidgetReason::Paint);}
@@ -295,14 +296,14 @@ int32 ULDPanel::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateR
         for(const UWidget* Parent=W->GetParent();Parent&&!List;Parent=Parent->GetParent()){List=Cast<UScrollBox>(Parent);}
         if(List){E.PushClip(FSlateClippingZone(List->GetCachedGeometry()));}
         FSlateDrawElement::MakeLines(E,Base+1,G.ToPaintGeometry(),{P,FVector2D(Q.X,P.Y),Q,FVector2D(P.X,Q.Y),P},ESlateDrawEffect::None,
-            LDHUDStyle::FocusOutline.CopyWithNewOpacity(LDHUDStyle::FocusOutline.A*Opacity(W)),true,3);
+            LDBroadcast::White.CopyWithNewOpacity(Opacity(W)),true,3);
         if(List){E.PopClip();}
         break;
     }}return Base+1;
 }
 UBorder* LDWidgets::Panel(UWidgetTree* Tree,UWidget* Child,FMargin Padding)
 {
-    // The white rounded face takes its fill from the brush colour, so a caller that recolours a panel keeps its shape and rim.
-    auto* W=Tree->ConstructWidget<UBorder>();W->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,LDHUDStyle::RadiusPanel,LDHUDStyle::PanelRim,1.f));
-    W->SetBrushColor(LDHUDStyle::PanelFill);W->SetPadding(Padding);if(Child){W->SetContent(Child);}return W;
+    // A square ink face (on air) that takes its fill from the brush colour, so a caller that recolours a panel keeps its rim.
+    auto* W=Tree->ConstructWidget<UBorder>();W->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,0.f,LDBroadcast::White.CopyWithNewOpacity(.16f),1.f));
+    W->SetBrushColor(LDBroadcast::Ink.CopyWithNewOpacity(.94f));W->SetPadding(Padding);if(Child){W->SetContent(Child);}return W;
 }

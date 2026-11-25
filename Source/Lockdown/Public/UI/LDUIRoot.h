@@ -117,6 +117,7 @@ private:
     // Full-screen picture behind the lobby page (LDUIBackgrounds), shown exactly while the lobby is; null when missing.
     UPROPERTY() TObjectPtr<UWidget> LobbyBackground;
     UPROPERTY() TObjectPtr<UVerticalBox> RosterRows;
+    UPROPERTY() TObjectPtr<UTextBlock> LobbySeatCount;
     UPROPERTY() TObjectPtr<UHorizontalBox> RoomAddressRow;
     UPROPERTY() TObjectPtr<UTextBlock> RoomAddressLabel;
     UPROPERTY() TObjectPtr<ULDCommandButton> CopyAddressButton;
@@ -230,6 +231,8 @@ private:
     void ApplyTextScale(float Scale);
     UTextBlock* Label(const FString& Value, int32 Size, const FLinearColor& Color = FLinearColor(.9f, .94f, .96f));
     ULDCommandButton* MakeButton(const FString& Text, FName Name, TFunction<void()> Action, int32 Size = 18);
+    ULDCommandButton* StyleRow(ULDCommandButton* Button, bool bPrimary);
+    UWidget* PageTitle(const FString& Text);
     UEditableTextBox* MakeTextBox(const FString& Hint, FName Name);
     USizeBox* MakePage(UCanvasPanel& Canvas, float Width, UVerticalBox*& Content);
     // A picture filling the whole viewport (cropped, never stretched) under every page of this root; null with
