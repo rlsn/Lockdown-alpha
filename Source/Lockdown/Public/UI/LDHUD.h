@@ -398,29 +398,17 @@ private:
     UPROPERTY() TObjectPtr<USizeBox> EventFeedSpot;
     LDHUD::FEventFeed EventFeed;
     void PaintFeed(const LDUIPaint::FContext& P) const;
-    // #328 §4.4: 6-player hold-Tab tactical scoreboard (portrait, crown, last-seen level, graffiti bar, K/D/A, Q/W/E icons, final mod).
+    // #328 §4.4: the hold-Tab tactical scoreboard (seat plate, crown, last-seen level, guard bar, K/D/A, Q/W/E icons, final mod),
+    // painted from ScoreBoard by PaintScoreboard.
     UPROPERTY() TObjectPtr<UBorder> ScorePanel;
-    struct FScoreRowWidgets
-    {
-        TObjectPtr<UWidget> Row;
-        TObjectPtr<UBorder> Portrait;
-        TObjectPtr<UTextBlock> PortraitGlyph;
-        TObjectPtr<UTextBlock> Name;
-        TObjectPtr<UTextBlock> Level;
-        TObjectPtr<UProgressBar> GraffitiBar;
-        TObjectPtr<UTextBlock> GraffitiText;
-        TObjectPtr<UTextBlock> KDA;
-        TObjectPtr<UBorder> SkillFrames[3];
-        TObjectPtr<UImage> SkillIcons[3];
-        TObjectPtr<UTextBlock> SkillGlyphs[3];
-        TObjectPtr<UTextBlock> FinalMod;
-    };
-    TArray<FScoreRowWidgets> TacticalScoreRows;
+    UPROPERTY() TObjectPtr<USizeBox> ScoreSpot;
+    TArray<LDHUD::FTacticalScoreRow> ScoreBoard;
+    void PaintScoreboard(const LDUIPaint::FContext& P) const;
     TMap<FGuid,LDHUD::FTacticalSighting> ScoreSightings;
     uint32 ScoreSightingsMatch=0;
-    UPROPERTY() TArray<TObjectPtr<UWidget>> ScoreRows;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> ScoreCells;
     UPROPERTY() TObjectPtr<UBorder> ResultPanel;
+    // The damage and highlight cards side by side under the result table.
+    UPROPERTY() TObjectPtr<class UHorizontalBox> ResultCards;
     UPROPERTY() TObjectPtr<UTextBlock> ResultTitle;
     UPROPERTY() TObjectPtr<UTextBlock> ResultSubtitle;
     UPROPERTY() TObjectPtr<UTextBlock> ResultBoardTitle;
@@ -539,7 +527,6 @@ private:
     // Rank 3 sub-branch preview chips beneath 2A and 2B during 1->2 selection; a click or 1/2 submits RankUpSkill.
     UPROPERTY() TObjectPtr<UBorder> RankPage;
     UPROPERTY() TObjectPtr<UTextBlock> RankTitle;
-    UPROPERTY() TObjectPtr<UTextBlock> RankHint;
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> RankCards;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> RankCardNames;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> RankCardLines;

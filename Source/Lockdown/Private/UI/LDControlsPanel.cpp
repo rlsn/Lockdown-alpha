@@ -3,6 +3,7 @@
 #include "Character/LDCameraSettings.h"
 #include "Character/LDHitFeel.h"
 #include "UI/LDControlSettings.h"
+#include "UI/LDBroadcastStyle.h"
 #include "UI/LDHUDStyle.h"
 #include "UI/LDWidgets.h"
 #include "Framework/LDPlayerController.h"
@@ -37,21 +38,22 @@ namespace
 {
     using ECategory=ULDControlsPanel::ECategory;
 
-    // Local presentation of the settings page only; no rule or value lives here, and the formal reskin belongs to #93.
-    const FLinearColor ScrimColor(0.f,0.f,0.f,.55f);
-    const FLinearColor HairlineColor(.42f,.55f,.62f,.18f);
-    const FLinearColor ChosenFill(.24f,.17f,.035f);
-    const FLinearColor ChosenHover(.30f,.22f,.05f);
-    const FLinearColor ChosenEdge(1.f,.75f,.30f);
-    const FLinearColor TabChosen(.05f,.10f,.13f,.85f);
-    const FLinearColor FlatHover(.09f,.24f,.27f,.45f);
-    const FLinearColor SwitchOnTrack(.62f,.42f,.08f);
-    const FLinearColor SwitchOffTrack(.035f,.06f,.08f);
-    const FLinearColor SwitchOffEdge(.28f,.38f,.44f);
-    const FLinearColor SwitchOffKnob(.50f,.58f,.64f);
-    const FLinearColor BarFill(.035f,.06f,.085f);
-    const FLinearColor BarPendingFill(.12f,.09f,.02f);
-    const FLinearColor CardFill(.09f,.07f,.02f);
+    // Local presentation of the settings page only (on-air tokens, LDBroadcastStyle); no rule or value lives here. Square
+    // faces, 2 px white rules for the chosen option, orange only for what is on and actionable.
+    const FLinearColor ScrimColor=LDBroadcast::Ink.CopyWithNewOpacity(.72f);
+    const FLinearColor HairlineColor(1.f,1.f,1.f,.14f);
+    const FLinearColor ChosenFill=LDBroadcast::Raised;
+    const FLinearColor ChosenHover=LDBroadcast::Raised;
+    const FLinearColor ChosenEdge=LDBroadcast::White;
+    const FLinearColor TabChosen=LDBroadcast::Raised;
+    const FLinearColor FlatHover=LDBroadcast::Raised;
+    const FLinearColor SwitchOnTrack=LDBroadcast::Orange;
+    const FLinearColor SwitchOffTrack=LDBroadcast::Ink;
+    const FLinearColor SwitchOffEdge=LDBroadcast::Mute;
+    const FLinearColor SwitchOffKnob=LDBroadcast::Grey;
+    const FLinearColor BarFill=LDBroadcast::Ink;
+    const FLinearColor BarPendingFill=LDBroadcast::Raised;
+    const FLinearColor CardFill=LDBroadcast::Panel;
     constexpr int32 TitleSize=26,TabSize=19,LabelSize=18,NoteSize=15,ValueSize=17,SectionSize=16,ActionSize=16;
     // Slate units at the 1080p reference; the control column and value widths leave room for 125% text.
     constexpr float PanelWidth=1280,ControlColumn=520,ValueWidth=170,KeyWidth=210;
@@ -132,7 +134,7 @@ namespace
     FName OrientationButton(ELDMinimapOrientation Value)
     {return Value==ELDMinimapOrientation::Facing?FName(TEXT("MinimapFacing")):Value==ELDMinimapOrientation::North?FName(TEXT("MinimapNorth")):FName(TEXT("MinimapCamera"));}
 
-    FSlateRoundedBoxBrush Face(const FLinearColor& Fill,const FLinearColor& Edge,float Radius=6.f,float EdgeWidth=1.f)
+    FSlateRoundedBoxBrush Face(const FLinearColor& Fill,const FLinearColor& Edge,float Radius=0.f,float EdgeWidth=1.f)
     {FSlateRoundedBoxBrush Brush(Fill,Radius,Edge,EdgeWidth);Brush.OutlineSettings.bUseBrushTransparency=true;return Brush;}
     UTextBlock* Text(UWidgetTree* Tree,const FString& Value,int32 Size,const FLinearColor& Color,FName Name=NAME_None)
     {auto* Label=LDWidgets::Text(Tree,Value,Size,Name);Label->SetColorAndOpacity(Color);return Label;}
@@ -154,8 +156,8 @@ namespace
     void Flatten(UButton* Button,const FMargin& Spacing)
     {
         auto Style=Button->GetStyle();const auto None=Face(FLinearColor::Transparent,FLinearColor::Transparent);
-        Style.Normal=None;Style.Disabled=None;Style.Hovered=Face(FlatHover,FLinearColor(.30f,.62f,.62f,.5f));
-        Style.Pressed=Face(FLinearColor(.12f,.32f,.32f,.6f),FLinearColor(.40f,.75f,.72f,.7f));
+        Style.Normal=None;Style.Disabled=None;Style.Hovered=Face(FlatHover,FLinearColor(1.f,1.f,1.f,.35f));
+        Style.Pressed=Face(LDBroadcast::Panel,LDBroadcast::White);
         Style.NormalPadding=Spacing;Style.PressedPadding=Spacing;Button->SetStyle(Style);
     }
     // A chosen option, the capturing key and an available Apply take an amber face with a heavier edge, so the state reads
@@ -163,7 +165,7 @@ namespace
     void MarkChosen(UButton* Button,bool bChosen,const FButtonStyle& Rest)
     {
         FButtonStyle Style=Rest;
-        if(bChosen){Style.Normal=Face(ChosenFill,ChosenEdge,6.f,2.f);Style.Hovered=Face(ChosenHover,ChosenEdge,6.f,2.f);Style.Pressed=Style.Hovered;}
+        if(bChosen){Style.Normal=Face(ChosenFill,ChosenEdge,0.f,2.f);Style.Hovered=Face(ChosenHover,ChosenEdge,0.f,2.f);Style.Pressed=Style.Hovered;}
         Button->SetStyle(Style);
     }
     // A flat strip: hairlines between rows and the underline of the shown tab.
@@ -194,9 +196,9 @@ namespace
     void SetSwitch(UWidgetTree* Tree,FName Name,bool bOn)
     {
         auto* Track=CastChecked<UBorder>(Tree->FindWidget(Part(Name,TEXT("Track"))));
-        Track->SetBrush(Face(bOn?SwitchOnTrack:SwitchOffTrack,bOn?ChosenEdge:SwitchOffEdge,13.f));
+        Track->SetBrush(Face(bOn?SwitchOnTrack:SwitchOffTrack,bOn?SwitchOnTrack:SwitchOffEdge,0.f,2.f));
         Track->SetHorizontalAlignment(bOn?HAlign_Right:HAlign_Left);
-        CastChecked<UBorder>(Tree->FindWidget(Part(Name,TEXT("Knob"))))->SetBrush(Face(bOn?FLinearColor::White:SwitchOffKnob,FLinearColor::Transparent,10.f));
+        CastChecked<UBorder>(Tree->FindWidget(Part(Name,TEXT("Knob"))))->SetBrush(Face(bOn?LDBroadcast::Ink:SwitchOffKnob,FLinearColor::Transparent,0.f));
         auto* State=CastChecked<UTextBlock>(Tree->FindWidget(Part(Name,TEXT("State"))));
         State->SetText(FText::FromString(OnOff(bOn)));State->SetColorAndOpacity(bOn?LDHUDStyle::TextPrimary:LDHUDStyle::TextSecondary);
     }
@@ -392,7 +394,7 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
             {
                 OutSlider=Tree->ConstructWidget<USlider>(USlider::StaticClass(),Name);
                 OutSlider->SetMinValue(0);OutSlider->SetMaxValue(1);OutSlider->SetStepSize(.05f);OutSlider->IsFocusable=true;
-                OutSlider->SetSliderBarColor(FLinearColor(.28f,.38f,.44f));OutSlider->SetSliderHandleColor(LDHUDStyle::TextAccent);
+                OutSlider->SetSliderBarColor(LDBroadcast::Mute);OutSlider->SetSliderHandleColor(LDBroadcast::Orange);
                 FSliderStyle SliderStyle=OutSlider->GetWidgetStyle();SliderStyle.BarThickness=4;OutSlider->SetWidgetStyle(SliderStyle);
                 auto* Row=Tree->ConstructWidget<UHorizontalBox>();
                 auto* SliderBox=Tree->ConstructWidget<USizeBox>();SliderBox->SetWidthOverride(320);SliderBox->SetHeightOverride(32);SliderBox->SetContent(OutSlider);
@@ -562,7 +564,7 @@ void ULDControlsPanel::ShowCategory(ECategory Next)
         auto* Tab=Find(WidgetTree,Categories[Index].Tab);
         auto Style=Tab->GetStyle();Style.Normal=bShown?Face(TabChosen,FLinearColor::Transparent):Face(FLinearColor::Transparent,FLinearColor::Transparent);Tab->SetStyle(Style);
         Caption(Tab)->SetColorAndOpacity(bShown?LDHUDStyle::TextPrimary:LDHUDStyle::TextSecondary);
-        CastChecked<UBorder>(WidgetTree->FindWidget(Part(Categories[Index].Tab,TEXT("Line"))))->SetBrushColor(bShown?LDHUDStyle::TextAccent:FLinearColor::Transparent);
+        CastChecked<UBorder>(WidgetTree->FindWidget(Part(Categories[Index].Tab,TEXT("Line"))))->SetBrushColor(bShown?LDBroadcast::Orange:FLinearColor::Transparent);
     }
     if(!bFeedbackProblem){ShowPageHint();}
     PopulateFooter();
