@@ -79,9 +79,14 @@
 
 ## 4. 生产流程
 
-1. 原创声音：`SourceData/Audio/Lockdown/synth_demo_audio.py`（numpy/scipy/soundfile，固定种子，同脚本同输出）。
-   部分命中身体叠用仓库内的 Kenney CC0 文件。输出 48 kHz 单声道 16-bit WAV，峰值 -1 dBFS（Git LFS）。
-2. 登记：`SourceData/Audio/audio_cues.json`（schema 3）：`packs`（CC0 包与授权文件）、`originals`（生成器及其 sha256）、
+1. 分层声音（主要生产方式，用户批准的方向）：`SourceData/Audio/Layered/build_layered_audio.py` 把真实录音层对齐起音后混成
+   游戏声音：瞬态（皮革拳击、木裂、玻璃）、主体（材质与元素：火、冰晶、电弧）、尾音（布料、尘、碎屑），合成只做低频垫底。
+   素材：Kenney Impact、Interface、RPG、Sci-Fi（CC0）与 Fab “Free Modular Magic SFX”（Le Binh Son，CC BY 4.0，导出为 WAV
+   放在 `SourceData/Audio/FabMagic/`）。每个声音 3 个 take：换层与固定种子的 ±3% 音高。`--inputs` 列出全部输入文件。
+   旧的程序合成 `SourceData/Audio/Lockdown/synth_demo_audio.py` 只保留尚未改做的声音，逐批迁到分层生成器。
+   输出 48 kHz 单声道 16-bit WAV，峰值 -1 dBFS（Git LFS）。
+2. 登记：`SourceData/Audio/audio_cues.json`（schema 3）：`packs`（CC0 或注明署名的 CC BY 4.0 包与授权文件）、
+   `originals`（生成器及其 sha256；分层生成器另列 `inputs`：每个录音层的路径、sha256 与所属包）、
    `cues`（每条线索一个或多个 take）、`skills`（技能释放，按 `native_ids.json` 编号）、`music`。
 3. 响度：`python Scripts/MeasureDemoAudioLoudness.py --write`：先把每个声音拉到 Kenney 源的中位响度，再按 `level_db` 定混音；
    峰值限 0.95。混音意图写在 `level_db`，不改源文件。
@@ -104,12 +109,12 @@
 
 | 来源 | 授权 | 能否进本仓库 | 状态 |
 | --- | --- | --- | --- |
-| Kenney（已用：Digital Audio、Impact Sounds、Interface Sounds、Music Jingles） | CC0 | 能 | 使用中 |
+| Kenney（已用：Impact Sounds、Interface Sounds、RPG Audio、Sci-Fi Sounds、Music Jingles） | CC0 | 能 | 使用中 |
 | 本项目生成器 `synth_demo_audio.py` | 项目原创 | 能 | 使用中 |
-| Fab “Free Modular Magic SFX”（Le Binh Son，290 个，含 22 个 MetaSound） | 描述写 CC BY 4.0，不要求署名 | 能（保留出处） | 用户决定采用，待用户在 Fab 领取 |
-| Fab “500 Free Essential Game SFX Starter Pack”（HomkaH） | 描述写 CC BY 4.0 | 能，须署名 | 用户决定采用，待用户在 Fab 领取 |
+| Fab “Free Modular Magic SFX”（Le Binh Son，290 个，含 22 个 MetaSound） | CC BY 4.0（署名：Free Modular Magic SFX by Le Binh Son） | 能，只提交用到的层（WAV） | 使用中：用户已领取，`Content/FreeModularMagicSFX` 只放本机（已忽略） |
+| Fab “500 Free Essential Game SFX Starter Pack”（HomkaH） | 描述写 CC BY 4.0 | 能，须署名 | 下载不了，不用 |
 | Fab “100 RPG Fantasy SFX Pack” | 页面未写授权，标注 AI 生成 | 不用 | 排除 |
-| Sonniss #GameAudioGDC（2015–2026 各年，GDC 2026 约 7.5 GB） | 可商用、免署名；禁止把音效本身再分发 | **不能**：本仓库是公开的，原始文件与导入后的 `.uasset` 都不能提交；按 VFX 已定的做法只放本机 | 用户决定不用 |
+| Sonniss #GameAudioGDC（2015–2026 各年，GDC 2026 约 7.5 GB） | 可商用、免署名；禁止把音效本身再分发 | **不能**：本仓库是公开的，原始文件与导入后的 `.uasset` 都不能提交；按 VFX 已定的做法只放本机 | 用户允许使用；含其素材的混音能否进公开仓库尚未定，暂未下载 |
 | Freesound | 只用 CC0 | 能 | 未开始（需登录下载） |
 
 Kenney 的 Impact、Interface、RPG、Sci-Fi 全包（CC0）由用户决定采用。
@@ -148,17 +153,18 @@ Kenney 的 Impact、Interface、RPG、Sci-Fi 全包（CC0）由用户决定采�
 | 普攻挥击 1–2 段 | USER APPROVED | `SwingLight` ×3 take，第 2 段音高 0.94 | 实机样板时序已验（`production/feel/sample-combo-zap/`）；未听感验收 |
 | 普攻终结挥击 | USER APPROVED | `SwingFinisher` ×2 | 同上 |
 | 落空 | IMPLEMENTED | 只有挥击声（设计如此） | — |
-| 普通命中（他人身体） | USER APPROVED | `HitBasic` ×3（合成 + Kenney 重击） | 样板时序已验；联网时与本人确认层可能相差 1–2 帧，未在真实对局确认 |
-| 终结命中 | USER APPROVED | `HitFinisher` ×2 | 依赖 VFX 击打匹配判断终结 |
+| 普通命中（他人身体） | USER APPROVED | `HitBasic` ×3（分层：皮革拳击 + 软体闷响 + 低频 + 布料） | 样板时序已验；联网时与本人确认层可能相差 1–2 帧，未在真实对局确认 |
+| 终结命中 | USER APPROVED | `HitFinisher` ×3（分层：重拳 + 木裂 + 低频爆 + 尘尾） | 依赖 VFX 击打匹配判断终结 |
 | 本人命中确认（普通/暴击/破盾/击杀） | IMPLEMENTED | `SelfDealtImpact` + `SelfDealtAccent`/`Crit`/`ShieldBreak`/`Kill` | — |
-| 电命中 / 闪电链每跳 | USER APPROVED | `HitElectric` ×3 | 样板时序已验：三跳各在日志时刻 ±7 ms |
-| 火、水、魔法命中 | IMPLEMENTED | `HitFire`、`HitWater`、`HitMagic` 各 ×2 | — |
+| 电命中 / 闪电链每跳 | USER APPROVED | `HitElectric` ×3（分层：闪电击 + 短拳） | 样板时序已验：三跳各在日志时刻 ±7 ms |
+| 火命中 | USER APPROVED | `HitFire` ×3（分层：火焰冲击 + 闷响） | A/B 第一轮选定 |
+| 水、魔法命中 | IMPLEMENTED | `HitWater`、`HitMagic` 各 ×2（程序合成，待改分层） | — |
 | 冰、腐（毒）命中 | IMPLEMENTED | 施法者可见时，命中按 VFX 的击打匹配归到技能（冰可乐 → 冰裂命中，过期外卖 → 湿拍腐烂命中） | 施法者不可见时只剩 Magic 外观，落回 `HitMagic`；彻底区分需要命中投影带元素（网络改动，非本流） |
 | 技能前摇蓄能 | USER APPROVED | `CastCharge`，出手 30 ms 切断 | — |
 | 技能释放：电你个哆嗦 | USER APPROVED | 技能表 `active_zap` ×2 | 样板（§6） |
 | 技能释放：其余 23 个 | USER ACCEPTED（待质量复做） | 技能表各 ×2 take，按玩法语义合成（推、抓、冲刺、护盾、投掷、区域、元素），见生成器 `skill_*` | 波形与频谱已查（主瞬态在出手时刻、≤ 8.5 kHz）；未实机采集、未听感验收 |
 | 每技能专属命中声 | USER ACCEPTED（待质量复做） | `skill_hits` 表 18 个技能各 ×2 take（骨撞、拍脸、砖裂、水柱、冰裂、腐烂、书包、鞭响……），按 VFX 击打匹配（`FStrikeMatch::Ability`）播放；电你个哆嗦沿用已批准的 `HitElectric`，强化普攻类走普攻命中 | 施法者不可见时落回外观族。物理伤害技能（滚远点、扒裤子、掏蛋子、甩你一鞋、蛮牛顶）的命中外观是 None，VFX 击打匹配目前只把 None 配给普攻，滋你一脸的匹配不带技能号，所以这 6 个技能实际仍播普攻/水命中声；已请 Stream B 调整匹配 |
-| 元素反应（10 种） | USER ACCEPTED（待质量复做） | `Reaction*` 线索，挂在 `SetReaction` 钩子，与特效强度无关；按反应的两个元素设计（雾=蒸汽、导电=扩散放电、超载=爆裂、融化、沼气闷爆、冻结、发酵、碎冰、腐蚀、冻伤） | 未实机采集 |
+| 元素反应（10 种） | USER ACCEPTED（待质量复做） | `Reaction*` 线索，挂在 `SetReaction` 钩子，与特效强度无关；按反应的两个元素设计（雾=蒸汽、导电=扩散放电、超载=爆裂、融化、沼气闷爆、冻结、发酵、碎冰、腐蚀、冻伤） | 未实机采集；冰碎（`ReactionShatter`）已改分层（冰晶冲击 + 玻璃碎 + 低频碎裂），A/B 第一轮选定 |
 | 地面状态循环（水洼、冰、火、瘴气、电场） | NOT STARTED | — | — |
 | 投射物飞行与落点 | NOT STARTED | — | — |
 | 元素状态挂上（着火、湿身、带电、冰冷、腐烂） | USER ACCEPTED（待质量复做） | `State*` 短促提示，状态从无到有时响一次，不做循环（避免混战堆积） | 未实机采集 |
@@ -168,7 +174,7 @@ Kenney 的 Impact、Interface、RPG、Sci-Fi 全包（CC0）由用户决定采�
 | 他人被击倒 | IMPLEMENTED | `BodyFall`（重摔与扬尘），挂在倒地尘环（`NS_LDKnockout`）同一钩子，按威胁级 0.9 播放；本人死亡仍是 `SelfDeath` | 未听感验收 |
 | 击杀播报、开旗、占领、争夺 | IMPLEMENTED | 开旗（铁钟一击与上扬）、开始喷漆（喷漆罐摇珠与喷气，对应喷漆占点）、争夺（两下闷敲与断续喷气）改为原创；击杀播报沿用 Kenney 乐句；本人击杀另有 `SelfDealtKill` 重音 | 未听感验收 |
 | 开局、胜、负、无胜者 | IMPLEMENTED | `MatchStart`（开局休息后的第一段场地，中途加入不补放）；胜负为既有 Kenney 乐句 | 规则测试 `AudioFeelSync` 覆盖开局判定 |
-| 界面：悬停、点击、拒绝、构筑工坊全套 | IMPLEMENTED | Kenney Interface 线索：通用命令按钮悬停与按下、拒绝、发牌、选定、安装、获得（奖励）、加点、按住确认、终局锁定；元素石融合改为原创；游戏无商店，“购买”即构筑安装与选定，均在回执后播放 | 接线在 UI（Stream A）；声音质量待 Kenney 全包后复审 |
+| 界面：悬停、点击、拒绝、构筑工坊全套 | IMPLEMENTED | Kenney Interface 线索：通用命令按钮悬停与按下、拒绝、发牌、选定、安装、获得（奖励）、加点、按住确认、终局锁定；元素石融合改为原创；游戏无商店，“购买”即构筑安装与选定，均在回执后播放 | 接线在 UI（Stream A）；声音质量待 Kenney 全包后复审；选定（`UIChoose`）已改分层（确认音 + 玻璃闪光），A/B 第一轮选定 |
 | 菜单、大厅、设置、赛后 | IN PROGRESS | 点击、悬停共用；音乐已有 | — |
 | 环境氛围 | NOT STARTED | — | — |
 | 音乐 | IMPLEMENTED | 用户提供的三首 | — |
