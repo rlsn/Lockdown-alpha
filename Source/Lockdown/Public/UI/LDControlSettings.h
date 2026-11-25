@@ -4,6 +4,7 @@
 #include "InputCoreTypes.h"
 #include "Scalability.h"
 #include "Character/LDCameraSettings.h"
+#include "Audio/LDAudioTypes.h"
 #include "LDControlSettings.generated.h"
 
 class ULDControlSettings;
@@ -116,7 +117,7 @@ UENUM() enum class ELDMinimapOrientation : uint8 { Camera=0, Facing=1, North=2 }
 // ResetLocalDefaults. Display values belong to UGameUserSettings and are restored through the display apply instead.
 enum class ELDPreferenceGroup : uint8
 {
-    Audio,      // MasterVolume, MusicVolume
+    Audio,      // MasterVolume, MusicVolume, SfxVolume, UiVolume
     Controls,   // Bindings, bQuickCast, bAutoAttackAfterCast
     Camera,     // Zoom, bEdgePan, bStartFollowing, CameraPanCmPerSec
     Interface   // TextScale, MinimapOrientation, bShowNetworkDiagnostics, bShowFPS, combat effects and camera feedback
@@ -126,7 +127,7 @@ class LOCKDOWN_API ULDControlSettings : public USaveGame
 {
     GENERATED_BODY()
 public:
-    static constexpr int32 CurrentSchema = 25;
+    static constexpr int32 CurrentSchema = 26;
     static constexpr int32 MaxPlayerNameChars = 16;
     // Camera-only pan speed domain in cm/s, defined by the UI settings module (MOVEMENT_INPUT_AND_CAMERA local settings).
     static constexpr float MinCameraPanCmPerSec = 900;
@@ -143,6 +144,9 @@ public:
     UPROPERTY(SaveGame) float MasterVolume=1;
     // Linear 0..1 gain of the background music on top of the master volume. The 0.6 default is the user's decision (#94).
     UPROPERTY(SaveGame) float MusicVolume=.6f;
+    // Linear 0..1 gains of the combat/world sounds and of the interface sounds on top of the master volume (AUDIO_AND_FEEL buses).
+    UPROPERTY(SaveGame) float SfxVolume=1;
+    UPROPERTY(SaveGame) float UiVolume=1;
     // Keyboard and edge pan speed of the camera only; it never changes world distances, vision or body speed.
     // The 1800 default is the coordinator's decision, not a balance-tested value.
     UPROPERTY(SaveGame) float CameraPanCmPerSec=1800;
@@ -170,8 +174,9 @@ public:
     FLDLocalSettingsSaveResult SaveLocalSettings();
     bool SetAppliedZoom(float Value, FString& Error);
     void UseRecommendedCameraZoom() { Zoom = LDCamera::DefaultArmLength; }
-    bool SetAppliedMasterVolume(float Value, FString& Error);
-    bool SetAppliedMusicVolume(float Value, FString& Error);
+    // The applied volume of one bus (ELDAudioBus), linear 0..1; a draft or an out-of-range value is refused with a reason.
+    bool SetAppliedBusVolume(ELDAudioBus Bus, float Value, FString& Error);
+    float BusVolume(ELDAudioBus Bus) const;
     bool SetAppliedCameraPanSpeed(float Value, FString& Error);
     float GetCameraPanCmPerSec() const { return CameraPanCmPerSec; }
     bool SetAppliedMinimapOrientation(ELDMinimapOrientation Value, FString& Error);

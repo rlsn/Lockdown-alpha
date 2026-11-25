@@ -119,6 +119,19 @@ public:
         const LDSliceVfx::FLook& Look, float AgeSeconds);
     // A basic swing's arc of motion (combo Step 1-3) round Centre along Facing, bound to Owner.
     void Swing(const ULDHumanoidVisualComponent& Owner, uint8 Step, const FVector& Centre, const FVector& Facing, const LDSliceVfx::FLook& Look, float AgeSeconds);
+    // One generated system (a skill's telegraph, release or hit) on Owner: pooled, its user parameters set (Intensity from
+    // Look, 70 % for others' effects), cleared with Owner and stopped after Seconds; a telegraph also goes with
+    // ClearTelegraphs. Width is the system's own measure (a band's half width, a radius), never scaled here. Null when it
+    // cannot show.
+    UNiagaraComponent* Play(LDSliceVfx::ESystem System, const ULDHumanoidVisualComponent& Owner, const FVector& Start, const FVector& End,
+        const FLinearColor& Tint, float Width, float Seconds, const LDSliceVfx::FLook& Look, float AgeSeconds, bool bTelegraph = false);
+    // A looping generated system owned by the caller (a ground state, a status on a body, a flight): made on Owner's actor
+    // and attached to Owner, its user parameters (world space) set on every call. ESystem::Count, a missing asset or a
+    // render-less process removes Existing and returns null. The caller keeps the result and destroys it with itself.
+    UNiagaraComponent* ShowLoop(USceneComponent& Owner, UNiagaraComponent* Existing, LDSliceVfx::ESystem System, const FVector& Start,
+        const FVector& End, const FLinearColor& Tint, float Width, float Intensity, float Seconds, bool bFocus);
+    // The supporting floor under At (the point itself when nothing is below it within reach).
+    FVector FloorUnder(const FVector& At) const { FVector Normal; return GroundUnder(At, Normal); }
     // A basic or finisher hit on Victim's Chest struck from From's side, bound to Victim.
     void Hit(const ULDHumanoidVisualComponent& Victim, const FVector& From, const FVector& Chest, bool bFinisher, const LDSliceVfx::FLook& Look, float AgeSeconds);
     // A public electric ground state's field on Owner at its authoritative radius (fades with Alpha; Alpha <= 0 removes it).
@@ -131,7 +144,12 @@ public:
     // The approved reach of a skill's level-1 target (its range and, for a direction line, the band's half width) and
     // the conduct reaction's splash radius; 0 when the content is unavailable.
     bool SkillReach(uint8 Ability, float& OutRangeCm, float& OutHalfWidthCm);
+    // The approved full angle of a skill's level-1 cone target (degrees); 0 when it has none.
+    float SkillConeDegrees(uint8 Ability);
     float ConductRadiusCm();
+    // The approved level-1 radius of one of a skill's effects (its self area, zone, ground impact...); 0 when it has none
+    // or the content is unavailable.
+    float SkillEffectRadius(uint8 Ability, uint16 Opcode);
     int32 LiveSliceCount() const { return LiveSlices.Num(); }
     // A visible skill effect's own particles: its flight trail or ground zone on Owner, and its appear burst.
     UNiagaraComponent* ShowEffect(USceneComponent& Owner, UNiagaraComponent* Existing, ELDObservedProjectileLook Look,

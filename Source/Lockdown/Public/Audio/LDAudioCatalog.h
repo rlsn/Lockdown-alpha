@@ -15,6 +15,17 @@ struct LOCKDOWN_API FLDAudioCueEntry
     UPROPERTY(VisibleAnywhere) ELDAudioCue Cue = ELDAudioCue::None;
     // Hard reference: the cooked catalog carries every cue sound.
     UPROPERTY(VisibleAnywhere) TObjectPtr<USoundWave> Sound;
+    // Further takes of the same cue; a play picks one of Sound and these, never the take it played last.
+    UPROPERTY(VisibleAnywhere) TArray<TObjectPtr<USoundWave>> Variants;
+};
+
+// A sound keyed by a content number instead of a cue: the release of one active skill (ELDDemoAbilityId).
+USTRUCT()
+struct LOCKDOWN_API FLDAudioKeyedEntry
+{
+    GENERATED_BODY()
+    UPROPERTY(VisibleAnywhere) uint8 Key = 0;
+    UPROPERTY(VisibleAnywhere) TArray<TObjectPtr<USoundWave>> Sounds;
 };
 
 USTRUCT()
@@ -37,16 +48,34 @@ public:
     static constexpr const TCHAR* MasterClassPath = TEXT("/Game/Lockdown/Audio/SC_DemoMaster.SC_DemoMaster");
     static constexpr const TCHAR* UserMixPath = TEXT("/Game/Lockdown/Audio/SMix_DemoUser.SMix_DemoUser");
     static constexpr const TCHAR* MusicClassPath = TEXT("/Game/Lockdown/Audio/SC_DemoMusic.SC_DemoMusic");
-    // The single master volume chain: every cue sound routes to MasterClass; the user volume overrides it in UserMix.
+    static constexpr const TCHAR* SfxClassPath = TEXT("/Game/Lockdown/Audio/SC_DemoSfx.SC_DemoSfx");
+    static constexpr const TCHAR* UIClassPath = TEXT("/Game/Lockdown/Audio/SC_DemoUI.SC_DemoUI");
+    // The single volume chain: MasterClass has exactly the bus children MusicClass, SfxClass and UIClass, every sound routes
+    // to one of them, and the user volumes override the four classes in UserMix (bus = master x its own volume).
     UPROPERTY(VisibleAnywhere) TObjectPtr<USoundClass> MasterClass;
     UPROPERTY(VisibleAnywhere) TObjectPtr<USoundMix> UserMix;
-    // Music (#94) routes to MusicClass, a child of MasterClass, so it plays at the master volume times the music volume.
     UPROPERTY(VisibleAnywhere) TObjectPtr<USoundClass> MusicClass;
+    UPROPERTY(VisibleAnywhere) TObjectPtr<USoundClass> SfxClass;
+    UPROPERTY(VisibleAnywhere) TObjectPtr<USoundClass> UIClass;
     // Exactly one entry per playable cue, in enum order.
     UPROPERTY(VisibleAnywhere) TArray<FLDAudioCueEntry> Cues;
     // Exactly one entry per music track, in enum order.
     UPROPERTY(VisibleAnywhere) TArray<FLDMusicTrackEntry> Music;
-    // Complete, non-looping, non-spatial cue table routed to MasterClass, and a complete non-spatial music table routed to
-    // MusicClass with each track's loop flag. OutSounds is indexed by cue value, OutMusic by track value.
-    bool Resolve(TArray<USoundWave*>& OutSounds, TArray<USoundWave*>& OutMusic, FString& Error) const;
+    // Skill releases by ability number, ascending; a skill without an entry releases with the CastRelease cue.
+    UPROPERTY(VisibleAnywhere) TArray<FLDAudioKeyedEntry> SkillReleases;
+
+    // What Resolve hands to the player: every take of every cue (indexed by cue value), music by track value, skill takes by
+    // ability number (empty = none of its own) and each class by bus.
+    struct FResolved
+    {
+        TArray<TArray<USoundWave*>> Cues;
+        TArray<USoundWave*> Music;
+        TArray<TArray<USoundWave*>> Skills;
+        USoundClass* Buses[LDAudio::BusCount] = {};
+    };
+    // Complete one-shot non-spatial cue table routed to the SFX or UI class, a complete music table routed to MusicClass
+    // with each track's loop flag, and one-shot skill takes on the SFX class.
+    bool Resolve(FResolved& Out, FString& Error) const;
+    // The bus a cue routes to (UI for the interface cues, SFX for everything else).
+    static ELDAudioBus BusOf(ELDAudioCue Cue);
 };

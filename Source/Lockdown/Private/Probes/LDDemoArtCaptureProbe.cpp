@@ -1,4 +1,9 @@
 #include "Probes/LDDemoArtCaptureProbe.h"
+#include "AudioMixerBlueprintLibrary.h"
+#include "Audio/LDAudioFeel.h"
+#include "Audio/LDAudioSubsystem.h"
+#include "Engine/GameViewportClient.h"
+#include "Character/LDHitFeel.h"
 #include "Core/LDLog.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -147,6 +152,10 @@ namespace
             // Frames captured from From seconds on.
             float From = .2f;
             int32 Frames = 24;
+            // Audiovisual feel sample (-LDDemoVfxProof=feel): played at real game speed with the audio device on; the master
+            // submix is recorded to <folder>/game_audio.wav (the game's own mix, not a re-render) for Seconds.
+            bool bRealtime = false;
+            float Seconds = 0.f;
         };
         FString ProofLabel;
         TArray<FChainJob> ChainJobs;
@@ -833,8 +842,6 @@ namespace
                     const FVector At = VfxFocus + FVector(0, 0, 100);
                     for (uint8 Strike = uint8(LDSliceVfx::EStrike::Basic); Strike <= uint8(LDSliceVfx::EStrike::Zap); ++Strike)
                     { Impacts->Slice(nullptr, LDSliceVfx::Impact(LDSliceVfx::EStrike(Strike), At, VfxFocus, FVector::ForwardVector, VfxFocus, false, Look), 0.f); }
-                    Impacts->Slice(nullptr, LDSliceVfx::SkillTelegraph(VfxFocus, FVector::ForwardVector, 300.f, 100.f, .3f, Look), 0.f);
-                    Impacts->Slice(nullptr, LDSliceVfx::HoseRelease(At, FVector::ForwardVector, 300.f, Look), 0.f);
                     SeqWarmUntil = Now + 3.;
                 }
                 if (Now < SeqWarmUntil || (GShaderCompilingManager && GShaderCompilingManager->IsCompiling())) { return true; }
@@ -916,7 +923,8 @@ namespace
             Categories.ParseIntoArray(Wanted, TEXT(","), true);
             for (const FString& Name : Wanted)
             {
-                if (!Check(Name == TEXT("chain") || Name == TEXT("hit") || Name == TEXT("swing") || Name == TEXT("field"), TEXT("Proof category known: ") + Name)) { return false; }
+                if (!Check(Name == TEXT("chain") || Name == TEXT("hit") || Name == TEXT("swing") || Name == TEXT("field") || Name == TEXT("water") || Name == TEXT("fire") || Name == TEXT("chill") || Name == TEXT("feel"),
+                    TEXT("Proof category known: ") + Name)) { return false; }
             }
             const TWeakObjectPtr<ULDHumanoidVisualComponent> A = VfxAttacker, V1 = VfxVictim, V2 = VfxExtras[0], V3 = VfxExtras[1], A2 = VfxExtras[2], A3 = VfxExtras[3];
             const auto Cast = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body)
@@ -997,6 +1005,17 @@ namespace
                 ProofGrounds.Reset();
                 ProofGroundsAt.Reset();
             };
+            // Any active cast with its windup (the approved level-1 timing a viewer sees), and a hit of a look.
+            const auto CastOf = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, ELDDemoAbilityId Ability, float Windup)
+            { return [Body, Ability, Windup]() { if (auto* B = Body.Get()) { B->SetComboStep(0); B->SetCastAbility(uint8(Ability)); B->SetCue(2, 0.f, Windup); } }; };
+            const auto HitOf = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, ELDObservedHitLook HitLook)
+            { return [Body, HitLook]() { if (auto* B = Body.Get()) { B->SetHitReaction(0.f, HitLook, 0, FGuid::NewGuid()); } }; };
+            // V1 at Range ahead of A (A's facing), facing it.
+            const auto Ahead = [A, V1, AHome, AFacing](double Range)
+            {
+                return [A, V1, AHome, AFacing, Range]()
+                { if (auto* B = V1.Get()) { B->GetOwner()->SetActorLocation(AHome + AFacing.Vector() * Range); B->GetOwner()->SetActorRotation((-AFacing.Vector()).Rotation()); } };
+            };
             // The own contender's seat (A is the local player's body) and another's.
             const uint8 OwnSeat = A.IsValid() ? A->PaletteSlot() : 255, OtherSeat = V2.IsValid() ? V2->PaletteSlot() : 255;
             for (const FString& Look : Wanted)
@@ -1039,6 +1058,95 @@ namespace
                     ChainJobs.Add({Look, TEXT("field-own-other"), {{.05f, Field(V1, 220.f, 1200, 25, OwnSeat)}, {.05f, Field(V2, 220.f, 1200, 26, OtherSeat)}},
                         nullptr, ClearGrounds, false, .6f, 0.f, 48});
                 }
+                else if (Look == TEXT("water"))
+                {
+                    // active_hose_down (windup 0.2 s): its band during the windup, the stream and a hit 3 m ahead, the same on the
+                    // sunlit floor and another player's; active_zap's hand charge during its windup (0.25 s).
+                    const float Hose = .2f, Zap = .25f;
+                    const auto Sun = [Sunlit, A, V1]()
+                    {
+                        Sunlit();
+                        if (A.IsValid() && V1.IsValid())
+                        {
+                            const FVector From = A->GetOwner()->GetActorLocation(), To = V1->GetOwner()->GetActorLocation();
+                            A->GetOwner()->SetActorRotation((To - From).Rotation());
+                            V1->GetOwner()->SetActorLocation(From + (To - From).GetSafeNormal2D() * 300.);
+                        }
+                    };
+                    ChainJobs.Add({Look, TEXT("water-tell"), {{0.f, CastOf(A, ELDDemoAbilityId::ActiveHoseDown, Hose)}, {Hose + .03f, HitOf(V1, ELDObservedHitLook::Water)}},
+                        Ahead(300.), Home, false, Hose * .6f, 0.f, 12});
+                    ChainJobs.Add({Look, TEXT("water-hose"), {{0.f, CastOf(A, ELDDemoAbilityId::ActiveHoseDown, Hose)}, {Hose + .03f, HitOf(V1, ELDObservedHitLook::Water)}},
+                        Ahead(300.), Home, false, Hose + .06f, 0.f, 45});
+                    ChainJobs.Add({Look, TEXT("water-sunlit"), {{0.f, CastOf(A, ELDDemoAbilityId::ActiveHoseDown, Hose)}, {Hose + .03f, HitOf(V1, ELDObservedHitLook::Water)}},
+                        Sun, Home, false, Hose + .06f, .1f, 30});
+                    ChainJobs.Add({Look, TEXT("water-other"), {{0.f, CastOf(A3, ELDDemoAbilityId::ActiveHoseDown, Hose)}, {Hose + .03f, HitOf(V3, ELDObservedHitLook::Water)}},
+                        nullptr, nullptr, false, Hose + .06f, .1f, 30});
+                    ChainJobs.Add({Look, TEXT("zap-charge"), {{0.f, CastOf(A, ELDDemoAbilityId::ActiveZap, Zap)}, {Zap + .02f, HitOf(V1, ELDObservedHitLook::Electric)}},
+                        Close, Home, false, Zap * .7f, 0.f, 15});
+                }
+                else if (Look == TEXT("fire"))
+                {
+                    // active_seethe (windup 0.25 s, radius 300): its windup, the burst with V1 burnt 2 m away, the scorch
+                    // fading, the same on the sunlit floor, and another player's.
+                    const float Seethe = .25f;
+                    const auto Burnt = [&](TWeakObjectPtr<ULDHumanoidVisualComponent> Caster, TWeakObjectPtr<ULDHumanoidVisualComponent> Victim)
+                    { return TArray<FSeqStep>{{0.f, CastOf(Caster, ELDDemoAbilityId::ActiveSeethe, Seethe)}, {Seethe + .03f, HitOf(Victim, ELDObservedHitLook::Fire)}}; };
+                    ChainJobs.Add({Look, TEXT("fire-tell"), Burnt(A, V1), Ahead(200.), Home, false, Seethe * .7f, 0.f, 12});
+                    ChainJobs.Add({Look, TEXT("fire-seethe"), Burnt(A, V1), Ahead(200.), Home, false, Seethe + .1f, 0.f, 60});
+                    ChainJobs.Add({Look, TEXT("fire-sunlit"), Burnt(A, V1), Sunlit, Home, false, Seethe + .1f, .15f, 30});
+                    ChainJobs.Add({Look, TEXT("fire-other"), Burnt(A3, V3), nullptr, nullptr, false, Seethe + .1f, .15f, 30});
+                }
+                else if (Look == TEXT("chill"))
+                {
+                    // active_cola_shake (windup 0.15 s, cone 400 cm / 60 degrees): its windup, the blast hitting V1 2.5 m ahead,
+                    // the same on the sunlit floor, and another player's.
+                    const float Cola = .15f;
+                    const auto Blast = [&](TWeakObjectPtr<ULDHumanoidVisualComponent> Caster, TWeakObjectPtr<ULDHumanoidVisualComponent> Victim)
+                    { return TArray<FSeqStep>{{0.f, CastOf(Caster, ELDDemoAbilityId::ActiveColaShake, Cola)}, {Cola + .05f, HitOf(Victim, ELDObservedHitLook::Magic)}}; };
+                    ChainJobs.Add({Look, TEXT("chill-tell"), Blast(A, V1), Ahead(250.), Home, false, Cola * .7f, 0.f, 8});
+                    ChainJobs.Add({Look, TEXT("chill-blast"), Blast(A, V1), Ahead(250.), Home, false, Cola + .12f, 0.f, 50});
+                    ChainJobs.Add({Look, TEXT("chill-sunlit"), Blast(A, V1), Sunlit, Home, false, Cola + .12f, .1f, 30});
+                    ChainJobs.Add({Look, TEXT("chill-other"), Blast(A3, V3), nullptr, nullptr, false, Cola + .12f, .1f, 30});
+                }
+                else if (Look == TEXT("feel"))
+                {
+                    // The own body A runs a full basic combo on V1 at the base cadence (1/0.85 s apart), each blow landing at
+                    // its release with the owner's confirmation, then casts the approved chain: V1, then two bounces 150 ms
+                    // apart (active_zap data). Every sound comes from the same presentation hooks as in a match.
+                    const float Interval = 1.f / .85f;
+                    const auto Confirmed = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Attacker, uint8 Flags)
+                    {
+                        return [Attacker, Flags]()
+                        {
+                            if (auto* B = Attacker.Get())
+                            {
+                                const LDHitFeel::FTuning Feel = LDHitFeel::Read();
+                                const LDHitFeel::FConfirm Confirm = LDHitFeel::ConfirmOf(Feel, Flags);
+                                B->SetConfirm(0.f, Confirm.StopSeconds, Confirm.SparkScale);
+                                LDAudioFeel::Confirm(*B, Flags, Feel.ConfirmVolume);
+                            }
+                        };
+                    };
+                    FChainJob Feel{Look, TEXT("feel-combo-zap"), {}, [Close, A, V1]() { Close(); if (auto* B = A.Get()) { B->SetOwnBody(true); } if (auto* B = V1.Get()) { B->SetOwnBody(false); } },
+                        [Home, A]() { Home(); if (auto* B = A.Get()) { B->SetOwnBody(false); } }};
+                    for (uint8 Step = 1; Step <= 3; ++Step)
+                    {
+                        const float At = .5f + (Step - 1) * Interval;
+                        Feel.Steps.Add({At, Swing(A, Step, W)});
+                        Feel.Steps.Add({At + W + .02f, Plain(V1)});
+                        Feel.Steps.Add({At + W + .02f, Confirmed(A, 0)});
+                    }
+                    const float ZapAt = .5f + 3.f * Interval + .3f;
+                    Feel.Steps.Add({ZapAt, Cast(A)});
+                    Feel.Steps.Add({ZapAt + .27f, Hit(V1)});
+                    Feel.Steps.Add({ZapAt + .27f, Confirmed(A, 0)});
+                    Feel.Steps.Add({ZapAt + .42f, Hit(V2)});
+                    Feel.Steps.Add({ZapAt + .57f, Hit(V3)});
+                    Feel.bRealtime = true;
+                    Feel.Seconds = ZapAt + 1.6f;
+                    ChainJobs.Add(Feel);
+                    continue;
+                }
                 else
                 {
                 // (a) a short hop of 250 cm along the checked dash line in front of A.
@@ -1062,6 +1170,8 @@ namespace
                 // the sunlit band below the stage, 140 px (about 250 cm) apart.
                 ChainJobs.Add({Look, TEXT("g-sunlit-hop"), {{0.f, Cast(A)}, {.27f, Hit(V1)}}, Sunlit, Home});
                 }
+                // New categories are judged on their looks first; their frame cost is measured once a look is chosen.
+                if (Look == TEXT("water") || Look == TEXT("fire") || Look == TEXT("chill")) { continue; }
                 FChainJob Perf;
                 Perf.Category = Look;
                 Perf.Scenario = TEXT("perf-eight-casters");
@@ -1141,6 +1251,20 @@ namespace
                 ChainPhaseAt = Now;
                 ChainFrameTimes.Reset();
                 ChainCheck = MakeShared<FJsonObject>();
+                if (Job.bRealtime)
+                {
+                    IFileManager::Get().MakeDirectory(*(Directory / Folder), true);
+                    // The window shows the stage as the real-time recording sees it: no lobby or HUD widgets over it.
+                    if (UGameViewportClient* Viewport = Target.GetGameViewport()) { Viewport->RemoveAllViewportWidgets(); }
+                    // Only the music bus is muted so the combat sounds can be judged on their own; every other bus plays as set.
+                    if (UGameInstance* Instance = Target.GetGameInstance())
+                    { if (auto* Audio = Instance->GetSubsystem<ULDAudioSubsystem>()) { Audio->ApplyBusVolume(ELDAudioBus::Music, 0.f); } }
+                    UAudioMixerBlueprintLibrary::StartRecordingOutput(&Target, Job.Seconds + 1.f);
+                    // The wall clock of the recording start lets the window recording be aligned to the game audio.
+                    UE_LOG(LogLDTest, Display, TEXT("LD_FEEL_RECORDING_START utc=%s"), *FDateTime::UtcNow().ToIso8601());
+                    ChainPhase = 4;
+                    return true;
+                }
                 if (Job.bPerf)
                 {
                     for (const auto* List : {&PerfCasters, &PerfVictims}) { for (const auto& Body : *List) { if (Body.IsValid()) { Body->SetVisibility(true, true); } } }
@@ -1199,6 +1323,25 @@ namespace
                 if (Job.Teardown) { Job.Teardown(); }
                 ChainPhase = 2;
                 ChainPhaseAt = Now;
+                return true;
+            }
+            if (ChainPhase == 4)
+            {
+                // Real game speed: the scenario clock is the world's own delta, the steps fire on it, and the audio device
+                // plays and records exactly what a match would.
+                ChainClock += SimDelta;
+                while (ChainStep < Job.Steps.Num() && Job.Steps[ChainStep].At <= ChainClock)
+                {
+                    UE_LOG(LogLDTest, Display, TEXT("LD_FEEL_STEP t=%.4f world=%.4f step=%d"), ChainClock, Target.GetTimeSeconds(), ChainStep);
+                    Job.Steps[ChainStep++].Do();
+                }
+                if (ChainClock < Job.Seconds) { return true; }
+                const FString Wav = FPaths::ConvertRelativePathToFull(Directory / Folder);
+                UAudioMixerBlueprintLibrary::StopRecordingOutput(&Target, EAudioRecordingExportType::WavFile, TEXT("game_audio"), Wav);
+                UE_LOG(LogLDTest, Display, TEXT("LD_FEEL_RECORDING_STOP utc=%s file=%s/game_audio.wav"), *FDateTime::UtcNow().ToIso8601(), *Wav);
+                if (Job.Teardown) { Job.Teardown(); }
+                ChainPhaseAt = Now;
+                ChainPhase = 2;
                 return true;
             }
             if (ChainPhase == 2)

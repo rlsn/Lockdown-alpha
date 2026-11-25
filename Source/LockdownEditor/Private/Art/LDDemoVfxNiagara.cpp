@@ -270,7 +270,14 @@ namespace
         // Sprite facing (CustomFacingVector lays a sprite on the ground with Particles.SpriteFacing up).
         ENiagaraSpriteFacingMode Facing = ENiagaraSpriteFacingMode::Automatic;
 
+        // Attributes written only when a particle spawns, before Attributes (an origin a trail particle keeps where it was
+        // left, a per-particle random draw).
+        TArray<TPair<FString, FString>> SpawnOnly;
+        // A sprite or light part that keeps spawning: its burst fires again every LoopSeconds (0 spawns once).
+        float LoopSeconds = 0.f;
+
         FPart& Set(const TCHAR* Attribute, const FString& Hlsl) { Attributes.Emplace(Attribute, Hlsl); return *this; }
+        FPart& AtSpawn(const TCHAR* Attribute, const FString& Hlsl) { SpawnOnly.Emplace(Attribute, Hlsl); return *this; }
     };
 
     // A generated system: its parts.
@@ -286,7 +293,8 @@ namespace
         if (Name == TEXT("Particles.LDRibbon")) { return FNiagaraTypeDefinition::GetIntDef(); }
         if (Name == TEXT("Particles.Color")) { return FNiagaraTypeDefinition::GetColorDef(); }
         if (Name == TEXT("Particles.SpriteSize")) { return FNiagaraTypeDefinition::GetVec2Def(); }
-        if (Name == TEXT("Particles.Velocity") || Name == TEXT("Particles.SpriteAlignment") || Name == TEXT("Particles.SpriteFacing")) { return FNiagaraTypeDefinition::GetVec3Def(); }
+        if (Name == TEXT("Particles.Velocity") || Name == TEXT("Particles.SpriteAlignment") || Name == TEXT("Particles.SpriteFacing")
+            || Name == TEXT("Particles.LDOrigin") || Name == TEXT("Particles.LDHeading")) { return FNiagaraTypeDefinition::GetVec3Def(); }
         return FNiagaraTypeDefinition::GetFloatDef();
     }
 
@@ -916,6 +924,729 @@ namespace
         return Tell;
     }
 
+    // ------------------------------------------------------------------ water (active_hose_down) and the zap's charge
+    // Water: a cohesive see-through stream that breaks into beads with gravity, a cool white glint for its core, mist where
+    // it strikes, a dark soaked floor where it lands. Never a flat blue fill, never an outline.
+
+    // Floor-referenced geometry of a band from User.Start (the floor under the caster) to User.End (the floor at its reach).
+    const TCHAR* const BandDir = TEXT("normalize(float3((User.End - User.Start).x, (User.End - User.Start).y, 0.0) + float3(0.0001, 0.0, 0.0))");
+    const TCHAR* const BandSide = TEXT("normalize(cross(normalize(float3((User.End - User.Start).x, (User.End - User.Start).y, 0.0) + float3(0.0001, 0.0, 0.0)), float3(0.0, 0.0, 1.0)))");
+    const TCHAR* const BandLength = TEXT("length(float3((User.End - User.Start).x, (User.End - User.Start).y, 0.0))");
+
+    // The water palettes: the stream's body is white so User.Tint (the water ink) colours it, its glints a cool white; the
+    // soaked floor is dark (it darkens what is under it) with rare glints; mist is a pale cool grey.
+    const FPalette WaterPalette{FLinearColor(.9f, .98f, 1.f), FLinearColor(1.f, 1.f, 1.f), FLinearColor(.08f, .2f, .3f), 1.8f, 1.f};
+    const FPalette WetPalette{FLinearColor(.85f, .95f, 1.f), FLinearColor(.18f, .22f, .25f), FLinearColor(0.f, 0.f, 0.f), 1.2f, 1.f};
+    const FPalette MistPalette{FLinearColor(1.f, 1.f, 1.f), FLinearColor(.92f, .96f, 1.f), FLinearColor(.72f, .82f, .9f), 1.f, 1.f};
+
+    // A floor-laid sprite (facing up) whose U runs along Along.
+    void Floor(FPart& Part, const FString& Along)
+    {
+        Part.Kind = FPart::Sprite;
+        Part.Facing = ENiagaraSpriteFacingMode::CustomFacingVector;
+        Part.Align = ENiagaraSpriteAlignment::CustomAlignment;
+        Part.Set(TEXT("Particles.SpriteFacing"), TEXT("float3(0.0, 0.0, 1.0)"))
+            .Set(TEXT("Particles.SpriteAlignment"), Along);
+    }
+
+    // active_hose_down's windup on the floor (User.Duration, 0.2 s): the band it will soak at its approved reach and half
+    // width (User.Width). Two thin cool rails and the far edge draw out within the first third, so the danger area is
+    // whole early; inside them a faint flowing water sheet and a bright front fill from the caster to the far edge as the
+    // windup runs out, so the front says when it fires. Others' bands keep the same rails and front (danger information
+    // never degrades); only the sheet is fainter.
+    FSystemParts HoseTellParts(UMaterial& Material, FString& Error)
+    {
+        UMaterialInstanceConstant* Line = ChainPaint(TEXT("MI_LDHoseTell_Line"), Material, SliceTexture(LDSliceVfx::ETex::ChainAProfile), nullptr, 0.f,
+            WaterPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Sheet = ChainPaint(TEXT("MI_LDHoseTell_Sheet"), Material, SliceTexture(LDSliceVfx::ETex::WaterFlow),
+            SliceTexture(LDSliceVfx::ETex::WaterFlow), 1.f, WaterPalette, 1.f, 2.5f, Error);
+        FSystemParts Tell;
+        Tell.System = LDSliceVfx::ESystem::HoseTell;
+        if (!Line || !Sheet) { return Tell; }
+        const FString Dur = TEXT("max(User.Duration, 0.05)");
+        const FString Drawn = FString::Printf(TEXT("(1.0 - pow(1.0 - saturate(Particles.Age / (0.33 * %s)), 2.0))"), *Dur);
+        const FString Fill = FString::Printf(TEXT("saturate(Particles.Age / %s)"), *Dur);
+        const FString In = TEXT("saturate(Particles.Age / 0.03)");
+        const int32 Points = 12;
+        // Ribbons 0 and 1 the side rails, 2 the far edge, 3 the front.
+        FPart& Lines = Tell.Parts.AddDefaulted_GetRef();
+        Lines.Name = TEXT("Lines");
+        Lines.Count = FString::Printf(TEXT("%d"), Points * 4);
+        Lines.Lifetime = TEXT("User.Duration + 0.03");
+        Lines.Paint = Line;
+        Lines.TileCm = 60.f;
+        Lines.bRibbonIds = true;
+        {
+            const FString R = TEXT("float(Particles.LDRibbon)");
+            const FString T = FString::Printf(TEXT("(Particles.LDJ / %d.0)"), Points - 1);
+            const FString Rail = FString::Printf(TEXT("(User.Start + %s * %s * %s * 0.999 + %s * User.Width * (%s * 2.0 - 1.0) * 0.985)"),
+                BandDir, BandLength, *(T + TEXT(" * ") + Drawn), BandSide, *R);
+            const auto Across = [&](const FString& Along)
+            { return FString::Printf(TEXT("(User.Start + %s * %s * %s + %s * User.Width * (%s * 2.0 - 1.0) * 0.985)"), BandDir, BandLength, *Along, BandSide, *T); };
+            const FString Far = Across(TEXT("1.0"));
+            const FString Front = Across(Fill);
+            Lines.Set(TEXT("Particles.LDRibbon"), FString::Printf(TEXT("int(floor(%s / %d.0))"), Own, Points))
+                .Set(TEXT("Particles.LDJ"), FString::Printf(TEXT("(%s - float(Particles.LDRibbon) * %d.0)"), Own, Points))
+                .Set(TEXT("Particles.RibbonLinkOrder"), TEXT("Particles.LDJ"))
+                .Set(TEXT("Particles.Position"), FString::Printf(TEXT("lerp(lerp(%s, %s, step(1.5, %s)), %s, step(2.5, %s)) + float3(0.0, 0.0, 2.5)"),
+                    *Rail, *Far, *R, *Front, *R))
+                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("lerp(lerp(5.0, 5.0 * step(0.98, %s), step(1.5, %s)), 9.0 * step(0.02, %s), step(2.5, %s))"),
+                    *Drawn, *R, *Fill, *R))
+                .Set(TEXT("Particles.Color"), Tinted(1.6f, FString::Printf(TEXT("%s * lerp(0.75, 1.0, step(2.5, %s))"), *In, *R)));
+        }
+        // The water sheet behind the front: a floor sprite from the caster to the front.
+        FPart& Water = Tell.Parts.AddDefaulted_GetRef();
+        Water.Name = TEXT("Sheet");
+        Water.Lifetime = TEXT("User.Duration + 0.03");
+        Water.Paint = Sheet;
+        Floor(Water, BandDir);
+        Water.Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.Start + %s * %s * %s * 0.5 + float3(0.0, 0.0, 2.0)"), BandDir, BandLength, *Fill))
+            .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(max(%s * %s, 1.0), User.Width * 1.9)"), BandLength, *Fill))
+            .Set(TEXT("Particles.SpriteRotation"), Quarter)
+            .Set(TEXT("Particles.Color"), Tinted(1.2f, FString::Printf(TEXT("%s * lerp(0.22, 0.34, User.Focus)"), *In)));
+        return Tell;
+    }
+
+    // active_hose_down's release over its band: the stream leaves the hand (about 95 cm over the floor, 30 cm ahead) and arcs
+    // down to 25 cm at the far edge, its head reaching the edge in 90 ms; it holds to 0.24 s and its tail runs out to the
+    // edge by 0.42 s. Its surface flows (water_flow scrolling) round a cool white pressure core; beads spray off its length
+    // and fall, a crown of drops bursts where its head lands, mist hangs over it, and the floor under it darkens as soaked
+    // and dries over a second. Others' streams: fewer beads and drops, no mist.
+    FSystemParts HoseJetParts(UMaterial& Material, UMaterial& Top, FString& Error)
+    {
+        UMaterialInstanceConstant* Flow = ChainPaint(TEXT("MI_LDHoseJet_Flow"), Material, SliceTexture(LDSliceVfx::ETex::WaterFlow),
+            SliceTexture(LDSliceVfx::ETex::WaterFlow), 1.f, WaterPalette, 1.f, 4.f, Error);
+        UMaterialInstanceConstant* Core = ChainPaint(TEXT("MI_LDHoseJet_Core"), Material, SliceTexture(LDSliceVfx::ETex::ChainAProfile), nullptr, 0.f,
+            WaterPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Drop = ChainPaint(TEXT("MI_LDHoseJet_Drop"), Top, SliceTexture(LDSliceVfx::ETex::WaterDrop), nullptr, 0.f, WaterPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Mist = ChainPaint(TEXT("MI_LDHoseJet_Mist"), Material, SliceTexture(LDSliceVfx::ETex::SoftPuff), nullptr, 0.f, MistPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Wet = ChainPaint(TEXT("MI_LDHoseJet_Wet"), Material, SliceTexture(LDSliceVfx::ETex::WaterWet), nullptr, 0.f, WetPalette, 1.f, 0.f, Error);
+        FSystemParts Jet;
+        Jet.System = LDSliceVfx::ESystem::HoseJet;
+        if (!Flow || !Core || !Drop || !Mist || !Wet) { return Jet; }
+        const FString Len = BandLength;
+        const FString Head = TEXT("(1.0 - pow(1.0 - saturate(Particles.Age / 0.09), 2.0))");
+        const FString Tail = TEXT("pow(saturate((Particles.Age - 0.24) / 0.18), 1.5)");
+        // The stream's centre line at s (0 the hand, 1 the far edge).
+        const auto Path = [&](const FString& S, const FString& Wobble)
+        {
+            return FString::Printf(TEXT("(User.Start + %s * (30.0 + (%s - 30.0) * (%s)) + float3(0.0, 0.0, 1.0) * lerp(95.0, 25.0, pow(saturate(%s), 1.6)) + %s * %s)"),
+                BandDir, *Len, *S, *S, BandSide, *Wobble);
+        };
+        const int32 Points = 28;
+        const FString S = FString::Printf(TEXT("lerp(%s, %s, %s / %d.0)"), *Tail, *Head, Own, Points - 1);
+        const FString Wave = FString::Printf(TEXT("(sin((%s) * 9.0 + Particles.Age * 34.0) * 4.0)"), *S);
+        const FString Live = TEXT("step(Particles.Age, 0.43)");
+        const auto Stream = [&](FPart& Part, const TCHAR* Name, UMaterialInstanceConstant* Paint, float Narrow, float Gain, float Alpha)
+        {
+            Part.Name = Name;
+            Part.Count = FString::Printf(TEXT("%d"), Points);
+            Part.Lifetime = TEXT("0.45");
+            Part.Paint = Paint;
+            Part.TileCm = 140.f;
+            Part.Set(TEXT("Particles.RibbonLinkOrder"), Own)
+                .Set(TEXT("Particles.Position"), Path(S, Wave))
+                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("(16.0 + 44.0 * (%s)) * %.2f * %s * (1.0 - 0.6 * %s)"), *S, Narrow, *Live, *Tail))
+                .Set(TEXT("Particles.Color"), Tinted(Gain, FString::Printf(TEXT("%.2f * %s * lerp(0.75, 1.0, User.Focus)"), Alpha, *Live)));
+        };
+        Stream(Jet.Parts.AddDefaulted_GetRef(), TEXT("Stream"), Flow, 1.f, 1.3f, .9f);
+        Stream(Jet.Parts.AddDefaulted_GetRef(), TEXT("Core"), Core, .3f, 2.2f, .55f);
+        // Beads off the stream's length: each leaves its point when the head has passed and the stream still stands there.
+        const FString Gravity = TEXT("float3(0.0, 0.0, -980.0)");
+        const auto Ballistic = [&](FPart& Part, const FString& From, const FString& Velocity, const FString& Born, const FString& Size, float Life)
+        {
+            const FString Tau = FString::Printf(TEXT("max(Particles.Age - (%s), 0.0)"), *Born);
+            const FString Shown = FString::Printf(TEXT("step(%s, Particles.Age)"), *Born);
+            Part.Kind = FPart::Sprite;
+            Part.Lifetime = FString::Printf(TEXT("%.2f"), Life);
+            Part.Paint = Drop;
+            Part.Align = ENiagaraSpriteAlignment::VelocityAligned;
+            Part.Set(TEXT("Particles.Velocity"), FString::Printf(TEXT("(%s) + %s * %s"), *Velocity, *Gravity, *Tau))
+                .Set(TEXT("Particles.Position"), FString::Printf(TEXT("max((%s) + (%s) * %s + 0.5 * %s * %s * %s, float3(-1.0e7, -1.0e7, User.Start.z + 2.0))"),
+                    *From, *Velocity, *Tau, *Gravity, *Tau, *Tau))
+                .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("(%s) * float2(1.0 + 0.0015 * length(Particles.Velocity), 1.0) * %s"), *Size, *Shown))
+                .Set(TEXT("Particles.SpriteRotation"), Quarter)
+                .Set(TEXT("Particles.Color"), Tinted(1.5f, FString::Printf(TEXT("%s * (1.0 - saturate((%s - %.2f) / 0.25))"), *Shown, *Tau, Life - .45f)));
+        };
+        FPart& Beads = Jet.Parts.AddDefaulted_GetRef();
+        Beads.Name = TEXT("Beads");
+        Beads.Count = TEXT("int(lerp(18.0, 44.0, User.Focus) + 0.5)");
+        {
+            const FString At = Random(31.f);
+            Ballistic(Beads, Path(At, TEXT("0.0")),
+                FString::Printf(TEXT("%s * (120.0 + 260.0 * %s) + %s * (%s * 2.0 - 1.0) * 170.0 + float3(0.0, 0.0, 60.0 + 170.0 * %s)"),
+                    BandDir, *Random(32.f), BandSide, *Random(33.f), *Random(34.f)),
+                FString::Printf(TEXT("%s * 0.09 + %s * 0.28"), *At, *Random(35.f)),
+                FString::Printf(TEXT("float2(1.0, 1.0) * (5.0 + 8.0 * %s)"), *Random(36.f)), 1.f);
+        }
+        FPart& Crown = Jet.Parts.AddDefaulted_GetRef();
+        Crown.Name = TEXT("Crown");
+        Crown.Count = TEXT("int(lerp(10.0, 24.0, User.Focus) + 0.5)");
+        {
+            const FString Out = FString::Printf(TEXT("normalize(%s * 0.7 + %s * (%s * 2.0 - 1.0) * 1.2)"), BandDir, BandSide, *Random(41.f));
+            Ballistic(Crown, Path(TEXT("1.0"), TEXT("0.0")),
+                FString::Printf(TEXT("%s * (140.0 + 240.0 * %s) + float3(0.0, 0.0, 220.0 + 220.0 * %s)"), *Out, *Random(42.f), *Random(43.f)),
+                FString::Printf(TEXT("0.08 + 0.17 * %s"), *Random(44.f)),
+                FString::Printf(TEXT("float2(1.0, 1.0) * (6.0 + 9.0 * %s)"), *Random(45.f)), 1.1f);
+        }
+        // Mist over the stream's far half (own streams only).
+        FPart& Haze = Jet.Parts.AddDefaulted_GetRef();
+        Haze.Name = TEXT("Mist");
+        Haze.Kind = FPart::Sprite;
+        Haze.Count = TEXT("int(8.0 * User.Focus + 0.01)");
+        Haze.Lifetime = TEXT("0.9");
+        Haze.Paint = Mist;
+        {
+            const FString Born = FString::Printf(TEXT("(0.06 + 0.2 * %s)"), *Random(51.f));
+            const FString Tau = FString::Printf(TEXT("max(Particles.Age - %s, 0.0)"), *Born);
+            Haze.Set(TEXT("Particles.Position"), FString::Printf(TEXT("%s + float3(0.0, 0.0, 22.0) * %s + %s * 40.0 * %s"),
+                    *Path(FString::Printf(TEXT("(0.35 + 0.65 * %s)"), *Random(52.f)), TEXT("0.0")), *Tau, BandDir, *Tau))
+                .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(1.0, 1.0) * (30.0 + 90.0 * saturate(%s / 0.6)) * step(%s, Particles.Age)"), *Tau, *Born))
+                .Set(TEXT("Particles.SpriteRotation"), FString::Printf(TEXT("%s * 360.0"), *Random(53.f)))
+                .Set(TEXT("Particles.Color"), FString::Printf(TEXT("float4(0.85, 0.93, 1.0, 0.0) * %s + float4(0.0, 0.0, 0.0, 0.24 * saturate(%s / 0.08) * (1.0 - saturate(%s / 0.65)))"),
+                    Bright, *Tau, *Tau));
+        }
+        // The soaked floor: six patches along the band, each darkening as the head passes and drying from 0.6 s.
+        FPart& Soak = Jet.Parts.AddDefaulted_GetRef();
+        Soak.Name = TEXT("Soak");
+        Soak.Count = TEXT("6");
+        Soak.Lifetime = TEXT("User.Duration");
+        Soak.Paint = Wet;
+        Floor(Soak, BandDir);
+        {
+            const FString K = FString::Printf(TEXT("((%s + 0.5) / 6.0)"), Own);
+            const FString Born = FString::Printf(TEXT("(%s * 0.09 + 0.04)"), *K);
+            Soak.Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.Start + %s * (30.0 + (%s - 30.0) * %s) + %s * (%s * 2.0 - 1.0) * 12.0 + float3(0.0, 0.0, 1.5)"),
+                    BandDir, *Len, *K, BandSide, *Random(61.f)))
+                .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(%s / 6.0 * 1.7, User.Width * (1.2 + 0.4 * %s)) * step(%s, Particles.Age)"), *Len, *Random(62.f), *Born))
+                .Set(TEXT("Particles.SpriteRotation"), FString::Printf(TEXT("90.0 + (%s * 2.0 - 1.0) * 8.0"), *Random(63.f)))
+                .Set(TEXT("Particles.Color"), FString::Printf(TEXT("float4(1.0, 1.0, 1.0, 0.0) * %s + float4(0.0, 0.0, 0.0, 0.6 * saturate((Particles.Age - %s) / 0.1) * (1.0 - saturate((Particles.Age - 0.6) / max(User.Duration - 0.65, 0.1))))"),
+                    Bright, *Born));
+        }
+        return Jet;
+    }
+
+    // A water hit at User.End struck from User.Start's side: drops burst out of the far side of the body and fall, a puff of
+    // mist hangs at the contact, a few drips run off it, and the floor under it shows a soaked patch that dries over a
+    // second. Others' hits: fewer drops, no drips.
+    FSystemParts WaterHitParts(UMaterial& Material, UMaterial& Top, FString& Error)
+    {
+        UMaterialInstanceConstant* Drop = ChainPaint(TEXT("MI_LDWaterHit_Drop"), Top, SliceTexture(LDSliceVfx::ETex::WaterDrop), nullptr, 0.f, WaterPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Mist = ChainPaint(TEXT("MI_LDWaterHit_Mist"), Material, SliceTexture(LDSliceVfx::ETex::SoftPuff), nullptr, 0.f, MistPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Wet = ChainPaint(TEXT("MI_LDWaterHit_Wet"), Material, SliceTexture(LDSliceVfx::ETex::WaterWet), nullptr, 0.f, WetPalette, 1.f, 0.f, Error);
+        FSystemParts Hit;
+        Hit.System = LDSliceVfx::ESystem::WaterHit;
+        if (!Drop || !Mist || !Wet) { return Hit; }
+        const FString Scale = FString::Printf(TEXT("(%s * lerp(0.8, 1.0, User.Focus))"), LinkScale);
+        const FString Floor0 = TEXT("(User.End.z - 98.0)");
+        const FString Gravity = TEXT("float3(0.0, 0.0, -980.0)");
+        const auto Drops = [&](FPart& Part, const TCHAR* Name, const FString& Count, const FString& From, const FString& Velocity, const FString& Born,
+            const FString& Size, float Life)
+        {
+            const FString Tau = FString::Printf(TEXT("max(Particles.Age - (%s), 0.0)"), *Born);
+            const FString Shown = FString::Printf(TEXT("step(%s, Particles.Age)"), *Born);
+            Part.Name = Name;
+            Part.Kind = FPart::Sprite;
+            Part.Count = Count;
+            Part.Lifetime = FString::Printf(TEXT("%.2f"), Life);
+            Part.Paint = Drop;
+            Part.Align = ENiagaraSpriteAlignment::VelocityAligned;
+            Part.Set(TEXT("Particles.Velocity"), FString::Printf(TEXT("(%s) + %s * %s"), *Velocity, *Gravity, *Tau))
+                .Set(TEXT("Particles.Position"), FString::Printf(TEXT("max((%s) + (%s) * %s + 0.5 * %s * %s * %s, float3(-1.0e7, -1.0e7, %s + 2.0))"),
+                    *From, *Velocity, *Tau, *Gravity, *Tau, *Tau, *Floor0))
+                .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("(%s) * float2(1.0 + 0.0015 * length(Particles.Velocity), 1.0) * %s * %s"), *Size, *Shown, *Scale))
+                .Set(TEXT("Particles.SpriteRotation"), Quarter)
+                .Set(TEXT("Particles.Color"), Tinted(1.5f, FString::Printf(TEXT("%s * (1.0 - saturate((%s - %.2f) / 0.25))"), *Shown, *Tau, Life - .4f)));
+        };
+        const FString Dir = FTrunk::Dir();
+        const FString Side = FTrunk::Side();
+        Drops(Hit.Parts.AddDefaulted_GetRef(), TEXT("Splash"), TEXT("int(lerp(10.0, 26.0, User.Focus) + 0.5)"),
+            FString::Printf(TEXT("User.End + %s * 12.0"), *Dir),
+            FString::Printf(TEXT("normalize(%s * 0.9 + %s * (%s * 2.0 - 1.0) * 0.9 + float3(0.0, 0.0, 0.35 + 0.8 * %s)) * (200.0 + 260.0 * %s) * %s"),
+                *Dir, *Side, *Random(71.f), *Random(72.f), *Random(73.f), *Scale),
+            FString::Printf(TEXT("0.04 * %s"), *Random(74.f)), FString::Printf(TEXT("float2(1.0, 1.0) * (6.0 + 8.0 * %s)"), *Random(75.f)), .9f);
+        Drops(Hit.Parts.AddDefaulted_GetRef(), TEXT("Drips"), TEXT("int(4.0 * User.Focus + 0.01)"),
+            FString::Printf(TEXT("User.End + float3((%s * 2.0 - 1.0) * 18.0, (%s * 2.0 - 1.0) * 18.0, -10.0 - 30.0 * %s)"), *Random(76.f), *Random(77.f), *Random(78.f)),
+            TEXT("float3(0.0, 0.0, -40.0)"), FString::Printf(TEXT("0.12 + 0.4 * %s"), *Random(79.f)), TEXT("float2(1.0, 1.0) * 5.0"), 1.1f);
+        FPart& Haze = Hit.Parts.AddDefaulted_GetRef();
+        Haze.Name = TEXT("Mist");
+        Haze.Kind = FPart::Sprite;
+        Haze.Count = TEXT("int(lerp(1.0, 3.0, User.Focus) + 0.01)");
+        Haze.Lifetime = TEXT("0.6");
+        Haze.Paint = Mist;
+        Haze.Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.End + %s * (15.0 + 30.0 * Particles.NormalizedAge) + float3((%s * 2.0 - 1.0) * 15.0, 0.0, (%s * 2.0 - 1.0) * 15.0)"),
+                *Dir, *Random(81.f), *Random(82.f)))
+            .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(1.0, 1.0) * (25.0 + 75.0 * pow(Particles.NormalizedAge, 0.5)) * %s"), *Scale))
+            .Set(TEXT("Particles.SpriteRotation"), FString::Printf(TEXT("%s * 360.0"), *Random(83.f)))
+            .Set(TEXT("Particles.Color"), FString::Printf(TEXT("float4(0.85, 0.93, 1.0, 0.0) * %s + float4(0.0, 0.0, 0.0, 0.3 * (1.0 - Particles.NormalizedAge))"), Bright));
+        FPart& Soak = Hit.Parts.AddDefaulted_GetRef();
+        Soak.Name = TEXT("Soak");
+        Soak.Lifetime = TEXT("User.Duration");
+        Soak.Paint = Wet;
+        Floor(Soak, Dir);
+        Soak.Set(TEXT("Particles.Position"), FString::Printf(TEXT("float3(User.End.x, User.End.y, %s + 1.5) + %s * 20.0"), *Floor0, *Dir))
+            .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(1.0, 0.8) * 150.0 * %s * lerp(0.6, 1.0, saturate((Particles.Age - 0.06) / 0.2))"), *Scale))
+            .Set(TEXT("Particles.SpriteRotation"), Quarter)
+            .Set(TEXT("Particles.Color"), FString::Printf(TEXT("float4(1.0, 1.0, 1.0, 0.0) * %s + float4(0.0, 0.0, 0.0, 0.55 * saturate((Particles.Age - 0.06) / 0.1) * (1.0 - saturate((Particles.Age - 0.5) / max(User.Duration - 0.55, 0.1))))"),
+                Bright));
+        return Hit;
+    }
+
+    // active_zap's windup at the casting hand (User.Start, User.Duration 0.25 s): the same warm-white and pale-gold energy as
+    // the approved chain (§2.1), gathering: three tiny kinked arcs crawl over a sphere that grows from 8 to 22 cm, redrawn at
+    // 25 Hz, motes stream into the hand, and a soft warm glow builds. No star, no disc. The release glow (ZapRelease) and
+    // the chain take over at the release.
+    FSystemParts ZapChargeParts(UMaterial& Material, UMaterial& Top, FString& Error)
+    {
+        const FPalette Palette{FLinearColor(1.f, .93f, .78f), FLinearColor(1.f, .68f, .26f), FLinearColor(.22f, .1f, .03f), 2.8f, 1.2f};
+        UMaterialInstanceConstant* Arc = ChainPaint(TEXT("MI_LDZapCharge_Arc"), Top, SliceTexture(LDSliceVfx::ETex::ChainAProfile), nullptr, 0.f, Palette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Glow = ChainPaint(TEXT("MI_LDZapCharge_Glow"), Material, SliceTexture(LDSliceVfx::ETex::ChainAFlash), nullptr, 0.f, Palette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Mote = ChainPaint(TEXT("MI_LDZapCharge_Mote"), Top, SliceTexture(LDSliceVfx::ETex::ChainASparkStreak), nullptr, 0.f, Palette, 1.f, 0.f, Error);
+        FSystemParts Charge;
+        Charge.System = LDSliceVfx::ESystem::ZapCharge;
+        if (!Arc || !Glow || !Mote) { return Charge; }
+        const FString Scale = TEXT("(User.Width / 40.0 * lerp(0.8, 1.0, User.Focus))");
+        const FString P = TEXT("saturate(Particles.Age / max(User.Duration, 0.05))");
+        const FString Step = TEXT("floor(Particles.Age * 25.0)");
+        const int32 Points = 4;
+        FPart& Arcs = Charge.Parts.AddDefaulted_GetRef();
+        Arcs.Name = TEXT("Arcs");
+        Arcs.Count = FString::Printf(TEXT("int(lerp(2.0, 3.0, User.Focus) + 0.01) * %d"), Points);
+        Arcs.Lifetime = TEXT("User.Duration + 0.02");
+        Arcs.Paint = Arc;
+        Arcs.TileCm = 30.f;
+        Arcs.bRibbonIds = true;
+        {
+            const FString R = TEXT("(float(Particles.LDRibbon) + 300.0)");
+            const auto H = [&](const FString& Index, float Salt) { return FTrunk::Hash(Index, Step, Salt); };
+            // Each arc runs between two random points of the sphere through two kinked interior points.
+            const FString A = FString::Printf(TEXT("normalize(float3(%s, %s, %s) * 2.0 - 1.0 + float3(0.001, 0.0, 0.0))"), *H(R, 1.f), *H(R, 2.f), *H(R, 3.f));
+            const FString B = FString::Printf(TEXT("normalize(%s + float3(%s, %s, %s) * 1.6 - 0.8)"), *A, *H(R, 4.f), *H(R, 5.f), *H(R, 6.f));
+            const FString T = FString::Printf(TEXT("(Particles.LDJ / %d.0)"), Points - 1);
+            const FString K = FString::Printf(TEXT("(Particles.LDJ + %s * 7.0)"), *R);
+            const FString Radius = FString::Printf(TEXT("((8.0 + 14.0 * %s) * %s)"), *P, *Scale);
+            Arcs.Set(TEXT("Particles.LDRibbon"), FString::Printf(TEXT("int(floor(%s / %d.0))"), Own, Points))
+                .Set(TEXT("Particles.LDJ"), FString::Printf(TEXT("(%s - float(Particles.LDRibbon) * %d.0)"), Own, Points))
+                .Set(TEXT("Particles.RibbonLinkOrder"), TEXT("Particles.LDJ"))
+                .Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.Start + normalize(lerp(%s, %s, %s) + (float3(%s, %s, %s) * 2.0 - 1.0) * 0.35 * step(0.5, Particles.LDJ) * step(Particles.LDJ, 2.5)) * %s"),
+                    *A, *B, *T, *H(K, 7.f), *H(K, 8.f), *H(K, 9.f), *Radius))
+                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("(2.0 + 2.5 * %s) * %s * step(0.3, %s)"), *P, *Scale, *H(R, 10.f)))
+                .Set(TEXT("Particles.Color"), Tinted(2.6f, FString::Printf(TEXT("(0.5 + 0.5 * %s) * saturate(Particles.Age / 0.03)"), *P)));
+        }
+        FPart& Soft = Charge.Parts.AddDefaulted_GetRef();
+        Soft.Name = TEXT("Glow");
+        Soft.Kind = FPart::Sprite;
+        Soft.Lifetime = TEXT("User.Duration + 0.02");
+        Soft.Paint = Glow;
+        Soft.Set(TEXT("Particles.Position"), TEXT("User.Start"))
+            .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(1.0, 1.0) * (18.0 + 30.0 * %s) * %s"), *P, *Scale))
+            .Set(TEXT("Particles.Color"), Tinted(1.6f, FString::Printf(TEXT("0.3 + 0.5 * %s"), *P)));
+        FPart& Motes = Charge.Parts.AddDefaulted_GetRef();
+        Motes.Name = TEXT("Motes");
+        Motes.Kind = FPart::Sprite;
+        Motes.Count = TEXT("int(lerp(3.0, 7.0, User.Focus) + 0.5)");
+        Motes.Lifetime = TEXT("User.Duration + 0.02");
+        Motes.Paint = Mote;
+        Motes.Align = ENiagaraSpriteAlignment::VelocityAligned;
+        {
+            const FString Born = FString::Printf(TEXT("(%s * max(User.Duration - 0.12, 0.0))"), *Random(91.f));
+            const FString T = FString::Printf(TEXT("saturate((Particles.Age - %s) / 0.12)"), *Born);
+            const FString From = FString::Printf(TEXT("normalize(float3(%s, %s, %s) * 2.0 - 1.0 + float3(0.0, 0.0, 0.001))"), *Random(92.f), *Random(93.f), *Random(94.f));
+            Motes.Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.Start + %s * 45.0 * %s * (1.0 - %s)"), *From, *Scale, *T))
+                .Set(TEXT("Particles.Velocity"), FString::Printf(TEXT("-%s * 300.0"), *From))
+                .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(16.0, 4.0) * %s * step(%s, Particles.Age) * step(%s, 0.99)"), *Scale, *Born, *T))
+                .Set(TEXT("Particles.SpriteRotation"), Quarter)
+                .Set(TEXT("Particles.Color"), Tinted(2.2f, TEXT("1.0")));
+        }
+        FPart& Light = Charge.Parts.AddDefaulted_GetRef();
+        Light.Name = TEXT("Light");
+        Light.Kind = FPart::Light;
+        Light.Lifetime = TEXT("User.Duration + 0.02");
+        Light.Set(TEXT("Particles.Position"), TEXT("User.Start"))
+            .Set(TEXT("Particles.LightRadius"), FString::Printf(TEXT("(30.0 + 50.0 * %s) * %s"), *P, *Scale))
+            .Set(TEXT("Particles.Color"), FString::Printf(TEXT("float4(1.0, 0.78, 0.4, 1.0) * float4(3.0, 3.0, 3.0, 1.0) * %s * %s"), Bright, *P));
+        return Charge;
+    }
+
+    // ------------------------------------------------------------------ fire (active_seethe; fire hits)
+    // Fire: soft volumetric tongues that rise, lean and thin into wisps (fire_tongue), embers drifting up, dark smoke, a
+    // scorched floor with glowing cracks (fire_char). Its hue lives in its palette (deep red edge, orange body, pale gold
+    // core), so the parts pass a neutral brightness instead of User.Tint. Never a flat orange disc or a cartoon flame.
+    const FPalette FirePalette{FLinearColor(1.f, .9f, .62f), FLinearColor(1.f, .5f, .14f), FLinearColor(.45f, .06f, .015f), 2.6f, 1.5f};
+    const FPalette SmokePalette{FLinearColor(.3f, .28f, .26f), FLinearColor(.16f, .15f, .14f), FLinearColor(.06f, .055f, .05f), 1.f, 1.f};
+    const FPalette CharPalette{FLinearColor(1.f, .78f, .4f), FLinearColor(1.f, .38f, .08f), FLinearColor(.035f, .025f, .02f), 2.2f, 1.6f};
+
+    // A neutral brightness (the palette carries the hue) times the runtime's intensity.
+    FString Glowing(float Gain, const FString& Alpha)
+    {
+        return FString::Printf(TEXT("float4(%s, %s, %s, 0.0) * %.2f + float4(0.0, 0.0, 0.0, %s)"), Bright, Bright, Bright, Gain, *Alpha);
+    }
+
+    // Flame tongue sprites: base pivot, one random cell of the 2 x 2 atlas each.
+    void Tongues(FPart& Part, UMaterialInstanceConstant* Paint)
+    {
+        Part.Kind = FPart::Sprite;
+        Part.Paint = Paint;
+        Part.SubImages = FVector2D(2., 2.);
+        Part.Pivot = FVector2D(.5, 1.);
+        Part.Set(TEXT("Particles.SubImageIndex"), FString::Printf(TEXT("floor(%s * 3.99)"), *Random(101.f)));
+    }
+
+    // A ribbon circle of Points round User.Start at Radius (HLSL), lifted Lift cm.
+    FString Circle(const FString& Radius, int32 Points, float Lift)
+    {
+        return FString::Printf(TEXT("User.Start + float3(cos(%s / %d.0 * 6.2832), sin(%s / %d.0 * 6.2832), 0.0) * (%s) + float3(0.0, 0.0, %.1f)"),
+            Own, Points - 1, Own, Points - 1, *Radius, Lift);
+    }
+
+    // active_seethe's windup (User.Duration, 0.25 s) round the floor under the caster (User.Start) at its radius (User.Width):
+    // a thin ember-orange boundary drawn round within the first third (danger information, same for others' casts), a front
+    // ring that grows from the body to the boundary as the windup runs out, and heat gathering at the feet: small tongues
+    // licking up round the ankles, taller as the release nears.
+    FSystemParts SeetheTellParts(UMaterial& Material, UMaterial& Top, FString& Error)
+    {
+        UMaterialInstanceConstant* Line = ChainPaint(TEXT("MI_LDSeetheTell_Line"), Material, SliceTexture(LDSliceVfx::ETex::ChainAProfile), nullptr, 0.f, FirePalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Flame = ChainPaint(TEXT("MI_LDSeetheTell_Flame"), Material, SliceTexture(LDSliceVfx::ETex::FireTongue), nullptr, 0.f, FirePalette, 1.f, 0.f, Error);
+        FSystemParts Tell;
+        Tell.System = LDSliceVfx::ESystem::SeetheTell;
+        if (!Line || !Flame) { return Tell; }
+        const FString P = TEXT("saturate(Particles.Age / max(User.Duration, 0.05))");
+        const FString Drawn = TEXT("(1.0 - pow(1.0 - saturate(Particles.Age / (0.33 * max(User.Duration, 0.05))), 2.0))");
+        const int32 Points = 40;
+        FPart& Edge = Tell.Parts.AddDefaulted_GetRef();
+        Edge.Name = TEXT("Edge");
+        Edge.Count = FString::Printf(TEXT("%d"), Points);
+        Edge.Lifetime = TEXT("User.Duration + 0.03");
+        Edge.Paint = Line;
+        Edge.TileCm = 60.f;
+        Edge.Set(TEXT("Particles.RibbonLinkOrder"), Own)
+            .Set(TEXT("Particles.Position"), Circle(TEXT("User.Width * 0.99"), Points, 3.f))
+            .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("6.0 * step(%s / %d.0, %s + 0.001)"), Own, Points - 1, *Drawn))
+            .Set(TEXT("Particles.Color"), Glowing(1.3f, TEXT("0.85 * saturate(Particles.Age / 0.03)")));
+        FPart& Front = Tell.Parts.AddDefaulted_GetRef();
+        Front.Name = TEXT("Front");
+        Front.Count = FString::Printf(TEXT("%d"), Points);
+        Front.Lifetime = TEXT("User.Duration + 0.03");
+        Front.Paint = Line;
+        Front.TileCm = 60.f;
+        Front.Set(TEXT("Particles.RibbonLinkOrder"), Own)
+            .Set(TEXT("Particles.Position"), Circle(FString::Printf(TEXT("User.Width * max(%s, 0.05)"), *P), Points, 3.f))
+            .Set(TEXT("Particles.RibbonWidth"), TEXT("9.0"))
+            .Set(TEXT("Particles.Color"), Glowing(1.8f, FString::Printf(TEXT("(0.35 + 0.55 * %s) * saturate(Particles.Age / 0.03)"), *P)));
+        FPart& Heat = Tell.Parts.AddDefaulted_GetRef();
+        Heat.Name = TEXT("Heat");
+        Heat.Count = TEXT("int(lerp(5.0, 11.0, User.Focus) + 0.5)");
+        Heat.Lifetime = TEXT("User.Duration + 0.03");
+        Tongues(Heat, Flame);
+        {
+            const FString Angle = FString::Printf(TEXT("(%s * 6.2832)"), *Random(102.f));
+            Heat.Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.Start + float3(cos(%s), sin(%s), 0.0) * (25.0 + 30.0 * %s) + float3(0.0, 0.0, 2.0)"),
+                    *Angle, *Angle, *Random(103.f)))
+                .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(0.5, 1.0) * (20.0 + 60.0 * %s * (0.6 + 0.4 * %s)) * (0.9 + 0.2 * sin(Particles.Age * 40.0 + %s * 9.0))"),
+                    *P, *Random(104.f), *Random(105.f)))
+                .Set(TEXT("Particles.Color"), Glowing(1.2f, FString::Printf(TEXT("(0.3 + 0.6 * %s) * saturate(Particles.Age / 0.05)"), *P)));
+        }
+        return Tell;
+    }
+
+    // active_seethe's release round the floor under the caster (User.Start) at its radius (User.Width): a wall of flame
+    // tongues races out from the body to the edge in 0.2 s and collapses, a column of tall tongues bursts up round the body,
+    // embers and a little dark smoke climb, a short warm light flashes, and the floor inside the radius is left scorched
+    // with glowing cracks that cool over a second and a half. Others' bursts: half the tongues, embers and smoke.
+    FSystemParts SeetheBurstParts(UMaterial& Material, UMaterial& Top, FString& Error)
+    {
+        UMaterialInstanceConstant* Flame = ChainPaint(TEXT("MI_LDSeethe_Flame"), Material, SliceTexture(LDSliceVfx::ETex::FireTongue), nullptr, 0.f, FirePalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Ember = ChainPaint(TEXT("MI_LDSeethe_Ember"), Top, SliceTexture(LDSliceVfx::ETex::ChainASparkStreak), nullptr, 0.f, FirePalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Smoke = ChainPaint(TEXT("MI_LDSeethe_Smoke"), Material, SliceTexture(LDSliceVfx::ETex::SoftPuff), nullptr, 0.f, SmokePalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Char = ChainPaint(TEXT("MI_LDSeethe_Char"), Material, SliceTexture(LDSliceVfx::ETex::FireChar), nullptr, 0.f, CharPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Line = ChainPaint(TEXT("MI_LDSeethe_Line"), Top, SliceTexture(LDSliceVfx::ETex::ChainAProfile), nullptr, 0.f, FirePalette, 1.f, 0.f, Error);
+        FSystemParts Burst;
+        Burst.System = LDSliceVfx::ESystem::SeetheBurst;
+        if (!Flame || !Ember || !Smoke || !Char || !Line) { return Burst; }
+        const FString Out = TEXT("(1.0 - pow(1.0 - saturate(Particles.Age / 0.2), 2.0))");
+        FPart& Wall = Burst.Parts.AddDefaulted_GetRef();
+        Wall.Name = TEXT("Wall");
+        Wall.Count = TEXT("int(lerp(18.0, 40.0, User.Focus) + 0.5)");
+        Wall.Lifetime = TEXT("0.6");
+        Tongues(Wall, Flame);
+        {
+            const FString Angle = FString::Printf(TEXT("((%s + %s * 0.6) / max(float(int(lerp(18.0, 40.0, User.Focus) + 0.5)), 1.0) * 6.2832)"), Own, *Random(111.f));
+            const FString Life = TEXT("saturate((Particles.Age - 0.12) / 0.42)");
+            Wall.Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.Start + float3(cos(%s), sin(%s), 0.0) * User.Width * %s * (0.9 + 0.1 * %s) + float3(0.0, 0.0, 2.0)"),
+                    *Angle, *Angle, *Out, *Random(112.f)))
+                .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(0.55, 1.0) * (55.0 + 45.0 * %s) * (0.5 + 0.5 * %s) * (1.0 - 0.7 * %s)"), *Random(113.f), *Out, *Life))
+                .Set(TEXT("Particles.Color"), Glowing(1.4f, FString::Printf(TEXT("(1.0 - %s) * saturate(Particles.Age / 0.02)"), *Life)));
+        }
+        FPart& Ring = Burst.Parts.AddDefaulted_GetRef();
+        Ring.Name = TEXT("HeatRing");
+        Ring.Count = TEXT("40");
+        Ring.Lifetime = TEXT("0.3");
+        Ring.Paint = Line;
+        Ring.TileCm = 60.f;
+        Ring.Set(TEXT("Particles.RibbonLinkOrder"), Own)
+            .Set(TEXT("Particles.Position"), Circle(FString::Printf(TEXT("User.Width * max(%s, 0.05)"), *Out), 40, 4.f))
+            .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("14.0 * (1.0 - saturate((Particles.Age - 0.18) / 0.1))")))
+            .Set(TEXT("Particles.Color"), Glowing(2.2f, TEXT("0.9")));
+        FPart& Column = Burst.Parts.AddDefaulted_GetRef();
+        Column.Name = TEXT("Column");
+        Column.Count = TEXT("int(lerp(5.0, 11.0, User.Focus) + 0.5)");
+        Column.Lifetime = TEXT("0.6");
+        Tongues(Column, Flame);
+        {
+            const FString Angle = FString::Printf(TEXT("(%s * 6.2832)"), *Random(121.f));
+            const FString Up = TEXT("(1.0 - pow(1.0 - saturate(Particles.Age / 0.12), 2.0))");
+            Column.Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.Start + float3(cos(%s), sin(%s), 0.0) * (30.0 + 25.0 * %s) + float3(0.0, 0.0, 2.0 + 40.0 * Particles.NormalizedAge)"),
+                    *Angle, *Angle, *Random(122.f)))
+                .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(0.5, 1.0) * (110.0 + 60.0 * %s) * %s * (1.0 - 0.6 * Particles.NormalizedAge)"), *Random(123.f), *Up))
+                .Set(TEXT("Particles.Color"), Glowing(1.5f, TEXT("(1.0 - pow(Particles.NormalizedAge, 1.5))")));
+        }
+        FPart& Embers = Burst.Parts.AddDefaulted_GetRef();
+        Embers.Name = TEXT("Embers");
+        Embers.Kind = FPart::Sprite;
+        Embers.Count = TEXT("int(lerp(12.0, 30.0, User.Focus) + 0.5)");
+        Embers.Lifetime = FString::Printf(TEXT("0.7 + 0.5 * %s"), *Random(131.f));
+        Embers.Paint = Ember;
+        Embers.Align = ENiagaraSpriteAlignment::VelocityAligned;
+        {
+            const FString Angle = FString::Printf(TEXT("(%s * 6.2832)"), *Random(132.f));
+            const FString V = FString::Printf(TEXT("(float3(cos(%s), sin(%s), 0.0) * (120.0 + 260.0 * %s) + float3(0.0, 0.0, 180.0 + 260.0 * %s))"), *Angle, *Angle, *Random(133.f), *Random(134.f));
+            Embers.Set(TEXT("Particles.Velocity"), FString::Printf(TEXT("%s * (1.0 - 0.7 * Particles.NormalizedAge) + float3(sin(Particles.Age * 7.0 + %s * 6.0), cos(Particles.Age * 5.0 + %s * 6.0), 0.0) * 40.0"),
+                    *V, *Random(135.f), *Random(136.f)))
+                .Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.Start + float3(0.0, 0.0, 30.0 + 60.0 * %s) + %s * (Particles.Age - 0.35 * Particles.Age * Particles.NormalizedAge)"),
+                    *Random(137.f), *V))
+                .Set(TEXT("Particles.SpriteSize"), TEXT("float2(18.0, 4.0) * (1.0 - 0.5 * Particles.NormalizedAge)"))
+                .Set(TEXT("Particles.SpriteRotation"), Quarter)
+                .Set(TEXT("Particles.Color"), Glowing(2.4f, FString::Printf(TEXT("(1.0 - Particles.NormalizedAge) * step(0.25, frac(Particles.Age * 6.0 + %s))"), *Random(138.f))));
+        }
+        FPart& Haze = Burst.Parts.AddDefaulted_GetRef();
+        Haze.Name = TEXT("Smoke");
+        Haze.Kind = FPart::Sprite;
+        Haze.Count = TEXT("int(lerp(2.0, 6.0, User.Focus) + 0.5)");
+        Haze.Lifetime = TEXT("1.2");
+        Haze.Paint = Smoke;
+        {
+            const FString Angle = FString::Printf(TEXT("(%s * 6.2832)"), *Random(141.f));
+            Haze.Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.Start + float3(cos(%s), sin(%s), 0.0) * (40.0 + 120.0 * %s) + float3(0.0, 0.0, 60.0 + 120.0 * Particles.NormalizedAge)"),
+                    *Angle, *Angle, *Random(142.f)))
+                .Set(TEXT("Particles.SpriteSize"), TEXT("float2(1.0, 1.0) * (60.0 + 110.0 * Particles.NormalizedAge)"))
+                .Set(TEXT("Particles.SpriteRotation"), FString::Printf(TEXT("%s * 360.0 + Particles.Age * 20.0"), *Random(143.f)))
+                .Set(TEXT("Particles.Color"), Glowing(1.f, TEXT("0.32 * saturate((Particles.Age - 0.12) / 0.15) * (1.0 - Particles.NormalizedAge)")));
+        }
+        FPart& Scorch = Burst.Parts.AddDefaulted_GetRef();
+        Scorch.Name = TEXT("Scorch");
+        Scorch.Lifetime = TEXT("User.Duration");
+        Scorch.Paint = Char;
+        Floor(Scorch, TEXT("float3(1.0, 0.0, 0.0)"));
+        // The cracks cool (brightness) faster than the soot fades (alpha).
+        Scorch.Set(TEXT("Particles.Position"), TEXT("User.Start + float3(0.0, 0.0, 1.5)"))
+            .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(1.0, 1.0) * User.Width * 1.8 * max(%s, 0.1)"), *Out))
+            .Set(TEXT("Particles.Color"), FString::Printf(TEXT("float4(1.0, 1.0, 1.0, 0.0) * %s * (0.3 + 1.2 * (1.0 - saturate((Particles.Age - 0.2) / 0.9))) + float4(0.0, 0.0, 0.0, 0.55 * (1.0 - saturate((Particles.Age - 0.5) / max(User.Duration - 0.55, 0.1))))"),
+                Bright));
+        FPart& Light = Burst.Parts.AddDefaulted_GetRef();
+        Light.Name = TEXT("Light");
+        Light.Kind = FPart::Light;
+        Light.Lifetime = TEXT("0.3");
+        Light.Set(TEXT("Particles.Position"), TEXT("User.Start + float3(0.0, 0.0, 80.0)"))
+            .Set(TEXT("Particles.LightRadius"), TEXT("User.Width * 1.3"))
+            .Set(TEXT("Particles.Color"), FString::Printf(TEXT("float4(1.0, 0.55, 0.2, 1.0) * float4(5.0, 5.0, 5.0, 1.0) * %s * (1.0 - Particles.NormalizedAge)"), Bright));
+        return Burst;
+    }
+
+    // A fire hit at User.End struck from User.Start's side: a few tongues lick up off the struck side, embers spit away from
+    // the strike, and a puff of soot rises. Small and quick: burns tick often, so a fire hit never floods the body.
+    FSystemParts FireHitParts(UMaterial& Material, UMaterial& Top, FString& Error)
+    {
+        UMaterialInstanceConstant* Flame = ChainPaint(TEXT("MI_LDFireHit_Flame"), Top, SliceTexture(LDSliceVfx::ETex::FireTongue), nullptr, 0.f, FirePalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Ember = ChainPaint(TEXT("MI_LDFireHit_Ember"), Top, SliceTexture(LDSliceVfx::ETex::ChainASparkStreak), nullptr, 0.f, FirePalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Smoke = ChainPaint(TEXT("MI_LDFireHit_Smoke"), Material, SliceTexture(LDSliceVfx::ETex::SoftPuff), nullptr, 0.f, SmokePalette, 1.f, 0.f, Error);
+        FSystemParts Hit;
+        Hit.System = LDSliceVfx::ESystem::FireHit;
+        if (!Flame || !Ember || !Smoke) { return Hit; }
+        const FString Scale = FString::Printf(TEXT("(%s * lerp(0.8, 1.0, User.Focus))"), LinkScale);
+        const FString Dir = FTrunk::Dir();
+        FPart& Licks = Hit.Parts.AddDefaulted_GetRef();
+        Licks.Name = TEXT("Licks");
+        Licks.Count = TEXT("int(lerp(3.0, 6.0, User.Focus) + 0.5)");
+        Licks.Lifetime = FString::Printf(TEXT("0.28 + 0.12 * %s"), *Random(151.f));
+        Tongues(Licks, Flame);
+        Licks.Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.End - %s * 12.0 + float3((%s * 2.0 - 1.0) * 22.0, (%s * 2.0 - 1.0) * 22.0, -25.0 + 30.0 * %s + 30.0 * Particles.NormalizedAge) * %s"),
+                *Dir, *Random(152.f), *Random(153.f), *Random(154.f), *Scale))
+            .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(0.55, 1.0) * (35.0 + 30.0 * %s) * %s * (1.0 - 0.5 * Particles.NormalizedAge) * saturate(Particles.Age / 0.04)"),
+                *Random(155.f), *Scale))
+            .Set(TEXT("Particles.Color"), Glowing(1.5f, TEXT("(1.0 - pow(Particles.NormalizedAge, 2.0))")));
+        FPart& Embers = Hit.Parts.AddDefaulted_GetRef();
+        Embers.Name = TEXT("Embers");
+        Embers.Kind = FPart::Sprite;
+        Embers.Count = TEXT("int(lerp(4.0, 10.0, User.Focus) + 0.5)");
+        Embers.Lifetime = FString::Printf(TEXT("0.4 + 0.3 * %s"), *Random(161.f));
+        Embers.Paint = Ember;
+        Embers.Align = ENiagaraSpriteAlignment::VelocityAligned;
+        {
+            const FString V = FString::Printf(TEXT("(%s * (200.0 + 200.0 * %s) * %s)"), *SparkDirection(1.2f, .9f), *Random(162.f), *Scale);
+            Embers.Set(TEXT("Particles.Velocity"), FString::Printf(TEXT("%s * (1.0 - 0.6 * Particles.NormalizedAge) + float3(0.0, 0.0, 120.0) * Particles.NormalizedAge"), *V))
+                .Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.End + %s * Particles.Age * (1.0 - 0.3 * Particles.NormalizedAge) + float3(0.0, 0.0, 60.0) * Particles.Age * Particles.NormalizedAge"), *V))
+                .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(16.0, 3.5) * %s"), *Scale))
+                .Set(TEXT("Particles.SpriteRotation"), Quarter)
+                .Set(TEXT("Particles.Color"), Glowing(2.4f, TEXT("(1.0 - Particles.NormalizedAge)")));
+        }
+        FPart& Soot = Hit.Parts.AddDefaulted_GetRef();
+        Soot.Name = TEXT("Soot");
+        Soot.Kind = FPart::Sprite;
+        Soot.Count = TEXT("int(lerp(1.0, 2.0, User.Focus) + 0.5)");
+        Soot.Lifetime = TEXT("0.8");
+        Soot.Paint = Smoke;
+        Soot.Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.End + %s * 10.0 + float3(0.0, 0.0, 10.0 + 50.0 * Particles.NormalizedAge)"), *Dir))
+            .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(1.0, 1.0) * (30.0 + 60.0 * Particles.NormalizedAge) * %s"), *Scale))
+            .Set(TEXT("Particles.SpriteRotation"), FString::Printf(TEXT("%s * 360.0"), *Random(171.f)))
+            .Set(TEXT("Particles.Color"), Glowing(1.f, TEXT("0.3 * saturate(Particles.Age / 0.08) * (1.0 - Particles.NormalizedAge)")));
+        return Hit;
+    }
+
+    // ------------------------------------------------------------------ chill (active_cola_shake)
+    // Chill: a shaken-can blast of icy fizz. Fast white-cyan fizz beads that slow in the air, faceted shards tumbling and
+    // falling, cold mist that billows and sinks, a frosted floor of branching needles. Hard facets and sinking cold, where
+    // water is soft and fire rises.
+    const FPalette IcePalette{FLinearColor(.95f, 1.f, 1.f), FLinearColor(.62f, .86f, 1.f), FLinearColor(.12f, .26f, .4f), 2.f, 1.2f};
+    const FPalette FrostPalette{FLinearColor(.95f, 1.f, 1.f), FLinearColor(.7f, .9f, 1.f), FLinearColor(.3f, .45f, .55f), 1.6f, 1.f};
+    const FPalette ColdMistPalette{FLinearColor(1.f, 1.f, 1.f), FLinearColor(.88f, .96f, 1.f), FLinearColor(.66f, .8f, .9f), 1.f, 1.f};
+
+    // A cone on the floor from User.Start towards User.End (its length the reach) with half angle User.Width (degrees):
+    // the direction at fraction A of the way from its left edge (0) to its right edge (1).
+    FString ConeRay(const FString& A)
+    {
+        return FString::Printf(TEXT("(%s * cos(radians(User.Width) * ((%s) * 2.0 - 1.0)) + %s * sin(radians(User.Width) * ((%s) * 2.0 - 1.0)))"),
+            BandDir, *A, BandSide, *A);
+    }
+
+    // active_cola_shake's windup (User.Duration, 0.15 s): the cone it will blast at its approved reach and angle, both edges
+    // and the far arc drawn at once in a cold white (danger information, the same for others' casts), and a front arc that
+    // runs out to the far arc as the windup ends; a few frost needles creep from the caster's feet.
+    FSystemParts ColaTellParts(UMaterial& Material, FString& Error)
+    {
+        UMaterialInstanceConstant* Line = ChainPaint(TEXT("MI_LDColaTell_Line"), Material, SliceTexture(LDSliceVfx::ETex::ChainAProfile), nullptr, 0.f, IcePalette, 1.f, 0.f, Error);
+        FSystemParts Tell;
+        Tell.System = LDSliceVfx::ESystem::ColaTell;
+        if (!Line) { return Tell; }
+        const FString Fill = TEXT("saturate(Particles.Age / max(User.Duration, 0.05))");
+        const FString Drawn = TEXT("(1.0 - pow(1.0 - saturate(Particles.Age / 0.06), 2.0))");
+        const int32 Points = 16;
+        // Ribbons 0 and 1 the edges, 2 the far arc, 3 the front arc.
+        FPart& Lines = Tell.Parts.AddDefaulted_GetRef();
+        Lines.Name = TEXT("Lines");
+        Lines.Count = FString::Printf(TEXT("%d"), Points * 4);
+        Lines.Lifetime = TEXT("User.Duration + 0.03");
+        Lines.Paint = Line;
+        Lines.TileCm = 60.f;
+        Lines.bRibbonIds = true;
+        {
+            const FString R = TEXT("float(Particles.LDRibbon)");
+            const FString T = FString::Printf(TEXT("(Particles.LDJ / %d.0)"), Points - 1);
+            const FString Edge = FString::Printf(TEXT("(User.Start + %s * %s * %s * %s)"), *ConeRay(R), BandLength, *T, *Drawn);
+            const FString Arc = FString::Printf(TEXT("(User.Start + %s * %s)"), *ConeRay(T), BandLength);
+            const FString Front = FString::Printf(TEXT("(User.Start + %s * %s * max(%s, 0.04))"), *ConeRay(T), BandLength, *Fill);
+            Lines.Set(TEXT("Particles.LDRibbon"), FString::Printf(TEXT("int(floor(%s / %d.0))"), Own, Points))
+                .Set(TEXT("Particles.LDJ"), FString::Printf(TEXT("(%s - float(Particles.LDRibbon) * %d.0)"), Own, Points))
+                .Set(TEXT("Particles.RibbonLinkOrder"), TEXT("Particles.LDJ"))
+                .Set(TEXT("Particles.Position"), FString::Printf(TEXT("lerp(lerp(%s, %s, step(1.5, %s)), %s, step(2.5, %s)) + float3(0.0, 0.0, 3.0)"), *Edge, *Arc, *R, *Front, *R))
+                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("lerp(lerp(5.0, 5.0 * step(0.98, %s), step(1.5, %s)), 9.0, step(2.5, %s))"), *Drawn, *R, *R))
+                .Set(TEXT("Particles.Color"), Glowing(1.4f, FString::Printf(TEXT("saturate(Particles.Age / 0.03) * lerp(0.8, 1.0, step(2.5, %s))"), *R)));
+        }
+        return Tell;
+    }
+
+    // active_cola_shake's release from the hand along the cone (User.Start the floor under the caster, User.End the floor at
+    // its reach, User.Width its half angle): a cold flash at the nozzle, a spray of fizz beads that leave fast and slow in
+    // the air (drag), faceted shards tumbling out and falling, cold mist billowing through the cone and sinking, and the
+    // floor of the cone frosted with needles that melt away over a second. Others' blasts: half the beads, no mist.
+    FSystemParts ColaBlastParts(UMaterial& Material, UMaterial& Top, FString& Error)
+    {
+        UMaterialInstanceConstant* Fizz = ChainPaint(TEXT("MI_LDCola_Fizz"), Top, SliceTexture(LDSliceVfx::ETex::WaterDrop), nullptr, 0.f, IcePalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Shard = ChainPaint(TEXT("MI_LDCola_Shard"), Top, SliceTexture(LDSliceVfx::ETex::IceShard), nullptr, 0.f, IcePalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Mist = ChainPaint(TEXT("MI_LDCola_Mist"), Material, SliceTexture(LDSliceVfx::ETex::SoftPuff), nullptr, 0.f, ColdMistPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Frost = ChainPaint(TEXT("MI_LDCola_Frost"), Material, SliceTexture(LDSliceVfx::ETex::IceFrost), nullptr, 0.f, FrostPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Flash = ChainPaint(TEXT("MI_LDCola_Flash"), Top, SliceTexture(LDSliceVfx::ETex::ChainAFlash), nullptr, 0.f, IcePalette, 1.f, 0.f, Error);
+        FSystemParts Blast;
+        Blast.System = LDSliceVfx::ESystem::ColaBlast;
+        if (!Fizz || !Shard || !Mist || !Frost || !Flash) { return Blast; }
+        const FString Nozzle = FString::Printf(TEXT("(User.Start + %s * 35.0 + float3(0.0, 0.0, 105.0))"), BandDir);
+        const FString Len = BandLength;
+        // Travel with drag k: distance = v (1 - e^(-k t)) / k.
+        const auto Drag = [](const FString& V, float K) { return FString::Printf(TEXT("((%s) * (1.0 - exp(-%.2f * Particles.Age)) / %.2f)"), *V, K, K); };
+        FPart& Beads = Blast.Parts.AddDefaulted_GetRef();
+        Beads.Name = TEXT("Fizz");
+        Beads.Kind = FPart::Sprite;
+        Beads.Count = TEXT("int(lerp(26.0, 60.0, User.Focus) + 0.5)");
+        Beads.Lifetime = FString::Printf(TEXT("0.45 + 0.35 * %s"), *Random(201.f));
+        Beads.Paint = Fizz;
+        Beads.Align = ENiagaraSpriteAlignment::VelocityAligned;
+        {
+            const FString Ray = ConeRay(Random(202.f));
+            const FString V = FString::Printf(TEXT("(%s * %s * (2.6 + 1.6 * %s) + float3(0.0, 0.0, (%s * 2.0 - 1.0) * 120.0))"), *Ray, *Len, *Random(203.f), *Random(204.f));
+            Beads.Set(TEXT("Particles.Velocity"), FString::Printf(TEXT("(%s) * exp(-3.0 * Particles.Age) + float3(0.0, 0.0, -300.0) * Particles.Age"), *V))
+                .Set(TEXT("Particles.Position"), FString::Printf(TEXT("%s + %s + float3(0.0, 0.0, -150.0) * Particles.Age * Particles.Age"), *Nozzle, *Drag(V, 3.f)))
+                .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(1.0 + 0.003 * length(Particles.Velocity), 1.0) * (4.0 + 6.0 * %s)"), *Random(205.f)))
+                .Set(TEXT("Particles.SpriteRotation"), Quarter)
+                .Set(TEXT("Particles.Color"), Glowing(1.6f, TEXT("(1.0 - pow(Particles.NormalizedAge, 2.0))")));
+        }
+        FPart& Shards = Blast.Parts.AddDefaulted_GetRef();
+        Shards.Name = TEXT("Shards");
+        Shards.Kind = FPart::Sprite;
+        Shards.Count = TEXT("int(lerp(6.0, 14.0, User.Focus) + 0.5)");
+        Shards.Lifetime = FString::Printf(TEXT("0.6 + 0.3 * %s"), *Random(211.f));
+        Shards.Paint = Shard;
+        Shards.SubImages = FVector2D(2., 2.);
+        {
+            const FString Ray = ConeRay(Random(212.f));
+            const FString V = FString::Printf(TEXT("(%s * (500.0 + 500.0 * %s) + float3(0.0, 0.0, 80.0 + 160.0 * %s))"), *Ray, *Random(213.f), *Random(214.f));
+            Shards.Set(TEXT("Particles.SubImageIndex"), FString::Printf(TEXT("floor(%s * 3.99)"), *Random(215.f)))
+                .Set(TEXT("Particles.Position"), FString::Printf(TEXT("max(%s + %s + float3(0.0, 0.0, -490.0) * Particles.Age * Particles.Age, float3(-1.0e7, -1.0e7, User.Start.z + 4.0))"),
+                    *Nozzle, *Drag(V, 1.5f)))
+                .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(1.0, 1.0) * (12.0 + 12.0 * %s) * saturate(Particles.Age / 0.04)"), *Random(216.f)))
+                .Set(TEXT("Particles.SpriteRotation"), FString::Printf(TEXT("%s * 360.0 + Particles.Age * (%s * 2.0 - 1.0) * 720.0"), *Random(217.f), *Random(218.f)))
+                .Set(TEXT("Particles.Color"), Glowing(1.3f, TEXT("(1.0 - pow(Particles.NormalizedAge, 3.0))")));
+        }
+        FPart& Haze = Blast.Parts.AddDefaulted_GetRef();
+        Haze.Name = TEXT("Mist");
+        Haze.Kind = FPart::Sprite;
+        Haze.Count = TEXT("int(9.0 * User.Focus + 0.01)");
+        Haze.Lifetime = TEXT("1.1");
+        Haze.Paint = Mist;
+        {
+            const FString Ray = ConeRay(FString::Printf(TEXT("(0.2 + 0.6 * %s)"), *Random(221.f)));
+            const FString V = FString::Printf(TEXT("(%s * %s * (1.2 + 1.6 * %s))"), *Ray, *Len, *Random(222.f));
+            // Cold air sinks: it leaves at hand height and settles towards the floor.
+            Haze.Set(TEXT("Particles.Position"), FString::Printf(TEXT("%s + %s + float3(0.0, 0.0, -70.0) * saturate(Particles.Age / 0.8)"), *Nozzle, *Drag(V, 2.2f)))
+                .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(1.0, 1.0) * (40.0 + 120.0 * pow(Particles.NormalizedAge, 0.6)) * (0.8 + 0.4 * %s)"), *Random(223.f)))
+                .Set(TEXT("Particles.SpriteRotation"), FString::Printf(TEXT("%s * 360.0 + Particles.Age * 25.0"), *Random(224.f)))
+                .Set(TEXT("Particles.Color"), Glowing(1.1f, TEXT("0.3 * saturate(Particles.Age / 0.06) * (1.0 - Particles.NormalizedAge)")));
+        }
+        // The frosted floor: five patches along the cone's axis widening with the cone.
+        FPart& Floored = Blast.Parts.AddDefaulted_GetRef();
+        Floored.Name = TEXT("Frost");
+        Floored.Count = TEXT("5");
+        Floored.Lifetime = TEXT("User.Duration");
+        Floored.Paint = Frost;
+        Floor(Floored, BandDir);
+        {
+            const FString K = FString::Printf(TEXT("((%s + 0.6) / 5.0)"), Own);
+            const FString Born = FString::Printf(TEXT("(0.03 + 0.12 * %s)"), *K);
+            Floored.Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.Start + %s * %s * %s + float3(0.0, 0.0, 1.5)"), BandDir, *Len, *K))
+                .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(%s * 0.3, 2.0 * %s * %s * tan(radians(User.Width)) + 40.0) * saturate((Particles.Age - %s) / 0.12)"),
+                    *Len, *Len, *K, *Born))
+                .Set(TEXT("Particles.SpriteRotation"), Quarter)
+                .Set(TEXT("Particles.Color"), Glowing(1.2f, FString::Printf(TEXT("0.7 * step(%s, Particles.Age) * (1.0 - saturate((Particles.Age - 0.5) / max(User.Duration - 0.55, 0.1)))"), *Born)));
+        }
+        FPart& Pop = Blast.Parts.AddDefaulted_GetRef();
+        Pop.Name = TEXT("Flash");
+        Pop.Kind = FPart::Sprite;
+        Pop.Lifetime = TEXT("0.12");
+        Pop.Paint = Flash;
+        Pop.Set(TEXT("Particles.Position"), *Nozzle)
+            .Set(TEXT("Particles.SpriteSize"), TEXT("float2(1.0, 1.0) * (40.0 + 50.0 * Particles.NormalizedAge)"))
+            .Set(TEXT("Particles.Color"), Glowing(2.f, TEXT("(1.0 - Particles.NormalizedAge)")));
+        return Blast;
+    }
+
     // The field's material: one Custom node (Code) over the first UV, the Particle Color's four channels (PR, PG, PB, PA:
     // FieldParts says what they carry), the sprite's size, the time, the edge's crackle noise and the charged floor's Web
     // and Energy textures, returning the emissive colour and the coverage. Translucent, unlit, two-sided; the palette is
@@ -1251,9 +1982,16 @@ namespace
                 Enum(Steps, Part.Name, EmitterUpdate, TEXT("EmitterState"), TEXT("Loop Behavior"), TEXT("Infinite"));
                 Float(Steps, Part.Name, EmitterUpdate, TEXT("EmitterState"), TEXT("Loop Duration"), 10.f);
             }
+            else if (Part.LoopSeconds > 0.f)
+            {
+                Enum(Steps, Part.Name, EmitterUpdate, TEXT("EmitterState"), TEXT("Loop Behavior"), TEXT("Infinite"));
+                Float(Steps, Part.Name, EmitterUpdate, TEXT("EmitterState"), TEXT("Loop Duration"), Part.LoopSeconds);
+            }
             Expression(Steps, Part.Name, EmitterUpdate, TEXT("SpawnBurst_Instantaneous"), TEXT("Spawn Count"), *Part.Count);
             Expression(Steps, Part.Name, ParticleSpawn, TEXT("InitializeParticle"), TEXT("Lifetime"), *Part.Lifetime);
-            SetAttributes(Steps, Part.Name, ParticleSpawn, Part.Attributes);
+            TArray<TPair<FString, FString>> AtSpawn = Part.SpawnOnly;
+            AtSpawn.Append(Part.Attributes);
+            SetAttributes(Steps, Part.Name, ParticleSpawn, AtSpawn);
             SetAttributes(Steps, Part.Name, ParticleUpdate, Part.Attributes);
             if (Part.Kind == FPart::Light)
             {
@@ -1337,7 +2075,16 @@ bool LDDemoVfxNiagara::Build(FString& Error)
         [&]() { return TellParts(1, *Chain, Error); },
         [&]() { return TellParts(2, *Chain, Error); },
         [&]() { return TellParts(3, *Chain, Error); },
-        [&]() { return FieldParts(*Chain, Error); }};
+        [&]() { return FieldParts(*Chain, Error); },
+        [&]() { return HoseTellParts(*Chain, Error); },
+        [&]() { return HoseJetParts(*Chain, *Top, Error); },
+        [&]() { return WaterHitParts(*Chain, *Top, Error); },
+        [&]() { return ZapChargeParts(*Chain, *Top, Error); },
+        [&]() { return SeetheTellParts(*Chain, *Top, Error); },
+        [&]() { return SeetheBurstParts(*Chain, *Top, Error); },
+        [&]() { return FireHitParts(*Chain, *Top, Error); },
+        [&]() { return ColaTellParts(*Chain, Error); },
+        [&]() { return ColaBlastParts(*Chain, *Top, Error); }};
     for (const TFunction<FSystemParts()>& Make : Systems)
     {
         const FSystemParts Parts = Make();

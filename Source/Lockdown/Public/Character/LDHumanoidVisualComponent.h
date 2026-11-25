@@ -161,6 +161,11 @@ private:
     double OwnStrikeAt = -1;
     double CastActionOnset = -1;
     double ReleasedOnset = -1;
+    // Body sounds (LDAudioFeel) on the same hooks as the effects: the swing and cast onsets already sounded, and the
+    // playing cast charge that the release cuts.
+    double SwingSoundOnset = -1, ChargeSoundOnset = -1, ReleaseSoundOnset = -1;
+    TWeakObjectPtr<class UAudioComponent> ChargeSound;
+    void UpdateSound();
     uint8 CastAbility = 0;
     bool bDashing = false;
     double LastGhostAt = -1;
@@ -185,7 +190,8 @@ private:
         uint8 Flags;
     };
     // A hit the designed slice presentation shows (an unflagged plain, water or electric hit); others keep the hit layers.
-    void ShowSliceImpact(const FPendingImpact& Impact, const FVector& Chest, const FVector& Feet, float EffectScale);
+    // True when the hit was matched to a combo finisher (false also when no effect showed).
+    bool ShowSliceImpact(const FPendingImpact& Impact, const FVector& Chest, const FVector& Feet, float EffectScale);
     TArray<FPendingImpact, TInlineAllocator<4>> PendingImpacts;
     // The shown mesh's shared picking model and this body's pose of it, posed at most once per frame.
     mutable TSharedPtr<const LDModelPicking::FSkinnedModel> PickingModel;

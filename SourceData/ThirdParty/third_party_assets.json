@@ -1,0 +1,637 @@
+{
+  "schema": 1,
+  "purpose": "Every third-party asset source of the project (VFX, animation, audio, UI, art) and its rights as separate dimensions. Domain manifests keep their own file-level records; this file links to them.",
+  "rules": [
+    "AI input permission never implies public redistribution.",
+    "Assets with public_source_redistribution 'no' (and any adapted asset containing their content) are storage 'local-only': under Content/ThirdParty/Fab (git-ignored), installed into each worktree by Scripts/ThirdPartyAssets.py link from LD_THIRDPARTY_ROOT.",
+    "CC0 and CC-BY assets may be tracked; CC-BY keeps its attribution and a record of modifications; none are relicensed under the project's code license.",
+    "NO_AI (ai_input forbidden): integrated only by deterministic scripts; their content and derived pixels are never sent to a generative AI model; never used for training."
+  ],
+  "local_store": {
+    "env": "LD_THIRDPARTY_ROOT",
+    "layout": "<root>/Fab/<pack folder> is linked to Content/ThirdParty/Fab/<pack folder>"
+  },
+  "assets": [
+    {
+      "id": "quaternius-ultimate-modular-men",
+      "name": "Ultimate Modular Men Pack (Feb 2022)",
+      "author": "Quaternius (quaternius.com)",
+      "domains": [
+        "art"
+      ],
+      "source": {
+        "kind": "web",
+        "url": "https://quaternius.com/packs/ultimatemodularcharacters.html"
+      },
+      "license": {
+        "name": "CC0 1.0 Universal (CC0 1.0) Public Domain Dedication",
+        "file": "Quaternius/UltimateModularMen/License.txt"
+      },
+      "rights": {
+        "acquisition_cost": "free",
+        "commercial_use": "yes",
+        "ai_input": "allowed",
+        "ai_training": "allowed",
+        "public_source_redistribution": "yes",
+        "private_collaborator_sharing": "yes"
+      },
+      "storage": "tracked",
+      "domain_manifest": "SourceData/Art/art_assets.json#packs/quaternius-ultimate-modular-men"
+    },
+    {
+      "id": "quaternius-ultimate-modular-women",
+      "name": "Ultimate Modular Women Pack (April 2022)",
+      "author": "Quaternius (quaternius.com)",
+      "domains": [
+        "art"
+      ],
+      "source": {
+        "kind": "web",
+        "url": "https://quaternius.com/packs/ultimatemodularwomen.html"
+      },
+      "license": {
+        "name": "CC0 1.0 Universal (CC0 1.0) Public Domain Dedication",
+        "file": "Quaternius/UltimateModularWomen/License.txt"
+      },
+      "rights": {
+        "acquisition_cost": "free",
+        "commercial_use": "yes",
+        "ai_input": "allowed",
+        "ai_training": "allowed",
+        "public_source_redistribution": "yes",
+        "private_collaborator_sharing": "yes"
+      },
+      "storage": "tracked",
+      "domain_manifest": "SourceData/Art/art_assets.json#packs/quaternius-ultimate-modular-women"
+    },
+    {
+      "id": "kenney-coaster-kit",
+      "name": "Coaster Kit (1.0)",
+      "author": "Kenney (www.kenney.nl)",
+      "domains": [
+        "art"
+      ],
+      "source": {
+        "kind": "web",
+        "url": "https://kenney.nl/assets/coaster-kit"
+      },
+      "license": {
+        "name": "CC0 1.0 Universal (Creative Commons Zero)",
+        "file": "Kenney/CoasterKit/License.txt"
+      },
+      "rights": {
+        "acquisition_cost": "free",
+        "commercial_use": "yes",
+        "ai_input": "allowed",
+        "ai_training": "allowed",
+        "public_source_redistribution": "yes",
+        "private_collaborator_sharing": "yes"
+      },
+      "storage": "tracked",
+      "domain_manifest": "SourceData/Art/art_assets.json#packs/kenney-coaster-kit"
+    },
+    {
+      "id": "kenney-holiday-kit",
+      "name": "Holiday Kit (2.0)",
+      "author": "Kenney (www.kenney.nl)",
+      "domains": [
+        "art"
+      ],
+      "source": {
+        "kind": "web",
+        "url": "https://kenney.nl/assets/holiday-kit"
+      },
+      "license": {
+        "name": "CC0 1.0 Universal (Creative Commons Zero)",
+        "file": "Kenney/HolidayKit/License.txt"
+      },
+      "rights": {
+        "acquisition_cost": "free",
+        "commercial_use": "yes",
+        "ai_input": "allowed",
+        "ai_training": "allowed",
+        "public_source_redistribution": "yes",
+        "private_collaborator_sharing": "yes"
+      },
+      "storage": "tracked",
+      "domain_manifest": "SourceData/Art/art_assets.json#packs/kenney-holiday-kit"
+    },
+    {
+      "id": "kenney-city-kit-suburban",
+      "name": "City Kit Suburban (2.0)",
+      "author": "Kenney (www.kenney.nl)",
+      "domains": [
+        "art"
+      ],
+      "source": {
+        "kind": "web",
+        "url": "https://kenney.nl/assets/city-kit-suburban"
+      },
+      "license": {
+        "name": "CC0 1.0 Universal (Creative Commons Zero)",
+        "file": "Kenney/CityKitSuburban/License.txt"
+      },
+      "rights": {
+        "acquisition_cost": "free",
+        "commercial_use": "yes",
+        "ai_input": "allowed",
+        "ai_training": "allowed",
+        "public_source_redistribution": "yes",
+        "private_collaborator_sharing": "yes"
+      },
+      "storage": "tracked",
+      "domain_manifest": "SourceData/Art/art_assets.json#packs/kenney-city-kit-suburban"
+    },
+    {
+      "id": "kenney-racing-kit",
+      "name": "Racing Kit (2.0)",
+      "author": "Kenney (www.kenney.nl)",
+      "domains": [
+        "art"
+      ],
+      "source": {
+        "kind": "web",
+        "url": "https://kenney.nl/assets/racing-kit"
+      },
+      "license": {
+        "name": "CC0 1.0 Universal (Creative Commons Zero)",
+        "file": "Kenney/RacingKit/License.txt"
+      },
+      "rights": {
+        "acquisition_cost": "free",
+        "commercial_use": "yes",
+        "ai_input": "allowed",
+        "ai_training": "allowed",
+        "public_source_redistribution": "yes",
+        "private_collaborator_sharing": "yes"
+      },
+      "storage": "tracked",
+      "domain_manifest": "SourceData/Art/art_assets.json#packs/kenney-racing-kit"
+    },
+    {
+      "id": "kenney-mini-skate",
+      "name": "Mini Skate (2.0)",
+      "author": "Kenney (www.kenney.nl)",
+      "domains": [
+        "art"
+      ],
+      "source": {
+        "kind": "web",
+        "url": "https://kenney.nl/assets/mini-skate"
+      },
+      "license": {
+        "name": "CC0 1.0 Universal (Creative Commons Zero)",
+        "file": "Kenney/MiniSkate/License.txt"
+      },
+      "rights": {
+        "acquisition_cost": "free",
+        "commercial_use": "yes",
+        "ai_input": "allowed",
+        "ai_training": "allowed",
+        "public_source_redistribution": "yes",
+        "private_collaborator_sharing": "yes"
+      },
+      "storage": "tracked",
+      "domain_manifest": "SourceData/Art/art_assets.json#packs/kenney-mini-skate"
+    },
+    {
+      "id": "kenney-city-kit-commercial",
+      "name": "City Kit Commercial (2.1)",
+      "author": "Kenney (www.kenney.nl)",
+      "domains": [
+        "art"
+      ],
+      "source": {
+        "kind": "web",
+        "url": "https://kenney.nl/assets/city-kit-commercial"
+      },
+      "license": {
+        "name": "CC0 1.0 Universal (Creative Commons Zero)",
+        "file": "Kenney/CityKitCommercial/License.txt"
+      },
+      "rights": {
+        "acquisition_cost": "free",
+        "commercial_use": "yes",
+        "ai_input": "allowed",
+        "ai_training": "allowed",
+        "public_source_redistribution": "yes",
+        "private_collaborator_sharing": "yes"
+      },
+      "storage": "tracked",
+      "domain_manifest": "SourceData/Art/art_assets.json#packs/kenney-city-kit-commercial"
+    },
+    {
+      "id": "kenney-city-kit-roads",
+      "name": "City Kit Roads (2.2)",
+      "author": "Kenney (www.kenney.nl)",
+      "domains": [
+        "art"
+      ],
+      "source": {
+        "kind": "web",
+        "url": "https://kenney.nl/assets/city-kit-roads"
+      },
+      "license": {
+        "name": "CC0 1.0 Universal (Creative Commons Zero)",
+        "file": "Kenney/CityKitRoads/License.txt"
+      },
+      "rights": {
+        "acquisition_cost": "free",
+        "commercial_use": "yes",
+        "ai_input": "allowed",
+        "ai_training": "allowed",
+        "public_source_redistribution": "yes",
+        "private_collaborator_sharing": "yes"
+      },
+      "storage": "tracked",
+      "domain_manifest": "SourceData/Art/art_assets.json#packs/kenney-city-kit-roads"
+    },
+    {
+      "id": "quaternius-stylized-nature-megakit",
+      "name": "Stylized Nature MegaKit (Standard)",
+      "author": "Quaternius (quaternius.com)",
+      "domains": [
+        "art"
+      ],
+      "source": {
+        "kind": "web",
+        "url": "https://quaternius.com/packs/stylizednaturemegakit.html"
+      },
+      "license": {
+        "name": "CC0 1.0 Universal (CC0 1.0) Public Domain Dedication",
+        "file": "Quaternius/StylizedNatureMegaKit/License.txt"
+      },
+      "rights": {
+        "acquisition_cost": "free",
+        "commercial_use": "yes",
+        "ai_input": "allowed",
+        "ai_training": "allowed",
+        "public_source_redistribution": "yes",
+        "private_collaborator_sharing": "yes"
+      },
+      "storage": "tracked",
+      "domain_manifest": "SourceData/Art/art_assets.json#packs/quaternius-stylized-nature-megakit"
+    },
+    {
+      "id": "quaternius-toon-shooter-game-kit",
+      "name": "Toon Shooter Game Kit (Dec 2022)",
+      "author": "Quaternius (quaternius.com)",
+      "domains": [
+        "art"
+      ],
+      "source": {
+        "kind": "web",
+        "url": "https://quaternius.com/packs/toonshootergamekit.html"
+      },
+      "license": {
+        "name": "CC0 1.0 Universal (CC0 1.0) Public Domain Dedication",
+        "file": "Quaternius/ToonShooterGameKit/License.txt"
+      },
+      "rights": {
+        "acquisition_cost": "free",
+        "commercial_use": "yes",
+        "ai_input": "allowed",
+        "ai_training": "allowed",
+        "public_source_redistribution": "yes",
+        "private_collaborator_sharing": "yes"
+      },
+      "storage": "tracked",
+      "domain_manifest": "SourceData/Art/art_assets.json#packs/quaternius-toon-shooter-game-kit"
+    },
+    {
+      "id": "kenney-music-jingles",
+      "name": "Music Jingles",
+      "author": "Kenney (www.kenney.nl)",
+      "domains": [
+        "audio"
+      ],
+      "source": {
+        "kind": "web",
+        "url": "https://kenney.nl/assets/music-jingles"
+      },
+      "license": {
+        "name": "CC0 1.0 Universal (Creative Commons Zero)",
+        "file": "Kenney/MusicJingles/License.txt"
+      },
+      "rights": {
+        "acquisition_cost": "free",
+        "commercial_use": "yes",
+        "ai_input": "allowed",
+        "ai_training": "allowed",
+        "public_source_redistribution": "yes",
+        "private_collaborator_sharing": "yes"
+      },
+      "storage": "tracked",
+      "domain_manifest": "SourceData/Audio/audio_cues.json#packs/kenney-music-jingles"
+    },
+    {
+      "id": "kenney-digital-audio",
+      "name": "Digital Audio",
+      "author": "Kenney (www.kenney.nl)",
+      "domains": [
+        "audio"
+      ],
+      "source": {
+        "kind": "web",
+        "url": "https://kenney.nl/assets/digital-audio"
+      },
+      "license": {
+        "name": "CC0 1.0 Universal (Creative Commons Zero)",
+        "file": "Kenney/DigitalAudio/License.txt"
+      },
+      "rights": {
+        "acquisition_cost": "free",
+        "commercial_use": "yes",
+        "ai_input": "allowed",
+        "ai_training": "allowed",
+        "public_source_redistribution": "yes",
+        "private_collaborator_sharing": "yes"
+      },
+      "storage": "tracked",
+      "domain_manifest": "SourceData/Audio/audio_cues.json#packs/kenney-digital-audio"
+    },
+    {
+      "id": "kenney-impact-sounds",
+      "name": "Impact Sounds",
+      "author": "Kenney (www.kenney.nl)",
+      "domains": [
+        "audio"
+      ],
+      "source": {
+        "kind": "web",
+        "url": "https://kenney.nl/assets/impact-sounds"
+      },
+      "license": {
+        "name": "CC0 1.0 Universal (Creative Commons Zero)",
+        "file": "Kenney/ImpactSounds/License.txt"
+      },
+      "rights": {
+        "acquisition_cost": "free",
+        "commercial_use": "yes",
+        "ai_input": "allowed",
+        "ai_training": "allowed",
+        "public_source_redistribution": "yes",
+        "private_collaborator_sharing": "yes"
+      },
+      "storage": "tracked",
+      "domain_manifest": "SourceData/Audio/audio_cues.json#packs/kenney-impact-sounds"
+    },
+    {
+      "id": "kenney-interface-sounds",
+      "name": "Interface Sounds",
+      "author": "Kenney (www.kenney.nl)",
+      "domains": [
+        "audio"
+      ],
+      "source": {
+        "kind": "web",
+        "url": "https://kenney.nl/assets/interface-sounds"
+      },
+      "license": {
+        "name": "CC0 1.0 Universal (Creative Commons Zero)",
+        "file": "Kenney/InterfaceSounds/License.txt"
+      },
+      "rights": {
+        "acquisition_cost": "free",
+        "commercial_use": "yes",
+        "ai_input": "allowed",
+        "ai_training": "allowed",
+        "public_source_redistribution": "yes",
+        "private_collaborator_sharing": "yes"
+      },
+      "storage": "tracked",
+      "domain_manifest": "SourceData/Audio/audio_cues.json#packs/kenney-interface-sounds"
+    },
+    {
+      "id": "fab-mixed-vfx",
+      "name": "Mixed VFX",
+      "author": "(see listing)",
+      "domains": [
+        "vfx"
+      ],
+      "source": {
+        "kind": "fab",
+        "listing_id": "6518971c-c8ca-47d7-8611-1ff068b78dd5",
+        "url": "https://www.fab.com/listings/6518971c-c8ca-47d7-8611-1ff068b78dd5",
+        "acquired": null
+      },
+      "license": {
+        "name": "CC-BY 4.0",
+        "agreement": "Creative Commons Attribution 4.0 (via Fab)"
+      },
+      "rights": {
+        "acquisition_cost": "free",
+        "commercial_use": "yes",
+        "ai_input": "allowed",
+        "ai_training": "allowed",
+        "public_source_redistribution": "yes, with attribution",
+        "private_collaborator_sharing": "yes"
+      },
+      "storage": "tracked",
+      "engine_versions": "4.26-4.27, 5.0-5.4",
+      "original_path": null,
+      "adapted_paths": [],
+      "dependencies": [],
+      "verification": null,
+      "status": "requested"
+    },
+    {
+      "id": "fab-basic-vfx-pack",
+      "name": "Basic VFX Pack (Free)",
+      "author": "VfxSTOCK",
+      "domains": [
+        "vfx"
+      ],
+      "source": {
+        "kind": "fab",
+        "listing_id": "75698e52-edfc-4f76-a86c-b4f26fcf5a29",
+        "url": "https://www.fab.com/listings/75698e52-edfc-4f76-a86c-b4f26fcf5a29",
+        "acquired": null
+      },
+      "license": {
+        "name": "Fab Standard",
+        "agreement": "Fab EULA (current at claim)"
+      },
+      "rights": {
+        "acquisition_cost": "free",
+        "commercial_use": "yes",
+        "ai_input": "allowed",
+        "ai_training": "unknown",
+        "public_source_redistribution": "no (Fab EULA 5a)",
+        "private_collaborator_sharing": "yes, collaborators in a private repository (Fab EULA 5a)"
+      },
+      "storage": "local-only",
+      "engine_versions": "4.27, 5.0-5.5",
+      "original_path": null,
+      "adapted_paths": [],
+      "dependencies": [],
+      "verification": null,
+      "status": "requested"
+    },
+    {
+      "id": "fab-stylish-fire-vfx",
+      "name": "Stylish Fire VFX (Free asset)",
+      "author": "VfxSTOCK",
+      "domains": [
+        "vfx"
+      ],
+      "source": {
+        "kind": "fab",
+        "listing_id": "01e8534c-5877-4ce2-8948-9a696100de11",
+        "url": "https://www.fab.com/listings/01e8534c-5877-4ce2-8948-9a696100de11",
+        "acquired": null
+      },
+      "license": {
+        "name": "Fab Standard",
+        "agreement": "Fab EULA (current at claim)"
+      },
+      "rights": {
+        "acquisition_cost": "free",
+        "commercial_use": "yes",
+        "ai_input": "allowed",
+        "ai_training": "unknown",
+        "public_source_redistribution": "no (Fab EULA 5a)",
+        "private_collaborator_sharing": "yes, collaborators in a private repository (Fab EULA 5a)"
+      },
+      "storage": "local-only",
+      "engine_versions": "5.0-5.6",
+      "original_path": null,
+      "adapted_paths": [],
+      "dependencies": [],
+      "verification": null,
+      "status": "requested"
+    },
+    {
+      "id": "fab-stylized-smoke-vfx",
+      "name": "Stylized Smoke VFX (Free)",
+      "author": "(see listing)",
+      "domains": [
+        "vfx"
+      ],
+      "source": {
+        "kind": "fab",
+        "listing_id": "172235df-7a05-4d60-ac7b-23472e530ee7",
+        "url": "https://www.fab.com/listings/172235df-7a05-4d60-ac7b-23472e530ee7",
+        "acquired": null
+      },
+      "license": {
+        "name": "CC-BY 4.0",
+        "agreement": "Creative Commons Attribution 4.0 (via Fab)"
+      },
+      "rights": {
+        "acquisition_cost": "free",
+        "commercial_use": "yes",
+        "ai_input": "allowed",
+        "ai_training": "allowed",
+        "public_source_redistribution": "yes, with attribution",
+        "private_collaborator_sharing": "yes"
+      },
+      "storage": "tracked",
+      "engine_versions": "5.0-5.8",
+      "original_path": null,
+      "adapted_paths": [],
+      "dependencies": [],
+      "verification": null,
+      "status": "requested"
+    },
+    {
+      "id": "fab-niagara-examples",
+      "name": "Niagara Examples Pack",
+      "author": "Epic Games",
+      "domains": [
+        "vfx"
+      ],
+      "source": {
+        "kind": "fab",
+        "listing_id": "0e188eca-4e54-4fb2-a9ed-d8b8a565e600",
+        "url": "https://www.fab.com/listings/0e188eca-4e54-4fb2-a9ed-d8b8a565e600",
+        "acquired": null
+      },
+      "license": {
+        "name": "Fab Standard",
+        "agreement": "Fab EULA (current at claim)"
+      },
+      "rights": {
+        "acquisition_cost": "free",
+        "commercial_use": "yes",
+        "ai_input": "forbidden (Fab ToS 3.3(i): inputs; EULA 16(l): training inputs)",
+        "ai_training": "forbidden",
+        "public_source_redistribution": "no (Fab EULA 5a)",
+        "private_collaborator_sharing": "yes, collaborators in a private repository (Fab EULA 5a)"
+      },
+      "storage": "local-only",
+      "engine_versions": "5.7",
+      "original_path": null,
+      "adapted_paths": [],
+      "dependencies": [],
+      "verification": null,
+      "status": "requested"
+    },
+    {
+      "id": "fab-free-spline-vfx",
+      "name": "Free Spline VFX",
+      "author": "(see listing)",
+      "domains": [
+        "vfx"
+      ],
+      "source": {
+        "kind": "fab",
+        "listing_id": "2b923e61-b02d-4cc9-bd0b-b067c9e6056e",
+        "url": "https://www.fab.com/listings/2b923e61-b02d-4cc9-bd0b-b067c9e6056e",
+        "acquired": null
+      },
+      "license": {
+        "name": "Fab Standard",
+        "agreement": "Fab EULA (current at claim)"
+      },
+      "rights": {
+        "acquisition_cost": "free",
+        "commercial_use": "yes",
+        "ai_input": "forbidden (Fab ToS 3.3(i): inputs; EULA 16(l): training inputs)",
+        "ai_training": "forbidden",
+        "public_source_redistribution": "no (Fab EULA 5a)",
+        "private_collaborator_sharing": "yes, collaborators in a private repository (Fab EULA 5a)"
+      },
+      "storage": "local-only",
+      "engine_versions": "5.2-5.8",
+      "original_path": null,
+      "adapted_paths": [],
+      "dependencies": [],
+      "verification": null,
+      "status": "requested"
+    },
+    {
+      "id": "fab-free-spells-18",
+      "name": "[18] Free Spells Niagara",
+      "author": "(see listing)",
+      "domains": [
+        "vfx"
+      ],
+      "source": {
+        "kind": "fab",
+        "listing_id": "967b7892-d46c-4d75-8121-33418a6899ce",
+        "url": "https://www.fab.com/listings/967b7892-d46c-4d75-8121-33418a6899ce",
+        "acquired": null
+      },
+      "license": {
+        "name": "Fab Standard",
+        "agreement": "Fab EULA (current at claim)"
+      },
+      "rights": {
+        "acquisition_cost": "free",
+        "commercial_use": "yes",
+        "ai_input": "forbidden (Fab ToS 3.3(i): inputs; EULA 16(l): training inputs)",
+        "ai_training": "forbidden",
+        "public_source_redistribution": "no (Fab EULA 5a)",
+        "private_collaborator_sharing": "yes, collaborators in a private repository (Fab EULA 5a)"
+      },
+      "storage": "local-only",
+      "engine_versions": "5.0-5.8",
+      "original_path": null,
+      "adapted_paths": [],
+      "dependencies": [],
+      "verification": null,
+      "status": "requested"
+    }
+  ]
+}
