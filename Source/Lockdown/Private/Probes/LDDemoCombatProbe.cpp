@@ -2853,6 +2853,8 @@ public:
     bool ShotSaved(const TCHAR* Moment)
     {
         const bool bSaved = Shot && Shot->bSaved;
+        // A capture-only run is recorded from the window itself; the check's own frame captures judge nothing there.
+        if (bCaptureOnly && !bSaved) { Shot.Reset(); return true; }
         Check(bSaved, TEXT("Render"), FString::Printf(TEXT("The Host's rendered main view is captured while it shows %s"), Moment),
             Shot ? (bSaved ? Shot->File + TEXT(" ") + Shot->Facts : Shot->Problem) : FString(TEXT("no capture was opened")));
         Shot.Reset();
@@ -2981,6 +2983,16 @@ public:
         UE_LOG(LogLDTest, Display, TEXT("LD_DEMO_COMBAT_PROBE role=%s passed=%d detail=%s"), *Role, Passed && Written, *Error);
         if (!Passed || !Written)
         {
+            if (bCaptureOnly)
+            {
+                // The recording keeps the last moment (a kill, a death) on screen before the window closes.
+                FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([](float)
+                {
+                    FPlatformMisc::RequestExitWithStatus(false, 2);
+                    return false;
+                }), 5.0f);
+                return false;
+            }
             FPlatformMisc::RequestExitWithStatus(false, 2);
             return false;
         }
