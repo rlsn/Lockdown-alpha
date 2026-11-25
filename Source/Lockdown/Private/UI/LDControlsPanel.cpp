@@ -709,7 +709,7 @@ void ULDControlsPanel::HandleMasterVolumeChanged(float Value)
     // A drag reports many sub-percent values; only a changed whole percent is applied, and the instance saves it later.
     const float Linear=FMath::RoundToFloat(Value*100)/100;
     if(Linear==PC->Controls->MasterVolume){return;}
-    const auto Result=Instance->SetAppliedMasterVolume(Linear);
+    const auto Result=Instance->SetAppliedBusVolume(ELDAudioBus::Master,Linear);
     SetFeedback(Result.Message,Result.Status==ELDLocalSettingsSaveStatus::Invalid);PopulatePreferences();PopulateFooter();
     if(Result.Status==ELDLocalSettingsSaveStatus::Invalid){return;}
     bVolumeSavePending=true;
@@ -722,7 +722,7 @@ void ULDControlsPanel::HandleMusicVolumeChanged(float Value)
     // Same whole-percent rule and debounced save as the master volume.
     const float Linear=FMath::RoundToFloat(Value*100)/100;
     if(Linear==PC->Controls->MusicVolume){return;}
-    const auto Result=Instance->SetAppliedMusicVolume(Linear);
+    const auto Result=Instance->SetAppliedBusVolume(ELDAudioBus::Music,Linear);
     SetFeedback(Result.Message,Result.Status==ELDLocalSettingsSaveStatus::Invalid);PopulatePreferences();PopulateFooter();
     if(Result.Status!=ELDLocalSettingsSaveStatus::Invalid){bVolumeSavePending=true;}
 }

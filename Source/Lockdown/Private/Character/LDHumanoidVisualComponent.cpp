@@ -1,5 +1,6 @@
 #include "Character/LDHumanoidVisualComponent.h"
-#include "Audio/LDAudioSubsystem.h"
+#include "Audio/LDAudioFeel.h"
+#include "Components/AudioComponent.h"
 #include "Core/LDLog.h"
 #include "Animation/AnimSequence.h"
 #include "Art/LDArtCatalog.h"
@@ -445,16 +446,42 @@ void ULDHumanoidVisualComponent::UpdateRelease(float EffectScale)
         Impacts->Kit(At, LDHitVfx::BurstOf(Skill->Release, Skill->Tint, EffectScale), this);
         Impacts->NoteStrike(*this, LDSliceVfx::EStrike::Skill, At, Facing, bOwnBody);
     }
-    // Visible observed enemy cast feedback strictly within the local sight-authorized proxy.
-    if (GetOwner() && !GetOwner()->IsA<ALDCharacter>())
+}
+
+void ULDHumanoidVisualComponent::UpdateSound()
+{
+    // Body sounds on the presented timeline (AUDIO_AND_FEEL §2), whatever the effect strength: a whoosh peaking on the
+    // swing's release, a charge over a long enough cast windup cut at its release, and the skill's release. Only a body
+    // the local player sees sounds, and an onset first seen well after its release stays silent (as its effects do).
+    const bool bAudible = CanShowImpact() && Pivot;
+    const float Age = ShownAge();
+    const FVector At = Pivot ? Pivot->GetComponentLocation() : FVector::ZeroVector;
+    if (Action == LDBodyMotion::EAction::Attack && SwingSoundOnset != ActionOnset
+        && Age >= ActionImpactSeconds - LDAudioFeel::SwingPreRollSeconds(ActionImpactSeconds))
     {
-        if (UGameInstance* GI = World->GetGameInstance())
-        {
-            if (ULDAudioSubsystem* Audio = GI->GetSubsystem<ULDAudioSubsystem>())
-            {
-                Audio->Play(ELDAudioCue::SelfCast, .45f);
-            }
-        }
+        SwingSoundOnset = ActionOnset;
+        if (bAudible && Age - ActionImpactSeconds < .2f) { LDAudioFeel::Swing(*this, bOwnBody, FMath::Clamp<uint8>(ComboStep, 1, 3), At); }
+    }
+    if (Action != LDBodyMotion::EAction::Cast)
+    {
+        // A cast cancelled before its release takes its charge with it.
+        if (ChargeSound.IsValid()) { LDAudioFeel::CutCharge(ChargeSound.Get()); }
+        ChargeSound = nullptr;
+        return;
+    }
+    if (ChargeSoundOnset != ActionOnset)
+    {
+        ChargeSoundOnset = ActionOnset;
+        if (ChargeSound.IsValid()) { LDAudioFeel::CutCharge(ChargeSound.Get()); }
+        ChargeSound = bAudible && ActionImpactSeconds >= LDAudioFeel::ChargeMinSeconds && Age < ActionImpactSeconds - .05f
+            ? LDAudioFeel::Charge(*this, bOwnBody, At) : nullptr;
+    }
+    if (ReleaseSoundOnset != ActionOnset && Age >= ActionImpactSeconds)
+    {
+        ReleaseSoundOnset = ActionOnset;
+        if (ChargeSound.IsValid()) { LDAudioFeel::CutCharge(ChargeSound.Get()); }
+        ChargeSound = nullptr;
+        if (bAudible && Age - ActionImpactSeconds < .2f) { LDAudioFeel::Release(*this, bOwnBody, CastAbility, bOverdriveCast, At); }
     }
 }
 
@@ -963,10 +990,10 @@ float ULDHumanoidVisualComponent::ShownAge() const
     return Action == LDBodyMotion::EAction::None && RetractAt >= 0 ? LDBodyMotion::RetractAge(RetractFrom, float(Clock - RetractAt)) : PoseAge();
 }
 
-void ULDHumanoidVisualComponent::ShowSliceImpact(const FPendingImpact& Impact, const FVector& Chest, const FVector& Feet, float EffectScale)
+bool ULDHumanoidVisualComponent::ShowSliceImpact(const FPendingImpact& Impact, const FVector& Chest, const FVector& Feet, float EffectScale)
 {
     ULDImpactFxSubsystem* Impacts = GetWorld() ? GetWorld()->GetSubsystem<ULDImpactFxSubsystem>() : nullptr;
-    if (!Impacts || EffectScale <= 0.f) { return; }
+    if (!Impacts || EffectScale <= 0.f) { return false; }
     const float Age = float(Clock - Impact.Onset);
     // The visible strike this hit belongs to gives its tier, direction and owner; with none in sight the hit shows the
     // tier its look implies, struck from the front.
@@ -1010,6 +1037,7 @@ void ULDHumanoidVisualComponent::ShowSliceImpact(const FPendingImpact& Impact, c
             Impacts->Ghost(*Mesh, Warm, *this);
         }
     }
+    return Strike == LDSliceVfx::EStrike::Finisher;
 }
 
 void ULDHumanoidVisualComponent::PlayFall()
@@ -1191,6 +1219,7 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
     UpdateRelease(EffectScale);
     UpdateDash(Velocity, bFalling, EffectScale);
     UpdateOverdrive(EffectScale);
+    UpdateSound();
 
     // The release spark follows the striking or casting hand.
     const FTransform& Space = Pivot->GetComponentTransform();
@@ -1213,7 +1242,8 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
             {
                 const float Age = float(Clock - Impact.Onset);
                 const bool bSlice = LDSliceVfx::ShowsHit(Impact.Look, Impact.Flags);
-                if (bSlice) { ShowSliceImpact(Impact, At, Ground, EffectScale); }
+                bool bFinisherHit = false;
+                if (bSlice) { bFinisherHit = ShowSliceImpact(Impact, At, Ground, EffectScale); }
                 else
                 {
                     Impacts->Burst(*this, At, Impact.Look, Impact.Flags, Age, EffectScale);
@@ -1238,21 +1268,9 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
                 { Impacts->Kit(At, LDHitVfx::BurstOf(Element, Tint, EffectScale), this); }
                 if (bImpactOn && Age < .3f && (Impact.Flags & LDObservation::Overdriven))
                 { Impacts->Kit(At, LDHitVfx::BurstOf(LDHitVfx::EBurst::Overdrive, LDHitVfx::OverdriveTint(), EffectScale), this); }
-                if (Age < .25f && GetOwner() && !GetOwner()->IsA<ALDCharacter>())
-                {
-                    if (UGameInstance* GI = GetWorld()->GetGameInstance())
-                    {
-                        if (ULDAudioSubsystem* Audio = GI->GetSubsystem<ULDAudioSubsystem>())
-                        {
-                            const ELDAudioCue ObservedCue = (Impact.Flags & LDObservation::Dodged) ? ELDAudioCue::SelfPerfectDodge
-                                : (Impact.Flags & LDObservation::Parried) ? ELDAudioCue::SelfParry
-                                : (Impact.Flags & LDObservation::ShieldBroken) ? ELDAudioCue::SelfShieldBreak
-                                : (Impact.Flags & LDObservation::ShieldAbsorbed) ? ELDAudioCue::SelfShieldHit
-                                : ELDAudioCue::SelfHit;
-                            Audio->Play(ObservedCue, .38f);
-                        }
-                    }
-                }
+                // The struck body's impact sound at the hit's own time; the own body's hurt sounds from the owner tracker.
+                if (Age < .25f && !bOwnBody)
+                { LDAudioFeel::Impact(*this, Impact.Look, Impact.Flags, bFinisherHit, At); }
             }
         }
         PendingImpacts.Reset();

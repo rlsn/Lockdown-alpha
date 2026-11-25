@@ -3667,7 +3667,7 @@ void ULDHUD::PlayAudioCues(const TArray<ELDAudioCue>& Cues)
     if(Cues.IsEmpty()){return;}
     UGameInstance* Instance=GetGameInstance();ULDAudioSubsystem* Audio=Instance?Instance->GetSubsystem<ULDAudioSubsystem>():nullptr;
     if(!Audio){UE_LOG(LogLDUI,Warning,TEXT("LD_AUDIO_SUBSYSTEM_UNAVAILABLE %d cue(s) not played."),Cues.Num());return;}
-    for(const ELDAudioCue Cue:Cues){Audio->Play(Cue,Cue==ELDAudioCue::SelfAttack?LDHitFeel::Read().SwingVolume:1.f);}
+    for(const ELDAudioCue Cue:Cues){Audio->Play(Cue);}
 }
 void ULDHUD::RefreshScoreboard(const ALDGameState& Public,const FLDOwnerState& Own)
 {
