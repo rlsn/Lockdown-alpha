@@ -57,7 +57,8 @@ namespace LDSliceVfx
     //   Swing1..3    a basic swing: Start the swing centre at the chest, End a point ahead along the facing
     //   Field        an electric field on the ground: Start its centre on the floor, Width its radius, Intensity its
     //                strength (2.2 full), Duration its life (the ground state's: effectively unbounded; conduct's splash)
-    enum class ESystem : uint8 { Chain, HitBasic, HitFinisher, Swing1, Swing2, Swing3, Field, Count };
+    //   Tell1..3     a basic swing's anticipation on the floor: Start the feet, End ahead, Duration the windup
+    enum class ESystem : uint8 { Chain, HitBasic, HitFinisher, Swing1, Swing2, Swing3, Field, Tell1, Tell2, Tell3, Count };
     LOCKDOWN_API const TCHAR* SystemName(ESystem System);
     LOCKDOWN_API FString SystemPackage(ESystem System);
     // The shocked-body rim glow (LDHitVfx::FGhosts::bShell): an additive fresnel shell pushed 1.2 cm out along the normals.
@@ -145,9 +146,7 @@ namespace LDSliceVfx
         float Size = 1, Seconds = 1, Glow = 1;
 
     };
-    // The basic swing of combo Step (1..3): the chalk shape of the coming slash on the ground from the start of the
-    // windup (the swing's arc of motion at the release is the Niagara Swing, ULDImpactFxSubsystem::Swing).
-    LOCKDOWN_API FRecipe SwingTelegraph(uint8 Step, const FVector& Feet, const FVector& Facing, float WindupSeconds, const FLook& Look);
+    // A basic swing's anticipation and arc are the Niagara Tell and Swing (ULDImpactFxSubsystem::SwingTell, Swing).
     // The ink of a physical strike's effects (swing, hit): the local player's own a soft orange, others' a pale ivory.
     LOCKDOWN_API FLinearColor StrikeTint(const FLook& Look);
     // A skill's chalk lane on the ground from the caster's feet along its facing (Length x Width), during the windup.

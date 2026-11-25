@@ -348,12 +348,6 @@ bool FLDBodyMotionSliceLayersTest::RunTest(const FString& Parameters)
     FLook Off=Own; Off.Size=0.f;
     TestTrue(TEXT("A zero tuning or no strike shows nothing"), Impact(EStrike::Zap,Chest,Feet,Dir,From,false,Off).Layers.IsEmpty()
         && Impact(EStrike::None,Chest,Feet,Dir,From,false,Own).Layers.IsEmpty());
-    // The swing's chalk telegraph on the ground through the windup (the arc at the release is the Niagara Swing).
-    const FRecipe Chalk=SwingTelegraph(2,Feet,Dir,.3f,Own);
-    TestTrue(TEXT("A swing's telegraph is the coming slash as a faint chalk hint on the ground, gone after the windup"),
-        Chalk.Layers.Num()==1 && Chalk.Layers[0].Mesh==EMesh::Slash2 && Chalk.Layers[0].Place==EPlace::GroundSlash && Chalk.Layers[0].bTelegraph
-        && Chalk.Layers[0].Glow.R==Chalk.Layers[0].Glow.B && Evaluate(Chalk.Layers[0],.15f).bVisible && !Evaluate(Chalk.Layers[0],.36f).bVisible
-        && SwingTelegraph(1,Feet,Dir,.05f,Own).Layers.IsEmpty());
     const FLayer& Spark=*SkillHit;
     TestTrue(TEXT("Flipbooks step at their authored rate and hold their last frame; a delayed layer waits"),
         Evaluate(Spark,0.f).Frame==0.f && Evaluate(Spark,.1f).Frame==2.f && Evaluate(Spark,Spark.Seconds-.01f).Frame==15.f

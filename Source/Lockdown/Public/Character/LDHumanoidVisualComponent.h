@@ -77,6 +77,7 @@ public:
     // The local player's own body: its strikes show at full size with the ball orange; every other body's are smaller,
     // fainter and white (LDSliceVfx::FLook).
     void SetOwnBody(bool bOwn) { bOwnBody = bOwn; }
+    bool IsOwnBody() const { return bOwnBody; }
     // The public overdrive charge (FLDObservedUnitView::bCharging; the own body's ChargingEntry): an energy column while
     // held, a ready flare once OVERDRIVE.HoldSec passes, and the release shockwave when it ends as a cast begins.
     // AgeSeconds: how long the charge has been held (authority age for a proxy); Progress: the own key's hold progress

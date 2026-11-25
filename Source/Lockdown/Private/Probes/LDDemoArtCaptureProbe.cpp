@@ -831,7 +831,6 @@ namespace
                     const FVector At = VfxFocus + FVector(0, 0, 100);
                     for (uint8 Strike = uint8(LDSliceVfx::EStrike::Basic); Strike <= uint8(LDSliceVfx::EStrike::Zap); ++Strike)
                     { Impacts->Slice(nullptr, LDSliceVfx::Impact(LDSliceVfx::EStrike(Strike), At, VfxFocus, FVector::ForwardVector, VfxFocus, false, Look), 0.f); }
-                    for (uint8 Step = 1; Step <= 3; ++Step) { Impacts->Slice(nullptr, LDSliceVfx::SwingTelegraph(Step, VfxFocus, FVector::ForwardVector, .3f, Look), 0.f); }
                     Impacts->Slice(nullptr, LDSliceVfx::SkillTelegraph(VfxFocus, FVector::ForwardVector, 300.f, 100.f, .3f, Look), 0.f);
                     Impacts->Slice(nullptr, LDSliceVfx::HoseRelease(At, FVector::ForwardVector, 300.f, Look), 0.f);
                     SeqWarmUntil = Now + 3.;
@@ -1001,6 +1000,14 @@ namespace
                             Close, Home, false, bHit ? W + .02f : W - .02f, .1f, 24});
                     }
                     ChainJobs.Add({Look, Look + TEXT("-sunlit"), {{0.f, Swing(A, 3, W)}, {W + .02f, Plain(V1)}}, CloseSunlit, Home, false, bHit ? W + .02f : W - .02f, .1f, 24});
+                    // The anticipation: the finisher's floor arc judged in the middle of its windup.
+                    if (!bHit) { ChainJobs.Add({Look, TEXT("swing-tell"), {{0.f, Swing(A, 3, W)}, {W + .02f, Plain(V1)}}, Close, Home, false, W * .6f - .06f, 0.f, 24}); }
+                    // The local player as the attacker (its own soft orange): A's finisher on V1, A own and V1 not for once.
+                    const bool bVictimOwn = V1.IsValid() && V1->IsOwnBody();
+                    ChainJobs.Add({Look, Look + TEXT("-own"), {{0.f, Swing(A, 3, W)}, {W + .02f, Plain(V1)}},
+                        [Close, A, V1]() { Close(); if (auto* B = A.Get()) { B->SetOwnBody(true); } if (auto* B = V1.Get()) { B->SetOwnBody(false); } },
+                        [Home, A, V1, bVictimOwn]() { Home(); if (auto* B = A.Get()) { B->SetOwnBody(false); } if (auto* B = V1.Get()) { B->SetOwnBody(bVictimOwn); } },
+                        false, bHit ? W + .02f : W - .02f, .1f, 24});
                     ChainJobs.Add({Look, Look + TEXT("-crowd"), {{0.f, Swing(A, 3, W)}, {.05f, Swing(A2, 1, W)}, {.1f, Swing(A3, 2, W)},
                         {W + .02f, Plain(V1)}, {W + .07f, Plain(V2)}, {W + .12f, Plain(V3)}}, Close, Home, false, bHit ? W + .07f : W + .03f, .1f, 24});
                 }

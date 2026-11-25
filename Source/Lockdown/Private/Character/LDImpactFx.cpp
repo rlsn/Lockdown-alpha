@@ -26,6 +26,7 @@
 #include "NiagaraComponent.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
+#include "UObject/UObjectIterator.h"
 
 namespace LDImpactFxDetail
 {
@@ -619,6 +620,8 @@ void ULDImpactFxSubsystem::Tick(float DeltaTime)
             Warming.Reset();
         }
     }
+    // Fields due to reach for the bodies in them; their hops are spawned after this pass, which they would reorder.
+    TArray<TWeakObjectPtr<UNiagaraComponent>, TInlineAllocator<4>> Biting;
     for (int32 Index = Live.Num() - 1; Index >= 0; --Index)
     {
         FLive& Burst = Live[Index];
@@ -651,8 +654,10 @@ void ULDImpactFxSubsystem::Tick(float DeltaTime)
         {
             Burst.Age += Step;
             if (Burst.StopAfter >= 0.f && Burst.Age + Burst.InitialAge >= Burst.StopAfter && Effect->IsActive()) { Effect->Deactivate(); }
+            if (Effect->GetAsset() == GetSystem(LDSliceVfx::ESystem::Field) && Burst.Age >= Burst.NextBite && Effect->IsActive()) { Burst.NextBite = Burst.Age + .4f; Biting.Add(Effect); }
         }
     }
+    for (const TWeakObjectPtr<UNiagaraComponent>& Field : Biting) { if (const UNiagaraComponent* Shown = Field.Get()) { Bite(*Shown); } }
     for (int32 Index = LiveLayers.Num() - 1; Index >= 0; --Index)
     {
         FLiveLayer& Shown = LiveLayers[Index];
@@ -941,6 +946,10 @@ void ULDImpactFxSubsystem::Slice(const ULDHumanoidVisualComponent* Source, const
 
 void ULDImpactFxSubsystem::ClearTelegraphs(const ULDHumanoidVisualComponent& Source)
 {
+    for (int32 Index = Live.Num() - 1; Index >= 0; --Index)
+    {
+        if (Live[Index].bTelegraph && Live[Index].Source.Get() == &Source) { Release(Index); }
+    }
     for (int32 Index = LiveSlices.Num() - 1; Index >= 0; --Index)
     {
         if (LiveSlices[Index].Layer.bTelegraph && LiveSlices[Index].Source.Get() == &Source) { ReleaseSlice(Index); }
@@ -1185,12 +1194,46 @@ void ULDImpactFxSubsystem::FieldPulse(const ULDHumanoidVisualComponent& Source, 
     Live.Last().StopAfter = Seconds;
 }
 
+void ULDImpactFxSubsystem::Bite(const UNiagaraComponent& Field)
+{
+    // The field's arcs reach for up to three visible bodies standing in it: a short, reduced chain hop from the floor
+    // nearest the body's side of the field to its knees, with the chain's own (others') body crawl and sparks.
+    const FNiagaraParameterStore& Parameters = Field.GetOverrideParameters();
+    const FVector Centre = FVector(Parameters.GetParameterValue<FVector3f>(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("User.Start"))));
+    const float Radius = Parameters.GetParameterValue<float>(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("User.Width")));
+    const float Strength = Parameters.GetParameterValue<float>(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("User.Intensity")));
+    if (!GetWorld() || Radius <= 0.f || Strength <= .2f) { return; }
+    int32 Bitten = 0;
+    for (TObjectIterator<ULDHumanoidVisualComponent> It; It && Bitten < 3; ++It)
+    {
+        const ULDHumanoidVisualComponent* Body = *It;
+        const AActor* Owner = Body ? Body->GetOwner() : nullptr;
+        if (!Owner || Body->GetWorld() != GetWorld() || !Body->CanShowImpact() || !Body->IsVisible()) { continue; }
+        const FVector At = Owner->GetActorLocation();
+        const FVector Out = FVector(At.X - Centre.X, At.Y - Centre.Y, 0.);
+        if (Out.Size() > Radius * .95f) { continue; }
+        const float Turn = FMath::FRandRange(-.6f, .6f);
+        const FVector Side = (Out.IsNearlyZero() ? FVector::ForwardVector : Out.GetSafeNormal()).RotateAngleAxis(FMath::RadiansToDegrees(Turn), FVector::UpVector);
+        LDSliceVfx::FLook Look = SliceLook(ESliceTuning::Impact, false, false);
+        Look.Size *= .45f;
+        Look.Glow *= FMath::Clamp(Strength / 2.2f, 0.f, 1.f);
+        Chain(*Body, Centre + Side * Radius * .85f + FVector(0, 0, 10.f), At - FVector(0, 0, 45.f), true, Look, 0.f);
+        ++Bitten;
+    }
+}
+
 UNiagaraComponent* ULDImpactFxSubsystem::SpawnGenerated(LDSliceVfx::ESystem System, const FVector& Start, const FVector& End, const FLinearColor& Tint,
     float Width, float Intensity, float Seconds, bool bFocus)
 {
     UNiagaraSystem* Asset = GetSystem(System);
     if (!FApp::CanEverRender() || !Asset || Start.ContainsNaN() || End.ContainsNaN() || !FMath::IsFinite(Width) || !FMath::IsFinite(Intensity)) { return nullptr; }
-    if (Live.Num() >= LDImpactFx::MaxBursts) { Release(0); }
+    if (Live.Num() >= LDImpactFx::MaxBursts)
+    {
+        // The oldest short effect makes room; a standing field stays while its ground state does.
+        const UNiagaraSystem* Field = GetSystem(LDSliceVfx::ESystem::Field);
+        const int32 Oldest = Live.IndexOfByPredicate([Field](const FLive& Shown) { return !Shown.Effect.IsValid() || Shown.Effect->GetAsset() != Field || Shown.StopAfter >= 0.f; });
+        Release(Oldest == INDEX_NONE ? 0 : Oldest);
+    }
     UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), Asset, End, FRotator::ZeroRotator, FVector(1.f),
         false, false, ENCPoolMethod::ManualRelease, false);
     if (!Effect)
@@ -1207,6 +1250,24 @@ UNiagaraComponent* ULDImpactFxSubsystem::SpawnGenerated(LDSliceVfx::ESystem Syst
     Effect->SetVariableFloat(TEXT("User.Focus"), bFocus ? 1.f : 0.f);
     Effect->Activate(true);
     return Effect;
+}
+
+void ULDImpactFxSubsystem::SwingTell(const ULDHumanoidVisualComponent& Owner, uint8 Step, const FVector& Feet, const FVector& Facing,
+    float WindupSeconds, const LDSliceVfx::FLook& Look, float AgeSeconds)
+{
+    // Too short a windup to read (or one already past) draws nothing rather than a flash.
+    if (Step == 0 || !Owner.CanShowImpact() || !FMath::IsFinite(WindupSeconds) || WindupSeconds < .08f || !FMath::IsFinite(AgeSeconds)
+        || AgeSeconds >= WindupSeconds || Look.Size <= 0.f || Look.EffectScale <= 0.f) { return; }
+    const LDSliceVfx::ESystem System = Step >= 3 ? LDSliceVfx::ESystem::Tell3 : Step == 2 ? LDSliceVfx::ESystem::Tell2 : LDSliceVfx::ESystem::Tell1;
+    const FVector Ahead = FVector(Facing.X, Facing.Y, 0.).GetSafeNormal();
+    FVector Normal;
+    const FVector Floor = GroundUnder(Feet, Normal);
+    UNiagaraComponent* Effect = SpawnGenerated(System, Floor, Floor + (Ahead.IsNearlyZero() ? FVector::ForwardVector : Ahead) * 100.f,
+        LDSliceVfx::StrikeTint(Look), 70.f * Look.Size, 2.2f * Look.Glow * (Look.bFocus ? 1.f : .7f), WindupSeconds, Look.bFocus);
+    if (!Effect) { return; }
+    Track(Effect, &Owner, AgeSeconds);
+    Live.Last().bTelegraph = true;
+    Live.Last().StopAfter = WindupSeconds;
 }
 
 void ULDImpactFxSubsystem::Swing(const ULDHumanoidVisualComponent& Owner, uint8 Step, const FVector& Centre, const FVector& Facing,

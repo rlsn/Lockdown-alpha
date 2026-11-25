@@ -113,6 +113,10 @@ public:
     UNiagaraSystem* GetSystem(LDSliceVfx::ESystem System) const { return GeneratedSystems.IsValidIndex(int32(System)) ? GeneratedSystems[int32(System)].Get() : nullptr; }
     // Every live component of a generated system (capture probes count their particles and read their user parameters).
     void ForEachGenerated(TFunctionRef<void(UNiagaraComponent&)> Visit) const;
+    // A basic swing's anticipation (combo Step 1-3) on the floor round Feet along Facing over WindupSeconds, bound to
+    // Owner and cleared with its telegraphs.
+    void SwingTell(const ULDHumanoidVisualComponent& Owner, uint8 Step, const FVector& Feet, const FVector& Facing, float WindupSeconds,
+        const LDSliceVfx::FLook& Look, float AgeSeconds);
     // A basic swing's arc of motion (combo Step 1-3) round Centre along Facing, bound to Owner.
     void Swing(const ULDHumanoidVisualComponent& Owner, uint8 Step, const FVector& Centre, const FVector& Facing, const LDSliceVfx::FLook& Look, float AgeSeconds);
     // A basic or finisher hit on Victim's Chest struck from From's side, bound to Victim.
@@ -151,6 +155,10 @@ private:
         bool bStarted = false;
         // A looping effect (the Chain) is deactivated once it has run this long; negative never.
         float StopAfter = -1, Age = 0;
+        // An anticipation (a swing's telegraph), cleared with ClearTelegraphs.
+        bool bTelegraph = false;
+        // A field: the next time (its age) its arcs reach for the bodies standing in it.
+        float NextBite = 0;
     };
     struct FLiveLayer
     {
@@ -190,6 +198,8 @@ private:
     void ReleaseSlice(int32 Index);
     void PlaceSlice(FLiveSlice& Shown);
     FVector GroundUnder(const FVector& At, FVector& OutNormal) const;
+    // A field's arcs reaching for the bodies standing in it (Tick, every 0.4 s of the field's life).
+    void Bite(const UNiagaraComponent& Field);
     // A pooled generated system with the common user parameters set and activated; null when it cannot show.
     UNiagaraComponent* SpawnGenerated(LDSliceVfx::ESystem System, const FVector& Start, const FVector& End, const FLinearColor& Tint, float Width,
         float Intensity, float Seconds, bool bFocus);

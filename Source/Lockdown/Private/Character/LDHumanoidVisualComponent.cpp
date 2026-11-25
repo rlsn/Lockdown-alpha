@@ -304,13 +304,17 @@ void ULDHumanoidVisualComponent::UpdateSlice(float EffectScale)
     if (TelegraphOnset != ActionOnset)
     {
         TelegraphOnset = ActionOnset;
-        // Anticipation: the white chalk of what is coming, from the windup's start to its release; a windup first seen
-        // after its release shows none.
+        // Anticipation of what is coming, from the windup's start to its release (a swing's arc on the floor, a skill's
+        // chalk lane); a windup first seen after its release shows none.
         if (Age < ActionImpactSeconds)
         {
             const LDSliceVfx::FLook Look = Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Telegraph, bOwnBody, bOwnBody);
             LDSliceVfx::FRecipe Recipe;
-            if (bAttack) { Recipe = LDSliceVfx::SwingTelegraph(Step, Feet, Facing, ActionImpactSeconds, Look); }
+            if (bAttack)
+            {
+                Impacts->SwingTell(*this, Step, Feet, Facing, ActionImpactSeconds, Look, Age);
+                bTelegraphShown = true;
+            }
             else if (CastAbility == uint8(ELDDemoAbilityId::ActiveHoseDown))
             {
                 float Range = 0.f, HalfWidth = 0.f;
@@ -323,7 +327,7 @@ void ULDHumanoidVisualComponent::UpdateSlice(float EffectScale)
                 Recipe = LDSliceVfx::SkillTelegraph(Feet, Facing, 180.f, 70.f, ActionImpactSeconds, Look);
             }
             Impacts->Slice(this, Recipe, Age);
-            bTelegraphShown = !Recipe.Layers.IsEmpty();
+            bTelegraphShown = bTelegraphShown || !Recipe.Layers.IsEmpty();
         }
     }
     // Release of a basic swing at its authoritative impact time: the slash at the chest (skills release in UpdateRelease).

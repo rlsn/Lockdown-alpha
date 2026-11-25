@@ -253,35 +253,6 @@ bool LDSliceVfx::IsOver(const FLayer& Layer, float AgeSeconds)
     return !Layer.bLoop && (!FMath::IsFinite(AgeSeconds) || AgeSeconds >= Layer.DelaySeconds + Layer.Seconds);
 }
 
-LDSliceVfx::FRecipe LDSliceVfx::SwingTelegraph(uint8 Step, const FVector& Feet, const FVector& Facing, float WindupSeconds, const FLook& Look)
-{
-    using namespace LDSliceVfxDetail;
-    FRecipe Recipe;
-    // Too short a windup to read (or one already past) draws nothing rather than a flash.
-    if (!FMath::IsFinite(WindupSeconds) || WindupSeconds < .08f || Step == 0) { return Recipe; }
-    FLayer Chalked;
-    Chalked.Tex = ETex::SlashEdge;
-    Chalked.Mesh = SlashOf(Step);
-    Chalked.Place = EPlace::GroundSlash;
-    Chalked.At = Feet;
-    Chalked.Dir = Planar(Facing);
-    Chalked.SizeCm = SlashScale(Step) * Look.Size;
-    Chalked.Seconds = WindupSeconds + .05f;
-    Chalked.FadeInSeconds = WindupSeconds * .5f;
-    Chalked.FadeOutSeconds = .06f;
-    // A faint chalk hint, never an inked crescent on the floor.
-    Chalked.Alpha = .45f;
-    Chalked.RevealSeconds = WindupSeconds * .8f;
-    Chalked.bRevealFromTail = true;
-    Chalked.ChalkErode = .3f;
-    Chalked.Glow = Chalked.Core = Chalk();
-    Chalked.Ink = Chalk();
-    Chalked.bTelegraph = true;
-    Recipe.Layers.Add(Chalked);
-    Finish(Recipe, Look);
-    return Recipe;
-}
-
 FLinearColor LDSliceVfx::StrikeTint(const FLook& Look)
 {
     return Look.bOwn ? FLinearColor(1.f, .64f, .36f) : FLinearColor(1.f, .94f, .84f);
@@ -471,6 +442,9 @@ const TCHAR* LDSliceVfx::SystemName(ESystem System)
     case ESystem::Swing2: return TEXT("NS_LDSwing2");
     case ESystem::Swing3: return TEXT("NS_LDSwing3");
     case ESystem::Field: return TEXT("NS_LDField");
+    case ESystem::Tell1: return TEXT("NS_LDTell1");
+    case ESystem::Tell2: return TEXT("NS_LDTell2");
+    case ESystem::Tell3: return TEXT("NS_LDTell3");
     default: return TEXT("");
     }
 }
