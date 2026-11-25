@@ -381,6 +381,12 @@ const TCHAR* LDSliceVfx::SystemName(ESystem System)
     case ESystem::FireHit: return TEXT("NS_LDFireHit");
     case ESystem::ColaTell: return TEXT("NS_LDColaTell");
     case ESystem::ColaBlast: return TEXT("NS_LDColaBlast");
+    case ESystem::ChillHit: return TEXT("NS_LDChillHit");
+    case ESystem::BurnState: return TEXT("NS_LDBurnState");
+    case ESystem::WetState: return TEXT("NS_LDWetState");
+    case ESystem::ShockState: return TEXT("NS_LDShockState");
+    case ESystem::ChillState: return TEXT("NS_LDChillState");
+    case ESystem::RotState: return TEXT("NS_LDRotState");
     default: return TEXT("");
     }
 }

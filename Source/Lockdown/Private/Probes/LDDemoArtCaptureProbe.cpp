@@ -923,7 +923,7 @@ namespace
             Categories.ParseIntoArray(Wanted, TEXT(","), true);
             for (const FString& Name : Wanted)
             {
-                if (!Check(Name == TEXT("chain") || Name == TEXT("hit") || Name == TEXT("swing") || Name == TEXT("field") || Name == TEXT("water") || Name == TEXT("fire") || Name == TEXT("chill") || Name == TEXT("feel"),
+                if (!Check(Name == TEXT("chain") || Name == TEXT("hit") || Name == TEXT("swing") || Name == TEXT("field") || Name == TEXT("water") || Name == TEXT("fire") || Name == TEXT("chill") || Name == TEXT("states") || Name == TEXT("feel"),
                     TEXT("Proof category known: ") + Name)) { return false; }
             }
             const TWeakObjectPtr<ULDHumanoidVisualComponent> A = VfxAttacker, V1 = VfxVictim, V2 = VfxExtras[0], V3 = VfxExtras[1], A2 = VfxExtras[2], A3 = VfxExtras[3];
@@ -1096,6 +1096,31 @@ namespace
                     ChainJobs.Add({Look, TEXT("fire-sunlit"), Burnt(A, V1), Sunlit, Home, false, Seethe + .1f, .15f, 30});
                     ChainJobs.Add({Look, TEXT("fire-other"), Burnt(A3, V3), nullptr, nullptr, false, Seethe + .1f, .15f, 30});
                 }
+                else if (Look == TEXT("states"))
+                {
+                    // The element states on the stage bodies no character drives (A and V1 are characters whose own statuses
+                    // overwrite a probe's): V2 burn, V3 wet, A2 electrified, A3 chilled at one stack; then V2 rotten and V3 at
+                    // three stacks of burn; cleared at the end.
+                    const auto State = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, ELDDemoStatusId Id, uint8 Stacks)
+                    {
+                        return [Body, Id, Stacks]()
+                        {
+                            if (auto* B = Body.Get())
+                            {
+                                TArray<FLDObservedStatus> Statuses;
+                                if (Stacks > 0) { FLDObservedStatus& S = Statuses.AddDefaulted_GetRef(); S.StatusId = uint8(Id); S.Stacks = Stacks; }
+                                B->SetElementStates(Statuses);
+                            }
+                        };
+                    };
+                    const auto Clear = [State, V1, V2, V3, A2, A3]()
+                    { for (const auto& B : {V1, V2, V3, A2, A3}) { State(B, ELDDemoStatusId::Burn, 0)(); } };
+                    ChainJobs.Add({Look, TEXT("states-four"), {{0.f, State(V2, ELDDemoStatusId::Burn, 1)}, {0.f, State(V3, ELDDemoStatusId::Wet, 1)},
+                        {0.f, State(A2, ELDDemoStatusId::Electrified, 1)}, {0.f, State(A3, ELDDemoStatusId::Chilled, 1)}},
+                        nullptr, Clear, false, 1.f, .6f, 45});
+                    ChainJobs.Add({Look, TEXT("states-rot-burn3"), {{0.f, State(V2, ELDDemoStatusId::Rotten, 1)}, {0.f, State(V3, ELDDemoStatusId::Burn, 3)}},
+                        nullptr, Clear, false, 1.f, .6f, 30});
+                }
                 else if (Look == TEXT("chill"))
                 {
                     // active_cola_shake (windup 0.15 s, cone 400 cm / 60 degrees): its windup, the blast hitting V1 2.5 m ahead,
@@ -1171,7 +1196,7 @@ namespace
                 ChainJobs.Add({Look, TEXT("g-sunlit-hop"), {{0.f, Cast(A)}, {.27f, Hit(V1)}}, Sunlit, Home});
                 }
                 // New categories are judged on their looks first; their frame cost is measured once a look is chosen.
-                if (Look == TEXT("water") || Look == TEXT("fire") || Look == TEXT("chill")) { continue; }
+                if (Look == TEXT("water") || Look == TEXT("fire") || Look == TEXT("chill") || Look == TEXT("states")) { continue; }
                 FChainJob Perf;
                 Perf.Category = Look;
                 Perf.Scenario = TEXT("perf-eight-casters");

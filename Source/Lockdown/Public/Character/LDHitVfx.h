@@ -74,10 +74,14 @@ namespace LDSliceVfx
     //   ColaTell     active_cola_shake's windup: its cone on the floor from Start (under the feet) to End (at its reach),
     //                Width its half angle in degrees, Duration the windup
     //   ColaBlast    active_cola_shake's release over the same cone, Duration the frost's life
+    //   ChillHit     a chill hit at End struck from Start's side
+    //   BurnState..RotState  an element state on a body, looping while it lasts: Start the feet, End the top of the head,
+    //                Width the body's radius, Intensity its strength (stacks), Duration effectively unbounded
     enum class ESystem : uint8
     {
         Chain, HitBasic, HitFinisher, Swing1, Swing2, Swing3, Field, Tell1, Tell2, Tell3,
-        HoseTell, HoseJet, WaterHit, ZapCharge, SeetheTell, SeetheBurst, FireHit, ColaTell, ColaBlast, Count
+        HoseTell, HoseJet, WaterHit, ZapCharge, SeetheTell, SeetheBurst, FireHit, ColaTell, ColaBlast, ChillHit,
+        BurnState, WetState, ShockState, ChillState, RotState, Count
     };
     LOCKDOWN_API const TCHAR* SystemName(ESystem System);
     LOCKDOWN_API FString SystemPackage(ESystem System);
