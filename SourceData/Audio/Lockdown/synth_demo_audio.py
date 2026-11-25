@@ -917,7 +917,15 @@ def medal_fuse(seed):  # two element medals fusing: a metallic clink pair and a 
                (0.1, shimmer, 0.15))
 
 
-for _name, _make, _seed in (("capture_opened", capture_opened, 4001), ("capture_started", capture_started, 4002),
+def body_fall(seed):  # another body knocked out: a heavy drop onto the street and a puff of dust
+    rng = np.random.default_rng(seed)
+    n = int(0.7 * RATE)
+    t = np.arange(n) / RATE
+    dust = sweep_band(noise(rng, 0.7), 2000 * np.exp(-t / 0.1) + 400, q=0.8) * np.clip(t / 0.01, 0, 1) * np.exp(-t / 0.18)
+    return soft_clip(mix(0.72, (0, body(rng, 2.2), 1.0), (0.04, thud(70, 40, 0.3, 0.09), 0.7), (0.01, dust, 0.5), (0.02, cloth(rng, 0.3, 0.08), 0.4)), 1.4)
+
+
+for _name, _make, _seed in (("body_fall", body_fall, 4009), ("capture_opened", capture_opened, 4001), ("capture_started", capture_started, 4002),
                             ("capture_contested", capture_contested, 4003), ("level_up", level_up, 4004),
                             ("self_death", self_death, 4005), ("self_dash", self_dash, 4006),
                             ("perfect_dodge", perfect_dodge, 4007), ("medal_fuse", medal_fuse, 4008)):

@@ -80,7 +80,7 @@ LDActionMotion::FBlend LDActionMotion::BlendOf(EFamily Family, bool bMoving)
     case EFamily::Jab: return {0.f, .42f, 1.f};
     case EFamily::Cross: return {0.f, .7f, 1.f};
     case EFamily::OneHandThrow: return {0.f, 1.f, 1.f};
-    case EFamily::Ready: return {0.f, .8f, .8f};
+    case EFamily::Ready: return bMoving ? FBlend{0.f, 1.f, 1.f} : FBlend{1.f, 0.f, 0.f};
     // The finisher, set shots and slams shift the whole weight when standing.
     case EFamily::Finisher:
     case EFamily::TwoHandShot:

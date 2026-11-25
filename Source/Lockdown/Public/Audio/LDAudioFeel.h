@@ -39,6 +39,8 @@ namespace LDAudioFeel
     LOCKDOWN_API void Reaction(const UObject& Body, bool bOwnBody, uint8 Reaction, const FVector& At);
     // An element state starting on a visible body: Index in burn, wet, electrified, chilled, rotten order.
     LOCKDOWN_API void StateOnset(const UObject& Body, bool bOwnBody, int32 Index, const FVector& At);
+    // Another visible body knocked out, at its fall (the own death sounds from the owner tracker).
+    LOCKDOWN_API void Fall(const UObject& Body, const FVector& At);
     // The owner's confirmation of its own landed hit (the receipt), by tier, at the trims of the effects tab.
     LOCKDOWN_API void Confirm(const UObject& Context, uint8 HitFlags, float Volume);
 }

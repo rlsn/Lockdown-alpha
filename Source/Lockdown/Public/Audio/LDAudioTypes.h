@@ -89,6 +89,8 @@ enum class ELDAudioCue : uint8
     StateRot,
     // The match's field segment starting (the public phase entering development from the countdown).
     MatchStart,
+    // Another visible body knocked out (its fall and dust ring); the own death is SelfDeath.
+    BodyFall,
     Count UMETA(Hidden)
 };
 
