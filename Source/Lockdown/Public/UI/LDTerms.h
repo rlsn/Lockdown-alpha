@@ -507,7 +507,6 @@ inline constexpr TCHAR BlueprintImport[]=TEXT("导入查看");
 inline FString DeathWorkshopPrompt(const FString& Key,const FString& Countdown)
 {return Countdown.IsEmpty()?FString::Printf(TEXT("按 [%s] 趁复活调整构筑"),*Key):FString::Printf(TEXT("按 [%s] 趁复活调整构筑（%s 后复活）"),*Key,*Countdown);}
 inline constexpr TCHAR ReplacePickPrompt[]=TEXT("构筑已满，点一张已装的牌替换它");
-inline constexpr TCHAR NoCompatibleSkillHost[]=TEXT("⚠ 当前已学技能暂无可装槽（换技能后可用）");
 inline const TCHAR* KeystoneName(FName StatId)
 {
     if(StatId==TEXT("stat_physique")){return TEXT("回血成盾");}
