@@ -7,7 +7,8 @@
 - §3 决策记录；
 - §4 技术缺陷；
 - §5 生产流程；
-- §6 新特效工作流。
+- §6 新特效工作流；
+- §7 覆盖清单。
 
 界面（HUD、构筑页）的直播风格见 [视野与 UI](VISION_AND_UI.md)，不直接用于世界空间特效。
 
@@ -333,3 +334,153 @@
    - 用户明确批准后，才加入 §2，证据放进 `vfx/approved/`，相应的 §1 条目才能从 PROVISIONAL 改成 APPROVED。
    - 被否决的方案，在 §3 留一条简短原因，证据放进 `vfx/rejected/`。
 5. 任何改动都不能改变 §2 里已批准特效的画面。渲染缺陷记到 §4。
+
+## 7. 覆盖清单
+
+范围来自 `SourceData/Demo/content.json`（24 个主动技能、94 张卡与勋章、5 种元素、10 种反应、5 种地面状态、12 种野怪招式与院长）和客户端能看到的权威事件（`FLDObservedUnitView` 的动作提示、命中外观与标志、状态、反应，`FLDObservedProjectileView` 的 24 种外观，`FLDObservedGroundState`，阵亡通知）。特效只能挂在这些事件上；没有公开事件的效果不能凭空表现，记为 BLOCKED 并写明缺什么。
+
+状态：NOT STARTED / IN PROGRESS / IMPLEMENTED / LOCALLY VERIFIED / USER APPROVED / BLOCKED。“旧”指仍在运行、但属于 §3.1 否决语言的表现（网格月牙、星爆、粗黑边、平涂几何体），要整体替换，不算覆盖。证据目录 `production/vfx/` 指本机 `Artifacts/Audits/PresentationOverhaul/production/vfx/`。
+
+### 7.1 普攻与连段
+
+| 项 | 事件 | 状态 | 实现 · 资产 | 证据 | 已知问题 |
+| --- | --- | --- | --- | --- | --- |
+| 连段 1、2 挥击 | Attack 提示，步 1–2，释放时刻 | IMPLEMENTED | `NS_LDSwing1/2`（`SwingParts`） | — | 用户未验收 |
+| 连段 3 终结挥击 | Attack 提示，步 3 | IMPLEMENTED | `NS_LDSwing3` | — | 用户未验收 |
+| 挥击预兆 | Attack 提示的前摇 | IMPLEMENTED | `NS_LDTell1-3`：地面暖色细弧随前摇展开 | — | 旧版深色月牙不通过；新版待采集 |
+| 普攻命中、终结命中 | 命中（无元素、无标志）匹配到挥击 | IMPLEMENTED | `NS_LDHitBasic`、`NS_LDHitFinisher` | — | 用户未验收 |
+| 暴击命中 | 命中标志 Critical | NOT STARTED | 旧：十字星 + 双金环（`LDHitVfx::ForHit`） | — | 星爆属否决语言 |
+| 护盾吸收、护盾破碎 | 命中标志 Shield / ShieldBroken | NOT STARTED | 旧：六角壳 | — | |
+| 强化普攻 | 状态 Empowered（贴脸补一拳、左右开抽、蹿过去抡一拳） | NOT STARTED | 无 | — | |
+| 远程普攻（隔空抽你） | 投射物 Chalk / ChalkReturn | NOT STARTED | 旧：粒子带 | — | |
+
+### 7.2 主动技能
+
+每个技能按自己的功能、元素与分量单独设计；“前摇 / 释放 / 命中 / 持续”列出它实际拥有的阶段。
+
+| 技能 | 元素 · 形态 | 状态 | 实现 · 资产 | 证据 | 已知问题 |
+| --- | --- | --- | --- | --- | --- |
+| `active_zap` 电你个哆嗦 | 电 · 单体链 | USER APPROVED（链） | `NS_LDChain`（§2.1） | `vfx/approved/chain*` | 前摇仍是旧粉笔线 |
+| `active_hose_down` 滋你一脸 | 水 · 直线 600×160 | NOT STARTED | 旧：网格水柱 + 粉笔线（§1.3 已否决） | — | |
+| `active_elbow` 滚远点 | 无 · 单体击退 | NOT STARTED | 旧：粒子包 | — | |
+| `active_pants_down` 扒裤子 | 无 · 直线拉拽 + 定身 | NOT STARTED | 旧：粒子包 | — | |
+| `active_crotch_grab` 掏蛋子 | 无 · 冲刺接触 + 减速 | NOT STARTED | 旧：冲刺粒子带 | — | |
+| `active_unplug` 拧你手腕 | 无 · 招架架势 280 | NOT STARTED | 旧：粒子包 | — | |
+| `active_snark_bolt` 甩你一鞋 | 无 · 投射物 + 落地拖鞋 | NOT STARTED | 旧：粒子带；落地 `SlipperDrop` | — | |
+| `active_seethe` 烫你屁股 | 火 · 自身圆 300 | NOT STARTED | 旧：粒子包 | — | |
+| `active_quick_meeting` 脚底开锅 | 火 · 地点圆 240，3 跳 | NOT STARTED | 旧：区域粒子（AreaFire） | — | |
+| `active_bail_out` 贴脸补一拳 | 无 · 冲刺 + 强化普攻 | NOT STARTED | 旧：冲刺粒子带 | — | |
+| `active_not_mad` 锅盖挡脸 | 无 · 自身护盾 + 解控 | NOT STARTED | 旧：护盾几何笼 | — | |
+| `active_stare_down` 来打老子啊 | 无 · 自身圆 300 嘲讽 | NOT STARTED | 旧：粒子包 | — | |
+| `active_triple_combo` 左右开抽 | 无 · 3 次强化普攻 | NOT STARTED | 旧：粒子包 | — | |
+| `active_calculus_drop` 板砖糊脸 | 无 · 地点延迟落地 200 | NOT STARTED | 旧：`BookShadow` 粒子 | — | |
+| `active_flyer_trap` 踩一脚试试 | 无 · 地点陷阱 180 | NOT STARTED | 旧：`FlyerArming/Armed` 粒子 | — | |
+| `active_open_mic` 扯嗓子喷你 | 无 · 自身圆 340 击退 | NOT STARTED | 旧：`SpeechCone` 粒子 | — | |
+| `active_charged_ram` 蛮牛顶 | 无 · 冲刺撞人 + 护盾 | NOT STARTED | 旧：冲刺粒子带 | — | |
+| `active_brace` 顶着揍 | 无 · 架势 3 s | NOT STARTED | 无 | — | |
+| `active_cola_shake` 冰可乐摇一摇 | 冰 · 扇形 400/60° | NOT STARTED | 旧：粒子包 | — | |
+| `active_desk_fan` 电风扇 | 无 · 地点风带 600×200 | NOT STARTED | 旧：`Wind` 粒子 | — | |
+| `active_stale_takeout` 过期外卖 | 腐 · 投射物 + 瘴气地面 | NOT STARTED | 旧：粒子带 | — | |
+| `active_school_bag` 占座书包 | 无 · 地点障碍 | NOT STARTED | 旧：`Bag`、`BagWall` | — | |
+| `active_flurry_rush` 疯狗乱拳 | 无 · 4 s 拳风波 | NOT STARTED | 旧：`FistWind` 粒子 | — | |
+| `active_cordon_tape` 警戒封条 | 无 · 地点封条线 500 | NOT STARTED | 旧：`CordonTape` | — | |
+| 技能前摇（通用部分） | Cast 提示前摇 | NOT STARTED | 旧：粉笔线 `SkillTelegraph`（否决语言） | — | 每个技能的前摇随技能设计 |
+| 施法手蓄能 | Cast 提示前摇 | NOT STARTED | 旧：`CastCharge` 蓝色粒子 | — | |
+
+### 7.3 元素状态（附着在身上）
+
+| 状态 | 状态编号 | 状态 | 实现 | 证据 | 已知问题 |
+| --- | --- | --- | --- | --- | --- |
+| 灼烧 Burn | 26 | NOT STARTED | 无世界表现，只有头顶图标 | — | |
+| 潮湿 Wet | 30 | NOT STARTED | 无 | — | |
+| 带电 Electrified | 31 | NOT STARTED | 无 | — | |
+| 冰冷 Chilled | 36 | NOT STARTED | 无 | — | |
+| 腐坏 Rotten | 37 | NOT STARTED | 无 | — | |
+
+### 7.4 元素反应
+
+| 反应 | 状态 | 实现 | 证据 | 已知问题 |
+| --- | --- | --- | --- | --- |
+| 导电 Conduct（溅射电场） | USER APPROVED（场） | `NS_LDField` 450（§2.2） | `vfx/approved/field-conduct.jpg` | 头顶十字闪仍是旧层 |
+| 雾 Fog | NOT STARTED | 旧：十字闪 + 地环 + 粒子（`ForReaction`） | — | |
+| 过载 Overload | NOT STARTED | 同上 | — | |
+| 融化 Melt | NOT STARTED | 同上 | — | |
+| 沼气 Methane | NOT STARTED | 同上 | — | |
+| 冻结 Freeze | NOT STARTED | 同上 | — | |
+| 发酵 Ferment | NOT STARTED | 同上 | — | |
+| 碎冰 Shatter | NOT STARTED | 同上 | — | |
+| 腐蚀 Corrode | NOT STARTED | 同上 | — | |
+| 冻伤 Frostbite | NOT STARTED | 同上 | — | |
+
+### 7.5 持续区域与地面状态
+
+| 项 | 事件 | 状态 | 实现 | 证据 | 已知问题 |
+| --- | --- | --- | --- | --- | --- |
+| 电场 Field | 地面状态 5 | USER APPROVED | `NS_LDField` 220 | `vfx/approved/field*` | §2.2 已知小问题 |
+| 水洼 Puddle | 地面状态 1 | NOT STARTED | 旧：种类线图 + 区域粒子 | — | |
+| 冰面 Ice | 地面状态 2 | NOT STARTED | 同上 | — | |
+| 火地 Fire | 地面状态 3 | NOT STARTED | 同上 | — | |
+| 瘴气 Miasma | 地面状态 4 | NOT STARTED | 同上 | — | |
+| 技能区域 Area* | 投射物 AreaPlain/Magic/Fire/Water/Electric | NOT STARTED | 旧：`NS_LDZone` 粒子 | — | 随各自技能设计 |
+
+### 7.6 控制与增益状态
+
+| 状态 | 状态 | 实现 | 证据 | 已知问题 |
+| --- | --- | --- | --- | --- |
+| 定身 Root | NOT STARTED | 旧：品红圆盘 + 脚镣几何体，近黑边 | — | |
+| 护盾 Shield | NOT STARTED | 旧：青色栅栏几何笼 | — | |
+| 出生保护 RespawnProtection | NOT STARTED | 旧：光柱 + 环绕球 | — | |
+| 减速 Slow、攻速减慢 AttackSlowed | NOT STARTED | 无 | — | |
+| 眩晕 Stun | NOT STARTED | 无 | — | |
+| 缴械 Disarm | NOT STARTED | 无 | — | |
+| 沉默 Silence | NOT STARTED | 无 | — | |
+| 嘲讽 Taunt | NOT STARTED | 无 | — | |
+| 易伤 Exposed | NOT STARTED | 无 | — | |
+| 击退 Knockback | NOT STARTED | 无（身体位移本身可见） | — | |
+| 架势 Braced、属性增益 StatBoost | NOT STARTED | 无 | — | |
+| 营地回位 CampReturning | NOT STARTED | 旧：背后牌子 | — | 野怪状态 |
+| 野怪激怒 CampEnraged、守卫 CampGuarding | NOT STARTED | 无 | — | |
+
+### 7.7 冲刺、闪避与爆劲
+
+| 项 | 事件 | 状态 | 实现 | 证据 | 已知问题 |
+| --- | --- | --- | --- | --- | --- |
+| 冲刺拖尾与起步 | 身体速度超过 950 cm/s | NOT STARTED | 旧：粒子带 + 残影 + 尘环 | — | |
+| 完美闪避 | PerfectDodge 命中标志 | NOT STARTED | 旧：金色光环 | — | |
+| 爆劲蓄力 | `bCharging` | NOT STARTED | 旧：能量柱 | — | |
+| 爆劲就绪、释放、命中 | 蓄满、`bOverdriveCast`、Overdriven 标志 | NOT STARTED | 旧：品红十字 + 法阵 | — | |
+
+### 7.8 预警与危险区域
+
+| 项 | 事件 | 状态 | 实现 | 证据 | 已知问题 |
+| --- | --- | --- | --- | --- | --- |
+| 圆形预警 | 投射物 AreaMagic + `WarningRemainingMs` | NOT STARTED | 旧：区域粒子 | — | 野怪 Circle、EchoCircle、DoubleCircle |
+| 扇形预警 | 投射物 ConeWarning | NOT STARTED | 旧 | — | 野怪 Cone、Fan、RotatingCone |
+| 直线预警 | 投射物 LineWarning | NOT STARTED | 旧 | — | 野怪 SweepLine、Charge |
+| 野怪投射物 | 投射物（Agent 招式） | NOT STARTED | 旧 | — | |
+| 院长普攻 | Attack 提示（院长） | NOT STARTED | 走普攻挥击 | — | 体型更大，预兆是否单独设计待定 |
+
+### 7.9 被动与卡牌
+
+卡牌只在产生公开事件时有世界表现；其余只改数值或只给本人回执，世界里不应也不能单独表现。
+
+| 卡牌 | 公开事件 | 状态 | 实现 | 已知问题 |
+| --- | --- | --- | --- | --- |
+| 疯狗乱拳 / 咒刃回响的拳风 | 投射物 FistWind | NOT STARTED | 旧 | |
+| 幻影脱壳 | 投射物 PhantomDecoy | NOT STARTED | 旧 | |
+| 反应装甲 | 投射物 ShardBurst | NOT STARTED | 旧 | |
+| 一路结冰、挪地盘 | 地面状态（冰面 / 迁移） | NOT STARTED | 随地面状态 | |
+| 元素勋章（火、水、电、冰、腐） | 命中外观与元素状态 | NOT STARTED | 随元素命中与状态 | |
+| 其余 70 余张卡（触发、增长、换算） | 无公开事件 | BLOCKED | — | 观察协议只公开状态、命中外观与标志；新增事件要改网络，不在本阶段范围 |
+
+### 7.10 全局事件
+
+| 项 | 事件 | 状态 | 实现 | 证据 | 已知问题 |
+| --- | --- | --- | --- | --- | --- |
+| 元素命中（火、水、电、魔法） | 命中外观 | NOT STARTED | 旧：星形 + 签名层（`ForHit`） | — | 电命中只在链内批准 |
+| 阵亡 | 阵亡通知 | NOT STARTED | 旧：地裂 + 双环 | — | |
+| 升级 | 单位 Level 增加 | NOT STARTED | 无世界表现 | — | |
+| 自身脚下标记 | 本人身体 | NOT STARTED | `ALDOwnBodyMarker` | — | 在共享文件 `LDWorldViewRelay` |
+| 旗杆圈与占领 | 占领圈与进度 | NOT STARTED | `LDCaptureMarker`、`LDCaptureFence` | — | |
+| 出现与复活柱 | 单位出现 | NOT STARTED | 旧：光柱几何体 | — | |
+| 恢复球 | 恢复球可见 | NOT STARTED | `LDRecoveryOrbMarker` 两道彩环 | — | |
