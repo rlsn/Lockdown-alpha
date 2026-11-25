@@ -401,6 +401,11 @@ void LDUIPaint::Button(FSlateWindowElementList& Elements,int32 Layer,const FGeom
         Slab(bDown?LDBroadcast::Raised:bHot?LDBroadcast::White:Accent,Layer);
         return;
     }
+    case EButton::White:
+    {
+        Slab(bDown?LDBroadcast::Grey:bHot?LDBroadcast::Orange:LDBroadcast::White,Layer);
+        return;
+    }
     case EButton::Key:
     {
         Shape(Elements,Layer,Geometry,EShape::Rounded,Box,0.f,FFill::Solid(LDBroadcast::Ink.CopyWithNewOpacity(.8f)),Opacity);
