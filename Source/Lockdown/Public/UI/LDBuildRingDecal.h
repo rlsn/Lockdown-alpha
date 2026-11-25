@@ -2,6 +2,7 @@
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
 #include "GameFramework/Actor.h"
+#include "UI/LDBuildRingModel.h"
 #include "LDBuildRingDecal.generated.h"
 
 class UWidgetComponent;
@@ -10,7 +11,6 @@ class UWidgetComponent;
 struct FLDBuildRadarState
 {
     TArray<int32> Points;
-    TArray<FLinearColor> Inks;
     int32 Keystone=0;
     bool bClosed=false;
     int32 Installed=0;
@@ -28,10 +28,10 @@ class LOCKDOWN_API ULDBuildRadarWidget : public UUserWidget
     GENERATED_BODY()
 public:
     static constexpr float Canvas=640.f;
-    // Widget px per ring design px (the radar's 92 design px reach 200 widget px).
-    static constexpr float PerDesign=200.f/92.f;
+    // Widget px per ring design px (the radar's design radius reaches 200 widget px).
+    static constexpr float PerDesign=200.f/LDBuildRing::RadarRadius;
     FLDBuildRadarState State;
-    // The radius (design px) of Points at a stat axis, with the keystone at 18 of 22 like the approved mock.
+    // The radius (design px) of Points at a stat axis: a small hub, then the keystone at 18 of 22 points to the rim.
     static float AxisRadius(int32 Points,int32 Keystone);
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;

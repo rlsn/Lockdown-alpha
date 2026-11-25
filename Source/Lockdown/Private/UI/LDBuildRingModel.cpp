@@ -87,9 +87,8 @@ FVector2D LDBuildRing::SlotPolar(int32 Index,float HostAngleDegrees)
     Within%=RowSlots[Row];
     const int32 Count=RowSlots[Row];
     const int32 Column=Count==3?Order3[Within]:Count==4?Order4[Within]:Order5[Within];
-    const float Radius=RowRadius[Row]+Extra*60.f;
-    const float Pitch=FMath::RadiansToDegrees((NodeSize+RowGap[Row])/Radius);
-    return FVector2D(Radius,HostAngleDegrees+(Column-(Count-1)*.5f)*Pitch);
+    const float Radius=RowRadius[Row]+Extra*70.f;
+    return FVector2D(Radius,HostAngleDegrees+(Column-(Count-1)*.5f)*RowPitch[Row]*RowRadius[Row]/Radius);
 }
 int32 LDBuildRing::RowsFor(int32 Count)
 {
@@ -97,12 +96,17 @@ int32 LDBuildRing::RowsFor(int32 Count)
     while(Left>0){Left-=RowSlots[FMath::Min(Rows,RowCount-1)];++Rows;}
     return Rows;
 }
+float LDBuildRing::OuterFor(int32 Count)
+{
+    const int32 Rows=RowsFor(Count);
+    return Rows<=2?BandOuter:RowRadius[FMath::Min(Rows,RowCount)-1]+NodeSize*.5f+11.f+(Rows>RowCount?(Rows-RowCount)*70.f:0.f);
+}
 LDBuildRing::FScale LDBuildRing::ScaleFor(float PixelHeight,float TextScale)
 {
     FScale Out;
     Out.Layout=FMath::Max(.01f,PixelHeight/1080.f);
-    Out.Ring=FMath::Max(Out.Layout,.8f);
-    Out.Text=FMath::Max(Out.Layout,.875f)*FMath::Clamp(TextScale,.5f,2.f);
+    Out.Ring=FMath::Max(Out.Layout,2.f/3.f);
+    Out.Text=FMath::Max(Out.Layout,2.f/3.f)*FMath::Clamp(TextScale,.5f,2.f);
     return Out;
 }
 LDBuildRing::ERarity LDBuildRing::RarityOf(const FLDDemoContentDefinitions* Content,FName Definition)
@@ -129,21 +133,21 @@ uint32 LDBuildRing::ActiveVocab(const FLDDemoContentDefinitions* Content,FName A
     const FLDDemoAbilityDefinition* Ability=RingAbility(Content,Active);
     return Ability?Ability->VocabMask:0;
 }
-int32 LDBuildRing::StatSourceOf(const FLDDemoContentDefinitions* Content,uint8 Attribute)
+TArray<FIntPoint> LDBuildRing::StatAttributes(const FLDDemoContentDefinitions* Content)
 {
-    if(!Content){return INDEX_NONE;}
+    TArray<FIntPoint> Out;
+    if(!Content){return Out;}
     const TArray<const FLDDemoStatDefinition*> Stats=Content->StatsInDesignOrder();
     for(int32 Index=0;Index<Stats.Num();++Index)
     {
-        for(const FLDDemoStatBonus& Bonus:Stats[Index]->PerPoint){if(RingBonusAttribute(Bonus.Stat)==Attribute){return Index;}}
+        for(const FLDDemoStatBonus& Bonus:Stats[Index]->PerPoint)
+        {
+            const uint8 Attribute=RingBonusAttribute(Bonus.Stat);
+            if(Attribute<uint8(ELDProjectedAttribute::Count)&&!Out.ContainsByPredicate([Attribute](const FIntPoint& Row){return Row.Y==Attribute;}))
+            {Out.Add(FIntPoint(Index,Attribute));}
+        }
     }
-    return INDEX_NONE;
-}
-TArray<uint8> LDBuildRing::WingAttributes()
-{
-    using A=ELDProjectedAttribute;
-    return {uint8(A::MaxHP),uint8(A::HPRegen),uint8(A::AD),uint8(A::AP),uint8(A::Armor),uint8(A::MagicResist),uint8(A::AttackSpeed),
-        uint8(A::CritChance),uint8(A::CooldownHaste),uint8(A::MoveSpeed)};
+    return Out;
 }
 FString LDBuildRing::FormTag(ELDCardForm Form)
 {
@@ -253,18 +257,20 @@ LDBuildRing::FView LDBuildRing::Build(const FInputs& In)
         Stat.Id=Id;Stat.Name=Row.Name;Stat.IconId=Row.IconId;Stat.Points=Points;
         Stat.bKeystone=View.Keystone>0&&Points>=View.Keystone;
     }
-    // The left wing: the own projection's final values.
+    // The five-stat table: each stat's attributes with the own projection's final values (an attribute the projection
+    // lacks is left out).
     if(In.Attributes)
     {
-        for(const uint8 Attribute:WingAttributes())
+        for(const FIntPoint& Pair:StatAttributes(Content))
         {
+            const uint8 Attribute=uint8(Pair.Y);
             const FLDCombatAttributeRowView* Row=In.Attributes->FindByPredicate([Attribute](const FLDCombatAttributeRowView& R){return R.Attribute==Attribute;});
             if(!Row){continue;}
             const LDHUD::FAttributeRowView Shown=LDHUD::AttributeRow(*Row);
             FDerived& Derived=View.Derived.AddDefaulted_GetRef();
-            Derived.Attribute=Attribute;Derived.Name=Shown.Name;Derived.Glyph=Shown.Glyph;Derived.Source=StatSourceOf(Content,Attribute);
+            Derived.Attribute=Attribute;Derived.Name=Shown.Name;Derived.Source=Pair.X;
             Derived.Value=Shown.Value;
-            if(Attribute==uint8(ELDProjectedAttribute::HPRegen)){Derived.Value+=TEXT("/s");}
+            if(Attribute==uint8(ELDProjectedAttribute::HPRegen)||Attribute==uint8(ELDProjectedAttribute::MomentumRegen)){Derived.Value+=TEXT("/s");}
             else if(Attribute==uint8(ELDProjectedAttribute::AttackSpeed)){Derived.Value+=TEXT("/分");}
         }
     }

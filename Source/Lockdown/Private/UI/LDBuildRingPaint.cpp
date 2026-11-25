@@ -29,11 +29,9 @@ struct FRingMesh
     TArray<FSlateVertex> Vertices;
     TArray<SlateIndex> Indices;
     const FSlateRenderTransform* Transform=nullptr;
-    const FTransform2D* Local=nullptr;
     int32 Add(FVector2D At,const FLinearColor& Color,FVector2D UV=FVector2D(.5,.5))
     {
-        const FVector2D P=Local?Local->TransformPoint(At):At;
-        Vertices.Add(FSlateVertex::Make(*Transform,FVector2f(P),FVector2f(UV),RingSrgb(Color)));
+        Vertices.Add(FSlateVertex::Make(*Transform,FVector2f(At),FVector2f(UV),RingSrgb(Color)));
         return Vertices.Num()-1;
     }
     void Tri(int32 A,int32 B,int32 C){Indices.Add(SlateIndex(A));Indices.Add(SlateIndex(B));Indices.Add(SlateIndex(C));}
@@ -51,13 +49,6 @@ FVector2D RingCentre(const TArray<FVector2D>& Points)
     return Points.IsEmpty()?Sum:Sum/double(Points.Num());
 }
 float RingPixel(const FGeometry& Geometry){return 1.f/FMath::Max(.1f,Geometry.Scale);}
-// A deterministic value noise in -1..1.
-float RingNoise(uint32 Seed,float X)
-{
-    const auto Hash=[Seed](int32 I){uint32 H=uint32(I)*2654435761u^Seed*2246822519u;H^=H>>15;H*=2246822519u;H^=H>>13;return float(H&0xFFFF)/32767.5f-1.f;};
-    const int32 I=FMath::FloorToInt(X);const float F=X-I;const float S=F*F*(3.f-2.f*F);
-    return FMath::Lerp(Hash(I),Hash(I+1),S);
-}
 }
 
 FLinearColor LDRingPaint::Mix(const FLinearColor& A,const FLinearColor& B,float T)
@@ -80,67 +71,6 @@ TArray<FVector2D> LDRingPaint::Arc(FVector2D Centre,float Radius,float FromDegre
     for(int32 Index=0;Index<=N;++Index){Out.Add(Polar(Centre,Radius,FMath::Lerp(FromDegrees,ToDegrees,float(Index)/N)));}
     return Out;
 }
-TArray<FVector2D> LDRingPaint::Rounded(const FBox2D& Box,float Radius,int32 Segments)
-{
-    TArray<FVector2D> Out;
-    const float R=FMath::Clamp(Radius,0.f,float(FMath::Min(Box.GetSize().X,Box.GetSize().Y))*.5f);
-    const FVector2D Centres[4]={FVector2D(Box.Max.X-R,Box.Min.Y+R),FVector2D(Box.Max.X-R,Box.Max.Y-R),FVector2D(Box.Min.X+R,Box.Max.Y-R),FVector2D(Box.Min.X+R,Box.Min.Y+R)};
-    for(int32 Corner=0;Corner<4;++Corner)
-    {
-        for(int32 Step=0;Step<=Segments;++Step)
-        {
-            const float A=FMath::DegreesToRadians(-90.f+Corner*90.f+90.f*Step/Segments);
-            Out.Add(Centres[Corner]+FVector2D(FMath::Cos(A),FMath::Sin(A))*R);
-        }
-    }
-    return Out;
-}
-TArray<FVector2D> LDRingPaint::Chamfer(const FBox2D& Box,float Cut)
-{
-    const FVector2D A=Box.Min,B=Box.Max;
-    return {FVector2D(A.X+Cut,A.Y),FVector2D(B.X-Cut,A.Y),FVector2D(B.X,A.Y+Cut),FVector2D(B.X,B.Y-Cut),FVector2D(B.X-Cut,B.Y),
-        FVector2D(A.X+Cut,B.Y),FVector2D(A.X,B.Y-Cut),FVector2D(A.X,A.Y+Cut)};
-}
-TArray<FVector2D> LDRingPaint::HostCut(const FBox2D& Box,float Cut)
-{
-    const FVector2D A=Box.Min,B=Box.Max;
-    return {FVector2D(A.X+Cut,A.Y),FVector2D(B.X,A.Y),FVector2D(B.X,B.Y-Cut),FVector2D(B.X-Cut,B.Y),FVector2D(A.X,B.Y),FVector2D(A.X,A.Y+Cut)};
-}
-TArray<FVector2D> LDRingPaint::Octagon(const FBox2D& Box,float CutFraction)
-{
-    return Chamfer(Box,float(FMath::Min(Box.GetSize().X,Box.GetSize().Y))*CutFraction);
-}
-TArray<FVector2D> LDRingPaint::Slant(const FBox2D& Box,float Shift)
-{
-    return {FVector2D(Box.Min.X+Shift,Box.Min.Y),FVector2D(Box.Max.X,Box.Min.Y),FVector2D(Box.Max.X-Shift,Box.Max.Y),FVector2D(Box.Min.X,Box.Max.Y)};
-}
-TArray<FVector2D> LDRingPaint::ClipConvex(const TArray<FVector2D>& Subject,const TArray<FVector2D>& Clip)
-{
-    TArray<FVector2D> Out=Subject;
-    if(Clip.Num()<3){return Out;}
-    // The clip's winding decides which side is inside.
-    float Area=0.f;for(int32 Index=0;Index<Clip.Num();++Index){Area+=float(FVector2D::CrossProduct(Clip[Index],Clip[(Index+1)%Clip.Num()]));}
-    const float Side=Area>=0.f?1.f:-1.f;
-    for(int32 Edge=0;Edge<Clip.Num()&&!Out.IsEmpty();++Edge)
-    {
-        const FVector2D A=Clip[Edge],B=Clip[(Edge+1)%Clip.Num()];
-        const auto In=[&](FVector2D P){return float(FVector2D::CrossProduct(B-A,P-A))*Side>=0.f;};
-        const auto Cross=[&](FVector2D P,FVector2D Q)
-        {
-            const float D1=float(FVector2D::CrossProduct(B-A,P-A)),D2=float(FVector2D::CrossProduct(B-A,Q-A));
-            return P+(Q-P)*(D1/(D1-D2));
-        };
-        TArray<FVector2D> Input=MoveTemp(Out);Out.Reset();
-        for(int32 Index=0;Index<Input.Num();++Index)
-        {
-            const FVector2D P=Input[Index],Q=Input[(Index+1)%Input.Num()];
-            const bool bP=In(P),bQ=In(Q);
-            if(bP){Out.Add(P);}
-            if(bP!=bQ){Out.Add(Cross(P,Q));}
-        }
-    }
-    return Out;
-}
 bool LDRingPaint::Inside(const TArray<FVector2D>& Convex,FVector2D Point)
 {
     if(Convex.Num()<3){return false;}
@@ -154,27 +84,6 @@ bool LDRingPaint::Inside(const TArray<FVector2D>& Convex,FVector2D Point)
         else if(FMath::Sign(Cross)!=Sign){return false;}
     }
     return true;
-}
-TArray<FVector2D> LDRingPaint::Jitter(const TArray<FVector2D>& Path,float Amplitude,uint32 Seed,float Step)
-{
-    TArray<FVector2D> Out;
-    float Travel=0.f;
-    for(int32 Index=0;Index+1<Path.Num();++Index)
-    {
-        const FVector2D A=Path[Index],B=Path[Index+1];
-        const float Length=float(FVector2D::Distance(A,B));
-        const int32 Pieces=FMath::Max(1,FMath::CeilToInt(Length/FMath::Max(1.f,Step)));
-        const FVector2D Dir=(B-A).GetSafeNormal(),Normal(-Dir.Y,Dir.X);
-        for(int32 Piece=0;Piece<Pieces;++Piece)
-        {
-            const float T=float(Piece)/Pieces;
-            const float At=Travel+Length*T;
-            Out.Add(FMath::Lerp(A,B,T)+Normal*(Amplitude*(RingNoise(Seed,At/(Step*2.2f))*.75f+RingNoise(Seed+7,At/(Step*.7f))*.25f)));
-        }
-        Travel+=Length;
-    }
-    if(!Path.IsEmpty()){Out.Add(Path.Last());}
-    return Out;
 }
 FVector2D LDRingPaint::Measure(const FString& Value,const FSlateFontInfo& Font)
 {
@@ -219,7 +128,7 @@ TArray<FString> LDRingPaint::Wrap(const FString& Value,const FSlateFontInfo& Fon
 void LDRingPaint::FPainter::FillShaded(const TArray<FVector2D>& Points,TFunctionRef<FLinearColor(FVector2D)> Color)
 {
     if(Points.Num()<3||Opacity<=0.f){return;}
-    FRingMesh Mesh;Mesh.Transform=&Geometry.GetAccumulatedRenderTransform();Mesh.Local=bXform?&Xform:nullptr;
+    FRingMesh Mesh;Mesh.Transform=&Geometry.GetAccumulatedRenderTransform();
     const FVector2D Centre=RingCentre(Points);
     const int32 Hub=Mesh.Add(Centre,Fade(Color(Centre)));
     const float Pixel=RingPixel(Geometry);
@@ -248,7 +157,7 @@ void LDRingPaint::FPainter::Band(const TArray<FVector2D>& Inner,const TArray<FVe
 {
     const int32 N=FMath::Min(Inner.Num(),Outer.Num());
     if(N<2||Opacity<=0.f){return;}
-    FRingMesh Mesh;Mesh.Transform=&Geometry.GetAccumulatedRenderTransform();Mesh.Local=bXform?&Xform:nullptr;
+    FRingMesh Mesh;Mesh.Transform=&Geometry.GetAccumulatedRenderTransform();
     TArray<int32> A,B;
     for(int32 Index=0;Index<N;++Index){A.Add(Mesh.Add(Inner[Index],Fade(Color(Inner[Index]))));B.Add(Mesh.Add(Outer[Index],Fade(Color(Outer[Index]))));}
     for(int32 Index=0;Index+1<N;++Index){Mesh.Quad(A[Index],B[Index],B[Index+1],A[Index+1]);}
@@ -258,7 +167,7 @@ void LDRingPaint::FPainter::Stroke(const TArray<FVector2D>& Path,float Width,con
 {
     const int32 N=Path.Num();
     if(N<2||Opacity<=0.f||Width<=0.f){return;}
-    FRingMesh Mesh;Mesh.Transform=&Geometry.GetAccumulatedRenderTransform();Mesh.Local=bXform?&Xform:nullptr;
+    FRingMesh Mesh;Mesh.Transform=&Geometry.GetAccumulatedRenderTransform();
     const float Pixel=RingPixel(Geometry);
     const float Half=FMath::Max(Width,Pixel)*.5f;
     const int32 Count=bClosed?N+1:N;
@@ -293,7 +202,7 @@ void LDRingPaint::FPainter::Dashed(const TArray<FVector2D>& Path,float Width,flo
 {
     const int32 N=Path.Num();
     if(N<2||Dash<=0.f){return;}
-    FRingMesh Mesh;Mesh.Transform=&Geometry.GetAccumulatedRenderTransform();Mesh.Local=bXform?&Xform:nullptr;
+    FRingMesh Mesh;Mesh.Transform=&Geometry.GetAccumulatedRenderTransform();
     const FLinearColor C=Fade(Color);
     const float Half=FMath::Max(Width,RingPixel(Geometry))*.5f;
     float Phase=0.f;bool bOn=true;
@@ -321,23 +230,17 @@ void LDRingPaint::FPainter::Dashed(const TArray<FVector2D>& Path,float Width,flo
     }
     Mesh.Draw(Elements,Next());
 }
-void LDRingPaint::FPainter::Image(UTexture2D* Texture,const FBox2D& Box,const FLinearColor& Tint,const TArray<FVector2D>* Clip,float Degrees)
+void LDRingPaint::FPainter::Image(UTexture2D* Texture,const FBox2D& Box,const FLinearColor& Tint,const TArray<FVector2D>* Clip)
 {
     if(!Texture||Opacity<=0.f){return;}
-    FRingMesh Mesh;Mesh.Transform=&Geometry.GetAccumulatedRenderTransform();Mesh.Local=bXform?&Xform:nullptr;
+    FRingMesh Mesh;Mesh.Transform=&Geometry.GetAccumulatedRenderTransform();
     const FVector2D Centre=Box.GetCenter(),Size=Box.GetSize();
     // Cover: the texture's shorter side spans the box.
     const float Aspect=float(Texture->GetSizeX())/FMath::Max(1.f,float(Texture->GetSizeY()));
     const float BoxAspect=float(Size.X/FMath::Max(1e-3,Size.Y));
     FVector2D Span(1.,1.);
     if(Aspect>BoxAspect){Span.X=BoxAspect/Aspect;}else{Span.Y=Aspect/BoxAspect;}
-    const float R=FMath::DegreesToRadians(Degrees),Cs=FMath::Cos(R),Sn=FMath::Sin(R);
-    const auto UV=[&](FVector2D P)
-    {
-        const FVector2D D=P-Centre;
-        const FVector2D L(D.X*Cs+D.Y*Sn,-D.X*Sn+D.Y*Cs);
-        return FVector2D(.5+L.X/Size.X*Span.X,.5+L.Y/Size.Y*Span.Y);
-    };
+    const auto UV=[&](FVector2D P){const FVector2D D=P-Centre;return FVector2D(.5+D.X/Size.X*Span.X,.5+D.Y/Size.Y*Span.Y);};
     const FLinearColor C=Fade(Tint);
     if(Clip&&Clip->Num()>=3)
     {
@@ -348,61 +251,33 @@ void LDRingPaint::FPainter::Image(UTexture2D* Texture,const FBox2D& Box,const FL
     }
     else
     {
-        const auto Corner=[&](float X,float Y){const FVector2D L(X*Size.X*.5,Y*Size.Y*.5);return Centre+FVector2D(L.X*Cs-L.Y*Sn,L.X*Sn+L.Y*Cs);};
-        const FVector2D P[4]={Corner(-1,-1),Corner(1,-1),Corner(1,1),Corner(-1,1)};
-        const FVector2D T[4]={FVector2D(.5-Span.X*.5,.5-Span.Y*.5),FVector2D(.5+Span.X*.5,.5-Span.Y*.5),FVector2D(.5+Span.X*.5,.5+Span.Y*.5),FVector2D(.5-Span.X*.5,.5+Span.Y*.5)};
-        Mesh.Quad(Mesh.Add(P[0],C,T[0]),Mesh.Add(P[1],C,T[1]),Mesh.Add(P[2],C,T[2]),Mesh.Add(P[3],C,T[3]));
+        const FVector2D P[4]={Box.Min,FVector2D(Box.Max.X,Box.Min.Y),Box.Max,FVector2D(Box.Min.X,Box.Max.Y)};
+        Mesh.Quad(Mesh.Add(P[0],C,UV(P[0])),Mesh.Add(P[1],C,UV(P[1])),Mesh.Add(P[2],C,UV(P[2])),Mesh.Add(P[3],C,UV(P[3])));
     }
     Mesh.Draw(Elements,Next(),Texture);
 }
-void LDRingPaint::FPainter::Dots(const TArray<FVector2D>& Centres,float Size,TFunctionRef<FLinearColor(FVector2D)> Color)
+void LDRingPaint::FPainter::Segments(const TArray<FVector2D>& Ends,float Width,TFunctionRef<FLinearColor(int32)> Color)
 {
-    if(Centres.IsEmpty()||Opacity<=0.f){return;}
-    FRingMesh Mesh;Mesh.Transform=&Geometry.GetAccumulatedRenderTransform();Mesh.Local=bXform?&Xform:nullptr;
-    const float H=Size*.5f;
-    for(const FVector2D& P:Centres)
+    if(Ends.Num()<2||Opacity<=0.f||Width<=0.f){return;}
+    FRingMesh Mesh;Mesh.Transform=&Geometry.GetAccumulatedRenderTransform();
+    const float Half=FMath::Max(Width,RingPixel(Geometry))*.5f;
+    for(int32 Index=0;Index+1<Ends.Num();Index+=2)
     {
-        const FLinearColor C=Fade(Color(P));
-        if(C.A<=.003f){continue;}
-        // A small octagon reads as a dot at this size.
-        const float D=H*.42f;
-        const int32 Hub=Mesh.Add(P,C);
-        const FVector2D Ring[8]={P+FVector2D(-D,-H),P+FVector2D(D,-H),P+FVector2D(H,-D),P+FVector2D(H,D),P+FVector2D(D,H),P+FVector2D(-D,H),P+FVector2D(-H,D),P+FVector2D(-H,-D)};
-        int32 First=INDEX_NONE,Prev=INDEX_NONE;
-        for(int32 Index=0;Index<8;++Index)
-        {
-            const int32 V=Mesh.Add(Ring[Index],C);
-            if(Prev!=INDEX_NONE){Mesh.Tri(Hub,Prev,V);}else{First=V;}
-            Prev=V;
-        }
-        Mesh.Tri(Hub,Prev,First);
+        const FVector2D A=Ends[Index],B=Ends[Index+1];
+        const FVector2D Dir=(B-A).GetSafeNormal();
+        if(Dir.IsNearlyZero()){continue;}
+        const FVector2D Normal(-Dir.Y,Dir.X);
+        const FLinearColor C=Fade(Color(Index/2));
+        Mesh.Quad(Mesh.Add(A+Normal*Half,C),Mesh.Add(B+Normal*Half,C),Mesh.Add(B-Normal*Half,C),Mesh.Add(A-Normal*Half,C));
     }
     Mesh.Draw(Elements,Next());
 }
-FVector2D LDRingPaint::FPainter::Text(const FString& Value,FVector2D At,const FSlateFontInfo& Font,const FLinearColor& Color,FVector2D Align,float SkewDegrees)
+FVector2D LDRingPaint::FPainter::Text(const FString& Value,FVector2D At,const FSlateFontInfo& Font,const FLinearColor& Color,FVector2D Align)
 {
     if(Value.IsEmpty()||Opacity<=0.f){return FVector2D::ZeroVector;}
     const FVector2D Size=Measure(Value,Font);
     const FVector2D TopLeft=At-Size*Align;
-    if(bXform)
-    {
-        const FVector2D Origin=Xform.TransformPoint(TopLeft);
-        double M00=1.,M01=0.,M10=0.,M11=1.;Xform.GetMatrix().GetMatrix(M00,M01,M10,M11);
-        const FSlateRenderTransform Turn{FMatrix2x2f{float(M00),float(M01),float(M10),float(M11)}};
-        const FGeometry Child=Geometry.MakeChild(Size,FSlateLayoutTransform(Origin),Turn,FVector2D::ZeroVector);
-        FSlateFontInfo Slanted=Font;if(!FMath::IsNearlyZero(SkewDegrees)){Slanted.SkewAmount=FMath::Tan(FMath::DegreesToRadians(SkewDegrees));}
-        FSlateDrawElement::MakeText(Elements,Next(),Child.ToPaintGeometry(),Value,Slanted,ESlateDrawEffect::None,Fade(Color));
-    }
-    else if(FMath::IsNearlyZero(SkewDegrees))
-    {
-        FSlateDrawElement::MakeText(Elements,Next(),Geometry.ToPaintGeometry(FVector2f(Size),FSlateLayoutTransform(FVector2f(TopLeft))),Value,Font,
-            ESlateDrawEffect::None,Fade(Color));
-    }
-    else
-    {
-        FSlateFontInfo Slanted=Font;Slanted.SkewAmount=FMath::Tan(FMath::DegreesToRadians(SkewDegrees));
-        FSlateDrawElement::MakeText(Elements,Next(),Geometry.ToPaintGeometry(FVector2f(Size),FSlateLayoutTransform(FVector2f(TopLeft))),Value,Slanted,
-            ESlateDrawEffect::None,Fade(Color));
-    }
+    FSlateDrawElement::MakeText(Elements,Next(),Geometry.ToPaintGeometry(FVector2f(Size),FSlateLayoutTransform(FVector2f(TopLeft))),Value,Font,
+        ESlateDrawEffect::None,Fade(Color));
     return Size;
 }

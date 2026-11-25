@@ -8,54 +8,57 @@ struct FLDCombatAttributeRowView;
 
 // The build ring's read model (构筑气场环, APP_SPEC §7): what each layer of the ring around the own character shows, assembled
 // from the own progression view, the card storage view, the own attribute projection and the approved catalog. The ring
-// geometry follows the approved mock (Artifacts/Audits/WorkshopRedesign/ring-aaa.src.html) in 1080p design pixels.
-// Presentation only: legality, prices, capacity and every command stay with growth and the server; a link (联动) is only ever
-// a vocabulary key two catalog rows share.
+// geometry follows the approved radial-HUD comp (Artifacts/Audits/PresentationOverhaul/build-redesign/A) in 1080p design
+// pixels. Presentation only: legality, prices, capacity and every command stay with growth and the server; a link (联动) is
+// only ever a vocabulary key two catalog rows share.
 namespace LDBuildRing
 {
     // The ring's own art (SourceData/UI, listed in ui_images.json with its provenance and imported by
-    // Scripts\ImportDemoArt.ps1 -Mode ImportUI): the spray splat behind a host, the card frames' brushed metal, the medal
-    // socket, the 新 sticker and the 本体 host icon. A missing texture falls back to the painted shape and is logged once.
-    enum class EArt : uint8 { Splat, Metal, Socket, Fresh, Body, Count };
+    // Scripts\ImportDemoArt.ps1 -Mode ImportUI): the 本体 host icon. Everything else is painted. A missing texture falls back
+    // to the painted name and is logged once.
+    enum class EArt : uint8 { Body, Count };
     struct FArt
     {
         const TCHAR* Id;
         const TCHAR* Package;
     };
     inline constexpr FArt Art[int32(EArt::Count)]={
-        {TEXT("ring_splat"),TEXT("/Game/Lockdown/Art/UI/Ring/T_RingSplat")},
-        {TEXT("ring_metal"),TEXT("/Game/Lockdown/Art/UI/Ring/T_RingMetal")},
-        {TEXT("ring_socket"),TEXT("/Game/Lockdown/Art/UI/Ring/T_RingSocket")},
-        {TEXT("ring_fresh"),TEXT("/Game/Lockdown/Art/UI/Ring/T_RingFresh")},
         {TEXT("ring_body"),TEXT("/Game/Lockdown/Art/UI/Ring/T_RingBody")}};
     // The package of a ring art id ("" when the id is not one of Art).
     LOCKDOWN_API FString ArtPackage(const FString& Id);
     // Radii and sizes at the 1080p reference (design px).
-    inline constexpr float RadarRadius=92.f;
-    inline constexpr float TrackRadius=143.f;
-    inline constexpr float GemRadius=170.f;
-    inline constexpr float GemSize=46.f;
-    inline constexpr float SectorInner=196.f;
-    inline constexpr float HostRadius=234.f;
-    inline constexpr float HostSize=68.f;
-    inline constexpr float NodeSize=54.f;
-    inline constexpr float SectorHalf=20.5f;
-    inline constexpr float WingRadius=600.f;
+    inline constexpr float RadarRadius=84.f;
+    inline constexpr float ChipRadius=112.f;
+    inline constexpr float GemRadius=168.f;
+    inline constexpr float GemSize=64.f;
+    inline constexpr float SectorInner=210.f;
+    inline constexpr float HostRadius=262.f;
+    inline constexpr float HostSize=88.f;
+    // A card tile (its icon is the tile less a 2 px rule on each side).
+    inline constexpr float NodeSize=58.f;
+    inline constexpr float SectorHalf=21.3f;
+    // The flat band's outer rule while a sector needs two rows or fewer, and the dial ticks beyond it.
+    inline constexpr float BandOuter=462.f;
+    inline constexpr float TickLength=16.f;
     inline constexpr int32 RowCount=4;
-    inline constexpr float RowRadius[RowCount]={302.f,362.f,422.f,482.f};
+    inline constexpr float RowRadius[RowCount]={352.f,422.f,492.f,562.f};
     inline constexpr int32 RowSlots[RowCount]={3,4,5,5};
-    inline constexpr float RowGap[RowCount]={6.f,6.f,4.f,4.f};
+    // Degrees between two neighbouring places of a row.
+    inline constexpr float RowPitch[RowCount]={12.f,11.f,8.2f,7.5f};
     // The five hosts in LDHUD::EStorageColumn order (本体, Q, W, E, 冲刺), degrees clockwise from straight up.
     inline constexpr int32 HostCount=5;
-    inline constexpr float HostAngle[HostCount]={-88.f,-44.f,0.f,44.f,88.f};
+    inline constexpr float HostAngle[HostCount]={-86.f,-43.f,0.f,43.f,86.f};
 
     // The polar place (X = radius, Y = degrees) of slot Index of a sector at HostAngleDegrees: rows fill from the middle
     // outwards (3 + 4 + 5, then a fourth row), so an install or uninstall never moves another card.
     LOCKDOWN_API FVector2D SlotPolar(int32 Index,float HostAngleDegrees);
     // The rows Count slots take (at least one).
     LOCKDOWN_API int32 RowsFor(int32 Count);
-    // Every scale of the ring for a viewport PixelHeight tall: layout (H / 1080), ring (never under .8) and text (never under
-    // .875, times the player's text size). All three convert design px to pixels.
+    // A sector's outer rule for Count slots: the band's own edge, or past the third and fourth rows when they are needed.
+    LOCKDOWN_API float OuterFor(int32 Count);
+    // Every scale of the ring for a viewport PixelHeight tall: layout (H / 1080), ring (never under 2/3, so a card icon keeps
+    // 36 px) and text (never under 2/3, so 18 px text keeps 12 px, times the player's text size). All three convert design
+    // px to pixels.
     struct FScale
     {
         float Layout=1.f;
@@ -107,13 +110,11 @@ namespace LDBuildRing
         int32 Points=0;
         bool bKeystone=false;
     };
-    // One derived attribute of the own projection, and the stat whose points raise it (INDEX_NONE: none).
+    // One derived attribute of the own projection and the stat whose points raise it (the table row it reads in).
     struct FDerived
     {
         uint8 Attribute=0;
         FString Name;
-        // One character for the compact chip.
-        FString Glyph;
         FString Value;
         int32 Source=INDEX_NONE;
     };
@@ -201,10 +202,10 @@ namespace LDBuildRing
     // The vocabulary keys of a card or an active (0 when the catalog has none).
     LOCKDOWN_API uint32 CardVocab(const FLDDemoContentDefinitions* Content,FName Definition);
     LOCKDOWN_API uint32 ActiveVocab(const FLDDemoContentDefinitions* Content,FName Active);
-    // The stat (design order) whose per-point bonus raises Attribute (ELDProjectedAttribute), or INDEX_NONE.
-    LOCKDOWN_API int32 StatSourceOf(const FLDDemoContentDefinitions* Content,uint8 Attribute);
-    // The derived rows of the left wing, in the mock's order, from the own projection (rows it lacks are left out).
-    LOCKDOWN_API TArray<uint8> WingAttributes();
+    // The five-stat table's mapping, from the catalog's per-point bonuses (the attribute projection's own inputs): every
+    // (stat in design order, ELDProjectedAttribute) pair a point of that stat raises, stat by stat in per-point order, each
+    // attribute once.
+    LOCKDOWN_API TArray<FIntPoint> StatAttributes(const FLDDemoContentDefinitions* Content);
     // The one-character form tag of a card (技, 冲, 体, 元) and the place it is installed on (装在本体上 …).
     LOCKDOWN_API FString FormTag(ELDCardForm Form);
     LOCKDOWN_API FString FormPlace(ELDCardForm Form);

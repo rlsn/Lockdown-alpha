@@ -1,4 +1,5 @@
 #include "UI/LDWorkshop.h"
+#include "Algo/Reverse.h"
 #include "Blueprint/WidgetLayoutLibrary.h"
 #include "Blueprint/WidgetTree.h"
 #include "Camera/PlayerCameraManager.h"
@@ -21,34 +22,33 @@
 #include "UI/LDUIIcons.h"
 #include "UI/LDWidgets.h"
 #include "UI/LDWorkshopModel.h"
-#include "Misc/ScopeExit.h"
 
 using namespace LDBuildRing;
 using LDRingPaint::FPainter;
-using LDRingPaint::Hex;
 
 namespace
 {
-// Motion (seconds): everything settles within 200 ms and never holds back a click or a key.
+// Motion (seconds): the band wipes in clockwise, sector after sector, and everything settles within 200 ms without holding
+// back a click or a key. Hover and links are hard cuts.
 constexpr double RingOpenTime=.18;
 constexpr double RingCloseTime=.12;
+constexpr double RingWipeTime=.20;
+constexpr double RingWipeStagger=.03;
 constexpr double RingRevealTime=.16;
 constexpr double RingRevealStagger=.03;
 constexpr double RingLandTime=.20;
-constexpr float RingHoverRate=1.f/.08f;
-// The ring's street-paint inks (the approved mock): the plate black, the pale gold of a bare host, the sticker red.
-const FLinearColor RingInk=Hex(0x070A11);
-const FLinearColor RingDeep=Hex(0x04060B);
-const FLinearColor RingFace=Hex(0x0C111D);
-const FLinearColor RingPale=Hex(0xFFE9A3);
-const FLinearColor RingFreshRed=Hex(0xFF2E55);
-const FLinearColor RingText=Hex(0xF4F6FA);
-const FLinearColor RingSoft=Hex(0xC9D0DD);
-const FLinearColor RingUp=Hex(0x6DFF9B);
-// The five stats' inks in design order (体格, 脸皮, 力道, 脑力, 身手), shared by the radar's spokes and the wing's bars.
-const uint32 RingStatHex[5]={0xFF5A78,0x7BD65A,0xFF9A3D,0xD47BFF,0x3FD0FF};
+// The band's ink at its inner rule, at 78% of its outer radius and at the outer rule: one step lighter towards the edge than
+// the comp, so the half-disc sits lighter on bright ground.
+constexpr float BandInnerInk=.84f,BandMidInk=.62f,BandEdgeInk=.40f;
+// The on-air tokens (bound by reference: their values are read only while painting).
+const FLinearColor& Ink=LDBroadcast::Ink;
+const FLinearColor& Panel=LDBroadcast::Panel;
+const FLinearColor& White=LDBroadcast::White;
+const FLinearColor& Grey=LDBroadcast::Grey;
+const FLinearColor& Mute=LDBroadcast::Mute;
+const FLinearColor& Orange=LDBroadcast::Orange;
+const FLinearColor& Gold=LDBroadcast::Gold;
 
-FLinearColor StatInk(int32 Index){return Index>=0?Hex(RingStatHex[Index%5]):FLinearColor(1.f,1.f,1.f,.35f);}
 FLinearColor ElementInk(ELDDemoElement Element)
 {
     switch(Element)
@@ -58,51 +58,37 @@ FLinearColor ElementInk(ELDDemoElement Element)
     case ELDDemoElement::Electric: return LDBroadcast::Shock;
     case ELDDemoElement::Chill: return LDBroadcast::Chill;
     case ELDDemoElement::Rot: return LDBroadcast::Rot;
-    default: return RingPale;
+    default: return LDBroadcast::Mute;
     }
-}
-// A frame's three-stop metal gradient by rarity (145 degrees, light top-left to dark bottom-right) and its band ink.
-struct FFrameInk
-{
-    FLinearColor Light,Mid,Dark,Band;
-};
-FFrameInk FrameOf(ERarity Rarity)
-{
-    switch(Rarity)
-    {
-    case ERarity::Legendary: return {Hex(0xFFF6CF),Hex(0xFFB11F),Hex(0x8A4A05),LDBroadcast::Legendary};
-    case ERarity::Rare: return {Hex(0xD4F0FF),Hex(0x2F8EEA),Hex(0x11347C),LDBroadcast::Rare};
-    default: return {Hex(0xF7F9FC),Hex(0x9AA2B2),Hex(0x474E5F),LDBroadcast::Common};
-    }
-}
-// The position along a CSS-style linear gradient of Degrees (180 runs top to bottom) over Box.
-float GradientT(const FBox2D& Box,FVector2D At,float Degrees)
-{
-    const float R=FMath::DegreesToRadians(Degrees);
-    const FVector2D Dir(FMath::Sin(R),-FMath::Cos(R));
-    const FVector2D Size=Box.GetSize();
-    const float Length=float(FMath::Abs(Size.X*Dir.X)+FMath::Abs(Size.Y*Dir.Y));
-    return FMath::Clamp(.5f+float(FVector2D::DotProduct(At-Box.GetCenter(),Dir))/FMath::Max(1e-3f,Length),0.f,1.f);
-}
-FLinearColor Metal(const FFrameInk& Ink,const FBox2D& Box,FVector2D At)
-{
-    const float T=GradientT(Box,At,145.f);
-    return T<.42f?LDRingPaint::Mix(Ink.Light,Ink.Mid,T/.42f):LDRingPaint::Mix(Ink.Mid,Ink.Dark,(T-.42f)/.58f);
 }
 FBox2D Square(FVector2D Centre,float Size){return FBox2D(Centre-FVector2D(Size,Size)*.5,Centre+FVector2D(Size,Size)*.5);}
 FBox2D Grow(const FBox2D& Box,float By){return FBox2D(Box.Min-FVector2D(By,By),Box.Max+FVector2D(By,By));}
 FBox2D Shift(const FBox2D& Box,FVector2D By){return FBox2D(Box.Min+By,Box.Max+By);}
-TArray<FVector2D> Offset(const TArray<FVector2D>& Points,FVector2D By){TArray<FVector2D> Out=Points;for(FVector2D& P:Out){P+=By;}return Out;}
-// A sticker star (the 新 badge's silhouette).
-TArray<FVector2D> Star(FVector2D Centre,float Radius,int32 Points,float Inner,float Degrees)
+FBox2D BoxAt(FVector2D Min,FVector2D Size){return FBox2D(Min,Min+Size);}
+TArray<FVector2D> RectOf(const FBox2D& Box){return {Box.Min,FVector2D(Box.Max.X,Box.Min.Y),Box.Max,FVector2D(Box.Min.X,Box.Max.Y)};}
+// A plate whose top-left corner is cut in by Left and bottom-right by Right (the broadcast lean of chips, bars and rows).
+TArray<FVector2D> Lean(const FBox2D& Box,float Left,float Right)
 {
-    TArray<FVector2D> Out;
-    for(int32 Index=0;Index<Points*2;++Index)
-    {
-        Out.Add(LDRingPaint::Polar(Centre,Index%2?Radius*Inner:Radius,Degrees+Index*180.f/Points));
-    }
-    return Out;
+    return {FVector2D(Box.Min.X+Left,Box.Min.Y),FVector2D(Box.Max.X,Box.Min.Y),FVector2D(Box.Max.X-Right,Box.Max.Y),FVector2D(Box.Min.X,Box.Max.Y)};
 }
+// The square tile turned 45 degrees (a medal and its socket).
+TArray<FVector2D> Diamond(FVector2D Centre,float Half)
+{
+    return {Centre+FVector2D(0.,-Half),Centre+FVector2D(Half,0.),Centre+FVector2D(0.,Half),Centre+FVector2D(-Half,0.)};
+}
+// A square rule of Width inside Box.
+void Frame(FPainter& P,const FBox2D& Box,float Width,const FLinearColor& Color)
+{
+    const float W=FMath::Min(Width,float(FMath::Min(Box.GetSize().X,Box.GetSize().Y))*.5f);
+    P.Fill(RectOf(FBox2D(Box.Min,FVector2D(Box.Max.X,Box.Min.Y+W))),Color);
+    P.Fill(RectOf(FBox2D(FVector2D(Box.Min.X,Box.Max.Y-W),Box.Max)),Color);
+    P.Fill(RectOf(FBox2D(FVector2D(Box.Min.X,Box.Min.Y+W),FVector2D(Box.Min.X+W,Box.Max.Y-W))),Color);
+    P.Fill(RectOf(FBox2D(FVector2D(Box.Max.X-W,Box.Min.Y+W),FVector2D(Box.Max.X,Box.Max.Y-W))),Color);
+}
+bool Touches(const FBox2D& A,const FBox2D& B){return A.Min.X<B.Max.X-.5&&B.Min.X<A.Max.X-.5&&A.Min.Y<B.Max.Y-.5&&B.Min.Y<A.Max.Y-.5;}
+FBox2D BoundsOf(const TArray<FVector2D>& Points){FBox2D Out(ForceInit);for(const FVector2D& Point:Points){Out+=Point;}return Out;}
+float DegreesOf(FVector2D From,FVector2D At){const FVector2D D=At-From;return FMath::RadiansToDegrees(FMath::Atan2(float(D.X),float(-D.Y)));}
+
 UTexture2D* RingArt(EArt Kind)
 {
     // Held for the process like the icons: the ring paints them every frame.
@@ -116,24 +102,57 @@ UTexture2D* RingArt(EArt Kind)
         if(!Loaded[Index].IsValid()&&!bWarned[Index])
         {
             bWarned[Index]=true;
-            UE_LOG(LogLDUI,Warning,TEXT("LD_UI_RING_ART_MISSING %s (%s); the ring paints its fallback shape."),Art[Index].Id,*Package);
+            UE_LOG(LogLDUI,Warning,TEXT("LD_UI_RING_ART_MISSING %s (%s); the ring paints the name instead."),Art[Index].Id,*Package);
         }
     }
     return Loaded[Index].Get();
 }
 UTexture2D* RingIcon(const FString& IconId){return IconId.IsEmpty()?nullptr:LDUIIcons::Find(IconId);}
-FSlateFontInfo RingFont(LDUIFonts::ERole Role,float DesignPx,float F)
+// The ring's faces at a design px size times Scale (local units per design px): Source Han Sans Regular, Bold and Heavy, and
+// the condensed italic figure face of numbers and keys.
+enum class EFace : uint8 { Regular, Bold, Heavy, Figure };
+FSlateFontInfo Face(EFace Kind,float DesignPx,float Scale)
 {
     // 1 pt = 4/3 px: a design px size reads at 0.75 pt.
-    return LDUIFonts::Font(Role,FMath::Max(1.f,DesignPx*.75f*F));
+    const float Points=FMath::Max(1.f,DesignPx*.75f*Scale);
+    switch(Kind)
+    {
+    case EFace::Regular: return LDUIFonts::Font(LDUIFonts::ERole::Body,Points);
+    case EFace::Figure: return LDUIFonts::Font(LDUIFonts::ERole::Figure,Points);
+    case EFace::Heavy:
+    {
+        FSlateFontInfo Font=LDUIFonts::Font(LDUIFonts::ERole::Strong,Points);
+        Font.TypefaceFontName=FName(TEXT("Heavy"));
+        return Font;
+    }
+    default: return LDUIFonts::Font(LDUIFonts::ERole::Strong,Points);
+    }
 }
-FSlateFontInfo RingFigure(float DesignPx,float F)
-{
-    FSlateFontInfo Font=LDUIFonts::Font(LDUIFonts::ERole::Title,FMath::Max(1.f,DesignPx*.75f*F));
-    Font.SkewAmount=FMath::Tan(FMath::DegreesToRadians(LDBroadcast::SkewDegrees));
-    return Font;
-}
+float WidthOf(const FString& Text,const FSlateFontInfo& Font){return float(LDRingPaint::Measure(Text,Font).X);}
 FString Diamonds(int32 Count){FString Out;for(int32 Index=0;Index<Count;++Index){Out+=TEXT("◆");}return Out;}
+// One line of Text inside Width, ellipsised.
+FString OneLine(const FString& Text,const FSlateFontInfo& Font,float Width)
+{
+    const TArray<FString> Lines=LDRingPaint::Wrap(Text,Font,Width,1);
+    return Lines.IsEmpty()?FString():Lines[0];
+}
+// A stat chip's size at the radar's corner: its name, its points and (with points to spend) the orange plus.
+FVector2D ChipSize(const FStat& Stat,bool bPlus,float F)
+{
+    return FVector2D(10.f*F+WidthOf(Stat.Name,Face(EFace::Bold,18.f,F))+6.f*F+FMath::Max(16.f*F,WidthOf(FString::FromInt(Stat.Points),Face(EFace::Figure,26.f,F)))
+        +(bPlus?6.f*F+22.f*F:0.f)+8.f*F,32.f*F);
+}
+// The short form name an offer row shows after the card type.
+FString FormShort(ELDCardForm Form)
+{
+    switch(Form)
+    {
+    case ELDCardForm::Skill: return TEXT("技能");
+    case ELDCardForm::Dash: return TEXT("冲刺");
+    case ELDCardForm::Medal: return TEXT("勋章");
+    default: return TEXT("本体");
+    }
+}
 }
 
 // ---- lifetime ------------------------------------------------------------------------------------------------------------
@@ -159,7 +178,7 @@ double ULDWorkshop::UiNow() const{return GetWorld()?GetWorld()->GetRealTimeSecon
 bool ULDWorkshop::IsOpening() const
 {
     const double Now=UiNow();
-    return (IsOpen()&&OpenedAt>=0.&&Now-OpenedAt<RingOpenTime)||(!IsOpen()&&ClosedAt>=0.&&Now-ClosedAt<RingCloseTime)
+    return (IsOpen()&&OpenedAt>=0.&&Now-OpenedAt<RingWipeTime+HostCount*RingWipeStagger)||(!IsOpen()&&ClosedAt>=0.&&Now-ClosedAt<RingCloseTime)
         ||(BatchAt>=0.&&Now-BatchAt<RingRevealTime+3*RingRevealStagger);
 }
 float ULDWorkshop::OpenAmount() const
@@ -235,322 +254,376 @@ void ULDWorkshop::Rebuild()
 
 // ---- layout --------------------------------------------------------------------------------------------------------------
 
+bool ULDWorkshop::OnBand(FVector2D Point,float Margin) const
+{
+    const FLayout& L=Layout;
+    const float Radius=float(FVector2D::Distance(Point,L.Centre));
+    if(Radius<1.f){return false;}
+    const float Degrees=DegreesOf(L.Centre,Point);
+    const float Slack=FMath::RadiansToDegrees(Margin/Radius);
+    for(int32 Host=0;Host<HostCount;++Host)
+    {
+        if(FMath::Abs(Degrees-HostAngle[Host])<=SectorHalf+Slack&&Radius>=SectorInner*L.R-Margin&&Radius<=L.Outer[Host]+TickLength*L.R+Margin){return true;}
+    }
+    return false;
+}
+
 void ULDWorkshop::ComputeLayout(const FGeometry& Geometry)
 {
     FLayout& L=Layout;
-    L.Boxes.Reset();L.Anchors.Reset();HandFaces.Reset();OfferFaces.Reset();
+    L.Boxes.Reset();L.Anchors.Reset();L.Segments.Reset();HandFaces.Reset();OfferFaces.Reset();
+    L.Card=FBox2D(ForceInit);L.Bar=FBox2D(ForceInit);L.RowTop=L.RowBottom=0.f;
     L.Size=Geometry.GetLocalSize();
     if(L.Size.X<2.||L.Size.Y<2.){L.Size=FVector2D(1920.,1080.);}
     L.K=FMath::Max(.01f,Geometry.Scale);
     const FScale S=ScaleFor(float(L.Size.Y)*L.K,TextScale);
     L.U=S.Layout/L.K;L.R=S.Ring/L.K;L.F=S.Text/L.K;
     const float U=L.U,R=L.R,F=L.F;
-    const auto T=[F](float Px){return Px*F;};
-    // The ring's centre: the own feet on screen, held near the approved composition so the rows never touch the HUD.
-    FVector2D Wanted(L.Size.X*.5,580.*U);
+    // The ring's centre: the own feet on screen, held near the approved composition so the band never meets the side columns.
+    FVector2D Wanted(L.Size.X*.5,585.*U);
     if(bHasCentre){Wanted=SmoothedCentre;}
-    L.Centre=FVector2D(FMath::Clamp(Wanted.X,L.Size.X*.5-60.*U,L.Size.X*.5+60.*U),FMath::Clamp(Wanted.Y,540.*U,620.*U));
+    L.Centre=FVector2D(FMath::Clamp(Wanted.X,L.Size.X*.5-60.*U,L.Size.X*.5+60.*U),FMath::Clamp(Wanted.Y,545.*U,615.*U));
     const FVector2D C=L.Centre;
-    const auto Add=[&L](EHit Kind,int32 Host,int32 Index,TArray<FVector2D> Shape){FShape& Box=L.Boxes.AddDefaulted_GetRef();Box.Hit={Kind,Host,Index};Box.Shape=MoveTemp(Shape);return Box.Hit;};
-    const auto Rect=[](const FBox2D& Box){return TArray<FVector2D>{Box.Min,FVector2D(Box.Max.X,Box.Min.Y),Box.Max,FVector2D(Box.Min.X,Box.Max.Y)};};
+    ActionsAt=FVector2D(L.Size.X-40.f*U,L.Size.Y-48.f*U);
+    const auto Local=[&Geometry](const FSlateRect& Rect)
+    {
+        return Rect.Right>Rect.Left&&Rect.Bottom>Rect.Top?FBox2D(Geometry.AbsoluteToLocal(FVector2D(Rect.Left,Rect.Top)),Geometry.AbsoluteToLocal(FVector2D(Rect.Right,Rect.Bottom))):FBox2D(ForceInit);
+    };
+    const FBox2D Band=Local(Latest.Band);
+    const auto Add=[&L](EHit Kind,int32 Host,int32 Index,TArray<FVector2D> Shape){FShape& Box=L.Boxes.AddDefaulted_GetRef();Box.Hit={Kind,Host,Index};Box.Shape=MoveTemp(Shape);};
     if(!Ring.bValid){return;}
-    const bool bOpen=IsOpen();
-    if(bOpen)
+    if(!IsOpen())
     {
-        const bool bFull=Ring.Capacity>0&&Ring.Installed>=Ring.Capacity;
-        for(int32 HostIndex=0;HostIndex<Ring.Hosts.Num();++HostIndex)
-        {
-            const FHost& Host=Ring.Hosts[HostIndex];
-            const float A=HostAngle[HostIndex];
-            const int32 Slots=Host.Cards.Num()+(bFull?0:1);
-            const float Outer=RowRadius[RowsFor(Slots)-1]+36.f;
-            {
-                FShape& Box=L.Boxes.AddDefaulted_GetRef();Box.Hit={EHit::Drop,HostIndex,INDEX_NONE};Box.Centre=C;Box.bWedge=true;
-                Box.Wedge=FVector4f(SectorInner*R,Outer*R,A-SectorHalf,A+SectorHalf);
-            }
-            for(int32 Index=0;Index<Slots;++Index)
-            {
-                const FVector2D Polar=SlotPolar(Index,A);
-                const FVector2D At=LDRingPaint::Polar(C,float(Polar.X)*R,float(Polar.Y));
-                if(Index<Host.Cards.Num())
-                {
-                    Add(EHit::Installed,HostIndex,Index,LDRingPaint::Rounded(Square(At,NodeSize*R),10.f*R,2));
-                    L.Anchors.Add(AnchorKey(EHit::Installed,HostIndex,Index),At);
-                }
-                else{Add(EHit::Drop,HostIndex,Index,LDRingPaint::Rounded(Square(At,(NodeSize-4.f)*R),10.f*R,2));}
-            }
-            const FVector2D HostAt=LDRingPaint::Polar(C,HostRadius*R,A);
-            Add(EHit::Host,HostIndex,INDEX_NONE,LDRingPaint::HostCut(Square(HostAt,HostSize*R),HostSize*R*.2f));
-            L.Anchors.Add(AnchorKey(EHit::Host,HostIndex,INDEX_NONE),HostAt);
-            if(Host.bSocket){Add(EHit::Gem,HostIndex,INDEX_NONE,LDRingPaint::Octagon(Square(LDRingPaint::Polar(C,GemRadius*R,A),GemSize*R)));}
-        }
-        // The stat chips at the radar's corners: on the ground decal when it is laid, else around the centre.
-        for(int32 Index=0;Index<Ring.Stats.Num();++Index)
-        {
-            const float Degrees=Index*360.f/FMath::Max(1,Ring.Stats.Num());
-            FVector2D At=LDRingPaint::Polar(C,107.f*R,Degrees);
-            if(Radar&&Radar->IsShown())
-            {
-                FVector2D Screen;
-                if(UWidgetLayoutLibrary::ProjectWorldLocationToWidgetPosition(GetOwningPlayer(),Radar->WorldAt(112.f,Degrees),Screen,false)){At=Screen;}
-            }
-            const FVector2D Size(T(88.f)+T(24.f),T(24.f));
-            L.Anchors.Add(AnchorKey(EHit::Stat,INDEX_NONE,Index),At);
-            Add(EHit::Stat,INDEX_NONE,Index,LDRingPaint::Slant(FBox2D(At-Size*.5,At+Size*.5),8.f*F));
-        }
-        // The inspector's room in the top-left corner; the wing starts below it, whatever the text size.
-        const float InspectorTop=96.f*U;
-        L.InspectorBottom=InspectorTop+28.f*U+T(20.f)*1.25f+T(14.f)*1.4f+8.f*U+4.f*T(16.f)*1.35f;
-        // The top-right buttons: 收起 and the reaction table.
-        {
-            const FVector2D Close(L.Size.X-40.f*U-T(76.f),96.f*U);
-            Add(EHit::Close,INDEX_NONE,INDEX_NONE,Rect(FBox2D(Close,Close+FVector2D(T(76.f),T(30.f)))));
-            const FVector2D Table(Close.X-T(96.f)-T(4.f),96.f*U);
-            Add(EHit::Matrix,INDEX_NONE,INDEX_NONE,Rect(FBox2D(Table,Table+FVector2D(T(92.f),T(30.f)))));
-            ActionsAt=FVector2D(L.Size.X-40.f*U,96.f*U+T(30.f)+18.f*U);
-        }
-    }
-    // The ring's lowest point (the lower sectors' outer corners and the radar chips): the plates and the hand stay under it.
-    float RingBottom=float(C.Y);
-    if(bOpen)
-    {
-        const bool bFullNow=Ring.Capacity>0&&Ring.Installed>=Ring.Capacity;
-        for(int32 HostIndex=0;HostIndex<Ring.Hosts.Num();++HostIndex)
-        {
-            const float Outer=(RowRadius[RowsFor(Ring.Hosts[HostIndex].Cards.Num()+(bFullNow?0:1))-1]+36.f+11.f)*R;
-            for(const float Edge:{HostAngle[HostIndex]-SectorHalf,HostAngle[HostIndex]+SectorHalf})
-            {RingBottom=FMath::Max(RingBottom,float(LDRingPaint::Polar(C,Outer,Edge).Y));}
-        }
-        for(const FShape& Box:L.Boxes){if(Box.Hit.Kind==EHit::Stat){for(const FVector2D& Point:Box.Shape){RingBottom=FMath::Max(RingBottom,float(Point.Y));}}}
-    }
-    L.RingBottom=RingBottom;
-    // Above the cards: the level and reaction plates (and the batch title) take this much.
-    const float PlateBand=12.f*U+T(30.f);
-    // The bottom: the offer on top (or the hand), above the HUD band and right of the minimap.
-    const float BandTop=Latest.Band.Bottom>Latest.Band.Top?float(Geometry.AbsoluteToLocal(FVector2D(Latest.Band.Left,Latest.Band.Top)).Y):L.Size.Y;
-    const float Y1=FMath::Min(890.f*U,BandTop-8.f*U);
-    const float Left=310.f*U,Right=1490.f*U;
-    L.HandBottom=Y1;
-    if(bOpen)
-    {
-        const bool bOffers=Ring.Batch.Kind!=EBatch::None&&!bShowHand;
-        if(bOffers)
-        {
-            const int32 Count=Ring.Batch.Options.Num();
-            const float Gap=16.f*U;
-            const float W=FMath::Min(372.f*U,(Right-Left-150.f*U-(Count-1)*Gap)/FMath::Max(1,Count));
-            L.OfferLines=3;
-            const auto Height=[&](int32 Lines){return FMath::Max(108.f*U,24.f*U+T(18.f)*1.2f+Lines*T(16.f)*1.3f);};
-            while(L.OfferLines>1&&Y1-Height(L.OfferLines)-PlateBand<RingBottom+4.f*U){--L.OfferLines;}
-            const float H=Height(L.OfferLines);
-            const float X0=float(C.X)-(Count*W+(Count-1)*Gap)*.5f;
-            const float Top=Y1-H;
-            L.HandTop=Top;
-            for(int32 Index=0;Index<Count;++Index)
-            {
-                FFace& Face=OfferFaces.AddDefaulted_GetRef();
-                Face.Hit={EHit::Offer,INDEX_NONE,Index};
-                Face.Box=FBox2D(FVector2D(X0+Index*(W+Gap),Top),FVector2D(X0+Index*(W+Gap)+W,Top+H));
-                Add(EHit::Offer,INDEX_NONE,Index,Rect(Face.Box));
-                L.Anchors.Add(AnchorKey(EHit::Offer,INDEX_NONE,Index),FVector2D(Face.Box.GetCenter().X,Top));
-            }
-            const FBox2D HandPile(FVector2D(X0-108.f*U,Top+14.f*U),FVector2D(X0-30.f*U,Y1));
-            Add(EHit::HandPile,INDEX_NONE,INDEX_NONE,Rect(HandPile));
-            if(Ring.Batch.Queued>0)
-            {
-                const float PX=X0+Count*(W+Gap)+4.f*U;
-                Add(EHit::OfferPile,INDEX_NONE,INDEX_NONE,Rect(FBox2D(FVector2D(PX,Top+14.f*U),FVector2D(PX+78.f*U,Y1))));
-            }
-            // Reroll and skip stand right of the batch title.
-            const float TitleW=float(LDRingPaint::Measure(Ring.Batch.Title,RingFont(LDUIFonts::ERole::Title,14.f,F)).X)+24.f*F;
-            float X=float(C.X)+TitleW*.5f+10.f*U;
-            const float Y=Top-14.f*U-T(24.f);
-            if(Ring.Batch.Kind==EBatch::Card)
-            {
-                Add(EHit::Reroll,INDEX_NONE,INDEX_NONE,Rect(FBox2D(FVector2D(X,Y),FVector2D(X+T(84.f),Y+T(24.f)))));X+=T(84.f)+6.f*U;
-                Add(EHit::Skip,INDEX_NONE,INDEX_NONE,Rect(FBox2D(FVector2D(X,Y),FVector2D(X+T(56.f),Y+T(24.f)))));
-            }
-            else if(Ring.Batch.Kind==EBatch::Active&&Ring.Batch.SkipPoints>0)
-            {
-                Add(EHit::Skip,INDEX_NONE,INDEX_NONE,Rect(FBox2D(FVector2D(X,Y),FVector2D(X+T(96.f),Y+T(24.f)))));
-            }
-        }
-        else
-        {
-            // The hand: one fanned group per form, cards overlapping like a poker hand when they run out of room.
-            float CW=FMath::Max(108.f*U,4.25f*T(14.f)+12.f*U);
-            {
-                const float Room=Y1-24.f*U-PlateBand-RingBottom-4.f*U;
-                const float Fit=Room-4.f*U-2.36f*T(14.f);
-                CW=FMath::Clamp(Fit,40.f/L.K+8.f*U,CW);
-            }
-            L.CardWidth=CW;
-            const float CH=8.f*U+(CW-8.f*U)+2.36f*T(14.f)+4.f*U;
-            const float MW=FMath::Max(82.f*U,46.f/L.K);
-            const float GroupGap=30.f*U;
-            TArray<TArray<int32>> Groups;Groups.SetNum(4);
-            for(int32 Index=0;Index<Ring.Hand.Num();++Index){Groups[HandGroup(Ring.Hand[Index].Form)].Add(Index);}
-            Groups.RemoveAll([](const TArray<int32>& Group){return Group.IsEmpty();});
-            float Fixed=0.f;int32 Over=0;
-            for(const TArray<int32>& Group:Groups)
-            {
-                Fixed+=Ring.Hand[Group[0]].Form==ELDCardForm::Medal?MW:CW;Over+=Group.Num()-1;
-            }
-            Fixed+=FMath::Max(0,Groups.Num()-1)*GroupGap;
-            const float Pitch=Over>0?FMath::Min(CW+10.f*U,(Right-Left-Fixed)/Over):0.f;
-            const float Total=Fixed+Over*Pitch;
-            float X=float(C.X)-Total*.5f;
-            // The fan's outer cards drop and turn: the row stands high enough that none crosses the band line.
-            const float Top=Y1-CH-24.f*U;
-            L.HandTop=Top;
-            for(const TArray<int32>& Group:Groups)
-            {
-                const bool bMedal=Ring.Hand[Group[0]].Form==ELDCardForm::Medal;
-                const float W=bMedal?MW:CW;
-                const float P=bMedal?FMath::Min(Pitch,MW+10.f*U):Pitch;
-                for(int32 Within=0;Within<Group.Num();++Within)
-                {
-                    const int32 Index=Group[Within];
-                    const float Mid=X+Within*P+W*.5f;
-                    const float Along=(Mid-float(C.X))/(Right-Left)*2.f;
-                    FFace& Face=HandFaces.AddDefaulted_GetRef();
-                    Face.Hit={EHit::Hand,INDEX_NONE,Index};
-                    Face.Degrees=bMedal?0.f:Along*5.f;
-                    const float Dy=Along*Along*18.f*U;
-                    Face.Box=bMedal?FBox2D(FVector2D(X+Within*P,Top+Dy+22.f*U),FVector2D(X+Within*P+W,Top+Dy+22.f*U+W))
-                        :FBox2D(FVector2D(X+Within*P,Top+Dy),FVector2D(X+Within*P+W,Top+Dy+CH));
-                    L.Anchors.Add(AnchorKey(EHit::Hand,INDEX_NONE,Index),FVector2D(Mid,Top+Dy+10.f*U));
-                }
-                X+=(Group.Num()-1)*P+W+GroupGap;
-            }
-            for(const FFace& Face:HandFaces)
-            {
-                // A card's hit shape is its rotated frame (about 50% / 130% like the mock's transform origin).
-                const FVector2D Pivot(Face.Box.GetCenter().X,Face.Box.Min.Y+Face.Box.GetSize().Y*1.3);
-                const FTransform2D Turn=FTransform2D(-Pivot).Concatenate(FTransform2D(FQuat2D(FMath::DegreesToRadians(Face.Degrees)))).Concatenate(FTransform2D(Pivot));
-                TArray<FVector2D> Shape=Rect(Face.Box);for(FVector2D& Point:Shape){Point=Turn.TransformPoint(Point);}
-                Add(EHit::Hand,INDEX_NONE,Face.Hit.Index,MoveTemp(Shape));
-            }
-            if(Ring.Batch.Kind!=EBatch::None)
-            {
-                Add(EHit::OfferPile,INDEX_NONE,INDEX_NONE,Rect(FBox2D(FVector2D(float(C.X)-Total*.5f-108.f*U,Top+24.f*U),FVector2D(float(C.X)-Total*.5f-30.f*U,Y1))));
-            }
-            if(Ring.Hand.IsEmpty()){L.HandTop=Y1-CH-24.f*U;}
-        }
-        // The left wing: the derived attributes hang on the outer arc between the inspector's corner and the level plate.
-        // When their rows do not fit that height (a small screen with large text) they pair up as glyph chips.
-        {
-            const int32 Count=Ring.Derived.Num();
-            const float RowH=T(28.f);
-            const float Top=L.InspectorBottom+8.f*U+RowH*.5f;
-            const float Bottom=L.HandTop-12.f*U-T(30.f)-10.f*U-RowH*.5f;
-            const float Reach=(WingRadius-4.f)*R;
-            const auto ArcX=[&](float Y){const float Dy=float(Y-C.Y);return float(C.X)-FMath::Sqrt(FMath::Max(0.f,Reach*Reach-Dy*Dy));};
-            L.bWingCompact=Count>1&&(Count-1)*(RowH+3.f*U)>Bottom-Top;
-            L.WingWidth=L.bWingCompact?T(104.f):FMath::Max(190.f*F,T(150.f));
-            const int32 Lines=L.bWingCompact?(Count+1)/2:Count;
-            const float Step=Lines>1?FMath::Min((Bottom-Top)/(Lines-1),RowH*1.65f):0.f;
-            for(int32 Index=0;Index<Count;++Index)
-            {
-                const int32 Line=L.bWingCompact?Index/2:Index;
-                const float Y=Top+Line*Step;
-                const float Edge=FMath::Max(ArcX(Y),(L.bWingCompact?2.f*L.WingWidth+6.f*U:L.WingWidth)+16.f*U);
-                const float X=L.bWingCompact&&Index%2==0?Edge-L.WingWidth-6.f*U:Edge;
-                const FVector2D At(X,Y);
-                Add(EHit::Wing,INDEX_NONE,Index,Rect(FBox2D(FVector2D(At.X-L.WingWidth,At.Y-RowH*.5f),FVector2D(At.X,At.Y+RowH*.5f))));
-                L.Anchors.Add(AnchorKey(EHit::Wing,INDEX_NONE,Index),At);
-            }
-        }
-        // The right wing: the rest shop. Its label sits under the top HUD (the banner, and in a rest its actions in the
-        // corner) and under the ring's own buttons; its rows hang on the outer arc down to the plates.
-        if(Ring.bShop)
-        {
-            const float Z=FMath::Max(54.f*U,36.f/L.K);
-            const float RowH=FMath::Max(Z,T(44.f));
-            float Ceiling=96.f*U+T(30.f)+8.f*U;
-            if(Latest.Banner.Bottom>Latest.Banner.Top)
-            {
-                const FVector2D BannerMin=Geometry.AbsoluteToLocal(FVector2D(Latest.Banner.Left,Latest.Banner.Top));
-                const FVector2D BannerMax=Geometry.AbsoluteToLocal(FVector2D(Latest.Banner.Right,Latest.Banner.Bottom));
-                // Only a banner standing over the right wing pushes it down.
-                if(BannerMax.X>C.X+200.f*R){Ceiling=FMath::Max(Ceiling,float(BannerMax.Y)+8.f*U);}
-                (void)BannerMin;
-            }
-            const float Reach=WingRadius*R;
-            const auto ArcX=[&](float Y){const float Dy=float(Y-C.Y);return float(C.X)+FMath::Sqrt(FMath::Max(0.f,Reach*Reach-Dy*Dy));};
-            const int32 Count=Ring.Shop.Num();
-            const float Top=Ceiling+T(24.f)+10.f*U+RowH*.5f;
-            const float Bottom=L.HandTop-PlateBand-RowH*.5f;
-            const float Step=Count>1?FMath::Min((Bottom-Top)/(Count-1),RowH+16.f*U):0.f;
-            const float Width=Z+T(150.f);
-            // Rows that would overlap become a grid of tiles with their prices under them (the hover card names them).
-            L.bShopCompact=Count>1&&Step<RowH+2.f*U;
-            if(L.bShopCompact)
-            {
-                const float CellW=FMath::Max(Z,T(60.f))+10.f*U,CellH=Z+T(18.f)+10.f*U;
-                const float Left0=FMath::Min(ArcX(Top),float(L.Size.X)-16.f*U-CellW*3.f);
-                const int32 Columns=FMath::Max(1,FMath::FloorToInt((float(L.Size.X)-16.f*U-Left0)/CellW));
-                for(int32 Index=0;Index<Count;++Index)
-                {
-                    const FVector2D At(Left0+(Index%Columns)*CellW+CellW*.5f,Top-RowH*.5f+Z*.5f+(Index/Columns)*CellH);
-                    Add(EHit::Shop,INDEX_NONE,Index,Rect(FBox2D(At-FVector2D(Z,Z)*.5,At+FVector2D(Z*.5,Z*.5+T(18.f)))));
-                    L.Anchors.Add(AnchorKey(EHit::Shop,INDEX_NONE,Index),At);
-                }
-            }
-            for(int32 Index=0;Index<Count&&!L.bShopCompact;++Index)
-            {
-                const float Y=Top+Index*Step;
-                const float X=FMath::Min(ArcX(Y),float(L.Size.X)-16.f*U-Width+Z*.5f);
-                const FVector2D At(X,Y);
-                Add(EHit::Shop,INDEX_NONE,Index,Rect(FBox2D(FVector2D(At.X-Z*.5,At.Y-Z*.5),FVector2D(At.X-Z*.5+Width,At.Y+Z*.5))));
-                L.Anchors.Add(AnchorKey(EHit::Shop,INDEX_NONE,Index),At);
-            }
-            const float LabelX=FMath::Min(ArcX(Top)-Z*.5f,float(L.Size.X)-16.f*U-T(110.f)-T(100.f));
-            L.ShopLabel=FVector2D(LabelX,Ceiling);
-            const FVector2D At(LabelX+T(110.f),Ceiling);
-            Add(EHit::ShopRefresh,INDEX_NONE,INDEX_NONE,Rect(FBox2D(At,At+FVector2D(T(96.f),T(24.f)))));
-        }
-        // The rest's respec chip beside the level plate.
-        if(Latest.Stage==LDProgression::EMatchStage::Rest)
-        {
-            const float PlateTop=L.HandTop-12.f*U-T(30.f);
-            const FVector2D At(800.f*U-LevelPlateWidth()-8.f*U-T(72.f),PlateTop);
-            Add(EHit::Respec,INDEX_NONE,INDEX_NONE,Rect(FBox2D(At,At+FVector2D(T(72.f),T(30.f)))));
-        }
-        // The element chooser of a card that asks for one, and a rest service's confirm line.
-        if(Storage.IsValid()&&Storage->IsChoosing())
-        {
-            const TArray<ELDDemoElement> Elements=Storage->ChooserElements();
-            const float W=T(64.f);
-            const float X0=float(C.X)-Elements.Num()*(W+6.f*U)*.5f;
-            for(int32 Index=0;Index<Elements.Num();++Index)
-            {
-                const FVector2D At(X0+Index*(W+6.f*U),250.f*U);
-                Add(EHit::Element,INDEX_NONE,Index,Rect(FBox2D(At,At+FVector2D(W,T(30.f)))));
-            }
-        }
-        if(Choices.IsValid()&&Choices->HasChildConfirmation())
-        {
-            const FVector2D At(float(C.X)+T(10.f),250.f*U+T(36.f));
-            Add(EHit::ConfirmYes,INDEX_NONE,INDEX_NONE,Rect(FBox2D(At-FVector2D(T(96.f),0.f),At+FVector2D(-T(10.f),T(30.f)))));
-            Add(EHit::ConfirmNo,INDEX_NONE,INDEX_NONE,Rect(FBox2D(At,At+FVector2D(T(86.f),T(30.f)))));
-        }
-    }
-    else
-    {
-        // Closed: the offer on top waits right of the HUD band, the entry under it.
-        const float X0=Latest.Band.Right>Latest.Band.Left?float(Geometry.AbsoluteToLocal(FVector2D(Latest.Band.Right,0.)).X)+24.f*U:1336.f*U;
-        const float Z=FMath::Max(60.f*U,40.f/L.K);
-        const float Y=948.f*U;
+        // Closed: the build entry right of the HUD band, the offer on top waiting over it.
+        const float X0=Band.bIsValid?float(Band.Max.X)+24.f*U:1490.f*U;
+        const FSlateFontInfo Label=Face(EFace::Bold,18.f,F),Key=Face(EFace::Figure,22.f,F);
+        const FString OpenKey=Latest.OpenKey.IsEmpty()?FString(TEXT("B")):Latest.OpenKey;
+        float W=14.f*F+WidthOf(TEXT("构筑"),Label)+8.f*F+WidthOf(OpenKey,Key)+14.f*F+14.f*F;
+        if(Ring.Unspent>0){W+=WidthOf(FString::Printf(TEXT("◆%lld"),Ring.Unspent),Face(EFace::Figure,26.f,F))+12.f*F;}
+        if(Ring.Fresh>0){W+=WidthOf(FString::Printf(TEXT("新 %d"),Ring.Fresh),Label)+16.f*F+10.f*F;}
+        const float H=40.f*F;
+        const FBox2D Entry(FVector2D(X0,L.Size.Y-28.f*U-H),FVector2D(X0+W,L.Size.Y-28.f*U));
+        Add(EHit::Entry,INDEX_NONE,INDEX_NONE,RectOf(Entry));
+        const float Z=NodeSize*R;
         for(int32 Index=0;Index<Ring.Batch.Options.Num();++Index)
         {
-            const FVector2D At(X0+Index*(Z+14.f*U),Y-Z*.5f);
-            Add(EHit::Offer,INDEX_NONE,Index,Rect(FBox2D(At,At+FVector2D(Z,Z))));
-            FFace& Face=OfferFaces.AddDefaulted_GetRef();Face.Hit={EHit::Offer,INDEX_NONE,Index};Face.Box=FBox2D(At,At+FVector2D(Z,Z));
+            const FBox2D Tile=BoxAt(FVector2D(X0+Index*(Z+12.f*U),Entry.Min.Y-14.f*U-Z),FVector2D(Z,Z));
+            Add(EHit::Offer,INDEX_NONE,Index,RectOf(Tile));
+            FFace& Face0=OfferFaces.AddDefaulted_GetRef();Face0.Hit={EHit::Offer,INDEX_NONE,Index};Face0.Box=Tile;
         }
-        const FVector2D Entry(X0,1022.f*U);
-        Add(EHit::Entry,INDEX_NONE,INDEX_NONE,Rect(FBox2D(Entry,Entry+FVector2D(T(200.f),T(30.f)))));
+        return;
     }
+    // The sectors: the band (drop target), the installed cards and the open place, the host and its element socket.
+    const bool bFull=Ring.Capacity>0&&Ring.Installed>=Ring.Capacity;
+    for(int32 HostIndex=0;HostIndex<Ring.Hosts.Num()&&HostIndex<HostCount;++HostIndex)
+    {
+        const FHost& Host=Ring.Hosts[HostIndex];
+        const float A=HostAngle[HostIndex];
+        const int32 Slots=Host.Cards.Num()+(bFull?0:1);
+        L.Outer[HostIndex]=OuterFor(Slots)*R;
+        {
+            FShape& Box=L.Boxes.AddDefaulted_GetRef();Box.Hit={EHit::Drop,HostIndex,INDEX_NONE};Box.Centre=C;Box.bWedge=true;
+            Box.Wedge=FVector4f(SectorInner*R,L.Outer[HostIndex],A-SectorHalf,A+SectorHalf);
+        }
+        for(int32 Index=0;Index<Slots;++Index)
+        {
+            const FVector2D Polar=SlotPolar(Index,A);
+            const FVector2D At=LDRingPaint::Polar(C,float(Polar.X)*R,float(Polar.Y));
+            if(Index<Host.Cards.Num())
+            {
+                Add(EHit::Installed,HostIndex,Index,RectOf(Square(At,NodeSize*R)));
+                L.Anchors.Add(AnchorKey(EHit::Installed,HostIndex,Index),At);
+            }
+            else{Add(EHit::Drop,HostIndex,Index,RectOf(Square(At,NodeSize*R)));}
+        }
+        const FVector2D HostAt=LDRingPaint::Polar(C,HostRadius*R,A);
+        Add(EHit::Host,HostIndex,INDEX_NONE,RectOf(Square(HostAt,HostSize*R)));
+        L.Anchors.Add(AnchorKey(EHit::Host,HostIndex,INDEX_NONE),HostAt);
+        if(Host.bSocket){Add(EHit::Gem,HostIndex,INDEX_NONE,Diamond(LDRingPaint::Polar(C,GemRadius*R,A),GemSize*.5f*R));}
+    }
+    // The stat chips at the radar's corners (the only place to add a point): on the ground decal when it is laid, else
+    // around the centre.
+    for(int32 Index=0;Index<Ring.Stats.Num();++Index)
+    {
+        const float Degrees=Index*360.f/FMath::Max(1,Ring.Stats.Num());
+        const float Radius=Index==0?ChipRadius-2.f:ChipRadius+6.f;
+        FVector2D At=LDRingPaint::Polar(C,Radius*R,Degrees);
+        if(Radar&&Radar->IsShown())
+        {
+            FVector2D Screen;
+            if(UWidgetLayoutLibrary::ProjectWorldLocationToWidgetPosition(GetOwningPlayer(),Radar->WorldAt(Radius,Degrees),Screen,false)){At=Screen;}
+        }
+        // The upper side chips lean towards the centre, clear of the sockets.
+        At.X+=(Index==1?-10.f:Index==Ring.Stats.Num()-1?10.f:0.f)*R;
+        const FVector2D Size=ChipSize(Ring.Stats[Index],Ring.Unspent>0,F);
+        L.Anchors.Add(AnchorKey(EHit::Stat,INDEX_NONE,Index),At);
+        Add(EHit::Stat,INDEX_NONE,Index,Lean(FBox2D(At-Size*.5,At+Size*.5),0.f,0.f));
+    }
+    // The build bar docks on the HUD band: points, capacity, library, then the commands.
+    {
+        const float BandTop=Band.bIsValid?float(Band.Min.Y):L.Size.Y-125.f*U;
+        const float X0=Band.bIsValid?float(Band.Min.X)+19.f*U:486.f*U;
+        const float H=46.f*F;
+        const float Bottom=FMath::Min(926.f*U,BandTop-10.f*U);
+        const FSlateFontInfo Label=Face(EFace::Bold,18.f,F),Figure=Face(EFace::Figure,32.f,F),Small=Face(EFace::Figure,22.f,F),Word=Face(EFace::Bold,20.f,F);
+        const float Pad=18.f*F,Gap=6.f*U;
+        float X=X0;
+        const auto Segment=[&](float Width){const FBox2D Box(FVector2D(X,Bottom-H),FVector2D(X+Width,Bottom));L.Segments.Add(Box);X+=Width+Gap;return Box;};
+        Segment(Pad+WidthOf(TEXT("属性点"),Label)+10.f*F+WidthOf(TEXT("◆"),Small)+WidthOf(FString::Printf(TEXT("%lld"),Ring.Unspent),Figure)+Pad);
+        Segment(Pad+WidthOf(TEXT("构筑"),Label)+10.f*F+WidthOf(FString::FromInt(Ring.Installed),Figure)+WidthOf(FString::Printf(TEXT("/%d"),Ring.Capacity),Small)
+            +10.f*F+Ring.Capacity*12.f*F+Pad);
+        const FBox2D Library=Segment(Pad+WidthOf(TEXT("牌库"),Label)+10.f*F+WidthOf(FString::FromInt(Ring.Hand.Num()),Figure)+Pad);
+        Add(EHit::HandPile,INDEX_NONE,INDEX_NONE,RectOf(Library));
+        const bool bRespec=Latest.Stage==LDProgression::EMatchStage::Rest;
+        const FString Key=Latest.OpenKey.IsEmpty()?FString(TEXT("B")):Latest.OpenKey;
+        const float CloseW=WidthOf(TEXT("收起"),Word)+6.f*F+WidthOf(Key,Small)+14.f*F;
+        const FBox2D Commands=Segment(Pad+(bRespec?WidthOf(TEXT("洗点"),Word)+18.f*F:0.f)+WidthOf(TEXT("反应表"),Word)+18.f*F+CloseW+Pad);
+        float CX=float(Commands.Min.X)+Pad*.5f;
+        const auto Command=[&](EHit Kind,float Width){Add(Kind,INDEX_NONE,INDEX_NONE,RectOf(FBox2D(FVector2D(CX,Commands.Min.Y),FVector2D(CX+Width+Pad*.5f+9.f*F,Commands.Max.Y))));CX+=Width+18.f*F;};
+        if(bRespec){Command(EHit::Respec,WidthOf(TEXT("洗点"),Word));}
+        Command(EHit::Matrix,WidthOf(TEXT("反应表"),Word));
+        Command(EHit::Close,CloseW-14.f*F);
+        L.Bar=FBox2D(L.Segments[0].Min,L.Segments.Last().Max);
+    }
+    LayoutTable();
+    LayoutShop(Geometry);
+    LayoutRow();
+    // The element chooser of a card that asks for one, and a rest service's confirm line, over the ring's top.
+    if(Storage.IsValid()&&Storage->IsChoosing())
+    {
+        const TArray<ELDDemoElement> Elements=Storage->ChooserElements();
+        const float W=64.f*F;
+        const float X0=float(C.X)-Elements.Num()*(W+6.f*U)*.5f;
+        for(int32 Index=0;Index<Elements.Num();++Index)
+        {
+            const FVector2D At(X0+Index*(W+6.f*U),48.f*U);
+            Add(EHit::Element,INDEX_NONE,Index,RectOf(FBox2D(At,At+FVector2D(W,32.f*F))));
+        }
+    }
+    if(Choices.IsValid()&&Choices->HasChildConfirmation())
+    {
+        const FVector2D At(float(C.X)+5.f*F,16.f*U+40.f*F);
+        Add(EHit::ConfirmYes,INDEX_NONE,INDEX_NONE,RectOf(FBox2D(At-FVector2D(96.f*F,0.f),At+FVector2D(-5.f*F,32.f*F))));
+        Add(EHit::ConfirmNo,INDEX_NONE,INDEX_NONE,RectOf(FBox2D(At+FVector2D(5.f*F,0.f),At+FVector2D(96.f*F,32.f*F))));
+    }
+    LayoutCard();
+}
+
+void ULDWorkshop::LayoutTable()
+{
+    FLayout& L=Layout;
+    const float U=L.U,F=L.F;
+    // Each stat's attributes (the real per-point mapping), as one aligned grid of columns.
+    TArray<TArray<int32>> Rows;Rows.SetNum(Ring.Stats.Num());
+    for(int32 Index=0;Index<Ring.Derived.Num();++Index){if(Rows.IsValidIndex(Ring.Derived[Index].Source)){Rows[Ring.Derived[Index].Source].Add(Index);}}
+    L.TableColumns=2;
+    for(const TArray<int32>& Row:Rows){L.TableColumns=FMath::Max(L.TableColumns,Row.Num());}
+    // Natural sizes in design px (measured at the text scale).
+    float NameW=36.f,SubW=80.f;
+    for(const FStat& Stat:Ring.Stats)
+    {
+        NameW=FMath::Max(NameW,FMath::Max(WidthOf(Stat.Name,Face(EFace::Bold,18.f,F)),WidthOf(FString::FromInt(Stat.Points),Face(EFace::Figure,38.f,F)))/F);
+    }
+    for(const FDerived& Row:Ring.Derived)
+    {
+        SubW=FMath::Max(SubW,FMath::Max(WidthOf(Row.Name,Face(EFace::Regular,18.f,F)),WidthOf(Row.Value,Face(EFace::Figure,30.f,F)))/F+10.f);
+    }
+    L.TableSubX=FMath::Max(136.f,80.f+NameW+16.f);
+    L.TableSubW=SubW;
+    const float Width=L.TableSubX+L.TableColumns*SubW+14.f;
+    const float Height=36.f+Rows.Num()*84.f-8.f;
+    // Fitted beside the ring's band and above the minimap and the offer row; the text never drops under 12 px.
+    const float Floor=12.f/(18.f*F*L.K);
+    float Limit=L.Bar.bIsValid?float(L.Bar.Min.Y)-12.f*U:float(L.Size.Y);
+    if(Latest.Map.Bottom>Latest.Map.Top){Limit=FMath::Min(Limit,float(GetCachedGeometry().AbsoluteToLocal(FVector2D(Latest.Map.Left,Latest.Map.Top)).Y)-12.f*U);}
+    const float Top=252.f*U;
+    const auto Fit=[&](float Left)
+    {
+        float Scale=1.f;
+        for(int32 Pass=0;Pass<3;++Pass)
+        {
+            const float S=F*Scale;
+            float Room=TNumericLimits<float>::Max();
+            for(int32 Row=0;Row<Rows.Num();++Row)
+            {
+                const float Y0=Top+(36.f+Row*84.f)*S,Y1=Y0+76.f*S;
+                for(const float Y:{Y0,(Y0+Y1)*.5f,Y1})
+                {
+                    // The band's first point from the left on this line.
+                    for(float X=Left;X<float(L.Centre.X);X+=2.f*U){if(OnBand(FVector2D(X,Y),0.f)){Room=FMath::Min(Room,X-8.f*U-Left);break;}}
+                }
+            }
+            Scale=FMath::Min3(1.f,Room/(Width*F),(Limit-Top)/(Height*F));
+        }
+        return Scale;
+    };
+    float Left=44.f*U;
+    float Scale=Fit(Left);
+    if(Scale<Floor){Left=28.f*U;Scale=Fit(Left);}
+    Scale=FMath::Max(Scale,Floor);
+    L.Table=FVector2D(Left,Top);L.TableScale=F*Scale;L.TableWidth=Width*L.TableScale;
+    const float S=L.TableScale;
+    for(int32 Row=0;Row<Rows.Num();++Row)
+    {
+        const float Y=Top+(36.f+Row*84.f)*S;
+        FShape& Head=L.Boxes.AddDefaulted_GetRef();Head.Hit={EHit::Wing,Row,INDEX_NONE};
+        Head.Shape=RectOf(FBox2D(FVector2D(Left,Y),FVector2D(Left+L.TableSubX*S,Y+76.f*S)));
+        L.Anchors.Add(AnchorKey(EHit::Wing,Row,INDEX_NONE),FVector2D(Left+L.TableWidth,Y+38.f*S));
+        for(int32 Column=0;Column<Rows[Row].Num();++Column)
+        {
+            FShape& Cell=L.Boxes.AddDefaulted_GetRef();Cell.Hit={EHit::Wing,Row,Rows[Row][Column]};
+            const float X=Left+(L.TableSubX+Column*SubW)*S;
+            Cell.Shape=RectOf(FBox2D(FVector2D(X,Y),FVector2D(X+SubW*S,Y+76.f*S)));
+        }
+    }
+}
+
+void ULDWorkshop::LayoutShop(const FGeometry& Geometry)
+{
+    FLayout& L=Layout;
+    L.ShopWidth=0.f;
+    if(!Ring.bShop){return;}
+    const float U=L.U,F=L.F;
+    float NameW=0.f,PriceW=0.f;
+    for(const FShopItem& Item:Ring.Shop)
+    {
+        NameW=FMath::Max(NameW,FMath::Max(WidthOf(Item.Name,Face(EFace::Bold,22.f,F)),WidthOf(Item.Note,Face(EFace::Regular,18.f,F))));
+        PriceW=FMath::Max(PriceW,WidthOf(Item.bSold?FString(TEXT("已买")):Diamonds(Item.Price),Face(EFace::Bold,22.f,F)));
+    }
+    const float Width=FMath::Max(400.f,90.f+NameW/F+16.f+PriceW/F+16.f);
+    const float Height=44.f+Ring.Shop.Num()*64.f-6.f;
+    const float Floor=12.f/(18.f*F*L.K);
+    const float Top=252.f*U;
+    // Above the rest actions in the bottom-right corner.
+    const float Limit=float(ActionsAt.Y)-66.f*U-12.f*U;
+    const auto Fit=[&](float Right)
+    {
+        float Scale=1.f;
+        for(int32 Pass=0;Pass<3;++Pass)
+        {
+            const float S=F*Scale;
+            float Room=TNumericLimits<float>::Max();
+            for(int32 Row=0;Row<Ring.Shop.Num();++Row)
+            {
+                const float Y0=Top+(44.f+Row*64.f)*S,Y1=Y0+58.f*S;
+                for(const float Y:{Y0,(Y0+Y1)*.5f,Y1})
+                {
+                    for(float X=Right;X>float(L.Centre.X);X-=2.f*U){if(OnBand(FVector2D(X,Y),0.f)){Room=FMath::Min(Room,Right-X-8.f*U);break;}}
+                }
+            }
+            Scale=FMath::Min3(1.f,Room/(Width*F),(Limit-Top)/(Height*F));
+        }
+        return Scale;
+    };
+    float Right=float(L.Size.X)-80.f*U;
+    float Scale=Fit(Right);
+    if(Scale<1.f){Right=float(L.Size.X)-40.f*U;Scale=Fit(Right);}
+    Scale=FMath::Max(Scale,Floor);
+    const float S=F*Scale;
+    L.ShopScale=S;L.ShopWidth=Width*S;
+    L.Shop=FVector2D(Right-L.ShopWidth,Top);
+    for(int32 Row=0;Row<Ring.Shop.Num();++Row)
+    {
+        const FBox2D Box(FVector2D(L.Shop.X,Top+(44.f+Row*64.f)*S),FVector2D(Right,Top+(44.f+Row*64.f+58.f)*S));
+        FShape& Shape=L.Boxes.AddDefaulted_GetRef();Shape.Hit={EHit::Shop,INDEX_NONE,Row};Shape.Shape=Lean(Box,14.f*S,0.f);
+        L.Anchors.Add(AnchorKey(EHit::Shop,INDEX_NONE,Row),FVector2D(Box.Min.X+49.f*S,Box.GetCenter().Y));
+    }
+    // 刷新 beside the heading.
+    const float HeadW=WidthOf(TEXT("休息商店"),Face(EFace::Heavy,22.f,S))+12.f*S;
+    const FString Refresh=Ring.RefreshPrice>0?FString::Printf(TEXT("刷新 · %s"),*Diamonds(Ring.RefreshPrice)):FString(TEXT("刷新 · 免费"));
+    const float RefreshW=WidthOf(Refresh,Face(EFace::Bold,18.f,S))+28.f*S;
+    FShape& Button=L.Boxes.AddDefaulted_GetRef();Button.Hit={EHit::ShopRefresh,INDEX_NONE,INDEX_NONE};
+    Button.Shape=Lean(BoxAt(FVector2D(L.Shop.X+HeadW,Top),FVector2D(RefreshW,30.f*S)),9.f*S,9.f*S);
+    (void)Geometry;
+}
+
+void ULDWorkshop::LayoutRow()
+{
+    FLayout& L=Layout;
+    const float U=L.U,R=L.R,F=L.F;
+    const float Bottom=float(L.Bar.Min.Y)-10.f*U;
+    const float X0=float(L.Bar.Min.X);
+    // The row ends left of the shop where the two would meet.
+    float Limit=float(L.Size.X)-40.f*U;
+    if(L.ShopWidth>0.f){Limit=FMath::Min(Limit,float(L.Shop.X)-12.f*U);}
+    const auto Add=[&L](EHit Kind,int32 Host,int32 Index,TArray<FVector2D> Shape){FShape& Box=L.Boxes.AddDefaulted_GetRef();Box.Hit={Kind,Host,Index};Box.Shape=MoveTemp(Shape);};
+    const FSlateFontInfo Chip=Face(EFace::Bold,18.f,F);
+    const float ChipH=30.f*F;
+    // A header chip right-aligned at Right: returns its left edge.
+    const auto RightChip=[&](EHit Kind,const FString& Text,float Right,float Top){const float W=WidthOf(Text,Chip)+24.f*F;Add(Kind,INDEX_NONE,INDEX_NONE,Lean(FBox2D(FVector2D(Right-W,Top),FVector2D(Right,Top+ChipH)),7.f*F,7.f*F));return Right-W-6.f*U;};
+    L.RowBottom=Bottom;
+    if(Ring.Batch.Kind!=EBatch::None&&!bShowHand)
+    {
+        const int32 Count=Ring.Batch.Options.Num();
+        const float Gap=12.f*U;
+        const float W=FMath::Min(300.f*U,(Limit-X0-(Count-1)*Gap)/FMath::Max(1,Count));
+        const float H=FMath::Max(86.f*U,22.f*U+24.f*F*1.25f+18.f*F*1.3f);
+        const float Top=Bottom-H;
+        for(int32 Index=0;Index<Count;++Index)
+        {
+            FFace& Face0=OfferFaces.AddDefaulted_GetRef();
+            Face0.Hit={EHit::Offer,INDEX_NONE,Index};
+            Face0.Box=FBox2D(FVector2D(X0+Index*(W+Gap),Top),FVector2D(X0+Index*(W+Gap)+W,Bottom));
+            Add(EHit::Offer,INDEX_NONE,Index,Lean(Face0.Box,12.f*U,12.f*U));
+            L.Anchors.Add(AnchorKey(EHit::Offer,INDEX_NONE,Index),FVector2D(Face0.Box.Min.X+(66.f*U+32.f*U),Face0.Box.GetCenter().Y));
+        }
+        const float HeadTop=Top-6.f*U-ChipH;
+        L.RowTop=HeadTop;
+        float Right=X0+Count*(W+Gap)-Gap;
+        if(Ring.Batch.Queued>0){Right=RightChip(EHit::OfferPile,FString::Printf(TEXT("还有 %d 批"),Ring.Batch.Queued),Right,HeadTop);}
+        if(Ring.Batch.Kind==EBatch::Card)
+        {
+            Right=RightChip(EHit::Skip,TEXT("跳过"),Right,HeadTop);
+            RightChip(EHit::Reroll,FString::Printf(TEXT("重抽 ×%d"),Ring.Batch.Rerolls),Right,HeadTop);
+        }
+        else if(Ring.Batch.Kind==EBatch::Active&&Ring.Batch.SkipPoints>0){RightChip(EHit::Skip,FString::Printf(TEXT("跳过 +%lld"),Ring.Batch.SkipPoints),Right,HeadTop);}
+        return;
+    }
+    if(Ring.Hand.IsEmpty()&&!bShowHand){L.RowTop=Bottom;return;}
+    // The library: one tile per stored group with its name under it; a long library drops the names (the card says them).
+    const float Z=NodeSize*R;
+    const float NameH=24.f*F;
+    float Pitch=FMath::Max(Z+12.f*U,84.f*F);
+    const int32 Count=Ring.Hand.Num();
+    if(Count>0&&Count*Pitch>Limit-X0){Pitch=FMath::Max(Z+4.f*U,(Limit-X0)/Count);}
+    const float Top=Bottom-Z-6.f*U-NameH;
+    for(int32 Index=0;Index<Count;++Index)
+    {
+        FFace& Face0=HandFaces.AddDefaulted_GetRef();
+        Face0.Hit={EHit::Hand,INDEX_NONE,Index};
+        const float Mid=X0+Index*Pitch+Pitch*.5f;
+        Face0.Box=Square(FVector2D(Mid,Top+Z*.5f),Z);
+        Add(EHit::Hand,INDEX_NONE,Index,RectOf(Face0.Box));
+        L.Anchors.Add(AnchorKey(EHit::Hand,INDEX_NONE,Index),Face0.Box.GetCenter());
+    }
+    const float HeadTop=Top-6.f*U-ChipH;
+    L.RowTop=HeadTop;
+    if(Ring.Batch.Kind!=EBatch::None){RightChip(EHit::OfferPile,FString::Printf(TEXT("待选 %d"),Ring.Batch.Queued+1),FMath::Max(X0+FMath::Max(Count,6)*Pitch,X0+300.f*U),HeadTop);}
+}
+
+void ULDWorkshop::LayoutCard()
+{
+    FLayout& L=Layout;
+    L.Card=FBox2D(ForceInit);
+    if(!IsOpen()){return;}
+    const FInfo Info=InfoOf(Focus());
+    if(Info.Name.IsEmpty()){return;}
+    const float U=L.U,F=L.F;
+    const float W=FMath::Min(720.f*U,float(L.Size.X)-32.f*U);
+    const float Icon=72.f*U;
+    const float TextW=W-(18.f*U+Icon+16.f*U)-30.f*U;
+    const int32 Lines=LDRingPaint::Wrap(Info.Body,Face(EFace::Regular,20.f,F),TextW,3).Num();
+    const float H=FMath::Max(Icon+28.f*U,12.f*U+34.f*F+26.f*F+(Info.Gain.IsEmpty()?0.f:26.f*F)+Lines*26.f*F+12.f*U);
+    // Above the ring's top; where that would cover the hovered part, in the top-right corner.
+    FBox2D Card=BoxAt(FVector2D(FMath::Clamp(float(L.Centre.X)-W*.5f,16.f*U,float(L.Size.X)-16.f*U-W),8.f*U),FVector2D(W,H));
+    const FHit Shown=Focus();
+    for(const FShape& Box:L.Boxes)
+    {
+        if(!(Box.Hit==Shown)||Box.bWedge){continue;}
+        if(Touches(Card,BoundsOf(Box.Shape))){Card=BoxAt(FVector2D(float(L.Size.X)-40.f*U-W,8.f*U),FVector2D(W,H));}
+        break;
+    }
+    L.Card=Card;
 }
 
 ULDWorkshop::FHit ULDWorkshop::HitAt(FVector2D Local) const
@@ -560,13 +633,11 @@ ULDWorkshop::FHit ULDWorkshop::HitAt(FVector2D Local) const
         const FShape& Box=Layout.Boxes[Index];
         if(Box.bWedge)
         {
-            const FVector2D D=Local-Box.Centre;
-            const float Radius=float(D.Size());
-            const float Degrees=FMath::RadiansToDegrees(FMath::Atan2(float(D.X),float(-D.Y)));
+            const float Radius=float(FVector2D::Distance(Local,Box.Centre));
+            const float Degrees=DegreesOf(Box.Centre,Local);
             if(Radius>=Box.Wedge.X&&Radius<=Box.Wedge.Y&&Degrees>=Box.Wedge.Z&&Degrees<=Box.Wedge.W){return Box.Hit;}
             continue;
         }
-        if(Box.Radius>0.f){if(FVector2D::Distance(Local,Box.Centre)<=Box.Radius){return Box.Hit;}continue;}
         if(LDRingPaint::Inside(Box.Shape,Local)){return Box.Hit;}
     }
     return FHit();
@@ -582,38 +653,66 @@ TArray<FString> ULDWorkshop::LayoutProblems() const
 {
     TArray<FString> Out;
     const FLayout& L=Layout;
-    TArray<FBox2D> WingRows,ShopRows;
+    const float U=L.U;
+    TArray<FBox2D> Rows,Shelf;
+    const FBox2D Band=Latest.Band.Right>Latest.Band.Left?FBox2D(GetCachedGeometry().AbsoluteToLocal(FVector2D(Latest.Band.Left,Latest.Band.Top)),
+        GetCachedGeometry().AbsoluteToLocal(FVector2D(Latest.Band.Right,Latest.Band.Bottom))):FBox2D(ForceInit);
+    const auto Probe=[&](const FBox2D& Bounds,const FString& Part)
+    {
+        // Corners and edge midpoints of a part outside the ring never touch its band.
+        const FVector2D Mid=Bounds.GetCenter();
+        for(const FVector2D& Point:{Bounds.Min,Bounds.Max,FVector2D(Bounds.Min.X,Bounds.Max.Y),FVector2D(Bounds.Max.X,Bounds.Min.Y),
+            FVector2D(Mid.X,Bounds.Min.Y),FVector2D(Mid.X,Bounds.Max.Y),FVector2D(Bounds.Min.X,Mid.Y),FVector2D(Bounds.Max.X,Mid.Y)})
+        {
+            if(OnBand(Point,-1.f*U)){Out.Add(TEXT("into the ring ")+Part);return;}
+        }
+    };
     for(const FShape& Box:L.Boxes)
     {
         if(Box.bWedge){continue;}
-        FBox2D Bounds(ForceInit);
-        for(const FVector2D& Point:Box.Shape){Bounds+=Point;}
+        const FBox2D Bounds=BoundsOf(Box.Shape);
         const FString Part=FString::Printf(TEXT("part %d/%d/%d (%.0f,%.0f)-(%.0f,%.0f)"),int32(Box.Hit.Kind),Box.Hit.Host,Box.Hit.Index,Bounds.Min.X,Bounds.Min.Y,Bounds.Max.X,Bounds.Max.Y);
         if(Bounds.Min.X<-1.||Bounds.Min.Y<-1.||Bounds.Max.X>L.Size.X+1.||Bounds.Max.Y>L.Size.Y+1.){Out.Add(TEXT("off screen ")+Part);}
-        if(Box.Hit.Kind==EHit::Wing)
+        switch(Box.Hit.Kind)
         {
-            if(Bounds.Min.Y<L.InspectorBottom-.5f){Out.Add(TEXT("under the inspector ")+Part);}
-            if(Bounds.Max.Y>L.HandTop+.5f){Out.Add(TEXT("into the hand ")+Part);}
-            for(const FBox2D& Other:WingRows)
-            {
-                if(!(Bounds.Max.X<=Other.Min.X+.5||Other.Max.X<=Bounds.Min.X+.5||Bounds.Max.Y<=Other.Min.Y+.5||Other.Max.Y<=Bounds.Min.Y+.5)){Out.Add(TEXT("wing overlap ")+Part);}
-            }
-            WingRows.Add(Bounds);
+        case EHit::Wing:
+            Probe(Bounds,Part);
+            for(const FBox2D& Other:Rows){if(Touches(Bounds,Other)){Out.Add(TEXT("table overlap ")+Part);}}
+            if(L.RowTop>0.f&&Bounds.Max.Y>L.RowTop+.5f&&Bounds.Max.X>L.Bar.Min.X){Out.Add(TEXT("table into the offer row ")+Part);}
+            Rows.Add(Bounds);
+            break;
+        case EHit::Shop:
+            Probe(Bounds,Part);
+            for(const FBox2D& Other:Shelf){if(Touches(Bounds,Other)){Out.Add(TEXT("shop overlap ")+Part);}}
+            Shelf.Add(Bounds);
+            break;
+        case EHit::Offer: case EHit::Hand: case EHit::OfferPile: case EHit::Reroll: case EHit::Skip:
+            if(!IsOpen()){break;}
+            Probe(Bounds,Part);
+            if(Bounds.Max.Y>L.Bar.Min.Y+.5f){Out.Add(TEXT("below the bar line ")+Part);}
+            break;
+        case EHit::HandPile: case EHit::Respec: case EHit::Matrix: case EHit::Close:
+            Probe(Bounds,Part);
+            if(Band.bIsValid&&Bounds.Max.Y>Band.Min.Y+.5f){Out.Add(TEXT("into the HUD band ")+Part);}
+            break;
+        default: break;
         }
-        if(Box.Hit.Kind==EHit::Hand&&Bounds.Max.Y>L.HandBottom+1.){Out.Add(TEXT("below the band line ")+Part);}
-        if(Box.Hit.Kind==EHit::Shop)
+    }
+    if(L.TableScale*L.K*18.f<11.9f){Out.Add(FString::Printf(TEXT("table text %.1f px"),L.TableScale*L.K*18.f));}
+    if(L.ShopWidth>0.f&&L.ShopScale*L.K*18.f<11.9f){Out.Add(FString::Printf(TEXT("shop text %.1f px"),L.ShopScale*L.K*18.f));}
+    if(L.Card.bIsValid)
+    {
+        if(L.Card.Min.X<-1.||L.Card.Min.Y<-1.||L.Card.Max.X>L.Size.X+1.||L.Card.Max.Y>L.Size.Y+1.){Out.Add(TEXT("hover card off screen"));}
+        for(const FShape& Box:L.Boxes)
         {
-            for(const FBox2D& Other:ShopRows)
-            {
-                if(!(Bounds.Max.X<=Other.Min.X+.5||Other.Max.X<=Bounds.Min.X+.5||Bounds.Max.Y<=Other.Min.Y+.5||Other.Max.Y<=Bounds.Min.Y+.5)){Out.Add(TEXT("shop overlap ")+Part);}
-            }
-            ShopRows.Add(Bounds);
+            if(Box.bWedge||!(Box.Hit==Focus()||Box.Hit.Kind==EHit::Installed||Box.Hit.Kind==EHit::Host)){continue;}
+            if(Touches(L.Card,BoundsOf(Box.Shape))){Out.Add(FString::Printf(TEXT("hover card covers part %d/%d/%d"),int32(Box.Hit.Kind),Box.Hit.Host,Box.Hit.Index));}
         }
     }
     return Out;
 }
 
-// ---- tick: the pointer, the radar, the springs ---------------------------------------------------------------------------
+// ---- tick: the pointer, the radar ----------------------------------------------------------------------------------------
 
 void ULDWorkshop::UpdateRadar()
 {
@@ -639,15 +738,15 @@ void ULDWorkshop::UpdateRadar()
     {Radar->Hide();bHasCentre=false;return;}
     // Widget-space units (the viewport's DPI space) match this widget's local units on a full-screen HUD.
     const float PerCm=float(FVector2D::Distance(Centre,Side))/100.f;
-    const float Ring92=RadarRadius*Layout.R;
-    const float RadiusCm=PerCm>1e-3f?Ring92/PerCm:60.f;
+    const float Reach=RadarRadius*Layout.R;
+    const float RadiusCm=PerCm>1e-3f?Reach/PerCm:60.f;
     SmoothedCentre=bHasCentre?FMath::Lerp(SmoothedCentre,Centre,.35):Centre;bHasCentre=true;
     FLDBuildRadarState State;
-    for(const FStat& Stat:Ring.Stats){State.Points.Add(Stat.Points);State.Inks.Add(StatInk(State.Inks.Num()));}
+    for(const FStat& Stat:Ring.Stats){State.Points.Add(Stat.Points);}
     State.Keystone=Ring.Keystone;
     State.bClosed=!IsOpen();
     State.Installed=Ring.Installed;State.Capacity=Ring.Capacity;State.MaxCapacity=Ring.MaxCapacity;
-    for(int32 Index=0;Index<Ring.Hosts.Num();++Index)
+    for(int32 Index=0;Index<Ring.Hosts.Num()&&Index<HostCount;++Index)
     {
         if(Ring.Hosts[Index].bHasMedal){State.Medals.Add(TPair<float,FLinearColor>(HostAngle[Index],ElementInk(Ring.Hosts[Index].Medal.Element)));}
     }
@@ -658,30 +757,22 @@ void ULDWorkshop::NativeTick(const FGeometry& Geometry,float DeltaSeconds)
 {
     Super::NativeTick(Geometry,DeltaSeconds);
     UpdateRadar();
-    ComputeLayout(Geometry);
     const double Now=UiNow();
-    const float Delta=LastTick<0.?0.f:float(Now-LastTick);LastTick=Now;
     if(FrozenOpen>=0.f&&IsOpen()){OpenedAt=Now-FrozenOpen;}
     if(FrozenReveal>=0.f&&BatchAt>=0.){BatchAt=Now-FrozenReveal;}
+    ComputeLayout(Geometry);
+    LastTick=Now;
     FHit Next;
     if(FSlateApplication::IsInitialized()&&Ring.bValid)
     {
         const FVector2D Pointer=Geometry.AbsoluteToLocal(FSlateApplication::Get().GetCursorPos());
         if(Pointer.X>=0.&&Pointer.Y>=0.&&Pointer.X<=Layout.Size.X&&Pointer.Y<=Layout.Size.Y){Next=HitAt(Pointer);}
     }
-    if(!(Next==Hovered)){Hovered=Next;HoveredAt=Now;}
-    // A hand card looked at loses its 新 sticker.
+    if(!(Next==Hovered)){Hovered=Next;HoveredAt=Now;LayoutCard();}
+    // A hand card looked at loses its 新 mark.
     const FHit Shown=Focus();
     if(Shown.Kind==EHit::Hand&&Ring.Hand.IsValidIndex(Shown.Index)&&Ring.Hand[Shown.Index].bFresh&&Storage.IsValid())
     {Storage->MarkSeen(Ring.Hand[Shown.Index].Key);}
-    // The lift springs of hand and offer faces.
-    const auto Spring=[&](uint64 Key,bool bUp){float& Value=Lift.FindOrAdd(Key);Value=FMath::Clamp(Value+(bUp?1.f:-1.f)*RingHoverRate*Delta,0.f,1.f);};
-    for(const FFace& Face:HandFaces)
-    {
-        const bool bUp=(Shown.Kind==EHit::Hand&&Shown.Index==Face.Hit.Index)||(Ring.Hand.IsValidIndex(Face.Hit.Index)&&Ring.Hand[Face.Hit.Index].Key==Selected);
-        Spring(AnchorKey(EHit::Hand,INDEX_NONE,Face.Hit.Index),bUp);
-    }
-    for(const FFace& Face:OfferFaces){Spring(AnchorKey(EHit::Offer,INDEX_NONE,Face.Hit.Index),Shown.Kind==EHit::Offer&&Shown.Index==Face.Hit.Index);}
     if(!IsOpen()&&ClosedAt>=0.&&Now-ClosedAt>RingCloseTime){ClosedAt=-1.;}
 }
 
@@ -738,7 +829,7 @@ void ULDWorkshop::Click(const FHit& Hit,bool bRight)
     {
         if(!Held||!Cards||!Ring.Hosts.IsValidIndex(HostIndex)){return;}
         const FHost& Host=Ring.Hosts[HostIndex];
-        if(Held->Form==ELDCardForm::Medal){Tell(TEXT("勋章镶进八角槽，不占构筑格"));return;}
+        if(Held->Form==ELDCardForm::Medal){Tell(TEXT("勋章镶进菱形槽，不占构筑格"));return;}
         if(Held->Form!=Host.Form||(Host.Form==ELDCardForm::Skill&&Host.bEmpty))
         {
             Tell(Host.bEmpty&&Held->Form==ELDCardForm::Skill?FString(TEXT("这个技能槽还没有技能")):FString::Printf(TEXT("这张牌只能%s"),*FormPlace(Held->Form)));
@@ -836,17 +927,6 @@ void ULDWorkshop::Click(const FHit& Hit,bool bRight)
     }
 }
 
-float ULDWorkshop::LevelPlateWidth() const
-{
-    const float U=Layout.U,F=Layout.F;
-    const FSlateFontInfo Label=RingFont(LDUIFonts::ERole::Strong,14.f,F),Figure=RingFigure(21.f,F);
-    const FString Lv=FString::FromInt(Ring.Level),Used=FString::FromInt(Ring.Installed),Cap=FString::Printf(TEXT(" / %d"),Ring.Capacity);
-    const FString Points=FString::FromInt(Ring.Unspent);
-    return 16.f*F+float(LDRingPaint::Measure(TEXT("LV "),Label).X+LDRingPaint::Measure(Lv,Figure).X)+12.f*F
-        +float(LDRingPaint::Measure(TEXT("构筑 "),Label).X+LDRingPaint::Measure(Used,Figure).X+LDRingPaint::Measure(Cap,Label).X)+12.f*F
-        +Ring.Capacity*11.f*U+12.f*F+float(LDRingPaint::Measure(TEXT("属性点 "),Label).X+LDRingPaint::Measure(Points,Figure).X)+16.f*F;
-}
-
 // ---- links ---------------------------------------------------------------------------------------------------------------
 
 uint32 ULDWorkshop::VocabOf(const FHit& Hit) const
@@ -889,986 +969,726 @@ TArray<uint64> ULDWorkshop::LinkedTo(const FHit& Hit) const
     return Out;
 }
 
+ULDWorkshop::FInfo ULDWorkshop::InfoOf(const FHit& Hit) const
+{
+    FInfo Out;
+    const FLDDemoContentDefinitions* Content=Latest.Content;
+    const auto CardInfo=[&](FName Definition)
+    {
+        const LDHUD::FCardFaceView Face0=LDHUD::CardFace(Definition,Content,Latest.Stats);
+        const ERarity Rarity=RarityOf(Content,Definition);
+        Out.Name=Face0.Name;Out.IconId=Face0.IconId;Out.Body=Face0.SentencePlain;
+        Out.Meta=FString::Printf(TEXT("%s · %s · %s"),LDTerms::CardTypeName(uint8(Face0.Type)),*FormPlace(Face0.Form),*RarityName(Rarity));
+        if(Face0.Form==ELDCardForm::Medal){Out.Meta=FString::Printf(TEXT("勋章 · %s"),*FormPlace(Face0.Form));}
+    };
+    const auto ActiveInfo=[&](FName Id,ELDSkillBranch Branch,const FString& Where)
+    {
+        const LDHUD::FActiveCardView Face0=LDHUD::ActiveCard(Id,Content,Latest.Stats,Branch);
+        Out.Name=Face0.Name;Out.IconId=Face0.IconId;Out.Body=Face0.SentencePlain;Out.Meta=Where;
+        if(!Face0.Cost.IsEmpty()){Out.Meta+=TEXT(" · ")+Face0.Cost;}
+    };
+    const auto StatInfo=[&](int32 Index)
+    {
+        if(!Ring.Stats.IsValidIndex(Index)||!Content){return;}
+        const FStat& Stat=Ring.Stats[Index];
+        const TArray<const FLDDemoStatDefinition*> Stats=Content->StatsInDesignOrder();
+        Out.Name=Stat.Name;Out.IconId=Stat.IconId;
+        Out.Meta=Stat.bKeystone?FString::Printf(TEXT("%d 点 · 关键石已激活"),Stat.Points):FString::Printf(TEXT("%d 点 · 再投 %d 点激活关键石"),Stat.Points,FMath::Max(0,Ring.Keystone-Stat.Points));
+        if(!Stats.IsValidIndex(Index)){return;}
+        Out.Body=LDHUD::StatRow(*Stats[Index],Stat.Points,Content).PerPoint;
+        // One more point: the orange gain of every attribute it raises.
+        TArray<FString> Gains;
+        for(const LDHUD::FStatEffectView& Effect:LDHUD::StatEffects(*Stats[Index],Latest.Attributes)){Gains.Add(Effect.Attribute+TEXT(" ")+Effect.PerPoint);}
+        Out.Gain=FString(TEXT("每点 "))+FString::Join(Gains,TEXT(" · "));
+    };
+    switch(Hit.Kind)
+    {
+    case EHit::Installed:
+        if(Ring.Hosts.IsValidIndex(Hit.Host)&&Ring.Hosts[Hit.Host].Cards.IsValidIndex(Hit.Index)){CardInfo(Ring.Hosts[Hit.Host].Cards[Hit.Index].Definition);}
+        break;
+    case EHit::Hand:
+        if(Ring.Hand.IsValidIndex(Hit.Index)){CardInfo(Ring.Hand[Hit.Index].Definition);}
+        break;
+    case EHit::Host:
+        if(!Ring.Hosts.IsValidIndex(Hit.Host)){break;}
+        {
+            const FHost& Host=Ring.Hosts[Hit.Host];
+            if(!Host.Active.IsNone()){ActiveInfo(Host.Active,Host.Branch,FString::Printf(TEXT("主动技能 · %s"),*Host.Key));}
+            else if(Host.Column==LDHUD::EStorageColumn::Body){Out.Name=TEXT("本体");Out.Meta=TEXT("角色本体 · 普攻");Out.Body=TEXT("本体牌装在这里；元素槽让第 2、3 段普攻带上元素。");Out.bBodyIcon=true;}
+            else if(Host.Column==LDHUD::EStorageColumn::Dash){Out.Name=Host.Name;Out.IconId=Host.IconId;Out.Meta=FString::Printf(TEXT("冲刺 · %s"),*Host.Key);Out.Body=TEXT("冲刺牌装在这里。");}
+            else{Out.Name=TEXT("空技能槽");Out.Meta=Host.Key;Out.Body=TEXT("学会一个主动技能后，技能牌才能装在这里。");}
+        }
+        break;
+    case EHit::Gem:
+        if(!Ring.Hosts.IsValidIndex(Hit.Host)){break;}
+        if(Ring.Hosts[Hit.Host].bHasMedal)
+        {
+            CardInfo(Ring.Hosts[Hit.Host].Medal.Definition);
+            static const TCHAR* Tiers[]={TEXT(""),TEXT("Ⅰ"),TEXT("Ⅱ"),TEXT("Ⅲ")};
+            Out.Meta=FString::Printf(TEXT("%s 阶 · %s 的元素"),Tiers[FMath::Clamp<int32>(Ring.Hosts[Hit.Host].Medal.Tier,0,3)],*Ring.Hosts[Hit.Host].Name);
+        }
+        else{Out.Name=TEXT("元素槽 · 空");Out.Meta=Ring.Hosts[Hit.Host].Name;Out.Body=TEXT("镶一枚勋章，让这个位置的命中带上元素。不占构筑容量。");}
+        break;
+    case EHit::Stat: StatInfo(Hit.Index);break;
+    case EHit::Wing:
+        if(Hit.Index==INDEX_NONE){StatInfo(Hit.Host);break;}
+        if(Ring.Derived.IsValidIndex(Hit.Index)&&Ring.Stats.IsValidIndex(Ring.Derived[Hit.Index].Source))
+        {
+            const FDerived& Row=Ring.Derived[Hit.Index];
+            Out.Name=Row.Name;Out.Meta=FString::Printf(TEXT("%s · 来自%s"),*Row.Value,*Ring.Stats[Row.Source].Name);
+            const FLDCombatAttributeRowView* Source=Latest.Attributes.FindByPredicate([&Row](const FLDCombatAttributeRowView& R){return R.Attribute==Row.Attribute;});
+            if(Source){Out.Body=LDHUD::AttributeRow(*Source).Breakdown;}
+        }
+        break;
+    case EHit::Offer:
+        if(!Ring.Batch.Options.IsValidIndex(Hit.Index)){break;}
+        {
+            const FOption& Option=Ring.Batch.Options[Hit.Index];
+            if(Ring.Batch.Kind==EBatch::Card){CardInfo(Option.Id);}
+            else if(Ring.Batch.Kind==EBatch::Final){Out.Name=Option.Name;Out.IconId=Option.IconId;Out.Body=Option.Text;Out.Meta=TEXT("终局改装 · 选定后锁定构筑");}
+            else{ActiveInfo(Option.Id,ELDSkillBranch::None,Ring.Batch.Kind==EBatch::Blueprint?FString(LDTerms::Blueprint):FString(TEXT("主动技能")));}
+        }
+        break;
+    case EHit::Shop:
+        if(!Ring.Shop.IsValidIndex(Hit.Index)){break;}
+        {
+            const FShopItem& Item=Ring.Shop[Hit.Index];
+            if(Item.Kind==ELDShopItemKind::Card){CardInfo(Item.Id);}
+            else if(Item.Kind==ELDShopItemKind::Skill){ActiveInfo(Item.Id,ELDSkillBranch::None,TEXT("主动技能 · 商店"));}
+            else{Out.Name=TEXT("技能点");Out.Meta=Item.Note;Out.Body=TEXT("给已学的技能升一级。");}
+            Out.Meta+=FString::Printf(TEXT(" · %s"),*Diamonds(Item.Price));
+        }
+        break;
+    default: break;
+    }
+    return Out;
+}
+
 // ---- paint ---------------------------------------------------------------------------------------------------------------
 
-void ULDWorkshop::PaintNode(FPainter& P,const FBox2D& Box,const FCard& Card,float Dim,bool bHot,bool bLit,float Flash) const
+void ULDWorkshop::PaintTile(FPainter& P,const FBox2D& Box0,const FString& IconId,const FString& Name,ETile State,ERarity Rarity,float RuleAlpha,UTexture2D* Override) const
 {
     const float R=Layout.R;
-    const float Saved=P.Opacity;P.Opacity*=Dim;
-    const FBox2D Face=bHot?Grow(Box,float(Box.GetSize().X)*.07f):Box;
-    const float Radius=10.f*R*float(Face.GetSize().X)/(NodeSize*R);
-    const FFrameInk Ink=FrameOf(Card.Rarity);
-    const TArray<FVector2D> Outline=LDRingPaint::Rounded(Face,Radius,3);
-    // The hard drop shadow, a lit (linked) halo, then the metal frame.
-    P.Fill(Offset(Outline,FVector2D(3.f,4.f)*R),FLinearColor(0.f,0.f,0.f,.62f));
-    if(bLit)
+    const float Saved=P.Opacity;
+    if(State==ETile::Dim){P.Opacity*=.26f;}
+    const FBox2D Box=State==ETile::Hot?Grow(Box0,float(Box0.GetSize().X)*.04f):Box0;
+    // Lit and hovered tiles stand off the band on an ink keyline.
+    if(State==ETile::Hot||State==ETile::Lit){P.Fill(RectOf(Grow(Box,(State==ETile::Hot?3.f:2.f)*R)),Ink);}
+    P.Fill(RectOf(Box),Panel);
+    if(UTexture2D* Icon=Override?Override:RingIcon(IconId)){P.Image(Icon,Box);}
+    else if(!Name.IsEmpty()){P.Text(Name.Left(1),Box.GetCenter(),Face(EFace::Heavy,float(Box.GetSize().Y)*.42f,1.f),Grey,FVector2D(.5,.5));}
+    const bool bStrong=State==ETile::Hot||State==ETile::Lit;
+    const FLinearColor Rule=bStrong?White:Rarity==ERarity::Legendary?Gold:White.CopyWithNewOpacity(RuleAlpha);
+    Frame(P,Box,(State==ETile::Hot?4.f:State==ETile::Lit?3.f:2.f)*R,Rule);
+    // Rarity by construction: a corner notch, rare blue or legendary gold.
+    if(Rarity!=ERarity::Common)
     {
-        P.Fill(LDRingPaint::Rounded(Grow(Face,6.f*R),Radius+6.f*R,3),LDBroadcast::Gold.CopyWithNewOpacity(.35f));
-        P.Fill(LDRingPaint::Rounded(Grow(Face,2.5f*R),Radius+2.5f*R,3),FLinearColor(1.f,1.f,1.f,.9f));
-    }
-    if(Card.Rarity==ERarity::Legendary){P.Fill(LDRingPaint::Rounded(Grow(Face,4.f*R),Radius+4.f*R,3),LDBroadcast::Legendary.CopyWithNewOpacity(.35f));}
-    P.FillShaded(Outline,[&](FVector2D At){return Metal(Ink,Face,At);});
-    if(UTexture2D* Brushed=RingArt(EArt::Metal)){P.Image(Brushed,Face,FLinearColor(1.f,1.f,1.f,.35f),&Outline);}
-    const FBox2D Inner=Grow(Face,-3.f*R*float(Face.GetSize().X)/(NodeSize*R));
-    const TArray<FVector2D> InnerShape=LDRingPaint::Rounded(Inner,Radius*.7f,3);
-    P.Fill(InnerShape,RingFace);
-    if(UTexture2D* Icon=RingIcon(Card.IconId)){P.Image(Icon,Inner,FLinearColor::White,&InnerShape);}
-    else{P.Text(Card.Name.Left(1),Inner.GetCenter(),RingFont(LDUIFonts::ERole::Title,22.f,Layout.F),RingPale,FVector2D(.5,.5));}
-    // Glass: a light sweep at the top edge, a black keyline.
-    P.FillShaded(LDRingPaint::ClipConvex({Inner.Min,FVector2D(Inner.Max.X,Inner.Min.Y),FVector2D(Inner.Max.X,Inner.Min.Y+Inner.GetSize().Y*.3),FVector2D(Inner.Min.X,Inner.Min.Y+Inner.GetSize().Y*.42)},InnerShape),
-        [&](FVector2D At){return FLinearColor(1.f,1.f,1.f,.2f*(1.f-GradientT(Inner,At,165.f)*1.6f));});
-    P.Stroke(InnerShape,1.5f*R,RingDeep,true);
-    // Rarity by construction: a rare card carries a corner stripe, a legendary one the stripe and a moving sheen.
-    if(Card.Rarity!=ERarity::Common)
-    {
-        const float S=float(Inner.GetSize().X);
-        const TArray<FVector2D> Stripe={FVector2D(Inner.Max.X-S*.34f,Inner.Min.Y),FVector2D(Inner.Max.X-S*.2f,Inner.Min.Y),FVector2D(Inner.Max.X,Inner.Min.Y+S*.2f),FVector2D(Inner.Max.X,Inner.Min.Y+S*.34f)};
-        P.Fill(LDRingPaint::ClipConvex(Stripe,InnerShape),Ink.Band);
-    }
-    if(Card.Rarity==ERarity::Legendary)
-    {
-        const float Phase=FMath::Fmod(float(UiNow())/3.6f,1.f);
-        const float S=float(Inner.GetSize().X);
-        const float X=Inner.Min.X+FMath::Lerp(-.6f,1.6f,FMath::Min(1.f,Phase/.55f))*S;
-        const TArray<FVector2D> Band={FVector2D(X,Inner.Min.Y),FVector2D(X+S*.22f,Inner.Min.Y),FVector2D(X+S*.02f,Inner.Max.Y),FVector2D(X-S*.2f,Inner.Max.Y)};
-        P.Fill(LDRingPaint::ClipConvex(Band,InnerShape),FLinearColor(1.f,1.f,1.f,.38f));
-    }
-    if(Flash>0.f){P.Fill(LDRingPaint::Rounded(Grow(Face,Flash*8.f*R),Radius,3),FLinearColor(1.f,1.f,1.f,.55f*Flash));}
-    if(Card.Copies>1)
-    {
-        // ×N on a gold slanted tag at the top-right corner.
-        const FSlateFontInfo Font=RingFigure(17.f,Layout.F);
-        const FString Text=FString::Printf(TEXT("×%d"),Card.Copies);
-        const FVector2D Size=LDRingPaint::Measure(Text,Font);
-        const float H=21.f*Layout.F,W=float(Size.X)+16.f*Layout.F;
-        const FBox2D Tag(FVector2D(Face.Max.X+8.f*Layout.U-W,Face.Min.Y-9.f*Layout.U),FVector2D(Face.Max.X+8.f*Layout.U,Face.Min.Y-9.f*Layout.U+H));
-        P.Fill(LDRingPaint::Slant(Tag,8.f*Layout.F),LDBroadcast::Gold);
-        P.Text(Text,Tag.GetCenter(),Font,Hex(0x16120A),FVector2D(.5,.5));
+        const float N=float(Box.GetSize().X)*.24f;
+        P.Fill({FVector2D(Box.Max.X-N,Box.Min.Y),FVector2D(Box.Max.X,Box.Min.Y),FVector2D(Box.Max.X,Box.Min.Y+N)},Rarity==ERarity::Legendary?Gold:LDBroadcast::Rare);
     }
     P.Opacity=Saved;
 }
 
-void ULDWorkshop::PaintDim(FPainter& P) const
-{
-    // The world darkens around the ring, deepest at the edges, never over the HUD band or the minimap.
-    const FLayout& L=Layout;
-    const FGeometry& G=GetCachedGeometry();
-    TArray<FBox2D> Holes;
-    for(const FSlateRect& Rect:{Latest.Band,Latest.Map})
-    {
-        if(Rect.Right<=Rect.Left||Rect.Bottom<=Rect.Top){continue;}
-        Holes.Add(FBox2D(G.AbsoluteToLocal(FVector2D(Rect.Left,Rect.Top))-FVector2D(2.,2.),G.AbsoluteToLocal(FVector2D(Rect.Right,Rect.Bottom))+FVector2D(2.,2.)));
-    }
-    TArray<float> Ys={0.f,float(L.Size.Y)};
-    for(const FBox2D& Hole:Holes){Ys.Add(float(Hole.Min.Y));Ys.Add(float(Hole.Max.Y));}
-    Ys.Sort();
-    const float Reach=860.f*L.U;
-    const auto Shade=[&](FVector2D At)
-    {
-        const float T=FMath::Clamp(float(FVector2D::Distance(At,L.Centre))/Reach,0.f,1.f);
-        const float A=T<.5f?FMath::Lerp(.34f,.56f,T/.5f):FMath::Lerp(.56f,.8f,(T-.5f)/.5f);
-        return Hex(0x05070D,A);
-    };
-    const int32 Columns=16;
-    for(int32 Band=0;Band+1<Ys.Num();++Band)
-    {
-        const float Y0=FMath::Clamp(Ys[Band],0.f,float(L.Size.Y)),Y1=FMath::Clamp(Ys[Band+1],0.f,float(L.Size.Y));
-        if(Y1-Y0<.5f){continue;}
-        // The x spans of this band outside every hole.
-        TArray<FVector2D> Spans={FVector2D(0.,L.Size.X)};
-        for(const FBox2D& Hole:Holes)
-        {
-            if(Hole.Max.Y<=Y0+.1f||Hole.Min.Y>=Y1-.1f){continue;}
-            TArray<FVector2D> Next;
-            for(const FVector2D& Span:Spans)
-            {
-                if(Hole.Max.X<=Span.X||Hole.Min.X>=Span.Y){Next.Add(Span);continue;}
-                if(Hole.Min.X>Span.X){Next.Add(FVector2D(Span.X,Hole.Min.X));}
-                if(Hole.Max.X<Span.Y){Next.Add(FVector2D(Hole.Max.X,Span.Y));}
-            }
-            Spans=MoveTemp(Next);
-        }
-        for(const FVector2D& Span:Spans)
-        {
-            const int32 N=FMath::Max(1,FMath::CeilToInt(float(Span.Y-Span.X)/float(L.Size.X)*Columns));
-            TArray<FVector2D> Top,Bottom;
-            for(int32 Step=0;Step<=N;++Step)
-            {
-                const float X=FMath::Lerp(float(Span.X),float(Span.Y),float(Step)/N);
-                Top.Add(FVector2D(X,Y0));Bottom.Add(FVector2D(X,Y1));
-            }
-            P.Band(Top,Bottom,Shade);
-        }
-    }
-    // The tray behind the hand: a darker floor so the cards read on any ground.
-    const float FloorTop=L.HandTop-90.f*L.U;
-    if(L.HandBottom>FloorTop)
-    {
-        TArray<FVector2D> Top={FVector2D(310.f*L.U,FloorTop),FVector2D(1490.f*L.U,FloorTop)},Bottom={FVector2D(310.f*L.U,L.HandBottom),FVector2D(1490.f*L.U,L.HandBottom)};
-        P.Band(Top,Bottom,[&](FVector2D At){return Hex(0x05070D,.6f*FMath::Clamp(float((At.Y-FloorTop)/(L.HandBottom-FloorTop)),0.f,1.f));});
-    }
-}
-
-void ULDWorkshop::PaintSectors(FPainter& P,const TArray<uint64>& Lit,bool bDim) const
+void ULDWorkshop::PaintBand(FPainter& P) const
 {
     const FLayout& L=Layout;
     const float R=L.R;
     const FVector2D C=L.Centre;
     const FCard* Held=SelectedCard();
     const ELDCardForm HeldForm=Held?Held->Form:ELDCardForm::Count;
-    const bool bFull=Ring.Capacity>0&&Ring.Installed>=Ring.Capacity;
-    const double Now=UiNow();
-    // The slow dashed circle inside the sectors and the element ring's own dashed arc.
-    {
-        const float Spin=float(FMath::Fmod(Now*4.5,360.));
-        P.Dashed(LDRingPaint::Arc(C,(SectorInner-4.f)*R,Spin,Spin+360.f,120),2.f*R,2.f*R,11.f*R,Hex(0xFFE9A3,.4f));
-        P.Dashed(LDRingPaint::Arc(C,GemRadius*R,-100.f,56.f,80),2.f*R,3.f*R,7.f*R,FLinearColor(1.f,1.f,1.f,.4f));
-    }
-    for(int32 HostIndex=0;HostIndex<Ring.Hosts.Num();++HostIndex)
+    const double Age=OpenedAt<0.?1.:UiNow()-OpenedAt;
+    TArray<FVector2D> Ticks;TArray<float> TickInk;
+    for(int32 HostIndex=0;HostIndex<Ring.Hosts.Num()&&HostIndex<HostCount;++HostIndex)
     {
         const FHost& Host=Ring.Hosts[HostIndex];
         const float A=HostAngle[HostIndex];
-        const FLinearColor Ink=Host.bHasMedal?ElementInk(Host.Medal.Element):RingPale;
-        const int32 Slots=Host.Cards.Num()+(bFull?0:1);
-        const float Outer=(RowRadius[RowsFor(Slots)-1]+36.f)*R;
-        const float Inner=SectorInner*R;
-        const bool bTarget=HeldForm==Host.Form&&!(Host.Form==ELDCardForm::Skill&&Host.bEmpty);
-        const bool bBlueprintTarget=SelectedBlueprint!=INDEX_NONE&&HostIndex>=1&&HostIndex<=3;
-        // The plate: a dark radial fill, the element's tint, the halftone dots.
-        const TArray<FVector2D> In=LDRingPaint::Arc(C,Inner,A-SectorHalf,A+SectorHalf,24),Out=LDRingPaint::Arc(C,Outer,A-SectorHalf,A+SectorHalf,24);
-        P.Band(In,Out,[&](FVector2D At)
+        // The clockwise wipe of the opening, sector after sector.
+        const float Sweep=FMath::Clamp(float((Age-HostIndex*RingWipeStagger)/RingWipeTime),0.f,1.f);
+        if(Sweep<=0.f){continue;}
+        const float From=A-SectorHalf,To=From+2.f*SectorHalf*(1.f-FMath::Square(1.f-Sweep));
+        const float Inner=SectorInner*R,Outer=L.Outer[HostIndex],Mid=FMath::Max(Inner+1.f,.78f*Outer);
+        const TArray<FVector2D> In=LDRingPaint::Arc(C,Inner,From,To,32),Middle=LDRingPaint::Arc(C,Mid,From,To,32),Out=LDRingPaint::Arc(C,Outer,From,To,32);
+        P.Band(In,Middle,[&](FVector2D At){return Ink.CopyWithNewOpacity(FMath::Lerp(BandInnerInk,BandMidInk,FMath::Clamp((float(FVector2D::Distance(At,C))-Inner)/(Mid-Inner),0.f,1.f)));});
+        P.Band(Middle,Out,[&](FVector2D At){return Ink.CopyWithNewOpacity(FMath::Lerp(BandMidInk,BandEdgeInk,FMath::Clamp((float(FVector2D::Distance(At,C))-Mid)/FMath::Max(1.f,Outer-Mid),0.f,1.f)));});
+        if(Host.bHasMedal)
         {
-            const float T=FMath::Clamp(float(FVector2D::Distance(At,C))/(470.f*R),0.f,1.f);
-            return Hex(0x070A12,T<.4f?.9f:FMath::Lerp(.9f,.42f,(T-.4f)/.6f));
-        });
-        if(Host.bHasMedal){P.Band(In,Out,[&](FVector2D){return Ink.CopyWithNewOpacity(.13f);});}
+            const FLinearColor Element=ElementInk(Host.Medal.Element);
+            P.Band(In,Out,[&](FVector2D){return Element.CopyWithNewOpacity(.12f);});
+            P.Band(In,LDRingPaint::Arc(C,Inner+6.f*R,From,To,32),[&](FVector2D){return Element;});
+        }
+        // A held card's hosts and a blueprint's skill slots take the thick rule.
+        const bool bTarget=(HeldForm==Host.Form&&!(Host.Form==ELDCardForm::Skill&&Host.bEmpty))||(SelectedBlueprint!=INDEX_NONE&&HostIndex>=1&&HostIndex<=3);
+        P.Stroke(Out,(bTarget?4.f:2.f)*R,bTarget?White:White.CopyWithNewOpacity(.8f));
+        P.Stroke(In,2.f*R,White.CopyWithNewOpacity(.28f));
+        for(float T=0.f;From+T<=To+.01f;T+=2.5f)
         {
-            TArray<FVector2D> Dots;
-            const float Pitch=9.f*R;
-            const FVector2D Min=C+FVector2D(-Outer,-Outer),Max=C+FVector2D(Outer,Outer*.4);
-            const float Cs=FMath::Cos(FMath::DegreesToRadians(32.f)),Sn=FMath::Sin(FMath::DegreesToRadians(32.f));
-            for(float Y=float(Min.Y);Y<=Max.Y;Y+=Pitch)
+            const bool bMajor=FMath::Abs(FMath::Fmod(T,10.f))<.01f;
+            Ticks.Add(LDRingPaint::Polar(C,Outer+4.f*R,From+T));Ticks.Add(LDRingPaint::Polar(C,Outer+(bMajor?TickLength:9.f)*R,From+T));
+            TickInk.Add(bMajor?.7f:.35f);
+        }
+    }
+    P.Segments(Ticks,2.f*R,[&](int32 Index){return White.CopyWithNewOpacity(TickInk.IsValidIndex(Index)?TickInk[Index]:.35f);});
+    // The element track through the sockets; a reaction colours the stretch between its two sockets.
+    P.Stroke(LDRingPaint::Arc(C,GemRadius*R,HostAngle[0],HostAngle[3]),2.f*R,White.CopyWithNewOpacity(.22f));
+    int32 Lane=0;
+    for(const FReaction& Reaction:Ring.Reactions)
+    {
+        if(Reaction.A>=HostCount||Reaction.B>=HostCount){continue;}
+        const float A0=HostAngle[Reaction.A],A1=HostAngle[Reaction.B];
+        const float Radius=(Reaction.B-Reaction.A==1?GemRadius:GemRadius-14.f*(1+Lane++))*R;
+        const float Inset=FMath::RadiansToDegrees(GemSize*.5f*R/Radius);
+        const TArray<FVector2D> Arc=LDRingPaint::Arc(C,Radius,A0+(Reaction.B-Reaction.A==1?Inset:0.f),A1-(Reaction.B-Reaction.A==1?Inset:0.f),24);
+        P.Stroke(Arc,7.f*R,Ink.CopyWithNewOpacity(.8f));
+        P.Stroke(Arc,4.f*R,ElementInk(Reaction.First),false,ElementInk(Reaction.Second));
+        const FVector2D At=LDRingPaint::Polar(C,Radius,(A0+A1)*.5f);
+        const FSlateFontInfo Font=Face(EFace::Bold,18.f,L.F);
+        const float W=WidthOf(Reaction.Name,Font)+14.f*L.F;
+        const FBox2D Chip(At-FVector2D(W*.5f,12.f*L.F),At+FVector2D(W*.5f,12.f*L.F));
+        P.Fill(Lean(Chip,5.f*L.F,5.f*L.F),Ink.CopyWithNewOpacity(.9f));
+        P.Text(Reaction.Name,Chip.GetCenter(),Font,White,FVector2D(.5,.5));
+    }
+}
+
+void ULDWorkshop::PaintLinks(FPainter& P,const TArray<uint64>& Lit) const
+{
+    // One continuous white stroke through the hovered part and everything it links to, in their order around the ring
+    // (under the tiles, over the band). A hovered part off the ring joins the nearest linked one first.
+    const FLayout& L=Layout;
+    const FHit Shown=Focus();
+    if(Lit.IsEmpty()){return;}
+    const uint64 SelfKey=AnchorKey(Shown.Kind,Shown.Kind==EHit::Host||Shown.Kind==EHit::Installed?Shown.Host:INDEX_NONE,Shown.Kind==EHit::Host?INDEX_NONE:Shown.Index);
+    const FVector2D* Self=L.Anchors.Find(SelfKey);
+    const bool bSelfOnRing=Shown.Kind==EHit::Host||Shown.Kind==EHit::Installed;
+    struct FStop{FVector2D At;float Radius;float Degrees;};
+    TArray<FStop> Stops;
+    const auto Stop=[&](FVector2D At){Stops.Add({At,float(FVector2D::Distance(At,L.Centre)),DegreesOf(L.Centre,At)});};
+    for(const uint64 Key:Lit){if(const FVector2D* At=L.Anchors.Find(Key)){Stop(*At);}}
+    if(Self&&bSelfOnRing){Stop(*Self);}
+    if(Stops.IsEmpty()){return;}
+    Stops.Sort([](const FStop& A,const FStop& B){return A.Degrees<B.Degrees;});
+    TArray<FVector2D> Path;
+    if(Self&&!bSelfOnRing)
+    {
+        // From the hovered part to the end of the stroke nearer to it.
+        if(FVector2D::Distance(*Self,Stops.Last().At)<FVector2D::Distance(*Self,Stops[0].At)){Algo::Reverse(Stops);}
+        Path.Add(*Self);
+    }
+    for(int32 Index=0;Index<Stops.Num();++Index)
+    {
+        if(Index==0){Path.Add(Stops[0].At);continue;}
+        const FStop& A=Stops[Index-1];const FStop& B=Stops[Index];
+        const int32 Steps=FMath::Clamp(FMath::CeilToInt(FMath::Abs(B.Degrees-A.Degrees)/1.5f),2,90);
+        for(int32 Step=1;Step<=Steps;++Step)
+        {
+            const float T=float(Step)/Steps;
+            Path.Add(LDRingPaint::Polar(L.Centre,FMath::Lerp(A.Radius,B.Radius,T),FMath::Lerp(A.Degrees,B.Degrees,T)));
+        }
+    }
+    if(Path.Num()<2){return;}
+    P.Stroke(Path,7.f*L.R,Ink.CopyWithNewOpacity(.6f));
+    P.Stroke(Path,3.f*L.R,White);
+}
+
+void ULDWorkshop::PaintSockets(FPainter& P) const
+{
+    const FLayout& L=Layout;
+    const float R=L.R;
+    const FHit Shown=Focus();
+    const FCard* Held=SelectedCard();
+    const bool bMedalHeld=Held&&Held->Form==ELDCardForm::Medal;
+    for(int32 HostIndex=0;HostIndex<Ring.Hosts.Num()&&HostIndex<HostCount;++HostIndex)
+    {
+        const FHost& Host=Ring.Hosts[HostIndex];
+        if(!Host.bSocket){continue;}
+        const FVector2D At=LDRingPaint::Polar(L.Centre,GemRadius*R,HostAngle[HostIndex]);
+        const bool bHot=Shown.Kind==EHit::Gem&&Shown.Host==HostIndex;
+        const float Half=GemSize*.5f*R*(bHot?1.08f:1.f);
+        if(bHot||bMedalHeld){P.Fill(Diamond(At,Half+(bHot?5.f:4.f)*R),White);}
+        if(Host.bHasMedal)
+        {
+            const FLinearColor Element=ElementInk(Host.Medal.Element);
+            P.Fill(Diamond(At,Half),Element);
+            const TArray<FVector2D> Seat=Diamond(At,Half-4.f*R);
+            P.Fill(Seat,Panel);
+            if(UTexture2D* Icon=RingIcon(Host.Medal.IconId)){P.Image(Icon,Square(At,(Half-4.f*R)*1.42f),FLinearColor::White,&Seat);}
+            // The fusion tier: three small diamonds under the socket, lit up to the tier (gold at the third).
+            for(int32 Tier=0;Tier<3;++Tier)
             {
-                for(float X=float(Min.X);X<=Max.X;X+=Pitch)
-                {
-                    const FVector2D Grid(X,Y);
-                    const FVector2D D=Grid-C;
-                    const FVector2D Turned=C+FVector2D(D.X*Cs-D.Y*Sn,D.X*Sn+D.Y*Cs);
-                    const FVector2D E=Turned-C;
-                    const float Radius=float(E.Size());
-                    const float Degrees=FMath::RadiansToDegrees(FMath::Atan2(float(E.X),float(-E.Y)));
-                    if(Radius>Inner+4.f*R&&Radius<Outer-4.f*R&&FMath::Abs(Degrees-A)<SectorHalf-1.f){Dots.Add(Turned);}
-                }
+                const FVector2D Pip=At+FVector2D((Tier-1)*13.f*R,Half+11.f*R);
+                const bool bOn=Tier<Host.Medal.Tier;
+                P.Fill(Diamond(Pip,6.5f*R),Ink);
+                P.Fill(Diamond(Pip,4.5f*R),bOn?(Host.Medal.Tier>=3?Gold:White):White.CopyWithNewOpacity(.25f));
             }
-            P.Dots(Dots,3.8f*R,[&](FVector2D At)
-            {
-                const float T=FMath::Clamp((float(FVector2D::Distance(At,C))-.42f*470.f*R)/(.58f*470.f*R),0.f,1.f);
-                return FLinearColor(1.f,1.f,1.f,.13f*T);
-            });
         }
-        // The thick inner band, the spray-painted outline and the dashed outer arc.
-        P.Stroke(LDRingPaint::Arc(C,(SectorInner+5.f)*R,A-SectorHalf,A+SectorHalf,24),9.f*R,Ink);
-        {
-            TArray<FVector2D> Edge=LDRingPaint::Arc(C,Inner,A-SectorHalf,A+SectorHalf,24);
-            TArray<FVector2D> OuterRev=LDRingPaint::Arc(C,Outer,A+SectorHalf,A-SectorHalf,24);
-            Edge.Append(OuterRev);const FVector2D Closing=Edge[0];Edge.Add(Closing);
-            const TArray<FVector2D> Spray=LDRingPaint::Jitter(Edge,2.2f*R,uint32(17+HostIndex*31),5.f*R);
-            P.Stroke(Spray,8.f*R,RingDeep.CopyWithNewOpacity(.9f));
-            P.Stroke(Spray,(bTarget||bBlueprintTarget?7.f:2.5f)*R,bTarget||bBlueprintTarget?LDBroadcast::Gold:Ink.CopyWithNewOpacity(.9f));
-        }
-        P.Dashed(LDRingPaint::Arc(C,Outer+9.f*R,A-SectorHalf+1.f,A+SectorHalf-1.f,24),4.f*R,2.f*R,9.f*R,Ink.CopyWithNewOpacity(.55f));
-        // The spray splat behind the host, then the host: a chamfered gold (or element) frame with its icon.
-        const FVector2D HostAt=LDRingPaint::Polar(C,HostRadius*R,A);
-        {
-            const float Turn=float((HostIndex*37)%50-25);
-            const FBox2D Blot=Square(HostAt+FVector2D(0.,10.*R),178.f*R);
-            if(UTexture2D* Splat=RingArt(EArt::Splat)){P.Image(Splat,Blot,Ink.CopyWithNewOpacity(Host.bHasMedal?.8f:.28f),nullptr,Turn);}
-            else
-            {
-                for(int32 Blob=0;Blob<5;++Blob)
-                {
-                    const FVector2D At=HostAt+FVector2D(FMath::Sin(Blob*2.3f+Turn)*34.f*R,10.f*R+FMath::Cos(Blob*1.7f+Turn)*26.f*R);
-                    P.Fill(LDRingPaint::Octagon(Square(At,(70.f-Blob*8.f)*R),.29f),Ink.CopyWithNewOpacity(Host.bHasMedal?.45f:.16f));
-                }
-            }
-        }
-        const bool bHostLit=Lit.Contains(AnchorKey(EHit::Host,HostIndex,INDEX_NONE));
-        const FHit Shown=Focus();
-        const bool bHostHot=Shown.Kind==EHit::Host&&Shown.Host==HostIndex;
-        const float Size=HostSize*R*(bHostHot?1.07f:1.f);
-        const FBox2D Frame=Square(HostAt,Size);
-        const TArray<FVector2D> Cut=LDRingPaint::HostCut(Frame,Size*.2f);
-        const float HostDim=bDim&&!bHostLit&&!bHostHot?.34f:1.f;
-        const float Saved=P.Opacity;P.Opacity*=HostDim;
-        P.Fill(Offset(Cut,FVector2D(4.f,5.f)*R),FLinearColor(0.f,0.f,0.f,.7f));
-        if(bHostLit){P.Fill(LDRingPaint::HostCut(Grow(Frame,4.f*R),(Size+8.f*R)*.2f),FLinearColor(1.f,1.f,1.f,.95f));}
-        const FFrameInk HostInk=Host.bHasMedal?FFrameInk{FLinearColor::White,Ink,Hex(0x2A1C06),Ink}:FFrameInk{Hex(0xFFF6CF),Hex(0xE0A81E),Hex(0x6A4606),LDBroadcast::Gold};
-        P.FillShaded(Cut,[&](FVector2D At){return Metal(HostInk,Frame,At);});
-        const FBox2D Face=Grow(Frame,-4.f*R);
-        const TArray<FVector2D> FaceCut=LDRingPaint::HostCut(Face,Size*.19f);
-        P.Fill(FaceCut,RingFace);
-        UTexture2D* Icon=Host.Column==LDHUD::EStorageColumn::Body?RingArt(EArt::Body):RingIcon(Host.IconId);
-        if(Icon){P.Image(Icon,Face,FLinearColor::White,&FaceCut);}
         else
         {
-            const FString Glyph=Host.bEmpty?FString(TEXT("+")):Host.Column==LDHUD::EStorageColumn::Body?FString(TEXT("本体")):Host.Name.Left(1);
-            P.Text(Glyph,Face.GetCenter(),RingFont(LDUIFonts::ERole::Title,Host.bEmpty?28.f:19.f,L.F),RingPale.CopyWithNewOpacity(Host.bEmpty?.6f:1.f),FVector2D(.5,.5));
+            P.Fill(Diamond(At,Half),White.CopyWithNewOpacity(.55f));
+            P.Fill(Diamond(At,Half-2.f*R),Ink.CopyWithNewOpacity(.6f));
         }
-        P.FillShaded(LDRingPaint::ClipConvex({Face.Min,FVector2D(Face.Max.X,Face.Min.Y),FVector2D(Face.Max.X,Face.Min.Y+Face.GetSize().Y*.25),FVector2D(Face.Min.X,Face.Min.Y+Face.GetSize().Y*.5)},FaceCut),
-            [&](FVector2D At){return FLinearColor(1.f,1.f,1.f,.28f*(1.f-GradientT(Face,At,160.f)*1.8f));});
-        if(!Host.Key.IsEmpty())
-        {
-            const FSlateFontInfo Font=RingFigure(19.f,L.F);
-            const FVector2D TextSize=LDRingPaint::Measure(Host.Key,Font);
-            const FBox2D Tag(FVector2D(Frame.Min.X-9.f*L.U,Frame.Min.Y-9.f*L.U),FVector2D(Frame.Min.X-9.f*L.U+FMath::Max(26.f*L.F,float(TextSize.X)+18.f*L.F),Frame.Min.Y-9.f*L.U+23.f*L.F));
-            P.Fill(LDRingPaint::Slant(Tag,8.f*L.F),LDBroadcast::Gold);
-            P.Text(Host.Key,Tag.GetCenter(),Font,Hex(0x16120A),FVector2D(.5,.5));
-        }
-        P.Opacity=Saved;
+    }
+}
+
+void ULDWorkshop::PaintHosts(FPainter& P,const TArray<uint64>& Lit,bool bDim) const
+{
+    const FLayout& L=Layout;
+    const float R=L.R,F=L.F;
+    const FVector2D C=L.Centre;
+    const FHit Shown=Focus();
+    const FCard* Held=SelectedCard();
+    const bool bFull=Ring.Capacity>0&&Ring.Installed>=Ring.Capacity;
+    const double Now=UiNow();
+    for(int32 HostIndex=0;HostIndex<Ring.Hosts.Num()&&HostIndex<HostCount;++HostIndex)
+    {
+        const FHost& Host=Ring.Hosts[HostIndex];
+        const float A=HostAngle[HostIndex];
+        const bool bTarget=Held&&Held->Form==Host.Form&&!(Host.Form==ELDCardForm::Skill&&Host.bEmpty);
         // The installed cards in their fixed places, then the open place.
+        const int32 Slots=Host.Cards.Num()+(bFull?0:1);
         for(int32 Index=0;Index<Slots;++Index)
         {
             const FVector2D Polar=SlotPolar(Index,A);
             const FVector2D At=LDRingPaint::Polar(C,float(Polar.X)*R,float(Polar.Y));
-            if(Index<Host.Cards.Num())
+            if(Index>=Host.Cards.Num())
             {
-                const FCard& Card=Host.Cards[Index];
-                const bool bHot=Shown.Kind==EHit::Installed&&Shown.Host==HostIndex&&Shown.Index==Index;
-                const bool bLit=Lit.Contains(AnchorKey(EHit::Installed,HostIndex,Index));
-                float Flash=0.f;
-                for(const FName& Each:Card.Keys){if(const double* At0=Landed.Find(Each)){Flash=FMath::Max(Flash,1.f-float((Now-*At0)/RingLandTime));}}
-                const float Scale=Flash>0.f?1.f+.15f*Flash:1.f;
-                PaintNode(P,Square(At,NodeSize*R*Scale),Card,bDim&&!bLit&&!bHot?.34f:1.f,bHot,bLit,Flash);
+                const FBox2D Open=Square(At,NodeSize*R);
+                const bool bOver=Shown.Kind==EHit::Drop&&Shown.Host==HostIndex;
+                Frame(P,Open,(bTarget&&bOver?4.f:bTarget?3.f:2.f)*R,White.CopyWithNewOpacity(bTarget?1.f:.22f));
                 continue;
             }
-            const FBox2D Drop=Square(At,(NodeSize-4.f)*R);
-            const TArray<FVector2D> Shape=LDRingPaint::Rounded(Drop,10.f*R,3);
-            const float Pulse=bTarget?.5f+.5f*FMath::Abs(FMath::Sin(float(Now)*UE_PI)):0.f;
-            P.Fill(Shape,bTarget?LDBroadcast::Gold.CopyWithNewOpacity(.12f+.1f*Pulse):FLinearColor(.02f,.03f,.05f,.35f));
-            P.Dashed(Shape,2.f*R,6.f*R,4.f*R,bTarget?LDBroadcast::Gold:FLinearColor(1.f,1.f,1.f,.3f),true);
-            P.Text(TEXT("+"),Drop.GetCenter(),RingFont(LDUIFonts::ERole::Title,24.f,R/FMath::Max(.01f,L.F)*L.F),bTarget?LDBroadcast::Gold:FLinearColor(1.f,1.f,1.f,.45f),FVector2D(.5,.55));
-        }
-    }
-}
-
-void ULDWorkshop::PaintGems(FPainter& P) const
-{
-    const FLayout& L=Layout;
-    const float R=L.R;
-    const FVector2D C=L.Centre;
-    const FCard* Held=SelectedCard();
-    const bool bMedalHeld=Held&&Held->Form==ELDCardForm::Medal;
-    const FHit Shown=Focus();
-    // Reactions first, under the sockets: neighbours meet on the ring, others run on the inner track.
-    int32 TrackLane=0;
-    for(const FReaction& Reaction:Ring.Reactions)
-    {
-        const float A0=HostAngle[Reaction.A],A1=HostAngle[Reaction.B];
-        const FLinearColor From=ElementInk(Reaction.First),To=ElementInk(Reaction.Second);
-        if(Reaction.B-Reaction.A==1)
-        {
-            const TArray<FVector2D> Arc=LDRingPaint::Arc(C,GemRadius*R,A0+9.f,A1-9.f,24);
-            P.Stroke(Arc,10.f*R,RingDeep);
-            P.Stroke(Arc,6.f*R,From,false,To);
-            continue;
-        }
-        const float Track=(Reaction.B-Reaction.A==2?TrackRadius:TrackRadius-9.f*(1+TrackLane++))*R;
-        TArray<FVector2D> Path={LDRingPaint::Polar(C,(GemRadius-GemSize*.5f+2.f)*R,A0)};
-        Path.Append(LDRingPaint::Arc(C,Track,A0,A1,24));
-        Path.Add(LDRingPaint::Polar(C,(GemRadius-GemSize*.5f+2.f)*R,A1));
-        P.Stroke(Path,3.5f*R,From,false,To);
-    }
-    UTexture2D* SocketArt=RingArt(EArt::Socket);
-    for(int32 HostIndex=0;HostIndex<Ring.Hosts.Num();++HostIndex)
-    {
-        const FHost& Host=Ring.Hosts[HostIndex];
-        if(!Host.bSocket){continue;}
-        const float A=HostAngle[HostIndex];
-        const FLinearColor Ink=Host.bHasMedal?ElementInk(Host.Medal.Element):Hex(0x59627A);
-        // The stem into the sector.
-        P.Stroke({LDRingPaint::Polar(C,(GemRadius+GemSize*.5f-2.f)*R,A),LDRingPaint::Polar(C,(SectorInner+2.f)*R,A)},6.f*R,Host.bHasMedal?Ink:FLinearColor(1.f,1.f,1.f,.5f));
-        const bool bHot=Shown.Kind==EHit::Gem&&Shown.Host==HostIndex;
-        const float Size=GemSize*R*(bHot?1.14f:1.f);
-        const FBox2D Box=Square(LDRingPaint::Polar(C,GemRadius*R,A),Size);
-        const TArray<FVector2D> Rim=LDRingPaint::Octagon(Box);
-        const float Pulse=bMedalHeld?.5f+.5f*FMath::Abs(FMath::Sin(float(UiNow())*UE_PI)):0.f;
-        P.Fill(Offset(Rim,FVector2D(2.f,3.f)*R),FLinearColor(0.f,0.f,0.f,.65f));
-        if(Host.bHasMedal){P.Fill(LDRingPaint::Octagon(Grow(Box,6.f*R)),Ink.CopyWithNewOpacity(.35f));}
-        if(SocketArt)
-        {
-            const FLinearColor Tint=bMedalHeld?LDRingPaint::Mix(FLinearColor::White,LDBroadcast::Gold,Pulse):Host.bHasMedal?LDRingPaint::Mix(FLinearColor::White,Ink,.45f):FLinearColor::White;
-            P.Image(SocketArt,Box,Tint,&Rim);
-        }
-        else
-        {
-            // A conic metal rim: light and dark quadrants alternating around the octagon.
-            P.FillShaded(Rim,[&](FVector2D At)
+            const FCard& Card=Host.Cards[Index];
+            const bool bHot=Shown.Kind==EHit::Installed&&Shown.Host==HostIndex&&Shown.Index==Index;
+            const bool bLit=Lit.Contains(AnchorKey(EHit::Installed,HostIndex,Index));
+            const ETile State=bHot?ETile::Hot:bLit?ETile::Lit:bDim?ETile::Dim:ETile::Plain;
+            const FBox2D Box=Square(At,NodeSize*R);
+            PaintTile(P,Box,Card.IconId,Card.Name,State,Card.Rarity);
+            float Flash=0.f;
+            for(const FName& Each:Card.Keys){if(const double* At0=Landed.Find(Each)){Flash=FMath::Max(Flash,1.f-float((Now-*At0)/RingLandTime));}}
+            if(Flash>0.f){P.Fill(RectOf(Box),White.CopyWithNewOpacity(.6f*Flash));}
+            if(Card.Copies>1&&State!=ETile::Dim)
             {
-                const FVector2D D=At-Box.GetCenter();
-                const float T=FMath::Fmod(FMath::RadiansToDegrees(FMath::Atan2(float(D.X),float(-D.Y)))-22.f+720.f,90.f)/90.f;
-                const FLinearColor Light=Host.bHasMedal?FLinearColor::White:Hex(0xF5F7FB),Dark=Host.bHasMedal?Ink:Hex(0x343B4C);
-                return bMedalHeld?LDRingPaint::Mix(Light,LDBroadcast::Gold,.5f+.5f*Pulse):LDRingPaint::Mix(Light,Dark,FMath::Abs(T*2.f-1.f));
-            });
-        }
-        const FBox2D Cavity=Grow(Box,-float(Size)*.1f);
-        const TArray<FVector2D> Hole=LDRingPaint::Octagon(Cavity);
-        if(Host.bHasMedal)
-        {
-            P.Fill(Hole,Hex(0x0A0E18));
-            if(UTexture2D* Icon=RingIcon(Host.Medal.IconId)){P.Image(Icon,Grow(Cavity,-1.f*R),FLinearColor::White,&Hole);}
-            P.FillShaded(LDRingPaint::ClipConvex({Cavity.Min,FVector2D(Cavity.Max.X,Cavity.Min.Y),FVector2D(Cavity.Max.X,Cavity.Min.Y+Cavity.GetSize().Y*.2),FVector2D(Cavity.Min.X,Cavity.Min.Y+Cavity.GetSize().Y*.55)},Hole),
-                [&](FVector2D At){return FLinearColor(1.f,1.f,1.f,.45f*(1.f-GradientT(Cavity,At,140.f)*1.7f));});
-            // The tier: three diamonds under the socket, lit up to the medal's tier.
-            const FVector2D Foot(Box.GetCenter().X,Box.Max.Y+4.f*R);
-            P.Fill(LDRingPaint::Rounded(FBox2D(Foot-FVector2D(17.f,6.5f)*R,Foot+FVector2D(17.f,6.5f)*R),6.5f*R,3),RingDeep);
-            for(int32 Tier=0;Tier<3;++Tier)
-            {
-                const FVector2D At=Foot+FVector2D((Tier-1)*10.f*R,0.);
-                const float H=4.f*R;
-                P.Fill({At+FVector2D(0,-H),At+FVector2D(H,0),At+FVector2D(0,H),At+FVector2D(-H,0)},Tier<Host.Medal.Tier?Ink:Hex(0x2A3142));
+                // ×N on a white tab at the top-right corner.
+                const FSlateFontInfo Font=Face(EFace::Figure,18.f,F);
+                const FString Text=FString::Printf(TEXT("×%d"),Card.Copies);
+                const float W=WidthOf(Text,Font)+12.f*F,H=20.f*F;
+                const FBox2D Tab(FVector2D(Box.Max.X+6.f*R-W,Box.Min.Y-8.f*R),FVector2D(Box.Max.X+6.f*R,Box.Min.Y-8.f*R+H));
+                P.Fill(Lean(Tab,4.f*F,4.f*F),White);
+                P.Text(Text,Tab.GetCenter(),Font,Ink,FVector2D(.5,.5));
             }
         }
-        else
+        // The host: the one container at its largest size, with its key on a white tab under it.
+        const FVector2D HostAt=LDRingPaint::Polar(C,HostRadius*R,A);
+        const bool bHot=Shown.Kind==EHit::Host&&Shown.Host==HostIndex;
+        const bool bLit=Lit.Contains(AnchorKey(EHit::Host,HostIndex,INDEX_NONE));
+        const ETile State=bHot?ETile::Hot:bLit?ETile::Lit:bDim?ETile::Dim:ETile::Plain;
+        const FBox2D Box=Square(HostAt,HostSize*R);
+        const bool bBody=Host.Column==LDHUD::EStorageColumn::Body;
+        PaintTile(P,Box,Host.bEmpty?FString():Host.IconId,Host.bEmpty?FString(TEXT("空")):Host.Name,State,ERarity::Common,.9f,bBody?RingArt(EArt::Body):nullptr);
+        const FString Tag=bBody?FString(TEXT("本体")):Host.Key;
+        if(!Tag.IsEmpty())
         {
-            P.Fill(Hole,Hex(0x10141F));
-            P.Fill(LDRingPaint::Octagon(Square(Box.GetCenter(),float(Size)*.34f)),Hex(0x2A3142));
+            const float Saved=P.Opacity;if(State==ETile::Dim){P.Opacity*=.26f;}
+            const FSlateFontInfo Font=bBody?Face(EFace::Heavy,18.f,F):Face(EFace::Figure,24.f,F);
+            const float W=WidthOf(Tag,Font)+18.f*F,H=24.f*F;
+            const FBox2D Tab(FVector2D(HostAt.X-W*.5f,Box.Max.Y+2.f*R),FVector2D(HostAt.X+W*.5f,Box.Max.Y+2.f*R+H));
+            P.Fill(Lean(Tab,5.f*F,5.f*F),White);
+            P.Text(Tag,Tab.GetCenter(),Font,Ink,FVector2D(.5,.5));
+            P.Opacity=Saved;
         }
     }
 }
 
-void ULDWorkshop::PaintRadarLabels(FPainter& P) const
+void ULDWorkshop::PaintRadarChips(FPainter& P) const
 {
     const FLayout& L=Layout;
     const float F=L.F;
     const FHit Shown=Focus();
-    for(const FShape& Box:L.Boxes)
+    const bool bPlus=Ring.Unspent>0;
+    for(int32 Index=0;Index<Ring.Stats.Num();++Index)
     {
-        if(Box.Hit.Kind!=EHit::Stat||!Ring.Stats.IsValidIndex(Box.Hit.Index)){continue;}
-        const FStat& Stat=Ring.Stats[Box.Hit.Index];
-        const FVector2D* At=L.Anchors.Find(AnchorKey(EHit::Stat,INDEX_NONE,Box.Hit.Index));
+        const FVector2D* At=L.Anchors.Find(AnchorKey(EHit::Stat,INDEX_NONE,Index));
         if(!At){continue;}
-        const FSlateFontInfo Name=RingFont(LDUIFonts::ERole::Strong,14.f,F),Figure=RingFigure(19.f,F);
+        const FStat& Stat=Ring.Stats[Index];
+        const FVector2D Size=ChipSize(Stat,bPlus,F);
+        const FBox2D Chip(*At-Size*.5,*At+Size*.5);
+        const bool bHot=(Shown.Kind==EHit::Stat&&Shown.Index==Index)||(Shown.Kind==EHit::Wing&&Shown.Host==Index&&Shown.Index==INDEX_NONE);
+        // A maxed keystone is the one gold chip.
+        P.Fill(RectOf(Chip),Stat.bKeystone?Gold:Ink.CopyWithNewOpacity(.86f));
+        if(bHot){Frame(P,Grow(Chip,2.f*F),2.f*F,White);}
+        float X=float(Chip.Min.X)+10.f*F;const float Y=float(Chip.GetCenter().Y);
+        X+=WidthOf(Stat.Name,Face(EFace::Bold,18.f,F));
+        P.Text(Stat.Name,FVector2D(Chip.Min.X+10.f*F,Y),Face(EFace::Bold,18.f,F),Stat.bKeystone?Ink:Grey,FVector2D(0.,.5));
+        X+=6.f*F;
         const FString Points=FString::FromInt(Stat.Points);
-        const float NameW=float(LDRingPaint::Measure(Stat.Name,Name).X),NumW=float(LDRingPaint::Measure(Points,Figure).X);
-        const bool bPlus=Ring.Unspent>0;
-        const float W=11.f*F+NameW+5.f*F+NumW+(bPlus?5.f*F+17.f*F:0.f)+9.f*F;
-        const float H=24.f*F;
-        const FBox2D Chip(*At-FVector2D(W,H)*.5,*At+FVector2D(W,H)*.5);
-        const bool bHot=Shown.Kind==EHit::Stat&&Shown.Index==Box.Hit.Index;
-        const FLinearColor Plate=Stat.bKeystone?LDBroadcast::Gold:bHot?Hex(0x1C2438):RingInk;
-        const FLinearColor Ink=Stat.bKeystone?Hex(0x16120A):RingText;
-        P.Fill(LDRingPaint::Slant(Chip,8.f*F),Plate);
-        if(!Stat.bKeystone){P.Fill(LDRingPaint::Slant(FBox2D(Chip.Min,FVector2D(Chip.Min.X+13.f*F,Chip.Max.Y)),8.f*F),StatInk(Box.Hit.Index));}
-        float X=float(Chip.Min.X)+11.f*F;
-        P.Text(Stat.Name,FVector2D(X,Chip.GetCenter().Y),Name,Ink,FVector2D(0.,.5));X+=NameW+5.f*F;
-        P.Text(Points,FVector2D(X,Chip.GetCenter().Y),Figure,Stat.bKeystone?Hex(0x16120A):FLinearColor::White,FVector2D(0.,.52),LDBroadcast::SkewDegrees);X+=NumW+5.f*F;
+        const float NumW=FMath::Max(16.f*F,WidthOf(Points,Face(EFace::Figure,26.f,F)));
+        P.Text(Points,FVector2D(X+NumW,Y),Face(EFace::Figure,26.f,F),Stat.bKeystone?Ink:White,FVector2D(1.,.5));
+        X+=NumW+6.f*F;
         if(bPlus)
         {
-            const FVector2D Dot(X+8.5f*F,Chip.GetCenter().Y);
-            P.Fill(LDRingPaint::Rounded(FBox2D(Dot-FVector2D(8.5f,8.5f)*F,Dot+FVector2D(8.5f,8.5f)*F),8.5f*F,4),Stat.bKeystone?Hex(0x16120A):LDBroadcast::Gold);
-            P.Text(TEXT("+"),Dot,RingFont(LDUIFonts::ERole::Title,15.f,F),Stat.bKeystone?LDBroadcast::Gold:Hex(0x16120A),FVector2D(.5,.55));
+            const FBox2D Plus(FVector2D(X,Y-11.f*F),FVector2D(X+22.f*F,Y+11.f*F));
+            P.Fill(RectOf(Plus),Orange);
+            P.Text(TEXT("+"),Plus.GetCenter(),Face(EFace::Heavy,22.f,F),Ink,FVector2D(.5,.5));
         }
     }
 }
 
-void ULDWorkshop::PaintWing(FPainter& P) const
+void ULDWorkshop::PaintTable(FPainter& P) const
 {
     const FLayout& L=Layout;
-    const float F=L.F,R=L.R;
-    if(Ring.Derived.IsEmpty()){return;}
-    // The spray-painted arc the rows hang from, from the first row to the last.
-    {
-        const FVector2D* First=L.Anchors.Find(AnchorKey(EHit::Wing,INDEX_NONE,0));
-        const FVector2D* Last=L.Anchors.Find(AnchorKey(EHit::Wing,INDEX_NONE,Ring.Derived.Num()-1));
-        if(First&&Last)
-        {
-            const auto Degrees=[&](FVector2D At){const FVector2D D=At-L.Centre;return FMath::RadiansToDegrees(FMath::Atan2(float(D.X),float(-D.Y)));};
-            P.Stroke(LDRingPaint::Jitter(LDRingPaint::Arc(L.Centre,602.f*R,Degrees(*First)+4.f,Degrees(*Last)-6.f,40),1.6f*R,91u,5.f*R),2.5f*R,Hex(0xFFE9A3,.6f));
-        }
-    }
-    // The hovered stat previews one more point: the rows it raises turn green with the gain.
+    if(Ring.Stats.IsEmpty()){return;}
+    const float S=L.TableScale;
+    const FVector2D At=L.Table;
     const FHit Shown=Focus();
-    TMap<FString,FString> Gain;
-    if(Shown.Kind==EHit::Stat&&Latest.Content&&Ring.Stats.IsValidIndex(Shown.Index))
+    // 五维 → 二级属性
     {
-        const TArray<const FLDDemoStatDefinition*> Stats=Latest.Content->StatsInDesignOrder();
-        if(Stats.IsValidIndex(Shown.Index))
-        {
-            for(const LDHUD::FStatEffectView& Effect:LDHUD::StatEffects(*Stats[Shown.Index],Latest.Attributes)){Gain.Add(Effect.Attribute,Effect.PerPoint);}
-        }
+        const FVector2D Size=P.Text(TEXT("五维"),At,Face(EFace::Heavy,22.f,S),White);
+        P.Text(TEXT("→ 二级属性"),FVector2D(At.X+Size.X+12.f*S,At.Y+Size.Y),Face(EFace::Regular,18.f,S),Grey,FVector2D(0.,1.));
     }
-    const FSlateFontInfo Name=RingFont(LDUIFonts::ERole::Strong,14.f,F),Figure=RingFigure(21.f,F),Delta=RingFigure(16.f,F);
+    for(const FShape& Box:L.Boxes)
+    {
+        if(Box.Hit.Kind!=EHit::Wing||Box.Hit.Index!=INDEX_NONE||!Ring.Stats.IsValidIndex(Box.Hit.Host)){continue;}
+        const int32 Row=Box.Hit.Host;
+        const FStat& Stat=Ring.Stats[Row];
+        const FBox2D Plate(Box.Shape[0],FVector2D(Box.Shape[0].X+L.TableWidth,Box.Shape[2].Y));
+        // A hovered row, or the row of the hovered radar chip, lights up.
+        const bool bHot=(Shown.Kind==EHit::Wing&&Shown.Host==Row)||(Shown.Kind==EHit::Stat&&Shown.Index==Row);
+        const TArray<FVector2D> Shape=Lean(Plate,0.f,14.f*S);
+        P.FillShaded(Shape,[&](FVector2D Point)
+        {
+            const float T=float((Point.X-Plate.Min.X)/FMath::Max(1.,Plate.GetSize().X));
+            return bHot?LDRingPaint::Mix(White.CopyWithNewOpacity(.18f),Ink.CopyWithNewOpacity(.78f),T):LDRingPaint::Mix(Ink.CopyWithNewOpacity(.9f),Ink.CopyWithNewOpacity(.78f),T);
+        });
+        P.Fill(RectOf(FBox2D(Plate.Min,FVector2D(Plate.Min.X+3.f*S,Plate.Max.Y))),White);
+        PaintTile(P,BoxAt(Plate.Min+FVector2D(14.f,11.f)*S,FVector2D(54.f,54.f)*S),Stat.IconId,Stat.Name,ETile::Plain);
+        P.Text(Stat.Name,Plate.Min+FVector2D(80.f,9.f)*S,Face(EFace::Bold,18.f,S),Grey);
+        P.Text(FString::FromInt(Stat.Points),Plate.Min+FVector2D(80.f,27.f)*S,Face(EFace::Figure,38.f,S),Stat.bKeystone?Gold:White);
+    }
     for(const FShape& Box:L.Boxes)
     {
         if(Box.Hit.Kind!=EHit::Wing||!Ring.Derived.IsValidIndex(Box.Hit.Index)){continue;}
         const FDerived& Row=Ring.Derived[Box.Hit.Index];
-        const FVector2D* At=L.Anchors.Find(AnchorKey(EHit::Wing,INDEX_NONE,Box.Hit.Index));
-        if(!At){continue;}
-        const FString* Up=Gain.Find(Row.Name);
-        const float H=28.f*F;
-        const FString DeltaText=Up?(Up->StartsWith(TEXT("+"))?*Up:TEXT("+")+*Up):FString();
-        // A compact chip names its row by the attribute's glyph; the hover card spells it out.
-        const FString& Label=L.bWingCompact?Row.Glyph:Row.Name;
-        const float W=L.bWingCompact?L.WingWidth:FMath::Max(L.WingWidth,18.f*F+float(LDRingPaint::Measure(Label,Name).X)+10.f*F
-            +float(LDRingPaint::Measure(Row.Value,Figure).X)+(Up?5.f*F+float(LDRingPaint::Measure(DeltaText,Delta).X):0.f)+14.f*F);
-        const FBox2D Plate(FVector2D(At->X-W,At->Y-H*.5f),FVector2D(At->X,At->Y+H*.5f));
-        const TArray<FVector2D> Shape=LDRingPaint::Slant(Plate,8.f*F);
-        P.FillShaded(Shape,[&](FVector2D Point)
-        {
-            const float T=float((Point.X-Plate.Min.X)/FMath::Max(1.,Plate.GetSize().X));
-            return Up?LDRingPaint::Mix(Hex(0x10301E,.95f),Hex(0x070A11,.8f),T):LDRingPaint::Mix(Hex(0x070A11,.9f),Hex(0x070A11,.72f),T);
-        });
-        P.Fill(LDRingPaint::Slant(FBox2D(FVector2D(Plate.Max.X-13.f*F,Plate.Min.Y),Plate.Max),8.f*F),StatInk(Row.Source));
-        P.Text(Label,FVector2D(Plate.Min.X+(L.bWingCompact?12.f:18.f)*F,At->Y),Name,RingSoft,FVector2D(0.,.5));
-        float X=float(Plate.Max.X)-14.f*F;
-        if(Up){X-=float(P.Text(DeltaText,FVector2D(X,At->Y),Delta,RingUp,FVector2D(1.,.5),LDBroadcast::SkewDegrees).X)+5.f*F;}
-        P.Text(Row.Value,FVector2D(X,At->Y),Figure,FLinearColor::White,FVector2D(1.,.52),LDBroadcast::SkewDegrees);
+        const FVector2D Min=Box.Shape[0];
+        if(Shown.Kind==EHit::Wing&&Shown.Index==Box.Hit.Index){P.Fill(RectOf(FBox2D(FVector2D(Min.X,Box.Shape[2].Y-3.f*S),FVector2D(Box.Shape[2].X-8.f*S,Box.Shape[2].Y))),White);}
+        P.Text(OneLine(Row.Name,Face(EFace::Regular,18.f,S),L.TableSubW*S-6.f*S),Min+FVector2D(0.f,10.f)*S,Face(EFace::Regular,18.f,S),Grey);
+        P.Text(Row.Value,Min+FVector2D(0.f,31.f)*S,Face(EFace::Figure,30.f,S),White);
     }
 }
 
 void ULDWorkshop::PaintShop(FPainter& P,const TArray<uint64>& Lit) const
 {
     const FLayout& L=Layout;
-    if(!Ring.bShop){return;}
-    const float F=L.F,R=L.R,U=L.U;
-    const FVector2D C=L.Centre;
-    {
-        // The spray-painted arc the shelf hangs from, from the first row to the last.
-        const FVector2D* First=L.bShopCompact?nullptr:L.Anchors.Find(AnchorKey(EHit::Shop,INDEX_NONE,0));
-        const FVector2D* Last=L.Anchors.Find(AnchorKey(EHit::Shop,INDEX_NONE,Ring.Shop.Num()-1));
-        if(First&&Last)
-        {
-            const auto Degrees=[&](FVector2D At){const FVector2D D=At-C;return FMath::RadiansToDegrees(FMath::Atan2(float(D.X),float(-D.Y)));};
-            P.Stroke(LDRingPaint::Jitter(LDRingPaint::Arc(C,602.f*R,Degrees(*First)-6.f,Degrees(*Last)+4.f,40),1.6f*R,53u,5.f*R),2.5f*R,Hex(0xFFE9A3,.6f));
-        }
-    }
-    {
-        // The labels: 休息商店 and the refresh with its price (free shows as 免费).
-        const FSlateFontInfo Font=RingFont(LDUIFonts::ERole::Title,14.f,F);
-        const FVector2D At=L.ShopLabel;
-        const float W=float(LDRingPaint::Measure(TEXT("休息商店"),Font).X)+24.f*F;
-        P.Fill(LDRingPaint::Slant(FBox2D(At,At+FVector2D(W,24.f*F)),8.f*F),LDBroadcast::Gold);
-        P.Text(TEXT("休息商店"),At+FVector2D(W*.5,12.f*F),Font,Hex(0x16120A),FVector2D(.5,.5));
-        const FString Refresh=Ring.RefreshPrice>0?FString::Printf(TEXT("刷新 · %s"),*Diamonds(Ring.RefreshPrice)):FString(TEXT("刷新 · 免费"));
-        for(const FShape& Box:L.Boxes)
-        {
-            if(Box.Hit.Kind!=EHit::ShopRefresh){continue;}
-            const FBox2D Button(Box.Shape[0],Box.Shape[2]);
-            const bool bHot=Focus().Kind==EHit::ShopRefresh;
-            P.Fill(LDRingPaint::Slant(Button,8.f*F),bHot?Hex(0x1C2438):RingInk);
-            P.Fill(LDRingPaint::Slant(FBox2D(FVector2D(Button.Min.X,Button.Max.Y-3.f*F),Button.Max),2.f*F),LDBroadcast::Gold);
-            P.Text(Refresh,Button.GetCenter(),RingFont(LDUIFonts::ERole::Strong,14.f,F),RingText,FVector2D(.5,.5));
-        }
-    }
-    const float Z=FMath::Max(54.f*U,36.f/L.K);
+    if(!Ring.bShop||L.ShopWidth<=0.f){return;}
+    const float S=L.ShopScale;
+    const FHit Shown=Focus();
+    P.Text(TEXT("休息商店"),FVector2D(L.Shop.X,L.Shop.Y+15.f*S),Face(EFace::Heavy,22.f,S),White,FVector2D(0.,.5));
     for(const FShape& Box:L.Boxes)
     {
+        if(Box.Hit.Kind==EHit::ShopRefresh)
+        {
+            const FBox2D Button=BoundsOf(Box.Shape);
+            const bool bHot=Shown.Kind==EHit::ShopRefresh;
+            P.Fill(Box.Shape,White);
+            P.Fill(Lean(Grow(Button,-(bHot?3.f:2.f)*S),7.f*S,7.f*S),Ink.CopyWithNewOpacity(.95f));
+            P.Text(Ring.RefreshPrice>0?FString::Printf(TEXT("刷新 · %s"),*Diamonds(Ring.RefreshPrice)):FString(TEXT("刷新 · 免费")),Button.GetCenter(),Face(EFace::Bold,18.f,S),White,FVector2D(.5,.5));
+            continue;
+        }
         if(Box.Hit.Kind!=EHit::Shop||!Ring.Shop.IsValidIndex(Box.Hit.Index)){continue;}
         const FShopItem& Item=Ring.Shop[Box.Hit.Index];
-        const FVector2D* At=L.Anchors.Find(AnchorKey(EHit::Shop,INDEX_NONE,Box.Hit.Index));
-        if(!At){continue;}
+        const FBox2D Plate=BoundsOf(Box.Shape);
+        const bool bHot=Shown.Kind==EHit::Shop&&Shown.Index==Box.Hit.Index;
         const float Saved=P.Opacity;P.Opacity*=Item.bSold?.35f:1.f;
-        const bool bHot=Focus().Kind==EHit::Shop&&Focus().Index==Box.Hit.Index;
-        const FBox2D Tile=Square(*At,Z);
-        if(L.bShopCompact)
+        P.FillShaded(Box.Shape,[&](FVector2D Point)
         {
-            const FString Price=Item.bSold?FString(TEXT("已买")):Diamonds(Item.Price);
-            P.Text(Price,FVector2D(At->X,Tile.Max.Y+2.f*U),RingFont(LDUIFonts::ERole::Strong,14.f,F),Item.bSold?RingSoft:LDBroadcast::Gold,FVector2D(.5,0.));
-        }
-        // The text plate first, the tile over its left end.
-        const FBox2D Plate(FVector2D(Tile.Max.X-12.f*F,At->Y-22.f*F),FVector2D(Tile.Max.X-12.f*F+150.f*F,At->Y+22.f*F));
-        if(!L.bShopCompact)
-        {
-        P.FillShaded(LDRingPaint::Slant(Plate,8.f*F),[&](FVector2D Point){return bHot?Hex(0x1C2438):LDRingPaint::Mix(Hex(0x070A11,.92f),Hex(0x070A11,.7f),float((Point.X-Plate.Min.X)/Plate.GetSize().X));});
-        P.Text(Item.Name,FVector2D(Plate.Min.X+18.f*F,Plate.Min.Y+3.f*F),RingFont(LDUIFonts::ERole::Strong,14.f,F),RingText);
-        const FString Price=Item.bSold?FString(TEXT("已买")):Diamonds(Item.Price);
-        const FVector2D PriceSize=P.Text(Price,FVector2D(Plate.Min.X+18.f*F,Plate.Max.Y-3.f*F),RingFont(LDUIFonts::ERole::Strong,14.f,F),Item.bSold?RingSoft:LDBroadcast::Gold,FVector2D(0.,1.));
-        if(!Item.Note.IsEmpty()&&!Item.bSold){P.Text(Item.Note,FVector2D(Plate.Min.X+18.f*F+PriceSize.X+6.f*F,Plate.Max.Y-3.f*F),RingFont(LDUIFonts::ERole::Body,14.f,F),RingSoft,FVector2D(0.,1.));}
-        }
-        FCard Face;Face.IconId=Item.IconId;Face.Name=Item.Name;Face.Rarity=Item.Rarity;
+            const float T=float((Point.X-Plate.Min.X)/FMath::Max(1.,Plate.GetSize().X));
+            return LDRingPaint::Mix(Ink.CopyWithNewOpacity(.78f),Ink.CopyWithNewOpacity(.9f),T);
+        });
+        if(bHot){P.Fill(RectOf(FBox2D(FVector2D(Plate.Max.X-4.f*S,Plate.Min.Y),Plate.Max)),White);}
+        const FBox2D Tile=BoxAt(Plate.Min+FVector2D(22.f,2.f)*S,FVector2D(54.f,54.f)*S);
         if(Item.Slot==FLDBuildCommand::ShopSkillPointSlot)
         {
-            const TArray<FVector2D> Outline=LDRingPaint::Rounded(Tile,10.f*R,3);
-            P.Fill(Offset(Outline,FVector2D(3.f,4.f)*R),FLinearColor(0.f,0.f,0.f,.62f));
-            P.FillShaded(Outline,[&](FVector2D Point){return Metal(FrameOf(ERarity::Common),Tile,Point);});
-            P.Fill(LDRingPaint::Rounded(Grow(Tile,-3.f*R),7.f*R,3),RingFace);
-            P.Text(TEXT("技能"),Tile.GetCenter()-FVector2D(0.,8.f*F),RingFont(LDUIFonts::ERole::Title,14.f,F),RingPale,FVector2D(.5,.5));
-            P.Text(TEXT("点"),Tile.GetCenter()+FVector2D(0.,8.f*F),RingFont(LDUIFonts::ERole::Title,14.f,F),RingPale,FVector2D(.5,.5));
+            PaintTile(P,Tile,FString(),FString(),bHot?ETile::Hot:ETile::Plain);
+            P.Text(TEXT("技能"),Tile.GetCenter()-FVector2D(0.,9.f*S),Face(EFace::Heavy,18.f,S),White,FVector2D(.5,.5));
+            P.Text(TEXT("点"),Tile.GetCenter()+FVector2D(0.,10.f*S),Face(EFace::Heavy,18.f,S),White,FVector2D(.5,.5));
         }
-        else{PaintNode(P,Tile,Face,1.f,bHot,Lit.Contains(AnchorKey(EHit::Shop,INDEX_NONE,Box.Hit.Index)),0.f);}
+        else{PaintTile(P,Tile,Item.IconId,Item.Name,bHot?ETile::Hot:Lit.Contains(AnchorKey(EHit::Shop,INDEX_NONE,Box.Hit.Index))?ETile::Lit:ETile::Plain,Item.Rarity);}
+        const bool bNote=!Item.Note.IsEmpty()&&!Item.bSold;
+        const float NameY=bNote?Plate.Min.Y+4.f*S:float(Plate.GetCenter().Y)-14.f*S;
+        P.Text(Item.Name,FVector2D(Plate.Min.X+90.f*S,NameY),Face(EFace::Bold,22.f,S),White);
+        if(bNote){P.Text(Item.Note,FVector2D(Plate.Min.X+90.f*S,Plate.Min.Y+32.f*S),Face(EFace::Regular,18.f,S),Grey);}
+        P.Text(Item.bSold?FString(TEXT("已买")):Diamonds(Item.Price),FVector2D(Plate.Max.X-16.f*S,Plate.GetCenter().Y),Face(EFace::Bold,22.f,S),White,FVector2D(1.,.5));
         P.Opacity=Saved;
     }
 }
 
-void ULDWorkshop::PaintBottom(FPainter& P,const TArray<uint64>& Lit) const
+void ULDWorkshop::PaintRow(FPainter& P,const TArray<uint64>& Lit) const
 {
     const FLayout& L=Layout;
-    const float U=L.U,F=L.F;
-    const FVector2D C=L.Centre;
+    const float U=L.U,R=L.R,F=L.F;
     const double Now=UiNow();
     const FHit Shown=Focus();
-    // The plates over the hand: the level, the capacity and the points on the left, the reactions on the right.
-    const float PlateTop=L.HandTop-12.f*U-30.f*F;
+    const FSlateFontInfo ChipFont=Face(EFace::Bold,18.f,F);
+    // The header: a white title chip on the left, ink command chips on the right.
+    const auto Title=[&](const FString& Text,FVector2D At)
     {
-        const FSlateFontInfo Label=RingFont(LDUIFonts::ERole::Strong,14.f,F),Figure=RingFigure(21.f,F);
-        TArray<TPair<FString,bool>> Parts;
-        const float H=30.f*F;
-        // Measure first: the plate's right edge stands at 800 design px.
-        const FString Lv=FString::FromInt(Ring.Level),Used=FString::FromInt(Ring.Installed),Cap=FString::Printf(TEXT(" / %d"),Ring.Capacity);
-        const FString Points=FString::FromInt(Ring.Unspent);
-        const float Pip=8.f*U,PipGap=3.f*U;
-        const float PipsW=Ring.Capacity*(Pip+PipGap);
-        const float W=LevelPlateWidth();
-        const FBox2D Plate(FVector2D(800.f*U-W,PlateTop),FVector2D(800.f*U,PlateTop+H));
-        P.Fill(LDRingPaint::Slant(Plate,8.f*F),RingInk);
-        float X=float(Plate.Min.X)+16.f*F;const float Y=float(Plate.GetCenter().Y);
-        X+=float(P.Text(TEXT("LV "),FVector2D(X,Y),Label,RingText,FVector2D(0.,.5)).X);
-        X+=float(P.Text(Lv,FVector2D(X,Y),Figure,FLinearColor::White,FVector2D(0.,.52),LDBroadcast::SkewDegrees).X)+12.f*F;
-        X+=float(P.Text(TEXT("构筑 "),FVector2D(X,Y),Label,RingText,FVector2D(0.,.5)).X);
-        X+=float(P.Text(Used,FVector2D(X,Y),Figure,Ring.Installed>=Ring.Capacity&&Ring.Capacity>0?LDBroadcast::Gold:FLinearColor::White,FVector2D(0.,.52),LDBroadcast::SkewDegrees).X);
-        X+=float(P.Text(Cap,FVector2D(X,Y),Label,RingText,FVector2D(0.,.5)).X)+12.f*F;
-        for(int32 Index=0;Index<Ring.Capacity;++Index)
-        {
-            const FBox2D Cell(FVector2D(X,Y-7.f*U),FVector2D(X+Pip,Y+7.f*U));
-            P.Fill(LDRingPaint::Slant(Cell,3.f*U),Index<Ring.Installed?LDBroadcast::Gold:Hex(0x39415A));
-            X+=Pip+PipGap;
-        }
-        X+=12.f*F;
-        X+=float(P.Text(TEXT("属性点 "),FVector2D(X,Y),Label,LDBroadcast::Gold,FVector2D(0.,.5)).X);
-        P.Text(Points,FVector2D(X,Y),Figure,LDBroadcast::Gold,FVector2D(0.,.52),LDBroadcast::SkewDegrees);
-        if(!Ring.Reactions.IsEmpty())
-        {
-            float RW=16.f*F+float(LDRingPaint::Measure(TEXT("反应"),Label).X)+12.f*F;
-            for(const FReaction& Reaction:Ring.Reactions){RW+=22.f*F+float(LDRingPaint::Measure(Reaction.Name,Label).X)+12.f*F;}
-            const FBox2D Right(FVector2D(1124.f*U,PlateTop),FVector2D(1124.f*U+RW,PlateTop+H));
-            P.Fill(LDRingPaint::Slant(Right,8.f*F),RingInk);
-            float RX=float(Right.Min.X)+16.f*F;
-            RX+=float(P.Text(TEXT("反应"),FVector2D(RX,Y),Label,LDBroadcast::Gold,FVector2D(0.,.5)).X)+12.f*F;
-            for(const FReaction& Reaction:Ring.Reactions)
-            {
-                const float D=4.5f*F;
-                for(int32 Side=0;Side<2;++Side)
-                {
-                    const FVector2D At(RX+D+Side*7.f*F,Y);
-                    P.Fill({At+FVector2D(0,-D),At+FVector2D(D,0),At+FVector2D(0,D),At+FVector2D(-D,0)},ElementInk(Side?Reaction.Second:Reaction.First));
-                }
-                RX+=22.f*F;
-                RX+=float(P.Text(Reaction.Name,FVector2D(RX,Y),Label,RingText,FVector2D(0.,.5)).X)+12.f*F;
-            }
-        }
-    }
-    const auto Pile=[&](const FBox2D& Box,const FString& Top,const FString& Figure,bool bHot)
-    {
-        for(int32 Back=2;Back>=1;--Back)
-        {
-            const FBox2D Behind=Shift(Box,FVector2D(5.f*Back,-5.f*Back)*U);
-            P.Fill(LDRingPaint::Rounded(Grow(Behind,2.f),9.f*U,3),Back==2?Hex(0x5C5233):Hex(0x8B7A45));
-            P.Fill(LDRingPaint::Rounded(Behind,9.f*U,3),Hex(0x0B0F1A));
-        }
-        const TArray<FVector2D> Shape=LDRingPaint::Rounded(Box,9.f*U,3);
-        P.Fill(Shape,LDBroadcast::Gold);
-        P.Fill(LDRingPaint::Rounded(Grow(Box,-3.f*U),7.f*U,3),bHot?Hex(0x232B42):Hex(0x151B2E));
-        const float CY=float(Box.GetCenter().Y);
-        P.Text(Top,FVector2D(Box.GetCenter().X,CY-14.f*F),RingFont(LDUIFonts::ERole::Title,14.f,F),LDBroadcast::Gold,FVector2D(.5,.5));
-        P.Text(Figure,FVector2D(Box.GetCenter().X,CY+10.f*F),RingFigure(24.f,F),FLinearColor::White,FVector2D(.5,.5),LDBroadcast::SkewDegrees);
+        const float W=WidthOf(Text,Face(EFace::Heavy,18.f,F))+24.f*F;
+        const FBox2D Chip=BoxAt(At,FVector2D(W,30.f*F));
+        P.Fill(Lean(Chip,7.f*F,7.f*F),White);
+        P.Text(Text,Chip.GetCenter(),Face(EFace::Heavy,18.f,F),Ink,FVector2D(.5,.5));
     };
     for(const FShape& Box:L.Boxes)
     {
-        const bool bHot=Shown==Box.Hit;
-        if(Box.Hit.Kind==EHit::HandPile){Pile(FBox2D(Box.Shape[0],Box.Shape[2]),TEXT("牌库"),FString::FromInt(Ring.Hand.Num()),bHot);}
-        else if(Box.Hit.Kind==EHit::OfferPile)
-        {
-            const bool bBehind=!bShowHand;
-            Pile(FBox2D(Box.Shape[0],Box.Shape[2]),bBehind?TEXT("还有"):TEXT("待选"),FString::Printf(TEXT("%d"),bBehind?Ring.Batch.Queued:Ring.Batch.Queued+1),bHot);
-        }
-        else if(Box.Hit.Kind==EHit::Reroll||Box.Hit.Kind==EHit::Skip||Box.Hit.Kind==EHit::Respec)
-        {
-            const FBox2D Button(Box.Shape[0],Box.Shape[2]);
-            FString Text;
-            if(Box.Hit.Kind==EHit::Reroll){Text=FString::Printf(TEXT("重抽 ×%d"),Ring.Batch.Rerolls);}
-            else if(Box.Hit.Kind==EHit::Skip){Text=Ring.Batch.SkipPoints>0?FString::Printf(TEXT("跳过 +%lld"),Ring.Batch.SkipPoints):FString(TEXT("跳过"));}
-            else{Text=TEXT("洗点");}
-            const bool bOff=Box.Hit.Kind==EHit::Reroll&&Ring.Batch.Rerolls<=0;
-            P.Fill(LDRingPaint::Slant(Button,8.f*F),bHot?Hex(0x1C2438):RingInk);
-            P.Fill(LDRingPaint::Slant(FBox2D(FVector2D(Button.Min.X,Button.Max.Y-3.f*F),Button.Max),2.f*F),bOff?Hex(0x39415A):LDBroadcast::Gold);
-            P.Text(Text,Button.GetCenter(),RingFont(LDUIFonts::ERole::Strong,14.f,F),bOff?RingSoft:RingText,FVector2D(.5,.5));
-        }
+        if(Box.Hit.Kind!=EHit::OfferPile&&Box.Hit.Kind!=EHit::Reroll&&Box.Hit.Kind!=EHit::Skip){continue;}
+        const FBox2D Chip=BoundsOf(Box.Shape);
+        FString Text;
+        if(Box.Hit.Kind==EHit::Reroll){Text=FString::Printf(TEXT("重抽 ×%d"),Ring.Batch.Rerolls);}
+        else if(Box.Hit.Kind==EHit::Skip){Text=Ring.Batch.SkipPoints>0?FString::Printf(TEXT("跳过 +%lld"),Ring.Batch.SkipPoints):FString(TEXT("跳过"));}
+        else{Text=bShowHand?FString::Printf(TEXT("待选 %d"),Ring.Batch.Queued+1):FString::Printf(TEXT("还有 %d 批"),Ring.Batch.Queued);}
+        const bool bOff=Box.Hit.Kind==EHit::Reroll&&Ring.Batch.Rerolls<=0;
+        P.Fill(Box.Shape,Ink.CopyWithNewOpacity(.9f));
+        if(Shown==Box.Hit){Frame(P,Chip,2.f*F,White);}
+        P.Text(Text,Chip.GetCenter(),ChipFont,bOff?Mute:White,FVector2D(.5,.5));
     }
     if(!OfferFaces.IsEmpty())
     {
-        // The batch title over the row, then the big cards dealt in one after another.
-        const FBox2D First=OfferFaces[0].Box;
+        Title(Ring.Batch.Title,FVector2D(OfferFaces[0].Box.Min.X,L.RowTop));
+        for(const FFace& Face0:OfferFaces)
         {
-            const FSlateFontInfo Font=RingFont(LDUIFonts::ERole::Title,14.f,F);
-            const float W=float(LDRingPaint::Measure(Ring.Batch.Title,Font).X)+24.f*F;
-            const FBox2D Label(FVector2D(C.X-W*.5f,First.Min.Y-14.f*U-24.f*F),FVector2D(C.X+W*.5f,First.Min.Y-14.f*U));
-            P.Fill(LDRingPaint::Slant(Label,8.f*F),LDBroadcast::Gold);
-            P.Text(Ring.Batch.Title,Label.GetCenter(),Font,Hex(0x16120A),FVector2D(.5,.5));
-        }
-        for(const FFace& Face:OfferFaces)
-        {
-            const FOption& Option=Ring.Batch.Options[Face.Hit.Index];
-            const float Age=BatchAt<0.?1.f:FMath::Clamp(float((Now-BatchAt-Face.Hit.Index*RingRevealStagger)/RingRevealTime),0.f,1.f);
+            const FOption& Option=Ring.Batch.Options[Face0.Hit.Index];
+            const float Age=BatchAt<0.?1.f:FMath::Clamp(float((Now-BatchAt-Face0.Hit.Index*RingRevealStagger)/RingRevealTime),0.f,1.f);
             const float Ease=1.f-FMath::Square(1.f-Age);
-            const float LiftAmount=Lift.FindRef(AnchorKey(EHit::Offer,INDEX_NONE,Face.Hit.Index));
-            const FBox2D Box=Shift(Face.Box,FVector2D(0.,(1.f-Ease)*28.f*U-LiftAmount*9.f*U));
+            const FBox2D Box=Shift(Face0.Box,FVector2D(0.,(1.f-Ease)*20.f*U));
             const float Saved=P.Opacity;P.Opacity*=Ease*(PageAt<0.?1.f:FMath::Clamp(float((Now-PageAt)/RingRevealTime),0.f,1.f));
-            const bool bChosen=Ring.Batch.Kind==EBatch::Blueprint&&SelectedBlueprint==Face.Hit.Index;
-            const ERarity Rarity=Option.Rarity;
-            const FFrameInk Ink=FrameOf(Rarity);
-            const TArray<FVector2D> Outline=LDRingPaint::Rounded(Box,11.f*U,3);
-            P.Fill(Offset(Outline,FVector2D(4.f,6.f)*U),FLinearColor(0.f,0.f,0.f,.6f));
-            if(Rarity==ERarity::Legendary||bChosen||LiftAmount>.01f){P.Fill(LDRingPaint::Rounded(Grow(Box,(bChosen?6.f:4.f)*U),15.f*U,3),(bChosen?LDBroadcast::Gold:Ink.Band).CopyWithNewOpacity(bChosen?.9f:.35f+.3f*LiftAmount));}
-            P.FillShaded(Outline,[&](FVector2D At){return Metal(Ink,Box,At);});
-            if(UTexture2D* Brushed=RingArt(EArt::Metal)){P.Image(Brushed,Box,FLinearColor(1.f,1.f,1.f,.3f),&Outline);}
-            const FBox2D Inner=Grow(Box,-4.f*U);
-            const TArray<FVector2D> InnerShape=LDRingPaint::Rounded(Inner,8.f*U,3);
-            P.Fill(InnerShape,Hex(0x090C14));
-            const float ArtSize=float(Inner.GetSize().Y);
-            const FBox2D ArtBox(Inner.Min,Inner.Min+FVector2D(ArtSize,ArtSize));
-            const TArray<FVector2D> ArtClip=LDRingPaint::ClipConvex({ArtBox.Min,FVector2D(ArtBox.Max.X,ArtBox.Min.Y),FVector2D(ArtBox.Min.X+ArtSize*.86f,ArtBox.Max.Y),FVector2D(ArtBox.Min.X,ArtBox.Max.Y)},InnerShape);
-            if(UTexture2D* Icon=RingIcon(Option.IconId)){P.Image(Icon,ArtBox,FLinearColor::White,&ArtClip);}
-            else{P.Fill(ArtClip,Hex(0x222A3D));P.Text(Option.Name.Left(1),ArtBox.GetCenter(),RingFont(LDUIFonts::ERole::Title,40.f,F),RingPale,FVector2D(.5,.5));}
-            if(Rarity==ERarity::Legendary)
+            const bool bHot=Shown==Face0.Hit;
+            const bool bChosen=Ring.Batch.Kind==EBatch::Blueprint&&SelectedBlueprint==Face0.Hit.Index;
+            const TArray<FVector2D> Shape=Lean(Box,12.f*U,12.f*U);
+            P.Fill(Shape,Ink.CopyWithNewOpacity(.92f));
+            // Hover and the chosen blueprint: the thick white rule along the plate.
+            if(bHot||bChosen)
             {
-                const float Phase=FMath::Fmod(float(Now)/3.6f,1.f);
-                const float X=float(ArtBox.Min.X)+FMath::Lerp(-.6f,1.6f,FMath::Min(1.f,Phase/.55f))*ArtSize;
-                P.Fill(LDRingPaint::ClipConvex({FVector2D(X,ArtBox.Min.Y),FVector2D(X+ArtSize*.22f,ArtBox.Min.Y),FVector2D(X+ArtSize*.02f,ArtBox.Max.Y),FVector2D(X-ArtSize*.2f,ArtBox.Max.Y)},ArtClip),FLinearColor(1.f,1.f,1.f,.35f));
+                P.Fill(RectOf(FBox2D(FVector2D(Box.Min.X+12.f*U,Box.Min.Y),FVector2D(Box.Max.X,Box.Min.Y+4.f*U))),White);
+                P.Fill(RectOf(FBox2D(FVector2D(Box.Min.X,Box.Max.Y-4.f*U),FVector2D(Box.Max.X-12.f*U,Box.Max.Y))),White);
             }
-            const float TextX=float(ArtBox.Max.X)-4.f*U+6.f*U;
-            const float TextW=float(Inner.Max.X)-TextX-10.f*U;
-            const FSlateFontInfo NameFont=RingFont(LDUIFonts::ERole::Title,18.f,F),Body=RingFont(LDUIFonts::ERole::Body,16.f,F);
-            P.Text(Option.Name,FVector2D(TextX,Inner.Min.Y+7.f*U),NameFont,RingText);
-            const TArray<FString> Lines=LDRingPaint::Wrap(Option.Text,Body,TextW,L.OfferLines);
-            float Y=float(Inner.Min.Y)+7.f*U+18.f*F*1.25f+2.f*U;
-            for(const FString& Line:Lines){P.Text(Line,FVector2D(TextX,Y),Body,RingSoft);Y+=16.f*F*1.3f;}
-            // The pick key: a gold slanted tag on the top-left corner.
-            const FSlateFontInfo KeyFont=RingFigure(19.f,F);
-            const FBox2D Tag(FVector2D(Box.Min.X-9.f*U,Box.Min.Y-9.f*U),FVector2D(Box.Min.X-9.f*U+26.f*F,Box.Min.Y-9.f*U+23.f*F));
-            P.Fill(LDRingPaint::Slant(Tag,8.f*F),LDBroadcast::Gold);
-            P.Text(FString::FromInt(Face.Hit.Index+1),Tag.GetCenter(),KeyFont,Hex(0x16120A),FVector2D(.5,.5));
+            // The pick key in a ruled box, the icon tile, the name and the type.
+            const FBox2D Key=BoxAt(Box.Min+FVector2D(18.f*U,Box.GetSize().Y*.5f-19.f*U),FVector2D(36.f*U,38.f*U));
+            Frame(P,Key,2.f*U,White);
+            P.Text(FString::FromInt(Face0.Hit.Index+1),Key.GetCenter(),Face(EFace::Figure,30.f,F),White,FVector2D(.5,.5));
+            const float Z=64.f*U;
+            const FBox2D Tile=BoxAt(FVector2D(Box.Min.X+66.f*U,Box.GetCenter().Y-Z*.5f),FVector2D(Z,Z));
+            PaintTile(P,Tile,Option.IconId,Option.Name,ETile::Plain,Option.Rarity);
+            const float TextX=float(Tile.Max.X)+14.f*U;
+            const float TextW=float(Box.Max.X)-TextX-16.f*U;
+            P.Text(OneLine(Option.Name,Face(EFace::Heavy,24.f,F),TextW),FVector2D(TextX,Box.GetCenter().Y-2.f*U),Face(EFace::Heavy,24.f,F),White,FVector2D(0.,1.));
+            FString Type;
+            if(Ring.Batch.Kind==EBatch::Card)
+            {
+                const LDHUD::FCardFaceView Face1=LDHUD::CardFace(Option.Id,Latest.Content,Latest.Stats);
+                Type=FString::Printf(TEXT("%s · %s"),LDTerms::CardTypeName(uint8(Face1.Type)),*FormShort(Face1.Form));
+            }
+            else if(Ring.Batch.Kind==EBatch::Final){Type=TEXT("终局改装");}
+            else{Type=Ring.Batch.Kind==EBatch::Blueprint?FString(LDTerms::Blueprint):FString(TEXT("主动技能"));}
+            P.Text(OneLine(Type,Face(EFace::Regular,18.f,F),TextW),FVector2D(TextX,Box.GetCenter().Y+4.f*U),Face(EFace::Regular,18.f,F),Grey);
             P.Opacity=Saved;
         }
+        return;
     }
-    // The hand, back to front; the hovered and the selected card rise. A page turn (hand <-> offers) fades it in.
+    if(HandFaces.IsEmpty()&&!bShowHand){return;}
+    // The library: tiles with their names, the selected card raised on the thick rule; medals as diamonds.
     const float Page=PageAt<0.?1.f:FMath::Clamp(float((Now-PageAt)/RingRevealTime),0.f,1.f);
     const float PageSaved=P.Opacity;P.Opacity*=1.f-FMath::Square(1.f-Page);
-    ON_SCOPE_EXIT{P.Opacity=PageSaved;};
-    for(const FFace& Face:HandFaces)
+    Title(FString::Printf(TEXT("牌库 · %d"),Ring.Hand.Num()),FVector2D(L.Bar.Min.X,L.RowTop));
+    const float Pitch=HandFaces.Num()>1?float(HandFaces[1].Box.Min.X-HandFaces[0].Box.Min.X):84.f*F;
+    const bool bNames=Pitch>=64.f*F;
+    for(const FFace& Face0:HandFaces)
     {
-        const FCard& Card=Ring.Hand[Face.Hit.Index];
-        const float LiftAmount=Lift.FindRef(AnchorKey(EHit::Hand,INDEX_NONE,Face.Hit.Index));
+        const FCard& Card=Ring.Hand[Face0.Hit.Index];
         const bool bSelected=Card.Key==Selected;
-        const bool bHot=Shown==Face.Hit;
-        const bool bLit=Lit.Contains(AnchorKey(EHit::Hand,INDEX_NONE,Face.Hit.Index));
-        const FFrameInk Ink=FrameOf(Card.Rarity);
+        const bool bHot=Shown==Face0.Hit;
+        const FBox2D Box=Shift(Face0.Box,FVector2D(0.,bSelected?-8.f*U:0.f));
         if(Card.Form==ELDCardForm::Medal)
         {
-            // A medal: an octagon gem with its name under it.
-            const FBox2D Box=Shift(Face.Box,FVector2D(0.,-LiftAmount*14.f*U));
-            const TArray<FVector2D> Rim=LDRingPaint::Octagon(Box);
-            const FLinearColor Gem=ElementInk(Card.Element);
-            P.Fill(Offset(Rim,FVector2D(3.f,5.f)*U),FLinearColor(0.f,0.f,0.f,.6f));
-            P.Fill(LDRingPaint::Octagon(Grow(Box,7.f*U)),Gem.CopyWithNewOpacity(.35f));
-            if(UTexture2D* SocketArt=RingArt(EArt::Socket)){P.Image(SocketArt,Box,bSelected?LDBroadcast::Gold:LDRingPaint::Mix(FLinearColor::White,Gem,.45f),&Rim);}
-            else{P.FillShaded(Rim,[&](FVector2D At){return bSelected?LDBroadcast::Gold:LDRingPaint::Mix(FLinearColor::White,Gem,GradientT(Box,At,135.f));});}
-            const FBox2D Cavity=Grow(Box,-float(Box.GetSize().X)*.1f);
-            const TArray<FVector2D> Hole=LDRingPaint::Octagon(Cavity);
-            P.Fill(Hole,Hex(0x0A0E18));
-            if(UTexture2D* Icon=RingIcon(Card.IconId)){P.Image(Icon,Cavity,FLinearColor::White,&Hole);}
-            P.Text(Card.Name,FVector2D(Box.GetCenter().X,Box.Max.Y+6.f*U),RingFont(LDUIFonts::ERole::Strong,14.f,F),RingText,FVector2D(.5,0.));
-            if(Card.Copies>1)
-            {
-                const FSlateFontInfo Font=RingFigure(17.f,F);const FString Text=FString::Printf(TEXT("×%d"),Card.Copies);
-                const float W=float(LDRingPaint::Measure(Text,Font).X)+16.f*F;
-                const FBox2D Tag(FVector2D(Box.Max.X+8.f*U-W,Box.Min.Y-9.f*U),FVector2D(Box.Max.X+8.f*U,Box.Min.Y-9.f*U+21.f*F));
-                P.Fill(LDRingPaint::Slant(Tag,8.f*F),LDBroadcast::Gold);P.Text(Text,Tag.GetCenter(),Font,Hex(0x16120A),FVector2D(.5,.5));
-            }
-            if(Card.bFresh)
-            {
-                const FVector2D At(Box.Max.X+12.f*U-19.f*F,Box.Min.Y-14.f*U+19.f*F);
-                if(UTexture2D* Sticker=RingArt(EArt::Fresh)){P.Image(Sticker,Square(At,40.f*F),FLinearColor::White,nullptr,12.f);}
-                else{P.Fill(Star(At,19.f*F,12,.78f,12.f),RingFreshRed);P.Text(TEXT("新"),At,RingFont(LDUIFonts::ERole::Title,16.f,F),FLinearColor::White,FVector2D(.5,.5));}
-            }
-            continue;
+            const FVector2D At=Box.GetCenter();
+            const float Half=float(Box.GetSize().X)*.5f*(bHot?1.08f:1.f);
+            if(bSelected||bHot){P.Fill(Diamond(At,Half+4.f*R),White);}
+            P.Fill(Diamond(At,Half),ElementInk(Card.Element));
+            const TArray<FVector2D> Seat=Diamond(At,Half-4.f*R);
+            P.Fill(Seat,Panel);
+            if(UTexture2D* Icon=RingIcon(Card.IconId)){P.Image(Icon,Square(At,(Half-4.f*R)*1.42f),FLinearColor::White,&Seat);}
         }
-        const FVector2D Pivot(Face.Box.GetCenter().X,Face.Box.Min.Y+Face.Box.GetSize().Y*1.3);
-        const float Rise=(bSelected?24.f:24.f*LiftAmount)*U;
-        const float Grow7=bHot&&!bSelected?1.f+.07f*LiftAmount:1.f;
-        P.Xform=FTransform2D(-Pivot).Concatenate(FTransform2D(Grow7)).Concatenate(FTransform2D(FQuat2D(FMath::DegreesToRadians(Face.Degrees)))).Concatenate(FTransform2D(Pivot-FVector2D(0.,Rise)));
-        P.bXform=true;
-        const FBox2D Box=Face.Box;
-        const TArray<FVector2D> Outline=LDRingPaint::Rounded(Box,11.f*U,3);
-        // Copies show as a short stack of backs behind the face.
-        for(int32 Back=FMath::Min(Card.Copies-1,2);Back>=1;--Back)
+        else{PaintTile(P,Box,Card.IconId,Card.Name,bSelected||bHot?ETile::Hot:Lit.Contains(AnchorKey(EHit::Hand,INDEX_NONE,Face0.Hit.Index))?ETile::Lit:ETile::Plain,Card.Rarity);}
+        if(bNames)
         {
-            const TArray<FVector2D> Behind=LDRingPaint::Rounded(Shift(Box,FVector2D(5.f*Back,-5.f*Back)*U),11.f*U,3);
-            P.FillShaded(Behind,[&](FVector2D At){return LDRingPaint::Mix(Metal(Ink,Box,At),FLinearColor::Black,Back==1?.38f:.6f);});
-        }
-        P.Fill(Offset(Outline,FVector2D(4.f,6.f)*U),FLinearColor(0.f,0.f,0.f,.6f));
-        if(bSelected){P.Fill(LDRingPaint::Rounded(Grow(Box,7.f*U),17.f*U,3),LDBroadcast::Gold.CopyWithNewOpacity(.55f));P.Fill(LDRingPaint::Rounded(Grow(Box,3.f*U),13.f*U,3),FLinearColor::White);}
-        else if(bLit){P.Fill(LDRingPaint::Rounded(Grow(Box,3.f*U),13.f*U,3),FLinearColor(1.f,1.f,1.f,.9f));}
-        else if(Card.Rarity==ERarity::Legendary){P.Fill(LDRingPaint::Rounded(Grow(Box,5.f*U),15.f*U,3),LDBroadcast::Legendary.CopyWithNewOpacity(.4f));}
-        P.FillShaded(Outline,[&](FVector2D At){return Metal(Ink,Box,At);});
-        if(UTexture2D* Brushed=RingArt(EArt::Metal)){P.Image(Brushed,Box,FLinearColor(1.f,1.f,1.f,.3f),&Outline);}
-        const FBox2D Inner=Grow(Box,-4.f*U);
-        const TArray<FVector2D> InnerShape=LDRingPaint::Rounded(Inner,8.f*U,3);
-        P.Fill(InnerShape,Hex(0x090C14));
-        const float ArtSize=float(Inner.GetSize().X);
-        const FBox2D ArtBox(Inner.Min,Inner.Min+FVector2D(ArtSize,ArtSize));
-        const TArray<FVector2D> ArtClip=LDRingPaint::ClipConvex({ArtBox.Min,FVector2D(ArtBox.Max.X,ArtBox.Min.Y),FVector2D(ArtBox.Max.X,ArtBox.Min.Y+ArtSize*.9f),FVector2D(ArtBox.Min.X,ArtBox.Max.Y)},InnerShape);
-        if(UTexture2D* Icon=RingIcon(Card.IconId)){P.Image(Icon,ArtBox,FLinearColor::White,&ArtClip);}
-        else{P.Fill(ArtClip,Hex(0x222A3D));}
-        P.FillShaded(ArtClip,[&](FVector2D At){const float T=GradientT(ArtBox,At,165.f);return T<.34f?FLinearColor(1.f,1.f,1.f,.3f*(1.f-T/.34f)):T>.7f?Hex(0x05070C,.55f*(T-.7f)/.3f):FLinearColor::Transparent;});
-        if(Card.Rarity==ERarity::Legendary)
-        {
-            const float Phase=FMath::Fmod(float(Now)/3.6f,1.f);
-            const float X=float(ArtBox.Min.X)+FMath::Lerp(-.6f,1.6f,FMath::Min(1.f,Phase/.55f))*ArtSize;
-            P.Fill(LDRingPaint::ClipConvex({FVector2D(X,ArtBox.Min.Y),FVector2D(X+ArtSize*.22f,ArtBox.Min.Y),FVector2D(X+ArtSize*.02f,ArtBox.Max.Y),FVector2D(X-ArtSize*.2f,ArtBox.Max.Y)},ArtClip),FLinearColor(1.f,1.f,1.f,.35f));
-        }
-        // The name (two lines at most) under the art, and the rarity band along the foot.
-        {
-            const FSlateFontInfo Font=RingFont(LDUIFonts::ERole::Strong,14.f,F);
-            const TArray<FString> Lines=LDRingPaint::Wrap(Card.Name,Font,float(Inner.GetSize().X)-6.f*U,2);
-            const float LineH=14.f*F*1.16f;
-            const float Mid=float(ArtBox.Max.Y-5.f*U+Inner.Max.Y)*.5f;
-            float Y=Mid-LineH*Lines.Num()*.5f;
-            for(const FString& Line:Lines){P.Text(Line,FVector2D(Inner.GetCenter().X,Y),Font,RingText,FVector2D(.5,0.));Y+=LineH;}
-        }
-        P.Fill(LDRingPaint::ClipConvex({FVector2D(Inner.Min.X,Inner.Max.Y-4.f*U),FVector2D(Inner.Max.X,Inner.Max.Y-4.f*U),Inner.Max,FVector2D(Inner.Min.X,Inner.Max.Y)},InnerShape),Ink.Band);
-        P.Stroke(InnerShape,1.5f*U,RingDeep,true);
-        // The form tag (技 / 冲 / 体) on the top-left edge.
-        {
-            const FSlateFontInfo Font=RingFont(LDUIFonts::ERole::Title,14.f,F);
-            const FString Tag=FormTag(Card.Form);
-            const float W=float(LDRingPaint::Measure(Tag,Font).X)+16.f*F;
-            const FBox2D Chip(FVector2D(Box.Min.X,Box.Min.Y+8.f*U),FVector2D(Box.Min.X+W,Box.Min.Y+8.f*U+21.f*F));
-            P.Fill({Chip.Min,FVector2D(Chip.Max.X,Chip.Min.Y),FVector2D(Chip.Max.X-7.f*F,Chip.Max.Y),FVector2D(Chip.Min.X,Chip.Max.Y)},RingInk);
-            P.Text(Tag,FVector2D(Chip.Min.X+7.f*F,Chip.GetCenter().Y),Font,LDBroadcast::Gold,FVector2D(0.,.5));
+            const FSlateFontInfo Font=Face(EFace::Bold,18.f,F);
+            P.Text(OneLine(Card.Name,Font,Pitch-6.f*U),FVector2D(Box.GetCenter().X,Face0.Box.Max.Y+4.f*U),Font,bSelected?White:Grey,FVector2D(.5,0.));
         }
         if(Card.Copies>1)
         {
-            const FSlateFontInfo Font=RingFigure(17.f,F);const FString Text=FString::Printf(TEXT("×%d"),Card.Copies);
-            const float W=float(LDRingPaint::Measure(Text,Font).X)+16.f*F;
-            const float Y=float(ArtBox.Max.Y)-6.f*U;
-            const FBox2D Tag(FVector2D(Box.Max.X+7.f*U-W,Y),FVector2D(Box.Max.X+7.f*U,Y+21.f*F));
-            P.Fill(LDRingPaint::Slant(Tag,8.f*F),LDBroadcast::Gold);P.Text(Text,Tag.GetCenter(),Font,Hex(0x16120A),FVector2D(.5,.5));
+            const FSlateFontInfo Font=Face(EFace::Figure,18.f,F);
+            const FString Text=FString::Printf(TEXT("×%d"),Card.Copies);
+            const float W=WidthOf(Text,Font)+12.f*F;
+            const FBox2D Tab(FVector2D(Box.Max.X+6.f*R-W,Box.Max.Y-14.f*R),FVector2D(Box.Max.X+6.f*R,Box.Max.Y-14.f*R+20.f*F));
+            P.Fill(Lean(Tab,4.f*F,4.f*F),White);P.Text(Text,Tab.GetCenter(),Font,Ink,FVector2D(.5,.5));
         }
         if(Card.bFresh)
         {
-            const FVector2D At(Box.Max.X+12.f*U-19.f*F,Box.Min.Y-14.f*U+19.f*F);
-            if(UTexture2D* Sticker=RingArt(EArt::Fresh)){P.Image(Sticker,Square(At,40.f*F),FLinearColor::White,nullptr,12.f);}
-            else{P.Fill(Star(At,19.f*F,12,.78f,12.f),RingFreshRed);P.Text(TEXT("新"),At,RingFont(LDUIFonts::ERole::Title,16.f,F),FLinearColor::White,FVector2D(.5,.5));}
+            // 新: an orange tab on the top-right corner (unseen is "for me, now").
+            const FSlateFontInfo Font=Face(EFace::Heavy,18.f,F);
+            const float W=WidthOf(TEXT("新"),Font)+12.f*F;
+            const FBox2D Tab(FVector2D(Box.Max.X+6.f*R-W,Box.Min.Y-10.f*R),FVector2D(Box.Max.X+6.f*R,Box.Min.Y-10.f*R+22.f*F));
+            P.Fill(Lean(Tab,4.f*F,4.f*F),Orange);P.Text(TEXT("新"),Tab.GetCenter(),Font,Ink,FVector2D(.5,.5));
         }
-        P.bXform=false;
     }
+    P.Opacity=PageSaved;
 }
 
-void ULDWorkshop::PaintTop(FPainter& P) const
+void ULDWorkshop::PaintBar(FPainter& P) const
 {
     const FLayout& L=Layout;
-    const float F=L.F,U=L.U;
+    if(L.Segments.Num()<4){return;}
+    const float F=L.F;
+    const FHit Shown=Focus();
+    const FSlateFontInfo Label=Face(EFace::Bold,18.f,F),Figure=Face(EFace::Figure,32.f,F),Small=Face(EFace::Figure,22.f,F),Word=Face(EFace::Bold,20.f,F);
+    const float Pad=18.f*F;
+    for(int32 Index=0;Index<L.Segments.Num();++Index)
+    {
+        const FBox2D& Box=L.Segments[Index];
+        P.Fill(Lean(Box,10.f*F,10.f*F),Ink.CopyWithNewOpacity(.92f));
+        if(Index==2&&(Shown.Kind==EHit::HandPile||bShowHand)){P.Fill(RectOf(FBox2D(FVector2D(Box.Min.X+10.f*F,Box.Max.Y-3.f*F),FVector2D(Box.Max.X-10.f*F,Box.Max.Y))),White);}
+    }
+    const float Y=float(L.Bar.GetCenter().Y);
+    // 属性点 ◆N: unspent points are "mine, now".
+    {
+        float X=float(L.Segments[0].Min.X)+Pad;
+        X+=float(P.Text(TEXT("属性点"),FVector2D(X,Y),Label,Grey,FVector2D(0.,.5)).X)+10.f*F;
+        X+=float(P.Text(TEXT("◆"),FVector2D(X,Y),Small,Ring.Unspent>0?Orange:Mute,FVector2D(0.,.5)).X);
+        P.Text(FString::Printf(TEXT("%lld"),Ring.Unspent),FVector2D(X,Y),Figure,Ring.Unspent>0?Orange:White,FVector2D(0.,.5));
+    }
+    // 构筑 x/cap and the capacity ticks.
+    {
+        float X=float(L.Segments[1].Min.X)+Pad;
+        X+=float(P.Text(TEXT("构筑"),FVector2D(X,Y),Label,Grey,FVector2D(0.,.5)).X)+10.f*F;
+        X+=float(P.Text(FString::FromInt(Ring.Installed),FVector2D(X,Y),Figure,White,FVector2D(0.,.5)).X);
+        X+=float(P.Text(FString::Printf(TEXT("/%d"),Ring.Capacity),FVector2D(X,Y+3.f*F),Small,Grey,FVector2D(0.,.5)).X)+10.f*F;
+        for(int32 Tick=0;Tick<Ring.Capacity;++Tick)
+        {
+            const FBox2D Cell(FVector2D(X,Y-10.f*F),FVector2D(X+9.f*F,Y+10.f*F));
+            const TArray<FVector2D> Shape=Lean(Cell,2.f*F,2.f*F);
+            if(Tick<Ring.Installed){P.Fill(Shape,White);}
+            else{P.Stroke(Shape,2.f*F,Mute,true);}
+            X+=12.f*F;
+        }
+    }
+    // 牌库 N
+    {
+        float X=float(L.Segments[2].Min.X)+Pad;
+        X+=float(P.Text(TEXT("牌库"),FVector2D(X,Y),Label,Grey,FVector2D(0.,.5)).X)+10.f*F;
+        P.Text(FString::FromInt(Ring.Hand.Num()),FVector2D(X,Y),Figure,White,FVector2D(0.,.5));
+    }
+    // The commands: 洗点 (a rest), 反应表, 收起 with its key.
     for(const FShape& Box:L.Boxes)
     {
-        if(Box.Hit.Kind!=EHit::Close&&Box.Hit.Kind!=EHit::Matrix){continue;}
-        const FBox2D Button(Box.Shape[0],Box.Shape[2]);
-        const bool bHot=Focus()==Box.Hit||(Box.Hit.Kind==EHit::Matrix&&bMatrix);
-        P.Fill(LDRingPaint::Slant(Button,8.f*F),bHot?Hex(0x1C2438):RingInk);
-        P.Fill(LDRingPaint::Slant(FBox2D(FVector2D(Button.Min.X,Button.Max.Y-3.f*F),Button.Max),2.f*F),LDBroadcast::Gold);
-        const FSlateFontInfo Font=RingFont(LDUIFonts::ERole::Strong,14.f,F);
+        if(Box.Hit.Kind!=EHit::Respec&&Box.Hit.Kind!=EHit::Matrix&&Box.Hit.Kind!=EHit::Close){continue;}
+        const FBox2D Area=BoundsOf(Box.Shape);
+        const float X=float(Area.Min.X)+Pad*.5f;
+        const bool bHot=Shown==Box.Hit||(Box.Hit.Kind==EHit::Matrix&&bMatrix);
+        float W=0.f;
         if(Box.Hit.Kind==EHit::Close)
         {
             const FString Key=Latest.OpenKey.IsEmpty()?FString(TEXT("B")):Latest.OpenKey;
-            const float W=float(LDRingPaint::Measure(TEXT("收起"),Font).X+6.f*F+LDRingPaint::Measure(Key,RingFigure(18.f,F)).X);
-            float X=float(Button.GetCenter().X)-W*.5f;
-            X+=float(P.Text(TEXT("收起"),FVector2D(X,Button.GetCenter().Y),Font,RingText,FVector2D(0.,.5)).X)+6.f*F;
-            P.Text(Key,FVector2D(X,Button.GetCenter().Y),RingFigure(18.f,F),LDBroadcast::Gold,FVector2D(0.,.52),LDBroadcast::SkewDegrees);
+            W=float(P.Text(TEXT("收起"),FVector2D(X,Y),Word,White,FVector2D(0.,.5)).X)+6.f*F;
+            const float KW=WidthOf(Key,Small)+14.f*F;
+            const FBox2D Kbd(FVector2D(X+W,Y-13.f*F),FVector2D(X+W+KW,Y+13.f*F));
+            P.Fill(RectOf(Kbd),White);
+            P.Text(Key,Kbd.GetCenter(),Small,Ink,FVector2D(.5,.5));
+            W+=KW;
         }
-        else{P.Text(TEXT("反应表"),Button.GetCenter(),Font,RingText,FVector2D(.5,.5));}
+        else{W=float(P.Text(Box.Hit.Kind==EHit::Respec?TEXT("洗点"):TEXT("反应表"),FVector2D(X,Y),Word,White,FVector2D(0.,.5)).X);}
+        if(bHot){P.Fill(RectOf(FBox2D(FVector2D(X,Area.Max.Y-5.f*F),FVector2D(X+W,Area.Max.Y-2.f*F))),White);}
     }
+}
+
+void ULDWorkshop::PaintMatrix(FPainter& P) const
+{
+    // The reaction table: every pair of the five elements, the build's own pairs ruled white. It stands over the 反应表 command.
     if(!bMatrix){return;}
-    // The reaction table: every pair of the five elements, the build's own pairs outlined in gold.
+    const FLayout& L=Layout;
+    const float F=L.F,U=L.U;
+    const FShape* Button=L.Boxes.FindByPredicate([](const FShape& Box){return Box.Hit.Kind==EHit::Matrix;});
+    if(!Button){return;}
     const ELDDemoElement Elements[5]={ELDDemoElement::Fire,ELDDemoElement::Water,ELDDemoElement::Electric,ELDDemoElement::Chill,ELDDemoElement::Rot};
     TSet<FString> Mine;for(const FReaction& Reaction:Ring.Reactions){Mine.Add(Reaction.Name);}
-    const float CellW=48.f*F,CellH=27.f*F,Gap=3.f;
-    const FVector2D Origin(L.Size.X-40.f*U-(6*CellW+5*Gap)-20.f*U,96.f*U+40.f*F);
-    const FBox2D Sheet(Origin-FVector2D(10.f*U,10.f*U),Origin+FVector2D(6*CellW+5*Gap+10.f*U,6*CellH+5*Gap+10.f*U));
-    P.Fill({Sheet.Min,FVector2D(Sheet.Max.X,Sheet.Min.Y),Sheet.Max,FVector2D(Sheet.Min.X,Sheet.Max.Y)},Hex(0x070A11,.96f));
-    P.Fill({Sheet.Min,FVector2D(Sheet.Max.X,Sheet.Min.Y),FVector2D(Sheet.Max.X,Sheet.Min.Y+4.f*U),FVector2D(Sheet.Min.X,Sheet.Min.Y+4.f*U)},LDBroadcast::Gold);
-    const FSlateFontInfo Font=RingFont(LDUIFonts::ERole::Strong,14.f,F);
+    const float CellW=52.f*F,CellH=30.f*F,Gap=3.f*U;
+    const FVector2D SheetSize(6*CellW+5*Gap+20.f*U,6*CellH+5*Gap+24.f*U);
+    const FVector2D Origin(FMath::Min(float(BoundsOf(Button->Shape).Min.X),float(L.Size.X)-16.f*U-float(SheetSize.X)),float(L.Bar.Min.Y)-8.f*U-float(SheetSize.Y));
+    const FBox2D Sheet=BoxAt(Origin,SheetSize);
+    P.Fill(RectOf(Sheet),Ink.CopyWithNewOpacity(.96f));
+    P.Fill(RectOf(FBox2D(Sheet.Min,FVector2D(Sheet.Min.X+3.f*U,Sheet.Max.Y))),White);
+    const FSlateFontInfo Font=Face(EFace::Bold,18.f,F);
+    const FVector2D First=Origin+FVector2D(12.f*U,12.f*U);
     for(int32 Row=0;Row<6;++Row)
     {
         for(int32 Column=0;Column<6;++Column)
         {
-            const FVector2D At=Origin+FVector2D(Column*(CellW+Gap),Row*(CellH+Gap));
-            const FBox2D Cell(At,At+FVector2D(CellW,CellH));
-            const TArray<FVector2D> Shape={Cell.Min,FVector2D(Cell.Max.X,Cell.Min.Y),Cell.Max,FVector2D(Cell.Min.X,Cell.Max.Y)};
             if(Row==0&&Column==0){continue;}
+            const FBox2D Cell=BoxAt(First+FVector2D(Column*(CellW+Gap),Row*(CellH+Gap)),FVector2D(CellW,CellH));
             if(Row==0||Column==0)
             {
                 const ELDDemoElement E=Elements[(Row==0?Column:Row)-1];
-                P.Fill(Shape,ElementInk(E));
-                P.Text(LDHUD::ElementName(E),Cell.GetCenter(),Font,Hex(0x0B0F1A),FVector2D(.5,.5));
+                P.Fill(RectOf(Cell),ElementInk(E));
+                P.Text(LDHUD::ElementName(E),Cell.GetCenter(),Font,Ink,FVector2D(.5,.5));
                 continue;
             }
-            P.Fill(Shape,Hex(0x141A2A));
-            if(Row==Column){P.Text(TEXT("—"),Cell.GetCenter(),Font,FLinearColor(1.f,1.f,1.f,.3f),FVector2D(.5,.5));continue;}
+            P.Fill(RectOf(Cell),Panel);
+            if(Row==Column){P.Text(TEXT("—"),Cell.GetCenter(),Font,Mute,FVector2D(.5,.5));continue;}
             const FString Name=LDWorkshop::ReactionName(Elements[Row-1],Elements[Column-1]);
-            const bool bMine=Mine.Contains(Name);
-            if(bMine){P.Stroke(Shape,2.f,LDBroadcast::Gold,true);}
-            P.Text(Name,Cell.GetCenter(),Font,bMine?LDBroadcast::Gold:RingText,FVector2D(.5,.5));
+            const bool bOwn=Mine.Contains(Name);
+            if(bOwn){Frame(P,Cell,2.f*U,White);}
+            P.Text(Name,Cell.GetCenter(),Font,bOwn?White:Grey,FVector2D(.5,.5));
         }
     }
 }
 
-void ULDWorkshop::PaintLinks(FPainter& P,const TArray<uint64>& Lit) const
+void ULDWorkshop::PaintCard(FPainter& P,int32 LinkCount) const
 {
-    const FHit Shown=Focus();
-    if(Lit.IsEmpty()){return;}
-    uint64 SelfKey=AnchorKey(Shown.Kind,Shown.Kind==EHit::Host||Shown.Kind==EHit::Installed?Shown.Host:INDEX_NONE,Shown.Kind==EHit::Host?INDEX_NONE:Shown.Index);
-    const FVector2D* From=Layout.Anchors.Find(SelfKey);
-    if(!From){return;}
-    const FVector2D C=Layout.Centre;
-    const float R=Layout.R;
-    for(const uint64 Key:Lit)
-    {
-        const FVector2D* To=Layout.Anchors.Find(Key);
-        if(!To){continue;}
-        // A gentle curve bowed towards the centre, dashed gold over a black keyline.
-        const FVector2D Mid=(*From+*To)*.5;
-        const FVector2D Bow=Mid+(C-Mid)*.3;
-        TArray<FVector2D> Curve;
-        for(int32 Step=0;Step<=24;++Step)
-        {
-            const float T=Step/24.f;
-            Curve.Add(FMath::Lerp(FMath::Lerp(*From,Bow,T),FMath::Lerp(Bow,*To,T),T));
-        }
-        P.Stroke(Curve,5.5f*R,RingDeep.CopyWithNewOpacity(.75f));
-        P.Dashed(Curve,2.5f*R,10.f*R,5.f*R,Hex(0xFFE27A,.95f));
-    }
-}
-
-void ULDWorkshop::PaintInspector(FPainter& P,int32 LinkCount) const
-{
-    const FHit Shown=Focus();
-    const FLDDemoContentDefinitions* Content=Latest.Content;
-    FString Name,Sub,Body,IconId;
-    ERarity Rarity=ERarity::Common;
-    bool bBodyIcon=false;
-    const auto CardInfo=[&](FName Definition)
-    {
-        const LDHUD::FCardFaceView Face=LDHUD::CardFace(Definition,Content,Latest.Stats);
-        Name=Face.Name;IconId=Face.IconId;Body=Face.SentencePlain;Rarity=RarityOf(Content,Definition);
-        Sub=FString::Printf(TEXT("%s · %s · %s"),LDTerms::CardTypeName(uint8(Face.Type)),*FormPlace(Face.Form),*RarityName(Rarity));
-        if(Face.Form==ELDCardForm::Medal){Sub=FString::Printf(TEXT("勋章 · %s"),*FormPlace(Face.Form));}
-    };
-    const auto ActiveInfo=[&](FName Id,ELDSkillBranch Branch,const FString& Where)
-    {
-        const LDHUD::FActiveCardView Face=LDHUD::ActiveCard(Id,Content,Latest.Stats,Branch);
-        Name=Face.Name;IconId=Face.IconId;Body=Face.SentencePlain;Sub=Where;
-        if(!Face.Cost.IsEmpty()){Sub+=TEXT(" · ")+Face.Cost;}
-    };
-    switch(Shown.Kind)
-    {
-    case EHit::Installed:
-        if(Ring.Hosts.IsValidIndex(Shown.Host)&&Ring.Hosts[Shown.Host].Cards.IsValidIndex(Shown.Index)){CardInfo(Ring.Hosts[Shown.Host].Cards[Shown.Index].Definition);}
-        break;
-    case EHit::Hand:
-        if(Ring.Hand.IsValidIndex(Shown.Index)){CardInfo(Ring.Hand[Shown.Index].Definition);}
-        break;
-    case EHit::Host:
-        if(!Ring.Hosts.IsValidIndex(Shown.Host)){break;}
-        {
-            const FHost& Host=Ring.Hosts[Shown.Host];
-            if(!Host.Active.IsNone()){ActiveInfo(Host.Active,Host.Branch,FString::Printf(TEXT("主动技能 · %s"),*Host.Key));}
-            else if(Host.Column==LDHUD::EStorageColumn::Body){Name=TEXT("本体");Sub=TEXT("角色本体 · 普攻");Body=TEXT("本体牌装在这里；元素槽让第 2、3 段普攻带上元素。");bBodyIcon=true;}
-            else if(Host.Column==LDHUD::EStorageColumn::Dash){Name=Host.Name;IconId=Host.IconId;Sub=FString::Printf(TEXT("冲刺 · %s"),*Host.Key);Body=TEXT("冲刺牌装在这里。");}
-            else{Name=TEXT("空技能槽");Sub=Host.Key;Body=TEXT("学会一个主动技能后，技能牌才能装在这里。");}
-        }
-        break;
-    case EHit::Gem:
-        if(!Ring.Hosts.IsValidIndex(Shown.Host)){break;}
-        if(Ring.Hosts[Shown.Host].bHasMedal)
-        {
-            CardInfo(Ring.Hosts[Shown.Host].Medal.Definition);
-            static const TCHAR* Tiers[]={TEXT(""),TEXT("Ⅰ"),TEXT("Ⅱ"),TEXT("Ⅲ")};
-            Sub=FString::Printf(TEXT("%s 阶 · %s 的元素"),Tiers[FMath::Clamp<int32>(Ring.Hosts[Shown.Host].Medal.Tier,0,3)],*Ring.Hosts[Shown.Host].Name);
-        }
-        else{Name=TEXT("元素槽 · 空");Sub=Ring.Hosts[Shown.Host].Name;Body=TEXT("镶一枚勋章，让这个位置的命中带上元素。不占构筑容量。");}
-        break;
-    case EHit::Stat:
-        if(Ring.Stats.IsValidIndex(Shown.Index)&&Content)
-        {
-            const FStat& Stat=Ring.Stats[Shown.Index];
-            const TArray<const FLDDemoStatDefinition*> Stats=Content->StatsInDesignOrder();
-            Name=Stat.Name;IconId=Stat.IconId;
-            Sub=Stat.bKeystone?FString::Printf(TEXT("%d 点 · 关键石已激活"),Stat.Points):FString::Printf(TEXT("%d 点 · 再投 %d 点激活关键石"),Stat.Points,FMath::Max(0,Ring.Keystone-Stat.Points));
-            if(Stats.IsValidIndex(Shown.Index)){Body=LDHUD::StatRow(*Stats[Shown.Index],Stat.Points,Content).PerPoint;}
-        }
-        break;
-    case EHit::Offer:
-        if(!Ring.Batch.Options.IsValidIndex(Shown.Index)){break;}
-        {
-            const FOption& Option=Ring.Batch.Options[Shown.Index];
-            if(Ring.Batch.Kind==EBatch::Card){CardInfo(Option.Id);}
-            else if(Ring.Batch.Kind==EBatch::Final){Name=Option.Name;IconId=Option.IconId;Body=Option.Text;Sub=TEXT("终局改装 · 选定后锁定构筑");Rarity=ERarity::Legendary;}
-            else{ActiveInfo(Option.Id,ELDSkillBranch::None,Ring.Batch.Kind==EBatch::Blueprint?FString(LDTerms::Blueprint):FString(TEXT("主动技能")));}
-        }
-        break;
-    case EHit::Shop:
-        if(!Ring.Shop.IsValidIndex(Shown.Index)){break;}
-        {
-            const FShopItem& Item=Ring.Shop[Shown.Index];
-            if(Item.Kind==ELDShopItemKind::Card){CardInfo(Item.Id);}
-            else if(Item.Kind==ELDShopItemKind::Skill){ActiveInfo(Item.Id,ELDSkillBranch::None,TEXT("主动技能 · 商店"));}
-            else{Name=TEXT("技能点");Sub=Item.Note;Body=TEXT("给已学的技能升一级。");}
-            Sub+=FString::Printf(TEXT(" · %s"),*Diamonds(Item.Price));
-        }
-        break;
-    case EHit::Wing:
-        if(Ring.Derived.IsValidIndex(Shown.Index)&&Ring.Stats.IsValidIndex(Ring.Derived[Shown.Index].Source))
-        {
-            const FDerived& Row=Ring.Derived[Shown.Index];
-            Name=Row.Name;Sub=FString::Printf(TEXT("%s · 来自%s"),*Row.Value,*Ring.Stats[Row.Source].Name);
-            const FLDCombatAttributeRowView* Source=Latest.Attributes.FindByPredicate([&Row](const FLDCombatAttributeRowView& R){return R.Attribute==Row.Attribute;});
-            if(Source){Body=LDHUD::AttributeRow(*Source).Breakdown;}
-        }
-        break;
-    default: break;
-    }
-    if(Name.IsEmpty()){return;}
-    if(LinkCount>0){Sub+=FString::Printf(TEXT(" · 联动 %d"),LinkCount);}
     const FLayout& L=Layout;
-    const float U=L.U,F=L.F,R=L.R;
-    const float W=FMath::Max(440.f*U,400.f*F);
-    const float Z=84.f*R;
-    const FVector2D At(40.f*U,96.f*U);
-    const FSlateFontInfo NameFont=RingFont(LDUIFonts::ERole::Title,20.f,F),SubFont=RingFont(LDUIFonts::ERole::Strong,14.f,F),BodyFont=RingFont(LDUIFonts::ERole::Body,16.f,F);
-    const float TextX=float(At.X)+18.f*U+Z+14.f*U;
-    const float TextW=float(At.X)+W-26.f*U-TextX;
-    const TArray<FString> Lines=LDRingPaint::Wrap(Body,BodyFont,TextW,4);
-    const float H=FMath::Max(128.f*U,14.f*U*2.f+FMath::Max(Z,20.f*F*1.25f+14.f*F*1.4f+5.f*U+Lines.Num()*16.f*F*1.35f));
-    const FBox2D Card(At,At+FVector2D(W,H));
-    P.FillShaded({Card.Min,FVector2D(Card.Max.X,Card.Min.Y),FVector2D(Card.Max.X-18.f*U,Card.Max.Y),FVector2D(Card.Min.X,Card.Max.Y)},
-        [&](FVector2D Point){return LDRingPaint::Mix(Hex(0x070A11,.96f),Hex(0x070A11,.9f),float((Point.X-Card.Min.X)/W));});
-    P.Fill({Card.Min,FVector2D(Card.Min.X+6.f*U,Card.Min.Y),FVector2D(Card.Min.X+6.f*U,Card.Max.Y),FVector2D(Card.Min.X,Card.Max.Y)},LDBroadcast::Gold);
-    const FBox2D IconBox(FVector2D(At.X+18.f*U,At.Y+14.f*U),FVector2D(At.X+18.f*U+Z,At.Y+14.f*U+Z));
-    if(!IconId.IsEmpty()||bBodyIcon)
+    if(!L.Card.bIsValid){return;}
+    const FInfo Info=InfoOf(Focus());
+    if(Info.Name.IsEmpty()){return;}
+    const float U=L.U,F=L.F;
+    const FBox2D Card=L.Card;
+    P.Fill(Lean(Card,0.f,24.f*U),Ink.CopyWithNewOpacity(.94f));
+    P.Fill(RectOf(FBox2D(Card.Min,FVector2D(Card.Min.X+4.f*U,Card.Max.Y))),White);
+    const float Icon=72.f*U;
+    const FBox2D Tile=BoxAt(Card.Min+FVector2D(18.f*U,14.f*U),FVector2D(Icon,Icon));
+    PaintTile(P,Tile,Info.IconId,Info.Name,ETile::Plain,ERarity::Common,1.f,Info.bBodyIcon?RingArt(EArt::Body):nullptr);
+    const float TextX=float(Tile.Max.X)+16.f*U;
+    const float TextW=float(Card.Max.X)-TextX-30.f*U;
+    float Y=float(Card.Min.Y)+10.f*U;
+    P.Text(OneLine(Info.Name,Face(EFace::Heavy,26.f,F),TextW),FVector2D(TextX,Y),Face(EFace::Heavy,26.f,F),White);Y+=34.f*F;
     {
-        FCard Face;Face.IconId=IconId;Face.Name=Name;Face.Rarity=Rarity;
-        if(bBodyIcon&&RingArt(EArt::Body))
-        {
-            const TArray<FVector2D> Outline=LDRingPaint::Rounded(IconBox,10.f*R,3);
-            P.FillShaded(Outline,[&](FVector2D Point){return Metal(FFrameInk{Hex(0xFFF6CF),Hex(0xE0A81E),Hex(0x6A4606),LDBroadcast::Gold},IconBox,Point);});
-            const FBox2D Inner=Grow(IconBox,-3.f*R);const TArray<FVector2D> InnerShape=LDRingPaint::Rounded(Inner,7.f*R,3);
-            P.Fill(InnerShape,RingFace);P.Image(RingArt(EArt::Body),Inner,FLinearColor::White,&InnerShape);
-        }
-        else{PaintNode(P,IconBox,Face,1.f,false,false,0.f);}
+        float X=TextX;
+        X+=float(P.Text(Info.Meta,FVector2D(X,Y),Face(EFace::Bold,18.f,F),Grey).X);
+        if(LinkCount>0){P.Text(FString::Printf(TEXT(" · 联动 %d"),LinkCount),FVector2D(X,Y),Face(EFace::Heavy,18.f,F),White);}
+        Y+=26.f*F;
     }
-    float Y=float(At.Y)+14.f*U;
-    P.Text(Name,FVector2D(TextX,Y),NameFont,FLinearColor::White);Y+=20.f*F*1.25f;
-    P.Text(Sub,FVector2D(TextX,Y),SubFont,LDBroadcast::Gold);Y+=14.f*F*1.4f+5.f*U;
-    for(const FString& Line:Lines){P.Text(Line,FVector2D(TextX,Y),BodyFont,Hex(0xE3E7EF));Y+=16.f*F*1.35f;}
+    if(!Info.Gain.IsEmpty()){P.Text(OneLine(Info.Gain,Face(EFace::Bold,18.f,F),TextW),FVector2D(TextX,Y),Face(EFace::Bold,18.f,F),Orange);Y+=26.f*F;}
+    for(const FString& Line:LDRingPaint::Wrap(Info.Body,Face(EFace::Regular,20.f,F),TextW,3))
+    {
+        P.Text(Line,FVector2D(TextX,Y),Face(EFace::Regular,20.f,F),White.CopyWithNewOpacity(.9f));Y+=26.f*F;
+    }
+}
+
+void ULDWorkshop::PaintSkillRules(FPainter& P,const TArray<uint64>& Lit) const
+{
+    // A linked (or hovered) skill's face on the HUD band takes the link's white rule.
+    const FGeometry& G=GetCachedGeometry();
+    const FHit Shown=Focus();
+    for(int32 Host=1;Host<HostCount;++Host)
+    {
+        const bool bOn=Lit.Contains(AnchorKey(EHit::Host,Host,INDEX_NONE))||(Shown.Kind==EHit::Host&&Shown.Host==Host);
+        if(!bOn||!Latest.Skills.IsValidIndex(Host-1)){continue;}
+        const FSlateRect& Rect=Latest.Skills[Host-1];
+        if(Rect.Right<=Rect.Left||Rect.Bottom<=Rect.Top){continue;}
+        Frame(P,FBox2D(G.AbsoluteToLocal(FVector2D(Rect.Left,Rect.Top)),G.AbsoluteToLocal(FVector2D(Rect.Right,Rect.Bottom))),3.f*Layout.U,White);
+    }
 }
 
 void ULDWorkshop::PaintClosed(FPainter& P) const
@@ -1879,66 +1699,101 @@ void ULDWorkshop::PaintClosed(FPainter& P) const
     if(!OfferFaces.IsEmpty())
     {
         const FBox2D First=OfferFaces[0].Box;
-        const FSlateFontInfo Font=RingFont(LDUIFonts::ERole::Title,14.f,F);
-        const float W=float(LDRingPaint::Measure(Ring.Batch.Title,Font).X)+24.f*F;
-        const FBox2D Label(FVector2D(First.Min.X,First.Min.Y-12.f*U-24.f*F),FVector2D(First.Min.X+W,First.Min.Y-12.f*U));
-        P.Fill(LDRingPaint::Slant(Label,8.f*F),LDBroadcast::Gold);
-        P.Text(Ring.Batch.Title,Label.GetCenter(),Font,Hex(0x16120A),FVector2D(.5,.5));
-        for(const FFace& Face:OfferFaces)
         {
-            const FOption& Option=Ring.Batch.Options[Face.Hit.Index];
-            FCard Card;Card.IconId=Option.IconId;Card.Name=Option.Name;Card.Rarity=Option.Rarity;
-            const float Age=BatchAt<0.?1.f:FMath::Clamp(float((UiNow()-BatchAt-Face.Hit.Index*RingRevealStagger)/RingRevealTime),0.f,1.f);
+            const FSlateFontInfo Font=Face(EFace::Heavy,18.f,F);
+            const float W=WidthOf(Ring.Batch.Title,Font)+24.f*F;
+            const FBox2D Chip(FVector2D(First.Min.X,First.Min.Y-10.f*U-28.f*F),FVector2D(First.Min.X+W,First.Min.Y-10.f*U));
+            P.Fill(Lean(Chip,7.f*F,7.f*F),White);
+            P.Text(Ring.Batch.Title,Chip.GetCenter(),Font,Ink,FVector2D(.5,.5));
+        }
+        for(const FFace& Face0:OfferFaces)
+        {
+            const FOption& Option=Ring.Batch.Options[Face0.Hit.Index];
+            const float Age=BatchAt<0.?1.f:FMath::Clamp(float((UiNow()-BatchAt-Face0.Hit.Index*RingRevealStagger)/RingRevealTime),0.f,1.f);
             const float Saved=P.Opacity;P.Opacity*=Age;
-            PaintNode(P,Shift(Face.Box,FVector2D(0.,(1.f-Age)*16.f*U)),Card,1.f,Shown==Face.Hit,false,0.f);
-            const FSlateFontInfo KeyFont=RingFigure(19.f,F);
-            const FBox2D Tag(FVector2D(Face.Box.Min.X-9.f*U,Face.Box.Min.Y-9.f*U),FVector2D(Face.Box.Min.X-9.f*U+26.f*F,Face.Box.Min.Y-9.f*U+23.f*F));
-            P.Fill(LDRingPaint::Slant(Tag,8.f*F),LDBroadcast::Gold);
-            P.Text(FString::FromInt(Face.Hit.Index+1),Tag.GetCenter(),KeyFont,Hex(0x16120A),FVector2D(.5,.5));
+            const FBox2D Box=Shift(Face0.Box,FVector2D(0.,(1.f-Age)*16.f*U));
+            PaintTile(P,Box,Option.IconId,Option.Name,Shown==Face0.Hit?ETile::Hot:ETile::Plain,Option.Rarity,.6f);
+            // The pick key on a white tab over the tile's corner.
+            const FSlateFontInfo Font=Face(EFace::Figure,20.f,F);
+            const FBox2D Tab(FVector2D(Box.Min.X-6.f*U,Box.Min.Y-8.f*U),FVector2D(Box.Min.X-6.f*U+22.f*F,Box.Min.Y-8.f*U+22.f*F));
+            P.Fill(RectOf(Tab),White);
+            P.Text(FString::FromInt(Face0.Hit.Index+1),Tab.GetCenter(),Font,Ink,FVector2D(.5,.5));
             P.Opacity=Saved;
         }
         if(Ring.Batch.Queued>0)
         {
             const FBox2D Last=OfferFaces.Last().Box;
-            const FBox2D Pile(FVector2D(Last.Max.X+20.f*U,Last.Min.Y+10.f*U),FVector2D(Last.Max.X+76.f*U,Last.Max.Y));
-            for(int32 Back=2;Back>=1;--Back)
-            {
-                const FBox2D Behind=Shift(Pile,FVector2D(5.f*Back,-5.f*Back)*U);
-                P.Fill(LDRingPaint::Rounded(Grow(Behind,2.f),9.f*U,3),Back==2?Hex(0x5C5233):Hex(0x8B7A45));
-                P.Fill(LDRingPaint::Rounded(Behind,9.f*U,3),Hex(0x0B0F1A));
-            }
-            P.Fill(LDRingPaint::Rounded(Pile,9.f*U,3),LDBroadcast::Gold);
-            P.Fill(LDRingPaint::Rounded(Grow(Pile,-3.f*U),7.f*U,3),Hex(0x151B2E));
-            P.Text(FString::Printf(TEXT("+%d"),Ring.Batch.Queued),Pile.GetCenter(),RingFigure(22.f,F),FLinearColor::White,FVector2D(.5,.5),LDBroadcast::SkewDegrees);
+            const FBox2D Pile(FVector2D(Last.Max.X+12.f*U,Last.Min.Y),FVector2D(Last.Max.X+12.f*U+48.f*F,Last.Max.Y));
+            P.Fill(RectOf(Pile),Ink.CopyWithNewOpacity(.92f));
+            Frame(P,Pile,2.f*U,White.CopyWithNewOpacity(.34f));
+            P.Text(FString::Printf(TEXT("+%d"),Ring.Batch.Queued),Pile.GetCenter(),Face(EFace::Figure,26.f,F),White,FVector2D(.5,.5));
         }
     }
     for(const FShape& Box:L.Boxes)
     {
         if(Box.Hit.Kind!=EHit::Entry){continue;}
-        // The entry: 构筑 with its key, the unspent points and the red 新 N.
-        const FSlateFontInfo Font=RingFont(LDUIFonts::ERole::Strong,14.f,F),Figure=RingFigure(18.f,F);
-        const FString Key=Latest.OpenKey.IsEmpty()?FString(TEXT("B")):Latest.OpenKey;
-        const FString Points=Ring.Unspent>0?FString::Printf(TEXT("属性点 %lld"),Ring.Unspent):FString();
-        const FString Fresh=Ring.Fresh>0?FString::Printf(TEXT("新 %d"),Ring.Fresh):FString();
-        const float W=16.f*F+float(LDRingPaint::Measure(TEXT("构筑"),Font).X)+6.f*F+float(LDRingPaint::Measure(Key,Figure).X)
-            +(Points.IsEmpty()?0.f:12.f*F+float(LDRingPaint::Measure(Points,Font).X))+(Fresh.IsEmpty()?0.f:10.f*F+float(LDRingPaint::Measure(Fresh,Font).X)+12.f*F)+16.f*F;
-        const FBox2D Button(Box.Shape[0],FVector2D(Box.Shape[0].X+W,Box.Shape[2].Y));
+        // The entry: 构筑 with its key, the unspent points (orange) and the unseen cards.
+        const FBox2D Button=BoundsOf(Box.Shape);
         const bool bHot=Shown==Box.Hit;
-        P.Fill(LDRingPaint::Slant(Button,8.f*F),bHot?Hex(0x1C2438):RingInk);
-        P.Fill(LDRingPaint::Slant(FBox2D(FVector2D(Button.Min.X,Button.Max.Y-3.f*F),Button.Max),2.f*F),LDBroadcast::Gold);
-        float X=float(Button.Min.X)+16.f*F;const float Y=float(Button.GetCenter().Y);
-        X+=float(P.Text(TEXT("构筑"),FVector2D(X,Y),Font,RingText,FVector2D(0.,.5)).X)+6.f*F;
-        X+=float(P.Text(Key,FVector2D(X,Y),Figure,LDBroadcast::Gold,FVector2D(0.,.52),LDBroadcast::SkewDegrees).X);
-        if(!Points.IsEmpty()){X+=12.f*F;X+=float(P.Text(Points,FVector2D(X,Y),Font,LDBroadcast::Gold,FVector2D(0.,.5)).X);}
-        if(!Fresh.IsEmpty())
+        P.Fill(Lean(Button,10.f*F,10.f*F),Ink.CopyWithNewOpacity(.92f));
+        if(bHot){P.Fill(RectOf(FBox2D(FVector2D(Button.Min.X+10.f*F,Button.Max.Y-4.f*F),FVector2D(Button.Max.X-10.f*F,Button.Max.Y))),White);}
+        const FSlateFontInfo Label=Face(EFace::Bold,18.f,F),Key=Face(EFace::Figure,22.f,F);
+        const FString OpenKey=Latest.OpenKey.IsEmpty()?FString(TEXT("B")):Latest.OpenKey;
+        float X=float(Button.Min.X)+14.f*F;const float Y=float(Button.GetCenter().Y);
+        X+=float(P.Text(TEXT("构筑"),FVector2D(X,Y),Label,White,FVector2D(0.,.5)).X)+8.f*F;
+        const float KW=WidthOf(OpenKey,Key)+14.f*F;
+        const FBox2D Kbd(FVector2D(X,Y-12.f*F),FVector2D(X+KW,Y+12.f*F));
+        P.Fill(RectOf(Kbd),White);P.Text(OpenKey,Kbd.GetCenter(),Key,Ink,FVector2D(.5,.5));
+        X+=KW+12.f*F;
+        if(Ring.Unspent>0){X+=float(P.Text(FString::Printf(TEXT("◆%lld"),Ring.Unspent),FVector2D(X,Y),Face(EFace::Figure,26.f,F),Orange,FVector2D(0.,.5)).X)+12.f*F;}
+        if(Ring.Fresh>0)
         {
-            X+=10.f*F;
-            const float FW=float(LDRingPaint::Measure(Fresh,Font).X)+12.f*F;
-            const FBox2D Pill(FVector2D(X,Y-10.f*F),FVector2D(X+FW,Y+10.f*F));
-            P.Fill(LDRingPaint::Rounded(Pill,10.f*F,4),RingFreshRed);
-            P.Text(Fresh,Pill.GetCenter(),Font,FLinearColor::White,FVector2D(.5,.5));
+            const FString Fresh=FString::Printf(TEXT("新 %d"),Ring.Fresh);
+            const float W=WidthOf(Fresh,Label)+16.f*F;
+            const FBox2D Tab(FVector2D(X,Y-12.f*F),FVector2D(X+W,Y+12.f*F));
+            P.Fill(Lean(Tab,5.f*F,5.f*F),Orange);P.Text(Fresh,Tab.GetCenter(),Label,Ink,FVector2D(.5,.5));
         }
     }
+}
+
+int32 ULDWorkshop::PaintGround(const FGeometry& Geometry,FSlateWindowElementList& Elements,int32 Layer) const
+{
+    if(!Ring.bValid||!Latest.bShown){return Layer;}
+    const float Open=OpenAmount();
+    if(Open<=0.f){return Layer;}
+    // A radial falloff around the character (clear within 120 px, 44% at the far edge) and soft scrims along the left
+    // edge, the bottom and (with the shop) the right edge. Never a rectangle, and never over a HUD surface (this layer is
+    // under them).
+    FPainter P(Elements,Geometry,Layer);
+    P.Opacity=Open;
+    const FLayout& L=Layout;
+    const float U=L.U;
+    const FVector2D Size=Geometry.GetLocalSize();
+    const FVector2D C=L.Centre;
+    const bool bRight=Ring.bShop;
+    const auto Shade=[&](FVector2D At)
+    {
+        const float D=float(FVector2D::Distance(At,C))/U;
+        const float Radial=D<120.f?0.f:D<240.f?FMath::Lerp(0.f,.16f,(D-120.f)/120.f):D<480.f?FMath::Lerp(.16f,.34f,(D-240.f)/240.f):FMath::Lerp(.34f,.44f,FMath::Min(1.f,(D-480.f)/520.f));
+        const auto Edge=[](float X){return X<420.f?FMath::Lerp(.62f,.36f,X/420.f):X<600.f?FMath::Lerp(.36f,0.f,(X-420.f)/180.f):0.f;};
+        const float Left=Edge(float(At.X)/U);
+        const float Right=bRight?Edge(float(Size.X-At.X)/U):0.f;
+        const float Bottom=FMath::Clamp(.66f*(1.f-float(Size.Y-At.Y)/(320.f*U)),0.f,.66f);
+        const float Alpha=1.f-(1.f-Radial)*(1.f-Left)*(1.f-Right)*(1.f-Bottom);
+        return Ink.CopyWithNewOpacity(Alpha);
+    };
+    const int32 Columns=32,Rows=18;
+    for(int32 Row=0;Row<Rows;++Row)
+    {
+        TArray<FVector2D> Top,Bottom;
+        for(int32 Column=0;Column<=Columns;++Column)
+        {
+            const float X=float(Size.X)*Column/Columns;
+            Top.Add(FVector2D(X,float(Size.Y)*Row/Rows));Bottom.Add(FVector2D(X,float(Size.Y)*(Row+1)/Rows));
+        }
+        P.Band(Top,Bottom,Shade);
+    }
+    return P.Layer;
 }
 
 int32 ULDWorkshop::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,const FSlateRect& Culling,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle& Style,bool bEnabled) const
@@ -1959,48 +1814,51 @@ int32 ULDWorkshop::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,
             if(Index!=INDEX_NONE){Lit=LinkedTo(FHit{EHit::Hand,INDEX_NONE,Index});}
         }
         const bool bDim=!Lit.IsEmpty();
-        PaintDim(P);
-        PaintSectors(P,Lit,bDim);
-        PaintGems(P);
-        PaintRadarLabels(P);
-        PaintWing(P);
-        PaintShop(P,Lit);
-        PaintBottom(P,Lit);
-        PaintTop(P);
+        PaintBand(P);
         if(!Shown.IsNone()){PaintLinks(P,Lit);}
+        PaintSockets(P);
+        PaintHosts(P,Lit,bDim);
+        PaintRadarChips(P);
+        PaintTable(P);
+        PaintShop(P,Lit);
+        PaintRow(P,Lit);
+        PaintBar(P);
+        PaintMatrix(P);
+        PaintSkillRules(P,Lit);
         // The element chooser and the rest confirm line, over the ring's top.
-        const float U=Layout.U,F=Layout.F;
+        const float F=Layout.F;
         if(Storage.IsValid()&&Storage->IsChoosing())
         {
-            const TArray<ELDDemoElement> Elements2=Storage->ChooserElements();
+            const TArray<ELDDemoElement> Choices2=Storage->ChooserElements();
             for(const FShape& Box:Layout.Boxes)
             {
-                if(Box.Hit.Kind!=EHit::Element||!Elements2.IsValidIndex(Box.Hit.Index)){continue;}
-                const FBox2D Button(Box.Shape[0],Box.Shape[2]);
-                P.Fill(LDRingPaint::Slant(Button,8.f*F),ElementInk(Elements2[Box.Hit.Index]));
-                P.Text(LDHUD::ElementName(Elements2[Box.Hit.Index]),Button.GetCenter(),RingFont(LDUIFonts::ERole::Title,15.f,F),Hex(0x0B0F1A),FVector2D(.5,.5));
+                if(Box.Hit.Kind!=EHit::Element||!Choices2.IsValidIndex(Box.Hit.Index)){continue;}
+                const FBox2D Button=BoundsOf(Box.Shape);
+                P.Fill(Lean(Button,7.f*F,7.f*F),ElementInk(Choices2[Box.Hit.Index]));
+                if(Focus()==Box.Hit){Frame(P,Button,3.f*F,White);}
+                P.Text(LDHUD::ElementName(Choices2[Box.Hit.Index]),Button.GetCenter(),Face(EFace::Heavy,20.f,F),Ink,FVector2D(.5,.5));
             }
-            P.Text(TEXT("选一种元素"),FVector2D(Layout.Centre.X,250.f*U-6.f*U),RingFont(LDUIFonts::ERole::Title,15.f,F),FLinearColor::White,FVector2D(.5,1.));
+            P.Text(TEXT("选一种元素"),FVector2D(Layout.Centre.X,48.f*Layout.U-6.f*Layout.U),Face(EFace::Heavy,20.f,F),White,FVector2D(.5,1.));
         }
         if(Choices.IsValid()&&Choices->HasChildConfirmation())
         {
             const FString Line=Choices->ConfirmLine();
-            const FSlateFontInfo Font=RingFont(LDUIFonts::ERole::Title,15.f,F);
-            const float W=float(LDRingPaint::Measure(Line,Font).X)+36.f*F;
-            const FBox2D Plate(FVector2D(Layout.Centre.X-W*.5f,250.f*U),FVector2D(Layout.Centre.X+W*.5f,250.f*U+30.f*F));
-            P.Fill(LDRingPaint::Slant(Plate,8.f*F),LDBroadcast::LiveRed);
-            P.Text(Line,Plate.GetCenter(),Font,FLinearColor::White,FVector2D(.5,.5));
+            const FSlateFontInfo Font=Face(EFace::Heavy,20.f,F);
+            const float W=WidthOf(Line,Font)+36.f*F;
+            const FBox2D Plate(FVector2D(Layout.Centre.X-W*.5f,16.f*Layout.U),FVector2D(Layout.Centre.X+W*.5f,16.f*Layout.U+34.f*F));
+            P.Fill(Lean(Plate,8.f*F,8.f*F),LDBroadcast::LiveRed);
+            P.Text(Line,Plate.GetCenter(),Font,White,FVector2D(.5,.5));
             for(const FShape& Box:Layout.Boxes)
             {
                 if(Box.Hit.Kind!=EHit::ConfirmYes&&Box.Hit.Kind!=EHit::ConfirmNo){continue;}
-                const FBox2D Button(Box.Shape[0],Box.Shape[2]);
+                const FBox2D Button=BoundsOf(Box.Shape);
                 const bool bYes=Box.Hit.Kind==EHit::ConfirmYes;
-                P.Fill(LDRingPaint::Slant(Button,8.f*F),Focus()==Box.Hit?Hex(0x1C2438):RingInk);
-                P.Fill(LDRingPaint::Slant(FBox2D(FVector2D(Button.Min.X,Button.Max.Y-3.f*F),Button.Max),2.f*F),bYes?LDBroadcast::LiveRed:LDBroadcast::Gold);
-                P.Text(bYes?TEXT("确认"):TEXT("取消"),Button.GetCenter(),RingFont(LDUIFonts::ERole::Strong,14.f,F),RingText,FVector2D(.5,.5));
+                P.Fill(Lean(Button,7.f*F,7.f*F),bYes?LDBroadcast::LiveRed:Ink.CopyWithNewOpacity(.92f));
+                if(Focus()==Box.Hit){Frame(P,Button,2.f*F,White);}
+                P.Text(bYes?TEXT("确认"):TEXT("取消"),Button.GetCenter(),Face(EFace::Bold,18.f,F),White,FVector2D(.5,.5));
             }
         }
-        PaintInspector(P,Lit.Num());
+        PaintCard(P,Lit.Num());
     }
     if(!IsOpen())
     {
@@ -2008,4 +1866,24 @@ int32 ULDWorkshop::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,
         PaintClosed(P);
     }
     return P.Layer;
+}
+
+// ---- the ground layer ----------------------------------------------------------------------------------------------------
+
+TSharedRef<SWidget> ULDBuildRingGround::RebuildWidget()
+{
+    if(!WidgetTree->RootWidget)
+    {
+        UCanvasPanel* Root=WidgetTree->ConstructWidget<UCanvasPanel>();
+        Root->SetVisibility(ESlateVisibility::HitTestInvisible);
+        WidgetTree->RootWidget=Root;
+        SetVisibility(ESlateVisibility::HitTestInvisible);
+    }
+    return Super::RebuildWidget();
+}
+int32 ULDBuildRingGround::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,const FSlateRect& Culling,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle& Style,bool bEnabled) const
+{
+    Layer=Super::NativePaint(Args,Geometry,Culling,Elements,Layer,Style,bEnabled);
+    const ULDWorkshop* Owner=Ring.Get();
+    return Owner?Owner->PaintGround(Geometry,Elements,Layer):Layer;
 }

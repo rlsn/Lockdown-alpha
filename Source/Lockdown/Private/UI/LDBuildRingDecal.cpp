@@ -13,9 +13,10 @@ constexpr float RadarLiftCm=1.5f;
 
 float ULDBuildRadarWidget::AxisRadius(int32 Points,int32 Keystone)
 {
-    // The mock's scale: 26 px of hub, 3 px a point, the keystone (18) at 80 px and the rim at 22 points.
+    // A hub of 28% of the rim, then even steps: the keystone (18) at 87% and the rim at 22 points.
+    const float Rim=LDBuildRing::RadarRadius,Hub=Rim*.28f;
     const float Max=Keystone>0?float(Keystone)*22.f/18.f:22.f;
-    return 26.f+FMath::Min(float(FMath::Max(0,Points)),Max)*(66.f/Max);
+    return Hub+FMath::Min(float(FMath::Max(0,Points)),Max)*((Rim-Hub)/Max);
 }
 TSharedRef<SWidget> ULDBuildRadarWidget::RebuildWidget()
 {
@@ -36,56 +37,37 @@ int32 ULDBuildRadarWidget::NativePaint(const FPaintArgs& Args,const FGeometry& G
     const auto Ring=[&](TFunctionRef<float(int32)> Radius){TArray<FVector2D> Out;for(int32 Axis=0;Axis<Count;++Axis){Out.Add(At(Radius(Axis),Axis));}return Out;};
     const float Rim=AxisRadius(1000,State.Keystone);
     const float Dim=State.bClosed?.55f:1.f;
-    // The plate: the dark pentagon to the rim, its grid and the keystone line.
-    P.Fill(Ring([&](int32){return Rim;}),FLinearColor(0.f,0.f,0.f,.42f*Dim));
+    const FLinearColor White=LDBroadcast::White,Ink=LDBroadcast::Ink;
+    // The plate (the broadcast instrument's face): an ink pentagon to the rim, its grid, the spokes and the keystone line.
+    P.Fill(Ring([&](int32){return Rim;}),Ink.CopyWithNewOpacity(.35f*Dim));
     for(const float Grid:{AxisRadius(State.Keystone/3,State.Keystone),AxisRadius(State.Keystone*2/3,State.Keystone)})
-    {P.Stroke(Ring([&](int32){return Grid;}),1.4f*K,FLinearColor(1.f,1.f,1.f,.22f*Dim),true);}
-    P.Stroke(Ring([&](int32){return Rim;}),1.8f*K,FLinearColor(1.f,1.f,1.f,.42f*Dim),true);
+    {P.Stroke(Ring([&](int32){return Grid;}),1.4f*K,White.CopyWithNewOpacity(.2f*Dim),true);}
+    P.Stroke(Ring([&](int32){return Rim;}),2.f*K,White.CopyWithNewOpacity(.55f*Dim),true);
     if(State.Keystone>0)
     {
-        P.Dashed(Ring([&](int32){return AxisRadius(State.Keystone,State.Keystone);}),2.2f*K,5.f*K,5.f*K,LDBroadcast::Gold.CopyWithNewOpacity(.95f*Dim),true);
+        P.Dashed(Ring([&](int32){return AxisRadius(State.Keystone,State.Keystone);}),1.6f*K,5.f*K,5.f*K,White.CopyWithNewOpacity(.45f*Dim),true);
     }
-    for(int32 Axis=0;Axis<Count;++Axis)
-    {
-        const FLinearColor Ink=State.Inks.IsValidIndex(Axis)?State.Inks[Axis]:FLinearColor::White;
-        P.Stroke({C,At(Rim,Axis)},1.6f*K,Ink.CopyWithNewOpacity(.55f*Dim));
-    }
-    // The shape of the build: a gold-to-pink fill with a black keyline and a gold edge.
+    for(int32 Axis=0;Axis<Count;++Axis){P.Stroke({C,At(Rim,Axis)},1.4f*K,White.CopyWithNewOpacity(.18f*Dim));}
+    // The shape of the build: a white fill with a white edge.
     const TArray<FVector2D> Shape=Ring([&](int32 Axis){return AxisRadius(State.Points[Axis],State.Keystone);});
-    const float Reach=Rim*K;
-    P.FillShaded(Shape,[&](FVector2D Point)
-    {
-        const float T=FMath::Clamp(float(FVector2D::Distance(Point,C))/Reach,0.f,1.f);
-        const FLinearColor Inner=LDBroadcast::Gold.CopyWithNewOpacity(.22f),Mid=LDBroadcast::Gold.CopyWithNewOpacity(.5f),Outer=LDRingPaint::Hex(0xFF4D8D,.62f);
-        const FLinearColor Out=T<.55f?LDRingPaint::Mix(Inner,Mid,T/.55f):LDRingPaint::Mix(Mid,Outer,(T-.55f)/.45f);
-        return Out.CopyWithNewOpacity(Out.A*Dim);
-    });
-    P.Stroke(Shape,6.f*K,LDRingPaint::Hex(0x04060B,.9f*Dim),true);
-    P.Stroke(Shape,3.f*K,LDRingPaint::Hex(0xFFE27A,Dim),true);
-    for(int32 Axis=0;Axis<Count;++Axis)
-    {
-        const FVector2D Dot=Shape[Axis];
-        const FLinearColor Ink=State.Inks.IsValidIndex(Axis)?State.Inks[Axis]:FLinearColor::White;
-        P.Fill(LDRingPaint::Octagon(FBox2D(Dot-FVector2D(7.,7.)*K,Dot+FVector2D(7.,7.)*K),.29f),LDRingPaint::Hex(0x04060B));
-        P.Fill(LDRingPaint::Octagon(FBox2D(Dot-FVector2D(5.,5.)*K,Dot+FVector2D(5.,5.)*K),.29f),Ink);
-    }
+    P.Fill(Shape,White.CopyWithNewOpacity(.3f*Dim));
+    P.Stroke(Shape,2.5f*K,White.CopyWithNewOpacity(Dim),true);
     if(State.bClosed)
     {
-        // The capacity ticks: installed gold, open white, locked faint, 300 degrees around the feet.
+        // The capacity ticks: installed white, open faint, locked fainter, 300 degrees around the feet.
         const int32 Ticks=FMath::Max(State.MaxCapacity,State.Capacity);
         for(int32 Tick=0;Tick<Ticks;++Tick)
         {
             const float A=Ticks>1?-150.f+Tick*(300.f/(Ticks-1)):0.f;
-            const FLinearColor Ink=Tick<State.Installed?LDBroadcast::Gold:Tick<State.Capacity?FLinearColor(1.f,1.f,1.f,.45f):FLinearColor(1.f,1.f,1.f,.14f);
-            P.Stroke(LDRingPaint::Arc(C,116.f*K,A-9.f,A+9.f,6),5.f*K,Ink);
+            const FLinearColor Mark=Tick<State.Installed?White:Tick<State.Capacity?White.CopyWithNewOpacity(.4f):White.CopyWithNewOpacity(.12f);
+            P.Stroke(LDRingPaint::Arc(C,106.f*K,A-9.f,A+9.f,6),5.f*K,Mark);
         }
         for(const TPair<float,FLinearColor>& Medal:State.Medals)
         {
-            const FVector2D Dot=LDRingPaint::Polar(C,134.f*K,Medal.Key*.6f);
+            const FVector2D Dot=LDRingPaint::Polar(C,122.f*K,Medal.Key*.6f);
             const float H=9.f*K;
-            const TArray<FVector2D> Diamond={Dot+FVector2D(0,-H),Dot+FVector2D(H,0),Dot+FVector2D(0,H),Dot+FVector2D(-H,0)};
-            P.Fill({Dot+FVector2D(0,-H-2.5f*K),Dot+FVector2D(H+2.5f*K,0),Dot+FVector2D(0,H+2.5f*K),Dot+FVector2D(-H-2.5f*K,0)},LDRingPaint::Hex(0x04060B));
-            P.Fill(Diamond,Medal.Value);
+            P.Fill({Dot+FVector2D(0,-H-2.5f*K),Dot+FVector2D(H+2.5f*K,0),Dot+FVector2D(0,H+2.5f*K),Dot+FVector2D(-H-2.5f*K,0)},Ink);
+            P.Fill({Dot+FVector2D(0,-H),Dot+FVector2D(H,0),Dot+FVector2D(0,H),Dot+FVector2D(-H,0)},Medal.Value);
         }
     }
     return P.Layer;
