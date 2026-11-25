@@ -61,6 +61,7 @@
 #include "ShaderCompiler.h"
 #include "UnrealClient.h"
 #include "Vision/LDWorldViewRelay.h"
+#include "HAL/IConsoleManager.h"
 
 namespace
 {
@@ -923,7 +924,7 @@ namespace
             Categories.ParseIntoArray(Wanted, TEXT(","), true);
             for (const FString& Name : Wanted)
             {
-                if (!Check(Name == TEXT("chain") || Name == TEXT("hit") || Name == TEXT("swing") || Name == TEXT("field") || Name == TEXT("water") || Name == TEXT("fire") || Name == TEXT("chill") || Name == TEXT("states") || Name == TEXT("feel"),
+                if (!Check(Name == TEXT("chain") || Name == TEXT("hit") || Name == TEXT("swing") || Name == TEXT("field") || Name == TEXT("water") || Name == TEXT("fire") || Name == TEXT("chill") || Name == TEXT("states") || Name == TEXT("feel") || Name == TEXT("grounds"),
                     TEXT("Proof category known: ") + Name)) { return false; }
             }
             const TWeakObjectPtr<ULDHumanoidVisualComponent> A = VfxAttacker, V1 = VfxVictim, V2 = VfxExtras[0], V3 = VfxExtras[1], A2 = VfxExtras[2], A3 = VfxExtras[3];
@@ -1096,6 +1097,42 @@ namespace
                     ChainJobs.Add({Look, TEXT("fire-sunlit"), Burnt(A, V1), Sunlit, Home, false, Seethe + .1f, .15f, 30});
                     ChainJobs.Add({Look, TEXT("fire-other"), Burnt(A3, V3), nullptr, nullptr, false, Seethe + .1f, .15f, 30});
                 }
+                else if (Look == TEXT("grounds"))
+                {
+                    // The four other ground states at their usual 220 cm radius under four bodies, own and others' seats,
+                    // judged in the middle of a 2.4 s life (so the fade-out is captured at the end): a puddle under V1 and ice
+                    // under V2 (own), a fire floor under V3 and miasma under A2 (another player's).
+                    const auto GroundOf = [this](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, ELDGroundStateKind Kind, uint32 Id, uint8 Seat)
+                    {
+                        return [this, Body, Kind, Id, Seat]()
+                        {
+                            FActorSpawnParameters Spawn;
+                            Spawn.ObjectFlags |= RF_Transient;
+                            ALDObservedGroundProxy* Ground = World->SpawnActor<ALDObservedGroundProxy>(Spawn);
+                            if (!Check(Ground != nullptr && Body.IsValid(), TEXT("Proof ground state proxy spawned"))) { return; }
+                            FLDObservedGroundState State;
+                            State.Id = Id;
+                            State.Kind = uint8(Kind);
+                            State.CentreCm = Body->GetOwner()->GetActorLocation() - FVector(0, 0, 90);
+                            State.RadiusCm = 220.f;
+                            State.OwnerSeat = Seat;
+                            State.RemainingMs = State.TotalMs = 2400;
+                            Ground->Apply(State, 100.);
+                            ProofGrounds.Add(Ground);
+                            ProofGroundsAt.Add(ChainClock);
+                        };
+                    };
+                    ChainJobs.Add({Look, TEXT("grounds-four"), {{.05f, GroundOf(V1, ELDGroundStateKind::Puddle, 31, OwnSeat)}, {.05f, GroundOf(V2, ELDGroundStateKind::Ice, 32, OwnSeat)},
+                        {.05f, GroundOf(V3, ELDGroundStateKind::Fire, 33, OtherSeat)}, {.05f, GroundOf(A2, ELDGroundStateKind::Miasma, 34, OtherSeat)}},
+                        nullptr, ClearGrounds, false, 1.2f, 0.f, 75});
+                    // The same four with the kind patterns hidden (ld.Vfx.GroundKindPatterns 0), for the pattern decision.
+                    const auto Patterns = [](int32 Value) { return [Value]() { if (IConsoleVariable* Var = IConsoleManager::Get().FindConsoleVariable(TEXT("ld.Vfx.GroundKindPatterns"))) { Var->Set(Value); } }; };
+                    ChainJobs.Add({Look, TEXT("grounds-nopattern"), {{.05f, GroundOf(V1, ELDGroundStateKind::Puddle, 37, OwnSeat)}, {.05f, GroundOf(V2, ELDGroundStateKind::Ice, 38, OwnSeat)},
+                        {.05f, GroundOf(V3, ELDGroundStateKind::Fire, 39, OtherSeat)}, {.05f, GroundOf(A2, ELDGroundStateKind::Miasma, 40, OtherSeat)}},
+                        Patterns(0), [ClearGrounds, Patterns]() { ClearGrounds(); Patterns(1)(); }, false, 1.2f, .6f, 30});
+                    ChainJobs.Add({Look, TEXT("grounds-sunlit"), {{.05f, GroundOf(V1, ELDGroundStateKind::Fire, 35, OwnSeat)}, {.05f, GroundOf(A, ELDGroundStateKind::Miasma, 36, OwnSeat)}},
+                        Sunlit, [Home, ClearGrounds]() { ClearGrounds(); Home(); }, false, 1.2f, .6f, 30});
+                }
                 else if (Look == TEXT("states"))
                 {
                     // The element states on the stage bodies no character drives (A and V1 are characters whose own statuses
@@ -1196,7 +1233,7 @@ namespace
                 ChainJobs.Add({Look, TEXT("g-sunlit-hop"), {{0.f, Cast(A)}, {.27f, Hit(V1)}}, Sunlit, Home});
                 }
                 // New categories are judged on their looks first; their frame cost is measured once a look is chosen.
-                if (Look == TEXT("water") || Look == TEXT("fire") || Look == TEXT("chill") || Look == TEXT("states")) { continue; }
+                if (Look == TEXT("water") || Look == TEXT("fire") || Look == TEXT("chill") || Look == TEXT("states") || Look == TEXT("grounds")) { continue; }
                 FChainJob Perf;
                 Perf.Category = Look;
                 Perf.Scenario = TEXT("perf-eight-casters");
@@ -1287,6 +1324,7 @@ namespace
                     UAudioMixerBlueprintLibrary::StartRecordingOutput(&Target, Job.Seconds + 1.f);
                     // The wall clock of the recording start lets the window recording be aligned to the game audio.
                     UE_LOG(LogLDTest, Display, TEXT("LD_FEEL_RECORDING_START utc=%s"), *FDateTime::UtcNow().ToIso8601());
+                    // Phase 5: the real-time recording (phases 3 and 4 are a frame-cost run's idle and load).
                     ChainPhase = 5;
                     return true;
                 }

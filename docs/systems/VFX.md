@@ -417,11 +417,11 @@
 
 | 项 | 事件 | 状态 | 实现 | 证据 | 已知问题 |
 | --- | --- | --- | --- | --- | --- |
-| 电场 Field | 地面状态 5 | USER APPROVED | `NS_LDField` 220 | `vfx/approved/field*` | §2.2 已知小问题 |
-| 水洼 Puddle | 地面状态 1 | NOT STARTED | 旧：种类线图 + 区域粒子 | — | |
-| 冰面 Ice | 地面状态 2 | NOT STARTED | 同上 | — | |
-| 火地 Fire | 地面状态 3 | NOT STARTED | 同上 | — | |
-| 瘴气 Miasma | 地面状态 4 | NOT STARTED | 同上 | — | |
+| 电场 Field | 地面状态 5 | USER APPROVED | `NS_LDField` 220（经 `ShowGround` 按种类选系统） | `vfx/approved/field*` | §2.2 已知小问题 |
+| 水洼 Puddle | 地面状态 1 | IMPLEMENTED | `NS_LDPuddleGround`：浸湿暗面、冷色反光、湿亮边、落水涟漪 | `production/vfx/batch3/` | 偏弱，主要只读到边；旧种类图案（同心圆）仍在，替换待用户批准 |
+| 冰面 Ice | 地面状态 2 | LOCALLY VERIFIED | `NS_LDIceGround`：霜纹釉面、清晰冷边、边上小冰晶、表面闪光 | `production/vfx/batch3/` | 旧种类图案（条纹）仍在，替换待用户批准 |
+| 火地 Fire | 地面状态 3 | LOCALLY VERIFIED | `NS_LDFireGround`：焦地裂纹脉动、边缘低火舌、内部偶发火苗与火星 | `production/vfx/batch3/` | 旧种类图案（八角星）仍在，替换待用户批准 |
+| 瘴气 Miasma | 地面状态 4 | IMPLEMENTED | `NS_LDMiasmaGround`：腐渍、缓慢低云、鼓起破裂的气泡、雾化边缘 | `production/vfx/batch3/` | 偏弱；旧种类图案（六边形）仍在，替换待用户批准 |
 | 技能区域 Area* | 投射物 AreaPlain/Magic/Fire/Water/Electric | NOT STARTED | 旧：`NS_LDZone` 粒子 | — | 随各自技能设计 |
 
 ### 7.6 控制与增益状态

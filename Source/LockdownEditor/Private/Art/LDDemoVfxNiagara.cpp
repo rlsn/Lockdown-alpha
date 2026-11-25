@@ -1737,17 +1737,34 @@ namespace
     // Strength of a state: User.Intensity / 2.2 (one stack own), shown faster at its start.
     const TCHAR* const StateOn = TEXT("(saturate(Particles.Age / 0.25) * saturate(User.Intensity / 2.2))");
 
+
+    // A low soft glow of the state's element on the floor under the body: readable from the gameplay camera, kept well
+    // under a hit's or a telegraph's brightness.
+    void StateAura(FSystemParts& State, const TCHAR* Name, UMaterialInstanceConstant* Paint, float Gain, float Alpha)
+    {
+        FPart& Aura = State.Parts.AddDefaulted_GetRef();
+        Aura.Name = Name;
+        Aura.Lifetime = TEXT("User.Duration");
+        Aura.Paint = Paint;
+        Floor(Aura, TEXT("float3(1.0, 0.0, 0.0)"));
+        Aura.Set(TEXT("Particles.Position"), TEXT("User.Start + float3(0.0, 0.0, 2.0)"))
+            .Set(TEXT("Particles.SpriteSize"), TEXT("float2(1.0, 1.0) * User.Width * 4.0"))
+            .Set(TEXT("Particles.Color"), Glowing(Gain, FString::Printf(TEXT("%.2f * %s * (0.85 + 0.15 * sin(Particles.Age * 4.0))"), Alpha, StateOn)));
+    }
+
     FSystemParts BurnStateParts(UMaterial& Material, UMaterial& Top, FString& Error)
     {
         UMaterialInstanceConstant* Flame = ChainPaint(TEXT("MI_LDBurn_Flame"), Top, SliceTexture(LDSliceVfx::ETex::FireTongue), nullptr, 0.f, FirePalette, 1.f, 0.f, Error);
         UMaterialInstanceConstant* Ember = ChainPaint(TEXT("MI_LDBurn_Ember"), Top, SliceTexture(LDSliceVfx::ETex::ChainASparkStreak), nullptr, 0.f, FirePalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Glow = ChainPaint(TEXT("MI_LDBurn_Aura"), Material, SliceTexture(LDSliceVfx::ETex::ChainAGroundGlow), nullptr, 0.f, FirePalette, 1.f, 0.f, Error);
         FSystemParts State;
         State.System = LDSliceVfx::ESystem::BurnState;
-        if (!Flame || !Ember) { return State; }
+        if (!Flame || !Ember || !Glow) { return State; }
+        StateAura(State, TEXT("Aura"), Glow, 1.4f, .45f);
         // Tongues licking up the body's sides (more on the own body), each rising and shrinking over its 0.45 s cycle.
         FPart& Licks = State.Parts.AddDefaulted_GetRef();
         Licks.Name = TEXT("Licks");
-        Licks.Count = TEXT("int(lerp(4.0, 8.0, User.Focus) + 0.5)");
+        Licks.Count = TEXT("int(lerp(6.0, 11.0, User.Focus) + 0.5)");
         Licks.Lifetime = TEXT("User.Duration");
         Tongues(Licks, Flame);
         {
@@ -1822,7 +1839,9 @@ namespace
         UMaterialInstanceConstant* Flicker = ChainPaint(TEXT("MI_LDShockState_Glow"), Material, SliceTexture(LDSliceVfx::ETex::ChainAFlash), nullptr, 0.f, Palette, 1.f, 0.f, Error);
         FSystemParts State;
         State.System = LDSliceVfx::ESystem::ShockState;
-        if (!Arc || !Flicker) { return State; }
+        UMaterialInstanceConstant* AuraPaint = ChainPaint(TEXT("MI_LDShockState_Aura"), Material, SliceTexture(LDSliceVfx::ETex::ChainAGroundGlow), nullptr, 0.f, Palette, 1.f, 0.f, Error);
+        if (!Arc || !Flicker || !AuraPaint) { return State; }
+        StateAura(State, TEXT("Aura"), AuraPaint, 1.4f, .4f);
         // A soft warm glow round the chest that ticks with the arcs (lit in about half of the 8 Hz windows), so the charge
         // reads from the gameplay camera even when no arc faces it.
         FPart& Glow = State.Parts.AddDefaulted_GetRef();
@@ -1914,9 +1933,11 @@ namespace
     {
         UMaterialInstanceConstant* Bubble = ChainPaint(TEXT("MI_LDRotState_Bubble"), Top, SliceTexture(LDSliceVfx::ETex::RotBubble), nullptr, 0.f, RotPalette, 1.f, 0.f, Error);
         UMaterialInstanceConstant* Murk = ChainPaint(TEXT("MI_LDRotState_Murk"), Material, SliceTexture(LDSliceVfx::ETex::SoftPuff), nullptr, 0.f, MurkPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Glow = ChainPaint(TEXT("MI_LDRotState_Aura"), Material, SliceTexture(LDSliceVfx::ETex::ChainAGroundGlow), nullptr, 0.f, RotPalette, 1.f, 0.f, Error);
         FSystemParts State;
         State.System = LDSliceVfx::ESystem::RotState;
-        if (!Bubble || !Murk) { return State; }
+        if (!Bubble || !Murk || !Glow) { return State; }
+        StateAura(State, TEXT("Aura"), Glow, 1.2f, .5f);
         // Bubbles swelling on the body and popping (each grows over its cycle, then is gone), and a sour murk hanging round
         // the waist that drifts slowly round the body.
         FPart& Bubbles = State.Parts.AddDefaulted_GetRef();
@@ -1947,6 +1968,228 @@ namespace
                 .Set(TEXT("Particles.Color"), Glowing(1.2f, FString::Printf(TEXT("0.42 * %s"), StateOn)));
         }
         return State;
+    }
+
+    // ------------------------------------------------------------------ ground states (puddle, ice, fire floor, miasma)
+    // A looping system per public ground state round User.Start (its floor centre) at radius User.Width, User.Intensity its
+    // strength (fading out over the state's last third), User.Focus 1 when the local player laid it. Each element its own
+    // surface and motion; all keep one continuous readable edge (danger information, the same for others' states) and only
+    // thin their decoration when the state is another player's (§2.2's rule for the field).
+    const TCHAR* const GroundOn = TEXT("(saturate(Particles.Age / 0.3) * saturate(User.Intensity / 2.2))");
+
+    // A continuous ribbon ring at the edge.
+    void EdgeRing(FPart& Part, const TCHAR* Name, UMaterialInstanceConstant* Paint, float Scale, float Width, const FString& Colour)
+    {
+        const int32 Points = 48;
+        Part.Name = Name;
+        Part.Count = FString::Printf(TEXT("%d"), Points);
+        Part.Lifetime = TEXT("User.Duration");
+        Part.Paint = Paint;
+        Part.TileCm = 60.f;
+        Part.Set(TEXT("Particles.RibbonLinkOrder"), Own)
+            .Set(TEXT("Particles.Position"), Circle(FString::Printf(TEXT("User.Width * %.3f"), Scale), Points, 3.f))
+            .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("%.1f"), Width))
+            .Set(TEXT("Particles.Color"), Colour);
+    }
+
+    // A floor sheet over the whole disc with the soft round edge (material mode 2).
+    void Sheet(FPart& Part, const TCHAR* Name, UMaterialInstanceConstant* Paint, float Scale, const FString& Colour)
+    {
+        Part.Name = Name;
+        Part.Lifetime = TEXT("User.Duration");
+        Part.Paint = Paint;
+        Floor(Part, TEXT("float3(1.0, 0.0, 0.0)"));
+        Part.Set(TEXT("Particles.Position"), TEXT("User.Start + float3(0.0, 0.0, 1.5)"))
+            .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(1.0, 1.0) * User.Width * %.3f"), 2.f * Scale))
+            .Set(TEXT("Particles.Color"), Colour);
+    }
+
+    // A random point inside the disc (radius share up to Reach), redrawn every cycle of Rate per second; Phase staggers the
+    // particles (the same stagger as the part's own cycle, so a point moves only while its particle is invisible).
+    FString InDisc(float Rate, float Salt, float Reach, float Phase)
+    {
+        const FString Cycle = FString::Printf(TEXT("floor(Particles.Age * %.2f + float(Particles.UniqueID) * %.2f)"), Rate, Phase);
+        const FString A = FTrunk::Hash(Own, Cycle, Salt + 1.f), R = FTrunk::Hash(Own, Cycle, Salt + 2.f);
+        return FString::Printf(TEXT("(User.Start + float3(cos(%s * 6.2832), sin(%s * 6.2832), 0.0) * User.Width * %.2f * sqrt(%s))"), *A, *A, Reach, *R);
+    }
+
+    FSystemParts PuddleParts(UMaterial& Material, FString& Error)
+    {
+        UMaterialInstanceConstant* Wet = ChainPaint(TEXT("MI_LDPuddle_Wet"), Material, SliceTexture(LDSliceVfx::ETex::WaterWet), SliceTexture(LDSliceVfx::ETex::DissolveNoise), 2.f, WetPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Sheen = ChainPaint(TEXT("MI_LDPuddle_Sheen"), Material, SliceTexture(LDSliceVfx::ETex::WaterFlow), SliceTexture(LDSliceVfx::ETex::DissolveNoise), 2.f, WaterPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Line = ChainPaint(TEXT("MI_LDPuddle_Line"), Material, SliceTexture(LDSliceVfx::ETex::ChainAProfile), nullptr, 0.f, WaterPalette, 1.f, 0.f, Error);
+        FSystemParts Ground;
+        Ground.System = LDSliceVfx::ESystem::PuddleGround;
+        if (!Wet || !Sheen || !Line) { return Ground; }
+        // Standing water: the floor darkened as soaked, a faint cool sheen over it, a wet bright edge and rings spreading
+        // from drops that land in it.
+        Sheet(Ground.Parts.AddDefaulted_GetRef(), TEXT("Soak"), Wet, 1.f, FString::Printf(TEXT("float4(1.0, 1.0, 1.0, 0.0) * %s + float4(0.0, 0.0, 0.0, 0.7 * %s)"), Bright, GroundOn));
+        Sheet(Ground.Parts.AddDefaulted_GetRef(), TEXT("Sheen"), Sheen, .95f, Tinted(1.1f, FString::Printf(TEXT("0.22 * %s"), GroundOn)));
+        EdgeRing(Ground.Parts.AddDefaulted_GetRef(), TEXT("Edge"), Line, .99f, 6.f, Tinted(1.4f, FString::Printf(TEXT("0.65 * %s"), GroundOn)));
+        const int32 Points = 16;
+        FPart& Rings = Ground.Parts.AddDefaulted_GetRef();
+        Rings.Name = TEXT("Ripples");
+        Rings.Count = FString::Printf(TEXT("int(lerp(3.0, 5.0, User.Focus) + 0.01) * %d"), Points);
+        Rings.Lifetime = TEXT("User.Duration");
+        Rings.Paint = Line;
+        Rings.TileCm = 60.f;
+        Rings.bRibbonIds = true;
+        {
+            const FString R = TEXT("(float(Particles.LDRibbon) + 700.0)");
+            const FString T = TEXT("frac(Particles.Age * 0.7 + float(Particles.LDRibbon) * 0.37)");
+            const FString Cycle = TEXT("floor(Particles.Age * 0.7 + float(Particles.LDRibbon) * 0.37)");
+            const FString A = FTrunk::Hash(R, Cycle, 3.f), D = FTrunk::Hash(R, Cycle, 4.f);
+            const FString Centre = FString::Printf(TEXT("(User.Start + float3(cos(%s * 6.2832), sin(%s * 6.2832), 0.0) * User.Width * 0.75 * sqrt(%s))"), *A, *A, *D);
+            const FString Theta = FString::Printf(TEXT("(Particles.LDJ / %d.0 * 6.2832)"), Points - 1);
+            Rings.Set(TEXT("Particles.LDRibbon"), FString::Printf(TEXT("int(floor(%s / %d.0))"), Own, Points))
+                .Set(TEXT("Particles.LDJ"), FString::Printf(TEXT("(%s - float(Particles.LDRibbon) * %d.0)"), Own, Points))
+                .Set(TEXT("Particles.RibbonLinkOrder"), TEXT("Particles.LDJ"))
+                .Set(TEXT("Particles.Position"), FString::Printf(TEXT("%s + float3(cos(%s), sin(%s), 0.0) * (8.0 + 55.0 * %s) + float3(0.0, 0.0, 2.5)"), *Centre, *Theta, *Theta, *T))
+                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("3.0 * (1.0 - %s)"), *T))
+                .Set(TEXT("Particles.Color"), Tinted(1.6f, FString::Printf(TEXT("0.6 * (1.0 - %s) * %s"), *T, GroundOn)));
+        }
+        return Ground;
+    }
+
+    FSystemParts IceParts(UMaterial& Material, UMaterial& Top, FString& Error)
+    {
+        UMaterialInstanceConstant* Frost = ChainPaint(TEXT("MI_LDIce_Frost"), Material, SliceTexture(LDSliceVfx::ETex::IceFrost), SliceTexture(LDSliceVfx::ETex::DissolveNoise), 2.f, FrostPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Line = ChainPaint(TEXT("MI_LDIce_Line"), Material, SliceTexture(LDSliceVfx::ETex::ChainAProfile), nullptr, 0.f, IcePalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Shard = ChainPaint(TEXT("MI_LDIce_Shard"), Top, SliceTexture(LDSliceVfx::ETex::IceShard), nullptr, 0.f, IcePalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Glint = ChainPaint(TEXT("MI_LDIce_Glint"), Top, SliceTexture(LDSliceVfx::ETex::ChainAFlash), nullptr, 0.f, IcePalette, 1.f, 0.f, Error);
+        FSystemParts Ground;
+        Ground.System = LDSliceVfx::ESystem::IceGround;
+        if (!Frost || !Line || !Shard || !Glint) { return Ground; }
+        // A frozen sheet: frost needles over a pale glaze, a crisp cold edge, small crystals standing round it and glints
+        // that wink across the surface. Hard and still, where the puddle ripples.
+        Sheet(Ground.Parts.AddDefaulted_GetRef(), TEXT("Glaze"), Frost, 1.f, Glowing(1.1f, FString::Printf(TEXT("0.7 * %s"), GroundOn)));
+        EdgeRing(Ground.Parts.AddDefaulted_GetRef(), TEXT("Edge"), Line, .99f, 7.f, Glowing(1.8f, FString::Printf(TEXT("0.85 * %s"), GroundOn)));
+        FPart& Crystals = Ground.Parts.AddDefaulted_GetRef();
+        Crystals.Name = TEXT("Crystals");
+        Crystals.Kind = FPart::Sprite;
+        Crystals.Count = TEXT("int(lerp(7.0, 14.0, User.Focus) + 0.5)");
+        Crystals.Lifetime = TEXT("User.Duration");
+        Crystals.Paint = Shard;
+        Crystals.SubImages = FVector2D(2., 2.);
+        {
+            const FString Angle = FString::Printf(TEXT("((%s + %s * 0.5) / max(float(int(lerp(7.0, 14.0, User.Focus) + 0.5)), 1.0) * 6.2832)"), Own, *Random(401.f));
+            Crystals.Set(TEXT("Particles.SubImageIndex"), FString::Printf(TEXT("floor(%s * 3.99)"), *Random(402.f)))
+                .Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.Start + float3(cos(%s), sin(%s), 0.0) * User.Width * (0.93 + 0.06 * %s) + float3(0.0, 0.0, 8.0)"), *Angle, *Angle, *Random(403.f)))
+                .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(1.0, 1.0) * (14.0 + 12.0 * %s) * saturate(Particles.Age / 0.25)"), *Random(404.f)))
+                .Set(TEXT("Particles.SpriteRotation"), FString::Printf(TEXT("(%s * 2.0 - 1.0) * 30.0"), *Random(405.f)))
+                .Set(TEXT("Particles.Color"), Glowing(1.3f, GroundOn));
+        }
+        FPart& Glints = Ground.Parts.AddDefaulted_GetRef();
+        Glints.Name = TEXT("Glints");
+        Glints.Kind = FPart::Sprite;
+        Glints.Count = TEXT("int(lerp(3.0, 6.0, User.Focus) + 0.5)");
+        Glints.Lifetime = TEXT("User.Duration");
+        Glints.Paint = Glint;
+        {
+            const FString T = TEXT("frac(Particles.Age * 0.9 + float(Particles.UniqueID) * 0.29)");
+            Glints.Set(TEXT("Particles.Position"), InDisc(.9f, 411.f, .85f, .29f) + TEXT(" + float3(0.0, 0.0, 3.0)"))
+                .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(1.0, 1.0) * 26.0 * sin(%s * 3.1416)"), *T))
+                .Set(TEXT("Particles.Color"), Glowing(2.f, FString::Printf(TEXT("0.8 * %s"), GroundOn)));
+        }
+        return Ground;
+    }
+
+    FSystemParts FireGroundParts(UMaterial& Material, UMaterial& Top, FString& Error)
+    {
+        UMaterialInstanceConstant* Char = ChainPaint(TEXT("MI_LDFireGround_Char"), Material, SliceTexture(LDSliceVfx::ETex::FireChar), SliceTexture(LDSliceVfx::ETex::DissolveNoise), 2.f, CharPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Flame = ChainPaint(TEXT("MI_LDFireGround_Flame"), Material, SliceTexture(LDSliceVfx::ETex::FireTongue), nullptr, 0.f, FirePalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Ember = ChainPaint(TEXT("MI_LDFireGround_Ember"), Top, SliceTexture(LDSliceVfx::ETex::ChainASparkStreak), nullptr, 0.f, FirePalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Line = ChainPaint(TEXT("MI_LDFireGround_Line"), Material, SliceTexture(LDSliceVfx::ETex::ChainAProfile), nullptr, 0.f, FirePalette, 1.f, 0.f, Error);
+        FSystemParts Ground;
+        Ground.System = LDSliceVfx::ESystem::FireGround;
+        if (!Char || !Flame || !Ember || !Line) { return Ground; }
+        // A burning floor: scorched ground whose cracks pulse, a fringe of low flames licking along the edge, a few tongues
+        // flaring inside and embers rising. The flames sit on the edge, so the danger line burns; the inside smoulders.
+        Sheet(Ground.Parts.AddDefaulted_GetRef(), TEXT("Char"), Char, 1.f,
+            FString::Printf(TEXT("float4(1.0, 1.0, 1.0, 0.0) * %s * (0.6 + 0.4 * sin(Particles.Age * 3.1)) + float4(0.0, 0.0, 0.0, 0.6 * %s)"), Bright, GroundOn));
+        EdgeRing(Ground.Parts.AddDefaulted_GetRef(), TEXT("Edge"), Line, .99f, 5.f, Glowing(1.4f, FString::Printf(TEXT("0.7 * %s"), GroundOn)));
+        FPart& Fringe = Ground.Parts.AddDefaulted_GetRef();
+        Fringe.Name = TEXT("Fringe");
+        Fringe.Count = TEXT("int(lerp(12.0, 22.0, User.Focus) + 0.5)");
+        Fringe.Lifetime = TEXT("User.Duration");
+        Tongues(Fringe, Flame);
+        {
+            const FString N = TEXT("max(float(int(lerp(12.0, 22.0, User.Focus) + 0.5)), 1.0)");
+            const FString Angle = FString::Printf(TEXT("((%s + %s * 0.6) / %s * 6.2832)"), Own, *Random(421.f), *N);
+            const FString T = FString::Printf(TEXT("frac(Particles.Age * 1.6 + %s)"), *Random(422.f));
+            Fringe.Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.Start + float3(cos(%s), sin(%s), 0.0) * User.Width * 0.97 + float3(0.0, 0.0, 2.0)"), *Angle, *Angle))
+                .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(0.55, 1.0) * (30.0 + 25.0 * %s) * (0.35 + 0.65 * sin(%s * 3.1416))"), *Random(423.f), *T))
+                .Set(TEXT("Particles.Color"), Glowing(1.3f, GroundOn));
+        }
+        FPart& Flares = Ground.Parts.AddDefaulted_GetRef();
+        Flares.Name = TEXT("Flares");
+        Flares.Count = TEXT("int(lerp(2.0, 5.0, User.Focus) + 0.5)");
+        Flares.Lifetime = TEXT("User.Duration");
+        Tongues(Flares, Flame);
+        {
+            const FString T = TEXT("frac(Particles.Age * 1.1 + float(Particles.UniqueID) * 0.31)");
+            Flares.Set(TEXT("Particles.Position"), InDisc(1.1f, 431.f, .7f, .31f) + TEXT(" + float3(0.0, 0.0, 2.0)"))
+                .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(0.5, 1.0) * 40.0 * sin(%s * 3.1416)"), *T))
+                .Set(TEXT("Particles.Color"), Glowing(1.2f, FString::Printf(TEXT("0.8 * %s"), GroundOn)));
+        }
+        FPart& Embers = Ground.Parts.AddDefaulted_GetRef();
+        Embers.Name = TEXT("Embers");
+        Embers.Kind = FPart::Sprite;
+        Embers.Count = TEXT("int(lerp(4.0, 10.0, User.Focus) + 0.5)");
+        Embers.Lifetime = TEXT("User.Duration");
+        Embers.Paint = Ember;
+        Embers.Align = ENiagaraSpriteAlignment::VelocityAligned;
+        {
+            const FString T = TEXT("frac(Particles.Age * 0.8 + float(Particles.UniqueID) * 0.37)");
+            Embers.Set(TEXT("Particles.Velocity"), TEXT("float3(0.0, 0.0, 120.0)"))
+                .Set(TEXT("Particles.Position"), InDisc(.8f, 441.f, .95f, .37f) + FString::Printf(TEXT(" + float3(sin(%s * 8.0) * 10.0, 0.0, 10.0 + 140.0 * %s)"), *T, *T))
+                .Set(TEXT("Particles.SpriteSize"), TEXT("float2(14.0, 3.0)"))
+                .Set(TEXT("Particles.SpriteRotation"), Quarter)
+                .Set(TEXT("Particles.Color"), Glowing(2.2f, FString::Printf(TEXT("(1.0 - %s) * %s"), *T, GroundOn)));
+        }
+        return Ground;
+    }
+
+    FSystemParts MiasmaParts(UMaterial& Material, UMaterial& Top, FString& Error)
+    {
+        UMaterialInstanceConstant* Murk = ChainPaint(TEXT("MI_LDMiasma_Floor"), Material, SliceTexture(LDSliceVfx::ETex::RotMurk), SliceTexture(LDSliceVfx::ETex::DissolveNoise), 2.f, MurkPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Puff = ChainPaint(TEXT("MI_LDMiasma_Puff"), Material, SliceTexture(LDSliceVfx::ETex::SoftPuff), nullptr, 0.f, MurkPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Bubble = ChainPaint(TEXT("MI_LDMiasma_Bubble"), Top, SliceTexture(LDSliceVfx::ETex::RotBubble), nullptr, 0.f, RotPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Line = ChainPaint(TEXT("MI_LDMiasma_Line"), Material, SliceTexture(LDSliceVfx::ETex::ChainAProfile), nullptr, 0.f, RotPalette, 1.f, 0.f, Error);
+        FSystemParts Ground;
+        Ground.System = LDSliceVfx::ESystem::MiasmaGround;
+        if (!Murk || !Puff || !Bubble || !Line) { return Ground; }
+        // A sour cloud on the floor: a murky stain, low clouds that churn slowly inside it, bubbles that swell and pop, and
+        // an edge of thicker haze over a thin sickly line, so the cloud has a border without a hard ring.
+        Sheet(Ground.Parts.AddDefaulted_GetRef(), TEXT("Stain"), Murk, 1.f, Glowing(1.f, FString::Printf(TEXT("0.55 * %s"), GroundOn)));
+        EdgeRing(Ground.Parts.AddDefaulted_GetRef(), TEXT("Haze"), Line, 1.f, 26.f, Glowing(1.f, FString::Printf(TEXT("0.3 * %s"), GroundOn)));
+        EdgeRing(Ground.Parts.AddDefaulted_GetRef(), TEXT("Edge"), Line, .99f, 5.f, Glowing(1.4f, FString::Printf(TEXT("0.6 * %s"), GroundOn)));
+        FPart& Clouds = Ground.Parts.AddDefaulted_GetRef();
+        Clouds.Name = TEXT("Clouds");
+        Clouds.Kind = FPart::Sprite;
+        Clouds.Count = TEXT("int(lerp(4.0, 8.0, User.Focus) + 0.5)");
+        Clouds.Lifetime = TEXT("User.Duration");
+        Clouds.Paint = Puff;
+        {
+            const FString A = FString::Printf(TEXT("(%s * 6.2832 + Particles.Age * 0.25)"), *Random(451.f));
+            Clouds.Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.Start + float3(cos(%s), sin(%s), 0.0) * User.Width * (0.2 + 0.5 * %s) + float3(0.0, 0.0, 25.0)"), *A, *A, *Random(452.f)))
+                .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(1.0, 1.0) * User.Width * (0.7 + 0.2 * sin(Particles.Age * 0.9 + %s * 6.0))"), *Random(453.f)))
+                .Set(TEXT("Particles.SpriteRotation"), FString::Printf(TEXT("%s * 360.0 + Particles.Age * 12.0"), *Random(454.f)))
+                .Set(TEXT("Particles.Color"), Glowing(1.1f, FString::Printf(TEXT("0.3 * %s"), GroundOn)));
+        }
+        FPart& Bubbles = Ground.Parts.AddDefaulted_GetRef();
+        Bubbles.Name = TEXT("Bubbles");
+        Bubbles.Kind = FPart::Sprite;
+        Bubbles.Count = TEXT("int(lerp(5.0, 12.0, User.Focus) + 0.5)");
+        Bubbles.Lifetime = TEXT("User.Duration");
+        Bubbles.Paint = Bubble;
+        {
+            const FString T = TEXT("frac(Particles.Age * 0.7 + float(Particles.UniqueID) * 0.23)");
+            Bubbles.Set(TEXT("Particles.Position"), InDisc(.7f, 461.f, .85f, .23f) + TEXT(" + float3(0.0, 0.0, 4.0)"))
+                .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(1.0, 1.0) * (8.0 + 22.0 * %s) * step(%s, 0.9)"), *T, *T))
+                .Set(TEXT("Particles.Color"), Glowing(1.4f, GroundOn));
+        }
+        return Ground;
     }
 
     // The field's material: one Custom node (Code) over the first UV, the Particle Color's four channels (PR, PG, PB, PA:
@@ -2392,7 +2635,11 @@ bool LDDemoVfxNiagara::Build(FString& Error)
         [&]() { return WetStateParts(*Chain, *Top, Error); },
         [&]() { return ShockStateParts(*Chain, *Top, Error); },
         [&]() { return ChillStateParts(*Chain, *Top, Error); },
-        [&]() { return RotStateParts(*Chain, *Top, Error); }};
+        [&]() { return RotStateParts(*Chain, *Top, Error); },
+        [&]() { return PuddleParts(*Chain, Error); },
+        [&]() { return IceParts(*Chain, *Top, Error); },
+        [&]() { return FireGroundParts(*Chain, *Top, Error); },
+        [&]() { return MiasmaParts(*Chain, *Top, Error); }};
     for (const TFunction<FSystemParts()>& Make : Systems)
     {
         const FSystemParts Parts = Make();
