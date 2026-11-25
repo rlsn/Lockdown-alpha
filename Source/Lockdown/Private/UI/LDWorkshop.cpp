@@ -40,14 +40,6 @@ constexpr double RingLandTime=.20;
 // The band's ink at its inner rule, at 78% of its outer radius and at the outer rule: one step lighter towards the edge than
 // the comp, so the half-disc sits lighter on bright ground.
 constexpr float BandInnerInk=.84f,BandMidInk=.62f,BandEdgeInk=.40f;
-// The on-air tokens (bound by reference: their values are read only while painting).
-const FLinearColor& Ink=LDBroadcast::Ink;
-const FLinearColor& Panel=LDBroadcast::Panel;
-const FLinearColor& White=LDBroadcast::White;
-const FLinearColor& Grey=LDBroadcast::Grey;
-const FLinearColor& Mute=LDBroadcast::Mute;
-const FLinearColor& Orange=LDBroadcast::Orange;
-const FLinearColor& Gold=LDBroadcast::Gold;
 
 FLinearColor ElementInk(ELDDemoElement Element)
 {
@@ -1097,18 +1089,18 @@ void ULDWorkshop::PaintTile(FPainter& P,const FBox2D& Box0,const FString& IconId
     if(State==ETile::Dim){P.Opacity*=.26f;}
     const FBox2D Box=State==ETile::Hot?Grow(Box0,float(Box0.GetSize().X)*.04f):Box0;
     // Lit and hovered tiles stand off the band on an ink keyline.
-    if(State==ETile::Hot||State==ETile::Lit){P.Fill(RectOf(Grow(Box,(State==ETile::Hot?3.f:2.f)*R)),Ink);}
-    P.Fill(RectOf(Box),Panel);
+    if(State==ETile::Hot||State==ETile::Lit){P.Fill(RectOf(Grow(Box,(State==ETile::Hot?3.f:2.f)*R)),LDBroadcast::Ink);}
+    P.Fill(RectOf(Box),LDBroadcast::Panel);
     if(UTexture2D* Icon=Override?Override:RingIcon(IconId)){P.Image(Icon,Box);}
-    else if(!Name.IsEmpty()){P.Text(Name.Left(1),Box.GetCenter(),Face(EFace::Heavy,float(Box.GetSize().Y)*.42f,1.f),Grey,FVector2D(.5,.5));}
+    else if(!Name.IsEmpty()){P.Text(Name.Left(1),Box.GetCenter(),Face(EFace::Heavy,float(Box.GetSize().Y)*.42f,1.f),LDBroadcast::Grey,FVector2D(.5,.5));}
     const bool bStrong=State==ETile::Hot||State==ETile::Lit;
-    const FLinearColor Rule=bStrong?White:Rarity==ERarity::Legendary?Gold:White.CopyWithNewOpacity(RuleAlpha);
+    const FLinearColor Rule=bStrong?LDBroadcast::White:Rarity==ERarity::Legendary?LDBroadcast::Gold:LDBroadcast::White.CopyWithNewOpacity(RuleAlpha);
     Frame(P,Box,(State==ETile::Hot?4.f:State==ETile::Lit?3.f:2.f)*R,Rule);
     // Rarity by construction: a corner notch, rare blue or legendary gold.
     if(Rarity!=ERarity::Common)
     {
         const float N=float(Box.GetSize().X)*.24f;
-        P.Fill({FVector2D(Box.Max.X-N,Box.Min.Y),FVector2D(Box.Max.X,Box.Min.Y),FVector2D(Box.Max.X,Box.Min.Y+N)},Rarity==ERarity::Legendary?Gold:LDBroadcast::Rare);
+        P.Fill({FVector2D(Box.Max.X-N,Box.Min.Y),FVector2D(Box.Max.X,Box.Min.Y),FVector2D(Box.Max.X,Box.Min.Y+N)},Rarity==ERarity::Legendary?LDBroadcast::Gold:LDBroadcast::Rare);
     }
     P.Opacity=Saved;
 }
@@ -1132,8 +1124,8 @@ void ULDWorkshop::PaintBand(FPainter& P) const
         const float From=A-SectorHalf,To=From+2.f*SectorHalf*(1.f-FMath::Square(1.f-Sweep));
         const float Inner=SectorInner*R,Outer=L.Outer[HostIndex],Mid=FMath::Max(Inner+1.f,.78f*Outer);
         const TArray<FVector2D> In=LDRingPaint::Arc(C,Inner,From,To,32),Middle=LDRingPaint::Arc(C,Mid,From,To,32),Out=LDRingPaint::Arc(C,Outer,From,To,32);
-        P.Band(In,Middle,[&](FVector2D At){return Ink.CopyWithNewOpacity(FMath::Lerp(BandInnerInk,BandMidInk,FMath::Clamp((float(FVector2D::Distance(At,C))-Inner)/(Mid-Inner),0.f,1.f)));});
-        P.Band(Middle,Out,[&](FVector2D At){return Ink.CopyWithNewOpacity(FMath::Lerp(BandMidInk,BandEdgeInk,FMath::Clamp((float(FVector2D::Distance(At,C))-Mid)/FMath::Max(1.f,Outer-Mid),0.f,1.f)));});
+        P.Band(In,Middle,[&](FVector2D At){return LDBroadcast::Ink.CopyWithNewOpacity(FMath::Lerp(BandInnerInk,BandMidInk,FMath::Clamp((float(FVector2D::Distance(At,C))-Inner)/(Mid-Inner),0.f,1.f)));});
+        P.Band(Middle,Out,[&](FVector2D At){return LDBroadcast::Ink.CopyWithNewOpacity(FMath::Lerp(BandMidInk,BandEdgeInk,FMath::Clamp((float(FVector2D::Distance(At,C))-Mid)/FMath::Max(1.f,Outer-Mid),0.f,1.f)));});
         if(Host.bHasMedal)
         {
             const FLinearColor Element=ElementInk(Host.Medal.Element);
@@ -1142,8 +1134,8 @@ void ULDWorkshop::PaintBand(FPainter& P) const
         }
         // A held card's hosts and a blueprint's skill slots take the thick rule.
         const bool bTarget=(HeldForm==Host.Form&&!(Host.Form==ELDCardForm::Skill&&Host.bEmpty))||(SelectedBlueprint!=INDEX_NONE&&HostIndex>=1&&HostIndex<=3);
-        P.Stroke(Out,(bTarget?4.f:2.f)*R,bTarget?White:White.CopyWithNewOpacity(.8f));
-        P.Stroke(In,2.f*R,White.CopyWithNewOpacity(.28f));
+        P.Stroke(Out,(bTarget?4.f:2.f)*R,bTarget?LDBroadcast::White:LDBroadcast::White.CopyWithNewOpacity(.8f));
+        P.Stroke(In,2.f*R,LDBroadcast::White.CopyWithNewOpacity(.28f));
         for(float T=0.f;From+T<=To+.01f;T+=2.5f)
         {
             const bool bMajor=FMath::Abs(FMath::Fmod(T,10.f))<.01f;
@@ -1151,9 +1143,9 @@ void ULDWorkshop::PaintBand(FPainter& P) const
             TickInk.Add(bMajor?.7f:.35f);
         }
     }
-    P.Segments(Ticks,2.f*R,[&](int32 Index){return White.CopyWithNewOpacity(TickInk.IsValidIndex(Index)?TickInk[Index]:.35f);});
+    P.Segments(Ticks,2.f*R,[&](int32 Index){return LDBroadcast::White.CopyWithNewOpacity(TickInk.IsValidIndex(Index)?TickInk[Index]:.35f);});
     // The element track through the sockets; a reaction colours the stretch between its two sockets.
-    P.Stroke(LDRingPaint::Arc(C,GemRadius*R,HostAngle[0],HostAngle[3]),2.f*R,White.CopyWithNewOpacity(.22f));
+    P.Stroke(LDRingPaint::Arc(C,GemRadius*R,HostAngle[0],HostAngle[3]),2.f*R,LDBroadcast::White.CopyWithNewOpacity(.22f));
     int32 Lane=0;
     for(const FReaction& Reaction:Ring.Reactions)
     {
@@ -1162,14 +1154,14 @@ void ULDWorkshop::PaintBand(FPainter& P) const
         const float Radius=(Reaction.B-Reaction.A==1?GemRadius:GemRadius-14.f*(1+Lane++))*R;
         const float Inset=FMath::RadiansToDegrees(GemSize*.5f*R/Radius);
         const TArray<FVector2D> Arc=LDRingPaint::Arc(C,Radius,A0+(Reaction.B-Reaction.A==1?Inset:0.f),A1-(Reaction.B-Reaction.A==1?Inset:0.f),24);
-        P.Stroke(Arc,7.f*R,Ink.CopyWithNewOpacity(.8f));
+        P.Stroke(Arc,7.f*R,LDBroadcast::Ink.CopyWithNewOpacity(.8f));
         P.Stroke(Arc,4.f*R,ElementInk(Reaction.First),false,ElementInk(Reaction.Second));
         const FVector2D At=LDRingPaint::Polar(C,Radius,(A0+A1)*.5f);
         const FSlateFontInfo Font=Face(EFace::Bold,18.f,L.F);
         const float W=WidthOf(Reaction.Name,Font)+14.f*L.F;
         const FBox2D Chip(At-FVector2D(W*.5f,12.f*L.F),At+FVector2D(W*.5f,12.f*L.F));
-        P.Fill(Lean(Chip,5.f*L.F,5.f*L.F),Ink.CopyWithNewOpacity(.9f));
-        P.Text(Reaction.Name,Chip.GetCenter(),Font,White,FVector2D(.5,.5));
+        P.Fill(Lean(Chip,5.f*L.F,5.f*L.F),LDBroadcast::Ink.CopyWithNewOpacity(.9f));
+        P.Text(Reaction.Name,Chip.GetCenter(),Font,LDBroadcast::White,FVector2D(.5,.5));
     }
 }
 
@@ -1209,8 +1201,8 @@ void ULDWorkshop::PaintLinks(FPainter& P,const TArray<uint64>& Lit) const
         }
     }
     if(Path.Num()<2){return;}
-    P.Stroke(Path,7.f*L.R,Ink.CopyWithNewOpacity(.6f));
-    P.Stroke(Path,3.f*L.R,White);
+    P.Stroke(Path,7.f*L.R,LDBroadcast::Ink.CopyWithNewOpacity(.6f));
+    P.Stroke(Path,3.f*L.R,LDBroadcast::White);
 }
 
 void ULDWorkshop::PaintSockets(FPainter& P) const
@@ -1227,27 +1219,27 @@ void ULDWorkshop::PaintSockets(FPainter& P) const
         const FVector2D At=LDRingPaint::Polar(L.Centre,GemRadius*R,HostAngle[HostIndex]);
         const bool bHot=Shown.Kind==EHit::Gem&&Shown.Host==HostIndex;
         const float Half=GemSize*.5f*R*(bHot?1.08f:1.f);
-        if(bHot||bMedalHeld){P.Fill(Diamond(At,Half+(bHot?5.f:4.f)*R),White);}
+        if(bHot||bMedalHeld){P.Fill(Diamond(At,Half+(bHot?5.f:4.f)*R),LDBroadcast::White);}
         if(Host.bHasMedal)
         {
             const FLinearColor Element=ElementInk(Host.Medal.Element);
             P.Fill(Diamond(At,Half),Element);
             const TArray<FVector2D> Seat=Diamond(At,Half-4.f*R);
-            P.Fill(Seat,Panel);
+            P.Fill(Seat,LDBroadcast::Panel);
             if(UTexture2D* Icon=RingIcon(Host.Medal.IconId)){P.Image(Icon,Square(At,(Half-4.f*R)*1.42f),FLinearColor::White,&Seat);}
             // The fusion tier: three small diamonds under the socket, lit up to the tier (gold at the third).
             for(int32 Tier=0;Tier<3;++Tier)
             {
                 const FVector2D Pip=At+FVector2D((Tier-1)*13.f*R,Half+11.f*R);
                 const bool bOn=Tier<Host.Medal.Tier;
-                P.Fill(Diamond(Pip,6.5f*R),Ink);
-                P.Fill(Diamond(Pip,4.5f*R),bOn?(Host.Medal.Tier>=3?Gold:White):White.CopyWithNewOpacity(.25f));
+                P.Fill(Diamond(Pip,6.5f*R),LDBroadcast::Ink);
+                P.Fill(Diamond(Pip,4.5f*R),bOn?(Host.Medal.Tier>=3?LDBroadcast::Gold:LDBroadcast::White):LDBroadcast::White.CopyWithNewOpacity(.25f));
             }
         }
         else
         {
-            P.Fill(Diamond(At,Half),White.CopyWithNewOpacity(.55f));
-            P.Fill(Diamond(At,Half-2.f*R),Ink.CopyWithNewOpacity(.6f));
+            P.Fill(Diamond(At,Half),LDBroadcast::White.CopyWithNewOpacity(.55f));
+            P.Fill(Diamond(At,Half-2.f*R),LDBroadcast::Ink.CopyWithNewOpacity(.6f));
         }
     }
 }
@@ -1276,7 +1268,7 @@ void ULDWorkshop::PaintHosts(FPainter& P,const TArray<uint64>& Lit,bool bDim) co
             {
                 const FBox2D Open=Square(At,NodeSize*R);
                 const bool bOver=Shown.Kind==EHit::Drop&&Shown.Host==HostIndex;
-                Frame(P,Open,(bTarget&&bOver?4.f:bTarget?3.f:2.f)*R,White.CopyWithNewOpacity(bTarget?1.f:.22f));
+                Frame(P,Open,(bTarget&&bOver?4.f:bTarget?3.f:2.f)*R,LDBroadcast::White.CopyWithNewOpacity(bTarget?1.f:.22f));
                 continue;
             }
             const FCard& Card=Host.Cards[Index];
@@ -1287,7 +1279,7 @@ void ULDWorkshop::PaintHosts(FPainter& P,const TArray<uint64>& Lit,bool bDim) co
             PaintTile(P,Box,Card.IconId,Card.Name,State,Card.Rarity);
             float Flash=0.f;
             for(const FName& Each:Card.Keys){if(const double* At0=Landed.Find(Each)){Flash=FMath::Max(Flash,1.f-float((Now-*At0)/RingLandTime));}}
-            if(Flash>0.f){P.Fill(RectOf(Box),White.CopyWithNewOpacity(.6f*Flash));}
+            if(Flash>0.f){P.Fill(RectOf(Box),LDBroadcast::White.CopyWithNewOpacity(.6f*Flash));}
             if(Card.Copies>1&&State!=ETile::Dim)
             {
                 // ×N on a white tab at the top-right corner.
@@ -1295,8 +1287,8 @@ void ULDWorkshop::PaintHosts(FPainter& P,const TArray<uint64>& Lit,bool bDim) co
                 const FString Text=FString::Printf(TEXT("×%d"),Card.Copies);
                 const float W=WidthOf(Text,Font)+12.f*F,H=20.f*F;
                 const FBox2D Tab(FVector2D(Box.Max.X+6.f*R-W,Box.Min.Y-8.f*R),FVector2D(Box.Max.X+6.f*R,Box.Min.Y-8.f*R+H));
-                P.Fill(Lean(Tab,4.f*F,4.f*F),White);
-                P.Text(Text,Tab.GetCenter(),Font,Ink,FVector2D(.5,.5));
+                P.Fill(Lean(Tab,4.f*F,4.f*F),LDBroadcast::White);
+                P.Text(Text,Tab.GetCenter(),Font,LDBroadcast::Ink,FVector2D(.5,.5));
             }
         }
         // The host: the one container at its largest size, with its key on a white tab under it.
@@ -1314,8 +1306,8 @@ void ULDWorkshop::PaintHosts(FPainter& P,const TArray<uint64>& Lit,bool bDim) co
             const FSlateFontInfo Font=bBody?Face(EFace::Heavy,18.f,F):Face(EFace::Figure,24.f,F);
             const float W=WidthOf(Tag,Font)+18.f*F,H=24.f*F;
             const FBox2D Tab(FVector2D(HostAt.X-W*.5f,Box.Max.Y+2.f*R),FVector2D(HostAt.X+W*.5f,Box.Max.Y+2.f*R+H));
-            P.Fill(Lean(Tab,5.f*F,5.f*F),White);
-            P.Text(Tag,Tab.GetCenter(),Font,Ink,FVector2D(.5,.5));
+            P.Fill(Lean(Tab,5.f*F,5.f*F),LDBroadcast::White);
+            P.Text(Tag,Tab.GetCenter(),Font,LDBroadcast::Ink,FVector2D(.5,.5));
             P.Opacity=Saved;
         }
     }
@@ -1336,21 +1328,21 @@ void ULDWorkshop::PaintRadarChips(FPainter& P) const
         const FBox2D Chip(*At-Size*.5,*At+Size*.5);
         const bool bHot=(Shown.Kind==EHit::Stat&&Shown.Index==Index)||(Shown.Kind==EHit::Wing&&Shown.Host==Index&&Shown.Index==INDEX_NONE);
         // A maxed keystone is the one gold chip.
-        P.Fill(RectOf(Chip),Stat.bKeystone?Gold:Ink.CopyWithNewOpacity(.86f));
-        if(bHot){Frame(P,Grow(Chip,2.f*F),2.f*F,White);}
+        P.Fill(RectOf(Chip),Stat.bKeystone?LDBroadcast::Gold:LDBroadcast::Ink.CopyWithNewOpacity(.86f));
+        if(bHot){Frame(P,Grow(Chip,2.f*F),2.f*F,LDBroadcast::White);}
         float X=float(Chip.Min.X)+10.f*F;const float Y=float(Chip.GetCenter().Y);
         X+=WidthOf(Stat.Name,Face(EFace::Bold,18.f,F));
-        P.Text(Stat.Name,FVector2D(Chip.Min.X+10.f*F,Y),Face(EFace::Bold,18.f,F),Stat.bKeystone?Ink:Grey,FVector2D(0.,.5));
+        P.Text(Stat.Name,FVector2D(Chip.Min.X+10.f*F,Y),Face(EFace::Bold,18.f,F),Stat.bKeystone?LDBroadcast::Ink:LDBroadcast::Grey,FVector2D(0.,.5));
         X+=6.f*F;
         const FString Points=FString::FromInt(Stat.Points);
         const float NumW=FMath::Max(16.f*F,WidthOf(Points,Face(EFace::Figure,26.f,F)));
-        P.Text(Points,FVector2D(X+NumW,Y),Face(EFace::Figure,26.f,F),Stat.bKeystone?Ink:White,FVector2D(1.,.5));
+        P.Text(Points,FVector2D(X+NumW,Y),Face(EFace::Figure,26.f,F),Stat.bKeystone?LDBroadcast::Ink:LDBroadcast::White,FVector2D(1.,.5));
         X+=NumW+6.f*F;
         if(bPlus)
         {
             const FBox2D Plus(FVector2D(X,Y-11.f*F),FVector2D(X+22.f*F,Y+11.f*F));
-            P.Fill(RectOf(Plus),Orange);
-            P.Text(TEXT("+"),Plus.GetCenter(),Face(EFace::Heavy,22.f,F),Ink,FVector2D(.5,.5));
+            P.Fill(RectOf(Plus),LDBroadcast::Orange);
+            P.Text(TEXT("+"),Plus.GetCenter(),Face(EFace::Heavy,22.f,F),LDBroadcast::Ink,FVector2D(.5,.5));
         }
     }
 }
@@ -1364,8 +1356,8 @@ void ULDWorkshop::PaintTable(FPainter& P) const
     const FHit Shown=Focus();
     // 五维 → 二级属性
     {
-        const FVector2D Size=P.Text(TEXT("五维"),At,Face(EFace::Heavy,22.f,S),White);
-        P.Text(TEXT("→ 二级属性"),FVector2D(At.X+Size.X+12.f*S,At.Y+Size.Y),Face(EFace::Regular,18.f,S),Grey,FVector2D(0.,1.));
+        const FVector2D Size=P.Text(TEXT("五维"),At,Face(EFace::Heavy,22.f,S),LDBroadcast::White);
+        P.Text(TEXT("→ 二级属性"),FVector2D(At.X+Size.X+12.f*S,At.Y+Size.Y),Face(EFace::Regular,18.f,S),LDBroadcast::Grey,FVector2D(0.,1.));
     }
     for(const FShape& Box:L.Boxes)
     {
@@ -1379,21 +1371,21 @@ void ULDWorkshop::PaintTable(FPainter& P) const
         P.FillShaded(Shape,[&](FVector2D Point)
         {
             const float T=float((Point.X-Plate.Min.X)/FMath::Max(1.,Plate.GetSize().X));
-            return bHot?LDRingPaint::Mix(White.CopyWithNewOpacity(.18f),Ink.CopyWithNewOpacity(.78f),T):LDRingPaint::Mix(Ink.CopyWithNewOpacity(.9f),Ink.CopyWithNewOpacity(.78f),T);
+            return bHot?LDRingPaint::Mix(LDBroadcast::White.CopyWithNewOpacity(.18f),LDBroadcast::Ink.CopyWithNewOpacity(.78f),T):LDRingPaint::Mix(LDBroadcast::Ink.CopyWithNewOpacity(.9f),LDBroadcast::Ink.CopyWithNewOpacity(.78f),T);
         });
-        P.Fill(RectOf(FBox2D(Plate.Min,FVector2D(Plate.Min.X+3.f*S,Plate.Max.Y))),White);
+        P.Fill(RectOf(FBox2D(Plate.Min,FVector2D(Plate.Min.X+3.f*S,Plate.Max.Y))),LDBroadcast::White);
         PaintTile(P,BoxAt(Plate.Min+FVector2D(14.f,11.f)*S,FVector2D(54.f,54.f)*S),Stat.IconId,Stat.Name,ETile::Plain);
-        P.Text(Stat.Name,Plate.Min+FVector2D(80.f,9.f)*S,Face(EFace::Bold,18.f,S),Grey);
-        P.Text(FString::FromInt(Stat.Points),Plate.Min+FVector2D(80.f,27.f)*S,Face(EFace::Figure,38.f,S),Stat.bKeystone?Gold:White);
+        P.Text(Stat.Name,Plate.Min+FVector2D(80.f,9.f)*S,Face(EFace::Bold,18.f,S),LDBroadcast::Grey);
+        P.Text(FString::FromInt(Stat.Points),Plate.Min+FVector2D(80.f,27.f)*S,Face(EFace::Figure,38.f,S),Stat.bKeystone?LDBroadcast::Gold:LDBroadcast::White);
     }
     for(const FShape& Box:L.Boxes)
     {
         if(Box.Hit.Kind!=EHit::Wing||!Ring.Derived.IsValidIndex(Box.Hit.Index)){continue;}
         const FDerived& Row=Ring.Derived[Box.Hit.Index];
         const FVector2D Min=Box.Shape[0];
-        if(Shown.Kind==EHit::Wing&&Shown.Index==Box.Hit.Index){P.Fill(RectOf(FBox2D(FVector2D(Min.X,Box.Shape[2].Y-3.f*S),FVector2D(Box.Shape[2].X-8.f*S,Box.Shape[2].Y))),White);}
-        P.Text(OneLine(Row.Name,Face(EFace::Regular,18.f,S),L.TableSubW*S-6.f*S),Min+FVector2D(0.f,10.f)*S,Face(EFace::Regular,18.f,S),Grey);
-        P.Text(Row.Value,Min+FVector2D(0.f,31.f)*S,Face(EFace::Figure,30.f,S),White);
+        if(Shown.Kind==EHit::Wing&&Shown.Index==Box.Hit.Index){P.Fill(RectOf(FBox2D(FVector2D(Min.X,Box.Shape[2].Y-3.f*S),FVector2D(Box.Shape[2].X-8.f*S,Box.Shape[2].Y))),LDBroadcast::White);}
+        P.Text(OneLine(Row.Name,Face(EFace::Regular,18.f,S),L.TableSubW*S-6.f*S),Min+FVector2D(0.f,10.f)*S,Face(EFace::Regular,18.f,S),LDBroadcast::Grey);
+        P.Text(Row.Value,Min+FVector2D(0.f,31.f)*S,Face(EFace::Figure,30.f,S),LDBroadcast::White);
     }
 }
 
@@ -1403,16 +1395,16 @@ void ULDWorkshop::PaintShop(FPainter& P,const TArray<uint64>& Lit) const
     if(!Ring.bShop||L.ShopWidth<=0.f){return;}
     const float S=L.ShopScale;
     const FHit Shown=Focus();
-    P.Text(TEXT("休息商店"),FVector2D(L.Shop.X,L.Shop.Y+15.f*S),Face(EFace::Heavy,22.f,S),White,FVector2D(0.,.5));
+    P.Text(TEXT("休息商店"),FVector2D(L.Shop.X,L.Shop.Y+15.f*S),Face(EFace::Heavy,22.f,S),LDBroadcast::White,FVector2D(0.,.5));
     for(const FShape& Box:L.Boxes)
     {
         if(Box.Hit.Kind==EHit::ShopRefresh)
         {
             const FBox2D Button=BoundsOf(Box.Shape);
             const bool bHot=Shown.Kind==EHit::ShopRefresh;
-            P.Fill(Box.Shape,White);
-            P.Fill(Lean(Grow(Button,-(bHot?3.f:2.f)*S),7.f*S,7.f*S),Ink.CopyWithNewOpacity(.95f));
-            P.Text(Ring.RefreshPrice>0?FString::Printf(TEXT("刷新 · %s"),*Diamonds(Ring.RefreshPrice)):FString(TEXT("刷新 · 免费")),Button.GetCenter(),Face(EFace::Bold,18.f,S),White,FVector2D(.5,.5));
+            P.Fill(Box.Shape,LDBroadcast::White);
+            P.Fill(Lean(Grow(Button,-(bHot?3.f:2.f)*S),7.f*S,7.f*S),LDBroadcast::Ink.CopyWithNewOpacity(.95f));
+            P.Text(Ring.RefreshPrice>0?FString::Printf(TEXT("刷新 · %s"),*Diamonds(Ring.RefreshPrice)):FString(TEXT("刷新 · 免费")),Button.GetCenter(),Face(EFace::Bold,18.f,S),LDBroadcast::White,FVector2D(.5,.5));
             continue;
         }
         if(Box.Hit.Kind!=EHit::Shop||!Ring.Shop.IsValidIndex(Box.Hit.Index)){continue;}
@@ -1423,22 +1415,22 @@ void ULDWorkshop::PaintShop(FPainter& P,const TArray<uint64>& Lit) const
         P.FillShaded(Box.Shape,[&](FVector2D Point)
         {
             const float T=float((Point.X-Plate.Min.X)/FMath::Max(1.,Plate.GetSize().X));
-            return LDRingPaint::Mix(Ink.CopyWithNewOpacity(.78f),Ink.CopyWithNewOpacity(.9f),T);
+            return LDRingPaint::Mix(LDBroadcast::Ink.CopyWithNewOpacity(.78f),LDBroadcast::Ink.CopyWithNewOpacity(.9f),T);
         });
-        if(bHot){P.Fill(RectOf(FBox2D(FVector2D(Plate.Max.X-4.f*S,Plate.Min.Y),Plate.Max)),White);}
+        if(bHot){P.Fill(RectOf(FBox2D(FVector2D(Plate.Max.X-4.f*S,Plate.Min.Y),Plate.Max)),LDBroadcast::White);}
         const FBox2D Tile=BoxAt(Plate.Min+FVector2D(22.f,2.f)*S,FVector2D(54.f,54.f)*S);
         if(Item.Slot==FLDBuildCommand::ShopSkillPointSlot)
         {
             PaintTile(P,Tile,FString(),FString(),bHot?ETile::Hot:ETile::Plain);
-            P.Text(TEXT("技能"),Tile.GetCenter()-FVector2D(0.,9.f*S),Face(EFace::Heavy,18.f,S),White,FVector2D(.5,.5));
-            P.Text(TEXT("点"),Tile.GetCenter()+FVector2D(0.,10.f*S),Face(EFace::Heavy,18.f,S),White,FVector2D(.5,.5));
+            P.Text(TEXT("技能"),Tile.GetCenter()-FVector2D(0.,9.f*S),Face(EFace::Heavy,18.f,S),LDBroadcast::White,FVector2D(.5,.5));
+            P.Text(TEXT("点"),Tile.GetCenter()+FVector2D(0.,10.f*S),Face(EFace::Heavy,18.f,S),LDBroadcast::White,FVector2D(.5,.5));
         }
         else{PaintTile(P,Tile,Item.IconId,Item.Name,bHot?ETile::Hot:Lit.Contains(AnchorKey(EHit::Shop,INDEX_NONE,Box.Hit.Index))?ETile::Lit:ETile::Plain,Item.Rarity);}
         const bool bNote=!Item.Note.IsEmpty()&&!Item.bSold;
         const float NameY=bNote?Plate.Min.Y+4.f*S:float(Plate.GetCenter().Y)-14.f*S;
-        P.Text(Item.Name,FVector2D(Plate.Min.X+90.f*S,NameY),Face(EFace::Bold,22.f,S),White);
-        if(bNote){P.Text(Item.Note,FVector2D(Plate.Min.X+90.f*S,Plate.Min.Y+32.f*S),Face(EFace::Regular,18.f,S),Grey);}
-        P.Text(Item.bSold?FString(TEXT("已买")):Diamonds(Item.Price),FVector2D(Plate.Max.X-16.f*S,Plate.GetCenter().Y),Face(EFace::Bold,22.f,S),White,FVector2D(1.,.5));
+        P.Text(Item.Name,FVector2D(Plate.Min.X+90.f*S,NameY),Face(EFace::Bold,22.f,S),LDBroadcast::White);
+        if(bNote){P.Text(Item.Note,FVector2D(Plate.Min.X+90.f*S,Plate.Min.Y+32.f*S),Face(EFace::Regular,18.f,S),LDBroadcast::Grey);}
+        P.Text(Item.bSold?FString(TEXT("已买")):Diamonds(Item.Price),FVector2D(Plate.Max.X-16.f*S,Plate.GetCenter().Y),Face(EFace::Bold,22.f,S),LDBroadcast::White,FVector2D(1.,.5));
         P.Opacity=Saved;
     }
 }
@@ -1455,8 +1447,8 @@ void ULDWorkshop::PaintRow(FPainter& P,const TArray<uint64>& Lit) const
     {
         const float W=WidthOf(Text,Face(EFace::Heavy,18.f,F))+24.f*F;
         const FBox2D Chip=BoxAt(At,FVector2D(W,30.f*F));
-        P.Fill(Lean(Chip,7.f*F,7.f*F),White);
-        P.Text(Text,Chip.GetCenter(),Face(EFace::Heavy,18.f,F),Ink,FVector2D(.5,.5));
+        P.Fill(Lean(Chip,7.f*F,7.f*F),LDBroadcast::White);
+        P.Text(Text,Chip.GetCenter(),Face(EFace::Heavy,18.f,F),LDBroadcast::Ink,FVector2D(.5,.5));
     };
     for(const FShape& Box:L.Boxes)
     {
@@ -1467,9 +1459,9 @@ void ULDWorkshop::PaintRow(FPainter& P,const TArray<uint64>& Lit) const
         else if(Box.Hit.Kind==EHit::Skip){Text=Ring.Batch.SkipPoints>0?FString::Printf(TEXT("跳过 +%lld"),Ring.Batch.SkipPoints):FString(TEXT("跳过"));}
         else{Text=bShowHand?FString::Printf(TEXT("待选 %d"),Ring.Batch.Queued+1):FString::Printf(TEXT("还有 %d 批"),Ring.Batch.Queued);}
         const bool bOff=Box.Hit.Kind==EHit::Reroll&&Ring.Batch.Rerolls<=0;
-        P.Fill(Box.Shape,Ink.CopyWithNewOpacity(.9f));
-        if(Shown==Box.Hit){Frame(P,Chip,2.f*F,White);}
-        P.Text(Text,Chip.GetCenter(),ChipFont,bOff?Mute:White,FVector2D(.5,.5));
+        P.Fill(Box.Shape,LDBroadcast::Ink.CopyWithNewOpacity(.9f));
+        if(Shown==Box.Hit){Frame(P,Chip,2.f*F,LDBroadcast::White);}
+        P.Text(Text,Chip.GetCenter(),ChipFont,bOff?LDBroadcast::Mute:LDBroadcast::White,FVector2D(.5,.5));
     }
     if(!OfferFaces.IsEmpty())
     {
@@ -1484,23 +1476,23 @@ void ULDWorkshop::PaintRow(FPainter& P,const TArray<uint64>& Lit) const
             const bool bHot=Shown==Face0.Hit;
             const bool bChosen=Ring.Batch.Kind==EBatch::Blueprint&&SelectedBlueprint==Face0.Hit.Index;
             const TArray<FVector2D> Shape=Lean(Box,12.f*U,12.f*U);
-            P.Fill(Shape,Ink.CopyWithNewOpacity(.92f));
+            P.Fill(Shape,LDBroadcast::Ink.CopyWithNewOpacity(.92f));
             // Hover and the chosen blueprint: the thick white rule along the plate.
             if(bHot||bChosen)
             {
-                P.Fill(RectOf(FBox2D(FVector2D(Box.Min.X+12.f*U,Box.Min.Y),FVector2D(Box.Max.X,Box.Min.Y+4.f*U))),White);
-                P.Fill(RectOf(FBox2D(FVector2D(Box.Min.X,Box.Max.Y-4.f*U),FVector2D(Box.Max.X-12.f*U,Box.Max.Y))),White);
+                P.Fill(RectOf(FBox2D(FVector2D(Box.Min.X+12.f*U,Box.Min.Y),FVector2D(Box.Max.X,Box.Min.Y+4.f*U))),LDBroadcast::White);
+                P.Fill(RectOf(FBox2D(FVector2D(Box.Min.X,Box.Max.Y-4.f*U),FVector2D(Box.Max.X-12.f*U,Box.Max.Y))),LDBroadcast::White);
             }
             // The pick key in a ruled box, the icon tile, the name and the type.
             const FBox2D Key=BoxAt(Box.Min+FVector2D(18.f*U,Box.GetSize().Y*.5f-19.f*U),FVector2D(36.f*U,38.f*U));
-            Frame(P,Key,2.f*U,White);
-            P.Text(FString::FromInt(Face0.Hit.Index+1),Key.GetCenter(),Face(EFace::Figure,30.f,F),White,FVector2D(.5,.5));
+            Frame(P,Key,2.f*U,LDBroadcast::White);
+            P.Text(FString::FromInt(Face0.Hit.Index+1),Key.GetCenter(),Face(EFace::Figure,30.f,F),LDBroadcast::White,FVector2D(.5,.5));
             const float Z=64.f*U;
             const FBox2D Tile=BoxAt(FVector2D(Box.Min.X+66.f*U,Box.GetCenter().Y-Z*.5f),FVector2D(Z,Z));
             PaintTile(P,Tile,Option.IconId,Option.Name,ETile::Plain,Option.Rarity);
             const float TextX=float(Tile.Max.X)+14.f*U;
             const float TextW=float(Box.Max.X)-TextX-16.f*U;
-            P.Text(OneLine(Option.Name,Face(EFace::Heavy,24.f,F),TextW),FVector2D(TextX,Box.GetCenter().Y-2.f*U),Face(EFace::Heavy,24.f,F),White,FVector2D(0.,1.));
+            P.Text(OneLine(Option.Name,Face(EFace::Heavy,24.f,F),TextW),FVector2D(TextX,Box.GetCenter().Y-2.f*U),Face(EFace::Heavy,24.f,F),LDBroadcast::White,FVector2D(0.,1.));
             FString Type;
             if(Ring.Batch.Kind==EBatch::Card)
             {
@@ -1509,7 +1501,7 @@ void ULDWorkshop::PaintRow(FPainter& P,const TArray<uint64>& Lit) const
             }
             else if(Ring.Batch.Kind==EBatch::Final){Type=TEXT("终局改装");}
             else{Type=Ring.Batch.Kind==EBatch::Blueprint?FString(LDTerms::Blueprint):FString(TEXT("主动技能"));}
-            P.Text(OneLine(Type,Face(EFace::Regular,18.f,F),TextW),FVector2D(TextX,Box.GetCenter().Y+4.f*U),Face(EFace::Regular,18.f,F),Grey);
+            P.Text(OneLine(Type,Face(EFace::Regular,18.f,F),TextW),FVector2D(TextX,Box.GetCenter().Y+4.f*U),Face(EFace::Regular,18.f,F),LDBroadcast::Grey);
             P.Opacity=Saved;
         }
         return;
@@ -1530,17 +1522,17 @@ void ULDWorkshop::PaintRow(FPainter& P,const TArray<uint64>& Lit) const
         {
             const FVector2D At=Box.GetCenter();
             const float Half=float(Box.GetSize().X)*.5f*(bHot?1.08f:1.f);
-            if(bSelected||bHot){P.Fill(Diamond(At,Half+4.f*R),White);}
+            if(bSelected||bHot){P.Fill(Diamond(At,Half+4.f*R),LDBroadcast::White);}
             P.Fill(Diamond(At,Half),ElementInk(Card.Element));
             const TArray<FVector2D> Seat=Diamond(At,Half-4.f*R);
-            P.Fill(Seat,Panel);
+            P.Fill(Seat,LDBroadcast::Panel);
             if(UTexture2D* Icon=RingIcon(Card.IconId)){P.Image(Icon,Square(At,(Half-4.f*R)*1.42f),FLinearColor::White,&Seat);}
         }
         else{PaintTile(P,Box,Card.IconId,Card.Name,bSelected||bHot?ETile::Hot:Lit.Contains(AnchorKey(EHit::Hand,INDEX_NONE,Face0.Hit.Index))?ETile::Lit:ETile::Plain,Card.Rarity);}
         if(bNames)
         {
             const FSlateFontInfo Font=Face(EFace::Bold,18.f,F);
-            P.Text(OneLine(Card.Name,Font,Pitch-6.f*U),FVector2D(Box.GetCenter().X,Face0.Box.Max.Y+4.f*U),Font,bSelected?White:Grey,FVector2D(.5,0.));
+            P.Text(OneLine(Card.Name,Font,Pitch-6.f*U),FVector2D(Box.GetCenter().X,Face0.Box.Max.Y+4.f*U),Font,bSelected?LDBroadcast::White:LDBroadcast::Grey,FVector2D(.5,0.));
         }
         if(Card.Copies>1)
         {
@@ -1548,7 +1540,7 @@ void ULDWorkshop::PaintRow(FPainter& P,const TArray<uint64>& Lit) const
             const FString Text=FString::Printf(TEXT("×%d"),Card.Copies);
             const float W=WidthOf(Text,Font)+12.f*F;
             const FBox2D Tab(FVector2D(Box.Max.X+6.f*R-W,Box.Max.Y-14.f*R),FVector2D(Box.Max.X+6.f*R,Box.Max.Y-14.f*R+20.f*F));
-            P.Fill(Lean(Tab,4.f*F,4.f*F),White);P.Text(Text,Tab.GetCenter(),Font,Ink,FVector2D(.5,.5));
+            P.Fill(Lean(Tab,4.f*F,4.f*F),LDBroadcast::White);P.Text(Text,Tab.GetCenter(),Font,LDBroadcast::Ink,FVector2D(.5,.5));
         }
         if(Card.bFresh)
         {
@@ -1556,7 +1548,7 @@ void ULDWorkshop::PaintRow(FPainter& P,const TArray<uint64>& Lit) const
             const FSlateFontInfo Font=Face(EFace::Heavy,18.f,F);
             const float W=WidthOf(TEXT("新"),Font)+12.f*F;
             const FBox2D Tab(FVector2D(Box.Max.X+6.f*R-W,Box.Min.Y-10.f*R),FVector2D(Box.Max.X+6.f*R,Box.Min.Y-10.f*R+22.f*F));
-            P.Fill(Lean(Tab,4.f*F,4.f*F),Orange);P.Text(TEXT("新"),Tab.GetCenter(),Font,Ink,FVector2D(.5,.5));
+            P.Fill(Lean(Tab,4.f*F,4.f*F),LDBroadcast::Orange);P.Text(TEXT("新"),Tab.GetCenter(),Font,LDBroadcast::Ink,FVector2D(.5,.5));
         }
     }
     P.Opacity=PageSaved;
@@ -1573,37 +1565,37 @@ void ULDWorkshop::PaintBar(FPainter& P) const
     for(int32 Index=0;Index<L.Segments.Num();++Index)
     {
         const FBox2D& Box=L.Segments[Index];
-        P.Fill(Lean(Box,10.f*F,10.f*F),Ink.CopyWithNewOpacity(.92f));
-        if(Index==2&&(Shown.Kind==EHit::HandPile||bShowHand)){P.Fill(RectOf(FBox2D(FVector2D(Box.Min.X+10.f*F,Box.Max.Y-3.f*F),FVector2D(Box.Max.X-10.f*F,Box.Max.Y))),White);}
+        P.Fill(Lean(Box,10.f*F,10.f*F),LDBroadcast::Ink.CopyWithNewOpacity(.92f));
+        if(Index==2&&(Shown.Kind==EHit::HandPile||bShowHand)){P.Fill(RectOf(FBox2D(FVector2D(Box.Min.X+10.f*F,Box.Max.Y-3.f*F),FVector2D(Box.Max.X-10.f*F,Box.Max.Y))),LDBroadcast::White);}
     }
     const float Y=float(L.Bar.GetCenter().Y);
     // 属性点 ◆N: unspent points are "mine, now".
     {
         float X=float(L.Segments[0].Min.X)+Pad;
-        X+=float(P.Text(TEXT("属性点"),FVector2D(X,Y),Label,Grey,FVector2D(0.,.5)).X)+10.f*F;
-        X+=float(P.Text(TEXT("◆"),FVector2D(X,Y),Small,Ring.Unspent>0?Orange:Mute,FVector2D(0.,.5)).X);
-        P.Text(FString::Printf(TEXT("%lld"),Ring.Unspent),FVector2D(X,Y),Figure,Ring.Unspent>0?Orange:White,FVector2D(0.,.5));
+        X+=float(P.Text(TEXT("属性点"),FVector2D(X,Y),Label,LDBroadcast::Grey,FVector2D(0.,.5)).X)+10.f*F;
+        X+=float(P.Text(TEXT("◆"),FVector2D(X,Y),Small,Ring.Unspent>0?LDBroadcast::Orange:LDBroadcast::Mute,FVector2D(0.,.5)).X);
+        P.Text(FString::Printf(TEXT("%lld"),Ring.Unspent),FVector2D(X,Y),Figure,Ring.Unspent>0?LDBroadcast::Orange:LDBroadcast::White,FVector2D(0.,.5));
     }
     // 构筑 x/cap and the capacity ticks.
     {
         float X=float(L.Segments[1].Min.X)+Pad;
-        X+=float(P.Text(TEXT("构筑"),FVector2D(X,Y),Label,Grey,FVector2D(0.,.5)).X)+10.f*F;
-        X+=float(P.Text(FString::FromInt(Ring.Installed),FVector2D(X,Y),Figure,White,FVector2D(0.,.5)).X);
-        X+=float(P.Text(FString::Printf(TEXT("/%d"),Ring.Capacity),FVector2D(X,Y+3.f*F),Small,Grey,FVector2D(0.,.5)).X)+10.f*F;
+        X+=float(P.Text(TEXT("构筑"),FVector2D(X,Y),Label,LDBroadcast::Grey,FVector2D(0.,.5)).X)+10.f*F;
+        X+=float(P.Text(FString::FromInt(Ring.Installed),FVector2D(X,Y),Figure,LDBroadcast::White,FVector2D(0.,.5)).X);
+        X+=float(P.Text(FString::Printf(TEXT("/%d"),Ring.Capacity),FVector2D(X,Y+3.f*F),Small,LDBroadcast::Grey,FVector2D(0.,.5)).X)+10.f*F;
         for(int32 Tick=0;Tick<Ring.Capacity;++Tick)
         {
             const FBox2D Cell(FVector2D(X,Y-10.f*F),FVector2D(X+9.f*F,Y+10.f*F));
             const TArray<FVector2D> Shape=Lean(Cell,2.f*F,2.f*F);
-            if(Tick<Ring.Installed){P.Fill(Shape,White);}
-            else{P.Stroke(Shape,2.f*F,Mute,true);}
+            if(Tick<Ring.Installed){P.Fill(Shape,LDBroadcast::White);}
+            else{P.Stroke(Shape,2.f*F,LDBroadcast::Mute,true);}
             X+=12.f*F;
         }
     }
     // 牌库 N
     {
         float X=float(L.Segments[2].Min.X)+Pad;
-        X+=float(P.Text(TEXT("牌库"),FVector2D(X,Y),Label,Grey,FVector2D(0.,.5)).X)+10.f*F;
-        P.Text(FString::FromInt(Ring.Hand.Num()),FVector2D(X,Y),Figure,White,FVector2D(0.,.5));
+        X+=float(P.Text(TEXT("牌库"),FVector2D(X,Y),Label,LDBroadcast::Grey,FVector2D(0.,.5)).X)+10.f*F;
+        P.Text(FString::FromInt(Ring.Hand.Num()),FVector2D(X,Y),Figure,LDBroadcast::White,FVector2D(0.,.5));
     }
     // The commands: 洗点 (a rest), 反应表, 收起 with its key.
     for(const FShape& Box:L.Boxes)
@@ -1616,15 +1608,15 @@ void ULDWorkshop::PaintBar(FPainter& P) const
         if(Box.Hit.Kind==EHit::Close)
         {
             const FString Key=Latest.OpenKey.IsEmpty()?FString(TEXT("B")):Latest.OpenKey;
-            W=float(P.Text(TEXT("收起"),FVector2D(X,Y),Word,White,FVector2D(0.,.5)).X)+6.f*F;
+            W=float(P.Text(TEXT("收起"),FVector2D(X,Y),Word,LDBroadcast::White,FVector2D(0.,.5)).X)+6.f*F;
             const float KW=WidthOf(Key,Small)+14.f*F;
             const FBox2D Kbd(FVector2D(X+W,Y-13.f*F),FVector2D(X+W+KW,Y+13.f*F));
-            P.Fill(RectOf(Kbd),White);
-            P.Text(Key,Kbd.GetCenter(),Small,Ink,FVector2D(.5,.5));
+            P.Fill(RectOf(Kbd),LDBroadcast::White);
+            P.Text(Key,Kbd.GetCenter(),Small,LDBroadcast::Ink,FVector2D(.5,.5));
             W+=KW;
         }
-        else{W=float(P.Text(Box.Hit.Kind==EHit::Respec?TEXT("洗点"):TEXT("反应表"),FVector2D(X,Y),Word,White,FVector2D(0.,.5)).X);}
-        if(bHot){P.Fill(RectOf(FBox2D(FVector2D(X,Area.Max.Y-5.f*F),FVector2D(X+W,Area.Max.Y-2.f*F))),White);}
+        else{W=float(P.Text(Box.Hit.Kind==EHit::Respec?TEXT("洗点"):TEXT("反应表"),FVector2D(X,Y),Word,LDBroadcast::White,FVector2D(0.,.5)).X);}
+        if(bHot){P.Fill(RectOf(FBox2D(FVector2D(X,Area.Max.Y-5.f*F),FVector2D(X+W,Area.Max.Y-2.f*F))),LDBroadcast::White);}
     }
 }
 
@@ -1642,8 +1634,8 @@ void ULDWorkshop::PaintMatrix(FPainter& P) const
     const FVector2D SheetSize(6*CellW+5*Gap+20.f*U,6*CellH+5*Gap+24.f*U);
     const FVector2D Origin(FMath::Min(float(BoundsOf(Button->Shape).Min.X),float(L.Size.X)-16.f*U-float(SheetSize.X)),float(L.Bar.Min.Y)-8.f*U-float(SheetSize.Y));
     const FBox2D Sheet=BoxAt(Origin,SheetSize);
-    P.Fill(RectOf(Sheet),Ink.CopyWithNewOpacity(.96f));
-    P.Fill(RectOf(FBox2D(Sheet.Min,FVector2D(Sheet.Min.X+3.f*U,Sheet.Max.Y))),White);
+    P.Fill(RectOf(Sheet),LDBroadcast::Ink.CopyWithNewOpacity(.96f));
+    P.Fill(RectOf(FBox2D(Sheet.Min,FVector2D(Sheet.Min.X+3.f*U,Sheet.Max.Y))),LDBroadcast::White);
     const FSlateFontInfo Font=Face(EFace::Bold,18.f,F);
     const FVector2D First=Origin+FVector2D(12.f*U,12.f*U);
     for(int32 Row=0;Row<6;++Row)
@@ -1656,15 +1648,15 @@ void ULDWorkshop::PaintMatrix(FPainter& P) const
             {
                 const ELDDemoElement E=Elements[(Row==0?Column:Row)-1];
                 P.Fill(RectOf(Cell),ElementInk(E));
-                P.Text(LDHUD::ElementName(E),Cell.GetCenter(),Font,Ink,FVector2D(.5,.5));
+                P.Text(LDHUD::ElementName(E),Cell.GetCenter(),Font,LDBroadcast::Ink,FVector2D(.5,.5));
                 continue;
             }
-            P.Fill(RectOf(Cell),Panel);
-            if(Row==Column){P.Text(TEXT("—"),Cell.GetCenter(),Font,Mute,FVector2D(.5,.5));continue;}
+            P.Fill(RectOf(Cell),LDBroadcast::Panel);
+            if(Row==Column){P.Text(TEXT("—"),Cell.GetCenter(),Font,LDBroadcast::Mute,FVector2D(.5,.5));continue;}
             const FString Name=LDWorkshop::ReactionName(Elements[Row-1],Elements[Column-1]);
             const bool bOwn=Mine.Contains(Name);
-            if(bOwn){Frame(P,Cell,2.f*U,White);}
-            P.Text(Name,Cell.GetCenter(),Font,bOwn?White:Grey,FVector2D(.5,.5));
+            if(bOwn){Frame(P,Cell,2.f*U,LDBroadcast::White);}
+            P.Text(Name,Cell.GetCenter(),Font,bOwn?LDBroadcast::White:LDBroadcast::Grey,FVector2D(.5,.5));
         }
     }
 }
@@ -1677,25 +1669,25 @@ void ULDWorkshop::PaintCard(FPainter& P,int32 LinkCount) const
     if(Info.Name.IsEmpty()){return;}
     const float U=L.U,F=L.F;
     const FBox2D Card=L.Card;
-    P.Fill(Lean(Card,0.f,24.f*U),Ink.CopyWithNewOpacity(.94f));
-    P.Fill(RectOf(FBox2D(Card.Min,FVector2D(Card.Min.X+4.f*U,Card.Max.Y))),White);
+    P.Fill(Lean(Card,0.f,24.f*U),LDBroadcast::Ink.CopyWithNewOpacity(.94f));
+    P.Fill(RectOf(FBox2D(Card.Min,FVector2D(Card.Min.X+4.f*U,Card.Max.Y))),LDBroadcast::White);
     const float Icon=72.f*U;
     const FBox2D Tile=BoxAt(Card.Min+FVector2D(18.f*U,14.f*U),FVector2D(Icon,Icon));
     PaintTile(P,Tile,Info.IconId,Info.Name,ETile::Plain,ERarity::Common,1.f,Info.bBodyIcon?RingArt(EArt::Body):nullptr);
     const float TextX=float(Tile.Max.X)+16.f*U;
     const float TextW=float(Card.Max.X)-TextX-30.f*U;
     float Y=float(Card.Min.Y)+10.f*U;
-    P.Text(OneLine(Info.Name,Face(EFace::Heavy,26.f,F),TextW),FVector2D(TextX,Y),Face(EFace::Heavy,26.f,F),White);Y+=34.f*F;
+    P.Text(OneLine(Info.Name,Face(EFace::Heavy,26.f,F),TextW),FVector2D(TextX,Y),Face(EFace::Heavy,26.f,F),LDBroadcast::White);Y+=34.f*F;
     {
         float X=TextX;
-        X+=float(P.Text(Info.Meta,FVector2D(X,Y),Face(EFace::Bold,18.f,F),Grey).X);
-        if(LinkCount>0){P.Text(FString::Printf(TEXT(" · 联动 %d"),LinkCount),FVector2D(X,Y),Face(EFace::Heavy,18.f,F),White);}
+        X+=float(P.Text(Info.Meta,FVector2D(X,Y),Face(EFace::Bold,18.f,F),LDBroadcast::Grey).X);
+        if(LinkCount>0){P.Text(FString::Printf(TEXT(" · 联动 %d"),LinkCount),FVector2D(X,Y),Face(EFace::Heavy,18.f,F),LDBroadcast::White);}
         Y+=26.f*F;
     }
-    if(!Info.Gain.IsEmpty()){P.Text(OneLine(Info.Gain,Face(EFace::Bold,18.f,F),TextW),FVector2D(TextX,Y),Face(EFace::Bold,18.f,F),Orange);Y+=26.f*F;}
+    if(!Info.Gain.IsEmpty()){P.Text(OneLine(Info.Gain,Face(EFace::Bold,18.f,F),TextW),FVector2D(TextX,Y),Face(EFace::Bold,18.f,F),LDBroadcast::Orange);Y+=26.f*F;}
     for(const FString& Line:LDRingPaint::Wrap(Info.Body,Face(EFace::Regular,20.f,F),TextW,3))
     {
-        P.Text(Line,FVector2D(TextX,Y),Face(EFace::Regular,20.f,F),White.CopyWithNewOpacity(.9f));Y+=26.f*F;
+        P.Text(Line,FVector2D(TextX,Y),Face(EFace::Regular,20.f,F),LDBroadcast::White.CopyWithNewOpacity(.9f));Y+=26.f*F;
     }
 }
 
@@ -1710,7 +1702,7 @@ void ULDWorkshop::PaintSkillRules(FPainter& P,const TArray<uint64>& Lit) const
         if(!bOn||!Latest.Skills.IsValidIndex(Host-1)){continue;}
         const FSlateRect& Rect=Latest.Skills[Host-1];
         if(Rect.Right<=Rect.Left||Rect.Bottom<=Rect.Top){continue;}
-        Frame(P,FBox2D(G.AbsoluteToLocal(FVector2D(Rect.Left,Rect.Top)),G.AbsoluteToLocal(FVector2D(Rect.Right,Rect.Bottom))),3.f*Layout.U,White);
+        Frame(P,FBox2D(G.AbsoluteToLocal(FVector2D(Rect.Left,Rect.Top)),G.AbsoluteToLocal(FVector2D(Rect.Right,Rect.Bottom))),3.f*Layout.U,LDBroadcast::White);
     }
 }
 
@@ -1726,8 +1718,8 @@ void ULDWorkshop::PaintClosed(FPainter& P) const
             const FSlateFontInfo Font=Face(EFace::Heavy,18.f,F);
             const float W=WidthOf(Ring.Batch.Title,Font)+24.f*F;
             const FBox2D Chip(FVector2D(First.Min.X,First.Min.Y-10.f*U-28.f*F),FVector2D(First.Min.X+W,First.Min.Y-10.f*U));
-            P.Fill(Lean(Chip,7.f*F,7.f*F),White);
-            P.Text(Ring.Batch.Title,Chip.GetCenter(),Font,Ink,FVector2D(.5,.5));
+            P.Fill(Lean(Chip,7.f*F,7.f*F),LDBroadcast::White);
+            P.Text(Ring.Batch.Title,Chip.GetCenter(),Font,LDBroadcast::Ink,FVector2D(.5,.5));
         }
         for(const FFace& Face0:OfferFaces)
         {
@@ -1739,17 +1731,17 @@ void ULDWorkshop::PaintClosed(FPainter& P) const
             // The pick key on a white tab over the tile's corner.
             const FSlateFontInfo Font=Face(EFace::Figure,20.f,F);
             const FBox2D Tab(FVector2D(Box.Min.X-6.f*U,Box.Min.Y-8.f*U),FVector2D(Box.Min.X-6.f*U+22.f*F,Box.Min.Y-8.f*U+22.f*F));
-            P.Fill(RectOf(Tab),White);
-            P.Text(FString::FromInt(Face0.Hit.Index+1),Tab.GetCenter(),Font,Ink,FVector2D(.5,.5));
+            P.Fill(RectOf(Tab),LDBroadcast::White);
+            P.Text(FString::FromInt(Face0.Hit.Index+1),Tab.GetCenter(),Font,LDBroadcast::Ink,FVector2D(.5,.5));
             P.Opacity=Saved;
         }
         if(Ring.Batch.Queued>0)
         {
             const FBox2D Last=OfferFaces.Last().Box;
             const FBox2D Pile(FVector2D(Last.Max.X+12.f*U,Last.Min.Y),FVector2D(Last.Max.X+12.f*U+48.f*F,Last.Max.Y));
-            P.Fill(RectOf(Pile),Ink.CopyWithNewOpacity(.92f));
-            Frame(P,Pile,2.f*U,White.CopyWithNewOpacity(.34f));
-            P.Text(FString::Printf(TEXT("+%d"),Ring.Batch.Queued),Pile.GetCenter(),Face(EFace::Figure,26.f,F),White,FVector2D(.5,.5));
+            P.Fill(RectOf(Pile),LDBroadcast::Ink.CopyWithNewOpacity(.92f));
+            Frame(P,Pile,2.f*U,LDBroadcast::White.CopyWithNewOpacity(.34f));
+            P.Text(FString::Printf(TEXT("+%d"),Ring.Batch.Queued),Pile.GetCenter(),Face(EFace::Figure,26.f,F),LDBroadcast::White,FVector2D(.5,.5));
         }
     }
     for(const FShape& Box:L.Boxes)
@@ -1758,23 +1750,23 @@ void ULDWorkshop::PaintClosed(FPainter& P) const
         // The entry: 构筑 with its key, the unspent points (orange) and the unseen cards.
         const FBox2D Button=BoundsOf(Box.Shape);
         const bool bHot=Shown==Box.Hit;
-        P.Fill(Lean(Button,10.f*F,10.f*F),Ink.CopyWithNewOpacity(.92f));
-        if(bHot){P.Fill(RectOf(FBox2D(FVector2D(Button.Min.X+10.f*F,Button.Max.Y-4.f*F),FVector2D(Button.Max.X-10.f*F,Button.Max.Y))),White);}
+        P.Fill(Lean(Button,10.f*F,10.f*F),LDBroadcast::Ink.CopyWithNewOpacity(.92f));
+        if(bHot){P.Fill(RectOf(FBox2D(FVector2D(Button.Min.X+10.f*F,Button.Max.Y-4.f*F),FVector2D(Button.Max.X-10.f*F,Button.Max.Y))),LDBroadcast::White);}
         const FSlateFontInfo Label=Face(EFace::Bold,18.f,F),Key=Face(EFace::Figure,22.f,F);
         const FString OpenKey=Latest.OpenKey.IsEmpty()?FString(TEXT("B")):Latest.OpenKey;
         float X=float(Button.Min.X)+14.f*F;const float Y=float(Button.GetCenter().Y);
-        X+=float(P.Text(TEXT("构筑"),FVector2D(X,Y),Label,White,FVector2D(0.,.5)).X)+8.f*F;
+        X+=float(P.Text(TEXT("构筑"),FVector2D(X,Y),Label,LDBroadcast::White,FVector2D(0.,.5)).X)+8.f*F;
         const float KW=WidthOf(OpenKey,Key)+14.f*F;
         const FBox2D Kbd(FVector2D(X,Y-12.f*F),FVector2D(X+KW,Y+12.f*F));
-        P.Fill(RectOf(Kbd),White);P.Text(OpenKey,Kbd.GetCenter(),Key,Ink,FVector2D(.5,.5));
+        P.Fill(RectOf(Kbd),LDBroadcast::White);P.Text(OpenKey,Kbd.GetCenter(),Key,LDBroadcast::Ink,FVector2D(.5,.5));
         X+=KW+12.f*F;
-        if(Ring.Unspent>0){X+=float(P.Text(FString::Printf(TEXT("◆%lld"),Ring.Unspent),FVector2D(X,Y),Face(EFace::Figure,26.f,F),Orange,FVector2D(0.,.5)).X)+12.f*F;}
+        if(Ring.Unspent>0){X+=float(P.Text(FString::Printf(TEXT("◆%lld"),Ring.Unspent),FVector2D(X,Y),Face(EFace::Figure,26.f,F),LDBroadcast::Orange,FVector2D(0.,.5)).X)+12.f*F;}
         if(Ring.Fresh>0)
         {
             const FString Fresh=FString::Printf(TEXT("新 %d"),Ring.Fresh);
             const float W=WidthOf(Fresh,Label)+16.f*F;
             const FBox2D Tab(FVector2D(X,Y-12.f*F),FVector2D(X+W,Y+12.f*F));
-            P.Fill(Lean(Tab,5.f*F,5.f*F),Orange);P.Text(Fresh,Tab.GetCenter(),Label,Ink,FVector2D(.5,.5));
+            P.Fill(Lean(Tab,5.f*F,5.f*F),LDBroadcast::Orange);P.Text(Fresh,Tab.GetCenter(),Label,LDBroadcast::Ink,FVector2D(.5,.5));
         }
     }
 }
@@ -1803,7 +1795,7 @@ int32 ULDWorkshop::PaintGround(const FGeometry& Geometry,FSlateWindowElementList
         const float Right=bRight?Edge(float(Size.X-At.X)/U):0.f;
         const float Bottom=FMath::Clamp(.66f*(1.f-float(Size.Y-At.Y)/(320.f*U)),0.f,.66f);
         const float Alpha=1.f-(1.f-Radial)*(1.f-Left)*(1.f-Right)*(1.f-Bottom);
-        return Ink.CopyWithNewOpacity(Alpha);
+        return LDBroadcast::Ink.CopyWithNewOpacity(Alpha);
     };
     const int32 Columns=32,Rows=18;
     for(int32 Row=0;Row<Rows;++Row)
@@ -1858,10 +1850,10 @@ int32 ULDWorkshop::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,
                 if(Box.Hit.Kind!=EHit::Element||!Choices2.IsValidIndex(Box.Hit.Index)){continue;}
                 const FBox2D Button=BoundsOf(Box.Shape);
                 P.Fill(Lean(Button,7.f*F,7.f*F),ElementInk(Choices2[Box.Hit.Index]));
-                if(Focus()==Box.Hit){Frame(P,Button,3.f*F,White);}
-                P.Text(LDHUD::ElementName(Choices2[Box.Hit.Index]),Button.GetCenter(),Face(EFace::Heavy,20.f,F),Ink,FVector2D(.5,.5));
+                if(Focus()==Box.Hit){Frame(P,Button,3.f*F,LDBroadcast::White);}
+                P.Text(LDHUD::ElementName(Choices2[Box.Hit.Index]),Button.GetCenter(),Face(EFace::Heavy,20.f,F),LDBroadcast::Ink,FVector2D(.5,.5));
             }
-            P.Text(TEXT("选一种元素"),FVector2D(Layout.Centre.X,48.f*Layout.U-6.f*Layout.U),Face(EFace::Heavy,20.f,F),White,FVector2D(.5,1.));
+            P.Text(TEXT("选一种元素"),FVector2D(Layout.Centre.X,48.f*Layout.U-6.f*Layout.U),Face(EFace::Heavy,20.f,F),LDBroadcast::White,FVector2D(.5,1.));
         }
         if(Choices.IsValid()&&Choices->HasChildConfirmation())
         {
@@ -1870,15 +1862,15 @@ int32 ULDWorkshop::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,
             const float W=WidthOf(Line,Font)+36.f*F;
             const FBox2D Plate(FVector2D(Layout.Centre.X-W*.5f,16.f*Layout.U),FVector2D(Layout.Centre.X+W*.5f,16.f*Layout.U+34.f*F));
             P.Fill(Lean(Plate,8.f*F,8.f*F),LDBroadcast::LiveRed);
-            P.Text(Line,Plate.GetCenter(),Font,White,FVector2D(.5,.5));
+            P.Text(Line,Plate.GetCenter(),Font,LDBroadcast::White,FVector2D(.5,.5));
             for(const FShape& Box:Layout.Boxes)
             {
                 if(Box.Hit.Kind!=EHit::ConfirmYes&&Box.Hit.Kind!=EHit::ConfirmNo){continue;}
                 const FBox2D Button=BoundsOf(Box.Shape);
                 const bool bYes=Box.Hit.Kind==EHit::ConfirmYes;
-                P.Fill(Lean(Button,7.f*F,7.f*F),bYes?LDBroadcast::LiveRed:Ink.CopyWithNewOpacity(.92f));
-                if(Focus()==Box.Hit){Frame(P,Button,2.f*F,White);}
-                P.Text(bYes?TEXT("确认"):TEXT("取消"),Button.GetCenter(),Face(EFace::Bold,18.f,F),White,FVector2D(.5,.5));
+                P.Fill(Lean(Button,7.f*F,7.f*F),bYes?LDBroadcast::LiveRed:LDBroadcast::Ink.CopyWithNewOpacity(.92f));
+                if(Focus()==Box.Hit){Frame(P,Button,2.f*F,LDBroadcast::White);}
+                P.Text(bYes?TEXT("确认"):TEXT("取消"),Button.GetCenter(),Face(EFace::Bold,18.f,F),LDBroadcast::White,FVector2D(.5,.5));
             }
         }
         PaintCard(P,Lit.Num());
