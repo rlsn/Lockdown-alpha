@@ -560,6 +560,378 @@ for _index, (_ability, _make) in enumerate(SKILL_SOUNDS.items()):
         SOUNDS[f"skill_{_ability[len('active_'):]}_{_take}"] = ((lambda make: lambda seed: finish(low(make(seed), 8500, 4)))(_make), 1000 + 10 * _index + _take)
 
 
+# ---------------------------------------------------------------- skill hits (on the struck body, transient at 0)
+# What the blow is made of: bone, rubber, brick, water, ice, rot... layered over the approved body-hit grammar
+# (a click, a short low body, a tail that is gone by 350 ms).
+
+def body(rng, weight=1.0):
+    """The approved body-hit core: click + low thud + short tail."""
+    return mix(0.3, (0, click(rng), 0.5), (0, thud(130 - 30 * weight, 50, 0.11 + 0.05 * weight, 0.03 + 0.02 * weight), 0.9),
+               (0.002, low(noise(rng, 0.2), 900) * env_ad(int(0.2 * RATE), 0.004, 0.04), 0.3))
+
+
+def hit_elbow(seed):  # bony elbow into ribs: a hard crack over a heavy body
+    rng = np.random.default_rng(seed)
+    crack = band(noise(rng, 0.03), 1500, 5000) * env_ad(int(0.03 * RATE), 0.001, 0.006)
+    return mix(0.36, (0, body(rng, 1.3), 1.0), (0, crack, 0.8))
+
+
+def hit_slap(seed):  # an open-hand / cloth slap (pants down)
+    rng = np.random.default_rng(seed)
+    slap = band(noise(rng, 0.05), 900, 4500) * env_ad(int(0.05 * RATE), 0.001, 0.01)
+    return mix(0.3, (0, slap, 1.0), (0, body(rng, 0.6), 0.6), (0.01, cloth(rng, 0.15, 0.04), 0.4))
+
+
+def hit_squeeze(seed):  # a grab that squeezes (crotch grab): a muffled squish and a tight squeak
+    rng = np.random.default_rng(seed)
+    squish = low(noise(rng, 0.12), 700) * env_ad(int(0.12 * RATE), 0.004, 0.03)
+    squeak = chirp(900, 1500, 0.08, 1.2) * env_ad(int(0.08 * RATE), 0.005, 0.02)
+    return mix(0.3, (0, body(rng, 0.8), 0.8), (0, squish, 0.8), (0.01, squeak, 0.25))
+
+
+def hit_slipper(seed):  # a rubber slipper smack: a flat, bright slap with a rubber wobble
+    rng = np.random.default_rng(seed)
+    n = int(0.12 * RATE)
+    t = np.arange(n) / RATE
+    smack = band(noise(rng, 0.12), 700, 3800) * env_ad(n, 0.001, 0.015) * (1 + 0.4 * np.sin(2 * np.pi * 55 * t))
+    return mix(0.3, (0, smack, 1.0), (0, thud(170, 110, 0.06, 0.015), 0.5))
+
+
+def hit_scald(seed):  # a scald (seethe, the boiling zone): a hit that sears with a short sizzle
+    rng = np.random.default_rng(seed)
+    n = int(0.4 * RATE)
+    t = np.arange(n) / RATE
+    sizzle = band(noise(rng, 0.4), 2500, 7000) * (rng.random(n) < 0.4) * np.clip(t / 0.01, 0, 1) * np.exp(-t / 0.12)
+    return mix(0.42, (0, body(rng, 0.7), 0.7), (0, hit_fire(seed)[: int(0.3 * RATE)], 0.45), (0.01, sizzle, 0.5))
+
+
+def hit_brick(seed):  # a brick on the head: a hard crack, a heavy low body and crumbling grit
+    rng = np.random.default_rng(seed)
+    crack = band(noise(rng, 0.05), 800, 5000) * env_ad(int(0.05 * RATE), 0.001, 0.01)
+    grit = crackle(rng, 0.3, 160, 10, 2000, 6000) * np.exp(-t_axis(0.3) / 0.1)
+    return soft_clip(mix(0.42, (0, body(rng, 1.6), 1.0), (0, crack, 1.0), (0.01, grit, 0.5)), 1.4)
+
+
+def hit_trap(seed):  # a snap trap closing on a foot: a tight double clack over a light body
+    rng = np.random.default_rng(seed)
+    clack = lambda: ring([1900, 3300], 0.06, [0.015, 0.01], [0.6, 0.3]) + pad(click(rng, 0.003, 2500), int(0.06 * RATE))
+    return mix(0.3, (0, clack(), 1.0), (0.025, clack(), 0.7), (0, body(rng, 0.5), 0.5))
+
+
+def hit_shout(seed):  # the shout's blast arriving: a low air whump with a shove of wind, no crack
+    rng = np.random.default_rng(seed)
+    return mix(0.4, (0, thud(85, 45, 0.25, 0.08), 1.0), (0, whoosh(rng, 0.35, 250, 1200, 0.01, 0.8, 0.09), 0.7))
+
+
+def hit_jet(seed):  # a water jet slamming in: a splat and a spray that sprays off
+    rng = np.random.default_rng(seed)
+    splat = band(noise(rng, 0.06), 500, 3000) * env_ad(int(0.06 * RATE), 0.001, 0.012)
+    return mix(0.42, (0, splat, 1.0), (0, hit_water(seed)[: int(0.4 * RATE)], 0.7), (0, body(rng, 0.6), 0.4))
+
+
+def hit_ram(seed):  # a charging shoulder slam: the heaviest body, a grunt of air and a scuff
+    rng = np.random.default_rng(seed)
+    return soft_clip(mix(0.45, (0, body(rng, 2.0), 1.0), (0, whoosh(rng, 0.2, 200, 800, 0.005, 0.8, 0.05), 0.5),
+                         (0.02, cloth(rng, 0.2, 0.05), 0.5)), 1.5)
+
+
+def hit_ice(seed):  # an icy hit (the cola cone's chill): a glassy crack, frost crackle and a fizz
+    rng = np.random.default_rng(seed)
+    n = int(0.4 * RATE)
+    t = np.arange(n) / RATE
+    glass = ring([2600, 4100, 5900], 0.25, [0.05, 0.035, 0.02], [0.5, 0.35, 0.2])
+    frost = crackle(rng, 0.4, 500, 60, 3000, 8000) * np.exp(-t / 0.12)
+    fizz = high(noise(rng, 0.4), 3000) * (rng.random(n) < 0.4) * np.exp(-t / 0.15)
+    return mix(0.42, (0, click(rng, 0.004, 3000), 0.8), (0, glass, 0.7), (0, frost, 0.5), (0, low(fizz, 7000), 0.3), (0, body(rng, 0.5), 0.5))
+
+
+def hit_rot(seed):  # rotten takeout splatting: a wet slap, a squelch and a few drips
+    rng = np.random.default_rng(seed)
+    n = int(0.42 * RATE)
+    splat = low(noise(rng, 0.1), 1500) * env_ad(int(0.1 * RATE), 0.001, 0.025)
+    squelch = low(noise(rng, 0.2), 600) * (0.5 + 0.5 * np.sin(2 * np.pi * np.cumsum(25 + 50 * t_axis(0.2)) / RATE)) * env_ad(int(0.2 * RATE), 0.01, 0.05)
+    drips = np.zeros(n)
+    for _ in range(5):
+        start = int(rng.uniform(0.08, 0.35) * RATE)
+        blip = chirp(rng.uniform(500, 800), rng.uniform(900, 1400), 0.02, 2.0) * env_ad(int(0.02 * RATE), 0.001, 0.006)
+        drips[start:start + len(blip)] += 0.4 * blip[: n - start]
+    return mix(0.42, (0, splat, 1.0), (0.01, squelch, 0.7), (0, drips, 0.5), (0, body(rng, 0.5), 0.4))
+
+
+def hit_bag(seed):  # a stuffed school bag: a padded heavy thump and a rattle of pencils
+    rng = np.random.default_rng(seed)
+    rattle = crackle(rng, 0.15, 300, 50, 2500, 6000) * np.exp(-t_axis(0.15) / 0.05)
+    return mix(0.36, (0, thud(100, 50, 0.2, 0.06), 1.0), (0, low(noise(rng, 0.1), 1200) * env_ad(int(0.1 * RATE), 0.002, 0.02), 0.6), (0.01, rattle, 0.4))
+
+
+def hit_tape(seed):  # elastic tape lashing: a whip crack and a twang
+    rng = np.random.default_rng(seed)
+    whip = band(noise(rng, 0.02), 2000, 7000) * env_ad(int(0.02 * RATE), 0.0005, 0.004)
+    return mix(0.3, (0, whip, 1.0), (0, ring([150, 300], 0.2, [0.06, 0.04], [0.5, 0.25]), 0.8), (0, body(rng, 0.4), 0.4))
+
+
+def hit_flurry(seed):  # a frenzy wave's blows: four quick light hits in a patter
+    rng = np.random.default_rng(seed)
+    return mix(0.36, *[(i * 0.045, body(rng, 0.4), 0.8 - 0.1 * i) for i in range(4)])
+
+
+def hit_twist(seed):  # a wrist twisted in the counter: a knuckle crack and a strained creak
+    rng = np.random.default_rng(seed)
+    n = int(0.25 * RATE)
+    creak = band(noise(rng, 0.25) * (rng.random(n) < 0.08), 300, 1400) * 4 * env_ad(n, 0.01, 0.06)
+    return mix(0.3, (0, click(rng, 0.003, 1500), 1.0), (0.01, click(rng, 0.002, 2500), 0.7), (0, creak, 0.7), (0, body(rng, 0.6), 0.5))
+
+
+def hit_gust(seed):  # a fan's gust buffeting a body: a soft wind slam, no blow
+    rng = np.random.default_rng(seed)
+    return mix(0.4, (0, whoosh(rng, 0.38, 300, 1600, 0.01, 0.7, 0.1), 1.0), (0, thud(110, 70, 0.08, 0.02), 0.3))
+
+
+SKILL_HITS = {
+    "active_pants_down": hit_slap, "active_crotch_grab": hit_squeeze, "active_unplug": hit_twist, "active_snark_bolt": hit_slipper,
+    "active_seethe": hit_scald, "active_elbow": hit_elbow, "active_quick_meeting": hit_scald, "active_calculus_drop": hit_brick,
+    "active_flyer_trap": hit_trap, "active_open_mic": hit_shout, "active_hose_down": hit_jet, "active_charged_ram": hit_ram,
+    "active_cola_shake": hit_ice, "active_desk_fan": hit_gust, "active_stale_takeout": hit_rot, "active_school_bag": hit_bag,
+    "active_flurry_rush": hit_flurry, "active_cordon_tape": hit_tape,
+}
+for _index, (_ability, _make) in enumerate(SKILL_HITS.items()):
+    for _take in (1, 2):
+        SOUNDS[f"skillhit_{_ability[len('active_'):]}_{_take}"] = ((lambda make: lambda seed: finish(low(make(seed), 8500, 4)))(_make), 2000 + 10 * _index + _take)
+
+
+# ---------------------------------------------------------------- element reactions and states
+
+def r_fog(seed):  # wet + fire: a burst of steam hissing out
+    rng = np.random.default_rng(seed)
+    n = int(0.6 * RATE)
+    t = np.arange(n) / RATE
+    steam = sweep_band(noise(rng, 0.6), 5000 * np.exp(-t / 0.2) + 1500, q=0.9) * np.clip(t / 0.01, 0, 1) * np.exp(-t / 0.22)
+    return mix(0.62, (0, thud(140, 80, 0.06, 0.015), 0.6), (0, low(steam, 8000), 1.0))
+
+
+def r_conduct(seed):  # wet + shock: the splash field: a wide crackling discharge that spreads
+    rng = np.random.default_rng(seed)
+    n = int(0.6 * RATE)
+    t = np.arange(n) / RATE
+    spread = crackle(rng, 0.6, 1400, 150, 1500, 5500) * np.clip(t / 0.03, 0, 1) * np.exp(-t / 0.25)
+    return mix(0.62, (0, hit_electric(seed)[: int(0.3 * RATE)], 0.6), (0, spread, 0.9), (0, buzz(100, 0.6, rng) * np.exp(-t / 0.2), 0.3), (0, thud(90, 50, 0.2, 0.06), 0.5))
+
+
+def r_overload(seed):  # fire + shock: a short explosive pop with sparks
+    rng = np.random.default_rng(seed)
+    sparks = crackle(rng, 0.5, 600, 40, 1800, 6000) * np.exp(-t_axis(0.5) / 0.15)
+    return soft_clip(mix(0.55, (0, thud(80, 35, 0.3, 0.09), 1.0), (0, band(noise(rng, 0.08), 400, 3000) * env_ad(int(0.08 * RATE), 0.001, 0.02), 0.9), (0, sparks, 0.6)), 1.6)
+
+
+def r_melt(seed):  # fire + chill: ice cracking as it melts, a hiss and drips
+    rng = np.random.default_rng(seed)
+    return mix(0.6, (0, ring([2300, 3700], 0.2, [0.04, 0.03], [0.4, 0.2]), 0.7), (0, crackle(rng, 0.4, 300, 30, 2000, 6000) * np.exp(-t_axis(0.4) / 0.12), 0.6),
+               (0.05, low(high(noise(rng, 0.5), 2500), 7000) * env_ad(int(0.5 * RATE), 0.03, 0.15), 0.35), (0.1, hit_water(seed)[: int(0.3 * RATE)], 0.3))
+
+
+def r_methane(seed):  # fire + rot: a gas pocket catching: a whoompf that rolls
+    rng = np.random.default_rng(seed)
+    n = int(0.6 * RATE)
+    t = np.arange(n) / RATE
+    roll = sweep_band(noise(rng, 0.6), 300 + 1200 * np.exp(-t / 0.08), q=0.7) * np.clip(t / 0.015, 0, 1) * np.exp(-t / 0.2)
+    return soft_clip(mix(0.62, (0, roll, 1.0), (0, thud(70, 35, 0.35, 0.1), 0.9), (0.05, crackle(rng, 0.5, 200, 20, 900, 4000) * np.exp(-t_axis(0.5) / 0.2), 0.4)), 1.4)
+
+
+def r_freeze(seed):  # wet + chill: water seizing into ice: a fast crystallising creak and a locking crack
+    rng = np.random.default_rng(seed)
+    n = int(0.5 * RATE)
+    t = np.arange(n) / RATE
+    grow = crackle(rng, 0.5, 600, 1500, 3000, 8000) * np.clip(0.3 + t / 0.1, 0, 1) * np.exp(-np.clip(t - 0.1, 0, None) / 0.06)
+    lock = ring([1800, 2900, 4300], 0.25, [0.06, 0.04, 0.03], [0.6, 0.4, 0.25])
+    return mix(0.55, (0, click(rng, 0.004, 2500), 0.5), (0, grow, 0.7), (0.1, lock, 1.0), (0.1, click(rng, 0.004, 2500), 0.8))
+
+
+def r_ferment(seed):  # wet + rot: a bubbling fermenting gurgle
+    rng = np.random.default_rng(seed)
+    n = int(0.6 * RATE)
+    gurgle = np.zeros(n)
+    for _ in range(18):
+        start = int(rng.uniform(0.0, 0.45) * RATE)
+        dur = rng.uniform(0.02, 0.06)
+        blip = chirp(rng.uniform(150, 300), rng.uniform(300, 600), dur, 2.0) * env_ad(int(dur * RATE), 0.003, dur / 3)
+        gurgle[start:start + len(blip)] += rng.uniform(0.3, 0.8) * blip[: n - start]
+    return mix(0.62, (0, low(gurgle, 2000), 1.0), (0, low(noise(rng, 0.3), 500) * env_ad(int(0.3 * RATE), 0.01, 0.08), 0.4))
+
+
+def r_shatter(seed):  # chill + a blow: frozen body shattering: a big glass crack and falling shards
+    rng = np.random.default_rng(seed)
+    n = int(0.6 * RATE)
+    shards = np.zeros(n)
+    for _ in range(16):
+        start = int(rng.uniform(0.04, 0.5) * RATE)
+        f = rng.uniform(2500, 6000)
+        shard = ring([f, f * 1.47], 0.06, [0.015, 0.01], [0.5, 0.3])
+        shards[start:start + len(shard)] += rng.uniform(0.2, 0.6) * shard[: n - start]
+    return mix(0.62, (0, ring([1500, 2700, 4100], 0.3, [0.05, 0.035, 0.025], [0.7, 0.5, 0.3]), 0.9), (0, band(noise(rng, 0.05), 1500, 7000) * env_ad(int(0.05 * RATE), 0.001, 0.01), 0.9),
+               (0, shards, 0.6), (0, thud(120, 60, 0.12, 0.03), 0.5))
+
+
+def r_corrode(seed):  # shock + rot: a corroding fizz: acid sizzle with a sour crackle
+    rng = np.random.default_rng(seed)
+    n = int(0.6 * RATE)
+    t = np.arange(n) / RATE
+    fizz = band(noise(rng, 0.6), 2000, 6500) * (rng.random(n) < 0.5) * np.clip(t / 0.02, 0, 1) * np.exp(-t / 0.25)
+    return mix(0.62, (0, fizz, 0.9), (0, crackle(rng, 0.6, 300, 60, 900, 3000) * np.exp(-t / 0.25), 0.6), (0, buzz(70, 0.6, rng) * np.exp(-t / 0.15), 0.2))
+
+
+def r_frostbite(seed):  # chill + rot: a numbing bite: a cold creak and a low ache
+    rng = np.random.default_rng(seed)
+    n = int(0.55 * RATE)
+    t = np.arange(n) / RATE
+    ache = np.sin(2 * np.pi * np.cumsum(220 - 60 * t / 0.55) / RATE) * np.clip(t / 0.03, 0, 1) * np.exp(-t / 0.2)
+    return mix(0.55, (0, ring([2100, 3400], 0.2, [0.05, 0.03], [0.5, 0.3]), 0.7), (0, ache, 0.5), (0, crackle(rng, 0.3, 300, 30, 2500, 7000) * np.exp(-t_axis(0.3) / 0.1), 0.5))
+
+
+def s_burn(seed):  # catching fire: a quick flare-up
+    rng = np.random.default_rng(seed)
+    n = int(0.35 * RATE)
+    t = np.arange(n) / RATE
+    return mix(0.36, (0, sweep_band(noise(rng, 0.35), 400 + 2500 * np.clip(t / 0.06, 0, 1) * np.exp(-t / 0.15), q=1.0) * env_ad(n, 0.03, 0.08), 1.0),
+               (0, crackle(rng, 0.35, 150, 40, 1000, 4000) * np.exp(-t / 0.15), 0.4))
+
+
+def s_wet(seed):  # soaked: a cold drench and drips
+    rng = np.random.default_rng(seed)
+    return mix(0.36, (0, band(noise(rng, 0.2), 800, 5000) * env_ad(int(0.2 * RATE), 0.005, 0.04), 0.7), (0.03, hit_water(seed)[: int(0.3 * RATE)], 0.5))
+
+
+def s_shock(seed):  # electrified: a tingling crackle that ticks
+    rng = np.random.default_rng(seed)
+    n = int(0.35 * RATE)
+    t = np.arange(n) / RATE
+    ticks = crackle(rng, 0.35, 400, 80, 2000, 5500) * np.exp(-t / 0.15)
+    return mix(0.36, (0, ticks, 1.0), (0, buzz(115, 0.35, rng) * np.exp(-t / 0.08), 0.3))
+
+
+def s_chill(seed):  # chilled: frost creeping over the skin
+    rng = np.random.default_rng(seed)
+    n = int(0.35 * RATE)
+    t = np.arange(n) / RATE
+    return mix(0.36, (0, crackle(rng, 0.35, 150, 900, 3000, 8000) * np.clip(t / 0.2, 0, 1) * np.exp(-np.clip(t - 0.2, 0, None) / 0.05), 0.8),
+               (0.18, ring([3000], 0.12, [0.03], [0.5]), 0.6))
+
+
+def s_rot(seed):  # rotting: a sour squelch and a fly buzz
+    rng = np.random.default_rng(seed)
+    n = int(0.4 * RATE)
+    t = np.arange(n) / RATE
+    fly = band(np.sin(2 * np.pi * (200 + 20 * np.sin(2 * np.pi * 8 * t)) * t) + 0.3 * np.sign(np.sin(2 * np.pi * 200 * t)), 150, 2000) * np.clip(t / 0.05, 0, 1) * np.exp(-t / 0.15)
+    return mix(0.42, (0, low(noise(rng, 0.1), 700) * env_ad(int(0.1 * RATE), 0.005, 0.03), 0.9), (0.02, fly, 0.3))
+
+
+def match_start(seed):  # the field opening: a crowd-less starting whistle with a deep hit
+    rng = np.random.default_rng(seed)
+    n = int(0.9 * RATE)
+    t = np.arange(n) / RATE
+    whistle = np.sin(2 * np.pi * np.cumsum(2900 + 120 * np.sin(2 * np.pi * 32 * t)) / RATE) * np.clip(t / 0.02, 0, 1) * np.exp(-np.clip(t - 0.35, 0, None) / 0.08)
+    whistle = band(whistle + 0.15 * band(noise(rng, 0.9), 2500, 4000), 1500, 6000)
+    return mix(0.95, (0, thud(70, 40, 0.4, 0.12), 0.9), (0.02, whistle, 0.45))
+
+
+for _name, _make, _seed in (("react_fog", r_fog, 3001), ("react_conduct", r_conduct, 3002), ("react_overload", r_overload, 3003),
+                            ("react_melt", r_melt, 3004), ("react_methane", r_methane, 3005), ("react_freeze", r_freeze, 3006),
+                            ("react_ferment", r_ferment, 3007), ("react_shatter", r_shatter, 3008), ("react_corrode", r_corrode, 3009),
+                            ("react_frostbite", r_frostbite, 3010), ("state_burn", s_burn, 3101), ("state_wet", s_wet, 3102),
+                            ("state_shock", s_shock, 3103), ("state_chill", s_chill, 3104), ("state_rot", s_rot, 3105),
+                            ("match_start", match_start, 3201)):
+    SOUNDS[_name] = ((lambda make: lambda seed: finish(low(make(seed), 9000, 4)))(_make), _seed)
+
+
+# ---------------------------------------------------------------- match events and own moments (street, not beeps)
+
+def spray(rng, seconds, rattle=True):
+    """A spray can: a bead rattle then a pressurised hiss."""
+    n = int(seconds * RATE)
+    t = np.arange(n) / RATE
+    hiss = band(noise(rng, seconds), 2500, 8000) * np.clip((t - 0.12) / 0.03, 0, 1) * np.exp(-np.clip(t - 0.4, 0, None) / 0.15)
+    clack = np.zeros(n)
+    if rattle:
+        for i in range(4):
+            start = int((0.02 + i * 0.028) * RATE)
+            hit = ring([2400 + 300 * i, 3900], 0.03, [0.008, 0.006], [0.6, 0.3])
+            clack[start:start + len(hit)] += hit[: n - start]
+    return clack + 0.7 * hiss
+
+
+def capture_opened(seed):  # the flagpole opening: a deep bell-iron hit and a rising crowd-less swell
+    rng = np.random.default_rng(seed)
+    n = int(1.2 * RATE)
+    t = np.arange(n) / RATE
+    bell = ring([196, 392, 588, 951], 1.2, [0.5, 0.35, 0.2, 0.12], [0.8, 0.5, 0.3, 0.2])
+    swell = sweep_band(noise(rng, 1.2), 400 + 1600 * np.clip(t / 0.8, 0, 1), q=1.5) * np.clip(t / 0.6, 0, 1) * np.exp(-np.clip(t - 0.8, 0, None) / 0.15)
+    return mix(1.2, (0, thud(80, 45, 0.4, 0.12), 0.8), (0, bell, 0.6), (0, swell, 0.35))
+
+
+def capture_started(seed):  # someone starts spraying the flag: a can rattle and a spray burst
+    rng = np.random.default_rng(seed)
+    return mix(0.7, (0, spray(rng, 0.7), 1.0))
+
+
+def capture_contested(seed):  # the flag contested: two tense low knocks and a broken spray
+    rng = np.random.default_rng(seed)
+    knock = lambda: thud(150, 80, 0.12, 0.03) + pad(click(rng, 0.004, 1500), int(0.12 * RATE))
+    hiss = band(noise(rng, 0.4), 2500, 7000) * (rng.random(int(0.4 * RATE)) < 0.5) * env_ad(int(0.4 * RATE), 0.01, 0.08)
+    return mix(0.6, (0, knock(), 1.0), (0.16, knock(), 0.9), (0.2, hiss, 0.4))
+
+
+def level_up(seed):  # growing stronger: a warm rising major chord swell with a light sparkle on top
+    rng = np.random.default_rng(seed)
+    n = int(0.9 * RATE)
+    t = np.arange(n) / RATE
+    chord = sum(np.sin(2 * np.pi * f * t * (1 + 0.04 * np.clip(t / 0.3, 0, 1))) * g for f, g in ((262, 0.6), (330, 0.45), (392, 0.4), (523, 0.3)))
+    chord *= np.clip(t / 0.18, 0, 1) * np.exp(-np.clip(t - 0.35, 0, None) / 0.2)
+    sparkle = crackle(rng, 0.9, 30, 120, 4000, 9000) * np.clip((t - 0.2) / 0.2, 0, 1) * np.exp(-np.clip(t - 0.4, 0, None) / 0.2)
+    return mix(0.95, (0, low(chord, 3000), 0.7), (0, sparkle, 0.25), (0, thud(110, 70, 0.15, 0.05), 0.4))
+
+
+def self_death(seed):  # going down: a heavy body drop and a falling low tone
+    rng = np.random.default_rng(seed)
+    n = int(0.9 * RATE)
+    t = np.arange(n) / RATE
+    fall = np.sin(2 * np.pi * np.cumsum(180 * np.exp(-t / 0.4) + 50) / RATE) * np.clip(t / 0.02, 0, 1) * np.exp(-t / 0.35)
+    return mix(0.95, (0, body(rng, 2.0), 0.9), (0, low(fall, 1200), 0.6), (0.05, cloth(rng, 0.3, 0.08), 0.4))
+
+
+def self_dash(seed):  # the innate dash: a fast low rush with a sneaker squeak
+    rng = np.random.default_rng(seed)
+    squeak = band(chirp(1800, 2600, 0.05, 1.0) + 0.2 * np.sign(chirp(1800, 2600, 0.05, 1.0)), 1500, 5000) * env_ad(int(0.05 * RATE), 0.003, 0.012)
+    return mix(0.36, (0, whoosh(rng, 0.32, 300, 1800, 0.03, 1.1, 0.07), 1.0), (0, squeak, 0.5))
+
+
+def perfect_dodge(seed):  # a perfect dodge: a clean air slip and a bright snap of timing
+    rng = np.random.default_rng(seed)
+    return mix(0.45, (0, whoosh(rng, 0.3, 1200, 4000, 0.02, 2.0, 0.05), 0.8), (0.03, ring([2800, 4200], 0.25, [0.06, 0.04], [0.4, 0.25]), 0.6))
+
+
+def medal_fuse(seed):  # two element medals fusing: a metallic clink pair and a rising shimmer
+    rng = np.random.default_rng(seed)
+    n = int(0.8 * RATE)
+    t = np.arange(n) / RATE
+    shimmer = sum(np.sin(2 * np.pi * f * t) for f in (1320, 1980, 2640)) * np.clip(t / 0.3, 0, 1) * np.exp(-np.clip(t - 0.3, 0, None) / 0.18)
+    return mix(0.85, (0, ring([1500, 2380], 0.25, [0.05, 0.03], [0.6, 0.3]), 0.8), (0.08, ring([1700, 2690], 0.25, [0.05, 0.03], [0.6, 0.3]), 0.8),
+               (0.1, shimmer, 0.15))
+
+
+def body_fall(seed):  # another body knocked out: a heavy drop onto the street and a puff of dust
+    rng = np.random.default_rng(seed)
+    n = int(0.7 * RATE)
+    t = np.arange(n) / RATE
+    dust = sweep_band(noise(rng, 0.7), 2000 * np.exp(-t / 0.1) + 400, q=0.8) * np.clip(t / 0.01, 0, 1) * np.exp(-t / 0.18)
+    return soft_clip(mix(0.72, (0, body(rng, 2.2), 1.0), (0.04, thud(70, 40, 0.3, 0.09), 0.7), (0.01, dust, 0.5), (0.02, cloth(rng, 0.3, 0.08), 0.4)), 1.4)
+
+
+for _name, _make, _seed in (("body_fall", body_fall, 4009), ("capture_opened", capture_opened, 4001), ("capture_started", capture_started, 4002),
+                            ("capture_contested", capture_contested, 4003), ("level_up", level_up, 4004),
+                            ("self_death", self_death, 4005), ("self_dash", self_dash, 4006),
+                            ("perfect_dodge", perfect_dodge, 4007), ("medal_fuse", medal_fuse, 4008)):
+    SOUNDS[_name] = ((lambda make: lambda seed: finish(low(make(seed), 9000, 4)))(_make), _seed)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--only", default="", help="write only the sounds whose name contains this text")

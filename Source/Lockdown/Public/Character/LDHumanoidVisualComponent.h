@@ -57,6 +57,10 @@ public:
     // start even within the jitter window (a confirmed prediction hands over to the authority's timeline).
     void SetCue(uint8 Value, float ActionAgeSeconds = -1.f, float ImpactDelaySeconds = -1.f, bool bKnockback = false,
         bool bAdoptOnset = false);
+    // The body's public element states (burn, wet, electrified, chilled, rotten; ELDDemoStatusId) and their stacks: each
+    // shows its own looping effect on the body while it lasts (LDSliceVfx::ESystem BurnState..RotState). Braced and the own
+    // empowered basics show their stance the same way (BracedState, EmpoweredState); a shield shows from the cue.
+    void SetElementStates(const TArray<FLDObservedStatus>& Statuses);
     // The victim's overlay only (flash and impact particles); the body's pose and position never react to a hit.
     bool SetHitReaction(float AgeSeconds, ELDObservedHitLook HitLook = ELDObservedHitLook::None, uint8 HitFlags = 0,
         const FGuid& HitId = FGuid(), int64 HitAtMs = 0);
@@ -125,14 +129,27 @@ private:
     void QueueImpact(double Onset, ELDObservedHitLook HitLook, uint8 HitFlags);
     // The designed swing and skill presentation (LDSliceVfx): telegraph from the windup's start, release at its impact.
     void UpdateSlice(float EffectScale);
-    void UpdateCastCharge(float Charge, float EffectScale);
     void UpdateRelease(float EffectScale);
     void UpdateDash(const FVector& Velocity, bool bFalling, float EffectScale);
     void UpdateOverdrive(float EffectScale);
     UPROPERTY() TObjectPtr<USceneComponent> Pivot;
     UPROPERTY() TObjectPtr<USkeletalMeshComponent> Mesh;
     UPROPERTY() TObjectPtr<UStaticMeshComponent> Basketball;
-    UPROPERTY() TObjectPtr<UNiagaraComponent> CastCharge;
+    // One looping effect per element state (burn, wet, electrified, chilled, rotten) while it shows.
+    static constexpr int32 ElementStates = 5;
+    uint8 StateStacks[ElementStates] = {0, 0, 0, 0, 0};
+    UPROPERTY() TObjectPtr<UNiagaraComponent> StateEffects[ElementStates];
+    void UpdateStates(bool bFalling, float EffectScale);
+    // Guards and stances worn on the body (shield from the cue, braced, the own empowered basics), dimmer than the element
+    // states; a self skill's aura from its release for its hold; and active_brace's expected natural end, whose shove shows
+    // when the braced stance ends then.
+    static constexpr int32 GuardStates = 3;
+    bool GuardOn[GuardStates] = {false, false, false};
+    bool bBracedShown = false;
+    UPROPERTY() TObjectPtr<UNiagaraComponent> GuardEffects[GuardStates];
+    UPROPERTY() TObjectPtr<UNiagaraComponent> AuraEffect;
+    uint8 AuraSystem = 0;
+    double AuraFrom = -1, AuraUntil = -1, BraceEndsAt = -1;
     UPROPERTY() TObjectPtr<UNiagaraComponent> DashTrail;
     UPROPERTY() TObjectPtr<UNiagaraComponent> ChargeColumn;
     // Built by the constructor from the fixed part specs; never saved, so a map saved with another part list cannot
@@ -159,11 +176,14 @@ private:
     bool bOwnBody = false;
     // When a strike of the local player last landed on this body (a reaction right after it is the local player's).
     double OwnStrikeAt = -1;
-    double CastActionOnset = -1;
     double ReleasedOnset = -1;
     // Body sounds (LDAudioFeel) on the same hooks as the effects: the swing and cast onsets already sounded, and the
     // playing cast charge that the release cuts.
     double SwingSoundOnset = -1, ChargeSoundOnset = -1, ReleaseSoundOnset = -1;
+    // The skill whose visible strike the current impact was matched to (0 = none), for its own hit sound.
+    uint8 HitAbility = 0;
+    // The element states already sounded (their onset sting plays once per start).
+    bool StateSounded[5] = {false, false, false, false, false};
     TWeakObjectPtr<class UAudioComponent> ChargeSound;
     void UpdateSound();
     uint8 CastAbility = 0;
@@ -182,16 +202,18 @@ private:
     TArray<FGuid, TInlineAllocator<16>> SeenHitIds;
     uint8 LookSlot = MAX_uint8, LookCreature = 0;
     bool bCueSeen = false, bFlashing = false, bHitSeen = false, bVisualPoseInitialized = false, bKnockback = false;
-    bool bCastEmitting = false;
     struct FPendingImpact
     {
         double Onset;
         ELDObservedHitLook Look;
         uint8 Flags;
     };
-    // A hit the designed slice presentation shows (an unflagged plain, water or electric hit); others keep the hit layers.
+    // A hit the designed slice presentation shows (an unflagged plain, water, electric or fire hit); others keep the hit layers.
     // True when the hit was matched to a combo finisher (false also when no effect showed).
     bool ShowSliceImpact(const FPendingImpact& Impact, const FVector& Chest, const FVector& Feet, float EffectScale);
+    // A plain hit matched to a visible skill cast whose skill has its own designed hit (ULDImpactFxSubsystem::MatchHit);
+    // false when it has none, so the hit keeps its look's layers.
+    bool ShowSkillHit(const FPendingImpact& Impact, const FVector& Chest, float EffectScale);
     TArray<FPendingImpact, TInlineAllocator<4>> PendingImpacts;
     // The shown mesh's shared picking model and this body's pose of it, posed at most once per frame.
     mutable TSharedPtr<const LDModelPicking::FSkinnedModel> PickingModel;

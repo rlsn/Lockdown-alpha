@@ -4,7 +4,11 @@ param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(300,1500)][int]$
     [ValidatePattern('^-Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+( -Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+)*$')][string]$NetEmulation,
     # The Host's rendered main view; the screenshots are reviewed at both supported sizes.
     [ValidateSet('720p','1080p')][string]$Resolution='720p',
-    [switch]$RenderClient)
+    [switch]$RenderClient,
+    # Capture tool, not a check (Scripts/CaptureFeelSample.ps1 -Scenario combat; Stream A's kill-banner capture): the same
+    # real owned fight with the Host window visible, sound on and every played sound logged, without the Host's chase-goal
+    # assertions. It reports no verdict: the run ends after both reports are written.
+    [switch]$CaptureOnly)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
 Assert-LDDemoInputs
@@ -35,13 +39,15 @@ $screenshots = @('HostSees-DuelSite.png','HostSees-MoveMarker.png','HostSees-Own
 
 function Start-CombatRole {
     param([string]$Role,[string]$Url)
-    Start-LDDemoRole -Harness $harness -Role $Role -Url $Url -Arguments {
+    Start-LDDemoRole -Harness $harness -Role $Role -Url $Url -Visible:($CaptureOnly -and $Role -eq 'Host') -Arguments {
         param($user, $log)
         # The Host always renders. RenderClient also exercises the cooked skeletal data on the real owning client.
-        $render = if ($Role -eq 'Host') { "-windowed -RenderOffScreen $resolutionArguments -port=$port $fixtureSwitch" }
+        $render = if ($Role -eq 'Host') { "-windowed $(if ($CaptureOnly) { '' } else { '-RenderOffScreen' }) $resolutionArguments -port=$port $fixtureSwitch" }
             elseif ($RenderClient) { "-windowed -RenderOffScreen $resolutionArguments" } else { '-nullrhi' }
         $arguments = '-unattended -nop4 -nosound -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoCombatProbe -LDDemoCombatRole={2} -LDDemoCombatTimeout={3} -LDDemoCombatOutput="{4}" -abslog="{5}"' -f $render,$user,$Role,$TimeoutSeconds,$evidence,$log
         if ($NetEmulation) { $arguments += " $NetEmulation" }
+        if ($CaptureOnly) { $arguments += ' -LDDemoCombatCaptureOnly' }
+        if ($CaptureOnly -and $Role -eq 'Host') { $arguments = $arguments.Replace(' -nosound', '') + ' -LDAudioEventLog' }
         $arguments
     }
 }
@@ -52,6 +58,12 @@ try {
     $url = '127.0.0.1:{0}?Name=DemoCombatClient1?LDWire={1}?LDProduct={2}?LDCatalog={3}' -f $port,$wire,$version,$digest
     Start-CombatRole 'Client1' $url
     Wait-LDDemoEvidence -Harness $harness -Names @('Host.json','Client1.json')
+    if ($CaptureOnly) {
+        Stop-LDDemoClients -Harness $harness -Message 'Disconnect owning clients' -ExitError "Owning client did not exit cleanly: $output"
+        Stop-LDDemoHost -Harness $harness
+        Write-Host "CAPTURE ONLY (no verdict; the chase-goal assertions did not run): $output"
+        return
+    }
     $reports = @{}
     foreach ($role in $roles) {
         $report = Read-LDDemoReport -Harness $harness -Name "$role.json"

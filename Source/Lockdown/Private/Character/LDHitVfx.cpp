@@ -16,7 +16,6 @@ namespace LDHitVfxDetail
     const FLinearColor WaterGlow(.25f, 1.4f, 3.5f), WaterInk(.02f, .3f, .75f);
     const FLinearColor BoltGlow(3.f, 3.f, 1.2f), BoltInk(.6f, .6f, .15f);
     const FLinearColor MagicGlow(2.2f, .6f, 3.8f), MagicInk(.6f, .1f, 1.f);
-    const FLinearColor KillGlow(5.f, .7f, .25f), CrackInk(.012f, .008f, .006f), CrackGlow(3.5f, .8f, .12f);
 
     FLayer Make(EMask Mask, EPlace Place, float SizeCm, float Seconds, const FLinearColor& Glow, const FLinearColor& Ink,
         float FromScale = 1.f, float ToScale = 1.f, float PeakAt = .2f)
@@ -263,6 +262,28 @@ FLinearColor LDSliceVfx::StrikeTint(const FLook& Look)
     return Look.bOwn ? FLinearColor(1.f, .64f, .36f) : FLinearColor(1.f, .94f, .84f);
 }
 
+LDSliceVfx::FSkillSystems LDSliceVfx::SkillSystemsOf(uint8 Ability)
+{
+    FSkillSystems Out;
+    switch (static_cast<ELDDemoAbilityId>(Ability))
+    {
+    case ELDDemoAbilityId::ActiveElbow: Out.Release = ESystem::ElbowRelease; Out.Hit = ESystem::ElbowHit; break;
+    case ELDDemoAbilityId::ActivePantsDown: Out.Release = ESystem::PantsRelease; Out.Hit = ESystem::PantsHit; break;
+    case ELDDemoAbilityId::ActiveCrotchGrab: Out.Release = ESystem::GrabRelease; Out.Hit = ESystem::GrabHit; break;
+    case ELDDemoAbilityId::ActiveBailOut: Out.Release = ESystem::BailRelease; break;
+    case ELDDemoAbilityId::ActiveChargedRam: Out.Release = ESystem::RamRelease; Out.Hit = ESystem::RamHit; break;
+    case ELDDemoAbilityId::ActiveUnplug: Out.Release = ESystem::UnplugRelease; Out.Hit = ESystem::UnplugHit; break;
+    case ELDDemoAbilityId::ActiveNotMad: Out.Release = ESystem::NotMadRelease; break;
+    case ELDDemoAbilityId::ActiveStareDown: Out.Release = ESystem::StareDownRelease; Out.Aura = ESystem::StareDownAura; break;
+    case ELDDemoAbilityId::ActiveBrace: Out.Release = ESystem::BraceRelease; break;
+    case ELDDemoAbilityId::ActiveTripleCombo: Out.Release = ESystem::TripleRelease; break;
+    case ELDDemoAbilityId::ActiveOpenMic: Out.Release = ESystem::OpenMicRelease; Out.Hit = ESystem::OpenMicHit; break;
+    case ELDDemoAbilityId::ActiveFlurryRush: Out.Release = ESystem::FlurryRelease; Out.Aura = ESystem::FlurryAura; break;
+    default: break;
+    }
+    return Out;
+}
+
 FLinearColor LDSliceVfx::ElementInk(uint8 Element)
 {
     // Their own values; today they equal the broadcast inks they started from (#FF6A3D, #42B4FF, #FFD23D, #A6ECFF, #A4D24A).
@@ -381,6 +402,43 @@ const TCHAR* LDSliceVfx::SystemName(ESystem System)
     case ESystem::FireHit: return TEXT("NS_LDFireHit");
     case ESystem::ColaTell: return TEXT("NS_LDColaTell");
     case ESystem::ColaBlast: return TEXT("NS_LDColaBlast");
+    case ESystem::ChillHit: return TEXT("NS_LDChillHit");
+    case ESystem::BurnState: return TEXT("NS_LDBurnState");
+    case ESystem::WetState: return TEXT("NS_LDWetState");
+    case ESystem::ShockState: return TEXT("NS_LDShockState");
+    case ESystem::ChillState: return TEXT("NS_LDChillState");
+    case ESystem::RotState: return TEXT("NS_LDRotState");
+    case ESystem::PuddleGround: return TEXT("NS_LDPuddleGround");
+    case ESystem::IceGround: return TEXT("NS_LDIceGround");
+    case ESystem::FireGround: return TEXT("NS_LDFireGround");
+    case ESystem::MiasmaGround: return TEXT("NS_LDMiasmaGround");
+    case ESystem::Knockout: return TEXT("NS_LDKnockout");
+    case ESystem::CastAim: return TEXT("NS_LDCastAim");
+    case ESystem::CastBrace: return TEXT("NS_LDCastBrace");
+    case ESystem::ElbowRelease: return TEXT("NS_LDElbowRelease");
+    case ESystem::ElbowHit: return TEXT("NS_LDElbowHit");
+    case ESystem::PantsRelease: return TEXT("NS_LDPantsRelease");
+    case ESystem::PantsHit: return TEXT("NS_LDPantsHit");
+    case ESystem::GrabRelease: return TEXT("NS_LDGrabRelease");
+    case ESystem::GrabHit: return TEXT("NS_LDGrabHit");
+    case ESystem::BailRelease: return TEXT("NS_LDBailRelease");
+    case ESystem::RamRelease: return TEXT("NS_LDRamRelease");
+    case ESystem::RamHit: return TEXT("NS_LDRamHit");
+    case ESystem::ShieldState: return TEXT("NS_LDShieldState");
+    case ESystem::BracedState: return TEXT("NS_LDBracedState");
+    case ESystem::EmpoweredState: return TEXT("NS_LDEmpoweredState");
+    case ESystem::StareDownAura: return TEXT("NS_LDStareDownAura");
+    case ESystem::FlurryAura: return TEXT("NS_LDFlurryAura");
+    case ESystem::UnplugRelease: return TEXT("NS_LDUnplugRelease");
+    case ESystem::UnplugHit: return TEXT("NS_LDUnplugHit");
+    case ESystem::NotMadRelease: return TEXT("NS_LDNotMadRelease");
+    case ESystem::StareDownRelease: return TEXT("NS_LDStareDownRelease");
+    case ESystem::BraceRelease: return TEXT("NS_LDBraceRelease");
+    case ESystem::BraceBurst: return TEXT("NS_LDBraceBurst");
+    case ESystem::TripleRelease: return TEXT("NS_LDTripleRelease");
+    case ESystem::OpenMicRelease: return TEXT("NS_LDOpenMicRelease");
+    case ESystem::OpenMicHit: return TEXT("NS_LDOpenMicHit");
+    case ESystem::FlurryRelease: return TEXT("NS_LDFlurryRelease");
     default: return TEXT("");
     }
 }
@@ -524,22 +582,6 @@ LDHitVfx::FRecipe LDHitVfx::ForHit(ELDObservedHitLook Look, uint8 HitFlags, floa
     }
     default: break;
     }
-    Thin(Recipe, EffectScale);
-    Tune(Recipe, Tuning);
-    return Recipe;
-}
-
-LDHitVfx::FRecipe LDHitVfx::ForKill(float EffectScale, const FLayerTuning& Tuning)
-{
-    using namespace LDHitVfxDetail;
-    FRecipe Recipe;
-    if (!FMath::IsFinite(EffectScale) || EffectScale <= 0.f) { return Recipe; }
-    Recipe.Layers.Add(Make(EMask::Crack, EPlace::Ground, 260.f, 2.f, CrackGlow, CrackInk, .85f, 1.f, .05f));
-    Recipe.Layers.Add(Make(EMask::Ring, EPlace::Ground, 260.f, .4f, KillGlow, WarmInk, .25f, 1.f, .08f));
-    FLayer Echo = Make(EMask::Ring, EPlace::Ground, 360.f, .45f, KillGlow * .6f, WarmInk, .25f, 1.f, .08f);
-    Echo.DelaySeconds = .09f;
-    Echo.bOptional = true;
-    Recipe.Layers.Add(Echo);
     Thin(Recipe, EffectScale);
     Tune(Recipe, Tuning);
     return Recipe;
@@ -704,10 +746,6 @@ LDHitVfx::FBurst LDHitVfx::BurstOf(EBurst Kind, const FLinearColor& Tint, float 
         B.CoreColour = Hot(OverdriveTint(), 2.4f, .7f);
         B.SmokeColour = FLinearColor(.35f, .04f, .25f, .6f);
         B.ShardColour = FLinearColor(.3f, .05f, .22f, 1.f);
-        break;
-    case EBurst::Kill:
-        B.Sparks = 28; B.Smoke = 14; B.Shards = 14; B.Speed = 1.4f; B.Scale = 1.7f; B.Life = 1.3f; B.Gravity = FVector(0, 0, -1200);
-        B.SmokeColour = FLinearColor(.1f, .07f, .06f, .65f);
         break;
     default: return FBurst();
     }

@@ -66,7 +66,10 @@
 - `Play`（2D）、`PlayAt`（世界位置，身体衰减）、`PlaySkillRelease`（按技能编号；无专属声音的技能用 `CastRelease`）、
   `Start`（可被调用方切断的声音，用于蓄能）。
 - 一条线索可有多个 take，每次随机选且不连续重复同一个。
-- 并发：身体声音最多 16 个，超出停最安静的；界面最多 4 个，超出停最旧的；同一线索 25 ms 内重触发合为一个。
+- 并发：每个声音（一条线索、一个技能的出手、一个技能的命中）各自一个并发组：界面 2 个、元素状态与反应 3 个、其余 4 个，
+  超出停最旧的；同一声音 25 ms 内重触发合为一个。高频被动连锁只会顶掉自己，不会挤掉别的声音。
+- 优先级（引擎 32 个声部不够时先保谁）：本人命中确认与受伤 3、击杀/开旗/开局/升级 2.5、出手与命中 2、元素状态 1、界面 0.8（导入时写入）。
+- 他人声音的增益：挥击、命中 0.7；技能前摇、出手与元素反应 0.9（威胁不因是别人放的而被压低）；元素状态 0.55。
 - 身体衰减：距听者 2000 cm 内满音量（游戏镜头离地约 1500–1900 cm），再 2500 cm 自然衰减到无声，按镜头视角声像。
 - `-LDAudioEventLog` 时每次播放都记一行 `LD_AUDIO_EVENT`（世界时间、take、增益、音高、位置），用于证据对时。
 
@@ -129,6 +132,8 @@ Kenney 的 Impact、Interface、RPG、Sci-Fi 全包（CC0）由用户决定采�
   原 `SelfAttack`(17)、`SelfCast`(9) 编号退役。
 - 他人受击声改为世界位置空间化（PROVISIONAL · Agent）：原先是 0.38 音量的 2D 声，听不出方位。
 - 本人命中确认的 Kenney 重击降为 -10 dB 的手感层（PROVISIONAL · Agent）：受击者身上的命中声才是主体，避免双重重击。
+- 受击方不做受击动作（APPROVED · 用户，[#286](https://github.com/rlsn/Lockdown-alpha/issues/286) 原话“彻底取消受击”）：普通命中时受击方姿势、位置、朝向与节奏不变，只有闪白、特效、
+  音效与飘字；身体位移只来自权威控制状态（击退、定身）。打击感放在攻击方：出手姿态、命中确认、停顿与推镜。
 
 ## 7. 覆盖清单
 
@@ -146,20 +151,22 @@ Kenney 的 Impact、Interface、RPG、Sci-Fi 全包（CC0）由用户决定采�
 | 本人命中确认（普通/暴击/破盾/击杀） | IMPLEMENTED | `SelfDealtImpact` + `SelfDealtAccent`/`Crit`/`ShieldBreak`/`Kill` | — |
 | 电命中 / 闪电链每跳 | USER APPROVED | `HitElectric` ×3 | 样板时序已验：三跳各在日志时刻 ±7 ms |
 | 火、水、魔法命中 | IMPLEMENTED | `HitFire`、`HitWater`、`HitMagic` 各 ×2 | — |
-| 冰、腐（毒）命中 | BLOCKED | 命中外观只有 Magic/Fire/Water/Electric 四种，冰与腐没有外观字段 | 需要新的命中外观（网络投影改动，非本流可做） |
+| 冰、腐（毒）命中 | IMPLEMENTED | 施法者可见时，命中按 VFX 的击打匹配归到技能（冰可乐 → 冰裂命中，过期外卖 → 湿拍腐烂命中） | 施法者不可见时只剩 Magic 外观，落回 `HitMagic`；彻底区分需要命中投影带元素（网络改动，非本流） |
 | 技能前摇蓄能 | USER APPROVED | `CastCharge`，出手 30 ms 切断 | — |
 | 技能释放：电你个哆嗦 | USER APPROVED | 技能表 `active_zap` ×2 | 样板（§6） |
 | 技能释放：其余 23 个 | IMPLEMENTED | 技能表各 ×2 take，按玩法语义合成（推、抓、冲刺、护盾、投掷、区域、元素），见生成器 `skill_*` | 波形与频谱已查（主瞬态在出手时刻、≤ 8.5 kHz）；未实机采集、未听感验收 |
-| 每技能专属命中声 | BLOCKED | 命中不携带技能编号；只能按外观族与 VFX 击打匹配区分 | 同上 |
-| 元素反应（10 种） | NOT STARTED | — | — |
+| 每技能专属命中声 | IMPLEMENTED | `skill_hits` 表 18 个技能各 ×2 take（骨撞、拍脸、砖裂、水柱、冰裂、腐烂、书包、鞭响……），按 VFX 击打匹配（`FStrikeMatch::Ability`）播放；电你个哆嗦沿用已批准的 `HitElectric`，强化普攻类走普攻命中 | 施法者不可见时落回外观族。物理伤害技能（滚远点、扒裤子、掏蛋子、甩你一鞋、蛮牛顶）的命中外观是 None，VFX 击打匹配目前只把 None 配给普攻，滋你一脸的匹配不带技能号，所以这 6 个技能实际仍播普攻/水命中声；已请 Stream B 调整匹配 |
+| 元素反应（10 种） | IMPLEMENTED | `Reaction*` 线索，挂在 `SetReaction` 钩子，与特效强度无关；按反应的两个元素设计（雾=蒸汽、导电=扩散放电、超载=爆裂、融化、沼气闷爆、冻结、发酵、碎冰、腐蚀、冻伤） | 未实机采集 |
 | 地面状态循环（水洼、冰、火、瘴气、电场） | NOT STARTED | — | — |
 | 投射物飞行与落点 | NOT STARTED | — | — |
+| 元素状态挂上（着火、湿身、带电、冰冷、腐烂） | IMPLEMENTED | `State*` 短促提示，状态从无到有时响一次，不做循环（避免混战堆积） | 未实机采集 |
 | 被动触发与强化普攻 | NOT STARTED | — | — |
-| 本人受击、护盾、破盾、闪避、招架、冲刺、拾取 | IMPLEMENTED | 既有 Kenney 线索 | 质量待按新方向复审 |
-| 死亡、复活、升级 | IMPLEMENTED | 既有 Kenney 线索 | 同上 |
-| 击杀播报、开旗、占领、争夺 | IMPLEMENTED | 既有 Kenney 线索 | 同上 |
-| 开局、胜、负、无胜者 | IMPLEMENTED | 既有 Kenney 乐句；开局无专属声 | 开局 NOT STARTED |
-| 界面：悬停、点击、拒绝、构筑工坊全套 | IMPLEMENTED | 既有 Kenney 线索 | UI 样板（悬停/选择/确认/购买/拒绝/奖励）未做 |
+| 本人受击、护盾、破盾、闪避、招架、冲刺、拾取 | IMPLEMENTED | 受击、护盾、破盾（重击音提高到 1.35 倍音高）、招架、拾取沿用 Kenney；冲刺（低沉疾风与球鞋摩擦）与精准闪避（擦身风声与清脆一响）改为原创 | 未听感验收 |
+| 死亡、复活、升级 | IMPLEMENTED | 死亡（重重倒地与下坠低音）、升级（温暖上扬的和弦与细碎闪光）改为原创，替换廉价电子音；复活沿用 Kenney | 未听感验收 |
+| 他人被击倒 | IMPLEMENTED | `BodyFall`（重摔与扬尘），挂在倒地尘环（`NS_LDKnockout`）同一钩子，按威胁级 0.9 播放；本人死亡仍是 `SelfDeath` | 未听感验收 |
+| 击杀播报、开旗、占领、争夺 | IMPLEMENTED | 开旗（铁钟一击与上扬）、开始喷漆（喷漆罐摇珠与喷气，对应喷漆占点）、争夺（两下闷敲与断续喷气）改为原创；击杀播报沿用 Kenney 乐句；本人击杀另有 `SelfDealtKill` 重音 | 未听感验收 |
+| 开局、胜、负、无胜者 | IMPLEMENTED | `MatchStart`（开局休息后的第一段场地，中途加入不补放）；胜负为既有 Kenney 乐句 | 规则测试 `AudioFeelSync` 覆盖开局判定 |
+| 界面：悬停、点击、拒绝、构筑工坊全套 | IMPLEMENTED | Kenney Interface 线索：通用命令按钮悬停与按下、拒绝、发牌、选定、安装、获得（奖励）、加点、按住确认、终局锁定；元素石融合改为原创；游戏无商店，“购买”即构筑安装与选定，均在回执后播放 | 接线在 UI（Stream A）；声音质量待 Kenney 全包后复审 |
 | 菜单、大厅、设置、赛后 | IN PROGRESS | 点击、悬停共用；音乐已有 | — |
 | 环境氛围 | NOT STARTED | — | — |
 | 音乐 | IMPLEMENTED | 用户提供的三首 | — |
@@ -171,19 +178,21 @@ Kenney 的 Impact、Interface、RPG、Sci-Fi 全包（CC0）由用户决定采�
 | 项 | 状态 | 实现与资产 | 证据 / 已知问题 |
 | --- | --- | --- | --- |
 | 篮球手 Idle、跑、转身、运球 | IMPLEMENTED | `ULDBasketballMotionSet`（KB_ 系列，项目自有） | — |
-| 普攻（三段共用一个动作） | IMPLEMENTED | `Hooper_Attack`（KB_078 单手传球）对齐权威出手 | 三段无姿态差异；终结无重心变化 |
-| 技能施法（全部共用） | IMPLEMENTED | `Hooper_Cast`（KB_148 罚球） | 不同语义技能无姿态、方向差异 |
+| 普攻三段连击 | IMPLEMENTED | `LDActionMotion`：第 1 段右手刺拳（KB_078，上身 0.42，胸口先右蓄后左转 16°）、第 2 段左手交叉（KB_079，上身 0.7，反向蓄力后右转 30° 并侧移 14 cm）、第 3 段终结（KB_152 跳投，静止时全身，重心上提再送出）；出手帧仍按 `LDBasketballMotion::SampleTime` 对齐权威命中 | 实机帧 `production/feel/motion-combo/`；转身与侧移只作用于网格与枢轴，胶囊、朝向与时序不变；未经用户验收 |
+| 技能施法动作家族 | IMPLEMENTED | 按技能语义分四族：单手投掷（甩鞋、外卖、电、肘、封条、夹子、扒裤子；传球片段）、双手定点（区域、吼叫、喷水、风扇、可乐；罚球）、全身重砸（板砖、书包、蛮牛、乱拳；跳投）、架势（锅盖、顶着揍、拧手腕、左右开抽、挑衅、补一拳；运球架势）；移动中只驱动上身 | 规则测试 `ActionMotionFamilies`；实机帧 `production/feel/motion-skill-families/`：投掷、双手定点、重砸从俯视角清楚可分；架势族改用转身运球（瞬发技能的收招按 2 倍速播完，出手仍对齐命中，`LDBasketballMotion::MaxWarp/FollowRate`），帧 `ready-stance-spin.png`；未经用户验收 |
 | 受击、死亡、出生 | IMPLEMENTED | Quaternius CC0 重定向 | 受击无方向与轻重之分 |
 | NPC 动作 | IMPLEMENTED | Quaternius CC0 片段 | — |
-| 连段专属动作、技能动作家族、蓄力、硬直、击退 | NOT STARTED | — | 需要外部动作资产或制作 |
+| 受击反应 | 按决定关闭（[#286](https://github.com/rlsn/Lockdown-alpha/issues/286)） | 普通命中无受击动作，见 §6；击退时的后仰与 Hit 片段保留 | — |
 
 ### 7.3 镜头与屏幕反馈
 
 | 项 | 状态 | 实现 | 证据 / 已知问题 |
 | --- | --- | --- | --- |
-| 本人命中停顿（普通/暴击/击杀/破盾） | IMPLEMENTED | `ld.Feel.*HitStopMs` | 起点值，非批准值 |
-| 推镜 | IMPLEMENTED | `ld.Feel.KickCm/KickMs`，设置可关 | 同上 |
-| 屏幕边缘闪光与色散 | IMPLEMENTED | `LDHitVfx::ScreenFlashOf`，降低特效时关闭 | 同上 |
+| 本人命中停顿（普通/暴击/击杀/破盾） | IMPLEMENTED | `ld.Feel.*HitStopMs`（60/100/160/90 ms），只停本人出手姿态，不停输入、移动与权威时间；样板中已被用户接受 | 数值是起点值，未正式批准 |
+| 推镜 | IMPLEMENTED | `ld.Feel.KickCm/KickMs`（6 cm、120 ms，击杀 2 倍），设置“镜头震动”可关，“降低战斗特效”减到 45 %；受击方从不推镜（#286） | 起点值 |
+| 实机验证顿帧、推镜、边缘闪光（1080p） | LOCALLY VERIFIED | 真实拥有连接的 1v1 战斗（`RunDemoCombatCheck.ps1 -CaptureOnly`，`CaptureFeelSample.ps1 -Scenario combat` 录可见窗口与扬声器）：15 次本人命中确认、5 次终结、1 次击杀（击杀重音、全场播报、倒地、升级）；全程红色受伤边缘只出现 2 次、各 70–100 ms，无战斗长闪；逐帧画面位移中位 0、p99 约 8 px（1920 宽，含跟随镜头） | `production/feel/combat-real-fight-1080p/`；“镜头震动”关与“降低特效”档位的对比录制未做；未经用户验收 |
+| 混音：真实对局 | LOCALLY VERIFIED（1v1） | 同一录制（含音乐）：峰值 −3.6 dBFS、无削波，400 ms 响度中位 −25.3、p95 −22.8、最大 −21.5 dBFS，命中不叠加冲高 | 6 人同屏混战暂无可录的拥有连接入口（AI 满房只有空闲主机），未验证 |
+| 屏幕边缘闪光与色散 | IMPLEMENTED | 只在击杀、暴击、破盾时出现（`LDHitVfx::ScreenFlashOf`）；本人受击只有很淡的红边；降低特效时关闭 | 起点值 |
 
 ## 8. 检查入口
 

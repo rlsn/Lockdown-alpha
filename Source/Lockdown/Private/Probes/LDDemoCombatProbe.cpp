@@ -256,6 +256,9 @@ public:
 
     // Host: the hits it took, its kill and the audited respawn.
     bool bChaseGoalChecked = false;
+    // -LDDemoCombatCaptureOnly (CaptureFeelSample.ps1 -Scenario combat): the same real owned fight for audio/feel and UI
+    // capture, without the Host's chase-goal assertions; its report is marked capture_only and judges nothing.
+    bool bCaptureOnly = false;
     int64 HpAtStopP2 = -1, BasicIntervalMs = 0, RespawnAtMs = 0, ProtectedUntilMs = 0;
     double StopSampledAt = 0;
     FLDMoveIdentity KillOrder;
@@ -676,6 +679,13 @@ public:
             && OwnId == PC.OwnerState.ContenderId, TEXT("Start"), TEXT("The public roster names this owner and exactly one other human"));
     }
 
+    // The #247 approach: from a platform at least this much higher than the duel ground, this far away.
+    static constexpr double QueuePlatformRiseCm = 80.0;
+    static constexpr double QueueApproachMinCm = 2400.0;
+    static constexpr double QueueApproachMaxCm = 4400.0;
+    static constexpr double QueueApproachStepCm = 200.0;
+    static constexpr int32 QueueApproachBearings = 48;
+
     bool FindQueuedWaypoint(const ULDMapRegistry& Registry, FName Surface, const FVector& Foot, const FVector& Site,
         FVector& Waypoint, FString& OutError) const
     {
@@ -825,10 +835,37 @@ public:
         }
         if (bFound)
         {
-            FVector RegressionWaypoint;
-            if (!Check(FindQueuedWaypoint(Registry, CaptureAnchor->Surface, FVector(-4441.42, 1596.17, 102.15),
-                FVector(-1746.13, 486.01, 0), RegressionWaypoint, SiteError), TEXT("Queue"),
-                TEXT("The captured long platform-to-ground approach admits two camp-free native queued legs"), SiteError))
+            // #247 regression: a long approach from a raised platform down to the duel's ground admits two camp-free native
+            // queued legs. The platform start is derived from the current map, not a captured coordinate: the first walkable
+            // support on rings round the Host's site (nearest ring first, fixed bearings) that stands at least
+            // QueuePlatformRiseCm above that site, QueueApproachMinCm or more away and clear of the exclusions.
+            FLDLegalGround HostGround;
+            FVector RegressionWaypoint, Platform = FVector::ZeroVector;
+            FString PlatformTried;
+            bool bPlatform = false, bQueued = false;
+            if (Legal(HostSite, HostGround))
+            {
+                for (double Radius = QueueApproachMinCm; !bQueued && Radius <= QueueApproachMaxCm; Radius += QueueApproachStepCm)
+                {
+                    for (int32 Bearing = 0; !bQueued && Bearing < QueueApproachBearings; ++Bearing)
+                    {
+                        const FVector2D Point = FVector2D(HostSite) + FVector2D(Radius, 0.0).GetRotated(360.0 * Bearing / QueueApproachBearings);
+                        FVector Surface;
+                        if (!Registry.ResolveWalkableGround(Point, Surface) || Surface.Z < HostGround.SurfaceCm.Z + QueuePlatformRiseCm
+                            || !Clear(Surface)) { continue; }
+                        bPlatform = true;
+                        Platform = Surface;
+                        FString Why;
+                        bQueued = FindQueuedWaypoint(Registry, CaptureAnchor->Surface, Surface, HostGround.SurfaceCm, RegressionWaypoint, Why);
+                        if (!bQueued && PlatformTried.Len() < 600) { PlatformTried += FString::Printf(TEXT("{%s: %s} "), *Surface.ToCompactString(), *Why.Left(160)); }
+                    }
+                }
+            }
+            if (!Check(bQueued, TEXT("Queue"),
+                TEXT("A long platform-to-ground approach derived from the current map admits two camp-free native queued legs"),
+                bQueued ? FString::Printf(TEXT("platform=%s waypoint=%s"), *Platform.ToCompactString(), *RegressionWaypoint.ToCompactString())
+                : bPlatform ? PlatformTried : FString::Printf(TEXT("no walkable support %.0f cm above the Host site within %.0f-%.0f cm"),
+                    QueuePlatformRiseCm, QueueApproachMinCm, QueueApproachMaxCm)))
             {
                 return false;
             }
@@ -871,7 +908,7 @@ public:
             if (IsHost() && !bChaseGoalChecked)
             {
                 bChaseGoalChecked = true;
-                if (!CheckChaseGoal(PC)) { return Finish(); }
+                if (!bCaptureOnly && !CheckChaseGoal(PC)) { return Finish(); }
             }
             // The first read-back of a rendered view can stall the game thread for seconds, so the Host takes it here,
             // before any timed moment, and keeps it as its view of the duel site.
@@ -2574,7 +2611,9 @@ public:
         if (ShotPending()) { return true; }
         if (KillClick == EClickStep::Shot)
         {
-            if (!ShotSaved(TEXT("the hover ring and attack cursor on Client1 under its pointer"))) { return Finish(); }
+            // A capture-only run draws a real window where the OS pointer, not the DEV pointer, owns the hover: its pointer
+            // shots may miss, and the fight goes on (the miss stays in its report, which judges nothing).
+            if (!ShotSaved(TEXT("the hover ring and attack cursor on Client1 under its pointer")) && !bCaptureOnly) { return Finish(); }
             PC.Navigation->DevSetPointer(Screen);
             const uint32 Before = PC.Navigation->LocalIdentity().Order;
             PC.Navigation->ClickMove();
@@ -2591,7 +2630,7 @@ public:
             return true;
         }
         PC.Navigation->DevSetPointer(TOptional<FVector2D>());
-        if (!ShotSaved(TEXT("the attack marker closing on the right-clicked Client1"))) { return Finish(); }
+        if (!ShotSaved(TEXT("the attack marker closing on the right-clicked Client1")) && !bCaptureOnly) { return Finish(); }
         KillClick = EClickStep::Done;
         SetStage(EStage::KillWait);
         return true;
@@ -2902,6 +2941,7 @@ public:
         Report->SetBoolField(TEXT("passed"), Passed);
         Report->SetStringField(TEXT("role"), Role);
         Report->SetBoolField(TEXT("dev_probe"), true);
+        Report->SetBoolField(TEXT("capture_only"), bCaptureOnly);
         Report->SetBoolField(TEXT("normal_start"), true);
         Report->SetStringField(TEXT("scope"), IsHost()
             ? TEXT("DEV-only owned-connection combat/orders scenario, target and killer role: a participating Listen Host that is attacked, audits the hits, kills with a right-click order and audits the respawn; then, through its DEV growth fixture's preset offers and XP grants, learns active_pants_down from its opening offer through an ordinary build command, roots Client1, observes its shield, is hit and slowed by Client1's snark bolt and lands a basic hit after a chase. It renders its main view and keeps captures of the observed root, shield and bolt flight for presentation review (not compared by pixels). Not camps, AI, capture or full-match acceptance.")
@@ -2970,6 +3010,7 @@ void LDDemoTests::StartCombatProbe(ALDPlayerController& Controller)
     }
     Probe->Controller = &Controller;
     Probe->World = Controller.GetWorld();
+    Probe->bCaptureOnly = FParse::Param(FCommandLine::Get(), TEXT("LDDemoCombatCaptureOnly"));
     Probe->Deadline = FPlatformTime::Seconds() + Timeout;
     FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Probe](float) { return Probe->Tick(); }), .1f);
 }

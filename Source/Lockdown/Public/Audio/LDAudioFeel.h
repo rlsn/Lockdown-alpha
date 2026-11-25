@@ -11,8 +11,11 @@ class UObject;
 // Presentation only: nothing here reads or changes gameplay state or timing.
 namespace LDAudioFeel
 {
-    // Others' body sounds relative to the own body's.
+    // Others' sounds relative to the own body's: blows and states quieter, but what threatens the local player (another's
+    // skill windup and release, a reaction) stays near full so a danger is never downgraded just for being someone else's.
     constexpr float OtherGain = .7f;
+    constexpr float OtherDangerGain = .9f;
+    constexpr float OtherStateGain = .55f;
     // A swing's whoosh starts this long before its release so its peak lands on the release frame; never before 80 % of
     // the windup, so a predicted swing held at 75 % (LDHitFeel::SwingHoldFraction) stays silent until confirmed.
     LOCKDOWN_API float SwingPreRollSeconds(float WindupSeconds);
@@ -29,8 +32,15 @@ namespace LDAudioFeel
     // A skill (ELDDemoAbilityId) released; an overdrive release adds the finisher body under it.
     LOCKDOWN_API void Release(const UObject& Body, bool bOwnBody, uint8 Ability, bool bOverdrive, const FVector& At);
     // A resolved hit on another visible body (the own body's hurt sounds from the owner tracker): its look, its outcome
-    // flags (LDObservation::EHitFlags) and whether the strike it belongs to is a combo finisher.
-    LOCKDOWN_API void Impact(const UObject& Body, ELDObservedHitLook Look, uint8 HitFlags, bool bFinisher, const FVector& At);
+    // flags (LDObservation::EHitFlags), whether the strike it belongs to is a combo finisher, and the skill (ELDDemoAbilityId)
+    // whose visible strike the effects matched it to (0 = none): a skill with its own hit sound plays that.
+    LOCKDOWN_API void Impact(const UObject& Body, ELDObservedHitLook Look, uint8 HitFlags, bool bFinisher, uint8 Ability, const FVector& At);
+    // An element reaction (ELDCombatReaction) on a visible body, at its own time.
+    LOCKDOWN_API void Reaction(const UObject& Body, bool bOwnBody, uint8 Reaction, const FVector& At);
+    // An element state starting on a visible body: Index in burn, wet, electrified, chilled, rotten order.
+    LOCKDOWN_API void StateOnset(const UObject& Body, bool bOwnBody, int32 Index, const FVector& At);
+    // Another visible body knocked out, at its fall (the own death sounds from the owner tracker).
+    LOCKDOWN_API void Fall(const UObject& Body, const FVector& At);
     // The owner's confirmation of its own landed hit (the receipt), by tier, at the trims of the effects tab.
     LOCKDOWN_API void Confirm(const UObject& Context, uint8 HitFlags, float Volume);
 }

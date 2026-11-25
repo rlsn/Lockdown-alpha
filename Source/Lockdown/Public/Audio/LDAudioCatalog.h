@@ -63,6 +63,9 @@ public:
     UPROPERTY(VisibleAnywhere) TArray<FLDMusicTrackEntry> Music;
     // Skill releases by ability number, ascending; a skill without an entry releases with the CastRelease cue.
     UPROPERTY(VisibleAnywhere) TArray<FLDAudioKeyedEntry> SkillReleases;
+    // Skill hits by ability number, ascending: the body sound of a hit the effects matched to that skill's visible strike.
+    // A skill without an entry hits with its look's family cue (HitElectric, HitFire, ...).
+    UPROPERTY(VisibleAnywhere) TArray<FLDAudioKeyedEntry> SkillHits;
 
     // What Resolve hands to the player: every take of every cue (indexed by cue value), music by track value, skill takes by
     // ability number (empty = none of its own) and each class by bus.
@@ -71,6 +74,7 @@ public:
         TArray<TArray<USoundWave*>> Cues;
         TArray<USoundWave*> Music;
         TArray<TArray<USoundWave*>> Skills;
+        TArray<TArray<USoundWave*>> SkillHits;
         USoundClass* Buses[LDAudio::BusCount] = {};
     };
     // Complete one-shot non-spatial cue table routed to the SFX or UI class, a complete music table routed to MusicClass

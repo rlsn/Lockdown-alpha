@@ -74,10 +74,28 @@ namespace LDSliceVfx
     //   ColaTell     active_cola_shake's windup: its cone on the floor from Start (under the feet) to End (at its reach),
     //                Width its half angle in degrees, Duration the windup
     //   ColaBlast    active_cola_shake's release over the same cone, Duration the frost's life
+    //   ChillHit     a chill hit at End struck from Start's side
+    //   BurnState..RotState  an element state on a body, looping while it lasts: Start the feet, End the top of the head,
+    //                Width the body's radius, Intensity its strength (stacks), Duration effectively unbounded
+    //   PuddleGround..MiasmaGround  a public ground state, looping: Start its floor centre, Width its radius, Intensity its
+    //                strength (fading with its life), Focus 1 when the local player laid it
+    //   Knockout     a visible body's fall: Start the floor under it, End its chest, Duration the scuff's life
+    //   CastAim      the windup of a directed skill without its own: Start the casting hand, End the floor a step ahead
+    //   CastBrace    the windup of a self-centred skill without its own: Start the floor under the feet
+    //   <Skill>Release  a skill's own release: Start the chest at the release, End a point ahead along the facing at its reach
+    //   <Skill>Hit      a skill's own hit on a body: Start the side it was struck from, End the struck chest
+    //                (a self skill's release: End along the facing at its own radius, Duration its hold where it has one)
+    //   ShieldState, BracedState, EmpoweredState, <Skill>Aura  a guard, stance or empowerment worn on a body, looping while
+    //                it lasts (laid out as the element states; Intensity kept under theirs)
+    //   BraceBurst   active_brace's natural end: Start the chest, End along the facing at its radius
     enum class ESystem : uint8
     {
         Chain, HitBasic, HitFinisher, Swing1, Swing2, Swing3, Field, Tell1, Tell2, Tell3,
-        HoseTell, HoseJet, WaterHit, ZapCharge, SeetheTell, SeetheBurst, FireHit, ColaTell, ColaBlast, Count
+        HoseTell, HoseJet, WaterHit, ZapCharge, SeetheTell, SeetheBurst, FireHit, ColaTell, ColaBlast, ChillHit,
+        BurnState, WetState, ShockState, ChillState, RotState, PuddleGround, IceGround, FireGround, MiasmaGround, Knockout, CastAim, CastBrace,
+        ElbowRelease, ElbowHit, PantsRelease, PantsHit, GrabRelease, GrabHit, BailRelease, RamRelease, RamHit,
+        ShieldState, BracedState, EmpoweredState, StareDownAura, FlurryAura, UnplugRelease, UnplugHit, NotMadRelease, StareDownRelease,
+        BraceRelease, BraceBurst, TripleRelease, OpenMicRelease, OpenMicHit, FlurryRelease, Count
     };
     LOCKDOWN_API const TCHAR* SystemName(ESystem System);
     LOCKDOWN_API FString SystemPackage(ESystem System);
@@ -172,6 +190,10 @@ namespace LDSliceVfx
     // The world effects' element colours (ELDCombatElement), a token of their own: retuning one never changes a HUD
     // accent (LDBroadcast), and the HUD's element chips never change an effect. Shock keeps the approved chain's value.
     LOCKDOWN_API FLinearColor ElementInk(uint8 Element);
+    // A skill's own release and hit systems (ELDDemoAbilityId); ESystem::Count where it has none and uses the shared look.
+    // Aura: the self skill's state worn on the caster for its hold after the release (where no public status shows it).
+    struct FSkillSystems { ESystem Release = ESystem::Count; ESystem Hit = ESystem::Count; ESystem Aura = ESystem::Count; };
+    LOCKDOWN_API FSkillSystems SkillSystemsOf(uint8 Ability);
     // active_zap at its release: the contact spark at the casting hand (the arcs follow the hits it lands).
     LOCKDOWN_API FRecipe ZapRelease(const FVector& Hand, const FLook& Look);
     // One landed hit of a strike on a visible body, its slice layers: the skill burst at the chest along Dir for a skill
@@ -243,8 +265,6 @@ namespace LDHitVfx
     // hit replaces the star with a large magenta cross and adds its own wide ring and spinning ground sigil.
     // Reduced effects drop the optional layers and dim the rest; no layer that tells the tier or the look is removed.
     LOCKDOWN_API FRecipe ForHit(ELDObservedHitLook Look, uint8 HitFlags, float EffectScale, const FLayerTuning& Tuning = FLayerTuning());
-    // A visible body's fall: a glowing ground crack that stays two seconds and a double shock ring.
-    LOCKDOWN_API FRecipe ForKill(float EffectScale, const FLayerTuning& Tuning = FLayerTuning());
     // Ground dust shock-ring at dash launch and golden flare ring on PerfectDodge (#335 §3.1).
     LOCKDOWN_API FRecipe ForDashStart(const FLinearColor& Tint, float EffectScale, const FLayerTuning& Tuning = FLayerTuning());
     LOCKDOWN_API FRecipe ForPerfectDodge(float EffectScale, const FLayerTuning& Tuning = FLayerTuning());
@@ -280,7 +300,7 @@ namespace LDHitVfx
     // Particle kit (Niagara NS_LDBurst, its user parameters): one burst of velocity-stretched sparks with a settable
     // gravity and drag (rising embers, falling droplets, hanging motes, fast arcs), soft smoke, a core flash and mesh
     // shards. Every skill release, element hit, landing, muzzle, dash and fall picks a preset tinted by its source.
-    enum class EBurst : uint8 { Strike, Muzzle, Flame, Splash, Zap, Frost, Rot, Gust, Arcane, Dash, Aura, Slam, Kill, Overdrive, Count };
+    enum class EBurst : uint8 { Strike, Muzzle, Flame, Splash, Zap, Frost, Rot, Gust, Arcane, Dash, Aura, Slam, Overdrive, Count };
     struct FBurst
     {
         int32 Sparks = 0, Smoke = 0, Shards = 0;

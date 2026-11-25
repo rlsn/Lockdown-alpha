@@ -61,6 +61,7 @@
 #include "ShaderCompiler.h"
 #include "UnrealClient.h"
 #include "Vision/LDWorldViewRelay.h"
+#include "HAL/IConsoleManager.h"
 
 namespace
 {
@@ -593,12 +594,6 @@ namespace
             Trail->WaitForCompilationComplete(true, false);
 #endif
             if (!Check(Trail->IsReadyToRun(), TEXT("The authored swing trail compiled"))) { return false; }
-            UNiagaraSystem* Charge = Effects ? Effects->CastCharge.Get() : nullptr;
-            if (!Check(Charge != nullptr, TEXT("The authored cast charge is available"))) { return false; }
-#if WITH_EDITORONLY_DATA
-            Charge->WaitForCompilationComplete(true, false);
-#endif
-            if (!Check(Charge->IsReadyToRun(), TEXT("The authored cast charge compiled"))) { return false; }
             FVector Focus = FVector::ZeroVector;
             FString StageError;
             if (!Check(FindVfxStage(Target, Focus, StageError), TEXT("The level has open floor around the flagpole for the combat VFX stage ") + StageError)) { return false; }
@@ -616,22 +611,18 @@ namespace
                 if (LDDemoEntry::LoadRuntimeContent(Content, Ignored) && Content && Content->Get().Parameters.BasicAttackWindupMs > 0)
                 { BasicWindupSeconds = float(Content->Get().Parameters.BasicAttackWindupMs) / 1000.f; }
             }
-            VfxAttacker->SetCue(2, .2f, .4f);
-            VfxAttacker->Animate(FVector::ZeroVector, .04f);
-            TInlineComponentArray<UNiagaraComponent*> EffectsOnAttacker;
-            VfxAttacker->GetOwner()->GetComponents(EffectsOnAttacker);
-            UNiagaraComponent* CastEffect = nullptr;
-            for (UNiagaraComponent* Effect : EffectsOnAttacker)
-            {
-                if (Effect && Effect->GetAsset() == Charge) { CastEffect = Effect; break; }
-            }
-            Check(CastEffect && CastEffect->IsActive(), TEXT("A visible cast starts its authored hand effect"));
-            if (!Check(CastEffect && CastEffect->GetComponentScale().Equals(FVector::OneVector, .001f),
-                TEXT("The cast effect uses world scale independently of the hand bone"))) { return false; }
+            // A skill without a windup of its own shows its family's (a thrown shoe: the hand gather and the aim line), bound to
+            // the caster: hiding the caster clears it at once.
+            const int32 BeforeCast = Impacts ? Impacts->LiveCount() : 0;
+            VfxAttacker->SetCastAbility(uint8(ELDDemoAbilityId::ActiveSnarkBolt));
+            VfxAttacker->SetCue(2, .05f, .18f);
+            VfxAttacker->Animate(FVector::ZeroVector, .02f);
+            Check(Impacts && Impacts->LiveCount() > BeforeCast, TEXT("A visible cast starts its family windup"));
             VfxAttacker->SetVisibility(false, true);
-            Check(CastEffect && !CastEffect->IsActive(), TEXT("Hiding the caster immediately clears its cast effect"));
+            Check(Impacts && Impacts->LiveCount() == BeforeCast, TEXT("Hiding the caster immediately clears its windup"));
             VfxAttacker->SetVisibility(true, true);
             VfxAttacker->SetCue(0);
+            VfxAttacker->SetCastAbility(0);
             // Every live effect of either kind: Niagara bursts, hit layers and slice layers.
             const auto LiveEffects = [Impacts]() { return Impacts ? Impacts->LiveCount() + Impacts->LiveLayerCount() + Impacts->LiveSliceCount() : 0; };
             VfxAttacker->SetHitReaction(.03f);
@@ -923,8 +914,27 @@ namespace
             Categories.ParseIntoArray(Wanted, TEXT(","), true);
             for (const FString& Name : Wanted)
             {
-                if (!Check(Name == TEXT("chain") || Name == TEXT("hit") || Name == TEXT("swing") || Name == TEXT("field") || Name == TEXT("water") || Name == TEXT("fire") || Name == TEXT("chill") || Name == TEXT("feel"),
-                    TEXT("Proof category known: ") + Name)) { return false; }
+                // One category per line, so streams adding categories never edit the same line.
+                static const TCHAR* const Known[] = {
+                    TEXT("chain"),
+                    TEXT("hit"),
+                    TEXT("swing"),
+                    TEXT("field"),
+                    TEXT("water"),
+                    TEXT("fire"),
+                    TEXT("chill"),
+                    TEXT("states"),
+                    TEXT("feel"),
+                    TEXT("grounds"),
+                    TEXT("reel"),
+                    TEXT("kill"),
+                    TEXT("casts"),
+                    TEXT("skills"),
+                    TEXT("self"),
+                };
+                bool bKnown = false;
+                for (const TCHAR* Category : Known) { bKnown |= Name == Category; }
+                if (!Check(bKnown, TEXT("Proof category known: ") + Name)) { return false; }
             }
             const TWeakObjectPtr<ULDHumanoidVisualComponent> A = VfxAttacker, V1 = VfxVictim, V2 = VfxExtras[0], V3 = VfxExtras[1], A2 = VfxExtras[2], A3 = VfxExtras[3];
             const auto Cast = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body)
@@ -1020,6 +1030,8 @@ namespace
             const uint8 OwnSeat = A.IsValid() ? A->PaletteSlot() : 255, OtherSeat = V2.IsValid() ? V2->PaletteSlot() : 255;
             for (const FString& Look : Wanted)
             {
+                // The reel rides on the feel category (feel,reel replaces the feel sample with the reel).
+                if (Look == TEXT("reel")) { continue; }
                 if (Look == TEXT("hit") || Look == TEXT("swing"))
                 {
                     // The same exchanges judged at the hit (hit) or just after the release (swing): combo steps 1-3 on V1 in
@@ -1096,6 +1108,164 @@ namespace
                     ChainJobs.Add({Look, TEXT("fire-sunlit"), Burnt(A, V1), Sunlit, Home, false, Seethe + .1f, .15f, 30});
                     ChainJobs.Add({Look, TEXT("fire-other"), Burnt(A3, V3), nullptr, nullptr, false, Seethe + .1f, .15f, 30});
                 }
+                else if (Look == TEXT("skills"))
+                {
+                    // Skills with their own release and hit, each from its windup through its hit on V1 in front of A, then
+                    // the same as another player's cast (A3 on V3). The approved level-1 windups.
+                    struct FSkillShot { const TCHAR* Name; ELDDemoAbilityId Ability; float Windup; ELDObservedHitLook Hit; float HitAt; double Gap; };
+                    for (const FSkillShot& Skill : {FSkillShot{TEXT("elbow"), ELDDemoAbilityId::ActiveElbow, .15f, ELDObservedHitLook::None, .17f, 150.},
+                        FSkillShot{TEXT("pants"), ELDDemoAbilityId::ActivePantsDown, .14f, ELDObservedHitLook::None, .17f, 300.},
+                        FSkillShot{TEXT("grab"), ELDDemoAbilityId::ActiveCrotchGrab, .12f, ELDObservedHitLook::None, .26f, 220.},
+                        FSkillShot{TEXT("bail"), ELDDemoAbilityId::ActiveBailOut, .0f, ELDObservedHitLook::None, -1.f, 300.},
+                        FSkillShot{TEXT("ram"), ELDDemoAbilityId::ActiveChargedRam, .1f, ELDObservedHitLook::None, .3f, 300.}})
+                    {
+                        TArray<FSeqStep> OwnSteps{{0.f, CastOf(A, Skill.Ability, Skill.Windup)}}, OtherSteps{{0.f, CastOf(A3, Skill.Ability, Skill.Windup)}};
+                        if (Skill.HitAt > 0.f) { OwnSteps.Add({Skill.HitAt, HitOf(V1, Skill.Hit)}); OtherSteps.Add({Skill.HitAt, HitOf(V3, Skill.Hit)}); }
+                        ChainJobs.Add({Look, FString(TEXT("skills-")) + Skill.Name, OwnSteps, Ahead(Skill.Gap), Home, false, Skill.Windup + .05f, 0.f, 36});
+                        ChainJobs.Add({Look, FString(TEXT("skills-")) + Skill.Name + TEXT("-other"), OtherSteps, nullptr, nullptr, false, Skill.Windup + .05f, 0.f, 30});
+                    }
+                }
+                else if (Look == TEXT("self"))
+                {
+                    // The self and stance skills: each cast by A (its hit, where it has one, on V1 in front) and as another
+                    // player's by A3 (on V3), A3 also wearing the state its cast leaves (a shield from the cue, braced, the
+                    // empowered basics; A's own statuses come from its character). Then the brace running out on A3 and its
+                    // shove. The approved level-1 windups.
+                    const auto Wear = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, ELDDemoStatusId Status)
+                    {
+                        return [Body, Status]()
+                        {
+                            if (auto* B = Body.Get())
+                            {
+                                TArray<FLDObservedStatus> Statuses;
+                                if (Status != ELDDemoStatusId(0)) { Statuses.AddDefaulted_GetRef().StatusId = uint8(Status); }
+                                B->SetElementStates(Statuses);
+                            }
+                        };
+                    };
+                    const auto Undress = [Home, A3]() { Home(); if (auto* B = A3.Get()) { B->SetCue(0); B->SetElementStates({}); } };
+                    struct FSelfShot { const TCHAR* Name; ELDDemoAbilityId Ability; float Windup; uint8 CueBits; ELDDemoStatusId Status; ELDObservedHitLook Hit; float HitAt; double Gap; float ShowAt; int32 Frames; };
+                    const ELDDemoStatusId NoStatus = ELDDemoStatusId(0);
+                    for (const FSelfShot& Skill : {
+                        FSelfShot{TEXT("unplug"), ELDDemoAbilityId::ActiveUnplug, 0.f, 0, NoStatus, ELDObservedHitLook::None, .2f, 150., .15f, 24},
+                        FSelfShot{TEXT("notmad"), ELDDemoAbilityId::ActiveNotMad, 0.f, ULDHumanoidVisualComponent::Shielded, NoStatus, ELDObservedHitLook::None, -1.f, 250., .1f, 36},
+                        FSelfShot{TEXT("staredown"), ELDDemoAbilityId::ActiveStareDown, .2f, 0, NoStatus, ELDObservedHitLook::None, -1.f, 250., .45f, 45},
+                        FSelfShot{TEXT("brace"), ELDDemoAbilityId::ActiveBrace, .1f, 0, ELDDemoStatusId::Braced, ELDObservedHitLook::None, -1.f, 250., .25f, 36},
+                        FSelfShot{TEXT("triple"), ELDDemoAbilityId::ActiveTripleCombo, 0.f, 0, ELDDemoStatusId::Empowered, ELDObservedHitLook::None, -1.f, 250., .1f, 36},
+                        FSelfShot{TEXT("openmic"), ELDDemoAbilityId::ActiveOpenMic, .15f, ULDHumanoidVisualComponent::Shielded, NoStatus, ELDObservedHitLook::Magic, .2f, 250., .3f, 36},
+                        FSelfShot{TEXT("flurry"), ELDDemoAbilityId::ActiveFlurryRush, 0.f, 0, NoStatus, ELDObservedHitLook::None, -1.f, 250., .6f, 45}})
+                    {
+                        // The cast with its cue's status bits (a shield) from its start.
+                        const auto OtherCast = [Body = A3, Skill]() { if (auto* B = Body.Get()) { B->SetComboStep(0); B->SetCastAbility(uint8(Skill.Ability)); B->SetCue(2 | Skill.CueBits, 0.f, Skill.Windup); } };
+                        TArray<FSeqStep> OwnSteps{{0.f, CastOf(A, Skill.Ability, Skill.Windup)}}, OtherSteps{{0.f, OtherCast}};
+                        if (Skill.Status != NoStatus) { OtherSteps.Add({Skill.Windup + .05f, Wear(A3, Skill.Status)}); }
+                        if (Skill.HitAt > 0.f) { OwnSteps.Add({Skill.HitAt, HitOf(V1, Skill.Hit)}); OtherSteps.Add({Skill.HitAt, HitOf(V3, Skill.Hit)}); }
+                        ChainJobs.Add({Look, FString(TEXT("self-")) + Skill.Name, OwnSteps, Ahead(Skill.Gap), Home, false, Skill.ShowAt, 0.f, Skill.Frames});
+                        ChainJobs.Add({Look, FString(TEXT("self-")) + Skill.Name + TEXT("-other"), OtherSteps, nullptr, Undress, false, Skill.ShowAt + .3f, 0.f, Skill.Frames});
+                    }
+                    ChainJobs.Add({Look, TEXT("self-brace-end"), {{0.f, CastOf(A3, ELDDemoAbilityId::ActiveBrace, .1f)}, {.15f, Wear(A3, ELDDemoStatusId::Braced)},
+                        {3.1f, Wear(A3, NoStatus)}}, nullptr, Undress, false, 3.18f, 2.95f, 24});
+                }
+                else if (Look == TEXT("casts"))
+                {
+                    // One skill of each cast family without a windup of its own, from its windup through its hit on V1 2.5 m
+                    // ahead: a throw (active_snark_bolt, 0.18 s), a two-hand line (active_pants_down, 0.14 s), a ground slam
+                    // (active_calculus_drop, 0.25 s, magic) and a self-centred one (active_stare_down, 0.2 s).
+                    struct FFamily { const TCHAR* Name; ELDDemoAbilityId Ability; float Windup; ELDObservedHitLook Hit; float HitAt; };
+                    for (const FFamily& Family : {FFamily{TEXT("casts-throw"), ELDDemoAbilityId::ActiveSnarkBolt, .18f, ELDObservedHitLook::None, .33f},
+                        FFamily{TEXT("casts-twohand"), ELDDemoAbilityId::ActivePantsDown, .14f, ELDObservedHitLook::None, .17f},
+                        FFamily{TEXT("casts-slam"), ELDDemoAbilityId::ActiveCalculusDrop, .25f, ELDObservedHitLook::Magic, .82f},
+                        FFamily{TEXT("casts-self"), ELDDemoAbilityId::ActiveStareDown, .2f, ELDObservedHitLook::None, -1.f}})
+                    {
+                        TArray<FSeqStep> Steps{{0.f, CastOf(A, Family.Ability, Family.Windup)}};
+                        if (Family.HitAt > 0.f) { Steps.Add({Family.HitAt, HitOf(V1, Family.Hit)}); }
+                        ChainJobs.Add({Look, Family.Name, Steps, Ahead(250.), Home, false, Family.Windup * .7f, 0.f, 36});
+                    }
+                }
+                else if (Look == TEXT("kill"))
+                {
+                    // A visible fall (the knockout): a fallen body stays fallen, so each scenario spawns its own body 1.5 m
+                    // beside V1 (or V3), drops it and removes it afterwards; one in the own fight, one in another's.
+                    UWorld* const KillWorld = &Target;
+                    const auto FallNear = [this, KillWorld](TWeakObjectPtr<ULDHumanoidVisualComponent> Near, uint8 Slot, bool bOwn)
+                    {
+                        const TSharedRef<TWeakObjectPtr<ULDHumanoidVisualComponent>> Body = MakeShared<TWeakObjectPtr<ULDHumanoidVisualComponent>>();
+                        TFunction<void()> Setup = [this, KillWorld, Near, Slot, bOwn, Body]()
+                        {
+                            if (!Near.IsValid()) { return; }
+                            const FVector Foot = Near->GetOwner()->GetActorLocation() + FVector(150., 0., -90.);
+                            *Body = SpawnVfxBody(*KillWorld, Foot, 180.f, Slot);
+                            if (auto* B = Body->Get()) { B->SetOwnBody(bOwn); }
+                        };
+                        TFunction<void()> Drop = [Body]() { if (auto* B = Body->Get()) { B->PlayFall(); } };
+                        TFunction<void()> Remove = [Body]() { if (auto* B = Body->Get()) { B->GetOwner()->Destroy(); } };
+                        return MakeTuple(Setup, Drop, Remove);
+                    };
+                    const auto OwnFall = FallNear(V1, 5, true), OtherFall = FallNear(V3, 6, false);
+                    ChainJobs.Add({Look, TEXT("kill-own"), {{.05f, OwnFall.Get<1>()}}, OwnFall.Get<0>(), OwnFall.Get<2>(), false, .3f, 0.f, 60});
+                    ChainJobs.Add({Look, TEXT("kill-other"), {{.05f, OtherFall.Get<1>()}}, OtherFall.Get<0>(), OtherFall.Get<2>(), false, .3f, 0.f, 40});
+                }
+                else if (Look == TEXT("grounds"))
+                {
+                    // The four other ground states at their usual 220 cm radius under four bodies, own and others' seats,
+                    // judged in the middle of a 2.4 s life (so the fade-out is captured at the end): a puddle under V1 and ice
+                    // under V2 (own), a fire floor under V3 and miasma under A2 (another player's).
+                    const auto GroundOf = [this](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, ELDGroundStateKind Kind, uint32 Id, uint8 Seat)
+                    {
+                        return [this, Body, Kind, Id, Seat]()
+                        {
+                            FActorSpawnParameters Spawn;
+                            Spawn.ObjectFlags |= RF_Transient;
+                            ALDObservedGroundProxy* Ground = World->SpawnActor<ALDObservedGroundProxy>(Spawn);
+                            if (!Check(Ground != nullptr && Body.IsValid(), TEXT("Proof ground state proxy spawned"))) { return; }
+                            FLDObservedGroundState State;
+                            State.Id = Id;
+                            State.Kind = uint8(Kind);
+                            State.CentreCm = Body->GetOwner()->GetActorLocation() - FVector(0, 0, 90);
+                            State.RadiusCm = 220.f;
+                            State.OwnerSeat = Seat;
+                            State.RemainingMs = State.TotalMs = 2400;
+                            Ground->Apply(State, 100.);
+                            ProofGrounds.Add(Ground);
+                            ProofGroundsAt.Add(ChainClock);
+                        };
+                    };
+                    ChainJobs.Add({Look, TEXT("grounds-four"), {{.05f, GroundOf(V1, ELDGroundStateKind::Puddle, 31, OwnSeat)}, {.05f, GroundOf(V2, ELDGroundStateKind::Ice, 32, OwnSeat)},
+                        {.05f, GroundOf(V3, ELDGroundStateKind::Fire, 33, OtherSeat)}, {.05f, GroundOf(A2, ELDGroundStateKind::Miasma, 34, OtherSeat)}},
+                        nullptr, ClearGrounds, false, 1.2f, 0.f, 75});
+                    // The same four with the kind patterns hidden (ld.Vfx.GroundKindPatterns 0), for the pattern decision.
+                    const auto Patterns = [](int32 Value) { return [Value]() { if (IConsoleVariable* Var = IConsoleManager::Get().FindConsoleVariable(TEXT("ld.Vfx.GroundKindPatterns"))) { Var->Set(Value); } }; };
+                    ChainJobs.Add({Look, TEXT("grounds-nopattern"), {{.05f, GroundOf(V1, ELDGroundStateKind::Puddle, 37, OwnSeat)}, {.05f, GroundOf(V2, ELDGroundStateKind::Ice, 38, OwnSeat)},
+                        {.05f, GroundOf(V3, ELDGroundStateKind::Fire, 39, OtherSeat)}, {.05f, GroundOf(A2, ELDGroundStateKind::Miasma, 40, OtherSeat)}},
+                        Patterns(0), [ClearGrounds, Patterns]() { ClearGrounds(); Patterns(1)(); }, false, 1.2f, .6f, 30});
+                    ChainJobs.Add({Look, TEXT("grounds-sunlit"), {{.05f, GroundOf(V1, ELDGroundStateKind::Fire, 35, OwnSeat)}, {.05f, GroundOf(A, ELDGroundStateKind::Miasma, 36, OwnSeat)}},
+                        Sunlit, [Home, ClearGrounds]() { ClearGrounds(); Home(); }, false, 1.2f, .6f, 30});
+                }
+                else if (Look == TEXT("states"))
+                {
+                    // The element states on the stage bodies no character drives (A and V1 are characters whose own statuses
+                    // overwrite a probe's): V2 burn, V3 wet, A2 electrified, A3 chilled at one stack; then V2 rotten and V3 at
+                    // three stacks of burn; cleared at the end.
+                    const auto State = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, ELDDemoStatusId Id, uint8 Stacks)
+                    {
+                        return [Body, Id, Stacks]()
+                        {
+                            if (auto* B = Body.Get())
+                            {
+                                TArray<FLDObservedStatus> Statuses;
+                                if (Stacks > 0) { FLDObservedStatus& S = Statuses.AddDefaulted_GetRef(); S.StatusId = uint8(Id); S.Stacks = Stacks; }
+                                B->SetElementStates(Statuses);
+                            }
+                        };
+                    };
+                    const auto Clear = [State, V1, V2, V3, A2, A3]()
+                    { for (const auto& B : {V1, V2, V3, A2, A3}) { State(B, ELDDemoStatusId::Burn, 0)(); } };
+                    ChainJobs.Add({Look, TEXT("states-four"), {{0.f, State(V2, ELDDemoStatusId::Burn, 1)}, {0.f, State(V3, ELDDemoStatusId::Wet, 1)},
+                        {0.f, State(A2, ELDDemoStatusId::Electrified, 1)}, {0.f, State(A3, ELDDemoStatusId::Chilled, 1)}},
+                        nullptr, Clear, false, 1.f, .6f, 45});
+                    ChainJobs.Add({Look, TEXT("states-rot-burn3"), {{0.f, State(V2, ELDDemoStatusId::Rotten, 1)}, {0.f, State(V3, ELDDemoStatusId::Burn, 3)}},
+                        nullptr, Clear, false, 1.f, .6f, 30});
+                }
                 else if (Look == TEXT("chill"))
                 {
                     // active_cola_shake (windup 0.15 s, cone 400 cm / 60 degrees): its windup, the blast hitting V1 2.5 m ahead,
@@ -1145,6 +1315,76 @@ namespace
                     Feel.bRealtime = true;
                     Feel.Seconds = ZapAt + 1.6f;
                     ChainJobs.Add(Feel);
+                    // The listening reel (-LDDemoVfxProof=reel): every skill with its own hit cast by A at its real windup and
+                    // landing on V1 at its release with the look the server gives it (LDCombatCues::ClassifyHit: physical None,
+                    // magical Magic, burning Fire, water Water), then every element reaction and element state on V1, each step labelled
+                    // in the log (LD_FEEL_LABEL) for the evidence video.
+                    if (Wanted.Contains(TEXT("reel")))
+                    {
+                        ChainJobs.Pop();
+                        FChainJob Reel{Look, TEXT("feel-reel"), {}, Feel.Setup, Feel.Teardown};
+                        const auto Label = [](const FString& Text) { return [Text]() { UE_LOG(LogLDTest, Display, TEXT("LD_FEEL_LABEL %s"), *Text); }; };
+                        struct FReelSkill { ELDDemoAbilityId Ability; float Windup; ELDObservedHitLook Look; const TCHAR* Name; };
+                        const FReelSkill Skills[] = {
+                            {ELDDemoAbilityId::ActivePantsDown, .14f, ELDObservedHitLook::None, TEXT("扒裤子")},
+                            {ELDDemoAbilityId::ActiveCrotchGrab, .12f, ELDObservedHitLook::None, TEXT("掏蛋子")},
+                            {ELDDemoAbilityId::ActiveSnarkBolt, .18f, ELDObservedHitLook::None, TEXT("甩你一鞋")},
+                            {ELDDemoAbilityId::ActiveSeethe, .25f, ELDObservedHitLook::Fire, TEXT("烫你屁股")},
+                            {ELDDemoAbilityId::ActiveElbow, .15f, ELDObservedHitLook::None, TEXT("滚远点")},
+                            {ELDDemoAbilityId::ActiveQuickMeeting, .25f, ELDObservedHitLook::Fire, TEXT("脚底开锅")},
+                            {ELDDemoAbilityId::ActiveUnplug, .1f, ELDObservedHitLook::None, TEXT("拧你手腕")},
+                            {ELDDemoAbilityId::ActiveOpenMic, .15f, ELDObservedHitLook::Magic, TEXT("扯嗓子喷你")},
+                            {ELDDemoAbilityId::ActiveCalculusDrop, .25f, ELDObservedHitLook::Magic, TEXT("板砖糊脸")},
+                            {ELDDemoAbilityId::ActiveFlyerTrap, .15f, ELDObservedHitLook::Magic, TEXT("踩一脚试试")},
+                            {ELDDemoAbilityId::ActiveHoseDown, .2f, ELDObservedHitLook::Water, TEXT("滋你一脸")},
+                            {ELDDemoAbilityId::ActiveChargedRam, .1f, ELDObservedHitLook::None, TEXT("蛮牛顶")},
+                            {ELDDemoAbilityId::ActiveColaShake, .15f, ELDObservedHitLook::Magic, TEXT("冰可乐摇一摇")},
+                            {ELDDemoAbilityId::ActiveDeskFan, .2f, ELDObservedHitLook::None, TEXT("电风扇")},
+                            {ELDDemoAbilityId::ActiveStaleTakeout, .2f, ELDObservedHitLook::Magic, TEXT("过期外卖")},
+                            {ELDDemoAbilityId::ActiveSchoolBag, .2f, ELDObservedHitLook::Magic, TEXT("占座书包")},
+                            {ELDDemoAbilityId::ActiveFlurryRush, .1f, ELDObservedHitLook::None, TEXT("疯狗乱拳")},
+                            {ELDDemoAbilityId::ActiveCordonTape, .16f, ELDObservedHitLook::Magic, TEXT("警戒封条")}};
+                        float At = .5f;
+                        for (const FReelSkill& Skill : Skills)
+                        {
+                            const ELDDemoAbilityId Ability = Skill.Ability;
+                            const float Windup = Skill.Windup;
+                            const ELDObservedHitLook HitLook = Skill.Look;
+                            Reel.Steps.Add({At, Label(FString::Printf(TEXT("技能 %s：出手 + 命中"), Skill.Name))});
+                            Reel.Steps.Add({At, [A, Ability, Windup]() { if (auto* B = A.Get()) { B->SetComboStep(0); B->SetCastAbility(uint8(Ability)); B->SetCue(2, 0.f, Windup); } }});
+                            Reel.Steps.Add({At + Windup + .05f, [V1, HitLook]() { if (auto* B = V1.Get()) { B->SetHitReaction(0.f, HitLook, 0, FGuid::NewGuid()); } }});
+                            At += 1.3f;
+                        }
+                        struct FReelReaction { ELDCombatReaction Reaction; ELDCombatElement Element; const TCHAR* Name; };
+                        const FReelReaction Reactions[] = {
+                            {ELDCombatReaction::Fog, ELDCombatElement::Fire, TEXT("反应 雾（湿+火）")}, {ELDCombatReaction::Conduct, ELDCombatElement::Shock, TEXT("反应 导电（湿+电）")},
+                            {ELDCombatReaction::Overload, ELDCombatElement::Shock, TEXT("反应 超载（火+电）")}, {ELDCombatReaction::Melt, ELDCombatElement::Fire, TEXT("反应 融化（火+冰）")},
+                            {ELDCombatReaction::Methane, ELDCombatElement::Fire, TEXT("反应 沼气（火+腐）")}, {ELDCombatReaction::Freeze, ELDCombatElement::Chill, TEXT("反应 冻结（湿+冰）")},
+                            {ELDCombatReaction::Ferment, ELDCombatElement::Rot, TEXT("反应 发酵（湿+腐）")}, {ELDCombatReaction::Shatter, ELDCombatElement::Chill, TEXT("反应 碎冰")},
+                            {ELDCombatReaction::Corrode, ELDCombatElement::Rot, TEXT("反应 腐蚀（电+腐）")}, {ELDCombatReaction::Frostbite, ELDCombatElement::Chill, TEXT("反应 冻伤（冰+腐）")}};
+                        for (const FReelReaction& Item : Reactions)
+                        {
+                            const uint8 Reaction = uint8(Item.Reaction), Element = uint8(Item.Element);
+                            const double Stamp = 2000. + At;
+                            Reel.Steps.Add({At, Label(Item.Name)});
+                            Reel.Steps.Add({At, [V1, Reaction, Element, Stamp]() { if (auto* B = V1.Get()) { B->SetReaction(Reaction, Element, 0.f, Stamp); } }});
+                            At += 1.1f;
+                        }
+                        struct FReelState { ELDDemoStatusId Status; const TCHAR* Name; };
+                        const FReelState States[] = {{ELDDemoStatusId::Burn, TEXT("状态 着火")}, {ELDDemoStatusId::Wet, TEXT("状态 湿身")},
+                            {ELDDemoStatusId::Electrified, TEXT("状态 带电")}, {ELDDemoStatusId::Chilled, TEXT("状态 冰冷")}, {ELDDemoStatusId::Rotten, TEXT("状态 腐烂")}};
+                        for (const FReelState& Item : States)
+                        {
+                            const uint8 Status = uint8(Item.Status);
+                            Reel.Steps.Add({At, Label(Item.Name)});
+                            Reel.Steps.Add({At, [V1, Status]() { if (auto* B = V1.Get()) { FLDObservedStatus On; On.StatusId = Status; B->SetElementStates({On}); } }});
+                            Reel.Steps.Add({At + .8f, [V1]() { if (auto* B = V1.Get()) { B->SetElementStates({}); } }});
+                            At += 1.f;
+                        }
+                        Reel.bRealtime = true;
+                        Reel.Seconds = At + .5f;
+                        ChainJobs.Add(Reel);
+                    }
                     continue;
                 }
                 else
@@ -1171,7 +1411,20 @@ namespace
                 ChainJobs.Add({Look, TEXT("g-sunlit-hop"), {{0.f, Cast(A)}, {.27f, Hit(V1)}}, Sunlit, Home});
                 }
                 // New categories are judged on their looks first; their frame cost is measured once a look is chosen.
-                if (Look == TEXT("water") || Look == TEXT("fire") || Look == TEXT("chill")) { continue; }
+                static const TCHAR* const LookOnly[] = {
+                    TEXT("water"),
+                    TEXT("fire"),
+                    TEXT("chill"),
+                    TEXT("states"),
+                    TEXT("grounds"),
+                    TEXT("kill"),
+                    TEXT("casts"),
+                    TEXT("skills"),
+                    TEXT("self"),
+                };
+                bool bLookOnly = false;
+                for (const TCHAR* Category : LookOnly) { bLookOnly |= Look == Category; }
+                if (bLookOnly) { continue; }
                 FChainJob Perf;
                 Perf.Category = Look;
                 Perf.Scenario = TEXT("perf-eight-casters");
@@ -1262,7 +1515,8 @@ namespace
                     UAudioMixerBlueprintLibrary::StartRecordingOutput(&Target, Job.Seconds + 1.f);
                     // The wall clock of the recording start lets the window recording be aligned to the game audio.
                     UE_LOG(LogLDTest, Display, TEXT("LD_FEEL_RECORDING_START utc=%s"), *FDateTime::UtcNow().ToIso8601());
-                    ChainPhase = 4;
+                    // Phase 5: the real-time recording (phases 3 and 4 are a frame-cost run's idle and load).
+                    ChainPhase = 5;
                     return true;
                 }
                 if (Job.bPerf)
@@ -1325,7 +1579,7 @@ namespace
                 ChainPhaseAt = Now;
                 return true;
             }
-            if (ChainPhase == 4)
+            if (ChainPhase == 5)
             {
                 // Real game speed: the scenario clock is the world's own delta, the steps fire on it, and the audio device
                 // plays and records exactly what a match would.
@@ -1557,7 +1811,7 @@ namespace
             if (Current.bKill && Impacts)
             {
                 Victim->PlayFall();
-                Check(Impacts->LiveLayerCount() == LDHitVfx::ForKill(1.f, Impacts->LayerTuning()).Layers.Num(), TEXT("A visible fall cracks the ground"));
+                Check(Impacts->LiveCount() > 0, TEXT("A visible fall knocks a ring of dust over the floor"));
                 Impacts->FlashScreen(LDHitVfx::ScreenFlashOf(LDCombatCues::DealtLethal, false));
             }
             return true;

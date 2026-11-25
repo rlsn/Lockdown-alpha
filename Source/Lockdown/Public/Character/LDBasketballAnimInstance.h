@@ -15,6 +15,8 @@ public:
     void Bind(ULDBasketballMotionSet* InMotion, UStaticMeshComponent* InBall, const FVector& InMeshForward);
     void Prepare(double Clock, float Speed, float FacingYaw, LDBodyMotion::EAction Action, float Age,
         float ImpactSeconds, double ActionIdentity, UAnimSequence* Override, float OverrideTime, bool bDash, bool bShowBall);
+    // The motion family of the next attack or cast (LDActionMotion): the shown basic's combo step and the cast's ability.
+    void SetActionStyle(uint8 InComboStep, uint8 InAbility) { StyleStep = InComboStep; StyleAbility = InAbility; }
     const UAnimSequence* CurrentAction() const { return ActionSequence; }
     float CurrentActionTime() const { return ActionTime; }
     bool UsesUpperBody() const { return UpperWeight > 0; }
@@ -43,4 +45,5 @@ private:
     FVector ReleasePoint=FVector::ZeroVector,ReleaseForward=FVector::ForwardVector;
     FDelegateHandle BallPoseHandle;
     uint32 Variation=0,Turns=0;
+    uint8 StyleStep=0,StyleAbility=0;
 };

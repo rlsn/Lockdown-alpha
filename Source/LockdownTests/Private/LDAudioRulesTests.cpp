@@ -1,6 +1,8 @@
 #include "Audio/LDAudioCatalog.h"
 #include "Audio/LDAudioCueTracker.h"
 #include "Audio/LDAudioFeel.h"
+#include "Character/LDActionMotion.h"
+#include "Character/LDBasketballMotion.h"
 #include "Character/LDHitFeel.h"
 #include "Audio/LDAudioTypes.h"
 #include "Audio/LDMusicSelection.h"
@@ -256,6 +258,75 @@ bool FLDAudioFeelSyncTest::RunTest(const FString& Parameters)
     }
     ELDAudioBus Parsed=ELDAudioBus::Count;
     TestFalse(TEXT("Bus ids are case-sensitive"),LDAudio::ParseBusId(TEXT("sfx"),Parsed));
+
+    // The match start: only the first field segment after the opening rest, never replayed for a late joiner.
+    {
+        FLDPublicMatchView Public;Public.Generation=3;Public.Phase=ELDMatchPhase::Rest;Public.Timeline.RestIndex=0;
+        FLDAudioFrame Frame;Frame.Public=&Public;
+        FLDAudioCueTracker Tracker;
+        TestTrue(TEXT("The opening rest primes silently"),AudioSample(Tracker,Frame).IsEmpty());
+        Public.Phase=ELDMatchPhase::Development;Public.Timeline.FieldSegment=0;
+        TestTrue(TEXT("The first field segment starts the match"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::MatchStart}));
+        TestTrue(TEXT("The same segment never repeats it"),AudioSample(Tracker,Frame).IsEmpty());
+        Public.Phase=ELDMatchPhase::Rest;Public.Timeline.RestIndex=1;AudioSample(Tracker,Frame);
+        Public.Phase=ELDMatchPhase::Development;Public.Timeline.FieldSegment=1;
+        TestTrue(TEXT("A later field segment is not a match start"),AudioSample(Tracker,Frame).IsEmpty());
+        FLDAudioCueTracker Late;Public.Phase=ELDMatchPhase::Rest;Public.Timeline.RestIndex=2;
+        TestTrue(TEXT("A late joiner primes in a mid-match rest"),AudioSample(Late,Frame).IsEmpty());
+        Public.Phase=ELDMatchPhase::Development;Public.Timeline.FieldSegment=2;
+        TestTrue(TEXT("A late joiner never hears a match start"),AudioSample(Late,Frame).IsEmpty());
+    }
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDActionMotionFamiliesTest,"Lockdown.Rules.ActionMotionFamilies",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDActionMotionFamiliesTest::RunTest(const FString& Parameters)
+{
+    using LDActionMotion::EFamily;
+    TestTrue(TEXT("The combo reads jab, cross, finisher"),LDActionMotion::FamilyOf(true,1,0)==EFamily::Jab
+        &&LDActionMotion::FamilyOf(true,2,0)==EFamily::Cross&&LDActionMotion::FamilyOf(true,3,0)==EFamily::Finisher
+        &&LDActionMotion::FamilyOf(true,0,0)==EFamily::Jab);
+    TestTrue(TEXT("Skills take the family of what they do"),
+        LDActionMotion::FamilyOf(false,0,uint8(ELDDemoAbilityId::ActiveSnarkBolt))==EFamily::OneHandThrow
+        &&LDActionMotion::FamilyOf(false,0,uint8(ELDDemoAbilityId::ActiveZap))==EFamily::OneHandThrow
+        &&LDActionMotion::FamilyOf(false,0,uint8(ELDDemoAbilityId::ActiveCalculusDrop))==EFamily::HeavySlam
+        &&LDActionMotion::FamilyOf(false,0,uint8(ELDDemoAbilityId::ActiveNotMad))==EFamily::Ready
+        &&LDActionMotion::FamilyOf(false,0,uint8(ELDDemoAbilityId::ActiveOpenMic))==EFamily::TwoHandShot);
+    // Every active skill has a family; a skill unknown to the table sets a two-hand shot rather than nothing.
+    for(const uint8 Ability:{uint8(ELDDemoAbilityId::ActiveHoseDown),uint8(ELDDemoAbilityId::ActiveDeskFan),uint8(0)})
+    {TestTrue(TEXT("Areas and unknown casts set with both hands"),LDActionMotion::FamilyOf(false,0,Ability)==EFamily::TwoHandShot);}
+    for(int32 F=0;F<=int32(EFamily::Ready);++F)
+    {
+        const LDActionMotion::FBlend Standing=LDActionMotion::BlendOf(EFamily(F),false),Moving=LDActionMotion::BlendOf(EFamily(F),true);
+        TestTrue(FString::Printf(TEXT("%s blends within 0..1 and drives something"),LDActionMotion::FamilyName(EFamily(F))),
+            Standing.Full>=0&&Standing.Full<=1&&Standing.Upper>=0&&Standing.Upper<=1&&Standing.Full+Standing.Upper>0);
+        TestEqual(FString::Printf(TEXT("%s never drives the legs while moving"),LDActionMotion::FamilyName(EFamily(F))),Moving.Full,0.f);
+    }
+    // The strike shape turns at the authoritative release and is at rest outside the action.
+    for(const EFamily F:{EFamily::Jab,EFamily::Cross,EFamily::Finisher})
+    {
+        const LDActionMotion::FShape Before=LDActionMotion::ShapeOf(F,-.01f,.18f),After=LDActionMotion::ShapeOf(F,.18f+LDActionMotion::SettleSeconds+.01f,.18f);
+        TestTrue(FString::Printf(TEXT("%s rests outside the strike"),LDActionMotion::FamilyName(F)),Before.YawDeg==0&&Before.SideCm==0&&After.YawDeg==0&&After.SideCm==0);
+    }
+    const LDActionMotion::FShape JabRelease=LDActionMotion::ShapeOf(EFamily::Jab,.18f,.18f),CrossRelease=LDActionMotion::ShapeOf(EFamily::Cross,.18f,.18f);
+    const LDActionMotion::FShape JabWind=LDActionMotion::ShapeOf(EFamily::Jab,.126f,.18f),CrossWind=LDActionMotion::ShapeOf(EFamily::Cross,.126f,.18f);
+    TestTrue(TEXT("Jab and cross wind and snap in opposite directions"),JabRelease.YawDeg<0&&CrossRelease.YawDeg>0&&JabWind.YawDeg>0&&CrossWind.YawDeg<0
+        &&FMath::Abs(CrossRelease.YawDeg)>FMath::Abs(JabRelease.YawDeg)&&CrossRelease.SideCm>0&&JabRelease.SideCm==0);
+    TestTrue(TEXT("The finisher drives in hardest"),LDActionMotion::ShapeOf(EFamily::Finisher,.18f,.18f).LungeScale>CrossRelease.LungeScale);
+    // An instant cast still shows its gesture: the release lands on the impact and the follow-through plays at FollowRate;
+    // a basic's windup (warp under MaxWarp) keeps its own scale.
+    {
+        FLDBasketballActionClip Clip;Clip.Start=0.f;Clip.Release=.7f;Clip.End=2.3f;
+        TestTrue(TEXT("An instant cast releases at once and follows through at the follow rate"),
+            FMath::IsNearlyEqual(LDBasketballMotion::SampleTime(Clip,.001f,.001f),Clip.Release,1e-4f)
+            &&FMath::IsNearlyEqual(LDBasketballMotion::SampleTime(Clip,.501f,.001f),Clip.Release+LDBasketballMotion::FollowRate*.5f,1e-3f)
+            &&FMath::IsNearlyEqual(LDBasketballMotion::Duration(Clip,.001f),.001f+(Clip.End-Clip.Release)/LDBasketballMotion::FollowRate,1e-4f));
+        TestTrue(TEXT("A basic windup keeps its warp after the release"),
+            FMath::IsNearlyEqual(LDBasketballMotion::SampleTime(Clip,.28f,.18f),Clip.Release+.1f*(.7f/.18f),1e-3f));
+    }
+    TestTrue(TEXT("The finisher shifts the whole body, the jab only the upper body"),
+        LDActionMotion::BlendOf(EFamily::Finisher,false).Full==1.f&&LDActionMotion::BlendOf(EFamily::Jab,false).Full==0.f
+        &&LDActionMotion::BlendOf(EFamily::Cross,false).Upper>LDActionMotion::BlendOf(EFamily::Jab,false).Upper);
     return true;
 }
 
@@ -294,7 +365,7 @@ bool FLDAudioCatalogTest::RunTest(const FString& Parameters)
     {
         MusicClass->ParentClass=Master;SfxClass->ParentClass=Master;UIClass->ParentClass=Master;Master->ChildClasses={MusicClass,SfxClass,UIClass};
         Catalog->MasterClass=Master;Catalog->MusicClass=MusicClass;Catalog->SfxClass=SfxClass;Catalog->UIClass=UIClass;Catalog->UserMix=Mix;
-        Catalog->Cues.Reset();Catalog->Music.Reset();Catalog->SkillReleases.Reset();
+        Catalog->Cues.Reset();Catalog->Music.Reset();Catalog->SkillReleases.Reset();Catalog->SkillHits.Reset();
         for(int32 Index=0;Index<LDAudio::CueCount;++Index)
         {
             const ELDAudioCue Cue=LDAudio::PlayableCue(Index);
@@ -320,6 +391,9 @@ bool FLDAudioCatalogTest::RunTest(const FString& Parameters)
         FLDAudioKeyedEntry& Skill=Catalog->SkillReleases.AddDefaulted_GetRef();Skill.Key=uint8(ELDDemoAbilityId::ActiveZap);Skill.Sounds.Add(Take);
         TestTrue(TEXT("Takes and skill releases resolve"),Catalog->Resolve(Out,Error)&&Out.Cues[int32(Catalog->Cues[0].Cue)].Num()==2
             &&Out.Skills[uint8(ELDDemoAbilityId::ActiveZap)].Num()==1&&Out.Skills[uint8(ELDDemoAbilityId::ActiveElbow)].IsEmpty());
+        FLDAudioKeyedEntry& Hit=Catalog->SkillHits.AddDefaulted_GetRef();Hit.Key=uint8(ELDDemoAbilityId::ActiveElbow);Hit.Sounds.Add(Take);
+        TestTrue(TEXT("Skill hits resolve by ability"),Catalog->Resolve(Out,Error)&&Out.SkillHits[uint8(ELDDemoAbilityId::ActiveElbow)].Num()==1
+            &&Out.SkillHits[uint8(ELDDemoAbilityId::ActiveZap)].IsEmpty());
         FLDAudioKeyedEntry Again=Catalog->SkillReleases[0];Catalog->SkillReleases.Add(Again);
         TestFalse(TEXT("A repeated skill release is an error"),Catalog->Resolve(Out,Error));
         Fill();auto* Wrong=NewObject<USoundWave>();Wrong->SoundClassObject=UIClass;Wrong->Duration=.3f;Catalog->Cues[0].Variants.Add(Wrong);

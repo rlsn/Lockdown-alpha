@@ -9,6 +9,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Development/LDDemoContentCatalog.h"
+#include "Development/LDDemoContentIds.h"
 #include "Framework/LDDemoEntry.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
@@ -120,7 +121,6 @@ void ULDImpactFxSubsystem::OnWorldBeginPlay(UWorld& World)
     // Start editor-only Niagara compilation during world startup rather than on the first swing.
     if (ImpactSystem) { ImpactSystem->RequestCompile(false); }
     if (Catalog && Catalog->SwingTrail) { Catalog->SwingTrail->RequestCompile(false); }
-    if (Catalog && Catalog->CastCharge) { Catalog->CastCharge->RequestCompile(false); }
     if (BurstSystem) { BurstSystem->RequestCompile(false); }
     if (ZoneSystem) { ZoneSystem->RequestCompile(false); }
     for (UNiagaraSystem* Generated : GeneratedSystems) { if (Generated) { Generated->RequestCompile(false); } }
@@ -150,10 +150,6 @@ void ULDImpactFxSubsystem::OnWorldBeginPlay(UWorld& World)
     if (Catalog && !Catalog->SwingTrail)
     {
         UE_LOG(LogLDContent, Error, TEXT("LD_SWING_FX asset=missing catalog=%s"), ULDCombatVfxCatalog::AssetPath);
-    }
-    if (Catalog && !Catalog->CastCharge)
-    {
-        UE_LOG(LogLDContent, Error, TEXT("LD_CAST_FX asset=missing catalog=%s"), ULDCombatVfxCatalog::AssetPath);
     }
 }
 
@@ -827,7 +823,7 @@ void ULDImpactFxSubsystem::WarmUp()
     const FVector Under(0., 0., -20000.);
     TArray<UNiagaraSystem*> Systems{ImpactSystem.Get(), BurstSystem.Get(), ZoneSystem.Get()};
     for (UNiagaraSystem* Generated : GeneratedSystems) { if (Generated) { Systems.Add(Generated); } }
-    if (Catalog) { Systems.Append({Catalog->SwingTrail.Get(), Catalog->CastCharge.Get()}); }
+    if (Catalog) { Systems.Add(Catalog->SwingTrail.Get()); }
     for (UNiagaraSystem* System : Systems)
     {
         if (!System) { continue; }
@@ -1095,7 +1091,8 @@ LDSliceVfx::FLook ULDImpactFxSubsystem::SliceLook(ESliceTuning Kind, bool bOwn, 
     return Look;
 }
 
-void ULDImpactFxSubsystem::NoteStrike(const ULDHumanoidVisualComponent& Source, LDSliceVfx::EStrike Strike, const FVector& From, const FVector& Dir, bool bOwn)
+void ULDImpactFxSubsystem::NoteStrike(const ULDHumanoidVisualComponent& Source, LDSliceVfx::EStrike Strike, const FVector& From, const FVector& Dir, bool bOwn,
+    uint8 Ability)
 {
     if (!GetWorld() || Strike == LDSliceVfx::EStrike::None || From.ContainsNaN() || Dir.ContainsNaN()) { return; }
     const double Now = GetWorld()->GetTimeSeconds();
@@ -1108,6 +1105,7 @@ void ULDImpactFxSubsystem::NoteStrike(const ULDHumanoidVisualComponent& Source, 
     Added.Dir = FVector(Dir.X, Dir.Y, 0.).GetSafeNormal();
     Added.At = Now;
     Added.bOwn = bOwn;
+    Added.Ability = Ability;
 }
 
 ULDImpactFxSubsystem::FStrikeMatch ULDImpactFxSubsystem::MatchHit(const ULDHumanoidVisualComponent& Victim, const FVector& Chest,
@@ -1125,12 +1123,16 @@ ULDImpactFxSubsystem::FStrikeMatch ULDImpactFxSubsystem::MatchHit(const ULDHuman
         if (Strike.Source.Get() == &Victim || !Strike.Source.IsValid()) { continue; }
         const bool bFits = Look == ELDObservedHitLook::Water ? Strike.Strike == EStrike::Hose
             : Look == ELDObservedHitLook::Electric ? Strike.Strike == EStrike::Zap
-            : Look == ELDObservedHitLook::None && (Strike.Strike == EStrike::Basic || Strike.Strike == EStrike::Finisher);
+            : Look == ELDObservedHitLook::Magic || Look == ELDObservedHitLook::Fire ? Strike.Strike == EStrike::Skill
+            : Look == ELDObservedHitLook::None && (Strike.Strike == EStrike::Basic || Strike.Strike == EStrike::Finisher
+                || (Strike.Strike == EStrike::Skill && IsPhysicalSkill(Strike.Ability)));
         if (!bFits) { continue; }
         const double Gap = HitAt - Strike.At;
         // A chain's later links land one interval after another (chain_bounce.interval) from the last body struck.
-        const double Late = Strike.Strike == EStrike::Zap ? .45 + .25 * Strike.Hits : .45;
-        const double Reach = Strike.Strike == EStrike::Hose ? 900. : Strike.Strike == EStrike::Zap ? (Strike.Hits ? 600. : 950.) : 420.;
+        // A skill's flight (a thrown shoe at 1650 cm/s over 850 cm) lands up to about half a second after its release.
+        const double Late = Strike.Strike == EStrike::Zap ? .45 + .25 * Strike.Hits : Strike.Strike == EStrike::Skill ? .9 : .45;
+        const double Reach = Strike.Strike == EStrike::Hose ? 900. : Strike.Strike == EStrike::Zap ? (Strike.Hits ? 600. : 950.)
+            : Strike.Strike == EStrike::Skill ? 950. : 420.;
         const FVector Origin = Strike.Strike == EStrike::Zap ? Strike.Last : Strike.From;
         if (Gap < -.25 || Gap > Late || FVector::Dist2D(Origin, Chest) > Reach) { continue; }
         if (FMath::Abs(Gap) < BestGap)
@@ -1144,6 +1146,7 @@ ULDImpactFxSubsystem::FStrikeMatch ULDImpactFxSubsystem::MatchHit(const ULDHuman
     Out.Strike = Strike.Strike;
     Out.bOwn = Strike.bOwn;
     Out.bChained = Strike.Strike == EStrike::Zap && Strike.Hits > 0;
+    Out.Ability = Strike.Ability;
     Out.From = Strike.Strike == EStrike::Zap ? Strike.Last : Strike.From;
     const FVector Toward = FVector(Chest.X - Out.From.X, Chest.Y - Out.From.Y, 0.);
     Out.Dir = Toward.SizeSquared() > 1.f ? Toward.GetSafeNormal() : Strike.Dir;
@@ -1158,31 +1161,65 @@ bool ULDImpactFxSubsystem::IsField(const UNiagaraComponent* Effect) const
     return Asset && Asset == GetSystem(LDSliceVfx::ESystem::Field);
 }
 
-void ULDImpactFxSubsystem::ShowGroundField(const AActor& Owner, const FVector& Centre, float RadiusCm, float Alpha, uint8 OwnerSeat)
+bool ULDImpactFxSubsystem::IsGround(const UNiagaraComponent* Effect) const
 {
-    UNiagaraSystem* FieldSystem = GetSystem(LDSliceVfx::ESystem::Field);
+    const UNiagaraSystem* Asset = Effect ? Effect->GetAsset() : nullptr;
+    for (uint8 Kind = 1; Asset && Kind < LDGroundStateKindCount; ++Kind)
+    {
+        const LDSliceVfx::ESystem System = GroundSystem(Kind);
+        if (System != LDSliceVfx::ESystem::Count && Asset == GetSystem(System)) { return true; }
+    }
+    return false;
+}
+
+LDSliceVfx::ESystem ULDImpactFxSubsystem::GroundSystem(uint8 Kind)
+{
+    switch (static_cast<ELDGroundStateKind>(Kind))
+    {
+    case ELDGroundStateKind::Field: return LDSliceVfx::ESystem::Field;
+    case ELDGroundStateKind::Puddle: return LDSliceVfx::ESystem::PuddleGround;
+    case ELDGroundStateKind::Ice: return LDSliceVfx::ESystem::IceGround;
+    case ELDGroundStateKind::Fire: return LDSliceVfx::ESystem::FireGround;
+    case ELDGroundStateKind::Miasma: return LDSliceVfx::ESystem::MiasmaGround;
+    default: return LDSliceVfx::ESystem::Count;
+    }
+}
+
+void ULDImpactFxSubsystem::ShowGround(const AActor& Owner, uint8 Kind, const FVector& Centre, float RadiusCm, float Alpha, uint8 OwnerSeat)
+{
+    const LDSliceVfx::ESystem System = GroundSystem(Kind);
+    UNiagaraSystem* Asset = System == LDSliceVfx::ESystem::Count ? nullptr : GetSystem(System);
     int32 Found = INDEX_NONE;
     for (int32 Index = 0; Index < Live.Num(); ++Index)
     {
-        if (Live[Index].OwnerActor.Get() == &Owner && IsField(Live[Index].Effect.Get())) { Found = Index; break; }
+        const UNiagaraComponent* Effect = Live[Index].Effect.Get();
+        if (Live[Index].OwnerActor.Get() == &Owner && Effect && GeneratedSystems.Contains(Effect->GetAsset())) { Found = Index; break; }
     }
-    if (!FApp::CanEverRender() || !FieldSystem || !FMath::IsFinite(Alpha) || Alpha <= 0.f || !FMath::IsFinite(RadiusCm) || RadiusCm <= 0.f || Centre.ContainsNaN())
+    if (Found != INDEX_NONE && (!Asset || Live[Found].Effect->GetAsset() != Asset))
+    {
+        Release(Found);
+        Found = INDEX_NONE;
+    }
+    if (!FApp::CanEverRender() || !Asset || !FMath::IsFinite(Alpha) || Alpha <= 0.f || !FMath::IsFinite(RadiusCm) || RadiusCm <= 0.f || Centre.ContainsNaN())
     {
         if (Found != INDEX_NONE) { Release(Found); }
         return;
     }
     FVector Normal;
     const FVector Floor = GroundUnder(Centre, Normal);
-    // The reduced-effects setting dims a field like every other effect.
+    // The reduced-effects setting dims a ground state like every other effect.
     const float Strength = 2.2f * FMath::Clamp(Alpha, 0.f, 1.f) * (.55f + .45f * LocalEffectScale());
     if (Found == INDEX_NONE)
     {
         // A ground state lives until its owner says otherwise: the system's own life is far beyond any state's. The local
-        // player's own field (its seat is the own body's) shows its decoration in full; others' fields thin it.
+        // player's own state (its seat is the own body's) shows its decoration in full; others' states thin it.
         bool bOwn = false;
         for (TObjectIterator<ULDHumanoidVisualComponent> It; It && !bOwn && OwnerSeat != MAX_uint8; ++It)
         { bOwn = It->GetWorld() == GetWorld() && It->IsOwnBody() && It->PaletteSlot() == OwnerSeat; }
-        UNiagaraComponent* Effect = SpawnGenerated(LDSliceVfx::ESystem::Field, Floor, Floor, LDSliceVfx::ElementInk(uint8(ELDCombatElement::Shock)), RadiusCm, Strength, 1.e4f, bOwn);
+        const uint8 Element = Kind == uint8(ELDGroundStateKind::Field) ? uint8(ELDCombatElement::Shock)
+            : Kind == uint8(ELDGroundStateKind::Puddle) ? uint8(ELDCombatElement::Water) : Kind == uint8(ELDGroundStateKind::Ice) ? uint8(ELDCombatElement::Chill)
+            : Kind == uint8(ELDGroundStateKind::Fire) ? uint8(ELDCombatElement::Fire) : uint8(ELDCombatElement::Rot);
+        UNiagaraComponent* Effect = SpawnGenerated(System, Floor, Floor, LDSliceVfx::ElementInk(Element), RadiusCm, Strength, 1.e4f, bOwn);
         if (!Effect) { return; }
         Track(Effect, nullptr, 0.f, &Owner);
         return;
@@ -1247,8 +1284,8 @@ UNiagaraComponent* ULDImpactFxSubsystem::SpawnGenerated(LDSliceVfx::ESystem Syst
     if (!FApp::CanEverRender() || !Asset || Start.ContainsNaN() || End.ContainsNaN() || !FMath::IsFinite(Width) || !FMath::IsFinite(Intensity)) { return nullptr; }
     if (Live.Num() >= LDImpactFx::MaxBursts)
     {
-        // The oldest short effect makes room; a standing field stays while its ground state does.
-        const int32 Oldest = Live.IndexOfByPredicate([this](const FLive& Shown) { return !IsField(Shown.Effect.Get()) || Shown.StopAfter >= 0.f; });
+        // The oldest short effect makes room; a standing ground state's effect stays while the state does.
+        const int32 Oldest = Live.IndexOfByPredicate([this](const FLive& Shown) { return !IsGround(Shown.Effect.Get()) || Shown.StopAfter >= 0.f; });
         Release(Oldest == INDEX_NONE ? 0 : Oldest);
     }
     UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), Asset, End, FRotator::ZeroRotator, FVector(1.f),
@@ -1361,6 +1398,19 @@ UNiagaraComponent* ULDImpactFxSubsystem::ShowLoop(USceneComponent& Owner, UNiaga
     return Effect;
 }
 
+UNiagaraComponent* ULDImpactFxSubsystem::PlayFree(LDSliceVfx::ESystem System, const FVector& Start, const FVector& End, const FLinearColor& Tint,
+    float Width, float Seconds, const LDSliceVfx::FLook& Look)
+{
+    if (!FApp::CanEverRender() || Start.ContainsNaN() || End.ContainsNaN() || !FMath::IsFinite(Seconds) || Seconds <= 0.f || Look.Size <= 0.f
+        || Look.Glow <= 0.f || Look.EffectScale <= 0.f) { return nullptr; }
+    const float Thin = FMath::Clamp(Look.EffectScale, 0.f, 1.f);
+    UNiagaraComponent* Effect = SpawnGenerated(System, Start, End, Tint, Width, 2.2f * Look.Glow * (Look.bFocus ? 1.f : .7f) * (.55f + .45f * Thin), Seconds, Look.bFocus);
+    if (!Effect) { return nullptr; }
+    Track(Effect, nullptr, 0.f);
+    Live.Last().StopAfter = Seconds;
+    return Effect;
+}
+
 bool ULDImpactFxSubsystem::SkillReach(uint8 Ability, float& OutRangeCm, float& OutHalfWidthCm)
 {
     OutRangeCm = OutHalfWidthCm = 0.f;
@@ -1374,6 +1424,51 @@ bool ULDImpactFxSubsystem::SkillReach(uint8 Ability, float& OutRangeCm, float& O
         OutRangeCm = Cm(Definition.Target.RangeCm);
         OutHalfWidthCm = Cm(Definition.Target.LineHalfWidthCm);
         return OutRangeCm > 0.f;
+    }
+    return false;
+}
+
+float ULDImpactFxSubsystem::SkillDashCm(uint8 Ability)
+{
+    OverdriveHoldSeconds();
+    if (!Content || Ability == 0) { return 0.f; }
+    for (const FLDDemoAbilityDefinition& Definition : Content->Get().Abilities)
+    {
+        if (Definition.NativeId != Ability) { continue; }
+        for (const FLDDemoEffectDefinition& Effect : Definition.Values.Effects)
+        {
+            if (Effect.Opcode == uint16(ELDDemoEffectOp::Dash) && Effect.DistanceCm.Denominator > 0) { return float(double(Effect.DistanceCm.Numerator) / double(Effect.DistanceCm.Denominator)); }
+        }
+    }
+    return 0.f;
+}
+
+bool ULDImpactFxSubsystem::IsElementalSkill(uint8 Ability)
+{
+    OverdriveHoldSeconds();
+    if (!Content || Ability == 0) { return false; }
+    const FLDDemoAbilityDefinition* Definition = Content->Get().Abilities.FindByPredicate([Ability](const FLDDemoAbilityDefinition& Row) { return Row.NativeId == Ability; });
+    return Definition && Definition->Element != ELDDemoSkillElement::None;
+}
+
+bool ULDImpactFxSubsystem::IsSelfSkill(uint8 Ability)
+{
+    OverdriveHoldSeconds();
+    if (!Content || Ability == 0) { return false; }
+    const FLDDemoAbilityDefinition* Definition = Content->Get().Abilities.FindByPredicate([Ability](const FLDDemoAbilityDefinition& Row) { return Row.NativeId == Ability; });
+    return Definition && Definition->Target.Mode == ELDDemoTargetMode::Self;
+}
+
+bool ULDImpactFxSubsystem::IsPhysicalSkill(uint8 Ability)
+{
+    OverdriveHoldSeconds();
+    if (!Content || Ability == 0) { return false; }
+    for (const FLDDemoAbilityDefinition& Definition : Content->Get().Abilities)
+    {
+        if (Definition.NativeId != Ability) { continue; }
+        // Its own damage is physical (a physical hit is observed with no look).
+        return Definition.Values.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect)
+            { return Effect.Opcode == uint16(ELDDemoEffectOp::Damage) && Effect.DamageType == ELDDemoDamageType::Physical; });
     }
     return false;
 }
@@ -1403,6 +1498,41 @@ float ULDImpactFxSubsystem::SkillEffectRadius(uint8 Ability, uint16 Opcode)
         }
     }
     return 0.f;
+}
+
+float ULDImpactFxSubsystem::SkillSelfRadius(uint8 Ability)
+{
+    OverdriveHoldSeconds();
+    if (!Content) { return 0.f; }
+    for (const FLDDemoAbilityDefinition& Definition : Content->Get().Abilities)
+    {
+        if (Definition.NativeId != Ability) { continue; }
+        for (const FLDDemoEffectDefinition& Effect : Definition.Values.Effects)
+        {
+            const ELDDemoEffectOp Op = static_cast<ELDDemoEffectOp>(Effect.Opcode);
+            if ((Op == ELDDemoEffectOp::ParryStance || Op == ELDDemoEffectOp::Taunt || Op == ELDDemoEffectOp::SelfArea || Op == ELDDemoEffectOp::Brace)
+                && Effect.RadiusCm.Denominator > 0) { return float(double(Effect.RadiusCm.Numerator) / double(Effect.RadiusCm.Denominator)); }
+        }
+    }
+    return 0.f;
+}
+
+float ULDImpactFxSubsystem::SkillHoldSeconds(uint8 Ability)
+{
+    OverdriveHoldSeconds();
+    if (!Content) { return 0.f; }
+    int64 Longest = 0;
+    for (const FLDDemoAbilityDefinition& Definition : Content->Get().Abilities)
+    {
+        if (Definition.NativeId != Ability) { continue; }
+        for (const FLDDemoEffectDefinition& Effect : Definition.Values.Effects)
+        {
+            const ELDDemoEffectOp Op = static_cast<ELDDemoEffectOp>(Effect.Opcode);
+            if (Op == ELDDemoEffectOp::ParryStance || Op == ELDDemoEffectOp::TimedStatBonus || Op == ELDDemoEffectOp::FrenzyWaves || Op == ELDDemoEffectOp::Brace)
+            { Longest = FMath::Max(Longest, Effect.DurationMs); }
+        }
+    }
+    return float(double(Longest) / 1000.);
 }
 
 float ULDImpactFxSubsystem::ConductRadiusCm()

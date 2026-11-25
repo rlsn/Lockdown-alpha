@@ -51,6 +51,8 @@ public:
     // A cue that its caller may cut short (a cast charge): the playing component, or null when nothing plays.
     UAudioComponent* Start(ELDAudioCue Cue, bool bSpatial, const FVector& Location, float VolumeMultiplier = 1.f);
     bool HasOwnSkillRelease(uint8 Ability) const;
+    // A skill's own hit at a visible body's location; false (nothing played) when the skill has no hit of its own.
+    bool PlaySkillHit(uint8 Ability, const FVector& Location, float VolumeMultiplier = 1.f);
     bool IsCatalogReady() const { return Catalog != nullptr; }
     const FString& GetCatalogError() const { return CatalogError; }
 private:
@@ -59,15 +61,17 @@ private:
     UPROPERTY(Transient) TArray<TObjectPtr<USoundWave>> Takes;
     UPROPERTY(Transient) TArray<TObjectPtr<USoundWave>> MusicSounds;
     UPROPERTY(Transient) TObjectPtr<USoundAttenuation> BodyAttenuation;
-    UPROPERTY(Transient) TObjectPtr<USoundConcurrency> BodyConcurrency;
-    UPROPERTY(Transient) TObjectPtr<USoundConcurrency> InterfaceConcurrency;
+    // One concurrency group per sound (a cue, a skill's release, a skill's hit), made on first use.
+    UPROPERTY(Transient) TMap<FName, TObjectPtr<USoundConcurrency>> Concurrency;
     // The current track's component and the outgoing ones still fading; all persist across level transitions.
     UPROPERTY(Transient) TObjectPtr<UAudioComponent> MusicComponent;
     UPROPERTY(Transient) TArray<TObjectPtr<UAudioComponent>> FadingMusic;
     TArray<TArray<int32>> CueTakes;
     TArray<TArray<int32>> SkillTakes;
+    TArray<TArray<int32>> SkillHitTakes;
     TArray<int32> LastCueTake;
     TArray<int32> LastSkillTake;
+    TArray<int32> LastSkillHitTake;
     USoundClass* BusClasses[LDAudio::BusCount] = {};
     ELDMusicTrack MusicTrack = ELDMusicTrack::None;
     FString CatalogError;
@@ -92,5 +96,8 @@ private:
     // Plays one take (logged first under -LDAudioEventLog); with Keep, a component the caller may stop is returned there.
     bool Emit(const FString& What, int32 Take, bool bSpatial, const FVector& Location, float Volume, float Pitch, bool bInterface,
         UAudioComponent** Keep = nullptr);
+    // The sound's own voice limit (AUDIO_AND_FEEL §3): interface 2, element states and reactions 3, every other sound 4;
+    // the oldest voice of the group stops, and a retrigger inside 25 ms is one sound.
+    USoundConcurrency* ConcurrencyOf(const FString& What, bool bInterface);
     void StopMusic();
 };

@@ -37,6 +37,7 @@
 #include "RenderingThread.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "Camera/PlayerCameraManager.h"
+#include "HAL/IConsoleManager.h"
 
 static_assert(LDObservedPresentation::HistorySamples * ALDVisionDirector::PublishPeriodMs
     >= LDObservedPresentation::MaxDelaySeconds * 1000 + 2 * ALDVisionDirector::PublishPeriodMs,
@@ -557,6 +558,7 @@ void ALDObservedEntityProxy::Present(double AtServerSec, float Delta)
             : float(double(Reached.CueAgeMs) / 1000.0 + FMath::Max(0.0, AtServerSec - Points[Pose.Reached].At));
         Body->SetCue(ALDCharacter::PresentationCue(Reached.Cue, Reached.Statuses), Age,
             float(Reached.CueImpactDelayMs) / 1000.f, ALDCharacter::PresentationKnockback(Reached.Statuses));
+        Body->SetElementStates(Reached.Statuses);
         Body->SetCastAbility(Reached.Cue == ELDObservedActionCue::Cast ? Reached.ActionAbility : 0);
         Body->SetComboStep(Reached.Cue == ELDObservedActionCue::Attack ? Reached.ActionComboStep : 0);
         Body->SetCharging(Reached.bCharging,
@@ -666,6 +668,12 @@ void ALDOwnBodyMarker::Track(APawn* Body, uint8 Slot)
     SetActorHiddenInGame(false);
 }
 
+// A presentation review switch: 0 hides the kind patterns of the ground states that have their own designed effect
+// (ULDImpactFxSubsystem::GroundSystem), so the effect can be judged alone. The patterns stay on by default until each
+// element's area effect is approved (VFX.md §3.8).
+static TAutoConsoleVariable<int32> CVarGroundKindPatterns(TEXT("ld.Vfx.GroundKindPatterns"), 1,
+    TEXT("1 shows the ground states' kind patterns; 0 hides them where the state has its own designed effect."));
+
 ALDObservedGroundProxy::ALDObservedGroundProxy()
 {
     bReplicates = false;
@@ -714,8 +722,8 @@ void ALDObservedGroundProxy::Outline(const FLDObservedGroundState& Ground, TArra
     if (Ground.Shape == ELDObservedGroundShape::Band)
     {
         const double H = Ground.ExtentCm;
-        Arc(FVector(H, 0, 0), R, -90., 90., 6);
-        Arc(FVector(-H, 0, 0), R, 90., 270., 6);
+        Arc(FVector(H, 0, 0), R, -90., 90., 16);
+        Arc(FVector(-H, 0, 0), R, 90., 270., 16);
         // A copy: adding an element of the array to itself may reallocate under the reference.
         const FVector First = Out[0];
         Out.Add(First);
@@ -724,10 +732,11 @@ void ALDObservedGroundProxy::Outline(const FLDObservedGroundState& Ground, TArra
     {
         const double Half = Ground.ExtentCm * .5;
         Out.Add(FVector::ZeroVector);
-        Arc(FVector::ZeroVector, R, -Half, Half, 12);
+        Arc(FVector::ZeroVector, R, -Half, Half, 32);
         Out.Add(FVector::ZeroVector);
     }
-    else { Arc(FVector::ZeroVector, R, 0., 360., 20); }
+    // Enough segments that the outline reads as a curve at gameplay zoom (no visible corners).
+    else { Arc(FVector::ZeroVector, R, 0., 360., 64); }
 }
 
 void ALDObservedGroundProxy::Pattern(const FLDObservedGroundState& Ground, TArray<TPair<FVector,FVector>>& Out)
@@ -826,7 +835,7 @@ void ALDObservedGroundProxy::Apply(const FLDObservedGroundState& Ground, double 
         LDHitVfx::EBurst Kind;
         FLinearColor Tint;
         ULDImpactFxSubsystem* Impacts = GetWorld() ? GetWorld()->GetSubsystem<ULDImpactFxSubsystem>() : nullptr;
-        if (Impacts && LDHitVfx::GroundAppearBurstOf(Ground.Kind, Kind, Tint))
+        if (Impacts && ULDImpactFxSubsystem::GroundSystem(Ground.Kind) == LDSliceVfx::ESystem::Count && LDHitVfx::GroundAppearBurstOf(Ground.Kind, Kind, Tint))
         { Impacts->Kit(GetActorLocation() + FVector(0, 0, 20.f), LDHitVfx::BurstOf(Kind, Tint, Impacts->LocalEffectScale()), *this); }
     }
     Present(SampledAtServerSec);
@@ -837,6 +846,13 @@ void ALDObservedGroundProxy::ShowParticles()
     ULDImpactFxSubsystem* Impacts = GetWorld() ? GetWorld()->GetSubsystem<ULDImpactFxSubsystem>() : nullptr;
     if (!Impacts || !bShown) { return; }
     ParticleScale = Impacts->LocalEffectScale();
+    // A kind with its own designed effect (ULDImpactFxSubsystem::ShowGround, laid in Present) has no kit particles.
+    if (ULDImpactFxSubsystem::GroundSystem(Shown.Kind) != LDSliceVfx::ESystem::Count)
+    {
+        if (IsValid(Particles)) { Particles->DestroyComponent(); }
+        Particles = nullptr;
+        return;
+    }
     // A circle fills its radius and a band keeps the particles inside its narrower half-extent. A sector starts at its
     // apex and ExtentCm is its angle: the particles fill the disc inscribed between its two edges and its arc.
     float Radius = Shown.RadiusCm * .9f;
@@ -866,12 +882,24 @@ void ALDObservedGroundProxy::Present(double AtServerSec)
         Impacts && bShown && ParticleScale >= 0.f && Impacts->LocalEffectScale() != ParticleScale) { ShowParticles(); }
     if (!bShown) { return; }
     const double Left = FMath::Clamp((ExpiresAtServerSec - AtServerSec) / LifeSeconds, 0., 1.);
-    // The electric field (the Niagara Field, ULDImpactFxSubsystem::ShowGroundField) fades out over the last third of its life.
-    if (Shown.Kind == uint8(ELDGroundStateKind::Field))
+    // A designed ground state (the field, a puddle, ice, a fire floor, miasma; ULDImpactFxSubsystem::ShowGround) fades out over
+    // the last third of its life. A band or a sector shows the disc that fits inside it (as its particles did).
+    if (ULDImpactFxSubsystem* Impacts = GetWorld() ? GetWorld()->GetSubsystem<ULDImpactFxSubsystem>() : nullptr;
+        Impacts && ULDImpactFxSubsystem::GroundSystem(Shown.Kind) != LDSliceVfx::ESystem::Count)
     {
-        if (ULDImpactFxSubsystem* Impacts = GetWorld() ? GetWorld()->GetSubsystem<ULDImpactFxSubsystem>() : nullptr)
-        { Impacts->ShowGroundField(*this, GetActorLocation(), Shown.RadiusCm, float(FMath::Min(Left * 3., 1.)), Shown.OwnerSeat); }
+        float Radius = Shown.RadiusCm;
+        FVector Offset = FVector::ZeroVector;
+        if (Shown.Shape == ELDObservedGroundShape::Sector)
+        {
+            const float Sine = FMath::Sin(FMath::DegreesToRadians(FMath::Clamp(Shown.ExtentCm * .5f, 5.f, 90.f)));
+            Offset = FVector(Shown.RadiusCm / (1.f + Sine), 0, 0);
+            Radius = FMath::Max(Offset.X * Sine, 40.f);
+        }
+        else if (Shown.Shape != ELDObservedGroundShape::Circle)
+        { Radius = FMath::Max(FMath::Min(Shown.RadiusCm, Shown.ExtentCm > 0.f ? Shown.ExtentCm : Shown.RadiusCm), 40.f); }
+        Impacts->ShowGround(*this, Shown.Kind, GetActorLocation() + GetActorRotation().RotateVector(Offset), Radius, float(FMath::Min(Left * 3., 1.)), Shown.OwnerSeat);
     }
+    if (Lines) { Lines->SetHiddenInGame(CVarGroundKindPatterns.GetValueOnGameThread() == 0 && ULDImpactFxSubsystem::GroundSystem(Shown.Kind) != LDSliceVfx::ESystem::Count); }
     if (RimPoints.Num() < 2) { return; }
     // The outline drains with the remaining life (spec §12): the first Remaining/Life of its segments stay.
     const int32 Segments = RimPoints.Num() - 1;

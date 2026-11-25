@@ -4,6 +4,7 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "Tickable.h"
 #include "Character/LDHitVfx.h"
+#include "Combat/LDCombatElements.h"
 #include "Vision/LDViewTypes.h"
 #include "LDImpactFx.generated.h"
 
@@ -94,7 +95,9 @@ public:
     LDSliceVfx::FLook SliceLook(ESliceTuning Kind, bool bOwn, bool bFocus) const;
     // A visible body's strike reached its release: hits that follow on visible bodies take its tier, direction and
     // owner (MatchHit). Only visible bodies note strikes, so a hit never reveals a hidden source.
-    void NoteStrike(const ULDHumanoidVisualComponent& Source, LDSliceVfx::EStrike Strike, const FVector& From, const FVector& Dir, bool bOwn);
+    // Ability: the visible cast's ELDDemoAbilityId for a skill strike (its hits then show that skill's hit), 0 otherwise.
+    void NoteStrike(const ULDHumanoidVisualComponent& Source, LDSliceVfx::EStrike Strike, const FVector& From, const FVector& Dir, bool bOwn,
+        uint8 Ability = 0);
     struct FStrikeMatch
     {
         LDSliceVfx::EStrike Strike = LDSliceVfx::EStrike::None;
@@ -102,6 +105,7 @@ public:
         FVector Dir = FVector::ZeroVector;
         bool bOwn = false;
         bool bChained = false;   // a later link of a chain: its arc starts at the previous body struck
+        uint8 Ability = 0;       // the matched skill strike's ability (ELDDemoAbilityId), 0 for others
     };
     // The strike a hit HitAgeSeconds old on Victim's Chest belongs to: the nearest in time of the strikes whose kind
     // fits the hit's look, timing and reach; None when no visible strike fits.
@@ -130,26 +134,45 @@ public:
     // render-less process removes Existing and returns null. The caller keeps the result and destroys it with itself.
     UNiagaraComponent* ShowLoop(USceneComponent& Owner, UNiagaraComponent* Existing, LDSliceVfx::ESystem System, const FVector& Start,
         const FVector& End, const FLinearColor& Tint, float Width, float Intensity, float Seconds, bool bFocus);
+    // A generated system bound to nothing (a fall's knockout plays out after the body is gone), stopped after Seconds.
+    UNiagaraComponent* PlayFree(LDSliceVfx::ESystem System, const FVector& Start, const FVector& End, const FLinearColor& Tint, float Width,
+        float Seconds, const LDSliceVfx::FLook& Look);
     // The supporting floor under At (the point itself when nothing is below it within reach).
     FVector FloorUnder(const FVector& At) const { FVector Normal; return GroundUnder(At, Normal); }
     // A basic or finisher hit on Victim's Chest struck from From's side, bound to Victim.
     void Hit(const ULDHumanoidVisualComponent& Victim, const FVector& From, const FVector& Chest, bool bFinisher, const LDSliceVfx::FLook& Look, float AgeSeconds);
-    // A public electric ground state's field on Owner at its authoritative radius (fades with Alpha; Alpha <= 0 removes it).
-    // OwnerSeat is the state's public owner seat: the own body's seat shows the field's decoration in full.
-    void ShowGroundField(const AActor& Owner, const FVector& Centre, float RadiusCm, float Alpha, uint8 OwnerSeat);
+    // A public ground state's own looping effect (ELDGroundStateKind: the field, a puddle, ice, a fire floor, miasma) on Owner
+    // at its authoritative radius; Alpha <= 0 removes it. OwnerSeat: the own body's seat shows the decoration in full.
+    void ShowGround(const AActor& Owner, uint8 Kind, const FVector& Centre, float RadiusCm, float Alpha, uint8 OwnerSeat);
+    // The generated system of a ground state kind; ESystem::Count for a kind without one.
+    static LDSliceVfx::ESystem GroundSystem(uint8 Kind);
     // Whether an effect is the electric field (NS_LDField).
     bool IsField(const UNiagaraComponent* Effect) const;
+    // Whether an effect is a ground state's standing effect (the field or another kind's).
+    bool IsGround(const UNiagaraComponent* Effect) const;
     // The conduct reaction's splash field round Source's feet at the authoritative radius, for 0.8 s.
     void FieldPulse(const ULDHumanoidVisualComponent& Source, const FVector& Feet, float RadiusCm, const LDSliceVfx::FLook& Look, float AgeSeconds);
     // The approved reach of a skill's level-1 target (its range and, for a direction line, the band's half width) and
     // the conduct reaction's splash radius; 0 when the content is unavailable.
     bool SkillReach(uint8 Ability, float& OutRangeCm, float& OutHalfWidthCm);
+    // Whether a skill's level-1 target is itself (a self-centred skill), from the approved content.
+    bool IsSelfSkill(uint8 Ability);
+    // The approved level-1 distance of a skill's own dash (cm); 0 when it has none.
+    float SkillDashCm(uint8 Ability);
+    // Whether a skill carries an element (its windup and hits then take the element's ink).
+    bool IsElementalSkill(uint8 Ability);
+    // Whether a skill's own damage is physical (its hits are observed with no look, like a basic hit's).
+    bool IsPhysicalSkill(uint8 Ability);
     // The approved full angle of a skill's level-1 cone target (degrees); 0 when it has none.
     float SkillConeDegrees(uint8 Ability);
     float ConductRadiusCm();
     // The approved level-1 radius of one of a skill's effects (its self area, zone, ground impact...); 0 when it has none
     // or the content is unavailable.
     float SkillEffectRadius(uint8 Ability, uint16 Opcode);
+    // A self skill's own radius (its first effect with one: a parry's counter, a taunt, a self area, a brace's shove); 0
+    // when it has none. Its hold: the longest stance, buff or frenzy it starts on the caster (s); 0 when it has none.
+    float SkillSelfRadius(uint8 Ability);
+    float SkillHoldSeconds(uint8 Ability);
     int32 LiveSliceCount() const { return LiveSlices.Num(); }
     // A visible skill effect's own particles: its flight trail or ground zone on Owner, and its appear burst.
     UNiagaraComponent* ShowEffect(USceneComponent& Owner, UNiagaraComponent* Existing, ELDObservedProjectileLook Look,
@@ -212,6 +235,7 @@ private:
         double At = 0;
         bool bOwn = false;
         int32 Hits = 0;
+        uint8 Ability = 0;
     };
     TArray<FStrike> Strikes;
     void Release(int32 Index);
