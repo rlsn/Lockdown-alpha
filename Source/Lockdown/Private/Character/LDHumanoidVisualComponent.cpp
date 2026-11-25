@@ -1,5 +1,6 @@
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Audio/LDAudioFeel.h"
+#include "Character/LDActionMotion.h"
 #include "Components/AudioComponent.h"
 #include "Core/LDLog.h"
 #include "Animation/AnimSequence.h"
@@ -1331,12 +1332,18 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
         LeanRoll = FMath::FInterpTo(LeanRoll, FMath::Clamp(LocalAcceleration.Y / 8000.f, -1.f, 1.f) * 8.f + PushLean.Roll, Delta, 7.f);
         PreviousVelocity = Velocity;
     }
-    const FRotator VisualLean(LeanPitch, FRotator::NormalizeAxis(VisualYaw - TargetYaw), LeanRoll);
+    // The strike's shape from above (LDActionMotion): presentation only, on the mesh and pivot; the capsule, facing and
+    // timing are untouched and it is at rest outside the action.
+    const LDBodyMotion::EAction ShapeAction = ShownAction();
+    const LDActionMotion::FShape Shape = bFalling || ShapeAction == LDBodyMotion::EAction::None ? LDActionMotion::FShape()
+        : LDActionMotion::ShapeOf(LDActionMotion::FamilyOf(ShapeAction == LDBodyMotion::EAction::Attack, ComboStep, CastAbility), ShownAge(),
+            Action == LDBodyMotion::EAction::None ? RetractImpact : ActionImpactSeconds);
+    const FRotator VisualLean(LeanPitch, FRotator::NormalizeAxis(VisualYaw - TargetYaw) + Shape.YawDeg, LeanRoll);
     Mesh->SetRelativeRotation(Art->MeshTransform.GetRotation() * FQuat(VisualLean));
 
     // The whole body: a lunge or knock-back, the appear scale and the final sink, all about the feet.
     const FVector Feet(0, 0, -HalfHeight);
-    Pivot->SetRelativeLocation(Feet * (1.f - Life.Scale) + FVector(Shown.Lunge, 0, -Life.Sink));
+    Pivot->SetRelativeLocation(Feet * (1.f - Life.Scale) + FVector(Shown.Lunge * Shape.LungeScale, Shape.SideCm, -Life.Sink));
     Pivot->SetRelativeScale3D(FVector(FMath::Max(Life.Scale, .01f)));
 
     // A rooted body stands even while a correction still moves it.

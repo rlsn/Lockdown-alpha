@@ -301,6 +301,17 @@ bool FLDActionMotionFamiliesTest::RunTest(const FString& Parameters)
             Standing.Full>=0&&Standing.Full<=1&&Standing.Upper>=0&&Standing.Upper<=1&&Standing.Full+Standing.Upper>0);
         TestEqual(FString::Printf(TEXT("%s never drives the legs while moving"),LDActionMotion::FamilyName(EFamily(F))),Moving.Full,0.f);
     }
+    // The strike shape turns at the authoritative release and is at rest outside the action.
+    for(const EFamily F:{EFamily::Jab,EFamily::Cross,EFamily::Finisher})
+    {
+        const LDActionMotion::FShape Before=LDActionMotion::ShapeOf(F,-.01f,.18f),After=LDActionMotion::ShapeOf(F,.18f+LDActionMotion::SettleSeconds+.01f,.18f);
+        TestTrue(FString::Printf(TEXT("%s rests outside the strike"),LDActionMotion::FamilyName(F)),Before.YawDeg==0&&Before.SideCm==0&&After.YawDeg==0&&After.SideCm==0);
+    }
+    const LDActionMotion::FShape JabRelease=LDActionMotion::ShapeOf(EFamily::Jab,.18f,.18f),CrossRelease=LDActionMotion::ShapeOf(EFamily::Cross,.18f,.18f);
+    const LDActionMotion::FShape JabWind=LDActionMotion::ShapeOf(EFamily::Jab,.126f,.18f),CrossWind=LDActionMotion::ShapeOf(EFamily::Cross,.126f,.18f);
+    TestTrue(TEXT("Jab and cross wind and snap in opposite directions"),JabRelease.YawDeg<0&&CrossRelease.YawDeg>0&&JabWind.YawDeg>0&&CrossWind.YawDeg<0
+        &&FMath::Abs(CrossRelease.YawDeg)>FMath::Abs(JabRelease.YawDeg)&&CrossRelease.SideCm>0&&JabRelease.SideCm==0);
+    TestTrue(TEXT("The finisher drives in hardest"),LDActionMotion::ShapeOf(EFamily::Finisher,.18f,.18f).LungeScale>CrossRelease.LungeScale);
     TestTrue(TEXT("The finisher shifts the whole body, the jab only the upper body"),
         LDActionMotion::BlendOf(EFamily::Finisher,false).Full==1.f&&LDActionMotion::BlendOf(EFamily::Jab,false).Full==0.f
         &&LDActionMotion::BlendOf(EFamily::Cross,false).Upper>LDActionMotion::BlendOf(EFamily::Jab,false).Upper);
