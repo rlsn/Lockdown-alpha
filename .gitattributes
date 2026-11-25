@@ -7,6 +7,9 @@
 /SourceData/Audio/Music/*.mp3 filter=lfs diff=lfs merge=lfs -text
 # Audio: original combat sounds rendered by SourceData/Audio/Lockdown/synth_demo_audio.py.
 /SourceData/Audio/Lockdown/*.wav filter=lfs diff=lfs merge=lfs -text
+# Audio: CC BY 4.0 layers (Free Modular Magic SFX) and the mixes of SourceData/Audio/Layered/build_layered_audio.py.
+/SourceData/Audio/FabMagic/*.wav filter=lfs diff=lfs merge=lfs -text
+/SourceData/Audio/Layered/*.wav filter=lfs diff=lfs merge=lfs -text
 # Art: third-party CC0 model and texture sources are binary or embed binary buffers.
 /SourceData/Art/**/*.gltf filter=lfs diff=lfs merge=lfs -text
 /SourceData/Art/**/*.glb filter=lfs diff=lfs merge=lfs -text
