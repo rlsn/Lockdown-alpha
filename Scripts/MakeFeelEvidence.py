@@ -21,6 +21,21 @@ import matplotlib.pyplot as plt
 
 EVENT = re.compile(r"LD_AUDIO_EVENT t=(?P<t>[-\d.]+) cue=(?P<cue>\S+) take=(?P<take>\S+) gain=(?P<gain>[\d.]+)")
 STEP = re.compile(r"LD_FEEL_STEP t=(?P<t>[\d.]+) world=(?P<w>[\d.]+) step=(?P<s>\d+)")
+LABEL = re.compile(r"LD_FEEL_LABEL (?P<text>.+)$")
+
+
+def subtitles(labels, seconds, path):
+    """An ASS file showing each logged label from its step until the next one."""
+    def clock(t):
+        return f"{int(t // 3600)}:{int(t % 3600 // 60):02d}:{t % 60:05.2f}"
+    lines = ["[Script Info]", "ScriptType: v4.00+", "PlayResX: 1600", "PlayResY: 900", "",
+             "[V4+ Styles]", "Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, BorderStyle, Outline, Shadow, Alignment, MarginV",
+             "Style: Default,Microsoft YaHei,46,&H00FFFFFF,&H00000000,1,3,0,8,40", "", "[Events]",
+             "Format: Layer, Start, End, Style, Text"]
+    for i, (t, text) in enumerate(labels):
+        end = labels[i + 1][0] if i + 1 < len(labels) else seconds
+        lines.append(f"Dialogue: 0,{clock(t)},{clock(end)},Default,{text}")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8-sig")
 
 
 def take_sources():
@@ -73,10 +88,12 @@ def main():
     run, out = args.run, args.out
     out.mkdir(parents=True, exist_ok=True)
     log = (run / "Art.log").read_text(encoding="utf-8", errors="replace").splitlines()
-    steps, events = [], []
+    steps, events, labels = [], [], []
     for line in log:
         if m := STEP.search(line):
             steps.append((float(m["t"]), float(m["w"]), int(m["s"])))
+        elif m := LABEL.search(line):
+            labels.append((steps[-1][0] if steps else 0.0, m["text"].strip()))
         elif m := EVENT.search(line):
             events.append((float(m["t"]), m["cue"], m["take"], float(m["gain"])))
     if not steps:
@@ -153,11 +170,15 @@ def main():
               "speaker_lag_vs_wallclock_ms": round((audio_zero - estimate) * 1000, 1),
               "video_scenario_start_s": round(video_zero, 4), "video_release_spike_residual_ms": spikes}
     (out / "timing.json").write_text(json.dumps(report, indent=1), encoding="utf-8")
-    cmd = [args.ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-ss", f"{video_zero:.3f}", "-i", str(run / "window.mkv"),
-           "-ss", f"{audio_zero:.3f}", "-i", str(run / "loopback.wav"), "-t", f"{seconds:.2f}",
-           "-map", "0:v", "-map", "1:a", "-vf", "fps=30", "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
-           "-c:a", "aac", "-b:a", "192k", str(out / "feel.mp4")]
-    subprocess.run(cmd, check=True)
+    video_filter = "fps=30"
+    if labels:
+        subtitles(labels, seconds, out / "labels.ass")
+        video_filter += ",subtitles=labels.ass"
+    cmd = [args.ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-ss", f"{video_zero:.3f}", "-i", str((run / "window.mkv").resolve()),
+           "-ss", f"{audio_zero:.3f}", "-i", str((run / "loopback.wav").resolve()), "-t", f"{seconds:.2f}",
+           "-map", "0:v", "-map", "1:a", "-vf", video_filter, "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
+           "-c:a", "aac", "-b:a", "192k", "feel.mp4"]
+    subprocess.run(cmd, check=True, cwd=out)
     residuals = [r["residual_ms"] for r in rows if r.get("match", 0) > 0.5]
     print(f"audio: {len(placed)} takes placed, residual {min(residuals):.1f}..{max(residuals):.1f} ms; "
           f"speaker vs wall clock {report['speaker_lag_vs_wallclock_ms']} ms")

@@ -924,7 +924,7 @@ namespace
             Categories.ParseIntoArray(Wanted, TEXT(","), true);
             for (const FString& Name : Wanted)
             {
-                if (!Check(Name == TEXT("chain") || Name == TEXT("hit") || Name == TEXT("swing") || Name == TEXT("field") || Name == TEXT("water") || Name == TEXT("fire") || Name == TEXT("chill") || Name == TEXT("states") || Name == TEXT("feel") || Name == TEXT("grounds"),
+                if (!Check(Name == TEXT("chain") || Name == TEXT("hit") || Name == TEXT("swing") || Name == TEXT("field") || Name == TEXT("water") || Name == TEXT("fire") || Name == TEXT("chill") || Name == TEXT("states") || Name == TEXT("feel") || Name == TEXT("grounds") || Name == TEXT("reel"),
                     TEXT("Proof category known: ") + Name)) { return false; }
             }
             const TWeakObjectPtr<ULDHumanoidVisualComponent> A = VfxAttacker, V1 = VfxVictim, V2 = VfxExtras[0], V3 = VfxExtras[1], A2 = VfxExtras[2], A3 = VfxExtras[3];
@@ -1021,6 +1021,8 @@ namespace
             const uint8 OwnSeat = A.IsValid() ? A->PaletteSlot() : 255, OtherSeat = V2.IsValid() ? V2->PaletteSlot() : 255;
             for (const FString& Look : Wanted)
             {
+                // The reel rides on the feel category (feel,reel replaces the feel sample with the reel).
+                if (Look == TEXT("reel")) { continue; }
                 if (Look == TEXT("hit") || Look == TEXT("swing"))
                 {
                     // The same exchanges judged at the hit (hit) or just after the release (swing): combo steps 1-3 on V1 in
@@ -1207,6 +1209,76 @@ namespace
                     Feel.bRealtime = true;
                     Feel.Seconds = ZapAt + 1.6f;
                     ChainJobs.Add(Feel);
+                    // The listening reel (-LDDemoVfxProof=reel): every skill with its own hit cast by A at its real windup and
+                    // landing on V1 at its release with the look the server gives it (LDCombatCues::ClassifyHit: physical None,
+                    // magical Magic, burning Fire, water Water), then every element reaction and element state on V1, each step labelled
+                    // in the log (LD_FEEL_LABEL) for the evidence video.
+                    if (Wanted.Contains(TEXT("reel")))
+                    {
+                        ChainJobs.Pop();
+                        FChainJob Reel{Look, TEXT("feel-reel"), {}, Feel.Setup, Feel.Teardown};
+                        const auto Label = [](const FString& Text) { return [Text]() { UE_LOG(LogLDTest, Display, TEXT("LD_FEEL_LABEL %s"), *Text); }; };
+                        struct FReelSkill { ELDDemoAbilityId Ability; float Windup; ELDObservedHitLook Look; const TCHAR* Name; };
+                        const FReelSkill Skills[] = {
+                            {ELDDemoAbilityId::ActivePantsDown, .14f, ELDObservedHitLook::None, TEXT("扒裤子")},
+                            {ELDDemoAbilityId::ActiveCrotchGrab, .12f, ELDObservedHitLook::None, TEXT("掏蛋子")},
+                            {ELDDemoAbilityId::ActiveSnarkBolt, .18f, ELDObservedHitLook::None, TEXT("甩你一鞋")},
+                            {ELDDemoAbilityId::ActiveSeethe, .25f, ELDObservedHitLook::Fire, TEXT("烫你屁股")},
+                            {ELDDemoAbilityId::ActiveElbow, .15f, ELDObservedHitLook::None, TEXT("滚远点")},
+                            {ELDDemoAbilityId::ActiveQuickMeeting, .25f, ELDObservedHitLook::Fire, TEXT("脚底开锅")},
+                            {ELDDemoAbilityId::ActiveUnplug, .1f, ELDObservedHitLook::None, TEXT("拧你手腕")},
+                            {ELDDemoAbilityId::ActiveOpenMic, .15f, ELDObservedHitLook::Magic, TEXT("扯嗓子喷你")},
+                            {ELDDemoAbilityId::ActiveCalculusDrop, .25f, ELDObservedHitLook::Magic, TEXT("板砖糊脸")},
+                            {ELDDemoAbilityId::ActiveFlyerTrap, .15f, ELDObservedHitLook::Magic, TEXT("踩一脚试试")},
+                            {ELDDemoAbilityId::ActiveHoseDown, .2f, ELDObservedHitLook::Water, TEXT("滋你一脸")},
+                            {ELDDemoAbilityId::ActiveChargedRam, .1f, ELDObservedHitLook::None, TEXT("蛮牛顶")},
+                            {ELDDemoAbilityId::ActiveColaShake, .15f, ELDObservedHitLook::Magic, TEXT("冰可乐摇一摇")},
+                            {ELDDemoAbilityId::ActiveDeskFan, .2f, ELDObservedHitLook::None, TEXT("电风扇")},
+                            {ELDDemoAbilityId::ActiveStaleTakeout, .2f, ELDObservedHitLook::Magic, TEXT("过期外卖")},
+                            {ELDDemoAbilityId::ActiveSchoolBag, .2f, ELDObservedHitLook::Magic, TEXT("占座书包")},
+                            {ELDDemoAbilityId::ActiveFlurryRush, .1f, ELDObservedHitLook::None, TEXT("疯狗乱拳")},
+                            {ELDDemoAbilityId::ActiveCordonTape, .16f, ELDObservedHitLook::Magic, TEXT("警戒封条")}};
+                        float At = .5f;
+                        for (const FReelSkill& Skill : Skills)
+                        {
+                            const ELDDemoAbilityId Ability = Skill.Ability;
+                            const float Windup = Skill.Windup;
+                            const ELDObservedHitLook HitLook = Skill.Look;
+                            Reel.Steps.Add({At, Label(FString::Printf(TEXT("技能 %s：出手 + 命中"), Skill.Name))});
+                            Reel.Steps.Add({At, [A, Ability, Windup]() { if (auto* B = A.Get()) { B->SetComboStep(0); B->SetCastAbility(uint8(Ability)); B->SetCue(2, 0.f, Windup); } }});
+                            Reel.Steps.Add({At + Windup + .05f, [V1, HitLook]() { if (auto* B = V1.Get()) { B->SetHitReaction(0.f, HitLook, 0, FGuid::NewGuid()); } }});
+                            At += 1.3f;
+                        }
+                        struct FReelReaction { ELDCombatReaction Reaction; ELDCombatElement Element; const TCHAR* Name; };
+                        const FReelReaction Reactions[] = {
+                            {ELDCombatReaction::Fog, ELDCombatElement::Fire, TEXT("反应 雾（湿+火）")}, {ELDCombatReaction::Conduct, ELDCombatElement::Shock, TEXT("反应 导电（湿+电）")},
+                            {ELDCombatReaction::Overload, ELDCombatElement::Shock, TEXT("反应 超载（火+电）")}, {ELDCombatReaction::Melt, ELDCombatElement::Fire, TEXT("反应 融化（火+冰）")},
+                            {ELDCombatReaction::Methane, ELDCombatElement::Fire, TEXT("反应 沼气（火+腐）")}, {ELDCombatReaction::Freeze, ELDCombatElement::Chill, TEXT("反应 冻结（湿+冰）")},
+                            {ELDCombatReaction::Ferment, ELDCombatElement::Rot, TEXT("反应 发酵（湿+腐）")}, {ELDCombatReaction::Shatter, ELDCombatElement::Chill, TEXT("反应 碎冰")},
+                            {ELDCombatReaction::Corrode, ELDCombatElement::Rot, TEXT("反应 腐蚀（电+腐）")}, {ELDCombatReaction::Frostbite, ELDCombatElement::Chill, TEXT("反应 冻伤（冰+腐）")}};
+                        for (const FReelReaction& Item : Reactions)
+                        {
+                            const uint8 Reaction = uint8(Item.Reaction), Element = uint8(Item.Element);
+                            const double Stamp = 2000. + At;
+                            Reel.Steps.Add({At, Label(Item.Name)});
+                            Reel.Steps.Add({At, [V1, Reaction, Element, Stamp]() { if (auto* B = V1.Get()) { B->SetReaction(Reaction, Element, 0.f, Stamp); } }});
+                            At += 1.1f;
+                        }
+                        struct FReelState { ELDDemoStatusId Status; const TCHAR* Name; };
+                        const FReelState States[] = {{ELDDemoStatusId::Burn, TEXT("状态 着火")}, {ELDDemoStatusId::Wet, TEXT("状态 湿身")},
+                            {ELDDemoStatusId::Electrified, TEXT("状态 带电")}, {ELDDemoStatusId::Chilled, TEXT("状态 冰冷")}, {ELDDemoStatusId::Rotten, TEXT("状态 腐烂")}};
+                        for (const FReelState& Item : States)
+                        {
+                            const uint8 Status = uint8(Item.Status);
+                            Reel.Steps.Add({At, Label(Item.Name)});
+                            Reel.Steps.Add({At, [V1, Status]() { if (auto* B = V1.Get()) { FLDObservedStatus On; On.StatusId = Status; B->SetElementStates({On}); } }});
+                            Reel.Steps.Add({At + .8f, [V1]() { if (auto* B = V1.Get()) { B->SetElementStates({}); } }});
+                            At += 1.f;
+                        }
+                        Reel.bRealtime = true;
+                        Reel.Seconds = At + .5f;
+                        ChainJobs.Add(Reel);
+                    }
                     continue;
                 }
                 else

@@ -24,10 +24,11 @@ namespace
     // ground it looks at), silent 2500 cm beyond, panned by the camera's view.
     constexpr float BodyInnerRadiusCm = 2000.f;
     constexpr float BodyFalloffCm = 2500.f;
-    // Simultaneous voices: bodies keep the 16 loudest; the interface keeps its 4 newest. A cue retriggered within 25 ms
-    // is one sound (eight hits in one frame never stack into one loud phase-smeared hit).
-    constexpr int32 BodyVoices = 16;
-    constexpr int32 InterfaceVoices = 4;
+    // Simultaneous voices per sound: a chain of passives or eight hits in one frame never stacks one sound into a wall;
+    // different sounds never take each other's voices. A sound retriggered within 25 ms is one sound.
+    constexpr int32 SoundVoices = 4;
+    constexpr int32 StateVoices = 3;
+    constexpr int32 InterfaceVoices = 2;
     constexpr float RetriggerSeconds = .025f;
 }
 
@@ -91,14 +92,6 @@ void ULDAudioSubsystem::Initialize(FSubsystemCollectionBase& Collection)
     Falloff.AttenuationShapeExtents = FVector(BodyInnerRadiusCm, 0.f, 0.f);
     Falloff.FalloffDistance = BodyFalloffCm;
     Falloff.DistanceAlgorithm = EAttenuationDistanceModel::NaturalSound;
-    BodyConcurrency = NewObject<USoundConcurrency>(this, TEXT("LDBodyConcurrency"));
-    BodyConcurrency->Concurrency.MaxCount = BodyVoices;
-    BodyConcurrency->Concurrency.ResolutionRule = EMaxConcurrentResolutionRule::StopQuietest;
-    BodyConcurrency->Concurrency.RetriggerTime = RetriggerSeconds;
-    InterfaceConcurrency = NewObject<USoundConcurrency>(this, TEXT("LDInterfaceConcurrency"));
-    InterfaceConcurrency->Concurrency.MaxCount = InterfaceVoices;
-    InterfaceConcurrency->Concurrency.ResolutionRule = EMaxConcurrentResolutionRule::StopOldest;
-    InterfaceConcurrency->Concurrency.RetriggerTime = RetriggerSeconds;
     WorldHandle = FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(this, &ULDAudioSubsystem::HandleWorldReady);
 }
 
@@ -238,17 +231,30 @@ bool ULDAudioSubsystem::Emit(const FString& What, int32 Take, bool bSpatial, con
     }
     UWorld* World = ReadyWorld(What);
     if (!World) { return false; }
-    USoundConcurrency* Concurrency = bInterface ? InterfaceConcurrency.Get() : BodyConcurrency.Get();
+    USoundConcurrency* Group = ConcurrencyOf(What, bInterface);
     if (Keep)
     {
         *Keep = bSpatial
-            ? UGameplayStatics::SpawnSoundAtLocation(World, Sound, Location, FRotator::ZeroRotator, Volume, Pitch, 0.f, BodyAttenuation, Concurrency, true)
-            : UGameplayStatics::SpawnSound2D(World, Sound, Volume, Pitch, 0.f, Concurrency, false, true);
+            ? UGameplayStatics::SpawnSoundAtLocation(World, Sound, Location, FRotator::ZeroRotator, Volume, Pitch, 0.f, BodyAttenuation, Group, true)
+            : UGameplayStatics::SpawnSound2D(World, Sound, Volume, Pitch, 0.f, Group, false, true);
         return *Keep != nullptr;
     }
-    if (bSpatial) { UGameplayStatics::PlaySoundAtLocation(World, Sound, Location, FRotator::ZeroRotator, Volume, Pitch, 0.f, BodyAttenuation, Concurrency); }
-    else { UGameplayStatics::PlaySound2D(World, Sound, Volume, Pitch, 0.f, Concurrency, nullptr, bInterface); }
+    if (bSpatial) { UGameplayStatics::PlaySoundAtLocation(World, Sound, Location, FRotator::ZeroRotator, Volume, Pitch, 0.f, BodyAttenuation, Group); }
+    else { UGameplayStatics::PlaySound2D(World, Sound, Volume, Pitch, 0.f, Group, nullptr, bInterface); }
     return true;
+}
+
+USoundConcurrency* ULDAudioSubsystem::ConcurrencyOf(const FString& What, bool bInterface)
+{
+    const FName Key(*What);
+    if (TObjectPtr<USoundConcurrency>* Found = Concurrency.Find(Key)) { return *Found; }
+    USoundConcurrency* Group = NewObject<USoundConcurrency>(this);
+    Group->Concurrency.MaxCount = bInterface ? InterfaceVoices
+        : What.StartsWith(TEXT("State")) || What.StartsWith(TEXT("Reaction")) ? StateVoices : SoundVoices;
+    Group->Concurrency.ResolutionRule = EMaxConcurrentResolutionRule::StopOldest;
+    Group->Concurrency.RetriggerTime = RetriggerSeconds;
+    Concurrency.Add(Key, Group);
+    return Group;
 }
 
 bool ULDAudioSubsystem::Play(ELDAudioCue Cue, float VolumeMultiplier, float Pitch)
