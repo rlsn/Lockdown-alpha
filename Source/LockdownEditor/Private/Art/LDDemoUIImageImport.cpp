@@ -47,6 +47,7 @@ namespace
     {
         if (Id == LDUIBackgrounds::TitleId) { return LDUIBackgrounds::TitlePackage; }
         if (Id == LDUIBackgrounds::LobbyId) { return LDUIBackgrounds::LobbyPackage; }
+        for (int32 Seat = 0; Seat < 8; ++Seat) { if (Id == LDUIBackgrounds::SeatId(Seat)) { return LDUIBackgrounds::SeatPackage(Seat); } }
         // The build ring's own art (LDBuildRing::Art).
         return LDBuildRing::ArtPackage(Id);
     }

@@ -8,6 +8,11 @@
 #include "Dom/JsonObject.h"
 #include "Engine/World.h"
 #include "Framework/LDGameState.h"
+#include "Character/LDCharacter.h"
+#include "Camera/CameraActor.h"
+#include "Camera/CameraComponent.h"
+#include "EngineUtils.h"
+#include "Combat/LDCombatElements.h"
 #include "Framework/LDPlayerController.h"
 #include "InputKeyEventArgs.h"
 #include "Misc/CommandLine.h"
@@ -38,7 +43,7 @@ public:
     double PageAt=0.,Due=0.;
     int32 Page=0,Combo=0,Step=0;
     int32 Width=0,Height=0;
-    bool bCapturing=false,bFrontend=false;
+    bool bCapturing=false,bFrontend=false,bClient=false;
     TArray<FString> Missed;
 
     // One page: Enter runs every tick until it reports the page is up (or the page times out and is listed as missed).
@@ -71,7 +76,7 @@ public:
         TArray<TSharedPtr<FJsonValue>> MissedRows;for(const FString& Name:Missed){MissedRows.Add(MakeShared<FJsonValueString>(Name));}
         Report->SetArrayField(TEXT("missed"),MissedRows);
         FString Text;FJsonSerializer::Serialize(Report,TJsonWriterFactory<>::Create(&Text));
-        FFileHelper::SaveStringToFile(Text,*FPaths::Combine(Output,bFrontend?TEXT("UICoverage-Frontend.json"):TEXT("UICoverage-Match.json")),
+        FFileHelper::SaveStringToFile(Text,*FPaths::Combine(Output,bFrontend?TEXT("UICoverage-Frontend.json"):bClient?TEXT("UICoverage-Client.json"):TEXT("UICoverage-Match.json")),
             FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
         FPlatformMisc::RequestExit(false);
         return false;
@@ -194,8 +199,18 @@ public:
     void PlanMatch()
     {
         Pages.Add({TEXT("Lobby_Solo"),[this](ALDPlayerController& PC,double Now){return PC.RootUI&&InPhase(PC,ELDMatchPhase::Lobby)&&Settled(Now,4.);}});
-        Pages.Add({TEXT("Lobby_AI5"),[this](ALDPlayerController& PC,double Now)
-            {if(Once(Now,0)){PC.SetDemoAICount(5);}return Settled(Now,2.);}});
+        // With the guest client (CaptureUICoverage.ps1 starts one): the host's view while the guest is not ready (cannot
+        // start, with the reason), then once it is (can start); the room is filled to eight after the guest leaves.
+        Pages.Add({TEXT("Lobby_HostWait"),[this](ALDPlayerController& PC,double Now)
+            {if(Once(Now,0)){PC.SetDemoAICount(2);}return Guests(PC)==1&&!GuestReady(PC)&&Settled(Now,3.);},120.});
+        Pages.Add({TEXT("Lobby_HostCanStart"),[this](ALDPlayerController& PC,double Now)
+            {return Guests(PC)==1&&GuestReady(PC)&&Settled(Now,1.);},90.});
+        Pages.Add({TEXT("Lobby_Full"),[this](ALDPlayerController& PC,double Now)
+            {
+                if(Guests(PC)!=0){return false;}
+                if(Once(Now,0)){PC.SetDemoAICount(7);}
+                return Settled(Now,2.5);
+            },90.});
         Pages.Add({TEXT("Lobby_Blueprint"),[this](ALDPlayerController& PC,double Now)
             {if(Once(Now,0)){Click(PC.RootUI,TEXT("LobbyBuildBlueprint"));}return Settled(Now,1.2);}});
         AddSettings(TEXT("Lobby"),[](ALDPlayerController& PC)
@@ -213,15 +228,78 @@ public:
                 if(Ring&&Ring->IsOpen()&&Once(Now,0)){PC.HUDUI->ToggleWorkshop();}
                 return Settled(Now,1.);
             }});
+        // The Lobby's seat portraits (SourceData/UI/lobby_seat_N.png): one UI-free shot per seat colour of a body standing in
+        // the opening rest, from above the front so the plain floor is the whole backdrop, through the DEV art-capture camera.
+        for(int32 Seat=0;Seat<8;++Seat)
+        {
+            FPage& Shot=Pages.Add_GetRef({FString::Printf(TEXT("Ref_Seat%d"),Seat+1),[this,Seat](ALDPlayerController& PC,double Now)
+            {
+                if(Once(Now,0))
+                {
+                    Resize(PC,1920,1080);
+                    const ALDCharacter* Pick=nullptr;
+                    for(TActorIterator<ALDCharacter> It(PC.GetWorld());It;++It)
+                    {
+                        if(It->PresentationKey!=Seat){continue;}
+                        // A rest training dummy wears the seat's look and stands still (no dribble blur): prefer it.
+                        if(!Pick||(Pick->GetController()&&!It->GetController())){Pick=*It;}
+                    }
+                    if(!Pick){return true;}
+                    const FVector Foot=Pick->GetActorLocation()-FVector(0,0,90.f);
+                    const FVector Eye=Foot+Pick->GetActorForwardVector()*400.f+FVector(0,0,270.f);
+                    FActorSpawnParameters Spawn;Spawn.ObjectFlags|=RF_Transient;
+                    if(!LineupCamera.IsValid()){LineupCamera=PC.GetWorld()->SpawnActor<ACameraActor>(Spawn);}
+                    if(ACameraActor* Cam=LineupCamera.Get())
+                    {
+                        Cam->SetActorLocationAndRotation(Eye,(Foot+FVector(0,0,105.f)-Eye).Rotation());
+                        Cam->GetCameraComponent()->SetFieldOfView(24.f);Cam->GetCameraComponent()->bConstrainAspectRatio=false;
+                        PC.SetDevArtCaptureCamera(Cam);
+                    }
+                    if(PC.RootUI&&PC.RootUI->GetVisibility()!=ESlateVisibility::Hidden){RootShown=PC.RootUI->GetVisibility();PC.RootUI->SetVisibility(ESlateVisibility::Hidden);}
+                    if(PC.HUDUI&&PC.HUDUI->GetVisibility()!=ESlateVisibility::Hidden){HudShown=PC.HUDUI->GetVisibility();PC.HUDUI->SetVisibility(ESlateVisibility::Hidden);}
+                }
+                return Settled(Now,1.2);
+            },10.});
+            Shot.Only=0;
+        }
+        Pages.Add({TEXT("Ref_LineupEnd"),[this](ALDPlayerController& PC,double Now)
+            {
+                if(Once(Now,0))
+                {
+                    PC.SetDevArtCaptureCamera(nullptr);
+                    if(PC.RootUI){PC.RootUI->SetVisibility(RootShown);}
+                    if(PC.HUDUI){PC.HUDUI->SetVisibility(HudShown);}
+                }
+                return Settled(Now,.5);
+            },10.,false});
         Pages.Add({TEXT("Match_Field"),[this](ALDPlayerController& PC,double Now)
             {
                 if(Once(Now,0)){Dev(PC,ELDDevTestOp::SkipPreparation,0);}
-                if(Once(Now,1,1.)){Dev(PC,ELDDevTestOp::SetInvulnerable,1);}
-                if(InPhase(PC,ELDMatchPhase::Development)&&Once(Now,2,2.)){Dev(PC,ELDDevTestOp::ApplyBreakoutPreset,0,TEXT("breakout_lifesteal"));}
                 ULDWorkshop* Ring=PC.HUDUI?PC.HUDUI->Workshop.Get():nullptr;
                 if(Ring&&Ring->IsOpen()&&Once(Now,3,5.)){PC.HUDUI->ToggleWorkshop();}
                 return InPhase(PC,ELDMatchPhase::Development)&&Settled(Now,7.);
             },45.});
+        // A real death: the level-1 host, not invulnerable, stands in DEV ownerless fire and miasma at its feet until it
+        // falls; the death banner, the damage recap and the spawn choice follow from the authority.
+        Pages.Add({TEXT("Match_Death"),[this](ALDPlayerController& PC,double Now)
+            {
+                if(PC.OwnerState.LifePhase==ELDLifePhase::Dead){return Settled(Now,1.)&&Now-DeadAt>=1.5;}
+                DeadAt=Now;
+                for(int32 Try=0;Try<30;++Try)
+                {
+                    if(Once(Now,Try,.5+Try*2.)){Dev(PC,ELDDevTestOp::SpawnGroundState,Try%2==0?int64(ELDGroundStateKind::Fire):int64(ELDGroundStateKind::Miasma));}
+                }
+                return false;
+            },75.});
+        Pages.Add({TEXT("Match_Respawned"),[this](ALDPlayerController& PC,double Now)
+            {
+                if(PC.OwnerState.LifePhase!=ELDLifePhase::Alive){return false;}
+                if(Once(Now,1)){Dev(PC,ELDDevTestOp::SetInvulnerable,1);}
+                if(Once(Now,2,1.)){Dev(PC,ELDDevTestOp::ApplyBreakoutPreset,0,TEXT("breakout_lifesteal"));}
+                ULDWorkshop* Ring=PC.HUDUI?PC.HUDUI->Workshop.Get():nullptr;
+                if(Ring&&Ring->IsOpen()&&Once(Now,3,3.)){PC.HUDUI->ToggleWorkshop();}
+                return Settled(Now,6.);
+            },90.});
         Pages.Add({TEXT("Match_Scoreboard"),[this](ALDPlayerController& PC,double Now)
             {if(Once(Now,0)){Key(PC,PC.BindingKey(TEXT("Scoreboard")),true);}return Settled(Now,.8);}});
         // The rank-up page of a slot that can rank up. (The live skill card follows the OS cursor, which the probe leaves
@@ -251,7 +329,9 @@ public:
         Pages.Add({TEXT("Match_Final"),[this](ALDPlayerController& PC,double Now)
             {
                 if(Once(Now,0)&&PC.RootUI){PC.RootUI->CloseTopModal();PC.RootUI->CloseTopPanel();if(PC.RootUI->IsMenuOpen()){PC.RootUI->ToggleMenu();}}
-                for(int32 Try=0;Try<10;++Try){if(InPhase(PC,ELDMatchPhase::Development)&&Once(Now,10+Try,1.+Try*6.)){Dev(PC,ELDDevTestOp::OpenCapture,0);}}
+                // One request; a second one while the queued opening is pending is refused (StaleContext) and toasts.
+                if(InPhase(PC,ELDMatchPhase::Development)&&Once(Now,10,1.)){Dev(PC,ELDDevTestOp::OpenCapture,0);}
+                if(InPhase(PC,ELDMatchPhase::Development)&&Once(Now,11,40.)){Dev(PC,ELDDevTestOp::OpenCapture,0);}
                 return InPhase(PC,ELDMatchPhase::CaptureOpen)&&Settled(Now,10.);
             },120.});
         Pages.Add({TEXT("Match_Results"),[this](ALDPlayerController& PC,double Now)
@@ -275,6 +355,31 @@ public:
             }});
     }
     double ResultsSeen=-1.;
+    static int32 Guests(ALDPlayerController& PC)
+    {
+        const ALDGameState* GS=PC.GetWorld()->GetGameState<ALDGameState>();int32 Count=0;
+        if(GS){for(const FLDLobbyMember& M:GS->DemoLobby.Members){Count+=M.Kind==ELDContenderKind::Human&&!M.Host;}}
+        return Count;
+    }
+    static bool GuestReady(ALDPlayerController& PC)
+    {
+        const ALDGameState* GS=PC.GetWorld()->GetGameState<ALDGameState>();
+        if(GS){for(const FLDLobbyMember& M:GS->DemoLobby.Members){if(M.Kind==ELDContenderKind::Human&&!M.Host){return M.Ready;}}}
+        return false;
+    }
+    // The guest client: its own Lobby view before and after it readies, then it leaves the room.
+    void PlanClient()
+    {
+        Pages.Add({TEXT("Lobby_GuestNotReady"),[this](ALDPlayerController& PC,double Now)
+            {return PC.RootUI&&InPhase(PC,ELDMatchPhase::Lobby)&&Guests(PC)==1&&Settled(Now,4.);},120.});
+        Pages.Add({TEXT("Lobby_GuestReady"),[this](ALDPlayerController& PC,double Now)
+            {if(Once(Now,0)){PC.SetDemoReady(true);}return PC.OwnerState.bReady&&Settled(Now,1.5);},30.});
+        // Then the probe ends and the client process quits, which drops it from the host's room.
+        Pages.Add({TEXT("Lobby_GuestLast"),[this](ALDPlayerController& PC,double Now){return Settled(Now,6.);},30.,false});
+    }
+    TWeakObjectPtr<ACameraActor> LineupCamera;
+    ESlateVisibility RootShown=ESlateVisibility::SelfHitTestInvisible,HudShown=ESlateVisibility::SelfHitTestInvisible;
+    double DeadAt=0.;
 
     bool Tick(float)
     {
@@ -316,7 +421,12 @@ public:
 
 void StartUICoverageProbe(ALDPlayerController& PC)
 {
-    if(!FParse::Param(FCommandLine::Get(),TEXT("LDUICoverageProbe"))||!PC.GetLocalPlayer()||!PC.HasAuthority()){return;}
+    const bool bClient=FParse::Param(FCommandLine::Get(),TEXT("LDUICoverageClient"));
+    if(!FParse::Param(FCommandLine::Get(),TEXT("LDUICoverageProbe"))||!PC.GetLocalPlayer()){return;}
+    // The guest probe runs in the room it joined (not on the frontend it starts from); every other probe is the host's.
+    if(bClient?PC.IsFrontend()||PC.HasAuthority():!PC.HasAuthority()){return;}
+    static bool bClientStarted=false;
+    if(bClient){if(bClientStarted){return;}bClientStarted=true;}
     auto Probe=MakeShared<FUICoverageProbe>();Probe->Owner=&PC;
     FParse::Value(FCommandLine::Get(),TEXT("LDUICoverageOutput="),Probe->Output);
     if(Probe->Output.IsEmpty()){Probe->Output=FPaths::ProjectSavedDir()/TEXT("UICoverage");}
@@ -324,7 +434,8 @@ void StartUICoverageProbe(ALDPlayerController& PC)
     // A Slate tooltip opens its own window, which a -RenderOffScreen process cannot create; hover shots use painted hover
     // states only.
     FSlateApplication::Get().SetAllowTooltips(false);
-    if(Probe->bFrontend){Probe->PlanFrontend();}else{Probe->PlanMatch();}
+    Probe->bClient=bClient;
+    if(Probe->bFrontend){Probe->PlanFrontend();}else if(bClient){Probe->PlanClient();}else{Probe->PlanMatch();}
     FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Probe](float Delta){return Probe->Tick(Delta);}));
 }
 }

@@ -136,7 +136,7 @@ void LDWidgets::SetLook(ULDCommandButton* Button,LDUIPaint::EButton Look)
     // Yellow and pink faces carry dark or white captions; the dark faces carry the paper colour.
     if(UTextBlock* Caption=Cast<UTextBlock>(Button->GetContent()))
     {
-        const FLinearColor Ink=Look==LDUIPaint::EButton::Primary||Look==LDUIPaint::EButton::TagOn?LDBroadcast::Ink
+        const FLinearColor Ink=Look==LDUIPaint::EButton::Primary||Look==LDUIPaint::EButton::TagOn||Look==LDUIPaint::EButton::White?LDBroadcast::Ink
             :Look==LDUIPaint::EButton::Key?LDBroadcast::Grey:LDBroadcast::White;
         Caption->SetColorAndOpacity(Ink);
     }

@@ -361,10 +361,11 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         NetSpikeText=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeCaption,TEXT("HUDNetSpikeText"));
         NetSpikeText->SetAutoWrapText(false);
         NetSpikeText->SetJustification(ETextJustify::Right);
-        NetSpikeText->SetColorAndOpacity(LDHUDStyle::TextWarning);
+        NetSpikeText->SetColorAndOpacity(LDBroadcast::White);
         NetSpikePanel=Panel(NetSpikeText,false);
-        NetSpikePanel->SetBrush(HudRound(6.f,LDHUDStyle::TextWarning,1.5f));
-        NetSpikePanel->SetBrushColor(FLinearColor(.16f,.11f,.02f,.92f));
+        // A network warning is danger: the live-red rule on ink, the line in white.
+        NetSpikePanel->SetBrush(HudRound(0.f,LDBroadcast::LiveRed,2.f));
+        NetSpikePanel->SetBrushColor(LDBroadcast::Ink.CopyWithNewOpacity(.92f));
         NetSpikePanel->SetPadding(FMargin(10,4));
         NetSpikePanel->SetVisibility(ESlateVisibility::Collapsed);
         auto Portraits=[&](float Size,int32 GlyphSize,UBorder*& OutFrame,UTextBlock*& OutGlyph,FName Name=NAME_None)
@@ -495,7 +496,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         // modifier badges' tooltips.
         auto* CircleBox=WidgetTree->ConstructWidget<UVerticalBox>();CircleBox->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
         // A DEV test room is marked on every member's screen for the whole match (#78).
-        DevMarkerText=OneLine(TEXT(""),LDHUDStyle::TypeTiny,0);DevMarkerText->SetJustification(ETextJustify::Right);DevMarkerText->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+        DevMarkerText=OneLine(TEXT(""),LDHUDStyle::TypeTiny,0);DevMarkerText->SetJustification(ETextJustify::Right);DevMarkerText->SetColorAndOpacity(LDBroadcast::Grey);
         DevMarkerText->SetVisibility(ESlateVisibility::Collapsed);
         {
             auto* Top=WidgetTree->ConstructWidget<UHorizontalBox>();Top->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
@@ -631,7 +632,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                 Caption->SetColorAndOpacity(bReady?LDBroadcast::Ink:LDBroadcast::White);
             }
             RestLine->AddChildToHorizontalBox(RestReadyButton)->SetPadding(FMargin(20,0,0,0));
-            RestAnswerText=OneLine(TEXT(""),LDHUDStyle::TypeSmall,420);RestAnswerText->SetColorAndOpacity(LDHUDStyle::TextSecondary);RestAnswerText->SetVisibility(ESlateVisibility::Collapsed);
+            RestAnswerText=OneLine(TEXT(""),LDHUDStyle::TypeSmall,420);RestAnswerText->SetColorAndOpacity(LDBroadcast::Grey);RestAnswerText->SetVisibility(ESlateVisibility::Collapsed);
             auto* ResultSlot=RestLine->AddChildToHorizontalBox(RestAnswerText);ResultSlot->SetVerticalAlignment(VAlign_Center);ResultSlot->SetPadding(FMargin(10,0,0,0));
             // On air the rest actions stand bare under the target card, without a rounded panel behind them.
             RestActionsPanel=Panel(RestLine,true);RestActionsPanel->SetBrush(FSlateNoResource());RestActionsPanel->SetVisibility(ESlateVisibility::Collapsed);
@@ -642,14 +643,14 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                 auto Centred=[PKBox](UWidget* Child,float Top){auto* S=PKBox->AddChildToVerticalBox(Child);S->SetHorizontalAlignment(HAlign_Center);S->SetPadding(FMargin(0,Top,0,0));};
                 PKTitleText=OneLine(TEXT(""),LDHUDStyle::TypeLabel,0);PKTitleText->SetJustification(ETextJustify::Center);HudFace(PKTitleText,true,0);Centred(PKTitleText,0);
                 PKCountdownText=OneLine(TEXT(""),LDHUDStyle::TypeLead,HudPKWrap);PKCountdownText->SetJustification(ETextJustify::Center);HudFace(PKCountdownText,true,2);
-                PKCountdownText->SetColorAndOpacity(LDHUDStyle::TextWarning);Centred(PKCountdownText,4);
+                PKCountdownText->SetColorAndOpacity(LDBroadcast::Orange);Centred(PKCountdownText,4);
                 PKRingText=OneLine(TEXT(""),LDHUDStyle::TypeSmall,HudPKWrap);PKRingText->SetJustification(ETextJustify::Center);PKRingText->SetColorAndOpacity(FSlateColor(ALDPKRingMarker::SafeColor()));Centred(PKRingText,2);
                 for(int32 Index=0;Index<LDPKRules::SpawnAnchors;++Index)
                 {
                     UTextBlock* SideText=OneLine(TEXT(""),LDHUDStyle::TypeBody,HudPKWrap);SideText->SetJustification(ETextJustify::Center);SideText->SetVisibility(ESlateVisibility::Collapsed);
                     Centred(SideText,Index?2.f:6.f);PKSideTexts.Add(SideText);
                 }
-                PKRoleText=OneLine(TEXT(""),LDHUDStyle::TypeSmall,HudPKWrap);PKRoleText->SetJustification(ETextJustify::Center);PKRoleText->SetColorAndOpacity(LDHUDStyle::TextAccent);Centred(PKRoleText,6);
+                PKRoleText=OneLine(TEXT(""),LDHUDStyle::TypeSmall,HudPKWrap);PKRoleText->SetJustification(ETextJustify::Center);PKRoleText->SetColorAndOpacity(LDBroadcast::Orange);Centred(PKRoleText,6);
                 for(int32 Index=0;Index<LDPKRules::SpawnAnchors;++Index)
                 {
                     ULDCommandButton* Bet=LDWidgets::Button(WidgetTree,TEXT(""),[this,Index](){SubmitPKBet(Index);},true,FName(*FString::Printf(TEXT("HUDPKBet%d"),Index+1)));
@@ -659,14 +660,14 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                 PKThrowButton->SetVisibility(ESlateVisibility::Collapsed);Centred(PKThrowButton,6);
                 PKThrowButton->SetToolTipText(FText::FromString(LDTerms::PKThrowEffect));
                 PKResultLine=OneLine(TEXT(""),LDHUDStyle::TypeHeading,HudPKWrap);PKResultLine->SetJustification(ETextJustify::Center);HudFace(PKResultLine,true,0);
-                PKResultLine->SetColorAndOpacity(LDHUDStyle::Celebration);Centred(PKResultLine,6);
-                PKAwardsTitle=OneLine(LDTerms::PKAwardsTitle,LDHUDStyle::TypeSmall,0);PKAwardsTitle->SetColorAndOpacity(LDHUDStyle::TextSecondary);Centred(PKAwardsTitle,6);
+                PKResultLine->SetColorAndOpacity(LDBroadcast::Gold);Centred(PKResultLine,6);
+                PKAwardsTitle=OneLine(LDTerms::PKAwardsTitle,LDHUDStyle::TypeSmall,0);PKAwardsTitle->SetColorAndOpacity(LDBroadcast::Grey);Centred(PKAwardsTitle,6);
                 for(int32 Index=0;Index<LDPKRules::SpawnAnchors;++Index)
                 {
                     UTextBlock* AwardText=OneLine(TEXT(""),LDHUDStyle::TypeSmall,HudPKWrap);AwardText->SetJustification(ETextJustify::Center);AwardText->SetVisibility(ESlateVisibility::Collapsed);
                     Centred(AwardText,2);PKAwardTexts.Add(AwardText);
                 }
-                PKAnswerText=OneLine(TEXT(""),LDHUDStyle::TypeSmall,HudPKWrap);PKAnswerText->SetJustification(ETextJustify::Center);PKAnswerText->SetColorAndOpacity(LDHUDStyle::TextSecondary);Centred(PKAnswerText,6);
+                PKAnswerText=OneLine(TEXT(""),LDHUDStyle::TypeSmall,HudPKWrap);PKAnswerText->SetJustification(ETextJustify::Center);PKAnswerText->SetColorAndOpacity(LDBroadcast::Grey);Centred(PKAnswerText,6);
                 for(UWidget* Hidden:{static_cast<UWidget*>(PKTitleText.Get()),static_cast<UWidget*>(PKCountdownText.Get()),static_cast<UWidget*>(PKRingText.Get()),
                     static_cast<UWidget*>(PKRoleText.Get()),static_cast<UWidget*>(PKResultLine.Get()),static_cast<UWidget*>(PKAwardsTitle.Get()),
                     static_cast<UWidget*>(PKAnswerText.Get())}){Hidden->SetVisibility(ESlateVisibility::Collapsed);}
@@ -690,7 +691,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                     ChoiceLine->AddChildToHorizontalBox(Choice)->SetPadding(FMargin(10,0,0,0));
                     SpawnChoiceButtons.Add(Choice);
                 }
-                SpawnChoiceCountdown=OneLine(TEXT(""),LDHUDStyle::TypeLead,0);HudFace(SpawnChoiceCountdown,true,2);SpawnChoiceCountdown->SetColorAndOpacity(LDHUDStyle::TextWarning);
+                SpawnChoiceCountdown=OneLine(TEXT(""),LDHUDStyle::TypeLead,0);HudFace(SpawnChoiceCountdown,true,2);SpawnChoiceCountdown->SetColorAndOpacity(LDBroadcast::Orange);
                 auto* CountSlot=ChoiceLine->AddChildToHorizontalBox(SpawnChoiceCountdown);CountSlot->SetVerticalAlignment(VAlign_Center);CountSlot->SetPadding(FMargin(12,0,0,0));
                 SpawnChoicePanel=Panel(ChoiceLine,true);SpawnChoicePanel->SetVisibility(ESlateVisibility::Collapsed);
                 auto* ChoiceSlot=TopCentre->AddChildToVerticalBox(SpawnChoicePanel);ChoiceSlot->SetHorizontalAlignment(HAlign_Center);ChoiceSlot->SetPadding(FMargin(0,6,0,0));
@@ -702,7 +703,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             {
                 // #331: compact top PK matchup + betting bar shown over the open Workshop during Draw / Betting.
                 auto* CompactLine=WidgetTree->ConstructWidget<UHorizontalBox>();
-                PKCompactTitle=OneLine(TEXT(""),LDHUDStyle::TypeSmall,0);HudFace(PKCompactTitle,true,1);PKCompactTitle->SetColorAndOpacity(LDHUDStyle::TextAccent);
+                PKCompactTitle=OneLine(TEXT(""),LDHUDStyle::TypeSmall,0);HudFace(PKCompactTitle,true,1);PKCompactTitle->SetColorAndOpacity(LDBroadcast::Orange);
                 CompactLine->AddChildToHorizontalBox(PKCompactTitle)->SetVerticalAlignment(VAlign_Center);
                 PKCompactBetButtons.Reset();
                 for(int32 Index=0;Index<LDPKRules::SpawnAnchors;++Index)
@@ -718,9 +719,9 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             }
         }
         auto* DeathBox=WidgetTree->ConstructWidget<UVerticalBox>();
-        DeathTitle=OneLine(TEXT(""),LDHUDStyle::TypeDisplay,0);HudFace(DeathTitle,true,0);DeathTitle->SetColorAndOpacity(LDHUDStyle::TextDanger);
-        DeathCauseText=OneLine(TEXT(""),LDHUDStyle::TypeLead,520);DeathCountdown=OneLine(TEXT(""),LDHUDStyle::TypeSection,0);
-        DeathNote=OneLine(TEXT(""),LDHUDStyle::TypeSmall,520);DeathNote->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+        DeathTitle=Words(TEXT(""),LDBroadcast::TypeHeadline,LDBroadcast::LiveRed,true);DeathTitle->SetColorAndOpacity(LDBroadcast::LiveRed);
+        DeathCauseText=OneLine(TEXT(""),LDHUDStyle::TypeLead,520);DeathCountdown=Figure(TEXT(""),LDBroadcast::TypeHeadline,LDBroadcast::White);
+        DeathNote=OneLine(TEXT(""),LDHUDStyle::TypeSmall,520);DeathNote->SetColorAndOpacity(LDBroadcast::Grey);
         for(UTextBlock* DeathLine:{DeathTitle.Get(),DeathCauseText.Get(),DeathCountdown.Get(),DeathNote.Get()})
         {DeathLine->SetJustification(ETextJustify::Center);DeathBox->AddChildToVerticalBox(DeathLine)->SetHorizontalAlignment(HAlign_Center);}
         // The recap lines shrink together to the banner width instead of wrapping or scrolling, with a collapse toggle (#331).
@@ -756,11 +757,12 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         DeathWorkshopButton->SetVisibility(ESlateVisibility::Collapsed);
         auto* DeathBtnSlot=DeathBox->AddChildToVerticalBox(DeathWorkshopButton);DeathBtnSlot->SetHorizontalAlignment(HAlign_Center);DeathBtnSlot->SetPadding(FMargin(0,10,0,0));
         DeathBanner=Panel(DeathBox,false);DeathBanner->SetVisibility(ESlateVisibility::Collapsed);
-        Place(DeathBanner,FAnchors(.5f,0),FVector2D(.5f,0),FVector2D(0,176));
+        // Centred on the screen, clear of the top-centre block (spawn choice, toasts) above it.
+        Place(DeathBanner,FAnchors(.5f,.5f),FVector2D(.5f,.5f),FVector2D(0,-40));
         // #198: the rest return countdown, large in the screen centre; it never takes pointer input.
         ReturnCountdownText=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeGiant,TEXT("ReturnCountdownText"));ReturnCountdownText->SetAutoWrapText(false);
         ReturnCountdownText->SetJustification(ETextJustify::Center);HudFace(ReturnCountdownText,true,4);
-        ReturnCountdownText->SetColorAndOpacity(LDHUDStyle::TextWarning);
+        ReturnCountdownText->SetColorAndOpacity(LDBroadcast::Orange);
         Place(ReturnCountdownText,FAnchors(.5f,.5f),FVector2D(.5f,.5f),FVector2D(0,-120));ReturnCountdownText->SetVisibility(ESlateVisibility::Collapsed);
         // The return countdown shows over the workshop.
         if(auto* CountdownSlot=Cast<UCanvasPanelSlot>(ReturnCountdownText->Slot)){CountdownSlot->SetZOrder(11);}
@@ -1199,7 +1201,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             auto* DetailBox=WidgetTree->ConstructWidget<UVerticalBox>();
             auto FixedWrap=[&](int32 Size){UTextBlock* Line=Text(TEXT(""),Size);Line->SetAutoWrapText(false);Line->SetWrapTextAt(HudDetailWidth-28.f);return Line;};
             ActionDetailName=FixedWrap(LDHUDStyle::TypeLabel);DetailBox->AddChildToVerticalBox(ActionDetailName);
-            ActionDetailSummary=FixedWrap(LDHUDStyle::TypeCaption);ActionDetailSummary->SetColorAndOpacity(LDHUDStyle::TextAccent);DetailBox->AddChildToVerticalBox(ActionDetailSummary)->SetPadding(FMargin(0,2,0,0));
+            ActionDetailSummary=FixedWrap(LDHUDStyle::TypeCaption);ActionDetailSummary->SetColorAndOpacity(LDBroadcast::Orange);DetailBox->AddChildToVerticalBox(ActionDetailSummary)->SetPadding(FMargin(0,2,0,0));
             ActionDetailBody=FixedWrap(LDHUDStyle::TypeBody);DetailBox->AddChildToVerticalBox(ActionDetailBody)->SetPadding(FMargin(0,8,0,0));
 
             ActionFormulaText=FixedWrap(LDHUDStyle::TypeTiny);
@@ -1213,7 +1215,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             DetailBox->AddChildToVerticalBox(ActionFormulaPanel)->SetPadding(FMargin(0,8,0,0));
 
             ActionDetailFooter=FixedWrap(LDHUDStyle::TypeMicro);
-            ActionDetailFooter->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+            ActionDetailFooter->SetColorAndOpacity(LDBroadcast::Grey);
             ActionDetailFooter->SetVisibility(ESlateVisibility::Collapsed);
             DetailBox->AddChildToVerticalBox(ActionDetailFooter)->SetPadding(FMargin(0,6,0,0));
 
@@ -1297,7 +1299,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                 RankCards.Add(Button);RankCardNames.Add(Name);RankCardLines.Add(Line);RankCardIcons.Add(Icon);
             }
             PageBox->AddChildToVerticalBox(CardRow)->SetPadding(FMargin(0,14,0,0));
-            ULDCommandButton* Close=LDWidgets::Button(WidgetTree,LDTerms::Close,[this](){RankSlot=INDEX_NONE;MarkReadModelDirty();},true,TEXT("HUDRankClose"));
+            ULDCommandButton* Close=LDWidgets::Button(WidgetTree,LDTerms::Close,[this](){CloseRankUp();},true,TEXT("HUDRankClose"));
             PageBox->AddChildToVerticalBox(Close)->SetPadding(FMargin(0,14,0,0));
             RankPage=LDWidgets::Panel(WidgetTree,PageBox,FMargin(28,22));RankPage->SetBrushColor(LDBroadcast::Ink.CopyWithNewOpacity(.96f));
             RankPage->SetVisibility(ESlateVisibility::Collapsed);
@@ -1888,8 +1890,10 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     SyncObjectiveRing(Public,bOwnMatch);
     if(!bShow)
     {
-        // A covered HUD keeps no armed throw: the next world click must not throw blind.
+        // A covered HUD keeps no armed throw: the next world click must not throw blind. Its rank-up page closes: the
+        // page that covers the HUD (menu, settings, result) is the one on top.
         bPKThrowArmed=false;
+        CloseRankUp();
         if(StatBar){StatBar->SetDetailsHeld(false);}
         if(Workshop){Workshop->Present(ULDWorkshop::FInput());}
         if(Storage){Storage->Present(nullptr,O.Match,LDProgression::EMatchStage::Closed,O.LifePhase,nullptr,false);}
@@ -2119,7 +2123,7 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     HudSetText(LifeText,LDHUD::LifeStatus(O,bClock,NowMs));HudSetShown(LifeText,!bPlainAlive,ESlateVisibility::HitTestInvisible);
     // The protection countdown shows tenths.
     bReadModelLive|=!bPlainAlive;
-    HudSetColor(LifeText,bAlive?LDHUDStyle::Shield:O.LifePhase==ELDLifePhase::Dead?LDHUDStyle::TextDanger:LDHUDStyle::TextSecondary);
+    HudSetColor(LifeText,bAlive?LDBroadcast::White:O.LifePhase==ELDLifePhase::Dead?LDBroadcast::LiveRed:LDBroadcast::Grey);
     // Owner projections of this match and life only; anything older reads as syncing, never as zero.
     const FLDProgressionView* Progression=PC->ReadOwnProgression();
     LDHUD::FResourceView Health,Momentum;double ShieldPoints=0;
@@ -2688,10 +2692,10 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             const bool bSkillPopup=DetailIndex!=INDEX_NONE&&bHasLiveSkillDetail;
             if(ActionDetailBody)
             {
-                const FLinearColor BodyTint=!bSkillPopup?LDHUDStyle::TextPrimary
+                const FLinearColor BodyTint=!bSkillPopup?LDBroadcast::White
                     :LiveSkillDetail.PrimaryTone==1?FLinearColor(FColor(0xFF,0x9F,0x43))
                     :LiveSkillDetail.PrimaryTone==2?FLinearColor(FColor(0x38,0xBD,0xF8))
-                    :LiveSkillDetail.PrimaryTone==4?FLinearColor(FColor(0x4A,0xDE,0x80)):LDHUDStyle::TextPrimary;
+                    :LiveSkillDetail.PrimaryTone==4?FLinearColor(FColor(0x4A,0xDE,0x80)):LDBroadcast::White;
                 ActionDetailBody->SetColorAndOpacity(BodyTint);
             }
             if(ActionFormulaPanel&&ActionFormulaText)
@@ -2987,6 +2991,9 @@ void ULDHUD::OpenRankUp(int32 ProgressionSlot)
 
 bool ULDHUD::CloseRankUp()
 {
+    // Hidden at once, even when the slot was already cleared (its close button): a page opened over the HUD (menu,
+    // settings) stops the read-model refresh that would otherwise hide it.
+    HudSetShown(RankPage,false,ESlateVisibility::Visible);
     if(RankSlot==INDEX_NONE){return false;}
     RankSlot=INDEX_NONE;
     MarkReadModelDirty();
@@ -3027,9 +3034,9 @@ void ULDHUD::RefreshRankUp(const FLDProgressionView* Progression,const FLDDemoCo
             const TCHAR* Code=(SubBranches[Sub]==ELDSkillBranch::A1)?TEXT("3A1")
                 :(SubBranches[Sub]==ELDSkillBranch::A2)?TEXT("3A2")
                 :(SubBranches[Sub]==ELDSkillBranch::B1)?TEXT("3B1"):TEXT("3B2");
-            HudSetText(RankSubNames[ChipIdx],FString::Printf(TEXT("%s · %s"),Code,*SubView.Name));
+            HudSetText(RankSubNames[ChipIdx],SubView.Name);
+            RankSubChips[ChipIdx]->SetToolTipText(FText::FromString(FString::Printf(TEXT("%s · %s"),Code,*SubView.Detail)));
             LDUIIcons::Apply(RankSubIcons[ChipIdx],SubView.IconId,4.f,FLinearColor::White);
-            RankSubChips[ChipIdx]->SetToolTipText(FText::FromString(SubView.Detail));
         }
     }
 }
@@ -3386,7 +3393,7 @@ void ULDHUD::RefreshPK(ALDPlayerController& PC,const FLDPublicMatchView& Public,
     const auto Line=[](UTextBlock* Text,const FString& Value){HudSetText(Text,Value);HudSetShown(Text,!Value.IsEmpty(),ESlateVisibility::HitTestInvisible);};
     Line(PKTitleText,View.Title);
     Line(PKCountdownText,View.Countdown);
-    HudSetColor(PKCountdownText,View.bMatchupReveal?LDHUDStyle::Celebration:LDHUDStyle::TextAccent);
+    HudSetColor(PKCountdownText,View.bMatchupReveal?LDBroadcast::Gold:LDBroadcast::Orange);
     Line(PKRingText,View.Ring);
     for(int32 Index=0;Index<PKSideTexts.Num();++Index)
     {
@@ -3394,8 +3401,8 @@ void ULDHUD::RefreshPK(ALDPlayerController& PC,const FLDPublicMatchView& Public,
         Line(PKSideTexts[Index],Side?Side->Line:FString());
         if(Side)
         {
-            HudSetColor(PKSideTexts[Index],Side->bWinner?LDHUDStyle::Celebration:Side->bOut?LDHUDStyle::TextSecondary
-                :Side->bOwnSide?LDHUDStyle::StatusPositive:LDHUDStyle::TextPrimary);
+            HudSetColor(PKSideTexts[Index],Side->bWinner?LDBroadcast::Gold:Side->bOut?LDBroadcast::Grey
+                :Side->bOwnSide?LDHUDStyle::StatusPositive:LDBroadcast::White);
         }
     }
     Line(PKRoleText,View.Role);
@@ -3429,7 +3436,7 @@ void ULDHUD::RefreshPK(ALDPlayerController& PC,const FLDPublicMatchView& Public,
     {
         const LDHUD::FPKAwardRow* Row=View.bResult&&View.Awards.IsValidIndex(Index)?&View.Awards[Index]:nullptr;
         Line(PKAwardTexts[Index],Row?Row->Name+TEXT("：")+Row->Points:FString());
-        if(Row){HudSetColor(PKAwardTexts[Index],Row->bSelf?LDHUDStyle::TextAccent:LDHUDStyle::TextPrimary);}
+        if(Row){HudSetColor(PKAwardTexts[Index],Row->bSelf?LDBroadcast::Orange:LDBroadcast::White);}
     }
 
     Line(PKAnswerText,PKAnswer);
@@ -3853,8 +3860,8 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
                 }
                 if(ResultDamageBars.IsValidIndex(Index))
                 {
-                    const FLinearColor BarTint=Share.Kind==0?LDHUDStyle::UIAction
-                        :(Share.Kind==1||Share.Kind==2)?LDHUDStyle::TextAccent
+                    const FLinearColor BarTint=Share.Kind==0?LDBroadcast::Orange
+                        :(Share.Kind==1||Share.Kind==2)?LDBroadcast::Orange
                         :Share.Kind==3?FLinearColor(.68f,.44f,1.f,1.f)
                         :FLinearColor(1.f,.46f,.36f,1.f);
                     ResultDamageBars[Index]->SetFillColorAndOpacity(BarTint);

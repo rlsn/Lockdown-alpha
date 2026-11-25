@@ -47,13 +47,13 @@
 
 | 项 | 状态 | 实现 | 证据 | 已知问题 |
 | --- | --- | --- | --- | --- |
-| 标题页 / 主菜单 | LOCALLY VERIFIED | `ULDUIRoot::BuildFrontend`、`StyleRow` | `production/ui/m1/A1-frontend.jpg`、`Front_Menu*` |  |
+| 标题页 / 主菜单 | LOCALLY VERIFIED | `ULDUIRoot::BuildFrontend`、`StyleRow` | `production/ui/m2/A1-frontend.jpg`、`Front_Menu*` | 菜单下的“本地设置存储无效”只出现在 `-unattended` 拍摄进程（不选设置文件），玩家看不到 |
 | 怎么玩（六张卡） | LOCALLY VERIFIED | `ULDUIRoot` HowTo 页 | `Front_HowTo*` |  |
 | 连锁图鉴 | LOCALLY VERIFIED | `ULDUIRoot` Codex 页（菜单页，可滚动） | `Front_Codex*` | 只拍到空图鉴状态 |
-| 开始页：我开房 / 我加入 | LOCALLY VERIFIED | `ULDUIRoot` StartPage | `Front_Start*` | 开房/加入进行中与失败提示未拍 |
+| 开始页：我开房 / 我加入 | LOCALLY VERIFIED | `ULDUIRoot` StartPage | `Front_Start*` | 开房/加入进行中与失败提示未拍；输入框字号按建页时的字号，运行中改字号不重排 |
 | 退出确认 | LOCALLY VERIFIED | `ULDUIRoot::BuildConfirm` | `Front_Exit*` |  |
 | 设置：画面 / 音频 / 操作 / 镜头 / 界面 / 特效 | IN PROGRESS | `ULDControlsPanel`（菜单页，可滚动） | `*_Settings_<页签>*` | 音频页待接 Stream C 的分轨 API；画面页在离屏拍摄下只显示“需要可交互窗口” |
-| Lobby（房主、AI 数、席位、准备、开始） | LOCALLY VERIFIED | `ULDUIRoot::BuildWorld`、`RebuildRoster`、`RefreshLobby` | `production/ui/m1/A2-lobby.jpg`、`Lobby_*` | 客机视角（准备 / 已准备）未拍 |
+| Lobby（角色集结卡：8 张席位卡、房主 / 客机 / 满员 / 无 AI、准备与开始） | LOCALLY VERIFIED | `ULDUIRoot::BuildWorld`、`RebuildRoster`、`RefreshLobby`；席位立绘 `LDUIBackgrounds::SeatAsset` ← `lobby_seat_1..8`（`Scripts/MakeLobbySeats.py`） | `production/ui/lobby/impl/`、`Lobby_*`（客机视角由真实第二进程拍摄） | — |
 | 构筑蓝图查看 | LOCALLY VERIFIED | `ULDBlueprintPanel` | `Lobby_Blueprint*` | 只拍到无记录状态 |
 | 离开房间确认 | LOCALLY VERIFIED | `ULDUIRoot::BuildConfirm` | `Match_MenuLeave*` |  |
 | 战斗 HUD（比分条、目标卡、事件流、底部操作条、小地图） | USER APPROVED | `ULDHUD`、`LDBroadcastPaint` | `hud/iter2-*`、`Match_Field*` |  |
@@ -62,18 +62,18 @@
 | 长按 Tab 战术计分板 | LOCALLY VERIFIED | `ULDHUD::PaintScoreboard` | `production/ui/m1/A3-match.jpg`、`Match_Scoreboard*` |  |
 | 局内菜单 | LOCALLY VERIFIED | `ULDUIRoot::BuildWorld` 菜单条 | `Match_Menu*` |  |
 | 技能悬停说明与 Alt 公式 | IMPLEMENTED | `ULDHUD` ActionDetail | — | 说明卡跟随系统光标，探针不移动用户鼠标，未截到 |
-| 死亡横幅、承伤回放与复活选点 | NOT STARTED | `ULDHUD` DeathBanner、SpawnChoice、`LDRecapChain` | — |  |
-| PK 报名与 PK 面板 | NOT STARTED | `ULDHUD::RefreshPK` | — |  |
-| NPC：外卖柜读条、二手贩子、画饼老板 | NOT STARTED | `LDWorldLabels`、`LDWorldFeedback` | — |  |
+| 死亡横幅、承伤回放与复活选点 | LOCALLY VERIFIED | `ULDHUD` DeathBanner、SpawnChoice、`LDRecapChain` | `Match_Death*`、`Match_Respawned*` | 以 DEV 无主地面状态造成真实死亡拍摄；PvP 击杀来源未拍 |
+| PK 报名与 PK 面板 | IMPLEMENTED | `ULDHUD::RefreshPK` | — | 面板已换 B 配色；单人房无法凑满两人报名，未拍 |
+| NPC：外卖柜读条、二手贩子、画饼老板 | NOT STARTED | `LDWorldLabels`、`LDWorldFeedback` | — | 探针尚不能驱动角色走到外卖柜或二手贩子 |
 | 升级时刻 | LOCALLY VERIFIED | `ULDHUD::PaintMoments`、`LDWorldFeedback` | `hud/seq-levelup/` |  |
-| 击杀时刻（本人击杀 K.O.） | BLOCKED | `ULDHUD::PaintMoments` | — | 现成流程在截图前失败于导航检查 |
-| 技能升阶页（二级分化与三级预览） | LOCALLY VERIFIED | `ULDHUD::RefreshRankUp` | `Match_RankUp*` |  |
-| 开局横幅与世界反馈文字 | NOT STARTED | `LDWorldFeedback` | `Match_Field*` |  |
+| 击杀时刻（本人击杀 K.O.） | BLOCKED | `ULDHUD::PaintMoments` | — | `RunDemoCombatCheck.ps1 -Resolution 1080p` 仍在击杀前失败于导航落地检查（与 UI 无关） |
+| 技能升阶页（二级分化与三级预览） | LOCALLY VERIFIED | `ULDHUD::RefreshRankUp` | `Match_RankUp*` | 打开菜单、设置或被遮挡时自动关闭 |
+| 开局横幅与世界反馈文字 | IMPLEMENTED | `LDWorldFeedback` | `Match_Field*` | 世界横幅改为下三分之一墨色条 + 强调块、200 ms 擦入；命中确认字的动效属手感，未改 |
 | 头顶标签与构筑环的重叠 | IMPLEMENTED | `LDWorldLabels` | — | 开环时落在环部件上的头顶标签不绘制；待开环截图确认 |
 | 终局（终局改装、旗杆） | LOCALLY VERIFIED | `ULDHUD`、构筑环 | `Match_Final*` | 终局改装三选一未拍 |
-| 结算页 | LOCALLY VERIFIED | `ULDHUD` Result 区块、`LDResultBuild` | `production/ui/m1/A4-results.jpg`、`Match_Results*` | 规则板按宽度换行的修正尚未重拍 |
+| 结算页 | LOCALLY VERIFIED | `ULDHUD` Result 区块、`LDResultBuild` | `production/ui/m2/A4-results.jpg`、`Match_Results*` |  |
 | 赛后复盘（切换席位查看构筑） | LOCALLY VERIFIED | `ULDHUD::SelectResultContender`、`RefreshResultInspectedBuild` | `Match_ResultsReplay*` | “成长与卡牌”“全员战斗数据”页签未拍 |
-| 网络卡顿提示与诊断 | NOT STARTED | `ULDHUD` NetSpike、Diagnostics | — |  |
+| 网络卡顿提示与诊断 | IMPLEMENTED | `ULDHUD` NetSpike、Diagnostics | — | 直播红线框 + 白字；单机房无网络抖动，未拍 |
 | 按钮交互态与页面转场 | IN PROGRESS | `LDUIPaint::Button`、`ULDCommandButton` | `Front_MenuHover*` | 只拍到悬停；转场只有结算标题的 200 ms 滑入 |
 
 ## 检查入口

@@ -117,7 +117,13 @@ private:
     // Full-screen picture behind the lobby page (LDUIBackgrounds), shown exactly while the lobby is; null when missing.
     UPROPERTY() TObjectPtr<UWidget> LobbyBackground;
     UPROPERTY() TObjectPtr<UVerticalBox> RosterRows;
-    UPROPERTY() TObjectPtr<UTextBlock> LobbySeatCount;
+    // Lobby (candidate C): the guest's host line, the ready count and its label; per seat card the stamp of who sits there
+    // and whether they are ready, and when it last changed (the foot's 200 ms wipe).
+    UPROPERTY() TObjectPtr<UTextBlock> LobbyHostName;
+    UPROPERTY() TObjectPtr<UTextBlock> LobbyMeterFigure;
+    UPROPERTY() TObjectPtr<UTextBlock> LobbyMeterLabel;
+    uint32 SeatCardKeys[8]={};
+    double SeatCardAt[8]={};
     UPROPERTY() TObjectPtr<UHorizontalBox> RoomAddressRow;
     UPROPERTY() TObjectPtr<UTextBlock> RoomAddressLabel;
     UPROPERTY() TObjectPtr<ULDCommandButton> CopyAddressButton;
@@ -127,8 +133,6 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> LobbyDevMarker;
     UPROPERTY() TObjectPtr<ULDCommandButton> ReadyButton;
     UPROPERTY() TObjectPtr<ULDCommandButton> StartMatchButton;
-    // Breathing glow behind the host's start button while the room can start.
-    UPROPERTY() TObjectPtr<UWidget> StartMatchGlow;
     UPROPERTY() TObjectPtr<UTextBlock> LobbyBlocker;
     UPROPERTY() TObjectPtr<UTextBlock> LobbyFeedback;
     UPROPERTY() TObjectPtr<USizeBox> MenuPage;
