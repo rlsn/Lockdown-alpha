@@ -41,6 +41,40 @@
 
 正式音效登记于 `SourceData/Audio/audio_cues.json`（CC0 来源 + SHA-256），经 `Scripts/ImportDemoAudio.ps1 -Mode Import` 生成 `SW_*` 与 `DA_DemoAudio`，全部归入 `SC_DemoMaster` 子混音分类（覆盖普攻/施放/命中/重击/死亡、原生精准闪避 `SelfPerfectDodge`、招架格挡 `SelfParry`、拾取拖鞋/回复球 `SelfPickup`、同色元素石融合 `UIMedalFuse` 及全局提示音）；敌方施放与受击音效仅在当前授权观察帧可见时衰减播放，绝不通过声音泄露迷雾内隐藏动作。
 
+## 表现层覆盖清单
+
+全流程界面的覆盖与状态（启动 → 主菜单 → 开房/加入 → Lobby → 对局 → 结算 → 复盘）。状态：NOT STARTED / IN PROGRESS / IMPLEMENTED / LOCALLY VERIFIED / USER APPROVED / BLOCKED。证据为运行时截图，由 `Scripts/CaptureUICoverage.ps1`（探针 `LDUICoverageProbe`）在 1920×1080 与 1280×720、100% 与 125% 字号下拍摄，文件名 `<页面>_<1080|720>_<100|125>.png`，整理后存于主仓 `Artifacts/Audits/PresentationOverhaul/production/ui/`。
+
+| 项 | 状态 | 实现 | 证据 | 已知问题 |
+| --- | --- | --- | --- | --- |
+| 标题页 / 主菜单 | IN PROGRESS | `ULDUIRoot::BuildFrontend`、`StyleRow` | `Front_Menu*`、`Front_MenuHover*` |  |
+| 怎么玩（六张卡） | IN PROGRESS | `ULDUIRoot` HowTo 页 | `Front_HowTo*` |  |
+| 连锁图鉴 | IN PROGRESS | `ULDUIRoot` Codex 页（菜单页，可滚动） | `Front_Codex*` |  |
+| 开始页：我开房 / 我加入 | IN PROGRESS | `ULDUIRoot` StartPage | `Front_Start*` |  |
+| 退出确认 | IN PROGRESS | `ULDUIRoot::BuildConfirm` | `Front_Exit*` |  |
+| 设置：画面 / 音频 / 操作 / 镜头 / 界面 / 特效 | IN PROGRESS | `ULDControlsPanel`（菜单页，可滚动） | `*_Settings_<页签>*` | 音频页待接 Stream C 的分轨 API |
+| Lobby（房主、AI 数、席位、准备、开始） | IN PROGRESS | `ULDUIRoot::BuildWorld`、`RebuildRoster`、`RefreshLobby` | `Lobby_Solo*`、`Lobby_AI5*` | 客机视角（准备 / 已准备）未拍 |
+| 构筑蓝图查看 | IN PROGRESS | `ULDBlueprintPanel` | `Lobby_Blueprint*` |  |
+| 离开房间确认 | IN PROGRESS | `ULDUIRoot::BuildConfirm` | `Match_MenuLeave*` |  |
+| 战斗 HUD（比分条、目标卡、事件流、底部操作条、小地图） | USER APPROVED | `ULDHUD`、`LDBroadcastPaint` | `hud/iter2-*`、`Match_Field*` |  |
+| 构筑气场环（雷达、宿主、牌、属性表、商店、三选一） | USER APPROVED | `ULDWorkshop`、`LDBuildRing*` | `build-v2/compare-*-r3.png`、`Match_RestOpening*` |  |
+| 休息期 HUD 与休息按钮 | IN PROGRESS | `ULDHUD` RestActions | `Match_RestRingClosed*` |  |
+| 长按 Tab 战术计分板 | IN PROGRESS | `ULDHUD::PaintScoreboard` | `Match_Scoreboard*` |  |
+| 局内菜单 | IN PROGRESS | `ULDUIRoot::BuildWorld` 菜单条 | `Match_Menu*` |  |
+| 技能悬停说明与 Alt 公式 | NOT STARTED | `ULDHUD` ActionDetail | — | 探针未覆盖悬停 |
+| 死亡横幅、承伤回放与复活选点 | NOT STARTED | `ULDHUD` DeathBanner、SpawnChoice、`LDRecapChain` | — |  |
+| PK 报名与 PK 面板 | NOT STARTED | `ULDHUD::RefreshPK` | — |  |
+| NPC：外卖柜读条、二手贩子、画饼老板 | NOT STARTED | `LDWorldLabels`、`LDWorldFeedback` | — |  |
+| 升级时刻 | LOCALLY VERIFIED | `ULDHUD::PaintMoments`、`LDWorldFeedback` | `hud/seq-levelup/` |  |
+| 击杀时刻（本人击杀 K.O.） | BLOCKED | `ULDHUD::PaintMoments` | — | 现成流程在截图前失败于导航检查 |
+| 开局横幅与世界反馈文字 | NOT STARTED | `LDWorldFeedback` | `Match_Field*` |  |
+| 头顶标签与构筑环的重叠 | NOT STARTED | `LDWorldLabels` | — | 720p 下训练假人名字压到环 |
+| 终局（终局改装、旗杆） | IN PROGRESS | `ULDHUD`、构筑环 | `Match_Final*` |  |
+| 结算页 | IN PROGRESS | `ULDHUD` Result 区块、`LDResultBuild` | `Match_Results*` |  |
+| 赛后复盘（切换席位查看构筑） | IN PROGRESS | `ULDHUD::SelectResultContender`、`RefreshResultInspectedBuild` | `Match_ResultsReplay*` |  |
+| 网络卡顿提示与诊断 | NOT STARTED | `ULDHUD` NetSpike、Diagnostics | — |  |
+| 按钮交互态与页面转场 | IN PROGRESS | `LDUIPaint::Button`、`ULDCommandButton` | `Front_MenuHover*` |  |
+
 ## 检查入口
 
 - 纯规则：`Lockdown.Rules.Vision.*`、`Lockdown.Rules.Minimap.*`、`Lockdown.Rules.WorldLabels.*`、`Lockdown.Rules.HUD*`、`Lockdown.Rules.ViewPrivacySchema`、`Scripts/TestDemoArtImport.py`。
