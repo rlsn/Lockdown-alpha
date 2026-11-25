@@ -522,7 +522,8 @@ void ULDWorkshop::LayoutShop(const FGeometry& Geometry)
     };
     float Right=float(L.Size.X)-80.f*U;
     float Scale=Fit(Right,Top);
-    if(Scale<1.f){Right=float(L.Size.X)-40.f*U;Scale=Fit(Right,Top);}
+    // The comp's column ends 80 px from the edge; only a clearly squeezed shelf takes the outer 40 px.
+    if(Scale<.9f){Right=float(L.Size.X)-40.f*U;Scale=Fit(Right,Top);}
     // A long shelf over risen rest actions starts higher, under the top corner.
     if(Scale<Floor){Top=140.f*U;Scale=Fit(Right,Top);}
     Scale=FMath::Max(Scale,Floor);
@@ -605,10 +606,15 @@ void ULDWorkshop::LayoutRow()
         Add(EHit::Hand,INDEX_NONE,Index,RectOf(Face0.Box));
         L.Anchors.Add(AnchorKey(EHit::Hand,INDEX_NONE,Index),Face0.Box.GetCenter());
     }
-    // The header clears a raised selected card and its 新 tab.
-    const float HeadTop=Top-22.f*U-ChipH;
-    L.RowTop=HeadTop;
-    if(Ring.Batch.Kind!=EBatch::None){RightChip(EHit::OfferPile,FString::Printf(TEXT("待选 %d"),Ring.Batch.Queued+1),FMath::Min(Limit,X0+3.f*312.f*U-12.f*U),HeadTop);}
+    // No header (the bar's 牌库 part is lit while the library shows): the row's top clears a raised card and its 新 tab,
+    // and the way back to the offer stands after the last tile.
+    L.RowTop=Top-18.f*U;
+    if(Ring.Batch.Kind!=EBatch::None)
+    {
+        const float W=WidthOf(FString::Printf(TEXT("待选 %d"),Ring.Batch.Queued+1),Chip)+24.f*F;
+        const float X=FMath::Min(X0+Count*Pitch+12.f*U,Limit-W);
+        RightChip(EHit::OfferPile,FString::Printf(TEXT("待选 %d"),Ring.Batch.Queued+1),X+W,Top+(Z-ChipH)*.5f);
+    }
 }
 
 void ULDWorkshop::LayoutCard()
@@ -1515,7 +1521,6 @@ void ULDWorkshop::PaintRow(FPainter& P,const TArray<uint64>& Lit) const
     // The library: tiles with their names, the selected card raised on the thick rule; medals as diamonds.
     const float Page=PageAt<0.?1.f:FMath::Clamp(float((Now-PageAt)/RingRevealTime),0.f,1.f);
     const float PageSaved=P.Opacity;P.Opacity*=1.f-FMath::Square(1.f-Page);
-    Title(FString::Printf(TEXT("牌库 · %d"),Ring.Hand.Num()),FVector2D(L.Bar.Min.X,L.RowTop));
     const float Pitch=HandFaces.Num()>1?float(HandFaces[1].Box.Min.X-HandFaces[0].Box.Min.X):84.f*F;
     const bool bNames=Pitch>=64.f*F;
     for(const FFace& Face0:HandFaces)
