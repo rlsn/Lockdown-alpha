@@ -1,6 +1,7 @@
 #include "Audio/LDAudioFeel.h"
 #include "Audio/LDAudioSubsystem.h"
 #include "Character/LDHitFeel.h"
+#include "Combat/LDCombatElements.h"
 #include "Components/AudioComponent.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
@@ -40,7 +41,7 @@ void LDAudioFeel::Swing(const UObject& BodyContext, bool bOwnBody, uint8 ComboSt
 UAudioComponent* LDAudioFeel::Charge(const UObject& BodyContext, bool bOwnBody, const FVector& At)
 {
     ULDAudioSubsystem* Audio = AudioOf(BodyContext);
-    return Audio ? Audio->Start(ELDAudioCue::CastCharge, !bOwnBody, At, bOwnBody ? 1.f : OtherGain) : nullptr;
+    return Audio ? Audio->Start(ELDAudioCue::CastCharge, !bOwnBody, At, bOwnBody ? 1.f : OtherDangerGain) : nullptr;
 }
 
 void LDAudioFeel::CutCharge(UAudioComponent* Charge)
@@ -52,15 +53,18 @@ void LDAudioFeel::Release(const UObject& BodyContext, bool bOwnBody, uint8 Abili
 {
     if (ULDAudioSubsystem* Audio = AudioOf(BodyContext))
     {
-        Audio->PlaySkillRelease(Ability, !bOwnBody, At, bOwnBody ? 1.f : OtherGain);
+        Audio->PlaySkillRelease(Ability, !bOwnBody, At, bOwnBody ? 1.f : OtherDangerGain);
         if (bOverdrive) { Body(*Audio, ELDAudioCue::SwingFinisher, bOwnBody, At, .8f, .8f); }
     }
 }
 
-void LDAudioFeel::Impact(const UObject& BodyContext, ELDObservedHitLook Look, uint8 HitFlags, bool bFinisher, const FVector& At)
+void LDAudioFeel::Impact(const UObject& BodyContext, ELDObservedHitLook Look, uint8 HitFlags, bool bFinisher, uint8 Ability, const FVector& At)
 {
     ULDAudioSubsystem* Audio = AudioOf(BodyContext);
     if (!Audio) { return; }
+    // A plain hit of a skill with its own hit sound; outcome hits (dodged, parried, shield) keep their outcome sound.
+    const bool bOutcome = (HitFlags & (LDObservation::Dodged | LDObservation::Parried | LDObservation::ShieldBroken | LDObservation::ShieldAbsorbed)) != 0;
+    if (Ability != 0 && !bOutcome && Audio->PlaySkillHit(Ability, At, OtherGain * ((HitFlags & LDObservation::Critical) ? 1.25f : 1.f))) { return; }
     const ELDAudioCue Cue = (HitFlags & LDObservation::Dodged) ? ELDAudioCue::SelfPerfectDodge
         : (HitFlags & LDObservation::Parried) ? ELDAudioCue::SelfParry
         : (HitFlags & LDObservation::ShieldBroken) ? ELDAudioCue::SelfShieldBreak
@@ -71,6 +75,24 @@ void LDAudioFeel::Impact(const UObject& BodyContext, ELDObservedHitLook Look, ui
         : Look == ELDObservedHitLook::Magic ? ELDAudioCue::HitMagic
         : bFinisher ? ELDAudioCue::HitFinisher : ELDAudioCue::HitBasic;
     Audio->PlayAt(Cue, At, OtherGain * ((HitFlags & LDObservation::Critical) ? 1.25f : 1.f));
+}
+
+void LDAudioFeel::Reaction(const UObject& BodyContext, bool bOwnBody, uint8 Reaction, const FVector& At)
+{
+    static constexpr ELDAudioCue Cues[] = {
+        ELDAudioCue::None, ELDAudioCue::ReactionFog, ELDAudioCue::ReactionConduct, ELDAudioCue::ReactionOverload, ELDAudioCue::ReactionMelt,
+        ELDAudioCue::ReactionMethane, ELDAudioCue::None, ELDAudioCue::ReactionFreeze, ELDAudioCue::ReactionFerment, ELDAudioCue::None,
+        ELDAudioCue::ReactionShatter, ELDAudioCue::ReactionCorrode, ELDAudioCue::None, ELDAudioCue::ReactionFrostbite };
+    static_assert(UE_ARRAY_COUNT(Cues) == LDCombatReactionCount, "Every reaction number needs its cue or a hole.");
+    if (Reaction >= LDCombatReactionCount || Cues[Reaction] == ELDAudioCue::None) { return; }
+    if (ULDAudioSubsystem* Audio = AudioOf(BodyContext)) { Body(*Audio, Cues[Reaction], bOwnBody, At, bOwnBody ? 1.f : OtherDangerGain / OtherGain); }
+}
+
+void LDAudioFeel::StateOnset(const UObject& BodyContext, bool bOwnBody, int32 Index, const FVector& At)
+{
+    static constexpr ELDAudioCue Cues[] = { ELDAudioCue::StateBurn, ELDAudioCue::StateWet, ELDAudioCue::StateShock, ELDAudioCue::StateChill, ELDAudioCue::StateRot };
+    if (Index < 0 || Index >= int32(UE_ARRAY_COUNT(Cues))) { return; }
+    if (ULDAudioSubsystem* Audio = AudioOf(BodyContext)) { Body(*Audio, Cues[Index], bOwnBody, At, bOwnBody ? 1.f : OtherStateGain / OtherGain); }
 }
 
 void LDAudioFeel::Confirm(const UObject& Context, uint8 HitFlags, float Volume)

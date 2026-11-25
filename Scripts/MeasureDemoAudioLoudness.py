@@ -67,7 +67,7 @@ def main():
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     measured = []
     # Cues and skill releases; a sound with several takes is measured by its loudest take and all takes share its volume.
-    for cue in manifest["cues"] + manifest.get("skills", []):
+    for cue in manifest["cues"] + manifest.get("skills", []) + manifest.get("skill_hits", []):
         sources = [take["source"] for take in cue["takes"]] if "takes" in cue else [cue["source"]]
         best = None
         for source in sources:

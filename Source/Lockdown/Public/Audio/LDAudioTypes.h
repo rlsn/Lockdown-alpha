@@ -70,6 +70,25 @@ enum class ELDAudioCue : uint8
     // The owner's confirmation accent of a critical hit and of a kill, layered over SelfDealtImpact.
     SelfDealtCrit,
     SelfDealtKill,
+    // A visible body's element reaction (ELDCombatReaction), at the reaction's own time.
+    ReactionFog,
+    ReactionConduct,
+    ReactionOverload,
+    ReactionMelt,
+    ReactionMethane,
+    ReactionFreeze,
+    ReactionFerment,
+    ReactionShatter,
+    ReactionCorrode,
+    ReactionFrostbite,
+    // An element state starting on a visible body (burn, wet, electrified, chilled, rotten): a short sting, no loop.
+    StateBurn,
+    StateWet,
+    StateShock,
+    StateChill,
+    StateRot,
+    // The match's field segment starting (the public phase entering development from the countdown).
+    MatchStart,
     Count UMETA(Hidden)
 };
 

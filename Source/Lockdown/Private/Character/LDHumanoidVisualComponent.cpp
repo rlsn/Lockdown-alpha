@@ -393,6 +393,10 @@ void ULDHumanoidVisualComponent::UpdateStates(bool bFalling, float EffectScale)
     const FVector Feet = Space.TransformPosition(FVector(0, 0, -HalfHeight)), Head = Space.TransformPosition(FVector(0, 0, HeightCm - HalfHeight));
     for (int32 Index = 0; Index < ElementStates; ++Index)
     {
+        // A state starting on a body the local player sees stings once, whatever the effect strength.
+        const bool bStarted = StateStacks[Index] > 0 && !bFalling;
+        if (bStarted && !StateSounded[Index] && CanShowImpact()) { LDAudioFeel::StateOnset(*this, bOwnBody, Index, Pivot->GetComponentLocation()); }
+        StateSounded[Index] = bStarted;
         const bool bOn = bShow && StateStacks[Index] > 0;
         if (!bOn)
         {
@@ -1090,6 +1094,7 @@ bool ULDHumanoidVisualComponent::ShowSkillHit(const FPendingImpact& Impact, cons
     if (!Impacts || EffectScale <= 0.f) { return false; }
     const float Age = float(Clock - Impact.Onset);
     const ULDImpactFxSubsystem::FStrikeMatch Match = Impacts->MatchHit(*this, Chest, Impact.Look, Age);
+    HitAbility = Match.Ability;
     if (Match.Ability != uint8(ELDDemoAbilityId::ActiveColaShake)) { return false; }
     if (Match.bOwn) { OwnStrikeAt = Clock; }
     const LDSliceVfx::FLook Look = Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, Match.bOwn, bOwnBody || Match.bOwn);
@@ -1106,6 +1111,7 @@ bool ULDHumanoidVisualComponent::ShowSliceImpact(const FPendingImpact& Impact, c
     // The visible strike this hit belongs to gives its tier, direction and owner; with none in sight the hit shows the
     // tier its look implies, struck from the front.
     const ULDImpactFxSubsystem::FStrikeMatch Match = Impacts->MatchHit(*this, Chest, Impact.Look, Age);
+    HitAbility = Match.Ability;
     const LDSliceVfx::EStrike Strike = Match.Strike != LDSliceVfx::EStrike::None ? Match.Strike
         : Impact.Look == ELDObservedHitLook::Water ? LDSliceVfx::EStrike::Hose
         : Impact.Look == ELDObservedHitLook::Electric ? LDSliceVfx::EStrike::Zap : LDSliceVfx::EStrike::Basic;
@@ -1368,6 +1374,7 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
                 const float Age = float(Clock - Impact.Onset);
                 bool bSlice = LDSliceVfx::ShowsHit(Impact.Look, Impact.Flags);
                 bool bFinisherHit = false;
+                HitAbility = 0;
                 // A plain magic hit of a skill with its own designed hit (a chill cone's icy hit) shows that instead of the
                 // old magic layers; other magic hits keep them until their skills are designed.
                 if (!bSlice && Impact.Look == ELDObservedHitLook::Magic && (Impact.Flags & LDObservation::HitFlagsMask) == 0
@@ -1399,7 +1406,7 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
                 { Impacts->Kit(At, LDHitVfx::BurstOf(LDHitVfx::EBurst::Overdrive, LDHitVfx::OverdriveTint(), EffectScale), this); }
                 // The struck body's impact sound at the hit's own time; the own body's hurt sounds from the owner tracker.
                 if (Age < .25f && !bOwnBody)
-                { LDAudioFeel::Impact(*this, Impact.Look, Impact.Flags, bFinisherHit, At); }
+                { LDAudioFeel::Impact(*this, Impact.Look, Impact.Flags, bFinisherHit, HitAbility, At); }
             }
         }
         PendingImpacts.Reset();
@@ -1409,6 +1416,8 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
         if (!bGhostWarmed) { bGhostWarmed = true; Impacts->WarmGhost(*Mesh); }
         if (bPendingReaction && CanShowImpact())
         {
+            // The reaction sounds at its own time whatever the effect strength.
+            LDAudioFeel::Reaction(*this, bOwnBody, ShownReaction, Space.TransformPosition(FVector(0, 0, -HalfHeight + .6f * HeightCm)));
             const LDHitFeel::FTuning Feel = LDHitFeel::Read();
             if (Feel.ImpactScale > 0.f && Feel.ImpactSeconds > 0.f)
             {

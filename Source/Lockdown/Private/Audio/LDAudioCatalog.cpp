@@ -18,7 +18,10 @@ namespace
         TEXT("UIFinalLock"), TEXT("SelfDealtImpact"), TEXT("SelfDealtAccent"),
         TEXT("SelfPerfectDodge"), TEXT("SelfParry"), TEXT("SelfPickup"), TEXT("UIMedalFuse"),
         TEXT("SwingLight"), TEXT("SwingFinisher"), TEXT("HitBasic"), TEXT("HitFinisher"), TEXT("HitElectric"), TEXT("HitFire"),
-        TEXT("HitWater"), TEXT("HitMagic"), TEXT("CastCharge"), TEXT("CastRelease"), TEXT("SelfDealtCrit"), TEXT("SelfDealtKill")
+        TEXT("HitWater"), TEXT("HitMagic"), TEXT("CastCharge"), TEXT("CastRelease"), TEXT("SelfDealtCrit"), TEXT("SelfDealtKill"),
+        TEXT("ReactionFog"), TEXT("ReactionConduct"), TEXT("ReactionOverload"), TEXT("ReactionMelt"), TEXT("ReactionMethane"),
+        TEXT("ReactionFreeze"), TEXT("ReactionFerment"), TEXT("ReactionShatter"), TEXT("ReactionCorrode"), TEXT("ReactionFrostbite"),
+        TEXT("StateBurn"), TEXT("StateWet"), TEXT("StateShock"), TEXT("StateChill"), TEXT("StateRot"), TEXT("MatchStart")
     };
     static_assert(UE_ARRAY_COUNT(AudioCueIds) == int32(ELDAudioCue::Count), "Every cue number needs exactly one stable id or a retired hole.");
 
@@ -131,6 +134,7 @@ bool ULDAudioCatalog::Resolve(FResolved& Out, FString& Error) const
     Out.Cues.SetNum(int32(ELDAudioCue::Count));
     Out.Music.SetNumZeroed(int32(ELDMusicTrack::Count));
     Out.Skills.SetNum(256);
+    Out.SkillHits.SetNum(256);
     if (!MasterClass || !UserMix || !MusicClass || !SfxClass || !UIClass)
     {
         Error = TEXT("The master, music, SFX or UI SoundClass or the user SoundMix is missing.");
@@ -177,19 +181,24 @@ bool ULDAudioCatalog::Resolve(FResolved& Out, FString& Error) const
             Takes.Add(Variant);
         }
     }
-    int32 PreviousKey = -1;
-    for (const FLDAudioKeyedEntry& Entry : SkillReleases)
+    const auto Keyed = [&](const TArray<FLDAudioKeyedEntry>& Table, TArray<TArray<USoundWave*>>& Into, const TCHAR* Kind)
     {
-        const FString What = FString::Printf(TEXT("Skill release %d"), Entry.Key);
-        if (int32(Entry.Key) <= PreviousKey || Entry.Sounds.IsEmpty())
-        { Error = What + TEXT(" is out of ascending order, repeated or has no take."); return false; }
-        PreviousKey = Entry.Key;
-        for (const TObjectPtr<USoundWave>& Take : Entry.Sounds)
+        int32 PreviousKey = -1;
+        for (const FLDAudioKeyedEntry& Entry : Table)
         {
-            if (!CheckTake(Take, SfxClass, What, Error)) { return false; }
-            Out.Skills[Entry.Key].Add(Take);
+            const FString What = FString::Printf(TEXT("%s %d"), Kind, Entry.Key);
+            if (int32(Entry.Key) <= PreviousKey || Entry.Sounds.IsEmpty())
+            { Error = What + TEXT(" is out of ascending order, repeated or has no take."); return false; }
+            PreviousKey = Entry.Key;
+            for (const TObjectPtr<USoundWave>& Take : Entry.Sounds)
+            {
+                if (!CheckTake(Take, SfxClass, What, Error)) { return false; }
+                Into[Entry.Key].Add(Take);
+            }
         }
-    }
+        return true;
+    };
+    if (!Keyed(SkillReleases, Out.Skills, TEXT("Skill release")) || !Keyed(SkillHits, Out.SkillHits, TEXT("Skill hit"))) { return false; }
     if (Music.Num() != LDAudio::MusicTrackCount)
     {
         Error = FString::Printf(TEXT("Expected %d music tracks, found %d."), LDAudio::MusicTrackCount, Music.Num());

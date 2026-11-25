@@ -256,6 +256,24 @@ bool FLDAudioFeelSyncTest::RunTest(const FString& Parameters)
     }
     ELDAudioBus Parsed=ELDAudioBus::Count;
     TestFalse(TEXT("Bus ids are case-sensitive"),LDAudio::ParseBusId(TEXT("sfx"),Parsed));
+
+    // The match start: only the first field segment after the opening rest, never replayed for a late joiner.
+    {
+        FLDPublicMatchView Public;Public.Generation=3;Public.Phase=ELDMatchPhase::Rest;Public.Timeline.RestIndex=0;
+        FLDAudioFrame Frame;Frame.Public=&Public;
+        FLDAudioCueTracker Tracker;
+        TestTrue(TEXT("The opening rest primes silently"),AudioSample(Tracker,Frame).IsEmpty());
+        Public.Phase=ELDMatchPhase::Development;Public.Timeline.FieldSegment=0;
+        TestTrue(TEXT("The first field segment starts the match"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::MatchStart}));
+        TestTrue(TEXT("The same segment never repeats it"),AudioSample(Tracker,Frame).IsEmpty());
+        Public.Phase=ELDMatchPhase::Rest;Public.Timeline.RestIndex=1;AudioSample(Tracker,Frame);
+        Public.Phase=ELDMatchPhase::Development;Public.Timeline.FieldSegment=1;
+        TestTrue(TEXT("A later field segment is not a match start"),AudioSample(Tracker,Frame).IsEmpty());
+        FLDAudioCueTracker Late;Public.Phase=ELDMatchPhase::Rest;Public.Timeline.RestIndex=2;
+        TestTrue(TEXT("A late joiner primes in a mid-match rest"),AudioSample(Late,Frame).IsEmpty());
+        Public.Phase=ELDMatchPhase::Development;Public.Timeline.FieldSegment=2;
+        TestTrue(TEXT("A late joiner never hears a match start"),AudioSample(Late,Frame).IsEmpty());
+    }
     return true;
 }
 
@@ -294,7 +312,7 @@ bool FLDAudioCatalogTest::RunTest(const FString& Parameters)
     {
         MusicClass->ParentClass=Master;SfxClass->ParentClass=Master;UIClass->ParentClass=Master;Master->ChildClasses={MusicClass,SfxClass,UIClass};
         Catalog->MasterClass=Master;Catalog->MusicClass=MusicClass;Catalog->SfxClass=SfxClass;Catalog->UIClass=UIClass;Catalog->UserMix=Mix;
-        Catalog->Cues.Reset();Catalog->Music.Reset();Catalog->SkillReleases.Reset();
+        Catalog->Cues.Reset();Catalog->Music.Reset();Catalog->SkillReleases.Reset();Catalog->SkillHits.Reset();
         for(int32 Index=0;Index<LDAudio::CueCount;++Index)
         {
             const ELDAudioCue Cue=LDAudio::PlayableCue(Index);
@@ -320,6 +338,9 @@ bool FLDAudioCatalogTest::RunTest(const FString& Parameters)
         FLDAudioKeyedEntry& Skill=Catalog->SkillReleases.AddDefaulted_GetRef();Skill.Key=uint8(ELDDemoAbilityId::ActiveZap);Skill.Sounds.Add(Take);
         TestTrue(TEXT("Takes and skill releases resolve"),Catalog->Resolve(Out,Error)&&Out.Cues[int32(Catalog->Cues[0].Cue)].Num()==2
             &&Out.Skills[uint8(ELDDemoAbilityId::ActiveZap)].Num()==1&&Out.Skills[uint8(ELDDemoAbilityId::ActiveElbow)].IsEmpty());
+        FLDAudioKeyedEntry& Hit=Catalog->SkillHits.AddDefaulted_GetRef();Hit.Key=uint8(ELDDemoAbilityId::ActiveElbow);Hit.Sounds.Add(Take);
+        TestTrue(TEXT("Skill hits resolve by ability"),Catalog->Resolve(Out,Error)&&Out.SkillHits[uint8(ELDDemoAbilityId::ActiveElbow)].Num()==1
+            &&Out.SkillHits[uint8(ELDDemoAbilityId::ActiveZap)].IsEmpty());
         FLDAudioKeyedEntry Again=Catalog->SkillReleases[0];Catalog->SkillReleases.Add(Again);
         TestFalse(TEXT("A repeated skill release is an error"),Catalog->Resolve(Out,Error));
         Fill();auto* Wrong=NewObject<USoundWave>();Wrong->SoundClassObject=UIClass;Wrong->Duration=.3f;Catalog->Cues[0].Variants.Add(Wrong);
