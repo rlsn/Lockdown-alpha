@@ -169,6 +169,10 @@ public:
     // The approved level-1 radius of one of a skill's effects (its self area, zone, ground impact...); 0 when it has none
     // or the content is unavailable.
     float SkillEffectRadius(uint8 Ability, uint16 Opcode);
+    // A self skill's own radius (its first effect with one: a parry's counter, a taunt, a self area, a brace's shove); 0
+    // when it has none. Its hold: the longest stance, buff or frenzy it starts on the caster (s); 0 when it has none.
+    float SkillSelfRadius(uint8 Ability);
+    float SkillHoldSeconds(uint8 Ability);
     int32 LiveSliceCount() const { return LiveSlices.Num(); }
     // A visible skill effect's own particles: its flight trail or ground zone on Owner, and its appear burst.
     UNiagaraComponent* ShowEffect(USceneComponent& Owner, UNiagaraComponent* Existing, ELDObservedProjectileLook Look,

@@ -58,7 +58,8 @@ public:
     void SetCue(uint8 Value, float ActionAgeSeconds = -1.f, float ImpactDelaySeconds = -1.f, bool bKnockback = false,
         bool bAdoptOnset = false);
     // The body's public element states (burn, wet, electrified, chilled, rotten; ELDDemoStatusId) and their stacks: each
-    // shows its own looping effect on the body while it lasts (LDSliceVfx::ESystem BurnState..RotState).
+    // shows its own looping effect on the body while it lasts (LDSliceVfx::ESystem BurnState..RotState). Braced and the own
+    // empowered basics show their stance the same way (BracedState, EmpoweredState); a shield shows from the cue.
     void SetElementStates(const TArray<FLDObservedStatus>& Statuses);
     // The victim's overlay only (flash and impact particles); the body's pose and position never react to a hit.
     bool SetHitReaction(float AgeSeconds, ELDObservedHitLook HitLook = ELDObservedHitLook::None, uint8 HitFlags = 0,
@@ -139,6 +140,16 @@ private:
     uint8 StateStacks[ElementStates] = {0, 0, 0, 0, 0};
     UPROPERTY() TObjectPtr<UNiagaraComponent> StateEffects[ElementStates];
     void UpdateStates(bool bFalling, float EffectScale);
+    // Guards and stances worn on the body (shield from the cue, braced, the own empowered basics), dimmer than the element
+    // states; a self skill's aura from its release for its hold; and active_brace's expected natural end, whose shove shows
+    // when the braced stance ends then.
+    static constexpr int32 GuardStates = 3;
+    bool GuardOn[GuardStates] = {false, false, false};
+    bool bBracedShown = false;
+    UPROPERTY() TObjectPtr<UNiagaraComponent> GuardEffects[GuardStates];
+    UPROPERTY() TObjectPtr<UNiagaraComponent> AuraEffect;
+    uint8 AuraSystem = 0;
+    double AuraFrom = -1, AuraUntil = -1, BraceEndsAt = -1;
     UPROPERTY() TObjectPtr<UNiagaraComponent> DashTrail;
     UPROPERTY() TObjectPtr<UNiagaraComponent> ChargeColumn;
     // Built by the constructor from the fixed part specs; never saved, so a map saved with another part list cannot
