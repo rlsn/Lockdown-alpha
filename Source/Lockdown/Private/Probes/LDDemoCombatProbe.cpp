@@ -29,6 +29,7 @@
 #include "Vision/LDWorldViewRelay.h"
 #include "UI/LDControlSettings.h"
 #include "UI/LDControlsPanel.h"
+#include "UI/LDCursor.h"
 #include "UI/LDHUD.h"
 #include "UI/LDUIRoot.h"
 #include "Blueprint/WidgetTree.h"
@@ -291,8 +292,6 @@ public:
     bool bShieldCaptured = false;
     double SkillGapCm = 0, ReachHitCm = 0;
     FLDMoveIdentity ReachOrder, HostCastOrder;
-    FGuid HostCastTarget;
-    uint32 HostCastTargetEpoch = 0;
     enum class EFollowUpStep : uint8 { Start, AwaitAttack, AwaitRefusal, AwaitFollowUp, Return };
     EFollowUpStep FollowUpStep = EFollowUpStep::Start;
     FLDMoveIdentity FollowUpAttack, FollowUpQueued, FollowUpRefused, FollowUpCast;
@@ -558,6 +557,11 @@ public:
                 }
                 return true;
             }
+            // The match's daily modifiers are fixed to two that touch neither bodies nor combat (a shop sale and the
+            // monster XP scale): a drawn typhoon pushes the duelists off their routes and rain, cold or heat change hits.
+            ALDGameMode* Mode = PC.GetWorld() ? PC.GetWorld()->GetAuthGameMode<ALDGameMode>() : nullptr;
+            if (!Mode) { return Fail(TEXT("Start"), TEXT("The Listen Host has no authority game mode to fix the daily modifiers")); }
+            Mode->DevDailyPreset = {ELDDailyModifier::Sale, ELDDailyModifier::Exam};
             if (!Mark(TEXT("LobbyConfigured.json"))) { return Finish(); }
             bLobbyConfigured = true;
         }
@@ -2244,15 +2248,19 @@ public:
         {
             return Finish();
         }
+        // The snare is a line skill (DirectionLine): it is aimed along the Host's feet to Client1's observed feet.
+        const FVector Direction = (FVector(Target->FeetCm) - ALDCombatDirector::FootOf(*Own)).GetSafeNormal2D();
+        if (Direction.IsNearlyZero())
+        {
+            return Fail(TEXT("Skills"), TEXT("The Host has no planar aim at Client1's observed feet"));
+        }
         FLDCombatTarget Aim;
-        Aim.Kind = ELDCombatTargetKind::Unit;
-        Aim.Observed = Target->Handle;
-        Aim.ObservationEpoch = Target->ObservationEpoch;
+        Aim.Kind = ELDCombatTargetKind::Direction;
+        Aim.Direction = Direction;
+        const FVector Point = FVector(Target->FeetCm);
         HitBeforeMs = Victim->Cues.LastHitAtMs;
-        if (!ArmAndConfirm(PC, Snare, Aim)) { return Finish(); }
+        if (!ArmAndConfirm(PC, Snare, Aim, &Point)) { return Finish(); }
         HostCastOrder = PC.Navigation->LocalIdentity();
-        HostCastTarget = Target->Handle;
-        HostCastTargetEpoch = Target->ObservationEpoch;
         SetStage(EStage::Rooting);
         return true;
     }
@@ -2281,20 +2289,20 @@ public:
         const FLDMoveIdentity Automatic = Nav.LocalIdentity();
         const bool bAttackActive = Automatic.Order > HostCastOrder.Order && Nav.ClientActive == Automatic
             && Nav.ActiveKind == ELDSpatialOrderKind::AttackUnit;
-        if (!Root || !Victim || !bAttackActive)
+        if (!Root || !Victim)
         {
             if (Now - StageAt <= LDDemoCombatScenario::CombatProbeSkillSeconds) { return true; }
-            return Fail(TEXT("CastFollowUp"), TEXT("The Host did not observe both the snare root and its automatic attack"));
+            return Fail(TEXT("Skills"), TEXT("The Host did not observe the snare's root on Client1"));
         }
         Check(Victim->Cues.LastHitAtMs > HitBeforeMs && Root->ExpiresAtServerMs > Victim->Cues.LastHitAtMs, TEXT("Skills"),
             TEXT("The snare lands on Client1 and the Host's observation frame shows its root with the server deadline"),
             FString::Printf(TEXT("hit_ms=%lld root_until_ms=%lld"), Victim->Cues.LastHitAtMs, Root->ExpiresAtServerMs));
         if (!Passed) { return Finish(); }
-        const auto* Sent = Nav.SentAttackTargets.FindByPredicate([&Automatic](const ULDNavigationComponent::FAttackIntent& Attack)
-        { return Attack.Identity == Automatic; });
-        if (!Check(PC.Controls && PC.Controls->GetAutoAttackAfterCast() && Sent && Sent->Observed == HostCastTarget
-            && Sent->ObservationEpoch == HostCastTargetEpoch, TEXT("CastFollowUp"),
-            TEXT("The Listen Host's unit cast starts an accepted attack on its target"))) { return Finish(); }
+        // A direction skill follows only an accepted attack (LDOrderRules::CastFollowUpTarget); the Host had none, so it
+        // stands. Client1's bolt covers the direction cast that continues an accepted attack.
+        if (!Check(PC.Controls && PC.Controls->GetAutoAttackAfterCast() && !bAttackActive && !Nav.CastFollowUp.Identity.Order,
+            TEXT("CastFollowUp"), TEXT("The Listen Host's line cast with no accepted attack starts no follow-up attack")))
+        { return Finish(); }
 
         const ELDCombatEntry Snare = EntryOf(PC, LDDemoCombatScenario::CombatProbeSnare());
         if (Snare == ELDCombatEntry::None)
@@ -2312,9 +2320,8 @@ public:
         FLDCombatActionRequest PointCast;
         Nav.PrepareCastFollowUp(ELDSpatialOrderKind::CastPoint, PointCast, false, Prior, PriorEpoch);
         if (!Check(Refused.Identity == Nav.LocalIdentity() && Refused.Status == ELDOrderStatus::Rejected
-            && Refused.Failure == ELDOrderFailure::CastRefused && !Nav.CastFollowUp.Identity.Order
-            && Nav.PredictedIdentity() == Automatic && Prior == HostCastTarget && PriorEpoch == HostCastTargetEpoch,
-            TEXT("CastFollowUp"), TEXT("A synchronous refused cast leaves no follow-up and preserves the accepted attack")))
+            && Refused.Failure == ELDOrderFailure::CastRefused && !Nav.CastFollowUp.Identity.Order && !Prior.IsValid(),
+            TEXT("CastFollowUp"), TEXT("A synchronous refused cast leaves no follow-up and starts no attack")))
         { return Finish(); }
         Nav.Stop();
         NavigateAttempts = 0;
@@ -2692,8 +2699,8 @@ public:
         return true;
     }
 
-    // The Host's current frame shows the hover ring under Handle with the plain arrow (hovering never changes the
-    // pointer), or the attack marker.
+    // The Host's current frame shows the hover ring under Handle with the enemy sword cursor (#329 §4.3: hovering an
+    // attackable enemy contender), or the attack marker.
     mutable FString PointerMiss;
     bool ShowsPointer(const FGuid& Handle, bool bHover, FString& Facts) const
     {
@@ -2703,7 +2710,7 @@ public:
         uint32 Epoch = 0;
         const bool bShown = Feedback && (bHover
             ? PC->Navigation->ReadHovered(Hovered, Epoch) && Hovered == Handle && Feedback->ShowsHover()
-                && PC->CurrentMouseCursor == EMouseCursor::Default
+                && PC->CurrentMouseCursor == LDCursor::EnemySword
             : Feedback->ShowsAttack());
         if (!bShown)
         {
