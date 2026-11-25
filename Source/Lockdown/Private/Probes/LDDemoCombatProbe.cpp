@@ -259,6 +259,9 @@ public:
     // -LDDemoCombatCaptureOnly (CaptureFeelSample.ps1 -Scenario combat): the same real owned fight for audio/feel and UI
     // capture, without the Host's chase-goal assertions; its report is marked capture_only and judges nothing.
     bool bCaptureOnly = false;
+    // Capture-only: failed value checks are recorded and counted but keep the fight going; Net, Skills and Fail() still end it.
+    int32 ToleratedFailures = 0;
+    bool bFailing = false;
     int64 HpAtStopP2 = -1, BasicIntervalMs = 0, RespawnAtMs = 0, ProtectedUntilMs = 0;
     double StopSampledAt = 0;
     FLDMoveIdentity KillOrder;
@@ -363,6 +366,12 @@ public:
         CheckRow->SetBoolField(TEXT("passed"), bValue);
         CheckRow->SetStringField(TEXT("detail"), Detail);
         Checks.Add(MakeShared<FJsonValueObject>(CheckRow));
+        if (!bValue && bCaptureOnly && !bFailing && FCString::Strcmp(Id, TEXT("Net")) != 0 && FCString::Strcmp(Id, TEXT("Skills")) != 0)
+        {
+            ++ToleratedFailures;
+            UE_LOG(LogLDTest, Warning, TEXT("LD_DEMO_COMBAT_CAPTURE_TOLERATED %s %s: %s"), Id, *Name, *Detail);
+            return true;
+        }
         Passed &= bValue;
         if (!bValue && Error.IsEmpty())
         {
@@ -373,6 +382,7 @@ public:
 
     bool Fail(const TCHAR* Id, const FString& Why)
     {
+        bFailing = true;
         Check(false, Id, Why);
         return Finish();
     }
@@ -2853,6 +2863,8 @@ public:
     bool ShotSaved(const TCHAR* Moment)
     {
         const bool bSaved = Shot && Shot->bSaved;
+        // A capture-only run is recorded from the window itself; the check's own frame captures judge nothing there.
+        if (bCaptureOnly && !bSaved) { Shot.Reset(); return true; }
         Check(bSaved, TEXT("Render"), FString::Printf(TEXT("The Host's rendered main view is captured while it shows %s"), Moment),
             Shot ? (bSaved ? Shot->File + TEXT(" ") + Shot->Facts : Shot->Problem) : FString(TEXT("no capture was opened")));
         Shot.Reset();
@@ -2942,6 +2954,7 @@ public:
         Report->SetStringField(TEXT("role"), Role);
         Report->SetBoolField(TEXT("dev_probe"), true);
         Report->SetBoolField(TEXT("capture_only"), bCaptureOnly);
+        Report->SetNumberField(TEXT("capture_tolerated_failures"), ToleratedFailures);
         Report->SetBoolField(TEXT("normal_start"), true);
         Report->SetStringField(TEXT("scope"), IsHost()
             ? TEXT("DEV-only owned-connection combat/orders scenario, target and killer role: a participating Listen Host that is attacked, audits the hits, kills with a right-click order and audits the respawn; then, through its DEV growth fixture's preset offers and XP grants, learns active_pants_down from its opening offer through an ordinary build command, roots Client1, observes its shield, is hit and slowed by Client1's snark bolt and lands a basic hit after a chase. It renders its main view and keeps captures of the observed root, shield and bolt flight for presentation review (not compared by pixels). Not camps, AI, capture or full-match acceptance.")
@@ -2981,6 +2994,16 @@ public:
         UE_LOG(LogLDTest, Display, TEXT("LD_DEMO_COMBAT_PROBE role=%s passed=%d detail=%s"), *Role, Passed && Written, *Error);
         if (!Passed || !Written)
         {
+            if (bCaptureOnly)
+            {
+                // The recording keeps the last moment (a kill, a death) on screen before the window closes.
+                FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([](float)
+                {
+                    FPlatformMisc::RequestExitWithStatus(false, 2);
+                    return false;
+                }), 5.0f);
+                return false;
+            }
             FPlatformMisc::RequestExitWithStatus(false, 2);
             return false;
         }
