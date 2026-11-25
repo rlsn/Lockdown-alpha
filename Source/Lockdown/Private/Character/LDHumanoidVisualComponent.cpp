@@ -501,7 +501,7 @@ void ULDHumanoidVisualComponent::UpdateRelease(float EffectScale)
             Impacts->Play(LDSliceVfx::ESystem::HoseJet, *this, Floor, Floor + Ahead * Range, LDSliceVfx::ElementInk(uint8(ELDCombatElement::Water)),
                 HalfWidth, 1.4f * Look.Seconds, Look, Late);
         }
-        Impacts->NoteStrike(*this, LDSliceVfx::EStrike::Hose, At, Facing, bOwnBody);
+        Impacts->NoteStrike(*this, LDSliceVfx::EStrike::Hose, At, Facing, bOwnBody, CastAbility);
     }
     else if (CastAbility == uint8(ELDDemoAbilityId::ActiveColaShake) && !bOverdriveCast)
     {
@@ -533,7 +533,7 @@ void ULDHumanoidVisualComponent::UpdateRelease(float EffectScale)
     {
         // Release: the spark at the hand; each hit of the chain draws its arc from here or the previous body struck.
         Impacts->Slice(this, LDSliceVfx::ZapRelease(At, Look), Late);
-        Impacts->NoteStrike(*this, LDSliceVfx::EStrike::Zap, At, Facing, bOwnBody);
+        Impacts->NoteStrike(*this, LDSliceVfx::EStrike::Zap, At, Facing, bOwnBody, CastAbility);
     }
     else
     {
@@ -1119,11 +1119,14 @@ bool ULDHumanoidVisualComponent::ShowSliceImpact(const FPendingImpact& Impact, c
             70.f * Look.Size, .9f * Look.Seconds, Look, Age);
         return false;
     }
-    Impacts->Slice(this, LDSliceVfx::Impact(Strike, Chest, Feet, Dir, Match.From, Match.bChained, Look), Age);
+    // A plain hit of a physical skill (its look is None) shows the heavier Niagara Hit, not the old skill burst; the return
+    // value still names only a combo finisher.
+    const LDSliceVfx::EStrike Visual = Strike == LDSliceVfx::EStrike::Skill && Impact.Look == ELDObservedHitLook::None ? LDSliceVfx::EStrike::Finisher : Strike;
+    Impacts->Slice(this, LDSliceVfx::Impact(Visual, Chest, Feet, Dir, Match.From, Match.bChained, Look), Age);
     // A basic or finisher hit: the Niagara Hit along the strike, and in the local player's own fight a brief rim on the body.
-    if (Strike == LDSliceVfx::EStrike::Basic || Strike == LDSliceVfx::EStrike::Finisher)
+    if (Visual == LDSliceVfx::EStrike::Basic || Visual == LDSliceVfx::EStrike::Finisher)
     {
-        const bool bFinisher = Strike == LDSliceVfx::EStrike::Finisher;
+        const bool bFinisher = Visual == LDSliceVfx::EStrike::Finisher;
         Impacts->Hit(*this, Chest - Dir * 100.f, Chest, bFinisher, Look, Age);
         if (Look.bFocus && Mesh && Age < .1f && Look.EffectScale > 0.f)
         {

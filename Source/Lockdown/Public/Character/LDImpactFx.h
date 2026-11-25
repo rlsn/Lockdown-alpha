@@ -152,6 +152,8 @@ public:
     // The approved reach of a skill's level-1 target (its range and, for a direction line, the band's half width) and
     // the conduct reaction's splash radius; 0 when the content is unavailable.
     bool SkillReach(uint8 Ability, float& OutRangeCm, float& OutHalfWidthCm);
+    // Whether a skill's own damage is physical (its hits are observed with no look, like a basic hit's).
+    bool IsPhysicalSkill(uint8 Ability);
     // The approved full angle of a skill's level-1 cone target (degrees); 0 when it has none.
     float SkillConeDegrees(uint8 Ability);
     float ConductRadiusCm();

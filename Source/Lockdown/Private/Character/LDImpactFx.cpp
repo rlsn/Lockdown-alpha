@@ -9,6 +9,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Development/LDDemoContentCatalog.h"
+#include "Development/LDDemoContentIds.h"
 #include "Framework/LDDemoEntry.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
@@ -1128,13 +1129,15 @@ ULDImpactFxSubsystem::FStrikeMatch ULDImpactFxSubsystem::MatchHit(const ULDHuman
         const bool bFits = Look == ELDObservedHitLook::Water ? Strike.Strike == EStrike::Hose
             : Look == ELDObservedHitLook::Electric ? Strike.Strike == EStrike::Zap
             : Look == ELDObservedHitLook::Magic || Look == ELDObservedHitLook::Fire ? Strike.Strike == EStrike::Skill
-            : Look == ELDObservedHitLook::None && (Strike.Strike == EStrike::Basic || Strike.Strike == EStrike::Finisher);
+            : Look == ELDObservedHitLook::None && (Strike.Strike == EStrike::Basic || Strike.Strike == EStrike::Finisher
+                || (Strike.Strike == EStrike::Skill && IsPhysicalSkill(Strike.Ability)));
         if (!bFits) { continue; }
         const double Gap = HitAt - Strike.At;
         // A chain's later links land one interval after another (chain_bounce.interval) from the last body struck.
-        const double Late = Strike.Strike == EStrike::Zap ? .45 + .25 * Strike.Hits : .45;
+        // A skill's flight (a thrown shoe at 1650 cm/s over 850 cm) lands up to about half a second after its release.
+        const double Late = Strike.Strike == EStrike::Zap ? .45 + .25 * Strike.Hits : Strike.Strike == EStrike::Skill ? .9 : .45;
         const double Reach = Strike.Strike == EStrike::Hose ? 900. : Strike.Strike == EStrike::Zap ? (Strike.Hits ? 600. : 950.)
-            : Strike.Strike == EStrike::Skill ? 800. : 420.;
+            : Strike.Strike == EStrike::Skill ? 950. : 420.;
         const FVector Origin = Strike.Strike == EStrike::Zap ? Strike.Last : Strike.From;
         if (Gap < -.25 || Gap > Late || FVector::Dist2D(Origin, Chest) > Reach) { continue; }
         if (FMath::Abs(Gap) < BestGap)
@@ -1413,6 +1416,20 @@ bool ULDImpactFxSubsystem::SkillReach(uint8 Ability, float& OutRangeCm, float& O
         OutRangeCm = Cm(Definition.Target.RangeCm);
         OutHalfWidthCm = Cm(Definition.Target.LineHalfWidthCm);
         return OutRangeCm > 0.f;
+    }
+    return false;
+}
+
+bool ULDImpactFxSubsystem::IsPhysicalSkill(uint8 Ability)
+{
+    OverdriveHoldSeconds();
+    if (!Content || Ability == 0) { return false; }
+    for (const FLDDemoAbilityDefinition& Definition : Content->Get().Abilities)
+    {
+        if (Definition.NativeId != Ability) { continue; }
+        // Its own damage is physical (a physical hit is observed with no look).
+        return Definition.Values.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect)
+            { return Effect.Opcode == uint16(ELDDemoEffectOp::Damage) && Effect.DamageType == ELDDemoDamageType::Physical; });
     }
     return false;
 }
