@@ -146,19 +146,20 @@ Kenney 的 Impact、Interface、RPG、Sci-Fi 全包（CC0）由用户决定采�
 | 本人命中确认（普通/暴击/破盾/击杀） | IMPLEMENTED | `SelfDealtImpact` + `SelfDealtAccent`/`Crit`/`ShieldBreak`/`Kill` | — |
 | 电命中 / 闪电链每跳 | USER APPROVED | `HitElectric` ×3 | 样板时序已验：三跳各在日志时刻 ±7 ms |
 | 火、水、魔法命中 | IMPLEMENTED | `HitFire`、`HitWater`、`HitMagic` 各 ×2 | — |
-| 冰、腐（毒）命中 | BLOCKED | 命中外观只有 Magic/Fire/Water/Electric 四种，冰与腐没有外观字段 | 需要新的命中外观（网络投影改动，非本流可做） |
+| 冰、腐（毒）命中 | IMPLEMENTED | 施法者可见时，命中按 VFX 的击打匹配归到技能（冰可乐 → 冰裂命中，过期外卖 → 湿拍腐烂命中） | 施法者不可见时只剩 Magic 外观，落回 `HitMagic`；彻底区分需要命中投影带元素（网络改动，非本流） |
 | 技能前摇蓄能 | USER APPROVED | `CastCharge`，出手 30 ms 切断 | — |
 | 技能释放：电你个哆嗦 | USER APPROVED | 技能表 `active_zap` ×2 | 样板（§6） |
 | 技能释放：其余 23 个 | IMPLEMENTED | 技能表各 ×2 take，按玩法语义合成（推、抓、冲刺、护盾、投掷、区域、元素），见生成器 `skill_*` | 波形与频谱已查（主瞬态在出手时刻、≤ 8.5 kHz）；未实机采集、未听感验收 |
-| 每技能专属命中声 | BLOCKED | 命中不携带技能编号；只能按外观族与 VFX 击打匹配区分 | 同上 |
-| 元素反应（10 种） | NOT STARTED | — | — |
+| 每技能专属命中声 | IMPLEMENTED | `skill_hits` 表 18 个技能各 ×2 take（骨撞、拍脸、砖裂、水柱、冰裂、腐烂、书包、鞭响……），按 VFX 击打匹配（`FStrikeMatch::Ability`）播放；电你个哆嗦沿用已批准的 `HitElectric`，强化普攻类走普攻命中 | 施法者不可见时落回外观族；未实机采集 |
+| 元素反应（10 种） | IMPLEMENTED | `Reaction*` 线索，挂在 `SetReaction` 钩子，与特效强度无关；按反应的两个元素设计（雾=蒸汽、导电=扩散放电、超载=爆裂、融化、沼气闷爆、冻结、发酵、碎冰、腐蚀、冻伤） | 未实机采集 |
 | 地面状态循环（水洼、冰、火、瘴气、电场） | NOT STARTED | — | — |
 | 投射物飞行与落点 | NOT STARTED | — | — |
+| 元素状态挂上（着火、湿身、带电、冰冷、腐烂） | IMPLEMENTED | `State*` 短促提示，状态从无到有时响一次，不做循环（避免混战堆积） | 未实机采集 |
 | 被动触发与强化普攻 | NOT STARTED | — | — |
 | 本人受击、护盾、破盾、闪避、招架、冲刺、拾取 | IMPLEMENTED | 既有 Kenney 线索 | 质量待按新方向复审 |
 | 死亡、复活、升级 | IMPLEMENTED | 既有 Kenney 线索 | 同上 |
 | 击杀播报、开旗、占领、争夺 | IMPLEMENTED | 既有 Kenney 线索 | 同上 |
-| 开局、胜、负、无胜者 | IMPLEMENTED | 既有 Kenney 乐句；开局无专属声 | 开局 NOT STARTED |
+| 开局、胜、负、无胜者 | IMPLEMENTED | `MatchStart`（开局休息后的第一段场地，中途加入不补放）；胜负为既有 Kenney 乐句 | 规则测试 `AudioFeelSync` 覆盖开局判定 |
 | 界面：悬停、点击、拒绝、构筑工坊全套 | IMPLEMENTED | 既有 Kenney 线索 | UI 样板（悬停/选择/确认/购买/拒绝/奖励）未做 |
 | 菜单、大厅、设置、赛后 | IN PROGRESS | 点击、悬停共用；音乐已有 | — |
 | 环境氛围 | NOT STARTED | — | — |

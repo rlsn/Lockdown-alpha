@@ -28,7 +28,7 @@ def take_sources():
     root = Path(__file__).resolve().parent.parent / "SourceData" / "Audio"
     manifest = json.loads((root / "audio_cues.json").read_text(encoding="utf-8"))
     out = {}
-    for entry in manifest["cues"] + manifest.get("skills", []):
+    for entry in manifest["cues"] + manifest.get("skills", []) + [dict(h, ability=h["ability"] + "_hit") for h in manifest.get("skill_hits", [])]:
         name = entry.get("cue") or entry.get("ability")
         files = [t["source"] for t in entry["takes"]] if "takes" in entry else [entry["source"]]
         for index, source in enumerate(files):

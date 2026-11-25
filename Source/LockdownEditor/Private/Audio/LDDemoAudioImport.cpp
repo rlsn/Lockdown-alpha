@@ -53,6 +53,7 @@ namespace
     {
         TArray<FAudioManifestCue> Cues;
         TArray<FAudioManifestSkill> Skills;
+        TArray<FAudioManifestSkill> SkillHits;
         TArray<FAudioManifestTrack> Tracks;
     };
 
@@ -109,11 +110,13 @@ namespace
         const TArray<TSharedPtr<FJsonValue>>* Originals = nullptr;
         const TArray<TSharedPtr<FJsonValue>>* Cues = nullptr;
         const TArray<TSharedPtr<FJsonValue>>* Skills = nullptr;
+        const TArray<TSharedPtr<FJsonValue>>* SkillHits = nullptr;
         const TArray<TSharedPtr<FJsonValue>>* Music = nullptr;
         if (!Json->TryGetNumberField(TEXT("schema"), Schema) || Schema != 3 || !Json->TryGetArrayField(TEXT("packs"), Packs)
             || !Json->TryGetArrayField(TEXT("originals"), Originals) || !Json->TryGetArrayField(TEXT("cues"), Cues)
-            || !Json->TryGetArrayField(TEXT("skills"), Skills) || !Json->TryGetArrayField(TEXT("music"), Music) || Packs->IsEmpty())
-        { return AudioFail(Error, TEXT("audio_cues.json needs schema 3, packs, originals, cues, skills and music.")); }
+            || !Json->TryGetArrayField(TEXT("skills"), Skills) || !Json->TryGetArrayField(TEXT("skill_hits"), SkillHits)
+            || !Json->TryGetArrayField(TEXT("music"), Music) || Packs->IsEmpty())
+        { return AudioFail(Error, TEXT("audio_cues.json needs schema 3, packs, originals, cues, skills, skill_hits and music.")); }
         TSet<FString> Listed, PackIds, Reserved;
         for (const TSharedPtr<FJsonValue>& Value : *Packs)
         {
@@ -199,24 +202,30 @@ namespace
             Out.Cues.Add(MoveTemp(Cue));
         }
         TMap<FString, int32> Abilities;
-        if (!Skills->IsEmpty() && !AudioAbilityNumbers(Abilities, Error)) { return false; }
-        int32 PreviousAbility = -1;
-        for (const TSharedPtr<FJsonValue>& Value : *Skills)
+        if ((!Skills->IsEmpty() || !SkillHits->IsEmpty()) && !AudioAbilityNumbers(Abilities, Error)) { return false; }
+        // A table of skill sounds by ability: releases are SW_<ability>[_n], hits SW_<ability>_hit[_n].
+        const auto ReadSkills = [&](const TArray<TSharedPtr<FJsonValue>>& Table, const TCHAR* Suffix, TArray<FAudioManifestSkill>& Into) -> bool
         {
-            const TSharedPtr<FJsonObject>* Entry = nullptr;
-            FAudioManifestSkill Skill;
-            FString Id;
-            double Number = -1;
-            const int32* Known = nullptr;
-            if (!Value->TryGetObject(Entry) || !(*Entry)->TryGetStringField(TEXT("ability"), Id) || !(*Entry)->TryGetNumberField(TEXT("native_id"), Number)
-                || !(Known = Abilities.Find(Id)) || *Known != int32(Number) || *Known <= PreviousAbility || *Known > 255)
-            { return AudioFail(Error, TEXT("Every skill sound needs an ability id with its native_id from native_ids.json, in ascending native_id order without repeats.")); }
-            PreviousAbility = *Known;
-            Skill.Ability = uint8(*Known);
-            Skill.Name = Id;
-            if (!ReadSound(*Entry, Skill, TEXT("Skill ") + Id)) { return false; }
-            Out.Skills.Add(MoveTemp(Skill));
-        }
+            int32 PreviousAbility = -1;
+            for (const TSharedPtr<FJsonValue>& Value : Table)
+            {
+                const TSharedPtr<FJsonObject>* Entry = nullptr;
+                FAudioManifestSkill Skill;
+                FString Id;
+                double Number = -1;
+                const int32* Known = nullptr;
+                if (!Value->TryGetObject(Entry) || !(*Entry)->TryGetStringField(TEXT("ability"), Id) || !(*Entry)->TryGetNumberField(TEXT("native_id"), Number)
+                    || !(Known = Abilities.Find(Id)) || *Known != int32(Number) || *Known <= PreviousAbility || *Known > 255)
+                { return AudioFail(Error, TEXT("Every skill sound needs an ability id with its native_id from native_ids.json, in ascending native_id order without repeats.")); }
+                PreviousAbility = *Known;
+                Skill.Ability = uint8(*Known);
+                Skill.Name = Id + Suffix;
+                if (!ReadSound(*Entry, Skill, TEXT("Skill ") + Skill.Name)) { return false; }
+                Into.Add(MoveTemp(Skill));
+            }
+            return true;
+        };
+        if (!ReadSkills(*Skills, TEXT(""), Out.Skills) || !ReadSkills(*SkillHits, TEXT("_hit"), Out.SkillHits)) { return false; }
         if (Music->Num() != LDAudio::MusicTrackCount)
         { return AudioFail(Error, FString::Printf(TEXT("audio_cues.json lists %d music tracks; the catalog needs %d."), Music->Num(), LDAudio::MusicTrackCount)); }
         for (int32 Index = 0; Index < Music->Num(); ++Index)
@@ -384,6 +393,7 @@ bool LDDemoAudioImport::Import(FString& Error)
     Catalog->UserMix = Mix;
     Catalog->Cues.Reset();
     Catalog->SkillReleases.Reset();
+    Catalog->SkillHits.Reset();
     Catalog->Music.Reset();
     TArray<UObject*> Assets = { Master, MusicClass, SfxClass, UIClass, Mix };
     bool bImported = true;
@@ -397,15 +407,20 @@ bool LDDemoAudioImport::Import(FString& Error)
         Entry.Sound = Takes[0];
         for (int32 Index = 1; Index < Takes.Num(); ++Index) { Entry.Variants.Add(Takes[Index]); }
     }
-    for (const FAudioManifestSkill& Skill : Loaded.Skills)
+    const auto ImportSkills = [&](const TArray<FAudioManifestSkill>& Table, TArray<FLDAudioKeyedEntry>& Into)
     {
-        if (!bImported) { break; }
-        TArray<USoundWave*> Takes;
-        if (!(bImported = AudioImportTakes(*Factory, AudioSkillPackageRoot, Skill, SfxClass, Takes, Assets, Error))) { break; }
-        FLDAudioKeyedEntry& Entry = Catalog->SkillReleases.AddDefaulted_GetRef();
-        Entry.Key = Skill.Ability;
-        for (USoundWave* Take : Takes) { Entry.Sounds.Add(Take); }
-    }
+        for (const FAudioManifestSkill& Skill : Table)
+        {
+            if (!bImported) { return; }
+            TArray<USoundWave*> Takes;
+            if (!(bImported = AudioImportTakes(*Factory, AudioSkillPackageRoot, Skill, SfxClass, Takes, Assets, Error))) { return; }
+            FLDAudioKeyedEntry& Entry = Into.AddDefaulted_GetRef();
+            Entry.Key = Skill.Ability;
+            for (USoundWave* Take : Takes) { Entry.Sounds.Add(Take); }
+        }
+    };
+    ImportSkills(Loaded.Skills, Catalog->SkillReleases);
+    ImportSkills(Loaded.SkillHits, Catalog->SkillHits);
     for (const FAudioManifestTrack& Track : Loaded.Tracks)
     {
         if (!bImported) { break; }
@@ -462,11 +477,15 @@ bool LDDemoAudioImport::Validate(FString& Error)
     {
         if (!AudioValidateTakes(AudioCuePackageRoot, Cue, Resolved.Cues[int32(Cue.Cue)], Error)) { return false; }
     }
-    if (Catalog->SkillReleases.Num() != Loaded.Skills.Num())
-    { return AudioFail(Error, TEXT("The catalog's skill releases differ from the manifest; run ImportDemoAudio.ps1 -Mode Import.")); }
+    if (Catalog->SkillReleases.Num() != Loaded.Skills.Num() || Catalog->SkillHits.Num() != Loaded.SkillHits.Num())
+    { return AudioFail(Error, TEXT("The catalog's skill releases or hits differ from the manifest; run ImportDemoAudio.ps1 -Mode Import.")); }
     for (const FAudioManifestSkill& Skill : Loaded.Skills)
     {
         if (!AudioValidateTakes(AudioSkillPackageRoot, Skill, Resolved.Skills[Skill.Ability], Error)) { return false; }
+    }
+    for (const FAudioManifestSkill& Skill : Loaded.SkillHits)
+    {
+        if (!AudioValidateTakes(AudioSkillPackageRoot, Skill, Resolved.SkillHits[Skill.Ability], Error)) { return false; }
     }
     Error.Reset();
     return true;
