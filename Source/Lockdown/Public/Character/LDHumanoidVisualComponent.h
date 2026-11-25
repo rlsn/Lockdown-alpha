@@ -78,6 +78,8 @@ public:
     // fainter and white (LDSliceVfx::FLook).
     void SetOwnBody(bool bOwn) { bOwnBody = bOwn; }
     bool IsOwnBody() const { return bOwnBody; }
+    // The roster seat whose palette the body wears (MAX_uint8 for none).
+    uint8 PaletteSlot() const { return LookSlot; }
     // The public overdrive charge (FLDObservedUnitView::bCharging; the own body's ChargingEntry): an energy column while
     // held, a ready flare once OVERDRIVE.HoldSec passes, and the release shockwave when it ends as a cast begins.
     // AgeSeconds: how long the charge has been held (authority age for a proxy); Progress: the own key's hold progress

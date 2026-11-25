@@ -157,6 +157,8 @@ namespace
         TArray<TWeakObjectPtr<ULDHumanoidVisualComponent>> PerfCasters, PerfVictims;
         struct FFrameStats { int32 Frames = 0; double RealMs = 0, GameMs = 0, RenderMs = 0, GpuMs = 0; int32 MaxComponents = 0, MaxParticles = 0, MaxLayers = 0, MaxLive = 0; };
         TArray<TWeakObjectPtr<ALDObservedGroundProxy>> ProofGrounds;
+        // The scenario clock at which each proof ground state was laid: its life runs on that clock (Present).
+        TArray<double> ProofGroundsAt;
         FFrameStats PerfIdle, PerfLoad;
         TSharedPtr<FJsonObject> ChainCheck;
         static constexpr float ChainStep_ = 1.f / 30.f;
@@ -967,10 +969,11 @@ namespace
             { return [Body]() { if (auto* B = Body.Get()) { B->SetHitReaction(0.f, ELDObservedHitLook::None, 0, FGuid::NewGuid()); } }; };
             const auto Conduct = [this](TWeakObjectPtr<ULDHumanoidVisualComponent> Body)
             { return [this, Body]() { if (auto* B = Body.Get()) { B->SetReaction(uint8(ELDCombatReaction::Conduct), uint8(ELDCombatElement::Shock), 0.f, 900. + ChainJob); } }; };
-            // A ground electric field of this radius under a body for TotalMs (its authoritative state as the server sends it).
-            const auto Field = [this](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, float RadiusCm, int32 TotalMs, uint32 Id)
+            // A ground electric field of this radius under a body for TotalMs (its authoritative state as the server sends it),
+            // laid by the contender in seat OwnerSeat (255 none); its life runs on the scenario clock to its end.
+            const auto Field = [this](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, float RadiusCm, int32 TotalMs, uint32 Id, uint8 OwnerSeat = 255)
             {
-                return [this, Body, RadiusCm, TotalMs, Id]()
+                return [this, Body, RadiusCm, TotalMs, Id, OwnerSeat]()
                 {
                     FActorSpawnParameters Spawn;
                     Spawn.ObjectFlags |= RF_Transient;
@@ -981,12 +984,21 @@ namespace
                     State.Kind = uint8(ELDGroundStateKind::Field);
                     State.CentreCm = Body->GetOwner()->GetActorLocation() - FVector(0, 0, 90);
                     State.RadiusCm = RadiusCm;
+                    State.OwnerSeat = OwnerSeat;
                     State.RemainingMs = State.TotalMs = TotalMs;
                     Ground->Apply(State, 100.);
                     ProofGrounds.Add(Ground);
+                    ProofGroundsAt.Add(ChainClock);
                 };
             };
-            const auto ClearGrounds = [this]() { for (const TWeakObjectPtr<ALDObservedGroundProxy>& Ground : ProofGrounds) { if (ALDObservedGroundProxy* Old = Ground.Get()) { Old->Destroy(); } } ProofGrounds.Reset(); };
+            const auto ClearGrounds = [this]()
+            {
+                for (const TWeakObjectPtr<ALDObservedGroundProxy>& Ground : ProofGrounds) { if (ALDObservedGroundProxy* Old = Ground.Get()) { Old->Destroy(); } }
+                ProofGrounds.Reset();
+                ProofGroundsAt.Reset();
+            };
+            // The own contender's seat (A is the local player's body) and another's.
+            const uint8 OwnSeat = A.IsValid() ? A->PaletteSlot() : 255, OtherSeat = V2.IsValid() ? V2->PaletteSlot() : 255;
             for (const FString& Look : Wanted)
             {
                 if (Look == TEXT("hit") || Look == TEXT("swing"))
@@ -1016,13 +1028,16 @@ namespace
                     // The persistent electric field at its authoritative radius from its start to its end (1.2 s here), with
                     // bodies standing in it; on the sunlit floor; the conduct reaction's splash field; two fields with an
                     // exchange over them.
-                    ChainJobs.Add({Look, TEXT("field-ground"), {{.05f, Field(V1, 220.f, 1200, 21)}}, nullptr, ClearGrounds, false, .6f, 0.f, 48});
-                    ChainJobs.Add({Look, TEXT("field-sunlit"), {{.05f, Field(V1, 220.f, 1200, 22)}}, Sunlit, [Home, ClearGrounds]() { ClearGrounds(); Home(); }, false, .6f, 0.f, 48});
+                    ChainJobs.Add({Look, TEXT("field-ground"), {{.05f, Field(V1, 220.f, 1200, 21, OwnSeat)}}, nullptr, ClearGrounds, false, .6f, 0.f, 48});
+                    ChainJobs.Add({Look, TEXT("field-sunlit"), {{.05f, Field(V1, 220.f, 1200, 22, OwnSeat)}}, Sunlit, [Home, ClearGrounds]() { ClearGrounds(); Home(); }, false, .6f, 0.f, 48});
                     ChainJobs.Add({Look, TEXT("field-conduct"), {{0.f, [A]() { if (auto* B = A.Get()) { B->SetComboStep(0); B->SetCastAbility(uint8(ELDDemoAbilityId::ActiveZap)); B->SetCue(2, 0.f, .25f); } }},
                         {.27f, [V1]() { if (auto* B = V1.Get()) { B->SetHitReaction(0.f, ELDObservedHitLook::Electric, 0, FGuid::NewGuid()); } }}, {.28f, Conduct(V1)}},
                         nullptr, nullptr, false, .45f, .2f, 36});
-                    ChainJobs.Add({Look, TEXT("field-crowd"), {{.05f, Field(V1, 220.f, 1500, 23)}, {.05f, Field(V3, 180.f, 1500, 24)}, {.2f, Swing(A, 3, W)},
+                    ChainJobs.Add({Look, TEXT("field-crowd"), {{.05f, Field(V1, 220.f, 1500, 23, OwnSeat)}, {.05f, Field(V3, 220.f, 1500, 24, OtherSeat)}, {.2f, Swing(A, 3, W)},
                         {.2f + W + .02f, Plain(V1)}}, nullptr, ClearGrounds, false, .45f, 0.f, 36});
+                    // The own field beside another contender's, both at the state's radius with a body in each.
+                    ChainJobs.Add({Look, TEXT("field-own-other"), {{.05f, Field(V1, 220.f, 1200, 25, OwnSeat)}, {.05f, Field(V2, 220.f, 1200, 26, OtherSeat)}},
+                        nullptr, ClearGrounds, false, .6f, 0.f, 48});
                 }
                 else
                 {
@@ -1144,6 +1159,9 @@ namespace
             {
                 ChainClock += SimDelta;
                 while (ChainStep < Job.Steps.Num() && Job.Steps[ChainStep].At <= ChainClock) { Job.Steps[ChainStep++].Do(); }
+                // Proof ground states age on the scenario clock (Apply sampled them at server time 100), so they end.
+                for (int32 Index = 0; Index < ProofGrounds.Num() && Index < ProofGroundsAt.Num(); ++Index)
+                { if (ALDObservedGroundProxy* Ground = ProofGrounds[Index].Get()) { Ground->Present(100. + ChainClock - ProofGroundsAt[Index]); } }
                 // The user parameters of every live link: own links full width, others' thinner; each starts at its caster
                 // or the previous body struck.
                 Impacts->ForEachGenerated([this](UNiagaraComponent& Effect)
@@ -1273,6 +1291,7 @@ namespace
             ChainPerf.Add(MakeShared<FJsonValueObject>(Run));
             for (const TWeakObjectPtr<ALDObservedGroundProxy>& Ground : ProofGrounds) { if (ALDObservedGroundProxy* Old = Ground.Get()) { Old->Destroy(); } }
             ProofGrounds.Reset();
+            ProofGroundsAt.Reset();
             for (const auto* List : {&PerfCasters, &PerfVictims})
             {
                 for (const auto& Body : *List) { if (auto* B = Body.Get()) { B->SetCue(0); Impacts->ClearFor(*B); B->SetVisibility(false, true); } }

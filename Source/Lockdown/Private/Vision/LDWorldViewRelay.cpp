@@ -874,7 +874,7 @@ void ALDObservedGroundProxy::Present(double AtServerSec)
     if (Shown.Kind == uint8(ELDGroundStateKind::Field))
     {
         if (ULDImpactFxSubsystem* Impacts = GetWorld() ? GetWorld()->GetSubsystem<ULDImpactFxSubsystem>() : nullptr)
-        { Impacts->ShowGroundField(*this, GetActorLocation(), Shown.RadiusCm, float(FMath::Min(Left * 3., 1.))); }
+        { Impacts->ShowGroundField(*this, GetActorLocation(), Shown.RadiusCm, float(FMath::Min(Left * 3., 1.)), Shown.OwnerSeat); }
     }
     if (RimPoints.Num() < 2) { return; }
     // The outline drains with the remaining life (spec §12): the first Remaining/Life of its segments stay.

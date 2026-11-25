@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$EngineRoot,[ValidateRange(1280,2560)][int]$Width=1600,[ValidateRange(720,1440)][int]$Height=900,[ValidateRange(60,1800)][int]$TimeoutSeconds=600,[switch]$CombatVfx,[switch]$CastOnly,[string]$VfxProof,[string]$ProofLabel='new')
+param([string]$EngineRoot,[ValidateRange(1280,2560)][int]$Width=1600,[ValidateRange(720,1440)][int]$Height=900,[ValidateRange(60,1800)][int]$TimeoutSeconds=600,[switch]$CombatVfx,[switch]$CastOnly,[string]$VfxProof,[string]$ProofLabel='new',[ValidateRange(0,2)][int]$FieldLook=0)
 if($CastOnly -and -not $CombatVfx){throw '-CastOnly requires -CombatVfx.'}
 if($VfxProof){$CombatVfx=$true}
 . (Join-Path $PSScriptRoot 'Common.ps1')
@@ -18,6 +18,8 @@ $arguments='"{0}" {1} -game -windowed -RenderOffScreen -ForceRes -ResX={2} -ResY
 if($CombatVfx){$arguments+=' -LDDemoCombatVfxCapture'}
 if($CastOnly){$arguments+=' -LDDemoCastVfxCapture'}
 if($VfxProof){$arguments+=' -LDDemoVfxProof='+$VfxProof+' -LDDemoVfxProofLabel='+$ProofLabel}
+# The electric field look while art direction compares the redesign (ld.Vfx.FieldLook: 0 first, 1 F1, 2 F2).
+if($FieldLook){$arguments+=' -ExecCmds="ld.Vfx.FieldLook '+$FieldLook+'"'}
 $method=if($CastOnly){'DEV visual fixture in the Demo map: the actual body presentation component receives a timed cast cue at the game camera distance; not gameplay, network or artistic acceptance'}elseif($CombatVfx){'DEV visual fixture in the Demo map: the actual body presentation components receive timed swing and hit cues at the game camera distance; not gameplay, network or artistic acceptance'}else{'DEV art fixture in the Demo map Lobby (Listen Host): catalog bodies and clips posed, decorated field rendered from the game camera angle, decoration collision/sight-trace/navmesh checks; not gameplay or combat wiring acceptance'}
 @{display=(Get-LDDisplayEnvironment);sourceRevision=(git rev-parse HEAD);sourceDirty=[bool](git status --porcelain);width=$Width;height=$Height;method=$method}|ConvertTo-Json -Depth 5|Set-Content -LiteralPath (Join-Path $output 'Environment.json') -Encoding utf8
 $process=Start-Process -FilePath $binary -ArgumentList $arguments -WindowStyle Hidden -PassThru

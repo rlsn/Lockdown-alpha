@@ -58,7 +58,9 @@ namespace LDSliceVfx
     //   Field        an electric field on the ground: Start its centre on the floor, Width its radius, Intensity its
     //                strength (2.2 full), Duration its life (the ground state's: effectively unbounded; conduct's splash)
     //   Tell1..3     a basic swing's anticipation on the floor: Start the feet, End ahead, Duration the windup
-    enum class ESystem : uint8 { Chain, HitBasic, HitFinisher, Swing1, Swing2, Swing3, Field, Tell1, Tell2, Tell3, Count };
+    //   FieldF1, F2  the field redesign's candidates (F1 energy fence, F2 charged surface) with Field's parameters, shown in
+    //                its place while art direction compares them (ld.Vfx.FieldLook)
+    enum class ESystem : uint8 { Chain, HitBasic, HitFinisher, Swing1, Swing2, Swing3, Field, Tell1, Tell2, Tell3, FieldF1, FieldF2, Count };
     LOCKDOWN_API const TCHAR* SystemName(ESystem System);
     LOCKDOWN_API FString SystemPackage(ESystem System);
     // The shocked-body rim glow (LDHitVfx::FGhosts::bShell): an additive fresnel shell pushed 1.2 cm out along the normals.

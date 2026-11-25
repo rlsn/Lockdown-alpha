@@ -27,9 +27,12 @@
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
 #include "UObject/UObjectIterator.h"
+#include "HAL/IConsoleManager.h"
 
 namespace LDImpactFxDetail
 {
+    TAutoConsoleVariable<int32> CVarFieldLook(TEXT("ld.Vfx.FieldLook"), 0,
+        TEXT("Electric field look while art direction compares the redesign: 0 the first field, 1 F1 energy fence, 2 F2 charged surface."));
     const FLinearColor WhiteHot(1.f, .28f, .045f), EmberOrange(1.f, .3f, .05f), ShieldCyan(0.f, .78f, 1.f), CritGold(1.f, .55f, .08f);
     constexpr float ReferenceLifeSeconds = .28f, ReferenceSpeed = 900.f, MaxWaitSeconds = .5f;
 
@@ -654,7 +657,13 @@ void ULDImpactFxSubsystem::Tick(float DeltaTime)
         {
             Burst.Age += Step;
             if (Burst.StopAfter >= 0.f && Burst.Age + Burst.InitialAge >= Burst.StopAfter && Effect->IsActive()) { Effect->Deactivate(); }
-            if (Effect->GetAsset() == GetSystem(LDSliceVfx::ESystem::Field) && Burst.Age >= Burst.NextBite && Effect->IsActive()) { Burst.NextBite = Burst.Age + .4f; Biting.Add(Effect); }
+            if (IsField(Effect) && Burst.Age >= Burst.NextBite && Effect->IsActive())
+            {
+                // Others' fields reach less often (decoration).
+                const float Focus = Effect->GetOverrideParameters().GetParameterValue<float>(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("User.Focus")));
+                Burst.NextBite = Burst.Age + (Focus > .5f ? .4f : .8f);
+                Biting.Add(Effect);
+            }
         }
     }
     for (const TWeakObjectPtr<UNiagaraComponent>& Field : Biting) { if (const UNiagaraComponent* Shown = Field.Get()) { Bite(*Shown); } }
@@ -1146,14 +1155,30 @@ ULDImpactFxSubsystem::FStrikeMatch ULDImpactFxSubsystem::MatchHit(const ULDHuman
     return Out;
 }
 
-void ULDImpactFxSubsystem::ShowGroundField(const AActor& Owner, const FVector& Centre, float RadiusCm, float Alpha)
+LDSliceVfx::ESystem ULDImpactFxSubsystem::FieldSystemNow() const
 {
-    UNiagaraSystem* FieldSystem = GetSystem(LDSliceVfx::ESystem::Field);
+    switch (LDImpactFxDetail::CVarFieldLook.GetValueOnGameThread())
+    {
+    case 1: return LDSliceVfx::ESystem::FieldF1;
+    case 2: return LDSliceVfx::ESystem::FieldF2;
+    default: return LDSliceVfx::ESystem::Field;
+    }
+}
+
+bool ULDImpactFxSubsystem::IsField(const UNiagaraComponent* Effect) const
+{
+    const UNiagaraSystem* Asset = Effect ? Effect->GetAsset() : nullptr;
+    return Asset && (Asset == GetSystem(LDSliceVfx::ESystem::Field) || Asset == GetSystem(LDSliceVfx::ESystem::FieldF1)
+        || Asset == GetSystem(LDSliceVfx::ESystem::FieldF2));
+}
+
+void ULDImpactFxSubsystem::ShowGroundField(const AActor& Owner, const FVector& Centre, float RadiusCm, float Alpha, uint8 OwnerSeat)
+{
+    UNiagaraSystem* FieldSystem = GetSystem(FieldSystemNow());
     int32 Found = INDEX_NONE;
     for (int32 Index = 0; Index < Live.Num(); ++Index)
     {
-        const UNiagaraComponent* Effect = Live[Index].Effect.Get();
-        if (Live[Index].OwnerActor.Get() == &Owner && Effect && Effect->GetAsset() == FieldSystem) { Found = Index; break; }
+        if (Live[Index].OwnerActor.Get() == &Owner && IsField(Live[Index].Effect.Get())) { Found = Index; break; }
     }
     if (!FApp::CanEverRender() || !FieldSystem || !FMath::IsFinite(Alpha) || Alpha <= 0.f || !FMath::IsFinite(RadiusCm) || RadiusCm <= 0.f || Centre.ContainsNaN())
     {
@@ -1166,8 +1191,12 @@ void ULDImpactFxSubsystem::ShowGroundField(const AActor& Owner, const FVector& C
     const float Strength = 2.2f * FMath::Clamp(Alpha, 0.f, 1.f) * (.55f + .45f * LocalEffectScale());
     if (Found == INDEX_NONE)
     {
-        // A ground state lives until its owner says otherwise: the system's own life is far beyond any state's.
-        UNiagaraComponent* Effect = SpawnGenerated(LDSliceVfx::ESystem::Field, Floor, Floor, LDBroadcast::Shock, RadiusCm, Strength, 1.e4f, true);
+        // A ground state lives until its owner says otherwise: the system's own life is far beyond any state's. The local
+        // player's own field (its seat is the own body's) shows its decoration in full; others' fields thin it.
+        bool bOwn = false;
+        for (TObjectIterator<ULDHumanoidVisualComponent> It; It && !bOwn && OwnerSeat != MAX_uint8; ++It)
+        { bOwn = It->GetWorld() == GetWorld() && It->IsOwnBody() && It->PaletteSlot() == OwnerSeat; }
+        UNiagaraComponent* Effect = SpawnGenerated(FieldSystemNow(), Floor, Floor, LDBroadcast::Shock, RadiusCm, Strength, 1.e4f, bOwn);
         if (!Effect) { return; }
         Track(Effect, nullptr, 0.f, &Owner);
         return;
@@ -1187,7 +1216,7 @@ void ULDImpactFxSubsystem::FieldPulse(const ULDHumanoidVisualComponent& Source, 
     FVector Normal;
     const FVector Floor = GroundUnder(Feet, Normal);
     const float Seconds = .8f * Look.Seconds;
-    UNiagaraComponent* Effect = SpawnGenerated(LDSliceVfx::ESystem::Field, Floor, Floor, LDBroadcast::Shock, RadiusCm,
+    UNiagaraComponent* Effect = SpawnGenerated(FieldSystemNow(), Floor, Floor, LDBroadcast::Shock, RadiusCm,
         2.2f * Look.Glow * (Look.bFocus ? 1.f : .7f) * (.55f + .45f * FMath::Clamp(Look.EffectScale, 0.f, 1.f)), Seconds, Look.bFocus);
     if (!Effect) { return; }
     Track(Effect, &Source, AgeSeconds);
@@ -1202,9 +1231,12 @@ void ULDImpactFxSubsystem::Bite(const UNiagaraComponent& Field)
     const FVector Centre = FVector(Parameters.GetParameterValue<FVector3f>(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("User.Start"))));
     const float Radius = Parameters.GetParameterValue<float>(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("User.Width")));
     const float Strength = Parameters.GetParameterValue<float>(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("User.Intensity")));
+    const float Focus = Parameters.GetParameterValue<float>(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("User.Focus")));
     if (!GetWorld() || Radius <= 0.f || Strength <= .2f) { return; }
+    // Decoration: others' fields reach for one body at a time.
+    const int32 Most = Focus > .5f ? 3 : 1;
     int32 Bitten = 0;
-    for (TObjectIterator<ULDHumanoidVisualComponent> It; It && Bitten < 3; ++It)
+    for (TObjectIterator<ULDHumanoidVisualComponent> It; It && Bitten < Most; ++It)
     {
         const ULDHumanoidVisualComponent* Body = *It;
         const AActor* Owner = Body ? Body->GetOwner() : nullptr;
@@ -1230,8 +1262,7 @@ UNiagaraComponent* ULDImpactFxSubsystem::SpawnGenerated(LDSliceVfx::ESystem Syst
     if (Live.Num() >= LDImpactFx::MaxBursts)
     {
         // The oldest short effect makes room; a standing field stays while its ground state does.
-        const UNiagaraSystem* Field = GetSystem(LDSliceVfx::ESystem::Field);
-        const int32 Oldest = Live.IndexOfByPredicate([Field](const FLive& Shown) { return !Shown.Effect.IsValid() || Shown.Effect->GetAsset() != Field || Shown.StopAfter >= 0.f; });
+        const int32 Oldest = Live.IndexOfByPredicate([this](const FLive& Shown) { return !IsField(Shown.Effect.Get()) || Shown.StopAfter >= 0.f; });
         Release(Oldest == INDEX_NONE ? 0 : Oldest);
     }
     UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), Asset, End, FRotator::ZeroRotator, FVector(1.f),
