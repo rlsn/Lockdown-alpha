@@ -150,8 +150,8 @@ Kenney 的 Impact、Interface、RPG、Sci-Fi 全包（CC0）由用户决定采�
 
 | 项 | 状态 | 实现与资产 | 证据 / 已知问题 |
 | --- | --- | --- | --- |
-| 普攻挥击 1–2 段 | USER APPROVED | `SwingLight` ×3 take，第 2 段音高 0.94 | 实机样板时序已验（`production/feel/sample-combo-zap/`）；未听感验收 |
-| 普攻终结挥击 | USER APPROVED | `SwingFinisher` ×2 | 同上 |
+| 普攻挥击 1–2 段 | USER APPROVED | `SwingLight` ×3（分层：短促风声 + 布料甩动），第 2 段音高 0.94 | 批次 2 试听后用户选定新版 |
+| 普攻终结挥击 | USER APPROVED | `SwingFinisher` ×3（分层：低沉突刺风声 + 挥砍风声 + 腰带甩动） | 批次 2 试听后用户选定新版 |
 | 落空 | IMPLEMENTED | 只有挥击声（设计如此） | — |
 | 普通命中（他人身体） | USER APPROVED | `HitBasic` ×3（分层：皮革拳击 + 软体闷响 + 低频 + 布料） | 样板时序已验；联网时与本人确认层可能相差 1–2 帧，未在真实对局确认 |
 | 终结命中 | USER APPROVED | `HitFinisher` ×3（分层：重拳 + 木裂 + 低频爆 + 尘尾） | 依赖 VFX 击打匹配判断终结 |
@@ -160,7 +160,7 @@ Kenney 的 Impact、Interface、RPG、Sci-Fi 全包（CC0）由用户决定采�
 | 火命中 | USER APPROVED | `HitFire` ×3（分层：火焰冲击 + 闷响） | A/B 第一轮选定 |
 | 水、魔法命中 | IMPLEMENTED | `HitWater`、`HitMagic` 各 ×3（分层：水击 + 闷响 + 水花；金属魔法冲击 + 轻拳 + 闪光尾） | 未听感验收（批次 2 试听卷） |
 | 冰、腐（毒）命中 | IMPLEMENTED | 施法者可见时，命中按 VFX 的击打匹配归到技能（冰可乐 → 冰裂命中，过期外卖 → 湿拍腐烂命中） | 施法者不可见时只剩 Magic 外观，落回 `HitMagic`；彻底区分需要命中投影带元素（网络改动，非本流） |
-| 技能前摇蓄能 | USER APPROVED | `CastCharge`，出手 30 ms 切断 | — |
+| 技能前摇蓄能 | USER APPROVED | `CastCharge` ×3（分层：吟唱蓄能 + 上扬），出手 30 ms 切断 | 批次 2 试听后用户选定新版 |
 | 技能释放：电你个哆嗦 | USER APPROVED | 技能表 `active_zap` ×2 | 样板（§6） |
 | 技能释放：其余 23 个 | USER ACCEPTED（待质量复做） | 技能表各 ×2 take，按玩法语义合成（推、抓、冲刺、护盾、投掷、区域、元素），见生成器 `skill_*` | 波形与频谱已查（主瞬态在出手时刻、≤ 8.5 kHz）；未实机采集、未听感验收 |
 | 每技能专属命中声 | USER ACCEPTED（待质量复做） | `skill_hits` 表 18 个技能各 ×2 take（骨撞、拍脸、砖裂、水柱、冰裂、腐烂、书包、鞭响……），按 VFX 击打匹配（`FStrikeMatch::Ability`）播放；电你个哆嗦沿用已批准的 `HitElectric`，强化普攻类走普攻命中 | 施法者不可见时落回外观族。物理伤害技能（滚远点、扒裤子、掏蛋子、甩你一鞋、蛮牛顶）的命中外观是 None，VFX 击打匹配目前只把 None 配给普攻，滋你一脸的匹配不带技能号，所以这 6 个技能实际仍播普攻/水命中声；已请 Stream B 调整匹配 |

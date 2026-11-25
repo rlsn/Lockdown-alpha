@@ -539,9 +539,6 @@ SKILL_SOUNDS = {
 
 
 SOUNDS = {
-    "swing_light_1": (swing_light, 11), "swing_light_2": (swing_light, 12), "swing_light_3": (swing_light, 13),
-    "swing_finisher_1": (swing_finisher, 21), "swing_finisher_2": (swing_finisher, 22),
-    "cast_charge": (cast_charge, 91),
     "dealt_crit": (dealt_crit, 111),
     "dealt_kill": (dealt_kill, 121),
     "skill_zap_1": (zap_release, 131), "skill_zap_2": (zap_release, 132),

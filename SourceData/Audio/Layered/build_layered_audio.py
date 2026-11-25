@@ -149,6 +149,25 @@ def hit_magic(n):
                       (0.02, band(fab("MagicFade_FadeOut1", n, 3, 0.35, 0.25), lo=2500), -14)), -16)
 
 
+# Light swing: a short airy whoosh with a cloth flick (the hit itself carries the weight).
+def swing_light(n):
+    return finish(mix((0, band(fab("MagicWeapon_Swing", n, 4, 0.2, 0.08), lo=700), 0),
+                      (0.01, band(cut(load(f"{RPG}/cloth{n % 4 + 1}.ogg"), 0.14), lo=1500), -10)), -20)
+
+
+# Finisher swing: a heavier, lower thrust whoosh with a belt flap.
+def swing_finisher(n):
+    return finish(mix((0, band(fab("MagicWeapon_Thrust", n, 4, 0.3, 0.1), lo=250), 0),
+                      (0, band(fab("MagicWeapon_Swing", n + 2, 4, 0.25, 0.1), hi=3000), -6),
+                      (0.02, band(cut(load(f"{RPG}/clothBelt{'' if n % 2 == 0 else '2'}.ogg"), 0.16), lo=1200), -12)), -17)
+
+
+# Cast charge: a rising chant charge, cut by the game 30 ms into the release.
+def cast_charge(n):
+    return finish(mix((0, fab("MagicChant_Charge1", n, 3, 0.9, 0.2), 0),
+                      (0, band(fab("MagicRiser_Charge1", n, 3, 0.9, 0.2), lo=1500), -10)), -20)
+
+
 # Cast release: a sharp magic shot with a low push.
 def cast_release(n):
     return finish(mix((0, fab("MagicFade_Shoot1", n, 3, 0.35, 0.15), 0),
@@ -238,7 +257,8 @@ def react_frostbite(n):
 
 SOUNDS = {"hit_basic": hit_basic, "hit_finisher": hit_finisher, "hit_electric": hit_electric, "hit_fire": hit_fire,
           "react_shatter": react_shatter, "ui_choose": ui_choose,
-          "hit_water": hit_water, "hit_magic": hit_magic, "cast_release": cast_release, "body_fall": body_fall,
+          "hit_water": hit_water, "hit_magic": hit_magic, "swing_light": swing_light, "swing_finisher": swing_finisher,
+          "cast_charge": cast_charge, "cast_release": cast_release, "body_fall": body_fall,
           "state_burn": state_burn, "state_wet": state_wet, "state_shock": state_shock, "state_chill": state_chill,
           "state_rot": state_rot, "react_fog": react_fog, "react_conduct": react_conduct, "react_overload": react_overload,
           "react_melt": react_melt, "react_methane": react_methane, "react_freeze": react_freeze,
