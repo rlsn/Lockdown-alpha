@@ -387,6 +387,10 @@ const TCHAR* LDSliceVfx::SystemName(ESystem System)
     case ESystem::ShockState: return TEXT("NS_LDShockState");
     case ESystem::ChillState: return TEXT("NS_LDChillState");
     case ESystem::RotState: return TEXT("NS_LDRotState");
+    case ESystem::PuddleGround: return TEXT("NS_LDPuddleGround");
+    case ESystem::IceGround: return TEXT("NS_LDIceGround");
+    case ESystem::FireGround: return TEXT("NS_LDFireGround");
+    case ESystem::MiasmaGround: return TEXT("NS_LDMiasmaGround");
     default: return TEXT("");
     }
 }

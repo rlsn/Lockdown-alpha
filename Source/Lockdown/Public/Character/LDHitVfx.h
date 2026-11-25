@@ -77,11 +77,13 @@ namespace LDSliceVfx
     //   ChillHit     a chill hit at End struck from Start's side
     //   BurnState..RotState  an element state on a body, looping while it lasts: Start the feet, End the top of the head,
     //                Width the body's radius, Intensity its strength (stacks), Duration effectively unbounded
+    //   PuddleGround..MiasmaGround  a public ground state, looping: Start its floor centre, Width its radius, Intensity its
+    //                strength (fading with its life), Focus 1 when the local player laid it
     enum class ESystem : uint8
     {
         Chain, HitBasic, HitFinisher, Swing1, Swing2, Swing3, Field, Tell1, Tell2, Tell3,
         HoseTell, HoseJet, WaterHit, ZapCharge, SeetheTell, SeetheBurst, FireHit, ColaTell, ColaBlast, ChillHit,
-        BurnState, WetState, ShockState, ChillState, RotState, Count
+        BurnState, WetState, ShockState, ChillState, RotState, PuddleGround, IceGround, FireGround, MiasmaGround, Count
     };
     LOCKDOWN_API const TCHAR* SystemName(ESystem System);
     LOCKDOWN_API FString SystemPackage(ESystem System);

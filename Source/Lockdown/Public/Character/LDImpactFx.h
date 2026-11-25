@@ -4,6 +4,7 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "Tickable.h"
 #include "Character/LDHitVfx.h"
+#include "Combat/LDCombatElements.h"
 #include "Vision/LDViewTypes.h"
 #include "LDImpactFx.generated.h"
 
@@ -137,11 +138,15 @@ public:
     FVector FloorUnder(const FVector& At) const { FVector Normal; return GroundUnder(At, Normal); }
     // A basic or finisher hit on Victim's Chest struck from From's side, bound to Victim.
     void Hit(const ULDHumanoidVisualComponent& Victim, const FVector& From, const FVector& Chest, bool bFinisher, const LDSliceVfx::FLook& Look, float AgeSeconds);
-    // A public electric ground state's field on Owner at its authoritative radius (fades with Alpha; Alpha <= 0 removes it).
-    // OwnerSeat is the state's public owner seat: the own body's seat shows the field's decoration in full.
-    void ShowGroundField(const AActor& Owner, const FVector& Centre, float RadiusCm, float Alpha, uint8 OwnerSeat);
+    // A public ground state's own looping effect (ELDGroundStateKind: the field, a puddle, ice, a fire floor, miasma) on Owner
+    // at its authoritative radius; Alpha <= 0 removes it. OwnerSeat: the own body's seat shows the decoration in full.
+    void ShowGround(const AActor& Owner, uint8 Kind, const FVector& Centre, float RadiusCm, float Alpha, uint8 OwnerSeat);
+    // The generated system of a ground state kind; ESystem::Count for a kind without one.
+    static LDSliceVfx::ESystem GroundSystem(uint8 Kind);
     // Whether an effect is the electric field (NS_LDField).
     bool IsField(const UNiagaraComponent* Effect) const;
+    // Whether an effect is a ground state's standing effect (the field or another kind's).
+    bool IsGround(const UNiagaraComponent* Effect) const;
     // The conduct reaction's splash field round Source's feet at the authoritative radius, for 0.8 s.
     void FieldPulse(const ULDHumanoidVisualComponent& Source, const FVector& Feet, float RadiusCm, const LDSliceVfx::FLook& Look, float AgeSeconds);
     // The approved reach of a skill's level-1 target (its range and, for a direction line, the band's half width) and

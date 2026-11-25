@@ -1163,31 +1163,65 @@ bool ULDImpactFxSubsystem::IsField(const UNiagaraComponent* Effect) const
     return Asset && Asset == GetSystem(LDSliceVfx::ESystem::Field);
 }
 
-void ULDImpactFxSubsystem::ShowGroundField(const AActor& Owner, const FVector& Centre, float RadiusCm, float Alpha, uint8 OwnerSeat)
+bool ULDImpactFxSubsystem::IsGround(const UNiagaraComponent* Effect) const
 {
-    UNiagaraSystem* FieldSystem = GetSystem(LDSliceVfx::ESystem::Field);
+    const UNiagaraSystem* Asset = Effect ? Effect->GetAsset() : nullptr;
+    for (uint8 Kind = 1; Asset && Kind < LDGroundStateKindCount; ++Kind)
+    {
+        const LDSliceVfx::ESystem System = GroundSystem(Kind);
+        if (System != LDSliceVfx::ESystem::Count && Asset == GetSystem(System)) { return true; }
+    }
+    return false;
+}
+
+LDSliceVfx::ESystem ULDImpactFxSubsystem::GroundSystem(uint8 Kind)
+{
+    switch (static_cast<ELDGroundStateKind>(Kind))
+    {
+    case ELDGroundStateKind::Field: return LDSliceVfx::ESystem::Field;
+    case ELDGroundStateKind::Puddle: return LDSliceVfx::ESystem::PuddleGround;
+    case ELDGroundStateKind::Ice: return LDSliceVfx::ESystem::IceGround;
+    case ELDGroundStateKind::Fire: return LDSliceVfx::ESystem::FireGround;
+    case ELDGroundStateKind::Miasma: return LDSliceVfx::ESystem::MiasmaGround;
+    default: return LDSliceVfx::ESystem::Count;
+    }
+}
+
+void ULDImpactFxSubsystem::ShowGround(const AActor& Owner, uint8 Kind, const FVector& Centre, float RadiusCm, float Alpha, uint8 OwnerSeat)
+{
+    const LDSliceVfx::ESystem System = GroundSystem(Kind);
+    UNiagaraSystem* Asset = System == LDSliceVfx::ESystem::Count ? nullptr : GetSystem(System);
     int32 Found = INDEX_NONE;
     for (int32 Index = 0; Index < Live.Num(); ++Index)
     {
-        if (Live[Index].OwnerActor.Get() == &Owner && IsField(Live[Index].Effect.Get())) { Found = Index; break; }
+        const UNiagaraComponent* Effect = Live[Index].Effect.Get();
+        if (Live[Index].OwnerActor.Get() == &Owner && Effect && GeneratedSystems.Contains(Effect->GetAsset())) { Found = Index; break; }
     }
-    if (!FApp::CanEverRender() || !FieldSystem || !FMath::IsFinite(Alpha) || Alpha <= 0.f || !FMath::IsFinite(RadiusCm) || RadiusCm <= 0.f || Centre.ContainsNaN())
+    if (Found != INDEX_NONE && (!Asset || Live[Found].Effect->GetAsset() != Asset))
+    {
+        Release(Found);
+        Found = INDEX_NONE;
+    }
+    if (!FApp::CanEverRender() || !Asset || !FMath::IsFinite(Alpha) || Alpha <= 0.f || !FMath::IsFinite(RadiusCm) || RadiusCm <= 0.f || Centre.ContainsNaN())
     {
         if (Found != INDEX_NONE) { Release(Found); }
         return;
     }
     FVector Normal;
     const FVector Floor = GroundUnder(Centre, Normal);
-    // The reduced-effects setting dims a field like every other effect.
+    // The reduced-effects setting dims a ground state like every other effect.
     const float Strength = 2.2f * FMath::Clamp(Alpha, 0.f, 1.f) * (.55f + .45f * LocalEffectScale());
     if (Found == INDEX_NONE)
     {
         // A ground state lives until its owner says otherwise: the system's own life is far beyond any state's. The local
-        // player's own field (its seat is the own body's) shows its decoration in full; others' fields thin it.
+        // player's own state (its seat is the own body's) shows its decoration in full; others' states thin it.
         bool bOwn = false;
         for (TObjectIterator<ULDHumanoidVisualComponent> It; It && !bOwn && OwnerSeat != MAX_uint8; ++It)
         { bOwn = It->GetWorld() == GetWorld() && It->IsOwnBody() && It->PaletteSlot() == OwnerSeat; }
-        UNiagaraComponent* Effect = SpawnGenerated(LDSliceVfx::ESystem::Field, Floor, Floor, LDSliceVfx::ElementInk(uint8(ELDCombatElement::Shock)), RadiusCm, Strength, 1.e4f, bOwn);
+        const uint8 Element = Kind == uint8(ELDGroundStateKind::Field) ? uint8(ELDCombatElement::Shock)
+            : Kind == uint8(ELDGroundStateKind::Puddle) ? uint8(ELDCombatElement::Water) : Kind == uint8(ELDGroundStateKind::Ice) ? uint8(ELDCombatElement::Chill)
+            : Kind == uint8(ELDGroundStateKind::Fire) ? uint8(ELDCombatElement::Fire) : uint8(ELDCombatElement::Rot);
+        UNiagaraComponent* Effect = SpawnGenerated(System, Floor, Floor, LDSliceVfx::ElementInk(Element), RadiusCm, Strength, 1.e4f, bOwn);
         if (!Effect) { return; }
         Track(Effect, nullptr, 0.f, &Owner);
         return;
@@ -1252,8 +1286,8 @@ UNiagaraComponent* ULDImpactFxSubsystem::SpawnGenerated(LDSliceVfx::ESystem Syst
     if (!FApp::CanEverRender() || !Asset || Start.ContainsNaN() || End.ContainsNaN() || !FMath::IsFinite(Width) || !FMath::IsFinite(Intensity)) { return nullptr; }
     if (Live.Num() >= LDImpactFx::MaxBursts)
     {
-        // The oldest short effect makes room; a standing field stays while its ground state does.
-        const int32 Oldest = Live.IndexOfByPredicate([this](const FLive& Shown) { return !IsField(Shown.Effect.Get()) || Shown.StopAfter >= 0.f; });
+        // The oldest short effect makes room; a standing ground state's effect stays while the state does.
+        const int32 Oldest = Live.IndexOfByPredicate([this](const FLive& Shown) { return !IsGround(Shown.Effect.Get()) || Shown.StopAfter >= 0.f; });
         Release(Oldest == INDEX_NONE ? 0 : Oldest);
     }
     UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), Asset, End, FRotator::ZeroRotator, FVector(1.f),
