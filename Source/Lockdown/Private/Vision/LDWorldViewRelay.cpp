@@ -668,12 +668,6 @@ void ALDOwnBodyMarker::Track(APawn* Body, uint8 Slot)
     SetActorHiddenInGame(false);
 }
 
-// A presentation review switch: 0 hides the kind patterns of the ground states that have their own designed effect
-// (ULDImpactFxSubsystem::GroundSystem), so the effect can be judged alone. The patterns stay on by default until each
-// element's area effect is approved (VFX.md §3.8).
-static TAutoConsoleVariable<int32> CVarGroundKindPatterns(TEXT("ld.Vfx.GroundKindPatterns"), 1,
-    TEXT("1 shows the ground states' kind patterns; 0 hides them where the state has its own designed effect."));
-
 ALDObservedGroundProxy::ALDObservedGroundProxy()
 {
     bReplicates = false;
@@ -681,30 +675,12 @@ ALDObservedGroundProxy::ALDObservedGroundProxy()
     SetActorEnableCollision(false);
     RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
     static ConstructorHelpers::FObjectFinder<UStaticMesh> Box(TEXT("/Engine/BasicShapes/Cube"));
-    for (const TCHAR* Name : {TEXT("GroundPattern"), TEXT("GroundRim")})
-    {
-        UInstancedStaticMeshComponent* Mesh = CreateDefaultSubobject<UInstancedStaticMeshComponent>(Name);
-        Mesh->SetupAttachment(RootComponent);
-        Mesh->SetStaticMesh(Box.Object);
-        Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-        Mesh->SetCanEverAffectNavigation(false);
-        Mesh->SetCastShadow(false);
-        (FCString::Strcmp(Name, TEXT("GroundRim")) == 0 ? Rim : Lines) = Mesh;
-    }
-}
-
-FLinearColor ALDObservedGroundProxy::KindColor(uint8 Kind)
-{
-    // Spec §8.1/§8.3: each ground state in its element's colour (the ice and puddle blues differ in value).
-    switch (static_cast<ELDGroundStateKind>(Kind))
-    {
-    case ELDGroundStateKind::Puddle: return FLinearColor(.08f,.42f,1.f);
-    case ELDGroundStateKind::Ice: return FLinearColor(.55f,.98f,1.f);
-    case ELDGroundStateKind::Fire: return FLinearColor(1.f,.3f,.04f);
-    case ELDGroundStateKind::Miasma: return FLinearColor(.4f,.85f,.12f);
-    case ELDGroundStateKind::Field: return LDBroadcast::Shock;
-    default: return FLinearColor::White;
-    }
+    Rim = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("GroundRim"));
+    Rim->SetupAttachment(RootComponent);
+    Rim->SetStaticMesh(Box.Object);
+    Rim->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    Rim->SetCanEverAffectNavigation(false);
+    Rim->SetCastShadow(false);
 }
 
 void ALDObservedGroundProxy::Outline(const FLDObservedGroundState& Ground, TArray<FVector>& Out)
@@ -739,58 +715,6 @@ void ALDObservedGroundProxy::Outline(const FLDObservedGroundState& Ground, TArra
     else { Arc(FVector::ZeroVector, R, 0., 360., 64); }
 }
 
-void ALDObservedGroundProxy::Pattern(const FLDObservedGroundState& Ground, TArray<TPair<FVector,FVector>>& Out)
-{
-    Out.Reset();
-    // A sector's pattern sits mid-cone and a band's along its middle; a circle's around its centre.
-    const double R = Ground.RadiusCm;
-    const FVector C = Ground.Shape == ELDObservedGroundShape::Sector ? FVector(R * .55, 0, 0) : FVector::ZeroVector;
-    const double S = Ground.Shape == ELDObservedGroundShape::Sector ? R * .35 : R * .7;
-    const auto Seg = [&Out, &C](const FVector& A, const FVector& B) { Out.Emplace(C + A, C + B); };
-    const auto Ring = [&Seg](const FVector& At, double Radius, int32 Steps)
-    {
-        for (int32 Step = 0; Step < Steps; ++Step)
-        {
-            const double A0 = 2. * PI * Step / Steps, A1 = 2. * PI * (Step + 1) / Steps;
-            Seg(At + FVector(FMath::Cos(A0), FMath::Sin(A0), 0) * Radius, At + FVector(FMath::Cos(A1), FMath::Sin(A1), 0) * Radius);
-        }
-    };
-    switch (static_cast<ELDGroundStateKind>(Ground.Kind))
-    {
-    case ELDGroundStateKind::Puddle:
-        // Two ripples.
-        Ring(FVector::ZeroVector, S * .55, 10);
-        Ring(FVector::ZeroVector, S * .95, 14);
-        break;
-    case ELDGroundStateKind::Ice:
-        // Parallel cracks across.
-        for (int32 Line = -2; Line <= 2; ++Line)
-        { Seg(FVector(-S, Line * S * .35 - S * .2, 0), FVector(S, Line * S * .35 + S * .2, 0)); }
-        break;
-    case ELDGroundStateKind::Fire:
-        // A ring of flame teeth.
-        for (int32 Tooth = 0; Tooth < 8; ++Tooth)
-        {
-            const double A0 = 2. * PI * Tooth / 8, A1 = 2. * PI * (Tooth + .5) / 8, A2 = 2. * PI * (Tooth + 1) / 8;
-            const FVector P0(FMath::Cos(A0) * S * .6, FMath::Sin(A0) * S * .6, 0), P1(FMath::Cos(A1) * S, FMath::Sin(A1) * S, 0);
-            const FVector P2(FMath::Cos(A2) * S * .6, FMath::Sin(A2) * S * .6, 0);
-            Seg(P0, P1);
-            Seg(P1, P2);
-        }
-        break;
-    case ELDGroundStateKind::Miasma:
-        // Bubbles.
-        for (const FVector& At : {FVector(0, 0, 0), FVector(S * .55, S * .25, 0), FVector(-S * .5, S * .4, 0), FVector(-S * .2, -S * .55, 0),
-            FVector(S * .4, -S * .5, 0)})
-        { Ring(At, S * .18, 6); }
-        break;
-    case ELDGroundStateKind::Field:
-        // No pattern: the electric field effect (its living edge and charged floor) already names the kind.
-        break;
-    default: break;
-    }
-}
-
 FTransform ALDObservedGroundProxy::SegmentTransform(const FVector& A, const FVector& B, double Thickness)
 {
     const FVector Delta = B - A;
@@ -806,22 +730,15 @@ void ALDObservedGroundProxy::Apply(const FLDObservedGroundState& Ground, double 
     LifeSeconds = FMath::Max(double(Ground.TotalMs) / 1000., .05);
     if (bShape)
     {
-        if (!KindTint || !SeatTint)
+        if (!SeatTint)
         {
             UMaterialInterface* Material = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Lockdown/Generated/Materials/M_Character.M_Character"));
             if (!ensureMsgf(Material, TEXT("Character material missing; rerun asset bootstrap"))) { return; }
-            KindTint = UMaterialInstanceDynamic::Create(Material, this);
             SeatTint = UMaterialInstanceDynamic::Create(Material, this);
-            Lines->SetMaterial(0, KindTint);
             Rim->SetMaterial(0, SeatTint);
         }
-        KindTint->SetVectorParameterValue(TEXT("Tint"), KindColor(Ground.Kind));
         SeatTint->SetVectorParameterValue(TEXT("Tint"), Ground.OwnerSeat < LDObservation::MaxPresentations
             ? ULDHumanoidVisualComponent::ContenderTint(Ground.OwnerSeat) : FLinearColor(.6f, .6f, .6f));
-        TArray<TPair<FVector,FVector>> Segments;
-        Pattern(Ground, Segments);
-        Lines->ClearInstances();
-        for (const TPair<FVector,FVector>& Segment : Segments) { Lines->AddInstance(SegmentTransform(Segment.Key, Segment.Value, 7.)); }
         Outline(Ground, RimPoints);
         ShownOutline = -1;
     }
@@ -899,7 +816,6 @@ void ALDObservedGroundProxy::Present(double AtServerSec)
         { Radius = FMath::Max(FMath::Min(Shown.RadiusCm, Shown.ExtentCm > 0.f ? Shown.ExtentCm : Shown.RadiusCm), 40.f); }
         Impacts->ShowGround(*this, Shown.Kind, GetActorLocation() + GetActorRotation().RotateVector(Offset), Radius, float(FMath::Min(Left * 3., 1.)), Shown.OwnerSeat);
     }
-    if (Lines) { Lines->SetHiddenInGame(CVarGroundKindPatterns.GetValueOnGameThread() == 0 && ULDImpactFxSubsystem::GroundSystem(Shown.Kind) != LDSliceVfx::ESystem::Count); }
     if (RimPoints.Num() < 2) { return; }
     // The outline drains with the remaining life (spec §12): the first Remaining/Life of its segments stay.
     const int32 Segments = RimPoints.Num() - 1;
