@@ -82,10 +82,10 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> VSyncNote;
     UPROPERTY() TObjectPtr<UTextBlock> QualityNote;
     TArray<FIntPoint> SupportedResolutions;
-    UPROPERTY() TObjectPtr<USlider> VolumeSlider;
-    UPROPERTY() TObjectPtr<UTextBlock> VolumeValue;
-    UPROPERTY() TObjectPtr<USlider> MusicSlider;
-    UPROPERTY() TObjectPtr<UTextBlock> MusicValue;
+    // Audio tab: one slider and percentage per bus, indexed by ELDAudioBus; PreviewBus is the bus last changed.
+    UPROPERTY() TObjectPtr<USlider> BusSliders[int32(ELDAudioBus::Count)];
+    UPROPERTY() TObjectPtr<UTextBlock> BusValues[int32(ELDAudioBus::Count)];
+    ELDAudioBus PreviewBus=ELDAudioBus::Master;
     UPROPERTY() TObjectPtr<UTextBlock> ZoomValue;
     UPROPERTY() TObjectPtr<UTextBlock> FollowNote;
     // Built once in ULDControlSettings::Definitions() order, so a rebind keeps focus and every name stays stable.
@@ -160,11 +160,14 @@ private:
     void ConfirmResetDefaults();
     void RestoreDisplayDefaults(ULDGameInstance& Instance);
     FReply CaptureKey(FKey Key);
-    void PreviewMasterVolume();
+    void PreviewBusVolume();
+    void ApplyBusVolume(ELDAudioBus Bus,float Value);
     void EndVolumeCapture(bool& bCaptured);
     UFUNCTION() void HandleMasterVolumeChanged(float Value);
     // The music itself is the preview: the slider changes the playing track's level, so no click sounds.
     UFUNCTION() void HandleMusicVolumeChanged(float Value);
+    UFUNCTION() void HandleSfxVolumeChanged(float Value);
+    UFUNCTION() void HandleUiVolumeChanged(float Value);
     UFUNCTION() void HandleVolumeMouseCaptureBegin();
     UFUNCTION() void HandleVolumeMouseCaptureEnd();
     UFUNCTION() void HandleVolumeControllerCaptureBegin();
