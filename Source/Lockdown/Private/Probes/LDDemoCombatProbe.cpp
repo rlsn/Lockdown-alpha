@@ -676,6 +676,13 @@ public:
             && OwnId == PC.OwnerState.ContenderId, TEXT("Start"), TEXT("The public roster names this owner and exactly one other human"));
     }
 
+    // The #247 approach: from a platform at least this much higher than the duel ground, this far away.
+    static constexpr double QueuePlatformRiseCm = 80.0;
+    static constexpr double QueueApproachMinCm = 2400.0;
+    static constexpr double QueueApproachMaxCm = 4400.0;
+    static constexpr double QueueApproachStepCm = 200.0;
+    static constexpr int32 QueueApproachBearings = 48;
+
     bool FindQueuedWaypoint(const ULDMapRegistry& Registry, FName Surface, const FVector& Foot, const FVector& Site,
         FVector& Waypoint, FString& OutError) const
     {
@@ -825,10 +832,37 @@ public:
         }
         if (bFound)
         {
-            FVector RegressionWaypoint;
-            if (!Check(FindQueuedWaypoint(Registry, CaptureAnchor->Surface, FVector(-4441.42, 1596.17, 102.15),
-                FVector(-1746.13, 486.01, 0), RegressionWaypoint, SiteError), TEXT("Queue"),
-                TEXT("The captured long platform-to-ground approach admits two camp-free native queued legs"), SiteError))
+            // #247 regression: a long approach from a raised platform down to the duel's ground admits two camp-free native
+            // queued legs. The platform start is derived from the current map, not a captured coordinate: the first walkable
+            // support on rings round the Host's site (nearest ring first, fixed bearings) that stands at least
+            // QueuePlatformRiseCm above that site, QueueApproachMinCm or more away and clear of the exclusions.
+            FLDLegalGround HostGround;
+            FVector RegressionWaypoint, Platform = FVector::ZeroVector;
+            FString PlatformTried;
+            bool bPlatform = false, bQueued = false;
+            if (Legal(HostSite, HostGround))
+            {
+                for (double Radius = QueueApproachMinCm; !bQueued && Radius <= QueueApproachMaxCm; Radius += QueueApproachStepCm)
+                {
+                    for (int32 Bearing = 0; !bQueued && Bearing < QueueApproachBearings; ++Bearing)
+                    {
+                        const FVector2D Point = FVector2D(HostSite) + FVector2D(Radius, 0.0).GetRotated(360.0 * Bearing / QueueApproachBearings);
+                        FVector Surface;
+                        if (!Registry.ResolveWalkableGround(Point, Surface) || Surface.Z < HostGround.SurfaceCm.Z + QueuePlatformRiseCm
+                            || !Clear(Surface)) { continue; }
+                        bPlatform = true;
+                        Platform = Surface;
+                        FString Why;
+                        bQueued = FindQueuedWaypoint(Registry, CaptureAnchor->Surface, Surface, HostGround.SurfaceCm, RegressionWaypoint, Why);
+                        if (!bQueued && PlatformTried.Len() < 600) { PlatformTried += FString::Printf(TEXT("{%s: %s} "), *Surface.ToCompactString(), *Why.Left(160)); }
+                    }
+                }
+            }
+            if (!Check(bQueued, TEXT("Queue"),
+                TEXT("A long platform-to-ground approach derived from the current map admits two camp-free native queued legs"),
+                bQueued ? FString::Printf(TEXT("platform=%s waypoint=%s"), *Platform.ToCompactString(), *RegressionWaypoint.ToCompactString())
+                : bPlatform ? PlatformTried : FString::Printf(TEXT("no walkable support %.0f cm above the Host site within %.0f-%.0f cm"),
+                    QueuePlatformRiseCm, QueueApproachMinCm, QueueApproachMaxCm)))
             {
                 return false;
             }
