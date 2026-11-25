@@ -1,6 +1,7 @@
 #include "Audio/LDAudioCatalog.h"
 #include "Audio/LDAudioCueTracker.h"
 #include "Audio/LDAudioFeel.h"
+#include "Character/LDActionMotion.h"
 #include "Character/LDHitFeel.h"
 #include "Audio/LDAudioTypes.h"
 #include "Audio/LDMusicSelection.h"
@@ -274,6 +275,35 @@ bool FLDAudioFeelSyncTest::RunTest(const FString& Parameters)
         Public.Phase=ELDMatchPhase::Development;Public.Timeline.FieldSegment=2;
         TestTrue(TEXT("A late joiner never hears a match start"),AudioSample(Late,Frame).IsEmpty());
     }
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDActionMotionFamiliesTest,"Lockdown.Rules.ActionMotionFamilies",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDActionMotionFamiliesTest::RunTest(const FString& Parameters)
+{
+    using LDActionMotion::EFamily;
+    TestTrue(TEXT("The combo reads jab, cross, finisher"),LDActionMotion::FamilyOf(true,1,0)==EFamily::Jab
+        &&LDActionMotion::FamilyOf(true,2,0)==EFamily::Cross&&LDActionMotion::FamilyOf(true,3,0)==EFamily::Finisher
+        &&LDActionMotion::FamilyOf(true,0,0)==EFamily::Jab);
+    TestTrue(TEXT("Skills take the family of what they do"),
+        LDActionMotion::FamilyOf(false,0,uint8(ELDDemoAbilityId::ActiveSnarkBolt))==EFamily::OneHandThrow
+        &&LDActionMotion::FamilyOf(false,0,uint8(ELDDemoAbilityId::ActiveZap))==EFamily::OneHandThrow
+        &&LDActionMotion::FamilyOf(false,0,uint8(ELDDemoAbilityId::ActiveCalculusDrop))==EFamily::HeavySlam
+        &&LDActionMotion::FamilyOf(false,0,uint8(ELDDemoAbilityId::ActiveNotMad))==EFamily::Ready
+        &&LDActionMotion::FamilyOf(false,0,uint8(ELDDemoAbilityId::ActiveOpenMic))==EFamily::TwoHandShot);
+    // Every active skill has a family; a skill unknown to the table sets a two-hand shot rather than nothing.
+    for(const uint8 Ability:{uint8(ELDDemoAbilityId::ActiveHoseDown),uint8(ELDDemoAbilityId::ActiveDeskFan),uint8(0)})
+    {TestTrue(TEXT("Areas and unknown casts set with both hands"),LDActionMotion::FamilyOf(false,0,Ability)==EFamily::TwoHandShot);}
+    for(int32 F=0;F<=int32(EFamily::Ready);++F)
+    {
+        const LDActionMotion::FBlend Standing=LDActionMotion::BlendOf(EFamily(F),false),Moving=LDActionMotion::BlendOf(EFamily(F),true);
+        TestTrue(FString::Printf(TEXT("%s blends within 0..1 and drives something"),LDActionMotion::FamilyName(EFamily(F))),
+            Standing.Full>=0&&Standing.Full<=1&&Standing.Upper>=0&&Standing.Upper<=1&&Standing.Full+Standing.Upper>0);
+        TestEqual(FString::Printf(TEXT("%s never drives the legs while moving"),LDActionMotion::FamilyName(EFamily(F))),Moving.Full,0.f);
+    }
+    TestTrue(TEXT("The finisher shifts the whole body, the jab only the upper body"),
+        LDActionMotion::BlendOf(EFamily::Finisher,false).Full==1.f&&LDActionMotion::BlendOf(EFamily::Jab,false).Full==0.f
+        &&LDActionMotion::BlendOf(EFamily::Cross,false).Upper>LDActionMotion::BlendOf(EFamily::Jab,false).Upper);
     return true;
 }
 

@@ -175,8 +175,8 @@ Kenney 的 Impact、Interface、RPG、Sci-Fi 全包（CC0）由用户决定采�
 | 项 | 状态 | 实现与资产 | 证据 / 已知问题 |
 | --- | --- | --- | --- |
 | 篮球手 Idle、跑、转身、运球 | IMPLEMENTED | `ULDBasketballMotionSet`（KB_ 系列，项目自有） | — |
-| 普攻（三段共用一个动作） | IMPLEMENTED | `Hooper_Attack`（KB_078 单手传球）对齐权威出手 | 三段无姿态差异；终结无重心变化 |
-| 技能施法（全部共用） | IMPLEMENTED | `Hooper_Cast`（KB_148 罚球） | 不同语义技能无姿态、方向差异 |
+| 普攻三段连击 | LOCALLY VERIFIED（时序与姿态，实机帧） | `LDActionMotion`：第 1 段右手刺拳（KB_078，上身 0.42）、第 2 段左手交叉（KB_079，上身 0.7，躯干转得更多）、第 3 段终结（KB_152 跳投，静止时全身，重心上提再送出）；出手帧仍按 `LDBasketballMotion::SampleTime` 对齐权威命中 | `production/feel/motion-combo/`；游戏镜头距离下姿态差异偏小；未经用户验收 |
+| 技能施法动作家族 | IMPLEMENTED | 按技能语义分四族：单手投掷（甩鞋、外卖、电、肘、封条、夹子、扒裤子；传球片段）、双手定点（区域、吼叫、喷水、风扇、可乐；罚球）、全身重砸（板砖、书包、蛮牛、乱拳；跳投）、架势（锅盖、顶着揍、拧手腕、左右开抽、挑衅、补一拳；运球架势）；移动中只驱动上身 | 规则测试 `ActionMotionFamilies`；未实机采集各族 |
 | 受击、死亡、出生 | IMPLEMENTED | Quaternius CC0 重定向 | 受击无方向与轻重之分 |
 | NPC 动作 | IMPLEMENTED | Quaternius CC0 片段 | — |
 | 连段专属动作、技能动作家族、蓄力、硬直、击退 | NOT STARTED | — | 需要外部动作资产或制作 |
