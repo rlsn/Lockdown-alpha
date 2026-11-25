@@ -101,18 +101,28 @@
 | --- | --- | --- | --- |
 | Kenney（已用：Digital Audio、Impact Sounds、Interface Sounds、Music Jingles） | CC0 | 能 | 使用中 |
 | 本项目生成器 `synth_demo_audio.py` | 项目原创 | 能 | 使用中 |
-| Fab “Free Modular Magic SFX”（Le Binh Son，290 个，含 22 个 MetaSound） | 描述写 CC BY 4.0，不要求署名 | 能（保留出处） | 待用户在 Fab 领取 |
-| Fab “500 Free Essential Game SFX Starter Pack”（HomkaH） | 描述写 CC BY 4.0 | 能，须署名 | 待用户在 Fab 领取 |
+| Fab “Free Modular Magic SFX”（Le Binh Son，290 个，含 22 个 MetaSound） | 描述写 CC BY 4.0，不要求署名 | 能（保留出处） | 用户决定采用，待用户在 Fab 领取 |
+| Fab “500 Free Essential Game SFX Starter Pack”（HomkaH） | 描述写 CC BY 4.0 | 能，须署名 | 用户决定采用，待用户在 Fab 领取 |
 | Fab “100 RPG Fantasy SFX Pack” | 页面未写授权，标注 AI 生成 | 不用 | 排除 |
-| Sonniss #GameAudioGDC（2015–2026 各年，GDC 2026 约 7.5 GB） | 可商用、免署名；禁止把音效本身再分发 | **不能**：本仓库是公开的，原始文件与导入后的 `.uasset` 都不能提交；按 VFX 已定的做法只放本机 | 待用户下载 |
+| Sonniss #GameAudioGDC（2015–2026 各年，GDC 2026 约 7.5 GB） | 可商用、免署名；禁止把音效本身再分发 | **不能**：本仓库是公开的，原始文件与导入后的 `.uasset` 都不能提交；按 VFX 已定的做法只放本机 | 用户决定不用 |
 | Freesound | 只用 CC0 | 能 | 未开始（需登录下载） |
+
+Kenney 的 Impact、Interface、RPG、Sci-Fi 全包（CC0）由用户决定采用。
+
+**动画素材**：篮球手的 KB_0xx 篮球动作（待机、跑、运球、传球、投篮）是项目自有资产（用户确认），可在其上制作新的连段与技能动作。
 
 本仓库在 GitHub 上公开。第三方原始音频只有在授权允许公开再分发时才进入 `SourceData/Audio`；
 只允许“用于成品游戏”的素材不能以源文件或可提取的 `.uasset` 形式提交。
 
 ## 6. 批准目录与决策记录
 
-**批准目录**：暂无。用户批准前，所有声音都是 PROVISIONAL。
+**批准目录**
+
+- **打击感样板：普攻三连 + 电你个哆嗦（APPROVED · 用户）**：用户原话“特效和音效样片可以接受”。它是节奏与分量的参照基准：
+  挥击风声峰值落在出手帧、命中在出手 +1 帧、终结更低更长、电链每跳瞬态在命中时刻并带 300 ms 余电、技能蓄能在出手时切断。
+  证据：`Artifacts/Audits/PresentationOverhaul/production/feel/sample-combo-zap/`（`feel.mp4`、`timing.json`、`wav/`）。
+  涉及线索：`SwingLight`、`SwingFinisher`、`HitBasic`、`HitFinisher`、`HitElectric`、`CastCharge`、`SelfDealtImpact/Accent`、技能表 `active_zap`。
+  后续改这些声音或时序要与此样板回归对比。其余声音仍是 PROVISIONAL。
 
 **决策记录**
 - 挥击与技能释放从“本人投影采样”移到身体表现钩子（PROVISIONAL · Agent）：与刀光、电链同一帧触发，别人可见的身体也有声；
@@ -128,18 +138,18 @@
 
 | 项 | 状态 | 实现与资产 | 证据 / 已知问题 |
 | --- | --- | --- | --- |
-| 普攻挥击 1–2 段 | IMPLEMENTED | `SwingLight` ×3 take，第 2 段音高 0.94 | 实机样板时序已验（`production/feel/sample-combo-zap/`）；未听感验收 |
-| 普攻终结挥击 | IMPLEMENTED | `SwingFinisher` ×2 | 同上 |
+| 普攻挥击 1–2 段 | USER APPROVED | `SwingLight` ×3 take，第 2 段音高 0.94 | 实机样板时序已验（`production/feel/sample-combo-zap/`）；未听感验收 |
+| 普攻终结挥击 | USER APPROVED | `SwingFinisher` ×2 | 同上 |
 | 落空 | IMPLEMENTED | 只有挥击声（设计如此） | — |
-| 普通命中（他人身体） | IMPLEMENTED | `HitBasic` ×3（合成 + Kenney 重击） | 样板时序已验；联网时与本人确认层可能相差 1–2 帧，未在真实对局确认 |
-| 终结命中 | IMPLEMENTED | `HitFinisher` ×2 | 依赖 VFX 击打匹配判断终结 |
+| 普通命中（他人身体） | USER APPROVED | `HitBasic` ×3（合成 + Kenney 重击） | 样板时序已验；联网时与本人确认层可能相差 1–2 帧，未在真实对局确认 |
+| 终结命中 | USER APPROVED | `HitFinisher` ×2 | 依赖 VFX 击打匹配判断终结 |
 | 本人命中确认（普通/暴击/破盾/击杀） | IMPLEMENTED | `SelfDealtImpact` + `SelfDealtAccent`/`Crit`/`ShieldBreak`/`Kill` | — |
-| 电命中 / 闪电链每跳 | IMPLEMENTED | `HitElectric` ×3 | 样板时序已验：三跳各在日志时刻 ±7 ms |
+| 电命中 / 闪电链每跳 | USER APPROVED | `HitElectric` ×3 | 样板时序已验：三跳各在日志时刻 ±7 ms |
 | 火、水、魔法命中 | IMPLEMENTED | `HitFire`、`HitWater`、`HitMagic` 各 ×2 | — |
 | 冰、腐（毒）命中 | BLOCKED | 命中外观只有 Magic/Fire/Water/Electric 四种，冰与腐没有外观字段 | 需要新的命中外观（网络投影改动，非本流可做） |
-| 技能前摇蓄能 | IMPLEMENTED | `CastCharge`，出手 30 ms 切断 | — |
-| 技能释放：电你个哆嗦 | IMPLEMENTED | 技能表 `active_zap` ×2 | 样板时序已验；待用户听感 |
-| 技能释放：其余 23 个 | IN PROGRESS | 暂用 `CastRelease` 通用声 | 待逐个设计 |
+| 技能前摇蓄能 | USER APPROVED | `CastCharge`，出手 30 ms 切断 | — |
+| 技能释放：电你个哆嗦 | USER APPROVED | 技能表 `active_zap` ×2 | 样板（§6） |
+| 技能释放：其余 23 个 | IMPLEMENTED | 技能表各 ×2 take，按玩法语义合成（推、抓、冲刺、护盾、投掷、区域、元素），见生成器 `skill_*` | 波形与频谱已查（主瞬态在出手时刻、≤ 8.5 kHz）；未实机采集、未听感验收 |
 | 每技能专属命中声 | BLOCKED | 命中不携带技能编号；只能按外观族与 VFX 击打匹配区分 | 同上 |
 | 元素反应（10 种） | NOT STARTED | — | — |
 | 地面状态循环（水洼、冰、火、瘴气、电场） | NOT STARTED | — | — |
@@ -160,7 +170,7 @@
 
 | 项 | 状态 | 实现与资产 | 证据 / 已知问题 |
 | --- | --- | --- | --- |
-| 篮球手 Idle、跑、转身、运球 | IMPLEMENTED | `ULDBasketballMotionSet`（KB_ 系列） | 来源与授权 UNKNOWN，待用户确认 |
+| 篮球手 Idle、跑、转身、运球 | IMPLEMENTED | `ULDBasketballMotionSet`（KB_ 系列，项目自有） | — |
 | 普攻（三段共用一个动作） | IMPLEMENTED | `Hooper_Attack`（KB_078 单手传球）对齐权威出手 | 三段无姿态差异；终结无重心变化 |
 | 技能施法（全部共用） | IMPLEMENTED | `Hooper_Cast`（KB_148 罚球） | 不同语义技能无姿态、方向差异 |
 | 受击、死亡、出生 | IMPLEMENTED | Quaternius CC0 重定向 | 受击无方向与轻重之分 |

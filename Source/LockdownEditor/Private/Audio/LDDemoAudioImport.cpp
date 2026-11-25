@@ -346,8 +346,8 @@ namespace
 
 bool LDDemoAudioImport::Import(FString& Error)
 {
-    FAudioManifest Manifest;
-    if (!AudioLoadManifest(Manifest, Error)) { return false; }
+    FAudioManifest Loaded;
+    if (!AudioLoadManifest(Loaded, Error)) { return false; }
     auto* Master = AudioLoadOrCreate<USoundClass>(AudioMasterPackage, true);
     auto* MusicClass = AudioLoadOrCreate<USoundClass>(AudioMusicClassPackage, true);
     auto* SfxClass = AudioLoadOrCreate<USoundClass>(AudioSfxClassPackage, true);
@@ -387,7 +387,7 @@ bool LDDemoAudioImport::Import(FString& Error)
     Catalog->Music.Reset();
     TArray<UObject*> Assets = { Master, MusicClass, SfxClass, UIClass, Mix };
     bool bImported = true;
-    for (const FAudioManifestCue& Cue : Manifest.Cues)
+    for (const FAudioManifestCue& Cue : Loaded.Cues)
     {
         TArray<USoundWave*> Takes;
         USoundClass* Class = ULDAudioCatalog::BusOf(Cue.Cue) == ELDAudioBus::UI ? UIClass : SfxClass;
@@ -397,7 +397,7 @@ bool LDDemoAudioImport::Import(FString& Error)
         Entry.Sound = Takes[0];
         for (int32 Index = 1; Index < Takes.Num(); ++Index) { Entry.Variants.Add(Takes[Index]); }
     }
-    for (const FAudioManifestSkill& Skill : Manifest.Skills)
+    for (const FAudioManifestSkill& Skill : Loaded.Skills)
     {
         if (!bImported) { break; }
         TArray<USoundWave*> Takes;
@@ -406,7 +406,7 @@ bool LDDemoAudioImport::Import(FString& Error)
         Entry.Key = Skill.Ability;
         for (USoundWave* Take : Takes) { Entry.Sounds.Add(Take); }
     }
-    for (const FAudioManifestTrack& Track : Manifest.Tracks)
+    for (const FAudioManifestTrack& Track : Loaded.Tracks)
     {
         if (!bImported) { break; }
         auto* Wave = AudioImportWave(*Factory, FString(AudioMusicPackageRoot) + LDAudio::MusicTrackId(Track.Track), Track.Source);
@@ -435,8 +435,8 @@ bool LDDemoAudioImport::Import(FString& Error)
 
 bool LDDemoAudioImport::Validate(FString& Error)
 {
-    FAudioManifest Manifest;
-    if (!AudioLoadManifest(Manifest, Error)) { return false; }
+    FAudioManifest Loaded;
+    if (!AudioLoadManifest(Loaded, Error)) { return false; }
     const auto* Catalog = AudioLoadOrCreate<ULDAudioCatalog>(AudioCatalogPackage, false);
     if (!Catalog) { return AudioFail(Error, TEXT("Audio catalog DA_DemoAudio is missing; run ImportDemoAudio.ps1 -Mode Import.")); }
     ULDAudioCatalog::FResolved Resolved;
@@ -448,7 +448,7 @@ bool LDDemoAudioImport::Validate(FString& Error)
     if (Catalog->MasterClass->ChildClasses.Num() != 3 || !Catalog->MusicClass->ChildClasses.IsEmpty()
         || !Catalog->SfxClass->ChildClasses.IsEmpty() || !Catalog->UIClass->ChildClasses.IsEmpty())
     { return AudioFail(Error, TEXT("SC_DemoMaster must have exactly the three bus classes as children, each without children; run ImportDemoAudio.ps1 -Mode Import.")); }
-    for (const FAudioManifestTrack& Track : Manifest.Tracks)
+    for (const FAudioManifestTrack& Track : Loaded.Tracks)
     {
         const USoundWave* Wave = Resolved.Music[int32(Track.Track)];
         const FString Expected = FString(AudioMusicPackageRoot) + LDAudio::MusicTrackId(Track.Track);
@@ -458,13 +458,13 @@ bool LDDemoAudioImport::Validate(FString& Error)
         if (!FMath::IsNearlyEqual(Wave->Volume, 1.f, 1e-4f))
         { return AudioFail(Error, FString::Printf(TEXT("Music track %s plays at volume %.3f instead of its source level; run ImportDemoAudio.ps1 -Mode Import."), *LDAudio::MusicTrackId(Track.Track), Wave->Volume)); }
     }
-    for (const FAudioManifestCue& Cue : Manifest.Cues)
+    for (const FAudioManifestCue& Cue : Loaded.Cues)
     {
         if (!AudioValidateTakes(AudioCuePackageRoot, Cue, Resolved.Cues[int32(Cue.Cue)], Error)) { return false; }
     }
-    if (Catalog->SkillReleases.Num() != Manifest.Skills.Num())
+    if (Catalog->SkillReleases.Num() != Loaded.Skills.Num())
     { return AudioFail(Error, TEXT("The catalog's skill releases differ from the manifest; run ImportDemoAudio.ps1 -Mode Import.")); }
-    for (const FAudioManifestSkill& Skill : Manifest.Skills)
+    for (const FAudioManifestSkill& Skill : Loaded.Skills)
     {
         if (!AudioValidateTakes(AudioSkillPackageRoot, Skill, Resolved.Skills[Skill.Ability], Error)) { return false; }
     }
