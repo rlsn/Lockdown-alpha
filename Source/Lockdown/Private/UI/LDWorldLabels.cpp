@@ -12,6 +12,7 @@
 #include "Development/LDDemoContentIds.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameState.h"
+#include "Framework/LDMatchTimeline.h"
 #include "Framework/LDPlayerController.h"
 #include "Vision/LDViewTypes.h"
 #include "Vision/LDWorldViewRelay.h"
@@ -30,6 +31,7 @@
 #include "Styling/CoreStyle.h"
 #include "UI/LDUIFonts.h"
 #include "UI/LDBroadcastPaint.h"
+#include "UI/LDBroadcastStyle.h"
 #include "UI/LDUIIcons.h"
 #include "Engine/Texture2D.h"
 
@@ -1169,6 +1171,74 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             FSlateDrawElement::MakeText(E,Base+5,G.ToPaintGeometry(TextExt,FSlateLayoutTransform(FVector2f(PlateLeft+8.f,PlateTop+4.f))),
                 Entry.DummyBoard,ContenderFont,ESlateDrawEffect::None,Entry.DummyBoardInk);
             Bottom=PlateTop-1.f;
+        }
+    }
+    // Field sites (the airdrop, the mid-field objective, the delivery lockers out now): one plate over each, so a ring on
+    // the ground says what it is and how long it lasts. A one-character block in the site's state colour (white: coming,
+    // orange: open to take, gold: the airdrop), its name, the seconds left as a figure. A mini flag carries its spray under
+    // the plate in the sprayer's seat colour (live red while contested); a locker someone is opening shows a running bar,
+    // since the public view tells that it is being opened but not by whom or how far.
+    {
+        const FLDPublicMatchView& Match=Public->PublicMatch;
+        int64 NowMs=0;
+        const bool bField=Match.Generation!=0&&Match.Generation==Own.Match&&(Match.Phase==ELDMatchPhase::Development||Match.Phase==ELDMatchPhase::CaptureOpen);
+        if(bField&&!bBuildRingOpen&&PC->ReadDemoAuthorityTimeMs(NowMs))
+        {
+            const int64 T=LDMatchTimeline::FieldNowFromView(Match.Timeline,NowMs);
+            const FSlateFontInfo NameFont=LDBroadcastPaint::LabelFont(18.f,true,TextScale),GlyphFont=LDBroadcastPaint::LabelFont(20.f,true,TextScale);
+            const FSlateFontInfo FigureFont=LDBroadcastPaint::FigureFont(24.f,TextScale);
+            const float Side=FMath::RoundToFloat(32.f*TextScale);
+            // Progress < 0: no bar; Progress > 1: the running bar.
+            const auto Plate=[&](const FVector& SiteCm,const TCHAR* Glyph,const TCHAR* Name,const FLinearColor& Ink,int64 LeftMs,float Progress,const FLinearColor& ProgressInk)
+            {
+                FVector2D Screen;
+                if(!PC->ProjectWorldLocationToScreen(SiteCm+FVector(0.,0.,260.),Screen)){return;}
+                const float X=float(Screen.X)*ToLocalX,Y=float(Screen.Y)*ToLocalY;
+                if(Culled(X,Y)){return;}
+                const FString Seconds=LeftMs>0?FString::Printf(TEXT("%lld"),(LeftMs+999)/1000):FString();
+                const FVector2f NameExt=FontMeasure->Measure(Name,NameFont),GlyphExt=FontMeasure->Measure(Glyph,GlyphFont),SecondsExt=FontMeasure->Measure(Seconds,FigureFont);
+                const float W=Side+10.f+NameExt.X+(Seconds.IsEmpty()?0.f:12.f+SecondsExt.X)+12.f;
+                const FVector2f At(FMath::RoundToFloat(X-W*.5f),FMath::RoundToFloat(Y-Side));
+                Box(1,At-FVector2f(1.5f,1.5f),FVector2f(W+3.f,Side+3.f),WorldOuterRim);
+                Box(2,At,FVector2f(W,Side),FLinearColor(.02f,.035f,.055f,.92f));
+                Box(3,At,FVector2f(Side,Side),Ink);
+                FSlateDrawElement::MakeText(E,Base+5,G.ToPaintGeometry(GlyphExt,FSlateLayoutTransform(At+FVector2f((Side-GlyphExt.X)*.5f,(Side-GlyphExt.Y)*.5f))),Glyph,GlyphFont,
+                    ESlateDrawEffect::None,FLinearColor(FColor(0x0A,0x0C,0x10)));
+                FSlateDrawElement::MakeText(E,Base+5,G.ToPaintGeometry(NameExt,FSlateLayoutTransform(At+FVector2f(Side+10.f,(Side-NameExt.Y)*.5f))),Name,NameFont,
+                    ESlateDrawEffect::None,FLinearColor::White);
+                if(!Seconds.IsEmpty())
+                {
+                    FSlateDrawElement::MakeText(E,Base+5,G.ToPaintGeometry(SecondsExt,FSlateLayoutTransform(At+FVector2f(W-12.f-SecondsExt.X,(Side-SecondsExt.Y)*.5f))),Seconds,FigureFont,
+                        ESlateDrawEffect::None,Ink);
+                }
+                if(Progress>=0.f)
+                {
+                    const FVector2f BarAt=At+FVector2f(0.f,Side+3.f);
+                    Box(1,BarAt-FVector2f(1.5f,1.5f),FVector2f(W+3.f,9.f),WorldOuterRim);
+                    Box(2,BarAt,FVector2f(W,6.f),LDHUDStyle::BarTrack);
+                    if(Progress>1.f)
+                    {
+                        const float Run=float(FMath::Fmod(UiNow,1.2)/1.2),Piece=W*.3f;
+                        const float From=FMath::Clamp(-Piece+(W+Piece)*Run,0.f,W),To=FMath::Clamp((W+Piece)*Run,0.f,W);
+                        if(To>From){Box(3,BarAt+FVector2f(From,0.f),FVector2f(To-From,6.f),ProgressInk);}
+                    }
+                    else if(Progress>0.f){Box(3,BarAt,FVector2f(W*FMath::Min(Progress,1.f),6.f),ProgressInk);}
+                }
+            };
+            const FLDAirdropView& Drop=Match.Airdrop;
+            if(Drop.Phase==ELDAirdropPhase::Announced){Plate(Drop.PositionCm,TEXT("外"),LDTerms::Airdrop,LDBroadcast::White,Drop.LandAtMs-T,-1.f,LDBroadcast::White);}
+            else if(Drop.Phase==ELDAirdropPhase::Landed){Plate(Drop.PositionCm,TEXT("外"),LDTerms::Airdrop,LDBroadcast::Gold,Drop.ExpireAtMs-T,-1.f,LDBroadcast::Gold);}
+            const FLDObjectiveView& Goal=Match.Objective;
+            if(Goal.Phase==ELDObjectivePhase::Announced||Goal.Phase==ELDObjectivePhase::Open)
+            {
+                const bool bFlag=Goal.Kind==ELDObjectiveKind::MiniFlag,bOpen=Goal.Phase==ELDObjectivePhase::Open;
+                const int32 Seat=Goal.Sprayer.IsValid()?LDHUD::SeatOf(Public->DemoLobby,Goal.Sprayer):INDEX_NONE;
+                const float Spray=bFlag&&bOpen&&Goal.SprayNeedMs>0?FMath::Clamp(float(double(Goal.SprayMs)/double(Goal.SprayNeedMs)),0.f,1.f):-1.f;
+                Plate(Goal.CentreCm,bFlag?TEXT("旗"):TEXT("擂"),bFlag?LDTerms::MiniFlag:LDTerms::Arena,bOpen?LDBroadcast::Orange:LDBroadcast::White,
+                    (bOpen?Goal.ClosesAtT:Goal.OpensAtT)-T,Spray,Goal.bContested?LDBroadcast::LiveRed:Seat>=0?LDBroadcast::SeatInk(uint8(Seat)):LDBroadcast::White);
+            }
+            for(const FLDLockerView& Locker:Match.Lockers)
+            {Plate(Locker.PositionCm,TEXT("柜"),LDTerms::Locker,LDBroadcast::Orange,Locker.ClosesAtT-T,Locker.bChanneling?2.f:-1.f,LDBroadcast::Orange);}
         }
     }
     return Base+5;
