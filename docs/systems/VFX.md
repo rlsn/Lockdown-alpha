@@ -432,6 +432,8 @@
 | 冰冷 Chilled | 36 | LOCALLY VERIFIED | `NS_LDChillState`：小腿冰晶、冷雾下沉、脚下霜环 | `production/vfx/batch8-reactions/` | 点缀元素已调到游戏镜头下可见的大小（不扩大占地）；用户未验收 |
 | 腐坏 Rotten | 37 | LOCALLY VERIFIED | `NS_LDRotState`：身上鼓起破裂的气泡、腰间酸腐雾 | `production/vfx/batch8-reactions/` | 点缀元素已调到游戏镜头下可见的大小（不扩大占地）；用户未验收 |
 
+身体本身另有一层低亮度的元素色边缘光（`M_LDChainBodyGlow` 壳，与命中边缘光同一路径），按元素各自的节奏脉动：灼烧约 0.5 s 一次的暖色呼吸，潮湿约 1 s 的缓慢光泽，带电 0.16 s 的闪烁并随机漏拍，冰冷 1.3 s 的缓慢起伏，腐坏间隔不均。每个身体同一时间只显示它持有的第一种状态的边缘光，亮度低于命中边缘光。
+
 ### 7.4 元素反应
 
 | 反应 | 状态 | 实现 | 证据 | 已知问题 |
