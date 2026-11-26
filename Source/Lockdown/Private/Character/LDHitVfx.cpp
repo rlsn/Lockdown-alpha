@@ -273,6 +273,14 @@ const TCHAR* LDSliceVfx::PackPath(EPack Pack)
     }
 }
 
+TConstArrayView<const TCHAR*> LDSliceVfx::PackMutedEmitters(EPack Pack)
+{
+    // The explosion's translucent red shock sphere: several of them overlap into pink bubbles along a flame front.
+    static const TCHAR* const FireBlast[] = {TEXT("Empty")};
+    if (Pack == EPack::FireBlast) { return FireBlast; }
+    return {};
+}
+
 LDSliceVfx::FSkillSystems LDSliceVfx::SkillSystemsOf(uint8 Ability)
 {
     FSkillSystems Out;

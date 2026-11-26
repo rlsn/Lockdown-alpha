@@ -103,6 +103,8 @@ namespace LDSliceVfx
     // floor, a compact fire blast with its smoke, and a crackle of lightning.
     enum class EPack : uint8 { DustRing, FireBlast, LightningHit, Count };
     LOCKDOWN_API const TCHAR* PackPath(EPack Pack);
+    // The emitters of a pack system that a project effect leaves out (by the emitter's name in the shipped system).
+    LOCKDOWN_API TConstArrayView<const TCHAR*> PackMutedEmitters(EPack Pack);
     LOCKDOWN_API FString SystemPackage(ESystem System);
     // The shocked-body rim glow (LDHitVfx::FGhosts::bShell): an additive fresnel shell pushed 1.2 cm out along the normals.
     constexpr const TCHAR* BodyGlowMaterial = TEXT("/Game/Lockdown/Art/VFX/Niagara/Generated/M_LDChainBodyGlow");

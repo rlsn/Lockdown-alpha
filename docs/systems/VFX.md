@@ -369,7 +369,7 @@
 | `active_crotch_grab` 掏蛋子 | 无 · 冲刺接触 + 减速 | LOCALLY VERIFIED | 前摇：通用族；`NS_LDGrabRelease`：三条加粗的贴地速度线随冲刺展开、暗色尘迹与终点刹车扬尘；`NS_LDGrabHit`：髋部高度的暖白冲击核与光、加粗的低位爆环、髋部暗尘、下坠暖色火星 | `production/vfx/batch5e-physical-mass/` | 用户未验收 |
 | `active_unplug` 拧你手腕 | 无 · 招架架势 280 | LOCALLY VERIFIED | `NS_LDUnplugRelease`：招架期间（数据 0.45 s）胸前交叉的钢色双臂 X、颤动，身周细卸力环；`NS_LDUnplugHit`：反震打在出手者身上——绕胸收紧的扭腕螺旋、暖白冲击核、缴械碎屑下落 | `production/vfx/batch6-self/` | 用户未验收 |
 | `active_snark_bolt` 甩你一鞋 | 无 · 投射物 + 落地拖鞋 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：粒子带；落地 `SlipperDrop` | — | 专属释放与命中未设计 |
-| `active_seethe` 烫你屁股 | 火 · 自身圆 300 | LOCALLY VERIFIED | `NS_LDSeetheTell`、`NS_LDSeetheBurst`、`NS_LDFireHit`；贴图 `fire_*` | `production/vfx/batch2/fire/` | 焦地随区域软边；用户未验收 |
+| `active_seethe` 烫你屁股 | 火 · 自身圆 300 | LOCALLY VERIFIED | `NS_LDSeetheTell`；释放 `NS_LDSeetheBurst`：加密加高的火舌墙冲到 300 cm 边缘（火焰前沿就是范围边界，无轮廓环）、焦地、余烬；素材包 `FireBlast`：施法者身上一个火球，0.14 s 后沿 82% 半径爆起 8 个小火球，随后转黑烟；命中 `NS_LDFireHit` | `production/vfx/pack1/` | 用户未验收；前摇仍有细边界线；边缘是 8 个分立火球而非连续火浪；多个火球的帧耗未测 |
 | `active_quick_meeting` 脚底开锅 | 火 · 地点圆 240，3 跳 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：区域粒子（AreaFire） | — | 专属释放与命中未设计 |
 | `active_bail_out` 贴脸补一拳 | 无 · 冲刺 + 强化普攻 | LOCALLY VERIFIED | 前摇：通用族；`NS_LDBailRelease`：肩高两条加粗滑流线随冲刺、身后暗色尘迹、终点双拳暖色亮起 0.5 s；本技能自身无命中 | `production/vfx/batch5e-physical-mass/` | 用户未验收；拳光在俯视下仍偏小 |
 | `active_not_mad` 锅盖挡脸 | 无 · 自身护盾 + 解控 | LOCALLY VERIFIED | `NS_LDNotMadRelease`：脸前弹起并举住 0.5 s 的实心锅盖（90 cm 钢盘：暖白高光到灰到暗边的明暗、亮边、暗色把手）、格挡瞬间的暖白闪光、腰间向外崩碎的解控碎片；护盾见 §7.6 `NS_LDShieldState` | `production/vfx/batch6-self-rework/` | 用户未验收 |
@@ -524,12 +524,12 @@
 
 ### 8.4 已接入素材的用法
 
-素材包系统作为项目特效的一层播放：`ULDImpactFxSubsystem::PlayPack(LDSliceVfx::EPack, 位置, 缩放)`，路径表在 `LDSliceVfx::PackPath`。素材原样使用，只改整体缩放与它公开的 User 参数；缺失时记一次 `LD_PACK_FX missing` 日志并跳过该层。验证舞台的 `-VfxProof packs` 把各包的系统按原样和按缩放放在游戏镜头下。
+素材包系统作为项目特效的一层播放：`ULDImpactFxSubsystem::PlayPack(LDSliceVfx::EPack, 位置, 缩放)`，路径表在 `LDSliceVfx::PackPath`。素材原样使用，只改整体缩放、它公开的 User 参数，以及按名字关闭不合适的发射器；缺失时记一次 `LD_PACK_FX missing` 日志并跳过该层。按路径加载的素材不会被引用关系带进打包，用到的目录登记在 `Config/DefaultGame.ini` 的 `DirectoriesToAlwaysCook`（新增一个 `EPack` 时同时加它的目录）；打包版里的显示尚未验证。验证舞台的镜头臂长与视角和真实对战相同，角色在画面里一样大。验证舞台的 `-VfxProof packs` 把各包的系统按原样和按缩放放在游戏镜头下。
 
 | `EPack` | 素材系统 | 用在哪里 |
 | --- | --- | --- |
 | `DustRing` | Stylized Smoke `NS_SmokeRing`（一圈米色尘团 + 碎屑；公开 `ColorSmoke`、`ScaleDebris`、`ForceUpSmoke` 等参数） | 阵亡落地 0.45；`active_charged_ram` 命中 0.5、`active_elbow` 命中 0.32、`active_crotch_grab` 与 `active_pants_down` 命中 0.22；`active_brace` 结束反震 0.6 |
-| `FireBlast` | Mixed VFX `NS_ExplosionGroundSmall`（紧凑火球转黑烟；无公开参数） | `active_seethe` 释放 0.45 |
+| `FireBlast` | Mixed VFX `NS_ExplosionGroundSmall`（紧凑火球转黑烟；无公开参数；它的半透明红色冲击球发射器 `Empty` 在运行时关闭，见 `LDSliceVfx::PackMutedEmitters`） | `active_seethe` 释放：中心 0.45，边缘 8 个 0.3 |
 | `LightningHit` | Mixed VFX `NS_LightningBolt_Hit`（青白电弧爆裂；无公开参数） | 尚未使用 |
 
 游戏镜头下的观感：Mixed VFX 的火焰序列帧有体积，明显好于自制火舌；爆炸原样过大过黑，缩到 0.35–0.45 才能用；斩击命中是彩色火花加闪光；Stylized Smoke 的烟环缩小后是合适的撞击扬尘；Free Niagara Particles 是很小的星点，适合升级与增益点缀。总览图在 `production/vfx/packs-survey/`。

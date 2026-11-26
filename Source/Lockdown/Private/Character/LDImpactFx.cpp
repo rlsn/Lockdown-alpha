@@ -25,6 +25,7 @@
 #include "Misc/App.h"
 #include "Misc/PackageName.h"
 #include "NiagaraComponent.h"
+#include "NiagaraEmitterHandle.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
 #include "UObject/UObjectIterator.h"
@@ -1420,11 +1421,23 @@ UNiagaraComponent* ULDImpactFxSubsystem::PlayPack(LDSliceVfx::EPack Pack, const 
         bPackTried[Index] = true;
         PackSystems[Index] = LoadObject<UNiagaraSystem>(nullptr, LDSliceVfx::PackPath(Pack), nullptr, LOAD_NoWarn | LOAD_Quiet);
         if (!PackSystems[Index]) { UE_LOG(LogLDContent, Warning, TEXT("LD_PACK_FX missing %s; its layer is not shown"), LDSliceVfx::PackPath(Pack)); }
+        else
+        {
+            FString Names;
+            for (const FNiagaraEmitterHandle& Handle : PackSystems[Index]->GetEmitterHandles()) { Names += Handle.GetName().ToString() + TEXT(" "); }
+            UE_LOG(LogLDContent, Display, TEXT("LD_PACK_FX loaded %s emitters=[%s]"), LDSliceVfx::PackPath(Pack), *Names);
+        }
     }
     const float Strength = FMath::Clamp(LocalEffectScale(), 0.f, 1.f);
     if (!PackSystems[Index] || Strength <= 0.f) { return nullptr; }
-    return UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), PackSystems[Index], At, Rotation, FVector(Scale * (.6f + .4f * Strength)), true, true,
-        ENCPoolMethod::AutoRelease, false);
+    UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), PackSystems[Index], At, Rotation, FVector(Scale * (.6f + .4f * Strength)),
+        true, false, ENCPoolMethod::AutoRelease, false);
+    if (!Effect) { return nullptr; }
+    // Layers of the shipped system that don't fit the project's look are switched off by name; the rest plays as shipped.
+    // (The instance exists once activated; an emitter disabled before its first tick never spawns.)
+    Effect->Activate(true);
+    for (const TCHAR* Muted : LDSliceVfx::PackMutedEmitters(Pack)) { Effect->SetEmitterEnable(Muted, false); }
+    return Effect;
 }
 
 bool ULDImpactFxSubsystem::SkillReach(uint8 Ability, float& OutRangeCm, float& OutHalfWidthCm)

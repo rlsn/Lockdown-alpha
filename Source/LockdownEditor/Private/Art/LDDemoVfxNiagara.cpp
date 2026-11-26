@@ -1379,34 +1379,24 @@ namespace
         UMaterialInstanceConstant* Ember = ChainPaint(TEXT("MI_LDSeethe_Ember"), Top, SliceTexture(LDSliceVfx::ETex::ChainASparkStreak), nullptr, 0.f, FirePalette, 1.f, 0.f, Error);
         UMaterialInstanceConstant* Smoke = ChainPaint(TEXT("MI_LDSeethe_Smoke"), Material, SliceTexture(LDSliceVfx::ETex::SoftPuff), nullptr, 0.f, SmokePalette, 1.f, 0.f, Error);
         UMaterialInstanceConstant* Char = ChainPaint(TEXT("MI_LDSeethe_Char"), Material, SliceTexture(LDSliceVfx::ETex::FireChar), SliceTexture(LDSliceVfx::ETex::DissolveNoise), 2.f, CharPalette, 1.f, 0.f, Error);
-        UMaterialInstanceConstant* Line = ChainPaint(TEXT("MI_LDSeethe_Line"), Top, SliceTexture(LDSliceVfx::ETex::ChainAProfile), nullptr, 0.f, FirePalette, 1.f, 0.f, Error);
         FSystemParts Burst;
         Burst.System = LDSliceVfx::ESystem::SeetheBurst;
-        if (!Flame || !Ember || !Smoke || !Char || !Line) { return Burst; }
+        if (!Flame || !Ember || !Smoke || !Char) { return Burst; }
         const FString Out = TEXT("(1.0 - pow(1.0 - saturate(Particles.Age / 0.2), 2.0))");
         FPart& Wall = Burst.Parts.AddDefaulted_GetRef();
         Wall.Name = TEXT("Wall");
-        Wall.Count = TEXT("int(lerp(18.0, 40.0, User.Focus) + 0.5)");
+        // The flame front itself is the edge of the area (no outline ring): a dense wall of tongues racing out to the radius.
+        Wall.Count = TEXT("int(lerp(36.0, 56.0, User.Focus) + 0.5)");
         Wall.Lifetime = TEXT("0.6");
         Tongues(Wall, Flame);
         {
-            const FString Angle = FString::Printf(TEXT("((%s + %s * 0.6) / max(float(int(lerp(18.0, 40.0, User.Focus) + 0.5)), 1.0) * 6.2832)"), Own, *Random(111.f));
+            const FString Angle = FString::Printf(TEXT("((%s + %s * 0.6) / max(float(int(lerp(36.0, 56.0, User.Focus) + 0.5)), 1.0) * 6.2832)"), Own, *Random(111.f));
             const FString Life = TEXT("saturate((Particles.Age - 0.12) / 0.42)");
             Wall.Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.Start + float3(cos(%s), sin(%s), 0.0) * User.Width * %s * (0.9 + 0.1 * %s) + float3(0.0, 0.0, 2.0)"),
                     *Angle, *Angle, *Out, *Random(112.f)))
-                .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(0.55, 1.0) * (55.0 + 45.0 * %s) * (0.5 + 0.5 * %s) * (1.0 - 0.7 * %s)"), *Random(113.f), *Out, *Life))
+                .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(0.55, 1.0) * (80.0 + 60.0 * %s) * (0.5 + 0.5 * %s) * (1.0 - 0.7 * %s)"), *Random(113.f), *Out, *Life))
                 .Set(TEXT("Particles.Color"), Glowing(1.4f, FString::Printf(TEXT("(1.0 - %s) * saturate(Particles.Age / 0.02)"), *Life)));
         }
-        FPart& Ring = Burst.Parts.AddDefaulted_GetRef();
-        Ring.Name = TEXT("HeatRing");
-        Ring.Count = TEXT("40");
-        Ring.Lifetime = TEXT("0.3");
-        Ring.Paint = Line;
-        Ring.TileCm = 60.f;
-        Ring.Set(TEXT("Particles.RibbonLinkOrder"), Own)
-            .Set(TEXT("Particles.Position"), Circle(FString::Printf(TEXT("User.Width * max(%s, 0.05)"), *Out), 40, 4.f))
-            .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("14.0 * (1.0 - saturate((Particles.Age - 0.18) / 0.1))")))
-            .Set(TEXT("Particles.Color"), Glowing(2.2f, TEXT("0.9")));
         FPart& Column = Burst.Parts.AddDefaulted_GetRef();
         Column.Name = TEXT("Column");
         Column.Count = TEXT("int(lerp(5.0, 11.0, User.Focus) + 0.5)");

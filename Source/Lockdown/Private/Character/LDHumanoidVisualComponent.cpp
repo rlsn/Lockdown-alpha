@@ -29,6 +29,7 @@
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "Rendering/SkeletalMeshLODRenderData.h"
 #include "UI/LDControlSettings.h"
+#include "TimerManager.h"
 #include "UObject/ConstructorHelpers.h"
 
 namespace LDHumanoidVisualDetail
@@ -523,7 +524,26 @@ void ULDHumanoidVisualComponent::UpdateRelease(float EffectScale)
         {
             Impacts->Play(LDSliceVfx::ESystem::SeetheBurst, *this, Floor, Floor, LDSliceVfx::ElementInk(uint8(ELDCombatElement::Fire)), Radius,
                 1.8f * Look.Seconds, Look, Late);
-            if (Late < .2f) { Impacts->PlayPack(LDSliceVfx::EPack::FireBlast, Floor + FVector(0, 0, 40.f), .45f * Look.Size); }
+            // The blast at the caster, then fire bursting up all round the edge the wave reaches (the area it hits), so the
+            // burst reads at its real size.
+            if (Late < .2f)
+            {
+                Impacts->PlayPack(LDSliceVfx::EPack::FireBlast, Floor + FVector(0, 0, 40.f), .45f * Look.Size);
+                const TWeakObjectPtr<ULDImpactFxSubsystem> Weak = Impacts;
+                const float Size = Look.Size;
+                FTimerHandle Handle;
+                World->GetTimerManager().SetTimer(Handle, FTimerDelegate::CreateLambda([Weak, Floor, Radius, Size]()
+                {
+                    ULDImpactFxSubsystem* Later = Weak.Get();
+                    if (!Later) { return; }
+                    constexpr int32 Bursts = 8;
+                    for (int32 Index = 0; Index < Bursts; ++Index)
+                    {
+                        const float Angle = 2.f * PI * (Index + .5f) / Bursts;
+                        Later->PlayPack(LDSliceVfx::EPack::FireBlast, Floor + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.f) * Radius * .82f + FVector(0, 0, 25.f), .3f * Size);
+                    }
+                }), .14f, false);
+            }
         }
         Impacts->NoteStrike(*this, LDSliceVfx::EStrike::Skill, At, Facing, bOwnBody, CastAbility);
     }
