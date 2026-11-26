@@ -31,74 +31,74 @@
     {
       "id": "lobby_seat_1",
       "path": "lobby_seat_1.png",
-      "sha256": "e8fc5929a0be256225880a91296370054509d941089defaa6205534f59c2d7fa",
+      "sha256": "558982174768892f7112905d899da9154ab11af9afd7b8685840f092dba2fb08",
       "width": 544,
       "height": 816,
-      "purpose": "Lobby seat card 1: front portrait of the hooper in seat 1's jersey tint",
-      "provenance": "Rendered in-game from the project's own hooper model (rest-room capture by Scripts/CaptureUICoverage.ps1, LDUICoverageProbe Ref_Seat shots) and cut out by Scripts/MakeLobbySeats.py (seats 1, 6 and 8 repainted from seat 3's jersey). No third-party art."
+      "purpose": "Lobby seat card 1: portrait of the hooper in pose 1, jersey in seat 1's ink",
+      "provenance": "Rendered in-game from the project's own hooper model and clips (rest-room capture by Scripts/CaptureUICoverage.ps1, LDUICoverageProbe Ref_Seat shots), cut out and jersey-painted by Scripts/MakeLobbySeats.py. No third-party art."
     },
     {
       "id": "lobby_seat_2",
       "path": "lobby_seat_2.png",
-      "sha256": "b9486b38fcea83817e04bc69b2bc4a3e6f320a6035cbba281a7676d556532548",
+      "sha256": "f1adfca72641783606450a8a391cc006cc7f0daadf2f1b8b75445c3d843a2963",
       "width": 544,
       "height": 816,
-      "purpose": "Lobby seat card 2: front portrait of the hooper in seat 2's jersey tint",
-      "provenance": "Rendered in-game from the project's own hooper model (rest-room capture by Scripts/CaptureUICoverage.ps1, LDUICoverageProbe Ref_Seat shots) and cut out by Scripts/MakeLobbySeats.py (seats 1, 6 and 8 repainted from seat 3's jersey). No third-party art."
+      "purpose": "Lobby seat card 2: portrait of the hooper in pose 2, jersey in seat 2's ink",
+      "provenance": "Rendered in-game from the project's own hooper model and clips (rest-room capture by Scripts/CaptureUICoverage.ps1, LDUICoverageProbe Ref_Seat shots), cut out and jersey-painted by Scripts/MakeLobbySeats.py. No third-party art."
     },
     {
       "id": "lobby_seat_3",
       "path": "lobby_seat_3.png",
-      "sha256": "49c1cfdbdfb5042b84043eb86479e6cbadc7f2733561d36c7bdcbdeaca829524",
+      "sha256": "56c7e1a2355a9c4aa54e8d4968861f4ab33f9a6ed744cd231f58d7e9fc9e39f0",
       "width": 544,
       "height": 816,
-      "purpose": "Lobby seat card 3: front portrait of the hooper in seat 3's jersey tint",
-      "provenance": "Rendered in-game from the project's own hooper model (rest-room capture by Scripts/CaptureUICoverage.ps1, LDUICoverageProbe Ref_Seat shots) and cut out by Scripts/MakeLobbySeats.py (seats 1, 6 and 8 repainted from seat 3's jersey). No third-party art."
+      "purpose": "Lobby seat card 3: portrait of the hooper in pose 3, jersey in seat 3's ink",
+      "provenance": "Rendered in-game from the project's own hooper model and clips (rest-room capture by Scripts/CaptureUICoverage.ps1, LDUICoverageProbe Ref_Seat shots), cut out and jersey-painted by Scripts/MakeLobbySeats.py. No third-party art."
     },
     {
       "id": "lobby_seat_4",
       "path": "lobby_seat_4.png",
-      "sha256": "1c0372ca4eb1e7ec75efcea3348698cb24fa6bb5f3c6f6b40afa83c5f3f2c1fa",
+      "sha256": "cb03dc0e7f8e30c117882aa7bffa68787fa3db48d91d58659899b3fb9206bed1",
       "width": 544,
       "height": 816,
-      "purpose": "Lobby seat card 4: front portrait of the hooper in seat 4's jersey tint",
-      "provenance": "Rendered in-game from the project's own hooper model (rest-room capture by Scripts/CaptureUICoverage.ps1, LDUICoverageProbe Ref_Seat shots) and cut out by Scripts/MakeLobbySeats.py (seats 1, 6 and 8 repainted from seat 3's jersey). No third-party art."
+      "purpose": "Lobby seat card 4: portrait of the hooper in pose 4, jersey in seat 4's ink",
+      "provenance": "Rendered in-game from the project's own hooper model and clips (rest-room capture by Scripts/CaptureUICoverage.ps1, LDUICoverageProbe Ref_Seat shots), cut out and jersey-painted by Scripts/MakeLobbySeats.py. No third-party art."
     },
     {
       "id": "lobby_seat_5",
       "path": "lobby_seat_5.png",
-      "sha256": "cd86e37b5d75c1d8c2e0d034a56a89b7b34471d0ab657f4bdfedfc316938cdd4",
+      "sha256": "40322011df82287cc5b517301c562f42094418f1ad85ab37a59be44f7f3632c2",
       "width": 544,
       "height": 816,
-      "purpose": "Lobby seat card 5: front portrait of the hooper in seat 5's jersey tint",
-      "provenance": "Rendered in-game from the project's own hooper model (rest-room capture by Scripts/CaptureUICoverage.ps1, LDUICoverageProbe Ref_Seat shots) and cut out by Scripts/MakeLobbySeats.py (seats 1, 6 and 8 repainted from seat 3's jersey). No third-party art."
+      "purpose": "Lobby seat card 5: portrait of the hooper in pose 5, jersey in seat 5's ink",
+      "provenance": "Rendered in-game from the project's own hooper model and clips (rest-room capture by Scripts/CaptureUICoverage.ps1, LDUICoverageProbe Ref_Seat shots), cut out and jersey-painted by Scripts/MakeLobbySeats.py. No third-party art."
     },
     {
       "id": "lobby_seat_6",
       "path": "lobby_seat_6.png",
-      "sha256": "af143bc3e2c4339cffd9728068313df255590adf00738177156dfb29855d2412",
+      "sha256": "21898dfe48f35fe1a78fd834322321522a32dddf8837f094efe702a4f5c9f046",
       "width": 544,
       "height": 816,
-      "purpose": "Lobby seat card 6: front portrait of the hooper in seat 6's jersey tint",
-      "provenance": "Rendered in-game from the project's own hooper model (rest-room capture by Scripts/CaptureUICoverage.ps1, LDUICoverageProbe Ref_Seat shots) and cut out by Scripts/MakeLobbySeats.py (seats 1, 6 and 8 repainted from seat 3's jersey). No third-party art."
+      "purpose": "Lobby seat card 6: portrait of the hooper in pose 6, jersey in seat 6's ink",
+      "provenance": "Rendered in-game from the project's own hooper model and clips (rest-room capture by Scripts/CaptureUICoverage.ps1, LDUICoverageProbe Ref_Seat shots), cut out and jersey-painted by Scripts/MakeLobbySeats.py. No third-party art."
     },
     {
       "id": "lobby_seat_7",
       "path": "lobby_seat_7.png",
-      "sha256": "74f1fe51b68403b7a0afdb7aa662d95ecb3eaa56fa30d269dd44c9831033d0b2",
+      "sha256": "f7f9f565cc9d6cb49128ee7ca2d8b1041f515ecef153b9140e8f7377000ffbec",
       "width": 544,
       "height": 816,
-      "purpose": "Lobby seat card 7: front portrait of the hooper in seat 7's jersey tint",
-      "provenance": "Rendered in-game from the project's own hooper model (rest-room capture by Scripts/CaptureUICoverage.ps1, LDUICoverageProbe Ref_Seat shots) and cut out by Scripts/MakeLobbySeats.py (seats 1, 6 and 8 repainted from seat 3's jersey). No third-party art."
+      "purpose": "Lobby seat card 7: portrait of the hooper in pose 7, jersey in seat 7's ink",
+      "provenance": "Rendered in-game from the project's own hooper model and clips (rest-room capture by Scripts/CaptureUICoverage.ps1, LDUICoverageProbe Ref_Seat shots), cut out and jersey-painted by Scripts/MakeLobbySeats.py. No third-party art."
     },
     {
       "id": "lobby_seat_8",
       "path": "lobby_seat_8.png",
-      "sha256": "97d8854376065908682625a009b336ef255f35dd34a70bafeaff0bf4ed02294e",
+      "sha256": "ed33ab7defcbe5bbbd0f5044cd0372b41dddd35dd0c33d189b84d9b9956f8f81",
       "width": 544,
       "height": 816,
-      "purpose": "Lobby seat card 8: front portrait of the hooper in seat 8's jersey tint",
-      "provenance": "Rendered in-game from the project's own hooper model (rest-room capture by Scripts/CaptureUICoverage.ps1, LDUICoverageProbe Ref_Seat shots) and cut out by Scripts/MakeLobbySeats.py (seats 1, 6 and 8 repainted from seat 3's jersey). No third-party art."
+      "purpose": "Lobby seat card 8: portrait of the hooper in pose 8, jersey in seat 8's ink",
+      "provenance": "Rendered in-game from the project's own hooper model and clips (rest-room capture by Scripts/CaptureUICoverage.ps1, LDUICoverageProbe Ref_Seat shots), cut out and jersey-painted by Scripts/MakeLobbySeats.py. No third-party art."
     }
   ]
 }

@@ -495,6 +495,8 @@ private:
     double StageWipeAt=-1.;
     FString StageWipeTitle,StageWipeSub,StageCount,StageNextTitle;
     float StageBeat=0.f,StagePreCover=0.f;
+    // Which of the eight beats of the match the title card names (R0, field 1, R1, field 2, R2, field 3, R3, final field).
+    int32 StageWipeBeat=0;
     void PaintMoments(const LDUIPaint::FContext& P) const;
     // DEV capture only (probes): a fixed age for the moments' clock (<0 releases it); the moments themselves still come
     // only from real events.
