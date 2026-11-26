@@ -2680,7 +2680,11 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     const bool bAltHeld=PC->IsInputKeyDown(EKeys::LeftAlt)||PC->IsInputKeyDown(EKeys::RightAlt);
     const bool bExpandFormula=(bAltHeld||bDetailsHeld)&&!PC->IsWorldInputCaptured();
     // The slot under the pointer (by its laid-out box, so a disabled slot explains itself as well) gets the description.
-    const FVector2D Pointer=FSlateApplication::IsInitialized()?FSlateApplication::Get().GetCursorPos():FVector2D(-1,-1);
+    FVector2D Pointer=FSlateApplication::IsInitialized()?FSlateApplication::Get().GetCursorPos():FVector2D(-1,-1);
+#if WITH_DEV_AUTOMATION_TESTS
+    // A probe's hover point stands in for the cursor for the hover cards only; unset, nothing changes.
+    if(ProbeHoverAt.IsSet()){Pointer=ProbeHoverAt.GetValue();}
+#endif
     int32 DetailIndex=INDEX_NONE;LDHUD::FActionDetailView DetailView;
     LDHUD::FLiveSkillTooltip LiveSkillDetail;bool bHasLiveSkillDetail=false;
     for(int32 Index=0;Index<ActionSlots.Num();++Index)

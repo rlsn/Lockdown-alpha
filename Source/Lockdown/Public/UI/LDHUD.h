@@ -503,8 +503,18 @@ private:
     // DEV capture only (probes): a fixed age for the moments' clock (<0 releases it); the moments themselves still come
     // only from real events.
     float MomentFreezeAge=-1.f;
+    TOptional<FVector2D> ProbeHoverAt;
 public:
     void FreezeMoments(float Age){MomentFreezeAge=Age;}
+    // DEV capture only (probes, WITH_DEV_AUTOMATION_TESTS; inert otherwise): where the action band takes the pointer to
+    // be for its hover cards, in absolute desktop units, instead of the OS cursor (unset: the OS cursor). It never moves
+    // the cursor and takes no part in input.
+    void ProbeHover(const TOptional<FVector2D>& Absolute)
+    {
+#if WITH_DEV_AUTOMATION_TESTS
+        ProbeHoverAt=Absolute;MarkReadModelDirty();
+#endif
+    }
     // When the last own-kill moment began (local seconds), <0 before the first.
     double MomentKillAt() const {return KillMomentAt;}
     // When the last stage title card began (local seconds), <0 before the first; whether a stage countdown shows now.
