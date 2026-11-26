@@ -1857,10 +1857,10 @@ namespace
                             {
                                 const ELDDemoAbilityId Ability = BrawlSkills[Index];
                                 const auto Caster = Index % 2 == 0 ? A2 : V2;
-                                const auto Target = Index % 2 == 0 ? V2 : A2;
+                                const auto Struck = Index % 2 == 0 ? V2 : A2;
                                 const float T = Start + .6f + Index * 1.4f;
                                 Reel.Steps.Add({T, [Caster, Ability]() { if (auto* B = Caster.Get()) { B->SetComboStep(0); B->SetCastAbility(uint8(Ability)); B->SetCue(2, 0.f, .18f); } }});
-                                Reel.Steps.Add({T + .23f, [Target]() { if (auto* B = Target.Get()) { B->SetHitReaction(0.f, ELDObservedHitLook::Magic, 0, FGuid::NewGuid()); } }});
+                                Reel.Steps.Add({T + .23f, [Struck]() { if (auto* B = Struck.Get()) { B->SetHitReaction(0.f, ELDObservedHitLook::Magic, 0, FGuid::NewGuid()); } }});
                             }
                             Reel.Steps.Add({Start + 5.2f, Cast(V2)});
                             Reel.Steps.Add({Start + 5.47f, Hit(A2)});

@@ -24,9 +24,9 @@ $required = @{
         'Leaving credits no kill and marks no one else as left')
     'Leave/Client1' = @($connection, 'A Host-ended match records no winner', 'The result keeps the leaver as left, not dead',
         'Leaving credits no kill and marks no one else as left')
-    'Leave/Client2Match' = @($connection, 'The Lobby leave action names its destination',
+    'Leave/Client2Match' = @($connection, 'The Lobby leave action is labelled; its prompt names the destination',
         'The Lobby leave confirmation explains the room remains open', 'Cancelling a Lobby leave keeps the member in the room',
-        'The in-match menu has no separate end-match action', 'The in-match leave action names its destination',
+        'The in-match menu has no separate end-match action', 'The in-match leave action is labelled; its prompt names the destination',
         'The leave confirmation explains the role-specific outcome', 'The in-match menu offers the shared leave confirmation')
     'Leave/Client2' = @('A voluntary leave is not reported as a failure', 'The menu shows no failure or interruption after a voluntary leave')
     'HostLoss/Host' = @($connection, 'Every provider is wired: the ready room may start normally', 'The Host holds a live match with its owning client before it is lost')
@@ -50,7 +50,7 @@ $required = @{
     'HostLeave/HostMatch' = @($connection, 'The Host is exempt from Ready and starts once guests are ready',
         'Every provider is wired: the ready room may start normally',
         'The Host holds a live match with its owning client before it leaves', 'The in-match menu has no separate end-match action',
-        'The in-match leave action names its destination',
+        'The in-match leave action is labelled; its prompt names the destination',
         'The leave confirmation explains the role-specific outcome', 'The in-match menu offers the shared leave confirmation')
     'HostLeave/Host' = @('A voluntary leave is not reported as a failure', 'The menu shows no failure or interruption after a voluntary leave')
     'HostLeave/Client1Match' = @($connection)
@@ -197,7 +197,7 @@ try {
     }
 
     # Phase 4: a live Host refuses real Join presses, each with its own coded reason: another product version, a full
-    # room of three humans and three AI, then a started match. The joiner announces another version, so any attempt that passed the
+    # room of three humans and five AI (all eight seats), then a started match. The joiner announces another version, so any attempt that passed the
     # room checks would still be refused, never admitted.
     $directory = Join-Path $launch.ProbeOutput 'Refuse'
     New-Item -ItemType Directory -Path $directory | Out-Null

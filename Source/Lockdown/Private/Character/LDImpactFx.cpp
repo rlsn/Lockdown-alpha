@@ -734,6 +734,8 @@ UNiagaraComponent* ULDImpactFxSubsystem::ShowZone(USceneComponent& Owner, UNiaga
 void ULDImpactFxSubsystem::WarmUp()
 {
     if (!FApp::CanEverRender() || !GetWorld()) { return; }
+    // The frontend has no fights; warming every system there only froze each return to the title screen for seconds.
+    if (UWorld::RemovePIEPrefix(GetWorld()->GetOutermost()->GetName()) == LDDemoEntry::FrontendMap) { return; }
     // Textures, materials, meshes and the approved hold time load now rather than on the first hit.
     const bool bLayers = LoadLayerAssets();
     OverdriveHoldSeconds();
