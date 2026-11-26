@@ -2873,6 +2873,10 @@ FString LDHUD::FieldRewardEventName(FName Event)
     if(Event==FName(TEXT("camp_marker_high"))){return LDTerms::FieldRewardHighCamp;}
     if(Event==FName(TEXT("camp_marker_elite"))){return LDTerms::FieldRewardEliteCamp;}
     if(Event==FName(TEXT("bounty"))){return TEXT("终结上热搜");}
+    if(Event==FName(TEXT("mini_flag"))){return LDTerms::MiniFlag;}
+    if(Event==FName(TEXT("arena"))){return LDTerms::Arena;}
+    if(Event==FName(TEXT("locker"))){return LDTerms::Locker;}
+    if(Event==FName(TEXT("peddler"))){return LDTerms::Peddler;}
     return FString::Printf(TEXT("未知事件 %s"),*Event.ToString());
 }
 FString LDHUD::FieldRewardNotice(const FLDFieldRewardView& Reward,const FLDDemoContentDefinitions* Content)

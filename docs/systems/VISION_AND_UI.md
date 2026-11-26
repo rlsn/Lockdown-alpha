@@ -53,7 +53,7 @@
 | 开始页：我开房 / 我加入 | LOCALLY VERIFIED | `ULDUIRoot` StartPage | `Front_Start*` | 开房/加入进行中与失败提示未拍；输入框字号按建页时的字号，运行中改字号不重排 |
 | 退出确认 | LOCALLY VERIFIED | `ULDUIRoot::BuildConfirm` | `Front_Exit*` |  |
 | 设置：画面 / 音频 / 操作 / 镜头 / 界面 / 特效 | LOCALLY VERIFIED | `ULDControlsPanel`（菜单页，可滚动）；音频页四条总线（总音量 / 音乐 / 音效 / 界面）走 `ULDGameInstance::SetAppliedBusVolume`，松手试听 `PlayBusPreview` | `*_Settings_<页签>*`、`production/ui/m3/` | 画面页在离屏拍摄下只显示“需要可交互窗口”；试听声音未经人耳确认 |
-| Lobby（角色集结卡：8 张席位卡、房主 / 客机 / 满员 / 无 AI、准备与开始） | LOCALLY VERIFIED | `ULDUIRoot::BuildWorld`、`RebuildRoster`、`RefreshLobby`；席位立绘 `LDUIBackgrounds::SeatAsset` ← `lobby_seat_1..8`：同一球员 8 个篮球动作定格（`ULDHumanoidVisualComponent::HoldPose`）与 8 个机位，`Scripts/MakeLobbySeats.py` 抠图并涂席位球衣色 | `production/ui/lobby/impl/`、`production/ui/m4/`、`Lobby_*`（客机视角由真实第二进程拍摄） | 动作库没有抱臂、叉腰、庆祝类姿势 |
+| Lobby（角色集结卡：8 张席位卡、房主 / 客机 / 满员 / 无 AI、准备与开始） | LOCALLY VERIFIED | `ULDUIRoot::BuildWorld`、`RebuildRoster`、`RefreshLobby`；席位立绘 `LDUIBackgrounds::SeatAsset` ← `lobby_seat_1..8`：同一球员 8 个定格（篮球动作与个性动作各半，个性动作隐藏篮球；`ULDHumanoidVisualComponent::HoldPose`）与 8 个机位，`Scripts/MakeLobbySeats.py` 抠图并涂席位球衣色 | `production/ui/lobby/impl/`、`production/ui/m8/`、`Lobby_*`（客机视角由真实第二进程拍摄） | — |
 | 构筑蓝图查看 | LOCALLY VERIFIED | `ULDBlueprintPanel` | `Lobby_Blueprint*` | 只拍到无记录状态 |
 | 离开房间确认 | LOCALLY VERIFIED | `ULDUIRoot::BuildConfirm` | `Match_MenuLeave*` |  |
 | 战斗 HUD（比分条、目标卡、事件流、底部操作条、小地图） | USER APPROVED | `ULDHUD`、`LDBroadcastPaint` | `hud/iter2-*`、`Match_Field*` |  |
@@ -61,21 +61,21 @@
 | 休息期 HUD 与休息按钮 | LOCALLY VERIFIED | `ULDHUD` RestActions | `Match_RestRingClosed*` |  |
 | 长按 Tab 战术计分板 | LOCALLY VERIFIED | `ULDHUD::PaintScoreboard` | `production/ui/m1/A3-match.jpg`、`Match_Scoreboard*` |  |
 | 局内菜单 | LOCALLY VERIFIED | `ULDUIRoot::BuildWorld` 菜单条 | `Match_Menu*` |  |
-| 技能悬停说明与 Alt 公式 | IMPLEMENTED | `ULDHUD` ActionDetail | — | 说明卡跟随系统光标，探针不移动用户鼠标，未截到 |
+| 技能悬停说明与 Alt 公式 | LOCALLY VERIFIED | `ULDHUD` ActionDetail（探针用 `ULDHUD::ProbeHover` 代替系统光标，仅 DEV 构建） | `Match_SkillHover*`、`Match_SkillHoverAlt*`、`production/ui/m10/` | 只在 1280×720 两档拍到说明卡；1920×1080 两档探针悬停点没有触发，原因未查明，需人工用鼠标确认 |
 | 死亡横幅、承伤回放与复活选点 | LOCALLY VERIFIED | `ULDHUD` DeathBanner、SpawnChoice、`LDRecapChain` | `Match_Death*`、`Match_Respawned*` | 以 DEV 无主地面状态造成真实死亡拍摄；PvP 击杀来源未拍 |
-| PK 报名与 PK 对阵板（押注、准备、进行、结算与得点） | LOCALLY VERIFIED | `ULDHUD::RefreshPK`、`LDHUD::PKPanel`（`FPKMemberView`、赔率、押注数、倒计时秒数）：红色 PK 标与场次、倒计时大数字、每方一行（席位牌、单人方的名字与等级、押注点、赔率，押注期整行即押注按钮），出局者变暗加红杠，胜方整行金色，其下每人得点 | `Match_R1*`、`production/ui/m6/`（真实对局第一次中场休息，AI 自行报名，房主观战） | 房主亲自参赛、组队对阵、平局与无效 PK、观众投掷未拍；配装页上方的紧凑押注条仍是文字条 |
-| NPC：外卖柜读条、二手贩子、画饼老板 | NOT STARTED | `LDWorldLabels`、`LDWorldFeedback` | — | 探针尚不能驱动角色走到外卖柜或二手贩子 |
+| PK 报名与 PK 对阵板（押注、准备、进行、结算与得点） | LOCALLY VERIFIED | `ULDHUD::RefreshPK`、`LDHUD::PKPanel`（`FPKMemberView`、赔率、押注数、倒计时秒数）：红色 PK 标与场次、倒计时大数字、每方一行（席位牌、单人方的名字与等级、押注点、赔率，押注期整行即押注按钮），出局者变暗加红杠，胜方整行金色，其下每人得点；气场环打开时是同一语言的一行押注条 | `Match_R1*`、`production/ui/m6/`、`production/ui/m9/`（真实对局第一次中场休息，AI 自行报名，房主观战） | 房主亲自参赛、组队对阵、平局与无效 PK、观众投掷未拍 |
+| 野外点位：天降外卖、中途目标（喷漆小旗、擂台）、快递柜 | LOCALLY VERIFIED | `ULDWorldLabels::NativePaint`（点位状态牌：一字图标块、名称、剩余秒数；小旗喷漆进度按喷漆者席位色、争夺时直播红；快递柜有人在取时滚动条） | `Match_Airdrop*`、`Match_Objective*`、`Match_FlagSpray*`、`Match_Locker*`、`Match_Arena*`、`Match_FlagContested*`、`Guest_FlagContested*`、`production/ui/m9/`、`production/ui/m10/` | — |
 | 升级时刻 | LOCALLY VERIFIED | `ULDHUD::PaintMoments`、`LDWorldFeedback` | `hud/seq-levelup/` |  |
 | 击杀时刻（本人击杀 K.O.） | LOCALLY VERIFIED | `ULDHUD::PaintMoments`：比分条下一块小牌（K.O.、本人席位 ▸ 被击杀者席位色块与号码、下方红条），不遮挡战斗画面 | `Match_Kill*`、`production/ui/m4/`（探针用 DEV“设置属性”加攻击力打出的真实击杀，画面定格于固定时刻） | — |
 | 阶段过场（野外 ↔ 休息、最终野外） | LOCALLY VERIFIED | `ULDHUD::RefreshReadModel`（阶段跟踪）、`PaintMoments`：切换前 5 秒在比分条下倒数并标出下一阶段，最后 350 ms 两块斜板全屏擦合，切换后继续向右擦开，留下横贯屏幕中部的包装条（LIVE、阶段名、8 段进度），再同向擦出 | `Match_StageCount*`、`Match_StageCard*`、`production/ui/m4/` | 只拍到开局休息 → 野外 1/3；野外 → 休息与最终野外未拍 |
 | 技能升阶页（二级分化与三级预览） | LOCALLY VERIFIED | `ULDHUD::RefreshRankUp` | `Match_RankUp*` | 打开菜单、设置或被遮挡时自动关闭 |
-| 开局横幅与世界反馈文字 | IMPLEMENTED | `LDWorldFeedback` | `Match_Field*` | 世界横幅改为下三分之一墨色条 + 强调块、200 ms 擦入；命中确认字的动效属手感，未改 |
-| 头顶标签与构筑环的重叠 | IMPLEMENTED | `LDWorldLabels` | — | 开环时落在环部件上的头顶标签不绘制；待开环截图确认 |
+| 开局横幅与世界反馈文字 | LOCALLY VERIFIED | `LDWorldFeedback` | `Match_Kill*`（击杀后的升级横幅）、`Match_Field*` | 命中确认字的动效属手感，未改 |
+| 头顶标签与构筑环的重叠 | LOCALLY VERIFIED | `LDWorldLabels` | `Match_R1Build*`、`Match_R1BettingRing*`（开环时环后的角色不画头顶标签） | — |
 | 终局（终局改装、旗杆） | LOCALLY VERIFIED | `ULDHUD`、构筑环 | `Match_Final*` | 终局改装三选一未拍 |
 | 结算页 | LOCALLY VERIFIED | `ULDHUD` Result 区块、`LDResultBuild` | `production/ui/m2/A4-results.jpg`、`Match_Results*` |  |
 | 赛后复盘（切换席位查看构筑） | LOCALLY VERIFIED | `ULDHUD::SelectResultContender`、`RefreshResultInspectedBuild` | `Match_ResultsReplay*` | “成长与卡牌”“全员战斗数据”页签未拍 |
-| 网络卡顿提示与诊断 | IMPLEMENTED | `ULDHUD` NetSpike、Diagnostics | — | 直播红线框 + 白字；单机房无网络抖动，未拍 |
-| 按钮交互态与页面转场 | IN PROGRESS | `LDUIPaint::Button`、`ULDCommandButton` | `Front_MenuHover*` | 只拍到悬停；转场只有结算标题的 200 ms 滑入 |
+| 网络卡顿提示与诊断 | LOCALLY VERIFIED | `ULDHUD` NetSpike、Diagnostics | `Guest_NetSpike*`、`production/ui/m10/`（真实客机，引擎 `NetEmulation.PktLag` / `PktLoss`，只对客机、拍完关闭） | 诊断面板未单独拍 |
+| 按钮交互态与页面转场 | LOCALLY VERIFIED | `LDUIPaint::Button`、`ULDCommandButton` | `Front_MenuHover*`（悬停）、`Lobby_HostWait*`（禁用的开始对局）、`Lobby_GuestReady*`（已选可撤销的白色块）、`Match_StageCard*`（阶段过场）、`Match_MenuPressed*`（按下，经界面指针事件） | 按下态截图里与常态差别不明显，未确认；页面之间除阶段过场与结算标题滑入外是直接切换 |
 
 ## 检查入口
 

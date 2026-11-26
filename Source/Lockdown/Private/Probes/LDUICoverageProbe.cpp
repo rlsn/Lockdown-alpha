@@ -206,16 +206,16 @@ public:
     {
         Pages.Add({TEXT("Lobby_Solo"),[this](ALDPlayerController& PC,double Now){return PC.RootUI&&InPhase(PC,ELDMatchPhase::Lobby)&&Settled(Now,4.);}});
         // With the guest client (CaptureUICoverage.ps1 starts one): the host's view while the guest is not ready (cannot
-        // start, with the reason), then once it is (can start); the room is filled to eight after the guest leaves.
+        // start, with the reason), then once it is (can start); the room is filled to eight around the two humans, and the
+        // guest plays the match too (its own views: the network warning, the contested mini flag).
         Pages.Add({TEXT("Lobby_HostWait"),[this](ALDPlayerController& PC,double Now)
             {if(Once(Now,0)){PC.SetDemoAICount(2);}return Guests(PC)==1&&!GuestReady(PC)&&Settled(Now,3.);},120.});
         Pages.Add({TEXT("Lobby_HostCanStart"),[this](ALDPlayerController& PC,double Now)
             {return Guests(PC)==1&&GuestReady(PC)&&Settled(Now,1.);},90.});
         Pages.Add({TEXT("Lobby_Full"),[this](ALDPlayerController& PC,double Now)
             {
-                if(Guests(PC)!=0){return false;}
-                if(Once(Now,0)){PC.SetDemoAICount(7);}
-                return Settled(Now,2.5);
+                if(Once(Now,0)){PC.SetDemoAICount(6);}
+                return Guests(PC)==1&&GuestReady(PC)&&Settled(Now,2.5);
             },90.});
         Pages.Add({TEXT("Lobby_Blueprint"),[this](ALDPlayerController& PC,double Now)
             {if(Once(Now,0)){Click(PC.RootUI,TEXT("LobbyBuildBlueprint"));}return Settled(Now,1.2);}});
@@ -238,16 +238,17 @@ public:
         // opening rest, each held at a different still of the basketball clips (ULDHumanoidVisualComponent::HoldPose)
         // and seen from a different side, from above so the plain floor is the whole backdrop, through the DEV art-capture
         // camera. Scripts/MakeLobbySeats.py cuts them out and paints each seat's jersey colour.
-        struct FSeatPose{const TCHAR* Clip;float Time;float Yaw;};
+        struct FSeatPose{const TCHAR* Clip;float Time;float Yaw;bool bBall;};
+        // Basketball stills keep the ball in hand; the personality stills (hooper/Quaternius) carry none, so it is hidden.
         static const FSeatPose SeatPoses[8]={
-            {TEXT("Hooper_Idle"),0.f,-14.f},
-            {TEXT("KB_012_AA_Basketball_PlayerA_Basic_Stance_Type01_LH_Loop"),.2f,16.f},
-            {TEXT("KB_043_AA_Basketball_PlayerA_Between_The_Legs_Type01_Loop"),.4f,-24.f},
-            {TEXT("KB_098_AA_Basketball_PlayerA_Spin_Move_RH_Loop"),.7f,202.f},
-            {TEXT("KB_149_AA_Basketball_PlayerA_Free_Throw_LH"),.5f,-8.f},
-            {TEXT("KB_044_AA_Basketball_PlayerA_Between_The_Legs_Type02_Loop"),1.3f,28.f},
-            {TEXT("KB_152_AA_Basketball_PlayerA_Jump_Shot_RH"),.35f,-20.f},
-            {TEXT("KB_041_AA_Basketball_PlayerA_Between_The_Legs_RH_To_LH"),.3f,10.f}};
+            {TEXT("Hooper_Idle"),0.f,-14.f,true},
+            {TEXT("Quaternius/Hooper/QN_Idle_FoldArms_Loop"),1.f,16.f,false},
+            {TEXT("KB_043_AA_Basketball_PlayerA_Between_The_Legs_Type01_Loop"),.4f,-24.f,true},
+            {TEXT("Quaternius/Hooper/QN_Dance_Loop"),.4f,10.f,false},
+            {TEXT("KB_149_AA_Basketball_PlayerA_Free_Throw_LH"),.5f,-8.f,true},
+            {TEXT("Quaternius/Hooper/QN_Idle_TalkingPhone_Loop"),1.2f,20.f,false},
+            {TEXT("Quaternius/Hooper/QN_Yes"),1.f,-18.f,false},
+            {TEXT("Quaternius/Hooper/QN_Sword_Idle"),.7f,12.f,false}};
         for(int32 Seat=0;Seat<8;++Seat)
         {
             FPage& Shot=Pages.Add_GetRef({FString::Printf(TEXT("Ref_Seat%d"),Seat+1),[this,Seat](ALDPlayerController& PC,double Now)
@@ -281,10 +282,10 @@ public:
                     }
                     const FSeatPose& Pose=SeatPoses[Seat];
                     Pick->SetActorRotation(FRotator(0.f,Side.Rotation().Yaw-Pose.Yaw,0.f));
-                    const FString Path=FString::Printf(TEXT("/Game/Lockdown/Art/Characters/hooper/%s.%s"),Pose.Clip,Pose.Clip);
+                    const FString Path=FString::Printf(TEXT("/Game/Lockdown/Art/Characters/hooper/%s.%s"),Pose.Clip,*FPaths::GetCleanFilename(Pose.Clip));
                     if(auto* Visual=Pick->FindComponentByClass<ULDHumanoidVisualComponent>())
                     {
-                        if(UAnimSequence* Still=LoadObject<UAnimSequence>(nullptr,*Path)){Visual->HoldPose(Still,Pose.Time);PosedBody=Pick;}
+                        if(UAnimSequence* Still=LoadObject<UAnimSequence>(nullptr,*Path)){Visual->HoldPose(Still,Pose.Time,!Pose.bBall);PosedBody=Pick;}
                     }
                     const FVector Foot=Pick->GetActorLocation()-FVector(0,0,90.f);
                     const FVector Eye=Foot+Side*560.f+FVector(0,0,380.f);
@@ -371,6 +372,94 @@ public:
                 if(Ring&&Ring->IsOpen()&&Now-HeldAt>=3.5&&Once(Now,3)){PC.HUDUI->ToggleWorkshop();}
                 return Now-HeldAt>=6.;
             },90.});
+        // Field sites as they are: the host waits for one to exist (the airdrop, the mid-field objective, a delivery
+        // locker), holds the stage clock, jumps beside it (DEV teleport) and is shot standing there.
+        const auto FieldSite=[this](const TCHAR* Name,TFunction<bool(const FLDPublicMatchView&,FVector&)> Find,double Timeout,bool bInside=false)
+        {
+            Pages.Add({Name,[this,Find,bInside](ALDPlayerController& PC,double Now)
+            {
+                const FLDPublicMatchView* View=Match(PC);
+                if(Once(Now,0)){Dev(PC,ELDDevTestOp::SetCountdownPaused,0);HeldAt=-1.;}
+                FVector Site=FVector::ZeroVector;
+                if(!View||(View->Phase!=ELDMatchPhase::Development&&View->Phase!=ELDMatchPhase::CaptureOpen)||!Find(*View,Site)){return false;}
+                // Inside: the host stands in the site itself with the stage clock running, so the site's own progress (a
+                // flag's spray, a locker's opening) is on screen; the shot is then one size, taken while it runs.
+                if(HeldAt<0.){HeldAt=Now;if(bInside){Resize(PC,1920,1080);}else{Dev(PC,ELDDevTestOp::SetCountdownPaused,1);}}
+                static const FVector Beside[]={FVector(-330,0,0),FVector(0,330,0),FVector(240,230,0)};
+                static const FVector Within[]={FVector(-60,0,0),FVector(0,70,0),FVector(60,40,0)};
+                const FVector* Sides=bInside?Within:Beside;
+                for(int32 Try=0;Try<3;++Try)
+                {
+                    if(Now-HeldAt>=.6+Try*1.&&Once(Now,1+Try))
+                    {
+                        const APawn* Self=PC.GetPawn();
+                        if(Self&&FVector::Dist2D(Self->GetActorLocation(),Site)<(bInside?110.:420.)){break;}
+                        ELDGrowthReason Reason=ELDGrowthReason::None;
+                        PC.SubmitDevTest(ELDDevTestOp::TeleportToCamera,0,Reason,NAME_None,0,0,Site+Sides[Try]+FVector(0,0,120));
+                    }
+                }
+                return Now-HeldAt>=(bInside?2.6:5.);
+            },Timeout});
+            if(bInside){Pages.Last().Only=0;}
+        };
+        // The skill card of the Q slot: the HUD is told the pointer is over the slot (its DEV hover point; the OS cursor
+        // stays where it is), then with Alt held for the formula; the next page lets both go.
+        Pages.Add({TEXT("Match_SkillHover"),[this](ALDPlayerController& PC,double Now)
+            {
+                UWidget* Slot=PC.HUDUI&&PC.HUDUI->WidgetTree?PC.HUDUI->WidgetTree->FindWidget(TEXT("HUDActionQ")):nullptr;
+                if(!Slot){return false;}
+                // Every call: the slot moves when the window is resized between the sizes.
+                PC.HUDUI->ProbeHover(FVector2D(Slot->GetCachedGeometry().GetAbsolutePositionAtCoordinates(FVector2D(.5,.5))));
+                return Settled(Now,1.2);
+            },15.});
+        Pages.Add({TEXT("Match_SkillHoverAlt"),[this](ALDPlayerController& PC,double Now)
+            {
+                UWidget* Slot=PC.HUDUI&&PC.HUDUI->WidgetTree?PC.HUDUI->WidgetTree->FindWidget(TEXT("HUDActionQ")):nullptr;
+                if(!Slot){return false;}
+                if(Once(Now,0)){Key(PC,EKeys::LeftAlt,true);}
+                PC.HUDUI->ProbeHover(FVector2D(Slot->GetCachedGeometry().GetAbsolutePositionAtCoordinates(FVector2D(.5,.5))));
+                return Settled(Now,1.2);
+            },15.});
+        Pages.Add({TEXT("Match_SkillHoverEnd"),[this](ALDPlayerController& PC,double Now)
+            {
+                if(Once(Now,0)){Key(PC,EKeys::LeftAlt,false);if(PC.HUDUI){PC.HUDUI->ProbeHover(TOptional<FVector2D>());}}
+                return Settled(Now,.6);
+            },10.,false});
+        FieldSite(TEXT("Match_Airdrop"),[](const FLDPublicMatchView& View,FVector& Site)
+            {Site=View.Airdrop.PositionCm;return View.Airdrop.Phase==ELDAirdropPhase::Announced||View.Airdrop.Phase==ELDAirdropPhase::Landed;},40.);
+        FieldSite(TEXT("Match_Objective"),[](const FLDPublicMatchView& View,FVector& Site)
+            {Site=View.Objective.CentreCm;return View.Objective.Phase==ELDObjectivePhase::Announced||View.Objective.Phase==ELDObjectivePhase::Open;},70.);
+        // The open flag: the host steps inside (DEV teleport) while the guest client does the same, so the flag is
+        // contested; the guest leaves again a few seconds later and the host's own spray runs.
+        {
+            FPage& Contested=Pages.Add_GetRef({TEXT("Match_FlagContested"),[this](ALDPlayerController& PC,double Now)
+            {
+                const FLDPublicMatchView* View=Match(PC);
+                if(Once(Now,0)){Dev(PC,ELDDevTestOp::SetCountdownPaused,0);HeldAt=-1.;Resize(PC,1920,1080);}
+                if(!View||View->Objective.Kind!=ELDObjectiveKind::MiniFlag||View->Objective.Phase!=ELDObjectivePhase::Open){return false;}
+                if(HeldAt<0.){HeldAt=Now;}
+                static const FVector Within[]={FVector(-60,0,0),FVector(0,70,0),FVector(60,40,0)};
+                for(int32 Try=0;Try<3;++Try)
+                {
+                    if(Now-HeldAt>=.2+Try*1.&&Once(Now,1+Try))
+                    {
+                        const APawn* Self=PC.GetPawn();
+                        if(Self&&FVector::Dist2D(Self->GetActorLocation(),View->Objective.CentreCm)<110.){break;}
+                        ELDGrowthReason Reason=ELDGrowthReason::None;
+                        PC.SubmitDevTest(ELDDevTestOp::TeleportToCamera,0,Reason,NAME_None,0,0,View->Objective.CentreCm+Within[Try]+FVector(0,0,120));
+                    }
+                }
+                return View->Objective.bContested&&Now-HeldAt>=1.2;
+            },45.});
+            Contested.Only=0;
+            FPage& Spray=Pages.Add_GetRef({TEXT("Match_FlagSpray"),[this](ALDPlayerController& PC,double Now)
+            {
+                const FLDPublicMatchView* View=Match(PC);
+                if(Once(Now,0)){Resize(PC,1920,1080);}
+                return View&&View->Objective.Phase==ELDObjectivePhase::Open&&!View->Objective.bContested&&View->Objective.SprayMs>=900;
+            },30.});
+            Spray.Only=0;
+        }
         // A real own kill: the max-level, invulnerable host jumps beside the nearest rival (DEV teleport) and right-clicks it
         // through the ordinary pointer order until the authority's kill reaches the HUD; the K.O. moment is then held at a
         // fixed age for the shots and released by the next page.
@@ -433,14 +522,34 @@ public:
                 if(!Ring->IsOpen()&&Once(Now,0)){PC.HUDUI->ToggleWorkshop();}
                 return Ring->IsOpen()&&Settled(Now,2.);
             },20.});
-        Pages.Add({TEXT("Match_RingReward"),[this](ALDPlayerController& PC,double Now)
+        Pages.Add({TEXT("Match_RingHeld"),[this](ALDPlayerController& PC,double Now)
             {
                 ULDWorkshop* Ring=PC.HUDUI?PC.HUDUI->Workshop.Get():nullptr;
                 if(!Ring||!Ring->IsOpen()){return false;}
-                // The kill before this page left a reward offer: its first option goes to the hand, and is then held.
-                if(Once(Now,0)){Ring->HandleKey(EKeys::One);}
-                if(Once(Now,1,1.)){Ring->ShowHand(true);}
-                if(Once(Now,2,1.5)){for(int32 Index=0;Index<12&&!Ring->SelectHand(Index);++Index){}}
+                // The kill before this page left a reward offer: each option is taken in turn until one lands in the hand
+                // (a card with a free host installs itself; a medal waits in the library), and is then held.
+                for(int32 Take=0;Take<3;++Take)
+                {
+                    if(Ring->View().Hand.IsEmpty()&&Once(Now,10+Take,.3+Take*1.6)){Ring->HandleKey(Take==0?EKeys::One:Take==1?EKeys::Two:EKeys::Three);}
+                }
+                if(Ring->View().Hand.IsEmpty()){return Settled(Now,7.);}
+                if(Once(Now,1)){Ring->ShowHand(true);HeldAt=Now;}
+                if(Now-HeldAt>=.5&&Once(Now,2)){for(int32 Index=0;Index<12&&!Ring->SelectHand(Index);++Index){}}
+                return Now-HeldAt>=1.5;
+            },25.});
+        Pages.Add({TEXT("Match_RingMedal"),[this](ALDPlayerController& PC,double Now)
+            {
+                ULDWorkshop* Ring=PC.HUDUI?PC.HUDUI->Workshop.Get():nullptr;
+                if(!Ring||!Ring->IsOpen()){return false;}
+                // The held medal goes into the first host's socket through the ring's own click; a held card onto its host.
+                if(Once(Now,0))
+                {
+                    for(int32 Host=0;Host<Ring->View().Hosts.Num();++Host)
+                    {
+                        if(Ring->View().Hosts[Host].bSocket&&!Ring->View().Hosts[Host].bHasMedal){Ring->ProbeClick(ULDWorkshop::EHit::Gem,Host,0);break;}
+                    }
+                }
+                if(Once(Now,1,1.)){Ring->SelectHand(INDEX_NONE);Ring->ShowHand(false);}
                 return Settled(Now,2.5);
             },20.});
         Pages.Add({TEXT("Match_RingEnd"),[this](ALDPlayerController& PC,double Now)
@@ -449,38 +558,6 @@ public:
                 if(Ring&&Once(Now,0)){Ring->SelectHand(INDEX_NONE);Ring->ShowHand(false);if(Ring->IsOpen()){PC.HUDUI->ToggleWorkshop();}}
                 return Settled(Now,1.);
             },10.,false});
-        // Field sites as they are: the host waits for one to exist (the airdrop, the mid-field objective, a delivery
-        // locker), holds the stage clock, jumps beside it (DEV teleport) and is shot standing there.
-        const auto FieldSite=[this](const TCHAR* Name,TFunction<bool(const FLDPublicMatchView&,FVector&)> Find,double Timeout)
-        {
-            Pages.Add({Name,[this,Find](ALDPlayerController& PC,double Now)
-            {
-                const FLDPublicMatchView* View=Match(PC);
-                if(Once(Now,0)){Dev(PC,ELDDevTestOp::SetCountdownPaused,0);HeldAt=-1.;}
-                FVector Site=FVector::ZeroVector;
-                if(!View||(View->Phase!=ELDMatchPhase::Development&&View->Phase!=ELDMatchPhase::CaptureOpen)||!Find(*View,Site)){return false;}
-                if(HeldAt<0.){HeldAt=Now;Dev(PC,ELDDevTestOp::SetCountdownPaused,1);}
-                // The spot beside the site may be a prop or a roof edge: three sides are tried, the last one that lands holds.
-                static const FVector Sides[]={FVector(-170,0,0),FVector(0,170,0),FVector(120,90,0)};
-                for(int32 Try=0;Try<3;++Try)
-                {
-                    if(Now-HeldAt>=.6+Try*1.&&Once(Now,1+Try))
-                    {
-                        const APawn* Self=PC.GetPawn();
-                        if(Self&&FVector::Dist2D(Self->GetActorLocation(),Site)<260.){break;}
-                        ELDGrowthReason Reason=ELDGrowthReason::None;
-                        PC.SubmitDevTest(ELDDevTestOp::TeleportToCamera,0,Reason,NAME_None,0,0,Site+Sides[Try]+FVector(0,0,120));
-                    }
-                }
-                return Now-HeldAt>=5.;
-            },Timeout});
-        };
-        FieldSite(TEXT("Match_Airdrop"),[](const FLDPublicMatchView& View,FVector& Site)
-            {Site=View.Airdrop.PositionCm;return View.Airdrop.Phase==ELDAirdropPhase::Announced||View.Airdrop.Phase==ELDAirdropPhase::Landed;},40.);
-        FieldSite(TEXT("Match_Objective"),[](const FLDPublicMatchView& View,FVector& Site)
-            {Site=View.Objective.CentreCm;return View.Objective.Phase==ELDObjectivePhase::Announced||View.Objective.Phase==ELDObjectivePhase::Open;},70.);
-        FieldSite(TEXT("Match_Locker"),[](const FLDPublicMatchView& View,FVector& Site)
-            {if(View.Lockers.IsEmpty()){return false;}Site=View.Lockers[0].PositionCm;return true;},25.);
         // The first mid rest as it really runs (the rivals sign up for the PK by themselves; the host watches and may
         // bet): each step is waited for, then the stage clock is held (DEV pause; bodies and the fight go on) while its
         // sizes are shot, and let go by the next page.
@@ -500,10 +577,35 @@ public:
         RestStep(TEXT("Match_R1Build"),ELDRestStep::Build,false,1.5,240.);
         RestStep(TEXT("Match_R1Signup"),ELDRestStep::Build,true,1.,90.);
         RestStep(TEXT("Match_R1Betting"),ELDRestStep::Betting,false,.5,40.);
+        // The betting step again with the build ring open (the clock is still held): the one-line PK bar over the ring.
+        Pages.Add({TEXT("Match_R1BettingRing"),[this](ALDPlayerController& PC,double Now)
+            {
+                ULDWorkshop* Ring=PC.HUDUI?PC.HUDUI->Workshop.Get():nullptr;
+                if(!Ring){return false;}
+                if(!Ring->IsOpen()&&Once(Now,0)){PC.HUDUI->ToggleWorkshop();}
+                return Ring->IsOpen()&&Settled(Now,1.5);
+            },15.});
+        Pages.Add({TEXT("Match_R1BettingRingEnd"),[this](ALDPlayerController& PC,double Now)
+            {
+                ULDWorkshop* Ring=PC.HUDUI?PC.HUDUI->Workshop.Get():nullptr;
+                if(Ring&&Ring->IsOpen()&&Once(Now,0)){PC.HUDUI->ToggleWorkshop();}
+                return Settled(Now,.8);
+            },10.,false});
         RestStep(TEXT("Match_R1PKReady"),ELDRestStep::PKReady,false,.3,30.);
         RestStep(TEXT("Match_R1PK"),ELDRestStep::PK,false,4.,30.);
         RestStep(TEXT("Match_R1Settlement"),ELDRestStep::Settlement,false,.3,80.);
         RestStep(TEXT("Match_R1Return"),ELDRestStep::Return,false,.3,30.);
+        // The second field: the arena (its objective) and the first delivery locker that is out, each waited for with the
+        // stage clock running, then the host standing at the arena and inside the locker's reach while it opens.
+        Pages.Add({TEXT("Match_Field2"),[this](ALDPlayerController& PC,double Now)
+            {
+                if(Once(Now,0)){Dev(PC,ELDDevTestOp::SetCountdownPaused,0);}
+                return InPhase(PC,ELDMatchPhase::Development)&&Settled(Now,2.);
+            },60.,false});
+        FieldSite(TEXT("Match_Locker"),[](const FLDPublicMatchView& View,FVector& Site)
+            {if(View.Lockers.IsEmpty()){return false;}Site=View.Lockers[0].PositionCm;return true;},85.,true);
+        FieldSite(TEXT("Match_Arena"),[](const FLDPublicMatchView& View,FVector& Site)
+            {Site=View.Objective.CentreCm;return View.Objective.Kind==ELDObjectiveKind::Arena&&(View.Objective.Phase==ELDObjectivePhase::Announced||View.Objective.Phase==ELDObjectivePhase::Open);},110.);
         // Back in the field the stage clock is held again, so the second rest does not arrive under the pages below.
         Pages.Add({TEXT("Match_Scoreboard"),[this](ALDPlayerController& PC,double Now)
             {
@@ -529,8 +631,18 @@ public:
                 if(Once(Now,0)){Click(PC.HUDUI,TEXT("HUDRankClose"));Key(PC,PC.BindingKey(TEXT("Scoreboard")),false);if(PC.RootUI&&!PC.RootUI->IsMenuOpen()){PC.RootUI->ToggleMenu();}}
                 return Settled(Now,.8);
             }});
+        Pages.Add({TEXT("Match_MenuPressed"),[this](ALDPlayerController& PC,double Now)
+            {
+                if(Once(Now,0)){LDSlateProbeInput::Pointer(FindButton(PC.RootUI,TEXT("LeaveMatch")),EKeys::LeftMouseButton,true,false);}
+                return Settled(Now,.6);
+            },10.,false});
         Pages.Add({TEXT("Match_MenuLeave"),[this](ALDPlayerController& PC,double Now)
-            {if(Once(Now,0)){Click(PC.RootUI,TEXT("LeaveMatch"));}return Settled(Now,.8);}});
+            {
+                if(Once(Now,0)){LDSlateProbeInput::Pointer(FindButton(PC.RootUI,TEXT("LeaveMatch")),EKeys::LeftMouseButton,false,true);}
+                // The row's own click as well, in case the routed release did not reach it (opening the confirmation twice is one).
+                if(Once(Now,1,.4)){Click(PC.RootUI,TEXT("LeaveMatch"));}
+                return Settled(Now,1.2);
+            }});
         AddSettings(TEXT("Match"),[](ALDPlayerController& PC)
             {
                 if(PC.RootUI){PC.RootUI->CloseTopModal();}
@@ -579,15 +691,64 @@ public:
         if(GS){for(const FLDLobbyMember& M:GS->DemoLobby.Members){if(M.Kind==ELDContenderKind::Human&&!M.Host){return M.Ready;}}}
         return false;
     }
-    // The guest client: its own Lobby view before and after it readies, then it leaves the room.
+    // The guest client: its own Lobby view before and after it readies, then its own match beside the host.
     void PlanClient()
     {
         Pages.Add({TEXT("Lobby_GuestNotReady"),[this](ALDPlayerController& PC,double Now)
             {return PC.RootUI&&InPhase(PC,ELDMatchPhase::Lobby)&&Guests(PC)==1&&Settled(Now,4.);},120.});
         Pages.Add({TEXT("Lobby_GuestReady"),[this](ALDPlayerController& PC,double Now)
             {if(Once(Now,0)){PC.SetDemoReady(true);}return PC.OwnerState.bReady&&Settled(Now,1.5);},30.});
-        // Then the probe ends and the client process quits, which drops it from the host's room.
         Pages.Add({TEXT("Lobby_GuestLast"),[this](ALDPlayerController& PC,double Now){return Settled(Now,6.);},30.,false});
+        // The guest stays ready until the host starts, then plays: the network warning under the engine's own packet
+        // simulation (this client only, switched off again), and the mini flag, which it enters while the host sprays so
+        // the flag is contested, then leaves. It stays in the match until the results.
+        Pages.Add({TEXT("Guest_Started"),[this](ALDPlayerController& PC,double Now)
+            {
+                for(int32 Try=0;Try<200;++Try){if(InPhase(PC,ELDMatchPhase::Lobby)&&!PC.OwnerState.bReady&&Once(Now,Try,2.*Try)){PC.SetDemoReady(true);}}
+                return !InPhase(PC,ELDMatchPhase::Lobby)&&!InPhase(PC,ELDMatchPhase::Starting)&&Settled(Now,8.);
+            },600.,false});
+        Pages.Add({TEXT("Guest_NetSpike"),[this](ALDPlayerController& PC,double Now)
+            {
+                if(Once(Now,0)){PC.ConsoleCommand(TEXT("NetEmulation.PktLag 260"));}
+                if(Once(Now,1,.2)){PC.ConsoleCommand(TEXT("NetEmulation.PktLoss 8"));}
+                return Settled(Now,8.);
+            },30.});
+        Pages.Add({TEXT("Guest_NetCalm"),[this](ALDPlayerController& PC,double Now)
+            {if(Once(Now,0)){PC.ConsoleCommand(TEXT("NetEmulation.Off"));}return Settled(Now,2.);},10.,false});
+        {
+            FPage& Flag=Pages.Add_GetRef({TEXT("Guest_FlagContested"),[this](ALDPlayerController& PC,double Now)
+            {
+                const FLDPublicMatchView* View=Match(PC);
+                if(Once(Now,0)){HeldAt=-1.;Resize(PC,1920,1080);}
+                // It steps in only once somebody is spraying (the host): alone it would simply win the flag.
+                if(!View||View->Objective.Kind!=ELDObjectiveKind::MiniFlag||View->Objective.Phase!=ELDObjectivePhase::Open||View->Objective.SprayMs<=0){return false;}
+                if(HeldAt<0.){HeldAt=Now;}
+                static const FVector Within[]={FVector(50,-60,0),FVector(-40,-70,0),FVector(70,0,0)};
+                for(int32 Try=0;Try<3;++Try)
+                {
+                    if(Now-HeldAt>=.1+Try*1.&&Once(Now,1+Try))
+                    {
+                        const APawn* Self=PC.GetPawn();
+                        if(Self&&FVector::Dist2D(Self->GetActorLocation(),View->Objective.CentreCm)<120.){break;}
+                        ELDGrowthReason Reason=ELDGrowthReason::None;
+                        PC.SubmitDevTest(ELDDevTestOp::TeleportToCamera,0,Reason,NAME_None,0,0,View->Objective.CentreCm+Within[Try]+FVector(0,0,120));
+                    }
+                }
+                return Now-HeldAt>=5.;
+            },600.});
+            Flag.Only=0;
+        }
+        Pages.Add({TEXT("Guest_FlagLeft"),[this](ALDPlayerController& PC,double Now)
+            {
+                const FLDPublicMatchView* View=Match(PC);
+                if(View&&Once(Now,0))
+                {
+                    ELDGrowthReason Reason=ELDGrowthReason::None;
+                    PC.SubmitDevTest(ELDDevTestOp::TeleportToCamera,0,Reason,NAME_None,0,0,View->Objective.CentreCm+FVector(700,300,120));
+                }
+                return Settled(Now,2.);
+            },10.,false});
+        Pages.Add({TEXT("Guest_Results"),[this](ALDPlayerController& PC,double Now){return InPhase(PC,ELDMatchPhase::Results)&&Settled(Now,4.);},1400.,false});
     }
     TWeakObjectPtr<ACameraActor> LineupCamera;
     ESlateVisibility RootShown=ESlateVisibility::SelfHitTestInvisible,HudShown=ESlateVisibility::SelfHitTestInvisible;
