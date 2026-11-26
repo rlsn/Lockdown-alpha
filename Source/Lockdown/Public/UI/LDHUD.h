@@ -310,6 +310,8 @@ private:
     LDHUD::FPKPanelView PKPaint;
     UPROPERTY() TObjectPtr<UWidget> PKHead;
     UPROPERTY() TObjectPtr<UTextBlock> PKRoleText;
+    UPROPERTY() TObjectPtr<UWidget> PKRoleRow;
+    UPROPERTY() TObjectPtr<UTextBlock> PKThrowCaption;
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> PKBetButtons;
     UPROPERTY() TObjectPtr<ULDCommandButton> PKThrowButton;
     UPROPERTY() TObjectPtr<UWidget> PKResultBar;
