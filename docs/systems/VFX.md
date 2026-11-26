@@ -482,7 +482,8 @@
 | 项 | 事件 | 状态 | 实现 | 证据 | 已知问题 |
 | --- | --- | --- | --- | --- | --- |
 | 元素命中（火、水、电、魔法） | 命中外观 | IN PROGRESS | 水 `NS_LDWaterHit`、火 `NS_LDFireHit`、冰可乐的魔法命中 `NS_LDChillHit`（按匹配到的施法技能路由）；其余魔法命中仍是旧星形 + 法阵层（`ForHit`），未重做 | — | 电命中只在链内批准；其余魔法技能（板砖、扯嗓子、外卖等）的命中待各自设计 |
-| 阵亡 | 阵亡通知 | LOCALLY VERIFIED | `NS_LDKnockout`：胸口一下亮、地面一圈暖白冲击环滚出、扬尘、留下 2 s 渐淡的擦痕；不绑定倒下的身体；旧地裂 + 双环已删除 | `production/vfx/batch4/kill-*` | 用户未验收 |
+| 阵亡 | 阵亡通知 | IN PROGRESS | 身体落地扬起一圈带碎屑的尘云（素材包 `DustRing`，0.45 倍）；`NS_LDKnockout` 的擦痕保留，它的细暖白环与自制扬尘在真实对战镜头下几乎看不见，待删 | `production/vfx/pack1/kill-*` | 真实对战镜头下只验证过旧版（不合格）；新版只在验证舞台看过 |
+| 击杀者身上的黄色刻度环 | 击杀奖励 | NOT STARTED | 旧表现，真实对战里可见 | — | |
 | 升级 | 单位 Level 增加 | NOT STARTED | 无世界表现 | — | |
 | 自身脚下标记 | 本人身体 | NOT STARTED | `ALDOwnBodyMarker` | — | 在共享文件 `LDWorldViewRelay` |
 | 旗杆圈与占领 | 占领圈与进度 | NOT STARTED | `LDCaptureMarker`、`LDCaptureFence` | — | |
@@ -511,13 +512,24 @@
 
 | 素材 | 链接 | 类别 | 许可 | UE | 状态 |
 | --- | --- | --- | --- | --- | --- |
-| Mixed VFX | https://www.fab.com/listings/6518971c-c8ca-47d7-8611-1ff068b78dd5 | AI_ALLOWED | CC-BY | 4.26–5.4 | 待领取 |
+| Mixed VFX | https://www.fab.com/listings/6518971c-c8ca-47d7-8611-1ff068b78dd5 | AI_ALLOWED | CC-BY | 4.26–5.4（5.8 下全部可加载并渲染） | 已接入 `Content/ThirdParty/CCBY/MixedVFX` |
 | Basic VFX Pack (Free) | https://www.fab.com/listings/75698e52-edfc-4f76-a86c-b4f26fcf5a29 | AI_ALLOWED | 标准 | 4.27、5.0–5.5 | 待领取 |
 | Stylish Fire VFX (Free) | https://www.fab.com/listings/01e8534c-5877-4ce2-8948-9a696100de11 | AI_ALLOWED | 标准 | 5.0–5.6 | 待领取 |
-| Stylized Smoke VFX (Free) | https://www.fab.com/listings/172235df-7a05-4d60-ac7b-23472e530ee7 | AI_ALLOWED | CC-BY | 5.0–5.8 | 待领取 |
-| Free Niagara Particles (CC BY 4.0) | https://www.fab.com/listings/183732bc-c2fb-465c-9453-f70a1ce7ba2c | AI_ALLOWED | CC-BY | 5.2–5.8 | 备选 |
+| Stylized Smoke VFX (Free) | https://www.fab.com/listings/172235df-7a05-4d60-ac7b-23472e530ee7 | AI_ALLOWED | CC-BY | 5.0–5.8 | 已接入 `Content/ThirdParty/CCBY/PotaVFX_Smoke` |
+| Free Niagara Particles (CC BY 4.0) | https://www.fab.com/listings/183732bc-c2fb-465c-9453-f70a1ce7ba2c | AI_ALLOWED | CC-BY | 5.2–5.8 | 已接入 `Content/ThirdParty/CCBY/FreeParticle_SoftTofu`，尚未使用 |
 | Niagara Examples Pack | https://www.fab.com/listings/0e188eca-4e54-4fb2-a9ed-d8b8a565e600 | NO_AI | 标准 | 5.7 | 待领取 |
 | Free Spline VFX | https://www.fab.com/listings/2b923e61-b02d-4cc9-bd0b-b067c9e6056e | NO_AI | 标准 | 5.2–5.8 | 待领取 |
 | [18] Free Spells Niagara | https://www.fab.com/listings/967b7892-d46c-4d75-8121-33418a6899ce | NO_AI | 标准 | 5.0–5.8 | 待领取 |
 | Realistic Fire & Explosion Vol.1 Starter | https://www.fab.com/listings/2adf4e4e-5f1d-4543-9e8c-192fe3c9a8ed | NO_AI | 标准 | 5.6–5.7 | 备选（写实画风） |
 
+### 8.4 已接入素材的用法
+
+素材包系统作为项目特效的一层播放：`ULDImpactFxSubsystem::PlayPack(LDSliceVfx::EPack, 位置, 缩放)`，路径表在 `LDSliceVfx::PackPath`。素材原样使用，只改整体缩放与它公开的 User 参数；缺失时记一次 `LD_PACK_FX missing` 日志并跳过该层。验证舞台的 `-VfxProof packs` 把各包的系统按原样和按缩放放在游戏镜头下。
+
+| `EPack` | 素材系统 | 用在哪里 |
+| --- | --- | --- |
+| `DustRing` | Stylized Smoke `NS_SmokeRing`（一圈米色尘团 + 碎屑；公开 `ColorSmoke`、`ScaleDebris`、`ForceUpSmoke` 等参数） | 阵亡落地 0.45；`active_charged_ram` 命中 0.5、`active_elbow` 命中 0.32、`active_crotch_grab` 与 `active_pants_down` 命中 0.22；`active_brace` 结束反震 0.6 |
+| `FireBlast` | Mixed VFX `NS_ExplosionGroundSmall`（紧凑火球转黑烟；无公开参数） | `active_seethe` 释放 0.45 |
+| `LightningHit` | Mixed VFX `NS_LightningBolt_Hit`（青白电弧爆裂；无公开参数） | 尚未使用 |
+
+游戏镜头下的观感：Mixed VFX 的火焰序列帧有体积，明显好于自制火舌；爆炸原样过大过黑，缩到 0.35–0.45 才能用；斩击命中是彩色火花加闪光；Stylized Smoke 的烟环缩小后是合适的撞击扬尘；Free Niagara Particles 是很小的星点，适合升级与增益点缀。总览图在 `production/vfx/packs-survey/`。
