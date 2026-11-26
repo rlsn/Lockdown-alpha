@@ -262,6 +262,17 @@ FLinearColor LDSliceVfx::StrikeTint(const FLook& Look)
     return Look.bOwn ? FLinearColor(1.f, .64f, .36f) : FLinearColor(1.f, .94f, .84f);
 }
 
+LDSliceVfx::ESystem LDSliceVfx::ReactionSystemOf(uint8 Reaction)
+{
+    switch (static_cast<ELDCombatReaction>(Reaction))
+    {
+    case ELDCombatReaction::Fog: return ESystem::FogReact;
+    case ELDCombatReaction::Freeze: return ESystem::FreezeReact;
+    case ELDCombatReaction::Overload: return ESystem::OverloadReact;
+    default: return ESystem::Count;
+    }
+}
+
 const TCHAR* LDSliceVfx::PackPath(EPack Pack)
 {
     switch (Pack)
@@ -458,6 +469,9 @@ const TCHAR* LDSliceVfx::SystemName(ESystem System)
     case ESystem::OpenMicRelease: return TEXT("NS_LDOpenMicRelease");
     case ESystem::OpenMicHit: return TEXT("NS_LDOpenMicHit");
     case ESystem::FlurryRelease: return TEXT("NS_LDFlurryRelease");
+    case ESystem::FogReact: return TEXT("NS_LDFogReact");
+    case ESystem::FreezeReact: return TEXT("NS_LDFreezeReact");
+    case ESystem::OverloadReact: return TEXT("NS_LDOverloadReact");
     default: return TEXT("");
     }
 }

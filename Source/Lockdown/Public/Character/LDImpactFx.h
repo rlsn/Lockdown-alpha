@@ -169,6 +169,10 @@ public:
     // The approved full angle of a skill's level-1 cone target (degrees); 0 when it has none.
     float SkillConeDegrees(uint8 Ability);
     float ConductRadiusCm();
+    // The approved radius of a reaction's splash or zone (fog, overload; cm) and the freeze's root time (s); 0 when the
+    // reaction has none or the content is unavailable.
+    float ReactionRadiusCm(uint8 Reaction);
+    float FreezeRootSeconds();
     // The approved level-1 radius of one of a skill's effects (its self area, zone, ground impact...); 0 when it has none
     // or the content is unavailable.
     float SkillEffectRadius(uint8 Ability, uint16 Opcode);

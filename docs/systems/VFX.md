@@ -48,6 +48,14 @@
 | 区分战术信息重要性和视觉冲击强度（见 §1.2） | 用户提出的设计方向 |
 | 高威胁技能的预警，不能因为来自其他玩家而降低可辨识度；降级时优先去掉非必要装饰 | 用户提出的设计方向 |
 | 统一语言不等于统一形态：每个元素、每种功能各用合适的材质与运动 | 用户提出的设计方向 |
+| 整体是风格化半写实的质感 | APPROVED · 用户 |
+| 美术完成度以已批准的闪电链（§2.1）为标杆：精致、丰富、清晰自然、与游戏画风协调。它是品质参考，不是形态模板，其他特效不复制闪电的形状 | APPROVED · 用户 |
+| 存在感来自形状、材质、动态层次、元素辨识度和命中反馈；不靠放大尺寸、提高亮度、增加粒子数量或扩大爆炸规模 | APPROVED · 用户 |
+| 正常游戏镜头下足够清晰，但不过度遮挡人物和战斗信息 | APPROVED · 用户 |
+| 技能和元素反应不能平、淡，要有质感、层次和辨识度 | APPROVED · 用户 |
+| 元素反应是独立的事件：玩家要明显感到发生了一种不同的元素组合。不用换色、套圈，也不把两个原有特效叠在一起 | APPROVED · 用户 |
+| 充分利用专业素材包，但以实际视觉质量为准，不照搬素材包默认的夸张表现（大火球、大爆炸不采用） | APPROVED · 用户 |
+| 普攻保持相对简洁，优先级低 | APPROVED · 用户 |
 
 ### 1.2 三维设计分类
 
@@ -87,7 +95,20 @@
 | 持续区域 | 危险边界清楚，内部安静，不压角色，有进出场 | 电场的具体做法 APPROVED · 用户（§2.2）；作为所有区域的通用要求仍是 PROVISIONAL |
 | 投射物、拖尾、状态附着 | 尚未设计 | UNEXPLORED |
 
-### 1.5 可参考的手法
+### 1.5 闪电链为什么读起来精致
+
+对已批准闪电链（§2.1）的拆解，用来约束其他特效的完成度，不是照抄它的形状：
+
+- **三层各有节奏**：主体（主干）、次级层（细丝、分叉）、点缀（火花）；每层的出现、闪动和消失时间都不同。
+- **颜色克制**：暖白核心，外层降饱和；元素色只出现在外层和边缘，不做纯色平涂，颜色由材质的核心、主体、边缘三段承担。
+- **短促而肯定**：满亮约 130 ms，硬切，留 1 帧残影；不拖泥带水。
+- **落在身体和地面上**：受击身体的边缘光与爬行的小电弧、带重力的火花、短暂的点光、地面暖光和淡焦痕。特效与角色、地面有接触，才不像贴上去的。
+- **他人的版本先去装饰**：变窄、变暗、去掉细丝和身体光，主体仍然可读。
+- **专门绘制的贴图**：轮廓、能量噪声、火花条、闪光、地面光各有一张，不是一张通用光斑。
+
+尺寸约束：正常游戏镜头下 1 像素约 2.5 cm，小于 12 cm 的粒子基本看不见；点缀层用少量 25 cm 以上、形状明确的元素，不用大量微粒。
+
+### 1.5.1 可参考的手法
 
 下面这些出自已批准的闪电链，可以参考，但不是强制规范。是否采用，看元素和类别是否适合：
 
@@ -297,6 +318,12 @@
 - **种类图案（APPROVED · 用户）**：五种地面状态的玩法侧几何种类图案（电场折线、水洼同心圆、冰面条纹、火地八角星、瘴气六边形）全部删除，种类只由各自设计的特效表明；评审开关 `ld.Vfx.GroundKindPatterns` 一并删除。水洼和瘴气失去图案后加厚了主体（水洼两层浸湿面与更实的水体，瘴气两层腐渍与更浓的低云）。地面状态的玩法与范围不变。
 - **Evidence**：`vfx/approved/field-*`；本机 `vfx-direction/field-redesign/`（三候选对比）。
 
+### 3.9 第一轮集中评审后的美术方向（APPROVED · 用户）
+- **Context**：第一轮评审（普攻、元素技能、物理技能、自身技能、身上状态、地面状态、击杀）在正常游戏镜头下集中呈现。
+- **Decision**：方向见 §1.1 中标为“APPROVED · 用户”的各条。普攻基本可以，保持简洁；技能和元素反应太平、太淡，缺少质感、层次和辨识度；`active_seethe` 用素材包做的大火球太大、太浮夸，不采用；闪电链是完成度标杆。
+- **Applicability**：所有技能与元素反应。先用少量代表项验证方向（`active_hose_down`、`active_seethe`、`active_cola_shake`，起雾、冻住、过载三个反应），认可后再推广。
+- **Evidence**：`production/vfx/review1/`（评审材料）、`production/vfx/review2/`（代表项）。
+
 ## 4. 技术缺陷
 
 | 缺陷 | 影响 | 状态 |
@@ -363,13 +390,13 @@
 | 技能 | 元素 · 形态 | 状态 | 实现 · 资产 | 证据 | 已知问题 |
 | --- | --- | --- | --- | --- | --- |
 | `active_zap` 电你个哆嗦 | 电 · 单体链 | USER APPROVED（链） | `NS_LDChain`（§2.1）；前摇 `NS_LDZapCharge` 手部蓄电（IMPLEMENTED） | `vfx/approved/chain*`；`production/vfx/batch1-selfmade/water/zap-charge` | 蓄电在游戏镜头下几乎看不见 |
-| `active_hose_down` 滋你一脸 | 水 · 直线 600×160 | IMPLEMENTED | `NS_LDHoseTell` 地面水带预兆、`NS_LDHoseJet` 水柱、`NS_LDWaterHit` 命中；贴图 `water_*` | `production/vfx/batch1-selfmade/water/` | 预兆边界清楚；水柱读成蓝色激光、湿地像污渍，质感不足，等素材候选 |
+| `active_hose_down` 滋你一脸 | 水 · 直线 600×160 | LOCALLY VERIFIED | `NS_LDHoseTell` 地面范围预兆；`NS_LDHoseJet`：半透明浅色水体 + 会断开的白色泡沫核、越远摆动越大、沿水流奔涌的泡沫团、末端白色水花、少量侧溅水滴、会干掉的湿痕；颜色以白与浅水色为主，不平涂元素色；命中 `NS_LDWaterHit` | `production/vfx/review2/` | 用户未验收；水柱仍偏直；落地水滴像小白片；预兆仍是细线框 |
 | `active_elbow` 滚远点 | 无 · 单体击退 | LOCALLY VERIFIED | 前摇：通用族；`NS_LDElbowRelease`：身前加厚的弧形推压波 + 两道回波、被推向前方的暗色尘团；`NS_LDElbowHit`：接触点 0.1 s 暖白冲击核与光、胸口加粗的暖色冲击环、沿 300 cm 击退路径的暗色尘迹与地面拖痕、碎屑 | `production/vfx/batch5e-physical-mass/` | 用户未验收 |
 | `active_pants_down` 扒裤子 | 无 · 直线拉拽 + 定身 | LOCALLY VERIFIED | 前摇：通用族；`NS_LDPantsRelease`：加粗的暖色绳鞭（地面上有暗色影绳）甩出到 440 cm、末端暖色脆响、再回抽；`NS_LDPantsHit`：脚踝暖白冲击核、两道加粗收紧的箍、朝施法者的拉扯线、脚边扬起的暗尘 | `production/vfx/batch5e-physical-mass/` | 用户未验收；脚边暗尘在亮地面上偏淡 |
 | `active_crotch_grab` 掏蛋子 | 无 · 冲刺接触 + 减速 | LOCALLY VERIFIED | 前摇：通用族；`NS_LDGrabRelease`：三条加粗的贴地速度线随冲刺展开、暗色尘迹与终点刹车扬尘；`NS_LDGrabHit`：髋部高度的暖白冲击核与光、加粗的低位爆环、髋部暗尘、下坠暖色火星 | `production/vfx/batch5e-physical-mass/` | 用户未验收 |
 | `active_unplug` 拧你手腕 | 无 · 招架架势 280 | LOCALLY VERIFIED | `NS_LDUnplugRelease`：招架期间（数据 0.45 s）胸前交叉的钢色双臂 X、颤动，身周细卸力环；`NS_LDUnplugHit`：反震打在出手者身上——绕胸收紧的扭腕螺旋、暖白冲击核、缴械碎屑下落 | `production/vfx/batch6-self/` | 用户未验收 |
 | `active_snark_bolt` 甩你一鞋 | 无 · 投射物 + 落地拖鞋 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：粒子带；落地 `SlipperDrop` | — | 专属释放与命中未设计 |
-| `active_seethe` 烫你屁股 | 火 · 自身圆 300 | LOCALLY VERIFIED | `NS_LDSeetheTell`；释放 `NS_LDSeetheBurst`：加密加高的火舌墙冲到 300 cm 边缘（火焰前沿就是范围边界，无轮廓环）、焦地、余烬；素材包 `FireBlast`：施法者身上一个火球，0.14 s 后沿 82% 半径爆起 8 个小火球，随后转黑烟；命中 `NS_LDFireHit` | `production/vfx/pack1/` | 用户未验收；前摇仍有细边界线；边缘是 8 个分立火球而非连续火浪；多个火球的帧耗未测 |
+| `active_seethe` 烫你屁股 | 火 · 自身圆 300 | LOCALLY VERIFIED | `NS_LDSeetheTell`；释放 `NS_LDSeetheBurst`：一圈火舌冲到 300 cm 边缘并立住再熄（火焰前沿就是范围边界）、火舌脚下一层柔和的地面热光、发红后冷却的焦裂地面、少量上飘的火星；不用素材包的爆炸；命中 `NS_LDFireHit` | `production/vfx/review2/` | 用户未验收；火舌是分开的小火苗，不是连续火浪；前摇仍有细边界线 |
 | `active_quick_meeting` 脚底开锅 | 火 · 地点圆 240，3 跳 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：区域粒子（AreaFire） | — | 专属释放与命中未设计 |
 | `active_bail_out` 贴脸补一拳 | 无 · 冲刺 + 强化普攻 | LOCALLY VERIFIED | 前摇：通用族；`NS_LDBailRelease`：肩高两条加粗滑流线随冲刺、身后暗色尘迹、终点双拳暖色亮起 0.5 s；本技能自身无命中 | `production/vfx/batch5e-physical-mass/` | 用户未验收；拳光在俯视下仍偏小 |
 | `active_not_mad` 锅盖挡脸 | 无 · 自身护盾 + 解控 | LOCALLY VERIFIED | `NS_LDNotMadRelease`：脸前弹起并举住 0.5 s 的实心锅盖（90 cm 钢盘：暖白高光到灰到暗边的明暗、亮边、暗色把手）、格挡瞬间的暖白闪光、腰间向外崩碎的解控碎片；护盾见 §7.6 `NS_LDShieldState` | `production/vfx/batch6-self-rework/` | 用户未验收 |
@@ -380,7 +407,7 @@
 | `active_open_mic` 扯嗓子喷你 | 无 · 自身圆 340 击退 | LOCALLY VERIFIED | 前摇：通用族；`NS_LDOpenMicRelease`：嘴前暖白爆点与光；两道相继滚出到 340 cm 的冲击前沿——以浓密暗紫灰的翻涌空气为主体（不规则、起伏、前重后轻），其上一层粗细不均的淡紫噪声带，不是清晰的线圈；地面被推到半径边的暗尘；`NS_LDOpenMicHit`：沿推力方向扫过身体的三道声弧、紫白核、身后被推开的尘；护盾见 §7.6 | `production/vfx/batch6-self-rework/` | 用户未验收 |
 | `active_charged_ram` 蛮牛顶 | 无 · 冲刺撞人 + 护盾 | LOCALLY VERIFIED | 前摇：通用族；`NS_LDRamRelease`：双层楔形冲锋前沿（暗色影层 + 亮前沿）沿 460 cm 推进、船首推开的暗色尘、身后尘迹与地面拖痕；`NS_LDRamHit`：0.1 s 暖白冲击核与 380 cm 光、贴地重冲击环、暗色重尘、向上崩起的碎屑、地面撞痕 | `production/vfx/batch5e-physical-mass/` | 用户未验收 |
 | `active_brace` 顶着揍 | 无 · 架势 3 s | LOCALLY VERIFIED | 前摇：通用族；`NS_LDBraceRelease`：粗铜环从胸口砸到脚下并收紧、脚下压出的暗尘；架势见 §7.6 `NS_LDBracedState`；`NS_LDBraceBurst`：架势按期结束时（释放 + 数据 3 s，且 Braced 在此时消失、未倒地）暖白核、铜色冲击波冲到 300 cm、向外推开的暗尘 | `production/vfx/batch6-self/` | 用户未验收；结束反震只在本机按期推断，提前或延长的架势不播 |
-| `active_cola_shake` 冰可乐摇一摇 | 冰 · 扇形 400/60° | LOCALLY VERIFIED | `NS_LDColaTell`、`NS_LDColaBlast`、命中 `NS_LDChillHit`；贴图 `ice_*` | `production/vfx/batch2/chill/` | 喷射本身偏淡；用户未验收 |
+| `active_cola_shake` 冰可乐摇一摇 | 冰 · 扇形 400/60° | LOCALLY VERIFIED | `NS_LDColaTell`；`NS_LDColaBlast`：成团白色泡沫沿扇形冲出并减速散开、较大的冰晶落地停住并闪光、扇形地面结霜后化掉、下沉的冷雾；命中 `NS_LDChillHit` | `production/vfx/review2/` | 用户未验收；地面的霜有条状拉伸；预兆仍是细线扇形 |
 | `active_desk_fan` 电风扇 | 无 · 地点风带 600×200 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：`Wind` 粒子 | — | 专属释放与命中未设计 |
 | `active_stale_takeout` 过期外卖 | 腐 · 投射物 + 瘴气地面 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：粒子带 | — | 专属释放与命中未设计 |
 | `active_school_bag` 占座书包 | 无 · 地点障碍 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：`Bag`、`BagWall` | — | 专属释放与命中未设计 |
@@ -404,11 +431,11 @@
 | 反应 | 状态 | 实现 | 证据 | 已知问题 |
 | --- | --- | --- | --- | --- |
 | 导电 Conduct（溅射电场） | USER APPROVED（场） | `NS_LDField` 450（§2.2） | `vfx/approved/field-conduct.jpg` | 头顶十字闪仍是旧层 |
-| 雾 Fog | NOT STARTED | 旧：十字闪 + 地环 + 粒子（`ForReaction`） | — | |
-| 过载 Overload | NOT STARTED | 同上 | — | |
+| 起雾 Fog（烫 + 湿） | IMPLEMENTED | `NS_LDFogReact`：胸口橙光被白色压灭、五股蒸汽分别上喷并膨胀、水汽贴地滚到雾区半径（数据 250 cm）、短促的白色嘶响条、溅起又落下的烫水滴 | `production/vfx/review2/` | 用户未验收；雾区本身仍是旧区域粒子 |
+| 过载 Overload（烫 + 麻） | IMPLEMENTED | `NS_LDOverloadReact`：胸口暖白热核与光、六道熔橙色折线电弧（每秒重画 25 次，各自闪两下）打到溅射半径（数据 200 cm）、落点的发光焦点与踢起的余烬 | `production/vfx/review2/` | 用户未验收 |
 | 融化 Melt | NOT STARTED | 同上 | — | |
 | 沼气 Methane | NOT STARTED | 同上 | — | |
-| 冻结 Freeze | NOT STARTED | 同上 | — | |
+| 冻住 Freeze（湿 + 冻） | IMPLEMENTED | `NS_LDFreezeReact`：脚边一圈冰晶带过冲地拔地而起并立住（时长取定身数据 1.2 s）、脚下迅速铺开的霜面、晶体上游走的闪光、外溢的冷雾，结束时冰晶落下碎裂 | `production/vfx/review2/` | 用户未验收 |
 | 发酵 Ferment | NOT STARTED | 同上 | — | |
 | 碎冰 Shatter | NOT STARTED | 同上 | — | |
 | 腐蚀 Corrode | NOT STARTED | 同上 | — | |
@@ -529,7 +556,7 @@
 | `EPack` | 素材系统 | 用在哪里 |
 | --- | --- | --- |
 | `DustRing` | Stylized Smoke `NS_SmokeRing`（一圈米色尘团 + 碎屑；公开 `ColorSmoke`、`ScaleDebris`、`ForceUpSmoke` 等参数） | 阵亡落地 0.45；`active_charged_ram` 命中 0.5、`active_elbow` 命中 0.32、`active_crotch_grab` 与 `active_pants_down` 命中 0.22；`active_brace` 结束反震 0.6 |
-| `FireBlast` | Mixed VFX `NS_ExplosionGroundSmall`（紧凑火球转黑烟；无公开参数；它的半透明红色冲击球发射器 `Empty` 在运行时关闭，见 `LDSliceVfx::PackMutedEmitters`） | `active_seethe` 释放：中心 0.45，边缘 8 个 0.3 |
+| `FireBlast` | Mixed VFX `NS_ExplosionGroundSmall`（紧凑火球转黑烟；无公开参数；它的半透明红色冲击球发射器 `Empty` 在运行时关闭，见 `LDSliceVfx::PackMutedEmitters`） | 未使用：用在 `active_seethe` 上被用户判为太大、太浮夸 |
 | `LightningHit` | Mixed VFX `NS_LightningBolt_Hit`（青白电弧爆裂；无公开参数） | 尚未使用 |
 
 游戏镜头下的观感：Mixed VFX 的火焰序列帧有体积，明显好于自制火舌；爆炸原样过大过黑，缩到 0.35–0.45 才能用；斩击命中是彩色火花加闪光；Stylized Smoke 的烟环缩小后是合适的撞击扬尘；Free Niagara Particles 是很小的星点，适合升级与增益点缀。总览图在 `production/vfx/packs-survey/`。
