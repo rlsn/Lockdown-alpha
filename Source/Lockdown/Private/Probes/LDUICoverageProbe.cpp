@@ -415,6 +415,7 @@ public:
             },Timeout});
             if(bInside){Pages.Last().Only=0;}
         };
+        DealerEarliest=Pages.Num();
         // The skill card of the Q slot: the HUD is told the pointer is over the slot (its DEV hover widget; the OS cursor
         // stays where it is), then with Alt held for the formula; the next page lets both go.
         Pages.Add({TEXT("Match_SkillHover"),[this](ALDPlayerController& PC,double Now)
@@ -667,13 +668,14 @@ public:
             {if(View.Lockers.IsEmpty()){return false;}Site=View.Lockers[0].PositionCm;return true;},85.,true);
         FieldSite(TEXT("Match_Arena"),[](const FLDPublicMatchView& View,FVector& Site)
             {Site=View.Objective.CentreCm;return View.Objective.Kind==ELDObjectiveKind::Arena&&(View.Objective.Phase==ELDObjectivePhase::Announced||View.Objective.Phase==ELDObjectivePhase::Open);},110.);
-        // The second-hand dealer: the match plans its time and camp (ALDGameMode::GetPeddler, often late in the second
-        // field or in the third), so the stage clock runs until it has come out, through a rest if need be. Then, in the
-        // field only, the host jumps beside its camp, is shot with it, beats it (the DEV attack term again) and is shot
-        // with the three-pick it pays.
-        Pages.Add({TEXT("Match_Peddler"),[this](ALDPlayerController& PC,double Now)
+        // The second-hand dealer: the match plans its time and camp (ALDGameMode::GetPeddler; anywhere from the end of the
+        // first field to the third, out for about a minute), so its three pages are not at a fixed place: Tick puts them
+        // in front of the next page as soon as it is out in a field (after the host's preset). The host jumps beside its
+        // camp, is shot with it, beats it (the DEV attack term again) and is shot with the three-pick it pays; the last
+        // page hands the stage clock back as it was.
+        DealerPages.Add({TEXT("Match_Peddler"),[this](ALDPlayerController& PC,double Now)
             {
-                if(Once(Now,0)){Dev(PC,ELDDevTestOp::SetCountdownPaused,0);HeldAt=-1.;}
+                if(Once(Now,0)){HeldAt=-1.;}
                 const auto* Mode=PC.GetWorld()->GetAuthGameMode<ALDGameMode>();
                 const auto* Registry=PC.GetWorld()->GetSubsystem<ULDMapRegistry>();
                 if(!Mode||!Registry||!Mode->GetPeddler().bSpawned||Mode->GetPeddler().bGone||!InPhase(PC,ELDMatchPhase::Development)){return false;}
@@ -693,8 +695,8 @@ public:
                     }
                 }
                 return Now-HeldAt>=4.5;
-            },420.});
-        Pages.Add({TEXT("Match_PeddlerReward"),[this](ALDPlayerController& PC,double Now)
+            },30.});
+        DealerPages.Add({TEXT("Match_PeddlerReward"),[this](ALDPlayerController& PC,double Now)
             {
                 const auto* Mode=PC.GetWorld()->GetAuthGameMode<ALDGameMode>();
                 if(!Mode||!PC.Navigation){return false;}
@@ -727,7 +729,7 @@ public:
                 }
                 return false;
             },45.});
-        Pages.Add({TEXT("Match_PeddlerEnd"),[this](ALDPlayerController& PC,double Now)
+        DealerPages.Add({TEXT("Match_PeddlerEnd"),[this](ALDPlayerController& PC,double Now)
             {
                 if(Once(Now,0))
                 {
@@ -735,8 +737,19 @@ public:
                     ELDGrowthReason Reason=ELDGrowthReason::None;
                     PC.SubmitDevTest(ELDDevTestOp::SetAttribute,0,Reason,NAME_None,0,uint8(ELDDemoBonusStat::ADFlat));
                 }
-                return Settled(Now,1.2);
+                // The stage clock as the interrupted pages had it.
+                if(Once(Now,1,.6)){Dev(PC,ELDDevTestOp::SetCountdownPaused,bDealerClockHeld?1:0);}
+                return Settled(Now,1.4);
             },10.,false});
+        // Where the dealer may still be to come: the clock runs until it is out (Tick then inserts its pages) or its time
+        // has passed.
+        Pages.Add({TEXT("Match_PeddlerWait"),[this](ALDPlayerController& PC,double Now)
+            {
+                if(bDealerInserted){return true;}
+                if(Once(Now,0)){Dev(PC,ELDDevTestOp::SetCountdownPaused,0);}
+                const auto* Mode=PC.GetWorld()->GetAuthGameMode<ALDGameMode>();
+                return Mode&&(Mode->GetPeddler().bGone||DealerOut(PC));
+            },240.,false});
         // Back in the field the stage clock is held again, so the next rest does not arrive under the pages below.
         Pages.Add({TEXT("Match_Scoreboard"),[this](ALDPlayerController& PC,double Now)
             {
@@ -886,7 +899,15 @@ public:
     double KillBase=-1.,KillSeenAt=-1.,StageBase=-1.,HeldAt=-1.;
     TWeakObjectPtr<ALDCharacter> PosedBody;
     FVector DealerSite=FVector::ZeroVector;
-    bool bDealerClicked=false;
+    bool bDealerClicked=false,bDealerInserted=false,bDealerClockHeld=false;
+    TArray<FPage> DealerPages;
+    int32 DealerEarliest=MAX_int32;
+    // The dealer is out, in a field, with the host alive to go to it.
+    static bool DealerOut(ALDPlayerController& PC)
+    {
+        const auto* Mode=PC.GetWorld()?PC.GetWorld()->GetAuthGameMode<ALDGameMode>():nullptr;
+        return Mode&&Mode->GetPeddler().bSpawned&&!Mode->GetPeddler().bGone&&InPhase(PC,ELDMatchPhase::Development)&&PC.OwnerState.LifePhase==ELDLifePhase::Alive;
+    }
     TArray<TWeakObjectPtr<AActor>> HiddenBodies;
     double DeadAt=0.;
 
@@ -900,6 +921,13 @@ public:
         {
             Check(Missed.IsEmpty(),TEXT("Every planned page was reached"),FString::Join(Missed,TEXT(", ")));
             return Finish();
+        }
+        if(Step==0&&!bDealerInserted&&!DealerPages.IsEmpty()&&Page>=DealerEarliest&&DealerOut(*PC))
+        {
+            const FLDPublicMatchView* View=Match(*PC);
+            bDealerClockHeld=View&&View->Timeline.bCountdownPaused;
+            Pages.Insert(DealerPages,Page);
+            bDealerInserted=true;
         }
         FPage& Current=Pages[Page];
         if(Step==0){PageAt=Now;Step=1;Fired.Reset();}
