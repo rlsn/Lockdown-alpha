@@ -385,7 +385,7 @@ public:
                 // Inside: the host stands in the site itself with the stage clock running, so the site's own progress (a
                 // flag's spray, a locker's opening) is on screen; the shot is then one size, taken while it runs.
                 if(HeldAt<0.){HeldAt=Now;if(bInside){Resize(PC,1920,1080);}else{Dev(PC,ELDDevTestOp::SetCountdownPaused,1);}}
-                static const FVector Beside[]={FVector(-170,0,0),FVector(0,170,0),FVector(120,90,0)};
+                static const FVector Beside[]={FVector(-330,0,0),FVector(0,330,0),FVector(240,230,0)};
                 static const FVector Within[]={FVector(-60,0,0),FVector(0,70,0),FVector(60,40,0)};
                 const FVector* Sides=bInside?Within:Beside;
                 for(int32 Try=0;Try<3;++Try)
@@ -393,7 +393,7 @@ public:
                     if(Now-HeldAt>=.6+Try*1.&&Once(Now,1+Try))
                     {
                         const APawn* Self=PC.GetPawn();
-                        if(Self&&FVector::Dist2D(Self->GetActorLocation(),Site)<(bInside?110.:260.)){break;}
+                        if(Self&&FVector::Dist2D(Self->GetActorLocation(),Site)<(bInside?110.:420.)){break;}
                         ELDGrowthReason Reason=ELDGrowthReason::None;
                         PC.SubmitDevTest(ELDDevTestOp::TeleportToCamera,0,Reason,NAME_None,0,0,Site+Sides[Try]+FVector(0,0,120));
                     }
@@ -525,6 +525,20 @@ public:
         RestStep(TEXT("Match_R1Build"),ELDRestStep::Build,false,1.5,240.);
         RestStep(TEXT("Match_R1Signup"),ELDRestStep::Build,true,1.,90.);
         RestStep(TEXT("Match_R1Betting"),ELDRestStep::Betting,false,.5,40.);
+        // The betting step again with the build ring open (the clock is still held): the one-line PK bar over the ring.
+        Pages.Add({TEXT("Match_R1BettingRing"),[this](ALDPlayerController& PC,double Now)
+            {
+                ULDWorkshop* Ring=PC.HUDUI?PC.HUDUI->Workshop.Get():nullptr;
+                if(!Ring){return false;}
+                if(!Ring->IsOpen()&&Once(Now,0)){PC.HUDUI->ToggleWorkshop();}
+                return Ring->IsOpen()&&Settled(Now,1.5);
+            },15.});
+        Pages.Add({TEXT("Match_R1BettingRingEnd"),[this](ALDPlayerController& PC,double Now)
+            {
+                ULDWorkshop* Ring=PC.HUDUI?PC.HUDUI->Workshop.Get():nullptr;
+                if(Ring&&Ring->IsOpen()&&Once(Now,0)){PC.HUDUI->ToggleWorkshop();}
+                return Settled(Now,.8);
+            },10.,false});
         RestStep(TEXT("Match_R1PKReady"),ELDRestStep::PKReady,false,.3,30.);
         RestStep(TEXT("Match_R1PK"),ELDRestStep::PK,false,4.,30.);
         RestStep(TEXT("Match_R1Settlement"),ELDRestStep::Settlement,false,.3,80.);
@@ -537,7 +551,7 @@ public:
                 return InPhase(PC,ELDMatchPhase::Development)&&Settled(Now,2.);
             },60.,false});
         FieldSite(TEXT("Match_Locker"),[](const FLDPublicMatchView& View,FVector& Site)
-            {if(View.Lockers.IsEmpty()){return false;}Site=View.Lockers[0].PositionCm;return true;},55.,true);
+            {if(View.Lockers.IsEmpty()){return false;}Site=View.Lockers[0].PositionCm;return true;},85.,true);
         FieldSite(TEXT("Match_Arena"),[](const FLDPublicMatchView& View,FVector& Site)
             {Site=View.Objective.CentreCm;return View.Objective.Kind==ELDObjectiveKind::Arena&&(View.Objective.Phase==ELDObjectivePhase::Announced||View.Objective.Phase==ELDObjectivePhase::Open);},110.);
         // Back in the field the stage clock is held again, so the second rest does not arrive under the pages below.

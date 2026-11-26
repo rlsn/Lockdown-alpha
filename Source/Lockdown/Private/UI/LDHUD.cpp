@@ -827,15 +827,57 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             TopCentreSlot=Cast<UCanvasPanelSlot>(TopCentre->Slot);if(TopCentreSlot){TopCentreSlot->SetZOrder(9);}
             {
                 // #331: compact top PK matchup + betting bar shown over the open Workshop during Draw / Betting.
+                // The same language as the board, in one line: the red PK tag with the countdown figure, then one bet block
+                // per side (its seat plates and the payout), white to bet and orange on the own bet.
                 auto* CompactLine=WidgetTree->ConstructWidget<UHorizontalBox>();
-                PKCompactTitle=OneLine(TEXT(""),LDHUDStyle::TypeSmall,0);HudFace(PKCompactTitle,true,1);PKCompactTitle->SetColorAndOpacity(LDBroadcast::Orange);
-                CompactLine->AddChildToHorizontalBox(PKCompactTitle)->SetVerticalAlignment(VAlign_Center);
-                PKCompactBetButtons.Reset();
+                {
+                    auto* Layer=WidgetTree->ConstructWidget<ULDPaintLayer>();Layer->SetVisibility(ESlateVisibility::HitTestInvisible);
+                    Layer->Painter=[this,Whole](const LDUIPaint::FContext& P)
+                    {
+                        const FBox2D Box=Whole(P);
+                        const float H=float(Box.GetSize().Y);
+                        LDBroadcastPaint::FillSlab(P,P.Layer,FBox2D(FVector2D(0.,3.),FVector2D(58.,H-3.)),LDBroadcast::LiveRed);
+                        LDBroadcastPaint::Text(P,P.Layer+1,TEXT("PK"),LDBroadcastPaint::FigureFont(26.f),FVector2D(29.,H*.5),LDBroadcast::White,FVector2D(.5,.5));
+                        if(PKPaint.SecondsLeft>=0)
+                        {
+                            const FBox2D Label=LDBroadcastPaint::Text(P,P.Layer+1,PKPaint.CountLabel,LDBroadcastPaint::LabelFont(18.f,true),FVector2D(72.,H*.5),LDBroadcast::White,FVector2D(0.,.5));
+                            LDBroadcastPaint::Text(P,P.Layer+1,FString::Printf(TEXT("%lld"),PKPaint.SecondsLeft),LDBroadcastPaint::FigureFont(36.f),FVector2D(Label.Max.X+10.,H*.5),
+                                PKPaint.bMatchupReveal?LDBroadcast::Gold:LDBroadcast::Orange,FVector2D(0.,.5));
+                        }
+                    };
+                    auto* Head=WidgetTree->ConstructWidget<USizeBox>();Head->SetWidthOverride(170.f);Head->SetHeightOverride(46.f);Head->SetContent(Layer);
+                    CompactLine->AddChildToHorizontalBox(Head)->SetVerticalAlignment(VAlign_Center);
+                }
+                PKCompactBetButtons.Reset();PKCompactChips.Reset();
                 for(int32 Index=0;Index<LDPKRules::SpawnAnchors;++Index)
                 {
                     ULDCommandButton* Bet=LDWidgets::Button(WidgetTree,TEXT(""),[this,Index](){SubmitPKBet(Index);},true,FName(*FString::Printf(TEXT("HUDPKCompactBet%d"),Index+1)));
+                    auto Style=Bet->GetStyle();
+                    Style.Normal=FSlateColorBrush(FLinearColor::Transparent);Style.Hovered=Style.Normal;Style.Pressed=Style.Normal;Style.Disabled=Style.Normal;
+                    Style.NormalPadding=FMargin(0);Style.PressedPadding=FMargin(0);Bet->SetStyle(Style);
+                    TWeakObjectPtr<ULDCommandButton> Weak(Bet);
+                    auto* Layer=WidgetTree->ConstructWidget<ULDPaintLayer>();Layer->SetVisibility(ESlateVisibility::HitTestInvisible);
+                    Layer->Painter=[this,Index,Weak,Whole](const LDUIPaint::FContext& P)
+                    {
+                        if(!PKPaint.Sides.IsValidIndex(Index)){return;}
+                        const LDHUD::FPKSideView& Side=PKPaint.Sides[Index];
+                        const FBox2D Box=Whole(P);
+                        const float H=float(Box.GetSize().Y),W=float(Box.GetSize().X);
+                        const bool bHot=Weak.IsValid()&&Weak->IsHovered()&&Weak->GetIsEnabled();
+                        LDBroadcastPaint::FillSlab(P,P.Layer,Box,Side.bOwnBet||bHot?LDBroadcast::Orange:LDBroadcast::White);
+                        float X=14.f;
+                        for(const LDHUD::FPKMemberView& Member:Side.Members)
+                        {
+                            LDBroadcastPaint::SeatPlate(P,P.Layer+1,FBox2D(FVector2D(X,(H-30.)*.5),FVector2D(X+36.,(H+30.)*.5)),Member.Seat);
+                            X+=40.f;
+                        }
+                        if(Side.Odds>0.)
+                        {LDBroadcastPaint::Text(P,P.Layer+1,FString::Printf(TEXT("1:%.1f"),Side.Odds),LDBroadcastPaint::FigureFont(22.f),FVector2D(W-14.,H*.5+1.),LDBroadcast::Ink,FVector2D(1.,.5));}
+                    };
+                    auto* Chip=WidgetTree->ConstructWidget<USizeBox>();Chip->SetHeightOverride(42.f);Chip->SetWidthOverride(120.f);Chip->SetContent(Layer);
+                    Bet->SetContent(Chip);PKCompactChips.Add(Chip);
                     Bet->SetVisibility(ESlateVisibility::Collapsed);
-                    CompactLine->AddChildToHorizontalBox(Bet)->SetPadding(FMargin(8,0,0,0));
+                    auto* ChipSlot=CompactLine->AddChildToHorizontalBox(Bet);ChipSlot->SetPadding(FMargin(8,0,0,0));ChipSlot->SetVerticalAlignment(VAlign_Center);
                     PKCompactBetButtons.Add(Bet);
                 }
                 PKCompactBar=Panel(CompactLine,true);PKCompactBar->SetVisibility(ESlateVisibility::Collapsed);
@@ -3524,22 +3566,17 @@ void ULDHUD::RefreshPK(ALDPlayerController& PC,const FLDPublicMatchView& Public,
         HudSetShown(PKCompactBar,bShowCompact,ESlateVisibility::Visible);
         if(bShowCompact)
         {
-            TArray<FString> SideParts;
-            for(const LDHUD::FPKSideView& Side:View.Sides){SideParts.Add(Side.Line);}
-            const FString Summary=FString::Printf(TEXT("%s%s%s"),*View.Title,
-                View.Countdown.IsEmpty()?TEXT(""):*FString::Printf(TEXT(" · %s"),*View.Countdown),
-                SideParts.IsEmpty()?TEXT(""):*FString::Printf(TEXT(" · %s"),*FString::Join(SideParts,TEXT(" vs "))));
-            HudSetText(PKCompactTitle,Summary);
+            PKPaint=View;
             for(int32 Index=0;Index<PKCompactBetButtons.Num();++Index)
             {
                 ULDCommandButton* Bet=PKCompactBetButtons[Index];
-                const bool bShown=View.bCanBet&&View.Sides.IsValidIndex(Index);
-                HudSetShown(Bet,bShown,ESlateVisibility::Visible);
+                // A side's block shows through the draw and the betting; it takes clicks while the own bet can be placed.
+                const bool bShown=View.Sides.IsValidIndex(Index);
+                HudSetShown(Bet,bShown,View.bCanBet?ESlateVisibility::Visible:ESlateVisibility::HitTestInvisible);
                 if(!bShown){continue;}
                 const LDHUD::FPKSideView& Side=View.Sides[Index];
-                HudSetText(CastChecked<UTextBlock>(Bet->GetContent()),Side.bOwnBet?Side.BetAction+TEXT(" · ")+LDTerms::PKOwnBet:Side.BetAction);
-                const FLinearColor Tint=Side.bOwnBet?HudPromptFill:FLinearColor::White;
-                if(Bet->GetBackgroundColor()!=Tint){Bet->SetBackgroundColor(Tint);}
+                const float Width=28.f+40.f*Side.Members.Num()+(Side.Odds>0.?66.f:0.f);
+                if(PKCompactChips.IsValidIndex(Index)&&PKCompactChips[Index]->GetWidthOverride()!=Width){PKCompactChips[Index]->SetWidthOverride(Width);}
                 if(Bet->GetIsEnabled()==bPKBetInFlight){Bet->SetIsEnabled(!bPKBetInFlight);}
             }
         }

@@ -319,7 +319,7 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> PKAnswerText;
     // #331: compact PK matchup + betting strip kept visible at the top while Workshop is open during Draw / Betting.
     UPROPERTY() TObjectPtr<UBorder> PKCompactBar;
-    UPROPERTY() TObjectPtr<UTextBlock> PKCompactTitle;
+    UPROPERTY() TArray<TObjectPtr<USizeBox>> PKCompactChips;
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> PKCompactBetButtons;
 
     // Local PK state, kept for one PK (match generation and serial) only: a bet or throw waiting for its answer, the armed
