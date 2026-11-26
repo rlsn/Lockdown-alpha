@@ -1242,14 +1242,34 @@ namespace
                         TEXT("QN_Dance_Loop"), TEXT("QN_Sword_Idle"), TEXT("QN_Idle_Shield_Loop"), TEXT("QN_Sword_Block"), TEXT("QN_Shield_OneShot"),
                         TEXT("QN_Shield_Dash"), TEXT("QN_Melee_Hook"), TEXT("QN_OverhandThrow"), TEXT("QN_Slide_Start"), TEXT("QN_Idle_FoldArms_Loop"),
                         TEXT("QN_Yes"), TEXT("QN_Idle_TalkingPhone_Loop")};
+                    // A DEV three-quarter front view of A (about 3 m out, just above chest height) for the poses, restored after.
+                    const TSharedRef<FTransform> Saved = MakeShared<FTransform>();
+                    const auto Front = [this, A, Saved]()
+                    {
+                        ACameraActor* View = Camera.Get();
+                        auto* B = A.Get();
+                        if (!View || !B) { return; }
+                        *Saved = View->GetActorTransform();
+                        const AActor* Body = B->GetOwner();
+                        const FVector Chest = Body->GetActorLocation() + FVector(0, 0, 30);
+                        const FVector Eye = Chest + Body->GetActorForwardVector() * 280. + Body->GetActorRightVector() * 110. + FVector(0, 0, 40);
+                        View->SetActorLocationAndRotation(Eye, (Chest - Eye).Rotation());
+                    };
+                    const auto Back = [this, A, Saved]()
+                    {
+                        if (auto* B = A.Get()) { B->HoldPose(nullptr, 0.f); }
+                        if (ACameraActor* View = Camera.Get()) { View->SetActorTransform(*Saved); }
+                    };
+                    const auto Hold = [this, A, Front](UAnimSequence* Clip, float At)
+                    { return [A, Front, Clip, At]() { Front(); if (auto* B = A.Get()) { B->HoldPose(Clip, At); } }; };
+                    if (UAnimSequence* Idle = LoadObject<UAnimSequence>(nullptr, TEXT("/Game/Lockdown/Art/Characters/hooper/Hooper_Idle.Hooper_Idle")))
+                    { ChainJobs.Add({Look, TEXT("poses-0-BasketballIdle"), {{0.f, Hold(Idle, 0.f)}}, nullptr, Back, false, .1f, 0.f, 3}); }
                     for (const TCHAR* Name : Clips)
                     {
                         UAnimSequence* Clip = LoadObject<UAnimSequence>(nullptr, *FString::Printf(TEXT("/Game/Lockdown/Art/Characters/hooper/Quaternius/Hooper/%s.%s"), Name, Name));
                         if (!Check(Clip != nullptr, FString::Printf(TEXT("Retargeted clip %s loads"), Name))) { continue; }
-                        const float At = Clip->GetPlayLength() * .4f;
-                        ChainJobs.Add({Look, FString(TEXT("poses-")) + FString(Name).RightChop(3),
-                            {{0.f, [A, Clip, At]() { if (auto* B = A.Get()) { B->HoldPose(Clip, At); } }}},
-                            nullptr, [A]() { if (auto* B = A.Get()) { B->HoldPose(nullptr, 0.f); } }, false, .1f, 0.f, 3});
+                        ChainJobs.Add({Look, FString(TEXT("poses-")) + FString(Name).RightChop(3), {{0.f, Hold(Clip, Clip->GetPlayLength() * .4f)}},
+                            nullptr, Back, false, .1f, 0.f, 3});
                     }
                 }
                 else if (Look == TEXT("casts"))

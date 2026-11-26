@@ -37,6 +37,9 @@ private:
     UPROPERTY(Transient) TObjectPtr<UAnimSequence> PreviousSequence;
     UPROPERTY(Transient) TObjectPtr<UAnimSequence> ActionSequence;
     UPROPERTY(Transient) TObjectPtr<UAnimSequence> HeldSequence;
+    // Skill motions of their own (LDActionMotion::OwnMotionOf), loaded once by clip name.
+    UPROPERTY(Transient) TMap<FName, TObjectPtr<UAnimSequence>> OwnClips;
+    UAnimSequence* OwnClipOf(const TCHAR* Clip);
     float HeldTime=0;
     float BaseTime=0,PreviousTime=0,BaseBlend=1,ActionTime=0,FullWeight=0,UpperWeight=0,ArmWeight=0;
     double LastClock=-1,LastActionIdentity=-1,TurnAt=-1,NextTurnAt=0;

@@ -327,6 +327,19 @@ bool FLDActionMotionFamiliesTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The finisher shifts the whole body, the jab only the upper body"),
         LDActionMotion::BlendOf(EFamily::Finisher,false).Full==1.f&&LDActionMotion::BlendOf(EFamily::Jab,false).Full==0.f
         &&LDActionMotion::BlendOf(EFamily::Cross,false).Upper>LDActionMotion::BlendOf(EFamily::Jab,false).Upper);
+    // Skill motions of their own: the approved zap keeps its family motion; every own clip releases inside its window.
+    TestNull(TEXT("The approved zap keeps its family motion"),LDActionMotion::OwnMotionOf(uint8(ELDDemoAbilityId::ActiveZap)));
+    int32 Own=0;
+    for(int32 Ability=0;Ability<256;++Ability)
+    {
+        if(const LDActionMotion::FOwnMotion* Motion=LDActionMotion::OwnMotionOf(uint8(Ability)))
+        {
+            ++Own;
+            TestTrue(FString::Printf(TEXT("Own motion %s releases between its start and end"),Motion->Clip),
+                Motion->Start>=0.f&&Motion->Start<Motion->Release&&Motion->Release<Motion->End);
+        }
+    }
+    TestEqual(TEXT("Twelve skills have a motion of their own"),Own,12);
     return true;
 }
 

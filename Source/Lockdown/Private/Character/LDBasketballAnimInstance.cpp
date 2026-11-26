@@ -109,6 +109,16 @@ void ULDBasketballAnimInstance::NativeUninitializeAnimation()
     Super::NativeUninitializeAnimation();
 }
 
+UAnimSequence* ULDBasketballAnimInstance::OwnClipOf(const TCHAR* Clip)
+{
+    const FName Key(Clip);
+    if(const TObjectPtr<UAnimSequence>* Found=OwnClips.Find(Key)){return *Found;}
+    UAnimSequence* Loaded=LoadObject<UAnimSequence>(nullptr,*FString::Printf(TEXT("/Game/Lockdown/Art/Characters/hooper/Quaternius/Hooper/%s.%s"),Clip,Clip));
+    ensureMsgf(Loaded,TEXT("Skill motion %s is missing; rerun Scripts/ImportQuaterniusAnimations.py"),Clip);
+    OwnClips.Add(Key,Loaded);
+    return Loaded;
+}
+
 void ULDBasketballAnimInstance::Prepare(double Clock,float Speed,float FacingYaw,LDBodyMotion::EAction Action,float Age,
     float Impact,double Identity,UAnimSequence* Override,float OverrideTime,bool bDash,bool bShowBall)
 {
@@ -154,7 +164,16 @@ void ULDBasketballAnimInstance::Prepare(double Clock,float Speed,float FacingYaw
     else if(Action!=LDBodyMotion::EAction::None)
     {
         const LDActionMotion::EFamily Family=LDActionMotion::FamilyOf(Action==LDBodyMotion::EAction::Attack,StyleStep,StyleAbility);
-        if(Action!=LastAction||FMath::Abs(Identity-LastActionIdentity)>LDBodyMotion::SameInstanceSeconds)
+        // A skill with a motion of its own plays its clip on the whole body, warped onto the release like the family clips;
+        // the clip carries no ball, so the ball is hidden until the action ends.
+        const LDActionMotion::FOwnMotion* Own=Action==LDBodyMotion::EAction::Cast?LDActionMotion::OwnMotionOf(StyleAbility):nullptr;
+        UAnimSequence* OwnClip=Own?OwnClipOf(Own->Clip):nullptr;
+        if(OwnClip&&(Action!=LastAction||FMath::Abs(Identity-LastActionIdentity)>LDBodyMotion::SameInstanceSeconds))
+        {
+            Active.Animation=OwnClip;Active.Start=Own->Start;Active.Release=Own->Release;Active.End=Own->End;Active.bLeftHand=Own->bLeftHand;
+            bWasReleased=false;LastActionIdentity=Identity;TurnAt=-1;
+        }
+        else if(Action!=LastAction||FMath::Abs(Identity-LastActionIdentity)>LDBodyMotion::SameInstanceSeconds)
         {
             using LDActionMotion::EFamily;
             const bool bMoving=Speed>60;
@@ -180,7 +199,8 @@ void ULDBasketballAnimInstance::Prepare(double Clock,float Speed,float FacingYaw
         ActionSequence=Active.Animation;ActionTime=LDBasketballMotion::SampleTime(Active,Age,CurrentImpact);bLeft=Active.bLeftHand;
         const float BlendIn=FMath::Min(.035f,CurrentImpact*.25f),BlendOut=FMath::Min(.14f,CurrentDuration*.28f);
         ActionWeight=FMath::Min(FMath::SmoothStep(0.f,BlendIn,FMath::Max(Age,0.f)),FMath::SmoothStep(0.f,BlendOut,CurrentDuration-Age));
-        const LDActionMotion::FBlend Blend=LDActionMotion::BlendOf(Family,Speed>60);
+        LDActionMotion::FBlend Blend=LDActionMotion::BlendOf(Family,Speed>60);
+        if(OwnClip){Blend.Full=1.f;Blend.Upper=0.f;Blend.Arm=0.f;bBallVisible=false;}
         FullWeight=ActionWeight*Blend.Full;UpperWeight=ActionWeight*Blend.Upper;ArmWeight=ActionWeight*Blend.Arm;
         bThrowing=Age>=0&&Age<CurrentDuration;
     }

@@ -88,3 +88,25 @@ LDActionMotion::FBlend LDActionMotion::BlendOf(EFamily Family, bool bMoving)
     default: return {0.f, 1.f, 1.f};
     }
 }
+
+const LDActionMotion::FOwnMotion* LDActionMotion::OwnMotionOf(uint8 Ability)
+{
+    // Strike frames measured as the striking hand's furthest reach from the chest (push and block: the held extension).
+    using A = ELDDemoAbilityId;
+    static const FOwnMotion Motions[] = {
+        {uint8(A::ActiveTripleCombo), TEXT("QN_Punch_Jab"), 0.f, .2f, .6f, true},
+        {uint8(A::ActiveBailOut), TEXT("QN_Punch_Cross"), 0.f, .27f, .7f, false},
+        {uint8(A::ActiveFlurryRush), TEXT("QN_Punch_Cross"), 0.f, .27f, .7f, false},
+        {uint8(A::ActiveElbow), TEXT("QN_Melee_Hook"), 0.f, .27f, .47f, false},
+        {uint8(A::ActiveSnarkBolt), TEXT("QN_OverhandThrow"), 0.f, .37f, .9f, false},
+        {uint8(A::ActiveOpenMic), TEXT("QN_Push_Loop"), .2f, .6f, 1.2f, false},
+        {uint8(A::ActiveDeskFan), TEXT("QN_Push_Loop"), .2f, .6f, 1.2f, false},
+        {uint8(A::ActiveChargedRam), TEXT("QN_Shield_Dash"), 0.f, .35f, .9f, false},
+        {uint8(A::ActiveNotMad), TEXT("QN_Shield_OneShot"), 0.f, .6f, .83f, true},
+        {uint8(A::ActiveBrace), TEXT("QN_Sword_Block"), 0.f, .27f, .9f, false},
+        {uint8(A::ActiveUnplug), TEXT("QN_Sword_Block"), 0.f, .27f, .9f, false},
+        {uint8(A::ActiveCrotchGrab), TEXT("QN_Slide_Start"), 0.f, .43f, .83f, false},
+    };
+    for (const FOwnMotion& Motion : Motions) { if (Motion.Ability == Ability) { return &Motion; } }
+    return nullptr;
+}
