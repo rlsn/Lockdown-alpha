@@ -746,6 +746,29 @@ bool FLDNativeFallingImpactProbe::RunTest(const FString& Parameters)
     return SaveTrace(*this,TEXT("falling_impact_air_control"),*Move,Passed) && Passed;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDNativeFallingApexProbe, "Lockdown.Rules.DemoMotionProbe.FallingApexNoRefund",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDNativeFallingApexProbe::RunTest(const FString& Parameters)
+{
+    FNativeWorld Fixture;
+    if (!TestNotNull(TEXT("Native physics world"),Fixture.World)) { return false; }
+    auto* Body=Fixture.Body({0,0,0});
+    if (!TestNotNull(TEXT("Native transient character"),Body)) { return false; }
+    auto* Move=CastChecked<ULDNativeMotionProbeMovement>(Body->GetCharacterMovement());
+    // A body deflected upward while airborne passes its apex inside a falling substep. CMC's apex substep would refund
+    // part of a slice the fall velocity already opened; Demo bodies never jump, so that split is off.
+    bool Passed=TestEqual(TEXT("Demo bodies do not split falling slices at an apex"),Move->MaxJumpApexAttemptsPerSimulation,0);
+    const double Rise=FMath::Abs(Move->GetGravityZ())*.12;
+    Move->TraceFalling({300,0,Rise},FVector::ZeroVector,.25f);
+    Passed&=TestTrue(TEXT("Crossing the apex mid-step is not an authority fault: ")+Move->CaptureError,Move->CaptureError.IsEmpty());
+    Passed&=TestTrue(TEXT("The body rose and turned down within the step"),Move->IsFalling() && Move->Velocity.Z<0);
+    Passed&=TestTrue(TEXT("Every record stays inside the issued step and the batch ends at the native foot"),
+        Move->Captured && Move->Captured->EndFootCm.Equals(Move->GetActorFeetLocation(),.001)
+        && !Move->Captured->Records.ContainsByPredicate([](const auto& Record)
+            { return Record.EndServerSeconds>.25+.000001 || Record.EndServerSeconds<Record.StartServerSeconds; }));
+    return SaveTrace(*this,TEXT("falling_apex_no_refund"),*Move,Passed) && Passed;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDNativeSupportProbe, "Lockdown.Rules.DemoMotionProbe.SupportTransitions",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDNativeSupportProbe::RunTest(const FString& Parameters)
