@@ -18,7 +18,7 @@ from scipy import ndimage
 ROOT = Path(__file__).resolve().parents[1]
 UI = ROOT / "SourceData/UI"
 AREA = (60, 0, 1860, 1080)     # where the body may stand in the 1920x1080 shot
-FRAME = (500, 750)             # the portrait frame cut around it: centred on the body, a little air over the head
+FRAME = (460, 690)             # the portrait frame cut around it: centred on the body, a little air over the head
 OUT_SIZE = (544, 816)
 # Seat inks (LDBroadcast::SeatInk). Every shot is the blue seat-1 body: its jersey hue is swapped for the seat's ink,
 # shading kept.
@@ -81,10 +81,17 @@ def main(folder):
     for seat in range(1, 9):
         shot = Path(folder) / f"Ref_Seat{seat}_1080_100.png"
         cut = key(Image.open(shot).crop(AREA))
-        left, top, right, _ = cut.getchannel("A").point(lambda a: 255 if a > 128 else 0).getbbox()
-        x0 = min(max((left + right - FRAME[0]) // 2, 0), cut.width - FRAME[0])
-        y0 = min(max(top - 40, 0), cut.height - FRAME[1])
-        portrait = cut.crop((x0, y0, x0 + FRAME[0], y0 + FRAME[1])).resize(OUT_SIZE, Image.LANCZOS)
+        # The frame hangs from the head: a little air over it, centred on the head's own columns (the top fifth of the
+        # body), so every card shows the face in its upper part whatever the pose. Room is added where the shot ends.
+        mask = np.asarray(cut.getchannel("A")) > 128
+        rows = np.nonzero(mask.any(1))[0]
+        top, bottom = int(rows[0]), int(rows[-1])
+        head = np.nonzero(mask[top:top + max((bottom - top) // 5, 40)].any(0))[0]
+        centre = int(head[0] + head[-1]) // 2
+        x0, y0 = centre - FRAME[0] // 2, top - 36
+        room = Image.new("RGBA", (cut.width + 2 * FRAME[0], cut.height + 2 * FRAME[1]), (0, 0, 0, 0))
+        room.paste(cut, (FRAME[0], FRAME[1]))
+        portrait = room.crop((x0 + FRAME[0], y0 + FRAME[1], x0 + 2 * FRAME[0], y0 + 2 * FRAME[1])).resize(OUT_SIZE, Image.LANCZOS)
         if seat != 1:
             portrait = repaint(portrait, INKS[seat - 1])
         name = f"lobby_seat_{seat}.png"
