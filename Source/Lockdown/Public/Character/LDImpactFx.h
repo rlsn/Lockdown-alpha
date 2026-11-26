@@ -205,7 +205,14 @@ private:
         bool bTelegraph = false;
         // A field: the next time (its age) its arcs reach for the bodies standing in it.
         float NextBite = 0;
+        // A standing ground state's kind (ShowGround; 0 for every other effect) and what it last showed.
+        uint8 Ground = 0;
+        FVector GroundCentre = FVector::ZeroVector;
+        float GroundRadius = 0, GroundStrength = 0;
     };
+    // Keeps the short effects under LDImpactFx::MaxBursts: the oldest goes. Standing ground states are outside the cap
+    // (the observation protocol bounds them), so a full load of them never evicts one another.
+    void MakeRoom();
     struct FLiveLayer
     {
         TWeakObjectPtr<const ULDHumanoidVisualComponent> Source;
