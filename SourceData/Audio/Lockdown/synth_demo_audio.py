@@ -283,19 +283,10 @@ def perfect_dodge(seed):  # a perfect dodge: a clean air slip and a bright snap 
     return mix(0.45, (0, whoosh(rng, 0.3, 1200, 4000, 0.02, 2.0, 0.05), 0.8), (0.03, ring([2800, 4200], 0.25, [0.06, 0.04], [0.4, 0.25]), 0.6))
 
 
-def medal_fuse(seed):  # two element medals fusing: a metallic clink pair and a rising shimmer
-    rng = np.random.default_rng(seed)
-    n = int(0.8 * RATE)
-    t = np.arange(n) / RATE
-    shimmer = sum(np.sin(2 * np.pi * f * t) for f in (1320, 1980, 2640)) * np.clip(t / 0.3, 0, 1) * np.exp(-np.clip(t - 0.3, 0, None) / 0.18)
-    return mix(0.85, (0, ring([1500, 2380], 0.25, [0.05, 0.03], [0.6, 0.3]), 0.8), (0.08, ring([1700, 2690], 0.25, [0.05, 0.03], [0.6, 0.3]), 0.8),
-               (0.1, shimmer, 0.15))
-
-
 for _name, _make, _seed in (("capture_opened", capture_opened, 4001), ("capture_started", capture_started, 4002),
                             ("capture_contested", capture_contested, 4003), ("level_up", level_up, 4004),
                             ("self_death", self_death, 4005), ("self_dash", self_dash, 4006),
-                            ("perfect_dodge", perfect_dodge, 4007), ("medal_fuse", medal_fuse, 4008)):
+                            ("perfect_dodge", perfect_dodge, 4007)):
     SOUNDS[_name] = ((lambda make: lambda seed: finish(low(make(seed), 9000, 4)))(_make), _seed)
 
 

@@ -481,6 +481,60 @@ def skill_cordon_tape_hit(n):  # a whip crack and a recoil
                       (0.05, rpg(BELT, n + 1, 0.15), -6)), -15)
 
 
+# Build UI (the workshop and its offers): short, dry, readable over combat; each told by the object the panel shows.
+def ui(stem, n, count, length=None, fade_out=0.02):
+    """Kenney Interface files are numbered from 001."""
+    return cut(load(f"{INTERFACE}/{stem}_{n % count + 1:03d}.ogg"), length, fade_out)
+
+
+def ui_pickup(n):  # a sticker peeled off
+    return finish(mix((0, ui("scratch", n, 5, 0.2), 0), (0, band(rpg(CLOTH, n, 0.1), lo=2500), -10)), -19)
+
+
+def ui_install(n):  # a part snapping into place
+    return finish(mix((0, rpg(["metalClick"], n, 0.1), 0), (0, ui("click", n + 2, 5, 0.08), -4),
+                      (0, band(kenney(IMPACT, "impactPlate_light_", n, 5, 0.1), hi=2500), -10)), -18)
+
+
+def ui_reject(n):  # a low refusal
+    return finish(mix((0, ui("error", n + 3, 8, 0.3), 0), (0, band(kenney(IMPACT, "impactSoft_medium_", n, 5, 0.12), hi=700), -6)), -19)
+
+
+def ui_workshop_open(n):  # a roller shutter going up
+    return finish(mix((0, band(pitch(rpg(CREAK, n, 0.35, 0.15), 1.25), lo=500), 0), (0.03, ui("maximize", n + 5, 9, 0.3), -5)), -21)
+
+
+def ui_workshop_close(n):  # the shutter coming down
+    return finish(mix((0, band(pitch(rpg(CREAK, n + 1, 0.35, 0.15), 0.85), lo=400), 0), (0.08, ui("minimize", n + 5, 9, 0.3), -5),
+                      (0.25, band(kenney(IMPACT, "impactPlank_medium_", n, 5, 0.12), hi=2000), -8)), -21)
+
+
+def ui_offer_deal(n):  # three cards dealt onto the table
+    return finish(mix(*[(i * 0.07, band(rpg(PAPER, n + i, 0.12, 0.05), lo=900), -i) for i in range(3)]), -19)
+
+
+def ui_gain(n):  # dropped into the bag
+    return finish(mix((0, rpg(LEATHER, n, 0.2), -2), (0, ui("pluck", n + 1, 2, 0.25), 0)), -19)
+
+
+def ui_add_point(n):  # a short rise with a spark
+    return finish(mix((0, ui("toggle", n + 1, 4, 0.15), 0), (0.01, band(fab("MagicCast_Buff1", n, 4, 0.25, 0.15), lo=2500), -9)), -19)
+
+
+def ui_hold_charge(n):  # holding to confirm: a rising charge
+    return finish(mix((0, fab("MagicRiser_Charge1", n, 3, 0.9, 0.2), 0), (0, ui("maximize", n + 1, 9, 0.4), -8)), -21)
+
+
+def ui_final_lock(n):  # the final build locked in: a heavy latch and a ringing seal
+    return finish(mix((0, rpg(["metalLatch"], n, 0.2), 0), (0, ui("bong", n, 1, 0.6, 0.3), -3),
+                      (0, band(scifi("impactMetal", n, 5, 0.3, 0.2), hi=2500), -6), (0, sub(55, 0.15), -10)), -16)
+
+
+def ui_medal_fuse(n):  # two element stones clinking together and fusing with a shimmer
+    return finish(mix((0, kenney(IMPACT, "impactMetal_light_", n, 5, 0.12), 0), (0.09, kenney(IMPACT, "impactMetal_light_", n + 2, 5, 0.12), -2),
+                      (0.12, band(fab("MagicFade_Appear1", n, 3, 0.45, 0.25), lo=1500), -6)), -18)
+
+
 def on_frame(make):
     """A skill release or hit plays on its frame (AUDIO_AND_FEEL sync table: transient within 16 ms): the lead-in before
     the sound first reaches half its peak is trimmed to 5 ms."""
@@ -508,7 +562,11 @@ SOUNDS = {"hit_basic": hit_basic, "hit_finisher": hit_finisher, "hit_electric": 
           "state_burn": state_burn, "state_wet": state_wet, "state_shock": state_shock, "state_chill": state_chill,
           "state_rot": state_rot, "react_fog": react_fog, "react_conduct": react_conduct, "react_overload": react_overload,
           "react_melt": react_melt, "react_methane": react_methane, "react_freeze": react_freeze,
-          "react_ferment": react_ferment, "react_corrode": react_corrode, "react_frostbite": react_frostbite}
+          "react_ferment": react_ferment, "react_corrode": react_corrode, "react_frostbite": react_frostbite,
+          "ui_pickup": ui_pickup, "ui_install": ui_install, "ui_reject": ui_reject, "ui_workshop_open": ui_workshop_open,
+          "ui_workshop_close": ui_workshop_close, "ui_offer_deal": ui_offer_deal, "ui_gain": ui_gain,
+          "ui_add_point": ui_add_point, "ui_hold_charge": ui_hold_charge, "ui_final_lock": ui_final_lock,
+          "ui_medal_fuse": ui_medal_fuse}
 TAKES = 3
 # Skill sounds keep two takes each (the import table's per-skill count).
 SOUNDS.update({f"skill_{name}": (on_frame(globals()[f"skill_{name}"]), 2) for name in SKILLS})
