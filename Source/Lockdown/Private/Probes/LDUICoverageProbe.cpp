@@ -238,16 +238,17 @@ public:
         // opening rest, each held at a different still of the basketball clips (ULDHumanoidVisualComponent::HoldPose)
         // and seen from a different side, from above so the plain floor is the whole backdrop, through the DEV art-capture
         // camera. Scripts/MakeLobbySeats.py cuts them out and paints each seat's jersey colour.
-        struct FSeatPose{const TCHAR* Clip;float Time;float Yaw;};
+        struct FSeatPose{const TCHAR* Clip;float Time;float Yaw;bool bBall;};
+        // Basketball stills keep the ball in hand; the personality stills (hooper/Quaternius) carry none, so it is hidden.
         static const FSeatPose SeatPoses[8]={
-            {TEXT("Hooper_Idle"),0.f,-14.f},
-            {TEXT("KB_012_AA_Basketball_PlayerA_Basic_Stance_Type01_LH_Loop"),.2f,16.f},
-            {TEXT("KB_043_AA_Basketball_PlayerA_Between_The_Legs_Type01_Loop"),.4f,-24.f},
-            {TEXT("KB_098_AA_Basketball_PlayerA_Spin_Move_RH_Loop"),.7f,202.f},
-            {TEXT("KB_149_AA_Basketball_PlayerA_Free_Throw_LH"),.5f,-8.f},
-            {TEXT("KB_044_AA_Basketball_PlayerA_Between_The_Legs_Type02_Loop"),1.3f,28.f},
-            {TEXT("KB_152_AA_Basketball_PlayerA_Jump_Shot_RH"),.35f,-20.f},
-            {TEXT("KB_041_AA_Basketball_PlayerA_Between_The_Legs_RH_To_LH"),.3f,10.f}};
+            {TEXT("Hooper_Idle"),0.f,-14.f,true},
+            {TEXT("Quaternius/Hooper/QN_Idle_FoldArms_Loop"),1.f,16.f,false},
+            {TEXT("KB_043_AA_Basketball_PlayerA_Between_The_Legs_Type01_Loop"),.4f,-24.f,true},
+            {TEXT("Quaternius/Hooper/QN_Dance_Loop"),.4f,10.f,false},
+            {TEXT("KB_149_AA_Basketball_PlayerA_Free_Throw_LH"),.5f,-8.f,true},
+            {TEXT("Quaternius/Hooper/QN_Idle_TalkingPhone_Loop"),1.2f,20.f,false},
+            {TEXT("Quaternius/Hooper/QN_Yes"),1.f,-18.f,false},
+            {TEXT("Quaternius/Hooper/QN_Sword_Idle"),.7f,12.f,false}};
         for(int32 Seat=0;Seat<8;++Seat)
         {
             FPage& Shot=Pages.Add_GetRef({FString::Printf(TEXT("Ref_Seat%d"),Seat+1),[this,Seat](ALDPlayerController& PC,double Now)
@@ -281,10 +282,10 @@ public:
                     }
                     const FSeatPose& Pose=SeatPoses[Seat];
                     Pick->SetActorRotation(FRotator(0.f,Side.Rotation().Yaw-Pose.Yaw,0.f));
-                    const FString Path=FString::Printf(TEXT("/Game/Lockdown/Art/Characters/hooper/%s.%s"),Pose.Clip,Pose.Clip);
+                    const FString Path=FString::Printf(TEXT("/Game/Lockdown/Art/Characters/hooper/%s.%s"),Pose.Clip,*FPaths::GetCleanFilename(Pose.Clip));
                     if(auto* Visual=Pick->FindComponentByClass<ULDHumanoidVisualComponent>())
                     {
-                        if(UAnimSequence* Still=LoadObject<UAnimSequence>(nullptr,*Path)){Visual->HoldPose(Still,Pose.Time);PosedBody=Pick;}
+                        if(UAnimSequence* Still=LoadObject<UAnimSequence>(nullptr,*Path)){Visual->HoldPose(Still,Pose.Time,!Pose.bBall);PosedBody=Pick;}
                     }
                     const FVector Foot=Pick->GetActorLocation()-FVector(0,0,90.f);
                     const FVector Eye=Foot+Side*560.f+FVector(0,0,380.f);
@@ -371,6 +372,42 @@ public:
                 if(Ring&&Ring->IsOpen()&&Now-HeldAt>=3.5&&Once(Now,3)){PC.HUDUI->ToggleWorkshop();}
                 return Now-HeldAt>=6.;
             },90.});
+        // Field sites as they are: the host waits for one to exist (the airdrop, the mid-field objective, a delivery
+        // locker), holds the stage clock, jumps beside it (DEV teleport) and is shot standing there.
+        const auto FieldSite=[this](const TCHAR* Name,TFunction<bool(const FLDPublicMatchView&,FVector&)> Find,double Timeout,bool bInside=false)
+        {
+            Pages.Add({Name,[this,Find,bInside](ALDPlayerController& PC,double Now)
+            {
+                const FLDPublicMatchView* View=Match(PC);
+                if(Once(Now,0)){Dev(PC,ELDDevTestOp::SetCountdownPaused,0);HeldAt=-1.;}
+                FVector Site=FVector::ZeroVector;
+                if(!View||(View->Phase!=ELDMatchPhase::Development&&View->Phase!=ELDMatchPhase::CaptureOpen)||!Find(*View,Site)){return false;}
+                // Inside: the host stands in the site itself with the stage clock running, so the site's own progress (a
+                // flag's spray, a locker's opening) is on screen; the shot is then one size, taken while it runs.
+                if(HeldAt<0.){HeldAt=Now;if(bInside){Resize(PC,1920,1080);}else{Dev(PC,ELDDevTestOp::SetCountdownPaused,1);}}
+                static const FVector Beside[]={FVector(-170,0,0),FVector(0,170,0),FVector(120,90,0)};
+                static const FVector Within[]={FVector(-60,0,0),FVector(0,70,0),FVector(60,40,0)};
+                const FVector* Sides=bInside?Within:Beside;
+                for(int32 Try=0;Try<3;++Try)
+                {
+                    if(Now-HeldAt>=.6+Try*1.&&Once(Now,1+Try))
+                    {
+                        const APawn* Self=PC.GetPawn();
+                        if(Self&&FVector::Dist2D(Self->GetActorLocation(),Site)<(bInside?110.:260.)){break;}
+                        ELDGrowthReason Reason=ELDGrowthReason::None;
+                        PC.SubmitDevTest(ELDDevTestOp::TeleportToCamera,0,Reason,NAME_None,0,0,Site+Sides[Try]+FVector(0,0,120));
+                    }
+                }
+                return Now-HeldAt>=(bInside?2.6:5.);
+            },Timeout});
+            if(bInside){Pages.Last().Only=0;}
+        };
+        FieldSite(TEXT("Match_Airdrop"),[](const FLDPublicMatchView& View,FVector& Site)
+            {Site=View.Airdrop.PositionCm;return View.Airdrop.Phase==ELDAirdropPhase::Announced||View.Airdrop.Phase==ELDAirdropPhase::Landed;},40.);
+        FieldSite(TEXT("Match_Objective"),[](const FLDPublicMatchView& View,FVector& Site)
+            {Site=View.Objective.CentreCm;return View.Objective.Phase==ELDObjectivePhase::Announced||View.Objective.Phase==ELDObjectivePhase::Open;},70.);
+        FieldSite(TEXT("Match_FlagSpray"),[](const FLDPublicMatchView& View,FVector& Site)
+            {Site=View.Objective.CentreCm;return View.Objective.Kind==ELDObjectiveKind::MiniFlag&&View.Objective.Phase==ELDObjectivePhase::Open;},40.,true);
         // A real own kill: the max-level, invulnerable host jumps beside the nearest rival (DEV teleport) and right-clicks it
         // through the ordinary pointer order until the authority's kill reaches the HUD; the K.O. moment is then held at a
         // fixed age for the shots and released by the next page.
@@ -433,14 +470,34 @@ public:
                 if(!Ring->IsOpen()&&Once(Now,0)){PC.HUDUI->ToggleWorkshop();}
                 return Ring->IsOpen()&&Settled(Now,2.);
             },20.});
-        Pages.Add({TEXT("Match_RingReward"),[this](ALDPlayerController& PC,double Now)
+        Pages.Add({TEXT("Match_RingHeld"),[this](ALDPlayerController& PC,double Now)
             {
                 ULDWorkshop* Ring=PC.HUDUI?PC.HUDUI->Workshop.Get():nullptr;
                 if(!Ring||!Ring->IsOpen()){return false;}
-                // The kill before this page left a reward offer: its first option goes to the hand, and is then held.
-                if(Once(Now,0)){Ring->HandleKey(EKeys::One);}
-                if(Once(Now,1,1.)){Ring->ShowHand(true);}
-                if(Once(Now,2,1.5)){for(int32 Index=0;Index<12&&!Ring->SelectHand(Index);++Index){}}
+                // The kill before this page left a reward offer: each option is taken in turn until one lands in the hand
+                // (a card with a free host installs itself; a medal waits in the library), and is then held.
+                for(int32 Take=0;Take<3;++Take)
+                {
+                    if(Ring->View().Hand.IsEmpty()&&Once(Now,10+Take,.3+Take*1.6)){Ring->HandleKey(Take==0?EKeys::One:Take==1?EKeys::Two:EKeys::Three);}
+                }
+                if(Ring->View().Hand.IsEmpty()){return Settled(Now,7.);}
+                if(Once(Now,1)){Ring->ShowHand(true);HeldAt=Now;}
+                if(Now-HeldAt>=.5&&Once(Now,2)){for(int32 Index=0;Index<12&&!Ring->SelectHand(Index);++Index){}}
+                return Now-HeldAt>=1.5;
+            },25.});
+        Pages.Add({TEXT("Match_RingMedal"),[this](ALDPlayerController& PC,double Now)
+            {
+                ULDWorkshop* Ring=PC.HUDUI?PC.HUDUI->Workshop.Get():nullptr;
+                if(!Ring||!Ring->IsOpen()){return false;}
+                // The held medal goes into the first host's socket through the ring's own click; a held card onto its host.
+                if(Once(Now,0))
+                {
+                    for(int32 Host=0;Host<Ring->View().Hosts.Num();++Host)
+                    {
+                        if(Ring->View().Hosts[Host].bSocket&&!Ring->View().Hosts[Host].bHasMedal){Ring->ProbeClick(ULDWorkshop::EHit::Gem,Host,0);break;}
+                    }
+                }
+                if(Once(Now,1,1.)){Ring->SelectHand(INDEX_NONE);Ring->ShowHand(false);}
                 return Settled(Now,2.5);
             },20.});
         Pages.Add({TEXT("Match_RingEnd"),[this](ALDPlayerController& PC,double Now)
@@ -449,38 +506,6 @@ public:
                 if(Ring&&Once(Now,0)){Ring->SelectHand(INDEX_NONE);Ring->ShowHand(false);if(Ring->IsOpen()){PC.HUDUI->ToggleWorkshop();}}
                 return Settled(Now,1.);
             },10.,false});
-        // Field sites as they are: the host waits for one to exist (the airdrop, the mid-field objective, a delivery
-        // locker), holds the stage clock, jumps beside it (DEV teleport) and is shot standing there.
-        const auto FieldSite=[this](const TCHAR* Name,TFunction<bool(const FLDPublicMatchView&,FVector&)> Find,double Timeout)
-        {
-            Pages.Add({Name,[this,Find](ALDPlayerController& PC,double Now)
-            {
-                const FLDPublicMatchView* View=Match(PC);
-                if(Once(Now,0)){Dev(PC,ELDDevTestOp::SetCountdownPaused,0);HeldAt=-1.;}
-                FVector Site=FVector::ZeroVector;
-                if(!View||(View->Phase!=ELDMatchPhase::Development&&View->Phase!=ELDMatchPhase::CaptureOpen)||!Find(*View,Site)){return false;}
-                if(HeldAt<0.){HeldAt=Now;Dev(PC,ELDDevTestOp::SetCountdownPaused,1);}
-                // The spot beside the site may be a prop or a roof edge: three sides are tried, the last one that lands holds.
-                static const FVector Sides[]={FVector(-170,0,0),FVector(0,170,0),FVector(120,90,0)};
-                for(int32 Try=0;Try<3;++Try)
-                {
-                    if(Now-HeldAt>=.6+Try*1.&&Once(Now,1+Try))
-                    {
-                        const APawn* Self=PC.GetPawn();
-                        if(Self&&FVector::Dist2D(Self->GetActorLocation(),Site)<260.){break;}
-                        ELDGrowthReason Reason=ELDGrowthReason::None;
-                        PC.SubmitDevTest(ELDDevTestOp::TeleportToCamera,0,Reason,NAME_None,0,0,Site+Sides[Try]+FVector(0,0,120));
-                    }
-                }
-                return Now-HeldAt>=5.;
-            },Timeout});
-        };
-        FieldSite(TEXT("Match_Airdrop"),[](const FLDPublicMatchView& View,FVector& Site)
-            {Site=View.Airdrop.PositionCm;return View.Airdrop.Phase==ELDAirdropPhase::Announced||View.Airdrop.Phase==ELDAirdropPhase::Landed;},40.);
-        FieldSite(TEXT("Match_Objective"),[](const FLDPublicMatchView& View,FVector& Site)
-            {Site=View.Objective.CentreCm;return View.Objective.Phase==ELDObjectivePhase::Announced||View.Objective.Phase==ELDObjectivePhase::Open;},70.);
-        FieldSite(TEXT("Match_Locker"),[](const FLDPublicMatchView& View,FVector& Site)
-            {if(View.Lockers.IsEmpty()){return false;}Site=View.Lockers[0].PositionCm;return true;},25.);
         // The first mid rest as it really runs (the rivals sign up for the PK by themselves; the host watches and may
         // bet): each step is waited for, then the stage clock is held (DEV pause; bodies and the fight go on) while its
         // sizes are shot, and let go by the next page.
@@ -504,6 +529,17 @@ public:
         RestStep(TEXT("Match_R1PK"),ELDRestStep::PK,false,4.,30.);
         RestStep(TEXT("Match_R1Settlement"),ELDRestStep::Settlement,false,.3,80.);
         RestStep(TEXT("Match_R1Return"),ELDRestStep::Return,false,.3,30.);
+        // The second field: the arena (its objective) and the first delivery locker that is out, each waited for with the
+        // stage clock running, then the host standing at the arena and inside the locker's reach while it opens.
+        Pages.Add({TEXT("Match_Field2"),[this](ALDPlayerController& PC,double Now)
+            {
+                if(Once(Now,0)){Dev(PC,ELDDevTestOp::SetCountdownPaused,0);}
+                return InPhase(PC,ELDMatchPhase::Development)&&Settled(Now,2.);
+            },60.,false});
+        FieldSite(TEXT("Match_Locker"),[](const FLDPublicMatchView& View,FVector& Site)
+            {if(View.Lockers.IsEmpty()){return false;}Site=View.Lockers[0].PositionCm;return true;},55.,true);
+        FieldSite(TEXT("Match_Arena"),[](const FLDPublicMatchView& View,FVector& Site)
+            {Site=View.Objective.CentreCm;return View.Objective.Kind==ELDObjectiveKind::Arena&&(View.Objective.Phase==ELDObjectivePhase::Announced||View.Objective.Phase==ELDObjectivePhase::Open);},110.);
         // Back in the field the stage clock is held again, so the second rest does not arrive under the pages below.
         Pages.Add({TEXT("Match_Scoreboard"),[this](ALDPlayerController& PC,double Now)
             {

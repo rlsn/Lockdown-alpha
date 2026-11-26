@@ -835,6 +835,7 @@ FReply ULDWorkshop::NativeOnMouseWheel(const FGeometry& Geometry,const FPointerE
     }
     return Super::NativeOnMouseWheel(Geometry,Event);
 }
+void ULDWorkshop::ProbeClick(EHit Kind,int32 Host,int32 Index){Click(FHit{Kind,Host,Index},false);}
 void ULDWorkshop::Click(const FHit& Hit,bool bRight)
 {
     ULDComponentStorage* Cards=Storage.Get();
