@@ -264,12 +264,28 @@ namespace LDHUD
         FString Points;
         int64 Total=0;
         bool bSelf=false;
+        // For the painted board: the roster seat (INDEX_NONE off the roster) and the three parts.
+        int32 Seat=INDEX_NONE;
+        int32 Participation=0,Winner=0,Bet=0;
     };
     // One row per PK.Awards entry with any points, in award order; names from the public roster.
     LOCKDOWN_API TArray<FPKAwardRow> PKAwardRows(const FLDPKView& PK,const FLDLobbyView& Lobby,const FGuid& Self);
+    // One entrant of a side for the painted board: seat plate, name, level, whether out (eliminated or forfeited).
+    struct FPKMemberView
+    {
+        int32 Seat=INDEX_NONE;
+        FString Name;
+        uint8 Level=0;
+        bool bOut=false;
+        bool bSelf=false;
+    };
     struct FPKSideView
     {
         uint8 Side=0;
+        TArray<FPKMemberView> Members;
+        // Public bets on this side, and the payout per share while betting is open (0: not shown).
+        int32 Bets=0;
+        double Odds=0.;
         // The side's names with each member's 出局/离场 mark once the fight started, then the public bet count.
         FString Line;
         // "押 <names>" for the bet button.
@@ -302,6 +318,9 @@ namespace LDHUD
         FString Title;
         // PKReady: "N 秒后开打 …"; PK: "最长还剩 N 秒 …" (whole seconds rounded up to the step end).
         FString Countdown;
+        // The same countdown as a figure with its short caption (下注 / 开打 / 剩余); -1 without one.
+        int64 SecondsLeft=-1;
+        FString CountLabel;
         // "安全圈 18.0 米 · 10 秒后缩到 6.0 米" during the PK step with parameters and a clock.
         FString Ring;
         TArray<FPKSideView> Sides;

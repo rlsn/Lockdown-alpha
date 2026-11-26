@@ -361,8 +361,6 @@ inline FString PKWinners(const FString& Names){return FString(TEXT("PK 胜方：
 inline constexpr TCHAR PKWonSelf[]=TEXT("你赢了这场 PK！");
 inline constexpr TCHAR PKDraw[]=TEXT("PK 平局：没有分出唯一胜方");
 inline constexpr TCHAR PKNoContest[]=TEXT("本场 PK 无效：竞技场没能布置，不发奖励");
-inline constexpr TCHAR PKAwardsTitle[]=TEXT("PK 奖励（属性点）");
-inline constexpr TCHAR PKAwardsNone[]=TEXT("本场没有人得到奖励");
 inline constexpr TCHAR PKAwardParticipation[]=TEXT("参与");
 inline constexpr TCHAR PKAwardWinner[]=TEXT("胜者");
 inline constexpr TCHAR PKAwardBet[]=TEXT("竞猜");
