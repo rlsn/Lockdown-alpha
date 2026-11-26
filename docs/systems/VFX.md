@@ -56,6 +56,11 @@
 | 元素反应是独立的事件：玩家要明显感到发生了一种不同的元素组合。不用换色、套圈，也不把两个原有特效叠在一起 | APPROVED · 用户 |
 | 充分利用专业素材包，但以实际视觉质量为准，不照搬素材包默认的夸张表现（大火球、大爆炸不采用） | APPROVED · 用户 |
 | 普攻保持相对简洁，优先级低 | APPROVED · 用户 |
+| 半写实、精致、清晰、克制的方向已确认；`active_cola_shake`（`NS_LDColaBlast`）是最接近目标的范例 | APPROVED · 用户 |
+| 范围前摇保留细线：战斗信息优先，不为美术复杂化而影响可读性 | APPROVED · 用户 |
+| 素材包不必整套使用，可以拆出其中质量好的材质、贴图、网格和 Niagara 模块 | APPROVED · 用户 |
+| 元素的排布要自然，不机械等距（火苗、碎片、尘团的间距、高度、时机都要有变化） | APPROVED · 用户 |
+| 不在单个效果上无限迭代：每个效果按确认的标准做一遍，最后统一看全量实机效果 | APPROVED · 用户 |
 
 ### 1.2 三维设计分类
 
@@ -321,7 +326,8 @@
 ### 3.9 第一轮集中评审后的美术方向（APPROVED · 用户）
 - **Context**：第一轮评审（普攻、元素技能、物理技能、自身技能、身上状态、地面状态、击杀）在正常游戏镜头下集中呈现。
 - **Decision**：方向见 §1.1 中标为“APPROVED · 用户”的各条。普攻基本可以，保持简洁；技能和元素反应太平、太淡，缺少质感、层次和辨识度；`active_seethe` 用素材包做的大火球太大、太浮夸，不采用；闪电链是完成度标杆。
-- **Applicability**：所有技能与元素反应。先用少量代表项验证方向（`active_hose_down`、`active_seethe`、`active_cola_shake`，起雾、冻住、过载三个反应），认可后再推广。
+- **Applicability**：所有技能与元素反应。代表项（`active_hose_down`、`active_seethe`、`active_cola_shake`，起雾、冻住、过载三个反应）评审后方向确认，按同一标准推广到其余全部特效。
+- **代表项的结论**：摇可乐最满意；水管明显改善；发火的大小和强度合适、不再放大，火苗排布要自然；冻住辨识度好，冰晶要有立体感；起雾要连成一团而不是几团独立白烟；过载不能像闪电，要是火电结合的爆裂。
 - **Evidence**：`production/vfx/review1/`（评审材料）、`production/vfx/review2/`（代表项）。
 
 ## 4. 技术缺陷
@@ -396,7 +402,7 @@
 | `active_crotch_grab` 掏蛋子 | 无 · 冲刺接触 + 减速 | LOCALLY VERIFIED | 前摇：通用族；`NS_LDGrabRelease`：三条加粗的贴地速度线随冲刺展开、暗色尘迹与终点刹车扬尘；`NS_LDGrabHit`：髋部高度的暖白冲击核与光、加粗的低位爆环、髋部暗尘、下坠暖色火星 | `production/vfx/batch5e-physical-mass/` | 用户未验收 |
 | `active_unplug` 拧你手腕 | 无 · 招架架势 280 | LOCALLY VERIFIED | `NS_LDUnplugRelease`：招架期间（数据 0.45 s）胸前交叉的钢色双臂 X、颤动，身周细卸力环；`NS_LDUnplugHit`：反震打在出手者身上——绕胸收紧的扭腕螺旋、暖白冲击核、缴械碎屑下落 | `production/vfx/batch6-self/` | 用户未验收 |
 | `active_snark_bolt` 甩你一鞋 | 无 · 投射物 + 落地拖鞋 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：粒子带；落地 `SlipperDrop` | — | 专属释放与命中未设计 |
-| `active_seethe` 烫你屁股 | 火 · 自身圆 300 | LOCALLY VERIFIED | `NS_LDSeetheTell`；释放 `NS_LDSeetheBurst`：一圈火舌冲到 300 cm 边缘并立住再熄（火焰前沿就是范围边界）、火舌脚下一层柔和的地面热光、发红后冷却的焦裂地面、少量上飘的火星；不用素材包的爆炸；命中 `NS_LDFireHit` | `production/vfx/review2/` | 用户未验收；火舌是分开的小火苗，不是连续火浪；前摇仍有细边界线 |
+| `active_seethe` 烫你屁股 | 火 · 自身圆 300 | LOCALLY VERIFIED | `NS_LDSeetheTell`；释放 `NS_LDSeetheBurst`：火舌成十一个疏密不一的簇冲到 300 cm 边缘并立住再熄，簇间有散苗，高度与时机各不相同（火焰前沿就是范围边界）、火舌脚下一层柔和的地面热光、发红后冷却的焦裂地面、少量上飘的火星；不用素材包的爆炸；命中 `NS_LDFireHit` | `production/vfx/review2/` | 大小与强度经用户确认；前摇的细边界线按用户决定保留 |
 | `active_quick_meeting` 脚底开锅 | 火 · 地点圆 240，3 跳 | IN PROGRESS | 前摇：通用族；释放：旧粒子爆发已撤；命中：通用 Niagara 命中（物理与魔法均为终结档）；仍为旧表现：区域粒子（AreaFire） | — | 专属释放与命中未设计 |
 | `active_bail_out` 贴脸补一拳 | 无 · 冲刺 + 强化普攻 | LOCALLY VERIFIED | 前摇：通用族；`NS_LDBailRelease`：肩高两条加粗滑流线随冲刺、身后暗色尘迹、终点双拳暖色亮起 0.5 s；本技能自身无命中 | `production/vfx/batch5e-physical-mass/` | 用户未验收；拳光在俯视下仍偏小 |
 | `active_not_mad` 锅盖挡脸 | 无 · 自身护盾 + 解控 | LOCALLY VERIFIED | `NS_LDNotMadRelease`：脸前弹起并举住 0.5 s 的实心锅盖（90 cm 钢盘：暖白高光到灰到暗边的明暗、亮边、暗色把手）、格挡瞬间的暖白闪光、腰间向外崩碎的解控碎片；护盾见 §7.6 `NS_LDShieldState` | `production/vfx/batch6-self-rework/` | 用户未验收 |
@@ -431,11 +437,11 @@
 | 反应 | 状态 | 实现 | 证据 | 已知问题 |
 | --- | --- | --- | --- | --- |
 | 导电 Conduct（溅射电场） | USER APPROVED（场） | `NS_LDField` 450（§2.2） | `vfx/approved/field-conduct.jpg` | 头顶十字闪仍是旧层 |
-| 起雾 Fog（烫 + 湿） | IMPLEMENTED | `NS_LDFogReact`：胸口橙光被白色压灭、五股蒸汽分别上喷并膨胀、水汽贴地滚到雾区半径（数据 250 cm）、短促的白色嘶响条、溅起又落下的烫水滴 | `production/vfx/review2/` | 用户未验收；雾区本身仍是旧区域粒子 |
-| 过载 Overload（烫 + 麻） | IMPLEMENTED | `NS_LDOverloadReact`：胸口暖白热核与光、六道熔橙色折线电弧（每秒重画 25 次，各自闪两下）打到溅射半径（数据 200 cm）、落点的发光焦点与踢起的余烬 | `production/vfx/review2/` | 用户未验收 |
+| 起雾 Fog（烫 + 湿） | IMPLEMENTED | `NS_LDFogReact`：胸口橙光被白色压灭、一根连续上升并在顶部散开的蒸汽柱（略带倾斜）与贴地滚到雾区半径（数据 250 cm）的水汽连成一团、短促的白色嘶响条、溅起又落下的烫水滴 | `production/vfx/review2/` | 用户未验收；雾区本身仍是旧区域粒子 |
+| 过载 Overload（烫 + 麻） | IMPLEMENTED | `NS_LDOverloadReact`：胸口暖色热核与光、贴地向四周炸开到溅射半径（数据 200 cm）的火焰、火里贴身的短促电光（每秒重画 25 次，不是长电弧）、向外飞溅下落的火星、地面焦裂、少量烟 | `production/vfx/review2/` | 用户未验收 |
 | 融化 Melt | NOT STARTED | 同上 | — | |
 | 沼气 Methane | NOT STARTED | 同上 | — | |
-| 冻住 Freeze（湿 + 冻） | IMPLEMENTED | `NS_LDFreezeReact`：脚边一圈冰晶带过冲地拔地而起并立住（时长取定身数据 1.2 s）、脚下迅速铺开的霜面、晶体上游走的闪光、外溢的冷雾，结束时冰晶落下碎裂 | `production/vfx/review2/` | 用户未验收 |
+| 冻住 Freeze（湿 + 冻） | IMPLEMENTED | `NS_LDFreezeReact`：脚边一圈棱柱状冰晶（暗面 + 亮面 + 高光面）带过冲地拔地而起并立住（时长取定身数据 1.2 s）、脚下迅速铺开的霜面、晶体上游走的闪光、外溢的冷雾，结束时冰晶落下碎裂 | `production/vfx/review2/` | 用户未验收 |
 | 发酵 Ferment | NOT STARTED | 同上 | — | |
 | 碎冰 Shatter | NOT STARTED | 同上 | — | |
 | 腐蚀 Corrode | NOT STARTED | 同上 | — | |
