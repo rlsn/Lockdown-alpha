@@ -52,7 +52,7 @@ public:
     double PageAt=0.,Due=0.;
     int32 Page=0,Combo=0,Step=0;
     int32 Width=0,Height=0;
-    bool bCapturing=false,bFrontend=false,bClient=false,bEntrant=false;
+    bool bCapturing=false,bFrontend=false,bClient=false,bEntrant=false,bOneSize=false;
     TArray<FString> Missed;
 
     // One page: Enter runs every tick until it reports the page is up (or the page times out and is listed as missed).
@@ -802,6 +802,14 @@ public:
                 if(InPhase(PC,ELDMatchPhase::Development)&&Once(Now,11,40.)){Dev(PC,ELDDevTestOp::OpenCapture,0);}
                 return InPhase(PC,ELDMatchPhase::CaptureOpen)&&Settled(Now,10.);
             },120.});
+        // The final with a graffiti on the flagpole: the score bug's foot lines (whose graffiti it is, then the aside).
+        Pages.Add({TEXT("Match_FinalGraffiti"),[this](ALDPlayerController& PC,double Now)
+            {
+                const FLDPublicMatchView* View=Match(PC);
+                if(!View||View->Phase!=ELDMatchPhase::CaptureOpen||!View->GraffitiOwner.IsValid()){HeldAt=-1.;return false;}
+                if(HeldAt<0.){HeldAt=Now;}
+                return Now-HeldAt>=.6;
+            },120.});
         Pages.Add({TEXT("Match_Results"),[this](ALDPlayerController& PC,double Now)
             {
 
@@ -937,7 +945,8 @@ public:
             if(!Current.Enter(*PC,Now)){return true;}
             Step=2;Combo=0;
         }
-        const int32 Count=Current.bAllSizes&&Current.Only<0?4:1;
+        // -LDUICoverageOneSize (a recorded run): every page at 1920x1080 and 100 % only, so the window never changes size.
+        const int32 Count=Current.bAllSizes&&Current.Only<0&&!bOneSize?4:1;
         if(Combo>=Count){Step=0;Combo=0;++Page;return true;}
         const FCombo& Next=Combos[Current.Only>=0?Current.Only:Combo];
         if(Step==2)
@@ -973,6 +982,7 @@ void StartUICoverageProbe(ALDPlayerController& PC)
     FSlateApplication::Get().SetAllowTooltips(false);
     Probe->bClient=bClient;
     Probe->bEntrant=FParse::Param(FCommandLine::Get(),TEXT("LDUICoverageEntrant"));
+    Probe->bOneSize=FParse::Param(FCommandLine::Get(),TEXT("LDUICoverageOneSize"));
     if(Probe->bFrontend){Probe->PlanFrontend();}else if(bClient){Probe->PlanClient();}else{Probe->PlanMatch();}
     FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Probe](float Delta){return Probe->Tick(Delta);}));
 }
