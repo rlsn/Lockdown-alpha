@@ -766,7 +766,8 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                 {
                     const FBox2D Box=Whole(P);
                     LDBroadcastPaint::FillSlab(P,P.Layer,Box,LDBroadcast::Gold);
-                    LDBroadcastPaint::Text(P,P.Layer+1,PKPaint.bOwnWin?PKPaint.Result+TEXT(" · ")+LDTerms::PKWonSelf:PKPaint.Result,LDBroadcastPaint::LabelFont(24.f,true),
+                    // The own win says only that (the winner's gold row above already names the winner), so the line fits the bar.
+                    LDBroadcastPaint::Text(P,P.Layer+1,PKPaint.bOwnWin?FString(LDTerms::PKWonSelf):PKPaint.Result,LDBroadcastPaint::LabelFont(24.f,true),
                         Box.GetCenter(),LDBroadcast::Ink,FVector2D(.5,.5));
                 },50.f,0.f);
                 PKResultBar->SetVisibility(ESlateVisibility::Collapsed);Fill(PKResultBar,10);

@@ -24,7 +24,7 @@ $wire=[int]$Matches[1]
 $version=Get-LDProjectVersion
 $digest=(Get-FileHash -LiteralPath (Join-Path (Get-LDProjectRoot) 'Content\Lockdown\Data\Demo\manifest.json') -Algorithm SHA256).Hash.ToLowerInvariant()
 $guestUrl='127.0.0.1:{0}?LDName=Guest?LDWire={1}?LDProduct={2}?LDCatalog={3}' -f $port,$wire,$version,$digest
-if($Part -in 'Match','All'){$runs+=[pscustomobject]@{Name='Match';Url='/Game/Lockdown/Generated/Maps/L_Demo?listen?LDName=UICoverage';Extra="-LDDevGrowthFixture -port=$port -multihome=127.0.0.1$(if($Entrant){' -LDUICoverageEntrant'})"}}
+if($Part -in 'Match','All'){$runs+=[pscustomobject]@{Name='Match';Url='/Game/Lockdown/Generated/Maps/L_Demo?listen?LDName=UICoverage';Extra="-LDDevGrowthFixture -port=$port -multihome=127.0.0.1$(if($Entrant){' -LDUICoverageEntrant'}) -ExecCmds=`"ld.Motion.TraceRecordedFoot 1`""}}
 $failed=@()
 foreach($run in $runs){
     $log=Join-Path $output "$($run.Name).log"
