@@ -90,7 +90,7 @@ public:
     enum class EHit : uint8 { None, Stat, Host, Gem, Installed, Drop, Hand, Offer, OfferPile, HandPile, Reroll, Skip, Shop, ShopRefresh,
         Close, Matrix, Respec, Element, ConfirmYes, ConfirmNo, Entry, Wing };
     void PinHover(EHit Kind,int32 Host,int32 Index);
-    // Probes: the click a pointer press on that part makes (the same path as the mouse).
+    // Probes (WITH_DEV_AUTOMATION_TESTS; nothing otherwise): the click a pointer press on that part makes.
     void ProbeClick(EHit Kind,int32 Host,int32 Index);
     bool SelectHand(int32 Index);
     const LDBuildRing::FView& View() const {return Ring;}

@@ -1193,7 +1193,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             {
                 FVector2D Screen;
                 // High enough to clear the own bars and status row when the own body stands on the site.
-                if(!PC->ProjectWorldLocationToScreen(SiteCm+FVector(0.,0.,400.),Screen)){return;}
+                if(!PC->ProjectWorldLocationToScreen(SiteCm+FVector(0.,0.,520.),Screen)){return;}
                 const float X=float(Screen.X)*ToLocalX,Y=float(Screen.Y)*ToLocalY;
                 if(Culled(X,Y)){return;}
                 const FString Seconds=LeftMs>0?FString::Printf(TEXT("%lld"),(LeftMs+999)/1000):FString();
