@@ -2256,51 +2256,19 @@ namespace
     }
 
     // ------------------------------------------------------------------ a visible body's fall (a kill)
-    // The fall of a body (User.Start the floor under it, User.End its chest): a single bright jolt at the chest, a thin
-    // warm-white shock ring that rolls out over the floor and thins, dust kicked up round the feet and settling, and a soft
-    // dark scuff left where it fell that fades over two seconds. Weight comes from the ring and the dust, not from a flash
-    // or a star; it reads the same for any body.
+    // The fall of a body (User.Start the floor under it, User.End its chest): a single bright jolt at the chest and a
+    // soft dark scuff left where it fell that fades over two seconds. The dust of the fall is the pack's ring, played by
+    // the runtime beside it; it reads the same for any body.
     const FPalette DustPalette{FLinearColor(.7f, .66f, .6f), FLinearColor(.48f, .44f, .39f), FLinearColor(.22f, .2f, .18f), 1.f, 1.f};
     const FPalette ScuffPalette{FLinearColor(.2f, .18f, .16f), FLinearColor(.1f, .09f, .08f), FLinearColor(0.f, 0.f, 0.f), 1.f, 1.f};
 
     FSystemParts KnockoutParts(UMaterial& Material, UMaterial& Top, FString& Error)
     {
-        UMaterialInstanceConstant* Line = ChainPaint(TEXT("MI_LDKnockout_Ring"), Material, SliceTexture(LDSliceVfx::ETex::ChainAProfile), nullptr, 0.f, NeutralPalette, 1.f, 0.f, Error);
-        UMaterialInstanceConstant* Dust = ChainPaint(TEXT("MI_LDKnockout_Dust"), Material, SliceTexture(LDSliceVfx::ETex::SoftPuff), nullptr, 0.f, DustPalette, 1.f, 0.f, Error);
         UMaterialInstanceConstant* Scuff = ChainPaint(TEXT("MI_LDKnockout_Scuff"), Material, SliceTexture(LDSliceVfx::ETex::WaterWet), SliceTexture(LDSliceVfx::ETex::DissolveNoise), 2.f, ScuffPalette, 1.f, 0.f, Error);
         UMaterialInstanceConstant* Flash = ChainPaint(TEXT("MI_LDKnockout_Flash"), Top, SliceTexture(LDSliceVfx::ETex::ChainAFlash), nullptr, 0.f, NeutralPalette, 1.f, 0.f, Error);
         FSystemParts Fall;
         Fall.System = LDSliceVfx::ESystem::Knockout;
-        if (!Line || !Dust || !Scuff || !Flash) { return Fall; }
-        const int32 Points = 40;
-        FPart& Ring = Fall.Parts.AddDefaulted_GetRef();
-        Ring.Name = TEXT("Ring");
-        Ring.Count = FString::Printf(TEXT("%d"), Points);
-        Ring.Lifetime = TEXT("0.5");
-        Ring.Paint = Line;
-        Ring.TileCm = 60.f;
-        {
-            const FString Out = TEXT("(1.0 - pow(1.0 - saturate(Particles.Age / 0.42), 2.5))");
-            Ring.Set(TEXT("Particles.RibbonLinkOrder"), Own)
-                .Set(TEXT("Particles.Position"), Circle(FString::Printf(TEXT("(25.0 + 150.0 * %s)"), *Out), Points, 3.f))
-                .Set(TEXT("Particles.RibbonWidth"), FString::Printf(TEXT("12.0 * (1.0 - 0.8 * %s)"), *Out))
-                .Set(TEXT("Particles.Color"), Tinted(2.2f, FString::Printf(TEXT("(1.0 - %s)"), *Out)));
-        }
-        FPart& Kick = Fall.Parts.AddDefaulted_GetRef();
-        Kick.Name = TEXT("Dust");
-        Kick.Kind = FPart::Sprite;
-        Kick.Count = TEXT("int(lerp(5.0, 9.0, User.Focus) + 0.5)");
-        Kick.Lifetime = FString::Printf(TEXT("1.0 + 0.4 * %s"), *Random(501.f));
-        Kick.Paint = Dust;
-        {
-            const FString Angle = FString::Printf(TEXT("(%s * 6.2832)"), *Random(502.f));
-            const FString Out = TEXT("(1.0 - exp(-4.0 * Particles.Age))");
-            Kick.Set(TEXT("Particles.Position"), FString::Printf(TEXT("User.Start + float3(cos(%s), sin(%s), 0.0) * (30.0 + 110.0 * %s * (0.7 + 0.3 * %s)) + float3(0.0, 0.0, 15.0 + 25.0 * %s)"),
-                    *Angle, *Angle, *Out, *Random(503.f), *Out))
-                .Set(TEXT("Particles.SpriteSize"), TEXT("float2(1.0, 1.0) * (40.0 + 70.0 * sqrt(Particles.NormalizedAge))"))
-                .Set(TEXT("Particles.SpriteRotation"), FString::Printf(TEXT("%s * 360.0 + Particles.Age * 30.0"), *Random(504.f)))
-                .Set(TEXT("Particles.Color"), Glowing(1.f, TEXT("0.42 * saturate(Particles.Age / 0.05) * (1.0 - Particles.NormalizedAge)")));
-        }
+        if (!Scuff || !Flash) { return Fall; }
         FPart& Mark = Fall.Parts.AddDefaulted_GetRef();
         Mark.Name = TEXT("Scuff");
         Mark.Lifetime = TEXT("User.Duration");

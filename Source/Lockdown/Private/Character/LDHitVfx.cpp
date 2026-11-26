@@ -580,139 +580,6 @@ LDHitVfx::FLayerTuning LDHitVfx::TuningOf(const LDHitFeel::FTuning& Feel, float 
     return Out;
 }
 
-LDHitVfx::FRecipe LDHitVfx::ForHit(ELDObservedHitLook Look, uint8 HitFlags, float EffectScale, const FLayerTuning& Tuning)
-{
-    using namespace LDHitVfxDetail;
-    if (HitFlags & LDObservation::Dodged)
-    {
-        return ForPerfectDodge(EffectScale, Tuning);
-    }
-    FRecipe Recipe;
-    if (!FMath::IsFinite(EffectScale) || EffectScale <= 0.f || LDSliceVfx::ShowsHit(Look, HitFlags)) { return Recipe; }
-    if (HitFlags & LDObservation::Parried)
-    {
-        const FLinearColor ParryGlow(1.4f, 3.0f, 3.6f), ParryInk(.08f, .32f, .42f);
-        FLayer Cross = Make(EMask::Cross, EPlace::Sprite, 185.f, .24f, ParryGlow, ParryInk, .5f, 1.f, .12f);
-        Cross.SpinDegPerSec = -110.f;
-        Recipe.Layers.Add(Cross);
-        Recipe.Layers.Add(Make(EMask::Ring, EPlace::Ground, 265.f, .34f, ParryGlow, ParryInk, .24f, 1.f, .08f));
-        Thin(Recipe, EffectScale);
-        Tune(Recipe, Tuning);
-        return Recipe;
-    }
-    const bool bCritical = (HitFlags & LDObservation::Critical) != 0;
-    const bool bBroken = (HitFlags & LDObservation::ShieldBroken) != 0;
-    const bool bShield = bBroken || (HitFlags & LDObservation::ShieldAbsorbed) != 0;
-    const bool bOverdrive = (HitFlags & LDObservation::Overdriven) != 0;
-    const FLinearColor OverdriveGlow = OverdriveTint() * 3.2f, OverdriveInk = OverdriveTint() * .5f;
-
-    // The flash star: an overdrive's large magenta cross, a shield's small cyan star, a critical gold cross, a magic
-    // violet cross, else the look's star.
-    if (bOverdrive)
-    {
-        FLayer Cross = Make(EMask::Cross, EPlace::Sprite, 220.f, .3f, OverdriveGlow, OverdriveInk, .45f, 1.f, .14f);
-        Cross.SpinDegPerSec = 140.f;
-        Recipe.Layers.Add(Cross);
-    }
-    else if (bShield) { Recipe.Layers.Add(Make(EMask::Star, EPlace::Sprite, 80.f, .16f, CyanGlow, CyanInk, .6f, 1.f)); }
-    else if (bCritical)
-    {
-        FLayer Cross = Make(EMask::Cross, EPlace::Sprite, 190.f, .26f, GoldGlow, GoldInk, .5f, 1.f, .16f);
-        Cross.SpinDegPerSec = 90.f;
-        Recipe.Layers.Add(Cross);
-    }
-    else if (Look == ELDObservedHitLook::Magic) { Recipe.Layers.Add(Make(EMask::Cross, EPlace::Sprite, 120.f, .22f, MagicGlow, MagicInk, .55f, 1.f)); }
-    else
-    {
-        const float Size = Look == ELDObservedHitLook::Water ? 80.f : 120.f;
-        Recipe.Layers.Add(Make(EMask::Star, EPlace::Sprite, Size, .18f, LookGlow(Look), WarmInk, .55f, 1.f));
-    }
-
-    // The shield shell shows on the hit; a broken one bursts outwards over a wide cyan ring.
-    if (bShield)
-    {
-        Recipe.Layers.Add(Make(EMask::Hex, EPlace::Shell, 150.f, bBroken ? .32f : .26f, CyanGlow, FLinearColor::Black,
-            bBroken ? 1.f : .96f, bBroken ? 1.55f : 1.04f, .12f));
-    }
-
-    // The ground: a broken shield's wide ring, a critical double gold ring, else a warm ring unless the look owns the ground.
-    if (bBroken) { Recipe.Layers.Add(Make(EMask::Ring, EPlace::Ground, 300.f, .4f, CyanGlow, CyanInk, .3f, 1.f, .1f)); }
-    else if (bCritical)
-    {
-        Recipe.Layers.Add(Make(EMask::Ring, EPlace::Ground, 210.f, .36f, GoldGlow, GoldInk, .3f, 1.f, .1f));
-        FLayer Echo = Make(EMask::Ring, EPlace::Ground, 270.f, .36f, GoldGlow * .6f, GoldInk, .3f, 1.f, .1f);
-        Echo.DelaySeconds = .07f;
-        Echo.bOptional = true;
-        Recipe.Layers.Add(Echo);
-    }
-    else if (!bOverdrive && (Look == ELDObservedHitLook::None || Look == ELDObservedHitLook::Electric))
-    {
-        Recipe.Layers.Add(Make(EMask::Ring, EPlace::Ground, 170.f, .32f, WarmGlow * .8f, WarmInk, .35f, 1.f, .1f));
-    }
-
-    // Overdrive owns its wide ring and a spinning sigil under the struck body.
-    if (bOverdrive)
-    {
-        Recipe.Layers.Add(Make(EMask::Ring, EPlace::Ground, 340.f, .42f, OverdriveGlow, OverdriveInk, .25f, 1.f, .08f));
-        FLayer Sigil = Make(EMask::Sigil, EPlace::Ground, 230.f, .55f, OverdriveGlow * .8f, OverdriveInk, .8f, 1.05f, .12f);
-        Sigil.SpinDegPerSec = -120.f;
-        Recipe.Layers.Add(Sigil);
-    }
-
-    // The look's signature.
-    switch (Look)
-    {
-    case ELDObservedHitLook::Fire:
-        Recipe.Layers.Add(Make(EMask::Burn, EPlace::Ground, 165.f, .6f, FireGlow, BurnInk, .6f, 1.f, .15f));
-        break;
-    case ELDObservedHitLook::Water:
-        Recipe.Layers.Add(Make(EMask::Ripple, EPlace::Ground, 230.f, .6f, WaterGlow, WaterInk, .3f, 1.f, .12f));
-        break;
-    case ELDObservedHitLook::Electric:
-        Recipe.Layers.Add(Make(EMask::Bolt, EPlace::Upright, 110.f, .18f, BoltGlow, BoltInk, 1.f, 1.f, .1f));
-        break;
-    case ELDObservedHitLook::Magic:
-    {
-        FLayer Sigil = Make(EMask::Sigil, EPlace::Ground, 210.f, .65f, MagicGlow, MagicInk, .7f, 1.f, .15f);
-        Sigil.SpinDegPerSec = 60.f;
-        Recipe.Layers.Add(Sigil);
-        break;
-    }
-    default: break;
-    }
-    Thin(Recipe, EffectScale);
-    Tune(Recipe, Tuning);
-    return Recipe;
-}
-
-LDHitVfx::FRecipe LDHitVfx::ForDashStart(const FLinearColor& Tint, float EffectScale, const FLayerTuning& Tuning)
-{
-    using namespace LDHitVfxDetail;
-    FRecipe Recipe;
-    if (!FMath::IsFinite(EffectScale) || EffectScale <= 0.f) { return Recipe; }
-    const FLinearColor DashGlow(Tint.R * 2.4f, Tint.G * 2.4f, Tint.B * 2.4f, 1.f), DashInk = Tint * .35f;
-    Recipe.Layers.Add(Make(EMask::Ring, EPlace::Ground, 195.f, .24f, DashGlow, DashInk, .28f, 1.f, .08f));
-    FLayer Ripple = Make(EMask::Ripple, EPlace::Ground, 150.f, .28f, DashGlow * .7f, DashInk, .35f, 1.f, .10f);
-    Ripple.bOptional = true;
-    Recipe.Layers.Add(Ripple);
-    Thin(Recipe, EffectScale);
-    Tune(Recipe, Tuning);
-    return Recipe;
-}
-
-LDHitVfx::FRecipe LDHitVfx::ForPerfectDodge(float EffectScale, const FLayerTuning& Tuning)
-{
-    using namespace LDHitVfxDetail;
-    FRecipe Recipe;
-    if (!FMath::IsFinite(EffectScale) || EffectScale <= 0.f) { return Recipe; }
-    const FLinearColor DodgeGlow(3.4f, 2.6f, .45f), DodgeInk(.45f, .30f, .04f);
-    Recipe.Layers.Add(Make(EMask::Ring, EPlace::Ground, 280.f, .34f, DodgeGlow, DodgeInk, .22f, 1.f, .08f));
-    Recipe.Layers.Add(Make(EMask::Cross, EPlace::Sprite, 150.f, .22f, DodgeGlow, DodgeInk, .45f, 1.f, .12f));
-    Thin(Recipe, EffectScale);
-    Tune(Recipe, Tuning);
-    return Recipe;
-}
-
 float LDHitVfx::Brightness(const FLayer& Layer, float AgeSeconds)
 {
     const float Age = AgeSeconds - Layer.DelaySeconds;
@@ -852,18 +719,6 @@ LDHitVfx::FBurst LDHitVfx::BurstOf(EBurst Kind, const FLinearColor& Tint, float 
     B.Smoke = FMath::RoundToInt(float(B.Smoke) * Thin);
     B.Shards = FMath::RoundToInt(float(B.Shards) * Thin);
     return B;
-}
-
-bool LDHitVfx::HitBurstOf(ELDObservedHitLook Look, EBurst& Out, FLinearColor& Tint)
-{
-    switch (Look)
-    {
-    case ELDObservedHitLook::Fire: Out = EBurst::Flame; Tint = FLinearColor(1.f, .32f, .05f); return true;
-    case ELDObservedHitLook::Water: Out = EBurst::Splash; Tint = FLinearColor(.25f, .7f, 1.f); return true;
-    case ELDObservedHitLook::Electric: Out = EBurst::Zap; Tint = FLinearColor(1.f, .9f, .3f); return true;
-    case ELDObservedHitLook::Magic: Out = EBurst::Arcane; Tint = FLinearColor(.7f, .3f, 1.f); return true;
-    default: return false;
-    }
 }
 
 TConstArrayView<LDHitVfx::FSkillLook> LDHitVfx::SkillLooks()
@@ -1020,16 +875,6 @@ bool LDHitVfx::IsDashing(float Speed2D, bool bKnockback, bool bFalling)
     return FMath::IsFinite(Speed2D) && Speed2D >= DashSpeedCmPerSec && !bKnockback && !bFalling;
 }
 
-LDHitVfx::FTrail LDHitVfx::DashTrailOf(const FLinearColor& Tint, float EffectScale)
-{
-    FTrail T;
-    if (!FMath::IsFinite(EffectScale) || EffectScale <= 0.f) { return T; }
-    // Saturated and nearly opaque, so the streak reads on the bright yard as well as on dark floors.
-    const FLinearColor Deep(FMath::Pow(Tint.R, 1.6f), FMath::Pow(Tint.G, 1.6f), FMath::Pow(Tint.B, 1.6f));
-    T = {true, 70.f * (.6f + .4f * FMath::Clamp(EffectScale, 0.f, 1.f)), .3f, 140.f, LDHitVfxDetail::Hot(Deep, 1.6f, .9f)};
-    return T;
-}
-
 LDHitVfx::FGhosts LDHitVfx::GhostsOf(const FLinearColor& Tint, float EffectScale)
 {
     FGhosts G;
@@ -1052,61 +897,6 @@ float LDHitVfx::GhostFade(const FGhosts& Ghosts, float AgeSeconds)
 FLinearColor LDHitVfx::OverdriveTint()
 {
     return FLinearColor(1.f, .18f, .75f);
-}
-
-LDHitVfx::FZone LDHitVfx::ChargeZoneOf(float Progress, float EffectScale)
-{
-    FZone Z;
-    if (!FMath::IsFinite(EffectScale) || EffectScale <= 0.f || !FMath::IsFinite(Progress)) { return Z; }
-    const float P = FMath::Clamp(Progress, 0.f, 1.f);
-    Z.bShow = true;
-    Z.Rate = (40.f + 90.f * P) * FMath::Clamp(EffectScale, 0.f, 1.f);
-    Z.Lifetime = .45f;
-    Z.Scale = 1.f + .6f * P;
-    Z.Velocity = FVector(0, 0, 260.f + 220.f * P);
-    Z.Colour = LDHitVfxDetail::Hot(OverdriveTint(), 1.6f + 1.6f * P);
-    return Z;
-}
-
-LDHitVfx::FRecipe LDHitVfx::ForChargeReady(float EffectScale, const FLayerTuning& Tuning)
-{
-    using namespace LDHitVfxDetail;
-    FRecipe Recipe;
-    if (!FMath::IsFinite(EffectScale) || EffectScale <= 0.f) { return Recipe; }
-    const FLinearColor Glow = OverdriveTint() * 2.6f, Ink = OverdriveTint() * .4f;
-    FLayer Sigil = Make(EMask::Sigil, EPlace::Ground, 160.f, .5f, Glow, Ink, .6f, 1.f, .2f);
-    Sigil.SpinDegPerSec = 180.f;
-    Recipe.Layers.Add(Sigil);
-    Recipe.Layers.Add(Make(EMask::Cross, EPlace::Sprite, 110.f, .2f, Glow, Ink, .5f, 1.f, .2f));
-    FLayer Ring = Make(EMask::Ring, EPlace::Ground, 200.f, .3f, Glow, Ink, .3f, 1.f, .1f);
-    Ring.bOptional = true;
-    Recipe.Layers.Add(Ring);
-    Thin(Recipe, EffectScale);
-    Tune(Recipe, Tuning);
-    return Recipe;
-}
-
-LDHitVfx::FRecipe LDHitVfx::ForOverdriveRelease(float EffectScale, const FLayerTuning& Tuning)
-{
-    using namespace LDHitVfxDetail;
-    FRecipe Recipe;
-    if (!FMath::IsFinite(EffectScale) || EffectScale <= 0.f) { return Recipe; }
-    const FLinearColor Glow = OverdriveTint() * 3.4f, Ink = OverdriveTint() * .5f;
-    FLayer Cross = Make(EMask::Cross, EPlace::Sprite, 240.f, .28f, Glow, Ink, .4f, 1.f, .12f);
-    Cross.SpinDegPerSec = -160.f;
-    Recipe.Layers.Add(Cross);
-    Recipe.Layers.Add(Make(EMask::Ring, EPlace::Ground, 380.f, .45f, Glow, Ink, .2f, 1.f, .08f));
-    FLayer Echo = Make(EMask::Ring, EPlace::Ground, 480.f, .5f, Glow * .6f, Ink, .2f, 1.f, .08f);
-    Echo.DelaySeconds = .08f;
-    Echo.bOptional = true;
-    Recipe.Layers.Add(Echo);
-    FLayer Sigil = Make(EMask::Sigil, EPlace::Ground, 260.f, .6f, Glow * .8f, Ink, .7f, 1.1f, .12f);
-    Sigil.SpinDegPerSec = 90.f;
-    Recipe.Layers.Add(Sigil);
-    Recipe.Layers.Add(Make(EMask::Crack, EPlace::Ground, 200.f, .9f, Glow, FLinearColor(.02f, .005f, .015f), .8f, 1.f, .05f));
-    Thin(Recipe, EffectScale);
-    Tune(Recipe, Tuning);
-    return Recipe;
 }
 
 FLinearColor LDHitVfx::ElementTint(uint8 Element) { return LDSliceVfx::ElementInk(Element); }
