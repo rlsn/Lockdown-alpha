@@ -31,7 +31,7 @@
     {
       "id": "lobby_seat_1",
       "path": "lobby_seat_1.png",
-      "sha256": "b237a9c59df29ee3eda9a07984453523709f36e0c56a19285d75ba8046ca5b4a",
+      "sha256": "c057cbea966e3cf0fe0ebc854fb058822b31e2d66716d29fbc483ac872e8bdf6",
       "width": 544,
       "height": 816,
       "purpose": "Lobby seat card 1: portrait of the hooper in pose 1, jersey in seat 1's ink",
@@ -40,7 +40,7 @@
     {
       "id": "lobby_seat_2",
       "path": "lobby_seat_2.png",
-      "sha256": "3eb4ceef27b4f55ce295c08f1be1cfab7b97baf97eafc6ff1742662e1db4abd4",
+      "sha256": "821b7b5282dba169d3dd39211ace1a0fd012ec9bc4729d8311f80ba33227bd3e",
       "width": 544,
       "height": 816,
       "purpose": "Lobby seat card 2: portrait of the hooper in pose 2, jersey in seat 2's ink",
@@ -49,7 +49,7 @@
     {
       "id": "lobby_seat_3",
       "path": "lobby_seat_3.png",
-      "sha256": "4b0b7094434f89339a28461f0ef29358945dda03e31f4c4d466374ae3dd985b8",
+      "sha256": "00060ac670b3b53ca43bafd451f6d4af3017fb0c5df9eeedafaeb4cc41b8557c",
       "width": 544,
       "height": 816,
       "purpose": "Lobby seat card 3: portrait of the hooper in pose 3, jersey in seat 3's ink",
@@ -58,7 +58,7 @@
     {
       "id": "lobby_seat_4",
       "path": "lobby_seat_4.png",
-      "sha256": "2ff17c6987adf9264b360b967cd0183c9d79f1ba69b4a632f78453d3b70f5238",
+      "sha256": "5cee32e657e7641fb8792a1f3eca7dbca81fc3d03f8d5a8fb17b41f16a9c3a65",
       "width": 544,
       "height": 816,
       "purpose": "Lobby seat card 4: portrait of the hooper in pose 4, jersey in seat 4's ink",
@@ -67,7 +67,7 @@
     {
       "id": "lobby_seat_5",
       "path": "lobby_seat_5.png",
-      "sha256": "1247475b1ae585d29aba6b9e86f8ded513a2f5b2fce553a1b5481678c9b10b4a",
+      "sha256": "aa28096a77851c79da6e8c923cc7148aee9cc29c9a680292b9a3258d9d5c1239",
       "width": 544,
       "height": 816,
       "purpose": "Lobby seat card 5: portrait of the hooper in pose 5, jersey in seat 5's ink",
@@ -76,7 +76,7 @@
     {
       "id": "lobby_seat_6",
       "path": "lobby_seat_6.png",
-      "sha256": "dc06722e205443c013b74ea7228a413d075382283482231e2d285b0bf1e5343d",
+      "sha256": "ae3340d7b5ce4f5ce66e0057abea6aedc82f76d55b181a070ff8f556c7b0a0f3",
       "width": 544,
       "height": 816,
       "purpose": "Lobby seat card 6: portrait of the hooper in pose 6, jersey in seat 6's ink",
@@ -85,7 +85,7 @@
     {
       "id": "lobby_seat_7",
       "path": "lobby_seat_7.png",
-      "sha256": "1ea6a6604cd14f5a3a6ea41619e1e3485ade082d4ac992e405b186e630e70554",
+      "sha256": "0c2d1afe4652b303b0ca68661846aebf804556224e47628ab472bae5ffcf4dfa",
       "width": 544,
       "height": 816,
       "purpose": "Lobby seat card 7: portrait of the hooper in pose 7, jersey in seat 7's ink",
@@ -94,7 +94,7 @@
     {
       "id": "lobby_seat_8",
       "path": "lobby_seat_8.png",
-      "sha256": "1224598951de60af434f4e5f8d077850c6fff1258c58d5137393802e04a20ec3",
+      "sha256": "f66f1797ac79a3ca2b2edf4e3d4e4963fbb0236bc6fca6766856de50aca7e233",
       "width": 544,
       "height": 816,
       "purpose": "Lobby seat card 8: portrait of the hooper in pose 8, jersey in seat 8's ink",
