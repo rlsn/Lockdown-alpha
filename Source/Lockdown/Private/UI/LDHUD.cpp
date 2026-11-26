@@ -695,8 +695,10 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                         for(const LDHUD::FPKMemberView& Member:Side.Members)
                         {
                             const FBox2D Plate(FVector2D(X,(H-34.)*.5),FVector2D(X+42.,(H+34.)*.5));
-                            LDBroadcastPaint::SeatPlate(P.WithOpacity(Member.bOut?.45f:1.f),P.Layer+1,Plate,Member.Seat);
-                            if(Member.bOut){LDBroadcastPaint::Block(P,P.Layer+2,FBox2D(FVector2D(Plate.Min.X,Plate.Max.Y+1.),FVector2D(Plate.Max.X,Plate.Max.Y+4.)),LDBroadcast::LiveRed);}
+                            // A winner's plate is whole whatever became of the body once the fight ended.
+                            const bool bOut=Member.bOut&&!Side.bWinner;
+                            LDBroadcastPaint::SeatPlate(P.WithOpacity(bOut?.45f:1.f),P.Layer+1,Plate,Member.Seat);
+                            if(bOut){LDBroadcastPaint::Block(P,P.Layer+2,FBox2D(FVector2D(Plate.Min.X,Plate.Max.Y+1.),FVector2D(Plate.Max.X,Plate.Max.Y+4.)),LDBroadcast::LiveRed);}
                             X+=48.f;
                         }
                         if(Side.Members.Num()==1)
@@ -727,9 +729,37 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                     },50.f,0.f));
                     Bet->SetVisibility(ESlateVisibility::Collapsed);Fill(Bet,Index?4.f:8.f);PKBetButtons.Add(Bet);
                 }
-                PKRoleText=OneLine(TEXT(""),LDHUDStyle::TypeSmall,HudPKWrap);PKRoleText->SetJustification(ETextJustify::Center);PKRoleText->SetColorAndOpacity(LDBroadcast::Orange);Centred(PKRoleText,8);
+                // The own role: a row like the sides', an orange block at its left edge and the role in white.
+                PKRoleText=OneLine(TEXT(""),LDHUDStyle::TypeSmall,HudPKWrap-40.f);PKRoleText->SetColorAndOpacity(LDBroadcast::White);
+                PKRoleText->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Strong,LDBroadcastPaint::PointsOf(18.f)));
+                PKRoleRow=Painted(PKRoleText,[Whole](const LDUIPaint::FContext& P)
+                {
+                    const FBox2D Box=Whole(P);
+                    LDBroadcastPaint::FillSlab(P,P.Layer,Box,LDBroadcast::Panel,true,true);
+                    LDBroadcastPaint::Block(P,P.Layer+1,FBox2D(FVector2D(0.,0.),FVector2D(5.,Box.GetSize().Y)),LDBroadcast::Orange);
+                },FMargin(18,9,14,9));
+                PKRoleRow->SetVisibility(ESlateVisibility::Collapsed);Fill(PKRoleRow,8);
+                // The throw: the board's one action during the fight, a white block as wide as a row (orange while aiming).
                 PKThrowButton=LDWidgets::Button(WidgetTree,LDTerms::PKThrow,[this](){TogglePKThrowAim();},true,TEXT("HUDPKThrow"));
-                PKThrowButton->SetVisibility(ESlateVisibility::Collapsed);Centred(PKThrowButton,6);
+                {
+                    auto Style=PKThrowButton->GetStyle();
+                    Style.Normal=FSlateColorBrush(FLinearColor::Transparent);Style.Hovered=Style.Normal;Style.Pressed=Style.Normal;Style.Disabled=Style.Normal;
+                    Style.NormalPadding=FMargin(0);Style.PressedPadding=FMargin(0);PKThrowButton->SetStyle(Style);
+                    UTextBlock* Caption=CastChecked<UTextBlock>(PKThrowButton->GetContent());
+                    Caption->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Strong,LDBroadcastPaint::PointsOf(20.f)));Caption->SetColorAndOpacity(LDBroadcast::Ink);
+                    Caption->SetJustification(ETextJustify::Center);Caption->RemoveFromParent();
+                    PKThrowCaption=Caption;
+                    TWeakObjectPtr<ULDCommandButton> Weak(PKThrowButton);
+                    auto* Face=Painted(Caption,[this,Weak,Whole](const LDUIPaint::FContext& P)
+                    {
+                        const bool bOn=Weak.IsValid()&&Weak->GetIsEnabled();
+                        const bool bHot=bOn&&Weak->IsHovered();
+                        LDBroadcastPaint::FillSlab(P,P.Layer,Whole(P),(bPKThrowArmed||bHot?LDBroadcast::Orange:LDBroadcast::White).CopyWithNewOpacity(bOn?1.f:.45f));
+                    },FMargin(18,10,18,10));
+                    auto* Wide=WidgetTree->ConstructWidget<USizeBox>();Wide->SetWidthOverride(HudPKWrap);Wide->SetContent(Face);
+                    PKThrowButton->SetContent(Wide);
+                }
+                PKThrowButton->SetVisibility(ESlateVisibility::Collapsed);Fill(PKThrowButton,6);
                 PKThrowButton->SetToolTipText(FText::FromString(LDTerms::PKThrowEffect));
                 // The result: one gold bar with the outcome; under it one row per award (seat plate, name, the parts, the total).
                 PKResultBar=Row([this,Whole](const LDUIPaint::FContext& P)
@@ -749,8 +779,8 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                         const FBox2D Box=Whole(P);
                         const float H=float(Box.GetSize().Y),W=float(Box.GetSize().X);
                         if(Award.bSelf){LDBroadcastPaint::FillSlab(P,P.Layer,Box,LDBroadcast::Raised,true,true);}
-                        LDBroadcastPaint::SeatPlate(P,P.Layer+1,FBox2D(FVector2D(14.,(H-28.)*.5),FVector2D(50.,(H+28.)*.5)),Award.Seat);
-                        LDBroadcastPaint::Text(P,P.Layer+1,Award.Name,LDBroadcastPaint::LabelFont(18.f,true),FVector2D(60.,H*.5),LDBroadcast::White,FVector2D(0.,.5));
+                        LDBroadcastPaint::SeatPlate(P,P.Layer+1,FBox2D(FVector2D(14.,(H-32.)*.5),FVector2D(54.,(H+32.)*.5)),Award.Seat);
+                        LDBroadcastPaint::Text(P,P.Layer+1,Award.Name,LDBroadcastPaint::LabelFont(20.f,true),FVector2D(66.,H*.5),LDBroadcast::White,FVector2D(0.,.5));
                         float Right=float(LDBroadcastPaint::Text(P,P.Layer+1,FString::Printf(TEXT("+%lld"),Award.Total),LDBroadcastPaint::FigureFont(26.f),FVector2D(W-12.,H*.5+1.),
                             Award.bSelf?LDBroadcast::Orange:LDBroadcast::White,FVector2D(1.,.5)).Min.X)-14.f;
                         // The parts, right to left: bet, winner, participation.
@@ -758,14 +788,14 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                         for(const TPair<const TCHAR*,int32>& Part:Parts)
                         {
                             if(Part.Value<=0){continue;}
-                            Right=float(LDBroadcastPaint::Text(P,P.Layer+1,FString::Printf(TEXT("%s +%d"),Part.Key,Part.Value),LDBroadcastPaint::LabelFont(15.f,false),FVector2D(Right,H*.5),
+                            Right=float(LDBroadcastPaint::Text(P,P.Layer+1,FString::Printf(TEXT("%s +%d"),Part.Key,Part.Value),LDBroadcastPaint::LabelFont(16.f,false),FVector2D(Right,H*.5),
                                 LDBroadcast::Grey,FVector2D(1.,.5)).Min.X)-12.f;
                         }
-                    },36.f,0.f);
+                    },42.f,0.f);
                     Award->SetVisibility(ESlateVisibility::Collapsed);Fill(Award,2);PKAwardRows.Add(Award);
                 }
                 PKAnswerText=OneLine(TEXT(""),LDHUDStyle::TypeSmall,HudPKWrap);PKAnswerText->SetJustification(ETextJustify::Center);PKAnswerText->SetColorAndOpacity(LDBroadcast::Grey);Centred(PKAnswerText,6);
-                for(UWidget* Hidden:{static_cast<UWidget*>(PKRoleText.Get()),static_cast<UWidget*>(PKAnswerText.Get())}){Hidden->SetVisibility(ESlateVisibility::Collapsed);}
+                PKAnswerText->SetVisibility(ESlateVisibility::Collapsed);
                 auto* PKFit=WidgetTree->ConstructWidget<UScaleBox>();PKFit->SetStretch(EStretch::ScaleToFit);PKFit->SetStretchDirection(EStretchDirection::DownOnly);
                 PKFit->SetContent(PKBox);
                 auto* PKWidth=WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(),TEXT("HUDPKSidePanel"));PKWidth->SetWidthOverride(HudPKWrap+24.f);PKWidth->SetMaxDesiredHeight(600);PKWidth->SetContent(PKFit);
@@ -3102,6 +3132,9 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             const float Bottom=float(GetCachedGeometry().AbsoluteToLocal(Over.LocalToAbsolute(FVector2D(Over.GetLocalSize()))).Y);
             if(Over.GetLocalSize().Y>1.f){Top=FMath::Max(Top,Bottom+8.f);}
         }
+        // While the build ring is open the block sits at the foot of the screen with the ring's tables around it: the
+        // toast takes the free lane along the top edge instead, between the score bug and the corner marks.
+        if(Workshop&&Workshop->IsOpen()){Top=8.f;}
         const FVector2D TopPos(0.f,FMath::RoundToFloat(Top));
         if(!(ToastSlot->GetAnchors()==Anchor)){ToastSlot->SetAnchors(Anchor);}
         if(!ToastSlot->GetAlignment().Equals(Align)){ToastSlot->SetAlignment(Align);}
@@ -3517,25 +3550,27 @@ void ULDHUD::RefreshPK(ALDPlayerController& PC,const FLDPublicMatchView& Public,
     if(!View.bVisible||bWorkspaceOpen){return;}
     const auto Line=[](UTextBlock* Text,const FString& Value){HudSetText(Text,Value);HudSetShown(Text,!Value.IsEmpty(),ESlateVisibility::HitTestInvisible);};
     PKPaint=View;
-    // While the bet blocks show, they say what the role line would.
-    Line(PKRoleText,View.bCanBet?FString():View.Role);
+    // While the bet blocks show, they say what the role line would; the settlement shows the awards instead.
+    const FString Role=View.bCanBet||View.bResult?FString():View.Role;
+    HudSetText(PKRoleText,Role);
+    HudSetShown(PKRoleRow,!Role.IsEmpty(),ESlateVisibility::HitTestInvisible);
     for(int32 Index=0;Index<PKBetButtons.Num();++Index)
     {
         ULDCommandButton* Bet=PKBetButtons[Index];
-        // Every side has its row; it takes clicks only while the own bet can be placed or changed.
-        const bool bShown=View.Sides.IsValidIndex(Index);
+        // Every side has its row; it takes clicks only while the own bet can be placed or changed. Once a PK is won the
+        // winner's row stands alone over the awards, which name everyone.
+        const bool bWon=View.bResult&&View.Sides.ContainsByPredicate([](const LDHUD::FPKSideView& Side){return Side.bWinner;});
+        const bool bShown=View.Sides.IsValidIndex(Index)&&(!bWon||View.Sides[Index].bWinner);
         HudSetShown(Bet,bShown,View.bCanBet?ESlateVisibility::Visible:ESlateVisibility::HitTestInvisible);
         if(bShown&&Bet->GetIsEnabled()==bPKBetInFlight){Bet->SetIsEnabled(!bPKBetInFlight);}
     }
     HudSetShown(PKThrowButton,View.bCanThrow,ESlateVisibility::Visible);
     if(View.bCanThrow)
     {
-        HudSetText(CastChecked<UTextBlock>(PKThrowButton->GetContent()),View.ThrowAction);
+        HudSetText(PKThrowCaption,View.ThrowAction);
         // While armed the button stays pressable so a second press cancels the aim.
         const bool bEnabled=View.bThrowReady||bPKThrowArmed;
         if(PKThrowButton->GetIsEnabled()!=bEnabled){PKThrowButton->SetIsEnabled(bEnabled);}
-        const FLinearColor Tint=bPKThrowArmed?HudPromptFill:FLinearColor::White;
-        if(PKThrowButton->GetBackgroundColor()!=Tint){PKThrowButton->SetBackgroundColor(Tint);}
     }
     // A won PK is told by the winner's gold row; the bar speaks for a draw or a void PK, and for the own win.
     const bool bWinnerRow=View.Sides.ContainsByPredicate([](const LDHUD::FPKSideView& Side){return Side.bWinner;});

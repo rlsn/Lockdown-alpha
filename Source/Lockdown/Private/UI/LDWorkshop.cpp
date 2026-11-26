@@ -39,7 +39,7 @@ constexpr double RingRevealStagger=.03;
 constexpr double RingLandTime=.20;
 // The band's ink at its inner rule, at 78% of its outer radius and at the outer rule: one step lighter towards the edge than
 // the comp, so the half-disc sits lighter on bright ground.
-constexpr float BandInnerInk=.94f,BandMidInk=.84f,BandEdgeInk=.70f;
+constexpr float BandInnerInk=.97f,BandMidInk=.94f,BandEdgeInk=.90f;
 
 FLinearColor ElementInk(ELDDemoElement Element)
 {
@@ -1124,30 +1124,46 @@ void ULDWorkshop::PaintBand(FPainter& P) const
         const float From=A-SectorHalf,To=From+2.f*SectorHalf*(1.f-FMath::Square(1.f-Sweep));
         const float Inner=SectorInner*R,Outer=L.Outer[HostIndex],Mid=FMath::Max(Inner+1.f,.78f*Outer);
         const TArray<FVector2D> In=LDRingPaint::Arc(C,Inner,From,To,32),Middle=LDRingPaint::Arc(C,Mid,From,To,32),Out=LDRingPaint::Arc(C,Outer,From,To,32);
-        // A solid plate rather than a tint of the floor: near-opaque ink that lightens a little towards the rim, a soft
-        // shadow falling outside the rim, hairlines every ten degrees across it. An empty host is the same plate, thinner.
-        const float Plate=Host.bEmpty?.82f:1.f;
-        P.Band(Out,LDRingPaint::Arc(C,Outer+14.f*R,From,To,32),[&](FVector2D At){return LDBroadcast::Ink.CopyWithNewOpacity(.34f*(1.f-FMath::Clamp((float(FVector2D::Distance(At,C))-Outer)/(14.f*R),0.f,1.f)));});
+        // A physical plate over the floor, in three states. Empty: a dim, dark plate with a dashed rim. Equipped: a full
+        // plate that lightens towards the rim and carries its medal's element (a white inner rule without one). Target of
+        // the held card: the same plate lit orange. Every plate has a shadow falling outside its rim, a bevel (a light
+        // line inside the rim, a dark one inside the inner edge), dark seams on its two radial sides, and a faint grid.
+        const bool bTarget=(HeldForm==Host.Form&&!(Host.Form==ELDCardForm::Skill&&Host.bEmpty))||(SelectedBlueprint!=INDEX_NONE&&HostIndex>=1&&HostIndex<=3);
+        const float Plate=Host.bEmpty?.90f:1.f;
+        const FLinearColor Rim=Host.bEmpty?LDBroadcast::Ink:LDBroadcast::Raised;
+        const FLinearColor Accent=bTarget?LDBroadcast::Orange:Host.bHasMedal?ElementInk(Host.Medal.Element):LDBroadcast::White;
+        const auto Along=[&](float Radius){return LDRingPaint::Arc(C,Radius,From,To,32);};
+        P.Band(Out,Along(Outer+18.f*R),[&](FVector2D At){return LDBroadcast::Ink.CopyWithNewOpacity(.5f*FMath::Square(1.f-FMath::Clamp((float(FVector2D::Distance(At,C))-Outer)/(18.f*R),0.f,1.f)));});
         P.Band(In,Middle,[&](FVector2D At){return LDBroadcast::Ink.CopyWithNewOpacity(Plate*FMath::Lerp(BandInnerInk,BandMidInk,FMath::Clamp((float(FVector2D::Distance(At,C))-Inner)/(Mid-Inner),0.f,1.f)));});
         P.Band(Middle,Out,[&](FVector2D At)
         {
             const float T=FMath::Clamp((float(FVector2D::Distance(At,C))-Mid)/FMath::Max(1.f,Outer-Mid),0.f,1.f);
-            return FMath::Lerp(LDBroadcast::Ink,LDBroadcast::Raised,T).CopyWithNewOpacity(Plate*FMath::Lerp(BandMidInk,BandEdgeInk,T));
+            return FMath::Lerp(LDBroadcast::Ink,Rim,T).CopyWithNewOpacity(Plate*FMath::Lerp(BandMidInk,BandEdgeInk,T));
         });
+        // The grid: a hairline every ten degrees and one along each card row.
         for(float T=10.f;From+T<To-.01f;T+=10.f)
-        {P.Stroke({LDRingPaint::Polar(C,Inner+8.f*R,From+T),LDRingPaint::Polar(C,Outer-6.f*R,From+T)},1.f*R,LDBroadcast::White.CopyWithNewOpacity(.05f));}
-        if(Host.bHasMedal)
+        {P.Stroke({LDRingPaint::Polar(C,Inner+8.f*R,From+T),LDRingPaint::Polar(C,Outer-8.f*R,From+T)},1.f*R,LDBroadcast::White.CopyWithNewOpacity(Host.bEmpty?.05f:.09f));}
+        for(float Radius=Inner+(Outer-Inner)/3.f;Radius<Outer-12.f*R;Radius+=(Outer-Inner)/3.f)
+        {P.Stroke(Along(Radius),1.f*R,LDBroadcast::White.CopyWithNewOpacity(Host.bEmpty?.05f:.09f));}
+        if(!Host.bEmpty||bTarget)
         {
-            const FLinearColor Element=ElementInk(Host.Medal.Element);
-            P.Band(In,Out,[&](FVector2D){return Element.CopyWithNewOpacity(.12f);});
-            P.Band(In,LDRingPaint::Arc(C,Inner+6.f*R,From,To,32),[&](FVector2D){return Element;});
+            // The plate's colour: a wash that is strongest at the inner edge, and a solid inner rule.
+            P.Band(In,Out,[&](FVector2D At){return Accent.CopyWithNewOpacity((bTarget?.22f:Host.bHasMedal?.20f:.05f)*(1.f-.7f*FMath::Clamp((float(FVector2D::Distance(At,C))-Inner)/FMath::Max(1.f,Outer-Inner),0.f,1.f)));});
+            P.Band(In,Along(Inner+6.f*R),[&](FVector2D){return Accent.CopyWithNewOpacity(Host.bHasMedal||bTarget?1.f:.7f);});
         }
-        // A held card's hosts and a blueprint's skill slots take the thick rule.
-        const bool bTarget=(HeldForm==Host.Form&&!(Host.Form==ELDCardForm::Skill&&Host.bEmpty))||(SelectedBlueprint!=INDEX_NONE&&HostIndex>=1&&HostIndex<=3);
-        // The rim: thick white for a host that can take the held card, a dashed rule for an empty host, else the plain rule.
-        if(Host.bEmpty&&!bTarget){P.Dashed(Out,2.f*R,12.f*R,8.f*R,LDBroadcast::White.CopyWithNewOpacity(.6f),false);}
-        else{P.Stroke(Out,(bTarget?4.f:2.f)*R,bTarget?LDBroadcast::White:LDBroadcast::White.CopyWithNewOpacity(.85f));}
-        P.Stroke(In,2.f*R,LDBroadcast::White.CopyWithNewOpacity(Host.bEmpty?.2f:.4f));
+        // The bevel and the seams.
+        P.Stroke(Along(Outer-4.f*R),2.f*R,LDBroadcast::White.CopyWithNewOpacity(Host.bEmpty?.08f:.2f));
+        P.Stroke(Along(Inner+(Host.bEmpty?3.f:9.f)*R),2.f*R,FLinearColor::Black.CopyWithNewOpacity(.45f));
+        for(const float Edge:{From,To})
+        {
+            if(To-From<2.f*SectorHalf-.05f&&Edge==To){continue;}
+            P.Stroke({LDRingPaint::Polar(C,Inner,Edge),LDRingPaint::Polar(C,Outer,Edge)},3.f*R,FLinearColor::Black.CopyWithNewOpacity(.6f));
+        }
+        // The rim: a thick orange rule on a host that can take the held card, a dashed rule on an empty host, else white.
+        if(bTarget){P.Stroke(Out,4.f*R,LDBroadcast::Orange);}
+        else if(Host.bEmpty){P.Dashed(Out,2.f*R,12.f*R,8.f*R,LDBroadcast::White.CopyWithNewOpacity(.5f),false);}
+        else{P.Stroke(Out,2.f*R,LDBroadcast::White.CopyWithNewOpacity(.9f));}
+        if(Host.bEmpty&&!bTarget){P.Stroke(In,2.f*R,LDBroadcast::White.CopyWithNewOpacity(.2f));}
         for(float T=0.f;From+T<=To+.01f;T+=2.5f)
         {
             const bool bMajor=FMath::Abs(FMath::Fmod(T,10.f))<.01f;
