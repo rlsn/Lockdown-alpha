@@ -1192,7 +1192,8 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             const auto Plate=[&](const FVector& SiteCm,const TCHAR* Glyph,const TCHAR* Name,const FLinearColor& Ink,int64 LeftMs,float Progress,const FLinearColor& ProgressInk)
             {
                 FVector2D Screen;
-                if(!PC->ProjectWorldLocationToScreen(SiteCm+FVector(0.,0.,260.),Screen)){return;}
+                // High enough to clear the own bars and status row when the own body stands on the site.
+                if(!PC->ProjectWorldLocationToScreen(SiteCm+FVector(0.,0.,400.),Screen)){return;}
                 const float X=float(Screen.X)*ToLocalX,Y=float(Screen.Y)*ToLocalY;
                 if(Culled(X,Y)){return;}
                 const FString Seconds=LeftMs>0?FString::Printf(TEXT("%lld"),(LeftMs+999)/1000):FString();
