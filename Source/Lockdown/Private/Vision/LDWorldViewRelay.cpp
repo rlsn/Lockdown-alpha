@@ -1,4 +1,5 @@
 #include "Vision/LDWorldViewRelay.h"
+#include "Audio/LDAudioSubsystem.h"
 #include "UI/LDBroadcastStyle.h"
 #include "World/LDRecoveryOrbMarker.h"
 #include "Art/LDArtSubsystem.h"
@@ -744,9 +745,13 @@ void ALDObservedGroundProxy::Apply(const FLDObservedGroundState& Ground, double 
     }
     // A freshly laid state (not one walked into sight) appears with its burst; the burst leaves with the proxy.
     const bool bFresh = !bShown && Ground.TotalMs >= Ground.RemainingMs && Ground.TotalMs - Ground.RemainingMs < 400;
+    const bool bNewKind = !bShown || Ground.Kind != Shown.Kind;
     Shown = Ground;
     bShown = true;
     if (bShape) { ShowParticles(); }
+    // Its sound: one quiet loop at its centre while it is shown (AUDIO_AND_FEEL).
+    if (ULDAudioSubsystem* Audio = bNewKind && GetGameInstance() ? GetGameInstance()->GetSubsystem<ULDAudioSubsystem>() : nullptr)
+    { Audio->StartGroundLoop(*this, Ground.Kind, GetActorLocation()); }
     if (bFresh)
     {
         LDHitVfx::EBurst Kind;
@@ -788,6 +793,7 @@ void ALDObservedGroundProxy::ShowParticles()
 
 void ALDObservedGroundProxy::EndPlay(const EEndPlayReason::Type Reason)
 {
+    if (ULDAudioSubsystem* Audio = GetGameInstance() ? GetGameInstance()->GetSubsystem<ULDAudioSubsystem>() : nullptr) { Audio->StopGroundLoop(*this); }
     if (ULDImpactFxSubsystem* Impacts = GetWorld() ? GetWorld()->GetSubsystem<ULDImpactFxSubsystem>() : nullptr) { Impacts->ClearForActor(*this); }
     Super::EndPlay(Reason);
 }

@@ -91,6 +91,12 @@ enum class ELDAudioCue : uint8
     MatchStart,
     // Another visible body knocked out (its fall and dust ring); the own death is SelfDeath.
     BodyFall,
+    // A visible public ground state (ELDGroundStateKind Puddle..Field): one quiet loop at its centre while it is shown.
+    GroundPuddle,
+    GroundIce,
+    GroundFire,
+    GroundMiasma,
+    GroundField,
     Count UMETA(Hidden)
 };
 
@@ -135,6 +141,10 @@ namespace LDAudio
     LOCKDOWN_API bool ParseMusicTrackId(const FString& Id, ELDMusicTrack& Out);
     // Menu and Escalation loop; Farm plays once.
     LOCKDOWN_API bool MusicTrackLoops(ELDMusicTrack Track);
+    // The ground-state cues loop (they play while their ground is shown); every other cue is a one-shot.
+    LOCKDOWN_API bool CueLoops(ELDAudioCue Cue);
+    // The loop of a ground state kind (ELDGroundStateKind), None for a kind without one.
+    LOCKDOWN_API ELDAudioCue GroundLoopCue(uint8 Kind);
 
     // Retired numbers below Count, which are not cues.
     inline constexpr int32 RetiredCueCount = 6;

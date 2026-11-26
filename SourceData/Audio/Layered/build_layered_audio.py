@@ -535,6 +535,58 @@ def ui_medal_fuse(n):  # two element stones clinking together and fusing with a 
                       (0.12, band(fab("MagicFade_Appear1", n, 3, 0.45, 0.25), lo=1500), -6)), -18)
 
 
+# Ground-state loops (one quiet loop while a puddle, ice, fire, miasma or electric field is shown): the steady middle of a
+# long recording, its tail crossfaded into its head so the loop has no seam.
+def segment(relative, start, length):
+    x = load(relative)
+    return x[int(start * RATE):int((start + length) * RATE)]
+
+
+def seamless(y, xfade=0.5):
+    n = int(xfade * RATE)
+    t = np.linspace(0, np.pi / 2, n)
+    head = y[:n] * np.sin(t) + y[-n:] * np.cos(t)
+    return np.concatenate([head, y[n:-n]])
+
+
+def loop_finish(y, rms_db=-26.0):
+    r = np.sqrt(np.mean(y ** 2)) or 1
+    y = y * 10 ** (rms_db / 20) / r
+    p = np.max(np.abs(y))
+    return y * 0.5 / p if p > 0.5 else y
+
+
+def ground_puddle(n):  # water lapping
+    bed = band(segment(f"{MAGIC}/SW_MagicBeam_Water1_1.wav", 0.8, 3.5), hi=2200)
+    lap = band(segment(f"{MAGIC}/SW_MagicCast_Liquid_Water_2.wav", 0.0, 1.0), lo=600, hi=4000)
+    return loop_finish(seamless(mix((0, bed, 0), (0.9, lap, -10), (2.3, lap[::-1].copy(), -12))))
+
+
+def ground_ice(n):  # a cold wind over ice with a faint crystal shimmer
+    bed = band(segment(f"{MAGIC}/SW_MagicSpell_FreezingWind_2.wav", 1.0, 3.5), hi=3500)
+    tink = band(fab("MagicImpact_Crystal", 1, 4, 0.4, 0.25), lo=3000)
+    return loop_finish(seamless(mix((0, bed, 0), (0.8, tink, -18), (2.2, tink, -20))))
+
+
+def ground_fire(n):  # a crackling fire with a low roar
+    bed = segment(f"{MAGIC}/SW_MagicSpell_FireTrail_5.wav", 2.0, 3.5)
+    roar = band(segment(f"{SCIFI}/thrusterFire_000.ogg", 1.0, 3.5), hi=900)
+    return loop_finish(seamless(mix((0, bed, 0), (0, roar, -8))))
+
+
+def ground_miasma(n):  # a low toxic drone with slow bubbles
+    drone = band(segment(f"{SCIFI}/spaceEngineLow_000.ogg", 1.0, 3.5), hi=450)
+    bubble = band(fab("MagicCast_Liquid_Gore", 2, 6, 0.6, 0.3), hi=2500)
+    return loop_finish(seamless(mix((0, drone, 0), (0.4, bubble, -6), (1.7, scifi("slime", 1, 2, 0.5, 0.3), -9),
+                                    (2.6, bubble[::-1].copy(), -8))))
+
+
+def ground_field(n):  # an electric hum with crackle
+    hum = band(segment(f"{MAGIC}/SW_MagicChant_LightningCharge_1.wav", 1.5, 3.5), lo=150, hi=6000)
+    field = band(scifi("forceField", 0, 5, 0.9, 0.3), hi=3000)
+    return loop_finish(seamless(mix((0, hum, 0), (0.6, field, -10), (2.0, field, -12))))
+
+
 def on_frame(make):
     """A skill release or hit plays on its frame (AUDIO_AND_FEEL sync table: transient within 16 ms): the lead-in before
     the sound first reaches half its peak is trimmed to 5 ms."""
@@ -566,8 +618,20 @@ SOUNDS = {"hit_basic": hit_basic, "hit_finisher": hit_finisher, "hit_electric": 
           "ui_pickup": ui_pickup, "ui_install": ui_install, "ui_reject": ui_reject, "ui_workshop_open": ui_workshop_open,
           "ui_workshop_close": ui_workshop_close, "ui_offer_deal": ui_offer_deal, "ui_gain": ui_gain,
           "ui_add_point": ui_add_point, "ui_hold_charge": ui_hold_charge, "ui_final_lock": ui_final_lock,
-          "ui_medal_fuse": ui_medal_fuse}
+          "ui_medal_fuse": ui_medal_fuse,
+          "ground_puddle": (ground_puddle, 1), "ground_ice": (ground_ice, 1), "ground_fire": (ground_fire, 1),
+          "ground_miasma": (ground_miasma, 1), "ground_field": (ground_field, 1)}
 TAKES = 3
+# Peaky sounds the loudness pass could not raise to their mix level without clipping (a click or snap far above the
+# body): a gentle soft limiter lowers the peaks so the playback volume can reach the level (about 4-6 dB).
+DENSE = {"ui_install", "ui_offer_deal", "ui_gain", "ui_final_lock", "skill_crotch_grab", "skill_crotch_grab_hit", "skill_unplug",
+         "skill_flyer_trap", "skill_flyer_trap_hit", "skill_brace", "skill_cola_shake", "skill_desk_fan", "skill_desk_fan_hit", "skill_stale_takeout"}
+
+
+def soft_limit(y, drive=2.5, peak_db=-1.0):
+    p = np.max(np.abs(y)) or 1
+    z = np.tanh(drive * y / p) / np.tanh(drive)
+    return z * 10 ** (peak_db / 20)
 # Skill sounds keep two takes each (the import table's per-skill count).
 SOUNDS.update({f"skill_{name}": (on_frame(globals()[f"skill_{name}"]), 2) for name in SKILLS})
 SOUNDS.update({f"skill_{name}_hit": (on_frame(globals()[f"skill_{name}_hit"]), 2) for name in SKILL_HITS})
@@ -584,7 +648,11 @@ def main():
             continue
         rng = random.Random(name)
         for n in range(takes):
-            samples = pitch(make(n), rng.uniform(0.97, 1.03))
+            ratio = rng.uniform(0.97, 1.03)
+            # A loop keeps its own pitch: resampling is not circular and would open a seam.
+            samples = make(n) if name.startswith("ground_") else pitch(make(n), ratio)
+            if name in DENSE:
+                samples = soft_limit(samples)
             if not args.inputs:
                 soundfile.write(OUT / f"{name}_{n + 1}.wav", samples.astype(np.float64), RATE, subtype="PCM_16")
                 print(f"{name}_{n + 1:<14} {len(samples) / RATE * 1000:6.0f} ms")

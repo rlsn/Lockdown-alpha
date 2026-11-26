@@ -2,6 +2,7 @@
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "Audio/LDAudioTypes.h"
+#include "UObject/ObjectKey.h"
 #include "LDAudioSubsystem.generated.h"
 
 class UAudioComponent;
@@ -53,6 +54,11 @@ public:
     bool HasOwnSkillRelease(uint8 Ability) const;
     // A skill's own hit at a visible body's location; false (nothing played) when the skill has no hit of its own.
     bool PlaySkillHit(uint8 Ability, const FVector& Location, float VolumeMultiplier = 1.f);
+    // A shown public ground state's loop (LDAudio::GroundLoopCue) at its centre while Ground (its client proxy) shows it;
+    // a new kind replaces the previous loop. Each kind keeps at most GroundVoices of the nearest loops.
+    void StartGroundLoop(const AActor& Ground, uint8 Kind, const FVector& Centre);
+    // The loop fades out when its ground leaves the view or expires.
+    void StopGroundLoop(const AActor& Ground);
     bool IsCatalogReady() const { return Catalog != nullptr; }
     const FString& GetCatalogError() const { return CatalogError; }
 private:
@@ -63,6 +69,7 @@ private:
     UPROPERTY(Transient) TObjectPtr<USoundAttenuation> BodyAttenuation;
     // One concurrency group per sound (a cue, a skill's release, a skill's hit), made on first use.
     UPROPERTY(Transient) TMap<FName, TObjectPtr<USoundConcurrency>> Concurrency;
+    TMap<TObjectKey<AActor>, TWeakObjectPtr<UAudioComponent>> GroundLoops;
     // The current track's component and the outgoing ones still fading; all persist across level transitions.
     UPROPERTY(Transient) TObjectPtr<UAudioComponent> MusicComponent;
     UPROPERTY(Transient) TArray<TObjectPtr<UAudioComponent>> FadingMusic;

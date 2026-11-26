@@ -63,7 +63,7 @@
 | 局内菜单 | LOCALLY VERIFIED | `ULDUIRoot::BuildWorld` 菜单条 | `Match_Menu*` |  |
 | 技能悬停说明与 Alt 公式 | IMPLEMENTED | `ULDHUD` ActionDetail | — | 说明卡跟随系统光标，探针不移动用户鼠标，未截到 |
 | 死亡横幅、承伤回放与复活选点 | LOCALLY VERIFIED | `ULDHUD` DeathBanner、SpawnChoice、`LDRecapChain` | `Match_Death*`、`Match_Respawned*` | 以 DEV 无主地面状态造成真实死亡拍摄；PvP 击杀来源未拍 |
-| PK 报名与 PK 面板 | IMPLEMENTED | `ULDHUD::RefreshPK` | — | 面板已换 B 配色；单人房无法凑满两人报名，未拍 |
+| PK 报名与 PK 对阵板（押注、准备、进行、结算与得点） | LOCALLY VERIFIED | `ULDHUD::RefreshPK`、`LDHUD::PKPanel`（`FPKMemberView`、赔率、押注数、倒计时秒数）：红色 PK 标与场次、倒计时大数字、每方一行（席位牌、单人方的名字与等级、押注点、赔率，押注期整行即押注按钮），出局者变暗加红杠，胜方整行金色，其下每人得点 | `Match_R1*`、`production/ui/m6/`（真实对局第一次中场休息，AI 自行报名，房主观战） | 房主亲自参赛、组队对阵、平局与无效 PK、观众投掷未拍；配装页上方的紧凑押注条仍是文字条 |
 | NPC：外卖柜读条、二手贩子、画饼老板 | NOT STARTED | `LDWorldLabels`、`LDWorldFeedback` | — | 探针尚不能驱动角色走到外卖柜或二手贩子 |
 | 升级时刻 | LOCALLY VERIFIED | `ULDHUD::PaintMoments`、`LDWorldFeedback` | `hud/seq-levelup/` |  |
 | 击杀时刻（本人击杀 K.O.） | LOCALLY VERIFIED | `ULDHUD::PaintMoments`：比分条下一块小牌（K.O.、本人席位 ▸ 被击杀者席位色块与号码、下方红条），不遮挡战斗画面 | `Match_Kill*`、`production/ui/m4/`（探针用 DEV“设置属性”加攻击力打出的真实击杀，画面定格于固定时刻） | — |

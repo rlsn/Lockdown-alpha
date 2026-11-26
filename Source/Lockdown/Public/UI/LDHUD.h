@@ -304,16 +304,18 @@ private:
     // Bets and throws are owner intents the server decides (ALDPlayerController::SubmitPKBet/SubmitPKThrow); their answers
     // show in the panel and as a toast. Hit-tested, so its buttons take clicks.
     UPROPERTY() TObjectPtr<UBorder> PKPanelBorder;
-    UPROPERTY() TObjectPtr<UTextBlock> PKTitleText;
-    UPROPERTY() TObjectPtr<UTextBlock> PKCountdownText;
-    UPROPERTY() TObjectPtr<UTextBlock> PKRingText;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> PKSideTexts;
+    // The PK board (top right): a painted head (the PK, its countdown figure, the ring), one painted row per side that
+    // is also its bet button while betting is open, the own role, the throw, the painted result bar and award rows.
+    // The painters read PKPaint, the view of the last refresh.
+    LDHUD::FPKPanelView PKPaint;
+    UPROPERTY() TObjectPtr<UWidget> PKHead;
     UPROPERTY() TObjectPtr<UTextBlock> PKRoleText;
+    UPROPERTY() TObjectPtr<UWidget> PKRoleRow;
+    UPROPERTY() TObjectPtr<UTextBlock> PKThrowCaption;
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> PKBetButtons;
     UPROPERTY() TObjectPtr<ULDCommandButton> PKThrowButton;
-    UPROPERTY() TObjectPtr<UTextBlock> PKResultLine;
-    UPROPERTY() TObjectPtr<UTextBlock> PKAwardsTitle;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> PKAwardTexts;
+    UPROPERTY() TObjectPtr<UWidget> PKResultBar;
+    UPROPERTY() TArray<TObjectPtr<UWidget>> PKAwardRows;
     UPROPERTY() TObjectPtr<UTextBlock> PKAnswerText;
     // #331: compact PK matchup + betting strip kept visible at the top while Workshop is open during Draw / Betting.
     UPROPERTY() TObjectPtr<UBorder> PKCompactBar;

@@ -11,7 +11,10 @@ param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(300,1500)][int]$
     [switch]$CaptureOnly,
     # With CaptureOnly: the Host records its own frames and game audio into this folder (Probes/LDGameRecorder.h). The Host
     # stays off screen; nothing on the desktop is recorded.
-    [string]$RecordGame)
+    [string]$RecordGame,
+    # With CaptureOnly: a camera-feedback A/B take with the Host's camera shake off (NoShake) or reduced combat effects on
+    # (Reduced); the default is the shipped preferences.
+    [ValidateSet('Default','NoShake','Reduced')][string]$Feel = 'Default')
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
 Assert-LDDemoInputs
@@ -52,6 +55,7 @@ function Start-CombatRole {
         if ($CaptureOnly) { $arguments += ' -LDDemoCombatCaptureOnly' }
         if ($CaptureOnly -and $Role -eq 'Host') { $arguments = $arguments.Replace(' -nosound', '') + ' -LDAudioEventLog' }
         if ($CaptureOnly -and $RecordGame -and $Role -eq 'Host') { $arguments += ' -LDRecordGame="{0}"' -f $RecordGame }
+        if ($CaptureOnly -and $Feel -ne 'Default' -and $Role -eq 'Host') { $arguments += " -LDDemoCombatFeel=$Feel" }
         $arguments
     }
 }

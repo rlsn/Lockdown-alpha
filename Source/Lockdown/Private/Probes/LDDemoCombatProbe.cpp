@@ -269,6 +269,7 @@ public:
     bool bCaptureOnly = false;
     // Capture-only: failed value checks are recorded and counted but keep the fight going; Net, Skills and Fail() still end it.
     int32 ToleratedFailures = 0;
+    FString CaptureFeel;
     bool bFailing = false;
     int64 HpAtStopP2 = -1, BasicIntervalMs = 0, RespawnAtMs = 0, ProtectedUntilMs = 0;
     double StopSampledAt = 0;
@@ -455,6 +456,13 @@ public:
         }
         // #198: the whole duel runs inside the first field segment; a mid rest retires every field life, so its start is a
         // failure of its own rather than of whichever stage it interrupts.
+        // A capture-only A/B of the camera feedback (-LDDemoCombatFeel=NoShake or Reduced): the Host's own preference, as
+        // the settings page would set it; a normal check always runs the defaults.
+        if (bCaptureOnly && IsHost() && !CaptureFeel.IsEmpty() && PC->Controls)
+        {
+            PC->Controls->bCameraShake = CaptureFeel != TEXT("NoShake");
+            PC->Controls->bReduceCombatEffects = CaptureFeel == TEXT("Reduced");
+        }
         const FLDTimelineView& Timeline = Public->PublicMatch.Timeline;
         if (Stage > EStage::Spawned && Timeline.Stage == ELDMatchStage::Rest && Timeline.RestIndex > 0)
         {
@@ -3016,6 +3024,7 @@ public:
         Report->SetBoolField(TEXT("dev_probe"), true);
         Report->SetBoolField(TEXT("capture_only"), bCaptureOnly);
         Report->SetNumberField(TEXT("capture_tolerated_failures"), ToleratedFailures);
+        Report->SetStringField(TEXT("capture_feel"), CaptureFeel.IsEmpty() ? TEXT("Default") : CaptureFeel);
         Report->SetBoolField(TEXT("normal_start"), true);
         Report->SetStringField(TEXT("scope"), IsHost()
             ? TEXT("DEV-only owned-connection combat/orders scenario, target and killer role: a participating Listen Host that is attacked, audits the hits, kills with a right-click order and audits the respawn; then, through its DEV growth fixture's preset offers and XP grants, learns active_pants_down from its opening offer through an ordinary build command, roots Client1, observes its shield, is hit and slowed by Client1's snark bolt and lands a basic hit after a chase. It renders its main view and keeps captures of the observed root, shield and bolt flight for presentation review (not compared by pixels). Not camps, AI, capture or full-match acceptance.")
@@ -3095,6 +3104,7 @@ void LDDemoTests::StartCombatProbe(ALDPlayerController& Controller)
     Probe->Controller = &Controller;
     Probe->World = Controller.GetWorld();
     Probe->bCaptureOnly = FParse::Param(FCommandLine::Get(), TEXT("LDDemoCombatCaptureOnly"));
+    FParse::Value(FCommandLine::Get(), TEXT("LDDemoCombatFeel="), Probe->CaptureFeel);
     Probe->Deadline = FPlatformTime::Seconds() + Timeout;
     FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Probe](float) { return Probe->Tick(); }), .1f);
 }

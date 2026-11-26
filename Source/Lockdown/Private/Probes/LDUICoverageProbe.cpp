@@ -243,7 +243,7 @@ public:
             {TEXT("Hooper_Idle"),0.f,-14.f},
             {TEXT("KB_012_AA_Basketball_PlayerA_Basic_Stance_Type01_LH_Loop"),.2f,16.f},
             {TEXT("KB_043_AA_Basketball_PlayerA_Between_The_Legs_Type01_Loop"),.4f,-24.f},
-            {TEXT("KB_098_AA_Basketball_PlayerA_Spin_Move_RH_Loop"),.7f,22.f},
+            {TEXT("KB_098_AA_Basketball_PlayerA_Spin_Move_RH_Loop"),.7f,202.f},
             {TEXT("KB_149_AA_Basketball_PlayerA_Free_Throw_LH"),.5f,-8.f},
             {TEXT("KB_044_AA_Basketball_PlayerA_Between_The_Legs_Type02_Loop"),1.3f,28.f},
             {TEXT("KB_152_AA_Basketball_PlayerA_Jump_Shot_RH"),.35f,-20.f},
@@ -423,8 +423,38 @@ public:
                 }
                 return Settled(Now,1.5);
             },10.,false});
+        // The first mid rest as it really runs (the rivals sign up for the PK by themselves; the host watches and may
+        // bet): each step is waited for, then the stage clock is held (DEV pause; bodies and the fight go on) while its
+        // sizes are shot, and let go by the next page.
+        const auto RestStep=[this](const TCHAR* Name,ELDRestStep Step,bool bSignup,double Hold,double Timeout)
+        {
+            Pages.Add({Name,[this,Step,bSignup,Hold](ALDPlayerController& PC,double Now)
+            {
+                const FLDPublicMatchView* View=Match(PC);
+                if(Once(Now,0)){Dev(PC,ELDDevTestOp::SetCountdownPaused,0);HeldAt=-1.;}
+                if(!View||View->Phase!=ELDMatchPhase::Rest||View->Timeline.Step!=Step){return false;}
+                if(bSignup&&View->ServerNowMs<View->Timeline.SignupOpensAtMs){return false;}
+                if(HeldAt<0.){HeldAt=Now;}
+                if(Now-HeldAt>=Hold&&Once(Now,1)){Dev(PC,ELDDevTestOp::SetCountdownPaused,1);}
+                return Now-HeldAt>=Hold+.8;
+            },Timeout});
+        };
+        RestStep(TEXT("Match_R1Build"),ELDRestStep::Build,false,1.5,240.);
+        RestStep(TEXT("Match_R1Signup"),ELDRestStep::Build,true,1.,90.);
+        RestStep(TEXT("Match_R1Betting"),ELDRestStep::Betting,false,.5,40.);
+        RestStep(TEXT("Match_R1PKReady"),ELDRestStep::PKReady,false,.3,30.);
+        RestStep(TEXT("Match_R1PK"),ELDRestStep::PK,false,4.,30.);
+        RestStep(TEXT("Match_R1Settlement"),ELDRestStep::Settlement,false,.3,80.);
+        RestStep(TEXT("Match_R1Return"),ELDRestStep::Return,false,.3,30.);
+        // Back in the field the stage clock is held again, so the second rest does not arrive under the pages below.
         Pages.Add({TEXT("Match_Scoreboard"),[this](ALDPlayerController& PC,double Now)
-            {if(Once(Now,0)){Key(PC,PC.BindingKey(TEXT("Scoreboard")),true);}return Settled(Now,.8);}});
+            {
+                if(Once(Now,0)){Dev(PC,ELDDevTestOp::SetCountdownPaused,0);HeldAt=-1.;}
+                if(!InPhase(PC,ELDMatchPhase::Development)&&!Settled(Now,60.)){return false;}
+                if(HeldAt<0.){HeldAt=Now;}
+                if(Now-HeldAt>=2.&&Once(Now,1)){Dev(PC,ELDDevTestOp::SetCountdownPaused,1);Key(PC,PC.BindingKey(TEXT("Scoreboard")),true);}
+                return Now-HeldAt>=3.;
+            },90.});
         // The rank-up page of a slot that can rank up. (The live skill card follows the OS cursor, which the probe leaves
         // alone, so it is not shot here.)
         Pages.Add({TEXT("Match_RankUp"),[this](ALDPlayerController& PC,double Now)
@@ -452,6 +482,7 @@ public:
         Pages.Add({TEXT("Match_Final"),[this](ALDPlayerController& PC,double Now)
             {
                 if(Once(Now,0)&&PC.RootUI){PC.RootUI->CloseTopModal();PC.RootUI->CloseTopPanel();if(PC.RootUI->IsMenuOpen()){PC.RootUI->ToggleMenu();}}
+                if(Once(Now,9)){Dev(PC,ELDDevTestOp::SetCountdownPaused,0);}
                 // One request; a second one while the queued opening is pending is refused (StaleContext) and toasts.
                 if(InPhase(PC,ELDMatchPhase::Development)&&Once(Now,10,1.)){Dev(PC,ELDDevTestOp::OpenCapture,0);}
                 if(InPhase(PC,ELDMatchPhase::Development)&&Once(Now,11,40.)){Dev(PC,ELDDevTestOp::OpenCapture,0);}
@@ -502,7 +533,7 @@ public:
     }
     TWeakObjectPtr<ACameraActor> LineupCamera;
     ESlateVisibility RootShown=ESlateVisibility::SelfHitTestInvisible,HudShown=ESlateVisibility::SelfHitTestInvisible;
-    double KillBase=-1.,KillSeenAt=-1.,StageBase=-1.;
+    double KillBase=-1.,KillSeenAt=-1.,StageBase=-1.,HeldAt=-1.;
     TWeakObjectPtr<ALDCharacter> PosedBody;
     TArray<TWeakObjectPtr<AActor>> HiddenBodies;
     double DeadAt=0.;
