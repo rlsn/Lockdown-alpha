@@ -814,11 +814,11 @@ void ULDHumanoidVisualComponent::ApplyMonsterLook(uint8 CreatureId)
         FString::Printf(TEXT("Camp tier %u"), uint32(CreatureId)));
 }
 
-bool ULDHumanoidVisualComponent::HoldPose(UAnimSequence* Still, float TimeSeconds)
+bool ULDHumanoidVisualComponent::HoldPose(UAnimSequence* Still, float TimeSeconds, bool bHideBall)
 {
     auto* Animation=Mesh?Cast<ULDBasketballAnimInstance>(Mesh->GetAnimInstance()):nullptr;
     if (!Animation) { return false; }
-    Animation->HoldPose(Still,FMath::Max(0.f,TimeSeconds));
+    Animation->HoldPose(Still,FMath::Max(0.f,TimeSeconds),bHideBall);
     return true;
 }
 

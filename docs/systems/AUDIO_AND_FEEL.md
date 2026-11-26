@@ -202,15 +202,17 @@ TEMPORARY：功能完整、在游戏里可用，但素材质量未达用户预�
 | 篮球手 Idle、跑、转身、运球 | IMPLEMENTED | `ULDBasketballMotionSet`（KB_ 系列，项目自有） | — |
 | 普攻三段连击 | IMPLEMENTED | `LDActionMotion`：第 1 段右手刺拳（KB_078，上身 0.42，胸口先右蓄后左转 16°）、第 2 段左手交叉（KB_079，上身 0.7，反向蓄力后右转 30° 并侧移 14 cm）、第 3 段终结（KB_152 跳投，静止时全身，重心上提再送出）；出手帧仍按 `LDBasketballMotion::SampleTime` 对齐权威命中 | 实机帧 `production/feel/motion-combo/`；转身与侧移只作用于网格与枢轴，胶囊、朝向与时序不变；未经用户验收 |
 | 技能施法动作家族 | IMPLEMENTED | 按技能语义分四族：单手投掷（甩鞋、外卖、电、肘、封条、夹子、扒裤子；传球片段）、双手定点（区域、吼叫、喷水、风扇、可乐；罚球）、全身重砸（板砖、书包、蛮牛、乱拳；跳投）、架势（锅盖、顶着揍、拧手腕、左右开抽、挑衅、补一拳；运球架势）；移动中只驱动上身 | 规则测试 `ActionMotionFamilies`；实机帧 `production/feel/motion-skill-families/`：投掷、双手定点、重砸从俯视角清楚可分；架势族改用转身运球（瞬发技能的收招按 2 倍速播完，出手仍对齐命中，`LDBasketballMotion::MaxWarp/FollowRate`），帧 `ready-stance-spin.png`；未经用户验收 |
+| 技能专属动作（12 个） | IMPLEMENTED | `LDActionMotion::OwnMotionOf`：左右开抽=刺拳、贴脸补一拳与疯狗乱拳=直拳、滚远点=勾拳、甩你一鞋=上手投掷、扯嗓子喷你与电风扇=双手推、蛮牛顶=肩撞冲锋、锅盖挡脸=举盾、顶着揍与拧你手腕=格挡、掏蛋子=低滑；Quaternius CC0 重定向片段，全身播放，出手帧按测得的出拳最远点对齐权威出手（与动作族同一套时间扭曲），播放时隐藏篮球（只是表现）；电你个哆嗦保持已批准的动作族 | 正面定格核对姿势；游戏自录 4 个技能（`production/feel/skill-motions-quaternius/skill_motions.mp4`）；规则测试 `ActionMotionFamilies` 覆盖表；未经用户看过 |
 | 受击、死亡、出生 | IMPLEMENTED | Quaternius CC0 重定向 | 受击无方向与轻重之分 |
 | NPC 动作 | IMPLEMENTED | Quaternius CC0 片段 | — |
 | 受击反应 | 按决定关闭（[#286](https://github.com/rlsn/Lockdown-alpha/issues/286)） | 普通命中无受击动作，见 §6；击退时的后仰与 Hit 片段保留 | — |
 
 动画素材流程：Quaternius Universal Animation Library 1/2（Standard，CC0，`SourceData/Animation/Quaternius/*.glb`）与篮球手同用
-UE Manny 骨骼名。`Scripts/ImportQuaterniusAnimations.py`（编辑器无头运行）导入、建 IK Rig（自动重定向链）与重定向器，把 `CLIPS`
-里选的片段批量重定向为 `/Game/Lockdown/Art/Characters/hooper/Quaternius/Hooper/QN_<片段>`，只保留结果与 `IKR_Hooper`；加片段即改
-`CLIPS` 重跑。`-LDDemoVfxProof=poses` 把每个片段定格在身体 A 上各拍一张用于检查。现状：16 个片段已重定向，尚未接入任何技能或
-大厅；定格图里多数姿势偏蹲、两腿偏开，非篮球片段没有球的曲线（球的去留需要规则），接入前需先解决。
+UE Manny 骨骼名。`Scripts/ImportQuaterniusAnimations.py`（编辑器无头运行）导入、建 IK Rig（自动重定向链）与重定向器，对齐重定向
+姿势，把 `CLIPS` 里选的片段批量重定向为 `/Game/Lockdown/Art/Characters/hooper/Quaternius/Hooper/QN_<片段>`，再把篮球手自己的根骨骼
+（约 182 倍缩放）写回、按静止骨盆高度换算骨盆位移（篮球手骨骼以米为单位挂在放大的根下，重定向器不处理这层缩放会让腿弯折）；
+只保留结果与 `IKR_Hooper`。加片段即改 `CLIPS` 重跑。核对：`-LDDemoVfxProof=poses` 用 DEV 正面镜头把每个片段定格在身体 A 上；
+膝角与源动画相差 2–4°。大厅立绘用 `ULDHumanoidVisualComponent::HoldPose(片段, 时刻, bHideBall)`。
 
 ### 7.3 镜头与屏幕反馈
 

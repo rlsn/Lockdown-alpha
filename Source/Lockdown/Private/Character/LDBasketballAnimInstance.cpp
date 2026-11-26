@@ -129,7 +129,7 @@ void ULDBasketballAnimInstance::Prepare(double Clock,float Speed,float FacingYaw
         // A held still: the clip is the whole base pose at its time; no action, turn or run layer is mixed in.
         BaseSequence=HeldSequence;BaseTime=HeldTime;PreviousSequence=nullptr;BaseBlend=1;
         FullWeight=UpperWeight=ArmWeight=ActionWeight=RunDribbleWeight=0;ActionSequence=nullptr;
-        bNormalizeTurn=false;bThrowing=false;bWasReleased=false;TurnAt=-1;bBallVisible=bShowBall;
+        bNormalizeTurn=false;bThrowing=false;bWasReleased=false;TurnAt=-1;bBallVisible=bShowBall&&!bHeldHideBall;
         LastAction=LDBodyMotion::EAction::None;
         if(Ball&&!bBallVisible){Ball->SetHiddenInGame(true);}
         return;
