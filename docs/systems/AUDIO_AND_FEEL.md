@@ -206,6 +206,12 @@ TEMPORARY：功能完整、在游戏里可用，但素材质量未达用户预�
 | NPC 动作 | IMPLEMENTED | Quaternius CC0 片段 | — |
 | 受击反应 | 按决定关闭（[#286](https://github.com/rlsn/Lockdown-alpha/issues/286)） | 普通命中无受击动作，见 §6；击退时的后仰与 Hit 片段保留 | — |
 
+动画素材流程：Quaternius Universal Animation Library 1/2（Standard，CC0，`SourceData/Animation/Quaternius/*.glb`）与篮球手同用
+UE Manny 骨骼名。`Scripts/ImportQuaterniusAnimations.py`（编辑器无头运行）导入、建 IK Rig（自动重定向链）与重定向器，把 `CLIPS`
+里选的片段批量重定向为 `/Game/Lockdown/Art/Characters/hooper/Quaternius/Hooper/QN_<片段>`，只保留结果与 `IKR_Hooper`；加片段即改
+`CLIPS` 重跑。`-LDDemoVfxProof=poses` 把每个片段定格在身体 A 上各拍一张用于检查。现状：16 个片段已重定向，尚未接入任何技能或
+大厅；定格图里多数姿势偏蹲、两腿偏开，非篮球片段没有球的曲线（球的去留需要规则），接入前需先解决。
+
 ### 7.3 镜头与屏幕反馈
 
 | 项 | 状态 | 实现 | 证据 / 已知问题 |

@@ -928,6 +928,7 @@ namespace
                     TEXT("feel"),
                     TEXT("grounds"),
                     TEXT("reel"),
+                    TEXT("poses"),
                     TEXT("kill"),
                     TEXT("casts"),
                     TEXT("skills"),
@@ -1232,6 +1233,24 @@ namespace
                     }
                     ChainJobs.Add({Look, TEXT("self-brace-end"), {{0.f, CastOf(A3, ELDDemoAbilityId::ActiveBrace, .1f)}, {.15f, Wear(A3, ELDDemoStatusId::Braced)},
                         {3.1f, Wear(A3, NoStatus)}}, nullptr, Undress, false, 3.18f, 2.95f, 24});
+                }
+                else if (Look == TEXT("poses"))
+                {
+                    // The retargeted Quaternius clips (Scripts/ImportQuaterniusAnimations.py) held on the own body A at 40 % of
+                    // their length, one still each, to judge the retarget before any clip is used in play.
+                    static const TCHAR* const Clips[] = {TEXT("QN_Push_Loop"), TEXT("QN_Punch_Jab"), TEXT("QN_Punch_Cross"), TEXT("QN_Spell_Simple_Shoot"),
+                        TEXT("QN_Dance_Loop"), TEXT("QN_Sword_Idle"), TEXT("QN_Idle_Shield_Loop"), TEXT("QN_Sword_Block"), TEXT("QN_Shield_OneShot"),
+                        TEXT("QN_Shield_Dash"), TEXT("QN_Melee_Hook"), TEXT("QN_OverhandThrow"), TEXT("QN_Slide_Start"), TEXT("QN_Idle_FoldArms_Loop"),
+                        TEXT("QN_Yes"), TEXT("QN_Idle_TalkingPhone_Loop")};
+                    for (const TCHAR* Name : Clips)
+                    {
+                        UAnimSequence* Clip = LoadObject<UAnimSequence>(nullptr, *FString::Printf(TEXT("/Game/Lockdown/Art/Characters/hooper/Quaternius/Hooper/%s.%s"), Name, Name));
+                        if (!Check(Clip != nullptr, FString::Printf(TEXT("Retargeted clip %s loads"), Name))) { continue; }
+                        const float At = Clip->GetPlayLength() * .4f;
+                        ChainJobs.Add({Look, FString(TEXT("poses-")) + FString(Name).RightChop(3),
+                            {{0.f, [A, Clip, At]() { if (auto* B = A.Get()) { B->HoldPose(Clip, At); } }}},
+                            nullptr, [A]() { if (auto* B = A.Get()) { B->HoldPose(nullptr, 0.f); } }, false, .1f, 0.f, 3});
+                    }
                 }
                 else if (Look == TEXT("casts"))
                 {
@@ -1589,6 +1608,7 @@ namespace
                     TEXT("chill"),
                     TEXT("states"),
                     TEXT("grounds"),
+                    TEXT("poses"),
                     TEXT("kill"),
                     TEXT("casts"),
                     TEXT("skills"),
