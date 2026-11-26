@@ -345,7 +345,7 @@ namespace
     {
         if (Name.StartsWith(TEXT("SelfDealt")) || Name.StartsWith(TEXT("SelfHit")) || Name.StartsWith(TEXT("SelfShield")) || Name.StartsWith(TEXT("SelfDeath"))) { return 3.f; }
         if (Name.StartsWith(TEXT("Match")) || Name.StartsWith(TEXT("Kill")) || Name.StartsWith(TEXT("BodyFall")) || Name.StartsWith(TEXT("Capture")) || Name.StartsWith(TEXT("LevelUp"))) { return 2.5f; }
-        if (Name.StartsWith(TEXT("State"))) { return 1.f; }
+        if (Name.StartsWith(TEXT("State")) || Name.StartsWith(TEXT("Ground"))) { return 1.f; }
         if (Name.StartsWith(TEXT("UI"))) { return .8f; }
         return 2.f;
     }
@@ -359,7 +359,8 @@ namespace
             auto* Wave = AudioImportWave(Factory, AudioTakePackage(Root, Sound.Name, Index), Sound.Sources[Index]);
             if (!Wave) { return AudioFail(Error, TEXT("Sound import failed: ") + Sound.Sources[Index]); }
             Wave->SoundClassObject = Class;
-            Wave->bLooping = false;
+            ELDAudioCue Cue = ELDAudioCue::None;
+            Wave->bLooping = LDAudio::ParseCueId(Sound.Name, Cue) && LDAudio::CueLoops(Cue);
             Wave->AttenuationSettings = nullptr;
             Wave->Volume = Sound.Volume;
             Wave->Priority = AudioPriorityOf(Sound.Name);

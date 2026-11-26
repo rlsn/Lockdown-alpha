@@ -66,6 +66,7 @@
 - `Play`（2D）、`PlayAt`（世界位置，身体衰减）、`PlaySkillRelease`（按技能编号；无专属声音的技能用 `CastRelease`）、
   `Start`（可被调用方切断的声音，用于蓄能）。
 - 一条线索可有多个 take，每次随机选且不连续重复同一个。
+- 地面循环：每种地面状态最多 2 条，超出时停掉离听者最远的那条（不按先后），淡出 0.3 s。
 - 并发：每个声音（一条线索、一个技能的出手、一个技能的命中）各自一个并发组：界面 2 个、元素状态与反应 3 个、其余 4 个，
   超出停最旧的；同一声音 25 ms 内重触发合为一个。高频被动连锁只会顶掉自己，不会挤掉别的声音。
 - 优先级（引擎 32 个声部不够时先保谁）：本人命中确认与受伤 3、击杀/开旗/开局/升级 2.5、出手与命中 2、元素状态 1、界面 0.8（导入时写入）。
@@ -165,7 +166,7 @@ Kenney 的 Impact、Interface、RPG、Sci-Fi 全包（CC0）由用户决定采�
 | 技能释放：其余 23 个 | IMPLEMENTED | 技能表各 ×2 take，分层：按技能名字里的东西和动作取真实录音（锅盖、板砖、喷嘴、马达、封条、纸夹、皮革、拳击、火、水、冰……），起音裁到出手帧（半峰在 5 ms 内） | 未听感验收（下一卷试听） |
 | 每技能专属命中声 | IMPLEMENTED | `skill_hits` 表 18 个技能各 ×2 take，分层（骨撞、鞋底拍脸、砖裂、水柱、冰裂、湿拍、书包闷击、鞭响……），起音在命中帧；按 VFX 击打匹配（`FStrikeMatch::Ability`）选用 | 未听感验收（下一卷试听） |
 | 元素反应（10 种） | IMPLEMENTED | `Reaction*` 线索，挂在 `SetReaction` 钩子，与特效强度无关；全部改为分层，每种 ×3，由两种元素各自的录音层组成（雾=水柱嘶声+渐入、导电=多重闪电+水、超载=碎石爆+闪电+低频、融化=火+水、沼气=火球+黏液+低频、冻结=冻风+冰晶、发酵=毒+黏液、冰碎=冰晶+玻璃+低频碎裂、腐蚀=毒+金属、冻伤=冰晶+轻拳） | 冰碎经 A/B 第一轮选定；其余未听感验收（批次 2 试听卷） |
-| 地面状态循环（水洼、冰、火、瘴气、电场） | NOT STARTED | — | — |
+| 地面状态循环（水洼、冰、火、瘴气、电场） | IMPLEMENTED | `GroundPuddle`/`GroundIce`/`GroundFire`/`GroundMiasma`/`GroundField`：每处显示中的地面状态在中心放一条安静循环（分层，接缝交叉淡化），由 `ALDObservedGroundProxy` 显示时开始、离开视野或到期时 0.3 s 淡出（`ULDAudioSubsystem::StartGroundLoop`/`StopGroundLoop`）；每种最多 2 条，离得最远的让位 | 规则测试 `AudioCatalog` 覆盖循环归属；未实机采集、未听感验收 |
 | 投射物飞行与落点 | NOT STARTED | — | — |
 | 元素状态挂上（着火、湿身、带电、冰冷、腐烂） | IMPLEMENTED | `State*` 短促提示（分层，各 ×3：火痕、水流、电荷、冰晶、黏液+毒），状态从无到有时响一次，不做循环（避免混战堆积） | 未听感验收（批次 2 试听卷） |
 | 被动触发与强化普攻 | NOT STARTED | — | — |
@@ -179,7 +180,7 @@ Kenney 的 Impact、Interface、RPG、Sci-Fi 全包（CC0）由用户决定采�
 | 环境氛围 | NOT STARTED | — | — |
 | 音乐 | IMPLEMENTED | 用户提供的三首 | — |
 | 总线与设置 API | IMPLEMENTED | §3 | 设置页 UI 由 Stream A 做 |
-| 并发、优先级、衰减、空间化 | IMPLEMENTED | §3 | 多人混战未实测 |
+| 并发、优先级、衰减、空间化 | LOCALLY VERIFIED | §3 | 6 体混战（试听卷末尾固定 12 秒：本人连招与确认层、双向技能、反应、着火、两处地面循环；另一路渲染同时在跑）：107 个声音、400 ms 内最多 9 个起音，峰值 −9.3 dBFS、无削波，400 ms 响度 p95 −25.7 dBFS（单个事件 −26.7），不叠加成糊；未听感验收 |
 
 ### 7.2 动画
 
@@ -199,6 +200,7 @@ Kenney 的 Impact、Interface、RPG、Sci-Fi 全包（CC0）由用户决定采�
 | 本人命中停顿（普通/暴击/击杀/破盾） | IMPLEMENTED | `ld.Feel.*HitStopMs`（60/100/160/90 ms），只停本人出手姿态，不停输入、移动与权威时间；样板中已被用户接受 | 数值是起点值，未正式批准 |
 | 推镜 | IMPLEMENTED | `ld.Feel.KickCm/KickMs`（6 cm、120 ms，击杀 2 倍），设置“镜头震动”可关，“降低战斗特效”减到 45 %；受击方从不推镜（#286） | 起点值 |
 | 实机验证顿帧、推镜、边缘闪光（1080p） | LOCALLY VERIFIED | 真实拥有连接的 1v1 战斗（`RunDemoCombatCheck.ps1 -CaptureOnly`，`CaptureFeelSample.ps1 -Scenario combat` 录可见窗口与扬声器）：15 次本人命中确认、5 次终结、1 次击杀（击杀重音、全场播报、倒地、升级）；全程红色受伤边缘只出现 2 次、各 70–100 ms，无战斗长闪；逐帧画面位移中位 0、p99 约 8 px（1920 宽，含跟随镜头） | `production/feel/combat-real-fight-1080p/`；“镜头震动”关与“降低特效”档位的对比录制未做；未经用户验收 |
+| 推镜 A/B（关镜头震动） | LOCALLY VERIFIED | `CaptureFeelSample.ps1 -Scenario combat -CombatFeel NoShake`（`RunDemoCombatCheck.ps1 -Feel`）录关掉镜头震动的同一场真实战斗；`Reduced` 录降低战斗特效 | 两段 1080p 录像逐帧相位相关：推镜 6 cm 在比赛镜头距离下小于 4 px 测量步长，开与关的帧位移分布无可测差别（大位移只有复活等镜头切换）；是否有感由用户看录像判断 |
 | 混音：真实对局 | LOCALLY VERIFIED（1v1） | 同一录制（含音乐）：峰值 −3.6 dBFS、无削波，400 ms 响度中位 −25.3、p95 −22.8、最大 −21.5 dBFS，命中不叠加冲高 | 6 人同屏混战暂无可录的拥有连接入口（AI 满房只有空闲主机），未验证 |
 | 屏幕边缘闪光与色散 | IMPLEMENTED | 只在击杀、暴击、破盾时出现（`LDHitVfx::ScreenFlashOf`）；本人受击只有很淡的红边；降低特效时关闭 | 起点值 |
 

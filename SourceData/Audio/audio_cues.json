@@ -86,7 +86,7 @@
       "id": "lockdown-layered",
       "name": "Lockdown layered combat and UI sounds",
       "generator": "Layered/build_layered_audio.py",
-      "generator_sha256": "d61e42a49d488912347f8c8735ad84c9fdb50582bdde857c2a14bba098e43d97",
+      "generator_sha256": "401eee500ad3fe7aba7055588e54acee01614ce1d1f6b046b44f06b20d3602a5",
       "license": "Project-owned mixes of the recorded layers listed as inputs: Kenney CC0 packs and Free Modular Magic SFX by Le Binh Son (CC BY 4.0, credited).",
       "inputs": [
         {
@@ -602,6 +602,11 @@
         {
           "source": "FabMagic/SW_MagicSpell_FireTrail_4.wav",
           "sha256": "51f04db73003b135fb51713dd10ca0906b379f37ef37145186a7e2748221c59e",
+          "pack": "fab-free-modular-magic-sfx"
+        },
+        {
+          "source": "FabMagic/SW_MagicSpell_FireTrail_5.wav",
+          "sha256": "79298c886542266b8b039421d8eafd5227a3166238d93d11f93dc732af2c0677",
           "pack": "fab-free-modular-magic-sfx"
         },
         {
@@ -1260,6 +1265,11 @@
           "pack": "kenney-sci-fi-sounds"
         },
         {
+          "source": "Kenney/SciFiSounds/forceField_000.ogg",
+          "sha256": "c2916f2a062c8ddd1aca2826d134fe90847037db31342726ffb0f9097afe339c",
+          "pack": "kenney-sci-fi-sounds"
+        },
+        {
           "source": "Kenney/SciFiSounds/impactMetal_000.ogg",
           "sha256": "956c6612a256aa1a67a2327fffe2454f6b1d82e4c1c2be28fd66916335d5b1d6",
           "pack": "kenney-sci-fi-sounds"
@@ -1292,6 +1302,11 @@
         {
           "source": "Kenney/SciFiSounds/slime_001.ogg",
           "sha256": "822ca475d71e18ef6bba707dbe6bff2bd493d3457b2552f7473d23022c1257ca",
+          "pack": "kenney-sci-fi-sounds"
+        },
+        {
+          "source": "Kenney/SciFiSounds/spaceEngineLow_000.ogg",
+          "sha256": "d7deee8d7217ce63aab802ad7365a59cacfd243392dc1bd03b0a9d454aa494df",
           "pack": "kenney-sci-fi-sounds"
         },
         {
@@ -2471,6 +2486,76 @@
       "level_db": -2.0,
       "volume": 0.847,
       "loudness_lufs": -19.02
+    },
+    {
+      "cue": "GroundPuddle",
+      "pack": "lockdown-layered",
+      "takes": [
+        {
+          "source": "Layered/ground_puddle_1.wav",
+          "sha256": "941637fea3f66ea1520d907ab4e13334e525fe2ea689e0d4a98d7e1172dcd1f7"
+        }
+      ],
+      "purpose": "地面水洼：一处显示中的水洼持续的轻水声（循环）",
+      "level_db": -6.0,
+      "volume": 1.036,
+      "loudness_lufs": -22.98
+    },
+    {
+      "cue": "GroundIce",
+      "pack": "lockdown-layered",
+      "takes": [
+        {
+          "source": "Layered/ground_ice_1.wav",
+          "sha256": "146492c7c5752a16d6b9cf6552740e131af0c44b81d9c9733134788607d4bb4e"
+        }
+      ],
+      "purpose": "地面冰面：冷风与微弱冰晶声（循环）",
+      "level_db": -6.0,
+      "volume": 1.022,
+      "loudness_lufs": -22.86
+    },
+    {
+      "cue": "GroundFire",
+      "pack": "lockdown-layered",
+      "takes": [
+        {
+          "source": "Layered/ground_fire_1.wav",
+          "sha256": "6beca6ff7d94437ca30964a6cbad2ef26165c0158c26bf45ee9db09f282c648b"
+        }
+      ],
+      "purpose": "地面火：噼啪火声与低沉火势（循环）",
+      "level_db": -6.0,
+      "volume": 1.585,
+      "loudness_lufs": -26.67
+    },
+    {
+      "cue": "GroundMiasma",
+      "pack": "lockdown-layered",
+      "takes": [
+        {
+          "source": "Layered/ground_miasma_1.wav",
+          "sha256": "50806d07919e35e12ae56c089ff7a27ffa172c8da64c9e8e7d92d4caa9545842"
+        }
+      ],
+      "purpose": "地面瘴气：低沉毒雾嗡鸣与慢冒泡（循环）",
+      "level_db": -6.0,
+      "volume": 1.588,
+      "loudness_lufs": -26.69
+    },
+    {
+      "cue": "GroundField",
+      "pack": "lockdown-layered",
+      "takes": [
+        {
+          "source": "Layered/ground_field_1.wav",
+          "sha256": "8883c24d7f3e23f9edd415c0b7b38c7565c6575fdf6a3795d56d29323963e4d1"
+        }
+      ],
+      "purpose": "地面电场：电流嗡鸣与噼啪（循环）",
+      "level_db": -6.0,
+      "volume": 0.794,
+      "loudness_lufs": -20.67
     }
   ],
   "skills": [

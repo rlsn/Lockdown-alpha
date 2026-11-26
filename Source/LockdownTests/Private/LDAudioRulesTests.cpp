@@ -346,6 +346,14 @@ bool FLDAudioCatalogTest::RunTest(const FString& Parameters)
         TestTrue(TEXT("Every cue id round-trips"),LDAudio::IsPlayableCue(Cue)&&LDAudio::ParseCueId(LDAudio::CueId(Cue),Parsed)&&Parsed==Cue);
     }
     TestTrue(TEXT("The playable cues end before Count"),LDAudio::PlayableCue(LDAudio::CueCount)==ELDAudioCue::None&&LDAudio::PlayableCue(-1)==ELDAudioCue::None);
+    // Ground-state loops: one per ELDGroundStateKind 1..5 (Puddle, Ice, Fire, Miasma, Field), and only they loop.
+    TestTrue(TEXT("Each ground state kind maps to its own loop and None has none"),LDAudio::GroundLoopCue(1)==ELDAudioCue::GroundPuddle
+        &&LDAudio::GroundLoopCue(2)==ELDAudioCue::GroundIce&&LDAudio::GroundLoopCue(3)==ELDAudioCue::GroundFire
+        &&LDAudio::GroundLoopCue(4)==ELDAudioCue::GroundMiasma&&LDAudio::GroundLoopCue(5)==ELDAudioCue::GroundField
+        &&LDAudio::GroundLoopCue(0)==ELDAudioCue::None&&LDAudio::GroundLoopCue(6)==ELDAudioCue::None);
+    int32 Loops=0;
+    for(int32 Index=0;Index<LDAudio::CueCount;++Index) { Loops+=LDAudio::CueLoops(LDAudio::PlayableCue(Index))?1:0; }
+    TestEqual(TEXT("Only the five ground cues loop"),Loops,5);
     ELDAudioCue Parsed=ELDAudioCue::None;
     TestFalse(TEXT("Cue ids are case-sensitive and None is not a cue"),LDAudio::ParseCueId(TEXT("killnotice"),Parsed)||LDAudio::ParseCueId(TEXT("None"),Parsed));
     TestTrue(TEXT("Music track numbering is stable"),uint8(ELDMusicTrack::Menu)==1&&uint8(ELDMusicTrack::Farm)==2&&uint8(ELDMusicTrack::Escalation)==3
@@ -369,7 +377,7 @@ bool FLDAudioCatalogTest::RunTest(const FString& Parameters)
         for(int32 Index=0;Index<LDAudio::CueCount;++Index)
         {
             const ELDAudioCue Cue=LDAudio::PlayableCue(Index);
-            auto* Wave=NewObject<USoundWave>();Wave->SoundClassObject=ULDAudioCatalog::BusOf(Cue)==ELDAudioBus::UI?UIClass:SfxClass;Wave->Duration=.5f;
+            auto* Wave=NewObject<USoundWave>();Wave->SoundClassObject=ULDAudioCatalog::BusOf(Cue)==ELDAudioBus::UI?UIClass:SfxClass;Wave->Duration=.5f;Wave->bLooping=LDAudio::CueLoops(Cue);
             FLDAudioCueEntry& Entry=Catalog->Cues.AddDefaulted_GetRef();Entry.Cue=Cue;Entry.Sound=Wave;
         }
         for(int32 Index=1;Index<int32(ELDMusicTrack::Count);++Index)
@@ -385,6 +393,16 @@ bool FLDAudioCatalogTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A complete catalog resolves every music track by track value"),Out.Music.Num()==int32(ELDMusicTrack::Count)&&!Out.Music[0]
         &&Out.Music[int32(ELDMusicTrack::Escalation)]==Catalog->Music.Last().Sound);
     TestTrue(TEXT("Each bus resolves to its class"),Out.Buses[0]==Master&&Out.Buses[1]==MusicClass&&Out.Buses[2]==SfxClass&&Out.Buses[3]==UIClass);
+    {
+        // A ground loop must loop and a one-shot must not (the importer sets it per cue).
+        FLDAudioCueEntry* Ground=Catalog->Cues.FindByPredicate([](const FLDAudioCueEntry& E){return E.Cue==ELDAudioCue::GroundFire;});
+        Ground->Sound->bLooping=false;
+        TestFalse(TEXT("A one-shot ground loop is refused"),Catalog->Resolve(Out,Error));
+        Ground->Sound->bLooping=true;Catalog->Cues[0].Sound->bLooping=true;
+        TestFalse(TEXT("A looping one-shot cue is refused"),Catalog->Resolve(Out,Error));
+        Catalog->Cues[0].Sound->bLooping=false;
+        TestTrue(TEXT("The catalog resolves again once each cue loops as it should"),Catalog->Resolve(Out,Error));
+    }
     {
         auto* Take=NewObject<USoundWave>();Take->SoundClassObject=SfxClass;Take->Duration=.3f;
         Catalog->Cues[0].Variants.Add(Take);
