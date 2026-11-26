@@ -4970,6 +4970,22 @@ namespace
         return Burst;
     }
 
+    // A camp member walking back to its post: it is leaving the fight. Pale wisps lift off the body and thin out, and a
+    // faint pale band turns slowly at its feet. Nothing bright: it is not a threat while this shows.
+    FSystemParts ReturnStateParts(UMaterial& Material, UMaterial& Top, FString& Error)
+    {
+        UMaterialInstanceConstant* Wisp = ChainPaint(TEXT("MI_LDReturn_Wisp"), Material, SliceTexture(LDSliceVfx::ETex::SoftPuff), nullptr, 0.f, SteamPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Line = ChainPaint(TEXT("MI_LDReturn_Band"), Top, SliceTexture(LDSliceVfx::ETex::ChainAProfile), nullptr, 0.f, SteelPalette, 1.f, 0.f, Error);
+        FSystemParts State;
+        State.System = LDSliceVfx::ESystem::ReturnState;
+        if (!Wisp || !Line) { return State; }
+        Band(State, TEXT("Band"), Line, 1, 28, TEXT("0.04"), TEXT("Particles.Age * 0.6"), TEXT("User.Width * 1.6"), TEXT("7.0"),
+            Glowing(1.3f, FString::Printf(TEXT("0.55 * %s * (0.6 + 0.4 * sin(Particles.LDJ * 0.9 + Particles.Age * 2.0))"), StateOn)));
+        Drift(State, TEXT("Wisps"), Wisp, TEXT("int(lerp(6.0, 9.0, User.Focus) + 0.5)"), .5f, 1801.f, .15f, 1.2f, TEXT("User.Width * 1.3"),
+            TEXT("float2(1.0, 1.0) * 52.0"), 1.f, .7f);
+        return State;
+    }
+
     // The field's material: one Custom node (Code) over the first UV, the Particle Color's four channels (PR, PG, PB, PA:
     // FieldParts says what they carry), the sprite's size, the time, the edge's crackle noise and the charged floor's Web
     // and Energy textures, returning the emissive colour and the coverage. Translucent, unlit, two-sided; the palette is
@@ -5478,7 +5494,8 @@ bool LDDemoVfxNiagara::Build(FString& Error)
         [&]() { return RingBandParts(*Top, Error); },
         [&]() { return RingDangerParts(*Top, Error); },
         [&]() { return RingNextParts(*Top, Error); },
-        [&]() { return CritBurstParts(*Top, Error); }};
+        [&]() { return CritBurstParts(*Top, Error); },
+        [&]() { return ReturnStateParts(*Chain, *Top, Error); }};
     const TStrongObjectPtr<UObject> Kept[] = {TStrongObjectPtr<UObject>(BeamEmitter), TStrongObjectPtr<UObject>(SparkEmitter), TStrongObjectPtr<UObject>(Chain),
         TStrongObjectPtr<UObject>(Top), TStrongObjectPtr<UObject>(Default)};
     for (const TFunction<FSystemParts()>& Make : Systems)

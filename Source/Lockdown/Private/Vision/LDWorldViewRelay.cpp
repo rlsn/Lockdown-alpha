@@ -1040,6 +1040,7 @@ void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effe
     FLinearColor DesignedInk;
     const bool bDesigned=LDSliceVfx::EffectSystemOf(uint8(Effect.Look),DesignedInk)!=LDSliceVfx::ESystem::Count;
     const bool bBodyless=(bDesigned&&!bFlight) || Effect.Look==ELook::FistWind || Effect.Look==ELook::SpeechCone || Effect.Look==ELook::ConeWarning
+        || Effect.Look==ELook::LineWarning || Effect.Look==ELook::Road
         || Effect.Look==ELook::ShardBurst || (bDecoy&&StandIn);
     Chalk->SetVisibility(!bBodyless);
     // The accent is a trap's marking while its paper is missing.

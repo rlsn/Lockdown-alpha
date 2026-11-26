@@ -151,7 +151,8 @@ private:
     // when the braced stance ends then.
     // Then the control states (root, respawn protection, slow, attack slow, stun, disarm, silence, taunt, exposed), each
     // its own looping system from the body's statuses (root and protection also from their cue bits).
-    static constexpr int32 GuardStates = 12;
+    // Last, a camp member's walk back to its post (the Returning cue bit).
+    static constexpr int32 GuardStates = 13;
     bool GuardOn[GuardStates] = {};
     bool bBracedShown = false;
     UPROPERTY() TObjectPtr<UNiagaraComponent> GuardEffects[GuardStates];
