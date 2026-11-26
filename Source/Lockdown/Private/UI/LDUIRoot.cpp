@@ -745,13 +745,24 @@ ULDCommandButton* ULDUIRoot::StyleRow(ULDCommandButton* Button,bool bPrimary)
     auto* Surface=Painted(WidgetTree,Line,FMargin(bPrimary?28:24,6,24,6),[Weak,bPrimary,Whole](const LDUIPaint::FContext& Paint)
     {
         const bool bLit=bPrimary||(Weak.IsValid()&&Weak->IsHovered());
+        // A pressed row gives way two units down and right and darkens (the white slab to grey, a plain row to ink with
+        // its orange tab grown into a rule around it).
+        const bool bDown=Weak.IsValid()&&Weak->IsPressed()&&Weak->GetIsEnabled();
+        const FVector2D Push=bDown?FVector2D(2.,2.):FVector2D::ZeroVector;
         if(bPrimary)
         {
             // The primary row: a white slab with the orange arrow at its right end.
-            const FBox2D Box=Whole(Paint);
-            LDBroadcastPaint::FillSlab(Paint,Paint.Layer,Box,LDBroadcast::White);
+            const FBox2D Box=Whole(Paint).ShiftBy(Push);
+            LDBroadcastPaint::FillSlab(Paint,Paint.Layer,Box,bDown?LDBroadcast::Grey:LDBroadcast::White);
             const FVector2D C(Box.Max.X-40.,Box.GetCenter().Y);
             Paint.Polygon(Paint.Layer+1,{C+FVector2D(-6.,-9.),C+FVector2D(8.,0.),C+FVector2D(-6.,9.)},LDUIPaint::FFill::Solid(LDBroadcast::Orange));
+            return;
+        }
+        if(bDown)
+        {
+            const FBox2D Box=Whole(Paint).ShiftBy(Push);
+            LDBroadcastPaint::FillSlab(Paint,Paint.Layer,Box,LDBroadcast::Orange);
+            LDBroadcastPaint::FillSlab(Paint,Paint.Layer+1,FBox2D(Box.Min+FVector2D(4.,2.),Box.Max-FVector2D(4.,2.)),LDBroadcast::Ink);
             return;
         }
         if(bLit){LDBroadcastPaint::FillSlab(Paint,Paint.Layer,Whole(Paint),LDBroadcast::Raised);}

@@ -137,7 +137,9 @@ namespace LDCharacterMovementDetail
     };
 }
 
-ULDCharacterMovementComponent::ULDCharacterMovementComponent(){SetNetworkMoveDataContainer(NetworkMoves);}
+// No body jumps. CMC's apex substep refunds part of a falling slice after the fall velocity already opened it, which
+// native capture cannot witness: a falling body never splits its slice at an apex.
+ULDCharacterMovementComponent::ULDCharacterMovementComponent(){SetNetworkMoveDataContainer(NetworkMoves);MaxJumpApexAttemptsPerSimulation=0;}
 void FLDNetworkMoveData::ClientFillNetworkMoveData(const FSavedMove_Character& Move,ENetworkMoveType Type)
 {FCharacterNetworkMoveData::ClientFillNetworkMoveData(Move,Type);Navigation=static_cast<const LDCharacterMovementDetail::FLDSavedMove&>(Move).Navigation;}
 bool FLDNetworkMoveData::Serialize(UCharacterMovementComponent& Movement,FArchive& Ar,UPackageMap* Map,ENetworkMoveType Type)

@@ -503,16 +503,16 @@ private:
     // DEV capture only (probes): a fixed age for the moments' clock (<0 releases it); the moments themselves still come
     // only from real events.
     float MomentFreezeAge=-1.f;
-    TOptional<FVector2D> ProbeHoverAt;
+    TWeakObjectPtr<UWidget> ProbeHoverOver;
 public:
     void FreezeMoments(float Age){MomentFreezeAge=Age;}
-    // DEV capture only (probes, WITH_DEV_AUTOMATION_TESTS; inert otherwise): where the action band takes the pointer to
-    // be for its hover cards, in absolute desktop units, instead of the OS cursor (unset: the OS cursor). It never moves
-    // the cursor and takes no part in input.
-    void ProbeHover(const TOptional<FVector2D>& Absolute)
+    // DEV capture only (probes, WITH_DEV_AUTOMATION_TESTS; inert otherwise): the widget of the action band the pointer is
+    // taken to be over for its hover cards, instead of the OS cursor (null: the OS cursor). It never moves the cursor and
+    // takes no part in input.
+    void ProbeHover(UWidget* Over)
     {
 #if WITH_DEV_AUTOMATION_TESTS
-        ProbeHoverAt=Absolute;MarkReadModelDirty();
+        ProbeHoverOver=Over;MarkReadModelDirty();
 #endif
     }
     // When the last own-kill moment began (local seconds), <0 before the first.

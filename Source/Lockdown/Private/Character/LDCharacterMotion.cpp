@@ -4,10 +4,17 @@
 #include "Core/LDLog.h"
 #include "Engine/World.h"
 #include "Framework/LDDemoEntry.h"
+#include "HAL/IConsoleManager.h"
 
 namespace
 {
     constexpr int32 NativeRecordCapacity=128;
+#if !UE_BUILD_SHIPPING
+    // DEV diagnosis: logs every write of the recorded foot and every walk bookmark beside the native position.
+    int32 TraceRecordedFoot=0;
+    FAutoConsoleVariableRef CVarTraceRecordedFoot(TEXT("ld.Motion.TraceRecordedFoot"),TraceRecordedFoot,
+        TEXT("DEV: log every native-capture foot write with its source (0 off, 1 on)."));
+#endif
 
     FLDNativeSupportSample SupportOf(const UCharacterMovementComponent& Move)
     {
@@ -46,8 +53,21 @@ struct ULDCharacterMovementComponent::FNativeCapture
     TOptional<FBookmark> WalkBookmark;
     ERevert PendingRevert=ERevert::None;
     FString Error;
+    FString BodyName;
+    float HalfHeight=0;
 
     void Fail(const TCHAR* Detail) { if (Error.IsEmpty()) { Error=Detail; } }
+
+    void TraceFoot(const TCHAR* Source, const FVector& NativePosition) const
+    {
+#if !UE_BUILD_SHIPPING
+        if (!TraceRecordedFoot) { return; }
+        const FVector Native=NativePosition-FVector(0,0,HalfHeight);
+        UE_LOG(LogLDMatch, Display, TEXT("LD_NATIVE_FOOT body=%s src=%s recorded=%s native=%s gap=%.6f safe=%d adjust=%d step=%d walking=%d falling=%d records=%d cursor=%.6f"),
+            *BodyName,Source,*LastFoot.ToString(),*Native.ToString(),FVector::Dist2D(LastFoot,Native),SafeDepth,AdjustmentDepth,StepDepth,
+            Walking?1:0,Falling?1:0,Batch.Records.Num(),Cursor);
+#endif
+    }
 
     bool Append(FLDNativeMotionRecord Record)
     {
@@ -58,7 +78,7 @@ struct ULDCharacterMovementComponent::FNativeCapture
     }
 
     FBookmark Mark(FVector NativePosition) const
-    { return {Batch.Records.Num(),LastFoot,NativePosition,LastSupport,Cursor,SliceEnd}; }
+    { TraceFoot(TEXT("mark"),NativePosition); return {Batch.Records.Num(),LastFoot,NativePosition,LastSupport,Cursor,SliceEnd}; }
 
     void Restore(const FBookmark& Bookmark, FVector NativePosition, const FLDNativeSupportSample& Support)
     {
@@ -66,6 +86,7 @@ struct ULDCharacterMovementComponent::FNativeCapture
         { Fail(TEXT("Native rollback did not restore its witnessed position and support.")); return; }
         Batch.Records.SetNum(Bookmark.Count,EAllowShrinking::No);
         LastFoot=Bookmark.Foot;
+        TraceFoot(TEXT("restore"),NativePosition);
         LastSupport=Bookmark.Support;
         Cursor=Bookmark.Time;
         SliceEnd=Bookmark.SliceEnd;
@@ -90,6 +111,19 @@ struct ULDCharacterMovementComponent::FNativeCapture
         UE_LOG(LogLDMatch, Warning, TEXT("LD_NATIVE_UNWITNESSED_ADJUSTMENT body=%s gap=%.6f safe=%d adjust=%d walking=%d"),Body,Gap,SafeDepth,
             AdjustmentDepth,Walking?1:0);
         LastFoot=Foot;
+        TraceFoot(TEXT("witness"),Foot+FVector(0,0,HalfHeight));
+    }
+
+    // A flagged walk revert (a ledge retry or a failed fall check) puts the body back on the walk bookmark, but CMC can
+    // still adjust the floor height before the walk returns or retries. Take the pending revert at that next move, while
+    // the body stands exactly on the bookmark; any other position stays a fault.
+    bool RestorePendingWalkRevert(const FVector& NativePosition, const FLDNativeSupportSample& Support)
+    {
+        if (!Walking || !WalkBookmark || PendingRevert==ERevert::None || !Error.IsEmpty()
+            || !NativePosition.Equals(WalkBookmark->NativePosition,.000001)) { return false; }
+        Restore(WalkBookmark.GetValue(),NativePosition,Support);
+        PendingRevert=ERevert::None;
+        return Error.IsEmpty();
     }
 
     // Once a walk has tried its ledge move and checked its fall, CMC's walking loop reverts a later ledge trial with
@@ -149,6 +183,10 @@ bool ULDCharacterMovementComponent::BeginNativeMotionCapture(const FLDAuthorityS
     Capture.Batch.World=World;
     Capture.Batch.PreviousSequence=NativeRecordSequence;
     Capture.Batch.StartFootCm=Capture.LastFoot=GetActorFeetLocation();
+    Capture.BodyName=GetNameSafe(GetOwner());
+    Capture.HalfHeight=CharacterOwner && CharacterOwner->GetCapsuleComponent()
+        ? CharacterOwner->GetCapsuleComponent()->GetScaledCapsuleHalfHeight() : 0.f;
+    Capture.TraceFoot(TEXT("begin"),UpdatedComponent->GetComponentLocation());
     Capture.Batch.InitialSupport=Capture.LastSupport=SupportOf(*this);
     Capture.Cursor=Step.StartServerSeconds;
     Capture.SliceEnd=Step.EndServerSeconds;
@@ -205,7 +243,12 @@ bool ULDCharacterMovementComponent::MoveUpdatedComponentImpl(const FVector& Delt
     bool Sweep, FHitResult* Hit, ETeleportType Teleport)
 {
     const FVector From=NativeCapture?GetActorFeetLocation():FVector::ZeroVector;
+    if (NativeCapture && !From.Equals(NativeCapture->LastFoot,.000001))
+    { NativeCapture->TraceFoot(TEXT("move-start-mismatch"),UpdatedComponent->GetComponentLocation()); }
+    // A retry keeps the ground-loss rule of the walk wrapper: only a body still walking takes it here.
     if (NativeCapture && !From.Equals(NativeCapture->LastFoot,.000001)
+        && !((NativeCapture->PendingRevert!=FNativeCapture::ERevert::Retry || IsMovingOnGround())
+            && NativeCapture->RestorePendingWalkRevert(UpdatedComponent->GetComponentLocation(),SupportOf(*this)))
         && !NativeCapture->RestoreUnflaggedWalkRevert(UpdatedComponent->GetComponentLocation(),SupportOf(*this)))
     { NativeCapture->WitnessSmallAdjustment(From,*GetNameSafe(GetOwner())); }
     int32 StepMove=0;
@@ -280,6 +323,7 @@ bool ULDCharacterMovementComponent::MoveUpdatedComponentImpl(const FVector& Delt
         Capture.Append(MoveTemp(Record));
     }
     Capture.LastFoot=To;
+    Capture.TraceFoot(Adjustment?TEXT("move-adjust"):Timed?TEXT("move-timed"):TEXT("move"),UpdatedComponent->GetComponentLocation());
     return Result;
 }
 
@@ -406,7 +450,10 @@ FVector ULDCharacterMovementComponent::NewFallVelocity(const FVector& InitialVel
         auto& Capture=*NativeCapture;
         const double End=Capture.Cursor+double(DeltaTime)*Capture.NativeScale;
         if (End>Capture.Batch.Step.EndServerSeconds+.0000001)
-        { Capture.Fail(TEXT("Falling interval exceeds the current core step.")); }
+        {
+            Capture.Fail(*FString::Printf(TEXT("Falling interval exceeds the current core step. body=%s cursor=%.9f end=%.9f delta=%.9f"),
+                *GetNameSafe(GetOwner()),Capture.Cursor,Capture.Batch.Step.EndServerSeconds,double(DeltaTime)));
+        }
         Capture.SliceEnd=FMath::Min(End,Capture.Batch.Step.EndServerSeconds);
     }
     return Super::NewFallVelocity(InitialVelocity,Gravity,DeltaTime);

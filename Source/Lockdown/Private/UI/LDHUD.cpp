@@ -766,7 +766,8 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                 {
                     const FBox2D Box=Whole(P);
                     LDBroadcastPaint::FillSlab(P,P.Layer,Box,LDBroadcast::Gold);
-                    LDBroadcastPaint::Text(P,P.Layer+1,PKPaint.bOwnWin?PKPaint.Result+TEXT(" · ")+LDTerms::PKWonSelf:PKPaint.Result,LDBroadcastPaint::LabelFont(24.f,true),
+                    // The own win says only that (the winner's gold row above already names the winner), so the line fits the bar.
+                    LDBroadcastPaint::Text(P,P.Layer+1,PKPaint.bOwnWin?FString(LDTerms::PKWonSelf):PKPaint.Result,LDBroadcastPaint::LabelFont(24.f,true),
                         Box.GetCenter(),LDBroadcast::Ink,FVector2D(.5,.5));
                 },50.f,0.f);
                 PKResultBar->SetVisibility(ESlateVisibility::Collapsed);Fill(PKResultBar,10);
@@ -2683,7 +2684,12 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     FVector2D Pointer=FSlateApplication::IsInitialized()?FSlateApplication::Get().GetCursorPos():FVector2D(-1,-1);
 #if WITH_DEV_AUTOMATION_TESTS
     // A probe's hover point stands in for the cursor for the hover cards only; unset, nothing changes.
-    if(ProbeHoverAt.IsSet()){Pointer=ProbeHoverAt.GetValue();}
+    if(const UWidget* Over=ProbeHoverOver.Get())
+    {
+        // The widget's own centre in this frame's layout, so the point follows a resized window.
+        Pointer=FVector2D(Over->GetCachedGeometry().GetAbsolutePositionAtCoordinates(FVector2D(.5,.5)));
+        bReadModelLive=true;
+    }
 #endif
     int32 DetailIndex=INDEX_NONE;LDHUD::FActionDetailView DetailView;
     LDHUD::FLiveSkillTooltip LiveSkillDetail;bool bHasLiveSkillDetail=false;

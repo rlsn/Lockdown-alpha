@@ -9,6 +9,8 @@
 #include "Dom/JsonObject.h"
 #include "Engine/World.h"
 #include "Framework/LDGameState.h"
+#include "Framework/LDBuildBlueprintComponent.h"
+#include "Framework/LDGameMode.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Animation/AnimSequence.h"
@@ -49,7 +51,7 @@ public:
     double PageAt=0.,Due=0.;
     int32 Page=0,Combo=0,Step=0;
     int32 Width=0,Height=0;
-    bool bCapturing=false,bFrontend=false,bClient=false;
+    bool bCapturing=false,bFrontend=false,bClient=false,bEntrant=false;
     TArray<FString> Missed;
 
     // One page: Enter runs every tick until it reports the page is up (or the page times out and is listed as missed).
@@ -217,8 +219,18 @@ public:
                 if(Once(Now,0)){PC.SetDemoAICount(6);}
                 return Guests(PC)==1&&GuestReady(PC)&&Settled(Now,2.5);
             },90.});
+        Pages.Add({TEXT("Lobby_ButtonPressed"),[this](ALDPlayerController& PC,double Now)
+            {
+                if(Once(Now,0)){LDSlateProbeInput::Pointer(FindButton(PC.RootUI,TEXT("LobbyBuildBlueprint")),EKeys::LeftMouseButton,true,false);}
+                return Settled(Now,.6);
+            },10.,false});
         Pages.Add({TEXT("Lobby_Blueprint"),[this](ALDPlayerController& PC,double Now)
-            {if(Once(Now,0)){Click(PC.RootUI,TEXT("LobbyBuildBlueprint"));}return Settled(Now,1.2);}});
+            {
+                if(Once(Now,0)){LDSlateProbeInput::Pointer(FindButton(PC.RootUI,TEXT("LobbyBuildBlueprint")),EKeys::LeftMouseButton,false,true);}
+                // The button's own click if the routed release did not open the viewer.
+                if(Once(Now,1,.5)&&PC.BuildBlueprints&&!PC.BuildBlueprints->IsViewerOpen()){Click(PC.RootUI,TEXT("LobbyBuildBlueprint"));}
+                return Settled(Now,1.6);
+            }});
         AddSettings(TEXT("Lobby"),[](ALDPlayerController& PC)
             {if(PC.RootUI){PC.RootUI->CloseTopModal();PC.RootUI->CloseTopPanel();}return Click(PC.RootUI,TEXT("LobbySettings"));});
         Pages.Add({TEXT("Match_RestOpening"),[this](ALDPlayerController& PC,double Now)
@@ -402,27 +414,23 @@ public:
             },Timeout});
             if(bInside){Pages.Last().Only=0;}
         };
-        // The skill card of the Q slot: the HUD is told the pointer is over the slot (its DEV hover point; the OS cursor
+        // The skill card of the Q slot: the HUD is told the pointer is over the slot (its DEV hover widget; the OS cursor
         // stays where it is), then with Alt held for the formula; the next page lets both go.
         Pages.Add({TEXT("Match_SkillHover"),[this](ALDPlayerController& PC,double Now)
             {
                 UWidget* Slot=PC.HUDUI&&PC.HUDUI->WidgetTree?PC.HUDUI->WidgetTree->FindWidget(TEXT("HUDActionQ")):nullptr;
                 if(!Slot){return false;}
-                // Every call: the slot moves when the window is resized between the sizes.
-                PC.HUDUI->ProbeHover(FVector2D(Slot->GetCachedGeometry().GetAbsolutePositionAtCoordinates(FVector2D(.5,.5))));
+                if(Once(Now,0)){PC.HUDUI->ProbeHover(Slot);}
                 return Settled(Now,1.2);
             },15.});
         Pages.Add({TEXT("Match_SkillHoverAlt"),[this](ALDPlayerController& PC,double Now)
             {
-                UWidget* Slot=PC.HUDUI&&PC.HUDUI->WidgetTree?PC.HUDUI->WidgetTree->FindWidget(TEXT("HUDActionQ")):nullptr;
-                if(!Slot){return false;}
                 if(Once(Now,0)){Key(PC,EKeys::LeftAlt,true);}
-                PC.HUDUI->ProbeHover(FVector2D(Slot->GetCachedGeometry().GetAbsolutePositionAtCoordinates(FVector2D(.5,.5))));
                 return Settled(Now,1.2);
             },15.});
         Pages.Add({TEXT("Match_SkillHoverEnd"),[this](ALDPlayerController& PC,double Now)
             {
-                if(Once(Now,0)){Key(PC,EKeys::LeftAlt,false);if(PC.HUDUI){PC.HUDUI->ProbeHover(TOptional<FVector2D>());}}
+                if(Once(Now,0)){Key(PC,EKeys::LeftAlt,false);if(PC.HUDUI){PC.HUDUI->ProbeHover(nullptr);}}
                 return Settled(Now,.6);
             },10.,false});
         FieldSite(TEXT("Match_Airdrop"),[](const FLDPublicMatchView& View,FVector& Site)
@@ -490,7 +498,8 @@ public:
                         const double Distance=FVector::DistSquared(It->GetActorLocation(),Self->GetActorLocation());
                         if(Distance<Best){Best=Distance;Rival=*It;}
                     }
-                    if(!Rival){continue;}
+                    // Never a DEV teleport in a rest (the game's DevTeleport faults a room there): only in the field.
+                    if(!Rival||!InPhase(PC,ELDMatchPhase::Development)){continue;}
                     if(Best>FMath::Square(320.))
                     {
                         ELDGrowthReason Reason=ELDGrowthReason::None;
@@ -575,7 +584,50 @@ public:
             },Timeout});
         };
         RestStep(TEXT("Match_R1Build"),ELDRestStep::Build,false,1.5,240.);
-        RestStep(TEXT("Match_R1Signup"),ELDRestStep::Build,true,1.,90.);
+        if(bEntrant)
+        {
+            // -LDUICoverageEntrant: the host goes into its own sign-up disk during the window (ordinary ground clicks towards
+            // the disk the authority names, then the DEV teleport if the walk has not arrived), so the steps that follow
+            // are an entrant's: drawn, fighting (still invulnerable from the DEV op), paid.
+            Pages.Add({TEXT("Match_R1Signup"),[this](ALDPlayerController& PC,double Now)
+            {
+                const FLDPublicMatchView* View=Match(PC);
+                if(Once(Now,0)){Dev(PC,ELDDevTestOp::SetCountdownPaused,0);HeldAt=-1.;}
+                if(!View||View->Phase!=ELDMatchPhase::Rest||View->Timeline.Step!=ELDRestStep::Build||View->ServerNowMs<View->Timeline.SignupOpensAtMs){return false;}
+                const auto* Mode=PC.GetWorld()->GetAuthGameMode<ALDGameMode>();
+                FVector Disk=FVector::ZeroVector;double Radius=0.;
+                if(!Mode||!Mode->SignupDiskFor(PC.OwnerState.ContenderId,Disk,Radius)){return false;}
+                ULDWorkshop* Ring=PC.HUDUI?PC.HUDUI->Workshop.Get():nullptr;
+                if(Ring&&Ring->IsOpen()&&Once(Now,9)){PC.HUDUI->ToggleWorkshop();}
+                if(!View->Timeline.Signups.Contains(PC.OwnerState.ContenderId))
+                {
+                    // A ground click towards the disk every 0.7 s; a disk off the screen is clicked at the screen's edge on its
+                    // side, and the follow camera brings it in.
+                    for(int32 Step=0;Step<60;++Step)
+                    {
+                        if(!PC.Navigation||!Once(Now,10+Step,.4+Step*.7)){continue;}
+                        int32 W=0,H=0;PC.GetViewportSize(W,H);
+                        FVector2D Screen;
+                        if(!PC.ProjectWorldLocationToScreen(Disk,Screen)||W<=0||H<=0){continue;}
+                        Screen.X=FMath::Clamp(Screen.X,W*.12,W*.88);Screen.Y=FMath::Clamp(Screen.Y,H*.18,H*.74);
+                        PC.Navigation->DevSetPointer(Screen);PC.Navigation->ClickMove();
+                    }
+                    for(int32 Try=0;Try<3;++Try)
+                    {
+                        if(Once(Now,80+Try,4.+Try*1.5))
+                        {
+                            ELDGrowthReason Reason=ELDGrowthReason::None;
+                            PC.SubmitDevTest(ELDDevTestOp::TeleportToCamera,0,Reason,NAME_None,0,0,Disk+FVector(0,0,120));
+                        }
+                    }
+                    return false;
+                }
+                if(HeldAt<0.){HeldAt=Now;if(PC.Navigation){PC.Navigation->DevSetPointer(TOptional<FVector2D>());}}
+                if(Now-HeldAt>=.6&&Once(Now,8)){Dev(PC,ELDDevTestOp::SetCountdownPaused,1);}
+                return Now-HeldAt>=1.4;
+            },100.});
+        }
+        else{RestStep(TEXT("Match_R1Signup"),ELDRestStep::Build,true,1.,90.);}
         RestStep(TEXT("Match_R1Betting"),ELDRestStep::Betting,false,.5,40.);
         // The betting step again with the build ring open (the clock is still held): the one-line PK bar over the ring.
         Pages.Add({TEXT("Match_R1BettingRing"),[this](ALDPlayerController& PC,double Now)
@@ -593,6 +645,14 @@ public:
             },10.,false});
         RestStep(TEXT("Match_R1PKReady"),ELDRestStep::PKReady,false,.3,30.);
         RestStep(TEXT("Match_R1PK"),ELDRestStep::PK,false,4.,30.);
+        // A spectator's throw: the owner intent the throw button's aim submits, at the arena centre (the clock stays held).
+        Pages.Add({TEXT("Match_R1PKThrow"),[this](ALDPlayerController& PC,double Now)
+            {
+                const FLDPublicMatchView* View=Match(PC);
+                if(!View||View->Timeline.Step!=ELDRestStep::PK){return Settled(Now,3.);}
+                if(Once(Now,0)){PC.SubmitPKThrow(View->PK.ArenaCentreCm+FVector(120,80,0));}
+                return Settled(Now,1.);
+            },10.,false});
         RestStep(TEXT("Match_R1Settlement"),ELDRestStep::Settlement,false,.3,80.);
         RestStep(TEXT("Match_R1Return"),ELDRestStep::Return,false,.3,30.);
         // The second field: the arena (its objective) and the first delivery locker that is out, each waited for with the
@@ -606,7 +666,25 @@ public:
             {if(View.Lockers.IsEmpty()){return false;}Site=View.Lockers[0].PositionCm;return true;},85.,true);
         FieldSite(TEXT("Match_Arena"),[](const FLDPublicMatchView& View,FVector& Site)
             {Site=View.Objective.CentreCm;return View.Objective.Kind==ELDObjectiveKind::Arena&&(View.Objective.Phase==ELDObjectivePhase::Announced||View.Objective.Phase==ELDObjectivePhase::Open);},110.);
-        // Back in the field the stage clock is held again, so the second rest does not arrive under the pages below.
+        Pages.Add({TEXT("Match_Peddler"),[this](ALDPlayerController& PC,double Now)
+            {
+                // The second-hand dealer once it has come out (a camp body named for it): the host jumps beside it.
+                if(Once(Now,0)){Dev(PC,ELDDevTestOp::SetCountdownPaused,0);HeldAt=-1.;}
+                const ALDCharacter* Dealer=nullptr;
+                for(TActorIterator<ALDCampMemberCharacter> It(PC.GetWorld());It;++It)
+                {
+                    if(It->GetName().Contains(TEXT("peddler"),ESearchCase::IgnoreCase)||It->Tags.Contains(FName(TEXT("peddler")))){Dealer=*It;break;}
+                }
+                if(!Dealer||!InPhase(PC,ELDMatchPhase::Development)){return false;}
+                if(HeldAt<0.){HeldAt=Now;}
+                if(Now-HeldAt>=.3&&Once(Now,1))
+                {
+                    ELDGrowthReason Reason=ELDGrowthReason::None;
+                    PC.SubmitDevTest(ELDDevTestOp::TeleportToCamera,0,Reason,NAME_None,0,0,Dealer->GetActorLocation()+FVector(-260,0,120));
+                }
+                return Now-HeldAt>=2.5;
+            },25.});
+        // Back in the field the stage clock is held again, so the next rest does not arrive under the pages below.
         Pages.Add({TEXT("Match_Scoreboard"),[this](ALDPlayerController& PC,double Now)
             {
                 if(Once(Now,0)){Dev(PC,ELDDevTestOp::SetCountdownPaused,0);HeldAt=-1.;}
@@ -741,7 +819,7 @@ public:
         Pages.Add({TEXT("Guest_FlagLeft"),[this](ALDPlayerController& PC,double Now)
             {
                 const FLDPublicMatchView* View=Match(PC);
-                if(View&&Once(Now,0))
+                if(View&&View->Phase==ELDMatchPhase::Development&&Once(Now,0))
                 {
                     ELDGrowthReason Reason=ELDGrowthReason::None;
                     PC.SubmitDevTest(ELDDevTestOp::TeleportToCamera,0,Reason,NAME_None,0,0,View->Objective.CentreCm+FVector(700,300,120));
@@ -760,7 +838,7 @@ public:
     bool Tick(float)
     {
         const double Now=FPlatformTime::Seconds();
-        if(Now-Began>1500.){Check(false,TEXT("The UI coverage capture finished in time"),FString::Printf(TEXT("page %d"),Page));return Finish();}
+        if(Now-Began>1750.){Check(false,TEXT("The UI coverage capture finished in time"),FString::Printf(TEXT("page %d"),Page));return Finish();}
         ALDPlayerController* PC=Owner.Get();
         if(!PC||!PC->GetLocalPlayer()){return true;}
         if(Page>=Pages.Num())
@@ -811,6 +889,7 @@ void StartUICoverageProbe(ALDPlayerController& PC)
     // states only.
     FSlateApplication::Get().SetAllowTooltips(false);
     Probe->bClient=bClient;
+    Probe->bEntrant=FParse::Param(FCommandLine::Get(),TEXT("LDUICoverageEntrant"));
     if(Probe->bFrontend){Probe->PlanFrontend();}else if(bClient){Probe->PlanClient();}else{Probe->PlanMatch();}
     FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Probe](float Delta){return Probe->Tick(Delta);}));
 }

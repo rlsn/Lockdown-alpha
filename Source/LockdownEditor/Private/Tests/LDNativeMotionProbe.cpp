@@ -14,6 +14,8 @@
 #include "Misc/AutomationTest.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Misc/ScopeExit.h"
+#include "HAL/IConsoleManager.h"
 #include "PhysicsEngine/BodySetup.h"
 #include "Serialization/JsonSerializer.h"
 
@@ -721,6 +723,41 @@ bool FLDNativeLedgeRetryProbe::RunTest(const FString& Parameters)
     return SaveTrace(*this,TEXT("ledge_retry_ends_walking"),*Move,Passed) && Passed;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDNativeLedgeRetryFloorAdjustProbe, "Lockdown.Rules.DemoMotionProbe.LedgeRetryThenFloorAdjust",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDNativeLedgeRetryFloorAdjustProbe::RunTest(const FString& Parameters)
+{
+    FNativeWorld Fixture;
+    if (!TestNotNull(TEXT("Native physics world"),Fixture.World)) { return false; }
+    if (!TestNotNull(TEXT("Finite narrow ground"),Fixture.Box({-100,0,-10},{100,45,10}))) { return false; }
+    auto* Body=Fixture.Body({-100,0,0});
+    auto* Move=Prepare(*this,Body);
+    if (!Move) { return false; }
+    for (int32 Tick=0; Tick<60; ++Tick)
+    {
+        Move->TraceWalking({300,0,0},1.f/60);
+        if (!TestTrue(TEXT("The approach preserves native motion evidence: ")+Move->CaptureError,Move->CaptureError.IsEmpty())) { return false; }
+    }
+    // The body hovers a few centimetres over its floor (beyond CMC's floor band). The nearly perpendicular push reverts the
+    // walking trial and asks for a ledge retry; with no retry move left, CMC still pulls the body down to its floor before
+    // the walk returns. That adjustment starts on the walk bookmark while the revert is pending.
+    Body->SetActorLocation(Body->GetActorLocation()+FVector(0,0,4),false,nullptr,ETeleportType::TeleportPhysics);
+    const FVector Hover=Move->GetActorFeetLocation();
+    Move->TraceWalking({300,.001,0},1.f/60);
+    const int32 Retry=Move->Trace.IndexOfByPredicate([](const auto& Row) { return Row.Kind==TEXT("GetLedgeMove") && Row.Result; });
+    bool MovedAfterRetry=false;
+    for (int32 Index=FMath::Max(Retry,0)+1; Index<Move->Trace.Num(); ++Index)
+    { MovedAfterRetry|=Move->Trace[Index].Kind==TEXT("Move") && !Move->Trace[Index].From.Equals(Move->Trace[Index].To,.001); }
+    bool Passed=TestTrue(TEXT("CMC asks for a ledge retry, then adjusts the floor height"),Retry!=INDEX_NONE && MovedAfterRetry);
+    Passed&=TestTrue(TEXT("The floor adjustment after a pending revert is not an authority fault: ")+Move->CaptureError,
+        Move->CaptureError.IsEmpty());
+    Passed&=TestTrue(TEXT("The reverted trial leaves no forward record, the body settles down and the batch ends at the native foot"),
+        Move->Captured && Move->Captured->RevertedTrials>0 && Move->GetActorFeetLocation().Z<Hover.Z-1
+        && Move->Captured->EndFootCm.Equals(Move->GetActorFeetLocation(),.001)
+        && !Move->Captured->Records.ContainsByPredicate([&](const auto& Record) { return Record.ToFootCm.X>Hover.X+.001; }));
+    return SaveTrace(*this,TEXT("ledge_retry_then_floor_adjust"),*Move,Passed) && Passed;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDNativeFallingImpactProbe, "Lockdown.Rules.DemoMotionProbe.FallingImpactAirControl",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDNativeFallingImpactProbe::RunTest(const FString& Parameters)
@@ -744,6 +781,62 @@ bool FLDNativeFallingImpactProbe::RunTest(const FString& Parameters)
         && !Move->Captured->Records.ContainsByPredicate([](const auto& Record)
             { return Record.EndServerSeconds>.25+.000001 || Record.EndServerSeconds<Record.StartServerSeconds; }));
     return SaveTrace(*this,TEXT("falling_impact_air_control"),*Move,Passed) && Passed;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDNativeFallingApexProbe, "Lockdown.Rules.DemoMotionProbe.FallingApexNoRefund",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDNativeFallingApexProbe::RunTest(const FString& Parameters)
+{
+    FNativeWorld Fixture;
+    if (!TestNotNull(TEXT("Native physics world"),Fixture.World)) { return false; }
+    auto* Body=Fixture.Body({0,0,0});
+    if (!TestNotNull(TEXT("Native transient character"),Body)) { return false; }
+    auto* Move=CastChecked<ULDNativeMotionProbeMovement>(Body->GetCharacterMovement());
+    // A body deflected upward while airborne passes its apex inside a falling substep. CMC's apex substep would refund
+    // part of a slice the fall velocity already opened; Demo bodies never jump, so that split is off.
+    bool Passed=TestEqual(TEXT("Demo bodies do not split falling slices at an apex"),Move->MaxJumpApexAttemptsPerSimulation,0);
+    const double Rise=FMath::Abs(Move->GetGravityZ())*.12;
+    Move->TraceFalling({300,0,Rise},FVector::ZeroVector,.25f);
+    Passed&=TestTrue(TEXT("Crossing the apex mid-step is not an authority fault: ")+Move->CaptureError,Move->CaptureError.IsEmpty());
+    Passed&=TestTrue(TEXT("The body rose and turned down within the step"),Move->IsFalling() && Move->Velocity.Z<0);
+    Passed&=TestTrue(TEXT("Every record stays inside the issued step and the batch ends at the native foot"),
+        Move->Captured && Move->Captured->EndFootCm.Equals(Move->GetActorFeetLocation(),.001)
+        && !Move->Captured->Records.ContainsByPredicate([](const auto& Record)
+            { return Record.EndServerSeconds>.25+.000001 || Record.EndServerSeconds<Record.StartServerSeconds; }));
+    return SaveTrace(*this,TEXT("falling_apex_no_refund"),*Move,Passed) && Passed;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDNativePinnedDepenetrationProbe, "Lockdown.Rules.DemoMotionProbe.PinnedDepenetration",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDNativePinnedDepenetrationProbe::RunTest(const FString& Parameters)
+{
+    // A body pressed into a blocking capsule (an AI pinned against a camp monster) resolves penetration every step.
+    IConsoleVariable* TraceFeet=IConsoleManager::Get().FindConsoleVariable(TEXT("ld.Motion.TraceRecordedFoot"));
+    if (TraceFeet) { TraceFeet->Set(1); }
+    ON_SCOPE_EXIT { if (TraceFeet) { TraceFeet->Set(0); } };
+    struct FCase { const TCHAR* Name; double Overlap; double Press; double Walk; };
+    for (const FCase& Case : {FCase{TEXT("static"),20.,0.,300.},FCase{TEXT("pressed"),5.,3.,300.},FCase{TEXT("pressed_still"),5.,3.,0.}})
+    {
+        FNativeWorld Fixture;
+        if (!TestNotNull(TEXT("Physics world"),Fixture.World) || !TestNotNull(TEXT("Floor"),Fixture.Box({0,0,-20},{2000,2000,20})))
+        { return false; }
+        auto* Walker=Fixture.Body({0,0,0});
+        auto* Blocker=Fixture.Body({80.-Case.Overlap,0,0});
+        auto* Move=Prepare(*this,Walker);
+        if (!Move || !TestNotNull(TEXT("Blocking capsule"),Blocker)) { return false; }
+        Walker->GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Pawn,ECR_Block);
+        Blocker->GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Pawn,ECR_Block);
+        for (int32 Frame=0; Frame<90; ++Frame)
+        {
+            if (Case.Press>0)
+            { Blocker->SetActorLocation(Blocker->GetActorLocation()-FVector(Case.Press,0,0),false,nullptr,ETeleportType::TeleportPhysics); }
+            Move->TraceWalking({Case.Walk,0,Move->Velocity.Z},1.f/60);
+            if (!TestTrue(FString::Printf(TEXT("%s frame %d keeps every native move witnessed: "),Case.Name,Frame)+Move->CaptureError,
+                Move->CaptureError.IsEmpty())) { break; }
+        }
+        AddInfo(FString::Printf(TEXT("%s: walker %s blocker %s"),Case.Name,*Walker->GetActorLocation().ToString(),*Blocker->GetActorLocation().ToString()));
+    }
+    return !HasAnyErrors();
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDNativeSupportProbe, "Lockdown.Rules.DemoMotionProbe.SupportTransitions",

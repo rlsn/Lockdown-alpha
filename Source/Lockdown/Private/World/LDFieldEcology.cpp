@@ -109,6 +109,16 @@ bool LDFieldEcology::FGroundSampler::Initialize(const ULDMapRegistry& InRegistry
     return true;
 }
 
+void LDFieldEcology::GridPoints(const FBox2D& Bounds, double SpacingCm, TArray<FVector2D>& Out)
+{
+    Out.Reset();
+    if (!Bounds.bIsValid || !FMath::IsFinite(SpacingCm) || SpacingCm <= 0.) { return; }
+    for (double Y = Bounds.Min.Y + SpacingCm * .5; Y <= Bounds.Max.Y; Y += SpacingCm)
+    {
+        for (double X = Bounds.Min.X + SpacingCm * .5; X <= Bounds.Max.X; X += SpacingCm) { Out.Emplace(X, Y); }
+    }
+}
+
 FVector2D LDFieldEcology::FGroundSampler::Draw(FRandomStream& Random, double EdgeClearanceCm) const
 {
     const FVector2D Inset(EdgeClearanceCm, EdgeClearanceCm);
