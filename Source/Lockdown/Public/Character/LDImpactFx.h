@@ -20,21 +20,11 @@ class USkeletalMeshComponent;
 class UMaterialInstanceDynamic;
 class FLDDemoContentSnapshot;
 class UTexture2D;
-namespace LDHitFeel { struct FTuning; }
 
 namespace LDImpactFx
 {
-    enum class EKind : uint8 { Spark, Ember, Shard };
-    struct FPlan
-    {
-        bool bEnabled = false;
-        int32 Sparks = 0, Smoke = 0, Shards = 0;
-        float Scale = 0, LifeScale = 0, SpeedScale = 0;
-        FLinearColor SparkColour, CoreColour, SmokeColour, ShardColour;
-    };
+    // The most effects (and pending impacts of one body) kept at once; the oldest goes first.
     constexpr int32 MaxBursts = 32;
-    LOCKDOWN_API FLinearColor Colour(ELDObservedHitLook Look, uint8 HitFlags, EKind Kind);
-    LOCKDOWN_API FPlan Plan(ELDObservedHitLook Look, uint8 HitFlags, const LDHitFeel::FTuning& Tuning, float EffectScale);
 }
 
 // Local, observation-owned Niagara bursts. Hiding or removing the presented source immediately removes its effects.
@@ -48,8 +38,6 @@ public:
     virtual void Deinitialize() override;
     virtual void Tick(float DeltaTime) override;
     virtual TStatId GetStatId() const override;
-    void Burst(ULDHumanoidVisualComponent& Source, const FVector& At, ELDObservedHitLook Look, uint8 HitFlags,
-        float AgeSeconds, float EffectScale);
     // The shaped layers (LDHitVfx) of one hit or fall: Chest is the struck point, Feet the ground under the body. A
     // layer bound to Source goes with it (hidden, fallen or removed); an unbound one (a fall's crack) plays out alone.
     void Layers(const ULDHumanoidVisualComponent* Source, const FVector& Chest, const FVector& Feet,
@@ -318,7 +306,6 @@ private:
     bool bLayerAssetsTried = false, bLayerAssetsReady = false;
     LDHitVfx::FScreenFlash Flash;
     double FlashAt = -1;
-    UPROPERTY() TObjectPtr<UNiagaraSystem> ImpactSystem;
     UPROPERTY() TObjectPtr<UNiagaraSystem> BurstSystem;
     UPROPERTY() TObjectPtr<UNiagaraSystem> ZoneSystem;
     UPROPERTY() TArray<TObjectPtr<UNiagaraSystem>> GeneratedSystems;

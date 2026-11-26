@@ -32,68 +32,7 @@
 
 namespace LDImpactFxDetail
 {
-    const FLinearColor WhiteHot(1.f, .28f, .045f), EmberOrange(1.f, .3f, .05f), ShieldCyan(0.f, .78f, 1.f), CritGold(1.f, .55f, .08f);
-    constexpr float ReferenceLifeSeconds = .28f, ReferenceSpeed = 900.f, MaxWaitSeconds = .5f;
-
-    FLinearColor LookColour(ELDObservedHitLook Look)
-    {
-        switch (Look)
-        {
-        case ELDObservedHitLook::Magic: return FLinearColor(.62f, .22f, 1.f);
-        case ELDObservedHitLook::Fire: return FLinearColor(1.f, .22f, .025f);
-        case ELDObservedHitLook::Water: return FLinearColor(.05f, .62f, 1.f);
-        case ELDObservedHitLook::Electric: return FLinearColor(1.f, .78f, .05f);
-        default: return WhiteHot;
-        }
-    }
-
-    FLinearColor Lit(FLinearColor Colour, float Glow, float Alpha)
-    {
-        Colour.R *= Glow;
-        Colour.G *= Glow;
-        Colour.B *= Glow;
-        Colour.A = Alpha;
-        return Colour;
-    }
-}
-
-FLinearColor LDImpactFx::Colour(ELDObservedHitLook Look, uint8 HitFlags, EKind Kind)
-{
-    using namespace LDImpactFxDetail;
-    if (Kind == EKind::Shard || (HitFlags & LDObservation::ShieldAbsorbed)) { return ShieldCyan; }
-    if (HitFlags & LDObservation::Overdriven) { return Kind == EKind::Ember ? FLinearColor(.8f, .1f, .55f) : FLinearColor(1.f, .18f, .75f); }
-    if (HitFlags & LDObservation::Critical) { return Kind == EKind::Ember ? EmberOrange : CritGold; }
-    if (Kind == EKind::Ember) { return Look == ELDObservedHitLook::None ? EmberOrange : LookColour(Look) * .7f; }
-    return LookColour(Look);
-}
-
-LDImpactFx::FPlan LDImpactFx::Plan(ELDObservedHitLook Look, uint8 HitFlags, const LDHitFeel::FTuning& Tuning, float EffectScale)
-{
-    using namespace LDImpactFxDetail;
-    FPlan Result;
-    if (!FMath::IsFinite(Tuning.ImpactScale) || !FMath::IsFinite(Tuning.ImpactSeconds)
-        || !FMath::IsFinite(EffectScale) || Tuning.ImpactScale <= 0.f || Tuning.ImpactSeconds <= 0.f || EffectScale <= 0.f)
-    { return Result; }
-    const float Thin = FMath::Clamp(EffectScale, 0.f, 1.f);
-    const bool bCritical = (HitFlags & LDObservation::Critical) != 0;
-    const bool bShield = (HitFlags & LDObservation::ShieldAbsorbed) != 0;
-    const bool bBroken = (HitFlags & LDObservation::ShieldBroken) != 0;
-    const bool bOverdrive = (HitFlags & LDObservation::Overdriven) != 0;
-    const float Weight = bOverdrive ? 1.9f : bCritical ? 1.6f : bBroken ? 1.4f : 1.f;
-    const float Glow = FMath::IsFinite(Tuning.ImpactGlow) ? FMath::Max(Tuning.ImpactGlow, 0.f) : 0.f;
-    const float Speed = FMath::IsFinite(Tuning.ImpactSpeed) ? FMath::Max(Tuning.ImpactSpeed, 0.f) : 0.f;
-    Result.bEnabled = true;
-    Result.Sparks = FMath::RoundToInt(FMath::Min(float(FMath::Max(Tuning.ImpactSparks, 0)) * Weight * Thin, 64.f));
-    Result.Smoke = FMath::RoundToInt(5.f * Thin);
-    Result.Shards = bShield ? FMath::RoundToInt((bBroken ? 14.f : 6.f) * Thin) : 0;
-    Result.Scale = Tuning.ImpactScale * FMath::Sqrt(Thin);
-    Result.LifeScale = Tuning.ImpactSeconds / ReferenceLifeSeconds;
-    Result.SpeedScale = Speed / ReferenceSpeed * (bOverdrive ? 1.4f : bCritical ? 1.25f : 1.f);
-    Result.SparkColour = Lit(Colour(Look, HitFlags, EKind::Spark), Glow, Thin);
-    Result.CoreColour = Lit(Colour(Look, HitFlags, EKind::Spark), Glow * .7f, .8f * Thin);
-    Result.SmokeColour = FLinearColor(.10f, .08f, .06f, .55f * Thin);
-    Result.ShardColour = Lit(Colour(Look, HitFlags, EKind::Shard), Glow * .35f, Thin);
-    return Result;
+    constexpr float MaxWaitSeconds = .5f;
 }
 
 bool ULDImpactFxSubsystem::ShouldCreateSubsystem(UObject* Outer) const
@@ -107,7 +46,6 @@ void ULDImpactFxSubsystem::OnWorldBeginPlay(UWorld& World)
 {
     Super::OnWorldBeginPlay(World);
     Catalog = LoadObject<ULDCombatVfxCatalog>(nullptr, ULDCombatVfxCatalog::AssetPath);
-    ImpactSystem = Catalog ? Catalog->Impact.Get() : nullptr;
     BurstSystem = Catalog && Catalog->Burst ? Catalog->Burst.Get() : LoadObject<UNiagaraSystem>(nullptr, ULDCombatVfxCatalog::DefaultBurst);
     ZoneSystem = Catalog && Catalog->Zone ? Catalog->Zone.Get() : LoadObject<UNiagaraSystem>(nullptr, ULDCombatVfxCatalog::DefaultZone);
     GeneratedSystems.SetNum(int32(LDSliceVfx::ESystem::Count));
@@ -120,7 +58,6 @@ void ULDImpactFxSubsystem::OnWorldBeginPlay(UWorld& World)
     if (!BodyGlowMaterial) { UE_LOG(LogLDContent, Error, TEXT("LD_CHAIN_FX asset=missing %s (run Scripts\\ImportDemoArt.ps1 -Mode ImportVFX)"), LDSliceVfx::BodyGlowMaterial); }
 #if WITH_EDITOR
     // Start editor-only Niagara compilation during world startup rather than on the first swing.
-    if (ImpactSystem) { ImpactSystem->RequestCompile(false); }
     if (Catalog && Catalog->SwingTrail) { Catalog->SwingTrail->RequestCompile(false); }
     if (BurstSystem) { BurstSystem->RequestCompile(false); }
     if (ZoneSystem) { ZoneSystem->RequestCompile(false); }
@@ -136,10 +73,6 @@ void ULDImpactFxSubsystem::OnWorldBeginPlay(UWorld& World)
     {
         UE_LOG(LogLDContent, Error, TEXT("LD_PARTICLE_KIT asset=missing burst=%s zone=%s"),
             BurstSystem ? TEXT("ok") : ULDCombatVfxCatalog::DefaultBurst, ZoneSystem ? TEXT("ok") : ULDCombatVfxCatalog::DefaultZone);
-    }
-    if (!ImpactSystem)
-    {
-        UE_LOG(LogLDContent, Error, TEXT("LD_IMPACT_FX asset=missing catalog=%s"), ULDCombatVfxCatalog::AssetPath);
     }
     for (int32 System = 0; System < GeneratedSystems.Num(); ++System)
     {
@@ -170,7 +103,6 @@ void ULDImpactFxSubsystem::Deinitialize()
     Slots.Reset();
     SlotKinds.Reset();
     FreeSlots.Reset();
-    ImpactSystem = nullptr;
     BurstSystem = nullptr;
     ZoneSystem = nullptr;
     GeneratedSystems.Reset();
@@ -181,34 +113,6 @@ void ULDImpactFxSubsystem::Deinitialize()
 TStatId ULDImpactFxSubsystem::GetStatId() const
 {
     RETURN_QUICK_DECLARE_CYCLE_STAT(ULDImpactFxSubsystem, STATGROUP_Tickables);
-}
-
-void ULDImpactFxSubsystem::Burst(ULDHumanoidVisualComponent& Source, const FVector& At, ELDObservedHitLook Look,
-    uint8 HitFlags, float AgeSeconds, float EffectScale)
-{
-    if (!FApp::CanEverRender() || !Source.CanShowImpact() || At.ContainsNaN() || !FMath::IsFinite(AgeSeconds) || !ImpactSystem) { return; }
-    const LDImpactFx::FPlan Plan = LDImpactFx::Plan(Look, HitFlags, LDHitFeel::Read(), EffectScale);
-    if (!Plan.bEnabled) { return; }
-    if (Live.Num() >= LDImpactFx::MaxBursts) { Release(0); }
-    UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), ImpactSystem, At,
-        FRotator::ZeroRotator, FVector(1.f), false, false, ENCPoolMethod::ManualRelease, false);
-    if (!Effect)
-    {
-        UE_LOG(LogLDContent, Warning, TEXT("LD_IMPACT_FX spawn=failed"));
-        return;
-    }
-    Effect->SetVariableInt(TEXT("User.SparkCount"), Plan.Sparks);
-    Effect->SetVariableInt(TEXT("User.SmokeCount"), Plan.Smoke);
-    Effect->SetVariableInt(TEXT("User.ShardCount"), Plan.Shards);
-    Effect->SetVariableFloat(TEXT("User.Scale"), Plan.Scale);
-    Effect->SetVariableFloat(TEXT("User.LifeScale"), Plan.LifeScale);
-    Effect->SetVariableFloat(TEXT("User.SpeedScale"), Plan.SpeedScale);
-    Effect->SetVariableLinearColor(TEXT("User.SparkColor"), Plan.SparkColour);
-    Effect->SetVariableLinearColor(TEXT("User.CoreColor"), Plan.CoreColour);
-    Effect->SetVariableLinearColor(TEXT("User.SmokeColor"), Plan.SmokeColour);
-    Effect->SetVariableLinearColor(TEXT("User.ShardColor"), Plan.ShardColour);
-    Effect->Activate(true);
-    Track(Effect, &Source, AgeSeconds);
 }
 
 void ULDImpactFxSubsystem::Track(UNiagaraComponent* Effect, const ULDHumanoidVisualComponent* Source, float AgeSeconds,
@@ -845,7 +749,7 @@ void ULDImpactFxSubsystem::WarmUp()
         for (uint8 Kind = SlotQuad; Kind < SlotSlash + uint8(LDSliceVfx::SlashMeshCount); ++Kind) { FreeSlots.Add(TakeSlot(Kind)); }
     }
     const FVector Under(0., 0., -20000.);
-    TArray<UNiagaraSystem*> Systems{ImpactSystem.Get(), BurstSystem.Get(), ZoneSystem.Get()};
+    TArray<UNiagaraSystem*> Systems{BurstSystem.Get(), ZoneSystem.Get()};
     for (UNiagaraSystem* Generated : GeneratedSystems) { if (Generated) { Systems.Add(Generated); } }
     if (Catalog) { Systems.Add(Catalog->SwingTrail.Get()); }
     for (UNiagaraSystem* System : Systems)
