@@ -14,6 +14,8 @@
 #include "Misc/AutomationTest.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Misc/ScopeExit.h"
+#include "HAL/IConsoleManager.h"
 #include "PhysicsEngine/BodySetup.h"
 #include "Serialization/JsonSerializer.h"
 
@@ -767,6 +769,39 @@ bool FLDNativeFallingApexProbe::RunTest(const FString& Parameters)
         && !Move->Captured->Records.ContainsByPredicate([](const auto& Record)
             { return Record.EndServerSeconds>.25+.000001 || Record.EndServerSeconds<Record.StartServerSeconds; }));
     return SaveTrace(*this,TEXT("falling_apex_no_refund"),*Move,Passed) && Passed;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDNativePinnedDepenetrationProbe, "Lockdown.Rules.DemoMotionProbe.PinnedDepenetration",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDNativePinnedDepenetrationProbe::RunTest(const FString& Parameters)
+{
+    // A body pressed into a blocking capsule (an AI pinned against a camp monster) resolves penetration every step.
+    IConsoleVariable* TraceFeet=IConsoleManager::Get().FindConsoleVariable(TEXT("ld.Motion.TraceRecordedFoot"));
+    if (TraceFeet) { TraceFeet->Set(1); }
+    ON_SCOPE_EXIT { if (TraceFeet) { TraceFeet->Set(0); } };
+    struct FCase { const TCHAR* Name; double Overlap; double Press; double Walk; };
+    for (const FCase& Case : {FCase{TEXT("static"),20.,0.,300.},FCase{TEXT("pressed"),5.,3.,300.},FCase{TEXT("pressed_still"),5.,3.,0.}})
+    {
+        FNativeWorld Fixture;
+        if (!TestNotNull(TEXT("Physics world"),Fixture.World) || !TestNotNull(TEXT("Floor"),Fixture.Box({0,0,-20},{2000,2000,20})))
+        { return false; }
+        auto* Walker=Fixture.Body({0,0,0});
+        auto* Blocker=Fixture.Body({80.-Case.Overlap,0,0});
+        auto* Move=Prepare(*this,Walker);
+        if (!Move || !TestNotNull(TEXT("Blocking capsule"),Blocker)) { return false; }
+        Walker->GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Pawn,ECR_Block);
+        Blocker->GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Pawn,ECR_Block);
+        for (int32 Frame=0; Frame<90; ++Frame)
+        {
+            if (Case.Press>0)
+            { Blocker->SetActorLocation(Blocker->GetActorLocation()-FVector(Case.Press,0,0),false,nullptr,ETeleportType::TeleportPhysics); }
+            Move->TraceWalking({Case.Walk,0,Move->Velocity.Z},1.f/60);
+            if (!TestTrue(FString::Printf(TEXT("%s frame %d keeps every native move witnessed: "),Case.Name,Frame)+Move->CaptureError,
+                Move->CaptureError.IsEmpty())) { break; }
+        }
+        AddInfo(FString::Printf(TEXT("%s: walker %s blocker %s"),Case.Name,*Walker->GetActorLocation().ToString(),*Blocker->GetActorLocation().ToString()));
+    }
+    return !HasAnyErrors();
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDNativeSupportProbe, "Lockdown.Rules.DemoMotionProbe.SupportTransitions",
