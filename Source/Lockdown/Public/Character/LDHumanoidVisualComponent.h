@@ -189,6 +189,8 @@ private:
     uint8 HitAbility = 0;
     // The element states already sounded (their onset sting plays once per start).
     bool StateSounded[5] = {false, false, false, false, false};
+    // When the body's element state next pulses its rim shell (one state at a time; UpdateStates).
+    double StateShellAt = -1;
     TWeakObjectPtr<class UAudioComponent> ChargeSound;
     void UpdateSound();
     uint8 CastAbility = 0;

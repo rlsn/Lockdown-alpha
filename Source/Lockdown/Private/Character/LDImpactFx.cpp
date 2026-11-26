@@ -1570,7 +1570,8 @@ float ULDImpactFxSubsystem::ReactionRadiusCm(uint8 Reaction)
     if (!Content) { return 0.f; }
     const auto& Parameters = Content->Get().Parameters;
     const FLDDemoRational* Radius = Reaction == uint8(ELDCombatReaction::Fog) ? &Parameters.FogRadiusCm
-        : Reaction == uint8(ELDCombatReaction::Overload) ? &Parameters.OverloadRadiusCm : nullptr;
+        : Reaction == uint8(ELDCombatReaction::Overload) ? &Parameters.OverloadRadiusCm
+        : Reaction == uint8(ELDCombatReaction::Methane) ? &Parameters.Elements.MethaneRadiusCm : nullptr;
     return Radius && Radius->Denominator > 0 ? float(double(Radius->Numerator) / double(Radius->Denominator)) : 0.f;
 }
 

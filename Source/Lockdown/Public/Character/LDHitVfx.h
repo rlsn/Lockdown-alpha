@@ -95,7 +95,8 @@ namespace LDSliceVfx
         BurnState, WetState, ShockState, ChillState, RotState, PuddleGround, IceGround, FireGround, MiasmaGround, Knockout, CastAim, CastBrace,
         ElbowRelease, ElbowHit, PantsRelease, PantsHit, GrabRelease, GrabHit, BailRelease, RamRelease, RamHit,
         ShieldState, BracedState, EmpoweredState, StareDownAura, FlurryAura, UnplugRelease, UnplugHit, NotMadRelease, StareDownRelease,
-        BraceRelease, BraceBurst, TripleRelease, OpenMicRelease, OpenMicHit, FlurryRelease, FogReact, FreezeReact, OverloadReact, Count
+        BraceRelease, BraceBurst, TripleRelease, OpenMicRelease, OpenMicHit, FlurryRelease, FogReact, FreezeReact, OverloadReact,
+        MeltReact, MethaneReact, FermentReact, ShatterReact, CorrodeReact, FrostbiteReact, Count
     };
     LOCKDOWN_API const TCHAR* SystemName(ESystem System);
     // An element reaction's own event on the reacting body (ELDCombatReaction): Start the floor under it, End its chest,

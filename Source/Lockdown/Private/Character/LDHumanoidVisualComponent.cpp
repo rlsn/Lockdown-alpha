@@ -413,6 +413,35 @@ void ULDHumanoidVisualComponent::UpdateStates(bool bFalling, float EffectScale)
             LDSliceVfx::ElementInk(uint8(Index == 0 ? ELDCombatElement::Fire : Index == 1 ? ELDCombatElement::Water : Index == 2 ? ELDCombatElement::Shock
                 : Index == 3 ? ELDCombatElement::Chill : ELDCombatElement::Rot)), .17f * HeightCm, Strength, 1.e4f, bOwnBody);
     }
+    // The state on the body itself: a low element-tinted rim shell over the pose, pulsing in the element's own rhythm (burn a
+    // warm quick breath, wet a slow sheen, shock a flicker with gaps, chill a long slow creep, rot uneven). One state per body
+    // at a time (the first it holds), well under a hit's rim, so the pool stays free for hits.
+    if (bShow && Mesh)
+    {
+        int32 Held = INDEX_NONE;
+        for (int32 Index = 0; Index < ElementStates && Held == INDEX_NONE; ++Index) { if (StateStacks[Index] > 0) { Held = Index; } }
+        if (Held != INDEX_NONE && Clock >= StateShellAt)
+        {
+            static constexpr float Period[ElementStates] = {.5f, .95f, .16f, 1.3f, .7f};
+            static constexpr float Lasts[ElementStates] = {.55f, 1.f, .12f, 1.35f, .75f};
+            static constexpr float Level[ElementStates] = {.5f, .6f, .7f, .6f, .6f};
+            const float Chance = FMath::FRand();
+            // Shock skips beats; rot's beats are uneven.
+            const bool bBeat = Held != 2 || Chance > .4f;
+            const float Next = Held == 4 ? FMath::Lerp(.35f, 1.1f, Chance) : Period[Held];
+            if (bBeat)
+            {
+                LDHitVfx::FGhosts Shell;
+                Shell.bShow = true;
+                Shell.bShell = true;
+                Shell.Seconds = Lasts[Held];
+                Shell.Glow = LDSliceVfx::ElementInk(uint8(Held == 0 ? ELDCombatElement::Fire : Held == 1 ? ELDCombatElement::Water : Held == 2 ? ELDCombatElement::Shock
+                    : Held == 3 ? ELDCombatElement::Chill : ELDCombatElement::Rot)) * Level[Held] * (bOwnBody ? 1.f : .75f) * FMath::Clamp(EffectScale, .45f, 1.f);
+                Impacts->Ghost(*Mesh, Shell, *this);
+            }
+            StateShellAt = Clock + Next;
+        }
+    }
     // Guards and stances under the element states, hits and telegraphs: a shield (from the cue), braced, the own empowered
     // basics; and a self skill's aura from its release for its hold, eased in and out.
     static constexpr LDSliceVfx::ESystem Guards[GuardStates] = {LDSliceVfx::ESystem::ShieldState, LDSliceVfx::ESystem::BracedState,
@@ -1484,7 +1513,11 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
                     // for the root's time).
                     const bool bMine = OwnStrikeAt >= 0 && Clock - OwnStrikeAt < .6;
                     const bool bFreeze = ShownReaction == uint8(ELDCombatReaction::Freeze);
-                    const float Radius = bFreeze ? .62f * HeightCm : Impacts->ReactionRadiusCm(ShownReaction);
+                    // A reaction with a splash or zone shows at its approved radius; one that only changes the body shows
+                    // round it (a melt: the pool it leaves at the feet).
+                    const float Splash = Impacts->ReactionRadiusCm(ShownReaction);
+                    const float Radius = bFreeze ? .62f * HeightCm : Splash > 0.f ? Splash
+                        : ShownReaction == uint8(ELDCombatReaction::Melt) ? .85f * HeightCm : .7f * HeightCm;
                     const float Hold = bFreeze ? FMath::Max(Impacts->FreezeRootSeconds(), .6f) : 1.4f;
                     const LDSliceVfx::FLook Look = Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, bMine, bOwnBody || bMine);
                     if (Radius > 0.f)

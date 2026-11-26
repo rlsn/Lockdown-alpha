@@ -426,26 +426,28 @@
 
 | 状态 | 状态编号 | 状态 | 实现 | 证据 | 已知问题 |
 | --- | --- | --- | --- | --- | --- |
-| 灼烧 Burn | 26 | IMPLEMENTED | `NS_LDBurnState`：身侧火舌循环上舔、火星上飘，层数提高强度 | `production/vfx/batch2/states-*.jpg` | 能看到但在游戏镜头下偏弱，待素材增强 |
-| 潮湿 Wet | 30 | IMPLEMENTED | `NS_LDWetState`：衣摆与手上挂水滴下落、脚下湿印 | `production/vfx/batch2/states-*.jpg` | 能看到但在游戏镜头下偏弱，待素材增强 |
-| 带电 Electrified | 31 | IMPLEMENTED | `NS_LDShockState`：身上短折线电弧间歇爬行（链的材质） | `production/vfx/batch2/states-*.jpg` | 能看到但在游戏镜头下偏弱，待素材增强 |
-| 冰冷 Chilled | 36 | IMPLEMENTED | `NS_LDChillState`：小腿冰晶、冷雾下沉、脚下霜环 | `production/vfx/batch2/states-*.jpg` | 能看到但在游戏镜头下偏弱，待素材增强 |
-| 腐坏 Rotten | 37 | IMPLEMENTED | `NS_LDRotState`：身上鼓起破裂的气泡、腰间酸腐雾 | `production/vfx/batch2/states-*.jpg` | 能看到但在游戏镜头下偏弱，待素材增强 |
+| 灼烧 Burn | 26 | LOCALLY VERIFIED | `NS_LDBurnState`：身侧火舌循环上舔、火星上飘，层数提高强度 | `production/vfx/batch8-reactions/` | 点缀元素已调到游戏镜头下可见的大小（不扩大占地）；用户未验收 |
+| 潮湿 Wet | 30 | LOCALLY VERIFIED | `NS_LDWetState`：衣摆与手上挂水滴下落、脚下湿印 | `production/vfx/batch8-reactions/` | 点缀元素已调到游戏镜头下可见的大小（不扩大占地）；用户未验收 |
+| 带电 Electrified | 31 | LOCALLY VERIFIED | `NS_LDShockState`：身上短折线电弧间歇爬行（链的材质） | `production/vfx/batch8-reactions/` | 点缀元素已调到游戏镜头下可见的大小（不扩大占地）；用户未验收 |
+| 冰冷 Chilled | 36 | LOCALLY VERIFIED | `NS_LDChillState`：小腿冰晶、冷雾下沉、脚下霜环 | `production/vfx/batch8-reactions/` | 点缀元素已调到游戏镜头下可见的大小（不扩大占地）；用户未验收 |
+| 腐坏 Rotten | 37 | LOCALLY VERIFIED | `NS_LDRotState`：身上鼓起破裂的气泡、腰间酸腐雾 | `production/vfx/batch8-reactions/` | 点缀元素已调到游戏镜头下可见的大小（不扩大占地）；用户未验收 |
+
+身体本身另有一层低亮度的元素色边缘光（`M_LDChainBodyGlow` 壳，与命中边缘光同一路径），按元素各自的节奏脉动：灼烧约 0.5 s 一次的暖色呼吸，潮湿约 1 s 的缓慢光泽，带电 0.16 s 的闪烁并随机漏拍，冰冷 1.3 s 的缓慢起伏，腐坏间隔不均。每个身体同一时间只显示它持有的第一种状态的边缘光，亮度低于命中边缘光。
 
 ### 7.4 元素反应
 
 | 反应 | 状态 | 实现 | 证据 | 已知问题 |
 | --- | --- | --- | --- | --- |
 | 导电 Conduct（溅射电场） | USER APPROVED（场） | `NS_LDField` 450（§2.2） | `vfx/approved/field-conduct.jpg` | 头顶十字闪仍是旧层 |
-| 起雾 Fog（烫 + 湿） | IMPLEMENTED | `NS_LDFogReact`：胸口橙光被白色压灭、一根连续上升并在顶部散开的蒸汽柱（略带倾斜）与贴地滚到雾区半径（数据 250 cm）的水汽连成一团、短促的白色嘶响条、溅起又落下的烫水滴 | `production/vfx/review2/` | 用户未验收；雾区本身仍是旧区域粒子 |
-| 过载 Overload（烫 + 麻） | IMPLEMENTED | `NS_LDOverloadReact`：胸口暖色热核与光、贴地向四周炸开到溅射半径（数据 200 cm）的火焰、火里贴身的短促电光（每秒重画 25 次，不是长电弧）、向外飞溅下落的火星、地面焦裂、少量烟 | `production/vfx/review2/` | 用户未验收 |
-| 融化 Melt | NOT STARTED | 同上 | — | |
-| 沼气 Methane | NOT STARTED | 同上 | — | |
-| 冻住 Freeze（湿 + 冻） | IMPLEMENTED | `NS_LDFreezeReact`：脚边一圈棱柱状冰晶（暗面 + 亮面 + 高光面）带过冲地拔地而起并立住（时长取定身数据 1.2 s）、脚下迅速铺开的霜面、晶体上游走的闪光、外溢的冷雾，结束时冰晶落下碎裂 | `production/vfx/review2/` | 用户未验收 |
-| 发酵 Ferment | NOT STARTED | 同上 | — | |
-| 碎冰 Shatter | NOT STARTED | 同上 | — | |
-| 腐蚀 Corrode | NOT STARTED | 同上 | — | |
-| 冻伤 Frostbite | NOT STARTED | 同上 | — | |
+| 起雾 Fog（烫 + 湿） | LOCALLY VERIFIED | `NS_LDFogReact`：胸口橙光被白色压灭、一根连续上升并在顶部散开的蒸汽柱（略带倾斜）与贴地滚到雾区半径（数据 250 cm）的水汽连成一团、短促的白色嘶响条、溅起又落下的烫水滴 | `production/vfx/review2/` | 用户未验收；雾区本身仍是旧区域粒子 |
+| 过载 Overload（烫 + 麻） | LOCALLY VERIFIED | `NS_LDOverloadReact`：胸口暖色热核与光、贴地向四周炸开到溅射半径（数据 200 cm）的火焰、火里贴身的短促电光（每秒重画 25 次，不是长电弧）、向外飞溅下落的火星、地面焦裂、少量烟 | `production/vfx/review2/` | 用户未验收 |
+| 融化 Melt（烫 + 冻） | LOCALLY VERIFIED | `NS_LDMeltReact`：暖光一闪、冰块从身上塌落并边落边化、一缕蒸汽、融水在脚下漫成一滩 | `production/vfx/batch8-reactions/` | 用户未验收 |
+| 沼气爆 Methane（烫 + 馊） | LOCALLY VERIFIED | `NS_LDMethaneReact`：绿色气团贴地涌到溅射半径（数据 250 cm）、从中心向外被火点着、褐烟 | `production/vfx/batch8-reactions/` | 用户未验收；气团的绿色偏纯 |
+| 冻住 Freeze（湿 + 冻） | LOCALLY VERIFIED | `NS_LDFreezeReact`：脚边一圈棱柱状冰晶（暗面 + 亮面 + 高光面）带过冲地拔地而起并立住（时长取定身数据 1.2 s）、脚下迅速铺开的霜面、晶体上游走的闪光、外溢的冷雾，结束时冰晶落下碎裂 | `production/vfx/review2/` | 用户未验收 |
+| 发酵 Ferment（湿 + 馊） | LOCALLY VERIFIED | `NS_LDFermentReact`：酸黄色泡沫从脚往上漫、气泡相继鼓起破裂、酸水滴落、脚下污渍；缓慢，无闪光 | `production/vfx/batch8-reactions/` | 用户未验收 |
+| 碎冰 Shatter（麻 + 冻） | LOCALLY VERIFIED | `NS_LDShatterReact`：白光一闪、冰片贴地向四周飞溅并滑停、闪亮的小冰片、冰尘、贴身三道短电光 | `production/vfx/batch8-reactions/` | 用户未验收；之后 4 s 的易伤没有持续标记 |
+| 腐蚀 Corrode（麻 + 馊） | LOCALLY VERIFIED | `NS_LDCorrodeReact`：酸黄色水泡在躯干上此起彼伏、酸液迸溅、深色甲片剥落掉下、酸烟上飘 | `production/vfx/batch8-reactions/` | 用户未验收 |
+| 冻疮 Frostbite（冻 + 馊） | LOCALLY VERIFIED | `NS_LDFrostbiteReact`：灰紫色的霜爬上身体、钝冰针结在身上再掉落、沉重的冷雾下沉、脚下灰紫霜面；迟缓，不发亮 | `production/vfx/batch8-reactions/` | 用户未验收 |
 
 ### 7.5 持续区域与地面状态
 
