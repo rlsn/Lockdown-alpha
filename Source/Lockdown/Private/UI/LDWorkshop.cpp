@@ -39,7 +39,7 @@ constexpr double RingRevealStagger=.03;
 constexpr double RingLandTime=.20;
 // The band's ink at its inner rule, at 78% of its outer radius and at the outer rule: one step lighter towards the edge than
 // the comp, so the half-disc sits lighter on bright ground.
-constexpr float BandInnerInk=.84f,BandMidInk=.62f,BandEdgeInk=.40f;
+constexpr float BandInnerInk=.94f,BandMidInk=.84f,BandEdgeInk=.70f;
 
 FLinearColor ElementInk(ELDDemoElement Element)
 {
@@ -1124,8 +1124,18 @@ void ULDWorkshop::PaintBand(FPainter& P) const
         const float From=A-SectorHalf,To=From+2.f*SectorHalf*(1.f-FMath::Square(1.f-Sweep));
         const float Inner=SectorInner*R,Outer=L.Outer[HostIndex],Mid=FMath::Max(Inner+1.f,.78f*Outer);
         const TArray<FVector2D> In=LDRingPaint::Arc(C,Inner,From,To,32),Middle=LDRingPaint::Arc(C,Mid,From,To,32),Out=LDRingPaint::Arc(C,Outer,From,To,32);
-        P.Band(In,Middle,[&](FVector2D At){return LDBroadcast::Ink.CopyWithNewOpacity(FMath::Lerp(BandInnerInk,BandMidInk,FMath::Clamp((float(FVector2D::Distance(At,C))-Inner)/(Mid-Inner),0.f,1.f)));});
-        P.Band(Middle,Out,[&](FVector2D At){return LDBroadcast::Ink.CopyWithNewOpacity(FMath::Lerp(BandMidInk,BandEdgeInk,FMath::Clamp((float(FVector2D::Distance(At,C))-Mid)/FMath::Max(1.f,Outer-Mid),0.f,1.f)));});
+        // A solid plate rather than a tint of the floor: near-opaque ink that lightens a little towards the rim, a soft
+        // shadow falling outside the rim, hairlines every ten degrees across it. An empty host is the same plate, thinner.
+        const float Plate=Host.bEmpty?.82f:1.f;
+        P.Band(Out,LDRingPaint::Arc(C,Outer+14.f*R,From,To,32),[&](FVector2D At){return LDBroadcast::Ink.CopyWithNewOpacity(.34f*(1.f-FMath::Clamp((float(FVector2D::Distance(At,C))-Outer)/(14.f*R),0.f,1.f)));});
+        P.Band(In,Middle,[&](FVector2D At){return LDBroadcast::Ink.CopyWithNewOpacity(Plate*FMath::Lerp(BandInnerInk,BandMidInk,FMath::Clamp((float(FVector2D::Distance(At,C))-Inner)/(Mid-Inner),0.f,1.f)));});
+        P.Band(Middle,Out,[&](FVector2D At)
+        {
+            const float T=FMath::Clamp((float(FVector2D::Distance(At,C))-Mid)/FMath::Max(1.f,Outer-Mid),0.f,1.f);
+            return FMath::Lerp(LDBroadcast::Ink,LDBroadcast::Raised,T).CopyWithNewOpacity(Plate*FMath::Lerp(BandMidInk,BandEdgeInk,T));
+        });
+        for(float T=10.f;From+T<To-.01f;T+=10.f)
+        {P.Stroke({LDRingPaint::Polar(C,Inner+8.f*R,From+T),LDRingPaint::Polar(C,Outer-6.f*R,From+T)},1.f*R,LDBroadcast::White.CopyWithNewOpacity(.05f));}
         if(Host.bHasMedal)
         {
             const FLinearColor Element=ElementInk(Host.Medal.Element);
@@ -1134,8 +1144,10 @@ void ULDWorkshop::PaintBand(FPainter& P) const
         }
         // A held card's hosts and a blueprint's skill slots take the thick rule.
         const bool bTarget=(HeldForm==Host.Form&&!(Host.Form==ELDCardForm::Skill&&Host.bEmpty))||(SelectedBlueprint!=INDEX_NONE&&HostIndex>=1&&HostIndex<=3);
-        P.Stroke(Out,(bTarget?4.f:2.f)*R,bTarget?LDBroadcast::White:LDBroadcast::White.CopyWithNewOpacity(.8f));
-        P.Stroke(In,2.f*R,LDBroadcast::White.CopyWithNewOpacity(.28f));
+        // The rim: thick white for a host that can take the held card, a dashed rule for an empty host, else the plain rule.
+        if(Host.bEmpty&&!bTarget){P.Dashed(Out,2.f*R,12.f*R,8.f*R,LDBroadcast::White.CopyWithNewOpacity(.6f),false);}
+        else{P.Stroke(Out,(bTarget?4.f:2.f)*R,bTarget?LDBroadcast::White:LDBroadcast::White.CopyWithNewOpacity(.85f));}
+        P.Stroke(In,2.f*R,LDBroadcast::White.CopyWithNewOpacity(Host.bEmpty?.2f:.4f));
         for(float T=0.f;From+T<=To+.01f;T+=2.5f)
         {
             const bool bMajor=FMath::Abs(FMath::Fmod(T,10.f))<.01f;

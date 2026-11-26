@@ -616,6 +616,8 @@ TArray<LDHUD::FPKAwardRow> LDHUD::PKAwardRows(const FLDPKView& PK,const FLDLobby
         Row.Name=Name.IsEmpty()?FString(LDTerms::PKUnlisted):Name;
         Row.Points=FString::Join(Parts,TEXT(" · "));
         Row.Total=Total;
+        Row.Seat=SeatOf(Lobby,Award.Contender);
+        Row.Participation=Award.Participation;Row.Winner=Award.Winner;Row.Bet=Award.Bet;
         Row.bSelf=Self.IsValid()&&Award.Contender==Self;
     }
     return Rows;
@@ -646,6 +648,7 @@ LDHUD::FPKPanelView LDHUD::PKPanel(const FLDPublicMatchView& Public,const FLDLob
         View.Countdown=!In.bClock?FString(LDTerms::PKClockSync)
             :View.bMatchupReveal?FString::Printf(TEXT("对阵揭晓 · 下注剩 %lld 秒"),FMath::Max<int64>(1,Seconds(Public.Timeline.StepEndsAtMs-TimelineNow)))
             :FString::Printf(TEXT("下注剩 %lld 秒"),FMath::Max<int64>(1,Seconds(Public.Timeline.StepEndsAtMs-TimelineNow)));
+        if(In.bClock){View.SecondsLeft=FMath::Max<int64>(1,Seconds(Public.Timeline.StepEndsAtMs-TimelineNow));View.CountLabel=TEXT("下注");}
     }
     else if(Step==ELDRestStep::PKReady||(Step==ELDRestStep::PK&&!bDecided))
     {
@@ -653,6 +656,11 @@ LDHUD::FPKPanelView LDHUD::PKPanel(const FLDPublicMatchView& Public,const FLDLob
         // The authority starts the fight; a local clock that reaches the end first holds 1.
         else if(Step==ELDRestStep::PKReady){View.Countdown=LDTerms::PKStartsIn(FMath::Max<int64>(1,Seconds(Public.Timeline.StepEndsAtMs-TimelineNow)));}
         else{View.Countdown=LDTerms::PKTimeLeft(Seconds(Public.Timeline.StepEndsAtMs-TimelineNow));}
+        if(In.bClock)
+        {
+            View.SecondsLeft=FMath::Max<int64>(Step==ELDRestStep::PKReady?1:0,Seconds(Public.Timeline.StepEndsAtMs-TimelineNow));
+            View.CountLabel=Step==ELDRestStep::PKReady?TEXT("开打"):TEXT("剩余");
+        }
     }
     if(Step==ELDRestStep::PK&&bRunning&&In.Params&&In.bClock&&PK.FightStartedAtMs>0)
     {
@@ -683,6 +691,9 @@ LDHUD::FPKPanelView LDHUD::PKPanel(const FLDPublicMatchView& Public,const FLDLob
             bAny=true;
             const FString Listed=RosterName(Lobby,Entrant.Contender);
             FString Name=Listed.IsEmpty()?FString(LDTerms::PKUnlisted):Listed;
+            FPKMemberView& Member=Row.Members.AddDefaulted_GetRef();
+            Member.Seat=SeatOf(Lobby,Entrant.Contender);Member.Name=Name;Member.Level=Entrant.Level;
+            Member.bOut=Entrant.bForfeited||(bFought&&!Entrant.bAlive);Member.bSelf=In.Self.IsValid()&&Entrant.Contender==In.Self;
             if(Entrant.Level>0){Name+=FString::Printf(TEXT(" Lv.%u"),uint32(Entrant.Level));}
             if(Entrant.bForfeited){Name+=FString(TEXT("（"))+LDTerms::PKForfeit+TEXT("）");}
             else if(bFought&&!Entrant.bAlive){Name+=FString(TEXT("（"))+LDTerms::PKOut+TEXT("）");}
@@ -697,6 +708,7 @@ LDHUD::FPKPanelView LDHUD::PKPanel(const FLDPublicMatchView& Public,const FLDLob
         Row.bOwnBet=View.OwnBet==Side;
         Row.bWinner=PK.Outcome==ELDPKOutcome::Won&&PK.WinnerSide==Side;
         Row.bOut=bAny&&!bAnyIn;
+        Row.Bets=Bets;
         FString Line=FString::Join(Members,TEXT("、"));
         if(PK.Format==ELDPKFormat::Teams){Line=LDTerms::PKSide(Side)+TEXT("：")+Line;}
         if(Bets>0){Line+=TEXT(" · ")+LDTerms::PKBetCount(Bets);}
@@ -708,6 +720,7 @@ LDHUD::FPKPanelView LDHUD::PKPanel(const FLDPublicMatchView& Public,const FLDLob
             const int32 ShareCount=FMath::Max(1,Bets+(Row.bOwnBet?0:1));
             const double Odds=double(ScaledPool)/double(ShareCount);
             Line+=FString::Printf(TEXT("（赔率 1:%.1f）"),Odds);
+            Row.Odds=Odds;
             Row.BetAction+=FString::Printf(TEXT(" (1:%.1f)"),Odds);
         }
         if(Row.bOwnSide){Line+=TEXT(" · ")+FString(LDTerms::PKOwnSide);}

@@ -67,9 +67,9 @@ FVector2f WorldBarDimensions(const LDWorldLabels::FLabel& Label)
 
 const FLinearColor WorldOuterRim=FLinearColor(FColor(0x0A,0x0C,0x10)).CopyWithNewOpacity(.95f);
 const FLinearColor WorldMajorTickInk=FLinearColor(FColor(0x08,0x0A,0x0D));
-// On air: the own bar is the ball orange (me), another contender's white, the current target's live red.
+// On air: the own bar is the ball orange (me), a rival's the live red whether or not it is the current target (the
+// target takes a white frame). White is only the brief damage trail behind a bar's real health.
 const FLinearColor WorldOwnHPFill=FLinearColor(FColor(0xFF,0x6B,0x1A));
-const FLinearColor WorldOtherHPFill=FLinearColor(FColor(0xF2,0xF2,0xF2));
 const FLinearColor WorldOwnHPColorblind=FLinearColor(FColor(0x38,0xBD,0xF8));
 const FLinearColor WorldEnemyHPFill=FLinearColor(FColor(0xE0,0x31,0x31));
 const FLinearColor WorldEnemyHPColorblind=FLinearColor(FColor(0xF9,0x73,0x16));
@@ -1070,10 +1070,12 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             const bool bBoss=Label.CampTier==int8(ELDDemoCampTier::Boss)||Label.CreatureId==uint8(ELDDemoMonsterId::MonsterDean);
             const FLinearColor TierAccent=bBoss?WorldBossFrameInk:(Label.CampTier>=0?LDHUDStyle::CampTierInk(uint8(Label.CampTier)):FLinearColor::Transparent);
             const FLinearColor HPFill=!Label.bContender?WorldCampHPFill:Label.bPeaceful?LDHUDStyle::PeacefulHealth
-                :!Entry.bFocused?WorldOtherHPFill:(bColorblind?WorldEnemyHPColorblind:WorldEnemyHPFill);
+                :(bColorblind?WorldEnemyHPColorblind:WorldEnemyHPFill);
+            const bool bTargetFrame=Label.bContender&&!Label.bPeaceful&&Entry.bFocused;
+            const FLinearColor TargetFrame=FLinearColor::White;
             DrawSegmentedBar(BarLeft,BarTop,Dim.X,Dim.Y,Entry.CurrentHPP2,Entry.MaxHPP2,Entry.ShieldP2,
                 HPFill,Entry.TrailSnapshot,Entry.bHasMomentum,Entry.MomentumFrac,Entry.bMomentumOverdrive,
-                (bBoss||Label.CampTier>=0)?&TierAccent:nullptr);
+                (bBoss||Label.CampTier>=0)?&TierAccent:bTargetFrame?&TargetFrame:nullptr);
 
             float UpperY=BarTop-2.f;
             // A training dummy is nobody's seat: it keeps its name and bar only.
