@@ -560,7 +560,7 @@
 
 ### 8.4 已接入素材的用法
 
-素材包系统作为项目特效的一层播放：`ULDImpactFxSubsystem::PlayPack(LDSliceVfx::EPack, 位置, 缩放)`，路径表在 `LDSliceVfx::PackPath`。素材原样使用，只改整体缩放、它公开的 User 参数，以及按名字关闭不合适的发射器；缺失时记一次 `LD_PACK_FX missing` 日志并跳过该层。按路径加载的素材不会被引用关系带进打包，用到的目录登记在 `Config/DefaultGame.ini` 的 `DirectoriesToAlwaysCook`（新增一个 `EPack` 时同时加它的目录）；打包版里的显示尚未验证。验证舞台的镜头臂长与视角和真实对战相同，角色在画面里一样大。验证舞台的 `-VfxProof packs` 把各包的系统按原样和按缩放放在游戏镜头下。
+素材包系统作为项目特效的一层播放：`ULDImpactFxSubsystem::PlayPack(LDSliceVfx::EPack, 位置, 缩放)`，路径表在 `LDSliceVfx::PackPath`。素材原样使用，只改整体缩放、它公开的 User 参数，以及按名字关闭不合适的发射器；缺失时记一次 `LD_PACK_FX missing` 日志并跳过该层。按路径加载的素材不会被引用关系带进打包，用到的目录登记在 `Config/DefaultGame.ini` 的 `DirectoriesToAlwaysCook`（新增一个 `EPack` 时同时加它的目录）；三套素材包系统与这些目录下的依赖已确认进入 Win64 打包（cook 产物与 IoStore 容器索引里都有），打包版运行时的显示尚未验证。验证舞台的镜头臂长与视角和真实对战相同，角色在画面里一样大。验证舞台的 `-VfxProof packs` 把各包的系统按原样和按缩放放在游戏镜头下。
 
 | `EPack` | 素材系统 | 用在哪里 |
 | --- | --- | --- |
