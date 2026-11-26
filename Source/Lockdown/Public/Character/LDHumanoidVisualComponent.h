@@ -48,8 +48,9 @@ public:
     // Source's look, for a puppet that replaces it.
     void CopyLook(const ULDHumanoidVisualComponent& Source);
     // Presentation stills (lobby seat portraits, DEV captures): hold this body's basketball pose at one clip and time,
-    // the ball following the hand; a null clip returns to live motion. False when the body has no basketball graph.
-    bool HoldPose(UAnimSequence* Still, float TimeSeconds);
+    // the ball following the hand (hidden with bHideBall, for a clip that holds no ball); a null clip returns to live motion.
+    // False when the body has no basketball graph.
+    bool HoldPose(UAnimSequence* Still, float TimeSeconds, bool bHideBall = false);
     void Animate(const FVector& Velocity, float Delta);
     bool TracePresentedModel(const FVector& Start, const FVector& End, double& OutFraction) const;
     // Upright lenient pick volume of the shown model: its displayed feet to the top of its head, as wide as the root
