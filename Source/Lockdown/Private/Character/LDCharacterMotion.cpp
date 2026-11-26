@@ -114,6 +114,18 @@ struct ULDCharacterMovementComponent::FNativeCapture
         TraceFoot(TEXT("witness"),Foot+FVector(0,0,HalfHeight));
     }
 
+    // A flagged walk revert (a ledge retry or a failed fall check) puts the body back on the walk bookmark, but CMC can
+    // still adjust the floor height before the walk returns or retries. Take the pending revert at that next move, while
+    // the body stands exactly on the bookmark; any other position stays a fault.
+    bool RestorePendingWalkRevert(const FVector& NativePosition, const FLDNativeSupportSample& Support)
+    {
+        if (!Walking || !WalkBookmark || PendingRevert==ERevert::None || !Error.IsEmpty()
+            || !NativePosition.Equals(WalkBookmark->NativePosition,.000001)) { return false; }
+        Restore(WalkBookmark.GetValue(),NativePosition,Support);
+        PendingRevert=ERevert::None;
+        return Error.IsEmpty();
+    }
+
     // Once a walk has tried its ledge move and checked its fall, CMC's walking loop reverts a later ledge trial with
     // RevertMove (a SetWorldLocation) without asking either again, so no witness flags it. The body then stands exactly
     // on the walk bookmark; only that position is taken as the reverted trial, any other unrecorded move stays a fault.
@@ -233,7 +245,10 @@ bool ULDCharacterMovementComponent::MoveUpdatedComponentImpl(const FVector& Delt
     const FVector From=NativeCapture?GetActorFeetLocation():FVector::ZeroVector;
     if (NativeCapture && !From.Equals(NativeCapture->LastFoot,.000001))
     { NativeCapture->TraceFoot(TEXT("move-start-mismatch"),UpdatedComponent->GetComponentLocation()); }
+    // A retry keeps the ground-loss rule of the walk wrapper: only a body still walking takes it here.
     if (NativeCapture && !From.Equals(NativeCapture->LastFoot,.000001)
+        && !((NativeCapture->PendingRevert!=FNativeCapture::ERevert::Retry || IsMovingOnGround())
+            && NativeCapture->RestorePendingWalkRevert(UpdatedComponent->GetComponentLocation(),SupportOf(*this)))
         && !NativeCapture->RestoreUnflaggedWalkRevert(UpdatedComponent->GetComponentLocation(),SupportOf(*this)))
     { NativeCapture->WitnessSmallAdjustment(From,*GetNameSafe(GetOwner())); }
     int32 StepMove=0;

@@ -723,6 +723,41 @@ bool FLDNativeLedgeRetryProbe::RunTest(const FString& Parameters)
     return SaveTrace(*this,TEXT("ledge_retry_ends_walking"),*Move,Passed) && Passed;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDNativeLedgeRetryFloorAdjustProbe, "Lockdown.Rules.DemoMotionProbe.LedgeRetryThenFloorAdjust",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDNativeLedgeRetryFloorAdjustProbe::RunTest(const FString& Parameters)
+{
+    FNativeWorld Fixture;
+    if (!TestNotNull(TEXT("Native physics world"),Fixture.World)) { return false; }
+    if (!TestNotNull(TEXT("Finite narrow ground"),Fixture.Box({-100,0,-10},{100,45,10}))) { return false; }
+    auto* Body=Fixture.Body({-100,0,0});
+    auto* Move=Prepare(*this,Body);
+    if (!Move) { return false; }
+    for (int32 Tick=0; Tick<60; ++Tick)
+    {
+        Move->TraceWalking({300,0,0},1.f/60);
+        if (!TestTrue(TEXT("The approach preserves native motion evidence: ")+Move->CaptureError,Move->CaptureError.IsEmpty())) { return false; }
+    }
+    // The body hovers a few centimetres over its floor (beyond CMC's floor band). The nearly perpendicular push reverts the
+    // walking trial and asks for a ledge retry; with no retry move left, CMC still pulls the body down to its floor before
+    // the walk returns. That adjustment starts on the walk bookmark while the revert is pending.
+    Body->SetActorLocation(Body->GetActorLocation()+FVector(0,0,4),false,nullptr,ETeleportType::TeleportPhysics);
+    const FVector Hover=Move->GetActorFeetLocation();
+    Move->TraceWalking({300,.001,0},1.f/60);
+    const int32 Retry=Move->Trace.IndexOfByPredicate([](const auto& Row) { return Row.Kind==TEXT("GetLedgeMove") && Row.Result; });
+    bool MovedAfterRetry=false;
+    for (int32 Index=FMath::Max(Retry,0)+1; Index<Move->Trace.Num(); ++Index)
+    { MovedAfterRetry|=Move->Trace[Index].Kind==TEXT("Move") && !Move->Trace[Index].From.Equals(Move->Trace[Index].To,.001); }
+    bool Passed=TestTrue(TEXT("CMC asks for a ledge retry, then adjusts the floor height"),Retry!=INDEX_NONE && MovedAfterRetry);
+    Passed&=TestTrue(TEXT("The floor adjustment after a pending revert is not an authority fault: ")+Move->CaptureError,
+        Move->CaptureError.IsEmpty());
+    Passed&=TestTrue(TEXT("The reverted trial leaves no forward record, the body settles down and the batch ends at the native foot"),
+        Move->Captured && Move->Captured->RevertedTrials>0 && Move->GetActorFeetLocation().Z<Hover.Z-1
+        && Move->Captured->EndFootCm.Equals(Move->GetActorFeetLocation(),.001)
+        && !Move->Captured->Records.ContainsByPredicate([&](const auto& Record) { return Record.ToFootCm.X>Hover.X+.001; }));
+    return SaveTrace(*this,TEXT("ledge_retry_then_floor_adjust"),*Move,Passed) && Passed;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDNativeFallingImpactProbe, "Lockdown.Rules.DemoMotionProbe.FallingImpactAirControl",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDNativeFallingImpactProbe::RunTest(const FString& Parameters)
