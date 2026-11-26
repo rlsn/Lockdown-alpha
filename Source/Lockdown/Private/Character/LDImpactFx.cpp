@@ -1411,6 +1411,22 @@ UNiagaraComponent* ULDImpactFxSubsystem::PlayFree(LDSliceVfx::ESystem System, co
     return Effect;
 }
 
+UNiagaraComponent* ULDImpactFxSubsystem::PlayPack(LDSliceVfx::EPack Pack, const FVector& At, float Scale, const FRotator& Rotation)
+{
+    const int32 Index = int32(Pack);
+    if (!FApp::CanEverRender() || Index < 0 || Index >= int32(LDSliceVfx::EPack::Count) || At.ContainsNaN() || !FMath::IsFinite(Scale) || Scale <= 0.f) { return nullptr; }
+    if (!bPackTried[Index])
+    {
+        bPackTried[Index] = true;
+        PackSystems[Index] = LoadObject<UNiagaraSystem>(nullptr, LDSliceVfx::PackPath(Pack), nullptr, LOAD_NoWarn | LOAD_Quiet);
+        if (!PackSystems[Index]) { UE_LOG(LogLDContent, Warning, TEXT("LD_PACK_FX missing %s; its layer is not shown"), LDSliceVfx::PackPath(Pack)); }
+    }
+    const float Strength = FMath::Clamp(LocalEffectScale(), 0.f, 1.f);
+    if (!PackSystems[Index] || Strength <= 0.f) { return nullptr; }
+    return UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), PackSystems[Index], At, Rotation, FVector(Scale * (.6f + .4f * Strength)), true, true,
+        ENCPoolMethod::AutoRelease, false);
+}
+
 bool ULDImpactFxSubsystem::SkillReach(uint8 Ability, float& OutRangeCm, float& OutHalfWidthCm)
 {
     OutRangeCm = OutHalfWidthCm = 0.f;

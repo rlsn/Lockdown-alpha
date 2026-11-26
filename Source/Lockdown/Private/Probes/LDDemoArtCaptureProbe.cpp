@@ -1140,9 +1140,9 @@ namespace
                         Shown->Reset();
                     };
                     const TArray<TWeakObjectPtr<ULDHumanoidVisualComponent>> Spots{A, V1, V2, V3, A2};
-                    const auto Show = [PackWorld, Shown, Spots](TArray<FString> Paths)
+                    const auto Show = [PackWorld, Shown, Spots](TArray<FString> Paths, TArray<float> Scales = {})
                     {
-                        return [PackWorld, Shown, Spots, Paths]()
+                        return [PackWorld, Shown, Spots, Paths, Scales]()
                         {
                             for (int32 Index = 0; Index < Paths.Num() && Index < Spots.Num(); ++Index)
                             {
@@ -1150,8 +1150,13 @@ namespace
                                 const FString Path = FString(TEXT("/Game/ThirdParty/CCBY/")) + Paths[Index];
                                 UNiagaraSystem* System = LoadObject<UNiagaraSystem>(nullptr, *Path);
                                 if (!Spot || !System) { UE_LOG(LogLDTest, Warning, TEXT("LD_PACK_SURVEY missing %s"), *Path); continue; }
+                                TArray<FNiagaraVariable> Exposed;
+                                System->GetExposedParameters().GetParameters(Exposed);
+                                FString Names;
+                                for (const FNiagaraVariable& Variable : Exposed) { Names += Variable.GetName().ToString() + TEXT(":") + Variable.GetType().GetName() + TEXT(" "); }
+                                UE_LOG(LogLDTest, Display, TEXT("LD_PACK_SURVEY %s user=[%s]"), *Paths[Index], *Names);
                                 Shown->Add(UNiagaraFunctionLibrary::SpawnSystemAtLocation(PackWorld, System, Spot->GetOwner()->GetActorLocation() + FVector(120., 0., -60.),
-                                    Spot->GetOwner()->GetActorRotation(), FVector::OneVector, false, true, ENCPoolMethod::None));
+                                    Spot->GetOwner()->GetActorRotation(), FVector(Scales.IsValidIndex(Index) ? Scales[Index] : 1.f), false, true, ENCPoolMethod::None));
                             }
                         };
                     };
@@ -1180,6 +1185,12 @@ namespace
                     {
                         ChainJobs.Add({Look, FString(TEXT("packs-")) + Set.Name, {{0.f, Show(Set.Paths)}}, nullptr, Clear, false, .4f, 0.f, 45});
                     }
+                    // Whether the component's scale carries through: the smoke ring at 1, 0.5 and 0.3, an explosion and a
+                    // lightning hit at 0.35.
+                    ChainJobs.Add({Look, TEXT("packs-scaled"), {{0.f, Show({Of(TEXT("PotaVFX_Smoke/VFX/System/SmokeRing/"), TEXT("NS_SmokeRing")),
+                        Of(TEXT("PotaVFX_Smoke/VFX/System/SmokeRing/"), TEXT("NS_SmokeRing")), Of(TEXT("PotaVFX_Smoke/VFX/System/SmokeRing/"), TEXT("NS_SmokeRing")),
+                        Of(Mixed + TEXT("Explosions/"), TEXT("NS_ExplosionGroundSmall")), Of(Mixed + TEXT("Projectiles/Hits/"), TEXT("NS_LightningBolt_Hit"))},
+                        {1.f, .5f, .3f, .35f, .35f})}}, nullptr, Clear, false, .4f, 0.f, 45});
                 }
                 else if (Look == TEXT("self"))
                 {

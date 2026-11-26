@@ -262,16 +262,27 @@ FLinearColor LDSliceVfx::StrikeTint(const FLook& Look)
     return Look.bOwn ? FLinearColor(1.f, .64f, .36f) : FLinearColor(1.f, .94f, .84f);
 }
 
+const TCHAR* LDSliceVfx::PackPath(EPack Pack)
+{
+    switch (Pack)
+    {
+    case EPack::DustRing: return TEXT("/Game/ThirdParty/CCBY/PotaVFX_Smoke/VFX/System/SmokeRing/NS_SmokeRing.NS_SmokeRing");
+    case EPack::FireBlast: return TEXT("/Game/ThirdParty/CCBY/MixedVFX/Particles/Explosions/NS_ExplosionGroundSmall.NS_ExplosionGroundSmall");
+    case EPack::LightningHit: return TEXT("/Game/ThirdParty/CCBY/MixedVFX/Particles/Projectiles/Hits/NS_LightningBolt_Hit.NS_LightningBolt_Hit");
+    default: return TEXT("");
+    }
+}
+
 LDSliceVfx::FSkillSystems LDSliceVfx::SkillSystemsOf(uint8 Ability)
 {
     FSkillSystems Out;
     switch (static_cast<ELDDemoAbilityId>(Ability))
     {
-    case ELDDemoAbilityId::ActiveElbow: Out.Release = ESystem::ElbowRelease; Out.Hit = ESystem::ElbowHit; break;
-    case ELDDemoAbilityId::ActivePantsDown: Out.Release = ESystem::PantsRelease; Out.Hit = ESystem::PantsHit; break;
-    case ELDDemoAbilityId::ActiveCrotchGrab: Out.Release = ESystem::GrabRelease; Out.Hit = ESystem::GrabHit; break;
+    case ELDDemoAbilityId::ActiveElbow: Out.Release = ESystem::ElbowRelease; Out.Hit = ESystem::ElbowHit; Out.HitDust = .32f; break;
+    case ELDDemoAbilityId::ActivePantsDown: Out.Release = ESystem::PantsRelease; Out.Hit = ESystem::PantsHit; Out.HitDust = .22f; break;
+    case ELDDemoAbilityId::ActiveCrotchGrab: Out.Release = ESystem::GrabRelease; Out.Hit = ESystem::GrabHit; Out.HitDust = .22f; break;
     case ELDDemoAbilityId::ActiveBailOut: Out.Release = ESystem::BailRelease; break;
-    case ELDDemoAbilityId::ActiveChargedRam: Out.Release = ESystem::RamRelease; Out.Hit = ESystem::RamHit; break;
+    case ELDDemoAbilityId::ActiveChargedRam: Out.Release = ESystem::RamRelease; Out.Hit = ESystem::RamHit; Out.HitDust = .5f; break;
     case ELDDemoAbilityId::ActiveUnplug: Out.Release = ESystem::UnplugRelease; Out.Hit = ESystem::UnplugHit; break;
     case ELDDemoAbilityId::ActiveNotMad: Out.Release = ESystem::NotMadRelease; break;
     case ELDDemoAbilityId::ActiveStareDown: Out.Release = ESystem::StareDownRelease; Out.Aura = ESystem::StareDownAura; break;

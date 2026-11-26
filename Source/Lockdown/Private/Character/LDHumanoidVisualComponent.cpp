@@ -454,6 +454,7 @@ void ULDHumanoidVisualComponent::UpdateStates(bool bFalling, float EffectScale)
             const LDSliceVfx::FLook Look = Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, bOwnBody, bOwnBody);
             Impacts->Play(LDSliceVfx::ESystem::BraceBurst, *this, Chest, Chest + Ahead * Radius, FLinearColor::White, 70.f * Look.Size,
                 1.1f * Look.Seconds, Look, 0.f);
+            Impacts->PlayPack(LDSliceVfx::EPack::DustRing, Impacts->FloorUnder(Feet) + FVector(0, 0, 4.f), .6f * Look.Size);
         }
         BraceEndsAt = -1;
     }
@@ -522,6 +523,7 @@ void ULDHumanoidVisualComponent::UpdateRelease(float EffectScale)
         {
             Impacts->Play(LDSliceVfx::ESystem::SeetheBurst, *this, Floor, Floor, LDSliceVfx::ElementInk(uint8(ELDCombatElement::Fire)), Radius,
                 1.8f * Look.Seconds, Look, Late);
+            if (Late < .2f) { Impacts->PlayPack(LDSliceVfx::EPack::FireBlast, Floor + FVector(0, 0, 40.f), .45f * Look.Size); }
         }
         Impacts->NoteStrike(*this, LDSliceVfx::EStrike::Skill, At, Facing, bOwnBody, CastAbility);
     }
@@ -1158,6 +1160,7 @@ bool ULDHumanoidVisualComponent::ShowSliceImpact(const FPendingImpact& Impact, c
         && Systems.Hit != LDSliceVfx::ESystem::Count)
     {
         Impacts->Play(Systems.Hit, *this, Chest - Dir * 100.f, Chest, LDSliceVfx::StrikeTint(Look), 70.f * Look.Size, 1.2f * Look.Seconds, Look, Age);
+        if (Systems.HitDust > 0.f && Age < .2f) { Impacts->PlayPack(LDSliceVfx::EPack::DustRing, Impacts->FloorUnder(Feet) + FVector(0, 0, 4.f), Systems.HitDust * Look.Size); }
         return false;
     }
     const LDSliceVfx::EStrike Visual = Strike == LDSliceVfx::EStrike::Skill && Impact.Look == ELDObservedHitLook::None ? LDSliceVfx::EStrike::Finisher : Strike;
@@ -1221,6 +1224,8 @@ void ULDHumanoidVisualComponent::PlayFall()
         const FVector Floor = Impacts->FloorUnder(Space.TransformPosition(FVector(0, 0, -HalfHeight)));
         Impacts->PlayFree(LDSliceVfx::ESystem::Knockout, Floor, Space.TransformPosition(FVector(0, 0, .5f * HeightCm - HalfHeight)),
             FLinearColor(1.f, .95f, .88f), 70.f, 2.2f, Look);
+        // The body hitting the floor throws up a ring of dust and debris (the pack's smoke ring).
+        Impacts->PlayPack(LDSliceVfx::EPack::DustRing, Floor + FVector(0, 0, 4.f), .45f);
     }
     FallAt = Clock;
     Action = LDBodyMotion::EAction::None;
