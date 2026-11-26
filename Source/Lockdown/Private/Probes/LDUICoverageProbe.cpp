@@ -363,12 +363,13 @@ public:
             },75.});
         Pages.Add({TEXT("Match_Respawned"),[this](ALDPlayerController& PC,double Now)
             {
-                if(PC.OwnerState.LifePhase!=ELDLifePhase::Alive){return false;}
-                if(Once(Now,1)){Dev(PC,ELDDevTestOp::SetInvulnerable,1);}
-                if(Once(Now,2,1.)){Dev(PC,ELDDevTestOp::ApplyBreakoutPreset,0,TEXT("breakout_lifesteal"));}
+                if(PC.OwnerState.LifePhase!=ELDLifePhase::Alive){HeldAt=-1.;return false;}
+                // One DEV command is in flight at a time: the preset follows the first by its own delay.
+                if(HeldAt<0.){HeldAt=Now;Dev(PC,ELDDevTestOp::SetInvulnerable,1);}
+                if(Now-HeldAt>=1.5&&Once(Now,2)){Dev(PC,ELDDevTestOp::ApplyBreakoutPreset,0,TEXT("breakout_element_loop"));}
                 ULDWorkshop* Ring=PC.HUDUI?PC.HUDUI->Workshop.Get():nullptr;
-                if(Ring&&Ring->IsOpen()&&Once(Now,3,3.)){PC.HUDUI->ToggleWorkshop();}
-                return Settled(Now,6.);
+                if(Ring&&Ring->IsOpen()&&Now-HeldAt>=3.5&&Once(Now,3)){PC.HUDUI->ToggleWorkshop();}
+                return Now-HeldAt>=6.;
             },90.});
         // A real own kill: the max-level, invulnerable host jumps beside the nearest rival (DEV teleport) and right-clicks it
         // through the ordinary pointer order until the authority's kill reaches the HUD; the K.O. moment is then held at a
@@ -423,6 +424,63 @@ public:
                 }
                 return Settled(Now,1.5);
             },10.,false});
+        // The build ring with a real build on it (the DEV preset's skills, cards and medals): equipped hosts, then a hand
+        // card held so the hosts that can take it light up. The next page puts the ring away again.
+        Pages.Add({TEXT("Match_RingEquipped"),[this](ALDPlayerController& PC,double Now)
+            {
+                ULDWorkshop* Ring=PC.HUDUI?PC.HUDUI->Workshop.Get():nullptr;
+                if(!Ring){return false;}
+                if(!Ring->IsOpen()&&Once(Now,0)){PC.HUDUI->ToggleWorkshop();}
+                return Ring->IsOpen()&&Settled(Now,2.);
+            },20.});
+        Pages.Add({TEXT("Match_RingReward"),[this](ALDPlayerController& PC,double Now)
+            {
+                ULDWorkshop* Ring=PC.HUDUI?PC.HUDUI->Workshop.Get():nullptr;
+                if(!Ring||!Ring->IsOpen()){return false;}
+                // The kill before this page left a reward offer: its first option goes to the hand, and is then held.
+                if(Once(Now,0)){Ring->HandleKey(EKeys::One);}
+                if(Once(Now,1,1.)){Ring->ShowHand(true);}
+                if(Once(Now,2,1.5)){for(int32 Index=0;Index<12&&!Ring->SelectHand(Index);++Index){}}
+                return Settled(Now,2.5);
+            },20.});
+        Pages.Add({TEXT("Match_RingEnd"),[this](ALDPlayerController& PC,double Now)
+            {
+                ULDWorkshop* Ring=PC.HUDUI?PC.HUDUI->Workshop.Get():nullptr;
+                if(Ring&&Once(Now,0)){Ring->SelectHand(INDEX_NONE);Ring->ShowHand(false);if(Ring->IsOpen()){PC.HUDUI->ToggleWorkshop();}}
+                return Settled(Now,1.);
+            },10.,false});
+        // Field sites as they are: the host waits for one to exist (the airdrop, the mid-field objective, a delivery
+        // locker), holds the stage clock, jumps beside it (DEV teleport) and is shot standing there.
+        const auto FieldSite=[this](const TCHAR* Name,TFunction<bool(const FLDPublicMatchView&,FVector&)> Find,double Timeout)
+        {
+            Pages.Add({Name,[this,Find](ALDPlayerController& PC,double Now)
+            {
+                const FLDPublicMatchView* View=Match(PC);
+                if(Once(Now,0)){Dev(PC,ELDDevTestOp::SetCountdownPaused,0);HeldAt=-1.;}
+                FVector Site=FVector::ZeroVector;
+                if(!View||(View->Phase!=ELDMatchPhase::Development&&View->Phase!=ELDMatchPhase::CaptureOpen)||!Find(*View,Site)){return false;}
+                if(HeldAt<0.){HeldAt=Now;Dev(PC,ELDDevTestOp::SetCountdownPaused,1);}
+                // The spot beside the site may be a prop or a roof edge: three sides are tried, the last one that lands holds.
+                static const FVector Sides[]={FVector(-170,0,0),FVector(0,170,0),FVector(120,90,0)};
+                for(int32 Try=0;Try<3;++Try)
+                {
+                    if(Now-HeldAt>=.6+Try*1.&&Once(Now,1+Try))
+                    {
+                        const APawn* Self=PC.GetPawn();
+                        if(Self&&FVector::Dist2D(Self->GetActorLocation(),Site)<260.){break;}
+                        ELDGrowthReason Reason=ELDGrowthReason::None;
+                        PC.SubmitDevTest(ELDDevTestOp::TeleportToCamera,0,Reason,NAME_None,0,0,Site+Sides[Try]+FVector(0,0,120));
+                    }
+                }
+                return Now-HeldAt>=5.;
+            },Timeout});
+        };
+        FieldSite(TEXT("Match_Airdrop"),[](const FLDPublicMatchView& View,FVector& Site)
+            {Site=View.Airdrop.PositionCm;return View.Airdrop.Phase==ELDAirdropPhase::Announced||View.Airdrop.Phase==ELDAirdropPhase::Landed;},40.);
+        FieldSite(TEXT("Match_Objective"),[](const FLDPublicMatchView& View,FVector& Site)
+            {Site=View.Objective.CentreCm;return View.Objective.Phase==ELDObjectivePhase::Announced||View.Objective.Phase==ELDObjectivePhase::Open;},70.);
+        FieldSite(TEXT("Match_Locker"),[](const FLDPublicMatchView& View,FVector& Site)
+            {if(View.Lockers.IsEmpty()){return false;}Site=View.Lockers[0].PositionCm;return true;},25.);
         // The first mid rest as it really runs (the rivals sign up for the PK by themselves; the host watches and may
         // bet): each step is waited for, then the stage clock is held (DEV pause; bodies and the fight go on) while its
         // sizes are shot, and let go by the next page.
