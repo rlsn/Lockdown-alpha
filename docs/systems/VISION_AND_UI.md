@@ -53,7 +53,7 @@
 | 开始页：我开房 / 我加入 | LOCALLY VERIFIED | `ULDUIRoot` StartPage | `Front_Start*` | 开房/加入进行中与失败提示未拍；输入框字号按建页时的字号，运行中改字号不重排 |
 | 退出确认 | LOCALLY VERIFIED | `ULDUIRoot::BuildConfirm` | `Front_Exit*` |  |
 | 设置：画面 / 音频 / 操作 / 镜头 / 界面 / 特效 | LOCALLY VERIFIED | `ULDControlsPanel`（菜单页，可滚动）；音频页四条总线（总音量 / 音乐 / 音效 / 界面）走 `ULDGameInstance::SetAppliedBusVolume`，松手试听 `PlayBusPreview` | `*_Settings_<页签>*`、`production/ui/m3/` | 画面页在离屏拍摄下只显示“需要可交互窗口”；试听声音未经人耳确认 |
-| Lobby（角色集结卡：8 张席位卡、房主 / 客机 / 满员 / 无 AI、准备与开始） | LOCALLY VERIFIED | `ULDUIRoot::BuildWorld`、`RebuildRoster`、`RefreshLobby`；席位立绘 `LDUIBackgrounds::SeatAsset` ← `lobby_seat_1..8`（`Scripts/MakeLobbySeats.py`） | `production/ui/lobby/impl/`、`Lobby_*`（客机视角由真实第二进程拍摄） | — |
+| Lobby（角色集结卡：8 张席位卡、房主 / 客机 / 满员 / 无 AI、准备与开始） | LOCALLY VERIFIED | `ULDUIRoot::BuildWorld`、`RebuildRoster`、`RefreshLobby`；席位立绘 `LDUIBackgrounds::SeatAsset` ← `lobby_seat_1..8`：同一球员 8 个篮球动作定格（`ULDHumanoidVisualComponent::HoldPose`）与 8 个机位，`Scripts/MakeLobbySeats.py` 抠图并涂席位球衣色 | `production/ui/lobby/impl/`、`production/ui/m4/`、`Lobby_*`（客机视角由真实第二进程拍摄） | 动作库没有抱臂、叉腰、庆祝类姿势 |
 | 构筑蓝图查看 | LOCALLY VERIFIED | `ULDBlueprintPanel` | `Lobby_Blueprint*` | 只拍到无记录状态 |
 | 离开房间确认 | LOCALLY VERIFIED | `ULDUIRoot::BuildConfirm` | `Match_MenuLeave*` |  |
 | 战斗 HUD（比分条、目标卡、事件流、底部操作条、小地图） | USER APPROVED | `ULDHUD`、`LDBroadcastPaint` | `hud/iter2-*`、`Match_Field*` |  |
@@ -66,8 +66,8 @@
 | PK 报名与 PK 面板 | IMPLEMENTED | `ULDHUD::RefreshPK` | — | 面板已换 B 配色；单人房无法凑满两人报名，未拍 |
 | NPC：外卖柜读条、二手贩子、画饼老板 | NOT STARTED | `LDWorldLabels`、`LDWorldFeedback` | — | 探针尚不能驱动角色走到外卖柜或二手贩子 |
 | 升级时刻 | LOCALLY VERIFIED | `ULDHUD::PaintMoments`、`LDWorldFeedback` | `hud/seq-levelup/` |  |
-| 击杀时刻（本人击杀 K.O.） | LOCALLY VERIFIED | `ULDHUD::PaintMoments`：比分条下一块小牌（K.O.、本人席位 ▸ 被击杀者席位划线），不遮挡战斗画面 | `Match_Kill*`、`production/ui/m3/`（探针用 DEV“设置属性”加攻击力打出的真实击杀，画面定格于固定时刻） | — |
-| 阶段过场（野外 ↔ 休息、最终野外） | LOCALLY VERIFIED | `ULDHUD::RefreshReadModel`（阶段跟踪）、`PaintMoments`：切换前 5 秒在比分条下倒数并标出下一阶段，最后 350 ms 全屏擦合，阶段标题卡停留后擦开 | `Match_StageCount*`、`Match_StageCard*`、`production/ui/m3/` | 只拍到开局休息 → 野外 1/3；野外 → 休息与最终野外未拍 |
+| 击杀时刻（本人击杀 K.O.） | LOCALLY VERIFIED | `ULDHUD::PaintMoments`：比分条下一块小牌（K.O.、本人席位 ▸ 被击杀者席位色块与号码、下方红条），不遮挡战斗画面 | `Match_Kill*`、`production/ui/m4/`（探针用 DEV“设置属性”加攻击力打出的真实击杀，画面定格于固定时刻） | — |
+| 阶段过场（野外 ↔ 休息、最终野外） | LOCALLY VERIFIED | `ULDHUD::RefreshReadModel`（阶段跟踪）、`PaintMoments`：切换前 5 秒在比分条下倒数并标出下一阶段，最后 350 ms 两块斜板全屏擦合，切换后继续向右擦开，留下横贯屏幕中部的包装条（LIVE、阶段名、8 段进度），再同向擦出 | `Match_StageCount*`、`Match_StageCard*`、`production/ui/m4/` | 只拍到开局休息 → 野外 1/3；野外 → 休息与最终野外未拍 |
 | 技能升阶页（二级分化与三级预览） | LOCALLY VERIFIED | `ULDHUD::RefreshRankUp` | `Match_RankUp*` | 打开菜单、设置或被遮挡时自动关闭 |
 | 开局横幅与世界反馈文字 | IMPLEMENTED | `LDWorldFeedback` | `Match_Field*` | 世界横幅改为下三分之一墨色条 + 强调块、200 ms 擦入；命中确认字的动效属手感，未改 |
 | 头顶标签与构筑环的重叠 | IMPLEMENTED | `LDWorldLabels` | — | 开环时落在环部件上的头顶标签不绘制；待开环截图确认 |

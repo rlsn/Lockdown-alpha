@@ -10,6 +10,9 @@
 #include "Engine/World.h"
 #include "Framework/LDGameState.h"
 #include "Character/LDCharacter.h"
+#include "Character/LDHumanoidVisualComponent.h"
+#include "Animation/AnimSequence.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
 #include "EngineUtils.h"
@@ -231,8 +234,20 @@ public:
                 if(Ring&&Ring->IsOpen()&&Once(Now,0)){PC.HUDUI->ToggleWorkshop();}
                 return Settled(Now,1.);
             }});
-        // The Lobby's seat portraits (SourceData/UI/lobby_seat_N.png): one UI-free shot per seat colour of a body standing in
-        // the opening rest, from above the front so the plain floor is the whole backdrop, through the DEV art-capture camera.
+        // The Lobby's seat portraits (SourceData/UI/lobby_seat_N.png): eight UI-free shots of the host's own body in the
+        // opening rest, each held at a different still of the basketball clips (ULDHumanoidVisualComponent::HoldPose)
+        // and seen from a different side, from above so the plain floor is the whole backdrop, through the DEV art-capture
+        // camera. Scripts/MakeLobbySeats.py cuts them out and paints each seat's jersey colour.
+        struct FSeatPose{const TCHAR* Clip;float Time;float Yaw;};
+        static const FSeatPose SeatPoses[8]={
+            {TEXT("Hooper_Idle"),0.f,-14.f},
+            {TEXT("KB_012_AA_Basketball_PlayerA_Basic_Stance_Type01_LH_Loop"),.2f,16.f},
+            {TEXT("KB_043_AA_Basketball_PlayerA_Between_The_Legs_Type01_Loop"),.4f,-24.f},
+            {TEXT("KB_098_AA_Basketball_PlayerA_Spin_Move_RH_Loop"),.7f,22.f},
+            {TEXT("KB_149_AA_Basketball_PlayerA_Free_Throw_LH"),.5f,-8.f},
+            {TEXT("KB_044_AA_Basketball_PlayerA_Between_The_Legs_Type02_Loop"),1.3f,28.f},
+            {TEXT("KB_152_AA_Basketball_PlayerA_Jump_Shot_RH"),.35f,-20.f},
+            {TEXT("KB_041_AA_Basketball_PlayerA_Between_The_Legs_RH_To_LH"),.3f,10.f}};
         for(int32 Seat=0;Seat<8;++Seat)
         {
             FPage& Shot=Pages.Add_GetRef({FString::Printf(TEXT("Ref_Seat%d"),Seat+1),[this,Seat](ALDPlayerController& PC,double Now)
@@ -240,28 +255,51 @@ public:
                 if(Once(Now,0))
                 {
                     Resize(PC,1920,1080);
-                    const ALDCharacter* Pick=nullptr;
-                    for(TActorIterator<ALDCharacter> It(PC.GetWorld());It;++It)
-                    {
-                        if(It->PresentationKey!=Seat){continue;}
-                        // A rest training dummy wears the seat's look and stands still (no dribble blur): prefer it.
-                        if(!Pick||(Pick->GetController()&&!It->GetController())){Pick=*It;}
-                    }
+                    // The rest's clock stands still while the portraits are shot; Match_StageCount lets it run again.
+                    if(Seat==0){Dev(PC,ELDDevTestOp::SetCountdownPaused,1);}
+                    ALDCharacter* Pick=Cast<ALDCharacter>(PC.GetPawn());
                     if(!Pick){return true;}
+                    // The body stands alone: every other body is hidden until
+                    // Ref_LineupEnd. The camera stands on the side whose far side is open floor, not a wall.
+                    for(TActorIterator<AActor> It(PC.GetWorld());It;++It)
+                    {
+                        // Rivals, their observed stand-ins and the training dummies alike: whatever wears a skeleton.
+                        if(*It!=Pick&&!It->IsHidden()&&It->FindComponentByClass<USkeletalMeshComponent>()){It->SetActorHiddenInGame(true);HiddenBodies.Add(*It);}
+                    }
+                    FVector Side=FVector::ForwardVector;
+                    {
+                        const FVector Chest=Pick->GetActorLocation();
+                        double Best=-1.;
+                        for(int32 Step=0;Step<12;++Step)
+                        {
+                            const FVector Try=FRotator(0.f,Step*30.f,0.f).Vector();
+                            FHitResult Hit;FCollisionQueryParams Params;Params.AddIgnoredActor(Pick);
+                            const bool bHit=PC.GetWorld()->LineTraceSingleByChannel(Hit,Chest,Chest-Try*1400.f,ECC_Visibility,Params);
+                            const double Open=bHit?Hit.Distance:1400.;
+                            if(Open>Best){Best=Open;Side=Try;}
+                        }
+                    }
+                    const FSeatPose& Pose=SeatPoses[Seat];
+                    Pick->SetActorRotation(FRotator(0.f,Side.Rotation().Yaw-Pose.Yaw,0.f));
+                    const FString Path=FString::Printf(TEXT("/Game/Lockdown/Art/Characters/hooper/%s.%s"),Pose.Clip,Pose.Clip);
+                    if(auto* Visual=Pick->FindComponentByClass<ULDHumanoidVisualComponent>())
+                    {
+                        if(UAnimSequence* Still=LoadObject<UAnimSequence>(nullptr,*Path)){Visual->HoldPose(Still,Pose.Time);PosedBody=Pick;}
+                    }
                     const FVector Foot=Pick->GetActorLocation()-FVector(0,0,90.f);
-                    const FVector Eye=Foot+Pick->GetActorForwardVector()*400.f+FVector(0,0,270.f);
+                    const FVector Eye=Foot+Side*560.f+FVector(0,0,380.f);
                     FActorSpawnParameters Spawn;Spawn.ObjectFlags|=RF_Transient;
                     if(!LineupCamera.IsValid()){LineupCamera=PC.GetWorld()->SpawnActor<ACameraActor>(Spawn);}
                     if(ACameraActor* Cam=LineupCamera.Get())
                     {
-                        Cam->SetActorLocationAndRotation(Eye,(Foot+FVector(0,0,105.f)-Eye).Rotation());
+                        Cam->SetActorLocationAndRotation(Eye,(Foot+FVector(0,0,112.f)-Eye).Rotation());
                         Cam->GetCameraComponent()->SetFieldOfView(24.f);Cam->GetCameraComponent()->bConstrainAspectRatio=false;
                         PC.SetDevArtCaptureCamera(Cam);
                     }
                     if(PC.RootUI&&PC.RootUI->GetVisibility()!=ESlateVisibility::Hidden){RootShown=PC.RootUI->GetVisibility();PC.RootUI->SetVisibility(ESlateVisibility::Hidden);}
                     if(PC.HUDUI&&PC.HUDUI->GetVisibility()!=ESlateVisibility::Hidden){HudShown=PC.HUDUI->GetVisibility();PC.HUDUI->SetVisibility(ESlateVisibility::Hidden);}
                 }
-                return Settled(Now,1.2);
+                return Settled(Now,1.5);
             },10.});
             Shot.Only=0;
         }
@@ -270,6 +308,12 @@ public:
                 if(Once(Now,0))
                 {
                     PC.SetDevArtCaptureCamera(nullptr);
+                    if(ALDCharacter* Body=PosedBody.Get())
+                    {
+                        if(auto* Visual=Body->FindComponentByClass<ULDHumanoidVisualComponent>()){Visual->HoldPose(nullptr,0.f);}
+                    }
+                    for(const TWeakObjectPtr<AActor>& Body:HiddenBodies){if(Body.IsValid()){Body->SetActorHiddenInGame(false);}}
+                    HiddenBodies.Reset();
                     if(PC.RootUI){PC.RootUI->SetVisibility(RootShown);}
                     if(PC.HUDUI){PC.HUDUI->SetVisibility(HudShown);}
                 }
@@ -281,7 +325,7 @@ public:
             FPage& Count=Pages.Add_GetRef({TEXT("Match_StageCount"),[this](ALDPlayerController& PC,double Now)
             {
                 // The opening rest runs out by itself (REST.OpeningBuildSec): its own last seconds are the countdown.
-                if(Once(Now,0)){Resize(PC,1920,1080);StageBase=PC.HUDUI?PC.HUDUI->MomentStageAt():-1.;}
+                if(Once(Now,0)){Resize(PC,1920,1080);StageBase=PC.HUDUI?PC.HUDUI->MomentStageAt():-1.;Dev(PC,ELDDevTestOp::SetCountdownPaused,0);}
                 ULDWorkshop* Ring=PC.HUDUI?PC.HUDUI->Workshop.Get():nullptr;
                 if(Ring&&Ring->IsOpen()&&Once(Now,3,.3)){PC.HUDUI->ToggleWorkshop();}
                 return PC.HUDUI&&PC.HUDUI->HasStageCount()&&Settled(Now,.6);
@@ -459,6 +503,8 @@ public:
     TWeakObjectPtr<ACameraActor> LineupCamera;
     ESlateVisibility RootShown=ESlateVisibility::SelfHitTestInvisible,HudShown=ESlateVisibility::SelfHitTestInvisible;
     double KillBase=-1.,KillSeenAt=-1.,StageBase=-1.;
+    TWeakObjectPtr<ALDCharacter> PosedBody;
+    TArray<TWeakObjectPtr<AActor>> HiddenBodies;
     double DeadAt=0.;
 
     bool Tick(float)
