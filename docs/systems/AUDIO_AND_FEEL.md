@@ -83,7 +83,7 @@
    游戏声音：瞬态（皮革拳击、木裂、玻璃）、主体（材质与元素：火、冰晶、电弧）、尾音（布料、尘、碎屑），合成只做低频垫底。
    素材：Kenney Impact、Interface、RPG、Sci-Fi（CC0）与 Fab “Free Modular Magic SFX”（Le Binh Son，CC BY 4.0，导出为 WAV
    放在 `SourceData/Audio/FabMagic/`）。每个声音 3 个 take：换层与固定种子的 ±3% 音高。`--inputs` 列出全部输入文件。
-   旧的程序合成 `SourceData/Audio/Lockdown/synth_demo_audio.py` 只保留尚未改做的声音，逐批迁到分层生成器。
+   程序合成 `SourceData/Audio/Lockdown/synth_demo_audio.py` 只剩比赛事件、本人确认层与已批准的电你个哆嗦出手声。
    输出 48 kHz 单声道 16-bit WAV，峰值 -1 dBFS（Git LFS）。
 2. 登记：`SourceData/Audio/audio_cues.json`（schema 3）：`packs`（CC0 或注明署名的 CC BY 4.0 包与授权文件）、
    `originals`（生成器及其 sha256；分层生成器另列 `inputs`：每个录音层的路径、sha256 与所属包）、
@@ -162,8 +162,8 @@ Kenney 的 Impact、Interface、RPG、Sci-Fi 全包（CC0）由用户决定采�
 | 冰、腐（毒）命中 | IMPLEMENTED | 施法者可见时，命中按 VFX 的击打匹配归到技能（冰可乐 → 冰裂命中，过期外卖 → 湿拍腐烂命中） | 施法者不可见时只剩 Magic 外观，落回 `HitMagic`；彻底区分需要命中投影带元素（网络改动，非本流） |
 | 技能前摇蓄能 | USER APPROVED | `CastCharge` ×3（分层：吟唱蓄能 + 上扬），出手 30 ms 切断 | 批次 2 试听后用户选定新版 |
 | 技能释放：电你个哆嗦 | USER APPROVED | 技能表 `active_zap` ×2 | 样板（§6） |
-| 技能释放：其余 23 个 | USER ACCEPTED（待质量复做） | 技能表各 ×2 take，按玩法语义合成（推、抓、冲刺、护盾、投掷、区域、元素），见生成器 `skill_*` | 波形与频谱已查（主瞬态在出手时刻、≤ 8.5 kHz）；未实机采集、未听感验收 |
-| 每技能专属命中声 | USER ACCEPTED（待质量复做） | `skill_hits` 表 18 个技能各 ×2 take（骨撞、拍脸、砖裂、水柱、冰裂、腐烂、书包、鞭响……），按 VFX 击打匹配（`FStrikeMatch::Ability`）播放；电你个哆嗦沿用已批准的 `HitElectric`，强化普攻类走普攻命中 | 施法者不可见时落回外观族。物理伤害技能（滚远点、扒裤子、掏蛋子、甩你一鞋、蛮牛顶）的命中外观是 None，VFX 击打匹配目前只把 None 配给普攻，滋你一脸的匹配不带技能号，所以这 6 个技能实际仍播普攻/水命中声；已请 Stream B 调整匹配 |
+| 技能释放：其余 23 个 | IMPLEMENTED | 技能表各 ×2 take，分层：按技能名字里的东西和动作取真实录音（锅盖、板砖、喷嘴、马达、封条、纸夹、皮革、拳击、火、水、冰……），起音裁到出手帧（半峰在 5 ms 内） | 未听感验收（下一卷试听） |
+| 每技能专属命中声 | IMPLEMENTED | `skill_hits` 表 18 个技能各 ×2 take，分层（骨撞、鞋底拍脸、砖裂、水柱、冰裂、湿拍、书包闷击、鞭响……），起音在命中帧；按 VFX 击打匹配（`FStrikeMatch::Ability`）选用 | 未听感验收（下一卷试听） |
 | 元素反应（10 种） | IMPLEMENTED | `Reaction*` 线索，挂在 `SetReaction` 钩子，与特效强度无关；全部改为分层，每种 ×3，由两种元素各自的录音层组成（雾=水柱嘶声+渐入、导电=多重闪电+水、超载=碎石爆+闪电+低频、融化=火+水、沼气=火球+黏液+低频、冻结=冻风+冰晶、发酵=毒+黏液、冰碎=冰晶+玻璃+低频碎裂、腐蚀=毒+金属、冻伤=冰晶+轻拳） | 冰碎经 A/B 第一轮选定；其余未听感验收（批次 2 试听卷） |
 | 地面状态循环（水洼、冰、火、瘴气、电场） | NOT STARTED | — | — |
 | 投射物飞行与落点 | NOT STARTED | — | — |
