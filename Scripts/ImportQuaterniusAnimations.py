@@ -15,6 +15,9 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), 
 SOURCES = {'UAL1': 'SourceData/Animation/Quaternius/UAL1_Standard.glb', 'UAL2': 'SourceData/Animation/Quaternius/UAL2_Standard.glb'}
 DEST = '/Game/Lockdown/Art/Characters/hooper/Quaternius'
 TARGET_MESH = '/Game/Lockdown/Art/Characters/hooper/SK_Hooper'
+HOOPER_IDLE = '/Game/Lockdown/Art/Characters/hooper/Hooper_Idle'
+# A clip standing upright at its first frame, measured as the source's rest pelvis height.
+STANDING_CLIP = 'Idle_FoldArms_Loop'
 CLIPS = {
     'UAL1': ['Push_Loop', 'Punch_Jab', 'Punch_Cross', 'Spell_Simple_Shoot', 'Dance_Loop', 'Sword_Idle'],
     'UAL2': ['Idle_Shield_Loop', 'Sword_Block', 'Shield_OneShot', 'Shield_Dash', 'Melee_Hook', 'OverhandThrow', 'Slide_Start',
@@ -78,8 +81,27 @@ def retargeter(asset_name, source_rig, target_rig, source_mesh, target_mesh):
     controller.assign_ik_rig_to_all_ops(unreal.RetargetSourceOrTarget.SOURCE, source_rig)
     controller.assign_ik_rig_to_all_ops(unreal.RetargetSourceOrTarget.TARGET, target_rig)
     controller.auto_map_chains(unreal.AutoMapChainType.FUZZY, True)
+    # The two characters' rest poses differ (bind poses, bent joints): align the hooper's retarget pose to the source's
+    # chain directions so rotations transfer from matching poses.
+    controller.auto_align_all_bones(unreal.RetargetSourceOrTarget.TARGET)
     unreal.EditorAssetLibrary.save_loaded_asset(rtg)
     return rtg
+
+
+def fit_to_hooper(anim, root, pelvis_scale):
+    """The hooper rig keeps a scaled root (its bones are authored in metres under a ~182x root): the retargeter writes the
+    root unscaled and the pelvis in the source's centimetres, which folds the legs. The hooper's own root transform is
+    written back and the pelvis translation is scaled into the hooper's units."""
+    controller = anim.controller
+    frames = unreal.AnimationLibrary.get_num_frames(anim) + 1
+    positions, rotations, scales = [], [], []
+    for frame in range(frames):
+        pose = unreal.AnimationLibrary.get_bone_pose_for_frame(anim, 'pelvis', frame, False)
+        positions.append(pose.translation * pelvis_scale)
+        rotations.append(pose.rotation)
+        scales.append(pose.scale3d)
+    controller.set_bone_track_keys('pelvis', positions, rotations, scales, False)
+    controller.set_bone_track_keys('root', [root.translation] * frames, [root.rotation] * frames, [root.scale3d] * frames, False)
 
 
 def main():
@@ -115,6 +137,16 @@ def main():
         inputs.overwrite_existing_files = True
         out = unreal.IKRetargetBatchOperation.run_batch_retarget(inputs)
         written += [str(a.package_name) for a in out]
+    # The hooper's rest root and pelvis height (its own idle, first frame) against a standing source pose.
+    idle = unreal.EditorAssetLibrary.load_asset(HOOPER_IDLE)
+    root = unreal.AnimationLibrary.get_bone_pose_for_frame(idle, 'root', 0, False)
+    hooper_pelvis = unreal.AnimationLibrary.get_bone_pose_for_frame(idle, 'pelvis', 0, False).translation.z
+    standing = unreal.EditorAssetLibrary.load_asset(DEST + '/Hooper/QN_' + STANDING_CLIP)
+    source_pelvis = unreal.AnimationLibrary.get_bone_pose_for_frame(standing, 'pelvis', 0, False).translation.z
+    if not (hooper_pelvis > 0 and source_pelvis > 0):
+        fail('no rest pelvis height to scale by (hooper %.3f, source %.3f)' % (hooper_pelvis, source_pelvis))
+    for package in written:
+        fit_to_hooper(unreal.EditorAssetLibrary.load_asset(package), root, hooper_pelvis / source_pelvis)
     # Only the retargeted clips and the hooper's IK rig are kept: the imported libraries, their rigs and the retargeters
     # are rebuilt from SourceData on every run.
     for name in CLIPS:
