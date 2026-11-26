@@ -23,6 +23,8 @@ def main() -> int:
     meta = json.loads((folder / "recorder.json").read_text(encoding="utf-8"))
     with (folder / "frames.csv").open(encoding="utf-8") as handle:
         rows = [(int(row["index"]), float(row["seconds"])) for row in csv.DictReader(handle)]
+    if not meta.get("complete"):
+        print("The recorder did not finish (the process exited early); assembling what reached disk.", file=sys.stderr)
     if len(rows) < 2:
         print(f"Too few frames in {folder}: {len(rows)}", file=sys.stderr)
         return 1
@@ -34,10 +36,13 @@ def main() -> int:
     listing.write_text("\n".join(lines) + "\n", encoding="utf-8")
     command = [args.ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(listing)]
     audio = folder / "game_audio.wav"
-    if meta.get("audio") and audio.exists():
-        # The audio began at audio_start_seconds on the frame clock; the video begins at the first frame's time.
+    raw = folder / "game_audio.pcm"
+    if meta.get("audio") and (audio.exists() or raw.exists()):
+        # The audio began at audio_start_seconds on the frame clock; the video begins at the first frame's time. A run
+        # that ended before the recorder finished leaves only the raw 16-bit stereo PCM.
         offset = float(meta["audio_start_seconds"]) - rows[0][1]
-        command += ["-itsoffset", f"{offset:.4f}", "-i", str(audio), "-map", "0:v", "-map", "1:a", "-c:a", "aac", "-b:a", "192k"]
+        source = ["-i", str(audio)] if audio.exists() else ["-f", "s16le", "-ar", str(int(meta["audio_rate"])), "-ac", "2", "-i", str(raw)]
+        command += ["-itsoffset", f"{offset:.4f}", *source, "-map", "0:v", "-map", "1:a", "-c:a", "aac", "-b:a", "192k"]
     else:
         print("No game audio was recorded; the video is silent.", file=sys.stderr)
     command += ["-vf", "fps=30,format=yuv420p", "-c:v", "libx264", "-preset", "medium", "-crf", "22", str(out)]

@@ -539,16 +539,6 @@ SKILL_SOUNDS = {
 
 
 SOUNDS = {
-    "swing_light_1": (swing_light, 11), "swing_light_2": (swing_light, 12), "swing_light_3": (swing_light, 13),
-    "swing_finisher_1": (swing_finisher, 21), "swing_finisher_2": (swing_finisher, 22),
-    "hit_basic_1": (hit_basic, 31), "hit_basic_2": (hit_basic, 32), "hit_basic_3": (hit_basic, 33),
-    "hit_finisher_1": (hit_finisher, 41), "hit_finisher_2": (hit_finisher, 42),
-    "hit_electric_1": (hit_electric, 51), "hit_electric_2": (hit_electric, 52), "hit_electric_3": (hit_electric, 53),
-    "hit_fire_1": (hit_fire, 61), "hit_fire_2": (hit_fire, 62),
-    "hit_water_1": (hit_water, 71), "hit_water_2": (hit_water, 72),
-    "hit_magic_1": (hit_magic, 81), "hit_magic_2": (hit_magic, 82),
-    "cast_charge": (cast_charge, 91),
-    "cast_release_1": (cast_release, 101), "cast_release_2": (cast_release, 102),
     "dealt_crit": (dealt_crit, 111),
     "dealt_kill": (dealt_kill, 121),
     "skill_zap_1": (zap_release, 131), "skill_zap_2": (zap_release, 132),
@@ -833,12 +823,7 @@ def match_start(seed):  # the field opening: a crowd-less starting whistle with 
     return mix(0.95, (0, thud(70, 40, 0.4, 0.12), 0.9), (0.02, whistle, 0.45))
 
 
-for _name, _make, _seed in (("react_fog", r_fog, 3001), ("react_conduct", r_conduct, 3002), ("react_overload", r_overload, 3003),
-                            ("react_melt", r_melt, 3004), ("react_methane", r_methane, 3005), ("react_freeze", r_freeze, 3006),
-                            ("react_ferment", r_ferment, 3007), ("react_shatter", r_shatter, 3008), ("react_corrode", r_corrode, 3009),
-                            ("react_frostbite", r_frostbite, 3010), ("state_burn", s_burn, 3101), ("state_wet", s_wet, 3102),
-                            ("state_shock", s_shock, 3103), ("state_chill", s_chill, 3104), ("state_rot", s_rot, 3105),
-                            ("match_start", match_start, 3201)):
+for _name, _make, _seed in (("match_start", match_start, 3201),):
     SOUNDS[_name] = ((lambda make: lambda seed: finish(low(make(seed), 9000, 4)))(_make), _seed)
 
 
@@ -925,7 +910,7 @@ def body_fall(seed):  # another body knocked out: a heavy drop onto the street a
     return soft_clip(mix(0.72, (0, body(rng, 2.2), 1.0), (0.04, thud(70, 40, 0.3, 0.09), 0.7), (0.01, dust, 0.5), (0.02, cloth(rng, 0.3, 0.08), 0.4)), 1.4)
 
 
-for _name, _make, _seed in (("body_fall", body_fall, 4009), ("capture_opened", capture_opened, 4001), ("capture_started", capture_started, 4002),
+for _name, _make, _seed in (("capture_opened", capture_opened, 4001), ("capture_started", capture_started, 4002),
                             ("capture_contested", capture_contested, 4003), ("level_up", level_up, 4004),
                             ("self_death", self_death, 4005), ("self_dash", self_dash, 4006),
                             ("perfect_dodge", perfect_dodge, 4007), ("medal_fuse", medal_fuse, 4008)):

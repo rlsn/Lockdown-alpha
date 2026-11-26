@@ -403,6 +403,88 @@
       "domain_manifest": "SourceData/Audio/audio_cues.json#packs/kenney-interface-sounds"
     },
     {
+      "id": "kenney-rpg-audio",
+      "name": "RPG Audio",
+      "author": "Kenney (www.kenney.nl)",
+      "domains": [
+        "audio"
+      ],
+      "source": {
+        "kind": "web",
+        "url": "https://kenney.nl/assets/rpg-audio"
+      },
+      "license": {
+        "name": "CC0 1.0 Universal (Creative Commons Zero)",
+        "file": "Kenney/RpgAudio/License.txt"
+      },
+      "rights": {
+        "acquisition_cost": "free",
+        "commercial_use": "yes",
+        "ai_input": "allowed",
+        "ai_training": "allowed",
+        "public_source_redistribution": "yes",
+        "private_collaborator_sharing": "yes"
+      },
+      "storage": "tracked",
+      "domain_manifest": "SourceData/Audio/audio_cues.json#packs/kenney-rpg-audio"
+    },
+    {
+      "id": "kenney-sci-fi-sounds",
+      "name": "Sci-fi Sounds",
+      "author": "Kenney (www.kenney.nl)",
+      "domains": [
+        "audio"
+      ],
+      "source": {
+        "kind": "web",
+        "url": "https://kenney.nl/assets/sci-fi-sounds"
+      },
+      "license": {
+        "name": "CC0 1.0 Universal (Creative Commons Zero)",
+        "file": "Kenney/SciFiSounds/License.txt"
+      },
+      "rights": {
+        "acquisition_cost": "free",
+        "commercial_use": "yes",
+        "ai_input": "allowed",
+        "ai_training": "allowed",
+        "public_source_redistribution": "yes",
+        "private_collaborator_sharing": "yes"
+      },
+      "storage": "tracked",
+      "domain_manifest": "SourceData/Audio/audio_cues.json#packs/kenney-sci-fi-sounds"
+    },
+    {
+      "id": "fab-free-modular-magic-sfx",
+      "name": "Free Modular Magic SFX",
+      "author": "Le Binh Son",
+      "domains": [
+        "audio"
+      ],
+      "source": {
+        "kind": "fab",
+        "listing_id": "f0422e67-33d3-4c6e-b7a1-1059193960de",
+        "url": "https://www.fab.com/listings/f0422e67-33d3-4c6e-b7a1-1059193960de",
+        "acquired": "2026-11-26"
+      },
+      "license": {
+        "name": "CC BY 4.0 (Creative Commons Attribution 4.0 International)",
+        "file": "FabMagic/LICENSE.txt",
+        "attribution": "Free Modular Magic SFX by Le Binh Son (Fab), CC BY 4.0"
+      },
+      "rights": {
+        "acquisition_cost": "free",
+        "commercial_use": "yes",
+        "ai_input": "forbidden (Fab ToS 3.3(i), read conservatively for Fab content)",
+        "ai_training": "forbidden",
+        "public_source_redistribution": "yes (CC BY 4.0, with attribution)",
+        "private_collaborator_sharing": "yes"
+      },
+      "storage": "tracked",
+      "modifications": "Mono sound waves exported unchanged to WAV (SourceData/Audio/FabMagic); trimmed, filtered, pitched and mixed with Kenney CC0 layers by SourceData/Audio/Layered/build_layered_audio.py.",
+      "domain_manifest": "SourceData/Audio/audio_cues.json#packs/fab-free-modular-magic-sfx"
+    },
+    {
       "id": "fab-mixed-vfx",
       "name": "Mixed VFX",
       "author": "G.G.",
