@@ -140,6 +140,11 @@ public:
     // A third-party pack system at At, scaled; it plays out and frees itself. Loaded on first use: a missing pack is logged
     // once and the layer is skipped (the game runs without it). Scale follows the local effect strength.
     UNiagaraComponent* PlayPack(LDSliceVfx::EPack Pack, const FVector& At, float Scale, const FRotator& Rotation = FRotator::ZeroRotator);
+    // A prop mesh a skill's observed proxy is drawn with (LDSliceVfx::EMesh past the slashes); null while it is missing.
+    UStaticMesh* PropMesh(LDSliceVfx::EMesh Mesh);
+    // A still translucent copy of the nearest shown body within ReachCm of At, in the pose it holds now, standing at At
+    // and attached to Host (it leaves with Host). Null when no body is that near.
+    UPoseableMeshComponent* StandIn(AActor& Host, const FVector& At, const FLinearColor& Glow, float ReachCm);
     // The supporting floor under At (the point itself when nothing is below it within reach).
     FVector FloorUnder(const FVector& At) const { FVector Normal; return GroundUnder(At, Normal); }
     // A basic or finisher hit on Victim's Chest struck from From's side, bound to Victim.
@@ -182,6 +187,8 @@ public:
     float SkillHoldSeconds(uint8 Ability);
     int32 LiveSliceCount() const { return LiveSlices.Num(); }
     // A visible skill effect's own particles: its flight trail or ground zone on Owner, and its appear burst.
+    // (A look with its own designed system, LDSliceVfx::EffectSystemOf, shows that; MoveEffect then keeps it on the proxy.)
+    void MoveEffect(UNiagaraComponent* Effect, const FVector& At, const FRotator& Heading) const;
     UNiagaraComponent* ShowEffect(USceneComponent& Owner, UNiagaraComponent* Existing, ELDObservedProjectileLook Look,
         float RadiusCm, const FRotator& Heading);
     UNiagaraSystem* GetBurstSystem() const { return BurstSystem; }
@@ -292,6 +299,8 @@ private:
     TArray<FLiveLayer> LiveLayers;
     UPROPERTY() TObjectPtr<UMaterialInterface> GhostMaterial;
     UPROPERTY() TArray<TObjectPtr<UPoseableMeshComponent>> GhostSlots;
+    // Every body mesh that warmed its ghost (WarmGhost): the bodies a stand-in can copy.
+    TArray<TWeakObjectPtr<const USkeletalMeshComponent>> Bodies;
     UPROPERTY() TArray<TObjectPtr<UMaterialInstanceDynamic>> GhostPaints;
     // The rim shell paint of each ghost slot (FGhosts::bShell), made on first use.
     UPROPERTY() TObjectPtr<UMaterialInterface> BodyGlowMaterial;

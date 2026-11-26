@@ -38,6 +38,9 @@ private:
     UPROPERTY() TObjectPtr<UInstancedStaticMeshComponent> Preview;
     UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> SafePaint;
     UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> PreviewPaint;
+    // The designed looks over the lines: the danger side of the safe ring, the broken line of the next one.
+    UPROPERTY() TObjectPtr<class UNiagaraComponent> SafeGlow;
+    UPROPERTY() TObjectPtr<class UNiagaraComponent> PreviewGlow;
     FVector Centre = FVector::ZeroVector;
     double SafeRadius = 0;
     double LaidSafeCm = 0;

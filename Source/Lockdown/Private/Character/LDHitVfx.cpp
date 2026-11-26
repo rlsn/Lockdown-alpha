@@ -123,6 +123,9 @@ const TCHAR* LDSliceVfx::MeshId(EMesh Mesh)
     case EMesh::Slash1: return TEXT("SM_LD_SlashCombo1");
     case EMesh::Slash2: return TEXT("SM_LD_SlashCombo2");
     case EMesh::Slash3: return TEXT("SM_LD_SlashCombo3");
+    case EMesh::PropTakeout: return TEXT("SM_LD_PropTakeout");
+    case EMesh::PropSlipper: return TEXT("SM_LD_PropSlipper");
+    case EMesh::PropBag: return TEXT("SM_LD_PropBag");
     default: return TEXT("");
     }
 }
@@ -275,6 +278,27 @@ LDSliceVfx::ESystem LDSliceVfx::ReactionSystemOf(uint8 Reaction)
     case ELDCombatReaction::Shatter: return ESystem::ShatterReact;
     case ELDCombatReaction::Corrode: return ESystem::CorrodeReact;
     case ELDCombatReaction::Frostbite: return ESystem::FrostbiteReact;
+    default: return ESystem::Count;
+    }
+}
+
+LDSliceVfx::ESystem LDSliceVfx::EffectSystemOf(uint8 ProjectileLook, FLinearColor& OutTint)
+{
+    OutTint = FLinearColor::White;
+    switch (static_cast<ELDObservedProjectileLook>(ProjectileLook))
+    {
+    case ELDObservedProjectileLook::Chalk:
+    case ELDObservedProjectileLook::ChalkReturn: return ESystem::FlightChalk;
+    case ELDObservedProjectileLook::Sock:
+    case ELDObservedProjectileLook::SockReturn: return ESystem::FlightSock;
+    case ELDObservedProjectileLook::FistWind: return ESystem::FlightFist;
+    case ELDObservedProjectileLook::Wind: return ESystem::WindZone;
+    case ELDObservedProjectileLook::AreaPlain: OutTint = FLinearColor(1.f, .78f, .5f); return ESystem::AreaPlain;
+    case ELDObservedProjectileLook::AreaMagic: OutTint = FLinearColor(.78f, .58f, 1.f); return ESystem::AreaPlain;
+    // An elemental area is that element's floor: the same surface a ground state of the element shows.
+    case ELDObservedProjectileLook::AreaFire: OutTint = ElementInk(uint8(ELDCombatElement::Fire)); return ESystem::FireGround;
+    case ELDObservedProjectileLook::AreaWater: OutTint = ElementInk(uint8(ELDCombatElement::Water)); return ESystem::PuddleGround;
+    case ELDObservedProjectileLook::AreaElectric: OutTint = ElementInk(uint8(ELDCombatElement::Shock)); return ESystem::Field;
     default: return ESystem::Count;
     }
 }
@@ -484,6 +508,30 @@ const TCHAR* LDSliceVfx::SystemName(ESystem System)
     case ESystem::ShatterReact: return TEXT("NS_LDShatterReact");
     case ESystem::CorrodeReact: return TEXT("NS_LDCorrodeReact");
     case ESystem::FrostbiteReact: return TEXT("NS_LDFrostbiteReact");
+    case ESystem::FlightChalk: return TEXT("NS_LDFlightChalk");
+    case ESystem::FlightSock: return TEXT("NS_LDFlightSock");
+    case ESystem::FlightFist: return TEXT("NS_LDFlightFist");
+    case ESystem::WindZone: return TEXT("NS_LDWindZone");
+    case ESystem::AreaPlain: return TEXT("NS_LDAreaPlain");
+    case ESystem::ShardBurst: return TEXT("NS_LDShardBurst");
+    case ESystem::DecoyPop: return TEXT("NS_LDDecoyPop");
+    case ESystem::RootState: return TEXT("NS_LDRootState");
+    case ESystem::ProtectedState: return TEXT("NS_LDProtectedState");
+    case ESystem::SlowState: return TEXT("NS_LDSlowState");
+    case ESystem::AttackSlowState: return TEXT("NS_LDAttackSlowState");
+    case ESystem::StunState: return TEXT("NS_LDStunState");
+    case ESystem::DisarmState: return TEXT("NS_LDDisarmState");
+    case ESystem::SilenceState: return TEXT("NS_LDSilenceState");
+    case ESystem::TauntState: return TEXT("NS_LDTauntState");
+    case ESystem::ExposedState: return TEXT("NS_LDExposedState");
+    case ESystem::DashWake: return TEXT("NS_LDDashWake");
+    case ESystem::OverdriveCharge: return TEXT("NS_LDOverdriveCharge");
+    case ESystem::OverdriveBurst: return TEXT("NS_LDOverdriveBurst");
+    case ESystem::LevelUp: return TEXT("NS_LDLevelUp");
+    case ESystem::OwnMark: return TEXT("NS_LDOwnMark");
+    case ESystem::RingBand: return TEXT("NS_LDRingBand");
+    case ESystem::RingDanger: return TEXT("NS_LDRingDanger");
+    case ESystem::RingNext: return TEXT("NS_LDRingNext");
     default: return TEXT("");
     }
 }
@@ -891,18 +939,6 @@ LDHitVfx::FZone LDHitVfx::ZoneOf(ELDObservedProjectileLook Look, float RadiusCm,
         break;
     case ELDObservedProjectileLook::FlyerArmed:
         Density = 12.f; Z.Lifetime = .5f; Z.Scale = .7f; Z.Velocity = FVector(0, 0, 60); Z.Colour = Hot(FLinearColor(1.f, .6f, .2f), 2.f);
-        break;
-    case ELDObservedProjectileLook::SlipperDrop:
-        Density = 26.f; Z.Lifetime = .65f; Z.Scale = .95f; Z.Velocity = FVector(0, 0, 95); Z.Colour = Hot(FLinearColor(.25f, .95f, 1.f), 2.2f);
-        break;
-    case ELDObservedProjectileLook::CordonTape:
-        Density = 32.f; Z.Lifetime = .4f; Z.Scale = .85f; Z.Velocity = FVector(0, 0, 50); Z.Colour = Hot(FLinearColor(1.f, .86f, .12f), 2.4f);
-        break;
-    case ELDObservedProjectileLook::PhantomDecoy:
-        Density = 64.f; Z.Lifetime = .75f; Z.Scale = 1.5f; Z.Velocity = FVector(0, 0, 140); Z.Colour = Hot(FLinearColor(.78f, .38f, 1.f), 2.5f);
-        break;
-    case ELDObservedProjectileLook::ShardBurst:
-        Density = 90.f; Z.Lifetime = .25f; Z.Scale = 1.4f; Z.Velocity = FVector(0, 0, 180); Z.Colour = Hot(FLinearColor(.2f, .92f, 1.f), 2.6f);
         break;
     default: return Z;
     }

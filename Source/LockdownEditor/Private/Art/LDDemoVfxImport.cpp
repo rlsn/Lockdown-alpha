@@ -604,6 +604,8 @@ namespace
         {
             return VfxFail(Error, Spec.Package + TEXT(" was not imported from the current bytes of SourceData/VFX/") + Spec.File + TEXT("; run ImportDemoArt.ps1 -Mode ImportVFX."));
         }
+        // A prop (a skill proxy's body) has no swing to check.
+        if (int32(Spec.Mesh) >= LDSliceVfx::SlashMeshCount) { return true; }
         FVector Head;
         if (!SliceHeadOf(*Mesh, Head)) { return VfxFail(Error, Spec.Package + TEXT(" has no slash head (outer edge vertex at U = 0) in its first UV channel.")); }
         const FVector Expected = LDSliceVfx::SlashHead(Spec.Mesh);

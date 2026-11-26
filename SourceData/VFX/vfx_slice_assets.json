@@ -8,11 +8,12 @@
     "Blender/slice_render.py": "c79c3b5fb4239aaebbac5ac0e1d9e8715f1fd1394575bb371e64dab85ce3013f",
     "Blender/slice_chain_candidates.py": "910cc6d3c50b73e7b6906d7668c2f283bacfedfafe0eedc958553b9c918aa53a",
     "Blender/slice_field.py": "cafda59fece4c94fafd389fbf660ac3397e5220882dcc1c6f9460d22b369f9db",
-    "Blender/slice_elements.py": "3c333a2d81e3574b547639b89fb8d4d757b15149ba559a62bac88bce2dcca30e"
+    "Blender/slice_elements.py": "3c333a2d81e3574b547639b89fb8d4d757b15149ba559a62bac88bce2dcca30e",
+    "Blender/slice_props.py": "735eff2573adfcff5a6bed241e6e96ff1947cfcebb2b74d4478ae999ad31d697"
   },
   "tools": {
     "Blender/slice_preview.py": "361a7274af48268b072fcbaffd2a85dff9115682edee775bf2ac53e1ebca8880",
-    "Blender/slice_manifest.py": "ced05484aef7f2e0cf35104208cf6a813d4ffb953ef79513578a9d0ac305135b"
+    "Blender/slice_manifest.py": "c4771dd991a590abeb64c2a351a0b8377e58535a82d5a419d96c8d677664d366"
   },
   "glow_levels": {
     "ink": 0.0,
@@ -630,6 +631,63 @@
       "bc3_bc7_with_mips_bytes": 5461,
       "checks": {},
       "material_hint": "Same graph as the existing Layer material: emissive = Glow * tex.rgb (+ white lerp above 0.8) + Ink, opacity = tex.a * Fade, translucent unlit, two-sided. Recommended glow remap: color = lerp(Glow * saturate(g / 0.6), 1, smoothstep(0.8, 1.0, g)); Ink (0A0B0D) shows where g = 0 and A > 0."
+    },
+    {
+      "id": "SM_LD_PropTakeout",
+      "kind": "static_mesh",
+      "file": "Slice/SM_LD_PropTakeout.fbx",
+      "purpose": "The thrown stale takeout: a tied bag with its box inside, the flight's body.",
+      "usage": "StaticMeshComponent of the skill's observed proxy with the flat character material tinted by the look.",
+      "units": "centimetres",
+      "orientation": "forward +X, up +Z",
+      "uv": "one empty UV channel (the material does not sample it)",
+      "pivot": "its centre",
+      "extents_cm": "x -22..22, y -20..20, z -16..29",
+      "budget": "468 triangles, one opaque surface",
+      "sha256": "9d49e99860e8e50b15eecc46e2c05c143ed80a82eb86454a5733b72afedf9718",
+      "geometry_sha256": "745eb85dc7ae32d41b075b4457c961e5ac17c950763314f69d91d1e7711eacb2",
+      "sha256_note": "sha256 is the committed FBX bytes; regenerating changes it (FBX creation timestamp), geometry_sha256 is the reproducible check",
+      "vertex_count": 246,
+      "triangle_count": 468,
+      "fbx_export": "Blender 5.2.4 export_scene.fbx: apply_unit_scale, scale_length 0.01, axis_forward X, axis_up Z, mesh_smooth_type FACE, no leaf bones; verify orientation after import (see HANDOFF)"
+    },
+    {
+      "id": "SM_LD_PropSlipper",
+      "kind": "static_mesh",
+      "file": "Slice/SM_LD_PropSlipper.fbx",
+      "purpose": "A dropped slipper lying on the floor: the pickup a thrown slipper leaves.",
+      "usage": "StaticMeshComponent of the skill's observed proxy with the flat character material tinted by the look.",
+      "units": "centimetres",
+      "orientation": "forward +X, up +Z",
+      "uv": "one empty UV channel (the material does not sample it)",
+      "pivot": "the floor under its centre, toe toward +X",
+      "extents_cm": "x -34..34, y -20..20, z 0..19",
+      "budget": "184 triangles, one opaque surface",
+      "sha256": "ab1cc669256cc566ac8a5f656c26d2037314b1f62b124b95cc44358cc77df996",
+      "geometry_sha256": "ab4b1679f2d988d40e129b31e1dbf17fcc4ef6b7adfbd86a4df01435f2bfdbe8",
+      "sha256_note": "sha256 is the committed FBX bytes; regenerating changes it (FBX creation timestamp), geometry_sha256 is the reproducible check",
+      "vertex_count": 100,
+      "triangle_count": 184,
+      "fbx_export": "Blender 5.2.4 export_scene.fbx: apply_unit_scale, scale_length 0.01, axis_forward X, axis_up Z, mesh_smooth_type FACE, no leaf bones; verify orientation after import (see HANDOFF)"
+    },
+    {
+      "id": "SM_LD_PropBag",
+      "kind": "static_mesh",
+      "file": "Slice/SM_LD_PropBag.fbx",
+      "purpose": "A school backpack standing on the floor: the seat-saving bag obstacle.",
+      "usage": "StaticMeshComponent of the skill's observed proxy with the flat character material tinted by the look.",
+      "units": "centimetres",
+      "orientation": "forward +X, up +Z",
+      "uv": "one empty UV channel (the material does not sample it)",
+      "pivot": "the floor under its centre, front toward +X",
+      "extents_cm": "x -48..44, y -44..44, z 0..120 (scaled to the blocker's radius and height)",
+      "budget": "596 triangles, one opaque surface",
+      "sha256": "8156183513f86cfa6a1dcf075556be297730b903595f13559018ddb33f03f49f",
+      "geometry_sha256": "730fb603a989d708094c0a1c33271d467d85b67d037cf5d7afd218b6f4ec8313",
+      "sha256_note": "sha256 is the committed FBX bytes; regenerating changes it (FBX creation timestamp), geometry_sha256 is the reproducible check",
+      "vertex_count": 310,
+      "triangle_count": 596,
+      "fbx_export": "Blender 5.2.4 export_scene.fbx: apply_unit_scale, scale_length 0.01, axis_forward X, axis_up Z, mesh_smooth_type FACE, no leaf bones; verify orientation after import (see HANDOFF)"
     }
   ]
 }
