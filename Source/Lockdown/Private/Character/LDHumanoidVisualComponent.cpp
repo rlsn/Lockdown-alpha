@@ -1484,7 +1484,11 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
                     // for the root's time).
                     const bool bMine = OwnStrikeAt >= 0 && Clock - OwnStrikeAt < .6;
                     const bool bFreeze = ShownReaction == uint8(ELDCombatReaction::Freeze);
-                    const float Radius = bFreeze ? .62f * HeightCm : Impacts->ReactionRadiusCm(ShownReaction);
+                    // A reaction with a splash or zone shows at its approved radius; one that only changes the body shows
+                    // round it (a melt: the pool it leaves at the feet).
+                    const float Splash = Impacts->ReactionRadiusCm(ShownReaction);
+                    const float Radius = bFreeze ? .62f * HeightCm : Splash > 0.f ? Splash
+                        : ShownReaction == uint8(ELDCombatReaction::Melt) ? .85f * HeightCm : .7f * HeightCm;
                     const float Hold = bFreeze ? FMath::Max(Impacts->FreezeRootSeconds(), .6f) : 1.4f;
                     const LDSliceVfx::FLook Look = Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, bMine, bOwnBody || bMine);
                     if (Radius > 0.f)

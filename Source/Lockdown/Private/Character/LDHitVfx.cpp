@@ -269,6 +269,12 @@ LDSliceVfx::ESystem LDSliceVfx::ReactionSystemOf(uint8 Reaction)
     case ELDCombatReaction::Fog: return ESystem::FogReact;
     case ELDCombatReaction::Freeze: return ESystem::FreezeReact;
     case ELDCombatReaction::Overload: return ESystem::OverloadReact;
+    case ELDCombatReaction::Melt: return ESystem::MeltReact;
+    case ELDCombatReaction::Methane: return ESystem::MethaneReact;
+    case ELDCombatReaction::Ferment: return ESystem::FermentReact;
+    case ELDCombatReaction::Shatter: return ESystem::ShatterReact;
+    case ELDCombatReaction::Corrode: return ESystem::CorrodeReact;
+    case ELDCombatReaction::Frostbite: return ESystem::FrostbiteReact;
     default: return ESystem::Count;
     }
 }
@@ -472,6 +478,12 @@ const TCHAR* LDSliceVfx::SystemName(ESystem System)
     case ESystem::FogReact: return TEXT("NS_LDFogReact");
     case ESystem::FreezeReact: return TEXT("NS_LDFreezeReact");
     case ESystem::OverloadReact: return TEXT("NS_LDOverloadReact");
+    case ESystem::MeltReact: return TEXT("NS_LDMeltReact");
+    case ESystem::MethaneReact: return TEXT("NS_LDMethaneReact");
+    case ESystem::FermentReact: return TEXT("NS_LDFermentReact");
+    case ESystem::ShatterReact: return TEXT("NS_LDShatterReact");
+    case ESystem::CorrodeReact: return TEXT("NS_LDCorrodeReact");
+    case ESystem::FrostbiteReact: return TEXT("NS_LDFrostbiteReact");
     default: return TEXT("");
     }
 }

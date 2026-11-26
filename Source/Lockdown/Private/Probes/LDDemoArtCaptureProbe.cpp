@@ -1154,7 +1154,13 @@ namespace
                     for (const FReactShot& Case : {
                         FReactShot{TEXT("fog"), ELDCombatReaction::Fog, ELDDemoStatusId::Burn, ELDCombatElement::Water, ELDObservedHitLook::Water},
                         FReactShot{TEXT("freeze"), ELDCombatReaction::Freeze, ELDDemoStatusId::Wet, ELDCombatElement::Chill, ELDObservedHitLook::Magic},
-                        FReactShot{TEXT("overload"), ELDCombatReaction::Overload, ELDDemoStatusId::Burn, ELDCombatElement::Shock, ELDObservedHitLook::Electric}})
+                        FReactShot{TEXT("overload"), ELDCombatReaction::Overload, ELDDemoStatusId::Burn, ELDCombatElement::Shock, ELDObservedHitLook::Electric},
+                        FReactShot{TEXT("melt"), ELDCombatReaction::Melt, ELDDemoStatusId::Chilled, ELDCombatElement::Fire, ELDObservedHitLook::Fire},
+                        FReactShot{TEXT("methane"), ELDCombatReaction::Methane, ELDDemoStatusId::Rotten, ELDCombatElement::Fire, ELDObservedHitLook::Fire},
+                        FReactShot{TEXT("ferment"), ELDCombatReaction::Ferment, ELDDemoStatusId::Wet, ELDCombatElement::Rot, ELDObservedHitLook::Magic},
+                        FReactShot{TEXT("shatter"), ELDCombatReaction::Shatter, ELDDemoStatusId::Chilled, ELDCombatElement::Shock, ELDObservedHitLook::Electric},
+                        FReactShot{TEXT("corrode"), ELDCombatReaction::Corrode, ELDDemoStatusId::Rotten, ELDCombatElement::Shock, ELDObservedHitLook::Electric},
+                        FReactShot{TEXT("frostbite"), ELDCombatReaction::Frostbite, ELDDemoStatusId::Rotten, ELDCombatElement::Chill, ELDObservedHitLook::Magic}})
                     {
                         ++CaseNumber;
                         ChainJobs.Add({Look, FString(TEXT("react-")) + Case.Name, {{0.f, HeldOf(V1, Case.Held)}, {.5f, HitOf(V1, Case.Hit)}, {.52f, HeldOf(V1, ELDDemoStatusId(0))},
@@ -2030,15 +2036,14 @@ namespace
             }
             if (Current.ReactionElement != 0)
             {
-                const int32 Before = Impacts ? Impacts->LiveLayerCount() : 0;
+                const int32 Before = Impacts ? Impacts->LiveCount() : 0;
                 Victim->SetReaction(uint8(ELDCombatReaction::Methane), Current.ReactionElement, .03f, 100. + Shot);
                 Victim->Animate(FVector::ZeroVector, 0.f);
-                Check(Impacts && Impacts->LiveLayerCount() - Before == LDHitVfx::ForReaction(Current.ReactionElement, 1.f, Impacts->LayerTuning()).Layers.Num(),
-                    TEXT("A fresh element reaction flashes its layers once"));
-                const int32 After = Impacts ? Impacts->LiveLayerCount() : 0;
+                Check(Impacts && Impacts->LiveCount() - Before == 1, TEXT("A fresh element reaction plays its own effect once"));
+                const int32 After = Impacts ? Impacts->LiveCount() : 0;
                 Victim->SetReaction(uint8(ELDCombatReaction::Methane), Current.ReactionElement, .05f, 100. + Shot);
                 Victim->Animate(FVector::ZeroVector, 0.f);
-                Check(Impacts && Impacts->LiveLayerCount() == After, TEXT("The same reaction seen again adds nothing"));
+                Check(Impacts && Impacts->LiveCount() == After, TEXT("The same reaction seen again adds nothing"));
             }
             if (Current.GroundKind != 0)
             {
