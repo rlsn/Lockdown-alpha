@@ -536,6 +536,7 @@ const TCHAR* LDSliceVfx::SystemName(ESystem System)
     case ESystem::RingDanger: return TEXT("NS_LDRingDanger");
     case ESystem::RingNext: return TEXT("NS_LDRingNext");
     case ESystem::CritBurst: return TEXT("NS_LDCritBurst");
+    case ESystem::ReturnState: return TEXT("NS_LDReturnState");
     default: return TEXT("");
     }
 }

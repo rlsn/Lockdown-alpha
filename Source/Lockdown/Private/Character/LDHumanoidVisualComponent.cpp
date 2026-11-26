@@ -38,7 +38,7 @@ namespace LDHumanoidVisualDetail
     // Animate and ApplyLook.
     enum EPart : int32
     {
-        ReturnSign, Burst, PartCount
+        Burst, PartCount
     };
     enum EShape : uint8 { Cube, Sphere, Cylinder };
     struct FPartSpec
@@ -47,14 +47,11 @@ namespace LDHumanoidVisualDetail
         EShape Shape;
         FVector Scale; // BasicShapes units (100 cm)
     };
-    // The camp return sign on the back and two effect shapes: the release spark and the appear column. Every status worn on
-    // a body is a Niagara state (UpdateStates).
+    // One effect shape, the release spark. Every status worn on a body is a Niagara state (UpdateStates).
     const FPartSpec Specs[PartCount] =
     {
-        {TEXT("ReturnSign"), Cube, {.04,.34,.3}},
         {TEXT("Burst"), Sphere, {.1,.1,.1}},
     };
-    const FLinearColor ReturnColour(.95f,.95f,.95f);
     const FLinearColor BurstColour(1.f,.95f,.7f);
     // Emissive over the whole body through the art materials' Flash: a typed hit flashes, then white; an appear glows.
     const FLinearColor FlashWhite(1.f,1.f,1.f), AppearGlow(1.f,.92f,.6f);
@@ -75,7 +72,6 @@ namespace LDHumanoidVisualDetail
     constexpr float ReferenceHeightCm = 175.f;
     FLinearColor ColourOf(int32 Index)
     {
-        if (Index == ReturnSign) { return ReturnColour; }
         return BurstColour;
     }
     ELDArtAnim ClipOf(LDBodyMotion::EAction Action)
@@ -335,9 +331,9 @@ void ULDHumanoidVisualComponent::SetElementStates(const TArray<FLDObservedStatus
     { return Statuses.ContainsByPredicate([Id](const FLDObservedStatus& Status) { return Status.StatusId == uint8(Id); }); };
     GuardOn[1] = Has(ELDDemoStatusId::Braced);
     GuardOn[2] = Has(ELDDemoStatusId::Empowered);
-    static constexpr ELDDemoStatusId Control[GuardStates - 3] = {ELDDemoStatusId::Root, ELDDemoStatusId::RespawnProtection, ELDDemoStatusId::Slow,
+    static constexpr ELDDemoStatusId Control[9] = {ELDDemoStatusId::Root, ELDDemoStatusId::RespawnProtection, ELDDemoStatusId::Slow,
         ELDDemoStatusId::AttackSlowed, ELDDemoStatusId::Stun, ELDDemoStatusId::Disarm, ELDDemoStatusId::Silence, ELDDemoStatusId::Taunt, ELDDemoStatusId::Exposed};
-    for (int32 Index = 3; Index < GuardStates; ++Index) { GuardOn[Index] = Has(Control[Index - 3]); }
+    for (int32 Index = 3; Index < 12; ++Index) { GuardOn[Index] = Has(Control[Index - 3]); }
     // A camp member on guard braces as a contender does; enraged, it flares as a taunt does.
     GuardOn[1] |= Has(ELDDemoStatusId::CampGuarding);
     GuardOn[10] |= Has(ELDDemoStatusId::CampEnraged);
@@ -406,13 +402,14 @@ void ULDHumanoidVisualComponent::UpdateStates(bool bFalling, float EffectScale)
         LDSliceVfx::ESystem::EmpoweredState,
         LDSliceVfx::ESystem::RootState, LDSliceVfx::ESystem::ProtectedState, LDSliceVfx::ESystem::SlowState, LDSliceVfx::ESystem::AttackSlowState,
         LDSliceVfx::ESystem::StunState, LDSliceVfx::ESystem::DisarmState, LDSliceVfx::ESystem::SilenceState, LDSliceVfx::ESystem::TauntState,
-        LDSliceVfx::ESystem::ExposedState};
+        LDSliceVfx::ESystem::ExposedState, LDSliceVfx::ESystem::ReturnState};
     const float Guard = 1.5f * (bOwnBody ? 1.f : .75f) * FMath::Clamp(EffectScale, .45f, 1.f);
     bool bWorn[GuardStates];
     for (int32 Index = 0; Index < GuardStates; ++Index) { bWorn[Index] = GuardOn[Index]; }
     bWorn[0] = (Cue & Shielded) != 0;
     bWorn[3] |= (Cue & Rooted) != 0;
     bWorn[4] |= (Cue & Protected) != 0;
+    bWorn[12] = (Cue & Returning) != 0;
     for (int32 Index = 0; Index < GuardStates; ++Index)
     {
         if (!bShow || !bWorn[Index])
@@ -963,9 +960,7 @@ bool ULDHumanoidVisualComponent::PresentedPickVolume(FVector& OutFoot, FVector& 
 void ULDHumanoidVisualComponent::Layout()
 {
     using namespace LDHumanoidVisualDetail;
-    // Pivot space at rest: the capsule centre, the feet HalfHeight below it and the top of the head HeightCm above them.
-    const float Foot = -HalfHeight, Girth = HeightCm / ReferenceHeightCm;
-    Parts[ReturnSign]->SetRelativeLocation(FVector(-24.f * Girth, 0, Foot + .74f * HeightCm));
+    // No part rests at a fixed place on the body: the release spark is placed at the hand when it shows.
 }
 
 void ULDHumanoidVisualComponent::SetCue(uint8 Value, float ActionAgeSeconds, float ImpactDelaySeconds, bool bInKnockback,
@@ -1486,8 +1481,6 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
         bPendingReaction = false;
     }
 
-    // The camp return sign; a falling body shows none.
-    Parts[ReturnSign]->SetHiddenInGame(bFalling || !(Cue & Returning));
 
     // Body flash: a hit flashes white, then red; an appear glows. Cleared once both have passed.
     const float Glow = bFalling ? 0.f : Life.Glow;

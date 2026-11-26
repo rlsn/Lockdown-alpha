@@ -161,6 +161,8 @@ namespace
             // submix is recorded to <folder>/game_audio.wav (the game's own mix, not a re-render) for Seconds.
             bool bRealtime = false;
             float Seconds = 0.f;
+            // A frame-cost run (bPerf) of this job's own steps, replayed every LoadEvery seconds, in place of the eight casters.
+            float LoadEvery = 0.f;
         };
         FString ProofLabel;
         TArray<FChainJob> ChainJobs;
@@ -940,6 +942,7 @@ namespace
                     TEXT("reactions"),
                     TEXT("flights"),
                     TEXT("world"),
+                    TEXT("load"),
                 };
                 bool bKnown = false;
                 for (const TCHAR* Category : Known) { bKnown |= Name == Category; }
@@ -1133,6 +1136,60 @@ namespace
                         ChainJobs.Add({Look, FString(TEXT("skills-")) + Skill.Name, OwnSteps, Ahead(Skill.Gap), Home, false, Skill.Windup + .05f, 0.f, 36});
                         ChainJobs.Add({Look, FString(TEXT("skills-")) + Skill.Name + TEXT("-other"), OtherSteps, nullptr, nullptr, false, Skill.Windup + .05f, 0.f, 30});
                     }
+                }
+                else if (Look == TEXT("load"))
+                {
+                    // Frame cost of the heaviest scenes on the six stage bodies, each replayed for five seconds after three
+                    // idle: every body casting active_seethe and taking its fire hit; six different reactions going off at
+                    // once; a PK arena with its next ring and four throw landings.
+                    UWorld* const LoadWorld = &Target;
+                    const TSharedRef<TArray<TWeakObjectPtr<AActor>>> Rings = MakeShared<TArray<TWeakObjectPtr<AActor>>>();
+                    const TSharedRef<double> Stamp = MakeShared<double>(500.);
+                    const TArray<TWeakObjectPtr<ULDHumanoidVisualComponent>> LoadBodies{A, V1, V2, V3, A2, A3};
+                    FChainJob Seethe;
+                    Seethe.Category = Look;
+                    Seethe.Scenario = TEXT("load-seethe-six");
+                    Seethe.bPerf = true;
+                    Seethe.LoadEvery = 1.f;
+                    for (const auto& Body : LoadBodies) { Seethe.Steps.Add({0.f, CastOf(Body, ELDDemoAbilityId::ActiveSeethe, .25f)}); }
+                    for (const auto& Body : LoadBodies) { Seethe.Steps.Add({.28f, HitOf(Body, ELDObservedHitLook::Fire)}); }
+                    FChainJob React;
+                    React.Category = Look;
+                    React.Scenario = TEXT("load-reactions-six");
+                    React.bPerf = true;
+                    React.LoadEvery = 1.2f;
+                    static constexpr ELDCombatReaction Kinds[6] = {ELDCombatReaction::Fog, ELDCombatReaction::Freeze, ELDCombatReaction::Overload, ELDCombatReaction::Melt,
+                        ELDCombatReaction::Methane, ELDCombatReaction::Shatter};
+                    static constexpr ELDCombatElement Elements[6] = {ELDCombatElement::Water, ELDCombatElement::Chill, ELDCombatElement::Shock, ELDCombatElement::Fire,
+                        ELDCombatElement::Fire, ELDCombatElement::Shock};
+                    for (int32 Index = 0; Index < 6; ++Index)
+                    {
+                        React.Steps.Add({0.f, [Body = LoadBodies[Index], Kind = Kinds[Index], Element = Elements[Index], Stamp]()
+                            { if (auto* B = Body.Get()) { *Stamp += 1.; B->SetReaction(uint8(Kind), uint8(Element), 0.f, *Stamp); } }});
+                    }
+                    FChainJob Arena;
+                    Arena.Category = Look;
+                    Arena.Scenario = TEXT("load-arena-throws");
+                    Arena.bPerf = true;
+                    Arena.LoadEvery = 1.f;
+                    // The arena is laid by the first wave, so the idle seconds before it are measured without it.
+                    Arena.Steps.Add({0.f, [LoadWorld, Rings, A, V1, V2, V3, A2]()
+                    {
+                        if (!Rings->IsEmpty()) { return; }
+                        const auto FeetOf = [](const TWeakObjectPtr<ULDHumanoidVisualComponent>& Body)
+                        { return Body.IsValid() && Body->GetOwner() ? Body->GetOwner()->GetActorLocation() - FVector(0, 0, 90) : FVector::ZeroVector; };
+                        ALDPKRingMarker* Mark = LoadWorld->SpawnActor<ALDPKRingMarker>();
+                        FString Why;
+                        if (!Mark || !Mark->Build(FeetOf(A), 1, 1, Why)) { return; }
+                        Mark->Show(560., true, 400., {FeetOf(V1), FeetOf(V2), FeetOf(V3), FeetOf(A2)}, 150.);
+                        Rings->Add(Mark);
+                    }});
+                    Arena.Teardown = [Rings]()
+                    {
+                        for (const TWeakObjectPtr<AActor>& Ring : *Rings) { if (AActor* Old = Ring.Get()) { Old->Destroy(); } }
+                        Rings->Reset();
+                    };
+                    for (const FChainJob& Job : {Seethe, React, Arena}) { for (int32 Run = 0; Run < 2; ++Run) { ChainJobs.Add(Job); } }
                 }
                 else if (Look == TEXT("world"))
                 {
@@ -1589,7 +1646,7 @@ namespace
                     ChainJobs.Add({Look, TEXT("states-rot-burn3"), {{0.f, State(V2, ELDDemoStatusId::Rotten, 1)}, {0.f, State(V3, ELDDemoStatusId::Burn, 3)}},
                         nullptr, Clear, false, 1.f, .6f, 30});
                     // The control states, one each: root, respawn protection, slow and stun; attack slow, disarm, silence and
-                    // taunt; then exposed, and root with silence on one body.
+                    // taunt; then exposed, root with silence on one body, and a camp member's walk back on A2.
                     const auto Both = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, ELDDemoStatusId First, ELDDemoStatusId Second)
                     {
                         return [Body, First, Second]()
@@ -1616,7 +1673,8 @@ namespace
                     ChainJobs.Add({Look, TEXT("states-level-charge"), {{0.f, Level(V2, 1)}, {0.f, Level(V3, 1)}, {0.f, Charge(A2, true, .5f)}, {0.f, Charge(A3, true, 1.f)},
                         {.05f, Level(V2, 2)}, {.35f, Level(V3, 2)}},
                         nullptr, [Clear, Charge, A2, A3]() { Clear(); Charge(A2, false, -1.f)(); Charge(A3, false, -1.f)(); }, false, .5f, .1f, 36});
-                    ChainJobs.Add({Look, TEXT("states-control-c"), {{0.f, State(V2, ELDDemoStatusId::Exposed, 1)}, {0.f, Both(V3, ELDDemoStatusId::Root, ELDDemoStatusId::Silence)}},
+                    ChainJobs.Add({Look, TEXT("states-control-c"), {{0.f, State(V2, ELDDemoStatusId::Exposed, 1)}, {0.f, Both(V3, ELDDemoStatusId::Root, ELDDemoStatusId::Silence)},
+                        {0.f, [A2]() { if (auto* B = A2.Get()) { B->SetCue(ULDHumanoidVisualComponent::Returning); } }}},
                         nullptr, Clear, false, 1.f, .6f, 30});
                 }
                 else if (Look == TEXT("chill"))
@@ -1889,6 +1947,7 @@ namespace
                     TEXT("reactions"),
                     TEXT("flights"),
                     TEXT("world"),
+                    TEXT("load"),
                 };
                 bool bLookOnly = false;
                 for (const TCHAR* Category : LookOnly) { bLookOnly |= Look == Category; }
@@ -2115,7 +2174,12 @@ namespace
                 return true;
             }
             const float W = BasicWindupSeconds;
-            if (Age >= ChainNextWave * 1.)
+            if (Job.LoadEvery > 0.f)
+            {
+                if (Age >= ChainNextWave) { ChainNextWave += Job.LoadEvery; ++ChainWave; ChainStep = 0; ChainClock = Age; }
+                while (ChainStep < Job.Steps.Num() && Job.Steps[ChainStep].At <= Age - ChainClock) { Job.Steps[ChainStep++].Do(); }
+            }
+            else if (Age >= ChainNextWave * 1.)
             {
                 // Waves on the wall clock: casts or swings now, the hits and bounces on their own delays below.
                 ChainNextWave += .6;
@@ -2132,7 +2196,7 @@ namespace
             }
             const double WaveAge = Age - ChainClock;
             const double HitAt = bChain ? .27 : W + .02;
-            for (int32 Index = 0; Index < PerfVictims.Num(); ++Index)
+            for (int32 Index = 0; Job.LoadEvery <= 0.f && Index < PerfVictims.Num(); ++Index)
             {
                 if (auto* Victim = PerfVictims[Index].Get())
                 {
@@ -2153,7 +2217,9 @@ namespace
             Run->SetObjectField(TEXT("idle"), StatsJson(PerfIdle));
             Run->SetObjectField(TEXT("eight_casters"), StatsJson(PerfLoad));
             Run->SetNumberField(TEXT("waves"), ChainWave);
+            Run->SetStringField(TEXT("scenario"), Job.Scenario);
             ChainPerf.Add(MakeShared<FJsonValueObject>(Run));
+            if (Job.LoadEvery > 0.f && Job.Teardown) { Job.Teardown(); }
             for (const TWeakObjectPtr<ALDObservedGroundProxy>& Ground : ProofGrounds) { if (ALDObservedGroundProxy* Old = Ground.Get()) { Old->Destroy(); } }
             ProofGrounds.Reset();
             ProofGroundsAt.Reset();

@@ -103,7 +103,7 @@ namespace LDSliceVfx
         FlightChalk, FlightSock, FlightFist, WindZone, AreaPlain, ShardBurst, DecoyPop,
         RootState, ProtectedState, SlowState, AttackSlowState, StunState, DisarmState, SilenceState, TauntState, ExposedState,
         DashWake, OverdriveCharge, OverdriveBurst, LevelUp,
-        OwnMark, RingBand, RingDanger, RingNext, CritBurst, Count
+        OwnMark, RingBand, RingDanger, RingNext, CritBurst, ReturnState, Count
     };
     LOCKDOWN_API const TCHAR* SystemName(ESystem System);
     // An element reaction's own event on the reacting body (ELDCombatReaction): Start the floor under it, End its chest,
