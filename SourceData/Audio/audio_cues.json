@@ -86,7 +86,7 @@
       "id": "lockdown-layered",
       "name": "Lockdown layered combat and UI sounds",
       "generator": "Layered/build_layered_audio.py",
-      "generator_sha256": "401eee500ad3fe7aba7055588e54acee01614ce1d1f6b046b44f06b20d3602a5",
+      "generator_sha256": "803d0b555fbc6290c0ad8dfbf31339ad6daef8b11120272429bb221543b6d5e9",
       "license": "Project-owned mixes of the recorded layers listed as inputs: Kenney CC0 packs and Free Modular Magic SFX by Le Binh Son (CC BY 4.0, credited).",
       "inputs": [
         {
@@ -1555,21 +1555,21 @@
       "takes": [
         {
           "source": "Layered/ui_install_1.wav",
-          "sha256": "beaf3586e29f3eb71f80251f43542ee61a38c9be7e810e24097b17158e4868ad"
+          "sha256": "a0e244b9b3fc1d8a3f2286d001e813df01d3111cdf966e571e68e3fed835894f"
         },
         {
           "source": "Layered/ui_install_2.wav",
-          "sha256": "8ccc91e71d782954b3d1d92dd4b604b5bdade8e780af0a3a43acf49695291525"
+          "sha256": "d393e2899551f2df72100abc245e795151078be88ca19043fcb18686572d0eb5"
         },
         {
           "source": "Layered/ui_install_3.wav",
-          "sha256": "8e1d06ca0cf4f8a9181933c221d23a1da330ce2d34401aa38bf9871cdc61d678"
+          "sha256": "41267e0bb1576ea78c82404afeeddf2088bbe44712e501f0fe1998cff57b06eb"
         }
       ],
       "purpose": "构件安装成功（卡扣声）",
       "level_db": -4.0,
-      "volume": 0.688,
-      "loudness_lufs": -23.61,
+      "volume": 0.673,
+      "loudness_lufs": -17.84,
       "pack_path": "Audio/click_003.ogg",
       "duration_sec": 0.01
     },
@@ -1651,21 +1651,21 @@
       "takes": [
         {
           "source": "Layered/ui_offer_deal_1.wav",
-          "sha256": "2bfbc39f00e2707160b18938d0ec331a009b808f274dfbc462dea39c22d2fdca"
+          "sha256": "97480c4c7487fd3960ff219d3b5ed11c79da68ead3de730c4f7d20e49f6bb8cd"
         },
         {
           "source": "Layered/ui_offer_deal_2.wav",
-          "sha256": "f19eed54c2557482ea587893e29f6ecaf1f4712e4dd0914b66256667f41b8495"
+          "sha256": "c986438063102acab0425e5ec8e2467b7d22c7784ef6189f58b5519d5f32c97d"
         },
         {
           "source": "Layered/ui_offer_deal_3.wav",
-          "sha256": "683a8ac91487b8e96a5fbbc32c89c715140d6518a742431069735950a2457886"
+          "sha256": "daf707e8a9b3129c52c781092996eb0c87f4f2db0cfd4f16d382f8cc719c7304"
         }
       ],
       "purpose": "三选一入场（发牌）",
       "level_db": -6.0,
-      "volume": 0.528,
-      "loudness_lufs": -25.86,
+      "volume": 0.534,
+      "loudness_lufs": -19.32,
       "pack_path": "Audio/switch_002.ogg",
       "duration_sec": 0.611
     },
@@ -1699,21 +1699,21 @@
       "takes": [
         {
           "source": "Layered/ui_gain_1.wav",
-          "sha256": "1ac5d267eed30670bf4b0258a03b5c59f077c6b2e9a3a5b1b25d0fee90b7de1b"
+          "sha256": "c276b8b01eaa035af61e2272d8830cd16025882fe7ef124e2238bfd28fe7a5f3"
         },
         {
           "source": "Layered/ui_gain_2.wav",
-          "sha256": "519583c7f5a430b674536de19f5cb831ed02ff86bc36dc47753acb231574fadb"
+          "sha256": "1f1a810965faca6600c9e3beeaaa647dba131e57b9d9582b1ee026bd494493e0"
         },
         {
           "source": "Layered/ui_gain_3.wav",
-          "sha256": "15586bebb4fe83333b71a7b884b07524239bcf9bed9a7437eb0777a5d26b2dd4"
+          "sha256": "339f98b3b6615b56630f012f4aca7f2553bc1f72e0ccc305b61d75baa2d59d1e"
         }
       ],
       "purpose": "获得构件（入袋）",
       "level_db": -4.0,
-      "volume": 0.673,
-      "loudness_lufs": -23.08,
+      "volume": 0.544,
+      "loudness_lufs": -15.39,
       "pack_path": "Audio/pluck_002.ogg",
       "duration_sec": 0.165
     },
@@ -1771,21 +1771,21 @@
       "takes": [
         {
           "source": "Layered/ui_final_lock_1.wav",
-          "sha256": "0859a7fb7c521c3d7753dc9acb5617abef88020ab8485af2f3da88cf32970896"
+          "sha256": "36f7821b2ac76548b31c313a4b3a6d49ea661d5345892feb2aa1df57bfe1b875"
         },
         {
           "source": "Layered/ui_final_lock_2.wav",
-          "sha256": "15eb6f352afa2c6affaa76ccc1a1f86af4e50118a0dec7b18bbae99c05839b68"
+          "sha256": "9bf04f758d3a701c70f166a1c1e595ccd33db78a2a6d9c20b3b17239ddaf78b7"
         },
         {
           "source": "Layered/ui_final_lock_3.wav",
-          "sha256": "98c0cc920b77bd5e5a3c0ff414477848450322397f22bc8314fe114595fdee3d"
+          "sha256": "46c0150be6d2c51c764afa0fff95b298f00134754e9f205e218c8a660a3a2954"
         }
       ],
       "purpose": "锁定终局改装（重击加回声）",
       "level_db": 0.0,
-      "volume": 1.048,
-      "loudness_lufs": -22.74,
+      "volume": 1.066,
+      "loudness_lufs": -17.8,
       "pack_path": "Audio/bong_001.ogg",
       "duration_sec": 0.123
     },
@@ -2585,17 +2585,17 @@
       "takes": [
         {
           "source": "Layered/skill_crotch_grab_1.wav",
-          "sha256": "3554f386bb86de9e32af35d516bc11440bf81af2acfe8d4fc671990f44c9a8ce"
+          "sha256": "f2da13a1064e84e73d44646920006bb3f40ca6ff34a95d2894687f56d1343b7f"
         },
         {
           "source": "Layered/skill_crotch_grab_2.wav",
-          "sha256": "53c8cc4f3a68a6c8467a56d429e040b3e138aa9c24bfb492cce2601af7b8d918"
+          "sha256": "091f86798f1ec5fc1c8471419a4c9ae9554079f8c1112a87dd5e8c1eec8ca0dd"
         }
       ],
       "purpose": "掏蛋子：贴地冲刺接一把抓紧",
       "level_db": -4.0,
-      "volume": 0.671,
-      "loudness_lufs": -21.91
+      "volume": 0.544,
+      "loudness_lufs": -15.38
     },
     {
       "ability": "active_snark_bolt",
@@ -2737,17 +2737,17 @@
       "takes": [
         {
           "source": "Layered/skill_unplug_1.wav",
-          "sha256": "b280f3cef4084e96474229667e9ba908a578b151df4e7d23cbce5ec8bf7295ab"
+          "sha256": "deb1520b0136eb75f5a170f05b7f4ddc9d6190906ecb0b304f65ac02c59bb41c"
         },
         {
           "source": "Layered/skill_unplug_2.wav",
-          "sha256": "f93f23e18799d68b8d6cb82055204abb3e3cf81e1af271a7a21ebeef979ec11a"
+          "sha256": "f63902b3b1fc753c23997d95f3b85af9bf9c164ed2dcaedc38378bdefc588ae3"
         }
       ],
       "purpose": "拧你手腕：招架架势，皮革绷紧与就位咔哒",
       "level_db": -6.0,
-      "volume": 0.54,
-      "loudness_lufs": -23.81
+      "volume": 0.53,
+      "loudness_lufs": -17.15
     },
     {
       "ability": "active_triple_combo",
@@ -2813,17 +2813,17 @@
       "takes": [
         {
           "source": "Layered/skill_flyer_trap_1.wav",
-          "sha256": "bddfe6cf05e2b023d7d8345627547d3402d7096e851d16da93ee01392f8a0166"
+          "sha256": "20ef30d88eb7cd024bc1bb4ca01ed025a83c74720be04822c4baabb2c8e029e1"
         },
         {
           "source": "Layered/skill_flyer_trap_2.wav",
-          "sha256": "ab008c587e031a6b3bc4719c1ba6ab24adae3c251616cf52cc2ce4f973096d24"
+          "sha256": "6ccdb8acc2014fddf5468bae451dc3adb094ff3c2aa0fe83d5433ec7be44d0f7"
         }
       ],
       "purpose": "踩一脚试试：夹子上弦与纸声",
       "level_db": -6.0,
-      "volume": 0.51,
-      "loudness_lufs": -21.36
+      "volume": 0.506,
+      "loudness_lufs": -16.75
     },
     {
       "ability": "active_hose_down",
@@ -2889,17 +2889,17 @@
       "takes": [
         {
           "source": "Layered/skill_brace_1.wav",
-          "sha256": "5fd72a74ddaa18ca778803009cd1dbfff32dc4086c125f7805599a2f7e0182b1"
+          "sha256": "515f87a97f73ab391ca24a7b0e0ed309ee0d178a3aebd653463c95a94a198bd9"
         },
         {
           "source": "Layered/skill_brace_2.wav",
-          "sha256": "265cb75b195f4d7b176e3bde0a7e8fd4a002a4c9096e62b775e923903df2b652"
+          "sha256": "09980185d6217e5481cc5e802e8fac922130eebd40783a0d81836ada801aeab6"
         }
       ],
       "purpose": "顶着揍：站稳与绷紧",
       "level_db": -6.0,
       "volume": 0.534,
-      "loudness_lufs": -22.72
+      "loudness_lufs": -17.89
     },
     {
       "ability": "active_cola_shake",
@@ -2908,17 +2908,17 @@
       "takes": [
         {
           "source": "Layered/skill_cola_shake_1.wav",
-          "sha256": "3b9260186e7bffe5784145d07ccf1bb3ee213bd3bd8a965635b0ee2ebe1e9f9e"
+          "sha256": "8b2141d168b4c76eee52409dde11b579b8b585b1599adb6916cd5189cb08c3e6"
         },
         {
           "source": "Layered/skill_cola_shake_2.wav",
-          "sha256": "2b5b9e75f549d1f39f0607401b39319846fcfe2c5d2136e92b95f869c12ebd11"
+          "sha256": "727c68a296366239908aa430db766f3bba7f21c7dda2ddbd98e0fe3f588f3439"
         }
       ],
       "purpose": "冰可乐摇一摇：拉环、冒气与冰凉喷雾",
       "level_db": -4.0,
-      "volume": 0.699,
-      "loudness_lufs": -25.88
+      "volume": 0.673,
+      "loudness_lufs": -18.04
     },
     {
       "ability": "active_desk_fan",
@@ -2927,17 +2927,17 @@
       "takes": [
         {
           "source": "Layered/skill_desk_fan_1.wav",
-          "sha256": "de3a4a967c1c3862de1b343a8c07f2439146b605f6aae4abdb42b37bc92d1136"
+          "sha256": "75dd0b00720c487eca5f3abb15110147effef7b371d1b65651369ac77c7f2e2d"
         },
         {
           "source": "Layered/skill_desk_fan_2.wav",
-          "sha256": "bf11bc7e594ac056f52f60b38803fd512cbde3ec7957115e000d110d297cd0c7"
+          "sha256": "9a522e2bdc19d174208b68d9d8cceba41345f516e3fabe46cd9554f2590303e7"
         }
       ],
       "purpose": "电风扇：开关与马达起转带风",
       "level_db": -4.0,
-      "volume": 0.771,
-      "loudness_lufs": -18.41
+      "volume": 0.25,
+      "loudness_lufs": -8.62
     },
     {
       "ability": "active_stale_takeout",
@@ -2946,17 +2946,17 @@
       "takes": [
         {
           "source": "Layered/skill_stale_takeout_1.wav",
-          "sha256": "00e62df2f2566269d88f4b81a57c1d942b7dc6c180f22b946233cae17e1e1a30"
+          "sha256": "cea1a0c093918e546525abf0729b4c5c09a054140a25a7d903f2966e023998a3"
         },
         {
           "source": "Layered/skill_stale_takeout_2.wav",
-          "sha256": "37e25bbc04484b8ed1c18eba4c2ca8f2f15a7e46c32005b585e026a3410c4426"
+          "sha256": "47a9ee8d2c11883ee87490a583511afc30a7943be339148593a31d11e523095d"
         }
       ],
       "purpose": "过期外卖：湿软一摔与苍蝇嗡嗡",
       "level_db": -4.0,
-      "volume": 0.673,
-      "loudness_lufs": -20.66
+      "volume": 0.574,
+      "loudness_lufs": -15.85
     },
     {
       "ability": "active_school_bag",
@@ -3043,17 +3043,17 @@
       "takes": [
         {
           "source": "Layered/skill_crotch_grab_hit_1.wav",
-          "sha256": "635df9f68b9c163960e60e4d3b877fb57d8c91d0dc10e63e2e875bd38f6a3191"
+          "sha256": "105a03f7a1efb0c18afcd4288771b042ab7fc874703e9b0edc42f5f5b2dbab35"
         },
         {
           "source": "Layered/skill_crotch_grab_hit_2.wav",
-          "sha256": "a76dbdc3abf64ef341782b4044bf715350f58f4c6200c57923974e5211cde524"
+          "sha256": "01452fa2a3931103279af8f11bc56e4a0f5851451bf1078ccd3d79278c808d59"
         }
       ],
       "purpose": "掏蛋子命中：闷挤与吱声",
       "level_db": -3.0,
-      "volume": 0.754,
-      "loudness_lufs": -21.43
+      "volume": 0.755,
+      "loudness_lufs": -17.22
     },
     {
       "ability": "active_snark_bolt",
@@ -3195,17 +3195,17 @@
       "takes": [
         {
           "source": "Layered/skill_flyer_trap_hit_1.wav",
-          "sha256": "c42a538744ea8660cd4580186321fb6bea0fbe8f3beacd154b352a4953f33f49"
+          "sha256": "58658c4d9ff2215091b0bebe4ebc59c38f2fa3861492fe5498b007c5e6cd4d7a"
         },
         {
           "source": "Layered/skill_flyer_trap_hit_2.wav",
-          "sha256": "337582e74fc099ce3aa75b7c008bfcaa4868c9a69becc03869e4f23eff38af2d"
+          "sha256": "bf3af900c2fe8b5d11c8edd7136dbf1b43add562bf950ee612377ff60e1f7af7"
         }
       ],
       "purpose": "踩一脚试试触发：夹子两下咔嗒",
       "level_db": -3.0,
-      "volume": 0.705,
-      "loudness_lufs": -21.92
+      "volume": 0.755,
+      "loudness_lufs": -17.25
     },
     {
       "ability": "active_hose_down",
@@ -3271,17 +3271,17 @@
       "takes": [
         {
           "source": "Layered/skill_desk_fan_hit_1.wav",
-          "sha256": "f7d5f0cf7d36a64f2e47ae2e5d1097490693bffd436fa0a415e140b91aae57dc"
+          "sha256": "4ba5977117833304a66e8a72fcc78bdcb291f0e7c6744cd0eb372e6a437155b9"
         },
         {
           "source": "Layered/skill_desk_fan_hit_2.wav",
-          "sha256": "2ffe8e1f2544a8e10ad54d34a32ec20000812ef786d4743bcdc922126449dba1"
+          "sha256": "64eb76515ba796fea1b7eed6387b8fdd3dc0c3373d2cb72ce58230aaf0296483"
         }
       ],
       "purpose": "电风扇吹中：一阵风撞身",
       "level_db": -6.0,
       "volume": 0.534,
-      "loudness_lufs": -21.52
+      "loudness_lufs": -17.24
     },
     {
       "ability": "active_stale_takeout",
