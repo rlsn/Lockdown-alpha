@@ -406,7 +406,10 @@ FVector ULDCharacterMovementComponent::NewFallVelocity(const FVector& InitialVel
         auto& Capture=*NativeCapture;
         const double End=Capture.Cursor+double(DeltaTime)*Capture.NativeScale;
         if (End>Capture.Batch.Step.EndServerSeconds+.0000001)
-        { Capture.Fail(TEXT("Falling interval exceeds the current core step.")); }
+        {
+            Capture.Fail(*FString::Printf(TEXT("Falling interval exceeds the current core step. body=%s cursor=%.9f end=%.9f delta=%.9f"),
+                *GetNameSafe(GetOwner()),Capture.Cursor,Capture.Batch.Step.EndServerSeconds,double(DeltaTime)));
+        }
         Capture.SliceEnd=FMath::Min(End,Capture.Batch.Step.EndServerSeconds);
     }
     return Super::NewFallVelocity(InitialVelocity,Gravity,DeltaTime);
