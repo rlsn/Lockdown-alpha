@@ -127,12 +127,19 @@ namespace
                 || !(*Pack)->TryGetStringField(TEXT("license_file"), LicenseFile) || !(*Pack)->TryGetStringField(TEXT("license_sha256"), LicenseHash)
                 || !AudioSafeRelative(LicenseFile) || !Url.StartsWith(TEXT("https://")))
             { return AudioFail(Error, TEXT("Every audio pack needs a unique id, https download_url, license, license_file and license_sha256.")); }
-            if (!License.Contains(TEXT("CC0"))) { return AudioFail(Error, FString::Printf(TEXT("Pack %s is not declared CC0."), *Id)); }
+            // CC0, or CC BY 4.0 with the attribution its credits must carry.
+            FString Attribution;
+            const bool bAttribution = License.Contains(TEXT("CC BY 4.0"));
+            if (!License.Contains(TEXT("CC0")) && !bAttribution)
+            { return AudioFail(Error, FString::Printf(TEXT("Pack %s is declared neither CC0 nor CC BY 4.0."), *Id)); }
+            if (bAttribution && (!(*Pack)->TryGetStringField(TEXT("attribution"), Attribution) || Attribution.TrimStartAndEnd().IsEmpty()))
+            { return AudioFail(Error, FString::Printf(TEXT("CC BY pack %s needs its attribution."), *Id)); }
             if (!AudioCheckHash(LicenseFile, LicenseHash, Error)) { return false; }
             FString LicenseText;
             FFileHelper::LoadFileToString(LicenseText, *FPaths::Combine(Root, LicenseFile));
-            if (!LicenseText.Contains(TEXT("CC0")) && !LicenseText.Contains(TEXT("Creative Commons Zero")))
-            { return AudioFail(Error, FString::Printf(TEXT("The license file of pack %s does not state CC0."), *Id)); }
+            if (bAttribution ? !LicenseText.Contains(TEXT("CC BY 4.0"))
+                : !LicenseText.Contains(TEXT("CC0")) && !LicenseText.Contains(TEXT("Creative Commons Zero")))
+            { return AudioFail(Error, FString::Printf(TEXT("The license file of pack %s does not state its license."), *Id)); }
             PackIds.Add(Id);
             Listed.Add(LicenseFile);
             Reserved.Add(LicenseFile);
@@ -147,6 +154,22 @@ namespace
                 || !(*Pack)->TryGetStringField(TEXT("license"), License) || License.TrimStartAndEnd().IsEmpty() || !AudioSafeRelative(Generator))
             { return AudioFail(Error, TEXT("Every original sound set needs a unique id, its generator, the generator's sha256 and a license statement.")); }
             if (!AudioCheckHash(Generator, GeneratorHash, Error)) { return false; }
+            // The recorded layers a generator mixes: each from a declared pack and hashed (a CC0 file may also be a take).
+            const TArray<TSharedPtr<FJsonValue>>* Inputs = nullptr;
+            if ((*Pack)->TryGetArrayField(TEXT("inputs"), Inputs))
+            {
+                for (const TSharedPtr<FJsonValue>& InputValue : *Inputs)
+                {
+                    const TSharedPtr<FJsonObject>* Input = nullptr;
+                    FString Source, Hash, From;
+                    if (!InputValue->TryGetObject(Input) || !(*Input)->TryGetStringField(TEXT("source"), Source)
+                        || !(*Input)->TryGetStringField(TEXT("sha256"), Hash) || !(*Input)->TryGetStringField(TEXT("pack"), From)
+                        || !PackIds.Contains(From) || !AudioSafeRelative(Source))
+                    { return AudioFail(Error, FString::Printf(TEXT("Original set %s has an input without its own source, sha256 and declared pack."), *Id)); }
+                    if (!AudioCheckHash(Source, Hash, Error)) { return false; }
+                    Listed.Add(Source);
+                }
+            }
             PackIds.Add(Id);
             Listed.Add(Generator);
             Reserved.Add(Generator);

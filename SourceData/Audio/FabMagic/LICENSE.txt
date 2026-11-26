@@ -1,0 +1,11 @@
+Free Modular Magic SFX
+by Le Binh Son
+https://www.fab.com/listings/f0422e67-33d3-4c6e-b7a1-1059193960de
+
+License: CC BY 4.0 (Creative Commons Attribution 4.0 International), as stated on the Fab listing.
+https://creativecommons.org/licenses/by/4.0/
+
+The listing states the sounds are made from scratch with physical modelling synthesis and may be used without
+restriction; Lockdown credits the author anyway. The files here are the mono sound waves of the pack, exported to WAV
+unchanged from the Unreal assets claimed on Fab by the project owner, and used as layers by
+SourceData/Audio/Layered/build_layered_audio.py.

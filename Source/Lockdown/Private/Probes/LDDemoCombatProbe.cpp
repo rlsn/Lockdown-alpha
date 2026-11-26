@@ -1587,8 +1587,9 @@ public:
                 {
                     return Finish();
                 }
-                // The queued walk covers the last leg, to the site itself.
-                Route.RemoveAt(Route.Num() - 1);
+                // The queued walk covers the last leg, to the site itself. A capture-only run that could not plan the
+                // approach (its failed check is recorded) walks the queued orders from where it stands.
+                if (!Route.IsEmpty()) { Route.RemoveAt(Route.Num() - 1); }
                 ApproachWaypoints = MoveTemp(Route);
                 ApproachIndex = 0;
                 NavigateAttempts = 0;
