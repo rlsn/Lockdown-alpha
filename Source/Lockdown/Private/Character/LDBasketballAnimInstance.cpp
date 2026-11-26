@@ -10,6 +10,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "Misc/PackageName.h"
 
 struct FLDBasketballActionEvaluator : FAnimNode_SequenceEvaluator_Standalone
 {
@@ -113,8 +114,14 @@ UAnimSequence* ULDBasketballAnimInstance::OwnClipOf(const TCHAR* Clip)
 {
     const FName Key(Clip);
     if(const TObjectPtr<UAnimSequence>* Found=OwnClips.Find(Key)){return *Found;}
-    UAnimSequence* Loaded=LoadObject<UAnimSequence>(nullptr,*FString::Printf(TEXT("/Game/Lockdown/Art/Characters/hooper/Quaternius/Hooper/%s.%s"),Clip,Clip));
-    ensureMsgf(Loaded,TEXT("Skill motion %s is missing; rerun Scripts/ImportQuaterniusAnimations.py"),Clip);
+    // QN_ clips are tracked; MX_ clips are Mixamo, local-only (not redistributable), so a checkout without the local store
+    // keeps the family motion for that skill and says so once.
+    const bool bLocalOnly=FString(Clip).StartsWith(TEXT("MX_"));
+    const FString Folder=bLocalOnly?TEXT("/Game/ThirdParty/Fab/Mixamo/Hooper"):TEXT("/Game/Lockdown/Art/Characters/hooper/Quaternius/Hooper");
+    const FString Path=FString::Printf(TEXT("%s/%s.%s"),*Folder,Clip,Clip);
+    UAnimSequence* Loaded=bLocalOnly&&!FPackageName::DoesPackageExist(Folder/Clip)?nullptr:LoadObject<UAnimSequence>(nullptr,*Path);
+    if(!Loaded&&bLocalOnly){UE_LOG(LogTemp,Display,TEXT("LD_SKILL_MOTION_LOCAL_ONLY %s is not installed (Mixamo store); the skill keeps its family motion."),Clip);}
+    else{ensureMsgf(Loaded,TEXT("Skill motion %s is missing; rerun Scripts/ImportSkillAnimations.py"),Clip);}
     OwnClips.Add(Key,Loaded);
     return Loaded;
 }

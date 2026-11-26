@@ -45,8 +45,8 @@ namespace LDActionMotion
     };
     constexpr float SettleSeconds = .25f;
     LOCKDOWN_API FShape ShapeOf(EFamily Family, float AgeSeconds, float ImpactSeconds);
-    // A skill with a motion of its own (Quaternius CC0 clips retargeted onto the hooper, Scripts/ImportQuaterniusAnimations.py):
-    // the clip under /Game/Lockdown/Art/Characters/hooper/Quaternius/Hooper/, its start, the strike frame the release is
+    // A skill with a motion of its own (clips retargeted onto the hooper by Scripts/ImportSkillAnimations.py): a QN_ clip
+    // (Quaternius CC0, tracked) or an MX_ clip (Mixamo, local-only: a build without it keeps the family motion), its start, the strike frame the release is
     // warped onto (as for the family clips) and its end in seconds, and the striking hand. It plays on the whole body and
     // the ball is hidden while it plays (the clip carries no ball). Null for a skill that keeps its family motion.
     struct FOwnMotion { uint8 Ability; const TCHAR* Clip; float Start, Release, End; bool bLeftHand; };

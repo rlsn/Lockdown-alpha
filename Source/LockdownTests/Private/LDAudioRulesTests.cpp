@@ -339,7 +339,7 @@ bool FLDActionMotionFamiliesTest::RunTest(const FString& Parameters)
                 Motion->Start>=0.f&&Motion->Start<Motion->Release&&Motion->Release<Motion->End);
         }
     }
-    TestEqual(TEXT("Twelve skills have a motion of their own"),Own,12);
+    TestEqual(TEXT("Fifteen skills have a motion of their own"),Own,15);
     return true;
 }
 

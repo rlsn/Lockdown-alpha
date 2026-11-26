@@ -99,13 +99,18 @@ const LDActionMotion::FOwnMotion* LDActionMotion::OwnMotionOf(uint8 Ability)
         {uint8(A::ActiveFlurryRush), TEXT("QN_Punch_Cross"), 0.f, .27f, .7f, false},
         {uint8(A::ActiveElbow), TEXT("QN_Melee_Hook"), 0.f, .27f, .47f, false},
         {uint8(A::ActiveSnarkBolt), TEXT("QN_OverhandThrow"), 0.f, .37f, .9f, false},
-        {uint8(A::ActiveOpenMic), TEXT("QN_Push_Loop"), .2f, .6f, 1.2f, false},
         {uint8(A::ActiveDeskFan), TEXT("QN_Push_Loop"), .2f, .6f, 1.2f, false},
         {uint8(A::ActiveChargedRam), TEXT("QN_Shield_Dash"), 0.f, .35f, .9f, false},
         {uint8(A::ActiveNotMad), TEXT("QN_Shield_OneShot"), 0.f, .6f, .83f, true},
         {uint8(A::ActiveBrace), TEXT("QN_Sword_Block"), 0.f, .27f, .9f, false},
         {uint8(A::ActiveUnplug), TEXT("QN_Sword_Block"), 0.f, .27f, .9f, false},
         {uint8(A::ActiveCrotchGrab), TEXT("QN_Slide_Start"), 0.f, .43f, .83f, false},
+        // Mixamo (local-only): the chest thump at the hands' closest approach to the chest.
+        {uint8(A::ActiveStareDown), TEXT("MX_Standing_Taunt_Chest_Thump"), .3f, .93f, 1.6f, false},
+        // The yell at its furthest forward lean; the stomp where the lifted foot lands.
+        {uint8(A::ActiveOpenMic), TEXT("MX_Yelling_Out"), .9f, 1.5f, 2.3f, false},
+        {uint8(A::ActiveFlyerTrap), TEXT("MX_Stomp"), .3f, .73f, 1.1f, false},
+        {uint8(A::ActiveQuickMeeting), TEXT("MX_Stomp"), .3f, .73f, 1.1f, false},
     };
     for (const FOwnMotion& Motion : Motions) { if (Motion.Ability == Ability) { return &Motion; } }
     return nullptr;

@@ -1236,12 +1236,13 @@ namespace
                 }
                 else if (Look == TEXT("poses"))
                 {
-                    // The retargeted Quaternius clips (Scripts/ImportQuaterniusAnimations.py) held on the own body A at 40 % of
+                    // The retargeted Quaternius clips (Scripts/ImportSkillAnimations.py) held on the own body A at 40 % of
                     // their length, one still each, to judge the retarget before any clip is used in play.
                     static const TCHAR* const Clips[] = {TEXT("QN_Push_Loop"), TEXT("QN_Punch_Jab"), TEXT("QN_Punch_Cross"), TEXT("QN_Spell_Simple_Shoot"),
                         TEXT("QN_Dance_Loop"), TEXT("QN_Sword_Idle"), TEXT("QN_Idle_Shield_Loop"), TEXT("QN_Sword_Block"), TEXT("QN_Shield_OneShot"),
                         TEXT("QN_Shield_Dash"), TEXT("QN_Melee_Hook"), TEXT("QN_OverhandThrow"), TEXT("QN_Slide_Start"), TEXT("QN_Idle_FoldArms_Loop"),
-                        TEXT("QN_Yes"), TEXT("QN_Idle_TalkingPhone_Loop")};
+                        TEXT("QN_Yes"), TEXT("QN_Idle_TalkingPhone_Loop"), TEXT("MX_Standing_Taunt_Chest_Thump"), TEXT("MX_Yelling_Out"), TEXT("MX_Hands_On_Hips"),
+                        TEXT("MX_Angry_Point"), TEXT("MX_Stomp")};
                     // A DEV three-quarter front view of A (about 3 m out, just above chest height) for the poses, restored after.
                     const TSharedRef<FTransform> Saved = MakeShared<FTransform>();
                     const auto Front = [this, A, Saved]()
@@ -1266,7 +1267,8 @@ namespace
                     { ChainJobs.Add({Look, TEXT("poses-0-BasketballIdle"), {{0.f, Hold(Idle, 0.f)}}, nullptr, Back, false, .1f, 0.f, 3}); }
                     for (const TCHAR* Name : Clips)
                     {
-                        UAnimSequence* Clip = LoadObject<UAnimSequence>(nullptr, *FString::Printf(TEXT("/Game/Lockdown/Art/Characters/hooper/Quaternius/Hooper/%s.%s"), Name, Name));
+                        const FString Folder = FString(Name).StartsWith(TEXT("MX_")) ? TEXT("/Game/ThirdParty/Fab/Mixamo/Hooper") : TEXT("/Game/Lockdown/Art/Characters/hooper/Quaternius/Hooper");
+                        UAnimSequence* Clip = LoadObject<UAnimSequence>(nullptr, *FString::Printf(TEXT("%s/%s.%s"), *Folder, Name, Name));
                         if (!Check(Clip != nullptr, FString::Printf(TEXT("Retargeted clip %s loads"), Name))) { continue; }
                         ChainJobs.Add({Look, FString(TEXT("poses-")) + FString(Name).RightChop(3), {{0.f, Hold(Clip, Clip->GetPlayLength() * .4f)}},
                             nullptr, Back, false, .1f, 0.f, 3});

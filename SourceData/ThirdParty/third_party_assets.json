@@ -777,7 +777,7 @@
       "adapted_paths": [
         "Content/Lockdown/Art/Characters/hooper/Quaternius/Hooper"
       ],
-      "modifications": "Chosen clips retargeted onto SK_Hooper by Scripts/ImportQuaterniusAnimations.py (IK Rig auto retarget chains)."
+      "modifications": "Chosen clips retargeted onto SK_Hooper by Scripts/ImportSkillAnimations.py (IK Rig auto retarget chains)."
     },
     {
       "id": "quaternius-universal-animation-library-2",
@@ -808,7 +808,44 @@
       "adapted_paths": [
         "Content/Lockdown/Art/Characters/hooper/Quaternius/Hooper"
       ],
-      "modifications": "Chosen clips retargeted onto SK_Hooper by Scripts/ImportQuaterniusAnimations.py (IK Rig auto retarget chains)."
+      "modifications": "Chosen clips retargeted onto SK_Hooper by Scripts/ImportSkillAnimations.py (IK Rig auto retarget chains)."
+    },
+    {
+      "id": "mixamo-animations",
+      "name": "Mixamo animations (default character)",
+      "author": "Adobe Mixamo",
+      "domains": [
+        "animation"
+      ],
+      "source": {
+        "kind": "web",
+        "url": "https://www.mixamo.com/",
+        "acquired": "2026-11-26"
+      },
+      "license": {
+        "name": "Mixamo / Adobe General Terms (royalty-free use in projects; no redistribution of the animations themselves)"
+      },
+      "rights": {
+        "acquisition_cost": "free (Adobe account)",
+        "commercial_use": "yes",
+        "ai_input": "forbidden (read conservatively)",
+        "ai_training": "forbidden",
+        "public_source_redistribution": "no",
+        "private_collaborator_sharing": "no"
+      },
+      "storage": "local-only",
+      "original_path": "Content/ThirdParty/Fab/Mixamo/Source",
+      "adapted_paths": [
+        "Content/ThirdParty/Fab/Mixamo/Hooper"
+      ],
+      "modifications": "Retargeted onto SK_Hooper by Scripts/ImportSkillAnimations.py; never committed.",
+      "files": [
+        "Standing_Taunt_Chest_Thump.fbx",
+        "Yelling_Out.fbx",
+        "Hands_On_Hips.fbx",
+        "Angry_Point.fbx",
+        "Stomp.fbx"
+      ]
     }
   ]
 }

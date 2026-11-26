@@ -208,7 +208,7 @@ TEMPORARY：功能完整、在游戏里可用，但素材质量未达用户预�
 | 受击反应 | 按决定关闭（[#286](https://github.com/rlsn/Lockdown-alpha/issues/286)） | 普通命中无受击动作，见 §6；击退时的后仰与 Hit 片段保留 | — |
 
 动画素材流程：Quaternius Universal Animation Library 1/2（Standard，CC0，`SourceData/Animation/Quaternius/*.glb`）与篮球手同用
-UE Manny 骨骼名。`Scripts/ImportQuaterniusAnimations.py`（编辑器无头运行）导入、建 IK Rig（自动重定向链）与重定向器，对齐重定向
+UE Manny 骨骼名。`Scripts/ImportSkillAnimations.py`（编辑器无头运行）导入、建 IK Rig（自动重定向链）与重定向器，对齐重定向
 姿势，把 `CLIPS` 里选的片段批量重定向为 `/Game/Lockdown/Art/Characters/hooper/Quaternius/Hooper/QN_<片段>`，再把篮球手自己的根骨骼
 （约 182 倍缩放）写回、按静止骨盆高度换算骨盆位移（篮球手骨骼以米为单位挂在放大的根下，重定向器不处理这层缩放会让腿弯折）；
 只保留结果与 `IKR_Hooper`。加片段即改 `CLIPS` 重跑。核对：`-LDDemoVfxProof=poses` 用 DEV 正面镜头把每个片段定格在身体 A 上；

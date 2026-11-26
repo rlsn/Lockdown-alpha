@@ -1,19 +1,30 @@
-"""Import the chosen Quaternius CC0 animations and retarget them onto the hooper (docs/systems/AUDIO_AND_FEEL.md, animation).
+"""Import the chosen skill and pose animations and retarget them onto the hooper (docs/systems/AUDIO_AND_FEEL.md, animation).
 
 Run inside the editor (no rendering needed):
-    UnrealEditor-Cmd.exe Lockdown.uproject -run=pythonscript -script="<repo>/Scripts/ImportQuaterniusAnimations.py" -nullrhi -unattended
+    UnrealEditor-Cmd.exe Lockdown.uproject -run=pythonscript -script="<repo>/Scripts/ImportSkillAnimations.py" -nullrhi -unattended
 
 Sources: SourceData/Animation/Quaternius/UAL1_Standard.glb and UAL2_Standard.glb (Universal Animation Library 1 and 2,
 Standard, CC0). Both libraries use UE Manny bone names; IK rigs with the auto-generated retarget chains map them onto
 SK_Hooper, and the chosen clips are written as /Game/Lockdown/Art/Characters/hooper/Quaternius/Hooper/QN_<clip>; the
 imported libraries, their rigs and the retargeters are temporary. Rerunning replaces the same assets. Add a clip by naming it in CLIPS.
+
+Mixamo (local-only: its animations may not be redistributed, so neither the FBX nor anything retargeted from it is
+committed): every Content/ThirdParty/Fab/Mixamo/Source/<Name>.fbx (the local store linked by Scripts/ThirdPartyAssets.py;
+Mixamo's default character, FBX Binary with skin, 30 fps) is retargeted the same way to
+/Game/ThirdParty/Fab/Mixamo/Hooper/MX_<Name>. Without the store nothing is written.
 """
+import glob
 import os
 import unreal
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 SOURCES = {'UAL1': 'SourceData/Animation/Quaternius/UAL1_Standard.glb', 'UAL2': 'SourceData/Animation/Quaternius/UAL2_Standard.glb'}
 DEST = '/Game/Lockdown/Art/Characters/hooper/Quaternius'
+# Local-only (Scripts/ThirdPartyAssets.py links Content/ThirdParty/Fab to $LD_THIRDPARTY_ROOT/Fab).
+MIXAMO_DEST = '/Game/ThirdParty/Fab/Mixamo'
+MIXAMO_SOURCE = os.path.join(ROOT, 'Content', 'ThirdParty', 'Fab', 'Mixamo', 'Source')
+# A Mixamo clip that starts standing, measured as the Mixamo rest pelvis height.
+MIXAMO_STANDING = 'Standing_Taunt_Chest_Thump'
 TARGET_MESH = '/Game/Lockdown/Art/Characters/hooper/SK_Hooper'
 HOOPER_IDLE = '/Game/Lockdown/Art/Characters/hooper/Hooper_Idle'
 # A clip standing upright at its first frame, measured as the source's rest pelvis height.
@@ -38,10 +49,10 @@ def assets_under(path, cls):
     return [a for a in registry.get_assets_by_path(path, recursive=True) if str(a.asset_class_path.asset_name) == cls]
 
 
-def import_library(name):
-    path = DEST + '/' + name
+def import_library(name, filename=None, path=None):
+    path = path or DEST + '/' + name
     task = unreal.AssetImportTask()
-    task.filename = os.path.join(ROOT, SOURCES[name])
+    task.filename = filename or os.path.join(ROOT, SOURCES[name])
     task.destination_path = path
     task.automated = True
     task.replace_existing = True
@@ -155,6 +166,48 @@ def main():
         unreal.EditorAssetLibrary.delete_directory(DEST + '/' + name)
     unreal.EditorAssetLibrary.save_directory(DEST, only_if_is_dirty=False, recursive=True)
     unreal.log_warning('LD_QUATERNIUS_OK %d retargeted: %s' % (len(written), ' '.join(written)))
+    import_mixamo(target_rig, target_mesh, root, hooper_pelvis)
+
+
+def import_mixamo(target_rig, target_mesh, root, hooper_pelvis):
+    files = sorted(glob.glob(os.path.join(MIXAMO_SOURCE, '*.fbx')))
+    if not files:
+        unreal.log_warning('LD_MIXAMO_SKIPPED no Content/ThirdParty/Fab/Mixamo/Source/*.fbx (local store not linked)')
+        return
+    written = {}
+    for fbx in files:
+        stem = os.path.splitext(os.path.basename(fbx))[0]
+        mesh, anims = import_library(stem, fbx, MIXAMO_DEST + '/Source/' + stem)
+        source_rig = ik_rig('IKR_Mixamo_' + stem, mesh)
+        rtg = retargeter('RTG_Mixamo_%s_To_Hooper' % stem, source_rig, target_rig, mesh, target_mesh)
+        inputs = unreal.IKRetargetBatchOperationInputs()
+        inputs.assets_to_retarget = anims[:1]
+        inputs.source_mesh = mesh
+        inputs.target_mesh = target_mesh
+        inputs.ik_retarget_asset = rtg
+        inputs.target_path = MIXAMO_DEST + '/Hooper'
+        inputs.include_referenced_assets = False
+        inputs.overwrite_existing_files = True
+        out = unreal.IKRetargetBatchOperation.run_batch_retarget(inputs)
+        if not out:
+            fail('Mixamo %s did not retarget' % stem)
+        final = MIXAMO_DEST + '/Hooper/MX_' + stem
+        unreal.EditorAssetLibrary.delete_asset(final) if unreal.EditorAssetLibrary.does_asset_exist(final) else None
+        unreal.EditorAssetLibrary.rename_asset(str(out[0].package_name), final)
+        written[stem] = final
+        unreal.EditorAssetLibrary.delete_asset(DEST + '/Rigs/RTG_Mixamo_%s_To_Hooper' % stem)
+        unreal.EditorAssetLibrary.delete_asset(DEST + '/Rigs/IKR_Mixamo_' + stem)
+    if MIXAMO_STANDING not in written:
+        fail('the Mixamo store has no %s.fbx to measure its rest pelvis by' % MIXAMO_STANDING)
+    standing = unreal.EditorAssetLibrary.load_asset(written[MIXAMO_STANDING])
+    source_pelvis = unreal.AnimationLibrary.get_bone_pose_for_frame(standing, 'pelvis', 0, False).translation.z
+    if not source_pelvis > 0:
+        fail('no Mixamo rest pelvis height')
+    for final in written.values():
+        fit_to_hooper(unreal.EditorAssetLibrary.load_asset(final), root, hooper_pelvis / source_pelvis)
+    unreal.EditorAssetLibrary.delete_directory(MIXAMO_DEST + '/Source')
+    unreal.EditorAssetLibrary.save_directory(MIXAMO_DEST, only_if_is_dirty=False, recursive=True)
+    unreal.log_warning('LD_MIXAMO_OK %d retargeted: %s' % (len(written), ' '.join(written.values())))
 
 
 main()
