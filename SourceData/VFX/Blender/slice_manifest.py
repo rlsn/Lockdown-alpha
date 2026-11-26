@@ -18,12 +18,16 @@ GEOMETRY_SHA = {  # printed by slice_slash.py; the FBX header carries a timestam
     "SM_LD_SlashCombo1": "90d481af30e248672fc0757db276816d370fe75f2807776590f8ee727bf1584b",
     "SM_LD_SlashCombo2": "3ec49dec2dac043cd7fc841ef3e567db854440f38007f45c2731177dac4cc3df",
     "SM_LD_SlashCombo3": "a176f56d9cc878bfba71d4c9159358464512c3779bb19836b1700935c366166f",
-    "SM_LD_PropTakeout": "745eb85dc7ae32d41b075b4457c961e5ac17c950763314f69d91d1e7711eacb2",  # printed by slice_props.py
-    "SM_LD_PropSlipper": "ab4b1679f2d988d40e129b31e1dbf17fcc4ef6b7adfbd86a4df01435f2bfdbe8",  # printed by slice_props.py
-    "SM_LD_PropBag": "730fb603a989d708094c0a1c33271d467d85b67d037cf5d7afd218b6f4ec8313",  # printed by slice_props.py
+    "SM_LD_PropTakeout": "a555ea3138b45d285e1e9f9947a1805e807ae06fe26ff717419672216a83fa2c",  # printed by slice_props.py
+    "SM_LD_PropSlipper": "65b3d90649cadbcbf4cf3825b540e294d5752577c3541db3e113c7eac2f0caa1",  # printed by slice_props.py
+    "SM_LD_PropBag": "8542067c3cc98ca186db68aa559cbf58c21f24fbb31e41f0daa4a7bd301f5400",  # printed by slice_props.py
+    "SM_LD_PropBrick": "93fcecead7e1802f5d4adccaa788b069ab5e2fc58f4b465d1535752ff7b7c604",  # printed by slice_props.py
+    "SM_LD_PropFlyer": "ffbc0359c4d1881549ef648997f2aef448197ec0ee1bc64fce445cafb845e098",  # printed by slice_props.py
+    "SM_LD_PropTape": "de10c14f33a093c141eb0f085679387b5e0ac1a935e0276e2c4ae67e2429b281",  # printed by slice_props.py
 }
 MESH_COUNTS = {"SM_LD_SlashCombo1": (365, 576), "SM_LD_SlashCombo2": (365, 576), "SM_LD_SlashCombo3": (730, 1152),
-               "SM_LD_PropTakeout": (246, 468), "SM_LD_PropSlipper": (100, 184), "SM_LD_PropBag": (310, 596)}  # vertices, triangles
+               "SM_LD_PropTakeout": (302, 576), "SM_LD_PropSlipper": (100, 184), "SM_LD_PropBag": (310, 596),
+               "SM_LD_PropBrick": (392, 756), "SM_LD_PropFlyer": (858, 636), "SM_LD_PropTape": (160, 80)}  # vertices, triangles
 
 MASK = dict(alpha_packing="RGB = glow mask (R = G = B; 0 ink only, 0.6 element body, 1.0 white-hot core), A = coverage; ink = A > 0 with RGB = 0",
             srgb=False, compression="TC_Default (BC3/DXT5 with alpha) as the existing hit masks; TC_BC7 recommended for thin-line sheets", mips="generate (TMGS_FromTextureGroup)",
@@ -126,11 +130,17 @@ ASSETS = [
          purpose="One bubble: a thin rim with a highlight and a nearly clear middle.",
          usage="Sprites of bubbles rising and popping over rot effects.", pivot="centre", uv="centred", **MASK, budget="tens per rot area"),
     dict(id="SM_LD_PropTakeout", kind="static_mesh", file="Slice/SM_LD_PropTakeout.fbx", purpose="The thrown stale takeout: a tied bag with its box inside, the flight's body.",
-         usage="StaticMeshComponent of the skill's observed proxy with the flat character material tinted by the look.", units="centimetres", orientation="forward +X, up +Z", uv="one empty UV channel (the material does not sample it)", pivot="its centre", extents_cm="x -22..22, y -20..20, z -16..29", budget="468 triangles, one opaque surface"),
+         usage="StaticMeshComponent of the skill's observed proxy with the flat character material tinted by the look.", units="centimetres", orientation="forward +X, up +Z", uv="one empty UV channel (the material does not sample it)", materials="two slots, Body and Trim, tinted by the game", pivot="its centre", extents_cm="x -22..22, y -20..20, z -16..29", budget="576 triangles, two opaque surfaces"),
     dict(id="SM_LD_PropSlipper", kind="static_mesh", file="Slice/SM_LD_PropSlipper.fbx", purpose="A dropped slipper lying on the floor: the pickup a thrown slipper leaves.",
-         usage="StaticMeshComponent of the skill's observed proxy with the flat character material tinted by the look.", units="centimetres", orientation="forward +X, up +Z", uv="one empty UV channel (the material does not sample it)", pivot="the floor under its centre, toe toward +X", extents_cm="x -34..34, y -20..20, z 0..19", budget="184 triangles, one opaque surface"),
+         usage="StaticMeshComponent of the skill's observed proxy with the flat character material tinted by the look.", units="centimetres", orientation="forward +X, up +Z", uv="one empty UV channel (the material does not sample it)", materials="two slots, Body and Trim, tinted by the game", pivot="the floor under its centre, toe toward +X", extents_cm="x -34..34, y -20..20, z 0..19", budget="184 triangles, two opaque surfaces"),
     dict(id="SM_LD_PropBag", kind="static_mesh", file="Slice/SM_LD_PropBag.fbx", purpose="A school backpack standing on the floor: the seat-saving bag obstacle.",
-         usage="StaticMeshComponent of the skill's observed proxy with the flat character material tinted by the look.", units="centimetres", orientation="forward +X, up +Z", uv="one empty UV channel (the material does not sample it)", pivot="the floor under its centre, front toward +X", extents_cm="x -48..44, y -44..44, z 0..120 (scaled to the blocker's radius and height)", budget="596 triangles, one opaque surface"),
+         usage="StaticMeshComponent of the skill's observed proxy with the flat character material tinted by the look.", units="centimetres", orientation="forward +X, up +Z", uv="one empty UV channel (the material does not sample it)", materials="two slots, Body and Trim, tinted by the game", pivot="the floor under its centre, front toward +X", extents_cm="x -48..44, y -44..44, z 0..120 (scaled to the blocker's radius and height)", budget="596 triangles, two opaque surfaces"),
+    dict(id="SM_LD_PropBrick", kind="static_mesh", file="Slice/SM_LD_PropBrick.fbx", purpose="A house brick with three holes and old mortar on it: the dropped brick of a delayed landing.",
+         usage="StaticMeshComponent of the skill's observed proxy with the flat character material tinted by the look.", units="centimetres", orientation="forward +X, up +Z", uv="one empty UV channel (the material does not sample it)", materials="two slots, Body and Trim, tinted by the game", pivot="its centre", extents_cm="x -36..36, y -19..19, z -10..12 (three times life size, to read from the gameplay camera)", budget="756 triangles, two opaque surfaces"),
+    dict(id="SM_LD_PropFlyer", kind="static_mesh", file="Slice/SM_LD_PropFlyer.fbx", purpose="A printed sheet of paper on the floor with two curled corners: the flyer trap.",
+         usage="StaticMeshComponent of the skill's observed proxy with the flat character material tinted by the look.", units="centimetres", orientation="forward +X, up +Z", uv="one empty UV channel (the material does not sample it)", materials="two slots, Body and Trim, tinted by the game", pivot="the floor under its centre", extents_cm="x -42..42, y -30..30, z 0..17; both faces are modelled", budget="636 triangles, two opaque surfaces"),
+    dict(id="SM_LD_PropTape", kind="static_mesh", file="Slice/SM_LD_PropTape.fbx", purpose="A metre of striped barrier tape sagging between its ends: the cordon, scaled along X to its span.",
+         usage="StaticMeshComponent of the skill's observed proxy with the flat character material tinted by the look.", units="centimetres", orientation="forward +X, up +Z", uv="one empty UV channel (the material does not sample it)", materials="two slots, Body and Trim, tinted by the game", pivot="the middle of the line between its ends", extents_cm="x -50..50, y -2..2, z -16..7; both faces are modelled", budget="80 triangles, two opaque surfaces"),
 ]
 
 

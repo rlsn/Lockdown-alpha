@@ -38,7 +38,7 @@ namespace LDHumanoidVisualDetail
     // Animate and ApplyLook.
     enum EPart : int32
     {
-        ReturnSign, Burst, SpawnColumn, PartCount
+        ReturnSign, Burst, PartCount
     };
     enum EShape : uint8 { Cube, Sphere, Cylinder };
     struct FPartSpec
@@ -53,10 +53,9 @@ namespace LDHumanoidVisualDetail
     {
         {TEXT("ReturnSign"), Cube, {.04,.34,.3}},
         {TEXT("Burst"), Sphere, {.1,.1,.1}},
-        {TEXT("SpawnColumn"), Cylinder, {.9,.9,3.2}},
     };
     const FLinearColor ReturnColour(.95f,.95f,.95f);
-    const FLinearColor BurstColour(1.f,.95f,.7f), ColumnColour(1.f,.9f,.55f);
+    const FLinearColor BurstColour(1.f,.95f,.7f);
     // Emissive over the whole body through the art materials' Flash: a typed hit flashes, then white; an appear glows.
     const FLinearColor FlashWhite(1.f,1.f,1.f), AppearGlow(1.f,.92f,.6f);
     FLinearColor HitColour(ELDObservedHitLook Look)
@@ -77,8 +76,7 @@ namespace LDHumanoidVisualDetail
     FLinearColor ColourOf(int32 Index)
     {
         if (Index == ReturnSign) { return ReturnColour; }
-        if (Index == Burst) { return BurstColour; }
-        return ColumnColour;
+        return BurstColour;
     }
     ELDArtAnim ClipOf(LDBodyMotion::EAction Action)
     {
@@ -968,7 +966,6 @@ void ULDHumanoidVisualComponent::Layout()
     // Pivot space at rest: the capsule centre, the feet HalfHeight below it and the top of the head HeightCm above them.
     const float Foot = -HalfHeight, Girth = HeightCm / ReferenceHeightCm;
     Parts[ReturnSign]->SetRelativeLocation(FVector(-24.f * Girth, 0, Foot + .74f * HeightCm));
-    Parts[SpawnColumn]->SetRelativeLocation(FVector(0, 0, Foot + 160.f));
 }
 
 void ULDHumanoidVisualComponent::SetCue(uint8 Value, float ActionAgeSeconds, float ImpactDelaySeconds, bool bInKnockback,
@@ -1372,20 +1369,21 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
             for (const FPendingImpact& Impact : PendingImpacts)
             {
                 const float Age = float(Clock - Impact.Onset);
-                bool bSlice = LDSliceVfx::ShowsHit(Impact.Look, Impact.Flags);
+                // Every hit flag has its own mark below (a crit's chips, a shield's flare or shards, an overdrive's burst, a
+                // parry's or a dodge's rim), so the hit itself is drawn as the plain hit of its look; a dodge draws none.
+                const bool bDodged = (Impact.Flags & LDObservation::Dodged) != 0;
+                bool bSlice = !bDodged && LDSliceVfx::ShowsHit(Impact.Look, 0);
                 bool bFinisherHit = false;
                 HitAbility = 0;
                 // A plain magic hit of a skill with its own designed hit (a chill cone's icy hit) shows that instead of the
                 // old magic layers; other magic hits keep them until their skills are designed.
-                if (!bSlice && Impact.Look == ELDObservedHitLook::Magic && (Impact.Flags & LDObservation::HitFlagsMask) == 0
-                    && ShowSkillHit(Impact, At, EffectScale)) { bSlice = true; }
+                if (bDodged) {}
+                else if (!bSlice && Impact.Look == ELDObservedHitLook::Magic && ShowSkillHit(Impact, At, EffectScale)) { bSlice = true; }
                 else if (bSlice) { bFinisherHit = ShowSliceImpact(Impact, At, Ground, EffectScale); }
                 else
                 {
-                    Impacts->Burst(*this, At, Impact.Look, Impact.Flags, Age, EffectScale);
-                    // A dodge has no hit to draw: the body's own rim and afterimage below say it slipped.
-                    if (!(Impact.Flags & LDObservation::Dodged))
-                    { Impacts->Layers(this, At, Ground, LDHitVfx::ForHit(Impact.Look, Impact.Flags, EffectScale, Impacts->LayerTuning()), Age); }
+                    Impacts->Burst(*this, At, Impact.Look, 0, Age, EffectScale);
+                    Impacts->Layers(this, At, Ground, LDHitVfx::ForHit(Impact.Look, 0, EffectScale, Impacts->LayerTuning()), Age);
                 }
                 LDHitVfx::EBurst Element;
                 FLinearColor Tint;
@@ -1403,9 +1401,25 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
                     Slip.Glow = FLinearColor(1.f, .86f, .3f) * 1.2f * FMath::Clamp(EffectScale, .45f, 1.f);
                     Impacts->Ghost(*Mesh, Slip, *this);
                 }
-                else if (bImpactOn && Age < .3f && (Impact.Flags & LDObservation::Parried))
+                else if (bImpactOn && Age < .3f && (Impact.Flags & (LDObservation::Parried | LDObservation::ShieldAbsorbed)))
                 {
-                    Impacts->Kit(At, LDHitVfx::BurstOf(LDHitVfx::EBurst::Aura, FLinearColor(.55f, .95f, 1.f), EffectScale), this);
+                    // A parry, or a shield taking the blow: the body's rim flares cold for a moment.
+                    LDHitVfx::FGhosts Flare;
+                    Flare.bShow = true;
+                    Flare.bShell = true;
+                    Flare.Seconds = (Impact.Flags & LDObservation::Parried) ? .35f : .25f;
+                    Flare.Glow = FLinearColor(.45f, .95f, 1.f) * 1.3f * FMath::Clamp(EffectScale, .45f, 1.f);
+                    Impacts->Ghost(*Mesh, Flare, *this);
+                }
+                if (bImpactOn && Age < .3f && (Impact.Flags & LDObservation::ShieldBroken))
+                {
+                    Impacts->Play(LDSliceVfx::ESystem::ShardBurst, *this, Impacts->FloorUnder(At), At, FLinearColor::White, 120.f, 1.f,
+                        Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, false, bOwnBody), Age);
+                }
+                if (bImpactOn && Age < .3f && (Impact.Flags & LDObservation::Critical))
+                {
+                    Impacts->Play(LDSliceVfx::ESystem::CritBurst, *this, Impacts->FloorUnder(At), At, FLinearColor::White, 60.f, .6f,
+                        Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, false, bOwnBody), Age);
                 }
                 if (!bSlice && bImpactOn && Age < .3f && LDHitVfx::HitBurstOf(Impact.Look, Element, Tint))
                 { Impacts->Kit(At, LDHitVfx::BurstOf(Element, Tint, EffectScale), this); }
@@ -1471,9 +1485,6 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
         }
         bPendingReaction = false;
     }
-    const bool bColumn = Life.Column > .02f;
-    Parts[SpawnColumn]->SetHiddenInGame(!bColumn);
-    if (bColumn) { Parts[SpawnColumn]->SetRelativeScale3D(FVector(.15f + .75f * Life.Column, .15f + .75f * Life.Column, 3.2f)); }
 
     // The camp return sign; a falling body shows none.
     Parts[ReturnSign]->SetHiddenInGame(bFalling || !(Cue & Returning));

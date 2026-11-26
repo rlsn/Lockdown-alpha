@@ -4954,6 +4954,22 @@ namespace
         return Ring;
     }
 
+    const FPalette CritPalette{FLinearColor(1.f, .98f, .84f), FLinearColor(1.f, .78f, .2f), FLinearColor(.5f, .26f, .02f), 2.8f, 1.5f};
+
+    // A critical hit: a hard gold snap at the struck chest (End) and bright chips thrown wide, falling to the floor (Start).
+    FSystemParts CritBurstParts(UMaterial& Top, FString& Error)
+    {
+        UMaterialInstanceConstant* Flash = ChainPaint(TEXT("MI_LDCrit_Snap"), Top, SliceTexture(LDSliceVfx::ETex::ChainAFlash), nullptr, 0.f, CritPalette, 1.f, 0.f, Error);
+        UMaterialInstanceConstant* Chip = ChainPaint(TEXT("MI_LDCrit_Chip"), Top, SliceTexture(LDSliceVfx::ETex::ChainASparkStreak), nullptr, 0.f, CritPalette, 1.f, 0.f, Error);
+        FSystemParts Burst;
+        Burst.System = LDSliceVfx::ESystem::CritBurst;
+        if (!Flash || !Chip) { return Burst; }
+        ImpactCore(Burst, Flash, 150.f, 340.f, TEXT("User.End"));
+        Thrown(Burst, TEXT("Chips"), Chip, TEXT("int(lerp(9.0, 14.0, User.Focus) + 0.5)"), .5f, 1701.f, TEXT("User.End"), 420.f, 860.f, 80.f, 320.f,
+            TEXT("float2(70.0, 11.0)"), TEXT("0.0"), false, true, 2.6f);
+        return Burst;
+    }
+
     // The field's material: one Custom node (Code) over the first UV, the Particle Color's four channels (PR, PG, PB, PA:
     // FieldParts says what they carry), the sprite's size, the time, the edge's crackle noise and the charged floor's Web
     // and Energy textures, returning the emissive colour and the coverage. Translucent, unlit, two-sided; the palette is
@@ -5461,7 +5477,8 @@ bool LDDemoVfxNiagara::Build(FString& Error)
         [&]() { return OwnMarkParts(*Top, Error); },
         [&]() { return RingBandParts(*Top, Error); },
         [&]() { return RingDangerParts(*Top, Error); },
-        [&]() { return RingNextParts(*Top, Error); }};
+        [&]() { return RingNextParts(*Top, Error); },
+        [&]() { return CritBurstParts(*Top, Error); }};
     const TStrongObjectPtr<UObject> Kept[] = {TStrongObjectPtr<UObject>(BeamEmitter), TStrongObjectPtr<UObject>(SparkEmitter), TStrongObjectPtr<UObject>(Chain),
         TStrongObjectPtr<UObject>(Top), TStrongObjectPtr<UObject>(Default)};
     for (const TFunction<FSystemParts()>& Make : Systems)
