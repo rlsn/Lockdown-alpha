@@ -2046,8 +2046,9 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     RefreshEventFeed(*GS,O,Content,bClock,NowMs);
     RefreshScoreboard(*GS,O);
     // Stage changes (field <-> rest, the final field), for PaintMoments: the last five seconds before a scheduled change
-    // count down under the score strip, the screen wipes shut over the last 350 ms, and the new stage's title card holds
-    // and wipes away once the authority's change has arrived, so the cut itself is never seen.
+    // count down under the score strip, two leaning panels wipe the screen shut over the last 350 ms and travel on once
+    // the authority's change has arrived (so the cut itself is never seen), leaving the new stage's bumper band across
+    // the middle of the screen for a moment before it wipes out the same way.
     {
         const FLDTimelineView& Timeline=Public.Timeline;
         const ELDMatchStage Stage=Playing&&Timeline.Generation==Public.Generation?Timeline.Stage:ELDMatchStage::None;
@@ -2062,6 +2063,7 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             {
                 StageWipeAt=FPlatformTime::Seconds();StageWipeTitle=Title(Stage,Timeline.RestIndex,Timeline.FieldSegment);
                 StageWipeSub=Stage==ELDMatchStage::Rest?FString():FString(LDTerms::CountdownGo);
+                StageWipeBeat=Stage==ELDMatchStage::Rest?2*int32(Timeline.RestIndex):Stage==ELDMatchStage::FinalField?7:FMath::Min(2*int32(Timeline.FieldSegment)+1,7);
             }
             SeenStage=Stage;SeenStageMatch=Public.Generation;
         }
@@ -4127,7 +4129,7 @@ void ULDHUD::PaintMoments(const LDUIPaint::FContext& P) const
     const double Now=FPlatformTime::Seconds();
     const FVector2D Size(P.Geometry.GetLocalSize());
     const bool bShown=Band&&Band->IsVisible();
-    // Own kill: one compact plate under the score strip (orange K.O. block, own plate beating the victim's struck plate).
+    // Own kill: one compact plate under the score strip (orange K.O. block, own plate beating the victim's, red-barred).
     // It wipes in from the left in 200 ms, holds and wipes out; nothing else is drawn, so the fight stays in full view.
     // A DEV freeze holds only the newest moment at its fixed age.
     const double Newest=FMath::Max3(KillMomentAt,LevelFlipAt,StageWipeAt);
@@ -4154,44 +4156,65 @@ void ULDHUD::PaintMoments(const LDUIPaint::FContext& P) const
             const FVector2D C=Left+FVector2D(PlateW+22.,PlateH*.5);
             Fade.Polygon(P.Layer+3,{C+FVector2D(-7.,-10.),C+FVector2D(9.,0.),C+FVector2D(-7.,10.)},LDUIPaint::FFill::Solid(LDBroadcast::Orange));
             const FBox2D Victim(Left+FVector2D(PlateW+44.,0.),Left+FVector2D(PlateW*2.+44.,PlateH));
-            LDBroadcastPaint::SeatPlate(Fade.WithOpacity(.85f*Shown),P.Layer+3,Victim,KillMomentVictimSeat);
-            LDBroadcastPaint::Rule(Fade,P.Layer+5,FVector2D(Victim.Min.X+4.,Victim.Max.Y-4.),FVector2D(Victim.Max.X-4.,Victim.Min.Y+4.),LDBroadcast::LiveRed,4.f);
+            LDBroadcastPaint::SeatPlate(Fade,P.Layer+3,Victim,KillMomentVictimSeat);
+            LDBroadcastPaint::Block(Fade,P.Layer+4,FBox2D(FVector2D(Victim.Min.X,Victim.Max.Y+2.),FVector2D(Victim.Max.X,Victim.Max.Y+6.)),LDBroadcast::LiveRed);
         }
     }
-    // Stage change: the countdown, then two leaning slabs (orange edge, ink body) close from the left, hold the stage's
-    // title and open to the right.
+    // Stage change: the countdown; then two leaning panels (orange edge, ink body) close from the left over the cut and
+    // travel on to the right, leaving the bumper band (LIVE, the stage's title, the eight beats) across the middle with the
+    // game in view above and below; the band leaves to the right too.
     {
         const double WipeAge=StageWipeAt>=0.?AgeOf(StageWipeAt):-1.;
         const bool bCard=WipeAge>=0.&&WipeAge<StageCardSeconds;
-        const bool bOpening=bCard&&WipeAge>=StageCardSeconds-.3;
-        const float Cover=bCard?(bOpening?1.f-LDTween::Progress(WipeAge-(StageCardSeconds-.3),.3,LDTween::ECurve::EaseIn):1.f)
-            :LDTween::Progress(double(StagePreCover),1.,LDTween::ECurve::EaseIn);
-        const float H=float(Size.Y),Lean=LDBroadcastPaint::Lean(H),Edge=90.f;
-        if(Cover>0.f)
+        const float H=float(Size.Y),W=float(Size.X),Lean=LDBroadcastPaint::Lean(H),Edge=90.f,Travel=W+Lean+Edge;
+        const auto Slab=[&P,Lean,H](float X0,float X1,float Y0,float Y1,const FLinearColor& Ink,int32 Layer)
         {
-            const float Travel=float(Size.X)+Lean+Edge;
-            const auto Slab=[&P,H,Lean](float X0,float X1,const FLinearColor& Ink,int32 Layer)
-            {P.Polygon(Layer,{FVector2D(X0+Lean*.5f,0.),FVector2D(X1+Lean*.5f,0.),FVector2D(X1-Lean*.5f,H),FVector2D(X0-Lean*.5f,H)},LDUIPaint::FFill::Solid(Ink));};
-            if(bOpening)
+            // One lean for the whole screen, so a band is a slice of the full panel.
+            const auto X=[Lean,H](float At,float Y){return At+Lean*(.5f-Y/H);};
+            P.Polygon(Layer,{FVector2D(X(X0,Y0),Y0),FVector2D(X(X1,Y0),Y0),FVector2D(X(X1,Y1),Y1),FVector2D(X(X0,Y1),Y1)},LDUIPaint::FFill::Solid(Ink));
+        };
+        // The closing panel (before the change) and the opening one (first 100..400 ms after it).
+        const float Closing=!bCard?LDTween::Progress(double(StagePreCover),1.,LDTween::ECurve::EaseIn):0.f;
+        const float Opening=bCard?LDTween::Progress(WipeAge-.1,.3,LDTween::ECurve::EaseIn):0.f;
+        if(Closing>0.f)
+        {
+            const float X=-Lean*.5f-Edge+Travel*Closing;
+            Slab(-Lean,X,0.f,H,LDBroadcast::Ink,P.Layer+8);Slab(X,X+Edge,0.f,H,LDBroadcast::Orange,P.Layer+8);
+        }
+        else if(bCard&&Opening<1.f)
+        {
+            const float X=-Lean*.5f+Travel*Opening;
+            Slab(X,W+Lean,0.f,H,LDBroadcast::Ink,P.Layer+8);Slab(X-Edge,X,0.f,H,LDBroadcast::Orange,P.Layer+8);
+        }
+        if(bCard)
+        {
+            // The band: an ink slice with an orange lip under it, leaving to the right over the last 300 ms.
+            const float Leave=LDTween::Progress(WipeAge-(StageCardSeconds-.3),.3,LDTween::ECurve::EaseIn);
+            const float X0=-Lean+Travel*Leave,Y0=H*.37f,Y1=H*.60f;
+            Slab(X0,W+Lean,Y0,Y1,LDBroadcast::Ink.CopyWithNewOpacity(.94f),P.Layer+9);
+            Slab(X0,W+Lean,Y1,Y1+10.f,LDBroadcast::Orange,P.Layer+9);
+            Slab(X0-Edge*.5f,X0,Y0,Y1+10.f,LDBroadcast::Orange,P.Layer+9);
+            if(Leave<=0.f)
             {
-                const float X=-Lean*.5f+Travel*(1.f-Cover);
-                Slab(X,float(Size.X)+Lean,LDBroadcast::Ink,P.Layer+8);Slab(X-Edge,X,LDBroadcast::Orange,P.Layer+8);
-            }
-            else
-            {
-                const float X=-Lean*.5f-Edge+Travel*Cover;
-                Slab(-Lean,X,LDBroadcast::Ink,P.Layer+8);Slab(X,X+Edge,LDBroadcast::Orange,P.Layer+8);
-            }
-            if(Cover>.97f)
-            {
-                const FString& Title=bCard?StageWipeTitle:StageNextTitle;
-                const FVector2D Centre(Size.X*.5,Size.Y*.46);
-                const FBox2D Word=LDBroadcastPaint::Text(P,P.Layer+9,Title,LDBroadcastPaint::FigureFont(110.f),Centre,LDBroadcast::White,FVector2D(.5,.5));
-                LDBroadcastPaint::Rule(P,P.Layer+9,FVector2D(Word.Min.X,Word.Max.Y+10.),FVector2D(Word.Max.X,Word.Max.Y+10.),LDBroadcast::White,2.f);
-                if(bCard&&!StageWipeSub.IsEmpty())
-                {LDBroadcastPaint::Text(P,P.Layer+9,StageWipeSub,LDBroadcastPaint::LabelFont(40.f,true),FVector2D(Centre.X,Word.Max.Y+52.),LDBroadcast::Orange,FVector2D(.5,.5));}
+                const float Mid=(Y0+Y1)*.5f;
+                const float Left=W*.5f-430.f;
+                // LIVE tag, the title in the figure face, the go line, and the eight beats with this one lit.
+                const FBox2D Tag(FVector2D(Left,Mid-60.),FVector2D(Left+92.,Mid-24.));
+                LDBroadcastPaint::FillSlab(P,P.Layer+10,Tag,LDBroadcast::LiveRed);
+                LDBroadcastPaint::Text(P,P.Layer+11,TEXT("LIVE"),LDBroadcastPaint::FigureFont(24.f),Tag.GetCenter(),LDBroadcast::White,FVector2D(.5,.5));
+                const FBox2D Word=LDBroadcastPaint::Text(P,P.Layer+11,StageWipeTitle,LDBroadcastPaint::FigureFont(104.f),FVector2D(Left+120.,Mid-8.),LDBroadcast::White,FVector2D(0.,.5));
+                if(!StageWipeSub.IsEmpty())
+                {LDBroadcastPaint::Text(P,P.Layer+11,StageWipeSub,LDBroadcastPaint::LabelFont(44.f,true),FVector2D(Word.Max.X+36.,Mid-4.),LDBroadcast::Orange,FVector2D(0.,.5));}
+                const float PipW=58.f,PipH=10.f,PipGap=8.f;
+                for(int32 Beat=0;Beat<8;++Beat)
+                {
+                    const FVector2D At(Left+120.+Beat*(PipW+PipGap),Y1-34.);
+                    LDBroadcastPaint::FillSlab(P,P.Layer+10,FBox2D(At,At+FVector2D(PipW,PipH)),
+                        Beat==StageWipeBeat?LDBroadcast::Orange:Beat<StageWipeBeat?LDBroadcast::White:LDBroadcast::Mute);
+                }
             }
         }
+        const float Cover=FMath::Max(Closing,bCard?1.f-Opening:0.f);
         if(!bCard&&!StageCount.IsEmpty()&&Cover<.97f)
         {
             // Each second lands big and settles (no bounce); the stage it leads to sits on a small slab under it.
@@ -4201,9 +4224,9 @@ void ULDHUD::PaintMoments(const LDUIPaint::FContext& P) const
             LDBroadcastPaint::Text(P,P.Layer+6,StageCount,Figure,At+FVector2D(5.,5.),LDBroadcast::Ink,FVector2D(.5,.5));
             LDBroadcastPaint::Text(P,P.Layer+7,StageCount,Figure,At,StageCount==TEXT("1")||StageCount==TEXT("2")||StageCount==TEXT("3")?LDBroadcast::Orange:LDBroadcast::White,FVector2D(.5,.5));
             const FSlateFontInfo Label=LDBroadcastPaint::LabelFont(26.f,true);
-            const FVector2D LabelSize=LDBroadcastPaint::Measure(StageNextTitle,Label);
+            const FVector2D NextSize=LDBroadcastPaint::Measure(StageNextTitle,Label);
             const FVector2D Mid(At.X,At.Y+104.);
-            LDBroadcastPaint::FillSlab(P,P.Layer+6,FBox2D(Mid-FVector2D(LabelSize.X*.5+22.,22.),Mid+FVector2D(LabelSize.X*.5+22.,22.)),LDBroadcast::Ink.CopyWithNewOpacity(.92f));
+            LDBroadcastPaint::FillSlab(P,P.Layer+6,FBox2D(Mid-FVector2D(NextSize.X*.5+22.,22.),Mid+FVector2D(NextSize.X*.5+22.,22.)),LDBroadcast::Ink.CopyWithNewOpacity(.92f));
             LDBroadcastPaint::Text(P,P.Layer+7,StageNextTitle,Label,Mid,LDBroadcast::White,FVector2D(.5,.5));
         }
     }
