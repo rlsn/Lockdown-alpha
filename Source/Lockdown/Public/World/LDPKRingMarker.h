@@ -43,6 +43,10 @@ private:
     UPROPERTY() TArray<TObjectPtr<UInstancedStaticMeshComponent>> Throws;
     UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> SafePaint;
     UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> PreviewPaint;
+    // The designed looks over the lines: the danger side of the safe ring, the broken line of the next one, a throw's landing area.
+    UPROPERTY() TObjectPtr<class UNiagaraComponent> SafeGlow;
+    UPROPERTY() TObjectPtr<class UNiagaraComponent> PreviewGlow;
+    UPROPERTY() TArray<TObjectPtr<class UNiagaraComponent>> ThrowGlows;
     UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> ThrowPaint;
     FVector Centre = FVector::ZeroVector;
     double SafeRadius = 0;

@@ -742,6 +742,20 @@ UNiagaraComponent* ULDImpactFxSubsystem::ShowEffect(USceneComponent& Owner, UNia
 {
     if (!FApp::CanEverRender()) { return Existing; }
     const float Thin = LocalEffectScale();
+    FLinearColor Ink;
+    if (const LDSliceVfx::ESystem Designed = LDSliceVfx::EffectSystemOf(uint8(Look), Ink); Designed != LDSliceVfx::ESystem::Count)
+    {
+        // The look's own looping system at the proxy (an area on the floor under it), following it through MoveEffect.
+        if (Thin <= 0.f)
+        {
+            if (IsValid(Existing)) { Existing->DestroyComponent(); }
+            return nullptr;
+        }
+        const bool bArea = Designed != LDSliceVfx::ESystem::FlightChalk && Designed != LDSliceVfx::ESystem::FlightSock && Designed != LDSliceVfx::ESystem::FlightFist
+            && Designed != LDSliceVfx::ESystem::WindZone;
+        const FVector At = bArea ? FloorUnder(Owner.GetComponentLocation()) : Owner.GetComponentLocation();
+        return ShowLoop(Owner, Existing, Designed, At, At + Heading.Vector() * 100., Ink, FMath::Max(RadiusCm, 40.f), 2.2f * FMath::Clamp(Thin, .45f, 1.f), 1.e4f, true);
+    }
     const LDHitVfx::FTrail Trail = LDHitVfx::TrailOf(Look, Thin);
     const LDHitVfx::FZone Zone = LDHitVfx::ZoneOf(Look, RadiusCm, Thin);
     UNiagaraSystem* Wanted = Trail.bShow && Catalog ? Catalog->SwingTrail.Get() : Zone.bShow ? ZoneSystem.Get() : nullptr;
@@ -777,6 +791,15 @@ UNiagaraComponent* ULDImpactFxSubsystem::ShowEffect(USceneComponent& Owner, UNia
     }
     if (!Effect->IsActive()) { Effect->Activate(true); }
     return Effect;
+}
+
+void ULDImpactFxSubsystem::MoveEffect(UNiagaraComponent* Effect, const FVector& At, const FRotator& Heading) const
+{
+    if (!IsValid(Effect) || At.ContainsNaN() || !GeneratedSystems.Contains(Effect->GetAsset())) { return; }
+    const bool bArea = IsGround(Effect) || Effect->GetAsset() == GetSystem(LDSliceVfx::ESystem::AreaPlain);
+    const FVector Start = bArea ? FloorUnder(At) : At;
+    Effect->SetVariableVec3(TEXT("User.Start"), Start);
+    Effect->SetVariableVec3(TEXT("User.End"), Start + Heading.Vector() * 100.);
 }
 
 UNiagaraComponent* ULDImpactFxSubsystem::ShowZone(USceneComponent& Owner, UNiagaraComponent* Existing, const LDHitVfx::FZone& Zone,
@@ -819,7 +842,7 @@ void ULDImpactFxSubsystem::WarmUp()
     const bool bSlices = bLayers && LoadSliceAssets();
     if (bSlices)
     {
-        for (uint8 Kind = SlotQuad; Kind < SlotSlash + uint8(LDSliceVfx::EMesh::Count); ++Kind) { FreeSlots.Add(TakeSlot(Kind)); }
+        for (uint8 Kind = SlotQuad; Kind < SlotSlash + uint8(LDSliceVfx::SlashMeshCount); ++Kind) { FreeSlots.Add(TakeSlot(Kind)); }
     }
     const FVector Under(0., 0., -20000.);
     TArray<UNiagaraSystem*> Systems{ImpactSystem.Get(), BurstSystem.Get(), ZoneSystem.Get()};
@@ -835,12 +858,13 @@ void ULDImpactFxSubsystem::WarmUp()
         ++WarmedCount;
     }
     UE_LOG(LogLDContent, Display, TEXT("LD_VFX_WARMUP systems=%d layers=%d slices=%d"), WarmedCount, bLayers ? 2 : 0,
-        bSlices ? 1 + int32(LDSliceVfx::EMesh::Count) : 0);
+        bSlices ? 1 + LDSliceVfx::SlashMeshCount : 0);
 }
 
 void ULDImpactFxSubsystem::WarmGhost(const USkeletalMeshComponent& Source)
 {
     const UObject* Asset = Source.GetSkinnedAsset();
+    Bodies.AddUnique(&Source);
     if (!FApp::CanEverRender() || !Asset || WarmedMeshes.Contains(Asset) || !LoadLayerAssets() || GhostSlots.Num() >= MaxGhosts) { return; }
     WarmedMeshes.Add(Asset);
     // One hidden copy with the ghost material: its PSOs precache at registration, and the slot serves the first dash.
@@ -861,6 +885,48 @@ void ULDImpactFxSubsystem::WarmGhost(const USkeletalMeshComponent& Source)
     for (int32 Index = 0; Index < Copy->GetNumMaterials(); ++Index) { Copy->SetMaterial(Index, Paint); }
     FreeGhosts.Add(GhostSlots.Add(Copy));
     GhostPaints.Add(Paint);
+}
+
+UStaticMesh* ULDImpactFxSubsystem::PropMesh(LDSliceVfx::EMesh Mesh)
+{
+    return FApp::CanEverRender() && LoadSliceAssets() && SlashMeshes.IsValidIndex(int32(Mesh)) ? SlashMeshes[int32(Mesh)].Get() : nullptr;
+}
+
+UPoseableMeshComponent* ULDImpactFxSubsystem::StandIn(AActor& Host, const FVector& At, const FLinearColor& Glow, float ReachCm)
+{
+    if (!FApp::CanEverRender() || At.ContainsNaN() || !Host.GetRootComponent() || !LoadLayerAssets() || !GhostMaterial) { return nullptr; }
+    const USkeletalMeshComponent* Near = nullptr;
+    double Best = FMath::Square(double(ReachCm));
+    for (int32 Index = Bodies.Num() - 1; Index >= 0; --Index)
+    {
+        const USkeletalMeshComponent* Body = Bodies[Index].Get();
+        if (!Body) { Bodies.RemoveAtSwap(Index); continue; }
+        if (Body->GetWorld() != GetWorld() || !Body->GetSkinnedAsset() || !Body->GetOwner() || Body->GetOwner()->IsHidden()) { continue; }
+        const double Far = FVector::DistSquared2D(Body->GetComponentLocation(), At);
+        if (Far < Best) { Best = Far; Near = Body; }
+    }
+    if (!Near) { return nullptr; }
+    auto* Copy = NewObject<UPoseableMeshComponent>(&Host, NAME_None, RF_Transient);
+    Copy->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    Copy->SetGenerateOverlapEvents(false);
+    Copy->SetCanEverAffectNavigation(false);
+    Copy->SetCastShadow(false);
+    Copy->bReceivesDecals = false;
+    Copy->SetupAttachment(Host.GetRootComponent());
+    Copy->RegisterComponent();
+    Copy->SetSkinnedAssetAndUpdate(Near->GetSkinnedAsset());
+    UMaterialInstanceDynamic* Paint = UMaterialInstanceDynamic::Create(GhostMaterial, Copy);
+    Paint->SetVectorParameterValue(LDHitVfx::GlowParameter, Glow);
+    Paint->SetScalarParameterValue(LDHitVfx::FadeParameter, .8f);
+    for (int32 Index = 0; Index < Copy->GetNumMaterials(); ++Index) { Copy->SetMaterial(Index, Paint); }
+    // The body's own height over its floor, at the stand-in's place.
+    FTransform Pose = Near->GetComponentTransform();
+    const FVector From = Near->GetComponentLocation();
+    Pose.SetLocation(FVector(At.X, At.Y, FloorUnder(At).Z + From.Z - FloorUnder(From).Z));
+    Copy->SetWorldTransform(Pose);
+    // The engine reads the source pose only; its parameter is not const.
+    Copy->CopyPoseFromSkeletalComponent(const_cast<USkeletalMeshComponent*>(Near));
+    return Copy;
 }
 
 bool ULDImpactFxSubsystem::LoadSliceAssets()

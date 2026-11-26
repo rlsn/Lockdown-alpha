@@ -268,6 +268,8 @@ public:
 private:
     UPROPERTY() TObjectPtr<UStaticMeshComponent> Rim;
     UPROPERTY() TObjectPtr<UStaticMeshComponent> Core;
+    // The designed mark (LDSliceVfx::ESystem::OwnMark); the two plain discs show only while it cannot.
+    UPROPERTY() TObjectPtr<class UNiagaraComponent> Mark;
     TWeakObjectPtr<APawn> Tracked;
     uint8 TintSlot = MAX_uint8;
 };
@@ -302,6 +304,8 @@ public:
 private:
     UPROPERTY() TObjectPtr<UStaticMeshComponent> Chalk;
     UPROPERTY() TObjectPtr<UStaticMeshComponent> Accent;
+    // A phantom decoy's figure: a still copy of the body it left (ULDImpactFxSubsystem::StandIn).
+    UPROPERTY() TObjectPtr<class UPoseableMeshComponent> StandIn;
     UPROPERTY() TObjectPtr<UStaticMesh> BoxMesh;
     UPROPERTY() TObjectPtr<UStaticMesh> CylinderMesh;
     UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> EffectTint;

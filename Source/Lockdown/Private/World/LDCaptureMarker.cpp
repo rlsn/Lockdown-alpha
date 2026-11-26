@@ -1,5 +1,7 @@
 #include "World/LDCaptureMarker.h"
 #include "Character/LDCameraSettings.h"
+#include "Character/LDImpactFx.h"
+#include "NiagaraComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Engine/StaticMesh.h"
@@ -73,6 +75,25 @@ bool LDGroundRing::IsPresentationOnly(const UPrimitiveComponent* Component)
         && !Component->GetGenerateOverlapEvents() && !Component->CanEverAffectNavigation();
 }
 
+UNiagaraComponent* LDGroundRing::Glow(USceneComponent& Owner, UNiagaraComponent* Existing, bool bShow, uint8 System, const FVector& Centre, double RadiusCm,
+    const FLinearColor& Tint, float Intensity)
+{
+    UWorld* World = Owner.GetWorld();
+    ULDImpactFxSubsystem* Impacts = World ? World->GetSubsystem<ULDImpactFxSubsystem>() : nullptr;
+    if (!bShow || !Impacts || Centre.ContainsNaN() || !FMath::IsFinite(RadiusCm) || RadiusCm <= 0.)
+    {
+        if (IsValid(Existing)) { Existing->DestroyComponent(); }
+        return nullptr;
+    }
+    return Impacts->ShowLoop(Owner, Existing, LDSliceVfx::ESystem(System), Centre, Centre + FVector(100., 0., 0.), Tint, float(RadiusCm), Intensity, 1.e4f, true);
+}
+
+void ALDCaptureMarker::ShowBand()
+{
+    // A circle not yet open keeps a quiet band; an open one glows in its state's ink.
+    if (Ring) { Band = LDGroundRing::Glow(*Ring, Band, Generation != 0, uint8(LDSliceVfx::ESystem::RingBand), Center, Radius, ColorFor(Shown), Shown == ELDCircleState::NotOpen ? 1.f : 2.2f); }
+}
+
 ALDCaptureMarker::ALDCaptureMarker()
 {
     bReplicates = false;
@@ -121,6 +142,7 @@ void ALDCaptureMarker::Place(const FVector& CenterCm, double RadiusCm)
         Center = CenterCm;
         SetActorLocation(CenterCm);
     }
+    ShowBand();
 }
 
 void ALDCaptureMarker::ShowPole(bool bShown)
@@ -162,6 +184,7 @@ void ALDCaptureMarker::ShowState(ELDCircleState State)
 {
     Shown = State;
     if (Paint) { Paint->SetVectorParameterValue(TEXT("Tint"), ColorFor(State)); }
+    ShowBand();
 }
 
 void ALDCaptureMarker::ShowGraffiti(bool bOwned, uint8 PresentationSlot)

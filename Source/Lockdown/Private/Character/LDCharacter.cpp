@@ -217,6 +217,7 @@ void ALDCharacter::Tick(float Delta)
     }
     bShownPredicted=bPredicted;
     Body->SetElementStates(Statuses);
+    if (const FLDProgressionView* Progression=PC->ReadOwnProgression(); Progression && Progression->bValid) { Body->SetLevel(Progression->Level); }
     // The shown cast's own skill look (LDHitVfx::SkillLookOf): the authority's cue facts name the acting or released
     // learned ability, so a release snapshot that already cleared the action slot keeps it.
     uint8 CastAbility=0;

@@ -10,6 +10,8 @@ class UMaterialInstanceDynamic;
 class UStaticMeshComponent;
 
 class UPrimitiveComponent;
+class UNiagaraComponent;
+class USceneComponent;
 
 // A flat painted ring of chords on the registered ground, shared by the capture and dorm boundaries. Presentation only:
 // no collision, overlap, navigation or shadow, and its dimensions never change an approved radius or rule.
@@ -22,6 +24,11 @@ namespace LDGroundRing
     // Tints the ring with the generated character material; false with a reason when it is missing.
     LOCKDOWN_API bool Paint(AActor& Owner, UInstancedStaticMeshComponent& Ring, UMaterialInstanceDynamic*& OutPaint, FString& Error);
     LOCKDOWN_API bool IsPresentationOnly(const UPrimitiveComponent* Component);
+    // The ring's designed look over its line (LDSliceVfx::ESystem System: a band, the danger side, the next ring, an
+    // area), kept on Owner at Centre and RadiusCm in Tint; bShow false, or a process that cannot show it, removes
+    // Existing and returns null. Presentation only.
+    LOCKDOWN_API UNiagaraComponent* Glow(USceneComponent& Owner, UNiagaraComponent* Existing, bool bShow, uint8 System, const FVector& Centre, double RadiusCm,
+        const FLinearColor& Tint, float Intensity = 2.2f);
 }
 
 // Local presentation of a spray zone: a flat painted ring on the ground at the zone's current radius around its flagpole,
@@ -60,6 +67,8 @@ private:
     UPROPERTY() TObjectPtr<UStaticMeshComponent> Graffiti;
     UPROPERTY() TObjectPtr<UStaticMeshComponent> Pole;
     UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> GraffitiPaint;
+    UPROPERTY() TObjectPtr<UNiagaraComponent> Band;
+    void ShowBand();
     uint8 GraffitiSlot = 0;
     FVector Center = FVector::ZeroVector;
     double Radius = 0;

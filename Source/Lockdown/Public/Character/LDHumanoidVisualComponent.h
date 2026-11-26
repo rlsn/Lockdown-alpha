@@ -83,6 +83,8 @@ public:
     // The combo step (1..3) of the shown basic attack (FLDObservedUnitView::ActionComboStep; the own body's from its
     // projection): its slash shape and, on the third, the finisher's hit tier. 0 shows the first stage's shape.
     void SetComboStep(uint8 Step) { ComboStep = Step; }
+    // The body's level as its viewer knows it (0 unknown): a rise while it is shown plays the level-up (UpdateStates).
+    void SetLevel(uint8 Level) { if (ShownLevel > 0 && Level > ShownLevel) { bLevelUp = true; } ShownLevel = Level; }
     // The local player's own body: its strikes show at full size with the ball orange; every other body's are smaller,
     // fainter and white (LDSliceVfx::FLook).
     void SetOwnBody(bool bOwn) { bOwnBody = bOwn; }
@@ -121,7 +123,6 @@ private:
     // Shows the clip of the current state: dying, an action, the respawn, running or standing.
     void PlayClip(bool bFalling, float Speed);
     // Places each shown marker's near-black twin behind it on the local view ray.
-    void PlaceEdges();
     // Seconds the death clip takes to lie down; zero without one.
     float LieSeconds() const;
     // The current action's age for its pose and effects, held back by a hit confirmation's stop or a predicted hold.
@@ -148,8 +149,10 @@ private:
     // Guards and stances worn on the body (shield from the cue, braced, the own empowered basics), dimmer than the element
     // states; a self skill's aura from its release for its hold; and active_brace's expected natural end, whose shove shows
     // when the braced stance ends then.
-    static constexpr int32 GuardStates = 3;
-    bool GuardOn[GuardStates] = {false, false, false};
+    // Then the control states (root, respawn protection, slow, attack slow, stun, disarm, silence, taunt, exposed), each
+    // its own looping system from the body's statuses (root and protection also from their cue bits).
+    static constexpr int32 GuardStates = 12;
+    bool GuardOn[GuardStates] = {};
     bool bBracedShown = false;
     UPROPERTY() TObjectPtr<UNiagaraComponent> GuardEffects[GuardStates];
     UPROPERTY() TObjectPtr<UNiagaraComponent> AuraEffect;
@@ -157,10 +160,13 @@ private:
     double AuraFrom = -1, AuraUntil = -1, BraceEndsAt = -1;
     UPROPERTY() TObjectPtr<UNiagaraComponent> DashTrail;
     UPROPERTY() TObjectPtr<UNiagaraComponent> ChargeColumn;
+    UPROPERTY() TObjectPtr<UNiagaraComponent> LevelEffect;
+    uint8 ShownLevel = 0;
+    bool bLevelUp = false;
+    double LevelUntil = -1;
     // Built by the constructor from the fixed part specs; never saved, so a map saved with another part list cannot
     // restore entries for subobjects that no longer exist.
     UPROPERTY(Transient) TArray<TObjectPtr<UStaticMeshComponent>> Parts;
-    UPROPERTY(Transient) TArray<TObjectPtr<UStaticMeshComponent>> Edges;
     // The catalog body's worn parts (FLDArtAttachment), rebuilt with every look; they hang from Mesh.
     UPROPERTY() TArray<TObjectPtr<UMeshComponent>> Worn;
     UPROPERTY() TArray<TObjectPtr<UMaterialInstanceDynamic>> Paints;

@@ -11,14 +11,19 @@ import slice_lib as L
 ROOT = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 SLICE = os.path.join(ROOT, "Slice")
 GENERATORS = ["Blender/slice_lib.py", "Blender/slice_slash.py", "Blender/slice_impact.py", "Blender/slice_render.py",
-              "Blender/slice_chain_candidates.py", "Blender/slice_field.py", "Blender/slice_elements.py"]
+              "Blender/slice_chain_candidates.py", "Blender/slice_field.py", "Blender/slice_elements.py", "Blender/slice_props.py"]
 TOOLS = ["Blender/slice_preview.py", "Blender/slice_manifest.py"]
 
 GEOMETRY_SHA = {  # printed by slice_slash.py; the FBX header carries a timestamp, so file bytes differ per export
     "SM_LD_SlashCombo1": "90d481af30e248672fc0757db276816d370fe75f2807776590f8ee727bf1584b",
     "SM_LD_SlashCombo2": "3ec49dec2dac043cd7fc841ef3e567db854440f38007f45c2731177dac4cc3df",
     "SM_LD_SlashCombo3": "a176f56d9cc878bfba71d4c9159358464512c3779bb19836b1700935c366166f",
+    "SM_LD_PropTakeout": "745eb85dc7ae32d41b075b4457c961e5ac17c950763314f69d91d1e7711eacb2",  # printed by slice_props.py
+    "SM_LD_PropSlipper": "ab4b1679f2d988d40e129b31e1dbf17fcc4ef6b7adfbd86a4df01435f2bfdbe8",  # printed by slice_props.py
+    "SM_LD_PropBag": "730fb603a989d708094c0a1c33271d467d85b67d037cf5d7afd218b6f4ec8313",  # printed by slice_props.py
 }
+MESH_COUNTS = {"SM_LD_SlashCombo1": (365, 576), "SM_LD_SlashCombo2": (365, 576), "SM_LD_SlashCombo3": (730, 1152),
+               "SM_LD_PropTakeout": (246, 468), "SM_LD_PropSlipper": (100, 184), "SM_LD_PropBag": (310, 596)}  # vertices, triangles
 
 MASK = dict(alpha_packing="RGB = glow mask (R = G = B; 0 ink only, 0.6 element body, 1.0 white-hot core), A = coverage; ink = A > 0 with RGB = 0",
             srgb=False, compression="TC_Default (BC3/DXT5 with alpha) as the existing hit masks; TC_BC7 recommended for thin-line sheets", mips="generate (TMGS_FromTextureGroup)",
@@ -120,6 +125,12 @@ ASSETS = [
     dict(id="rot_bubble", kind="texture", file="Slice/rot_bubble.png", width=64, height=64,
          purpose="One bubble: a thin rim with a highlight and a nearly clear middle.",
          usage="Sprites of bubbles rising and popping over rot effects.", pivot="centre", uv="centred", **MASK, budget="tens per rot area"),
+    dict(id="SM_LD_PropTakeout", kind="static_mesh", file="Slice/SM_LD_PropTakeout.fbx", purpose="The thrown stale takeout: a tied bag with its box inside, the flight's body.",
+         usage="StaticMeshComponent of the skill's observed proxy with the flat character material tinted by the look.", units="centimetres", orientation="forward +X, up +Z", uv="one empty UV channel (the material does not sample it)", pivot="its centre", extents_cm="x -22..22, y -20..20, z -16..29", budget="468 triangles, one opaque surface"),
+    dict(id="SM_LD_PropSlipper", kind="static_mesh", file="Slice/SM_LD_PropSlipper.fbx", purpose="A dropped slipper lying on the floor: the pickup a thrown slipper leaves.",
+         usage="StaticMeshComponent of the skill's observed proxy with the flat character material tinted by the look.", units="centimetres", orientation="forward +X, up +Z", uv="one empty UV channel (the material does not sample it)", pivot="the floor under its centre, toe toward +X", extents_cm="x -34..34, y -20..20, z 0..19", budget="184 triangles, one opaque surface"),
+    dict(id="SM_LD_PropBag", kind="static_mesh", file="Slice/SM_LD_PropBag.fbx", purpose="A school backpack standing on the floor: the seat-saving bag obstacle.",
+         usage="StaticMeshComponent of the skill's observed proxy with the flat character material tinted by the look.", units="centimetres", orientation="forward +X, up +Z", uv="one empty UV channel (the material does not sample it)", pivot="the floor under its centre, front toward +X", extents_cm="x -48..44, y -44..44, z 0..120 (scaled to the blocker's radius and height)", budget="596 triangles, one opaque surface"),
 ]
 
 
@@ -185,8 +196,7 @@ def main():
         if asset["kind"] == "static_mesh":
             e["geometry_sha256"] = GEOMETRY_SHA[asset["id"]]
             e["sha256_note"] = "sha256 is the committed FBX bytes; regenerating changes it (FBX creation timestamp), geometry_sha256 is the reproducible check"
-            e["vertex_count"] = 365 if asset["id"] != "SM_LD_SlashCombo3" else 730
-            e["triangle_count"] = 576 if asset["id"] != "SM_LD_SlashCombo3" else 1152
+            e["vertex_count"], e["triangle_count"] = MESH_COUNTS[asset["id"]]
             e["fbx_export"] = "Blender 5.2.4 export_scene.fbx: apply_unit_scale, scale_length 0.01, axis_forward X, axis_up Z, mesh_smooth_type FACE, no leaf bones; verify orientation after import (see HANDOFF)"
         else:
             img = L.read_png(path)

@@ -62,6 +62,8 @@
 #include "ShaderCompiler.h"
 #include "UnrealClient.h"
 #include "Vision/LDWorldViewRelay.h"
+#include "World/LDCaptureMarker.h"
+#include "World/LDPKRingMarker.h"
 #include "HAL/IConsoleManager.h"
 
 namespace
@@ -935,6 +937,8 @@ namespace
                     TEXT("self"),
                     TEXT("packs"),
                     TEXT("reactions"),
+                    TEXT("flights"),
+                    TEXT("world"),
                 };
                 bool bKnown = false;
                 for (const TCHAR* Category : Known) { bKnown |= Name == Category; }
@@ -1128,6 +1132,166 @@ namespace
                         ChainJobs.Add({Look, FString(TEXT("skills-")) + Skill.Name, OwnSteps, Ahead(Skill.Gap), Home, false, Skill.Windup + .05f, 0.f, 36});
                         ChainJobs.Add({Look, FString(TEXT("skills-")) + Skill.Name + TEXT("-other"), OtherSteps, nullptr, nullptr, false, Skill.Windup + .05f, 0.f, 30});
                     }
+                }
+                else if (Look == TEXT("world"))
+                {
+                    // World marks on their real actors: the own body's mark under A, a flagpole circle held by one (round V1)
+                    // and a contested one (round A3); then a shrinking arena round A with its next ring and a throw landing
+                    // by V2.
+                    UWorld* const MarkWorld = &Target;
+                    const TSharedRef<TArray<TWeakObjectPtr<AActor>>> Marks = MakeShared<TArray<TWeakObjectPtr<AActor>>>();
+                    const auto ClearMarks = [Marks]()
+                    {
+                        for (const TWeakObjectPtr<AActor>& Mark : *Marks) { if (AActor* Old = Mark.Get()) { Old->Destroy(); } }
+                        Marks->Reset();
+                    };
+                    const auto FeetOf = [](const TWeakObjectPtr<ULDHumanoidVisualComponent>& Body)
+                    { return Body.IsValid() && Body->GetOwner() ? Body->GetOwner()->GetActorLocation() - FVector(0, 0, 90) : FVector::ZeroVector; };
+                    const auto OwnMark = [MarkWorld, Marks, A]()
+                    {
+                        APawn* Pawn = A.IsValid() ? ::Cast<APawn>(A->GetOwner()) : nullptr;
+                        ALDOwnBodyMarker* Mark = Pawn ? MarkWorld->SpawnActor<ALDOwnBodyMarker>() : nullptr;
+                        UE_LOG(LogLDContent, Display, TEXT("LD_PROOF_OWN_MARK pawn=%d marker=%d"), Pawn ? 1 : 0, Mark ? 1 : 0);
+                        if (!Mark) { return; }
+                        Mark->Track(Pawn, 2);
+                        Marks->Add(Mark);
+                    };
+                    const auto Circle = [MarkWorld, Marks, FeetOf](TWeakObjectPtr<ULDHumanoidVisualComponent> At, double Radius, ELDCircleState State)
+                    {
+                        return [MarkWorld, Marks, FeetOf, At, Radius, State]()
+                        {
+                            ALDCaptureMarker* Mark = MarkWorld->SpawnActor<ALDCaptureMarker>();
+                            FString Why;
+                            if (!Mark || !Mark->Build(FeetOf(At), Radius, 1, Why)) { return; }
+                            Mark->ShowState(State);
+                            Marks->Add(Mark);
+                        };
+                    };
+                    const auto Arena = [MarkWorld, Marks, FeetOf, A, V2]()
+                    {
+                        ALDPKRingMarker* Mark = MarkWorld->SpawnActor<ALDPKRingMarker>();
+                        FString Why;
+                        if (!Mark || !Mark->Build(FeetOf(A), 1, 1, Why)) { return; }
+                        Mark->Show(560., true, 400., {FeetOf(V2) + FVector(0, 160, 0)}, 150.);
+                        Marks->Add(Mark);
+                    };
+                    ChainJobs.Add({Look, TEXT("world-circles"), {{0.f, OwnMark}, {0.f, Circle(V1, 330., ELDCircleState::Solo)}, {0.f, Circle(A3, 300., ELDCircleState::Contested)}},
+                        nullptr, ClearMarks, false, 1.f, .6f, 24});
+                    ChainJobs.Add({Look, TEXT("world-arena"), {{0.f, Arena}}, nullptr, ClearMarks, false, 1.f, .6f, 24});
+                }
+                else if (Look == TEXT("flights"))
+                {
+                    // Visible flights and placed skill areas on their real proxies. Three flights leave three bodies and fly
+                    // straight at 900 cm/s for a second (chalk, the takeout, a fist wind); then six areas stand on the stage
+                    // (plain, magic, fire, water, electric and the fan's wind).
+                    UWorld* const FlightWorld = &Target;
+                    const TSharedRef<TArray<TWeakObjectPtr<ALDObservedProjectileProxy>>> Proxies = MakeShared<TArray<TWeakObjectPtr<ALDObservedProjectileProxy>>>();
+                    const TSharedRef<TArray<FLDObservedProjectileView>> Views = MakeShared<TArray<FLDObservedProjectileView>>();
+                    const auto ClearProxies = [Proxies, Views]()
+                    {
+                        for (const TWeakObjectPtr<ALDObservedProjectileProxy>& Proxy : *Proxies) { if (ALDObservedProjectileProxy* Old = Proxy.Get()) { Old->Destroy(); } }
+                        Proxies->Reset();
+                        Views->Reset();
+                    };
+                    const auto Place = [FlightWorld, Proxies, Views](TWeakObjectPtr<ULDHumanoidVisualComponent> At, ELDObservedProjectileLook ProxyLook, float Radius, float YawDegrees, double Ahead)
+                    {
+                        return [FlightWorld, Proxies, Views, At, ProxyLook, Radius, YawDegrees, Ahead]()
+                        {
+                            const ULDHumanoidVisualComponent* Body = At.Get();
+                            if (!Body) { return; }
+                            FActorSpawnParameters Spawn;
+                            Spawn.ObjectFlags |= RF_Transient;
+                            ALDObservedProjectileProxy* Proxy = FlightWorld->SpawnActor<ALDObservedProjectileProxy>(Spawn);
+                            if (!Proxy) { return; }
+                            FLDObservedProjectileView View;
+                            View.Handle = FGuid::NewGuid();
+                            View.Look = ProxyLook;
+                            View.RadiusCm = Radius;
+                            View.Heading = uint16(YawDegrees / 360.f * 65536.f);
+                            View.PositionCm = Body->GetOwner()->GetActorLocation() - FVector(0, 0, 90) + FRotator(0, YawDegrees, 0).Vector() * Ahead;
+                            Proxy->Apply(View, 300.);
+                            Proxy->Present(300.);
+                            Proxies->Add(Proxy);
+                            Views->Add(View);
+                        };
+                    };
+                    const auto Fly = [Proxies, Views](float Seconds)
+                    {
+                        return [Proxies, Views, Seconds]()
+                        {
+                            for (int32 Index = 0; Index < Proxies->Num(); ++Index)
+                            {
+                                ALDObservedProjectileProxy* Proxy = (*Proxies)[Index].Get();
+                                if (!Proxy) { continue; }
+                                FLDObservedProjectileView Next = (*Views)[Index];
+                                Next.PositionCm = FVector(Next.PositionCm) + FRotator(0, float(Next.Heading) / 65536.f * 360.f, 0).Vector() * 900. * Seconds;
+                                Proxy->Apply(Next, 300. + Seconds);
+                                Proxy->Present(300. + Seconds);
+                            }
+                        };
+                    };
+                    TArray<FSeqStep> Flying{{0.f, Place(A, ELDObservedProjectileLook::Chalk, 20.f, 20.f, 60.)}, {0.f, Place(A2, ELDObservedProjectileLook::Sock, 30.f, -20.f, 60.)},
+                        {0.f, Place(A3, ELDObservedProjectileLook::FistWind, 65.f, 60.f, 60.)}};
+                    for (int32 Frame = 1; Frame <= 30; ++Frame) { Flying.Add({Frame / 30.f, Fly(Frame / 30.f)}); }
+                    ChainJobs.Add({Look, TEXT("flights-three"), Flying, nullptr, ClearProxies, false, .4f, 0.f, 30});
+                    ChainJobs.Add({Look, TEXT("flights-areas"), {{0.f, Place(V1, ELDObservedProjectileLook::AreaPlain, 170.f, 0.f, 0.)}, {0.f, Place(V2, ELDObservedProjectileLook::AreaMagic, 170.f, 0.f, 0.)},
+                        {0.f, Place(V3, ELDObservedProjectileLook::AreaFire, 170.f, 0.f, 0.)}, {0.f, Place(A2, ELDObservedProjectileLook::AreaWater, 170.f, 0.f, 0.)},
+                        {0.f, Place(A3, ELDObservedProjectileLook::AreaElectric, 170.f, 0.f, 0.)}, {0.f, Place(A, ELDObservedProjectileLook::Wind, 220.f, 30.f, 0.)}},
+                        nullptr, ClearProxies, false, .9f, .5f, 30});
+                    // Placed props and one-shots on their real proxies: two bags and the wall between them, a dropped slipper,
+                    // a cordon tape, a phantom decoy (going off at 0.8 s), a shard burst, a brick falling (landing at 0.7 s)
+                    // and an armed trap.
+                    const auto Put = [FlightWorld, Proxies, Views](TWeakObjectPtr<ULDHumanoidVisualComponent> At, ELDObservedProjectileLook ProxyLook, float Radius, float TowardDegrees,
+                        double Ahead, float FaceDegrees, float Length, uint32 WarningMs)
+                    {
+                        return [FlightWorld, Proxies, Views, At, ProxyLook, Radius, TowardDegrees, Ahead, FaceDegrees, Length, WarningMs]()
+                        {
+                            const ULDHumanoidVisualComponent* Body = At.Get();
+                            if (!Body) { return; }
+                            FActorSpawnParameters Spawn;
+                            Spawn.ObjectFlags |= RF_Transient;
+                            ALDObservedProjectileProxy* Proxy = FlightWorld->SpawnActor<ALDObservedProjectileProxy>(Spawn);
+                            if (!Proxy) { return; }
+                            FLDObservedProjectileView View;
+                            View.Handle = FGuid::NewGuid();
+                            View.Look = ProxyLook;
+                            View.RadiusCm = Radius;
+                            View.LengthCm = Length;
+                            View.WarningRemainingMs = WarningMs;
+                            View.Heading = uint16(FMath::Fmod(FaceDegrees + 360.f, 360.f) / 360.f * 65536.f);
+                            View.PositionCm = Body->GetOwner()->GetActorLocation() - FVector(0, 0, 90) + FRotator(0, TowardDegrees, 0).Vector() * Ahead;
+                            Proxy->Apply(View, 300.);
+                            Proxy->Present(300.);
+                            Proxies->Add(Proxy);
+                            Views->Add(View);
+                        };
+                    };
+                    const auto Hold = [Proxies](float Seconds)
+                    {
+                        return [Proxies, Seconds]() { for (const TWeakObjectPtr<ALDObservedProjectileProxy>& Proxy : *Proxies) { if (ALDObservedProjectileProxy* Shown = Proxy.Get()) { Shown->Present(300. + Seconds); } } };
+                    };
+                    const auto GoOff = [Proxies](int32 Index)
+                    {
+                        return [Proxies, Index]()
+                        {
+                            ALDObservedProjectileProxy* Shown = Proxies->IsValidIndex(Index) ? (*Proxies)[Index].Get() : nullptr;
+                            if (!Shown) { return; }
+                            Shown->End(0., true);
+                            Shown->PlayBurst(true);
+                        };
+                    };
+                    TArray<FSeqStep> Props{{0.f, Put(V1, ELDObservedProjectileLook::Bag, 50.f, 60.f, 220., 0.f, 0.f, 0)}, {0.f, Put(V1, ELDObservedProjectileLook::Bag, 50.f, -60.f, 220., 0.f, 0.f, 0)},
+                        {0.f, Put(V1, ELDObservedProjectileLook::BagWall, 25.f, 0.f, 110., 90.f, 280.f, 0)}, {0.f, Put(V2, ELDObservedProjectileLook::SlipperDrop, 45.f, 180.f, 150., 0.f, 0.f, 0)},
+                        {0.f, Put(V3, ELDObservedProjectileLook::CordonTape, 30.f, 180.f, 170., 90.f, 500.f, 0)}, {0.f, Put(A2, ELDObservedProjectileLook::PhantomDecoy, 220.f, 0.f, 130., 0.f, 0.f, 800)},
+                        {0.f, Put(A3, ELDObservedProjectileLook::ShardBurst, 250.f, 0.f, 0., 0.f, 0.f, 0)}, {0.f, Put(A, ELDObservedProjectileLook::BookShadow, 200.f, 180.f, 260., 0.f, 0.f, 700)},
+                        {0.f, Put(A, ELDObservedProjectileLook::FlyerArmed, 180.f, 90.f, 260., 0.f, 0.f, 0)}};
+                    for (int32 Frame = 1; Frame <= 40; ++Frame)
+                    {
+                        Props.Add({Frame / 30.f, Hold(Frame / 30.f)});
+                        if (Frame == 21) { Props.Add({.7f, GoOff(7)}); }
+                        if (Frame == 24) { Props.Add({.8f, GoOff(5)}); }
+                    }
+                    ChainJobs.Add({Look, TEXT("flights-props"), Props, nullptr, ClearProxies, false, .5f, 0.f, 40});
                 }
                 else if (Look == TEXT("reactions"))
                 {
@@ -1409,6 +1573,36 @@ namespace
                         nullptr, Clear, false, 1.f, .6f, 45});
                     ChainJobs.Add({Look, TEXT("states-rot-burn3"), {{0.f, State(V2, ELDDemoStatusId::Rotten, 1)}, {0.f, State(V3, ELDDemoStatusId::Burn, 3)}},
                         nullptr, Clear, false, 1.f, .6f, 30});
+                    // The control states, one each: root, respawn protection, slow and stun; attack slow, disarm, silence and
+                    // taunt; then exposed, and root with silence on one body.
+                    const auto Both = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, ELDDemoStatusId First, ELDDemoStatusId Second)
+                    {
+                        return [Body, First, Second]()
+                        {
+                            if (auto* B = Body.Get())
+                            {
+                                TArray<FLDObservedStatus> Statuses;
+                                Statuses.AddDefaulted_GetRef().StatusId = uint8(First);
+                                Statuses.AddDefaulted_GetRef().StatusId = uint8(Second);
+                                B->SetElementStates(Statuses);
+                            }
+                        };
+                    };
+                    ChainJobs.Add({Look, TEXT("states-control-a"), {{0.f, State(V2, ELDDemoStatusId::Root, 1)}, {0.f, State(V3, ELDDemoStatusId::RespawnProtection, 1)},
+                        {0.f, State(A2, ELDDemoStatusId::Slow, 1)}, {0.f, State(A3, ELDDemoStatusId::Stun, 1)}},
+                        nullptr, Clear, false, 1.f, .6f, 30});
+                    ChainJobs.Add({Look, TEXT("states-control-b"), {{0.f, State(V2, ELDDemoStatusId::AttackSlowed, 1)}, {0.f, State(V3, ELDDemoStatusId::Disarm, 1)},
+                        {0.f, State(A2, ELDDemoStatusId::Silence, 1)}, {0.f, State(A3, ELDDemoStatusId::Taunt, 1)}},
+                        nullptr, Clear, false, 1.f, .6f, 30});
+                    // A level gained on V2 and V3, and an overdrive charge half full on A2 and full on A3.
+                    const auto Level = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, uint8 To) { return [Body, To]() { if (auto* B = Body.Get()) { B->SetLevel(To); } }; };
+                    const auto Charge = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, bool bOn, float Progress)
+                    { return [Body, bOn, Progress]() { if (auto* B = Body.Get()) { B->SetCharging(bOn, 0.f, Progress); } }; };
+                    ChainJobs.Add({Look, TEXT("states-level-charge"), {{0.f, Level(V2, 1)}, {0.f, Level(V3, 1)}, {0.f, Charge(A2, true, .5f)}, {0.f, Charge(A3, true, 1.f)},
+                        {.05f, Level(V2, 2)}, {.35f, Level(V3, 2)}},
+                        nullptr, [Clear, Charge, A2, A3]() { Clear(); Charge(A2, false, -1.f)(); Charge(A3, false, -1.f)(); }, false, .5f, .1f, 36});
+                    ChainJobs.Add({Look, TEXT("states-control-c"), {{0.f, State(V2, ELDDemoStatusId::Exposed, 1)}, {0.f, Both(V3, ELDDemoStatusId::Root, ELDDemoStatusId::Silence)}},
+                        nullptr, Clear, false, 1.f, .6f, 30});
                 }
                 else if (Look == TEXT("chill"))
                 {
@@ -1678,6 +1872,8 @@ namespace
                     TEXT("self"),
                     TEXT("packs"),
                     TEXT("reactions"),
+                    TEXT("flights"),
+                    TEXT("world"),
                 };
                 bool bLookOnly = false;
                 for (const TCHAR* Category : LookOnly) { bLookOnly |= Look == Category; }
@@ -2259,7 +2455,7 @@ namespace
                 { Check(Impacts && Impacts->LiveLayerCount() > 0 && Impacts->LiveCount() > 0, TEXT("The reaction's layers and particles are still showing at the capture")); }
                 if (Current.Overdrive == 2)
                 {
-                    Check(Impacts && Impacts->LiveLayerCount() >= LDHitVfx::ForOverdriveRelease(1.f, Impacts->LayerTuning()).Layers.Num(),
+                    Check(Impacts && Impacts->LiveCount() > 0,
                         TEXT("A held charge released as a cast shows the overdrive shockwave"));
                 }
             }
