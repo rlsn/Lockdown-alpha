@@ -95,9 +95,12 @@ namespace LDSliceVfx
         BurnState, WetState, ShockState, ChillState, RotState, PuddleGround, IceGround, FireGround, MiasmaGround, Knockout, CastAim, CastBrace,
         ElbowRelease, ElbowHit, PantsRelease, PantsHit, GrabRelease, GrabHit, BailRelease, RamRelease, RamHit,
         ShieldState, BracedState, EmpoweredState, StareDownAura, FlurryAura, UnplugRelease, UnplugHit, NotMadRelease, StareDownRelease,
-        BraceRelease, BraceBurst, TripleRelease, OpenMicRelease, OpenMicHit, FlurryRelease, Count
+        BraceRelease, BraceBurst, TripleRelease, OpenMicRelease, OpenMicHit, FlurryRelease, FogReact, FreezeReact, OverloadReact, Count
     };
     LOCKDOWN_API const TCHAR* SystemName(ESystem System);
+    // An element reaction's own event on the reacting body (ELDCombatReaction): Start the floor under it, End its chest,
+    // Width the reaction's radius, Duration its hold. ESystem::Count for a reaction without one yet.
+    LOCKDOWN_API ESystem ReactionSystemOf(uint8 Reaction);
     // Third-party systems (Content/ThirdParty/CCBY, docs/systems/THIRD_PARTY_ASSETS.md) a project effect plays as one of its
     // layers, as shipped apart from its scale and exposed parameters: a ring of dust puffs with debris thrown out over the
     // floor, a compact fire blast with its smoke, and a crackle of lightning.

@@ -1564,6 +1564,22 @@ float ULDImpactFxSubsystem::SkillHoldSeconds(uint8 Ability)
     return float(double(Longest) / 1000.);
 }
 
+float ULDImpactFxSubsystem::ReactionRadiusCm(uint8 Reaction)
+{
+    OverdriveHoldSeconds();
+    if (!Content) { return 0.f; }
+    const auto& Parameters = Content->Get().Parameters;
+    const FLDDemoRational* Radius = Reaction == uint8(ELDCombatReaction::Fog) ? &Parameters.FogRadiusCm
+        : Reaction == uint8(ELDCombatReaction::Overload) ? &Parameters.OverloadRadiusCm : nullptr;
+    return Radius && Radius->Denominator > 0 ? float(double(Radius->Numerator) / double(Radius->Denominator)) : 0.f;
+}
+
+float ULDImpactFxSubsystem::FreezeRootSeconds()
+{
+    OverdriveHoldSeconds();
+    return Content ? float(double(Content->Get().Parameters.Elements.FreezeRootMs) / 1000.) : 0.f;
+}
+
 float ULDImpactFxSubsystem::ConductRadiusCm()
 {
     OverdriveHoldSeconds();

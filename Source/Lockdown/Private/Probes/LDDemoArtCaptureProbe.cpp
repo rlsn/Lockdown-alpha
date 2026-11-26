@@ -933,6 +933,7 @@ namespace
                     TEXT("skills"),
                     TEXT("self"),
                     TEXT("packs"),
+                    TEXT("reactions"),
                 };
                 bool bKnown = false;
                 for (const TCHAR* Category : Known) { bKnown |= Name == Category; }
@@ -1125,6 +1126,40 @@ namespace
                         if (Skill.HitAt > 0.f) { OwnSteps.Add({Skill.HitAt, HitOf(V1, Skill.Hit)}); OtherSteps.Add({Skill.HitAt, HitOf(V3, Skill.Hit)}); }
                         ChainJobs.Add({Look, FString(TEXT("skills-")) + Skill.Name, OwnSteps, Ahead(Skill.Gap), Home, false, Skill.Windup + .05f, 0.f, 36});
                         ChainJobs.Add({Look, FString(TEXT("skills-")) + Skill.Name + TEXT("-other"), OtherSteps, nullptr, nullptr, false, Skill.Windup + .05f, 0.f, 30});
+                    }
+                }
+                else if (Look == TEXT("reactions"))
+                {
+                    // The reactions with their own event, each on V1 in the own fight (right after A's strike lands on it) and
+                    // on V3 as another player's: fog (a burning body gets wet), freeze (a wet body is chilled), overload (a
+                    // burning body is shocked). The held element shows first, as it does in play.
+                    struct FReactShot { const TCHAR* Name; ELDCombatReaction Kind; ELDDemoStatusId Held; ELDCombatElement Element; ELDObservedHitLook Hit; };
+                    const auto HeldOf = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, ELDDemoStatusId Id)
+                    {
+                        return [Body, Id]()
+                        {
+                            if (auto* B = Body.Get())
+                            {
+                                TArray<FLDObservedStatus> Statuses;
+                                if (Id != ELDDemoStatusId(0)) { Statuses.AddDefaulted_GetRef().StatusId = uint8(Id); }
+                                B->SetElementStates(Statuses);
+                            }
+                        };
+                    };
+                    const auto ReactOf = [this](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, ELDCombatReaction Kind, ELDCombatElement Element, double Stamp)
+                    { return [this, Body, Kind, Element, Stamp]() { if (auto* B = Body.Get()) { B->SetReaction(uint8(Kind), uint8(Element), 0.f, Stamp + ChainJob); } }; };
+                    const auto DryOff = [HeldOf, V1, V3, Home]() { HeldOf(V1, ELDDemoStatusId(0))(); HeldOf(V3, ELDDemoStatusId(0))(); Home(); };
+                    int32 CaseNumber = 0;
+                    for (const FReactShot& Case : {
+                        FReactShot{TEXT("fog"), ELDCombatReaction::Fog, ELDDemoStatusId::Burn, ELDCombatElement::Water, ELDObservedHitLook::Water},
+                        FReactShot{TEXT("freeze"), ELDCombatReaction::Freeze, ELDDemoStatusId::Wet, ELDCombatElement::Chill, ELDObservedHitLook::Magic},
+                        FReactShot{TEXT("overload"), ELDCombatReaction::Overload, ELDDemoStatusId::Burn, ELDCombatElement::Shock, ELDObservedHitLook::Electric}})
+                    {
+                        ++CaseNumber;
+                        ChainJobs.Add({Look, FString(TEXT("react-")) + Case.Name, {{0.f, HeldOf(V1, Case.Held)}, {.5f, HitOf(V1, Case.Hit)}, {.52f, HeldOf(V1, ELDDemoStatusId(0))},
+                            {.52f, ReactOf(V1, Case.Kind, Case.Element, 2000. + 10. * CaseNumber)}}, Ahead(220.), DryOff, false, .62f, .4f, 54});
+                        ChainJobs.Add({Look, FString(TEXT("react-")) + Case.Name + TEXT("-other"), {{0.f, HeldOf(V3, Case.Held)}, {.52f, HeldOf(V3, ELDDemoStatusId(0))},
+                            {.52f, ReactOf(V3, Case.Kind, Case.Element, 2005. + 10. * CaseNumber)}}, nullptr, DryOff, false, .62f, .4f, 54});
                     }
                 }
                 else if (Look == TEXT("packs"))
@@ -1484,6 +1519,7 @@ namespace
                     TEXT("skills"),
                     TEXT("self"),
                     TEXT("packs"),
+                    TEXT("reactions"),
                 };
                 bool bLookOnly = false;
                 for (const TCHAR* Category : LookOnly) { bLookOnly |= Look == Category; }
@@ -1843,12 +1879,12 @@ namespace
             if (Current.ReactionElement != 0)
             {
                 const int32 Before = Impacts ? Impacts->LiveLayerCount() : 0;
-                Victim->SetReaction(uint8(ELDCombatReaction::Overload), Current.ReactionElement, .03f, 100. + Shot);
+                Victim->SetReaction(uint8(ELDCombatReaction::Methane), Current.ReactionElement, .03f, 100. + Shot);
                 Victim->Animate(FVector::ZeroVector, 0.f);
                 Check(Impacts && Impacts->LiveLayerCount() - Before == LDHitVfx::ForReaction(Current.ReactionElement, 1.f, Impacts->LayerTuning()).Layers.Num(),
                     TEXT("A fresh element reaction flashes its layers once"));
                 const int32 After = Impacts ? Impacts->LiveLayerCount() : 0;
-                Victim->SetReaction(uint8(ELDCombatReaction::Overload), Current.ReactionElement, .05f, 100. + Shot);
+                Victim->SetReaction(uint8(ELDCombatReaction::Methane), Current.ReactionElement, .05f, 100. + Shot);
                 Victim->Animate(FVector::ZeroVector, 0.f);
                 Check(Impacts && Impacts->LiveLayerCount() == After, TEXT("The same reaction seen again adds nothing"));
             }
