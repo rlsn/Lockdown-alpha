@@ -21,7 +21,8 @@ namespace
         TEXT("HitWater"), TEXT("HitMagic"), TEXT("CastCharge"), TEXT("CastRelease"), TEXT("SelfDealtCrit"), TEXT("SelfDealtKill"),
         TEXT("ReactionFog"), TEXT("ReactionConduct"), TEXT("ReactionOverload"), TEXT("ReactionMelt"), TEXT("ReactionMethane"),
         TEXT("ReactionFreeze"), TEXT("ReactionFerment"), TEXT("ReactionShatter"), TEXT("ReactionCorrode"), TEXT("ReactionFrostbite"),
-        TEXT("StateBurn"), TEXT("StateWet"), TEXT("StateShock"), TEXT("StateChill"), TEXT("StateRot"), TEXT("MatchStart"), TEXT("BodyFall")
+        TEXT("StateBurn"), TEXT("StateWet"), TEXT("StateShock"), TEXT("StateChill"), TEXT("StateRot"), TEXT("MatchStart"), TEXT("BodyFall"),
+        TEXT("GroundPuddle"), TEXT("GroundIce"), TEXT("GroundFire"), TEXT("GroundMiasma"), TEXT("GroundField")
     };
     static_assert(UE_ARRAY_COUNT(AudioCueIds) == int32(ELDAudioCue::Count), "Every cue number needs exactly one stable id or a retired hole.");
 
@@ -42,13 +43,13 @@ namespace
     static_assert(UE_ARRAY_COUNT(BusIds) == LDAudio::BusCount, "Every bus needs exactly one stable id.");
 
     // A one-shot non-spatial take on Class with a short finite duration.
-    bool CheckTake(const USoundWave* Sound, const USoundClass* Class, const FString& What, FString& Error)
+    bool CheckTake(const USoundWave* Sound, const USoundClass* Class, const FString& What, FString& Error, bool bLoop = false)
     {
         if (!Sound) { Error = What + TEXT(" has no sound."); return false; }
         if (Sound->SoundClassObject != Class)
         { Error = FString::Printf(TEXT("%s (%s) is not routed to %s."), *What, *Sound->GetPathName(), *GetNameSafe(Class)); return false; }
-        if (Sound->bLooping || Sound->AttenuationSettings)
-        { Error = FString::Printf(TEXT("%s (%s) must be a one-shot non-spatial sound."), *What, *Sound->GetPathName()); return false; }
+        if (Sound->bLooping != bLoop || Sound->AttenuationSettings)
+        { Error = FString::Printf(TEXT("%s (%s) must be a %s sound without its own attenuation."), *What, *Sound->GetPathName(), bLoop ? TEXT("looping") : TEXT("one-shot")); return false; }
         if (!(Sound->Duration > 0.f) || Sound->Duration > 30.f)
         { Error = FString::Printf(TEXT("%s (%s) has no short finite audio duration (%.3f s)."), *What, *Sound->GetPathName(), Sound->Duration); return false; }
         return true;
@@ -95,6 +96,17 @@ bool LDAudio::ParseMusicTrackId(const FString& Id, ELDMusicTrack& Out)
 bool LDAudio::MusicTrackLoops(ELDMusicTrack Track)
 {
     return Track == ELDMusicTrack::Menu || Track == ELDMusicTrack::Escalation;
+}
+
+bool LDAudio::CueLoops(ELDAudioCue Cue)
+{
+    return Cue >= ELDAudioCue::GroundPuddle && Cue <= ELDAudioCue::GroundField;
+}
+
+ELDAudioCue LDAudio::GroundLoopCue(uint8 Kind)
+{
+    // ELDGroundStateKind: 1 Puddle, 2 Ice, 3 Fire, 4 Miasma, 5 Field.
+    return Kind >= 1 && Kind <= 5 ? ELDAudioCue(uint8(ELDAudioCue::GroundPuddle) + Kind - 1) : ELDAudioCue::None;
 }
 
 bool LDAudio::IsPlayableCue(ELDAudioCue Cue)
@@ -173,11 +185,11 @@ bool ULDAudioCatalog::Resolve(FResolved& Out, FString& Error) const
         { Error = FString::Printf(TEXT("Entry %d is %s, expected %s."), Index, *LDAudio::CueId(Entry.Cue), *Id); return false; }
         const USoundClass* Class = Out.Buses[int32(BusOf(Expected))];
         TArray<USoundWave*>& Takes = Out.Cues[int32(Expected)];
-        if (!CheckTake(Entry.Sound, Class, TEXT("Cue ") + Id, Error)) { return false; }
+        if (!CheckTake(Entry.Sound, Class, TEXT("Cue ") + Id, Error, LDAudio::CueLoops(Expected))) { return false; }
         Takes.Add(Entry.Sound);
         for (const TObjectPtr<USoundWave>& Variant : Entry.Variants)
         {
-            if (!CheckTake(Variant, Class, TEXT("A take of cue ") + Id, Error)) { return false; }
+            if (!CheckTake(Variant, Class, TEXT("A take of cue ") + Id, Error, LDAudio::CueLoops(Expected))) { return false; }
             Takes.Add(Variant);
         }
     }

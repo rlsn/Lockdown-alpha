@@ -30,6 +30,9 @@ namespace
     constexpr int32 StateVoices = 3;
     constexpr int32 InterfaceVoices = 2;
     constexpr float RetriggerSeconds = .025f;
+    // Ground loops: the two nearest of a kind play (a rain day lays many puddles at once); a loop fades over this.
+    constexpr int32 GroundVoices = 2;
+    constexpr float GroundFadeSeconds = .3f;
 }
 
 bool ULDAudioSubsystem::ShouldCreateSubsystem(UObject* Outer) const
@@ -249,10 +252,12 @@ USoundConcurrency* ULDAudioSubsystem::ConcurrencyOf(const FString& What, bool bI
     const FName Key(*What);
     if (TObjectPtr<USoundConcurrency>* Found = Concurrency.Find(Key)) { return *Found; }
     USoundConcurrency* Group = NewObject<USoundConcurrency>(this);
-    Group->Concurrency.MaxCount = bInterface ? InterfaceVoices
+    const bool bGround = What.StartsWith(TEXT("Ground"));
+    Group->Concurrency.MaxCount = bInterface ? InterfaceVoices : bGround ? GroundVoices
         : What.StartsWith(TEXT("State")) || What.StartsWith(TEXT("Reaction")) ? StateVoices : SoundVoices;
-    Group->Concurrency.ResolutionRule = EMaxConcurrentResolutionRule::StopOldest;
-    Group->Concurrency.RetriggerTime = RetriggerSeconds;
+    // A loop keeps playing: the farthest ground gives way, not the one the player just walked up to.
+    Group->Concurrency.ResolutionRule = bGround ? EMaxConcurrentResolutionRule::StopFarthestThenOldest : EMaxConcurrentResolutionRule::StopOldest;
+    Group->Concurrency.RetriggerTime = bGround ? 0.f : RetriggerSeconds;
     Concurrency.Add(Key, Group);
     return Group;
 }
@@ -306,6 +311,22 @@ UAudioComponent* ULDAudioSubsystem::Start(ELDAudioCue Cue, bool bSpatial, const 
     UAudioComponent* Playing = nullptr;
     if (Take != INDEX_NONE) { Emit(LDAudio::CueId(Cue), Take, bSpatial, Location, VolumeMultiplier, 1.f, false, &Playing); }
     return Playing;
+}
+
+void ULDAudioSubsystem::StartGroundLoop(const AActor& Ground, uint8 Kind, const FVector& Centre)
+{
+    StopGroundLoop(Ground);
+    const ELDAudioCue Cue = LDAudio::GroundLoopCue(Kind);
+    if (Cue == ELDAudioCue::None) { return; }
+    if (UAudioComponent* Playing = Start(Cue, true, Centre)) { GroundLoops.Add(&Ground, Playing); }
+}
+
+void ULDAudioSubsystem::StopGroundLoop(const AActor& Ground)
+{
+    TWeakObjectPtr<UAudioComponent> Playing;
+    if (!GroundLoops.RemoveAndCopyValue(&Ground, Playing)) { return; }
+    // The component destroys itself once faded (spawned auto-destroying).
+    if (UAudioComponent* Component = Playing.Get()) { Component->FadeOut(GroundFadeSeconds, 0.f); }
 }
 
 bool ULDAudioSubsystem::PlayBusPreview(ELDAudioBus Bus)
