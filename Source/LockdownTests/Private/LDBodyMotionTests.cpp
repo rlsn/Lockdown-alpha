@@ -233,32 +233,6 @@ bool FLDBodyMotionTimelinesTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Reset returns every field to its starting value"), LDHitFeel::IsAllDefault() && LDHitFeel::Read().bWords
         && LDHitFeel::Read().bPredictSwing && LDHitFeel::Read().PredictGraceMs==150);
 
-    const LDHitFeel::FTuning Feel=LDHitFeel::Read();
-    const auto BurstPlain=LDImpactFx::Plan(ELDObservedHitLook::None,0,Feel,1.f);
-    const auto BurstCrit=LDImpactFx::Plan(ELDObservedHitLook::None,LDObservation::Critical,Feel,1.f);
-    const auto BurstShield=LDImpactFx::Plan(ELDObservedHitLook::None,LDObservation::ShieldAbsorbed|LDObservation::ShieldBroken,Feel,1.f);
-    const auto BurstReduced=LDImpactFx::Plan(ELDObservedHitLook::None,0,Feel,.45f);
-    LDHitFeel::FTuning Off=Feel;
-    Off.ImpactScale=0.f;
-    TestTrue(TEXT("A critical hit bursts more sparks and a broken shield adds shards"),
-        BurstPlain.bEnabled && BurstCrit.Sparks>BurstPlain.Sparks && BurstCrit.SpeedScale>BurstPlain.SpeedScale
-        && BurstShield.Shards>0 && BurstPlain.Shards==0);
-    TestTrue(TEXT("Reduced effects thin the layers and zero or invalid settings disable them"),
-        BurstReduced.Sparks<BurstPlain.Sparks && BurstReduced.Smoke<BurstPlain.Smoke && BurstReduced.Scale<BurstPlain.Scale
-        && !LDImpactFx::Plan(ELDObservedHitLook::None,0,Off,1.f).bEnabled
-        && !LDImpactFx::Plan(ELDObservedHitLook::None,0,Feel,NaN).bEnabled);
-    LDHitFeel::FTuning Adjusted=Feel;
-    Adjusted.ImpactSpeed*=2.f; Adjusted.ImpactSeconds*=2.f; Adjusted.ImpactGlow*=2.f;
-    const auto BurstAdjusted=LDImpactFx::Plan(ELDObservedHitLook::None,0,Adjusted,1.f);
-    TestTrue(TEXT("Live speed, duration and brightness changes reach the Niagara parameters"),
-        FMath::IsNearlyEqual(BurstAdjusted.SpeedScale,BurstPlain.SpeedScale*2.f)
-        && FMath::IsNearlyEqual(BurstAdjusted.LifeScale,BurstPlain.LifeScale*2.f)
-        && FMath::IsNearlyEqual(BurstAdjusted.SparkColour.R,BurstPlain.SparkColour.R*2.f));
-    TestTrue(TEXT("Shields burst cyan whatever the hit's look"),
-        LDImpactFx::Colour(ELDObservedHitLook::Fire,LDObservation::ShieldAbsorbed,LDImpactFx::EKind::Spark)
-            ==LDImpactFx::Colour(ELDObservedHitLook::None,0,LDImpactFx::EKind::Shard)
-        && LDImpactFx::Colour(ELDObservedHitLook::Fire,0,LDImpactFx::EKind::Spark)!=LDImpactFx::Colour(ELDObservedHitLook::None,0,LDImpactFx::EKind::Spark));
-
     // The own swing prediction: starts when due and engaged, confirms on the authority's start, else withdraws.
     using LDHitFeel::ESwingStep;
     LDHitFeel::FSwingFacts Due;

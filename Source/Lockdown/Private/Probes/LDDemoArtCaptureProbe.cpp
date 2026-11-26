@@ -587,13 +587,6 @@ namespace
         {
             auto* Impacts = Target.GetSubsystem<ULDImpactFxSubsystem>();
             const ULDCombatVfxCatalog* Effects = Impacts ? Impacts->GetCatalog() : nullptr;
-            UNiagaraSystem* Impact = Effects ? Effects->Impact.Get() : nullptr;
-            if (!Check(Impact != nullptr, TEXT("The authored impact effect is available"))) { return false; }
-#if WITH_EDITORONLY_DATA
-            // Editor builds may still be compiling the system; a cooked package carries it compiled.
-            Impact->WaitForCompilationComplete(true, false);
-#endif
-            if (!Check(Impact->IsReadyToRun(), TEXT("The authored impact effect compiled"))) { return false; }
             UNiagaraSystem* Trail = Effects ? Effects->SwingTrail.Get() : nullptr;
             if (!Check(Trail != nullptr, TEXT("The authored swing trail is available"))) { return false; }
 #if WITH_EDITORONLY_DATA

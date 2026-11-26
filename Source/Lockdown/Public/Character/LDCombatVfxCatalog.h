@@ -13,7 +13,6 @@ class LOCKDOWN_API ULDCombatVfxCatalog : public UDataAsset
     GENERATED_BODY()
 public:
     static constexpr const TCHAR* AssetPath = TEXT("/Game/Lockdown/Art/VFX/DA_CombatVfx.DA_CombatVfx");
-    UPROPERTY(EditAnywhere, Category="Combat VFX") TObjectPtr<UNiagaraSystem> Impact;
     // The ribbon of dashes and flights (the basic swing is the designed slash, LDSliceVfx).
     UPROPERTY(EditAnywhere, Category="Combat VFX") TObjectPtr<UNiagaraSystem> SwingTrail;
     // The particle kit (LDHitVfx::FBurst / FZone): skill releases, element hits, launches, landings, dashes and falls.
