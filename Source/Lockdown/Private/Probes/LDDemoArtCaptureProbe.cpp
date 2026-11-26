@@ -1507,12 +1507,15 @@ namespace
                             Reel.Steps.Add({Start + 5.2f, Cast(V2)});
                             Reel.Steps.Add({Start + 5.47f, Hit(A2)});
                             Reel.Steps.Add({Start + 5.62f, Hit(V3)});
-                            const ELDCombatReaction BrawlReactions[] = {ELDCombatReaction::Conduct, ELDCombatReaction::Melt, ELDCombatReaction::Overload, ELDCombatReaction::Shatter};
+                            // Each reaction with the element that triggers it, as in the reaction section above.
+                            const TPair<ELDCombatReaction, ELDCombatElement> BrawlReactions[] = {{ELDCombatReaction::Conduct, ELDCombatElement::Shock},
+                                {ELDCombatReaction::Melt, ELDCombatElement::Fire}, {ELDCombatReaction::Overload, ELDCombatElement::Shock},
+                                {ELDCombatReaction::Shatter, ELDCombatElement::Chill}};
                             for (int32 Index = 0; Index < 4; ++Index)
                             {
-                                const uint8 Reaction = uint8(BrawlReactions[Index]);
+                                const uint8 Reaction = uint8(BrawlReactions[Index].Key), Element = uint8(BrawlReactions[Index].Value);
                                 const double Stamp = 3000. + Index;
-                                Reel.Steps.Add({Start + 1.5f + Index * 2.7f, [V3, Reaction, Stamp]() { if (auto* B = V3.Get()) { B->SetReaction(Reaction, uint8(ELDCombatElement::Shock), 0.f, Stamp); } }});
+                                Reel.Steps.Add({Start + 1.5f + Index * 2.7f, [V3, Reaction, Element, Stamp]() { if (auto* B = V3.Get()) { B->SetReaction(Reaction, Element, 0.f, Stamp); } }});
                             }
                             Reel.Steps.Add({Start + 2.f, [V2]() { if (auto* B = V2.Get()) { FLDObservedStatus On; On.StatusId = uint8(ELDDemoStatusId::Burn); B->SetElementStates({On}); } }});
                             Reel.Steps.Add({Start + 8.f, [V2]() { if (auto* B = V2.Get()) { B->SetElementStates({}); } }});

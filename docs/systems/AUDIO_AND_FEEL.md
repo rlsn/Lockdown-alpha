@@ -180,7 +180,7 @@ Kenney 的 Impact、Interface、RPG、Sci-Fi 全包（CC0）由用户决定采�
 | 环境氛围 | NOT STARTED | — | — |
 | 音乐 | IMPLEMENTED | 用户提供的三首 | — |
 | 总线与设置 API | IMPLEMENTED | §3 | 设置页 UI 由 Stream A 做 |
-| 并发、优先级、衰减、空间化 | IMPLEMENTED | §3 | 多人混战未实测 |
+| 并发、优先级、衰减、空间化 | LOCALLY VERIFIED | §3 | 6 体混战（试听卷末尾固定 12 秒：本人连招与确认层、双向技能、反应、着火、两处地面循环；另一路渲染同时在跑）：107 个声音、400 ms 内最多 9 个起音，峰值 −9.3 dBFS、无削波，400 ms 响度 p95 −25.7 dBFS（单个事件 −26.7），不叠加成糊；未听感验收 |
 
 ### 7.2 动画
 
@@ -200,6 +200,7 @@ Kenney 的 Impact、Interface、RPG、Sci-Fi 全包（CC0）由用户决定采�
 | 本人命中停顿（普通/暴击/击杀/破盾） | IMPLEMENTED | `ld.Feel.*HitStopMs`（60/100/160/90 ms），只停本人出手姿态，不停输入、移动与权威时间；样板中已被用户接受 | 数值是起点值，未正式批准 |
 | 推镜 | IMPLEMENTED | `ld.Feel.KickCm/KickMs`（6 cm、120 ms，击杀 2 倍），设置“镜头震动”可关，“降低战斗特效”减到 45 %；受击方从不推镜（#286） | 起点值 |
 | 实机验证顿帧、推镜、边缘闪光（1080p） | LOCALLY VERIFIED | 真实拥有连接的 1v1 战斗（`RunDemoCombatCheck.ps1 -CaptureOnly`，`CaptureFeelSample.ps1 -Scenario combat` 录可见窗口与扬声器）：15 次本人命中确认、5 次终结、1 次击杀（击杀重音、全场播报、倒地、升级）；全程红色受伤边缘只出现 2 次、各 70–100 ms，无战斗长闪；逐帧画面位移中位 0、p99 约 8 px（1920 宽，含跟随镜头） | `production/feel/combat-real-fight-1080p/`；“镜头震动”关与“降低特效”档位的对比录制未做；未经用户验收 |
+| 推镜 A/B（关镜头震动） | LOCALLY VERIFIED | `CaptureFeelSample.ps1 -Scenario combat -CombatFeel NoShake`（`RunDemoCombatCheck.ps1 -Feel`）录关掉镜头震动的同一场真实战斗；`Reduced` 录降低战斗特效 | 两段 1080p 录像逐帧相位相关：推镜 6 cm 在比赛镜头距离下小于 4 px 测量步长，开与关的帧位移分布无可测差别（大位移只有复活等镜头切换）；是否有感由用户看录像判断 |
 | 混音：真实对局 | LOCALLY VERIFIED（1v1） | 同一录制（含音乐）：峰值 −3.6 dBFS、无削波，400 ms 响度中位 −25.3、p95 −22.8、最大 −21.5 dBFS，命中不叠加冲高 | 6 人同屏混战暂无可录的拥有连接入口（AI 满房只有空闲主机），未验证 |
 | 屏幕边缘闪光与色散 | IMPLEMENTED | 只在击杀、暴击、破盾时出现（`LDHitVfx::ScreenFlashOf`）；本人受击只有很淡的红边；降低特效时关闭 | 起点值 |
 
