@@ -9,6 +9,7 @@
 #include "Dom/JsonObject.h"
 #include "Engine/World.h"
 #include "Framework/LDGameState.h"
+#include "Region/LDMapRegistry.h"
 #include "Framework/LDBuildBlueprintComponent.h"
 #include "Framework/LDGameMode.h"
 #include "Character/LDCharacter.h"
@@ -666,24 +667,76 @@ public:
             {if(View.Lockers.IsEmpty()){return false;}Site=View.Lockers[0].PositionCm;return true;},85.,true);
         FieldSite(TEXT("Match_Arena"),[](const FLDPublicMatchView& View,FVector& Site)
             {Site=View.Objective.CentreCm;return View.Objective.Kind==ELDObjectiveKind::Arena&&(View.Objective.Phase==ELDObjectivePhase::Announced||View.Objective.Phase==ELDObjectivePhase::Open);},110.);
+        // The second-hand dealer: the match plans its time and camp (ALDGameMode::GetPeddler, often late in the second
+        // field or in the third), so the stage clock runs until it has come out, through a rest if need be. Then, in the
+        // field only, the host jumps beside its camp, is shot with it, beats it (the DEV attack term again) and is shot
+        // with the three-pick it pays.
         Pages.Add({TEXT("Match_Peddler"),[this](ALDPlayerController& PC,double Now)
             {
-                // The second-hand dealer once it has come out (a camp body named for it): the host jumps beside it.
                 if(Once(Now,0)){Dev(PC,ELDDevTestOp::SetCountdownPaused,0);HeldAt=-1.;}
-                const ALDCharacter* Dealer=nullptr;
+                const auto* Mode=PC.GetWorld()->GetAuthGameMode<ALDGameMode>();
+                const auto* Registry=PC.GetWorld()->GetSubsystem<ULDMapRegistry>();
+                if(!Mode||!Registry||!Mode->GetPeddler().bSpawned||Mode->GetPeddler().bGone||!InPhase(PC,ELDMatchPhase::Development)){return false;}
+                const FLDMapBinding* Camp=Registry->Resolve(Mode->GetPeddler().CampAnchor,Registry->Generation);
+                if(!Camp){return false;}
+                DealerSite=Camp->Position;
+                if(HeldAt<0.){HeldAt=Now;Dev(PC,ELDDevTestOp::SetCountdownPaused,1);}
+                static const FVector Beside[]={FVector(-300,0,0),FVector(0,300,0),FVector(220,-220,0)};
+                for(int32 Try=0;Try<3;++Try)
+                {
+                    if(Now-HeldAt>=.6+Try*1.&&Once(Now,1+Try))
+                    {
+                        const APawn* Self=PC.GetPawn();
+                        if(Self&&FVector::Dist2D(Self->GetActorLocation(),DealerSite)<420.){break;}
+                        ELDGrowthReason Reason=ELDGrowthReason::None;
+                        PC.SubmitDevTest(ELDDevTestOp::TeleportToCamera,0,Reason,NAME_None,0,0,DealerSite+Beside[Try]+FVector(0,0,120));
+                    }
+                }
+                return Now-HeldAt>=4.5;
+            },420.});
+        Pages.Add({TEXT("Match_PeddlerReward"),[this](ALDPlayerController& PC,double Now)
+            {
+                const auto* Mode=PC.GetWorld()->GetAuthGameMode<ALDGameMode>();
+                if(!Mode||!PC.Navigation){return false;}
+                if(Once(Now,0))
+                {
+                    HeldAt=-1.;
+                    ELDGrowthReason Reason=ELDGrowthReason::None;
+                    PC.SubmitDevTest(ELDDevTestOp::SetAttribute,150000,Reason,NAME_None,0,uint8(ELDDemoBonusStat::ADFlat));
+                }
+                // The dealer's body by its camp: once it has been clicked and no body stands there any more, it is beaten
+                // (the plan's own flags only tell that it came out and that its time ran out).
+                const ALDCharacter* Dealer=nullptr;double Best=FMath::Square(900.);
                 for(TActorIterator<ALDCampMemberCharacter> It(PC.GetWorld());It;++It)
                 {
-                    if(It->GetName().Contains(TEXT("peddler"),ESearchCase::IgnoreCase)||It->Tags.Contains(FName(TEXT("peddler")))){Dealer=*It;break;}
+                    const double Distance=FVector::DistSquared2D(It->GetActorLocation(),DealerSite);
+                    if(!It->IsHidden()&&Distance<Best){Best=Distance;Dealer=*It;}
                 }
-                if(!Dealer||!InPhase(PC,ELDMatchPhase::Development)){return false;}
-                if(HeldAt<0.){HeldAt=Now;}
-                if(Now-HeldAt>=.3&&Once(Now,1))
+                // Only a dealer this page clicked counts: without one the page times out and is reported as missed.
+                if(!Dealer&&bDealerClicked)
                 {
-                    ELDGrowthReason Reason=ELDGrowthReason::None;
-                    PC.SubmitDevTest(ELDDevTestOp::TeleportToCamera,0,Reason,NAME_None,0,0,Dealer->GetActorLocation()+FVector(-260,0,120));
+                    if(HeldAt<0.){HeldAt=Now;PC.Navigation->DevSetPointer(TOptional<FVector2D>());}
+                    return Now-HeldAt>=2.5;
                 }
-                return Now-HeldAt>=2.5;
-            },25.});
+                for(int32 Try=0;Try<25;++Try)
+                {
+                    if(!Once(Now,1+Try,1.+Try*1.2)){continue;}
+                    if(Dealer){bDealerClicked=true;}
+                    FVector2D Screen;
+                    if(Dealer&&PC.ProjectWorldLocationToScreen(Dealer->GetActorLocation(),Screen)){PC.Navigation->DevSetPointer(Screen);PC.Navigation->ClickMove();}
+                }
+                return false;
+            },45.});
+        Pages.Add({TEXT("Match_PeddlerEnd"),[this](ALDPlayerController& PC,double Now)
+            {
+                if(Once(Now,0))
+                {
+                    if(PC.Navigation){PC.Navigation->DevSetPointer(TOptional<FVector2D>());}
+                    ELDGrowthReason Reason=ELDGrowthReason::None;
+                    PC.SubmitDevTest(ELDDevTestOp::SetAttribute,0,Reason,NAME_None,0,uint8(ELDDemoBonusStat::ADFlat));
+                }
+                return Settled(Now,1.2);
+            },10.,false});
         // Back in the field the stage clock is held again, so the next rest does not arrive under the pages below.
         Pages.Add({TEXT("Match_Scoreboard"),[this](ALDPlayerController& PC,double Now)
             {
@@ -832,6 +885,8 @@ public:
     ESlateVisibility RootShown=ESlateVisibility::SelfHitTestInvisible,HudShown=ESlateVisibility::SelfHitTestInvisible;
     double KillBase=-1.,KillSeenAt=-1.,StageBase=-1.,HeldAt=-1.;
     TWeakObjectPtr<ALDCharacter> PosedBody;
+    FVector DealerSite=FVector::ZeroVector;
+    bool bDealerClicked=false;
     TArray<TWeakObjectPtr<AActor>> HiddenBodies;
     double DeadAt=0.;
 
