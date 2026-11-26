@@ -384,21 +384,23 @@ void LDUIPaint::Button(FSlateWindowElementList& Elements,int32 Layer,const FGeom
     const bool bHot=State.bEnabled&&State.bHovered;
     const bool bDown=State.bEnabled&&State.bPressed;
     const FLinearColor Accent=LDBroadcast::Orange;
+    // A press pushes the slab two units down and right, as if it gave way under the finger.
+    const FBox2D Face=bDown?Box.ShiftBy(FVector2D(2.,2.)):Box;
     const auto Slab=[&](const FLinearColor& Fill,int32 At)
-    {Polygon(Elements,At,Geometry,InnerSlab(Box),FFill::Solid(Fill),Opacity);};
+    {Polygon(Elements,At,Geometry,InnerSlab(Face),FFill::Solid(Fill),Opacity);};
     const auto Ruled=[&](const FLinearColor& Fill,const FLinearColor& Rule,float Width)
     {
         // A slab with a rule of Width inside its edge: the rule colour first, the fill inset by Width over it.
         Slab(Rule,Layer);
-        const FBox2D Inner(Box.Min+FVector2D(Width*1.6f,Width),Box.Max-FVector2D(Width*1.6f,Width));
+        const FBox2D Inner(Face.Min+FVector2D(Width*1.6f,Width),Face.Max-FVector2D(Width*1.6f,Width));
         if(Inner.GetSize().X>2.f&&Inner.GetSize().Y>2.f){Polygon(Elements,Layer+1,Geometry,InnerSlab(Inner),FFill::Solid(Fill),Opacity);}
     };
     switch(Look)
     {
     case EButton::Primary:
     {
-        // On air: the one orange slab (what you can do now); hover lifts it to white, a press dips it to the panel ink.
-        Slab(bDown?LDBroadcast::Raised:bHot?LDBroadcast::White:Accent,Layer);
+        // On air: the one orange slab (what you can do now); hover lifts it to white, a press dips it to a deep orange.
+        Slab(bDown?Accent*FLinearColor(.62f,.62f,.62f,1.f):bHot?LDBroadcast::White:Accent,Layer);
         return;
     }
     case EButton::White:
@@ -424,9 +426,10 @@ void LDUIPaint::Button(FSlateWindowElementList& Elements,int32 Layer,const FGeom
     }
     default:
     {
-        // The plain command: a panel slab; hovering draws the 2 px white rule, a press darkens it to ink.
+        // The plain command: a panel slab; hovering draws the 2 px white rule, a press darkens it to ink inside an orange rule.
         if(bHot&&!bDown){Ruled(LDBroadcast::Raised,LDBroadcast::White,LDBroadcast::RuleWidth);return;}
-        Slab(bDown?LDBroadcast::Ink:LDBroadcast::Panel,Layer);
+        if(bDown){Ruled(LDBroadcast::Ink,Accent,LDBroadcast::RuleWidth);return;}
+        Slab(LDBroadcast::Panel,Layer);
         return;
     }
     }

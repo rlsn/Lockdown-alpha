@@ -1,6 +1,8 @@
 [CmdletBinding()]
 param([string]$EngineRoot,[string]$PackageRoot,[ValidateSet('Frontend','Match','All')][string]$Part='All',
-    [ValidateRange(120,1800)][int]$TimeoutSeconds=1500,[switch]$OnScreen)
+    [ValidateRange(120,1800)][int]$TimeoutSeconds=1500,[switch]$OnScreen,
+    # The host signs up for the first rest's PK itself (an entrant's views) instead of watching and betting.
+    [switch]$Entrant)
 # Rendered review captures for the UI coverage list (docs/systems/VISION_AND_UI.md 表现层覆盖清单): the frontend pages
 # (main menu, how to play, codex, start page, settings tabs, exit confirmation) and a solo Listen Host room (Lobby, opening
 # rest, field HUD, held scoreboard, in-match menu, settings, final field, results and an inspected seat), each at
@@ -22,7 +24,7 @@ $wire=[int]$Matches[1]
 $version=Get-LDProjectVersion
 $digest=(Get-FileHash -LiteralPath (Join-Path (Get-LDProjectRoot) 'Content\Lockdown\Data\Demo\manifest.json') -Algorithm SHA256).Hash.ToLowerInvariant()
 $guestUrl='127.0.0.1:{0}?LDName=Guest?LDWire={1}?LDProduct={2}?LDCatalog={3}' -f $port,$wire,$version,$digest
-if($Part -in 'Match','All'){$runs+=[pscustomobject]@{Name='Match';Url='/Game/Lockdown/Generated/Maps/L_Demo?listen?LDName=UICoverage';Extra="-LDDevGrowthFixture -port=$port -multihome=127.0.0.1"}}
+if($Part -in 'Match','All'){$runs+=[pscustomobject]@{Name='Match';Url='/Game/Lockdown/Generated/Maps/L_Demo?listen?LDName=UICoverage';Extra="-LDDevGrowthFixture -port=$port -multihome=127.0.0.1$(if($Entrant){' -LDUICoverageEntrant'})"}}
 $failed=@()
 foreach($run in $runs){
     $log=Join-Path $output "$($run.Name).log"
