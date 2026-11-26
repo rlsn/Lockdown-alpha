@@ -2497,8 +2497,8 @@
         }
       ],
       "purpose": "地面水洼：一处显示中的水洼持续的轻水声（循环）",
-      "level_db": -12.0,
-      "volume": 0.519,
+      "level_db": -6.0,
+      "volume": 1.036,
       "loudness_lufs": -22.98
     },
     {
@@ -2511,8 +2511,8 @@
         }
       ],
       "purpose": "地面冰面：冷风与微弱冰晶声（循环）",
-      "level_db": -12.0,
-      "volume": 0.512,
+      "level_db": -6.0,
+      "volume": 1.022,
       "loudness_lufs": -22.86
     },
     {
@@ -2525,8 +2525,8 @@
         }
       ],
       "purpose": "地面火：噼啪火声与低沉火势（循环）",
-      "level_db": -12.0,
-      "volume": 0.794,
+      "level_db": -6.0,
+      "volume": 1.585,
       "loudness_lufs": -26.67
     },
     {
@@ -2539,8 +2539,8 @@
         }
       ],
       "purpose": "地面瘴气：低沉毒雾嗡鸣与慢冒泡（循环）",
-      "level_db": -12.0,
-      "volume": 0.796,
+      "level_db": -6.0,
+      "volume": 1.588,
       "loudness_lufs": -26.69
     },
     {
@@ -2553,8 +2553,8 @@
         }
       ],
       "purpose": "地面电场：电流嗡鸣与噼啪（循环）",
-      "level_db": -12.0,
-      "volume": 0.398,
+      "level_db": -6.0,
+      "volume": 0.794,
       "loudness_lufs": -20.67
     }
   ],

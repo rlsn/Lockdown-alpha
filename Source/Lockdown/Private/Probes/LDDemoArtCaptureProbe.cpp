@@ -1443,6 +1443,113 @@ namespace
                             Reel.Steps.Add({At + .8f, [V1]() { if (auto* B = V1.Get()) { B->SetElementStates({}); } }});
                             At += 1.f;
                         }
+                        // Each ground state's loop: a 220 cm state under V1 shown for 2 s, then removed (its loop fades out).
+                        struct FReelGround { ELDGroundStateKind Kind; const TCHAR* Name; };
+                        const FReelGround Grounds[] = {{ELDGroundStateKind::Puddle, TEXT("地面 水洼")}, {ELDGroundStateKind::Ice, TEXT("地面 冰面")},
+                            {ELDGroundStateKind::Fire, TEXT("地面 火")}, {ELDGroundStateKind::Miasma, TEXT("地面 瘴气")}, {ELDGroundStateKind::Field, TEXT("地面 电场")}};
+                        uint8 GroundId = 60;
+                        for (const FReelGround& Item : Grounds)
+                        {
+                            const uint8 Kind = uint8(Item.Kind), Id = GroundId++;
+                            const TSharedRef<TWeakObjectPtr<ALDObservedGroundProxy>> Shown = MakeShared<TWeakObjectPtr<ALDObservedGroundProxy>>();
+                            Reel.Steps.Add({At, Label(Item.Name)});
+                            Reel.Steps.Add({At, [this, V1, Kind, Id, Shown]()
+                            {
+                                auto* B = V1.Get();
+                                FActorSpawnParameters Spawn;
+                                Spawn.ObjectFlags |= RF_Transient;
+                                ALDObservedGroundProxy* Ground = B ? World->SpawnActor<ALDObservedGroundProxy>(Spawn) : nullptr;
+                                if (!Check(Ground != nullptr, TEXT("Reel ground state proxy spawned"))) { return; }
+                                FLDObservedGroundState State;
+                                State.Id = Id;
+                                State.Kind = Kind;
+                                State.CentreCm = B->GetOwner()->GetActorLocation() - FVector(0, 0, 90);
+                                State.RadiusCm = 220.f;
+                                State.RemainingMs = State.TotalMs = 2400;
+                                Ground->Apply(State, 100.);
+                                *Shown = Ground;
+                            }});
+                            Reel.Steps.Add({At + 2.f, [Shown]() { if (ALDObservedGroundProxy* Ground = Shown->Get()) { Ground->Destroy(); } }});
+                            At += 2.6f;
+                        }
+                        // Six bodies brawling for 12 s (the mix and readability worst case of AUDIO_AND_FEEL §3): the own A
+                        // combos V1 with its confirmations, A3 and V1 trade basics, A2 and V2 cast skills, V3 reacts, V2 burns,
+                        // and a fire floor and a puddle lie under them. A fixed schedule, so every run is the same brawl.
+                        {
+                            const float Start = At;
+                            Reel.Steps.Add({Start, Label(TEXT("6 人混战 12 秒"))});
+                            for (int32 Cycle = 0; Cycle < 3; ++Cycle)
+                            {
+                                for (uint8 Step = 1; Step <= 3; ++Step)
+                                {
+                                    const float T = Start + .3f + Cycle * 4.f + (Step - 1) * (1.f / .85f);
+                                    Reel.Steps.Add({T, Swing(A, Step, W)});
+                                    Reel.Steps.Add({T + W + .02f, Plain(V1)});
+                                    Reel.Steps.Add({T + W + .02f, Confirmed(A, 0)});
+                                    Reel.Steps.Add({T + .45f, Swing(A3, Step, W)});
+                                    Reel.Steps.Add({T + .45f + W + .02f, Plain(V3)});
+                                    Reel.Steps.Add({T + .8f, Swing(V1, Step, W)});
+                                    Reel.Steps.Add({T + .8f + W + .02f, Plain(A3)});
+                                }
+                            }
+                            const ELDDemoAbilityId BrawlSkills[] = {ELDDemoAbilityId::ActiveSnarkBolt, ELDDemoAbilityId::ActiveCalculusDrop,
+                                ELDDemoAbilityId::ActiveHoseDown, ELDDemoAbilityId::ActiveChargedRam, ELDDemoAbilityId::ActiveColaShake,
+                                ELDDemoAbilityId::ActiveSchoolBag, ELDDemoAbilityId::ActiveFlurryRush, ELDDemoAbilityId::ActiveSeethe};
+                            for (int32 Index = 0; Index < 8; ++Index)
+                            {
+                                const ELDDemoAbilityId Ability = BrawlSkills[Index];
+                                const auto Caster = Index % 2 == 0 ? A2 : V2;
+                                const auto Target = Index % 2 == 0 ? V2 : A2;
+                                const float T = Start + .6f + Index * 1.4f;
+                                Reel.Steps.Add({T, [Caster, Ability]() { if (auto* B = Caster.Get()) { B->SetComboStep(0); B->SetCastAbility(uint8(Ability)); B->SetCue(2, 0.f, .18f); } }});
+                                Reel.Steps.Add({T + .23f, [Target]() { if (auto* B = Target.Get()) { B->SetHitReaction(0.f, ELDObservedHitLook::Magic, 0, FGuid::NewGuid()); } }});
+                            }
+                            Reel.Steps.Add({Start + 5.2f, Cast(V2)});
+                            Reel.Steps.Add({Start + 5.47f, Hit(A2)});
+                            Reel.Steps.Add({Start + 5.62f, Hit(V3)});
+                            const ELDCombatReaction BrawlReactions[] = {ELDCombatReaction::Conduct, ELDCombatReaction::Melt, ELDCombatReaction::Overload, ELDCombatReaction::Shatter};
+                            for (int32 Index = 0; Index < 4; ++Index)
+                            {
+                                const uint8 Reaction = uint8(BrawlReactions[Index]);
+                                const double Stamp = 3000. + Index;
+                                Reel.Steps.Add({Start + 1.5f + Index * 2.7f, [V3, Reaction, Stamp]() { if (auto* B = V3.Get()) { B->SetReaction(Reaction, uint8(ELDCombatElement::Shock), 0.f, Stamp); } }});
+                            }
+                            Reel.Steps.Add({Start + 2.f, [V2]() { if (auto* B = V2.Get()) { FLDObservedStatus On; On.StatusId = uint8(ELDDemoStatusId::Burn); B->SetElementStates({On}); } }});
+                            Reel.Steps.Add({Start + 8.f, [V2]() { if (auto* B = V2.Get()) { B->SetElementStates({}); } }});
+                            const auto Floor = [this](TWeakObjectPtr<ULDHumanoidVisualComponent> Under, ELDGroundStateKind Kind, uint8 Id,
+                                TSharedRef<TWeakObjectPtr<ALDObservedGroundProxy>> Shown)
+                            {
+                                return [this, Under, Kind, Id, Shown]()
+                                {
+                                    auto* B = Under.Get();
+                                    FActorSpawnParameters Spawn;
+                                    Spawn.ObjectFlags |= RF_Transient;
+                                    ALDObservedGroundProxy* Ground = B ? World->SpawnActor<ALDObservedGroundProxy>(Spawn) : nullptr;
+                                    if (!Check(Ground != nullptr, TEXT("Brawl ground state proxy spawned"))) { return; }
+                                    FLDObservedGroundState State;
+                                    State.Id = Id;
+                                    State.Kind = uint8(Kind);
+                                    State.CentreCm = B->GetOwner()->GetActorLocation() - FVector(0, 0, 90);
+                                    State.RadiusCm = 220.f;
+                                    State.RemainingMs = State.TotalMs = 8000;
+                                    Ground->Apply(State, 100.);
+                                    *Shown = Ground;
+                                };
+                            };
+                            const auto FireFloor = MakeShared<TWeakObjectPtr<ALDObservedGroundProxy>>();
+                            const auto Puddle = MakeShared<TWeakObjectPtr<ALDObservedGroundProxy>>();
+                            Reel.Steps.Add({Start + 1.f, Floor(V3, ELDGroundStateKind::Fire, 70, FireFloor)});
+                            Reel.Steps.Add({Start + 3.f, Floor(V2, ELDGroundStateKind::Puddle, 71, Puddle)});
+                            Reel.Steps.Add({Start + 11.f, [FireFloor, Puddle]()
+                            {
+                                if (ALDObservedGroundProxy* Ground = FireFloor->Get()) { Ground->Destroy(); }
+                                if (ALDObservedGroundProxy* Ground = Puddle->Get()) { Ground->Destroy(); }
+                            }});
+                            At = Start + 12.5f;
+                        }
+                        // The steps run in list order: the brawl's overlapping schedules are put in time order (stable, so steps
+                        // at one moment keep their written order).
+                        Reel.Steps.StableSort([](const FSeqStep& L, const FSeqStep& R) { return L.At < R.At; });
                         Reel.bRealtime = true;
                         Reel.Seconds = At + .5f;
                         ChainJobs.Add(Reel);
