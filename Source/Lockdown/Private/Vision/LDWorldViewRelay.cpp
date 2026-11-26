@@ -110,7 +110,7 @@ FLinearColor ObservedEffectColor(ELDObservedProjectileLook Look)
     case ELDObservedProjectileLook::LineWarning: return FLinearColor(1.f,.24f,.08f);
     case ELDObservedProjectileLook::FlyerArming:
     case ELDObservedProjectileLook::FlyerArmed: return FLinearColor(.9f,.88f,.8f);
-    case ELDObservedProjectileLook::BookShadow:
+    case ELDObservedProjectileLook::BookShadow: return FLinearColor(.62f,.23f,.13f);
     case ELDObservedProjectileLook::SpeechCone: return FLinearColor(1.f,.38f,.16f);
     default: return FLinearColor(.92f,.9f,.98f);
     }
@@ -913,12 +913,26 @@ void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effe
     UStaticMesh* const Takeout=Prop(Effect.Look==ELook::Sock || Effect.Look==ELook::SockReturn,LDSliceVfx::EMesh::PropTakeout);
     UStaticMesh* const Slipper=Prop(Effect.Look==ELook::SlipperDrop,LDSliceVfx::EMesh::PropSlipper);
     UStaticMesh* const BagBody=Prop(bBag,LDSliceVfx::EMesh::PropBag);
-    Chalk->SetStaticMesh(Takeout ? Takeout : Slipper ? Slipper : bFlight ? CylinderMesh.Get() : BoxMesh.Get());
+    UStaticMesh* const Brick=Prop(bBook,LDSliceVfx::EMesh::PropBrick);
+    UStaticMesh* const Flyer=Prop(Effect.Look==ELook::FlyerArming || Effect.Look==ELook::FlyerArmed,LDSliceVfx::EMesh::PropFlyer);
+    UStaticMesh* const Tape=Prop(bCordon,LDSliceVfx::EMesh::PropTape);
+    UStaticMesh* const BodyProp=Takeout ? Takeout : Slipper ? Slipper : Brick ? Brick : Flyer ? Flyer : Tape;
+    // The prop's trim: a label band, a strap, the pocket and straps, the holes and old mortar, the print (the warning's
+    // ink), the tape's dark stripes.
+    TrimColor=Takeout ? FLinearColor(.8f,.26f,.12f) : Slipper ? FLinearColor(.06f,.26f,.55f) : bBag ? FLinearColor(.28f,.17f,.07f)
+        : Brick ? FLinearColor(.2f,.13f,.1f) : Flyer ? FLinearColor(.85f,.16f,.08f) : FLinearColor(.05f,.05f,.05f);
+    if (BodyTint) { BodyTint->SetVectorParameterValue(TEXT("Tint"),Color); }
+    if (TrimTint) { TrimTint->SetVectorParameterValue(TEXT("Tint"),TrimColor); }
+    Chalk->SetMaterial(0,BodyProp&&BodyTint ? BodyTint.Get() : EffectTint.Get());
+    Chalk->SetMaterial(1,TrimTint);
+    Chalk->SetStaticMesh(BodyProp ? BodyProp : bFlight ? CylinderMesh.Get() : BoxMesh.Get());
     Chalk->SetRelativeLocation(FVector::ZeroVector);
     Chalk->SetRelativeRotation(bFlight&&!Takeout ? FRotator(90,0,0) : FRotator::ZeroRotator);
     Chalk->SetRelativeScale3D(Takeout ? FVector(FMath::Clamp(Effect.RadiusCm/22.f,1.f,2.f)) : bFlight ? FVector(.22,.22,.5)
-        : bCone ? FVector(.4,.75,.04) : bArea ? FVector(.38,.38,.04) : bBook ? FVector(.9,.45,.3) : FVector(1.1,.85,.025));
+        : bCone ? FVector(.4,.75,.04) : bArea ? FVector(.38,.38,.04) : Brick ? FVector(1.) : bBook ? FVector(.9,.45,.3)
+        : Flyer ? FVector(1.25) : FVector(1.1,.85,.025));
     if (bBook) { Chalk->SetRelativeLocation(FVector(0,0,12)); }
+    if (Flyer) { Chalk->SetRelativeLocation(FVector(0,0,-3)); Chalk->SetRelativeRotation(FRotator(0,20,0)); }
     if (bCone) { Chalk->SetRelativeLocation(FVector(Effect.RadiusCm*.35,0,100)); }
     if (bArea)
     {
@@ -949,7 +963,10 @@ void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effe
     {
         // A cordon is a tape standing on edge between two posts; a road, a line and the wind are flat on the floor.
         Chalk->SetRelativeLocation(FVector(bForwardLine?Effect.LengthCm*.5:0,0,bCordon?64.:1.));
-        Chalk->SetRelativeScale3D(FVector(Effect.LengthCm/100.,bCordon?.03:(Effect.RadiusCm*2./100.),bCordon?.12:.012));
+        Chalk->SetRelativeScale3D(Tape ? FVector(Effect.LengthCm/100.,1.,1.)
+            : FVector(Effect.LengthCm/100.,bCordon?.03:(Effect.RadiusCm*2./100.),bCordon?.12:.012));
+        // The tape hangs from the tops of its posts.
+        if (Tape) { Chalk->SetRelativeLocation(FVector(0,0,66)); }
     }
     // The phantom decoy stands as a still copy of the body it left; the plain column only when no body is near.
     if (!bDecoy && StandIn) { StandIn->DestroyComponent(); StandIn=nullptr; }
@@ -987,6 +1004,8 @@ void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effe
     // its backpack, a wall the two straps pulled tight between its bags.
     Chalk->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     Accent->SetStaticMesh(BoxMesh);
+    Accent->SetMaterial(0,BagBody&&BodyTint ? BodyTint.Get() : AccentTint.Get());
+    Accent->SetMaterial(1,TrimTint);
     if (bBag || bWall)
     {
         const double Height=ALDCombatBagBlocker::HeightCm;
@@ -1020,11 +1039,11 @@ void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effe
     // speech cone's voice, the armour's shards) draws no shape of its own; its outline below stays.
     FLinearColor DesignedInk;
     const bool bDesigned=LDSliceVfx::EffectSystemOf(uint8(Effect.Look),DesignedInk)!=LDSliceVfx::ESystem::Count;
-    const bool bBodyless=(bDesigned&&!bFlight) || Effect.Look==ELook::FistWind || Effect.Look==ELook::SpeechCone
+    const bool bBodyless=(bDesigned&&!bFlight) || Effect.Look==ELook::FistWind || Effect.Look==ELook::SpeechCone || Effect.Look==ELook::ConeWarning
         || Effect.Look==ELook::ShardBurst || (bDecoy&&StandIn);
     Chalk->SetVisibility(!bBodyless);
-    // The accent is a trap's marking and a cone warning's second plate.
-    Accent->SetVisibility(Effect.Look==ELook::FlyerArming || Effect.Look==ELook::FlyerArmed || Effect.Look==ELook::ConeWarning);
+    // The accent is a trap's marking while its paper is missing.
+    Accent->SetVisibility((Effect.Look==ELook::FlyerArming || Effect.Look==ELook::FlyerArmed) && !Flyer);
     Accent->SetRelativeRotation(FRotator::ZeroRotator);
     Accent->SetRelativeLocation(bCone ? FVector(Effect.RadiusCm*.65,0,110) : FVector(0,0,3));
     Accent->SetRelativeScale3D(bCone ? FVector(.5,.95,.04) : FVector(.8,.12,.02));
@@ -1055,8 +1074,10 @@ void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effe
         Line(FVector(To,-Width,2),FVector(To,Width,2));
         if (bCordon)
         {
-            Piece(FVector(From,0,36),FRotator::ZeroRotator,FVector(.07,.07,.72));
-            Piece(FVector(To,0,36),FRotator::ZeroRotator,FVector(.07,.07,.72));
+            Piece(FVector(From,0,37),FRotator::ZeroRotator,FVector(.06,.06,.74));
+            Piece(FVector(To,0,37),FRotator::ZeroRotator,FVector(.06,.06,.74));
+            Piece(FVector(From,0,2),FRotator::ZeroRotator,FVector(.22,.22,.04));
+            Piece(FVector(To,0,2),FRotator::ZeroRotator,FVector(.22,.22,.04));
         }
     }
     else if (bCone)
@@ -1097,6 +1118,8 @@ void ALDObservedProjectileProxy::Apply(const FLDObservedProjectileView& Projecti
             AccentTint = UMaterialInstanceDynamic::Create(Material, this);
             AccentTint->SetVectorParameterValue(TEXT("Tint"),FLinearColor(.95f,.95f,.9f));
             Accent->SetMaterial(0,AccentTint);
+            BodyTint = UMaterialInstanceDynamic::Create(Material, this);
+            TrimTint = UMaterialInstanceDynamic::Create(Material, this);
         }
         else { ensureMsgf(false, TEXT("Character material missing; rerun asset bootstrap")); }
     }
@@ -1142,8 +1165,11 @@ void ALDObservedProjectileProxy::Present(double AtServerSec)
     // A trap is a sheet of paper; its marking is the warning ink.
     const bool bFlyer=ShownLook==ELDObservedProjectileLook::FlyerArming || ShownLook==ELDObservedProjectileLook::FlyerArmed;
     if (AccentTint) { AccentTint->SetVectorParameterValue(TEXT("Tint"),FMath::Lerp(bFlyer ? FLinearColor(.85f,.16f,.08f) : ShownColor,FLinearColor::White,Pulse)); }
-    // Without the accent the outline carries the warning's pulse.
+    // Without the accent the outline carries the warning's pulse, and a trap's print with it.
     if (EffectTint && !Accent->IsVisible()) { EffectTint->SetVectorParameterValue(TEXT("Tint"),FMath::Lerp(ShownColor,FLinearColor::White,Pulse*.6f)); }
+    if (TrimTint && bFlyer) { TrimTint->SetVectorParameterValue(TEXT("Tint"),FMath::Lerp(TrimColor,FLinearColor::White,Pulse)); }
+    // A cordon's tape stirs a little on its posts.
+    if (ShownLook==ELDObservedProjectileLook::CordonTape) { Chalk->SetRelativeRotation(FRotator(0,0,7.f*FMath::Sin(float(AtServerSec)*4.3f))); }
     // The dropped brick falls through its warning, tumbling, and lies where it lands.
     if (ShownLook==ELDObservedProjectileLook::BookShadow)
     {

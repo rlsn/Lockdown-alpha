@@ -1,5 +1,7 @@
 #include "World/LDRecoveryOrbMarker.h"
 #include "World/LDCaptureMarker.h"
+#include "Character/LDHitVfx.h"
+#include "NiagaraComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
 
@@ -32,6 +34,10 @@ bool ALDRecoveryOrbMarker::Build(const FVector& CenterCm, double RadiusCm, uint6
     Serial = InSerial;
     Generation = InGeneration;
     SetActorLocationAndRotation(CenterCm, FRotator::ZeroRotator);
+    RingGlow = LDGroundRing::Glow(*Ring, RingGlow, true, uint8(LDSliceVfx::ESystem::RingBand), CenterCm, RadiusCm, FLinearColor(.25f, 1.f, .45f));
+    CoreGlow = LDGroundRing::Glow(*Ring, CoreGlow, true, uint8(LDSliceVfx::ESystem::OwnMark), CenterCm, RadiusCm * .35, FLinearColor(.5f, 1.f, .65f));
+    // The small painted core reads as a cog under the light; it shows only while the light cannot.
+    Core->SetVisibility(!CoreGlow);
     Error.Reset();
     return true;
 }

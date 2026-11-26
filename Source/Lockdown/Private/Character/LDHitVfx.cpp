@@ -126,6 +126,9 @@ const TCHAR* LDSliceVfx::MeshId(EMesh Mesh)
     case EMesh::PropTakeout: return TEXT("SM_LD_PropTakeout");
     case EMesh::PropSlipper: return TEXT("SM_LD_PropSlipper");
     case EMesh::PropBag: return TEXT("SM_LD_PropBag");
+    case EMesh::PropBrick: return TEXT("SM_LD_PropBrick");
+    case EMesh::PropFlyer: return TEXT("SM_LD_PropFlyer");
+    case EMesh::PropTape: return TEXT("SM_LD_PropTape");
     default: return TEXT("");
     }
 }
@@ -532,6 +535,7 @@ const TCHAR* LDSliceVfx::SystemName(ESystem System)
     case ESystem::RingBand: return TEXT("NS_LDRingBand");
     case ESystem::RingDanger: return TEXT("NS_LDRingDanger");
     case ESystem::RingNext: return TEXT("NS_LDRingNext");
+    case ESystem::CritBurst: return TEXT("NS_LDCritBurst");
     default: return TEXT("");
     }
 }

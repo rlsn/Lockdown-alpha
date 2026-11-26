@@ -41,8 +41,8 @@ namespace LDSliceVfx
         WaterFlow, WaterDrop, WaterWet, SoftPuff, FireTongue, FireChar, IceShard, IceFrost, RotMurk, RotBubble, Count
     };
     // The combo's three slash ribbons, then the props a skill's observed proxy is drawn with (a thrown takeout, a dropped
-    // slipper, a school bag).
-    enum class EMesh : uint8 { Slash1, Slash2, Slash3, PropTakeout, PropSlipper, PropBag, Count };
+    // slipper, a school bag, a brick, a paper flyer, a metre of barrier tape). A prop has two material slots, body and trim.
+    enum class EMesh : uint8 { Slash1, Slash2, Slash3, PropTakeout, PropSlipper, PropBag, PropBrick, PropFlyer, PropTape, Count };
     inline constexpr int32 SlashMeshCount = 3;
     // The manifest id ("fb_hit_basic", "SM_LD_SlashCombo1") and the package (Folder/T_fb_hit_basic, Folder/SM_LD_SlashCombo1).
     LOCKDOWN_API const TCHAR* TexId(ETex Tex);
@@ -103,7 +103,7 @@ namespace LDSliceVfx
         FlightChalk, FlightSock, FlightFist, WindZone, AreaPlain, ShardBurst, DecoyPop,
         RootState, ProtectedState, SlowState, AttackSlowState, StunState, DisarmState, SilenceState, TauntState, ExposedState,
         DashWake, OverdriveCharge, OverdriveBurst, LevelUp,
-        OwnMark, RingBand, RingDanger, RingNext, Count
+        OwnMark, RingBand, RingDanger, RingNext, CritBurst, Count
     };
     LOCKDOWN_API const TCHAR* SystemName(ESystem System);
     // An element reaction's own event on the reacting body (ELDCombatReaction): Start the floor under it, End its chest,

@@ -384,8 +384,8 @@
 | 连段 3 终结挥击 | Attack 提示，步 3 | IMPLEMENTED | `NS_LDSwing3` | — | 用户未验收 |
 | 挥击预兆 | Attack 提示的前摇 | LOCALLY VERIFIED | `NS_LDTell1-3`：地面暖色弧随前摇展开，内侧一道淡扫掠带 | `production/vfx/batch2/swing/` | 用户未验收 |
 | 普攻命中、终结命中 | 命中（无元素、无标志）匹配到挥击 | IMPLEMENTED | `NS_LDHitBasic`、`NS_LDHitFinisher` | — | 用户未验收 |
-| 暴击命中 | 命中标志 Critical | NOT STARTED | 旧：十字星 + 双金环（`LDHitVfx::ForHit`） | — | 星爆属否决语言 |
-| 护盾吸收、护盾破碎 | 命中标志 Shield / ShieldBroken | NOT STARTED | 旧：六角壳 | — | |
+| 暴击命中 | 命中标志 Critical | LOCALLY VERIFIED | 命中本身按其外观正常绘制，另加 `NS_LDCritBurst`：胸口一记硬金色闪光、向外甩出并落地的亮金碎屑；不再画十字星与双金环 | `production/vfx/batch11-flags-orb/` | 用户未验收 |
+| 护盾吸收、护盾破碎、格挡 | 命中标志 ShieldAbsorbed / ShieldBroken / Parried | LOCALLY VERIFIED | 吸收与格挡：身体轮廓闪一下冷青色边缘光（格挡略长）；破碎：`NS_LDShardBurst` 壳片四散；不再画六角壳、青色星与十字 | `production/vfx/batch11-flags-orb/` | 用户未验收 |
 | 强化普攻 | 状态 Empowered（贴脸补一拳、左右开抽、蹿过去抡一拳） | NOT STARTED | 无 | — | |
 | 远程普攻（隔空抽你） | 投射物 Chalk / ChalkReturn | LOCALLY VERIFIED | 粉笔本体（圆柱）+ `NS_LDFlightChalk`：亮白拖痕、身后膨胀悬停的粉笔灰、向两侧崩落的碎屑；旧网格拖尾与粒子爆发不再出现 | `production/vfx/batch9-props-control/` | 用户未验收 |
 
@@ -408,17 +408,17 @@
 | `active_not_mad` 锅盖挡脸 | 无 · 自身护盾 + 解控 | LOCALLY VERIFIED | `NS_LDNotMadRelease`：脸前弹起并举住 0.5 s 的实心锅盖（90 cm 钢盘：暖白高光到灰到暗边的明暗、亮边、暗色把手）、格挡瞬间的暖白闪光、腰间向外崩碎的解控碎片；护盾见 §7.6 `NS_LDShieldState` | `production/vfx/batch6-self-rework/` | 用户未验收 |
 | `active_stare_down` 来打老子啊 | 无 · 自身圆 300 嘲讽 | LOCALLY VERIFIED | 前摇：通用族；`NS_LDStareDownRelease`：胸前猩红喷气、地面猩红怒视环冲到 300 cm、再从环上向身体回收的 12 道牵引线；`NS_LDStareDownAura`：护甲增益期间（数据 3 s）胸与髋两道分成八块的钢甲环、绕行的猩红闪光 | `production/vfx/batch6-self/` | 用户未验收；被嘲讽者身上无标记（嘲讽状态不公开） |
 | `active_triple_combo` 左右开抽 | 无 · 3 次强化普攻 | LOCALLY VERIFIED | `NS_LDTripleRelease`：胸前双拳暖色亮起、头顶依次点亮三颗充能点；强化期间（仅自己可见的 Empowered）`NS_LDEmpoweredState`：两只绕胸转的暖色拳光带拖尾 | `production/vfx/batch6-self/` | 用户未验收；强化普攻命中仍为通用命中 |
-| `active_calculus_drop` 板砖糊脸 | 无 · 地点延迟落地 200 | LOCALLY VERIFIED | 前摇：通用族；`BookShadow`：砖块在预警时间内翻滚着从高处落下（细线圈与砖块随预警脉动），落地扬起素材包尘环 `DustRing` 0.55 倍；命中：通用 Niagara 命中 | `production/vfx/batch9-props-control/` | 用户未验收；专属命中未设计 |
-| `active_flyer_trap` 踩一脚试试 | 无 · 地点陷阱 180 | LOCALLY VERIFIED | 前摇：通用族；`FlyerArming/Armed`：一张纸色传单平铺在地上，上面一道警示红的标记随预警脉动，细线圈为触发范围；命中：通用 Niagara 命中 | `production/vfx/batch9-props-control/` | 用户未验收；触发瞬间没有专属表现 |
+| `active_calculus_drop` 板砖糊脸 | 无 · 地点延迟落地 200 | LOCALLY VERIFIED | 前摇：通用族；`BookShadow`：`SM_LD_PropBrick` 带三个孔和残留灰浆的砖块网格在预警时间内翻滚着从高处落下（细线圈随预警脉动），落地扬起素材包尘环 `DustRing` 0.55 倍；命中：通用 Niagara 命中 | `production/vfx/batch12-props-two-tone/` | 用户未验收；专属命中未设计 |
+| `active_flyer_trap` 踩一脚试试 | 无 · 地点陷阱 180 | LOCALLY VERIFIED | 前摇：通用族；`FlyerArming/Armed`：`SM_LD_PropFlyer` 两角卷起的纸质传单网格，上面的印刷块是警示红并随预警脉动，细线圈为触发范围；命中：通用 Niagara 命中 | `production/vfx/batch12-props-two-tone/` | 用户未验收；触发瞬间没有专属表现 |
 | `active_open_mic` 扯嗓子喷你 | 无 · 自身圆 340 击退 | LOCALLY VERIFIED | 前摇：通用族；`NS_LDOpenMicRelease`：嘴前暖白爆点与光；两道相继滚出到 340 cm 的冲击前沿——以浓密暗紫灰的翻涌空气为主体（不规则、起伏、前重后轻），其上一层粗细不均的淡紫噪声带，不是清晰的线圈；地面被推到半径边的暗尘；`NS_LDOpenMicHit`：沿推力方向扫过身体的三道声弧、紫白核、身后被推开的尘；护盾见 §7.6 | `production/vfx/batch6-self-rework/` | 用户未验收 |
 | `active_charged_ram` 蛮牛顶 | 无 · 冲刺撞人 + 护盾 | LOCALLY VERIFIED | 前摇：通用族；`NS_LDRamRelease`：双层楔形冲锋前沿（暗色影层 + 亮前沿）沿 460 cm 推进、船首推开的暗色尘、身后尘迹与地面拖痕；`NS_LDRamHit`：0.1 s 暖白冲击核与 380 cm 光、贴地重冲击环、暗色重尘、向上崩起的碎屑、地面撞痕 | `production/vfx/batch5e-physical-mass/` | 用户未验收 |
 | `active_brace` 顶着揍 | 无 · 架势 3 s | LOCALLY VERIFIED | 前摇：通用族；`NS_LDBraceRelease`：粗铜环从胸口砸到脚下并收紧、脚下压出的暗尘；架势见 §7.6 `NS_LDBracedState`；`NS_LDBraceBurst`：架势按期结束时（释放 + 数据 3 s，且 Braced 在此时消失、未倒地）暖白核、铜色冲击波冲到 300 cm、向外推开的暗尘 | `production/vfx/batch6-self/` | 用户未验收；结束反震只在本机按期推断，提前或延长的架势不播 |
 | `active_cola_shake` 冰可乐摇一摇 | 冰 · 扇形 400/60° | LOCALLY VERIFIED | `NS_LDColaTell`；`NS_LDColaBlast`：成团白色泡沫沿扇形冲出并减速散开、较大的冰晶落地停住并闪光、扇形地面结霜后化掉、下沉的冷雾；命中 `NS_LDChillHit` | `production/vfx/review2/` | 用户未验收；地面的霜有条状拉伸；预兆仍是细线扇形 |
 | `active_desk_fan` 电风扇 | 无 · 地点风带 600×200 | LOCALLY VERIFIED | 前摇：通用族；`Wind`：`NS_LDWindZone` 顺着朝向滑过风带的长条气流与被带走的尘粒，细线矩形为范围；命中：通用 Niagara 命中 | `production/vfx/batch9-props-control/` | 用户未验收；气流偏淡 |
-| `active_stale_takeout` 过期外卖 | 腐 · 投射物 + 瘴气地面 | LOCALLY VERIFIED | 前摇：通用族；飞行：`SM_LD_PropTakeout` 打结的外卖袋网格按命中半径缩放 + `NS_LDFlightSock`：身后拖着的馊气、滴落到地上的油渍、袋身暗黄的反光；落地为瘴气地面；命中：通用 Niagara 命中 | `production/vfx/batch9-props-control/` | 用户未验收 |
+| `active_stale_takeout` 过期外卖 | 腐 · 投射物 + 瘴气地面 | LOCALLY VERIFIED | 前摇：通用族；飞行：`SM_LD_PropTakeout` 打结的外卖袋网格（袋身 + 红色标签带）按命中半径缩放 + `NS_LDFlightSock`：身后拖着的馊气、滴落到地上的油渍、袋身暗黄的反光；落地为瘴气地面；命中：通用 Niagara 命中 | `production/vfx/batch9-props-control/` | 用户未验收 |
 | `active_school_bag` 占座书包 | 无 · 地点障碍 | LOCALLY VERIFIED | 前摇：通用族；`Bag`：`SM_LD_PropBag` 双肩包网格按阻挡半径与高度缩放，落地扬起素材包尘环；`BagWall`：两只包之间拉紧的两道背带；阻挡体仍是与服务器一致的方盒，只是不画出来；命中：通用 Niagara 命中 | `production/vfx/batch9-props-control/` | 用户未验收 |
 | `active_flurry_rush` 疯狗乱拳 | 无 · 4 s 拳风波 | LOCALLY VERIFIED | `NS_LDFlurryRelease`：胸口炽热核与爆环、四射火星；`NS_LDFlurryAura`：狂热期间（数据 4 s）绕身螺旋上升的热痕、腰间三道飞旋的热弧、脚下快步踢起的尘 | `production/vfx/batch6-self/` | 用户未验收；拳风波仍为旧 `FistWind` 粒子（飞行物批次） |
-| `active_cordon_tape` 警戒封条 | 无 · 地点封条线 500 | LOCALLY VERIFIED | 前摇：通用族；`CordonTape`：两根立柱之间一条立起的黄色封条，细线矩形为范围；命中：通用 Niagara 命中 | `production/vfx/batch9-props-control/` | 用户未验收；封条在镜头下偏细 |
+| `active_cordon_tape` 警戒封条 | 无 · 地点封条线 500 | LOCALLY VERIFIED | 前摇：通用族；`CordonTape`：两根带底座的立柱之间挂着 `SM_LD_PropTape` 黄黑斜纹封条，中段下垂并轻微摆动，细线矩形为范围；命中：通用 Niagara 命中 | `production/vfx/batch12-props-two-tone/` | 用户未验收；封条按真实比例偏细，范围靠细线矩形 |
 | 技能前摇（通用部分） | Cast 提示前摇 | IMPLEMENTED | 没有专属前摇的技能按目标分两族：`NS_LDCastAim`（施法手低亮度聚能 + 地面朝前的细线）、`NS_LDCastBrace`（脚下向内收的细环，中心留空）；旧施法圆盘 `NS_LDCastCharge` 已删除 | `production/vfx/batch4/casts-*` | 用户未验收 |
 | 施法手蓄能 | Cast 提示前摇 | IMPLEMENTED | 旧的盖住身体的同心圆盘已撤除，由上一行的两族前摇代替 | `production/vfx/batch4/casts-*` | |
 
@@ -478,7 +478,7 @@
 | 强化普攻 Empowered | LOCALLY VERIFIED | `NS_LDEmpoweredState`（只有自己可见）：两只绕胸转的暖色拳光带拖尾 | `production/vfx/batch6-self/` | 用户未验收 |
 | 属性增益 StatBoost | NOT STARTED | 无（来源众多，`active_stare_down` 与 `active_flurry_rush` 的增益由各自释放后的光环按数据时长表现） | — | |
 | 营地回位 CampReturning | NOT STARTED | 旧：背后牌子 | — | 野怪状态 |
-| 野怪激怒 CampEnraged、守卫 CampGuarding | NOT STARTED | 无 | — | |
+| 野怪激怒 CampEnraged、守卫 CampGuarding | IMPLEMENTED | 激怒沿用嘲讽的头顶红色火舌（`NS_LDTauntState`），守卫沿用架势的铜带（`NS_LDBracedState`） | — | 没有在野怪身上看过，待真实对战确认 |
 
 ### 7.7 冲刺、闪避与爆劲
 
@@ -493,8 +493,8 @@
 
 | 项 | 事件 | 状态 | 实现 | 证据 | 已知问题 |
 | --- | --- | --- | --- | --- | --- |
-| 圆形预警 | 投射物 AreaMagic + `WarningRemainingMs` | NOT STARTED | 旧：区域粒子 | — | 野怪 Circle、EchoCircle、DoubleCircle |
-| 扇形预警 | 投射物 ConeWarning | NOT STARTED | 旧 | — | 野怪 Cone、Fan、RotatingCone |
+| 圆形预警 | 投射物 AreaMagic + `WarningRemainingMs` | IMPLEMENTED | `NS_LDAreaPlain` 的淡紫晕染 + 细线圈，细线圈随预警脉动（越近越快） | — | 野怪 Circle、EchoCircle、DoubleCircle；只在验证舞台看过无预警的区域 |
+| 扇形预警 | 投射物 ConeWarning | IMPLEMENTED | 贴地的扇形细线轮廓随预警脉动；悬在半空的两块占位板不再画出 | — | 野怪 Cone、Fan、RotatingCone；没有填充，待真实对战确认是否够清楚 |
 | 直线预警 | 投射物 LineWarning | NOT STARTED | 旧 | — | 野怪 SweepLine、Charge |
 | 野怪投射物 | 投射物（Agent 招式） | NOT STARTED | 旧 | — | |
 | 院长普攻 | Attack 提示（院长） | NOT STARTED | 走普攻挥击 | — | 体型更大，预兆是否单独设计待定 |
@@ -523,8 +523,8 @@
 | 自身脚下标记 | 本人身体 | IMPLEMENTED | `NS_LDOwnMark`：本人座位色的柔光圆 + 细边；资产缺失时退回两层圆盘 | — | 验证舞台里的身体不是玩家 Pawn，标记未能在舞台上出现，待真实对战确认；在共享文件 `LDWorldViewRelay` |
 | 旗杆圈与占领 | 占领圈与进度 | LOCALLY VERIFIED | 圈线保持清晰的边界线，其上 `NS_LDRingBand`：按占领状态着色的亮线 + 圈内侧贴地滑动的光丝；未开放的圈亮度减半 | `production/vfx/batch10-moments-rings/` | 用户未验收；占领进度与 `LDCaptureFence` 未改 |
 | PK 圈与决战圈 | 安全圈、下一圈、投掷落点 | LOCALLY VERIFIED | 安全圈 `NS_LDRingDanger`：圈线外侧不断向圈线滑入的光丝，危险的一侧就是在动的一侧；下一圈 `NS_LDRingNext`：安静的虚线，圈线为暗丁香色；投掷落点 `NS_LDAreaPlain`：粉红细圈 + 圈内晕染。安全圈的墨色仍是 `SafeColor()`（HUD 标签同色） | `production/vfx/batch10-moments-rings/` | 用户未验收；只在验证舞台看过，真实 PK 待确认 |
-| 出现与复活柱 | 单位出现 | NOT STARTED | 旧：光柱几何体 | — | |
-| 恢复球 | 恢复球可见 | NOT STARTED | `LDRecoveryOrbMarker` 两道彩环 | — | |
+| 出现与复活柱 | 单位出现 | LOCALLY VERIFIED | 光柱几何体已删除；复活由出生保护的金色光纱（`NS_LDProtectedState`）表现，身体自身的出现泛光保留 | `production/vfx/batch9-props-control/` | 用户未验收；没有出生保护的出现（野怪刷新）只有身体泛光 |
+| 恢复球 | 恢复球可见 | LOCALLY VERIFIED | 拾取圈上 `NS_LDRingBand` 的绿色亮线与贴地光丝，中心 `NS_LDOwnMark` 的一团柔和绿光；旧的小内环只在光效无法显示时画出 | `production/vfx/batch11-flags-orb/` | 用户未验收 |
 
 ## 8. 第三方素材（Asset First）
 

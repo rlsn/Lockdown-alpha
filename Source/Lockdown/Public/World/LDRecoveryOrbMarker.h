@@ -23,6 +23,9 @@ private:
     UPROPERTY() TObjectPtr<UInstancedStaticMeshComponent> Core;
     UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> RingPaint;
     UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> CorePaint;
+    // The designed look over the two painted rings: the pickup ring's glow and a soft healing light at the core.
+    UPROPERTY() TObjectPtr<class UNiagaraComponent> RingGlow;
+    UPROPERTY() TObjectPtr<class UNiagaraComponent> CoreGlow;
     uint64 Serial = 0;
     uint32 Generation = 0;
 };

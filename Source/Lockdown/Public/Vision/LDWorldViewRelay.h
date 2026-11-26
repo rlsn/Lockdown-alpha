@@ -310,6 +310,10 @@ private:
     UPROPERTY() TObjectPtr<UStaticMesh> CylinderMesh;
     UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> EffectTint;
     UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> AccentTint;
+    // A prop's two inks, body and trim (the outline and plain shapes keep EffectTint, which carries the warning pulse).
+    UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> BodyTint;
+    UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> TrimTint;
+    FLinearColor TrimColor=FLinearColor::Black;
     UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> ShapeLines;
     UPROPERTY() TObjectPtr<ULDFlightTrailComponent> Trail;
     // The look's particles (LDHitVfx::TrailOf / ZoneOf), rebuilt with the look.
