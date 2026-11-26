@@ -123,7 +123,9 @@ bool ALDGameMode::DevTeleport(const FGuid& Contender, const FVector& CameraPosit
     Life->MotionGrounded = Movement->CurrentFloor.IsWalkableFloor();
     Life->MotionFloor = Movement->CurrentFloor.HitResult.GetComponent();
     // Teleport is a discontinuity: update presence at this boundary, never sweep through intermediate circles.
-    if (CaptureTracks.Contains(Contender) && CaptureReducer.IsActive())
+    // A rest body is no longer on the spray roster (its field life retired at the boundary): like the motion path,
+    // it has no presence to rejudge.
+    if (CaptureTracks.Contains(Contender) && CaptureReducer.IsActive() && CaptureReducer.IsCommittedAliveBody(Life->Body))
     {
         FLDCaptureEventTime At;
         At.Seconds = AuthorityStep.EndServerSeconds;

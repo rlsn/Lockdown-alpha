@@ -120,6 +120,17 @@ bool FLDDevSceneToolsTest::RunTest(const FString& Parameters)
             TestTrue(TEXT("Rejected entry preserves the current actor, live identity and preparation stage"),
                 Life.Phase == ELDLifePhase::Alive && Life.Actor.Get() == Body && !Body->IsActorBeingDestroyed()
                 && Life.Body == BodyBefore && Life.Revision == RevisionBefore && Mode->Timeline.GetStep() == ELDRestStep::Build);
+            // In a mid-match rest the capture track stays while the field life has left the spray roster: the
+            // teleport has no presence to rejudge and must not fault the room.
+            FString CaptureError;
+            TestTrue(TEXT("The spray roster is open"), Mode->CaptureReducer.Begin(MAX_int64, 1000, 1000, CaptureError));
+            auto& Track = Mode->CaptureTracks.Add(Id);
+            Track.Body = Life.Body;
+            Track.bInside = true;
+            TestFalse(TEXT("The rest body is not a committed spray body"), Mode->CaptureReducer.IsCommittedAliveBody(Life.Body));
+            TestTrue(TEXT("A rest body off the spray roster teleports without a presence fact: ") + Error,
+                Mode->DevTeleport(Id, FVector(50000, 50000, 500), Permit, Error) && Mode->CaptureTracks.FindChecked(Id).bInside);
+            Mode->CaptureTracks.Reset();
             Error.Reset();
             return true;
         }, Error)
