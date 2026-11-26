@@ -128,6 +128,17 @@
 
 - **预算**（PROVISIONAL · Agent）：8 人同时出手时，每类 ΔGPU 约 +0.5 ms 以内。这是单类的目标，不代表全量混战叠加的预算；全量预算尚未定。
 - **实测**：只写在各批准条目里。单个特效的实测数据，不能证明全量多人特效叠加满足预算。
+- **重场景实测**（编辑器 `-game`，1080p 验证舞台，独占 GPU，同一次运行内 3 s 空闲后 5 s 负载的平均帧时间；证据 `production/vfx/batch13-return-perf/` 的 `perf13-DemoArt.json`，探针类别 `load`）：
+
+  | 场景 | 空闲 ms | 负载 ms | 增量 ms |
+  | --- | --- | --- | --- |
+  | 闪电链，8 人施法（基准，3 次） | 8.71 | 8.92 | +0.21 |
+  | 电场，8 人连段 + 8 块电场（基准，3 次） | 8.73 | 9.01 | +0.28 |
+  | 六个身体同时放 `active_seethe` 并各受一次火命中（2 次） | 8.81 | 9.04 | +0.22 |
+  | 六个身体同时触发六种不同反应（2 次） | 8.85 | 9.00 | +0.15 |
+  | PK 圈：安全圈 + 下一圈 + 四个投掷落点（2 次） | 8.85 | 9.04 | +0.19 |
+
+  三个重场景的增量与闪电链、电场基准同一量级，都在单类预算内。基准用 8 个施法者，重场景用舞台上的 6 个身体；验证舞台本身很轻，这些是增量，不是真实对战的帧时间，也不证明全量混战叠加满足预算。
 
 ## 2. 批准目录
 
@@ -477,7 +488,7 @@
 | 架势 Braced | LOCALLY VERIFIED | `NS_LDBracedState`：腰间粗铜带 + 四个每 1.1 s 向内收紧一次的卡箍、脚下低亮铜色光 | `production/vfx/batch6-self/` | 用户未验收 |
 | 强化普攻 Empowered | LOCALLY VERIFIED | `NS_LDEmpoweredState`（只有自己可见）：两只绕胸转的暖色拳光带拖尾 | `production/vfx/batch6-self/` | 用户未验收 |
 | 属性增益 StatBoost | NOT STARTED | 无（来源众多，`active_stare_down` 与 `active_flurry_rush` 的增益由各自释放后的光环按数据时长表现） | — | |
-| 营地回位 CampReturning | NOT STARTED | 旧：背后牌子 | — | 野怪状态 |
+| 营地回位 CampReturning | LOCALLY VERIFIED | `NS_LDReturnState`（由提示位 Returning 驱动）：身上升起并散开的淡色雾丝、脚下一条缓慢转动的淡色细带；刻意不亮，回位中的野怪不是威胁。旧的背后牌子已删除 | `production/vfx/batch13-return-perf/` | 用户未验收；雾丝在亮地面上很淡，只在验证舞台的球员身体上看过 |
 | 野怪激怒 CampEnraged、守卫 CampGuarding | IMPLEMENTED | 激怒沿用嘲讽的头顶红色火舌（`NS_LDTauntState`），守卫沿用架势的铜带（`NS_LDBracedState`） | — | 没有在野怪身上看过，待真实对战确认 |
 
 ### 7.7 冲刺、闪避与爆劲
@@ -495,7 +506,7 @@
 | --- | --- | --- | --- | --- | --- |
 | 圆形预警 | 投射物 AreaMagic + `WarningRemainingMs` | IMPLEMENTED | `NS_LDAreaPlain` 的淡紫晕染 + 细线圈，细线圈随预警脉动（越近越快） | — | 野怪 Circle、EchoCircle、DoubleCircle；只在验证舞台看过无预警的区域 |
 | 扇形预警 | 投射物 ConeWarning | IMPLEMENTED | 贴地的扇形细线轮廓随预警脉动；悬在半空的两块占位板不再画出 | — | 野怪 Cone、Fan、RotatingCone；没有填充，待真实对战确认是否够清楚 |
-| 直线预警 | 投射物 LineWarning | NOT STARTED | 旧 | — | 野怪 SweepLine、Charge |
+| 直线预警 | 投射物 LineWarning | IMPLEMENTED | 贴地的矩形细线轮廓随预警脉动；旧的不透明平板不再画出（Road 外观同样只画轮廓） | — | 野怪 SweepLine、Charge；没有填充，验证舞台没有该场景，待真实对战确认是否够清楚 |
 | 野怪投射物 | 投射物（Agent 招式） | NOT STARTED | 旧 | — | |
 | 院长普攻 | Attack 提示（院长） | NOT STARTED | 走普攻挥击 | — | 体型更大，预兆是否单独设计待定 |
 
