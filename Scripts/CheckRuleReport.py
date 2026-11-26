@@ -180,6 +180,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoMotionProbe.LedgeRetryEndsWalking",
         "Lockdown.Rules.DemoMotionProbe.FallingImpactAirControl",
         "Lockdown.Rules.DemoMotionProbe.FallingApexNoRefund",
+        "Lockdown.Rules.DemoMotionProbe.PinnedDepenetration",
         "Lockdown.Rules.DemoMotionProbe.SupportTransitions",
         "Lockdown.Rules.DemoMotionProbe.UnrecordedMoveRejected",
         "Lockdown.Rules.DemoMotionProbe.DashStopsAtWall",
