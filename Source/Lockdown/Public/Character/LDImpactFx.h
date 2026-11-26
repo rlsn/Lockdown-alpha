@@ -70,7 +70,7 @@ public:
     void Ghost(const USkeletalMeshComponent& Source, const LDHitVfx::FGhosts& Ghosts, const ULDHumanoidVisualComponent& Owner);
     int32 LiveGhostCount() const { return LiveGhosts.Num(); }
     static constexpr int32 MaxGhosts = 24;
-    // OVERDRIVE.HoldSec from the approved content (when a charge is full, LDHitVfx::ForChargeReady); 0 if unavailable.
+    // OVERDRIVE.HoldSec from the approved content (when a charge is full and the body's rim flares); 0 if unavailable.
     float OverdriveHoldSeconds();
     // A looping zone (LDHitVfx::FZone) on Owner, centred Offset from it: created, updated, or removed when the zone shows nothing.
     UNiagaraComponent* ShowZone(USceneComponent& Owner, UNiagaraComponent* Existing, const LDHitVfx::FZone& Zone, float RadiusCm,

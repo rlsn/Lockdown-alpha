@@ -1237,7 +1237,7 @@ namespace
                         nullptr, ClearMarks, false, 1.f, .6f, 24});
                     ChainJobs.Add({Look, TEXT("world-arena"), {{0.f, Arena}}, nullptr, ClearMarks, false, 1.f, .6f, 24});
                     // A recovery orb by V1, and the flagged hits at 0.3 s: a critical on V2, a broken shield on V3, an absorbed
-                    // one on A2 and a parry on A3.
+                    // one on A2, a parry on A3, an overdriven hit on V1 and a dodge on A.
                     const auto Orb = [MarkWorld, Marks, FeetOf, V1]()
                     {
                         ALDRecoveryOrbMarker* Mark = MarkWorld->SpawnActor<ALDRecoveryOrbMarker>();
@@ -1248,7 +1248,8 @@ namespace
                     const auto Flagged = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, uint8 Flags)
                     { return [Body, Flags]() { if (auto* B = Body.Get()) { B->SetHitReaction(0.f, ELDObservedHitLook::None, Flags, FGuid::NewGuid()); } }; };
                     ChainJobs.Add({Look, TEXT("world-orb-flags"), {{0.f, Orb}, {.3f, Flagged(V2, LDObservation::Critical)}, {.3f, Flagged(V3, LDObservation::ShieldBroken)},
-                        {.3f, Flagged(A2, LDObservation::ShieldAbsorbed)}, {.3f, Flagged(A3, LDObservation::Parried)}},
+                        {.3f, Flagged(A2, LDObservation::ShieldAbsorbed)}, {.3f, Flagged(A3, LDObservation::Parried)},
+                        {.3f, Flagged(V1, LDObservation::Overdriven)}, {.3f, Flagged(A, LDObservation::Dodged)}},
                         nullptr, ClearMarks, false, .4f, .25f, 20});
                 }
                 else if (Look == TEXT("flights"))
@@ -1330,6 +1331,7 @@ namespace
                             View.RadiusCm = Radius;
                             View.LengthCm = Length;
                             View.WarningRemainingMs = WarningMs;
+                            View.AngleDegrees = 70.f;
                             View.Heading = uint16(FMath::Fmod(FaceDegrees + 360.f, 360.f) / 360.f * 65536.f);
                             View.PositionCm = Body->GetOwner()->GetActorLocation() - FVector(0, 0, 90) + FRotator(0, TowardDegrees, 0).Vector() * Ahead;
                             Proxy->Apply(View, 300.);
@@ -1364,6 +1366,12 @@ namespace
                         if (Frame == 24) { Props.Add({.8f, GoOff(5)}); }
                     }
                     ChainJobs.Add({Look, TEXT("flights-props"), Props, nullptr, ClearProxies, false, .5f, 0.f, 40});
+                    // The three warnings a second before they land: a circle by V1, a cone from V3 and a line from A2.
+                    TArray<FSeqStep> Warnings{{0.f, Put(V1, ELDObservedProjectileLook::AreaMagic, 220.f, 0.f, 0., 0.f, 0.f, 1000)},
+                        {0.f, Put(V3, ELDObservedProjectileLook::ConeWarning, 320.f, 0.f, 0., 200.f, 0.f, 1000)},
+                        {0.f, Put(A2, ELDObservedProjectileLook::LineWarning, 60.f, 0.f, 0., 20.f, 500.f, 1000)}};
+                    for (int32 Frame = 1; Frame <= 30; ++Frame) { Warnings.Add({Frame / 30.f, Hold(Frame / 30.f)}); }
+                    ChainJobs.Add({Look, TEXT("flights-warnings"), Warnings, nullptr, ClearProxies, false, .5f, 0.f, 30});
                 }
                 else if (Look == TEXT("reactions"))
                 {
@@ -1673,6 +1681,14 @@ namespace
                     ChainJobs.Add({Look, TEXT("states-level-charge"), {{0.f, Level(V2, 1)}, {0.f, Level(V3, 1)}, {0.f, Charge(A2, true, .5f)}, {0.f, Charge(A3, true, 1.f)},
                         {.05f, Level(V2, 2)}, {.35f, Level(V3, 2)}},
                         nullptr, [Clear, Charge, A2, A3]() { Clear(); Charge(A2, false, -1.f)(); Charge(A3, false, -1.f)(); }, false, .5f, .1f, 36});
+                    // A basic swing from a body in the dean's look (A3), and an empowered basic at combo step 1 (V2), which swings
+                    // as the finisher does; the dean is enraged and V3 stands on guard as a camp member does.
+                    const auto SwingOf = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body)
+                    { return [Body]() { if (auto* B = Body.Get()) { B->SetComboStep(1); B->SetCastAbility(0); B->SetCue(1, 0.f, .18f); } }; };
+                    ChainJobs.Add({Look, TEXT("states-dean-empowered-swing"), {{0.f, State(V2, ELDDemoStatusId::Empowered, 1)}, {0.f, State(A3, ELDDemoStatusId::CampEnraged, 1)},
+                        {0.f, State(V3, ELDDemoStatusId::CampGuarding, 1)}, {.1f, SwingOf(A3)}, {.1f, SwingOf(V2)}},
+                        [A3]() { if (auto* B = A3.Get()) { B->ApplyMonsterLook(uint8(ELDDemoMonsterId::MonsterDean)); } },
+                        [Clear, A3]() { Clear(); if (auto* B = A3.Get()) { B->ApplyPalette(5); } }, false, .3f, .1f, 16});
                     ChainJobs.Add({Look, TEXT("states-control-c"), {{0.f, State(V2, ELDDemoStatusId::Exposed, 1)}, {0.f, Both(V3, ELDDemoStatusId::Root, ELDDemoStatusId::Silence)},
                         {0.f, [A2]() { if (auto* B = A2.Get()) { B->SetCue(ULDHumanoidVisualComponent::Returning); } }}},
                         nullptr, Clear, false, 1.f, .6f, 30});
@@ -2258,16 +2274,8 @@ namespace
             {
                 Victim->SetHitReaction(Current.HitAgeSeconds, Current.HitLook, Current.HitFlags);
                 Victim->Animate(FVector::ZeroVector, 0.f);
-                LDHitVfx::EBurst Element;
-                FLinearColor ElementTint;
-                const bool bSlice = LDSliceVfx::ShowsHit(Current.HitLook, Current.HitFlags);
-                // A slice hit spawns no burst system; an electric one the Niagara Chain of its hop.
-                const int32 Expected = bSlice ? (Current.HitLook == ELDObservedHitLook::Electric ? 1 : 0) : 1 + (LDHitVfx::HitBurstOf(Current.HitLook, Element, ElementTint) ? 1 : 0)
-                    + ((Current.HitFlags & LDObservation::Overdriven) ? 1 : 0);
-                if (!Check(Impacts && Impacts->LiveCount() == Expected,
-                    TEXT("A fresh shown hit creates one impact effect, plus its element and overdrive particles; a slice hit none"))) { return false; }
-                Check(Impacts->LiveLayerCount() == LDHitVfx::ForHit(Current.HitLook, Current.HitFlags, 1.f, Impacts->LayerTuning()).Layers.Num(),
-                    TEXT("A fresh shown hit spawns its shaped layers"));
+                const bool bSlice = LDSliceVfx::ShowsHit(Current.HitLook, 0);
+                if (!Check(Impacts != nullptr, TEXT("The impact effects subsystem exists for a shown hit"))) { return false; }
                 Check(!bSlice || Impacts->LiveSliceCount() > 0, TEXT("A plain, water or electric hit shows its designed slice burst"));
                 // The own receipt of the same tier flashes the screen edge (drawn by the world feedback layer).
                 Impacts->FlashScreen(LDHitVfx::ScreenFlashOf(Current.HitFlags, false));

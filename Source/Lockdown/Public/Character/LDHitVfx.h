@@ -191,7 +191,7 @@ namespace LDSliceVfx
     // basic < finisher (the 3rd basic) < skill < reaction.
     enum class EStrike : uint8 { None, Basic, Finisher, Skill, Hose, Zap };
     // The hits the slice shows (Impact): a plain, water, electric or fire hit without a critical, shield, overdrive, dodge or
-    // parry outcome. Every other hit keeps its hit layers (LDHitVfx::ForHit).
+    // parry outcome. A magic hit is its skill's own hit or the heavier Niagara hit; a flag adds its own mark over the hit.
     LOCKDOWN_API bool ShowsHit(ELDObservedHitLook Look, uint8 HitFlags);
     // bOwn: the strike is the local player's (white with the ball orange; others' strikes are white only). bFocus: the
     // local player strikes or is struck, shown full size; others' fights are smaller and fainter (80 % size, 70 %
@@ -281,15 +281,6 @@ namespace LDHitVfx
         float Size = 1, Seconds = 1, Glow = 1;
     };
     LOCKDOWN_API FLayerTuning TuningOf(const LDHitFeel::FTuning& Feel, float AssetSize, float AssetSeconds, float AssetGlow);
-    // One observed hit (LDObservation::EHitFlags) the slice does not show (LDSliceVfx::ShowsHit: an unflagged plain, water
-    // or electric hit is LDSliceVfx::Impact, so it has no layers here): critical cross star and a double gold ring;
-    // a shield's cyan hex shell (a broken one bursts outwards over a wide ring); then the look's signature. An overdrive
-    // hit replaces the star with a large magenta cross and adds its own wide ring and spinning ground sigil.
-    // Reduced effects drop the optional layers and dim the rest; no layer that tells the tier or the look is removed.
-    LOCKDOWN_API FRecipe ForHit(ELDObservedHitLook Look, uint8 HitFlags, float EffectScale, const FLayerTuning& Tuning = FLayerTuning());
-    // Ground dust shock-ring at dash launch and golden flare ring on PerfectDodge (#335 §3.1).
-    LOCKDOWN_API FRecipe ForDashStart(const FLinearColor& Tint, float EffectScale, const FLayerTuning& Tuning = FLayerTuning());
-    LOCKDOWN_API FRecipe ForPerfectDodge(float EffectScale, const FLayerTuning& Tuning = FLayerTuning());
     // 0 before DelaySeconds and from Seconds on; a quick rise to 1 at PeakAt, then an ease-out fade.
     LOCKDOWN_API float Brightness(const FLayer& Layer, float AgeSeconds);
     LOCKDOWN_API float ScaleAt(const FLayer& Layer, float AgeSeconds);
@@ -334,9 +325,6 @@ namespace LDHitVfx
     };
     // Reduced effects keep every preset and its colours but spawn fewer particles (x0.45).
     LOCKDOWN_API FBurst BurstOf(EBurst Kind, const FLinearColor& Tint, float EffectScale);
-    // The extra particles an element hit throws over the impact burst: fire embers, water droplets, electric arcs,
-    // magic motes; none for an ordinary look.
-    LOCKDOWN_API bool HitBurstOf(ELDObservedHitLook Look, EBurst& Out, FLinearColor& Tint);
 
     // Each active skill's own look: its tint (cast charge, release and dash trail) and its release burst. The table
     // covers every ELDDemoAbilityId (Lockdown.Rules.DemoBodyMotion.HitLayers checks 26 distinct entries).
@@ -377,7 +365,6 @@ namespace LDHitVfx
     // kicks dust where it starts.
     constexpr float DashSpeedCmPerSec = 950.f;
     LOCKDOWN_API bool IsDashing(float Speed2D, bool bKnockback, bool bFalling);
-    LOCKDOWN_API FTrail DashTrailOf(const FLinearColor& Tint, float EffectScale);
     // Afterimages of a dashing body: a posed translucent copy of its mesh left every IntervalSeconds, fading over
     // Seconds. Reduced effects leave half as many.
     struct FGhosts
@@ -405,11 +392,4 @@ namespace LDHitVfx
 
     // Overdrive (#305): one colour for its charge, release and hits.
     LOCKDOWN_API FLinearColor OverdriveTint();
-    // The charge while the key is held with a full bar (public, FLDObservedUnitView::bCharging): an energy column at the
-    // feet that grows with Progress (held / OVERDRIVE.HoldSec), and the ready flare once the hold completes.
-    LOCKDOWN_API FZone ChargeZoneOf(float Progress, float EffectScale);
-    LOCKDOWN_API FRecipe ForChargeReady(float EffectScale, const FLayerTuning& Tuning = FLayerTuning());
-    // The release: the cast the authority admitted as an overdrive (public FLDObservedUnitView::bOverdriveCast) shows
-    // this shockwave when its timeline reaches the release; a short press or a cancelled charge is an ordinary cast.
-    LOCKDOWN_API FRecipe ForOverdriveRelease(float EffectScale, const FLayerTuning& Tuning = FLayerTuning());
 }

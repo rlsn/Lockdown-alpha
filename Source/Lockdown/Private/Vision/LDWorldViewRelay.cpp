@@ -1208,6 +1208,14 @@ void ALDObservedProjectileProxy::PlayBurst(bool bEnd)
         case ELDObservedProjectileLook::Bag:
             if (!bEnd) { Impacts->PlayPack(LDSliceVfx::EPack::DustRing,Floor+FVector(0,0,4),.4f); }
             return;
+        case ELDObservedProjectileLook::AreaFire:
+            // A fire area catches: the flame wall of a seethe at the area's own radius, once.
+            if (!bEnd)
+            {
+                Impacts->PlayFree(LDSliceVfx::ESystem::SeetheBurst,Floor,Floor,LDSliceVfx::ElementInk(uint8(ELDCombatElement::Fire)),
+                    FMath::Max(ShownRadius,80.f),.7f,Look);
+            }
+            return;
         case ELDObservedProjectileLook::BagWall:
         case ELDObservedProjectileLook::SlipperDrop:
         case ELDObservedProjectileLook::CordonTape: return;

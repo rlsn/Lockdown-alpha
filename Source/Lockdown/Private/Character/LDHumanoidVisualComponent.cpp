@@ -313,7 +313,8 @@ void ULDHumanoidVisualComponent::UpdateSlice(float EffectScale)
         if (Late < .2f)
         {
             const FVector Centre = Space.TransformPosition(FVector(0, 0, .55f * HeightCm - HalfHeight));
-            Impacts->Swing(*this, Step, Centre, Facing, Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Swing, bOwnBody, bOwnBody), Late);
+            // An empowered basic (the own body knows it) swings as wide as the finisher, whatever its combo step.
+            Impacts->Swing(*this, GuardOn[2] ? uint8(3) : Step, Centre, Facing, Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Swing, bOwnBody, bOwnBody), Late);
             Impacts->NoteStrike(*this, Step >= 3 ? LDSliceVfx::EStrike::Finisher : LDSliceVfx::EStrike::Basic, Centre, Facing, bOwnBody);
         }
     }
@@ -1375,13 +1376,6 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
                 if (bDodged) {}
                 else if (!bSlice && Impact.Look == ELDObservedHitLook::Magic && ShowSkillHit(Impact, At, EffectScale)) { bSlice = true; }
                 else if (bSlice) { bFinisherHit = ShowSliceImpact(Impact, At, Ground, EffectScale); }
-                else
-                {
-                    Impacts->Burst(*this, At, Impact.Look, 0, Age, EffectScale);
-                    Impacts->Layers(this, At, Ground, LDHitVfx::ForHit(Impact.Look, 0, EffectScale, Impacts->LayerTuning()), Age);
-                }
-                LDHitVfx::EBurst Element;
-                FLinearColor Tint;
                 // The extra hit particles follow the same impact controls as the Niagara burst and the layers.
                 const LDHitFeel::FTuning Feel = LDHitFeel::Read();
                 const bool bImpactOn = Feel.ImpactScale > 0.f && Feel.ImpactSeconds > 0.f;
@@ -1416,8 +1410,6 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
                     Impacts->Play(LDSliceVfx::ESystem::CritBurst, *this, Impacts->FloorUnder(At), At, FLinearColor::White, 60.f, .6f,
                         Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, false, bOwnBody), Age);
                 }
-                if (!bSlice && bImpactOn && Age < .3f && LDHitVfx::HitBurstOf(Impact.Look, Element, Tint))
-                { Impacts->Kit(At, LDHitVfx::BurstOf(Element, Tint, EffectScale), this); }
                 if (bImpactOn && Age < .3f && (Impact.Flags & LDObservation::Overdriven))
                 {
                     Impacts->Play(LDSliceVfx::ESystem::OverdriveBurst, *this, Impacts->FloorUnder(At), At, FLinearColor::White, 60.f, .6f,
