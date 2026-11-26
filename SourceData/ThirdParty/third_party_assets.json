@@ -487,7 +487,7 @@
     {
       "id": "fab-mixed-vfx",
       "name": "Mixed VFX",
-      "author": "(see listing)",
+      "author": "G.G.",
       "domains": [
         "vfx"
       ],
@@ -495,10 +495,10 @@
         "kind": "fab",
         "listing_id": "6518971c-c8ca-47d7-8611-1ff068b78dd5",
         "url": "https://www.fab.com/listings/6518971c-c8ca-47d7-8611-1ff068b78dd5",
-        "acquired": null
+        "acquired": "2026-11-26"
       },
       "license": {
-        "name": "CC-BY 4.0",
+        "name": "Creative Commons (CC-BY), as shown on the Fab listing",
         "agreement": "Creative Commons Attribution 4.0 (via Fab)"
       },
       "rights": {
@@ -511,11 +511,11 @@
       },
       "storage": "tracked",
       "engine_versions": "4.26-4.27, 5.0-5.4",
-      "original_path": null,
+      "original_path": "Content/ThirdParty/CCBY/MixedVFX",
       "adapted_paths": [],
       "dependencies": [],
-      "verification": null,
-      "status": "requested"
+      "verification": "Listing licence read on 2026-11-26; all assets load in UE 5.8 after an editor rename from the pack root; CREDITS.md in the pack folder",
+      "status": "installed"
     },
     {
       "id": "fab-basic-vfx-pack",
@@ -586,7 +586,7 @@
     {
       "id": "fab-stylized-smoke-vfx",
       "name": "Stylized Smoke VFX (Free)",
-      "author": "(see listing)",
+      "author": "PotaVFX",
       "domains": [
         "vfx"
       ],
@@ -594,10 +594,10 @@
         "kind": "fab",
         "listing_id": "172235df-7a05-4d60-ac7b-23472e530ee7",
         "url": "https://www.fab.com/listings/172235df-7a05-4d60-ac7b-23472e530ee7",
-        "acquired": null
+        "acquired": "2026-11-26"
       },
       "license": {
-        "name": "CC-BY 4.0",
+        "name": "Creative Commons (CC-BY), as shown on the Fab listing",
         "agreement": "Creative Commons Attribution 4.0 (via Fab)"
       },
       "rights": {
@@ -610,11 +610,44 @@
       },
       "storage": "tracked",
       "engine_versions": "5.0-5.8",
-      "original_path": null,
+      "original_path": "Content/ThirdParty/CCBY/PotaVFX_Smoke",
       "adapted_paths": [],
       "dependencies": [],
-      "verification": null,
-      "status": "requested"
+      "verification": "Listing licence read on 2026-11-26; all assets load in UE 5.8 after an editor rename from the pack root; CREDITS.md in the pack folder",
+      "status": "installed"
+    },
+    {
+      "id": "fab-free-niagara-particles",
+      "name": "Free Niagara Particles (CC BY 4.0)",
+      "author": "SoftTofuVFX",
+      "domains": [
+        "vfx"
+      ],
+      "source": {
+        "kind": "fab",
+        "listing_id": "183732bc-c2fb-465c-9453-f70a1ce7ba2c",
+        "url": "https://www.fab.com/listings/183732bc-c2fb-465c-9453-f70a1ce7ba2c",
+        "acquired": "2026-11-26"
+      },
+      "license": {
+        "name": "Creative Commons (CC-BY), as shown on the Fab listing",
+        "agreement": "Creative Commons Attribution 4.0 (via Fab)"
+      },
+      "rights": {
+        "acquisition_cost": "free",
+        "commercial_use": "yes",
+        "ai_input": "allowed",
+        "ai_training": "allowed",
+        "public_source_redistribution": "yes, with attribution",
+        "private_collaborator_sharing": "yes"
+      },
+      "storage": "tracked",
+      "engine_versions": "5.2-5.8",
+      "original_path": "Content/ThirdParty/CCBY/FreeParticle_SoftTofu",
+      "adapted_paths": [],
+      "dependencies": [],
+      "verification": "Listing licence read on 2026-11-26; all assets load in UE 5.8 after an editor rename from the pack root; CREDITS.md in the pack folder",
+      "status": "installed"
     },
     {
       "id": "fab-niagara-examples",

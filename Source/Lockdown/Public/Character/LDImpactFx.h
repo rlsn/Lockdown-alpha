@@ -137,6 +137,9 @@ public:
     // A generated system bound to nothing (a fall's knockout plays out after the body is gone), stopped after Seconds.
     UNiagaraComponent* PlayFree(LDSliceVfx::ESystem System, const FVector& Start, const FVector& End, const FLinearColor& Tint, float Width,
         float Seconds, const LDSliceVfx::FLook& Look);
+    // A third-party pack system at At, scaled; it plays out and frees itself. Loaded on first use: a missing pack is logged
+    // once and the layer is skipped (the game runs without it). Scale follows the local effect strength.
+    UNiagaraComponent* PlayPack(LDSliceVfx::EPack Pack, const FVector& At, float Scale, const FRotator& Rotation = FRotator::ZeroRotator);
     // The supporting floor under At (the point itself when nothing is below it within reach).
     FVector FloorUnder(const FVector& At) const { FVector Normal; return GroundUnder(At, Normal); }
     // A basic or finisher hit on Victim's Chest struck from From's side, bound to Victim.
@@ -306,6 +309,8 @@ private:
     UPROPERTY() TObjectPtr<UNiagaraSystem> BurstSystem;
     UPROPERTY() TObjectPtr<UNiagaraSystem> ZoneSystem;
     UPROPERTY() TArray<TObjectPtr<UNiagaraSystem>> GeneratedSystems;
+    UPROPERTY() TObjectPtr<UNiagaraSystem> PackSystems[int32(LDSliceVfx::EPack::Count)];
+    bool bPackTried[int32(LDSliceVfx::EPack::Count)] = {};
     void Track(UNiagaraComponent* Effect, const ULDHumanoidVisualComponent* Source, float AgeSeconds, const AActor* OwnerActor = nullptr);
     UNiagaraComponent* SpawnKit(const FVector& At, const LDHitVfx::FBurst& Burst);
     TArray<FLive> Live;

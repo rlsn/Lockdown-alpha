@@ -98,6 +98,11 @@ namespace LDSliceVfx
         BraceRelease, BraceBurst, TripleRelease, OpenMicRelease, OpenMicHit, FlurryRelease, Count
     };
     LOCKDOWN_API const TCHAR* SystemName(ESystem System);
+    // Third-party systems (Content/ThirdParty/CCBY, docs/systems/THIRD_PARTY_ASSETS.md) a project effect plays as one of its
+    // layers, as shipped apart from its scale and exposed parameters: a ring of dust puffs with debris thrown out over the
+    // floor, a compact fire blast with its smoke, and a crackle of lightning.
+    enum class EPack : uint8 { DustRing, FireBlast, LightningHit, Count };
+    LOCKDOWN_API const TCHAR* PackPath(EPack Pack);
     LOCKDOWN_API FString SystemPackage(ESystem System);
     // The shocked-body rim glow (LDHitVfx::FGhosts::bShell): an additive fresnel shell pushed 1.2 cm out along the normals.
     constexpr const TCHAR* BodyGlowMaterial = TEXT("/Game/Lockdown/Art/VFX/Niagara/Generated/M_LDChainBodyGlow");
@@ -192,7 +197,8 @@ namespace LDSliceVfx
     LOCKDOWN_API FLinearColor ElementInk(uint8 Element);
     // A skill's own release and hit systems (ELDDemoAbilityId); ESystem::Count where it has none and uses the shared look.
     // Aura: the self skill's state worn on the caster for its hold after the release (where no public status shows it).
-    struct FSkillSystems { ESystem Release = ESystem::Count; ESystem Hit = ESystem::Count; ESystem Aura = ESystem::Count; };
+    // HitDust: the scale of the pack dust ring thrown up under the struck body by the skill's hit (0 = none).
+    struct FSkillSystems { ESystem Release = ESystem::Count; ESystem Hit = ESystem::Count; ESystem Aura = ESystem::Count; float HitDust = 0.f; };
     LOCKDOWN_API FSkillSystems SkillSystemsOf(uint8 Ability);
     // active_zap at its release: the contact spark at the casting hand (the arcs follow the hits it lands).
     LOCKDOWN_API FRecipe ZapRelease(const FVector& Hand, const FLook& Look);
