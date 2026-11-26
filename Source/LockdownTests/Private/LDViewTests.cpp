@@ -51,8 +51,20 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
     ExpectStruct(FLDResultView::StaticStruct(),{TEXT("Generation"),TEXT("ResultId"),TEXT("ResultSerial"),TEXT("Reason"),
         TEXT("Winner"),TEXT("StartedAtMs"),TEXT("EndedAtMs"),TEXT("DurationMs"),TEXT("Rows")},TEXT("The frozen result has no ledger or hidden state"));
     ExpectStruct(FLDResultRow::StaticStruct(),{TEXT("ContenderId"),TEXT("Name"),TEXT("Kind"),TEXT("bLeft"),TEXT("Kills"),
-        TEXT("Deaths"),TEXT("Assists"),TEXT("FinalLevel"),TEXT("BankedGuardMs"),TEXT("CompletedSprays"),TEXT("Build")},
-        TEXT("Result rows carry settled totals and frozen rule identities, never live resources, cooldowns, attributes or position"));
+        TEXT("Deaths"),TEXT("Assists"),TEXT("FinalLevel"),TEXT("BankedGuardMs"),TEXT("CompletedSprays"),TEXT("Build"),
+        TEXT("Combat"),TEXT("Growth")},
+        TEXT("Result rows carry settled totals and frozen build, combat, and growth summaries"));
+    ExpectStruct(FLDResultCombat::StaticStruct(),{TEXT("bAvailable"),TEXT("PhysicalToPlayersP2"),TEXT("MagicalToPlayersP2"),
+        TEXT("ReactionToPlayersP2"),TEXT("DamageTakenP2"),TEXT("ShieldAbsorbedP2"),TEXT("HealingP2"),TEXT("RecoveryPackP2"),
+        TEXT("Reactions"),TEXT("PeakReactionP2"),TEXT("Attributes"),TEXT("KeystoneMask"),TEXT("Cards")},
+        TEXT("Frozen combat summaries contain totals, final attributes, keystones, and card contributions"));
+    ExpectStruct(FLDResultAttribute::StaticStruct(),{TEXT("Attribute"),TEXT("Value")},
+        TEXT("Final attribute rows contain the attribute identity and frozen value"));
+    ExpectStruct(FLDResultCardContribution::StaticStruct(),{TEXT("Card"),TEXT("DamageP2"),TEXT("ShieldP2"),TEXT("Triggers")},
+        TEXT("Frozen card contributions contain the card identity and settled totals"));
+    ExpectStruct(FLDResultGrowthPhase::StaticStruct(),{TEXT("Allocated"),TEXT("Refunded"),TEXT("BoughtCards"),
+        TEXT("BoughtSkills"),TEXT("RefreshedShop"),TEXT("Skills"),TEXT("AcquiredCards"),TEXT("FinalMod")},
+        TEXT("Frozen growth phases contain transaction totals and acquired rule identities"));
     ExpectStruct(FLDResultBuild::StaticStruct(),{TEXT("bAvailable"),TEXT("CatalogRoot"),TEXT("Actives"),TEXT("Cards"),
         TEXT("FinalMod"),TEXT("StatPoints")},
         TEXT("Frozen build summaries contain only catalog, installed rule identities and settled stat points"));
