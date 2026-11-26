@@ -622,6 +622,16 @@ SOUNDS = {"hit_basic": hit_basic, "hit_finisher": hit_finisher, "hit_electric": 
           "ground_puddle": (ground_puddle, 1), "ground_ice": (ground_ice, 1), "ground_fire": (ground_fire, 1),
           "ground_miasma": (ground_miasma, 1), "ground_field": (ground_field, 1)}
 TAKES = 3
+# Peaky sounds the loudness pass could not raise to their mix level without clipping (a click or snap far above the
+# body): a gentle soft limiter lowers the peaks so the playback volume can reach the level (about 4-6 dB).
+DENSE = {"ui_install", "ui_offer_deal", "ui_gain", "ui_final_lock", "skill_crotch_grab", "skill_crotch_grab_hit", "skill_unplug",
+         "skill_flyer_trap", "skill_flyer_trap_hit", "skill_brace", "skill_cola_shake", "skill_desk_fan", "skill_desk_fan_hit", "skill_stale_takeout"}
+
+
+def soft_limit(y, drive=2.5, peak_db=-1.0):
+    p = np.max(np.abs(y)) or 1
+    z = np.tanh(drive * y / p) / np.tanh(drive)
+    return z * 10 ** (peak_db / 20)
 # Skill sounds keep two takes each (the import table's per-skill count).
 SOUNDS.update({f"skill_{name}": (on_frame(globals()[f"skill_{name}"]), 2) for name in SKILLS})
 SOUNDS.update({f"skill_{name}_hit": (on_frame(globals()[f"skill_{name}_hit"]), 2) for name in SKILL_HITS})
@@ -641,6 +651,8 @@ def main():
             ratio = rng.uniform(0.97, 1.03)
             # A loop keeps its own pitch: resampling is not circular and would open a seam.
             samples = make(n) if name.startswith("ground_") else pitch(make(n), ratio)
+            if name in DENSE:
+                samples = soft_limit(samples)
             if not args.inputs:
                 soundfile.write(OUT / f"{name}_{n + 1}.wav", samples.astype(np.float64), RATE, subtype="PCM_16")
                 print(f"{name}_{n + 1:<14} {len(samples) / RATE * 1000:6.0f} ms")
