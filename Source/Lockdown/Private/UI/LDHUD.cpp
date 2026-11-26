@@ -586,11 +586,12 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                 LDBroadcastPaint::Bar(P,P.Layer,Whole(P),Bar);
             }),HudBugWidth,6.f);
             CircleBox->AddChildToVerticalBox(CircleSpot)->SetPadding(FMargin(6,4,0,0));
-            auto* Foot=WidgetTree->ConstructWidget<UHorizontalBox>();
+            // Who holds the flag, then the aside under it: each on its own line across the bug's width (side by side
+            // the two ran into each other), cut with an ellipsis at the width.
+            auto* Foot=WidgetTree->ConstructWidget<UVerticalBox>();
             PhaseOwnerText=Words(TEXT(""),LDBroadcast::TypeSmall,LDBroadcast::Grey);PhaseOwnerText->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
-            PhaseAsideText=Words(TEXT(""),LDBroadcast::TypeSmall,LDBroadcast::Grey);PhaseAsideText->SetJustification(ETextJustify::Right);PhaseAsideText->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
-            Foot->AddChildToHorizontalBox(PhaseOwnerText)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-            auto* AsideSlot=Foot->AddChildToHorizontalBox(PhaseAsideText);AsideSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));AsideSlot->SetPadding(FMargin(12,0,0,0));
+            PhaseAsideText=Words(TEXT(""),LDBroadcast::TypeSmall,LDBroadcast::Grey);PhaseAsideText->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
+            for(UTextBlock* Line:{PhaseOwnerText.Get(),PhaseAsideText.Get()}){Line->SetClipping(EWidgetClipping::ClipToBounds);Foot->AddChildToVerticalBox(Line)->SetHorizontalAlignment(HAlign_Fill);}
             Foot->SetVisibility(ESlateVisibility::Collapsed);PhaseFootRow=Foot;
             CircleBox->AddChildToVerticalBox(Fixed(Foot,HudBugWidth,0.f))->SetPadding(FMargin(6,4,0,0));
         }
@@ -2112,6 +2113,7 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     const bool bPhaseLine=!bChoicesRestOpen&&(Public.Phase!=ELDMatchPhase::Development||Public.Showdown.bStarted)&&Public.Phase!=ELDMatchPhase::Rest;
     HudSetShown(PhaseText,bPhaseLine,ESlateVisibility::HitTestInvisible);
     HudSetText(PhaseOwnerText,Circle.Owner);HudSetText(PhaseAsideText,Circle.Aside);
+    HudSetShown(PhaseOwnerText,!Circle.Owner.IsEmpty(),ESlateVisibility::HitTestInvisible);HudSetShown(PhaseAsideText,!Circle.Aside.IsEmpty(),ESlateVisibility::HitTestInvisible);
     HudSetShown(PhaseFootRow,bPhaseLine&&!(Circle.Owner.IsEmpty()&&Circle.Aside.IsEmpty()),ESlateVisibility::HitTestInvisible);
     CircleFraction=Circle.Progress;
     HudSetText(DevMarkerText,!Lobby.DevTestSession&&!Lobby.DevContentReload?FString()

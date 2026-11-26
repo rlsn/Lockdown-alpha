@@ -9,6 +9,7 @@
 #include "Dom/JsonObject.h"
 #include "Engine/World.h"
 #include "Framework/LDGameState.h"
+#include "Region/LDMapRegistry.h"
 #include "Framework/LDBuildBlueprintComponent.h"
 #include "Framework/LDGameMode.h"
 #include "Character/LDCharacter.h"
@@ -51,7 +52,7 @@ public:
     double PageAt=0.,Due=0.;
     int32 Page=0,Combo=0,Step=0;
     int32 Width=0,Height=0;
-    bool bCapturing=false,bFrontend=false,bClient=false,bEntrant=false;
+    bool bCapturing=false,bFrontend=false,bClient=false,bEntrant=false,bOneSize=false;
     TArray<FString> Missed;
 
     // One page: Enter runs every tick until it reports the page is up (or the page times out and is listed as missed).
@@ -414,6 +415,7 @@ public:
             },Timeout});
             if(bInside){Pages.Last().Only=0;}
         };
+        DealerEarliest=Pages.Num();
         // The skill card of the Q slot: the HUD is told the pointer is over the slot (its DEV hover widget; the OS cursor
         // stays where it is), then with Alt held for the formula; the next page lets both go.
         Pages.Add({TEXT("Match_SkillHover"),[this](ALDPlayerController& PC,double Now)
@@ -666,24 +668,88 @@ public:
             {if(View.Lockers.IsEmpty()){return false;}Site=View.Lockers[0].PositionCm;return true;},85.,true);
         FieldSite(TEXT("Match_Arena"),[](const FLDPublicMatchView& View,FVector& Site)
             {Site=View.Objective.CentreCm;return View.Objective.Kind==ELDObjectiveKind::Arena&&(View.Objective.Phase==ELDObjectivePhase::Announced||View.Objective.Phase==ELDObjectivePhase::Open);},110.);
-        Pages.Add({TEXT("Match_Peddler"),[this](ALDPlayerController& PC,double Now)
+        // The second-hand dealer: the match plans its time and camp (ALDGameMode::GetPeddler; anywhere from the end of the
+        // first field to the third, out for about a minute), so its three pages are not at a fixed place: Tick puts them
+        // in front of the next page as soon as it is out in a field (after the host's preset). The host jumps beside its
+        // camp, is shot with it, beats it (the DEV attack term again) and is shot with the three-pick it pays; the last
+        // page hands the stage clock back as it was.
+        DealerPages.Add({TEXT("Match_Peddler"),[this](ALDPlayerController& PC,double Now)
             {
-                // The second-hand dealer once it has come out (a camp body named for it): the host jumps beside it.
-                if(Once(Now,0)){Dev(PC,ELDDevTestOp::SetCountdownPaused,0);HeldAt=-1.;}
-                const ALDCharacter* Dealer=nullptr;
+                if(Once(Now,0)){HeldAt=-1.;}
+                const auto* Mode=PC.GetWorld()->GetAuthGameMode<ALDGameMode>();
+                const auto* Registry=PC.GetWorld()->GetSubsystem<ULDMapRegistry>();
+                if(!Mode||!Registry||!Mode->GetPeddler().bSpawned||Mode->GetPeddler().bGone||!InPhase(PC,ELDMatchPhase::Development)){return false;}
+                const FLDMapBinding* Camp=Registry->Resolve(Mode->GetPeddler().CampAnchor,Registry->Generation);
+                if(!Camp){return false;}
+                DealerSite=Camp->Position;
+                if(HeldAt<0.){HeldAt=Now;Dev(PC,ELDDevTestOp::SetCountdownPaused,1);}
+                static const FVector Beside[]={FVector(-300,0,0),FVector(0,300,0),FVector(220,-220,0)};
+                for(int32 Try=0;Try<3;++Try)
+                {
+                    if(Now-HeldAt>=.6+Try*1.&&Once(Now,1+Try))
+                    {
+                        const APawn* Self=PC.GetPawn();
+                        if(Self&&FVector::Dist2D(Self->GetActorLocation(),DealerSite)<420.){break;}
+                        ELDGrowthReason Reason=ELDGrowthReason::None;
+                        PC.SubmitDevTest(ELDDevTestOp::TeleportToCamera,0,Reason,NAME_None,0,0,DealerSite+Beside[Try]+FVector(0,0,120));
+                    }
+                }
+                return Now-HeldAt>=4.5;
+            },30.});
+        DealerPages.Add({TEXT("Match_PeddlerReward"),[this](ALDPlayerController& PC,double Now)
+            {
+                const auto* Mode=PC.GetWorld()->GetAuthGameMode<ALDGameMode>();
+                if(!Mode||!PC.Navigation){return false;}
+                if(Once(Now,0))
+                {
+                    HeldAt=-1.;
+                    ELDGrowthReason Reason=ELDGrowthReason::None;
+                    PC.SubmitDevTest(ELDDevTestOp::SetAttribute,150000,Reason,NAME_None,0,uint8(ELDDemoBonusStat::ADFlat));
+                }
+                // The dealer's body by its camp: once it has been clicked and no body stands there any more, it is beaten
+                // (the plan's own flags only tell that it came out and that its time ran out).
+                const ALDCharacter* Dealer=nullptr;double Best=FMath::Square(900.);
                 for(TActorIterator<ALDCampMemberCharacter> It(PC.GetWorld());It;++It)
                 {
-                    if(It->GetName().Contains(TEXT("peddler"),ESearchCase::IgnoreCase)||It->Tags.Contains(FName(TEXT("peddler")))){Dealer=*It;break;}
+                    const double Distance=FVector::DistSquared2D(It->GetActorLocation(),DealerSite);
+                    if(!It->IsHidden()&&Distance<Best){Best=Distance;Dealer=*It;}
                 }
-                if(!Dealer||!InPhase(PC,ELDMatchPhase::Development)){return false;}
-                if(HeldAt<0.){HeldAt=Now;}
-                if(Now-HeldAt>=.3&&Once(Now,1))
+                // Only a dealer this page clicked counts: without one the page times out and is reported as missed.
+                if(!Dealer&&bDealerClicked)
                 {
-                    ELDGrowthReason Reason=ELDGrowthReason::None;
-                    PC.SubmitDevTest(ELDDevTestOp::TeleportToCamera,0,Reason,NAME_None,0,0,Dealer->GetActorLocation()+FVector(-260,0,120));
+                    if(HeldAt<0.){HeldAt=Now;PC.Navigation->DevSetPointer(TOptional<FVector2D>());}
+                    return Now-HeldAt>=2.5;
                 }
-                return Now-HeldAt>=2.5;
-            },25.});
+                for(int32 Try=0;Try<25;++Try)
+                {
+                    if(!Once(Now,1+Try,1.+Try*1.2)){continue;}
+                    if(Dealer){bDealerClicked=true;}
+                    FVector2D Screen;
+                    if(Dealer&&PC.ProjectWorldLocationToScreen(Dealer->GetActorLocation(),Screen)){PC.Navigation->DevSetPointer(Screen);PC.Navigation->ClickMove();}
+                }
+                return false;
+            },45.});
+        DealerPages.Add({TEXT("Match_PeddlerEnd"),[this](ALDPlayerController& PC,double Now)
+            {
+                if(Once(Now,0))
+                {
+                    if(PC.Navigation){PC.Navigation->DevSetPointer(TOptional<FVector2D>());}
+                    ELDGrowthReason Reason=ELDGrowthReason::None;
+                    PC.SubmitDevTest(ELDDevTestOp::SetAttribute,0,Reason,NAME_None,0,uint8(ELDDemoBonusStat::ADFlat));
+                }
+                // The stage clock as the interrupted pages had it.
+                if(Once(Now,1,.6)){Dev(PC,ELDDevTestOp::SetCountdownPaused,bDealerClockHeld?1:0);}
+                return Settled(Now,1.4);
+            },10.,false});
+        // Where the dealer may still be to come: the clock runs until it is out (Tick then inserts its pages) or its time
+        // has passed.
+        Pages.Add({TEXT("Match_PeddlerWait"),[this](ALDPlayerController& PC,double Now)
+            {
+                if(bDealerInserted){return true;}
+                if(Once(Now,0)){Dev(PC,ELDDevTestOp::SetCountdownPaused,0);}
+                const auto* Mode=PC.GetWorld()->GetAuthGameMode<ALDGameMode>();
+                return Mode&&(Mode->GetPeddler().bGone||DealerOut(PC));
+            },240.,false});
         // Back in the field the stage clock is held again, so the next rest does not arrive under the pages below.
         Pages.Add({TEXT("Match_Scoreboard"),[this](ALDPlayerController& PC,double Now)
             {
@@ -735,6 +801,14 @@ public:
                 if(InPhase(PC,ELDMatchPhase::Development)&&Once(Now,10,1.)){Dev(PC,ELDDevTestOp::OpenCapture,0);}
                 if(InPhase(PC,ELDMatchPhase::Development)&&Once(Now,11,40.)){Dev(PC,ELDDevTestOp::OpenCapture,0);}
                 return InPhase(PC,ELDMatchPhase::CaptureOpen)&&Settled(Now,10.);
+            },120.});
+        // The final with a graffiti on the flagpole: the score bug's foot lines (whose graffiti it is, then the aside).
+        Pages.Add({TEXT("Match_FinalGraffiti"),[this](ALDPlayerController& PC,double Now)
+            {
+                const FLDPublicMatchView* View=Match(PC);
+                if(!View||View->Phase!=ELDMatchPhase::CaptureOpen||!View->GraffitiOwner.IsValid()){HeldAt=-1.;return false;}
+                if(HeldAt<0.){HeldAt=Now;}
+                return Now-HeldAt>=.6;
             },120.});
         Pages.Add({TEXT("Match_Results"),[this](ALDPlayerController& PC,double Now)
             {
@@ -832,6 +906,16 @@ public:
     ESlateVisibility RootShown=ESlateVisibility::SelfHitTestInvisible,HudShown=ESlateVisibility::SelfHitTestInvisible;
     double KillBase=-1.,KillSeenAt=-1.,StageBase=-1.,HeldAt=-1.;
     TWeakObjectPtr<ALDCharacter> PosedBody;
+    FVector DealerSite=FVector::ZeroVector;
+    bool bDealerClicked=false,bDealerInserted=false,bDealerClockHeld=false;
+    TArray<FPage> DealerPages;
+    int32 DealerEarliest=MAX_int32;
+    // The dealer is out, in a field, with the host alive to go to it.
+    static bool DealerOut(ALDPlayerController& PC)
+    {
+        const auto* Mode=PC.GetWorld()?PC.GetWorld()->GetAuthGameMode<ALDGameMode>():nullptr;
+        return Mode&&Mode->GetPeddler().bSpawned&&!Mode->GetPeddler().bGone&&InPhase(PC,ELDMatchPhase::Development)&&PC.OwnerState.LifePhase==ELDLifePhase::Alive;
+    }
     TArray<TWeakObjectPtr<AActor>> HiddenBodies;
     double DeadAt=0.;
 
@@ -846,6 +930,13 @@ public:
             Check(Missed.IsEmpty(),TEXT("Every planned page was reached"),FString::Join(Missed,TEXT(", ")));
             return Finish();
         }
+        if(Step==0&&!bDealerInserted&&!DealerPages.IsEmpty()&&Page>=DealerEarliest&&DealerOut(*PC))
+        {
+            const FLDPublicMatchView* View=Match(*PC);
+            bDealerClockHeld=View&&View->Timeline.bCountdownPaused;
+            Pages.Insert(DealerPages,Page);
+            bDealerInserted=true;
+        }
         FPage& Current=Pages[Page];
         if(Step==0){PageAt=Now;Step=1;Fired.Reset();}
         if(Step==1)
@@ -854,7 +945,8 @@ public:
             if(!Current.Enter(*PC,Now)){return true;}
             Step=2;Combo=0;
         }
-        const int32 Count=Current.bAllSizes&&Current.Only<0?4:1;
+        // -LDUICoverageOneSize (a recorded run): every page at 1920x1080 and 100 % only, so the window never changes size.
+        const int32 Count=Current.bAllSizes&&Current.Only<0&&!bOneSize?4:1;
         if(Combo>=Count){Step=0;Combo=0;++Page;return true;}
         const FCombo& Next=Combos[Current.Only>=0?Current.Only:Combo];
         if(Step==2)
@@ -890,6 +982,7 @@ void StartUICoverageProbe(ALDPlayerController& PC)
     FSlateApplication::Get().SetAllowTooltips(false);
     Probe->bClient=bClient;
     Probe->bEntrant=FParse::Param(FCommandLine::Get(),TEXT("LDUICoverageEntrant"));
+    Probe->bOneSize=FParse::Param(FCommandLine::Get(),TEXT("LDUICoverageOneSize"));
     if(Probe->bFrontend){Probe->PlanFrontend();}else if(bClient){Probe->PlanClient();}else{Probe->PlanMatch();}
     FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Probe](float Delta){return Probe->Tick(Delta);}));
 }
