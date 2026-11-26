@@ -102,7 +102,6 @@ namespace
             const double Now = FPlatformTime::Seconds() - StartSeconds;
             FScopeLock Guard(&Lock);
             if (Rate == 0) { Rate = SampleRate; FirstSeconds = Now - double(Count) / SampleRate; }
-            if (Samples.Num() > SampleRate * 2 * 60 * 15) { return; }
             const int64 Expected = int64((Now - FirstSeconds) * Rate) - Count;
             if (Expected - Frames > Rate / 20)
             {
@@ -121,22 +120,32 @@ namespace
             Frames += Count;
         }
 
-        bool Save(const FString& File)
+        // The samples since the last call (16-bit stereo), for appending to disk.
+        TArray<int16> Take()
         {
             FScopeLock Guard(&Lock);
-            if (Rate == 0) { return false; }
-            TArray<uint8> Wav;
-            const uint32 DataBytes = uint32(Samples.Num() * sizeof(int16));
-            auto Put32 = [&Wav](uint32 V) { Wav.Append(reinterpret_cast<const uint8*>(&V), 4); };
-            auto Put16 = [&Wav](uint16 V) { Wav.Append(reinterpret_cast<const uint8*>(&V), 2); };
-            Wav.Append(reinterpret_cast<const uint8*>("RIFF"), 4); Put32(36 + DataBytes);
-            Wav.Append(reinterpret_cast<const uint8*>("WAVEfmt "), 8); Put32(16); Put16(1); Put16(2); Put32(uint32(Rate));
-            Put32(uint32(Rate) * 4); Put16(4); Put16(16);
-            Wav.Append(reinterpret_cast<const uint8*>("data"), 4); Put32(DataBytes);
-            Wav.Append(reinterpret_cast<const uint8*>(Samples.GetData()), DataBytes);
-            return FFileHelper::SaveArrayToFile(Wav, *File);
+            TArray<int16> Out = MoveTemp(Samples);
+            Samples.Reset();
+            return Out;
         }
     };
+
+    // Wraps a raw 16-bit stereo PCM file into a WAV file.
+    bool WriteWav(const FString& Pcm, const FString& Wav, int32 Rate)
+    {
+        TArray<uint8> Data;
+        if (Rate <= 0 || !FFileHelper::LoadFileToArray(Data, *Pcm)) { return false; }
+        TArray<uint8> Out;
+        const uint32 DataBytes = uint32(Data.Num());
+        auto Put32 = [&Out](uint32 V) { Out.Append(reinterpret_cast<const uint8*>(&V), 4); };
+        auto Put16 = [&Out](uint16 V) { Out.Append(reinterpret_cast<const uint8*>(&V), 2); };
+        Out.Append(reinterpret_cast<const uint8*>("RIFF"), 4); Put32(36 + DataBytes);
+        Out.Append(reinterpret_cast<const uint8*>("WAVEfmt "), 8); Put32(16); Put16(1); Put16(2); Put32(uint32(Rate));
+        Put32(uint32(Rate) * 4); Put16(4); Put16(16);
+        Out.Append(reinterpret_cast<const uint8*>("data"), 4); Put32(DataBytes);
+        Out.Append(Data);
+        return FFileHelper::SaveArrayToFile(Out, *Wav);
+    }
 
     // One recorder per process: frames from the game viewport's back buffer and the master submix of the game's own audio
     // device. Nothing here reads the desktop or the system audio.
@@ -157,6 +166,7 @@ namespace
         int32 Written = 0;
         TAtomic<int32> Pending{0};
         FString FrameLog;
+        double LastPersist = -1.0;
         bool bFinished = false;
 
         static UWorld* GameWorld()
@@ -198,6 +208,7 @@ namespace
                 UE_LOG(LogLDGameRecorder, Error, TEXT("LD_GAME_RECORDER_NO_AUDIO the game world has no audio device (-nosound?)"));
             }
             FrameLog = TEXT("index,seconds\n");
+            Persist(false);
             UE_LOG(LogLDGameRecorder, Display, TEXT("LD_GAME_RECORDER_START folder=%s size=%dx%d fps=%.1f"), *Folder, Out.X, Out.Y, Fps);
             return true;
         }
@@ -243,8 +254,48 @@ namespace
                 LastCapture = Now;
             }
             Drain();
+            if (Wall - LastPersist > 1.0) { Persist(false); LastPersist = Wall; }
             if (IsEngineExitRequested()) { Finish(); return false; }
             return true;
+        }
+
+        // Everything recorded so far reaches disk every second (frame times, audio, metadata), so a process that exits
+        // or is stopped before Finish still leaves an assemblable recording.
+        void Persist(bool bComplete)
+        {
+            if (!FrameLog.IsEmpty())
+            {
+                FFileHelper::SaveStringToFile(FrameLog, *(Folder / TEXT("frames.csv")), FFileHelper::EEncodingOptions::AutoDetect, &IFileManager::Get(), FILEWRITE_Append);
+                FrameLog.Reset();
+            }
+            if (Tap.IsValid())
+            {
+                const TArray<int16> Chunk = Tap->Take();
+                if (Chunk.Num() > 0)
+                {
+                    TArray<uint8> Bytes;
+                    Bytes.Append(reinterpret_cast<const uint8*>(Chunk.GetData()), Chunk.Num() * sizeof(int16));
+                    FFileHelper::SaveArrayToFile(Bytes, *(Folder / TEXT("game_audio.pcm")), &IFileManager::Get(), FILEWRITE_Append);
+                }
+            }
+            const TSharedRef<FJsonObject> Json = MakeShared<FJsonObject>();
+            Json->SetStringField(TEXT("start_utc"), StartUtc.ToIso8601());
+            Json->SetNumberField(TEXT("frames"), Written);
+            Json->SetNumberField(TEXT("seconds"), FPlatformTime::Seconds() - StartSeconds);
+            Json->SetBoolField(TEXT("complete"), bComplete);
+            const bool bAudio = Tap.IsValid() && Tap->Rate > 0;
+            Json->SetBoolField(TEXT("audio"), bAudio);
+            if (bAudio)
+            {
+                Json->SetNumberField(TEXT("audio_rate"), Tap->Rate);
+                Json->SetNumberField(TEXT("audio_start_seconds"), Tap->FirstSeconds);
+                Json->SetNumberField(TEXT("audio_padded_seconds"), double(Tap->PaddedFrames) / Tap->Rate);
+            }
+            Json->SetNumberField(TEXT("fps_cap"), Fps);
+            Json->SetStringField(TEXT("source"), TEXT("game viewport back buffer (FFrameGrabber) and the game's master submix buffers; no desktop or system audio"));
+            FString Text;
+            FJsonSerializer::Serialize(Json, TJsonWriterFactory<>::Create(&Text));
+            FFileHelper::SaveStringToFile(Text, *(Folder / TEXT("recorder.json")));
         }
 
         void Finish()
@@ -254,13 +305,7 @@ namespace
             SetOwnSpeakerMute(false);
             if (!Grabber) { return; }
             const double EndSeconds = FPlatformTime::Seconds() - StartSeconds;
-            bool bAudio = false;
-            if (Tap.IsValid())
-            {
-                if (Device.IsValid()) { Device->UnregisterSubmixBufferListener(Tap.ToSharedRef(), Device->GetMainSubmixObject()); }
-                bAudio = Tap->Save(Folder / TEXT("game_audio.wav"));
-                if (!bAudio) { UE_LOG(LogLDGameRecorder, Error, TEXT("LD_GAME_RECORDER_AUDIO_EMPTY the master submix delivered no audio")); }
-            }
+            if (Tap.IsValid() && Device.IsValid()) { Device->UnregisterSubmixBufferListener(Tap.ToSharedRef(), Device->GetMainSubmixObject()); }
             Grabber->StopCapturingFrames();
             FlushRenderingCommands();
             for (int32 Attempt = 0; Attempt < 50 && Grabber->HasOutstandingFrames(); ++Attempt)
@@ -272,23 +317,14 @@ namespace
             Drain();
             Grabber->Shutdown();
             Grabber.Reset();
-            for (int32 Attempt = 0; Attempt < 3000 && Pending.Load() > 0; ++Attempt) { FPlatformProcess::Sleep(0.01f); }
-            FFileHelper::SaveStringToFile(FrameLog, *(Folder / TEXT("frames.csv")));
-            const TSharedRef<FJsonObject> Json = MakeShared<FJsonObject>();
-            Json->SetStringField(TEXT("start_utc"), StartUtc.ToIso8601());
-            Json->SetNumberField(TEXT("frames"), Written);
-            Json->SetNumberField(TEXT("seconds"), EndSeconds);
-            Json->SetBoolField(TEXT("audio"), bAudio);
-            if (bAudio)
+            Persist(true);
+            const bool bAudio = Tap.IsValid() && Tap->Rate > 0;
+            if (!bAudio) { UE_LOG(LogLDGameRecorder, Error, TEXT("LD_GAME_RECORDER_AUDIO_EMPTY the master submix delivered no audio")); }
+            else if (!WriteWav(Folder / TEXT("game_audio.pcm"), Folder / TEXT("game_audio.wav"), Tap->Rate))
             {
-                Json->SetNumberField(TEXT("audio_start_seconds"), Tap->FirstSeconds);
-                Json->SetNumberField(TEXT("audio_padded_seconds"), double(Tap->PaddedFrames) / Tap->Rate);
+                UE_LOG(LogLDGameRecorder, Error, TEXT("LD_GAME_RECORDER_WAV_FAILED game_audio.pcm stays raw"));
             }
-            Json->SetNumberField(TEXT("fps_cap"), Fps);
-            Json->SetStringField(TEXT("source"), TEXT("game viewport back buffer (FFrameGrabber) and the game's master submix buffers; no desktop or system audio"));
-            FString Text;
-            FJsonSerializer::Serialize(Json, TJsonWriterFactory<>::Create(&Text));
-            FFileHelper::SaveStringToFile(Text, *(Folder / TEXT("recorder.json")));
+            for (int32 Attempt = 0; Attempt < 3000 && Pending.Load() > 0; ++Attempt) { FPlatformProcess::Sleep(0.01f); }
             UE_LOG(LogLDGameRecorder, Display, TEXT("LD_GAME_RECORDER_STOP frames=%d seconds=%.2f pending=%d"), Written, EndSeconds, Pending.Load());
         }
     };
