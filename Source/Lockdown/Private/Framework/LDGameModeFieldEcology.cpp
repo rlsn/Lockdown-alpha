@@ -110,9 +110,18 @@ bool ALDGameMode::PlanFieldSpawns(uint8 Segment, TConstArrayView<FGuid> Order,
     }
     if (Pool.Num() < SpawnPoolMinimum)
     {
-        Error = FString::Printf(TEXT("Field deployment found %d legal, distributed candidates; at least %d are required."),
-            Pool.Num(), SpawnPoolMinimum);
-        return false;
+        // The random draw can miss narrow legal ground. Sweep the whole field on a fixed lattice under the same rules;
+        // only a field that still lacks enough legal ground is an authority fault (map or parameter, not chance).
+        const int32 Drawn = Pool.Num();
+        TArray<FVector2D> Grid;
+        GridPoints(Sampler.GetBounds(), CandidateSeparationCm, Grid);
+        for (int32 Index = 0; Index < Grid.Num() && Pool.Num() < CandidateCount; ++Index) { Add(Grid[Index], false); }
+        if (Pool.Num() < SpawnPoolMinimum)
+        {
+            Error = FString::Printf(TEXT("Field deployment found %d legal, distributed candidates (%d drawn, %d more from a %d-point %.0f cm grid sweep); at least %d (FIELD.SpawnPoolMin) are required: the field or its parameters leave too little legal ground."),
+                Pool.Num(), Drawn, Pool.Num() - Drawn, Grid.Num(), CandidateSeparationCm, SpawnPoolMinimum);
+            return false;
+        }
     }
 
     TArray<FVector> Feet;
