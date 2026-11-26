@@ -9,6 +9,7 @@
 #include "Dom/JsonObject.h"
 #include "Engine/World.h"
 #include "Framework/LDGameState.h"
+#include "Framework/LDBuildBlueprintComponent.h"
 #include "Framework/LDGameMode.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDHumanoidVisualComponent.h"
@@ -218,8 +219,18 @@ public:
                 if(Once(Now,0)){PC.SetDemoAICount(6);}
                 return Guests(PC)==1&&GuestReady(PC)&&Settled(Now,2.5);
             },90.});
+        Pages.Add({TEXT("Lobby_ButtonPressed"),[this](ALDPlayerController& PC,double Now)
+            {
+                if(Once(Now,0)){LDSlateProbeInput::Pointer(FindButton(PC.RootUI,TEXT("LobbyBuildBlueprint")),EKeys::LeftMouseButton,true,false);}
+                return Settled(Now,.6);
+            },10.,false});
         Pages.Add({TEXT("Lobby_Blueprint"),[this](ALDPlayerController& PC,double Now)
-            {if(Once(Now,0)){Click(PC.RootUI,TEXT("LobbyBuildBlueprint"));}return Settled(Now,1.2);}});
+            {
+                if(Once(Now,0)){LDSlateProbeInput::Pointer(FindButton(PC.RootUI,TEXT("LobbyBuildBlueprint")),EKeys::LeftMouseButton,false,true);}
+                // The button's own click if the routed release did not open the viewer.
+                if(Once(Now,1,.5)&&PC.BuildBlueprints&&!PC.BuildBlueprints->IsViewerOpen()){Click(PC.RootUI,TEXT("LobbyBuildBlueprint"));}
+                return Settled(Now,1.6);
+            }});
         AddSettings(TEXT("Lobby"),[](ALDPlayerController& PC)
             {if(PC.RootUI){PC.RootUI->CloseTopModal();PC.RootUI->CloseTopPanel();}return Click(PC.RootUI,TEXT("LobbySettings"));});
         Pages.Add({TEXT("Match_RestOpening"),[this](ALDPlayerController& PC,double Now)
@@ -575,9 +586,9 @@ public:
         RestStep(TEXT("Match_R1Build"),ELDRestStep::Build,false,1.5,240.);
         if(bEntrant)
         {
-            // -LDUICoverageEntrant: the host walks into its own sign-up disk during the window (ordinary ground clicks
-            // towards the disk the authority names; no DEV teleport in a rest), so the steps that follow are an entrant's:
-            // drawn, fighting (still invulnerable from the DEV op), paid.
+            // -LDUICoverageEntrant: the host goes into its own sign-up disk during the window (ordinary ground clicks towards
+            // the disk the authority names, then the DEV teleport if the walk has not arrived), so the steps that follow
+            // are an entrant's: drawn, fighting (still invulnerable from the DEV op), paid.
             Pages.Add({TEXT("Match_R1Signup"),[this](ALDPlayerController& PC,double Now)
             {
                 const FLDPublicMatchView* View=Match(PC);
@@ -600,6 +611,14 @@ public:
                         if(!PC.ProjectWorldLocationToScreen(Disk,Screen)||W<=0||H<=0){continue;}
                         Screen.X=FMath::Clamp(Screen.X,W*.12,W*.88);Screen.Y=FMath::Clamp(Screen.Y,H*.18,H*.74);
                         PC.Navigation->DevSetPointer(Screen);PC.Navigation->ClickMove();
+                    }
+                    for(int32 Try=0;Try<3;++Try)
+                    {
+                        if(Once(Now,80+Try,4.+Try*1.5))
+                        {
+                            ELDGrowthReason Reason=ELDGrowthReason::None;
+                            PC.SubmitDevTest(ELDDevTestOp::TeleportToCamera,0,Reason,NAME_None,0,0,Disk+FVector(0,0,120));
+                        }
                     }
                     return false;
                 }
