@@ -3674,7 +3674,9 @@ void ULDHUD::ThrowPKAtPointer()
     FHitResult Ground;
     if(!PC->Navigation||!PC->Navigation->GroundUnderPointer(Ground)){ShowPKAnswer(LDTerms::PKThrowNoGround);return;}
     // A spot the throw cannot reach keeps the aim: the reason in one line, nothing sent.
-    if(const ELDPKThrowResult Spot=PKThrowSpot(FVector(Ground.ImpactPoint));Spot!=ELDPKThrowResult::Thrown){ShowPKAnswer(LDHUD::PKThrowText(Spot));return;}
+    // A steep face (a wall's side) is never floor.
+    const ELDPKThrowResult Spot=Ground.ImpactNormal.Z>.7f?PKThrowSpot(FVector(Ground.ImpactPoint)):ELDPKThrowResult::NotGround;
+    if(Spot!=ELDPKThrowResult::Thrown){ShowPKAnswer(LDHUD::PKThrowText(Spot));return;}
     bPKThrowArmed=false;
     bPKThrowInFlight=true;
     PC->SubmitPKThrow(FVector(Ground.ImpactPoint));
@@ -3693,6 +3695,9 @@ void ULDHUD::HandlePKThrow(ELDPKThrowResult Result,int64 ReadyAtMs)
     // Thrown and CoolingDown carry when the next throw is allowed; other answers leave the known cooldown as it is.
     if(ReadyAtMs>0){PKThrowReadyAtMs=ReadyAtMs;}
     UE_LOG(LogLDUI,Log,TEXT("LD_HUD_PK_THROW_RESULT %d ready_at=%lld"),int32(Result),ReadyAtMs);
+    // A spot the authority refused (a wall or a tree the aim cannot tell from the floor) aims again: the next click tries
+    // another spot without pressing the throw button first.
+    if(Result==ELDPKThrowResult::NotGround||Result==ELDPKThrowResult::OutsideArena||Result==ELDPKThrowResult::OutOfRange){bPKThrowArmed=true;}
     ShowPKAnswer(LDHUD::PKThrowText(Result));
 }
 void ULDHUD::ShowPKAnswer(const FString& Text)
@@ -4525,7 +4530,7 @@ void ULDHUD::PaintWorldPreviews(const FGeometry& G,FSlateWindowElementList& E,in
         if(PC->Navigation->GroundUnderPointer(ThrowGround))
         {
             const float ThrowRadiusCm=bPKParamsValid&&PKParams.ThrowRadiusCm>0.f?float(PKParams.ThrowRadiusCm):120.f;
-            const bool bLands=PKThrowSpot(FVector(ThrowGround.ImpactPoint))==ELDPKThrowResult::Thrown;
+            const bool bLands=PKThrowSpot(FVector(ThrowGround.ImpactPoint))==ELDPKThrowResult::Thrown&&ThrowGround.ImpactNormal.Z>.7f;
             const FLinearColor ThrowColor=bLands?ALDPKRingMarker::ThrowColor().CopyWithNewOpacity(.95f):FLinearColor(.55f,.55f,.58f,.8f);
             if(!bLands)
             {

@@ -663,7 +663,21 @@ public:
                 ULDHUD* HUD=PC.HUDUI;
                 if(!View||!HUD||View->Timeline.Step!=ELDRestStep::PK){return Settled(Now,3.);}
                 if(Once(Now,0)){HUD->TogglePKThrowAim();}
-                const FVector Out=View->PK.ArenaCentreCm+(View->PK.ThrowAnchorCm-View->PK.ArenaCentreCm).GetSafeNormal2D()*2100.;
+                // The nearest on-screen spot the HUD's own rule calls outside the arena (eight bearings, outward in steps).
+                int32 W=0,H=0;
+                PC.GetViewportSize(W,H);
+                FVector Out=View->PK.ArenaCentreCm+FVector(4000.,0.,0.);
+                bool bFound=false;
+                for(double Reach=1500.;Reach<=4500.&&!bFound;Reach+=150.)
+                {
+                    for(int32 Bearing=0;Bearing<8&&!bFound;++Bearing)
+                    {
+                        const FVector Try=View->PK.ArenaCentreCm+FRotator(0.,45.*Bearing,0.).Vector()*Reach;
+                        FVector2D Screen;
+                        if(HUD->PKThrowSpot(Try)==ELDPKThrowResult::OutsideArena&&PC.ProjectWorldLocationToScreen(Try,Screen)
+                            &&Screen.X>.1*W&&Screen.X<.6*W&&Screen.Y>.15*H&&Screen.Y<.8*H){Out=Try;bFound=true;}
+                    }
+                }
                 if(!Aim(PC,Out)){return false;}
                 if(Once(Now,1)&&HUD->IsPKThrowArmed()){HUD->ThrowPKAtPointer();}
                 return HUD->IsPKThrowArmed()&&Settled(Now,1.);
