@@ -185,6 +185,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoMotionProbe.SupportTransitions",
         "Lockdown.Rules.DemoMotionProbe.UnrecordedMoveRejected",
         "Lockdown.Rules.DemoMotionProbe.DashStopsAtWall",
+        "Lockdown.Rules.DemoMotionProbe.DashIntoDemoMap",
         "Lockdown.Rules.DemoSpawn.UnbiasedSample",
         "Lockdown.Rules.DemoAttributeProjection.ApprovedLevels",
         "Lockdown.Rules.DemoAttributeProjection.StatPoints",
