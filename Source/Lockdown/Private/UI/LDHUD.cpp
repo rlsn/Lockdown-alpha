@@ -232,12 +232,13 @@ constexpr float HudStripH=106.f;
 constexpr float HudStripPanelTop=12.f;
 constexpr float HudStripPanelBottom=96.f;
 constexpr float HudStripPadR=18.f;
-constexpr float HudSeatW=128.f;
+// A slim seat block (the jersey number): the width goes to the health figure.
+constexpr float HudSeatW=64.f;
 constexpr float HudSeatGap=20.f;
 constexpr float HudLevelW=86.f;
 constexpr float HudColGap=18.f;
 constexpr float HudHealthW=330.f;
-constexpr float HudHealthFigure=60.f;
+constexpr float HudHealthFigure=70.f;
 constexpr float HudHealthBarH=12.f;
 constexpr float HudMomentumBarW=104.f;
 constexpr float HudMomentumBarH=8.f;
@@ -271,7 +272,8 @@ FHudLookStyle HudLookStyle(LDHUD::EActionLook Look)
     const FLinearColor DarkBand=LDBroadcast::Ink.CopyWithNewOpacity(.92f);
     switch(Look)
     {
-    case LDHUD::EActionLook::Ready: return {Face,LDBroadcast::White,LDBroadcast::RuleWidth,LDBroadcast::Orange,LDBroadcast::Ink};
+    // Orange is kept for what can be pressed now (a rank-up "+", points to spend, a waiting choice); a ready key is white.
+    case LDHUD::EActionLook::Ready: return {Face,LDBroadcast::White,LDBroadcast::RuleWidth,LDBroadcast::White,LDBroadcast::Ink};
     case LDHUD::EActionLook::Armed: return {Face,LDBroadcast::Orange,3.f,LDBroadcast::White,LDBroadcast::Ink};
     case LDHUD::EActionLook::Cooling: return {Face,LDBroadcast::Mute,LDBroadcast::RuleWidth,DarkBand,LDBroadcast::White};
     case LDHUD::EActionLook::MomentumShort: return {Face,LDBroadcast::Mute,LDBroadcast::RuleWidth,DarkBand,LDBroadcast::Orange};
@@ -922,7 +924,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             DeathRecapContainer=RecapWidth;
             auto* RecapSlot=DeathBox->AddChildToVerticalBox(RecapWidth);RecapSlot->SetHorizontalAlignment(HAlign_Center);RecapSlot->SetPadding(FMargin(0,6,0,0));
         }
-        DeathWorkshopButton=LDWidgets::Button(WidgetTree,LDTerms::DeathWorkshopPrompt(TEXT("B"),FString()),[this](){ToggleWorkshop();},true,TEXT("HUDDeathWorkshopButton"));
+        DeathWorkshopButton=LDWidgets::Button(WidgetTree,LDTerms::DeathWorkshopPrompt(TEXT("B")),[this](){ToggleWorkshop();},true,TEXT("HUDDeathWorkshopButton"));
         LDWidgets::SetLook(DeathWorkshopButton,LDUIPaint::EButton::Primary);
         DeathWorkshopButton->SetVisibility(ESlateVisibility::Collapsed);
         auto* DeathBtnSlot=DeathBox->AddChildToVerticalBox(DeathWorkshopButton);DeathBtnSlot->SetHorizontalAlignment(HAlign_Center);DeathBtnSlot->SetPadding(FMargin(0,10,0,0));
@@ -1013,7 +1015,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             // Level and experience: a small "LV" over nothing louder than the level figure; the bar's tooltip has the numbers.
             auto* LevelCol=WidgetTree->ConstructWidget<UVerticalBox>();
             auto* LevelLine=WidgetTree->ConstructWidget<UHorizontalBox>();
-            UTextBlock* LV=Figure(TEXT("LV"),LDBroadcast::TypeSmall,LDBroadcast::Orange);
+            UTextBlock* LV=Figure(TEXT("LV"),LDBroadcast::TypeSmall,LDBroadcast::Grey);
             LevelLine->AddChildToHorizontalBox(LV)->SetVerticalAlignment(VAlign_Bottom);
             if(auto* LVSlot=Cast<UHorizontalBoxSlot>(LV->Slot)){LVSlot->SetPadding(FMargin(0,0,6,6));}
             LevelBadgeText=Figure(TEXT(""),LDBroadcast::TypeTitle+4.f,LDBroadcast::White);
@@ -1023,7 +1025,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             {
                 FProgressBarStyle Style;Style.SetBackgroundImage(FSlateColorBrush(LDBroadcast::White.CopyWithNewOpacity(.18f)))
                     .SetFillImage(FSlateColorBrush(FLinearColor::White)).SetMarqueeImage(FSlateNoResource());
-                LevelBar->SetWidgetStyle(Style);LevelBar->SetFillColorAndOpacity(LDBroadcast::Orange);LevelBar->SetPercent(0);
+                LevelBar->SetWidgetStyle(Style);LevelBar->SetFillColorAndOpacity(LDBroadcast::White);LevelBar->SetPercent(0);
             }
             LevelCol->AddChildToVerticalBox(Fixed(LevelBar,HudLevelW-10.f,6.f))->SetPadding(FMargin(0,2,0,0));
             StripRow->AddChildToHorizontalBox(Fixed(LevelCol,HudLevelW,0.f))->SetPadding(FMargin(HudSeatGap,0,0,0));
@@ -1043,12 +1045,12 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             HealthRegenText=Figure(TEXT(""),LDBroadcast::TypeSmall,LDBroadcast::Grey);HealthRegenText->SetJustification(ETextJustify::Right);
             Side->AddChildToVerticalBox(HealthRegenText)->SetHorizontalAlignment(HAlign_Right);
             auto* MomentumLine=WidgetTree->ConstructWidget<UHorizontalBox>();
-            UTextBlock* Jin=Words(LDTerms::Momentum,LDBroadcast::TypeSmall,LDBroadcast::Orange,true);
+            UTextBlock* Jin=Words(LDTerms::Momentum,LDBroadcast::TypeSmall,LDBroadcast::Grey,true);
             MomentumLine->AddChildToHorizontalBox(Jin)->SetVerticalAlignment(VAlign_Center);
             MomentumBarSpot=Fixed(Painted(nullptr,[this,Whole](const LDUIPaint::FContext& P)
             {
                 LDBroadcastPaint::FBar Bar;Bar.Fraction=StripPaint.bMomentum?StripPaint.Momentum:0.f;
-                Bar.Fill=StripPaint.bOverdrive?LDBroadcast::Gold:LDBroadcast::Orange;Bar.Track=LDBroadcast::White.CopyWithNewOpacity(.14f);
+                Bar.Fill=StripPaint.bOverdrive?LDBroadcast::Gold:LDBroadcast::White;Bar.Track=LDBroadcast::White.CopyWithNewOpacity(.14f);
                 Bar.Notch=StripPaint.bMomentum?StripPaint.Notch:-1.f;Bar.NotchInk=StripPaint.bOverdrive?LDBroadcast::Gold:LDBroadcast::White;
                 LDBroadcastPaint::Bar(P,P.Layer,Whole(P),Bar);
             }),HudMomentumBarW,HudMomentumBarH);
@@ -1115,7 +1117,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             Entry.ElementChip=Chip(ElementText,LDBroadcast::Ink,LDBroadcast::White,false);Entry.ElementGlyph=ElementText;Entry.ElementChip->SetPadding(FMargin(4,0));
             auto* ElementLayer=Face->AddChildToOverlay(Entry.ElementChip);ElementLayer->SetHorizontalAlignment(HAlign_Left);ElementLayer->SetVerticalAlignment(VAlign_Top);ElementLayer->SetPadding(FMargin(2,2,0,0));
             // The rank ticks on the lower edge and the missing momentum over a short face.
-            Entry.Ranks=Figure(TEXT(""),LDBroadcast::TypeSmall,LDBroadcast::Orange);
+            Entry.Ranks=Figure(TEXT(""),LDBroadcast::TypeSmall,LDBroadcast::White);
             auto* RanksLayer=Face->AddChildToOverlay(Entry.Ranks);RanksLayer->SetHorizontalAlignment(HAlign_Left);RanksLayer->SetVerticalAlignment(VAlign_Bottom);RanksLayer->SetPadding(FMargin(5,0,0,1));
             Entry.Gap=Figure(TEXT(""),LDBroadcast::TypeLabel,LDBroadcast::Orange);Entry.Gap->SetVisibility(ESlateVisibility::Collapsed);
             auto* GapLayer=Face->AddChildToOverlay(Entry.Gap);GapLayer->SetHorizontalAlignment(HAlign_Center);GapLayer->SetVerticalAlignment(VAlign_Center);
@@ -1135,7 +1137,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             Entry.Flash=WidgetTree->ConstructWidget<UBorder>();Entry.Flash->SetVisibility(ESlateVisibility::Collapsed);FillLayer(Stack->AddChildToOverlay(Entry.Flash));
             // The key band under the face.
             Entry.Key=Figure(TEXT(""),LDBroadcast::TypeSmall,LDBroadcast::Ink);Entry.Key->SetJustification(ETextJustify::Center);Entry.Key->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
-            Entry.KeyBand=WidgetTree->ConstructWidget<UBorder>();Entry.KeyBand->SetBrush(FSlateColorBrush(FLinearColor::White));Entry.KeyBand->SetBrushColor(LDBroadcast::Orange);
+            Entry.KeyBand=WidgetTree->ConstructWidget<UBorder>();Entry.KeyBand->SetBrush(FSlateColorBrush(FLinearColor::White));Entry.KeyBand->SetBrushColor(LDBroadcast::White);
             Entry.KeyBand->SetPadding(FMargin(2,0));Entry.KeyBand->SetHorizontalAlignment(HAlign_Center);Entry.KeyBand->SetVerticalAlignment(VAlign_Center);Entry.KeyBand->SetContent(Entry.Key);
             auto* Column=WidgetTree->ConstructWidget<UVerticalBox>();
             Column->AddChildToVerticalBox(Fixed(Stack,HudSlotSide,HudSlotSide));
@@ -1985,7 +1987,17 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     {return Event.bOwn&&(Event.Kind==LDWorldFeedback::EKind::DamageTaken||Event.Kind==LDWorldFeedback::EKind::ShieldAbsorbed);});
     const bool bRestPlanning=Public.Phase==ELDMatchPhase::Rest&&Public.Timeline.Step==ELDRestStep::Build;
     HudSetText(PhaseText,Circle.Head);
-    const bool bPhaseLine=!bChoicesRestOpen&&(Public.Phase!=ELDMatchPhase::Development||Public.Showdown.bStarted)&&Public.Phase!=ELDMatchPhase::Rest;
+    // In the final the flag's state moves to the top-centre bar (PaintMoments); the top-left keeps the closure line only.
+    FlagBar=FFlagBar();
+    if(bOwnMatch&&Public.Phase==ELDMatchPhase::CaptureOpen&&Public.Showdown.bStarted)
+    {
+        FlagBar.bShown=true;
+        FlagBar.Seat=Public.GraffitiOwner.IsValid()?LDHUD::SeatOf(Lobby,Public.GraffitiOwner):INDEX_NONE;
+        FlagBar.Holder=FlagBar.Seat!=INDEX_NONE?LDHUD::RosterName(Lobby,Public.GraffitiOwner):FString(TEXT("旗杆空着"));
+        FlagBar.State=Circle.Head;FlagBar.Progress=Circle.Progress;FlagBar.bProgress=Circle.bProgress;
+        bReadModelLive=true;
+    }
+    const bool bPhaseLine=!FlagBar.bShown&&!bChoicesRestOpen&&(Public.Phase!=ELDMatchPhase::Development||Public.Showdown.bStarted)&&Public.Phase!=ELDMatchPhase::Rest;
     HudSetShown(PhaseText,bPhaseLine,ESlateVisibility::HitTestInvisible);
     HudSetText(PhaseOwnerText,Circle.Owner);HudSetText(PhaseAsideText,Circle.Aside);
     HudSetShown(PhaseOwnerText,!Circle.Owner.IsEmpty(),ESlateVisibility::HitTestInvisible);HudSetShown(PhaseAsideText,!Circle.Aside.IsEmpty(),ESlateVisibility::HitTestInvisible);
@@ -1994,7 +2006,7 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     HudSetText(DevMarkerText,!Lobby.DevTestSession&&!Lobby.DevContentReload?FString()
         :FString(Lobby.DevTestSession?TEXT("测试模式"):TEXT("开发房间"))+(Lobby.DevContentReload?TEXT(" · 内容热重载"):TEXT("")));
     HudSetShown(DevMarkerText,Lobby.DevTestSession||Lobby.DevContentReload,ESlateVisibility::HitTestInvisible);
-    HudSetShown(CircleSpot,Circle.bProgress,ESlateVisibility::HitTestInvisible);
+    HudSetShown(CircleSpot,Circle.bProgress&&!FlagBar.bShown,ESlateVisibility::HitTestInvisible);
     {
         const LDHUD::FTimelineView Timeline=LDHUD::TimelineBanner(Public,O.ContenderId,bClock,NowMs);
         // The score bug carries the beat and its clock; under it only the rest's step (or the closed final field) remains.
@@ -2069,7 +2081,7 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             if(Button->GetBackgroundColor()!=Tint){Button->SetBackgroundColor(Tint);}
             if(Button->GetIsEnabled()==bSpawnChoiceInFlight){Button->SetIsEnabled(!bSpawnChoiceInFlight);}
         }
-        HudSetText(SpawnChoiceCountdown,Choice.Countdown);
+        HudSetText(SpawnChoiceCountdown,DeathBanner&&DeathBanner->IsVisible()?FString():Choice.Countdown);
         // The day's modifiers beside the match timer.
         const bool bDaily=bOwnMatch&&Public.Phase!=ELDMatchPhase::Lobby;
         const TArray<ELDDailyModifier> Daily=bDaily?Public.DailyModifiers:TArray<ELDDailyModifier>();
@@ -2128,8 +2140,8 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             StagePreCover=Left<=350?1.f-float(Left)/350.f:0.f;
             StageNextTitle=Stage==ELDMatchStage::Field?Title(ELDMatchStage::Rest,Timeline.RestIndex+1,0):Title(ELDMatchStage::Field,0,Timeline.FieldSegment);
         }
-        // The opening countdown (the first rest's return into field 1) names the days this match drew.
-        if(!StageCount.IsEmpty()&&Stage==ELDMatchStage::Rest&&Timeline.RestIndex==0&&Timeline.FieldSegment==0)
+        // The opening rest (through its countdown into field 1) names the days this match drew.
+        if(Stage==ELDMatchStage::Rest&&Timeline.RestIndex==0&&Timeline.FieldSegment==0)
         {
             for(const ELDDailyModifier Day:Public.DailyModifiers)
             {
@@ -2179,12 +2191,7 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             HudSetShown(DeathWorkshopButton,bCanOpenBuild,ESlateVisibility::Visible);
             if(bCanOpenBuild)
             {
-                const FString KeyName=PC->BindingLabel(TEXT("Workshop"));
-                const FString LeftSec=(bClock&&O.RespawnAtMs>NowMs)
-                    ?FString::Printf(TEXT("（%.1fs 后复活）"),double(O.RespawnAtMs-NowMs)/1000.)
-                    :FString();
-                HudSetText(Cast<UTextBlock>(DeathWorkshopButton->GetContent()),
-                    FString::Printf(TEXT("按 [%s] 趁复活调整构筑%s"),*KeyName,*LeftSec));
+                HudSetText(Cast<UTextBlock>(DeathWorkshopButton->GetContent()),LDTerms::DeathWorkshopPrompt(PC->BindingLabel(TEXT("Workshop"))));
             }
         }
     }
@@ -2204,7 +2211,7 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     }
     // Plain alive needs no line; protection, death and the other phases keep theirs.
     const bool bPlainAlive=bAlive&&(O.ProtectedUntilMs<=0||(bClock&&O.ProtectedUntilMs<=NowMs));
-    HudSetText(LifeText,LDHUD::LifeStatus(O,bClock,NowMs));HudSetShown(LifeText,!bPlainAlive,ESlateVisibility::HitTestInvisible);
+    HudSetText(LifeText,LDHUD::LifeStatus(O,bClock,NowMs));HudSetShown(LifeText,!bPlainAlive&&!Death.bVisible,ESlateVisibility::HitTestInvisible);
     // The protection countdown shows tenths.
     bReadModelLive|=!bPlainAlive;
     HudSetColor(LifeText,bAlive?LDBroadcast::White:O.LifePhase==ELDLifePhase::Dead?LDBroadcast::LiveRed:LDBroadcast::Grey);
@@ -3841,6 +3848,12 @@ void ULDHUD::RefreshEventFeed(const ALDGameState& Public,const FLDOwnerState& Ow
     const float Height=Lines.IsEmpty()?0.f:float(Lines.Num())*(HudFeedRowH*TextScale+HudFeedGap);
     if(EventFeedSpot&&!FMath::IsNearlyEqual(EventFeedSpot->GetHeightOverride(),Height)){EventFeedSpot->SetHeightOverride(Height);}
     HudSetShown(EventFeedPanel,!Lines.IsEmpty(),ESlateVisibility::HitTestInvisible);
+    {
+        const bool bKillMoment=KillMomentAt>=0.&&FPlatformTime::Seconds()-KillMomentAt<KillMomentSeconds;
+        for(UWidget* Back:{static_cast<UWidget*>(EventFeedPanel.Get()),static_cast<UWidget*>(ToastPanel.Get())})
+        {if(Back&&!FMath::IsNearlyEqual(Back->GetRenderOpacity(),bKillMoment?.7f:1.f)){Back->SetRenderOpacity(bKillMoment?.7f:1.f);}}
+        bReadModelLive|=bKillMoment;
+    }
     // Each line fades out and leaves on time.
     bReadModelLive|=!Lines.IsEmpty();
 }
@@ -3892,9 +3905,9 @@ void ULDHUD::PaintStrip(const LDUIPaint::FContext& P) const
     const FLinearColor Ink=bSeat?LDBroadcast::SeatInk(uint8(StripPaint.Seat)):LDBroadcast::Raised;
     const FLinearColor Figure=bSeat?LDBroadcast::SeatFigure(uint8(StripPaint.Seat)):LDBroadcast::White;
     LDBroadcastPaint::FillSlab(P,P.Layer+1,Seat,Ink);
-    LDBroadcastPaint::Text(P,P.Layer+2,bSeat?FString::FromInt(StripPaint.Seat+1):FString(TEXT("?")),LDBroadcastPaint::FigureFont(84.f),
+    LDBroadcastPaint::Text(P,P.Layer+2,bSeat?FString::FromInt(StripPaint.Seat+1):FString(TEXT("?")),LDBroadcastPaint::FigureFont(66.f),
         FVector2D(HudSeatW*.5f,HudStripPanelBottom*.46f),Figure,FVector2D(.5,.5));
-    constexpr float TickW=20.f,TickH=6.f,TickGap=6.f;
+    constexpr float TickW=13.f,TickH=6.f,TickGap=4.f;
     const float Left=HudSeatW*.5f-(3.f*TickW+2.f*TickGap)*.5f;
     for(int32 Tick=0;Tick<3;++Tick)
     {
@@ -4096,7 +4109,8 @@ void ULDHUD::PaintMoments(const LDUIPaint::FContext& P) const
         {
             // Each second lands big and settles (no bounce); the stage it leads to sits on a small slab under it.
             const float Hit=FMath::Pow(StageBeat,6.f);
-            const FVector2D At(Size.X*.5,Size.Y*.21);
+            // With the day plates above it, the count sits lower, still clear of the own character.
+            const FVector2D At(Size.X*.5,Size.Y*.21+(StageDaily.IsEmpty()?0.:56.));
             const FSlateFontInfo Figure=LDBroadcastPaint::FigureFont(150.f*(1.f+.35f*Hit));
             LDBroadcastPaint::Text(P,P.Layer+6,StageCount,Figure,At+FVector2D(5.,5.),LDBroadcast::Ink,FVector2D(.5,.5));
             LDBroadcastPaint::Text(P,P.Layer+7,StageCount,Figure,At,StageCount==TEXT("1")||StageCount==TEXT("2")||StageCount==TEXT("3")?LDBroadcast::Orange:LDBroadcast::White,FVector2D(.5,.5));
@@ -4105,32 +4119,61 @@ void ULDHUD::PaintMoments(const LDUIPaint::FContext& P) const
             const FVector2D Mid(At.X,At.Y+104.);
             LDBroadcastPaint::FillSlab(P,P.Layer+6,FBox2D(Mid-FVector2D(NextSize.X*.5+22.,22.),Mid+FVector2D(NextSize.X*.5+22.,22.)),LDBroadcast::Ink.CopyWithNewOpacity(.92f));
             LDBroadcastPaint::Text(P,P.Layer+7,StageNextTitle,Label,Mid,LDBroadcast::White,FVector2D(.5,.5));
-            // The match's days: one plate each, the in-match badge (white-ruled ink square, its glyph), the name and the effect.
-            const FSlateFontInfo DayName=LDBroadcastPaint::LabelFont(30.f,true),DayLine=LDBroadcastPaint::LabelFont(20.f,false),DayGlyph=LDBroadcastPaint::LabelFont(30.f,true);
-            // Side by side under the next stage's slab, clear of the own character in the middle of the screen.
-            const float DayTop=float(Mid.Y)+40.f,PlateH=76.f,PlateGap=14.f;
-            TArray<float,TInlineAllocator<4>> Plates;float Row=0.f;
-            for(const FStageDaily& Day:StageDaily)
-            {
-                const float Wide=FMath::Max(float(LDBroadcastPaint::Measure(Day.Name,DayName).X),float(LDBroadcastPaint::Measure(Day.Line,DayLine).X));
-                Plates.Add(86.f+Wide+28.f);Row+=Plates.Last()+(Plates.Num()>1?PlateGap:0.f);
-            }
-            float DayLeft=float(At.X)-Row*.5f;
-            for(int32 DayIndex=0;DayIndex<StageDaily.Num();++DayIndex)
-            {
-                const FStageDaily& Day=StageDaily[DayIndex];
-                const float Plate=Plates[DayIndex];
-                const FBox2D Box(FVector2D(DayLeft,DayTop),FVector2D(DayLeft+Plate,DayTop+PlateH));
-                DayLeft+=Plate+PlateGap;
-                LDBroadcastPaint::FillSlab(P,P.Layer+6,Box,LDBroadcast::Ink.CopyWithNewOpacity(.94f));
-                LDBroadcastPaint::Block(P,P.Layer+7,FBox2D(Box.Min,FVector2D(Box.Max.X,Box.Min.Y+3.)),LDBroadcast::Orange);
-                const FBox2D Badge(FVector2D(Box.Min.X+18.,DayTop+12.),FVector2D(Box.Min.X+70.,DayTop+64.));
-                LDBroadcastPaint::Block(P,P.Layer+7,Badge,LDBroadcast::White);
-                LDBroadcastPaint::Block(P,P.Layer+8,FBox2D(Badge.Min+FVector2D(2.,2.),Badge.Max-FVector2D(2.,2.)),LDBroadcast::Ink);
-                LDBroadcastPaint::Text(P,P.Layer+9,Day.Glyph,DayGlyph,Badge.GetCenter(),LDBroadcast::White,FVector2D(.5,.5));
-                LDBroadcastPaint::Text(P,P.Layer+7,Day.Name,DayName,FVector2D(Badge.Max.X+16.,DayTop+26.),LDBroadcast::White,FVector2D(0.,.5));
-                LDBroadcastPaint::Text(P,P.Layer+7,Day.Line,DayLine,FVector2D(Badge.Max.X+16.,DayTop+56.),LDBroadcast::Grey,FVector2D(0.,.5));
-            }
+        }
+    }
+    // The final's flag bar: the holder's seat ink in the flag block, the holder, the state line, the bar.
+    if(bShown&&FlagBar.bShown)
+    {
+        const float W=640.f,H=78.f,X0=float(Size.X)*.5f-W*.5f,Y0=float(Size.Y)*.06f;
+        const FBox2D Bar(FVector2D(X0,Y0),FVector2D(X0+W,Y0+H));
+        const FLinearColor Ink=FlagBar.Seat!=INDEX_NONE?LDBroadcast::SeatInk(uint8(FlagBar.Seat)):LDBroadcast::White;
+        LDBroadcastPaint::FillSlab(P,P.Layer+6,Bar,LDBroadcast::Ink.CopyWithNewOpacity(.94f));
+        const FBox2D Flag(FVector2D(X0+8.f,Y0+8.f),FVector2D(X0+72.f,Y0+H-16.f));
+        LDBroadcastPaint::FillSlab(P,P.Layer+7,Flag,Ink);
+        LDBroadcastPaint::Text(P,P.Layer+8,TEXT("旗"),LDBroadcastPaint::LabelFont(32.f,true),Flag.GetCenter(),LDBroadcast::Ink,FVector2D(.5,.5));
+        float X=X0+92.f;
+        if(FlagBar.Seat!=INDEX_NONE)
+        {
+            LDBroadcastPaint::SeatPlate(P,P.Layer+7,FBox2D(FVector2D(X,Y0+14.f),FVector2D(X+40.f,Y0+48.f)),FlagBar.Seat,1.f,30.f);
+            X+=52.f;
+        }
+        LDBroadcastPaint::Text(P,P.Layer+7,FlagBar.Holder,LDBroadcastPaint::LabelFont(28.f,true),FVector2D(X,Y0+31.f),LDBroadcast::White,FVector2D(0.,.5));
+        LDBroadcastPaint::Text(P,P.Layer+7,FlagBar.State,LDBroadcastPaint::LabelFont(24.f,true),FVector2D(X0+W-20.f,Y0+31.f),Ink,FVector2D(1.,.5));
+        if(FlagBar.bProgress)
+        {
+            const FBox2D Track(FVector2D(X0+18.f,Y0+H-12.f),FVector2D(X0+W-18.f,Y0+H-6.f));
+            LDBroadcastPaint::Block(P,P.Layer+7,Track,LDBroadcast::White.CopyWithNewOpacity(.16f));
+            LDBroadcastPaint::Block(P,P.Layer+8,FBox2D(Track.Min,FVector2D(LDBroadcastPaint::BarX(Track,FlagBar.Progress),Track.Max.Y)),Ink);
+        }
+    }
+    // The match's days through the opening rest: one plate each side by side across the top, under the rest's actions and
+    // above the countdown, clear of the own character: the in-match badge (white-ruled ink square, its glyph), the name, the
+    // effect line.
+    if(bShown&&!StageDaily.IsEmpty())
+    {
+        const FSlateFontInfo DayName=LDBroadcastPaint::LabelFont(26.f,true),DayLine=LDBroadcastPaint::LabelFont(18.f,false),DayGlyph=LDBroadcastPaint::LabelFont(26.f,true);
+        const float DayTop=float(Size.Y)*.15f,PlateH=64.f,PlateGap=14.f;
+        TArray<float,TInlineAllocator<4>> Plates;float Row=0.f;
+        for(const FStageDaily& Day:StageDaily)
+        {
+            const float Wide=FMath::Max(float(LDBroadcastPaint::Measure(Day.Name,DayName).X),float(LDBroadcastPaint::Measure(Day.Line,DayLine).X));
+            Plates.Add(74.f+Wide+26.f);Row+=Plates.Last()+(Plates.Num()>1?PlateGap:0.f);
+        }
+        float DayLeft=float(Size.X)*.5f-Row*.5f;
+        for(int32 DayIndex=0;DayIndex<StageDaily.Num();++DayIndex)
+        {
+            const FStageDaily& Day=StageDaily[DayIndex];
+            const float Plate=Plates[DayIndex];
+            const FBox2D Box(FVector2D(DayLeft,DayTop),FVector2D(DayLeft+Plate,DayTop+PlateH));
+            DayLeft+=Plate+PlateGap;
+            LDBroadcastPaint::FillSlab(P,P.Layer+6,Box,LDBroadcast::Ink.CopyWithNewOpacity(.94f));
+            LDBroadcastPaint::Block(P,P.Layer+7,FBox2D(Box.Min,FVector2D(Box.Max.X,Box.Min.Y+3.)),LDBroadcast::Orange);
+            const FBox2D Badge(FVector2D(Box.Min.X+16.,DayTop+10.),FVector2D(Box.Min.X+60.,DayTop+54.));
+            LDBroadcastPaint::Block(P,P.Layer+7,Badge,LDBroadcast::White);
+            LDBroadcastPaint::Block(P,P.Layer+8,FBox2D(Badge.Min+FVector2D(2.,2.),Badge.Max-FVector2D(2.,2.)),LDBroadcast::Ink);
+            LDBroadcastPaint::Text(P,P.Layer+9,Day.Glyph,DayGlyph,Badge.GetCenter(),LDBroadcast::White,FVector2D(.5,.5));
+            LDBroadcastPaint::Text(P,P.Layer+7,Day.Name,DayName,FVector2D(Badge.Max.X+14.,DayTop+22.),LDBroadcast::White,FVector2D(0.,.5));
+            LDBroadcastPaint::Text(P,P.Layer+7,Day.Line,DayLine,FVector2D(Badge.Max.X+14.,DayTop+47.),LDBroadcast::Grey,FVector2D(0.,.5));
         }
     }
     // Level-up: an orange card flips open over the level column (scale Y 0->1 in 120 ms), holds, then flips shut.

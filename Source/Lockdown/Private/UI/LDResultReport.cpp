@@ -224,7 +224,7 @@ int32 ULDResultReport::NativePaint(const FPaintArgs& Args,const FGeometry& Geome
             Text(Layer+5,Figures[Index].Value,Figure(Index==2?38.f:46.f),At(X0+12.f,724.f),LDBroadcast::White);
             Text(Layer+5,Figures[Index].Name,Label(17.f,false),At(X0+12.f,762.f),LDBroadcast::Grey);
         }
-        Text(Layer+4,TEXT("你的伤害来自"),Label(20.f),At(96.f,812.f),LDBroadcast::Grey);
+        Text(Layer+4,TEXT("你的全部伤害（含野怪）来自"),Label(20.f),At(96.f,812.f),LDBroadcast::Grey);
         if(!bSources){Text(Layer+4,TEXT("伤害统计不可用"),Label(20.f,false),At(96.f,850.f),LDBroadcast::Mute);}
         else if(Sources.IsEmpty()){Text(Layer+4,TEXT("本局没有造成伤害"),Label(20.f,false),At(96.f,850.f),LDBroadcast::Mute);}
         for(int32 Index=0;Index<Sources.Num();++Index)

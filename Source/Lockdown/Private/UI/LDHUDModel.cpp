@@ -1411,33 +1411,6 @@ FString LDHUD::NewChainNotice(const FLDDemoContentDefinitions* Content,const TAr
 {
     return TEXT("新连锁：")+ChainKeyText(Content,Key);
 }
-LDHUD::FResultHighlightsView LDHUD::ResultHighlights(const FLDDamageSummaryView& Summary,const FLDResultView& Result,const FGuid& Self,
-    const FLDDemoContentDefinitions* Content)
-{
-    FResultHighlightsView View;
-    if(!Result.ResultId.IsValid()||Summary.ResultId!=Result.ResultId||Summary.Match!=Result.Generation){return View;}
-    View.bAvailable=true;
-    for(const FLDResultRow& Row:Result.Rows)
-    {
-        if(View.Rows.Num()>=ResultHighlightsMax){break;}
-        const FLDResultHighlight* Highlight=Summary.Highlights.FindByPredicate([&Row](const FLDResultHighlight& Each){return Each.Contender==Row.ContenderId;});
-        FResultHighlightRow& Out=View.Rows.AddDefaulted_GetRef();
-        Out.Name=Row.Name;
-        Out.bOwn=Row.ContenderId==Self;
-        Out.Chain=Highlight&&Highlight->LongestSteps>0
-            ?FString::Printf(TEXT("%s（%d 步）"),*ChainKeyText(Content,Highlight->LongestKey),Highlight->LongestSteps):FString(TEXT("—"));
-        if(Highlight&&Highlight->BestDamageP2>0)
-        {
-            const FString Source=ChainStepName(Content,Highlight->BestSource);
-            const int64 Points=HudWholePoints(Highlight->BestDamageP2,true);
-            const int64 Percent=Highlight->BestTargetMaxHpP2>0?(Highlight->BestDamageP2*100+Highlight->BestTargetMaxHpP2/2)/Highlight->BestTargetMaxHpP2:0;
-            Out.Best=FString::Printf(TEXT("%s %lld（%lld%%）"),*Source,Points,Percent);
-        }
-        else{Out.Best=TEXT("—");}
-    }
-    return View;
-}
-
 FString LDHUD::ControlStatusBadge(TConstArrayView<FLDCombatStatusView> Statuses,uint8 ControlMask)
 {
     int32 BestPriority=0;
