@@ -580,8 +580,9 @@ public:
         const auto* Body = Cast<ALDCharacter>(Owner.GetPawn());
         if (!Body || Owner.OwnerState.LifePhase != ELDLifePhase::Alive
             || !Owner.OwnerState.BodyRef.IsValid() || !Owner.CanWorldCommand()) { return true; }
-        const bool bPeaceful=FParse::Param(FCommandLine::Get(),TEXT("LDDemoVisionPeaceful"));
-        if(bPeaceful&&!Owner.bDevPeaceful)
+        // A visibility-only check: DEV peaceful keeps camp and Boss aggro off the walking bodies (the Listen Host opts the
+        // room into DEV tests first), so the walks keep clear of the camp bodies themselves, not of their aggro rings.
+        if(!Owner.bDevPeaceful)
         {
             const auto* Public=Owner.GetWorld()->GetGameState<ALDGameState>();
             if(!Public||!Public->DemoLobby.DevTestSession)
@@ -598,18 +599,8 @@ public:
             if (!Geometry || !LDDemoEntry::LoadRuntimeContent(Catalog, Why)
                 || !ULDMapRegistry::ContentCapsule(*Catalog, Capsule, Why)
                 || !LDScenarioWalk::Keepouts(*Geometry, *Catalog, Capsule.GetCapsuleRadius(),
-                    bPeaceful ? LDPathSteering::WaypointToleranceCm : ArrivalCm, WalkKeepouts, Why, !bPeaceful))
+                    LDPathSteering::WaypointToleranceCm, WalkKeepouts, Why, false))
             { return Fail(TEXT("#1"), TEXT("The approved Vision arrival fixture could not be prepared: ") + Why); }
-            // The peaceful fixture still has physical camp bodies. Only the Boss aggro corridor is exempt.
-            if (!bPeaceful)
-            {
-                TArray<FLDCompletePath> Patrol;
-                if (!LDScenarioWalk::PatrolPaths(Registry, *Catalog, Patrol, Why)) { return Fail(TEXT("#1"), Why); }
-                const auto& Aggro = Catalog->Get().Boss.AggroRadiusCm;
-                const double CorridorRadius = double(Aggro.Numerator) / Aggro.Denominator
-                    + Capsule.GetCapsuleRadius() + ArrivalCm + LDPathSteering::WaypointToleranceCm;
-                LDScenarioWalk::PatrolKeepouts(Patrol, CorridorRadius, WalkKeepouts);
-            }
             FLDSightGeometry FixtureSight;
             if (!FixtureSight.Build(*Geometry, Registry.Revision(), Catalog->Get().Parameters.VisionRadiusCm,Catalog->Get().Parameters.VisionRange, Why,Owner.GetWorld()))
             { return Fail(TEXT("#1"), Why); }
@@ -1141,7 +1132,6 @@ public:
         Report->SetStringField(TEXT("role"), Role);
         Report->SetBoolField(TEXT("dev_probe"), true);
         Report->SetBoolField(TEXT("normal_start"), true);
-        Report->SetBoolField(TEXT("peaceful_fixture"),FParse::Param(FCommandLine::Get(),TEXT("LDDemoVisionPeaceful")));
         Report->SetBoolField(TEXT("screenshots_requested"),!FParse::Param(FCommandLine::Get(),TEXT("LDDemoVisionNoScreenshots")));
         Report->SetStringField(TEXT("scope"), IceOnly()
             ? TEXT("DEV-only owned-connection ice scenario: three normal-start participants; the Host's body owns an ice field placed through the native ground path under Client1, which walks across it over its real owning connection. Checks the authoritative acceleration scale on the server, the same scale in the owning client's prediction, the slower start and the server corrections of that walk; not balance, other ground states or full-match acceptance.")

@@ -3,7 +3,7 @@ param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(120,600)][int]$T
     # The Host's rendered main view; the HUD and screenshots are reviewed at both supported sizes.
     [ValidateSet('720p','1080p')][string]$Resolution='720p',
     [ValidatePattern('^-Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+( -Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+)*$')][string]$NetEmulation,
-    [switch]$RenderClient1, [switch]$ReactionOnly, [switch]$IceOnly, [switch]$NoScreenshots, [switch]$Peaceful)
+    [switch]$RenderClient1, [switch]$ReactionOnly, [switch]$IceOnly, [switch]$NoScreenshots)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
 if (($ReactionOnly -or $IceOnly) -and $RenderClient1) { throw 'ReactionOnly and IceOnly are headless; omit RenderClient1.' }
@@ -47,7 +47,6 @@ function Start-VisionRole {
         if ($ReactionOnly) { $arguments += ' -LDDemoVisionReactionOnly' }
         if ($IceOnly) { $arguments += ' -LDDemoVisionIceOnly' }
         if ($NoScreenshots) { $arguments += ' -LDDemoVisionNoScreenshots' }
-        if ($Peaceful) { $arguments += ' -LDDemoVisionPeaceful' }
         $arguments
     }
 }
@@ -105,7 +104,7 @@ try {
         Write-Host "DEV-only owned-connection reaction scenario passed: fixture hits enter native Effects, only the setter receives the named prompt, and explicit leavers are removed from the Host view. Not player input, hidden-sight or unexpected-disconnect coverage. Evidence: $output"
     } else {
         $captureScope=if($NoScreenshots){'Screenshots disabled; rendered pixels are not reviewed.'}else{'HostSighted.png still needs presentation review.'}
-        if($Peaceful){$captureScope+=' DEV peaceful mode suppresses camp/Boss aggro during this visibility-only check.'}
+        $captureScope+=' DEV peaceful mode suppresses camp/Boss aggro during this visibility-only check.'
         Write-Host "DEV-only owned-connection observation scenario passed: rendered Listen Host plus two owning clients via the normal lobby. Covers checks #1/#9/#15/#15H/#23/#28 (Listen Host presentation). $captureScope Not combat balance, death/termination, AI or full-match acceptance. Evidence: $output"
     }
 }

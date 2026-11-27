@@ -108,4 +108,4 @@
 ## 检查入口
 
 - 纯规则：`Lockdown.Rules.Vision.*`、`Lockdown.Rules.Minimap.*`、`Lockdown.Rules.WorldLabels.*`、`Lockdown.Rules.HUD*`、`Lockdown.Rules.ViewPrivacySchema`、`Scripts/TestDemoArtImport.py`。
-- 拥有连接场景：`Scripts/RunDemoVisionCheck.ps1`、`Scripts/RunDemoCombatCheck.ps1`。
+- 拥有连接场景：`Scripts/RunDemoVisionCheck.ps1`、`Scripts/RunDemoCombatCheck.ps1`。Vision 场景只测可见性：房主开启 DEV 测试，三名真人开和平模式，路线只避开营地身体本身，不避开仇恨圈。
