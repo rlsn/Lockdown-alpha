@@ -3678,6 +3678,10 @@ void ULDHUD::ThrowPKAtPointer()
     // The same cursor-ground trace a move order uses; a miss keeps the aim so the next click can try again.
     FHitResult Ground;
     if(!PC->Navigation||!PC->Navigation->GroundUnderPointer(Ground)){ShowPKAnswer(LDTerms::PKThrowNoGround);return;}
+    // A spot the throw cannot reach keeps the aim: the reason in one line, nothing sent.
+    // A steep face (a wall's side) is never floor.
+    const ELDPKThrowResult Spot=Ground.ImpactNormal.Z>.7f?PKThrowSpot(FVector(Ground.ImpactPoint)):ELDPKThrowResult::NotGround;
+    if(Spot!=ELDPKThrowResult::Thrown){ShowPKAnswer(LDHUD::PKThrowText(Spot));return;}
     bPKThrowArmed=false;
     bPKThrowInFlight=true;
     PC->SubmitPKThrow(FVector(Ground.ImpactPoint));
@@ -3696,6 +3700,9 @@ void ULDHUD::HandlePKThrow(ELDPKThrowResult Result,int64 ReadyAtMs)
     // Thrown and CoolingDown carry when the next throw is allowed; other answers leave the known cooldown as it is.
     if(ReadyAtMs>0){PKThrowReadyAtMs=ReadyAtMs;}
     UE_LOG(LogLDUI,Log,TEXT("LD_HUD_PK_THROW_RESULT %d ready_at=%lld"),int32(Result),ReadyAtMs);
+    // A spot the authority refused (a wall or a tree the aim cannot tell from the floor) aims again: the next click tries
+    // another spot without pressing the throw button first.
+    if(Result==ELDPKThrowResult::NotGround||Result==ELDPKThrowResult::OutsideArena||Result==ELDPKThrowResult::OutOfRange){bPKThrowArmed=true;}
     ShowPKAnswer(LDHUD::PKThrowText(Result));
 }
 void ULDHUD::ShowPKAnswer(const FString& Text)
@@ -3703,6 +3710,12 @@ void ULDHUD::ShowPKAnswer(const FString& Text)
     MarkReadModelDirty();
     PKAnswer=Text;
     ShowToast(Text);
+}
+ELDPKThrowResult ULDHUD::PKThrowSpot(const FVector& TargetCm) const
+{
+    const auto* GS=GetWorld()?GetWorld()->GetGameState<ALDGameState>():nullptr;
+    if(!GS||!bPKParamsValid||GS->PublicMatch.PK.Serial==0){return ELDPKThrowResult::None;}
+    return LDPKRules::ThrowSpot(PKParams,GS->PublicMatch.PK.ArenaCentreCm,GS->PublicMatch.PK.ThrowAnchorCm,TargetCm);
 }
 const FLDPKParameters* ULDHUD::PKParameters()
 {
@@ -4530,14 +4543,22 @@ void ULDHUD::PaintWorldPreviews(const FGeometry& G,FSlateWindowElementList& E,in
     {
         return R.Denominator>0?double(R.Denominator?double(R.Numerator)/double(R.Denominator):0.):0.;
     };
-    // #331: PK spectator throw aim draws a 120cm orange-yellow dashed circle + center reticle at the cursor's ground hit.
+    // PK spectator throw aim: a dashed circle of the hit radius and a centre cross at the cursor's ground hit, in the landing
+    // telegraph's colour where the throw may land; grey with a large cross where it cannot (outside the arena or range).
     if(bPKThrowArmed&&!PC->IsWorldInputSuppressed()&&PC->Navigation)
     {
         FHitResult ThrowGround;
         if(PC->Navigation->GroundUnderPointer(ThrowGround))
         {
             const float ThrowRadiusCm=bPKParamsValid&&PKParams.ThrowRadiusCm>0.f?float(PKParams.ThrowRadiusCm):120.f;
-            const FLinearColor ThrowColor(1.f,.72f,.18f,.92f);
+            const bool bLands=PKThrowSpot(FVector(ThrowGround.ImpactPoint))==ELDPKThrowResult::Thrown&&ThrowGround.ImpactNormal.Z>.7f;
+            const FLinearColor ThrowColor=bLands?ALDPKRingMarker::ThrowColor().CopyWithNewOpacity(.95f):FLinearColor(.55f,.55f,.58f,.8f);
+            if(!bLands)
+            {
+                const float Arm=ThrowRadiusCm*.55f;
+                DrawWorldSegment(ThrowGround.ImpactPoint+FVector(-Arm,-Arm,4.f),ThrowGround.ImpactPoint+FVector(Arm,Arm,4.f),ThrowColor,2.5f);
+                DrawWorldSegment(ThrowGround.ImpactPoint+FVector(-Arm,Arm,4.f),ThrowGround.ImpactPoint+FVector(Arm,-Arm,4.f),ThrowColor,2.5f);
+            }
             constexpr int32 DashCount=24;
             for(int32 Dash=0;Dash<DashCount;++Dash)
             {
