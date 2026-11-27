@@ -167,7 +167,7 @@ public:
     // Contextual shortcuts routed from ALDPlayerController / ULDUIRoot (#331).
     bool HandleContextualKeyPress(const FKey& Key, bool bAlt, bool bCtrl, bool bShift);
     void SelectResultContender(const FGuid& ContenderId);
-    FGuid GetInspectedResultContender() const { return InspectedResultContender; }
+    FGuid GetInspectedResultContender() const;
     // DEV test session only (#78): the 测试 panel; its entry button and the 测试模式 marker show only in such a room.
     UPROPERTY() TObjectPtr<ULDDevTestPanel> DevTestPanel;
 protected:
@@ -410,38 +410,8 @@ private:
     TMap<FGuid,LDHUD::FTacticalSighting> ScoreSightings;
     uint32 ScoreSightingsMatch=0;
     UPROPERTY() TObjectPtr<UBorder> ResultPanel;
-    // The damage and highlight cards side by side under the result table.
-    UPROPERTY() TObjectPtr<class UHorizontalBox> ResultCards;
-    UPROPERTY() TObjectPtr<UTextBlock> ResultTitle;
-    UPROPERTY() TObjectPtr<UTextBlock> ResultSubtitle;
-    UPROPERTY() TObjectPtr<UTextBlock> ResultBoardTitle;
-    UPROPERTY() TObjectPtr<ULDCommandButton> ResultInspectSelfButton;
-    UPROPERTY() TObjectPtr<USizeBox> ResultWinnerBuild;
-    // The board's reports stack in one overlay that is never reparented (moving a report resets its layout). A rebuilt
-    // report is laid out unseen on top of the one on screen until its painted size holds for two frames (the fit-to-board
-    // scale needs a frame for the wrapped text's height, so a new report first paints empty and then at the wrong scale),
-    // then the old one leaves and the new one shows.
-    UPROPERTY() TObjectPtr<UOverlay> ResultReportStack;
-    UPROPERTY() TObjectPtr<UWidget> ResultReportPending;
-    int32 ResultReportPendingFrames=0;
-    FVector2D ResultReportPendingSize=FVector2D::ZeroVector;
-    void SettleResultReport();
-    UPROPERTY() TObjectPtr<class UVerticalBox> ResultRows;
-    UPROPERTY() TArray<TObjectPtr<UBorder>> ResultRowCards;
-    TArray<FGuid> ResultRowContenders;
-    FGuid InspectedResultContender;
-    // The own per-source damage of the shown result: a heading and a fixed grid of cells with icon + colored share bar (#331).
-    UPROPERTY() TObjectPtr<UTextBlock> ResultDamageHeading;
-    UPROPERTY() TArray<TObjectPtr<UWidget>> ResultDamageSlots;
-    UPROPERTY() TArray<TObjectPtr<UImage>> ResultDamageIcons;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> ResultDamageGlyphs;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> ResultDamageCells;
-    UPROPERTY() TArray<TObjectPtr<UProgressBar>> ResultDamageBars;
-    uint8 ResultReportTab=0;
-    void RefreshResultInspectedBuild(const struct FLDResultView& Result, const FGuid& OwnContenderId);
-    // Spec §12 结算“本局最离谱”: one line per contender (LDHUD::ResultHighlights).
-    UPROPERTY() TObjectPtr<UWidget> ResultHighlightsCard;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> ResultHighlightCells;
+    UPROPERTY() TObjectPtr<class ULDResultReport> ResultReport;
+    UPROPERTY() TObjectPtr<UTextBlock> ResultSyncText;
     UPROPERTY() TObjectPtr<ULDCommandButton> ReturnButton;
     UPROPERTY() TObjectPtr<ULDCommandButton> LeaveRoomButton;
     UPROPERTY() TObjectPtr<UBorder> DeathBanner;
@@ -512,6 +482,10 @@ private:
     uint32 SeenStageMatch=0;
     double StageWipeAt=-1.;
     FString StageWipeTitle,StageWipeSub,StageCount,StageNextTitle;
+    // The match's drawn days (public), shown under the opening countdown into the first field: the badge glyph of the
+    // in-match marker, the name and the one-line effect. Empty outside that countdown or on a match without one.
+    struct FStageDaily{FString Glyph,Name,Line;};
+    TArray<FStageDaily> StageDaily;
     float StageBeat=0.f,StagePreCover=0.f;
     // Which of the eight beats of the match the title card names (R0, field 1, R1, field 2, R2, field 3, R3, final field).
     int32 StageWipeBeat=0;
@@ -531,9 +505,6 @@ public:
         ProbeHoverOver=Over;MarkReadModelDirty();
 #endif
     }
-    // DEV capture only (probes; zero otherwise): the painted size in pixels of the result board's report body, to tell a
-    // layout that does not settle.
-    FVector2D ProbeResultBoardSize() const;
     // When the last own-kill moment began (local seconds), <0 before the first.
     double MomentKillAt() const {return KillMomentAt;}
     // The own health is low right now (the world layer turns the own overhead bar to the same ink).
@@ -666,9 +637,7 @@ private:
     uint32 ChainSerial=0;
     // The result enters winner first, then the rows one by one, then its buttons (real seconds; -1 when settled).
     double ResultShownAt=-1.;
-    UPROPERTY() TArray<TObjectPtr<UWidget>> ResultEntries;
     UPROPERTY() TObjectPtr<UWidget> ResultActionsBox;
-    UPROPERTY() TObjectPtr<UWidget> ResultWinnerBand;
     void AnimateResult();
     float AppliedScale=0;
     // The last known owner level and stats for the growth panel's card numbers (#147).

@@ -240,8 +240,6 @@ inline FString ChainEndFloat(int32 Steps){return FString::Printf(TEXT("连锁 ×
 inline FString ShopToggle(int64 Points){return FString::Printf(TEXT("商店 · 点 %lld"),Points);}
 inline FString ShopRefresh(int32 Price){return Price>0?FString::Printf(TEXT("刷新 %d点"),Price):FString(TEXT("刷新 免费"));}
 inline FString ShopPrice(int32 Price){return FString::Printf(TEXT("%d点"),Price);}
-inline const TCHAR* const ResultHighlights=TEXT("本局最离谱");
-inline const TCHAR* const BestHit=TEXT("最高一下");
 inline const TCHAR* const SkillPointBought=TEXT("买到 1 个技能点");
 inline constexpr TCHAR FinalTaken[]=TEXT("已选定");
 inline constexpr TCHAR ForgetShort[]=TEXT("遗忘");
@@ -512,9 +510,6 @@ inline const TCHAR* KeystoneName(FName StatId)
     if(StatId==TEXT("stat_agility")){return TEXT("顺步追击");}
     return TEXT("关键石");
 }
-inline FString ResultRuleBoardTitle(const FString& Name){return Name.IsEmpty()?FString(TEXT("赢家规则板")):FString::Printf(TEXT("【%s】的规则板"),*Name);}
-inline constexpr TCHAR ResultViewSelf[]=TEXT("查看自己");
-inline constexpr TCHAR ResultInspectSelf[]=TEXT("查看自己");
 
 inline constexpr TCHAR CopyRoomAddress[]=TEXT("复制房间地址");
 inline constexpr TCHAR RestReadyCommit[]=TEXT("准备完毕");
