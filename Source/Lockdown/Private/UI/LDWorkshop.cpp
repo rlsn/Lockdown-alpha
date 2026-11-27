@@ -24,6 +24,8 @@
 #include "UI/LDUIIcons.h"
 #include "UI/LDWidgets.h"
 #include "UI/LDWorkshopModel.h"
+#include "Vision/LDWorldViewRelay.h"
+#include "Development/LDDemoContentIds.h"
 
 using namespace LDBuildRing;
 using LDRingPaint::FPainter;
@@ -444,39 +446,49 @@ void ULDWorkshop::ComputeLayout(const FGeometry& Geometry)
             Taken.Add(Part);
         }
         const float Gap=8.f*F,Step=4.f*U;
+        L.ChipCompact.Init(false,Ring.Stats.Num());L.ChipScale.Init(1.f,Ring.Stats.Num());
         for(int32 Index=0;Index<Ring.Stats.Num();++Index)
         {
             const float Degrees=RadarTurn+Index*360.f/FMath::Max(1,Ring.Stats.Num());
             const FVector2D Corner=Project(RadarRadius+4.f,Degrees);
             const FVector2D Dir=(Corner-Feet).GetSafeNormal();
-            const FVector2D Size=ChipSize(Ring.Stats[Index],StatLine(Ring.Derived,Index),Ring.Unspent>0,F);
             const bool bUnder=FMath::Abs(Dir.X)<.35&&Dir.Y>0.;
             const FVector2D Out=bUnder?FVector2D(0.,1.):FVector2D(Dir.X>=0.?1.:-1.,0.);
-            FVector2D At=bUnder?Corner+FVector2D(0.,Gap+Size.Y*.5):Corner+FVector2D(Out.X*(Gap+Size.X*.5),0.);
-            const auto Clear=[&](const FVector2D& Centre)
+            // A form of the chip placed: its preferred place beside its corner, else the nearest clear place around it in
+            // rings of Step (each ring tries down first, then outward from the radar, then the rest), on screen and no
+            // higher than the character's head (the sectors above are full of parts).
+            FVector2D Size,At;
+            const auto Place=[&](const FVector2D& Want)
             {
-                const FBox2D Box(Centre-Size*.5,Centre+Size*.5);
-                for(const FBox2D& Other:Taken){if(Touches(Box,Other)){return false;}}
-                return true;
-            };
-            // The nearest clear place around the preferred one, rings of Step outward; each ring tries down first, then
-            // outward from the radar, then the rest, so a chip that must move goes where the ring has no parts.
-            if(!Clear(At))
-            {
-                const FVector2D Start=At;bool bFound=false;
-                for(int32 Ring0=1;Ring0<=80&&!bFound;++Ring0)
+                Size=Want;
+                At=bUnder?Corner+FVector2D(0.,Gap+Size.Y*.5):Corner+FVector2D(Out.X*(Gap+Size.X*.5),0.);
+                const auto Clear=[&](const FVector2D& Centre)
+                {
+                    const FBox2D Box(Centre-Size*.5,Centre+Size*.5);
+                    for(const FBox2D& Other:Taken){if(Touches(Box,Other)){return false;}}
+                    return true;
+                };
+                if(Clear(At)){return true;}
+                const FVector2D Start=At;
+                for(int32 Ring0=1;Ring0<=80;++Ring0)
                 {
                     for(const float Turn:{0.f,(Out.X>=0.?-45.f:45.f),(Out.X>=0.?-90.f:90.f),(Out.X>=0.?45.f:-45.f),(Out.X>=0.?-135.f:135.f),(Out.X>=0.?90.f:-90.f),180.f,(Out.X>=0.?135.f:-135.f)})
                     {
                         // 0 degrees is straight down the screen.
                         const float T=FMath::DegreesToRadians(Turn);
                         const FVector2D Try=Start+FVector2D(-FMath::Sin(T),FMath::Cos(T))*(Ring0*Step);
-                        // On screen, and no higher than the character's head: the sectors above are full of parts.
                         if(Try.X-Size.X*.5<4.f*U||Try.X+Size.X*.5>L.Size.X-4.f*U||Try.Y-Size.Y*.5<4.f*U||Try.Y<Feet.Y-110.f*R){continue;}
-                        if(Clear(Try)){At=Try;bFound=true;break;}
+                        if(Clear(Try)){At=Try;return true;}
                     }
                 }
-            }
+                At=Start;
+                return false;
+            };
+            // Full (two lines) first; where it fits nowhere, one line; then that line smaller, down to 70% (its name never under 12 px).
+            const FStat& Stat=Ring.Stats[Index];
+            bool bPlaced=Place(ChipSize(Stat,StatLine(Ring.Derived,Index),Ring.Unspent>0,F));
+            if(!bPlaced){L.ChipCompact[Index]=true;bPlaced=Place(ChipSize(Stat,FString(),Ring.Unspent>0,F));}
+            for(float Scale=.9f;!bPlaced&&Scale>.65f&&18.f*F*Scale*L.K>=12.f;Scale-=.1f){L.ChipScale[Index]=Scale;bPlaced=Place(ChipSize(Stat,FString(),Ring.Unspent>0,F*Scale));}
             Taken.Add(FBox2D(At-Size*.5,At+Size*.5));
             L.Anchors.Add(AnchorKey(EHit::Stat,INDEX_NONE,Index),At);
             Add(EHit::Stat,INDEX_NONE,Index,Lean(FBox2D(At-Size*.5,At+Size*.5),0.f,0.f));
@@ -555,11 +567,27 @@ FBox2D ULDWorkshop::MatrixCell(int32 Row,int32 Column) const
     const float CellW=52.f*F,CellH=30.f*F,Gap=3.f*U;
     return BoxAt(Sheet.Min+FVector2D(12.f*U,12.f*U)+FVector2D(Column*(CellW+Gap),Row*(CellH+Gap)),FVector2D(CellW,CellH));
 }
-bool ULDWorkshop::LiveOf(FName Definition,int32& Badge,FString& Line) const
+bool ULDWorkshop::LiveOf(const FCard& Card,int32& Badge,FString& Line) const
 {
     Badge=INDEX_NONE;Line.Reset();
     const FLDCombatOwnerView* Own=Latest.Combat;
     if(!Own){return false;}
+    const FName Definition=Card.Definition;
+    // The stack counts the authority publishes for the own installed cards (FLDCombatOwnerView::CardStacks, by serial; no
+    // row is 0): the highest among this tile's copies, and the card's step from its first effect.
+    int32 Stacked=0;
+    if(Latest.Progression)
+    {
+        for(const FName& Key:Card.Keys)
+        {
+            const FLDCardInstanceView* Owned=LDHUD::FindCard(*Latest.Progression,Key);
+            if(!Owned){continue;}
+            for(const FLDCombatCardStackView& Row:Own->CardStacks){if(Row.Serial==Owned->Serial){Stacked=FMath::Max(Stacked,Row.Count);}}
+        }
+    }
+    const FLDDemoCardDefinition* Rules=LDHUD::CardDefinitionOf(Latest.Content,Definition);
+    const FLDDemoEffectDefinition* Step=Rules&&!Rules->Effects.IsEmpty()?&Rules->Effects[0]:nullptr;
+    const int32 StepPercent=Step?int32(Step->RatioBp/100):0;
     // The grow cards' match growth, summed by stat (Y19 max HP, Y20 AD/AP, Y21 armor/MR, A13 attack speed, D09 move speed).
     const auto Grown=[Own](ELDDemoBonusStat Stat){int64 Sum=0;for(const FLDDemoStatBonus& Row:Own->CardGrowth){if(Row.Stat==Stat){Sum+=Row.Amount;}}return Sum;};
     const FString Id=Definition.ToString();
@@ -629,6 +657,33 @@ bool ULDWorkshop::LiveOf(FName Definition,int32& Badge,FString& Line) const
             const int32 Above=Base>0.?int32(FMath::Max(0.,Now/Base-1.)*100.):0;
             Line=FString::Printf(TEXT("现在移速比基础高 %d%% → 伤害 +%d%%"),Above,Above/10*5);
         }
+    }
+    else if(Id==TEXT("card_held_shot")){Badge=Stacked;Line=FString::Printf(TEXT("已闲置 %d 秒 · 下一次伤害 +%d%%"),Stacked,Stacked*StepPercent);}
+    else if(Id==TEXT("card_charge_up")){Badge=Stacked;Line=FString::Printf(TEXT("已 %d 秒没出伤害 · 下一次伤害 +%d%%"),Stacked,Stacked*StepPercent);}
+    else if(Id==TEXT("card_practice")){Badge=Stacked;Line=FString::Printf(TEXT("本局命中选手 %d 次 · 伤害 +%d%%"),Stacked,Stacked*StepPercent);}
+    else if(Id==TEXT("card_combo_chain")){Badge=Stacked;Line=FString::Printf(TEXT("最近放过 %d 个其他技能 · 这次伤害 +%d%%"),Stacked,Stacked*StepPercent);}
+    else if(Id==TEXT("card_turf_growth")){Badge=Stacked;Line=FString::Printf(TEXT("在自己的地面上站了 %d 秒 · 伤害 +%d%%"),Stacked,Stacked*StepPercent);}
+    else if(Id==TEXT("card_tally"))
+    {
+        Badge=Stacked;
+        Line=Step&&Step->Count>0?FString::Printf(TEXT("记了 %d / %d 笔"),Stacked,Step->Count):FString::Printf(TEXT("记了 %d 笔"),Stacked);
+    }
+    else if(Id==TEXT("card_breach_fist"))
+    {
+        // The breach this card stacks on targets: the most layers on a contender in view now (the own observed frame).
+        int32 Most=0;
+        const ALDPlayerController* PC=GetOwningPlayer<ALDPlayerController>();
+        const ALDWorldViewRelay* Relay=PC?PC->LocalView():nullptr;
+        const FLDObservedFrameRead Read=Relay?Relay->ReadObservedFrame():FLDObservedFrameRead();
+        if(Read.Frame)
+        {
+            for(const FLDObservedUnitView& Unit:Read.Frame->Units)
+            {
+                if(Unit.Kind!=ELDObservedUnitKind::Contender||Unit.ContenderId==PC->OwnerState.ContenderId){continue;}
+                for(const FLDObservedStatus& Status:Unit.Statuses){if(Status.StatusId==uint8(ELDDemoStatusId::Exposed)){Most=FMath::Max<int32>(Most,Status.Stacks);}}
+            }
+        }
+        Line=Most>0?FString::Printf(TEXT("看得见的对手身上最多 %d 层破防"),Most):FString(TEXT("看得见的对手身上没有破防"));
     }
     else if(Id==TEXT("card_berserk"))
     {
@@ -1311,10 +1366,10 @@ ULDWorkshop::FInfo ULDWorkshop::InfoOf(const FHit& Hit) const
     case EHit::Installed:
         if(Ring.Hosts.IsValidIndex(Hit.Host)&&Ring.Hosts[Hit.Host].Cards.IsValidIndex(Hit.Index))
         {
-            const FName Definition=Ring.Hosts[Hit.Host].Cards[Hit.Index].Definition;
-            CardInfo(Definition);
+            const FCard& Card=Ring.Hosts[Hit.Host].Cards[Hit.Index];
+            CardInfo(Card.Definition);
             int32 Badge=INDEX_NONE;FString Line;
-            if(LiveOf(Definition,Badge,Line)){Out.Gain=Line;}
+            if(LiveOf(Card,Badge,Line)){Out.Gain=Line;}
         }
         break;
     case EHit::Hand:
@@ -1614,7 +1669,7 @@ void ULDWorkshop::PaintHosts(FPainter& P,const TArray<uint64>& Lit,bool bDim) co
             for(const FName& Each:Card.Keys){if(const double* At0=Landed.Find(Each)){Flash=FMath::Max(Flash,1.f-float((Now-*At0)/RingLandTime));}}
             if(Flash>0.f){P.Fill(RectOf(Box),LDBroadcast::White.CopyWithNewOpacity(.6f*Flash));}
             // A growth card's live count on an ink tab at the bottom-right corner.
-            if(int32 Badge=INDEX_NONE;State!=ETile::Dim&&LiveOf(Card.Definition,Badge,LiveScratch)&&Badge>=0)
+            if(int32 Badge=INDEX_NONE;State!=ETile::Dim&&LiveOf(Card,Badge,LiveScratch)&&Badge>=0)
             {
                 const FSlateFontInfo Font=Face(EFace::Figure,18.f,F);
                 const FString Text=FString::FromInt(Badge);
@@ -1660,15 +1715,15 @@ void ULDWorkshop::PaintHosts(FPainter& P,const TArray<uint64>& Lit,bool bDim) co
 void ULDWorkshop::PaintRadarChips(FPainter& P) const
 {
     const FLayout& L=Layout;
-    const float F=L.F;
     const FHit Shown=Focus();
     const bool bPlus=Ring.Unspent>0;
     for(int32 Index=0;Index<Ring.Stats.Num();++Index)
     {
         const FVector2D* At=L.Anchors.Find(AnchorKey(EHit::Stat,INDEX_NONE,Index));
         if(!At){continue;}
+        const float F=L.F*(L.ChipScale.IsValidIndex(Index)?L.ChipScale[Index]:1.f);
         const FStat& Stat=Ring.Stats[Index];
-        const FString Line=StatLine(Ring.Derived,Index);
+        const FString Line=L.ChipCompact.IsValidIndex(Index)&&L.ChipCompact[Index]?FString():StatLine(Ring.Derived,Index);
         const FVector2D Size=ChipSize(Stat,Line,bPlus,F);
         const FBox2D Chip(*At-Size*.5,*At+Size*.5);
         const bool bHot=Shown.Kind==EHit::Stat&&Shown.Index==Index;

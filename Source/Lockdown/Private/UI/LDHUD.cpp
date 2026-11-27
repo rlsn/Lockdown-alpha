@@ -3970,7 +3970,7 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
         ResultShownAt=GetWorld()?GetWorld()->GetRealTimeSeconds():0.;
     }
     // The own damage summary arrives on the owner channel apart from the public result; the report rebuilds only on a change.
-    if(ResultReport){ResultReport->Present(Result,PC.OwnerState.ContenderId,PC.DamageSummary,DisplayDefinitions());}
+    if(ResultReport){ResultReport->Present(Result,PC.OwnerState.ContenderId,PC.DamageSummary,DisplayDefinitions(),DisplayContent.Get());}
     AnimateResult();
 }
 void ULDHUD::AnimateResult()

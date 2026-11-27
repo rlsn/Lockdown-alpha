@@ -1,5 +1,6 @@
 #include "UI/LDResultReport.h"
 #include "Blueprint/WidgetTree.h"
+#include "Combat/LDAttributeProjection.h"
 #include "Combat/LDDamageRecap.h"
 #include "Components/CanvasPanel.h"
 #include "Development/LDDemoContentDefinitions.h"
@@ -52,7 +53,7 @@ int32 ULDResultReport::RankOf(TFunctionRef<double(const FSeat&)> Value,int32 Ind
     return Rank;
 }
 
-void ULDResultReport::Present(const FLDResultView& Result,const FGuid& SelfId,const FLDDamageSummaryView& Summary,const FLDDemoContentDefinitions* Content)
+void ULDResultReport::Present(const FLDResultView& Result,const FGuid& SelfId,const FLDDamageSummaryView& Summary,const FLDDemoContentDefinitions* Content,const FLDDemoContentSnapshot* Snapshot)
 {
     const uint64 SummaryKey=HashCombine(GetTypeHash(Summary.ResultId),GetTypeHash(Summary.Lines.Num()));
     if(Result.ResultId==ShownResult&&Result.ResultSerial==ShownSerial&&SelfId==ShownSelf&&SummaryKey==ShownSummary&&Content==ShownContent){return;}
@@ -63,9 +64,10 @@ void ULDResultReport::Present(const FLDResultView& Result,const FGuid& SelfId,co
     for(const FLDDemoStatDefinition* Stat:Stats){StatNames.Add(LDHUD::ContentName(Content,Stat->Id));}
     Keystone=Content&&Content->Parameters.KeystoneThresholdPoints>0?int32(Content->Parameters.KeystoneThresholdPoints):18;
     Catalog=Content;
-    const auto Icon=[this,Content](FName Id,EItem Kind,ELDSkillBranch Branch,uint8 Level)
+    int32 SeatNow=INDEX_NONE;
+    const auto Icon=[this,Content,&SeatNow](FName Id,EItem Kind,ELDSkillBranch Branch,uint8 Level)
     {
-        FItem Item;Item.Id=Id;Item.Kind=Id.IsNone()?EItem::None:Kind;Item.Branch=Branch;Item.Level=FMath::Max<uint8>(1,Level);
+        FItem Item;Item.Id=Id;Item.Kind=Id.IsNone()?EItem::None:Kind;Item.Branch=Branch;Item.Level=FMath::Max<uint8>(1,Level);Item.Seat=SeatNow;
         Item.IconId=Id.IsNone()?FString():LDHUD::ContentIconId(Content,Id.ToString());
         Brush(Item.IconId,FString());
         return Item;
@@ -83,6 +85,29 @@ void ULDResultReport::Present(const FLDResultView& Result,const FGuid& SelfId,co
         Seat.Damage=double(Row.Combat.PhysicalToPlayersP2+Row.Combat.MagicalToPlayersP2+Row.Combat.ReactionToPlayersP2)/100.;
         Seat.Taken=double(Row.Combat.DamageTakenP2)/100.;
         Seat.bBuild=Row.Build.bAvailable;
+        SeatNow=Index;
+        // The frozen final attributes; the bonus terms are the final minus the character's base and level growth.
+        if(Row.Combat.bAvailable&&!Row.Combat.Attributes.IsEmpty())
+        {
+            const auto P2=[&Row](ELDProjectedAttribute Attribute)
+            {
+                const FLDResultAttribute* Found=Row.Combat.Attributes.FindByPredicate([Attribute](const FLDResultAttribute& Each){return Each.Attribute==uint8(Attribute);});
+                return Found&&Found->Value.Denominator>0?Found->Value.Numerator*100/Found->Value.Denominator:int64(0);
+            };
+            Seat.Stats.Level=FMath::Max<uint8>(1,Row.FinalLevel);
+            Seat.Stats.ADP2=P2(ELDProjectedAttribute::AD);Seat.Stats.APP2=P2(ELDProjectedAttribute::AP);Seat.Stats.MaxHPP2=P2(ELDProjectedAttribute::MaxHP);
+            Seat.Stats.ArmorP2=P2(ELDProjectedAttribute::Armor);Seat.Stats.MagicResistP2=P2(ELDProjectedAttribute::MagicResist);
+            if(Snapshot)
+            {
+                const FLDAttributeProjectionResult Bare=LDAttributeProjection::Project(FLDAttributeBuildValues(Seat.Stats.Level,{}),*Snapshot);
+                if(Bare.IsSuccess())
+                {
+                    Seat.Stats.BonusADP2=FMath::Max<int64>(0,Seat.Stats.ADP2-Bare.Value->Final.ADP2);
+                    Seat.Stats.BonusMaxHPP2=FMath::Max<int64>(0,Seat.Stats.MaxHPP2-Bare.Value->Final.MaxHPP2);
+                }
+            }
+            Seat.bStats=true;
+        }
         for(const FLDResultBuildActive& Active:Row.Build.Actives){if(Active.Slot<3){Seat.HostActive[Active.Slot]=Icon(Active.DefinitionId,EItem::Active,Active.Branch,Row.FinalLevel);}}
         for(const FLDResultBuildCard& Card:Row.Build.Cards)
         {
@@ -379,12 +404,14 @@ int32 ULDResultReport::NativePaint(const FPaintArgs& Args,const FGeometry& Geome
         if(Phases[Beat].Icons.IsEmpty()){Text(Layer+2,TEXT("—"),Label(20.f,false),At(X0+12.f,1016.f),LDBroadcast::Mute);}
     }
     // The hover card of the tile under the pointer: the same text the match's cards show (name, kind, the rule), with the
-    // coefficients in place of numbers (the result holds no final attributes), beside the tile and kept on the page.
+    // seat's numbers from its frozen final attributes, beside the tile and kept on the page.
     for(const TPair<FBox2D,FItem>& Hit:ItemRects)
     {
         if(!Hit.Key.IsInside(Pointer)){continue;}
         const FItem& Item=Hit.Value;
+        // The seat's own final numbers when the result holds them; the coefficients otherwise.
         LDHUD::FCardStats Stats;Stats.Level=Item.Level;Stats.bShowScalingFormula=true;
+        if(Seats.IsValidIndex(Item.Seat)&&Seats[Item.Seat].bStats){Stats=Seats[Item.Seat].Stats;}
         FString Name,Meta,Body;
         if(Item.Kind==EItem::Card)
         {
