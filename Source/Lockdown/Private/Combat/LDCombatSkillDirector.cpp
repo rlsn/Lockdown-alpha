@@ -201,6 +201,8 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
             if (Fans[Index].Payload.SourceEntity == Body.Victim.EntityId && Fans[Index].Payload.Source == Payload.Source) { Owned.Add(Index); }
         }
         for (int32 Drop=Owned.Num()-Allowed; Drop >= 0; --Drop) { Fans.RemoveAt(Owned[Drop]); }
+        UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_FAN_PLACED origin=%s direction=%s vector=%d"),*Fan.OriginCm.ToCompactString(),
+            *Fan.Direction.ToCompactString(),Action.Direction.IsNearlyZero()?0:1);
         Fans.Add(MoveTemp(Fan));
         bHandled=true;
         return true;
@@ -263,6 +265,8 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
             if (Cordons[Idx].Payload.SourceEntity==Body.Victim.EntityId && Cordons[Idx].Payload.Source==Payload.Source) { Owned.Add(Idx); }
         }
         for (int32 Drop=Owned.Num()-Allowed; Drop>=0; --Drop) { Cordons.RemoveAt(Owned[Drop]); }
+        UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_CORDON_PLACED centre=%s tangent=%s half=%.0f vector=%d"),*Cordon.CentreCm.ToCompactString(),
+            *Cordon.Tangent.ToCompactString(),Cordon.HalfLengthCm,Facing.IsNearlyZero()?0:1);
         Cordons.Add(MoveTemp(Cordon));
         bHandled=true;
         return true;
