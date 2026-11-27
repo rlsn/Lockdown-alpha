@@ -77,7 +77,7 @@ bool DevelopmentBuildShapeValid(const FLDBuildCommand& Command, int32 StatCount)
         return !Command.OfferId.IsValid() && Command.OfferRevision != 0 && Command.Option == FLDDefinitionWire()
             && Command.Blueprint == FLDDefinitionWire() && Command.PointCounts.IsEmpty() && !Command.bLearnIfPossible
             && Command.Branch == ELDSkillBranch::None && bNoCard
-            && (Command.Slot < 8 || Command.Slot == FLDBuildCommand::ShopSkillPointSlot);
+            && (Command.Slot < 8 || Command.Slot == FLDBuildCommand::ShopSkillPointSlot || Command.Slot == FLDBuildCommand::ShopMedalSlot);
     case ELDBuildCommandKind::ShopRefresh:
         return !Command.OfferId.IsValid() && Command.OfferRevision != 0 && Command.Option == FLDDefinitionWire() && bNoActive && bNoCard;
     case ELDBuildCommandKind::AllocatePoints:
@@ -496,6 +496,9 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
     View.Shop.SkillPointsBought = Build.BoughtSkillPoints;
     View.AffixSkillPoints = Build.AffixSkillPoints;
     View.Shop.SkillPointsMax = ShopTerms.SkillPointMaxPerMatch;
+    View.Shop.MedalPrice = LDProgression::ShopMedalPrice(Definitions.Parameters, Progression.Shop);
+    View.Shop.MedalsBought = Build.BoughtMedals;
+    View.Shop.MedalsMax = ShopTerms.MedalMaxPerMatch;
     View.HeldBlueprints = Progression.HeldBlueprints;
     View.FieldRewards = Progression.FieldRewards;
     View.bFinalModPending = Progression.FinalMod.IsPending();
@@ -796,7 +799,8 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
         if (Command.Kind == ELDBuildCommandKind::ShopBuy)
         {
             ShopReason = LDProgression::ApplyShopBuy(Definitions, Build, Progression, Command.Slot, Command.OfferRevision, Context,
-                NewBuild, NewProgression, Shopped);
+                NewBuild, NewProgression, Shopped,
+                LDProgression::MedalSeed(MatchSecret, ContenderId, 0x53484F504D000000ull + uint64(Build.BoughtMedals)));
         }
         else
         {
@@ -1019,6 +1023,7 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
         UE_LOG(LogLDGrowth, Log, TEXT("LD_SHOP t=%lld contender=%s kind=%s slot=%s item=%s serial=%u points=%+lld unspent=%lld refreshes=%d stock=%s"),
             GameMode->GetAuthorityNowMs(), *LDLog::Id(ContenderId), *LDLog::EnumName(Command.Kind),
             Command.Kind == ELDBuildCommandKind::ShopBuy ? (Command.Slot == FLDBuildCommand::ShopSkillPointSlot ? TEXT("skill_point")
+                : Command.Slot == FLDBuildCommand::ShopMedalSlot ? TEXT("medal")
                 : *FString::FromInt(Command.Slot)) : TEXT("-"),
             !Receipt.DefinitionId.IsNone() ? *Receipt.DefinitionId.ToString() : !Receipt.CardId.IsNone() ? *Receipt.CardId.ToString() : TEXT("-"),
             uint32(Receipt.CardSerial), Receipt.PointsDelta, Unspent, Shop.Refreshes,

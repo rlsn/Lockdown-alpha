@@ -120,7 +120,7 @@ struct FLDDemoCardParameters
 // Spec §3.13 rest shop: SkillSlots skills and CardSlots cards per stock (VocabCardSlots of the cards drawn with VocabWeight for a
 // candidate sharing the build's vocabulary, the rest uniformly), the prices in stat points, the refresh price (RefreshPrice may
 // be 0: the rest's first refresh is free) rising RefreshStep per refresh of one rest and a skill point (at most
-// SkillPointMaxPerMatch per match).
+// SkillPointMaxPerMatch per match) and a random element medal (MedalPrice, at most MedalMaxPerMatch per match).
 USTRUCT()
 struct FLDDemoShopParameters
 {
@@ -136,6 +136,8 @@ struct FLDDemoShopParameters
     UPROPERTY() int32 RefreshStep = 0;
     UPROPERTY() int32 SkillPointPrice = 0;
     UPROPERTY() int32 SkillPointMaxPerMatch = 0;
+    UPROPERTY() int32 MedalPrice = 0;
+    UPROPERTY() int32 MedalMaxPerMatch = 0;
 };
 
 // Spec §10.3 (P6) mid-field objectives: StartMs of segment-local field time after each timed segment starts, announced

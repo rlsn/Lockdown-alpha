@@ -763,7 +763,7 @@ def parameter_projection(parameters):
     }
     result["Shop"] = {dest: parameters["SHOP." + dest] for dest in (
         "CardSlots", "VocabCardSlots", "SkillSlots", "CardPrice", "SkillPrice", "RefreshPrice", "RefreshStep",
-        "SkillPointPrice", "SkillPointMaxPerMatch")}
+        "SkillPointPrice", "SkillPointMaxPerMatch", "MedalPrice", "MedalMaxPerMatch")}
     result["Shop"]["VocabWeightBp"] = scalar(parameters["SHOP.VocabWeight"])
     result["AI"] = {}
     for source, dest in (

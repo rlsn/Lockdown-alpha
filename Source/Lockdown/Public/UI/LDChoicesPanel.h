@@ -63,6 +63,7 @@ public:
     // at once, paid in unspent stat points. Each refuses locally with the reason it toasts.
     bool BuyShopSlot(int32 Index);
     bool BuyShopSkillPoint();
+    bool BuyShopMedal();
     bool RefreshShopShelf();
     // The confirm line is a child confirmation for Back routing; it captures no input, so play goes on meanwhile.
     virtual bool HasChildConfirmation() const override {return RestConfirm.Kind!=ELDBuildCommandKind::None;}

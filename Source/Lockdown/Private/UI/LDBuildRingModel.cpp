@@ -327,7 +327,7 @@ LDBuildRing::FView LDBuildRing::Build(const FInputs& In)
             for(const FName Id:Progression->PendingBlueprints){Batch.Options.Add(ActiveOption(Id));}
         }
     }
-    // The rest shop: the shelf, then the skill point.
+    // The rest shop: the shelf, then the skill point and the random element medal.
     View.bShop=In.bRestShop&&Progression->Shop.bStocked;
     if(View.bShop)
     {
@@ -348,6 +348,10 @@ LDBuildRing::FView LDBuildRing::Build(const FInputs& In)
         Point.Slot=FLDBuildCommand::ShopSkillPointSlot;Point.Name=TEXT("技能点");Point.Price=Shop.SkillPointPrice;
         Point.bSold=Shop.SkillPointsBought>=Shop.SkillPointsMax;
         Point.Note=FString::Printf(TEXT("限购 %d"),FMath::Max(0,Shop.SkillPointsMax-Shop.SkillPointsBought));
+        FShopItem& Medal=View.Shop.AddDefaulted_GetRef();
+        Medal.Slot=FLDBuildCommand::ShopMedalSlot;Medal.Name=TEXT("随机元素勋章");Medal.Price=Shop.MedalPrice;
+        Medal.bSold=Shop.MedalsBought>=Shop.MedalsMax;
+        Medal.Note=FString::Printf(TEXT("限购 %d"),FMath::Max(0,Shop.MedalsMax-Shop.MedalsBought));
     }
     return View;
 }

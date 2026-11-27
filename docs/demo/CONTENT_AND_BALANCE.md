@@ -51,8 +51,8 @@
 | `STAT.CritChance.Base` | 概率/R4 | 0 | 0..1 | 普攻暴击按 `FORMULA.Crit`；暴击率由力道属性点获得；技能不暴击（Y09 除外，§4.5） |
 | `STAT.CritMultiplier` | 倍率/R4 | 2.00 | 固定 | 不作为首版可堆叠属性；70 AD 暴击原始量 140 |
 | `STAT.CooldownHaste.Base` | 冷却点/P2 | 0 | 0..400 | 只影响角色主动的下一次释放，不影响 proc/复活/刷新/喷漆/守护；急速后的冷却不低于 `SKILL.CooldownFloorSec` |
-| `UNIT.MoveSpeedCmPerSec` | cm/s/Rate | 300 | 派生 173..675 | 是设计值，不宣称由引擎默认值批准 |
-| `STAT.MoveSpeedCmPerSec` | cm/s/Rate | 按来源派生 | 173..675 | `FORMULA.MoveSpeed`；30%减速 300→210 不被夹紧；初始300；UI/运动读取最终值 |
+| `UNIT.MoveSpeedCmPerSec` | cm/s/Rate | 240 | 派生 138.4..540 | 是设计值，不宣称由引擎默认值批准 |
+| `STAT.MoveSpeedCmPerSec` | cm/s/Rate | 按来源派生 | 138.4..540 | `FORMULA.MoveSpeed`；30%减速 240→168 不被夹紧；初始240；UI/运动读取最终值 |
 | `UNIT.CollisionRadiusCm` | cm/Cm | 40 | 固定 | 最小双身体中心分离 80cm，小于建议普攻距离；世界负责净空/防重叠 |
 | `UNIT.BasicAttackRangeCm` | cm/Cm | 250 | 基础值 | 给80cm碰撞分离之外的接近余量；真实射程必须读下行派生值 |
 | `STAT.AttackRangeCm` | cm/Cm | 按来源派生 | 80..1000 | `FORMULA.AttackRange`；初始250 |
@@ -115,7 +115,7 @@ Root 是动作禁止，不把移动速度属性改成 0 后再夹回 173。
 | `FORMULA.Crit` | 合法普攻主击在唯一 AttackId 取一次随机值 $u\in[0,1)$；$u<p$ 时主击原始 AD 乘 2；与主击合并结算的普攻强化包（S11、S17、B12、C09 等 `empower_basic`）随主击一起乘 2 | 服务器独立确定性随机流；重发同 AttackId 不重抽；副击、吸血治疗不可暴击。技能不暴击（§4.5） |
 | `FORMULA.Damage` | source 快照原始量 → 普攻暴击 → ×(1+Σ伤害加成，§4.5) → 目标实时抗性（含破防） → 向下取 0.01 → 现有屏障吸收 → 实际 HP 损失 | HP 损失不超过目标剩余 HP；70 对 18 抗=59.32，140 对 18 抗=118.64；0.009 对零抗=0，不设最低 1 点伤害 |
 | `FORMULA.AttackSpeed` | $0.85\times(1+0.02k+\Sigma ASBonus)$ → AS | 最后夹取到 [`STAT.AttackSpeed.Min`, `STAT.AttackSpeed.Max`] = [0.30, 5.00] 次/秒 |
-| `FORMULA.MoveSpeed` | $UNIT.MoveSpeedCmPerSec\times(1+\Sigma MoveSpeedBonusRatio)$ | 最后夹取[173,675]cm/s；不把Root动作禁止当减速属性 |
+| `FORMULA.MoveSpeed` | $UNIT.MoveSpeedCmPerSec\times(1+\Sigma MoveSpeedBonusRatio)$ | 最后夹取[138.4,540]cm/s；不把Root动作禁止当减速属性 |
 | `FORMULA.AttackRange` | 基础 `UNIT.BasicAttackRangeCm` + 永久 `AttackRangeCmFlat` → `STAT.AttackRangeCm` | 无乘区；目标/导航接近/预览/AttackMove全用派生值 |
 | `FORMULA.AttackIntervalMs` | $\lceil1000/AS\rceil$ → 相邻合法 AttackStart 的最短间隔 | AS=.75 得 1334ms；已出手的攻击保留端点；前摇在出手时刻之前被打断时退回该次提交的端点 |
 | `FORMULA.AttackWindupMs` | $\lceil1000\times UNIT.BasicAttackWindupSec\times STAT.BaseAttackSpeed/AS\rceil$ | 基础 180ms；必须小于本次攻击间隔。出手前被取消（冲刺、技能、S、控制、失去目标、死亡）退还已提交节拍；到出手时刻才被拒的挥空不退 |
@@ -237,7 +237,7 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | 对象 | 参数 | 规则 |
 | --- | --- | --- |
 | 外卖柜 | `EXPLORE.LockerCount` 4、`LockerEarliestSec` 30、`LockerLatestSec` 420、`LockerStaySec` 45、`LockerRadiusCm` 150、`LockerChannelSec` 3、`LockerCardOffer` 3 | 每局从 `locker_*` 中抽 4 个，各在 T ∈ [30, 420] s 的随机时刻出现，45 s 后没人打开就消失，出现期间公开在小地图上；柜旁 150 cm 内连续 3 s 打开（受伤或硬控打断），必得一组三选一 |
-| 二手贩子 | `EXPLORE.PeddlerEarliestSec` 120、`PeddlerLatestSec` 400、`PeddlerOffsetCm` 600、`PeddlerHP` 1800、`PeddlerMoveSpeed` 280、`PeddlerStaySec` 60、`PeddlerCardOffer` 5 | 每局一次，T 在 [120, 400] s 内随机出现在随机营地旁 600 cm，不攻击、被打就逃，60 s 后离开；击杀得一组五选一 |
+| 二手贩子 | `EXPLORE.PeddlerEarliestSec` 120、`PeddlerLatestSec` 400、`PeddlerOffsetCm` 600、`PeddlerHP` 1800、`PeddlerMoveSpeed` 224、`PeddlerStaySec` 60、`PeddlerCardOffer` 5 | 每局一次，T 在 [120, 400] s 内随机出现在随机营地旁 600 cm，不攻击、被打就逃，60 s 后离开；击杀得一组五选一 |
 
 AI 读取 `AI.ObjectiveReachCm`（2500）与 `AI.ObjectiveEntryHPRatio`（0.6）：生命不低于 60% 且离目标点不超过 2500 cm 时前往开放或预告中的野外目标。
 
@@ -562,7 +562,7 @@ $$
 - **Ⅱ 阶**：该宿主触发的元素反应伤害提高 `+35%`（`MEDAL.Tier2ReactionBonusRatio`）；
 - **Ⅲ 阶**：命中挂主元素后立即额外附着确定性异种副元素（烫→麻、湿→麻、麻→湿、冻→湿、馊→烫），单次命中自触发元素反应。
 
-勋章不进牌三选一，也不上商店货架，只按下表几率掉落一枚（五种等概率）进牌库：
+勋章不进牌三选一，也不进商店随机货架；下表各来源按几率掉落一枚（五种等概率）进牌库，休息商店另有一格随机元素勋章（`SHOP.MedalPrice`，整局限购 `SHOP.MedalMaxPerMatch`，五种等概率）：
 
 | 参数 | 值 | 来源 |
 | --- | --- | --- |
@@ -640,6 +640,7 @@ $$
 | `SHOP.CardPrice`、`SHOP.SkillPrice` | 2（普通 2 / 稀有 3 / 传说 4）、2 | 牌按稀有度阶梯定价（2 / 3 / 4 属性点），技能为 2 属性点 |
 | `SHOP.RefreshPrice`、`SHOP.RefreshStep` | 0、1 | 第一次刷新的价格（免费，打折日也免费）；本次休息里每刷一次的涨价，下次休息重置 |
 | `SHOP.SkillPointPrice`、`SHOP.SkillPointMaxPerMatch` | 3、2 | 技能点价格（属性点）；每局最多买几个 |
+| `SHOP.MedalPrice`、`SHOP.MedalMaxPerMatch` | 4、1 | 随机元素勋章价格（属性点，打折日同样打折）；每局最多买几个 |
 
 ### 4.5 关键词、状态与共用战斗规则
 
@@ -740,7 +741,7 @@ $$
 上热搜者死亡结束本次上热搜。是首轮试玩值，未经平衡验证。
 
 **画饼老板 Boss**：`content.json` 的 `boss` 块（`monster_dean`，显示名“画饼老板”）。野外进度 T=`appear_at=210` 秒
-出现在 `boss_patrol_1`（原巡逻入口），整局仅一只，以 `move_speed=225` cm/s 沿 `boss_patrol_1..4` 循环巡逻；地图把四个巡逻点放在旗杆盆地内、
+出现在 `boss_patrol_1`（原巡逻入口），整局仅一只，以 `move_speed=180` cm/s 沿 `boss_patrol_1..4` 循环巡逻；地图把四个巡逻点放在旗杆盆地内、
 围着旗杆一圈（用户：“boss patrols around the flag pole in the center”），是 `SourceData/World/demo_world.json` 的
 `BossWaypoint` 锚点。生命 `hp=2800`，护甲/魔抗 30，每 `attack_interval=1.5` 秒一次
 `attack=210` 物理伤害（前摇 `attack_windup=0.5` 秒，与中野相同），攻击距离 `attack_range=250` cm，
@@ -843,7 +844,7 @@ DEV 成长夹具可预置主动候选，不把 DEV 预置当作随机分布证�
 | 攻速，次/s | .80 | .65 | .60 | .55 |
 | 普攻前摇，s | .35 | .50 | .50 | .50 |
 | 普攻射程，cm | 150 | 175 | 175 | 175 |
-| 移速，cm/s | 240 | 260 | 260 | 260 |
+| 移速，cm/s | 192 | 208 | 208 | 208 |
 | 碰撞半径，cm | 40 | 40 | 40 | 40 |
 | 拴绳 / 感知半径，cm | 900（HR）、1050（地推、骑手） | 1050 | 1050 | 1050 |
 | 失去目标宽限，s | 3 | 4 | 4 | 4 |

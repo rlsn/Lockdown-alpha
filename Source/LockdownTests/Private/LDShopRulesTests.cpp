@@ -209,6 +209,56 @@ bool FLDGrowthShopBuyTest::RunTest(const FString& Parameters)
     return bGood;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDGrowthShopMedalTest, "Lockdown.Rules.Growth.Shop.Medal",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDGrowthShopMedalTest::RunTest(const FString& Parameters)
+{
+    using namespace LDShopRulesTests;
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDTestApprovedFixture::Read(*this, Catalog)) { return false; }
+    const FLDDemoContentDefinitions& Content = Catalog->Get();
+    const FLDDemoShopParameters& Terms = Content.Parameters.Shop;
+    const FLDGrowthBuild Of = Build(Content);
+    const LDProgression::FBuildContext Rest = Context(EStage::Rest);
+    FLDProgressionState Rich;
+    if (!Stocked(*this, Content, Of, Rich)) { return false; }
+    const int64 Points = Unspent(Content, Of, Rich);
+    const uint8 Slot = FLDBuildCommand::ShopMedalSlot;
+    const uint64 Seed = LDProgression::MedalSeed(Secret, Contender, 1);
+    FLDGrowthBuild Out, Again;
+    FLDProgressionState OutProgression, AgainProgression;
+    LDProgression::FShopOutcome Outcome, AgainOutcome;
+    bool bGood = TestTrue(TEXT("The medal is priced and limited"), Terms.MedalPrice > 0 && Terms.MedalMaxPerMatch > 0);
+    bGood &= Reason(*this, TEXT("Buying the random medal"), LDProgression::ApplyShopBuy(Content, Of, Rich, Slot, Rich.Shop.Revision, Rest, Out,
+        OutProgression, Outcome, Seed), ELDGrowthReason::None);
+    bGood &= TestTrue(TEXT("One medal joins the library for its price and the shelf revision advances"), Out.Cards.Num() == 1
+        && LDProgression::IsMedal(Content, Out.Cards[0].Id) && !Out.Cards[0].IsInstalled() && Outcome.Definition == Out.Cards[0].Id
+        && Out.BoughtMedals == 1 && Outcome.PointsPaid == Terms.MedalPrice && Unspent(Content, Out, OutProgression) == Points - Terms.MedalPrice
+        && OutProgression.Shop.Revision == Rich.Shop.Revision + 1);
+    LDProgression::ApplyShopBuy(Content, Of, Rich, Slot, Rich.Shop.Revision, Rest, Again, AgainProgression, AgainOutcome, Seed);
+    bGood &= TestTrue(TEXT("The seed decides the medal"), AgainOutcome.Definition == Outcome.Definition);
+    // Uniform over the five medals: every medal comes up across seeds.
+    TSet<FName> Drawn;
+    for (uint64 Key = 1; Key <= 200; ++Key)
+    {
+        if (LDProgression::ApplyShopBuy(Content, Of, Rich, Slot, Rich.Shop.Revision, Rest, Again, AgainProgression, AgainOutcome,
+            LDProgression::MedalSeed(Secret, Contender, Key)) == ELDGrowthReason::None) { Drawn.Add(AgainOutcome.Definition); }
+    }
+    const int32 Medals = Content.Cards.FilterByPredicate([](const FLDDemoCardDefinition& Card) { return Card.Form == ELDCardForm::Medal; }).Num();
+    bGood &= TestTrue(TEXT("Every medal can be bought"), Medals == 5 && Drawn.Num() == Medals);
+    bGood &= Reason(*this, TEXT("A second medal in the match"), LDProgression::ApplyShopBuy(Content, Out, OutProgression, Slot,
+        OutProgression.Shop.Revision, Rest, Again, AgainProgression, AgainOutcome, Seed), ELDGrowthReason::MedalLimit);
+    const FLDGrowthBuild Poor = Build(Content, Terms.MedalPrice - 1);
+    bGood &= Reason(*this, TEXT("Short of the medal's price"), LDProgression::ApplyShopBuy(Content, Poor, Rich, Slot, Rich.Shop.Revision, Rest,
+        Again, AgainProgression, AgainOutcome, Seed), ELDGrowthReason::NotEnoughPoints);
+    bGood &= TestTrue(TEXT("A refused medal spends and gives nothing"), Again.ShopSpentPoints == 0 && Again.Cards.IsEmpty() && Again.BoughtMedals == 0);
+    FLDProgressionState Sale = Rich;
+    Sale.Shop.bSale = true;
+    const int32 SalePrice = LDProgression::ShopMedalPrice(Content.Parameters, Sale.Shop);
+    bGood &= TestTrue(TEXT("A sale day cuts the medal's price"), SalePrice > 0 && SalePrice < Terms.MedalPrice);
+    return bGood;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDGrowthShopRefreshTest, "Lockdown.Rules.Growth.Shop.Refresh",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDGrowthShopRefreshTest::RunTest(const FString& Parameters)

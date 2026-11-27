@@ -2519,10 +2519,16 @@ bool SelectShopBuy(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Ca
     OutSlot = 0;
     const FLDShopView& Shop = Self.Shop;
     if (!Shop.bStocked) { return false; }
-    // Spec §13: the skill point when the unspent stat points pay it and it is not bought out, otherwise the best affordable card.
+    // Spec §13: the skill point when the unspent stat points pay it and it is not bought out, then the random medal likewise,
+    // otherwise the best affordable card.
     if (Shop.SkillPointsBought < Shop.SkillPointsMax && Shop.SkillPointPrice > 0 && Self.UnspentPoints >= Shop.SkillPointPrice)
     {
         OutSlot = FLDBuildCommand::ShopSkillPointSlot;
+        return true;
+    }
+    if (Shop.MedalsBought < Shop.MedalsMax && Shop.MedalPrice > 0 && Self.UnspentPoints >= Shop.MedalPrice)
+    {
+        OutSlot = FLDBuildCommand::ShopMedalSlot;
         return true;
     }
     const FLDDemoContentDefinitions& Content = Catalog.Get();

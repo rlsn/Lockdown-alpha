@@ -2898,6 +2898,15 @@ bool RunShopBuy(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("A sold slot is skipped"), LDOpponentPolicy::SelectShopBuy(Cards.Self, C, NAME_None, Slot) && Slot == 2);
     Cards.Self.Shop.Slots[2].bSold = true;
     bGood &= Test.TestFalse(TEXT("Nothing affordable left: no purchase"), LDOpponentPolicy::SelectShopBuy(Cards.Self, C, NAME_None, Slot));
+    // The random medal after the skill point, while affordable and not bought.
+    auto Medal = Cards;
+    Medal.Self.Shop.MedalPrice = Terms.MedalPrice;
+    Medal.Self.Shop.MedalsMax = Terms.MedalMaxPerMatch;
+    Medal.Self.UnspentPoints = Terms.MedalPrice;
+    bGood &= Test.TestTrue(TEXT("With the medal's price the AI buys the random medal"),
+        LDOpponentPolicy::SelectShopBuy(Medal.Self, C, NAME_None, Slot) && Slot == FLDBuildCommand::ShopMedalSlot);
+    Medal.Self.Shop.MedalsBought = Terms.MedalMaxPerMatch;
+    bGood &= Test.TestFalse(TEXT("A bought medal is not bought again"), LDOpponentPolicy::SelectShopBuy(Medal.Self, C, NAME_None, Slot));
     auto Field = Mid;
     Field.Public.Phase = ELDMatchPhase::Development;
     Field.Public.Timeline.Stage = ELDMatchStage::Field;

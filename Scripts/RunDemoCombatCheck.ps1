@@ -14,9 +14,7 @@ param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(300,1500)][int]$
     [string]$RecordGame,
     # With CaptureOnly: a camera-feedback A/B take with the Host's camera shake off (NoShake) or reduced combat effects on
     # (Reduced); the default is the shipped preferences.
-    [ValidateSet('Default','NoShake','Reduced')][string]$Feel = 'Default',
-    # With CaptureOnly: the Host's DEV play-test camera and pace preset (ld.Dev.FeelPreset); 0 is the shipped one.
-    [ValidateRange(0,3)][int]$FeelPreset = 0)
+    [ValidateSet('Default','NoShake','Reduced')][string]$Feel = 'Default')
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
 Assert-LDDemoInputs
@@ -58,7 +56,6 @@ function Start-CombatRole {
         if ($CaptureOnly -and $Role -eq 'Host') { $arguments = $arguments.Replace(' -nosound', '') + ' -LDAudioEventLog' }
         if ($CaptureOnly -and $RecordGame -and $Role -eq 'Host') { $arguments += ' -LDRecordGame="{0}"' -f $RecordGame }
         if ($CaptureOnly -and $Feel -ne 'Default' -and $Role -eq 'Host') { $arguments += " -LDDemoCombatFeel=$Feel" }
-        if ($CaptureOnly -and $FeelPreset -ne 0 -and $Role -eq 'Host') { $arguments += " -ExecCmds=`"ld.Dev.FeelPreset $FeelPreset`"" }
         $arguments
     }
 }
@@ -120,7 +117,7 @@ try {
     $captures = ($screenshots | ForEach-Object { Join-Path $output $_ }) -join ', '
     $hostFeel = $hostReport.feel
     $clientFeel = $reports['Client1'].feel
-    $feel = ("Control feel (measured, ms): Host right-click to motion $($hostFeel.click_to_move_ms) " +
+    $feelLine = ("Control feel (measured, ms): Host right-click to motion $($hostFeel.click_to_move_ms) " +
         "($($hostFeel.click_frames) frames, longest $($hostFeel.click_longest_frame_ms); walked $($hostFeel.spawn_to_click_ms) after spawn once frames settled), ramp to full speed " +
         "$($hostFeel.ramp_to_full_speed_ms), S from $([math]::Round($hostFeel.stop_from_speed)) cm/s to still $($hostFeel.stop_to_still_ms) " +
         "over $([math]::Round($hostFeel.stop_distance_cm)) cm, next walk $($hostFeel.restart_click_to_move_ms) (frame $([math]::Round($hostFeel.frame_ms,1))); " +
@@ -129,7 +126,7 @@ try {
         "ramp $($clientFeel.ramp_to_full_speed_ms), S to Stopped receipt $($clientFeel.stop_to_stopped_receipt_ms) " +
         "(frame $([math]::Round($clientFeel.frame_ms,1))); acceleration $($hostFeel.max_acceleration), braking " +
         "$($hostFeel.braking_deceleration_walking), speed $($hostFeel.max_walk_speed) cm/s.")
-    Write-Host $feel
+    Write-Host $feelLine
     Write-Host ("DEV-only owned-connection combat/orders scenario passed through the ordinary lobby Start: a chased body's " +
         "foot in the navmesh margin routes and the same clicked ground projects onto the navmesh (#80), Settings held " +
         "over an accepted walk past its lease (order and heartbeat continue, nothing replays), remote attack-move " +
