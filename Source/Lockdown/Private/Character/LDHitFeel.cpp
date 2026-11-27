@@ -28,8 +28,6 @@ const LDHitFeel::FField HitFeelFields[] =
     { TEXT("ld.Feel.SparkScale"), TEXT("普通闪光"), HandSection, 1.4f, .1f, 4.f, EUnit::Scale },
     { TEXT("ld.Feel.CritSparkScale"), TEXT("暴击与击杀闪光"), HandSection, 2.2f, .1f, 4.f, EUnit::Scale },
     { TEXT("ld.Feel.ImpactScale"), TEXT("整体大小"), ImpactSection, 1.8f, .1f, 3.f, EUnit::Scale },
-    { TEXT("ld.Feel.ImpactSparks"), TEXT("火星数量"), ImpactSection, 28.f, 2.f, 40.f, EUnit::Count },
-    { TEXT("ld.Feel.ImpactSpeed"), TEXT("火星速度"), ImpactSection, 1200.f, 100.f, 3000.f, EUnit::Speed },
     { TEXT("ld.Feel.ImpactGlow"), TEXT("亮度"), ImpactSection, 6.f, 1.f, 30.f, EUnit::Scale },
     { TEXT("ld.Feel.ImpactMs"), TEXT("持续时间"), ImpactSection, 280.f, 20.f, 1000.f, EUnit::Ms },
     { TEXT("ld.Feel.Words"), TEXT("显示拟声字"), WordSection, 1.f, 1.f, 1.f, EUnit::Switch },
@@ -88,22 +86,20 @@ LDHitFeel::FTuning LDHitFeel::Read()
     Tuning.SparkScale = Clamped(7);
     Tuning.CritSparkScale = Clamped(8);
     Tuning.ImpactScale = Clamped(9);
-    Tuning.ImpactSparks = FMath::RoundToInt(Clamped(10));
-    Tuning.ImpactSpeed = Clamped(11);
-    Tuning.ImpactGlow = Clamped(12);
-    Tuning.ImpactSeconds = Clamped(13) / 1000.f;
-    Tuning.bWords = Clamped(14) >= .5f;
-    Tuning.bPredictSwing = Clamped(15) >= .5f;
-    Tuning.PredictGraceMs = FMath::RoundToInt64(Clamped(16));
-    Tuning.TrailWidthCm = Clamped(17);
-    Tuning.TrailSeconds = Clamped(18) / 1000.f;
-    Tuning.TrailGlow = Clamped(19);
-    Tuning.TrailReach = Clamped(20);
-    Tuning.CastScale = Clamped(21);
-    Tuning.CastGlow = Clamped(22);
-    Tuning.CastSparksPerSecond = Clamped(23);
-    Tuning.SwingVolume = Clamped(24);
-    Tuning.ConfirmVolume = Clamped(25);
+    Tuning.ImpactGlow = Clamped(10);
+    Tuning.ImpactSeconds = Clamped(11) / 1000.f;
+    Tuning.bWords = Clamped(12) >= .5f;
+    Tuning.bPredictSwing = Clamped(13) >= .5f;
+    Tuning.PredictGraceMs = FMath::RoundToInt64(Clamped(14));
+    Tuning.TrailWidthCm = Clamped(15);
+    Tuning.TrailSeconds = Clamped(16) / 1000.f;
+    Tuning.TrailGlow = Clamped(17);
+    Tuning.TrailReach = Clamped(18);
+    Tuning.CastScale = Clamped(19);
+    Tuning.CastGlow = Clamped(20);
+    Tuning.CastSparksPerSecond = Clamped(21);
+    Tuning.SwingVolume = Clamped(22);
+    Tuning.ConfirmVolume = Clamped(23);
     return Tuning;
 }
 

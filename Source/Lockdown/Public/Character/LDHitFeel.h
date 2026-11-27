@@ -22,8 +22,6 @@ namespace LDHitFeel
         float SparkScale = 0;
         float CritSparkScale = 0;
         float ImpactScale = 0;
-        int32 ImpactSparks = 0;
-        float ImpactSpeed = 0;
         float ImpactGlow = 0;
         float ImpactSeconds = 0;
         bool bWords = false;
