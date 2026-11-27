@@ -27,20 +27,6 @@
 
 每个玩法域只有这里的一份手册，开头的表给出文件、入口函数、不变量与检查入口；跨域语义在[共享契约](demo/SHARED_CONTRACTS.md)，数值在[内容与数值](demo/CONTENT_AND_BALANCE.md)。
 
-### 文档维护归属
-
-| 事实 | 唯一维护位置 |
-| --- | --- |
-| 常驻安全、协作、实现边界与阅读路由 | [AGENTS](../AGENTS.md) |
-| 产品规则、显示术语与完成标准 | [App Spec](APP_SPEC.md#按任务查规则) |
-| 内容、公式与批准数值 | [内容与数值](demo/CONTENT_AND_BALANCE.md#按任务查内容)；运行输入沿 SourceData → Sync → Content 生成 |
-| 跨领域所有权、身份、时间与交接语义 | [共享契约](demo/SHARED_CONTRACTS.md) |
-| 本领域接口、文件、入口函数与不变量 | 上表对应的系统手册 |
-| 环境、日常命令、数据修改与 Issue/PR 流程 | 本页对应章节 |
-| 检查覆盖范围、限制、测试集合与里程碑清单 | [验证手册](systems/VERIFICATION.md#最小验证选择) |
-| 打包、版本、runner 与 CI 门禁 | [CI 与发布](systems/CI_AND_RELEASE.md) |
-| 验收证据、未运行和未实现 | [就绪评估](demo/READINESS.md) |
-
 README 只作项目概览与入口。新增说明写入所属章节，其他位置链接过去，不复制整套规则或测试清单。
 Issue/PR 保存任务进度、决策原话与本次验证结果，不将这些记录写入系统手册。
 
@@ -239,7 +225,6 @@ Validate 从保存的地图重新加载并完成 mesh/physics 初始化，再核
 Host 仅请求 `/Game/Lockdown/Generated/Maps/L_Demo?listen`；
 `LDDemoEntry` 在本地旅行前及原生 GameMode 内拒绝旧 profile、旧地图和缺失/不匹配的 Demo 载荷。
 Join 还携带独立 wire 版本、产品版本和根 manifest 摘要；连接中不表示准入已成功。
-原生 GameMode 不再通过旧 profile 创建战斗、经济、人口、旧目标或 probe 服务。
 
 GameMode 提供真人和最多 7 个 AI 共用的八人容量、Host 权限（房主免准备）、结构名单版本与有界会话回执。
 Ready 变化只推进公共发布版本；真人成员进出推进结构版本并清除真人 Ready，房主调整 AI 名额保留已准备真人的 Ready 状态；开局时每个 AI 名额生成一个服务器 `ALDOpponentController`。全部必需提供者已注册且除房主外的真人均已准备时才允许开局。
@@ -379,6 +364,7 @@ AI 整局遥测的房主日志也可以直接汇总：`python -B .\Scripts\Summa
 
 仅在建票、改期、提交 PR 或合并时读取本节；开发中的常驻约束见 [AGENTS](../AGENTS.md)。
 
+- **何时建票**：需要排期、讨论或用户拍板的工作建票；范围明确的小修直接提 PR，不必先建票。
 - **合并同类**：同一系统、同一类型的工作合成一张票，子项用 checklist 列出，由一个人连续做完。
   发现新问题时先搜现有的票：能并入就在原票里加子项，不能并入才新建。
 - **票的内容**：只写三部分：目标；范围（checklist）；验收标准。引用相关规格章节和已批准决定的原话，
@@ -395,7 +381,7 @@ AI 整局遥测的房主日志也可以直接汇总：`python -B .\Scripts\Summa
   加入看板，状态设为 Todo，填写开始日期和结束日期，结束日期不晚于 Milestone 的截止日。漏掉任何一项就不会出现在排期里。
 - **改期**：更换 Milestone 或负责人时，同步更新结束日期。票过了结束日期还没完成，在票里写明原因并改期。
 - **重复的票**：用 `gh issue close <N> --duplicate-of <M>` 关闭，目标票在“合并来源”里列出原票。
-- **产品决定**：决定原话记在对应 Issue；落地后的规格归属见 [AGENTS：任务管理](../AGENTS.md#任务管理issuemilestoneproject)。
+- **产品决定**：决定原话记在对应 Issue；落地后写进 [App Spec](APP_SPEC.md) 或[内容与数值](demo/CONTENT_AND_BALANCE.md)，规格以仓库文档为准。
 
 从开工到关闭：
 
@@ -403,7 +389,7 @@ AI 整局遥测的房主日志也可以直接汇总：`python -B .\Scripts\Summa
 2. 在干净且无人使用的现有工作区，从最新 `main` 切独立分支；同一任务跟进复用原会话与工作区。
    仅确需并行时建新 worktree，协调者派生会话也须说明 LFS 和首次构建的冷启动成本；
    同机并行的上限见[验证手册](systems/VERIFICATION.md#多人共用一台机器)。
-3. 提 PR，描述里写 `Fixes #N`、改动内容和验证结果，通过、失败、未运行要分开写，并写明新增的测试名。
+3. 提 PR，描述里写 `Fixes #N`（有票时）、改动内容和验证结果，通过、失败、未运行要分开写，并写明新增的测试名。
 4. 验证通过后以 merge commit 合并，并删除分支；禁止 force push，不改写共享提交。
 5. 确认票已经关闭。
 
