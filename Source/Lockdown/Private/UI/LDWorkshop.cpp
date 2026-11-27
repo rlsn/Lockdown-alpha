@@ -422,9 +422,10 @@ void ULDWorkshop::ComputeLayout(const FGeometry& Geometry)
     }
     LayoutShop();
     LayoutRow();
-    // The stat chips at the radar's corners (the only place to add a point): each grows outward from its corner (on the
-    // ground decal when it is laid, else around the centre): the side ones beside it, the bottom one under it. A chip that
-    // would cover the own character, a sector part or another chip steps outward (an upper one also downward) until clear.
+    // The stat module (the only place to add a point): the five stats as one set of equal chips in a band under the own
+    // character, between the ground radar and the offer row, symmetric about the character, ordered left to right like
+    // their radar corners, in one straight row. Every chip has the same size and
+    // the same inner layout. Where the band is too low for the attribute lines, all five drop them together.
     {
         const auto Project=[&](float Radius,float Degrees)
         {
@@ -433,66 +434,38 @@ void ULDWorkshop::ComputeLayout(const FGeometry& Geometry)
             if(Radar&&Radar->IsShown()&&UWidgetLayoutLibrary::ProjectWorldLocationToWidgetPosition(GetOwningPlayer(),Radar->WorldAt(Radius,Degrees),Screen,false)){At=Screen;}
             return At;
         };
+        const int32 Count=Ring.Stats.Num();
         const FVector2D Feet=Project(0.f,0.f);
-        TArray<FBox2D> Taken;
-        // The own character standing on the radar's centre, and everything from the offer row (or the build bar) down.
-        Taken.Add(FBox2D(Feet+FVector2D(-46.f,-150.f)*R,Feet+FVector2D(46.f,14.f)*R));
-        const float Floor=L.RowTop>0.f?L.RowTop:L.Bar.bIsValid?float(L.Bar.Min.Y):float(L.Size.Y);
-        Taken.Add(FBox2D(FVector2D(0.f,Floor-6.f*U),FVector2D(L.Size.X,L.Size.Y)));
-        // Every part laid out so far; a host with the key tab under it.
-        for(const FShape& Box:L.Boxes)
+        const FVector2D Under=Project(RadarRadius+6.f,180.f);
+        // Left to right by where each stat's radar corner falls on screen.
+        TArray<int32> Order;
+        TArray<float> CornerX;
+        for(int32 Index=0;Index<Count;++Index){Order.Add(Index);CornerX.Add(float(Project(RadarRadius,RadarTurn+Index*360.f/FMath::Max(1,Count)).X));}
+        Order.Sort([&CornerX](int32 A,int32 B){return CornerX[A]<CornerX[B];});
+        const float Gap=10.f*U;
+        const float Floor=(L.RowTop>0.f?L.RowTop:L.Bar.bIsValid?float(L.Bar.Min.Y):float(L.Size.Y))-8.f*U;
+        const auto Measure=[&](bool bCompact)
         {
-            if(Box.bWedge){continue;}
-            FBox2D Part=BoundsOf(Box.Shape);
-            if(Box.Hit.Kind==EHit::Host){Part.Max.Y+=30.f*R;}
-            Taken.Add(Part);
-        }
-        const float Gap=8.f*F,Step=4.f*U;
-        L.ChipCompact.Init(false,Ring.Stats.Num());
-        for(int32 Index=0;Index<Ring.Stats.Num();++Index)
-        {
-            const float Degrees=RadarTurn+Index*360.f/FMath::Max(1,Ring.Stats.Num());
-            const FVector2D Corner=Project(RadarRadius+4.f,Degrees);
-            const FVector2D Dir=(Corner-Feet).GetSafeNormal();
-            const bool bUnder=FMath::Abs(Dir.X)<.35&&Dir.Y>0.;
-            const FVector2D Out=bUnder?FVector2D(0.,1.):FVector2D(Dir.X>=0.?1.:-1.,0.);
-            // A form of the chip placed: its preferred place beside its corner, else the nearest clear place around it in
-            // rings of Step (each ring tries down first, then outward from the radar, then the rest), on screen and no
-            // higher than the character's head (the sectors above are full of parts).
-            FVector2D Size,At;
-            const auto Place=[&](const FVector2D& Want)
+            FVector2D Box(0.,0.);
+            for(int32 Index=0;Index<Count;++Index)
             {
-                Size=Want;
-                At=bUnder?Corner+FVector2D(0.,Gap+Size.Y*.5):Corner+FVector2D(Out.X*(Gap+Size.X*.5),0.);
-                const auto Clear=[&](const FVector2D& Centre)
-                {
-                    const FBox2D Box(Centre-Size*.5,Centre+Size*.5);
-                    for(const FBox2D& Other:Taken){if(Touches(Box,Other)){return false;}}
-                    return true;
-                };
-                if(Clear(At)){return true;}
-                const FVector2D Start=At;
-                for(int32 Ring0=1;Ring0<=80;++Ring0)
-                {
-                    for(const float Turn:{0.f,(Out.X>=0.?-45.f:45.f),(Out.X>=0.?-90.f:90.f),(Out.X>=0.?45.f:-45.f),(Out.X>=0.?-135.f:135.f),(Out.X>=0.?90.f:-90.f),180.f,(Out.X>=0.?135.f:-135.f)})
-                    {
-                        // 0 degrees is straight down the screen.
-                        const float T=FMath::DegreesToRadians(Turn);
-                        const FVector2D Try=Start+FVector2D(-FMath::Sin(T),FMath::Cos(T))*(Ring0*Step);
-                        if(Try.X-Size.X*.5<4.f*U||Try.X+Size.X*.5>L.Size.X-4.f*U||Try.Y-Size.Y*.5<4.f*U||Try.Y<Feet.Y-110.f*R){continue;}
-                        if(Clear(Try)){At=Try;return true;}
-                    }
-                }
-                At=Start;
-                return false;
-            };
-            // Full (with its attribute lines) first; where that fits nowhere, the one-line chip (name, points, plus). Text never
-            // shrinks: the ring's text floor holds for every chip.
-            const FStat& Stat=Ring.Stats[Index];
-            if(!Place(ChipSize(Stat,StatLine(Ring.Derived,Index),Ring.Unspent>0,F,L.K))){L.ChipCompact[Index]=true;Place(ChipSize(Stat,FString(),Ring.Unspent>0,F,L.K));}
-            Taken.Add(FBox2D(At-Size*.5,At+Size*.5));
-            L.Anchors.Add(AnchorKey(EHit::Stat,INDEX_NONE,Index),At);
-            Add(EHit::Stat,INDEX_NONE,Index,Lean(FBox2D(At-Size*.5,At+Size*.5),0.f,0.f));
+                const FVector2D One=ChipSize(Ring.Stats[Index],bCompact?FString():StatLine(Ring.Derived,Index),Ring.Unspent>0,F,L.K);
+                Box.X=FMath::Max(Box.X,One.X);Box.Y=FMath::Max(Box.Y,One.Y);
+            }
+            return Box;
+        };
+        FVector2D Box=Measure(false);
+        const float Top=FMath::Max(float(Under.Y),float(Feet.Y)+14.f*R)+8.f*U;
+        bool bCompact=Top+Box.Y>Floor;
+        if(bCompact){Box=Measure(true);}
+        L.ChipBox=Box;
+        L.ChipCompact.Init(bCompact,Count);
+        for(int32 Spot=0;Spot<Count;++Spot)
+        {
+            const float Offset=Spot-(Count-1)*.5f;
+            const FVector2D At(float(Feet.X)+Offset*(float(Box.X)+Gap),FMath::Min(Top+float(Box.Y)*.5f,Floor-float(Box.Y)*.5f));
+            L.Anchors.Add(AnchorKey(EHit::Stat,INDEX_NONE,Order[Spot]),At);
+            Add(EHit::Stat,INDEX_NONE,Order[Spot],Lean(FBox2D(At-Box*.5,At+Box*.5),0.f,0.f));
         }
     }
     // The element chooser of a card that asks for one, and a rest service's confirm line, over the ring's top.
@@ -1724,31 +1697,32 @@ void ULDWorkshop::PaintRadarChips(FPainter& P) const
         if(!At){continue;}
         const float F=L.F;
         const FStat& Stat=Ring.Stats[Index];
-        const FString Line=L.ChipCompact.IsValidIndex(Index)&&L.ChipCompact[Index]?FString():StatLine(Ring.Derived,Index);
-        const FVector2D Size=ChipSize(Stat,Line,bPlus,F,L.K);
+        const bool bCompact=L.ChipCompact.IsValidIndex(Index)&&L.ChipCompact[Index];
+        const FString Line=bCompact?FString():StatLine(Ring.Derived,Index);
+        // Every chip the module's one size: the head row (name left; points and the plus right), then the attribute lines.
+        const FVector2D Size=L.ChipBox.X>0.?L.ChipBox:ChipSize(Stat,Line,bPlus,F,L.K);
         const FBox2D Chip(*At-Size*.5,*At+Size*.5);
         const bool bHot=Shown.Kind==EHit::Stat&&Shown.Index==Index;
-        // A maxed keystone is the one gold chip.
-        P.Fill(RectOf(Chip),Stat.bKeystone?LDBroadcast::Gold:LDBroadcast::Ink.CopyWithNewOpacity(.86f));
+        const FLinearColor Name=Stat.bKeystone?LDBroadcast::Ink:LDBroadcast::Grey,Figure=Stat.bKeystone?LDBroadcast::Ink:LDBroadcast::White;
+        // A maxed keystone is the one gold chip; every chip carries a white rule on top.
+        P.Fill(RectOf(Chip),Stat.bKeystone?LDBroadcast::Gold:LDBroadcast::Ink.CopyWithNewOpacity(.88f));
+        P.Fill(RectOf(FBox2D(Chip.Min,FVector2D(Chip.Max.X,Chip.Min.Y+2.f*F))),LDBroadcast::White.CopyWithNewOpacity(Stat.bKeystone?0.f:.5f));
         if(bHot){Frame(P,Grow(Chip,2.f*F),2.f*F,LDBroadcast::White);}
-        float X=float(Chip.Min.X)+10.f*F;const float Y=Line.IsEmpty()?float(Chip.GetCenter().Y):float(Chip.Min.Y)+17.f*F;
+        const float Y=float(Chip.Min.Y)+17.f*F;
+        P.Text(Stat.Name,FVector2D(Chip.Min.X+10.f*F,Y),Face(EFace::Bold,18.f,F),Name,FVector2D(0.,.5));
+        float Right=float(Chip.Max.X)-8.f*F;
+        if(bPlus)
+        {
+            const FBox2D Plus(FVector2D(Right-22.f*F,Y-11.f*F),FVector2D(Right,Y+11.f*F));
+            P.Fill(RectOf(Plus),LDBroadcast::Orange);
+            P.Text(TEXT("+"),Plus.GetCenter(),Face(EFace::Heavy,22.f,F),LDBroadcast::Ink,FVector2D(.5,.5));
+            Right-=28.f*F;
+        }
+        P.Text(FString::FromInt(Stat.Points),FVector2D(Right,Y),Face(EFace::Figure,26.f,F),Figure,FVector2D(1.,.5));
         const TArray<FString> Lines=ChipLines(Line,F,L.K);
         const float LinePx=ChipLinePx(F,L.K);
         for(int32 Row=0;Row<Lines.Num();++Row)
-        {P.Text(Lines[Row],FVector2D(Chip.Min.X+10.f*F,Chip.Min.Y+32.f*F+(Row+.5f)*(LinePx+3.f)*F),Face(EFace::Regular,LinePx,F),Stat.bKeystone?LDBroadcast::Ink:LDBroadcast::Grey,FVector2D(0.,.5));}
-        X+=WidthOf(Stat.Name,Face(EFace::Bold,18.f,F));
-        P.Text(Stat.Name,FVector2D(Chip.Min.X+10.f*F,Y),Face(EFace::Bold,18.f,F),Stat.bKeystone?LDBroadcast::Ink:LDBroadcast::Grey,FVector2D(0.,.5));
-        X+=6.f*F;
-        const FString Points=FString::FromInt(Stat.Points);
-        const float NumW=FMath::Max(16.f*F,WidthOf(Points,Face(EFace::Figure,26.f,F)));
-        P.Text(Points,FVector2D(X+NumW,Y),Face(EFace::Figure,26.f,F),Stat.bKeystone?LDBroadcast::Ink:LDBroadcast::White,FVector2D(1.,.5));
-        X+=NumW+6.f*F;
-        if(bPlus)
-        {
-            const FBox2D Plus(FVector2D(X,Y-11.f*F),FVector2D(X+22.f*F,Y+11.f*F));
-            P.Fill(RectOf(Plus),LDBroadcast::Orange);
-            P.Text(TEXT("+"),Plus.GetCenter(),Face(EFace::Heavy,22.f,F),LDBroadcast::Ink,FVector2D(.5,.5));
-        }
+        {P.Text(Lines[Row],FVector2D(Chip.Min.X+10.f*F,Chip.Min.Y+32.f*F+(Row+.5f)*(LinePx+3.f)*F),Face(EFace::Regular,LinePx,F),Name,FVector2D(0.,.5));}
     }
 }
 
