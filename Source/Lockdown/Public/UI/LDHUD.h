@@ -347,11 +347,11 @@ private:
     const FLDDemoContentDefinitions* PKParamsSource=nullptr;
     bool bPKParamsValid=false;
     const FLDPKParameters* PKParameters();
+    void SyncPKRing(const FLDPublicMatchView& Public,bool bOwnMatch,bool bClock,int64 NowMs);
+public:
     // Where the armed throw would land (the authority's distance rule, with the parameters PKParameters last read);
     // Thrown where it may, None without a PK view.
     ELDPKThrowResult PKThrowSpot(const FVector& TargetCm) const;
-    void SyncPKRing(const FLDPublicMatchView& Public,bool bOwnMatch,bool bClock,int64 NowMs);
-public:
     // While the throw aim is armed the next world left click throws at the ground under the pointer (ThrowPKAtPointer) and a
     // right click or Back only cancels it (CancelPKThrowAim); neither issues a move, attack or inspect (LDPlayerInput.cpp).
     bool IsPKThrowArmed() const {return bPKThrowArmed;}
