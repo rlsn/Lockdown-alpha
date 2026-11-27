@@ -60,7 +60,10 @@ function Format-LDGameArguments {
     param([Parameter(Mandatory)]$Launch, [string]$Url, [Parameter(Mandatory)][string]$Arguments)
     $target = if ($Url) { '"{0}" ' -f $Url } else { '' }
     if ($Launch.Packaged) { return $target + $Arguments }
-    '"{0}" {1}-game -DisablePlugins=AllToolsets,ModelContextProtocol,Fab {2}' -f $Launch.Project, $target, $Arguments
+    # Each run has its own -UserDir, where the engine would look for the asset registry cache and, finding none, read every
+    # asset file again at start-up. The workspace's own cache (written by editor and commandlet runs) is read instead.
+    $cache = Join-Path (Split-Path $Launch.Project -Parent) 'Intermediate'
+    '"{0}" {1}-game -DisablePlugins=AllToolsets,ModelContextProtocol,Fab -AssetRegistryCacheRootFolder="{3}" {2}' -f $Launch.Project, $target, $Arguments, $cache
 }
 
 # Engine packet simulation (DO_ENABLE_NET_TEST, so Development and editor builds only): each process impairs the

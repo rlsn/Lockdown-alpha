@@ -95,6 +95,7 @@ AI 多局遥测（诊断用，非门禁）：`.\Scripts\RunDemoOpponentCheck.ps1
 每次规则测试、每个编辑器版场景进程都要启动一个编辑器进程。脚本用三处设置压低这部分固定开销：
 
 - `Common.ps1` 设置 `UE-ZenLimitProcessLifetime=false`：引擎的本机 Zen 缓存服务不再随编辑器进程退出，下一次启动直接连上已在运行的 `zenserver.exe`。它会在脚本结束后继续留在后台，需要时可手动结束，下次启动会重新拉起。
+- `DemoEntry.ps1` 给编辑器版游戏进程加 `-AssetRegistryCacheRootFolder=<工作区>\Intermediate`：每次运行的 `-UserDir` 是新目录，引擎在那里找不到资产注册表缓存就会在启动时重读全部资产文件；指向工作区后直接读取编辑器与 commandlet 运行写下的缓存。
 - `RunTests.ps1` 显式启用 `GameFeatures` 插件：`-DisablePlugins=AllToolsets` 会连带不加载它，而 `DefaultGame.ini` 仍要扫描它的资产类型，否则每次启动都会触发一次引擎断言并发送错误报告。
 - `RunTests.ps1` 让编辑器以引擎空地图启动，不加载编辑器默认地图 `L_Demo`：规则测试自己搭建世界，或自行加载要读取的地图。
 

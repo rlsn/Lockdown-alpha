@@ -139,7 +139,7 @@ Python/工具环境、构建输出（如适用）及日志摘要一致；计划�
 - fork PR 不跑 CI 的原生任务：改了 `Source` 的 fork PR 在本地用 `Verify.ps1 -Filter` 跑受影响的规则前缀并在 PR 里写明结果；
   合并前由维护者在本仓库分支上补跑原生门禁。
 - 新 worktree 不继承 `Binaries` 与 `Intermediate`，Content 还可能是 LFS 指针，需要 `git lfs pull`。
-  首次构建通常要 3–6 分钟，已有产物的增量构建约 20 秒，实际取决于机器与改动；因此串行任务优先复用已构建工作区。
+  首次构建通常要 3–6 分钟；增量构建只改 `.cpp` 约 15–30 秒，改到被广泛包含的头文件要重编大部分合并块，约 2.5 分钟，所以头文件改动尽量攒在同一批；因此串行任务优先复用已构建工作区。
   不复制别的工作区的 Binaries/Intermediate 来承诺增量复用；只改文档、数据或 Python 的任务不需要构建。
 - Python 测试失败时看输出结尾 `Log:` 指向的日志，修复后用 `python -B .\Scripts\RunPythonTests.py --failed` 只重跑失败项。
 - PR 保持 Draft 到改动稳定，攒一批再推：Ready PR 每次推送都触发 CI；需要 native 门禁时会占用自托管 runner。
