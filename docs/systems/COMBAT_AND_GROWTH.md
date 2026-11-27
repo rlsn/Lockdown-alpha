@@ -6,6 +6,7 @@
 
 - **单一战斗状态所有者（`ALDCombatDirector`）**：拥有本局全部参赛者身体、野怪成员、Boss、训练假人与召唤物（如 `active_bag_wall` 书包实体）的实时生命/劲/护盾层（`ShieldLayers`）、冷却轨道（`FLDCombatTrack`）、控制与减益状态、飞行弹道、周期区域、地面状态、承伤回放窗口（`DamageRecap`）与助攻账本（`LDAssist`）。
 - **单一属性投影（`LDAttributeProjection`）**：从角色基值 + 等级成长 + 五维点数（体格/脸皮/力道/脑力/身手）+ 已装构筑牌静态项（含 `Y13` 护甲转生命、`CardGrowth` 叠加层、`AttackSpeedBonusRatio`）+ 限时增益/低血条件项一次算出 `Final` 属性，并钳制在目录上下限内（移速 `[150, 525]`、攻速 `[0.35, 2.5]`、暴击率 `[0, 1]`、抗性 `>= 0`）。
+- **成长牌读数（`FLDCombatOwnerView.CardStacks`，仅本人）**：`OwnerCardStacks` 按与结算相同的口径给出每张已装成长牌副本（`Serial`、`CardId`）的当前整数 `Count`——K16 就绪闲置整秒、Y22 未造成伤害整秒（均只算交战中及开打前带入）、K17 本局命中参赛者次数、K18 窗口内其他技能释放数、Y23 站在自己地面状态整秒、Y24 未兑现笔数；牌的单步加成乘 `Count` 即当前加成，计数为 0 不发行，每行最多每秒变化一次。A14 目标身上的破防层数走可见单位的 `Exposed` 状态层数（按视野下发）。
 - **冷却轨道解耦**：角色主动按 `(Match, Contender, AbilityId)` 建唯一轨道，保存绝对 `ReadyAtMs`；换槽、升级分支、死亡或遗忘再学均沿用原 `ReadyAtMs`，冷却急速仅在下次成功释放时计算 `ceil(1000 * BaseCD * 100 / (100 + H))`。通用冲刺 `character.dash` 独立持有单条 `Innate` 轨道。
 
 ## 从意图到结果

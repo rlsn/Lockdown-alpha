@@ -905,6 +905,69 @@ FLDCombatEntryView ALDCombatDirector::QueryAvailability(const FLDCombatCaller& C
     return EntryView(*Record,FindEntityBody(Caller.EntityId),Entry,Mode->GetAuthorityNowMs());
 }
 
+bool ALDCombatDirector::OwnerCardStacks(const FLDCombatEntityRecord& Record, const FLDBodyCombatState* Body,
+    const FLDAttributeProjection& Projection, int64 NowMs, TArray<FLDCombatCardStackView>& Out) const
+{
+    Out.Reset();
+    FString Error;
+    TArray<FLDPassiveEffectRef> Refs;
+    const auto Add=[&Out](const FLDPassiveEffectRef& Ref, int64 Count)
+    {
+        if (Count<=0) { return; }
+        FLDCombatCardStackView& Row=Out.AddDefaulted_GetRef();
+        Row.Serial=Ref.Serial;
+        Row.CardId=Ref.Key;
+        Row.Count=int32(FMath::Min<int64>(Count,MAX_int32));
+    };
+    const auto Steps=[](int64 FromMs, int64 ToMs, int64 IntervalMs) { return IntervalMs>0 && ToMs>FromMs ? (ToMs-FromMs)/IntervalMs : 0; };
+    // K17: the match's contender hits of the host, living or dead.
+    if (!CollectPassiveEffects(Projection,ELDDemoEffectOp::SkillGrowth,Refs,Error)) { return false; }
+    for (const FLDPassiveEffectRef& Ref : Refs)
+    {
+        const int32* Hits=Record.CardGrowth.SkillHits.Find(Ref.Serial);
+        Add(Ref,Hits ? *Hits : 0);
+    }
+    if (!Body) { return true; }
+    // K16: whole intervals the host stood ready and idle (ReleaseFactors).
+    if (!CollectPassiveEffects(Projection,ELDDemoEffectOp::IdleReadyAmp,Refs,Error)) { return false; }
+    for (const FLDPassiveEffectRef& Ref : Refs)
+    {
+        const FLDCombatTrack* Track=Record.Tracks.FindByPredicate([&Ref](const FLDCombatTrack& Row)
+            { return Row.Kind==ELDCombatSourceKind::Learned && Row.DefinitionId==Ref.Active; });
+        if (Track && Track->ReadyAtMs<=NowMs)
+        { Add(Ref,Steps(FMath::Max3<int64>(Track->ReadyAtMs,0,IdleCountFloorMs(*Body,NowMs)),NowMs,Ref.Effect.IntervalMs)); }
+    }
+    // K18: the other skills released inside the card's window (ReleaseFactors).
+    if (!CollectPassiveEffects(Projection,ELDDemoEffectOp::RecentCastAmp,Refs,Error)) { return false; }
+    for (const FLDPassiveEffectRef& Ref : Refs)
+    {
+        int64 Others=0;
+        for (const TPair<FName,int64>& Cast : Body->RecentCasts)
+        { Others+=Cast.Key!=Ref.Active && Cast.Value<=NowMs && NowMs-Cast.Value<=Ref.Effect.IntervalMs ? 1 : 0; }
+        Add(Ref,Others);
+    }
+    // Y22: whole intervals without damage (HitFactors).
+    if (!CollectPassiveEffects(Projection,ELDDemoEffectOp::IdleCharge,Refs,Error)) { return false; }
+    for (const FLDPassiveEffectRef& Ref : Refs)
+    {
+        if (Body->IdleSinceMs>0)
+        { Add(Ref,Steps(FMath::Max<int64>(Body->IdleSinceMs,IdleCountFloorMs(*Body,NowMs)),NowMs,Ref.Effect.IntervalMs)); }
+    }
+    // Y23: whole intervals on the own ground state (GroundFactors).
+    if (!CollectPassiveEffects(Projection,ELDDemoEffectOp::GroundGrowth,Refs,Error)) { return false; }
+    for (const FLDPassiveEffectRef& Ref : Refs)
+    {
+        if (Body->TurfSinceMs>0) { Add(Ref,Steps(Body->TurfSinceMs,NowMs,Ref.Effect.IntervalMs)); }
+    }
+    // Y24: the open marks until a pause longer than the card's window clears them (OnTallyHit).
+    if (!CollectPassiveEffects(Projection,ELDDemoEffectOp::Tally,Refs,Error)) { return false; }
+    for (const FLDPassiveEffectRef& Ref : Refs)
+    {
+        if (Body->TallyMarks>0 && NowMs-Body->TallyAtMs<=Ref.Effect.DurationMs) { Add(Ref,Body->TallyMarks); }
+    }
+    return true;
+}
+
 bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatOwnerView& Out) const
 {
     Out=FLDCombatOwnerView();
@@ -933,6 +996,7 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
     Out.bPreviewFinalField=Mode->IsShowdown();
     Out.PreviewDevBonuses=Record->Build.DevBonuses;
     Out.CardGrowth=Record->Build.CardGrowth;
+    if (!OwnerCardStacks(*Record,Body && !Body->bPendingDeath ? Body : nullptr,Projection,NowMs,Out.CardStacks)) { return false; }
     if (Out.bPreviewLiving)
     {
         if (Body->FocusHits>0 && NowMs<=Body->FocusUntilMs) { Out.PreviewFocusHits=Body->FocusHits; }

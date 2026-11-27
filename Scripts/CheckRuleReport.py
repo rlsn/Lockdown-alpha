@@ -569,6 +569,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.Combat.Cards.U16",
         "Lockdown.Rules.Combat.Skills.Issue345",
         "Lockdown.Rules.Combat.Skills.VectorCast",
+        "Lockdown.Rules.Combat.Cards.OwnerStacks",
         "Lockdown.Rules.Combat.Skills.CordonBoost",
         "Lockdown.Rules.Combat.Skills.FrenzyThirdWave",
         "Lockdown.Rules.Combat.Chain.Guard",

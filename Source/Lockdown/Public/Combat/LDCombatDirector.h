@@ -1778,6 +1778,9 @@ private:
     // #305: Y22 and K16 count idle time only inside the current fight plus CARDS.IdleCarrySec carried in from before it; the
     // earliest instant their idle may count from.
     int64 IdleCountFloorMs(const FLDBodyCombatState& Body, int64 NowMs) const;
+    // The owner view's growth card counts (FLDCombatCardStackView); Body is the living body (none: only K17's match hits).
+    bool OwnerCardStacks(const FLDCombatEntityRecord& Record, const FLDBodyCombatState* Body, const FLDAttributeProjection& Projection,
+        int64 NowMs, TArray<FLDCombatCardStackView>& Out) const;
     // One own combat action request of Entity that Combat refused for a gameplay gate (busy, cooldown, attack cadence,
     // momentum, control, target, direction, range or sight); protocol, staleness and phase refusals are not counted.
     void LedgerActionRefused(const FGuid& Entity, ELDCombatReject Reason);
