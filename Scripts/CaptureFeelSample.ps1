@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$EngineRoot,[string]$FFmpeg,[ValidateRange(1280,2560)][int]$Width=1600,[ValidateRange(720,1440)][int]$Height=900,[ValidateRange(60,900)][int]$TimeoutSeconds=300,[ValidateSet('feel','reel','combat')][string]$Scenario='feel',[ValidateSet('720p','1080p')][string]$CombatResolution='720p',[ValidateSet('Default','NoShake','Reduced')][string]$CombatFeel='Default')
+param([string]$EngineRoot,[string]$FFmpeg,[ValidateRange(1280,2560)][int]$Width=1600,[ValidateRange(720,1440)][int]$Height=900,[ValidateRange(60,900)][int]$TimeoutSeconds=300,[ValidateSet('feel','reel','combat')][string]$Scenario='feel',[ValidateSet('720p','1080p')][string]$CombatResolution='720p',[ValidateSet('Default','NoShake','Reduced')][string]$CombatFeel='Default',[ValidateRange(0,3)][int]$FeelPreset=0)
 # Audiovisual game-feel sample (docs/systems/AUDIO_AND_FEEL.md). The game records itself (Probes/LDGameRecorder.h): its own
 # frames from the game viewport and its own master submix. Nothing reads the desktop or the system audio, so the game runs
 # off screen and the user's windows, video or sound never reach the footage. feel/reel: the combat proof stage plays the
@@ -20,7 +20,7 @@ $output=New-LDArtifactDirectory ('FeelSample-'+$Scenario+'-'+$Width+'x'+$Height)
 $game=Join-Path $output 'game'
 if($Scenario -eq 'combat'){
     # The check's own report and screenshots stay in its evidence folder; it prints no verdict in capture-only mode.
-    $check=Start-Process -FilePath pwsh -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'RunDemoCombatCheck.ps1')+'"'),'-Resolution',$CombatResolution,'-CaptureOnly','-RecordGame',('"'+$game+'"'),'-Feel',$CombatFeel) -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $output 'check.log') -RedirectStandardError (Join-Path $output 'check.err')
+    $check=Start-Process -FilePath pwsh -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'RunDemoCombatCheck.ps1')+'"'),'-Resolution',$CombatResolution,'-CaptureOnly','-RecordGame',('"'+$game+'"'),'-Feel',$CombatFeel,'-FeelPreset',$FeelPreset) -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $output 'check.log') -RedirectStandardError (Join-Path $output 'check.err')
     if(-not $check.WaitForExit($TimeoutSeconds*1000+180000)){Stop-Process -Id $check.Id; throw "The combat capture timed out: $output"}
     if(-not(Test-Path -LiteralPath (Join-Path $game 'recorder.json'))){throw "The Host did not record itself: $(Join-Path $output 'check.log')"}
     & python -B (Join-Path $PSScriptRoot 'AssembleGameRecording.py') $game --ffmpeg $FFmpeg --out (Join-Path $output 'combat.mp4')
