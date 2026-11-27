@@ -58,7 +58,9 @@ foreach($run in $runs){
     $process=$null;$client=$null
     try {
         $process=Start-Process -FilePath $launch.Binary -ArgumentList (Format-LDGameArguments -Launch $launch -Url $run.Url -Arguments $arguments) -WindowStyle Hidden -PassThru
-        if($run.Name -eq 'Match'){
+        # Results-only pages inject the result: the host plays alone with its AI, so no guest joins.
+        $solo=$Pages -and @($Pages | Where-Object {$_ -notlike 'Match_Results*'}).Count -eq 0
+        if($run.Name -eq 'Match' -and -not $solo){
             # A real guest joins the host's room over localhost for the guest views and the host's not-ready / ready states.
             Start-Sleep -Seconds 25
             $clientUser=Join-Path $output 'User-Client'

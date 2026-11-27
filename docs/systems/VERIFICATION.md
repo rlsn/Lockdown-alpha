@@ -27,7 +27,7 @@
 | 公式、数值、状态机、结算 | 规则测试：`Verify.ps1 -Filter <测试全名>`（无渲染、隔离世界） | 约 35 秒 | 本批新增或修改了测试时 |
 | AI 决策、整局能否跑完 | `RunDemoOpponentCheck.ps1 -BotMatch`（固定步长加速、无渲染） | 7–9 分钟 | 改 AI、权威步或结算流程的一批 |
 | 特效、动作、打击感的画面 | `CaptureDemoArt.ps1`、`CaptureFeelSample.ps1`（验证舞台直接触发，不走对局） | 1–2 分钟 | 画面有变化的一批，一次 |
-| 界面页面 | `CaptureUICoverage.ps1 -Pages <页面名前缀>`：只拍这些页并在最后一页后结束，途中的页照走不拍；阶段倒计时由 DEV `AdvanceCountdown` 跳过；默认只拍 1920×1080、100% 字号，`-AllSizes` 加拍 1280×720 与 125% | 只拍大厅页约 2.5 分钟，只拍第一次休息各页约 5.5 分钟，对局全部页约 10.5 分钟 | 界面有变化的一批，按改到的页选；全部页与 `-AllSizes` 只在集成 |
+| 界面页面 | `CaptureUICoverage.ps1 -Pages <页面名前缀>`：只拍这些页并在最后一页后结束，途中的页照走不拍；阶段倒计时由 DEV `AdvanceCountdown` 跳过；默认只拍 1920×1080、100% 字号，`-AllSizes` 加拍 1280×720 与 125% | 只拍结算页约 1 分钟（`-Pages Match_Results`：房主带 AI 单独开局，DEV `DecideMatch` 直接锁定结果，不走整局），只拍大厅页约 2.5 分钟，只拍第一次休息各页约 5.5 分钟，对局全部页约 10.5 分钟 | 界面有变化的一批，按改到的页选；全部页与 `-AllSizes` 只在集成 |
 | 指令、回执、视图同步等真实拥有连接行为 | 对应的 `RunDemo*Check.ps1` 最小场景 | GrowthLink 约 1 分钟，Combat 约 4 分钟，Core、Camp、Vision 3–6 分钟，Capture 约 11 分钟 | 改到该行为的一批，一次 |
 | 满房真实连接 | `RunDemoOpponentCheck.ps1`（实时整局） | 约 15 分钟 | 只在集成 |
 | 帧率 | `RunPerfBudget.ps1 -Match -PackageRoot <打包目录>` | 约 1.5 分钟，另加打包 | 只在集成 |

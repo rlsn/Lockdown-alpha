@@ -93,6 +93,17 @@ bool ALDGameMode::DevAdvanceCountdown(int64 SkipMs, const FLDGameplayWritePermit
     return true;
 }
 
+bool ALDGameMode::DevDecideMatch(const FGuid& Contender, const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    if (ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None || !FindContender(Contender))
+    { Error = TEXT("直接结算需要当前参赛者与有效对局"); return false; }
+    if (MatchPhase != ELDMatchPhase::Development && MatchPhase != ELDMatchPhase::CaptureOpen)
+    { Error = TEXT("只能在野外阶段直接结算"); return false; }
+    DevDecidedWinner = Contender;
+    Error = TEXT("本边界锁定结果");
+    return true;
+}
+
 bool ALDGameMode::DevSkipPreparation(const FLDGameplayWritePermit& Permit, FString& Error)
 {
     if (ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None)

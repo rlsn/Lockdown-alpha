@@ -221,6 +221,44 @@ public:
                 }});
         }
     }
+    // -LDUICoveragePages names only Match_Results pages: the result is injected instead of played for. The host starts
+    // the match alone with its AI, skips the opening rest, and the DEV DecideMatch op has the ordinary Close lock the
+    // result with the host as champion; the results pages then run as planned.
+    bool WantsOnlyResults() const
+    {
+        for(const FString& Prefix:Wanted){if(!Prefix.StartsWith(TEXT("Match_Results"))){return false;}}
+        return !Wanted.IsEmpty();
+    }
+    void PlanDirectResults()
+    {
+        TArray<FPage> Direct;
+        for(const FPage& Planned:Pages)
+        {
+            if(Planned.Name==TEXT("Match_RestOpening"))
+            {
+                Direct.Add({TEXT("Direct_Room"),[this](ALDPlayerController& PC,double Now)
+                    {if(Once(Now,0)){PC.SetDemoAICount(6);}return Settled(Now,1.5);},10.,false});
+                Direct.Add(Planned);
+                Direct.Add({TEXT("Direct_Field"),[this](ALDPlayerController& PC,double Now)
+                    {
+                        if(Once(Now,0)){Dev(PC,ELDDevTestOp::SetCountdownPaused,0);HeldAt=-1.;}
+                        const bool bField=InPhase(PC,ELDMatchPhase::Development)&&PC.OwnerState.LifePhase==ELDLifePhase::Alive;
+                        if(!bField){if(Once(Now,100+int32((Now-PageAt)/3.),1.)){Dev(PC,ELDDevTestOp::SkipPreparation,0);}return false;}
+                        // A max-level sample build, so the results have a build to show.
+                        if(HeldAt<0.){HeldAt=Now;Dev(PC,ELDDevTestOp::ApplyBreakoutPreset,0,TEXT("breakout_element_loop"));}
+                        return Now-HeldAt>=2.;
+                    },60.,false});
+                Direct.Add({TEXT("Direct_Decide"),[this](ALDPlayerController& PC,double Now)
+                    {
+                        const bool bResults=InPhase(PC,ELDMatchPhase::Results);
+                        if(!bResults&&Once(Now,100+int32((Now-PageAt)/3.),.5)){Dev(PC,ELDDevTestOp::DecideMatch,0);}
+                        return bResults;
+                    },30.,false});
+            }
+            else if(Planned.Name==TEXT("Lobby_Solo")||Planned.Name.StartsWith(TEXT("Match_Results"))){Direct.Add(Planned);}
+        }
+        Pages=MoveTemp(Direct);DealerPages.Reset();
+    }
     void PlanMatch()
     {
         Pages.Add({TEXT("Lobby_Solo"),[this](ALDPlayerController& PC,double Now){return PC.RootUI&&InPhase(PC,ELDMatchPhase::Lobby)&&Settled(Now,4.);}});
@@ -1235,7 +1273,8 @@ void StartUICoverageProbe(ALDPlayerController& PC)
     Probe->bAllSizes=FParse::Param(FCommandLine::Get(),TEXT("LDUICoverageAllSizes"));
     FString Names;
     if(FParse::Value(FCommandLine::Get(),TEXT("LDUICoveragePages="),Names,false)){Names.ParseIntoArray(Probe->Wanted,TEXT(","));}
-    if(Probe->bFrontend){Probe->PlanFrontend();}else if(bClient){Probe->PlanClient();}else{Probe->PlanMatch();}
+    if(Probe->bFrontend){Probe->PlanFrontend();}else if(bClient){Probe->PlanClient();}
+    else{Probe->PlanMatch();if(Probe->WantsOnlyResults()){Probe->PlanDirectResults();}}
     FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Probe](float Delta){return Probe->Tick(Delta);}));
 }
 }

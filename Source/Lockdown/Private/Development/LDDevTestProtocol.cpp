@@ -38,6 +38,7 @@ bool LDDevTest::IsKnownOp(ELDDevTestOp Op)
     case ELDDevTestOp::SetInvulnerable:
     case ELDDevTestOp::SetCountdownPaused:
     case ELDDevTestOp::AdvanceCountdown:
+    case ELDDevTestOp::DecideMatch:
         return true;
     default:
         return false;
@@ -70,6 +71,7 @@ const TCHAR* LDDevTest::OpName(ELDDevTestOp Op)
     case ELDDevTestOp::SetInvulnerable: return TEXT("SetInvulnerable");
     case ELDDevTestOp::SetCountdownPaused: return TEXT("SetCountdownPaused");
     case ELDDevTestOp::AdvanceCountdown: return TEXT("AdvanceCountdown");
+    case ELDDevTestOp::DecideMatch: return TEXT("DecideMatch");
     default: return TEXT("Unknown");
     }
 }
@@ -78,7 +80,7 @@ bool LDDevTest::IsMatchWide(ELDDevTestOp Op)
 {
     return Op == ELDDevTestOp::RefreshCamps || Op == ELDDevTestOp::OpenCapture || Op == ELDDevTestOp::SkipPreparation
         || Op == ELDDevTestOp::SetDailyPreset
-        || Op == ELDDevTestOp::SetCountdownPaused || Op == ELDDevTestOp::AdvanceCountdown;
+        || Op == ELDDevTestOp::SetCountdownPaused || Op == ELDDevTestOp::AdvanceCountdown || Op == ELDDevTestOp::DecideMatch;
 }
 
 ELDGrowthReason LDDevTest::ValidateShape(const FLDDevTestCommand& Command)
@@ -230,6 +232,7 @@ const TCHAR* LDDevTest::OpLabel(ELDDevTestOp Op)
     case ELDDevTestOp::SetInvulnerable: return TEXT("生命不减");
     case ELDDevTestOp::SetCountdownPaused: return TEXT("阶段倒计时暂停");
     case ELDDevTestOp::AdvanceCountdown: return TEXT("阶段倒计时前进");
+    case ELDDevTestOp::DecideMatch: return TEXT("直接结算");
     default: return TEXT("未知操作");
     }
 }
