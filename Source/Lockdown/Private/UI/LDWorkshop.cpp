@@ -1833,6 +1833,8 @@ void ULDWorkshop::PaintClosed(FPainter& P) const
             const float Saved=P.Opacity;P.Opacity*=Age;
             const FBox2D Box=Shift(Face0.Box,FVector2D(0.,(1.f-Age)*16.f*U));
             PaintTile(P,Box,Option.IconId,Option.Name,Shown==Face0.Hit?ETile::Hot:ETile::Plain,Option.Rarity,.6f);
+            // A choice is waiting: its tiles breathe in the actionable orange until one is taken.
+            Frame(P,Grow(Box,3.f*U),2.5f*U,LDBroadcast::Orange.CopyWithNewOpacity(.35f+.65f*float(FMath::Abs(FMath::Sin(UiNow()*2.6)))));
             // The pick key on a white tab over the tile's corner.
             const FSlateFontInfo Font=Face(EFace::Figure,20.f,F);
             const FBox2D Tab(FVector2D(Box.Min.X-6.f*U,Box.Min.Y-8.f*U),FVector2D(Box.Min.X-6.f*U+22.f*F,Box.Min.Y-8.f*U+22.f*F));

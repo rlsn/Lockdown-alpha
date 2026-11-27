@@ -18,6 +18,7 @@ class UTextBlock;
 class UImage;
 class UProgressBar;
 class USizeBox;
+class UOverlay;
 class ULDCommandButton;
 class ULDMinimap;
 class ULDPanel;
@@ -416,6 +417,15 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> ResultBoardTitle;
     UPROPERTY() TObjectPtr<ULDCommandButton> ResultInspectSelfButton;
     UPROPERTY() TObjectPtr<USizeBox> ResultWinnerBuild;
+    // The board's reports stack in one overlay that is never reparented (moving a report resets its layout). A rebuilt
+    // report is laid out unseen on top of the one on screen until its painted size holds for two frames (the fit-to-board
+    // scale needs a frame for the wrapped text's height, so a new report first paints empty and then at the wrong scale),
+    // then the old one leaves and the new one shows.
+    UPROPERTY() TObjectPtr<UOverlay> ResultReportStack;
+    UPROPERTY() TObjectPtr<UWidget> ResultReportPending;
+    int32 ResultReportPendingFrames=0;
+    FVector2D ResultReportPendingSize=FVector2D::ZeroVector;
+    void SettleResultReport();
     UPROPERTY() TObjectPtr<class UVerticalBox> ResultRows;
     UPROPERTY() TArray<TObjectPtr<UBorder>> ResultRowCards;
     TArray<FGuid> ResultRowContenders;
@@ -485,6 +495,12 @@ private:
     static constexpr double KillMomentSeconds=1.4;
     static constexpr double LevelFlipSeconds=1.4;
     double KillMomentAt=-1.;
+    // The own health is low (the strip's own threshold) while alive in play: PaintMoments shades the screen's edges in the
+    // strip's low ink, so the warning is where the eye already is.
+    bool bOwnLowHealth=false;
+    FLinearColor OwnLowHealthInk=FLinearColor::Transparent;
+    // The rest step of the last sample: entering the betting step folds the build ring so the PK board has the middle.
+    ELDRestStep SeenRestStep=ELDRestStep::None;
     int32 KillMomentVictimSeat=INDEX_NONE;
     double LevelFlipAt=-1.;
     int32 LevelFlipLevel=0;
@@ -520,6 +536,8 @@ public:
     FVector2D ProbeResultBoardSize() const;
     // When the last own-kill moment began (local seconds), <0 before the first.
     double MomentKillAt() const {return KillMomentAt;}
+    // The own health is low right now (the world layer turns the own overhead bar to the same ink).
+    bool IsOwnHealthLow() const {return bOwnLowHealth;}
     // When the last stage title card began (local seconds), <0 before the first; whether a stage countdown shows now.
     double MomentStageAt() const {return StageWipeAt;}
     bool HasStageCount() const {return !StageCount.IsEmpty();}

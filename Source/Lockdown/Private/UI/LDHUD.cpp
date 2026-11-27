@@ -1422,8 +1422,8 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                 CardBox->AddChildToVerticalBox(IconBox)->SetHorizontalAlignment(HAlign_Center);
                 UTextBlock* Name=Words(TEXT(""),LDBroadcast::TypeLabel,LDBroadcast::White,true);Name->SetJustification(ETextJustify::Center);
                 CardBox->AddChildToVerticalBox(Name)->SetPadding(FMargin(0,6,0,0));
-                UTextBlock* Line=Text(TEXT(""),LDHUDStyle::TypeSmall);Line->SetAutoWrapText(true);Line->SetJustification(ETextJustify::Center);
-                Line->SetColorAndOpacity(LDBroadcast::Grey);
+                UTextBlock* Line=Text(TEXT(""),LDHUDStyle::TypeSmall+2);Line->SetAutoWrapText(true);Line->SetJustification(ETextJustify::Center);
+                Line->SetColorAndOpacity(LDBroadcast::White.CopyWithNewOpacity(.8f));
                 CardBox->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,6,0,0));
                 auto* CardPanel=LDWidgets::Panel(WidgetTree,CardBox,FMargin(14,10));CardPanel->SetBrushColor(LDBroadcast::Panel);
                 auto* CardSize=WidgetTree->ConstructWidget<USizeBox>();CardSize->SetWidthOverride(320);CardSize->SetMinDesiredHeight(240);CardSize->SetContent(CardPanel);
@@ -1788,6 +1788,7 @@ void ULDHUD::NativeTick(const FGeometry& Geometry,float DeltaSeconds)
     const auto* GI=World?World->GetGameInstance<ULDGameInstance>():nullptr;
     if(bFrozenForTeardown||!World||World->bIsTearingDown||(GI&&GI->IsLeavingWorld(World))){return;}
     UpdateDrag();
+    SettleResultReport();
     // The stat bar usually sits in a closed flyout, where Slate does not tick it: its queued points still leave on time.
     if(StatBar){StatBar->Pump();}
     const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
@@ -2349,6 +2350,7 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         StripPaint.Shield=Health.bKnown&&MaxP2>0?float(FMath::Clamp(ShieldPoints*100./double(MaxP2),0.,1.)):0.f;
         const bool bLow=Health.bKnown&&Health.Fraction<=.3f;
         StripPaint.HealthInk=bLow?(bColorblind?LDBroadcast::Gold:LDBroadcast::LiveRed):LDBroadcast::White;
+        bOwnLowHealth=bLow&&bAlive&&Health.Fraction>0.f;OwnLowHealthInk=StripPaint.HealthInk;
         const double Step=MaxP2>0&&MaxP2<=600000?25000.:100000.;
         StripPaint.HealthSegment=MaxP2>0?float(FMath::Min(1.,Step/double(MaxP2))):0.f;
         HudSetText(HealthText,Health.bKnown?Health.Now:FString(TEXT("—")));
@@ -2526,8 +2528,11 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         if(bFieldDead&&ChoicesPanel->IsTrayOpen()){bWorkshopOpenedDuringDeath=true;}
         if(!ChoicesPanel->IsTrayOpen()){bWorkshopAutoOpened=false;bWorkshopOpenedDuringDeath=false;}
         const bool bRespawnedFromDeath=bWorkshopSeenDead&&!bFieldDead;
+        // The betting step takes the middle of the screen for the PK board: the ring folds as it begins, however it was opened.
+        const bool bBettingBegan=bRestPhase&&Public.Timeline.Step==ELDRestStep::Betting&&SeenRestStep!=ELDRestStep::Betting;
+        SeenRestStep=bRestPhase?Public.Timeline.Step:ELDRestStep::None;
         if((bRespawnedFromDeath&&(bWorkshopAutoOpened||bWorkshopOpenedDuringDeath))
-            ||(bWasAutoWorkshopPhase&&!bAutoWorkshopPhase&&bWorkshopAutoOpened))
+            ||(bWasAutoWorkshopPhase&&!bAutoWorkshopPhase&&bWorkshopAutoOpened)||bBettingBegan)
         {
             if(ChoicesPanel->IsTrayOpen()&&!ChoicesPanel->HasPendingRequest()&&!(Storage&&Storage->HasPendingRequest()))
             {
@@ -3985,13 +3990,19 @@ void ULDHUD::RefreshResultInspectedBuild(const FLDResultView& Result,const FGuid
             ResultInspectSelfButton->SetIsEnabled(!Chosen||Chosen->ContenderId!=OwnContenderId);
         }
     }
-    ResultWinnerBuild->ClearChildren();
     ResultWinnerBuild->SetVisibility(Chosen?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
-    if(Chosen)
+    if(!ResultReportStack){ResultReportStack=WidgetTree->ConstructWidget<UOverlay>();ResultWinnerBuild->SetContent(ResultReportStack);}
+    // A report still laying out is dropped for the newer one; the one on screen stays until that one is ready.
+    if(ResultReportPending){ResultReportStack->RemoveChild(ResultReportPending);ResultReportPending=nullptr;}
+    if(!Chosen){ResultReportStack->ClearChildren();}
+    else
     {
-        ResultWinnerBuild->SetContent(LDResultBuild::MakeReport(WidgetTree,Result,*Chosen,DisplayDefinitions(),
+        UWidget* Report=LDResultBuild::MakeReport(WidgetTree,Result,*Chosen,DisplayDefinitions(),
             static_cast<LDResultBuild::EReportTab>(ResultReportTab),HudResultBoardWidth,
-            AppliedScale>0?AppliedScale:1.f));
+            AppliedScale>0?AppliedScale:1.f);
+        Report->SetRenderOpacity(0.f);
+        if(UOverlaySlot* ReportSlot=ResultReportStack->AddChildToOverlay(Report)){ReportSlot->SetHorizontalAlignment(HAlign_Left);ReportSlot->SetVerticalAlignment(VAlign_Top);}
+        ResultReportPending=Report;ResultReportPendingFrames=0;ResultReportPendingSize=FVector2D(-1.,-1.);
     }
     for(int32 Idx=0;Idx<ResultRowCards.Num()&&Idx<ResultRowContenders.Num();++Idx)
     {
@@ -4017,7 +4028,7 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
         // Without the frozen result there is nothing to show yet: no zero-filled table.
         HudSetText(ResultTitle,TEXT("对局结束"));HudSetText(ResultSubtitle,TEXT("结算同步中…"));
         ResultWinnerBuild->SetVisibility(ESlateVisibility::Collapsed);
-        ResultWinnerBuild->ClearChildren();
+        if(ResultReportStack){ResultReportStack->ClearChildren();}ResultReportPending=nullptr;
         if(ShownResultId.IsValid()){ResultRows->ClearChildren();ResultEntries.Reset();ResultRowCards.Reset();ResultRowContenders.Reset();InspectedResultContender.Invalidate();ShownResultId.Invalidate();ShownResultSerial=0;}
         ResultShownAt=-1.;
         ResultReportTab=0;
@@ -4164,11 +4175,27 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
     RefreshResultInspectedBuild(Result,PC.OwnerState.ContenderId);
     AnimateResult();
 }
+void ULDHUD::SettleResultReport()
+{
+    if(!ResultReportPending||!ResultReportStack){return;}
+    // Ready once its painted size is non-zero and unchanged for two frames (at most twelve frames).
+    const FVector2D Size(ResultReportPending->GetCachedGeometry().GetAbsoluteSize());
+    const bool bSame=Size.X>0.&&Size.Y>0.&&Size.Equals(ResultReportPendingSize,.01);
+    ResultReportPendingSize=Size;
+    ResultReportPendingFrames=bSame?ResultReportPendingFrames+100:ResultReportPendingFrames+1;
+    if(ResultReportPendingFrames<200&&ResultReportPendingFrames%100<12){return;}
+    UWidget* Report=ResultReportPending;ResultReportPending=nullptr;
+    for(int32 Index=ResultReportStack->GetChildrenCount()-1;Index>=0;--Index)
+    {if(ResultReportStack->GetChildAt(Index)!=Report){ResultReportStack->RemoveChildAt(Index);}}
+    Report->SetRenderOpacity(1.f);
+}
 FVector2D ULDHUD::ProbeResultBoardSize() const
 {
 #if WITH_DEV_AUTOMATION_TESTS
-    // The board's content, then the two wrappers LDResultBuild::MakeReport puts around the body.
-    const UWidget* Body=ResultWinnerBuild?ResultWinnerBuild->GetContent():nullptr;
+    // The report on screen (the settled one, or the one still in front while a new one lays out), then the two wrappers
+    // LDResultBuild::MakeReport puts around the body.
+    const UWidget* Body=nullptr;
+    if(ResultReportStack){for(int32 Index=0;Index<ResultReportStack->GetChildrenCount();++Index){const UWidget* Each=ResultReportStack->GetChildAt(Index);if(Each->GetRenderOpacity()>0.f){Body=Each;}}}
     for(int32 Depth=0;Depth<2&&Body;++Depth){const UContentWidget* Wrap=Cast<UContentWidget>(Body);Body=Wrap?Wrap->GetContent():nullptr;}
     return Body?FVector2D(Body->GetCachedGeometry().GetAbsoluteSize()):FVector2D::ZeroVector;
 #else
@@ -4305,6 +4332,24 @@ void ULDHUD::PaintMoments(const LDUIPaint::FContext& P) const
     // Own kill: one compact plate under the score strip (orange K.O. block, own plate beating the victim's, red-barred).
     // It wipes in from the left in 200 ms, holds and wipes out; nothing else is drawn, so the fight stays in full view.
     // A DEV freeze holds only the newest moment at its fixed age.
+    // Low own health: the four screen edges shade in the strip's low ink and breathe, never over the middle of the fight.
+    if(bShown&&bOwnLowHealth)
+    {
+        const float Breath=.6f+.4f*float(FMath::Abs(FMath::Sin(Now*3.2)));
+        const FLinearColor Edge=OwnLowHealthInk.CopyWithNewOpacity(.26f*Breath),Clear=OwnLowHealthInk.CopyWithNewOpacity(0.f);
+        const float Depth=float(Size.Y)*.13f;
+        const auto Shade=[&](const FVector2D& At,const FVector2D& Extent,EOrientation Along,bool bEdgeFirst)
+        {
+            TArray<FSlateGradientStop> Stops;
+            Stops.Add(FSlateGradientStop(FVector2D::ZeroVector,bEdgeFirst?Edge:Clear));
+            Stops.Add(FSlateGradientStop(Extent,bEdgeFirst?Clear:Edge));
+            FSlateDrawElement::MakeGradient(P.Elements,P.Layer,P.Geometry.ToPaintGeometry(FVector2f(Extent),FSlateLayoutTransform(FVector2f(At))),Stops,Along);
+        };
+        Shade(FVector2D::ZeroVector,FVector2D(Size.X,Depth),Orient_Horizontal,true);
+        Shade(FVector2D(0.,Size.Y-Depth),FVector2D(Size.X,Depth),Orient_Horizontal,false);
+        Shade(FVector2D::ZeroVector,FVector2D(Depth,Size.Y),Orient_Vertical,true);
+        Shade(FVector2D(Size.X-Depth,0.),FVector2D(Depth,Size.Y),Orient_Vertical,false);
+    }
     const double Newest=FMath::Max3(KillMomentAt,LevelFlipAt,StageWipeAt);
     const auto AgeOf=[this,Now,Newest](double At){return MomentFreezeAge>=0.f&&At>=0.&&At==Newest?double(MomentFreezeAge):Now-At;};
     const double KillAge=AgeOf(KillMomentAt);

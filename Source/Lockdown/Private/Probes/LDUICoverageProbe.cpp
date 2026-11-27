@@ -867,6 +867,13 @@ public:
                 const int32 Tab=FMath::Min(2,int32(Age/2.5));
                 if(Once(Now,Tab)){Click(PC.HUDUI,*FString::Printf(TEXT("ResultReportTab%d"),Tab));SettleMin=FVector2D(1e9,1e9);SettleMax=FVector2D::ZeroVector;SettleChanges=0;SettleLast=FVector2D(-1,-1);}
                 const double In=Age-Tab*2.5;
+                if(In<.4&&SettleFrames<24)
+                {
+                    const FVector2D Size=PC.HUDUI->ProbeResultBoardSize();
+                    SettleTrace+=FString::Printf(TEXT(" %.0fx%.0f"),Size.X,Size.Y);++SettleFrames;
+                }
+                if(In>=.4&&!SettleTrace.IsEmpty())
+                {UE_LOG(LogLDTest,Display,TEXT("LD_UI_COVERAGE_RESULT_SWITCH tab=%d frames=%s"),Tab,*SettleTrace);SettleTrace.Reset();SettleFrames=0;}
                 if(In>.8&&In<2.3)
                 {
                     const FVector2D Size=PC.HUDUI->ProbeResultBoardSize();
@@ -895,7 +902,8 @@ public:
     double ResultsSeen=-1.;
     int32 RankPointsBefore=-1;
     FVector2D SettleMin=FVector2D::ZeroVector,SettleMax=FVector2D::ZeroVector,SettleLast=FVector2D(-1,-1);
-    int32 SettleChanges=0;
+    int32 SettleChanges=0,SettleFrames=0;
+    FString SettleTrace;
     static int32 Guests(ALDPlayerController& PC)
     {
         const ALDGameState* GS=PC.GetWorld()->GetGameState<ALDGameState>();int32 Count=0;
