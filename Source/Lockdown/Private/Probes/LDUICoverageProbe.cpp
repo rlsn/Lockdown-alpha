@@ -364,6 +364,57 @@ public:
                 if(Ring&&Ring->IsOpen()&&Once(Now,3,5.)){PC.HUDUI->ToggleWorkshop();}
                 return InPhase(PC,ELDMatchPhase::Development)&&Settled(Now,7.);
             },45.});
+        // Skill charges in a real field: the host learns the school bag on E and ranks it to 2A two bags and 3A1 bag wall
+        // through the real rank-up command; its slot shows two charges; two bags placed back to back through the real
+        // activation stand together with the wall between them (the clock held meanwhile).
+        Pages.Add({TEXT("Match_BagCharges"),[this](ALDPlayerController& PC,double Now)
+            {
+                ELDGrowthReason Reason=ELDGrowthReason::None;
+                // Only in a running field with the host's body standing (the page waits for it).
+                if(!InPhase(PC,ELDMatchPhase::Development)||!PC.GetPawn()||PC.OwnerState.LifePhase!=ELDLifePhase::Alive){PageAt=Now;return false;}
+                if(Once(Now,0)){Dev(PC,ELDDevTestOp::SetCountdownPaused,1);}
+                if(Once(Now,1,.5)){PC.SubmitDevTest(ELDDevTestOp::LearnActive,0,Reason,TEXT("active_school_bag"),3,0);}
+                if(Once(Now,2,1.2)){Dev(PC,ELDDevTestOp::GrantSkillPoint,0);}
+                if(Once(Now,3,1.9)){Dev(PC,ELDDevTestOp::GrantSkillPoint,0);}
+                const auto RankUp=[&PC](ELDSkillBranch Branch)
+                {
+                    const FLDProgressionView* Latest=PC.ReadOwnProgression();
+                    if(!Latest){return;}
+                    FLDBuildCommand Command;
+                    Command.Kind=ELDBuildCommandKind::RankUpSkill;Command.Slot=2;Command.Branch=Branch;
+                    Command.ExpectedBuildRevision=Latest->BuildRevision;Command.CatalogDigest=Latest->CatalogDigest;
+                    ELDGrowthReason Refused=ELDGrowthReason::None;
+                    const uint64 Request=PC.SubmitBuild(Command,Refused);
+                    UE_LOG(LogLDTest,Display,TEXT("LD_UI_COVERAGE_BAG_RANKUP branch=%d request=%llu reason=%d"),int32(Branch),Request,int32(Refused));
+                };
+                if(Once(Now,4,2.8)){RankUp(ELDSkillBranch::A);}
+                if(Once(Now,5,3.8)){RankUp(ELDSkillBranch::A1);}
+                if(Once(Now,6,4.6)){Dev(PC,ELDDevTestOp::ResetCooldowns,0);}
+                if(Once(Now,7,5.2)){Dev(PC,ELDDevTestOp::RefillResources,0);}
+                return Settled(Now,6.2);
+            },120.,false});
+        Pages.Add({TEXT("Match_BagTwo"),[this](ALDPlayerController& PC,double Now)
+            {
+                const APawn* Body=PC.GetPawn();
+                if(!Body){return Settled(Now,3.);}
+                const FVector Feet=Body->GetActorLocation();
+                const FVector Ahead=Body->GetActorForwardVector().GetSafeNormal2D();
+                const FVector Side(-Ahead.Y,Ahead.X,0.);
+                if(Once(Now,0)){FVector Aim=Feet+Ahead*260.+Side*130.;PC.ActivateCombatEntry(ELDCombatEntry::E,nullptr,&Aim);}
+                if(Once(Now,1,.55)){FVector Aim=Feet+Ahead*260.-Side*130.;PC.ActivateCombatEntry(ELDCombatEntry::E,nullptr,&Aim);}
+                if(Once(Now,2,1.2))
+                {
+                    const FLDCombatEntryView* E=PC.CombatView.Entries.FindByPredicate([](const FLDCombatEntryView& Row){return Row.Entry==ELDCombatEntry::E;});
+                    UE_LOG(LogLDTest,Display,TEXT("LD_UI_COVERAGE_BAG_TWO def=%s charges=%d ready_at=%lld cd=%lld rank=%d branch=%d"),
+                        E?*E->DefinitionId.ToString():TEXT("-"),E?int32(E->Charges):0,E?E->ReadyAtMs:0,E?E->CooldownMs:0,E?int32(E->Rank):0,E?int32(E->Branch):0);
+                }
+                return Settled(Now,1.3);
+            },10.,false});
+        Pages.Add({TEXT("Match_BagTwoEnd"),[this](ALDPlayerController& PC,double Now)
+            {
+                if(Once(Now,0)){Dev(PC,ELDDevTestOp::SetCountdownPaused,0);}
+                return Settled(Now,4.5);
+            },10.,false});
         // A real death: the level-1 host, not invulnerable, stands in DEV ownerless fire and miasma at its feet until it
         // falls; the death banner, the damage recap and the spawn choice follow from the authority.
         Pages.Add({TEXT("Match_Death"),[this](ALDPlayerController& PC,double Now)
@@ -710,55 +761,6 @@ public:
                 if(Once(Now,0)){Dev(PC,ELDDevTestOp::SetCountdownPaused,0);}
                 return InPhase(PC,ELDMatchPhase::Development)&&Settled(Now,2.);
             },60.,false});
-        // Skill charges in a real field: the host learns the school bag on E and ranks it to 2A two bags and 3A1 bag wall
-        // through the real rank-up command; its slot shows two charges; two bags placed back to back through the real
-        // activation stand together with the wall between them (the clock held meanwhile).
-        Pages.Add({TEXT("Match_BagCharges"),[this](ALDPlayerController& PC,double Now)
-            {
-                ELDGrowthReason Reason=ELDGrowthReason::None;
-                if(Once(Now,0)){Dev(PC,ELDDevTestOp::SetCountdownPaused,1);}
-                if(Once(Now,1,.5)){PC.SubmitDevTest(ELDDevTestOp::LearnActive,0,Reason,TEXT("active_school_bag"),3,0);}
-                if(Once(Now,2,1.2)){Dev(PC,ELDDevTestOp::GrantSkillPoint,0);}
-                if(Once(Now,3,1.9)){Dev(PC,ELDDevTestOp::GrantSkillPoint,0);}
-                const auto RankUp=[&PC](ELDSkillBranch Branch)
-                {
-                    const FLDProgressionView* Latest=PC.ReadOwnProgression();
-                    if(!Latest){return;}
-                    FLDBuildCommand Command;
-                    Command.Kind=ELDBuildCommandKind::RankUpSkill;Command.Slot=2;Command.Branch=Branch;
-                    Command.ExpectedBuildRevision=Latest->BuildRevision;Command.CatalogDigest=Latest->CatalogDigest;
-                    ELDGrowthReason Refused=ELDGrowthReason::None;
-                    const uint64 Request=PC.SubmitBuild(Command,Refused);
-                    UE_LOG(LogLDTest,Display,TEXT("LD_UI_COVERAGE_BAG_RANKUP branch=%d request=%llu reason=%d"),int32(Branch),Request,int32(Refused));
-                };
-                if(Once(Now,4,2.8)){RankUp(ELDSkillBranch::A);}
-                if(Once(Now,5,3.8)){RankUp(ELDSkillBranch::A1);}
-                if(Once(Now,6,4.6)){Dev(PC,ELDDevTestOp::ResetCooldowns,0);}
-                if(Once(Now,7,5.2)){Dev(PC,ELDDevTestOp::RefillResources,0);}
-                return Settled(Now,6.2);
-            },20.,false});
-        Pages.Add({TEXT("Match_BagTwo"),[this](ALDPlayerController& PC,double Now)
-            {
-                const APawn* Body=PC.GetPawn();
-                if(!Body){return Settled(Now,3.);}
-                const FVector Feet=Body->GetActorLocation();
-                const FVector Ahead=Body->GetActorForwardVector().GetSafeNormal2D();
-                const FVector Side(-Ahead.Y,Ahead.X,0.);
-                if(Once(Now,0)){FVector Aim=Feet+Ahead*260.+Side*130.;PC.ActivateCombatEntry(ELDCombatEntry::E,nullptr,&Aim);}
-                if(Once(Now,1,.55)){FVector Aim=Feet+Ahead*260.-Side*130.;PC.ActivateCombatEntry(ELDCombatEntry::E,nullptr,&Aim);}
-                if(Once(Now,2,1.2))
-                {
-                    const FLDCombatEntryView* E=PC.CombatView.Entries.FindByPredicate([](const FLDCombatEntryView& Row){return Row.Entry==ELDCombatEntry::E;});
-                    UE_LOG(LogLDTest,Display,TEXT("LD_UI_COVERAGE_BAG_TWO def=%s charges=%d ready_at=%lld cd=%lld rank=%d branch=%d"),
-                        E?*E->DefinitionId.ToString():TEXT("-"),E?int32(E->Charges):0,E?E->ReadyAtMs:0,E?E->CooldownMs:0,E?int32(E->Rank):0,E?int32(E->Branch):0);
-                }
-                return Settled(Now,1.3);
-            },10.,false});
-        Pages.Add({TEXT("Match_BagTwoEnd"),[this](ALDPlayerController& PC,double Now)
-            {
-                if(Once(Now,0)){Dev(PC,ELDDevTestOp::SetCountdownPaused,0);}
-                return Settled(Now,4.5);
-            },10.,false});
         FieldSite(TEXT("Match_Locker"),[](const FLDPublicMatchView& View,FVector& Site)
             {if(View.Lockers.IsEmpty()){return false;}Site=View.Lockers[0].PositionCm;return true;},85.,true);
         FieldSite(TEXT("Match_Arena"),[](const FLDPublicMatchView& View,FVector& Site)
