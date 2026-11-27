@@ -1,6 +1,7 @@
 # 验证与场景矩阵
 
-日常开发与 PR 提交遵循“最小变更范围验证”；全量原生套件与完整多进程场景留给 CI 与里程碑发布门禁。
+日常开发与 PR 提交遵循“最小变更范围验证”：一批改动改完后验证一次；全量原生套件、完整多进程场景、打包与帧率测量留给 CI、集成与里程碑发布门禁。
+何时立即验证、何时随批验证、何时留到集成见 [AGENTS：验证与交付](../../AGENTS.md#验证与交付)。
 
 ## 最小验证选择
 
@@ -13,6 +14,8 @@
 | `SourceData/Demo/*` / `World/*` | `SyncDemoWorldData.py --check`、`SyncDemoContentData.py --check`、`Test*Import.py`；刷新资产用 `BootstrapAssets.ps1 -Mode RefreshDefinitions`（改几何用 `Regenerate`） |
 | `SourceData/Art` / `UI` / `Audio` | `ImportDemoArt.ps1 -Mode Validate`、`ImportDemoAudio.ps1 -Mode Validate` |
 | `Source/Lockdown*` C++ | `.\Scripts\Verify.ps1`（增量 `BuildEditor.ps1`）；新增原生 `Lockdown.Rules.*` 测试须同步登记到 `Scripts\CheckRuleReport.py` 的 `REQUIRED_TESTS` 并跑 `TestRuleReport.py` |
+| 画面可见的界面、特效、镜头、手感 | 本批改完并构建后一次渲染运行（如 `CaptureDemoArt.ps1`），覆盖本批改到的全部画面；完整截图矩阵留到集成 |
+| 帧率 | 不在开发分支测；集成分支上独占机器跑 `RunPerfBudget.ps1 -Match -PackageRoot <打包目录>` |
 | 必须由真实拥有连接证明的联机/视野/阶段行为 | 按需选跑对应 `RunDemo*Check.ps1`：`Core`（初生/运动/返场）、`Combat`（寻路/施法/追击/离屏帧）、`GrowthLink`（成长指令的回执与视图同步、一次真实击杀）、`Camp`（反击、回位、段内清空和中场整图重置）、`Vision`（视野隔离/`-ReactionOnly`/`-IceOnly`）、`Capture`（三段野外+R3终局改装+断线恢复）、`Opponent`（满房 AI）、`SessionFault`（退房/拒入/房主离开） |
 | 整局能否跑完、有没有报错（AI、权威步、营地、结算一起跑） | `.\Scripts\RunDemoOpponentCheck.ps1 -BotMatch`（见[机器人对局](#机器人对局)） |
 
@@ -83,4 +86,16 @@ AI 多局遥测（诊断用，非门禁）：`.\Scripts\RunDemoOpponentCheck.ps1
 
 ## 多人共用一台机器
 
-共享引擎 `Build.bat` 全局互斥；`RunTests.ps1` 与编辑器版 `RunDemo*Check.ps1` 通过 `UE_SKIP_UBT_SDK_SETUP=1` 跳过启动期 SDK 校验避免被他人构建阻塞，但 `BuildEditor`/`BuildGame`/`PackageWin64`（UAT 单例，跨工作区打包须串行）仍受互斥约束。同机并发红线：无头编辑器进程 `<= 3` 个，活跃 UBT 构建进程（`dotnet ... UnrealBuildTool.dll`）`>= 2` 个时先等待，最多 `2` 个会话同时跑重型构建或场景。
+一台机器上的并行会话（包括各自 worktree 里的 AI 会话）共用三种资源，等待它们是并行开发最大的时间开销：
+
+| 资源 | 上限 | 做法 |
+| --- | --- | --- |
+| 引擎构建（`BuildEditor`、`BuildGame`、Verify 的构建步骤） | 全机同时 1 个：共享引擎 `Build.bat` 全局互斥，第二个构建会被阻塞或以 `ConflictingInstance` 失败 | 已有 UBT（`dotnet ... UnrealBuildTool.dll`）在跑时先做别的，不重复发起；所以每批只构建一次 |
+| 打包（`PackageWin64.ps1`） | 全机同时 1 个：UAT 单例，跨工作区须串行 | 只在集成分支上做 |
+| 渲染运行（截图、录制、带画面的场景、`-game`） | 同时最多 2 个 | 每批一次，一次覆盖全部改动 |
+| 帧率测量（`RunPerfBudget.ps1`） | 独占：期间没有其他渲染运行、构建、cook 或着色器编译 | 只在集成分支上做；环境不干净时测得的数字作废 |
+| 无头编辑器进程（规则测试、无画面场景） | `<= 3` 个 | — |
+
+`RunTests.ps1` 与编辑器版 `RunDemo*Check.ps1` 通过 `UE_SKIP_UBT_SDK_SETUP=1` 跳过启动期 SDK 校验，不被他人的构建阻塞。
+编辑器开着且启用 Live Coding 时，同一工作区的构建会被拒绝，先关编辑器。
+需要编译和截图的会话同机最多两个；第三个并行任务选不占引擎的工作（文档、数据、Python、资产制作），否则它的时间主要花在排队上。
