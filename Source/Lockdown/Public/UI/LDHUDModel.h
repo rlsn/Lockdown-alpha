@@ -732,8 +732,14 @@ namespace LDHUD
     struct FSlotKeys
     {
         FString Keys[3];
+        // The action-bar position (0..2, left to right) each server slot sits at after the player's local slot order.
+        int32 Visual[3]={0,1,2};
         LOCKDOWN_API FString Of(uint8 Slot) const;
-        bool operator==(const FSlotKeys& Other) const{return Keys[0]==Other.Keys[0]&&Keys[1]==Other.Keys[1]&&Keys[2]==Other.Keys[2];}
+        bool operator==(const FSlotKeys& Other) const
+        {
+            return Keys[0]==Other.Keys[0]&&Keys[1]==Other.Keys[1]&&Keys[2]==Other.Keys[2]
+                &&Visual[0]==Other.Visual[0]&&Visual[1]==Other.Visual[1]&&Visual[2]==Other.Visual[2];
+        }
     };
     // What the own contender may do with its build right now, judged like the server judges a commit (LDProgression's
     // CommandGate over the build stage of the public match, LDProgression::StageForPublic, and the own life phase). A hint

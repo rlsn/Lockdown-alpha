@@ -493,6 +493,9 @@ private:
     // The match's drawn days (public), shown under the opening countdown into the first field: the badge glyph of the
     // in-match marker, the name and the one-line effect. Empty outside that countdown or on a match without one.
     struct FStageDaily{FString Glyph,Name,Line;};
+    // Where the day plates were last painted (HUD local; invalid when none): the toast, the countdown and the ring's hover
+    // card keep clear of them.
+    mutable FBox2D DayPlates=FBox2D(ForceInit);
     // The final's goal, centred at the top while the flag is open: the holder's seat (INDEX_NONE: nobody), the holder's
     // name, the flag's state line (the circle head) and its bar.
     struct FFlagBar{bool bShown=false;int32 Seat=INDEX_NONE;FString Holder,State;float Progress=0.f;bool bProgress=false;};

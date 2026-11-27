@@ -183,7 +183,7 @@ LDHUD::FSlotKeys HudSlotKeys(const ALDPlayerController& PC)
     for(int32 Index=0;Index<3;++Index)
     {
         const int32 Slot=HudServerSlot(PC.SkillAtKey[Index]);
-        if(Slot>=0){Keys.Keys[Slot]=PC.BindingLabel(HudActionBindings[Index]);}
+        if(Slot>=0){Keys.Keys[Slot]=PC.BindingLabel(HudActionBindings[Index]);Keys.Visual[Slot]=Index;}
     }
     return Keys;
 }
@@ -2430,6 +2430,12 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         const auto RingRect=[](const UWidget* Widget){return Widget&&Widget->IsVisible()?Widget->GetCachedGeometry().GetLayoutBoundingRect():FSlateRect();};
         // The top HUD block (the banner, and in a rest its actions): the ring's dim and shop wing keep clear of it.
         In.Band=RingRect(Band);In.Map=RingRect(MapColumn);In.Banner=RingRect(TopCentreSlot?TopCentreSlot->Content.Get():PhaseBanner.Get());
+        // The day plates on the top edge: the ring's hover card keeps clear of them.
+        if(!StageDaily.IsEmpty()&&DayPlates.bIsValid)
+        {
+            const FVector2D Min=GetCachedGeometry().LocalToAbsolute(DayPlates.Min),Max=GetCachedGeometry().LocalToAbsolute(DayPlates.Max);
+            In.Banner=FSlateRect(Min.X,Min.Y,Max.X,Max.Y);
+        }
         // The Q, W, E and D faces: a linked skill's face takes the ring's link rule.
         for(const FLDHUDActionSlot& Entry:ActionSlots){In.Skills.Add(RingRect(Entry.Icon.Get()));}
         In.Toast=RingRect(ToastPanel);
@@ -3119,6 +3125,8 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         // While the build ring is open the block sits at the foot of the screen with the ring's tables around it: the
         // toast takes the free lane along the top edge instead, between the score bug and the corner marks.
         if(Workshop&&Workshop->IsOpen()){Top=8.f;}
+        // The opening's day plates hold the top band: the toast stands under them.
+        if(!StageDaily.IsEmpty()&&DayPlates.bIsValid){Top=FMath::Max(Top,float(DayPlates.Max.Y)+8.f);}
         const FVector2D TopPos(0.f,FMath::RoundToFloat(Top));
         if(!(ToastSlot->GetAnchors()==Anchor)){ToastSlot->SetAnchors(Anchor);}
         if(!ToastSlot->GetAlignment().Equals(Align)){ToastSlot->SetAlignment(Align);}
@@ -4191,7 +4199,7 @@ void ULDHUD::PaintMoments(const LDUIPaint::FContext& P) const
             // Each second lands big and settles (no bounce); the stage it leads to sits on a small slab under it.
             const float Hit=FMath::Pow(StageBeat,6.f);
             // With the day plates above it, the count sits lower, still clear of the own character.
-            const FVector2D At(Size.X*.5,Size.Y*.21+(StageDaily.IsEmpty()?0.:56.));
+            const FVector2D At(Size.X*.5,FMath::Max(Size.Y*.21,!StageDaily.IsEmpty()&&DayPlates.bIsValid?DayPlates.Max.Y+64.:0.));
             const FSlateFontInfo Figure=LDBroadcastPaint::FigureFont(150.f*(1.f+.35f*Hit));
             LDBroadcastPaint::Text(P,P.Layer+6,StageCount,Figure,At+FVector2D(5.,5.),LDBroadcast::Ink,FVector2D(.5,.5));
             LDBroadcastPaint::Text(P,P.Layer+7,StageCount,Figure,At,StageCount==TEXT("1")||StageCount==TEXT("2")||StageCount==TEXT("3")?LDBroadcast::Orange:LDBroadcast::White,FVector2D(.5,.5));
@@ -4230,11 +4238,20 @@ void ULDHUD::PaintMoments(const LDUIPaint::FContext& P) const
     // The match's days through the opening rest: one plate each side by side across the top, under the rest's actions and
     // above the countdown, clear of the own character: the in-match badge (white-ruled ink square, its glyph), the name, the
     // effect line.
+    if(!bShown||StageDaily.IsEmpty()){DayPlates=FBox2D(ForceInit);}
     if(bShown&&!StageDaily.IsEmpty())
     {
         const FSlateFontInfo DayName=LDBroadcastPaint::LabelFont(26.f,true),DayLine=LDBroadcastPaint::LabelFont(18.f,false),DayGlyph=LDBroadcastPaint::LabelFont(26.f,true);
-        // With the build ring open the plates take the top edge's band, above the ring's top marks, so no sector is covered.
-        const float DayTop=Workshop&&Workshop->IsOpen()?8.f:float(Size.Y)*.15f,PlateH=64.f,PlateGap=14.f;
+        // The top band between the score bug and the feed: under the top-centre block when it shows (the rest's lines and
+        // actions), on the top edge while the build ring is open (above its top marks; the block then sits at the foot).
+        float DayTop=HudTopCentreY;
+        if(Workshop&&Workshop->IsOpen()){DayTop=8.f;}
+        else if(const UWidget* Block=TopCentreSlot?TopCentreSlot->Content.Get():nullptr;Block&&Block->IsVisible()&&Block->GetCachedGeometry().GetLocalSize().Y>1.f)
+        {
+            const FGeometry& Over=Block->GetCachedGeometry();
+            DayTop=FMath::Max(DayTop,float(P.Geometry.AbsoluteToLocal(Over.LocalToAbsolute(FVector2D(Over.GetLocalSize()))).Y)+8.f);
+        }
+        const float PlateH=64.f,PlateGap=14.f;
         TArray<float,TInlineAllocator<4>> Plates;float Row=0.f;
         for(const FStageDaily& Day:StageDaily)
         {
@@ -4242,6 +4259,7 @@ void ULDHUD::PaintMoments(const LDUIPaint::FContext& P) const
             Plates.Add(74.f+Wide+26.f);Row+=Plates.Last()+(Plates.Num()>1?PlateGap:0.f);
         }
         float DayLeft=float(Size.X)*.5f-Row*.5f;
+        DayPlates=FBox2D(FVector2D(DayLeft,DayTop),FVector2D(DayLeft+Row,DayTop+PlateH));
         for(int32 DayIndex=0;DayIndex<StageDaily.Num();++DayIndex)
         {
             const FStageDaily& Day=StageDaily[DayIndex];
