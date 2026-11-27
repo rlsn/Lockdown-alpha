@@ -1047,10 +1047,15 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
         break;
     }
     case ELDDemoTargetMode::GroundPoint:
-        // A ground zone: the release clamps a point beyond the authored reach toward it.
+        // A ground zone: the release clamps a point beyond the authored reach toward it. A vector-aimed shape may carry its
+        // planar facing (LDCombatSourceRules::VectorAimed); any other ground skill sends none.
         if (Request.Target.Kind!=ELDCombatTargetKind::Point || !LDCA::ValidPoint(Request.Target.Point))
         { return Refuse(ELDCombatReject::InvalidDirection); }
+        if (!FVector(Request.Target.Direction).IsZero()
+            && (!LDCombatSourceRules::VectorAimed(*ValuesDef) || !LDCA::ValidDirection(Request.Target.Direction)))
+        { return Refuse(ELDCombatReject::InvalidDirection); }
         Action.TargetPoint=Request.Target.Point;
+        Action.Direction=FVector(Request.Target.Direction).GetSafeNormal2D();
         break;
     case ELDDemoTargetMode::DirectionProjectile:
     case ELDDemoTargetMode::DirectionCone:
@@ -1651,7 +1656,9 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     const FLDDemoEffectDefinition* ChainEffect=LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::ChainBounce);
     const bool bHostile=DamageEffect || RootEffect || SlowEffect || DisarmEffect || StunEffect
         || SilenceEffect || BreachEffect || BurnEffect || WetEffect || ElectrifyEffect || RotEffect || ChillEffect
-        || LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::Knockback);
+        || LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::Knockback)
+        // N2's fan carries its push in the release payload (StartSkillDelivery).
+        || LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::Fan);
     if (ChainEffect && TargetDef.Mode!=ELDDemoTargetMode::Unit)
     { Error=TEXT("A chain needs a unit target to start from."); return false; }
     const bool bAreaMode=TargetDef.Mode==ELDDemoTargetMode::Self || TargetDef.Mode==ELDDemoTargetMode::DirectionDash;

@@ -116,6 +116,7 @@ struct FLDBuildPrimitivesAccess
     static TArray<FLDCombatBag>& Bags(ALDCombatDirector& Driver) { return Driver.Bags; }
     static TArray<ALDCombatDirector::FLDCombatSlipperDrop>& SlipperDrops(ALDCombatDirector& Driver) { return Driver.SlipperDrops; }
     static TArray<ALDCombatDirector::FLDCombatCordon>& Cordons(ALDCombatDirector& Driver) { return Driver.Cordons; }
+    static TArray<FLDCombatFan>& Fans(ALDCombatDirector& Driver) { return Driver.Fans; }
     static TArray<ALDCombatDirector::FLDCombatDecoy>& Decoys(ALDCombatDirector& Driver) { return Driver.Decoys; }
     static bool AdvanceStaggerBleeds(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceStaggerBleeds(NowMs, Error); }
     static bool AdvanceSlipperDrops(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceSlipperDrops(NowMs, Error); }
@@ -4916,7 +4917,6 @@ bool FLDIssue345SkillsAndFrameworksTest::RunTest(const FString& Parameters)
     if (!Released(*this, F, Warden, TEXT("active_cordon_tape"), CordonTerms, CordonPayload)) { return false; }
     FLDCombatAction CordonAction;
     CordonAction.TargetPoint = F.Origin + FVector(200, 1000, 0);
-    CordonAction.Direction = FVector(1, 0, 0);
     F.Now(5000);
     bool bCordonHandled = false;
     if (!TestTrue(TEXT("active_cordon_tape places cordon: ") + Error,
@@ -5008,7 +5008,6 @@ bool FLDCombatCordonBoostTest::RunTest(const FString& Parameters)
     if (!Released(*this, F, Warden, TEXT("active_cordon_tape"), CordonTerms, CordonPayload)) { return false; }
     FLDCombatAction CordonAction;
     CordonAction.TargetPoint = F.Origin + FVector(300, 0, 0);
-    CordonAction.Direction = FVector(1, 0, 0);
     F.Now(1000);
     bool bHandled = false;
     if (!TestTrue(TEXT("active_cordon_tape places its cordon: ") + Error,
@@ -5087,6 +5086,77 @@ bool FLDCombatFrenzyThirdWaveTest::RunTest(const FString& Parameters)
         if (!TestTrue(TEXT("The wave advances: ") + Error, FAccess::AdvanceProjectiles(*F.Driver, Error))) { return false; }
     }
     TestTrue(TEXT("The boosted wave's hits evaluate without an authority fault"), Drain(*this, F));
+    return true;
+}
+
+// Vector cast (LoL-style press, drag, release): the cordon tape and the desk fan take a dragged facing with their ground
+// point; every other ground-point skill keeps a plain point. A tap (no facing) keeps the default: the cordon centred on the
+// point across the cast, the fan blowing away from the caster.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDVectorCastTest, "Lockdown.Rules.Combat.Skills.VectorCast",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDVectorCastTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    const FLDDemoContentDefinitions& Content = F.Catalog->Get();
+    for (const FLDDemoAbilityDefinition& Ability : Content.Abilities)
+    {
+        if (Ability.Target.Mode != ELDDemoTargetMode::GroundPoint) { continue; }
+        const bool bExpected = Ability.Id == TEXT("active_cordon_tape") || Ability.Id == TEXT("active_desk_fan");
+        TestEqual(FString::Printf(TEXT("%s is vector-aimed"), *Ability.Id), LDCombatSourceRules::VectorAimed(Ability.Values), bExpected);
+        for (const FLDDemoAbilityBranch& Branch : Ability.Branches)
+        {
+            TestEqual(FString::Printf(TEXT("%s branch keeps its vector aim"), *Ability.Id), LDCombatSourceRules::VectorAimed(Branch.Values), bExpected);
+        }
+    }
+    FString Error;
+    const FLDCombatBodyRef Warden = F.AddBody();
+    F.Place(Warden, 0, 0);
+    if (!InstallCards(*this, F, Warden, 6, {})) { return false; }
+    FLDCombatActiveTerms CordonTerms;
+    FLDCombatHit CordonPayload;
+    if (!Released(*this, F, Warden, TEXT("active_cordon_tape"), CordonTerms, CordonPayload)) { return false; }
+    const auto Place = [&](const FVector& Facing, int64 NowMs)
+    {
+        FLDCombatAction Action;
+        Action.TargetPoint = F.Origin + FVector(300, 0, 0);
+        Action.Direction = Facing;
+        bool bHandled = false;
+        F.Now(NowMs);
+        return FAccess::DeliverTerms(*F.Driver, F.Body(Warden), CordonTerms, Action, CordonPayload, NowMs, bHandled, Error) && bHandled
+            && !FAccess::Cordons(*F.Driver).IsEmpty();
+    };
+    if (!TestTrue(TEXT("A tapped cordon places: ") + Error, Place(FVector::ZeroVector, 1000))) { return false; }
+    {
+        const auto& Line = FAccess::Cordons(*F.Driver).Last();
+        TestTrue(TEXT("A tapped cordon is centred on its point, across the cast"),
+            FVector::Dist2D(Line.CentreCm, F.Origin + FVector(300, 0, 0)) < 1. && FMath::Abs(Line.Tangent.X) < .001 && FMath::Abs(Line.Tangent.Y) > .999);
+    }
+    if (!TestTrue(TEXT("A dragged cordon places: ") + Error, Place(FVector(0, 1, 0), 2000))) { return false; }
+    {
+        const auto& Line = FAccess::Cordons(*F.Driver).Last();
+        TestTrue(TEXT("A dragged cordon starts at its point and runs along the drag"),
+            Line.Tangent.Equals(FVector(0, 1, 0), .001) && FVector::Dist2D(Line.CentreCm - Line.Tangent * Line.HalfLengthCm, F.Origin + FVector(300, 0, 0)) < 1.);
+    }
+    FLDCombatActiveTerms FanTerms;
+    FLDCombatHit FanPayload;
+    if (!Released(*this, F, Warden, TEXT("active_desk_fan"), FanTerms, FanPayload)) { return false; }
+    for (const FVector& Facing : {FVector::ZeroVector, FVector(0, -1, 0)})
+    {
+        FLDCombatAction Action;
+        Action.TargetPoint = F.Origin + FVector(300, 0, 0);
+        Action.Direction = Facing;
+        bool bHandled = false;
+        F.Now(3000);
+        if (!TestTrue(TEXT("The fan places: ") + Error,
+            FAccess::DeliverTerms(*F.Driver, F.Body(Warden), FanTerms, Action, FanPayload, 3000, bHandled, Error) && bHandled
+                && !FAccess::Fans(*F.Driver).IsEmpty())) { return false; }
+        const auto& Fan = FAccess::Fans(*F.Driver).Last();
+        TestTrue(Facing.IsZero() ? TEXT("A tapped fan blows away from its caster") : TEXT("A dragged fan blows along the drag"),
+            Fan.Direction.Equals(Facing.IsZero() ? FVector(1, 0, 0) : Facing, .001)
+            && FVector::Dist2D(Fan.OriginCm, F.Origin + FVector(300, 0, 0)) < 1.);
+    }
     return true;
 }
 

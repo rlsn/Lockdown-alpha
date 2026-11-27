@@ -5,6 +5,7 @@
 #include "Character/LDModelPicking.h"
 #include "Combat/LDCombatDirector.h"
 #include "Combat/LDCombatPreInput.h"
+#include "Combat/LDCombatSourceRules.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Framework/LDDemoEntry.h"
@@ -256,6 +257,8 @@ void ALDPlayerController::ArmAttackMove()
 bool ALDPlayerController::ClearArmedAim()
 {
     const bool bWasArmed=bAttackMoveArmed || ArmedEntry!=ELDCombatEntry::None || HasAnyQuickCastHold();
+    VectorAimEntry=ELDCombatEntry::None;
+    bVectorAimMouse=false;
     bAttackMoveArmed=false;
     ArmedEntry=ELDCombatEntry::None;
     ClearAllQuickCastHolds();
@@ -360,6 +363,19 @@ bool ALDPlayerController::ConfirmArmedCombat()
                 Aim.Point=GroundHit.ImpactPoint;
             }
         }
+        // Vector cast: a drag past the deadzone casts at its start (clamped into reach, so the body does not walk) facing
+        // the drag; a shorter one is a tap at the pointer with the default facing.
+        if (VectorAimEntry==ArmedEntry && Body && View && Aim.Kind==ELDCombatTargetKind::Point
+            && FVector::Dist2D(Aim.Point,VectorAimStartCm)>=LDCombatSourceRules::VectorAimDeadzoneCm)
+        {
+            const FVector Foot=Body->GetActorLocation()-FVector(0,0,Body->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
+            const FVector Drag=Aim.Point-VectorAimStartCm;
+            const FVector Offset=FVector(VectorAimStartCm.X-Foot.X,VectorAimStartCm.Y-Foot.Y,0).GetClampedToMaxSize(double(View->RangeCm));
+            Aim.Point=FVector(Foot.X+Offset.X,Foot.Y+Offset.Y,VectorAimStartCm.Z);
+            Aim.Direction=FVector(Drag.X,Drag.Y,0).GetSafeNormal();
+        }
+        VectorAimEntry=ELDCombatEntry::None;
+        bVectorAimMouse=false;
     }
     return ConfirmArmedEntry(Aim);
 }
@@ -524,6 +540,52 @@ bool ALDPlayerController::NextCombatRequest(ELDCombatEntry Entry, const FLDComba
     return true;
 }
 
+bool ALDPlayerController::IsVectorAimedEntry(ELDCombatEntry Entry)
+{
+    const bool bCurrentView=CombatView.Generation==OwnerState.Match && CombatView.Life==OwnerState.Life;
+    const FLDCombatEntryView* View=bCurrentView?LDPlayerOrdersDetail::FindEntry(CombatView,Entry):nullptr;
+    if (!View || View->DefinitionId.IsNone() || ELDDemoTargetMode(View->TargetMode)!=ELDDemoTargetMode::GroundPoint || !OverdriveTerms())
+    { return false; }
+    const FLDDemoContentDefinitions& Content=OverdriveContent->Get();
+    const FLDDemoAbilityDefinition* Ability=Content.Abilities.FindByPredicate([View](const FLDDemoAbilityDefinition& Row)
+        { return Row.Id==View->DefinitionId.ToString(); });
+    if (!Ability) { return false; }
+    const FLDActiveSlotView* Learned=OwnerState.Growth.Progression.Actives.FindByPredicate([View](const FLDActiveSlotView& Row)
+        { return Row.DefinitionId==View->DefinitionId; });
+    const FLDDemoAbilityBranch* Branch=Learned && Learned->Branch!=ELDSkillBranch::None
+        ? Ability->Branches.FindByPredicate([Learned](const FLDDemoAbilityBranch& Row) { return Row.Path==Learned->Branch; }) : nullptr;
+    return LDCombatSourceRules::VectorAimed(Branch?Branch->Values:Ability->Values);
+}
+
+bool ALDPlayerController::BeginVectorAim(ELDCombatEntry Entry, bool bMouse)
+{
+    VectorAimEntry=ELDCombatEntry::None;
+    bVectorAimMouse=false;
+    const auto* Body=Cast<ALDCharacter>(GetPawn());
+    FVector Start=FVector::ZeroVector;
+    if (!Body || !Navigation || !IsVectorAimedEntry(Entry)
+        || !Navigation->AimPointAtElevation(Body->GetActorLocation().Z-Body->GetCapsuleComponent()->GetScaledCapsuleHalfHeight(),Start))
+    { return false; }
+    VectorAimEntry=Entry;
+    VectorAimStartCm=Start;
+    bVectorAimMouse=bMouse;
+    return true;
+}
+
+void ALDPlayerController::TickVectorAimRelease()
+{
+    if (!bVectorAimMouse || VectorAimEntry==ELDCombatEntry::None) { return; }
+    if (VectorAimEntry!=ArmedEntry) { VectorAimEntry=ELDCombatEntry::None; bVectorAimMouse=false; return; }
+    if (!IsInputKeyDown(EKeys::LeftMouseButton)) { ConfirmArmedCombat(); }
+}
+
+bool ALDPlayerController::ReadVectorAim(ELDCombatEntry& OutEntry, FVector& OutStartCm) const
+{
+    OutEntry=VectorAimEntry;
+    OutStartCm=VectorAimStartCm;
+    return VectorAimEntry!=ELDCombatEntry::None && VectorAimEntry==ArmedEntry;
+}
+
 const FLDDemoOverdriveParameters* ALDPlayerController::OverdriveTerms()
 {
     if (!bOverdriveContentTried)
@@ -589,6 +651,7 @@ void ALDPlayerController::PressSkill(ELDCombatEntry Entry)
         ArmedEntry=Entry;
         QuickCastHolds[HoldSlot].bHolding=true;
         QuickCastHolds[HoldSlot].PressSec=NowSec;
+        BeginVectorAim(Entry,false);
         if (bOverdriveEligible)
         {
             if ((bOverdriveHolding || bOverdriveArmed) && OverdriveEntry!=Entry) { EndOverdriveHold(); }

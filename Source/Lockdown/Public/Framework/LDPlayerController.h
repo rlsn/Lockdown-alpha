@@ -199,6 +199,11 @@ public:
     // True when an armed entry or AttackMove should show its world aim preview and CastAim cursor: suppressed during a
     // < 0.18s keyboard QuickCast tap, and shown once held >= 0.18s (or whenever armed via non-QuickCast / HUD click).
     bool ShouldShowArmedPreview() const;
+    // Vector cast (LDCombatSourceRules::VectorAimed, LoL-style): the ground point pressed as the start of ArmedEntry's
+    // oriented shape; the pointer sets its facing until the release casts. False when no drag is being aimed.
+    bool ReadVectorAim(ELDCombatEntry& OutEntry, FVector& OutStartCm) const;
+    // Whether Entry's held skill (its learned branch) places a vector-aimed shape.
+    bool IsVectorAimedEntry(ELDCombatEntry Entry);
     // The armed skill last cancelled without a cast (a right click, S, Back, a menu, a new life) and how many were: the
     // HUD flashes that slot once per cancel.
     uint32 GetArmedCancelSerial() const { return ArmedCancelSerial; }
@@ -347,6 +352,12 @@ private:
         double PressSec=0.;
     };
     FQuickCastSlotHold QuickCastHolds[3];
+    // The vector aim's entry and start; bVectorAimMouse when a left press (QuickCast off) started it, so its release casts.
+    ELDCombatEntry VectorAimEntry=ELDCombatEntry::None;
+    FVector VectorAimStartCm=FVector::ZeroVector;
+    bool bVectorAimMouse=false;
+    bool BeginVectorAim(ELDCombatEntry Entry, bool bMouse);
+    void TickVectorAimRelease();
     static int32 QuickCastSlotIndex(ELDCombatEntry Entry);
     bool IsQuickCastHolding(ELDCombatEntry Entry, double* OutPressSec=nullptr) const;
     bool HasAnyQuickCastHold() const;

@@ -115,6 +115,11 @@ namespace LDCombatSourceRules
 
     // Whether a value set displaces its caster (a dash): such a release is a dash for the root matrix.
     LOCKDOWN_API bool DisplacesCaster(const FLDDemoAbilityValues& Values);
+    // Vector cast: a ground-point value set that places an oriented shape (the cordon line, the fan) may carry a planar
+    // facing with its point (press at the start, drag the facing, release). Without one it keeps its default facing.
+    LOCKDOWN_API bool VectorAimed(const FLDDemoAbilityValues& Values);
+    // A drag shorter than this on the ground is a tap (the default facing).
+    inline constexpr double VectorAimDeadzoneCm=40.;
     // #198 build safe window: whether a release of this value set is an offensive action that keeps its caster from
     // learning and allocating (damage, a control, a slow, a keyword stack or a delivery that carries them). A pure self
     // buff, shield, cleanse or plain dash is not.
