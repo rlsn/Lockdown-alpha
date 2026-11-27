@@ -75,7 +75,7 @@
         "REGEN.OutOfCombatDelaySec", "REGEN.OutOfCombatMaxHPRatioPerSec",
         "DORM.RadiusCm", "DORM.OutOfCombatDelaySec", "DORM.MaxHPRatioPerSec",
         "GROWTH.OpeningPoints", "GROWTH.PointsPerLevel", "GROWTH.MaxLevelPointsXP", "GROWTH.MaxLevelPoints",
-        "GROWTH.BuildSafeWindowSec", "GROWTH.KeystoneThresholdPoints", "GROWTH.ActiveSkipPoints",
+        "GROWTH.BuildSafeWindowSec", "GROWTH.KeystoneThresholdPoints", "GROWTH.ActiveSkipPoints", "GROWTH.BlueprintSellPoints",
         "CARDS.CapacityBase", "CARDS.LevelsPerSlot", "CARDS.OfferSize", "CARDS.FreeRerolls", "CARDS.RerollsPerRest",
         "CARDS.VocabWeight", "CARDS.SkipPoints", "CARDS.IdleCarrySec", "CARDS.OfferEveryLevels",
        
@@ -252,7 +252,7 @@
        
         "CHAIN.MaxDepth": {"$ref": "#/$defs/positive_count"}, "CHAIN.MaxEffectsPerStep": {"$ref": "#/$defs/positive_count"},
         "CHAIN.EndSec": {"$ref": "#/$defs/positive_sec"}, "CHAIN.MinKeySteps": {"$ref": "#/$defs/positive_count"},
-        "GROWTH.KeystoneThresholdPoints": {"$ref": "#/$defs/positive_count"}, "GROWTH.ActiveSkipPoints": {"$ref": "#/$defs/positive_count"},
+        "GROWTH.KeystoneThresholdPoints": {"$ref": "#/$defs/positive_count"}, "GROWTH.ActiveSkipPoints": {"$ref": "#/$defs/positive_count"}, "GROWTH.BlueprintSellPoints": {"$ref": "#/$defs/positive_count"},
         "CAMP.ResetArrivalRadiusCm": {"$ref": "#/$defs/cm"},
         "CAMP.ReturnDeadEndPlans": {"$ref": "#/$defs/positive_count"}, "CAMP.ReturnDeadEndSec": {"$ref": "#/$defs/positive_sec"},
         "CAMP.GrowthStagesPerSegment": {"$ref": "#/$defs/positive_count"}, "CAMP.GrowthMaxStage": {"$ref": "#/$defs/positive_count"},

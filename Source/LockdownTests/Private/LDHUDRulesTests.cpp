@@ -1534,7 +1534,7 @@ bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
         &&Gate.ChooseBlocked.IsEmpty()&&Gate.LearnBlocked.IsEmpty()&&Gate.AllocateBlocked.IsEmpty()&&Gate.ShopBlocked.IsEmpty());
     Gate=LDHUD::BuildGate(EStage::RestLocked,ELDLifePhase::Alive);
     TestTrue(TEXT("#222: the return step keeps the own build open and locks only the rest services"),Gate.bCanChoose&&Gate.bCanLearn&&Gate.bCanAllocate
-        &&Gate.bCanInstall&&!Gate.bCanShop&&!Gate.bCanRespec&&!Gate.bCanReplace&&!Gate.bCanForget&&Gate.bInRest);
+        &&Gate.bCanInstall&&!Gate.bCanShop&&!Gate.bCanRespec&&Gate.bCanReplace&&!Gate.bCanForget&&Gate.bInRest);
     TestEqualSensitive(TEXT("The locked reason names the lock"),Gate.ShopBlocked,LDHUD::GrowthReasonText(ELDGrowthReason::BuildLocked));
     Gate=LDHUD::BuildGate(EStage::Rest,ELDLifePhase::Dead);
     TestTrue(TEXT("#222: a dead contender in a rest chooses, learns, allocates and installs; the services wait for a living body"),
@@ -1542,8 +1542,8 @@ bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
     Gate=LDHUD::BuildGate(EStage::Live,ELDLifePhase::Alive);
     TestTrue(TEXT("#222: on the field every own build step is open, in combat too"),Gate.bCanChoose&&Gate.bCanLearn&&Gate.bCanAllocate&&Gate.bCanInstall
         &&Gate.LearnBlocked.IsEmpty()&&Gate.AllocateBlocked.IsEmpty());
-    TestTrue(TEXT("The field hides the rest services and names why they are refused"),!Gate.bInRest&&!Gate.bCanShop&&!Gate.bCanRespec&&!Gate.bCanReplace&&!Gate.bCanForget
-        &&Gate.ShopBlocked==LDHUD::GrowthReasonText(ELDGrowthReason::NotRestWindow)&&Gate.ReplaceBlocked==LDHUD::GrowthReasonText(ELDGrowthReason::ReplacementNotAllowed));
+    TestTrue(TEXT("The field hides the rest services and names why they are refused"),!Gate.bInRest&&!Gate.bCanShop&&!Gate.bCanRespec&&Gate.bCanReplace&&!Gate.bCanForget
+        &&Gate.ShopBlocked==LDHUD::GrowthReasonText(ELDGrowthReason::NotRestWindow)&&Gate.ReplaceBlocked.IsEmpty());
     Gate=LDHUD::BuildGate(EStage::Live,ELDLifePhase::Dead);
     TestTrue(TEXT("#222: a dead contender on the field builds as well"),Gate.bCanChoose&&Gate.bCanAllocate&&Gate.bCanLearn&&Gate.bCanInstall);
     Gate=LDHUD::BuildGate(EStage::Closed,ELDLifePhase::Alive);

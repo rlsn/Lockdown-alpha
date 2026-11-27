@@ -1561,6 +1561,21 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
                 return true;
             }
         }
+        // Every slot learned and nothing worth replacing: the blueprint is sold for its stat point.
+        else if (Self.Actives.Num() >= 3
+            && LDProgression::CommandGate(ELDBuildCommandKind::SellBlueprint, Context) == ELDGrowthReason::None)
+        {
+            FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::SellBlueprint);
+            Key.POI = FName(*Self.Blueprints[0]);
+            if (State.Failures.CanAttempt(Key, Print, Now))
+            {
+                Out = FLDOpponentBuildIntent();
+                Out.Kind = ELDOpponentBuildKind::SellBlueprint;
+                Out.Blueprint = Self.Blueprints[0];
+                Out.Key = Key;
+                return true;
+            }
+        }
     }
     // A stored card goes into a free slot as soon as it has a place (a skill learned for a skill card, a slot freed by a level).
     if (LDProgression::InstallGate(Context) == ELDGrowthReason::None)

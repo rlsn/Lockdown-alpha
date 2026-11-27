@@ -43,7 +43,9 @@ enum class ELDBuildCommandKind : uint8
     PickCard = 30, SkipCards = 31, RerollCards = 32, InstallCard = 34, UninstallCard = 35,
     // Spec §3.13 rest shop (paid in stat points): buy shelf slot Slot (or a skill point, Slot ShopSkillPointSlot), refresh the
     // shelf. 38 (the card sale) and 39 (the pick ticket) are retired.
-    ShopBuy = 36, ShopRefresh = 37
+    ShopBuy = 36, ShopRefresh = 37,
+    // Sell a pending blueprint (Blueprint) for GROWTH.BlueprintSellPoints unspent stat points.
+    SellBlueprint = 29
 };
 
 // What one rest shop slot holds (spec §3.13).

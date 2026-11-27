@@ -1014,6 +1014,7 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("GROWTH.OpeningPoints"), &P.OpeningPoints, 1}, {TEXT("GROWTH.PointsPerLevel"), &P.PointsPerLevel, 1},
         {TEXT("GROWTH.MaxLevelPointsXP"), &P.MaxLevelPointsXP, 1}, {TEXT("GROWTH.MaxLevelPoints"), &P.MaxLevelPoints, 1},
         {TEXT("GROWTH.KeystoneThresholdPoints"), &P.KeystoneThresholdPoints, 1}, {TEXT("GROWTH.ActiveSkipPoints"), &P.ActiveSkipPoints, 1},
+        {TEXT("GROWTH.BlueprintSellPoints"), &P.BlueprintSellPoints, 1},
         {TEXT("COMBAT.OverloadBreachStacks"), &P.OverloadBreachStacks, 1},
         {TEXT("AI.CardVocabScore"), &P.AI.CardVocabScore, 1}, {TEXT("AI.BreakoutCardScore"), &P.AI.BreakoutCardScore, 1},
         {TEXT("AI.LeaderHuntMaxLevelGap"), &P.AI.LeaderHuntMaxLevelGap, 0},

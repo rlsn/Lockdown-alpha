@@ -214,7 +214,7 @@ def content_fixture():
         "DAILY.Count": 3, "DAILY.RainPuddles": 4, "DAILY.RumorLeaders": 2,
         "AFFIX.FridgeCardOffer": 4, "AFFIX.BonusCardOffer": 4, "AFFIX.AuditSkillPointsMax": 2,
         "EXPLORE.LockerCount": 5, "EXPLORE.LockerCardOffer": 4, "EXPLORE.PeddlerCardOffer": 4,
-        "GROWTH.KeystoneThresholdPoints": 18, "GROWTH.ActiveSkipPoints": 2,
+        "GROWTH.KeystoneThresholdPoints": 18, "GROWTH.ActiveSkipPoints": 2, "GROWTH.BlueprintSellPoints": 2,
         "CARDS.CapacityBase": 5, "CARDS.LevelsPerSlot": 4, "CARDS.OfferSize": 3, "CARDS.FreeRerolls": 2,
         "CARDS.RerollsPerRest": 1, "CARDS.VocabWeight": q("ratio", 1.2), "CARDS.SkipPoints": 1, "CARDS.OfferEveryLevels": 1, "CARDS.IdleCarrySec": q("s", 4),
         "SHOP.CardSlots": 3, "SHOP.VocabCardSlots": 1, "SHOP.VocabWeight": q("ratio", 1.8), "SHOP.SkillSlots": 1, "SHOP.CardPrice": 3,

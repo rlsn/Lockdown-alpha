@@ -111,6 +111,7 @@ bool LDGrowthWire::IsKnownBuildKind(ELDBuildCommandKind Kind)
     case ELDBuildCommandKind::UninstallCard:
     case ELDBuildCommandKind::ShopBuy:
     case ELDBuildCommandKind::ShopRefresh:
+    case ELDBuildCommandKind::SellBlueprint:
         return true;
     case ELDBuildCommandKind::None:
         break;

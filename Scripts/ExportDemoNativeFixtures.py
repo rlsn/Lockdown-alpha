@@ -655,7 +655,7 @@ def parameter_projection(parameters):
         ("PK.ParticipationPoints", "PKParticipationPoints"), ("PK.WinnerPointsMax", "PKWinnerPointsMax"),
         ("PK.BettingPoolMaxPoints", "PKBettingPoolMaxPoints"),
         ("LIFE.SpawnChoiceCount", "SpawnChoiceCount"),
-        ("GROWTH.KeystoneThresholdPoints", "KeystoneThresholdPoints"), ("GROWTH.ActiveSkipPoints", "ActiveSkipPoints"),
+        ("GROWTH.KeystoneThresholdPoints", "KeystoneThresholdPoints"), ("GROWTH.ActiveSkipPoints", "ActiveSkipPoints"), ("GROWTH.BlueprintSellPoints", "BlueprintSellPoints"),
         ("CHAIN.MaxDepth", "ChainMaxDepth"), ("CHAIN.MaxEffectsPerStep", "ChainMaxEffectsPerStep"),
         ("CHAIN.MinKeySteps", "ChainMinKeySteps"),
     ):

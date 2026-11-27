@@ -674,6 +674,8 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 BuildSafeWindowMs = 0;
     // Stat points for skipping one active offer (GROWTH.ActiveSkipPoints).
     UPROPERTY() int64 ActiveSkipPoints = 0;
+    // Stat points for selling one pending blueprint (GROWTH.BlueprintSellPoints).
+    UPROPERTY() int64 BlueprintSellPoints = 0;
     UPROPERTY() FLDDemoAIParameters AI;
     UPROPERTY() FLDDemoCardParameters Cards;
     UPROPERTY() FLDDemoShopParameters Shop;
