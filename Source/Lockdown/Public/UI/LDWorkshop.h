@@ -205,6 +205,12 @@ private:
     FVector2D ActionsAt=FVector2D::ZeroVector;
     FVector2D SmoothedCentre=FVector2D::ZeroVector;
     bool bHasCentre=false;
+    // The ring fills the HUD and lies over the band, so it takes the pointer only where it has something to press (a part
+    // under the pointer, or a held card that a click on the world puts back); elsewhere a click reaches the HUD under it
+    // (the skill slots and their rank-up "+", the stat row, the corner buttons).
+    bool bWantShown=false;
+    bool bTakesPointer=false;
+    void ApplyVisibility();
     // What the ring model was last built from (LDBuildRing::FInputs by value, the library's unseen marks); Rebuild builds
     // again only when one of them differs. ModelSerial counts the builds.
     struct FModelKey

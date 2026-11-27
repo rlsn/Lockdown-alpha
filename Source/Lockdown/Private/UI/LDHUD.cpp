@@ -4164,6 +4164,17 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
     RefreshResultInspectedBuild(Result,PC.OwnerState.ContenderId);
     AnimateResult();
 }
+FVector2D ULDHUD::ProbeResultBoardSize() const
+{
+#if WITH_DEV_AUTOMATION_TESTS
+    // The board's content, then the two wrappers LDResultBuild::MakeReport puts around the body.
+    const UWidget* Body=ResultWinnerBuild?ResultWinnerBuild->GetContent():nullptr;
+    for(int32 Depth=0;Depth<2&&Body;++Depth){const UContentWidget* Wrap=Cast<UContentWidget>(Body);Body=Wrap?Wrap->GetContent():nullptr;}
+    return Body?FVector2D(Body->GetCachedGeometry().GetAbsoluteSize()):FVector2D::ZeroVector;
+#else
+    return FVector2D::ZeroVector;
+#endif
+}
 void ULDHUD::AnimateResult()
 {
     if(ResultShownAt<0.||!GetWorld()){return;}

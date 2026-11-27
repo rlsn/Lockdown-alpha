@@ -206,9 +206,14 @@ void ULDWorkshop::Present(const FInput& Input,const FGeometry*)
     else if(View0.bValid){View0=FLDProgressionView();}
     Rebuild();
     const bool bVisible=Input.bShown&&Ring.bValid;
-    const ESlateVisibility Wanted=bVisible?ESlateVisibility::Visible:ESlateVisibility::Collapsed;
-    if(GetVisibility()!=Wanted){SetVisibility(Wanted);}
+    bWantShown=bVisible;
+    ApplyVisibility();
     if(!bVisible&&Radar){Radar->Hide();}
+}
+void ULDWorkshop::ApplyVisibility()
+{
+    const ESlateVisibility Wanted=!bWantShown?ESlateVisibility::Collapsed:bTakesPointer?ESlateVisibility::Visible:ESlateVisibility::HitTestInvisible;
+    if(GetVisibility()!=Wanted){SetVisibility(Wanted);}
 }
 void ULDWorkshop::Rebuild()
 {
@@ -848,6 +853,8 @@ void ULDWorkshop::NativeTick(const FGeometry& Geometry,float DeltaSeconds)
         if(Pointer.X>=0.&&Pointer.Y>=0.&&Pointer.X<=Layout.Size.X&&Pointer.Y<=Layout.Size.Y){Next=HitAt(Pointer);}
     }
     if(!(Next==Hovered)){Hovered=Next;LayoutCard();}
+    bTakesPointer=!Next.IsNone()||!Selected.IsNone()||SelectedBlueprint!=INDEX_NONE;
+    ApplyVisibility();
     // A hand card looked at loses its 新 mark.
     const FHit Shown=Focus();
     if(Shown.Kind==EHit::Hand&&Ring.Hand.IsValidIndex(Shown.Index)&&Ring.Hand[Shown.Index].bFresh&&Storage.IsValid())
