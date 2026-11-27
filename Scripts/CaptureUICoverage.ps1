@@ -66,7 +66,13 @@ foreach($run in $runs){
             $clientArgs='-unattended -nop4 -nosound -windowed -multihome=127.0.0.1 '+$render+'-ForceRes -ResX=1920 -ResY=1080 -UserDir="{0}" -LDUICoverageProbe -LDUICoverageClient'+$(if($AllSizes -and -not $RecordGame){' -LDUICoverageAllSizes'}else{''})+' -LDUICoverageOutput="{1}" -abslog="{2}"' -f $clientUser,$launch.ProbeOutput,(Join-Path $output 'Client.log')
             $client=Start-Process -FilePath $launch.Binary -ArgumentList (Format-LDGameArguments -Launch $launch -Url $guestUrl -Arguments $clientArgs) -WindowStyle Hidden -PassThru
         }
-        if(-not $process.WaitForExit($TimeoutSeconds*1000)){throw "UI coverage capture ($($run.Name)) timed out: $output"}
+        # A host that was refused its map or hit a fault never reaches a page: stop on the log line instead of waiting.
+        $deadline=[DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+        while(-not $process.WaitForExit(2000)){
+            if([DateTime]::UtcNow -gt $deadline){throw "UI coverage capture ($($run.Name)) timed out: $output"}
+            $fatal=if(Test-Path -LiteralPath $log){Select-String -LiteralPath $log -Pattern 'LD_DEMO_BROWSE_REJECTED|Fatal error|Assertion failed|LD_DEMO_AUTHORITY_FAULT' | Select-Object -First 1}
+            if($fatal){throw "UI coverage capture ($($run.Name)) stopped on: $($fatal.Line.Trim()) Evidence: $output"}
+        }
         if($client -and -not $client.HasExited){Stop-Process -Id $client.Id}
     } finally {
         if($process -and -not $process.HasExited){Stop-Process -Id $process.Id}

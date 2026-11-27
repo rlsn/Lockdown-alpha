@@ -158,6 +158,12 @@ public:
         if(Now-PageAt<At||Fired.Contains(Id)){return false;}
         Fired.Add(Id);return true;
     }
+    // A page that waits with the stage clock running is waiting for the match's own schedule (a locker, the arena, the
+    // dealer): the clock runs ten times faster meanwhile, which spends the same stage time the wait would have.
+    void Hurry(ALDPlayerController& PC,double Now)
+    {
+        if(Once(Now,1000+int32((Now-PageAt)/.5),1.)){Dev(PC,ELDDevTestOp::AdvanceCountdown,5);}
+    }
     // Waits Seconds after the page's first Enter call (a settle time for transitions and fades).
     bool Settled(double Now,double Seconds) const {return Now-PageAt>=Seconds;}
 
@@ -405,7 +411,8 @@ public:
                 const FLDPublicMatchView* View=Match(PC);
                 if(Once(Now,0)){Dev(PC,ELDDevTestOp::SetCountdownPaused,0);HeldAt=-1.;}
                 FVector Site=FVector::ZeroVector;
-                if(!View||(View->Phase!=ELDMatchPhase::Development&&View->Phase!=ELDMatchPhase::CaptureOpen)||!Find(*View,Site)){return false;}
+                if(!View||(View->Phase!=ELDMatchPhase::Development&&View->Phase!=ELDMatchPhase::CaptureOpen)){return false;}
+                if(!Find(*View,Site)){if(HeldAt<0.){Hurry(PC,Now);}return false;}
                 // Inside: the host stands in the site itself with the stage clock running, so the site's own progress (a
                 // flag's spray, a locker's opening) is on screen; the shot is then one size, taken while it runs.
                 if(HeldAt<0.){HeldAt=Now;if(bInside){Resize(PC,1920,1080);}else{Dev(PC,ELDDevTestOp::SetCountdownPaused,1);}}
@@ -918,7 +925,9 @@ public:
                 if(bDealerInserted){return true;}
                 if(Once(Now,0)){Dev(PC,ELDDevTestOp::SetCountdownPaused,0);}
                 const auto* Mode=PC.GetWorld()->GetAuthGameMode<ALDGameMode>();
-                return Mode&&(Mode->GetPeddler().bGone||DealerOut(PC));
+                const bool bThere=Mode&&(Mode->GetPeddler().bGone||DealerOut(PC));
+                if(!bThere){Hurry(PC,Now);}
+                return bThere;
             },240.,false});
         // Back in the field the stage clock is held again, so the next rest does not arrive under the pages below.
         Pages.Add({TEXT("Match_Scoreboard"),[this](ALDPlayerController& PC,double Now)
