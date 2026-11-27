@@ -23525,7 +23525,7 @@
       "unit": "ratio"
     },
     "REST.BettingSec": {
-      "ms": 6000,
+      "ms": 10000,
       "unit": "ms"
     },
     "REST.BuildSec": {
