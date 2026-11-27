@@ -1990,20 +1990,44 @@ EPKFight PKFightBody(FContext& C, const FLDPKParameters& Params, FLDOpponentBody
         Out = WalkToCentre();
         return EPKFight::Ring;
     }
+    // An enemy seen only through a teammate or an exposure cannot be attacked yet: an attack on it would be refused as
+    // unavailable and, while it stays in view, never be tried again. Walk at it instead until the own sight takes it.
     const FLDOpponentUnit* Target = nullptr;
+    const FLDOpponentUnit* Seen = nullptr;
+    // In the arena an enemy stays in view, so its handle never renews: a handle suppressed after one unavailable answer
+    // (sight lost between the decision and the order) would stay out of the fight for good. The authority resolving it for
+    // an attack in this very frame outweighs that memory.
     for (const auto* Unit : C.Enemies)
     {
-        if (Unit->bProtected || HandleSuppressed(C, *Unit)) { continue; }
+        if (Unit->bProtected) { continue; }
         const double Distance = C.Distance(Unit->FootCm);
-        if (!Target || Distance < C.Distance(Target->FootCm)
-            || (Distance == C.Distance(Target->FootCm) && Unit->Handle < Target->Handle)) { Target = Unit; }
+        const FLDOpponentUnit*& Best = Unit->bTargetable ? Target : Seen;
+        if (!Best || Distance < C.Distance(Best->FootCm)
+            || (Distance == C.Distance(Best->FootCm) && Unit->Handle < Best->Handle)) { Best = Unit; }
     }
     if (Target)
     {
+        if (HandleSuppressed(C, *Target)) { C.State.Failures.RecordSuccess(FContext::EngagementKey(NAME_None, Target->Handle)); }
         Out = EngageBody(C, *Target);
         return EPKFight::Fight;
     }
     ForgetTarget(C.State);
+    if (Seen && Centre)
+    {
+        const auto& Order = C.Frame.Order;
+        const FLDOpponentRetryKey Key = FContext::PathKey(TEXT("pk_approach"));
+        if (Order.IsLive() && Order.Kind == ELDOpponentOrderKind::MoveGround && Order.POI.IsNone()) { Out = Hold(C); }
+        else if (!C.CanWalk() || !C.CanAttempt(Key)) { Out = Hold(C); }
+        else
+        {
+            Out = FLDOpponentBodyIntent();
+            Out.Kind = EBody::MoveGround;
+            Out.Point = Seen->FootCm;
+            Out.Surface = Centre->SurfaceId;
+            Out.Key = Key;
+        }
+        return EPKFight::Fight;
+    }
     Out = C.Distance(PK.ArenaCentreCm) > Params.FinalRadiusCm ? WalkToCentre() : Hold(C);
     return EPKFight::Fight;
 }

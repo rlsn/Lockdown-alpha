@@ -12,6 +12,7 @@
 #include "Framework/LDDemoEntry.h"
 #include "Region/LDMapRegistry.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
+#include "Character/LDCameraSettings.h"
 
 namespace LDCharacterMovementDetail
 {
@@ -281,8 +282,14 @@ float ULDCharacterMovementComponent::GetMaxSpeed() const
     {
         const auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
         float Speed=0;
+        float Scale=1.f;
+#if !UE_BUILD_SHIPPING
+        // DEV play-test pace (ld.Dev.FeelPreset): the Listen Host's bodies only; a remote client predicting its own
+        // body at the shipped pace is corrected by the host.
+        Scale=LDCamera::DevFeelPreset().MoveSpeedScale;
+#endif
         return Mode && Mode->Combat && !Mode->Combat->IsMoveBlocked(*Body) && Mode->Combat->ReadMoveSpeed(*Body,Speed)
-            && FMath::IsFinite(Speed) && Speed>0 ? Speed : 0;
+            && FMath::IsFinite(Speed) && Speed>0 ? Speed*Scale : 0;
     }
     const auto* PC=Cast<ALDPlayerController>(Body->GetController());
     if (!PC || !PC->OwnerState.BodyRef.IsValid() || !PC->OwnerState.bActive) { return 0; }
