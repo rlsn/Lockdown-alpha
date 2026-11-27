@@ -48,6 +48,9 @@ public:
     // the panel) withdraws. Each refuses locally with the reason it toasts.
     bool Respec();
     bool AskReplace(int32 Index,uint8 Key);
+    // The blueprint at Index replaces the skill in the occupied slot Key at once (the build ring's drag), with the same
+    // checks as AskReplace and its confirmation.
+    bool ReplaceBlueprint(int32 Index,uint8 Key);
     bool AskForget(uint8 Key);
     // The trainer's right click on the skill host in Column (LDHUD::SlotColumn): asks to forget that slot's active. False (the
     // click is not taken) outside the rest services or on the body and dash columns.

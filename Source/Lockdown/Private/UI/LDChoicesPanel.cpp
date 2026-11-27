@@ -274,6 +274,10 @@ bool ULDChoicesPanel::AskReplace(int32 Index,uint8 Key)
     Refresh();
     return true;
 }
+bool ULDChoicesPanel::ReplaceBlueprint(int32 Index,uint8 Key)
+{
+    return AskReplace(Index,Key)&&ConfirmRestAction();
+}
 bool ULDChoicesPanel::AskForget(uint8 Key)
 {
     if(!Usable()||Key>2){return false;}

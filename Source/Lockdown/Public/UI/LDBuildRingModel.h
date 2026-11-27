@@ -28,6 +28,9 @@ namespace LDBuildRing
     LOCKDOWN_API FString ArtPackage(const FString& Id);
     // Radii and sizes at the 1080p reference (design px).
     inline constexpr float RadarRadius=84.f;
+    // The radar's first axis turns this far clockwise from the screen's up, so its top edge is flat and no corner (and no
+    // stat chip) sits under the own character.
+    inline constexpr float RadarTurn=36.f;
     inline constexpr float ChipRadius=112.f;
     inline constexpr float GemRadius=168.f;
     inline constexpr float GemSize=64.f;
@@ -94,6 +97,9 @@ namespace LDBuildRing
         FString IconId;
         // The key the player presses (the body has none).
         FString Key;
+        // A skill host's action-bar position (0..2): its sector sits where that key's sector is, so a slot swap on the
+        // action bar swaps the sectors too (INDEX_NONE: the body and the dash keep their own place).
+        int32 Visual=INDEX_NONE;
         bool bEmpty=false;
         // The element socket (a learned skill's or the body's) and the medal in it.
         bool bSocket=false;

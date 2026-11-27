@@ -10,6 +10,7 @@
 #include "Development/LDDemoContentDefinitions.h"
 #include "Engine/Texture2D.h"
 #include "Engine/World.h"
+#include "Combat/LDCombatTypes.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/LDPlayerController.h"
 #include "UI/LDBroadcastStyle.h"
@@ -137,12 +138,20 @@ FString StatLine(TConstArrayView<FDerived> Derived,int32 Stat)
 }
 // A stat chip's size at the radar's corner: its name, its points and (with points to spend) the orange plus, then the line of
 // the attributes it raises.
+// The attribute line wrapped to at most two lines of ChipLineWidth.
+constexpr float ChipLineWidth=170.f;
+TArray<FString> ChipLines(const FString& Line,float F)
+{
+    if(Line.IsEmpty()){return TArray<FString>();}
+    return LDRingPaint::Wrap(Line.Replace(TEXT(" · "),TEXT("  ")),Face(EFace::Regular,14.f,F),ChipLineWidth*F,2);
+}
 FVector2D ChipSize(const FStat& Stat,const FString& Line,bool bPlus,float F)
 {
     const float Head=10.f*F+WidthOf(Stat.Name,Face(EFace::Bold,18.f,F))+6.f*F+FMath::Max(16.f*F,WidthOf(FString::FromInt(Stat.Points),Face(EFace::Figure,26.f,F)))
         +(bPlus?6.f*F+22.f*F:0.f);
-    const float Sub=Line.IsEmpty()?0.f:10.f*F+WidthOf(Line,Face(EFace::Regular,14.f,F));
-    return FVector2D(FMath::Max(Head,Sub)+8.f*F,Line.IsEmpty()?32.f*F:52.f*F);
+    const TArray<FString> Lines=ChipLines(Line,F);
+    float Sub=0.f;for(const FString& Each:Lines){Sub=FMath::Max(Sub,10.f*F+WidthOf(Each,Face(EFace::Regular,14.f,F)));}
+    return FVector2D(FMath::Max(Head,Sub)+8.f*F,32.f*F+Lines.Num()*17.f*F+(Lines.IsEmpty()?0.f:4.f*F));
 }
 // The short form name an offer row shows after the card type.
 FString FormShort(ELDCardForm Form)
@@ -297,7 +306,7 @@ bool ULDWorkshop::OnBand(FVector2D Point,float Margin) const
     const float Slack=FMath::RadiansToDegrees(Margin/Radius);
     for(int32 Host=0;Host<HostCount;++Host)
     {
-        if(FMath::Abs(Degrees-HostAngle[Host])<=SectorHalf+Slack&&Radius>=SectorInner*L.R-Margin&&Radius<=L.Outer[Host]+TickLength*L.R+Margin){return true;}
+        if(FMath::Abs(Degrees-AngleOf(Host))<=SectorHalf+Slack&&Radius>=SectorInner*L.R-Margin&&Radius<=L.Outer[Host]+TickLength*L.R+Margin){return true;}
     }
     return false;
 }
@@ -352,7 +361,7 @@ void ULDWorkshop::ComputeLayout(const FGeometry& Geometry)
     for(int32 HostIndex=0;HostIndex<Ring.Hosts.Num()&&HostIndex<HostCount;++HostIndex)
     {
         const FHost& Host=Ring.Hosts[HostIndex];
-        const float A=HostAngle[HostIndex];
+        const float A=AngleOf(HostIndex);
         const int32 Slots=Host.Cards.Num()+(bFull?0:1);
         L.Outer[HostIndex]=OuterFor(Slots)*R;
         {
@@ -375,23 +384,67 @@ void ULDWorkshop::ComputeLayout(const FGeometry& Geometry)
         L.Anchors.Add(AnchorKey(EHit::Host,HostIndex,INDEX_NONE),HostAt);
         if(Host.bSocket){Add(EHit::Gem,HostIndex,INDEX_NONE,Diamond(LDRingPaint::Polar(C,GemRadius*R,A),GemSize*.5f*R));}
     }
-    // The stat chips at the radar's corners (the only place to add a point): on the ground decal when it is laid, else
-    // around the centre.
-    for(int32 Index=0;Index<Ring.Stats.Num();++Index)
+    // The stat chips at the radar's corners (the only place to add a point): each grows outward from its corner (on the
+    // ground decal when it is laid, else around the centre): the side ones beside it, the bottom one under it. A chip that
+    // would cover the own character, a sector part or another chip steps outward (an upper one also downward) until clear.
     {
-        const float Degrees=Index*360.f/FMath::Max(1,Ring.Stats.Num());
-        const float Radius=Index==0?ChipRadius-2.f:ChipRadius+6.f;
-        FVector2D At=LDRingPaint::Polar(C,Radius*R,Degrees);
-        if(Radar&&Radar->IsShown())
+        const auto Project=[&](float Radius,float Degrees)
         {
+            FVector2D At=LDRingPaint::Polar(C,Radius*R,Degrees);
             FVector2D Screen;
-            if(UWidgetLayoutLibrary::ProjectWorldLocationToWidgetPosition(GetOwningPlayer(),Radar->WorldAt(Radius,Degrees),Screen,false)){At=Screen;}
+            if(Radar&&Radar->IsShown()&&UWidgetLayoutLibrary::ProjectWorldLocationToWidgetPosition(GetOwningPlayer(),Radar->WorldAt(Radius,Degrees),Screen,false)){At=Screen;}
+            return At;
+        };
+        const FVector2D Feet=Project(0.f,0.f);
+        TArray<FBox2D> Taken;
+        // The own character standing on the radar's centre.
+        Taken.Add(FBox2D(Feet+FVector2D(-46.f,-150.f)*R,Feet+FVector2D(46.f,14.f)*R));
+        // Every part laid out so far; a host with the key tab under it.
+        for(const FShape& Box:L.Boxes)
+        {
+            if(Box.bWedge){continue;}
+            FBox2D Part=BoundsOf(Box.Shape);
+            if(Box.Hit.Kind==EHit::Host){Part.Max.Y+=30.f*R;}
+            Taken.Add(Part);
         }
-        // The upper side chips lean towards the centre, clear of the sockets.
-        At.X+=(Index==1?-10.f:Index==Ring.Stats.Num()-1?10.f:0.f)*R;
-        const FVector2D Size=ChipSize(Ring.Stats[Index],StatLine(Ring.Derived,Index),Ring.Unspent>0,F);
-        L.Anchors.Add(AnchorKey(EHit::Stat,INDEX_NONE,Index),At);
-        Add(EHit::Stat,INDEX_NONE,Index,Lean(FBox2D(At-Size*.5,At+Size*.5),0.f,0.f));
+        const float Gap=8.f*F,Step=4.f*U;
+        for(int32 Index=0;Index<Ring.Stats.Num();++Index)
+        {
+            const float Degrees=RadarTurn+Index*360.f/FMath::Max(1,Ring.Stats.Num());
+            const FVector2D Corner=Project(RadarRadius+4.f,Degrees);
+            const FVector2D Dir=(Corner-Feet).GetSafeNormal();
+            const FVector2D Size=ChipSize(Ring.Stats[Index],StatLine(Ring.Derived,Index),Ring.Unspent>0,F);
+            const bool bUnder=FMath::Abs(Dir.X)<.35&&Dir.Y>0.;
+            const FVector2D Out=bUnder?FVector2D(0.,1.):FVector2D(Dir.X>=0.?1.:-1.,0.);
+            FVector2D At=bUnder?Corner+FVector2D(0.,Gap+Size.Y*.5):Corner+FVector2D(Out.X*(Gap+Size.X*.5),0.);
+            const auto Clear=[&](const FVector2D& Centre)
+            {
+                const FBox2D Box(Centre-Size*.5,Centre+Size*.5);
+                for(const FBox2D& Other:Taken){if(Touches(Box,Other)){return false;}}
+                return true;
+            };
+            // The nearest clear place around the preferred one, rings of Step outward; each ring tries down first, then
+            // outward from the radar, then the rest, so a chip that must move goes where the ring has no parts.
+            if(!Clear(At))
+            {
+                const FVector2D Start=At;bool bFound=false;
+                for(int32 Ring0=1;Ring0<=80&&!bFound;++Ring0)
+                {
+                    for(const float Turn:{0.f,(Out.X>=0.?-45.f:45.f),(Out.X>=0.?-90.f:90.f),(Out.X>=0.?45.f:-45.f),(Out.X>=0.?-135.f:135.f),(Out.X>=0.?90.f:-90.f),180.f,(Out.X>=0.?135.f:-135.f)})
+                    {
+                        // 0 degrees is straight down the screen.
+                        const float T=FMath::DegreesToRadians(Turn);
+                        const FVector2D Try=Start+FVector2D(-FMath::Sin(T),FMath::Cos(T))*(Ring0*Step);
+                        // On screen, and no higher than the character's head: the sectors above are full of parts.
+                        if(Try.X-Size.X*.5<4.f*U||Try.X+Size.X*.5>L.Size.X-4.f*U||Try.Y-Size.Y*.5<4.f*U||Try.Y<Feet.Y-110.f*R){continue;}
+                        if(Clear(Try)){At=Try;bFound=true;break;}
+                    }
+                }
+            }
+            Taken.Add(FBox2D(At-Size*.5,At+Size*.5));
+            L.Anchors.Add(AnchorKey(EHit::Stat,INDEX_NONE,Index),At);
+            Add(EHit::Stat,INDEX_NONE,Index,Lean(FBox2D(At-Size*.5,At+Size*.5),0.f,0.f));
+        }
     }
     // The build bar docks on the HUD band: points, capacity, library, then the commands.
     {
@@ -444,9 +497,117 @@ void ULDWorkshop::ComputeLayout(const FGeometry& Geometry)
         Add(EHit::ConfirmYes,INDEX_NONE,INDEX_NONE,RectOf(FBox2D(At-FVector2D(96.f*F,0.f),At+FVector2D(-5.f*F,32.f*F))));
         Add(EHit::ConfirmNo,INDEX_NONE,INDEX_NONE,RectOf(FBox2D(At+FVector2D(5.f*F,0.f),At+FVector2D(96.f*F,32.f*F))));
     }
+    // The reactions: the chips on the element track and, while the table is up, its cells (hover: what it does).
+    {
+        const FSlateFontInfo Font=Face(EFace::Bold,18.f,F);
+        for(int32 Index=0;Index<Ring.Reactions.Num();++Index)
+        {
+            const FReaction& Reaction=Ring.Reactions[Index];
+            if(Reaction.A>=HostCount||Reaction.B>=HostCount){continue;}
+            float Radius=0.f,Low=0.f,High=0.f;ReactionPlace(Index,Radius,Low,High);
+            const FVector2D At=LDRingPaint::Polar(C,Radius,(Low+High)*.5f);
+            const float W=WidthOf(Reaction.Name,Font)+14.f*F;
+            Add(EHit::Reaction,Index,INDEX_NONE,Lean(FBox2D(At-FVector2D(W*.5f,12.f*F),At+FVector2D(W*.5f,12.f*F)),5.f*F,5.f*F));
+        }
+        if(bMatrix)
+        {
+            for(int32 Row=1;Row<6;++Row)
+            {
+                for(int32 Column=1;Column<6;++Column){if(Row!=Column){Add(EHit::ReactionCell,Row-1,Column-1,RectOf(MatrixCell(Row,Column)));}}
+            }
+        }
+    }
     LayoutCard();
 }
 
+void ULDWorkshop::ReactionPlace(int32 Index,float& Radius,float& Low,float& High) const
+{
+    // Neighbouring sockets share the track; a reaction across a socket takes the next lane inward.
+    int32 Lane=0;
+    for(int32 Other=0;Other<=Index&&Other<Ring.Reactions.Num();++Other)
+    {
+        const float A0=AngleOf(Ring.Reactions[Other].A),A1=AngleOf(Ring.Reactions[Other].B);
+        Low=FMath::Min(A0,A1);High=FMath::Max(A0,A1);
+        const bool bNext=High-Low<HostAngle[2]-HostAngle[1]+1.f;
+        Radius=(bNext?GemRadius:GemRadius-14.f*float(1+Lane))*Layout.R;
+        if(!bNext){++Lane;}
+    }
+}
+FBox2D ULDWorkshop::MatrixSheet() const
+{
+    const FLayout& L=Layout;
+    const float F=L.F,U=L.U;
+    const FShape* Button=L.Boxes.FindByPredicate([](const FShape& Box){return Box.Hit.Kind==EHit::Matrix;});
+    if(!Button){return FBox2D(ForceInit);}
+    const float CellW=52.f*F,CellH=30.f*F,Gap=3.f*U;
+    const FVector2D SheetSize(6*CellW+5*Gap+20.f*U,6*CellH+5*Gap+24.f*U);
+    const FVector2D Origin(FMath::Min(float(BoundsOf(Button->Shape).Min.X),float(L.Size.X)-16.f*U-float(SheetSize.X)),float(L.Bar.Min.Y)-8.f*U-float(SheetSize.Y));
+    return BoxAt(Origin,SheetSize);
+}
+FBox2D ULDWorkshop::MatrixCell(int32 Row,int32 Column) const
+{
+    const FBox2D Sheet=MatrixSheet();
+    if(!Sheet.bIsValid){return Sheet;}
+    const float F=Layout.F,U=Layout.U;
+    const float CellW=52.f*F,CellH=30.f*F,Gap=3.f*U;
+    return BoxAt(Sheet.Min+FVector2D(12.f*U,12.f*U)+FVector2D(Column*(CellW+Gap),Row*(CellH+Gap)),FVector2D(CellW,CellH));
+}
+bool ULDWorkshop::LiveOf(FName Definition,int32& Badge,FString& Line) const
+{
+    Badge=INDEX_NONE;Line.Reset();
+    const FLDCombatOwnerView* Own=Latest.Combat;
+    if(!Own){return false;}
+    // The grow cards' match growth, summed by stat (Y19 max HP, Y20 AD/AP, Y21 armor/MR, A13 attack speed, D09 move speed).
+    const auto Grown=[Own](ELDDemoBonusStat Stat){int64 Sum=0;for(const FLDDemoStatBonus& Row:Own->CardGrowth){if(Row.Stat==Stat){Sum+=Row.Amount;}}return Sum;};
+    const FString Id=Definition.ToString();
+    if(Id==TEXT("card_heated_up"))
+    {
+        Badge=Own->PreviewFocusHits;
+        Line=FString::Printf(TEXT("现在 %d 层 · 攻速 +%d%%"),Own->PreviewFocusHits,Own->PreviewFocusHits*4);
+    }
+    else if(Id==TEXT("card_grow_fat"))
+    {
+        const int64 HP=Grown(ELDDemoBonusStat::MaxHPFlat)/100;
+        Badge=int32(HP/18);Line=FString::Printf(TEXT("本局已 +%lld 生命上限"),HP);
+    }
+    else if(Id==TEXT("card_kill_streak"))
+    {
+        const int64 AP=Grown(ELDDemoBonusStat::APFlat)/100;
+        Badge=int32(AP/6);Line=FString::Printf(TEXT("本局已 +%lld 攻击力、+%lld 法强"),AP*4/6,AP);
+    }
+    else if(Id==TEXT("card_tough_skin"))
+    {
+        const int64 Armor=Grown(ELDDemoBonusStat::ArmorFlat)/100,Resist=Grown(ELDDemoBonusStat::MagicResistFlat)/100;
+        Badge=int32(Armor/3);Line=FString::Printf(TEXT("本局已 +%lld 护甲、+%lld 魔抗"),Armor,Resist);
+    }
+    else if(Id==TEXT("card_muscle_memory"))
+    {
+        const int64 Bp=Grown(ELDDemoBonusStat::AttackSpeedBonusRatio);
+        Badge=int32(Bp/100);Line=FString::Printf(TEXT("本局已 +%d 攻击力、攻速 +%d%%"),int32(Bp/100)*2,int32(Bp/100));
+    }
+    else if(Id==TEXT("card_slippery"))
+    {
+        const int64 Bp=Grown(ELDDemoBonusStat::MoveSpeedBonusRatio);
+        Badge=int32(Bp/150);Line=FString::Printf(TEXT("本局移速已 +%.1f%%"),double(Bp)/100.);
+    }
+    else if(Id==TEXT("card_thick_hide"))
+    {
+        const int64 Armor=Latest.Stats.ArmorP2/100;
+        Line=FString::Printf(TEXT("现在 %lld 护甲 → 生命上限 +%lld"),Armor,Armor*6);
+    }
+    else if(Id==TEXT("card_berserk"))
+    {
+        const int32 Missing=Own->MaxHPP2>0?int32(FMath::Clamp(100-Own->HPP2*100/Own->MaxHPP2,int64(0),int64(100))):0;
+        Line=FString::Printf(TEXT("现在少 %d%% 生命 → 攻速 +%d%%"),Missing,Missing);
+    }
+    else{return false;}
+    return true;
+}
+float ULDWorkshop::AngleOf(int32 Host) const
+{
+    const int32 Visual=Ring.Hosts.IsValidIndex(Host)?Ring.Hosts[Host].Visual:INDEX_NONE;
+    return HostAngle[Visual>=0&&Visual<3&&Host>=1&&Host<=3?1+Visual:FMath::Clamp(Host,0,HostCount-1)];
+}
 float ULDWorkshop::Refit(FFitMemo& Memo,TConstArrayView<float> From,TFunctionRef<float()> Fit)
 {
     if(Memo.From.Num()==From.Num()&&FMemory::Memcmp(Memo.From.GetData(),From.GetData(),From.Num()*sizeof(float))==0){return Memo.Scale;}
@@ -609,11 +770,14 @@ void ULDWorkshop::LayoutCard()
     const FHit Shown=Focus();
     const FGeometry& G=GetCachedGeometry();
     const FBox2D Toast=Latest.Toast.Right>Latest.Toast.Left?FBox2D(G.AbsoluteToLocal(FVector2D(Latest.Toast.Left,Latest.Toast.Top)),G.AbsoluteToLocal(FVector2D(Latest.Toast.Right,Latest.Toast.Bottom))):FBox2D(ForceInit);
+    const FBox2D Banner=Latest.Banner.Right>Latest.Banner.Left?FBox2D(G.AbsoluteToLocal(FVector2D(Latest.Banner.Left,Latest.Banner.Top)),G.AbsoluteToLocal(FVector2D(Latest.Banner.Right,Latest.Banner.Bottom))):FBox2D(ForceInit);
     const FShape* Hovered0=L.Boxes.FindByPredicate([&Shown](const FShape& Box){return Box.Hit==Shown&&!Box.bWedge;});
     if((Hovered0&&Touches(Card,BoundsOf(Hovered0->Shape)))||(Toast.bIsValid&&Touches(Card,Toast)))
     {
         Card=BoxAt(FVector2D(float(L.Size.X)-40.f*U-W,8.f*U),FVector2D(W,H));
     }
+    // Under a banner on the top edge (the opening's day plates) rather than over it.
+    if(Banner.bIsValid&&Touches(Card,Banner)){Card=BoxAt(FVector2D(Card.Min.X,float(Banner.Max.Y)+8.f*U),FVector2D(W,H));}
     L.Card=Card;
 }
 
@@ -692,6 +856,17 @@ TArray<FString> ULDWorkshop::LayoutProblems() const
         for(const FBox2D& Segment:L.Segments){if(Touches(Actions,Segment)){Out.Add(TEXT("rest actions on the build bar"));}}
         for(const FShape& Box:L.Boxes){if(!Box.bWedge&&Touches(Actions,BoundsOf(Box.Shape))){Out.Add(FString::Printf(TEXT("rest actions on part %d/%d/%d"),int32(Box.Hit.Kind),Box.Hit.Host,Box.Hit.Index));}}
     }
+    // The stat chips clear of each other and of the sectors' parts.
+    for(const FShape& Chip:L.Boxes)
+    {
+        if(Chip.Hit.Kind!=EHit::Stat){continue;}
+        const FBox2D Bounds=BoundsOf(Chip.Shape);
+        for(const FShape& Other:L.Boxes)
+        {
+            if(Other.bWedge||&Other==&Chip||!(Other.Hit.Kind==EHit::Stat||Other.Hit.Kind==EHit::Host||Other.Hit.Kind==EHit::Gem||Other.Hit.Kind==EHit::Installed)){continue;}
+            if(Touches(Bounds,BoundsOf(Other.Shape))){Out.Add(FString::Printf(TEXT("stat chip %d covers part %d/%d/%d"),Chip.Hit.Index,int32(Other.Hit.Kind),Other.Hit.Host,Other.Hit.Index));}
+        }
+    }
     if(L.F*L.K*14.f<11.9f){Out.Add(FString::Printf(TEXT("stat chip text %.1f px"),L.F*L.K*14.f));}
     if(L.ShopWidth>0.f&&L.ShopScale*L.K*18.f<11.9f){Out.Add(FString::Printf(TEXT("shop text %.1f px"),L.ShopScale*L.K*18.f));}
     if(L.Card.bIsValid)
@@ -742,7 +917,7 @@ void ULDWorkshop::UpdateRadar()
     State.Installed=Ring.Installed;State.Capacity=Ring.Capacity;State.MaxCapacity=Ring.MaxCapacity;
     for(int32 Index=0;Index<Ring.Hosts.Num()&&Index<HostCount;++Index)
     {
-        if(Ring.Hosts[Index].bHasMedal){State.Medals.Add(TPair<float,FLinearColor>(HostAngle[Index],ElementInk(Ring.Hosts[Index].Medal.Element)));}
+        if(Ring.Hosts[Index].bHasMedal){State.Medals.Add(TPair<float,FLinearColor>(AngleOf(Index),ElementInk(Ring.Hosts[Index].Medal.Element)));}
     }
     State.Opacity=IsOpen()?FMath::Max(.35f,OpenAmount()):.62f;
     Radar->Show(State,Feet,Yaw,RadiusCm);
@@ -800,7 +975,14 @@ bool ULDWorkshop::SelectHand(int32 Index)
 }
 const FCard* ULDWorkshop::SelectedCard() const
 {
-    return Selected.IsNone()?nullptr:Ring.Hand.FindByPredicate([this](const FCard& Card){return Card.Key==Selected;});
+    if(Selected.IsNone()){return nullptr;}
+    if(const FCard* Held=Ring.Hand.FindByPredicate([this](const FCard& Card){return Card.Key==Selected;})){return Held;}
+    for(const FHost& Host:Ring.Hosts)
+    {
+        if(Host.bHasMedal&&Host.Medal.Keys.Contains(Selected)){return &Host.Medal;}
+        if(const FCard* Held=Host.Cards.FindByPredicate([this](const FCard& Card){return Card.Keys.Contains(Selected);})){return Held;}
+    }
+    return nullptr;
 }
 bool ULDWorkshop::HandleKey(const FKey& Key)
 {
@@ -821,8 +1003,63 @@ FReply ULDWorkshop::NativeOnMouseButtonDown(const FGeometry& Geometry,const FPoi
         return FReply::Unhandled();
     }
     if(Event.GetEffectingButton()!=EKeys::LeftMouseButton&&!bRight){return FReply::Unhandled();}
+    // A card, a medal or a blueprint offer may be dragged: the press waits for a move or a release.
+    const bool bDraggable=!bRight&&(Hit.Kind==EHit::Hand||Hit.Kind==EHit::Installed
+        ||(Hit.Kind==EHit::Gem&&Ring.Hosts.IsValidIndex(Hit.Host)&&Ring.Hosts[Hit.Host].bHasMedal)
+        ||(Hit.Kind==EHit::Offer&&Ring.Batch.Kind==EBatch::Blueprint));
+    if(bDraggable&&GetCachedWidget().IsValid())
+    {
+        bPressing=true;bDragging=false;PressHit=Hit;PressAt=Event.GetScreenSpacePosition();
+        return FReply::Handled().CaptureMouse(GetCachedWidget().ToSharedRef());
+    }
     Click(Hit,bRight);
     return FReply::Handled();
+}
+FReply ULDWorkshop::NativeOnMouseMove(const FGeometry& Geometry,const FPointerEvent& Event)
+{
+    if(bPressing&&!bDragging&&FVector2D::Distance(Event.GetScreenSpacePosition(),PressAt)>=8.f){BeginDrag();}
+    return bPressing?FReply::Handled():Super::NativeOnMouseMove(Geometry,Event);
+}
+FReply ULDWorkshop::NativeOnMouseButtonUp(const FGeometry& Geometry,const FPointerEvent& Event)
+{
+    if(!bPressing||Event.GetEffectingButton()!=EKeys::LeftMouseButton){return Super::NativeOnMouseButtonUp(Geometry,Event);}
+    bPressing=false;
+    if(bDragging){DropAt(HitAt(Geometry.AbsoluteToLocal(Event.GetScreenSpacePosition())));}
+    else{Click(PressHit,false);}
+    bDragging=false;
+    return FReply::Handled().ReleaseMouseCapture();
+}
+void ULDWorkshop::BeginDrag()
+{
+    bDragging=true;bDragFromRing=false;
+    Selected=NAME_None;SelectedBlueprint=INDEX_NONE;
+    switch(PressHit.Kind)
+    {
+    case EHit::Hand: if(Ring.Hand.IsValidIndex(PressHit.Index)){Selected=Ring.Hand[PressHit.Index].Key;}break;
+    case EHit::Installed:
+        if(Ring.Hosts.IsValidIndex(PressHit.Host)&&Ring.Hosts[PressHit.Host].Cards.IsValidIndex(PressHit.Index))
+        {Selected=Ring.Hosts[PressHit.Host].Cards[PressHit.Index].Keys.Last();bDragFromRing=true;}
+        break;
+    case EHit::Gem:
+        if(Ring.Hosts.IsValidIndex(PressHit.Host)&&Ring.Hosts[PressHit.Host].bHasMedal){Selected=Ring.Hosts[PressHit.Host].Medal.Keys.Last();bDragFromRing=true;}
+        break;
+    case EHit::Offer: SelectedBlueprint=PressHit.Index;break;
+    default: break;
+    }
+    if(Selected.IsNone()&&SelectedBlueprint==INDEX_NONE){bDragging=false;bPressing=false;return;}
+    LDWidgets::PlayCue(this,ELDAudioCue::UIChoose);
+}
+void ULDWorkshop::DropAt(const FHit& Target)
+{
+    const bool bOnRing=Target.Kind==EHit::Host||Target.Kind==EHit::Drop||Target.Kind==EHit::Installed||Target.Kind==EHit::Gem;
+    if(bOnRing&&!(Target.Kind==EHit::Installed&&Selected!=NAME_None&&Ring.Hosts.IsValidIndex(Target.Host)
+        &&Ring.Hosts[Target.Host].Cards.IsValidIndex(Target.Index)&&Ring.Hosts[Target.Host].Cards[Target.Index].Keys.Contains(Selected)))
+    {
+        // On a skill's place a blueprint learns or replaces at once; a card or medal goes through the ring's own click path.
+        Click(Target.Kind==EHit::Drop||Target.Kind==EHit::Installed?FHit{Target.Kind,Target.Host,Target.Index}:Target,false);
+    }
+    else if(!bOnRing&&bDragFromRing&&Storage.IsValid()){Storage->DropInStorage(Selected);}
+    Selected=NAME_None;SelectedBlueprint=INDEX_NONE;bDragFromRing=false;
 }
 FReply ULDWorkshop::NativeOnMouseWheel(const FGeometry& Geometry,const FPointerEvent& Event)
 {
@@ -855,7 +1092,7 @@ void ULDWorkshop::Click(const FHit& Hit,bool bRight)
             Tell(Host.bEmpty&&Held->Form==ELDCardForm::Skill?FString(TEXT("这个技能槽还没有技能")):FString::Printf(TEXT("这张牌只能%s"),*FormPlace(Held->Form)));
             return;
         }
-        Cards->DropOn(Held->Key,Host.Column,OnKey);
+        Cards->DropOn(Selected,Host.Column,OnKey);
     };
     switch(Hit.Kind)
     {
@@ -872,19 +1109,22 @@ void ULDWorkshop::Click(const FHit& Hit,bool bRight)
         if(SelectedBlueprint!=INDEX_NONE&&Tray&&Hit.Host>=1&&Hit.Host<=3)
         {
             const uint8 Key=uint8(Hit.Host-1);
-            if(Ring.Hosts[Hit.Host].bEmpty){Tray->LearnBlueprint(SelectedBlueprint,Key);}else{Tray->AskReplace(SelectedBlueprint,Key);}
+            // Dropping a blueprint on a learned skill replaces it at once; the drag itself is the decision.
+            if(Ring.Hosts[Hit.Host].bEmpty){Tray->LearnBlueprint(SelectedBlueprint,Key);}else{Tray->ReplaceBlueprint(SelectedBlueprint,Key);}
             SelectedBlueprint=INDEX_NONE;
             return;
         }
         Install(Hit.Host,NAME_None);
         return;
     case EHit::Drop:
+        if(SelectedBlueprint!=INDEX_NONE){Click(FHit{EHit::Host,Hit.Host,INDEX_NONE},false);return;}
         if(Held){Install(Hit.Host,NAME_None);}
         return;
     case EHit::Installed:
     {
         if(!Ring.Hosts.IsValidIndex(Hit.Host)||!Ring.Hosts[Hit.Host].Cards.IsValidIndex(Hit.Index)||!Cards){return;}
         const FCard& Card=Ring.Hosts[Hit.Host].Cards[Hit.Index];
+        if(SelectedBlueprint!=INDEX_NONE){Click(FHit{EHit::Host,Hit.Host,INDEX_NONE},false);return;}
         if(Held&&!bRight){Install(Hit.Host,Card.Key);return;}
         // Without a card in hand a click takes one copy back to the library.
         Cards->DropInStorage(Card.Keys.Last());
@@ -894,7 +1134,7 @@ void ULDWorkshop::Click(const FHit& Hit,bool bRight)
     {
         if(!Ring.Hosts.IsValidIndex(Hit.Host)||!Cards){return;}
         const FHost& Host=Ring.Hosts[Hit.Host];
-        if(Held&&Held->Form==ELDCardForm::Medal){Cards->DropOn(Held->Key,Host.Column,Host.bHasMedal?Host.Medal.Key:NAME_None);return;}
+        if(Held&&Held->Form==ELDCardForm::Medal){Cards->DropOn(Selected,Host.Column,Host.bHasMedal?Host.Medal.Key:NAME_None);return;}
         if(Held){Tell(TEXT("这里只能镶元素勋章"));return;}
         if(Host.bHasMedal){Cards->DropInStorage(Host.Medal.Key);}
         return;
@@ -918,9 +1158,7 @@ void ULDWorkshop::Click(const FHit& Hit,bool bRight)
             bool bEmpty=false;
             for(int32 Host=1;Host<=3;++Host){bEmpty|=Ring.Hosts.IsValidIndex(Host)&&Ring.Hosts[Host].bEmpty;}
             if(bEmpty){Tray->LearnBlueprintCard(Hit.Index);return;}
-            // Every slot holds a skill: pick the blueprint, then the skill it replaces (a rest or a dorm swap).
-            SelectedBlueprint=SelectedBlueprint==Hit.Index?INDEX_NONE:Hit.Index;Selected=NAME_None;
-            if(SelectedBlueprint!=INDEX_NONE){Tell(TEXT("点一个技能替换它"));}
+            // Every slot holds a skill: a blueprint replaces one only by being dragged onto it.
             return;
         }
         default: return;
@@ -1028,7 +1266,13 @@ ULDWorkshop::FInfo ULDWorkshop::InfoOf(const FHit& Hit) const
     switch(Hit.Kind)
     {
     case EHit::Installed:
-        if(Ring.Hosts.IsValidIndex(Hit.Host)&&Ring.Hosts[Hit.Host].Cards.IsValidIndex(Hit.Index)){CardInfo(Ring.Hosts[Hit.Host].Cards[Hit.Index].Definition);}
+        if(Ring.Hosts.IsValidIndex(Hit.Host)&&Ring.Hosts[Hit.Host].Cards.IsValidIndex(Hit.Index))
+        {
+            const FName Definition=Ring.Hosts[Hit.Host].Cards[Hit.Index].Definition;
+            CardInfo(Definition);
+            int32 Badge=INDEX_NONE;FString Line;
+            if(LiveOf(Definition,Badge,Line)){Out.Gain=Line;}
+        }
         break;
     case EHit::Hand:
         if(Ring.Hand.IsValidIndex(Hit.Index)){CardInfo(Ring.Hand[Hit.Index].Definition);}
@@ -1054,6 +1298,23 @@ ULDWorkshop::FInfo ULDWorkshop::InfoOf(const FHit& Hit) const
         else{Out.Name=TEXT("元素槽 · 空");Out.Meta=Ring.Hosts[Hit.Host].Name;Out.Body=TEXT("镶一枚勋章，让这个位置的命中带上元素。不占构筑容量。");}
         break;
     case EHit::Stat: StatInfo(Hit.Index);break;
+    case EHit::Reaction: case EHit::ReactionCell:
+    {
+        static const ELDDemoElement Elements[5]={ELDDemoElement::Fire,ELDDemoElement::Water,ELDDemoElement::Electric,ELDDemoElement::Chill,ELDDemoElement::Rot};
+        if(Hit.Kind==EHit::Reaction&&Ring.Reactions.IsValidIndex(Hit.Host)){Out.Name=Ring.Reactions[Hit.Host].Name;}
+        else if(Hit.Kind==EHit::ReactionCell&&Hit.Host>=0&&Hit.Host<5&&Hit.Index>=0&&Hit.Index<5){Out.Name=LDWorkshop::ReactionName(Elements[Hit.Host],Elements[Hit.Index]);}
+        if(Out.Name.IsEmpty()){break;}
+        Out.Body=LDTerms::ReactionExplanation(Out.Name);
+        // The reaction damage R now: base + per level x (level - 1) + the AP ratio of the own AP (CONTENT_AND_BALANCE §4.4).
+        if(Content)
+        {
+            const FLDDemoContentParameters& Rules=Content->Parameters;
+            const int64 RP2=Rules.ReactionBaseP2+Rules.ReactionPerLevelP2*FMath::Max(0,int32(Ring.Level)-1)+Rules.ReactionAPRatioBp*Latest.Stats.APP2/10000;
+            Out.Meta=FString::Printf(TEXT("元素反应 · 现在一次约 %lld 伤害"),RP2/100);
+        }
+        else{Out.Meta=TEXT("元素反应");}
+        break;
+    }
     case EHit::Offer:
         if(!Ring.Batch.Options.IsValidIndex(Hit.Index)){break;}
         {
@@ -1116,7 +1377,7 @@ void ULDWorkshop::PaintBand(FPainter& P) const
     for(int32 HostIndex=0;HostIndex<Ring.Hosts.Num()&&HostIndex<HostCount;++HostIndex)
     {
         const FHost& Host=Ring.Hosts[HostIndex];
-        const float A=HostAngle[HostIndex];
+        const float A=AngleOf(HostIndex);
         // The clockwise wipe of the opening, sector after sector.
         const float Sweep=FMath::Clamp(float((Age-HostIndex*RingWipeStagger)/RingWipeTime),0.f,1.f);
         if(Sweep<=0.f){continue;}
@@ -1173,14 +1434,15 @@ void ULDWorkshop::PaintBand(FPainter& P) const
     P.Segments(Ticks,2.f*R,[&](int32 Index){return LDBroadcast::White.CopyWithNewOpacity(TickInk.IsValidIndex(Index)?TickInk[Index]:.35f);});
     // The element track through the sockets; a reaction colours the stretch between its two sockets.
     P.Stroke(LDRingPaint::Arc(C,GemRadius*R,HostAngle[0],HostAngle[3]),2.f*R,LDBroadcast::White.CopyWithNewOpacity(.22f));
-    int32 Lane=0;
-    for(const FReaction& Reaction:Ring.Reactions)
+    const FHit Shown=Focus();
+    for(int32 Index=0;Index<Ring.Reactions.Num();++Index)
     {
+        const FReaction& Reaction=Ring.Reactions[Index];
         if(Reaction.A>=HostCount||Reaction.B>=HostCount){continue;}
-        const float A0=HostAngle[Reaction.A],A1=HostAngle[Reaction.B];
-        const float Radius=(Reaction.B-Reaction.A==1?GemRadius:GemRadius-14.f*(1+Lane++))*R;
+        float Radius=0.f,A0=0.f,A1=0.f;ReactionPlace(Index,Radius,A0,A1);
+        const bool bNext=FMath::IsNearlyEqual(Radius,GemRadius*R);
         const float Inset=FMath::RadiansToDegrees(GemSize*.5f*R/Radius);
-        const TArray<FVector2D> Arc=LDRingPaint::Arc(C,Radius,A0+(Reaction.B-Reaction.A==1?Inset:0.f),A1-(Reaction.B-Reaction.A==1?Inset:0.f),24);
+        const TArray<FVector2D> Arc=LDRingPaint::Arc(C,Radius,A0+(bNext?Inset:0.f),A1-(bNext?Inset:0.f),24);
         P.Stroke(Arc,7.f*R,LDBroadcast::Ink.CopyWithNewOpacity(.8f));
         P.Stroke(Arc,4.f*R,ElementInk(Reaction.First),false,ElementInk(Reaction.Second));
         const FVector2D At=LDRingPaint::Polar(C,Radius,(A0+A1)*.5f);
@@ -1188,6 +1450,7 @@ void ULDWorkshop::PaintBand(FPainter& P) const
         const float W=WidthOf(Reaction.Name,Font)+14.f*L.F;
         const FBox2D Chip(At-FVector2D(W*.5f,12.f*L.F),At+FVector2D(W*.5f,12.f*L.F));
         P.Fill(Lean(Chip,5.f*L.F,5.f*L.F),LDBroadcast::Ink.CopyWithNewOpacity(.9f));
+        if(Shown.Kind==EHit::Reaction&&Shown.Host==Index){Frame(P,Chip,2.f*L.F,LDBroadcast::White);}
         P.Text(Reaction.Name,Chip.GetCenter(),Font,LDBroadcast::White,FVector2D(.5,.5));
     }
 }
@@ -1243,7 +1506,7 @@ void ULDWorkshop::PaintSockets(FPainter& P) const
     {
         const FHost& Host=Ring.Hosts[HostIndex];
         if(!Host.bSocket){continue;}
-        const FVector2D At=LDRingPaint::Polar(L.Centre,GemRadius*R,HostAngle[HostIndex]);
+        const FVector2D At=LDRingPaint::Polar(L.Centre,GemRadius*R,AngleOf(HostIndex));
         const bool bHot=Shown.Kind==EHit::Gem&&Shown.Host==HostIndex;
         const float Half=GemSize*.5f*R*(bHot?1.08f:1.f);
         if(bHot||bMedalHeld){P.Fill(Diamond(At,Half+(bHot?5.f:4.f)*R),LDBroadcast::White);}
@@ -1283,7 +1546,7 @@ void ULDWorkshop::PaintHosts(FPainter& P,const TArray<uint64>& Lit,bool bDim) co
     for(int32 HostIndex=0;HostIndex<Ring.Hosts.Num()&&HostIndex<HostCount;++HostIndex)
     {
         const FHost& Host=Ring.Hosts[HostIndex];
-        const float A=HostAngle[HostIndex];
+        const float A=AngleOf(HostIndex);
         const bool bTarget=Held&&Held->Form==Host.Form&&!(Host.Form==ELDCardForm::Skill&&Host.bEmpty);
         // The installed cards in their fixed places, then the open place.
         const int32 Slots=Host.Cards.Num()+(bFull?0:1);
@@ -1307,6 +1570,17 @@ void ULDWorkshop::PaintHosts(FPainter& P,const TArray<uint64>& Lit,bool bDim) co
             float Flash=0.f;
             for(const FName& Each:Card.Keys){if(const double* At0=Landed.Find(Each)){Flash=FMath::Max(Flash,1.f-float((Now-*At0)/RingLandTime));}}
             if(Flash>0.f){P.Fill(RectOf(Box),LDBroadcast::White.CopyWithNewOpacity(.6f*Flash));}
+            // A growth card's live count on an ink tab at the bottom-right corner.
+            if(int32 Badge=INDEX_NONE;State!=ETile::Dim&&LiveOf(Card.Definition,Badge,LiveScratch)&&Badge>=0)
+            {
+                const FSlateFontInfo Font=Face(EFace::Figure,18.f,F);
+                const FString Text=FString::FromInt(Badge);
+                const float W=FMath::Max(20.f*F,WidthOf(Text,Font)+10.f*F),H=20.f*F;
+                const FBox2D Tab(FVector2D(Box.Max.X+6.f*R-W,Box.Max.Y-H+6.f*R),FVector2D(Box.Max.X+6.f*R,Box.Max.Y+6.f*R));
+                P.Fill(Lean(Tab,4.f*F,4.f*F),LDBroadcast::Ink);
+                Frame(P,Tab,1.f*F,LDBroadcast::White);
+                P.Text(Text,Tab.GetCenter(),Font,LDBroadcast::White,FVector2D(.5,.5));
+            }
             if(Card.Copies>1&&State!=ETile::Dim)
             {
                 // ×N on a white tab at the top-right corner.
@@ -1359,7 +1633,9 @@ void ULDWorkshop::PaintRadarChips(FPainter& P) const
         P.Fill(RectOf(Chip),Stat.bKeystone?LDBroadcast::Gold:LDBroadcast::Ink.CopyWithNewOpacity(.86f));
         if(bHot){Frame(P,Grow(Chip,2.f*F),2.f*F,LDBroadcast::White);}
         float X=float(Chip.Min.X)+10.f*F;const float Y=Line.IsEmpty()?float(Chip.GetCenter().Y):float(Chip.Min.Y)+17.f*F;
-        if(!Line.IsEmpty()){P.Text(Line,FVector2D(Chip.Min.X+10.f*F,Chip.Min.Y+39.f*F),Face(EFace::Regular,14.f,F),Stat.bKeystone?LDBroadcast::Ink:LDBroadcast::Grey,FVector2D(0.,.5));}
+        const TArray<FString> Lines=ChipLines(Line,F);
+        for(int32 Row=0;Row<Lines.Num();++Row)
+        {P.Text(Lines[Row],FVector2D(Chip.Min.X+10.f*F,Chip.Min.Y+(39.f+Row*17.f)*F),Face(EFace::Regular,14.f,F),Stat.bKeystone?LDBroadcast::Ink:LDBroadcast::Grey,FVector2D(0.,.5));}
         X+=WidthOf(Stat.Name,Face(EFace::Bold,18.f,F));
         P.Text(Stat.Name,FVector2D(Chip.Min.X+10.f*F,Y),Face(EFace::Bold,18.f,F),Stat.bKeystone?LDBroadcast::Ink:LDBroadcast::Grey,FVector2D(0.,.5));
         X+=6.f*F;
@@ -1619,24 +1895,20 @@ void ULDWorkshop::PaintMatrix(FPainter& P) const
     if(!bMatrix){return;}
     const FLayout& L=Layout;
     const float F=L.F,U=L.U;
-    const FShape* Button=L.Boxes.FindByPredicate([](const FShape& Box){return Box.Hit.Kind==EHit::Matrix;});
-    if(!Button){return;}
+    const FBox2D Sheet=MatrixSheet();
+    if(!Sheet.bIsValid){return;}
     const ELDDemoElement Elements[5]={ELDDemoElement::Fire,ELDDemoElement::Water,ELDDemoElement::Electric,ELDDemoElement::Chill,ELDDemoElement::Rot};
     TSet<FString> Mine;for(const FReaction& Reaction:Ring.Reactions){Mine.Add(Reaction.Name);}
-    const float CellW=52.f*F,CellH=30.f*F,Gap=3.f*U;
-    const FVector2D SheetSize(6*CellW+5*Gap+20.f*U,6*CellH+5*Gap+24.f*U);
-    const FVector2D Origin(FMath::Min(float(BoundsOf(Button->Shape).Min.X),float(L.Size.X)-16.f*U-float(SheetSize.X)),float(L.Bar.Min.Y)-8.f*U-float(SheetSize.Y));
-    const FBox2D Sheet=BoxAt(Origin,SheetSize);
+    const FHit Shown=Focus();
     P.Fill(RectOf(Sheet),LDBroadcast::Ink.CopyWithNewOpacity(.96f));
     P.Fill(RectOf(FBox2D(Sheet.Min,FVector2D(Sheet.Min.X+3.f*U,Sheet.Max.Y))),LDBroadcast::White);
     const FSlateFontInfo Font=Face(EFace::Bold,18.f,F);
-    const FVector2D First=Origin+FVector2D(12.f*U,12.f*U);
     for(int32 Row=0;Row<6;++Row)
     {
         for(int32 Column=0;Column<6;++Column)
         {
             if(Row==0&&Column==0){continue;}
-            const FBox2D Cell=BoxAt(First+FVector2D(Column*(CellW+Gap),Row*(CellH+Gap)),FVector2D(CellW,CellH));
+            const FBox2D Cell=MatrixCell(Row,Column);
             if(Row==0||Column==0)
             {
                 const ELDDemoElement E=Elements[(Row==0?Column:Row)-1];
@@ -1648,7 +1920,7 @@ void ULDWorkshop::PaintMatrix(FPainter& P) const
             if(Row==Column){P.Text(TEXT("—"),Cell.GetCenter(),Font,LDBroadcast::Mute,FVector2D(.5,.5));continue;}
             const FString Name=LDWorkshop::ReactionName(Elements[Row-1],Elements[Column-1]);
             const bool bOwn=Mine.Contains(Name);
-            if(bOwn){Frame(P,Cell,2.f*U,LDBroadcast::White);}
+            if(bOwn||(Shown.Kind==EHit::ReactionCell&&Shown.Host==Row-1&&Shown.Index==Column-1)){Frame(P,Cell,2.f*U,LDBroadcast::White);}
             P.Text(Name,Cell.GetCenter(),Font,bOwn?LDBroadcast::White:LDBroadcast::Grey,FVector2D(.5,.5));
         }
     }
@@ -1854,6 +2126,18 @@ int32 ULDWorkshop::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,
         PaintBar(P);
         PaintMatrix(P);
         PaintSkillRules(P,Lit);
+        // The dragged card, medal or blueprint under the pointer.
+        if(bDragging&&FSlateApplication::IsInitialized())
+        {
+            const FCard* Held=SelectedCard();
+            const FOption* Plan=Ring.Batch.Options.IsValidIndex(SelectedBlueprint)?&Ring.Batch.Options[SelectedBlueprint]:nullptr;
+            if(Held||Plan)
+            {
+                const float Z=NodeSize*Layout.R;
+                const FVector2D At=GetCachedGeometry().AbsoluteToLocal(FSlateApplication::Get().GetCursorPos());
+                PaintTile(P,BoxAt(At-FVector2D(Z*.5f,Z*.5f),FVector2D(Z,Z)),Held?Held->IconId:Plan->IconId,Held?Held->Name:Plan->Name,ETile::Hot);
+            }
+        }
         // The element chooser and the rest confirm line, over the ring's top.
         const float F=Layout.F;
         if(Storage.IsValid()&&Storage->IsChoosing())

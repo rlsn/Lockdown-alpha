@@ -33,7 +33,7 @@ int32 ULDBuildRadarWidget::NativePaint(const FPaintArgs& Args,const FGeometry& G
     const FVector2D Size=Geometry.GetLocalSize();
     const float K=float(Size.X)/Canvas*PerDesign;
     const FVector2D C=Size*.5;
-    const auto At=[&](float Design,int32 Axis){return LDRingPaint::Polar(C,Design*K,Axis*360.f/Count);};
+    const auto At=[&](float Design,int32 Axis){return LDRingPaint::Polar(C,Design*K,LDBuildRing::RadarTurn+Axis*360.f/Count);};
     const auto Ring=[&](TFunctionRef<float(int32)> Radius){TArray<FVector2D> Out;for(int32 Axis=0;Axis<Count;++Axis){Out.Add(At(Radius(Axis),Axis));}return Out;};
     const float Rim=AxisRadius(1000,State.Keystone);
     const float Dim=State.bClosed?.55f:1.f;
@@ -101,7 +101,8 @@ void ALDBuildRadarDecal::Show(const FLDBuildRadarState& State,const FVector& InF
     if(!Plane){return;}
     if(ULDBuildRadarWidget* Widget=Cast<ULDBuildRadarWidget>(Plane->GetUserWidgetObject()))
     {
-        if(!bShown||!(Widget->State==State)){Widget->State=State;Plane->RequestRenderUpdate();}
+        // The plane draws its widget only when asked (manual redraw): a new state, or the first show after a hide.
+        if(!bShown||!(Widget->State==State)){Widget->State=State;Plane->RequestRedraw();}
     }
     Feet=InFeet;Yaw=CameraYaw;RadiusCm=FMath::Max(5.f,InRadiusCm);
     // Widget px -> cm: the radar's 200 px reach RadiusCm.

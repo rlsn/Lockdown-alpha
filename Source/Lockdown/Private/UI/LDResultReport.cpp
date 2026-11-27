@@ -6,6 +6,7 @@
 #include "Engine/Texture2D.h"
 #include "Framework/LDMatchTimeline.h"
 #include "UI/LDBroadcastPaint.h"
+#include "UI/LDBuildRingPaint.h"
 #include "UI/LDBroadcastStyle.h"
 #include "UI/LDUIBackgrounds.h"
 #include "UI/LDUIIcons.h"
@@ -61,7 +62,14 @@ void ULDResultReport::Present(const FLDResultView& Result,const FGuid& SelfId,co
     const TArray<const FLDDemoStatDefinition*> Stats=Content?Content->StatsInDesignOrder():TArray<const FLDDemoStatDefinition*>();
     for(const FLDDemoStatDefinition* Stat:Stats){StatNames.Add(LDHUD::ContentName(Content,Stat->Id));}
     Keystone=Content&&Content->Parameters.KeystoneThresholdPoints>0?int32(Content->Parameters.KeystoneThresholdPoints):18;
-    const auto Icon=[this,Content](FName Id){const FString IconId=Id.IsNone()?FString():LDHUD::ContentIconId(Content,Id.ToString());Brush(IconId,FString());return IconId;};
+    Catalog=Content;
+    const auto Icon=[this,Content](FName Id,EItem Kind,ELDSkillBranch Branch,uint8 Level)
+    {
+        FItem Item;Item.Id=Id;Item.Kind=Id.IsNone()?EItem::None:Kind;Item.Branch=Branch;Item.Level=FMath::Max<uint8>(1,Level);
+        Item.IconId=Id.IsNone()?FString():LDHUD::ContentIconId(Content,Id.ToString());
+        Brush(Item.IconId,FString());
+        return Item;
+    };
     // Rows follow the locked start roster: a row's index is its seat.
     for(int32 Index=0;Index<Result.Rows.Num();++Index)
     {
@@ -75,7 +83,7 @@ void ULDResultReport::Present(const FLDResultView& Result,const FGuid& SelfId,co
         Seat.Damage=double(Row.Combat.PhysicalToPlayersP2+Row.Combat.MagicalToPlayersP2+Row.Combat.ReactionToPlayersP2)/100.;
         Seat.Taken=double(Row.Combat.DamageTakenP2)/100.;
         Seat.bBuild=Row.Build.bAvailable;
-        for(const FLDResultBuildActive& Active:Row.Build.Actives){if(Active.Slot<3){Seat.HostActive[Active.Slot]=Icon(Active.DefinitionId);}}
+        for(const FLDResultBuildActive& Active:Row.Build.Actives){if(Active.Slot<3){Seat.HostActive[Active.Slot]=Icon(Active.DefinitionId,EItem::Active,Active.Branch,Row.FinalLevel);}}
         for(const FLDResultBuildCard& Card:Row.Build.Cards)
         {
             int32 Host=4;
@@ -85,9 +93,9 @@ void ULDResultReport::Present(const FLDResultView& Result,const FGuid& SelfId,co
                 const FLDResultBuildActive* On=Row.Build.Actives.FindByPredicate([&Card](const FLDResultBuildActive& A){return A.DefinitionId==Card.TargetId;});
                 Host=On&&On->Slot<3?On->Slot:4;
             }
-            Seat.HostCards[Host].Add(Icon(Card.DefinitionId));
+            Seat.HostCards[Host].Add(Icon(Card.DefinitionId,EItem::Card,ELDSkillBranch::None,Row.FinalLevel));
         }
-        if(!Row.Build.FinalMod.IsNone()){Seat.FinalIcon=Icon(Row.Build.FinalMod);Seat.FinalName=LDHUD::ContentName(Content,Row.Build.FinalMod.ToString());}
+        if(!Row.Build.FinalMod.IsNone()){Seat.Final=Icon(Row.Build.FinalMod,EItem::FinalMod,ELDSkillBranch::None,Row.FinalLevel);Seat.FinalName=LDHUD::ContentName(Content,Row.Build.FinalMod.ToString());}
         Seat.Points=Row.Build.StatPoints;
         if(Seat.bWinner){WinnerSeat=Index;}
         if(Seat.bSelf)
@@ -99,9 +107,9 @@ void ULDResultReport::Present(const FLDResultView& Result,const FGuid& SelfId,co
                 FPhase& Phase=Phases.AddDefaulted_GetRef();
                 // Opening and R1–R3 include the following field; the last entry is the final field.
                 Phase.Label=Beat==0?FString(TEXT("开局")):Beat>FLDTimelineParameters::TimedSegments?FString(TEXT("终局")):FString::Printf(TEXT("R%d"),Beat);
-                for(const FLDResultBuildActive& Skill:Growth.Skills){Phase.Icons.Add(Icon(Skill.DefinitionId));}
-                for(FName Card:Growth.AcquiredCards){Phase.Icons.Add(Icon(Card));}
-                if(!Growth.FinalMod.IsNone()){Phase.Icons.Add(Icon(Growth.FinalMod));}
+                for(const FLDResultBuildActive& Skill:Growth.Skills){Phase.Icons.Add(Icon(Skill.DefinitionId,EItem::Active,Skill.Branch,Row.FinalLevel));}
+                for(FName Card:Growth.AcquiredCards){Phase.Icons.Add(Icon(Card,EItem::Card,ELDSkillBranch::None,Row.FinalLevel));}
+                if(!Growth.FinalMod.IsNone()){Phase.Icons.Add(Icon(Growth.FinalMod,EItem::FinalMod,ELDSkillBranch::None,Row.FinalLevel));}
             }
         }
         Brush(FString::Printf(TEXT("seat_%d"),Index),LDUIBackgrounds::SeatAsset(Index));
@@ -149,6 +157,18 @@ FReply ULDResultReport::NativeOnMouseButtonDown(const FGeometry& Geometry,const 
     return Super::NativeOnMouseButtonDown(Geometry,Event);
 }
 
+FReply ULDResultReport::NativeOnMouseMove(const FGeometry& Geometry,const FPointerEvent& Event)
+{
+    const FVector2D At=(Geometry.AbsoluteToLocal(Event.GetScreenSpacePosition())-Origin)/FMath::Max(Scale,.01f);
+    if(!At.Equals(Pointer,.5)){Pointer=At;Invalidate(EInvalidateWidgetReason::Paint);}
+    return Super::NativeOnMouseMove(Geometry,Event);
+}
+void ULDResultReport::NativeOnMouseLeave(const FPointerEvent& Event)
+{
+    Pointer=FVector2D(-1.,-1.);Invalidate(EInvalidateWidgetReason::Paint);
+    Super::NativeOnMouseLeave(Event);
+}
+
 int32 ULDResultReport::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,const FSlateRect& Culling,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle& Style,bool bEnabled) const
 {
     Layer=Super::NativePaint(Args,Geometry,Culling,Elements,Layer,Style,bEnabled);
@@ -173,12 +193,16 @@ int32 ULDResultReport::NativePaint(const FPaintArgs& Args,const FGeometry& Geome
         FSlateDrawElement::MakeBox(P.Elements,L,P.Geometry.ToPaintGeometry(FVector2f(Where.GetSize()),FSlateLayoutTransform(FVector2f(Where.Min))),Found->Get(),
             ESlateDrawEffect::None,FLinearColor::White.CopyWithNewOpacity(P.Opacity*Opacity));
     };
-    const auto Tile=[&](int32 L,const FString& IconId,float X,float Y,float Side)
+    ItemRects.Reset();
+    const auto Tile=[&](int32 L,const FItem& Item,float X,float Y,float Side)
     {
         const FBox2D Where=Box(X,Y,X+Side,Y+Side);
+        const FBox2D Design(FVector2D(X,Y),FVector2D(X+Side,Y+Side));
+        const bool bHot=Design.IsInside(Pointer);
         LDBroadcastPaint::Block(P,L,Where,LDBroadcast::Panel);
-        Picture(L+1,IconId,Where);
-        LDBroadcastPaint::Frame(P,L+2,Where,LDBroadcast::White.CopyWithNewOpacity(.28f),2.f*S);
+        Picture(L+1,Item.IconId,Where);
+        LDBroadcastPaint::Frame(P,L+2,Where,bHot?LDBroadcast::White:LDBroadcast::White.CopyWithNewOpacity(.28f),(bHot?3.f:2.f)*S);
+        if(Item.Kind!=EItem::None){ItemRects.Add(TPair<FBox2D,FItem>(Design,Item));}
     };
     const auto Plate=[&](int32 L,float X,float Y,float H,int32 Seat){LDBroadcastPaint::SeatPlate(P,L,Box(X,Y,X+H*1.15f,Y+H),Seat,S,H*.9f);};
     const FSeat* Own=Self!=INDEX_NONE?&Seats[Self]:nullptr;
@@ -230,7 +254,7 @@ int32 ULDResultReport::NativePaint(const FPaintArgs& Args,const FGeometry& Geome
         for(int32 Index=0;Index<Sources.Num();++Index)
         {
             const float Y=834.f+Index*34.f;
-            if(Brushes.Contains(Sources[Index].IconId)){Tile(Layer+4,Sources[Index].IconId,96.f,Y,30.f);}
+            if(Brushes.Contains(Sources[Index].IconId)){FItem Source;Source.IconId=Sources[Index].IconId;Tile(Layer+4,Source,96.f,Y,30.f);}
             else{LDBroadcastPaint::Block(P,Layer+4,Box(96.f,Y,126.f,Y+30.f),LDBroadcast::Panel);Text(Layer+5,Sources[Index].Glyph,Label(18.f),At(111.f,Y+15.f),LDBroadcast::White,FVector2D(.5,.5));}
             Text(Layer+5,Sources[Index].Name,Label(20.f,false),At(138.f,Y+15.f),LDBroadcast::White);
             Text(Layer+5,Sources[Index].Value,Figure(24.f),At(518.f,Y+15.f),LDBroadcast::White,FVector2D(1.,.5));
@@ -306,7 +330,7 @@ int32 ULDResultReport::NativePaint(const FPaintArgs& Args,const FGeometry& Geome
             if(!Seat){return;}
             if(!Seat->bBuild){if(Host==0){Text(Layer+2,TEXT("构筑不可用"),Label(18.f,false),At(X,Y+24.f),LDBroadcast::Mute);}return;}
             float TX=X;
-            if(Host<3&&!Seat->HostActive[Host].IsEmpty()){Tile(Layer+2,Seat->HostActive[Host],TX,Y,50.f);TX+=56.f;}
+            if(Host<3&&!Seat->HostActive[Host].IconId.IsEmpty()){Tile(Layer+2,Seat->HostActive[Host],TX,Y,50.f);TX+=56.f;}
             for(int32 Card=0;Card<Seat->HostCards[Host].Num()&&TX<X+250.f;++Card){Tile(Layer+2,Seat->HostCards[Host][Card],TX,Y+(Host<3?6.f:0.f),Host<3?38.f:50.f);TX+=Host<3?42.f:56.f;}
         };
         for(int32 Host=0;Host<5;++Host)
@@ -320,8 +344,8 @@ int32 ULDResultReport::NativePaint(const FPaintArgs& Args,const FGeometry& Geome
         for(const TPair<float,const FSeat*>& Column:{TPair<float,const FSeat*>(ColA,Own),TPair<float,const FSeat*>(ColB,Other)})
         {
             if(!Column.Value){continue;}
-            if(Column.Value->FinalIcon.IsEmpty()){Text(Layer+2,TEXT("未改装"),Label(18.f,false),At(Column.Key,ModY+25.f),LDBroadcast::Mute);continue;}
-            Tile(Layer+2,Column.Value->FinalIcon,Column.Key,ModY,50.f);
+            if(Column.Value->Final.IconId.IsEmpty()){Text(Layer+2,TEXT("未改装"),Label(18.f,false),At(Column.Key,ModY+25.f),LDBroadcast::Mute);continue;}
+            Tile(Layer+2,Column.Value->Final,Column.Key,ModY,50.f);
             Text(Layer+3,Column.Value->FinalName,Label(18.f,false),At(Column.Key+60.f,ModY+25.f),LDBroadcast::White);
         }
         // The stat points: the own (orange) over the other's (gold or white), against the keystone line.
@@ -354,5 +378,42 @@ int32 ULDResultReport::NativePaint(const FPaintArgs& Args,const FGeometry& Geome
         for(int32 Index=0;Index<Phases[Beat].Icons.Num()&&TX+44.f<=X0+206.f;++Index){Tile(Layer+2,Phases[Beat].Icons[Index],TX,994.f,44.f);TX+=48.f;}
         if(Phases[Beat].Icons.IsEmpty()){Text(Layer+2,TEXT("—"),Label(20.f,false),At(X0+12.f,1016.f),LDBroadcast::Mute);}
     }
-    return Layer+8;
+    // The hover card of the tile under the pointer: the same text the match's cards show (name, kind, the rule), with the
+    // coefficients in place of numbers (the result holds no final attributes), beside the tile and kept on the page.
+    for(const TPair<FBox2D,FItem>& Hit:ItemRects)
+    {
+        if(!Hit.Key.IsInside(Pointer)){continue;}
+        const FItem& Item=Hit.Value;
+        LDHUD::FCardStats Stats;Stats.Level=Item.Level;Stats.bShowScalingFormula=true;
+        FString Name,Meta,Body;
+        if(Item.Kind==EItem::Card)
+        {
+            const LDHUD::FCardFaceView Face=LDHUD::CardFace(Item.Id,Catalog,Stats);
+            Name=Face.Name;Meta=Face.KindLine;Body=Face.SentencePlain;
+        }
+        else if(Item.Kind==EItem::Active)
+        {
+            const LDHUD::FActiveCardView Face=LDHUD::ActiveCard(Item.Id,Catalog,Stats,Item.Branch);
+            Name=Face.Name;Meta=Face.Cost.IsEmpty()?FString(TEXT("主动技能")):FString(TEXT("主动技能 · "))+Face.Cost;Body=Face.SentencePlain;
+        }
+        else
+        {
+            Name=LDHUD::ContentName(Catalog,Item.Id.ToString());Meta=TEXT("终局改装");
+            LDHUD::ContentText(Catalog,Item.Id.ToString(),true,Body);
+        }
+        const FSlateFontInfo BodyFont=Label(20.f,false);
+        const float W=460.f;
+        const TArray<FString> Lines=LDRingPaint::Wrap(Body,BodyFont,(W-32.f)*S,5);
+        const float H=24.f+34.f+26.f+Lines.Num()*28.f+14.f;
+        float X0=float(Hit.Key.Max.X)+12.f,Y0=float(Hit.Key.Min.Y);
+        if(X0+W>DesignW-16.f){X0=float(Hit.Key.Min.X)-12.f-W;}
+        Y0=FMath::Clamp(Y0,16.f,DesignH-16.f-H);
+        LDBroadcastPaint::FillSlab(P,Layer+10,Box(X0,Y0,X0+W,Y0+H),LDBroadcast::Ink.CopyWithNewOpacity(.97f));
+        LDBroadcastPaint::Block(P,Layer+11,Box(X0,Y0,X0+4.f,Y0+H),LDBroadcast::White);
+        Text(Layer+11,Name,Label(26.f),At(X0+16.f,Y0+28.f),LDBroadcast::White);
+        Text(Layer+11,Meta,Label(18.f,false),At(X0+16.f,Y0+58.f),LDBroadcast::Grey);
+        for(int32 Line=0;Line<Lines.Num();++Line){Text(Layer+11,Lines[Line],BodyFont,At(X0+16.f,Y0+88.f+Line*28.f),LDBroadcast::White);}
+        break;
+    }
+    return Layer+12;
 }

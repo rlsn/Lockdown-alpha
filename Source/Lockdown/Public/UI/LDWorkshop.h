@@ -88,7 +88,7 @@ public:
     void InterruptFinalFeedback();
     // Probes and tests: hover a part as if the pointer were over it (Kind INDEX_NONE releases it), select a hand card.
     enum class EHit : uint8 { None, Stat, Host, Gem, Installed, Drop, Hand, Offer, OfferPile, HandPile, Reroll, Skip, Shop, ShopRefresh,
-        Close, Matrix, Respec, Element, ConfirmYes, ConfirmNo, Entry };
+        Close, Matrix, Respec, Element, ConfirmYes, ConfirmNo, Entry, Reaction, ReactionCell };
     void PinHover(EHit Kind,int32 Host,int32 Index);
     // Probes (WITH_DEV_AUTOMATION_TESTS; nothing otherwise): the click a pointer press on that part makes.
     void ProbeClick(EHit Kind,int32 Host,int32 Index);
@@ -112,6 +112,8 @@ protected:
     virtual void NativeTick(const FGeometry& Geometry,float DeltaSeconds) override;
     virtual void NativeDestruct() override;
     virtual FReply NativeOnMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event) override;
+    virtual FReply NativeOnMouseMove(const FGeometry& Geometry,const FPointerEvent& Event) override;
+    virtual FReply NativeOnMouseButtonUp(const FGeometry& Geometry,const FPointerEvent& Event) override;
     virtual FReply NativeOnMouseWheel(const FGeometry& Geometry,const FPointerEvent& Event) override;
     virtual int32 NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,const FSlateRect& Culling,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle& Style,bool bEnabled) const override;
 private:
@@ -180,6 +182,16 @@ private:
     // The selected hand card (its first copy's key), or a blueprint of the blueprint batch.
     FName Selected;
     int32 SelectedBlueprint=INDEX_NONE;
+    // A left press on a card, a medal or a blueprint offer: a click when released in place, a drag once the pointer moves
+    // DragStartPx; while dragging the held thing is Selected / SelectedBlueprint, so the legal places light up.
+    FHit PressHit;
+    FVector2D PressAt=FVector2D::ZeroVector;
+    bool bPressing=false;
+    bool bDragging=false;
+    // Where the dragged thing came from: a card or medal taken off the ring goes back to the library when dropped off it.
+    bool bDragFromRing=false;
+    void BeginDrag();
+    void DropAt(const FHit& Target);
     bool bShowHand=false;
     float FrozenOpen=-1.f;
     float FrozenReveal=-1.f;
@@ -246,6 +258,17 @@ private:
     };
     FFitMemo ShopFit[3];
     float Refit(FFitMemo& Memo,TConstArrayView<float> From,TFunctionRef<float()> Fit);
+    // A host's sector angle: a skill host's follows its action-bar position.
+    float AngleOf(int32 Host) const;
+    // What an installed growth or conversion card does right now, from the owner's own combat view: a corner count
+    // (INDEX_NONE: none) and a line for the hover card. False for a card whose live numbers the client is not sent.
+    bool LiveOf(FName Definition,int32& Badge,FString& Line) const;
+    mutable FString LiveScratch;
+    // The build's reaction Index on the element track: its radius and the two socket angles (low, high).
+    void ReactionPlace(int32 Index,float& Radius,float& Low,float& High) const;
+    // The reaction table's sheet over the 反应表 command and its cells (Row/Column 0 are the element heads).
+    FBox2D MatrixSheet() const;
+    FBox2D MatrixCell(int32 Row,int32 Column) const;
     // The ground dim's alpha at each grid corner (PaintGround) and what it was shaded from.
     mutable TArray<float> GroundAlpha;
     mutable TArray<double,TInlineAllocator<8>> GroundFrom;

@@ -33,7 +33,12 @@ protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual int32 NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,const FSlateRect& Culling,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle& Style,bool bEnabled) const override;
     virtual FReply NativeOnMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event) override;
+    virtual FReply NativeOnMouseMove(const FGeometry& Geometry,const FPointerEvent& Event) override;
+    virtual void NativeOnMouseLeave(const FPointerEvent& Event) override;
 private:
+    // A skill, card or final mod drawn as a tile: its icon and what the hover card reads it from.
+    enum class EItem : uint8 { None, Card, Active, FinalMod };
+    struct FItem{FString IconId;FName Id;EItem Kind=EItem::None;ELDSkillBranch Branch=ELDSkillBranch::None;uint8 Level=1;};
     struct FSeat
     {
         FGuid Id;
@@ -45,13 +50,14 @@ private:
         uint8 Level=0;
         bool bCombat=false,bBuild=false;
         // The build: per host (Q, W, E, D, 本体) the learned active (W/E/Q only) and the installed cards' icon ids.
-        FString HostActive[5];
-        TArray<FString> HostCards[5];
-        FString FinalIcon,FinalName;
+        FItem HostActive[5];
+        TArray<FItem> HostCards[5];
+        FItem Final;
+        FString FinalName;
         TArray<int32> Points;
     };
     struct FSource{FString IconId,Glyph,Name,Value;};
-    struct FPhase{FString Label;TArray<FString> Icons;};
+    struct FPhase{FString Label;TArray<FItem> Icons;};
     TArray<FSeat> Seats;
     int32 Self=INDEX_NONE;
     FGuid CompareWith;
@@ -67,6 +73,10 @@ private:
     FGuid ShownResult;uint64 ShownSerial=0;FGuid ShownSelf;uint64 ShownSummary=0;const void* ShownContent=nullptr;
     // The comparison's seat plates as painted (design space), for the click.
     mutable TArray<TPair<FBox2D,FGuid>> PickRects;
+    // The tiles as painted (design space) and the one under the pointer (its hover card is painted over the page).
+    mutable TArray<TPair<FBox2D,FItem>> ItemRects;
+    FVector2D Pointer=FVector2D(-1.,-1.);
+    const FLDDemoContentDefinitions* Catalog=nullptr;
     mutable FVector2D Origin=FVector2D::ZeroVector;
     mutable float Scale=1.f;
     // Textures by icon id or seat (held so the brushes stay valid).

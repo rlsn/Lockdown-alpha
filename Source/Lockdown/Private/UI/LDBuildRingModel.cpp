@@ -209,6 +209,7 @@ LDBuildRing::FView LDBuildRing::Build(const FInputs& In)
             if(const FLDActiveSlotView* Learned=Progression->Actives.FindByPredicate([Slot](const FLDActiveSlotView& Row){return Row.Slot==Slot;}))
             {Host.Branch=Learned->Branch;}
             Host.Key=In.Keys.Of(Slot);
+            Host.Visual=In.Keys.Visual[Slot];
             Host.Form=ELDCardForm::Skill;
         }
         else if(Host.Column==LDHUD::EStorageColumn::Dash){Host.Key=In.DashKey.IsEmpty()?FString(TEXT("D")):In.DashKey;Host.Form=ELDCardForm::Dash;}
