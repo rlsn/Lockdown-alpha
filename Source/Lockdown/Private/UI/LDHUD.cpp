@@ -1,6 +1,7 @@
 #include "UI/LDHUD.h"
 #include "Core/LDLog.h"
 #include "UI/LDHUDModel.h"
+#include "UI/LDWorldProject.h"
 #include "UI/LDResultBuild.h"
 #include "UI/LDRecapChain.h"
 #include "UI/LDChainCodex.h"
@@ -2176,7 +2177,7 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             }
         }
     }
-    RefreshPK(*PC,Public,Lobby,bClock,NowMs);
+    {TRACE_CPUPROFILER_EVENT_SCOPE(LDHUD_PK);RefreshPK(*PC,Public,Lobby,bClock,NowMs);}
     {
         // P6: the death screen's spawn choice (own owner projection only).
         const LDHUD::FSpawnChoiceView Choice=bOwnMatch?LDHUD::SpawnChoice(O,bClock,NowMs):LDHUD::FSpawnChoiceView();
@@ -2213,8 +2214,8 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         }
         bReadModelLive|=Choice.bVisible;
     }
-    RefreshEventFeed(*GS,O,Content,bClock,NowMs);
-    RefreshScoreboard(*GS,O);
+    {TRACE_CPUPROFILER_EVENT_SCOPE(LDHUD_EventFeed);RefreshEventFeed(*GS,O,Content,bClock,NowMs);}
+    {TRACE_CPUPROFILER_EVENT_SCOPE(LDHUD_Scoreboard);RefreshScoreboard(*GS,O);}
     // Stage changes (field <-> rest, the final field), for PaintMoments: the last five seconds before a scheduled change
     // count down under the score strip, two leaning panels wipe the screen shut over the last 350 ms and travel on once
     // the authority's change has arrived (so the cut itself is never seen), leaving the new stage's bumper band across
@@ -2478,6 +2479,7 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     const LDProgression::EMatchStage BuildStage=bOwnMatch?LDProgression::StageForPublic(Public.Phase,Public.Timeline):LDProgression::EMatchStage::Closed;
     if(ChoicesPanel)
     {
+        TRACE_CPUPROFILER_EVENT_SCOPE(LDHUD_ChoicesPresent);
         // #147: the cards show this level's numbers; while no projection is published (dead) the last stats stay in use.
         if(OwnCombat&&!OwnCombat->Attributes.IsEmpty()){ChoiceStats=LDHUD::CardStatsOf(Progression?Progression->Level:1,OwnCombat->Attributes);}
         else if(Progression){ChoiceStats.Level=FMath::Max<uint8>(Progression->Level,1);}
@@ -2489,12 +2491,14 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     }
     if(StatBar)
     {
+        TRACE_CPUPROFILER_EVENT_SCOPE(LDHUD_StatBarPresent);
         StatBar->Present(Progression,O.Match,O.Life,BuildStage,O.LifePhase,Content,OwnCombat?OwnCombat->Attributes:TArray<FLDCombatAttributeRowView>(),
             bOwnMatch&&Progression!=nullptr,DisplayContent.Get(),OwnCombat);
     }
-    if(Storage){Storage->Present(Progression,O.Match,BuildStage,O.LifePhase,Content,bOwnMatch&&Progression!=nullptr);}
+    if(Storage){TRACE_CPUPROFILER_EVENT_SCOPE(LDHUD_StoragePresent);Storage->Present(Progression,O.Match,BuildStage,O.LifePhase,Content,bOwnMatch&&Progression!=nullptr);}
     if(Workshop)
     {
+        TRACE_CPUPROFILER_EVENT_SCOPE(LDHUD_WorkshopPresent);
         // The build ring: open while the 构筑 tray is open; otherwise its closed state under the character and by the band.
         ULDWorkshop::FInput In;
         In.Mode=bWorkshopOpen?ULDWorkshop::EMode::Open:ULDWorkshop::EMode::Closed;
@@ -2697,6 +2701,7 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     LDHUD::FLiveSkillTooltip LiveSkillDetail;bool bHasLiveSkillDetail=false;
     for(int32 Index=0;Index<ActionSlots.Num();++Index)
     {
+        TRACE_CPUPROFILER_EVENT_SCOPE(LDHUD_ActionSlot);
         const LDHUD::EActionSlot SlotKind=static_cast<LDHUD::EActionSlot>(Index);
         // Q/W/E positions show the entries the local slot order puts there (#97 drag to swap).
         const ELDCombatEntry Wanted=Index<3?PC->SkillAtKey[Index]:HudActionEntries[Index];
@@ -4159,6 +4164,17 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
     RefreshResultInspectedBuild(Result,PC.OwnerState.ContenderId);
     AnimateResult();
 }
+FVector2D ULDHUD::ProbeResultBoardSize() const
+{
+#if WITH_DEV_AUTOMATION_TESTS
+    // The board's content, then the two wrappers LDResultBuild::MakeReport puts around the body.
+    const UWidget* Body=ResultWinnerBuild?ResultWinnerBuild->GetContent():nullptr;
+    for(int32 Depth=0;Depth<2&&Body;++Depth){const UContentWidget* Wrap=Cast<UContentWidget>(Body);Body=Wrap?Wrap->GetContent():nullptr;}
+    return Body?FVector2D(Body->GetCachedGeometry().GetAbsoluteSize()):FVector2D::ZeroVector;
+#else
+    return FVector2D::ZeroVector;
+#endif
+}
 void ULDHUD::AnimateResult()
 {
     if(ResultShownAt<0.||!GetWorld()){return;}
@@ -4434,10 +4450,11 @@ void ULDHUD::PaintWorldPreviews(const FGeometry& G,FSlateWindowElementList& E,in
     {
         if(Points.Num()>=2){FSlateDrawElement::MakeLines(E,Layer,G.ToPaintGeometry(),Points,ESlateDrawEffect::None,Color,true,Thickness);}
     };
+    const FLDWorldProjector Projector(PC);
     auto Project=[&](const FVector& P,FVector2D& Out)
     {
         FVector2D Screen;
-        if(!PC->ProjectWorldLocationToScreen(P,Screen)){return false;}
+        if(!Projector.Project(P,Screen)){return false;}
         Out=Screen*ViewScale;
         return !Out.ContainsNaN();
     };
@@ -4480,16 +4497,20 @@ void ULDHUD::PaintWorldPreviews(const FGeometry& G,FSlateWindowElementList& E,in
     {
         if(!(RadiusCm>1.f)){return;}
         const int32 Segs=FMath::Clamp(FMath::CeilToInt32((2.*UE_DOUBLE_PI*double(RadiusCm))/50.),24,96);
+        // Each ring point is projected once; a segment joins two neighbours.
+        TArray<FVector2D,TInlineAllocator<97>> Points;TArray<bool,TInlineAllocator<97>> Seen;
+        Points.SetNumUninitialized(Segs+1);Seen.SetNumUninitialized(Segs+1);
+        for(int32 Step=0;Step<=Segs;++Step)
+        {
+            const double Angle=UE_DOUBLE_TWO_PI*double(Step)/double(Segs);
+            Seen[Step]=Project(Centre+FVector(FMath::Cos(Angle)*RadiusCm,FMath::Sin(Angle)*RadiusCm,4.f),Points[Step]);
+        }
         TArray<FVector2D> Run;
         Run.Reserve(Segs+2);
         for(int32 Step=0;Step<Segs;++Step)
         {
-            const double A0=UE_DOUBLE_TWO_PI*double(Step)/double(Segs);
-            const double A1=UE_DOUBLE_TWO_PI*double(Step+1)/double(Segs);
-            FVector2D SA,SB;
-            if(!Project(Centre+FVector(FMath::Cos(A0)*RadiusCm,FMath::Sin(A0)*RadiusCm,4.f),SA)
-                ||!Project(Centre+FVector(FMath::Cos(A1)*RadiusCm,FMath::Sin(A1)*RadiusCm,4.f),SB)
-                ||!LDOrderRules::ClipViewportSegment(SA,SB,ClipMin,ClipMax))
+            FVector2D SA=Points[Step],SB=Points[Step+1];
+            if(!Seen[Step]||!Seen[Step+1]||!LDOrderRules::ClipViewportSegment(SA,SB,ClipMin,ClipMax))
             {
                 if(Run.Num()>=2){Lines(Run,Color,Thickness);}
                 Run.Reset();

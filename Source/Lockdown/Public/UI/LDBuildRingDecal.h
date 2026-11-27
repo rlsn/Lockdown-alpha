@@ -19,6 +19,7 @@ struct FLDBuildRadarState
     // The socketed hosts' element colours at their ring angles (degrees), for the closed dots.
     TArray<TPair<float,FLinearColor>> Medals;
     float Opacity=1.f;
+    bool operator==(const FLDBuildRadarState& Other) const=default;
 };
 
 // The radar drawn into the ground decal's render target: the widget's own 640 x 640 canvas, the radar's full radius at 200 px.
@@ -41,7 +42,7 @@ protected:
 // The build ring's five-stat radar lying on the ground under the own character (approved design: a ground decal the character
 // stands on). A presentation-only actor: a world-space widget plane a few millimetres above the feet, translucent and unlit,
 // with no collision, navigation, shadow or replication; the character's body hides it where it stands. The ring widget owns,
-// moves and removes it.
+// moves and removes it. The plane is drawn into its render target only when the shown state changes; moving it redraws nothing.
 UCLASS(NotPlaceable,Transient)
 class LOCKDOWN_API ALDBuildRadarDecal : public AActor
 {

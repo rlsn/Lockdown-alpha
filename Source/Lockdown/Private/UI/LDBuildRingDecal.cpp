@@ -87,6 +87,7 @@ ALDBuildRadarDecal::ALDBuildRadarDecal()
     Plane->SetBlendMode(EWidgetBlendMode::Transparent);
     Plane->SetTwoSided(true);
     Plane->SetDrawAtDesiredSize(false);
+    Plane->SetManuallyRedraw(true);
     Plane->SetTickWhenOffscreen(true);
     Plane->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     Plane->SetCollisionResponseToAllChannels(ECR_Ignore);
@@ -100,7 +101,7 @@ void ALDBuildRadarDecal::Show(const FLDBuildRadarState& State,const FVector& InF
     if(!Plane){return;}
     if(ULDBuildRadarWidget* Widget=Cast<ULDBuildRadarWidget>(Plane->GetUserWidgetObject()))
     {
-        Widget->State=State;
+        if(!bShown||!(Widget->State==State)){Widget->State=State;Plane->RequestRenderUpdate();}
     }
     Feet=InFeet;Yaw=CameraYaw;RadiusCm=FMath::Max(5.f,InRadiusCm);
     // Widget px -> cm: the radar's 200 px reach RadiusCm.
@@ -110,8 +111,7 @@ void ALDBuildRadarDecal::Show(const FLDBuildRadarState& State,const FVector& InF
     const FRotator Facing=FRotationMatrix::MakeFromXZ(FVector::UpVector,Forward).Rotator();
     Plane->SetWorldLocationAndRotation(Feet+FVector(0.f,0.f,RadarLiftCm),Facing);
     Plane->SetWorldScale3D(FVector(1.f,Scale,Scale));
-    Plane->SetHiddenInGame(false);
-    Plane->RequestRenderUpdate();
+    if(!bShown){Plane->SetHiddenInGame(false);}
     bShown=true;
 }
 void ALDBuildRadarDecal::Hide()

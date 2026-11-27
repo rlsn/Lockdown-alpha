@@ -34,6 +34,7 @@
 #include "UI/LDWidgets.h"
 #include "UI/LDWorkshop.h"
 #include "UnrealClient.h"
+#include "Core/LDLog.h"
 #include "Probes/LDSlateProbeInput.h"
 #include "World/LDCampMember.h"
 #include "Navigation/LDNavigationComponent.h"
@@ -766,10 +767,50 @@ public:
                 if(Once(Now,0))
                 {
                     Key(PC,PC.BindingKey(TEXT("Scoreboard")),false);
-                    for(int32 Index=0;Index<4;++Index){if(Click(PC.HUDUI,*FString::Printf(TEXT("HUDRankUp%d"),Index))){break;}}
+                    // A real pointer press through the window's hit test (the "+" lies under the full-screen ring layer).
+                    bool bPressed=false;
+                    for(int32 Index=0;Index<3&&!bPressed;++Index)
+                    {
+                        ULDCommandButton* Plus=FindButton(PC.HUDUI,*FString::Printf(TEXT("HUDRankUp%d"),Index));
+                        if(Plus&&Plus->IsVisible()&&Plus->GetIsEnabled()){bPressed=LDSlateProbeInput::SendClick(Plus);}
+                    }
+                    UE_LOG(LogLDTest,Display,TEXT("LD_UI_COVERAGE_RANKUP_POINTER reached=%d"),bPressed?1:0);
                 }
-                return Settled(Now,1.);
+                if(Once(Now,1,.5))
+                {
+                    const bool bOpen=PC.HUDUI&&PC.HUDUI->IsRankUpOpen();
+                    const APawn* Body=PC.GetPawn();
+                    UE_LOG(LogLDTest,Display,TEXT("LD_UI_COVERAGE_RANKUP_PAGE open=%d phase=%d alive=%d"),bOpen?1:0,
+                        int32(Match(PC)?Match(PC)->Phase:ELDMatchPhase::Lobby),Body?1:0);
+                    // The hotkey path when the pointer did not open it, so the page is still shot.
+                    if(!bOpen){for(int32 Index=0;Index<4;++Index){if(Click(PC.HUDUI,*FString::Printf(TEXT("HUDRankUp%d"),Index))){break;}}}
+                }
+                return Settled(Now,1.6);
             }});
+        // The same page by its hotkey (Ctrl + the first skill key), then a rank bought by a pointer press on its card: both
+        // ways in, in the field, with the fight around the host going on.
+        Pages.Add({TEXT("Match_RankUpKey"),[this](ALDPlayerController& PC,double Now)
+            {
+                if(!PC.HUDUI){return true;}
+                const auto Points=[&PC](){const FLDProgressionView* Own=PC.ReadOwnProgression();return Own?int32(Own->SkillPoints):-1;};
+                if(Once(Now,0)){PC.HUDUI->CloseRankUp();}
+                if(Once(Now,1,.5))
+                {
+                    bool bTaken=false;
+                    for(const TCHAR* Action:{TEXT("Skill1"),TEXT("Skill2"),TEXT("SkillE")})
+                    {if(!PC.HUDUI->IsRankUpOpen()){bTaken|=PC.HUDUI->HandleContextualKeyPress(PC.BindingKey(Action),false,true,false);}}
+                    UE_LOG(LogLDTest,Display,TEXT("LD_UI_COVERAGE_RANKUP_HOTKEY taken=%d open=%d points=%d"),bTaken?1:0,PC.HUDUI->IsRankUpOpen()?1:0,Points());
+                }
+                if(Once(Now,2,1.6))
+                {
+                    RankPointsBefore=Points();
+                    const bool bPressed=LDSlateProbeInput::SendClick(FindButton(PC.HUDUI,TEXT("HUDRankCard0")));
+                    UE_LOG(LogLDTest,Display,TEXT("LD_UI_COVERAGE_RANKUP_CARD_POINTER reached=%d"),bPressed?1:0);
+                }
+                if(Once(Now,3,3.2))
+                {UE_LOG(LogLDTest,Display,TEXT("LD_UI_COVERAGE_RANKUP_BOUGHT points=%d->%d open=%d"),RankPointsBefore,Points(),PC.HUDUI->IsRankUpOpen()?1:0);}
+                return Settled(Now,3.6);
+            },12.,false});
         Pages.Add({TEXT("Match_Menu"),[this](ALDPlayerController& PC,double Now)
             {
                 if(Once(Now,0)){Click(PC.HUDUI,TEXT("HUDRankClose"));Key(PC,PC.BindingKey(TEXT("Scoreboard")),false);if(PC.RootUI&&!PC.RootUI->IsMenuOpen()){PC.RootUI->ToggleMenu();}}
@@ -817,6 +858,27 @@ public:
                 if(ResultsSeen<0.){ResultsSeen=Now;}
                 return Now-ResultsSeen>=3.;
             },900.});
+        // Each report tab held for a while with its painted size sampled every tick: a body that keeps changing size is
+        // a layout that does not settle (the reported flicker).
+        Pages.Add({TEXT("Match_ResultsSettle"),[this](ALDPlayerController& PC,double Now)
+            {
+                if(!PC.HUDUI){return true;}
+                const double Age=Now-PageAt;
+                const int32 Tab=FMath::Min(2,int32(Age/2.5));
+                if(Once(Now,Tab)){Click(PC.HUDUI,*FString::Printf(TEXT("ResultReportTab%d"),Tab));SettleMin=FVector2D(1e9,1e9);SettleMax=FVector2D::ZeroVector;SettleChanges=0;SettleLast=FVector2D(-1,-1);}
+                const double In=Age-Tab*2.5;
+                if(In>.8&&In<2.3)
+                {
+                    const FVector2D Size=PC.HUDUI->ProbeResultBoardSize();
+                    SettleMin=FVector2D::Min(SettleMin,Size);SettleMax=FVector2D::Max(SettleMax,Size);
+                    if(SettleLast.X>=0.&&!Size.Equals(SettleLast,.01)){++SettleChanges;}
+                    SettleLast=Size;
+                }
+                if(In>=2.3&&Once(Now,10+Tab))
+                {UE_LOG(LogLDTest,Display,TEXT("LD_UI_COVERAGE_RESULT_SETTLE tab=%d min=%.1fx%.1f max=%.1fx%.1f changes=%d"),Tab,SettleMin.X,SettleMin.Y,SettleMax.X,SettleMax.Y,SettleChanges);}
+                if(Age>=7.6){Click(PC.HUDUI,TEXT("ResultReportTab0"));return true;}
+                return false;
+            },20.,false});
         Pages.Add({TEXT("Match_ResultsReplay"),[this](ALDPlayerController& PC,double Now)
             {
                 const ALDGameState* GS=PC.GetWorld()->GetGameState<ALDGameState>();
@@ -831,6 +893,9 @@ public:
             }});
     }
     double ResultsSeen=-1.;
+    int32 RankPointsBefore=-1;
+    FVector2D SettleMin=FVector2D::ZeroVector,SettleMax=FVector2D::ZeroVector,SettleLast=FVector2D(-1,-1);
+    int32 SettleChanges=0;
     static int32 Guests(ALDPlayerController& PC)
     {
         const ALDGameState* GS=PC.GetWorld()->GetGameState<ALDGameState>();int32 Count=0;

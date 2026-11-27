@@ -24,11 +24,28 @@ FSlateResourceHandle RingHandle(UTexture2D* Texture)
     }
     return Renderer->GetResourceHandle(*Brush);
 }
+// A textured primitive's vertices and indices: one scratch pair that keeps its capacity (primitives are built and drawn
+// one after another on the game thread; MakeCustomVerts copies what it is given).
+TArray<FSlateVertex>& RingScratchVertices(){static TArray<FSlateVertex> Scratch;return Scratch;}
+TArray<SlateIndex>& RingScratchIndices(){static TArray<SlateIndex> Scratch;return Scratch;}
+// The largest waiting mesh sent so far, so a painter's first primitive reserves once.
+int32 RingWaitingVertices=0,RingWaitingIndices=0;
+using FRingIds=TArray<int32,TInlineAllocator<128>>;
 struct FRingMesh
 {
-    TArray<FSlateVertex> Vertices;
-    TArray<SlateIndex> Indices;
+    LDRingPaint::FPainter& Painter;
+    UTexture2D* Texture=nullptr;
+    TArray<FSlateVertex>& Vertices;
+    TArray<SlateIndex>& Indices;
     const FSlateRenderTransform* Transform=nullptr;
+    // Untextured: appended to the painter's waiting mesh. Textured: sent on its own, after what waits.
+    explicit FRingMesh(LDRingPaint::FPainter& InPainter,UTexture2D* InTexture=nullptr):Painter(InPainter),Texture(InTexture)
+        ,Vertices(InTexture?RingScratchVertices():InPainter.Waiting),Indices(InTexture?RingScratchIndices():InPainter.WaitingIndices)
+        ,Transform(&InPainter.Geometry.GetAccumulatedRenderTransform())
+    {
+        if(Texture){Painter.Flush();Vertices.Reset();Indices.Reset();}
+        else if(Vertices.Max()==0){Vertices.Reserve(RingWaitingVertices);Indices.Reserve(RingWaitingIndices);}
+    }
     int32 Add(FVector2D At,const FLinearColor& Color,FVector2D UV=FVector2D(.5,.5))
     {
         Vertices.Add(FSlateVertex::Make(*Transform,FVector2f(At),FVector2f(UV),RingSrgb(Color)));
@@ -36,10 +53,13 @@ struct FRingMesh
     }
     void Tri(int32 A,int32 B,int32 C){Indices.Add(SlateIndex(A));Indices.Add(SlateIndex(B));Indices.Add(SlateIndex(C));}
     void Quad(int32 A,int32 B,int32 C,int32 D){Tri(A,B,C);Tri(A,C,D);}
-    void Draw(FSlateWindowElementList& Elements,int32 Layer,UTexture2D* Texture=nullptr)
+    // The primitive takes the next layer either way.
+    void Draw()
     {
+        const int32 Layer=Painter.Next();
+        if(!Texture){if(Painter.WaitingLayer==INDEX_NONE){Painter.WaitingLayer=Layer;}return;}
         if(Indices.IsEmpty()){return;}
-        FSlateDrawElement::MakeCustomVerts(Elements,Layer,RingHandle(Texture),Vertices,Indices,nullptr,0,0);
+        FSlateDrawElement::MakeCustomVerts(Painter.Elements,Layer,RingHandle(Texture),Vertices,Indices,nullptr,0,0);
     }
 };
 FVector2D RingCentre(const TArray<FVector2D>& Points)
@@ -49,6 +69,17 @@ FVector2D RingCentre(const TArray<FVector2D>& Points)
     return Points.IsEmpty()?Sum:Sum/double(Points.Num());
 }
 float RingPixel(const FGeometry& Geometry){return 1.f/FMath::Max(.1f,Geometry.Scale);}
+// What a wrapped text depends on: the same text, face, width and line limit break the same way.
+struct FRingWrapKey
+{
+    FString Value;
+    FSlateFontInfo Font;
+    float Width=0.f;
+    int32 MaxLines=0;
+    bool operator==(const FRingWrapKey& Other) const{return Width==Other.Width&&MaxLines==Other.MaxLines&&Value.Equals(Other.Value,ESearchCase::CaseSensitive)&&Font==Other.Font;}
+    friend uint32 GetTypeHash(const FRingWrapKey& Key){return HashCombine(HashCombine(GetTypeHash(Key.Value),GetTypeHash(Key.Font)),HashCombine(GetTypeHash(Key.Width),GetTypeHash(Key.MaxLines)));}
+};
+constexpr int32 RingWrapMemory=512;
 }
 
 FLinearColor LDRingPaint::Mix(const FLinearColor& A,const FLinearColor& B,float T)
@@ -93,6 +124,11 @@ FVector2D LDRingPaint::Measure(const FString& Value,const FSlateFontInfo& Font)
 }
 TArray<FString> LDRingPaint::Wrap(const FString& Value,const FSlateFontInfo& Font,float Width,int32 MaxLines)
 {
+    // Breaking measures the line once per token; the same text is asked for again every painted frame, so the last
+    // results are kept (all dropped when the memory fills).
+    static TMap<FRingWrapKey,TArray<FString>> Memory;
+    FRingWrapKey Key{Value,Font,Width,MaxLines};
+    if(const TArray<FString>* Known=Memory.Find(Key)){return *Known;}
     TArray<FString> Lines;
     FString Line;
     const auto IsWide=[](TCHAR C){return C>=0x2E80;};
@@ -122,17 +158,28 @@ TArray<FString> LDRingPaint::Wrap(const FString& Value,const FSlateFontInfo& Fon
         while(!Last.IsEmpty()&&Measure(Last+TEXT("…"),Font).X>Width){Last.LeftChopInline(1);}
         Last+=TEXT("…");
     }
+    if(Memory.Num()>=RingWrapMemory){Memory.Reset();}
+    Memory.Add(MoveTemp(Key),Lines);
     return Lines;
 }
 
+void LDRingPaint::FPainter::Flush()
+{
+    if(WaitingLayer!=INDEX_NONE&&!WaitingIndices.IsEmpty())
+    {
+        FSlateDrawElement::MakeCustomVerts(Elements,WaitingLayer,RingHandle(nullptr),Waiting,WaitingIndices,nullptr,0,0);
+        RingWaitingVertices=FMath::Max(RingWaitingVertices,Waiting.Num());RingWaitingIndices=FMath::Max(RingWaitingIndices,WaitingIndices.Num());
+    }
+    Waiting.Reset();WaitingIndices.Reset();WaitingLayer=INDEX_NONE;
+}
 void LDRingPaint::FPainter::FillShaded(const TArray<FVector2D>& Points,TFunctionRef<FLinearColor(FVector2D)> Color)
 {
     if(Points.Num()<3||Opacity<=0.f){return;}
-    FRingMesh Mesh;Mesh.Transform=&Geometry.GetAccumulatedRenderTransform();
+    FRingMesh Mesh(*this);
     const FVector2D Centre=RingCentre(Points);
     const int32 Hub=Mesh.Add(Centre,Fade(Color(Centre)));
     const float Pixel=RingPixel(Geometry);
-    TArray<int32> Inner,Outer;
+    FRingIds Inner,Outer;
     const int32 N=Points.Num();
     for(int32 Index=0;Index<N;++Index)
     {
@@ -147,7 +194,7 @@ void LDRingPaint::FPainter::FillShaded(const TArray<FVector2D>& Points,TFunction
         Mesh.Tri(Hub,Inner[Index],Inner[Next]);
         Mesh.Quad(Inner[Index],Outer[Index],Outer[Next],Inner[Next]);
     }
-    Mesh.Draw(Elements,Next());
+    Mesh.Draw();
 }
 void LDRingPaint::FPainter::Fill(const TArray<FVector2D>& Points,const FLinearColor& Color)
 {
@@ -157,24 +204,24 @@ void LDRingPaint::FPainter::Band(const TArray<FVector2D>& Inner,const TArray<FVe
 {
     const int32 N=FMath::Min(Inner.Num(),Outer.Num());
     if(N<2||Opacity<=0.f){return;}
-    FRingMesh Mesh;Mesh.Transform=&Geometry.GetAccumulatedRenderTransform();
-    TArray<int32> A,B;
+    FRingMesh Mesh(*this);
+    FRingIds A,B;
     for(int32 Index=0;Index<N;++Index){A.Add(Mesh.Add(Inner[Index],Fade(Color(Inner[Index]))));B.Add(Mesh.Add(Outer[Index],Fade(Color(Outer[Index]))));}
     for(int32 Index=0;Index+1<N;++Index){Mesh.Quad(A[Index],B[Index],B[Index+1],A[Index+1]);}
-    Mesh.Draw(Elements,Next());
+    Mesh.Draw();
 }
 void LDRingPaint::FPainter::Stroke(const TArray<FVector2D>& Path,float Width,const FLinearColor& Color,bool bClosed,const FLinearColor& EndColor)
 {
     const int32 N=Path.Num();
     if(N<2||Opacity<=0.f||Width<=0.f){return;}
-    FRingMesh Mesh;Mesh.Transform=&Geometry.GetAccumulatedRenderTransform();
+    FRingMesh Mesh(*this);
     const float Pixel=RingPixel(Geometry);
     const float Half=FMath::Max(Width,Pixel)*.5f;
     const int32 Count=bClosed?N+1:N;
     // Total length for the fade.
     float Total=0.f;for(int32 Index=1;Index<Count;++Index){Total+=float(FVector2D::Distance(Path[(Index-1)%N],Path[Index%N]));}
     float Travel=0.f;
-    TArray<int32> L0,L1,R0,R1;
+    FRingIds L0,L1,R0,R1;
     for(int32 Index=0;Index<Count;++Index)
     {
         const FVector2D P=Path[Index%N];
@@ -196,13 +243,13 @@ void LDRingPaint::FPainter::Stroke(const TArray<FVector2D>& Path,float Width,con
         Mesh.Quad(L0[Index],R0[Index],R0[Index+1],L0[Index+1]);
         Mesh.Quad(R0[Index],R1[Index],R1[Index+1],R0[Index+1]);
     }
-    Mesh.Draw(Elements,Next());
+    Mesh.Draw();
 }
 void LDRingPaint::FPainter::Dashed(const TArray<FVector2D>& Path,float Width,float Dash,float Gap,const FLinearColor& Color,bool bClosed)
 {
     const int32 N=Path.Num();
     if(N<2||Dash<=0.f){return;}
-    FRingMesh Mesh;Mesh.Transform=&Geometry.GetAccumulatedRenderTransform();
+    FRingMesh Mesh(*this);
     const FLinearColor C=Fade(Color);
     const float Half=FMath::Max(Width,RingPixel(Geometry))*.5f;
     float Phase=0.f;bool bOn=true;
@@ -228,12 +275,12 @@ void LDRingPaint::FPainter::Dashed(const TArray<FVector2D>& Path,float Width,flo
             if(Phase>=(bOn?Dash:Gap)-1e-3f){Phase=0.f;bOn=!bOn;}
         }
     }
-    Mesh.Draw(Elements,Next());
+    Mesh.Draw();
 }
 void LDRingPaint::FPainter::Image(UTexture2D* Texture,const FBox2D& Box,const FLinearColor& Tint,const TArray<FVector2D>* Clip)
 {
     if(!Texture||Opacity<=0.f){return;}
-    FRingMesh Mesh;Mesh.Transform=&Geometry.GetAccumulatedRenderTransform();
+    FRingMesh Mesh(*this,Texture);
     const FVector2D Centre=Box.GetCenter(),Size=Box.GetSize();
     // Cover: the texture's shorter side spans the box.
     const float Aspect=float(Texture->GetSizeX())/FMath::Max(1.f,float(Texture->GetSizeY()));
@@ -246,7 +293,7 @@ void LDRingPaint::FPainter::Image(UTexture2D* Texture,const FBox2D& Box,const FL
     {
         const FVector2D Hub=RingCentre(*Clip);
         const int32 H=Mesh.Add(Hub,C,UV(Hub));
-        TArray<int32> Ring;for(const FVector2D& P:*Clip){Ring.Add(Mesh.Add(P,C,UV(P)));}
+        FRingIds Ring;for(const FVector2D& P:*Clip){Ring.Add(Mesh.Add(P,C,UV(P)));}
         for(int32 Index=0;Index<Ring.Num();++Index){Mesh.Tri(H,Ring[Index],Ring[(Index+1)%Ring.Num()]);}
     }
     else
@@ -254,12 +301,12 @@ void LDRingPaint::FPainter::Image(UTexture2D* Texture,const FBox2D& Box,const FL
         const FVector2D P[4]={Box.Min,FVector2D(Box.Max.X,Box.Min.Y),Box.Max,FVector2D(Box.Min.X,Box.Max.Y)};
         Mesh.Quad(Mesh.Add(P[0],C,UV(P[0])),Mesh.Add(P[1],C,UV(P[1])),Mesh.Add(P[2],C,UV(P[2])),Mesh.Add(P[3],C,UV(P[3])));
     }
-    Mesh.Draw(Elements,Next(),Texture);
+    Mesh.Draw();
 }
 void LDRingPaint::FPainter::Segments(const TArray<FVector2D>& Ends,float Width,TFunctionRef<FLinearColor(int32)> Color)
 {
     if(Ends.Num()<2||Opacity<=0.f||Width<=0.f){return;}
-    FRingMesh Mesh;Mesh.Transform=&Geometry.GetAccumulatedRenderTransform();
+    FRingMesh Mesh(*this);
     const float Half=FMath::Max(Width,RingPixel(Geometry))*.5f;
     for(int32 Index=0;Index+1<Ends.Num();Index+=2)
     {
@@ -270,11 +317,12 @@ void LDRingPaint::FPainter::Segments(const TArray<FVector2D>& Ends,float Width,T
         const FLinearColor C=Fade(Color(Index/2));
         Mesh.Quad(Mesh.Add(A+Normal*Half,C),Mesh.Add(B+Normal*Half,C),Mesh.Add(B-Normal*Half,C),Mesh.Add(A-Normal*Half,C));
     }
-    Mesh.Draw(Elements,Next());
+    Mesh.Draw();
 }
 FVector2D LDRingPaint::FPainter::Text(const FString& Value,FVector2D At,const FSlateFontInfo& Font,const FLinearColor& Color,FVector2D Align)
 {
     if(Value.IsEmpty()||Opacity<=0.f){return FVector2D::ZeroVector;}
+    Flush();
     const FVector2D Size=Measure(Value,Font);
     const FVector2D TopLeft=At-Size*Align;
     FSlateDrawElement::MakeText(Elements,Next(),Geometry.ToPaintGeometry(FVector2f(Size),FSlateLayoutTransform(FVector2f(TopLeft))),Value,Font,

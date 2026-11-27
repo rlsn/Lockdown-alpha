@@ -33,6 +33,17 @@ bool LDHUD::ReadModelRingMoves(int64 StartedAtMs,int64 EndsAtMs)
 {
     return EndsAtMs>StartedAtMs&&EndsAtMs-StartedAtMs<ReadModelSmoothRingMs;
 }
+bool LDHUD::SameProgression(const FLDProgressionView& A,const FLDProgressionView& B)
+{
+    return FLDProgressionView::StaticStruct()->CompareScriptStruct(&A,&B,PPF_None);
+}
+bool LDHUD::SameAttributes(const TArray<FLDCombatAttributeRowView>& A,const TArray<FLDCombatAttributeRowView>& B)
+{
+    if(A.Num()!=B.Num()){return false;}
+    const UScriptStruct* Row=FLDCombatAttributeRowView::StaticStruct();
+    for(int32 Index=0;Index<A.Num();++Index){if(!Row->CompareScriptStruct(&A[Index],&B[Index],PPF_None)){return false;}}
+    return true;
+}
 bool LDHUD::FReadModelGate::ShouldRebuild(const FReadModelKey& Key) const
 {
     return !bHas||bLive||bSettle||Key.Clock!=Last.Clock||!Key.SameInputs(Last);

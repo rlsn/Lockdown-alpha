@@ -116,6 +116,11 @@ private:
     TArray<FLDCombatAttributeRowView> LatestAttributes;
     LDHUD::FBuildGateView Gate;
     bool bShownNow=false;
+    // The last Present's remaining inputs: a sample that repeats them all refreshes nothing.
+    bool bPresented=false;
+    bool bLatestView=false;
+    LDProgression::EMatchStage LatestStage=LDProgression::EMatchStage::Closed;
+    ELDLifePhase LatestLifePhase=ELDLifePhase::Unspawned;
     int32 HoveredIndex=INDEX_NONE;
     int32 PinnedHover=INDEX_NONE;
     // Per stat in design order: signed delta (+allocate / -refund) coalesced locally, and sent delta not yet in own view.

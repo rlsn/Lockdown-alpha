@@ -87,7 +87,11 @@ namespace LDHUD
         bool bShowScalingFormula=false;
         // A learned skill's current card damage factor (10000 = none), applied to its damage numbers.
         int64 DamageFactorBp=10000;
+        bool operator==(const FCardStats& Other) const=default;
     };
+    // Whether two owner projections hold the same values, for presenters that rebuild their view only on a change.
+    LOCKDOWN_API bool SameProgression(const FLDProgressionView& A,const FLDProgressionView& B);
+    LOCKDOWN_API bool SameAttributes(const TArray<FLDCombatAttributeRowView>& A,const TArray<FLDCombatAttributeRowView>& B);
     // Level from the progression, stats from the owner's projected attributes; zero stats without a projection.
     LOCKDOWN_API FCardStats CardStatsOf(uint8 Level,const TArray<FLDCombatAttributeRowView>& Attributes);
     struct FCardText

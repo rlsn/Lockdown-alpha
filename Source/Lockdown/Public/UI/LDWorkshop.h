@@ -205,6 +205,58 @@ private:
     FVector2D ActionsAt=FVector2D::ZeroVector;
     FVector2D SmoothedCentre=FVector2D::ZeroVector;
     bool bHasCentre=false;
+    // The ring fills the HUD and lies over the band, so it takes the pointer only where it has something to press (a part
+    // under the pointer, or a held card that a click on the world puts back); elsewhere a click reaches the HUD under it
+    // (the skill slots and their rank-up "+", the stat row, the corner buttons).
+    bool bWantShown=false;
+    bool bTakesPointer=false;
+    void ApplyVisibility();
+    // What the ring model was last built from (LDBuildRing::FInputs by value, the library's unseen marks); Rebuild builds
+    // again only when one of them differs. ModelSerial counts the builds.
+    struct FModelKey
+    {
+        bool bBuilt=false;
+        FLDProgressionView View;
+        const FLDDemoContentDefinitions* Content=nullptr;
+        TArray<FLDCombatAttributeRowView> Attributes;
+        LDHUD::FCardStats Stats;
+        LDHUD::FSlotKeys Keys;
+        FString DashKey;
+        TArray<int32> Points;
+        int64 Unspent=0;
+        bool bRestShop=false;
+        bool bOwnStorage=false;
+        TArray<FName> StoredCards;
+        TBitArray<> StoredFresh;
+    };
+    FModelKey ModelKey;
+    uint32 ModelSerial=0;
+    // What the closed layout (the entry by the band, the waiting offer) was last laid out from.
+    struct FClosedKey
+    {
+        bool bValid=false;
+        uint32 Model=0;
+        FVector2D Size=FVector2D::ZeroVector;
+        float Scale=0.f;
+        float TextScale=0.f;
+        FSlateRect Band;
+        FString OpenKey;
+        bool operator==(const FClosedKey& Other) const=default;
+    };
+    FClosedKey ClosedKey;
+    // The side panels' fitted scale beside the band (a walk along their rows towards the band): kept per attempt with the
+    // numbers it was fitted from, since the open ring is laid out every frame and they seldom change.
+    struct FFitMemo
+    {
+        TArray<float,TInlineAllocator<20>> From;
+        float Scale=1.f;
+    };
+    FFitMemo TableFit[2];
+    FFitMemo ShopFit[3];
+    float Refit(FFitMemo& Memo,TConstArrayView<float> From,TFunctionRef<float()> Fit);
+    // The ground dim's alpha at each grid corner (PaintGround) and what it was shaded from.
+    mutable TArray<float> GroundAlpha;
+    mutable TArray<double,TInlineAllocator<8>> GroundFrom;
     UPROPERTY() TObjectPtr<ALDBuildRadarDecal> Radar;
 
     double UiNow() const;
