@@ -143,18 +143,20 @@ FString StatLine(TConstArrayView<FDerived> Derived,int32 Stat)
 // the attributes it raises.
 // The attribute line wrapped to at most two lines of ChipLineWidth.
 constexpr float ChipLineWidth=170.f;
-TArray<FString> ChipLines(const FString& Line,float F)
+// The attribute line's design size: 14, or larger where that would draw under 12 physical px (the ring's text floor).
+float ChipLinePx(float F,float K){return FMath::Max(14.f,12.1f/FMath::Max(F*K,.01f));}
+TArray<FString> ChipLines(const FString& Line,float F,float K)
 {
     if(Line.IsEmpty()){return TArray<FString>();}
-    return LDRingPaint::Wrap(Line.Replace(TEXT(" · "),TEXT("  ")),Face(EFace::Regular,14.f,F),ChipLineWidth*F,2);
+    return LDRingPaint::Wrap(Line.Replace(TEXT(" · "),TEXT("  ")),Face(EFace::Regular,ChipLinePx(F,K),F),ChipLineWidth*F,2);
 }
-FVector2D ChipSize(const FStat& Stat,const FString& Line,bool bPlus,float F)
+FVector2D ChipSize(const FStat& Stat,const FString& Line,bool bPlus,float F,float K)
 {
     const float Head=10.f*F+WidthOf(Stat.Name,Face(EFace::Bold,18.f,F))+6.f*F+FMath::Max(16.f*F,WidthOf(FString::FromInt(Stat.Points),Face(EFace::Figure,26.f,F)))
         +(bPlus?6.f*F+22.f*F:0.f);
-    const TArray<FString> Lines=ChipLines(Line,F);
-    float Sub=0.f;for(const FString& Each:Lines){Sub=FMath::Max(Sub,10.f*F+WidthOf(Each,Face(EFace::Regular,14.f,F)));}
-    return FVector2D(FMath::Max(Head,Sub)+8.f*F,32.f*F+Lines.Num()*17.f*F+(Lines.IsEmpty()?0.f:4.f*F));
+    const TArray<FString> Lines=ChipLines(Line,F,K);
+    float Sub=0.f;for(const FString& Each:Lines){Sub=FMath::Max(Sub,10.f*F+WidthOf(Each,Face(EFace::Regular,ChipLinePx(F,K),F)));}
+    return FVector2D(FMath::Max(Head,Sub)+8.f*F,32.f*F+Lines.Num()*(ChipLinePx(F,K)+3.f)*F+(Lines.IsEmpty()?0.f:4.f*F));
 }
 // The short form name an offer row shows after the card type.
 FString FormShort(ELDCardForm Form)
@@ -446,7 +448,7 @@ void ULDWorkshop::ComputeLayout(const FGeometry& Geometry)
             Taken.Add(Part);
         }
         const float Gap=8.f*F,Step=4.f*U;
-        L.ChipCompact.Init(false,Ring.Stats.Num());L.ChipScale.Init(1.f,Ring.Stats.Num());
+        L.ChipCompact.Init(false,Ring.Stats.Num());
         for(int32 Index=0;Index<Ring.Stats.Num();++Index)
         {
             const float Degrees=RadarTurn+Index*360.f/FMath::Max(1,Ring.Stats.Num());
@@ -484,11 +486,10 @@ void ULDWorkshop::ComputeLayout(const FGeometry& Geometry)
                 At=Start;
                 return false;
             };
-            // Full (two lines) first; where it fits nowhere, one line; then that line smaller, down to 70% (its name never under 12 px).
+            // Full (with its attribute lines) first; where that fits nowhere, the one-line chip (name, points, plus). Text never
+            // shrinks: the ring's text floor holds for every chip.
             const FStat& Stat=Ring.Stats[Index];
-            bool bPlaced=Place(ChipSize(Stat,StatLine(Ring.Derived,Index),Ring.Unspent>0,F));
-            if(!bPlaced){L.ChipCompact[Index]=true;bPlaced=Place(ChipSize(Stat,FString(),Ring.Unspent>0,F));}
-            for(float Scale=.9f;!bPlaced&&Scale>.65f&&18.f*F*Scale*L.K>=12.f;Scale-=.1f){L.ChipScale[Index]=Scale;bPlaced=Place(ChipSize(Stat,FString(),Ring.Unspent>0,F*Scale));}
+            if(!Place(ChipSize(Stat,StatLine(Ring.Derived,Index),Ring.Unspent>0,F,L.K))){L.ChipCompact[Index]=true;Place(ChipSize(Stat,FString(),Ring.Unspent>0,F,L.K));}
             Taken.Add(FBox2D(At-Size*.5,At+Size*.5));
             L.Anchors.Add(AnchorKey(EHit::Stat,INDEX_NONE,Index),At);
             Add(EHit::Stat,INDEX_NONE,Index,Lean(FBox2D(At-Size*.5,At+Size*.5),0.f,0.f));
@@ -964,7 +965,7 @@ TArray<FString> ULDWorkshop::LayoutProblems() const
             if(Touches(Bounds,BoundsOf(Other.Shape))){Out.Add(FString::Printf(TEXT("stat chip %d covers part %d/%d/%d"),Chip.Hit.Index,int32(Other.Hit.Kind),Other.Hit.Host,Other.Hit.Index));}
         }
     }
-    if(L.F*L.K*14.f<11.9f){Out.Add(FString::Printf(TEXT("stat chip text %.1f px"),L.F*L.K*14.f));}
+    if(ChipLinePx(L.F,L.K)*L.F*L.K<11.9f||18.f*L.F*L.K<11.9f){Out.Add(FString::Printf(TEXT("stat chip text %.1f px"),FMath::Min(ChipLinePx(L.F,L.K),18.f)*L.F*L.K));}
     if(L.ShopWidth>0.f&&L.ShopScale*L.K*18.f<11.9f){Out.Add(FString::Printf(TEXT("shop text %.1f px"),L.ShopScale*L.K*18.f));}
     if(L.Card.bIsValid)
     {
@@ -1721,19 +1722,20 @@ void ULDWorkshop::PaintRadarChips(FPainter& P) const
     {
         const FVector2D* At=L.Anchors.Find(AnchorKey(EHit::Stat,INDEX_NONE,Index));
         if(!At){continue;}
-        const float F=L.F*(L.ChipScale.IsValidIndex(Index)?L.ChipScale[Index]:1.f);
+        const float F=L.F;
         const FStat& Stat=Ring.Stats[Index];
         const FString Line=L.ChipCompact.IsValidIndex(Index)&&L.ChipCompact[Index]?FString():StatLine(Ring.Derived,Index);
-        const FVector2D Size=ChipSize(Stat,Line,bPlus,F);
+        const FVector2D Size=ChipSize(Stat,Line,bPlus,F,L.K);
         const FBox2D Chip(*At-Size*.5,*At+Size*.5);
         const bool bHot=Shown.Kind==EHit::Stat&&Shown.Index==Index;
         // A maxed keystone is the one gold chip.
         P.Fill(RectOf(Chip),Stat.bKeystone?LDBroadcast::Gold:LDBroadcast::Ink.CopyWithNewOpacity(.86f));
         if(bHot){Frame(P,Grow(Chip,2.f*F),2.f*F,LDBroadcast::White);}
         float X=float(Chip.Min.X)+10.f*F;const float Y=Line.IsEmpty()?float(Chip.GetCenter().Y):float(Chip.Min.Y)+17.f*F;
-        const TArray<FString> Lines=ChipLines(Line,F);
+        const TArray<FString> Lines=ChipLines(Line,F,L.K);
+        const float LinePx=ChipLinePx(F,L.K);
         for(int32 Row=0;Row<Lines.Num();++Row)
-        {P.Text(Lines[Row],FVector2D(Chip.Min.X+10.f*F,Chip.Min.Y+(39.f+Row*17.f)*F),Face(EFace::Regular,14.f,F),Stat.bKeystone?LDBroadcast::Ink:LDBroadcast::Grey,FVector2D(0.,.5));}
+        {P.Text(Lines[Row],FVector2D(Chip.Min.X+10.f*F,Chip.Min.Y+32.f*F+(Row+.5f)*(LinePx+3.f)*F),Face(EFace::Regular,LinePx,F),Stat.bKeystone?LDBroadcast::Ink:LDBroadcast::Grey,FVector2D(0.,.5));}
         X+=WidthOf(Stat.Name,Face(EFace::Bold,18.f,F));
         P.Text(Stat.Name,FVector2D(Chip.Min.X+10.f*F,Y),Face(EFace::Bold,18.f,F),Stat.bKeystone?LDBroadcast::Ink:LDBroadcast::Grey,FVector2D(0.,.5));
         X+=6.f*F;

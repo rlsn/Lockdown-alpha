@@ -210,11 +210,11 @@ bool FLDBuildRingLayoutTest::RunTest(const FString& Parameters)
         const FString At=FString::Printf(TEXT("%s %.0fx%.0f text %.2f"),bRest?TEXT("rest"):TEXT("field"),Case.Pixels.X,Case.Pixels.Y,Case.Text);
         const TArray<FString> Problems=Ring->LayoutProblems();
         TestTrue(At+TEXT(": the layout has no faults ")+FString::Join(Problems,TEXT("; ")),Problems.IsEmpty());
-        if(bRest){TestEqual(At+TEXT(": the shop lists the shelf and the skill point"),Ring->View().Shop.Num(),8);}
+        if(bRest){TestEqual(At+TEXT(": the shop lists the shelf, the skill point and the medal"),Ring->View().Shop.Num(),9);}
         const auto& L=Ring->Layout;
         TestTrue(At+TEXT(": the ring has its parts"),Ring->View().bValid&&L.Boxes.Num()>20&&L.Segments.Num()==4);
         TestTrue(At+TEXT(": card icons are at least 36 physical pixels"),(LDBuildRing::NodeSize-4.f)*L.R*L.K>=35.9f);
-        TestTrue(At+TEXT(": the stat chips' attribute line is at least 12 physical pixels"),14.f*L.F*L.K>=11.9f);
+        TestTrue(At+TEXT(": the stat chips' attribute line is at least 12 physical pixels"),FMath::Max(14.f,12.1f/(L.F*L.K))*L.F*L.K>=11.9f&&18.f*L.F*L.K>=11.9f);
         TestTrue(At+TEXT(": the build bar stands over the HUD band"),L.Bar.bIsValid&&L.Bar.Max.Y<=L.Size.Y-120.f*L.U);
         TestTrue(At+TEXT(": the rest actions' corner stays right of the bar"),Ring->ActionsAnchor().X>L.Bar.Max.X);
         // The hovered card of the most links: its card above the ring, still no faults.
