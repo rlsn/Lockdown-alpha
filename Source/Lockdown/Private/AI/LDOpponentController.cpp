@@ -533,6 +533,19 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
         return false;
     }
     if (!LD_TRACED(LDAI_FrameUnits, LDOpponentFrame::ReadObservedUnits(View, Generation, *Content, Frame.Units, Error))) { return false; }
+    // #198 D: in the PK arena a PK life also sees through its teammates and exposures; mark what its own orders can target.
+    if (Mode.PKDirector && Mode.PKDirector->IsArenaActive() && Mode.IsPKLife(Own.ContenderId))
+    {
+        for (auto& Unit : Frame.Units)
+        {
+            FLDAuthorityTargetSample Sample;
+            FString Diagnostic;
+            const ELDObservedResolve Resolved = Mode.Vision->ResolveObservedUnit(*this, Unit.Handle, Unit.Epoch,
+                ELDObservationPurpose::NewAttackOrder, Sample, &Diagnostic);
+            if (Resolved == ELDObservedResolve::AuthorityFault) { Error = Diagnostic; return false; }
+            Unit.bTargetable = Resolved == ELDObservedResolve::Resolved;
+        }
+    }
     LDOpponentFrame::ReadWarnings(View, Frame.Warnings);
     // A camp this seat saw empty stays empty for the segment; the view forgets it when the next one begins.
     Frame.POIs.RemoveAll([&View](const FLDOpponentPOI& Place)

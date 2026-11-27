@@ -322,6 +322,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoOpponentPolicy.ShopBuy",
         "Lockdown.Rules.DemoOpponentPolicy.RestRebuilds",
         "Lockdown.Rules.DemoOpponentPolicy.Training",
+        "Lockdown.Rules.DemoOpponentPolicy.PKFight",
         "Lockdown.Rules.DemoOpponentPolicy.GroundPathCost",
         "Lockdown.Rules.DemoOpponentProbe.ReturnHold",
         "Lockdown.Rules.DemoOrders.AttackMoveCandidate",

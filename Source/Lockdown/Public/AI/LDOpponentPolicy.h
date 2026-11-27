@@ -247,6 +247,9 @@ struct FLDOpponentUnit
     uint8 HeldElement = 0;
     // Spec §11.3: the visible second-hand dealer (its public look).
     bool bPeddler = false;
+    // #198 D: the PK shows an entrant more than its own orders may target: a living teammate's sight or an exposure. Such a
+    // unit is seen but not yet targetable (an attack on it is refused as unavailable); false only for those.
+    bool bTargetable = true;
 };
 
 

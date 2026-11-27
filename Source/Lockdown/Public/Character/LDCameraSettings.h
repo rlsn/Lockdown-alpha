@@ -14,6 +14,21 @@ namespace LDCamera
     inline constexpr float FieldOfView = 55.f;
     inline constexpr float TargetOffsetZ = 20.f;
 
+#if !UE_BUILD_SHIPPING
+    // DEV play-test presets (console ld.Dev.FeelPreset 0-3); 0 keeps the shipped camera and pace.
+    struct FFeelPreset
+    {
+        float ArmScale = 1.f;
+        float Pitch = LDCamera::Pitch;
+        float FieldOfView = LDCamera::FieldOfView;
+        // How far the view leads the body's movement direction at full speed (0 = rigid follow).
+        float LookAheadCm = 0.f;
+        // Applied to every body's move speed on the authority (Listen Host) only.
+        float MoveSpeedScale = 1.f;
+    };
+    LOCKDOWN_API FFeelPreset DevFeelPreset();
+#endif
+
     inline float PanDelta(float Delta)
     {
         // A stalled frame is not a history of pointer/key input; do not turn it into a multi-metre pan.
