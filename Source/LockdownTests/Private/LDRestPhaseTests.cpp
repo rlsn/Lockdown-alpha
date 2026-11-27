@@ -87,6 +87,12 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
             Paused.DevSetCountdownPaused(false, FieldStart + 105000, Error)
             && Paused.DevSetCountdownPaused(false, FieldStart + 105000, Error)
             && Paused.FieldMsAt(FieldStart + 110000) == 10000);
+        const int64 Due = Paused.NextDueMs();
+        bGood &= TestTrue(TEXT("Advancing the countdown brings the segment end and the field progress forward together"),
+            Paused.DevAdvanceCountdown(60000, Error) && Paused.NextDueMs() == Due - 60000
+            && Paused.FieldMsAt(FieldStart + 110000) == 70000);
+        bGood &= TestFalse(TEXT("A paused countdown does not advance"),
+            Paused.DevSetCountdownPaused(true, FieldStart + 111000, Error) && Paused.DevAdvanceCountdown(1000, Error));
     }
     {
         FLDMatchTimeline Skip;

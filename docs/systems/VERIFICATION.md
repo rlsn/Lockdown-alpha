@@ -14,10 +14,23 @@
 | `SourceData/Demo/*` / `World/*` | `SyncDemoWorldData.py --check`、`SyncDemoContentData.py --check`、`Test*Import.py`；刷新资产用 `BootstrapAssets.ps1 -Mode RefreshDefinitions`（改几何用 `Regenerate`） |
 | `SourceData/Art` / `UI` / `Audio` | `ImportDemoArt.ps1 -Mode Validate`、`ImportDemoAudio.ps1 -Mode Validate` |
 | `Source/Lockdown*` C++ | `.\Scripts\Verify.ps1`（增量 `BuildEditor.ps1`）；新增原生 `Lockdown.Rules.*` 测试须同步登记到 `Scripts\CheckRuleReport.py` 的 `REQUIRED_TESTS` 并跑 `TestRuleReport.py` |
-| 画面可见的界面、特效、镜头、手感 | 本批改完并构建后一次渲染运行（如 `CaptureDemoArt.ps1`），覆盖本批改到的全部画面；完整截图矩阵留到集成 |
-| 帧率 | 不在开发分支测；集成分支上独占机器跑 `RunPerfBudget.ps1 -Match -PackageRoot <打包目录>` |
 | 必须由真实拥有连接证明的联机/视野/阶段行为 | 按需选跑对应 `RunDemo*Check.ps1`：`Core`（初生/运动/返场）、`Combat`（寻路/施法/追击/离屏帧）、`GrowthLink`（成长指令的回执与视图同步、一次真实击杀）、`Camp`（反击、回位、段内清空和中场整图重置）、`Vision`（视野隔离/`-ReactionOnly`/`-IceOnly`）、`Capture`（三段野外+R3终局改装+断线恢复）、`Opponent`（满房 AI）、`SessionFault`（退房/拒入/房主离开） |
 | 整局能否跑完、有没有报错（AI、权威步、营地、结算一起跑） | `.\Scripts\RunDemoOpponentCheck.ps1 -BotMatch`（见[机器人对局](#机器人对局)） |
+
+### 按问题性质选最便宜的入口
+
+同一个问题用能证明它的最便宜的一层，不用更贵的一层重复证明；耗时是本机编辑器版的典型墙钟（含进程启动，编辑器版到地图就绪约 15–30 秒，打包版约 5 秒）。
+
+| 问题性质 | 入口 | 典型耗时 | 何时跑 |
+| --- | --- | --- | --- |
+| 公式、数值、状态机、结算 | 规则测试：`Verify.ps1 -Filter <测试全名>`（无渲染、隔离世界） | 约 35 秒 | 本批新增或修改了测试时 |
+| AI 决策、整局能否跑完 | `RunDemoOpponentCheck.ps1 -BotMatch`（固定步长加速、无渲染） | 7–9 分钟 | 改 AI、权威步或结算流程的一批 |
+| 特效、动作、打击感的画面 | `CaptureDemoArt.ps1`、`CaptureFeelSample.ps1`（验证舞台直接触发，不走对局） | 1–2 分钟 | 画面有变化的一批，一次 |
+| 界面页面 | `CaptureUICoverage.ps1 -Part Frontend`（前端页）或 `-Part Match`（按真实阶段走完对局各页） | Frontend 约 1 分钟；Match 16–29 分钟 | 前端页随批；对局页攒到一批界面改动全部完成后一次 |
+| 指令、回执、视图同步等真实拥有连接行为 | 对应的 `RunDemo*Check.ps1` 最小场景 | GrowthLink 约 1 分钟，Combat 约 4 分钟，Core、Camp、Vision 3–6 分钟，Capture 约 11 分钟 | 改到该行为的一批，一次 |
+| 满房真实连接 | `RunDemoOpponentCheck.ps1`（实时整局） | 约 15 分钟 | 只在集成 |
+| 帧率 | `RunPerfBudget.ps1 -Match -PackageRoot <打包目录>` | 约 1.5 分钟，另加打包 | 只在集成 |
+| 打包 | `PackageWin64.ps1` | 约 25 分钟 | 只在集成 |
 
 ### 成长的四层验证
 
