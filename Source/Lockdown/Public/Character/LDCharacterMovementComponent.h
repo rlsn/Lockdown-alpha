@@ -110,7 +110,13 @@ public:
     // zero finish velocity) integrated by the issued authority steps; never a teleport.
     // bKnockback: a forced push, which other bodies block like static geometry (#198 F C02); a voluntary dash runs
     // through bodies.
+    // Every displacement (dash, knockback, pull, camp lunge) ends on legal ground with a walking route back
+    // (LandedDashDistance); the speed stays, so a shortened one ends earlier.
     bool StartDemoDash(const FVector& Direction, double DistanceCm, double DurationSeconds, FString& Error, bool bKnockback=false);
+    // How far a displacement from Foot along Direction may travel: up to the last ground LDGroundLanding accepts (legal
+    // ground reached by a complete walking route from the start), 0 when there is none. False only on a query error.
+    static bool LandedDashDistance(const class ULDMapRegistry& Registry, const FVector& Foot, const FVector& Direction,
+        double DistanceCm, const FCollisionShape& Capsule, double& OutCm, FString& Error);
     // #198 F C02: the first real block of the current push (a body, or registered static geometry facing the push; walkable
     // support and grazing slides are none). Watching starts with WatchKnockbackBlock and ends with the first fact.
     struct FKnockbackBlock

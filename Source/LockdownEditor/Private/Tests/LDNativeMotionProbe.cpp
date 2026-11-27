@@ -18,6 +18,12 @@
 #include "HAL/IConsoleManager.h"
 #include "PhysicsEngine/BodySetup.h"
 #include "Serialization/JsonSerializer.h"
+#include "AssetCompilingManager.h"
+#include "FileHelpers.h"
+#include "Framework/LDDemoEntry.h"
+#include "Misc/PackageName.h"
+#include "Region/LDMapRegistry.h"
+#include "UObject/UObjectIterator.h"
 
 ALDNativeMotionProbeCharacter::ALDNativeMotionProbeCharacter(const FObjectInitializer& Initializer)
     : Super(Initializer.SetDefaultSubobjectClass<ULDNativeMotionProbeMovement>(ACharacter::CharacterMovementComponentName))
@@ -946,5 +952,125 @@ bool FLDNativeUnrecordedMoveProbe::RunTest(const FString& Parameters)
         Move->CaptureError.Contains(TEXT("unrecorded"),ESearchCase::IgnoreCase)
         || Move->CaptureError.Contains(TEXT("final pose"),ESearchCase::IgnoreCase));
     return true;
+}
+// Every displacement on the saved Demo map: from each wall-side spot (a 300 cm grid of legal ground, eight headings, head-on
+// and 30 degrees off) a dash (450 cm / 0.18 s) and a push (180 cm / 0.16 s) clamped by the production LandedDashDistance
+// and integrated by the native movement over the map's own collision never leave the body where it cannot walk out.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDNativeDemoMapDashProbe, "Lockdown.Rules.DemoMotionProbe.DashIntoDemoMap",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDNativeDemoMapDashProbe::RunTest(const FString& Parameters)
+{
+    UWorld* Editor=UEditorLoadingAndSavingUtils::LoadMap(
+        FPackageName::LongPackageNameToFilename(LDDemoEntry::WorldMap,FPackageName::GetMapPackageExtension()));
+    if (!TestNotNull(TEXT("Saved Demo world"),Editor)) { return false; }
+    FlushAsyncLoading();
+    FAssetCompilingManager::Get().FinishAllCompilation();
+    auto* Registry=Editor->GetSubsystem<ULDMapRegistry>();
+    FString Error;
+    if (!TestNotNull(TEXT("Registry"),Registry) || !TestTrue(TEXT("Native world binding: ")+Error,Registry->Rebuild(Error))) { return false; }
+    FBox2D Area(ForceInit);
+    for (TObjectIterator<UPrimitiveComponent> It; It; ++It)
+    {
+        if (It->GetWorld()==Editor && Registry->IsTerrainFloor(*It))
+        { Area+=FVector2D(It->Bounds.GetBox().Min); Area+=FVector2D(It->Bounds.GetBox().Max); }
+    }
+    if (!TestTrue(TEXT("The Demo map has terrain floors"),Area.bIsValid)) { return false; }
+    // The map's colliding meshes, copied as they are into a game physics world where the native movement runs (the
+    // registry and navigation stay the saved map's).
+    FNativeWorld Game;
+    if (!TestNotNull(TEXT("Native physics world"),Game.World)) { return false; }
+    for (TObjectIterator<UStaticMeshComponent> It; It; ++It)
+    {
+        if (It->GetWorld()!=Editor || !It->GetStaticMesh() || !It->IsQueryCollisionEnabled()) { continue; }
+        auto* Actor=Game.World->SpawnActor<AActor>();
+        auto* Mesh=NewObject<UStaticMeshComponent>(Actor);
+        Actor->SetRootComponent(Mesh);
+        Actor->AddInstanceComponent(Mesh);
+        Mesh->SetStaticMesh(It->GetStaticMesh());
+        Mesh->SetMobility(EComponentMobility::Static);
+        Mesh->SetWorldTransform(It->GetComponentTransform());
+        Mesh->SetCollisionProfileName(It->GetCollisionProfileName());
+        Mesh->SetCollisionEnabled(It->GetCollisionEnabled());
+        Mesh->SetCollisionObjectType(It->GetCollisionObjectType());
+        Mesh->SetCollisionResponseToChannels(It->GetCollisionResponseToChannels());
+        Mesh->CanCharacterStepUpOn=It->CanCharacterStepUpOn;
+        Mesh->SetWalkableSlopeOverride(It->GetWalkableSlopeOverride());
+        Mesh->SetCanEverAffectNavigation(false);
+        Mesh->RegisterComponentWithWorld(Game.World);
+    }
+    UWorld* World=Game.World;
+    auto* Body=Game.Body(FVector(Area.GetCenter(),5000.));
+    if (!TestNotNull(TEXT("Probe body"),Body)) { return false; }
+    auto* Move=CastChecked<ULDNativeMotionProbeMovement>(Body->GetCharacterMovement());
+    Move->SetWalkableFloorAngle(GetDefault<ALDCharacter>()->GetCharacterMovement()->GetWalkableFloorAngle());
+    const float Half=Body->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+    const float Radius=Body->GetCapsuleComponent()->GetScaledCapsuleRadius();
+    const FCollisionShape Capsule=FCollisionShape::MakeCapsule(Radius,Half);
+    FCollisionQueryParams Query(SCENE_QUERY_STAT(LDMapDashProbe),false,Body);
+    const auto Penetrating=[&](const FVector& Centre)
+    { return World->OverlapBlockingTestByChannel(Centre,FQuat::Identity,ECC_Pawn,FCollisionShape::MakeCapsule(Radius-2.f,Half-2.f),Query); };
+    const auto Place=[&](const FVector& Centre)
+    {
+        Move->StopDemoDash();
+        Body->SetActorLocation(Centre,false,nullptr,ETeleportType::TeleportPhysics);
+        return Move->PrepareGround();
+    };
+    int32 Points=0,Pushes=0,Stuck=0,Overlapping=0;
+    for (double X=Area.Min.X; X<=Area.Max.X; X+=300.)
+    {
+        for (double Y=Area.Min.Y; Y<=Area.Max.Y; Y+=300.)
+        {
+            FVector Surface;
+            FHitResult Rest;
+            if (!Registry->ResolveWalkableGround(FVector2D(X,Y),Surface)
+                || !World->SweepSingleByChannel(Rest,Surface+FVector(0,0,Half+250.),Surface+FVector(0,0,Half-30.),FQuat::Identity,
+                    ECC_Pawn,Capsule,Query) || Rest.bStartPenetrating || Rest.ImpactNormal.Z<.64) { continue; }
+            const FVector Start=Rest.Location+FVector(0,0,.5);
+            if (Penetrating(Start) || !Place(Start)) { continue; }
+            ++Points;
+            for (int32 Dir=0; Dir<8; ++Dir)
+            {
+                const FVector Heading=FRotator(0,Dir*45.,0).Vector();
+                FHitResult Wall;
+                if (!World->SweepSingleByChannel(Wall,Start,Start+Heading*260.,FQuat::Identity,ECC_Pawn,Capsule,Query)
+                    || Wall.ImpactNormal.Z>.6) { continue; }
+                for (const double Skew : {0.,30.})
+                {
+                    for (const bool bPush : {false,true})
+                    {
+                        const FVector D=Heading.RotateAngleAxis(Skew,FVector::UpVector);
+                        const double Cm=bPush?180.:450., Sec=bPush?.16:.18;
+                        double Landed=0;
+                        if (!ULDCharacterMovementComponent::LandedDashDistance(*Registry,Start-FVector(0,0,Half),D,Cm,Capsule,Landed,Error))
+                        { return TestTrue(TEXT("Landing query: ")+Error,false); }
+                        if (Landed<1. || !Place(Start)) { continue; }
+                        ++Pushes;
+                        if (!Move->TraceDash(D,Landed,Sec*Landed/Cm,1.f/60.f,FMath::CeilToInt(Sec*60.)+2,Error))
+                        { return TestTrue(TEXT("Dash root motion: ")+Error,false); }
+                        const FVector End=Move->UpdatedComponent->GetComponentLocation();
+                        Overlapping+=Penetrating(End)?1:0;
+                        bool bOut=false;
+                        for (int32 Walk=0; Walk<8 && !bOut; ++Walk)
+                        {
+                            if (!Place(End)) { continue; }
+                            for (int32 Step=0; Step<3; ++Step) { Move->Velocity=FRotator(0,Walk*45.,0).Vector()*300.; Move->PerformMovement(.1f); }
+                            bOut=FVector::Dist2D(Move->UpdatedComponent->GetComponentLocation(),End)>20.;
+                        }
+                        if (!bOut && ++Stuck<=10)
+                        {
+                            AddError(FString::Printf(TEXT("Stuck: from %s heading %.0f %s ended at %s by %s"),*Start.ToCompactString(),
+                                Dir*45.+Skew,bPush?TEXT("push"):TEXT("dash"),*End.ToCompactString(),
+                                Wall.GetComponent()?*Wall.GetComponent()->GetName():TEXT("-")));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // A capsule resting more than 2 cm into a mesh: the triangle-mesh collision of trees and rocks allows it while walking
+    // too (map collision, reported, not judged here).
+    AddInfo(FString::Printf(TEXT("Demo map displacements: %d from %d wall-side points, %d stuck, %d resting over 2 cm into a mesh"),
+        Pushes,Points,Stuck,Overlapping));
+    return TestTrue(TEXT("Enough wall-side displacements were tried"),Pushes>5000) && TestEqual(TEXT("No displacement leaves the body stuck"),Stuck,0);
 }
 #endif

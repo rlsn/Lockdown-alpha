@@ -11,6 +11,7 @@
 #include "Engine/World.h"
 #include "Framework/LDDemoEntry.h"
 #include "Region/LDMapRegistry.h"
+#include "Combat/LDGroundLanding.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 
 namespace LDCharacterMovementDetail
@@ -323,7 +324,35 @@ bool ULDCharacterMovementComponent::StartDemoDash(const FVector& Direction, doub
         Error=TEXT("A Demo dash runs only on the server authority body.");
         return false;
     }
-    return ApplyDashRootMotion(Direction,DistanceCm,DurationSeconds,Error);
+    const auto* Registry=GetWorld()->GetSubsystem<ULDMapRegistry>();
+    const auto* Capsule=CharacterOwner->GetCapsuleComponent();
+    double LandedCm=0;
+    if (!Registry || !Capsule || !FMath::IsFinite(DistanceCm) || DistanceCm<=0)
+    {
+        Error=TEXT("A Demo dash needs the map registry, the body capsule and a positive distance.");
+        return false;
+    }
+    if (!LandedDashDistance(*Registry,GetActorFeetLocation(),Direction,DistanceCm,Capsule->GetCollisionShape(),LandedCm,Error))
+    { return false; }
+    // No legal ground along the way: the body stays where it is (a dash or push into ground it could never walk from).
+    if (LandedCm<1.) { Error.Reset(); return true; }
+    return ApplyDashRootMotion(Direction,LandedCm,DurationSeconds*LandedCm/DistanceCm,Error);
+}
+
+bool ULDCharacterMovementComponent::LandedDashDistance(const ULDMapRegistry& Registry, const FVector& Foot, const FVector& Direction,
+    double DistanceCm, const FCollisionShape& Capsule, double& OutCm, FString& Error)
+{
+    OutCm=0;
+    const FVector Planar=FVector(Direction.X,Direction.Y,0).GetSafeNormal();
+    if (Planar.IsNearlyZero() || !FMath::IsFinite(DistanceCm) || DistanceCm<=0)
+    {
+        Error=TEXT("A Demo dash needs a planar direction and a positive distance.");
+        return false;
+    }
+    TOptional<FVector> Landed;
+    if (!LDGroundLanding::Resolve(Registry,Foot,Foot+Planar*DistanceCm,DistanceCm,Capsule,Landed,Error)) { return false; }
+    OutCm=Landed?FMath::Min(DistanceCm,FVector::Dist2D(Foot,*Landed)):0.;
+    return true;
 }
 
 bool ULDCharacterMovementComponent::ApplyDashRootMotion(const FVector& Direction, double DistanceCm, double DurationSeconds, FString& Error)
