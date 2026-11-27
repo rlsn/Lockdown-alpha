@@ -278,6 +278,17 @@ bool ULDChoicesPanel::ReplaceBlueprint(int32 Index,uint8 Key)
 {
     return AskReplace(Index,Key)&&ConfirmRestAction();
 }
+bool ULDChoicesPanel::SellBlueprint(int32 Index)
+{
+    if(!Usable()||!ShownBlueprints.IsValidIndex(Index)||!Latest.PendingBlueprints.Contains(ShownBlueprints[Index])){return false;}
+    if(PendingRequest){Tell(TEXT("上一个请求仍在处理中。"));return false;}
+    if(!Gate.bCanLearn){Tell(TEXT("没有提交：")+Gate.LearnBlocked);return false;}
+    FLDBuildCommand Command;
+    Command.Kind=ELDBuildCommandKind::SellBlueprint;
+    if(!FLDDefinitionWire::Encode(ShownBlueprints[Index],Command.Blueprint)){Tell(TEXT("没有提交：这份图纸的标识无效。"));return false;}
+    Command.Slot=FLDBuildCommand::AnySlot;
+    return Send(Command);
+}
 bool ULDChoicesPanel::AskForget(uint8 Key)
 {
     if(!Usable()||Key>2){return false;}
