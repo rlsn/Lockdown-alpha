@@ -534,6 +534,7 @@
       "value": 4
     },
     "GROWTH.ActiveSkipPoints": 1,
+    "GROWTH.BlueprintSellPoints": 1,
     "CARDS.CapacityBase": 6,
     "CARDS.LevelsPerSlot": 3,
     "CARDS.OfferSize": 3,

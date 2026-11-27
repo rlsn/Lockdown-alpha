@@ -95,6 +95,7 @@ const TCHAR* RestTestKindName(ELDBuildCommandKind Kind)
     case ELDBuildCommandKind::AllocatePoints: return TEXT("AllocatePoints");
     case ELDBuildCommandKind::ShopBuy: return TEXT("ShopBuy");
     case ELDBuildCommandKind::ShopRefresh: return TEXT("ShopRefresh");
+    case ELDBuildCommandKind::SellBlueprint: return TEXT("SellBlueprint");
     case ELDBuildCommandKind::Respec: return TEXT("Respec");
     case ELDBuildCommandKind::ReplaceActive: return TEXT("ReplaceActive");
     case ELDBuildCommandKind::ForgetActive: return TEXT("ForgetActive");
@@ -122,15 +123,15 @@ bool RestTestRunGates(FAutomationTestBase& Test)
     const EReason Closed = EReason::PhaseClosed;
     const FRow Matrix[] = {
         {TEXT("field, alive (in combat or not)"), RestTestContext(ERestTestStage::Live, ELDLifePhase::Alive), false,
-            {EReason::None, EReason::None, EReason::None, NotRest, NotRest, NoReplace, NoReplace, NotRest}},
+            {EReason::None, EReason::None, EReason::None, NotRest, NotRest, EReason::None, NoReplace, NotRest}},
         {TEXT("field, dead"), RestTestContext(ERestTestStage::Live, ELDLifePhase::Dead), false,
-            {EReason::None, EReason::None, EReason::None, NotRest, NotRest, NoReplace, NoReplace, NotRest}},
+            {EReason::None, EReason::None, EReason::None, NotRest, NotRest, EReason::None, NoReplace, NotRest}},
         {TEXT("rest window, alive"), RestTestContext(ERestTestStage::Rest, ELDLifePhase::Alive), true,
             {EReason::None, EReason::None, EReason::None, EReason::None, EReason::None, EReason::None, EReason::None, EReason::None}},
         {TEXT("rest window, dead"), RestTestContext(ERestTestStage::Rest, ELDLifePhase::Dead), true,
-            {EReason::None, EReason::None, EReason::None, EReason::Dead, EReason::Dead, EReason::Dead, EReason::Dead, EReason::Dead}},
+            {EReason::None, EReason::None, EReason::None, EReason::Dead, EReason::Dead, EReason::None, EReason::Dead, EReason::Dead}},
         {TEXT("rest return step"), RestTestContext(ERestTestStage::RestLocked, ELDLifePhase::Alive), false,
-            {EReason::None, EReason::None, EReason::None, Locked, Locked, Locked, Locked, Locked}},
+            {EReason::None, EReason::None, EReason::None, Locked, Locked, EReason::None, Locked, Locked}},
         {TEXT("closed"), RestTestContext(ERestTestStage::Closed, ELDLifePhase::Alive), false,
             {Closed, Closed, Closed, Closed, Closed, Closed, Closed, Closed}},
         {TEXT("unspawned in the rest window"), RestTestContext(ERestTestStage::Rest, ELDLifePhase::Unspawned), true,
@@ -153,14 +154,14 @@ bool RestTestRunGates(FAutomationTestBase& Test)
         LDProgression::LearnGate(RestTestContext(ERestTestStage::Rest, ELDLifePhase::Alive)), EReason::None);
     bGood &= RestTestReason(Test, TEXT("LearnGate in the return step (#222)"),
         LDProgression::LearnGate(RestTestContext(ERestTestStage::RestLocked, ELDLifePhase::Alive)), EReason::None);
-    for (const uint8 Unknown : {uint8(4), uint8(19), uint8(20), uint8(29), uint8(38), uint8(40), uint8(255)})
+    for (const uint8 Unknown : {uint8(4), uint8(19), uint8(20), uint8(38), uint8(39), uint8(40), uint8(255)})
     {
         bGood &= RestTestReason(Test, FString::Printf(TEXT("Command kind %u is refused, not mapped to a neighbour"), uint32(Unknown)),
             LDProgression::CommandGate(static_cast<EKind>(Unknown), Rest), EReason::InvalidRequest);
     }
 
     const TPair<EKind, uint8> KindNumbers[] = {{EKind::Respec, 21}, {EKind::ReplaceActive, 22}, {EKind::ForgetActive, 23},
-        {EKind::ShopBuy, 36}, {EKind::ShopRefresh, 37}};
+        {EKind::ShopBuy, 36}, {EKind::ShopRefresh, 37}, {EKind::SellBlueprint, 29}};
     for (const TPair<EKind, uint8>& Row : KindNumbers)
     {
         bGood &= Test.TestEqual(FString::Printf(TEXT("%s travels as %u"), RestTestKindName(Row.Key), uint32(Row.Value)),
@@ -169,7 +170,7 @@ bool RestTestRunGates(FAutomationTestBase& Test)
     const TPair<EReason, uint16> ReasonNumbers[] = {{EReason::ReplacementNotAllowed, 48}, {EReason::BuildLocked, 70},
         {EReason::OfferOutstanding, 72}, {EReason::NothingToRespec, 73}, {EReason::SlotEmpty, 74},
         {EReason::NotRestWindow, 75},
-        {EReason::ShopSoldOut, 201}, {EReason::ShopStale, 202}, {EReason::SkillPointLimit, 203}, {EReason::NoShop, 204}};
+        {EReason::ShopSoldOut, 201}, {EReason::ShopStale, 202}, {EReason::SkillPointLimit, 203}, {EReason::NoShop, 204}, {EReason::MedalLimit, 208}};
     for (const TPair<EReason, uint16>& Row : ReasonNumbers)
     {
         const FString Name = LDGrowthWire::ReasonName(Row.Key);
@@ -178,7 +179,7 @@ bool RestTestRunGates(FAutomationTestBase& Test)
             && Name == LDGrowthWire::ReasonName(LDGrowthWire::Reason(Row.Value)));
     }
     // 71 (the retired skill merchant's pool reason) and 77 carry no name.
-    for (const uint16 Unassigned : {uint16(71), uint16(77), uint16(208)})
+    for (const uint16 Unassigned : {uint16(71), uint16(77), uint16(209)})
     {
         bGood &= Test.TestEqual(FString::Printf(TEXT("Unassigned growth reason %u has no name"), uint32(Unassigned)),
             FString(LDGrowthWire::ReasonName(LDGrowthWire::Reason(Unassigned))), FString(TEXT("Unknown")));
@@ -295,7 +296,18 @@ bool RestTestRunReplaceForget(FAutomationTestBase& Test)
         && LDProgression::ValidateBuild(Content, Out) == ELDGrowthReason::None);
     bGood &= Test.TestTrue(TEXT("The replaced active is eligible for later offers again"),
         LDProgression::EligibleActives(Content, Out, 2, Eligible) == ELDGrowthReason::None && Eligible.Contains(B) && !Eligible.Contains(D));
-    bGood &= Unchanged(TEXT("Replacing on the field outside a dorm"), Replace(Full, Settled, D, 1, Field), ELDGrowthReason::ReplacementNotAllowed, Full);
+    // A blueprint replaces whenever it could be learned: on the field, in combat, dead and in the locked return step.
+    for (const LDProgression::FBuildContext& Open : {Field, RestTestContext(ERestTestStage::Live, ELDLifePhase::Dead),
+        RestTestContext(ERestTestStage::Rest, ELDLifePhase::Dead), Locked})
+    {
+        FLDGrowthBuild OpenOut;
+        FName OpenForgotten;
+        TArray<uint16> OpenReclaimed;
+        bGood &= RestTestReason(Test, TEXT("Replacing outside the rest build window"),
+            LDProgression::ApplyReplaceActive(Content, Full, Settled, D, 1, Open, OpenOut, OpenForgotten, OpenReclaimed), ELDGrowthReason::None);
+        bGood &= Test.TestTrue(TEXT("It installs the blueprint in W"), OpenForgotten == B && OpenOut.ActiveInSlot(1) != INDEX_NONE
+            && OpenOut.Actives[OpenOut.ActiveInSlot(1)].Id == D);
+    }
     {
         LDProgression::FBuildContext DormField = Field;
         DormField.bDormRested = true;
@@ -314,16 +326,6 @@ bool RestTestRunReplaceForget(FAutomationTestBase& Test)
             LDProgression::ApplyRespec(Content, Allocated, Settled.CumulativeXP, {1, 0, 0, 0, 0}, DormField, DormOut, DormRefunded),
             ELDGrowthReason::NotRestWindow);
     }
-    bGood &= Unchanged(TEXT("Replacing while dead on the field"),
-        Replace(Full, Settled, D, 1, RestTestContext(ERestTestStage::Live, ELDLifePhase::Dead)),
-        ELDGrowthReason::ReplacementNotAllowed, Full);
-    {
-        LDProgression::FBuildContext DeadDorm = RestTestContext(ERestTestStage::Live, ELDLifePhase::Dead);
-        DeadDorm.bDormRested = true;
-        bGood &= Unchanged(TEXT("Replacing while dead even with bDormRested"),
-            Replace(Full, Settled, D, 1, DeadDorm), ELDGrowthReason::ReplacementNotAllowed, Full);
-    }
-    bGood &= Unchanged(TEXT("Replacing while builds are locked"), Replace(Full, Settled, D, 1, Locked), ELDGrowthReason::BuildLocked, Full);
     bGood &= Unchanged(TEXT("Replacing while an active offer is outstanding"), Replace(Full, Offered, D, 1, Rest),
         ELDGrowthReason::OfferOutstanding, Full);
     bGood &= Unchanged(TEXT("Replacing with an active that is no pending blueprint"), Replace(Full, Settled, E, 1, Rest),

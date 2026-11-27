@@ -2451,6 +2451,7 @@ FString LDHUD::BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoCont
     switch(Receipt.Kind)
     {
     case ELDBuildCommandKind::SkipActiveOffer:
+    case ELDBuildCommandKind::SellBlueprint:
         return Receipt.PointsDelta>0?LDTerms::PointsGained(Receipt.PointsDelta):Missing;
     case ELDBuildCommandKind::ShopBuy:
     {

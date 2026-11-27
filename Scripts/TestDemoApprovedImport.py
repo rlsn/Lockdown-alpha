@@ -529,7 +529,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("DAILY.Count", 2), ("DAILY.RainPuddles", 6), ("DAILY.RumorLeaders", 2), ("AFFIX.FridgeCardOffer", 3),
             ("AFFIX.BonusCardOffer", 5), ("AFFIX.AuditSkillPointsMax", 1), ("EXPLORE.LockerCount", 4),
             ("EXPLORE.LockerCardOffer", 3), ("EXPLORE.PeddlerCardOffer", 5),
-            ("GROWTH.KeystoneThresholdPoints", 18), ("GROWTH.ActiveSkipPoints", 1),
+            ("GROWTH.KeystoneThresholdPoints", 18), ("GROWTH.ActiveSkipPoints", 1), ("GROWTH.BlueprintSellPoints", 1),
             # Spec §3.8, §3.12 and §13 (P2): card capacity, offers, rerolls, lock, vocabulary weight, the chain guard and the AI.
             ("CARDS.CapacityBase", 6), ("CARDS.LevelsPerSlot", 3), ("CARDS.OfferSize", 3), ("CARDS.FreeRerolls", 3),
             ("CARDS.RerollsPerRest", 1),

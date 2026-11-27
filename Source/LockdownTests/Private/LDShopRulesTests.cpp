@@ -259,6 +259,45 @@ bool FLDGrowthShopMedalTest::RunTest(const FString& Parameters)
     return bGood;
 }
 
+// A pending blueprint sells for GROWTH.BlueprintSellPoints unspent stat points whenever it could be learned: on the field, in
+// combat, dead, in the locked return step and in the rest window; never one that is not pending, never after the match.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDGrowthBlueprintSellTest, "Lockdown.Rules.Growth.Blueprint.Sell",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDGrowthBlueprintSellTest::RunTest(const FString& Parameters)
+{
+    using namespace LDShopRulesTests;
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDTestApprovedFixture::Read(*this, Catalog)) { return false; }
+    const FLDDemoContentDefinitions& Content = Catalog->Get();
+    const FName Pending(TEXT("active_pants_down"));
+    FLDGrowthBuild Of = Build(Content);
+    Of.PendingBlueprints.Add(Pending);
+    LDProgression::NormalizeBuild(Of);
+    FLDProgressionState State;
+    State.CumulativeXP = Content.Progression.XPThresholds[5];
+    const int64 Before = Unspent(Content, Of, State);
+    bool bGood = TestEqual(TEXT("A blueprint sells for 1 stat point"), Content.Parameters.BlueprintSellPoints, int64(1));
+    for (const LDProgression::FBuildContext& Open : {Context(EStage::Live), Context(EStage::Live, ELDLifePhase::Dead),
+        Context(EStage::Rest), Context(EStage::RestLocked), Context(EStage::Rest, ELDLifePhase::Dead)})
+    {
+        FLDGrowthBuild Out;
+        int64 Paid = 0;
+        bGood &= Reason(*this, TEXT("Selling a pending blueprint"), LDProgression::ApplySellBlueprint(Content, Of, Pending, Open, Out, Paid),
+            ELDGrowthReason::None);
+        bGood &= TestTrue(TEXT("The blueprint is gone and its point unspent"), !Out.HasBlueprint(Pending) && Paid == 1
+            && Out.AwardedPoints == Of.AwardedPoints + 1 && Unspent(Content, Out, State) == Before + 1
+            && LDProgression::ValidateBuild(Content, Out) == ELDGrowthReason::None);
+    }
+    FLDGrowthBuild Out;
+    int64 Paid = 0;
+    bGood &= Reason(*this, TEXT("Selling an active that is no pending blueprint"),
+        LDProgression::ApplySellBlueprint(Content, Of, FName(TEXT("active_elbow")), Context(EStage::Live), Out, Paid), ELDGrowthReason::NoBlueprint);
+    bGood &= TestTrue(TEXT("A refused sale pays nothing"), Paid == 0 && Out.AwardedPoints == Of.AwardedPoints && Out.HasBlueprint(Pending));
+    bGood &= Reason(*this, TEXT("Selling after the match"),
+        LDProgression::ApplySellBlueprint(Content, Of, Pending, Context(EStage::Closed), Out, Paid), ELDGrowthReason::PhaseClosed);
+    return bGood;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDGrowthShopRefreshTest, "Lockdown.Rules.Growth.Shop.Refresh",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDGrowthShopRefreshTest::RunTest(const FString& Parameters)

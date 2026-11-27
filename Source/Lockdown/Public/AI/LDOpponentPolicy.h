@@ -372,7 +372,9 @@ enum class ELDOpponentBuildKind : uint8
     RankUpSkill,
     // Spec §13: a card of the current card offer (installed on its default place when one is free), and an owned card into a
     // free slot. DEV build evaluation also skips offers and takes cards off.
-    PickCard, InstallCard, SkipCards, UninstallCard
+    PickCard, InstallCard, SkipCards, UninstallCard,
+    // A pending blueprint sold (Blueprint) when every slot is learned and no learned active ranks below it.
+    SellBlueprint
 };
 
 struct FLDOpponentBuildIntent

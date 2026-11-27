@@ -23253,6 +23253,7 @@
       "unit": "ms"
     },
     "GROWTH.ActiveSkipPoints": 1,
+    "GROWTH.BlueprintSellPoints": 1,
     "GROWTH.BuildSafeWindowSec": {
       "ms": 4000,
       "unit": "ms"

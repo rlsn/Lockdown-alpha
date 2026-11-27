@@ -63,6 +63,9 @@ bool DevelopmentBuildShapeValid(const FLDBuildCommand& Command, int32 StatCount)
     case ELDBuildCommandKind::ReplaceActive:
         return bNoOffer && Command.Blueprint.Decode(Decoded) && !Command.bLearnIfPossible && Command.Slot < 3
             && Command.PointCounts.IsEmpty() && bNoCard && Command.Branch == ELDSkillBranch::None;
+    case ELDBuildCommandKind::SellBlueprint:
+        return bNoOffer && Command.Blueprint.Decode(Decoded) && !Command.bLearnIfPossible && Command.Slot == FLDBuildCommand::AnySlot
+            && Command.PointCounts.IsEmpty() && bNoCard && Command.Branch == ELDSkillBranch::None;
     case ELDBuildCommandKind::ForgetActive:
         return bNoOffer && Command.Blueprint == FLDDefinitionWire() && !Command.bLearnIfPossible && Command.Slot < 3
             && Command.PointCounts.IsEmpty() && bNoCard && Command.Branch == ELDSkillBranch::None;
@@ -774,6 +777,17 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
         }
         Choice.Result = ELDBuildChoiceResult::Learned;
         Choice.Slot = Command.Slot;
+        break;
+    }
+    case ELDBuildCommandKind::SellBlueprint:
+    {
+        Command.Blueprint.Decode(Definition);
+        int64 Paid = 0;
+        const ELDGrowthReason SellReason = LDProgression::ApplySellBlueprint(Definitions, Build, Definition, Context, NewBuild, Paid);
+        if (SellReason != ELDGrowthReason::None)
+        {
+            return Reject(SellReason);
+        }
         break;
     }
     case ELDBuildCommandKind::AllocatePoints:

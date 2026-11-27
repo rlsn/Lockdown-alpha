@@ -554,6 +554,7 @@ ELDGrowthReason LDProgression::CommandGate(ELDBuildCommandKind Kind, const FBuil
     case ELDBuildCommandKind::UninstallCard:
     case ELDBuildCommandKind::ShopBuy:
     case ELDBuildCommandKind::ShopRefresh:
+    case ELDBuildCommandKind::SellBlueprint:
         break;
     default:
         return ELDGrowthReason::InvalidRequest;
@@ -572,6 +573,9 @@ ELDGrowthReason LDProgression::CommandGate(ELDBuildCommandKind Kind, const FBuil
     case ELDBuildCommandKind::SkipActiveOffer:
     case ELDBuildCommandKind::LearnBlueprint:
     case ELDBuildCommandKind::AllocatePoints:
+    // A pending blueprint replaces a learned skill or is sold whenever it could be learned.
+    case ELDBuildCommandKind::ReplaceActive:
+    case ELDBuildCommandKind::SellBlueprint:
     // Spec §6.1/§6.4: the card commands are open whenever the build is.
     case ELDBuildCommandKind::PickCard:
     case ELDBuildCommandKind::SkipCards:
@@ -588,11 +592,6 @@ ELDGrowthReason LDProgression::CommandGate(ELDBuildCommandKind Kind, const FBuil
     case ELDBuildCommandKind::Respec:
         return Context.Stage == EMatchStage::RestLocked ? ELDGrowthReason::BuildLocked
             : !bRest ? ELDGrowthReason::NotRestWindow : bDead ? ELDGrowthReason::Dead : ELDGrowthReason::None;
-    // A blueprint may also replace a learned skill on the field while resting in a dorm out of combat.
-    case ELDBuildCommandKind::ReplaceActive:
-        if (Context.Stage == EMatchStage::Live && Context.bDormRested && !bDead) { return ELDGrowthReason::None; }
-        return Context.Stage == EMatchStage::RestLocked ? ELDGrowthReason::BuildLocked
-            : !bRest ? ELDGrowthReason::ReplacementNotAllowed : bDead ? ELDGrowthReason::Dead : ELDGrowthReason::None;
     case ELDBuildCommandKind::ForgetActive:
         return Context.Stage == EMatchStage::RestLocked ? ELDGrowthReason::BuildLocked
             : !bRest ? ELDGrowthReason::ReplacementNotAllowed : bDead ? ELDGrowthReason::Dead : ELDGrowthReason::None;
@@ -797,7 +796,7 @@ ELDGrowthReason LDProgression::ApplyLearnBlueprint(const FLDDemoContentDefinitio
     {
         return Reason;
     }
-    // Replacing a learned active is the rest-only ApplyReplaceActive.
+    // Replacing a learned active is ApplyReplaceActive.
     if (Current.ActiveInSlot(Slot) != INDEX_NONE)
     {
         return ELDGrowthReason::SlotOccupied;
@@ -805,6 +804,34 @@ ELDGrowthReason LDProgression::ApplyLearnBlueprint(const FLDDemoContentDefinitio
     Out.PendingBlueprints.Remove(Blueprint);
     Out.Actives.Add({Blueprint, Slot});
     ProgressionSortBuild(Out);
+    return ELDGrowthReason::None;
+}
+
+ELDGrowthReason LDProgression::ApplySellBlueprint(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
+    FName Blueprint, const FBuildContext& Context, FLDGrowthBuild& Out, int64& OutPoints)
+{
+    Out = Current;
+    OutPoints = 0;
+    if (const ELDGrowthReason Reason = ValidateBuild(Content, Current); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    if (const ELDGrowthReason Reason = CommandGate(ELDBuildCommandKind::SellBlueprint, Context); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    if (!Current.HasBlueprint(Blueprint))
+    {
+        return ELDGrowthReason::NoBlueprint;
+    }
+    const int64 Points = Content.Parameters.BlueprintSellPoints;
+    if (Points <= 0 || Current.AwardedPoints > MAX_int64 - Points)
+    {
+        return ELDGrowthReason::DataInvalid;
+    }
+    Out.PendingBlueprints.Remove(Blueprint);
+    Out.AwardedPoints += Points;
+    OutPoints = Points;
     return ELDGrowthReason::None;
 }
 

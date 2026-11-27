@@ -318,8 +318,8 @@ namespace LDProgression
     // SkipActiveOffer: GROWTH.ActiveSkipPoints awarded stat points (OutPoints) replace the chosen active.
     LOCKDOWN_API ELDGrowthReason ApplySkipActiveOffer(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
         const FBuildContext& Context, FLDGrowthBuild& Out, int64& OutPoints);
-    // A pending blueprint learned into an empty slot: NoBlueprint, SlotOccupied (a full slot is replaced only by
-    // ApplyReplaceActive in a rest window) or a LearnGate reason when refused.
+    // A pending blueprint learned into an empty slot: NoBlueprint, SlotOccupied (a full slot is replaced by
+    // ApplyReplaceActive) or a LearnGate reason when refused.
     LOCKDOWN_API ELDGrowthReason ApplyLearnBlueprint(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
         FName Blueprint, uint8 Slot, const FBuildContext& Context, FLDGrowthBuild& Out);
     // Unspent points allocated across the stats in one step: one count per stat (design order) summing to at least one and at
@@ -337,8 +337,12 @@ namespace LDProgression
         const TArray<uint8>& PointCounts, const FBuildContext& Context, FLDGrowthBuild& Out, int64& OutRefunded);
     // A pending blueprint learned into the occupied Slot 0..2, the active there forgotten (neither refunded nor kept as a
     // blueprint) and its skill cards back in the library in the same step (ReclaimAttachments; OutReclaimed, by serial).
-    // Nothing moves to the new active on its own. ReplacementNotAllowed outside a rest window, OfferOutstanding while an active offer
-    // is outstanding, SlotEmpty for an empty slot (LearnBlueprint learns into it), NoBlueprint.
+    // Open whenever learning is (CommandGate). OfferOutstanding while an active offer is outstanding, SlotEmpty for an empty
+    // slot (LearnBlueprint learns into it), NoBlueprint.
+    // SellBlueprint: a pending blueprint gone for GROWTH.BlueprintSellPoints awarded stat points (OutPoints), open whenever
+    // learning is (CommandGate). NoBlueprint when it is not pending.
+    LOCKDOWN_API ELDGrowthReason ApplySellBlueprint(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
+        FName Blueprint, const FBuildContext& Context, FLDGrowthBuild& Out, int64& OutPoints);
     LOCKDOWN_API ELDGrowthReason ApplyReplaceActive(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
         const FLDProgressionState& Progression, FName Blueprint, uint8 Slot, const FBuildContext& Context, FLDGrowthBuild& Out,
         FName& OutForgotten, TArray<uint16>& OutReclaimed);

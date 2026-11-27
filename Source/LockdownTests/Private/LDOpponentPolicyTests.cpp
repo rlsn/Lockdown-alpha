@@ -1698,6 +1698,14 @@ bool RunRequests(FAutomationTestBase& Test)
     Replace.Blueprint = TEXT("active_elbow");
     bGood &= Test.TestFalse(TEXT("A blueprint no longer pending replaces nothing"),
         LDOpponentRequests::BuildCommand(Replace, Progression, C, 10, Command, Error));
+    FLDOpponentBuildIntent Sell;
+    Sell.Kind = ELDOpponentBuildKind::SellBlueprint;
+    Sell.Blueprint = TEXT("active_seethe");
+    bGood &= Test.TestTrue(TEXT("A sale names the pending blueprint and no slot: ") + Error,
+        LDOpponentRequests::BuildCommand(Sell, Progression, C, 11, Command, Error) && Command.Kind == ELDBuildCommandKind::SellBlueprint
+        && Command.Slot == FLDBuildCommand::AnySlot && Command.Blueprint.Decode(Decoded) && Decoded == FName(TEXT("active_seethe")));
+    Sell.Blueprint = TEXT("active_elbow");
+    bGood &= Test.TestFalse(TEXT("A blueprint no longer pending is not sold"), LDOpponentRequests::BuildCommand(Sell, Progression, C, 11, Command, Error));
 
     const auto OrderAt = [](ELDOrderStatus Status, ELDOrderFailure Failure)
     {
