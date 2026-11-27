@@ -265,7 +265,7 @@ private:
     float AngleOf(int32 Host) const;
     // What an installed growth or conversion card does right now, from the owner's own combat view: a corner count
     // (INDEX_NONE: none) and a line for the hover card. False for a card whose live numbers the client is not sent.
-    bool LiveOf(FName Definition,int32& Badge,FString& Line) const;
+    bool LiveOf(const LDBuildRing::FCard& Card,int32& Badge,FString& Line) const;
     mutable FString LiveScratch;
     // The sell target's text: 卖出 and the points a blueprint sells for.
     FString SellText() const;

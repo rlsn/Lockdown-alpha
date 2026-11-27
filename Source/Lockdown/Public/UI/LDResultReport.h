@@ -6,7 +6,7 @@
 #include "LDResultReport.generated.h"
 
 struct FLDDemoContentDefinitions;
-struct FLDDemoContentSnapshot;
+class FLDDemoContentSnapshot;
 struct FLDDamageSummaryView;
 class UTexture2D;
 
