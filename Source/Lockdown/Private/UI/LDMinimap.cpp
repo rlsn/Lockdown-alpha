@@ -13,6 +13,7 @@
 #include "Character/LDCharacter.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameState.h"
+#include "Framework/LDShowdownSettings.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Vision/LDWorldViewRelay.h"
 #include "Navigation/LDNavigationComponent.h"
@@ -1179,6 +1180,19 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
                         const FVector2f At=Spot(Objective.CentreCm);
                         Box(6,At+FVector2f(-.75f,-8.f),FVector2f(1.5f,8.5f),FLinearColor(.94f,.94f,.90f));Box(7,At+FVector2f(.75f,-8.f),FVector2f(5.f,3.5f),Gold);
                     }
+                }
+                // The final's street closure and its flag: the safe ring as it stands now (white, the closing preview red) and
+                // the flag on its centre, the same marks the field shows, so the minimap points at the final's goal.
+                const FLDShowdownView& Street=Public->PublicMatch.Showdown;
+                if(Street.bStarted&&Street.InitialRadiusCm>0.)
+                {
+                    int64 NowMs=0;const int64 At=PC->ReadDemoAuthorityTimeMs(NowMs)?NowMs:Public->PublicMatch.ServerNowMs;
+                    const double Radius=LDShowdown::StreetRadiusCm(Street,At);
+                    TArray<FVector2f> Ring;
+                    for(int32 Step=0;Step<=48;++Step){const double Angle=UE_DOUBLE_TWO_PI*Step/48.;Ring.Add(Spot(Street.CentreCm+FVector(FMath::Cos(Angle),FMath::Sin(Angle),0.)*Radius));}
+                    Lines(5,Ring,FLinearColor(.95f,.95f,.95f,.9f),2.f);
+                    const FVector2f At2=Spot(Street.CentreCm);
+                    Box(6,At2+FVector2f(-1.f,-12.f),FVector2f(2.f,13.f),FLinearColor(.94f,.94f,.90f));Box(7,At2+FVector2f(1.f,-12.f),FVector2f(8.f,5.f),LDBroadcast::Orange);
                 }
                 // P6 spec §11.3: the delivery lockers out now (public), a brown box with a pale lid while someone holds it.
                 for(const FLDLockerView& Locker:Public->PublicMatch.Lockers)

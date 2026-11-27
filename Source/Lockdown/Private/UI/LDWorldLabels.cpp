@@ -72,7 +72,8 @@ const FLinearColor WorldOuterRim=FLinearColor(FColor(0x0A,0x0C,0x10)).CopyWithNe
 const FLinearColor WorldMajorTickInk=FLinearColor(FColor(0x08,0x0A,0x0D));
 // On air: the own bar is the ball orange (me), a rival's the live red whether or not it is the current target (the
 // target takes a white frame). White is only the brief damage trail behind a bar's real health.
-const FLinearColor WorldOwnHPFill=FLinearColor(FColor(0xFF,0x6B,0x1A));
+// The own overhead bar is white (orange is kept for what can be pressed now); low health turns it the live red.
+const FLinearColor WorldOwnHPFill=FLinearColor(FColor(0xF2,0xF2,0xF2));
 const FLinearColor WorldOwnHPColorblind=FLinearColor(FColor(0x38,0xBD,0xF8));
 const FLinearColor WorldEnemyHPFill=FLinearColor(FColor(0xE0,0x31,0x31));
 const FLinearColor WorldEnemyHPColorblind=FLinearColor(FColor(0xF9,0x73,0x16));
@@ -1199,6 +1200,51 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             const FSlateFontInfo FigureFont=LDBroadcastPaint::FigureFont(24.f,TextScale);
             const float Side=FMath::RoundToFloat(32.f*TextScale);
             // Progress < 0: no bar; Progress > 1: the running bar.
+            // A goal off screen: an arrow on the screen's edge towards it, with its glyph block, the seconds it has left and how
+            // far it is from the own body (the final's flag and the mid-field objective only).
+            const FVector OwnAt=IsValid(OwnBody)?OwnBody->PresentedLocation():(PC->GetPawn()?PC->GetPawn()->GetActorLocation():FVector::ZeroVector);
+            const auto EdgeMark=[&](const FVector& SiteCm,const TCHAR* Glyph,const FLinearColor& Ink,int64 LeftMs)
+            {
+                FVector2D Screen;
+                const bool bFront=Projector.Project(SiteCm,Screen);
+                FVector2f To(float(Screen.X)*ToLocalX-Size.X*.5f,float(Screen.Y)*ToLocalY-Size.Y*.5f);
+                if(!bFront){To=-To;}
+                if(To.IsNearlyZero()){return;}
+                const float Inset=46.f;
+                const float Reach=FMath::Min((Size.X*.5f-Inset)/FMath::Max(FMath::Abs(To.X),1e-3f),(Size.Y*.5f-Inset)/FMath::Max(FMath::Abs(To.Y),1e-3f));
+                const FVector2f Dir=To.GetSafeNormal();
+                const FVector2f Tip=FVector2f(Size.X*.5f,Size.Y*.5f)+To*Reach;
+                const FVector2f Across(-Dir.Y,Dir.X);
+                FSlateDrawElement::MakeLines(E,Base+4,G.ToPaintGeometry(),{Tip+Dir*14.f,Tip-Dir*10.f+Across*14.f,Tip-Dir*10.f-Across*14.f,Tip+Dir*14.f},
+                    ESlateDrawEffect::None,LDBroadcast::Orange,true,4.f);
+                const FString Far=FString::Printf(TEXT("%.0f m"),FVector::Dist2D(OwnAt,SiteCm)/100.);
+                const FString Seconds=LeftMs>0?FString::Printf(TEXT("%lld"),(LeftMs+999)/1000):FString();
+                const FVector2f FarExt=FontMeasure->Measure(Far,FigureFont),SecExt=FontMeasure->Measure(Seconds,FigureFont),GlyphExt=FontMeasure->Measure(Glyph,GlyphFont);
+                const float Side=FMath::RoundToFloat(32.f*TextScale);
+                const float W=Side+10.f+(Seconds.IsEmpty()?0.f:SecExt.X+12.f)+FarExt.X+12.f;
+                // The chip sits inward of the arrow.
+                const FVector2f Centre=Tip-Dir*(30.f+W*.5f*FMath::Abs(Dir.X)+Side*.5f*FMath::Abs(Dir.Y));
+                const FVector2f At(FMath::RoundToFloat(Centre.X-W*.5f),FMath::RoundToFloat(Centre.Y-Side*.5f));
+                Box(1,At-FVector2f(1.5f,1.5f),FVector2f(W+3.f,Side+3.f),WorldOuterRim);
+                Box(2,At,FVector2f(W,Side),FLinearColor(.02f,.035f,.055f,.92f));
+                Box(3,At,FVector2f(Side,Side),Ink);
+                FSlateDrawElement::MakeText(E,Base+5,G.ToPaintGeometry(GlyphExt,FSlateLayoutTransform(At+FVector2f((Side-GlyphExt.X)*.5f,(Side-GlyphExt.Y)*.5f))),Glyph,GlyphFont,
+                    ESlateDrawEffect::None,FLinearColor(FColor(0x0A,0x0C,0x10)));
+                float TX=At.X+Side+10.f;
+                if(!Seconds.IsEmpty())
+                {
+                    FSlateDrawElement::MakeText(E,Base+5,G.ToPaintGeometry(SecExt,FSlateLayoutTransform(FVector2f(TX,At.Y+(Side-SecExt.Y)*.5f))),Seconds,FigureFont,ESlateDrawEffect::None,Ink);
+                    TX+=SecExt.X+12.f;
+                }
+                FSlateDrawElement::MakeText(E,Base+5,G.ToPaintGeometry(FarExt,FSlateLayoutTransform(FVector2f(TX,At.Y+(Side-FarExt.Y)*.5f))),Far,FigureFont,ESlateDrawEffect::None,FLinearColor::White);
+            };
+            const auto OnScreen=[&](const FVector& SiteCm)
+            {
+                FVector2D Screen;
+                if(!Projector.Project(SiteCm,Screen)){return false;}
+                const float X=float(Screen.X)*ToLocalX,Y=float(Screen.Y)*ToLocalY;
+                return X>=0.f&&Y>=0.f&&X<=Size.X&&Y<=Size.Y;
+            };
             const auto Plate=[&](const FVector& SiteCm,const TCHAR* Glyph,const TCHAR* Name,const FLinearColor& Ink,int64 LeftMs,float Progress,const FLinearColor& ProgressInk)
             {
                 FVector2D Screen;
@@ -1247,9 +1293,16 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
                 const float Spray=bFlag&&bOpen&&Goal.SprayNeedMs>0?FMath::Clamp(float(double(Goal.SprayMs)/double(Goal.SprayNeedMs)),0.f,1.f):-1.f;
                 Plate(Goal.CentreCm,bFlag?TEXT("旗"):TEXT("擂"),bFlag?LDTerms::MiniFlag:LDTerms::Arena,bOpen?LDBroadcast::Orange:LDBroadcast::White,
                     (bOpen?Goal.ClosesAtT:Goal.OpensAtT)-T,Spray,Goal.bContested?LDBroadcast::LiveRed:Seat>=0?LDBroadcast::SeatInk(uint8(Seat)):LDBroadcast::White);
+                if(!OnScreen(Goal.CentreCm)){EdgeMark(Goal.CentreCm,bFlag?TEXT("旗"):TEXT("擂"),bOpen?LDBroadcast::Orange:LDBroadcast::White,(bOpen?Goal.ClosesAtT:Goal.OpensAtT)-T);}
             }
             for(const FLDLockerView& Locker:Match.Lockers)
             {Plate(Locker.PositionCm,TEXT("柜"),LDTerms::Locker,LDBroadcast::Orange,Locker.ClosesAtT-T,Locker.bChanneling?2.f:-1.f,LDBroadcast::Orange);}
+            // The final's flag, in the holder's seat ink (white while nobody holds it).
+            if(Match.Phase==ELDMatchPhase::CaptureOpen&&Match.Showdown.bStarted&&!OnScreen(Match.Showdown.CentreCm))
+            {
+                const int32 Holder=Match.GraffitiOwner.IsValid()?LDHUD::SeatOf(Public->DemoLobby,Match.GraffitiOwner):INDEX_NONE;
+                EdgeMark(Match.Showdown.CentreCm,TEXT("旗"),Holder>=0?LDBroadcast::SeatInk(uint8(Holder)):LDBroadcast::White,0);
+            }
         }
     }
     return Base+5;

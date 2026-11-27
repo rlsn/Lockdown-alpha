@@ -428,7 +428,8 @@ private:
     UPROPERTY() TObjectPtr<ULDCommandButton> DeathRecapToggle;
     UPROPERTY() TObjectPtr<UWidget> DeathRecapContainer;
     UPROPERTY() TObjectPtr<ULDCommandButton> DeathWorkshopButton;
-    bool bDeathRecapCollapsed=false;
+    // The death recap starts folded: the wait shows one countdown first; the recap opens on demand.
+    bool bDeathRecapCollapsed=true;
     // One icon chain per recap row (LDRecapChain), rebuilt only when its row changes.
     UPROPERTY() TArray<TObjectPtr<UHorizontalBox>> DeathRecapRows;
     TArray<LDHUD::FRecapChain> DeathRecapShown;
@@ -489,6 +490,10 @@ private:
     // The match's drawn days (public), shown under the opening countdown into the first field: the badge glyph of the
     // in-match marker, the name and the one-line effect. Empty outside that countdown or on a match without one.
     struct FStageDaily{FString Glyph,Name,Line;};
+    // The final's goal, centred at the top while the flag is open: the holder's seat (INDEX_NONE: nobody), the holder's
+    // name, the flag's state line (the circle head) and its bar.
+    struct FFlagBar{bool bShown=false;int32 Seat=INDEX_NONE;FString Holder,State;float Progress=0.f;bool bProgress=false;};
+    FFlagBar FlagBar;
     TArray<FStageDaily> StageDaily;
     float StageBeat=0.f,StagePreCover=0.f;
     // Which of the eight beats of the match the title card names (R0, field 1, R1, field 2, R2, field 3, R3, final field).
