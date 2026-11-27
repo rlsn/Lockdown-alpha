@@ -8,26 +8,14 @@ namespace LDCamera
     inline constexpr float MinArmLength = 1300.f;
     inline constexpr float MaxArmLength = 2400.f;
     inline constexpr float ZoomStep = 80.f;
-    inline constexpr float Pitch = -60.f;
+    // The arm lengths above are the player's zoom setting (saved as is); the camera stands ArmScale times that far from its
+    // focus, so the default zoom is a 27 m arm and the zoom range 15.6-28.8 m.
+    inline constexpr float ArmScale = 1.2f;
+    inline constexpr float Pitch = -62.f;
     // #97: north-up (world -Y at the top of the screen), so the square field and its minimap line up with the screen.
     inline constexpr float Yaw = -90.f;
     inline constexpr float FieldOfView = 55.f;
     inline constexpr float TargetOffsetZ = 20.f;
-
-#if !UE_BUILD_SHIPPING
-    // DEV play-test presets (console ld.Dev.FeelPreset 0-3); 0 keeps the shipped camera and pace.
-    struct FFeelPreset
-    {
-        float ArmScale = 1.f;
-        float Pitch = LDCamera::Pitch;
-        float FieldOfView = LDCamera::FieldOfView;
-        // How far the view leads the body's movement direction at full speed (0 = rigid follow).
-        float LookAheadCm = 0.f;
-        // Applied to every body's move speed on the authority (Listen Host) only.
-        float MoveSpeedScale = 1.f;
-    };
-    LOCKDOWN_API FFeelPreset DevFeelPreset();
-#endif
 
     inline float PanDelta(float Delta)
     {

@@ -58,8 +58,6 @@ private:
     // first shown. Only the local owner ever shows this body; every other authority body (camp members, the Boss, AI and
     // remote contenders on the Listen Host) stays hidden and is seen through observation proxies, so it builds no look.
     int32 LookKey = -1;
-    // DEV feel preset 3: the smoothed lead of the view along the body's movement.
-    FVector DevLookAhead = FVector::ZeroVector;
     void EnsureLook();
     // The last own hit receipt seen (LDHitFeel) and the camera kick it started along the facing.
     int64 ConfirmedAtMs = 0;

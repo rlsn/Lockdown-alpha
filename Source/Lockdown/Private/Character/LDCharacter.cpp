@@ -1,7 +1,6 @@
 #include "Character/LDCharacter.h"
 #include "Core/LDLog.h"
 #include "Character/LDCameraSettings.h"
-#include "HAL/IConsoleManager.h"
 #include "Character/LDBodyPuppet.h"
 #include "Character/LDCharacterMovementComponent.h"
 #include "Character/LDHitFeel.h"
@@ -325,28 +324,6 @@ bool ALDCharacter::PresentationKnockback(const TArray<FLDObservedStatus>& Status
 }
 
 void ALDCharacter::SetFacing(float Yaw) { if (FMath::IsFinite(Yaw)) { SetActorRotation(FRotator(0, FRotator::NormalizeAxis(Yaw), 0)); } }
-#if !UE_BUILD_SHIPPING
-namespace
-{
-    int32 GDevFeelPreset=0;
-    FAutoConsoleVariableRef CVarDevFeelPreset(TEXT("ld.Dev.FeelPreset"),GDevFeelPreset,
-        TEXT("DEV play-test camera and pace. 0 shipped; 1 wide camera; 2 wide camera + slower bodies; 3 wide camera + slower bodies + look-ahead follow. The pace applies on the Listen Host only."));
-}
-
-LDCamera::FFeelPreset LDCamera::DevFeelPreset()
-{
-    FFeelPreset Preset;
-    switch (GDevFeelPreset)
-    {
-    case 1: Preset.ArmScale=4.f/3.f; break;
-    case 2: Preset.ArmScale=1.2f; Preset.Pitch=-62.f; Preset.MoveSpeedScale=.8f; break;
-    case 3: Preset.ArmScale=1.15f; Preset.Pitch=-65.f; Preset.MoveSpeedScale=.85f; Preset.LookAheadCm=350.f; break;
-    default: break;
-    }
-    return Preset;
-}
-#endif
-
 void ALDCharacter::CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult)
 {
     Camera->GetCameraView(DeltaTime,OutResult);
@@ -363,22 +340,7 @@ void ALDCharacter::CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult)
         Origin=Public->PublicMatch.PK.ArenaCentreCm;
         ArmLength=LDCamera::MaxArmLength;
     }
-    FTransform Pose=DefaultArmCameraPose(Origin,ArmLength);
-#if !UE_BUILD_SHIPPING
-    const LDCamera::FFeelPreset Feel=LDCamera::DevFeelPreset();
-    if (Feel.ArmScale!=1.f || Feel.Pitch!=LDCamera::Pitch || Feel.FieldOfView!=LDCamera::FieldOfView || Feel.LookAheadCm>0.f)
-    {
-        // Lead toward where the body is going, eased so a turn does not jerk the view.
-        const FVector Velocity=GetVelocity();
-        const double Pace=FMath::Clamp(Velocity.Size2D()/300.,0.,1.);
-        DevLookAhead=FMath::VInterpTo(DevLookAhead,Velocity.GetSafeNormal2D()*Feel.LookAheadCm*Pace,DeltaTime,2.5f);
-        if (Feel.LookAheadCm<=0.f) { DevLookAhead=FVector::ZeroVector; }
-        const FRotator Rotation(Feel.Pitch,LDCamera::Yaw,0);
-        const FVector Focus=Origin+FVector(0,0,LDCamera::TargetOffsetZ)+DevLookAhead;
-        Pose=FTransform(Rotation,Focus-Rotation.Vector()*ArmLength*Feel.ArmScale);
-        OutResult.FOV=Feel.FieldOfView;
-    }
-#endif
+    const FTransform Pose=DefaultArmCameraPose(Origin,ArmLength);
     OutResult.Location=Pose.TransformPosition(Camera->GetRelativeLocation());
     OutResult.Rotation=Pose.Rotator();
 }
@@ -398,7 +360,7 @@ FTransform ALDCharacter::DefaultArmCameraPose(const FVector& Origin, float ArmLe
     // The arm uses an absolute rotation and a world-space target offset, so the default subobject is the whole geometry.
     const USpringArmComponent* Arm = GetDefault<ALDCharacter>()->CameraArm;
     const FRotator Rotation = Arm->GetRelativeRotation();
-    return FTransform(Rotation, Origin + Arm->TargetOffset - Rotation.Vector() * ArmLength);
+    return FTransform(Rotation, Origin + Arm->TargetOffset - Rotation.Vector() * (ArmLength * LDCamera::ArmScale));
 }
 void ALDCharacter::EnsureLook()
 {

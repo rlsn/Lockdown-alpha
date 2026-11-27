@@ -14,9 +14,7 @@ param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(300,1500)][int]$
     [string]$RecordGame,
     # With CaptureOnly: a camera-feedback A/B take with the Host's camera shake off (NoShake) or reduced combat effects on
     # (Reduced); the default is the shipped preferences.
-    [ValidateSet('Default','NoShake','Reduced')][string]$Feel = 'Default',
-    # With CaptureOnly: the Host's DEV play-test camera and pace preset (ld.Dev.FeelPreset); 0 is the shipped one.
-    [ValidateRange(0,3)][int]$FeelPreset = 0)
+    [ValidateSet('Default','NoShake','Reduced')][string]$Feel = 'Default')
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
 Assert-LDDemoInputs
@@ -58,7 +56,6 @@ function Start-CombatRole {
         if ($CaptureOnly -and $Role -eq 'Host') { $arguments = $arguments.Replace(' -nosound', '') + ' -LDAudioEventLog' }
         if ($CaptureOnly -and $RecordGame -and $Role -eq 'Host') { $arguments += ' -LDRecordGame="{0}"' -f $RecordGame }
         if ($CaptureOnly -and $Feel -ne 'Default' -and $Role -eq 'Host') { $arguments += " -LDDemoCombatFeel=$Feel" }
-        if ($CaptureOnly -and $FeelPreset -ne 0 -and $Role -eq 'Host') { $arguments += " -ExecCmds=`"ld.Dev.FeelPreset $FeelPreset`"" }
         $arguments
     }
 }
