@@ -381,7 +381,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("REST.ReturnSec", "ms", "3"),
             ("REST.EntryReadyTimeoutSec", "ms", "30"),
             # The rest PK (R1 and R2): sign-up inside the build step, then draw+betting, ready, fight, and settlement+payout.
-            ("REST.SignupSec", "ms", "10"), ("REST.DrawSec", "ms", "0"), ("REST.BettingSec", "ms", "6"),
+            ("REST.SignupSec", "ms", "10"), ("REST.DrawSec", "ms", "0"), ("REST.BettingSec", "ms", "10"),
             ("REST.PKReadySec", "ms", "3"), ("REST.PKMaxSec", "ms", "45"), ("REST.SettlementSec", "ms", "3"),
             ("REST.PayoutSec", "ms", "0"),
             ("PK.ArenaRadiusCm", "cm", "1800"), ("PK.RingMidRadiusCm", "cm", "600"), ("PK.RingFinalRadiusCm", "cm", "150"),

@@ -168,7 +168,7 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | `REST.OpeningBuildSec` | s/Sec | 35 | 开局 R0 构筑/试招窗；所有真人准备后立即结束 |
 | `REST.BuildSec` / `REST.FinalBuildSec` | s/Sec | 65 / 65 | R1–R3 的构筑与试招窗，所有真人就绪后提前收束，R1、R2 保留 PK 报名窗 |
 | `REST.SignupSec` | s/Sec | 10 | R1、R2 配装的最后这么久兼作 PK 报名窗；全员准备提前结束时保留 |
-| `REST.DrawSec` / `REST.BettingSec` / `REST.PKReadySec` | s/Sec | 0 / 6 / 3 | PK 公布赛制与押注合并为 6 s 押注步骤，随后 3 s 准备（锁输入） |
+| `REST.DrawSec` / `REST.BettingSec` / `REST.PKReadySec` | s/Sec | 0 / 10 / 3 | PK 公布赛制与押注合并为 10 s 押注步骤，随后 3 s 准备（锁输入） |
 | `REST.PKMaxSec` | s/Sec | 45 | PK 对打上限；提前分出胜负即结束 |
 | `REST.SettlementSec` / `REST.PayoutSec` | s/Sec | 3 / 0 | PK 结算与派奖合并为 3 s 结算步骤；单次 PK 最多 57 s |
 | `PK.ArenaRadiusCm` / `PK.RingMidRadiusCm` / `PK.RingFinalRadiusCm` | cm | 1800 / 600 / 150 | PK 圈：开打后 `PK.RingShrinkStartSec` 起缩，`PK.RingMidSec` 到中圈，`PK.RingFinalSec` 到终圈 |
