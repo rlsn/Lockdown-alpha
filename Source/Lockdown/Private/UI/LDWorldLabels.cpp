@@ -1,5 +1,6 @@
 #include "UI/LDWorldLabels.h"
 #include "UI/LDWorkshop.h"
+#include "UI/LDWorldProject.h"
 #include "UI/LDTerms.h"
 #include "Core/LDLog.h"
 #include "UI/LDHUD.h"
@@ -384,7 +385,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
         UnitOcclusions.Reset();
         return Base;
     }
-    if(PC->HUDUI){PC->HUDUI->PaintWorldPreviews(G,E,Base+1);}
+    if(PC->HUDUI){TRACE_CPUPROFILER_EVENT_SCOPE(LDWorldLabels_Previews);PC->HUDUI->PaintWorldPreviews(G,E,Base+1);}
     const double UiNow=FPlatformTime::Seconds();
     const FLDOwnerState& Own=PC->OwnerState;
     const ALDWorldViewRelay* Relay=Own.LifePhase==ELDLifePhase::Alive?PC->LocalView():nullptr;
@@ -403,6 +404,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
         return Base+1;
     }
     const FVector2f Size=G.GetLocalSize();const float ToLocalX=Size.X/float(ViewW),ToLocalY=Size.Y/float(ViewH);
+    const FLDWorldProjector Projector(PC);
     auto Culled=[&Size](float X,float Y){return X<-WorldLabelCullMargin||X>Size.X+WorldLabelCullMargin||Y<0.f||Y>Size.Y+WorldLabelCullMargin;};
     const float TextScale=PC->Controls?PC->Controls->TextScale:1.f;
     const bool bColorblind=PC->Controls&&PC->Controls->bColorblindMode;
@@ -540,7 +542,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
                 Point.Z+=70;
             }
             FVector2D Screen;
-            if (!PC->ProjectWorldLocationToScreen(Point,Screen)) { continue; }
+            if (!Projector.Project(Point,Screen)) { continue; }
             const float X=float(Screen.X)*ToLocalX;
             float Bottom=float(Screen.Y)*ToLocalY;
             if (Culled(X,Bottom)) { continue; }
@@ -576,12 +578,12 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     auto ProjectUnitCapsule=[&](const FVector& PresentedFeet,double HeightCm,double RadiusCm,FSlateRect& OutRect)->bool
     {
         FVector2D FootScreen,HeadScreen,SideScreen;
-        if(!PC->ProjectWorldLocationToScreen(PresentedFeet,FootScreen)
-            ||!PC->ProjectWorldLocationToScreen(PresentedFeet+FVector(0.,0.,HeightCm),HeadScreen)){return false;}
+        if(!Projector.Project(PresentedFeet,FootScreen)
+            ||!Projector.Project(PresentedFeet+FVector(0.,0.,HeightCm),HeadScreen)){return false;}
         const FVector2f FootPx(float(FootScreen.X)*ToLocalX,float(FootScreen.Y)*ToLocalY);
         const FVector2f HeadPx(float(HeadScreen.X)*ToLocalX,float(HeadScreen.Y)*ToLocalY);
         float HalfWidthPx=(FootPx.Y-HeadPx.Y)*.26f;
-        if(PC->ProjectWorldLocationToScreen(PresentedFeet+FVector(0.,0.,HeightCm*.5)+CamRight*RadiusCm,SideScreen))
+        if(Projector.Project(PresentedFeet+FVector(0.,0.,HeightCm*.5)+CamRight*RadiusCm,SideScreen))
         {
             HalfWidthPx=FMath::Abs(float(SideScreen.X)*ToLocalX-(FootPx.X+HeadPx.X)*.5f);
         }
@@ -680,8 +682,9 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     FVector2D OwnScreen;
     // The open build ring grows around the own body: its overhead plate steps aside so the element ring stays readable.
     const bool bBuildRingOpen=PC->HUDUI&&PC->HUDUI->Workshop&&PC->HUDUI->Workshop->IsOpen();
-    if(!bBuildRingOpen&&IsValid(OwnBody)&&PC->ProjectWorldLocationToScreen(OwnBody->PresentedLocation()+FVector(0,0,OwnBarsHeadroomCm),OwnScreen))
+    if(!bBuildRingOpen&&IsValid(OwnBody)&&Projector.Project(OwnBody->PresentedLocation()+FVector(0,0,OwnBarsHeadroomCm),OwnScreen))
     {
+        TRACE_CPUPROFILER_EVENT_SCOPE(LDWorldLabels_Own);
         const float OwnX=float(OwnScreen.X)*ToLocalX,OwnBottom=float(OwnScreen.Y)*ToLocalY;
         if(!Culled(OwnX,OwnBottom))
         {
@@ -795,7 +798,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             Placed.Add(FSlateRect(ReachLeft,ReachTop,ReachRight,OwnBottom));
         }
     }
-    else if(IsValid(NoticeBody)&&PC->ProjectWorldLocationToScreen(NoticeBody->PresentedLocation()+FVector(0,0,OwnBarsHeadroomCm),OwnScreen))
+    else if(IsValid(NoticeBody)&&Projector.Project(NoticeBody->PresentedLocation()+FVector(0,0,OwnBarsHeadroomCm),OwnScreen))
     {
         const float OwnX=float(OwnScreen.X)*ToLocalX,OwnBottom=float(OwnScreen.Y)*ToLocalY;
         if(!Culled(OwnX,OwnBottom))
@@ -832,12 +835,14 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
         FLinearColor DummyBoardInk=FLinearColor::White;
     };
     TArray<FPending> Pending;
+    {
+    TRACE_CPUPROFILER_EVENT_SCOPE(LDWorldLabels_Gather);
     if(Public->PublicMatch.Generation==Own.Match&&Public->PublicMatch.Phase==ELDMatchPhase::Rest)
     {
         const auto PublicLabel=[&](const FVector& Position,const FString& Name)
         {
             FVector2D Screen;
-            if(!PC->ProjectWorldLocationToScreen(Position,Screen)){return;}
+            if(!Projector.Project(Position,Screen)){return;}
             FPending Entry;Entry.Label.Name=Name;Entry.bPublicService=true;
             Entry.CentreX=float(Screen.X)*ToLocalX;Entry.Bottom=float(Screen.Y)*ToLocalY;
             if(Culled(Entry.CentreX,Entry.Bottom)){return;}
@@ -968,7 +973,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
                 }
             }
             FVector2D Screen;
-            if((Label.Name.IsEmpty()&&Label.Status.IsEmpty()&&!Label.bHealth)||!PC->ProjectWorldLocationToScreen(Centre+FVector(0,0,WorldLabelHeadroomCm(Label)),Screen)){continue;}
+            if((Label.Name.IsEmpty()&&Label.Status.IsEmpty()&&!Label.bHealth)||!Projector.Project(Centre+FVector(0,0,WorldLabelHeadroomCm(Label)),Screen)){continue;}
             Entry.CentreX=float(Screen.X)*ToLocalX;Entry.Bottom=float(Screen.Y)*ToLocalY;
             if(Culled(Entry.CentreX,Entry.Bottom)){continue;}
             if(Label.bHealth)
@@ -1005,6 +1010,8 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             Pending.Add(MoveTemp(Entry));
         }
     }
+    }
+    TRACE_CPUPROFILER_EVENT_SCOPE(LDWorldLabels_Draw);
     Pending.Sort([](const FPending& A,const FPending& B){return A.Bottom>B.Bottom;});
     for(FPending& Entry:Pending)
     {
@@ -1184,6 +1191,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
         const bool bField=Match.Generation!=0&&Match.Generation==Own.Match&&(Match.Phase==ELDMatchPhase::Development||Match.Phase==ELDMatchPhase::CaptureOpen);
         if(bField&&!bBuildRingOpen&&PC->ReadDemoAuthorityTimeMs(NowMs))
         {
+            TRACE_CPUPROFILER_EVENT_SCOPE(LDWorldLabels_Sites);
             const int64 T=LDMatchTimeline::FieldNowFromView(Match.Timeline,NowMs);
             const FSlateFontInfo NameFont=LDBroadcastPaint::LabelFont(18.f,true,TextScale),GlyphFont=LDBroadcastPaint::LabelFont(20.f,true,TextScale);
             const FSlateFontInfo FigureFont=LDBroadcastPaint::FigureFont(24.f,TextScale);
@@ -1193,7 +1201,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             {
                 FVector2D Screen;
                 // High enough to clear the own bars and status row when the own body stands on the site.
-                if(!PC->ProjectWorldLocationToScreen(SiteCm+FVector(0.,0.,520.),Screen)){return;}
+                if(!Projector.Project(SiteCm+FVector(0.,0.,520.),Screen)){return;}
                 const float X=float(Screen.X)*ToLocalX,Y=float(Screen.Y)*ToLocalY;
                 if(Culled(X,Y)){return;}
                 const FString Seconds=LeftMs>0?FString::Printf(TEXT("%lld"),(LeftMs+999)/1000):FString();

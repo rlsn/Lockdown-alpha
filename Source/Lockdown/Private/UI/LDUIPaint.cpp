@@ -71,11 +71,16 @@ namespace
         }
         return Out;
     }
+    // A primitive's vertices and indices. Each primitive is built and drawn before the next one starts (game thread), so
+    // they share one scratch pair that keeps its capacity; MakeCustomVerts copies what it is given.
+    TArray<FSlateVertex>& PaintScratchVertices(){static TArray<FSlateVertex> Scratch;return Scratch;}
+    TArray<SlateIndex>& PaintScratchIndices(){static TArray<SlateIndex> Scratch;return Scratch;}
     struct FPaintMesh
     {
-        TArray<FSlateVertex> Vertices;
-        TArray<SlateIndex> Indices;
+        TArray<FSlateVertex>& Vertices;
+        TArray<SlateIndex>& Indices;
         const FSlateRenderTransform* Transform=nullptr;
+        FPaintMesh():Vertices(PaintScratchVertices()),Indices(PaintScratchIndices()){Vertices.Reset();Indices.Reset();}
         int32 Add(FVector2D At,const FLinearColor& Color,FVector2D UV=FVector2D(.5,.5))
         {
             Vertices.Add(FSlateVertex::Make(*Transform,FVector2f(At),FVector2f(UV),PaintSrgb(Color)));
@@ -103,7 +108,7 @@ namespace
         const TArray<FVector2D> Normals=PaintNormals(Points);
         const float Pixel=PaintPixel(Geometry);
         const int32 N=Points.Num();
-        TArray<int32> Inner,Outer;
+        TArray<int32,TInlineAllocator<64>> Inner,Outer;
         for(int32 Index=0;Index<N;++Index)
         {
             const FVector2D At=Points[Index]-Normals[Index]*(Pixel*.5f);

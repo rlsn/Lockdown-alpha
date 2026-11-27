@@ -7,7 +7,9 @@ class UTexture2D;
 
 // The build ring's paint primitives: everything is drawn in the ring widget's own paint pass in local Slate units, with no
 // material assets. Every primitive takes the next layer, so overlapping parts (a hovered tile over its neighbours, the link
-// stroke under the tiles) always stack in the order they are painted.
+// stroke under the tiles) always stack in the order they are painted. Untextured primitives painted one after another
+// are sent as one mesh at the first one's layer (their triangles keep the paint order); a picture or a text sends what
+// is waiting first, and so does the painter's end.
 namespace LDRingPaint
 {
     struct FPainter
@@ -18,7 +20,16 @@ namespace LDRingPaint
         float Opacity=1.f;
 
         FPainter(FSlateWindowElementList& InElements,const FGeometry& InGeometry,int32 InLayer):Elements(InElements),Geometry(InGeometry),Layer(InLayer){}
+        FPainter(const FPainter&)=delete;
+        FPainter& operator=(const FPainter&)=delete;
+        ~FPainter(){Flush();}
         int32 Next(){return ++Layer;}
+        // Sends the untextured primitives waiting to be drawn.
+        LOCKDOWN_API void Flush();
+        // The waiting untextured mesh and the layer of its first primitive (INDEX_NONE: nothing waits).
+        TArray<FSlateVertex> Waiting;
+        TArray<SlateIndex> WaitingIndices;
+        int32 WaitingLayer=INDEX_NONE;
         FLinearColor Fade(const FLinearColor& Color) const {return Color.CopyWithNewOpacity(Color.A*Opacity);}
 
         // A convex polygon (no repeated last point) in one colour, or with a colour per point.

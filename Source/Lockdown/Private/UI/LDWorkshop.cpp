@@ -202,7 +202,8 @@ void ULDWorkshop::Present(const FInput& Input,const FGeometry*)
         LDWidgets::PlayCue(this,ELDAudioCue::UIWorkshopClose);
     }
     Latest=Input;
-    View0=Input.Progression?*Input.Progression:FLDProgressionView();
+    if(Input.Progression){if(!LDHUD::SameProgression(View0,*Input.Progression)){View0=*Input.Progression;}}
+    else if(View0.bValid){View0=FLDProgressionView();}
     Rebuild();
     const bool bVisible=Input.bShown&&Ring.bValid;
     const ESlateVisibility Wanted=bVisible?ESlateVisibility::Visible:ESlateVisibility::Collapsed;
@@ -211,7 +212,6 @@ void ULDWorkshop::Present(const FInput& Input,const FGeometry*)
 }
 void ULDWorkshop::Rebuild()
 {
-    StorageView=Storage.IsValid()?Storage->Model():LDHUD::CardStorage(View0,Latest.Content);
     FInputs In;
     In.Progression=&View0;In.Storage=&StorageView;In.Content=Latest.Content;In.Attributes=&Latest.Attributes;
     In.Stats=Latest.Stats;In.Keys=Latest.Keys;In.DashKey=Latest.DashKey;
@@ -222,7 +222,34 @@ void ULDWorkshop::Rebuild()
         const int32 Count=Latest.Content->StatsInDesignOrder().Num();
         for(int32 Index=0;Index<Count;++Index){In.Points.Add(StatBar->EffectivePoints(Index));}
     }
-    Ring=Build(In);
+    // The model is a pure function of these inputs: an unchanged sample keeps the last one. The library's own model follows
+    // the view, the catalog and its unseen marks, so the marks stand in for it.
+    const LDHUD::FStorageView* Library=Storage.IsValid()?&Storage->Model():nullptr;
+    bool bSame=ModelKey.bBuilt&&ModelKey.Content==In.Content&&ModelKey.bRestShop==In.bRestShop&&ModelKey.Unspent==In.Unspent
+        &&ModelKey.bOwnStorage==(Library==nullptr)&&ModelKey.Points==In.Points&&ModelKey.Stats==In.Stats&&ModelKey.Keys==In.Keys
+        &&ModelKey.DashKey==In.DashKey&&LDHUD::SameAttributes(ModelKey.Attributes,Latest.Attributes)&&LDHUD::SameProgression(ModelKey.View,View0);
+    if(bSame&&Library)
+    {
+        bSame=Library->Stored.Num()==ModelKey.StoredCards.Num();
+        for(int32 Index=0;bSame&&Index<Library->Stored.Num();++Index)
+        {bSame=Library->Stored[Index].Card==ModelKey.StoredCards[Index]&&Library->Stored[Index].bFresh==ModelKey.StoredFresh[Index];}
+    }
+    if(bSame)
+    {
+        for(auto It=Landed.CreateIterator();It;++It){if(UiNow()-It.Value()>RingLandTime){It.RemoveCurrent();}}
+        return;
+    }
+    {
+        TRACE_CPUPROFILER_EVENT_SCOPE(LDWorkshop_BuildModel);
+        StorageView=Library?*Library:LDHUD::CardStorage(View0,Latest.Content);
+        Ring=Build(In);
+        ++ModelSerial;
+        ModelKey.bBuilt=true;ModelKey.View=View0;ModelKey.Content=In.Content;ModelKey.Attributes=Latest.Attributes;ModelKey.Stats=In.Stats;
+        ModelKey.Keys=In.Keys;ModelKey.DashKey=In.DashKey;ModelKey.Points=In.Points;ModelKey.Unspent=In.Unspent;ModelKey.bRestShop=In.bRestShop;
+        ModelKey.bOwnStorage=Library==nullptr;
+        ModelKey.StoredCards.Reset();ModelKey.StoredFresh.Reset();
+        if(Library){for(const LDHUD::FStoredView& Each:Library->Stored){ModelKey.StoredCards.Add(Each.Card);ModelKey.StoredFresh.Add(Each.bFresh);}}
+    }
     // A selection the view no longer holds is dropped (taken, sold or consumed elsewhere).
     if(!Selected.IsNone()&&!Ring.Hand.ContainsByPredicate([this](const FCard& Card){return Card.Key==Selected;})){Selected=NAME_None;}
     if(Ring.Batch.Kind!=EBatch::Blueprint){SelectedBlueprint=INDEX_NONE;}
@@ -406,6 +433,13 @@ void ULDWorkshop::ComputeLayout(const FGeometry& Geometry)
     LayoutCard();
 }
 
+float ULDWorkshop::Refit(FFitMemo& Memo,TConstArrayView<float> From,TFunctionRef<float()> Fit)
+{
+    if(Memo.From.Num()==From.Num()&&FMemory::Memcmp(Memo.From.GetData(),From.GetData(),From.Num()*sizeof(float))==0){return Memo.Scale;}
+    Memo.From=From;
+    Memo.Scale=Fit();
+    return Memo.Scale;
+}
 void ULDWorkshop::LayoutTable()
 {
     FLayout& L=Layout;
@@ -454,9 +488,15 @@ void ULDWorkshop::LayoutTable()
         }
         return Scale;
     };
+    // Everything Fit and OnBand read, so an unchanged frame keeps its scale.
+    const auto Fitted=[&](FFitMemo& Memo,float At)
+    {
+        const float From[]={At,Top,F,U,L.R,float(L.Centre.X),float(L.Centre.Y),L.Outer[0],L.Outer[1],L.Outer[2],L.Outer[3],L.Outer[4],Width,Height,Limit,float(Rows.Num())};
+        return Refit(Memo,From,[&](){return Fit(At);});
+    };
     float Left=44.f*U;
-    float Scale=Fit(Left);
-    if(Scale<Floor){Left=28.f*U;Scale=Fit(Left);}
+    float Scale=Fitted(TableFit[0],Left);
+    if(Scale<Floor){Left=28.f*U;Scale=Fitted(TableFit[1],Left);}
     Scale=FMath::Max(Scale,Floor);
     L.Table=FVector2D(Left,Top);L.TableScale=F*Scale;L.TableWidth=Width*L.TableScale;
     const float S=L.TableScale;
@@ -512,12 +552,17 @@ void ULDWorkshop::LayoutShop()
         }
         return Scale;
     };
+    const auto Fitted=[&](FFitMemo& Memo,float At,float From0)
+    {
+        const float From[]={At,From0,F,U,L.R,float(L.Centre.X),float(L.Centre.Y),L.Outer[0],L.Outer[1],L.Outer[2],L.Outer[3],L.Outer[4],Width,Height,Limit,float(Ring.Shop.Num())};
+        return Refit(Memo,From,[&](){return Fit(At,From0);});
+    };
     float Right=float(L.Size.X)-80.f*U;
-    float Scale=Fit(Right,Top);
+    float Scale=Fitted(ShopFit[0],Right,Top);
     // The comp's column ends 80 px from the edge; only a clearly squeezed shelf takes the outer 40 px.
-    if(Scale<.9f){Right=float(L.Size.X)-40.f*U;Scale=Fit(Right,Top);}
+    if(Scale<.9f){Right=float(L.Size.X)-40.f*U;Scale=Fitted(ShopFit[1],Right,Top);}
     // A long shelf over risen rest actions starts higher, under the top corner.
-    if(Scale<Floor){Top=140.f*U;Scale=Fit(Right,Top);}
+    if(Scale<Floor){Top=140.f*U;Scale=Fitted(ShopFit[2],Right,Top);}
     Scale=FMath::Max(Scale,Floor);
     const float S=F*Scale;
     L.ShopScale=S;L.ShopWidth=Width*S;
@@ -772,11 +817,30 @@ void ULDWorkshop::UpdateRadar()
 void ULDWorkshop::NativeTick(const FGeometry& Geometry,float DeltaSeconds)
 {
     Super::NativeTick(Geometry,DeltaSeconds);
-    UpdateRadar();
+    {TRACE_CPUPROFILER_EVENT_SCOPE(LDWorkshop_Radar);UpdateRadar();}
     const double Now=UiNow();
     if(FrozenOpen>=0.f&&IsOpen()){OpenedAt=Now-FrozenOpen;}
     if(FrozenReveal>=0.f&&BatchAt>=0.){BatchAt=Now-FrozenReveal;}
-    ComputeLayout(Geometry);
+    if(IsOpen()||IsOpening()||!Ring.bValid)
+    {
+        TRACE_CPUPROFILER_EVENT_SCOPE(LDWorkshop_LayoutOpen);
+        ClosedKey.bValid=false;
+        ComputeLayout(Geometry);
+    }
+    else
+    {
+        // Closed, the layout is the entry by the band and the waiting offer: it follows the model, the widget's size and
+        // scale, the band's place and the key's name, not the frame.
+        FClosedKey Key;
+        Key.bValid=true;Key.Model=ModelSerial;Key.Size=Geometry.GetLocalSize();Key.Scale=Geometry.Scale;Key.TextScale=TextScale;
+        Key.Band=Latest.Band;Key.OpenKey=Latest.OpenKey;
+        if(!(Key==ClosedKey))
+        {
+            TRACE_CPUPROFILER_EVENT_SCOPE(LDWorkshop_LayoutClosed);
+            ClosedKey=MoveTemp(Key);
+            ComputeLayout(Geometry);
+        }
+    }
     FHit Next;
     if(FSlateApplication::IsInitialized()&&Ring.bValid)
     {
@@ -1832,15 +1896,34 @@ int32 ULDWorkshop::PaintGround(const FGeometry& Geometry,FSlateWindowElementList
         return LDBroadcast::Ink.CopyWithNewOpacity(Alpha);
     };
     const int32 Columns=32,Rows=18;
+    // The shade of each grid corner follows the size, the centre, the unit and the shop side only: kept between frames.
+    const double From[]={Size.X,Size.Y,C.X,C.Y,double(U),bRight?1.:0.};
+    if(GroundAlpha.Num()!=(Columns+1)*(Rows+1)||GroundFrom.Num()!=UE_ARRAY_COUNT(From)||FMemory::Memcmp(GroundFrom.GetData(),From,sizeof(From))!=0)
+    {
+        GroundFrom=MakeArrayView(From);
+        GroundAlpha.SetNumUninitialized((Columns+1)*(Rows+1));
+        for(int32 Row=0;Row<=Rows;++Row)
+        {
+            for(int32 Column=0;Column<=Columns;++Column)
+            {GroundAlpha[Row*(Columns+1)+Column]=Shade(FVector2D(float(Size.X)*Column/Columns,float(Size.Y)*Row/Rows)).A;}
+        }
+    }
+    TArray<FVector2D> Top,Bottom;
+    Top.Reserve(Columns+1);Bottom.Reserve(Columns+1);
     for(int32 Row=0;Row<Rows;++Row)
     {
-        TArray<FVector2D> Top,Bottom;
+        Top.Reset();Bottom.Reset();
         for(int32 Column=0;Column<=Columns;++Column)
         {
             const float X=float(Size.X)*Column/Columns;
             Top.Add(FVector2D(X,float(Size.Y)*Row/Rows));Bottom.Add(FVector2D(X,float(Size.Y)*(Row+1)/Rows));
         }
-        P.Band(Top,Bottom,Shade);
+        P.Band(Top,Bottom,[&](FVector2D At)
+        {
+            const int32 Column=FMath::Clamp(FMath::RoundToInt32(float(At.X/Size.X)*Columns),0,Columns);
+            const int32 Line=FMath::Clamp(FMath::RoundToInt32(float(At.Y/Size.Y)*Rows),0,Rows);
+            return LDBroadcast::Ink.CopyWithNewOpacity(GroundAlpha[Line*(Columns+1)+Column]);
+        });
     }
     return P.Layer;
 }
@@ -1853,6 +1936,7 @@ int32 ULDWorkshop::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,
     const float Open=OpenAmount();
     if(Open>0.f)
     {
+        TRACE_CPUPROFILER_EVENT_SCOPE(LDWorkshop_PaintOpen);
         P.Opacity=Open;
         const FHit Shown=Focus();
         TArray<uint64> Lit=LinkedTo(Shown);
@@ -1911,6 +1995,7 @@ int32 ULDWorkshop::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,
     }
     if(!IsOpen())
     {
+        TRACE_CPUPROFILER_EVENT_SCOPE(LDWorkshop_PaintClosed);
         P.Opacity=1.f-Open;
         PaintClosed(P);
     }
