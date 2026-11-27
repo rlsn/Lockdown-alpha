@@ -496,6 +496,14 @@ private:
     // Where the day plates were last painted (HUD local; invalid when none): the toast, the countdown and the ring's hover
     // card keep clear of them.
     mutable FBox2D DayPlates=FBox2D(ForceInit);
+public:
+    // The day plates' absolute box while they show (invalid otherwise): the world labels under them step aside.
+    FBox2D DayPlatesAbsolute() const
+    {
+        if(StageDaily.IsEmpty()||!DayPlates.bIsValid){return FBox2D(ForceInit);}
+        return FBox2D(GetCachedGeometry().LocalToAbsolute(DayPlates.Min),GetCachedGeometry().LocalToAbsolute(DayPlates.Max));
+    }
+private:
     // The final's goal, centred at the top while the flag is open: the holder's seat (INDEX_NONE: nobody), the holder's
     // name, the flag's state line (the circle head) and its bar.
     struct FFlagBar{bool bShown=false;int32 Seat=INDEX_NONE;FString Holder,State;float Progress=0.f;bool bProgress=false;};

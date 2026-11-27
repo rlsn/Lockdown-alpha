@@ -406,7 +406,14 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     }
     const FVector2f Size=G.GetLocalSize();const float ToLocalX=Size.X/float(ViewW),ToLocalY=Size.Y/float(ViewH);
     const FLDWorldProjector Projector(PC);
-    auto Culled=[&Size](float X,float Y){return X<-WorldLabelCullMargin||X>Size.X+WorldLabelCullMargin||Y<0.f||Y>Size.Y+WorldLabelCullMargin;};
+    // The opening's day plates on the top band: a world label that would reach into them is not drawn (the plates stay put).
+    FBox2D Plates(ForceInit);
+    if(PC->HUDUI){const FBox2D Abs=PC->HUDUI->DayPlatesAbsolute();if(Abs.bIsValid){Plates=FBox2D(G.AbsoluteToLocal(Abs.Min),G.AbsoluteToLocal(Abs.Max));}}
+    auto Culled=[&Size,&Plates](float X,float Y)
+    {
+        if(Plates.bIsValid&&X>Plates.Min.X-80.f&&X<Plates.Max.X+80.f&&Y>Plates.Min.Y&&Y<Plates.Max.Y+70.f){return true;}
+        return X<-WorldLabelCullMargin||X>Size.X+WorldLabelCullMargin||Y<0.f||Y>Size.Y+WorldLabelCullMargin;
+    };
     const float TextScale=PC->Controls?PC->Controls->TextScale:1.f;
     const bool bColorblind=PC->Controls&&PC->Controls->bColorblindMode;
     const FSlateFontInfo ContenderFont=WorldLabelFont(TEXT("Bold"),LDHUDStyle::TypeText,TextScale),CampFont=WorldLabelFont(TEXT("Regular"),LDHUDStyle::TypeText,TextScale),StatusFont=WorldLabelFont(TEXT("Regular"),LDHUDStyle::TypeSmall,TextScale);

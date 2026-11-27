@@ -444,39 +444,49 @@ void ULDWorkshop::ComputeLayout(const FGeometry& Geometry)
             Taken.Add(Part);
         }
         const float Gap=8.f*F,Step=4.f*U;
+        L.ChipCompact.Init(false,Ring.Stats.Num());L.ChipScale.Init(1.f,Ring.Stats.Num());
         for(int32 Index=0;Index<Ring.Stats.Num();++Index)
         {
             const float Degrees=RadarTurn+Index*360.f/FMath::Max(1,Ring.Stats.Num());
             const FVector2D Corner=Project(RadarRadius+4.f,Degrees);
             const FVector2D Dir=(Corner-Feet).GetSafeNormal();
-            const FVector2D Size=ChipSize(Ring.Stats[Index],StatLine(Ring.Derived,Index),Ring.Unspent>0,F);
             const bool bUnder=FMath::Abs(Dir.X)<.35&&Dir.Y>0.;
             const FVector2D Out=bUnder?FVector2D(0.,1.):FVector2D(Dir.X>=0.?1.:-1.,0.);
-            FVector2D At=bUnder?Corner+FVector2D(0.,Gap+Size.Y*.5):Corner+FVector2D(Out.X*(Gap+Size.X*.5),0.);
-            const auto Clear=[&](const FVector2D& Centre)
+            // A form of the chip placed: its preferred place beside its corner, else the nearest clear place around it in
+            // rings of Step (each ring tries down first, then outward from the radar, then the rest), on screen and no
+            // higher than the character's head (the sectors above are full of parts).
+            FVector2D Size,At;
+            const auto Place=[&](const FVector2D& Want)
             {
-                const FBox2D Box(Centre-Size*.5,Centre+Size*.5);
-                for(const FBox2D& Other:Taken){if(Touches(Box,Other)){return false;}}
-                return true;
-            };
-            // The nearest clear place around the preferred one, rings of Step outward; each ring tries down first, then
-            // outward from the radar, then the rest, so a chip that must move goes where the ring has no parts.
-            if(!Clear(At))
-            {
-                const FVector2D Start=At;bool bFound=false;
-                for(int32 Ring0=1;Ring0<=80&&!bFound;++Ring0)
+                Size=Want;
+                At=bUnder?Corner+FVector2D(0.,Gap+Size.Y*.5):Corner+FVector2D(Out.X*(Gap+Size.X*.5),0.);
+                const auto Clear=[&](const FVector2D& Centre)
+                {
+                    const FBox2D Box(Centre-Size*.5,Centre+Size*.5);
+                    for(const FBox2D& Other:Taken){if(Touches(Box,Other)){return false;}}
+                    return true;
+                };
+                if(Clear(At)){return true;}
+                const FVector2D Start=At;
+                for(int32 Ring0=1;Ring0<=80;++Ring0)
                 {
                     for(const float Turn:{0.f,(Out.X>=0.?-45.f:45.f),(Out.X>=0.?-90.f:90.f),(Out.X>=0.?45.f:-45.f),(Out.X>=0.?-135.f:135.f),(Out.X>=0.?90.f:-90.f),180.f,(Out.X>=0.?135.f:-135.f)})
                     {
                         // 0 degrees is straight down the screen.
                         const float T=FMath::DegreesToRadians(Turn);
                         const FVector2D Try=Start+FVector2D(-FMath::Sin(T),FMath::Cos(T))*(Ring0*Step);
-                        // On screen, and no higher than the character's head: the sectors above are full of parts.
                         if(Try.X-Size.X*.5<4.f*U||Try.X+Size.X*.5>L.Size.X-4.f*U||Try.Y-Size.Y*.5<4.f*U||Try.Y<Feet.Y-110.f*R){continue;}
-                        if(Clear(Try)){At=Try;bFound=true;break;}
+                        if(Clear(Try)){At=Try;return true;}
                     }
                 }
-            }
+                At=Start;
+                return false;
+            };
+            // Full (two lines) first; where it fits nowhere, one line; then that line smaller, down to 70% (its name never under 12 px).
+            const FStat& Stat=Ring.Stats[Index];
+            bool bPlaced=Place(ChipSize(Stat,StatLine(Ring.Derived,Index),Ring.Unspent>0,F));
+            if(!bPlaced){L.ChipCompact[Index]=true;bPlaced=Place(ChipSize(Stat,FString(),Ring.Unspent>0,F));}
+            for(float Scale=.9f;!bPlaced&&Scale>.65f&&18.f*F*Scale*L.K>=12.f;Scale-=.1f){L.ChipScale[Index]=Scale;bPlaced=Place(ChipSize(Stat,FString(),Ring.Unspent>0,F*Scale));}
             Taken.Add(FBox2D(At-Size*.5,At+Size*.5));
             L.Anchors.Add(AnchorKey(EHit::Stat,INDEX_NONE,Index),At);
             Add(EHit::Stat,INDEX_NONE,Index,Lean(FBox2D(At-Size*.5,At+Size*.5),0.f,0.f));
@@ -1660,15 +1670,15 @@ void ULDWorkshop::PaintHosts(FPainter& P,const TArray<uint64>& Lit,bool bDim) co
 void ULDWorkshop::PaintRadarChips(FPainter& P) const
 {
     const FLayout& L=Layout;
-    const float F=L.F;
     const FHit Shown=Focus();
     const bool bPlus=Ring.Unspent>0;
     for(int32 Index=0;Index<Ring.Stats.Num();++Index)
     {
         const FVector2D* At=L.Anchors.Find(AnchorKey(EHit::Stat,INDEX_NONE,Index));
         if(!At){continue;}
+        const float F=L.F*(L.ChipScale.IsValidIndex(Index)?L.ChipScale[Index]:1.f);
         const FStat& Stat=Ring.Stats[Index];
-        const FString Line=StatLine(Ring.Derived,Index);
+        const FString Line=L.ChipCompact.IsValidIndex(Index)&&L.ChipCompact[Index]?FString():StatLine(Ring.Derived,Index);
         const FVector2D Size=ChipSize(Stat,Line,bPlus,F);
         const FBox2D Chip(*At-Size*.5,*At+Size*.5);
         const bool bHot=Shown.Kind==EHit::Stat&&Shown.Index==Index;

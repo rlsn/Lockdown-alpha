@@ -152,6 +152,9 @@ private:
         // on top or the library).
         FBox2D Bar=FBox2D(ForceInit);
         TArray<FBox2D> Segments;
+        // Each stat chip's form where the full one found no clear place: one line (no attribute line), at this scale.
+        TArray<bool> ChipCompact;
+        TArray<float> ChipScale;
         float RowTop=0.f;
         // The shop: its top-left corner and its own scale (the text scale, fitted beside the ring).
         FVector2D Shop=FVector2D::ZeroVector;

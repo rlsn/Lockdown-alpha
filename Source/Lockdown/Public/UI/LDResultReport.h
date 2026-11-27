@@ -6,6 +6,7 @@
 #include "LDResultReport.generated.h"
 
 struct FLDDemoContentDefinitions;
+struct FLDDemoContentSnapshot;
 struct FLDDamageSummaryView;
 class UTexture2D;
 
@@ -21,7 +22,9 @@ class LOCKDOWN_API ULDResultReport : public UUserWidget
     GENERATED_BODY()
 public:
     // Rebuilds the page's model when the result, the own seat, the summary or the catalog changed; otherwise nothing.
-    void Present(const FLDResultView& Result,const FGuid& Self,const FLDDamageSummaryView& Summary,const FLDDemoContentDefinitions* Content);
+    // Snapshot (optional) gives each seat's base and level attributes, so the hover cards read bonus terms exactly.
+    void Present(const FLDResultView& Result,const FGuid& Self,const FLDDamageSummaryView& Summary,const FLDDemoContentDefinitions* Content,
+        const FLDDemoContentSnapshot* Snapshot=nullptr);
     // The seat whose build stands beside the own one (a result row's contender); unknown ids are ignored.
     void Compare(const FGuid& Contender);
     const FGuid& Compared() const {return CompareWith;}
@@ -38,7 +41,7 @@ protected:
 private:
     // A skill, card or final mod drawn as a tile: its icon and what the hover card reads it from.
     enum class EItem : uint8 { None, Card, Active, FinalMod };
-    struct FItem{FString IconId;FName Id;EItem Kind=EItem::None;ELDSkillBranch Branch=ELDSkillBranch::None;uint8 Level=1;};
+    struct FItem{FString IconId;FName Id;EItem Kind=EItem::None;ELDSkillBranch Branch=ELDSkillBranch::None;uint8 Level=1;int32 Seat=INDEX_NONE;};
     struct FSeat
     {
         FGuid Id;
@@ -55,6 +58,9 @@ private:
         FItem Final;
         FString FinalName;
         TArray<int32> Points;
+        // The seat's final attributes from the result (its frozen projection), for the hover cards' numbers.
+        LDHUD::FCardStats Stats;
+        bool bStats=false;
     };
     struct FSource{FString IconId,Glyph,Name,Value;};
     struct FPhase{FString Label;TArray<FItem> Icons;};
