@@ -616,6 +616,16 @@ bool MinimapResolveStatic(FLDMinimapStatic& Cache,const UWorld* World,const FLDD
         else{Error=Anchor.Id+TEXT(": unsupported anchor kind.");return false;}
         Cache.Sites.Add(Site);
     }
+    // The final arena is played inside the street ring, which starts wider than the arena spawns: the final region frames the
+    // whole starting ring, with a margin for the marks drawn on it.
+    if(const FLDDemoWorldAnchor* Final=Geometry.Anchors.FindByPredicate([](const FLDDemoWorldAnchor& Anchor){return Anchor.Kind==ELDDemoWorldAnchorKind::FinalCapture;}))
+    {
+        const FLDDemoRational& Ring=Approved.Parameters.ShowdownRingRadiusCm;
+        const double RingCm=Ring.Denominator>0?double(Ring.Numerator)/double(Ring.Denominator):0.;
+        FVector2D Centre=FVector2D::ZeroVector;
+        if(RingCm>0.&&FMath::IsFinite(RingCm)&&ToCm(Final->Id,Final->PositionCm,Centre))
+        {Anchors[LDMinimap::FinalRegion]+=FBox2D(Centre-FVector2D(RingCm+300.),Centre+FVector2D(RingCm+300.));}
+    }
     TArray<FBox2D> Footprints,Regions;
     for(const FLDMinimapStatic::FArea& Area:Cache.Areas)
     {
@@ -1175,6 +1185,24 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
                     const FLinearColor Gold(1.f,.80f,.20f,.95f);
                     if(Objective.Phase==ELDObjectivePhase::Announced){FSlateDrawElement::MakeDashedLines(E,Base+5,G.ToPaintGeometry(),MoveTemp(Ring),ESlateDrawEffect::None,Gold,2.f,4.f);}
                     else{Lines(5,Ring,Gold,2.f);}
+                    // When it is announced and when it opens, the ring flashes once: two gold pulses grow out of it.
+                    const uint16 FlashKey=uint16(Objective.Serial)<<8|uint16(Objective.Phase);
+                    const double Now=FPlatformTime::Seconds();
+                    if(FlashKey!=ObjectiveFlashKey){ObjectiveFlashKey=FlashKey;ObjectiveFlashAt=Now;}
+                    const double FlashAge=Now-ObjectiveFlashAt;
+                    if(ObjectiveFlashAt>=0.&&FlashAge<1.6)
+                    {
+                        const FVector2f Centre=Spot(Objective.CentreCm);
+                        const float Base0=FMath::Max(6.f,float(double(Objective.RadiusCm)*View.Scale));
+                        for(const double Start:{0.,.6})
+                        {
+                            const float Alpha=float((FlashAge-Start)/1.);
+                            if(Alpha<0.f||Alpha>1.f){continue;}
+                            TArray<FVector2f> Pulse;const float R=Base0+Alpha*28.f;
+                            for(int32 Step=0;Step<=32;++Step){const float Angle=float(UE_DOUBLE_TWO_PI*Step/32.);Pulse.Add(Centre+FVector2f(FMath::Cos(Angle),FMath::Sin(Angle))*R);}
+                            Lines(6,Pulse,Gold.CopyWithNewOpacity(.95f*(1.f-Alpha)),3.f*(1.f-Alpha)+1.f);
+                        }
+                    }
                     if(Objective.Kind==ELDObjectiveKind::MiniFlag)
                     {
                         const FVector2f At=Spot(Objective.CentreCm);
@@ -1192,7 +1220,8 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
                     for(int32 Step=0;Step<=48;++Step){const double Angle=UE_DOUBLE_TWO_PI*Step/48.;Ring.Add(Spot(Street.CentreCm+FVector(FMath::Cos(Angle),FMath::Sin(Angle),0.)*Radius));}
                     Lines(5,Ring,FLinearColor(.95f,.95f,.95f,.9f),2.f);
                     const FVector2f At2=Spot(Street.CentreCm);
-                    Box(6,At2+FVector2f(-1.f,-12.f),FVector2f(2.f,13.f),FLinearColor(.94f,.94f,.90f));Box(7,At2+FVector2f(1.f,-12.f),FVector2f(8.f,5.f),LDBroadcast::Orange);
+                    Box(6,At2+FVector2f(-2.f,-19.f),FVector2f(4.f,21.f),Ink);Box(7,At2+FVector2f(-1.f,-18.f),FVector2f(2.f,19.f),FLinearColor(.94f,.94f,.90f));
+                    Box(7,At2+FVector2f(1.f,-18.f),FVector2f(12.f,8.f),Ink);Box(8,At2+FVector2f(1.f,-17.f),FVector2f(11.f,6.f),LDBroadcast::Orange);
                 }
                 // P6 spec §11.3: the delivery lockers out now (public), a brown box with a pale lid while someone holds it.
                 for(const FLDLockerView& Locker:Public->PublicMatch.Lockers)

@@ -4153,7 +4153,8 @@ void ULDHUD::PaintMoments(const LDUIPaint::FContext& P) const
     if(bShown&&!StageDaily.IsEmpty())
     {
         const FSlateFontInfo DayName=LDBroadcastPaint::LabelFont(26.f,true),DayLine=LDBroadcastPaint::LabelFont(18.f,false),DayGlyph=LDBroadcastPaint::LabelFont(26.f,true);
-        const float DayTop=float(Size.Y)*.15f,PlateH=64.f,PlateGap=14.f;
+        // With the build ring open the plates take the top edge's band, above the ring's top marks, so no sector is covered.
+        const float DayTop=Workshop&&Workshop->IsOpen()?8.f:float(Size.Y)*.15f,PlateH=64.f,PlateGap=14.f;
         TArray<float,TInlineAllocator<4>> Plates;float Row=0.f;
         for(const FStageDaily& Day:StageDaily)
         {
