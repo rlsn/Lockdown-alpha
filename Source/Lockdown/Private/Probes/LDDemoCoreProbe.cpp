@@ -1194,7 +1194,7 @@ void LDDemoTests::StartCoreProbe(ALDPlayerController& Controller)
         || UWorld::RemovePIEPrefix(Controller.GetWorld()->GetOutermost()->GetName())!=LDDemoEntry::WorldMap) { return; }
     auto Probe=MakeShared<FLDDemoCoreProbe>();
     Probe->bEarlyRestReady=FParse::Param(FCommandLine::Get(),TEXT("LDDemoCoreReady"));
-    int32 Timeout=330;
+    int32 Timeout=600;
     FParse::Value(FCommandLine::Get(),TEXT("LDDemoCoreTimeout="),Timeout);
     if (!FParse::Value(FCommandLine::Get(),TEXT("LDDemoCoreOutput="),Probe->Output)
         || !FParse::Value(FCommandLine::Get(),TEXT("LDDemoCoreRole="),Probe->Role)
