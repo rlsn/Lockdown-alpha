@@ -432,6 +432,9 @@ struct FLDCombatEntryView
     UPROPERTY() FGuid IssuedCooldownId;              // persistent cooldown identity; owner view only
     UPROPERTY() int64 ReadyAtMs=0;                   // persistent track end; <= now means ready
     UPROPERTY() int64 CooldownMs=0;                  // duration last issued on this track, for the UI ratio
+    // Skill charges (LDCombatSourceRules::SkillCharges); the ready ones follow from ReadyAtMs and CooldownMs at any instant
+    // (LDCombatSourceRules::ChargesReady).
+    UPROPERTY() uint8 Charges=1;
     UPROPERTY() ELDCombatReject Unavailable=ELDCombatReject::None; // current blocking reason, display only
 };
 

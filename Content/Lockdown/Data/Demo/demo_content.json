@@ -20524,7 +20524,7 @@
     },
     {
       "description_key": "active_school_bag_2a.description",
-      "description_text": "同时可以放 [bag.count] 个书包。",
+      "description_text": "可以连放 [bag.count] 个书包。",
       "icon_id": "icon_active_school_bag",
       "id": "active_school_bag_2a",
       "name_key": "active_school_bag_2a.name",
@@ -21244,7 +21244,7 @@
     },
     {
       "description_key": "card_double_stall.description",
-      "description_text": "你的区域、陷阱和地面状态技能可以多留一份。",
+      "description_text": "你的区域、陷阱和地面状态技能可以多留一份；风扇和书包可以多连放一个。",
       "icon_id": "icon_card_double_stall",
       "id": "card_double_stall",
       "name_key": "card_double_stall.name",

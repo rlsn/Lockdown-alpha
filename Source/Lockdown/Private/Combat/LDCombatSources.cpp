@@ -243,11 +243,40 @@ bool LDCombatSourceRules::InnateDashTerms(const FLDDemoContentSnapshot& Content,
     Error.Reset();
     return true;
 }
+int32 LDCombatSourceRules::SkillCharges(const FLDDemoAbilityValues& Values, int32 DoubleStallCopies)
+{
+    for (const FLDDemoEffectDefinition& Effect : Values.Effects)
+    {
+        if (Effect.GetOp()==ELDDemoEffectOp::Bag) { return FMath::Max(Effect.Count,1)+FMath::Max(DoubleStallCopies,0); }
+        if (Effect.GetOp()==ELDDemoEffectOp::Fan) { return 1+FMath::Max(DoubleStallCopies,0); }
+    }
+    return 1;
+}
+
+int32 LDCombatSourceRules::ChargesReady(int64 ReadyAtMs, int64 NowMs, int32 Charges, int64 ChargeMs)
+{
+    const int32 Full=FMath::Max(Charges,1);
+    if (ReadyAtMs<=NowMs) { return Full; }
+    if (Full==1 || ChargeMs<=0) { return 0; }
+    // Charges still recovering: the remaining time over one charge's recovery, rounded up.
+    const int64 Remaining=ReadyAtMs-NowMs;
+    const int64 Recovering=Remaining/ChargeMs+(Remaining%ChargeMs!=0 ? 1 : 0);
+    return int32(FMath::Max<int64>(0,Full-Recovering));
+}
+
+bool LDCombatSourceRules::SpendCharge(int64 ReadyAtMs, int64 NowMs, int64 DurationMs, int64& OutReadyAtMs)
+{
+    const int64 From=FMath::Max(ReadyAtMs,NowMs);
+    if (DurationMs<0 || From>MAX_int64-DurationMs) { return false; }
+    OutReadyAtMs=From+DurationMs;
+    return true;
+}
+
 ELDCombatReject LDCombatSourceRules::ActiveGate(const FLDActiveGateInput& Input, const FLDDemoPolicies& Policies)
 {
     if (Input.bControlBlocked) { return ELDCombatReject::ControlBlocked; }
     if (Input.bCheckBusy && Input.bAbilityInProgress) { return ELDCombatReject::Busy; }
-    if (Input.ReadyAtMs>Input.NowMs) { return ELDCombatReject::Cooldown; }
+    if (ChargesReady(Input.ReadyAtMs,Input.NowMs,Input.Charges,Input.ChargeMs)<=0) { return ELDCombatReject::Cooldown; }
     if (Input.MomentumP2<Input.MomentumCostP2) { return ELDCombatReject::MomentumShort; }
     if (Input.bDash && (Input.bDisplacementBlocked
         || (Input.Roots && LDTactical::RootBlocks(*Input.Roots,Input.NowMs,Policies,ELDDemoRootBlock::Dash))))
@@ -563,6 +592,19 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
     FLDActiveGateInput Gate;
     Gate.NowMs=NowMs;
     Gate.ReadyAtMs=View.ReadyAtMs;
+    if (Source.Kind!=ELDCombatSourceKind::Innate)
+    {
+        FString ChargeError;
+        int32 Charges=1;
+        if (!SkillChargesOf(*Body,*Values,Charges,ChargeError))
+        {
+            View.Unavailable=ELDCombatReject::AuthorityDataUnavailable;
+            return View;
+        }
+        Gate.Charges=Charges;
+        Gate.ChargeMs=View.CooldownMs;
+        View.Charges=uint8(FMath::Clamp(Charges,1,255));
+    }
     Gate.MomentumP2=Body->Resources.MomentumP2;
     Gate.MomentumCostP2=View.MomentumCostP2;
     // Only an action that displaces its caster is a dash for the root matrix (a ground zone is not).
@@ -574,6 +616,14 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
     if (View.Unavailable==ELDCombatReject::None && Body->Action.IsSet() && Body->Action->Kind==ELDCombatActionKind::Ability)
     { View.Unavailable=ELDCombatReject::Busy; }
     return View;
+}
+
+bool ALDCombatDirector::SkillChargesOf(const FLDBodyCombatState& Body, const FLDDemoAbilityValues& Values, int32& Out, FString& Error) const
+{
+    TArray<FLDPassiveEffectRef> Stalls;
+    if (!CollectPassiveEffects(Body.AttributeProjection, ELDDemoEffectOp::DoubleStall, Stalls, Error)) { return false; }
+    Out=LDCombatSourceRules::SkillCharges(Values, Stalls.Num());
+    return true;
 }
 
 void ALDCombatDirector::MarkViewChanged(const FGuid& Entity)

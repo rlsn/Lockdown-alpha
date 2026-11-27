@@ -1117,6 +1117,9 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             UTextBlock* ElementText=nullptr;
             Entry.ElementChip=Chip(ElementText,LDBroadcast::Ink,LDBroadcast::White,false);Entry.ElementGlyph=ElementText;Entry.ElementChip->SetPadding(FMargin(4,0));
             auto* ElementLayer=Face->AddChildToOverlay(Entry.ElementChip);ElementLayer->SetHorizontalAlignment(HAlign_Left);ElementLayer->SetVerticalAlignment(VAlign_Top);ElementLayer->SetPadding(FMargin(2,2,0,0));
+            UTextBlock* ChargeText=nullptr;
+            Entry.ChargeChip=Chip(ChargeText,LDBroadcast::White,LDBroadcast::Ink.CopyWithNewOpacity(.9f),true);Entry.ChargeCount=ChargeText;Entry.ChargeChip->SetPadding(FMargin(4,0));
+            auto* ChargeLayer=Face->AddChildToOverlay(Entry.ChargeChip);ChargeLayer->SetHorizontalAlignment(HAlign_Right);ChargeLayer->SetVerticalAlignment(VAlign_Top);ChargeLayer->SetPadding(FMargin(0,2,2,0));
             // The rank ticks on the lower edge and the missing momentum over a short face.
             Entry.Ranks=Figure(TEXT(""),LDBroadcast::TypeSmall,LDBroadcast::White);
             auto* RanksLayer=Face->AddChildToOverlay(Entry.Ranks);RanksLayer->SetHorizontalAlignment(HAlign_Left);RanksLayer->SetVerticalAlignment(VAlign_Bottom);RanksLayer->SetPadding(FMargin(5,0,0,1));
@@ -2688,6 +2691,9 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             }
         }
         HudSetText(Entry.ControlBadge,View.LockBadge);HudSetShown(Entry.ControlChip,!View.LockBadge.IsEmpty(),ESlateVisibility::HitTestInvisible);
+        HudSetText(Entry.ChargeCount,View.Charges);HudSetShown(Entry.ChargeChip,!View.Charges.IsEmpty(),ESlateVisibility::HitTestInvisible);
+        // The ready charge count changes with time alone: keep the read model live while a charge is recovering.
+        bReadModelLive|=!View.Charges.IsEmpty()&&Input.ReadyAtMs>NowMs;
         // Skill ranks: the dots, the "+" while a point can raise this skill, the momentum gap and the overdrive hold.
         if(Index<3)
         {

@@ -234,6 +234,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoCombatStatus.Shield",
         "Lockdown.Rules.DemoCombatSources.CooldownTracks",
         "Lockdown.Rules.DemoCombatSources.InnateDash",
+        "Lockdown.Rules.DemoCombatSources.SkillCharges",
         "Lockdown.Rules.DemoCombatSources.CommittedBasicRelease",
         "Lockdown.Rules.DemoCombatSources.DirectSequenceWindow",
         "Lockdown.Rules.DemoControl.ActionMatrix",
