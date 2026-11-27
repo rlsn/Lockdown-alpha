@@ -623,11 +623,10 @@ ELDPKThrowResult ALDPKDirector::SubmitThrow(const FGuid& Contender, uint32 Gener
         OutReadyAtMs = *Ready;
         return ELDPKThrowResult::CoolingDown;
     }
-    if (TargetCm.ContainsNaN() || FVector::DistSquared2D(TargetCm, ArenaCentreCm) > FMath::Square(Parameters.ArenaRadiusCm))
+    if (const ELDPKThrowResult Spot = LDPKRules::ThrowSpot(Parameters, ArenaCentreCm, ThrowAnchorCm, TargetCm); Spot != ELDPKThrowResult::Thrown)
     {
-        return ELDPKThrowResult::OutsideArena;
+        return Spot;
     }
-    if (FVector::DistSquared2D(TargetCm, ThrowAnchorCm) > FMath::Square(Parameters.ThrowRangeCm)) { return ELDPKThrowResult::OutOfRange; }
     // The landing point must be legal ground of the arena's surface (not inside a wall, tree or off the map).
     auto* Registry = GetWorld()->GetSubsystem<ULDMapRegistry>();
     TSharedPtr<const FLDDemoContentSnapshot> Content;

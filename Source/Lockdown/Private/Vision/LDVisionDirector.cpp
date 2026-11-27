@@ -852,15 +852,21 @@ void FLDSightGeometry::AddDisk(const FVector& CentreCm, double DiskRadiusCm, TAr
     }
 }
 
-bool FLDObserverCoverage::Sample(const FLDSightGeometry& Sight, const FVector& Foot, double NowSeconds, bool bPublish, bool bHasRelay, TArray<uint8>& OutBits)
+bool FLDObserverCoverage::Sample(const FLDSightGeometry& Sight, const FVector& Foot, double NowSeconds, bool bPublish, bool bHasRelay, TArray<uint8>& OutBits,
+    int32* MoveBudget)
 {
     if (!bPublish || !bHasRelay)
     {
         OutBits.Init(0, LDObservation::CoverageBytes);
         return false;
     }
-    const bool bRecompute = Bits.Num() != LDObservation::CoverageBytes || World != Sight.Revision()
-        || (SourceFeet != Foot && NowSeconds >= NextMoveRefreshAt);
+    const bool bFresh = Bits.Num() != LDObservation::CoverageBytes || World != Sight.Revision();
+    bool bRecompute = bFresh || (SourceFeet != Foot && NowSeconds >= NextMoveRefreshAt);
+    if (bRecompute && !bFresh && MoveBudget)
+    {
+        if (*MoveBudget <= 0) { bRecompute = false; }
+        else { --*MoveBudget; }
+    }
     if (bRecompute)
     {
         Sight.Coverage(Foot, Bits);
@@ -1724,7 +1730,7 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
         View.Footprint.RadiusCm = float(Sight.MaximumRadius());
         {
             TRACE_CPUPROFILER_EVENT_SCOPE(LDVisionObserverCoverage);
-            Observer.Coverage.Sample(Sight, Foot, View.SampledAtServerSec, bPublish, Relay != nullptr, View.Footprint.CurrentBits);
+            Observer.Coverage.Sample(Sight, Foot, View.SampledAtServerSec, bPublish, Relay != nullptr, View.Footprint.CurrentBits, &CoverageMoveBudget);
         }
         // #198 session D: a spectator's authorized coverage includes the whole arena; a PK life's includes its teammates'.
         // A teammate joining or leaving rescans every teammate at once rather than reuse a departed one's coverage.
@@ -1736,7 +1742,7 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
             for (int32 Mate = 0; Mate < TeammateFeet.Num(); ++Mate)
             {
                 TArray<uint8> MateBits;
-                Observer.MateCoverage[Mate].Sample(Sight, TeammateFeet[Mate], View.SampledAtServerSec, true, true, MateBits);
+                Observer.MateCoverage[Mate].Sample(Sight, TeammateFeet[Mate], View.SampledAtServerSec, true, true, MateBits, &CoverageMoveBudget);
                 for (int32 Index = 0; Index < MateBits.Num() && Index < View.Footprint.CurrentBits.Num(); ++Index)
                 {
                     View.Footprint.CurrentBits[Index] |= MateBits[Index];
@@ -1884,6 +1890,7 @@ bool ALDVisionDirector::PublishAuthority(const FLDMatchContext& InMatch, FString
         if (Error.IsEmpty()) { Error = TEXT("LD_OBSERVATION_GROUND_UNAVAILABLE"); }
         return false;
     }
+    CoverageMoveBudget = FLDObserverCoverage::MovingRescansPerSample;
     for (FObserver& Observer : Observers)
     {
         if (!SampleObserver(Observer, Targets, Flights, Grounds, bPublish, Error)) { return false; }

@@ -61,6 +61,10 @@ namespace LDPKRules
     // ring rotation and the seat order inside the chosen anchors are uniform too.
     LOCKDOWN_API bool Draw(int32 Entrants, const FLDPKParameters& Params, FRandomStream& Random, FLDPKDraw& Out, FString& Error);
     LOCKDOWN_API double RingRadiusCm(const FLDPKParameters& Params, int64 ElapsedMs);
+    // Where a spectator's throw may land, by distance alone: Thrown inside the arena and the throw range, else
+    // OutsideArena or OutOfRange. The ground itself is the authority's check.
+    LOCKDOWN_API ELDPKThrowResult ThrowSpot(const FLDPKParameters& Params, const FVector& ArenaCentreCm, const FVector& ThrowAnchorCm,
+        const FVector& TargetCm);
     // The radius the ring is heading to and the elapsed ms it gets there, when a preview is due at ElapsedMs (within PreviewMs before a shrink or during it); false otherwise.
     LOCKDOWN_API bool RingPreview(const FLDPKParameters& Params, int64 ElapsedMs, double& OutRadiusCm, int64& OutAtMs);
     // XY distance of the foot from the centre against the radius at ElapsedMs; the boundary is inside.

@@ -326,9 +326,15 @@ namespace
     }
 
     // The face holds exactly the bytes of its source file.
-    bool UIFaceMatches(const UFontFace& Face, const TArray<uint8>& Bytes)
+    bool UIFaceHoldsBytes(const UFontFace& Face, const TArray<uint8>& Bytes)
     {
         return Face.GetFontFaceData()->GetData() == Bytes;
+    }
+    bool UIFaceMatches(const UFontFace& Face, const TArray<uint8>& Bytes)
+    {
+        // Inline: the font bytes travel in the asset and load with it, so a cooked match never reads a font file from disk
+        // while drawing (a lazily loaded face is read on its first glyph and again after a font cache flush).
+        return Face.LoadingPolicy == EFontLoadingPolicy::Inline && UIFaceHoldsBytes(Face, Bytes);
     }
 
     bool UIImportFonts(FString& Error)
@@ -344,8 +350,13 @@ namespace
             Package->FullyLoad();
             const FName Name(*FPackageName::GetShortName(Spec.Package));
             UFontFace* Face = FindObject<UFontFace>(Package, *Name.ToString());
-            if (!Face) { Face = NewObject<UFontFace>(Package, Name, RF_Public | RF_Standalone); }
-            Face->InitializeFromBulkData(UIAbsolute(Spec.Path), EFontHinting::Default, Bytes.GetData(), Bytes.Num());
+            // A face that already holds these bytes only takes the loading policy (its data cannot be set twice).
+            if (!Face || !UIFaceHoldsBytes(*Face, Bytes))
+            {
+                if (!Face) { Face = NewObject<UFontFace>(Package, Name, RF_Public | RF_Standalone); }
+                Face->InitializeFromBulkData(UIAbsolute(Spec.Path), EFontHinting::Default, Bytes.GetData(), Bytes.Num());
+            }
+            Face->LoadingPolicy = EFontLoadingPolicy::Inline;
             // No PostEditChange: it flushes the Slate font cache, which a commandlet does not have.
             Face->SourceFilename = FPaths::GetCleanFilename(Spec.Path);
             Face->MarkPackageDirty();

@@ -240,8 +240,6 @@ inline FString ChainEndFloat(int32 Steps){return FString::Printf(TEXT("连锁 ×
 inline FString ShopToggle(int64 Points){return FString::Printf(TEXT("商店 · 点 %lld"),Points);}
 inline FString ShopRefresh(int32 Price){return Price>0?FString::Printf(TEXT("刷新 %d点"),Price):FString(TEXT("刷新 免费"));}
 inline FString ShopPrice(int32 Price){return FString::Printf(TEXT("%d点"),Price);}
-inline const TCHAR* const ResultHighlights=TEXT("本局最离谱");
-inline const TCHAR* const BestHit=TEXT("最高一下");
 inline const TCHAR* const SkillPointBought=TEXT("买到 1 个技能点");
 inline constexpr TCHAR FinalTaken[]=TEXT("已选定");
 inline constexpr TCHAR ForgetShort[]=TEXT("遗忘");
@@ -352,7 +350,7 @@ inline FString PKBetOn(const FString& Names){return FString(TEXT("押 "))+Names;
 inline constexpr TCHAR PKThrow[]=TEXT("投掷");
 // The throw button's hover line: what a hit does, nothing about how to press.
 inline constexpr TCHAR PKThrowEffect[]=TEXT("砸中：减速并暴露位置");
-inline constexpr TCHAR PKThrowAim[]=TEXT("点竞技场地面投掷 · 右键取消");
+inline constexpr TCHAR PKThrowAim[]=TEXT("瞄准中");
 inline constexpr TCHAR PKThrowSending[]=TEXT("投掷中…");
 inline FString PKThrowCooling(const FString& Left){return FString::Printf(TEXT("投掷冷却 %s 秒"),*Left);}
 inline constexpr TCHAR PKThrowCoolingSync[]=TEXT("投掷冷却时间同步中");
@@ -482,10 +480,10 @@ inline FString AssistSuffix(const TArray<FString>& Assisters){return Assisters.I
 inline FString KilledByLine(const FString& Victim,const FString& By){return Victim+TEXT(" 被 ")+By+TEXT(" 淫了");}
 inline FString KilledBy(const FString& By){return FString(TEXT("被 "))+By+TEXT(" 淫了");}
 inline FString KillFloat(const FString& Victim){return FString(TEXT("淫了 "))+Victim+TEXT("！");}
-inline FString Crowned(const FString& WinnerName){return WinnerName+TEXT(" 的涂鸦守住了，恭喜成为今晚的")+Winner+TEXT("！");}
-inline constexpr TCHAR NoWinner[]=TEXT("没人守住涂鸦 · 全员摆烂");
-inline FString SprayCountWin(const FString& WinnerName){return WinnerName+TEXT(" 喷够了次数，恭喜成为今晚的")+Winner+TEXT("！");}
-inline FString ClearOutWin(const FString& WinnerName){return WinnerName+TEXT(" 清场了，恭喜成为今晚的")+Winner+TEXT("！");}
+inline FString Crowned(const FString& WinnerName){return WinnerName+TEXT(" 的涂鸦守住了");}
+inline constexpr TCHAR NoWinner[]=TEXT("没人守住涂鸦");
+inline FString SprayCountWin(const FString& WinnerName){return WinnerName+TEXT(" 喷够了次数");}
+inline FString ClearOutWin(const FString& WinnerName){return WinnerName+TEXT(" 清场了");}
 inline constexpr TCHAR NoCapture[]=TEXT("没人守住涂鸦");
 inline constexpr TCHAR Scoreboard[]=TEXT("排行榜");
 inline constexpr TCHAR ResultKills[]=TEXT("淫了几个");
@@ -500,8 +498,7 @@ inline constexpr TCHAR BlueprintOpenFolder[]=TEXT("打开所在文件夹");
 inline constexpr TCHAR BlueprintImport[]=TEXT("导入查看");
 
 // 交互丝滑度提示与关键石名称（#331）
-inline FString DeathWorkshopPrompt(const FString& Key,const FString& Countdown)
-{return Countdown.IsEmpty()?FString::Printf(TEXT("按 [%s] 趁复活调整构筑"),*Key):FString::Printf(TEXT("按 [%s] 趁复活调整构筑（%s 后复活）"),*Key,*Countdown);}
+inline FString DeathWorkshopPrompt(const FString& Key){return FString::Printf(TEXT("构筑 [%s]"),*Key);}
 inline constexpr TCHAR ReplacePickPrompt[]=TEXT("构筑已满，点一张已装的牌替换它");
 inline const TCHAR* KeystoneName(FName StatId)
 {
@@ -512,9 +509,6 @@ inline const TCHAR* KeystoneName(FName StatId)
     if(StatId==TEXT("stat_agility")){return TEXT("顺步追击");}
     return TEXT("关键石");
 }
-inline FString ResultRuleBoardTitle(const FString& Name){return Name.IsEmpty()?FString(TEXT("赢家规则板")):FString::Printf(TEXT("【%s】的规则板"),*Name);}
-inline constexpr TCHAR ResultViewSelf[]=TEXT("查看自己");
-inline constexpr TCHAR ResultInspectSelf[]=TEXT("查看自己");
 
 inline constexpr TCHAR CopyRoomAddress[]=TEXT("复制房间地址");
 inline constexpr TCHAR RestReadyCommit[]=TEXT("准备完毕");

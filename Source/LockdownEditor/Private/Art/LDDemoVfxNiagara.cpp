@@ -2080,10 +2080,9 @@ namespace
         if (!Wet || !Sheen || !Line) { return Ground; }
         // Standing water: the floor darkened as soaked, a faint cool sheen over it, a wet bright edge and rings spreading
         // from drops that land in it.
-        Sheet(Ground.Parts.AddDefaulted_GetRef(), TEXT("Soak"), Wet, 1.f, FString::Printf(TEXT("float4(1.0, 1.0, 1.0, 0.0) * %s + float4(0.0, 0.0, 0.0, 0.85 * %s)"), Bright, GroundOn));
-        // The standing water itself: a cool blue body over the soaked floor, with the flowing sheen on top.
-        // A second soak layer: with the kind's own surface the only sign of the state, the water reads as a body, not an edge.
-        Sheet(Ground.Parts.AddDefaulted_GetRef(), TEXT("Soak2"), Wet, .96f, FString::Printf(TEXT("float4(1.0, 1.0, 1.0, 0.0) * %s + float4(0.0, 0.0, 0.0, 0.6 * %s)"), Bright, GroundOn));
+        // One dense soak layer (the strength of two stacked ones, at half the overdraw): with the kind's own surface the
+        // only sign of the state, the water reads as a body, not an edge. The cool water body and the flowing sheen go on top.
+        Sheet(Ground.Parts.AddDefaulted_GetRef(), TEXT("Soak"), Wet, .99f, FString::Printf(TEXT("float4(1.0, 1.0, 1.0, 0.0) * %s + float4(0.0, 0.0, 0.0, 0.94 * %s)"), Bright, GroundOn));
         Sheet(Ground.Parts.AddDefaulted_GetRef(), TEXT("Water"), Sheen, .97f, Tinted(1.f, FString::Printf(TEXT("0.75 * %s"), GroundOn)));
         Sheet(Ground.Parts.AddDefaulted_GetRef(), TEXT("Sheen"), Sheen, .9f, Tinted(1.5f, FString::Printf(TEXT("0.5 * %s * (0.8 + 0.2 * sin(Particles.Age * 2.0))"), GroundOn)));
         EdgeRing(Ground.Parts.AddDefaulted_GetRef(), TEXT("Edge"), Line, .99f, 12.f, Tinted(1.8f, FString::Printf(TEXT("0.85 * %s"), GroundOn)));
@@ -5327,6 +5326,10 @@ namespace
                 Ribbon->Material = Part.Paint;
                 Ribbon->bCastShadows = false;
                 Ribbon->TessellationMode = ENiagaraRibbonTessellationMode::Disabled;
+                // A standing ground state's ribbons (up to 40 at once) build their vertices on the GPU, not on the game
+                // thread every frame. The other systems keep CPU generation: on the GPU the chain's bolt loses its core.
+                Ribbon->bUseGPUInit = Look.System == LDSliceVfx::ESystem::PuddleGround || Look.System == LDSliceVfx::ESystem::IceGround
+                    || Look.System == LDSliceVfx::ESystem::FireGround || Look.System == LDSliceVfx::ESystem::MiasmaGround;
                 Ribbon->UV0Settings.DistributionMode = ENiagaraRibbonUVDistributionMode::TiledOverRibbonLength;
                 Ribbon->UV0Settings.TilingLength = Part.TileCm;
                 if (Part.bRibbonIds)

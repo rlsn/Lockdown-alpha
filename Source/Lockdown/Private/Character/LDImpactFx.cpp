@@ -33,6 +33,9 @@
 namespace LDImpactFxDetail
 {
     constexpr float MaxWaitSeconds = .5f;
+    // The generated systems' user parameters, named once rather than on every call.
+    const FName UserStart(TEXT("User.Start")), UserEnd(TEXT("User.End")), UserTint(TEXT("User.Tint")), UserWidth(TEXT("User.Width")),
+        UserIntensity(TEXT("User.Intensity")), UserDuration(TEXT("User.Duration")), UserFocus(TEXT("User.Focus"));
 }
 
 bool ULDImpactFxSubsystem::ShouldCreateSubsystem(UObject* Outer) const
@@ -146,7 +149,7 @@ void ULDImpactFxSubsystem::Kit(const FVector& At, const LDHitVfx::FBurst& Burst,
 UNiagaraComponent* ULDImpactFxSubsystem::SpawnKit(const FVector& At, const LDHitVfx::FBurst& Burst)
 {
     if (!FApp::CanEverRender() || !BurstSystem || Burst.IsEmpty() || At.ContainsNaN()) { return nullptr; }
-    if (Live.Num() >= LDImpactFx::MaxBursts) { Release(0); }
+    MakeRoom();
     UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), BurstSystem, At,
         FRotator::ZeroRotator, FVector(1.f), false, false, ENCPoolMethod::ManualRelease, false);
     if (!Effect)
@@ -170,6 +173,18 @@ UNiagaraComponent* ULDImpactFxSubsystem::SpawnKit(const FVector& At, const LDHit
     Effect->SetVariableLinearColor(TEXT("User.ShardColor"), Burst.ShardColour);
     Effect->Activate(true);
     return Effect;
+}
+
+void ULDImpactFxSubsystem::MakeRoom()
+{
+    int32 Short = 0, Oldest = INDEX_NONE;
+    for (int32 Index = 0; Index < Live.Num(); ++Index)
+    {
+        if (Live[Index].Ground != 0) { continue; }
+        if (Oldest == INDEX_NONE) { Oldest = Index; }
+        ++Short;
+    }
+    if (Short >= LDImpactFx::MaxBursts) { Release(Oldest); }
 }
 
 void ULDImpactFxSubsystem::Release(int32 Index)
@@ -681,7 +696,7 @@ UNiagaraComponent* ULDImpactFxSubsystem::ShowEffect(USceneComponent& Owner, UNia
     }
     if (Trail.bShow)
     {
-        Effect->SetVariableFloat(TEXT("User.Width"), Trail.WidthCm);
+        Effect->SetVariableFloat(LDImpactFxDetail::UserWidth, Trail.WidthCm);
         Effect->SetVariableFloat(TEXT("User.Lifetime"), Trail.Lifetime);
         Effect->SetVariableFloat(TEXT("User.SpawnRate"), Trail.Rate);
         Effect->SetVariableLinearColor(TEXT("User.Colour"), Trail.Colour);
@@ -702,8 +717,8 @@ void ULDImpactFxSubsystem::MoveEffect(UNiagaraComponent* Effect, const FVector& 
     if (!IsValid(Effect) || At.ContainsNaN() || !GeneratedSystems.Contains(Effect->GetAsset())) { return; }
     const bool bArea = IsGround(Effect) || Effect->GetAsset() == GetSystem(LDSliceVfx::ESystem::AreaPlain);
     const FVector Start = bArea ? FloorUnder(At) : At;
-    Effect->SetVariableVec3(TEXT("User.Start"), Start);
-    Effect->SetVariableVec3(TEXT("User.End"), Start + Heading.Vector() * 100.);
+    Effect->SetVariableVec3(LDImpactFxDetail::UserStart, Start);
+    Effect->SetVariableVec3(LDImpactFxDetail::UserEnd, Start + Heading.Vector() * 100.);
 }
 
 UNiagaraComponent* ULDImpactFxSubsystem::ShowZone(USceneComponent& Owner, UNiagaraComponent* Existing, const LDHitVfx::FZone& Zone,
@@ -754,6 +769,8 @@ void ULDImpactFxSubsystem::WarmUp()
     TArray<UNiagaraSystem*> Systems{BurstSystem.Get(), ZoneSystem.Get()};
     for (UNiagaraSystem* Generated : GeneratedSystems) { if (Generated) { Systems.Add(Generated); } }
     if (Catalog) { Systems.Add(Catalog->SwingTrail.Get()); }
+    // The shipped packs (a landing's dust) load and compile here too, not in the first landing's frame.
+    for (int32 Pack = 0; Pack < int32(LDSliceVfx::EPack::Count); ++Pack) { Systems.Add(LoadPack(LDSliceVfx::EPack(Pack))); }
     for (UNiagaraSystem* System : Systems)
     {
         if (!System) { continue; }
@@ -1162,24 +1179,19 @@ void ULDImpactFxSubsystem::ShowGround(const AActor& Owner, uint8 Kind, const FVe
 {
     const LDSliceVfx::ESystem System = GroundSystem(Kind);
     UNiagaraSystem* Asset = System == LDSliceVfx::ESystem::Count ? nullptr : GetSystem(System);
-    int32 Found = INDEX_NONE;
-    for (int32 Index = 0; Index < Live.Num(); ++Index)
-    {
-        const UNiagaraComponent* Effect = Live[Index].Effect.Get();
-        if (Live[Index].OwnerActor.Get() == &Owner && Effect && GeneratedSystems.Contains(Effect->GetAsset())) { Found = Index; break; }
-    }
-    if (Found != INDEX_NONE && (!Asset || Live[Found].Effect->GetAsset() != Asset))
+    int32 Found = Live.IndexOfByPredicate([&Owner](const FLive& Shown) { return Shown.Ground != 0 && Shown.OwnerActor.Get() == &Owner; });
+    // A hidden owner shows nothing, like a state that ended.
+    if (Found != INDEX_NONE && (!Asset || Live[Found].Ground != Kind || !Live[Found].Effect.IsValid() || Owner.IsHidden()))
     {
         Release(Found);
         Found = INDEX_NONE;
     }
-    if (!FApp::CanEverRender() || !Asset || !FMath::IsFinite(Alpha) || Alpha <= 0.f || !FMath::IsFinite(RadiusCm) || RadiusCm <= 0.f || Centre.ContainsNaN())
+    if (!FApp::CanEverRender() || !Asset || Owner.IsHidden() || !FMath::IsFinite(Alpha) || Alpha <= 0.f || !FMath::IsFinite(RadiusCm) || RadiusCm <= 0.f
+        || Centre.ContainsNaN())
     {
         if (Found != INDEX_NONE) { Release(Found); }
         return;
     }
-    FVector Normal;
-    const FVector Floor = GroundUnder(Centre, Normal);
     // The reduced-effects setting dims a ground state like every other effect.
     const float Strength = 2.2f * FMath::Clamp(Alpha, 0.f, 1.f) * (.55f + .45f * LocalEffectScale());
     if (Found == INDEX_NONE)
@@ -1192,17 +1204,29 @@ void ULDImpactFxSubsystem::ShowGround(const AActor& Owner, uint8 Kind, const FVe
         const uint8 Element = Kind == uint8(ELDGroundStateKind::Field) ? uint8(ELDCombatElement::Shock)
             : Kind == uint8(ELDGroundStateKind::Puddle) ? uint8(ELDCombatElement::Water) : Kind == uint8(ELDGroundStateKind::Ice) ? uint8(ELDCombatElement::Chill)
             : Kind == uint8(ELDGroundStateKind::Fire) ? uint8(ELDCombatElement::Fire) : uint8(ELDCombatElement::Rot);
+        FVector Normal;
+        const FVector Floor = GroundUnder(Centre, Normal);
         UNiagaraComponent* Effect = SpawnGenerated(System, Floor, Floor, LDSliceVfx::ElementInk(Element), RadiusCm, Strength, 1.e4f, bOwn);
         if (!Effect) { return; }
         Track(Effect, nullptr, 0.f, &Owner);
+        FLive& Laid = Live.Last();
+        Laid.Ground = Kind;
+        Laid.GroundCentre = Centre;
+        Laid.GroundRadius = RadiusCm;
+        Laid.GroundStrength = Strength;
         return;
     }
-    if (UNiagaraComponent* Effect = Live[Found].Effect.Get())
+    // Called every frame: the floor is traced and a parameter written only when its value changed.
+    FLive& Shown = Live[Found];
+    UNiagaraComponent* Effect = Shown.Effect.Get();
+    if (!Shown.GroundCentre.Equals(Centre, 1.))
     {
-        Effect->SetVariableVec3(TEXT("User.Start"), Floor);
-        Effect->SetVariableFloat(TEXT("User.Width"), RadiusCm);
-        Effect->SetVariableFloat(TEXT("User.Intensity"), Strength);
+        FVector Normal;
+        Effect->SetVariableVec3(LDImpactFxDetail::UserStart, GroundUnder(Centre, Normal));
+        Shown.GroundCentre = Centre;
     }
+    if (Shown.GroundRadius != RadiusCm) { Effect->SetVariableFloat(LDImpactFxDetail::UserWidth, RadiusCm); Shown.GroundRadius = RadiusCm; }
+    if (Shown.GroundStrength != Strength) { Effect->SetVariableFloat(LDImpactFxDetail::UserIntensity, Strength); Shown.GroundStrength = Strength; }
 }
 
 void ULDImpactFxSubsystem::FieldPulse(const ULDHumanoidVisualComponent& Source, const FVector& Feet, float RadiusCm, const LDSliceVfx::FLook& Look,
@@ -1255,12 +1279,7 @@ UNiagaraComponent* ULDImpactFxSubsystem::SpawnGenerated(LDSliceVfx::ESystem Syst
 {
     UNiagaraSystem* Asset = GetSystem(System);
     if (!FApp::CanEverRender() || !Asset || Start.ContainsNaN() || End.ContainsNaN() || !FMath::IsFinite(Width) || !FMath::IsFinite(Intensity)) { return nullptr; }
-    if (Live.Num() >= LDImpactFx::MaxBursts)
-    {
-        // The oldest short effect makes room; a standing ground state's effect stays while the state does.
-        const int32 Oldest = Live.IndexOfByPredicate([this](const FLive& Shown) { return !IsGround(Shown.Effect.Get()) || Shown.StopAfter >= 0.f; });
-        Release(Oldest == INDEX_NONE ? 0 : Oldest);
-    }
+    MakeRoom();
     UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), Asset, End, FRotator::ZeroRotator, FVector(1.f),
         false, false, ENCPoolMethod::ManualRelease, false);
     if (!Effect)
@@ -1268,13 +1287,13 @@ UNiagaraComponent* ULDImpactFxSubsystem::SpawnGenerated(LDSliceVfx::ESystem Syst
         UE_LOG(LogLDContent, Warning, TEXT("LD_GENERATED_FX spawn=failed %s"), LDSliceVfx::SystemName(System));
         return nullptr;
     }
-    Effect->SetVariableVec3(TEXT("User.Start"), Start);
-    Effect->SetVariableVec3(TEXT("User.End"), End);
-    Effect->SetVariableLinearColor(TEXT("User.Tint"), Tint);
-    Effect->SetVariableFloat(TEXT("User.Width"), Width);
-    Effect->SetVariableFloat(TEXT("User.Intensity"), Intensity);
-    Effect->SetVariableFloat(TEXT("User.Duration"), Seconds);
-    Effect->SetVariableFloat(TEXT("User.Focus"), bFocus ? 1.f : 0.f);
+    Effect->SetVariableVec3(LDImpactFxDetail::UserStart, Start);
+    Effect->SetVariableVec3(LDImpactFxDetail::UserEnd, End);
+    Effect->SetVariableLinearColor(LDImpactFxDetail::UserTint, Tint);
+    Effect->SetVariableFloat(LDImpactFxDetail::UserWidth, Width);
+    Effect->SetVariableFloat(LDImpactFxDetail::UserIntensity, Intensity);
+    Effect->SetVariableFloat(LDImpactFxDetail::UserDuration, Seconds);
+    Effect->SetVariableFloat(LDImpactFxDetail::UserFocus, bFocus ? 1.f : 0.f);
     Effect->Activate(true);
     return Effect;
 }
@@ -1360,13 +1379,13 @@ UNiagaraComponent* ULDImpactFxSubsystem::ShowLoop(USceneComponent& Owner, UNiaga
         Effect->SetupAttachment(&Owner);
         Effect->RegisterComponent();
     }
-    Effect->SetVariableVec3(TEXT("User.Start"), Start);
-    Effect->SetVariableVec3(TEXT("User.End"), End);
-    Effect->SetVariableLinearColor(TEXT("User.Tint"), Tint);
-    Effect->SetVariableFloat(TEXT("User.Width"), Width);
-    Effect->SetVariableFloat(TEXT("User.Intensity"), Intensity);
-    Effect->SetVariableFloat(TEXT("User.Duration"), Seconds);
-    Effect->SetVariableFloat(TEXT("User.Focus"), bFocus ? 1.f : 0.f);
+    Effect->SetVariableVec3(LDImpactFxDetail::UserStart, Start);
+    Effect->SetVariableVec3(LDImpactFxDetail::UserEnd, End);
+    Effect->SetVariableLinearColor(LDImpactFxDetail::UserTint, Tint);
+    Effect->SetVariableFloat(LDImpactFxDetail::UserWidth, Width);
+    Effect->SetVariableFloat(LDImpactFxDetail::UserIntensity, Intensity);
+    Effect->SetVariableFloat(LDImpactFxDetail::UserDuration, Seconds);
+    Effect->SetVariableFloat(LDImpactFxDetail::UserFocus, bFocus ? 1.f : 0.f);
     if (!Effect->IsActive()) { Effect->Activate(true); }
     return Effect;
 }
@@ -1384,10 +1403,9 @@ UNiagaraComponent* ULDImpactFxSubsystem::PlayFree(LDSliceVfx::ESystem System, co
     return Effect;
 }
 
-UNiagaraComponent* ULDImpactFxSubsystem::PlayPack(LDSliceVfx::EPack Pack, const FVector& At, float Scale, const FRotator& Rotation)
+UNiagaraSystem* ULDImpactFxSubsystem::LoadPack(LDSliceVfx::EPack Pack)
 {
     const int32 Index = int32(Pack);
-    if (!FApp::CanEverRender() || Index < 0 || Index >= int32(LDSliceVfx::EPack::Count) || At.ContainsNaN() || !FMath::IsFinite(Scale) || Scale <= 0.f) { return nullptr; }
     if (!bPackTried[Index])
     {
         bPackTried[Index] = true;
@@ -1400,6 +1418,14 @@ UNiagaraComponent* ULDImpactFxSubsystem::PlayPack(LDSliceVfx::EPack Pack, const 
             UE_LOG(LogLDContent, Display, TEXT("LD_PACK_FX loaded %s emitters=[%s]"), LDSliceVfx::PackPath(Pack), *Names);
         }
     }
+    return PackSystems[Index];
+}
+
+UNiagaraComponent* ULDImpactFxSubsystem::PlayPack(LDSliceVfx::EPack Pack, const FVector& At, float Scale, const FRotator& Rotation)
+{
+    const int32 Index = int32(Pack);
+    if (!FApp::CanEverRender() || Index < 0 || Index >= int32(LDSliceVfx::EPack::Count) || At.ContainsNaN() || !FMath::IsFinite(Scale) || Scale <= 0.f) { return nullptr; }
+    LoadPack(Pack);
     const float Strength = FMath::Clamp(LocalEffectScale(), 0.f, 1.f);
     if (!PackSystems[Index] || Strength <= 0.f) { return nullptr; }
     UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), PackSystems[Index], At, Rotation, FVector(Scale * (.6f + .4f * Strength)),

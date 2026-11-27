@@ -239,6 +239,7 @@ namespace LDPathSteering
     bool NearestNavPoint(UNavigationSystemV1& Nav, const ANavigationData& Data, const FVector& At, double Limit, double HalfHeight,
         FNavLocation& Out)
     {
+        TRACE_CPUPROFILER_EVENT_SCOPE(LDNearestNavPoint);
         for (double Half=FMath::Min(Limit,100.);; Half=FMath::Min(Limit,Half*2))
         {
             if (Nav.ProjectPointToNavigation(At,Out,FVector(Half,Half,HalfHeight),&Data))
@@ -317,6 +318,7 @@ namespace LDPathSteering
 
         const auto TryCandidate=[&](const FVector& TargetXY)->bool
         {
+            TRACE_CPUPROFILER_EVENT_SCOPE(LDProjectGoalCandidate);
             FNavLocation Candidate;
             if (!Nav->ProjectPointToNavigation(TerrainFoot(Registry,TargetXY.X,TargetXY.Y),Candidate,
                 FVector(4.,4.,VerticalExtent),Data))

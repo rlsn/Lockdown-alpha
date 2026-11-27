@@ -585,7 +585,7 @@ bool FLDHUDPublicMatchTest::RunTest(const FString& Parameters)
         LDTerms::KilledByLine(TEXT("乙"),LDTerms::Boss));
     FLDResultView Result;Result.Reason=ELDMatchEndReason::GuardSucceeded;Result.Winner=FGuid::NewGuid();
     TestEqualSensitive(TEXT("A guard win names its end reason and crowns the one winner"),LDHUD::ResultHeadline(Result,TEXT("甲")),FString(TEXT("守护成功 · "))+LDTerms::Crowned(TEXT("甲")));
-    TestTrue(TEXT("The crowning names the winner and the winner title"),LDTerms::Crowned(TEXT("甲")).StartsWith(TEXT("甲 "))&&LDTerms::Crowned(TEXT("甲")).Contains(LDTerms::Winner));
+    TestTrue(TEXT("The crowning names the winner and says no more than the result"),LDTerms::Crowned(TEXT("甲")).StartsWith(TEXT("甲 "))&&!LDTerms::Crowned(TEXT("甲")).Contains(TEXT("恭喜")));
     Result.Winner.Invalidate();
     TestEqualSensitive(TEXT("A capture result without a winner says so"),LDHUD::ResultHeadline(Result,FString()),FString(LDTerms::NoWinner));
     Result.Reason=ELDMatchEndReason::HostEnded;
@@ -1523,36 +1523,6 @@ bool FLDHUDChoicesFoldTest::RunTest(const FString& Parameters)
 }
 // Spec §12 结算“本局最离谱”: one row per contender of the result in its order (at most six), its longest chain as step names and its
 // strongest hit as source, points and the share of that target's max HP; nothing for another result.
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDUIResultHighlightsTest,"Lockdown.Rules.UI.ResultHighlights",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
-bool FLDUIResultHighlightsTest::RunTest(const FString& Parameters)
-{
-    FLDResultView Result;Result.Generation=3;Result.ResultId=FGuid(1,2,3,4);
-    TArray<FGuid> Ids;
-    for(int32 Index=0;Index<LDHUD::ResultHighlightsMax+1;++Index)
-    {
-        FLDResultRow& Row=Result.Rows.AddDefaulted_GetRef();Row.ContenderId=FGuid(9,Index+1,0,0);Row.Name=FString::Printf(TEXT("P%d"),Index+1);
-        Ids.Add(Row.ContenderId);
-    }
-    FLDDamageSummaryView Summary;Summary.Match=3;Summary.ResultId=Result.ResultId;
-    FLDResultHighlight& First=Summary.Highlights.AddDefaulted_GetRef();
-    First.Contender=Ids[0];First.LongestKey={FName(TEXT("hud_rules_card")),LDChain::ReactionStep(TEXT("Overload")),LDChain::KillStep()};First.LongestSteps=5;
-    First.BestSource=FName(TEXT("basic"));First.BestDamageP2=62000;First.BestTargetMaxHpP2=100000;
-    FLDResultHighlight& Second=Summary.Highlights.AddDefaulted_GetRef();Second.Contender=Ids[1];
-    const LDHUD::FResultHighlightsView View=LDHUD::ResultHighlights(Summary,Result,Ids[1],nullptr);
-    bool bGood=TestTrue(TEXT("Available for the result shown, at most one row per seat in its order"),View.bAvailable&&View.Rows.Num()==LDHUD::ResultHighlightsMax
-        &&View.Rows[0].Name==TEXT("P1")&&View.Rows[7].Name==TEXT("P8"));
-    bGood&=TestEqualSensitive(TEXT("The longest chain reads its step names and length"),View.Rows[0].Chain,
-        FString::Printf(TEXT("hud_rules_card → %s → 击杀（5 步）"),*LDTerms::ReactionTerm(uint8(ELDCombatReaction::Overload))));
-    bGood&=TestEqualSensitive(TEXT("The strongest hit reads its source, points and share of max HP"),View.Rows[0].Best,
-        FString::Printf(TEXT("%s 620（62%%）"),LDTerms::BasicAttack));
-    bGood&=TestTrue(TEXT("A contender without a chain or a hit reads a dash; the own row is marked"),View.Rows[1].Chain==TEXT("—")
-        &&View.Rows[1].Best==TEXT("—")&&View.Rows[1].bOwn&&!View.Rows[0].bOwn&&View.Rows[2].Chain==TEXT("—"));
-    bGood&=TestEqualSensitive(TEXT("A new chain's prompt"),LDHUD::NewChainNotice(nullptr,{FName(TEXT("a_card")),LDChain::KillStep()}),
-        FString(TEXT("新连锁：a_card → 击杀")));
-    Summary.ResultId=FGuid(5,6,7,8);
-    bGood&=TestFalse(TEXT("Another result's summary shows nothing"),LDHUD::ResultHighlights(Summary,Result,Ids[1],nullptr).bAvailable);
-    return bGood;
-}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDBuildGateTest,"Lockdown.Rules.HUDBuildGate",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
 {
