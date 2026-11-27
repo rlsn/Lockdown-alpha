@@ -117,6 +117,9 @@ struct FLDBuildPrimitivesAccess
     static TArray<ALDCombatDirector::FLDCombatSlipperDrop>& SlipperDrops(ALDCombatDirector& Driver) { return Driver.SlipperDrops; }
     static TArray<ALDCombatDirector::FLDCombatCordon>& Cordons(ALDCombatDirector& Driver) { return Driver.Cordons; }
     static TArray<FLDCombatFan>& Fans(ALDCombatDirector& Driver) { return Driver.Fans; }
+    static bool OwnerCardStacks(ALDCombatDirector& Driver, const FLDCombatEntityRecord& Record, const FLDBodyCombatState* Body,
+        const FLDAttributeProjection& Projection, int64 NowMs, TArray<FLDCombatCardStackView>& Out)
+    { return Driver.OwnerCardStacks(Record, Body, Projection, NowMs, Out); }
     static TArray<ALDCombatDirector::FLDCombatDecoy>& Decoys(ALDCombatDirector& Driver) { return Driver.Decoys; }
     static bool AdvanceStaggerBleeds(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceStaggerBleeds(NowMs, Error); }
     static bool AdvanceSlipperDrops(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceSlipperDrops(NowMs, Error); }
@@ -5157,6 +5160,65 @@ bool FLDVectorCastTest::RunTest(const FString& Parameters)
             Fan.Direction.Equals(Facing.IsZero() ? FVector(1, 0, 0) : Facing, .001)
             && FVector::Dist2D(Fan.OriginCm, F.Origin + FVector(300, 0, 0)) < 1.);
     }
+    return true;
+}
+
+// The owner view's growth card counts (FLDCombatCardStackView): K16 and Y22 count whole idle seconds of the fight, K17 the
+// match's contender hits, K18 other skills inside its window, Y23 whole seconds on the own ground, Y24 the open marks; a
+// count of 0 has no row, a dead contender keeps only K17's match hits.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDOwnerCardStacksTest, "Lockdown.Rules.Combat.Cards.OwnerStacks",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDOwnerCardStacksTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody();
+    F.Place(Holder, 0, 0);
+    const FName Skill(TEXT("active_elbow"));
+    if (!InstallCards(*this, F, Holder, 9, {
+        {TEXT("card_held_shot"), ELDCardTargetKind::Skill, Skill}, {TEXT("card_practice"), ELDCardTargetKind::Skill, Skill},
+        {TEXT("card_combo_chain"), ELDCardTargetKind::Skill, Skill}, {TEXT("card_charge_up"), ELDCardTargetKind::Body},
+        {TEXT("card_turf_growth"), ELDCardTargetKind::Body}, {TEXT("card_tally"), ELDCardTargetKind::Body}}))
+    { return false; }
+    FLDCombatEntityRecord& Record = FAccess::Records(*F.Driver).FindChecked(Holder.Victim.EntityId);
+    FLDCombatTrack& Track = Record.Tracks.AddDefaulted_GetRef();
+    Track.Kind = ELDCombatSourceKind::Learned;
+    Track.DefinitionId = Skill;
+    Track.ReadyAtMs = 1000;
+    Record.CardGrowth.SkillHits.Add(2, 4);
+    FLDBodyCombatState& Body = F.Body(Holder);
+    // In a fight since 2 s (engaged 0.5 s ago): the idle counts start at their own instants.
+    Body.FightStartedAtMs = 2000;
+    Body.MomentumEngagedAtMs = 9500;
+    Body.IdleSinceMs = 4000;
+    Body.TurfSinceMs = 7000;
+    Body.TallyMarks = 3;
+    Body.TallyAtMs = 9000;
+    Body.RecentCasts = {{FName(TEXT("active_seethe")), 8000}, {FName(TEXT("active_not_mad")), 5000}, {Skill, 9000}};
+    TArray<FLDCombatCardStackView> Stacks;
+    if (!TestTrue(TEXT("The owner card stacks build"),
+        FAccess::OwnerCardStacks(*F.Driver, Record, &Body, Body.AttributeProjection, 10000, Stacks))) { return false; }
+    const auto Count = [&Stacks](const TCHAR* Card)
+    {
+        const FLDCombatCardStackView* Row = Stacks.FindByPredicate([Card](const FLDCombatCardStackView& R) { return R.CardId == FName(Card); });
+        return Row ? Row->Count : 0;
+    };
+    TestEqual(TEXT("K16: 9 whole seconds ready and idle"), Count(TEXT("card_held_shot")), 9);
+    TestEqual(TEXT("K17: 4 contender hits this match"), Count(TEXT("card_practice")), 4);
+    TestEqual(TEXT("K18: 1 other skill inside 4 s"), Count(TEXT("card_combo_chain")), 1);
+    TestEqual(TEXT("Y22: 6 whole seconds without damage"), Count(TEXT("card_charge_up")), 6);
+    TestEqual(TEXT("Y23: 3 whole seconds on the own ground"), Count(TEXT("card_turf_growth")), 3);
+    TestEqual(TEXT("Y24: 3 open marks"), Count(TEXT("card_tally")), 3);
+    const FLDCombatCardStackView* Practice = Stacks.FindByPredicate([](const FLDCombatCardStackView& R) { return R.CardId == FName(TEXT("card_practice")); });
+    TestTrue(TEXT("A row names its installed copy"), Practice && Practice->Serial == 2);
+    if (!TestTrue(TEXT("The stacks build after the tally window"),
+        FAccess::OwnerCardStacks(*F.Driver, Record, &Body, Body.AttributeProjection, 15001, Stacks))) { return false; }
+    TestEqual(TEXT("Y24: a pause past 6 s leaves no open mark"), Count(TEXT("card_tally")), 0);
+    TestEqual(TEXT("K18: the window has passed"), Count(TEXT("card_combo_chain")), 0);
+    if (!TestTrue(TEXT("The stacks build for a dead contender"),
+        FAccess::OwnerCardStacks(*F.Driver, Record, nullptr, Body.AttributeProjection, 10000, Stacks))) { return false; }
+    TestTrue(TEXT("Dead: only the match's skill hits remain"), Stacks.Num() == 1 && Count(TEXT("card_practice")) == 4);
     return true;
 }
 
