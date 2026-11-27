@@ -324,14 +324,18 @@ bool ULDCharacterMovementComponent::StartDemoDash(const FVector& Direction, doub
         Error=TEXT("A Demo dash runs only on the server authority body.");
         return false;
     }
-    const auto* Registry=GetWorld()->GetSubsystem<ULDMapRegistry>();
     const auto* Capsule=CharacterOwner->GetCapsuleComponent();
-    double LandedCm=0;
-    if (!Registry || !Capsule || !FMath::IsFinite(DistanceCm) || DistanceCm<=0)
+    if (!Capsule || !FMath::IsFinite(DistanceCm) || DistanceCm<=0)
     {
-        Error=TEXT("A Demo dash needs the map registry, the body capsule and a positive distance.");
+        Error=TEXT("A Demo dash needs the body capsule and a positive distance.");
         return false;
     }
+    // Like a ground skill's landing: a world without a registered map (a rule fixture) leaves the distance unjudged.
+    const auto* Registry=GetWorld()->GetSubsystem<ULDMapRegistry>();
+    const auto* Geometry=Registry ? Registry->GetGeometry() : nullptr;
+    if (!Registry || !Registry->Enabled() || !Geometry || Geometry->Surfaces.IsEmpty())
+    { return ApplyDashRootMotion(Direction,DistanceCm,DurationSeconds,Error); }
+    double LandedCm=0;
     if (!LandedDashDistance(*Registry,GetActorFeetLocation(),Direction,DistanceCm,Capsule->GetCollisionShape(),LandedCm,Error))
     { return false; }
     // No legal ground along the way: the body stays where it is (a dash or push into ground it could never walk from).
