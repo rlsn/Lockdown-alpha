@@ -26,6 +26,10 @@ struct FLDActiveGateInput
 {
     int64 NowMs=0;
     int64 ReadyAtMs=0;           // the source's persistent track end
+    // Skill charges (SkillCharges): a track of N charges is a timeline that is full at ReadyAtMs, each charge recovering
+    // over ChargeMs (the duration last issued on the track); a cast needs one charge: ReadyAtMs - (N-1) x ChargeMs <= now.
+    int32 Charges=1;
+    int64 ChargeMs=0;
     int64 MomentumP2=0;
     int64 MomentumCostP2=0;
     bool bDash=false;            // the active moves the body (POLICY.RootBlocks Dash applies)
@@ -113,8 +117,22 @@ namespace LDCombatSourceRules
     // (ReadyAtMs <= NowMs) is unchanged and a non-positive amount changes nothing.
     LOCKDOWN_API int64 ReduceReadyAt(int64 ReadyAtMs, int64 NowMs, int64 AmountMs);
 
+    // Skill charges: a skill that keeps N live placed objects of its own (N4 bags: the bag count; N2 fans: one) holds N
+    // charges, so it can place them back to back; Y12 adds one per copy to both. Every other skill holds one.
+    LOCKDOWN_API int32 SkillCharges(const FLDDemoAbilityValues& Values, int32 DoubleStallCopies);
+    // The charges ready now on a track full at ReadyAtMs whose charges recover over ChargeMs each (0..Charges).
+    LOCKDOWN_API int32 ChargesReady(int64 ReadyAtMs, int64 NowMs, int32 Charges, int64 ChargeMs);
+    // The track end after a release that issues DurationMs: one charge spent from now, or from the end of the recovery
+    // already running (ReadyAtMs > now). False on overflow.
+    LOCKDOWN_API bool SpendCharge(int64 ReadyAtMs, int64 NowMs, int64 DurationMs, int64& OutReadyAtMs);
+
     // Whether a value set displaces its caster (a dash): such a release is a dash for the root matrix.
     LOCKDOWN_API bool DisplacesCaster(const FLDDemoAbilityValues& Values);
+    // Vector cast: a ground-point value set that places an oriented shape (the cordon line, the fan) may carry a planar
+    // facing with its point (press at the start, drag the facing, release). Without one it keeps its default facing.
+    LOCKDOWN_API bool VectorAimed(const FLDDemoAbilityValues& Values);
+    // A drag shorter than this on the ground is a tap (the default facing).
+    inline constexpr double VectorAimDeadzoneCm=40.;
     // #198 build safe window: whether a release of this value set is an offensive action that keeps its caster from
     // learning and allocating (damage, a control, a slow, a keyword stack or a delivery that carries them). A pure self
     // buff, shield, cleanse or plain dash is not.

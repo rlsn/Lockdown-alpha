@@ -70,11 +70,12 @@ namespace LDUIPaint
 
     // ---- the design system's surfaces ----
 
-    // A raised panel: the vertical surface gradient, a one-pixel highlight on the top, the hairline border, the drop shadow
-    // and the yellow corner fold top-left with a thin tick bottom-right (bFolds).
+    // A panel (on air): square ink under a 2 px white top rule; bFolds adds the short orange heading tab at its left end.
     LOCKDOWN_API void Panel(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry,const FBox2D& Box,bool bFolds=true,float Opacity=1.f);
-    // Card: a choice card's raised surface (.ocard); CardActive / CardBuild / CardStone provide #328 §2 3-way silhouettes.
-    enum class EButton : uint8 { Normal, Primary, Event, Plus, Key, Tag, TagOn, Ghost, Card, CardActive, CardBuild, CardStone };
+    // Command faces (on air): Normal is a panel slab that takes a white rule on hover; Primary the orange slab of the one
+    // thing to do now; White the white slab of a taken choice that can be undone (取消准备); Key a square key cap; TagOn an
+    // orange chip; Ghost no face (the caller paints one).
+    enum class EButton : uint8 { Normal, Primary, White, Key, TagOn, Ghost };
     struct FButtonState
     {
         bool bHovered=false;
@@ -93,12 +94,9 @@ namespace LDUIPaint
     enum class ETileState : uint8 { Normal, Hovered, Selected, Legal, Replace, Rejected, Dim, Hole };
     LOCKDOWN_API void Tile(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry,const FBox2D& Box,uint8 Kind,
         ETileState State,UTexture2D* Icon,float Opacity=1.f,double Time=0.);
-    LOCKDOWN_API float TileRadius(uint8 Kind,float Size);
     // A skill head: the gold (or, for the body and dash, silver) gradient frame with its shadow; the icon face inside.
     LOCKDOWN_API void SkillArt(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry,const FBox2D& Box,bool bSilver,bool bEmpty,
         UTexture2D* Icon,const FLinearColor& Glow=FLinearColor::Transparent,float Opacity=1.f);
-    // The small "new" dot on a tile's corner.
-    LOCKDOWN_API void NewDot(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry,FVector2D Center,float Opacity=1.f);
     // An element disc (fire, water, electric) behind its one-character label.
     LOCKDOWN_API void ElementDisc(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry,const FBox2D& Box,const FLinearColor& Color,float Opacity=1.f);
 
@@ -112,7 +110,6 @@ namespace LDUIPaint
 
         FContext(FSlateWindowElementList& InElements,int32 InLayer,const FGeometry& InGeometry,float InOpacity=1.f)
             :Elements(InElements),Layer(InLayer),Geometry(InGeometry),Opacity(FMath::Clamp(InOpacity,0.f,1.f)){}
-        FContext WithGeometry(const FGeometry& InGeometry) const {return FContext(Elements,Layer,InGeometry,Opacity);}
         FContext WithOpacity(float InOpacity) const {return FContext(Elements,Layer,Geometry,Opacity*InOpacity);}
         FLinearColor Fade(const FLinearColor& Color) const {return Color.CopyWithNewOpacity(Color.A*Opacity);}
 
@@ -138,7 +135,6 @@ namespace LDUIPaint
         {LDUIPaint::Tile(Elements,At,Geometry,Box,Kind,State,Icon,Opacity*Alpha,Time);}
         void SkillArt(int32 At,const FBox2D& Box,bool bSilver,bool bEmpty,UTexture2D* Icon,const FLinearColor& Glow=FLinearColor::Transparent) const
         {LDUIPaint::SkillArt(Elements,At,Geometry,Box,bSilver,bEmpty,Icon,Glow,Opacity);}
-        void NewDot(int32 At,FVector2D Center) const {LDUIPaint::NewDot(Elements,At,Geometry,Center,Opacity);}
         void ElementDisc(int32 At,const FBox2D& Box,const FLinearColor& Color,float Alpha=1.f) const
         {LDUIPaint::ElementDisc(Elements,At,Geometry,Box,Color,Opacity*Alpha);}
         void Stroke(int32 At,const TArray<FVector2D>& Points,const FLinearColor& Color,float Thickness) const

@@ -1,4 +1,7 @@
 #include "UI/LDWorldFeedback.h"
+#include "UI/LDWorldProject.h"
+#include "UI/LDBroadcastStyle.h"
+#include "UI/LDBroadcastPaint.h"
 #include "Core/LDLog.h"
 #include "Character/LDHitFeel.h"
 #include "Character/LDImpactFx.h"
@@ -328,9 +331,7 @@ constexpr double WorldFeedbackLaneSeconds=.5;
 // Ticks stop while the root collapses the layer (menu, Settings); a longer pause than this re-primes body and units.
 constexpr double WorldFeedbackResumeSeconds=1.;
 constexpr double WorldFeedbackBannerAppearSeconds=.1;
-constexpr double WorldFeedbackBannerPopSeconds=.2;
 constexpr double WorldFeedbackBannerFadeSeconds=.6;
-constexpr double WorldFeedbackKillTintSeconds=.5;
 constexpr int32 WorldFeedbackMaxFloaters=32;
 constexpr int32 WorldFeedbackMaxBanners=3;
 constexpr int32 WorldFeedbackLanes=5;
@@ -454,7 +455,9 @@ void ULDWorldFeedback::Present(const LDWorldFeedback::FEvent& Event,double Now)
         while(Floaters.Num()>WorldFeedbackMaxFloaters){Floaters.RemoveAt(0);}
         return;
     }
-    if(Event.Kind==EKind::LevelUp||Event.Kind==EKind::Kill)
+    // The own kill is the HUD's on-air K.O. moment (ULDHUD::PaintMoments), never a second banner over the body.
+    if(Event.Kind==EKind::Kill){return;}
+    if(Event.Kind==EKind::LevelUp)
     {
         if(Event.Kind==EKind::LevelUp){LevelUpAt=Now;}
         LDWorldFeedback::FBanner& Banner=Banners.AddDefaulted_GetRef();
@@ -631,10 +634,11 @@ int32 ULDWorldFeedback::NativePaint(const FPaintArgs& A,const FGeometry& G,const
     if(ViewW<=0||ViewH<=0){return Base;}
     // Viewport pixels to local units: the layer fills the viewport, so this also removes the DPI scale.
     const FVector2f Size=G.GetLocalSize();const float ToLocalX=Size.X/float(ViewW),ToLocalY=Size.Y/float(ViewH);
-    auto Project=[PC,ToLocalX,ToLocalY](const FVector& Point,FVector2f& Projected)
+    const FLDWorldProjector Projector(PC);
+    auto Project=[&Projector,ToLocalX,ToLocalY](const FVector& Point,FVector2f& Projected)
     {
         FVector2D Screen;
-        if(!PC->ProjectWorldLocationToScreen(Point,Screen)){return false;}
+        if(!Projector.Project(Point,Screen)){return false;}
         Projected=FVector2f(float(Screen.X)*ToLocalX,float(Screen.Y)*ToLocalY);
         return true;
     };
@@ -693,8 +697,8 @@ int32 ULDWorldFeedback::NativePaint(const FPaintArgs& A,const FGeometry& G,const
                 if(!Project(Feet+FVector(FMath::Cos(Angle)*Radius,FMath::Sin(Angle)*Radius,0.),Point)){Points.Reset();break;}
                 Points.Add(Point);
             }
-            FLinearColor RingInk=LDHUDStyle::Celebration;RingInk.A*=.95f*(1.f-RingProgress);
-            if(Points.Num()>1){FSlateDrawElement::MakeLines(E,Base+1,G.ToPaintGeometry(),MoveTemp(Points),ESlateDrawEffect::None,RingInk,true,WorldFeedbackEffectThickness);}
+            FLinearColor LevelRing=LDHUDStyle::Celebration;LevelRing.A*=.95f*(1.f-RingProgress);
+            if(Points.Num()>1){FSlateDrawElement::MakeLines(E,Base+1,G.ToPaintGeometry(),MoveTemp(Points),ESlateDrawEffect::None,LevelRing,true,WorldFeedbackEffectThickness);}
         }
         if(Since<WorldFeedbackStreakSeconds)
         {
@@ -817,19 +821,39 @@ int32 ULDWorldFeedback::NativePaint(const FPaintArgs& A,const FGeometry& G,const
             const double Age=Now-Banner.BornAt;
             if(Age<0.||Age>=LDHUDStyle::BannerSeconds){continue;}
             const float Alpha=float(FMath::Min(FMath::Clamp(Age/WorldFeedbackBannerAppearSeconds,0.,1.),FMath::Clamp((LDHUDStyle::BannerSeconds-Age)/WorldFeedbackBannerFadeSeconds,0.,1.)));
-            // A kill flashes from danger red into the celebration gold; a level-up is gold throughout.
-            FLinearColor Ink=Banner.Kind==LDWorldFeedback::EKind::Kill
-                ?FMath::Lerp(LDHUDStyle::TextDanger,LDHUDStyle::Celebration,float(FMath::Clamp(Age/WorldFeedbackKillTintSeconds,0.,1.))):LDHUDStyle::Celebration;
-            Ink.A*=Alpha;
-            if(!Banner.Subline.IsEmpty())
+            // On air: each banner is a lower-third slab on ink that wipes in from the left (200 ms, no bounce), with the
+            // accent block on its left end: live red for a kill, orange for the player's own gain; white heavy text.
+            const float Wipe=float(FMath::Clamp(Age/LDBroadcast::SlideIn,0.,1.));
+            const float Ease=1.f-(1.f-Wipe)*(1.f-Wipe);
+            const FLinearColor Accent=Banner.Kind==LDWorldFeedback::EKind::Kill?LDBroadcast::LiveRed:LDBroadcast::Orange;
+            const LDUIPaint::FContext Paint(E,Base,G,Alpha);
+            const FSlateFontInfo BannerFont=WorldFeedbackFont(LDHUDStyle::TypeBanner,TextScale,0,Alpha);
+            const FSlateFontInfo SubFont=WorldFeedbackFont(LDHUDStyle::TypeLabel,TextScale,0,Alpha);
+            const FVector2f MainSize=FontMeasure->Measure(Banner.Text,BannerFont);
+            const FVector2f SubSize=Banner.Subline.IsEmpty()?FVector2f::ZeroVector:FontMeasure->Measure(Banner.Subline,SubFont);
+            const float PadX=18.f*TextScale,PadY=6.f*TextScale,Block=10.f*TextScale;
+            const float SlabW=FMath::Max(MainSize.X,SubSize.X)+PadX*2.f+Block;
+            const float SlabH=MainSize.Y+SubSize.Y+PadY*2.f;
+            const float Left=BannerAt.X-SlabW*.5f-(1.f-Ease)*60.f*TextScale;
+            const FBox2D Slab(FVector2D(Left,Bottom-SlabH),FVector2D(Left+SlabW,Bottom));
+            // The slab reveals left to right (a mask wipe): its right edge grows with the ease.
+            const FBox2D Shown(Slab.Min,FVector2D(Slab.Min.X+(Slab.Max.X-Slab.Min.X)*Ease,Slab.Max.Y));
+            LDBroadcastPaint::FillSlab(Paint,Base+3,Shown,LDBroadcast::Ink.CopyWithNewOpacity(.9f));
+            LDBroadcastPaint::FillSlab(Paint,Base+4,FBox2D(Slab.Min,FVector2D(Slab.Min.X+Block,Slab.Max.Y)),Accent);
+            if(Ease>.6f)
             {
-                FLinearColor SublineInk=LDHUDStyle::TextPrimary;SublineInk.A*=Alpha;
-                Bottom-=Draw(4,Banner.Subline,WorldFeedbackFont(LDHUDStyle::TypeLabel,TextScale,2,Alpha),SublineInk,FVector2f(BannerAt.X,Bottom),.5f,1.f).Y;
+                FLinearColor TextInk=LDBroadcast::White;TextInk.A*=Alpha;
+                const float TextX=float(Slab.Min.X)+Block+PadX;
+                Draw(5,Banner.Text,BannerFont,TextInk,FVector2f(TextX,float(Slab.Min.Y)+PadY+MainSize.Y),0.f,1.f);
+                if(!Banner.Subline.IsEmpty())
+                {
+                    FLinearColor SubInk=LDBroadcast::Grey;SubInk.A*=Alpha;
+                    Draw(5,Banner.Subline,SubFont,SubInk,FVector2f(TextX,float(Slab.Max.Y)-PadY),0.f,1.f);
+                }
             }
-            const FSlateFontInfo BannerFont=WorldFeedbackFont(LDHUDStyle::TypeBanner,TextScale,3,Alpha);
-            Bottom-=Draw(4,Banner.Text,BannerFont,Ink,FVector2f(BannerAt.X,Bottom),.5f,WorldFeedbackPop(Age,WorldFeedbackBannerPopSeconds,1.4f)).Y+WorldFeedbackBannerGap*TextScale;
+            Bottom-=SlabH+WorldFeedbackBannerGap*TextScale;
         }
     }
     // Text outlines draw one layer under their fill.
-    return Base+5;
+    return Base+6;
 }

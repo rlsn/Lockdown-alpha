@@ -111,6 +111,7 @@ bool LDGrowthWire::IsKnownBuildKind(ELDBuildCommandKind Kind)
     case ELDBuildCommandKind::UninstallCard:
     case ELDBuildCommandKind::ShopBuy:
     case ELDBuildCommandKind::ShopRefresh:
+    case ELDBuildCommandKind::SellBlueprint:
         return true;
     case ELDBuildCommandKind::None:
         break;
@@ -226,6 +227,7 @@ const TCHAR* LDGrowthWire::ReasonName(ELDGrowthReason Reason)
     case ELDGrowthReason::ShopStale: return TEXT("ShopStale");
     case ELDGrowthReason::SkillPointLimit: return TEXT("SkillPointLimit");
     case ELDGrowthReason::NoShop: return TEXT("NoShop");
+    case ELDGrowthReason::MedalLimit: return TEXT("MedalLimit");
     }
     return TEXT("Unknown");
 }

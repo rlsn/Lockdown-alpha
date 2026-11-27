@@ -4,6 +4,7 @@
 #include "Engine/EngineBaseTypes.h"
 #include "Containers/Ticker.h"
 #include "UI/LDControlSettings.h"
+#include "Audio/LDAudioTypes.h"
 #include "LDGameInstance.generated.h"
 
 UCLASS()
@@ -43,8 +44,9 @@ public:
     FLDLocalSettingsSaveResult ApplyLocalSettings(const ULDControlSettings& Draft);
     // Applies a linear 0..1 master volume to the live preferences and the audio output now; only the debounced flush
     // writes it, so a slider drag never saves every intermediate value.
-    FLDLocalSettingsSaveResult SetAppliedMasterVolume(float Linear);
-    FLDLocalSettingsSaveResult SetAppliedMusicVolume(float Linear);
+    // The applied volume of one bus (AUDIO_AND_FEEL buses), linear 0..1: heard at once, saved by the coming flush.
+    FLDLocalSettingsSaveResult SetAppliedBusVolume(ELDAudioBus Bus, float Linear);
+    float GetAppliedBusVolume(ELDAudioBus Bus) const;
     FLDLocalSettingsSaveResult FlushLocalSettings(bool VerifyCurrent=false);
     FLDLocalSettingsSaveResult ConfirmLocalSettingsRecovery();
     void RequestLocalSettingsFlush();

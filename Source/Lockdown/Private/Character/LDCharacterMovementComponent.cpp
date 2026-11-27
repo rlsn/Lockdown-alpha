@@ -11,6 +11,7 @@
 #include "Engine/World.h"
 #include "Framework/LDDemoEntry.h"
 #include "Region/LDMapRegistry.h"
+#include "Combat/LDGroundLanding.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 
 namespace LDCharacterMovementDetail
@@ -137,7 +138,9 @@ namespace LDCharacterMovementDetail
     };
 }
 
-ULDCharacterMovementComponent::ULDCharacterMovementComponent(){SetNetworkMoveDataContainer(NetworkMoves);}
+// No body jumps. CMC's apex substep refunds part of a falling slice after the fall velocity already opened it, which
+// native capture cannot witness: a falling body never splits its slice at an apex.
+ULDCharacterMovementComponent::ULDCharacterMovementComponent(){SetNetworkMoveDataContainer(NetworkMoves);MaxJumpApexAttemptsPerSimulation=0;}
 void FLDNetworkMoveData::ClientFillNetworkMoveData(const FSavedMove_Character& Move,ENetworkMoveType Type)
 {FCharacterNetworkMoveData::ClientFillNetworkMoveData(Move,Type);Navigation=static_cast<const LDCharacterMovementDetail::FLDSavedMove&>(Move).Navigation;}
 bool FLDNetworkMoveData::Serialize(UCharacterMovementComponent& Movement,FArchive& Ar,UPackageMap* Map,ENetworkMoveType Type)
@@ -321,7 +324,39 @@ bool ULDCharacterMovementComponent::StartDemoDash(const FVector& Direction, doub
         Error=TEXT("A Demo dash runs only on the server authority body.");
         return false;
     }
-    return ApplyDashRootMotion(Direction,DistanceCm,DurationSeconds,Error);
+    const auto* Capsule=CharacterOwner->GetCapsuleComponent();
+    if (!Capsule || !FMath::IsFinite(DistanceCm) || DistanceCm<=0)
+    {
+        Error=TEXT("A Demo dash needs the body capsule and a positive distance.");
+        return false;
+    }
+    // Like a ground skill's landing: a world without a registered map (a rule fixture) leaves the distance unjudged.
+    const auto* Registry=GetWorld()->GetSubsystem<ULDMapRegistry>();
+    const auto* Geometry=Registry ? Registry->GetGeometry() : nullptr;
+    if (!Registry || !Registry->Enabled() || !Geometry || Geometry->Surfaces.IsEmpty())
+    { return ApplyDashRootMotion(Direction,DistanceCm,DurationSeconds,Error); }
+    double LandedCm=0;
+    if (!LandedDashDistance(*Registry,GetActorFeetLocation(),Direction,DistanceCm,Capsule->GetCollisionShape(),LandedCm,Error))
+    { return false; }
+    // No legal ground along the way: the body stays where it is (a dash or push into ground it could never walk from).
+    if (LandedCm<1.) { Error.Reset(); return true; }
+    return ApplyDashRootMotion(Direction,LandedCm,DurationSeconds*LandedCm/DistanceCm,Error);
+}
+
+bool ULDCharacterMovementComponent::LandedDashDistance(const ULDMapRegistry& Registry, const FVector& Foot, const FVector& Direction,
+    double DistanceCm, const FCollisionShape& Capsule, double& OutCm, FString& Error)
+{
+    OutCm=0;
+    const FVector Planar=FVector(Direction.X,Direction.Y,0).GetSafeNormal();
+    if (Planar.IsNearlyZero() || !FMath::IsFinite(DistanceCm) || DistanceCm<=0)
+    {
+        Error=TEXT("A Demo dash needs a planar direction and a positive distance.");
+        return false;
+    }
+    TOptional<FVector> Landed;
+    if (!LDGroundLanding::Resolve(Registry,Foot,Foot+Planar*DistanceCm,DistanceCm,Capsule,Landed,Error)) { return false; }
+    OutCm=Landed?FMath::Min(DistanceCm,FVector::Dist2D(Foot,*Landed)):0.;
+    return true;
 }
 
 bool ULDCharacterMovementComponent::ApplyDashRootMotion(const FVector& Direction, double DistanceCm, double DurationSeconds, FString& Error)

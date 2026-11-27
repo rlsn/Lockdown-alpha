@@ -432,6 +432,9 @@ struct FLDCombatEntryView
     UPROPERTY() FGuid IssuedCooldownId;              // persistent cooldown identity; owner view only
     UPROPERTY() int64 ReadyAtMs=0;                   // persistent track end; <= now means ready
     UPROPERTY() int64 CooldownMs=0;                  // duration last issued on this track, for the UI ratio
+    // Skill charges (LDCombatSourceRules::SkillCharges); the ready ones follow from ReadyAtMs and CooldownMs at any instant
+    // (LDCombatSourceRules::ChargesReady).
+    UPROPERTY() uint8 Charges=1;
     UPROPERTY() ELDCombatReject Unavailable=ELDCombatReject::None; // current blocking reason, display only
 };
 
@@ -528,6 +531,19 @@ struct FLDCombatPreviewSlow
     UPROPERTY() int64 ExpiresAtMs=0;
 };
 
+// One installed growth card's current count on the owner's build, by card copy (Serial): K16 whole idle seconds of its ready
+// skill and Y22 of no damage (the counted ones: in a fight, and the carry before it), K17 contender hits of its skill this
+// match, K18 other skills released inside its window, Y23 whole seconds on the own ground state, Y24 open tally marks. The
+// card's step times Count is its current bonus. A copy without a row counts 0. Owner-only.
+USTRUCT()
+struct FLDCombatCardStackView
+{
+    GENERATED_BODY()
+    UPROPERTY() uint16 Serial=0;
+    UPROPERTY() FName CardId;
+    UPROPERTY() int32 Count=0;
+};
+
 // Single owner publication of the Combat self projection; consumers reject an older Revision.
 USTRUCT()
 struct FLDCombatOwnerView
@@ -567,6 +583,8 @@ struct FLDCombatOwnerView
     UPROPERTY() TArray<FLDDemoStatBonus> CardGrowth;
     // A12: the focus stacks of this life while they last (0 when none); the preview adds their haste like the authority.
     UPROPERTY() int32 PreviewFocusHits=0;
+    // The growth cards' counts (FLDCombatCardStackView): whole steps and counts, so a row changes at most once a second.
+    UPROPERTY() TArray<FLDCombatCardStackView> CardStacks;
     UPROPERTY() TArray<FLDCombatPreviewBonus> PreviewBonuses;
     UPROPERTY() TArray<FLDCombatPreviewSlow> PreviewMoveSlows;
     UPROPERTY() TArray<FLDCombatPreviewSlow> PreviewAttackSlows;

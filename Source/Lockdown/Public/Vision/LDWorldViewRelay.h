@@ -132,6 +132,7 @@ namespace LDObservedPresentation
         uint16 CueAgeMs = 0;
         uint16 CueImpactDelayMs = 0;
         uint8 ActionAbility = 0;  // the Cast cue's ability, 0 otherwise
+        uint8 ActionComboStep = 0;  // the Attack cue's combo step, 0 otherwise
         bool bCharging = false;   // the public overdrive charge
         uint16 ChargeAgeMs = 0;
         bool bOverdriveCast = false;  // the Cast cue is an overdrive release
@@ -267,6 +268,8 @@ public:
 private:
     UPROPERTY() TObjectPtr<UStaticMeshComponent> Rim;
     UPROPERTY() TObjectPtr<UStaticMeshComponent> Core;
+    // The designed mark (LDSliceVfx::ESystem::OwnMark); the two plain discs show only while it cannot.
+    UPROPERTY() TObjectPtr<class UNiagaraComponent> Mark;
     TWeakObjectPtr<APawn> Tracked;
     uint8 TintSlot = MAX_uint8;
 };
@@ -301,10 +304,16 @@ public:
 private:
     UPROPERTY() TObjectPtr<UStaticMeshComponent> Chalk;
     UPROPERTY() TObjectPtr<UStaticMeshComponent> Accent;
+    // A phantom decoy's figure: a still copy of the body it left (ULDImpactFxSubsystem::StandIn).
+    UPROPERTY() TObjectPtr<class UPoseableMeshComponent> StandIn;
     UPROPERTY() TObjectPtr<UStaticMesh> BoxMesh;
     UPROPERTY() TObjectPtr<UStaticMesh> CylinderMesh;
     UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> EffectTint;
     UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> AccentTint;
+    // A prop's two inks, body and trim (the outline and plain shapes keep EffectTint, which carries the warning pulse).
+    UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> BodyTint;
+    UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> TrimTint;
+    FLinearColor TrimColor=FLinearColor::Black;
     UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> ShapeLines;
     UPROPERTY() TObjectPtr<ULDFlightTrailComponent> Trail;
     // The look's particles (LDHitVfx::TrailOf / ZoneOf), rebuilt with the look.
@@ -325,9 +334,9 @@ private:
     bool bPlaced = false;
 };
 
-// Client-only presentation of one public ground state (spec §12): the kind's own line pattern in its colour (never colour
-// alone) and the owner's seat-coloured outline, which drains around the footprint as its life runs out. Two instanced
-// meshes per state; it never collides, blocks or hides anything.
+// Client-only presentation of one public ground state (spec §12): the kind's own designed effect (each element its own
+// surface and motion, never colour alone; ULDImpactFxSubsystem::ShowGround) and the owner's seat-coloured outline, which
+// drains around the footprint as its life runs out. It never collides, blocks or hides anything.
 UCLASS()
 class LOCKDOWN_API ALDObservedGroundProxy : public AActor
 {
@@ -336,21 +345,19 @@ public:
     ALDObservedGroundProxy();
     void Apply(const FLDObservedGroundState& Ground, double SampledAtServerSec);
     void Present(double AtServerSec);
-    static FLinearColor KindColor(uint8 Kind);
-    // The footprint outline (closed, local space) and the kind's pattern segments for a state of this shape.
+    // The footprint outline (closed, local space) for a state of this shape; the kind shows through its designed
+    // effect (ULDImpactFxSubsystem::ShowGround).
     static void Outline(const FLDObservedGroundState& Ground, TArray<FVector>& Out);
-    static void Pattern(const FLDObservedGroundState& Ground, TArray<TPair<FVector,FVector>>& Out);
     int32 OutlineShown() const { return ShownOutline; }
     virtual void EndPlay(const EEndPlayReason::Type Reason) override;
     const class UNiagaraComponent* GetParticles() const { return Particles; }
 private:
-    // The kind's looping particles (LDHitVfx::GroundZoneOf) over the pattern, rebuilt with the shape or the effect scale.
+    // The kind's looping particles (LDHitVfx::GroundZoneOf) where it has no designed effect, rebuilt with the shape or the
+    // effect scale.
     UPROPERTY() TObjectPtr<class UNiagaraComponent> Particles;
     float ParticleScale = -1.f;
     void ShowParticles();
-    UPROPERTY() TObjectPtr<UInstancedStaticMeshComponent> Lines;
     UPROPERTY() TObjectPtr<UInstancedStaticMeshComponent> Rim;
-    UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> KindTint;
     UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> SeatTint;
     FLDObservedGroundState Shown;
     bool bShown=false;

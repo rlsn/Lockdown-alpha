@@ -243,11 +243,40 @@ bool LDCombatSourceRules::InnateDashTerms(const FLDDemoContentSnapshot& Content,
     Error.Reset();
     return true;
 }
+int32 LDCombatSourceRules::SkillCharges(const FLDDemoAbilityValues& Values, int32 DoubleStallCopies)
+{
+    for (const FLDDemoEffectDefinition& Effect : Values.Effects)
+    {
+        if (Effect.GetOp()==ELDDemoEffectOp::Bag) { return FMath::Max(Effect.Count,1)+FMath::Max(DoubleStallCopies,0); }
+        if (Effect.GetOp()==ELDDemoEffectOp::Fan) { return 1+FMath::Max(DoubleStallCopies,0); }
+    }
+    return 1;
+}
+
+int32 LDCombatSourceRules::ChargesReady(int64 ReadyAtMs, int64 NowMs, int32 Charges, int64 ChargeMs)
+{
+    const int32 Full=FMath::Max(Charges,1);
+    if (ReadyAtMs<=NowMs) { return Full; }
+    if (Full==1 || ChargeMs<=0) { return 0; }
+    // Charges still recovering: the remaining time over one charge's recovery, rounded up.
+    const int64 Remaining=ReadyAtMs-NowMs;
+    const int64 Recovering=Remaining/ChargeMs+(Remaining%ChargeMs!=0 ? 1 : 0);
+    return int32(FMath::Max<int64>(0,Full-Recovering));
+}
+
+bool LDCombatSourceRules::SpendCharge(int64 ReadyAtMs, int64 NowMs, int64 DurationMs, int64& OutReadyAtMs)
+{
+    const int64 From=FMath::Max(ReadyAtMs,NowMs);
+    if (DurationMs<0 || From>MAX_int64-DurationMs) { return false; }
+    OutReadyAtMs=From+DurationMs;
+    return true;
+}
+
 ELDCombatReject LDCombatSourceRules::ActiveGate(const FLDActiveGateInput& Input, const FLDDemoPolicies& Policies)
 {
     if (Input.bControlBlocked) { return ELDCombatReject::ControlBlocked; }
     if (Input.bCheckBusy && Input.bAbilityInProgress) { return ELDCombatReject::Busy; }
-    if (Input.ReadyAtMs>Input.NowMs) { return ELDCombatReject::Cooldown; }
+    if (ChargesReady(Input.ReadyAtMs,Input.NowMs,Input.Charges,Input.ChargeMs)<=0) { return ELDCombatReject::Cooldown; }
     if (Input.MomentumP2<Input.MomentumCostP2) { return ELDCombatReject::MomentumShort; }
     if (Input.bDash && (Input.bDisplacementBlocked
         || (Input.Roots && LDTactical::RootBlocks(*Input.Roots,Input.NowMs,Policies,ELDDemoRootBlock::Dash))))
@@ -284,6 +313,14 @@ bool LDCombatSourceRules::DisplacesCaster(const FLDDemoAbilityValues& Values)
     return Values.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect)
     {
         return Effect.GetOp()==ELDDemoEffectOp::Dash;
+    });
+}
+
+bool LDCombatSourceRules::VectorAimed(const FLDDemoAbilityValues& Values)
+{
+    return Values.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect)
+    {
+        return Effect.GetOp()==ELDDemoEffectOp::CordonLine || Effect.GetOp()==ELDDemoEffectOp::Fan;
     });
 }
 
@@ -555,6 +592,19 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
     FLDActiveGateInput Gate;
     Gate.NowMs=NowMs;
     Gate.ReadyAtMs=View.ReadyAtMs;
+    if (Source.Kind!=ELDCombatSourceKind::Innate)
+    {
+        FString ChargeError;
+        int32 Charges=1;
+        if (!SkillChargesOf(*Body,*Values,Charges,ChargeError))
+        {
+            View.Unavailable=ELDCombatReject::AuthorityDataUnavailable;
+            return View;
+        }
+        Gate.Charges=Charges;
+        Gate.ChargeMs=View.CooldownMs;
+        View.Charges=uint8(FMath::Clamp(Charges,1,255));
+    }
     Gate.MomentumP2=Body->Resources.MomentumP2;
     Gate.MomentumCostP2=View.MomentumCostP2;
     // Only an action that displaces its caster is a dash for the root matrix (a ground zone is not).
@@ -566,6 +616,14 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
     if (View.Unavailable==ELDCombatReject::None && Body->Action.IsSet() && Body->Action->Kind==ELDCombatActionKind::Ability)
     { View.Unavailable=ELDCombatReject::Busy; }
     return View;
+}
+
+bool ALDCombatDirector::SkillChargesOf(const FLDBodyCombatState& Body, const FLDDemoAbilityValues& Values, int32& Out, FString& Error) const
+{
+    TArray<FLDPassiveEffectRef> Stalls;
+    if (!CollectPassiveEffects(Body.AttributeProjection, ELDDemoEffectOp::DoubleStall, Stalls, Error)) { return false; }
+    Out=LDCombatSourceRules::SkillCharges(Values, Stalls.Num());
+    return true;
 }
 
 void ALDCombatDirector::MarkViewChanged(const FGuid& Entity)
@@ -847,6 +905,69 @@ FLDCombatEntryView ALDCombatDirector::QueryAvailability(const FLDCombatCaller& C
     return EntryView(*Record,FindEntityBody(Caller.EntityId),Entry,Mode->GetAuthorityNowMs());
 }
 
+bool ALDCombatDirector::OwnerCardStacks(const FLDCombatEntityRecord& Record, const FLDBodyCombatState* Body,
+    const FLDAttributeProjection& Projection, int64 NowMs, TArray<FLDCombatCardStackView>& Out) const
+{
+    Out.Reset();
+    FString Error;
+    TArray<FLDPassiveEffectRef> Refs;
+    const auto Add=[&Out](const FLDPassiveEffectRef& Ref, int64 Count)
+    {
+        if (Count<=0) { return; }
+        FLDCombatCardStackView& Row=Out.AddDefaulted_GetRef();
+        Row.Serial=Ref.Serial;
+        Row.CardId=Ref.Key;
+        Row.Count=int32(FMath::Min<int64>(Count,MAX_int32));
+    };
+    const auto Steps=[](int64 FromMs, int64 ToMs, int64 IntervalMs) { return IntervalMs>0 && ToMs>FromMs ? (ToMs-FromMs)/IntervalMs : 0; };
+    // K17: the match's contender hits of the host, living or dead.
+    if (!CollectPassiveEffects(Projection,ELDDemoEffectOp::SkillGrowth,Refs,Error)) { return false; }
+    for (const FLDPassiveEffectRef& Ref : Refs)
+    {
+        const int32* Hits=Record.CardGrowth.SkillHits.Find(Ref.Serial);
+        Add(Ref,Hits ? *Hits : 0);
+    }
+    if (!Body) { return true; }
+    // K16: whole intervals the host stood ready and idle (ReleaseFactors).
+    if (!CollectPassiveEffects(Projection,ELDDemoEffectOp::IdleReadyAmp,Refs,Error)) { return false; }
+    for (const FLDPassiveEffectRef& Ref : Refs)
+    {
+        const FLDCombatTrack* Track=Record.Tracks.FindByPredicate([&Ref](const FLDCombatTrack& Row)
+            { return Row.Kind==ELDCombatSourceKind::Learned && Row.DefinitionId==Ref.Active; });
+        if (Track && Track->ReadyAtMs<=NowMs)
+        { Add(Ref,Steps(FMath::Max3<int64>(Track->ReadyAtMs,0,IdleCountFloorMs(*Body,NowMs)),NowMs,Ref.Effect.IntervalMs)); }
+    }
+    // K18: the other skills released inside the card's window (ReleaseFactors).
+    if (!CollectPassiveEffects(Projection,ELDDemoEffectOp::RecentCastAmp,Refs,Error)) { return false; }
+    for (const FLDPassiveEffectRef& Ref : Refs)
+    {
+        int64 Others=0;
+        for (const TPair<FName,int64>& Cast : Body->RecentCasts)
+        { Others+=Cast.Key!=Ref.Active && Cast.Value<=NowMs && NowMs-Cast.Value<=Ref.Effect.IntervalMs ? 1 : 0; }
+        Add(Ref,Others);
+    }
+    // Y22: whole intervals without damage (HitFactors).
+    if (!CollectPassiveEffects(Projection,ELDDemoEffectOp::IdleCharge,Refs,Error)) { return false; }
+    for (const FLDPassiveEffectRef& Ref : Refs)
+    {
+        if (Body->IdleSinceMs>0)
+        { Add(Ref,Steps(FMath::Max<int64>(Body->IdleSinceMs,IdleCountFloorMs(*Body,NowMs)),NowMs,Ref.Effect.IntervalMs)); }
+    }
+    // Y23: whole intervals on the own ground state (GroundFactors).
+    if (!CollectPassiveEffects(Projection,ELDDemoEffectOp::GroundGrowth,Refs,Error)) { return false; }
+    for (const FLDPassiveEffectRef& Ref : Refs)
+    {
+        if (Body->TurfSinceMs>0) { Add(Ref,Steps(Body->TurfSinceMs,NowMs,Ref.Effect.IntervalMs)); }
+    }
+    // Y24: the open marks until a pause longer than the card's window clears them (OnTallyHit).
+    if (!CollectPassiveEffects(Projection,ELDDemoEffectOp::Tally,Refs,Error)) { return false; }
+    for (const FLDPassiveEffectRef& Ref : Refs)
+    {
+        if (Body->TallyMarks>0 && NowMs-Body->TallyAtMs<=Ref.Effect.DurationMs) { Add(Ref,Body->TallyMarks); }
+    }
+    return true;
+}
+
 bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatOwnerView& Out) const
 {
     Out=FLDCombatOwnerView();
@@ -875,6 +996,7 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
     Out.bPreviewFinalField=Mode->IsShowdown();
     Out.PreviewDevBonuses=Record->Build.DevBonuses;
     Out.CardGrowth=Record->Build.CardGrowth;
+    if (!OwnerCardStacks(*Record,Body && !Body->bPendingDeath ? Body : nullptr,Projection,NowMs,Out.CardStacks)) { return false; }
     if (Out.bPreviewLiving)
     {
         if (Body->FocusHits>0 && NowMs<=Body->FocusUntilMs) { Out.PreviewFocusHits=Body->FocusHits; }

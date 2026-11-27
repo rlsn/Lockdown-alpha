@@ -8,22 +8,11 @@ class UWidget;
 
 // Procedural interface shapes drawn in a widget's NativePaint: the component frames (a rounded square for base rules, a
 // chamfered octagon for skill mods, a circle for link rules), dashed empty places, rings and link lines. Points are in the
-// painting widget's local space; Rect helpers map another widget's cached geometry into it.
+// painting widget's local space.
 namespace LDUIShapes
 {
     enum class EShape : uint8 { Rounded, Octagon, Circle, Diamond, Hexagon };
 
-    // The local rectangle of Widget inside Geometry (zero size when the widget is not laid out).
-    inline FBox2D RectIn(const FGeometry& Geometry,const FGeometry& WidgetGeometry)
-    {
-        const FVector2D P=Geometry.AbsoluteToLocal(WidgetGeometry.LocalToAbsolute(FVector2D::ZeroVector));
-        const FVector2D Q=Geometry.AbsoluteToLocal(WidgetGeometry.LocalToAbsolute(WidgetGeometry.GetLocalSize()));
-        return FBox2D(P,Q);
-    }
-    inline FBox2D AbsoluteIn(const FGeometry& Geometry,const FSlateRect& Absolute)
-    {
-        return FBox2D(Geometry.AbsoluteToLocal(FVector2D(Absolute.Left,Absolute.Top)),Geometry.AbsoluteToLocal(FVector2D(Absolute.Right,Absolute.Bottom)));
-    }
     inline float Chamfer(const FBox2D& Box){return FMath::Min(Box.GetSize().X,Box.GetSize().Y)*.24f;}
     inline TArray<FVector2D> Outline(EShape Shape,const FBox2D& Box,float Radius=8.f)
     {

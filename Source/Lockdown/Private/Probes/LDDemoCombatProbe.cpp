@@ -29,6 +29,7 @@
 #include "Vision/LDWorldViewRelay.h"
 #include "UI/LDControlSettings.h"
 #include "UI/LDControlsPanel.h"
+#include "UI/LDCursor.h"
 #include "UI/LDHUD.h"
 #include "UI/LDUIRoot.h"
 #include "Blueprint/WidgetTree.h"
@@ -43,6 +44,7 @@
 #include "Engine/NetDriver.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "World/LDNativeGround.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformMisc.h"
@@ -102,6 +104,12 @@ constexpr int32 CombatProbeChaseBearings = 16;
 constexpr double CombatProbeChaseStepCm = 25.0;
 constexpr double CombatProbeChaseReachCm = 3000.0;
 constexpr double CombatProbeChaseResolutionCm = 0.5;
+// A trunk-like native blocker: its whole body (a tree's canopy included) spans no more than this (not a wall or a house),
+// and at capsule height it is solid at its centre and free this far out all around (a trunk or a post).
+constexpr double CombatProbeTrunkMaxSpanCm = 800.0;
+constexpr double CombatProbeTrunkRadiusCm = 120.0;
+// The trunk stands on the Host's level: its beside-navmesh height is within one step (35 cm) plus voxel slack.
+constexpr double CombatProbeTrunkLevelCm = 50.0;
 // Skills: Client1's skill site lies on the open duel line midway between the Host's approved basic range and the snare's
 // approved range (both read from the catalog in PrepareSites), so it stays inside the snare's range and beyond the basic
 // range even when both bodies stop at the far edge of Navigation's goal acceptance, and the Host's basic chase must close in
@@ -256,6 +264,13 @@ public:
 
     // Host: the hits it took, its kill and the audited respawn.
     bool bChaseGoalChecked = false;
+    // -LDDemoCombatCaptureOnly (CaptureFeelSample.ps1 -Scenario combat): the same real owned fight for audio/feel and UI
+    // capture, without the Host's chase-goal assertions; its report is marked capture_only and judges nothing.
+    bool bCaptureOnly = false;
+    // Capture-only: failed value checks are recorded and counted but keep the fight going; Net, Skills and Fail() still end it.
+    int32 ToleratedFailures = 0;
+    FString CaptureFeel;
+    bool bFailing = false;
     int64 HpAtStopP2 = -1, BasicIntervalMs = 0, RespawnAtMs = 0, ProtectedUntilMs = 0;
     double StopSampledAt = 0;
     FLDMoveIdentity KillOrder;
@@ -278,8 +293,6 @@ public:
     bool bShieldCaptured = false;
     double SkillGapCm = 0, ReachHitCm = 0;
     FLDMoveIdentity ReachOrder, HostCastOrder;
-    FGuid HostCastTarget;
-    uint32 HostCastTargetEpoch = 0;
     enum class EFollowUpStep : uint8 { Start, AwaitAttack, AwaitRefusal, AwaitFollowUp, Return };
     EFollowUpStep FollowUpStep = EFollowUpStep::Start;
     FLDMoveIdentity FollowUpAttack, FollowUpQueued, FollowUpRefused, FollowUpCast;
@@ -360,6 +373,12 @@ public:
         CheckRow->SetBoolField(TEXT("passed"), bValue);
         CheckRow->SetStringField(TEXT("detail"), Detail);
         Checks.Add(MakeShared<FJsonValueObject>(CheckRow));
+        if (!bValue && bCaptureOnly && !bFailing && FCString::Strcmp(Id, TEXT("Net")) != 0 && FCString::Strcmp(Id, TEXT("Skills")) != 0)
+        {
+            ++ToleratedFailures;
+            UE_LOG(LogLDTest, Warning, TEXT("LD_DEMO_COMBAT_CAPTURE_TOLERATED %s %s: %s"), Id, *Name, *Detail);
+            return true;
+        }
         Passed &= bValue;
         if (!bValue && Error.IsEmpty())
         {
@@ -370,6 +389,7 @@ public:
 
     bool Fail(const TCHAR* Id, const FString& Why)
     {
+        bFailing = true;
         Check(false, Id, Why);
         return Finish();
     }
@@ -436,6 +456,13 @@ public:
         }
         // #198: the whole duel runs inside the first field segment; a mid rest retires every field life, so its start is a
         // failure of its own rather than of whichever stage it interrupts.
+        // A capture-only A/B of the camera feedback (-LDDemoCombatFeel=NoShake or Reduced): the Host's own preference, as
+        // the settings page would set it; a normal check always runs the defaults.
+        if (bCaptureOnly && IsHost() && !CaptureFeel.IsEmpty() && PC->Controls)
+        {
+            PC->Controls->bCameraShake = CaptureFeel != TEXT("NoShake");
+            PC->Controls->bReduceCombatEffects = CaptureFeel == TEXT("Reduced");
+        }
         const FLDTimelineView& Timeline = Public->PublicMatch.Timeline;
         if (Stage > EStage::Spawned && Timeline.Stage == ELDMatchStage::Rest && Timeline.RestIndex > 0)
         {
@@ -538,6 +565,11 @@ public:
                 }
                 return true;
             }
+            // The match's daily modifiers are fixed to two that touch neither bodies nor combat (a shop sale and the
+            // monster XP scale): a drawn typhoon pushes the duelists off their routes and rain, cold or heat change hits.
+            ALDGameMode* Mode = PC.GetWorld() ? PC.GetWorld()->GetAuthGameMode<ALDGameMode>() : nullptr;
+            if (!Mode) { return Fail(TEXT("Start"), TEXT("The Listen Host has no authority game mode to fix the daily modifiers")); }
+            Mode->DevDailyPreset = {ELDDailyModifier::Sale, ELDDailyModifier::Exam};
             if (!Mark(TEXT("LobbyConfigured.json"))) { return Finish(); }
             bLobbyConfigured = true;
         }
@@ -608,12 +640,14 @@ public:
         if(Now-Feel.SpawnAt<double(RegenParameters.OutOfCombatRegenDelayMs)/1000.+.5){return true;}
         const auto& View=PC.CombatView;
         const auto HP=View.Attributes.FindByPredicate([](const FLDCombatAttributeRowView& Row){return Row.Attribute==uint8(ELDProjectedAttribute::HPRegen);});
-        const double ExpectedHP=HP?LDDemoCombatScenario::CombatProbeRational(HP->Final)+double(View.MaxHPP2)*double(RegenParameters.OutOfCombatMaxHPRegenBp)/1000000.:-1;
+        // A random field start inside a 躺平角 (D21) also publishes the dorm term.
+        const int64 RecoveryBp=RegenParameters.OutOfCombatMaxHPRegenBp+(View.bDormRegenActive?RegenParameters.DormMaxHPRegenBp:0);
+        const double ExpectedHP=HP?LDDemoCombatScenario::CombatProbeRational(HP->Final)+double(View.MaxHPP2)*double(RecoveryBp)/1000000.:-1;
         if(!Check(View.Generation==PC.OwnerState.Match&&View.Life==PC.OwnerState.Life&&View.bHasBody
             &&View.HPP2==View.MaxHPP2&&View.MomentumP2==RegenParameters.Momentum.StartP2&&ExpectedHP>0
             &&FMath::IsNearlyEqual(View.HPRegenPerSec,ExpectedHP),TEXT("Start"),
             TEXT("Full HP still publishes its effective regen after the recovery delay and an idle bar rests at MOMENTUM.Start"),
-            FString::Printf(TEXT("hp_regen=%.3f expected=%.3f momentum=%lld"),View.HPRegenPerSec,ExpectedHP,View.MomentumP2)))
+            FString::Printf(TEXT("hp_regen=%.3f expected=%.3f dorm=%d momentum=%lld"),View.HPRegenPerSec,ExpectedHP,int32(View.bDormRegenActive),View.MomentumP2)))
         {return Finish();}
         const FGuid StagedHost = HostId, StagedClient = ClientId;
         if (!ResolveRoster(PC, Lobby) || !PrepareSites(Registry)) { return Finish(); }
@@ -675,6 +709,13 @@ public:
         return Check(Humans == 2 && HostId.IsValid() && ClientId.IsValid() && HostId != ClientId
             && OwnId == PC.OwnerState.ContenderId, TEXT("Start"), TEXT("The public roster names this owner and exactly one other human"));
     }
+
+    // The #247 approach: from a platform at least this much higher than the duel ground, this far away.
+    static constexpr double QueuePlatformRiseCm = 80.0;
+    static constexpr double QueueApproachMinCm = 2400.0;
+    static constexpr double QueueApproachMaxCm = 4400.0;
+    static constexpr double QueueApproachStepCm = 200.0;
+    static constexpr int32 QueueApproachBearings = 48;
 
     bool FindQueuedWaypoint(const ULDMapRegistry& Registry, FName Surface, const FVector& Foot, const FVector& Site,
         FVector& Waypoint, FString& OutError) const
@@ -825,10 +866,37 @@ public:
         }
         if (bFound)
         {
-            FVector RegressionWaypoint;
-            if (!Check(FindQueuedWaypoint(Registry, CaptureAnchor->Surface, FVector(-4441.42, 1596.17, 102.15),
-                FVector(-1746.13, 486.01, 0), RegressionWaypoint, SiteError), TEXT("Queue"),
-                TEXT("The captured long platform-to-ground approach admits two camp-free native queued legs"), SiteError))
+            // #247 regression: a long approach from a raised platform down to the duel's ground admits two camp-free native
+            // queued legs. The platform start is derived from the current map, not a captured coordinate: the first walkable
+            // support on rings round the Host's site (nearest ring first, fixed bearings) that stands at least
+            // QueuePlatformRiseCm above that site, QueueApproachMinCm or more away and clear of the exclusions.
+            FLDLegalGround HostGround;
+            FVector RegressionWaypoint, Platform = FVector::ZeroVector;
+            FString PlatformTried;
+            bool bPlatform = false, bQueued = false;
+            if (Legal(HostSite, HostGround))
+            {
+                for (double Radius = QueueApproachMinCm; !bQueued && Radius <= QueueApproachMaxCm; Radius += QueueApproachStepCm)
+                {
+                    for (int32 Bearing = 0; !bQueued && Bearing < QueueApproachBearings; ++Bearing)
+                    {
+                        const FVector2D Point = FVector2D(HostSite) + FVector2D(Radius, 0.0).GetRotated(360.0 * Bearing / QueueApproachBearings);
+                        FVector Surface;
+                        if (!Registry.ResolveWalkableGround(Point, Surface) || Surface.Z < HostGround.SurfaceCm.Z + QueuePlatformRiseCm
+                            || !Clear(Surface)) { continue; }
+                        bPlatform = true;
+                        Platform = Surface;
+                        FString Why;
+                        bQueued = FindQueuedWaypoint(Registry, CaptureAnchor->Surface, Surface, HostGround.SurfaceCm, RegressionWaypoint, Why);
+                        if (!bQueued && PlatformTried.Len() < 600) { PlatformTried += FString::Printf(TEXT("{%s: %s} "), *Surface.ToCompactString(), *Why.Left(160)); }
+                    }
+                }
+            }
+            if (!Check(bQueued, TEXT("Queue"),
+                TEXT("A long platform-to-ground approach derived from the current map admits two camp-free native queued legs"),
+                bQueued ? FString::Printf(TEXT("platform=%s waypoint=%s"), *Platform.ToCompactString(), *RegressionWaypoint.ToCompactString())
+                : bPlatform ? PlatformTried : FString::Printf(TEXT("no walkable support %.0f cm above the Host site within %.0f-%.0f cm"),
+                    QueuePlatformRiseCm, QueueApproachMinCm, QueueApproachMaxCm)))
             {
                 return false;
             }
@@ -871,7 +939,7 @@ public:
             if (IsHost() && !bChaseGoalChecked)
             {
                 bChaseGoalChecked = true;
-                if (!CheckChaseGoal(PC)) { return Finish(); }
+                if (!bCaptureOnly && !CheckChaseGoal(PC)) { return Finish(); }
             }
             // The first read-back of a rendered view can stall the game thread for seconds, so the Host takes it here,
             // before any timed moment, and keeps it as its view of the duel site.
@@ -916,8 +984,9 @@ public:
     // Deterministic chase-goal regression on the real Demo world and navmesh. Along fixed bearings from the Host's public
     // duel site (anchors and approved radii only, never where a body stopped), the first legal foot just outside the
     // eroded navmesh edge stands where a target pressed against a wall or another body, or cutting a corner, stands. As
-    // a clicked ground goal it projects to the nearest reachable navmesh stand (#80); as a chased body's goal (the planner
-    // of AttackUnit admission and chase replans) it routes to its nearest navmesh point within one capsule radius.
+    // a clicked ground goal it plans a complete route to a reachable stand within one capsule radius (#80): the navmesh
+    // or, when the foot itself is legal, a physically clear short approach from it (LDMapRegistry::QueryCompletePath);
+    // as a chased body's goal (the planner of AttackUnit admission and chase replans) it routes within one capsule radius.
     bool CheckChaseGoal(const ALDPlayerController& PC)
     {
         const ULDMapRegistry* Registry = PC.GetWorld()->GetSubsystem<ULDMapRegistry>();
@@ -989,32 +1058,68 @@ public:
         const bool bChase = LDPathSteering::PlanRoute(*Registry, HostGround, Margin, Surface, LDPathSteering::EGoal::Body,
             Capsule, Chase, ChaseGoal, ChaseFailure, ChaseError);
         const FString Where = TEXT("foot=") + Margin.ToCompactString();
-        Check(bStrict && !Strict.Points.IsEmpty() && OnMesh(StrictGoal.SurfaceCm)
+        Check(bStrict && !Strict.Points.IsEmpty() && FVector::Dist2D(Strict.Points.Last(), StrictGoal.SurfaceCm) <= 1.
             && FVector::Dist2D(StrictGoal.SurfaceCm, Margin) <= Capsule.GetCapsuleRadius(),
-            TEXT("ChaseGoal"), TEXT("A legal foot just outside the eroded navmesh edge, clicked as ground, projects to a reachable navmesh stand within one capsule radius"),
+            TEXT("ChaseGoal"), TEXT("A legal foot just outside the eroded navmesh edge, clicked as ground, plans a complete route to a stand within one capsule radius"),
             Where + TEXT(" planned=") + StrictGoal.SurfaceCm.ToCompactString() + TEXT(" ") + StrictError);
         const bool bChaseOk = Check(bChase && !Chase.Points.IsEmpty() && FVector::Dist2D(ChaseGoal.SurfaceCm, Margin) <= Capsule.GetCapsuleRadius(),
             TEXT("ChaseGoal"),
             TEXT("The same foot as a chased body's goal routes completely to its nearest navmesh point within one capsule radius"),
             Where + TEXT(" planned=") + ChaseGoal.SurfaceCm.ToCompactString() + TEXT(" ") + ChaseError);
         // #97: a click on a trunk lands beside that trunk. The navmesh around a forest has thousands of polygons, and a
-        // projection that ranks only some of them sends the body to an unrelated spot across the map.
-        const FLDDemoWorldBlocker* Tree = nullptr;
-        double TreeDistance = DBL_MAX;
-        FVector TreeCentre = FVector::ZeroVector;
-        for (const FLDDemoWorldBlocker& Blocker : Registry->GetGeometry()->Blockers)
+        // projection that ranks only some of them sends the body to an unrelated spot across the map. Blocking, sight and
+        // ground read the level's native bodies (LEVEL_AUTHORING_CONTRACT rule 3), so the trunk is the nearest narrow, tall
+        // native static blocker (a tree trunk, a post), found by its collision, never by its model or name. A tree's body
+        // may be its whole mesh (canopy included), so narrowness is measured where a body walks: solid at the centre at
+        // capsule height, free all around one trunk radius out.
+        struct FTrunk { const UPrimitiveComponent* Part; FVector Centre; double Radius, Distance; };
+        TArray<FTrunk> Trunks;
+        for (TActorIterator<AActor> It(PC.GetWorld()); It; ++It)
         {
-            FVector Centre;
-            FString Ignored;
-            if (Blocker.Shape != ELDDemoWorldBlockerShape::Cylinder || !Blocker.CenterCm.ToVector(Centre, Ignored)) { continue; }
-            const double Distance = FVector::Dist2D(Centre, HostSite);
-            if (Distance < TreeDistance) { Tree = &Blocker; TreeDistance = Distance; TreeCentre = Centre; }
+            TInlineComponentArray<UPrimitiveComponent*> Parts(*It);
+            for (const UPrimitiveComponent* Part : Parts)
+            {
+                if (!LDNativeGround::IsSupport(*Part)) { continue; }
+                const FBox Body = Part->GetBodyInstance()->GetBodyBounds();
+                const FVector Size = Body.GetSize();
+                if (Size.X > LDDemoCombatScenario::CombatProbeTrunkMaxSpanCm || Size.Y > LDDemoCombatScenario::CombatProbeTrunkMaxSpanCm
+                    || Size.Z < 2 * HalfHeight || FMath::Abs(Body.Min.Z - Start.SurfaceCm.Z) > HalfHeight) { continue; }
+                const FVector Centre(Body.GetCenter().X, Body.GetCenter().Y, Start.SurfaceCm.Z);
+                Trunks.Add({Part, Centre, LDDemoCombatScenario::CombatProbeTrunkRadiusCm, FVector::Dist2D(Centre, HostSite)});
+            }
+        }
+        Trunks.Sort([](const FTrunk& A, const FTrunk& B) { return A.Distance < B.Distance; });
+        // The nearest one standing on the Host's own level and reachable from it (#97 clicks a trunk on the ground the
+        // body walks; a post on a terrace above or below is another level's click, not this check).
+        const UPrimitiveComponent* Tree = nullptr;
+        double TrunkRadius = 0;
+        FVector TreeCentre = FVector::ZeroVector;
+        const FCollisionQueryParams Solid = LDNativeGround::Query(*PC.GetWorld());
+        const FCollisionShape Probe = FCollisionShape::MakeSphere(10.f);
+        for (const FTrunk& Trunk : Trunks)
+        {
+            const FVector Waist = Trunk.Centre + FVector(0, 0, HalfHeight);
+            bool bNarrow = LDNativeGround::Overlaps(*PC.GetWorld(), Waist, Probe, Solid);
+            for (int32 Side = 0; Side < 8 && bNarrow; ++Side)
+            {
+                const FVector Out = FVector::ForwardVector.RotateAngleAxis(45.0 * Side, FVector::UpVector) * Trunk.Radius;
+                bNarrow = !LDNativeGround::Overlaps(*PC.GetWorld(), Waist + Out, Probe, Solid);
+            }
+            if (!bNarrow) { continue; }
+            const double Reach = Trunk.Radius + 4 * Capsule.GetCapsuleRadius();
+            FNavLocation Beside;
+            if (!Nav->ProjectPointToNavigation(Trunk.Centre, Beside, FVector(Reach, Reach, HalfHeight), Data)
+                || FMath::Abs(Beside.Location.Z - Start.SurfaceCm.Z) > LDDemoCombatScenario::CombatProbeTrunkLevelCm) { continue; }
+            FPathFindingQuery Query(PC.GetWorld(), *Data, Start.SurfaceCm, Beside.Location);
+            const FPathFindingResult Route = Nav->FindPathSync(Data->GetConfig(), Query);
+            if (!Route.IsSuccessful() || Route.IsPartial()) { continue; }
+            Tree = Trunk.Part; TrunkRadius = Trunk.Radius; TreeCentre = Trunk.Centre;
+            break;
         }
         if (!Tree)
         {
-            return Check(false, TEXT("ChaseGoal"), TEXT("The world has a tree trunk to click for the trunk-click check"), HostSite.ToCompactString());
+            return Check(false, TEXT("ChaseGoal"), TEXT("The world has a narrow native blocker (a trunk) to click for the trunk-click check"), HostSite.ToCompactString());
         }
-        const double TrunkRadius = double(Tree->RadiusCm.Numerator) / double(Tree->RadiusCm.Denominator);
         FLDCompletePath Around;
         FLDLegalGround AroundGoal;
         ELDWorldQueryFailure AroundFailure = ELDWorldQueryFailure::None;
@@ -1024,7 +1129,7 @@ public:
         const double Beside = TrunkRadius + 4 * Capsule.GetCapsuleRadius();
         return Check(bAround && !Around.Points.IsEmpty() && FVector::Dist2D(AroundGoal.SurfaceCm, TreeCentre) <= Beside, TEXT("ChaseGoal"),
             TEXT("A ground click on the trunk nearest the Host projects to a reachable stand beside that trunk"),
-            FString::Printf(TEXT("tree=%s centre=%s planned=%s distance=%.0f limit=%.0f %s"), *Tree->Id, *TreeCentre.ToCompactString(),
+            FString::Printf(TEXT("tree=%s centre=%s planned=%s distance=%.0f limit=%.0f %s"), *GetPathNameSafe(Tree), *TreeCentre.ToCompactString(),
                 *AroundGoal.SurfaceCm.ToCompactString(), FVector::Dist2D(AroundGoal.SurfaceCm, TreeCentre), Beside, *AroundError)) && bChaseOk;
     }
 
@@ -1490,8 +1595,9 @@ public:
                 {
                     return Finish();
                 }
-                // The queued walk covers the last leg, to the site itself.
-                Route.RemoveAt(Route.Num() - 1);
+                // The queued walk covers the last leg, to the site itself. A capture-only run that could not plan the
+                // approach (its failed check is recorded) walks the queued orders from where it stands.
+                if (!Route.IsEmpty()) { Route.RemoveAt(Route.Num() - 1); }
                 ApproachWaypoints = MoveTemp(Route);
                 ApproachIndex = 0;
                 NavigateAttempts = 0;
@@ -2151,15 +2257,19 @@ public:
         {
             return Finish();
         }
+        // The snare is a line skill (DirectionLine): it is aimed along the Host's feet to Client1's observed feet.
+        const FVector Direction = (FVector(Target->FeetCm) - ALDCombatDirector::FootOf(*Own)).GetSafeNormal2D();
+        if (Direction.IsNearlyZero())
+        {
+            return Fail(TEXT("Skills"), TEXT("The Host has no planar aim at Client1's observed feet"));
+        }
         FLDCombatTarget Aim;
-        Aim.Kind = ELDCombatTargetKind::Unit;
-        Aim.Observed = Target->Handle;
-        Aim.ObservationEpoch = Target->ObservationEpoch;
+        Aim.Kind = ELDCombatTargetKind::Direction;
+        Aim.Direction = Direction;
+        const FVector Point = FVector(Target->FeetCm);
         HitBeforeMs = Victim->Cues.LastHitAtMs;
-        if (!ArmAndConfirm(PC, Snare, Aim)) { return Finish(); }
+        if (!ArmAndConfirm(PC, Snare, Aim, &Point)) { return Finish(); }
         HostCastOrder = PC.Navigation->LocalIdentity();
-        HostCastTarget = Target->Handle;
-        HostCastTargetEpoch = Target->ObservationEpoch;
         SetStage(EStage::Rooting);
         return true;
     }
@@ -2188,20 +2298,20 @@ public:
         const FLDMoveIdentity Automatic = Nav.LocalIdentity();
         const bool bAttackActive = Automatic.Order > HostCastOrder.Order && Nav.ClientActive == Automatic
             && Nav.ActiveKind == ELDSpatialOrderKind::AttackUnit;
-        if (!Root || !Victim || !bAttackActive)
+        if (!Root || !Victim)
         {
             if (Now - StageAt <= LDDemoCombatScenario::CombatProbeSkillSeconds) { return true; }
-            return Fail(TEXT("CastFollowUp"), TEXT("The Host did not observe both the snare root and its automatic attack"));
+            return Fail(TEXT("Skills"), TEXT("The Host did not observe the snare's root on Client1"));
         }
         Check(Victim->Cues.LastHitAtMs > HitBeforeMs && Root->ExpiresAtServerMs > Victim->Cues.LastHitAtMs, TEXT("Skills"),
             TEXT("The snare lands on Client1 and the Host's observation frame shows its root with the server deadline"),
             FString::Printf(TEXT("hit_ms=%lld root_until_ms=%lld"), Victim->Cues.LastHitAtMs, Root->ExpiresAtServerMs));
         if (!Passed) { return Finish(); }
-        const auto* Sent = Nav.SentAttackTargets.FindByPredicate([&Automatic](const ULDNavigationComponent::FAttackIntent& Attack)
-        { return Attack.Identity == Automatic; });
-        if (!Check(PC.Controls && PC.Controls->GetAutoAttackAfterCast() && Sent && Sent->Observed == HostCastTarget
-            && Sent->ObservationEpoch == HostCastTargetEpoch, TEXT("CastFollowUp"),
-            TEXT("The Listen Host's unit cast starts an accepted attack on its target"))) { return Finish(); }
+        // A direction skill follows only an accepted attack (LDOrderRules::CastFollowUpTarget); the Host had none, so it
+        // stands. Client1's bolt covers the direction cast that continues an accepted attack.
+        if (!Check(PC.Controls && PC.Controls->GetAutoAttackAfterCast() && !bAttackActive && !Nav.CastFollowUp.Identity.Order,
+            TEXT("CastFollowUp"), TEXT("The Listen Host's line cast with no accepted attack starts no follow-up attack")))
+        { return Finish(); }
 
         const ELDCombatEntry Snare = EntryOf(PC, LDDemoCombatScenario::CombatProbeSnare());
         if (Snare == ELDCombatEntry::None)
@@ -2219,9 +2329,8 @@ public:
         FLDCombatActionRequest PointCast;
         Nav.PrepareCastFollowUp(ELDSpatialOrderKind::CastPoint, PointCast, false, Prior, PriorEpoch);
         if (!Check(Refused.Identity == Nav.LocalIdentity() && Refused.Status == ELDOrderStatus::Rejected
-            && Refused.Failure == ELDOrderFailure::CastRefused && !Nav.CastFollowUp.Identity.Order
-            && Nav.PredictedIdentity() == Automatic && Prior == HostCastTarget && PriorEpoch == HostCastTargetEpoch,
-            TEXT("CastFollowUp"), TEXT("A synchronous refused cast leaves no follow-up and preserves the accepted attack")))
+            && Refused.Failure == ELDOrderFailure::CastRefused && !Nav.CastFollowUp.Identity.Order && !Prior.IsValid(),
+            TEXT("CastFollowUp"), TEXT("A synchronous refused cast leaves no follow-up and starts no attack")))
         { return Finish(); }
         Nav.Stop();
         NavigateAttempts = 0;
@@ -2574,7 +2683,9 @@ public:
         if (ShotPending()) { return true; }
         if (KillClick == EClickStep::Shot)
         {
-            if (!ShotSaved(TEXT("the hover ring and attack cursor on Client1 under its pointer"))) { return Finish(); }
+            // A capture-only run draws a real window where the OS pointer, not the DEV pointer, owns the hover: its pointer
+            // shots may miss, and the fight goes on (the miss stays in its report, which judges nothing).
+            if (!ShotSaved(TEXT("the hover ring and attack cursor on Client1 under its pointer")) && !bCaptureOnly) { return Finish(); }
             PC.Navigation->DevSetPointer(Screen);
             const uint32 Before = PC.Navigation->LocalIdentity().Order;
             PC.Navigation->ClickMove();
@@ -2591,14 +2702,15 @@ public:
             return true;
         }
         PC.Navigation->DevSetPointer(TOptional<FVector2D>());
-        if (!ShotSaved(TEXT("the attack marker closing on the right-clicked Client1"))) { return Finish(); }
+        if (!ShotSaved(TEXT("the attack marker closing on the right-clicked Client1")) && !bCaptureOnly) { return Finish(); }
         KillClick = EClickStep::Done;
         SetStage(EStage::KillWait);
         return true;
     }
 
-    // The Host's current frame shows the hover ring under Handle with the plain arrow (hovering never changes the
-    // pointer), or the attack marker.
+    // The Host's current frame shows the hover ring under Handle with the enemy sword cursor (#329 §4.3: hovering an
+    // attackable enemy contender), or the attack marker.
+    mutable FString PointerMiss;
     bool ShowsPointer(const FGuid& Handle, bool bHover, FString& Facts) const
     {
         const ALDPlayerController* PC = Controller.Get();
@@ -2607,9 +2719,15 @@ public:
         uint32 Epoch = 0;
         const bool bShown = Feedback && (bHover
             ? PC->Navigation->ReadHovered(Hovered, Epoch) && Hovered == Handle && Feedback->ShowsHover()
-                && PC->CurrentMouseCursor == EMouseCursor::Default
+                && PC->CurrentMouseCursor == LDCursor::EnemySword
             : Feedback->ShowsAttack());
-        if (!bShown) { return false; }
+        if (!bShown)
+        {
+            PointerMiss = FString::Printf(TEXT("last miss: hovered=%d match=%d ring=%d attack=%d cursor=%d"),
+                int32(Hovered.IsValid()), int32(Hovered == Handle), int32(Feedback && Feedback->ShowsHover()),
+                int32(Feedback && Feedback->ShowsAttack()), int32(PC ? PC->CurrentMouseCursor.GetValue() : -1));
+            return false;
+        }
         Facts = FString::Printf(TEXT("%s cursor=%d"), bHover ? TEXT("hover_ring") : TEXT("attack_marker"), int32(PC->CurrentMouseCursor.GetValue()));
         return true;
     }
@@ -2766,7 +2884,7 @@ public:
         }
         if (bOpen)
         {
-            Shot->Problem = FString::Printf(TEXT("no rendered frame showed the moment before the deadline (%d read-backs)"), Shot->ReadBacks);
+            Shot->Problem = FString::Printf(TEXT("no rendered frame showed the moment before the deadline (%d read-backs) %s"), Shot->ReadBacks, *PointerMiss);
         }
         // An unanswered request must not be written by the engine once nothing checks its frame.
         if (FScreenshotRequest::IsScreenshotRequested()) { FScreenshotRequest::Reset(); }
@@ -2814,6 +2932,8 @@ public:
     bool ShotSaved(const TCHAR* Moment)
     {
         const bool bSaved = Shot && Shot->bSaved;
+        // A capture-only run is recorded from the window itself; the check's own frame captures judge nothing there.
+        if (bCaptureOnly && !bSaved) { Shot.Reset(); return true; }
         Check(bSaved, TEXT("Render"), FString::Printf(TEXT("The Host's rendered main view is captured while it shows %s"), Moment),
             Shot ? (bSaved ? Shot->File + TEXT(" ") + Shot->Facts : Shot->Problem) : FString(TEXT("no capture was opened")));
         Shot.Reset();
@@ -2902,6 +3022,9 @@ public:
         Report->SetBoolField(TEXT("passed"), Passed);
         Report->SetStringField(TEXT("role"), Role);
         Report->SetBoolField(TEXT("dev_probe"), true);
+        Report->SetBoolField(TEXT("capture_only"), bCaptureOnly);
+        Report->SetNumberField(TEXT("capture_tolerated_failures"), ToleratedFailures);
+        Report->SetStringField(TEXT("capture_feel"), CaptureFeel.IsEmpty() ? TEXT("Default") : CaptureFeel);
         Report->SetBoolField(TEXT("normal_start"), true);
         Report->SetStringField(TEXT("scope"), IsHost()
             ? TEXT("DEV-only owned-connection combat/orders scenario, target and killer role: a participating Listen Host that is attacked, audits the hits, kills with a right-click order and audits the respawn; then, through its DEV growth fixture's preset offers and XP grants, learns active_pants_down from its opening offer through an ordinary build command, roots Client1, observes its shield, is hit and slowed by Client1's snark bolt and lands a basic hit after a chase. It renders its main view and keeps captures of the observed root, shield and bolt flight for presentation review (not compared by pixels). Not camps, AI, capture or full-match acceptance.")
@@ -2941,6 +3064,16 @@ public:
         UE_LOG(LogLDTest, Display, TEXT("LD_DEMO_COMBAT_PROBE role=%s passed=%d detail=%s"), *Role, Passed && Written, *Error);
         if (!Passed || !Written)
         {
+            if (bCaptureOnly)
+            {
+                // The recording keeps the last moment (a kill, a death) on screen before the window closes.
+                FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([](float)
+                {
+                    FPlatformMisc::RequestExitWithStatus(false, 2);
+                    return false;
+                }), 5.0f);
+                return false;
+            }
             FPlatformMisc::RequestExitWithStatus(false, 2);
             return false;
         }
@@ -2970,6 +3103,8 @@ void LDDemoTests::StartCombatProbe(ALDPlayerController& Controller)
     }
     Probe->Controller = &Controller;
     Probe->World = Controller.GetWorld();
+    Probe->bCaptureOnly = FParse::Param(FCommandLine::Get(), TEXT("LDDemoCombatCaptureOnly"));
+    FParse::Value(FCommandLine::Get(), TEXT("LDDemoCombatFeel="), Probe->CaptureFeel);
     Probe->Deadline = FPlatformTime::Seconds() + Timeout;
     FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Probe](float) { return Probe->Tick(); }), .1f);
 }

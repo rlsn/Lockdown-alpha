@@ -68,6 +68,8 @@ private:
     LDHitFeel::FSwingPrediction Swing;
     uint32 SwingLife = 0;
     int64 PredictWindupMs = 0;
+    // COMBO.ResetSec: the own body's next swing after this long starts the combo again (its slash shape, LDSliceVfx).
+    int64 ComboResetMs = 0;
     // The last tick showed the predicted swing rather than the authority's cue.
     bool bShownPredicted = false;
 };

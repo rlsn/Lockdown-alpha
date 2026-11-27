@@ -447,7 +447,22 @@ bool ALDGameMode::ExecuteCapturePhase(const FLDGameplayWritePermit& Permit, FStr
         bPrivateChanged |= Before != PrivatePoles[Index].Reducer.GetEpoch();
     }
     // Wins reached at once across the flagpoles settle together: the earliest instant, then guard > sprays > clear-out.
-    const TOptional<FLDCaptureProposal> Proposal = FLDCaptureReducer::Settle(Candidates);
+    TOptional<FLDCaptureProposal> Proposal = FLDCaptureReducer::Settle(Candidates);
+#if WITH_DEV_AUTOMATION_TESTS
+    if (DevDecidedWinner.IsSet())
+    {
+        // DEV DecideMatch: a guard win for the named champion, due at this boundary; a real win reached now keeps precedence.
+        if (!Proposal)
+        {
+            FLDCaptureProposal Decided;
+            Decided.Epoch = CaptureReducer.GetEpoch();
+            Decided.Winner = DevDecidedWinner.GetValue();
+            Decided.DueAtMs = bCaptureCompletesInsideStep ? AtMs - 1 : AtMs;
+            Proposal = Decided;
+        }
+        DevDecidedWinner.Reset();
+    }
+#endif
     if (CaptureReducer.IsOpen() && MatchPhase == ELDMatchPhase::Development)
     {
         MatchPhase = ELDMatchPhase::CaptureOpen;

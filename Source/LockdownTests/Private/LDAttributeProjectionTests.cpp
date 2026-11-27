@@ -28,7 +28,7 @@ bool ReadAttributeFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoCon
         P.MaxHP.BaseP2 == 86000 && P.MaxHP.PerLevelP2 == 12500 && P.Momentum.CombatPerSec.Numerator == 5 && P.Momentum.CombatPerSec.Denominator == 1
         && P.AD.BaseP2 == 7000 && P.AD.PerLevelP2 == 320 && P.Armor.BaseP2 == 1800 && P.MagicResist.BaseP2 == 1800
         && P.AttackSpeed.Base.Numerator == 17 && P.AttackSpeed.Base.Denominator == 20 && P.AttackSpeedPerLevelBp == 200
-        && P.MoveSpeedCmPerSec.Base.Numerator == 300 && P.MoveSpeedCmPerSec.Base.Denominator == 1
+        && P.MoveSpeedCmPerSec.Base.Numerator == 240 && P.MoveSpeedCmPerSec.Base.Denominator == 1
         && P.AttackRangeCm.Base.Numerator == 250 && P.AttackRangeCm.Base.Denominator == 1
         && Progression.MaxLevel == 16 && Progression.ActiveSlots == 3);
 }
@@ -66,7 +66,7 @@ struct FExpectedAttributes
 FExpectedAttributes ApprovedLevel(int32 Level)
 {
     FExpectedAttributes Expected;
-    Expected.MoveSpeedCmPerSec = MakeRational(300);
+    Expected.MoveSpeedCmPerSec = MakeRational(240);
     Expected.AttackRangeCm = MakeRational(250);
     switch (Level)
     {
@@ -405,7 +405,7 @@ bool RunStatPoints(FAutomationTestBase& Test)
             EAttribute::AD, MakeRational(35), Zero},
         {TEXT("stat_brains"), [](FExpectedAttributes& E) { E.APP2 = 6000; E.CooldownHasteP2 = 1000; E.MomentumRegenPerSec = MakeRational(28, 5); },
             EAttribute::AP, MakeRational(60), Zero},
-        {TEXT("stat_agility"), [](FExpectedAttributes& E) { E.AttackSpeed = MakeRational(1173, 1000); E.MoveSpeedCmPerSec = MakeRational(315); },
+        {TEXT("stat_agility"), [](FExpectedAttributes& E) { E.AttackSpeed = MakeRational(1173, 1000); E.MoveSpeedCmPerSec = MakeRational(252); },
             EAttribute::AttackSpeed, Zero, MakeRational(1, 5)},
     };
     if (!Test.TestEqual(TEXT("The approved catalog holds the five point-bought stats"), Catalog->Get().Stats.Num(), Stats.Num()))
@@ -441,7 +441,7 @@ bool RunStatPoints(FAutomationTestBase& Test)
     Mixed.ADP2 = 9300;
     Mixed.CritChanceBp = 120;
     Mixed.AttackSpeed = MakeRational(119, 125);
-    Mixed.MoveSpeedCmPerSec = MakeRational(603, 2);
+    Mixed.MoveSpeedCmPerSec = MakeRational(1206, 5);
     FLDAttributeProjection Reversed;
     if (!ProjectBuild(Test, TEXT("Level 6 mixed points"), MakeBuild(6, {FLDStatPointsValue(TEXT("stat_physique"), 3),
             FLDStatPointsValue(TEXT("stat_strength"), 2), FLDStatPointsValue(TEXT("stat_agility"), 1)}), *Catalog, Projection)
@@ -529,7 +529,7 @@ bool RunEnvelope(FAutomationTestBase& Test)
     bGood &= ExpectRational(Test, TEXT("Momentum regeneration envelope is 5 + 48 x 0.06"), Projection.Final.MomentumRegenPerSec, MakeRational(197, 25));
     if (!Envelope(TEXT("Agility envelope"), TEXT("stat_agility"), 48)) { return false; }
     bGood &= ExpectRational(Test, TEXT("Attack-speed envelope is 0.85 x 2.26"), Projection.Final.AttackSpeed, MakeRational(1921, 1000));
-    bGood &= ExpectRational(Test, TEXT("Move-speed envelope is 300 x 1.24"), Projection.Final.MoveSpeedCmPerSec, MakeRational(372));
+    bGood &= ExpectRational(Test, TEXT("Move-speed envelope is 240 x 1.24"), Projection.Final.MoveSpeedCmPerSec, MakeRational(1488, 5));
     bGood &= ExpectBasicTiming(Test, TEXT("Attack-speed envelope"), *Catalog, Projection.Final.AttackSpeed, 521, 80);
 
     // Past level 16 every full 240 XP adds 3 points; with the raised caps 78 points of one stat still stay inside its bound.

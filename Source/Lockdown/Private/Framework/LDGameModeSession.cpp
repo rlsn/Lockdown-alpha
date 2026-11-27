@@ -28,7 +28,7 @@ namespace
         case ELDSessionReject::NotOwner: return TEXT("这个连接不是房间成员。");
         case ELDSessionReject::NotHost: return TEXT("只有房主可以调整 AI 对手、开始本局或带房间返回 Lobby。");
         case ELDSessionReject::WrongPhase: return TEXT("当前阶段不能执行这个房间命令。");
-        case ELDSessionReject::RoomFull: return TEXT("房间的 6 个参赛名额已满。");
+        case ELDSessionReject::RoomFull: return FString::Printf(TEXT("房间的 %d 个参赛名额已满。"), LDMatchLifecycle::MaxContenders);
         case ELDSessionReject::NotAllReady: return TEXT("所有在线真人（含房主）都准备后才能开始对局。");
         case ELDSessionReject::StaleRoster: return TEXT("房间名单已变化，请确认后重新准备。");
         case ELDSessionReject::StaleMatch: return TEXT("这个请求已不属于当前对局。");

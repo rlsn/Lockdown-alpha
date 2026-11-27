@@ -190,8 +190,13 @@ public:
     // A moving source rescans at most this often; a first sample, a reset or a new world rescans at once. The client draws
     // its own fog locally, so this display grant may trail a moving foot by up to this long.
     static constexpr double MovingRefreshSeconds = .25;
-    // Returns whether coverage was recomputed. Non-published/non-relay samples get a codec-valid zero bitmap.
-    bool Sample(const FLDSightGeometry& Sight, const FVector& Foot, double NowSeconds, bool bPublish, bool bHasRelay, TArray<uint8>& OutBits);
+    // Movement rescans one sample may run across all observers: a push that moves every body at once (the typhoon) spreads
+    // its rescans over the next samples instead of one frame. First samples and new worlds are never deferred.
+    static constexpr int32 MovingRescansPerSample = 2;
+    // Returns whether coverage was recomputed. Non-published/non-relay samples get a codec-valid zero bitmap. A due movement
+    // rescan spends one of MoveBudget (when given); with none left it keeps the previous bits until a later sample.
+    bool Sample(const FLDSightGeometry& Sight, const FVector& Foot, double NowSeconds, bool bPublish, bool bHasRelay, TArray<uint8>& OutBits,
+        int32* MoveBudget = nullptr);
     void Reset() { *this = FLDObserverCoverage(); }
 private:
     FLDWorldRevision World;
@@ -323,6 +328,8 @@ public:
     void SendOwnHit(const FLDCombatBodyRef& Attacker, const FLDCombatBodyRef& Target, const FGuid& HitId,
         int64 OccurredAtMs, ELDObservedHitLook HitLook, uint8 HitFlags);
     static constexpr int64 SamplePeriodMs = 50;
+    // Movement coverage rescans left in the current sample (FLDObserverCoverage::MovingRescansPerSample at its start).
+    int32 CoverageMoveBudget = 0;
     static constexpr int64 PublishPeriodMs = 50;
 private:
     // Combat rule tests give an isolated world the registered sight of the approved geometry.

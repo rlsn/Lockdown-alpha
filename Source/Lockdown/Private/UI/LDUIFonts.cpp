@@ -27,6 +27,11 @@ namespace
             }
             FTypefaceEntry& Entry = Built->DefaultTypeface.Fonts.Emplace_GetRef(FName(Typeface));
             Entry.Font = FFontData(Face);
+            // The figure face has Latin only; Chinese inside a figure run reads in Heavy.
+            if (FCString::Strcmp(Typeface, TEXT("Heavy")) == 0)
+            {
+                Built->FallbackTypeface.Typeface.Fonts.Emplace_GetRef(FName(Typeface)).Font = FFontData(Face);
+            }
         }
         Font = Built;
         return Font;
@@ -44,7 +49,8 @@ FString LDUIFonts::PackageFor(const FString& Typeface)
 
 FSlateFontInfo LDUIFonts::Font(ERole Role, float Size, const FFontOutlineSettings& Outline)
 {
-    const TCHAR* Typeface = Role == ERole::Title ? TEXT("Heavy") : Role == ERole::Body ? TEXT("Regular") : TEXT("Bold");
+    const TCHAR* Typeface = Role == ERole::Title ? TEXT("Heavy") : Role == ERole::Body ? TEXT("Regular")
+        : Role == ERole::Figure ? TEXT("Figure") : TEXT("Bold");
     const TSharedPtr<const FCompositeFont> Composite = InterfaceFont();
     FSlateFontInfo Info = Composite.IsValid()
         ? FSlateFontInfo(Composite, Size, FName(Typeface), Outline)

@@ -1,6 +1,7 @@
 # 验证与场景矩阵
 
-日常开发与 PR 提交遵循“最小变更范围验证”；全量原生套件与完整多进程场景留给 CI 与里程碑发布门禁。
+日常开发与 PR 提交遵循“最小变更范围验证”：一批改动改完后验证一次；全量原生套件、完整多进程场景、打包与帧率测量留给 CI、集成与里程碑发布门禁。
+何时立即验证、何时随批验证、何时留到集成见 [AGENTS：验证与交付](../../AGENTS.md#验证与交付)。
 
 ## 最小验证选择
 
@@ -15,6 +16,22 @@
 | `Source/Lockdown*` C++ | `.\Scripts\Verify.ps1`（增量 `BuildEditor.ps1`）；新增原生 `Lockdown.Rules.*` 测试须同步登记到 `Scripts\CheckRuleReport.py` 的 `REQUIRED_TESTS` 并跑 `TestRuleReport.py` |
 | 必须由真实拥有连接证明的联机/视野/阶段行为 | 按需选跑对应 `RunDemo*Check.ps1`：`Core`（初生/运动/返场）、`Combat`（寻路/施法/追击/离屏帧）、`GrowthLink`（成长指令的回执与视图同步、一次真实击杀）、`Camp`（反击、回位、段内清空和中场整图重置）、`Vision`（视野隔离/`-ReactionOnly`/`-IceOnly`）、`Capture`（三段野外+R3终局改装+断线恢复）、`Opponent`（满房 AI）、`SessionFault`（退房/拒入/房主离开） |
 | 整局能否跑完、有没有报错（AI、权威步、营地、结算一起跑） | `.\Scripts\RunDemoOpponentCheck.ps1 -BotMatch`（见[机器人对局](#机器人对局)） |
+
+### 按问题性质选最便宜的入口
+
+同一个问题用能证明它的最便宜的一层，不用更贵的一层重复证明；耗时是本机编辑器版的典型墙钟（含进程启动，编辑器版到地图就绪约 15–30 秒，打包版约 5 秒）。
+渲染入口在房主被拒绝进入地图、断言或权威故障时立即失败并给出日志行；连续漏三页也立即停，不逐页等超时。
+
+| 问题性质 | 入口 | 典型耗时 | 何时跑 |
+| --- | --- | --- | --- |
+| 公式、数值、状态机、结算 | 规则测试：`Verify.ps1 -Filter <测试全名>`（无渲染、隔离世界） | 约 35 秒 | 本批新增或修改了测试时 |
+| AI 决策、整局能否跑完 | `RunDemoOpponentCheck.ps1 -BotMatch`（固定步长加速、无渲染） | 7–9 分钟 | 改 AI、权威步或结算流程的一批 |
+| 特效、动作、打击感的画面 | `CaptureDemoArt.ps1`、`CaptureFeelSample.ps1`（验证舞台直接触发，不走对局） | 1–2 分钟 | 画面有变化的一批，一次 |
+| 界面页面 | `CaptureUICoverage.ps1 -Pages <页面名前缀>`：只拍这些页并在最后一页后结束，途中的页照走不拍；阶段倒计时由 DEV `AdvanceCountdown` 跳过；默认只拍 1920×1080、100% 字号，`-AllSizes` 加拍 1280×720 与 125% | 只拍结算页约 1 分钟（`-Pages Match_Results`：房主带 AI 单独开局，DEV `DecideMatch` 直接锁定结果，不走整局），只拍大厅页约 2.5 分钟，只拍第一次休息各页约 5.5 分钟，对局全部页约 10.5 分钟 | 界面有变化的一批，按改到的页选；全部页与 `-AllSizes` 只在集成 |
+| 指令、回执、视图同步等真实拥有连接行为 | 对应的 `RunDemo*Check.ps1` 最小场景 | GrowthLink 约 1 分钟，Combat 约 4 分钟，Core、Camp、Vision 3–6 分钟，Capture 约 11 分钟 | 改到该行为的一批，一次 |
+| 满房真实连接 | `RunDemoOpponentCheck.ps1`（实时整局） | 约 15 分钟 | 只在集成 |
+| 帧率 | `RunPerfBudget.ps1 -Match -PackageRoot <打包目录>` | 约 1.5 分钟，另加打包 | 只在集成 |
+| 打包 | `PackageWin64.ps1` | 约 25 分钟 | 只在集成 |
 
 ### 成长的四层验证
 
@@ -78,9 +95,22 @@ AI 多局遥测（诊断用，非门禁）：`.\Scripts\RunDemoOpponentCheck.ps1
 每次规则测试、每个编辑器版场景进程都要启动一个编辑器进程。脚本用三处设置压低这部分固定开销：
 
 - `Common.ps1` 设置 `UE-ZenLimitProcessLifetime=false`：引擎的本机 Zen 缓存服务不再随编辑器进程退出，下一次启动直接连上已在运行的 `zenserver.exe`。它会在脚本结束后继续留在后台，需要时可手动结束，下次启动会重新拉起。
+- `DemoEntry.ps1` 给编辑器版游戏进程加 `-AssetRegistryCacheRootFolder=<工作区>\Intermediate`：每次运行的 `-UserDir` 是新目录，引擎在那里找不到资产注册表缓存就会在启动时重读全部资产文件；指向工作区后直接读取编辑器与 commandlet 运行写下的缓存。
 - `RunTests.ps1` 显式启用 `GameFeatures` 插件：`-DisablePlugins=AllToolsets` 会连带不加载它，而 `DefaultGame.ini` 仍要扫描它的资产类型，否则每次启动都会触发一次引擎断言并发送错误报告。
 - `RunTests.ps1` 让编辑器以引擎空地图启动，不加载编辑器默认地图 `L_Demo`：规则测试自己搭建世界，或自行加载要读取的地图。
 
 ## 多人共用一台机器
 
-共享引擎 `Build.bat` 全局互斥；`RunTests.ps1` 与编辑器版 `RunDemo*Check.ps1` 通过 `UE_SKIP_UBT_SDK_SETUP=1` 跳过启动期 SDK 校验避免被他人构建阻塞，但 `BuildEditor`/`BuildGame`/`PackageWin64`（UAT 单例，跨工作区打包须串行）仍受互斥约束。同机并发红线：无头编辑器进程 `<= 3` 个，活跃 UBT 构建进程（`dotnet ... UnrealBuildTool.dll`）`>= 2` 个时先等待，最多 `2` 个会话同时跑重型构建或场景。
+一台机器上的并行会话（包括各自 worktree 里的 AI 会话）共用三种资源，等待它们是并行开发最大的时间开销：
+
+| 资源 | 上限 | 做法 |
+| --- | --- | --- |
+| 引擎构建（`BuildEditor`、`BuildGame`、Verify 的构建步骤） | 全机同时 1 个：共享引擎 `Build.bat` 全局互斥，第二个构建会被阻塞或以 `ConflictingInstance` 失败 | 已有 UBT（`dotnet ... UnrealBuildTool.dll`）在跑时先做别的，不重复发起；所以每批只构建一次 |
+| 打包（`PackageWin64.ps1`） | 全机同时 1 个：UAT 单例，跨工作区须串行 | 只在集成分支上做 |
+| 渲染运行（截图、录制、带画面的场景、`-game`） | 同时最多 2 个 | 每批一次，一次覆盖全部改动 |
+| 帧率测量（`RunPerfBudget.ps1`） | 独占：期间没有其他渲染运行、构建、cook 或着色器编译 | 只在集成分支上做；环境不干净时测得的数字作废 |
+| 无头编辑器进程（规则测试、无画面场景） | `<= 3` 个 | — |
+
+`RunTests.ps1` 与编辑器版 `RunDemo*Check.ps1` 通过 `UE_SKIP_UBT_SDK_SETUP=1` 跳过启动期 SDK 校验，不被他人的构建阻塞。
+编辑器开着且启用 Live Coding 时，同一工作区的构建会被拒绝，先关编辑器。
+需要编译和截图的会话同机最多两个；第三个并行任务选不占引擎的工作（文档、数据、Python、资产制作），否则它的时间主要花在排队上。

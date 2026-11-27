@@ -1,5 +1,7 @@
 #include "Character/LDHumanoidVisualComponent.h"
-#include "Audio/LDAudioSubsystem.h"
+#include "Audio/LDAudioFeel.h"
+#include "Character/LDActionMotion.h"
+#include "Components/AudioComponent.h"
 #include "Core/LDLog.h"
 #include "Animation/AnimSequence.h"
 #include "Art/LDArtCatalog.h"
@@ -11,6 +13,7 @@
 #include "Character/LDHitFeel.h"
 #include "Character/LDImpactFx.h"
 #include "Character/LDModelPicking.h"
+#include "Combat/LDCombatElements.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -26,6 +29,7 @@
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "Rendering/SkeletalMeshLODRenderData.h"
 #include "UI/LDControlSettings.h"
+#include "TimerManager.h"
 #include "UObject/ConstructorHelpers.h"
 
 namespace LDHumanoidVisualDetail
@@ -34,51 +38,21 @@ namespace LDHumanoidVisualDetail
     // Animate and ApplyLook.
     enum EPart : int32
     {
-        RootRing, RootRim, ShackleLeft, ShackleRight, ShieldHalo,
-        ShieldBar0, ShieldBar1, ShieldBar2, ShieldBar3, ShieldBar4, ShieldBar5, ShieldBar6, ShieldBar7,
-        ProtectionBeam, ProtectionOrb0, ProtectionOrb1, ProtectionOrb2, ProtectionOrb3, ReturnSign,
-        Burst, SpawnColumn, PartCount
+        Burst, PartCount
     };
-    constexpr int32 ShieldBars = 8, ProtectionOrbs = 4;
     enum EShape : uint8 { Cube, Sphere, Cylinder };
     struct FPartSpec
     {
         const TCHAR* Name;
         EShape Shape;
-        FVector Scale; // BasicShapes units (100 cm); Layout fits the shield bars to the body's height
+        FVector Scale; // BasicShapes units (100 cm)
     };
-    // Status markers: root is a pulsing disc on a dark rim at the feet with ankle shackles, shield a turning cage of bars
-    // under a halo, protection a beam over the head with orbiting orbs, camp return a sign on the back. Effects: the
-    // release spark and the appear column. The feet discs stand above the own-body marker's.
+    // One effect shape, the release spark. Every status worn on a body is a Niagara state (UpdateStates).
     const FPartSpec Specs[PartCount] =
     {
-        {TEXT("RootRing"), Cylinder, {1.05,1.05,.03}},
-        {TEXT("RootRim"), Cylinder, {1.25,1.25,.02}},
-        {TEXT("ShackleLeft"), Cylinder, {.3,.3,.08}},
-        {TEXT("ShackleRight"), Cylinder, {.3,.3,.08}},
-        {TEXT("ShieldHalo"), Cylinder, {.62,.62,.025}},
-        {TEXT("ShieldBar0"), Cylinder, {.06,.06,1.8}},
-        {TEXT("ShieldBar1"), Cylinder, {.06,.06,1.8}},
-        {TEXT("ShieldBar2"), Cylinder, {.06,.06,1.8}},
-        {TEXT("ShieldBar3"), Cylinder, {.06,.06,1.8}},
-        {TEXT("ShieldBar4"), Cylinder, {.06,.06,1.8}},
-        {TEXT("ShieldBar5"), Cylinder, {.06,.06,1.8}},
-        {TEXT("ShieldBar6"), Cylinder, {.06,.06,1.8}},
-        {TEXT("ShieldBar7"), Cylinder, {.06,.06,1.8}},
-        {TEXT("ProtectionBeam"), Cylinder, {.14,.14,1.3}},
-        {TEXT("ProtectionOrb0"), Sphere, {.13,.13,.13}},
-        {TEXT("ProtectionOrb1"), Sphere, {.13,.13,.13}},
-        {TEXT("ProtectionOrb2"), Sphere, {.13,.13,.13}},
-        {TEXT("ProtectionOrb3"), Sphere, {.13,.13,.13}},
-        {TEXT("ReturnSign"), Cube, {.04,.34,.3}},
         {TEXT("Burst"), Sphere, {.1,.1,.1}},
-        {TEXT("SpawnColumn"), Cylinder, {.9,.9,3.2}},
     };
-    // One fixed colour per status on every unit, apart from all eight seat tints, the turf and the red track:
-    // root hot magenta, shield bright cyan, protection white-gold; each edged in near-black.
-    const FLinearColor RootColour(1.f,.02f,.58f), EdgeColour(.012f,.01f,.016f), ShieldColour(0.f,.78f,1.f);
-    const FLinearColor ProtectionColour(1.f,.92f,.62f), ReturnColour(.95f,.95f,.95f);
-    const FLinearColor BurstColour(1.f,.95f,.7f), ColumnColour(1.f,.9f,.55f);
+    const FLinearColor BurstColour(1.f,.95f,.7f);
     // Emissive over the whole body through the art materials' Flash: a typed hit flashes, then white; an appear glows.
     const FLinearColor FlashWhite(1.f,1.f,1.f), AppearGlow(1.f,.92f,.6f);
     FLinearColor HitColour(ELDObservedHitLook Look)
@@ -96,28 +70,9 @@ namespace LDHumanoidVisualDetail
     constexpr float RunFromCmPerSec = 15.f;
     // The status markers' reference body height; wider and taller bodies spread their markers in proportion.
     constexpr float ReferenceHeightCm = 175.f;
-    // Markers drawn with a near-black edge (the root disc has its own rim): a slightly larger twin of each sits behind
-    // it on the local view ray, so only a rim shows around the marker, over any seat tint, the turf or the track.
-    struct FEdgeSpec { EPart Marker; FVector Grow; };
-    const FEdgeSpec EdgeSpecs[] =
-    {
-        {ShieldHalo, {.06,.06,0}},
-        {ShieldBar0, {.06,.06,.06}}, {ShieldBar1, {.06,.06,.06}}, {ShieldBar2, {.06,.06,.06}}, {ShieldBar3, {.06,.06,.06}},
-        {ShieldBar4, {.06,.06,.06}}, {ShieldBar5, {.06,.06,.06}}, {ShieldBar6, {.06,.06,.06}}, {ShieldBar7, {.06,.06,.06}},
-        {ProtectionBeam, {.06,.06,.06}},
-        {ProtectionOrb0, {.06,.06,.06}}, {ProtectionOrb1, {.06,.06,.06}}, {ProtectionOrb2, {.06,.06,.06}},
-        {ProtectionOrb3, {.06,.06,.06}},
-    };
-    constexpr float EdgeBehindCm = 30.f;
     FLinearColor ColourOf(int32 Index)
     {
-        if (Index == RootRim) { return EdgeColour; }
-        if (Index == RootRing || Index == ShackleLeft || Index == ShackleRight) { return RootColour; }
-        if (Index == ShieldHalo || (Index >= ShieldBar0 && Index < ShieldBar0 + ShieldBars)) { return ShieldColour; }
-        if (Index == ProtectionBeam || (Index >= ProtectionOrb0 && Index < ProtectionOrb0 + ProtectionOrbs)) { return ProtectionColour; }
-        if (Index == ReturnSign) { return ReturnColour; }
-        if (Index == Burst) { return BurstColour; }
-        return ColumnColour;
+        return BurstColour;
     }
     ELDArtAnim ClipOf(LDBodyMotion::EAction Action)
     {
@@ -184,18 +139,6 @@ ULDHumanoidVisualComponent::ULDHumanoidVisualComponent()
         KeepOutOfSceneLighting(*Part);
         Parts.Add(Part);
     }
-    for (const FEdgeSpec& Edge : EdgeSpecs)
-    {
-        UStaticMeshComponent* Part = CreateDefaultSubobject<UStaticMeshComponent>(FName(FString(Specs[Edge.Marker].Name) + TEXT("Edge")));
-        Part->SetStaticMesh(Parts[Edge.Marker]->GetStaticMesh());
-        Part->SetupAttachment(Pivot);
-        Part->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-        Part->SetCanEverAffectNavigation(false);
-        Part->SetHiddenInGame(true);
-        Part->SetCastShadow(false);
-        KeepOutOfSceneLighting(*Part);
-        Edges.Add(Part);
-    }
 }
 
 void ULDHumanoidVisualComponent::OnRegister()
@@ -210,7 +153,6 @@ void ULDHumanoidVisualComponent::OnRegister()
         Mesh->bIsEditorOnly = true;
         Basketball->bIsEditorOnly = true;
         for (UStaticMeshComponent* Part : Parts) { Part->bIsEditorOnly = true; }
-        for (UStaticMeshComponent* Edge : Edges) { Edge->bIsEditorOnly = true; }
         for (UMeshComponent* Part : Worn) { if (Part) { Part->bIsEditorOnly = true; } }
     }
     if (!Pivot->IsRegistered()) { Pivot->RegisterComponent(); }
@@ -220,10 +162,6 @@ void ULDHumanoidVisualComponent::OnRegister()
     for (UStaticMeshComponent* Part : Parts)
     {
         if (!Part->IsRegistered()) { Part->RegisterComponent(); }
-    }
-    for (UStaticMeshComponent* Edge : Edges)
-    {
-        if (!Edge->IsRegistered()) { Edge->RegisterComponent(); }
     }
     for (UMeshComponent* Part : Worn)
     {
@@ -256,12 +194,9 @@ void ULDHumanoidVisualComponent::ClearImpacts()
     PendingImpacts.Reset();
     UWorld* World = GetWorld();
     if (auto* Impacts = World ? World->GetSubsystem<ULDImpactFxSubsystem>() : nullptr) { Impacts->ClearFor(*this); }
-    if (IsValid(SwingTrail)) { SwingTrail->DeactivateImmediate(); }
-    if (IsValid(CastCharge)) { CastCharge->DeactivateImmediate(); }
     if (IsValid(DashTrail)) { DashTrail->DeactivateImmediate(); }
     if (IsValid(ChargeColumn)) { ChargeColumn->DeactivateImmediate(); }
-    bTrailEmitting = false;
-    bCastEmitting = false;
+    bTelegraphShown = false;
     bDashing = false;
     bChargeShown = false;
     bChargeReady = false;
@@ -274,121 +209,261 @@ bool ULDHumanoidVisualComponent::CanShowImpact() const
         && Mesh && Mesh->IsVisible() && !Mesh->bHiddenInGame;
 }
 
-void ULDHumanoidVisualComponent::UpdateSwingTrail(float AgeSeconds, float EffectScale)
+namespace LDHumanoidVisualSlice
 {
-    const LDHitFeel::FTuning Tuning = LDHitFeel::Read();
-    const bool bWindow = FApp::CanEverRender() && CanShowImpact() && Art
-        && Action == LDBodyMotion::EAction::Attack && LDHitFeel::SwingTrailWindow(AgeSeconds, ActionImpactSeconds)
-        && EffectScale > 0.f && Tuning.TrailWidthCm > 0.f && Tuning.TrailSeconds > 0.f && Tuning.TrailGlow > 0.f;
-    if (!bWindow)
+    // The skills with a designed presentation (LDSliceVfx); every other cast keeps its charge and release burst.
+    bool IsSliceCast(uint8 Ability)
     {
-        if (bTrailEmitting && IsValid(SwingTrail)) { SwingTrail->Deactivate(); }
-        bTrailEmitting = false;
-        return;
-    }
-    const UWorld* World = GetWorld();
-    const ULDImpactFxSubsystem* Effects = World ? World->GetSubsystem<ULDImpactFxSubsystem>() : nullptr;
-    const ULDCombatVfxCatalog* Catalog = Effects ? Effects->GetCatalog() : nullptr;
-    if (!Catalog || !Catalog->SwingTrail) { return; }
-    if (!IsValid(SwingTrail))
-    {
-        SwingTrail = NewObject<UNiagaraComponent>(GetOwner(), NAME_None, RF_Transient);
-        if (!SwingTrail)
-        {
-            UE_LOG(LogLDContent, Warning, TEXT("LD_SWING_FX spawn=failed"));
-            return;
-        }
-        SwingTrail->SetAutoActivate(false);
-        SwingTrail->SetAsset(Catalog->SwingTrail);
-        SwingTrail->SetupAttachment(Mesh, Art->HandBone);
-        SwingTrail->RegisterComponent();
-    }
-    else if (SwingTrail->GetAttachSocketName() != Art->HandBone)
-    {
-        SwingTrail->DeactivateImmediate();
-        SwingTrail->AttachToComponent(Mesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, Art->HandBone);
-        bTrailEmitting = false;
-    }
-
-    const FVector Hand = Mesh->GetSocketLocation(Art->HandBone);
-    const FVector Centre = GetOwner()->GetActorLocation();
-    FVector HandOffset = Hand - Centre;
-    HandOffset.X *= Tuning.TrailReach;
-    HandOffset.Y *= Tuning.TrailReach;
-    const FVector TrailPoint = Centre + HandOffset;
-    SwingTrail->SetWorldLocation(TrailPoint);
-    const bool bStart = !bTrailEmitting || ActionOnset != TrailActionOnset;
-    const bool bMoved = bStart || FVector::DistSquared(TrailPoint, PreviousTrailPoint) > 1.f;
-    if (bStart && bTrailEmitting) { SwingTrail->DeactivateImmediate(); }
-    FLinearColor Colour = Catalog->SwingTint * Tuning.TrailGlow;
-    Colour.A = Catalog->SwingTint.A * EffectScale;
-    SwingTrail->SetVariableFloat(TEXT("User.Width"), Tuning.TrailWidthCm * EffectScale);
-    SwingTrail->SetVariableFloat(TEXT("User.Lifetime"), Tuning.TrailSeconds);
-    SwingTrail->SetVariableFloat(TEXT("User.SpawnRate"), bMoved ? 120.f : 0.f);
-    SwingTrail->SetVariableLinearColor(TEXT("User.Colour"), Colour);
-    if (bMoved) { PreviousTrailPoint = TrailPoint; }
-    if (bStart)
-    {
-        TrailActionOnset = ActionOnset;
-        bTrailEmitting = true;
-        SwingTrail->Activate(true);
+        // Every skill's windup and release now go through the designed slice path (its own effect or a family windup).
+        return Ability != 0;
     }
 }
 
-void ULDHumanoidVisualComponent::UpdateCastCharge(float Charge, float EffectScale)
+void ULDHumanoidVisualComponent::UpdateSlice(float EffectScale)
 {
-    const LDHitFeel::FTuning Tuning = LDHitFeel::Read();
-    const bool bWindow = FApp::CanEverRender() && CanShowImpact() && Art
-        && Action == LDBodyMotion::EAction::Cast && Charge > .02f && EffectScale > 0.f
-        && Tuning.CastScale > 0.f && Tuning.CastGlow > 0.f;
-    if (!bWindow)
+    UWorld* World = GetWorld();
+    ULDImpactFxSubsystem* Impacts = World ? World->GetSubsystem<ULDImpactFxSubsystem>() : nullptr;
+    const bool bAttack = Action == LDBodyMotion::EAction::Attack;
+    const bool bSkill = Action == LDBodyMotion::EAction::Cast && !bOverdriveCast && LDHumanoidVisualSlice::IsSliceCast(CastAbility);
+    if (!Impacts || !Art || !FApp::CanEverRender() || !CanShowImpact() || EffectScale <= 0.f || (!bAttack && !bSkill))
     {
-        if (bCastEmitting && IsValid(CastCharge)) { CastCharge->Deactivate(); }
-        bCastEmitting = false;
+        // A withdrawn, cancelled or ended windup takes its telegraph with it.
+        if (bTelegraphShown && Impacts) { Impacts->ClearTelegraphs(*this); }
+        bTelegraphShown = false;
         return;
     }
-    const UWorld* World = GetWorld();
-    const ULDImpactFxSubsystem* Effects = World ? World->GetSubsystem<ULDImpactFxSubsystem>() : nullptr;
-    const ULDCombatVfxCatalog* Catalog = Effects ? Effects->GetCatalog() : nullptr;
-    if (!Catalog || !Catalog->CastCharge) { return; }
-    if (!IsValid(CastCharge))
+    const FTransform& Space = Pivot->GetComponentTransform();
+    const FVector Feet = Space.TransformPosition(FVector(0, 0, -HalfHeight));
+    const FVector Facing = GetOwner() ? GetOwner()->GetActorForwardVector() : Space.GetUnitAxis(EAxis::X);
+    const float Age = ShownAge();
+    const uint8 Step = FMath::Clamp<uint8>(ComboStep, 1, 3);
+    if (TelegraphOnset != ActionOnset)
     {
-        CastCharge = NewObject<UNiagaraComponent>(GetOwner(), NAME_None, RF_Transient);
-        if (!CastCharge)
+        TelegraphOnset = ActionOnset;
+        // Anticipation of what is coming, from the windup's start to its release (a swing's arc on the floor, the hose's
+        // band, the zap's charge at the hand); a windup first seen after its release shows none.
+        if (Age < ActionImpactSeconds)
         {
-            UE_LOG(LogLDContent, Warning, TEXT("LD_CAST_FX spawn=failed"));
-            return;
+            const LDSliceVfx::FLook Look = Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Telegraph, bOwnBody, bOwnBody);
+            if (bAttack)
+            {
+                Impacts->SwingTell(*this, Step, Feet, Facing, ActionImpactSeconds, Look, Age);
+                bTelegraphShown = true;
+            }
+            else if (CastAbility == uint8(ELDDemoAbilityId::ActiveHoseDown))
+            {
+                // The band it will soak, at the approved reach and width (danger information: never scaled by tuning).
+                float Range = 0.f, HalfWidth = 0.f;
+                const FVector Ahead = FVector(Facing.X, Facing.Y, 0.).GetSafeNormal();
+                if (Impacts->SkillReach(CastAbility, Range, HalfWidth) && !Ahead.IsNearlyZero())
+                {
+                    const FVector Floor = Impacts->FloorUnder(Feet);
+                    bTelegraphShown |= Impacts->Play(LDSliceVfx::ESystem::HoseTell, *this, Floor, Floor + Ahead * Range,
+                        LDSliceVfx::ElementInk(uint8(ELDCombatElement::Water)), HalfWidth, ActionImpactSeconds, Look, Age, true) != nullptr;
+                }
+            }
+            else if (CastAbility == uint8(ELDDemoAbilityId::ActiveColaShake))
+            {
+                // The cone it will blast, at the approved reach and angle.
+                float Range = 0.f, HalfWidth = 0.f;
+                const float Degrees = Impacts->SkillConeDegrees(CastAbility);
+                const FVector Ahead = FVector(Facing.X, Facing.Y, 0.).GetSafeNormal();
+                if (Impacts->SkillReach(CastAbility, Range, HalfWidth) && Degrees > 0.f && !Ahead.IsNearlyZero())
+                {
+                    const FVector Floor = Impacts->FloorUnder(Feet);
+                    bTelegraphShown |= Impacts->Play(LDSliceVfx::ESystem::ColaTell, *this, Floor, Floor + Ahead * Range,
+                        LDSliceVfx::ElementInk(uint8(ELDCombatElement::Chill)), .5f * Degrees, ActionImpactSeconds, Look, Age, true) != nullptr;
+                }
+            }
+            else if (CastAbility == uint8(ELDDemoAbilityId::ActiveSeethe))
+            {
+                // Its self area at the approved radius, heat gathering at the feet.
+                const float Radius = Impacts->SkillEffectRadius(CastAbility, uint16(ELDDemoEffectOp::SelfArea));
+                const FVector Floor = Impacts->FloorUnder(Feet);
+                bTelegraphShown |= Radius > 0.f && Impacts->Play(LDSliceVfx::ESystem::SeetheTell, *this, Floor, Floor,
+                    LDSliceVfx::ElementInk(uint8(ELDCombatElement::Fire)), Radius, ActionImpactSeconds, Look, Age, true) != nullptr;
+            }
+            else if (Mesh && CastAbility != uint8(ELDDemoAbilityId::ActiveZap))
+            {
+                // A skill without a windup of its own: its family's (a self-centred one at the feet, a directed one at the hand
+                // pointing along the facing), in the element's ink or, for a skill without an element, the strike's.
+                const LDHitVfx::FSkillLook* Skill = LDHitVfx::SkillLookOf(CastAbility);
+                const FLinearColor Tint = Skill && Impacts->IsElementalSkill(CastAbility) ? Skill->Tint : LDSliceVfx::StrikeTint(Look);
+                const FVector Floor = Impacts->FloorUnder(Feet);
+                const FVector Ahead = FVector(Facing.X, Facing.Y, 0.).GetSafeNormal();
+                bTelegraphShown |= (Impacts->IsSelfSkill(CastAbility)
+                    ? Impacts->Play(LDSliceVfx::ESystem::CastBrace, *this, Floor, Floor, Tint, 95.f, ActionImpactSeconds, Look, Age, true)
+                    : Impacts->Play(LDSliceVfx::ESystem::CastAim, *this, Mesh->GetSocketLocation(Art->HandBone), Floor + Ahead * 40.f, Tint, 40.f,
+                        ActionImpactSeconds, Look, Age, true)) != nullptr;
+            }
+            else if (Mesh)
+            {
+                // A unit-targeted chain: its target is never public, so only the casting hand charges.
+                bTelegraphShown |= Impacts->Play(LDSliceVfx::ESystem::ZapCharge, *this, Mesh->GetSocketLocation(Art->HandBone), Mesh->GetSocketLocation(Art->HandBone),
+                    LDSliceVfx::ElementInk(uint8(ELDCombatElement::Shock)), 40.f * Look.Size, ActionImpactSeconds, Look, Age, true) != nullptr;
+            }
         }
-        CastCharge->SetAutoActivate(false);
-        CastCharge->SetAsset(Catalog->CastCharge);
-        // The hand bone can carry import scale; Niagara sizes are authored in world centimeters.
-        CastCharge->SetAbsolute(false, false, true);
-        CastCharge->SetupAttachment(Mesh, Art->HandBone);
-        CastCharge->RegisterComponent();
     }
-    else if (CastCharge->GetAttachSocketName() != Art->HandBone)
+    // Release of a basic swing at its authoritative impact time: the slash at the chest (skills release in UpdateRelease).
+    if (bAttack && SwingReleasedOnset != ActionOnset && Age >= ActionImpactSeconds)
     {
-        CastCharge->DeactivateImmediate();
-        CastCharge->AttachToComponent(Mesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, Art->HandBone);
-        bCastEmitting = false;
+        SwingReleasedOnset = ActionOnset;
+        bTelegraphShown = false;
+        const float Late = Age - ActionImpactSeconds;
+        if (Late < .2f)
+        {
+            const FVector Centre = Space.TransformPosition(FVector(0, 0, .55f * HeightCm - HalfHeight));
+            // An empowered basic (the own body knows it) swings as wide as the finisher, whatever its combo step.
+            Impacts->Swing(*this, GuardOn[2] ? uint8(3) : Step, Centre, Facing, Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Swing, bOwnBody, bOwnBody), Late);
+            Impacts->NoteStrike(*this, Step >= 3 ? LDSliceVfx::EStrike::Finisher : LDSliceVfx::EStrike::Basic, Centre, Facing, bOwnBody);
+        }
     }
+}
+void ULDHumanoidVisualComponent::SetElementStates(const TArray<FLDObservedStatus>& Statuses)
+{
+    static constexpr ELDDemoStatusId Ids[ElementStates] = {ELDDemoStatusId::Burn, ELDDemoStatusId::Wet, ELDDemoStatusId::Electrified,
+        ELDDemoStatusId::Chilled, ELDDemoStatusId::Rotten};
+    for (int32 Index = 0; Index < ElementStates; ++Index)
+    {
+        const FLDObservedStatus* Found = Statuses.FindByPredicate([Index](const FLDObservedStatus& Status) { return Status.StatusId == uint8(Ids[Index]); });
+        StateStacks[Index] = Found ? FMath::Max<uint8>(Found->Stacks, 1) : 0;
+    }
+    const auto Has = [&Statuses](ELDDemoStatusId Id)
+    { return Statuses.ContainsByPredicate([Id](const FLDObservedStatus& Status) { return Status.StatusId == uint8(Id); }); };
+    GuardOn[1] = Has(ELDDemoStatusId::Braced);
+    GuardOn[2] = Has(ELDDemoStatusId::Empowered);
+    static constexpr ELDDemoStatusId Control[9] = {ELDDemoStatusId::Root, ELDDemoStatusId::RespawnProtection, ELDDemoStatusId::Slow,
+        ELDDemoStatusId::AttackSlowed, ELDDemoStatusId::Stun, ELDDemoStatusId::Disarm, ELDDemoStatusId::Silence, ELDDemoStatusId::Taunt, ELDDemoStatusId::Exposed};
+    for (int32 Index = 3; Index < 12; ++Index) { GuardOn[Index] = Has(Control[Index - 3]); }
+    // A camp member on guard braces as a contender does; enraged, it flares as a taunt does.
+    GuardOn[1] |= Has(ELDDemoStatusId::CampGuarding);
+    GuardOn[10] |= Has(ELDDemoStatusId::CampEnraged);
+}
 
-    const float Strength = FMath::Clamp(Charge, 0.f, 1.f);
-    const float Thin = FMath::Clamp(EffectScale, 0.f, 1.f);
-    const bool bStart = !bCastEmitting || ActionOnset != CastActionOnset;
-    if (bStart && bCastEmitting) { CastCharge->DeactivateImmediate(); }
-    const LDHitVfx::FSkillLook* Skill = LDHitVfx::SkillLookOf(CastAbility);
-    FLinearColor Colour = (Skill ? Skill->Tint : Catalog->CastTint) * Tuning.CastGlow;
-    Colour.A = Catalog->CastTint.A * Strength * Thin;
-    CastCharge->SetVariableFloat(TEXT("User.Scale"), Tuning.CastScale * (.25f + .75f * Strength) * FMath::Sqrt(Thin));
-    CastCharge->SetVariableFloat(TEXT("User.SparkRate"), Tuning.CastSparksPerSecond * Strength * Thin);
-    CastCharge->SetVariableLinearColor(TEXT("User.Colour"), Colour);
-    if (bStart)
+void ULDHumanoidVisualComponent::UpdateStates(bool bFalling, float EffectScale)
+{
+    static constexpr LDSliceVfx::ESystem Systems[ElementStates] = {LDSliceVfx::ESystem::BurnState, LDSliceVfx::ESystem::WetState,
+        LDSliceVfx::ESystem::ShockState, LDSliceVfx::ESystem::ChillState, LDSliceVfx::ESystem::RotState};
+    UWorld* World = GetWorld();
+    ULDImpactFxSubsystem* Impacts = World ? World->GetSubsystem<ULDImpactFxSubsystem>() : nullptr;
+    const bool bShow = Impacts && Art && FApp::CanEverRender() && CanShowImpact() && !bFalling && EffectScale > 0.f;
+    const FTransform& Space = Pivot->GetComponentTransform();
+    const FVector Feet = Space.TransformPosition(FVector(0, 0, -HalfHeight)), Head = Space.TransformPosition(FVector(0, 0, HeightCm - HalfHeight));
+    for (int32 Index = 0; Index < ElementStates; ++Index)
     {
-        CastActionOnset = ActionOnset;
-        bCastEmitting = true;
-        CastCharge->Activate(true);
+        // A state starting on a body the local player sees stings once, whatever the effect strength.
+        const bool bStarted = StateStacks[Index] > 0 && !bFalling;
+        if (bStarted && !StateSounded[Index] && CanShowImpact()) { LDAudioFeel::StateOnset(*this, bOwnBody, Index, Pivot->GetComponentLocation()); }
+        StateSounded[Index] = bStarted;
+        const bool bOn = bShow && StateStacks[Index] > 0;
+        if (!bOn)
+        {
+            if (IsValid(StateEffects[Index])) { StateEffects[Index]->DestroyComponent(); }
+            StateEffects[Index] = nullptr;
+            continue;
+        }
+        // Stacks raise the strength (others' bodies a little dimmer); the radius follows the body's height.
+        const float Strength = 2.2f * FMath::Min(1.f + .25f * (StateStacks[Index] - 1), 1.75f) * (bOwnBody ? 1.f : .75f) * FMath::Clamp(EffectScale, .45f, 1.f);
+        StateEffects[Index] = Impacts->ShowLoop(*Pivot, StateEffects[Index], Systems[Index], Feet, Head,
+            LDSliceVfx::ElementInk(uint8(Index == 0 ? ELDCombatElement::Fire : Index == 1 ? ELDCombatElement::Water : Index == 2 ? ELDCombatElement::Shock
+                : Index == 3 ? ELDCombatElement::Chill : ELDCombatElement::Rot)), .17f * HeightCm, Strength, 1.e4f, bOwnBody);
     }
+    // The state on the body itself: a low element-tinted rim shell over the pose, pulsing in the element's own rhythm (burn a
+    // warm quick breath, wet a slow sheen, shock a flicker with gaps, chill a long slow creep, rot uneven). One state per body
+    // at a time (the first it holds), well under a hit's rim, so the pool stays free for hits.
+    if (bShow && Mesh)
+    {
+        int32 Held = INDEX_NONE;
+        for (int32 Index = 0; Index < ElementStates && Held == INDEX_NONE; ++Index) { if (StateStacks[Index] > 0) { Held = Index; } }
+        if (Held != INDEX_NONE && Clock >= StateShellAt)
+        {
+            static constexpr float Period[ElementStates] = {.5f, .95f, .16f, 1.3f, .7f};
+            static constexpr float Lasts[ElementStates] = {.55f, 1.f, .12f, 1.35f, .75f};
+            static constexpr float Level[ElementStates] = {.5f, .6f, .7f, .6f, .6f};
+            const float Chance = FMath::FRand();
+            // Shock skips beats; rot's beats are uneven.
+            const bool bBeat = Held != 2 || Chance > .4f;
+            const float Next = Held == 4 ? FMath::Lerp(.35f, 1.1f, Chance) : Period[Held];
+            if (bBeat)
+            {
+                LDHitVfx::FGhosts Shell;
+                Shell.bShow = true;
+                Shell.bShell = true;
+                Shell.Seconds = Lasts[Held];
+                Shell.Glow = LDSliceVfx::ElementInk(uint8(Held == 0 ? ELDCombatElement::Fire : Held == 1 ? ELDCombatElement::Water : Held == 2 ? ELDCombatElement::Shock
+                    : Held == 3 ? ELDCombatElement::Chill : ELDCombatElement::Rot)) * Level[Held] * (bOwnBody ? 1.f : .75f) * FMath::Clamp(EffectScale, .45f, 1.f);
+                Impacts->Ghost(*Mesh, Shell, *this);
+            }
+            StateShellAt = Clock + Next;
+        }
+    }
+    // Guards and stances under the element states, hits and telegraphs: a shield (from the cue), braced, the own empowered
+    // basics; and a self skill's aura from its release for its hold, eased in and out.
+    static constexpr LDSliceVfx::ESystem Guards[GuardStates] = {LDSliceVfx::ESystem::ShieldState, LDSliceVfx::ESystem::BracedState,
+        LDSliceVfx::ESystem::EmpoweredState,
+        LDSliceVfx::ESystem::RootState, LDSliceVfx::ESystem::ProtectedState, LDSliceVfx::ESystem::SlowState, LDSliceVfx::ESystem::AttackSlowState,
+        LDSliceVfx::ESystem::StunState, LDSliceVfx::ESystem::DisarmState, LDSliceVfx::ESystem::SilenceState, LDSliceVfx::ESystem::TauntState,
+        LDSliceVfx::ESystem::ExposedState, LDSliceVfx::ESystem::ReturnState};
+    const float Guard = 1.5f * (bOwnBody ? 1.f : .75f) * FMath::Clamp(EffectScale, .45f, 1.f);
+    bool bWorn[GuardStates];
+    for (int32 Index = 0; Index < GuardStates; ++Index) { bWorn[Index] = GuardOn[Index]; }
+    bWorn[0] = (Cue & Shielded) != 0;
+    bWorn[3] |= (Cue & Rooted) != 0;
+    bWorn[4] |= (Cue & Protected) != 0;
+    bWorn[12] = (Cue & Returning) != 0;
+    for (int32 Index = 0; Index < GuardStates; ++Index)
+    {
+        if (!bShow || !bWorn[Index])
+        {
+            if (IsValid(GuardEffects[Index])) { GuardEffects[Index]->DestroyComponent(); }
+            GuardEffects[Index] = nullptr;
+            continue;
+        }
+        GuardEffects[Index] = Impacts->ShowLoop(*Pivot, GuardEffects[Index], Guards[Index], Feet, Head, FLinearColor::White, .17f * HeightCm,
+            Guard, 1.e4f, bOwnBody);
+    }
+    if (bFalling) { AuraUntil = BraceEndsAt = -1; }
+    // A level gained: one second of the level-up on the body, following it.
+    if (bLevelUp) { bLevelUp = false; LevelUntil = bShow ? Clock + 1. : -1.; }
+    if (bShow && Clock < LevelUntil)
+    {
+        LevelEffect = Impacts->ShowLoop(*Pivot, LevelEffect, LDSliceVfx::ESystem::LevelUp, Feet, Head, FLinearColor::White, .17f * HeightCm,
+            2.2f * FMath::Clamp(EffectScale, .45f, 1.f), 1.f, bOwnBody);
+    }
+    else if (LevelEffect)
+    {
+        if (IsValid(LevelEffect)) { LevelEffect->DestroyComponent(); }
+        LevelEffect = nullptr;
+    }
+    if (bShow && AuraSystem != 0 && Clock < AuraUntil)
+    {
+        const float Ease = float(FMath::Clamp((AuraUntil - Clock) / .3, 0., 1.) * FMath::Clamp((Clock - AuraFrom) / .15, 0., 1.));
+        AuraEffect = Impacts->ShowLoop(*Pivot, AuraEffect, LDSliceVfx::ESystem(AuraSystem), Feet, Head, FLinearColor::White, .17f * HeightCm,
+            Guard * Ease, 1.e4f, bOwnBody);
+    }
+    else
+    {
+        if (IsValid(AuraEffect)) { AuraEffect->DestroyComponent(); }
+        AuraEffect = nullptr;
+        if (Clock >= AuraUntil) { AuraSystem = 0; }
+    }
+    // The brace ending at its expected time (not a death, which falls) shoves back over its radius.
+    if (bBracedShown && !GuardOn[1] && BraceEndsAt > 0. && FMath::Abs(Clock - BraceEndsAt) < .4 && bShow)
+    {
+        const float Radius = Impacts->SkillSelfRadius(uint8(ELDDemoAbilityId::ActiveBrace));
+        const FVector Forward = GetOwner() ? GetOwner()->GetActorForwardVector() : FVector::ForwardVector;
+        const FVector Ahead = FVector(Forward.X, Forward.Y, 0.).GetSafeNormal();
+        const FVector Chest = Space.TransformPosition(FVector(0, 0, .55f * HeightCm - HalfHeight));
+        if (Radius > 0.f && !Ahead.IsNearlyZero())
+        {
+            const LDSliceVfx::FLook Look = Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, bOwnBody, bOwnBody);
+            Impacts->Play(LDSliceVfx::ESystem::BraceBurst, *this, Chest, Chest + Ahead * Radius, FLinearColor::White, 70.f * Look.Size,
+                1.1f * Look.Seconds, Look, 0.f);
+            Impacts->PlayPack(LDSliceVfx::EPack::DustRing, Impacts->FloorUnder(Feet) + FVector(0, 0, 4.f), .6f * Look.Size);
+        }
+        BraceEndsAt = -1;
+    }
+    bBracedShown = GuardOn[1];
 }
 
 void ULDHumanoidVisualComponent::UpdateRelease(float EffectScale)
@@ -406,25 +481,126 @@ void ULDHumanoidVisualComponent::UpdateRelease(float EffectScale)
         // An overdrive release: the shockwave and its burst over the skill's own release.
         const FTransform& Space = Pivot->GetComponentTransform();
         const FVector Chest = Space.TransformPosition(FVector(0, 0, .5f * HeightCm - HalfHeight));
-        Impacts->Layers(this, Chest, Space.TransformPosition(FVector(0, 0, -HalfHeight)),
-            LDHitVfx::ForOverdriveRelease(EffectScale, Impacts->LayerTuning()), 0.f);
-        Impacts->Kit(Chest, LDHitVfx::BurstOf(LDHitVfx::EBurst::Overdrive, LDHitVfx::OverdriveTint(), EffectScale), this);
+        Impacts->Play(LDSliceVfx::ESystem::OverdriveBurst, *this, Impacts->FloorUnder(Chest), Chest, FLinearColor::White, 60.f, .6f,
+            Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, bOwnBody, bOwnBody), 0.f);
     }
     if (!Skill) { return; }
     const bool bBody = Skill->Release == LDHitVfx::EBurst::Aura || Skill->Release == LDHitVfx::EBurst::Dash;
     const FVector At = bBody ? Pivot->GetComponentTransform().TransformPosition(FVector(0, 0, .45f * HeightCm - HalfHeight))
         : Mesh->GetSocketLocation(Art->HandBone);
-    Impacts->Kit(At, LDHitVfx::BurstOf(Skill->Release, Skill->Tint, EffectScale), this);
-    // Visible observed enemy cast feedback strictly within the local sight-authorized proxy.
-    if (GetOwner() && !GetOwner()->IsA<ALDCharacter>())
+    const FVector Facing = GetOwner() ? GetOwner()->GetActorForwardVector() : FVector::ForwardVector;
+    const float Late = FMath::Max(ShownAge() - ActionImpactSeconds, 0.f);
+    const LDSliceVfx::FLook Look = Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, bOwnBody, bOwnBody);
+    if (CastAbility == uint8(ELDDemoAbilityId::ActiveHoseDown) && !bOverdriveCast)
     {
-        if (UGameInstance* GI = World->GetGameInstance())
+        // Release: the stream over the approved band from the hand along the cast direction; its hits splash.
+        float Range = 0.f, HalfWidth = 0.f;
+        const FVector Ahead = FVector(Facing.X, Facing.Y, 0.).GetSafeNormal();
+        if (Impacts->SkillReach(CastAbility, Range, HalfWidth) && !Ahead.IsNearlyZero())
         {
-            if (ULDAudioSubsystem* Audio = GI->GetSubsystem<ULDAudioSubsystem>())
-            {
-                Audio->Play(ELDAudioCue::SelfCast, .45f);
-            }
+            const FVector Floor = Impacts->FloorUnder(Pivot->GetComponentTransform().TransformPosition(FVector(0, 0, -HalfHeight)));
+            Impacts->Play(LDSliceVfx::ESystem::HoseJet, *this, Floor, Floor + Ahead * Range, LDSliceVfx::ElementInk(uint8(ELDCombatElement::Water)),
+                HalfWidth, 1.4f * Look.Seconds, Look, Late);
         }
+        Impacts->NoteStrike(*this, LDSliceVfx::EStrike::Hose, At, Facing, bOwnBody, CastAbility);
+    }
+    else if (CastAbility == uint8(ELDDemoAbilityId::ActiveColaShake) && !bOverdriveCast)
+    {
+        // Release: the icy fizz blast over the approved cone and its frosted floor.
+        float Range = 0.f, HalfWidth = 0.f;
+        const float Degrees = Impacts->SkillConeDegrees(CastAbility);
+        const FVector Ahead = FVector(Facing.X, Facing.Y, 0.).GetSafeNormal();
+        if (Impacts->SkillReach(CastAbility, Range, HalfWidth) && Degrees > 0.f && !Ahead.IsNearlyZero())
+        {
+            const FVector Floor = Impacts->FloorUnder(Pivot->GetComponentTransform().TransformPosition(FVector(0, 0, -HalfHeight)));
+            Impacts->Play(LDSliceVfx::ESystem::ColaBlast, *this, Floor, Floor + Ahead * Range, LDSliceVfx::ElementInk(uint8(ELDCombatElement::Chill)),
+                .5f * Degrees, 1.5f * Look.Seconds, Look, Late);
+        }
+        Impacts->NoteStrike(*this, LDSliceVfx::EStrike::Skill, At, Facing, bOwnBody, CastAbility);
+    }
+    else if (CastAbility == uint8(ELDDemoAbilityId::ActiveSeethe) && !bOverdriveCast)
+    {
+        // Release: the flame wall out to the approved radius and the scorched floor; its hits burn.
+        const float Radius = Impacts->SkillEffectRadius(CastAbility, uint16(ELDDemoEffectOp::SelfArea));
+        const FVector Floor = Impacts->FloorUnder(Pivot->GetComponentTransform().TransformPosition(FVector(0, 0, -HalfHeight)));
+        if (Radius > 0.f)
+        {
+            Impacts->Play(LDSliceVfx::ESystem::SeetheBurst, *this, Floor, Floor, LDSliceVfx::ElementInk(uint8(ELDCombatElement::Fire)), Radius,
+                1.8f * Look.Seconds, Look, Late);
+        }
+        Impacts->NoteStrike(*this, LDSliceVfx::EStrike::Skill, At, Facing, bOwnBody, CastAbility);
+    }
+    else if (CastAbility == uint8(ELDDemoAbilityId::ActiveZap) && !bOverdriveCast)
+    {
+        // Release: the spark at the hand; each hit of the chain draws its arc from here or the previous body struck.
+        Impacts->Slice(this, LDSliceVfx::ZapRelease(At, Look), Late);
+        Impacts->NoteStrike(*this, LDSliceVfx::EStrike::Zap, At, Facing, bOwnBody, CastAbility);
+    }
+    else
+    {
+        // The skill's own release where it has one (reaching out along the facing to its approved range); the old
+        // particle-kit burst over the caster is retired.
+        const LDSliceVfx::FSkillSystems Systems = LDSliceVfx::SkillSystemsOf(CastAbility);
+        const FVector Ahead = FVector(Facing.X, Facing.Y, 0.).GetSafeNormal();
+        if (Systems.Release != LDSliceVfx::ESystem::Count && !Ahead.IsNearlyZero())
+        {
+            float Range = 0.f, HalfWidth = 0.f;
+            if (!Impacts->SkillReach(CastAbility, Range, HalfWidth)) { Range = Impacts->SkillDashCm(CastAbility); }
+            if (Range <= 0.f) { Range = Impacts->SkillSelfRadius(CastAbility); }
+            if (Range <= 0.f) { Range = 200.f; }
+            // A self skill's hold: active_unplug's release is its parry stance for that long; an aura is worn that long;
+            // active_brace's shove is due when it runs out.
+            const float Hold = Impacts->SkillHoldSeconds(CastAbility);
+            const bool bStance = CastAbility == uint8(ELDDemoAbilityId::ActiveUnplug) && Hold > 0.f;
+            const FVector Chest = Pivot->GetComponentTransform().TransformPosition(FVector(0, 0, .55f * HeightCm - HalfHeight));
+            Impacts->Play(Systems.Release, *this, Chest, Chest + Ahead * Range, LDSliceVfx::StrikeTint(Look), 70.f * Look.Size,
+                bStance ? Hold : .9f * Look.Seconds, Look, Late);
+            if (Systems.Aura != LDSliceVfx::ESystem::Count && Hold > 0.f)
+            {
+                AuraSystem = uint8(Systems.Aura);
+                AuraFrom = Clock - Late;
+                AuraUntil = AuraFrom + Hold;
+            }
+            if (CastAbility == uint8(ELDDemoAbilityId::ActiveBrace) && Hold > 0.f) { BraceEndsAt = Clock - Late + Hold; }
+        }
+        Impacts->NoteStrike(*this, LDSliceVfx::EStrike::Skill, At, Facing, bOwnBody, CastAbility);
+    }
+}
+
+void ULDHumanoidVisualComponent::UpdateSound()
+{
+    // Body sounds on the presented timeline (AUDIO_AND_FEEL §2), whatever the effect strength: a whoosh peaking on the
+    // swing's release, a charge over a long enough cast windup cut at its release, and the skill's release. Only a body
+    // the local player sees sounds, and an onset first seen well after its release stays silent (as its effects do).
+    const bool bAudible = CanShowImpact() && Pivot;
+    const float Age = ShownAge();
+    const FVector At = Pivot ? Pivot->GetComponentLocation() : FVector::ZeroVector;
+    if (Action == LDBodyMotion::EAction::Attack && SwingSoundOnset != ActionOnset
+        && Age >= ActionImpactSeconds - LDAudioFeel::SwingPreRollSeconds(ActionImpactSeconds))
+    {
+        SwingSoundOnset = ActionOnset;
+        if (bAudible && Age - ActionImpactSeconds < .2f) { LDAudioFeel::Swing(*this, bOwnBody, FMath::Clamp<uint8>(ComboStep, 1, 3), At); }
+    }
+    if (Action != LDBodyMotion::EAction::Cast)
+    {
+        // A cast cancelled before its release takes its charge with it.
+        if (ChargeSound.IsValid()) { LDAudioFeel::CutCharge(ChargeSound.Get()); }
+        ChargeSound = nullptr;
+        return;
+    }
+    if (ChargeSoundOnset != ActionOnset)
+    {
+        ChargeSoundOnset = ActionOnset;
+        if (ChargeSound.IsValid()) { LDAudioFeel::CutCharge(ChargeSound.Get()); }
+        ChargeSound = bAudible && ActionImpactSeconds >= LDAudioFeel::ChargeMinSeconds && Age < ActionImpactSeconds - .05f
+            ? LDAudioFeel::Charge(*this, bOwnBody, At) : nullptr;
+    }
+    if (ReleaseSoundOnset != ActionOnset && Age >= ActionImpactSeconds)
+    {
+        ReleaseSoundOnset = ActionOnset;
+        if (ChargeSound.IsValid()) { LDAudioFeel::CutCharge(ChargeSound.Get()); }
+        ChargeSound = nullptr;
+        if (bAudible && Age - ActionImpactSeconds < .2f) { LDAudioFeel::Release(*this, bOwnBody, CastAbility, bOverdriveCast, At); }
     }
 }
 
@@ -434,31 +610,20 @@ void ULDHumanoidVisualComponent::UpdateDash(const FVector& Velocity, bool bFalli
         && LDHitVfx::IsDashing(float(Velocity.Size2D()), bKnockback, bFalling);
     if (!bNow)
     {
-        if (bDashing && IsValid(DashTrail)) { DashTrail->Deactivate(); }
+        if (IsValid(DashTrail)) { DashTrail->DestroyComponent(); }
+        DashTrail = nullptr;
         bDashing = false;
         return;
     }
     UWorld* World = GetWorld();
     ULDImpactFxSubsystem* Impacts = World ? World->GetSubsystem<ULDImpactFxSubsystem>() : nullptr;
-    const ULDCombatVfxCatalog* Catalog = Impacts ? Impacts->GetCatalog() : nullptr;
-    if (!Catalog || !Catalog->SwingTrail) { return; }
+    if (!Impacts) { return; }
     const LDHitVfx::FSkillLook* Skill = LDHitVfx::SkillLookOf(CastAbility);
     const FLinearColor Tint = Skill ? Skill->Tint : FLinearColor(.48f, .90f, 1.f);
-    const LDHitVfx::FTrail Trail = LDHitVfx::DashTrailOf(Tint, EffectScale);
-    if (!IsValid(DashTrail))
-    {
-        DashTrail = NewObject<UNiagaraComponent>(GetOwner(), NAME_None, RF_Transient);
-        if (!DashTrail) { return; }
-        DashTrail->SetAutoActivate(false);
-        DashTrail->SetAsset(Catalog->SwingTrail);
-        DashTrail->SetupAttachment(Pivot);
-        DashTrail->SetRelativeLocation(FVector(0, 0, .55f * HeightCm - HalfHeight));
-        DashTrail->RegisterComponent();
-    }
-    DashTrail->SetVariableFloat(TEXT("User.Width"), Trail.WidthCm);
-    DashTrail->SetVariableFloat(TEXT("User.Lifetime"), Trail.Lifetime);
-    DashTrail->SetVariableFloat(TEXT("User.SpawnRate"), Trail.Rate);
-    DashTrail->SetVariableLinearColor(TEXT("User.Colour"), Trail.Colour);
+    // The wake: dust off the floor and air streaks behind the body, along the way it runs.
+    const FVector Floor = Impacts->FloorUnder(Pivot->GetComponentTransform().TransformPosition(FVector(0, 0, -HalfHeight))) + FVector(0, 0, 10.f);
+    DashTrail = Impacts->ShowLoop(*Pivot, DashTrail, LDSliceVfx::ESystem::DashWake, Floor, Floor + Velocity.GetSafeNormal2D() * 100., FLinearColor::White, 30.f,
+        2.2f * (bOwnBody ? 1.f : .8f) * FMath::Clamp(EffectScale, .45f, 1.f), 1.e4f, bOwnBody);
     // Afterimages: a posed translucent copy of the body every interval while the dash lasts.
     const LDHitVfx::FGhosts Ghosts = LDHitVfx::GhostsOf(Tint, EffectScale);
     if (Ghosts.bShow && (!bDashing || Clock - LastGhostAt >= Ghosts.IntervalSeconds))
@@ -469,12 +634,8 @@ void ULDHumanoidVisualComponent::UpdateDash(const FVector& Velocity, bool bFalli
     if (!bDashing)
     {
         bDashing = true;
-        DashTrail->Activate(true);
-        // #335 §3.1: ground shockwave ring + dust burst at the dash launch spot.
-        const FVector LaunchGround = Pivot->GetComponentTransform().TransformPosition(FVector(0, 0, -HalfHeight + 6.f));
-        const FVector LaunchChest = Pivot->GetComponentTransform().TransformPosition(FVector(0, 0, .48f * HeightCm - HalfHeight));
-        Impacts->Layers(this, LaunchChest, LaunchGround, LDHitVfx::ForDashStart(Tint, EffectScale, Impacts->LayerTuning()), 0.f);
-        Impacts->Kit(LaunchGround, LDHitVfx::BurstOf(LDHitVfx::EBurst::Dash, Tint, EffectScale), this);
+        // The launch kicks a low ring of dust off the floor where the body stood.
+        Impacts->PlayPack(LDSliceVfx::EPack::DustRing, Floor - FVector(0, 0, 6.f), .35f);
     }
 }
 
@@ -486,7 +647,6 @@ void ULDHumanoidVisualComponent::UpdateOverdrive(float EffectScale)
     const bool bShow = bCharging && CanShowImpact() && EffectScale > 0.f;
     const FTransform& Space = Pivot->GetComponentTransform();
     const FVector Feet = Space.TransformPosition(FVector(0, 0, -HalfHeight + 4.f));
-    const FVector Chest = Space.TransformPosition(FVector(0, 0, .5f * HeightCm - HalfHeight));
     const float Hold = Impacts->OverdriveHoldSeconds();
     if (bShow)
     {
@@ -498,29 +658,19 @@ void ULDHumanoidVisualComponent::UpdateOverdrive(float EffectScale)
             ChargeOnset = Clock - (FMath::IsFinite(ChargeAge) ? FMath::Max(ChargeAge, 0.f) : 0.f);
         }
         const float Progress = ChargeProgress >= 0.f ? ChargeProgress : Hold > 0.f ? float(Clock - ChargeOnset) / Hold : 1.f;
-        const LDHitVfx::FZone Column = LDHitVfx::ChargeZoneOf(Progress, EffectScale);
-        UNiagaraSystem* Zone = Impacts->GetZoneSystem();
-        if (Zone && !IsValid(ChargeColumn))
-        {
-            ChargeColumn = NewObject<UNiagaraComponent>(GetOwner(), NAME_None, RF_Transient);
-            if (ChargeColumn)
-            {
-                ChargeColumn->SetAutoActivate(false);
-                ChargeColumn->SetAsset(Zone);
-                ChargeColumn->SetupAttachment(Pivot);
-                ChargeColumn->RegisterComponent();
-            }
-        }
-        if (IsValid(ChargeColumn))
-        {
-            ChargeColumn->SetWorldLocation(Feet);
-            ULDImpactFxSubsystem::ApplyZone(*ChargeColumn, Column, 45.f, Column.Velocity);
-            if (!ChargeColumn->IsActive()) { ChargeColumn->Activate(true); }
-        }
+        // The charge gathers on the floor and up the body, stronger as it fills; full, the body's rim flares once.
+        const FVector Head = Space.TransformPosition(FVector(0, 0, HeightCm - HalfHeight));
+        ChargeColumn = Impacts->ShowLoop(*Pivot, ChargeColumn, LDSliceVfx::ESystem::OverdriveCharge, Feet, Head, FLinearColor::White, .17f * HeightCm,
+            2.2f * (.35f + .65f * FMath::Clamp(Progress, 0.f, 1.f)) * (bOwnBody ? 1.f : .8f) * FMath::Clamp(EffectScale, .45f, 1.f), 1.e4f, bOwnBody);
         if (!bChargeReady && Progress >= 1.f)
         {
             bChargeReady = true;
-            Impacts->Layers(this, Chest, Feet, LDHitVfx::ForChargeReady(EffectScale, Impacts->LayerTuning()), 0.f);
+            LDHitVfx::FGhosts Flare;
+            Flare.bShow = true;
+            Flare.bShell = true;
+            Flare.Seconds = .4f;
+            Flare.Glow = LDHitVfx::OverdriveTint() * 1.3f * FMath::Clamp(EffectScale, .45f, 1.f);
+            Impacts->Ghost(*Mesh, Flare, *this);
         }
         return;
     }
@@ -528,7 +678,8 @@ void ULDHumanoidVisualComponent::UpdateOverdrive(float EffectScale)
     {
         // The charge ended (released, let go or cancelled); the release itself is the cast's (UpdateRelease).
         bChargeShown = false;
-        if (IsValid(ChargeColumn)) { ChargeColumn->Deactivate(); }
+        if (IsValid(ChargeColumn)) { ChargeColumn->DestroyComponent(); }
+        ChargeColumn = nullptr;
     }
 }
 
@@ -641,6 +792,14 @@ void ULDHumanoidVisualComponent::ApplyMonsterLook(uint8 CreatureId)
         FString::Printf(TEXT("Camp tier %u"), uint32(CreatureId)));
 }
 
+bool ULDHumanoidVisualComponent::HoldPose(UAnimSequence* Still, float TimeSeconds, bool bHideBall)
+{
+    auto* Animation=Mesh?Cast<ULDBasketballAnimInstance>(Mesh->GetAnimInstance()):nullptr;
+    if (!Animation) { return false; }
+    Animation->HoldPose(Still,FMath::Max(0.f,TimeSeconds),bHideBall);
+    return true;
+}
+
 void ULDHumanoidVisualComponent::CopyLook(const ULDHumanoidVisualComponent& Source)
 {
     if (Source.LookCreature != 0) { ApplyMonsterLook(Source.LookCreature); }
@@ -652,7 +811,6 @@ void ULDHumanoidVisualComponent::ApplyEditorPreview(const FLDArtCharacter& Look,
 {
     ApplyLook(&Look, Identity, TEXT("Layout preview"));
     for (UStaticMeshComponent* Part : Parts) { Part->SetVisibility(false); Part->bIsEditorOnly = true; }
-    for (UStaticMeshComponent* Part : Edges) { Part->SetVisibility(false); Part->bIsEditorOnly = true; }
     Pivot->bIsEditorOnly = true;
     Mesh->bIsEditorOnly = true;
     Mesh->SetVisibility(true);
@@ -695,7 +853,6 @@ void ULDHumanoidVisualComponent::ApplyLook(const FLDArtCharacter* Look, const FL
         Mesh->SetSkeletalMeshAsset(nullptr);
         Mesh->SetHiddenInGame(true);
         for (UStaticMeshComponent* Part : Parts) { Part->SetHiddenInGame(true); }
-        for (UStaticMeshComponent* Edge : Edges) { Edge->SetHiddenInGame(true); }
         return;
     }
     HalfHeight = GetDefault<ALDCharacter>()->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight();
@@ -749,8 +906,6 @@ void ULDHumanoidVisualComponent::ApplyLook(const FLDArtCharacter* Look, const FL
         UMaterialInstanceDynamic* Instance = ULDArtSubsystem::SharedTint(this, Material, ColourOf(Index));
         Parts[Index]->SetMaterial(0, Instance);
     }
-    UMaterialInstanceDynamic* Dark = ULDArtSubsystem::SharedTint(this, Material, EdgeColour);
-    for (UStaticMeshComponent* Edge : Edges) { Edge->SetMaterial(0, Dark); }
     Layout();
 }
 
@@ -806,20 +961,7 @@ bool ULDHumanoidVisualComponent::PresentedPickVolume(FVector& OutFoot, FVector& 
 void ULDHumanoidVisualComponent::Layout()
 {
     using namespace LDHumanoidVisualDetail;
-    // Pivot space at rest: the capsule centre, the feet HalfHeight below it and the top of the head HeightCm above them.
-    const float Foot = -HalfHeight, Top = Foot + HeightCm, Girth = HeightCm / ReferenceHeightCm;
-    Parts[RootRing]->SetRelativeLocation(FVector(0, 0, Foot + 3.f));
-    Parts[RootRim]->SetRelativeLocation(FVector(0, 0, Foot + 2.8f));
-    Parts[ShackleLeft]->SetRelativeLocation(FVector(0, -11.f * Girth, Foot + 16.f));
-    Parts[ShackleRight]->SetRelativeLocation(FVector(0, 11.f * Girth, Foot + 16.f));
-    Parts[ShieldHalo]->SetRelativeLocation(FVector(0, 0, Top + 14.f));
-    for (int32 Bar = 0; Bar < ShieldBars; ++Bar)
-    {
-        Parts[ShieldBar0 + Bar]->SetRelativeScale3D(FVector(.06f, .06f, (HeightCm + 14.f) / 100.f));
-    }
-    Parts[ProtectionBeam]->SetRelativeLocation(FVector(0, 0, Top + 79.f));
-    Parts[ReturnSign]->SetRelativeLocation(FVector(-24.f * Girth, 0, Foot + .74f * HeightCm));
-    Parts[SpawnColumn]->SetRelativeLocation(FVector(0, 0, Foot + 160.f));
+    // No part rests at a fixed place on the body: the release spark is placed at the hand when it shows.
 }
 
 void ULDHumanoidVisualComponent::SetCue(uint8 Value, float ActionAgeSeconds, float ImpactDelaySeconds, bool bInKnockback,
@@ -933,10 +1075,109 @@ float ULDHumanoidVisualComponent::ShownAge() const
     return Action == LDBodyMotion::EAction::None && RetractAt >= 0 ? LDBodyMotion::RetractAge(RetractFrom, float(Clock - RetractAt)) : PoseAge();
 }
 
+bool ULDHumanoidVisualComponent::ShowSkillHit(const FPendingImpact& Impact, const FVector& Chest, float EffectScale)
+{
+    ULDImpactFxSubsystem* Impacts = GetWorld() ? GetWorld()->GetSubsystem<ULDImpactFxSubsystem>() : nullptr;
+    if (!Impacts || EffectScale <= 0.f) { return false; }
+    const float Age = float(Clock - Impact.Onset);
+    const ULDImpactFxSubsystem::FStrikeMatch Match = Impacts->MatchHit(*this, Chest, Impact.Look, Age);
+    HitAbility = Match.Ability;
+    if (Match.bOwn) { OwnStrikeAt = Clock; }
+    const LDSliceVfx::FLook Look = Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, Match.bOwn, bOwnBody || Match.bOwn);
+    const FVector Dir = !Match.Dir.IsNearlyZero() ? Match.Dir : (GetOwner() ? -GetOwner()->GetActorForwardVector() : FVector::ForwardVector);
+    const FVector From = Match.From.ContainsNaN() ? Chest - Dir * 100.f : Match.From;
+    if (Match.Ability == uint8(ELDDemoAbilityId::ActiveColaShake))
+    {
+        Impacts->Play(LDSliceVfx::ESystem::ChillHit, *this, From, Chest, LDSliceVfx::ElementInk(uint8(ELDCombatElement::Chill)), 70.f * Look.Size,
+            1.2f * Look.Seconds, Look, Age);
+        return true;
+    }
+    // Every other plain magic hit: the heavier Niagara hit in the strike's ink until its skill has a hit of its own (the old
+    // magenta star and sigil layers are retired).
+    Impacts->Hit(*this, Chest - Dir * 100.f, Chest, true, Look, Age);
+    return true;
+}
+
+bool ULDHumanoidVisualComponent::ShowSliceImpact(const FPendingImpact& Impact, const FVector& Chest, const FVector& Feet, float EffectScale)
+{
+    ULDImpactFxSubsystem* Impacts = GetWorld() ? GetWorld()->GetSubsystem<ULDImpactFxSubsystem>() : nullptr;
+    if (!Impacts || EffectScale <= 0.f) { return false; }
+    const float Age = float(Clock - Impact.Onset);
+    // The visible strike this hit belongs to gives its tier, direction and owner; with none in sight the hit shows the
+    // tier its look implies, struck from the front.
+    const ULDImpactFxSubsystem::FStrikeMatch Match = Impacts->MatchHit(*this, Chest, Impact.Look, Age);
+    HitAbility = Match.Ability;
+    const LDSliceVfx::EStrike Strike = Match.Strike != LDSliceVfx::EStrike::None ? Match.Strike
+        : Impact.Look == ELDObservedHitLook::Water ? LDSliceVfx::EStrike::Hose
+        : Impact.Look == ELDObservedHitLook::Electric ? LDSliceVfx::EStrike::Zap : LDSliceVfx::EStrike::Basic;
+    const FVector Dir = !Match.Dir.IsNearlyZero() ? Match.Dir : (GetOwner() ? -GetOwner()->GetActorForwardVector() : FVector::ForwardVector);
+    if (Match.bOwn) { OwnStrikeAt = Clock; }
+    const LDSliceVfx::FLook Look = Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, Match.bOwn, bOwnBody || Match.bOwn);
+    // A fire hit (a fire skill, a burn tick, a fire floor) is the Niagara FireHit whatever struck it.
+    if (Impact.Look == ELDObservedHitLook::Fire)
+    {
+        Impacts->Play(LDSliceVfx::ESystem::FireHit, *this, Chest - Dir * 100.f, Chest, LDSliceVfx::ElementInk(uint8(ELDCombatElement::Fire)),
+            70.f * Look.Size, .9f * Look.Seconds, Look, Age);
+        return false;
+    }
+    // A skill with its own hit shows it; another plain physical skill hit (its look is None) shows the heavier Niagara hit,
+    // not the old skill burst. The return value still names only a combo finisher.
+    if (const LDSliceVfx::FSkillSystems Systems = LDSliceVfx::SkillSystemsOf(Match.Ability); Match.Strike == LDSliceVfx::EStrike::Skill
+        && Systems.Hit != LDSliceVfx::ESystem::Count)
+    {
+        Impacts->Play(Systems.Hit, *this, Chest - Dir * 100.f, Chest, LDSliceVfx::StrikeTint(Look), 70.f * Look.Size, 1.2f * Look.Seconds, Look, Age);
+        if (Systems.HitDust > 0.f && Age < .2f) { Impacts->PlayPack(LDSliceVfx::EPack::DustRing, Impacts->FloorUnder(Feet) + FVector(0, 0, 4.f), Systems.HitDust * Look.Size); }
+        return false;
+    }
+    const LDSliceVfx::EStrike Visual = Strike == LDSliceVfx::EStrike::Skill && Impact.Look == ELDObservedHitLook::None ? LDSliceVfx::EStrike::Finisher : Strike;
+    Impacts->Slice(this, LDSliceVfx::Impact(Visual, Chest, Feet, Dir, Match.From, Match.bChained, Look), Age);
+    // A basic or finisher hit: the Niagara Hit along the strike, and in the local player's own fight a brief rim on the body.
+    if (Visual == LDSliceVfx::EStrike::Basic || Visual == LDSliceVfx::EStrike::Finisher)
+    {
+        const bool bFinisher = Visual == LDSliceVfx::EStrike::Finisher;
+        Impacts->Hit(*this, Chest - Dir * 100.f, Chest, bFinisher, Look, Age);
+        if (Look.bFocus && Mesh && Age < .1f && Look.EffectScale > 0.f)
+        {
+            LDHitVfx::FGhosts Rim;
+            Rim.bShow = true;
+            Rim.bShell = true;
+            Rim.Seconds = bFinisher ? .18f : .12f;
+            Rim.Glow = LDSliceVfx::StrikeTint(Look) * (bFinisher ? 1.5f : 1.f);
+            Impacts->Ghost(*Mesh, Rim, *this);
+        }
+    }
+    // A water hit: the splash at the chest away from the stream and the soaked floor under the body.
+    if (Strike == LDSliceVfx::EStrike::Hose)
+    {
+        Impacts->Play(LDSliceVfx::ESystem::WaterHit, *this, Match.From.ContainsNaN() ? Chest - Dir * 100.f : Match.From, Chest,
+            LDSliceVfx::ElementInk(uint8(ELDCombatElement::Water)), 70.f * Look.Size, 1.6f * Look.Seconds, Look, Age);
+    }
+    // A zap hop: the Niagara Chain from the matched hand or previous body to this one; with no visible source only its
+    // contact sparks show (a short link straight down onto the body).
+    if (Strike == LDSliceVfx::EStrike::Zap)
+    {
+        Impacts->Chain(*this, Match.From.ContainsNaN() ? Chest + FVector(0, 0, 60.f) : Match.From, Chest, Match.bChained, Look, Age);
+        // The struck body lights a warm rim shell, only in the local player's own fights (others' targets get none); a
+        // bounce target (smaller link) a little less.
+        if (Look.bFocus && Mesh && Age < .15f && Look.EffectScale > 0.f)
+        {
+            LDHitVfx::FGhosts Warm;
+            Warm.bShow = true;
+            Warm.bShell = true;
+            Warm.Seconds = .22f;
+            Warm.Glow = FLinearColor(1.f, .74f, .36f) * (Match.bChained ? 1.3f : 1.6f);
+            Impacts->Ghost(*Mesh, Warm, *this);
+        }
+    }
+    return Strike == LDSliceVfx::EStrike::Finisher;
+}
+
 void ULDHumanoidVisualComponent::PlayFall()
 {
+    // A visible other body's knockout sounds with its dust ring; the own death sounds from the owner tracker.
+    if (FallAt < 0 && !bOwnBody && CanShowImpact() && Pivot) { LDAudioFeel::Fall(*this, Pivot->GetComponentLocation()); }
     ClearImpacts();
-    // A visible fall cracks the ground under it; the crack plays out on its own while the body sinks.
+    // A visible fall knocks a ring of dust out over the floor and leaves a scuff; it plays out on its own while the body sinks.
     UWorld* World = GetWorld();
     if (auto* Impacts = World && FallAt < 0 ? World->GetSubsystem<ULDImpactFxSubsystem>() : nullptr)
     {
@@ -944,10 +1185,13 @@ void ULDHumanoidVisualComponent::PlayFall()
         const ALDPlayerController* LocalController = Cast<ALDPlayerController>(Viewer);
         const float EffectScale = LocalController && LocalController->Controls && LocalController->Controls->bReduceCombatEffects ? .45f : 1.f;
         const FTransform& Space = GetComponentTransform();
-        Impacts->Layers(nullptr, Space.TransformPosition(FVector(0, 0, .5f * HeightCm - HalfHeight)),
-            Space.TransformPosition(FVector(0, 0, -HalfHeight)), LDHitVfx::ForKill(EffectScale, Impacts->LayerTuning()), 0.f);
-        Impacts->Kit(Space.TransformPosition(FVector(0, 0, .3f * HeightCm - HalfHeight)),
-            LDHitVfx::BurstOf(LDHitVfx::EBurst::Kill, FLinearColor(1.f, .25f, .08f), EffectScale));
+        LDSliceVfx::FLook Look = Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, bOwnBody, true);
+        Look.EffectScale = FMath::Min(Look.EffectScale, EffectScale);
+        const FVector Floor = Impacts->FloorUnder(Space.TransformPosition(FVector(0, 0, -HalfHeight)));
+        Impacts->PlayFree(LDSliceVfx::ESystem::Knockout, Floor, Space.TransformPosition(FVector(0, 0, .5f * HeightCm - HalfHeight)),
+            FLinearColor(1.f, .95f, .88f), 70.f, 2.2f, Look);
+        // The body hitting the floor throws up a ring of dust and debris (the pack's smoke ring).
+        Impacts->PlayPack(LDSliceVfx::EPack::DustRing, Floor + FVector(0, 0, 4.f), .45f);
     }
     FallAt = Clock;
     Action = LDBodyMotion::EAction::None;
@@ -968,26 +1212,6 @@ float ULDHumanoidVisualComponent::LieSeconds() const
 void ULDHumanoidVisualComponent::SetFlash(const FLinearColor& Emissive)
 {
     for (UMaterialInstanceDynamic* Paint : Paints) { Paint->SetVectorParameterValue(ULDArtCatalog::FlashParameter, Emissive); }
-}
-
-void ULDHumanoidVisualComponent::PlaceEdges()
-{
-    using namespace LDHumanoidVisualDetail;
-    // The local player's view; a world without one (a server without a local player) draws no edges.
-    const APlayerController* Viewer = GEngine ? GEngine->GetFirstLocalPlayerController(GetWorld()) : nullptr;
-    const APlayerCameraManager* View = Viewer ? Viewer->PlayerCameraManager.Get() : nullptr;
-    const FTransform& Space = Pivot->GetComponentTransform();
-    for (int32 Index = 0; Index < Edges.Num(); ++Index)
-    {
-        const UStaticMeshComponent* Marker = Parts[EdgeSpecs[Index].Marker];
-        const bool bShown = View && !Marker->bHiddenInGame;
-        Edges[Index]->SetHiddenInGame(!bShown);
-        if (!bShown) { continue; }
-        const FVector At = Marker->GetComponentLocation();
-        const FVector Ray = (At - View->GetCameraLocation()).GetSafeNormal();
-        Edges[Index]->SetRelativeLocation(Space.InverseTransformPosition(At + Ray * EdgeBehindCm));
-        Edges[Index]->SetRelativeScale3D(Marker->GetRelativeScale3D() + EdgeSpecs[Index].Grow);
-    }
 }
 
 void ULDHumanoidVisualComponent::PlayClip(bool bFalling, float Speed)
@@ -1025,6 +1249,7 @@ void ULDHumanoidVisualComponent::PlayClip(bool bFalling, float Speed)
         if (auto* Animation=Cast<ULDBasketballAnimInstance>(Mesh->GetAnimInstance()))
         {
             const bool bOverride=bPosed&&State!=ELDArtAnim::Attack&&State!=ELDArtAnim::Cast;
+            Animation->SetActionStyle(ComboStep,CastAbility);
             Animation->Prepare(Clock,Speed,GetOwner()?GetOwner()->GetActorRotation().Yaw:0.f,Showing,ActionAge,
                 ImpactSeconds,ActionOnset,bOverride?Entry->Sequence.Get():nullptr,Time,
                 Showing==EAction::Cast&&CastAbility==0&&LDHitVfx::IsDashing(Speed,bKnockback,bFalling),CanShowImpact());
@@ -1096,22 +1321,29 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
         LeanRoll = FMath::FInterpTo(LeanRoll, FMath::Clamp(LocalAcceleration.Y / 8000.f, -1.f, 1.f) * 8.f + PushLean.Roll, Delta, 7.f);
         PreviousVelocity = Velocity;
     }
-    const FRotator VisualLean(LeanPitch, FRotator::NormalizeAxis(VisualYaw - TargetYaw), LeanRoll);
+    // The strike's shape from above (LDActionMotion): presentation only, on the mesh and pivot; the capsule, facing and
+    // timing are untouched and it is at rest outside the action.
+    const LDBodyMotion::EAction ShapeAction = ShownAction();
+    const LDActionMotion::FShape Shape = bFalling || ShapeAction == LDBodyMotion::EAction::None ? LDActionMotion::FShape()
+        : LDActionMotion::ShapeOf(LDActionMotion::FamilyOf(ShapeAction == LDBodyMotion::EAction::Attack, ComboStep, CastAbility), ShownAge(),
+            Action == LDBodyMotion::EAction::None ? RetractImpact : ActionImpactSeconds);
+    const FRotator VisualLean(LeanPitch, FRotator::NormalizeAxis(VisualYaw - TargetYaw) + Shape.YawDeg, LeanRoll);
     Mesh->SetRelativeRotation(Art->MeshTransform.GetRotation() * FQuat(VisualLean));
 
     // The whole body: a lunge or knock-back, the appear scale and the final sink, all about the feet.
     const FVector Feet(0, 0, -HalfHeight);
-    Pivot->SetRelativeLocation(Feet * (1.f - Life.Scale) + FVector(Shown.Lunge, 0, -Life.Sink));
+    Pivot->SetRelativeLocation(Feet * (1.f - Life.Scale) + FVector(Shown.Lunge * Shape.LungeScale, Shape.SideCm, -Life.Sink));
     Pivot->SetRelativeScale3D(FVector(FMath::Max(Life.Scale, .01f)));
 
     // A rooted body stands even while a correction still moves it.
     const bool bRooted = (Cue & Rooted) != 0;
     PlayClip(bFalling, bRooted || bFalling ? 0.f : float(Velocity.Size2D()));
-    UpdateSwingTrail(ShownAge(), EffectScale);
-    UpdateCastCharge(Shown.Charge, EffectScale);
+    UpdateSlice(EffectScale);
+    UpdateStates(bFalling, EffectScale);
     UpdateRelease(EffectScale);
     UpdateDash(Velocity, bFalling, EffectScale);
     UpdateOverdrive(EffectScale);
+    UpdateSound();
 
     // The release spark follows the striking or casting hand.
     const FTransform& Space = Pivot->GetComponentTransform();
@@ -1133,10 +1365,17 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
             for (const FPendingImpact& Impact : PendingImpacts)
             {
                 const float Age = float(Clock - Impact.Onset);
-                Impacts->Burst(*this, At, Impact.Look, Impact.Flags, Age, EffectScale);
-                Impacts->Layers(this, At, Ground, LDHitVfx::ForHit(Impact.Look, Impact.Flags, EffectScale, Impacts->LayerTuning()), Age);
-                LDHitVfx::EBurst Element;
-                FLinearColor Tint;
+                // Every hit flag has its own mark below (a crit's chips, a shield's flare or shards, an overdrive's burst, a
+                // parry's or a dodge's rim), so the hit itself is drawn as the plain hit of its look; a dodge draws none.
+                const bool bDodged = (Impact.Flags & LDObservation::Dodged) != 0;
+                bool bSlice = !bDodged && LDSliceVfx::ShowsHit(Impact.Look, 0);
+                bool bFinisherHit = false;
+                HitAbility = 0;
+                // A plain magic hit of a skill with its own designed hit (a chill cone's icy hit) shows that instead of the
+                // old magic layers; other magic hits keep them until their skills are designed.
+                if (bDodged) {}
+                else if (!bSlice && Impact.Look == ELDObservedHitLook::Magic && ShowSkillHit(Impact, At, EffectScale)) { bSlice = true; }
+                else if (bSlice) { bFinisherHit = ShowSliceImpact(Impact, At, Ground, EffectScale); }
                 // The extra hit particles follow the same impact controls as the Niagara burst and the layers.
                 const LDHitFeel::FTuning Feel = LDHitFeel::Read();
                 const bool bImpactOn = Feel.ImpactScale > 0.f && Feel.ImpactSeconds > 0.f;
@@ -1144,31 +1383,41 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
                 {
                     const LDHitVfx::FGhosts GoldGhost = LDHitVfx::GhostsOf(FLinearColor(1.f, .86f, .2f), EffectScale);
                     if (GoldGhost.bShow) { Impacts->Ghost(*Mesh, GoldGhost, *this); }
-                    Impacts->Kit(At, LDHitVfx::BurstOf(LDHitVfx::EBurst::Dash, FLinearColor(1.f, .86f, .2f), EffectScale), this);
+                    LDHitVfx::FGhosts Slip;
+                    Slip.bShow = true;
+                    Slip.bShell = true;
+                    Slip.Seconds = .35f;
+                    Slip.Glow = FLinearColor(1.f, .86f, .3f) * 1.2f * FMath::Clamp(EffectScale, .45f, 1.f);
+                    Impacts->Ghost(*Mesh, Slip, *this);
                 }
-                else if (bImpactOn && Age < .3f && (Impact.Flags & LDObservation::Parried))
+                else if (bImpactOn && Age < .3f && (Impact.Flags & (LDObservation::Parried | LDObservation::ShieldAbsorbed)))
                 {
-                    Impacts->Kit(At, LDHitVfx::BurstOf(LDHitVfx::EBurst::Aura, FLinearColor(.55f, .95f, 1.f), EffectScale), this);
+                    // A parry, or a shield taking the blow: the body's rim flares cold for a moment.
+                    LDHitVfx::FGhosts Flare;
+                    Flare.bShow = true;
+                    Flare.bShell = true;
+                    Flare.Seconds = (Impact.Flags & LDObservation::Parried) ? .35f : .25f;
+                    Flare.Glow = FLinearColor(.45f, .95f, 1.f) * 1.3f * FMath::Clamp(EffectScale, .45f, 1.f);
+                    Impacts->Ghost(*Mesh, Flare, *this);
                 }
-                if (bImpactOn && Age < .3f && LDHitVfx::HitBurstOf(Impact.Look, Element, Tint))
-                { Impacts->Kit(At, LDHitVfx::BurstOf(Element, Tint, EffectScale), this); }
+                if (bImpactOn && Age < .3f && (Impact.Flags & LDObservation::ShieldBroken))
+                {
+                    Impacts->Play(LDSliceVfx::ESystem::ShardBurst, *this, Impacts->FloorUnder(At), At, FLinearColor::White, 120.f, 1.f,
+                        Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, false, bOwnBody), Age);
+                }
+                if (bImpactOn && Age < .3f && (Impact.Flags & LDObservation::Critical))
+                {
+                    Impacts->Play(LDSliceVfx::ESystem::CritBurst, *this, Impacts->FloorUnder(At), At, FLinearColor::White, 60.f, .6f,
+                        Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, false, bOwnBody), Age);
+                }
                 if (bImpactOn && Age < .3f && (Impact.Flags & LDObservation::Overdriven))
-                { Impacts->Kit(At, LDHitVfx::BurstOf(LDHitVfx::EBurst::Overdrive, LDHitVfx::OverdriveTint(), EffectScale), this); }
-                if (Age < .25f && GetOwner() && !GetOwner()->IsA<ALDCharacter>())
                 {
-                    if (UGameInstance* GI = GetWorld()->GetGameInstance())
-                    {
-                        if (ULDAudioSubsystem* Audio = GI->GetSubsystem<ULDAudioSubsystem>())
-                        {
-                            const ELDAudioCue ObservedCue = (Impact.Flags & LDObservation::Dodged) ? ELDAudioCue::SelfPerfectDodge
-                                : (Impact.Flags & LDObservation::Parried) ? ELDAudioCue::SelfParry
-                                : (Impact.Flags & LDObservation::ShieldBroken) ? ELDAudioCue::SelfShieldBreak
-                                : (Impact.Flags & LDObservation::ShieldAbsorbed) ? ELDAudioCue::SelfShieldHit
-                                : ELDAudioCue::SelfHit;
-                            Audio->Play(ObservedCue, .38f);
-                        }
-                    }
+                    Impacts->Play(LDSliceVfx::ESystem::OverdriveBurst, *this, Impacts->FloorUnder(At), At, FLinearColor::White, 60.f, .6f,
+                        Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, false, bOwnBody), Age);
                 }
+                // The struck body's impact sound at the hit's own time; the own body's hurt sounds from the owner tracker.
+                if (Age < .25f && !bOwnBody)
+                { LDAudioFeel::Impact(*this, Impact.Look, Impact.Flags, bFinisherHit, HitAbility, At); }
             }
         }
         PendingImpacts.Reset();
@@ -1178,59 +1427,52 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
         if (!bGhostWarmed) { bGhostWarmed = true; Impacts->WarmGhost(*Mesh); }
         if (bPendingReaction && CanShowImpact())
         {
+            // The reaction sounds at its own time whatever the effect strength.
+            LDAudioFeel::Reaction(*this, bOwnBody, ShownReaction, Space.TransformPosition(FVector(0, 0, -HalfHeight + .6f * HeightCm)));
             const LDHitFeel::FTuning Feel = LDHitFeel::Read();
             if (Feel.ImpactScale > 0.f && Feel.ImpactSeconds > 0.f)
             {
                 const FVector Chest = Space.TransformPosition(FVector(0, 0, -HalfHeight + .6f * HeightCm));
-                Impacts->Layers(this, Chest, Space.TransformPosition(Feet),
-                    LDHitVfx::ForReaction(PendingReactionElement, EffectScale, Impacts->LayerTuning()), float(Clock - ReactionOnset));
-                Impacts->Kit(Chest, LDHitVfx::BurstOf(LDHitVfx::ElementBurst(PendingReactionElement),
-                    LDHitVfx::ElementTint(PendingReactionElement), EffectScale), this);
+                if (ShownReaction == uint8(ELDCombatReaction::Conduct))
+                {
+                    // Conduct (wet + shock): the electric field flashes out to the splash radius round the body (its hit is
+                    // the zap's). It is the local player's fight when it happens to the own body or right after the own
+                    // strike landed here.
+                    const bool bMine = OwnStrikeAt >= 0 && Clock - OwnStrikeAt < .6;
+                    Impacts->FieldPulse(*this, Space.TransformPosition(Feet), Impacts->ConductRadiusCm(),
+                        Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, bMine, bOwnBody || bMine), float(Clock - ReactionOnset));
+                }
+                else if (const LDSliceVfx::ESystem Own = LDSliceVfx::ReactionSystemOf(ShownReaction); Own != LDSliceVfx::ESystem::Count)
+                {
+                    // A reaction with its own event: at the approved radius of its splash or zone (a freeze: round the feet,
+                    // for the root's time).
+                    const bool bMine = OwnStrikeAt >= 0 && Clock - OwnStrikeAt < .6;
+                    const bool bFreeze = ShownReaction == uint8(ELDCombatReaction::Freeze);
+                    // A reaction with a splash or zone shows at its approved radius; one that only changes the body shows
+                    // round it (a melt: the pool it leaves at the feet).
+                    const float Splash = Impacts->ReactionRadiusCm(ShownReaction);
+                    const float Radius = bFreeze ? .62f * HeightCm : Splash > 0.f ? Splash
+                        : ShownReaction == uint8(ELDCombatReaction::Melt) ? .85f * HeightCm : .7f * HeightCm;
+                    const float Hold = bFreeze ? FMath::Max(Impacts->FreezeRootSeconds(), .6f) : 1.4f;
+                    const LDSliceVfx::FLook Look = Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, bMine, bOwnBody || bMine);
+                    if (Radius > 0.f)
+                    {
+                        Impacts->Play(Own, *this, Impacts->FloorUnder(Space.TransformPosition(Feet)), Chest, FLinearColor::White, Radius, Hold, Look,
+                            float(Clock - ReactionOnset));
+                    }
+                }
+                else
+                {
+                    Impacts->Layers(this, Chest, Space.TransformPosition(Feet),
+                        LDHitVfx::ForReaction(PendingReactionElement, EffectScale, Impacts->LayerTuning()), float(Clock - ReactionOnset));
+                    Impacts->Kit(Chest, LDHitVfx::BurstOf(LDHitVfx::ElementBurst(PendingReactionElement),
+                        LDHitVfx::ElementTint(PendingReactionElement), EffectScale), this);
+                }
             }
         }
         bPendingReaction = false;
     }
-    const bool bColumn = Life.Column > .02f;
-    Parts[SpawnColumn]->SetHiddenInGame(!bColumn);
-    if (bColumn) { Parts[SpawnColumn]->SetRelativeScale3D(FVector(.15f + .75f * Life.Column, .15f + .75f * Life.Column, 3.2f)); }
 
-    // Status markers, one shape each; a falling body shows none.
-    const float Time = float(FMath::Fmod(Clock, 3600.0));
-    const float Foot = -HalfHeight, Girth = HeightCm / ReferenceHeightCm;
-    const bool bRoot = !bFalling && bRooted;
-    Parts[RootRing]->SetHiddenInGame(!bRoot);
-    Parts[RootRim]->SetHiddenInGame(!bRoot);
-    Parts[ShackleLeft]->SetHiddenInGame(!bRoot);
-    Parts[ShackleRight]->SetHiddenInGame(!bRoot);
-    if (bRoot)
-    {
-        const float Pulse = 1.05f * (1.f + .07f * FMath::Sin(Time * 9.f));
-        Parts[RootRing]->SetRelativeScale3D(FVector(Pulse, Pulse, .03f));
-        Parts[RootRim]->SetRelativeScale3D(FVector(Pulse + .2f, Pulse + .2f, .02f));
-    }
-    const bool bShield = !bFalling && (Cue & Shielded);
-    Parts[ShieldHalo]->SetHiddenInGame(!bShield);
-    for (int32 Bar = 0; Bar < ShieldBars; ++Bar)
-    {
-        Parts[ShieldBar0 + Bar]->SetHiddenInGame(!bShield);
-        if (!bShield) { continue; }
-        const float Angle = FMath::DegreesToRadians(45.f * Bar + 40.f * Time);
-        Parts[ShieldBar0 + Bar]->SetRelativeLocation(
-            FVector(56.f * Girth * FMath::Cos(Angle), 56.f * Girth * FMath::Sin(Angle),
-                Foot + .5f * (HeightCm + 14.f)));
-    }
-    const bool bProtected = !bFalling && (Cue & Protected);
-    Parts[ProtectionBeam]->SetHiddenInGame(!bProtected);
-    for (int32 Orb = 0; Orb < ProtectionOrbs; ++Orb)
-    {
-        Parts[ProtectionOrb0 + Orb]->SetHiddenInGame(!bProtected);
-        if (!bProtected) { continue; }
-        const float Angle = FMath::DegreesToRadians(90.f * Orb + 200.f * Time);
-        Parts[ProtectionOrb0 + Orb]->SetRelativeLocation(FVector(62.f * Girth * FMath::Cos(Angle), 62.f * Girth * FMath::Sin(Angle),
-            Foot + .48f * HeightCm + 8.f * FMath::Sin(4.f * Time + 1.6f * Orb)));
-    }
-    Parts[ReturnSign]->SetHiddenInGame(bFalling || !(Cue & Returning));
-    PlaceEdges();
 
     // Body flash: a hit flashes white, then red; an appear glows. Cleared once both have passed.
     const float Glow = bFalling ? 0.f : Life.Glow;

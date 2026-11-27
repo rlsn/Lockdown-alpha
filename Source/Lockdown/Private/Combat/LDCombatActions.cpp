@@ -997,6 +997,11 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
     // Skill branches: an open recast window releases without cooldown or momentum; a free cast without momentum.
     const bool bRecastOpen=BranchRecastOpen(*Body,Source,Now);
     Gate.ReadyAtMs=bRecastOpen ? Now : Track->ReadyAtMs;
+    if (Source.Kind!=ELDCombatSourceKind::Innate)
+    {
+        if (!SkillChargesOf(*Body,*ValuesDef,Gate.Charges,Error)) { return false; }
+        Gate.ChargeMs=Track->LastDurationMs;
+    }
     Gate.MomentumP2=Body->Resources.MomentumP2;
     // The release's own cost (ReleaseAbility): D08's dash momentum unless a D05 segment is open; nothing for a free cast
     // (S05 B2, D04) or a K12 health payment.
@@ -1047,10 +1052,15 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
         break;
     }
     case ELDDemoTargetMode::GroundPoint:
-        // A ground zone: the release clamps a point beyond the authored reach toward it.
+        // A ground zone: the release clamps a point beyond the authored reach toward it. A vector-aimed shape may carry its
+        // planar facing (LDCombatSourceRules::VectorAimed); any other ground skill sends none.
         if (Request.Target.Kind!=ELDCombatTargetKind::Point || !LDCA::ValidPoint(Request.Target.Point))
         { return Refuse(ELDCombatReject::InvalidDirection); }
+        if (!FVector(Request.Target.Direction).IsZero()
+            && (!LDCombatSourceRules::VectorAimed(*ValuesDef) || !LDCA::ValidDirection(Request.Target.Direction)))
+        { return Refuse(ELDCombatReject::InvalidDirection); }
         Action.TargetPoint=Request.Target.Point;
+        Action.Direction=FVector(Request.Target.Direction).GetSafeNormal2D();
         break;
     case ELDDemoTargetMode::DirectionProjectile:
     case ELDDemoTargetMode::DirectionCone:
@@ -1573,6 +1583,11 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         +Body.Resources.MaxHpP2%10000*Terms.HPCostBpPerMomentum/10000*ValuesDef->MomentumCostP2/100 : 0;
     if (bHealthCost && Body.Resources.HpP2<=HealthCostP2) { Reject=ELDCombatReject::HealthShort; return true; }
     Gate.ReadyAtMs=bRecast ? Now : Track->ReadyAtMs;
+    if (!bInnate)
+    {
+        if (!SkillChargesOf(Body,*ValuesDef,Gate.Charges,Error)) { return false; }
+        Gate.ChargeMs=Track->LastDurationMs;
+    }
     Gate.MomentumP2=Body.Resources.MomentumP2;
     // D08: the innate dash pays its card's momentum (an open D05 segment costs nothing).
     Gate.MomentumCostP2=bInnate ? (bSplitSegment ? 0 : Terms.DashMomentumCostP2)
@@ -1651,7 +1666,9 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     const FLDDemoEffectDefinition* ChainEffect=LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::ChainBounce);
     const bool bHostile=DamageEffect || RootEffect || SlowEffect || DisarmEffect || StunEffect
         || SilenceEffect || BreachEffect || BurnEffect || WetEffect || ElectrifyEffect || RotEffect || ChillEffect
-        || LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::Knockback);
+        || LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::Knockback)
+        // N2's fan carries its push in the release payload (StartSkillDelivery).
+        || LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::Fan);
     if (ChainEffect && TargetDef.Mode!=ELDDemoTargetMode::Unit)
     { Error=TEXT("A chain needs a unit target to start from."); return false; }
     const bool bAreaMode=TargetDef.Mode==ELDDemoTargetMode::Self || TargetDef.Mode==ELDDemoTargetMode::DirectionDash;
@@ -1686,7 +1703,10 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             Content->Get().Formulas.HasteScaleP2,DurationMs,Error)) { return false; }
     // SKILL.CooldownFloorSec: the technical floor of a hasted Q/W/E (animation and network), not a gameplay cap.
     if (!bInnate) { DurationMs=FMath::Max(DurationMs,Content->Get().Parameters.SkillRanks.CooldownFloorMs); }
-    if (!LDMatchLifecycle::AddDurationMs(Now,DurationMs,ReadyAt,Error)) { return false; }
+    // One charge spent: a single-charge track is ready (ReadyAt <= now) here, so this is now + duration; a charged track
+    // with a recovery running queues this charge after it.
+    if (!LDCombatSourceRules::SpendCharge(Track->ReadyAtMs,Now,DurationMs,ReadyAt))
+    { Error=TEXT("A release's cooldown end overflows the match clock."); return false; }
     // The release's locked damage factors (K09/K12/K16/K17), read from the track's real ReadyAt before this release issues
     // the next one (K16's wait restarts after it).
     TArray<FLDDamageFactor> ReleaseFactorsNow;

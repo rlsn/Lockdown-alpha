@@ -39,23 +39,23 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
 {
     FLDTimelineParameters P;
     if (!RestTimelineParameters(*this, P)) { return false; }
-    bool bGood = TestTrue(TEXT("The approved durations (s): field 160, R0 build 20, rest build 40, betting 6, settlement 3, return 3"),
+    bool bGood = TestTrue(TEXT("The approved durations (s): field 160, R0 build 35, rest build 65, betting 10, settlement 3, return 3"),
         P.FieldSegmentMs == 160000 && P.OpeningBuildMs == 35000 && P.BuildMs == 65000 && P.FinalBuildMs == 65000
-        && P.DrawMs == 0 && P.BettingMs == 6000 && P.SettlementMs == 3000 && P.PayoutMs == 0 && P.ReturnMs == 3000);
+        && P.DrawMs == 0 && P.BettingMs == 10000 && P.SettlementMs == 3000 && P.PayoutMs == 0 && P.ReturnMs == 3000);
     FString Error;
     {
-        // Merged PK rest steps (#330): Draw + Betting merge into 6.0s Betting; Settlement + Payout merge into 3.0s Settlement (build open).
+        // Merged PK rest steps (#330): Draw + Betting merge into one Betting step; Settlement + Payout merge into 3.0s Settlement (build open).
         FLDMatchTimeline PKLine;
         TArray<FLDTimelineEvent> PKEvents;
         bGood &= TestTrue(TEXT("PK rest timeline begins"), PKLine.Begin(P, 0, Error));
         while (PKLine.GetRestIndex() != 1 || !PKLine.IsRest()) { PKLine.Advance(PKLine.NextDueMs(), 0, true, true, PKEvents, Error); }
         const int64 LockAt = PKLine.NextDueMs();
         PKEvents.Reset();
-        bGood &= TestTrue(TEXT("Signed-up R1 advances directly into merged 6s Betting without Draw"),
+        bGood &= TestTrue(TEXT("Signed-up R1 advances directly into the merged Betting without Draw"),
             PKLine.Advance(LockAt, 2, true, true, PKEvents, Error)
-            && PKLine.GetStep() == ELDRestStep::Betting && PKLine.NextDueMs() == LockAt + 6000);
+            && PKLine.GetStep() == ELDRestStep::Betting && PKLine.NextDueMs() == LockAt + P.BettingMs);
         bGood &= TestTrue(TEXT("Betting ends into PKReady -> PK"),
-            PKLine.Advance(LockAt + 6000, 2, true, true, PKEvents, Error) && PKLine.GetStep() == ELDRestStep::PKReady
+            PKLine.Advance(LockAt + P.BettingMs, 2, true, true, PKEvents, Error) && PKLine.GetStep() == ELDRestStep::PKReady
             && PKLine.Advance(PKLine.NextDueMs(), 2, true, true, PKEvents, Error) && PKLine.GetStep() == ELDRestStep::PK);
         const int64 FinishPKAt = PKLine.GetStepEndsAtMs() - P.PKMaxMs + 5000;
         bGood &= TestTrue(TEXT("Finishing PK enters merged 3s Settlement with rest build reopened and skips Payout into Return"),
@@ -87,6 +87,12 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
             Paused.DevSetCountdownPaused(false, FieldStart + 105000, Error)
             && Paused.DevSetCountdownPaused(false, FieldStart + 105000, Error)
             && Paused.FieldMsAt(FieldStart + 110000) == 10000);
+        const int64 Due = Paused.NextDueMs();
+        bGood &= TestTrue(TEXT("Advancing the countdown brings the segment end and the field progress forward together"),
+            Paused.DevAdvanceCountdown(60000, Error) && Paused.NextDueMs() == Due - 60000
+            && Paused.FieldMsAt(FieldStart + 110000) == 70000);
+        bGood &= TestFalse(TEXT("A paused countdown does not advance"),
+            Paused.DevSetCountdownPaused(true, FieldStart + 111000, Error) && Paused.DevAdvanceCountdown(1000, Error));
     }
     {
         FLDMatchTimeline Skip;

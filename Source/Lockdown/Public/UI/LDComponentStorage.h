@@ -1,249 +1,52 @@
 #pragma once
 #include "CoreMinimal.h"
-#include "Blueprint/UserWidget.h"
+#include "UObject/Object.h"
 #include "Development/LDGrowthProtocol.h"
 #include "Development/LDProgressionRules.h"
 #include "UI/LDHUDModel.h"
 #include "LDComponentStorage.generated.h"
-class UBorder;
-class UCanvasPanel;
-class UCanvasPanelSlot;
-class UHorizontalBox;
-class UImage;
-class UOverlay;
-class URichTextBlock;
-class USizeBox;
-class UTextBlock;
-class UScaleBox;
-class UVerticalBox;
-class UWrapBox;
-class ULDCommandButton;
 struct FLDDemoContentDefinitions;
-namespace LDUIPaint {struct FContext;}
 
-// The card storage (APP_SPEC §7): the owned cards not installed sit in a card stack right of the HUD band. Hovering the stack
-// opens a grid of their icons above it and raises one row of equipped columns: 普攻 left of the Q/W/E slots, then each
-// Q/W/E slot, D and 本体. Hovering any card shows its full description; the icons carry no words, copies of one card share a
-// face with a ×n badge. Dragging a card onto its form's column installs it (Y25 asks for an element first); dragging an
-// installed one back onto the storage uninstalls it, onto another place moves it (an uninstall, then an install once the
-// view shows it), onto an installed card of a full workshop replaces that one. Each card is keyed by LDHUD::CardKey (its
-// definition numbered by its serial). Local presentation over the own progression view; the server decides every command.
-// Open in combat, while dead and in a PK; a closed match stage refuses with its reason.
-class ULDPaintLayer;
-class UTexture2D;
+// The card storage's command layer behind the build ring (APP_SPEC §7; ULDWorkshop draws the library and the installed
+// cards): the install, uninstall, move and replace commands of the owned cards, each keyed by LDHUD::CardKey (its definition
+// numbered by its serial). Y25 asks for an element first (the ring shows the chooser while IsChoosing). One request is in
+// flight at a time; a move sends its install half once the own view shows the uninstall. Local state over the own
+// progression view; the server decides every command and every result or refusal reaches the HUD's toast (Notify).
 UCLASS()
-class LOCKDOWN_API ULDComponentStorage : public UUserWidget
+class LOCKDOWN_API ULDComponentStorage : public UObject
 {
     GENERATED_BODY()
 public:
-    // What the storage lines up with, in absolute (desktop) units from the HUD's last layout: the band (the stack sits right of
-    // it) and each column's anchor in LDHUD::EStorageColumn order (a slot-sized place left of the first Q/W/E slot, the Q/W/E
-    // slot showing that server slot, D). A column without an anchor (zero size) is not shown.
-    struct FAnchors
-    {
-        FSlateRect Band;
-        // The 构筑 button in the bottom-right corner: the stack stands right above it, right edges aligned.
-        FSlateRect Corner;
-        FSlateRect Columns[LDHUD::StorageColumnCount];
-        bool bValid=false;
-    };
-    // Called on every HUD refresh. bShown: the gameplay HUD is shown for the own match.
+    // Called on every HUD refresh. bShown: the gameplay HUD is shown for the own match (a hidden HUD closes the chooser).
     void Present(const FLDProgressionView* View,uint32 Match,LDProgression::EMatchStage Stage,ELDLifePhase LifePhase,
-        const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats,const FAnchors& Anchors,bool bShown,
-        const LDHUD::FSlotKeys& InKeys=LDHUD::FSlotKeys());
-    // Over the stack, or over the open list, a column or the chooser, or dragging: world clicks belong to the storage.
-    bool IsHit(FVector2D Absolute) const;
-    bool IsExpanded() const {return bExpanded;}
-    // The stack's height over the 构筑 button (0 while hidden), so the tray rising from the corner clears it.
-    float StackHeight() const;
-    bool IsDragging() const {return Drag.bActive;}
+        const FLDDemoContentDefinitions* Content,bool bShown);
     bool HasPendingRequest() const {return PendingRequest!=0||Follow.State!=EFollow::None;}
-    // Back: closes the chooser or drops a drag without a command. False when there was neither.
+    // Back: closes the chooser. False when it was not open.
     bool CancelInteraction();
-    // The widgets the world labels keep clear of while they show.
-    TArray<const UWidget*> ReservedWidgets() const;
     void HandleSubmit(const FLDSubmitResult& Result);
     void HandleReceipt(const FLDBuildReceiptQueryResult& Result);
     TFunction<uint64(const FLDBuildCommand&,ELDGrowthReason&)> SubmitBuild;
     TFunction<uint64()> PeekRequestId;
     TFunction<void(const FString&)> Notify;
-    // The end of a drag, also the probes' entry: the card Component let go over Column (and the installed card Host there, or
-    // None), or over the storage. Returns whether a command was sent or the chooser opened.
+    // The card Component put on Column (on the installed card Host there, or None), or back in the storage. Returns whether a
+    // command was sent or the chooser opened.
     bool DropOn(FName Component,LDHUD::EStorageColumn Column,FName Host);
     bool DropInStorage(FName Component);
     // The open chooser's option at Index (an element of Y25), which sends the command.
     bool ChooseOption(int32 Index);
     bool IsChoosing() const {return Chooser.bOpen;}
-    // A card preview or storage hover marks this card (and every copy it stands for) read for the current match.
+    // The open chooser's elements, in option order (empty when it is closed).
+    TArray<ELDDemoElement> ChooserElements() const {return Chooser.bOpen?Chooser.Drop.Elements:TArray<ELDDemoElement>();}
+    // A card preview marks this card (and every copy it stands for) read for the current match.
     void MarkSeen(FName Component);
-    void SetDetailsHeld(bool bHeld);
-    // Probes: keeps the view open without a hover, for the open storage's screenshots and checks.
-    void PinOpen(bool bPin){bPinned=bPin;}
-    // The build workshop (APP_SPEC §7 构筑) lays the same columns and stored cards out on its rule board and library: each
-    // column in its board rectangle under the workshop's column head, the stored cards grouped by form in the library
-    // rectangle. Absolute (desktop) units from the workshop's last layout. Without bActive the storage is the HUD
-    // stack again.
-    struct FWorkshopLayout
-    {
-        bool bActive=false;
-        FSlateRect Columns[LDHUD::StorageColumnCount];
-        // Each column's head height (the workshop draws the head); the installed cards start below it.
-        float HeadHeight=0.f;
-        FSlateRect Library;
-        // The installed cards' icon scale (the bottom-of-screen workshop is smaller) and whether names show beside them.
-        float TileScale=1.f;
-        float MinIcon=0.f;
-        float TileIndent=24.f;
-        bool bNames=true;
-        // The library's type filter (ELDCardType), or INDEX_NONE; each page uses filtered group indices.
-        int32 TagFilter=INDEX_NONE;
-        FIntVector4 LibraryFirst=FIntVector4(0,0,0,0);
-        FIntVector4 LibraryCount=FIntVector4(0,0,0,0);
-        // The library's icon size the workshop fits to its rectangle, 0 for the count's tier.
-        float LibraryIcon=0.f;
-        float LibraryLabelHeight=0.f;
-        bool bCompactLibrary=false;
-    };
-    void SetWorkshop(const FWorkshopLayout& Layout);
-    bool InWorkshop() const {return Workshop.bActive;}
-    // What the workshop's dock and capacity bar follow: the card held (dragged or picked up), else the hovered one, where it
-    // is, and the drop under the pointer while held.
-    struct FFocus
-    {
-        FName Component;
-        bool bInstalled=false;
-        bool bHeld=false;
-        bool bOverDrop=false;
-        LDHUD::FCardDrop Drop;
-        // A chooser option is a hover preview only; the command is still sent by ChooseOption.
-        ELDDemoElement HoveredElement=ELDDemoElement::None;
-        // The places Component takes now (held or hovered in the library): legal columns light up, the rest dim.
-        TArray<LDHUD::FCardDrop> Drops;
-    };
-    const FFocus& Focus() const {return CurrentFocus;}
     const LDHUD::FStorageView& Model() const {return LatestModel;}
-    const LDHUD::FBuildGateView& BuildGate() const {return Gate;}
-    void SetPreviewCaption(FName Component,const FString& DropText,const FString& Value);
-    // Right click (D6 / #331): a stored card with one free place installs there; multiple places open inline [Q/W/E] capsules;
-    // an installed one goes back to the storage.
-    bool QuickInstall(FName Component);
-    bool IsQuickEquipOpen() const {return QuickEquip.bOpen;}
-    bool IsReplacePickOpen() const {return ReplacePick.bOpen;}
-    bool SelectQuickTarget(int32 Index);
-    bool HandleQuickEquipKey(FKey Key,const ELDCombatEntry (&SkillAtKey)[3],const class ULDControlSettings* Settings);
-    // A click without a drag (D6) picks the card up; the next click on a place drops it there (or anywhere else drops it
-    // back).
-    bool IsHolding() const {return Drag.bActive&&Drag.bPicked;}
-    // The absolute rectangle of an installed card's face on the board or over the band (false when it is not shown).
-    bool TileBox(FName Component,FSlateRect& Out) const;
-    // The dragged card's currently visible face, in absolute coordinates.
-    bool HeldBox(FSlateRect& Out) const;
-    // The cards a pending service confirm would take off (a replaced or forgotten skill's): their faces light orange.
-    void SetWarnings(const TArray<FName>& Keys){Warnings=Keys;}
-    // In an engagement window a newly received card only flies to the stack, without its name strip.
-    void SetEngaged(bool bInEngaged){bEngaged=bInEngaged;}
-    // The local text-size preference: rescales every text of the tree once per change; texts built later start scaled.
-    void ApplyTextScale(float Scale);
-protected:
-    virtual TSharedRef<SWidget> RebuildWidget() override;
-    virtual void NativeTick(const FGeometry& Geometry,float DeltaSeconds) override;
-    virtual FReply NativeOnMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event) override;
-    virtual int32 NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,const FSlateRect& Culling,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle& Style,bool bEnabled) const override;
 private:
-    friend class FLDHUDCardFacesTest;
-    // How a face is drawn this frame (NativePaint): the kind's shape and rim, or a state colour that overrides it.
-    enum class EFaceState : uint8 { Normal, Hovered, Held, Legal, Replace, Detached, Rejected, Dim };
-    // One stored card's icon in the open grid.
-    struct FCard
-    {
-        FName Component;
-        UBorder* Face=nullptr;
-        USizeBox* Size=nullptr;
-        UWidget* FreshChip=nullptr;
-        // Workshop: the library cell (icon and name).
-        UWidget* Cell=nullptr;
-        UScaleBox* NameFit=nullptr;
-        bool bFresh=false;
-        // The card type (its shape).
-        uint8 Kind=0;
-        bool bPlaceless=false;
-        EFaceState State=EFaceState::Normal;
-        int32 AppliedLook=-1;
-        TWeakObjectPtr<UTexture2D> Icon;
-    };
-    // One installed face in a column (copies of a card share it).
-    struct FTile
-    {
-        FName Component;
-        LDHUD::EStorageColumn Column=LDHUD::EStorageColumn::Body;
-        UBorder* Face=nullptr;
-        uint8 Kind=0;
-        uint8 MedalTier=0;
-        int32 Copies=1;
-        EFaceState State=EFaceState::Normal;
-        int32 AppliedLook=-1;
-        TWeakObjectPtr<UTexture2D> Icon;
-    };
-    struct FColumn
-    {
-        USizeBox* Frame=nullptr;
-        UBorder* Panel=nullptr;
-        UScaleBox* Fit=nullptr;
-        UVerticalBox* List=nullptr;
-        UWrapBox* DenseList=nullptr;
-        bool bDense=false;
-        UWidget* Placeholder=nullptr;
-        USizeBox* PlaceholderBox=nullptr;
-        UBorder* PlaceholderFace=nullptr;
-        UTextBlock* PlaceholderText=nullptr;
-        UTextBlock* Title=nullptr;
-        // A held slot's active: its name is the place a notice names.
-        FName Active;
-        UCanvasPanelSlot* Slot=nullptr;
-        int32 AppliedLook=-1;
-    };
     enum class EFollow : uint8 { None, AwaitUninstall, AwaitView };
-    struct FPress
-    {
-        FName Component;
-        bool bFromColumn=false;
-        FVector2D At=FVector2D::ZeroVector;
-        bool bArmed=false;
-    };
-    struct FDrag
-    {
-        FName Component;
-        bool bFromColumn=false;
-        bool bActive=false;
-        // Picked up by a click (D6) rather than held: it follows the pointer until the next click.
-        bool bPicked=false;
-        double Since=0;
-        TArray<LDHUD::FCardDrop> Drops;
-    };
     struct FChooser
     {
         bool bOpen=false;
         FName Component;
         LDHUD::FCardDrop Drop;
-        FVector2D At=FVector2D::ZeroVector;
-    };
-    struct FQuickTarget
-    {
-        LDHUD::EStorageColumn Column=LDHUD::EStorageColumn::Body;
-        bool bReplace=false;
-    };
-    struct FQuickEquip
-    {
-        bool bOpen=false;
-        FName Component;
-        TArray<FQuickTarget> Targets;
-        FVector2D At=FVector2D::ZeroVector;
-    };
-    struct FReplacePick
-    {
-        bool bOpen=false;
-        FName Component;
-        LDHUD::EStorageColumn Column=LDHUD::EStorageColumn::Body;
     };
     // A move's install half, sent once the uninstall is applied and the own view carries its build revision.
     struct FFollowUp
@@ -254,172 +57,27 @@ private:
         uint64 AfterRevision=0;
         double Since=0;
     };
-
-    UPROPERTY() TObjectPtr<UCanvasPanel> Canvas;
-    // Paints the component tiles (LDUIPaint::Tile) and the library's group marks under the widgets.
-    UPROPERTY() TObjectPtr<ULDPaintLayer> TilePaint;
-    UPROPERTY() TArray<TObjectPtr<UWidget>> LibrarySwatches;
-    UPROPERTY() TArray<TObjectPtr<UWidget>> LibraryHeads;
-    UPROPERTY() TObjectPtr<UTextBlock> LibraryEmpty;
-    UPROPERTY() TObjectPtr<UWidget> StackFrame;
-    UPROPERTY() TObjectPtr<UCanvasPanelSlot> StackSlot;
-    UPROPERTY() TObjectPtr<UImage> StackPicture;
-    UPROPERTY() TObjectPtr<UTextBlock> StackGlyph;
-    UPROPERTY() TObjectPtr<UBorder> StackTop;
-    UPROPERTY() TArray<TObjectPtr<UBorder>> StackBacks;
-    UPROPERTY() TObjectPtr<UTextBlock> StackCount;
-    // Under the caption: installed / workshop capacity.
-    UPROPERTY() TObjectPtr<UTextBlock> StackCapacity;
-    UPROPERTY() TObjectPtr<UWidget> StackFreshChip;
-    UPROPERTY() TObjectPtr<UTextBlock> StackFresh;
-    UPROPERTY() TObjectPtr<UWidget> ListFrame;
-    UPROPERTY() TObjectPtr<UCanvasPanelSlot> ListSlot;
-    UPROPERTY() TObjectPtr<UWidget> StoneTraySection;
-    UPROPERTY() TObjectPtr<class UWrapBox> StoneTrayList;
-    UPROPERTY() TObjectPtr<UWrapBox> CardList;
-    UPROPERTY() TObjectPtr<UWidget> PopupFrame;
-    UPROPERTY() TObjectPtr<UCanvasPanelSlot> PopupSlot;
-    UPROPERTY() TObjectPtr<UTextBlock> PopupName;
-    UPROPERTY() TObjectPtr<UTextBlock> PopupWhere;
-    UPROPERTY() TObjectPtr<URichTextBlock> PopupBody;
-    UPROPERTY() TObjectPtr<UTextBlock> PopupHint;
-    UPROPERTY() TObjectPtr<UWidget> ChooserFrame;
-    UPROPERTY() TObjectPtr<UCanvasPanelSlot> ChooserSlot;
-    UPROPERTY() TObjectPtr<UTextBlock> ChooserTitle;
-    UPROPERTY() TObjectPtr<UHorizontalBox> ChooserLine;
-    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> ChooserButtons;
-    UPROPERTY() TObjectPtr<UWidget> QuickFrame;
-    UPROPERTY() TObjectPtr<UCanvasPanelSlot> QuickSlot;
-    UPROPERTY() TObjectPtr<UHorizontalBox> QuickLine;
-    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> QuickButtons;
-    UPROPERTY() TObjectPtr<UWidget> ReplacePromptFrame;
-    UPROPERTY() TObjectPtr<UCanvasPanelSlot> ReplacePromptSlot;
-    UPROPERTY() TObjectPtr<UTextBlock> ReplacePromptText;
-    UPROPERTY() TObjectPtr<UWidget> GhostFrame;
-    UPROPERTY() TObjectPtr<UCanvasPanelSlot> GhostSlot;
-    UPROPERTY() TObjectPtr<UImage> GhostPicture;
-    UPROPERTY() TObjectPtr<UTextBlock> GhostGlyph;
-    // One line beside the ghost: what letting go here does (装到 Q / 替换 X · 连带拆下 Y / 不能装在这里).
-    UPROPERTY() TObjectPtr<UWidget> GhostCaptionFrame;
-    UPROPERTY() TObjectPtr<UCanvasPanelSlot> GhostCaptionSlot;
-    UPROPERTY() TObjectPtr<UTextBlock> GhostCaption;
-    // The workshop library: one group per card form (its title and count over a wrap of cells).
-    UPROPERTY() TObjectPtr<UWidget> LibraryFrame;
-    UPROPERTY() TObjectPtr<UCanvasPanelSlot> LibrarySlot;
-    UPROPERTY() TObjectPtr<UVerticalBox> LibraryBox;
-    UPROPERTY() TArray<TObjectPtr<UWidget>> LibraryGroups;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> LibraryCounts;
-    UPROPERTY() TArray<TObjectPtr<UWrapBox>> LibraryWraps;
-    // Every widget built for the current cards and tiles; replaced on each rebuild.
-    UPROPERTY() TArray<TObjectPtr<UWidget>> Built;
-    TArray<FCard> Cards;
-    TArray<FTile> Tiles;
-    TArray<FColumn> Columns;
-
     FLDProgressionView Latest;
     LDHUD::FStorageView LatestModel;
-    FWorkshopLayout Workshop;
-    FFocus CurrentFocus;
-    FName PreviewCaptionComponent;
-    FString PreviewCaptionDrop,PreviewCaption;
-    // The hovered stored card's places, kept while the hover stays on it.
-    FName HoverDropsOf;
-    TArray<LDHUD::FCardDrop> HoverDrops;
-    // The request in flight: its card and where it was let go (the waiting ring), the last refusal (red frame and a
-    // shake) and the last install (the landing flash). Local presentation time.
-    FName PendingComponent;
-    FVector2D PendingAt=FVector2D::ZeroVector;
-    bool bPendingAt=false;
-    bool bPendingMedalFuse=false;
-    FName RejectedComponent;
-    double RejectedAt=-100.;
-    FName LandedComponent;
-    double LandedAt=-100.;
-    bool bWasPressed=false;
-    FName GhostShowing;
-    TArray<FName> Warnings;
-    bool bEngaged=false;
-    // A card received since the last view flies from the screen centre into the stack, then its name stays above it.
-    struct FFly
-    {
-        FName Component;
-        double At=0.;
-        bool bStrip=true;
-    };
-    TArray<FFly> Flies;
+    LDHUD::FBuildGateView Gate;
+    const FLDDemoContentDefinitions* LatestContent=nullptr;
+    // The owned cards of the last view, so a newly received card plays its cue once; a new match only takes its first view.
     TSet<FName> KnownOwned;
-    float TextScale=1.f;
     uint32 KnownMatch=0;
     uint32 LatestMatch=0;
     TSet<FName> SeenComponents;
-    LDHUD::FBuildGateView Gate;
-    const FLDDemoContentDefinitions* LatestContent=nullptr;
-    LDHUD::FCardStats LatestStats;
-    LDHUD::FSlotKeys SlotKeys;
-    FAnchors Anchors;
-    FString BuiltKey;
-    bool bShownNow=false;
-    bool bExpanded=false;
-    bool bPinned=false;
-    bool bDetailsHeld=false;
-    double LastInsideAt=0;
-    FPress Press;
-    FDrag Drag;
+    // The install in flight merges an element medal into a copy already in place (its cue).
+    bool bPendingMedalFuse=false;
     FChooser Chooser;
-    FQuickEquip QuickEquip;
-    FReplacePick ReplacePick;
     FFollowUp Follow;
     uint64 PendingRequest=0;
     uint32 Answers=0;
 
-    UBorder* IconFace(float Size,UImage*& OutPicture,UTextBlock*& OutGlyph,UOverlay*& OutStack,USizeBox*& OutBox);
-    void ShowIcon(UImage* Picture,UTextBlock* Glyph,FName Component,float Radius=6.f,bool bDim=false) const;
-    void Rebuild(const LDHUD::FStorageView& Model);
-    void BuildCard(FName Component,bool bFresh,int32 Copies);
-    void BuildTile(FColumn& Column,const LDHUD::FEquippedView& Entry,LDHUD::EStorageColumn ColumnId);
-    // An empty element slot on the workshop board (a learned skill's or the body's column with no medal).
-    void BuildMedalSlot(FColumn& Column,float Size);
-    void BuildWorkshopCard(FName Component,bool bFresh,float Size,int32 Group,int32 Copies);
-    void AddCopiesBadge(UOverlay* Face,int32 Copies);
-    // What each installed card did this match so far (damage, else its trigger count), by card definition; the workshop
-    // board writes it on the tile's top-right corner.
-    TMap<FName,FString> Contributions;
-    uint32 ContributionSerial=0;
-public:
-    void SetContributions(uint32 Serial,const TMap<FName,FString>& Rows){if(Serial!=ContributionSerial){ContributionSerial=Serial;Contributions=Rows;}}
-private:
-    void BuildWorkshopTile(FColumn& Column,const LDHUD::FEquippedView& Entry,LDHUD::EStorageColumn ColumnId,float Size);
-    void LayoutWorkshop(const FGeometry& Geometry,FVector2D Pointer);
-    // The face looks of this frame (both layouts): hover, held, legal and replace places and the refusal.
-    void UpdateStates(FVector2D Pointer);
-    void UpdateFocus(FVector2D Pointer);
-    bool PickUp(FName Component,bool bFromColumn);
-    bool DropHeld(FVector2D At);
     double UiNow() const;
-    float FaceRadius(uint8 Kind,float Size) const;
-    void PaintTiles(const LDUIPaint::FContext& Paint) const;
-    // Whether Drops take something on Column (its own place only with bOwnOnly), replacements aside.
-    static bool Drags(const TArray<LDHUD::FCardDrop>& Drops,LDHUD::EStorageColumn Column,bool bOwnOnly);
-    void StyleFace(UBorder* Face,FName Component,uint8 Kind,float Size,bool bDim) const;
-    void ScaleBuiltText();
-    void Layout(const FGeometry& Geometry,FVector2D Pointer);
-    bool OverExpanded(FVector2D Absolute) const;
-    bool BeginPress(FVector2D Absolute);
-    void UpdateDrag(FVector2D Pointer,bool bHeld);
-    void EndDrag();
-    // What the pointer is over at the end of a drag.
-    bool StorageAt(FVector2D Absolute) const;
-    bool ColumnAt(FVector2D Absolute,LDHUD::EStorageColumn& OutColumn,FName& OutHost) const;
-    FString PlaceName(LDHUD::EStorageColumn Column,FName Host) const;
     FString ComponentName(FName Component) const;
+    FString PlaceName(LDHUD::EStorageColumn Column,FName Host) const;
     void OpenChooser(FName Component,const LDHUD::FCardDrop& Drop);
     void CloseChooser();
-    void CollectQuickTargets(FName Component,TArray<FQuickTarget>& Out) const;
-    FString QuickTargetLabel(const FQuickTarget& Target) const;
-    bool OpenQuickEquip(FName Component,FVector2D At);
-    void CloseQuickEquip();
-    bool BeginReplacePick(FName Component,LDHUD::EStorageColumn Column);
-    void CloseReplacePick();
     bool Commit(FName Component,const LDHUD::FCardDrop& Drop,ELDDemoElement Element);
     bool Send(FLDBuildCommand Command);
     void ShowFinal(const FLDBuildReceipt& Receipt);

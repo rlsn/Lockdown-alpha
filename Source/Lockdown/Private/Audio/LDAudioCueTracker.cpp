@@ -21,12 +21,22 @@ void FLDAudioCueTracker::ObservePublic(const FLDAudioFrame& Frame, TArray<ELDAud
     {
         // A match seen for the first time only primes: transitions before this sample are never replayed.
         PublicGeneration = Public->Generation;
+        // A match first sampled anywhere past its opening rest has already started.
+        bFieldSeen = !(Public->Phase == ELDMatchPhase::Lobby || Public->Phase == ELDMatchPhase::Starting
+            || (Public->Phase == ELDMatchPhase::Rest && Public->Timeline.RestIndex == 0));
         bOpenSeen = bOpen;
         CircleEpoch = Public->CaptureEpoch;
         GraffitiSeen = Public->GraffitiOwner;
     }
     else
     {
+        // The match's first field segment starting after the opening rest is the match start; later segments, and a
+        // match first sampled already in the field, stay silent.
+        if (!bFieldSeen && Public->Phase == ELDMatchPhase::Development && Public->Timeline.FieldSegment == 0)
+        {
+            bFieldSeen = true;
+            LDAudio::AddUnique(Out, ELDAudioCue::MatchStart);
+        }
         // At most one capture cue per sample; the opening outranks a simultaneous first occupier.
         bool bCaptureCue = false;
         if (bOpen && !bOpenSeen)
@@ -139,23 +149,12 @@ void FLDAudioCueTracker::ObserveOwn(const FLDAudioFrame& Frame, TArray<ELDAudioC
             HitHPP2 = Combat->HPP2;
             HitMaxHPP2 = Combat->MaxHPP2;
             HitSeenAtMs = Combat->Cues.LastHitAtMs;
-            AttackReleasedAtMs = Combat->Cues.ReleasedAtMs;
             PickupSeenAtMs = Combat->Cues.LastPickupAtMs;
         }
         else if (Combat->Revision > HitRevision)
         {
-            // A newer release in the own cue facts; only a basic one sounds (Q/W/D sound from their receipts).
-            // One body releases at most one action per authority ms, so a later release time is a new release.
+            // Swings and skill releases sound from the body's presented release (LDAudioFeel), not from here.
             const FLDCombatCueFacts& Facts = Combat->Cues;
-            if (Facts.ReleasedAtMs > AttackReleasedAtMs)
-            {
-                if (Facts.ReleasedAtMs <= Combat->AsOfMs && Facts.bReleasedBasic
-                    && Frame.OwnLifePhase == ELDLifePhase::Alive && Combat->HPP2 > 0)
-                {
-                    LDAudio::AddUnique(Out, ELDAudioCue::SelfAttack);
-                }
-                AttackReleasedAtMs = Facts.ReleasedAtMs;
-            }
             if (Facts.LastPickupAtMs > PickupSeenAtMs)
             {
                 if (Facts.LastPickupAtMs <= Combat->AsOfMs && Frame.OwnLifePhase == ELDLifePhase::Alive && Combat->HPP2 > 0)
@@ -235,8 +234,8 @@ void FLDAudioCueTracker::ObserveCombatReceipt(const FLDCombatActionReceipt& Rece
         CastLife = Receipt.Life;
         CastKeys.Reset();
     }
-    const bool bActive = Receipt.Entry == ELDCombatEntry::Q || Receipt.Entry == ELDCombatEntry::W
-        || Receipt.Entry == ELDCombatEntry::E || Receipt.Entry == ELDCombatEntry::Dash;
+    // Only the innate dash sounds from its receipt; Q/W/E sound at their presented release (LDAudioFeel).
+    const bool bActive = Receipt.Entry == ELDCombatEntry::Dash;
     const bool bReleased = Receipt.Reject == ELDCombatReject::None
         && (Receipt.Phase == ELDCombatPhase::Released || Receipt.Phase == ELDCombatPhase::Finished);
     if (!bActive || !bReleased) { return; }
@@ -244,5 +243,5 @@ void FLDAudioCueTracker::ObserveCombatReceipt(const FLDCombatActionReceipt& Rece
     if ((Key & ~(uint64(1) << 63)) == 0 || CastKeys.Contains(Key)) { return; }
     if (CastKeys.Num() >= 16) { CastKeys.RemoveAt(0); }
     CastKeys.Add(Key);
-    LDAudio::AddUnique(Out, Receipt.Entry == ELDCombatEntry::Dash ? ELDAudioCue::SelfDash : ELDAudioCue::SelfCast);
+    LDAudio::AddUnique(Out, ELDAudioCue::SelfDash);
 }

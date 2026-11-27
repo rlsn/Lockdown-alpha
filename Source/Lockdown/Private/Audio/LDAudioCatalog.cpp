@@ -10,13 +10,19 @@ namespace
     constexpr const TCHAR* AudioCueIds[] =
     {
         TEXT("None"), TEXT("KillNotice"), TEXT("CaptureOpened"), TEXT("CaptureStarted"), TEXT("CaptureContested"),
-        TEXT("MatchVictory"), TEXT("MatchDefeat"), TEXT("MatchEndedNoWinner"), TEXT("SelfHit"), TEXT("SelfCast"),
+        TEXT("MatchVictory"), TEXT("MatchDefeat"), TEXT("MatchEndedNoWinner"), TEXT("SelfHit"), nullptr,
         nullptr, nullptr, TEXT("LevelUp"), TEXT("SelfDeath"), TEXT("SelfRespawn"),
-        TEXT("UIClick"), TEXT("SelfShieldHit"), TEXT("SelfAttack"), nullptr, nullptr, TEXT("SelfShieldBreak"),
+        TEXT("UIClick"), TEXT("SelfShieldHit"), nullptr, nullptr, nullptr, TEXT("SelfShieldBreak"),
         TEXT("SelfDash"), TEXT("UIHover"), TEXT("UIPickup"), TEXT("UIInstall"), TEXT("UIReject"), TEXT("UIWorkshopOpen"),
         TEXT("UIWorkshopClose"), TEXT("UIOfferDeal"), TEXT("UIChoose"), TEXT("UIGain"), TEXT("UIAddPoint"), TEXT("UIHoldCharge"),
         TEXT("UIFinalLock"), TEXT("SelfDealtImpact"), TEXT("SelfDealtAccent"),
-        TEXT("SelfPerfectDodge"), TEXT("SelfParry"), TEXT("SelfPickup"), TEXT("UIMedalFuse")
+        TEXT("SelfPerfectDodge"), TEXT("SelfParry"), TEXT("SelfPickup"), TEXT("UIMedalFuse"),
+        TEXT("SwingLight"), TEXT("SwingFinisher"), TEXT("HitBasic"), TEXT("HitFinisher"), TEXT("HitElectric"), TEXT("HitFire"),
+        TEXT("HitWater"), TEXT("HitMagic"), TEXT("CastCharge"), TEXT("CastRelease"), TEXT("SelfDealtCrit"), TEXT("SelfDealtKill"),
+        TEXT("ReactionFog"), TEXT("ReactionConduct"), TEXT("ReactionOverload"), TEXT("ReactionMelt"), TEXT("ReactionMethane"),
+        TEXT("ReactionFreeze"), TEXT("ReactionFerment"), TEXT("ReactionShatter"), TEXT("ReactionCorrode"), TEXT("ReactionFrostbite"),
+        TEXT("StateBurn"), TEXT("StateWet"), TEXT("StateShock"), TEXT("StateChill"), TEXT("StateRot"), TEXT("MatchStart"), TEXT("BodyFall"),
+        TEXT("GroundPuddle"), TEXT("GroundIce"), TEXT("GroundFire"), TEXT("GroundMiasma"), TEXT("GroundField")
     };
     static_assert(UE_ARRAY_COUNT(AudioCueIds) == int32(ELDAudioCue::Count), "Every cue number needs exactly one stable id or a retired hole.");
 
@@ -32,6 +38,43 @@ namespace
 
     constexpr const TCHAR* MusicTrackIds[] = { TEXT("None"), TEXT("Menu"), TEXT("Farm"), TEXT("Escalation") };
     static_assert(UE_ARRAY_COUNT(MusicTrackIds) == int32(ELDMusicTrack::Count), "Every music track needs exactly one stable id.");
+
+    constexpr const TCHAR* BusIds[] = { TEXT("Master"), TEXT("Music"), TEXT("Sfx"), TEXT("UI") };
+    static_assert(UE_ARRAY_COUNT(BusIds) == LDAudio::BusCount, "Every bus needs exactly one stable id.");
+
+    // A one-shot non-spatial take on Class with a short finite duration.
+    bool CheckTake(const USoundWave* Sound, const USoundClass* Class, const FString& What, FString& Error, bool bLoop = false)
+    {
+        if (!Sound) { Error = What + TEXT(" has no sound."); return false; }
+        if (Sound->SoundClassObject != Class)
+        { Error = FString::Printf(TEXT("%s (%s) is not routed to %s."), *What, *Sound->GetPathName(), *GetNameSafe(Class)); return false; }
+        if (Sound->bLooping != bLoop || Sound->AttenuationSettings)
+        { Error = FString::Printf(TEXT("%s (%s) must be a %s sound without its own attenuation."), *What, *Sound->GetPathName(), bLoop ? TEXT("looping") : TEXT("one-shot")); return false; }
+        if (!(Sound->Duration > 0.f) || Sound->Duration > 30.f)
+        { Error = FString::Printf(TEXT("%s (%s) has no short finite audio duration (%.3f s)."), *What, *Sound->GetPathName(), Sound->Duration); return false; }
+        return true;
+    }
+}
+
+FString LDAudio::BusId(ELDAudioBus Bus)
+{
+    const int32 Index = int32(Bus);
+    return Index >= 0 && Index < LDAudio::BusCount ? FString(BusIds[Index]) : FString::Printf(TEXT("Bus%d"), Index);
+}
+
+bool LDAudio::ParseBusId(const FString& Id, ELDAudioBus& Out)
+{
+    for (int32 Index = 0; Index < LDAudio::BusCount; ++Index)
+    {
+        if (Id.Equals(BusIds[Index], ESearchCase::CaseSensitive)) { Out = ELDAudioBus(Index); return true; }
+    }
+    Out = ELDAudioBus::Master;
+    return false;
+}
+
+ELDAudioBus ULDAudioCatalog::BusOf(ELDAudioCue Cue)
+{
+    return LDAudio::CueId(Cue).StartsWith(TEXT("UI"), ESearchCase::CaseSensitive) ? ELDAudioBus::UI : ELDAudioBus::Sfx;
 }
 
 FString LDAudio::MusicTrackId(ELDMusicTrack Track)
@@ -53,6 +96,17 @@ bool LDAudio::ParseMusicTrackId(const FString& Id, ELDMusicTrack& Out)
 bool LDAudio::MusicTrackLoops(ELDMusicTrack Track)
 {
     return Track == ELDMusicTrack::Menu || Track == ELDMusicTrack::Escalation;
+}
+
+bool LDAudio::CueLoops(ELDAudioCue Cue)
+{
+    return Cue >= ELDAudioCue::GroundPuddle && Cue <= ELDAudioCue::GroundField;
+}
+
+ELDAudioCue LDAudio::GroundLoopCue(uint8 Kind)
+{
+    // ELDGroundStateKind: 1 Puddle, 2 Ice, 3 Fire, 4 Miasma, 5 Field.
+    return Kind >= 1 && Kind <= 5 ? ELDAudioCue(uint8(ELDAudioCue::GroundPuddle) + Kind - 1) : ELDAudioCue::None;
 }
 
 bool LDAudio::IsPlayableCue(ELDAudioCue Cue)
@@ -86,23 +140,37 @@ bool LDAudio::ParseCueId(const FString& Id, ELDAudioCue& Out)
     return false;
 }
 
-bool ULDAudioCatalog::Resolve(TArray<USoundWave*>& OutSounds, TArray<USoundWave*>& OutMusic, FString& Error) const
+bool ULDAudioCatalog::Resolve(FResolved& Out, FString& Error) const
 {
-    OutSounds.Reset();
-    OutSounds.SetNumZeroed(int32(ELDAudioCue::Count));
-    OutMusic.Reset();
-    OutMusic.SetNumZeroed(int32(ELDMusicTrack::Count));
-    if (!MasterClass || !UserMix || !MusicClass)
+    Out = FResolved();
+    Out.Cues.SetNum(int32(ELDAudioCue::Count));
+    Out.Music.SetNumZeroed(int32(ELDMusicTrack::Count));
+    Out.Skills.SetNum(256);
+    Out.SkillHits.SetNum(256);
+    if (!MasterClass || !UserMix || !MusicClass || !SfxClass || !UIClass)
     {
-        Error = TEXT("The master SoundClass, the music SoundClass or the user SoundMix is missing.");
+        Error = TEXT("The master, music, SFX or UI SoundClass or the user SoundMix is missing.");
         return false;
     }
-    // The music volume multiplies the master volume only while music is a child of the master class.
-    if (MusicClass == MasterClass || MusicClass->ParentClass != MasterClass || !MasterClass->ChildClasses.Contains(MusicClass))
+    // A bus volume multiplies the master volume only while its class is a direct child of the master class.
+    const USoundClass* const Children[] = { MusicClass.Get(), SfxClass.Get(), UIClass.Get() };
+    for (const USoundClass* Child : Children)
     {
-        Error = TEXT("The music SoundClass is not a child of the master SoundClass.");
+        if (Child == MasterClass || Child->ParentClass != MasterClass || !MasterClass->ChildClasses.Contains(Child))
+        {
+            Error = FString::Printf(TEXT("The %s SoundClass is not a child of the master SoundClass."), *GetNameSafe(Child));
+            return false;
+        }
+    }
+    if (MusicClass == SfxClass || MusicClass == UIClass || SfxClass == UIClass)
+    {
+        Error = TEXT("The music, SFX and UI buses must be three distinct SoundClasses.");
         return false;
     }
+    Out.Buses[int32(ELDAudioBus::Master)] = MasterClass;
+    Out.Buses[int32(ELDAudioBus::Music)] = MusicClass;
+    Out.Buses[int32(ELDAudioBus::Sfx)] = SfxClass;
+    Out.Buses[int32(ELDAudioBus::UI)] = UIClass;
     if (Cues.Num() != LDAudio::CueCount)
     {
         Error = FString::Printf(TEXT("Expected %d cue entries, found %d."), LDAudio::CueCount, Cues.Num());
@@ -115,17 +183,34 @@ bool ULDAudioCatalog::Resolve(TArray<USoundWave*>& OutSounds, TArray<USoundWave*
         const FString Id = LDAudio::CueId(Expected);
         if (Entry.Cue != Expected)
         { Error = FString::Printf(TEXT("Entry %d is %s, expected %s."), Index, *LDAudio::CueId(Entry.Cue), *Id); return false; }
-        const USoundWave* Sound = Entry.Sound;
-        if (!Sound) { Error = FString::Printf(TEXT("Cue %s has no sound."), *Id); return false; }
-        if (Sound->SoundClassObject != MasterClass)
-        { Error = FString::Printf(TEXT("Cue %s (%s) is not routed to the master SoundClass."), *Id, *Sound->GetPathName()); return false; }
-        if (Sound->bLooping || Sound->AttenuationSettings)
-        { Error = FString::Printf(TEXT("Cue %s (%s) must be a one-shot non-spatial sound."), *Id, *Sound->GetPathName()); return false; }
-        // Cues are short one-shots; a missing or absurd duration means the import produced no usable audio.
-        if (!(Sound->Duration > 0.f) || Sound->Duration > 30.f)
-        { Error = FString::Printf(TEXT("Cue %s (%s) has no short finite audio duration (%.3f s)."), *Id, *Sound->GetPathName(), Sound->Duration); return false; }
-        OutSounds[int32(Expected)] = const_cast<USoundWave*>(Sound);
+        const USoundClass* Class = Out.Buses[int32(BusOf(Expected))];
+        TArray<USoundWave*>& Takes = Out.Cues[int32(Expected)];
+        if (!CheckTake(Entry.Sound, Class, TEXT("Cue ") + Id, Error, LDAudio::CueLoops(Expected))) { return false; }
+        Takes.Add(Entry.Sound);
+        for (const TObjectPtr<USoundWave>& Variant : Entry.Variants)
+        {
+            if (!CheckTake(Variant, Class, TEXT("A take of cue ") + Id, Error, LDAudio::CueLoops(Expected))) { return false; }
+            Takes.Add(Variant);
+        }
     }
+    const auto Keyed = [&](const TArray<FLDAudioKeyedEntry>& Table, TArray<TArray<USoundWave*>>& Into, const TCHAR* Kind)
+    {
+        int32 PreviousKey = -1;
+        for (const FLDAudioKeyedEntry& Entry : Table)
+        {
+            const FString What = FString::Printf(TEXT("%s %d"), Kind, Entry.Key);
+            if (int32(Entry.Key) <= PreviousKey || Entry.Sounds.IsEmpty())
+            { Error = What + TEXT(" is out of ascending order, repeated or has no take."); return false; }
+            PreviousKey = Entry.Key;
+            for (const TObjectPtr<USoundWave>& Take : Entry.Sounds)
+            {
+                if (!CheckTake(Take, SfxClass, What, Error)) { return false; }
+                Into[Entry.Key].Add(Take);
+            }
+        }
+        return true;
+    };
+    if (!Keyed(SkillReleases, Out.Skills, TEXT("Skill release")) || !Keyed(SkillHits, Out.SkillHits, TEXT("Skill hit"))) { return false; }
     if (Music.Num() != LDAudio::MusicTrackCount)
     {
         Error = FString::Printf(TEXT("Expected %d music tracks, found %d."), LDAudio::MusicTrackCount, Music.Num());
@@ -151,7 +236,7 @@ bool ULDAudioCatalog::Resolve(TArray<USoundWave*>& OutSounds, TArray<USoundWave*
         // The wave's own length, not the looping play duration; a track is minutes long, never hours.
         if (!(Sound->Duration > 0.f) || Sound->Duration > 3600.f)
         { Error = FString::Printf(TEXT("Music track %s (%s) has no finite audio duration (%.3f s)."), *Id, *Sound->GetPathName(), Sound->Duration); return false; }
-        OutMusic[int32(Expected)] = const_cast<USoundWave*>(Sound);
+        Out.Music[int32(Expected)] = const_cast<USoundWave*>(Sound);
     }
     Error.Reset();
     return true;

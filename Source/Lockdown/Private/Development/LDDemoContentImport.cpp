@@ -1014,6 +1014,7 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("GROWTH.OpeningPoints"), &P.OpeningPoints, 1}, {TEXT("GROWTH.PointsPerLevel"), &P.PointsPerLevel, 1},
         {TEXT("GROWTH.MaxLevelPointsXP"), &P.MaxLevelPointsXP, 1}, {TEXT("GROWTH.MaxLevelPoints"), &P.MaxLevelPoints, 1},
         {TEXT("GROWTH.KeystoneThresholdPoints"), &P.KeystoneThresholdPoints, 1}, {TEXT("GROWTH.ActiveSkipPoints"), &P.ActiveSkipPoints, 1},
+        {TEXT("GROWTH.BlueprintSellPoints"), &P.BlueprintSellPoints, 1},
         {TEXT("COMBAT.OverloadBreachStacks"), &P.OverloadBreachStacks, 1},
         {TEXT("AI.CardVocabScore"), &P.AI.CardVocabScore, 1}, {TEXT("AI.BreakoutCardScore"), &P.AI.BreakoutCardScore, 1},
         {TEXT("AI.LeaderHuntMaxLevelGap"), &P.AI.LeaderHuntMaxLevelGap, 0},
@@ -1035,7 +1036,7 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("CARDS.SkipPoints"), &P.Cards.SkipPoints}, {TEXT("CARDS.OfferEveryLevels"), &P.Cards.OfferEveryLevels},
         {TEXT("SHOP.CardSlots"), &P.Shop.CardSlots}, {TEXT("SHOP.VocabCardSlots"), &P.Shop.VocabCardSlots},
         {TEXT("SHOP.SkillSlots"), &P.Shop.SkillSlots},
-        {TEXT("SHOP.SkillPointMaxPerMatch"), &P.Shop.SkillPointMaxPerMatch}})
+        {TEXT("SHOP.SkillPointMaxPerMatch"), &P.Shop.SkillPointMaxPerMatch}, {TEXT("SHOP.MedalMaxPerMatch"), &P.Shop.MedalMaxPerMatch}})
     {
         const bool bMayBeZero = FCString::Strcmp(Field.Key, TEXT("CARDS.FreeRerolls")) == 0
             || FCString::Strcmp(Field.Key, TEXT("CARDS.RerollsPerRest")) == 0;
@@ -1063,7 +1064,7 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
     for (const auto& Field : {
         TPair<const TCHAR*, int32*>(TEXT("SHOP.CardPrice"), &P.Shop.CardPrice), {TEXT("SHOP.SkillPrice"), &P.Shop.SkillPrice},
         {TEXT("SHOP.RefreshPrice"), &P.Shop.RefreshPrice}, {TEXT("SHOP.RefreshStep"), &P.Shop.RefreshStep},
-        {TEXT("SHOP.SkillPointPrice"), &P.Shop.SkillPointPrice}})
+        {TEXT("SHOP.SkillPointPrice"), &P.Shop.SkillPointPrice}, {TEXT("SHOP.MedalPrice"), &P.Shop.MedalPrice}})
     {
         const bool bMayBeZero = FCString::Strcmp(Field.Key, TEXT("SHOP.RefreshPrice")) == 0;
         if (!F.SmallInt(Field.Key, *Field.Value, bMayBeZero ? 0 : 1, 10000)) { return false; }

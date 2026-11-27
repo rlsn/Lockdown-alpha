@@ -4,7 +4,17 @@ param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(300,1500)][int]$
     [ValidatePattern('^-Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+( -Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+)*$')][string]$NetEmulation,
     # The Host's rendered main view; the screenshots are reviewed at both supported sizes.
     [ValidateSet('720p','1080p')][string]$Resolution='720p',
-    [switch]$RenderClient)
+    [switch]$RenderClient,
+    # Capture tool, not a check (Scripts/CaptureFeelSample.ps1 -Scenario combat; Stream A's kill-banner capture): the same
+    # real owned fight with sound on and every played sound logged, without the Host's chase-goal assertions. It reports no
+    # verdict: the run ends after both reports are written.
+    [switch]$CaptureOnly,
+    # With CaptureOnly: the Host records its own frames and game audio into this folder (Probes/LDGameRecorder.h). The Host
+    # stays off screen; nothing on the desktop is recorded.
+    [string]$RecordGame,
+    # With CaptureOnly: a camera-feedback A/B take with the Host's camera shake off (NoShake) or reduced combat effects on
+    # (Reduced); the default is the shipped preferences.
+    [ValidateSet('Default','NoShake','Reduced')][string]$Feel = 'Default')
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
 Assert-LDDemoInputs
@@ -42,6 +52,10 @@ function Start-CombatRole {
             elseif ($RenderClient) { "-windowed -RenderOffScreen $resolutionArguments" } else { '-nullrhi' }
         $arguments = '-unattended -nop4 -nosound -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoCombatProbe -LDDemoCombatRole={2} -LDDemoCombatTimeout={3} -LDDemoCombatOutput="{4}" -abslog="{5}"' -f $render,$user,$Role,$TimeoutSeconds,$evidence,$log
         if ($NetEmulation) { $arguments += " $NetEmulation" }
+        if ($CaptureOnly) { $arguments += ' -LDDemoCombatCaptureOnly' }
+        if ($CaptureOnly -and $Role -eq 'Host') { $arguments = $arguments.Replace(' -nosound', '') + ' -LDAudioEventLog' }
+        if ($CaptureOnly -and $RecordGame -and $Role -eq 'Host') { $arguments += ' -LDRecordGame="{0}"' -f $RecordGame }
+        if ($CaptureOnly -and $Feel -ne 'Default' -and $Role -eq 'Host') { $arguments += " -LDDemoCombatFeel=$Feel" }
         $arguments
     }
 }
@@ -52,6 +66,12 @@ try {
     $url = '127.0.0.1:{0}?Name=DemoCombatClient1?LDWire={1}?LDProduct={2}?LDCatalog={3}' -f $port,$wire,$version,$digest
     Start-CombatRole 'Client1' $url
     Wait-LDDemoEvidence -Harness $harness -Names @('Host.json','Client1.json')
+    if ($CaptureOnly) {
+        Stop-LDDemoClients -Harness $harness -Message 'Disconnect owning clients' -ExitError "Owning client did not exit cleanly: $output"
+        Stop-LDDemoHost -Harness $harness
+        Write-Host "CAPTURE ONLY (no verdict; the chase-goal assertions did not run): $output"
+        return
+    }
     $reports = @{}
     foreach ($role in $roles) {
         $report = Read-LDDemoReport -Harness $harness -Name "$role.json"
@@ -97,7 +117,7 @@ try {
     $captures = ($screenshots | ForEach-Object { Join-Path $output $_ }) -join ', '
     $hostFeel = $hostReport.feel
     $clientFeel = $reports['Client1'].feel
-    $feel = ("Control feel (measured, ms): Host right-click to motion $($hostFeel.click_to_move_ms) " +
+    $feelLine = ("Control feel (measured, ms): Host right-click to motion $($hostFeel.click_to_move_ms) " +
         "($($hostFeel.click_frames) frames, longest $($hostFeel.click_longest_frame_ms); walked $($hostFeel.spawn_to_click_ms) after spawn once frames settled), ramp to full speed " +
         "$($hostFeel.ramp_to_full_speed_ms), S from $([math]::Round($hostFeel.stop_from_speed)) cm/s to still $($hostFeel.stop_to_still_ms) " +
         "over $([math]::Round($hostFeel.stop_distance_cm)) cm, next walk $($hostFeel.restart_click_to_move_ms) (frame $([math]::Round($hostFeel.frame_ms,1))); " +
@@ -106,7 +126,7 @@ try {
         "ramp $($clientFeel.ramp_to_full_speed_ms), S to Stopped receipt $($clientFeel.stop_to_stopped_receipt_ms) " +
         "(frame $([math]::Round($clientFeel.frame_ms,1))); acceleration $($hostFeel.max_acceleration), braking " +
         "$($hostFeel.braking_deceleration_walking), speed $($hostFeel.max_walk_speed) cm/s.")
-    Write-Host $feel
+    Write-Host $feelLine
     Write-Host ("DEV-only owned-connection combat/orders scenario passed through the ordinary lobby Start: a chased body's " +
         "foot in the navmesh margin routes and the same clicked ground projects onto the navmesh (#80), Settings held " +
         "over an accepted walk past its lease (order and heartbeat continue, nothing replays), remote attack-move " +

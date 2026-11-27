@@ -314,6 +314,8 @@ TSharedRef<SWidget> ULDDevTestPanel::RebuildWidget()
         auto* ClockLine=WidgetTree->ConstructWidget<UHorizontalBox>();Host->AddChildToVerticalBox(ClockLine);
         AddButton(ClockLine,TEXT("暂停倒计时"),[this](){Send(ELDDevTestOp::SetCountdownPaused,1);},TEXT("DevTestPauseCountdown"));
         AddButton(ClockLine,TEXT("恢复倒计时"),[this](){Send(ELDDevTestOp::SetCountdownPaused,0);},TEXT("DevTestResumeCountdown"));
+        AddButton(ClockLine,TEXT("跳到阶段末"),[this](){Send(ELDDevTestOp::AdvanceCountdown,3600);},TEXT("DevTestAdvanceCountdown"));
+        AddButton(ClockLine,TEXT("直接结算"),[this](){Send(ELDDevTestOp::DecideMatch,0);},TEXT("DevTestDecideMatch"));
         HostSection=Host;Body->AddChildToVerticalBox(Host);Host->SetVisibility(ESlateVisibility::Collapsed);
 
         auto* Scroll=WidgetTree->ConstructWidget<UScrollBox>();Scroll->SetClipping(EWidgetClipping::ClipToBounds);Scroll->AddChild(Body);

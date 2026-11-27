@@ -15,6 +15,11 @@ public:
     void Bind(ULDBasketballMotionSet* InMotion, UStaticMeshComponent* InBall, const FVector& InMeshForward);
     void Prepare(double Clock, float Speed, float FacingYaw, LDBodyMotion::EAction Action, float Age,
         float ImpactSeconds, double ActionIdentity, UAnimSequence* Override, float OverrideTime, bool bDash, bool bShowBall);
+    // The motion family of the next attack or cast (LDActionMotion): the shown basic's combo step and the cast's ability.
+    void SetActionStyle(uint8 InComboStep, uint8 InAbility) { StyleStep = InComboStep; StyleAbility = InAbility; }
+    // Presentation stills (lobby seat portraits, DEV captures): hold one clip of the motion set at one time, the ball
+    // following the hand as in play unless bHideBall (a clip without a ball). A null clip returns to the live graph.
+    void HoldPose(UAnimSequence* Clip, float Time, bool bHideBall = false) { HeldSequence = Clip; HeldTime = Time; bHeldHideBall = bHideBall; }
     const UAnimSequence* CurrentAction() const { return ActionSequence; }
     float CurrentActionTime() const { return ActionTime; }
     bool UsesUpperBody() const { return UpperWeight > 0; }
@@ -31,6 +36,12 @@ private:
     UPROPERTY(Transient) TObjectPtr<UAnimSequence> BaseSequence;
     UPROPERTY(Transient) TObjectPtr<UAnimSequence> PreviousSequence;
     UPROPERTY(Transient) TObjectPtr<UAnimSequence> ActionSequence;
+    UPROPERTY(Transient) TObjectPtr<UAnimSequence> HeldSequence;
+    // Skill motions of their own (LDActionMotion::OwnMotionOf), loaded once by clip name.
+    UPROPERTY(Transient) TMap<FName, TObjectPtr<UAnimSequence>> OwnClips;
+    UAnimSequence* OwnClipOf(const TCHAR* Clip);
+    float HeldTime=0;
+    bool bHeldHideBall=false;
     float BaseTime=0,PreviousTime=0,BaseBlend=1,ActionTime=0,FullWeight=0,UpperWeight=0,ArmWeight=0;
     double LastClock=-1,LastActionIdentity=-1,TurnAt=-1,NextTurnAt=0;
     LDBodyMotion::EAction LastAction=LDBodyMotion::EAction::None;
@@ -43,4 +54,5 @@ private:
     FVector ReleasePoint=FVector::ZeroVector,ReleaseForward=FVector::ForwardVector;
     FDelegateHandle BallPoseHandle;
     uint32 Variation=0,Turns=0;
+    uint8 StyleStep=0,StyleAbility=0;
 };

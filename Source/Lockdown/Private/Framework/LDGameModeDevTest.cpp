@@ -63,6 +63,47 @@ bool ALDGameMode::DevSetCountdownPaused(bool bPaused, const FLDGameplayWritePerm
     return true;
 }
 
+bool ALDGameMode::DevAdvanceCountdown(int64 SkipMs, const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    if (ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None)
+    { Error = TEXT("前进倒计时需要有效对局"); return false; }
+    if (Timeline.IsCountdownPaused()) { Error = TEXT("倒计时已暂停，先恢复再前进"); return false; }
+    const int64 Now = Permit.GetBoundary().AtMs;
+    // The stage keeps its last second: its end, and everything that end commits, happens at an ordinary boundary.
+    const int64 EndsAtMs = Showdown.bStarted ? Showdown.EndsAtMs : Timeline.NextDueMs();
+    if (EndsAtMs == MAX_int64) { Error = TEXT("当前阶段没有倒计时"); return false; }
+    const int64 Skip = FMath::Min(SkipMs, EndsAtMs - Now - 1000);
+    if (Skip > 0)
+    {
+        if (!Timeline.DevAdvanceCountdown(Skip, Error)) { return false; }
+        // The final field's deadlines are phase clocks too (the mirror of a resume).
+        if (Showdown.bStarted)
+        {
+            Showdown.StartedAtMs -= Skip;
+            Showdown.EndsAtMs -= Skip;
+            Showdown.ClosureAtMs -= Skip;
+            Showdown.RespawnsCloseAtMs -= Skip;
+            ShowdownRingSettledThroughMs -= Skip;
+            ShowdownRingTickAtMs -= Skip;
+        }
+        PublishTimeline();
+        bPublicMatchDirty = true;
+    }
+    Error = FString::Printf(TEXT("阶段倒计时前进 %lld 秒"), FMath::Max<int64>(Skip, 0) / 1000);
+    return true;
+}
+
+bool ALDGameMode::DevDecideMatch(const FGuid& Contender, const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    if (ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None || !FindContender(Contender))
+    { Error = TEXT("直接结算需要当前参赛者与有效对局"); return false; }
+    if (MatchPhase != ELDMatchPhase::Development && MatchPhase != ELDMatchPhase::CaptureOpen)
+    { Error = TEXT("只能在野外阶段直接结算"); return false; }
+    DevDecidedWinner = Contender;
+    Error = TEXT("本边界锁定结果");
+    return true;
+}
+
 bool ALDGameMode::DevSkipPreparation(const FLDGameplayWritePermit& Permit, FString& Error)
 {
     if (ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None)
@@ -123,7 +164,9 @@ bool ALDGameMode::DevTeleport(const FGuid& Contender, const FVector& CameraPosit
     Life->MotionGrounded = Movement->CurrentFloor.IsWalkableFloor();
     Life->MotionFloor = Movement->CurrentFloor.HitResult.GetComponent();
     // Teleport is a discontinuity: update presence at this boundary, never sweep through intermediate circles.
-    if (CaptureTracks.Contains(Contender) && CaptureReducer.IsActive())
+    // A rest body is no longer on the spray roster (its field life retired at the boundary): like the motion path,
+    // it has no presence to rejudge.
+    if (CaptureTracks.Contains(Contender) && CaptureReducer.IsActive() && CaptureReducer.IsCommittedAliveBody(Life->Body))
     {
         FLDCaptureEventTime At;
         At.Seconds = AuthorityStep.EndServerSeconds;

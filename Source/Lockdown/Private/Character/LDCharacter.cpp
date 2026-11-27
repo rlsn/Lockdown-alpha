@@ -6,7 +6,7 @@
 #include "Character/LDHitFeel.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Character/LDImpactFx.h"
-#include "Audio/LDAudioSubsystem.h"
+#include "Audio/LDAudioFeel.h"
 #include "Camera/CameraComponent.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
@@ -20,6 +20,7 @@
 #include "UI/LDControlSettings.h"
 #include "Framework/LDDemoEntry.h"
 #include "Combat/LDCombatCues.h"
+#include "Combat/LDMomentum.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentIds.h"
 #include "Region/LDMapRegistry.h"
@@ -134,6 +135,7 @@ void ALDCharacter::BeginPlay()
     }
     if (HasAuthority()) { GetCharacterMovement()->SetComponentTickEnabled(false); }
     PredictWindupMs=Content->Get().Parameters.BasicAttackWindupMs;
+    ComboResetMs=Content->Get().Parameters.Combo.ResetMs;
     // The look is built when the body is first shown (EnsureLook), not here: most bodies are never shown on this machine.
 }
 
@@ -214,6 +216,8 @@ void ALDCharacter::Tick(float Delta)
             bCue ? float(FMath::Max<int64>(0,ImpactAtMs-Selected.AtMs))/1000.f : -1.f,PresentationKnockback(Statuses),bHandover);
     }
     bShownPredicted=bPredicted;
+    Body->SetElementStates(Statuses);
+    if (const FLDProgressionView* Progression=PC->ReadOwnProgression(); Progression && Progression->bValid) { Body->SetLevel(Progression->Level); }
     // The shown cast's own skill look (LDHitVfx::SkillLookOf): the authority's cue facts name the acting or released
     // learned ability, so a release snapshot that already cleared the action slot keeps it.
     uint8 CastAbility=0;
@@ -222,6 +226,17 @@ void ALDCharacter::Tick(float Delta)
         if (const LDHitVfx::FSkillLook* Skill=LDHitVfx::SkillLookOf(Facts.CastDefinitionId)) { CastAbility=Skill->Ability; }
     }
     Body->SetCastAbility(CastAbility);
+    // The shown swing's combo step: the released basic's own, else the step the acting (or predicted) swing advances to
+    // from the last released one (LDMomentum::NextComboStep, as the authority admits it).
+    uint8 ComboStep=0;
+    if (bPredicted) { ComboStep=LDMomentum::NextComboStep(View.ComboStep,View.ComboStartMs,NowMs,ComboResetMs); }
+    else if (bCue && Selected.Cue==ELDObservedActionCue::Attack)
+    {
+        ComboStep=Facts.bReleasedBasic && Selected.AtMs==Facts.ReleasedStartedAtMs ? Facts.ReleasedComboStep
+            : LDMomentum::NextComboStep(View.ComboStep,View.ComboStartMs,Selected.AtMs,ComboResetMs);
+    }
+    Body->SetComboStep(ComboStep);
+    Body->SetOwnBody(true);
     // The own hold runs on the local key timer, so the column and the ready flare do not wait for replication.
     const bool bHolding=PC->OverdriveHoldProgress(PC->HeldOverdriveEntry())>0.f;
     Body->SetCharging(bHolding || (bCurrentView && View.ChargingEntry!=ELDCombatEntry::None),0.f,
@@ -255,14 +270,7 @@ void ALDCharacter::Tick(float Delta)
             // A kill, critical hit or broken shield flashes the screen edge and fringes the lens (off when reduced).
             if (ULDImpactFxSubsystem* Impacts=GetWorld()?GetWorld()->GetSubsystem<ULDImpactFxSubsystem>():nullptr)
             { Impacts->FlashScreen(LDHitVfx::ScreenFlashOf(View.Cues.LastDealtFlags,bReduced)); }
-            UGameInstance* Instance=GetGameInstance();
-            ULDAudioSubsystem* Audio=Instance?Instance->GetSubsystem<ULDAudioSubsystem>():nullptr;
-            if (Audio)
-            {
-                Audio->Play(ELDAudioCue::SelfDealtImpact,Feel.ConfirmVolume);
-                Audio->Play(ELDAudioCue::SelfDealtAccent,Feel.ConfirmVolume);
-            }
-            else { UE_LOG(LogLDContent,Warning,TEXT("LD_AUDIO_SUBSYSTEM_UNAVAILABLE confirmed hit layers not played.")); }
+            LDAudioFeel::Confirm(*this,View.Cues.LastDealtFlags,Feel.ConfirmVolume);
         }
     }
     Body->Animate(GetVelocity(),Delta);
@@ -352,7 +360,7 @@ FTransform ALDCharacter::DefaultArmCameraPose(const FVector& Origin, float ArmLe
     // The arm uses an absolute rotation and a world-space target offset, so the default subobject is the whole geometry.
     const USpringArmComponent* Arm = GetDefault<ALDCharacter>()->CameraArm;
     const FRotator Rotation = Arm->GetRelativeRotation();
-    return FTransform(Rotation, Origin + Arm->TargetOffset - Rotation.Vector() * ArmLength);
+    return FTransform(Rotation, Origin + Arm->TargetOffset - Rotation.Vector() * (ArmLength * LDCamera::ArmScale));
 }
 void ALDCharacter::EnsureLook()
 {

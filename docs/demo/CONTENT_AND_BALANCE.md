@@ -51,8 +51,8 @@
 | `STAT.CritChance.Base` | 概率/R4 | 0 | 0..1 | 普攻暴击按 `FORMULA.Crit`；暴击率由力道属性点获得；技能不暴击（Y09 除外，§4.5） |
 | `STAT.CritMultiplier` | 倍率/R4 | 2.00 | 固定 | 不作为首版可堆叠属性；70 AD 暴击原始量 140 |
 | `STAT.CooldownHaste.Base` | 冷却点/P2 | 0 | 0..400 | 只影响角色主动的下一次释放，不影响 proc/复活/刷新/喷漆/守护；急速后的冷却不低于 `SKILL.CooldownFloorSec` |
-| `UNIT.MoveSpeedCmPerSec` | cm/s/Rate | 300 | 派生 173..675 | 是设计值，不宣称由引擎默认值批准 |
-| `STAT.MoveSpeedCmPerSec` | cm/s/Rate | 按来源派生 | 173..675 | `FORMULA.MoveSpeed`；30%减速 300→210 不被夹紧；初始300；UI/运动读取最终值 |
+| `UNIT.MoveSpeedCmPerSec` | cm/s/Rate | 240 | 派生 138.4..540 | 是设计值，不宣称由引擎默认值批准 |
+| `STAT.MoveSpeedCmPerSec` | cm/s/Rate | 按来源派生 | 138.4..540 | `FORMULA.MoveSpeed`；30%减速 240→168 不被夹紧；初始240；UI/运动读取最终值 |
 | `UNIT.CollisionRadiusCm` | cm/Cm | 40 | 固定 | 最小双身体中心分离 80cm，小于建议普攻距离；世界负责净空/防重叠 |
 | `UNIT.BasicAttackRangeCm` | cm/Cm | 250 | 基础值 | 给80cm碰撞分离之外的接近余量；真实射程必须读下行派生值 |
 | `STAT.AttackRangeCm` | cm/Cm | 按来源派生 | 80..1000 | `FORMULA.AttackRange`；初始250 |
@@ -115,7 +115,7 @@ Root 是动作禁止，不把移动速度属性改成 0 后再夹回 173。
 | `FORMULA.Crit` | 合法普攻主击在唯一 AttackId 取一次随机值 $u\in[0,1)$；$u<p$ 时主击原始 AD 乘 2；与主击合并结算的普攻强化包（S11、S17、B12、C09 等 `empower_basic`）随主击一起乘 2 | 服务器独立确定性随机流；重发同 AttackId 不重抽；副击、吸血治疗不可暴击。技能不暴击（§4.5） |
 | `FORMULA.Damage` | source 快照原始量 → 普攻暴击 → ×(1+Σ伤害加成，§4.5) → 目标实时抗性（含破防） → 向下取 0.01 → 现有屏障吸收 → 实际 HP 损失 | HP 损失不超过目标剩余 HP；70 对 18 抗=59.32，140 对 18 抗=118.64；0.009 对零抗=0，不设最低 1 点伤害 |
 | `FORMULA.AttackSpeed` | $0.85\times(1+0.02k+\Sigma ASBonus)$ → AS | 最后夹取到 [`STAT.AttackSpeed.Min`, `STAT.AttackSpeed.Max`] = [0.30, 5.00] 次/秒 |
-| `FORMULA.MoveSpeed` | $UNIT.MoveSpeedCmPerSec\times(1+\Sigma MoveSpeedBonusRatio)$ | 最后夹取[173,675]cm/s；不把Root动作禁止当减速属性 |
+| `FORMULA.MoveSpeed` | $UNIT.MoveSpeedCmPerSec\times(1+\Sigma MoveSpeedBonusRatio)$ | 最后夹取[138.4,540]cm/s；不把Root动作禁止当减速属性 |
 | `FORMULA.AttackRange` | 基础 `UNIT.BasicAttackRangeCm` + 永久 `AttackRangeCmFlat` → `STAT.AttackRangeCm` | 无乘区；目标/导航接近/预览/AttackMove全用派生值 |
 | `FORMULA.AttackIntervalMs` | $\lceil1000/AS\rceil$ → 相邻合法 AttackStart 的最短间隔 | AS=.75 得 1334ms；已出手的攻击保留端点；前摇在出手时刻之前被打断时退回该次提交的端点 |
 | `FORMULA.AttackWindupMs` | $\lceil1000\times UNIT.BasicAttackWindupSec\times STAT.BaseAttackSpeed/AS\rceil$ | 基础 180ms；必须小于本次攻击间隔。出手前被取消（冲刺、技能、S、控制、失去目标、死亡）退还已提交节拍；到出手时刻才被拒的挥空不退 |
@@ -168,7 +168,7 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | `REST.OpeningBuildSec` | s/Sec | 35 | 开局 R0 构筑/试招窗；所有真人准备后立即结束 |
 | `REST.BuildSec` / `REST.FinalBuildSec` | s/Sec | 65 / 65 | R1–R3 的构筑与试招窗，所有真人就绪后提前收束，R1、R2 保留 PK 报名窗 |
 | `REST.SignupSec` | s/Sec | 10 | R1、R2 配装的最后这么久兼作 PK 报名窗；全员准备提前结束时保留 |
-| `REST.DrawSec` / `REST.BettingSec` / `REST.PKReadySec` | s/Sec | 0 / 6 / 3 | PK 公布赛制与押注合并为 6 s 押注步骤，随后 3 s 准备（锁输入） |
+| `REST.DrawSec` / `REST.BettingSec` / `REST.PKReadySec` | s/Sec | 0 / 10 / 3 | PK 公布赛制与押注合并为 10 s 押注步骤，随后 3 s 准备（锁输入） |
 | `REST.PKMaxSec` | s/Sec | 45 | PK 对打上限；提前分出胜负即结束 |
 | `REST.SettlementSec` / `REST.PayoutSec` | s/Sec | 3 / 0 | PK 结算与派奖合并为 3 s 结算步骤；单次 PK 最多 57 s |
 | `PK.ArenaRadiusCm` / `PK.RingMidRadiusCm` / `PK.RingFinalRadiusCm` | cm | 1800 / 600 / 150 | PK 圈：开打后 `PK.RingShrinkStartSec` 起缩，`PK.RingMidSec` 到中圈，`PK.RingFinalSec` 到终圈 |
@@ -237,7 +237,7 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | 对象 | 参数 | 规则 |
 | --- | --- | --- |
 | 外卖柜 | `EXPLORE.LockerCount` 4、`LockerEarliestSec` 30、`LockerLatestSec` 420、`LockerStaySec` 45、`LockerRadiusCm` 150、`LockerChannelSec` 3、`LockerCardOffer` 3 | 每局从 `locker_*` 中抽 4 个，各在 T ∈ [30, 420] s 的随机时刻出现，45 s 后没人打开就消失，出现期间公开在小地图上；柜旁 150 cm 内连续 3 s 打开（受伤或硬控打断），必得一组三选一 |
-| 二手贩子 | `EXPLORE.PeddlerEarliestSec` 120、`PeddlerLatestSec` 400、`PeddlerOffsetCm` 600、`PeddlerHP` 1800、`PeddlerMoveSpeed` 280、`PeddlerStaySec` 60、`PeddlerCardOffer` 5 | 每局一次，T 在 [120, 400] s 内随机出现在随机营地旁 600 cm，不攻击、被打就逃，60 s 后离开；击杀得一组五选一 |
+| 二手贩子 | `EXPLORE.PeddlerEarliestSec` 120、`PeddlerLatestSec` 400、`PeddlerOffsetCm` 600、`PeddlerHP` 1800、`PeddlerMoveSpeed` 224、`PeddlerStaySec` 60、`PeddlerCardOffer` 5 | 每局一次，T 在 [120, 400] s 内随机出现在随机营地旁 600 cm，不攻击、被打就逃，60 s 后离开；击杀得一组五选一 |
 
 AI 读取 `AI.ObjectiveReachCm`（2500）与 `AI.ObjectiveEntryHPRatio`（0.6）：生命不低于 60% 且离目标点不超过 2500 cm 时前往开放或预告中的野外目标。
 
@@ -358,7 +358,7 @@ $$
 | N1 | `active_cola_shake` 冰可乐摇一摇 | 运行中 | 是 | 方向扇形 400cm / 60°；0.15s | 25 / 4.2s | 冻：M 55 + 0.5 法强；冻；命中推开 100cm（0.12s） |
 | N2 | `active_desk_fan` 电风扇 | 运行中 | 否 | 地面点 500cm 放置，朝向 = 施放方向；0.2s | 35 / 7s | 无元素：风扇 4s，每 0.5s 向前方 600 × 200cm 矩形吹一次：推开 60cm（`COMBAT.PushSec` 0.12s） |
 | N3 | `active_stale_takeout` 过期外卖 | 运行中 | 否 | 方向弹道 700cm，弹道半径 60cm，1400cm/s；0.2s | 30 / 5.6s | 馊：首个命中的敌人受 M 75 + 0.7 法强 + 0.7 攻击力；馊；落点（命中点或终点）留毒雾 4s；命中推开 100cm（0.12s） |
-| N4 | `active_school_bag` 占座书包 | 运行中 | 是 | 地面点 450cm；0.2s | 30 / 7.7s | 放下一个书包（障碍物，不是身体）：生命 150 + 20 × (L−1)，身体半径 40cm，挡住所有身体的移动和敌人的弹道，不挡视线；4s 后或被打掉时在半径 200cm 内爆炸，敌人受 M 85 + 0.7 攻击力 + 0.65 法强（对野怪 ×1.4）；同一技能只留 1 个（Y12 每份 +1） |
+| N4 | `active_school_bag` 占座书包 | 运行中 | 是 | 地面点 450cm；0.2s | 30 / 7.7s | 放下一个书包（障碍物，不是身体）：生命 150 + 20 × (L−1)，身体半径 40cm，挡住所有身体的移动和敌人的弹道，不挡视线；4s 后或被打掉时在半径 200cm 内爆炸，敌人受 M 85 + 0.7 攻击力 + 0.65 法强（对野怪 ×1.4）；同一技能只留 1 个（Y12 每份 +1）；同时存活的上限即充能次数（APP_SPEC §4.3 充能） |
 | N5 | `active_flurry_rush` 疯狗乱拳 | 运行中 | 否 | 自身；无前摇 | 25 / 7.0s | 4s 狂热步法（攻速 +35%、移速 +18%）：期间每次普攻额外向前挥出 420cm 穿透拳风（半径 65cm，1900cm/s），造成 32 + 0.38 自适应伤害 |
 | N6 | `active_cordon_tape` 警戒封条 | 运行中 | 否 | 地面点 560cm；0.16s | 30 / 6.8s | 横向拉设 500×70cm 弹性警戒带（持续 5s）：敌方触碰受 65 + 0.7 自适应伤害、弹退 180cm、减速 30%（1.5s）并易伤 +15%（2.5s）；本人飞行弹道穿过封条时射程与伤害 +25% |
 
@@ -406,7 +406,7 @@ $$
 | N1 | 喷地成冰：扇形区留冰面 3s | 冰上加料：站在这片冰面上的敌人受到你的伤害 +15%（乘区） | 冰面持久：冰面持续 6s | 连喷：0、0.25、0.5s 三下，各 50% | 冻住：第三下定身 0.6s（计硬控递减） | 冰爽回劲：每下命中回 4 劲 |
 | N2 | 大风扇：矩形宽 300cm，推开 100cm | 吹上墙：被风推到墙上的敌人眩晕 0.5s | 带料的风：风同时带上你最后施加的元素 | 摇头扇：朝向左右各摆 60°，每秒 60° | 吹出劲：每次吹到敌人回 2 劲 | 开一整天：持续 6s |
 | N3 | 全家桶：毒雾半径 ×1.5 | 熏得手软：毒雾里的敌人攻速 −20% | 臭得持久：毒雾持续 7s | 外卖到付：命中后 1.5s 在他脚下再爆一次（M 45 + 0.42 法强，即 60%） | 加倍馊：二次爆炸挂 8s 的馊 | 到付回本：二次爆炸回 15 劲 |
-| N4 | 两个书包：同时 2 个 | 书包连墙：两个书包之间连一道宽 60cm 的墙，跟书包一起消失 | 冰镇书包：爆炸挂冻 | 炸药包：生命减半，爆炸伤害 ×2，半径 260cm | 书包炸飞：爆炸击退 250cm | 炸出火场：爆炸后留火场 3s |
+| N4 | 两个书包：同时 2 个，可连放 2 个（2 次充能） | 书包连墙：两个书包之间连一道宽 60cm 的墙，跟书包一起消失 | 冰镇书包：爆炸挂冻 | 炸药包：生命减半，爆炸伤害 ×2，半径 260cm | 书包炸飞：爆炸击退 250cm | 炸出火场：爆炸后留火场 3s |
 | N5 | 宽幅拳风：拳风加宽并延长至 520cm | 破甲连风：每道拳风叠 1 层破防 | 吸血乱拳：拳风享受 20% 吸血 | 狂热加码：开启攻速提高至 +55% | 重拳风暴：第 3 段普攻拳风伤害 ×1.8 | 战意续航：参与击杀延长 2.5s 并回 20 劲 |
 | N6 | 高压封条：拉长至 680cm，二次触碰或冲刺触碰眩晕 0.9s | 导电封条：触碰挂麻 | 封锁减速带：减速提高至 50% | 弹射加速门：友方弹道穿过伤害加成升至 +40% 且弹速 ×1.35 | 穿门穿透：穿过封条的弹道获 +1 穿透 | 跨线提速：自身穿过封条刷新 1.5s 冷却并加速 |
 
@@ -426,7 +426,8 @@ $$
 | 排除与不足 | 已学主动与待学图纸不进入候选；只有 1–2 个合格时只给这些；没有合格时机会排队、不生成候选，构筑变化后重新判定；排队不阻挡加点 |
 | 队列与随机 | 同时只有一组候选，其余机会排队；随机由本局私有种子、参赛者与机会序号决定，同一序号重试不换种子；没有权重、没有重抽 |
 | 选择 | 选中项成为待学图纸；有空槽时同一次提交学到首选空槽（未指定则按 Q、W、E 第一个空槽），Q/W/E 已满时存为图纸，回执写明原因（没有空槽）；对局进行中随时可选（交战中、死亡等待、休息每个步骤） |
-| 学习图纸 | 学到指定的空槽，时机同上（死亡等待中也可以）；满槽替换仅在休息配装中或野外躺平角脱战就绪后允许（退还旧技能已投技能点，兼容技能牌直接迁至新技能，不兼容牌退回牌库） |
+| 学习图纸 | 学到指定的空槽，时机同上（死亡等待中也可以）；满槽时同样随时可替换已学主动（退还旧技能已投技能点，兼容技能牌直接迁至新技能，不兼容牌退回牌库） |
+| 卖出图纸 | 时机同上，一份待学图纸换 `GROWTH.BlueprintSellPoints` 个未分配属性点 |
 | 加点 | 一次至少 1 点，按五维分配，合计不超过未分配点数；时机同上（对局进行中随时，含交战与死亡等待）；洗点只在休息配装中（支持全退或按五维单退） |
 | 交战窗口 | `GROWTH.BuildSafeWindowSec=4`：普攻成功起手或进攻技能释放、对敌方造成正伤害（含灼烧与区域跳伤）、受到敌方正伤害、被施加定身/眩晕/沉默/缴械/嘲讽/击退（单独减速不算）后 4s 内算交战；只用于 HUD 交战中收起野外摘要，不限制学习、加点或装牌 |
 
@@ -522,7 +523,7 @@ $$
 | Y09 | `card_skill_crit` | 技能也能暴击 | 改造 | 你的技能可以暴击（用你的暴击率另加 15%，倍率 2） | crit, skill_hit |
 | Y10 | `card_skill_drain` | 吸血对技能生效 | 改造 | 你的吸血也按技能实际生命伤害生效 | heal, skill_hit |
 | Y11 | `card_short_breath` | 气短 | 改造 | 劲到 35 就能爆劲，爆劲倍率 140%（多份取同一门槛，不叠加） | overdrive, momentum |
-| Y12 | `card_double_stall` | 双摊位 | 改造 | 你的陷阱、风扇和技能放下的地面状态每份多同时留一份；D10 的冰带每份多留一倍时长 | ground |
+| Y12 | `card_double_stall` | 双摊位 | 改造 | 你的陷阱、风扇和技能放下的地面状态每份多同时留一份，风扇与占座书包每份多 1 次充能；D10 的冰带每份多留一倍时长 | ground |
 | Y13 | `card_thick_hide` | 皮糙肉厚 | 转换 | 每 1 点护甲 → 生命上限 +6 | armor, max_hp |
 | Y14 | `card_overfed` | 吃撑了 | 转换 | 溢出的治疗变成护盾（上限 30% 生命上限，5 s，与现有护盾取强） | heal, shield |
 | Y15 | `card_berserk` | 残血狂暴 | 转换 | 每少 1% 生命，攻速 +1% | low_hp, attack_speed |
@@ -562,7 +563,7 @@ $$
 - **Ⅱ 阶**：该宿主触发的元素反应伤害提高 `+35%`（`MEDAL.Tier2ReactionBonusRatio`）；
 - **Ⅲ 阶**：命中挂主元素后立即额外附着确定性异种副元素（烫→麻、湿→麻、麻→湿、冻→湿、馊→烫），单次命中自触发元素反应。
 
-勋章不进牌三选一，也不上商店货架，只按下表几率掉落一枚（五种等概率）进牌库：
+勋章不进牌三选一，也不进商店随机货架；下表各来源按几率掉落一枚（五种等概率）进牌库，休息商店另有一格随机元素勋章（`SHOP.MedalPrice`，整局限购 `SHOP.MedalMaxPerMatch`，五种等概率）：
 
 | 参数 | 值 | 来源 |
 | --- | --- | --- |
@@ -635,11 +636,13 @@ $$
 | 参数 | 值 | 作用 |
 | --- | --- | --- |
 | `GROWTH.ActiveSkipPoints` | 1 | 跳过一组主动候选得到的属性点 |
+| `GROWTH.BlueprintSellPoints` | 1 | 卖出一份待学图纸得到的属性点 |
 | `SHOP.CardSlots`、`SHOP.VocabCardSlots`、`SHOP.VocabWeight` | 4、2、1.8 | 牌位数；其中按词汇加权的位数与共享词汇的权重倍率（其余位均匀） |
 | `SHOP.SkillSlots` | 2 | 技能位数（既未学也非图纸的主动，均匀） |
 | `SHOP.CardPrice`、`SHOP.SkillPrice` | 2（普通 2 / 稀有 3 / 传说 4）、2 | 牌按稀有度阶梯定价（2 / 3 / 4 属性点），技能为 2 属性点 |
 | `SHOP.RefreshPrice`、`SHOP.RefreshStep` | 0、1 | 第一次刷新的价格（免费，打折日也免费）；本次休息里每刷一次的涨价，下次休息重置 |
 | `SHOP.SkillPointPrice`、`SHOP.SkillPointMaxPerMatch` | 3、2 | 技能点价格（属性点）；每局最多买几个 |
+| `SHOP.MedalPrice`、`SHOP.MedalMaxPerMatch` | 4、1 | 随机元素勋章价格（属性点，打折日同样打折）；每局最多买几个 |
 
 ### 4.5 关键词、状态与共用战斗规则
 
@@ -740,7 +743,7 @@ $$
 上热搜者死亡结束本次上热搜。是首轮试玩值，未经平衡验证。
 
 **画饼老板 Boss**：`content.json` 的 `boss` 块（`monster_dean`，显示名“画饼老板”）。野外进度 T=`appear_at=210` 秒
-出现在 `boss_patrol_1`（原巡逻入口），整局仅一只，以 `move_speed=225` cm/s 沿 `boss_patrol_1..4` 循环巡逻；地图把四个巡逻点放在旗杆盆地内、
+出现在 `boss_patrol_1`（原巡逻入口），整局仅一只，以 `move_speed=180` cm/s 沿 `boss_patrol_1..4` 循环巡逻；地图把四个巡逻点放在旗杆盆地内、
 围着旗杆一圈（用户：“boss patrols around the flag pole in the center”），是 `SourceData/World/demo_world.json` 的
 `BossWaypoint` 锚点。生命 `hp=2800`，护甲/魔抗 30，每 `attack_interval=1.5` 秒一次
 `attack=210` 物理伤害（前摇 `attack_windup=0.5` 秒，与中野相同），攻击距离 `attack_range=250` cm，
@@ -758,7 +761,7 @@ $$
 （`camp_marker_elite`/段号）；正常怪物经验照旧，不额外加经验；没有合格的参赛者归属时标记继续开放。标记时营地已清空则等它正常刷新，
 不强刷；领奖后本段不再发；段结束（进入休息）未完成则机会消失。每类每段最多 1 份，共 3+3 份；最终野外不再生成构筑奖励目标，
 全房地图构筑机会上限 6 空投 + 1 Boss + 6 营地标记 = 13 份。公开视图列出当前（或上一段）标记的段号、类别、营地、位置、状态
-（已标记/已领走/已失效）与起止 T，不公开领取者。内容校验要求公开时刻落在段内、两类营地各至少两处。已由用户批准，未经平衡验证。
+（已标记/已领走/已失效）与起止 T，不公开领取者。内容校验要求公开时刻落在段内、两类营地各至少两处。未经平衡验证。
 
 ### 4.7 终局改装
 
@@ -843,7 +846,7 @@ DEV 成长夹具可预置主动候选，不把 DEV 预置当作随机分布证�
 | 攻速，次/s | .80 | .65 | .60 | .55 |
 | 普攻前摇，s | .35 | .50 | .50 | .50 |
 | 普攻射程，cm | 150 | 175 | 175 | 175 |
-| 移速，cm/s | 240 | 260 | 260 | 260 |
+| 移速，cm/s | 192 | 208 | 208 | 208 |
 | 碰撞半径，cm | 40 | 40 | 40 | 40 |
 | 拴绳 / 感知半径，cm | 900（HR）、1050（地推、骑手） | 1050 | 1050 | 1050 |
 | 失去目标宽限，s | 3 | 4 | 4 | 4 |

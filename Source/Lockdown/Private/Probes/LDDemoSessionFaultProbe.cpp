@@ -5,6 +5,7 @@
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameInstance.h"
 #include "Framework/LDGameMode.h"
+#include "Framework/LDMatchLifecycleTypes.h"
 #include "Framework/LDPlayerController.h"
 #include "UI/LDHUD.h"
 #include "UI/LDUIRoot.h"
@@ -58,6 +59,20 @@ template <typename T>
 T* FindIn(UUserWidget* Widget, const TCHAR* Name)
 {
     return Widget && Widget->WidgetTree ? Widget->WidgetTree->FindWidget<T>(FName(Name)) : nullptr;
+}
+
+// The caption a button shows: its first text, however deep the row styling wraps it.
+const UTextBlock* ButtonCaption(UButton* Button)
+{
+    const UTextBlock* Caption = nullptr;
+    if (Button)
+    {
+        UWidgetTree::ForWidgetAndChildren(Button, [&Caption](UWidget* Child)
+        {
+            if (!Caption) { Caption = Cast<UTextBlock>(Child); }
+        });
+    }
+    return Caption;
 }
 
 FString FindShownText(UUserWidget* Widget, TFunctionRef<bool(const FString&)> Match)
@@ -220,9 +235,9 @@ public:
     bool CheckLobbyLeaveConfirmation(ALDPlayerController& PC, const FLDLobbyView& Lobby)
     {
         UButton* Leave = FindIn<UButton>(PC.RootUI, TEXT("LeaveRoom"));
-        const UTextBlock* Caption = Leave ? Cast<UTextBlock>(Leave->GetContent()) : nullptr;
-        if (!Check(Caption && Caption->GetText().ToString() == TEXT("离开房间并返回主菜单"),
-            TEXT("The Lobby leave action names its destination"))) { return false; }
+        const UTextBlock* Caption = ButtonCaption(Leave);
+        if (!Check(Caption && Caption->GetText().ToString() == TEXT("离开房间"),
+            TEXT("The Lobby leave action is labelled; its prompt names the destination"))) { return false; }
         Leave->OnClicked.Broadcast();
         const FString Expected = TEXT("离开后将返回主菜单；房间继续运行，其他成员仍留在 Lobby。");
         const bool bExplainsOutcome = Check(
@@ -244,9 +259,9 @@ public:
         if (!Check(!FindIn<UButton>(PC.RootUI, TEXT("EndMatch")),
             TEXT("The in-match menu has no separate end-match action"))) { return false; }
         UButton* Leave = FindIn<UButton>(PC.RootUI, TEXT("LeaveMatch"));
-        const UTextBlock* Caption = Leave ? Cast<UTextBlock>(Leave->GetContent()) : nullptr;
-        if (!Check(Caption && Caption->GetText().ToString() == TEXT("离开房间并返回主菜单"),
-            TEXT("The in-match leave action names its destination"))) { return false; }
+        const UTextBlock* Caption = ButtonCaption(Leave);
+        if (!Check(Caption && Caption->GetText().ToString() == TEXT("离开房间"),
+            TEXT("The in-match leave action is labelled; its prompt names the destination"))) { return false; }
         Leave->OnClicked.Broadcast();
         const FString Expected = PC.OwnerState.bLobbyHost
             ? TEXT("你是房主：离开将结束整个房间，所有玩家返回主菜单。")
@@ -328,10 +343,10 @@ bool FLDDemoSessionFaultProbe::TickMatch(ALDPlayerController& PC, UWorld& World,
     {
         if (!AllMarkers(TEXT("Joined.json"))
             || Lobby.Members.FilterByPredicate([](const FLDLobbyMember& Row) { return Row.Kind == ELDContenderKind::Human; }).Num() != ExpectedHumans()) { return true; }
-        if (Mode == ELDSessionFaultMode::Refuse && Lobby.AICount != 3)
+        if (Mode == ELDSessionFaultMode::Refuse && Lobby.AICount != LDMatchLifecycle::MaxContenders - ExpectedHumans())
         {
             if (Role == TEXT("Host") && FPlatformTime::Seconds() - StageAt >= 3.)
-            { PC.SetDemoAICount(3); StageAt = FPlatformTime::Seconds(); }
+            { PC.SetDemoAICount(LDMatchLifecycle::MaxContenders - ExpectedHumans()); StageAt = FPlatformTime::Seconds(); }
             return true;
         }
         // Refuse: the full Lobby is announced once, and the Host holds it until the joiner was refused as full.

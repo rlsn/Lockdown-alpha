@@ -183,10 +183,20 @@ void ULDStatBar::Present(const FLDProgressionView* View,uint32 Match,uint32 Life
     const FLDDemoContentSnapshot* ContentSnapshot,const FLDCombatOwnerView* Combat)
 {
     // Another match's answers never reach this one: its waiting points end with it.
+    // The same inputs as the last sample, with no point waiting to change: the cells already show them.
+    const bool bSame=bPresented&&Match==LatestMatch&&Life==LatestLife&&Stage==LatestStage&&LifePhase==LatestLifePhase&&Content==LatestContent
+        &&ContentSnapshot==LatestSnapshot&&Combat==LatestCombat&&bShown==bShownNow&&bLatestView==(View!=nullptr)&&!Cells.IsEmpty()
+        &&(!View||LDHUD::SameProgression(Latest,*View))&&LDHUD::SameAttributes(LatestAttributes,Attributes);
+    if(bSame&&PendingRequest==0&&AwaitRevision==0&&StatAbsSum(Queued)==0){return;}
     if(Match!=LatestMatch){PendingRequest=0;AwaitRevision=0;LastBatchSentAt=-1.;Queued.Reset();InFlight.Reset();bAttributes=false;}
     LatestMatch=Match;LatestLife=Life;
-    Latest=View?*View:FLDProgressionView();
-    LatestContent=Content;LatestSnapshot=ContentSnapshot;LatestCombat=Combat;LatestAttributes=Attributes;
+    if(!bSame)
+    {
+        Latest=View?*View:FLDProgressionView();
+        LatestAttributes=Attributes;
+    }
+    bPresented=true;bLatestView=View!=nullptr;LatestStage=Stage;LatestLifePhase=LifePhase;
+    LatestContent=Content;LatestSnapshot=ContentSnapshot;LatestCombat=Combat;
     BuildCells();
     Queued.SetNumZeroed(Cells.Num());InFlight.SetNumZeroed(Cells.Num());
     Gate=Usable()?LDHUD::BuildGate(Stage,LifePhase):LDHUD::FBuildGateView();

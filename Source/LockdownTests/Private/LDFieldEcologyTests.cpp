@@ -45,6 +45,22 @@ bool FLDFieldEcologyDeploymentTest::RunTest(const FString& Parameters)
         LDFieldEcology::ChooseFieldSpawns(MakeArrayView(Candidates.GetData(), 5), Previous, 2400., Return, NextSegment));
     TestTrue(TEXT("The failed plan is empty"), NextSegment.IsEmpty());
 
+    // A random draw that misses narrow ground falls back to a fixed lattice over the same field bounds.
+    TArray<FVector2D> Grid, Again;
+    const FBox2D Field(FVector2D(-1000., 0.), FVector2D(1700., 1800.));
+    LDFieldEcology::GridPoints(Field, 900., Grid);
+    LDFieldEcology::GridPoints(Field, 900., Again);
+    TestEqual(TEXT("The sweep covers the field at one point per 9 m cell"), Grid.Num(), 6);
+    TestTrue(TEXT("The sweep is deterministic"), Grid == Again);
+    TestTrue(TEXT("The sweep starts half a cell inside the field"), Grid.Num() > 0 && Grid[0].Equals(FVector2D(-550., 450.)));
+    TestFalse(TEXT("Every sweep point is inside the field and 9 m from its neighbours"),
+        Grid.ContainsByPredicate([&Field](const FVector2D& Point) { return !Field.IsInsideOrOn(Point); })
+        || (Grid.Num() > 1 && !FMath::IsNearlyEqual(FVector2D::Distance(Grid[0], Grid[1]), 900.)));
+    LDFieldEcology::GridPoints(Field, 0., Grid);
+    TestTrue(TEXT("A bad spacing sweeps nothing"), Grid.IsEmpty());
+    LDFieldEcology::GridPoints(FBox2D(ForceInit), 900., Grid);
+    TestTrue(TEXT("An empty field sweeps nothing"), Grid.IsEmpty());
+
     // Farthest-point picking strands at five from every start of this layout, yet six of its points keep 2400 cm apart.
     const TArray<FVector> Irregular{{2280., 2890., 0.}, {780., 1560., 0.}, {4050., 3190., 0.}, {5190., 3100., 0.},
         {70., 3420., 0.}, {950., 4670., 0.}, {2610., 1860., 0.}, {2410., 4360., 0.}, {4810., 610., 0.}, {1940., 640., 0.},

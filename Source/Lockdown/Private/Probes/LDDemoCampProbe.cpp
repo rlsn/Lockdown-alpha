@@ -506,6 +506,8 @@ public:
     bool TickLowCamp(double Now, ALDPlayerController& Owner)
     {
         if (!Exists(TEXT("CampsReady.json"))) { return true; }
+        // Between fields (the body leaves before the rest phase replicates) there is nothing to walk yet; #C8 bounds it.
+        if (!Cast<ALDCharacter>(Owner.GetPawn())) { return true; }
         FString ApproachError;
         if (!ResolveApproach(Owner, CampLowId, -.52, LowApproach, ApproachError)) { return Fail(TEXT("#C3"), ApproachError); }
         if (!bArrived)
@@ -661,6 +663,7 @@ public:
         {
         case EHighStep::Approach:
         {
+            if (!Cast<ALDCharacter>(Owner.GetPawn())) { return true; }
             FString ApproachError;
             if (!ResolveApproach(Owner, CampHighId, 1.92, HighApproach, ApproachError)) { return Fail(TEXT("#C6"), ApproachError); }
             const double Distances[] = {1500., 1700., 1900.};
@@ -720,6 +723,7 @@ public:
         }
         case EHighStep::ToLowCamp:
         {
+            if (!Cast<ALDCharacter>(Owner.GetPawn())) { return true; }
             FString ApproachError;
             if (!ResolveApproach(Owner, CampLowId, -.52, LowApproach, ApproachError)) { return Fail(TEXT("#C9"), ApproachError); }
             if (!bArrived && !Walk(Now, Owner, LowApproach.GetValue(), TEXT("#C9"))) { return false; }

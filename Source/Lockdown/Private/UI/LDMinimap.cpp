@@ -3,6 +3,8 @@
 #include "UI/LDMinimapRaster.h"
 #include "UI/LDHUD.h"
 #include "UI/LDHUDStyle.h"
+#include "UI/LDBroadcastStyle.h"
+#include "UI/LDBroadcastPaint.h"
 #include "UI/LDUIFonts.h"
 #include "Core/LDLog.h"
 #include "UI/LDHUDModel.h"
@@ -11,6 +13,7 @@
 #include "Character/LDCharacter.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameState.h"
+#include "Framework/LDShowdownSettings.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Vision/LDWorldViewRelay.h"
 #include "Navigation/LDNavigationComponent.h"
@@ -613,6 +616,16 @@ bool MinimapResolveStatic(FLDMinimapStatic& Cache,const UWorld* World,const FLDD
         else{Error=Anchor.Id+TEXT(": unsupported anchor kind.");return false;}
         Cache.Sites.Add(Site);
     }
+    // The final arena is played inside the street ring, which starts wider than the arena spawns: the final region frames the
+    // whole starting ring, with a margin for the marks drawn on it.
+    if(const FLDDemoWorldAnchor* Final=Geometry.Anchors.FindByPredicate([](const FLDDemoWorldAnchor& Anchor){return Anchor.Kind==ELDDemoWorldAnchorKind::FinalCapture;}))
+    {
+        const FLDDemoRational& Ring=Approved.Parameters.ShowdownRingRadiusCm;
+        const double RingCm=Ring.Denominator>0?double(Ring.Numerator)/double(Ring.Denominator):0.;
+        FVector2D Centre=FVector2D::ZeroVector;
+        if(RingCm>0.&&FMath::IsFinite(RingCm)&&ToCm(Final->Id,Final->PositionCm,Centre))
+        {Anchors[LDMinimap::FinalRegion]+=FBox2D(Centre-FVector2D(RingCm+300.),Centre+FVector2D(RingCm+300.));}
+    }
     TArray<FBox2D> Footprints,Regions;
     for(const FLDMinimapStatic::FArea& Area:Cache.Areas)
     {
@@ -653,8 +666,9 @@ public:
 void MinimapLayoutStatic(const FLDMinimapStatic& Cache,const FVector2D& Origin,double Scale,SLDMinimapRaster& Raster)
 {
     const FLinearColor LowBlockerFill=FLinearColor(FColor(0x31,0x48,0x52)).CopyWithNewOpacity(.50f);
-    const FLinearColor LowBlockerRim=FLinearColor(FColor(0x6F,0xA3,0xB8)).CopyWithNewOpacity(.92f);
-    const FLinearColor FullBlockerRim=FLinearColor(FColor(0x22,0x25,0x2A)).CopyWithNewOpacity(.85f);
+    // On air: walls are white court lines over the darkened street; low walls a softer grey line.
+    const FLinearColor LowBlockerRim=FLinearColor(FColor(0x9A,0xA0,0xA8)).CopyWithNewOpacity(.85f);
+    const FLinearColor FullBlockerRim=FLinearColor(FColor(0xF2,0xF2,0xF2)).CopyWithNewOpacity(.9f);
     const FLinearColor RampFill=FLinearColor(FColor(0x7D,0x6E,0x49)).CopyWithNewOpacity(.32f);
     const FLinearColor RampChevronInk=FLinearColor(FColor(0xE2,0xC9,0x86)).CopyWithNewOpacity(.92f);
     auto EmitFill=[&Raster](const TArray<FVector2f>& Points,const FLinearColor& Fill)
@@ -1050,6 +1064,7 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
     const UWorld* World=GetWorld();
     const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
     if(bFrozenForTeardown||!World||World->bIsTearingDown||!PC){return Base;}
+    TRACE_CPUPROFILER_EVENT_SCOPE(LDMinimap_Paint);
     const FVector2D Size=G.GetLocalSize();const FSlateBrush* White=FCoreStyle::Get().GetBrush(TEXT("WhiteBrush"));const FLinearColor Ink(.02f,.03f,.03f,.92f);
     auto Box=[&](int32 Layer,const FVector2f& At,const FVector2f& Extent,const FLinearColor& Tint){FSlateDrawElement::MakeBox(E,Base+Layer,G.ToPaintGeometry(Extent,FSlateLayoutTransform(At)),White,ESlateDrawEffect::None,Tint);};
     auto Diamond=[&](int32 Layer,const FVector2f& At,float Edge,const FLinearColor& Tint){FSlateDrawElement::MakeRotatedBox(E,Base+Layer,G.ToPaintGeometry(FVector2f(Edge,Edge),FSlateLayoutTransform(At-FVector2f(Edge*.5f,Edge*.5f))),White,ESlateDrawEffect::None,UE_PI*.25f,TOptional<FVector2f>(),FSlateDrawElement::RelativeToElement,Tint);};
@@ -1080,8 +1095,9 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
         PlaneBox(1,RegionAt,RegionSize,LDMinimapRaster::GroundColor());
         if (const auto* Image = MinimapFindImage(Cache, Region); MinimapStaticCurrent(Cache, GetWorld()) && Image && Image->Texture.IsValid())
         {
+            // The real street colours, darkened under the white wall lines so the markers carry the colour.
             FSlateDrawElement::MakeBox(E, Base+2, Plane.ToPaintGeometry(RegionSize, FSlateLayoutTransform(RegionAt)),
-                &Image->Brush, ESlateDrawEffect::IgnoreTextureAlpha);
+                &Image->Brush, ESlateDrawEffect::IgnoreTextureAlpha, FLinearColor(.34f, .34f, .36f));
         }
         const FLDOwnerState& Own=PC->OwnerState;const bool bAlive=Own.LifePhase==ELDLifePhase::Alive;
         const ALDWorldViewRelay* Relay=bAlive?PC->LocalView():nullptr;const FLDObservedFrameRead Read=Relay?Relay->ReadObservedFrame():FLDObservedFrameRead();
@@ -1100,6 +1116,7 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
         else { PlaneBox(4, RegionAt, RegionSize, LDMinimapRaster::FogColor()); }
         if(MinimapStaticReady(Cache,GetWorld(),{Region,Size,View.Scale,G.GetAccumulatedLayoutTransform().GetScale(),Cache.World}))
         {
+            TRACE_CPUPROFILER_EVENT_SCOPE(LDMinimap_Sites);
             FSlateDrawElement::MakeBox(E,Base+3,Plane.ToPaintGeometry(Cache.RasterBrush.ImageSize,FSlateLayoutTransform(RegionAt-FVector2f(2.f))),
                 &Cache.RasterBrush,ESlateDrawEffect::PreMultipliedAlpha|ESlateDrawEffect::NoGamma);
             // Capture: flag on the zone centre. Camps: small diamond or large bordered one.
@@ -1168,11 +1185,43 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
                     const FLinearColor Gold(1.f,.80f,.20f,.95f);
                     if(Objective.Phase==ELDObjectivePhase::Announced){FSlateDrawElement::MakeDashedLines(E,Base+5,G.ToPaintGeometry(),MoveTemp(Ring),ESlateDrawEffect::None,Gold,2.f,4.f);}
                     else{Lines(5,Ring,Gold,2.f);}
+                    // When it is announced and when it opens, the ring flashes once: two gold pulses grow out of it.
+                    const uint16 FlashKey=uint16(Objective.Serial)<<8|uint16(Objective.Phase);
+                    const double Now=FPlatformTime::Seconds();
+                    if(FlashKey!=ObjectiveFlashKey){ObjectiveFlashKey=FlashKey;ObjectiveFlashAt=Now;}
+                    const double FlashAge=Now-ObjectiveFlashAt;
+                    if(ObjectiveFlashAt>=0.&&FlashAge<1.6)
+                    {
+                        const FVector2f Centre=Spot(Objective.CentreCm);
+                        const float Base0=FMath::Max(6.f,float(double(Objective.RadiusCm)*View.Scale));
+                        for(const double Start:{0.,.6})
+                        {
+                            const float Alpha=float((FlashAge-Start)/1.);
+                            if(Alpha<0.f||Alpha>1.f){continue;}
+                            TArray<FVector2f> Pulse;const float R=Base0+Alpha*28.f;
+                            for(int32 Step=0;Step<=32;++Step){const float Angle=float(UE_DOUBLE_TWO_PI*Step/32.);Pulse.Add(Centre+FVector2f(FMath::Cos(Angle),FMath::Sin(Angle))*R);}
+                            Lines(6,Pulse,Gold.CopyWithNewOpacity(.95f*(1.f-Alpha)),3.f*(1.f-Alpha)+1.f);
+                        }
+                    }
                     if(Objective.Kind==ELDObjectiveKind::MiniFlag)
                     {
                         const FVector2f At=Spot(Objective.CentreCm);
                         Box(6,At+FVector2f(-.75f,-8.f),FVector2f(1.5f,8.5f),FLinearColor(.94f,.94f,.90f));Box(7,At+FVector2f(.75f,-8.f),FVector2f(5.f,3.5f),Gold);
                     }
+                }
+                // The final's street closure and its flag: the safe ring as it stands now (white, the closing preview red) and
+                // the flag on its centre, the same marks the field shows, so the minimap points at the final's goal.
+                const FLDShowdownView& Street=Public->PublicMatch.Showdown;
+                if(Street.bStarted&&Street.InitialRadiusCm>0.)
+                {
+                    int64 NowMs=0;const int64 At=PC->ReadDemoAuthorityTimeMs(NowMs)?NowMs:Public->PublicMatch.ServerNowMs;
+                    const double Radius=LDShowdown::StreetRadiusCm(Street,At);
+                    TArray<FVector2f> Ring;
+                    for(int32 Step=0;Step<=48;++Step){const double Angle=UE_DOUBLE_TWO_PI*Step/48.;Ring.Add(Spot(Street.CentreCm+FVector(FMath::Cos(Angle),FMath::Sin(Angle),0.)*Radius));}
+                    Lines(5,Ring,FLinearColor(.95f,.95f,.95f,.9f),2.f);
+                    const FVector2f At2=Spot(Street.CentreCm);
+                    Box(6,At2+FVector2f(-2.f,-19.f),FVector2f(4.f,21.f),Ink);Box(7,At2+FVector2f(-1.f,-18.f),FVector2f(2.f,19.f),FLinearColor(.94f,.94f,.90f));
+                    Box(7,At2+FVector2f(1.f,-18.f),FVector2f(12.f,8.f),Ink);Box(8,At2+FVector2f(1.f,-17.f),FVector2f(11.f,6.f),LDBroadcast::Orange);
                 }
                 // P6 spec §11.3: the delivery lockers out now (public), a brown box with a pale lid while someone holds it.
                 for(const FLDLockerView& Locker:Public->PublicMatch.Lockers)
@@ -1194,6 +1243,7 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
         }
         if(Frame)
         {
+            TRACE_CPUPROFILER_EVENT_SCOPE(LDMinimap_Units);
             for (const FLDObservedRecoveryOrb& Pack : Frame->RecoveryOrbs)
             {
                 const FVector2f At = Spot(Pack.PositionCm);
@@ -1209,19 +1259,18 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
                 FVector Presented=FVector::ZeroVector;const FVector2f At=Spot(Relay->ReadPresentedLocation(Unit.Handle,Unit.ObservationEpoch,Presented)?Presented:FVector(Unit.FeetCm));
                 if(Unit.Kind==ELDObservedUnitKind::Contender)
                 {
+                    // A seat plate (seat ink, jersey number); a PK teammate gets a white rule under it, a PK enemy a cross.
                     const FString Relation=PublicState?LDHUD::PKRelationText(PublicState->PublicMatch,Own.ContenderId,Unit.ContenderId):FString();
-                    if(Relation==LDTerms::PKTeammate||Relation==LDTerms::PKOwnSide)
+                    int32 Seat=PublicState?LDHUD::SeatOf(PublicState->DemoLobby,Unit.ContenderId):INDEX_NONE;
+                    if(Seat==INDEX_NONE){Seat=Unit.Presentation;}
+                    const FBox2D Plate(FVector2D(At)-FVector2D(9.,7.),FVector2D(At)+FVector2D(9.,7.));
+                    LDBroadcastPaint::FillSlab(LDUIPaint::FContext(E,Base+8,G),Base+8,FBox2D(Plate.Min-FVector2D(1.5,1.5),Plate.Max+FVector2D(1.5,1.5)),Ink);
+                    LDBroadcastPaint::SeatPlate(LDUIPaint::FContext(E,Base+9,G),Base+9,Plate,Seat,1.f,13.f);
+                    if(Relation==LDTerms::PKTeammate||Relation==LDTerms::PKOwnSide){Box(11,At+FVector2f(-9.f,8.f),FVector2f(18.f,2.f),FLinearColor::White);}
+                    else if(Relation==LDTerms::PKEnemy)
                     {
-                        Diamond(8,At,10.f,Ink);Diamond(9,At,7.f,LDHUD::PaletteColor(Unit.Presentation));
-                    }
-                    else
-                    {
-                        Disc(8,At,9.f,Ink);Disc(9,At,6.5f,LDHUD::PaletteColor(Unit.Presentation));
-                        if(Relation==LDTerms::PKEnemy)
-                        {
-                            Lines(10,{At+FVector2f(-2.f,-2.f),At+FVector2f(2.f,2.f)},FLinearColor::White,1.5f);
-                            Lines(10,{At+FVector2f(-2.f,2.f),At+FVector2f(2.f,-2.f)},FLinearColor::White,1.5f);
-                        }
+                        Lines(11,{At+FVector2f(-6.f,-6.f),At+FVector2f(6.f,6.f)},FLinearColor::White,1.5f);
+                        Lines(11,{At+FVector2f(-6.f,6.f),At+FVector2f(6.f,-6.f)},FLinearColor::White,1.5f);
                     }
                 }
                 // P6 spec §11.3: the second-hand dealer, a green diamond with a pale core.
@@ -1239,7 +1288,7 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
             if(Ahead.IsNearlyZero()){Ahead=FVector2f(0.f,-1.f);}
             const FVector2f Across(-Ahead.Y,Ahead.X);
             const TArray<FVector2f> Arrow={At+Ahead*7.f,At-Ahead*5.f+Across*5.f,At-Ahead*2.f,At-Ahead*5.f-Across*5.f};
-            MinimapScanRuns(Arrow,[&Box](float X,float Y,float Width){Box(10,FVector2f(X,Y),FVector2f(Width,1.f),FLinearColor(.30f,1.f,.86f));});
+            MinimapScanRuns(Arrow,[&Box](float X,float Y,float Width){Box(10,FVector2f(X,Y),FVector2f(Width,1.f),LDBroadcast::Orange);});
             TArray<FVector2f> Rim=Arrow;Rim.Add(Arrow[0]);Lines(11,Rim,Ink,1.f);
         }
         // Actual camera's footprint on Z = OwnFootZ (0 when dead/bodiless) so elevated terrain adds zero parallax offset.

@@ -75,6 +75,8 @@ struct LOCKDOWN_API FLDGrowthBuild
     int32 DevSkillPoints = 0;
     // Spec §3.13: skill points bought in the rest shop (at most SHOP.SkillPointMaxPerMatch per match).
     int32 BoughtSkillPoints = 0;
+    // Random element medals bought in the rest shop (at most SHOP.MedalMaxPerMatch per match).
+    int32 BoughtMedals = 0;
     // Spec §11.2: skill points from clearing an audit-affix camp (at most AFFIX.AuditSkillPointsMax per match).
     int32 AffixSkillPoints = 0;
     uint64 Revision = 1;
@@ -316,8 +318,8 @@ namespace LDProgression
     // SkipActiveOffer: GROWTH.ActiveSkipPoints awarded stat points (OutPoints) replace the chosen active.
     LOCKDOWN_API ELDGrowthReason ApplySkipActiveOffer(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
         const FBuildContext& Context, FLDGrowthBuild& Out, int64& OutPoints);
-    // A pending blueprint learned into an empty slot: NoBlueprint, SlotOccupied (a full slot is replaced only by
-    // ApplyReplaceActive in a rest window) or a LearnGate reason when refused.
+    // A pending blueprint learned into an empty slot: NoBlueprint, SlotOccupied (a full slot is replaced by
+    // ApplyReplaceActive) or a LearnGate reason when refused.
     LOCKDOWN_API ELDGrowthReason ApplyLearnBlueprint(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
         FName Blueprint, uint8 Slot, const FBuildContext& Context, FLDGrowthBuild& Out);
     // Unspent points allocated across the stats in one step: one count per stat (design order) summing to at least one and at
@@ -335,8 +337,12 @@ namespace LDProgression
         const TArray<uint8>& PointCounts, const FBuildContext& Context, FLDGrowthBuild& Out, int64& OutRefunded);
     // A pending blueprint learned into the occupied Slot 0..2, the active there forgotten (neither refunded nor kept as a
     // blueprint) and its skill cards back in the library in the same step (ReclaimAttachments; OutReclaimed, by serial).
-    // Nothing moves to the new active on its own. ReplacementNotAllowed outside a rest window, OfferOutstanding while an active offer
-    // is outstanding, SlotEmpty for an empty slot (LearnBlueprint learns into it), NoBlueprint.
+    // Open whenever learning is (CommandGate). OfferOutstanding while an active offer is outstanding, SlotEmpty for an empty
+    // slot (LearnBlueprint learns into it), NoBlueprint.
+    // SellBlueprint: a pending blueprint gone for GROWTH.BlueprintSellPoints awarded stat points (OutPoints), open whenever
+    // learning is (CommandGate). NoBlueprint when it is not pending.
+    LOCKDOWN_API ELDGrowthReason ApplySellBlueprint(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
+        FName Blueprint, const FBuildContext& Context, FLDGrowthBuild& Out, int64& OutPoints);
     LOCKDOWN_API ELDGrowthReason ApplyReplaceActive(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
         const FLDProgressionState& Progression, FName Blueprint, uint8 Slot, const FBuildContext& Context, FLDGrowthBuild& Out,
         FName& OutForgotten, TArray<uint16>& OutReclaimed);
@@ -458,7 +464,7 @@ namespace LDProgression
         TArray<FLDShopSlot>& Out);
     LOCKDOWN_API uint64 ShopSeed(const FGuid& MatchSecret, const FGuid& Contender, uint32 Stock);
 
-    // ---- Element medals: their own drops, never a card offer or the shop ----
+    // ---- Element medals: their own drops and the shop's random medal, never a card offer ----
 
     // The seed of one medal chance: the match secret, the contender and the event's own key (a level, a death, a reward).
     LOCKDOWN_API uint64 MedalSeed(const FGuid& MatchSecret, const FGuid& Contender, uint64 Key);
@@ -480,6 +486,7 @@ namespace LDProgression
     LOCKDOWN_API int32 ShopCardPrice(const FLDDemoContentDefinitions& Content, FName CardId, const FLDShopState& Shop);
     LOCKDOWN_API int32 ShopSlotPrice(const FLDDemoContentDefinitions& Content, const FLDShopSlot& Slot, const FLDShopState& Shop);
     LOCKDOWN_API int32 ShopSkillPointPrice(const FLDDemoContentParameters& Parameters, const FLDShopState& Shop);
+    LOCKDOWN_API int32 ShopMedalPrice(const FLDDemoContentParameters& Parameters, const FLDShopState& Shop);
 
     // What a shop purchase gave.
     struct FShopOutcome
@@ -490,13 +497,14 @@ namespace LDProgression
         uint16 CardSerial = 0;
         FChoiceOutcome Choice;
     };
-    // ShopBuy: Slot of the current stock (Revision) or the skill point (FLDBuildCommand::ShopSkillPointSlot). A skill learns
+    // ShopBuy: Slot of the current stock (Revision), the skill point (FLDBuildCommand::ShopSkillPointSlot) or the random
+    // element medal (ShopMedalSlot: RollMedal at a certain chance on MedalSeed, into the library). A skill learns
     // into the lowest empty Q/W/E slot or becomes a pending blueprint, a card goes to the library, a skill point adds one
-    // bought skill point. CommandGate(ShopBuy) reasons; NoShop before the first stock, ShopStale, ShopSoldOut, SkillPointLimit,
+    // bought skill point. CommandGate(ShopBuy) reasons; NoShop before the first stock, ShopStale, ShopSoldOut, SkillPointLimit, MedalLimit,
     // InvalidOption (an active learned or pending since the stock), NotEnoughPoints (the unspent stat points pay).
     LOCKDOWN_API ELDGrowthReason ApplyShopBuy(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
         const FLDProgressionState& Progression, uint8 Slot, uint64 Revision, const FBuildContext& Context, FLDGrowthBuild& Out,
-        FLDProgressionState& OutProgression, FShopOutcome& Outcome);
+        FLDProgressionState& OutProgression, FShopOutcome& Outcome, uint64 MedalRollSeed = 0);
     // ShopRefresh: pays ShopRefreshPrice stat points and draws a new stock. NoShop, ShopStale, NotEnoughPoints.
     LOCKDOWN_API ELDGrowthReason ApplyShopRefresh(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
         const FLDProgressionState& Progression, uint64 Revision, const FGuid& MatchSecret, const FGuid& Contender,

@@ -1,5 +1,7 @@
 #include "World/LDShowdownRingMarker.h"
 #include "World/LDCaptureMarker.h"
+#include "Character/LDHitVfx.h"
+#include "NiagaraComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
 
@@ -59,6 +61,8 @@ void ALDShowdownRingMarker::Show(double SafeRadiusCm, bool bPreview, double Prev
     // The root's own visibility does not propagate, so the preview keeps its own.
     Safe->SetVisibility(Relay(Safe, SafeRadiusCm, LaidSafeCm));
     Preview->SetVisibility(bPreview && Relay(Preview, PreviewRadiusCm, LaidPreviewCm));
+    SafeGlow = LDGroundRing::Glow(*Safe, SafeGlow, Safe->IsVisible(), uint8(LDSliceVfx::ESystem::RingDanger), GetActorLocation(), SafeRadiusCm, SafeColor());
+    PreviewGlow = LDGroundRing::Glow(*Safe, PreviewGlow, Preview->IsVisible(), uint8(LDSliceVfx::ESystem::RingNext), GetActorLocation(), PreviewRadiusCm, PreviewColor());
 }
 
 FLinearColor ALDShowdownRingMarker::SafeColor()
@@ -69,7 +73,8 @@ FLinearColor ALDShowdownRingMarker::SafeColor()
 
 FLinearColor ALDShowdownRingMarker::PreviewColor()
 {
-    return FLinearColor(.92f, .85f, 1.f);
+    // A muted lilac: quieter than the safe ring, and no broad white on the floor.
+    return FLinearColor(.5f, .44f, .72f);
 }
 
 bool ALDShowdownRingMarker::IsPreviewShown() const

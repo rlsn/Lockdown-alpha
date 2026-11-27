@@ -201,6 +201,8 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
             if (Fans[Index].Payload.SourceEntity == Body.Victim.EntityId && Fans[Index].Payload.Source == Payload.Source) { Owned.Add(Index); }
         }
         for (int32 Drop=Owned.Num()-Allowed; Drop >= 0; --Drop) { Fans.RemoveAt(Owned[Drop]); }
+        UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_FAN_PLACED origin=%s direction=%s vector=%d"),*Fan.OriginCm.ToCompactString(),
+            *Fan.Direction.ToCompactString(),Action.Direction.IsNearlyZero()?0:1);
         Fans.Add(MoveTemp(Fan));
         bHandled=true;
         return true;
@@ -227,17 +229,27 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
         const FVector Offset(Action.TargetPoint.X-Origin.X, Action.TargetPoint.Y-Origin.Y, 0);
         FVector Centre=Origin + Offset.GetClampedToMaxSize(Cm(Target.RangeCm));
         Centre.Z=Action.TargetPoint.Z;
-        FVector CastDir=Offset.GetSafeNormal2D();
-        if (CastDir.IsNearlyZero()) { CastDir=FVector(Action.Direction.X, Action.Direction.Y, 0).GetSafeNormal(); }
-        if (CastDir.IsNearlyZero()) { CastDir=Actor->GetActorForwardVector().GetSafeNormal2D(); }
-        if (CastDir.IsNearlyZero()) { CastDir=FVector(1,0,0); }
         FLDCombatCordon Cordon;
+        Cordon.HalfLengthCm=Cm(Tape->RadiusCm)*.5;
+        // Vector cast: the line starts at the point and runs along the dragged facing. Otherwise it is centred on the
+        // point, across the cast.
+        const FVector Facing=FVector(Action.Direction.X, Action.Direction.Y, 0).GetSafeNormal();
+        if (!Facing.IsNearlyZero())
+        {
+            Cordon.Tangent=Facing;
+            Centre+=Facing*Cordon.HalfLengthCm;
+        }
+        else
+        {
+            FVector CastDir=Offset.GetSafeNormal2D();
+            if (CastDir.IsNearlyZero()) { CastDir=Actor->GetActorForwardVector().GetSafeNormal2D(); }
+            if (CastDir.IsNearlyZero()) { CastDir=FVector(1,0,0); }
+            Cordon.Tangent=FVector(-CastDir.Y, CastDir.X, 0).GetSafeNormal();
+        }
         Cordon.Id=FGuid::NewGuid();
         Cordon.Payload=Payload;
         Cordon.Terms=*Tape;
         Cordon.CentreCm=Centre;
-        Cordon.Tangent=FVector(-CastDir.Y, CastDir.X, 0).GetSafeNormal();
-        Cordon.HalfLengthCm=Cm(Tape->RadiusCm)*.5;
         Cordon.HalfWidthCm=FMath::Max(25.,Cm(Tape->ExtraDistanceCm));
         Cordon.OwnerGroup=Body.IsolationGroup;
         Cordon.OwnerPKSide=Body.PKSide;
@@ -253,6 +265,8 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
             if (Cordons[Idx].Payload.SourceEntity==Body.Victim.EntityId && Cordons[Idx].Payload.Source==Payload.Source) { Owned.Add(Idx); }
         }
         for (int32 Drop=Owned.Num()-Allowed; Drop>=0; --Drop) { Cordons.RemoveAt(Owned[Drop]); }
+        UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_CORDON_PLACED centre=%s tangent=%s half=%.0f vector=%d"),*Cordon.CentreCm.ToCompactString(),
+            *Cordon.Tangent.ToCompactString(),Cordon.HalfLengthCm,Facing.IsNearlyZero()?0:1);
         Cordons.Add(MoveTemp(Cordon));
         bHandled=true;
         return true;

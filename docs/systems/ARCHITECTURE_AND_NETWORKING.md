@@ -5,7 +5,7 @@
 ## 权威拓扑与协议边界
 
 - **单进程权威拓扑**：Demo 采用 UE Listen Server 架构（1 名参与对局的真人 Host + 最多 2 名真人远程 Client + 自动补齐至 6 席的对手 AI，无 Dedicated Server 与平台匹配）。
-- **线协议与版本校验**：网络握手固定核对 `LDNetProtocol::WireProtocol = 36`、`Config/DefaultGame.ini` 的 `ProjectVersion` 与 `CatalogDigest`（`manifest.json` 的 32 字节 SHA-256），任一不匹配直接拒绝入房并给出明确原因。
+- **线协议与版本校验**：网络握手固定核对 `LDDemoEntry::WireProtocol = 39`、`Config/DefaultGame.ini` 的 `ProjectVersion` 与 `CatalogDigest`（`manifest.json` 的 32 字节 SHA-256），任一不匹配直接拒绝入房并给出明确原因。
 - **核心通信原则**：客户端只发窄意图 RPC（会话、空间订单、战斗动作、构筑命令、PK 报名/押注/投掷、出生点选择），服务器验证权限、阶段写闸（`FLDGameplayWritePermit`）与修订后单点提交；Listen Host 本地 UI 与远端 Client 走完全相同的只读投影（`OwnerState`、`ALDGameState::PublicMatch`、`ALDWorldViewRelay`），禁止 Widget 直调服务器 Director。
 
 ## 核心身份与生命
@@ -28,7 +28,7 @@
 | --- | --- | --- | --- |
 | 1 | 开局休息 `R0` | `REST.OpeningBuildSec = 35 s`（全员真人 `ServerRestReady` 后立即跳入 `3 s` 返场倒计时；准备可再次点击撤回 `Withdrawn`） | 全体参赛者与训练假人入驻隔离休息室；选开局主动 + 开局构筑牌 + 加点；商店不开放 |
 | 2 | 定时野外 `F1` | `160 s`（$T: 0 	o 160	ext{ s}$） | $T=11	ext{ s}$ 公开中野/大野标记营地；$T=40, 110	ext{ s}$ 空投；$T=90	ext{ s}$ 预告、$100\sim130	ext{ s}$ 开放小迷你旗 |
-| 3 | 第一次休息 `R1` | `65 s` 规划（末 `10 s` 兼 PK 报名，真人全就绪提前收束至报名窗）→ 若 $\ge 2$ 人报名进入 PK（`6 s` 押注 + `3 s` 准备 + 最长 `45 s` 对决 + `3 s` 结算，最长 `57 s`）→ `3 s` 返场 | 开放休息商店、洗点、遗忘与满槽替换；返场由服务端共同准备分散点位及野外生态，全部就绪后一起站立，超时报告 `LD_REST_RETURN_UNREADY` |
+| 3 | 第一次休息 `R1` | `65 s` 规划（末 `10 s` 兼 PK 报名，真人全就绪提前收束至报名窗）→ 若 $\ge 2$ 人报名进入 PK（`10 s` 押注 + `3 s` 准备 + 最长 `45 s` 对决 + `3 s` 结算，最长 `57 s`）→ `3 s` 返场 | 开放休息商店、洗点、遗忘与满槽替换；返场由服务端共同准备分散点位及野外生态，全部就绪后一起站立，超时报告 `LD_REST_RETURN_UNREADY` |
 | 4 | 定时野外 `F2` | `160 s`（$T: 160 	o 320	ext{ s}$） | $T=171	ext{ s}$ 新一轮标记营地；$T=200, 270	ext{ s}$ 空投；$T=210	ext{ s}$ 画饼老板出场（巡查日为 $120	ext{ s}$）；$T=260\sim300	ext{ s}$ 中心擂台 |
 | 5 | 第二次休息 `R2` | 同 `R1` | 商店刷新价重置为 0；PK 赛制按报名人数抽单挑、车轮、混战或双队 |
 | 6 | 定时野外 `F3` | `160 s`（$T: 320 	o 480	ext{ s}$） | $T=331	ext{ s}$ 末轮标记营地；$T=360, 430	ext{ s}$ 空投；$T=420\sim450	ext{ s}$ 小迷你旗；$T=480	ext{ s}$ 未击杀 Boss 退场、本段营地为 6 阶 |

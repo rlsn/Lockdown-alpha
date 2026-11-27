@@ -43,7 +43,9 @@ enum class ELDBuildCommandKind : uint8
     PickCard = 30, SkipCards = 31, RerollCards = 32, InstallCard = 34, UninstallCard = 35,
     // Spec §3.13 rest shop (paid in stat points): buy shelf slot Slot (or a skill point, Slot ShopSkillPointSlot), refresh the
     // shelf. 38 (the card sale) and 39 (the pick ticket) are retired.
-    ShopBuy = 36, ShopRefresh = 37
+    ShopBuy = 36, ShopRefresh = 37,
+    // Sell a pending blueprint (Blueprint) for GROWTH.BlueprintSellPoints unspent stat points.
+    SellBlueprint = 29
 };
 
 // What one rest shop slot holds (spec §3.13).
@@ -153,8 +155,9 @@ enum class ELDGrowthReason : uint16
     // Spec §3.13 the rest shop (allocated 200-209; a price the unspent stat points cannot pay is NotEnoughPoints): ShopSoldOut
     // (the slot was bought already or holds nothing), ShopStale (the shelf was restocked since the command saw it),
     // SkillPointLimit (the match's bought skill points are all taken), NoShop (no shelf stocked yet: the opening rest has
-    // none). 200 (the vouchers), 205 and 206 (the pick ticket) and 207 (the card sale) are retired.
-    ShopSoldOut = 201, ShopStale = 202, SkillPointLimit = 203, NoShop = 204
+    // none), MedalLimit (the match's bought medals are all taken). 200 (the vouchers), 205 and 206 (the pick ticket) and 207
+    // (the card sale) are retired.
+    ShopSoldOut = 201, ShopStale = 202, SkillPointLimit = 203, NoShop = 204, MedalLimit = 208
 };
 
 // Fixed 64-byte UTF-8 definition identity shared with Combat: at most 63 content bytes, NUL terminated,
@@ -331,6 +334,10 @@ struct LOCKDOWN_API FLDShopView
     UPROPERTY() int32 SkillPointPrice = 0;
     UPROPERTY() int32 SkillPointsBought = 0;
     UPROPERTY() int32 SkillPointsMax = 0;
+    // The random element medal (ShopMedalSlot).
+    UPROPERTY() int32 MedalPrice = 0;
+    UPROPERTY() int32 MedalsBought = 0;
+    UPROPERTY() int32 MedalsMax = 0;
 };
 
 // #198 G: one field reward this contender received (owner-only history, oldest first; at most the room's 13 opportunities).
@@ -438,9 +445,11 @@ struct LOCKDOWN_API FLDBuildCommand
     UPROPERTY() bool bLearnIfPossible = false;
     // ShopBuy: the skill point instead of a shelf slot.
     static constexpr uint8 ShopSkillPointSlot = 0xFE;
+    // ShopBuy: the random element medal instead of a shelf slot.
+    static constexpr uint8 ShopMedalSlot = 0xFD;
 
     // ActiveChoice with bLearnIfPossible: the preferred slot 0..2 or AnySlot; LearnBlueprint: the empty slot 0..2;
-    // ReplaceActive, ForgetActive and RankUpSkill: the learned slot 0..2; ShopBuy: the shelf slot or ShopSkillPointSlot.
+    // ReplaceActive, ForgetActive and RankUpSkill: the learned slot 0..2; ShopBuy: the shelf slot, ShopSkillPointSlot or ShopMedalSlot.
     // Respec and ShopRefresh leave it at AnySlot.
     UPROPERTY() uint8 Slot = AnySlot;
     // RankUpSkill: the next branch path of the skill in Slot (A|B at rank 1, A1|A2 under A, B1|B2 under B).

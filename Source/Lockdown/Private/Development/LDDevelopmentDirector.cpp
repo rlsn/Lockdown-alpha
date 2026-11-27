@@ -63,6 +63,9 @@ bool DevelopmentBuildShapeValid(const FLDBuildCommand& Command, int32 StatCount)
     case ELDBuildCommandKind::ReplaceActive:
         return bNoOffer && Command.Blueprint.Decode(Decoded) && !Command.bLearnIfPossible && Command.Slot < 3
             && Command.PointCounts.IsEmpty() && bNoCard && Command.Branch == ELDSkillBranch::None;
+    case ELDBuildCommandKind::SellBlueprint:
+        return bNoOffer && Command.Blueprint.Decode(Decoded) && !Command.bLearnIfPossible && Command.Slot == FLDBuildCommand::AnySlot
+            && Command.PointCounts.IsEmpty() && bNoCard && Command.Branch == ELDSkillBranch::None;
     case ELDBuildCommandKind::ForgetActive:
         return bNoOffer && Command.Blueprint == FLDDefinitionWire() && !Command.bLearnIfPossible && Command.Slot < 3
             && Command.PointCounts.IsEmpty() && bNoCard && Command.Branch == ELDSkillBranch::None;
@@ -77,7 +80,7 @@ bool DevelopmentBuildShapeValid(const FLDBuildCommand& Command, int32 StatCount)
         return !Command.OfferId.IsValid() && Command.OfferRevision != 0 && Command.Option == FLDDefinitionWire()
             && Command.Blueprint == FLDDefinitionWire() && Command.PointCounts.IsEmpty() && !Command.bLearnIfPossible
             && Command.Branch == ELDSkillBranch::None && bNoCard
-            && (Command.Slot < 8 || Command.Slot == FLDBuildCommand::ShopSkillPointSlot);
+            && (Command.Slot < 8 || Command.Slot == FLDBuildCommand::ShopSkillPointSlot || Command.Slot == FLDBuildCommand::ShopMedalSlot);
     case ELDBuildCommandKind::ShopRefresh:
         return !Command.OfferId.IsValid() && Command.OfferRevision != 0 && Command.Option == FLDDefinitionWire() && bNoActive && bNoCard;
     case ELDBuildCommandKind::AllocatePoints:
@@ -496,6 +499,9 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
     View.Shop.SkillPointsBought = Build.BoughtSkillPoints;
     View.AffixSkillPoints = Build.AffixSkillPoints;
     View.Shop.SkillPointsMax = ShopTerms.SkillPointMaxPerMatch;
+    View.Shop.MedalPrice = LDProgression::ShopMedalPrice(Definitions.Parameters, Progression.Shop);
+    View.Shop.MedalsBought = Build.BoughtMedals;
+    View.Shop.MedalsMax = ShopTerms.MedalMaxPerMatch;
     View.HeldBlueprints = Progression.HeldBlueprints;
     View.FieldRewards = Progression.FieldRewards;
     View.bFinalModPending = Progression.FinalMod.IsPending();
@@ -773,6 +779,17 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
         Choice.Slot = Command.Slot;
         break;
     }
+    case ELDBuildCommandKind::SellBlueprint:
+    {
+        Command.Blueprint.Decode(Definition);
+        int64 Paid = 0;
+        const ELDGrowthReason SellReason = LDProgression::ApplySellBlueprint(Definitions, Build, Definition, Context, NewBuild, Paid);
+        if (SellReason != ELDGrowthReason::None)
+        {
+            return Reject(SellReason);
+        }
+        break;
+    }
     case ELDBuildCommandKind::AllocatePoints:
     {
         const ELDGrowthReason PointsReason = LDProgression::ApplyAllocation(Definitions, Build, Progression.CumulativeXP,
@@ -796,7 +813,8 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
         if (Command.Kind == ELDBuildCommandKind::ShopBuy)
         {
             ShopReason = LDProgression::ApplyShopBuy(Definitions, Build, Progression, Command.Slot, Command.OfferRevision, Context,
-                NewBuild, NewProgression, Shopped);
+                NewBuild, NewProgression, Shopped,
+                LDProgression::MedalSeed(MatchSecret, ContenderId, 0x53484F504D000000ull + uint64(Build.BoughtMedals)));
         }
         else
         {
@@ -1019,6 +1037,7 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
         UE_LOG(LogLDGrowth, Log, TEXT("LD_SHOP t=%lld contender=%s kind=%s slot=%s item=%s serial=%u points=%+lld unspent=%lld refreshes=%d stock=%s"),
             GameMode->GetAuthorityNowMs(), *LDLog::Id(ContenderId), *LDLog::EnumName(Command.Kind),
             Command.Kind == ELDBuildCommandKind::ShopBuy ? (Command.Slot == FLDBuildCommand::ShopSkillPointSlot ? TEXT("skill_point")
+                : Command.Slot == FLDBuildCommand::ShopMedalSlot ? TEXT("medal")
                 : *FString::FromInt(Command.Slot)) : TEXT("-"),
             !Receipt.DefinitionId.IsNone() ? *Receipt.DefinitionId.ToString() : !Receipt.CardId.IsNone() ? *Receipt.CardId.ToString() : TEXT("-"),
             uint32(Receipt.CardSerial), Receipt.PointsDelta, Unspent, Shop.Refreshes,

@@ -1,5 +1,9 @@
 #include "World/LDPKRingMarker.h"
 #include "World/LDCaptureMarker.h"
+#include "Character/LDHitVfx.h"
+#include "Character/LDImpactFx.h"
+#include "Engine/World.h"
+#include "NiagaraComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
 
@@ -76,12 +80,28 @@ void ALDPKRingMarker::Show(double SafeRadiusCm, bool bPreview, double PreviewRad
     // The root's own visibility does not propagate, so the preview and throws keep theirs.
     Safe->SetVisibility(Relay(Safe, SafeRadiusCm, LaidSafeCm));
     Preview->SetVisibility(bPreview && Relay(Preview, PreviewRadiusCm, LaidPreviewCm));
+    SafeGlow = LDGroundRing::Glow(*Safe, SafeGlow, Safe->IsVisible(), uint8(LDSliceVfx::ESystem::RingDanger), Centre, SafeRadiusCm, SafeColor());
+    PreviewGlow = LDGroundRing::Glow(*Safe, PreviewGlow, Preview->IsVisible(), uint8(LDSliceVfx::ESystem::RingNext), Centre, PreviewRadiusCm, PreviewColor());
+    // A throw gone from the list since the last call has landed (the list keeps each until its landing instant).
+    if (ULDImpactFxSubsystem* Impacts = GetWorld() ? GetWorld()->GetSubsystem<ULDImpactFxSubsystem>() : nullptr)
+    {
+        for (const FVector& Was : InFlightCm)
+        {
+            if (!ThrowsCm.ContainsByPredicate([&Was](const FVector& Still) { return Still.Equals(Was, 1.); }))
+            {
+                Impacts->PlayPack(LDSliceVfx::EPack::DustRing, Was, .5f);
+            }
+        }
+    }
+    InFlightCm = ThrowsCm;
+    ThrowGlows.SetNum(Throws.Num());
     for (int32 Index = 0; Index < Throws.Num(); ++Index)
     {
         UInstancedStaticMeshComponent* Ring = Throws[Index];
         const bool bShown = ThrowsCm.IsValidIndex(Index) && !ThrowsCm[Index].ContainsNaN() && Relay(Ring, ThrowRadiusCm, LaidThrowCm[Index]);
         if (bShown) { Ring->SetRelativeLocation(ThrowsCm[Index] - Centre); }
         Ring->SetVisibility(bShown);
+        ThrowGlows[Index] = LDGroundRing::Glow(*Safe, ThrowGlows[Index], bShown, uint8(LDSliceVfx::ESystem::AreaPlain), bShown ? ThrowsCm[Index] : Centre, ThrowRadiusCm, ThrowColor());
     }
 }
 
@@ -93,7 +113,8 @@ FLinearColor ALDPKRingMarker::SafeColor()
 
 FLinearColor ALDPKRingMarker::PreviewColor()
 {
-    return FLinearColor(.92f, .85f, 1.f);
+    // A muted lilac: quieter than the safe ring, and no broad white on the floor.
+    return FLinearColor(.5f, .44f, .72f);
 }
 
 FLinearColor ALDPKRingMarker::ThrowColor()

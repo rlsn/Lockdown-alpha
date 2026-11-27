@@ -1,5 +1,6 @@
 #include "LDDemoUIImageImport.h"
 #include "LDEditorLog.h"
+#include "UI/LDBuildRingModel.h"
 #include "UI/LDUIBackgrounds.h"
 #include "UI/LDUIFonts.h"
 #include "UI/LDUIIcons.h"
@@ -46,7 +47,9 @@ namespace
     {
         if (Id == LDUIBackgrounds::TitleId) { return LDUIBackgrounds::TitlePackage; }
         if (Id == LDUIBackgrounds::LobbyId) { return LDUIBackgrounds::LobbyPackage; }
-        return FString();
+        for (int32 Seat = 0; Seat < 8; ++Seat) { if (Id == LDUIBackgrounds::SeatId(Seat)) { return LDUIBackgrounds::SeatPackage(Seat); } }
+        // The build ring's own art (LDBuildRing::Art).
+        return LDBuildRing::ArtPackage(Id);
     }
 
     bool UILoadIcons(TArray<FUIImageSpec>& Out, FString& Error);
@@ -174,8 +177,12 @@ namespace
     // small enough to stay uncompressed ("UserInterface2D (RGBA)"), so their painted edges keep every pixel.
     TextureCompressionSettings UICompression(const FUIImageSpec& Spec) { return Spec.bIcon ? TC_EditorIcon : TC_BC7; }
 
+    // The Lobby picture is only a dark texture behind the seat board: nearly grey, so the seat cards are the page's colour.
+    float UISaturation(const FUIImageSpec& Spec) { return Spec.Id == LDUIBackgrounds::LobbyId ? .12f : 1.f; }
+
     void UIApplySettings(UTexture2D& Texture, const FUIImageSpec& Spec)
     {
+        Texture.AdjustSaturation = UISaturation(Spec);
         Texture.LODGroup = TEXTUREGROUP_UI;
         Texture.MipGenSettings = TMGS_NoMipmaps;
         Texture.CompressionSettings = UICompression(Spec);
@@ -186,7 +193,8 @@ namespace
     bool UISettingsMatch(const UTexture2D& Texture, const FUIImageSpec& Spec)
     {
         return Texture.LODGroup == TEXTUREGROUP_UI && Texture.MipGenSettings == TMGS_NoMipmaps
-            && Texture.CompressionSettings == UICompression(Spec) && Texture.SRGB && Texture.NeverStream;
+            && Texture.CompressionSettings == UICompression(Spec) && Texture.SRGB && Texture.NeverStream
+            && FMath::IsNearlyEqual(Texture.AdjustSaturation, UISaturation(Spec));
     }
 
     UTexture2D* UILoad(const FUIImageSpec& Spec)
@@ -220,8 +228,9 @@ namespace
         FString Package;
     };
 
-    // SourceData/UI/ui_fonts.json lists exactly the typefaces LDUIFonts composes, each one .otf of SourceData/UI/Fonts with
-    // its SHA-256, plus the licence file the fonts ship with; the folder holds nothing else.
+    // SourceData/UI/ui_fonts.json lists exactly the typefaces LDUIFonts composes, each one .otf or .ttf of SourceData/UI/Fonts
+    // with its SHA-256, plus the licence file the fonts ship with; the folder holds nothing else. A face of another family
+    // names its own family, provenance, licence and licence file (with its SHA-256) instead of the manifest's.
     bool UILoadFonts(TArray<FUIFontSpec>& Out, FString& Error)
     {
         Out.Reset();
@@ -256,9 +265,31 @@ namespace
             FString File, Hash;
             if (!Value->TryGetObject(Object) || !(*Object)->TryGetStringField(TEXT("typeface"), Spec.Typeface) || Typefaces.Contains(Spec.Typeface)
                 || !(*Object)->TryGetStringField(TEXT("file"), File) || File.Contains(TEXT("/")) || File.Contains(TEXT("\\")) || File.Contains(TEXT(".."))
-                || !File.EndsWith(TEXT(".otf"), ESearchCase::CaseSensitive) || Listed.Contains(File) || !(*Object)->TryGetStringField(TEXT("sha256"), Hash))
+                || !(File.EndsWith(TEXT(".otf"), ESearchCase::CaseSensitive) || File.EndsWith(TEXT(".ttf"), ESearchCase::CaseSensitive))
+                || Listed.Contains(File) || !(*Object)->TryGetStringField(TEXT("sha256"), Hash))
             {
-                return UIFail(Error, TEXT("Every font needs a unique typeface, a unique .otf file name and sha256."));
+                return UIFail(Error, TEXT("Every font needs a unique typeface, a unique .otf or .ttf file name and sha256."));
+            }
+            FString OwnLicenseFile;
+            if ((*Object)->TryGetStringField(TEXT("license_file"), OwnLicenseFile))
+            {
+                FString OwnFamily, OwnProvenance, OwnLicense, OwnLicenseHash;
+                if (!(*Object)->TryGetStringField(TEXT("family"), OwnFamily) || OwnFamily.IsEmpty()
+                    || !(*Object)->TryGetStringField(TEXT("provenance"), OwnProvenance) || OwnProvenance.IsEmpty()
+                    || !(*Object)->TryGetStringField(TEXT("license"), OwnLicense) || OwnLicense.IsEmpty()
+                    || OwnLicenseFile.IsEmpty() || OwnLicenseFile.Contains(TEXT("/")) || OwnLicenseFile.Contains(TEXT("\\"))
+                    || OwnLicenseFile.Contains(TEXT("..")) || !(*Object)->TryGetStringField(TEXT("license_sha256"), OwnLicenseHash))
+                {
+                    return UIFail(Error, TEXT("A font with its own license_file also names its family, provenance, license and license_sha256."));
+                }
+                if (!Listed.Contains(OwnLicenseFile))
+                {
+                    if (!LDDemoEntry::VerifyFileHash(UIAbsolute(FString(FontFolder) / OwnLicenseFile), OwnLicenseHash, HashError))
+                    {
+                        return UIFail(Error, FString::Printf(TEXT("SourceData/UI/Fonts/%s is missing or differs from its manifest SHA-256."), *OwnLicenseFile));
+                    }
+                    Listed.Add(OwnLicenseFile);
+                }
             }
             Spec.Package = LDUIFonts::PackageFor(Spec.Typeface);
             if (Spec.Package.IsEmpty()) { return UIFail(Error, TEXT("ui_fonts.json lists a typeface the interface font does not use: ") + Spec.Typeface); }
@@ -295,9 +326,15 @@ namespace
     }
 
     // The face holds exactly the bytes of its source file.
-    bool UIFaceMatches(const UFontFace& Face, const TArray<uint8>& Bytes)
+    bool UIFaceHoldsBytes(const UFontFace& Face, const TArray<uint8>& Bytes)
     {
         return Face.GetFontFaceData()->GetData() == Bytes;
+    }
+    bool UIFaceMatches(const UFontFace& Face, const TArray<uint8>& Bytes)
+    {
+        // Inline: the font bytes travel in the asset and load with it, so a cooked match never reads a font file from disk
+        // while drawing (a lazily loaded face is read on its first glyph and again after a font cache flush).
+        return Face.LoadingPolicy == EFontLoadingPolicy::Inline && UIFaceHoldsBytes(Face, Bytes);
     }
 
     bool UIImportFonts(FString& Error)
@@ -313,8 +350,13 @@ namespace
             Package->FullyLoad();
             const FName Name(*FPackageName::GetShortName(Spec.Package));
             UFontFace* Face = FindObject<UFontFace>(Package, *Name.ToString());
-            if (!Face) { Face = NewObject<UFontFace>(Package, Name, RF_Public | RF_Standalone); }
-            Face->InitializeFromBulkData(UIAbsolute(Spec.Path), EFontHinting::Default, Bytes.GetData(), Bytes.Num());
+            // A face that already holds these bytes only takes the loading policy (its data cannot be set twice).
+            if (!Face || !UIFaceHoldsBytes(*Face, Bytes))
+            {
+                if (!Face) { Face = NewObject<UFontFace>(Package, Name, RF_Public | RF_Standalone); }
+                Face->InitializeFromBulkData(UIAbsolute(Spec.Path), EFontHinting::Default, Bytes.GetData(), Bytes.Num());
+            }
+            Face->LoadingPolicy = EFontLoadingPolicy::Inline;
             // No PostEditChange: it flushes the Slate font cache, which a commandlet does not have.
             Face->SourceFilename = FPaths::GetCleanFilename(Spec.Path);
             Face->MarkPackageDirty();

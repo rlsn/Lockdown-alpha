@@ -152,6 +152,9 @@ public:
     // Opening preparation only: preserve a real build lock and return, with entry due at the next world boundary.
     bool DevFinishPreparation(int64 AtMs, TArray<FLDTimelineEvent>& Out, FString& Error);
     bool DevSetCountdownPaused(bool bPaused, int64 AtMs, FString& Error);
+    // The phase clock jumps SkipMs ahead: the same three anchors a resume moves forward move back, so the running
+    // step or field segment is SkipMs older and its end is SkipMs nearer. The caller keeps the skip short of the end.
+    bool DevAdvanceCountdown(int64 SkipMs, FString& Error);
 #endif
 
     FLDTimelineView MakeView(uint32 Generation, uint64 Revision) const;

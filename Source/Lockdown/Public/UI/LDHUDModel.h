@@ -87,7 +87,11 @@ namespace LDHUD
         bool bShowScalingFormula=false;
         // A learned skill's current card damage factor (10000 = none), applied to its damage numbers.
         int64 DamageFactorBp=10000;
+        bool operator==(const FCardStats& Other) const=default;
     };
+    // Whether two owner projections hold the same values, for presenters that rebuild their view only on a change.
+    LOCKDOWN_API bool SameProgression(const FLDProgressionView& A,const FLDProgressionView& B);
+    LOCKDOWN_API bool SameAttributes(const TArray<FLDCombatAttributeRowView>& A,const TArray<FLDCombatAttributeRowView>& B);
     // Level from the progression, stats from the owner's projected attributes; zero stats without a projection.
     LOCKDOWN_API FCardStats CardStatsOf(uint8 Level,const TArray<FLDCombatAttributeRowView>& Attributes);
     struct FCardText
@@ -157,6 +161,9 @@ namespace LDHUD
         bool bKnown=false;
         FString Text;
         float Fraction=0.f;
+        // The rounded current and maximum as bare figures (the broadcast chrome's big number); empty while unknown.
+        FString Now;
+        FString Max;
     };
     // Points from the owner projection. Max<=0 means not projected yet: shown as syncing, never as 0/0.
     // Health rounds up so a living body never reads 0; momentum rounds down so a cost never looks affordable early.
@@ -261,12 +268,28 @@ namespace LDHUD
         FString Points;
         int64 Total=0;
         bool bSelf=false;
+        // For the painted board: the roster seat (INDEX_NONE off the roster) and the three parts.
+        int32 Seat=INDEX_NONE;
+        int32 Participation=0,Winner=0,Bet=0;
     };
     // One row per PK.Awards entry with any points, in award order; names from the public roster.
     LOCKDOWN_API TArray<FPKAwardRow> PKAwardRows(const FLDPKView& PK,const FLDLobbyView& Lobby,const FGuid& Self);
+    // One entrant of a side for the painted board: seat plate, name, level, whether out (eliminated or forfeited).
+    struct FPKMemberView
+    {
+        int32 Seat=INDEX_NONE;
+        FString Name;
+        uint8 Level=0;
+        bool bOut=false;
+        bool bSelf=false;
+    };
     struct FPKSideView
     {
         uint8 Side=0;
+        TArray<FPKMemberView> Members;
+        // Public bets on this side, and the payout per share while betting is open (0: not shown).
+        int32 Bets=0;
+        double Odds=0.;
         // The side's names with each member's 出局/离场 mark once the fight started, then the public bet count.
         FString Line;
         // "押 <names>" for the bet button.
@@ -299,6 +322,9 @@ namespace LDHUD
         FString Title;
         // PKReady: "N 秒后开打 …"; PK: "最长还剩 N 秒 …" (whole seconds rounded up to the step end).
         FString Countdown;
+        // The same countdown as a figure with its short caption (下注 / 开打 / 剩余); -1 without one.
+        int64 SecondsLeft=-1;
+        FString CountLabel;
         // "安全圈 18.0 米 · 10 秒后缩到 6.0 米" during the PK step with parameters and a clock.
         FString Ring;
         TArray<FPKSideView> Sides;
@@ -464,24 +490,6 @@ namespace LDHUD
     LOCKDOWN_API FString ChainKeyText(const FLDDemoContentDefinitions* Content,const TArray<FName>& Key);
     // The one-line prompt of a chain the local codex had not seen: "新连锁：A → B → C".
     LOCKDOWN_API FString NewChainNotice(const FLDDemoContentDefinitions* Content,const TArray<FName>& Key);
-    // Spec §12 结算“本局最离谱”: one row per contender of the result (its standings order, at most ResultHighlightsMax): its
-    // longest chain and its strongest hit on a contender (source, points, share of that target's max HP). Available only for
-    // the summary of exactly the result shown.
-    inline constexpr int32 ResultHighlightsMax=LDMatchLifecycle::MaxContenders;
-    struct FResultHighlightRow
-    {
-        FString Name;
-        FString Chain;
-        FString Best;
-        bool bOwn=false;
-    };
-    struct FResultHighlightsView
-    {
-        bool bAvailable=false;
-        TArray<FResultHighlightRow> Rows;
-    };
-    LOCKDOWN_API FResultHighlightsView ResultHighlights(const FLDDamageSummaryView& Summary,const FLDResultView& Result,const FGuid& Self,
-        const FLDDemoContentDefinitions* Content);
     // The prompt said to a reaction's setter: "你的潮湿被老王引爆（导电）". It reports the detonation only; assist credit
     // still comes from the setter's own contribution within REWARD.AssistWindowSec, as for every assist.
     LOCKDOWN_API FString ReactionAssistText(const FLDDemoContentDefinitions* Content,const FLDReactionAssistView& View,const FString& TriggerName);
@@ -520,7 +528,8 @@ namespace LDHUD
         FString IconId;           // the bound definition's icon (LDUIIcons); the dash's own icon for D
         int64 MomentumCostP2=0;
         int64 ReadyAtMs=0;        // this source's own track end on the authority clock
-        int64 CooldownMs=0;       // duration last issued on this track, for the sweep only
+        int64 CooldownMs=0;       // duration last issued on this track, for the sweep only (one charge's recovery)
+        int32 Charges=1;          // the skill's charges (LDCombatSourceRules::SkillCharges)
         int32 RangeCm=0;          // the active's current reach (the dash distance for D)
         bool bControlled=false;   // an own control status forbids this entry kind
         FString ControlLabel;     // short specific control badge when controlled (e.g. "定身", "沉默", "眩晕")
@@ -558,6 +567,7 @@ namespace LDHUD
         FString Cost;             // the active's momentum cost rounded like the shown bar, number only, e.g. "30"; empty without one
         FString Gap;              // momentum short: the missing momentum, e.g. "-12"; empty otherwise
         FString LockBadge;        // short slot badge when controlled or phase-locked (e.g. "定身", "沉默", "眩晕", "禁"); empty otherwise
+        FString Charges;          // a charged skill's ready charges, e.g. "2"; empty for a single-charge skill
         FString IconId;           // the icon texture id (LDUIIcons); empty without a source
         FString Glyph;            // shown only when IconId has no texture: the name's first character; empty without a source
     };
@@ -595,6 +605,9 @@ namespace LDHUD
     struct FObservedCard
     {
         FString Title;
+        // Title's parts for the broadcast target card: the roster or creature name and a contender's public level (0 for none).
+        FString Name;
+        int32 Level=0;
         FResourceView Health;
         bool bMomentum=false;
         bool bMomentumFull=false;   // a full public bar: the target may overdrive
@@ -719,8 +732,14 @@ namespace LDHUD
     struct FSlotKeys
     {
         FString Keys[3];
+        // The action-bar position (0..2, left to right) each server slot sits at after the player's local slot order.
+        int32 Visual[3]={0,1,2};
         LOCKDOWN_API FString Of(uint8 Slot) const;
-        bool operator==(const FSlotKeys& Other) const{return Keys[0]==Other.Keys[0]&&Keys[1]==Other.Keys[1]&&Keys[2]==Other.Keys[2];}
+        bool operator==(const FSlotKeys& Other) const
+        {
+            return Keys[0]==Other.Keys[0]&&Keys[1]==Other.Keys[1]&&Keys[2]==Other.Keys[2]
+                &&Visual[0]==Other.Visual[0]&&Visual[1]==Other.Visual[1]&&Visual[2]==Other.Visual[2];
+        }
     };
     // What the own contender may do with its build right now, judged like the server judges a commit (LDProgression's
     // CommandGate over the build stage of the public match, LDProgression::StageForPublic, and the own life phase). A hint
@@ -776,8 +795,6 @@ namespace LDHUD
     LOCKDOWN_API const FLDDemoCardDefinition* CardDefinitionOf(const FLDDemoContentDefinitions* Content,FName KeyOrId);
     // How many copies of Definition the own view owns.
     LOCKDOWN_API int32 OwnedCopies(const FLDProgressionView& Progression,FName Definition);
-    // What an installed card sits on, for its row: "（技能名）", "（技能名 · 元素）" or "（元素）"; empty when stored or plain.
-    LOCKDOWN_API FString CardTargetText(const FLDCardInstanceView& Card,const FLDDemoContentDefinitions* Content);
     // A card's face: icon, name, its form and type (the frame's shape) and its display sentence with the owner's level grown
     // numbers (like an active's).
     struct FCardFaceView
@@ -799,12 +816,6 @@ namespace LDHUD
         bool bKnown=false;
     };
     LOCKDOWN_API FCardFaceView CardFace(FName DefinitionId,const FLDDemoContentDefinitions* Content,const FCardStats& Stats);
-    // The 构筑 tray's hover popup of a card (the HUD's slot popup; the card face shows only the icon and the name): the name,
-    // the kind ("技能 · <target> · <cost>", "图纸 · …" or "构件"), then the full rule with this level's numbers and its
-    // keyword explanations, and Outcome (what a click does besides the plain take, or why it cannot be taken now) when not
-    // empty.
-    LOCKDOWN_API FActionDetailView ActiveChoiceDetail(const FActiveCardView& Card,bool bBlueprint,const FString& Outcome);
-    LOCKDOWN_API FActionDetailView CardChoiceDetail(const FCardFaceView& Card,const FString& Outcome);
 
     // The card storage (APP_SPEC §7): the owned cards not installed, and the equipped columns Q, W and E by server slot,
     // 冲刺(D) and 本体 (which carries the basic attack); each installed card sits in the column of its target, an element medal
@@ -866,8 +877,6 @@ namespace LDHUD
         int32 Capacity=0;
         // StorageColumnCount columns in EStorageColumn order.
         TArray<FStorageColumnView> Columns;
-        // Every stored card key (all copies).
-        int32 StoredCards() const {int32 N=0;for(const FStoredView& S:Stored){N+=S.Copies;}return N;}
     };
     LOCKDOWN_API FStorageView CardStorage(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content,
         const TSet<FName>* Seen=nullptr);
@@ -892,12 +901,6 @@ namespace LDHUD
     // Atomic replace drops in a specific column of a full workshop.
     LOCKDOWN_API TArray<FCardDrop> ColumnReplaceDrops(FName Key,EStorageColumn Column,const FLDProgressionView& Progression,
         const FLDDemoContentDefinitions* Content);
-    // Live host-compatibility strip for a skill-form card on 3-choice offers and the rest shop (#331). Empty for non-skill cards.
-    LOCKDOWN_API FString SkillCardCompatStrip(FName CardId,const FLDProgressionView& Progression,
-        const FLDDemoContentDefinitions* Content,const FSlotKeys& Keys,bool& bOutHasMatch,bool& bOutAllFull);
-    // What letting go of Key on Drop does, for the drag caption: "装到 Q", "替换 X · 装到 Q".
-    LOCKDOWN_API FString DropPreviewText(FName Key,const FCardDrop& Drop,const FLDProgressionView& Progression,
-        const FLDDemoContentDefinitions* Content);
     // The learned skills and owned cards sharing a vocabulary key with the card (spec §6.3), for the popup's 联动 line and
     // the workshop's link lines.
     struct FCardConnections
@@ -905,7 +908,6 @@ namespace LDHUD
         TArray<FName> Actives,Cards;
     };
     LOCKDOWN_API FCardConnections CardConnections(FName Key,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);
-    LOCKDOWN_API FString ConnectionsText(FName Key,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);
     // The drop of Drops a pointer over Column (and over the installed Host there, or None) selects: the host's own drop when
     // it takes one, else the column's own; null when neither does.
     LOCKDOWN_API const FCardDrop* FindDrop(const TArray<FCardDrop>& Drops,EStorageColumn Column,FName Host);
@@ -916,29 +918,6 @@ namespace LDHUD
     // The where line of a stored card's popup: the columns it reaches, or that the workshop is full.
     LOCKDOWN_API FString StoredPlaceText(FName Key,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);
 
-    // What the 构筑 tray has cards for in the own view of Match: the shown active offer, blueprints while a Q/W/E slot is
-    // empty, the current card offer and the final mod. The 构筑 button is lit while any is pending and greyed out (unclickable)
-    // otherwise. Offers counts the queued active opportunities and CardOffers the queued card offers, so a new one pulses the
-    // button. Owned cards wait in the storage stack; unspent points wait on the HUD's stat icons and the portrait's badge.
-    struct FGrowthPending
-    {
-        bool bOffer=false;
-        int32 Offers=0;
-        int32 Blueprints=0;
-        bool bCardOffer=false;
-        int32 CardOffers=0;
-        // Phase 9: an untaken final mod three-choice.
-        bool bFinalMod=false;
-        bool Any() const {return bOffer||Blueprints>0||bCardOffer||bFinalMod;}
-        int32 StashedCount() const
-        {
-            return FMath::Max<int32>(Offers, bOffer ? 1 : 0) + Blueprints
-                + FMath::Max<int32>(CardOffers, bCardOffer ? 1 : 0) + (bFinalMod ? 1 : 0);
-        }
-    };
-    LOCKDOWN_API FGrowthPending GrowthPending(const FLDProgressionView* Progression,uint32 Match,const FLDDemoContentDefinitions* Content);
-    // The current opportunity is included in Queued; the first dot represents it.
-    LOCKDOWN_API FString OfferQueueDots(uint8 Queued);
     // Match a consumed opportunity to the applied receipt of the exact request and life that submitted it.
     struct FOfferMotionTicket
     {
@@ -1135,6 +1114,16 @@ namespace LDHUD
         // A camp marker claim line (its kind and segment): relabelled the same way from the own field rewards.
         ELDFieldMarkerKind MarkerKind=ELDFieldMarkerKind::None;
         uint8 MarkerSegment=0;
+        // A public death notice, drawn as the lower third killer plate · cause · victim plate: the seats (SeatOf, -1 for
+        // none), the public roster names and, for a death no contender owned, the camp or creature that caused it
+        // (KillerLabel). The notice carries no skill, so the middle cell names the cause kind only.
+        bool bKill=false;
+        ELDKillCause Cause=ELDKillCause::Unowned;
+        int32 KillerSeat=INDEX_NONE;
+        int32 VictimSeat=INDEX_NONE;
+        FString KillerName;
+        FString VictimName;
+        int32 Assists=0;
     };
     // Kills are told when their notice arrives, unless it was already older than StaleKillMs (a late join). Every other
     // event is a change between two observations of the same match: the first observation of a match only records the
@@ -1184,6 +1173,53 @@ namespace LDHUD
         int64 GuardKeptMs=0;
         int64 GuardDueAtMs=0;
     };
+
+    // ---- On-air broadcast chrome (APP_SPEC §7) ----
+    // A contender's public seat: his start roster position in the lobby (the body tint key, LDBroadcast::SeatInk), shown as
+    // his jersey number (seat + 1) on every plate. INDEX_NONE when the roster does not list him.
+    LOCKDOWN_API int32 SeatOf(const FLDLobbyView& Lobby,const FGuid& ContenderId);
+    // The camp, creature or Boss that caused a death no contender owned (the same names as KillLine); empty for a contender
+    // kill or an unowned death.
+    LOCKDOWN_API FString KillerLabel(const FLDKillNotice& Notice,const FString& LowCampName,const FString& HighCampName,
+        const FString& EliteCampName,const FString& BossName);
+    // The element a learned active applies (its branch's element, else the ability's; ELDCombatElement order), 0 for none or
+    // unknown content. The chip on the slot shows it; medals that change the overdrive element stay in the tooltip.
+    LOCKDOWN_API uint8 SkillElement(const FLDDemoContentDefinitions* Content,FName DefinitionId,ELDSkillBranch Branch);
+    // The one-character element name (烫 湿 麻 冻 馊), empty for none.
+    LOCKDOWN_API FString ElementGlyph(uint8 Element);
+    // The match as eight beats: R0, field 1, R1, field 2, R2, field 3, R3, final field.
+    inline constexpr int32 ScoreBugBeats=8;
+    struct FScoreBugView
+    {
+        bool bKnown=false;
+        // The current beat (0..7) and whether it is a rest.
+        int32 Beat=0;
+        bool bRest=false;
+        bool bFinal=false;
+        // "野外 2/3", "休息 R1", "终局" or "最终休息".
+        FString Label;
+        // The remaining time of the current beat ("1:37"); empty without a clock or when the beat has no end yet.
+        FString Clock;
+        // The clock is in its last ten seconds, or paused.
+        bool bUrgent=false;
+        bool bPaused=false;
+    };
+    LOCKDOWN_API FScoreBugView ScoreBug(const FLDPublicMatchView& Public,bool bClock,int64 NowMs);
+    // One seat plate of the score bug: only public facts (the roster, the graffiti owner, the 上热搜 leader and the public
+    // death notices of the feed window).
+    struct FSeatPlateView
+    {
+        int32 Seat=INDEX_NONE;
+        FGuid ContenderId;
+        FString Name;
+        bool bSelf=false;
+        bool bGraffiti=false;
+        bool bLeader=false;
+        // A public death notice of this seat arrived within FEventFeed::LineSeconds (an event, never a claim of "dead").
+        bool bRecentKO=false;
+    };
+    LOCKDOWN_API TArray<FSeatPlateView> SeatPlates(const FLDLobbyView& Lobby,const FLDPublicMatchView& Public,const FLDKillFeedView& Kills,
+        const FGuid& Self,bool bClock,int64 NowMs);
 
     // #328 §2: separate bottom-right micro-badge counts for Active Skills, Build Cards and Element Stones (medal_*).
     struct FPendingCategoryCounts

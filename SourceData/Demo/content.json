@@ -256,9 +256,9 @@
     "OVERDRIVE.ShockReactionRatio": {"unit": "ratio", "value": 0.5},
     "OVERDRIVE.RotDurationScale": {"unit": "ratio", "value": 2},
     "OVERDRIVE.ChillRootSec": {"unit": "s", "value": 0.6},
-    "UNIT.MoveSpeedCmPerSec": {"unit": "cm/s", "value": 300},
-    "STAT.MoveSpeed.Min": {"unit": "cm/s", "value": 173},
-    "STAT.MoveSpeed.Max": {"unit": "cm/s", "value": 675},
+    "UNIT.MoveSpeedCmPerSec": {"unit": "cm/s", "value": 240},
+    "STAT.MoveSpeed.Min": {"unit": "cm/s", "value": 138.4},
+    "STAT.MoveSpeed.Max": {"unit": "cm/s", "value": 540},
     "UNIT.CollisionRadiusCm": {"unit": "cm", "value": 40},
     "UNIT.BasicAttackRangeCm": {"unit": "cm", "value": 250},
     "STAT.AttackRange.Min": {"unit": "cm", "value": 80},
@@ -348,7 +348,7 @@
     },
     "REST.BettingSec": {
       "unit": "s",
-      "value": 6
+      "value": 10
     },
     "REST.PKReadySec": {
       "unit": "s",
@@ -534,6 +534,7 @@
       "value": 4
     },
     "GROWTH.ActiveSkipPoints": 1,
+    "GROWTH.BlueprintSellPoints": 1,
     "CARDS.CapacityBase": 6,
     "CARDS.LevelsPerSlot": 3,
     "CARDS.OfferSize": 3,
@@ -562,6 +563,8 @@
     "SHOP.RefreshStep": 1,
     "SHOP.SkillPointPrice": 3,
     "SHOP.SkillPointMaxPerMatch": 2,
+    "SHOP.MedalPrice": 4,
+    "SHOP.MedalMaxPerMatch": 1,
     "DAMAGE.FactorTechCap": {
       "unit": "ratio",
       "value": 1000
@@ -938,7 +941,7 @@
     },
     "EXPLORE.PeddlerMoveSpeed": {
       "unit": "cm/s",
-      "value": 280
+      "value": 224
     },
     "EXPLORE.PeddlerStaySec": {
       "unit": "s",
@@ -5718,7 +5721,7 @@
       "ranks": {
         "2A": {
           "name": "两个书包",
-          "text": "同时可以放 [bag.count] 个书包。",
+          "text": "可以连放 [bag.count] 个书包。",
           "patches": [
             {
               "op": "set",
@@ -8439,7 +8442,7 @@
         },
         "move_speed": {
           "unit": "cm/s",
-          "value": 240
+          "value": 192
         },
         "collision_radius": {
           "unit": "cm",
@@ -8579,7 +8582,7 @@
         },
         "move_speed": {
           "unit": "cm/s",
-          "value": 260
+          "value": 208
         },
         "collision_radius": {
           "unit": "cm",
@@ -8719,7 +8722,7 @@
         },
         "move_speed": {
           "unit": "cm/s",
-          "value": 260
+          "value": 208
         },
         "collision_radius": {
           "unit": "cm",
@@ -8859,7 +8862,7 @@
         },
         "move_speed": {
           "unit": "cm/s",
-          "value": 260
+          "value": 208
         },
         "collision_radius": {
           "unit": "cm",
@@ -8999,7 +9002,7 @@
         },
         "move_speed": {
           "unit": "cm/s",
-          "value": 260
+          "value": 208
         },
         "collision_radius": {
           "unit": "cm",
@@ -9139,7 +9142,7 @@
         },
         "move_speed": {
           "unit": "cm/s",
-          "value": 260
+          "value": 208
         },
         "collision_radius": {
           "unit": "cm",
@@ -9279,7 +9282,7 @@
         },
         "move_speed": {
           "unit": "cm/s",
-          "value": 260
+          "value": 208
         },
         "collision_radius": {
           "unit": "cm",
@@ -9419,7 +9422,7 @@
         },
         "move_speed": {
           "unit": "cm/s",
-          "value": 260
+          "value": 208
         },
         "collision_radius": {
           "unit": "cm",
@@ -9559,7 +9562,7 @@
         },
         "move_speed": {
           "unit": "cm/s",
-          "value": 260
+          "value": 208
         },
         "collision_radius": {
           "unit": "cm",
@@ -9699,7 +9702,7 @@
         },
         "move_speed": {
           "unit": "cm/s",
-          "value": 260
+          "value": 208
         },
         "collision_radius": {
           "unit": "cm",
@@ -9839,7 +9842,7 @@
         },
         "move_speed": {
           "unit": "cm/s",
-          "value": 260
+          "value": 208
         },
         "collision_radius": {
           "unit": "cm",
@@ -9979,7 +9982,7 @@
         },
         "move_speed": {
           "unit": "cm/s",
-          "value": 260
+          "value": 208
         },
         "collision_radius": {
           "unit": "cm",
@@ -10257,7 +10260,7 @@
     },
     "move_speed": {
       "unit": "cm/s",
-      "value": 225
+      "value": 180
     },
     "collision_radius": {
       "unit": "cm",
@@ -10876,7 +10879,7 @@
       "name_key": "card_double_stall.name",
       "name_text": "双摊位",
       "description_key": "card_double_stall.description",
-      "description_text": "你的区域、陷阱和地面状态技能可以多留一份。",
+      "description_text": "你的区域、陷阱和地面状态技能可以多留一份；风扇和书包可以多连放一个。",
       "icon_id": "icon_card_double_stall"
     },
     {

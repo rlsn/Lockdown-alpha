@@ -19,6 +19,10 @@
 #include "Probes/LDDemoOpponentProbe.h"
 #include "Probes/LDDemoSessionFaultProbe.h"
 #include "Probes/LDBuildEvaluationProbe.h"
+#include "Probes/LDBuildRingProbe.h"
+#include "Probes/LDVectorCastProbe.h"
+#include "Probes/LDUICoverageProbe.h"
+#include "Probes/LDGameRecorder.h"
 #include "UI/LDUIRoot.h"
 #include "UI/LDControlSettings.h"
 #include "Vision/LDWorldViewRelay.h"
@@ -71,6 +75,10 @@ void ALDPlayerController::BeginPlay()
     LDDemoTests::StartOpponentProbe(*this);
     LDDemoTests::StartSessionFaultProbe(*this);
     LDDemoTests::StartBuildEvaluation(*this);
+    LDDemoTests::StartBuildRingProbe(*this);
+    LDDemoTests::StartVectorCastProbe(*this);
+    LDDemoTests::StartUICoverageProbe(*this);
+    LDDemoTests::StartGameRecorder();
 #endif
 }
 
@@ -307,6 +315,7 @@ void ALDPlayerController::PlayerTick(float Delta)
         TRACE_CPUPROFILER_EVENT_SCOPE(LDPlayerTick_Inputs);
         UpdateV05Inputs(Delta);
         TickOverdriveHold();
+        TickVectorAimRelease();
     }
     UpdateMusic();
     if (!GetLocalPlayer() || IsFrontend()) { return; }

@@ -332,6 +332,10 @@ public:
     virtual bool IsDevInvulnerable(const FGuid& Contender) const override { return DevInvulnerable.Contains(Contender); }
     bool DevSetInvulnerable(const FGuid& Contender, bool bEnabled, const FLDGameplayWritePermit& Permit, FString& Error);
     bool DevSetCountdownPaused(bool bPaused, const FLDGameplayWritePermit& Permit, FString& Error);
+    bool DevAdvanceCountdown(int64 SkipMs, const FLDGameplayWritePermit& Permit, FString& Error);
+    bool DevDecideMatch(const FGuid& Contender, const FLDGameplayWritePermit& Permit, FString& Error);
+    // The champion DecideMatch named at this boundary; its Capture phase turns it into the pending proposal.
+    TOptional<FGuid> DevDecidedWinner;
     bool DevSetPeaceful(const FGuid& Contender, bool bEnabled, const FLDGameplayWritePermit& Permit, FString& Error);
     bool DevSkipPreparation(const FLDGameplayWritePermit& Permit, FString& Error);
     bool DevTeleport(const FGuid& Contender, const FVector& CameraPosition, const FLDGameplayWritePermit& Permit, FString& Error);

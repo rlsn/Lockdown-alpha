@@ -50,8 +50,10 @@ namespace LDPathSteering
             || bSlopedFloor;
         if (bElevationCorner)
         {
+            // A body standing above the corner (pushed onto a prop or ledge the navmesh does not cover) is past it: the
+            // next segment walks it off and down. Below the corner it still has to climb to it.
             return FVector::DistSquared2D(Foot,Corner)<=FMath::Square(ElevationWaypointToleranceCm)
-                && FMath::Abs(Foot.Z-Corner.Z)<=ElevationCornerMaxVerticalDiffCm;
+                && (FMath::Abs(Foot.Z-Corner.Z)<=ElevationCornerMaxVerticalDiffCm || Foot.Z>Corner.Z);
         }
         const FVector Incoming=Index>0?(Corner-Path[Index-1]).GetSafeNormal2D():FVector::ZeroVector;
         return FVector::DistSquared2D(Foot,Corner)<=FMath::Square(WaypointToleranceCm)
@@ -239,6 +241,7 @@ namespace LDPathSteering
     bool NearestNavPoint(UNavigationSystemV1& Nav, const ANavigationData& Data, const FVector& At, double Limit, double HalfHeight,
         FNavLocation& Out)
     {
+        TRACE_CPUPROFILER_EVENT_SCOPE(LDNearestNavPoint);
         for (double Half=FMath::Min(Limit,100.);; Half=FMath::Min(Limit,Half*2))
         {
             if (Nav.ProjectPointToNavigation(At,Out,FVector(Half,Half,HalfHeight),&Data))
@@ -317,6 +320,7 @@ namespace LDPathSteering
 
         const auto TryCandidate=[&](const FVector& TargetXY)->bool
         {
+            TRACE_CPUPROFILER_EVENT_SCOPE(LDProjectGoalCandidate);
             FNavLocation Candidate;
             if (!Nav->ProjectPointToNavigation(TerrainFoot(Registry,TargetXY.X,TargetXY.Y),Candidate,
                 FVector(4.,4.,VerticalExtent),Data))

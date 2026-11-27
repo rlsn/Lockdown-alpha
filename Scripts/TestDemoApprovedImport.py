@@ -364,7 +364,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("AI.CardSkipChance", "ratio", ".3"),
             ("CHAIN.EndSec", "ms", "3"), ("CARDS.IdleCarrySec", "ms", "5"),
             ("DAMAGE.FactorTechCap", "ratio", "1000"), ("AIRDROP.Momentum", "momentum", "40"),
-            ("UNIT.MoveSpeedCmPerSec", "cm/s", "300"), ("STAT.MoveSpeed.Min", "cm/s", "173"), ("STAT.MoveSpeed.Max", "cm/s", "675"),
+            ("UNIT.MoveSpeedCmPerSec", "cm/s", "240"), ("STAT.MoveSpeed.Min", "cm/s", "138.4"), ("STAT.MoveSpeed.Max", "cm/s", "540"),
             ("UNIT.CollisionRadiusCm", "cm", "40"), ("UNIT.BasicAttackRangeCm", "cm", "250"),
             ("STAT.AttackRange.Min", "cm", "80"), ("STAT.AttackRange.Max", "cm", "1000"),
             ("UNIT.BasicAttackWindupSec", "ms", ".180"), ("VISION.RadiusCm", "cm", "1120"),
@@ -381,7 +381,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("REST.ReturnSec", "ms", "3"),
             ("REST.EntryReadyTimeoutSec", "ms", "30"),
             # The rest PK (R1 and R2): sign-up inside the build step, then draw+betting, ready, fight, and settlement+payout.
-            ("REST.SignupSec", "ms", "10"), ("REST.DrawSec", "ms", "0"), ("REST.BettingSec", "ms", "6"),
+            ("REST.SignupSec", "ms", "10"), ("REST.DrawSec", "ms", "0"), ("REST.BettingSec", "ms", "10"),
             ("REST.PKReadySec", "ms", "3"), ("REST.PKMaxSec", "ms", "45"), ("REST.SettlementSec", "ms", "3"),
             ("REST.PayoutSec", "ms", "0"),
             ("PK.ArenaRadiusCm", "cm", "1800"), ("PK.RingMidRadiusCm", "cm", "600"), ("PK.RingFinalRadiusCm", "cm", "150"),
@@ -410,7 +410,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("EXPLORE.LockerRadiusCm", "cm", "150"), ("EXPLORE.LockerChannelSec", "ms", "3"),
             ("EXPLORE.LockerEarliestSec", "ms", "30"), ("EXPLORE.LockerLatestSec", "ms", "420"), ("EXPLORE.LockerStaySec", "ms", "45"),
             ("EXPLORE.PeddlerEarliestSec", "ms", "120"), ("EXPLORE.PeddlerLatestSec", "ms", "400"), ("EXPLORE.PeddlerOffsetCm", "cm", "600"),
-            ("EXPLORE.PeddlerHP", "hp", "1800"), ("EXPLORE.PeddlerMoveSpeed", "cm/s", "280"), ("EXPLORE.PeddlerStaySec", "ms", "60"),
+            ("EXPLORE.PeddlerHP", "hp", "1800"), ("EXPLORE.PeddlerMoveSpeed", "cm/s", "224"), ("EXPLORE.PeddlerStaySec", "ms", "60"),
             ("AI.ObjectiveEntryHPRatio", "ratio", "0.6"), ("AI.ObjectiveReachCm", "cm", "2500"),
             ("LIFE.ProtectionSec", "ms", "3"),
             ("REGEN.OutOfCombatDelaySec", "ms", "5"), ("REGEN.OutOfCombatMaxHPRatioPerSec", "ratio", ".015"),
@@ -529,13 +529,13 @@ class ApprovedDemoData(unittest.TestCase):
             ("DAILY.Count", 2), ("DAILY.RainPuddles", 6), ("DAILY.RumorLeaders", 2), ("AFFIX.FridgeCardOffer", 3),
             ("AFFIX.BonusCardOffer", 5), ("AFFIX.AuditSkillPointsMax", 1), ("EXPLORE.LockerCount", 4),
             ("EXPLORE.LockerCardOffer", 3), ("EXPLORE.PeddlerCardOffer", 5),
-            ("GROWTH.KeystoneThresholdPoints", 18), ("GROWTH.ActiveSkipPoints", 1),
+            ("GROWTH.KeystoneThresholdPoints", 18), ("GROWTH.ActiveSkipPoints", 1), ("GROWTH.BlueprintSellPoints", 1),
             # Spec §3.8, §3.12 and §13 (P2): card capacity, offers, rerolls, lock, vocabulary weight, the chain guard and the AI.
             ("CARDS.CapacityBase", 6), ("CARDS.LevelsPerSlot", 3), ("CARDS.OfferSize", 3), ("CARDS.FreeRerolls", 3),
             ("CARDS.RerollsPerRest", 1),
             ("CHAIN.MaxDepth", 16), ("CHAIN.MaxEffectsPerStep", 256), ("AI.CardVocabScore", 2), ("AI.LeaderHuntMaxLevelGap", 2), ("AI.BreakoutCardScore", 5),
             # Spec §3.13, §6.5 and §13 (P5): offer skips, the rest shop (in stat points), chain ends and the AI's skip.
-            ("CARDS.SkipPoints", 1), ("CARDS.OfferEveryLevels", 3), ("SHOP.CardSlots", 4), ("SHOP.VocabCardSlots", 2), ("SHOP.SkillSlots", 2), ("SHOP.CardPrice", 2), ("SHOP.SkillPrice", 2), ("SHOP.RefreshPrice", 0), ("SHOP.RefreshStep", 1), ("SHOP.SkillPointPrice", 3), ("SHOP.SkillPointMaxPerMatch", 2), ("CHAIN.MinKeySteps", 3),
+            ("CARDS.SkipPoints", 1), ("CARDS.OfferEveryLevels", 3), ("SHOP.CardSlots", 4), ("SHOP.VocabCardSlots", 2), ("SHOP.SkillSlots", 2), ("SHOP.CardPrice", 2), ("SHOP.SkillPrice", 2), ("SHOP.RefreshPrice", 0), ("SHOP.RefreshStep", 1), ("SHOP.SkillPointPrice", 3), ("SHOP.SkillPointMaxPerMatch", 2), ("SHOP.MedalPrice", 4), ("SHOP.MedalMaxPerMatch", 1), ("CHAIN.MinKeySteps", 3),
             ("OVERDRIVE.FireBurnStacks", 3),
         ):
             expected[key] = (None, value)
@@ -926,10 +926,10 @@ class ApprovedDemoData(unittest.TestCase):
                          (60, 80, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 650, 700))
         self.assertEqual((self.data["progression"]["max_level"], self.data["progression"]["active_slots"]), (16, 3))
         for identity, tier, count, hp, resist, attack, rate, windup, reach, speed, leash, grace, xp, interval in (
-            ("monster_scavenger", "Low", 3, 90, 8, 14, ".80", 350, 150, 240, 900, 3000, 15, 1250),
-            ("monster_guardian", "High", 2, 315, 20, 50, ".65", 500, 175, 260, 1050, 4000, 44, 1539),
-            ("monster_advisor", "Elite", 1, 1350, 30, 126, ".60", 500, 175, 260, 1050, 4000, 196, 1667),
-            ("monster_director", "Ancient", 1, 2100, 40, 182, ".55", 500, 175, 260, 1050, 4000, 405, 1819),
+            ("monster_scavenger", "Low", 3, 90, 8, 14, ".80", 350, 150, 192, 900, 3000, 15, 1250),
+            ("monster_guardian", "High", 2, 315, 20, 50, ".65", 500, 175, 208, 1050, 4000, 44, 1539),
+            ("monster_advisor", "Elite", 1, 1350, 30, 126, ".60", 500, 175, 208, 1050, 4000, 196, 1667),
+            ("monster_director", "Ancient", 1, 2100, 40, 182, ".55", 500, 175, 208, 1050, 4000, 405, 1819),
         ):
             row = self.catalog.definition(identity)
             self.assertEqual((row["tier"], row["count_per_camp"], row["reward_xp"]), (tier, count, xp))
@@ -945,7 +945,7 @@ class ApprovedDemoData(unittest.TestCase):
         boss = self.data["boss"]
         self.assertEqual(boss["id"], "monster_dean")
         for key, expected in (("hp", 2800), ("armor", 30), ("magic_resist", 30), ("attack", 210), ("attack_range", 250),
-                              ("move_speed", 225), ("collision_radius", 40), ("aggro_radius", 400)):
+                              ("move_speed", 180), ("collision_radius", 40), ("aggro_radius", 400)):
             self.assertEqual(amount(boss[key]), expected, key)
         self.assertEqual((boss["attack_interval"]["ms"], boss["attack_windup"]["ms"], boss["attacker_memory"]["ms"],
                           boss["appear_at"]["ms"], boss["leave_at"]["ms"], boss["reward_xp"]), (1500, 500, 5000, 210000, 480000, 320))

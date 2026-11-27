@@ -22,8 +22,6 @@ namespace LDHitFeel
         float SparkScale = 0;
         float CritSparkScale = 0;
         float ImpactScale = 0;
-        int32 ImpactSparks = 0;
-        float ImpactSpeed = 0;
         float ImpactGlow = 0;
         float ImpactSeconds = 0;
         bool bWords = false;
@@ -114,6 +112,4 @@ namespace LDHitFeel
     constexpr float SwingHoldFraction = .75f;
     LOCKDOWN_API float SwingHoldSeconds(int64 WindupMs);
     LOCKDOWN_API const TCHAR* SwingStepName(ESwingStep Step);
-    // The hand trail emits during the attack's moving portion, not after a stale cue or during the rewind.
-    LOCKDOWN_API bool SwingTrailWindow(float AgeSeconds, float ImpactSeconds);
 }

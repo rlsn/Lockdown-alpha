@@ -1,4 +1,5 @@
 #include "Character/LDBasketballAnimInstance.h"
+#include "Character/LDActionMotion.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Animation/AnimInstanceProxy.h"
 #include "Animation/AnimSequence.h"
@@ -9,6 +10,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "Misc/PackageName.h"
 
 struct FLDBasketballActionEvaluator : FAnimNode_SequenceEvaluator_Standalone
 {
@@ -108,11 +110,37 @@ void ULDBasketballAnimInstance::NativeUninitializeAnimation()
     Super::NativeUninitializeAnimation();
 }
 
+UAnimSequence* ULDBasketballAnimInstance::OwnClipOf(const TCHAR* Clip)
+{
+    const FName Key(Clip);
+    if(const TObjectPtr<UAnimSequence>* Found=OwnClips.Find(Key)){return *Found;}
+    // QN_ clips are tracked; MX_ clips are Mixamo, local-only (not redistributable), so a checkout without the local store
+    // keeps the family motion for that skill and says so once.
+    const bool bLocalOnly=FString(Clip).StartsWith(TEXT("MX_"));
+    const FString Folder=bLocalOnly?TEXT("/Game/ThirdParty/Fab/Mixamo/Hooper"):TEXT("/Game/Lockdown/Art/Characters/hooper/Quaternius/Hooper");
+    const FString Path=FString::Printf(TEXT("%s/%s.%s"),*Folder,Clip,Clip);
+    UAnimSequence* Loaded=bLocalOnly&&!FPackageName::DoesPackageExist(Folder/Clip)?nullptr:LoadObject<UAnimSequence>(nullptr,*Path);
+    if(!Loaded&&bLocalOnly){UE_LOG(LogTemp,Display,TEXT("LD_SKILL_MOTION_LOCAL_ONLY %s is not installed (Mixamo store); the skill keeps its family motion."),Clip);}
+    else{ensureMsgf(Loaded,TEXT("Skill motion %s is missing; rerun Scripts/ImportSkillAnimations.py"),Clip);}
+    OwnClips.Add(Key,Loaded);
+    return Loaded;
+}
+
 void ULDBasketballAnimInstance::Prepare(double Clock,float Speed,float FacingYaw,LDBodyMotion::EAction Action,float Age,
     float Impact,double Identity,UAnimSequence* Override,float OverrideTime,bool bDash,bool bShowBall)
 {
     if(!Motion){return;}
     const float Delta=LastClock<0?0:FMath::Clamp(float(Clock-LastClock),0.f,.25f);LastClock=Clock;
+    if(HeldSequence)
+    {
+        // A held still: the clip is the whole base pose at its time; no action, turn or run layer is mixed in.
+        BaseSequence=HeldSequence;BaseTime=HeldTime;PreviousSequence=nullptr;BaseBlend=1;
+        FullWeight=UpperWeight=ArmWeight=ActionWeight=RunDribbleWeight=0;ActionSequence=nullptr;
+        bNormalizeTurn=false;bThrowing=false;bWasReleased=false;TurnAt=-1;bBallVisible=bShowBall&&!bHeldHideBall;
+        LastAction=LDBodyMotion::EAction::None;
+        if(Ball&&!bBallVisible){Ball->SetHiddenInGame(true);}
+        return;
+    }
     // A released ball can finish its local follow-through after the authority cue ends. A cancelled windup cannot
     // invent a release; prediction's existing retract pose remains in control until it reaches rest.
     if(Action==LDBodyMotion::EAction::None&&LastAction!=LDBodyMotion::EAction::None&&bWasReleased
@@ -142,12 +170,35 @@ void ULDBasketballAnimInstance::Prepare(double Clock,float Speed,float FacingYaw
     }
     else if(Action!=LDBodyMotion::EAction::None)
     {
-        if(Action!=LastAction||FMath::Abs(Identity-LastActionIdentity)>LDBodyMotion::SameInstanceSeconds)
+        const LDActionMotion::EFamily Family=LDActionMotion::FamilyOf(Action==LDBodyMotion::EAction::Attack,StyleStep,StyleAbility);
+        // A skill with a motion of its own plays its clip on the whole body, warped onto the release like the family clips;
+        // the clip carries no ball, so the ball is hidden until the action ends.
+        const LDActionMotion::FOwnMotion* Own=Action==LDBodyMotion::EAction::Cast?LDActionMotion::OwnMotionOf(StyleAbility):nullptr;
+        UAnimSequence* OwnClip=Own?OwnClipOf(Own->Clip):nullptr;
+        if(OwnClip&&(Action!=LastAction||FMath::Abs(Identity-LastActionIdentity)>LDBodyMotion::SameInstanceSeconds))
         {
-            const auto& Choices=Action==LDBodyMotion::EAction::Attack?Motion->Passes:(Speed>60?Motion->MovingShots:Motion->StandingShots);
-            // Follow the current dribbling hand; alternate only between clips with the same hand.
-            const bool Left=GetCurveValue(TEXT("BallLeft"))>.5f;TArray<int32,TInlineAllocator<8>> Candidates;
-            for(int32 I=0;I<Choices.Num();++I){if(Choices[I].bLeftHand==Left){Candidates.Add(I);}}
+            Active.Animation=OwnClip;Active.Start=Own->Start;Active.Release=Own->Release;Active.End=Own->End;Active.bLeftHand=Own->bLeftHand;
+            bWasReleased=false;LastActionIdentity=Identity;TurnAt=-1;
+        }
+        else if(Action!=LastAction||FMath::Abs(Identity-LastActionIdentity)>LDBodyMotion::SameInstanceSeconds)
+        {
+            using LDActionMotion::EFamily;
+            const bool bMoving=Speed>60;
+            // The family's bank: passes for jabs, crosses and throws; the jump shot for the finisher and slams; the set
+            // shot for two-hand casts; the spin move for stances and buffs (a gesture readable from above). A moving body
+            // shoots on the move.
+            const bool bJump=Family==EFamily::Finisher||Family==EFamily::HeavySlam;
+            const auto& Choices=Family==EFamily::Jab||Family==EFamily::Cross||Family==EFamily::OneHandThrow?Motion->Passes
+                :Family==EFamily::Ready?Motion->Turns:bMoving?Motion->MovingShots:Motion->StandingShots;
+            // The hand: the jab is right, the cross left, everything else follows the dribbling hand.
+            const bool Left=Family==EFamily::Jab?false:Family==EFamily::Cross?true:GetCurveValue(TEXT("BallLeft"))>.5f;
+            TArray<int32,TInlineAllocator<8>> Candidates;
+            for(int32 I=0;I<Choices.Num();++I)
+            {
+                const bool bIsJump=Choices[I].Animation&&Choices[I].Animation->GetName().Contains(TEXT("Jump_Shot"));
+                const bool bShape=&Choices!=&Motion->StandingShots||bIsJump==bJump;
+                if(bShape&&(Choices[I].bLeftHand==Left||&Choices==&Motion->Turns)){Candidates.Add(I);}
+            }
             Active=Choices[Candidates.IsEmpty()?0:Candidates[Variation++%Candidates.Num()]];
             bWasReleased=false;LastActionIdentity=Identity;TurnAt=-1;
         }
@@ -155,8 +206,9 @@ void ULDBasketballAnimInstance::Prepare(double Clock,float Speed,float FacingYaw
         ActionSequence=Active.Animation;ActionTime=LDBasketballMotion::SampleTime(Active,Age,CurrentImpact);bLeft=Active.bLeftHand;
         const float BlendIn=FMath::Min(.035f,CurrentImpact*.25f),BlendOut=FMath::Min(.14f,CurrentDuration*.28f);
         ActionWeight=FMath::Min(FMath::SmoothStep(0.f,BlendIn,FMath::Max(Age,0.f)),FMath::SmoothStep(0.f,BlendOut,CurrentDuration-Age));
-        if(Action==LDBodyMotion::EAction::Attack){UpperWeight=ActionWeight*.42f;ArmWeight=ActionWeight;}
-        else if(Speed>60){UpperWeight=ActionWeight;}else{FullWeight=ActionWeight;}
+        LDActionMotion::FBlend Blend=LDActionMotion::BlendOf(Family,Speed>60);
+        if(OwnClip){Blend.Full=1.f;Blend.Upper=0.f;Blend.Arm=0.f;bBallVisible=false;}
+        FullWeight=ActionWeight*Blend.Full;UpperWeight=ActionWeight*Blend.Upper;ArmWeight=ActionWeight*Blend.Arm;
         bThrowing=Age>=0&&Age<CurrentDuration;
     }
     else

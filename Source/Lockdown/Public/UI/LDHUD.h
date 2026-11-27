@@ -7,6 +7,7 @@
 #include "Combat/LDDamageRecap.h"
 #include "UI/LDWorldFeedback.h"
 #include "UI/LDHUDModel.h"
+#include "UI/LDUIPaint.h"
 #include "PK/LDPKRules.h"
 #include "Framework/LDPacingTypes.h"
 #include "LDHUD.generated.h"
@@ -17,6 +18,7 @@ class UTextBlock;
 class UImage;
 class UProgressBar;
 class USizeBox;
+class UOverlay;
 class ULDCommandButton;
 class ULDMinimap;
 class ULDPanel;
@@ -25,6 +27,7 @@ class ULDChoicesPanel;
 class ULDComponentStorage;
 class ULDStatBar;
 class ULDWorkshop;
+class ULDBuildRingGround;
 class UVerticalBox;
 class ULDDevTestPanel;
 struct FLDDevTestResult;
@@ -43,6 +46,27 @@ struct FLDOwnStatusMark
     int32 ViewIndex=INDEX_NONE;
 };
 
+// The white damage trail behind a falling bar (local real time): it holds a moment, then falls to the bar; a rise snaps.
+struct FLDHudTrail
+{
+    float Trail=-1.f;
+    float Shown=-1.f;
+    double HoldUntil=0.;
+    double LastAt=0.;
+    float Advance(float Fraction,double Now)
+    {
+        constexpr double Hold=.35,FallPerSecond=1.2;
+        if(Trail<0.f||Fraction>=Trail){Trail=Fraction;Shown=Fraction;LastAt=Now;return Trail;}
+        // A new loss restarts the hold, so a combo reads as one growing white run.
+        if(Fraction<Shown-.0005f){HoldUntil=Now+Hold;}
+        Shown=Fraction;
+        if(Now>HoldUntil){Trail=FMath::Max(Fraction,Trail-float((Now-FMath::Max(LastAt,HoldUntil))*FallPerSecond));}
+        LastAt=Now;
+        return Trail;
+    }
+    void Reset(){*this=FLDHudTrail();}
+};
+
 // One Q/W/E/D entry: a world button that sends the same activation as its hotkey. It is enabled only while an intent can
 // be submitted; execution limits colour it but never replace the server's decision. The face shows only the key,
 // the icon and the momentum cost; the state is the frame and icon colour, and the tooltip keeps the words.
@@ -58,7 +82,15 @@ struct FLDHUDActionSlot
     UPROPERTY() TObjectPtr<UBorder> Icon;
     UPROPERTY() TObjectPtr<UImage> Picture;
     UPROPERTY() TObjectPtr<UTextBlock> Glyph;
+    // The key band under the face: orange while the entry can act, ink otherwise, live red on a refused press.
+    UPROPERTY() TObjectPtr<UBorder> KeyBand;
     UPROPERTY() TObjectPtr<UTextBlock> Key;
+    // The element the bound active applies (LDHUD::SkillElement) as a square chip in its element ink on the face's corner.
+    UPROPERTY() TObjectPtr<UBorder> ElementChip;
+    UPROPERTY() TObjectPtr<UTextBlock> ElementGlyph;
+    // A charged skill's ready charges, a figure in the face's top right corner.
+    UPROPERTY() TObjectPtr<UBorder> ChargeChip;
+    UPROPERTY() TObjectPtr<UTextBlock> ChargeCount;
     UPROPERTY() TObjectPtr<UBorder> CostChip;
     UPROPERTY() TObjectPtr<UTextBlock> Cost;
     UPROPERTY() TObjectPtr<UBorder> ControlChip;
@@ -114,20 +146,22 @@ public:
     // LDHUD::SelfIconsNotice: "状态同步中" in place of the marks while the own projection is missing; painted, never hit-tested.
     const FString& GetOwnStatusNotice() const {return OwnStatusNotice;}
     UPROPERTY() TObjectPtr<ULDMinimap> Minimap;
-    // The normal main panels (VISION_AND_UI navigation) with DevTestPanel below. The HUD owns and hit-tests them; ULDUIRoot opens one at a
-    // time. ChoicesPanel is the #198 构筑 card tray behind the bottom-right 构筑 button, and the rest's NPC service window.
+    // The normal main panels (VISION_AND_UI navigation) with DevTestPanel below. The HUD owns them; ULDUIRoot opens one at a
+    // time. ChoicesPanel is the 构筑 panel: open, the build ring is open; it holds the offer, rest service and shop commands.
     UPROPERTY() TObjectPtr<ULDChoicesPanel> ChoicesPanel;
-    // #227: the component storage right of the band and its equipped columns (ULDComponentStorage); not a main panel.
+    // #227: the card storage's install commands the build ring sends (ULDComponentStorage); not a main panel.
     UPROPERTY() TObjectPtr<ULDComponentStorage> Storage;
     // The build workshop (APP_SPEC §7 构筑): the full view of the 构筑 tray, open while the tray is open (ULDWorkshop).
     UPROPERTY() TObjectPtr<ULDWorkshop> Workshop;
+    // The open build ring's ground darkening, under every HUD surface (ULDBuildRingGround).
+    UPROPERTY() TObjectPtr<ULDBuildRingGround> WorkshopGround;
     // The own point-bought stats under the name in the band's identity block: hover a stat for its "+", one click commits
     // one point (ULDStatBar). The 属性 entry and the Attributes key swap it for the attribute view and back.
     UPROPERTY() TObjectPtr<ULDStatBar> StatBar;
     void ToggleAttributeView();
     // The Workshop key: the same toggle as the 构筑 button, only while that button would accept a click or the workshop is open.
     void ToggleWorkshop();
-    // Back: closes the storage's chooser or drops its drag (V05Back, after an armed preview).
+    // Back: closes the storage's element chooser (V05Back, after an armed preview).
     bool CancelStorage();
     bool CloseRankUp();
     bool IsRankUpOpen() const { return RankSlot != INDEX_NONE; }
@@ -136,7 +170,7 @@ public:
     // Contextual shortcuts routed from ALDPlayerController / ULDUIRoot (#331).
     bool HandleContextualKeyPress(const FKey& Key, bool bAlt, bool bCtrl, bool bShift);
     void SelectResultContender(const FGuid& ContenderId);
-    FGuid GetInspectedResultContender() const { return InspectedResultContender; }
+    FGuid GetInspectedResultContender() const;
     // DEV test session only (#78): the 测试 panel; its entry button and the 测试模式 marker show only in such a room.
     UPROPERTY() TObjectPtr<ULDDevTestPanel> DevTestPanel;
 protected:
@@ -174,15 +208,32 @@ private:
     double DiagnosticsTickAt=-1, DiagnosticsSampleAt=0;
     uint32 DiagnosticsCorrections=0;
     TWeakObjectPtr<class ALDCharacter> DiagnosticsBody;
+    // Top centre (on-air target card): the seat plate (a creature's tint block and first character for a camp), the name, the
+    // public level and the health figure on one slab, the painted health bar with the public momentum under it.
     UPROPERTY() TObjectPtr<UBorder> TargetCard;
-    UPROPERTY() TObjectPtr<UBorder> TargetPortrait;
+    UPROPERTY() TObjectPtr<UWidget> TargetPortrait;
     UPROPERTY() TObjectPtr<UTextBlock> TargetGlyph;
     UPROPERTY() TObjectPtr<UTextBlock> TargetTitle;
-    UPROPERTY() TObjectPtr<UProgressBar> TargetHealthBar;
+    UPROPERTY() TObjectPtr<UTextBlock> TargetLevelText;
     UPROPERTY() TObjectPtr<UTextBlock> TargetHealth;
-    UPROPERTY() TObjectPtr<UWidget> TargetMomentumRow;
-    UPROPERTY() TObjectPtr<UProgressBar> TargetMomentumBar;
-    UPROPERTY() TObjectPtr<UTextBlock> TargetMomentum;
+    UPROPERTY() TObjectPtr<UWidget> TargetBarSpot;
+    struct FTargetPaint
+    {
+        bool bContender=false;
+        int32 Seat=INDEX_NONE;
+        FLinearColor CreatureInk=FLinearColor::Gray;
+        bool bHealth=false;
+        float Health=0.f;
+        FLinearColor HealthInk=FLinearColor::White;
+        bool bMomentum=false;
+        float Momentum=0.f;
+        bool bMomentumFull=false;
+        bool bCharging=false;
+        float MomentumNotch=-1.f;
+    } TargetPaint;
+    // The white damage trail behind the target's bar, kept for one target.
+    mutable FLDHudTrail TargetTrail;
+    FGuid TargetTrailHandle;
     // The target's public statuses as icon squares (a wrap row, no text line): each tile, its picture, its fallback glyph
     // and its stack count, grown on demand and collapsed when unused.
     UPROPERTY() TObjectPtr<class UWrapBox> TargetStatusRow;
@@ -229,6 +280,10 @@ private:
     UPROPERTY() TObjectPtr<UBorder> RestActionsPanel;
     UPROPERTY() TObjectPtr<ULDCommandButton> TrainingResetButton;
     UPROPERTY() TObjectPtr<ULDCommandButton> RestReadyButton;
+    // The ready button's caption (inside its painted block) and whether the own contender is ready (its block turns from
+    // orange to a white-ruled panel).
+    UPROPERTY() TObjectPtr<UTextBlock> RestReadyCaption;
+    bool bRestReadyShown=false;
     UPROPERTY() TObjectPtr<UTextBlock> RestAnswerText;
     // A reset is waiting for its answer (a Listen Host answers inside the call); its button stays disabled meanwhile.
     bool bTrainingResetInFlight=false;
@@ -253,20 +308,22 @@ private:
     // Bets and throws are owner intents the server decides (ALDPlayerController::SubmitPKBet/SubmitPKThrow); their answers
     // show in the panel and as a toast. Hit-tested, so its buttons take clicks.
     UPROPERTY() TObjectPtr<UBorder> PKPanelBorder;
-    UPROPERTY() TObjectPtr<UTextBlock> PKTitleText;
-    UPROPERTY() TObjectPtr<UTextBlock> PKCountdownText;
-    UPROPERTY() TObjectPtr<UTextBlock> PKRingText;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> PKSideTexts;
+    // The PK board (top right): a painted head (the PK, its countdown figure, the ring), one painted row per side that
+    // is also its bet button while betting is open, the own role, the throw, the painted result bar and award rows.
+    // The painters read PKPaint, the view of the last refresh.
+    LDHUD::FPKPanelView PKPaint;
+    UPROPERTY() TObjectPtr<UWidget> PKHead;
     UPROPERTY() TObjectPtr<UTextBlock> PKRoleText;
+    UPROPERTY() TObjectPtr<UWidget> PKRoleRow;
+    UPROPERTY() TObjectPtr<UTextBlock> PKThrowCaption;
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> PKBetButtons;
     UPROPERTY() TObjectPtr<ULDCommandButton> PKThrowButton;
-    UPROPERTY() TObjectPtr<UTextBlock> PKResultLine;
-    UPROPERTY() TObjectPtr<UTextBlock> PKAwardsTitle;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> PKAwardTexts;
+    UPROPERTY() TObjectPtr<UWidget> PKResultBar;
+    UPROPERTY() TArray<TObjectPtr<UWidget>> PKAwardRows;
     UPROPERTY() TObjectPtr<UTextBlock> PKAnswerText;
     // #331: compact PK matchup + betting strip kept visible at the top while Workshop is open during Draw / Betting.
     UPROPERTY() TObjectPtr<UBorder> PKCompactBar;
-    UPROPERTY() TObjectPtr<UTextBlock> PKCompactTitle;
+    UPROPERTY() TArray<TObjectPtr<USizeBox>> PKCompactChips;
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> PKCompactBetButtons;
 
     // Local PK state, kept for one PK (match generation and serial) only: a bet or throw waiting for its answer, the armed
@@ -282,7 +339,6 @@ private:
     void RefreshPK(class ALDPlayerController& PC,const FLDPublicMatchView& Public,const FLDLobbyView& Lobby,bool bClock,int64 NowMs);
     LDHUD::FPKPanelInput PKInput(const class ALDPlayerController& PC,bool bClock,int64 NowMs);
     void SubmitPKBet(int32 SideIndex);
-    void TogglePKThrowAim();
     void HandlePKBet(ELDPKBetResult Result);
     void HandlePKThrow(ELDPKThrowResult Result,int64 ReadyAtMs);
     void ShowPKAnswer(const FString& Text);
@@ -297,9 +353,14 @@ private:
     const FLDPKParameters* PKParameters();
     void SyncPKRing(const FLDPublicMatchView& Public,bool bOwnMatch,bool bClock,int64 NowMs);
 public:
+    // Where the armed throw would land (the authority's distance rule, with the parameters PKParameters last read);
+    // Thrown where it may, None without a PK view.
+    ELDPKThrowResult PKThrowSpot(const FVector& TargetCm) const;
     // While the throw aim is armed the next world left click throws at the ground under the pointer (ThrowPKAtPointer) and a
     // right click or Back only cancels it (CancelPKThrowAim); neither issues a move, attack or inspect (LDPlayerInput.cpp).
     bool IsPKThrowArmed() const {return bPKThrowArmed;}
+    // The throw button: arms the aim when a throw is ready, else cancels an armed one.
+    void TogglePKThrowAim();
     void ThrowPKAtPointer();
     bool CancelPKThrowAim();
 private:
@@ -325,61 +386,39 @@ private:
     // Keeps Ring built for (generation, key, centre) or destroys it; false when no ring can be shown.
     bool KeepRing(TWeakObjectPtr<class ALDShowdownRingMarker>& Ring,bool bShow,const FLDPublicMatchView& Public,uint32 Key,const FVector& Centre,const FLinearColor& Tint);
 private:
+    // Top-left score bug (PhaseBanner): the LIVE tag, the beat's label and clock, the day's modifiers, the eight-beat match
+    // bar and the eight seat plates (LDHUD::ScoreBug / SeatPlates), then the flagpole line under it.
+    UPROPERTY() TObjectPtr<UTextBlock> ScoreLabelText;
+    UPROPERTY() TObjectPtr<UTextBlock> ScoreClockText;
+    UPROPERTY() TObjectPtr<UWidget> ScoreBeatSpot;
+    UPROPERTY() TObjectPtr<UWidget> ScorePlateSpot;
+    LDHUD::FScoreBugView ShownBug;
+    TArray<LDHUD::FSeatPlateView> ShownPlates;
     UPROPERTY() TObjectPtr<UTextBlock> PhaseText;
-    // Under the capture bar (Mock 1): the graffiti owner on the left, the guard state on the right.
+    // Under the capture bar: the graffiti owner on the left, the guard state on the right.
     UPROPERTY() TObjectPtr<UWidget> PhaseFootRow;
     UPROPERTY() TObjectPtr<UTextBlock> PhaseOwnerText;
     UPROPERTY() TObjectPtr<UTextBlock> PhaseAsideText;
     UPROPERTY() TObjectPtr<UTextBlock> DevMarkerText;
-    UPROPERTY() TObjectPtr<UProgressBar> CircleProgress;
-    // Bottom-left event feed (LDHUD::FEventFeed): one row per shown line, newest at the bottom.
+    UPROPERTY() TObjectPtr<UWidget> CircleSpot;
+    float CircleFraction=0.f;
+    // Top-right feed (LDHUD::FEventFeed), painted as lower thirds: a kill as killer plate · cause · victim plate, every other
+    // line as one slab, newest at the bottom; each wipes in and fades out on time.
     UPROPERTY() TObjectPtr<UBorder> EventFeedPanel;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> EventFeedRows;
+    UPROPERTY() TObjectPtr<USizeBox> EventFeedSpot;
     LDHUD::FEventFeed EventFeed;
-    // #328 §4.4: 6-player hold-Tab tactical scoreboard (portrait, crown, last-seen level, graffiti bar, K/D/A, Q/W/E icons, final mod).
+    void PaintFeed(const LDUIPaint::FContext& P) const;
+    // #328 §4.4: the hold-Tab tactical scoreboard (seat plate, crown, last-seen level, guard bar, K/D/A, Q/W/E icons, final mod),
+    // painted from ScoreBoard by PaintScoreboard.
     UPROPERTY() TObjectPtr<UBorder> ScorePanel;
-    struct FScoreRowWidgets
-    {
-        TObjectPtr<UWidget> Row;
-        TObjectPtr<UBorder> Portrait;
-        TObjectPtr<UTextBlock> PortraitGlyph;
-        TObjectPtr<UTextBlock> Name;
-        TObjectPtr<UTextBlock> Level;
-        TObjectPtr<UProgressBar> GraffitiBar;
-        TObjectPtr<UTextBlock> GraffitiText;
-        TObjectPtr<UTextBlock> KDA;
-        TObjectPtr<UBorder> SkillFrames[3];
-        TObjectPtr<UImage> SkillIcons[3];
-        TObjectPtr<UTextBlock> SkillGlyphs[3];
-        TObjectPtr<UTextBlock> FinalMod;
-    };
-    TArray<FScoreRowWidgets> TacticalScoreRows;
+    UPROPERTY() TObjectPtr<USizeBox> ScoreSpot;
+    TArray<LDHUD::FTacticalScoreRow> ScoreBoard;
+    void PaintScoreboard(const LDUIPaint::FContext& P) const;
     TMap<FGuid,LDHUD::FTacticalSighting> ScoreSightings;
     uint32 ScoreSightingsMatch=0;
-    UPROPERTY() TArray<TObjectPtr<UWidget>> ScoreRows;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> ScoreCells;
     UPROPERTY() TObjectPtr<UBorder> ResultPanel;
-    UPROPERTY() TObjectPtr<UTextBlock> ResultTitle;
-    UPROPERTY() TObjectPtr<UTextBlock> ResultSubtitle;
-    UPROPERTY() TObjectPtr<UTextBlock> ResultBoardTitle;
-    UPROPERTY() TObjectPtr<ULDCommandButton> ResultInspectSelfButton;
-    UPROPERTY() TObjectPtr<USizeBox> ResultWinnerBuild;
-    UPROPERTY() TObjectPtr<class UVerticalBox> ResultRows;
-    UPROPERTY() TArray<TObjectPtr<UBorder>> ResultRowCards;
-    TArray<FGuid> ResultRowContenders;
-    FGuid InspectedResultContender;
-    // The own per-source damage of the shown result: a heading and a fixed grid of cells with icon + colored share bar (#331).
-    UPROPERTY() TObjectPtr<UTextBlock> ResultDamageHeading;
-    UPROPERTY() TArray<TObjectPtr<UWidget>> ResultDamageSlots;
-    UPROPERTY() TArray<TObjectPtr<UImage>> ResultDamageIcons;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> ResultDamageGlyphs;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> ResultDamageCells;
-    UPROPERTY() TArray<TObjectPtr<UProgressBar>> ResultDamageBars;
-    uint8 ResultReportTab=0;
-    void RefreshResultInspectedBuild(const struct FLDResultView& Result, const FGuid& OwnContenderId);
-    // Spec §12 结算“本局最离谱”: one line per contender (LDHUD::ResultHighlights).
-    UPROPERTY() TObjectPtr<UWidget> ResultHighlightsCard;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> ResultHighlightCells;
+    UPROPERTY() TObjectPtr<class ULDResultReport> ResultReport;
+    UPROPERTY() TObjectPtr<UTextBlock> ResultSyncText;
     UPROPERTY() TObjectPtr<ULDCommandButton> ReturnButton;
     UPROPERTY() TObjectPtr<ULDCommandButton> LeaveRoomButton;
     UPROPERTY() TObjectPtr<UBorder> DeathBanner;
@@ -392,26 +431,115 @@ private:
     UPROPERTY() TObjectPtr<ULDCommandButton> DeathRecapToggle;
     UPROPERTY() TObjectPtr<UWidget> DeathRecapContainer;
     UPROPERTY() TObjectPtr<ULDCommandButton> DeathWorkshopButton;
-    bool bDeathRecapCollapsed=false;
+    // The death recap starts folded: the wait shows one countdown first; the recap opens on demand.
+    bool bDeathRecapCollapsed=true;
     // One icon chain per recap row (LDRecapChain), rebuilt only when its row changes.
     UPROPERTY() TArray<TObjectPtr<UHorizontalBox>> DeathRecapRows;
     TArray<LDHUD::FRecapChain> DeathRecapShown;
-    // #198: the centre-screen rest return countdown ("5" .. "1", then "开淫！" as the field starts; LDHUD::RestReturnCountdown);
-    // click-through.
-    UPROPERTY() TObjectPtr<UTextBlock> ReturnCountdownText;
     UPROPERTY() TObjectPtr<UBorder> MapColumn;
     UPROPERTY() TObjectPtr<USizeBox> MapFrame;
     // The elapsed match time (LDHUD::MatchTimer), centred right above the minimap frame; click-through.
     UPROPERTY() TObjectPtr<UTextBlock> MatchTimerText;
+    // The bottom lower-third strip (APP_SPEC §7): the seat block (own jersey number in the seat ink, the basic attack's combo
+    // ticks under it), level and experience, the health figure over its segmented bar, momentum with the overdrive notch,
+    // then the Q/W/E and D slots over their key bands. The slabs and bars are painted (PaintStrip) on the widgets' layout.
     UPROPERTY() TObjectPtr<UBorder> Band;
+    // The seat block; its brush colour keeps the own identity tint (the workshop reads it), it draws nothing itself.
     UPROPERTY() TObjectPtr<UBorder> Portrait;
-    UPROPERTY() TObjectPtr<UTextBlock> PortraitGlyph;
     UPROPERTY() TObjectPtr<UTextBlock> LevelBadgeText;
-    // Unspent points on the portrait's bottom-left corner (the level rides on the bottom-right); hidden at 0.
-    UPROPERTY() TObjectPtr<UBorder> PointsBadge;
-    UPROPERTY() TObjectPtr<UTextBlock> PointsBadgeText;
-    UPROPERTY() TObjectPtr<UTextBlock> SelfName;
-    // Spec §12: the own vouchers (票) and pick tickets beside the portrait, under the name.
+    UPROPERTY() TObjectPtr<UWidget> HealthBarSpot;
+    UPROPERTY() TObjectPtr<UWidget> MomentumBarSpot;
+    UPROPERTY() TObjectPtr<UWidget> StripPanelSpot;
+    struct FStripPaint
+    {
+        int32 Seat=INDEX_NONE;
+        bool bHealth=false;
+        float Health=0.f;
+        float Shield=0.f;
+        FLinearColor HealthInk=FLinearColor::White;
+        // One cut per 250 HP of the maximum (as a fraction; 0 = none).
+        float HealthSegment=0.f;
+        bool bMomentum=false;
+        float Momentum=0.f;
+        float Notch=-1.f;
+        bool bOverdrive=false;
+        int32 Combo=0;
+    } StripPaint;
+    mutable FLDHudTrail StripTrail;
+    void PaintStrip(const LDUIPaint::FContext& P) const;
+    // On-air moments, painted over the whole screen and never hit-tested (local real time, from real own events only):
+    // an own kill (LDWorldFeedback Kill) wipes a compact K.O. plate with the own and the victim's plates in under the score
+    // strip for KillMomentSeconds, the fight staying in view; a level-up flips an orange level card over the level column.
+    static constexpr double KillMomentSeconds=1.4;
+    static constexpr double LevelFlipSeconds=1.4;
+    double KillMomentAt=-1.;
+    // The own health is low (the strip's own threshold) while alive in play: PaintMoments shades the screen's edges in the
+    // strip's low ink, so the warning is where the eye already is.
+    bool bOwnLowHealth=false;
+    FLinearColor OwnLowHealthInk=FLinearColor::Transparent;
+    // The rest step of the last sample: entering the betting step folds the build ring so the PK board has the middle.
+    ELDRestStep SeenRestStep=ELDRestStep::None;
+    int32 KillMomentVictimSeat=INDEX_NONE;
+    double LevelFlipAt=-1.;
+    int32 LevelFlipLevel=0;
+    int64 LevelFlipPoints=0;
+    // Stage change (field <-> rest, the final field): the stage last seen, when its title card began, and this frame's
+    // countdown figure, beat (1 as a second lands, falling to 0), closing wipe (0..1) and the title of the stage ahead.
+    static constexpr double StageCardSeconds=1.1;
+    ELDMatchStage SeenStage=ELDMatchStage::None;
+    uint32 SeenStageMatch=0;
+    double StageWipeAt=-1.;
+    FString StageWipeTitle,StageWipeSub,StageCount,StageNextTitle;
+    // The match's drawn days (public), shown under the opening countdown into the first field: the badge glyph of the
+    // in-match marker, the name and the one-line effect. Empty outside that countdown or on a match without one.
+    struct FStageDaily{FString Glyph,Name,Line;};
+    // Where the day plates were last painted (HUD local; invalid when none): the toast, the countdown and the ring's hover
+    // card keep clear of them.
+    mutable FBox2D DayPlates=FBox2D(ForceInit);
+public:
+    // The day plates' absolute box while they show (invalid otherwise): the world labels under them step aside.
+    FBox2D DayPlatesAbsolute() const
+    {
+        if(StageDaily.IsEmpty()||!DayPlates.bIsValid){return FBox2D(ForceInit);}
+        return FBox2D(GetCachedGeometry().LocalToAbsolute(DayPlates.Min),GetCachedGeometry().LocalToAbsolute(DayPlates.Max));
+    }
+private:
+    // The final's goal, centred at the top while the flag is open: the holder's seat (INDEX_NONE: nobody), the holder's
+    // name, the flag's state line (the circle head) and its bar.
+    struct FFlagBar{bool bShown=false;int32 Seat=INDEX_NONE;FString Holder,State;float Progress=0.f;bool bProgress=false;};
+    FFlagBar FlagBar;
+    TArray<FStageDaily> StageDaily;
+    float StageBeat=0.f,StagePreCover=0.f;
+    // Which of the eight beats of the match the title card names (R0, field 1, R1, field 2, R2, field 3, R3, final field).
+    int32 StageWipeBeat=0;
+    void PaintMoments(const LDUIPaint::FContext& P) const;
+    // DEV capture only (probes): a fixed age for the moments' clock (<0 releases it); the moments themselves still come
+    // only from real events.
+    float MomentFreezeAge=-1.f;
+    TWeakObjectPtr<UWidget> ProbeHoverOver;
+public:
+    void FreezeMoments(float Age){MomentFreezeAge=Age;}
+    // DEV capture only (probes, WITH_DEV_AUTOMATION_TESTS; inert otherwise): the widget of the action band the pointer is
+    // taken to be over for its hover cards, instead of the OS cursor (null: the OS cursor). It never moves the cursor and
+    // takes no part in input.
+    void ProbeHover(UWidget* Over)
+    {
+#if WITH_DEV_AUTOMATION_TESTS
+        ProbeHoverOver=Over;MarkReadModelDirty();
+#endif
+    }
+    // When the last own-kill moment began (local seconds), <0 before the first.
+    double MomentKillAt() const {return KillMomentAt;}
+    // The own health is low right now (the world layer turns the own overhead bar to the same ink).
+    bool IsOwnHealthLow() const {return bOwnLowHealth;}
+    // When the last stage title card began (local seconds), <0 before the first; whether a stage countdown shows now.
+    double MomentStageAt() const {return StageWipeAt;}
+    bool HasStageCount() const {return !StageCount.IsEmpty();}
+    bool HasMomentLevelUp() const {return LevelFlipAt>=0.;}
+private:
+    // The own stat attribute view (ULDStatBar) as a flyout above the strip, shown while the Attributes key holds it open.
+    UPROPERTY() TObjectPtr<UWidget> StatFlyout;
+    // Spec §12: the own life line (protection, death) above the seat block; plain alive shows none.
     UPROPERTY() TObjectPtr<UTextBlock> LifeText;
     // The own statuses (LDHUD::SelfIcons) are painted by ULDWorldLabels above the own overhead bars, as LoL-style icons
     // (OwnStatusMarks). The HUD builds the marks with the band's gate, keeps their textures alive and their remaining-time
@@ -424,23 +552,20 @@ private:
     UPROPERTY() TArray<TObjectPtr<UTexture2D>> OwnStatusTextures;
     mutable TArray<FSlateRect> OwnStatusHitRects;
     LDHUD::FStatusRings SelfIconRings;
-    UPROPERTY() TObjectPtr<UProgressBar> HealthBar;
     UPROPERTY() TObjectPtr<UTextBlock> HealthText;
-    UPROPERTY() TObjectPtr<UProgressBar> MomentumBar;
+    UPROPERTY() TObjectPtr<UTextBlock> HealthMaxText;
     UPROPERTY() TObjectPtr<UTextBlock> MomentumText;
     UPROPERTY() TObjectPtr<UTextBlock> HealthRegenText;
     UPROPERTY() TObjectPtr<UProgressBar> LevelBar;
     FString LevelTip;
     // The toast's own canvas slot, kept right above the band.
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> ToastSlot;
+    // The seat block's box: the storage's body column follows it.
     UPROPERTY() TObjectPtr<USizeBox> BodySlot;
-    // The basic attack's three combo pips under the body slot: the current step lit, the third gold.
-    UPROPERTY() TArray<TObjectPtr<UBorder>> ComboPips;
-    // The rank-up page (issue #287 spec §12, #331 3-rank preview): two big cards of the chosen skill's next rank, with
-    // Rank 3 sub-branch preview chips beneath 2A and 2B during 1->2 selection; a click or 1/2 submits RankUpSkill.
+    // The rank-up card over the action bar: the skill's branch tree (ranks taken, the two next ranks as cards, and while
+    // picking rank 2 the rank-3 forms each leads to); a click on a card or 1/2 submits RankUpSkill.
     UPROPERTY() TObjectPtr<UBorder> RankPage;
     UPROPERTY() TObjectPtr<UTextBlock> RankTitle;
-    UPROPERTY() TObjectPtr<UTextBlock> RankHint;
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> RankCards;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> RankCardNames;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> RankCardLines;
@@ -449,14 +574,21 @@ private:
     UPROPERTY() TArray<TObjectPtr<UBorder>> RankSubChips;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> RankSubNames;
     UPROPERTY() TArray<TObjectPtr<UImage>> RankSubIcons;
+    // The ranks taken (rank 1, and the rank-2 branch while rank 3 is picked) and the close button naming its key.
+    UPROPERTY() TObjectPtr<UWidget> RankRootNode;
+    UPROPERTY() TObjectPtr<UWidget> RankChosenNode;
+    UPROPERTY() TObjectPtr<UTextBlock> RankRootName;
+    UPROPERTY() TObjectPtr<UTextBlock> RankChosenName;
+    UPROPERTY() TObjectPtr<UImage> RankRootIcon;
+    UPROPERTY() TObjectPtr<UImage> RankChosenIcon;
+    UPROPERTY() TObjectPtr<ULDCommandButton> RankClose;
+    void PaintRankLinks(const LDUIPaint::FContext& P) const;
     int32 RankSlot=INDEX_NONE;
     TArray<ELDSkillBranch> RankOptions;
     FName RankAbility;
     void OpenRankUp(int32 ProgressionSlot);
     void SubmitRankUp(int32 Card);
     void RefreshRankUp(const FLDProgressionView* Progression,const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats);
-    UPROPERTY() TObjectPtr<UBorder> BodyPortrait;
-    UPROPERTY() TObjectPtr<UTextBlock> BodyPortraitGlyph;
     UPROPERTY() TArray<FLDHUDActionSlot> ActionSlots;
     // The hovered slot's full description (#328 §3 live skill tooltip + Alt/C expandable formula breakdown).
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> ActionDetailSlot;
@@ -467,23 +599,9 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> ActionFormulaText;
     UPROPERTY() TObjectPtr<UTextBlock> ActionDetailFooter;
     UPROPERTY() TMap<FName,TObjectPtr<ULDCommandButton>> Commands;
-    // The 构筑 button in the bottom-right corner, with the card tray it toggles right above it: lit while anything is pending
-    // (LDHUD::GrowthPending), greyed out otherwise, and pulsing for a few seconds after the opportunities or component choices
-    // rise.
-    UPROPERTY() TObjectPtr<UBorder> PendingPrompt;
+    // The bottom-right key plates (属性, and 测试 in a DEV test room); the build entry is the ring's closed state (ULDWorkshop).
     UPROPERTY() TObjectPtr<UBorder> PromptFrame;
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> PromptSlot;
-    UPROPERTY() TObjectPtr<ULDCommandButton> PromptButton;
-    UPROPERTY() TObjectPtr<UTextBlock> PromptText;
-    // The counts on the 构筑 button's corner, one per kind of waiting decision: skills (an active offer and the blueprints,
-    // blue square), build cards (gold tall) and the final mod (pink round), right to left in that order.
-    UPROPERTY() TArray<TObjectPtr<UBorder>> PromptBadges;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> PromptBadgeTexts;
-    UPROPERTY() TArray<TObjectPtr<UCanvasPanelSlot>> PromptBadgeSlots;
-    UPROPERTY() TObjectPtr<UHorizontalBox> PromptCategoryRow;
-    UPROPERTY() TObjectPtr<UCanvasPanelSlot> PromptCategorySlot;
-    UPROPERTY() TArray<TObjectPtr<UBorder>> PromptCategoryBadges;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> PromptCategoryTexts;
     // #328 §4.2: 3-channel non-clobbering notifications (Channel A: 0.9s slot/cursor reject micro-tip; Channel B: right-side
     // max-3 3.5s loot/growth queue; Channel C: top-center broadcast / ToastPanel).
     UPROPERTY() TObjectPtr<UBorder> SlotRejectPanel;
@@ -509,9 +627,7 @@ private:
     TSet<uint16> LootKnownCardSerials;
     void PushSlotRejectTip(const FString& Text,int32 ActionSlotIndex=INDEX_NONE);
     void PushLootNotice(const FString& Text,uint8 Kind);
-    int32 PromptOffers=0;
-    int32 PromptCardOffers=0;
-    double PromptPulseAt=-1;
+
     // The own training combo (ALDPlayerController::TrainingCombo) already shown beside the rest actions.
     uint32 SeenTrainingCombo=0;
     // ALDPlayerController::GetArmedCancelSerial already shown as a slot flash.
@@ -553,9 +669,7 @@ private:
     uint32 ChainSerial=0;
     // The result enters winner first, then the rows one by one, then its buttons (real seconds; -1 when settled).
     double ResultShownAt=-1.;
-    UPROPERTY() TArray<TObjectPtr<UWidget>> ResultEntries;
     UPROPERTY() TObjectPtr<UWidget> ResultActionsBox;
-    UPROPERTY() TObjectPtr<UWidget> ResultWinnerBand;
     void AnimateResult();
     float AppliedScale=0;
     // The last known owner level and stats for the growth panel's card numbers (#147).

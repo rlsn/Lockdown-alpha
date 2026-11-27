@@ -1,4 +1,7 @@
 #include "Vision/LDWorldViewRelay.h"
+#include "Components/PoseableMeshComponent.h"
+#include "Audio/LDAudioSubsystem.h"
+#include "UI/LDBroadcastStyle.h"
 #include "World/LDRecoveryOrbMarker.h"
 #include "Art/LDArtSubsystem.h"
 #include "Character/LDImpactFx.h"
@@ -36,6 +39,7 @@
 #include "RenderingThread.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "Camera/PlayerCameraManager.h"
+#include "HAL/IConsoleManager.h"
 
 static_assert(LDObservedPresentation::HistorySamples * ALDVisionDirector::PublishPeriodMs
     >= LDObservedPresentation::MaxDelaySeconds * 1000 + 2 * ALDVisionDirector::PublishPeriodMs,
@@ -87,13 +91,12 @@ FLinearColor ObservedEffectColor(ELDObservedProjectileLook Look)
     case ELDObservedProjectileLook::Chalk:
     case ELDObservedProjectileLook::ChalkReturn: return FLinearColor(.95f,.95f,.9f);
     case ELDObservedProjectileLook::Sock:
-    case ELDObservedProjectileLook::SockReturn: return FLinearColor(.55f,.85f,.25f);
+    case ELDObservedProjectileLook::SockReturn: return FLinearColor(.86f,.88f,.76f);
     case ELDObservedProjectileLook::FistWind: return FLinearColor(1.f,.42f,.18f);
     case ELDObservedProjectileLook::SlipperDrop: return FLinearColor(.25f,.95f,1.f);
     case ELDObservedProjectileLook::CordonTape: return FLinearColor(1.f,.84f,.08f);
     case ELDObservedProjectileLook::PhantomDecoy: return FLinearColor(.78f,.38f,1.f);
     case ELDObservedProjectileLook::ShardBurst: return FLinearColor(.2f,.92f,1.f);
-    case ELDObservedProjectileLook::FlyerArming: return FLinearColor(.9f,.65f,.2f);
     case ELDObservedProjectileLook::AreaMagic: return FLinearColor(.65f,.2f,1.f);
     case ELDObservedProjectileLook::AreaFire: return FLinearColor(1.f,.18f,.015f);
     case ELDObservedProjectileLook::AreaWater: return FLinearColor(.02f,.62f,1.f);
@@ -105,8 +108,9 @@ FLinearColor ObservedEffectColor(ELDObservedProjectileLook Look)
     case ELDObservedProjectileLook::BagWall: return FLinearColor(.5f,.32f,.14f);
     case ELDObservedProjectileLook::ConeWarning:
     case ELDObservedProjectileLook::LineWarning: return FLinearColor(1.f,.24f,.08f);
-    case ELDObservedProjectileLook::BookShadow:
-    case ELDObservedProjectileLook::FlyerArmed:
+    case ELDObservedProjectileLook::FlyerArming:
+    case ELDObservedProjectileLook::FlyerArmed: return FLinearColor(.9f,.88f,.8f);
+    case ELDObservedProjectileLook::BookShadow: return FLinearColor(.62f,.23f,.13f);
     case ELDObservedProjectileLook::SpeechCone: return FLinearColor(1.f,.38f,.16f);
     default: return FLinearColor(.92f,.9f,.98f);
     }
@@ -513,6 +517,7 @@ void ALDObservedEntityProxy::Apply(const FLDObservedUnitView& Unit, double Visua
     Shown.CueAgeMs = Unit.ActionCueAgeMs;
     Shown.CueImpactDelayMs = Unit.ActionCueImpactDelayMs;
     Shown.ActionAbility = Unit.ActionAbility;
+    Shown.ActionComboStep = Unit.ActionComboStep;
     Shown.bCharging = Unit.bCharging;
     Shown.ChargeAgeMs = Unit.ChargeAgeMs;
     Shown.bOverdriveCast = Unit.bOverdriveCast;
@@ -526,6 +531,9 @@ void ALDObservedEntityProxy::Apply(const FLDObservedUnitView& Unit, double Visua
     Shown.Statuses = Unit.Statuses;
     // A presentation clock that stalls keeps only a bounded queue: the oldest samples are dropped first.
     while (Points.Num() > LDObservedPresentation::HistorySamples) { Points.RemoveAt(0); Facts.RemoveAt(0); }
+    // A level seen to rise on a body that stays in sight plays its level-up; a body first seen shows none.
+    if (ObservedHandle != Unit.Handle) { Body->SetLevel(0); }
+    if (Unit.AuthorizedFieldMask & LDObservation::Level) { Body->SetLevel(Unit.Level); }
     ObservedHandle = Unit.Handle;
     ObservedEpoch = Unit.ObservationEpoch;
     const bool bCamp = Unit.Kind == ELDObservedUnitKind::CampMember;
@@ -555,7 +563,9 @@ void ALDObservedEntityProxy::Present(double AtServerSec, float Delta)
             : float(double(Reached.CueAgeMs) / 1000.0 + FMath::Max(0.0, AtServerSec - Points[Pose.Reached].At));
         Body->SetCue(ALDCharacter::PresentationCue(Reached.Cue, Reached.Statuses), Age,
             float(Reached.CueImpactDelayMs) / 1000.f, ALDCharacter::PresentationKnockback(Reached.Statuses));
+        Body->SetElementStates(Reached.Statuses);
         Body->SetCastAbility(Reached.Cue == ELDObservedActionCue::Cast ? Reached.ActionAbility : 0);
+        Body->SetComboStep(Reached.Cue == ELDObservedActionCue::Attack ? Reached.ActionComboStep : 0);
         Body->SetCharging(Reached.bCharging,
             float(double(Reached.ChargeAgeMs) / 1000.0 + FMath::Max(0.0, AtServerSec - Points[Pose.Reached].At)));
         Body->SetOverdriveCast(Reached.Cue == ELDObservedActionCue::Cast && Reached.bOverdriveCast);
@@ -639,6 +649,8 @@ void ALDOwnBodyMarker::Track(APawn* Body, uint8 Slot)
     {
         if (Tracked.IsValid()) { DetachFromActor(FDetachmentTransformRules::KeepWorldTransform); }
         Tracked.Reset();
+        if (IsValid(Mark)) { Mark->DestroyComponent(); }
+        Mark = nullptr;
         SetActorHiddenInGame(true);
         return;
     }
@@ -660,6 +672,14 @@ void ALDOwnBodyMarker::Track(APawn* Body, uint8 Slot)
         Core->SetMaterial(0, ULDArtSubsystem::SharedTint(this, Material, ULDHumanoidVisualComponent::ContenderTint(Slot)));
         TintSlot = Slot;
     }
+    if (ULDImpactFxSubsystem* Impacts = GetWorld() ? GetWorld()->GetSubsystem<ULDImpactFxSubsystem>() : nullptr)
+    {
+        const FVector At = Impacts->FloorUnder(GetActorLocation() + FVector(0, 0, 20));
+        Mark = Impacts->ShowLoop(*RootComponent, Mark, LDSliceVfx::ESystem::OwnMark, At, At + FVector(100, 0, 0), ULDHumanoidVisualComponent::ContenderTint(Slot),
+            64.f, 2.2f, 1.e4f, true);
+    }
+    Rim->SetVisibility(!Mark);
+    Core->SetVisibility(!Mark);
     SetActorHiddenInGame(false);
 }
 
@@ -670,30 +690,12 @@ ALDObservedGroundProxy::ALDObservedGroundProxy()
     SetActorEnableCollision(false);
     RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
     static ConstructorHelpers::FObjectFinder<UStaticMesh> Box(TEXT("/Engine/BasicShapes/Cube"));
-    for (const TCHAR* Name : {TEXT("GroundPattern"), TEXT("GroundRim")})
-    {
-        UInstancedStaticMeshComponent* Mesh = CreateDefaultSubobject<UInstancedStaticMeshComponent>(Name);
-        Mesh->SetupAttachment(RootComponent);
-        Mesh->SetStaticMesh(Box.Object);
-        Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-        Mesh->SetCanEverAffectNavigation(false);
-        Mesh->SetCastShadow(false);
-        (FCString::Strcmp(Name, TEXT("GroundRim")) == 0 ? Rim : Lines) = Mesh;
-    }
-}
-
-FLinearColor ALDObservedGroundProxy::KindColor(uint8 Kind)
-{
-    // Spec §8.1/§8.3: each ground state in its element's colour (the ice and puddle blues differ in value).
-    switch (static_cast<ELDGroundStateKind>(Kind))
-    {
-    case ELDGroundStateKind::Puddle: return FLinearColor(.08f,.42f,1.f);
-    case ELDGroundStateKind::Ice: return FLinearColor(.55f,.98f,1.f);
-    case ELDGroundStateKind::Fire: return FLinearColor(1.f,.3f,.04f);
-    case ELDGroundStateKind::Miasma: return FLinearColor(.4f,.85f,.12f);
-    case ELDGroundStateKind::Field: return FLinearColor(.66f,.3f,1.f);
-    default: return FLinearColor::White;
-    }
+    Rim = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("GroundRim"));
+    Rim->SetupAttachment(RootComponent);
+    Rim->SetStaticMesh(Box.Object);
+    Rim->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    Rim->SetCanEverAffectNavigation(false);
+    Rim->SetCastShadow(false);
 }
 
 void ALDObservedGroundProxy::Outline(const FLDObservedGroundState& Ground, TArray<FVector>& Out)
@@ -711,8 +713,8 @@ void ALDObservedGroundProxy::Outline(const FLDObservedGroundState& Ground, TArra
     if (Ground.Shape == ELDObservedGroundShape::Band)
     {
         const double H = Ground.ExtentCm;
-        Arc(FVector(H, 0, 0), R, -90., 90., 6);
-        Arc(FVector(-H, 0, 0), R, 90., 270., 6);
+        Arc(FVector(H, 0, 0), R, -90., 90., 16);
+        Arc(FVector(-H, 0, 0), R, 90., 270., 16);
         // A copy: adding an element of the array to itself may reallocate under the reference.
         const FVector First = Out[0];
         Out.Add(First);
@@ -721,66 +723,11 @@ void ALDObservedGroundProxy::Outline(const FLDObservedGroundState& Ground, TArra
     {
         const double Half = Ground.ExtentCm * .5;
         Out.Add(FVector::ZeroVector);
-        Arc(FVector::ZeroVector, R, -Half, Half, 12);
+        Arc(FVector::ZeroVector, R, -Half, Half, 32);
         Out.Add(FVector::ZeroVector);
     }
-    else { Arc(FVector::ZeroVector, R, 0., 360., 20); }
-}
-
-void ALDObservedGroundProxy::Pattern(const FLDObservedGroundState& Ground, TArray<TPair<FVector,FVector>>& Out)
-{
-    Out.Reset();
-    // A sector's pattern sits mid-cone and a band's along its middle; a circle's around its centre.
-    const double R = Ground.RadiusCm;
-    const FVector C = Ground.Shape == ELDObservedGroundShape::Sector ? FVector(R * .55, 0, 0) : FVector::ZeroVector;
-    const double S = Ground.Shape == ELDObservedGroundShape::Sector ? R * .35 : R * .7;
-    const auto Seg = [&Out, &C](const FVector& A, const FVector& B) { Out.Emplace(C + A, C + B); };
-    const auto Ring = [&Seg](const FVector& At, double Radius, int32 Steps)
-    {
-        for (int32 Step = 0; Step < Steps; ++Step)
-        {
-            const double A0 = 2. * PI * Step / Steps, A1 = 2. * PI * (Step + 1) / Steps;
-            Seg(At + FVector(FMath::Cos(A0), FMath::Sin(A0), 0) * Radius, At + FVector(FMath::Cos(A1), FMath::Sin(A1), 0) * Radius);
-        }
-    };
-    switch (static_cast<ELDGroundStateKind>(Ground.Kind))
-    {
-    case ELDGroundStateKind::Puddle:
-        // Two ripples.
-        Ring(FVector::ZeroVector, S * .55, 10);
-        Ring(FVector::ZeroVector, S * .95, 14);
-        break;
-    case ELDGroundStateKind::Ice:
-        // Parallel cracks across.
-        for (int32 Line = -2; Line <= 2; ++Line)
-        { Seg(FVector(-S, Line * S * .35 - S * .2, 0), FVector(S, Line * S * .35 + S * .2, 0)); }
-        break;
-    case ELDGroundStateKind::Fire:
-        // A ring of flame teeth.
-        for (int32 Tooth = 0; Tooth < 8; ++Tooth)
-        {
-            const double A0 = 2. * PI * Tooth / 8, A1 = 2. * PI * (Tooth + .5) / 8, A2 = 2. * PI * (Tooth + 1) / 8;
-            const FVector P0(FMath::Cos(A0) * S * .6, FMath::Sin(A0) * S * .6, 0), P1(FMath::Cos(A1) * S, FMath::Sin(A1) * S, 0);
-            const FVector P2(FMath::Cos(A2) * S * .6, FMath::Sin(A2) * S * .6, 0);
-            Seg(P0, P1);
-            Seg(P1, P2);
-        }
-        break;
-    case ELDGroundStateKind::Miasma:
-        // Bubbles.
-        for (const FVector& At : {FVector(0, 0, 0), FVector(S * .55, S * .25, 0), FVector(-S * .5, S * .4, 0), FVector(-S * .2, -S * .55, 0),
-            FVector(S * .4, -S * .5, 0)})
-        { Ring(At, S * .18, 6); }
-        break;
-    case ELDGroundStateKind::Field:
-        // A lightning zigzag.
-        Seg(FVector(-S, -S * .2, 0), FVector(-S * .35, S * .35, 0));
-        Seg(FVector(-S * .35, S * .35, 0), FVector(0, -S * .3, 0));
-        Seg(FVector(0, -S * .3, 0), FVector(S * .35, S * .35, 0));
-        Seg(FVector(S * .35, S * .35, 0), FVector(S, -S * .2, 0));
-        break;
-    default: break;
-    }
+    // Enough segments that the outline reads as a curve at gameplay zoom (no visible corners).
+    else { Arc(FVector::ZeroVector, R, 0., 360., 64); }
 }
 
 FTransform ALDObservedGroundProxy::SegmentTransform(const FVector& A, const FVector& B, double Thickness)
@@ -798,36 +745,33 @@ void ALDObservedGroundProxy::Apply(const FLDObservedGroundState& Ground, double 
     LifeSeconds = FMath::Max(double(Ground.TotalMs) / 1000., .05);
     if (bShape)
     {
-        if (!KindTint || !SeatTint)
+        if (!SeatTint)
         {
             UMaterialInterface* Material = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Lockdown/Generated/Materials/M_Character.M_Character"));
             if (!ensureMsgf(Material, TEXT("Character material missing; rerun asset bootstrap"))) { return; }
-            KindTint = UMaterialInstanceDynamic::Create(Material, this);
             SeatTint = UMaterialInstanceDynamic::Create(Material, this);
-            Lines->SetMaterial(0, KindTint);
             Rim->SetMaterial(0, SeatTint);
         }
-        KindTint->SetVectorParameterValue(TEXT("Tint"), KindColor(Ground.Kind));
         SeatTint->SetVectorParameterValue(TEXT("Tint"), Ground.OwnerSeat < LDObservation::MaxPresentations
             ? ULDHumanoidVisualComponent::ContenderTint(Ground.OwnerSeat) : FLinearColor(.6f, .6f, .6f));
-        TArray<TPair<FVector,FVector>> Segments;
-        Pattern(Ground, Segments);
-        Lines->ClearInstances();
-        for (const TPair<FVector,FVector>& Segment : Segments) { Lines->AddInstance(SegmentTransform(Segment.Key, Segment.Value, 7.)); }
         Outline(Ground, RimPoints);
         ShownOutline = -1;
     }
     // A freshly laid state (not one walked into sight) appears with its burst; the burst leaves with the proxy.
     const bool bFresh = !bShown && Ground.TotalMs >= Ground.RemainingMs && Ground.TotalMs - Ground.RemainingMs < 400;
+    const bool bNewKind = !bShown || Ground.Kind != Shown.Kind;
     Shown = Ground;
     bShown = true;
     if (bShape) { ShowParticles(); }
+    // Its sound: one quiet loop at its centre while it is shown (AUDIO_AND_FEEL).
+    if (ULDAudioSubsystem* Audio = bNewKind && GetGameInstance() ? GetGameInstance()->GetSubsystem<ULDAudioSubsystem>() : nullptr)
+    { Audio->StartGroundLoop(*this, Ground.Kind, GetActorLocation()); }
     if (bFresh)
     {
         LDHitVfx::EBurst Kind;
         FLinearColor Tint;
         ULDImpactFxSubsystem* Impacts = GetWorld() ? GetWorld()->GetSubsystem<ULDImpactFxSubsystem>() : nullptr;
-        if (Impacts && LDHitVfx::GroundAppearBurstOf(Ground.Kind, Kind, Tint))
+        if (Impacts && ULDImpactFxSubsystem::GroundSystem(Ground.Kind) == LDSliceVfx::ESystem::Count && LDHitVfx::GroundAppearBurstOf(Ground.Kind, Kind, Tint))
         { Impacts->Kit(GetActorLocation() + FVector(0, 0, 20.f), LDHitVfx::BurstOf(Kind, Tint, Impacts->LocalEffectScale()), *this); }
     }
     Present(SampledAtServerSec);
@@ -838,6 +782,13 @@ void ALDObservedGroundProxy::ShowParticles()
     ULDImpactFxSubsystem* Impacts = GetWorld() ? GetWorld()->GetSubsystem<ULDImpactFxSubsystem>() : nullptr;
     if (!Impacts || !bShown) { return; }
     ParticleScale = Impacts->LocalEffectScale();
+    // A kind with its own designed effect (ULDImpactFxSubsystem::ShowGround, laid in Present) has no kit particles.
+    if (ULDImpactFxSubsystem::GroundSystem(Shown.Kind) != LDSliceVfx::ESystem::Count)
+    {
+        if (IsValid(Particles)) { Particles->DestroyComponent(); }
+        Particles = nullptr;
+        return;
+    }
     // A circle fills its radius and a band keeps the particles inside its narrower half-extent. A sector starts at its
     // apex and ExtentCm is its angle: the particles fill the disc inscribed between its two edges and its arc.
     float Radius = Shown.RadiusCm * .9f;
@@ -856,6 +807,7 @@ void ALDObservedGroundProxy::ShowParticles()
 
 void ALDObservedGroundProxy::EndPlay(const EEndPlayReason::Type Reason)
 {
+    if (ULDAudioSubsystem* Audio = GetGameInstance() ? GetGameInstance()->GetSubsystem<ULDAudioSubsystem>() : nullptr) { Audio->StopGroundLoop(*this); }
     if (ULDImpactFxSubsystem* Impacts = GetWorld() ? GetWorld()->GetSubsystem<ULDImpactFxSubsystem>() : nullptr) { Impacts->ClearForActor(*this); }
     Super::EndPlay(Reason);
 }
@@ -865,9 +817,27 @@ void ALDObservedGroundProxy::Present(double AtServerSec)
     // The reduced-effects setting changed: rebuild the particles at the new density.
     if (const ULDImpactFxSubsystem* Impacts = GetWorld() ? GetWorld()->GetSubsystem<ULDImpactFxSubsystem>() : nullptr;
         Impacts && bShown && ParticleScale >= 0.f && Impacts->LocalEffectScale() != ParticleScale) { ShowParticles(); }
-    if (!bShown || RimPoints.Num() < 2) { return; }
-    // The outline drains with the remaining life (spec §12): the first Remaining/Life of its segments stay.
+    if (!bShown) { return; }
     const double Left = FMath::Clamp((ExpiresAtServerSec - AtServerSec) / LifeSeconds, 0., 1.);
+    // A designed ground state (the field, a puddle, ice, a fire floor, miasma; ULDImpactFxSubsystem::ShowGround) fades out over
+    // the last third of its life. A band or a sector shows the disc that fits inside it (as its particles did).
+    if (ULDImpactFxSubsystem* Impacts = GetWorld() ? GetWorld()->GetSubsystem<ULDImpactFxSubsystem>() : nullptr;
+        Impacts && ULDImpactFxSubsystem::GroundSystem(Shown.Kind) != LDSliceVfx::ESystem::Count)
+    {
+        float Radius = Shown.RadiusCm;
+        FVector Offset = FVector::ZeroVector;
+        if (Shown.Shape == ELDObservedGroundShape::Sector)
+        {
+            const float Sine = FMath::Sin(FMath::DegreesToRadians(FMath::Clamp(Shown.ExtentCm * .5f, 5.f, 90.f)));
+            Offset = FVector(Shown.RadiusCm / (1.f + Sine), 0, 0);
+            Radius = FMath::Max(Offset.X * Sine, 40.f);
+        }
+        else if (Shown.Shape != ELDObservedGroundShape::Circle)
+        { Radius = FMath::Max(FMath::Min(Shown.RadiusCm, Shown.ExtentCm > 0.f ? Shown.ExtentCm : Shown.RadiusCm), 40.f); }
+        Impacts->ShowGround(*this, Shown.Kind, GetActorLocation() + GetActorRotation().RotateVector(Offset), Radius, float(FMath::Min(Left * 3., 1.)), Shown.OwnerSeat);
+    }
+    if (RimPoints.Num() < 2) { return; }
+    // The outline drains with the remaining life (spec §12): the first Remaining/Life of its segments stay.
     const int32 Segments = RimPoints.Num() - 1;
     const int32 Keep = FMath::Clamp(FMath::CeilToInt(Left * Segments), 0, Segments);
     if (Keep == ShownOutline) { return; }
@@ -910,14 +880,17 @@ ALDObservedProjectileProxy::ALDObservedProjectileProxy()
 
 void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effect)
 {
+    using ELook=ELDObservedProjectileLook;
     const bool bFlight=IsObservedFlight(Effect.Look);
-    const bool bCone=Effect.Look==ELDObservedProjectileLook::SpeechCone || Effect.Look==ELDObservedProjectileLook::ConeWarning;
-    const bool bBook=Effect.Look==ELDObservedProjectileLook::BookShadow;
+    const bool bCone=Effect.Look==ELook::SpeechCone || Effect.Look==ELook::ConeWarning;
+    const bool bBook=Effect.Look==ELook::BookShadow;
     const bool bArea=IsObservedArea(Effect.Look);
-    const bool bForwardLine=Effect.Look==ELDObservedProjectileLook::LineWarning;
-    const bool bCordon=Effect.Look==ELDObservedProjectileLook::CordonTape;
-    const bool bRoad=Effect.Look==ELDObservedProjectileLook::Road || Effect.Look==ELDObservedProjectileLook::LineWarning
-        || Effect.Look==ELDObservedProjectileLook::Wind || bCordon;
+    const bool bForwardLine=Effect.Look==ELook::LineWarning;
+    const bool bCordon=Effect.Look==ELook::CordonTape;
+    const bool bRoad=Effect.Look==ELook::Road || Effect.Look==ELook::LineWarning || Effect.Look==ELook::Wind || bCordon;
+    const bool bBag=Effect.Look==ELook::Bag;
+    const bool bWall=Effect.Look==ELook::BagWall;
+    const bool bDecoy=Effect.Look==ELook::PhantomDecoy;
     const FLinearColor Color=Effect.bOwn ? FMath::Lerp(ObservedEffectColor(Effect.Look),FLinearColor(.08f,.85f,.6f),.5f)
         : ObservedEffectColor(Effect.Look);
     ShownLook=Effect.Look;
@@ -925,7 +898,8 @@ void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effe
     ShownLength=Effect.LengthCm;bShownOwn=Effect.bOwn;
     ShownColor=Color;
     ShownHeading=FRotator(0,float(Effect.Heading)/65536.f*360.f,0);
-    if (ULDImpactFxSubsystem* Impacts=GetWorld()?GetWorld()->GetSubsystem<ULDImpactFxSubsystem>():nullptr)
+    ULDImpactFxSubsystem* Impacts=GetWorld()?GetWorld()->GetSubsystem<ULDImpactFxSubsystem>():nullptr;
+    if (Impacts)
     {
         USceneComponent* Anchor=bFlight ? static_cast<USceneComponent*>(Trail) : RootComponent.Get();
         ParticleScale=Impacts->LocalEffectScale();
@@ -934,22 +908,47 @@ void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effe
     if (EffectTint) { EffectTint->SetVectorParameterValue(TEXT("Tint"),Color); }
     if (AccentTint) { AccentTint->SetVectorParameterValue(TEXT("Tint"),Color); }
     Trail->SetReturning(IsObservedReturn(Effect.Look));
-    Chalk->SetStaticMesh(bFlight ? CylinderMesh : BoxMesh);
+    // The body: the look's prop where it has one (a missing asset leaves the plain shape), sized to its real radius.
+    const auto Prop=[Impacts](bool bWanted,LDSliceVfx::EMesh Mesh) { return bWanted&&Impacts ? Impacts->PropMesh(Mesh) : nullptr; };
+    UStaticMesh* const Takeout=Prop(Effect.Look==ELook::Sock || Effect.Look==ELook::SockReturn,LDSliceVfx::EMesh::PropTakeout);
+    UStaticMesh* const Slipper=Prop(Effect.Look==ELook::SlipperDrop,LDSliceVfx::EMesh::PropSlipper);
+    UStaticMesh* const BagBody=Prop(bBag,LDSliceVfx::EMesh::PropBag);
+    UStaticMesh* const Brick=Prop(bBook,LDSliceVfx::EMesh::PropBrick);
+    UStaticMesh* const Flyer=Prop(Effect.Look==ELook::FlyerArming || Effect.Look==ELook::FlyerArmed,LDSliceVfx::EMesh::PropFlyer);
+    UStaticMesh* const Tape=Prop(bCordon,LDSliceVfx::EMesh::PropTape);
+    UStaticMesh* const BodyProp=Takeout ? Takeout : Slipper ? Slipper : Brick ? Brick : Flyer ? Flyer : Tape;
+    // The prop's trim: a label band, a strap, the pocket and straps, the holes and old mortar, the print (the warning's
+    // ink), the tape's dark stripes.
+    TrimColor=Takeout ? FLinearColor(.8f,.26f,.12f) : Slipper ? FLinearColor(.06f,.26f,.55f) : bBag ? FLinearColor(.28f,.17f,.07f)
+        : Brick ? FLinearColor(.2f,.13f,.1f) : Flyer ? FLinearColor(.85f,.16f,.08f) : FLinearColor(.05f,.05f,.05f);
+    if (BodyTint) { BodyTint->SetVectorParameterValue(TEXT("Tint"),Color); }
+    if (TrimTint) { TrimTint->SetVectorParameterValue(TEXT("Tint"),TrimColor); }
+    Chalk->SetMaterial(0,BodyProp&&BodyTint ? BodyTint.Get() : EffectTint.Get());
+    Chalk->SetMaterial(1,TrimTint);
+    Chalk->SetStaticMesh(BodyProp ? BodyProp : bFlight ? CylinderMesh.Get() : BoxMesh.Get());
     Chalk->SetRelativeLocation(FVector::ZeroVector);
-    Chalk->SetRelativeRotation(bFlight ? FRotator(90,0,0) : FRotator::ZeroRotator);
-    Chalk->SetRelativeScale3D(bFlight ? FVector(.22,.22,.5)
-        : bCone ? FVector(.4,.75,.04) : bArea ? FVector(.38,.38,.04) : bBook ? FVector(1.7,1.3,.16) : FVector(1.1,.85,.025));
-    if (bBook) { Chalk->SetRelativeLocation(FVector(0,0,95)); }
+    Chalk->SetRelativeRotation(bFlight&&!Takeout ? FRotator(90,0,0) : FRotator::ZeroRotator);
+    Chalk->SetRelativeScale3D(Takeout ? FVector(FMath::Clamp(Effect.RadiusCm/22.f,1.f,2.f)) : bFlight ? FVector(.22,.22,.5)
+        : bCone ? FVector(.4,.75,.04) : bArea ? FVector(.38,.38,.04) : Brick ? FVector(1.) : bBook ? FVector(.9,.45,.3)
+        : Flyer ? FVector(1.25) : FVector(1.1,.85,.025));
+    if (bBook) { Chalk->SetRelativeLocation(FVector(0,0,12)); }
+    if (Flyer) { Chalk->SetRelativeLocation(FVector(0,0,-3)); Chalk->SetRelativeRotation(FRotator(0,20,0)); }
     if (bCone) { Chalk->SetRelativeLocation(FVector(Effect.RadiusCm*.35,0,100)); }
     if (bArea)
     {
-        if (Effect.Look==ELDObservedProjectileLook::PhantomDecoy)
+        if (bDecoy)
         {
             Chalk->SetStaticMesh(CylinderMesh);
             Chalk->SetRelativeLocation(FVector(0,0,88));
             Chalk->SetRelativeScale3D(FVector(.75,.75,1.72));
         }
-        else if (Effect.Look==ELDObservedProjectileLook::SlipperDrop)
+        else if (Slipper)
+        {
+            Chalk->SetRelativeLocation(FVector(0,0,-3));
+            Chalk->SetRelativeRotation(FRotator(0,25,0));
+            Chalk->SetRelativeScale3D(FVector(FMath::Clamp(Effect.RadiusCm/40.f,1.f,1.6f)));
+        }
+        else if (Effect.Look==ELook::SlipperDrop)
         {
             Chalk->SetRelativeLocation(FVector(0,0,22));
             Chalk->SetRelativeRotation(FRotator(18,25,0));
@@ -962,43 +961,19 @@ void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effe
     }
     if(bRoad)
     {
+        // A cordon is a tape standing on edge between two posts; a road, a line and the wind are flat on the floor.
         Chalk->SetRelativeLocation(FVector(bForwardLine?Effect.LengthCm*.5:0,0,bCordon?64.:1.));
-        Chalk->SetRelativeScale3D(FVector(Effect.LengthCm/100.,bCordon?.14:(Effect.RadiusCm*2./100.),bCordon?.10:.012));
+        Chalk->SetRelativeScale3D(Tape ? FVector(Effect.LengthCm/100.,1.,1.)
+            : FVector(Effect.LengthCm/100.,bCordon?.03:(Effect.RadiusCm*2./100.),bCordon?.12:.012));
+        // The tape hangs from the tops of its posts.
+        if (Tape) { Chalk->SetRelativeLocation(FVector(0,0,66)); }
     }
-    // N4: a bag or a bag wall stands as a solid box that blocks bodies like the server's blocker (owner prediction agrees
-    // with the authority while the obstacle is seen); every other look never collides.
-    const bool bBag=Effect.Look==ELDObservedProjectileLook::Bag;
-    const bool bWall=Effect.Look==ELDObservedProjectileLook::BagWall;
-    Chalk->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-    if (bBag || bWall)
-    {
-        const double Height=ALDCombatBagBlocker::HeightCm;
-        Chalk->SetStaticMesh(BoxMesh);
-        Chalk->SetRelativeRotation(FRotator::ZeroRotator);
-        Chalk->SetRelativeLocation(FVector(0,0,Height*.5));
-        Chalk->SetRelativeScale3D(bBag ? FVector(Effect.RadiusCm*2./100.,Effect.RadiusCm*2./100.,Height/100.)
-            : FVector(Effect.LengthCm/100.,Effect.RadiusCm*2./100.,Height/100.));
-        Chalk->SetCollisionObjectType(ECC_WorldDynamic);
-        Chalk->SetCollisionResponseToAllChannels(ECR_Ignore);
-        Chalk->SetCollisionResponseToChannel(ECC_Pawn,ECR_Block);
-        Chalk->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-        Accent->SetVisibility(false);
-        Trail->SetVisibility(false,true);
-        for (const auto& Segment : ShapeLines) { Segment->SetVisibility(false); }
-        return;
-    }
-    Accent->SetVisibility(Effect.Look!=ELDObservedProjectileLook::Chalk);
-    Accent->SetRelativeRotation(FRotator::ZeroRotator);
-    Accent->SetRelativeLocation(bFlight ? FVector(20,0,-12) : bArea ? FVector(0,0,14) : bCone ? FVector(Effect.RadiusCm*.65,0,110)
-        : bBook ? FVector(0,0,105) : FVector(0,0,3));
-    Accent->SetRelativeScale3D(bFlight ? FVector(.3,.2,.16) : bArea ? FVector(.34,.34,.06) : bCone ? FVector(.5,.95,.04)
-        : bBook ? FVector(1.5,1.15,.06) : FVector(.8,.12,.02));
-    Trail->SetVisibility(bFlight,true);
-    if(bRoad){Accent->SetVisibility(false);}
+    // The phantom decoy stands as a still copy of the body it left; the plain column only when no body is near.
+    if (!bDecoy && StandIn) { StandIn->DestroyComponent(); StandIn=nullptr; }
+    if (bDecoy && !StandIn && Impacts) { StandIn=Impacts->StandIn(*this,GetActorLocation(),Color*1.6f,450.f); }
     for (const auto& Segment : ShapeLines) { Segment->SetVisibility(false); }
-    if (bFlight) { return; }
     int32 Used=0;
-    const auto Line=[&](const FVector& A,const FVector& B)
+    const auto Piece=[&](const FVector& At,const FRotator& Turn,const FVector& Scale)
     {
         UStaticMeshComponent* Segment=nullptr;
         if (Used==ShapeLines.Num())
@@ -1014,13 +989,72 @@ void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effe
         }
         else { Segment=ShapeLines[Used]; }
         ++Used;
-        const FVector Delta=B-A;
-        Segment->SetRelativeLocation((A+B)*.5);
-        Segment->SetRelativeRotation(Delta.Rotation());
-        Segment->SetRelativeScale3D(FVector(Delta.Size()/100.,.04,.02));
+        Segment->SetRelativeLocation(At);
+        Segment->SetRelativeRotation(Turn);
+        Segment->SetRelativeScale3D(Scale);
         Segment->SetVisibility(true);
     };
-    constexpr int32 Segments=16;
+    const auto Line=[&](const FVector& A,const FVector& B)
+    {
+        const FVector Delta=B-A;
+        Piece((A+B)*.5,Delta.Rotation(),FVector(Delta.Size()/100.,.04,.02));
+    };
+    // N4: a bag or a bag wall blocks bodies with a box like the server's blocker (owner prediction agrees with the
+    // authority while the obstacle is seen); every other look never collides. The box itself is not drawn: a bag shows
+    // its backpack, a wall the two straps pulled tight between its bags.
+    Chalk->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    Accent->SetStaticMesh(BoxMesh);
+    Accent->SetMaterial(0,BagBody&&BodyTint ? BodyTint.Get() : AccentTint.Get());
+    Accent->SetMaterial(1,TrimTint);
+    if (bBag || bWall)
+    {
+        const double Height=ALDCombatBagBlocker::HeightCm;
+        Chalk->SetStaticMesh(BoxMesh);
+        Chalk->SetRelativeRotation(FRotator::ZeroRotator);
+        Chalk->SetRelativeLocation(FVector(0,0,Height*.5));
+        Chalk->SetRelativeScale3D(bBag ? FVector(Effect.RadiusCm*2./100.,Effect.RadiusCm*2./100.,Height/100.)
+            : FVector(Effect.LengthCm/100.,Effect.RadiusCm*2./100.,Height/100.));
+        Chalk->SetCollisionObjectType(ECC_WorldDynamic);
+        Chalk->SetCollisionResponseToAllChannels(ECR_Ignore);
+        Chalk->SetCollisionResponseToChannel(ECC_Pawn,ECR_Block);
+        Chalk->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+        Chalk->SetVisibility(bBag && !BagBody);
+        Accent->SetVisibility(BagBody!=nullptr);
+        if (BagBody)
+        {
+            Accent->SetStaticMesh(BagBody);
+            Accent->SetRelativeRotation(FRotator::ZeroRotator);
+            Accent->SetRelativeLocation(FVector(0,0,-4));
+            Accent->SetRelativeScale3D(FVector(Effect.RadiusCm*2./100.,Effect.RadiusCm*2./100.,Height/120.));
+        }
+        if (bWall)
+        {
+            Piece(FVector(0,0,46),FRotator::ZeroRotator,FVector(Effect.LengthCm/100.,.06,.04));
+            Piece(FVector(0,0,88),FRotator::ZeroRotator,FVector(Effect.LengthCm/100.,.06,.04));
+        }
+        Trail->SetVisibility(false,true);
+        return;
+    }
+    // A look whose designed system is its whole picture (an area's floor, the fan's wind, the fist wind's front, a
+    // speech cone's voice, the armour's shards) draws no shape of its own; its outline below stays.
+    FLinearColor DesignedInk;
+    const bool bDesigned=LDSliceVfx::EffectSystemOf(uint8(Effect.Look),DesignedInk)!=LDSliceVfx::ESystem::Count;
+    const bool bBodyless=(bDesigned&&!bFlight) || Effect.Look==ELook::FistWind || Effect.Look==ELook::SpeechCone || Effect.Look==ELook::ConeWarning
+        || Effect.Look==ELook::LineWarning || Effect.Look==ELook::Road
+        || Effect.Look==ELook::ShardBurst || (bDecoy&&StandIn);
+    Chalk->SetVisibility(!bBodyless);
+    // The accent is a trap's marking while its paper is missing.
+    Accent->SetVisibility((Effect.Look==ELook::FlyerArming || Effect.Look==ELook::FlyerArmed) && !Flyer);
+    Accent->SetRelativeRotation(FRotator::ZeroRotator);
+    Accent->SetRelativeLocation(bCone ? FVector(Effect.RadiusCm*.65,0,110) : FVector(0,0,3));
+    Accent->SetRelativeScale3D(bCone ? FVector(.5,.95,.04) : FVector(.8,.12,.02));
+    // A flight with its own designed wake (LDSliceVfx::EffectSystemOf) shows that, not the mesh streak.
+    // (The streak is the trail's children, and so are the wake's particles: those stay shown.)
+    Trail->SetVisibility(bFlight&&!bDesigned,true);
+    if (IsValid(Particles)) { Particles->SetVisibility(true); }
+    if (bFlight) { return; }
+    // Enough segments that a boundary reads as a curve at gameplay zoom.
+    constexpr int32 Segments=32;
     const auto Arc=[&](double Radius,double Begin,double Span)
     {
         FVector Previous(Radius*FMath::Cos(Begin),Radius*FMath::Sin(Begin),2);
@@ -1039,6 +1073,13 @@ void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effe
         Line(FVector(From,Width,2),FVector(To,Width,2));
         Line(FVector(From,-Width,2),FVector(From,Width,2));
         Line(FVector(To,-Width,2),FVector(To,Width,2));
+        if (bCordon)
+        {
+            Piece(FVector(From,0,37),FRotator::ZeroRotator,FVector(.06,.06,.74));
+            Piece(FVector(To,0,37),FRotator::ZeroRotator,FVector(.06,.06,.74));
+            Piece(FVector(From,0,2),FRotator::ZeroRotator,FVector(.22,.22,.04));
+            Piece(FVector(To,0,2),FRotator::ZeroRotator,FVector(.22,.22,.04));
+        }
     }
     else if (bCone)
     {
@@ -1066,6 +1107,9 @@ void ALDObservedProjectileProxy::Apply(const FLDObservedProjectileView& Projecti
         Points.Reset();
         SetActorLocationAndRotation(Point.Location, FRotator(0, Point.Yaw, 0));
         bPlaced = true;
+        // A new effect on this proxy builds its look afresh.
+        ShownRadius = -1;
+        if (StandIn) { StandIn->DestroyComponent(); StandIn = nullptr; }
         ShownLook = Projectile.Look;
         PlayBurst(false);
         if (UMaterialInterface* Material = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Lockdown/Generated/Materials/M_Character.M_Character")))
@@ -1075,6 +1119,8 @@ void ALDObservedProjectileProxy::Apply(const FLDObservedProjectileView& Projecti
             AccentTint = UMaterialInstanceDynamic::Create(Material, this);
             AccentTint->SetVectorParameterValue(TEXT("Tint"),FLinearColor(.95f,.95f,.9f));
             Accent->SetMaterial(0,AccentTint);
+            BodyTint = UMaterialInstanceDynamic::Create(Material, this);
+            TrimTint = UMaterialInstanceDynamic::Create(Material, this);
         }
         else { ensureMsgf(false, TEXT("Character material missing; rerun asset bootstrap")); }
     }
@@ -1106,17 +1152,31 @@ void ALDObservedProjectileProxy::Present(double AtServerSec)
     SetActorLocationAndRotation(Pose.Location, FRotator(0, Pose.Yaw, 0));
     // A directional zone (a cone, the sweeping fan's wind) blows along the presented heading as it turns.
     ShownHeading=FRotator(0, Pose.Yaw, 0);
+    // A look with its own designed system follows the proxy (the flight's body, or the area's centre).
+    if (const ULDImpactFxSubsystem* Follow=GetWorld()?GetWorld()->GetSubsystem<ULDImpactFxSubsystem>():nullptr; Follow && IsValid(Particles))
+    { Follow->MoveEffect(Particles,IsObservedFlight(ShownLook)&&Trail ? Trail->GetComponentLocation() : GetActorLocation(),ShownHeading); }
     if (IsValid(Particles) && ParticleScale>0.f && !IsObservedFlight(ShownLook))
     {
         const LDHitVfx::FZone Zone=LDHitVfx::ZoneOf(ShownLook,ShownRadius,ParticleScale);
         if (Zone.bShow && !FVector2D(Zone.Velocity).IsNearlyZero())
         { Particles->SetVariableVec3(TEXT("User.Velocity"),ShownHeading.RotateVector(Zone.Velocity)); }
     }
-    if (AccentTint)
+    const double Remaining=WarningAtServerSec>AtServerSec ? WarningAtServerSec-AtServerSec : 0.;
+    const float Pulse=Remaining>0. ? .3f+.55f*(.5f+.5f*FMath::Sin(float(AtServerSec)*(Remaining<1. ? 14.f : 7.f))) : 0.f;
+    // A trap is a sheet of paper; its marking is the warning ink.
+    const bool bFlyer=ShownLook==ELDObservedProjectileLook::FlyerArming || ShownLook==ELDObservedProjectileLook::FlyerArmed;
+    if (AccentTint) { AccentTint->SetVectorParameterValue(TEXT("Tint"),FMath::Lerp(bFlyer ? FLinearColor(.85f,.16f,.08f) : ShownColor,FLinearColor::White,Pulse)); }
+    // Without the accent the outline carries the warning's pulse, and a trap's print with it.
+    if (EffectTint && !Accent->IsVisible()) { EffectTint->SetVectorParameterValue(TEXT("Tint"),FMath::Lerp(ShownColor,FLinearColor::White,Pulse*.6f)); }
+    if (TrimTint && bFlyer) { TrimTint->SetVectorParameterValue(TEXT("Tint"),FMath::Lerp(TrimColor,FLinearColor::White,Pulse)); }
+    // A cordon's tape stirs a little on its posts.
+    if (ShownLook==ELDObservedProjectileLook::CordonTape) { Chalk->SetRelativeRotation(FRotator(0,0,7.f*FMath::Sin(float(AtServerSec)*4.3f))); }
+    // The dropped brick falls through its warning, tumbling, and lies where it lands.
+    if (ShownLook==ELDObservedProjectileLook::BookShadow)
     {
-        const double Remaining=WarningAtServerSec>AtServerSec ? WarningAtServerSec-AtServerSec : 0.;
-        const float Pulse=Remaining>0. ? .3f+.55f*(.5f+.5f*FMath::Sin(float(AtServerSec)*(Remaining<1. ? 14.f : 7.f))) : 0.f;
-        AccentTint->SetVectorParameterValue(TEXT("Tint"),FMath::Lerp(ShownColor,FLinearColor::White,Pulse));
+        const double Left=FMath::Min(Remaining,1.2);
+        Chalk->SetRelativeLocation(FVector(0,0,12.+Left*Left*900.));
+        Chalk->SetRelativeRotation(FRotator(Left*140.,Left*90.,0));
     }
     if (Pose.Reached > 0) { Points.RemoveAt(0, Pose.Reached); }
 }
@@ -1127,6 +1187,43 @@ void ALDObservedProjectileProxy::PlayBurst(bool bEnd)
     LDHitVfx::EBurst Kind;
     FLinearColor Tint;
     ULDImpactFxSubsystem* Impacts=GetWorld()?GetWorld()->GetSubsystem<ULDImpactFxSubsystem>():nullptr;
+    if (!Impacts || (!bEnd && IsHidden())) { return; }
+    // Looks with a designed appear or end of their own: the armour's shards, the decoy going off, the brick and the bag
+    // landing in dust. A slipper, a tape and a bag wall simply stand there.
+    {
+        const FVector Floor=Impacts->FloorUnder(GetActorLocation()),Chest=Floor+FVector(0,0,95);
+        LDSliceVfx::FLook Look;
+        Look.EffectScale=Impacts->LocalEffectScale();
+        switch (ShownLook)
+        {
+        case ELDObservedProjectileLook::ShardBurst:
+            if (!bEnd) { Impacts->PlayFree(LDSliceVfx::ESystem::ShardBurst,Floor,Chest,FLinearColor::White,FMath::Max(ShownRadius,80.f),1.2f,Look); }
+            return;
+        case ELDObservedProjectileLook::PhantomDecoy:
+            if (bEnd) { Impacts->PlayFree(LDSliceVfx::ESystem::DecoyPop,Floor,Chest,FLinearColor::White,FMath::Max(ShownRadius,80.f),1.2f,Look); }
+            return;
+        case ELDObservedProjectileLook::BookShadow:
+            if (bEnd) { Impacts->PlayPack(LDSliceVfx::EPack::DustRing,Floor+FVector(0,0,4),.55f); }
+            return;
+        case ELDObservedProjectileLook::Bag:
+            if (!bEnd) { Impacts->PlayPack(LDSliceVfx::EPack::DustRing,Floor+FVector(0,0,4),.4f); }
+            return;
+        case ELDObservedProjectileLook::AreaFire:
+            // A fire area catches: the flame wall of a seethe at the area's own radius, once.
+            if (!bEnd)
+            {
+                Impacts->PlayFree(LDSliceVfx::ESystem::SeetheBurst,Floor,Floor,LDSliceVfx::ElementInk(uint8(ELDCombatElement::Fire)),
+                    FMath::Max(ShownRadius,80.f),.7f,Look);
+            }
+            return;
+        case ELDObservedProjectileLook::BagWall:
+        case ELDObservedProjectileLook::SlipperDrop:
+        case ELDObservedProjectileLook::CordonTape: return;
+        default: break;
+        }
+    }
+    // A look with its own designed system has no particle-kit burst.
+    if (FLinearColor Ink; LDSliceVfx::EffectSystemOf(uint8(ShownLook),Ink)!=LDSliceVfx::ESystem::Count) { return; }
     if (!Impacts || (!bEnd && IsHidden()) || !(bEnd ? LDHitVfx::EndBurstOf(ShownLook,Kind,Tint) : LDHitVfx::AppearBurstOf(ShownLook,Kind,Tint))) { return; }
     const LDHitVfx::FBurst Burst=LDHitVfx::BurstOf(Kind,Tint,Impacts->LocalEffectScale());
     if (bEnd) { Impacts->Kit(GetActorLocation(),Burst); }

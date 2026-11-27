@@ -1387,6 +1387,8 @@ private:
     // The lone resolver of the card effects a body holds: every installed card copy's effects of Op
     // (FLDAttributeProjection::InstalledCards by serial, catalog order of each card's effects), fixed amounts grown for the
     // holder's level (LDSkillGrowth::GrowEffect). False with Error when a listed card or its growth is missing.
+    // The charges a learned skill of this body holds (LDCombatSourceRules::SkillCharges with its Y12 copies).
+    bool SkillChargesOf(const FLDBodyCombatState& Body, const FLDDemoAbilityValues& Values, int32& Out, FString& Error) const;
     bool CollectPassiveEffects(const FLDAttributeProjection& Projection, ELDDemoEffectOp Op, TArray<FLDPassiveEffectRef>& Out,
         FString& Error) const;
     // Momentum change of a contender body (a gain, a spend or a steal), clamped to the bar and booked under Kind; marks
@@ -1776,6 +1778,9 @@ private:
     // #305: Y22 and K16 count idle time only inside the current fight plus CARDS.IdleCarrySec carried in from before it; the
     // earliest instant their idle may count from.
     int64 IdleCountFloorMs(const FLDBodyCombatState& Body, int64 NowMs) const;
+    // The owner view's growth card counts (FLDCombatCardStackView); Body is the living body (none: only K17's match hits).
+    bool OwnerCardStacks(const FLDCombatEntityRecord& Record, const FLDBodyCombatState* Body, const FLDAttributeProjection& Projection,
+        int64 NowMs, TArray<FLDCombatCardStackView>& Out) const;
     // One own combat action request of Entity that Combat refused for a gameplay gate (busy, cooldown, attack cadence,
     // momentum, control, target, direction, range or sight); protocol, staleness and phase refusals are not counted.
     void LedgerActionRefused(const FGuid& Entity, ELDCombatReject Reason);

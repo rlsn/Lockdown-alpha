@@ -405,4 +405,71 @@ bool FLDCombatDirectSequenceWindowTest::RunTest(const FString& Parameters)
     return true;
 }
 
+// Skill charges: a skill that keeps N live placed objects (N4 bags, N2 fans; Y12 one more each) holds N charges on one
+// cooldown timeline, so its objects can be placed back to back; every other skill keeps a single charge.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatSkillChargesTest, "Lockdown.Rules.DemoCombatSources.SkillCharges",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatSkillChargesTest::RunTest(const FString& Parameters)
+{
+    using namespace LDCombatSourceRulesTestDetail;
+    using namespace LDCombatSourceRules;
+    TSharedPtr<const FLDDemoContentSnapshot> Content;
+    if (!LDTestApprovedFixture::Read(*this, Content)) { return false; }
+    FString Error;
+    const FLDDemoAbilityDefinition* BagSkill = nullptr;
+    const FLDDemoAbilityDefinition* FanSkill = nullptr;
+    const FLDDemoAbilityDefinition* BoltSkill = nullptr;
+    if (!TestTrue(TEXT("The bag, the fan and the bolt are approved"), Content->FindAbility(TEXT("active_school_bag"), BagSkill, Error)
+        && BagSkill && Content->FindAbility(TEXT("active_desk_fan"), FanSkill, Error) && FanSkill
+        && Content->FindAbility(Bolt.ToString(), BoltSkill, Error) && BoltSkill))
+    { return false; }
+    TestEqual(TEXT("A rank-1 bag keeps one bag: one charge"), SkillCharges(BagSkill->Values, 0), 1);
+    TestEqual(TEXT("Y12 adds a charge to the bag"), SkillCharges(BagSkill->Values, 1), 2);
+    FLDDemoAbilityValues TwoBags = BagSkill->Values;
+    FLDDemoEffectDefinition* Bag = TwoBags.Effects.FindByPredicate([](const FLDDemoEffectDefinition& Effect)
+        { return Effect.GetOp() == ELDDemoEffectOp::Bag; });
+    if (!TestNotNull(TEXT("The bag skill places a bag"), Bag)) { return false; }
+    Bag->Count = 2;
+    TestEqual(TEXT("2A two bags: two charges"), SkillCharges(TwoBags, 0), 2);
+    TestEqual(TEXT("2A with a Y12 copy: three charges"), SkillCharges(TwoBags, 1), 3);
+    TestEqual(TEXT("A fan holds one charge"), SkillCharges(FanSkill->Values, 0), 1);
+    TestEqual(TEXT("Y12 adds a charge to the fan"), SkillCharges(FanSkill->Values, 2), 3);
+    TestEqual(TEXT("A bolt holds one charge whatever Y12 says"), SkillCharges(BoltSkill->Values, 3), 1);
+
+    // The timeline: full at ReadyAt, one charge recovering per ChargeMs.
+    constexpr int64 Cd = 7700;
+    TestEqual(TEXT("A ready track has every charge"), ChargesReady(NowMs, NowMs, 2, Cd), 2);
+    TestEqual(TEXT("One charge recovering leaves one"), ChargesReady(NowMs + 5000, NowMs, 2, Cd), 1);
+    TestEqual(TEXT("Exactly one recovery left leaves one"), ChargesReady(NowMs + Cd, NowMs, 2, Cd), 1);
+    TestEqual(TEXT("Both recovering leaves none"), ChargesReady(NowMs + Cd + 1, NowMs, 2, Cd), 0);
+    TestEqual(TEXT("A single-charge track cooling has none"), ChargesReady(NowMs + 1, NowMs, 1, Cd), 0);
+    TestEqual(TEXT("A charged track never issued (no duration) cooling has none"), ChargesReady(NowMs + 1, NowMs, 2, 0), 0);
+
+    int64 Ready = 0;
+    TestTrue(TEXT("The first bag spends a charge from now"), SpendCharge(NowMs - 1, NowMs, Cd, Ready) && Ready == NowMs + Cd);
+    TestEqual(TEXT("and one charge is left"), ChargesReady(Ready, NowMs, 2, Cd), 1);
+    int64 Second = 0;
+    TestTrue(TEXT("The second bag right after queues its recovery after the first"),
+        SpendCharge(Ready, NowMs + 200, Cd, Second) && Second == NowMs + 2 * Cd);
+    TestEqual(TEXT("and none is left"), ChargesReady(Second, NowMs + 200, 2, Cd), 0);
+    TestEqual(TEXT("The first charge is back one cooldown after the first bag"), ChargesReady(Second, NowMs + Cd, 2, Cd), 1);
+    TestFalse(TEXT("An overflowing end is refused"), SpendCharge(MAX_int64 - 10, NowMs, Cd, Ready));
+
+    // The shared gate reads the charges.
+    FLDActiveGateInput Gate;
+    Gate.NowMs = NowMs;
+    Gate.ReadyAtMs = NowMs + Cd;
+    Gate.Charges = 2;
+    Gate.ChargeMs = Cd;
+    TestTrue(TEXT("With a charge left the bag casts while its track cools"),
+        ActiveGate(Gate, Content->Get().Policies) == ELDCombatReject::None);
+    Gate.ReadyAtMs = NowMs + 2 * Cd;
+    TestTrue(TEXT("With none left it is cooling"), ActiveGate(Gate, Content->Get().Policies) == ELDCombatReject::Cooldown);
+    Gate.Charges = 1;
+    Gate.ReadyAtMs = NowMs + 1;
+    TestTrue(TEXT("A single-charge skill cools as before"), ActiveGate(Gate, Content->Get().Policies) == ELDCombatReject::Cooldown);
+    return true;
+}
+
 #endif

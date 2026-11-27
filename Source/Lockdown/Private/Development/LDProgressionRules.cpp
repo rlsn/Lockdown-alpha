@@ -341,6 +341,7 @@ ELDGrowthReason LDProgression::ValidateBuild(const FLDDemoContentDefinitions& Co
     int64 Spent = 0;
     if (Content.Progression.ActiveSlots != 3 || Build.StatPoints.Num() != Content.Stats.Num() || !Build.SpentPoints(Spent)
         || Build.BoughtSkillPoints < 0 || Build.BoughtSkillPoints > Content.Parameters.Shop.SkillPointMaxPerMatch
+        || Build.BoughtMedals < 0 || Build.BoughtMedals > Content.Parameters.Shop.MedalMaxPerMatch
         || Build.AwardedPoints < 0 || Build.ShopSpentPoints < 0
         || Build.AffixSkillPoints < 0 || Build.AffixSkillPoints > Content.Parameters.Affix.AuditSkillPointsMax
         || Build.Actives.Num() > Content.Progression.ActiveSlots)
@@ -553,6 +554,7 @@ ELDGrowthReason LDProgression::CommandGate(ELDBuildCommandKind Kind, const FBuil
     case ELDBuildCommandKind::UninstallCard:
     case ELDBuildCommandKind::ShopBuy:
     case ELDBuildCommandKind::ShopRefresh:
+    case ELDBuildCommandKind::SellBlueprint:
         break;
     default:
         return ELDGrowthReason::InvalidRequest;
@@ -571,6 +573,9 @@ ELDGrowthReason LDProgression::CommandGate(ELDBuildCommandKind Kind, const FBuil
     case ELDBuildCommandKind::SkipActiveOffer:
     case ELDBuildCommandKind::LearnBlueprint:
     case ELDBuildCommandKind::AllocatePoints:
+    // A pending blueprint replaces a learned skill or is sold whenever it could be learned.
+    case ELDBuildCommandKind::ReplaceActive:
+    case ELDBuildCommandKind::SellBlueprint:
     // Spec §6.1/§6.4: the card commands are open whenever the build is.
     case ELDBuildCommandKind::PickCard:
     case ELDBuildCommandKind::SkipCards:
@@ -587,11 +592,6 @@ ELDGrowthReason LDProgression::CommandGate(ELDBuildCommandKind Kind, const FBuil
     case ELDBuildCommandKind::Respec:
         return Context.Stage == EMatchStage::RestLocked ? ELDGrowthReason::BuildLocked
             : !bRest ? ELDGrowthReason::NotRestWindow : bDead ? ELDGrowthReason::Dead : ELDGrowthReason::None;
-    // A blueprint may also replace a learned skill on the field while resting in a dorm out of combat.
-    case ELDBuildCommandKind::ReplaceActive:
-        if (Context.Stage == EMatchStage::Live && Context.bDormRested && !bDead) { return ELDGrowthReason::None; }
-        return Context.Stage == EMatchStage::RestLocked ? ELDGrowthReason::BuildLocked
-            : !bRest ? ELDGrowthReason::ReplacementNotAllowed : bDead ? ELDGrowthReason::Dead : ELDGrowthReason::None;
     case ELDBuildCommandKind::ForgetActive:
         return Context.Stage == EMatchStage::RestLocked ? ELDGrowthReason::BuildLocked
             : !bRest ? ELDGrowthReason::ReplacementNotAllowed : bDead ? ELDGrowthReason::Dead : ELDGrowthReason::None;
@@ -796,7 +796,7 @@ ELDGrowthReason LDProgression::ApplyLearnBlueprint(const FLDDemoContentDefinitio
     {
         return Reason;
     }
-    // Replacing a learned active is the rest-only ApplyReplaceActive.
+    // Replacing a learned active is ApplyReplaceActive.
     if (Current.ActiveInSlot(Slot) != INDEX_NONE)
     {
         return ELDGrowthReason::SlotOccupied;
@@ -804,6 +804,34 @@ ELDGrowthReason LDProgression::ApplyLearnBlueprint(const FLDDemoContentDefinitio
     Out.PendingBlueprints.Remove(Blueprint);
     Out.Actives.Add({Blueprint, Slot});
     ProgressionSortBuild(Out);
+    return ELDGrowthReason::None;
+}
+
+ELDGrowthReason LDProgression::ApplySellBlueprint(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
+    FName Blueprint, const FBuildContext& Context, FLDGrowthBuild& Out, int64& OutPoints)
+{
+    Out = Current;
+    OutPoints = 0;
+    if (const ELDGrowthReason Reason = ValidateBuild(Content, Current); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    if (const ELDGrowthReason Reason = CommandGate(ELDBuildCommandKind::SellBlueprint, Context); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    if (!Current.HasBlueprint(Blueprint))
+    {
+        return ELDGrowthReason::NoBlueprint;
+    }
+    const int64 Points = Content.Parameters.BlueprintSellPoints;
+    if (Points <= 0 || Current.AwardedPoints > MAX_int64 - Points)
+    {
+        return ELDGrowthReason::DataInvalid;
+    }
+    Out.PendingBlueprints.Remove(Blueprint);
+    Out.AwardedPoints += Points;
+    OutPoints = Points;
     return ELDGrowthReason::None;
 }
 
@@ -1895,6 +1923,11 @@ int32 LDProgression::ShopSkillPointPrice(const FLDDemoContentParameters& Paramet
     return LDPacing::SalePrice(Parameters, Parameters.Shop.SkillPointPrice, Shop.bSale);
 }
 
+int32 LDProgression::ShopMedalPrice(const FLDDemoContentParameters& Parameters, const FLDShopState& Shop)
+{
+    return LDPacing::SalePrice(Parameters, Parameters.Shop.MedalPrice, Shop.bSale);
+}
+
 namespace
 {
 // A skill the shop gives: learned into the lowest empty slot (LearnGate permitting) or kept as a blueprint.
@@ -1920,7 +1953,7 @@ void ProgressionGiveActive(const LDProgression::FBuildContext& Context, FName Ac
 
 ELDGrowthReason LDProgression::ApplyShopBuy(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
     const FLDProgressionState& Progression, uint8 Slot, uint64 Revision, const FBuildContext& Context, FLDGrowthBuild& Out,
-    FLDProgressionState& OutProgression, FShopOutcome& Outcome)
+    FLDProgressionState& OutProgression, FShopOutcome& Outcome, uint64 MedalRollSeed)
 {
     Out = Current;
     OutProgression = Progression;
@@ -1948,6 +1981,27 @@ ELDGrowthReason LDProgression::ApplyShopBuy(const FLDDemoContentDefinitions& Con
         Out.ShopSpentPoints += PointPrice;
         ++OutProgression.Shop.Revision;
         Outcome.PointsPaid = PointPrice;
+        return ELDGrowthReason::None;
+    }
+    if (Slot == FLDBuildCommand::ShopMedalSlot)
+    {
+        if (Current.BoughtMedals >= Parameters.Shop.MedalMaxPerMatch) { return ELDGrowthReason::MedalLimit; }
+        const int32 MedalPrice = ShopMedalPrice(Parameters, Shop);
+        if (MedalPrice <= 0) { return ELDGrowthReason::DataInvalid; }
+        if (Unspent < MedalPrice) { return ELDGrowthReason::NotEnoughPoints; }
+        FName Medal;
+        if (!RollMedal(Content, MedalRollSeed, 10000, Medal)) { return ELDGrowthReason::DataInvalid; }
+        if (const ELDGrowthReason Reason = ReceiveCard(Content, Out, Medal, 0, Outcome.CardSerial); Reason != ELDGrowthReason::None)
+        {
+            Out = Current;
+            return Reason;
+        }
+        ++Out.BoughtMedals;
+        Out.ShopSpentPoints += MedalPrice;
+        ++OutProgression.Shop.Revision;
+        Outcome.PointsPaid = MedalPrice;
+        Outcome.Kind = ELDShopItemKind::Card;
+        Outcome.Definition = Medal;
         return ELDGrowthReason::None;
     }
     if (Slot >= Shop.Slots.Num()) { return ELDGrowthReason::InvalidRequest; }
@@ -2017,6 +2071,7 @@ FLDGrowthBuild LDProgression::BuildFromView(const FLDDemoContentDefinitions& Con
     Build.Level = FMath::Max<uint8>(View.Level, 1);
     Build.Revision = View.BuildRevision;
     Build.BoughtSkillPoints = View.Shop.SkillPointsBought;
+    Build.BoughtMedals = View.Shop.MedalsBought;
     Build.AffixSkillPoints = View.AffixSkillPoints;
     const TArray<const FLDDemoStatDefinition*> StatOrder = Content.StatsInDesignOrder();
     for (int32 Index = 0; Index < StatOrder.Num() && Index < Build.StatPoints.Num(); ++Index)

@@ -25,6 +25,13 @@ FString LDUIIcons::PackageFor(const FString& IconId)
 
 UTexture2D* LDUIIcons::Find(const FString& IconId)
 {
+    // Painted faces ask every frame: a found texture is remembered by id and kept loaded. A painted face holds no reference,
+    // so a collected icon was loaded again synchronously in the middle of a match.
+    static TMap<FString, TWeakObjectPtr<UTexture2D>> Known;
+    if (const TWeakObjectPtr<UTexture2D>* Seen = Known.Find(IconId))
+    {
+        if (UTexture2D* Kept = Seen->Get()) { return Kept; }
+    }
     const FString Package = PackageFor(IconId);
     UTexture2D* Texture = nullptr;
     if (!Package.IsEmpty())
@@ -42,6 +49,11 @@ UTexture2D* LDUIIcons::Find(const FString& IconId)
         {
             UE_LOG(LogLDUI, Error, TEXT("LD_UI_ICON_MISSING '%s' has no imported icon texture; run ImportDemoArt.ps1 -Mode ImportUI."), *IconId);
         }
+    }
+    else
+    {
+        Known.Add(IconId, Texture);
+        Texture->AddToRoot();
     }
     return Texture;
 }

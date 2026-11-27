@@ -1,5 +1,9 @@
 #include "Audio/LDAudioCatalog.h"
 #include "Audio/LDAudioCueTracker.h"
+#include "Audio/LDAudioFeel.h"
+#include "Character/LDActionMotion.h"
+#include "Character/LDBasketballMotion.h"
+#include "Character/LDHitFeel.h"
 #include "Audio/LDAudioTypes.h"
 #include "Audio/LDMusicSelection.h"
 #include "Development/LDDemoContentIds.h"
@@ -171,18 +175,12 @@ bool FLDAudioCueOwnTest::RunTest(const FString& Parameters)
         TestTrue(TEXT("A later break sounds again"),AudioIs(AudioSample(Rapid,Sample),{ELDAudioCue::SelfShieldBreak}));
     }
 
-    // The own basic attack: each newer basic release in the owner projection's cue facts sounds once.
+    // Own releases sound at the body's presented release (LDAudioFeel), never from the projection sample.
     Combat.Revision=16;Combat.Cues.ReleasedStartedAtMs=7700;Combat.Cues.ReleasedAtMs=8000;Combat.AsOfMs=8000;Frame.LocalSeconds=10.5;
-    TestTrue(TEXT("A released own basic attack sounds"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfAttack}));
-    TestTrue(TEXT("The same revision never repeats the attack"),AudioSample(Tracker,Frame).IsEmpty());
-    Combat.Revision=17;Combat.Cues.bActing=true;Combat.Cues.bActingBasic=true;Combat.Cues.ActingStartedAtMs=8300;Frame.LocalSeconds=10.6;
-    TestTrue(TEXT("A republished release and a new windup stay silent"),AudioSample(Tracker,Frame).IsEmpty());
-    Combat.Revision=18;Combat.Cues.bActing=false;Combat.Cues.bActingBasic=false;Combat.Cues.ReleasedStartedAtMs=8300;Combat.Cues.ReleasedAtMs=8600;Combat.AsOfMs=8600;Frame.LocalSeconds=10.9;
-    TestTrue(TEXT("Consecutive basic attacks each sound"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfAttack}));
+    TestTrue(TEXT("A released own basic attack is left to the body presentation"),AudioSample(Tracker,Frame).IsEmpty());
     Combat.Revision=19;Combat.Cues.bReleasedBasic=false;Combat.Cues.ReleasedStartedAtMs=8700;Combat.Cues.ReleasedAtMs=9000;Combat.AsOfMs=9000;Frame.LocalSeconds=11.2;
-    TestTrue(TEXT("A released skill is left to its receipt"),AudioSample(Tracker,Frame).IsEmpty());
-    Combat.Revision=20;Combat.Cues.bReleasedBasic=true;Combat.Cues.ReleasedStartedAtMs=200;Combat.Cues.ReleasedAtMs=500;Frame.LocalSeconds=11.5;
-    TestTrue(TEXT("An older release time never sounds"),AudioSample(Tracker,Frame).IsEmpty());
+    TestTrue(TEXT("A released own skill is left to the body presentation"),AudioSample(Tracker,Frame).IsEmpty());
+    Combat.Revision=20;Combat.Cues.bReleasedBasic=true;Frame.LocalSeconds=11.5;
 
     Growth.Level=2;Growth.ActiveOpportunitiesEarned=1;
     TestTrue(TEXT("A level up sounds once"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::LevelUp}));
@@ -205,7 +203,7 @@ bool FLDAudioCueOwnTest::RunTest(const FString& Parameters)
     Combat.Life=1;Combat.Revision=20;Combat.Cues.ReleasedAtMs=11000;
     TestTrue(TEXT("A release in the old life's view stays silent"),AudioSample(Tracker,Frame).IsEmpty());
     Combat.Life=2;Combat.Revision=2;Combat.Cues.ReleasedStartedAtMs=10700;Combat.Cues.ReleasedAtMs=11000;Combat.AsOfMs=11000;
-    TestTrue(TEXT("The new life's own basic attack sounds"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfAttack}));
+    TestTrue(TEXT("The new life's own basic attack is left to the body presentation"),AudioSample(Tracker,Frame).IsEmpty());
     Frame.OwnMatch=4;Frame.OwnLife=1;Combat.Generation=4;Combat.Life=1;Growth.Generation=4;Growth.Level=1;Growth.ActiveOpportunitiesEarned=0;
     TestTrue(TEXT("A new match never sounds a respawn or level"),AudioSample(Tracker,Frame).IsEmpty());
 
@@ -214,7 +212,7 @@ bool FLDAudioCueOwnTest::RunTest(const FString& Parameters)
     Cast.Phase=ELDCombatPhase::Accepted;Cast.Reject=ELDCombatReject::None;
     Tracker.ObserveCombatReceipt(Cast,4,1,Out);TestTrue(TEXT("An accepted windup is not a cast yet"),Out.IsEmpty());
     Cast.Phase=ELDCombatPhase::Finished;Tracker.ObserveCombatReceipt(Cast,4,1,Out);
-    TestTrue(TEXT("The released own active sounds"),AudioIs(Out,{ELDAudioCue::SelfCast}));
+    TestTrue(TEXT("The released own active is left to its presented release"),Out.IsEmpty());
     Out.Reset();Tracker.ObserveCombatReceipt(Cast,4,1,Out);TestTrue(TEXT("A repeated receipt stays silent"),Out.IsEmpty());
     FLDCombatActionReceipt Basic=Cast;Basic.DirectSequence=11;Basic.Entry=ELDCombatEntry::Basic;Tracker.ObserveCombatReceipt(Basic,4,1,Out);
     FLDCombatActionReceipt Refused=Cast;Refused.DirectSequence=12;Refused.Entry=ELDCombatEntry::W;Refused.Phase=ELDCombatPhase::Rejected;Refused.Reject=ELDCombatReject::Cooldown;
@@ -238,86 +236,110 @@ bool FLDAudioCueOwnTest::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDAudioCueBasicAttackTest,"Lockdown.Rules.AudioCueBasicAttack",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
-bool FLDAudioCueBasicAttackTest::RunTest(const FString& Parameters)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDAudioFeelSyncTest,"Lockdown.Rules.AudioFeelSync",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDAudioFeelSyncTest::RunTest(const FString& Parameters)
 {
-    FLDAudioCueTracker Tracker;
-    FLDCombatOwnerView Combat;Combat.Generation=5;Combat.Life=1;Combat.bHasBody=true;
-    Combat.Revision=1;Combat.AsOfMs=1000;Combat.HPP2=Combat.MaxHPP2=50000;
-    Combat.Cues.bReleasedBasic=true;Combat.Cues.ReleasedAtMs=900;
-    FLDAudioFrame Frame;Frame.OwnMatch=5;Frame.OwnLife=1;Frame.OwnLifePhase=ELDLifePhase::Alive;
-    Frame.OwnCombat=&Combat;Frame.LocalSeconds=1;
-    TestTrue(TEXT("A release already present at the first sample is not replayed"),AudioSample(Tracker,Frame).IsEmpty());
+    // A swing's whoosh pre-roll peaks on the release frame (at most 40 ms) and never starts before 80 % of the windup, so a
+    // predicted swing held at 75 % of its windup stays silent until the authority confirms it.
+    for(const float Windup:{.06f,.1f,.18f,.25f,.5f})
+    {
+        const float PreRoll=LDAudioFeel::SwingPreRollSeconds(Windup);
+        TestTrue(FString::Printf(TEXT("Windup %.2f s: pre-roll within 40 ms"),Windup),PreRoll>=0.f&&PreRoll<=.04f+KINDA_SMALL_NUMBER);
+        TestTrue(FString::Printf(TEXT("Windup %.2f s: the whoosh starts after the predicted hold"),Windup),
+            Windup-PreRoll>LDHitFeel::SwingHoldFraction*Windup);
+    }
+    TestTrue(TEXT("Only the interface cues use the UI bus"),ULDAudioCatalog::BusOf(ELDAudioCue::UIClick)==ELDAudioBus::UI
+        &&ULDAudioCatalog::BusOf(ELDAudioCue::UIFinalLock)==ELDAudioBus::UI&&ULDAudioCatalog::BusOf(ELDAudioCue::HitBasic)==ELDAudioBus::Sfx
+        &&ULDAudioCatalog::BusOf(ELDAudioCue::MatchVictory)==ELDAudioBus::Sfx&&ULDAudioCatalog::BusOf(ELDAudioCue::KillNotice)==ELDAudioBus::Sfx);
+    for(int32 Bus=0;Bus<LDAudio::BusCount;++Bus)
+    {
+        ELDAudioBus Parsed=ELDAudioBus::Count;
+        TestTrue(TEXT("Every bus id round-trips"),LDAudio::ParseBusId(LDAudio::BusId(ELDAudioBus(Bus)),Parsed)&&Parsed==ELDAudioBus(Bus));
+    }
+    ELDAudioBus Parsed=ELDAudioBus::Count;
+    TestFalse(TEXT("Bus ids are case-sensitive"),LDAudio::ParseBusId(TEXT("sfx"),Parsed));
 
-    ++Combat.Revision;Combat.AsOfMs=1100;Combat.Cues.bActing=true;Combat.Cues.bActingBasic=true;
-    Combat.Cues.ActingStartedAtMs=1100;
-    TestTrue(TEXT("A basic windup is not a released swing"),AudioSample(Tracker,Frame).IsEmpty());
-    TArray<ELDAudioCue> Out;
-    FLDCombatActionReceipt Refused;Refused.Generation=5;Refused.Life=1;Refused.Entry=ELDCombatEntry::Basic;
-    Refused.DirectSequence=1;Refused.Phase=ELDCombatPhase::Rejected;Refused.Reject=ELDCombatReject::OutOfRange;
-    Tracker.ObserveCombatReceipt(Refused,5,1,Out);
-    ++Combat.Revision;Combat.Cues.bActing=false;
-    TestTrue(TEXT("A refused or cancelled basic without a release stays silent"),
-        Out.IsEmpty()&&AudioSample(Tracker,Frame).IsEmpty());
-    Refused.DirectSequence=2;Refused.Reject=ELDCombatReject::Cancelled;
-    Tracker.ObserveCombatReceipt(Refused,5,1,Out);
-    TestTrue(TEXT("A cancelled basic receipt cannot manufacture a swing"),Out.IsEmpty());
+    // The match start: only the first field segment after the opening rest, never replayed for a late joiner.
+    {
+        FLDPublicMatchView Public;Public.Generation=3;Public.Phase=ELDMatchPhase::Rest;Public.Timeline.RestIndex=0;
+        FLDAudioFrame Frame;Frame.Public=&Public;
+        FLDAudioCueTracker Tracker;
+        TestTrue(TEXT("The opening rest primes silently"),AudioSample(Tracker,Frame).IsEmpty());
+        Public.Phase=ELDMatchPhase::Development;Public.Timeline.FieldSegment=0;
+        TestTrue(TEXT("The first field segment starts the match"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::MatchStart}));
+        TestTrue(TEXT("The same segment never repeats it"),AudioSample(Tracker,Frame).IsEmpty());
+        Public.Phase=ELDMatchPhase::Rest;Public.Timeline.RestIndex=1;AudioSample(Tracker,Frame);
+        Public.Phase=ELDMatchPhase::Development;Public.Timeline.FieldSegment=1;
+        TestTrue(TEXT("A later field segment is not a match start"),AudioSample(Tracker,Frame).IsEmpty());
+        FLDAudioCueTracker Late;Public.Phase=ELDMatchPhase::Rest;Public.Timeline.RestIndex=2;
+        TestTrue(TEXT("A late joiner primes in a mid-match rest"),AudioSample(Late,Frame).IsEmpty());
+        Public.Phase=ELDMatchPhase::Development;Public.Timeline.FieldSegment=2;
+        TestTrue(TEXT("A late joiner never hears a match start"),AudioSample(Late,Frame).IsEmpty());
+    }
+    return true;
+}
 
-    ++Combat.Revision;Combat.AsOfMs=1200;Combat.Cues.ReleasedAtMs=1300;
-    TestTrue(TEXT("A release later than its projection cannot sound"),AudioSample(Tracker,Frame).IsEmpty());
-    ++Combat.Revision;Combat.AsOfMs=1400;Combat.Cues.ReleasedAtMs=1400;
-    TestTrue(TEXT("An own successful basic release sounds a swing without any HP change"),
-        AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfAttack}));
-    TestTrue(TEXT("An identical projection cannot replay the swing"),AudioSample(Tracker,Frame).IsEmpty());
-    ++Combat.Revision;
-    TestTrue(TEXT("A newer projection with the same release cannot replay it"),AudioSample(Tracker,Frame).IsEmpty());
-    --Combat.Revision;Combat.Cues.ReleasedAtMs=1500;Combat.AsOfMs=1500;
-    TestTrue(TEXT("An older revision cannot supply a new swing"),AudioSample(Tracker,Frame).IsEmpty());
-    Combat.Revision+=2;Combat.Cues.ReleasedAtMs=1300;
-    TestTrue(TEXT("A release timestamp below the watermark cannot replay"),AudioSample(Tracker,Frame).IsEmpty());
-    ++Combat.Revision;Combat.Cues.ReleasedAtMs=1400;
-    TestTrue(TEXT("A regressed release cannot lower the watermark"),AudioSample(Tracker,Frame).IsEmpty());
-
-    ++Combat.Revision;Combat.AsOfMs=1600;Combat.Cues.bReleasedBasic=false;Combat.Cues.ReleasedAtMs=1600;
-    TestTrue(TEXT("A skill release is not a basic attack"),AudioSample(Tracker,Frame).IsEmpty());
-    ++Combat.Revision;Combat.HPP2=49000;Combat.Cues.LastHitAtMs=1700;Combat.AsOfMs=1700;Frame.LocalSeconds=2;
-    TestTrue(TEXT("Taking damage is SelfHit, not a basic swing"),
-        AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfHit}));
-    ++Combat.Revision;Combat.HPP2=50000;
-    TestTrue(TEXT("Gaining HP does not manufacture a landed hit or swing"),AudioSample(Tracker,Frame).IsEmpty());
-    ++Combat.Revision;Combat.Cues.bReleasedBasic=true;Combat.Cues.ReleasedAtMs=1800;Combat.AsOfMs=1800;
-    TestTrue(TEXT("The next actual basic release sounds independently of HP"),
-        AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfAttack}));
-
-    ++Combat.Revision;Combat.Cues.ReleasedAtMs=1900;Combat.AsOfMs=1900;Combat.HPP2=0;Frame.OwnLifePhase=ELDLifePhase::Dead;
-    TestTrue(TEXT("A release first delivered with own death does not sound a swing"),
-        AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfDeath}));
-    ++Combat.Revision;
-    TestTrue(TEXT("A dead projection never replays its release"),AudioSample(Tracker,Frame).IsEmpty());
-    Frame.OwnLife=2;Frame.OwnLifePhase=ELDLifePhase::Alive;
-    TestTrue(TEXT("Respawn ignores the previous body's release"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfRespawn}));
-    Combat.Life=2;Combat.Revision=1;Combat.HPP2=50000;Combat.AsOfMs=2100;Combat.Cues.ReleasedAtMs=2000;
-    TestTrue(TEXT("A new life primes its own release watermark"),AudioSample(Tracker,Frame).IsEmpty());
-    Frame.OwnLife=1;Combat.Life=1;Combat.Revision=100;Combat.Cues.ReleasedAtMs=2100;
-    TestTrue(TEXT("A late old owner life cannot rewind the release tracker"),AudioSample(Tracker,Frame).IsEmpty());
-    Frame.OwnLife=2;Combat.Life=2;Combat.Revision=2;Combat.AsOfMs=2200;Combat.Cues.ReleasedAtMs=2200;
-    TestTrue(TEXT("An old life cannot swallow the new life's next release"),
-        AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfAttack}));
-    Frame.OwnMatch=6;Frame.OwnLife=1;Combat.Generation=6;Combat.Life=1;Combat.Revision=1;
-    Combat.AsOfMs=100;Combat.Cues.ReleasedAtMs=100;
-    TestTrue(TEXT("A new match primes without a respawn or an old swing"),AudioSample(Tracker,Frame).IsEmpty());
-    ++Combat.Revision;Combat.AsOfMs=200;Combat.Cues.ReleasedAtMs=200;
-    TestTrue(TEXT("The new match can sound its own release at a lower timestamp"),
-        AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfAttack}));
-    ++Combat.Revision;Combat.AsOfMs=300;Combat.Cues.ReleasedAtMs=300;Combat.Generation=5;
-    TestTrue(TEXT("Another match's combat projection cannot supply a swing"),AudioSample(Tracker,Frame).IsEmpty());
-    Combat.Generation=6;Combat.Life=2;
-    TestTrue(TEXT("Another life's combat projection cannot supply a swing"),AudioSample(Tracker,Frame).IsEmpty());
-    Combat.Life=1;Combat.bHasBody=false;
-    TestTrue(TEXT("A projection without an own body cannot supply a swing"),AudioSample(Tracker,Frame).IsEmpty());
-    Combat.bHasBody=true;
-    TestTrue(TEXT("A valid current body release is still observed after invalid projections"),
-        AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfAttack}));
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDActionMotionFamiliesTest,"Lockdown.Rules.ActionMotionFamilies",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDActionMotionFamiliesTest::RunTest(const FString& Parameters)
+{
+    using LDActionMotion::EFamily;
+    TestTrue(TEXT("The combo reads jab, cross, finisher"),LDActionMotion::FamilyOf(true,1,0)==EFamily::Jab
+        &&LDActionMotion::FamilyOf(true,2,0)==EFamily::Cross&&LDActionMotion::FamilyOf(true,3,0)==EFamily::Finisher
+        &&LDActionMotion::FamilyOf(true,0,0)==EFamily::Jab);
+    TestTrue(TEXT("Skills take the family of what they do"),
+        LDActionMotion::FamilyOf(false,0,uint8(ELDDemoAbilityId::ActiveSnarkBolt))==EFamily::OneHandThrow
+        &&LDActionMotion::FamilyOf(false,0,uint8(ELDDemoAbilityId::ActiveZap))==EFamily::OneHandThrow
+        &&LDActionMotion::FamilyOf(false,0,uint8(ELDDemoAbilityId::ActiveCalculusDrop))==EFamily::HeavySlam
+        &&LDActionMotion::FamilyOf(false,0,uint8(ELDDemoAbilityId::ActiveNotMad))==EFamily::Ready
+        &&LDActionMotion::FamilyOf(false,0,uint8(ELDDemoAbilityId::ActiveOpenMic))==EFamily::TwoHandShot);
+    // Every active skill has a family; a skill unknown to the table sets a two-hand shot rather than nothing.
+    for(const uint8 Ability:{uint8(ELDDemoAbilityId::ActiveHoseDown),uint8(ELDDemoAbilityId::ActiveDeskFan),uint8(0)})
+    {TestTrue(TEXT("Areas and unknown casts set with both hands"),LDActionMotion::FamilyOf(false,0,Ability)==EFamily::TwoHandShot);}
+    for(int32 F=0;F<=int32(EFamily::Ready);++F)
+    {
+        const LDActionMotion::FBlend Standing=LDActionMotion::BlendOf(EFamily(F),false),Moving=LDActionMotion::BlendOf(EFamily(F),true);
+        TestTrue(FString::Printf(TEXT("%s blends within 0..1 and drives something"),LDActionMotion::FamilyName(EFamily(F))),
+            Standing.Full>=0&&Standing.Full<=1&&Standing.Upper>=0&&Standing.Upper<=1&&Standing.Full+Standing.Upper>0);
+        TestEqual(FString::Printf(TEXT("%s never drives the legs while moving"),LDActionMotion::FamilyName(EFamily(F))),Moving.Full,0.f);
+    }
+    // The strike shape turns at the authoritative release and is at rest outside the action.
+    for(const EFamily F:{EFamily::Jab,EFamily::Cross,EFamily::Finisher})
+    {
+        const LDActionMotion::FShape Before=LDActionMotion::ShapeOf(F,-.01f,.18f),After=LDActionMotion::ShapeOf(F,.18f+LDActionMotion::SettleSeconds+.01f,.18f);
+        TestTrue(FString::Printf(TEXT("%s rests outside the strike"),LDActionMotion::FamilyName(F)),Before.YawDeg==0&&Before.SideCm==0&&After.YawDeg==0&&After.SideCm==0);
+    }
+    const LDActionMotion::FShape JabRelease=LDActionMotion::ShapeOf(EFamily::Jab,.18f,.18f),CrossRelease=LDActionMotion::ShapeOf(EFamily::Cross,.18f,.18f);
+    const LDActionMotion::FShape JabWind=LDActionMotion::ShapeOf(EFamily::Jab,.126f,.18f),CrossWind=LDActionMotion::ShapeOf(EFamily::Cross,.126f,.18f);
+    TestTrue(TEXT("Jab and cross wind and snap in opposite directions"),JabRelease.YawDeg<0&&CrossRelease.YawDeg>0&&JabWind.YawDeg>0&&CrossWind.YawDeg<0
+        &&FMath::Abs(CrossRelease.YawDeg)>FMath::Abs(JabRelease.YawDeg)&&CrossRelease.SideCm>0&&JabRelease.SideCm==0);
+    TestTrue(TEXT("The finisher drives in hardest"),LDActionMotion::ShapeOf(EFamily::Finisher,.18f,.18f).LungeScale>CrossRelease.LungeScale);
+    // An instant cast still shows its gesture: the release lands on the impact and the follow-through plays at FollowRate;
+    // a basic's windup (warp under MaxWarp) keeps its own scale.
+    {
+        FLDBasketballActionClip Clip;Clip.Start=0.f;Clip.Release=.7f;Clip.End=2.3f;
+        TestTrue(TEXT("An instant cast releases at once and follows through at the follow rate"),
+            FMath::IsNearlyEqual(LDBasketballMotion::SampleTime(Clip,.001f,.001f),Clip.Release,1e-4f)
+            &&FMath::IsNearlyEqual(LDBasketballMotion::SampleTime(Clip,.501f,.001f),Clip.Release+LDBasketballMotion::FollowRate*.5f,1e-3f)
+            &&FMath::IsNearlyEqual(LDBasketballMotion::Duration(Clip,.001f),.001f+(Clip.End-Clip.Release)/LDBasketballMotion::FollowRate,1e-4f));
+        TestTrue(TEXT("A basic windup keeps its warp after the release"),
+            FMath::IsNearlyEqual(LDBasketballMotion::SampleTime(Clip,.28f,.18f),Clip.Release+.1f*(.7f/.18f),1e-3f));
+    }
+    TestTrue(TEXT("The finisher shifts the whole body, the jab only the upper body"),
+        LDActionMotion::BlendOf(EFamily::Finisher,false).Full==1.f&&LDActionMotion::BlendOf(EFamily::Jab,false).Full==0.f
+        &&LDActionMotion::BlendOf(EFamily::Cross,false).Upper>LDActionMotion::BlendOf(EFamily::Jab,false).Upper);
+    // Skill motions of their own: the approved zap keeps its family motion; every own clip releases inside its window.
+    TestNull(TEXT("The approved zap keeps its family motion"),LDActionMotion::OwnMotionOf(uint8(ELDDemoAbilityId::ActiveZap)));
+    int32 Own=0;
+    for(int32 Ability=0;Ability<256;++Ability)
+    {
+        if(const LDActionMotion::FOwnMotion* Motion=LDActionMotion::OwnMotionOf(uint8(Ability)))
+        {
+            ++Own;
+            TestTrue(FString::Printf(TEXT("Own motion %s releases between its start and end"),Motion->Clip),
+                Motion->Start>=0.f&&Motion->Start<Motion->Release&&Motion->Release<Motion->End);
+        }
+    }
+    TestEqual(TEXT("Fifteen skills have a motion of their own"),Own,15);
     return true;
 }
 
@@ -325,10 +347,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDAudioCatalogTest,"Lockdown.Rules.AudioCatalo
 bool FLDAudioCatalogTest::RunTest(const FString& Parameters)
 {
     TestEqual(TEXT("Existing cue numbering stays stable"),uint8(ELDAudioCue::SelfShieldHit),uint8(16));
-    TestEqual(TEXT("The basic swing cue is appended"),uint8(ELDAudioCue::SelfAttack),uint8(17));
+    TestEqual(TEXT("The body sound cues are appended"),uint8(ELDAudioCue::SwingLight),uint8(40));
     TestEqual(TEXT("The level-up cue keeps its number past the retired shop trade cues"),uint8(ELDAudioCue::LevelUp),uint8(12));
     TestTrue(TEXT("Retired cue numbers are not playable"),!LDAudio::IsPlayableCue(ELDAudioCue(10))&&!LDAudio::IsPlayableCue(ELDAudioCue(11))
-        &&!LDAudio::IsPlayableCue(ELDAudioCue(18))&&!LDAudio::IsPlayableCue(ELDAudioCue(19)));
+        &&!LDAudio::IsPlayableCue(ELDAudioCue(18))&&!LDAudio::IsPlayableCue(ELDAudioCue(19))
+        &&!LDAudio::IsPlayableCue(ELDAudioCue(9))&&!LDAudio::IsPlayableCue(ELDAudioCue(17)));
     for(int32 Index=0;Index<LDAudio::CueCount;++Index)
     {
         const ELDAudioCue Cue=LDAudio::PlayableCue(Index);
@@ -336,6 +359,14 @@ bool FLDAudioCatalogTest::RunTest(const FString& Parameters)
         TestTrue(TEXT("Every cue id round-trips"),LDAudio::IsPlayableCue(Cue)&&LDAudio::ParseCueId(LDAudio::CueId(Cue),Parsed)&&Parsed==Cue);
     }
     TestTrue(TEXT("The playable cues end before Count"),LDAudio::PlayableCue(LDAudio::CueCount)==ELDAudioCue::None&&LDAudio::PlayableCue(-1)==ELDAudioCue::None);
+    // Ground-state loops: one per ELDGroundStateKind 1..5 (Puddle, Ice, Fire, Miasma, Field), and only they loop.
+    TestTrue(TEXT("Each ground state kind maps to its own loop and None has none"),LDAudio::GroundLoopCue(1)==ELDAudioCue::GroundPuddle
+        &&LDAudio::GroundLoopCue(2)==ELDAudioCue::GroundIce&&LDAudio::GroundLoopCue(3)==ELDAudioCue::GroundFire
+        &&LDAudio::GroundLoopCue(4)==ELDAudioCue::GroundMiasma&&LDAudio::GroundLoopCue(5)==ELDAudioCue::GroundField
+        &&LDAudio::GroundLoopCue(0)==ELDAudioCue::None&&LDAudio::GroundLoopCue(6)==ELDAudioCue::None);
+    int32 Loops=0;
+    for(int32 Index=0;Index<LDAudio::CueCount;++Index) { Loops+=LDAudio::CueLoops(LDAudio::PlayableCue(Index))?1:0; }
+    TestEqual(TEXT("Only the five ground cues loop"),Loops,5);
     ELDAudioCue Parsed=ELDAudioCue::None;
     TestFalse(TEXT("Cue ids are case-sensitive and None is not a cue"),LDAudio::ParseCueId(TEXT("killnotice"),Parsed)||LDAudio::ParseCueId(TEXT("None"),Parsed));
     TestTrue(TEXT("Music track numbering is stable"),uint8(ELDMusicTrack::Menu)==1&&uint8(ELDMusicTrack::Farm)==2&&uint8(ELDMusicTrack::Escalation)==3
@@ -350,14 +381,17 @@ bool FLDAudioCatalogTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Menu and Escalation loop, Farm plays once"),LDAudio::MusicTrackLoops(ELDMusicTrack::Menu)&&LDAudio::MusicTrackLoops(ELDMusicTrack::Escalation)
         &&!LDAudio::MusicTrackLoops(ELDMusicTrack::Farm)&&!LDAudio::MusicTrackLoops(ELDMusicTrack::None));
     auto* Master=NewObject<USoundClass>();auto* MusicClass=NewObject<USoundClass>();auto* Mix=NewObject<USoundMix>();auto* Catalog=NewObject<ULDAudioCatalog>();
+    auto* SfxClass=NewObject<USoundClass>();auto* UIClass=NewObject<USoundClass>();
     auto Fill=[&]()
     {
-        MusicClass->ParentClass=Master;Master->ChildClasses={MusicClass};
-        Catalog->MasterClass=Master;Catalog->MusicClass=MusicClass;Catalog->UserMix=Mix;Catalog->Cues.Reset();Catalog->Music.Reset();
+        MusicClass->ParentClass=Master;SfxClass->ParentClass=Master;UIClass->ParentClass=Master;Master->ChildClasses={MusicClass,SfxClass,UIClass};
+        Catalog->MasterClass=Master;Catalog->MusicClass=MusicClass;Catalog->SfxClass=SfxClass;Catalog->UIClass=UIClass;Catalog->UserMix=Mix;
+        Catalog->Cues.Reset();Catalog->Music.Reset();Catalog->SkillReleases.Reset();Catalog->SkillHits.Reset();
         for(int32 Index=0;Index<LDAudio::CueCount;++Index)
         {
-            auto* Wave=NewObject<USoundWave>();Wave->SoundClassObject=Master;Wave->Duration=.5f;
-            FLDAudioCueEntry& Entry=Catalog->Cues.AddDefaulted_GetRef();Entry.Cue=LDAudio::PlayableCue(Index);Entry.Sound=Wave;
+            const ELDAudioCue Cue=LDAudio::PlayableCue(Index);
+            auto* Wave=NewObject<USoundWave>();Wave->SoundClassObject=ULDAudioCatalog::BusOf(Cue)==ELDAudioBus::UI?UIClass:SfxClass;Wave->Duration=.5f;Wave->bLooping=LDAudio::CueLoops(Cue);
+            FLDAudioCueEntry& Entry=Catalog->Cues.AddDefaulted_GetRef();Entry.Cue=Cue;Entry.Sound=Wave;
         }
         for(int32 Index=1;Index<int32(ELDMusicTrack::Count);++Index)
         {
@@ -365,31 +399,59 @@ bool FLDAudioCatalogTest::RunTest(const FString& Parameters)
             FLDMusicTrackEntry& Entry=Catalog->Music.AddDefaulted_GetRef();Entry.Track=ELDMusicTrack(Index);Entry.Sound=Wave;
         }
     };
-    TArray<USoundWave*> Sounds,Music;FString Error;
+    ULDAudioCatalog::FResolved Out;FString Error;
     Fill();
-    TestTrue(TEXT("A complete catalog resolves every cue"),Catalog->Resolve(Sounds,Music,Error)&&Sounds.Num()==int32(ELDAudioCue::Count)
-        &&Sounds[int32(ELDAudioCue::Count)-1]==Catalog->Cues.Last().Sound&&!Sounds[0]);
-    TestTrue(TEXT("A complete catalog resolves every music track by track value"),Music.Num()==int32(ELDMusicTrack::Count)&&!Music[0]
-        &&Music[int32(ELDMusicTrack::Escalation)]==Catalog->Music.Last().Sound);
-    Catalog->Cues.Pop();TestFalse(TEXT("A missing cue is an error"),Catalog->Resolve(Sounds,Music,Error));
-    Fill();Catalog->Cues.Swap(0,1);TestFalse(TEXT("Entries out of cue order are an error"),Catalog->Resolve(Sounds,Music,Error));
-    Fill();Catalog->Cues[9].Cue=ELDAudioCue(10);TestFalse(TEXT("A retired cue number is an error"),Catalog->Resolve(Sounds,Music,Error));
-    Fill();Catalog->Cues[3].Sound=nullptr;TestFalse(TEXT("A cue without sound is an error"),Catalog->Resolve(Sounds,Music,Error));
-    Fill();Catalog->Cues[0].Sound->SoundClassObject=NewObject<USoundClass>();TestFalse(TEXT("A sound outside the master class is an error"),Catalog->Resolve(Sounds,Music,Error));
-    Fill();Catalog->Cues[0].Sound->SoundClassObject=MusicClass;TestFalse(TEXT("A cue routed to the music class is an error"),Catalog->Resolve(Sounds,Music,Error));
-    Fill();Catalog->Cues[1].Sound->bLooping=true;TestFalse(TEXT("A looping cue is an error"),Catalog->Resolve(Sounds,Music,Error));
-    Fill();Catalog->Cues[2].Sound->Duration=0.f;TestFalse(TEXT("A cue without audio is an error"),Catalog->Resolve(Sounds,Music,Error));
-    Fill();Catalog->UserMix=nullptr;TestFalse(TEXT("A catalog without the user mix is an error"),Catalog->Resolve(Sounds,Music,Error));
-    Fill();Catalog->MusicClass=nullptr;TestFalse(TEXT("A catalog without the music class is an error"),Catalog->Resolve(Sounds,Music,Error));
-    Fill();MusicClass->ParentClass=nullptr;TestFalse(TEXT("A music class outside the master class is an error"),Catalog->Resolve(Sounds,Music,Error));
-    Fill();Master->ChildClasses.Reset();TestFalse(TEXT("A master class that does not list the music class is an error"),Catalog->Resolve(Sounds,Music,Error));
-    Fill();Catalog->Music.Pop();TestFalse(TEXT("A missing music track is an error"),Catalog->Resolve(Sounds,Music,Error));
-    Fill();Catalog->Music.Swap(0,1);TestFalse(TEXT("Music out of track order is an error"),Catalog->Resolve(Sounds,Music,Error));
-    Fill();Catalog->Music[1].Sound=nullptr;TestFalse(TEXT("A music track without sound is an error"),Catalog->Resolve(Sounds,Music,Error));
-    Fill();Catalog->Music[0].Sound->SoundClassObject=Master;TestFalse(TEXT("Music routed straight to the master class is an error"),Catalog->Resolve(Sounds,Music,Error));
-    Fill();Catalog->Music[0].Sound->bLooping=false;TestFalse(TEXT("A menu track that does not loop is an error"),Catalog->Resolve(Sounds,Music,Error));
-    Fill();Catalog->Music[1].Sound->bLooping=true;TestFalse(TEXT("A looping farm track is an error"),Catalog->Resolve(Sounds,Music,Error));
-    Fill();Catalog->Music[2].Sound->Duration=0.f;TestFalse(TEXT("A music track without audio is an error"),Catalog->Resolve(Sounds,Music,Error));
+    TestTrue(TEXT("A complete catalog resolves every cue"),Catalog->Resolve(Out,Error)&&Out.Cues.Num()==int32(ELDAudioCue::Count)
+        &&Out.Cues[int32(ELDAudioCue::Count)-1]==TArray<USoundWave*>({Catalog->Cues.Last().Sound.Get()})&&Out.Cues[0].IsEmpty());
+    TestTrue(TEXT("A complete catalog resolves every music track by track value"),Out.Music.Num()==int32(ELDMusicTrack::Count)&&!Out.Music[0]
+        &&Out.Music[int32(ELDMusicTrack::Escalation)]==Catalog->Music.Last().Sound);
+    TestTrue(TEXT("Each bus resolves to its class"),Out.Buses[0]==Master&&Out.Buses[1]==MusicClass&&Out.Buses[2]==SfxClass&&Out.Buses[3]==UIClass);
+    {
+        // A ground loop must loop and a one-shot must not (the importer sets it per cue).
+        FLDAudioCueEntry* Ground=Catalog->Cues.FindByPredicate([](const FLDAudioCueEntry& E){return E.Cue==ELDAudioCue::GroundFire;});
+        Ground->Sound->bLooping=false;
+        TestFalse(TEXT("A one-shot ground loop is refused"),Catalog->Resolve(Out,Error));
+        Ground->Sound->bLooping=true;Catalog->Cues[0].Sound->bLooping=true;
+        TestFalse(TEXT("A looping one-shot cue is refused"),Catalog->Resolve(Out,Error));
+        Catalog->Cues[0].Sound->bLooping=false;
+        TestTrue(TEXT("The catalog resolves again once each cue loops as it should"),Catalog->Resolve(Out,Error));
+    }
+    {
+        auto* Take=NewObject<USoundWave>();Take->SoundClassObject=SfxClass;Take->Duration=.3f;
+        Catalog->Cues[0].Variants.Add(Take);
+        FLDAudioKeyedEntry& Skill=Catalog->SkillReleases.AddDefaulted_GetRef();Skill.Key=uint8(ELDDemoAbilityId::ActiveZap);Skill.Sounds.Add(Take);
+        TestTrue(TEXT("Takes and skill releases resolve"),Catalog->Resolve(Out,Error)&&Out.Cues[int32(Catalog->Cues[0].Cue)].Num()==2
+            &&Out.Skills[uint8(ELDDemoAbilityId::ActiveZap)].Num()==1&&Out.Skills[uint8(ELDDemoAbilityId::ActiveElbow)].IsEmpty());
+        FLDAudioKeyedEntry& Hit=Catalog->SkillHits.AddDefaulted_GetRef();Hit.Key=uint8(ELDDemoAbilityId::ActiveElbow);Hit.Sounds.Add(Take);
+        TestTrue(TEXT("Skill hits resolve by ability"),Catalog->Resolve(Out,Error)&&Out.SkillHits[uint8(ELDDemoAbilityId::ActiveElbow)].Num()==1
+            &&Out.SkillHits[uint8(ELDDemoAbilityId::ActiveZap)].IsEmpty());
+        FLDAudioKeyedEntry Again=Catalog->SkillReleases[0];Catalog->SkillReleases.Add(Again);
+        TestFalse(TEXT("A repeated skill release is an error"),Catalog->Resolve(Out,Error));
+        Fill();auto* Wrong=NewObject<USoundWave>();Wrong->SoundClassObject=UIClass;Wrong->Duration=.3f;Catalog->Cues[0].Variants.Add(Wrong);
+        TestFalse(TEXT("A take on another bus is an error"),Catalog->Resolve(Out,Error));
+    }
+    Catalog->Cues.Pop();TestFalse(TEXT("A missing cue is an error"),Catalog->Resolve(Out,Error));
+    Fill();Catalog->Cues.Swap(0,1);TestFalse(TEXT("Entries out of cue order are an error"),Catalog->Resolve(Out,Error));
+    Fill();Catalog->Cues[9].Cue=ELDAudioCue(10);TestFalse(TEXT("A retired cue number is an error"),Catalog->Resolve(Out,Error));
+    Fill();Catalog->Cues[3].Sound=nullptr;TestFalse(TEXT("A cue without sound is an error"),Catalog->Resolve(Out,Error));
+    Fill();Catalog->Cues[0].Sound->SoundClassObject=NewObject<USoundClass>();TestFalse(TEXT("A sound outside its bus class is an error"),Catalog->Resolve(Out,Error));
+    Fill();Catalog->Cues[0].Sound->SoundClassObject=Master;TestFalse(TEXT("A cue routed straight to the master class is an error"),Catalog->Resolve(Out,Error));
+    Fill();Catalog->SfxClass=UIClass;TestFalse(TEXT("Two buses sharing a class is an error"),Catalog->Resolve(Out,Error));
+    Fill();SfxClass->ParentClass=MusicClass;TestFalse(TEXT("A bus outside the master class is an error"),Catalog->Resolve(Out,Error));
+    Fill();Catalog->Cues[0].Sound->SoundClassObject=MusicClass;TestFalse(TEXT("A cue routed to the music class is an error"),Catalog->Resolve(Out,Error));
+    Fill();Catalog->Cues[1].Sound->bLooping=true;TestFalse(TEXT("A looping cue is an error"),Catalog->Resolve(Out,Error));
+    Fill();Catalog->Cues[2].Sound->Duration=0.f;TestFalse(TEXT("A cue without audio is an error"),Catalog->Resolve(Out,Error));
+    Fill();Catalog->UserMix=nullptr;TestFalse(TEXT("A catalog without the user mix is an error"),Catalog->Resolve(Out,Error));
+    Fill();Catalog->MusicClass=nullptr;TestFalse(TEXT("A catalog without the music class is an error"),Catalog->Resolve(Out,Error));
+    Fill();MusicClass->ParentClass=nullptr;TestFalse(TEXT("A music class outside the master class is an error"),Catalog->Resolve(Out,Error));
+    Fill();Master->ChildClasses.Reset();TestFalse(TEXT("A master class that does not list the music class is an error"),Catalog->Resolve(Out,Error));
+    Fill();Catalog->Music.Pop();TestFalse(TEXT("A missing music track is an error"),Catalog->Resolve(Out,Error));
+    Fill();Catalog->Music.Swap(0,1);TestFalse(TEXT("Music out of track order is an error"),Catalog->Resolve(Out,Error));
+    Fill();Catalog->Music[1].Sound=nullptr;TestFalse(TEXT("A music track without sound is an error"),Catalog->Resolve(Out,Error));
+    Fill();Catalog->Music[0].Sound->SoundClassObject=Master;TestFalse(TEXT("Music routed straight to the master class is an error"),Catalog->Resolve(Out,Error));
+    Fill();Catalog->Music[0].Sound->bLooping=false;TestFalse(TEXT("A menu track that does not loop is an error"),Catalog->Resolve(Out,Error));
+    Fill();Catalog->Music[1].Sound->bLooping=true;TestFalse(TEXT("A looping farm track is an error"),Catalog->Resolve(Out,Error));
+    Fill();Catalog->Music[2].Sound->Duration=0.f;TestFalse(TEXT("A music track without audio is an error"),Catalog->Resolve(Out,Error));
     return true;
 }
 
@@ -433,19 +495,20 @@ bool FLDAudioCatalogAssetTest::RunTest(const FString& Parameters)
     // The shipped catalog: every cue resolves to an imported one-shot routed through the single master chain.
     const auto* Catalog=LoadObject<ULDAudioCatalog>(nullptr,ULDAudioCatalog::AssetPath);
     if(!TestNotNull(TEXT("The Demo audio catalog asset exists"),Catalog)){return false;}
-    TArray<USoundWave*> Sounds,Music;FString Error;
-    const bool bResolved=Catalog->Resolve(Sounds,Music,Error);
+    ULDAudioCatalog::FResolved Out;FString Error;
+    const bool bResolved=Catalog->Resolve(Out,Error);
     TestTrue(FString(TEXT("The Demo audio catalog resolves: "))+Error,bResolved);
     TestTrue(TEXT("The catalog uses SC_DemoMaster, SC_DemoMusic and SMix_DemoUser"),Catalog->MasterClass&&Catalog->UserMix&&Catalog->MusicClass
         &&Catalog->MasterClass->GetPathName()==ULDAudioCatalog::MasterClassPath&&Catalog->UserMix->GetPathName()==ULDAudioCatalog::UserMixPath
-        &&Catalog->MusicClass->GetPathName()==ULDAudioCatalog::MusicClassPath);
+        &&Catalog->MusicClass->GetPathName()==ULDAudioCatalog::MusicClassPath&&Catalog->SfxClass&&Catalog->UIClass
+        &&Catalog->SfxClass->GetPathName()==ULDAudioCatalog::SfxClassPath&&Catalog->UIClass->GetPathName()==ULDAudioCatalog::UIClassPath);
     if(!bResolved){return false;}
     // The farm track restarts with every field segment and the rest that follows fades it out, so a longer track is cut
     // cleanly while a shorter one would leave the end of the segment silent.
     TSharedPtr<const FLDDemoContentSnapshot> Content;
     if(!LDTestApprovedFixture::Read(*this,Content)){return false;}
     const float SegmentSec=float(Content->Get().Parameters.FieldSegmentMs)/1000.f;
-    const float FarmSec=Music[int32(ELDMusicTrack::Farm)]->Duration;
+    const float FarmSec=Out.Music[int32(ELDMusicTrack::Farm)]->Duration;
     TestTrue(FString::Printf(TEXT("The farm track (%.2f s) covers a field segment (%.0f s)"),FarmSec,SegmentSec),
         FarmSec>=SegmentSec);
     return true;

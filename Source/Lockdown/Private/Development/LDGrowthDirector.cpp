@@ -1309,6 +1309,12 @@ bool ALDGrowthDirector::CommitPendingDevTest(const FGuid& ContenderId, const FLD
         case ELDDevTestOp::SetCountdownPaused:
             if (!M->DevSetCountdownPaused(Command.Amount == 1, Permit, Detail)) { Reason = ELDGrowthReason::StaleContext; }
             break;
+        case ELDDevTestOp::DecideMatch:
+            if (!M->DevDecideMatch(ContenderId, Permit, Detail)) { Reason = ELDGrowthReason::StaleContext; }
+            break;
+        case ELDDevTestOp::AdvanceCountdown:
+            if (!M->DevAdvanceCountdown(Command.Amount * 1000, Permit, Detail)) { Reason = ELDGrowthReason::StaleContext; }
+            break;
         case ELDDevTestOp::SetPeaceful:
             if (!M->DevSetPeaceful(ContenderId, Command.Amount == 1, Permit, Detail)) { Reason = ELDGrowthReason::StaleContext; }
             break;

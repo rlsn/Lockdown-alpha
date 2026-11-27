@@ -203,12 +203,13 @@ bool GrowthTestRunWire(FAutomationTestBase& Test)
         ELDBuildCommandKind::Respec,
         ELDBuildCommandKind::ReplaceActive, ELDBuildCommandKind::ForgetActive, ELDBuildCommandKind::SkipActiveOffer,
         ELDBuildCommandKind::FinalMod, ELDBuildCommandKind::RankUpSkill, ELDBuildCommandKind::PickCard, ELDBuildCommandKind::SkipCards,
-        ELDBuildCommandKind::RerollCards, ELDBuildCommandKind::InstallCard, ELDBuildCommandKind::UninstallCard})
+        ELDBuildCommandKind::RerollCards, ELDBuildCommandKind::InstallCard, ELDBuildCommandKind::UninstallCard,
+        ELDBuildCommandKind::SellBlueprint})
     {
         bGood &= Test.TestTrue(FString::Printf(TEXT("Build kind %u is known"), uint32(Kind)), LDGrowthWire::IsKnownBuildKind(Kind));
     }
     // 10-13, 24 and 25 are the retired component commands, 20 the retired skill merchant; 36-39 are the shop's, 40 is unused.
-    for (const uint8 Unknown : {uint8(0), uint8(4), uint8(9), uint8(10), uint8(13), uint8(20), uint8(24), uint8(25), uint8(29), uint8(40), uint8(255)})
+    for (const uint8 Unknown : {uint8(0), uint8(4), uint8(9), uint8(10), uint8(13), uint8(20), uint8(24), uint8(25), uint8(40), uint8(255)})
     {
         bGood &= Test.TestFalse(FString::Printf(TEXT("Build kind %u is refused"), uint32(Unknown)),
             LDGrowthWire::IsKnownBuildKind(static_cast<ELDBuildCommandKind>(Unknown)));
@@ -915,7 +916,8 @@ bool GrowthTestRunPrivacy(FAutomationTestBase& Test)
     bGood &= GrowthTestExactFields(Test, FLDActiveOfferView::StaticStruct(),
         {TEXT("OfferId"), TEXT("OpportunityOrdinal"), TEXT("OfferRevision"), TEXT("Options"), TEXT("SkipPoints")});
     bGood &= GrowthTestExactFields(Test, FLDShopView::StaticStruct(), {TEXT("bStocked"), TEXT("Revision"), TEXT("Slots"),
-        TEXT("RefreshPrice"), TEXT("SkillPointPrice"), TEXT("SkillPointsBought"), TEXT("SkillPointsMax")});
+        TEXT("RefreshPrice"), TEXT("SkillPointPrice"), TEXT("SkillPointsBought"), TEXT("SkillPointsMax"),
+        TEXT("MedalPrice"), TEXT("MedalsBought"), TEXT("MedalsMax")});
     bGood &= GrowthTestExactFields(Test, FLDShopSlotView::StaticStruct(), {TEXT("Kind"), TEXT("DefinitionId"), TEXT("Price"), TEXT("bSold")});
     bGood &= GrowthTestExactFields(Test, FLDActiveSlotView::StaticStruct(), {TEXT("DefinitionId"), TEXT("Slot"), TEXT("Branch")});
     bGood &= GrowthTestExactFields(Test, FLDStatPointsView::StaticStruct(), {TEXT("StatId"), TEXT("Points")});
@@ -1349,12 +1351,17 @@ bool GrowthTestRunBuildRules(FAutomationTestBase& Test)
         bGood &= GrowthTestReason(Test, FString::Printf(TEXT("Rest kind %d in the build window"), int32(Kind)),
             LDProgression::CommandGate(Kind, RestAlive), ELDGrowthReason::None);
     }
-    for (const EKind Kind : {EKind::ReplaceActive, EKind::ForgetActive})
+    bGood &= GrowthTestReason(Test, TEXT("Forgetting on the field"), LDProgression::CommandGate(EKind::ForgetActive, Safe),
+        ELDGrowthReason::ReplacementNotAllowed);
+    bGood &= GrowthTestReason(Test, TEXT("Forgetting in the return step"), LDProgression::CommandGate(EKind::ForgetActive, RestLocked),
+        ELDGrowthReason::BuildLocked);
+    // A blueprint replaces or sells whenever it could be learned.
+    for (const EKind Kind : {EKind::ReplaceActive, EKind::SellBlueprint})
     {
-        bGood &= GrowthTestReason(Test, FString::Printf(TEXT("Trainer kind %d on the field"), int32(Kind)), LDProgression::CommandGate(Kind, Safe),
-            ELDGrowthReason::ReplacementNotAllowed);
-        bGood &= GrowthTestReason(Test, FString::Printf(TEXT("Trainer kind %d in the return step"), int32(Kind)),
-            LDProgression::CommandGate(Kind, RestLocked), ELDGrowthReason::BuildLocked);
+        bGood &= GrowthTestReason(Test, FString::Printf(TEXT("Blueprint kind %d on the field"), int32(Kind)), LDProgression::CommandGate(Kind, Safe),
+            ELDGrowthReason::None);
+        bGood &= GrowthTestReason(Test, FString::Printf(TEXT("Blueprint kind %d in the return step"), int32(Kind)),
+            LDProgression::CommandGate(Kind, RestLocked), ELDGrowthReason::None);
     }
     bGood &= GrowthTestReason(Test, TEXT("No command kind"), LDProgression::CommandGate(EKind::None, Safe), ELDGrowthReason::InvalidRequest);
     bGood &= GrowthTestReason(Test, TEXT("An unknown command kind is refused, not mapped to a neighbour"),

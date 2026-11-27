@@ -3,6 +3,7 @@
 #include "Character/LDCameraSettings.h"
 #include "Character/LDHitFeel.h"
 #include "UI/LDControlSettings.h"
+#include "UI/LDBroadcastStyle.h"
 #include "UI/LDHUDStyle.h"
 #include "UI/LDWidgets.h"
 #include "Framework/LDPlayerController.h"
@@ -37,21 +38,22 @@ namespace
 {
     using ECategory=ULDControlsPanel::ECategory;
 
-    // Local presentation of the settings page only; no rule or value lives here, and the formal reskin belongs to #93.
-    const FLinearColor ScrimColor(0.f,0.f,0.f,.55f);
-    const FLinearColor HairlineColor(.42f,.55f,.62f,.18f);
-    const FLinearColor ChosenFill(.24f,.17f,.035f);
-    const FLinearColor ChosenHover(.30f,.22f,.05f);
-    const FLinearColor ChosenEdge(1.f,.75f,.30f);
-    const FLinearColor TabChosen(.05f,.10f,.13f,.85f);
-    const FLinearColor FlatHover(.09f,.24f,.27f,.45f);
-    const FLinearColor SwitchOnTrack(.62f,.42f,.08f);
-    const FLinearColor SwitchOffTrack(.035f,.06f,.08f);
-    const FLinearColor SwitchOffEdge(.28f,.38f,.44f);
-    const FLinearColor SwitchOffKnob(.50f,.58f,.64f);
-    const FLinearColor BarFill(.035f,.06f,.085f);
-    const FLinearColor BarPendingFill(.12f,.09f,.02f);
-    const FLinearColor CardFill(.09f,.07f,.02f);
+    // Local presentation of the settings page only (on-air tokens, LDBroadcastStyle); no rule or value lives here. Square
+    // faces, 2 px white rules for the chosen option, orange only for what is on and actionable.
+    const FLinearColor ScrimColor=LDBroadcast::Ink.CopyWithNewOpacity(.72f);
+    const FLinearColor HairlineColor(1.f,1.f,1.f,.14f);
+    const FLinearColor ChosenFill=LDBroadcast::Raised;
+    const FLinearColor ChosenHover=LDBroadcast::Raised;
+    const FLinearColor ChosenEdge=LDBroadcast::White;
+    const FLinearColor TabChosen=LDBroadcast::Raised;
+    const FLinearColor FlatHover=LDBroadcast::Raised;
+    const FLinearColor SwitchOnTrack=LDBroadcast::Orange;
+    const FLinearColor SwitchOffTrack=LDBroadcast::Ink;
+    const FLinearColor SwitchOffEdge=LDBroadcast::Mute;
+    const FLinearColor SwitchOffKnob=LDBroadcast::Grey;
+    const FLinearColor BarFill=LDBroadcast::Ink;
+    const FLinearColor BarPendingFill=LDBroadcast::Raised;
+    const FLinearColor CardFill=LDBroadcast::Panel;
     constexpr int32 TitleSize=26,TabSize=19,LabelSize=18,NoteSize=15,ValueSize=17,SectionSize=16,ActionSize=16;
     // Slate units at the 1080p reference; the control column and value widths leave room for 125% text.
     constexpr float PanelWidth=1280,ControlColumn=520,ValueWidth=170,KeyWidth=210;
@@ -132,7 +134,7 @@ namespace
     FName OrientationButton(ELDMinimapOrientation Value)
     {return Value==ELDMinimapOrientation::Facing?FName(TEXT("MinimapFacing")):Value==ELDMinimapOrientation::North?FName(TEXT("MinimapNorth")):FName(TEXT("MinimapCamera"));}
 
-    FSlateRoundedBoxBrush Face(const FLinearColor& Fill,const FLinearColor& Edge,float Radius=6.f,float EdgeWidth=1.f)
+    FSlateRoundedBoxBrush Face(const FLinearColor& Fill,const FLinearColor& Edge,float Radius=0.f,float EdgeWidth=1.f)
     {FSlateRoundedBoxBrush Brush(Fill,Radius,Edge,EdgeWidth);Brush.OutlineSettings.bUseBrushTransparency=true;return Brush;}
     UTextBlock* Text(UWidgetTree* Tree,const FString& Value,int32 Size,const FLinearColor& Color,FName Name=NAME_None)
     {auto* Label=LDWidgets::Text(Tree,Value,Size,Name);Label->SetColorAndOpacity(Color);return Label;}
@@ -154,8 +156,8 @@ namespace
     void Flatten(UButton* Button,const FMargin& Spacing)
     {
         auto Style=Button->GetStyle();const auto None=Face(FLinearColor::Transparent,FLinearColor::Transparent);
-        Style.Normal=None;Style.Disabled=None;Style.Hovered=Face(FlatHover,FLinearColor(.30f,.62f,.62f,.5f));
-        Style.Pressed=Face(FLinearColor(.12f,.32f,.32f,.6f),FLinearColor(.40f,.75f,.72f,.7f));
+        Style.Normal=None;Style.Disabled=None;Style.Hovered=Face(FlatHover,FLinearColor(1.f,1.f,1.f,.35f));
+        Style.Pressed=Face(LDBroadcast::Panel,LDBroadcast::White);
         Style.NormalPadding=Spacing;Style.PressedPadding=Spacing;Button->SetStyle(Style);
     }
     // A chosen option, the capturing key and an available Apply take an amber face with a heavier edge, so the state reads
@@ -163,7 +165,7 @@ namespace
     void MarkChosen(UButton* Button,bool bChosen,const FButtonStyle& Rest)
     {
         FButtonStyle Style=Rest;
-        if(bChosen){Style.Normal=Face(ChosenFill,ChosenEdge,6.f,2.f);Style.Hovered=Face(ChosenHover,ChosenEdge,6.f,2.f);Style.Pressed=Style.Hovered;}
+        if(bChosen){Style.Normal=Face(ChosenFill,ChosenEdge,0.f,2.f);Style.Hovered=Face(ChosenHover,ChosenEdge,0.f,2.f);Style.Pressed=Style.Hovered;}
         Button->SetStyle(Style);
     }
     // A flat strip: hairlines between rows and the underline of the shown tab.
@@ -194,9 +196,9 @@ namespace
     void SetSwitch(UWidgetTree* Tree,FName Name,bool bOn)
     {
         auto* Track=CastChecked<UBorder>(Tree->FindWidget(Part(Name,TEXT("Track"))));
-        Track->SetBrush(Face(bOn?SwitchOnTrack:SwitchOffTrack,bOn?ChosenEdge:SwitchOffEdge,13.f));
+        Track->SetBrush(Face(bOn?SwitchOnTrack:SwitchOffTrack,bOn?SwitchOnTrack:SwitchOffEdge,0.f,2.f));
         Track->SetHorizontalAlignment(bOn?HAlign_Right:HAlign_Left);
-        CastChecked<UBorder>(Tree->FindWidget(Part(Name,TEXT("Knob"))))->SetBrush(Face(bOn?FLinearColor::White:SwitchOffKnob,FLinearColor::Transparent,10.f));
+        CastChecked<UBorder>(Tree->FindWidget(Part(Name,TEXT("Knob"))))->SetBrush(Face(bOn?LDBroadcast::Ink:SwitchOffKnob,FLinearColor::Transparent,0.f));
         auto* State=CastChecked<UTextBlock>(Tree->FindWidget(Part(Name,TEXT("State"))));
         State->SetText(FText::FromString(OnOff(bOn)));State->SetColorAndOpacity(bOn?LDHUDStyle::TextPrimary:LDHUDStyle::TextSecondary);
     }
@@ -387,31 +389,38 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
         // Audio
         {
             UScrollBox* Scroll=nullptr;UVerticalBox* Content=NewPage(Scroll);
-            // One 0–100% slider with its percentage beside it; master and music share the layout.
-            auto VolumeRow=[Tree](FName Name,USlider*& OutSlider,UTextBlock*& OutValue)
+            // The four buses (AUDIO_AND_FEEL): one 0–100% slider each with its percentage beside it. Master scales the
+            // other three. Releasing a slider (or a keyboard step) plays that bus's own sample; music is heard as it plays.
+            struct FBusRow{ELDAudioBus Bus;const TCHAR* Widget;const TCHAR* Label;const TCHAR* Note;};
+            static const FBusRow Rows[]={
+                {ELDAudioBus::Master,TEXT("MasterVolume"),TEXT("总音量"),TEXT("全部声音。")},
+                {ELDAudioBus::Music,TEXT("MusicVolume"),TEXT("音乐"),TEXT("背景音乐。")},
+                {ELDAudioBus::Sfx,TEXT("SfxVolume"),TEXT("音效"),TEXT("出手、命中、技能与环境。")},
+                {ELDAudioBus::UI,TEXT("UiVolume"),TEXT("界面"),TEXT("按钮、提示与播报。")}};
+            for(const FBusRow& Bus:Rows)
             {
-                OutSlider=Tree->ConstructWidget<USlider>(USlider::StaticClass(),Name);
-                OutSlider->SetMinValue(0);OutSlider->SetMaxValue(1);OutSlider->SetStepSize(.05f);OutSlider->IsFocusable=true;
-                OutSlider->SetSliderBarColor(FLinearColor(.28f,.38f,.44f));OutSlider->SetSliderHandleColor(LDHUDStyle::TextAccent);
-                FSliderStyle SliderStyle=OutSlider->GetWidgetStyle();SliderStyle.BarThickness=4;OutSlider->SetWidgetStyle(SliderStyle);
+                const int32 Index=int32(Bus.Bus);
+                auto* Slider=Tree->ConstructWidget<USlider>(USlider::StaticClass(),Bus.Widget);
+                Slider->SetMinValue(0);Slider->SetMaxValue(1);Slider->SetStepSize(.05f);Slider->IsFocusable=true;
+                Slider->SetSliderBarColor(LDBroadcast::Mute);Slider->SetSliderHandleColor(LDBroadcast::Orange);
+                FSliderStyle SliderStyle=Slider->GetWidgetStyle();SliderStyle.BarThickness=4;Slider->SetWidgetStyle(SliderStyle);
                 auto* Row=Tree->ConstructWidget<UHorizontalBox>();
-                auto* SliderBox=Tree->ConstructWidget<USizeBox>();SliderBox->SetWidthOverride(320);SliderBox->SetHeightOverride(32);SliderBox->SetContent(OutSlider);
+                auto* SliderBox=Tree->ConstructWidget<USizeBox>();SliderBox->SetWidthOverride(320);SliderBox->SetHeightOverride(32);SliderBox->SetContent(Slider);
                 Row->AddChildToHorizontalBox(SliderBox)->SetVerticalAlignment(VAlign_Center);
-                OutValue=Text(Tree,TEXT(""),ValueSize,LDHUDStyle::TextPrimary);OutValue->SetAutoWrapText(false);
-                auto* ValueSlot=Row->AddChildToHorizontalBox(OutValue);ValueSlot->SetPadding(FMargin(16,0,0,0));ValueSlot->SetVerticalAlignment(VAlign_Center);
-                return Row;
-            };
-            USlider* Master=nullptr;UTextBlock* MasterText=nullptr;USlider* Music=nullptr;UTextBlock* MusicText=nullptr;
-            auto* Volume=VolumeRow(TEXT("MasterVolume"),Master,MasterText);
-            VolumeSlider=Master;VolumeValue=MasterText;
-            VolumeSlider->OnValueChanged.AddDynamic(this,&ULDControlsPanel::HandleMasterVolumeChanged);
-            VolumeSlider->OnMouseCaptureBegin.AddDynamic(this,&ULDControlsPanel::HandleVolumeMouseCaptureBegin);VolumeSlider->OnMouseCaptureEnd.AddDynamic(this,&ULDControlsPanel::HandleVolumeMouseCaptureEnd);
-            VolumeSlider->OnControllerCaptureBegin.AddDynamic(this,&ULDControlsPanel::HandleVolumeControllerCaptureBegin);VolumeSlider->OnControllerCaptureEnd.AddDynamic(this,&ULDControlsPanel::HandleVolumeControllerCaptureEnd);
-            AddRow(Tree,Content,TEXT("主音量"),TEXT("游戏全部声音的音量；松开滑条或用方向键调节后试听一次。"),Volume);
-            auto* MusicRow=VolumeRow(TEXT("MusicVolume"),Music,MusicText);
-            MusicSlider=Music;MusicValue=MusicText;
-            MusicSlider->OnValueChanged.AddDynamic(this,&ULDControlsPanel::HandleMusicVolumeChanged);
-            AddRow(Tree,Content,TEXT("音乐音量"),TEXT("背景音乐的音量，在主音量之上再调节；调节时直接听正在播放的音乐。"),MusicRow);
+                auto* Value=Text(Tree,TEXT(""),ValueSize,LDHUDStyle::TextPrimary);Value->SetAutoWrapText(false);
+                auto* ValueSlot=Row->AddChildToHorizontalBox(Value);ValueSlot->SetPadding(FMargin(16,0,0,0));ValueSlot->SetVerticalAlignment(VAlign_Center);
+                BusSliders[Index]=Slider;BusValues[Index]=Value;
+                switch(Bus.Bus)
+                {
+                case ELDAudioBus::Master:Slider->OnValueChanged.AddDynamic(this,&ULDControlsPanel::HandleMasterVolumeChanged);break;
+                case ELDAudioBus::Music:Slider->OnValueChanged.AddDynamic(this,&ULDControlsPanel::HandleMusicVolumeChanged);break;
+                case ELDAudioBus::Sfx:Slider->OnValueChanged.AddDynamic(this,&ULDControlsPanel::HandleSfxVolumeChanged);break;
+                default:Slider->OnValueChanged.AddDynamic(this,&ULDControlsPanel::HandleUiVolumeChanged);break;
+                }
+                Slider->OnMouseCaptureBegin.AddDynamic(this,&ULDControlsPanel::HandleVolumeMouseCaptureBegin);Slider->OnMouseCaptureEnd.AddDynamic(this,&ULDControlsPanel::HandleVolumeMouseCaptureEnd);
+                Slider->OnControllerCaptureBegin.AddDynamic(this,&ULDControlsPanel::HandleVolumeControllerCaptureBegin);Slider->OnControllerCaptureEnd.AddDynamic(this,&ULDControlsPanel::HandleVolumeControllerCaptureEnd);
+                AddRow(Tree,Content,Bus.Label,Bus.Note,Row);
+            }
             AddPage(Scroll);
         }
         // Controls: quick cast, then one row per registered action with its key in the right column.
@@ -562,7 +571,7 @@ void ULDControlsPanel::ShowCategory(ECategory Next)
         auto* Tab=Find(WidgetTree,Categories[Index].Tab);
         auto Style=Tab->GetStyle();Style.Normal=bShown?Face(TabChosen,FLinearColor::Transparent):Face(FLinearColor::Transparent,FLinearColor::Transparent);Tab->SetStyle(Style);
         Caption(Tab)->SetColorAndOpacity(bShown?LDHUDStyle::TextPrimary:LDHUDStyle::TextSecondary);
-        CastChecked<UBorder>(WidgetTree->FindWidget(Part(Categories[Index].Tab,TEXT("Line"))))->SetBrushColor(bShown?LDHUDStyle::TextAccent:FLinearColor::Transparent);
+        CastChecked<UBorder>(WidgetTree->FindWidget(Part(Categories[Index].Tab,TEXT("Line"))))->SetBrushColor(bShown?LDBroadcast::Orange:FLinearColor::Transparent);
     }
     if(!bFeedbackProblem){ShowPageHint();}
     PopulateFooter();
@@ -592,7 +601,9 @@ void ULDControlsPanel::Populate()
     PopulatePreferences();
     PopulateBindings();
     PopulateEffects();
-    bSyncingVolume=true;VolumeSlider->SetValue(Applied.MasterVolume);MusicSlider->SetValue(Applied.MusicVolume);bSyncingVolume=false;
+    bSyncingVolume=true;
+    for(int32 Bus=0;Bus<int32(ELDAudioBus::Count);++Bus){BusSliders[Bus]->SetValue(Applied.BusVolume(ELDAudioBus(Bus)));}
+    bSyncingVolume=false;
     PopulateFooter();
 }
 
@@ -609,8 +620,8 @@ void ULDControlsPanel::PopulatePreferences()
     SetSwitch(WidgetTree,TEXT("ToggleFPS"),Applied.bShowFPS);
     SetSwitch(WidgetTree,TEXT("ToggleCameraShake"),Applied.bCameraShake);
     SetSwitch(WidgetTree,TEXT("ToggleColorblind"),Applied.bColorblindMode);
-    VolumeValue->SetText(FText::FromString(FString::Printf(TEXT("%d%%"),FMath::RoundToInt(100*Applied.MasterVolume))));
-    MusicValue->SetText(FText::FromString(FString::Printf(TEXT("%d%%"),FMath::RoundToInt(100*Applied.MusicVolume))));
+    for(int32 Bus=0;Bus<int32(ELDAudioBus::Count);++Bus)
+    {BusValues[Bus]->SetText(FText::FromString(FString::Printf(TEXT("%d%%"),FMath::RoundToInt(100*Applied.BusVolume(ELDAudioBus(Bus))))));}
     ZoomValue->SetText(FText::FromString(FString::Printf(TEXT("%.0f 厘米"),Applied.Zoom)));
     Find(WidgetTree,TEXT("UseRecommendedCameraZoom"))->SetIsEnabled(Applied.Zoom!=LDCamera::DefaultArmLength);
     SetNote(FollowNote,FString::Printf(TEXT("进入对局时镜头跟随自己的角色；对局中按 %s 随时切换。"),*Applied.Label(TEXT("Follow"))),LDHUDStyle::TextSecondary);
@@ -702,29 +713,22 @@ void ULDControlsPanel::ChangePreference(TFunction<void(ULDControlSettings&)> Cha
     Populate();
 }
 
-void ULDControlsPanel::HandleMasterVolumeChanged(float Value)
+void ULDControlsPanel::HandleMasterVolumeChanged(float Value){ApplyBusVolume(ELDAudioBus::Master,Value);}
+void ULDControlsPanel::HandleMusicVolumeChanged(float Value){ApplyBusVolume(ELDAudioBus::Music,Value);}
+void ULDControlsPanel::HandleSfxVolumeChanged(float Value){ApplyBusVolume(ELDAudioBus::Sfx,Value);}
+void ULDControlsPanel::HandleUiVolumeChanged(float Value){ApplyBusVolume(ELDAudioBus::UI,Value);}
+void ULDControlsPanel::ApplyBusVolume(ELDAudioBus Bus,float Value)
 {
     auto* Instance=SettingsInstance.Get();auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
     if(bSyncingVolume||!Instance||!PC||!PC->Controls){return;}
     // A drag reports many sub-percent values; only a changed whole percent is applied, and the instance saves it later.
     const float Linear=FMath::RoundToFloat(Value*100)/100;
-    if(Linear==PC->Controls->MasterVolume){return;}
-    const auto Result=Instance->SetAppliedMasterVolume(Linear);
+    if(Linear==PC->Controls->BusVolume(Bus)){return;}
+    const auto Result=Instance->SetAppliedBusVolume(Bus,Linear);
     SetFeedback(Result.Message,Result.Status==ELDLocalSettingsSaveStatus::Invalid);PopulatePreferences();PopulateFooter();
     if(Result.Status==ELDLocalSettingsSaveStatus::Invalid){return;}
-    bVolumeSavePending=true;
-    if(!bVolumeMouseCapture&&!bVolumeControllerCapture){PreviewMasterVolume();}
-}
-void ULDControlsPanel::HandleMusicVolumeChanged(float Value)
-{
-    auto* Instance=SettingsInstance.Get();auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
-    if(bSyncingVolume||!Instance||!PC||!PC->Controls){return;}
-    // Same whole-percent rule and debounced save as the master volume.
-    const float Linear=FMath::RoundToFloat(Value*100)/100;
-    if(Linear==PC->Controls->MusicVolume){return;}
-    const auto Result=Instance->SetAppliedMusicVolume(Linear);
-    SetFeedback(Result.Message,Result.Status==ELDLocalSettingsSaveStatus::Invalid);PopulatePreferences();PopulateFooter();
-    if(Result.Status!=ELDLocalSettingsSaveStatus::Invalid){bVolumeSavePending=true;}
+    bVolumeSavePending=true;PreviewBus=Bus;
+    if(!bVolumeMouseCapture&&!bVolumeControllerCapture){PreviewBusVolume();}
 }
 void ULDControlsPanel::HandleVolumeMouseCaptureBegin(){bVolumeMouseCapture=true;}
 void ULDControlsPanel::HandleVolumeMouseCaptureEnd(){EndVolumeCapture(bVolumeMouseCapture);}
@@ -734,10 +738,10 @@ void ULDControlsPanel::EndVolumeCapture(bool& bCaptured)
 {
     // A capture can report its end twice (touch release, lost capture); the preview plays once, after the last capture ends.
     if(!bCaptured){return;}bCaptured=false;
-    if(!bVolumeMouseCapture&&!bVolumeControllerCapture){PreviewMasterVolume();}
+    if(!bVolumeMouseCapture&&!bVolumeControllerCapture){PreviewBusVolume();}
 }
-void ULDControlsPanel::PreviewMasterVolume()
-{if(auto* Instance=SettingsInstance.Get()){if(auto* AudioOutput=Instance->GetSubsystem<ULDAudioSubsystem>()){AudioOutput->Play(ELDAudioCue::UIClick);}}}
+void ULDControlsPanel::PreviewBusVolume()
+{if(auto* Instance=SettingsInstance.Get()){if(auto* AudioOutput=Instance->GetSubsystem<ULDAudioSubsystem>()){AudioOutput->PlayBusPreview(PreviewBus);}}}
 
 void ULDControlsPanel::ShowChild(EChildConfirmation Which)
 {
@@ -777,7 +781,8 @@ void ULDControlsPanel::AskReset()
         break;
     }
     case ECategory::Audio:
-        Scope=FString::Printf(TEXT("主音量 %d%%、音乐音量 %d%%。"),FMath::RoundToInt(100*Defaults->MasterVolume),FMath::RoundToInt(100*Defaults->MusicVolume));break;
+        Scope=FString::Printf(TEXT("总音量 %d%%、音乐 %d%%、音效 %d%%、界面 %d%%。"),FMath::RoundToInt(100*Defaults->MasterVolume),FMath::RoundToInt(100*Defaults->MusicVolume),
+            FMath::RoundToInt(100*Defaults->SfxVolume),FMath::RoundToInt(100*Defaults->UiVolume));break;
     case ECategory::Controls:
         Scope=FString::Printf(TEXT("全部按键恢复为默认键，快速施法 %s，施法后自动攻击 %s。"),OnOff(Defaults->bQuickCast),OnOff(Defaults->bAutoAttackAfterCast));break;
     case ECategory::Camera:

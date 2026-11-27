@@ -343,6 +343,17 @@ bool BuildCommand(const FLDOpponentBuildIntent& Intent, const FLDProgressionView
         Out.Slot = Intent.Slot;
         break;
     }
+    case ELDOpponentBuildKind::SellBlueprint:
+    {
+        const FName Blueprint(*Intent.Blueprint);
+        if (!Progression.PendingBlueprints.Contains(Blueprint) || !FLDDefinitionWire::Encode(Blueprint, Out.Blueprint))
+        {
+            Out = FLDBuildCommand();
+            return Fail(Error, TEXT("The blueprint is no longer pending."));
+        }
+        Out.Kind = ELDBuildCommandKind::SellBlueprint;
+        break;
+    }
     case ELDOpponentBuildKind::FinalMod:
     {
         const FName Option(*Intent.Option);

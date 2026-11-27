@@ -33,6 +33,17 @@ bool LDHUD::ReadModelRingMoves(int64 StartedAtMs,int64 EndsAtMs)
 {
     return EndsAtMs>StartedAtMs&&EndsAtMs-StartedAtMs<ReadModelSmoothRingMs;
 }
+bool LDHUD::SameProgression(const FLDProgressionView& A,const FLDProgressionView& B)
+{
+    return FLDProgressionView::StaticStruct()->CompareScriptStruct(&A,&B,PPF_None);
+}
+bool LDHUD::SameAttributes(const TArray<FLDCombatAttributeRowView>& A,const TArray<FLDCombatAttributeRowView>& B)
+{
+    if(A.Num()!=B.Num()){return false;}
+    const UScriptStruct* Row=FLDCombatAttributeRowView::StaticStruct();
+    for(int32 Index=0;Index<A.Num();++Index){if(!Row->CompareScriptStruct(&A[Index],&B[Index],PPF_None)){return false;}}
+    return true;
+}
 bool LDHUD::FReadModelGate::ShouldRebuild(const FReadModelKey& Key) const
 {
     return !bHas||bLive||bSettle||Key.Clock!=Last.Clock||!Key.SameInputs(Last);
@@ -257,6 +268,7 @@ LDHUD::FResourceView LDHUD::Resource(const FString& Label,double Current,double 
     const double ShownMax=bRoundUp?FMath::CeilToDouble(Max):FMath::FloorToDouble(Max);
     View.bKnown=true;View.Fraction=float(FMath::Clamp(Current/Max,0.,1.));
     View.Text=FString::Printf(TEXT("%s %.0f/%.0f"),*Label,Shown,ShownMax);
+    View.Now=FString::Printf(TEXT("%.0f"),Shown);View.Max=FString::Printf(TEXT("%.0f"),ShownMax);
     return View;
 }
 LDHUD::FResourceView LDHUD::ResourceP2(const FString& Label,int64 CurrentP2,int64 MaxP2,bool bRoundUp)
@@ -265,6 +277,7 @@ LDHUD::FResourceView LDHUD::ResourceP2(const FString& Label,int64 CurrentP2,int6
     if(MaxP2<=0||CurrentP2<0){View.Text=Label+TEXT(" 同步中");return View;}
     View.bKnown=true;View.Fraction=float(FMath::Clamp(double(CurrentP2)/double(MaxP2),0.,1.));
     View.Text=FString::Printf(TEXT("%s %lld/%lld"),*Label,HudWholePoints(CurrentP2,bRoundUp),HudWholePoints(MaxP2,bRoundUp));
+    View.Now=FString::Printf(TEXT("%lld"),HudWholePoints(CurrentP2,bRoundUp));View.Max=FString::Printf(TEXT("%lld"),HudWholePoints(MaxP2,bRoundUp));
     return View;
 }
 LDHUD::FLevelView LDHUD::Level(int32 InLevel,int32 MaxLevel,int64 CumulativeXp,int64 LevelThresholdXp,bool bHasNext,int64 NextThresholdXp)
@@ -614,6 +627,8 @@ TArray<LDHUD::FPKAwardRow> LDHUD::PKAwardRows(const FLDPKView& PK,const FLDLobby
         Row.Name=Name.IsEmpty()?FString(LDTerms::PKUnlisted):Name;
         Row.Points=FString::Join(Parts,TEXT(" · "));
         Row.Total=Total;
+        Row.Seat=SeatOf(Lobby,Award.Contender);
+        Row.Participation=Award.Participation;Row.Winner=Award.Winner;Row.Bet=Award.Bet;
         Row.bSelf=Self.IsValid()&&Award.Contender==Self;
     }
     return Rows;
@@ -644,6 +659,7 @@ LDHUD::FPKPanelView LDHUD::PKPanel(const FLDPublicMatchView& Public,const FLDLob
         View.Countdown=!In.bClock?FString(LDTerms::PKClockSync)
             :View.bMatchupReveal?FString::Printf(TEXT("对阵揭晓 · 下注剩 %lld 秒"),FMath::Max<int64>(1,Seconds(Public.Timeline.StepEndsAtMs-TimelineNow)))
             :FString::Printf(TEXT("下注剩 %lld 秒"),FMath::Max<int64>(1,Seconds(Public.Timeline.StepEndsAtMs-TimelineNow)));
+        if(In.bClock){View.SecondsLeft=FMath::Max<int64>(1,Seconds(Public.Timeline.StepEndsAtMs-TimelineNow));View.CountLabel=TEXT("下注");}
     }
     else if(Step==ELDRestStep::PKReady||(Step==ELDRestStep::PK&&!bDecided))
     {
@@ -651,6 +667,11 @@ LDHUD::FPKPanelView LDHUD::PKPanel(const FLDPublicMatchView& Public,const FLDLob
         // The authority starts the fight; a local clock that reaches the end first holds 1.
         else if(Step==ELDRestStep::PKReady){View.Countdown=LDTerms::PKStartsIn(FMath::Max<int64>(1,Seconds(Public.Timeline.StepEndsAtMs-TimelineNow)));}
         else{View.Countdown=LDTerms::PKTimeLeft(Seconds(Public.Timeline.StepEndsAtMs-TimelineNow));}
+        if(In.bClock)
+        {
+            View.SecondsLeft=FMath::Max<int64>(Step==ELDRestStep::PKReady?1:0,Seconds(Public.Timeline.StepEndsAtMs-TimelineNow));
+            View.CountLabel=Step==ELDRestStep::PKReady?TEXT("开打"):TEXT("剩余");
+        }
     }
     if(Step==ELDRestStep::PK&&bRunning&&In.Params&&In.bClock&&PK.FightStartedAtMs>0)
     {
@@ -681,6 +702,9 @@ LDHUD::FPKPanelView LDHUD::PKPanel(const FLDPublicMatchView& Public,const FLDLob
             bAny=true;
             const FString Listed=RosterName(Lobby,Entrant.Contender);
             FString Name=Listed.IsEmpty()?FString(LDTerms::PKUnlisted):Listed;
+            FPKMemberView& Member=Row.Members.AddDefaulted_GetRef();
+            Member.Seat=SeatOf(Lobby,Entrant.Contender);Member.Name=Name;Member.Level=Entrant.Level;
+            Member.bOut=Entrant.bForfeited||(bFought&&!Entrant.bAlive);Member.bSelf=In.Self.IsValid()&&Entrant.Contender==In.Self;
             if(Entrant.Level>0){Name+=FString::Printf(TEXT(" Lv.%u"),uint32(Entrant.Level));}
             if(Entrant.bForfeited){Name+=FString(TEXT("（"))+LDTerms::PKForfeit+TEXT("）");}
             else if(bFought&&!Entrant.bAlive){Name+=FString(TEXT("（"))+LDTerms::PKOut+TEXT("）");}
@@ -695,6 +719,7 @@ LDHUD::FPKPanelView LDHUD::PKPanel(const FLDPublicMatchView& Public,const FLDLob
         Row.bOwnBet=View.OwnBet==Side;
         Row.bWinner=PK.Outcome==ELDPKOutcome::Won&&PK.WinnerSide==Side;
         Row.bOut=bAny&&!bAnyIn;
+        Row.Bets=Bets;
         FString Line=FString::Join(Members,TEXT("、"));
         if(PK.Format==ELDPKFormat::Teams){Line=LDTerms::PKSide(Side)+TEXT("：")+Line;}
         if(Bets>0){Line+=TEXT(" · ")+LDTerms::PKBetCount(Bets);}
@@ -706,6 +731,7 @@ LDHUD::FPKPanelView LDHUD::PKPanel(const FLDPublicMatchView& Public,const FLDLob
             const int32 ShareCount=FMath::Max(1,Bets+(Row.bOwnBet?0:1));
             const double Odds=double(ScaledPool)/double(ShareCount);
             Line+=FString::Printf(TEXT("（赔率 1:%.1f）"),Odds);
+            Row.Odds=Odds;
             Row.BetAction+=FString::Printf(TEXT(" (1:%.1f)"),Odds);
         }
         if(Row.bOwnSide){Line+=TEXT(" · ")+FString(LDTerms::PKOwnSide);}
@@ -874,6 +900,16 @@ void LDHUD::FEventFeed::Observe(const FEventFeedInput& In)
                 for(const FGuid& Assister:Notice->Assisters){Assisters.Add(Name(Assister));}
                 const FKillFeedLineView Line=KillFeedLine(*Notice,In.Self,Name(Notice->Victim),Name(Notice->Killer),In.LowCampName,In.HighCampName,In.EliteCampName,In.BossName,Assisters);
                 Add(Line.Text,Line.bSelf);
+                if(!Line.Text.IsEmpty())
+                {
+                    FEventLine& Kill=Shown.Last();
+                    const bool bContender=Notice->Cause==ELDKillCause::Contender&&Notice->Killer.IsValid();
+                    Kill.bKill=true;Kill.Cause=Notice->Cause;Kill.Assists=Notice->Assisters.Num();
+                    Kill.VictimSeat=In.Lobby?SeatOf(*In.Lobby,Notice->Victim):INDEX_NONE;Kill.VictimName=Name(Notice->Victim);
+                    Kill.KillerSeat=bContender&&In.Lobby?SeatOf(*In.Lobby,Notice->Killer):INDEX_NONE;
+                    Kill.KillerName=bContender?Name(Notice->Killer)
+                        :KillerLabel(*Notice,In.LowCampName,In.HighCampName,In.EliteCampName,In.BossName);
+                }
                 if(Notice->Cause==ELDKillCause::Contender&&Notice->Killer.IsValid()
                     &&Notice->CreatureName==TEXT("leader_bounty"))
                 {
@@ -1375,33 +1411,6 @@ FString LDHUD::NewChainNotice(const FLDDemoContentDefinitions* Content,const TAr
 {
     return TEXT("新连锁：")+ChainKeyText(Content,Key);
 }
-LDHUD::FResultHighlightsView LDHUD::ResultHighlights(const FLDDamageSummaryView& Summary,const FLDResultView& Result,const FGuid& Self,
-    const FLDDemoContentDefinitions* Content)
-{
-    FResultHighlightsView View;
-    if(!Result.ResultId.IsValid()||Summary.ResultId!=Result.ResultId||Summary.Match!=Result.Generation){return View;}
-    View.bAvailable=true;
-    for(const FLDResultRow& Row:Result.Rows)
-    {
-        if(View.Rows.Num()>=ResultHighlightsMax){break;}
-        const FLDResultHighlight* Highlight=Summary.Highlights.FindByPredicate([&Row](const FLDResultHighlight& Each){return Each.Contender==Row.ContenderId;});
-        FResultHighlightRow& Out=View.Rows.AddDefaulted_GetRef();
-        Out.Name=Row.Name;
-        Out.bOwn=Row.ContenderId==Self;
-        Out.Chain=Highlight&&Highlight->LongestSteps>0
-            ?FString::Printf(TEXT("%s（%d 步）"),*ChainKeyText(Content,Highlight->LongestKey),Highlight->LongestSteps):FString(TEXT("—"));
-        if(Highlight&&Highlight->BestDamageP2>0)
-        {
-            const FString Source=ChainStepName(Content,Highlight->BestSource);
-            const int64 Points=HudWholePoints(Highlight->BestDamageP2,true);
-            const int64 Percent=Highlight->BestTargetMaxHpP2>0?(Highlight->BestDamageP2*100+Highlight->BestTargetMaxHpP2/2)/Highlight->BestTargetMaxHpP2:0;
-            Out.Best=FString::Printf(TEXT("%s %lld（%lld%%）"),*Source,Points,Percent);
-        }
-        else{Out.Best=TEXT("—");}
-    }
-    return View;
-}
-
 FString LDHUD::ControlStatusBadge(TConstArrayView<FLDCombatStatusView> Statuses,uint8 ControlMask)
 {
     int32 BestPriority=0;
@@ -1442,12 +1451,16 @@ LDHUD::FActionView LDHUD::Action(const FActionInput& Input,const FActionContext&
     else if(!Context.bAlive){Block(ActionDead,LDTerms::Dead);}
     if(Input.bProjected&&!Input.bHasSource){Block(ActionEmpty,bLearned?TEXT("空槽"):FString(LDTerms::Dash)+TEXT("不可用"));}
     const bool bActive=Input.bProjected&&Input.bHasSource;
+    // A charged skill shows its ready charges on the face and cools only while none is ready, toward the next one.
+    const int32 Charges=FMath::Max(Input.Charges,1);
+    const int32 ChargesReady=Context.bClock?LDCombatSourceRules::ChargesReady(Input.ReadyAtMs,Context.NowMs,Charges,Input.CooldownMs):0;
+    if(bActive&&Charges>1&&Context.bClock){View.Charges=FString::FromInt(ChargesReady);}
     if(bActive&&Input.ReadyAtMs>0)
     {
         if(!Context.bClock){Block(ActionUnsynced,TEXT("冷却时间同步中"));}
-        else if(Input.ReadyAtMs>Context.NowMs)
+        else if(Input.ReadyAtMs>Context.NowMs&&ChargesReady<=0)
         {
-            View.CooldownRemainingMs=Input.ReadyAtMs-Context.NowMs;
+            View.CooldownRemainingMs=FMath::Max<int64>(1,Input.ReadyAtMs-Context.NowMs-int64(Charges-1)*Input.CooldownMs);
             View.CooldownFraction=Input.CooldownMs>0?float(FMath::Clamp(double(View.CooldownRemainingMs)/double(Input.CooldownMs),0.,1.)):1.f;
             Block(ActionCooldown,TEXT("冷却 ")+TenthsUp(View.CooldownRemainingMs));
         }
@@ -1525,8 +1538,12 @@ LDHUD::FObservedCard LDHUD::ObservedCard(const FLDObservedUnitView& Unit,const F
 {
     FObservedCard Card;
     const bool bContender=Unit.Kind==ELDObservedUnitKind::Contender;
-    if(bContender){Card.Title=FString::Printf(TEXT("%s · 等级 %d"),ContenderName.IsEmpty()?TEXT("未列名参赛者"):*ContenderName,Unit.Level);}
-    else{Card.Title=CreatureName(Content,Unit.CreatureId);}
+    if(bContender)
+    {
+        Card.Name=ContenderName.IsEmpty()?FString(TEXT("未列名参赛者")):ContenderName;Card.Level=Unit.Level;
+        Card.Title=FString::Printf(TEXT("%s · 等级 %d"),*Card.Name,Unit.Level);
+    }
+    else{Card.Title=CreatureName(Content,Unit.CreatureId);Card.Name=Card.Title;}
     Card.Health=ResourceP2(LDTerms::Health,Unit.Health.CurrentP2,Unit.Health.MaxP2,true);
     Card.bMomentum=(Unit.AuthorizedFieldMask&LDObservation::Momentum)!=0;
     if(Card.bMomentum)
@@ -2434,6 +2451,7 @@ FString LDHUD::BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoCont
     switch(Receipt.Kind)
     {
     case ELDBuildCommandKind::SkipActiveOffer:
+    case ELDBuildCommandKind::SellBlueprint:
         return Receipt.PointsDelta>0?LDTerms::PointsGained(Receipt.PointsDelta):Missing;
     case ELDBuildCommandKind::ShopBuy:
     {
@@ -2526,48 +2544,6 @@ int32 LDHUD::OwnedCopies(const FLDProgressionView& Progression,FName Definition)
 {
     const FName Id=CardDefinition(Definition);
     return Progression.Cards.FilterByPredicate([Id](const FLDCardInstanceView& Card){return Card.DefinitionId==Id;}).Num();
-}
-FString LDHUD::CardTargetText(const FLDCardInstanceView& Card,const FLDDemoContentDefinitions* Content)
-{
-    if(!Card.IsInstalled()){return FString();}
-    TArray<FString> Parts;
-    if(Card.Target.Kind==ELDCardTargetKind::Skill&&!Card.Target.Active.IsNone()){Parts.Add(ContentName(Content,Card.Target.Active.ToString()));}
-    if(Card.Target.Element!=ELDDemoElement::None){Parts.Add(ElementName(Card.Target.Element));}
-    return Parts.IsEmpty()?FString():LDTerms::InstalledOn(FString::Join(Parts,TEXT(" · ")));
-}
-namespace
-{
-// A card's rich text (keywords in <b>…</>, escaped markup) as the plain text of the HUD popup.
-FString HudRichToPlain(const FString& Rich)
-{
-    return Rich.Replace(TEXT("<b>"),TEXT("")).Replace(TEXT("</>"),TEXT("")).Replace(TEXT("&lt;"),TEXT("<")).Replace(TEXT("&gt;"),TEXT(">"))
-        .Replace(TEXT("&amp;"),TEXT("&"));
-}
-FString HudChoiceBody(const FString& Sentence,const TArray<FString>& Keywords,const FString& Outcome)
-{
-    TArray<FString> Lines;
-    Lines.Add(Sentence);
-    if(!Keywords.IsEmpty()){Lines.Add(FString());for(const FString& Keyword:Keywords){Lines.Add(HudRichToPlain(Keyword));}}
-    if(!Outcome.IsEmpty()){Lines.Add(FString());Lines.Add(Outcome);}
-    return FString::Join(Lines,TEXT("\n"));
-}
-}
-LDHUD::FActionDetailView LDHUD::ActiveChoiceDetail(const FActiveCardView& Card,bool bBlueprint,const FString& Outcome)
-{
-    FActionDetailView Detail;
-    Detail.Name=Card.Name;
-    const TCHAR* Kind=bBlueprint?LDTerms::Blueprint:TEXT("技能");
-    Detail.Summary=Card.bKnown?FString::Printf(TEXT("%s · %s · %s"),Kind,*Card.Target,*Card.Cost):FString(Kind);
-    Detail.Body=HudChoiceBody(Card.SentencePlain,Card.Keywords,Outcome);
-    return Detail;
-}
-LDHUD::FActionDetailView LDHUD::CardChoiceDetail(const FCardFaceView& Card,const FString& Outcome)
-{
-    FActionDetailView Detail;
-    Detail.Name=Card.Name;
-    Detail.Summary=Card.KindLine.IsEmpty()?FString(LDTerms::Card):Card.KindLine;
-    Detail.Body=HudChoiceBody(Card.SentencePlain,Card.Keywords,Outcome);
-    return Detail;
 }
 LDHUD::FCardFaceView LDHUD::CardFace(FName DefinitionId,const FLDDemoContentDefinitions* Content,const FCardStats& Stats)
 {
@@ -2820,39 +2796,6 @@ TArray<LDHUD::FCardDrop> LDHUD::ColumnReplaceDrops(FName Key,EStorageColumn Colu
     }
     return Out;
 }
-FString LDHUD::SkillCardCompatStrip(FName CardId,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content,
-    const FSlotKeys& Keys,bool& bOutHasMatch,bool& bOutAllFull)
-{
-    bOutHasMatch=false;bOutAllFull=false;
-    const FLDDemoCardDefinition* Definition=CardDefinitionOf(Content,CardId);
-    if(!Definition||Definition->Form!=ELDCardForm::Skill||!Progression.bValid||!Content){return FString();}
-    const FLDGrowthBuild Build=LDProgression::BuildFromView(*Content,Progression);
-    const ELDDemoElement Element=Definition->ChooseElements.IsEmpty()?ELDDemoElement::None:Definition->ChooseElements[0];
-    const bool bWorkshopIsFull=WorkshopFull(Progression,Content);
-    TArray<FString> Chips;
-    for(uint8 Slot=0;Slot<3;++Slot)
-    {
-        const FName Held=ActiveInSlot(Progression,Slot);
-        if(Held.IsNone()){continue;}
-        if(LDProgression::CardTargetReason(*Content,Build,FName(*Definition->Id),HudTarget(ELDCardTargetKind::Skill,Held,Element))!=ELDGrowthReason::None)
-        {continue;}
-        Chips.Add(FString::Printf(TEXT("[%s %s]"),*Keys.Of(Slot),*ContentName(Content,Held.ToString())));
-    }
-    if(Chips.IsEmpty())
-    {
-        return FString(LDTerms::NoCompatibleSkillHost);
-    }
-    bOutHasMatch=true;
-    bOutAllFull=bWorkshopIsFull;
-    return FString(TEXT("可装："))+FString::Join(Chips,TEXT(" "));
-}
-FString LDHUD::DropPreviewText(FName Key,const FCardDrop& Drop,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
-{
-    FString Place=ColumnLabel(Drop.Column);
-    if(Drop.Kind==ELDCardTargetKind::Skill&&!Drop.TargetId.IsNone()){Place=ContentName(Content,Drop.TargetId.ToString());}
-    if(Drop.Replacing.IsNone()){return LDTerms::DropInstallsOn(Place);}
-    return LDTerms::DropReplaces(ContentName(Content,CardDefinition(Drop.Replacing).ToString()),Place);
-}
 LDHUD::FCardConnections LDHUD::CardConnections(FName Key,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
 {
     FCardConnections Out;
@@ -2872,14 +2815,6 @@ LDHUD::FCardConnections LDHUD::CardConnections(FName Key,const FLDProgressionVie
         if(Other&&(Other->VocabMask&Definition->VocabMask)!=0){Out.Cards.AddUnique(Owned.DefinitionId);}
     }
     return Out;
-}
-FString LDHUD::ConnectionsText(FName Key,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
-{
-    const FCardConnections Connections=CardConnections(Key,Progression,Content);
-    TArray<FString> Links;
-    for(const FName Id:Connections.Actives){Links.AddUnique(ContentName(Content,Id.ToString()));}
-    for(const FName Id:Connections.Cards){Links.AddUnique(ContentName(Content,Id.ToString()));}
-    return Links.IsEmpty()?FString():LDTerms::WorksWith(FString::Join(Links,TEXT("、")));
 }
 FString LDHUD::DropColumnsText(const TArray<FCardDrop>& Drops)
 {
@@ -2908,25 +2843,6 @@ FString LDHUD::StoredPlaceText(FName Key,const FLDProgressionView& Progression,c
     }
     return DropColumnsText(Drops);
 }
-LDHUD::FGrowthPending LDHUD::GrowthPending(const FLDProgressionView* Progression,uint32 Match,const FLDDemoContentDefinitions* Content)
-{
-    FGrowthPending Pending;
-    if(!Progression||!Progression->bValid||Match==0||Progression->Generation!=Match){return Pending;}
-    Pending.bOffer=Progression->bHasActiveOffer&&!Progression->ActiveOffer.Options.IsEmpty();
-    Pending.Offers=Progression->QueuedActiveOpportunities;
-    Pending.Blueprints=Progression->Actives.Num()<3?Progression->PendingBlueprints.Num():0;
-    Pending.bCardOffer=Progression->bHasCardOffer&&!Progression->CardOffer.Options.IsEmpty();
-    Pending.CardOffers=Progression->QueuedCardOffers;
-    Pending.bFinalMod=Progression->bFinalModPending&&!Progression->FinalModOptions.IsEmpty();
-    return Pending;
-}
-FString LDHUD::OfferQueueDots(uint8 Queued)
-{
-    if(Queued==0){return FString();}
-    FString Dots=TEXT("●");
-    for(int32 Index=1;Index<FMath::Min<int32>(Queued,8);++Index){Dots+=TEXT(" ○");}
-    return Dots;
-}
 bool LDHUD::FOfferMotionTicket::Matches(const FLDBuildReceipt& Receipt,uint32 CurrentMatch,uint32 CurrentLife) const
 {
     const bool bIdentity=Match!=0&&Request!=0&&Offer.IsValid()&&CurrentMatch==Match&&CurrentLife==Life
@@ -2946,6 +2862,10 @@ FString LDHUD::FieldRewardEventName(FName Event)
     if(Event==FName(TEXT("camp_marker_high"))){return LDTerms::FieldRewardHighCamp;}
     if(Event==FName(TEXT("camp_marker_elite"))){return LDTerms::FieldRewardEliteCamp;}
     if(Event==FName(TEXT("bounty"))){return TEXT("终结上热搜");}
+    if(Event==FName(TEXT("mini_flag"))){return LDTerms::MiniFlag;}
+    if(Event==FName(TEXT("arena"))){return LDTerms::Arena;}
+    if(Event==FName(TEXT("locker"))){return LDTerms::Locker;}
+    if(Event==FName(TEXT("peddler"))){return LDTerms::Peddler;}
     return FString::Printf(TEXT("未知事件 %s"),*Event.ToString());
 }
 FString LDHUD::FieldRewardNotice(const FLDFieldRewardView& Reward,const FLDDemoContentDefinitions* Content)
@@ -3095,6 +3015,7 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::ShopStale: return TEXT("货架已经换过了");
     case ELDGrowthReason::SkillPointLimit: return TEXT("本局的技能点已经买满了");
     case ELDGrowthReason::NoShop: return TEXT("商店还没开张");
+    case ELDGrowthReason::MedalLimit: return TEXT("本局的元素勋章已经买过了");
     case ELDGrowthReason::NoSkillPoint: return LDTerms::NoSkillPointReason;
     case ELDGrowthReason::BranchUnavailable: return LDTerms::BranchUnavailableReason;
     case ELDGrowthReason::DataNotReady: return TEXT("数据尚未就绪");
@@ -3159,7 +3080,7 @@ LDHUD::FActionInput LDHUD::ActionInput(const FLDCombatEntryView& Entry,EActionSl
     Input.DamageFactorBp=Entry.DamageFactorBp;
     Input.NextCooldownMs=Entry.NextCooldownMs;
     Input.MomentumCostP2=Entry.MomentumCostP2;
-    Input.ReadyAtMs=Entry.ReadyAtMs;Input.CooldownMs=Entry.CooldownMs;
+    Input.ReadyAtMs=Entry.ReadyAtMs;Input.CooldownMs=Entry.CooldownMs;Input.Charges=Entry.Charges;
     Input.ServerReject=Entry.Unavailable;
     Input.ServerBlock=CombatRejectText(Entry.Unavailable);
     return Input;
@@ -3944,6 +3865,107 @@ TArray<LDHUD::FTacticalScoreRow> LDHUD::BuildTacticalScoreboard(const FLDPublicM
             const FLDLobbyMember& Mem=Lobby.Members[M];
             if(!Mem.ContenderId.IsValid()||Mem.Name.IsEmpty()){continue;}
             BuildRow(Mem.ContenderId,RosterName(Lobby,Mem.ContenderId),0,0,0,uint8(M%LDMatchLifecycle::MaxContenders));
+        }
+    }
+    return Out;
+}
+
+int32 LDHUD::SeatOf(const FLDLobbyView& Lobby,const FGuid& ContenderId)
+{
+    if(!ContenderId.IsValid()){return INDEX_NONE;}
+    for(int32 Index=0;Index<Lobby.Members.Num();++Index){if(Lobby.Members[Index].ContenderId==ContenderId){return Index;}}
+    return INDEX_NONE;
+}
+FString LDHUD::KillerLabel(const FLDKillNotice& Notice,const FString& LowCampName,const FString& HighCampName,const FString& EliteCampName,const FString& BossName)
+{
+    if(Notice.Cause==ELDKillCause::Contender){return FString();}
+    if(!Notice.CreatureName.IsEmpty()){return Notice.CreatureName;}
+    switch(Notice.Cause)
+    {
+    case ELDKillCause::CampLow: return LowCampName;
+    case ELDKillCause::CampHigh: return HighCampName;
+    case ELDKillCause::CampElite: return EliteCampName;
+    case ELDKillCause::CampAncient: return TEXT("远古野怪");
+    case ELDKillCause::Boss: return BossName;
+    default: return FString();
+    }
+}
+uint8 LDHUD::SkillElement(const FLDDemoContentDefinitions* Content,FName DefinitionId,ELDSkillBranch Branch)
+{
+    if(!Content||DefinitionId.IsNone()){return 0;}
+    const FLDDemoAbilityDefinition* Ability=Content->Abilities.FindByPredicate([DefinitionId](const FLDDemoAbilityDefinition& Candidate)
+    {return FName(*Candidate.Id)==DefinitionId;});
+    if(!Ability){return 0;}
+    const FLDDemoAbilityBranch* Path=Ability->FindBranch(Branch);
+    return uint8(Path&&Path->Element!=ELDDemoSkillElement::None?Path->Element:Ability->Element);
+}
+FString LDHUD::ElementGlyph(uint8 Element)
+{
+    switch(ELDCombatElement(Element))
+    {
+    case ELDCombatElement::Fire: return LDTerms::ElementFire;
+    case ELDCombatElement::Water: return LDTerms::ElementWater;
+    case ELDCombatElement::Shock: return LDTerms::ElementElectric;
+    case ELDCombatElement::Chill: return LDTerms::ElementChill;
+    case ELDCombatElement::Rot: return LDTerms::ElementRot;
+    default: return FString();
+    }
+}
+LDHUD::FScoreBugView LDHUD::ScoreBug(const FLDPublicMatchView& Public,bool bClock,int64 NowMs)
+{
+    FScoreBugView View;
+    const FLDTimelineView& Timeline=Public.Timeline;
+    if(Public.Generation==0||Timeline.Generation!=Public.Generation){return View;}
+    View.bPaused=Timeline.bCountdownPaused;
+    if(Timeline.bCountdownPaused){NowMs=FMath::Min(NowMs,Timeline.CountdownPausedAtMs);}
+    constexpr int32 Segments=int32(FLDTimelineParameters::TimedSegments);
+    int64 RemainingMs=-1;
+    switch(Timeline.Stage)
+    {
+    case ELDMatchStage::Rest:
+        View.bKnown=true;View.bRest=true;
+        View.Beat=FMath::Clamp(int32(Timeline.RestIndex)*2,0,ScoreBugBeats-2);
+        View.Label=Timeline.RestIndex==Segments?FString(TEXT("最终休息")):LDTerms::RestLabel(Timeline.RestIndex);
+        if(bClock){RemainingMs=Timeline.StepEndsAtMs-NowMs;}
+        break;
+    case ELDMatchStage::Field:
+        View.bKnown=true;
+        View.Beat=FMath::Clamp(int32(Timeline.FieldSegment)*2+1,1,ScoreBugBeats-3);
+        View.Label=FString::Printf(TEXT("野外 %d/%d"),int32(Timeline.FieldSegment)+1,Segments);
+        if(bClock){RemainingMs=Timeline.FieldEndT-LDMatchTimeline::FieldNowFromView(Timeline,NowMs);}
+        break;
+    case ELDMatchStage::FinalField:
+        View.bKnown=true;View.bFinal=true;View.Beat=ScoreBugBeats-1;
+        View.Label=TEXT("终局");
+        if(bClock&&Public.Showdown.bStarted){RemainingMs=Public.Showdown.EndsAtMs-NowMs;}
+        break;
+    default:
+        return View;
+    }
+    if(RemainingMs>=0){View.Clock=Clock(RemainingMs);View.bUrgent=RemainingMs<=10000;}
+    return View;
+}
+TArray<LDHUD::FSeatPlateView> LDHUD::SeatPlates(const FLDLobbyView& Lobby,const FLDPublicMatchView& Public,const FLDKillFeedView& Kills,
+    const FGuid& Self,bool bClock,int64 NowMs)
+{
+    TArray<FSeatPlateView> Out;
+    for(int32 Seat=0;Seat<Lobby.Members.Num()&&Out.Num()<LDMatchLifecycle::MaxContenders;++Seat)
+    {
+        const FLDLobbyMember& Member=Lobby.Members[Seat];
+        if(!Member.ContenderId.IsValid()){continue;}
+        FSeatPlateView& Plate=Out.AddDefaulted_GetRef();
+        Plate.Seat=Seat;Plate.ContenderId=Member.ContenderId;Plate.Name=Member.Name;
+        Plate.bSelf=Self.IsValid()&&Member.ContenderId==Self;
+        Plate.bGraffiti=Public.GraffitiOwner.IsValid()&&Public.GraffitiOwner==Member.ContenderId;
+        Plate.bLeader=(Public.Leader.Leader.IsValid()&&Public.Leader.Leader==Member.ContenderId)
+            ||(Public.Leader.RunnerUp.IsValid()&&Public.Leader.RunnerUp==Member.ContenderId);
+        if(bClock&&Kills.Generation==Public.Generation)
+        {
+            for(const FLDKillNotice& Notice:Kills.Notices)
+            {
+                if(Notice.Victim==Member.ContenderId&&NowMs>=Notice.OccurredAtMs&&NowMs-Notice.OccurredAtMs<int64(FEventFeed::LineSeconds*1000.))
+                {Plate.bRecentKO=true;break;}
+            }
         }
     }
     return Out;

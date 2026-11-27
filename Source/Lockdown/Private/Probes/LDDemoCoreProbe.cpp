@@ -12,6 +12,7 @@
 #include "Combat/LDCombatDirector.h"
 #include "Combat/LDTacticalRules.h"
 #include "Development/LDDemoContentCatalog.h"
+#include "Development/LDDevTestProtocol.h"
 #include "Navigation/LDPathSteering.h"
 #include "Region/LDMapRegistry.h"
 #include "Region/LDMapGeometry.h"
@@ -92,6 +93,8 @@ public:
     FLDMoveIdentity OldOrder, AcceptedOrder;
     FVector StartPosition=FVector::ZeroVector;
     FVector ArrivalGoal=FVector::ZeroVector;
+    double NextPeacefulAt=0.;
+    bool bStageClockHeld=false;
     TMap<FGuid,FVector> StoppedBodies;
     TArray<TSharedPtr<FJsonValue>> Checks;
     TSharedPtr<const FLDDemoContentSnapshot> Content;
@@ -866,6 +869,30 @@ public:
                 || Public->PublicMatch.Generation!=PC->OwnerState.Match || Public->PublicMatch.Phase!=ELDMatchPhase::Development
                 || PC->OwnerState.Life<2 || !Movement->CurrentFloor.IsWalkableFloor()
                 || !PC->CanWorldCommand() || !PC->ReadDemoAuthorityTimeMs(DisplayNowMs)) { return true; }
+            // The walks below test owned movement, not fights: DEV peaceful keeps the camps along the way off the bodies
+            // (the Listen Host opts the room into DEV tests first, as the Vision check does).
+            if (!PC->bDevPeaceful)
+            {
+                if (!Public->DemoLobby.DevTestSession)
+                {
+                    if (Role==TEXT("Host")) { PC->ServerEnableDevTest(PC->OwnerState.Match); }
+                    return true;
+                }
+                if (FPlatformTime::Seconds()>=NextPeacefulAt)
+                {
+                    ELDGrowthReason Reason=ELDGrowthReason::None;
+                    PC->SubmitDevTest(ELDDevTestOp::SetPeaceful,1,Reason);
+                    NextPeacefulAt=FPlatformTime::Seconds()+1.;
+                }
+                return true;
+            }
+            // The walks to the capture ground on the full map outlast the first field: the Listen Host holds the stage clock.
+            if (Role==TEXT("Host") && !bStageClockHeld)
+            {
+                ELDGrowthReason Reason=ELDGrowthReason::None;
+                bStageClockHeld=PC->SubmitDevTest(ELDDevTestOp::SetCountdownPaused,1,Reason)!=0;
+                return true;
+            }
             if (bEarlyRestReady)
             {
                 Check(bRestPresentationSeen,TEXT("This owning connection sees both other players and all real shared training dummies"));
@@ -1167,7 +1194,7 @@ void LDDemoTests::StartCoreProbe(ALDPlayerController& Controller)
         || UWorld::RemovePIEPrefix(Controller.GetWorld()->GetOutermost()->GetName())!=LDDemoEntry::WorldMap) { return; }
     auto Probe=MakeShared<FLDDemoCoreProbe>();
     Probe->bEarlyRestReady=FParse::Param(FCommandLine::Get(),TEXT("LDDemoCoreReady"));
-    int32 Timeout=330;
+    int32 Timeout=600;
     FParse::Value(FCommandLine::Get(),TEXT("LDDemoCoreTimeout="),Timeout);
     if (!FParse::Value(FCommandLine::Get(),TEXT("LDDemoCoreOutput="),Probe->Output)
         || !FParse::Value(FCommandLine::Get(),TEXT("LDDemoCoreRole="),Probe->Role)

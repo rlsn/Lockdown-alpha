@@ -38,12 +38,21 @@ bool Keepouts(const FLDDemoWorldGeometry& Geometry, const FLDDemoContentSnapshot
         if (MonsterRadius <= 0 || Anchor.Members.IsEmpty())
         { Error = TEXT("The authored camp has invalid body homes or radius: ") + Anchor.Id; return false; }
         Radius += MonsterRadius;
+        // One disc around the whole camp: its members stand closer than two member discs, so per-member discs overlap
+        // into one blob whose detour points (a member disc's 1.5-3x) all fall inside a neighbour and never get around it.
+        TArray<FVector> Homes;
+        FVector Centre = FVector::ZeroVector;
         for (const auto& Member : Anchor.Members)
         {
             FVector Home;
             if (!Member.PositionCm.ToVector(Home, Error)) { return false; }
-            Out.Add({Home, Radius});
+            Homes.Add(Home);
+            Centre += Home;
         }
+        Centre /= double(Homes.Num());
+        double Spread = 0;
+        for (const FVector& Home : Homes) { Spread = FMath::Max(Spread, FVector::Dist2D(Home, Centre)); }
+        Out.Add({Centre, Radius + Spread});
     }
     Error.Reset();
     return true;
@@ -124,7 +133,10 @@ void FPlanner::Begin(const FLDLegalGround& From, const FLDLegalGround& InGoal, c
 {
     *this = FPlanner();
     Goal = InGoal;
-    Zones = Keepouts;
+    // A start inside an exclusion (a random respawn in a camp home or the Boss band) can only walk out of it: that zone
+    // cannot be kept clear of, so the plan keeps clear of the others.
+    Zones = Keepouts.FilterByPredicate([&From](const FKeepout& Zone)
+    { return FVector::Dist2D(From.SurfaceCm, Zone.Centre) > Zone.Radius; });
     Arrival = InArrival;
     Visits.Add({From, {}, 0, FVector::Dist2D(From.SurfaceCm, Goal.SurfaceCm), false});
 }

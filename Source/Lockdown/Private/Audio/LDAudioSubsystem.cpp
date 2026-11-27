@@ -9,10 +9,31 @@
 #include "Engine/World.h"
 #include "Components/AudioComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
+#include "Sound/SoundAttenuation.h"
 #include "Sound/SoundClass.h"
+#include "Sound/SoundConcurrency.h"
 #include "Sound/SoundMix.h"
 #include "Sound/SoundWave.h"
 #include "UObject/UObjectGlobals.h"
+
+namespace
+{
+    // Body sounds of others: full level within 2000 cm of the listener (the game camera sits about 1500-1900 cm from the
+    // ground it looks at), silent 2500 cm beyond, panned by the camera's view.
+    constexpr float BodyInnerRadiusCm = 2000.f;
+    constexpr float BodyFalloffCm = 2500.f;
+    // Simultaneous voices per sound: a chain of passives or eight hits in one frame never stacks one sound into a wall;
+    // different sounds never take each other's voices. A sound retriggered within 25 ms is one sound.
+    constexpr int32 SoundVoices = 4;
+    constexpr int32 StateVoices = 3;
+    constexpr int32 InterfaceVoices = 2;
+    constexpr float RetriggerSeconds = .025f;
+    // Ground loops: the two nearest of a kind play (a rain day lays many puddles at once); a loop fades over this.
+    constexpr int32 GroundVoices = 2;
+    constexpr float GroundFadeSeconds = .3f;
+}
 
 bool ULDAudioSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 {
@@ -23,28 +44,57 @@ bool ULDAudioSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 void ULDAudioSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
     Super::Initialize(Collection);
+    bEventLog = FParse::Param(FCommandLine::Get(), TEXT("LDAudioEventLog"));
+    TakeRandom.Initialize(0x4C44);
     // Resolve the whole catalog once; a missing asset is an explicit error, never a silent default.
     FString Error;
-    TArray<USoundWave*> Resolved, ResolvedMusic;
+    ULDAudioCatalog::FResolved Resolved;
     if (auto* Loaded = LoadObject<ULDAudioCatalog>(nullptr, ULDAudioCatalog::AssetPath, nullptr, LOAD_NoWarn))
     {
-        if (Loaded->Resolve(Resolved, ResolvedMusic, Error))
+        if (Loaded->Resolve(Resolved, Error))
         {
             Catalog = Loaded;
-            CueSounds.Reset();
-            for (USoundWave* Sound : Resolved) { CueSounds.Add(Sound); }
+            Takes.Reset();
+            const auto Flatten = [this](const TArray<TArray<USoundWave*>>& From, TArray<TArray<int32>>& To)
+            {
+                To.SetNum(From.Num());
+                for (int32 Key = 0; Key < From.Num(); ++Key)
+                {
+                    for (USoundWave* Take : From[Key]) { To[Key].Add(Takes.Add(Take)); }
+                }
+            };
+            Flatten(Resolved.Cues, CueTakes);
+            Flatten(Resolved.Skills, SkillTakes);
+            Flatten(Resolved.SkillHits, SkillHitTakes);
+            LastCueTake.Init(INDEX_NONE, CueTakes.Num());
+            LastSkillTake.Init(INDEX_NONE, SkillTakes.Num());
+            LastSkillHitTake.Init(INDEX_NONE, SkillHitTakes.Num());
             MusicSounds.Reset();
-            for (USoundWave* Sound : ResolvedMusic) { MusicSounds.Add(Sound); }
+            for (USoundWave* Sound : Resolved.Music) { MusicSounds.Add(Sound); }
+            for (int32 Bus = 0; Bus < LDAudio::BusCount; ++Bus) { BusClasses[Bus] = Resolved.Buses[Bus]; }
         }
     }
     else { Error = FString::Printf(TEXT("Audio catalog %s is missing."), ULDAudioCatalog::AssetPath); }
     if (Catalog)
-    { UE_LOG(LogLDContent, Display, TEXT("LD_AUDIO_CATALOG_READY %d cues and %d music tracks resolved."), LDAudio::CueCount, LDAudio::MusicTrackCount); }
+    {
+        int32 Skills = 0;
+        for (const TArray<int32>& Pool : SkillTakes) { Skills += !Pool.IsEmpty(); }
+        UE_LOG(LogLDContent, Display, TEXT("LD_AUDIO_CATALOG_READY %d cues (%d takes), %d skill releases and %d music tracks resolved."),
+            LDAudio::CueCount, Takes.Num(), Skills, LDAudio::MusicTrackCount);
+    }
     else
     {
         CatalogError = Error;
         UE_LOG(LogLDContent, Error, TEXT("LD_AUDIO_CATALOG_INVALID %s Run Scripts\\ImportDemoAudio.ps1 or restore the LFS assets."), *Error);
     }
+    BodyAttenuation = NewObject<USoundAttenuation>(this, TEXT("LDBodyAttenuation"));
+    FSoundAttenuationSettings& Falloff = BodyAttenuation->Attenuation;
+    Falloff.bAttenuate = true;
+    Falloff.bSpatialize = true;
+    Falloff.AttenuationShape = EAttenuationShape::Sphere;
+    Falloff.AttenuationShapeExtents = FVector(BodyInnerRadiusCm, 0.f, 0.f);
+    Falloff.FalloffDistance = BodyFalloffCm;
+    Falloff.DistanceAlgorithm = EAttenuationDistanceModel::NaturalSound;
     WorldHandle = FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(this, &ULDAudioSubsystem::HandleWorldReady);
 }
 
@@ -58,8 +108,7 @@ void ULDAudioSubsystem::Deinitialize()
         {
             if (FAudioDevice* Device = Manager->GetAudioDeviceRaw(PushedDevice))
             {
-                Device->ClearSoundMixClassOverride(Catalog->UserMix, Catalog->MasterClass, 0.f);
-                Device->ClearSoundMixClassOverride(Catalog->UserMix, Catalog->MusicClass, 0.f);
+                for (USoundClass* Class : BusClasses) { Device->ClearSoundMixClassOverride(Catalog->UserMix, Class, 0.f); }
                 Device->PopSoundMixModifier(Catalog->UserMix);
             }
         }
@@ -80,15 +129,19 @@ bool ULDAudioSubsystem::PushVolume(UWorld* World)
     if (!Device.IsValid()) { return false; }
     const uint32 DeviceId = Device.GetDeviceID();
     const bool bNewDevice = !bMixPushed || PushedDevice != DeviceId;
-    if (bNewDevice || AppliedVolume != MasterVolume || AppliedMusicVolume != MusicVolume)
+    bool bChanged = bNewDevice;
+    for (int32 Bus = 0; Bus < LDAudio::BusCount; ++Bus) { bChanged |= AppliedVolumes[Bus] != BusVolumes[Bus]; }
+    if (bChanged)
     {
-        // Two overrides on the user mix: the master class and its children follow the master volume, and the music class
-        // alone is scaled again by the music volume, so music plays at master x music.
-        Device->SetSoundMixClassOverride(Catalog->UserMix, Catalog->MasterClass, MasterVolume, 1.f, 0.f, true);
-        Device->SetSoundMixClassOverride(Catalog->UserMix, Catalog->MusicClass, MusicVolume, 1.f, 0.f, false);
-        AppliedVolume = MasterVolume;
-        AppliedMusicVolume = MusicVolume;
-        UE_LOG(LogLDContent, Display, TEXT("LD_AUDIO_MIX_APPLIED device=%u volume=%.2f music=%.2f"), DeviceId, MasterVolume, MusicVolume);
+        // One override per class on the user mix: the master class and its children follow the master volume, and each
+        // bus class alone is scaled again by its own volume, so a bus plays at master x bus.
+        for (int32 Bus = 0; Bus < LDAudio::BusCount; ++Bus)
+        {
+            Device->SetSoundMixClassOverride(Catalog->UserMix, BusClasses[Bus], BusVolumes[Bus], 1.f, 0.f, Bus == int32(ELDAudioBus::Master));
+            AppliedVolumes[Bus] = BusVolumes[Bus];
+        }
+        UE_LOG(LogLDContent, Display, TEXT("LD_AUDIO_MIX_APPLIED device=%u master=%.2f music=%.2f sfx=%.2f ui=%.2f"), DeviceId,
+            BusVolumes[0], BusVolumes[1], BusVolumes[2], BusVolumes[3]);
     }
     if (bNewDevice)
     {
@@ -99,26 +152,23 @@ bool ULDAudioSubsystem::PushVolume(UWorld* World)
     return true;
 }
 
-void ULDAudioSubsystem::ApplyMasterVolume(float Linear)
+void ULDAudioSubsystem::ApplyBusVolume(ELDAudioBus Bus, float Linear)
 {
+    const int32 Index = int32(Bus);
+    if (Index < 0 || Index >= LDAudio::BusCount) { return; }
     if (!FMath::IsFinite(Linear))
     {
-        UE_LOG(LogLDContent, Warning, TEXT("LD_AUDIO_VOLUME_REJECTED Non-finite master volume; keeping %.2f."), MasterVolume);
+        UE_LOG(LogLDContent, Warning, TEXT("LD_AUDIO_VOLUME_REJECTED Non-finite %s volume; keeping %.2f."), *LDAudio::BusId(Bus), BusVolumes[Index]);
         return;
     }
-    MasterVolume = FMath::Clamp(Linear, 0.f, 1.f);
+    BusVolumes[Index] = FMath::Clamp(Linear, 0.f, 1.f);
     if (UGameInstance* Instance = GetGameInstance()) { PushVolume(Instance->GetWorld()); }
 }
 
-void ULDAudioSubsystem::ApplyMusicVolume(float Linear)
+float ULDAudioSubsystem::GetBusVolume(ELDAudioBus Bus) const
 {
-    if (!FMath::IsFinite(Linear))
-    {
-        UE_LOG(LogLDContent, Warning, TEXT("LD_AUDIO_VOLUME_REJECTED Non-finite music volume; keeping %.2f."), MusicVolume);
-        return;
-    }
-    MusicVolume = FMath::Clamp(Linear, 0.f, 1.f);
-    if (UGameInstance* Instance = GetGameInstance()) { PushVolume(Instance->GetWorld()); }
+    const int32 Index = int32(Bus);
+    return Index >= 0 && Index < LDAudio::BusCount ? BusVolumes[Index] : 0.f;
 }
 
 UWorld* ULDAudioSubsystem::ReadyWorld(const FString& What)
@@ -147,19 +197,147 @@ UWorld* ULDAudioSubsystem::ReadyWorld(const FString& What)
     return World;
 }
 
-bool ULDAudioSubsystem::Play(ELDAudioCue Cue, float VolumeMultiplier)
+int32 ULDAudioSubsystem::PickTake(const TArray<int32>& Pool, int32& Last)
 {
-    if (!LDAudio::IsPlayableCue(Cue)) { return false; }
-    if (!FMath::IsFinite(VolumeMultiplier))
+    if (Pool.IsEmpty()) { return INDEX_NONE; }
+    int32 Pick = Pool[TakeRandom.RandRange(0, Pool.Num() - 1)];
+    if (Pool.Num() > 1 && Pick == Last)
     {
-        UE_LOG(LogLDContent, Warning, TEXT("LD_AUDIO_CUE_REJECTED %s has a non-finite volume multiplier."), *LDAudio::CueId(Cue));
+        const int32 At = Pool.IndexOfByKey(Pick);
+        Pick = Pool[(At + 1 + TakeRandom.RandRange(0, Pool.Num() - 2)) % Pool.Num()];
+    }
+    Last = Pick;
+    return Pick;
+}
+
+bool ULDAudioSubsystem::Emit(const FString& What, int32 Take, bool bSpatial, const FVector& Location, float Volume,
+    float Pitch, bool bInterface, UAudioComponent** Keep)
+{
+    if (Keep) { *Keep = nullptr; }
+    if (!FMath::IsFinite(Volume) || !FMath::IsFinite(Pitch) || (bSpatial && Location.ContainsNaN()))
+    {
+        UE_LOG(LogLDContent, Warning, TEXT("LD_AUDIO_CUE_REJECTED %s has a non-finite volume, pitch or location."), *What);
         return false;
     }
-    UWorld* World = ReadyWorld(LDAudio::CueId(Cue));
+    if (!Takes.IsValidIndex(Take)) { ReadyWorld(What); return false; }
+    Volume = FMath::Clamp(Volume, 0.f, 2.f);
+    Pitch = FMath::Clamp(Pitch, .5f, 2.f);
+    USoundWave* Sound = Takes[Take];
+    if (bEventLog)
+    {
+        // The world clock is the capture harness's fixed-step clock; the take, gain and pitch are exactly what plays.
+        const UGameInstance* Instance = GetGameInstance();
+        const UWorld* Clock = Instance ? Instance->GetWorld() : nullptr;
+        UE_LOG(LogLDContent, Display, TEXT("LD_AUDIO_EVENT t=%.4f cue=%s take=%s gain=%.3f pitch=%.3f spatial=%d x=%.0f y=%.0f z=%.0f"),
+            Clock ? Clock->GetTimeSeconds() : -1.0, *What, *GetNameSafe(Sound), Volume * Sound->Volume, Pitch, bSpatial ? 1 : 0,
+            Location.X, Location.Y, Location.Z);
+    }
+    UWorld* World = ReadyWorld(What);
     if (!World) { return false; }
-    const float Pitch = Cue == ELDAudioCue::SelfShieldBreak ? 1.35f : Cue == ELDAudioCue::SelfDash ? 1.55f : 1.f;
-    UGameplayStatics::PlaySound2D(World, CueSounds[int32(Cue)], FMath::Clamp(VolumeMultiplier, 0.f, 2.f), Pitch, 0.f, nullptr, nullptr, true);
+    USoundConcurrency* Group = ConcurrencyOf(What, bInterface);
+    if (Keep)
+    {
+        *Keep = bSpatial
+            ? UGameplayStatics::SpawnSoundAtLocation(World, Sound, Location, FRotator::ZeroRotator, Volume, Pitch, 0.f, BodyAttenuation, Group, true)
+            : UGameplayStatics::SpawnSound2D(World, Sound, Volume, Pitch, 0.f, Group, false, true);
+        return *Keep != nullptr;
+    }
+    if (bSpatial) { UGameplayStatics::PlaySoundAtLocation(World, Sound, Location, FRotator::ZeroRotator, Volume, Pitch, 0.f, BodyAttenuation, Group); }
+    else { UGameplayStatics::PlaySound2D(World, Sound, Volume, Pitch, 0.f, Group, nullptr, bInterface); }
     return true;
+}
+
+USoundConcurrency* ULDAudioSubsystem::ConcurrencyOf(const FString& What, bool bInterface)
+{
+    const FName Key(*What);
+    if (TObjectPtr<USoundConcurrency>* Found = Concurrency.Find(Key)) { return *Found; }
+    USoundConcurrency* Group = NewObject<USoundConcurrency>(this);
+    const bool bGround = What.StartsWith(TEXT("Ground"));
+    Group->Concurrency.MaxCount = bInterface ? InterfaceVoices : bGround ? GroundVoices
+        : What.StartsWith(TEXT("State")) || What.StartsWith(TEXT("Reaction")) ? StateVoices : SoundVoices;
+    // A loop keeps playing: the farthest ground gives way, not the one the player just walked up to.
+    Group->Concurrency.ResolutionRule = bGround ? EMaxConcurrentResolutionRule::StopFarthestThenOldest : EMaxConcurrentResolutionRule::StopOldest;
+    Group->Concurrency.RetriggerTime = bGround ? 0.f : RetriggerSeconds;
+    Concurrency.Add(Key, Group);
+    return Group;
+}
+
+bool ULDAudioSubsystem::Play(ELDAudioCue Cue, float VolumeMultiplier, float Pitch)
+{
+    if (!LDAudio::IsPlayableCue(Cue) || !CueTakes.IsValidIndex(int32(Cue))) { ReadyWorld(LDAudio::CueId(Cue)); return false; }
+    const int32 Take = PickTake(CueTakes[int32(Cue)], LastCueTake[int32(Cue)]);
+    if (Take == INDEX_NONE) { return false; }
+    const bool bInterface = ULDAudioCatalog::BusOf(Cue) == ELDAudioBus::UI;
+    // The shield break reuses the punch body, pitched up so it reads as a brittle shell rather than flesh.
+    if (Cue == ELDAudioCue::SelfShieldBreak) { Pitch *= 1.35f; }
+    return Emit(LDAudio::CueId(Cue), Take, false, FVector::ZeroVector, VolumeMultiplier, Pitch, bInterface);
+}
+
+bool ULDAudioSubsystem::PlayAt(ELDAudioCue Cue, const FVector& Location, float VolumeMultiplier, float Pitch)
+{
+    if (!LDAudio::IsPlayableCue(Cue) || !CueTakes.IsValidIndex(int32(Cue))) { ReadyWorld(LDAudio::CueId(Cue)); return false; }
+    const int32 Take = PickTake(CueTakes[int32(Cue)], LastCueTake[int32(Cue)]);
+    if (Take == INDEX_NONE) { return false; }
+    return Emit(LDAudio::CueId(Cue), Take, true, Location, VolumeMultiplier, Pitch, false);
+}
+
+bool ULDAudioSubsystem::HasOwnSkillRelease(uint8 Ability) const
+{
+    return SkillTakes.IsValidIndex(Ability) && !SkillTakes[Ability].IsEmpty();
+}
+
+bool ULDAudioSubsystem::PlaySkillRelease(uint8 Ability, bool bSpatial, const FVector& Location, float VolumeMultiplier)
+{
+    if (!HasOwnSkillRelease(Ability))
+    {
+        return bSpatial ? PlayAt(ELDAudioCue::CastRelease, Location, VolumeMultiplier) : Play(ELDAudioCue::CastRelease, VolumeMultiplier);
+    }
+    const int32 Take = PickTake(SkillTakes[Ability], LastSkillTake[Ability]);
+    return Emit(FString::Printf(TEXT("Skill%d"), Ability), Take, bSpatial, Location, VolumeMultiplier, 1.f, false);
+}
+
+bool ULDAudioSubsystem::PlaySkillHit(uint8 Ability, const FVector& Location, float VolumeMultiplier)
+{
+    if (!SkillHitTakes.IsValidIndex(Ability) || SkillHitTakes[Ability].IsEmpty()) { return false; }
+    const int32 Take = PickTake(SkillHitTakes[Ability], LastSkillHitTake[Ability]);
+    Emit(FString::Printf(TEXT("SkillHit%d"), Ability), Take, true, Location, VolumeMultiplier, 1.f, false);
+    return true;
+}
+
+UAudioComponent* ULDAudioSubsystem::Start(ELDAudioCue Cue, bool bSpatial, const FVector& Location, float VolumeMultiplier)
+{
+    if (!LDAudio::IsPlayableCue(Cue) || !CueTakes.IsValidIndex(int32(Cue))) { ReadyWorld(LDAudio::CueId(Cue)); return nullptr; }
+    const int32 Take = PickTake(CueTakes[int32(Cue)], LastCueTake[int32(Cue)]);
+    UAudioComponent* Playing = nullptr;
+    if (Take != INDEX_NONE) { Emit(LDAudio::CueId(Cue), Take, bSpatial, Location, VolumeMultiplier, 1.f, false, &Playing); }
+    return Playing;
+}
+
+void ULDAudioSubsystem::StartGroundLoop(const AActor& Ground, uint8 Kind, const FVector& Centre)
+{
+    StopGroundLoop(Ground);
+    const ELDAudioCue Cue = LDAudio::GroundLoopCue(Kind);
+    if (Cue == ELDAudioCue::None) { return; }
+    if (UAudioComponent* Playing = Start(Cue, true, Centre)) { GroundLoops.Add(&Ground, Playing); }
+}
+
+void ULDAudioSubsystem::StopGroundLoop(const AActor& Ground)
+{
+    TWeakObjectPtr<UAudioComponent> Playing;
+    if (!GroundLoops.RemoveAndCopyValue(&Ground, Playing)) { return; }
+    // The component destroys itself once faded (spawned auto-destroying).
+    if (UAudioComponent* Component = Playing.Get()) { Component->FadeOut(GroundFadeSeconds, 0.f); }
+}
+
+bool ULDAudioSubsystem::PlayBusPreview(ELDAudioBus Bus)
+{
+    switch (Bus)
+    {
+    case ELDAudioBus::Master:
+    case ELDAudioBus::Sfx: return Play(ELDAudioCue::HitBasic);
+    case ELDAudioBus::UI: return Play(ELDAudioCue::UIClick);
+    default: return false;
+    }
 }
 
 void ULDAudioSubsystem::StopMusic()

@@ -48,6 +48,9 @@ public:
     int32 EffectivePoints(int32 Index) const;
     int64 EffectiveUnspent() const {return Available();}
     void FlushNow();
+    // Sends queued points once their batching window allows (what each tick does): the HUD pumps it while the bar is not
+    // on screen, so allocations from the workshop's "+" still leave (the bar sits in a flyout that is usually closed).
+    void Pump(){Flush();}
     // Stat icons <-> attribute view; each match starts on the stat icons.
     void ToggleView();
     void SetDetailsHeld(bool bHeld);
@@ -113,6 +116,11 @@ private:
     TArray<FLDCombatAttributeRowView> LatestAttributes;
     LDHUD::FBuildGateView Gate;
     bool bShownNow=false;
+    // The last Present's remaining inputs: a sample that repeats them all refreshes nothing.
+    bool bPresented=false;
+    bool bLatestView=false;
+    LDProgression::EMatchStage LatestStage=LDProgression::EMatchStage::Closed;
+    ELDLifePhase LatestLifePhase=ELDLifePhase::Unspawned;
     int32 HoveredIndex=INDEX_NONE;
     int32 PinnedHover=INDEX_NONE;
     // Per stat in design order: signed delta (+allocate / -refund) coalesced locally, and sent delta not yet in own view.

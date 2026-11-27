@@ -105,5 +105,8 @@ private:
     FVector2D FrameSize=FVector2D::ZeroVector;
     // Public terrain raster and owner-local current coverage texture. Units are read from the authorized frame at paint.
     mutable TSharedPtr<FLDMinimapStatic> StaticMap;
+    // The mid-field objective's last seen serial and phase, and when it last turned announced or open: its ring flashes once.
+    mutable uint16 ObjectiveFlashKey=0;
+    mutable double ObjectiveFlashAt=-1.;
     FVector2D Fraction(const FGeometry& Geometry,const FPointerEvent& Event) const;
 };

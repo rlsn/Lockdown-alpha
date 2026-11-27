@@ -8,7 +8,10 @@ namespace LDCamera
     inline constexpr float MinArmLength = 1300.f;
     inline constexpr float MaxArmLength = 2400.f;
     inline constexpr float ZoomStep = 80.f;
-    inline constexpr float Pitch = -60.f;
+    // The arm lengths above are the player's zoom setting (saved as is); the camera stands ArmScale times that far from its
+    // focus, so the default zoom is a 27 m arm and the zoom range 15.6-28.8 m.
+    inline constexpr float ArmScale = 1.2f;
+    inline constexpr float Pitch = -62.f;
     // #97: north-up (world -Y at the top of the screen), so the square field and its minimap line up with the screen.
     inline constexpr float Yaw = -90.f;
     inline constexpr float FieldOfView = 55.f;

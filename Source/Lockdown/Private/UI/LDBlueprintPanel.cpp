@@ -1,5 +1,6 @@
 #include "UI/LDBlueprintPanel.h"
 #include "UI/LDHUDModel.h"
+#include "UI/LDBroadcastStyle.h"
 #include "UI/LDHUDStyle.h"
 #include "UI/LDTerms.h"
 #include "UI/LDUIIcons.h"
@@ -31,7 +32,7 @@ static_assert(UE_ARRAY_COUNT(LDTerms::BlueprintFactLabels)==int32(ELDBlueprintFa
 namespace
 {
 constexpr int32 BlueprintListLimit=50;
-const FLinearColor BlueprintBright(.9f,.94f,.96f),BlueprintDim(.55f,.63f,.68f);
+const FLinearColor BlueprintBright=LDBroadcast::White,BlueprintDim=LDBroadcast::Grey;
 
 void BlueprintText(UTextBlock* Label,const FString& Value)
 {
@@ -130,7 +131,6 @@ FString ULDBlueprintPanel::Describe(const FLDBlueprintRecord& Record,const FLDDe
     Lines.Add(FString::Printf(TEXT("最终构筑（修订 %llu）"),Record.FinalRevision));
     Lines.Add(BlueprintStructure(Record.FinalBuild,Definitions));
     Lines.Add(FString());
-    Lines.Add(TEXT("每个版本只记它生效期间真实发生的结果；伤害每次命中只计一次，回复、护盾吸收与减免分开列。"));
     for(int32 Index=0;Index<Record.Versions.Num();++Index)
     {
         const FLDBlueprintVersion& Version=Record.Versions[Index];
@@ -158,7 +158,7 @@ TSharedRef<SWidget> ULDBlueprintPanel::RebuildWidget()
         auto* Top=WidgetTree->ConstructWidget<UHorizontalBox>();Root->AddChildToVerticalBox(Top);
         UTextBlock* Title=MakeText(TEXT("构筑蓝图 · 对局记录"),LDHUDStyle::TypeHeading,BlueprintBright);Title->SetAutoWrapText(false);
         Top->AddChildToHorizontalBox(Title)->SetVerticalAlignment(VAlign_Center);
-        UHorizontalBoxSlot* NoteSlot=Top->AddChildToHorizontalBox(MakeText(TEXT("只读 · 不授予物品或技能"),LDHUDStyle::TypeCaption,BlueprintDim));
+        UHorizontalBoxSlot* NoteSlot=Top->AddChildToHorizontalBox(MakeText(TEXT("只读"),LDHUDStyle::TypeCaption,BlueprintDim));
         NoteSlot->SetPadding(FMargin(12,0,12,0));NoteSlot->SetVerticalAlignment(VAlign_Center);NoteSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
         Top->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,TEXT("关闭"),[this](){ClosePanel();},false,TEXT("BlueprintClose")));
         SourceText=MakeText(TEXT(""),LDHUDStyle::TypeBody,BlueprintBright);Root->AddChildToVerticalBox(SourceText)->SetPadding(FMargin(0,10,0,0));
@@ -167,7 +167,7 @@ TSharedRef<SWidget> ULDBlueprintPanel::RebuildWidget()
         NoticeText->SetVisibility(ESlateVisibility::Collapsed);
         auto* Body=WidgetTree->ConstructWidget<UVerticalBox>();
         StructureList=WidgetTree->ConstructWidget<UVerticalBox>();Body->AddChildToVerticalBox(StructureList);
-        PreviewText=MakeText(TEXT("悬停图标查看 · 点击固定详情"),LDHUDStyle::TypeSmall,LDHUDStyle::TextSecondary);
+        PreviewText=MakeText(TEXT(""),LDHUDStyle::TypeSmall,LDHUDStyle::TextSecondary);
         PreviewText->SetAutoWrapText(false);PreviewText->SetWrapTextAt(250);
         HistoryButton=LDWidgets::Button(WidgetTree,TEXT("展开对局数据与版本记录"),[this]()
         {bHistory=!bHistory;BlueprintShow(BodyText,bHistory,ESlateVisibility::HitTestInvisible);
@@ -200,10 +200,10 @@ TSharedRef<SWidget> ULDBlueprintPanel::RebuildWidget()
         ActionText=MakeText(TEXT(""),LDHUDStyle::TypeCaption,BlueprintDim);Root->AddChildToVerticalBox(ActionText)->SetPadding(FMargin(0,8,0,0));
         for(UTextBlock* Label:{SourceText.Get(),StatusText.Get(),NoticeText.Get(),ActionText.Get()})
         {Label->SetAutoWrapText(false);Label->SetWrapTextAt(1020);}
-        MainPanel=LDWidgets::Panel(WidgetTree,Root,FMargin(20));MainPanel->SetBrushColor(LDHUDStyle::PanelFill.CopyWithNewOpacity(1.f));
+        MainPanel=LDWidgets::Panel(WidgetTree,Root,FMargin(20));MainPanel->SetBrushColor(LDBroadcast::Ink.CopyWithNewOpacity(.97f));
         auto* WidthBox=WidgetTree->ConstructWidget<USizeBox>();WidthBox->SetWidthOverride(1080);WidthBox->SetContent(MainPanel);
         auto* Scale=WidgetTree->ConstructWidget<UScaleBox>();Scale->SetStretch(EStretch::ScaleToFit);Scale->SetStretchDirection(EStretchDirection::DownOnly);Scale->SetContent(WidthBox);
-        auto* Frame=WidgetTree->ConstructWidget<UBorder>();Frame->SetBrushColor(FLinearColor::Transparent);Frame->SetHorizontalAlignment(HAlign_Center);Frame->SetVerticalAlignment(VAlign_Center);
+        auto* Frame=WidgetTree->ConstructWidget<UBorder>();Frame->SetBrushColor(LDBroadcast::Ink.CopyWithNewOpacity(.6f));Frame->SetHorizontalAlignment(HAlign_Center);Frame->SetVerticalAlignment(VAlign_Center);
         Frame->SetPadding(FMargin(32,90,32,175));Frame->SetVisibility(ESlateVisibility::SelfHitTestInvisible);Frame->SetContent(Scale);
         WidgetTree->RootWidget=Frame;
         SetVisibility(bOpen?ESlateVisibility::SelfHitTestInvisible:ESlateVisibility::Collapsed);
@@ -251,7 +251,7 @@ void ULDBlueprintPanel::ShowRecord(const FLDBlueprintRecord& Record,const FLDDem
     BlueprintShow(StructureList,true);BlueprintShow(PreviewText,true);BlueprintShow(HistoryButton,true);
     BlueprintShow(BodyText,false);BlueprintText(BodyText,Describe(Record,Local));
     BlueprintText(Cast<UTextBlock>(HistoryButton->GetContent()),TEXT("展开对局数据与版本记录"));
-    BlueprintText(PreviewText,TEXT("悬停图标查看 · 点击固定详情\n这是整套构筑的对局记录，不是待学主动图纸；导入只用于查看，不会改变本局。"));
+    BlueprintText(PreviewText,FString());
     const ALDPlayerController* PC=Cast<ALDPlayerController>(GetOwningPlayer());
     const FLDProgressionView* Own=PC?PC->ReadOwnProgression():nullptr;
     LDHUD::FCardStats CardStats;
@@ -408,7 +408,7 @@ void ULDBlueprintPanel::ShowImported(const FString& Path)
     }
     else
     {
-        BlueprintText(StatusText,Record.Origin==LDBuildBlueprint::OriginExport?TEXT("导出的蓝图 · 只读查看，不会改变你的构筑或能力"):TEXT("自动保存的蓝图 · 只读查看，不会改变你的构筑或能力"));
+        BlueprintText(StatusText,Record.Origin==LDBuildBlueprint::OriginExport?TEXT("导出的蓝图"):TEXT("自动保存的蓝图"));
         const FLDDemoContentDefinitions* Local=Definitions();
         LDBuildBlueprint::Notices(Record,Local,LocalProduct,Notices);
         ShowRecord(Record,Local);
@@ -425,7 +425,7 @@ void ULDBlueprintPanel::NativeTick(const FGeometry& Geometry,float DeltaSeconds)
         FString Detail=PinnedDetail;
         for(const FTilePreview& Tile:TilePreviews)
         {if(Tile.Button&&(Tile.Button->IsHovered()||Tile.Button->HasKeyboardFocus())){Detail=Tile.Detail;break;}}
-        BlueprintText(PreviewText,Detail.IsEmpty()?TEXT("悬停图标查看 · 点击固定详情\n这是整套构筑的只读记录，不是待学主动图纸；导入不会改变本局。"):Detail);
+        BlueprintText(PreviewText,Detail);
     }
     const ALDPlayerController* PC=Cast<ALDPlayerController>(GetOwningPlayer());
     if(PC&&PC->Controls){ApplyTextScale(PC->Controls->TextScale);}

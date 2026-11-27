@@ -4,6 +4,8 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Rendering/SlateRenderer.h"
 #include "Styling/CoreStyle.h"
+#include "UI/LDBroadcastPaint.h"
+#include "UI/LDBroadcastStyle.h"
 #include "UI/LDHUDStyle.h"
 
 namespace
@@ -69,11 +71,16 @@ namespace
         }
         return Out;
     }
+    // A primitive's vertices and indices. Each primitive is built and drawn before the next one starts (game thread), so
+    // they share one scratch pair that keeps its capacity; MakeCustomVerts copies what it is given.
+    TArray<FSlateVertex>& PaintScratchVertices(){static TArray<FSlateVertex> Scratch;return Scratch;}
+    TArray<SlateIndex>& PaintScratchIndices(){static TArray<SlateIndex> Scratch;return Scratch;}
     struct FPaintMesh
     {
-        TArray<FSlateVertex> Vertices;
-        TArray<SlateIndex> Indices;
+        TArray<FSlateVertex>& Vertices;
+        TArray<SlateIndex>& Indices;
         const FSlateRenderTransform* Transform=nullptr;
+        FPaintMesh():Vertices(PaintScratchVertices()),Indices(PaintScratchIndices()){Vertices.Reset();Indices.Reset();}
         int32 Add(FVector2D At,const FLinearColor& Color,FVector2D UV=FVector2D(.5,.5))
         {
             Vertices.Add(FSlateVertex::Make(*Transform,FVector2f(At),FVector2f(UV),PaintSrgb(Color)));
@@ -101,7 +108,7 @@ namespace
         const TArray<FVector2D> Normals=PaintNormals(Points);
         const float Pixel=PaintPixel(Geometry);
         const int32 N=Points.Num();
-        TArray<int32> Inner,Outer;
+        TArray<int32,TInlineAllocator<64>> Inner,Outer;
         for(int32 Index=0;Index<N;++Index)
         {
             const FVector2D At=Points[Index]-Normals[Index]*(Pixel*.5f);
@@ -355,31 +362,25 @@ void LDUIPaint::DashedEdge(FSlateWindowElementList& Elements,int32 Layer,const F
 
 void LDUIPaint::Panel(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry,const FBox2D& Box,bool bFolds,float Opacity)
 {
-    // .panel: the surface gradient, the hairline, the top highlight, a deep soft shadow and the two corner marks.
-    Halo(Elements,Layer,Geometry,EShape::Rounded,Box,6.f,FLinearColor(0,0,0,.5f*Opacity),46.f,FVector2D(0,22));
-    Shape(Elements,Layer+1,Geometry,EShape::Rounded,Box,6.f,FFill::Linear(180.f,{{0.f,Hex(0x1A2131,.93f)},{1.f,Hex(0x0D111B,.95f)}}),Opacity);
-    Edge(Elements,Layer+1,Geometry,EShape::Rounded,Box,6.f,FLinearColor(1,1,1,.075f*Opacity),1.f);
-    Line(Elements,Layer+1,Geometry,FVector2D(Box.Min.X+6.f,Box.Min.Y+1.5f),FVector2D(Box.Max.X-6.f,Box.Min.Y+1.5f),FLinearColor(1,1,1,.09f*Opacity),1.f);
-    if(!bFolds){return;}
-    const FLinearColor Accent=LDHUDStyle::UIAction.CopyWithNewOpacity(.9f*Opacity);
-    const FVector2D Corner=Box.Min+FVector2D(.5f,.5f);
-    TArray<FVector2D> Fold{FVector2D(Corner.X,Corner.Y+24.f)};
-    for(int32 Step=0;Step<=6;++Step)
+    // On air: a square ink panel under a 2 px white rule along its top; bFolds adds the short orange tab at the rule's left
+    // end that marks the panel's heading. No rounded corners, shadow or glow.
+    Shape(Elements,Layer,Geometry,EShape::Rounded,Box,0.f,FFill::Solid(LDBroadcast::Ink.CopyWithNewOpacity(.94f)),Opacity);
+    const float Rule=LDBroadcast::RuleWidth;
+    Shape(Elements,Layer+1,Geometry,EShape::Rounded,FBox2D(Box.Min,FVector2D(Box.Max.X,Box.Min.Y+Rule)),0.f,FFill::Solid(LDBroadcast::White),Opacity);
+    if(bFolds)
     {
-        const float Angle=PI+PI*.5f*float(Step)/6.f;
-        Fold.Add(FVector2D(Corner.X+5.f,Corner.Y+5.f)+FVector2D(FMath::Cos(Angle),FMath::Sin(Angle))*5.f);
+        Shape(Elements,Layer+2,Geometry,EShape::Rounded,FBox2D(Box.Min,FVector2D(Box.Min.X+48.f,Box.Min.Y+Rule*3.f)),0.f,FFill::Solid(LDBroadcast::Orange),Opacity);
     }
-    Fold.Add(FVector2D(Corner.X+24.f,Corner.Y));
-    LDUIShapes::Stroke(Elements,Layer+2,Geometry,Fold,Accent,3.f);
-    const FVector2D Far=Box.Max-FVector2D(1.f,1.f);
-    TArray<FVector2D> Tick{FVector2D(Far.X,Far.Y-17.f)};
-    for(int32 Step=0;Step<=6;++Step)
+}
+
+namespace
+{
+    // A 12 degree broadcast slab inside Box: its lean is taken from the box's own width so it never paints past it.
+    TArray<FVector2D> InnerSlab(const FBox2D& Box)
     {
-        const float Angle=PI*.5f*float(Step)/6.f;
-        Tick.Add(FVector2D(Far.X-5.f,Far.Y-5.f)+FVector2D(FMath::Cos(Angle),FMath::Sin(Angle))*5.f);
+        const double Half=LDBroadcastPaint::Lean(float(Box.Max.Y-Box.Min.Y))*.5;
+        return {FVector2D(Box.Min.X+Half*2.,Box.Min.Y),FVector2D(Box.Max.X,Box.Min.Y),FVector2D(Box.Max.X-Half*2.,Box.Max.Y),FVector2D(Box.Min.X,Box.Max.Y)};
     }
-    Tick.Add(FVector2D(Far.X-17.f,Far.Y));
-    LDUIShapes::Stroke(Elements,Layer+2,Geometry,Tick,FLinearColor(1,1,1,.14f*Opacity),2.f);
 }
 
 void LDUIPaint::Button(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry,const FBox2D& Box,EButton Look,const FButtonState& State)
@@ -387,121 +388,53 @@ void LDUIPaint::Button(FSlateWindowElementList& Elements,int32 Layer,const FGeom
     const float Opacity=(State.bEnabled?1.f:.42f)*FMath::Clamp(State.Fade,0.f,1.f);
     const bool bHot=State.bEnabled&&State.bHovered;
     const bool bDown=State.bEnabled&&State.bPressed;
-    const FLinearColor Accent=LDHUDStyle::UIAction;
+    const FLinearColor Accent=LDBroadcast::Orange;
+    // A press pushes the slab two units down and right, as if it gave way under the finger.
+    const FBox2D Face=bDown?Box.ShiftBy(FVector2D(2.,2.)):Box;
+    const auto Slab=[&](const FLinearColor& Fill,int32 At)
+    {Polygon(Elements,At,Geometry,InnerSlab(Face),FFill::Solid(Fill),Opacity);};
+    const auto Ruled=[&](const FLinearColor& Fill,const FLinearColor& Rule,float Width)
+    {
+        // A slab with a rule of Width inside its edge: the rule colour first, the fill inset by Width over it.
+        Slab(Rule,Layer);
+        const FBox2D Inner(Face.Min+FVector2D(Width*1.6f,Width),Face.Max-FVector2D(Width*1.6f,Width));
+        if(Inner.GetSize().X>2.f&&Inner.GetSize().Y>2.f){Polygon(Elements,Layer+1,Geometry,InnerSlab(Inner),FFill::Solid(Fill),Opacity);}
+    };
     switch(Look)
     {
     case EButton::Primary:
-    case EButton::Plus:
     {
-        const float Radius=5.f;
-        const float GlowReach=Look==EButton::Plus?14.f:26.f;
-        const float GlowAlpha=(Look==EButton::Plus?.4f:.35f)*(bHot?1.6f:1.f)*(bDown?.6f:1.f);
-        if(Look==EButton::Primary){Halo(Elements,Layer,Geometry,EShape::Rounded,Box,Radius,FLinearColor(0,0,0,.5f*Opacity),18.f,FVector2D(0,8));}
-        Halo(Elements,Layer,Geometry,EShape::Rounded,Box,Radius,Accent.CopyWithNewOpacity(GlowAlpha*Opacity),GlowReach);
-        const float Mid=Look==EButton::Plus?.5f:.45f;
-        const FFill Fill=FFill::Linear(180.f,{{0.f,Hex(bHot?0xFFF6C4:0xFFF0A0)},{Mid,bDown?Hex(0xF2C928):Accent},{1.f,Hex(0xE9B91C)}});
-        Shape(Elements,Layer+1,Geometry,EShape::Rounded,Box,Radius,Fill,Opacity);
-        Line(Elements,Layer+1,Geometry,FVector2D(Box.Min.X+Radius,Box.Min.Y+1.f),FVector2D(Box.Max.X-Radius,Box.Min.Y+1.f),FLinearColor(1,1,1,.7f*Opacity),1.f);
+        // On air: the one orange slab (what you can do now); hover lifts it to white, a press dips it to a deep orange.
+        Slab(bDown?Accent*FLinearColor(.62f,.62f,.62f,1.f):bHot?LDBroadcast::White:Accent,Layer);
         return;
     }
-    case EButton::Event:
+    case EButton::White:
     {
-        Halo(Elements,Layer,Geometry,EShape::Rounded,Box,5.f,LDHUDStyle::UIEvent.CopyWithNewOpacity(.45f*(bHot?1.5f:1.f)*Opacity),30.f);
-        Shape(Elements,Layer+1,Geometry,EShape::Rounded,Box,5.f,FFill::Linear(180.f,{{0.f,Hex(0xFF7AA6)},{.5f,LDHUDStyle::UIEvent},{1.f,Hex(0xC61B57)}}),Opacity);
-        Line(Elements,Layer+1,Geometry,FVector2D(Box.Min.X+5.f,Box.Min.Y+1.f),FVector2D(Box.Max.X-5.f,Box.Min.Y+1.f),FLinearColor(1,1,1,.5f*Opacity),1.f);
+        Slab(bDown?LDBroadcast::Grey:bHot?LDBroadcast::Orange:LDBroadcast::White,Layer);
         return;
     }
     case EButton::Key:
     {
-        Shape(Elements,Layer,Geometry,EShape::Rounded,Box,4.f,FFill::Solid(FLinearColor(0,0,0,.35f)),Opacity);
-        Edge(Elements,Layer,Geometry,EShape::Rounded,Box,4.f,FLinearColor(1,1,1,(bHot?.6f:.3f)*Opacity),1.f);
+        Shape(Elements,Layer,Geometry,EShape::Rounded,Box,0.f,FFill::Solid(LDBroadcast::Ink.CopyWithNewOpacity(.8f)),Opacity);
+        Edge(Elements,Layer,Geometry,EShape::Rounded,Box,0.f,FLinearColor(1,1,1,(bHot?1.f:.45f)*Opacity),bHot?2.f:1.f);
         return;
     }
-    case EButton::Tag:
     case EButton::TagOn:
     {
-        if(Look==EButton::TagOn){Shape(Elements,Layer,Geometry,EShape::Rounded,Box,3.f,FFill::Solid(Accent),Opacity);return;}
-        Shape(Elements,Layer,Geometry,EShape::Rounded,Box,3.f,FFill::Solid(FLinearColor(1,1,1,bHot?.11f:.055f)),Opacity);
-        Edge(Elements,Layer,Geometry,EShape::Rounded,Box,3.f,bHot?Accent.CopyWithNewOpacity(.7f*Opacity):FLinearColor(1,1,1,.075f*Opacity),1.f);
-        return;
-    }
-    case EButton::CardActive:
-    {
-        // #328 §2: Active skill / blueprint — chamfered hexagonal/octagonal frame in amber gold #F59E0B over #451A03.
-        const FLinearColor Gold=State.Tint.A>0.f?State.Tint:Hex(0xF59E0B);
-        Halo(Elements,Layer,Geometry,EShape::Octagon,Box,0.f,FLinearColor(0,0,0,.58f*Opacity),28.f,FVector2D(0,12));
-        Halo(Elements,Layer,Geometry,EShape::Octagon,Box,0.f,Gold.CopyWithNewOpacity((bHot?.38f:.20f)*Opacity),bHot?24.f:14.f);
-        Shape(Elements,Layer+1,Geometry,EShape::Octagon,Box,0.f,
-            FFill::Linear(180.f,{{0.f,Hex(bHot?0x5C2506:0x451A03)},{.55f,Hex(0x261004)},{1.f,Hex(0x120804)}}),Opacity);
-        Edge(Elements,Layer+1,Geometry,EShape::Octagon,Box,0.f,Gold.CopyWithNewOpacity((bHot?1.f:.86f)*Opacity),bHot?2.4f:1.8f);
-        const float Cham=LDUIShapes::Chamfer(Box);
-        Line(Elements,Layer+2,Geometry,FVector2D(Box.Min.X+Cham,Box.Min.Y+2.f),FVector2D(Box.Max.X-Cham,Box.Min.Y+2.f),Gold.CopyWithNewOpacity(.85f*Opacity),2.f);
-        return;
-    }
-    case EButton::CardBuild:
-    {
-        // #328 §2: Build card — vertical rounded poker frame in royal blue #3B82F6 (or rare #A855F7 / legendary #FACC15) over #172554.
-        const FLinearColor Rim=State.Tint.A>0.f?State.Tint:Hex(0x3B82F6);
-        Halo(Elements,Layer,Geometry,EShape::Rounded,Box,8.f,FLinearColor(0,0,0,.55f*Opacity),26.f,FVector2D(0,12));
-        if(bHot||State.Tint.A>0.f)
-        {
-            Halo(Elements,Layer,Geometry,EShape::Rounded,Box,8.f,Rim.CopyWithNewOpacity((bHot?.34f:.16f)*Opacity),bHot?22.f:14.f);
-        }
-        Shape(Elements,Layer+1,Geometry,EShape::Rounded,Box,8.f,
-            FFill::Linear(180.f,{{0.f,Hex(bHot?0x1E3A8A:0x172554)},{.6f,Hex(0x0F172A)},{1.f,Hex(0x090D16)}}),Opacity);
-        Edge(Elements,Layer+1,Geometry,EShape::Rounded,Box,8.f,Rim.CopyWithNewOpacity((bHot?1.f:.82f)*Opacity),bHot?2.2f:1.6f);
-        Line(Elements,Layer+2,Geometry,FVector2D(Box.Min.X+8.f,Box.Min.Y+2.f),FVector2D(Box.Max.X-8.f,Box.Min.Y+2.f),Rim.CopyWithNewOpacity(.75f*Opacity),2.f);
-        return;
-    }
-    case EButton::CardStone:
-    {
-        // #328 §2: Element stone (medal_*) — true circular emerald crystal disc (#10B981 + inner element ring), never a poker rectangle!
-        const FVector2D Center=Box.GetCenter();
-        const float Diameter=float(FMath::Min(Box.GetSize().X,Box.GetSize().Y))-2.f;
-        const float R=FMath::Max(8.f,Diameter*.5f);
-        const FBox2D DiscBox(Center-FVector2D(R,R),Center+FVector2D(R,R));
-        const FLinearColor Emerald=Hex(0x10B981);
-        const FLinearColor InnerElem=State.Tint.A>0.f?State.Tint:Hex(0x34D399);
-        Halo(Elements,Layer,Geometry,EShape::Circle,DiscBox,R,FLinearColor(0,0,0,.58f*Opacity),20.f,FVector2D(0,8));
-        Halo(Elements,Layer,Geometry,EShape::Circle,DiscBox,R,Emerald.CopyWithNewOpacity((bHot?.45f:.24f)*Opacity),bHot?22.f:14.f);
-        Shape(Elements,Layer+1,Geometry,EShape::Circle,DiscBox,R,
-            FFill::Linear(155.f,{{0.f,Hex(bHot?0x065F46:0x064E3B)},{.65f,Hex(0x022C22)},{1.f,Hex(0x041F1A)}}),Opacity);
-        Edge(Elements,Layer+1,Geometry,EShape::Circle,DiscBox,R,Emerald.CopyWithNewOpacity((bHot?1.f:.92f)*Opacity),bHot?2.8f:2.2f);
-        const FBox2D InnerDisc=Grow(DiscBox,-4.5f);
-        if(InnerDisc.GetSize().X>8.f)
-        {
-            Edge(Elements,Layer+2,Geometry,EShape::Circle,InnerDisc,float(InnerDisc.GetSize().X)*.5f,InnerElem.CopyWithNewOpacity(.82f*Opacity),1.5f);
-        }
-        return;
-    }
-    case EButton::Card:
-    {
-        // .ocard: the deep vertical surface with its hairline, top highlight and long shadow; hovering lifts its edge, a
-        // chosen card wears its colour on the edge with a glow.
-        const bool bChosen=State.Tint.A>0.f;
-        const FLinearColor Mark=bChosen?State.Tint:Accent;
-        Halo(Elements,Layer,Geometry,EShape::Rounded,Box,8.f,FLinearColor(0,0,0,.55f*Opacity),30.f,FVector2D(0,14));
-        if(bChosen||bHot){Halo(Elements,Layer,Geometry,EShape::Rounded,Box,8.f,Mark.CopyWithNewOpacity((bChosen?.34f:.18f)*Opacity),bChosen?28.f:18.f);}
-        Shape(Elements,Layer+1,Geometry,EShape::Rounded,Box,8.f,FFill::Linear(180.f,{{0.f,Hex(bHot?0x222B41:0x1B2336)},{1.f,Hex(0x0D111B)}}),Opacity);
-        Edge(Elements,Layer+1,Geometry,EShape::Rounded,Box,8.f,bChosen?Mark.CopyWithNewOpacity(Opacity):bHot?Accent.CopyWithNewOpacity(.6f*Opacity):FLinearColor(1,1,1,.14f*Opacity),bChosen?2.f:1.f);
-        Line(Elements,Layer+1,Geometry,FVector2D(Box.Min.X+8.f,Box.Min.Y+1.5f),FVector2D(Box.Max.X-8.f,Box.Min.Y+1.5f),FLinearColor(1,1,1,.1f*Opacity),1.f);
+        Shape(Elements,Layer,Geometry,EShape::Rounded,Box,0.f,FFill::Solid(Accent),Opacity);
         return;
     }
     case EButton::Ghost:
     {
-        if(bHot){Shape(Elements,Layer,Geometry,EShape::Rounded,Box,5.f,FFill::Solid(FLinearColor(1,1,1,.06f)),Opacity);}
+        if(bHot){Shape(Elements,Layer,Geometry,EShape::Rounded,Box,0.f,FFill::Solid(FLinearColor(1,1,1,.08f)),Opacity);}
         return;
     }
     default:
     {
-        // .btn: the dark raised face with its hairline and top highlight; hovering lifts the face and rims it yellow.
-        Halo(Elements,Layer,Geometry,EShape::Rounded,Box,5.f,FLinearColor(0,0,0,.45f*Opacity),18.f,FVector2D(0,8));
-        if(bHot){Halo(Elements,Layer,Geometry,EShape::Rounded,Box,5.f,Accent.CopyWithNewOpacity(.16f*Opacity),16.f);}
-        const FFill Fill=bDown?FFill::Linear(180.f,{{0.f,Hex(0x161C2A)},{1.f,Hex(0x1E2638)}})
-            :FFill::Linear(180.f,{{0.f,Hex(bHot?0x2C3750:0x232C40)},{1.f,Hex(bHot?0x1B2232:0x161C2A)}});
-        Shape(Elements,Layer+1,Geometry,EShape::Rounded,Box,5.f,Fill,Opacity);
-        Edge(Elements,Layer+1,Geometry,EShape::Rounded,Box,5.f,bHot?Accent.CopyWithNewOpacity(.75f*Opacity):FLinearColor(1,1,1,.14f*Opacity),1.f);
-        if(!bDown){Line(Elements,Layer+1,Geometry,FVector2D(Box.Min.X+5.f,Box.Min.Y+1.5f),FVector2D(Box.Max.X-5.f,Box.Min.Y+1.5f),FLinearColor(1,1,1,.1f*Opacity),1.f);}
+        // The plain command: a panel slab; hovering draws the 2 px white rule, a press darkens it to ink inside an orange rule.
+        if(bHot&&!bDown){Ruled(LDBroadcast::Raised,LDBroadcast::White,LDBroadcast::RuleWidth);return;}
+        if(bDown){Ruled(LDBroadcast::Ink,Accent,LDBroadcast::RuleWidth);return;}
+        Slab(LDBroadcast::Panel,Layer);
         return;
     }
     }
@@ -514,14 +447,12 @@ void LDUIPaint::Pill(FSlateWindowElementList& Elements,int32 Layer,const FGeomet
     Edge(Elements,Layer,Geometry,EShape::Rounded,Box,Radius,Border,1.f);
 }
 
-float LDUIPaint::TileRadius(uint8 Kind,float Size){return Kind==4?Size*.5f:Kind==0?Size*.14f:0.f;}
-
 void LDUIPaint::Tile(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry,const FBox2D& Box,uint8 Kind,ETileState State,UTexture2D* Icon,float Opacity,double Time)
 {
     const float Size=float(FMath::Min(Box.GetSize().X,Box.GetSize().Y));
     if(Size<4.f||Opacity<=0.f){return;}
     const EShape Form=LDUIShapes::KindShape(Kind);
-    const float Radius=TileRadius(Kind,Size);
+    const float Radius=Kind==4?Size*.5f:Kind==0?Size*.14f:0.f;
     const FLinearColor KindColor=LDUIShapes::KindColor(Kind);
     if(State==ETileState::Hole)
     {
@@ -583,14 +514,6 @@ void LDUIPaint::SkillArt(FSlateWindowElementList& Elements,int32 Layer,const FGe
     const FBox2D Face=Grow(Box,-3.f);
     Shape(Elements,Layer+2,Geometry,EShape::Rounded,Face,7.f,FFill::Solid(Hex(0x0A1220)),Opacity);
     Picture(Elements,Layer+3,Geometry,EShape::Rounded,Face,7.f,Icon,FLinearColor(1,1,1,Opacity));
-}
-
-void LDUIPaint::NewDot(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry,FVector2D Center,float Opacity)
-{
-    const FBox2D Dot(Center-FVector2D(8,8),Center+FVector2D(8,8));
-    Halo(Elements,Layer,Geometry,EShape::Circle,Dot,8.f,LDHUDStyle::UIAction.CopyWithNewOpacity(.9f*Opacity),10.f);
-    Shape(Elements,Layer+1,Geometry,EShape::Circle,Dot,8.f,FFill::Solid(Hex(0x10141D)),Opacity);
-    Shape(Elements,Layer+2,Geometry,EShape::Circle,Grow(Dot,-2.f),6.f,FFill::Solid(LDHUDStyle::UIAction),Opacity);
 }
 
 void LDUIPaint::ElementDisc(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry,const FBox2D& Box,const FLinearColor& Color,float Opacity)

@@ -247,6 +247,9 @@ struct FLDOpponentUnit
     uint8 HeldElement = 0;
     // Spec §11.3: the visible second-hand dealer (its public look).
     bool bPeddler = false;
+    // #198 D: the PK shows an entrant more than its own orders may target: a living teammate's sight or an exposure. Such a
+    // unit is seen but not yet targetable (an attack on it is refused as unavailable); false only for those.
+    bool bTargetable = true;
 };
 
 
@@ -369,7 +372,9 @@ enum class ELDOpponentBuildKind : uint8
     RankUpSkill,
     // Spec §13: a card of the current card offer (installed on its default place when one is free), and an owned card into a
     // free slot. DEV build evaluation also skips offers and takes cards off.
-    PickCard, InstallCard, SkipCards, UninstallCard
+    PickCard, InstallCard, SkipCards, UninstallCard,
+    // A pending blueprint sold (Blueprint) when every slot is learned and no learned active ranks below it.
+    SellBlueprint
 };
 
 struct FLDOpponentBuildIntent
@@ -575,7 +580,8 @@ namespace LDOpponentPolicy
     LOCKDOWN_API bool WantsRespec(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& Error,
         FName Goal = NAME_None);
     // Spec §13 rest shop: with at least the skill point's price in vouchers and points left to buy this match, the skill point
-    // (OutSlot FLDBuildCommand::ShopSkillPointSlot); otherwise the affordable, unsold shelf card scoring highest like a card
+    // (OutSlot FLDBuildCommand::ShopSkillPointSlot); then the random medal the same way (ShopMedalSlot); otherwise the
+    // affordable, unsold shelf card scoring highest like a card
     // pick (SelectCard's score). The AI never buys skills and never sells. False when nothing qualifies.
     LOCKDOWN_API bool SelectShopBuy(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FName Goal, uint8& OutSlot);
     // Spec §13: an offer none of whose cards shares a vocabulary key with the build is skipped for vouchers with
