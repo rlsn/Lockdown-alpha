@@ -70,7 +70,7 @@
 
 ## 表现层覆盖清单
 
-全流程界面的覆盖与状态（启动 → 主菜单 → 开房/加入 → Lobby → 对局 → 结算 → 复盘）。状态：NOT STARTED / IN PROGRESS / IMPLEMENTED / LOCALLY VERIFIED / USER APPROVED / BLOCKED。截图入口：`Scripts/CaptureUICoverage.ps1`（探针 `LDUICoverageProbe`），在 1920×1080 与 1280×720、100% 与 125% 字号下拍摄。
+全流程界面的覆盖与状态（启动 → 主菜单 → 开房/加入 → Lobby → 对局 → 结算 → 复盘）。状态：NOT STARTED / IN PROGRESS / IMPLEMENTED / LOCALLY VERIFIED / USER APPROVED / BLOCKED。截图入口：`Scripts/CaptureUICoverage.ps1`（探针 `LDUICoverageProbe`），默认 1920×1080、100% 字号，`-AllSizes` 加拍 1280×720 与 125% 字号；`-Pages <前缀>` 只拍指定页。
 
 | 项 | 状态 | 实现 | 已知问题 |
 | --- | --- | --- | --- |

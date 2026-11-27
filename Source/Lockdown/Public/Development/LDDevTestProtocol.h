@@ -67,6 +67,10 @@ enum class ELDDevTestOp : uint8
     GrantSkillPoint = 24,
     SetInvulnerable = 25,
     SetCountdownPaused = 26,
+    // Match-wide, Listen Host connection only: Amount > 0 = seconds of the running stage's countdown to skip. The phase
+    // clock jumps ahead by that much but always keeps the stage's last second, so the stage still ends through its
+    // ordinary boundary; combat, cooldowns and physics keep the authority clock. Refused while the countdown is paused.
+    AdvanceCountdown = 27,
 };
 
 USTRUCT()

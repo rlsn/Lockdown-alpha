@@ -318,6 +318,18 @@ bool FLDMatchTimeline::DevSetCountdownPaused(bool bPaused, int64 AtMs, FString& 
     Error.Reset(); return true;
 }
 
+bool FLDMatchTimeline::DevAdvanceCountdown(int64 SkipMs, FString& Error)
+{
+    if (!IsActive() || bCountdownPaused || SkipMs < 0)
+    { Error = TEXT("倒计时只能在有效且未暂停的对局中前进"); return false; }
+    for (const int64 Time : {StepStartedAtMs, StepEndsAtMs, FieldStartedAtMs})
+    { if (Time != MAX_int64 && Time < MIN_int64 + SkipMs) { Error = TEXT("倒计时前进超出时间范围"); return false; } }
+    StepStartedAtMs -= SkipMs;
+    if (StepEndsAtMs != MAX_int64) { StepEndsAtMs -= SkipMs; }
+    FieldStartedAtMs -= SkipMs;
+    Error.Reset(); return true;
+}
+
 bool FLDMatchTimeline::DevFinishPreparation(int64 AtMs, TArray<FLDTimelineEvent>& Out, FString& Error)
 {
     if (bCountdownPaused || !IsRest() || RestIndex != 0 || Step != ELDRestStep::Build || AtMs < StepStartedAtMs)

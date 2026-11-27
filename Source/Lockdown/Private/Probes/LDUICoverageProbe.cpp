@@ -53,8 +53,17 @@ public:
     double PageAt=0.,Due=0.;
     int32 Page=0,Combo=0,Step=0;
     int32 Width=0,Height=0;
-    bool bCapturing=false,bFrontend=false,bClient=false,bEntrant=false,bOneSize=false;
+    bool bCapturing=false,bFrontend=false,bClient=false,bEntrant=false,bAllSizes=false;
     TArray<FString> Missed;
+    // -LDUICoveragePages=A,B: only pages whose name starts with one of these are shot. The pages before them still run
+    // (they are how the match gets there) without their shots, and the run ends after the last wanted page.
+    TArray<FString> Wanted;
+    bool IsWanted(const FString& Name) const
+    {
+        if(Wanted.IsEmpty()){return true;}
+        for(const FString& Prefix:Wanted){if(Name.StartsWith(Prefix)){return true;}}
+        return false;
+    }
 
     // One page: Enter runs every tick until it reports the page is up (or the page times out and is listed as missed).
     struct FPage
@@ -148,6 +157,12 @@ public:
     {
         if(Now-PageAt<At||Fired.Contains(Id)){return false;}
         Fired.Add(Id);return true;
+    }
+    // A page that waits with the stage clock running is waiting for the match's own schedule (a locker, the arena, the
+    // dealer): the clock runs ten times faster meanwhile, which spends the same stage time the wait would have.
+    void Hurry(ALDPlayerController& PC,double Now)
+    {
+        if(Once(Now,1000+int32((Now-PageAt)/.5),1.)){Dev(PC,ELDDevTestOp::AdvanceCountdown,5);}
     }
     // Waits Seconds after the page's first Enter call (a settle time for transitions and fades).
     bool Settled(double Now,double Seconds) const {return Now-PageAt>=Seconds;}
@@ -396,7 +411,8 @@ public:
                 const FLDPublicMatchView* View=Match(PC);
                 if(Once(Now,0)){Dev(PC,ELDDevTestOp::SetCountdownPaused,0);HeldAt=-1.;}
                 FVector Site=FVector::ZeroVector;
-                if(!View||(View->Phase!=ELDMatchPhase::Development&&View->Phase!=ELDMatchPhase::CaptureOpen)||!Find(*View,Site)){return false;}
+                if(!View||(View->Phase!=ELDMatchPhase::Development&&View->Phase!=ELDMatchPhase::CaptureOpen)){return false;}
+                if(!Find(*View,Site)){if(HeldAt<0.){Hurry(PC,Now);}return false;}
                 // Inside: the host stands in the site itself with the stage clock running, so the site's own progress (a
                 // flag's spray, a locker's opening) is on screen; the shot is then one size, taken while it runs.
                 if(HeldAt<0.){HeldAt=Now;if(bInside){Resize(PC,1920,1080);}else{Dev(PC,ELDDevTestOp::SetCountdownPaused,1);}}
@@ -580,8 +596,21 @@ public:
             {
                 const FLDPublicMatchView* View=Match(PC);
                 if(Once(Now,0)){Dev(PC,ELDDevTestOp::SetCountdownPaused,0);HeldAt=-1.;}
-                if(!View||View->Phase!=ELDMatchPhase::Rest||View->Timeline.Step!=Step){return false;}
-                if(bSignup&&View->ServerNowMs<View->Timeline.SignupOpensAtMs){return false;}
+                // Waiting for this step is waiting for the stage clock: jump it. The stage before keeps its last second
+                // and ends through its ordinary boundary, so the step shot is the one a full-length stage reaches.
+                const int32 Try=int32((Now-PageAt)/2.);
+                if(!View){return false;}
+                if(View->Phase!=ELDMatchPhase::Rest||View->Timeline.Step!=Step)
+                {
+                    if(Once(Now,100+Try,1.)){Dev(PC,ELDDevTestOp::AdvanceCountdown,3600);}
+                    return false;
+                }
+                if(bSignup&&View->ServerNowMs<View->Timeline.SignupOpensAtMs)
+                {
+                    const int64 Ahead=(View->Timeline.SignupOpensAtMs-View->ServerNowMs)/1000;
+                    if(Ahead>0&&Once(Now,100+Try,1.)){Dev(PC,ELDDevTestOp::AdvanceCountdown,Ahead);}
+                    return false;
+                }
                 if(HeldAt<0.){HeldAt=Now;}
                 if(Now-HeldAt>=Hold&&Once(Now,1)){Dev(PC,ELDDevTestOp::SetCountdownPaused,1);}
                 return Now-HeldAt>=Hold+.8;
@@ -896,7 +925,9 @@ public:
                 if(bDealerInserted){return true;}
                 if(Once(Now,0)){Dev(PC,ELDDevTestOp::SetCountdownPaused,0);}
                 const auto* Mode=PC.GetWorld()->GetAuthGameMode<ALDGameMode>();
-                return Mode&&(Mode->GetPeddler().bGone||DealerOut(PC));
+                const bool bThere=Mode&&(Mode->GetPeddler().bGone||DealerOut(PC));
+                if(!bThere){Hurry(PC,Now);}
+                return bThere;
             },240.,false});
         // Back in the field the stage clock is held again, so the next rest does not arrive under the pages below.
         Pages.Add({TEXT("Match_Scoreboard"),[this](ALDPlayerController& PC,double Now)
@@ -1001,7 +1032,12 @@ public:
         Pages.Add({TEXT("Match_Results"),[this](ALDPlayerController& PC,double Now)
             {
 
-                if(!InPhase(PC,ELDMatchPhase::Results)){ResultsSeen=-1.;return false;}
+                // The result is locked by the final field's ordinary end; only its clock is brought forward.
+                if(!InPhase(PC,ELDMatchPhase::Results))
+                {
+                    if(Once(Now,100+int32((Now-PageAt)/3.),2.)){Dev(PC,ELDDevTestOp::SetCountdownPaused,0);Dev(PC,ELDDevTestOp::AdvanceCountdown,3600);}
+                    ResultsSeen=-1.;return false;
+                }
                 if(ResultsSeen<0.){ResultsSeen=Now;}
                 return Now-ResultsSeen>=3.;
             },900.});
@@ -1120,6 +1156,17 @@ public:
             Check(Missed.IsEmpty(),TEXT("Every planned page was reached"),FString::Join(Missed,TEXT(", ")));
             return Finish();
         }
+        if(Step==0&&!bClient&&!Wanted.IsEmpty())
+        {
+            bool bLeft=false;
+            for(int32 Index=Page;Index<Pages.Num()&&!bLeft;++Index){bLeft=IsWanted(Pages[Index].Name);}
+            for(int32 Index=0;!bDealerInserted&&Index<DealerPages.Num()&&!bLeft;++Index){bLeft=IsWanted(DealerPages[Index].Name);}
+            if(!bLeft)
+            {
+                Check(Missed.IsEmpty(),TEXT("Every planned page was reached"),FString::Join(Missed,TEXT(", ")));
+                return Finish();
+            }
+        }
         if(Step==0&&!bDealerInserted&&!DealerPages.IsEmpty()&&Page>=DealerEarliest&&DealerOut(*PC))
         {
             const FLDPublicMatchView* View=Match(*PC);
@@ -1131,12 +1178,23 @@ public:
         if(Step==0){PageAt=Now;Step=1;Fired.Reset();}
         if(Step==1)
         {
-            if(Now-PageAt>Current.Timeout){Missed.Add(Current.Name);Step=0;Combo=0;++Page;return true;}
+            if(Now-PageAt>Current.Timeout)
+            {
+                Missed.Add(Current.Name);Step=0;Combo=0;++Page;
+                // A run that has lost its way only waits out one timeout after another: stop and say where.
+                if(Missed.Num()>=3)
+                {
+                    Check(false,TEXT("The run stopped after three missed pages"),FString::Join(Missed,TEXT(", ")));
+                    return Finish();
+                }
+                return true;
+            }
             if(!Current.Enter(*PC,Now)){return true;}
+            if(!IsWanted(Current.Name)){Step=0;Combo=0;++Page;return true;}
             Step=2;Combo=0;
         }
-        // -LDUICoverageOneSize (a recorded run): every page at 1920x1080 and 100 % only, so the window never changes size.
-        const int32 Count=Current.bAllSizes&&Current.Only<0&&!bOneSize?4:1;
+        // Every page at 1920x1080 and 100 % text; -LDUICoverageAllSizes adds 1280x720 and 125 % text.
+        const int32 Count=Current.bAllSizes&&Current.Only<0&&bAllSizes?4:1;
         if(Combo>=Count){Step=0;Combo=0;++Page;return true;}
         const FCombo& Next=Combos[Current.Only>=0?Current.Only:Combo];
         if(Step==2)
@@ -1172,7 +1230,9 @@ void StartUICoverageProbe(ALDPlayerController& PC)
     FSlateApplication::Get().SetAllowTooltips(false);
     Probe->bClient=bClient;
     Probe->bEntrant=FParse::Param(FCommandLine::Get(),TEXT("LDUICoverageEntrant"));
-    Probe->bOneSize=FParse::Param(FCommandLine::Get(),TEXT("LDUICoverageOneSize"));
+    Probe->bAllSizes=FParse::Param(FCommandLine::Get(),TEXT("LDUICoverageAllSizes"));
+    FString Names;
+    if(FParse::Value(FCommandLine::Get(),TEXT("LDUICoveragePages="),Names,false)){Names.ParseIntoArray(Probe->Wanted,TEXT(","));}
     if(Probe->bFrontend){Probe->PlanFrontend();}else if(bClient){Probe->PlanClient();}else{Probe->PlanMatch();}
     FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Probe](float Delta){return Probe->Tick(Delta);}));
 }

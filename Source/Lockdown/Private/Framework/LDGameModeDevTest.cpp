@@ -63,6 +63,36 @@ bool ALDGameMode::DevSetCountdownPaused(bool bPaused, const FLDGameplayWritePerm
     return true;
 }
 
+bool ALDGameMode::DevAdvanceCountdown(int64 SkipMs, const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    if (ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None)
+    { Error = TEXT("前进倒计时需要有效对局"); return false; }
+    if (Timeline.IsCountdownPaused()) { Error = TEXT("倒计时已暂停，先恢复再前进"); return false; }
+    const int64 Now = Permit.GetBoundary().AtMs;
+    // The stage keeps its last second: its end, and everything that end commits, happens at an ordinary boundary.
+    const int64 EndsAtMs = Showdown.bStarted ? Showdown.EndsAtMs : Timeline.NextDueMs();
+    if (EndsAtMs == MAX_int64) { Error = TEXT("当前阶段没有倒计时"); return false; }
+    const int64 Skip = FMath::Min(SkipMs, EndsAtMs - Now - 1000);
+    if (Skip > 0)
+    {
+        if (!Timeline.DevAdvanceCountdown(Skip, Error)) { return false; }
+        // The final field's deadlines are phase clocks too (the mirror of a resume).
+        if (Showdown.bStarted)
+        {
+            Showdown.StartedAtMs -= Skip;
+            Showdown.EndsAtMs -= Skip;
+            Showdown.ClosureAtMs -= Skip;
+            Showdown.RespawnsCloseAtMs -= Skip;
+            ShowdownRingSettledThroughMs -= Skip;
+            ShowdownRingTickAtMs -= Skip;
+        }
+        PublishTimeline();
+        bPublicMatchDirty = true;
+    }
+    Error = FString::Printf(TEXT("阶段倒计时前进 %lld 秒"), FMath::Max<int64>(Skip, 0) / 1000);
+    return true;
+}
+
 bool ALDGameMode::DevSkipPreparation(const FLDGameplayWritePermit& Permit, FString& Error)
 {
     if (ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None)
