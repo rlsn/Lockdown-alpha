@@ -138,12 +138,20 @@ FString StatLine(TConstArrayView<FDerived> Derived,int32 Stat)
 }
 // A stat chip's size at the radar's corner: its name, its points and (with points to spend) the orange plus, then the line of
 // the attributes it raises.
+// The attribute line wrapped to at most two lines of ChipLineWidth.
+constexpr float ChipLineWidth=170.f;
+TArray<FString> ChipLines(const FString& Line,float F)
+{
+    if(Line.IsEmpty()){return TArray<FString>();}
+    return LDRingPaint::Wrap(Line.Replace(TEXT(" · "),TEXT("  ")),Face(EFace::Regular,14.f,F),ChipLineWidth*F,2);
+}
 FVector2D ChipSize(const FStat& Stat,const FString& Line,bool bPlus,float F)
 {
     const float Head=10.f*F+WidthOf(Stat.Name,Face(EFace::Bold,18.f,F))+6.f*F+FMath::Max(16.f*F,WidthOf(FString::FromInt(Stat.Points),Face(EFace::Figure,26.f,F)))
         +(bPlus?6.f*F+22.f*F:0.f);
-    const float Sub=Line.IsEmpty()?0.f:10.f*F+WidthOf(Line,Face(EFace::Regular,14.f,F));
-    return FVector2D(FMath::Max(Head,Sub)+8.f*F,Line.IsEmpty()?32.f*F:52.f*F);
+    const TArray<FString> Lines=ChipLines(Line,F);
+    float Sub=0.f;for(const FString& Each:Lines){Sub=FMath::Max(Sub,10.f*F+WidthOf(Each,Face(EFace::Regular,14.f,F)));}
+    return FVector2D(FMath::Max(Head,Sub)+8.f*F,32.f*F+Lines.Num()*17.f*F+(Lines.IsEmpty()?0.f:4.f*F));
 }
 // The short form name an offer row shows after the card type.
 FString FormShort(ELDCardForm Form)
@@ -391,7 +399,14 @@ void ULDWorkshop::ComputeLayout(const FGeometry& Geometry)
         TArray<FBox2D> Taken;
         // The own character standing on the radar's centre.
         Taken.Add(FBox2D(Feet+FVector2D(-46.f,-150.f)*R,Feet+FVector2D(46.f,14.f)*R));
-        for(const FShape& Box:L.Boxes){if(!Box.bWedge){Taken.Add(BoundsOf(Box.Shape));}}
+        // Every part laid out so far; a host with the key tab under it.
+        for(const FShape& Box:L.Boxes)
+        {
+            if(Box.bWedge){continue;}
+            FBox2D Part=BoundsOf(Box.Shape);
+            if(Box.Hit.Kind==EHit::Host){Part.Max.Y+=30.f*R;}
+            Taken.Add(Part);
+        }
         const float Gap=8.f*F,Step=4.f*U;
         for(int32 Index=0;Index<Ring.Stats.Num();++Index)
         {
@@ -408,11 +423,23 @@ void ULDWorkshop::ComputeLayout(const FGeometry& Geometry)
                 for(const FBox2D& Other:Taken){if(Touches(Box,Other)){return false;}}
                 return true;
             };
-            for(int32 Try=1;Try<=60&&!Clear(At);++Try)
+            // The nearest clear place around the preferred one, rings of Step outward; each ring tries down first, then
+            // outward from the radar, then the rest, so a chip that must move goes where the ring has no parts.
+            if(!Clear(At))
             {
-                const FVector2D Along=At+Out*Step;
-                const FVector2D Down=Dir.Y<0.?At+FVector2D(0.,Step):Along;
-                At=Clear(Down)?Down:Along;
+                const FVector2D Start=At;bool bFound=false;
+                for(int32 Ring0=1;Ring0<=80&&!bFound;++Ring0)
+                {
+                    for(const float Turn:{0.f,(Out.X>=0.?-45.f:45.f),(Out.X>=0.?-90.f:90.f),(Out.X>=0.?45.f:-45.f),(Out.X>=0.?-135.f:135.f),(Out.X>=0.?90.f:-90.f),180.f,(Out.X>=0.?135.f:-135.f)})
+                    {
+                        // 0 degrees is straight down the screen.
+                        const float T=FMath::DegreesToRadians(Turn);
+                        const FVector2D Try=Start+FVector2D(-FMath::Sin(T),FMath::Cos(T))*(Ring0*Step);
+                        // On screen, and no higher than the character's head: the sectors above are full of parts.
+                        if(Try.X-Size.X*.5<4.f*U||Try.X+Size.X*.5>L.Size.X-4.f*U||Try.Y-Size.Y*.5<4.f*U||Try.Y<Feet.Y-110.f*R){continue;}
+                        if(Clear(Try)){At=Try;bFound=true;break;}
+                    }
+                }
             }
             Taken.Add(FBox2D(At-Size*.5,At+Size*.5));
             L.Anchors.Add(AnchorKey(EHit::Stat,INDEX_NONE,Index),At);
@@ -1606,7 +1633,9 @@ void ULDWorkshop::PaintRadarChips(FPainter& P) const
         P.Fill(RectOf(Chip),Stat.bKeystone?LDBroadcast::Gold:LDBroadcast::Ink.CopyWithNewOpacity(.86f));
         if(bHot){Frame(P,Grow(Chip,2.f*F),2.f*F,LDBroadcast::White);}
         float X=float(Chip.Min.X)+10.f*F;const float Y=Line.IsEmpty()?float(Chip.GetCenter().Y):float(Chip.Min.Y)+17.f*F;
-        if(!Line.IsEmpty()){P.Text(Line,FVector2D(Chip.Min.X+10.f*F,Chip.Min.Y+39.f*F),Face(EFace::Regular,14.f,F),Stat.bKeystone?LDBroadcast::Ink:LDBroadcast::Grey,FVector2D(0.,.5));}
+        const TArray<FString> Lines=ChipLines(Line,F);
+        for(int32 Row=0;Row<Lines.Num();++Row)
+        {P.Text(Lines[Row],FVector2D(Chip.Min.X+10.f*F,Chip.Min.Y+(39.f+Row*17.f)*F),Face(EFace::Regular,14.f,F),Stat.bKeystone?LDBroadcast::Ink:LDBroadcast::Grey,FVector2D(0.,.5));}
         X+=WidthOf(Stat.Name,Face(EFace::Bold,18.f,F));
         P.Text(Stat.Name,FVector2D(Chip.Min.X+10.f*F,Y),Face(EFace::Bold,18.f,F),Stat.bKeystone?LDBroadcast::Ink:LDBroadcast::Grey,FVector2D(0.,.5));
         X+=6.f*F;
