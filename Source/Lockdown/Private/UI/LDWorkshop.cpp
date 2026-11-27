@@ -10,6 +10,7 @@
 #include "Development/LDDemoContentDefinitions.h"
 #include "Engine/Texture2D.h"
 #include "Engine/World.h"
+#include "Combat/LDAttributeProjection.h"
 #include "Combat/LDCombatTypes.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/LDPlayerController.h"
@@ -384,6 +385,39 @@ void ULDWorkshop::ComputeLayout(const FGeometry& Geometry)
         L.Anchors.Add(AnchorKey(EHit::Host,HostIndex,INDEX_NONE),HostAt);
         if(Host.bSocket){Add(EHit::Gem,HostIndex,INDEX_NONE,Diamond(LDRingPaint::Polar(C,GemRadius*R,A),GemSize*.5f*R));}
     }
+    // The build bar docks on the HUD band: points, capacity, library, then the commands.
+    {
+        const float BandTop=Band.bIsValid?float(Band.Min.Y):L.Size.Y-125.f*U;
+        const float X0=Band.bIsValid?float(Band.Min.X)+19.f*U:486.f*U;
+        const float H=46.f*F;
+        const float Bottom=FMath::Min(926.f*U,BandTop-10.f*U);
+        const FSlateFontInfo Label=Face(EFace::Bold,18.f,F),Figure=Face(EFace::Figure,32.f,F),Small=Face(EFace::Figure,22.f,F),Word=Face(EFace::Bold,20.f,F);
+        const float Pad=18.f*F,Gap=6.f*U;
+        float X=X0;
+        const auto Segment=[&](float Width){const FBox2D Box(FVector2D(X,Bottom-H),FVector2D(X+Width,Bottom));L.Segments.Add(Box);X+=Width+Gap;return Box;};
+        Segment(Pad+WidthOf(TEXT("属性点"),Label)+10.f*F+WidthOf(TEXT("◆"),Small)+WidthOf(FString::Printf(TEXT("%lld"),Ring.Unspent),Figure)+Pad);
+        Segment(Pad+WidthOf(TEXT("构筑"),Label)+10.f*F+WidthOf(FString::FromInt(Ring.Installed),Figure)+WidthOf(FString::Printf(TEXT("/%d"),Ring.Capacity),Small)
+            +10.f*F+Ring.Capacity*12.f*F+Pad);
+        const FBox2D Library=Segment(Pad+WidthOf(TEXT("牌库"),Label)+10.f*F+WidthOf(FString::FromInt(Ring.Hand.Num()),Figure)+Pad);
+        Add(EHit::HandPile,INDEX_NONE,INDEX_NONE,RectOf(Library));
+        const bool bRespec=Latest.Stage==LDProgression::EMatchStage::Rest;
+        const FString Key=Latest.OpenKey.IsEmpty()?FString(TEXT("B")):Latest.OpenKey;
+        const float CloseW=WidthOf(TEXT("收起"),Word)+6.f*F+WidthOf(Key,Small)+14.f*F;
+        const FBox2D Commands=Segment(Pad+(bRespec?WidthOf(TEXT("洗点"),Word)+18.f*F:0.f)+WidthOf(TEXT("反应表"),Word)+18.f*F+CloseW+Pad);
+        float CX=float(Commands.Min.X)+Pad*.5f;
+        const auto Command=[&](EHit Kind,float Width){Add(Kind,INDEX_NONE,INDEX_NONE,RectOf(FBox2D(FVector2D(CX,Commands.Min.Y),FVector2D(CX+Width+Pad*.5f+9.f*F,Commands.Max.Y))));CX+=Width+18.f*F;};
+        if(bRespec){Command(EHit::Respec,WidthOf(TEXT("洗点"),Word));}
+        Command(EHit::Matrix,WidthOf(TEXT("反应表"),Word));
+        Command(EHit::Close,CloseW-14.f*F);
+        L.Bar=FBox2D(L.Segments[0].Min,L.Segments.Last().Max);
+    }
+    // The rest actions stand beside the band; when they are too wide for that corner they rise over the bar's line.
+    if(Latest.Actions.X>0.f&&Band.bIsValid&&float(ActionsAt.X)-float(Latest.Actions.X)<float(Band.Max.X)+12.f*U)
+    {
+        ActionsAt.Y=float(L.Bar.Min.Y)-8.f*U;
+    }
+    LayoutShop();
+    LayoutRow();
     // The stat chips at the radar's corners (the only place to add a point): each grows outward from its corner (on the
     // ground decal when it is laid, else around the centre): the side ones beside it, the bottom one under it. A chip that
     // would cover the own character, a sector part or another chip steps outward (an upper one also downward) until clear.
@@ -397,8 +431,10 @@ void ULDWorkshop::ComputeLayout(const FGeometry& Geometry)
         };
         const FVector2D Feet=Project(0.f,0.f);
         TArray<FBox2D> Taken;
-        // The own character standing on the radar's centre.
+        // The own character standing on the radar's centre, and everything from the offer row (or the build bar) down.
         Taken.Add(FBox2D(Feet+FVector2D(-46.f,-150.f)*R,Feet+FVector2D(46.f,14.f)*R));
+        const float Floor=L.RowTop>0.f?L.RowTop:L.Bar.bIsValid?float(L.Bar.Min.Y):float(L.Size.Y);
+        Taken.Add(FBox2D(FVector2D(0.f,Floor-6.f*U),FVector2D(L.Size.X,L.Size.Y)));
         // Every part laid out so far; a host with the key tab under it.
         for(const FShape& Box:L.Boxes)
         {
@@ -446,39 +482,6 @@ void ULDWorkshop::ComputeLayout(const FGeometry& Geometry)
             Add(EHit::Stat,INDEX_NONE,Index,Lean(FBox2D(At-Size*.5,At+Size*.5),0.f,0.f));
         }
     }
-    // The build bar docks on the HUD band: points, capacity, library, then the commands.
-    {
-        const float BandTop=Band.bIsValid?float(Band.Min.Y):L.Size.Y-125.f*U;
-        const float X0=Band.bIsValid?float(Band.Min.X)+19.f*U:486.f*U;
-        const float H=46.f*F;
-        const float Bottom=FMath::Min(926.f*U,BandTop-10.f*U);
-        const FSlateFontInfo Label=Face(EFace::Bold,18.f,F),Figure=Face(EFace::Figure,32.f,F),Small=Face(EFace::Figure,22.f,F),Word=Face(EFace::Bold,20.f,F);
-        const float Pad=18.f*F,Gap=6.f*U;
-        float X=X0;
-        const auto Segment=[&](float Width){const FBox2D Box(FVector2D(X,Bottom-H),FVector2D(X+Width,Bottom));L.Segments.Add(Box);X+=Width+Gap;return Box;};
-        Segment(Pad+WidthOf(TEXT("属性点"),Label)+10.f*F+WidthOf(TEXT("◆"),Small)+WidthOf(FString::Printf(TEXT("%lld"),Ring.Unspent),Figure)+Pad);
-        Segment(Pad+WidthOf(TEXT("构筑"),Label)+10.f*F+WidthOf(FString::FromInt(Ring.Installed),Figure)+WidthOf(FString::Printf(TEXT("/%d"),Ring.Capacity),Small)
-            +10.f*F+Ring.Capacity*12.f*F+Pad);
-        const FBox2D Library=Segment(Pad+WidthOf(TEXT("牌库"),Label)+10.f*F+WidthOf(FString::FromInt(Ring.Hand.Num()),Figure)+Pad);
-        Add(EHit::HandPile,INDEX_NONE,INDEX_NONE,RectOf(Library));
-        const bool bRespec=Latest.Stage==LDProgression::EMatchStage::Rest;
-        const FString Key=Latest.OpenKey.IsEmpty()?FString(TEXT("B")):Latest.OpenKey;
-        const float CloseW=WidthOf(TEXT("收起"),Word)+6.f*F+WidthOf(Key,Small)+14.f*F;
-        const FBox2D Commands=Segment(Pad+(bRespec?WidthOf(TEXT("洗点"),Word)+18.f*F:0.f)+WidthOf(TEXT("反应表"),Word)+18.f*F+CloseW+Pad);
-        float CX=float(Commands.Min.X)+Pad*.5f;
-        const auto Command=[&](EHit Kind,float Width){Add(Kind,INDEX_NONE,INDEX_NONE,RectOf(FBox2D(FVector2D(CX,Commands.Min.Y),FVector2D(CX+Width+Pad*.5f+9.f*F,Commands.Max.Y))));CX+=Width+18.f*F;};
-        if(bRespec){Command(EHit::Respec,WidthOf(TEXT("洗点"),Word));}
-        Command(EHit::Matrix,WidthOf(TEXT("反应表"),Word));
-        Command(EHit::Close,CloseW-14.f*F);
-        L.Bar=FBox2D(L.Segments[0].Min,L.Segments.Last().Max);
-    }
-    // The rest actions stand beside the band; when they are too wide for that corner they rise over the bar's line.
-    if(Latest.Actions.X>0.f&&Band.bIsValid&&float(ActionsAt.X)-float(Latest.Actions.X)<float(Band.Max.X)+12.f*U)
-    {
-        ActionsAt.Y=float(L.Bar.Min.Y)-8.f*U;
-    }
-    LayoutShop();
-    LayoutRow();
     // The element chooser of a card that asks for one, and a rest service's confirm line, over the ring's top.
     if(Storage.IsValid()&&Storage->IsChoosing())
     {
@@ -595,6 +598,38 @@ bool ULDWorkshop::LiveOf(FName Definition,int32& Badge,FString& Line) const
         const int64 Armor=Latest.Stats.ArmorP2/100;
         Line=FString::Printf(TEXT("现在 %lld 护甲 → 生命上限 +%lld"),Armor,Armor*6);
     }
+    else if(Id==TEXT("card_quick_hands")||Id==TEXT("card_slow_craft")||Id==TEXT("card_quick_brain")||Id==TEXT("card_run_hit"))
+    {
+        // The projected attribute's final value (and base), as the authority projects it for this owner.
+        const auto Value=[this](ELDProjectedAttribute Attribute,bool bBase)
+        {
+            const FLDCombatAttributeRowView* Row=Latest.Attributes.FindByPredicate([Attribute](const FLDCombatAttributeRowView& Each){return Each.Attribute==uint8(Attribute);});
+            const FLDDemoRational* Number=Row?(bBase?&Row->Base:&Row->Final):nullptr;
+            return Number&&Number->Denominator>0?double(Number->Numerator)/double(Number->Denominator):0.;
+        };
+        if(Latest.Attributes.IsEmpty()){return false;}
+        if(Id==TEXT("card_quick_hands"))
+        {
+            const double Speed=Value(ELDProjectedAttribute::AttackSpeed,false);
+            Line=FString::Printf(TEXT("现在攻速 %.2f 次/秒 → 多打一下的概率 +%d%%"),Speed,int32(FMath::Max(0.,Speed-1.35)/.1*18.));
+        }
+        else if(Id==TEXT("card_slow_craft"))
+        {
+            const double Speed=Value(ELDProjectedAttribute::AttackSpeed,false);
+            Line=FString::Printf(TEXT("现在攻速 %.2f 次/秒 → 普攻伤害 +%d%%"),Speed,int32(FMath::Max(0.,1.2-Speed)/.1*8.));
+        }
+        else if(Id==TEXT("card_quick_brain"))
+        {
+            const int32 Haste=int32(Value(ELDProjectedAttribute::CooldownHaste,false));
+            Line=FString::Printf(TEXT("现在技能急速 %d → 每次技能命中多回 %d 劲"),Haste,Haste/10);
+        }
+        else
+        {
+            const double Base=Value(ELDProjectedAttribute::MoveSpeed,true),Now=Value(ELDProjectedAttribute::MoveSpeed,false);
+            const int32 Above=Base>0.?int32(FMath::Max(0.,Now/Base-1.)*100.):0;
+            Line=FString::Printf(TEXT("现在移速比基础高 %d%% → 伤害 +%d%%"),Above,Above/10*5);
+        }
+    }
     else if(Id==TEXT("card_berserk"))
     {
         const int32 Missing=Own->MaxHPP2>0?int32(FMath::Clamp(100-Own->HPP2*100/Own->MaxHPP2,int64(0),int64(100))):0;
@@ -602,6 +637,11 @@ bool ULDWorkshop::LiveOf(FName Definition,int32& Badge,FString& Line) const
     }
     else{return false;}
     return true;
+}
+FString ULDWorkshop::SellText() const
+{
+    const int64 Points=Latest.Content?Latest.Content->Parameters.BlueprintSellPoints:0;
+    return FString::Printf(TEXT("卖出 ◆%lld"),Points);
 }
 float ULDWorkshop::AngleOf(int32 Host) const
 {
@@ -722,6 +762,8 @@ void ULDWorkshop::LayoutRow()
             RightChip(EHit::Reroll,FString::Printf(TEXT("重抽 ×%d"),Ring.Batch.Rerolls),Right,HeadTop);
         }
         else if(Ring.Batch.Kind==EBatch::Active&&Ring.Batch.SkipPoints>0){RightChip(EHit::Skip,FString::Printf(TEXT("跳过 +%lld"),Ring.Batch.SkipPoints),Right,HeadTop);}
+        // A blueprint dragged here is sold for stat points.
+        else if(Ring.Batch.Kind==EBatch::Blueprint){RightChip(EHit::Sell,SellText(),Right,HeadTop);}
         return;
     }
     if(Ring.Hand.IsEmpty()&&!bShowHand){L.RowTop=Bottom;return;}
@@ -1051,7 +1093,7 @@ void ULDWorkshop::BeginDrag()
 }
 void ULDWorkshop::DropAt(const FHit& Target)
 {
-    const bool bOnRing=Target.Kind==EHit::Host||Target.Kind==EHit::Drop||Target.Kind==EHit::Installed||Target.Kind==EHit::Gem;
+    const bool bOnRing=Target.Kind==EHit::Host||Target.Kind==EHit::Drop||Target.Kind==EHit::Installed||Target.Kind==EHit::Gem||Target.Kind==EHit::Sell;
     if(bOnRing&&!(Target.Kind==EHit::Installed&&Selected!=NAME_None&&Ring.Hosts.IsValidIndex(Target.Host)
         &&Ring.Hosts[Target.Host].Cards.IsValidIndex(Target.Index)&&Ring.Hosts[Target.Host].Cards[Target.Index].Keys.Contains(Selected)))
     {
@@ -1165,6 +1207,7 @@ void ULDWorkshop::Click(const FHit& Hit,bool bRight)
         }
     case EHit::OfferPile: case EHit::HandPile: bShowHand=!bShowHand;PageAt=UiNow();return;
     case EHit::Reroll: if(Tray){Tray->RerollCardOffer();}return;
+    case EHit::Sell: if(Tray&&SelectedBlueprint!=INDEX_NONE){Tray->SellBlueprint(SelectedBlueprint);}return;
     case EHit::Skip:
         if(!Tray){return;}
         if(Ring.Batch.Kind==EBatch::Card){Tray->SkipCardOffer();}else{Tray->SkipOffer();}
@@ -1721,8 +1764,17 @@ void ULDWorkshop::PaintRow(FPainter& P,const TArray<uint64>& Lit) const
     };
     for(const FShape& Box:L.Boxes)
     {
-        if(Box.Hit.Kind!=EHit::OfferPile&&Box.Hit.Kind!=EHit::Reroll&&Box.Hit.Kind!=EHit::Skip){continue;}
+        if(Box.Hit.Kind!=EHit::OfferPile&&Box.Hit.Kind!=EHit::Reroll&&Box.Hit.Kind!=EHit::Skip&&Box.Hit.Kind!=EHit::Sell){continue;}
         const FBox2D Chip=BoundsOf(Box.Shape);
+        if(Box.Hit.Kind==EHit::Sell)
+        {
+            // Lit orange while a blueprint is dragged: the one place it can be sold.
+            const bool bLive=bDragging&&SelectedBlueprint!=INDEX_NONE;
+            P.Fill(Box.Shape,bLive?LDBroadcast::Orange:LDBroadcast::Ink.CopyWithNewOpacity(.9f));
+            if(Shown==Box.Hit||bLive){Frame(P,Chip,2.f*F,LDBroadcast::White);}
+            P.Text(SellText(),Chip.GetCenter(),ChipFont,bLive?LDBroadcast::Ink:LDBroadcast::White,FVector2D(.5,.5));
+            continue;
+        }
         FString Text;
         if(Box.Hit.Kind==EHit::Reroll){Text=FString::Printf(TEXT("重抽 ×%d"),Ring.Batch.Rerolls);}
         else if(Box.Hit.Kind==EHit::Skip){Text=Ring.Batch.SkipPoints>0?FString::Printf(TEXT("跳过 +%lld"),Ring.Batch.SkipPoints):FString(TEXT("跳过"));}

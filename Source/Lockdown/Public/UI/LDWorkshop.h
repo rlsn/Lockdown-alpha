@@ -88,7 +88,7 @@ public:
     void InterruptFinalFeedback();
     // Probes and tests: hover a part as if the pointer were over it (Kind INDEX_NONE releases it), select a hand card.
     enum class EHit : uint8 { None, Stat, Host, Gem, Installed, Drop, Hand, Offer, OfferPile, HandPile, Reroll, Skip, Shop, ShopRefresh,
-        Close, Matrix, Respec, Element, ConfirmYes, ConfirmNo, Entry, Reaction, ReactionCell };
+        Close, Matrix, Respec, Element, ConfirmYes, ConfirmNo, Entry, Reaction, ReactionCell, Sell };
     void PinHover(EHit Kind,int32 Host,int32 Index);
     // Probes (WITH_DEV_AUTOMATION_TESTS; nothing otherwise): the click a pointer press on that part makes.
     void ProbeClick(EHit Kind,int32 Host,int32 Index);
@@ -264,6 +264,8 @@ private:
     // (INDEX_NONE: none) and a line for the hover card. False for a card whose live numbers the client is not sent.
     bool LiveOf(FName Definition,int32& Badge,FString& Line) const;
     mutable FString LiveScratch;
+    // The sell target's text: 卖出 and the points a blueprint sells for.
+    FString SellText() const;
     // The build's reaction Index on the element track: its radius and the two socket angles (low, high).
     void ReactionPlace(int32 Index,float& Radius,float& Low,float& High) const;
     // The reaction table's sheet over the 反应表 command and its cells (Row/Column 0 are the element heads).
