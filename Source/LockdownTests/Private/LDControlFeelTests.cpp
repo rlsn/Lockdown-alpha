@@ -494,8 +494,11 @@ bool FLDControlFeelElevationAimAndClipTest::RunTest(const FString& Parameters)
     const TArray<FVector> RampPath{FVector(0., 0., 0.), FVector(200., 0., 0.), FVector(400., 0., 120.)};
     TestFalse(TEXT("Elevation-approach corner never skips via 2D plane crossing at 32cm lateral offset (>28cm)"),
         LDPathSteering::ShouldAdvanceCorner(RampPath, 1, FVector(205., 32., 0.), false));
-    TestFalse(TEXT("Elevation corner never advances when vertical difference exceeds 35cm"),
-        LDPathSteering::ShouldAdvanceCorner(RampPath, 1, FVector(200., 10., 45.), false));
+    const TArray<FVector> HighRampPath{FVector(0., 0., 60.), FVector(200., 0., 60.), FVector(400., 0., 180.)};
+    TestFalse(TEXT("Elevation corner never advances while the body is more than 35cm below it"),
+        LDPathSteering::ShouldAdvanceCorner(HighRampPath, 1, FVector(200., 10., 15.), false));
+    TestTrue(TEXT("A body standing on a ledge above the corner (pushed off the navmesh) is past it"),
+        LDPathSteering::ShouldAdvanceCorner(RampPath, 1, FVector(200., 10., 48.), false));
     TestTrue(TEXT("Elevation corner advances once within 28cm horizontally and 35cm vertically"),
         LDPathSteering::ShouldAdvanceCorner(RampPath, 1, FVector(204., 20., 18.), false));
     TestFalse(TEXT("Sloped floor (<0.999 normal Z) also blocks pure 2D plane skipping outside 28cm"),

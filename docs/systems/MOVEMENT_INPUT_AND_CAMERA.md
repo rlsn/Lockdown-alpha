@@ -24,7 +24,7 @@
 ## 寻路、坡道转向与冲刺物理
 
 - **订单生命周期（`ULDNavigationComponent`）**：每次空间订单绑定 `(Generation, ContenderId, Life, Sequence)` 与订单租约心跳；单位目标进入视野宽限（`0.3 s`）保持追踪，彻底失视野立即终止追击且不暴露隐藏坐标。
-- **3D 坡道拐点推进（`LDPathSteering::ShouldAdvanceCorner`）**：平坦地面允许沿法平面提前切弯；一旦前后路径段存在高度差（`|ΔZ| > 15 cm`）或当前站立面法线倾斜（`ImpactNormal.Z < 0.999`），强制要求水平误差 `<= 28 cm` 且垂直误差 `<= 35 cm` 才推进下一拐点，防止坡顶/桥口切角卡死在侧翼挡墙。
+- **3D 坡道拐点推进（`LDPathSteering::ShouldAdvanceCorner`）**：平坦地面允许沿法平面提前切弯；一旦前后路径段存在高度差（`|ΔZ| > 15 cm`）或当前站立面法线倾斜（`ImpactNormal.Z < 0.999`），强制要求水平误差 `<= 28 cm` 且垂直误差 `<= 35 cm` 才推进下一拐点（身体高于拐点时不限垂直误差：被击退推上导航网格未覆盖的道具顶后，下一段把它带下来），防止坡顶/桥口切角卡死在侧翼挡墙。
 - **冲刺手感与贴脸防滑（`LDCharacterMovementComponent`）**：
   - 主动冲刺（通用 `D` `450 cm / 0.18 s` 与位移技能）使用复制根运动源 `FLDRootMotionSource_EaseOutDash`，位移曲线为 `EaseOutCubic`（`1 - (1 - t)^3`），初段爆发、末段柔顺刹停；击退保持线性常力 `FRootMotionSource_ConstantForce`。
   - **位移落点（`LandedDashDistance`）**：冲刺、击退、拉拽与野怪扑击统一经 `StartDemoDash`，起步前按地面技能同一规则（`LDGroundLanding::Resolve`）把距离截到“合法地面且有完整步行路线回到起点”的最远处，速度不变、提前结束；沿途没有合法地面则原地不动。根运动仍由原生扫掠挡墙，这一步防止冲上岩顶、台地或越过围栏落到步行与寻路无法离开的地方。
