@@ -318,6 +318,8 @@ private:
     UPROPERTY() TArray<TObjectPtr<UNiagaraSystem>> GeneratedSystems;
     UPROPERTY() TObjectPtr<UNiagaraSystem> PackSystems[int32(LDSliceVfx::EPack::Count)];
     bool bPackTried[int32(LDSliceVfx::EPack::Count)] = {};
+    // A shipped pack's system, loaded once (null when missing, logged once).
+    UNiagaraSystem* LoadPack(LDSliceVfx::EPack Pack);
     void Track(UNiagaraComponent* Effect, const ULDHumanoidVisualComponent* Source, float AgeSeconds, const AActor* OwnerActor = nullptr);
     UNiagaraComponent* SpawnKit(const FVector& At, const LDHitVfx::FBurst& Burst);
     TArray<FLive> Live;

@@ -769,6 +769,8 @@ void ULDImpactFxSubsystem::WarmUp()
     TArray<UNiagaraSystem*> Systems{BurstSystem.Get(), ZoneSystem.Get()};
     for (UNiagaraSystem* Generated : GeneratedSystems) { if (Generated) { Systems.Add(Generated); } }
     if (Catalog) { Systems.Add(Catalog->SwingTrail.Get()); }
+    // The shipped packs (a landing's dust) load and compile here too, not in the first landing's frame.
+    for (int32 Pack = 0; Pack < int32(LDSliceVfx::EPack::Count); ++Pack) { Systems.Add(LoadPack(LDSliceVfx::EPack(Pack))); }
     for (UNiagaraSystem* System : Systems)
     {
         if (!System) { continue; }
@@ -1401,10 +1403,9 @@ UNiagaraComponent* ULDImpactFxSubsystem::PlayFree(LDSliceVfx::ESystem System, co
     return Effect;
 }
 
-UNiagaraComponent* ULDImpactFxSubsystem::PlayPack(LDSliceVfx::EPack Pack, const FVector& At, float Scale, const FRotator& Rotation)
+UNiagaraSystem* ULDImpactFxSubsystem::LoadPack(LDSliceVfx::EPack Pack)
 {
     const int32 Index = int32(Pack);
-    if (!FApp::CanEverRender() || Index < 0 || Index >= int32(LDSliceVfx::EPack::Count) || At.ContainsNaN() || !FMath::IsFinite(Scale) || Scale <= 0.f) { return nullptr; }
     if (!bPackTried[Index])
     {
         bPackTried[Index] = true;
@@ -1417,6 +1418,14 @@ UNiagaraComponent* ULDImpactFxSubsystem::PlayPack(LDSliceVfx::EPack Pack, const 
             UE_LOG(LogLDContent, Display, TEXT("LD_PACK_FX loaded %s emitters=[%s]"), LDSliceVfx::PackPath(Pack), *Names);
         }
     }
+    return PackSystems[Index];
+}
+
+UNiagaraComponent* ULDImpactFxSubsystem::PlayPack(LDSliceVfx::EPack Pack, const FVector& At, float Scale, const FRotator& Rotation)
+{
+    const int32 Index = int32(Pack);
+    if (!FApp::CanEverRender() || Index < 0 || Index >= int32(LDSliceVfx::EPack::Count) || At.ContainsNaN() || !FMath::IsFinite(Scale) || Scale <= 0.f) { return nullptr; }
+    LoadPack(Pack);
     const float Strength = FMath::Clamp(LocalEffectScale(), 0.f, 1.f);
     if (!PackSystems[Index] || Strength <= 0.f) { return nullptr; }
     UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), PackSystems[Index], At, Rotation, FVector(Scale * (.6f + .4f * Strength)),
