@@ -238,6 +238,7 @@ public:
         Pages.Add({TEXT("Match_RestOpening"),[this](ALDPlayerController& PC,double Now)
             {
                 if(Once(Now,0)&&PC.RootUI){PC.RootUI->CloseTopModal();PC.RootUI->CloseTopPanel();}
+                if(Once(Now,3,.2)){Dev(PC,ELDDevTestOp::SetDailyPreset,int64(ELDDailyModifier::Typhoon)+16*int64(ELDDailyModifier::Rain));}
                 if(Once(Now,1,.5)){PC.SetDemoReady(true);PC.StartDemoMatch();}
                 if(InPhase(PC,ELDMatchPhase::Lobby)&&Once(Now,2,4.)){PC.StartDemoMatch();}
                 return InPhase(PC,ELDMatchPhase::Rest)&&Settled(Now,8.);
@@ -631,7 +632,59 @@ public:
             },100.});
         }
         else{RestStep(TEXT("Match_R1Signup"),ELDRestStep::Build,true,1.,90.);}
-        RestStep(TEXT("Match_R1Betting"),ELDRestStep::Betting,false,.5,40.);
+        Pages.Add({TEXT("Match_R1Betting"),[this](ALDPlayerController& PC,double Now)
+            {
+                const FLDPublicMatchView* View=Match(PC);
+                if(Once(Now,0)){Dev(PC,ELDDevTestOp::SetCountdownPaused,0);HeldAt=-1.;}
+                if(!View||View->Phase!=ELDMatchPhase::Rest||View->Timeline.Step!=ELDRestStep::Betting||!PC.HUDUI){return false;}
+                if(HeldAt<0.)
+                {
+                    HeldAt=Now;
+                    const ULDWorkshop* Ring=PC.HUDUI->Workshop.Get();
+                    UE_LOG(LogLDTest,Display,TEXT("LD_UI_COVERAGE_BET_WINDOW ms=%lld ring_open=%d"),View->Timeline.StepEndsAtMs-View->Timeline.StepStartedAtMs,Ring&&Ring->IsOpen()?1:0);
+                }
+                const auto Press=[&](int32 Want,int32 Id)
+                {
+                    int32 Seen=0;
+                    // The side panel's rows first, then the bar over the open ring (only one of the two is on screen).
+                    for(const TCHAR* Kind:{TEXT("HUDPKBet"),TEXT("HUDPKCompactBet")})
+                    {
+                        for(int32 Index=1;Index<=8;++Index)
+                        {
+                            ULDCommandButton* Row=FindButton(PC.HUDUI,*(FString(Kind)+FString::FromInt(Index)));
+                            if(!Row||Row->GetVisibility()!=ESlateVisibility::Visible){continue;}
+                            if(Seen++!=Want){continue;}
+                            const bool bReached=LDSlateProbeInput::SendClick(Row);
+                            UE_LOG(LogLDTest,Display,TEXT("LD_UI_COVERAGE_BET_PRESS id=%d row=%s reached=%d enabled=%d left_ms=%lld"),Id,*Row->GetName(),bReached?1:0,
+                                Row->GetIsEnabled()?1:0,[&PC,View](){int64 NowMs=0;return PC.ReadDemoAuthorityTimeMs(NowMs)?View->Timeline.StepEndsAtMs-NowMs:int64(-1);}());
+                            return;
+                        }
+                    }
+                    UE_LOG(LogLDTest,Display,TEXT("LD_UI_COVERAGE_BET_PRESS id=%d row=none left_ms=%lld"),Id,View->Timeline.StepEndsAtMs-View->ServerNowMs);
+                };
+                const double InWindow=Now-HeldAt;
+                // What the rows are, frame by frame, over the first two seconds of the window.
+                if(Now-HeldAt<2.&&BetTraceFrames<40)
+                {
+                    FString Rows;
+                    for(int32 Index=1;Index<=4;++Index)
+                    {
+                        for(const TCHAR* Kind:{TEXT("HUDPKBet"),TEXT("HUDPKCompactBet")})
+                        {
+                            const ULDCommandButton* Row=FindButton(PC.HUDUI,*(FString(Kind)+FString::FromInt(Index)));
+                            if(Row){Rows+=FString::Printf(TEXT("%s%d=%d%d "),Kind[5]==TEXT('C')?TEXT("c"):TEXT("p"),Index,int32(Row->GetVisibility()),Row->GetIsEnabled()?1:0);}
+                        }
+                    }
+                    const ULDWorkshop* Ring=PC.HUDUI->Workshop.Get();
+                    UE_LOG(LogLDTest,Display,TEXT("LD_UI_COVERAGE_BET_TRACE t=%.2f bettor=%d ring=%d rows=%s"),Now-HeldAt,
+                        View->PK.IsBettor(PC.OwnerState.ContenderId)?1:0,Ring&&Ring->IsOpen()?1:0,*Rows);
+                    ++BetTraceFrames;
+                }
+                if(InWindow>=.3&&Once(Now,1)){Press(0,1);}
+                if(InWindow>=1.3&&Once(Now,2)){Press(1,2);}
+                if(InWindow>=2.3&&Once(Now,3)){Dev(PC,ELDDevTestOp::SetCountdownPaused,1);}
+                return InWindow>=3.1;
+            },40.});
         // The betting step again with the build ring open (the clock is still held): the one-line PK bar over the ring.
         Pages.Add({TEXT("Match_R1BettingRing"),[this](ALDPlayerController& PC,double Now)
             {
@@ -903,27 +956,6 @@ public:
                 if(ResultsSeen<0.){ResultsSeen=Now;}
                 return Now-ResultsSeen>=3.;
             },900.});
-        // Each report tab held for a while with its painted size sampled every tick: a body that keeps changing size is
-        // a layout that does not settle (the reported flicker).
-        Pages.Add({TEXT("Match_ResultsSettle"),[this](ALDPlayerController& PC,double Now)
-            {
-                if(!PC.HUDUI){return true;}
-                const double Age=Now-PageAt;
-                const int32 Tab=FMath::Min(2,int32(Age/2.5));
-                if(Once(Now,Tab)){Click(PC.HUDUI,*FString::Printf(TEXT("ResultReportTab%d"),Tab));SettleMin=FVector2D(1e9,1e9);SettleMax=FVector2D::ZeroVector;SettleChanges=0;SettleLast=FVector2D(-1,-1);}
-                const double In=Age-Tab*2.5;
-                if(In>.8&&In<2.3)
-                {
-                    const FVector2D Size=PC.HUDUI->ProbeResultBoardSize();
-                    SettleMin=FVector2D::Min(SettleMin,Size);SettleMax=FVector2D::Max(SettleMax,Size);
-                    if(SettleLast.X>=0.&&!Size.Equals(SettleLast,.01)){++SettleChanges;}
-                    SettleLast=Size;
-                }
-                if(In>=2.3&&Once(Now,10+Tab))
-                {UE_LOG(LogLDTest,Display,TEXT("LD_UI_COVERAGE_RESULT_SETTLE tab=%d min=%.1fx%.1f max=%.1fx%.1f changes=%d"),Tab,SettleMin.X,SettleMin.Y,SettleMax.X,SettleMax.Y,SettleChanges);}
-                if(Age>=7.6){Click(PC.HUDUI,TEXT("ResultReportTab0"));return true;}
-                return false;
-            },20.,false});
         Pages.Add({TEXT("Match_ResultsReplay"),[this](ALDPlayerController& PC,double Now)
             {
                 const ALDGameState* GS=PC.GetWorld()->GetGameState<ALDGameState>();
@@ -939,8 +971,7 @@ public:
     }
     double ResultsSeen=-1.;
     int32 RankPointsBefore=-1;
-    FVector2D SettleMin=FVector2D::ZeroVector,SettleMax=FVector2D::ZeroVector,SettleLast=FVector2D(-1,-1);
-    int32 SettleChanges=0;
+    int32 BetTraceFrames=0;
     static int32 Guests(ALDPlayerController& PC)
     {
         const ALDGameState* GS=PC.GetWorld()->GetGameState<ALDGameState>();int32 Count=0;

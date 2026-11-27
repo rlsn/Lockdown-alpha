@@ -697,7 +697,9 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             const bool bOwnOverdrive=SelfBars.bMomentum&&Combat.MomentumP2>=OverdriveThresh;
             // On air: the own bar is the ball orange (colour blind: the own blue), behind the own seat plate; no name.
             DrawSegmentedBar(BarLeft,BarTop,ContenderBarWidth,ContenderBarHeight,Combat.HPP2,Combat.MaxHPP2,Combat.ShieldP2,
-                bColorblind?WorldOwnHPColorblind:WorldOwnHPFill,OwnTrail,SelfBars.bMomentum,SelfBars.Momentum,bOwnOverdrive,nullptr);
+                // Low, the own overhead bar takes the strip's low ink (live red; colour blind: gold).
+                PC->HUDUI&&PC->HUDUI->IsOwnHealthLow()?(bColorblind?LDBroadcast::Gold:LDBroadcast::LiveRed):bColorblind?WorldOwnHPColorblind:WorldOwnHPFill,
+                OwnTrail,SelfBars.bMomentum,SelfBars.Momentum,bOwnOverdrive,nullptr);
 
             const ALDCharacter* OwnCharacter=Cast<ALDCharacter>(OwnBody);
             float ReachLeft=BarLeft-2.f,ReachRight=BarLeft+ContenderBarWidth+2.f;

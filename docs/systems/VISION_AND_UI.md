@@ -33,6 +33,17 @@
 
 `ULDWorkshop` 铺满整个 HUD 并叠在操作条之上。它只在有东西可按时接收指针（指针下有环的部件，或手里拿着一张牌等一次落点）；其余位置对指针透明，点击落到它下面的界面：`Q/W/E` 槽与槽角的升阶「+」、属性行、右下角按钮。升阶页由「+」或 `Ctrl + Q/W/E` 打开，页内两张卡可点击或按 `1`/`2` 选择。
 
+### 结算页
+
+`ULDResultReport` 一个控件画整页：按固定的 `1920×1080` 设计稿排版，整体等比缩放到控件大小，不随内容重新排版，也不滚动。只读冻结的公开结算（`FLDResultView`）、本人这一局的伤害汇总（`FLDDamageSummaryView`，`LDHUD::DamageSummary`）和显示目录。`Present` 只在结算、本人、伤害汇总或目录变化时重建数据；构筑对比的席位号是画出来的点击区，`ULDHUD::SelectResultContender` 也能换人。三个操作按钮（构筑蓝图、离开房间、带房间返回 Lobby）叠在右下角。
+
+结算数据里没有正式名次，本人一栏写「冠军」或「守旗第 N」（按守旗秒数排）。伤害来源只有本人的；其他席位的构筑与数值来自各自的结算行。
+
+
+### 局内提示
+
+本人生命低于 30% 时，操作条血条、本人头顶血条与屏幕四边暗角都用低血色（直播红；色盲模式用金色），暗角缓慢呼吸，不压到画面中部。收起态的待选三选一用可操作橙色描边呼吸，直到选走。休息期进入押注步时，构筑环自动收起，把画面中部让给 PK 押注板。开局休息倒数进野外 1 的最后几秒，倒数数字下方并排列出本局抽到的今日热点：与比分条热点徽章相同的单字徽章、名称和一行效果（`LDHUD::DailyDescription`）；没有热点的局不出这一块。
+
 ### 界面的每帧开销
 
 界面只在所示内容变化时重算，绘制层每帧只做投影与提交：
@@ -89,8 +100,8 @@
 | 开局横幅与世界反馈文字 | LOCALLY VERIFIED | `LDWorldFeedback` | `Match_Kill*`（击杀后的升级横幅）、`Match_Field*` | 命中确认字的动效属手感，未改 |
 | 头顶标签与构筑环的重叠 | LOCALLY VERIFIED | `LDWorldLabels` | `Match_R1Build*`、`Match_R1BettingRing*`（开环时环后的角色不画头顶标签） | — |
 | 终局（终局改装、旗杆） | LOCALLY VERIFIED | `ULDHUD`、构筑环 | `Match_Final*` | 终局改装三选一未拍 |
-| 结算页 | LOCALLY VERIFIED | `ULDHUD` Result 区块、`LDResultBuild` | `production/ui/m2/A4-results.jpg`、`Match_Results*` |  |
-| 赛后复盘（切换席位查看构筑） | LOCALLY VERIFIED | `ULDHUD::SelectResultContender`、`RefreshResultInspectedBuild` | `Match_ResultsReplay*` | “成长与卡牌”“全员战斗数据”页签未拍 |
+| 结算页 | LOCALLY VERIFIED | `ULDResultReport`（用户选定的候选 B），`ULDHUD::RefreshResult` | `Match_Results*`、`production/ui/results/` |  |
+| 赛后复盘（切换席位查看构筑） | LOCALLY VERIFIED | `ULDResultReport::Compare`、`ULDHUD::SelectResultContender` | `Match_ResultsReplay*` | 点画出来的席位号换人只在代码里走真实命中，探针用 `SelectResultContender` |
 | 网络卡顿提示与诊断 | LOCALLY VERIFIED | `ULDHUD` NetSpike、Diagnostics | `Guest_NetSpike*`、`production/ui/m10/`（真实客机，引擎 `NetEmulation.PktLag` / `PktLoss`，只对客机、拍完关闭） | 诊断面板未单独拍 |
 | 按钮交互态与页面转场 | LOCALLY VERIFIED | `LDUIPaint::Button`、`ULDCommandButton`、`ULDUIRoot::StyleRow`：按下时下沉 2 单位并变暗（主按钮深橙、白块变灰、普通块与菜单行为墨底橙边） | `Front_MenuHover*`（悬停）、`Lobby_HostWait*`（禁用）、`Lobby_GuestReady*`（已选可撤销的白色块）、`Match_MenuPressed*`（菜单行按下）、`Match_StageCard*`（阶段过场）、`production/ui/m11/` | 普通斜块的按下态已拍（`Lobby_ButtonPressed*`），主按钮与白块的按下态未单独拍；页面之间除阶段过场与结算标题滑入外是直接切换 |
 
