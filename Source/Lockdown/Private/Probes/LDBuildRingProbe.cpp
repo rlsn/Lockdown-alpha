@@ -317,8 +317,19 @@ public:
         Closed.Setup=[this](ALDPlayerController& PC,ULDWorkshop&){Open(PC,false);};
         FShot& Closed720=Plan.AddDefaulted_GetRef();Closed720.Name=TEXT("Ring_Field_Closed_1280x720_100.png");Closed720.Width=1280;Closed720.Height=720;
         Closed720.Setup=[this](ALDPlayerController& PC,ULDWorkshop&){Open(PC,false);};
+        // The field rank-up card over the closed ring, opened by its hotkey (Ctrl + the first skill key).
+        for(const FIntVector& Case:{FIntVector(1920,1080,100),FIntVector(1280,720,125)})
+        {
+            FShot& Rank=Plan.AddDefaulted_GetRef();Rank.Name=FString::Printf(TEXT("Rank_Field_%dx%d_%d.png"),Case.X,Case.Y,Case.Z);
+            Rank.Width=Case.X;Rank.Height=Case.Y;Rank.Text=Case.Z/100.f;
+            Rank.Setup=[this](ALDPlayerController& PC,ULDWorkshop&)
+            {
+                Open(PC,false);
+                if(PC.HUDUI&&!PC.HUDUI->IsRankUpOpen()){PC.HUDUI->HandleContextualKeyPress(EKeys::Q,false,true,false);}
+            };
+        }
         FShot& Reopen=Plan.AddDefaulted_GetRef();Reopen.Name=TEXT("Ring_Field_Reopen_1920x1080_100.png");
-        Reopen.Setup=[this](ALDPlayerController& PC,ULDWorkshop&){Open(PC,true);};
+        Reopen.Setup=[this](ALDPlayerController& PC,ULDWorkshop&){if(PC.HUDUI){PC.HUDUI->CloseRankUp();}Open(PC,true);};
     }
     void BuildPresetPlan(ALDPlayerController&)
     {

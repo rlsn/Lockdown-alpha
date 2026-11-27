@@ -214,7 +214,7 @@ bool FLDBuildRingLayoutTest::RunTest(const FString& Parameters)
         const auto& L=Ring->Layout;
         TestTrue(At+TEXT(": the ring has its parts"),Ring->View().bValid&&L.Boxes.Num()>20&&L.Segments.Num()==4);
         TestTrue(At+TEXT(": card icons are at least 36 physical pixels"),(LDBuildRing::NodeSize-4.f)*L.R*L.K>=35.9f);
-        TestTrue(At+TEXT(": table icons are at least 36 physical pixels"),54.f*L.TableScale*L.K>=35.9f);
+        TestTrue(At+TEXT(": the stat chips' attribute line is at least 12 physical pixels"),14.f*L.F*L.K>=11.9f);
         TestTrue(At+TEXT(": the build bar stands over the HUD band"),L.Bar.bIsValid&&L.Bar.Max.Y<=L.Size.Y-120.f*L.U);
         TestTrue(At+TEXT(": the rest actions' corner stays right of the bar"),Ring->ActionsAnchor().X>L.Bar.Max.X);
         // The hovered card of the most links: its card above the ring, still no faults.

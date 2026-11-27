@@ -88,7 +88,7 @@ public:
     void InterruptFinalFeedback();
     // Probes and tests: hover a part as if the pointer were over it (Kind INDEX_NONE releases it), select a hand card.
     enum class EHit : uint8 { None, Stat, Host, Gem, Installed, Drop, Hand, Offer, OfferPile, HandPile, Reroll, Skip, Shop, ShopRefresh,
-        Close, Matrix, Respec, Element, ConfirmYes, ConfirmNo, Entry, Wing };
+        Close, Matrix, Respec, Element, ConfirmYes, ConfirmNo, Entry };
     void PinHover(EHit Kind,int32 Host,int32 Index);
     // Probes (WITH_DEV_AUTOMATION_TESTS; nothing otherwise): the click a pointer press on that part makes.
     void ProbeClick(EHit Kind,int32 Host,int32 Index);
@@ -151,14 +151,7 @@ private:
         FBox2D Bar=FBox2D(ForceInit);
         TArray<FBox2D> Segments;
         float RowTop=0.f;
-        // The left table and the shop: their top-left corner and their own scale (the text scale, fitted beside the ring).
-        FVector2D Table=FVector2D::ZeroVector;
-        float TableScale=1.f;
-        float TableWidth=0.f;
-        int32 TableColumns=2;
-        // Where the attribute columns start and how wide each is (design px, times TableScale).
-        float TableSubX=160.f;
-        float TableSubW=84.f;
+        // The shop: its top-left corner and its own scale (the text scale, fitted beside the ring).
         FVector2D Shop=FVector2D::ZeroVector;
         float ShopScale=1.f;
         float ShopWidth=0.f;
@@ -251,7 +244,6 @@ private:
         TArray<float,TInlineAllocator<20>> From;
         float Scale=1.f;
     };
-    FFitMemo TableFit[2];
     FFitMemo ShopFit[3];
     float Refit(FFitMemo& Memo,TConstArrayView<float> From,TFunctionRef<float()> Fit);
     // The ground dim's alpha at each grid corner (PaintGround) and what it was shaded from.
@@ -263,7 +255,6 @@ private:
     float OpenAmount() const;
     void Rebuild();
     void ComputeLayout(const FGeometry& Geometry);
-    void LayoutTable();
     void LayoutShop();
     void LayoutRow();
     void LayoutCard();
@@ -295,7 +286,6 @@ private:
     void PaintSockets(LDRingPaint::FPainter& P) const;
     void PaintHosts(LDRingPaint::FPainter& P,const TArray<uint64>& Lit,bool bDim) const;
     void PaintRadarChips(LDRingPaint::FPainter& P) const;
-    void PaintTable(LDRingPaint::FPainter& P) const;
     void PaintShop(LDRingPaint::FPainter& P,const TArray<uint64>& Lit) const;
     void PaintRow(LDRingPaint::FPainter& P,const TArray<uint64>& Lit) const;
     void PaintBar(LDRingPaint::FPainter& P) const;

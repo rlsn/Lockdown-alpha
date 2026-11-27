@@ -128,11 +128,21 @@ FString OneLine(const FString& Text,const FSlateFontInfo& Font,float Width)
     const TArray<FString> Lines=LDRingPaint::Wrap(Text,Font,Width,1);
     return Lines.IsEmpty()?FString():Lines[0];
 }
-// A stat chip's size at the radar's corner: its name, its points and (with points to spend) the orange plus.
-FVector2D ChipSize(const FStat& Stat,bool bPlus,float F)
+// The attributes a stat's points raise, with their current values, as the stat chip's second line.
+FString StatLine(TConstArrayView<FDerived> Derived,int32 Stat)
 {
-    return FVector2D(10.f*F+WidthOf(Stat.Name,Face(EFace::Bold,18.f,F))+6.f*F+FMath::Max(16.f*F,WidthOf(FString::FromInt(Stat.Points),Face(EFace::Figure,26.f,F)))
-        +(bPlus?6.f*F+22.f*F:0.f)+8.f*F,32.f*F);
+    TArray<FString> Parts;
+    for(const FDerived& Row:Derived){if(Row.Source==Stat){Parts.Add(Row.Name+TEXT(" ")+Row.Value);}}
+    return FString::Join(Parts,TEXT(" · "));
+}
+// A stat chip's size at the radar's corner: its name, its points and (with points to spend) the orange plus, then the line of
+// the attributes it raises.
+FVector2D ChipSize(const FStat& Stat,const FString& Line,bool bPlus,float F)
+{
+    const float Head=10.f*F+WidthOf(Stat.Name,Face(EFace::Bold,18.f,F))+6.f*F+FMath::Max(16.f*F,WidthOf(FString::FromInt(Stat.Points),Face(EFace::Figure,26.f,F)))
+        +(bPlus?6.f*F+22.f*F:0.f);
+    const float Sub=Line.IsEmpty()?0.f:10.f*F+WidthOf(Line,Face(EFace::Regular,14.f,F));
+    return FVector2D(FMath::Max(Head,Sub)+8.f*F,Line.IsEmpty()?32.f*F:52.f*F);
 }
 // The short form name an offer row shows after the card type.
 FString FormShort(ELDCardForm Form)
@@ -379,7 +389,7 @@ void ULDWorkshop::ComputeLayout(const FGeometry& Geometry)
         }
         // The upper side chips lean towards the centre, clear of the sockets.
         At.X+=(Index==1?-10.f:Index==Ring.Stats.Num()-1?10.f:0.f)*R;
-        const FVector2D Size=ChipSize(Ring.Stats[Index],Ring.Unspent>0,F);
+        const FVector2D Size=ChipSize(Ring.Stats[Index],StatLine(Ring.Derived,Index),Ring.Unspent>0,F);
         L.Anchors.Add(AnchorKey(EHit::Stat,INDEX_NONE,Index),At);
         Add(EHit::Stat,INDEX_NONE,Index,Lean(FBox2D(At-Size*.5,At+Size*.5),0.f,0.f));
     }
@@ -414,7 +424,6 @@ void ULDWorkshop::ComputeLayout(const FGeometry& Geometry)
     {
         ActionsAt.Y=float(L.Bar.Min.Y)-8.f*U;
     }
-    LayoutTable();
     LayoutShop();
     LayoutRow();
     // The element chooser of a card that asks for one, and a rest service's confirm line, over the ring's top.
@@ -445,81 +454,6 @@ float ULDWorkshop::Refit(FFitMemo& Memo,TConstArrayView<float> From,TFunctionRef
     Memo.Scale=Fit();
     return Memo.Scale;
 }
-void ULDWorkshop::LayoutTable()
-{
-    FLayout& L=Layout;
-    const float U=L.U,F=L.F;
-    // Each stat's attributes (the real per-point mapping), as one aligned grid of columns.
-    TArray<TArray<int32>> Rows;Rows.SetNum(Ring.Stats.Num());
-    for(int32 Index=0;Index<Ring.Derived.Num();++Index){if(Rows.IsValidIndex(Ring.Derived[Index].Source)){Rows[Ring.Derived[Index].Source].Add(Index);}}
-    L.TableColumns=2;
-    for(const TArray<int32>& Row:Rows){L.TableColumns=FMath::Max(L.TableColumns,Row.Num());}
-    // Natural sizes in design px (measured at the text scale).
-    float NameW=36.f,SubW=80.f;
-    for(const FStat& Stat:Ring.Stats)
-    {
-        NameW=FMath::Max(NameW,FMath::Max(WidthOf(Stat.Name,Face(EFace::Bold,18.f,F)),WidthOf(FString::FromInt(Stat.Points),Face(EFace::Figure,38.f,F)))/F);
-    }
-    for(const FDerived& Row:Ring.Derived)
-    {
-        SubW=FMath::Max(SubW,FMath::Max(WidthOf(Row.Name,Face(EFace::Regular,18.f,F)),WidthOf(Row.Value,Face(EFace::Figure,30.f,F)))/F+10.f);
-    }
-    L.TableSubX=FMath::Max(136.f,80.f+NameW+16.f);
-    L.TableSubW=SubW;
-    const float Width=L.TableSubX+L.TableColumns*SubW+14.f;
-    const float Height=36.f+Rows.Num()*84.f-8.f;
-    // Fitted beside the ring's band and above the minimap and the offer row; the text never drops under 12 px.
-    const float Floor=12.f/(18.f*F*L.K);
-    float Limit=L.Bar.bIsValid?float(L.Bar.Min.Y)-12.f*U:float(L.Size.Y);
-    if(Latest.Map.Bottom>Latest.Map.Top){Limit=FMath::Min(Limit,float(GetCachedGeometry().AbsoluteToLocal(FVector2D(Latest.Map.Left,Latest.Map.Top)).Y)-12.f*U);}
-    const float Top=252.f*U;
-    const auto Fit=[&](float Left)
-    {
-        float Scale=1.f;
-        for(int32 Pass=0;Pass<3;++Pass)
-        {
-            const float S=F*Scale;
-            float Room=TNumericLimits<float>::Max();
-            for(int32 Row=0;Row<Rows.Num();++Row)
-            {
-                const float Y0=Top+(36.f+Row*84.f)*S,Y1=Y0+76.f*S;
-                for(const float Y:{Y0,(Y0+Y1)*.5f,Y1})
-                {
-                    // The band's first point from the left on this line.
-                    for(float X=Left;X<float(L.Centre.X);X+=2.f*U){if(OnBand(FVector2D(X,Y),0.f)){Room=FMath::Min(Room,X-8.f*U-Left);break;}}
-                }
-            }
-            Scale=FMath::Min3(1.f,Room/(Width*F),(Limit-Top)/(Height*F));
-        }
-        return Scale;
-    };
-    // Everything Fit and OnBand read, so an unchanged frame keeps its scale.
-    const auto Fitted=[&](FFitMemo& Memo,float At)
-    {
-        const float From[]={At,Top,F,U,L.R,float(L.Centre.X),float(L.Centre.Y),L.Outer[0],L.Outer[1],L.Outer[2],L.Outer[3],L.Outer[4],Width,Height,Limit,float(Rows.Num())};
-        return Refit(Memo,From,[&](){return Fit(At);});
-    };
-    float Left=44.f*U;
-    float Scale=Fitted(TableFit[0],Left);
-    if(Scale<Floor){Left=28.f*U;Scale=Fitted(TableFit[1],Left);}
-    Scale=FMath::Max(Scale,Floor);
-    L.Table=FVector2D(Left,Top);L.TableScale=F*Scale;L.TableWidth=Width*L.TableScale;
-    const float S=L.TableScale;
-    for(int32 Row=0;Row<Rows.Num();++Row)
-    {
-        const float Y=Top+(36.f+Row*84.f)*S;
-        FShape& Head=L.Boxes.AddDefaulted_GetRef();Head.Hit={EHit::Wing,Row,INDEX_NONE};
-        Head.Shape=RectOf(FBox2D(FVector2D(Left,Y),FVector2D(Left+L.TableSubX*S,Y+76.f*S)));
-        L.Anchors.Add(AnchorKey(EHit::Wing,Row,INDEX_NONE),FVector2D(Left+L.TableWidth,Y+38.f*S));
-        for(int32 Column=0;Column<Rows[Row].Num();++Column)
-        {
-            FShape& Cell=L.Boxes.AddDefaulted_GetRef();Cell.Hit={EHit::Wing,Row,Rows[Row][Column]};
-            const float X=Left+(L.TableSubX+Column*SubW)*S;
-            Cell.Shape=RectOf(FBox2D(FVector2D(X,Y),FVector2D(X+SubW*S,Y+76.f*S)));
-        }
-    }
-}
-
 void ULDWorkshop::LayoutShop()
 {
     FLayout& L=Layout;
@@ -711,7 +645,7 @@ TArray<FString> ULDWorkshop::LayoutProblems() const
     TArray<FString> Out;
     const FLayout& L=Layout;
     const float U=L.U;
-    TArray<FBox2D> Rows,Shelf;
+    TArray<FBox2D> Shelf;
     const FBox2D Band=Latest.Band.Right>Latest.Band.Left?FBox2D(GetCachedGeometry().AbsoluteToLocal(FVector2D(Latest.Band.Left,Latest.Band.Top)),
         GetCachedGeometry().AbsoluteToLocal(FVector2D(Latest.Band.Right,Latest.Band.Bottom))):FBox2D(ForceInit);
     const auto Probe=[&](const FBox2D& Bounds,const FString& Part)
@@ -732,12 +666,6 @@ TArray<FString> ULDWorkshop::LayoutProblems() const
         if(Bounds.Min.X<-1.||Bounds.Min.Y<-1.||Bounds.Max.X>L.Size.X+1.||Bounds.Max.Y>L.Size.Y+1.){Out.Add(TEXT("off screen ")+Part);}
         switch(Box.Hit.Kind)
         {
-        case EHit::Wing:
-            Probe(Bounds,Part);
-            for(const FBox2D& Other:Rows){if(Touches(Bounds,Other)){Out.Add(TEXT("table overlap ")+Part);}}
-            if(L.RowTop>0.f&&Bounds.Max.Y>L.RowTop+.5f&&Bounds.Max.X>L.Bar.Min.X){Out.Add(TEXT("table into the offer row ")+Part);}
-            Rows.Add(Bounds);
-            break;
         case EHit::Shop:
             Probe(Bounds,Part);
             for(const FBox2D& Other:Shelf){if(Touches(Bounds,Other)){Out.Add(TEXT("shop overlap ")+Part);}}
@@ -764,7 +692,7 @@ TArray<FString> ULDWorkshop::LayoutProblems() const
         for(const FBox2D& Segment:L.Segments){if(Touches(Actions,Segment)){Out.Add(TEXT("rest actions on the build bar"));}}
         for(const FShape& Box:L.Boxes){if(!Box.bWedge&&Touches(Actions,BoundsOf(Box.Shape))){Out.Add(FString::Printf(TEXT("rest actions on part %d/%d/%d"),int32(Box.Hit.Kind),Box.Hit.Host,Box.Hit.Index));}}
     }
-    if(L.TableScale*L.K*18.f<11.9f){Out.Add(FString::Printf(TEXT("table text %.1f px"),L.TableScale*L.K*18.f));}
+    if(L.F*L.K*14.f<11.9f){Out.Add(FString::Printf(TEXT("stat chip text %.1f px"),L.F*L.K*14.f));}
     if(L.ShopWidth>0.f&&L.ShopScale*L.K*18.f<11.9f){Out.Add(FString::Printf(TEXT("shop text %.1f px"),L.ShopScale*L.K*18.f));}
     if(L.Card.bIsValid)
     {
@@ -1087,7 +1015,8 @@ ULDWorkshop::FInfo ULDWorkshop::InfoOf(const FHit& Hit) const
         const FStat& Stat=Ring.Stats[Index];
         const TArray<const FLDDemoStatDefinition*> Stats=Content->StatsInDesignOrder();
         Out.Name=Stat.Name;Out.IconId=Stat.IconId;
-        Out.Meta=Stat.bKeystone?FString::Printf(TEXT("%d 点 · 关键石已激活"),Stat.Points):FString::Printf(TEXT("%d 点 · 再投 %d 点激活关键石"),Stat.Points,FMath::Max(0,Ring.Keystone-Stat.Points));
+        const TCHAR* Keystone=LDTerms::KeystoneName(Stat.Id);
+        Out.Meta=Stat.bKeystone?FString::Printf(TEXT("%d 点 · 已成型：%s"),Stat.Points,Keystone):FString::Printf(TEXT("%d 点 · 满 %d 点成型：%s"),Stat.Points,Ring.Keystone,Keystone);
         if(!Stats.IsValidIndex(Index)){return;}
         // One more point: the orange gain of every attribute it raises (the catalog's per-point line says the same, so it
         // stands in for it).
@@ -1125,16 +1054,6 @@ ULDWorkshop::FInfo ULDWorkshop::InfoOf(const FHit& Hit) const
         else{Out.Name=TEXT("元素槽 · 空");Out.Meta=Ring.Hosts[Hit.Host].Name;Out.Body=TEXT("镶一枚勋章，让这个位置的命中带上元素。不占构筑容量。");}
         break;
     case EHit::Stat: StatInfo(Hit.Index);break;
-    case EHit::Wing:
-        if(Hit.Index==INDEX_NONE){StatInfo(Hit.Host);break;}
-        if(Ring.Derived.IsValidIndex(Hit.Index)&&Ring.Stats.IsValidIndex(Ring.Derived[Hit.Index].Source))
-        {
-            const FDerived& Row=Ring.Derived[Hit.Index];
-            Out.Name=Row.Name;Out.Meta=FString::Printf(TEXT("%s · 来自%s"),*Row.Value,*Ring.Stats[Row.Source].Name);
-            const FLDCombatAttributeRowView* Source=Latest.Attributes.FindByPredicate([&Row](const FLDCombatAttributeRowView& R){return R.Attribute==Row.Attribute;});
-            if(Source){Out.Body=LDHUD::AttributeRow(*Source).Breakdown;}
-        }
-        break;
     case EHit::Offer:
         if(!Ring.Batch.Options.IsValidIndex(Hit.Index)){break;}
         {
@@ -1432,13 +1351,15 @@ void ULDWorkshop::PaintRadarChips(FPainter& P) const
         const FVector2D* At=L.Anchors.Find(AnchorKey(EHit::Stat,INDEX_NONE,Index));
         if(!At){continue;}
         const FStat& Stat=Ring.Stats[Index];
-        const FVector2D Size=ChipSize(Stat,bPlus,F);
+        const FString Line=StatLine(Ring.Derived,Index);
+        const FVector2D Size=ChipSize(Stat,Line,bPlus,F);
         const FBox2D Chip(*At-Size*.5,*At+Size*.5);
-        const bool bHot=(Shown.Kind==EHit::Stat&&Shown.Index==Index)||(Shown.Kind==EHit::Wing&&Shown.Host==Index&&Shown.Index==INDEX_NONE);
+        const bool bHot=Shown.Kind==EHit::Stat&&Shown.Index==Index;
         // A maxed keystone is the one gold chip.
         P.Fill(RectOf(Chip),Stat.bKeystone?LDBroadcast::Gold:LDBroadcast::Ink.CopyWithNewOpacity(.86f));
         if(bHot){Frame(P,Grow(Chip,2.f*F),2.f*F,LDBroadcast::White);}
-        float X=float(Chip.Min.X)+10.f*F;const float Y=float(Chip.GetCenter().Y);
+        float X=float(Chip.Min.X)+10.f*F;const float Y=Line.IsEmpty()?float(Chip.GetCenter().Y):float(Chip.Min.Y)+17.f*F;
+        if(!Line.IsEmpty()){P.Text(Line,FVector2D(Chip.Min.X+10.f*F,Chip.Min.Y+39.f*F),Face(EFace::Regular,14.f,F),Stat.bKeystone?LDBroadcast::Ink:LDBroadcast::Grey,FVector2D(0.,.5));}
         X+=WidthOf(Stat.Name,Face(EFace::Bold,18.f,F));
         P.Text(Stat.Name,FVector2D(Chip.Min.X+10.f*F,Y),Face(EFace::Bold,18.f,F),Stat.bKeystone?LDBroadcast::Ink:LDBroadcast::Grey,FVector2D(0.,.5));
         X+=6.f*F;
@@ -1452,48 +1373,6 @@ void ULDWorkshop::PaintRadarChips(FPainter& P) const
             P.Fill(RectOf(Plus),LDBroadcast::Orange);
             P.Text(TEXT("+"),Plus.GetCenter(),Face(EFace::Heavy,22.f,F),LDBroadcast::Ink,FVector2D(.5,.5));
         }
-    }
-}
-
-void ULDWorkshop::PaintTable(FPainter& P) const
-{
-    const FLayout& L=Layout;
-    if(Ring.Stats.IsEmpty()){return;}
-    const float S=L.TableScale;
-    const FVector2D At=L.Table;
-    const FHit Shown=Focus();
-    // 五维 → 二级属性
-    {
-        const FVector2D Size=P.Text(TEXT("五维"),At,Face(EFace::Heavy,22.f,S),LDBroadcast::White);
-        P.Text(TEXT("→ 二级属性"),FVector2D(At.X+Size.X+12.f*S,At.Y+Size.Y),Face(EFace::Regular,18.f,S),LDBroadcast::Grey,FVector2D(0.,1.));
-    }
-    for(const FShape& Box:L.Boxes)
-    {
-        if(Box.Hit.Kind!=EHit::Wing||Box.Hit.Index!=INDEX_NONE||!Ring.Stats.IsValidIndex(Box.Hit.Host)){continue;}
-        const int32 Row=Box.Hit.Host;
-        const FStat& Stat=Ring.Stats[Row];
-        const FBox2D Plate(Box.Shape[0],FVector2D(Box.Shape[0].X+L.TableWidth,Box.Shape[2].Y));
-        // A hovered row, or the row of the hovered radar chip, lights up.
-        const bool bHot=(Shown.Kind==EHit::Wing&&Shown.Host==Row)||(Shown.Kind==EHit::Stat&&Shown.Index==Row);
-        const TArray<FVector2D> Shape=Lean(Plate,0.f,14.f*S);
-        P.FillShaded(Shape,[&](FVector2D Point)
-        {
-            const float T=float((Point.X-Plate.Min.X)/FMath::Max(1.,Plate.GetSize().X));
-            return bHot?LDRingPaint::Mix(LDBroadcast::White.CopyWithNewOpacity(.18f),LDBroadcast::Ink.CopyWithNewOpacity(.78f),T):LDRingPaint::Mix(LDBroadcast::Ink.CopyWithNewOpacity(.9f),LDBroadcast::Ink.CopyWithNewOpacity(.78f),T);
-        });
-        P.Fill(RectOf(FBox2D(Plate.Min,FVector2D(Plate.Min.X+3.f*S,Plate.Max.Y))),LDBroadcast::White);
-        PaintTile(P,BoxAt(Plate.Min+FVector2D(14.f,11.f)*S,FVector2D(54.f,54.f)*S),Stat.IconId,Stat.Name,ETile::Plain);
-        P.Text(Stat.Name,Plate.Min+FVector2D(80.f,9.f)*S,Face(EFace::Bold,18.f,S),LDBroadcast::Grey);
-        P.Text(FString::FromInt(Stat.Points),Plate.Min+FVector2D(80.f,27.f)*S,Face(EFace::Figure,38.f,S),Stat.bKeystone?LDBroadcast::Gold:LDBroadcast::White);
-    }
-    for(const FShape& Box:L.Boxes)
-    {
-        if(Box.Hit.Kind!=EHit::Wing||!Ring.Derived.IsValidIndex(Box.Hit.Index)){continue;}
-        const FDerived& Row=Ring.Derived[Box.Hit.Index];
-        const FVector2D Min=Box.Shape[0];
-        if(Shown.Kind==EHit::Wing&&Shown.Index==Box.Hit.Index){P.Fill(RectOf(FBox2D(FVector2D(Min.X,Box.Shape[2].Y-3.f*S),FVector2D(Box.Shape[2].X-8.f*S,Box.Shape[2].Y))),LDBroadcast::White);}
-        P.Text(OneLine(Row.Name,Face(EFace::Regular,18.f,S),L.TableSubW*S-6.f*S),Min+FVector2D(0.f,10.f)*S,Face(EFace::Regular,18.f,S),LDBroadcast::Grey);
-        P.Text(Row.Value,Min+FVector2D(0.f,31.f)*S,Face(EFace::Figure,30.f,S),LDBroadcast::White);
     }
 }
 
@@ -1970,7 +1849,6 @@ int32 ULDWorkshop::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,
         PaintSockets(P);
         PaintHosts(P,Lit,bDim);
         PaintRadarChips(P);
-        PaintTable(P);
         PaintShop(P,Lit);
         PaintRow(P,Lit);
         PaintBar(P);

@@ -110,7 +110,7 @@ namespace LDBuildRing
         int32 Points=0;
         bool bKeystone=false;
     };
-    // One derived attribute of the own projection and the stat whose points raise it (the table row it reads in).
+    // One derived attribute of the own projection and the stat whose points raise it (the radar chip whose second line shows it).
     struct FDerived
     {
         uint8 Attribute=0;
