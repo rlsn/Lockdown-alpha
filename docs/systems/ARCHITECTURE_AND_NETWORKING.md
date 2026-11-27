@@ -5,7 +5,7 @@
 ## 权威拓扑与协议边界
 
 - **单进程权威拓扑**：Demo 采用 UE Listen Server 架构（1 名参与对局的真人 Host + 最多 2 名真人远程 Client + 自动补齐至 6 席的对手 AI，无 Dedicated Server 与平台匹配）。
-- **线协议与版本校验**：网络握手固定核对 `LDNetProtocol::WireProtocol = 36`、`Config/DefaultGame.ini` 的 `ProjectVersion` 与 `CatalogDigest`（`manifest.json` 的 32 字节 SHA-256），任一不匹配直接拒绝入房并给出明确原因。
+- **线协议与版本校验**：网络握手固定核对 `LDDemoEntry::WireProtocol = 39`、`Config/DefaultGame.ini` 的 `ProjectVersion` 与 `CatalogDigest`（`manifest.json` 的 32 字节 SHA-256），任一不匹配直接拒绝入房并给出明确原因。
 - **核心通信原则**：客户端只发窄意图 RPC（会话、空间订单、战斗动作、构筑命令、PK 报名/押注/投掷、出生点选择），服务器验证权限、阶段写闸（`FLDGameplayWritePermit`）与修订后单点提交；Listen Host 本地 UI 与远端 Client 走完全相同的只读投影（`OwnerState`、`ALDGameState::PublicMatch`、`ALDWorldViewRelay`），禁止 Widget 直调服务器 Director。
 
 ## 核心身份与生命

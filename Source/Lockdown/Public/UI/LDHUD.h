@@ -87,6 +87,9 @@ struct FLDHUDActionSlot
     // The element the bound active applies (LDHUD::SkillElement) as a square chip in its element ink on the face's corner.
     UPROPERTY() TObjectPtr<UBorder> ElementChip;
     UPROPERTY() TObjectPtr<UTextBlock> ElementGlyph;
+    // A charged skill's ready charges, a figure in the face's top right corner.
+    UPROPERTY() TObjectPtr<UBorder> ChargeChip;
+    UPROPERTY() TObjectPtr<UTextBlock> ChargeCount;
     UPROPERTY() TObjectPtr<UBorder> CostChip;
     UPROPERTY() TObjectPtr<UTextBlock> Cost;
     UPROPERTY() TObjectPtr<UBorder> ControlChip;

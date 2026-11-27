@@ -1478,12 +1478,16 @@ LDHUD::FActionView LDHUD::Action(const FActionInput& Input,const FActionContext&
     else if(!Context.bAlive){Block(ActionDead,LDTerms::Dead);}
     if(Input.bProjected&&!Input.bHasSource){Block(ActionEmpty,bLearned?TEXT("空槽"):FString(LDTerms::Dash)+TEXT("不可用"));}
     const bool bActive=Input.bProjected&&Input.bHasSource;
+    // A charged skill shows its ready charges on the face and cools only while none is ready, toward the next one.
+    const int32 Charges=FMath::Max(Input.Charges,1);
+    const int32 ChargesReady=Context.bClock?LDCombatSourceRules::ChargesReady(Input.ReadyAtMs,Context.NowMs,Charges,Input.CooldownMs):0;
+    if(bActive&&Charges>1&&Context.bClock){View.Charges=FString::FromInt(ChargesReady);}
     if(bActive&&Input.ReadyAtMs>0)
     {
         if(!Context.bClock){Block(ActionUnsynced,TEXT("冷却时间同步中"));}
-        else if(Input.ReadyAtMs>Context.NowMs)
+        else if(Input.ReadyAtMs>Context.NowMs&&ChargesReady<=0)
         {
-            View.CooldownRemainingMs=Input.ReadyAtMs-Context.NowMs;
+            View.CooldownRemainingMs=FMath::Max<int64>(1,Input.ReadyAtMs-Context.NowMs-int64(Charges-1)*Input.CooldownMs);
             View.CooldownFraction=Input.CooldownMs>0?float(FMath::Clamp(double(View.CooldownRemainingMs)/double(Input.CooldownMs),0.,1.)):1.f;
             Block(ActionCooldown,TEXT("冷却 ")+TenthsUp(View.CooldownRemainingMs));
         }
@@ -3102,7 +3106,7 @@ LDHUD::FActionInput LDHUD::ActionInput(const FLDCombatEntryView& Entry,EActionSl
     Input.DamageFactorBp=Entry.DamageFactorBp;
     Input.NextCooldownMs=Entry.NextCooldownMs;
     Input.MomentumCostP2=Entry.MomentumCostP2;
-    Input.ReadyAtMs=Entry.ReadyAtMs;Input.CooldownMs=Entry.CooldownMs;
+    Input.ReadyAtMs=Entry.ReadyAtMs;Input.CooldownMs=Entry.CooldownMs;Input.Charges=Entry.Charges;
     Input.ServerReject=Entry.Unavailable;
     Input.ServerBlock=CombatRejectText(Entry.Unavailable);
     return Input;

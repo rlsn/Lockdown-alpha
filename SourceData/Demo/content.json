@@ -5720,7 +5720,7 @@
       "ranks": {
         "2A": {
           "name": "两个书包",
-          "text": "同时可以放 [bag.count] 个书包。",
+          "text": "可以连放 [bag.count] 个书包。",
           "patches": [
             {
               "op": "set",
@@ -10878,7 +10878,7 @@
       "name_key": "card_double_stall.name",
       "name_text": "双摊位",
       "description_key": "card_double_stall.description",
-      "description_text": "你的区域、陷阱和地面状态技能可以多留一份。",
+      "description_text": "你的区域、陷阱和地面状态技能可以多留一份；风扇和书包可以多连放一个。",
       "icon_id": "icon_card_double_stall"
     },
     {

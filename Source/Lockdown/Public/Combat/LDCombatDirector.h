@@ -1387,6 +1387,8 @@ private:
     // The lone resolver of the card effects a body holds: every installed card copy's effects of Op
     // (FLDAttributeProjection::InstalledCards by serial, catalog order of each card's effects), fixed amounts grown for the
     // holder's level (LDSkillGrowth::GrowEffect). False with Error when a listed card or its growth is missing.
+    // The charges a learned skill of this body holds (LDCombatSourceRules::SkillCharges with its Y12 copies).
+    bool SkillChargesOf(const FLDBodyCombatState& Body, const FLDDemoAbilityValues& Values, int32& Out, FString& Error) const;
     bool CollectPassiveEffects(const FLDAttributeProjection& Projection, ELDDemoEffectOp Op, TArray<FLDPassiveEffectRef>& Out,
         FString& Error) const;
     // Momentum change of a contender body (a gain, a spend or a steal), clamped to the bar and booked under Kind; marks

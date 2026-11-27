@@ -1,6 +1,7 @@
 #include "AI/LDOpponentFrame.h"
 #include "Combat/LDAttributeProjection.h"
 #include "Combat/LDCombatTypes.h"
+#include "Combat/LDCombatSourceRules.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentIds.h"
 #include "Development/LDGrowthProtocol.h"
@@ -349,7 +350,9 @@ bool ReadOwnCombat(const FLDCombatOwnerView& Combat, int64 NowMs, FLDOpponentSel
         FLDOpponentSource Source;
         Source.Slot = Slot;
         Source.DefinitionId = CanonicalId(Entry.DefinitionId);
-        Source.bReady = Entry.Unavailable == ELDCombatReject::None && Entry.ReadyAtMs <= NowMs
+        // Ready while a charge is (a single-charge skill: at its track end).
+        Source.bReady = Entry.Unavailable == ELDCombatReject::None
+            && LDCombatSourceRules::ChargesReady(Entry.ReadyAtMs, NowMs, Entry.Charges, Entry.CooldownMs) > 0
             && !(Entry.SourceKind == ELDCombatSourceKind::Learned && SilencedUntilMs > NowMs);
         Source.RangeCm = Entry.RangeCm;
         Out.Sources.Add(MoveTemp(Source));

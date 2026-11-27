@@ -546,7 +546,8 @@ namespace LDHUD
         FString IconId;           // the bound definition's icon (LDUIIcons); the dash's own icon for D
         int64 MomentumCostP2=0;
         int64 ReadyAtMs=0;        // this source's own track end on the authority clock
-        int64 CooldownMs=0;       // duration last issued on this track, for the sweep only
+        int64 CooldownMs=0;       // duration last issued on this track, for the sweep only (one charge's recovery)
+        int32 Charges=1;          // the skill's charges (LDCombatSourceRules::SkillCharges)
         int32 RangeCm=0;          // the active's current reach (the dash distance for D)
         bool bControlled=false;   // an own control status forbids this entry kind
         FString ControlLabel;     // short specific control badge when controlled (e.g. "定身", "沉默", "眩晕")
@@ -584,6 +585,7 @@ namespace LDHUD
         FString Cost;             // the active's momentum cost rounded like the shown bar, number only, e.g. "30"; empty without one
         FString Gap;              // momentum short: the missing momentum, e.g. "-12"; empty otherwise
         FString LockBadge;        // short slot badge when controlled or phase-locked (e.g. "定身", "沉默", "眩晕", "禁"); empty otherwise
+        FString Charges;          // a charged skill's ready charges, e.g. "2"; empty for a single-charge skill
         FString IconId;           // the icon texture id (LDUIIcons); empty without a source
         FString Glyph;            // shown only when IconId has no texture: the name's first character; empty without a source
     };
