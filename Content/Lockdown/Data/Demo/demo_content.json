@@ -23602,6 +23602,8 @@
     "REWARD.PlayerXP.PerLevel": 20,
     "SHOP.CardPrice": 2,
     "SHOP.CardSlots": 4,
+    "SHOP.MedalMaxPerMatch": 1,
+    "SHOP.MedalPrice": 4,
     "SHOP.RefreshPrice": 0,
     "SHOP.RefreshStep": 1,
     "SHOP.SkillPointMaxPerMatch": 2,

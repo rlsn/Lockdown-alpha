@@ -934,7 +934,9 @@ void ULDWorkshop::Click(const FHit& Hit,bool bRight)
         return;
     case EHit::Shop:
         if(!Tray||!Ring.Shop.IsValidIndex(Hit.Index)){return;}
-        if(Ring.Shop[Hit.Index].Slot==FLDBuildCommand::ShopSkillPointSlot){Tray->BuyShopSkillPoint();}else{Tray->BuyShopSlot(Ring.Shop[Hit.Index].Slot);}
+        if(Ring.Shop[Hit.Index].Slot==FLDBuildCommand::ShopSkillPointSlot){Tray->BuyShopSkillPoint();}
+        else if(Ring.Shop[Hit.Index].Slot==FLDBuildCommand::ShopMedalSlot){Tray->BuyShopMedal();}
+        else{Tray->BuyShopSlot(Ring.Shop[Hit.Index].Slot);}
         return;
     case EHit::ShopRefresh: if(Tray){Tray->RefreshShopShelf();}return;
     case EHit::Close: if(RequestClose){RequestClose();}return;
@@ -1077,6 +1079,7 @@ ULDWorkshop::FInfo ULDWorkshop::InfoOf(const FHit& Hit) const
             const FShopItem& Item=Ring.Shop[Hit.Index];
             if(Item.Kind==ELDShopItemKind::Card){CardInfo(Item.Id);}
             else if(Item.Kind==ELDShopItemKind::Skill){ActiveInfo(Item.Id,ELDSkillBranch::None,TEXT("主动技能 · 商店"));}
+            else if(Item.Slot==FLDBuildCommand::ShopMedalSlot){Out.Name=Item.Name;Out.Meta=Item.Note;Out.Body=TEXT("五种元素勋章随机一枚，放进卡库。");}
             else{Out.Name=TEXT("技能点");Out.Meta=Item.Note;Out.Body=TEXT("给已学的技能升一级。");}
             Out.Meta+=FString::Printf(TEXT(" · %s"),*Diamonds(Item.Price));
         }
@@ -1458,6 +1461,12 @@ void ULDWorkshop::PaintShop(FPainter& P,const TArray<uint64>& Lit) const
             PaintTile(P,Tile,FString(),FString(),bHot?ETile::Hot:ETile::Plain);
             P.Text(TEXT("技能"),Tile.GetCenter()-FVector2D(0.,9.f*S),Face(EFace::Heavy,18.f,S),LDBroadcast::White,FVector2D(.5,.5));
             P.Text(TEXT("点"),Tile.GetCenter()+FVector2D(0.,10.f*S),Face(EFace::Heavy,18.f,S),LDBroadcast::White,FVector2D(.5,.5));
+        }
+        else if(Item.Slot==FLDBuildCommand::ShopMedalSlot)
+        {
+            PaintTile(P,Tile,FString(),FString(),bHot?ETile::Hot:ETile::Plain);
+            P.Text(TEXT("元素"),Tile.GetCenter()-FVector2D(0.,9.f*S),Face(EFace::Heavy,18.f,S),LDBroadcast::White,FVector2D(.5,.5));
+            P.Text(TEXT("?"),Tile.GetCenter()+FVector2D(0.,10.f*S),Face(EFace::Heavy,18.f,S),LDBroadcast::White,FVector2D(.5,.5));
         }
         else{PaintTile(P,Tile,Item.IconId,Item.Name,bHot?ETile::Hot:Lit.Contains(AnchorKey(EHit::Shop,INDEX_NONE,Box.Hit.Index))?ETile::Lit:ETile::Plain,Item.Rarity);}
         const bool bNote=!Item.Note.IsEmpty()&&!Item.bSold;

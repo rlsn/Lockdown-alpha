@@ -35,7 +35,7 @@
 | `ReplaceActive` | **休息室规划窗**，或**野外躺平角脱战就绪（`bDormRested`）**且无未决主动候选 | 用待学图纸替换指定已学槽位：旧技能被遗忘并**全额退还其已投技能点**；原槽附着的技能牌/勋章经 `ProgressionTransferOrReclaimAttachments` 检查——与新技能兼容的留在原槽，不兼容的退回牌库 |
 | `ForgetActive` | **仅休息室规划窗**，且无未决主动候选 | 遗忘指定槽位技能，全额退还其已投技能点，槽上全部技能牌与元素勋章退回牌库 |
 | `Respec` | **仅休息室规划窗** | 支持全退或按五维单退指定点数（客户端 `ULDStatBar` 支持混合退点+加点批处理，并对 >255 点拆批发送）；跌破 18 点即失去对应关键石 |
-| `ShopBuyCard` / `ShopBuySkill` / `ShopBuySkillPoint` / `ShopRefresh` | **仅休息室规划窗**（R0 不开商店；R1–R3 开放） | 消耗未分配属性点（打折日 `ceil(price * 0.5)` 且 ≥1；首刷 0 点免费，同次休息每刷 +1 点）；购买的技能为无可用宿主牌也会入库并在 UI 提示宿主缺失 |
+| `ShopBuyCard` / `ShopBuySkill` / `ShopBuySkillPoint` / `ShopBuyMedal` / `ShopRefresh` | **仅休息室规划窗**（R0 不开商店；R1–R3 开放） | 消耗未分配属性点（打折日 `ceil(price * 0.5)` 且 ≥1；首刷 0 点免费，同次休息每刷 +1 点）；购买的技能为无可用宿主牌也会入库并在 UI 提示宿主缺失；`ShopBuyMedal`（`ShopMedalSlot`）按 `MedalSeed` 确定性抽一枚勋章进牌库，整局 `SHOP.MedalMaxPerMatch` 次后拒绝为 `MedalLimit` |
 
 每次改变构筑的操作均先调用 `ALDCombatDirector::PrepareBuildChange` 计算单次最终属性投影与最大生命同比换算 `floor(oldCurrent * newMax / oldMax)`（活体正血缩至 0 时返回 `NumericUnderflow` 整笔拒绝，不制造无主死亡），成功后再与成长账本原子提交。
 

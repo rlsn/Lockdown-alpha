@@ -81,7 +81,7 @@
        
         "SHOP.CardSlots", "SHOP.VocabCardSlots", "SHOP.VocabWeight",
         "SHOP.SkillSlots", "SHOP.CardPrice", "SHOP.SkillPrice", "SHOP.RefreshPrice", "SHOP.RefreshStep", "SHOP.SkillPointPrice",
-        "SHOP.SkillPointMaxPerMatch", "DAMAGE.FactorTechCap", "CHAIN.MaxDepth", "CHAIN.MaxEffectsPerStep", "CHAIN.EndSec", "CHAIN.MinKeySteps",
+        "SHOP.SkillPointMaxPerMatch", "SHOP.MedalPrice", "SHOP.MedalMaxPerMatch", "DAMAGE.FactorTechCap", "CHAIN.MaxDepth", "CHAIN.MaxEffectsPerStep", "CHAIN.EndSec", "CHAIN.MinKeySteps",
         "CAMP.ResetArrivalRadiusCm",
         "CAMP.ReturnDeadEndPlans", "CAMP.ReturnDeadEndSec",
         "CAMP.GrowthStagesPerSegment", "CAMP.GrowthMaxStage", "CAMP.GrowthHPRatioPerStage", "CAMP.GrowthAttackRatioPerStage",
@@ -248,6 +248,7 @@
         "SHOP.CardPrice": {"$ref": "#/$defs/positive_count"}, "SHOP.SkillPrice": {"$ref": "#/$defs/positive_count"},
         "SHOP.RefreshPrice": {"$ref": "#/$defs/count"}, "SHOP.RefreshStep": {"$ref": "#/$defs/positive_count"},
         "SHOP.SkillPointPrice": {"$ref": "#/$defs/positive_count"}, "SHOP.SkillPointMaxPerMatch": {"$ref": "#/$defs/positive_count"},
+        "SHOP.MedalPrice": {"$ref": "#/$defs/positive_count"}, "SHOP.MedalMaxPerMatch": {"$ref": "#/$defs/positive_count"},
        
         "CHAIN.MaxDepth": {"$ref": "#/$defs/positive_count"}, "CHAIN.MaxEffectsPerStep": {"$ref": "#/$defs/positive_count"},
         "CHAIN.EndSec": {"$ref": "#/$defs/positive_sec"}, "CHAIN.MinKeySteps": {"$ref": "#/$defs/positive_count"},

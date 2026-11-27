@@ -562,6 +562,8 @@
     "SHOP.RefreshStep": 1,
     "SHOP.SkillPointPrice": 3,
     "SHOP.SkillPointMaxPerMatch": 2,
+    "SHOP.MedalPrice": 4,
+    "SHOP.MedalMaxPerMatch": 1,
     "DAMAGE.FactorTechCap": {
       "unit": "ratio",
       "value": 1000

@@ -915,7 +915,8 @@ bool GrowthTestRunPrivacy(FAutomationTestBase& Test)
     bGood &= GrowthTestExactFields(Test, FLDActiveOfferView::StaticStruct(),
         {TEXT("OfferId"), TEXT("OpportunityOrdinal"), TEXT("OfferRevision"), TEXT("Options"), TEXT("SkipPoints")});
     bGood &= GrowthTestExactFields(Test, FLDShopView::StaticStruct(), {TEXT("bStocked"), TEXT("Revision"), TEXT("Slots"),
-        TEXT("RefreshPrice"), TEXT("SkillPointPrice"), TEXT("SkillPointsBought"), TEXT("SkillPointsMax")});
+        TEXT("RefreshPrice"), TEXT("SkillPointPrice"), TEXT("SkillPointsBought"), TEXT("SkillPointsMax"),
+        TEXT("MedalPrice"), TEXT("MedalsBought"), TEXT("MedalsMax")});
     bGood &= GrowthTestExactFields(Test, FLDShopSlotView::StaticStruct(), {TEXT("Kind"), TEXT("DefinitionId"), TEXT("Price"), TEXT("bSold")});
     bGood &= GrowthTestExactFields(Test, FLDActiveSlotView::StaticStruct(), {TEXT("DefinitionId"), TEXT("Slot"), TEXT("Branch")});
     bGood &= GrowthTestExactFields(Test, FLDStatPointsView::StaticStruct(), {TEXT("StatId"), TEXT("Points")});

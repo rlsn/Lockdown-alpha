@@ -219,7 +219,7 @@ def content_fixture():
         "CARDS.RerollsPerRest": 1, "CARDS.VocabWeight": q("ratio", 1.2), "CARDS.SkipPoints": 1, "CARDS.OfferEveryLevels": 1, "CARDS.IdleCarrySec": q("s", 4),
         "SHOP.CardSlots": 3, "SHOP.VocabCardSlots": 1, "SHOP.VocabWeight": q("ratio", 1.8), "SHOP.SkillSlots": 1, "SHOP.CardPrice": 3,
         "SHOP.SkillPrice": 3, "SHOP.RefreshPrice": 0, "SHOP.RefreshStep": 2, "SHOP.SkillPointPrice": 4,
-        "SHOP.SkillPointMaxPerMatch": 2,
+        "SHOP.SkillPointMaxPerMatch": 2, "SHOP.MedalPrice": 4, "SHOP.MedalMaxPerMatch": 1,
         "DAMAGE.FactorTechCap": q("ratio", 500), "CHAIN.MaxDepth": 8, "CHAIN.MaxEffectsPerStep": 64,
         "CHAIN.EndSec": q("s", 2), "CHAIN.MinKeySteps": 2,
         "AI.CardVocabScore": 3, "AI.LeaderHuntMaxLevelGap": 1, "AI.BreakoutChance": q("ratio", 0.5), "AI.BreakoutCardScore": 4, "AI.CardSkipChance": q("ratio", 0.2),

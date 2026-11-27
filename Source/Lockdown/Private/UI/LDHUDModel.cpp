@@ -3026,6 +3026,7 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::ShopStale: return TEXT("货架已经换过了");
     case ELDGrowthReason::SkillPointLimit: return TEXT("本局的技能点已经买满了");
     case ELDGrowthReason::NoShop: return TEXT("商店还没开张");
+    case ELDGrowthReason::MedalLimit: return TEXT("本局的元素勋章已经买过了");
     case ELDGrowthReason::NoSkillPoint: return LDTerms::NoSkillPointReason;
     case ELDGrowthReason::BranchUnavailable: return LDTerms::BranchUnavailableReason;
     case ELDGrowthReason::DataNotReady: return TEXT("数据尚未就绪");
