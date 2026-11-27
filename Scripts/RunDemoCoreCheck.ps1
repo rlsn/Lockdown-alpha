@@ -1,6 +1,7 @@
-# #198: the default covers the opening rest R0 (25 s build + 5 s return) before the field-1 walk.
+# The default covers the opening rest R0 (25 s build + 5 s return) and the walks to the capture ground on the full map at
+# the approved walking speed (the stage clock is held meanwhile).
 [CmdletBinding()]
-param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(30,600)][int]$TimeoutSeconds=330, [switch]$EarlyRestReady, [switch]$FinalEntryOnly,
+param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(30,600)][int]$TimeoutSeconds=600, [switch]$EarlyRestReady, [switch]$FinalEntryOnly,
     [ValidatePattern('^-Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+( -Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+)*$')][string]$NetEmulation)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
