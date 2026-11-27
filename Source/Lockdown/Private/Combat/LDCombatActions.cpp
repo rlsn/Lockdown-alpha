@@ -1656,7 +1656,9 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     const FLDDemoEffectDefinition* ChainEffect=LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::ChainBounce);
     const bool bHostile=DamageEffect || RootEffect || SlowEffect || DisarmEffect || StunEffect
         || SilenceEffect || BreachEffect || BurnEffect || WetEffect || ElectrifyEffect || RotEffect || ChillEffect
-        || LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::Knockback);
+        || LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::Knockback)
+        // N2's fan carries its push in the release payload (StartSkillDelivery).
+        || LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::Fan);
     if (ChainEffect && TargetDef.Mode!=ELDDemoTargetMode::Unit)
     { Error=TEXT("A chain needs a unit target to start from."); return false; }
     const bool bAreaMode=TargetDef.Mode==ELDDemoTargetMode::Self || TargetDef.Mode==ELDDemoTargetMode::DirectionDash;
