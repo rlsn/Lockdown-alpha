@@ -551,8 +551,8 @@ private:
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> ToastSlot;
     // The seat block's box: the storage's body column follows it.
     UPROPERTY() TObjectPtr<USizeBox> BodySlot;
-    // The rank-up page (issue #287 spec §12, #331 3-rank preview): two big cards of the chosen skill's next rank, with
-    // Rank 3 sub-branch preview chips beneath 2A and 2B during 1->2 selection; a click or 1/2 submits RankUpSkill.
+    // The rank-up card over the action bar: the skill's branch tree (ranks taken, the two next ranks as cards, and while
+    // picking rank 2 the rank-3 forms each leads to); a click on a card or 1/2 submits RankUpSkill.
     UPROPERTY() TObjectPtr<UBorder> RankPage;
     UPROPERTY() TObjectPtr<UTextBlock> RankTitle;
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> RankCards;
@@ -563,6 +563,15 @@ private:
     UPROPERTY() TArray<TObjectPtr<UBorder>> RankSubChips;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> RankSubNames;
     UPROPERTY() TArray<TObjectPtr<UImage>> RankSubIcons;
+    // The ranks taken (rank 1, and the rank-2 branch while rank 3 is picked) and the close button naming its key.
+    UPROPERTY() TObjectPtr<UWidget> RankRootNode;
+    UPROPERTY() TObjectPtr<UWidget> RankChosenNode;
+    UPROPERTY() TObjectPtr<UTextBlock> RankRootName;
+    UPROPERTY() TObjectPtr<UTextBlock> RankChosenName;
+    UPROPERTY() TObjectPtr<UImage> RankRootIcon;
+    UPROPERTY() TObjectPtr<UImage> RankChosenIcon;
+    UPROPERTY() TObjectPtr<ULDCommandButton> RankClose;
+    void PaintRankLinks(const LDUIPaint::FContext& P) const;
     int32 RankSlot=INDEX_NONE;
     TArray<ELDSkillBranch> RankOptions;
     FName RankAbility;
