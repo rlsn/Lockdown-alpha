@@ -286,6 +286,9 @@ void ALDPlayerController::V05Pressed(FName Action)
             { UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT dropped action=Select reason=over-ui armed=%u"),uint32(ArmedEntry)); }
             return;
         }
+        // An armed vector-aimed skill (no key held): the left press starts its drag and the release casts it.
+        if (ArmedEntry!=ELDCombatEntry::None && VectorAimEntry!=ArmedEntry && !IsQuickCastHolding(ArmedEntry)
+            && BeginVectorAim(ArmedEntry,true)) { return; }
         if (ConfirmArmedCombat()) { return; }
         if (bOverdriveHolding)
         { UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT dropped action=Select reason=not-armed holding=%u"),uint32(OverdriveEntry)); }

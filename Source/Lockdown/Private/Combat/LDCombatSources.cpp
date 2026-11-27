@@ -287,6 +287,14 @@ bool LDCombatSourceRules::DisplacesCaster(const FLDDemoAbilityValues& Values)
     });
 }
 
+bool LDCombatSourceRules::VectorAimed(const FLDDemoAbilityValues& Values)
+{
+    return Values.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect)
+    {
+        return Effect.GetOp()==ELDDemoEffectOp::CordonLine || Effect.GetOp()==ELDDemoEffectOp::Fan;
+    });
+}
+
 bool LDCombatSourceRules::IsOffensive(const FLDDemoAbilityValues& Values)
 {
     return Values.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect)

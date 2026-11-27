@@ -227,17 +227,27 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
         const FVector Offset(Action.TargetPoint.X-Origin.X, Action.TargetPoint.Y-Origin.Y, 0);
         FVector Centre=Origin + Offset.GetClampedToMaxSize(Cm(Target.RangeCm));
         Centre.Z=Action.TargetPoint.Z;
-        FVector CastDir=Offset.GetSafeNormal2D();
-        if (CastDir.IsNearlyZero()) { CastDir=FVector(Action.Direction.X, Action.Direction.Y, 0).GetSafeNormal(); }
-        if (CastDir.IsNearlyZero()) { CastDir=Actor->GetActorForwardVector().GetSafeNormal2D(); }
-        if (CastDir.IsNearlyZero()) { CastDir=FVector(1,0,0); }
         FLDCombatCordon Cordon;
+        Cordon.HalfLengthCm=Cm(Tape->RadiusCm)*.5;
+        // Vector cast: the line starts at the point and runs along the dragged facing. Otherwise it is centred on the
+        // point, across the cast.
+        const FVector Facing=FVector(Action.Direction.X, Action.Direction.Y, 0).GetSafeNormal();
+        if (!Facing.IsNearlyZero())
+        {
+            Cordon.Tangent=Facing;
+            Centre+=Facing*Cordon.HalfLengthCm;
+        }
+        else
+        {
+            FVector CastDir=Offset.GetSafeNormal2D();
+            if (CastDir.IsNearlyZero()) { CastDir=Actor->GetActorForwardVector().GetSafeNormal2D(); }
+            if (CastDir.IsNearlyZero()) { CastDir=FVector(1,0,0); }
+            Cordon.Tangent=FVector(-CastDir.Y, CastDir.X, 0).GetSafeNormal();
+        }
         Cordon.Id=FGuid::NewGuid();
         Cordon.Payload=Payload;
         Cordon.Terms=*Tape;
         Cordon.CentreCm=Centre;
-        Cordon.Tangent=FVector(-CastDir.Y, CastDir.X, 0).GetSafeNormal();
-        Cordon.HalfLengthCm=Cm(Tape->RadiusCm)*.5;
         Cordon.HalfWidthCm=FMath::Max(25.,Cm(Tape->ExtraDistanceCm));
         Cordon.OwnerGroup=Body.IsolationGroup;
         Cordon.OwnerPKSide=Body.PKSide;

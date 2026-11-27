@@ -313,6 +313,7 @@ void ALDPlayerController::PlayerTick(float Delta)
         TRACE_CPUPROFILER_EVENT_SCOPE(LDPlayerTick_Inputs);
         UpdateV05Inputs(Delta);
         TickOverdriveHold();
+        TickVectorAimRelease();
     }
     UpdateMusic();
     if (!GetLocalPlayer() || IsFrontend()) { return; }

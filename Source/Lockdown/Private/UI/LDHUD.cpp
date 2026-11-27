@@ -1,4 +1,5 @@
 #include "UI/LDHUD.h"
+#include "Combat/LDCombatSourceRules.h"
 #include "Core/LDLog.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDWorldProject.h"
@@ -4346,6 +4347,9 @@ void ULDHUD::PaintWorldPreviews(const FGeometry& G,FSlateWindowElementList& E,in
     {
         float RangeCm=0.f,ConeDegrees=0.f,HalfWidthCm=0.f;
         bool bDirection=false,bUnitTarget=false,bPoint=false,bCorridor=false;
+        // Vector-aimed shape (LDCombatSourceRules::VectorAimed): the cordon line or the fan rectangle.
+        bool bCordonShape=false,bFanShape=false;
+        double ShapeLengthCm=0.,ShapeHalfWidthCm=0.;
         ELDDemoSkillElement SkillElem=ELDDemoSkillElement::None;
         TArray<float,TInlineAllocator<4>> EndpointRadiiCm;
         const FLDCombatEntryView* Source=nullptr;
@@ -4434,6 +4438,14 @@ void ULDHUD::PaintWorldPreviews(const FGeometry& G,FSlateWindowElementList& E,in
                     };
                     for(const FLDDemoEffectDefinition& Ef:Effects)
                     {
+                        if(Ef.GetOp()==ELDDemoEffectOp::CordonLine||Ef.GetOp()==ELDDemoEffectOp::Fan)
+                        {
+                            bCordonShape=Ef.GetOp()==ELDDemoEffectOp::CordonLine;
+                            bFanShape=!bCordonShape;
+                            ShapeLengthCm=RationalCm(Ef.RadiusCm);
+                            ShapeHalfWidthCm=bCordonShape?FMath::Max(25.,RationalCm(Ef.ExtraDistanceCm)):RationalCm(Ef.ExtraDistanceCm)*.5;
+                            continue;
+                        }
                         if(Ef.GroundKind!=0)
                         {
                             const FLDDemoGroundParameters& GP=Content.Parameters.Ground;
@@ -4510,6 +4522,43 @@ void ULDHUD::PaintWorldPreviews(const FGeometry& G,FSlateWindowElementList& E,in
             else if(!bPoint)
             {
                 DrawWorldSegment(Start,End,Preview,2.6f);
+            }
+            if(bPoint&&(bCordonShape||bFanShape)&&ShapeLengthCm>0.&&ShapeHalfWidthCm>0.)
+            {
+                // The whole shape where it will stand: dragged from its start, else at the pointer with the default facing.
+                const auto InReach=[&](const FVector& At)
+                {
+                    const FVector Offset=FVector(At.X-AuthorityFeet.X,At.Y-AuthorityFeet.Y,0).GetClampedToMaxSize(double(RangeCm));
+                    return FVector(Feet.X+Offset.X,Feet.Y+Offset.Y,Feet.Z+4.f);
+                };
+                ELDCombatEntry VectorEntry=ELDCombatEntry::None;
+                FVector VectorStart=FVector::ZeroVector;
+                const bool bDrag=PC->ReadVectorAim(VectorEntry,VectorStart)
+                    &&FVector::Dist2D(AimWorldPoint,VectorStart)>=LDCombatSourceRules::VectorAimDeadzoneCm;
+                FVector A,B;
+                if(bDrag)
+                {
+                    const FVector Facing=FVector(AimWorldPoint.X-VectorStart.X,AimWorldPoint.Y-VectorStart.Y,0).GetSafeNormal();
+                    A=InReach(VectorStart);
+                    B=A+Facing*ShapeLengthCm;
+                }
+                else
+                {
+                    const FVector At=InReach(AimWorldPoint);
+                    FVector Cast=FVector(At.X-Feet.X,At.Y-Feet.Y,0).GetSafeNormal();
+                    if(Cast.IsNearlyZero()){Cast=Self->GetActorForwardVector().GetSafeNormal2D();}
+                    const FVector Axis=bCordonShape?FVector(-Cast.Y,Cast.X,0):Cast;
+                    A=bCordonShape?At-Axis*ShapeLengthCm*.5:At;
+                    B=A+Axis*ShapeLengthCm;
+                }
+                const FVector Along=(B-A).GetSafeNormal();
+                const FVector Side=FVector(-Along.Y,Along.X,0)*ShapeHalfWidthCm;
+                DrawWorldSegment(A+Side,B+Side,Preview,2.4f);
+                DrawWorldSegment(A-Side,B-Side,Preview,2.4f);
+                DrawWorldSegment(A+Side,A-Side,Preview,2.4f);
+                DrawWorldSegment(B+Side,B-Side,Preview,2.4f);
+                DrawWorldSegment(A,B,Preview.CopyWithNewOpacity(Preview.A*.42f),1.4f);
+                if(bDrag){RangeRing(A,18.f,Preview,2.2f);}
             }
             if(ConeDegrees>0.f&&RangeCm>0.f)
             {
