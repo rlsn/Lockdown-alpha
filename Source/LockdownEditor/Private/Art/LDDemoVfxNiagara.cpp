@@ -5326,10 +5326,10 @@ namespace
                 Ribbon->Material = Part.Paint;
                 Ribbon->bCastShadows = false;
                 Ribbon->TessellationMode = ENiagaraRibbonTessellationMode::Disabled;
-                // A standing ground state's ribbons (up to 40 at once) build their vertices on the GPU, not on the game
-                // thread every frame. The other systems keep CPU generation: on the GPU the chain's bolt loses its core.
-                Ribbon->bUseGPUInit = Look.System == LDSliceVfx::ESystem::PuddleGround || Look.System == LDSliceVfx::ESystem::IceGround
-                    || Look.System == LDSliceVfx::ESystem::FireGround || Look.System == LDSliceVfx::ESystem::MiasmaGround;
+                // Every ribbon builds its vertices on the CPU. GPU init costs the render thread a per-ribbon aggregation
+                // and sort dispatch each frame: 40 standing ground states cost about 0.86 ms of render thread against
+                // 0.07-0.14 ms of game thread on the CPU path. On the GPU the chain's bolt also loses its core.
+                Ribbon->bUseGPUInit = false;
                 Ribbon->UV0Settings.DistributionMode = ENiagaraRibbonUVDistributionMode::TiledOverRibbonLength;
                 Ribbon->UV0Settings.TilingLength = Part.TileCm;
                 if (Part.bRibbonIds)
