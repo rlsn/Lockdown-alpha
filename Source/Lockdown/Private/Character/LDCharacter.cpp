@@ -360,7 +360,7 @@ FTransform ALDCharacter::DefaultArmCameraPose(const FVector& Origin, float ArmLe
     // The arm uses an absolute rotation and a world-space target offset, so the default subobject is the whole geometry.
     const USpringArmComponent* Arm = GetDefault<ALDCharacter>()->CameraArm;
     const FRotator Rotation = Arm->GetRelativeRotation();
-    return FTransform(Rotation, Origin + Arm->TargetOffset - Rotation.Vector() * ArmLength);
+    return FTransform(Rotation, Origin + Arm->TargetOffset - Rotation.Vector() * (ArmLength * LDCamera::ArmScale));
 }
 void ALDCharacter::EnsureLook()
 {

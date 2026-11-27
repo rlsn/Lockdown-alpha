@@ -226,6 +226,7 @@ const TCHAR* LDGrowthWire::ReasonName(ELDGrowthReason Reason)
     case ELDGrowthReason::ShopStale: return TEXT("ShopStale");
     case ELDGrowthReason::SkillPointLimit: return TEXT("SkillPointLimit");
     case ELDGrowthReason::NoShop: return TEXT("NoShop");
+    case ELDGrowthReason::MedalLimit: return TEXT("MedalLimit");
     }
     return TEXT("Unknown");
 }

@@ -2898,6 +2898,15 @@ bool RunShopBuy(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("A sold slot is skipped"), LDOpponentPolicy::SelectShopBuy(Cards.Self, C, NAME_None, Slot) && Slot == 2);
     Cards.Self.Shop.Slots[2].bSold = true;
     bGood &= Test.TestFalse(TEXT("Nothing affordable left: no purchase"), LDOpponentPolicy::SelectShopBuy(Cards.Self, C, NAME_None, Slot));
+    // The random medal after the skill point, while affordable and not bought.
+    auto Medal = Cards;
+    Medal.Self.Shop.MedalPrice = Terms.MedalPrice;
+    Medal.Self.Shop.MedalsMax = Terms.MedalMaxPerMatch;
+    Medal.Self.UnspentPoints = Terms.MedalPrice;
+    bGood &= Test.TestTrue(TEXT("With the medal's price the AI buys the random medal"),
+        LDOpponentPolicy::SelectShopBuy(Medal.Self, C, NAME_None, Slot) && Slot == FLDBuildCommand::ShopMedalSlot);
+    Medal.Self.Shop.MedalsBought = Terms.MedalMaxPerMatch;
+    bGood &= Test.TestFalse(TEXT("A bought medal is not bought again"), LDOpponentPolicy::SelectShopBuy(Medal.Self, C, NAME_None, Slot));
     auto Field = Mid;
     Field.Public.Phase = ELDMatchPhase::Development;
     Field.Public.Timeline.Stage = ELDMatchStage::Field;
@@ -3041,6 +3050,61 @@ bool RunTraining(FAutomationTestBase& Test)
     bGood &= Test.TestNull(TEXT("Outside a rest no unit is a dummy"), LDOpponentPolicy::TrainingDummy(Field));
     return bGood;
 }
+
+// #198 D: a PK entrant fights only what its own orders can reach. An enemy shown through a teammate's sight or an exposure
+// is walked at, never attacked into a refusal; and an enemy its orders reach again is fought even after an earlier
+// unavailable answer, since in the arena its handle never renews.
+bool RunPKFight(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDTestApprovedFixture::Read(Test, Catalog)) { return false; }
+    const FLDDemoContentSnapshot& C = *Catalog;
+    using EBody = ELDOpponentBodyKind;
+    FLDOpponentDecisionFrame Base;
+    if (!RestFrame(Test, C, Base)) { return false; }
+    Base.Public.Timeline.Step = ELDRestStep::PK;
+    Base.Self.FootCm = FVector(0, 3000, 0);
+    const FLDOpponentUnit Rival = LDOpponentPolicyTests::Unit(7, ELDOpponentUnitKind::Contender, 900, 3000);
+    FLDPKView& PK = Base.Public.PK;
+    PK.Serial = 1;
+    PK.Format = ELDPKFormat::Duel;
+    PK.Outcome = ELDPKOutcome::Running;
+    PK.ArenaCentreCm = FVector(0, 3000, 0);
+    PK.FightStartedAtMs = Base.Public.NowMs;
+    FLDPKEntrantView Me, Them;
+    Me.Contender = Base.Self.ContenderId;
+    Me.Side = 1;
+    Me.bAlive = true;
+    Them.Contender = Rival.ContenderId;
+    Them.Side = 2;
+    Them.bAlive = true;
+    PK.Entrants = {Me, Them};
+    Base.Units = {Rival};
+    const auto Fights = [&Rival](const FLDOpponentDecision& Decision)
+    { return Decision.Mode == ELDOpponentMode::PK && Decision.Body.Kind == EBody::AttackUnit && Decision.Body.Handle == Rival.Handle; };
+
+    FLDOpponentPolicyState State;
+    bool bGood = Test.TestTrue(TEXT("A rival in the entrant's own sight is attacked"), Fights(LDOpponentPolicy::Decide(Base, C, State)));
+
+    auto Shown = Base;
+    Shown.Units[0].bTargetable = false;
+    FLDOpponentPolicyState ShownState;
+    const FLDOpponentDecision Approach = LDOpponentPolicy::Decide(Shown, C, ShownState);
+    bGood &= Test.TestTrue(TEXT("A rival seen only through a teammate or an exposure is walked at, not attacked"),
+        Approach.Mode == ELDOpponentMode::PK && Approach.Body.Kind == EBody::MoveGround
+        && Approach.Body.Point.Equals(Rival.FootCm) && !Approach.Body.Surface.IsNone());
+
+    // The rival slipped out of the own sight between a decision and its attack: the order came back unavailable while the
+    // arena kept the rival in view under the same handle.
+    FLDOpponentPolicyState Lost;
+    FLDOpponentRetryKey Engagement;
+    Engagement.Category = ELDOpponentFailure::Engagement;
+    Engagement.Target = Rival.Handle;
+    LDOpponentPolicy::RecordOutcome(Lost, Engagement, ELDOpponentOutcome::TargetLost, Base.Self, Base.Public.NowMs, C.Get().Parameters.AI);
+    bGood &= Test.TestTrue(TEXT("Once its orders reach the rival again it fights on instead of standing in the ring"),
+        Fights(LDOpponentPolicy::Decide(Base, C, Lost)));
+    return bGood;
+}
 }
 }
 
@@ -3066,6 +3130,14 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentTrainingTest, "Lockdown.Rules.De
 bool FLDDemoOpponentTrainingTest::RunTest(const FString& Parameters)
 {
     return LDOpponentComponentTests::RunTraining(*this);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentPKFightTest, "Lockdown.Rules.DemoOpponentPolicy.PKFight",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentPKFightTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentComponentTests::RunPKFight(*this);
 }
 
 // Issue #287 spec §13: a walk weighs its length inside a visible enemy ground state ×3; detours are offered only around

@@ -345,6 +345,30 @@ public:
         Stat.Setup=[](ALDPlayerController&,ULDWorkshop& W){W.PinHover(EHit::Stat,INDEX_NONE,0);};
         FShot& Hand=Plan.AddDefaulted_GetRef();Hand.Name=TEXT("Ring_Rest_Hand_1920x1080_100.png");
         Hand.Setup=[](ALDPlayerController&,ULDWorkshop& W){W.ShowHand(true);};
+        // The random element medal: hovered, then bought through the tray, then sold out with the medal in the library.
+        const auto MedalRow=[](ULDWorkshop& W){return W.View().Shop.IndexOfByPredicate([](const LDBuildRing::FShopItem& Item){return Item.Slot==FLDBuildCommand::ShopMedalSlot;});};
+        FShot& Medal=Plan.AddDefaulted_GetRef();Medal.Name=TEXT("Ring_Rest_ShopMedal_1920x1080_100.png");
+        Medal.Setup=[this,MedalRow](ALDPlayerController& PC,ULDWorkshop& W)
+        {
+            const FLDProgressionView* View=PC.ReadOwnProgression();
+            Check(View&&View->Shop.MedalsMax>0&&View->Shop.MedalsBought==0&&View->UnspentPoints>=View->Shop.MedalPrice,TEXT("The rest shop offers an affordable random medal"));
+            Check(MedalRow(W)!=INDEX_NONE,TEXT("The shop wing shows the random medal"));
+            W.PinHover(EHit::Shop,INDEX_NONE,MedalRow(W));
+        };
+        FShot& Bought=Plan.AddDefaulted_GetRef();Bought.Name=TEXT("Ring_Rest_ShopMedalBought_1920x1080_100.png");
+        Bought.Setup=[this,MedalRow](ALDPlayerController& PC,ULDWorkshop& W)
+        {
+            Check(Tray(PC)&&Tray(PC)->BuyShopMedal(),TEXT("The tray sends the medal purchase"));
+            W.PinHover(EHit::Shop,INDEX_NONE,MedalRow(W));
+            Due=FPlatformTime::Seconds()+1.5;
+        };
+        FShot& Library=Plan.AddDefaulted_GetRef();Library.Name=TEXT("Ring_Rest_ShopMedalHand_1920x1080_100.png");
+        Library.Setup=[this](ALDPlayerController& PC,ULDWorkshop& W)
+        {
+            const FLDProgressionView* View=PC.ReadOwnProgression();
+            Check(View&&View->Shop.MedalsBought==1,TEXT("The medal purchase committed once"));
+            W.ShowHand(true);
+        };
     }
 };
 

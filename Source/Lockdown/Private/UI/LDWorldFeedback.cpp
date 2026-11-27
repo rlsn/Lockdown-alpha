@@ -1,4 +1,5 @@
 #include "UI/LDWorldFeedback.h"
+#include "UI/LDWorldProject.h"
 #include "UI/LDBroadcastStyle.h"
 #include "UI/LDBroadcastPaint.h"
 #include "Core/LDLog.h"
@@ -633,10 +634,11 @@ int32 ULDWorldFeedback::NativePaint(const FPaintArgs& A,const FGeometry& G,const
     if(ViewW<=0||ViewH<=0){return Base;}
     // Viewport pixels to local units: the layer fills the viewport, so this also removes the DPI scale.
     const FVector2f Size=G.GetLocalSize();const float ToLocalX=Size.X/float(ViewW),ToLocalY=Size.Y/float(ViewH);
-    auto Project=[PC,ToLocalX,ToLocalY](const FVector& Point,FVector2f& Projected)
+    const FLDWorldProjector Projector(PC);
+    auto Project=[&Projector,ToLocalX,ToLocalY](const FVector& Point,FVector2f& Projected)
     {
         FVector2D Screen;
-        if(!PC->ProjectWorldLocationToScreen(Point,Screen)){return false;}
+        if(!Projector.Project(Point,Screen)){return false;}
         Projected=FVector2f(float(Screen.X)*ToLocalX,float(Screen.Y)*ToLocalY);
         return true;
     };

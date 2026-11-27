@@ -351,6 +351,16 @@ bool ULDChoicesPanel::BuyShopSkillPoint()
     Command.Slot=FLDBuildCommand::ShopSkillPointSlot;
     return Send(Command);
 }
+bool ULDChoicesPanel::BuyShopMedal()
+{
+    FLDBuildCommand Command;
+    if(!ShopCommand(ELDBuildCommandKind::ShopBuy,Command)){return false;}
+    const FLDShopView& Shop=Latest.Shop;
+    if(Shop.MedalsBought>=Shop.MedalsMax){Tell(TEXT("没有提交：")+LDHUD::GrowthReasonText(ELDGrowthReason::MedalLimit));return false;}
+    if(Latest.UnspentPoints<Shop.MedalPrice){Tell(TEXT("没有提交：")+LDHUD::GrowthReasonText(ELDGrowthReason::NotEnoughPoints));return false;}
+    Command.Slot=FLDBuildCommand::ShopMedalSlot;
+    return Send(Command);
+}
 bool ULDChoicesPanel::RefreshShopShelf()
 {
     FLDBuildCommand Command;

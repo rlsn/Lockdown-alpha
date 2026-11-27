@@ -1053,6 +1053,7 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
     const UWorld* World=GetWorld();
     const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
     if(bFrozenForTeardown||!World||World->bIsTearingDown||!PC){return Base;}
+    TRACE_CPUPROFILER_EVENT_SCOPE(LDMinimap_Paint);
     const FVector2D Size=G.GetLocalSize();const FSlateBrush* White=FCoreStyle::Get().GetBrush(TEXT("WhiteBrush"));const FLinearColor Ink(.02f,.03f,.03f,.92f);
     auto Box=[&](int32 Layer,const FVector2f& At,const FVector2f& Extent,const FLinearColor& Tint){FSlateDrawElement::MakeBox(E,Base+Layer,G.ToPaintGeometry(Extent,FSlateLayoutTransform(At)),White,ESlateDrawEffect::None,Tint);};
     auto Diamond=[&](int32 Layer,const FVector2f& At,float Edge,const FLinearColor& Tint){FSlateDrawElement::MakeRotatedBox(E,Base+Layer,G.ToPaintGeometry(FVector2f(Edge,Edge),FSlateLayoutTransform(At-FVector2f(Edge*.5f,Edge*.5f))),White,ESlateDrawEffect::None,UE_PI*.25f,TOptional<FVector2f>(),FSlateDrawElement::RelativeToElement,Tint);};
@@ -1104,6 +1105,7 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
         else { PlaneBox(4, RegionAt, RegionSize, LDMinimapRaster::FogColor()); }
         if(MinimapStaticReady(Cache,GetWorld(),{Region,Size,View.Scale,G.GetAccumulatedLayoutTransform().GetScale(),Cache.World}))
         {
+            TRACE_CPUPROFILER_EVENT_SCOPE(LDMinimap_Sites);
             FSlateDrawElement::MakeBox(E,Base+3,Plane.ToPaintGeometry(Cache.RasterBrush.ImageSize,FSlateLayoutTransform(RegionAt-FVector2f(2.f))),
                 &Cache.RasterBrush,ESlateDrawEffect::PreMultipliedAlpha|ESlateDrawEffect::NoGamma);
             // Capture: flag on the zone centre. Camps: small diamond or large bordered one.
@@ -1198,6 +1200,7 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
         }
         if(Frame)
         {
+            TRACE_CPUPROFILER_EVENT_SCOPE(LDMinimap_Units);
             for (const FLDObservedRecoveryOrb& Pack : Frame->RecoveryOrbs)
             {
                 const FVector2f At = Spot(Pack.PositionCm);

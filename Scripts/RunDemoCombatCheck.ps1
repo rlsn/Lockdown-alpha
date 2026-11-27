@@ -117,7 +117,7 @@ try {
     $captures = ($screenshots | ForEach-Object { Join-Path $output $_ }) -join ', '
     $hostFeel = $hostReport.feel
     $clientFeel = $reports['Client1'].feel
-    $feel = ("Control feel (measured, ms): Host right-click to motion $($hostFeel.click_to_move_ms) " +
+    $feelLine = ("Control feel (measured, ms): Host right-click to motion $($hostFeel.click_to_move_ms) " +
         "($($hostFeel.click_frames) frames, longest $($hostFeel.click_longest_frame_ms); walked $($hostFeel.spawn_to_click_ms) after spawn once frames settled), ramp to full speed " +
         "$($hostFeel.ramp_to_full_speed_ms), S from $([math]::Round($hostFeel.stop_from_speed)) cm/s to still $($hostFeel.stop_to_still_ms) " +
         "over $([math]::Round($hostFeel.stop_distance_cm)) cm, next walk $($hostFeel.restart_click_to_move_ms) (frame $([math]::Round($hostFeel.frame_ms,1))); " +
@@ -126,7 +126,7 @@ try {
         "ramp $($clientFeel.ramp_to_full_speed_ms), S to Stopped receipt $($clientFeel.stop_to_stopped_receipt_ms) " +
         "(frame $([math]::Round($clientFeel.frame_ms,1))); acceleration $($hostFeel.max_acceleration), braking " +
         "$($hostFeel.braking_deceleration_walking), speed $($hostFeel.max_walk_speed) cm/s.")
-    Write-Host $feel
+    Write-Host $feelLine
     Write-Host ("DEV-only owned-connection combat/orders scenario passed through the ordinary lobby Start: a chased body's " +
         "foot in the navmesh margin routes and the same clicked ground projects onto the navmesh (#80), Settings held " +
         "over an accepted walk past its lease (order and heartbeat continue, nothing replays), remote attack-move " +

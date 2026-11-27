@@ -33,6 +33,17 @@ bool LDHUD::ReadModelRingMoves(int64 StartedAtMs,int64 EndsAtMs)
 {
     return EndsAtMs>StartedAtMs&&EndsAtMs-StartedAtMs<ReadModelSmoothRingMs;
 }
+bool LDHUD::SameProgression(const FLDProgressionView& A,const FLDProgressionView& B)
+{
+    return FLDProgressionView::StaticStruct()->CompareScriptStruct(&A,&B,PPF_None);
+}
+bool LDHUD::SameAttributes(const TArray<FLDCombatAttributeRowView>& A,const TArray<FLDCombatAttributeRowView>& B)
+{
+    if(A.Num()!=B.Num()){return false;}
+    const UScriptStruct* Row=FLDCombatAttributeRowView::StaticStruct();
+    for(int32 Index=0;Index<A.Num();++Index){if(!Row->CompareScriptStruct(&A[Index],&B[Index],PPF_None)){return false;}}
+    return true;
+}
 bool LDHUD::FReadModelGate::ShouldRebuild(const FReadModelKey& Key) const
 {
     return !bHas||bLive||bSettle||Key.Clock!=Last.Clock||!Key.SameInputs(Last);
@@ -3026,6 +3037,7 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::ShopStale: return TEXT("货架已经换过了");
     case ELDGrowthReason::SkillPointLimit: return TEXT("本局的技能点已经买满了");
     case ELDGrowthReason::NoShop: return TEXT("商店还没开张");
+    case ELDGrowthReason::MedalLimit: return TEXT("本局的元素勋章已经买过了");
     case ELDGrowthReason::NoSkillPoint: return LDTerms::NoSkillPointReason;
     case ELDGrowthReason::BranchUnavailable: return LDTerms::BranchUnavailableReason;
     case ELDGrowthReason::DataNotReady: return TEXT("数据尚未就绪");

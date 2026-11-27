@@ -256,9 +256,9 @@
     "OVERDRIVE.ShockReactionRatio": {"unit": "ratio", "value": 0.5},
     "OVERDRIVE.RotDurationScale": {"unit": "ratio", "value": 2},
     "OVERDRIVE.ChillRootSec": {"unit": "s", "value": 0.6},
-    "UNIT.MoveSpeedCmPerSec": {"unit": "cm/s", "value": 300},
-    "STAT.MoveSpeed.Min": {"unit": "cm/s", "value": 173},
-    "STAT.MoveSpeed.Max": {"unit": "cm/s", "value": 675},
+    "UNIT.MoveSpeedCmPerSec": {"unit": "cm/s", "value": 240},
+    "STAT.MoveSpeed.Min": {"unit": "cm/s", "value": 138.4},
+    "STAT.MoveSpeed.Max": {"unit": "cm/s", "value": 540},
     "UNIT.CollisionRadiusCm": {"unit": "cm", "value": 40},
     "UNIT.BasicAttackRangeCm": {"unit": "cm", "value": 250},
     "STAT.AttackRange.Min": {"unit": "cm", "value": 80},
@@ -562,6 +562,8 @@
     "SHOP.RefreshStep": 1,
     "SHOP.SkillPointPrice": 3,
     "SHOP.SkillPointMaxPerMatch": 2,
+    "SHOP.MedalPrice": 4,
+    "SHOP.MedalMaxPerMatch": 1,
     "DAMAGE.FactorTechCap": {
       "unit": "ratio",
       "value": 1000
@@ -938,7 +940,7 @@
     },
     "EXPLORE.PeddlerMoveSpeed": {
       "unit": "cm/s",
-      "value": 280
+      "value": 224
     },
     "EXPLORE.PeddlerStaySec": {
       "unit": "s",
@@ -8439,7 +8441,7 @@
         },
         "move_speed": {
           "unit": "cm/s",
-          "value": 240
+          "value": 192
         },
         "collision_radius": {
           "unit": "cm",
@@ -8579,7 +8581,7 @@
         },
         "move_speed": {
           "unit": "cm/s",
-          "value": 260
+          "value": 208
         },
         "collision_radius": {
           "unit": "cm",
@@ -8719,7 +8721,7 @@
         },
         "move_speed": {
           "unit": "cm/s",
-          "value": 260
+          "value": 208
         },
         "collision_radius": {
           "unit": "cm",
@@ -8859,7 +8861,7 @@
         },
         "move_speed": {
           "unit": "cm/s",
-          "value": 260
+          "value": 208
         },
         "collision_radius": {
           "unit": "cm",
@@ -8999,7 +9001,7 @@
         },
         "move_speed": {
           "unit": "cm/s",
-          "value": 260
+          "value": 208
         },
         "collision_radius": {
           "unit": "cm",
@@ -9139,7 +9141,7 @@
         },
         "move_speed": {
           "unit": "cm/s",
-          "value": 260
+          "value": 208
         },
         "collision_radius": {
           "unit": "cm",
@@ -9279,7 +9281,7 @@
         },
         "move_speed": {
           "unit": "cm/s",
-          "value": 260
+          "value": 208
         },
         "collision_radius": {
           "unit": "cm",
@@ -9419,7 +9421,7 @@
         },
         "move_speed": {
           "unit": "cm/s",
-          "value": 260
+          "value": 208
         },
         "collision_radius": {
           "unit": "cm",
@@ -9559,7 +9561,7 @@
         },
         "move_speed": {
           "unit": "cm/s",
-          "value": 260
+          "value": 208
         },
         "collision_radius": {
           "unit": "cm",
@@ -9699,7 +9701,7 @@
         },
         "move_speed": {
           "unit": "cm/s",
-          "value": 260
+          "value": 208
         },
         "collision_radius": {
           "unit": "cm",
@@ -9839,7 +9841,7 @@
         },
         "move_speed": {
           "unit": "cm/s",
-          "value": 260
+          "value": 208
         },
         "collision_radius": {
           "unit": "cm",
@@ -9979,7 +9981,7 @@
         },
         "move_speed": {
           "unit": "cm/s",
-          "value": 260
+          "value": 208
         },
         "collision_radius": {
           "unit": "cm",
@@ -10257,7 +10259,7 @@
     },
     "move_speed": {
       "unit": "cm/s",
-      "value": 225
+      "value": 180
     },
     "collision_radius": {
       "unit": "cm",

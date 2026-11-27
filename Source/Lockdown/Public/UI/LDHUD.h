@@ -519,6 +519,9 @@ public:
         ProbeHoverOver=Over;MarkReadModelDirty();
 #endif
     }
+    // DEV capture only (probes; zero otherwise): the painted size in pixels of the result board's report body, to tell a
+    // layout that does not settle.
+    FVector2D ProbeResultBoardSize() const;
     // When the last own-kill moment began (local seconds), <0 before the first.
     double MomentKillAt() const {return KillMomentAt;}
     // When the last stage title card began (local seconds), <0 before the first; whether a stage countdown shows now.

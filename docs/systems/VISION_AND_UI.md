@@ -29,6 +29,22 @@
 | **战术小地图（`ULDMinimap`）** | 底图采样 `SCS_BaseColor` 真实地形并压暗（直播风格黑底），叠加**高墙白色实线轮廓（`#F2F2F2`）、矮墙半透色块与灰色线（`#9AA0A8`，挡人但透视野/远程弹道）及实时场景坡道上坡箭头（`#E2C986`）**，其上覆盖实时迷雾层、公开事件图标（旗杆、躺平角、空投、外卖柜、小迷你旗、擂台、标记营地、热搜模糊圆）与当前可见单位（绝不显示迷雾内其他玩家）；白色镜头视锥框与 `Z = OwnFootZ` 平面求交，消除高度偏置。 |
 | **死亡承伤回放（`DamageRecap`）** | 死亡等待期间右侧展示致死前窗口内按攻击者与来源聚合的物理/魔法/真实承伤占比及元素反应规则链。 |
 
+### 构筑环与其下界面的点击
+
+`ULDWorkshop` 铺满整个 HUD 并叠在操作条之上。它只在有东西可按时接收指针（指针下有环的部件，或手里拿着一张牌等一次落点）；其余位置对指针透明，点击落到它下面的界面：`Q/W/E` 槽与槽角的升阶「+」、属性行、右下角按钮。升阶页由「+」或 `Ctrl + Q/W/E` 打开，页内两张卡可点击或按 `1`/`2` 选择。
+
+### 界面的每帧开销
+
+界面只在所示内容变化时重算，绘制层每帧只做投影与提交：
+
+- 读模型按 `LDHUD::FReadModelGate` 采样；其下的 `ULDWorkshop::Rebuild` 与 `ULDStatBar::Present` 各自比较输入（`LDHUD::SameProgression`、`SameAttributes` 与其余入参），输入相同就保留上一次的环模型与属性格。
+- 构筑环收起时的布局（操作条旁的入口与待选奖励）只跟环模型、控件尺寸与缩放、操作条位置和键位名变化重排；展开时每帧排版，两侧面板贴环缩放的结果按其读取的数值记忆（`ULDWorkshop::Refit`）。
+- 脚下雷达（`ALDBuildRadarDecal`）的渲染目标只在 `FLDBuildRadarState` 变化时重绘，跟随角色移动只改平面变换。
+- `LDRingPaint::FPainter` 把连续的无贴图图元合成一个网格提交（三角形保持绘制顺序），遇到图片或文字先提交；`LDRingPaint::Wrap` 记住最近的换行结果，`LDUIIcons::Find` 记住已找到的贴图。
+- 世界空间到屏幕的投影在一次绘制里用 `FLDWorldProjector` 读一次视图矩阵（头顶标签、瞄准预览、伤害数字），像素与 `APlayerController::ProjectWorldLocationToScreen` 相同。
+
+检查入口：`Scripts\RunPerfBudget.ps1 -Match -Trace`，再按[开发指南](../DEVELOPMENT.md)的无界面导出命令导出 GameThread 计时表；界面相关计时点为 `LDHUDRebuildReadModel`、`LDHUD_*Present`、`LDWorkshop_*`、`LDWorldLabels_*`、`LDMinimap_*`。
+
 ## 构筑蓝图文件与查看
 
 结算页与大厅入口可打开 `ULDBlueprintPanel` 只读查看本局或历史 `.ldbuild.json`（`schema_version=5`，单文件上限 `2 MiB`），支持“导出文件”至 `Saved/Blueprints/Exports/`（免自动清理）、“打开所在文件夹”及从 `Blueprints / Exports / Imports` 严格校验导入查看；不含任何上传或局内一键套用属性功能。
