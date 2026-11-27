@@ -647,13 +647,44 @@ public:
             },10.,false});
         RestStep(TEXT("Match_R1PKReady"),ELDRestStep::PKReady,false,.3,30.);
         RestStep(TEXT("Match_R1PK"),ELDRestStep::PK,false,4.,30.);
-        // A spectator's throw: the owner intent the throw button's aim submits, at the arena centre (the clock stays held).
-        Pages.Add({TEXT("Match_R1PKThrow"),[this](ALDPlayerController& PC,double Now)
+        // A spectator's throw the way a player makes it (the clock stays held): the throw button arms the aim, the pointer
+        // over a spot outside the arena (grey crossed reticle; a click there keeps the aim and says why), then over the
+        // arena floor (the reticle in the telegraph's colour), a click throws; the telegraph, then the landing.
+        auto Aim=[this](ALDPlayerController& PC,const FVector& Ground)
+            {
+                FVector2D Screen;
+                if(!PC.Navigation||!PC.ProjectWorldLocationToScreen(Ground,Screen)){return false;}
+                PC.Navigation->DevSetPointer(Screen);
+                return true;
+            };
+        Pages.Add({TEXT("Match_R1PKThrowAimOutside"),[this,Aim](ALDPlayerController& PC,double Now)
             {
                 const FLDPublicMatchView* View=Match(PC);
-                if(!View||View->Timeline.Step!=ELDRestStep::PK){return Settled(Now,3.);}
-                if(Once(Now,0)){PC.SubmitPKThrow(View->PK.ArenaCentreCm+FVector(120,80,0));}
-                return Settled(Now,1.);
+                ULDHUD* HUD=PC.HUDUI;
+                if(!View||!HUD||View->Timeline.Step!=ELDRestStep::PK){return Settled(Now,3.);}
+                if(Once(Now,0)){HUD->TogglePKThrowAim();}
+                const FVector Out=View->PK.ArenaCentreCm+(View->PK.ThrowAnchorCm-View->PK.ArenaCentreCm).GetSafeNormal2D()*2100.;
+                if(!Aim(PC,Out)){return false;}
+                if(Once(Now,1)&&HUD->IsPKThrowArmed()){HUD->ThrowPKAtPointer();}
+                return HUD->IsPKThrowArmed()&&Settled(Now,1.);
+            },10.,false});
+        Pages.Add({TEXT("Match_R1PKThrowAim"),[this,Aim](ALDPlayerController& PC,double Now)
+            {
+                const FLDPublicMatchView* View=Match(PC);
+                ULDHUD* HUD=PC.HUDUI;
+                if(!View||!HUD||!HUD->IsPKThrowArmed()){return Settled(Now,3.);}
+                return Aim(PC,View->PK.ArenaCentreCm+FVector(120,80,0))&&Settled(Now,.8);
+            },10.,false});
+        Pages.Add({TEXT("Match_R1PKThrow"),[this](ALDPlayerController& PC,double Now)
+            {
+                ULDHUD* HUD=PC.HUDUI;
+                if(HUD&&Once(Now,0)&&HUD->IsPKThrowArmed()){HUD->ThrowPKAtPointer();}
+                return true;
+            },10.,false});
+        Pages.Add({TEXT("Match_R1PKThrowLanded"),[this](ALDPlayerController& PC,double Now)
+            {
+                if(Settled(Now,.3)&&PC.Navigation){PC.Navigation->DevSetPointer(TOptional<FVector2D>());return true;}
+                return false;
             },10.,false});
         RestStep(TEXT("Match_R1Settlement"),ELDRestStep::Settlement,false,.3,80.);
         RestStep(TEXT("Match_R1Return"),ELDRestStep::Return,false,.3,30.);

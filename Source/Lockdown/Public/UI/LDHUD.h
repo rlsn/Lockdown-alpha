@@ -335,7 +335,6 @@ private:
     void RefreshPK(class ALDPlayerController& PC,const FLDPublicMatchView& Public,const FLDLobbyView& Lobby,bool bClock,int64 NowMs);
     LDHUD::FPKPanelInput PKInput(const class ALDPlayerController& PC,bool bClock,int64 NowMs);
     void SubmitPKBet(int32 SideIndex);
-    void TogglePKThrowAim();
     void HandlePKBet(ELDPKBetResult Result);
     void HandlePKThrow(ELDPKThrowResult Result,int64 ReadyAtMs);
     void ShowPKAnswer(const FString& Text);
@@ -348,11 +347,16 @@ private:
     const FLDDemoContentDefinitions* PKParamsSource=nullptr;
     bool bPKParamsValid=false;
     const FLDPKParameters* PKParameters();
+    // Where the armed throw would land (the authority's distance rule, with the parameters PKParameters last read);
+    // Thrown where it may, None without a PK view.
+    ELDPKThrowResult PKThrowSpot(const FVector& TargetCm) const;
     void SyncPKRing(const FLDPublicMatchView& Public,bool bOwnMatch,bool bClock,int64 NowMs);
 public:
     // While the throw aim is armed the next world left click throws at the ground under the pointer (ThrowPKAtPointer) and a
     // right click or Back only cancels it (CancelPKThrowAim); neither issues a move, attack or inspect (LDPlayerInput.cpp).
     bool IsPKThrowArmed() const {return bPKThrowArmed;}
+    // The throw button: arms the aim when a throw is ready, else cancels an armed one.
+    void TogglePKThrowAim();
     void ThrowPKAtPointer();
     bool CancelPKThrowAim();
 private:

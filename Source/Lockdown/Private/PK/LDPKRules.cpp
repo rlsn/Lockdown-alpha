@@ -296,6 +296,17 @@ bool LDPKRules::Draw(int32 Entrants, const FLDPKParameters& Params, FRandomStrea
     return true;
 }
 
+ELDPKThrowResult LDPKRules::ThrowSpot(const FLDPKParameters& Params, const FVector& ArenaCentreCm, const FVector& ThrowAnchorCm,
+    const FVector& TargetCm)
+{
+    if (TargetCm.ContainsNaN() || FVector::DistSquared2D(TargetCm, ArenaCentreCm) > FMath::Square(Params.ArenaRadiusCm))
+    {
+        return ELDPKThrowResult::OutsideArena;
+    }
+    if (FVector::DistSquared2D(TargetCm, ThrowAnchorCm) > FMath::Square(Params.ThrowRangeCm)) { return ELDPKThrowResult::OutOfRange; }
+    return ELDPKThrowResult::Thrown;
+}
+
 double LDPKRules::RingRadiusCm(const FLDPKParameters& Params, int64 ElapsedMs)
 {
     return LDPKRulesDetail::RadiusAtMs(Params, double(ElapsedMs));

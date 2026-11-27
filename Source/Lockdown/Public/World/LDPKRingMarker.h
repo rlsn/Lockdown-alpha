@@ -53,6 +53,8 @@ private:
     double LaidSafeCm = 0;
     double LaidPreviewCm = 0;
     TArray<double> LaidThrowCm;
+    // The throws in flight at the last Show: one that is gone has landed.
+    TArray<FVector> InFlightCm;
     uint32 Generation = 0;
     uint32 Serial = 0;
 };
