@@ -1,5 +1,4 @@
 #include "Vision/LDWorldViewRelay.h"
-#include "Components/PoseableMeshComponent.h"
 #include "Audio/LDAudioSubsystem.h"
 #include "UI/LDBroadcastStyle.h"
 #include "World/LDRecoveryOrbMarker.h"
@@ -81,7 +80,7 @@ bool IsObservedArea(ELDObservedProjectileLook Look)
     return Look==ELDObservedProjectileLook::AreaPlain || Look==ELDObservedProjectileLook::AreaMagic
         || Look==ELDObservedProjectileLook::AreaFire || Look==ELDObservedProjectileLook::AreaWater
         || Look==ELDObservedProjectileLook::AreaElectric || Look==ELDObservedProjectileLook::SlipperDrop
-        || Look==ELDObservedProjectileLook::PhantomDecoy || Look==ELDObservedProjectileLook::ShardBurst;
+        || Look==ELDObservedProjectileLook::ShardBurst;
 }
 
 FLinearColor ObservedEffectColor(ELDObservedProjectileLook Look)
@@ -95,7 +94,6 @@ FLinearColor ObservedEffectColor(ELDObservedProjectileLook Look)
     case ELDObservedProjectileLook::FistWind: return FLinearColor(1.f,.42f,.18f);
     case ELDObservedProjectileLook::SlipperDrop: return FLinearColor(.25f,.95f,1.f);
     case ELDObservedProjectileLook::CordonTape: return FLinearColor(1.f,.84f,.08f);
-    case ELDObservedProjectileLook::PhantomDecoy: return FLinearColor(.78f,.38f,1.f);
     case ELDObservedProjectileLook::ShardBurst: return FLinearColor(.2f,.92f,1.f);
     case ELDObservedProjectileLook::AreaMagic: return FLinearColor(.65f,.2f,1.f);
     case ELDObservedProjectileLook::AreaFire: return FLinearColor(1.f,.18f,.015f);
@@ -518,9 +516,6 @@ void ALDObservedEntityProxy::Apply(const FLDObservedUnitView& Unit, double Visua
     Shown.CueImpactDelayMs = Unit.ActionCueImpactDelayMs;
     Shown.ActionAbility = Unit.ActionAbility;
     Shown.ActionComboStep = Unit.ActionComboStep;
-    Shown.bCharging = Unit.bCharging;
-    Shown.ChargeAgeMs = Unit.ChargeAgeMs;
-    Shown.bOverdriveCast = Unit.bOverdriveCast;
     Shown.RecentReaction = Unit.RecentReaction;
     Shown.RecentReactionElement = Unit.RecentReactionElement;
     Shown.RecentReactionAgePlusOneMs = Unit.RecentReactionAgePlusOneMs;
@@ -566,9 +561,6 @@ void ALDObservedEntityProxy::Present(double AtServerSec, float Delta)
         Body->SetElementStates(Reached.Statuses);
         Body->SetCastAbility(Reached.Cue == ELDObservedActionCue::Cast ? Reached.ActionAbility : 0);
         Body->SetComboStep(Reached.Cue == ELDObservedActionCue::Attack ? Reached.ActionComboStep : 0);
-        Body->SetCharging(Reached.bCharging,
-            float(double(Reached.ChargeAgeMs) / 1000.0 + FMath::Max(0.0, AtServerSec - Points[Pose.Reached].At)));
-        Body->SetOverdriveCast(Reached.Cue == ELDObservedActionCue::Cast && Reached.bOverdriveCast);
         if (Reached.RecentReactionAgePlusOneMs)
         {
             const double ReactionAge = double(Reached.RecentReactionAgePlusOneMs - 1) / 1000.0;
@@ -890,7 +882,6 @@ void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effe
     const bool bRoad=Effect.Look==ELook::Road || Effect.Look==ELook::LineWarning || Effect.Look==ELook::Wind || bCordon;
     const bool bBag=Effect.Look==ELook::Bag;
     const bool bWall=Effect.Look==ELook::BagWall;
-    const bool bDecoy=Effect.Look==ELook::PhantomDecoy;
     const FLinearColor Color=Effect.bOwn ? FMath::Lerp(ObservedEffectColor(Effect.Look),FLinearColor(.08f,.85f,.6f),.5f)
         : ObservedEffectColor(Effect.Look);
     ShownLook=Effect.Look;
@@ -936,13 +927,7 @@ void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effe
     if (bCone) { Chalk->SetRelativeLocation(FVector(Effect.RadiusCm*.35,0,100)); }
     if (bArea)
     {
-        if (bDecoy)
-        {
-            Chalk->SetStaticMesh(CylinderMesh);
-            Chalk->SetRelativeLocation(FVector(0,0,88));
-            Chalk->SetRelativeScale3D(FVector(.75,.75,1.72));
-        }
-        else if (Slipper)
+        if (Slipper)
         {
             Chalk->SetRelativeLocation(FVector(0,0,-3));
             Chalk->SetRelativeRotation(FRotator(0,25,0));
@@ -968,9 +953,6 @@ void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effe
         // The tape hangs from the tops of its posts.
         if (Tape) { Chalk->SetRelativeLocation(FVector(0,0,66)); }
     }
-    // The phantom decoy stands as a still copy of the body it left; the plain column only when no body is near.
-    if (!bDecoy && StandIn) { StandIn->DestroyComponent(); StandIn=nullptr; }
-    if (bDecoy && !StandIn && Impacts) { StandIn=Impacts->StandIn(*this,GetActorLocation(),Color*1.6f,450.f); }
     for (const auto& Segment : ShapeLines) { Segment->SetVisibility(false); }
     int32 Used=0;
     const auto Piece=[&](const FVector& At,const FRotator& Turn,const FVector& Scale)
@@ -1041,7 +1023,7 @@ void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effe
     const bool bDesigned=LDSliceVfx::EffectSystemOf(uint8(Effect.Look),DesignedInk)!=LDSliceVfx::ESystem::Count;
     const bool bBodyless=(bDesigned&&!bFlight) || Effect.Look==ELook::FistWind || Effect.Look==ELook::SpeechCone || Effect.Look==ELook::ConeWarning
         || Effect.Look==ELook::LineWarning || Effect.Look==ELook::Road
-        || Effect.Look==ELook::ShardBurst || (bDecoy&&StandIn);
+        || Effect.Look==ELook::ShardBurst;
     Chalk->SetVisibility(!bBodyless);
     // The accent is a trap's marking while its paper is missing.
     Accent->SetVisibility((Effect.Look==ELook::FlyerArming || Effect.Look==ELook::FlyerArmed) && !Flyer);
@@ -1109,7 +1091,6 @@ void ALDObservedProjectileProxy::Apply(const FLDObservedProjectileView& Projecti
         bPlaced = true;
         // A new effect on this proxy builds its look afresh.
         ShownRadius = -1;
-        if (StandIn) { StandIn->DestroyComponent(); StandIn = nullptr; }
         ShownLook = Projectile.Look;
         PlayBurst(false);
         if (UMaterialInterface* Material = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Lockdown/Generated/Materials/M_Character.M_Character")))
@@ -1198,9 +1179,6 @@ void ALDObservedProjectileProxy::PlayBurst(bool bEnd)
         {
         case ELDObservedProjectileLook::ShardBurst:
             if (!bEnd) { Impacts->PlayFree(LDSliceVfx::ESystem::ShardBurst,Floor,Chest,FLinearColor::White,FMath::Max(ShownRadius,80.f),1.2f,Look); }
-            return;
-        case ELDObservedProjectileLook::PhantomDecoy:
-            if (bEnd) { Impacts->PlayFree(LDSliceVfx::ESystem::DecoyPop,Floor,Chest,FLinearColor::White,FMath::Max(ShownRadius,80.f),1.2f,Look); }
             return;
         case ELDObservedProjectileLook::BookShadow:
             if (bEnd) { Impacts->PlayPack(LDSliceVfx::EPack::DustRing,Floor+FVector(0,0,4),.55f); }

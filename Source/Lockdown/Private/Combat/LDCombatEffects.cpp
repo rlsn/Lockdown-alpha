@@ -148,6 +148,11 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
 {
     // Hits queue more hits; keep this one stable even when the caller passed one of PendingHits' elements.
     FLDCombatHit Hit=InHit;
+    // Auto-empower: an empowered action's hit gives its caster no momentum (E1); a reaction a player's own hit sets off
+    // keeps its full reaction momentum, a tick's, pulse's or settle's only EMPOWER.DerivedReaction.
+    TGuardValue<FGuid> EmpowerScope(EmpowerHitCaster,IsEmpoweredHit(InHit) ? InHit.SourceEntity : EmpowerHitCaster);
+    TGuardValue<bool> OwnHitScope(bOwnHitScope,!InHit.bPeriodic && !InHit.bBurnTick && !InHit.bStatusSettle
+        && InHit.ReactionKind==ELDCombatReaction::None && !InHit.bReflect);
     ILDLifeAuthority* Mode=Authority();
     const FLDDemoContentSnapshot* Content=Catalog();
     if (!Mode || !Content)
@@ -296,50 +301,6 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     {
         if (const int64 Guard=BranchGuardBp(*Body,NowMs); Guard>0)
         { Evaluation.DeliveryScaleBp=Evaluation.DeliveryScaleBp/10000*(10000-Guard)+Evaluation.DeliveryScaleBp%10000*(10000-Guard)/10000; }
-    }
-    // #345 Batch 2.1: innate D dash (and as_dash roll branches) native 0.12s hit-graze Perfect Dodge.
-    bool bNativeDashDodged=false;
-    if (Hit.SourceEntity!=Body->Victim.EntityId && Body->Victim.Kind==ELDVictimKind::Contender && Body->DashStartedAtMs.IsSet()
-        && !Hit.bReflect && !Hit.bBurnTick && !Hit.bPeriodic && !Hit.bStatusSettle && !Hit.bStaggerBleed && !Hit.bRider)
-    {
-        const FLDDemoMomentumParameters& M=Content->Get().Parameters.Momentum;
-        const int64 DashStart=Body->DashStartedAtMs.GetValue();
-        if (NowMs>=DashStart && NowMs-DashStart<=M.DashDodgeWindowMs && Body->LastDashDodgeStartMs!=DashStart)
-        {
-            const FGuid Dodger=Body->Victim.EntityId;
-            if (!PerfectDodgeMarks.ContainsByPredicate([&Hit,&Dodger](const TTuple<FGuid,FGuid,int64>& Mark)
-                { return Mark.Get<0>()==Hit.EffectId && Mark.Get<1>()==Dodger; }))
-            {
-                bNativeDashDodged=true;
-                Body->LastDashDodgeStartMs=DashStart;
-                PerfectDodgeMarks.Emplace(Hit.EffectId,Dodger,NowMs);
-                const int64 KeepBp=FMath::Clamp<int64>(10000-M.DashDodgeCutBp,0,10000);
-                Evaluation.DeliveryScaleBp=Evaluation.DeliveryScaleBp/10000*KeepBp+Evaluation.DeliveryScaleBp%10000*KeepBp/10000;
-                GrantMomentum(*Body,M.PerfectDodgeP2,ELDMomentumBook::Dodge);
-                if (M.DashDodgeCooldownRefundBp>0)
-                {
-                    if (FLDCombatEntityRecord* DodgerRecord=FindRecord(Dodger))
-                    {
-                        const FName InnateId=LDCombatSourceRules::InnateDashId();
-                        for (FLDCombatTrack& Track : DodgerRecord->Tracks)
-                        {
-                            if (Track.Kind==ELDCombatSourceKind::Innate && Track.DefinitionId==InnateId && Track.ReadyAtMs>NowMs)
-                            {
-                                const int64 Rem=Track.ReadyAtMs-NowMs;
-                                Track.ReadyAtMs=LDCombatSourceRules::ReduceReadyAt(Track.ReadyAtMs,NowMs,
-                                    Rem/10000*M.DashDodgeCooldownRefundBp+Rem%10000*M.DashDodgeCooldownRefundBp/10000);
-                            }
-                        }
-                    }
-                }
-                ++Body->PerfectDodges;
-                Body->LastPerfectDodgeAtMs=NowMs;
-                MarkViewChanged(Dodger);
-                if (!OnPerfectDodgeCards(*Body,NowMs,Error)) { return false; }
-                UE_LOG(LogLDCombat,Log,TEXT("LD_PERFECT_DODGE t=%lld entity=%s life=%u effect=%s source=%s momentum=%s"),NowMs,*LDLog::Id(Dodger),
-                    Body->Victim.Life,*LDLog::Id(Hit.EffectId),*LDLog::Id(Hit.SourceEntity),*LDLog::P2(Body->Resources.MomentumP2));
-            }
-        }
     }
     // #345 active_unplug ParryStance: 65% damage cut while active; first direct/projectile/dash hit triggers counter-shock & Combo 3.
     bool bParryCounterNow=false;
@@ -710,17 +671,16 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     bool bSendOwnHit=false;
     ELDObservedHitLook OwnHitLook=ELDObservedHitLook::None;
     uint8 OwnHitFlags=0;
-    // A hit that harmed, controlled, slowed, was perfect-dodged or was parried shows its cue on the struck body.
-    if (Damage.DamageP2>0 || bControlled || bNativeDashDodged || bParryCounterNow)
+    // A hit that harmed, controlled, slowed or was parried shows its cue on the struck body.
+    if (Damage.DamageP2>0 || bControlled || bParryCounterNow)
     {
         // A zone's periodic slow refresh is not a visible hit.
-        if (!Hit.bSilent || Damage.DamageP2>0 || bNativeDashDodged || bParryCounterNow)
+        if (!Hit.bSilent || Damage.DamageP2>0 || bParryCounterNow)
         {
             Body->Cues.LastHitAtMs=NowMs;
             Body->Cues.LastHitId=Hit.HitId;
             Body->Cues.LastHitLook=uint8(LDCombatCues::ClassifyHit(Hit));
-            Body->Cues.LastHitFlags=LDCombatCues::ClassifyImpact(bCritical,ShieldBeforeP2,Damage,Hit.CastLedger && Hit.CastLedger->bOverdrive)
-                | (bNativeDashDodged ? LDObservation::Dodged : 0)
+            Body->Cues.LastHitFlags=LDCombatCues::ClassifyImpact(bCritical,ShieldBeforeP2,Damage)
                 | (bParryCounterNow ? LDObservation::Parried : 0);
         }
         MarkViewChanged(Body->Victim.EntityId);
@@ -728,7 +688,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         {
             // A training dummy refills at zero rather than dying, so emptying it is no kill.
             const uint8 Dealt=LDCombatCues::ClassifyDealt(bCritical,ShieldBeforeP2,Damage,
-                HPBefore>0 && Body->Resources.HpP2==0 && !Body->bTrainingDummy, Hit.CastLedger && Hit.CastLedger->bOverdrive);
+                HPBefore>0 && Body->Resources.HpP2==0 && !Body->bTrainingDummy);
             // One receipt per authority instant: an area release confirms its strongest hit whatever the target order.
             if (Source->Cues.LastDealtAtMs!=NowMs || LDCombatCues::DealtRank(Dealt)>LDCombatCues::DealtRank(Source->Cues.LastDealtFlags))
             {
@@ -793,7 +753,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         using namespace LDCombatEffectsDetail;
         const FLDCombatEntityRecord* SourceRecord=FindRecord(Hit.SourceEntity);
         const FName SourceMonster=Source ? Source->MonsterId : (SourceRecord ? SourceRecord->MonsterAtLife(Hit.SourceBody.Victim.Life) : NAME_None);
-        UE_LOG(LogLDCombat,Log,TEXT("LD_HIT t=%lld src=%s src_kind=%s src_monster=%s credit=%s victim=%s victim_life=%u victim_kind=%s victim_monster=%s via=%s class=%s type=%s dmg=%s absorbed=%s hp_lost=%s hp=%s->%s max_hp=%s shield=%s->%s factor_bp=%lld resist=%s crit=%d protected=%d periodic=%d reflect=%d added=%d controls=%s vamp=%s lethal=%d factors=%s"),
+        UE_LOG(LogLDCombat,Log,TEXT("LD_HIT t=%lld src=%s src_kind=%s src_monster=%s credit=%s victim=%s victim_life=%u victim_kind=%s victim_monster=%s via=%s class=%s type=%s dmg=%s absorbed=%s hp_lost=%s hp=%s->%s max_hp=%s shield=%s->%s factor_bp=%lld resist=%s crit=%d protected=%d periodic=%d reflect=%d added=%d controls=%s vamp=%s lethal=%d factors=%s empower=%d"),
             NowMs,*LDLog::Id(Hit.SourceEntity),VictimKindName(Hit.SourceBody.Victim.Kind),
             SourceMonster.IsNone() ? TEXT("-") : *SourceMonster.ToString(),*LDLog::Id(Hit.CreditOwner),
             *LDLog::Id(Body->Victim.EntityId),Body->Victim.Life,VictimKindName(Body->Victim.Kind),
@@ -804,7 +764,8 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
             *LDLog::P2(Body->Resources.ShieldP2),Evaluation.DamageFactorBp,
             *LDLog::P2(Evaluation.TargetResistanceP2.Get(0)),
             bCritical,bProtected,Hit.bPeriodic,Hit.bReflect,Hit.bAddedDamage,*ControlNames(ControlMask),
-            *LDLog::P2(VampHealedP2),HPAfterP2==0,*FactorNames(Factors));
+            *LDLog::P2(VampHealedP2),HPAfterP2==0,*FactorNames(Factors),
+            Hit.EmpowerSerial>0 ? Hit.EmpowerSerial : Hit.CastLedger ? Hit.CastLedger->EmpowerSerial : 0);
     }
     if (Source)
     {
@@ -812,6 +773,13 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         // release's first native direct hit on each body gains MOMENTUM.SkillHit once.
         if (!bProtected && Hit.SourceEntity!=Body->Victim.EntityId && !OnMomentumHit(*Source,Hit,*Body,bNativeDirect,Error))
         { return false; }
+        // Auto-empower A/B switch: a contender gains EMPOWER.DamagedPerPercent per percent of its max HP a hostile hit took.
+        const FLDDemoEmpowerParameters* EmpowerP=EmpowerTerms();
+        if (EmpowerP && EmpowerP->DamagedPerPercentP2>0 && !bProtected && Hit.SourceEntity!=Body->Victim.EntityId
+            && Body->Victim.Kind==ELDVictimKind::Contender && Body->Resources.MaxHpP2>0 && Damage.HPLostP2>0)
+        {
+            GrantMomentum(*Body,Damage.HPLostP2*100/Body->Resources.MaxHpP2*EmpowerP->DamagedPerPercentP2,ELDMomentumBook::Other);
+        }
         // Skill branch riders of the release on each of its native direct hits.
         if (!bProtected && bNativeDirect && Hit.CastLedger && !Hit.CastLedger->Riders.IsEmpty()
             && !ApplyBranchRiders(Hit,*Source,*Body,NowMs,Error)) { return false; }
@@ -824,7 +792,9 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     {
         for (int32 Layer=0;Layer<FMath::Max(BrokenLayers,bShieldBroken ? 1 : 0);++Layer)
         {
-            if (!OnShieldBrokenCards(*Body,NowMs,Error)) { return false; }
+            // An empowered guard's layer bursts as part of its empowered action (rule E1).
+            const int32 Serial=BrokenLayerIds.IsValidIndex(Layer) ? EmpowerSerialOfLayer(*Body,BrokenLayerIds[Layer]) : 0;
+            if (!OnShieldBrokenCards(*Body,NowMs,Error,Serial)) { return false; }
         }
     }
     if (!bProtected && Source && Hit.bBurnTick && Hit.SourceEntity!=Body->Victim.EntityId
@@ -1111,6 +1081,15 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
             {
                 const int64 Scale=Contact.DeliveryScaleBp, Bp=Projectile.PierceScaleBp;
                 Contact.DeliveryScaleBp=Scale/10000*Bp+Scale%10000*Bp/10000;
+                // An empowered flying punch: the bodies past the first take added damage, as its cone would.
+                if (Projectile.bEmpowerPunch)
+                {
+                    Contact.ComboStep=0;
+                    Contact.bExtraStrike=true;
+                    Contact.bAddedDamage=true;
+                    Contact.OnHitScaleBp=0;
+                    Contact.bLifesteal=false;
+                }
             }
             PendingHits.Add(Contact);
             // active_snark_bolt: first enemy hit drops a collectible slipper for DurationMs slightly toward the caster.
@@ -1536,6 +1515,7 @@ bool ALDCombatDirector::RegenerateBodies(const LDTactical::FOutOfCombatRecovery&
         {
             ++Pool.Revision;
             MarkViewChanged(Body.Victim.EntityId);
+            if (bContender) { TrackEmpowerArmed(Body,NowMs); }
         }
         LedgerRegenerated(Body,RestoredP2);
     }

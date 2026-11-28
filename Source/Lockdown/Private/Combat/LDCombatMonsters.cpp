@@ -77,14 +77,9 @@ bool ALDCombatDirector::AdvanceMonsterStrikes(int64 NowMs,FString& Error)
     {
         const FLDDemoMonsterDefinition* Monster=nullptr;
         if(!Catalog()->FindMonsterByName(S.Payload.Source.DefinitionId,Monster,Error)){return false;}
-        // A charge's line warning ends at its release, where its dash starts: a contender who dashed out of the line in time
-        // dodged perfectly (spec §4.4); the dash itself then strikes only the bodies it actually meets (ResolveDashContacts).
-        if(Monster->Skill.Pattern==ELDMonsterPattern::Charge)
-        {
-            if(!ResolvePerfectDodges(S.Key,S.Payload.SourceEntity,[&S](const FVector& Point){return LDMonsterRules::Contains(S.Area,Point);},NowMs,Error))
-            {return false;}
-            continue;
-        }
+        // A charge's line warning ends at its release, where its dash starts; the dash itself strikes only the bodies it
+        // actually meets (ResolveDashContacts).
+        if(Monster->Skill.Pattern==ELDMonsterPattern::Charge){continue;}
         if(Monster->Skill.Pattern==ELDMonsterPattern::Projectile)
         {
             FLDCombatProjectile P;
@@ -93,13 +88,9 @@ bool ALDCombatDirector::AdvanceMonsterStrikes(int64 NowMs,FString& Error)
             P.DamageType=S.Payload.DamageType;P.SourceADP2=S.Payload.SourceADP2;P.ADRatioBp=S.Payload.ADRatioBp;
             P.OriginCm=S.Area.Origin;P.Direction=S.Area.Direction;P.RangeCm=S.Area.Range;P.RadiusCm=S.Area.Radius;
             P.SpeedCmPerSec=double(Monster->Skill.ProjectileSpeedCmPerSec.Numerator)/Monster->Skill.ProjectileSpeedCmPerSec.Denominator;P.AdvancedThroughMs=NowMs;P.SlowBp=S.Payload.SlowBp;P.SlowDurationMs=S.Payload.SlowDurationMs;
-            P.bTelegraphed=true;
             Projectiles.Add(P);continue;
         }
         const auto* Source=FindBody(S.Payload.SourceBody);
-        // A camp warning resolves here; a contender who dashed out of it in time dodged perfectly (spec §4.4).
-        if(!ResolvePerfectDodges(S.Key,S.Payload.SourceEntity,[&S](const FVector& Point){return LDMonsterRules::Contains(S.Area,Point);},NowMs,Error))
-        {return false;}
         TArray<FLDCombatBodyRef> Targets;
         const double Radius=S.Area.Shape==ELDMonsterShape::Circle?S.Area.Radius:
             S.Area.Shape==ELDMonsterShape::Line?FMath::Sqrt(FMath::Square(S.Area.Range)+FMath::Square(S.Area.Radius)):S.Area.Range;

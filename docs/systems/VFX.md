@@ -282,7 +282,7 @@
 
 ## 7. 覆盖清单
 
-范围来自 `SourceData/Demo/content.json`（24 个主动技能、94 张卡与勋章、5 种元素、10 种反应、5 种地面状态、12 种野怪招式与院长）和客户端能看到的权威事件（`FLDObservedUnitView` 的动作提示、命中外观与标志、状态、反应，`FLDObservedProjectileView` 的 24 种外观，`FLDObservedGroundState`，阵亡通知）。特效只能挂在这些事件上；没有公开事件的效果不能凭空表现，记为 BLOCKED 并写明缺什么。
+范围来自 `SourceData/Demo/content.json`（24 个主动技能、90 张卡与勋章、5 种元素、10 种反应、5 种地面状态、12 种野怪招式与院长）和客户端能看到的权威事件（`FLDObservedUnitView` 的动作提示、命中外观与标志、状态、反应，`FLDObservedProjectileView` 的 23 种外观，`FLDObservedGroundState`，阵亡通知）。特效只能挂在这些事件上；没有公开事件的效果不能凭空表现，记为 BLOCKED 并写明缺什么。
 
 状态：NOT STARTED / IN PROGRESS / IMPLEMENTED / LOCALLY VERIFIED / USER APPROVED / BLOCKED；“设计上不需要”表示该项没有独立特效，由所指的其他表现覆盖。“旧”指仍在运行、但属于 §1.1 禁用语言的表现（网格月牙、星爆、粗黑边、平涂几何体），要整体替换，不算覆盖。未标 USER APPROVED 的项都未经用户验收。
 
@@ -390,14 +390,11 @@
 | 营地回位 CampReturning | LOCALLY VERIFIED | `NS_LDReturnState`（由提示位 Returning 驱动）：身上升起并散开的淡色雾丝、脚下一条缓慢转动的淡色细带；刻意不亮，回位中的野怪不是威胁。旧的背后牌子已删除 | 雾丝在亮地面上很淡，只在验证舞台的球员身体上看过 |
 | 野怪激怒 CampEnraged、守卫 CampGuarding | LOCALLY VERIFIED | 激怒沿用嘲讽的头顶红色火舌（`NS_LDTauntState`），守卫沿用架势的铜带（`NS_LDBracedState`）；在院长外观的身体上看过激怒 |  |
 
-### 7.7 冲刺、闪避与爆劲
+### 7.7 冲刺
 
 | 项 | 事件 | 状态 | 实现 | 已知问题 |
 | --- | --- | --- | --- | --- |
 | 冲刺拖尾与起步 | 身体速度超过 950 cm/s | IMPLEMENTED | `NS_LDDashWake`：身后贴地扬起的尘、胸口高度两三道气流细痕；起步处素材包尘环 `DustRing` 0.35 倍；残影保留（`ULDImpactFxSubsystem::Ghost`） | 验证舞台没有冲刺场景，待真实对战确认 |
-| 完美闪避 | PerfectDodge 命中标志 | LOCALLY VERIFIED | 身体留下一道淡金残影，轮廓闪一下金色边缘光；不画命中，也不再画金色光环 |  |
-| 爆劲蓄力 | `bCharging` | LOCALLY VERIFIED | `NS_LDOverdriveCharge`：地面品红光环一圈圈向身体收拢、被吸向胸口的光点、脚下品红色光，强度随蓄力进度；蓄满时身体轮廓闪一下品红边缘光 | 光点偏小 |
-| 爆劲就绪、释放、命中 | 蓄满、`bOverdriveCast`、Overdriven 标志 | LOCALLY VERIFIED | 释放与带爆劲的命中：`NS_LDOverdriveBurst`（品红闪光 + 向外甩出并落地的硬质光丝）；就绪见上一行 | 舞台上看的是带爆劲的命中，释放用同一套爆发 |
 
 ### 7.8 预警与危险区域
 
@@ -416,7 +413,6 @@
 | 卡牌 | 公开事件 | 状态 | 实现 | 已知问题 |
 | --- | --- | --- | --- | --- |
 | 疯狗乱拳 / 咒刃回响的拳风 | 投射物 FistWind | LOCALLY VERIFIED | `NS_LDFlightFist`：横在前进方向上的弓形压力波 + 两道回波 + 贴地拖起的尘；无本体方块 |  |
-| 幻影脱壳 | 投射物 PhantomDecoy | LOCALLY VERIFIED | 幻影是离它最近的可见身体当前姿势的半透明紫色复制（`ULDImpactFxSubsystem::StandIn`，450 cm 内没有身体时退回圆柱）；引爆 `NS_LDDecoyPop`：紫色闪光、贴地甩出的光丝、扩到爆炸半径的紫烟 |  |
 | 反应装甲 | 投射物 ShardBurst | LOCALLY VERIFIED | `NS_LDShardBurst`：胸口一记冷光、护盾壳片向四周平飞并滑停、前面的亮丝；细线圈为伤害范围 |  |
 | 一路结冰、挪地盘 | 地面状态（冰面 / 迁移） | LOCALLY VERIFIED | 两张卡只通过地面状态公开：冰面是 `NS_LDIceGround`，迁移后的地面状态在新位置重新出现 | 没有卡牌自己的事件 |
 | 元素勋章（火、水、电、冰、腐） | 命中外观与元素状态 | LOCALLY VERIFIED | 勋章只通过命中外观与元素状态公开：见 §7.3 的五种元素状态与 §7.10 的元素命中 | 没有勋章自己的事件 |

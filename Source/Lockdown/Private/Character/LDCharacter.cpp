@@ -237,11 +237,6 @@ void ALDCharacter::Tick(float Delta)
     }
     Body->SetComboStep(ComboStep);
     Body->SetOwnBody(true);
-    // The own hold runs on the local key timer, so the column and the ready flare do not wait for replication.
-    const bool bHolding=PC->OverdriveHoldProgress(PC->HeldOverdriveEntry())>0.f;
-    Body->SetCharging(bHolding || (bCurrentView && View.ChargingEntry!=ELDCombatEntry::None),0.f,
-        bHolding ? PC->OverdriveHoldProgress(PC->HeldOverdriveEntry()) : -1.f);
-    Body->SetOverdriveCast(bCue && Selected.Cue==ELDObservedActionCue::Cast && Facts.bOverdriveCast);
     if (bCurrentView && View.Cues.LastHitAtMs>0 && NowMs>=View.Cues.LastHitAtMs)
     {
         const bool bFresh=Body->SetHitReaction(float(NowMs-View.Cues.LastHitAtMs)/1000.f,

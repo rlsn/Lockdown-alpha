@@ -36,14 +36,14 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
         int64 HP;
         return !bDamage || (N.Mul64(P.MaxHP.MaxP2, Effect.MaxHPRatioBp, HP, Path) && N.Add64(Sum, HP, Sum, Path));
     };
-    // G(L) = 1 + SKILL.GrowthPerLevel x (L - 1) at the top level; the top rank and overdrive scale the grown amounts again
-    // (base and ratios alike), so the envelope checks their product.
+    // G(L) = 1 + SKILL.GrowthPerLevel x (L - 1) at the top level; the top rank scales the grown amounts again (base and
+    // ratios alike), so the envelope checks their product.
     int64 Growth = 0, Factor = 0, RankFactor = 0;
     const auto& Ranks = P.SkillRanks;
     if (Ranks.RankBaseScaleBp.Num() != 3 || Ranks.RankRatioScaleBp.Num() != 3
         || !N.Mul64(FMath::Max(D.Progression.MaxLevel - 1, 0), P.SkillGrowthPerLevelBp, Growth, TEXT("SKILL.GrowthPerLevel"))
         || !N.Add64(10000, Growth, Factor, TEXT("SKILL.GrowthPerLevel"))
-        || !N.Mul64(FMath::Max(Ranks.RankBaseScaleBp[2], Ranks.RankRatioScaleBp[2]), P.Overdrive.ScaleBp, RankFactor,
+        || !N.Mul64(FMath::Max(Ranks.RankBaseScaleBp[2], Ranks.RankRatioScaleBp[2]), 10000, RankFactor,
             TEXT("SKILL.RankBaseScale")))
     {
         return false;
@@ -59,7 +59,7 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
     {
         FLDDemoEffectDefinition Grown = Effect;
         if (!Grow(Effect.BaseP2, Grown.BaseP2, Path)) { return false; }
-        // Ratios scale with the top rank and overdrive too.
+        // Ratios scale with the top rank too.
         for (int64* Ratio : {&Grown.ADRatioBp, &Grown.APRatioBp, &Grown.AdaptiveRatioBp, &Grown.MaxHPRatioBp})
         {
             int64 Scaled = 0;

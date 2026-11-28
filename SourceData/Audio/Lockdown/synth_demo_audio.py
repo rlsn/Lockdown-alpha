@@ -278,15 +278,9 @@ def self_dash(seed):  # the innate dash: a fast low rush with a sneaker squeak
     return mix(0.36, (0, whoosh(rng, 0.32, 300, 1800, 0.03, 1.1, 0.07), 1.0), (0, squeak, 0.5))
 
 
-def perfect_dodge(seed):  # a perfect dodge: a clean air slip and a bright snap of timing
-    rng = np.random.default_rng(seed)
-    return mix(0.45, (0, whoosh(rng, 0.3, 1200, 4000, 0.02, 2.0, 0.05), 0.8), (0.03, ring([2800, 4200], 0.25, [0.06, 0.04], [0.4, 0.25]), 0.6))
-
-
 for _name, _make, _seed in (("capture_opened", capture_opened, 4001), ("capture_started", capture_started, 4002),
                             ("capture_contested", capture_contested, 4003), ("level_up", level_up, 4004),
-                            ("self_death", self_death, 4005), ("self_dash", self_dash, 4006),
-                            ("perfect_dodge", perfect_dodge, 4007)):
+                            ("self_death", self_death, 4005), ("self_dash", self_dash, 4006)):
     SOUNDS[_name] = ((lambda make: lambda seed: finish(low(make(seed), 9000, 4)))(_make), _seed)
 
 

@@ -1,0 +1,88 @@
+{
+  "schema": "build_evaluation.manifest",
+  "schema_version": 2,
+  "experiment": {
+    "id": "b01-empower-host-smoke",
+    "hypothesis": "自动强化开启时，计划给一侧指定的宿主能经权威宿主命令生效，并且这一侧只以该宿主强化。"
+  },
+  "adapter": {
+    "module": "BuildEvaluationLockdown",
+    "id": "lockdown-demo"
+  },
+  "scenario": {
+    "kind": "duel_site",
+    "parameters": {
+      "site": "capture",
+      "duel_timeout_ms": 90000,
+      "supply_xp": {
+        "subject": 0,
+        "opponent": 0
+      },
+      "empower": true
+    }
+  },
+  "sample_class": "diagnostic",
+  "assumptions": [
+    "双方固定开局主动为滚远点（Q）；主角一组宿主为 Q，另一组为普攻；对手不指定宿主，由 AI 自选。",
+    "仅用于检查宿主计划、回执与证据链；单个种子不支持强度结论。"
+  ],
+  "design": {
+    "kind": "paired_arms",
+    "reference": "host_basic",
+    "arms": [
+      {
+        "id": "host_basic",
+        "plan": {
+          "subject": {
+            "opening_preset": ["active_elbow"],
+            "choices": [{"rule": "definition", "definition": "active_elbow"}],
+            "empower_host": "Basic"
+          },
+          "opponent": {
+            "opening_preset": ["active_elbow"],
+            "choices": [{"rule": "definition", "definition": "active_elbow"}]
+          }
+        }
+      },
+      {
+        "id": "host_q",
+        "plan": {
+          "subject": {
+            "opening_preset": ["active_elbow"],
+            "choices": [{"rule": "definition", "definition": "active_elbow"}],
+            "empower_host": "Q"
+          },
+          "opponent": {
+            "opening_preset": ["active_elbow"],
+            "choices": [{"rule": "definition", "definition": "active_elbow"}]
+          }
+        }
+      }
+    ]
+  },
+  "blocks": {
+    "root_seed": "20261128",
+    "splits": {
+      "search": 0,
+      "confirm": 1
+    },
+    "sides": 2
+  },
+  "metrics": {
+    "primary": "duel_score",
+    "secondary": [
+      "subject_empowers",
+      "opponent_empowers"
+    ],
+    "material_difference": null
+  },
+  "budget": {
+    "class": "standard",
+    "max_cases": 4,
+    "case_wall_timeout_s": 180,
+    "run_wall_timeout_s": 1200,
+    "max_case_events": 200000,
+    "max_run_disk_bytes": 2147483648,
+    "max_root_disk_bytes": 6442450944
+  }
+}

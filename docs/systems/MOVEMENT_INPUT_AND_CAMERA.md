@@ -12,7 +12,6 @@
    - **键盘双模态释放（`QuickCastHolds[3]` 三槽独立跟踪）**：按下 `Q/W/E` 开始计时；按住 `< 0.18 s` 松开视为**轻点（Tap）**，不弹瞄准预览圈、不改瞄准光标、忽略轻点期间右键走位取消，松键瞬间朝当前光标位置/目标施放；按住 `>= 0.18 s` 进入**长按预览（Hold）**，显示世界射程与几何预览，松键施放，按右键（`CancelPreviewedQuickCastHolds`）仅取消已进入预览的槽位、播放 `UIReject` 并闪烁槽位边框且不吞掉该次右键移动，同时恢复其余仍在按住槽位的预览。
    - 关闭快速施法或鼠标点击 HUD 技能槽时，走经典两步（先 `Armed` 预览，左键确认、右键或 `Esc` 取消）。
    - **向量施法（`LDCombatSourceRules::VectorAimed`：含 `cordon_line` 或 `fan` 效果的地面点技能）**：快速施法按键时（`BeginVectorAim`）或经典两步的左键按下时记录光标地面点为起点，按住期间 HUD 预览按“起点 → 光标”画出整条线/矩形；松键（左键松开由 `TickVectorAimRelease` 判定）时拖动 `>= VectorAimDeadzoneCm`（40 cm）则请求的 `Target.Point` 为夹到射程内的起点、`Target.Direction` 为拖动方向，客户端不走位直接施放；拖动不足则按轻点处理、`Direction` 为零。服务器只对 `VectorAimed` 技能接受地面点请求里的平面朝向，其他技能带朝向即 `InvalidDirection`；有朝向时封条从起点沿朝向铺开、电风扇沿朝向吹，零朝向保持默认（封条居中横跨施法方向、风扇背向施法者）。AI 请求不带朝向，行为不变。
-   - **爆劲蓄力（Overdrive）**：劲满 `OVERDRIVE.Threshold`（60）时按住技能满 `OVERDRIVE.HoldSec`（0.35 s）蓄成爆劲，HUD 动作槽与角色脚下同步显示蓄力环；单位技能目标解析失败或 `CombatView` 定义变更时独立清理 `OverdriveEntry`。
 4. **移动与攻击移动层**：右键地面 `MoveGround`（按住右键每 `50 ms` 节流重发，并在显式新单、排队施法、`S` 停止、换命与立即施法时失效合并缓存 `InvalidateClickMoveCoalesce`）、右键敌方 `AttackUnit`、`A` + 左键地面 `AttackMove`（搜敌半径 `min(VISION.RadiusCm, 2 * AttackRangeCm)`）、`S` 立即停止移动与未出手动作。
 
 ## 高低差瞄准、楼顶排除与双槽预输入队列
@@ -28,7 +27,7 @@
 - **冲刺手感与贴脸防滑（`LDCharacterMovementComponent`）**：
   - 主动冲刺（通用 `D` `450 cm / 0.18 s` 与位移技能）使用复制根运动源 `FLDRootMotionSource_EaseOutDash`，位移曲线为 `EaseOutCubic`（`1 - (1 - t)^3`），初段爆发、末段柔顺刹停；击退保持线性常力 `FRootMotionSource_ConstantForce`。
   - **位移落点（`LandedDashDistance`）**：冲刺、击退、拉拽与野怪扑击统一经 `StartDemoDash`，起步前按地面技能同一规则（`LDGroundLanding::Resolve`）把距离截到“合法地面且有完整步行路线回到起点”的最远处，速度不变、提前结束；沿途没有合法地面则原地不动。根运动仍由原生扫掠挡墙，这一步防止冲上岩顶、台地或越过围栏落到步行与寻路无法离开的地方。
-  - **贴脸防穿模截断（`ClampInnateDashDistance`）**：朝 `45°` 锥角内最近可见敌方冲刺时自动保留 `135 cm` 普攻舒适身位；已在 `<= 135 cm` 内时跳过零距离根运动但正常结算主动冲刺触发与强化普攻。
+  - **贴脸防穿模截断（`ClampInnateDashDistance`）**：通用 `D` 起步时，若钉住的目标（没有则上次普攻的存活目标）在冲刺方向 `±30°`、`220 cm` 内，冲刺停在离它 `135 cm` 的普攻舒适身位（`LDCombatPreInput::CloseDash*`）；已在 `<= 135 cm` 内时跳过零距离根运动但正常结算主动冲刺触发与强化普攻。
   - **冲刺中指令保留**：主动冲刺期间下达的右键移动、普攻追击或射程外目标订单（含暂态 `InvalidGround` / `NoCompletePath`）不丢弃，保留至冲刺落地帧立即重规划并衔接出手。
 
 ## 俯视镜头与语义光标

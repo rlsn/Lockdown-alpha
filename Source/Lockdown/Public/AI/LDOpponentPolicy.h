@@ -364,8 +364,6 @@ struct FLDOpponentBodyIntent
     FName Surface;
     // Failure memory of MoveGround, AttackUnit and Activate; the final receipt settles against it.
     FLDOpponentRetryKey Key;
-    // Activate: release it as an overdrive (the adapter holds the charge for OVERDRIVE.HoldSec first).
-    bool bOverdrive = false;
 };
 
 // #198 build commands, as a player sends them: choose an active of the current offer (always asking to learn it now),

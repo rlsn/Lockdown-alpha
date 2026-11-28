@@ -114,15 +114,6 @@ private:
         int64 SentAtMs = 0;
         int32 Attempts = 0;
     };
-    // An overdrive charge this adapter holds before it sends the release (OVERDRIVE.HoldSec).
-    struct FChargeTrack
-    {
-        bool bHas = false;
-        uint32 Life = 0;
-        ELDCombatEntry Entry = ELDCombatEntry::None;
-        int64 StartMs = 0;
-    };
-    FChargeTrack Charge;
     // The latest direct action; it owns the body until its receipt is final.
     struct FActionTrack
     {
@@ -170,8 +161,6 @@ private:
     void SettleDirectAction(ALDGameMode& Mode, const FReads& Reads, const FLDOpponentSelf& Self, int64 NowMs, FString& Problem);
     void SettleBuild(ALDGameMode& Mode, const FLDOpponentSelf& Self, int64 NowMs, FString& Problem);
     void ComposeFrame(FLDOpponentDecisionFrame& Frame) const;
-    // Ends the AI's own charge on the authority and forgets it (the intent changed or the charge is stale).
-    void AbandonCharge(ALDGameMode& Mode, const FReads& Reads);
     void DispatchBody(ALDGameMode& Mode, const FReads& Reads, const FLDOpponentDecisionFrame& Frame,
         const FLDOpponentBodyIntent& Intent, int64 NowMs, FString& Problem);
     void DispatchBuild(ALDGameMode& Mode, const FReads& Reads, const FLDOpponentDecisionFrame& Frame,

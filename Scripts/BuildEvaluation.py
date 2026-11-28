@@ -688,6 +688,12 @@ def judge(estimate, threshold):
 
 # ---------------------------------------------------------------- analysis
 
+def engine_switches(manifest):
+    """Host command-line switches of the frozen manifest's scenario (an adapter without engine_switches needs none)."""
+    adapter = load_adapter(manifest["adapter"]["module"])
+    return list(adapter.engine_switches(manifest)) if hasattr(adapter, "engine_switches") else []
+
+
 def analyze(run_dir, rejudge=False):
     run_dir = Path(run_dir)
     manifest = read_json(run_dir / "manifest.json")
@@ -720,6 +726,9 @@ def analyze(run_dir, rejudge=False):
     runner = read_json(run_dir / "runner.json") if (run_dir / "runner.json").exists() else {}
     stop = runner_budget_stop(runner)
     identity_problems = adapter.identity_problems(run_record, caps) if run_record else []
+    if run_record and hasattr(adapter, "runner_problems"):
+        # Host-wide switches the scenario needs (an adapter's engine_switches) must be the ones the runner passed.
+        identity_problems += adapter.runner_problems(manifest, runner)
     if not run_record and any((native_dir / "results" / f"{case['case_id']}.json").exists()
                               for case in cases if case["status"] != "Unsupported"):
         identity_problems.append("the native run identity is missing")
@@ -1221,6 +1230,8 @@ def main(argv=None):
     p.add_argument("--project-root", default=str(_project_root()))
     g = sub.add_parser("gate")
     g.add_argument("--run-dir", required=True)
+    s = sub.add_parser("switches", help="the Host command-line switches a planned run needs, one JSON list")
+    s.add_argument("--run-dir", required=True)
     a = sub.add_parser("analyze")
     a.add_argument("--run-dir", required=True)
     a.add_argument("--rejudge", action="store_true", help="judge every recorded Case again from its native evidence")
@@ -1245,6 +1256,9 @@ def main(argv=None):
             usage = disk_gate(args.run_dir, frozen_budget(read_json(Path(args.run_dir) / "manifest.json")))
             print(json.dumps(usage, ensure_ascii=False))
             return 4 if usage["exceeded"] else 0
+        if args.command == "switches":
+            print(json.dumps(engine_switches(read_json(Path(args.run_dir) / "manifest.json"))))
+            return 0
         if args.command == "analyze":
             metrics, findings = analyze(args.run_dir, args.rejudge)
             counts = {}

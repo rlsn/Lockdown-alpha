@@ -249,7 +249,7 @@ class CapabilitiesTest(AdapterCase):
                          "Y25 chooses an element")
         self.assertEqual(self.caps["content"]["cards"], len(cards))
         self.assertEqual(set(self.caps["decisions"]),
-                         {"ai_select", "option_index", "definition", "preset_offer", "preset_level_cards", "breakout_preset",
+                         {"ai_select", "option_index", "definition", "preset_offer", "preset_level_cards", "breakout_preset", "empower_host",
                           "allocate_points", "install_card", "uninstall_card", "respec_points", "learn_blueprint", "replace_active"})
         self.assertTrue(all(row["description"] for row in self.caps["decisions"].values()))
         for decision, reason in lockdown.UNPLANNABLE.values():
@@ -839,6 +839,64 @@ class EvidenceTest(AdapterCase):
         self.assertEqual(self.evidence(text=trace(skill, *casts, drop=NO_CASTS))["status"], "Completed")
         self.assertIn("LD_CAST has no valid authority time or count",
                       self.evidence(text=trace(f"LD_CAST t=9000 contender={S} life=2 casts=1 added=0"))["reason"])
+
+    def test_auto_empower_is_a_host_switch_counted_per_side(self):
+        def empower(t, src, outcome="applied", host="Q", serial=1):
+            return (f"LD_EMPOWER t={t} src={src} life=2 host={host} processor=strike source=learned:active_elbow "
+                    f"serial={serial if outcome != 'short' else 0} paid=50.00 before=70.00 after=20.00 outcome={outcome}")
+
+        on = manifest()
+        on["scenario"]["parameters"]["empower"] = True
+        lines = (empower(9000, S), empower(12000, S, "prepaid", serial=2), empower(13000, S, "short"),
+                 empower(14000, O, host="Basic"), empower(4000, S, serial=9))  # 4000: the opening rest, before the duel
+        out = self.evidence(text=trace(*lines), plan_manifest=on)
+        self.assertEqual(out["status"], "Completed", out["reason"])
+        self.assertEqual((out["metrics"]["subject_empowers"]["value"], out["metrics"]["opponent_empowers"]["value"]), (2, 1))
+        self.assertEqual(out["facts"]["empower"]["subject"],
+                         {"empowers": 2, "short": 1, "paid": 100.0, "hosts": {"Q": 2}, "processors": {"strike": 2}})
+        # An off run has no empower line; one is a setup failure, not a result.
+        self.assertIn("Setup: an LD_EMPOWER line in a run without auto-empower",
+                      self.evidence(text=trace(empower(9000, S)))["reason"])
+        self.assertEqual(self.evidence()["metrics"]["subject_empowers"], {"value": 0, "censored": False})
+        # The scenario names the Host switches; the run must have been started with exactly those.
+        self.assertEqual(lockdown.scenario_problems(on["scenario"], self.caps), [])
+        self.assertEqual(lockdown.engine_switches(on), ["-LDEmpower"])
+        on["scenario"]["parameters"]["empower_host"] = "D"
+        self.assertEqual(lockdown.engine_switches(on), ["-LDEmpower", "-LDEmpowerHost=D"])
+        self.assertEqual(lockdown.runner_problems(on, {"engine_switches": ["-LDEmpower", "-LDEmpowerHost=D"]}), [])
+        self.assertTrue(lockdown.runner_problems(on, {}))
+        self.assertEqual(lockdown.runner_problems(manifest(), {}), [])
+        bad = manifest()
+        bad["scenario"]["parameters"]["empower_host"] = "Q"
+        self.assertTrue(any("empower_host" in problem for problem in lockdown.scenario_problems(bad["scenario"], self.caps)))
+
+    def test_a_planned_empower_host_is_the_sides_accepted_host_command(self):
+        on = manifest()
+        on["scenario"]["parameters"]["empower"] = True
+        for arm in on["design"]["arms"]:
+            arm["plan"]["subject"]["empower_host"] = "Q"
+        host = f"LD_EMPOWER_HOST t=1000 src={S} host=Q sequence=1"
+        profile = f"LD_EVAL_PROFILE contender={S} rival={O} site=capture choices=3 empower=Q"
+        empower = (f"LD_EMPOWER t=9000 src={S} life=2 host=Q processor=strike source=learned:active_elbow serial=1 "
+                   "paid=50.00 before=70.00 after=20.00 outcome=applied")
+        out = self.evidence(text=trace(profile, host, empower), plan_manifest=on)
+        self.assertEqual(out["status"], "Completed", out["reason"])
+        self.assertIn("Setup: the subject native profile has empower=auto, the run needs Q",
+                      self.evidence(text=trace(profile.replace("empower=Q", "empower=auto"), host, empower),
+                                    plan_manifest=on)["reason"])
+        self.assertIn("Setup: the subject native profile has empower=Q, the run needs off",
+                      self.evidence(text=trace(profile))["reason"])
+        self.assertIn("EmpowerHostNotApplied: the subject host commands are none",
+                      self.evidence(text=trace(empower), plan_manifest=on)["reason"])
+        self.assertIn("EmpowerHostNotApplied: the subject empowered ['Basic']",
+                      self.evidence(text=trace(host, empower.replace("host=Q", "host=Basic")), plan_manifest=on)["reason"])
+        with self.assertRaises(ValueError):
+            lockdown._side_plan({"subject": {"choices": [], "empower_host": "R"}}, "subject")
+        off = manifest()
+        for arm in off["design"]["arms"]:
+            arm["plan"]["opponent"]["empower_host"] = "D"
+        problems = lockdown.requirements(off["scenario"], off["design"]["arms"][0]["plan"], self.caps)["problems"]
+        self.assertTrue(any("empower_host needs the scenario's empower true" in problem for problem in problems))
 
     def test_a_choice_kept_as_a_blueprint_is_held_at_the_end(self):
         value = result()

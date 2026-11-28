@@ -96,20 +96,6 @@ struct FLDCombatActionRequest
     UPROPERTY() FLDCombatTarget Target;
     // Owner view SourceRevision that the input was armed against; a changed source is not re-interpreted.
     UPROPERTY() uint64 ExpectedSourceRevision=0;
-    // A Q/W/E held OVERDRIVE.HoldSec with a full bar asks for overdrive; the release decides (a bar below the threshold
-    // releases normally, never a refusal). Part of the request's terms (a replay with another flag conflicts).
-    UPROPERTY() bool bOverdrive=false;
-};
-
-// The owner's overdrive charge intent: a Q/W/E pressed with a full bar (bCharging) or let go before the hold completed.
-USTRUCT()
-struct FLDCombatChargeRequest
-{
-    GENERATED_BODY()
-    UPROPERTY() uint32 Generation=0;
-    UPROPERTY() uint32 Life=0;
-    UPROPERTY() ELDCombatEntry Entry=ELDCombatEntry::None;
-    UPROPERTY() bool bCharging=false;
 };
 
 USTRUCT()
@@ -490,8 +476,6 @@ struct FLDCombatCueFacts
     UPROPERTY() uint8 ReleasedComboStep=0;
     UPROPERTY() int64 ReleasedStartedAtMs=0;
     UPROPERTY() int64 ReleasedAtMs=0;                // 0 = nothing released in this life
-    // The acting Q/W/E, else the last released one, was admitted as an overdrive release (its Cast cue's overdrive).
-    UPROPERTY() bool bOverdriveCast=false;
     // The learned Q/W/E of the acting non-basic action, else of the last released one (None for a basic or the innate
     // dash): the own body's skill look survives a release snapshot that already cleared the action slot.
     UPROPERTY() FName CastDefinitionId;
@@ -558,8 +542,6 @@ struct FLDCombatOwnerView
     UPROPERTY() int64 MaxHPP2=0;
     UPROPERTY() int64 MomentumP2=0;
     UPROPERTY() int64 MaxMomentumP2=0;
-    // The bar an overdrive needs now (OVERDRIVE.Threshold, or Y11's lower one).
-    UPROPERTY() int64 OverdriveThresholdP2=0;
     // Spec §6.5: this owner's recent counted chain ends (oldest first; each serial once).
     UPROPERTY() TArray<FLDChainEndView> Chains;
     UPROPERTY() int64 ShieldP2=0;
@@ -568,11 +550,6 @@ struct FLDCombatOwnerView
     // The combo step of the last released basic (0 = none) and its AttackStart; a start after COMBO.ResetSec is step 1.
     UPROPERTY() uint8 ComboStep=0;
     UPROPERTY() int64 ComboStartMs=0;
-    // Perfect dodges of this life (MOMENTUM.PerfectDodge) and the authority ms of the last: the owner's one-line notice.
-    UPROPERTY() uint32 PerfectDodges=0;
-    UPROPERTY() int64 LastPerfectDodgeAtMs=0;
-    // The Q/W/E whose overdrive charge the authority currently holds (None when there is none or control ended it).
-    UPROPERTY() ELDCombatEntry ChargingEntry=ELDCombatEntry::None;
     UPROPERTY() uint64 SourceRevision=0;
     // Inputs needed to reproduce this owner's build and temporary projection without mutating authority state.
     UPROPERTY() uint64 InstalledBuildRevision=0;
@@ -615,4 +592,16 @@ struct FLDCombatOwnerView
     UPROPERTY() int64 BuildSafeAtMs=0;
     // The server-fixed duration of this life's respawn wait, for the owning player's countdown only.
     UPROPERTY() int64 RespawnDurationMs=0;
+    // Auto-empower (LDAutoEmpower): whether the authority runs the experiment, the host the next empowered action takes and
+    // its processor (ELDEmpowerProcessor), whether the owner chose it, the last host request judged, the bar it needs and
+    // its price, and this life's empowered actions with the last one's instant (the owner's notice).
+    UPROPERTY() bool bEmpowerEnabled=false;
+    UPROPERTY() ELDCombatEntry EmpowerHost=ELDCombatEntry::None;
+    UPROPERTY() uint8 EmpowerProcessor=0;
+    UPROPERTY() bool bEmpowerHostChosen=false;
+    UPROPERTY() uint64 EmpowerHostSequence=0;
+    UPROPERTY() int64 EmpowerThresholdP2=0;
+    UPROPERTY() int64 EmpowerCostP2=0;
+    UPROPERTY() int32 Empowerments=0;
+    UPROPERTY() int64 LastEmpowerAtMs=0;
 };

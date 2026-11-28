@@ -252,6 +252,7 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
         Cordon.Id=FGuid::NewGuid();
         Cordon.Payload=Payload;
         Cordon.Terms=*Tape;
+        Cordon.TouchStunMs=Terms.EmpowerShape.TouchStunMs;
         Cordon.CentreCm=Centre;
         // The authored width is the whole tape across (spec 500 x 70 cm).
         Cordon.HalfWidthCm=FMath::Max(25.,Cm(Tape->ExtraDistanceCm)*.5);
@@ -346,7 +347,7 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
         { Error=TEXT("A contact skill has no matching released dash."); return false; }
         Payload.bDashContactHit=true;
         Body.DashContact->NativeHit=Payload;
-        Body.DashContact->NativeHitsRemaining=Contact->bEveryContact ? MAX_int32 : Contact->Count;
+        Body.DashContact->NativeHitsRemaining=Contact->bEveryContact || Body.DashContact->bEmpowered ? MAX_int32 : Contact->Count;
         bHandled=true;
     }
     return true;
@@ -438,7 +439,7 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
 {
     if (!AdvanceFans(NowMs,Error) || !AdvanceBags(NowMs,Error)
         || !AdvanceStaggerBleeds(NowMs,Error) || !AdvanceSlipperDrops(NowMs,Error)
-        || !AdvanceCordons(NowMs,Error) || !AdvanceDecoys(NowMs,Error)
+        || !AdvanceCordons(NowMs,Error)
         || !AdvanceSynergyStates(NowMs,Error))
     { return false; }
     for (int32 Index=Channels.Num()-1; Index>=0; --Index)
@@ -464,16 +465,6 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
             const double CosHalfAngle=FMath::Cos(FMath::DegreesToRadians(Channel.AngleDegrees * .5));
             if (!HitBagsInCone(Origin, Channel.Direction, Channel.RangeCm, Channel.AngleDegrees, Channel.Payload, NowMs, Error)) { return false; }
             HitFenceInCone(Origin, Channel.Direction, Channel.RangeCm, Channel.AngleDegrees, Channel.Payload);
-            // Each wave of a telegraphed cone can be perfectly dodged (spec §4.4).
-            {
-                const FVector Facing=Channel.Direction;
-                const double Range=Channel.RangeCm;
-                if (!ResolvePerfectDodges(Channel.Payload.EffectId, Channel.Payload.SourceEntity, [&Origin, &Facing, Range, CosHalfAngle](const FVector& Point)
-                {
-                    const FVector Offset(Point.X-Origin.X, Point.Y-Origin.Y, 0);
-                    return Offset.Size() <= Range && (Offset.IsNearlyZero() || FVector::DotProduct(Facing, Offset.GetSafeNormal()) >= CosHalfAngle);
-                }, NowMs, Error)) { return false; }
-            }
             for (const auto& Ref : Targets)
             {
                 ALDCharacter* Target=nullptr;
@@ -536,13 +527,6 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
         }
         // C06 (#198 F) answers the natural completion; the blast record is copied first because the list may grow.
         const FLDCombatGroundEffect Completed=Ground;
-        // A landing or a trap blast is telegraphed: it can be perfectly dodged (spec §4.4).
-        {
-            const FVector Centre=Ground.CentreCm;
-            const double Radius=Ground.RadiusCm;
-            if (!ResolvePerfectDodges(Ground.Payload.EffectId, Ground.Payload.SourceEntity,
-                [&Centre, Radius](const FVector& Point) { return FVector::Dist2D(Centre, Point) <= Radius; }, NowMs, Error)) { return false; }
-        }
         if (!CollectAreaTargets(Ground.CentreCm, Ground.RadiusCm, Holder, Ground.Payload.SourceEntity, Targets, Error)) { return false; }
         for (const auto& Ref : Targets)
         {
@@ -653,6 +637,12 @@ bool ALDCombatDirector::ResolveDashContacts(int64 NowMs, FString& Error)
         auto& Dash=*Contact.Dash;
         auto* Body=FindBody(Dash.Body);
         if (!Body || Body->bPendingDeath || Dash.Struck.Contains(Contact.Target)) { continue; }
+        // Auto-empower (rule E3): an empowered dash settles at most EMPOWER.DashContactCap contacts; the rest are no contact.
+        if (Dash.bEmpowered)
+        {
+            const FLDDemoEmpowerParameters* EmpowerP=EmpowerTerms();
+            if (EmpowerP && Dash.Struck.Num()>=EmpowerP->DashContactCap) { continue; }
+        }
         Dash.Struck.Add(Contact.Target);
         // Spec §6.5: the contact's cards and hits are steps of the dash's own chain (while it is open).
         TGuardValue<FGuid> ChainScope(CurrentChain,EffectChains.FindRef(Dash.EffectId));

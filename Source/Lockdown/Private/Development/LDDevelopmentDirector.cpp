@@ -498,7 +498,7 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
     View.Shop.SkillPointPrice = LDProgression::ShopSkillPointPrice(Definitions.Parameters, Progression.Shop);
     View.Shop.SkillPointsBought = Build.BoughtSkillPoints;
     View.AffixSkillPoints = Build.AffixSkillPoints;
-    View.Shop.SkillPointsMax = ShopTerms.SkillPointMaxPerMatch;
+    View.Shop.SkillPointsMax = LDProgression::ShopSkillPointCap(Definitions, Build);
     View.Shop.MedalPrice = LDProgression::ShopMedalPrice(Definitions.Parameters, Progression.Shop);
     View.Shop.MedalsBought = Build.BoughtMedals;
     View.Shop.MedalsMax = ShopTerms.MedalMaxPerMatch;
@@ -1186,6 +1186,11 @@ bool ALDDevelopmentDirector::GrantSkillPoint(const FGuid& ContenderId, const TCH
     {
         Error = TEXT("A skill point grant needs a world permit and a contender's growth record.");
         return false;
+    }
+    if (LDProgression::SkillPointRoom(Content->Get(), Record->Build) <= 0)
+    {
+        UE_LOG(LogLDGrowth, Display, TEXT("LD_SKILL_POINT contender=%s cause=%s skipped=NoRoom"), *LDLog::Id(ContenderId), Cause);
+        return true;
     }
     FLDGrowthBuild NewBuild = Record->Build;
     ++NewBuild.AffixSkillPoints;
