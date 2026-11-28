@@ -4765,6 +4765,56 @@ bool FLDCardRuleU05Test::RunTest(const FString& Parameters)
         });
 }
 
+// U05's extra reach is the release's own: a line skill strikes and a ground skill lands as far as the range the order
+// approached with, not the authored reach.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardU05ReleaseRangeTest, "Lockdown.Rules.Combat.Cards.U05ReleaseRange",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardU05ReleaseRangeTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    FString Error;
+    const FLDCombatBodyRef Holder = F.AddBody(), Far = F.AddBody(ELDVictimKind::Contender, 10000000);
+    F.Place(Holder, -400, 0);
+    F.Place(Far, 290, 0);
+    if (!InstallCards(*this, F, Holder, 6, {{TEXT("card_eagle_stance"), ELDCardTargetKind::Body}})) { return false; }
+    F.Body(Holder).StillSinceMs = 100;
+    F.Body(Holder).LastStillFootCm = F.Foot(Holder);
+    F.Body(Holder).bHasLastStillFoot = true;
+    F.Now(1000);
+    if (!TestTrue(TEXT("Standing still takes the stance: ") + Error, FAccess::AdvanceSynergyStates(*F.Driver, 1000, Error))) { return false; }
+    // S09's 600 cm line: the body 690 cm ahead is inside 600 + 160.
+    FLDCombatActiveTerms LineTerms;
+    FLDCombatHit LinePayload;
+    if (!Released(*this, F, Holder, TEXT("active_hose_down"), LineTerms, LinePayload)) { return false; }
+    double LineRange = 0;
+    if (!TestTrue(TEXT("The line's release range: ") + Error, FAccess::CastRange(*F.Driver, F.Body(Holder), LineTerms.Target, LineRange, Error))
+        || !TestTrue(FString::Printf(TEXT("The stance reaches the body (%.0f cm)"), LineRange), LineRange >= 690.))
+    { return false; }
+    FLDCombatAction LineAction;
+    LineAction.Kind = ELDCombatActionKind::Ability;
+    LineAction.Direction = FVector(1, 0, 0);
+    FAccess::PendingHits(*F.Driver).Reset();
+    if (!TestTrue(TEXT("The line releases: ") + Error, FAccess::DeliverPayload(*F.Driver, F.Actor(Holder), F.Body(Holder), LineTerms,
+        LineAction, LinePayload, FLDCombatBodyRef(), FVector::ZeroVector, F.Foot(Holder), 1000, Error))) { return false; }
+    TestTrue(TEXT("The line strikes the body within its release range"),
+        FAccess::PendingHits(*F.Driver).ContainsByPredicate([&Far](const FLDCombatHit& Hit) { return Hit.Target == Far; }));
+    // N6's 560 cm ground point: a point 680 cm away is inside 560 + 160.
+    FLDCombatActiveTerms TapeTerms;
+    FLDCombatHit TapePayload;
+    if (!Released(*this, F, Holder, TEXT("active_cordon_tape"), TapeTerms, TapePayload)) { return false; }
+    FLDCombatAction TapeAction;
+    TapeAction.TargetPoint = F.Foot(Holder) + FVector(680, 0, 0);
+    bool bHandled = false;
+    if (!TestTrue(TEXT("The cordon places: ") + Error,
+        FAccess::DeliverTerms(*F.Driver, F.Body(Holder), TapeTerms, TapeAction, TapePayload, 1000, bHandled, Error) && bHandled
+            && FAccess::Cordons(*F.Driver).Num() == 1)) { return false; }
+    TestTrue(TEXT("The cordon stands at the point within its release range"),
+        FVector::Dist2D(FAccess::Cordons(*F.Driver)[0].CentreCm, TapeAction.TargetPoint) < 1.);
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleU06Test, "Lockdown.Rules.Combat.Cards.U06",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDCardRuleU06Test::RunTest(const FString& Parameters)

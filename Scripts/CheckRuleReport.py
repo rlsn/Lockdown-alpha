@@ -560,6 +560,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.Combat.Cards.U03",
         "Lockdown.Rules.Combat.Cards.U04",
         "Lockdown.Rules.Combat.Cards.U05",
+        "Lockdown.Rules.Combat.Cards.U05ReleaseRange",
         "Lockdown.Rules.Combat.Cards.U06",
         "Lockdown.Rules.Combat.Cards.U07",
         "Lockdown.Rules.Combat.Cards.U08",
