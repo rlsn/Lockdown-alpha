@@ -8,7 +8,8 @@ the frame-time and connection summaries, and the warnings and errors.
 
 From the Host's lines it also computes the gameplay metrics of the #287 spec §16 for each match and across all matches:
 damage share by source (basic / skill / card / reaction / other, on contenders and on camps), Q/W/E casts per
-person per fight (LD_CAST), time to kill, momentum income by kind (LD_MOMENTUM), breakout builds against a measured
+person per fight (LD_CAST), time to kill, momentum income by kind (LD_MOMENTUM), auto-empower triggers (LD_EMPOWER: host,
+target, cost, paid-and-missed, re-trigger loops, armed time), breakout builds against a measured
 same-level bare-build DPS baseline (--baseline-run of BuildEvaluation bare-mirror duels, or --baseline-dps; none by
 default), pick rates of offered actives and cards, outrageous hits (>= 60% of the
 target's max HP), the longest chain (LD_CHAIN) and damage factors (LD_HIT factor_bp). A metric whose lines are absent
@@ -41,13 +42,15 @@ HOST_ONLY_TAGS = frozenset(
         "LD_HIT", "LD_HEARTBEAT", "LD_REWARD", "LD_LEVEL_UP", "LD_OFFER", "LD_OFFER_WAITING", "LD_CHOICE", "LD_BUILD",
         "LD_CARD", "LD_CARD_OFFER", "LD_DEATH_RECEIPT", "LD_CAMP_DEATH", "LD_MATCH_STARTING", "LD_MATCH_HEADER", "LD_MATCH_ROSTER",
         "LD_MATCH_SUMMARY", "LD_MATCH_SUMMARY_ROW", "LD_MATCH_STARTED", "LD_MATCH_RESULT", "LD_AI_DECISION",
-        "LD_AI_SUMMARY", "LD_MEMBER_LEFT", "LD_PLAYER_MARK_REJECTED", "LD_CAST", "LD_MOMENTUM",
+        "LD_AI_SUMMARY", "LD_MEMBER_LEFT", "LD_PLAYER_MARK_REJECTED", "LD_CAST", "LD_MOMENTUM", "LD_EMPOWER",
     }
 )
 # Once-per-second or ten-second samples: summarized, never listed one by one in a timeline.
 PERIODIC_TAGS = frozenset({"LD_HEARTBEAT", "LD_SELF_STATE", "LD_PERF", "LD_NET", "LD_PERF_HITCH"})
-# Routine AI and order bookkeeping: counted around a mark, listed only with --mark-all.
-ROUTINE_TAGS = frozenset({"LD_AI_DECISION", "LD_NAV_ACCEPT", "LD_NAV_END", "LD_CAMP_ATTACK", "LD_CAMP_CHASE_PATH_REJECTED"})
+# Routine AI and order bookkeeping, and the every-few-seconds auto-empower triggers: counted around a mark, listed only
+# with --mark-all.
+ROUTINE_TAGS = frozenset({"LD_AI_DECISION", "LD_NAV_ACCEPT", "LD_NAV_END", "LD_CAMP_ATTACK", "LD_CAMP_CHASE_PATH_REJECTED",
+                          "LD_EMPOWER"})
 GROWTH_TAGS = (
     "LD_REWARD", "LD_LEVEL_UP", "LD_OFFER", "LD_OFFER_WAITING", "LD_CHOICE", "LD_BUILD", "LD_CARD_OFFER", "LD_CARD",
     "LD_SELF_REWARD", "LD_SELF_LEVEL", "LD_SELF_OFFER", "LD_SELF_BUILD",
@@ -470,6 +473,13 @@ NO_DATA = "no data"
 NOT_APPLICABLE = "n/a (the Host log has no such mechanic)"
 NO_BASELINE = ("no measured same-level bare-build baseline; pass --baseline-run with BuildEvaluation bare-mirror runs "
                "or --baseline-dps")
+# Auto-empower (Batch 01 momentum redesign): one LD_EMPOWER per empowered release (host, target, momentum before and
+# cost); LD_HIT empower=<serial> marks the hits of that release and its derived events; LD_MOMENTUM empower=<count> and
+# armed_ms=<ms at or above the threshold> mark a Host that has the mechanic even when nobody triggered it.
+EMPOWER_HOSTS = ("Basic", "Q", "W", "E", "D")
+EMPOWER_TARGETS = ("contender", "camp", "none")
+# Two triggers of one body closer than this cannot both be paid from income: a refund loop or a derived re-trigger.
+EMPOWER_RAPID_MS = 250
 
 
 def authority_ms(event, key="t"):
@@ -793,6 +803,10 @@ def match_metrics(events, baseline):
                              if dodge_lines or "dodge" in momentum else None)
     out["training_lines"] = sum(1 for event in events if event.tag in ("LD_MOMENTUM", "LD_PERFECT_DODGE")
                                 and not field_life(event))
+    empowers = [event for event in events if event.tag == "LD_EMPOWER" and authority_ms(event) is not None
+                and field_life(event)]
+    out["empower"] = (empower_stats(empowers, hits, ledgers, len(contenders), field_share(events))
+                      if empowers or any("empower" in event.fields for event in ledgers) else None)
 
     # Breakout: damage to contenders over the contender's fights against the same-level bare build over the same time;
     # only fights at a measured baseline level count, the others are reported as left out.
@@ -912,6 +926,74 @@ def momentum_text(momentum, lives, dodges):
             f"perfect dodges {NOT_APPLICABLE if dodges is None else dodges}")
 
 
+def empower_stats(empowers, hits, ledgers, contenders, share):
+    """Additive auto-empower totals of one match's field lives (empower_merge adds matches)."""
+    tagged = defaultdict(int)
+    for event in hits:
+        if event.get("empower") not in ("", "-"):
+            tagged[(event.get("src"), event.get("empower"))] += 1
+    rapid, last = 0, {}
+    for event in sorted(empowers, key=lambda event: (event.get("entity"), authority_ms(event))):
+        key = (event.get("entity"), event.get("life"))
+        if key in last and authority_ms(event) - last[key] < EMPOWER_RAPID_MS:
+            rapid += 1
+        last[key] = authority_ms(event)
+    has_tags = any("empower" in event.fields for event in hits)
+    armed = [number(event, "armed_ms") for event in ledgers if "armed_ms" in event.fields]
+    return {
+        "triggers": len(empowers),
+        "hosts": {host: sum(1 for event in empowers if event.get("host") == host) for host in EMPOWER_HOSTS},
+        "targets": {target: sum(1 for event in empowers if event.get("target") == target) for target in EMPOWER_TARGETS},
+        "cost": sum(number(event, "cost") for event in empowers),
+        "before": sum(number(event, "before") for event in empowers),
+        # A trigger none of whose hits landed: the release paid and missed. Unknown when LD_HIT has no empower field.
+        "whiffs": (sum(1 for event in empowers if not tagged.get((event.get("entity"), event.get("serial")))) if has_tags
+                   else None),
+        "max_hits": max(tagged.values(), default=0) if has_tags else None,
+        "rapid": rapid,
+        "armed_ms": sum(armed) if armed else None,
+        "contender_field_ms": contenders * share[0] if share else None,
+    }
+
+
+def empower_merge(total, stats):
+    if stats is None:
+        return total
+    if total is None:
+        return {key: dict(value) if isinstance(value, dict) else value for key, value in stats.items()}
+    for key, value in stats.items():
+        if isinstance(value, dict):
+            for inner, count in value.items():
+                total[key][inner] += count
+        elif key == "max_hits":
+            total[key] = None if value is None or total[key] is None else max(total[key], value)
+        else:
+            total[key] = None if value is None or total[key] is None else total[key] + value
+    return total
+
+
+def empower_text(stats):
+    if stats is None:
+        return NOT_APPLICABLE
+    count = stats["triggers"]
+    minutes = (stats["contender_field_ms"] or 0) / 60000
+    armed = (f"{100 * stats['armed_ms'] / stats['contender_field_ms']:.0f}% of contender field time"
+             if stats["armed_ms"] is not None and stats["contender_field_ms"]
+             else f"{NO_DATA} (no armed_ms or no finished field time)")
+    if not count:
+        return f"0 triggers; armed {armed}"
+    def shares(counts):
+        return ", ".join(f"{key} {100 * value / count:.0f}%" for key, value in counts.items() if value)
+    rate = f"{count / minutes:.2f} per contender field minute" if minutes else f"rate {NO_DATA} (no finished field time)"
+    whiffs = (f"{100 * stats['whiffs'] / count:.0f}%" if stats["whiffs"] is not None
+              else f"{NO_DATA} (LD_HIT has no empower field)")
+    most = stats["max_hits"] if stats["max_hits"] is not None else NO_DATA
+    return (f"{count} triggers ({rate}); hosts {shares(stats['hosts'])}; targets {shares(stats['targets'])}; "
+            f"paid and missed {whiffs}; mean cost {stats['cost'] / count:.1f}, mean momentum before "
+            f"{stats['before'] / count:.1f}; re-triggers within {EMPOWER_RAPID_MS} ms {stats['rapid']}; "
+            f"most hits from one trigger {most}; armed {armed}")
+
+
 OBJECTIVE_PHASES = {"1": "Announced", "2": "Open", "3": "Won", "4": "Expired"}  # ELDObjectivePhase (LDFieldPacing.h)
 OBJECTIVE_TERMINAL = ("3", "4")
 
@@ -951,6 +1033,7 @@ def metric_lines(metrics, names, baseline_source):
                  + (f" ({metrics['training_lines']} rest-training ledger/dodge lines left out)" if metrics["training_lines"] else "")
                  + (f"; incomplete: {metrics['lives_without_ledger']} field lives have no ledger (alive at the match end)"
                     if metrics["lives_without_ledger"] else ""))
+    lines.append(f"- Auto-empower: {empower_text(metrics['empower'])}")
     ratios = metrics["output_ratio"]
     if ratios is None:
         lines.append(f"- Breakout builds: {NO_DATA} ({NO_BASELINE})")
@@ -1071,7 +1154,7 @@ def aggregate_lines(all_metrics, baseline_source):
               *([f"Casts leave out {no_casts} matches without LD_CAST lines.", ""] if no_casts and has_casts else []),
               f"Breakout baseline: {baseline_source or 'none measured'}.", ""]
     totals = {"contender": defaultdict(float), "camp": defaultdict(float)}
-    momentum, lives, dodges, missing = defaultdict(float), 0, None, 0
+    momentum, lives, dodges, missing, empower = defaultdict(float), 0, None, 0, None
     for metrics in host:
         for group, amounts in metrics["damage_share"].items():
             for key, value in amounts.items():
@@ -1082,11 +1165,13 @@ def aggregate_lines(all_metrics, baseline_source):
         if metrics["perfect_dodges"] is not None:
             dodges = (dodges or 0) + metrics["perfect_dodges"]
         missing += metrics["lives_without_ledger"]
+        empower = empower_merge(empower, metrics["empower"])
     lines.append(f"- Damage share, hits on contenders: {share_line(totals['contender'])}")
     lines.append(f"- Damage share, hits on camps: {share_line(totals['camp'])}")
     lines.append(f"  - {DAMAGE_NOTE}")
     lines.append(f"- Momentum income: {momentum_text(momentum, lives, dodges)}"
                  + (f"; incomplete: {missing} field lives have no ledger (alive at the match end)" if missing else ""))
+    lines.append(f"- Auto-empower: {empower_text(empower)}")
     for level in sorted({kill["level"] for kill in same_kills}):
         lines.append(f"- Same-level time to kill at L{level}: {ttk_text([kill for kill in same_kills if kill['level'] == level])}")
     chains = [steps for metrics in host for steps in (metrics["chains"] or [])]
