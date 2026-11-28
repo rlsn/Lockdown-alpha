@@ -76,6 +76,8 @@ struct FLDBuildPrimitivesAccess
     static void AbandonAction(ALDCombatDirector& Driver, FLDBodyCombatState& Body, ELDCombatReject Reason) { Driver.AbandonAction(Body, Reason); }
     static FLDProtoSettings& Proto(ALDCombatDirector& Driver) { return Driver.Proto; }
     static void AdvanceAgency(ALDCombatDirector& Driver, int64 NowMs) { Driver.AdvanceAgency(NowMs); }
+    static bool ActiveOf(const ALDCombatDirector& Driver, const FLDCombatEntityRecord& Record, const FLDCombatSourceRef& Source,
+        const FLDDemoAbilityDefinition* Ability, FLDCombatActiveTerms& Out) { return Driver.ActiveOf(Record, Source, Ability, Out); }
     static void FinishAction(ALDCombatDirector& Driver, FLDBodyCombatState& Body, ELDCombatReject Reason, bool bReleased)
     { Driver.FinishAction(Body, Reason, bReleased); }
     static bool ReleaseMechanics(ALDCombatDirector& Driver, FLDBodyCombatState& Body, const FLDCombatSourceRef& Source,
@@ -5343,6 +5345,49 @@ bool FLDCombatAgencyPrototypeTest::RunTest(const FString& Parameters)
     FAccess::AdvanceAgency(*F.Driver,22000);
     TestTrue(TEXT("it triggers but keeps the stun"),F.Body(Other).Agency.LastTriggerMs==22000 && F.Body(Other).Stuns.Num()==1);
     TestFalse(TEXT("while the next hard control is refused"),Commit(Other,ELDControlKind::Root,22100,1000));
+    return true;
+}
+
+// C-14 prototype: -LDProtoPotDelay retimes only S08's 2B ground impacts (2B, 3B1, 3B2); its 2A zone, its base form and
+// every other skill keep their content, and without the switch 2B lands at once as authored.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatPotDelayPrototypeTest, "Lockdown.Rules.DemoBuildPrimitives.PotDelayPrototype",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCombatPotDelayPrototypeTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef Caster=F.AddBody();
+    if (!InstallCards(*this,F,Caster,6,{})) { return false; }
+    FLDCombatEntityRecord& Record=FAccess::Records(*F.Driver).FindChecked(Caster.Victim.EntityId);
+    Record.Projection=F.Body(Caster).AttributeProjection;
+    const auto ImpactDelay=[&](const TCHAR* Id, ELDSkillBranch Branch)
+    {
+        Record.Build.Actives={{FName(Id),ELDCombatEntry::Q,Branch}};
+        const FLDDemoAbilityDefinition* Ability=nullptr;
+        FString Error;
+        FLDCombatActiveTerms Terms;
+        if (!F.Catalog->FindAbility(Id,Ability,Error)
+            || !FAccess::ActiveOf(*F.Driver,Record,SourceOf(ELDCombatSourceKind::Learned,Id),Ability,Terms))
+        { AddError(FString::Printf(TEXT("No terms for %s"),Id)); return int64(-2); }
+        const FLDDemoEffectDefinition* Impact=FindEffect(Terms.Values,ELDDemoEffectOp::GroundImpact);
+        return Impact ? Impact->DelayMs : int64(-1);
+    };
+    const TCHAR* Pot=TEXT("active_quick_meeting");
+    FAccess::Proto(*F.Driver)=FLDProtoSettings();
+    TestEqual(TEXT("Off: 2B lands at once as authored"),ImpactDelay(Pot,ELDSkillBranch::B),int64(0));
+    FAccess::Proto(*F.Driver).PotDelayMs=450;
+    for (const ELDSkillBranch Branch : {ELDSkillBranch::B,ELDSkillBranch::B1,ELDSkillBranch::B2})
+    { TestEqual(TEXT("On: every 2B form lands after the switch's delay"),ImpactDelay(Pot,Branch),int64(450)); }
+    TestEqual(TEXT("2A keeps its zone and no impact"),ImpactDelay(Pot,ELDSkillBranch::A),int64(-1));
+    TestEqual(TEXT("The base form has no impact"),ImpactDelay(Pot,ELDSkillBranch::None),int64(-1));
+    const FLDDemoAbilityDefinition* Brick=nullptr;
+    FString Error;
+    const FLDDemoAbilityValues* BrickValues=F.Catalog->FindAbility(TEXT("active_calculus_drop"),Brick,Error) && Brick
+        ? F.Catalog->FindValues(*Brick,6,ELDSkillBranch::None) : nullptr;
+    const FLDDemoEffectDefinition* BrickImpact=BrickValues ? FindEffect(*BrickValues,ELDDemoEffectOp::GroundImpact) : nullptr;
+    TestTrue(TEXT("Another impact skill keeps its content delay"),BrickImpact
+        && ImpactDelay(TEXT("active_calculus_drop"),ELDSkillBranch::None)==BrickImpact->DelayMs);
     return true;
 }
 

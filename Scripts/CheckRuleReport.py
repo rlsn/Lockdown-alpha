@@ -582,6 +582,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.Combat.Skills.CommitWindups",
         "Lockdown.Rules.Combat.Skills.InterruptedCommitCooldown",
         "Lockdown.Rules.DemoBuildPrimitives.AgencyPrototype",
+        "Lockdown.Rules.DemoBuildPrimitives.PotDelayPrototype",
         "Lockdown.Rules.DemoCombatPrimitives.AgencyMeter",
         "Lockdown.Rules.Combat.Chain.Guard",
         "Lockdown.Rules.Combat.Damage.FactorProduct",
