@@ -726,6 +726,21 @@ bool FLDControlFeelElevationAimAndClipTest::RunTest(const FString& Parameters)
         PC->TickOverdriveHold();
         TestEqual(TEXT("TickOverdriveHold sends nothing for invalidated Q overdrive"), PC->NextDirectSequence, SeqBeforeTick);
         PC->CancelArmedCombat();
+
+        // (i) A move click that ends a full-momentum self skill's overdrive charge (no aim is armed) reports the cancel like
+        // an armed one instead of dropping the press silently.
+        PC->CombatView.MomentumP2 = 10000;
+        PC->CombatView.Entries[2].MomentumCostP2 = 2500;
+        PC->CombatView.Entries[2].ReadyAtMs = 0;
+        PC->LatestCombatView = PC->CombatView;
+        PC->QuickCastTestClockSec = 90.00;
+        PC->PressSkill(ELDCombatEntry::E);
+        const bool bSelfCharging = PC->bOverdriveHolding && PC->OverdriveEntry == ELDCombatEntry::E;
+        const uint32 SelfCancelBase = PC->GetArmedCancelSerial();
+        PC->CancelArmedCombat();
+        TestTrue(TEXT("Cancelling a charging self skill ends the charge and reports E as cancelled"),
+            bSelfCharging && !PC->bOverdriveHolding && PC->GetArmedCancelSerial() == SelfCancelBase + 1
+            && PC->GetArmedCancelEntry() == ELDCombatEntry::E);
     }
 
     // DASH-02: Issuing MoveGround or AttackUnit while IsDashing() retains the order across the dash and pursues/attacks upon completion.
