@@ -7,7 +7,8 @@
 struct FLDProtoSettings
 {
     // C-10 "急眼了": -LDProtoAgency [-LDProtoAgencyCut=Immediate|NextControl] [-LDProtoAgencyWindow=<s>]
-    // [-LDProtoAgencyThreshold=<s>] [-LDProtoAgencyGuard=<s>] [-LDProtoAgencyCooldown=<s>] [-LDProtoAgencyRollFrom=<n>].
+    // [-LDProtoAgencyThreshold=<s>] [-LDProtoAgencyGuard=<s>] [-LDProtoAgencyCooldown=<s>] [-LDProtoAgencyRollFrom=<n>]
+    // [-LDProtoAgencyTauntWeight=<0..1>].
     bool bAgency = false;
     FLDAgencyParams Agency;
     // C-14 -LDProtoPotDelay=<s>: the ground-impact delay of S08's 2B forms (2B, 3B1, 3B2); negative keeps the content value.

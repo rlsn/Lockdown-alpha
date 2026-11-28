@@ -1,5 +1,6 @@
 #include "Combat/LDCombatDirector.h"
 #include "Combat/LDCombatControlRules.h"
+#include "Combat/LDProtoFlags.h"
 #include "Combat/LDCombatSourceRules.h"
 #include "Combat/LDControlRules.h"
 #include "Combat/LDTacticalRules.h"
@@ -52,12 +53,21 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatAgencyMeterTest, "Lockdown.Rules.DemoC
 bool FLDCombatAgencyMeterTest::RunTest(const FString& Parameters)
 {
     using namespace LDCombatControl;
-    TestTrue(TEXT("Stun and knockback 1.0, taunt 0.8, root 0.5, silence and disarm 0.2, slow 0"),
-        AgencyWeightBp(ELDControlKind::Stun) == 10000 && AgencyWeightBp(ELDControlKind::Knockback) == 10000
-        && AgencyWeightBp(ELDControlKind::Taunt) == 8000 && AgencyWeightBp(ELDControlKind::Root) == 5000
-        && AgencyWeightBp(ELDControlKind::Silence) == 2000 && AgencyWeightBp(ELDControlKind::Disarm) == 2000
-        && AgencyWeightBp(ELDControlKind::Slow) == 0);
     const FLDAgencyParams Params;
+    TestTrue(TEXT("Stun and knockback 1.0, taunt 0.8, root 0.5, silence and disarm 0.2, slow 0"),
+        AgencyWeightBp(ELDControlKind::Stun, Params) == 10000 && AgencyWeightBp(ELDControlKind::Knockback, Params) == 10000
+        && AgencyWeightBp(ELDControlKind::Taunt, Params) == 8000 && AgencyWeightBp(ELDControlKind::Root, Params) == 5000
+        && AgencyWeightBp(ELDControlKind::Silence, Params) == 2000 && AgencyWeightBp(ELDControlKind::Disarm, Params) == 2000
+        && AgencyWeightBp(ELDControlKind::Slow, Params) == 0);
+    FLDProtoSettings Switched;
+    FString SwitchError;
+    TestTrue(TEXT("Without the switch the taunt weighs 0.8"), LDProto::Parse(TEXT("-LDProtoAgency"), Switched, SwitchError)
+        && Switched.Agency.TauntWeightBp == 8000);
+    TestTrue(TEXT("-LDProtoAgencyTauntWeight sets the taunt's weight only"),
+        LDProto::Parse(TEXT("-LDProtoAgency -LDProtoAgencyTauntWeight=0.5"), Switched, SwitchError)
+        && AgencyWeightBp(ELDControlKind::Taunt, Switched.Agency) == 5000 && AgencyWeightBp(ELDControlKind::Root, Switched.Agency) == 5000
+        && LDProto::Describe(Switched).Contains(TEXT("agency_taunt_weight_bp=5000")));
+    TestFalse(TEXT("A weight outside [0, 1] is refused"), LDProto::Parse(TEXT("-LDProtoAgency -LDProtoAgencyTauntWeight=1.5"), Switched, SwitchError));
     FLDAgencyMeter Meter;
     Meter.Losses = {{0, 1500, 10000}, {1000, 3000, 5000}};
     TestEqual(TEXT("Overlapping controls count their largest share once"), AgencyLossBpMs(Meter.Losses, 3000, 4000), int64(22500000));

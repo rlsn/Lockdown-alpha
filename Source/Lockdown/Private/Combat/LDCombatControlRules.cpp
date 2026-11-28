@@ -109,12 +109,12 @@ namespace LDCombatControl
         return Result;
     }
 
-    int64 AgencyWeightBp(ELDControlKind Kind)
+    int64 AgencyWeightBp(ELDControlKind Kind, const FLDAgencyParams& Params)
     {
         switch (Kind)
         {
         case ELDControlKind::Stun: case ELDControlKind::Knockback: return 10000;
-        case ELDControlKind::Taunt: return 8000;
+        case ELDControlKind::Taunt: return Params.TauntWeightBp;
         case ELDControlKind::Root: return 5000;
         case ELDControlKind::Silence: case ELDControlKind::Disarm: return 2000;
         default: return 0;

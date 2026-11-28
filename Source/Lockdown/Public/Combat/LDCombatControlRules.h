@@ -67,6 +67,8 @@ struct FLDAgencyParams
     int32 RollFrom = 3;
     // V-Cut ends the controls holding the body at the trigger; V-Next only guards against the next ones.
     bool bCut = true;
+    // The share of agency a taunt takes (spec §6: 0.8).
+    int64 TauntWeightBp = 8000;
 };
 
 // One contender life's meter.
@@ -156,8 +158,8 @@ namespace LDCombatControl
     // Non-positive durations are returned unchanged and leave the chain untouched.
     LOCKDOWN_API int64 DiminishHardControl(FLDHardControlChain& Chain, int64 NowMs, int64 DurationMs);
 
-    // C-10 prototype: stun and knockback 1.0, taunt 0.8, root 0.5, silence and disarm 0.2, slow 0.
-    LOCKDOWN_API int64 AgencyWeightBp(ELDControlKind Kind);
+    // C-10 prototype: stun and knockback 1.0, taunt Params.TauntWeightBp (0.8), root 0.5, silence and disarm 0.2, slow 0.
+    LOCKDOWN_API int64 AgencyWeightBp(ELDControlKind Kind, const FLDAgencyParams& Params);
     // The weighted loss inside [NowMs - WindowMs, NowMs], in weight-basis-point milliseconds (ms x 10000 at full weight).
     LOCKDOWN_API int64 AgencyLossBpMs(const TArray<FLDAgencyLoss>& Losses, int64 NowMs, int64 WindowMs);
     // Whether a trigger is allowed at NowMs (outside the guard and the cooldown) and the loss has reached the threshold.
