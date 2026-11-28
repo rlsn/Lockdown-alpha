@@ -1065,6 +1065,26 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
         return Refuse(ELDCombatReject::SourceUnavailable);
     }
     if (Record.NextToken==MAX_uint64 || !LDMatchLifecycle::AddDurationMs(Now,WindupMs,Action.ReleaseAtMs,Error)) { return false; }
+    // C-12: a ground impact lands where the release would have landed it from here, and that landing is locked now.
+    const FLDDemoEffectDefinition* LandingImpact=TargetDef->Mode==ELDDemoTargetMode::GroundPoint
+        ? LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::GroundImpact) : nullptr;
+    const auto* LandingRegistry=LandingImpact ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
+    const auto* LandingGeometry=LandingRegistry ? LandingRegistry->GetGeometry() : nullptr;
+    if (LandingRegistry && LandingRegistry->Enabled() && LandingGeometry && !LandingGeometry->Surfaces.IsEmpty())
+    {
+        double ReachCm=0;
+        TOptional<FVector> Landed;
+        if (!CastRangeCm(*Body,*TargetDef,ReachCm,Error)
+            || !LDGroundLanding::Resolve(*LandingRegistry,FootOf(*Actor),Action.TargetPoint,ReachCm,
+                Actor->GetCapsuleComponent()->GetCollisionShape(),Landed,Error)) { return false; }
+        if (!Landed.IsSet()) { return Refuse(ELDCombatReject::Blocked); }
+        FLDCombatLandingPreview& Landing=Action.Landing.Emplace();
+        Landing.CentreCm=*Landed;
+        Landing.RadiusCm=LDCA::ToDouble(LandingImpact->RadiusCm);
+        Landing.InnerRadiusCm=LDCA::ToDouble(LandingImpact->DistanceCm);
+        Landing.ObservedKey=FGuid::NewGuid();
+        if (!LDMatchLifecycle::AddDurationMs(Action.ReleaseAtMs,LandingImpact->DelayMs,Landing.ImpactAtMs,Error)) { return false; }
+    }
     Action.Token=Record.NextToken++;
     Action.StartedAtMs=Now;
     CancelChannel(*Body);
@@ -1617,7 +1637,8 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         if (bNeedsGround && !bRegistered) { Error=TEXT("A ground skill requires the registered ground surface."); return false; }
         // The release range (U05 eagle stance included), the reach the order approached with.
         if (!CastRangeCm(Body,TargetDef,GroundReachCm,Error)) { return false; }
-        if (bRegistered && !LDGroundLanding::Resolve(*Registry,ReleaseFoot,Action.TargetPoint,GroundReachCm,
+        if (Action.Landing.IsSet()) { LandedPoint=Action.Landing->CentreCm; }
+        else if (bRegistered && !LDGroundLanding::Resolve(*Registry,ReleaseFoot,Action.TargetPoint,GroundReachCm,
             Actor.GetCapsuleComponent()->GetCollisionShape(),LandedPoint,Error)) { return false; }
         if (LandedPoint.IsSet()) { DeliveryAction.TargetPoint=*LandedPoint; }
         else if (bNeedsGround) { Reject=ELDCombatReject::Blocked; return true; }

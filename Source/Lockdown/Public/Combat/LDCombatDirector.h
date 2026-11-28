@@ -246,6 +246,16 @@ struct FLDCombatSetupMark
 };
 
 
+// C-12: a ground impact's landing, locked when its action is accepted and published from the first windup frame
+// (ReadObservedProjectiles); the release lands there and its ground effect keeps ObservedKey.
+struct FLDCombatLandingPreview
+{
+    FVector CentreCm=FVector::ZeroVector;
+    double RadiusCm=0, InnerRadiusCm=0;
+    int64 ImpactAtMs=0;
+    FGuid ObservedKey;
+};
+
 // One accepted, not yet released action of one body life. Dies with the life.
 struct FLDCombatAction
 {
@@ -272,6 +282,7 @@ struct FLDCombatAction
     bool bWholeEffectShare=false;
     // Spec §6.5: the chain a free repeat (K06, A08) continues; unset for a player's own action (it opens one).
     FGuid ChainId;
+    TOptional<FLDCombatLandingPreview> Landing;
 };
 
 // A K06 repeat of one release, due at DueMs: the same action toward the same target or direction (LDCombatCards.cpp).

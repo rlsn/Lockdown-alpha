@@ -1908,6 +1908,8 @@ bool ALDCombatDirector::ScheduleAutoRecasts(const FLDBodyCombatState& Body, cons
         FLDCombatAutoRecast& Repeat=AutoRecasts.AddDefaulted_GetRef();
         Repeat.Body={Body.Victim,Body.Identity};
         Repeat.Action=Action;
+        // A repeat lands from where it is released; the first release's previewed landing and its key stay with it.
+        Repeat.Action.Landing.Reset();
         Repeat.Action.bAutoRecast=true;
         Repeat.Action.AutoRecastScaleBp=Terms.AutoRecastScaleBp;
         Repeat.Card=FName(TEXT("card_encore"));

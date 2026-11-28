@@ -1320,6 +1320,56 @@ bool FLDExpandedDeliveryTest::RunTest(const FString& Parameters)
     return true;
 }
 
+// C-12: a ground impact in its windup shows the landing it will strike, from the first frame, under the key its ground
+// effect keeps; the release lands there whatever point it is handed; an interrupted windup shows nothing.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDGroundWarningFromWindupTest, "Lockdown.Rules.DemoSkillExpansion.GroundWarningFromWindup",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDGroundWarningFromWindupTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const auto Source=F.AddBody();
+    auto& Body=F.Body(Source);
+    FString Error;
+    const FLDDemoAbilityDefinition* Ability=nullptr;
+    if (!TestTrue(TEXT("The brick exists"),F.Catalog->FindAbility(TEXT("active_calculus_drop"),Ability,Error))) { return false; }
+    F.Now(1000);
+    FLDCombatAction Action;
+    Action.Kind=ELDCombatActionKind::Ability;
+    Action.Source.Kind=ELDCombatSourceKind::Learned; Action.Source.DefinitionId=TEXT("active_calculus_drop");
+    Action.Direction=FVector(1,0,0); Action.TargetPoint=FVector(2000,0,0); Action.Key.DirectSequence=1;
+    Action.StartedAtMs=1000; Action.ReleaseAtMs=1250;
+    FLDCombatLandingPreview& Landing=Action.Landing.Emplace();
+    Landing.CentreCm=FVector(500,100,0); Landing.RadiusCm=200; Landing.InnerRadiusCm=80; Landing.ImpactAtMs=1800;
+    Landing.ObservedKey=FGuid::NewGuid();
+    Body.Action=Action;
+    TArray<FLDObservedProjectileFact> Facts;
+    TestTrue(TEXT("The windup is observable"),F.Driver->ReadObservedProjectiles(Facts,Error));
+    TestTrue(TEXT("Its landing shows from the first frame with the full warning and the release's radii"),Facts.Num()==1
+        && Facts[0].Key==Landing.ObservedKey && Facts[0].Look==ELDObservedProjectileLook::BookShadow && Facts[0].PositionCm.X==500
+        && Facts[0].PositionCm.Y==100 && Facts[0].RadiusCm==200 && Facts[0].InnerRadiusCm==80 && Facts[0].WarningRemainingMs==800);
+    Body.Action.Reset();
+    Facts.Reset();
+    TestTrue(TEXT("An interrupted windup shows nothing"),F.Driver->ReadObservedProjectiles(Facts,Error) && Facts.IsEmpty());
+    F.Now(1250);
+    auto Hit=FFixture::Hit(Source,Source,10000);
+    Hit.Source=Action.Source;
+    Hit.CastLedger=MakeShared<FLDCombatCastLedger>();
+    Hit.bDirectAbilityDamage=true;
+    bool Handled=false;
+    TestTrue(TEXT("The release delivers its impact"),
+        FAccess::Delivery(*F.Driver,Body,Ability->Values,Ability->Target,Action,Hit,1250,Handled,Error) && Handled);
+    const auto* Brick=FAccess::Ground(*F.Driver).FindByPredicate([](const auto& Ground) { return Ground.Origin==ELDCombatGroundOrigin::Impact; });
+    if (!TestNotNull(TEXT("The brick lands"),Brick)) { return false; }
+    TestTrue(TEXT("It lands on the previewed landing under the same key"), Brick->CentreCm.X==500 && Brick->CentreCm.Y==100
+        && Brick->ObservedKey==Landing.ObservedKey);
+    Facts.Reset();
+    TestTrue(TEXT("The observer keeps one handle across the release"),F.Driver->ReadObservedProjectiles(Facts,Error)
+        && Facts.Num()==1 && Facts[0].Key==Landing.ObservedKey && Facts[0].WarningRemainingMs==550);
+    return true;
+}
+
 // Every flight a contender can throw has a public look: A05's flying basic (an unnamed basic source) and N3 used to stop
 // the match when the observation step met them.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDFlightLookTest, "Lockdown.Rules.DemoSkillExpansion.FlightLooks",

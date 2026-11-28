@@ -216,6 +216,22 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
         Fact.WarningRemainingMs=Ground.ReadyAtMs>NowMs
             ? uint32(FMath::Min<int64>(Ground.ReadyAtMs-NowMs,MAX_uint32)) : 0;
     }
+    // C-12: a ground impact in its windup shows the landing it will strike, under the key its ground effect keeps.
+    for (const auto& Pair : Bodies)
+    {
+        const FLDBodyCombatState& Body=Pair.Value;
+        if (Body.bPendingDeath || !Body.Action.IsSet() || !Body.Action->Landing.IsSet()) { continue; }
+        const FLDCombatLandingPreview& Landing=Body.Action->Landing.GetValue();
+        FLDObservedProjectileFact& Fact=Out.AddDefaulted_GetRef();
+        Fact.Key=Landing.ObservedKey;
+        Fact.SourceEntity=Body.Victim.EntityId;
+        Fact.PositionCm=Landing.CentreCm;
+        Fact.Heading=FVector2D(1,0);
+        Fact.Look=ELDObservedProjectileLook::BookShadow;
+        Fact.RadiusCm=float(Landing.RadiusCm);
+        Fact.InnerRadiusCm=float(Landing.InnerRadiusCm);
+        Fact.WarningRemainingMs=uint32(FMath::Clamp<int64>(Landing.ImpactAtMs-NowMs,0,MAX_uint32));
+    }
     for (const FLDCombatZone& Zone : Zones)
     {
         if (Zone.EndMs<=NowMs) { continue; }
