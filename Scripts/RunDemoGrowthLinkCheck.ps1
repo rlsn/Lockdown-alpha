@@ -2,7 +2,9 @@
 # Short owned-connection growth scenario: one rendered Listen Host and one headless owning client, no AI. State is set
 # with DEV test commands over each role's own connection; the probe (LDDemoGrowthLinkProbe.cpp) checks invariants only.
 # -TimeoutSeconds bounds each role's probe; a passing run takes well under three minutes including start-up.
-param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(60,600)][int]$TimeoutSeconds=240)
+param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(60,600)][int]$TimeoutSeconds=240,
+    # Extra command-line arguments for every role, for an A/B run, e.g. '-LDEmpower' (auto-empower on).
+    [string]$ExtraArguments)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
 Assert-LDDemoInputs
@@ -54,7 +56,7 @@ function Start-GrowthLinkRole {
         # The Host renders (1280x720 offscreen) so its HUD is real, and carries the DEV growth fixture that admits DEV test
         # commands on this authority; the owning client is headless and never carries the fixture.
         $mode = if ($Role -eq 'Host') { "-windowed -RenderOffScreen -ResX=1280 -ResY=720 -port=$($harness.Port) -LDDevGrowthFixture" } else { '-nullrhi' }
-        '-unattended -nop4 -nosound -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoGrowthLinkProbe -LDDemoGrowthLinkRole={2} -LDDemoGrowthLinkTimeout={3} -LDDemoGrowthLinkOutput="{4}" -abslog="{5}"' -f $mode,$user,$Role,$TimeoutSeconds,$evidence,$log
+        ('-unattended -nop4 -nosound -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoGrowthLinkProbe -LDDemoGrowthLinkRole={2} -LDDemoGrowthLinkTimeout={3} -LDDemoGrowthLinkOutput="{4}" -abslog="{5}"' -f $mode,$user,$Role,$TimeoutSeconds,$evidence,$log) + $(if ($ExtraArguments) { " $ExtraArguments" } else { '' })
     }
 }
 

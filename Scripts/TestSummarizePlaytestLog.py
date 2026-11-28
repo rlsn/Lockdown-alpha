@@ -269,14 +269,13 @@ class SummarizePlaytestLogTest(unittest.TestCase):
             line(12, "LogLDCombat", "Log", f"LD_REACTION t=12000 kind=Overload trigger={a} via=learned:active_zap primary={b} struck=1 r=60.00 fire_settles=0"),
             hit(12, 12000, a, b, "learned:active_zap", "60.00"),
             hit(12, 12000, a, b, "learned:active_zap", "60.00"),
-            hit(13, 13000, a, b, "learned:active_zap", "600.00", "factor_bp=120000 factors=card_k06:5000,overdrive:6000"),
+            hit(13, 13000, a, b, "learned:active_zap", "600.00", "factor_bp=120000 factors=card_k06:5000,card_big_one:6000"),
             line(13, "LogLDMatch", "Display", f"LD_DEATH_RECEIPT contender={b} life=1 respawn_at_ms=1 t=13000 killer={a} cause=Contender fatal=learned:active_zap fatal_body={a} assisters=- no_reward=None victim_level=1"),
             # B's released zone keeps hitting after its death: still B's last fight, not a new one.
             hit(13, 13500, b, a, "learned:active_quick_meeting", "20.00"),
-            line(13, "LogLDCombat", "Log", f"LD_MOMENTUM entity={b} life=1 basic=20.00 combat=10.00 skill=0.00 reaction=0.00 dodge=15.00 other=0.00 idle=-5.00 spent=30.00 overdrive=0 end=60.00"),
+            line(13, "LogLDCombat", "Log", f"LD_MOMENTUM entity={b} life=1 basic=20.00 combat=10.00 skill=0.00 reaction=0.00 other=0.00 idle=-5.00 spent=30.00 end=60.00"),
             line(13, "LogLDCombat", "Log", f"LD_CHAIN owner={a} steps=6 key=card_k06>Overload>kill damage=700.00"),
-            line(14, "LogLDCombat", "Log", f"LD_MOMENTUM entity={a} life=1 basic=0.00 combat=10.00 skill=45.00 reaction=10.00 dodge=0.00 other=0.00 idle=0.00 spent=100.00 overdrive=1 end=0.00"),
-            line(14, "LogLDCombat", "Log", f"LD_PERFECT_DODGE t=11500 entity={b} life=1 effect=x source=y momentum=15.00"),
+            line(14, "LogLDCombat", "Log", f"LD_MOMENTUM entity={a} life=1 basic=0.00 combat=10.00 skill=45.00 reaction=10.00 other=0.00 idle=0.00 spent=100.00 end=0.00"),
             # A rest-room training dummy is a contender-kind body outside the roster: never a contender for the metrics.
             hit(15, 15000, a, HOST, "learned:active_zap", "700.00", "factor_bp=900000 factors=card_k06:5000"),
             # Rest-room training: A's rest life 0 (every heartbeat before the first field entry) and the dummy's own ledger.
@@ -284,9 +283,8 @@ class SummarizePlaytestLogTest(unittest.TestCase):
             line(16, "LogLDMatch", "Display", "LD_FIELD_ENTER generation=4 segment=0 at_ms=5000 field_t_ms=0 final=0"),
             line(16, "LogLDTrace", "Log", f"LD_HEARTBEAT t=1000 contender={a} phase=Alive life=0 pos=0,0,0"),
             line(16, "LogLDTrace", "Log", f"LD_HEARTBEAT t=10000 contender={a} phase=Alive life=1 pos=0,0,0"),
-            line(16, "LogLDCombat", "Log", f"LD_MOMENTUM entity={a} life=0 basic=500.00 combat=0.00 skill=0.00 reaction=0.00 dodge=0.00 other=0.00 idle=0.00 spent=0.00 overdrive=3 end=0.00"),
-            line(16, "LogLDCombat", "Log", f"LD_MOMENTUM entity={HOST} life=1 basic=0.00 combat=0.00 skill=0.00 reaction=0.00 dodge=0.00 other=0.00 idle=0.00 spent=0.00 overdrive=0 end=50.00"),
-            line(16, "LogLDCombat", "Log", f"LD_PERFECT_DODGE t=2000 entity={a} life=0 effect=x source=y momentum=15.00"),
+            line(16, "LogLDCombat", "Log", f"LD_MOMENTUM entity={a} life=0 basic=500.00 combat=0.00 skill=0.00 reaction=0.00 other=0.00 idle=0.00 spent=0.00 end=0.00"),
+            line(16, "LogLDCombat", "Log", f"LD_MOMENTUM entity={HOST} life=1 basic=0.00 combat=0.00 skill=0.00 reaction=0.00 other=0.00 idle=0.00 spent=0.00 end=50.00"),
             line(16, "LogLDCombat", "Log", f"LD_REACTION t=2000 kind=Melt trigger={a} via=learned:active_zap primary={HOST} struck=0 r=1.00 fire_settles=0"),
             # Field from 5000; a rest 12000-14000; the showdown from 17000 is not field time; the match ends at 20000.
             line(17, "LogLDMatch", "Display", "LD_REST_ENTER generation=4 rest=1 at_ms=12000 field_t_ms=7000"),
@@ -306,9 +304,10 @@ class SummarizePlaytestLogTest(unittest.TestCase):
         self.assertIn("Casts per person per fight (Q/W/E releases): n=2 mean 2.0 median 2.0 min 1.0 max 3.0", metrics)
         self.assertIn("Time to kill (first damage between the pair to the death): n=1 mean 2.9 s", metrics)
         self.assertIn("Field time share (field segments before the showdown / whole match): 50.0% (10 s of 20 s)", metrics)
-        self.assertIn("Momentum income: 110 over 2 field lives (basic 18.2%, combat 18.2%, skill 40.9%, reaction 9.1%, dodge 13.6%, "
-                      "other 0.0%); idle drift -5, spent 130, overdrives 1, perfect dodges 1 "
-                      "(3 rest-training ledger/dodge lines left out)", metrics)
+        self.assertIn("Momentum income: 95 over 2 field lives (basic 21.1%, combat 21.1%, skill 47.4%, reaction 10.5%, "
+                      "other 0.0%); idle drift -5, spent 130 (2 rest-training ledger lines left out)", metrics)
+        # A Host without the auto-empower mechanic writes no LD_EMPOWER and no empower= field: not applicable, never 0.
+        self.assertIn("- Auto-empower: n/a (the Host log has no such mechanic)", metrics)
         # Both field lives with a heartbeat closed their ledgers.
         self.assertNotIn("incomplete:", metrics)
         # Without a measured baseline the breakout metric says so instead of guessing.
@@ -326,7 +325,7 @@ class SummarizePlaytestLogTest(unittest.TestCase):
                       summarize(collect([str(self.root / "P2.log")]), baseline=parse_baseline("6=100,10=150"), metrics_only=True))
         self.assertIn("Outrageous hits (>= 60% of the target's max HP): 1", metrics)
         self.assertIn("Longest chain: 6 steps (1 of 1 chains >= 5)", metrics)
-        self.assertIn("Damage factors: 7 hits, max factor_bp 120000; sources card_k06 2, overdrive 1", metrics)
+        self.assertIn("Damage factors: 7 hits, max factor_bp 120000; sources card_k06 2, card_big_one 1", metrics)
         self.assertIn("Reaction kinds: 1 (Overload)", metrics)
         self.assertIn("Cards offered: 3", metrics)
         self.assertIn("| Matches with an outrageous moment (hit ≥ 60% max HP or chain ≥ 5) | every match | 1 of 1 |", across)
@@ -346,34 +345,29 @@ class SummarizePlaytestLogTest(unittest.TestCase):
         flagged = summarize(collect([str(silent)]), metrics_only=True)
         self.assertIn("  - AI that never cast in any of their fights: 1 (B 1 fights)", flagged)
         self.assertIn("| AI that never cast in any of their fights | 0 | 1 |", flagged)
-        # A Host without overdrive and perfect dodges writes no overdrive=/dodge= fields and no LD_PERFECT_DODGE lines:
-        # those read as not applicable, never 0, and dodge leaves the income split.
-        removed = [re.sub(r" (dodge|overdrive)=\S+", "", row) for row in rows if "LD_PERFECT_DODGE" not in row]
-        (self.root / "Removed.log").write_text("\n".join(removed) + "\n", encoding="utf-8")
-        trimmed = summarize(collect([str(self.root / "Removed.log")]), metrics_only=True)
-        self.assertIn("Momentum income: 95 over 2 field lives (basic 21.1%, combat 21.1%, skill 47.4%, reaction 10.5%, "
-                      "other 0.0%); idle drift -5, spent 130, overdrives n/a (the Host log has no such mechanic), "
-                      "perfect dodges n/a (the Host log has no such mechanic)", trimmed)
-        self.assertIn("overdrives n/a", trimmed.split("## Metrics across")[1])
-        self.assertIn("- Auto-empower: n/a (the Host log has no such mechanic)", trimmed)
-        # Auto-empower: A pays twice 100 ms apart (a loop) and lands one tagged hit; B's basic empower on a camp misses.
-        empower = lambda at, t, who, life, host, target, before, cost, serial: line(
-            at, "LogLDCombat", "Log", f"LD_EMPOWER t={t} entity={who} life={life} host={host} skill=- target={target} "
-                                      f"before={before} cost={cost} after={before - cost} serial={serial} payload=p")
+        # Auto-empower (the Host's LD_EMPOWER): A pays twice 100 ms apart (a loop), its first release lands a tagged hit on
+        # B and the second lands nothing; one A release came short of the cost; B's basic empower lands on a camp.
+        empower = lambda at, t, who, host, processor, before, paid, serial, outcome="applied": line(
+            at, "LogLDCombat", "Log", f"LD_EMPOWER t={t} src={who} life=1 host={host} processor={processor} source=basic "
+                                      f"serial={serial} paid={paid:.2f} before={before:.2f} after={before - paid:.2f} outcome={outcome}")
         armed = {f"entity={a} life=1 ": " empower=2 armed_ms=5000", f"entity={b} life=1 ": " empower=1 armed_ms=1000"}
         ledgered = [row + next((extra for key, extra in armed.items() if "LD_MOMENTUM" in row and key in row), "")
-                    for row in removed]
+                    for row in rows]
         empowered = ledgered[:-1] + [
-            empower(10, 10000, a, 1, "Q", "contender", 70, 30, 1),
-            empower(10, 10100, a, 1, "Q", "contender", 40, 30, 2),
+            empower(10, 10000, a, "Q", "strike", 70, 30, 1),
+            empower(10, 10100, a, "Q", "strike", 40, 30, 2),
+            empower(10, 10150, a, "Q", "strike", 10, 0, 0, "short"),
             hit(10, 10200, a, b, "learned:active_zap", "10.00", "factor_bp=10000 factors=- empower=1"),
-            empower(11, 11000, b, 1, "Basic", "camp", 60, 20, 1),
+            empower(11, 11000, b, "Basic", "fist", 60, 20, 1),
+            hit(11, 11100, b, a, "basic", "5.00", "factor_bp=10000 factors=- empower=1").replace(
+                "victim_kind=contender", "victim_kind=camp"),
         ] + ledgered[-1:]
         (self.root / "Empower.log").write_text("\n".join(empowered) + "\n", encoding="utf-8")
         report = summarize(collect([str(self.root / "Empower.log")]), metrics_only=True)
-        expected = ("Auto-empower: 3 triggers (9.00 per contender field minute); hosts Basic 33%, Q 67%; targets contender 67%, "
-                    "camp 33%; paid and missed 67%; mean cost 26.7, mean momentum before 56.7; re-triggers within 250 ms 1; "
-                    "most hits from one trigger 1; armed 30% of contender field time")
+        expected = ("Auto-empower: 3 triggers (9.00 per contender field minute); momentum short at release 1; hosts Basic 33%, "
+                    "Q 67%; processors fist 33%, strike 67%; targets contender 33%, camp 33%, none 33%; paid and missed 33%; "
+                    "mean cost 26.7, mean momentum before 56.7; re-triggers within 250 ms 1; most hits from one trigger 1; "
+                    "armed 30% of contender field time")
         self.assertIn(f"- {expected}", report.split("## Metrics across")[0])
         self.assertIn(f"- {expected}", report.split("## Metrics across")[1])
         # The mechanic is on (ledgers carry empower=) but nobody triggered: 0, not n/a.
@@ -430,7 +424,7 @@ class SummarizePlaytestLogTest(unittest.TestCase):
             ]
             if with_ledger:
                 rows.append(line(9, "LogLDCombat", "Log", f"LD_MOMENTUM entity={CLIENT} life=1 basic=10.00 combat=0.00 skill=0.00 "
-                                 "reaction=0.00 dodge=0.00 other=0.00 idle=0.00 spent=0.00 overdrive=0 end=60.00"))
+                                 "reaction=0.00 other=0.00 idle=0.00 spent=0.00 end=60.00"))
             target = self.root / (folder or ".") / f"{name}.log"
             target.parent.mkdir(exist_ok=True)
             target.write_text("\n".join(rows) + "\n", encoding="utf-8")

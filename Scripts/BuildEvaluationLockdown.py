@@ -27,7 +27,7 @@ import re
 from pathlib import Path
 
 ADAPTER_ID = "lockdown-demo"
-ADAPTER_VERSION = 16
+ADAPTER_VERSION = 17
 # LDBuildEvaluation::MaxCases and MaxBuildSteps of the native driver (LDBuildEvaluationProbe.h); a larger plan is refused
 # before any run.
 NATIVE_MAX_CASES = 500
@@ -113,7 +113,18 @@ METRICS = {
     "opponent_casts": {"unit": "casts", "kind": "continuous", "direction": "descriptive",
                        "description": "the opponent's Q/W/E releases (LD_CAST) from first-field entry to the outcome "
                                       "(and the outcome's own advance, at most 50 ms later)"},
+    "subject_empowers": {"unit": "empowers", "kind": "continuous", "direction": "descriptive",
+                         "description": "the subject's empowered releases (LD_EMPOWER applied or prepaid) from first-field "
+                                        "entry to the outcome; 0 in a run without auto-empower"},
+    "opponent_empowers": {"unit": "empowers", "kind": "continuous", "direction": "descriptive",
+                          "description": "the opponent's empowered releases (LD_EMPOWER applied or prepaid) from first-field "
+                                         "entry to the outcome; 0 in a run without auto-empower"},
 }
+# Auto-empower is a Host-wide switch (-LDEmpower, optionally -LDEmpowerHost=<entry> for every contender without a chosen
+# host): one run is all off or all on, so off/on is compared across two runs of the same seeds. An AI picks its own host
+# unless empower_host forces one for both duelists.
+EMPOWER_HOSTS = ("Basic", "Q", "W", "E", "D")
+EMPOWER_DONE = ("applied", "prepaid")
 
 
 # ---------------------------------------------------------------- capabilities
@@ -211,6 +222,7 @@ def describe(project_root):
                 "parameters": {"site": places, "duel_timeout_ms": [1000, min(first_field_ms, boss_appear_ms) - 1],
                                "first_field_ms": first_field_ms,
                                "supply_xp": [0, cumulative_xp(progression)[-1]],
+                               "empower": [False, True], "empower_host": list(EMPOWER_HOSTS),
                                "xp_to_next": progression["xp_to_next"],
                                "active_offer_levels": progression["active_offer_levels"],
                                "card_capacity_base": int(content["parameters"]["CARDS.CapacityBase"]),
@@ -644,7 +656,7 @@ def scenario_problems(scenario, caps):
     params = scenario["parameters"]
     spec = caps["scenarios"]["duel_site"]["parameters"]
     problems = []
-    unknown = set(params) - {"site", "duel_timeout_ms", "supply_xp"}
+    unknown = set(params) - {"site", "duel_timeout_ms", "supply_xp", "empower", "empower_host"}
     if unknown:
         problems.append(f"IllegalScenario: unknown duel_site parameters {sorted(unknown)}")
     if params.get("site") not in spec["site"]:
@@ -658,7 +670,27 @@ def scenario_problems(scenario, caps):
     if not isinstance(supply, dict) or set(supply) != set(ROLES) or any(
             isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high for value in supply.values()):
         problems.append(f"IllegalScenario: supply_xp names subject and opponent, each {low}..{high} XP")
+    if not isinstance(params.get("empower", False), bool):
+        problems.append("IllegalScenario: empower is true or false (the Host-wide -LDEmpower switch)")
+    if "empower_host" in params and (params.get("empower") is not True or params["empower_host"] not in EMPOWER_HOSTS):
+        problems.append(f"IllegalScenario: empower_host needs empower true and is one of {', '.join(EMPOWER_HOSTS)}")
     return problems
+
+
+def engine_switches(manifest):
+    """The Host command-line switches the manifest's scenario needs (RunBuildEvaluation.ps1 passes them)."""
+    params = manifest["scenario"]["parameters"]
+    if not params.get("empower"):
+        return []
+    return ["-LDEmpower"] + ([f"-LDEmpowerHost={params['empower_host']}"] if params.get("empower_host") else [])
+
+
+def runner_problems(manifest, runner):
+    switches = runner.get("engine_switches", [])
+    expected = engine_switches(manifest)
+    if switches != expected:
+        return [f"the Host ran with switches {switches or 'none'}, the scenario needs {expected or 'none'}"]
+    return []
 
 
 def native_input(run_id, manifest, caps, cases):
@@ -1174,6 +1206,26 @@ def case_evidence(case, manifest, caps, result, trace_text):
         for position, preset in enumerate(presets):
             if offered.get(str(position + 2)) != preset:
                 reasons.append(f"PresetNotApplied: the {role} offer at ordinal {position + 2} is {offered.get(str(position + 2))}, prepared {preset}")
+    empowered = params.get("empower", False)
+    empower = {role: {"empowers": 0, "short": 0, "paid": 0, "hosts": {}, "processors": {}} for role in ROLES}
+    for tag, row, _ in events:
+        if tag != "LD_EMPOWER" or row.get("src") not in duelists:
+            continue
+        if not empowered:
+            reasons.append("Setup: an LD_EMPOWER line in a run without auto-empower")
+            break
+        if not row.get("t", "").isdigit() or not t0 <= int(row["t"]) <= t_out + CAST_LAG_MS:
+            continue
+        side = empower[roles[row["src"]]]
+        if row.get("outcome") in EMPOWER_DONE:
+            side["empowers"] += 1
+            side["paid"] += _hundredths(row.get("paid", "0"))
+            for key, value in (("hosts", row.get("host")), ("processors", row.get("processor"))):
+                side[key][value] = side[key].get(value, 0) + 1
+        else:
+            side["short"] += 1
+    if empowered:
+        out["facts"]["empower"] = {role: dict(side, paid=side["paid"] / 100) for role, side in empower.items()}
     casts = {role: 0 for role in ROLES}
     for tag, row, _ in events:
         if tag == "LD_CAST" and row.get("contender") in duelists:
@@ -1234,6 +1286,8 @@ def case_evidence(case, manifest, caps, result, trace_text):
         "engage_to_kill_ms": {"value": t_out - engaged, "censored": outcome["kind"] == "timeout"},
         "subject_casts": {"value": casts["subject"], "censored": False},
         "opponent_casts": {"value": casts["opponent"], "censored": False},
+        "subject_empowers": {"value": empower["subject"]["empowers"], "censored": False},
+        "opponent_empowers": {"value": empower["opponent"]["empowers"], "censored": False},
     })
     return out
 
@@ -1627,6 +1681,11 @@ def limitations(manifest, caps):
     out.append(f"无效样本不计入结论：双方都是走近交战的架势（pursue/burst）而到时从未互相命中（NoEngagement，接近或寻路"
                f"失败，不是删失，原因里写最近距离）；学会主动的一方在至少 {NEVER_CAST_GRACE_MS / 1000:g} s（另加其 reaction_ms）"
                f"交战中一次未施放（NeverCast，AI 执行失败；设了 skip_bp 的一方不判）。kite/hold/guard 架势到时未交手仍是删失。")
+    if manifest["scenario"]["parameters"].get("empower"):
+        host = manifest["scenario"]["parameters"].get("empower_host")
+        out.append("自动强化是整个房主进程的开关（-LDEmpower）：本次运行所有 Case 都开启，off/on 对照是同一组种子的两次运行，"
+                   "不在一次运行内成对。" + (f"双方宿主都被 -LDEmpowerHost={host} 固定。" if host else
+                   "宿主由 AI 按“宿主上的牌阶 + 技能分支阶”自选，实际宿主见各 Case facts.empower.hosts。"))
     if manifest["sample_class"] == "legal_search":
         out.append("候选由原生抽取按 Case 种子真实抽出，选择按计划规则；搜索频率不是自然出现率。")
     return out

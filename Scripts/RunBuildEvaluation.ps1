@@ -38,7 +38,7 @@ if ($PlanOnly) {
     Write-Host "Plan only: Cases, coverage and native input are in $run. Nothing native was started."
     return
 }
-$runner = [ordered]@{ fixed_fps = $FixedFps; exit_code = $null; timed_out = $false; detail = ''; log_errors = @()
+$runner = [ordered]@{ fixed_fps = $FixedFps; engine_switches = @(); exit_code = $null; timed_out = $false; detail = ''; log_errors = @()
     binary_digests = $null; binary_digests_after = $null; budget_stop = $null; disk = $null }
 # Startup and the map load get a fixed allowance on top of the manifest's run budget, which covers the Cases.
 $startupAllowanceSeconds = 300
@@ -97,6 +97,11 @@ if ($planned -eq 0) {
     $socket.Dispose()
     $log = Join-Path $run 'Host.log'
     $arguments = '-unattended -nop4 -nosound -nullrhi -multihome=127.0.0.1 -port={0} -UserDir="{1}" -LDBuildEvaluation -LDDevGrowthFixture -LDBuildEvalInput="{2}" -LDBuildEvalOutput="{3}" -UseFixedTimeStep -FPS={4} -abslog="{5}"' -f $port,$user,(Join-Path $run 'native_input.json'),$native,$FixedFps,$log
+    # Host-wide scenario switches (auto-empower); the analysis refuses a run whose recorded switches differ from its scenario.
+    $switches = @(& python -B $core switches --run-dir $run | ConvertFrom-Json)
+    if ($LASTEXITCODE -ne 0) { throw "The scenario's Host switches could not be read (exit $LASTEXITCODE)." }
+    $runner.engine_switches = $switches
+    if ($switches.Count) { $arguments += ' ' + ($switches -join ' ') }
     $process = Start-Process -FilePath $launch.Binary -WindowStyle Hidden -PassThru -ArgumentList (Format-LDGameArguments -Launch $launch `
         -Url '/Game/Lockdown/Generated/Maps/L_Demo?listen?Name=BuildEvaluationHost' -Arguments $arguments)
     # One Host, Cases in order. The first gate reached stops it; its reason is kept and old evidence is never deleted.
