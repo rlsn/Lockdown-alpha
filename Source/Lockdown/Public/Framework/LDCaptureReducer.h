@@ -163,6 +163,8 @@ public:
     bool IsCommittedMember(const FGuid& ContenderId) const;
     int64 GetBankedGuardMs(const FGuid& ContenderId) const { return BankedGuard.FindRef(ContenderId); }
     int64 GetEffectiveGuardMs(const FGuid& ContenderId, int64 AtMs) const;
+    // SHOWDOWN.GuardRatchetSec: the highest checkpoint a contender's own guard passed, the start of his next graffiti's guard.
+    int64 GetGuardFloorMs(const FGuid& ContenderId) const { return GuardFloors.FindRef(ContenderId); }
     // final_private_pole: guard held elsewhere that counts toward the timeout ranking (its share, added once at the end).
     bool CreditGuard(const FGuid& ContenderId, int64 GuardMs, FString& Error);
     uint32 GetCompletedSprays(const FGuid& ContenderId) const { return CompletedSprays.FindRef(ContenderId); }
@@ -238,6 +240,8 @@ private:
     int64 GuardLatchedMs = 0;
     void UpdateSprayLatch(const FGuid& ContenderId, int64 ProgressMs);
     void UpdateGuardLatch(int64 ProgressMs);
+    TMap<FGuid, int64> GuardFloors;
+    void KeepGuardFloor(const FGuid& ContenderId, int64 ProgressMs);
     // final_hit_and_run holders who sprayed and have not left the zone since.
     TSet<FGuid> MustLeave;
     // Alternative and kill-filled wins reached in the boundary being reduced; the earliest instant wins, then priority.

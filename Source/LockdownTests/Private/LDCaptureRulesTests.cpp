@@ -1425,4 +1425,34 @@ bool FLDShowdownAntiStalemateTest::RunTest(const FString& Parameters)
         FLDCaptureReducer::ResolveShowdownTimeoutWinner(Candidates), FGuid());
     return true;
 }
+// SHOWDOWN.GuardRatchetSec: an owner painted over past 7 s starts his next graffiti's guard from 7 s.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDShowdownGuardFloorTest, "Lockdown.Rules.DemoCapture.ShowdownGuardFloor",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDShowdownGuardFloorTest::RunTest(const FString& Parameters)
+{
+    const FGuid A = FGuid::NewGuid(), B = FGuid::NewGuid();
+    const FLDCombatBodyRef BodyA = CaptureTestBody(A, 1), BodyB = CaptureTestBody(B, 1);
+    FCaptureReducerProbe Probe{*this};
+    Probe.Reducer.Begin(0, 3500, 20000, Probe.Error);
+    Probe.Reducer.SetShowdownRatchets({1150, 2300}, {7000, 14000}, 4000);
+    Probe.Add(CaptureJoined(BodyA, true), TEXT("A enters"));
+    Probe.Add(CaptureJoined(BodyB, false), TEXT("B outside"));
+    Probe.Close(0, false, TEXT("Open"));
+    Probe.Close(3500, false, TEXT("A sprays"));
+    Probe.ExpectGuard(A, ELDCircleState::Guarded, 23500, 0, TEXT("A guards from 3.5 s"));
+    Probe.Add(CapturePresence(BodyA, CaptureMs(11000), false), TEXT("A leaves at 7.5 s guard"));
+    Probe.Add(CapturePresence(BodyB, CaptureMs(11000), true), TEXT("B enters alone"));
+    Probe.Close(11000, false, TEXT("B sprays over A's graffiti"));
+    Probe.Close(14500, false, TEXT("B's spray completes"));
+    Probe.ExpectGuard(B, ELDCircleState::Guarded, 34500, 0, TEXT("B guards from zero"));
+    TestEqual(TEXT("A keeps the 7 s floor he passed"), Probe.Reducer.GetGuardFloorMs(A), int64(7000));
+    Probe.Add(CapturePresence(BodyB, CaptureMs(15000), false), TEXT("B leaves at 0.5 s guard"));
+    Probe.Add(CapturePresence(BodyA, CaptureMs(15000), true), TEXT("A returns alone"));
+    Probe.Close(15000, false, TEXT("A sprays again"));
+    Probe.Close(18500, false, TEXT("A's spray completes"));
+    Probe.ExpectGuard(A, ELDCircleState::Guarded, 31500, 0, TEXT("A's new guard starts at his 7 s floor"));
+    TestEqual(TEXT("B passed no checkpoint"), Probe.Reducer.GetGuardFloorMs(B), int64(0));
+    TestEqual(TEXT("A's current guard counts from the floor"), Probe.Reducer.GetEffectiveGuardMs(A, 20000), int64(8500));
+    return true;
+}
 #endif

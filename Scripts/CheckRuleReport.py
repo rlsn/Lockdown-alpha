@@ -112,6 +112,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoCapture.ProviderGate",
         "Lockdown.Rules.DemoCapture.SessionEndgame",
         "Lockdown.Rules.DemoCapture.ShowdownAntiStalemate",
+        "Lockdown.Rules.DemoCapture.ShowdownGuardFloor",
         "Lockdown.Rules.DemoCapture.ContestPause",
         "Lockdown.Rules.DemoCapture.PausedContestSteps",
         "Lockdown.Rules.DemoCombatPrimitives.HardControlDiminish",
