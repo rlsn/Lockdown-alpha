@@ -25,7 +25,7 @@
     "双方由 DEV 奖励事务在第一野外入口获得 3000 XP，达到 L16（三个技能点都已获得）。",
     "样板一方由 DEV 质变样板预设一次配齐技能、等级、分支、牌与属性点（技能永动机、攻速拉满、吸血永生、攒个大的、刺猬肉山、元素永动、冲刺鬼影、人头滚雪球、残血狂暴）；预设 ID 以 #289 落地的 DEV 预设为准。",
     "对手是同级裸构筑：不装牌、属性点全部未分配、技能 1 级。",
-    "参照 arm bare_spent：样板一方换成同级裸构筑，但与样板相同地花完全部合法属性点（生产 AI 加点），对手与其他 arm 相同；样板与它比较时双方预算相同。bare arm（双方都不加点）保留作旧基线。"
+    "参照 arm bare_spent：样板一方换成同级裸构筑（不装牌、技能 1 级），但按计划花完全部合法属性点（力道 18、身手 18、体格/脸皮/脑力各 4，即攻速拉满与残血狂暴样板的分配），对手与其他 arm 相同；样板与它比较时双方预算相同。bare arm（双方都不加点）保留作旧基线。"
   ],
   "design": {
     "kind": "paired_arms",
@@ -89,6 +89,26 @@
               "ai_select",
               "ai_select",
               "ai_select"
+            ],
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "opening_rest",
+                "points": {
+                  "stat_strength": 3
+                }
+              },
+              {
+                "step": "allocate_points",
+                "at": "field",
+                "points": {
+                  "stat_strength": 15,
+                  "stat_agility": 18,
+                  "stat_physique": 4,
+                  "stat_thick_skin": 4,
+                  "stat_brains": 4
+                }
+              }
             ]
           },
           "opponent": {
