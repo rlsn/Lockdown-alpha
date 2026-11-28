@@ -51,7 +51,16 @@ ELDCombatEntry ALDCombatDirector::EmpowerHostOf(const FLDCombatEntityRecord& Rec
     if (const ELDCombatEntry Forced=LDAutoEmpower::SwitchHost(); Forced!=ELDCombatEntry::None) { return Forced; }
     const ALDGameMode* Mode=Core();
     // A human starts on the basic (spec: no automatic host for players); an AI contender takes its best-invested entry.
-    if (!Mode || Mode->FindContenderController(Record.Entity)) { return ELDCombatEntry::Basic; }
+    // AI contenders also hold server-side player controllers, so the contender kind decides.
+    bool bOpponentAI=false;
+    if (Mode)
+    {
+        for (const auto& Pair : Mode->Contenders)
+        {
+            if (Pair.Value.Session==Record.Entity) { bOpponentAI=Pair.Value.Kind==ELDContenderKind::OpponentAI; break; }
+        }
+    }
+    if (!bOpponentAI) { return ELDCombatEntry::Basic; }
     TArray<LDAutoEmpower::FHostCandidate> Candidates;
     const auto CardsOn=[&Record](ELDCardTargetKind Kind, FName Active)
     {
