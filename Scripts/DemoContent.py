@@ -1561,6 +1561,13 @@ def _validate_momentum(data):
     require(len(levels) <= 2 * data["progression"]["active_slots"], "NumericDomain", "SKILL.PointLevels",
             "no more skill points than ranks to buy")
     require(params["SKILL.CooldownFloorSec"]["ms"] > 0, "NumericDomain", "SKILL.CooldownFloorSec", "the floor must be positive")
+    # The auto-empower experiment (EMPOWER.*): its price fits under its threshold, both fit the bar, and its shapes only grow.
+    require(0 < p("EMPOWER.Cost") <= p("EMPOWER.Threshold") <= top, "NumericDomain", "EMPOWER",
+            "the empower cost fits under its threshold and the threshold fits the bar")
+    require(0 < p("EMPOWER.CombatPerSec") <= top, "NumericDomain", "EMPOWER.CombatPerSec",
+            "the experiment's combat gain must be positive and fit the bar")
+    require(p("EMPOWER.ShapeScale") >= 1 and p("EMPOWER.ElementRotDurationScale") >= 1, "NumericDomain", "EMPOWER",
+            "an empowered shape or rot never shrinks")
 
 
 def _validate_build_envelope(data):

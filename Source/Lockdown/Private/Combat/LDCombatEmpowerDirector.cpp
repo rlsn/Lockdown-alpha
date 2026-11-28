@@ -34,6 +34,9 @@ const FLDDemoEmpowerParameters* ALDCombatDirector::EmpowerTerms() const
     const FLDDemoContentSnapshot* Content=Catalog();
     if (!Content) { return nullptr; }
     const FLDDemoEmpowerParameters& P=Content->Get().Parameters.Empower;
+#if WITH_DEV_AUTOMATION_TESTS
+    if (bEmpowerTestOverride && P.ThresholdP2>0 && P.CostP2>0 && P.CostP2<=P.ThresholdP2) { return &P; }
+#endif
     return LDAutoEmpower::Enabled(P) ? &P : nullptr;
 }
 
@@ -370,4 +373,24 @@ bool ALDCombatDirector::SubmitEmpowerHost(const FLDCombatCaller& Caller, uint64 
     UE_LOG(LogLDCombat,Log,TEXT("LD_EMPOWER_HOST t=%lld src=%s host=%s sequence=%llu"),Mode->GetAuthorityNowMs(),*LDLog::Id(Caller.EntityId),
         LDAutoEmpower::EntryName(Host),Sequence);
     return true;
+}
+
+ELDEmpowerProcessor ALDCombatDirector::EmpowerReadyOf(const FLDBodyCombatState& Body, int64 NowMs) const
+{
+    const FLDDemoEmpowerParameters* P=EmpowerTerms();
+    const FLDCombatEntityRecord* Record=FindRecord(Body.Victim.EntityId);
+    if (!P || !Record || Body.Victim.Kind!=ELDVictimKind::Contender || Body.bPendingDeath || Body.bTrainingDummy
+        || !LDAutoEmpower::Ready(*P,Body.Resources.MomentumP2))
+    { return ELDEmpowerProcessor::None; }
+    const ELDCombatEntry Host=EmpowerHostOf(*Record);
+    if (Host==ELDCombatEntry::Basic)
+    {
+        if (IsActionBlocked(Body,ELDCombatControlAction::Basic) || NowMs<Record->NextAttackAtMs) { return ELDEmpowerProcessor::None; }
+    }
+    else
+    {
+        const FLDCombatTrack* Track=TrackFor(*Record,Host);
+        if (!Track || Track->ReadyAtMs>NowMs || IsCastBlocked(Body,Track->Kind)) { return ELDEmpowerProcessor::None; }
+    }
+    return EmpowerProcessorOf(*Record,Host);
 }

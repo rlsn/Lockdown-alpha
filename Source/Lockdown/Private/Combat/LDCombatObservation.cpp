@@ -59,6 +59,7 @@ bool ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 Now
     InOut.ActionAbility=0;
     InOut.ActionComboStep=0;
     InOut.MomentumBar=0;
+    InOut.EmpowerReady=0;
     InOut.LastReaction=0;
     InOut.LastReactionAtMs=0;
     InOut.LastReactionElement=0;
@@ -73,6 +74,7 @@ bool ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 Now
         if (MaxP2<=0) { Error=TEXT("The visible momentum bar needs the approved maximum."); return false; }
         const int64 Bar=FMath::Clamp<int64>(State->Resources.MomentumP2,0,MaxP2)*LDObservation::MomentumBarFull/MaxP2;
         InOut.MomentumBar=uint8(Bar);
+        InOut.EmpowerReady=uint8(EmpowerReadyOf(*State,NowMs));
         if (Cue.Cue==ELDObservedActionCue::Attack)
         {
             const bool bActingBasic=State->Action.IsSet() && State->Action->Kind==ELDCombatActionKind::Basic

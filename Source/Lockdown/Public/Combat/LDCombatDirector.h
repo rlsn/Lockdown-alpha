@@ -1026,6 +1026,10 @@ public:
     bool SubmitEmpowerHost(const FLDCombatCaller& Caller, uint64 Sequence, ELDCombatEntry Host, FString& Reason);
     // The match's EMPOWER terms while the experiment runs, else null.
     const FLDDemoEmpowerParameters* EmpowerTerms() const;
+#if WITH_DEV_AUTOMATION_TESTS
+    // Rule tests run the experiment over the approved (switched-off) terms.
+    bool bEmpowerTestOverride=false;
+#endif
     FLDCombatActionReceipt QueryActionReceipt(const FLDCombatCaller& Caller, uint64 DirectSequence) const;
     FLDCombatEntryView QueryAvailability(const FLDCombatCaller& Caller, ELDCombatEntry Entry) const;
     // The body stands in a dorm and has been out of combat for DORM.RegenDelaySec (the dorm rest that allows a swap).
@@ -1457,6 +1461,9 @@ private:
         FString& Error);
     // Books the time Body's bar holds the threshold up to NowMs.
     void TrackEmpowerArmed(FLDBodyCombatState& Body, int64 NowMs) const;
+    // The public ready mark (FLDObservedUnitView::EmpowerReady): the host's processor while the bar holds the threshold and the
+    // host can act now; None otherwise.
+    ELDEmpowerProcessor EmpowerReadyOf(const FLDBodyCombatState& Body, int64 NowMs) const;
     static bool IsEmpoweredHit(const FLDCombatHit& Hit);
     // While a hit of an empowered action resolves: its caster (GrantMomentum gives it nothing).
     FGuid EmpowerHitCaster;

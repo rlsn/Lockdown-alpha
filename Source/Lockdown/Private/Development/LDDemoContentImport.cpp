@@ -489,6 +489,58 @@ bool RatioArray(FFields& F, const TCHAR* Key, int32 Count, int64 Min, TArray<int
     return true;
 }
 
+// The auto-empower experiment (EMPOWER.*, docs/systems/COMBAT_AND_GROWTH.md "自动强化实验"): its price fits under its threshold
+// and both fit the bar.
+bool EmpowerParameters(FFields& F, FLDDemoContentParameters& P, FCheck& Check)
+{
+    FLDDemoEmpowerParameters& E = P.Empower;
+    struct FFixedField { const TCHAR* Key; const TCHAR* Unit; const TCHAR* Storage; int64* Out; int64 Min; int64 Max; };
+    const FFixedField Fixed[] =
+    {
+        {TEXT("EMPOWER.Threshold"), TEXT("momentum"), TEXT("p2"), &E.ThresholdP2, 1, MAX_int64},
+        {TEXT("EMPOWER.Cost"), TEXT("momentum"), TEXT("p2"), &E.CostP2, 1, MAX_int64},
+        {TEXT("EMPOWER.DerivedReaction"), TEXT("momentum"), TEXT("p2"), &E.DerivedReactionP2, 0, MAX_int64},
+        {TEXT("EMPOWER.DamagedPerPercent"), TEXT("momentum"), TEXT("p2"), &E.DamagedPerPercentP2, 0, MAX_int64},
+        {TEXT("EMPOWER.StrikeExtraWindupSec"), TEXT("ms"), TEXT("ms"), &E.StrikeWindupMs, 0, MAX_int64},
+        {TEXT("EMPOWER.FistConeRatio"), TEXT("ratio"), TEXT("bp"), &E.FistConeRatioBp, 0, 10000},
+        {TEXT("EMPOWER.QuakeSlow"), TEXT("ratio"), TEXT("bp"), &E.QuakeSlowBp, 0, 9999},
+        {TEXT("EMPOWER.QuakeSlowSec"), TEXT("ms"), TEXT("ms"), &E.QuakeSlowMs, 1, MAX_int64},
+        {TEXT("EMPOWER.ShapeScale"), TEXT("ratio"), TEXT("bp"), &E.ShapeScaleBp, 10000, MAX_int64},
+        {TEXT("EMPOWER.GuardBurstRatio"), TEXT("ratio"), TEXT("bp"), &E.GuardBurstRatioBp, 0, MAX_int64},
+        {TEXT("EMPOWER.WardFuseSec"), TEXT("ms"), TEXT("ms"), &E.WardFuseMs, 1, MAX_int64},
+        {TEXT("EMPOWER.ElementWaterSlow"), TEXT("ratio"), TEXT("bp"), &E.WaterSlowBp, 1, 9999},
+        {TEXT("EMPOWER.ElementWaterSlowSec"), TEXT("ms"), TEXT("ms"), &E.WaterSlowMs, 1, MAX_int64},
+        {TEXT("EMPOWER.ElementShockReactionRatio"), TEXT("ratio"), TEXT("bp"), &E.ShockReactionBp, 0, MAX_int64},
+        {TEXT("EMPOWER.ElementRotDurationScale"), TEXT("ratio"), TEXT("bp"), &E.RotDurationBp, 10000, MAX_int64},
+        {TEXT("EMPOWER.ElementChillRootSec"), TEXT("ms"), TEXT("ms"), &E.ChillRootMs, 1, MAX_int64},
+    };
+    for (const auto& Field : Fixed)
+    {
+        if (!F.Fixed(Field.Key, Field.Unit, Field.Storage, *Field.Out, Field.Min, Field.Max)) { return false; }
+    }
+    int64 Enabled = 0, SkillHitTargets = 0, DashContactCap = 0, ExtraCount = 0;
+    if (!F.Int(TEXT("EMPOWER.Enabled"), Enabled, 0, 1)
+        || !F.Int(TEXT("EMPOWER.SkillHitTargets"), SkillHitTargets, 1, MAX_int32)
+        || !F.Int(TEXT("EMPOWER.DashContactCap"), DashContactCap, 1, MAX_int32)
+        || !F.Int(TEXT("EMPOWER.ExtraCount"), ExtraCount, 0, MAX_int32)
+        || !F.Int(TEXT("EMPOWER.ElementFireBurnStacks"), E.FireBurnStacks, 1)
+        || !F.Fraction(TEXT("EMPOWER.CombatPerSec"), TEXT("momentum/s"), E.CombatPerSec, true)
+        || !F.Fraction(TEXT("EMPOWER.FistConeLengthCm"), TEXT("cm"), E.FistConeLengthCm, true)
+        || !F.Fraction(TEXT("EMPOWER.FistConeAngleDeg"), TEXT("degrees"), E.FistConeAngleDegrees, true)
+        || !F.Fraction(TEXT("EMPOWER.FistPushCm"), TEXT("cm"), E.FistPushCm, true)
+        || !F.Fraction(TEXT("EMPOWER.QuakeRadiusCm"), TEXT("cm"), E.QuakeRadiusCm, true)
+        || !F.Fraction(TEXT("EMPOWER.GuardBurstRadiusCm"), TEXT("cm"), E.GuardBurstRadiusCm, true))
+    {
+        return false;
+    }
+    E.bEnabled = Enabled != 0;
+    E.SkillHitTargets = int32(SkillHitTargets);
+    E.DashContactCap = int32(DashContactCap);
+    E.ExtraCount = int32(ExtraCount);
+    return Check.Require(E.CostP2 <= E.ThresholdP2 && E.ThresholdP2 <= P.Momentum.MaxP2, F.Path,
+        TEXT("the empower cost fits under its threshold and the threshold fits the bar"));
+}
+
 // Momentum, combo and skill rank parameters (CONTENT_AND_BALANCE §3.3-§3.6).
 bool CoreParameters(FFields& F, FLDDemoContentParameters& P, FCheck& Check)
 {
@@ -553,7 +605,8 @@ bool CoreParameters(FFields& F, FLDDemoContentParameters& P, FCheck& Check)
     }
     const auto& Base = P.SkillRanks.RankBaseScaleBp;
     const auto& Ratio = P.SkillRanks.RankRatioScaleBp;
-    return Check.Require(M.StartP2 <= M.MaxP2, F.Path, TEXT("the momentum start must fit the bar"))
+    return EmpowerParameters(F, P, Check)
+        && Check.Require(M.StartP2 <= M.MaxP2, F.Path, TEXT("the momentum start must fit the bar"))
         && Check.Require(Base[0] == 10000 && Ratio[0] == 10000 && Base[0] <= Base[1] && Base[1] <= Base[2]
             && Ratio[0] <= Ratio[1] && Ratio[1] <= Ratio[2], F.Path, TEXT("rank 1 is the authored set and ranks never weaken it"));
 }

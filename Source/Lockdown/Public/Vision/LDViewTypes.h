@@ -26,7 +26,7 @@ namespace LDObservation
     // 22 uses the finer square-cell ground coverage raster.
     // 23 moves camp-clear recovery orbs and #345 tactical entities/hit flags into sight-authorized FLDWorldView.
     // 25 removes the overdrive charge, the overdrive cast and the Overdriven hit flag.
-    constexpr uint32 Schema = 25;
+    constexpr uint32 Schema = 26;
     // A ground state's wire size (LDViewTypes.cpp SerializeObservedGround): SC-07 registers MaxGroundStates of them per frame.
     constexpr int32 GroundStateWireBytes = 16;
     // The public momentum bar of a visible contender: 0..MomentumBarFull (never the exact value).
@@ -151,6 +151,9 @@ struct FLDObservedUnitView
     UPROPERTY() uint8 ShieldBar = 0;
     // Contenders: the momentum bar quantized to 0..LDObservation::MomentumBarFull.
     UPROPERTY() uint8 MomentumBar = 0;
+    // Auto-empower: the kind (ELDEmpowerProcessor) of the empowered action this contender's next host action would be, while
+    // its bar holds the threshold and the host can act now; 0 otherwise. Sent with the momentum field.
+    UPROPERTY() uint8 EmpowerReady = 0;
     // The combo step (1..3) of an Attack cue; 0 for every other cue.
     UPROPERTY() uint8 ActionComboStep = 0;
     // The reaction this unit suffered (ELDCombatReaction 1..15) and 1 + its age; 0 = none within the window.
@@ -320,6 +323,7 @@ struct FLDObservedPublicFacts
     // The combo step of an Attack cue (contenders).
     uint8 ActionComboStep = 0;
     uint8 MomentumBar = 0;
+    uint8 EmpowerReady = 0;
     // The last reaction on this body within LDObservation::RecentReactionWindowMs, and when.
     uint8 LastReaction = 0;
     int64 LastReactionAtMs = 0;

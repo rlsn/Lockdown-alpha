@@ -468,6 +468,13 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.WorldLabels.SegmentedTrail",
         # Spec §16 P2: multiplicative damage, the chain guard, card acquisition, one rule per card and the DEV samples.
         "Lockdown.Rules.BuildBlueprint.Cards",
+        # The auto-empower experiment (EMPOWER.*).
+        "Lockdown.Rules.Combat.Empower.Processors",
+        "Lockdown.Rules.Combat.Empower.ThresholdAndCost",
+        "Lockdown.Rules.Combat.Empower.HostCommand",
+        "Lockdown.Rules.Combat.Empower.ChainNoMomentum",
+        "Lockdown.Rules.Combat.Empower.Shapes",
+        "Lockdown.Rules.Combat.Empower.Punch",
         "Lockdown.Rules.Combat.Cards.A01",
         "Lockdown.Rules.Combat.Cards.A02",
         "Lockdown.Rules.Combat.Cards.A03",

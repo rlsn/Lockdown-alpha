@@ -1552,6 +1552,10 @@ LDHUD::FObservedCard LDHUD::ObservedCard(const FLDObservedUnitView& Unit,const F
         Card.Momentum.bKnown=true;
         Card.Momentum.Fraction=float(Unit.MomentumBar)/float(LDObservation::MomentumBarFull);
         Card.Momentum.Text=FString::Printf(TEXT("%s %d%%"),LDTerms::Momentum,FMath::RoundToInt(Card.Momentum.Fraction*100.f));
+        // Auto-empower: the kind of the empowered action its next host action would be.
+        static const TCHAR* Kinds[]={TEXT(""),TEXT("拳"),TEXT("攻"),TEXT("守"),TEXT("动"),TEXT("阵")};
+        if(Unit.EmpowerReady>0&&Unit.EmpowerReady<UE_ARRAY_COUNT(Kinds))
+        {Card.Momentum.Text+=FString::Printf(TEXT(" · 强化就绪（%s）"),Kinds[Unit.EmpowerReady]);}
     }
     FString Statuses;
     for(const FLDObservedStatus& Status:Unit.Statuses)

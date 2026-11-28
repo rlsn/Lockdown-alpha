@@ -94,6 +94,28 @@
   每个效果实例对每人最多一次；写 `LD_PERFECT_DODGE` 并进入本人的战斗投影。
 - 本体元素槽（勋章装在本体上）从普攻第 2 段起每次命中都挂元素；`COMBO.ResetSec` 内不断连即可。
 
+### 3.2.2 自动强化实验参数（默认关闭）
+
+实验值，未经平衡验收；规则见[战斗与成长：自动强化实验](../systems/COMBAT_AND_GROWTH.md#自动强化实验)。关闭时都不生效。
+
+| 稳定参数键 | 值 | 规则 |
+| --- | --- | --- |
+| `EMPOWER.Enabled` | 0 | 1 开启实验（房主 `-LDEmpower` 也可开启） |
+| `EMPOWER.Threshold` / `EMPOWER.Cost` | 60 / 50 | 起手时劲达门槛即强化；释放时扣费，扣费不超过门槛 |
+| `EMPOWER.CombatPerSec` | 2.5/秒 | 开启时替代 `MOMENTUM.CombatPerSec`（野怪与参赛者交战都算） |
+| `EMPOWER.SkillHitTargets` | 3 | 一次释放最多这么多目标给 `MOMENTUM.SkillHit` |
+| `EMPOWER.DerivedReaction` | 0 | 持续伤害、区域、地面与结算引发的反应给的劲 |
+| `EMPOWER.DamagedPerPercent` | 0 | 每失去 1% 最大生命获得的劲（A/B 开关，0 为关） |
+| `EMPOWER.StrikeExtraWindupSec` | 0.1s | 攻类强化追加的可读前摇 |
+| `EMPOWER.FistConeLengthCm` / `FistConeAngleDeg` / `FistConeRatio` / `FistPushCm` | 300cm / 60° / 0.5 / 120cm | 强化拳的前方扇形冲击与推开 |
+| `EMPOWER.DashContactCap` | 3 | 强化冲刺最多结算的接触数 |
+| `EMPOWER.QuakeRadiusCm` / `QuakeSlow` / `QuakeSlowSec` | 200cm / 0.3 / 1s | 强化冲刺落地的减速 |
+| `EMPOWER.ShapeScale` | 1.4 | 攻、守、阵的范围、长度、角度、持续倍率 |
+| `EMPOWER.ExtraCount` | 2 | 弹射次数、多包拳技包数的增量 |
+| `EMPOWER.GuardBurstRatio` / `GuardBurstRadiusCm` | 0.4 / 300cm | 强化护盾破碎或到期时的爆开 |
+| `EMPOWER.WardFuseSec` | 0.15s | 强化陷阱的引信上限 |
+| `EMPOWER.ElementFireBurnStacks` / `ElementWaterSlow` / `ElementWaterSlowSec` / `ElementShockReactionRatio` / `ElementRotDurationScale` / `ElementChillRootSec` | 3 / 0.45 / 1.5s / 0.5 / 2 / 0.6s | 攻、阵的元素层 |
+
 属性点叠加后单项属性可能触及上下限；
 按 §3.1 统一夹取，被夹掉的部分不生效，不拒绝构筑。
 Root 是动作禁止，不把移动速度属性改成 0 后再夹回 173。

@@ -801,6 +801,31 @@ def parameter_projection(parameters):
     }
     result["Combo"] = {"StepRatiosBp": [scalar(value) for value in parameters["COMBO.StepRatios"]],
                        "ResetMs": scalar(parameters["COMBO.ResetSec"])}
+    result["Empower"] = {
+        "bEnabled": parameters["EMPOWER.Enabled"] != 0,
+        "ThresholdP2": scalar(parameters["EMPOWER.Threshold"]), "CostP2": scalar(parameters["EMPOWER.Cost"]),
+        "CombatPerSec": rational(parameters["EMPOWER.CombatPerSec"]),
+        "SkillHitTargets": parameters["EMPOWER.SkillHitTargets"],
+        "DerivedReactionP2": scalar(parameters["EMPOWER.DerivedReaction"]),
+        "DamagedPerPercentP2": scalar(parameters["EMPOWER.DamagedPerPercent"]),
+        "StrikeWindupMs": scalar(parameters["EMPOWER.StrikeExtraWindupSec"]),
+        "FistConeLengthCm": rational(parameters["EMPOWER.FistConeLengthCm"]),
+        "FistConeAngleDegrees": rational(parameters["EMPOWER.FistConeAngleDeg"]),
+        "FistConeRatioBp": scalar(parameters["EMPOWER.FistConeRatio"]),
+        "FistPushCm": rational(parameters["EMPOWER.FistPushCm"]),
+        "DashContactCap": parameters["EMPOWER.DashContactCap"],
+        "QuakeRadiusCm": rational(parameters["EMPOWER.QuakeRadiusCm"]),
+        "QuakeSlowBp": scalar(parameters["EMPOWER.QuakeSlow"]), "QuakeSlowMs": scalar(parameters["EMPOWER.QuakeSlowSec"]),
+        "ShapeScaleBp": scalar(parameters["EMPOWER.ShapeScale"]), "ExtraCount": parameters["EMPOWER.ExtraCount"],
+        "GuardBurstRatioBp": scalar(parameters["EMPOWER.GuardBurstRatio"]),
+        "GuardBurstRadiusCm": rational(parameters["EMPOWER.GuardBurstRadiusCm"]),
+        "WardFuseMs": scalar(parameters["EMPOWER.WardFuseSec"]),
+        "FireBurnStacks": parameters["EMPOWER.ElementFireBurnStacks"],
+        "WaterSlowBp": scalar(parameters["EMPOWER.ElementWaterSlow"]), "WaterSlowMs": scalar(parameters["EMPOWER.ElementWaterSlowSec"]),
+        "ShockReactionBp": scalar(parameters["EMPOWER.ElementShockReactionRatio"]),
+        "RotDurationBp": scalar(parameters["EMPOWER.ElementRotDurationScale"]),
+        "ChillRootMs": scalar(parameters["EMPOWER.ElementChillRootSec"]),
+    }
     result["SkillRanks"] = {
         "RankBaseScaleBp": [scalar(value) for value in parameters["SKILL.RankBaseScale"]],
         "RankRatioScaleBp": [scalar(value) for value in parameters["SKILL.RankRatioScale"]],

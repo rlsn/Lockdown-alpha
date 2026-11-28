@@ -54,6 +54,27 @@
 
 对局正常锁定 `MatchResult` 时，每位真人拥有者收到本局完整 `FLDBuildBlueprint`（`schema=lockdown.build-blueprint`、`schema_version=5`），包含开局至终局每次构筑结构变更的版本时间段、Q/W/E 分支、五维分配、已装牌/勋章及宿主绑定参数、终局改装与归属伤害统计，并由 `LDBuildBlueprintStore` 原子写入 `Saved/Blueprints/match-<ResultId>.ldbuild.json`（自动保留最近 50 份且总计 `<= 100 MiB`）。
 
+## 自动强化实验
+
+默认关闭的隔离实验（决定 M-12），参数在 [内容与数值 §3.2.2](../demo/CONTENT_AND_BALANCE.md#322-自动强化实验参数默认关闭) 单点维护。
+`EMPOWER.Enabled=1`，或房主进程带 `-LDEmpower` 时开启；`-LDEmpowerHost=Basic|Q|W|E|D` 让没选过宿主的参赛者都用这个宿主（评测用）。
+关闭时以下规则全部不生效。纯规则在 `LDAutoEmpower`，身体与记录上的部分在 `LDCombatEmpowerDirector.cpp`。
+
+- **技能不耗劲**：开启时已学 Q/W/E 的劲耗记为 0，只受冷却限制；交战被动改用 `EMPOWER.CombatPerSec`（脑力加成照算）；一次释放最多 `EMPOWER.SkillHitTargets` 个目标给 `MOMENTUM.SkillHit`；持续伤害、区域、地面和结算引发的反应只给 `EMPOWER.DerivedReaction`；脑力关键石不再返还劲。
+- **宿主**：每人一个，存在战斗记录里、跨命保留。玩家在构筑环上空手点普攻/Q/W/E/D 的宿主格指定（`ServerSetEmpowerHost`，序号单调，重复或更旧的请求不生效，实验关闭时拒绝并提示）。没选过时，真人用普攻，AI 用投入最深的格（宿主上牌数与勋章阶 + 技能等级 − 1；并列按 Q→W→E→普攻→D）。
+- **起手判定**：宿主上的本人动作在起手时劲 ≥ `EMPOWER.Threshold` 即为强化动作（`FLDCombatAction::bEmpowered`）。普攻与 D 只在针对参赛者时（D：视野半径内有敌方参赛者）判定；视野半径内没有敌方参赛者时，打野怪、打假人也算。D05 后续段、分支再放窗口、K06/A08 重放都不判定。攻类强化起手加 `EMPOWER.StrikeExtraWindupSec`。
+- **释放扣费**：强化动作释放时劲仍 ≥ `EMPOWER.Cost` 就扣费并生效，打空也扣；此时劲不够则按普通动作释放、不扣（`LD_EMPOWER outcome=short`）。前摇被取消或打断都不扣。
+- **处理器**：普攻为拳，D 为动；技能按自身效果分——强化普攻包或拳风为拳，冲刺为动，自身护盾/招架/顶住/嘲讽为守，放置区域/陷阱/风扇/书包/封条为阵，其余为攻。
+  - 拳：本拳按第 3 段结算（连击不推进也不重置），推开目标 `EMPOWER.FistPushCm`，前方扇形内其他敌人吃本拳 `EMPOWER.FistConeRatio` 的追加伤害。单包拳技（S11）释放后，下一拳就是不再扣费的强化拳；多包拳技多 `EMPOWER.ExtraCount` 包，拳风宽 `EMPOWER.ShapeScale` 倍。
+  - 攻：范围、直线长宽、扇形角度、弹道射程与半径、击退距离乘 `EMPOWER.ShapeScale`，弹射多 `EMPOWER.ExtraCount` 次，伤害不乘；叠加元素层。
+  - 守：招架窗口、顶住的记录上限与反击半径、嘲讽半径乘 `EMPOWER.ShapeScale`（控制时长不变）；本次给的护盾被打破或到期时，向 `EMPOWER.GuardBurstRadiusCm` 内爆开本次护盾量的 `EMPOWER.GuardBurstRatio`。
+  - 动：穿过身体不被拦停，一次最多结算 `EMPOWER.DashContactCap` 个接触（多出的不算接触），冲刺技能每个接触都吃原生命中；不刷新、不改冲刺距离与冷却；落地在 `EMPOWER.QuakeRadiusCm` 内减速。
+  - 阵：区域（含跳数）、陷阱、风扇、书包（含生命）、封条持续与范围乘 `EMPOWER.ShapeScale`，陷阱引信最多 `EMPOWER.WardFuseSec`；叠加元素层。
+  - 元素层：技能元素，否则分支元素，否则该槽勋章元素——烫加层、湿减速、麻追加 R 的份额、馊延长、冻定身（计硬控递减）。
+- **防递归**：强化动作打开的连锁（`FChainTrack::bEmpowered`）与带强化序号的命中（`EmpowerSerial`）在结算中不给施法者任何劲（记 `blocked`），受害者的劲变化照常；重放与派生施放不判定、不继承载荷。
+- **表现**：本人劲条在门槛处有刻度，达到门槛变金，标签显示宿主（`劲·Q`）；宿主技能槽常驻细金边，就绪且可用时呼吸；构筑环宿主格带金色“劲”标。他人只看到公开的 `EmpowerReady`（达到门槛且宿主现在可用时的处理器类别）：头顶劲条变金，目标卡写“强化就绪（类别）”。
+- **遥测**：每次判定释放写 `LD_EMPOWER`（宿主、处理器、序号、扣费、前后劲、`applied|prepaid|short`）；改宿主写 `LD_EMPOWER_HOST`；`LD_HIT empower=<序号>`；`LD_MOMENTUM` 加 `empower=`、`empower_spent=`、`blocked=`、`armed_ms=`（劲 ≥ 门槛的时长）。
+
 ## 检查入口
 
 - 纯规则：`Lockdown.Rules.DemoCombat*`、`Lockdown.Rules.DemoAttributeProjection.*`、`Lockdown.Rules.DemoMechanics.*`、`Lockdown.Rules.DemoBuildPrimitives.*`、`Lockdown.Rules.Combat.*`、`Lockdown.Rules.DamageRecap.*`、`Lockdown.Rules.BuildBlueprint.*`。

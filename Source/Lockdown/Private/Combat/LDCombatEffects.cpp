@@ -798,7 +798,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         using namespace LDCombatEffectsDetail;
         const FLDCombatEntityRecord* SourceRecord=FindRecord(Hit.SourceEntity);
         const FName SourceMonster=Source ? Source->MonsterId : (SourceRecord ? SourceRecord->MonsterAtLife(Hit.SourceBody.Victim.Life) : NAME_None);
-        UE_LOG(LogLDCombat,Log,TEXT("LD_HIT t=%lld src=%s src_kind=%s src_monster=%s credit=%s victim=%s victim_life=%u victim_kind=%s victim_monster=%s via=%s class=%s type=%s dmg=%s absorbed=%s hp_lost=%s hp=%s->%s max_hp=%s shield=%s->%s factor_bp=%lld resist=%s crit=%d protected=%d periodic=%d reflect=%d added=%d controls=%s vamp=%s lethal=%d factors=%s"),
+        UE_LOG(LogLDCombat,Log,TEXT("LD_HIT t=%lld src=%s src_kind=%s src_monster=%s credit=%s victim=%s victim_life=%u victim_kind=%s victim_monster=%s via=%s class=%s type=%s dmg=%s absorbed=%s hp_lost=%s hp=%s->%s max_hp=%s shield=%s->%s factor_bp=%lld resist=%s crit=%d protected=%d periodic=%d reflect=%d added=%d controls=%s vamp=%s lethal=%d factors=%s empower=%d"),
             NowMs,*LDLog::Id(Hit.SourceEntity),VictimKindName(Hit.SourceBody.Victim.Kind),
             SourceMonster.IsNone() ? TEXT("-") : *SourceMonster.ToString(),*LDLog::Id(Hit.CreditOwner),
             *LDLog::Id(Body->Victim.EntityId),Body->Victim.Life,VictimKindName(Body->Victim.Kind),
@@ -809,7 +809,8 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
             *LDLog::P2(Body->Resources.ShieldP2),Evaluation.DamageFactorBp,
             *LDLog::P2(Evaluation.TargetResistanceP2.Get(0)),
             bCritical,bProtected,Hit.bPeriodic,Hit.bReflect,Hit.bAddedDamage,*ControlNames(ControlMask),
-            *LDLog::P2(VampHealedP2),HPAfterP2==0,*FactorNames(Factors));
+            *LDLog::P2(VampHealedP2),HPAfterP2==0,*FactorNames(Factors),
+            Hit.EmpowerSerial>0 ? Hit.EmpowerSerial : Hit.CastLedger ? Hit.CastLedger->EmpowerSerial : 0);
     }
     if (Source)
     {
@@ -817,6 +818,13 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         // release's first native direct hit on each body gains MOMENTUM.SkillHit once.
         if (!bProtected && Hit.SourceEntity!=Body->Victim.EntityId && !OnMomentumHit(*Source,Hit,*Body,bNativeDirect,Error))
         { return false; }
+        // Auto-empower A/B switch: a contender gains EMPOWER.DamagedPerPercent per percent of its max HP a hostile hit took.
+        const FLDDemoEmpowerParameters* EmpowerP=EmpowerTerms();
+        if (EmpowerP && EmpowerP->DamagedPerPercentP2>0 && !bProtected && Hit.SourceEntity!=Body->Victim.EntityId
+            && Body->Victim.Kind==ELDVictimKind::Contender && Body->Resources.MaxHpP2>0 && Damage.HPLostP2>0)
+        {
+            GrantMomentum(*Body,Damage.HPLostP2*100/Body->Resources.MaxHpP2*EmpowerP->DamagedPerPercentP2,ELDMomentumBook::Other);
+        }
         // Skill branch riders of the release on each of its native direct hits.
         if (!bProtected && bNativeDirect && Hit.CastLedger && !Hit.CastLedger->Riders.IsEmpty()
             && !ApplyBranchRiders(Hit,*Source,*Body,NowMs,Error)) { return false; }
