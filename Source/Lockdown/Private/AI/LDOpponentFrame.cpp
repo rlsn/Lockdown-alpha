@@ -201,6 +201,19 @@ void ReadCastWarnings(const FLDWorldView& View, const FGuid& OwnContender, const
     }
 }
 
+void ReadRecoveryOrbs(const FLDWorldView& View, FName Surface, TArray<FLDOpponentPOI>& InOut)
+{
+    if (Surface.IsNone()) { return; }
+    for (const FLDObservedRecoveryOrb& Orb : View.RecoveryOrbs)
+    {
+        FLDOpponentPOI& Place = InOut.AddDefaulted_GetRef();
+        Place.Id = FName(*FString::Printf(TEXT("recovery_orb_%llu"), Orb.Serial));
+        Place.Kind = ELDOpponentPOIKind::RecoveryOrb;
+        Place.SurfaceId = Surface;
+        Place.FootCm = Orb.PositionCm;
+    }
+}
+
 bool ReadObservedUnits(const FLDWorldView& View, uint32 MatchGeneration, const FLDDemoContentSnapshot& Catalog,
     TArray<FLDOpponentUnit>& Out, FString& Error)
 {

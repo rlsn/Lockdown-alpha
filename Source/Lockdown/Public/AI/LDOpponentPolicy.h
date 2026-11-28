@@ -214,6 +214,10 @@ struct FLDOpponentPublicMatch
     TArray<FLDPrivatePoleView> PrivatePoles;
     FVector ArenaCentreCm = FVector::ZeroVector;
     float SafeRadiusCm = 0;
+    // B01 T04-03: the final street ring's current radius (LDShowdown::StreetRadiusCm) and when its closure starts; outside
+    // it after the start a contender loses health. 0 outside the final field.
+    float StreetRadiusCm = 0;
+    int64 ClosureAtMs = 0;
     FName FinalModOf(const FGuid& Contender) const
     {
         const FLDFinalModHolderView* Row = FinalMods.FindByPredicate([&Contender](const FLDFinalModHolderView& Each)
@@ -263,7 +267,8 @@ struct FLDOpponentGround
 
 // Sign-up and service places are carried only by rest frames, not the field POI list.
 // Locker (#305): a delivery locker that is out now (the public match view); never a static place.
-enum class ELDOpponentPOIKind : uint8 { Spawn, Camp, Capture, Dorm, Airdrop, MiniFlag, Locker, PKSignup };
+// RecoveryOrb (B01 T04-03): a camp-clear recovery orb in sight (FLDWorldView::RecoveryOrbs); never a static place.
+enum class ELDOpponentPOIKind : uint8 { Spawn, Camp, Capture, Dorm, Airdrop, MiniFlag, Locker, PKSignup, RecoveryOrb };
 
 // Static public place from the approved world and content; never a live occupancy fact.
 struct FLDOpponentPOI
@@ -682,6 +687,8 @@ namespace LDOpponentPolicy
     // to three GroundDetourMarginCm (a wider step clears a group of bodies), nearest first.
     LOCKDOWN_API void BodyDetours(const FBodyDisc& Body, const FVector& Along, double WalkerRadiusCm, TArray<FVector>& Out);
     constexpr double BodyLookaheadCm = 1200.;
+    // B01 T04-03: how far inside the final street ring a body keeps; one outside Radius - margin walks back to Radius - 2 x margin.
+    constexpr double StreetRingMarginCm = 150.;
 #if WITH_DEV_AUTOMATION_TESTS
     // DEV build evaluation (docs/systems/BUILD_EVALUATION.md): the production engagement of one visible unit exactly as
     // Decide engages it (activation order §6.3, dash chase, then the basic attack, with the same failure memory). A fixed

@@ -3324,6 +3324,70 @@ bool FLDDemoOpponentCastWarningsTest::RunTest(const FString& Parameters)
     return true;
 }
 
+// B01 T04-03: once the final street closure runs, a body outside the current ring walks back inside it before anything else.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentStreetRingTest, "Lockdown.Rules.DemoOpponentPolicy.StreetRing",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentStreetRingTest::RunTest(const FString& Parameters)
+{
+    using namespace LDOpponentPolicyTests;
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(*this, Catalog)) { return false; }
+    FLDOpponentDecisionFrame Frame;
+    if (!BaseFrame(*this, *Catalog, Frame)) { return false; }
+    Frame.Public.Phase = ELDMatchPhase::CaptureOpen;
+    Frame.Public.Timeline.Stage = ELDMatchStage::FinalField;
+    Frame.Public.ArenaCentreCm = FVector(0, 0, 0);
+    Frame.Public.StreetRadiusCm = 2000;
+    Frame.Public.ClosureAtMs = Frame.Public.NowMs - 1;
+    Frame.Self.FootCm = FVector(4000, 0, 0);
+    const FVector Inside(2000. - 2. * LDOpponentPolicy::StreetRingMarginCm, 0, 0);
+    const auto WalksIn = [&Inside](const FLDOpponentDecision& Decision)
+    { return Decision.Body.Kind == ELDOpponentBodyKind::MoveGround && Decision.Body.Point.Equals(Inside, 1.e-3); };
+    FLDOpponentPolicyState Outside;
+    TestTrue(TEXT("A body outside the running closure walks back inside the ring"), WalksIn(LDOpponentPolicy::Decide(Frame, *Catalog, Outside)));
+    Frame.Self.FootCm = FVector(2000. - .5 * LDOpponentPolicy::StreetRingMarginCm, 0, 0);
+    FLDOpponentPolicyState Edge;
+    TestTrue(TEXT("and so does one the shrinking ring is about to pass"), WalksIn(LDOpponentPolicy::Decide(Frame, *Catalog, Edge)));
+    Frame.Self.FootCm = FVector(4000, 0, 0);
+    Frame.Public.ClosureAtMs = Frame.Public.NowMs + 1000;
+    FLDOpponentPolicyState Early;
+    TestFalse(TEXT("Before the closure starts the ring costs nothing"), WalksIn(LDOpponentPolicy::Decide(Frame, *Catalog, Early)));
+    return true;
+}
+
+// B01 T04-03: a camp-clear recovery orb in sight is a place the AI walks onto when it misses health or momentum.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentRecoveryOrbTest, "Lockdown.Rules.DemoOpponentPolicy.RecoveryOrb",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentRecoveryOrbTest::RunTest(const FString& Parameters)
+{
+    using namespace LDOpponentPolicyTests;
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(*this, Catalog)) { return false; }
+    FLDOpponentDecisionFrame Frame;
+    if (!BaseFrame(*this, *Catalog, Frame)) { return false; }
+    FLDWorldView View;
+    FLDObservedRecoveryOrb Orb;
+    Orb.Serial = 7;
+    Orb.PositionCm = FVector(800, 0, 0);
+    View.RecoveryOrbs = {Orb};
+    const int32 Before = Frame.POIs.Num();
+    LDOpponentFrame::ReadRecoveryOrbs(View, TEXT("demo_ground"), Frame.POIs);
+    if (!TestEqual(TEXT("The orb in sight is one more place"), Frame.POIs.Num(), Before + 1)) { return false; }
+    const FLDOpponentPOI& Place = Frame.POIs.Last();
+    TestTrue(TEXT("on the given surface where the orb lies"), Place.Kind == ELDOpponentPOIKind::RecoveryOrb
+        && Place.SurfaceId == FName(TEXT("demo_ground")) && Place.FootCm.Equals(Orb.PositionCm, 1.e-3));
+    Frame.Self.HpP2 = Frame.Self.MaxHpP2 * 9 / 10;
+    FLDOpponentPolicyState Hurt;
+    const auto Walk = LDOpponentPolicy::Decide(Frame, *Catalog, Hurt);
+    TestTrue(TEXT("A body missing health walks onto the orb"), Walk.Body.Kind == ELDOpponentBodyKind::MoveGround && Walk.Body.POI == Place.Id);
+    Frame.Self.HpP2 = Frame.Self.MaxHpP2;
+    FLDOpponentPolicyState Whole;
+    TestTrue(TEXT("A whole body leaves it"), LDOpponentPolicy::Decide(Frame, *Catalog, Whole).Body.POI != Place.Id);
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentBreakoutGoalTest, "Lockdown.Rules.DemoOpponentPolicy.BreakoutGoal",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 

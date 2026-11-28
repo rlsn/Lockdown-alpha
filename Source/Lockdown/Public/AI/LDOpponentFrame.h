@@ -27,6 +27,9 @@ namespace LDOpponentFrame
     // until the cue's release. Appends to Out; the own body (OwnContender) is skipped.
     LOCKDOWN_API void ReadCastWarnings(const FLDWorldView& View, const FGuid& OwnContender, const FLDDemoContentSnapshot& Catalog,
         TArray<FLDOpponentWarning>& Out);
+    // B01 T04-03: every camp-clear recovery orb in sight becomes a RecoveryOrb place on Surface, so the policy can walk
+    // onto it like any public place. Appends to InOut.
+    LOCKDOWN_API void ReadRecoveryOrbs(const FLDWorldView& View, FName Surface, TArray<FLDOpponentPOI>& InOut);
     // Spec §13: the public ground states in sight; those whose owner seat is not OwnSeat are an enemy's.
     LOCKDOWN_API void ReadGrounds(const FLDWorldView& View, uint8 OwnSeat, TArray<FLDOpponentGround>& Out);
     // Own actives, blueprints, stat points, the current active offer and queued opportunities, and (#198 B) the owned

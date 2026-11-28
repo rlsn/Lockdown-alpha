@@ -345,6 +345,19 @@ struct FContext
         const FLDOpponentPOI* Drop = Frame.Public.AirdropPOI.IsNone() ? nullptr : FindPOI(Frame.Public.AirdropPOI);
         return Drop && Drop->Kind == ELDOpponentPOIKind::Airdrop && CanAttempt(PathKey(Drop->Id)) ? Drop : nullptr;
     }
+    // B01 T04-03: the nearest camp-clear recovery orb in sight within the objective reach, for a body missing health or
+    // momentum, when its walk is not suppressed; nullptr otherwise.
+    const FLDOpponentPOI* RecoveryOrbTarget() const
+    {
+        if (Self.HpP2 >= Self.MaxHpP2 && Self.MomentumP2 >= Self.MaxMomentumP2) { return nullptr; }
+        const FLDOpponentPOI* Best = nullptr;
+        for (const auto& POI : Frame.POIs)
+        {
+            if (POI.Kind != ELDOpponentPOIKind::RecoveryOrb || Distance(POI.FootCm) > ObjectiveReachCm || !CanAttempt(PathKey(POI.Id))) { continue; }
+            if (!Best || Distance(POI.FootCm) < Distance(Best->FootCm)) { Best = &POI; }
+        }
+        return Best;
+    }
     // P6 spec §10.3: the public place of the live mid-field objective (a mini_flag_* point, or the flagpole for the arena)
     // while it is announced or open, within the approved reach, for a body at the approved entry health, when its walk is
     // not suppressed; nullptr otherwise.
@@ -3044,6 +3057,19 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         FLDOpponentBodyIntent Intent;
         EndVisit(State, false);
         State.bRecovering = false;
+        // B01 T04-03: once the street closure runs, a body outside the current ring (or about to be passed by it) walks
+        // back in before anything else; outside it only loses health.
+        const double Street = double(Frame.Public.StreetRadiusCm);
+        const FVector FromCentre = (Self.FootCm - Frame.Public.ArenaCentreCm) * FVector(1, 1, 0);
+        if (Street > 0 && C.Now >= Frame.Public.ClosureAtMs && FromCentre.Size() > Street - StreetRingMarginCm)
+        {
+            ForgetTarget(State);
+            FVector Inside = Frame.Public.ArenaCentreCm
+                + FromCentre.GetSafeNormal() * FMath::Max(0., Street - 2. * StreetRingMarginCm);
+            Inside.Z = Frame.Public.ArenaCentreCm.Z;
+            Body(MoveToPoint(C, Inside));
+            return Finish(EMode::Contest, EReason::ContestCapture);
+        }
         if (C.bCaptureOpen && FinalModBody(C, Intent)) { Body(Intent); }
         else if (CircleBody(C, true, Intent)) { Body(Intent); }
         else { Body(Halt(C)); }
@@ -3165,6 +3191,12 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         const bool bRivalHolds = C.bCaptureOpen && ((Frame.Public.Circle == ELDOpponentCircle::Solo && !bHoldingSolo) || bRivalGraffiti);
         // After escaping a threat, continue to recovery instead of turning back toward a charm at the sight edge.
         const FLDOpponentPOI* Drop = bRivalHolds || !State.RetreatPOI.IsNone() ? nullptr : C.AirdropTarget();
+        // B01 T04-03: a recovery orb in sight heals at once; it comes before the airdrop and the dorm.
+        if (const FLDOpponentPOI* Orb = bRivalHolds ? nullptr : C.RecoveryOrbTarget())
+        {
+            Body(ApproachPickup(C, *Orb, C.AirdropRadiusCm));
+            return Finish(EMode::Disengage, EReason::Recover);
+        }
         if (Drop && (C.Self.HpP2 < C.Self.MaxHpP2 || C.Self.MomentumP2 < C.Self.MaxMomentumP2))
         {
             Body(ApproachPickup(C, *Drop, C.AirdropRadiusCm));
@@ -3183,6 +3215,13 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
     // D26 (#79): a healthy body goes for a public airdrop that is announced or on the ground; first come, first served.
     // It stays below defending, holding and an active contest of the circle, and does not leave a camp fight it began.
     // On the point it waits for the landing instead of re-ordering the same walk.
+    // B01 T04-03: a recovery orb in sight is picked up first by a body missing health or momentum, out of a camp fight.
+    if (const FLDOpponentPOI* Orb = State.VisitEngagedAtMs == 0 ? C.RecoveryOrbTarget() : nullptr)
+    {
+        EndVisit(State, false);
+        Body(ApproachPickup(C, *Orb, C.AirdropRadiusCm));
+        return Finish(EMode::Disengage, EReason::Recover);
+    }
     if (const FLDOpponentPOI* Drop = State.VisitEngagedAtMs == 0 ? C.AirdropTarget() : nullptr)
     {
         EndVisit(State, false);

@@ -425,6 +425,9 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
         Frame.Public.PrivatePoles = Public.PrivatePoles;
         Frame.Public.ArenaCentreCm = Public.Showdown.CentreCm;
         Frame.Public.SafeRadiusCm = float(Public.Showdown.FinalRadiusCm);
+        // B01 T04-03: the street ring as it stands now (the public closure every HUD draws), not only its last radius.
+        Frame.Public.StreetRadiusCm = float(LDShowdown::StreetRadiusCm(Public.Showdown, NowMs));
+        Frame.Public.ClosureAtMs = Public.Showdown.ClosureAtMs;
     }
     if (Public.Phase == ELDMatchPhase::Rest)
     {
@@ -553,6 +556,10 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
         { return Place.Kind == ELDOpponentPOIKind::Camp && View.WitnessedEmptyCamps.Contains(Place.Id); });
     if (const ALDCharacter* OwnBody = Cast<ALDCharacter>(GetPawn())) { Me.Seat = OwnBody->PresentationKey; }
     LDOpponentFrame::ReadGrounds(View, Me.Seat, Frame.Grounds);
+    if (const FLDOpponentPOI* Capture = Frame.POIs.FindByPredicate([](const FLDOpponentPOI& Place) { return Place.Kind == ELDOpponentPOIKind::Capture; }))
+    {
+        LDOpponentFrame::ReadRecoveryOrbs(View, Capture->SurfaceId, Frame.POIs);
+    }
 #if WITH_DEV_AUTOMATION_TESTS
     // Only annotate already authorized visible units; the policy never queries hidden contenders.
     for (auto& Unit : Frame.Units) { Unit.bProtected |= Mode.IsDevPeaceful(Unit.ContenderId); }
