@@ -136,6 +136,48 @@ bool FLDPacingArenaTest::RunTest(const FString& Parameters)
     return bGood;
 }
 
+// Every field step advances the objectives: a later step of the same segment keeps its objective (the arena's damage, the
+// flag's spray) instead of replaying the earlier segments and drawing it anew.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDPacingObjectiveKeptTest, "Lockdown.Rules.DemoRest.Objective.KeptAcrossSteps",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDPacingObjectiveKeptTest::RunTest(const FString& Parameters)
+{
+    using namespace LDPacingRulesTesting;
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!Approved(*this, Catalog)) { return false; }
+    const FLDDemoContentParameters& P = Catalog->Get().Parameters;
+    FLDObjectiveState State;
+    FString Error;
+    const FVector Flagpole(4000, 2000, 0);
+    if (!TestTrue(TEXT("The objectives begin"), State.Begin(P, Points(TEXT("mini_flag"), 3), Flagpole, 5, Error))) { return false; }
+    bool bGood = true;
+    int32 Changes = 0;
+    for (int64 T = 0; T <= P.FieldSegmentMs + P.Objective.StartMs + 1000; T += 50) { Changes += State.Advance(T) ? 1 : 0; }
+    const int64 Open = P.FieldSegmentMs + P.Objective.StartMs;
+    // Segment 0: announced, opened, expired; segment 1: announced, opened.
+    bGood &= TestEqual(TEXT("Each objective boundary changes the view once"), Changes, 5);
+    bGood &= TestTrue(TEXT("The arena is open"), State.View.Serial == 2 && State.View.Phase == ELDObjectivePhase::Open);
+    State.NoteArenaDamage(At(1, Flagpole).Contender, 500, Open + 1000);
+    for (int64 T = Open + 1050; T < Open + P.Objective.ArenaMs; T += 50)
+    {
+        bGood &= TestFalse(TEXT("A later step of the arena changes nothing"), State.Advance(T));
+    }
+    bGood &= TestEqual(TEXT("The arena's damage is kept to its close"), State.ArenaWinner({At(1, Flagpole)}), At(1, Flagpole).Contender);
+    const int64 FlagOpen = 2 * P.FieldSegmentMs + P.Objective.StartMs;
+    State.Advance(FlagOpen);
+    const FVector Centre = State.View.CentreCm;
+    bool bChanged = false;
+    bool bWon = false;
+    for (int64 T = FlagOpen; T <= FlagOpen + P.Objective.FlagSprayMs && !bWon; T += 50)
+    {
+        bGood &= TestFalse(TEXT("A later step of the flag changes nothing"), T > FlagOpen && State.Advance(T));
+        bWon = State.StepFlag(T, {At(2, Centre)}, bChanged);
+    }
+    bGood &= TestTrue(TEXT("A sole sprayer stepped every frame wins the flag"), bWon && State.View.Phase == ELDObjectivePhase::Won
+        && State.View.Winner == At(2, Centre).Contender && State.View.Serial == 3);
+    return bGood;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDPacingRespawnChoiceTest, "Lockdown.Rules.DemoRest.Respawn.Choice",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDPacingRespawnChoiceTest::RunTest(const FString& Parameters)

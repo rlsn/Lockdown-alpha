@@ -283,6 +283,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoRest.SpawnIdentity",
         "Lockdown.Rules.DemoRest.Objective.Flag",
         "Lockdown.Rules.DemoRest.Objective.Arena",
+        "Lockdown.Rules.DemoRest.Objective.KeptAcrossSteps",
         "Lockdown.Rules.DemoRest.Respawn.Choice",
         "Lockdown.Rules.DemoRest.Bounty",
         "Lockdown.Rules.DemoRest.DailyModifiers",
