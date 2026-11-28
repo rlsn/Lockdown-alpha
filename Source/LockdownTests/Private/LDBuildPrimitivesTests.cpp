@@ -5391,6 +5391,66 @@ bool FLDCombatPotDelayPrototypeTest::RunTest(const FString& Parameters)
     return true;
 }
 
+// C-09 commit tell: a committing branch (S13 2B) winding up is public until its release, a plain one never; the C-10
+// prototype guard is public only while -LDProtoAgency is on.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatCommitTellTest, "Lockdown.Rules.DemoSkillExpansion.CommitTell",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCombatCommitTellTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const TCHAR* Ram=TEXT("active_charged_ram");
+    const FLDCombatBodyRef Caster=F.AddBody();
+    if (!InstallCards(*this,F,Caster,6,{})) { return false; }
+    FLDCombatEntityRecord& Record=FAccess::Records(*F.Driver).FindChecked(Caster.Victim.EntityId);
+    Record.Projection=F.Body(Caster).AttributeProjection;
+    const FLDDemoAbilityDefinition* Ability=nullptr;
+    FString Error;
+    if (!TestTrue(TEXT("S13"),F.Catalog->FindAbility(Ram,Ability,Error) && Ability)) { return false; }
+    const auto Committing=[&](ELDSkillBranch Branch)
+    {
+        Record.Build.Actives={{FName(Ram),ELDCombatEntry::Q,Branch}};
+        FLDCombatActiveTerms Terms;
+        return FAccess::ActiveOf(*F.Driver,Record,SourceOf(ELDCombatSourceKind::Learned,Ram),Ability,Terms) && Terms.bCommitWindup;
+    };
+    TestTrue(TEXT("S13 2B starts committing"),Committing(ELDSkillBranch::B));
+    TestTrue(TEXT("and so does its rank 3"),Committing(ELDSkillBranch::B2));
+    TestFalse(TEXT("the base form does not"),Committing(ELDSkillBranch::None));
+    TestFalse(TEXT("nor 2A"),Committing(ELDSkillBranch::A));
+    FLDBodyCombatState& Body=F.Body(Caster);
+    const auto Flags=[&](bool bCommit, int64 NowMs)
+    {
+        FLDCombatAction Action;
+        Action.Kind=ELDCombatActionKind::Ability;
+        Action.Entry=ELDCombatEntry::Q;
+        Action.Source=SourceOf(ELDCombatSourceKind::Learned,Ram);
+        Action.StartedAtMs=1000;
+        Action.ReleaseAtMs=1300;
+        Action.bCommitWindup=bCommit;
+        Body.Action=Action;
+        F.Now(NowMs);
+        FLDObservedPublicFacts Facts;
+        FString ReadError;
+        if (!F.Driver->AppendObservedAction(F.Actor(Caster),NowMs,Facts,ReadError)) { AddError(ReadError); }
+        return Facts.CueFlags;
+    };
+    TestEqual(TEXT("A committing windup shows its tell"),Flags(true,1100),uint8(LDObservation::CommitWindup));
+    TestEqual(TEXT("A plain windup shows none"),Flags(false,1100),uint8(0));
+    TestEqual(TEXT("The tell ends at the release moment"),Flags(true,1300),uint8(0));
+    Body.Action.Reset();
+    Body.Agency.GuardUntilMs=3000;
+    FAccess::Proto(*F.Driver)=FLDProtoSettings();
+    F.Now(2000);
+    FLDObservedPublicFacts Facts;
+    TestTrue(TEXT("Without the switch no guard is public"),F.Driver->AppendObservedAction(F.Actor(Caster),2000,Facts,Error)
+        && Facts.CueFlags==0 && !F.Driver->IsProtoAgencyGuarded(Caster.Victim.EntityId));
+    FAccess::Proto(*F.Driver).bAgency=true;
+    TestTrue(TEXT("With it the guard is public and the owner's own"),F.Driver->AppendObservedAction(F.Actor(Caster),2000,Facts,Error)
+        && Facts.CueFlags==LDObservation::ProtoAgencyGuard && F.Driver->IsProtoAgencyGuarded(Caster.Victim.EntityId));
+    return true;
+}
+
 // N6's tape is 70 cm across (spec 500 x 70 cm): a body touches it when the band reaches its collision, never 70 cm to each side.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatCordonWidthTest, "Lockdown.Rules.Combat.Skills.CordonWidth",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

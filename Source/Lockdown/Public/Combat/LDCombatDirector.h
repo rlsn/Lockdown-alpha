@@ -184,6 +184,8 @@ struct FLDCombatActiveTerms
     int64 WindupMs=0;
     // C-11: the share of the cooldown a control interrupt before the release costs (the branch's; 0 = free).
     int64 InterruptCooldownBp=0;
+    // C-09: the learned branch lengthens its windup (an approved committing start), shown publicly while it winds up.
+    bool bCommitWindup=false;
     // The learned branch the release snapshot came from (None = rank 1).
     ELDSkillBranch Branch=ELDSkillBranch::None;
     // Native direct damage package multiplier, applied as the hits' PackageScaleBp.
@@ -294,6 +296,8 @@ struct FLDCombatAction
     // Spec §6.5: the chain a free repeat (K06, A08) continues; unset for a player's own action (it opens one).
     FGuid ChainId;
     TOptional<FLDCombatLandingPreview> Landing;
+    // C-09: a committing windup (a branch's lengthened start or S17 2B's heavier basic): public until its release.
+    bool bCommitWindup=false;
 };
 
 // A K06 repeat of one release, due at DueMs: the same action toward the same target or direction (LDCombatCards.cpp).
@@ -1722,6 +1726,10 @@ private:
     void ChargeInterruptedCommit(const FLDBodyCombatState& Body, const FLDCombatAction& Action);
     // C-10 prototype: triggers the agency meters due at NowMs (V-Cut ends the controls holding the body).
     void AdvanceAgency(int64 NowMs);
+public:
+    // C-10 prototype: whether this contender is in its agency guard now (always false without -LDProtoAgency).
+    bool IsProtoAgencyGuarded(const FGuid& Entity) const;
+private:
     bool ResolveEntry(const FLDCombatEntityRecord& Record, ELDCombatEntry Entry, FLDCombatSourceRef& OutSource,
         const FLDDemoAbilityDefinition*& OutAbility) const;
     // The executable active of a resolved entry: a learned active's values grown for its owner's level (#198), or the

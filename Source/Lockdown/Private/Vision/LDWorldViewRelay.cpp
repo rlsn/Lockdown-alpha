@@ -523,6 +523,7 @@ void ALDObservedEntityProxy::Apply(const FLDObservedUnitView& Unit, double Visua
     Shown.RecentHitAgePlusOneMs = Unit.RecentHitAgePlusOneMs;
     Shown.RecentHitId = Unit.RecentHitId;
     Shown.HitFlags = Unit.HitFlags;
+    Shown.CueFlags = Unit.CueFlags;
     Shown.Statuses = Unit.Statuses;
     // A presentation clock that stalls keeps only a bounded queue: the oldest samples are dropped first.
     while (Points.Num() > LDObservedPresentation::HistorySamples) { Points.RemoveAt(0); Facts.RemoveAt(0); }
@@ -561,6 +562,7 @@ void ALDObservedEntityProxy::Present(double AtServerSec, float Delta)
         Body->SetElementStates(Reached.Statuses);
         Body->SetCastAbility(Reached.Cue == ELDObservedActionCue::Cast ? Reached.ActionAbility : 0);
         Body->SetComboStep(Reached.Cue == ELDObservedActionCue::Attack ? Reached.ActionComboStep : 0);
+        Body->SetCommitTell((Reached.CueFlags & LDObservation::CommitWindup) != 0);
         if (Reached.RecentReactionAgePlusOneMs)
         {
             const double ReactionAge = double(Reached.RecentReactionAgePlusOneMs - 1) / 1000.0;

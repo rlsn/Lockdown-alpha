@@ -301,6 +301,16 @@ void ULDHumanoidVisualComponent::UpdateSlice(float EffectScale)
             }
         }
     }
+    // C-09 commit tell (minimal, until the visual team's own): a committing windup adds a wide hot ring at the feet over
+    // its usual telegraph, from when the tell is first seen to its release.
+    if (bCommitTell && CommitTellOnset != ActionOnset && Age < ActionImpactSeconds)
+    {
+        CommitTellOnset = ActionOnset;
+        const LDSliceVfx::FLook Look = Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Telegraph, bOwnBody, bOwnBody);
+        const FVector Floor = Impacts->FloorUnder(Feet);
+        bTelegraphShown |= Impacts->Play(LDSliceVfx::ESystem::CastBrace, *this, Floor, Floor, FLinearColor(1.f, .38f, .04f), 150.f,
+            ActionImpactSeconds, Look, Age, true) != nullptr;
+    }
     // Release of a basic swing at its authoritative impact time: the slash at the chest (skills release in UpdateRelease).
     if (bAttack && SwingReleasedOnset != ActionOnset && Age >= ActionImpactSeconds)
     {

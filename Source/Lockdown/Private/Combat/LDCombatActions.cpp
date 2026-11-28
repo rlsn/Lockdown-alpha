@@ -554,6 +554,7 @@ FLDCombatActionReceipt ALDCombatDirector::StartNavAttack(const FLDCombatCaller& 
     Action.TargetBody=Target;
     Action.StartedAtMs=Now;
     Action.ReleaseAtMs=ReleaseAt;
+    Action.bCommitWindup=WindupScaleBp>10000;
     // The combo advances from the last released basic; a windup cancelled before release never advances it.
     if (Body->ForcedCombo3Charges>0)
     {
@@ -1064,6 +1065,7 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
     Action.Source=Source;
     Action.Target=Request.Target;
     Action.SourceRevision=Record.SourceRevision;
+    Action.bCommitWindup=Terms.bCommitWindup;
     switch (TargetDef->Mode)
     {
     case ELDDemoTargetMode::Self:

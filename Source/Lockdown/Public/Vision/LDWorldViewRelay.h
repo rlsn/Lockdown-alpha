@@ -139,6 +139,7 @@ namespace LDObservedPresentation
         uint16 RecentHitAgePlusOneMs = 0;
         FGuid RecentHitId;
         uint8 HitFlags = 0;
+        uint8 CueFlags = 0;  // LDObservation::ECueFlags
         TArray<FLDObservedStatus> Statuses;
     };
     // Points ascend by At. Before the first point: the first; between two: linear, yaw along the shorter arc; at or after
