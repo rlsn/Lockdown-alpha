@@ -610,10 +610,15 @@ namespace LDOpponentPolicy
     LOCKDOWN_API int32 InstalledCards(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog);
     LOCKDOWN_API bool CardTarget(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, const FString& Card,
         FLDCardTarget& Out);
-    // The first stored card (serial order) with a place: a card while a capacity slot is free; an element medal, which takes
-    // none, onto a host whose same medal can still fuse, else onto the first empty element slot (Q/W/E, then the body).
+    // The stored card with a place that goes in next: first an element medal, which takes no capacity slot, onto a host whose
+    // same medal can still fuse, else onto the first empty element slot (Q/W/E, then the body); otherwise, while a capacity
+    // slot is free, the card that fits the build best (OpponentCardFit: shared skill vocabulary, the Goal's cards), serial
+    // order on a tie.
     LOCKDOWN_API bool SelectCardInstall(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, uint16& OutSerial,
-        FLDCardTarget& OutTarget);
+        FLDCardTarget& OutTarget, FName Goal = NAME_None);
+    // B01 T04-04: with every capacity slot taken, the installed card (OutSerial) to take off because a stored card with a
+    // place fits the build strictly better; SelectCardInstall then puts the better card in. False when nothing fits better.
+    LOCKDOWN_API bool SelectCardSwap(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FName Goal, uint16& OutSerial);
     // True when the public solo deadline leaves no more than travel, control and reaction budget.
     // An unknown path or zero speed is conservatively urgent; it never divides by zero.
     LOCKDOWN_API bool IsCaptureDefenseUrgent(const FLDCaptureUrgencyInput& Input);

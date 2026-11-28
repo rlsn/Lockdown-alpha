@@ -1612,7 +1612,7 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
     {
         uint16 Serial = 0;
         FLDCardTarget Target;
-        if (LDOpponentPolicy::SelectCardInstall(Self, Catalog, Serial, Target))
+        if (LDOpponentPolicy::SelectCardInstall(Self, Catalog, Serial, Target, State.BreakoutGoal))
         {
             FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::InstallCard);
             Key.Slot = uint8(Serial & 0xFF);
@@ -1624,6 +1624,21 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
                 Out.CardTarget = Target.Kind;
                 Out.TargetId = Target.Active.IsNone() ? FString() : Target.Active.ToString();
                 Out.Element = Target.Element;
+                Out.Key = Key;
+                return true;
+            }
+        }
+        // B01 T04-04: a full workshop takes off its least fitting card for a stored one that fits better; the install
+        // step above then puts the better card in.
+        if (LDOpponentPolicy::SelectCardSwap(Self, Catalog, State.BreakoutGoal, Serial))
+        {
+            FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::UninstallCard);
+            Key.Slot = uint8(Serial & 0xFF);
+            if (State.Failures.CanAttempt(Key, Print, Now))
+            {
+                Out = FLDOpponentBuildIntent();
+                Out.Kind = ELDOpponentBuildKind::UninstallCard;
+                Out.CardSerial = Serial;
                 Out.Key = Key;
                 return true;
             }
@@ -2512,6 +2527,28 @@ uint32 OpponentVocab(const FLDOpponentSelf& Self, const FLDDemoContentDefinition
     }
     return Vocab;
 }
+
+// How well an owned card fits the build for keeping it installed: AI.CardVocabScore per vocabulary key it shares with the
+// learned skills, plus AI.BreakoutCardScore for a card of Goal. It reads the skills only, not the installed cards, so
+// swapping cards never changes another card's fit.
+double OpponentCardFit(const FLDOpponentSelf& Self, const FLDDemoContentDefinitions& Content, FName Goal, const FString& Id)
+{
+    const FLDDemoCardDefinition* Card = Content.Cards.FindByPredicate([&Id](const FLDDemoCardDefinition& Row) { return Row.Id == Id; });
+    if (!Card) { return -1.; }
+    uint32 Vocab = 0;
+    for (const FLDOpponentActive& Active : Self.Actives)
+    {
+        if (const FLDDemoAbilityDefinition* Ability = Content.Abilities.FindByPredicate([&Active](const FLDDemoAbilityDefinition& Row) { return Row.Id == Active.DefinitionId; }))
+        {
+            const FLDDemoAbilityBranch* Branch = Ability->FindBranch(Active.Branch);
+            Vocab |= Ability->VocabMask | (Branch ? Branch->VocabMask : 0u);
+        }
+    }
+    const FLDDemoAIParameters& AI = Content.Parameters.AI;
+    const FLDBreakoutPreset* Preset = Goal.IsNone() ? nullptr : LDBreakoutPresets::Find(Goal);
+    return double(AI.CardVocabScore) * double(FMath::CountBits64(uint64(Card->VocabMask & Vocab)))
+        + (Preset && LDBreakoutPresets::HasCard(*Preset, FName(*Id)) ? double(AI.BreakoutCardScore) : 0.);
+}
 }
 
 bool SelectCard(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FName Goal, FString& OutCard, FString& Error)
@@ -2645,21 +2682,59 @@ bool OpponentMedalTarget(const FLDOpponentSelf& Self, const FLDDemoContentDefini
 }
 }
 
-bool SelectCardInstall(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, uint16& OutSerial, FLDCardTarget& OutTarget)
+bool SelectCardInstall(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, uint16& OutSerial, FLDCardTarget& OutTarget,
+    FName Goal)
 {
     const FLDDemoContentDefinitions& Content = Catalog.Get();
     const bool bFull = InstalledCards(Self, Catalog) >= Self.CardCapacity;
+    double Best = -1.;
     for (const FLDOpponentCard& Owned : Self.Cards)
     {
         if (Owned.IsInstalled()) { continue; }
-        const bool bMedal = LDProgression::IsMedal(Content, FName(*Owned.DefinitionId));
-        if (bMedal ? OpponentMedalTarget(Self, Content, Owned, OutTarget) : !bFull && CardTarget(Self, Catalog, Owned.DefinitionId, OutTarget))
+        FLDCardTarget Target;
+        if (LDProgression::IsMedal(Content, FName(*Owned.DefinitionId)))
         {
+            // A medal takes no capacity slot and goes first.
+            if (OpponentMedalTarget(Self, Content, Owned, Target)) { OutSerial = Owned.Serial; OutTarget = Target; return true; }
+            continue;
+        }
+        if (bFull || !CardTarget(Self, Catalog, Owned.DefinitionId, Target)) { continue; }
+        // B01 T04-04: the most fitting stored card takes a free slot, so a swap never puts the card it took off back.
+        const double Score = OpponentCardFit(Self, Content, Goal, Owned.DefinitionId);
+        if (Score > Best)
+        {
+            Best = Score;
             OutSerial = Owned.Serial;
-            return true;
+            OutTarget = Target;
         }
     }
-    return false;
+    return Best >= 0.;
+}
+
+bool SelectCardSwap(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FName Goal, uint16& OutSerial)
+{
+    const FLDDemoContentDefinitions& Content = Catalog.Get();
+    if (Self.CardCapacity <= 0 || InstalledCards(Self, Catalog) < Self.CardCapacity) { return false; }
+    double BestStored = -1.;
+    for (const FLDOpponentCard& Owned : Self.Cards)
+    {
+        FLDCardTarget Target;
+        if (Owned.IsInstalled() || LDProgression::IsMedal(Content, FName(*Owned.DefinitionId))
+            || !CardTarget(Self, Catalog, Owned.DefinitionId, Target)) { continue; }
+        BestStored = FMath::Max(BestStored, OpponentCardFit(Self, Content, Goal, Owned.DefinitionId));
+    }
+    double Lowest = TNumericLimits<double>::Max();
+    for (const FLDOpponentCard& Owned : Self.Cards)
+    {
+        if (!Owned.IsInstalled() || LDProgression::IsMedal(Content, FName(*Owned.DefinitionId))) { continue; }
+        const double Fit = OpponentCardFit(Self, Content, Goal, Owned.DefinitionId);
+        if (Fit < Lowest)
+        {
+            Lowest = Fit;
+            OutSerial = Owned.Serial;
+        }
+    }
+    return BestStored >= 0. && BestStored > Lowest;
 }
 
 bool IsCaptureDefenseUrgent(const FLDCaptureUrgencyInput& Input)

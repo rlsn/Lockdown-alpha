@@ -330,6 +330,53 @@ bool RunChoiceOrder(FAutomationTestBase& Test)
             bGood &= Test.TestFalse(TEXT("A stored medal never swaps one out"),
                 LDOpponentPolicy::SelectCardInstall(MedalHolder, C, Serial, Target));
         }
+        // B01 T04-04: a full workshop swaps its least fitting card for a stored card that shares the skills' vocabulary,
+        // and never the other way round.
+        {
+            const FLDDemoAbilityDefinition* Elbow = nullptr;
+            FString Why;
+            const uint32 SkillVocab = C.FindAbility(TEXT("active_elbow"), Elbow, Why) && Elbow ? Elbow->VocabMask : 0u;
+            FLDOpponentSelf Probe;
+            Probe.Actives = {Active(TEXT("active_elbow"), 0)};
+            const FLDDemoCardDefinition* Fits = nullptr;
+            const FLDDemoCardDefinition* Misfit = nullptr;
+            for (const FLDDemoCardDefinition& Row : C.Get().Cards)
+            {
+                FLDCardTarget Place;
+                if (Row.Form == ELDCardForm::Medal || !LDOpponentPolicy::CardTarget(Probe, C, Row.Id, Place)) { continue; }
+                if (!Fits && (Row.VocabMask & SkillVocab) != 0) { Fits = &Row; }
+                if (!Misfit && (Row.VocabMask & SkillVocab) == 0) { Misfit = &Row; }
+            }
+            if (Test.TestTrue(TEXT("The catalog has a fitting and a misfit card for the swap"), Fits && Misfit))
+            {
+                FLDOpponentSelf Full = Probe;
+                Full.CardCapacity = 1;
+                FLDOpponentCard Installed;
+                Installed.Serial = 1;
+                Installed.DefinitionId = Misfit->Id;
+                FLDCardTarget Place;
+                LDOpponentPolicy::CardTarget(Probe, C, Misfit->Id, Place);
+                Installed.TargetKind = Place.Kind;
+                Installed.TargetActive = Place.Active.IsNone() ? FString() : Place.Active.ToString();
+                FLDOpponentCard Stored;
+                Stored.Serial = 2;
+                Stored.DefinitionId = Fits->Id;
+                Full.Cards = {Installed, Stored};
+                uint16 Off = 0;
+                bGood &= Test.TestTrue(TEXT("The misfit card comes off for the fitting one"),
+                    LDOpponentPolicy::SelectCardSwap(Full, C, NAME_None, Off) && Off == 1);
+                FLDOpponentSelf Freed = Full;
+                Freed.Cards[0].TargetKind = ELDCardTargetKind::None;
+                Freed.Cards[0].TargetActive.Reset();
+                uint16 In = 0;
+                FLDCardTarget InPlace;
+                bGood &= Test.TestTrue(TEXT("and the fitting card takes the freed slot, not the one taken off"),
+                    LDOpponentPolicy::SelectCardInstall(Freed, C, In, InPlace) && In == 2);
+                Swap(Full.Cards[0].DefinitionId, Full.Cards[1].DefinitionId);
+                bGood &= Test.TestFalse(TEXT("A fitting card is never swapped for a misfit"),
+                    LDOpponentPolicy::SelectCardSwap(Full, C, NAME_None, Off));
+            }
+        }
         BasicArchetype.StatPoints = StatRows(C, {{Agility, 18}});
         BasicArchetype.UnspentPoints = 10;
         TArray<uint8> DualCounts;
