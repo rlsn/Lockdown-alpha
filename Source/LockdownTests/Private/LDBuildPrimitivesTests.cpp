@@ -4346,7 +4346,8 @@ bool FLDAdaptiveAndKeystonesTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Magical adaptive damage adds AP * adaptive_ratio (50 + 60 = 110)"),
         MagEval.IsSuccess() && MagEval.Value->DamageP2 == 11000);
 
-    // 2. Y09 (card_skill_crit) projects +15% CritChanceBonusRatio per copy and Y11 (card_short_breath) multiplies overdrive scale by 0.875x per copy.
+    // 2. Y09 (card_skill_crit) projects +15% CritChanceBonusRatio per copy and Y11 (card_short_breath) replaces the overdrive
+    // scale with its own 140% (copies do not stack).
     const FLDCombatBodyRef Holder = F.AddBody();
     if (!InstallCards(*this, F, Holder, 6, {
         {TEXT("card_skill_crit"), ELDCardTargetKind::Body},
@@ -4358,8 +4359,8 @@ bool FLDAdaptiveAndKeystonesTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("card_skill_crit adds +15% flat crit chance"), F.Body(Holder).AttributeProjection.Final.CritChanceBp, int64(1500));
     FLDCombatActiveTerms Plain, Over;
     if (!OverdriveTerms(*this, F, Holder, TEXT("active_elbow"), Plain, Over)) { return false; }
-    const int64 ExpectedScaleBp = F.Catalog->Get().Parameters.Overdrive.ScaleBp * 8750 / 10000 * 8750 / 10000;
-    TestEqual(TEXT("Two card_short_breath copies multiply overdrive scale independently by 0.875^2"),
+    const int64 ExpectedScaleBp = 14000;
+    TestEqual(TEXT("Two card_short_breath copies overdrive at the card's 140%, once"),
         FindEffect(Over.Values, ELDDemoEffectOp::Damage)->BaseP2,
         FindEffect(Plain.Values, ELDDemoEffectOp::Damage)->BaseP2 * ExpectedScaleBp / 10000);
 

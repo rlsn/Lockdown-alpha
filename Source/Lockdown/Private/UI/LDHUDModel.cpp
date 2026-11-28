@@ -3452,6 +3452,7 @@ LDHUD::FLiveSkillTooltip LDHUD::EvaluateLiveSkillTooltip(const FActionView& View
     ELDDemoSkillElement MedalSkillElem=ELDDemoSkillElement::None;
     FString MedalCardName;
     int64 OverdriveScaleBp=Content->Parameters.Overdrive.ScaleBp;
+    int64 ShortOverdriveScaleBp=0;
     if(Build&&Build->bValid)
     {
         for(const FLDCardInstanceView& Inst:Build->Cards)
@@ -3537,13 +3538,15 @@ LDHUD::FLiveSkillTooltip LDHUD::EvaluateLiveSkillTooltip(const FActionView& View
                     }
                     break;
                 case ELDDemoEffectOp::OverdriveShort:
-                    if(Ef.MultiplierBp>0){OverdriveScaleBp=OverdriveScaleBp*8750/10000;}
+                    // Y11: its own multiplier replaces the base one; copies do not stack (ALDCombatDirector::OverdriveScaleOf).
+                    if(Ef.MultiplierBp>0){ShortOverdriveScaleBp=FMath::Max(ShortOverdriveScaleBp,Ef.MultiplierBp);}
                     break;
                 default: break;
                 }
             }
         }
     }
+    if(ShortOverdriveScaleBp>0){OverdriveScaleBp=ShortOverdriveScaleBp;}
     if(Content->Parameters.DamageFactorTechCapBp>0)
     {
         TotalFactorBp=FMath::Min(TotalFactorBp,Content->Parameters.DamageFactorTechCapBp);

@@ -2106,12 +2106,12 @@ int64 ALDCombatDirector::OverdriveScaleOf(const FLDBodyCombatState& Body) const
     int64 Scale=Content ? Content->Get().Parameters.Overdrive.ScaleBp : 10000;
     TArray<FLDPassiveEffectRef> Shorts;
     FString Error;
+    // Y11: its own overdrive multiplier replaces the base one (copies take the same multiplier; they do not stack).
     if (CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::OverdriveShort,Shorts,Error))
     {
-        for (const FLDPassiveEffectRef& Ref : Shorts)
-        {
-            if (Ref.Effect.MultiplierBp>0) { Scale=Scale*8750/10000; }
-        }
+        int64 Short=0;
+        for (const FLDPassiveEffectRef& Ref : Shorts) { Short=FMath::Max(Short,Ref.Effect.MultiplierBp); }
+        if (Short>0) { Scale=Short; }
     }
     return Scale;
 }
