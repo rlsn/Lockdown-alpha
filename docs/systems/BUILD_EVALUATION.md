@@ -23,8 +23,8 @@ python -B .\Scripts\CombineBuildEvaluation.py --run <批次1> --run <批次2> --
 
 - **严格准入（schema v2）**：未知字段或缺失必填预算一律拒绝；能力表外的机制/决策/场景/指标标为 `Unsupported*`，不用近似值替代；目标运行目录非空时直接拒绝写入。
 - **硬预算上限（`BUDGET_CEILINGS`）**：`standard` 批最多 `60` Case、单 Case `<= 180 s`、整批 `<= 5400 s`、单 Case 权威事件 `<= 200,000` 行、单批磁盘 `<= 2 GiB`、证据根 `Artifacts\BuildEvaluation` 总磁盘 `<= 6 GiB`；任一门禁触发即停止进程并标 `BudgetExceeded`。
-- **统计与重放**：以独立世界种子（双侧交换取均值）为统计单元，仅确认集（`confirm`）主指标产出结论（`RuleViolation / BalanceConcern / NoCounterexampleInCoveredSet / InsufficientEvidence / NoTarget`）。`duel_site` 支持 `natural`、`legal_search` 与 `diagnostic`（可显式预置开局主动、升级牌与经验供给）。
-- **无效样本**：Adapter 把不能代表构筑的 Case 判 `Invalid` 并单列原因，缺任一侧的种子整体不进分母：双方都是走近交战的架势（默认 pursue 或 burst）而到时从未互相命中是 `NoEngagement`（接近或寻路失败，不是删失，原因里写双方最近距离）；学会主动的一方交战至少 `NEVER_CAST_GRACE_MS`（5 s，另加该方 `reaction_ms`）一次未施放是 `NeverCast`（AI 执行失败；设了 `skip_bp` 的一方不判）。交战后到时未分胜负、或 kite/hold/guard 架势到时未交手，才是删失。两侧属性点预算不同（一方 `keep_points_unspent`）的 arm 在报告限制里写明，差值不能单独归因于构筑。判读规则变化时 Adapter 版本递增，旧证据用 `analyze --rejudge` 重新判读。
+- **统计与重放**：以独立世界种子（双侧交换取均值）为统计单元，仅确认集（`confirm`）主指标产出结论（`RuleViolation / BalanceConcern / NoCounterexampleInCoveredSet / InsufficientEvidence / NoTarget`）。`duel_site` 支持 `natural`、`legal_search` 与 `diagnostic`（可显式预置开局主动、升级牌与经验供给）。`duel_site` 的 `clear_camps: true` 是评估夹具：初始营地站齐后全部营地组离场且本段不再刷新（不产生死亡与奖励，地图与正式营地不变），用于排除出生路线或缠斗漂移卷入营地；未出现唯一的 `LD_EVAL_CAMPS_CLEARED` 判 `CampsNotCleared`。
+- **无效样本**：Adapter 把不能代表构筑的 Case 判 `Invalid` 并单列原因，缺任一侧的种子整体不进分母：双方都是走近交战的架势（默认 pursue 或 burst）而到时从未互相命中是 `NoEngagement`（接近或寻路失败，不是删失，原因里写双方最近距离）；学会主动的一方交战至少 `NEVER_CAST_GRACE_MS`（5 s，另加该方 `reaction_ms`）一次未施放是 `NeverCast`（AI 执行失败；设了 `skip_bp` 的一方不判）。交战后到时未分胜负、或 kite/hold/guard/strafe 架势到时未交手，才是删失。两侧属性点预算不同（一方 `keep_points_unspent`）的 arm 在报告限制里写明，差值不能单独归因于构筑。判读规则变化时 Adapter 版本递增，旧证据用 `analyze --rejudge` 重新判读。
 
 ## 检查入口
 

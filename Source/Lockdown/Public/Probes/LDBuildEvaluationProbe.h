@@ -47,6 +47,7 @@ struct FLDEvalContenderPlan
     int32 SkipBp = 0;
     int32 WarningReactMs = -1;
     bool bLeadAim = false;
+    bool bReserveDash = false;
 };
 
 struct FLDEvalCase
@@ -59,6 +60,8 @@ struct FLDEvalCase
     int64 DuelTimeoutMs = 0;
     // Wall-clock budget of the whole Case; exceeding it is BudgetExceeded, never a result.
     int32 WallTimeoutSeconds = 0;
+    // Every camp group leaves the field once its initial camps stand, held empty for the duel (no route through a camp).
+    bool bClearCamps = false;
     TArray<FLDEvalContenderPlan> Contenders;
 };
 

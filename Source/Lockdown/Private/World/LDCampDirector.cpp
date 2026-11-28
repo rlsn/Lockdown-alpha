@@ -1016,6 +1016,26 @@ bool ALDCampDirector::AdvanceCamps(const FLDGameplayWritePermit& Permit, FString
     if (!CheckPermit(Permit, ELDCommitPhase::RespawnsAndWorld, Error)) { return false; }
     ALDGameMode* Mode = AuthorityMode();
     if (!LeaveBossIfDue(Permit, Error)) { return false; }
+#if WITH_DEV_AUTOMATION_TESTS
+    if (bEvaluationClearPending && !HasPendingInitialCamps())
+    {
+        bEvaluationClearPending = false;
+        int32 Groups = 0, Members = 0;
+        for (int32 Camp = 0; Camp < State.NumCamps(); ++Camp)
+        {
+            const int32 Living = State.FindCamp(Camp)->Members.FilterByPredicate([](const FLDCampMemberState& M) { return M.bAlive; }).Num();
+            if (Living > 0)
+            {
+                if (!RetireCampForReset(Camp, Permit, Error)) { return false; }
+                ++Groups;
+                Members += Living;
+            }
+            State.DevHoldEmpty(Camp);
+            BlockedRefresh.Remove(Camp);
+        }
+        UE_LOG(LogLDTest, Display, TEXT("LD_EVAL_CAMPS_CLEARED groups=%d members=%d field_t_ms=%lld"), Groups, Members, Mode->GetFieldNowMs());
+    }
+#endif
     for (int32 Camp = 0; Camp < State.NumCamps(); ++Camp)
     {
         for (int32 Slot = 0; Slot < State.FindCamp(Camp)->Members.Num(); ++Slot)
@@ -1373,6 +1393,7 @@ void ALDCampDirector::EndMatch()
     Returns.Reset();
     Stranded.Reset();
     BlockedRefresh.Reset();
+    bEvaluationClearPending = false;
     Boss = {};
     CampAffixes.Reset();
     MemberAffixes.Reset();

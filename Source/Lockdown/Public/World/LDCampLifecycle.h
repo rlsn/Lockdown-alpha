@@ -161,6 +161,8 @@ public:
     // DEV test session: every cleared camp still waiting for its refresh becomes due at NowMs; the next due refresh then
     // runs the ordinary whole-group spawn. Living camps are untouched. Returns the number of waiting camps.
     int32 DevRefreshNow(int64 NowMs);
+    // Build evaluation: a camp waiting for its refresh stays empty until the next field segment's reset re-queues it.
+    void DevHoldEmpty(int32 Camp);
 #endif
     // Bodies are the core's committed refs for every slot, in slot order.
     bool CommitSpawn(int32 Camp, TArrayView<const FLDCombatBodyRef> Bodies, double AtSeconds, FString& Error);

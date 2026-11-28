@@ -332,6 +332,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoOpponentPolicy.GroundPathCost",
         "Lockdown.Rules.DemoOpponentPolicy.BodyDetours",
         "Lockdown.Rules.DemoOpponentPolicy.CastWarnings",
+        "Lockdown.Rules.DemoOpponentPolicy.DodgeWay",
         "Lockdown.Rules.DemoOpponentPolicy.StreetRing",
         "Lockdown.Rules.DemoOpponentPolicy.RecoveryOrb",
         "Lockdown.Rules.BuildEvaluation.WarningsAndLead",

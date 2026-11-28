@@ -88,6 +88,9 @@ public:
     // DEV test session (Transactions permit): FLDCampMatchState::DevRefreshNow at the permit boundary; the next
     // RespawnsAndWorld refreshes them through AdvanceCamps. OutWaiting is the number of cleared camps.
     bool DevRefreshCleared(const FLDGameplayWritePermit& Permit, int32& OutWaiting, FString& Error);
+    // Build evaluation (duel_site clear_camps, no player route): once every initial camp stands, the next AdvanceCamps
+    // retires every camp group without a death or reward and holds it empty until the next field segment's reset.
+    void RequestEvaluationClear() { bEvaluationClearPending = true; }
 #endif
 
     // Vision publication of a currently registered camp member; see FLDCampMatchState::AppendObservedFacts.
@@ -181,6 +184,8 @@ private:
     uint64 InitialBatchFrame = MAX_uint64;
     // GFrameCounter of the last batch of PrepareFieldSegmentAhead.
     uint64 FieldResetFrame = MAX_uint64;
+    // RequestEvaluationClear: the clear waits for the initial camps.
+    bool bEvaluationClearPending = false;
     void BeginFieldReset(uint8 SegmentIndex);
     bool RetireCampForReset(int32 Camp, const FLDGameplayWritePermit& Permit, FString& Error);
     // Stands one pending group of the reset up suspended; bBlocked when its placement must wait.
