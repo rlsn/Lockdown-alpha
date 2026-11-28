@@ -3505,6 +3505,17 @@ bool FLDDemoOpponentBreakoutGoalTest::RunTest(const FString& Parameters)
     Built.Actives[0].Branch = ELDSkillBranch::A1;
     LDOpponentPolicy::BreakoutProgress(Built, Hedgehog, Skills, SkillsTotal, Cards, CardsTotal);
     TestTrue(TEXT("Progress counts goal skills at their goal branch"), Skills == 2 && SkillsTotal == 3 && Cards == 0 && CardsTotal == 4);
+
+    // B01 T04-05: every sample spends exactly its level's attribute points, so no evaluation leaves them to the AI.
+    for (const FLDBreakoutPreset& Preset : LDBreakoutPresets::All())
+    {
+        FLDGrowthBuild Sample;
+        int64 XP = 0, Unspent = -1;
+        FString Why;
+        TestTrue(FString::Printf(TEXT("%s spends every attribute point (%s)"), Preset.Id, *Why),
+            LDBreakoutPresets::Build(C.Get(), Preset, Sample, XP, Why)
+            && LDProgression::UnspentPoints(C.Get(), Sample, XP, Unspent) == ELDGrowthReason::None && Unspent == 0);
+    }
     return true;
 }
 
