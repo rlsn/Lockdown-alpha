@@ -59,7 +59,7 @@
 
 服务器命令行开关（`LDProtoFlags`，每个进程只读一次）。开关不写入 `SourceData`，也不参与内容哈希；不带开关时，所有规则与正式版本一致。启用时写一行 `LD_PROTO flags=… params=…`；参数无效时写 `LD_PROTO_INVALID`，并且不启用任何原型。
 
-- **急眼了（C-10，`-LDProtoAgency`）**：真人或 AI 选手每受到他人的控制，就按权重记录失去操作权的时段。权重：眩晕与击退 1.0，嘲讽 0.8，定身 0.5，沉默与缴械 0.2，减速 0；同一时刻多个控制重叠时，只按其中最大的权重计算一次。
+- **急眼了（C-10，`-LDProtoAgency`）**：真人或 AI 选手每受到他人的控制，就按权重记录失去操作权的时段。权重：眩晕与击退 1.0，嘲讽 0.8（`-LDProtoAgencyTauntWeight=` 可在 0–1 内调），定身 0.5，沉默与缴械 0.2，减速 0；同一时刻多个控制重叠时，只按其中最大的权重计算一次。
   - 触发：滑动窗口 `-LDProtoAgencyWindow=`（默认 4 s）内的累计值达到 `-LDProtoAgencyThreshold=`（默认 2 s）时触发，触发时刻精确到毫秒（`AgencyDueMs`）。两次触发至少间隔 `-LDProtoAgencyCooldown=`（默认 6 s）。
   - 守护期：触发后进入 `-LDProtoAgencyGuard=`（默认 1 s）守护期，期间新的硬控不生效。
   - 两种变体：`-LDProtoAgencyCut=Immediate`（V-Cut，默认）立即结束他人施加的眩晕、定身、缴械、沉默与嘲讽，击退的位移照常完成，但不再锁定输入；`NextControl`（V-Next）不结束当前控制，只防住下一次。

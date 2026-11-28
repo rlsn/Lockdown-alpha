@@ -111,12 +111,16 @@ public:
     // bKnockback: a forced push, which other bodies block like static geometry (#198 F C02); a voluntary dash runs
     // through bodies.
     // Every displacement (dash, knockback, pull, camp lunge) ends on legal ground with a walking route back
-    // (LandedDashDistance); the speed stays, so a shortened one ends earlier.
+    // (LandedDashDistance); the speed stays, so a shortened one ends earlier. A push stops before the first obstacle on its
+    // straight line; when static geometry facing it stopped it, that is the push's real block once its motion ends.
     bool StartDemoDash(const FVector& Direction, double DistanceCm, double DurationSeconds, FString& Error, bool bKnockback=false);
     // How far a displacement from Foot along Direction may travel: up to the last ground LDGroundLanding accepts (legal
-    // ground reached by a complete walking route from the start), 0 when there is none. False only on a query error.
+    // ground reached by a complete walking route from the start), 0 when there is none. A push (bPush) travels only its
+    // straight line of legal ground (LDGroundLanding::ResolvePush); OutWall, when given, tells whether static geometry
+    // facing it is what stopped it short. False only on a query error.
     static bool LandedDashDistance(const class ULDMapRegistry& Registry, const FVector& Foot, const FVector& Direction,
-        double DistanceCm, const FCollisionShape& Capsule, double& OutCm, FString& Error);
+        double DistanceCm, const FCollisionShape& Capsule, double& OutCm, FString& Error, bool bPush = false,
+        TWeakObjectPtr<AActor>* OutWall = nullptr);
     // #198 F C02: the first real block of the current push (a body, or registered static geometry facing the push; walkable
     // support and grazing slides are none). Watching starts with WatchKnockbackBlock and ends with the first fact.
     struct FKnockbackBlock
@@ -126,9 +130,9 @@ public:
         FVector Direction=FVector::ZeroVector;
     };
     void WatchKnockbackBlock() { bWatchKnockbackBlock=true; KnockbackBlock.Reset(); }
-    TOptional<FKnockbackBlock> TakeKnockbackBlock()
-    { TOptional<FKnockbackBlock> Out=MoveTemp(KnockbackBlock); KnockbackBlock.Reset(); return Out; }
-    void StopKnockbackWatch() { bWatchKnockbackBlock=false; KnockbackBlock.Reset(); }
+    // The native block, else (once the push's motion has ended) the static geometry its landing stopped short of.
+    TOptional<FKnockbackBlock> TakeKnockbackBlock();
+    void StopKnockbackWatch() { bWatchKnockbackBlock=false; KnockbackBlock.Reset(); ClampedBlock.Reset(); }
     // Sweeps the current capsule along a planar direction against static geometry; false when immediately blocked by a
     // surface facing the dash within DashHeadOnDegrees of head-on (a wall met at an angle is slid along).
     static constexpr double DashHeadOnDegrees = 25.;
@@ -185,6 +189,7 @@ private:
     bool bWatchKnockbackBlock=false;
     double BodyPassThroughUntilSeconds=0;
     TOptional<FKnockbackBlock> KnockbackBlock;
+    TOptional<FKnockbackBlock> ClampedBlock;
     TWeakObjectPtr<UPrimitiveComponent> StationaryFloor;
     FTransform StationaryFloorTransform;
     FVector StationaryCapsuleSize=FVector::ZeroVector;

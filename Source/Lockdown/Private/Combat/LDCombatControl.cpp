@@ -231,8 +231,8 @@ bool ALDCombatDirector::CommitControl(FLDBodyCombatState& Victim, const FLDContr
         return false;
     }
     if (!bApplied) { return true; }
-    if (bAgency && !bRoll && LDCombatControl::AgencyWeightBp(App.Kind)>0)
-    { Victim.Agency.Losses.Add({NowMs,ExpiresAtMs,LDCombatControl::AgencyWeightBp(App.Kind)}); }
+    if (const int64 WeightBp=bAgency && !bRoll ? LDCombatControl::AgencyWeightBp(App.Kind,Proto.Agency) : 0; WeightBp>0)
+    { Victim.Agency.Losses.Add({NowMs,ExpiresAtMs,WeightBp}); }
     if (App.Kind==ELDControlKind::Stun || App.Kind==ELDControlKind::Silence
         || App.Kind==ELDControlKind::Taunt || (App.Kind==ELDControlKind::Knockback && !bRoll))
     { CancelChannel(Victim); }

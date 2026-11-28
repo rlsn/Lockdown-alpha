@@ -336,17 +336,41 @@ bool ULDCharacterMovementComponent::StartDemoDash(const FVector& Direction, doub
     if (!Registry || !Registry->Enabled() || !Geometry || Geometry->Surfaces.IsEmpty())
     { return ApplyDashRootMotion(Direction,DistanceCm,DurationSeconds,Error); }
     double LandedCm=0;
-    if (!LandedDashDistance(*Registry,GetActorFeetLocation(),Direction,DistanceCm,Capsule->GetCollisionShape(),LandedCm,Error))
+    TWeakObjectPtr<AActor> Wall;
+    if (!LandedDashDistance(*Registry,GetActorFeetLocation(),Direction,DistanceCm,Capsule->GetCollisionShape(),LandedCm,Error,
+        bKnockback,&Wall))
     { return false; }
+    if (Wall.IsValid())
+    {
+        ClampedBlock.Emplace();
+        ClampedBlock->Blocker=Wall;
+        ClampedBlock->Direction=FVector(Direction.X,Direction.Y,0).GetSafeNormal();
+    }
     // No legal ground along the way: the body stays where it is (a dash or push into ground it could never walk from).
     if (LandedCm<1.) { Error.Reset(); return true; }
     return ApplyDashRootMotion(Direction,LandedCm,DurationSeconds*LandedCm/DistanceCm,Error);
 }
 
 bool ULDCharacterMovementComponent::LandedDashDistance(const ULDMapRegistry& Registry, const FVector& Foot, const FVector& Direction,
-    double DistanceCm, const FCollisionShape& Capsule, double& OutCm, FString& Error)
+    double DistanceCm, const FCollisionShape& Capsule, double& OutCm, FString& Error, bool bPush, TWeakObjectPtr<AActor>* OutWall)
 {
     OutCm=0;
+    if (OutWall) { OutWall->Reset(); }
+    if (bPush)
+    {
+        if (!LDGroundLanding::ResolvePush(Registry,Foot,Direction,DistanceCm,Capsule,OutCm,Error)) { return false; }
+        if (!OutWall || OutCm>=DistanceCm-1.) { return true; }
+        // Stopped short: static geometry facing the push within the last samples is the wall it was pushed into.
+        const FVector Planar=FVector(Direction.X,Direction.Y,0).GetSafeNormal();
+        const FVector Centre=Foot+FVector(0,0,Capsule.GetCapsuleHalfHeight()+1.);
+        FHitResult Hit;
+        const double WalkableZ=GetDefault<ALDCharacter>()->GetCharacterMovement()->GetWalkableFloorZ();
+        if (Registry.GetTerrain().SweepScene(Centre,Centre+Planar*DistanceCm,Capsule,Hit) && Hit.bBlockingHit
+            && Hit.ImpactNormal.Z<WalkableZ && Hit.Distance<=OutCm+3.*LDGroundLanding::PushStepCm
+            && FVector::DotProduct(FVector(Hit.Normal.X,Hit.Normal.Y,0).GetSafeNormal(),Planar)<=-.1)
+        { *OutWall=Hit.GetActor(); }
+        return true;
+    }
     const FVector Planar=FVector(Direction.X,Direction.Y,0).GetSafeNormal();
     if (Planar.IsNearlyZero() || !FMath::IsFinite(DistanceCm) || DistanceCm<=0)
     {
@@ -399,6 +423,18 @@ bool ULDCharacterMovementComponent::ApplyDashRootMotion(const FVector& Direction
 void ULDCharacterMovementComponent::SetBodyPassThroughSeconds(double Seconds)
 {
     if (GetWorld() && FMath::IsFinite(Seconds) && Seconds>0) { BodyPassThroughUntilSeconds=GetWorld()->GetTimeSeconds()+Seconds; }
+}
+
+TOptional<ULDCharacterMovementComponent::FKnockbackBlock> ULDCharacterMovementComponent::TakeKnockbackBlock()
+{
+    TOptional<FKnockbackBlock> Out=MoveTemp(KnockbackBlock);
+    KnockbackBlock.Reset();
+    if (!Out && bWatchKnockbackBlock && ClampedBlock && !IsDashing())
+    {
+        Out=MoveTemp(ClampedBlock);
+        ClampedBlock.Reset();
+    }
+    return Out;
 }
 
 bool ULDCharacterMovementComponent::IsDashing() const

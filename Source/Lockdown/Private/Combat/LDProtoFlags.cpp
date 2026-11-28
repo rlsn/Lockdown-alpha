@@ -40,6 +40,14 @@ bool LDProto::Parse(const TCHAR* CommandLine, FLDProtoSettings& Out, FString& Er
     { return false; }
     if (Agency.ThresholdMs > Agency.WindowMs)
     { Error = TEXT("-LDProtoAgencyThreshold= cannot exceed the window."); return false; }
+    FString TauntWeight;
+    if (FParse::Value(CommandLine, TEXT("LDProtoAgencyTauntWeight="), TauntWeight))
+    {
+        const double Weight = FCString::Atod(*TauntWeight);
+        if (!TauntWeight.IsNumeric() || !FMath::IsFinite(Weight) || Weight < 0. || Weight > 1.)
+        { Error = TEXT("-LDProtoAgencyTauntWeight= takes a share in [0, 1]."); return false; }
+        Agency.TauntWeightBp = FMath::RoundToInt64(Weight * 10000.);
+    }
     int32 RollFrom = Agency.RollFrom;
     if (FParse::Value(CommandLine, TEXT("LDProtoAgencyRollFrom="), RollFrom))
     {
@@ -73,8 +81,9 @@ FString LDProto::Describe(const FLDProtoSettings& Settings)
     {
         const FLDAgencyParams& A = Settings.Agency;
         Flags.Add(TEXT("Agency"));
-        Params.Add(FString::Printf(TEXT("agency_cut=%s agency_window_ms=%lld agency_threshold_ms=%lld agency_guard_ms=%lld agency_cooldown_ms=%lld agency_roll_from=%d"),
-            A.bCut ? TEXT("Immediate") : TEXT("NextControl"), A.WindowMs, A.ThresholdMs, A.GuardMs, A.CooldownMs, A.RollFrom));
+        Params.Add(FString::Printf(TEXT("agency_cut=%s agency_window_ms=%lld agency_threshold_ms=%lld agency_guard_ms=%lld agency_cooldown_ms=%lld agency_roll_from=%d agency_taunt_weight_bp=%lld"),
+            A.bCut ? TEXT("Immediate") : TEXT("NextControl"), A.WindowMs, A.ThresholdMs, A.GuardMs, A.CooldownMs, A.RollFrom,
+            A.TauntWeightBp));
     }
     if (Settings.PotDelayMs >= 0)
     {
