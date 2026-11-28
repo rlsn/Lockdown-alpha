@@ -468,7 +468,7 @@ LOW_PICK_RATE = 0.04
 # its applier's category; a separate reaction share would need an authority field on LD_HIT.
 DAMAGE_CATEGORIES = (("basic", "basic"), ("skill", "skill"), ("card", "card"), ("other", "other"))
 DAMAGE_NOTE = "reaction settles count under their applier's source; reaction share: no data (LD_HIT has no reaction field)"
-MOMENTUM_INCOME = ("basic", "combat", "skill", "reaction", "dodge", "other")
+MOMENTUM_INCOME = ("basic", "combat", "skill", "reaction", "other")
 NO_DATA = "no data"
 NOT_APPLICABLE = "n/a (the Host log has no such mechanic)"
 NO_BASELINE = ("no measured same-level bare-build baseline; pass --baseline-run with BuildEvaluation bare-mirror runs "
@@ -777,12 +777,12 @@ def match_metrics(events, baseline):
                          if casts else None)
     out["kills"] = kill_times(deaths, hits, contenders, levels)
 
-    # Momentum and perfect dodges of the field lives only: rest lives train against their dummies.
+    # Momentum and auto-empower of the field lives only: rest lives train against their dummies.
     def field_life(event):
         return event.get("entity") not in dummies and (event.get("entity"), event.get("life")) not in rest_lives
 
     # LD_MOMENTUM is written when a body leaves (death, rest, retirement); a life still alive when the match ends or the log
-    # stops has none. Dodges are counted over the same lives, and the field lives without a ledger are reported.
+    # stops has none, and the field lives without a ledger are reported.
     ledgers = [event for event in events if event.tag == "LD_MOMENTUM" and field_life(event)]
     ledger_lives = {(event.get("entity"), event.get("life")) for event in ledgers}
     field_lives = {(event.get("contender"), event.get("life")) for event in events if event.tag == "LD_HEARTBEAT"
@@ -791,18 +791,11 @@ def match_metrics(events, baseline):
     out["lives_without_ledger"] = len(field_lives - ledger_lives)
     momentum = defaultdict(float)
     for event in ledgers:
-        # A Host without overdrive or perfect dodges writes no overdrive= or dodge= field: those keys stay absent.
-        for key in (*MOMENTUM_INCOME, "idle", "spent", "overdrive"):
-            if key in event.fields:
-                momentum[key] += number(event, key)
+        for key in (*MOMENTUM_INCOME, "idle", "spent"):
+            momentum[key] += number(event, key)
     out["momentum"] = dict(momentum) if ledgers else None
     out["momentum_lives"] = len(ledgers)
-    dodge_lines = [event for event in events if event.tag == "LD_PERFECT_DODGE"]
-    out["perfect_dodges"] = (sum(1 for event in dodge_lines if field_life(event)
-                                 and (event.get("entity"), event.get("life")) in ledger_lives)
-                             if dodge_lines or "dodge" in momentum else None)
-    out["training_lines"] = sum(1 for event in events if event.tag in ("LD_MOMENTUM", "LD_PERFECT_DODGE")
-                                and not field_life(event))
+    out["training_lines"] = sum(1 for event in events if event.tag == "LD_MOMENTUM" and not field_life(event))
     empowers = [event for event in events if event.tag == "LD_EMPOWER" and authority_ms(event) is not None
                 and field_life(event)]
     out["empower"] = (empower_stats(empowers, hits, ledgers, len(contenders), field_share(events))
@@ -915,15 +908,13 @@ def ttk_text(kills):
     return stats_text(mutual, 1, " s") + (f" (+{one_sided} one-sided kills)" if one_sided else "")
 
 
-def momentum_text(momentum, lives, dodges):
+def momentum_text(momentum, lives):
     income = sum(momentum.get(key, 0) for key in MOMENTUM_INCOME) if momentum else 0
     if not income:
         return f"{NO_DATA} (no LD_MOMENTUM line)"
-    parts = ", ".join(f"{key} {100 * momentum.get(key, 0) / income:.1f}%" for key in MOMENTUM_INCOME if key in momentum)
-    overdrives = f"{momentum['overdrive']:.0f}" if "overdrive" in momentum else NOT_APPLICABLE
+    parts = ", ".join(f"{key} {100 * momentum.get(key, 0) / income:.1f}%" for key in MOMENTUM_INCOME)
     return (f"{income:.0f} over {lives} field lives ({parts}); idle drift {momentum.get('idle', 0):+.0f}, spent "
-            f"{momentum.get('spent', 0):.0f}, overdrives {overdrives}, "
-            f"perfect dodges {NOT_APPLICABLE if dodges is None else dodges}")
+            f"{momentum.get('spent', 0):.0f}")
 
 
 def empower_stats(empowers, hits, ledgers, contenders, share):
@@ -1029,8 +1020,8 @@ def metric_lines(metrics, names, baseline_source):
     lines.append(f"- Time to kill (first damage between the pair to the death): {ttk_text(kills)}")
     for level in sorted({kill["level"] for kill in kills if kill["same_level"]}):
         lines.append(f"  - same level L{level}: {ttk_text([kill for kill in kills if kill['same_level'] and kill['level'] == level])}")
-    lines.append(f"- Momentum income: {momentum_text(metrics['momentum'], metrics['momentum_lives'], metrics['perfect_dodges'])}"
-                 + (f" ({metrics['training_lines']} rest-training ledger/dodge lines left out)" if metrics["training_lines"] else "")
+    lines.append(f"- Momentum income: {momentum_text(metrics['momentum'], metrics['momentum_lives'])}"
+                 + (f" ({metrics['training_lines']} rest-training ledger lines left out)" if metrics["training_lines"] else "")
                  + (f"; incomplete: {metrics['lives_without_ledger']} field lives have no ledger (alive at the match end)"
                     if metrics["lives_without_ledger"] else ""))
     lines.append(f"- Auto-empower: {empower_text(metrics['empower'])}")
@@ -1154,7 +1145,7 @@ def aggregate_lines(all_metrics, baseline_source):
               *([f"Casts leave out {no_casts} matches without LD_CAST lines.", ""] if no_casts and has_casts else []),
               f"Breakout baseline: {baseline_source or 'none measured'}.", ""]
     totals = {"contender": defaultdict(float), "camp": defaultdict(float)}
-    momentum, lives, dodges, missing, empower = defaultdict(float), 0, None, 0, None
+    momentum, lives, missing, empower = defaultdict(float), 0, 0, None
     for metrics in host:
         for group, amounts in metrics["damage_share"].items():
             for key, value in amounts.items():
@@ -1162,14 +1153,12 @@ def aggregate_lines(all_metrics, baseline_source):
         for key, value in (metrics["momentum"] or {}).items():
             momentum[key] += value
         lives += metrics["momentum_lives"]
-        if metrics["perfect_dodges"] is not None:
-            dodges = (dodges or 0) + metrics["perfect_dodges"]
         missing += metrics["lives_without_ledger"]
         empower = empower_merge(empower, metrics["empower"])
     lines.append(f"- Damage share, hits on contenders: {share_line(totals['contender'])}")
     lines.append(f"- Damage share, hits on camps: {share_line(totals['camp'])}")
     lines.append(f"  - {DAMAGE_NOTE}")
-    lines.append(f"- Momentum income: {momentum_text(momentum, lives, dodges)}"
+    lines.append(f"- Momentum income: {momentum_text(momentum, lives)}"
                  + (f"; incomplete: {missing} field lives have no ledger (alive at the match end)" if missing else ""))
     lines.append(f"- Auto-empower: {empower_text(empower)}")
     for level in sorted({kill["level"] for kill in same_kills}):
