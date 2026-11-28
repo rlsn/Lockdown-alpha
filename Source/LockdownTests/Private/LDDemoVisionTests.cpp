@@ -609,7 +609,7 @@ bool FLDDemoVisionPrivacyTest::RunTest(const FString& Parameters)
         TEXT("Kind"), TEXT("Presentation"), TEXT("FeetCm"), TEXT("Facing"), TEXT("ActionCue"), TEXT("ActionCueAgeMs"), TEXT("ActionCueImpactDelayMs"), TEXT("HitLook"), TEXT("RecentHitAgePlusOneMs"), TEXT("RecentHitId"), TEXT("HitFlags"), TEXT("ActionAbility"), TEXT("ContenderId"), TEXT("CreatureId"),
         TEXT("Level"), TEXT("Health"), TEXT("ShieldBar"), TEXT("MomentumBar"), TEXT("ActionComboStep"), TEXT("Statuses"), TEXT("Actives"),
         TEXT("RecentReaction"), TEXT("RecentReactionAgePlusOneMs"), TEXT("RecentReactionElement"), TEXT("CampAffix"), TEXT("bPeddler"),
-        TEXT("CueFlags")});
+        TEXT("CueFlags"), TEXT("EmpowerReady")});
     Exact(FLDObservedHitReceipt::StaticStruct(), {TEXT("MatchGeneration"), TEXT("ObserverLife"), TEXT("Generation"),
         TEXT("Handle"), TEXT("ObservationEpoch"), TEXT("HitId"), TEXT("OccurredAtMs"), TEXT("HitLook"), TEXT("HitFlags")});
     // A flight names no caster, effect, source or target: only its handle, ground point, heading and look.
