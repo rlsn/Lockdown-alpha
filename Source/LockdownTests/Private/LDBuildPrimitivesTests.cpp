@@ -5192,6 +5192,42 @@ bool FLDCombatFrenzyThirdWaveTest::RunTest(const FString& Parameters)
     return true;
 }
 
+// C-09: the committing branches wind up longer than their base forms (S03 2A, S13 2B 0.30 s, S02 2B 0.28 s, their rank 3
+// forms too), and S17 2B's armed empowered basic winds up 1.6 times as long while it is live.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatCommitWindupsTest, "Lockdown.Rules.Combat.Skills.CommitWindups",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCombatCommitWindupsTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    FString Error;
+    struct FExpect { const TCHAR* Id; ELDSkillBranch Rank2; ELDSkillBranch Rank3; int64 Ms; };
+    for (const FExpect& Row : {FExpect{TEXT("active_crotch_grab"), ELDSkillBranch::A, ELDSkillBranch::A1, 300},
+        FExpect{TEXT("active_charged_ram"), ELDSkillBranch::B, ELDSkillBranch::B2, 300},
+        FExpect{TEXT("active_pants_down"), ELDSkillBranch::B, ELDSkillBranch::B1, 280}})
+    {
+        const FLDDemoAbilityDefinition* Ability=nullptr;
+        if (!TestTrue(Row.Id,F.Catalog->FindAbility(Row.Id,Ability,Error))) { return false; }
+        const FLDDemoAbilityBranch* Two=Ability->FindBranch(Row.Rank2);
+        const FLDDemoAbilityBranch* Three=Ability->FindBranch(Row.Rank3);
+        TestTrue(FString::Printf(TEXT("%s's committing branch and its rank 3 wind up %lld ms, longer than the base"),Row.Id,Row.Ms),
+            Two && Three && Two->WindupMs==Row.Ms && Three->WindupMs==Row.Ms && Ability->WindupMs<Row.Ms);
+    }
+    const FLDDemoAbilityDefinition* Triple=nullptr;
+    if (!TestTrue(TEXT("S17"),F.Catalog->FindAbility(TEXT("active_triple_combo"),Triple,Error))) { return false; }
+    const FLDDemoAbilityValues* Heavy=F.Catalog->FindValues(*Triple,1,ELDSkillBranch::B);
+    const FLDDemoEffectDefinition* Empower=Heavy ? FindEffect(*Heavy,ELDDemoEffectOp::EmpowerBasic) : nullptr;
+    TestTrue(TEXT("S17 2B's empowered basic winds up 1.6 times as long"),Empower && Empower->MultiplierBp==16000);
+    FLDCombatEmpower Armed;
+    Armed.WindupScaleBp=16000;
+    Armed.ExpiresAtMs=5000;
+    FLDCombatEmpower Plain;
+    Plain.ExpiresAtMs=9000;
+    TestEqual(TEXT("A live heavy package scales the next basic's windup"),LDCombatControl::EmpoweredWindupScaleBp({Plain,Armed},4999),int64(16000));
+    TestEqual(TEXT("A lapsed one does not"),LDCombatControl::EmpoweredWindupScaleBp({Plain,Armed},5000),int64(10000));
+    return true;
+}
 // N6's tape is 70 cm across (spec 500 x 70 cm): a body touches it when the band reaches its collision, never 70 cm to each side.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatCordonWidthTest, "Lockdown.Rules.Combat.Skills.CordonWidth",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

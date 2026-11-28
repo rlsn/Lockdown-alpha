@@ -63,6 +63,8 @@ struct FLDCombatEmpower
     int32 BreachStacks = 0;
     int64 LastStunMs = 0;
     bool bAlwaysCrit = false;
+    // C-09 S17 2B: the empowered basic's windup scale in basis points (10000 = unchanged).
+    int64 WindupScaleBp = 10000;
 };
 
 // #198 B12: a voluntary dash (the innate D or an active's dash) in flight. It completes naturally at EndMs; a knockback,
@@ -103,6 +105,8 @@ namespace LDCombatControl
     // False only when the sum leaves int64 (nothing is taken then).
     LOCKDOWN_API bool ConsumeEmpowers(TArray<FLDCombatEmpower>& Armed, int64 AtMs, TArray<FLDCombatEmpower>& OutTaken,
         int64& OutSumP2);
+    // The windup scale of a basic started at AtMs: the largest of the live packages it will take, 10000 without one.
+    LOCKDOWN_API int64 EmpoweredWindupScaleBp(const TArray<FLDCombatEmpower>& Armed, int64 AtMs);
     // Drops lapsed packages (half-open at ExpiresAtMs); true when any ended.
     LOCKDOWN_API bool ExpireEmpowers(TArray<FLDCombatEmpower>& Armed, int64 AtMs);
 

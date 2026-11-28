@@ -1652,6 +1652,8 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bCard, FChec
             || (F.Has(TEXT("breach")) && !IntInto(F, TEXT("breach"), Out.BasicCount, 1, 5))
             || !OptionalFixed(F, TEXT("last_stun"), TEXT("ms"), TEXT("ms"), Out.ExtraDurationMs, 1)
             || !OptionalFlag(F, TEXT("crit"), Out.bAlwaysCrit)
+            // C-09 S17 2B: the empowered basic's windup scale (MultiplierBp, above 1).
+            || !OptionalFixed(F, TEXT("windup_scale"), TEXT("ratio"), TEXT("bp"), Out.MultiplierBp, 10001)
             || (F.Has(TEXT("stats")) && (!Stats(F.Take(TEXT("stats")), Out.Stats, Check, Path + TEXT(".stats"))
                 || !Check.Require((StatMask(Out.Stats) & ~TemporaryStats) == 0, Path, TEXT("timed bonuses cannot change resource maxima")))))
         {

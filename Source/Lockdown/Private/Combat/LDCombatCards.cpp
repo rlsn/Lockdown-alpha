@@ -913,6 +913,7 @@ bool ALDCombatDirector::MakeEmpower(const FLDBodyCombatState& Body, const FLDCom
     Out.BreachStacks=Effect.BasicCount;
     Out.LastStunMs=Effect.ExtraDurationMs;
     Out.bAlwaysCrit=Effect.bAlwaysCrit;
+    Out.WindupScaleBp=Effect.MultiplierBp>10000 ? Effect.MultiplierBp : 10000;
     const FLDProjectedAttributes& Final=Body.AttributeProjection.Final;
     const int64 AD=Share(Final.ADP2,Effect.ADRatioBp), AP=Share(Final.APP2,Effect.APRatioBp);
     if (Effect.BaseP2<0 || AD>MAX_int64-Effect.BaseP2 || AP>MAX_int64-Effect.BaseP2-AD)

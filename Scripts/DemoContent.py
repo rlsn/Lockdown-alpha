@@ -1203,6 +1203,10 @@ def _apply_patch(variant, patch, path):
         variant["effects"].remove(_patch_effect(variant, patch["effect"], path))
     elif kind == "cooldown":
         variant["cooldown"] = {"unit": variant["cooldown"]["unit"], "value": variant["cooldown"]["value"] + patch["add"]["value"]}
+    elif kind == "windup":
+        # C-09: a committing branch (T4 or long reach) winds up longer than its base form.
+        require(patch["value"]["value"] > variant["windup"]["value"], "NumericDomain", path, "a windup patch only lengthens the windup")
+        variant["windup"] = deepcopy(patch["value"])
     else:
         raise ContentError("UnknownPatch", path, f"unregistered patch {kind}")
 

@@ -69,6 +69,16 @@ namespace LDCombatControl
         return true;
     }
 
+    int64 EmpoweredWindupScaleBp(const TArray<FLDCombatEmpower>& Armed, int64 AtMs)
+    {
+        int64 Scale = 10000;
+        for (const FLDCombatEmpower& Pending : Armed)
+        {
+            if (Pending.ExpiresAtMs > AtMs) { Scale = FMath::Max(Scale, Pending.WindupScaleBp); }
+        }
+        return Scale;
+    }
+
     bool ExpireEmpowers(TArray<FLDCombatEmpower>& Armed, int64 AtMs)
     {
         return Armed.RemoveAll([AtMs](const FLDCombatEmpower& Pending) { return Pending.ExpiresAtMs <= AtMs; }) > 0;

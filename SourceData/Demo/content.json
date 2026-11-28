@@ -1827,7 +1827,7 @@
         },
         "2B": {
           "name": "抽裤腰带",
-          "text": "抓扯射程延长，未抓中人时挥出气劲使前方敌人减速 [grab_line.ratio]%，持续 [grab_line.duration] 秒。",
+          "text": "抓扯射程延长，未抓中人时挥出气劲使前方敌人减速 [grab_line.ratio]%，持续 [grab_line.duration] 秒；起手更慢。",
           "patches": [
             {
               "op": "target",
@@ -1852,6 +1852,13 @@
               "value": {
                 "unit": "s",
                 "value": 1.2
+              }
+            },
+            {
+              "op": "windup",
+              "value": {
+                "unit": "s",
+                "value": 0.28
               }
             }
           ]
@@ -2002,7 +2009,7 @@
       "ranks": {
         "2A": {
           "name": "蓄势黑手",
-          "text": "滑步探爪拉长至 [dash.distance] 厘米，命中伤害大幅提高。",
+          "text": "滑步探爪拉长至 [dash.distance] 厘米，命中伤害大幅提高，起手更慢。",
           "patches": [
             {
               "op": "set",
@@ -2021,6 +2028,13 @@
                 "adaptive_ratio"
               ],
               "ratio": 1.35
+            },
+            {
+              "op": "windup",
+              "value": {
+                "unit": "s",
+                "value": 0.3
+              }
             }
           ]
         },
@@ -3682,7 +3696,7 @@
         },
         "2B": {
           "name": "狠抽",
-          "text": "强化 [empower_basic.count] 次，每次伤害更高。",
+          "text": "强化 [empower_basic.count] 次，每次伤害更高，强化的普攻出手更慢。",
           "patches": [
             {
               "op": "set",
@@ -3699,6 +3713,15 @@
                 "ap_ratio"
               ],
               "ratio": 1.8
+            },
+            {
+              "op": "set",
+              "effect": "empower_basic",
+              "field": "windup_scale",
+              "value": {
+                "unit": "ratio",
+                "value": 1.6
+              }
             }
           ]
         },
@@ -4866,7 +4889,7 @@
         },
         "2B": {
           "name": "长途奔袭",
-          "text": "冲撞距离提高到 [dash.distance] 厘米，推开距离提高到 [knockback.distance] 厘米。",
+          "text": "冲撞距离提高到 [dash.distance] 厘米，推开距离提高到 [knockback.distance] 厘米，起手更慢。",
           "patches": [
             {
               "op": "set",
@@ -4884,6 +4907,13 @@
               "value": {
                 "unit": "cm",
                 "value": 280
+              }
+            },
+            {
+              "op": "windup",
+              "value": {
+                "unit": "s",
+                "value": 0.3
               }
             }
           ]

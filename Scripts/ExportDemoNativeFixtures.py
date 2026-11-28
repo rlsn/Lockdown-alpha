@@ -414,6 +414,8 @@ def branch_terms(value, result):
             result["BaseP2"] = scalar(value["base"])
         if "breach" in value:
             result["BasicCount"] = value["breach"]
+        if "windup_scale" in value:
+            result["MultiplierBp"] = scalar(value["windup_scale"])
     elif op == "ground_impact" and "linger" in value:
         result["SecondaryDurationMs"] = scalar(value["linger"])
     elif op == "contact_trap":

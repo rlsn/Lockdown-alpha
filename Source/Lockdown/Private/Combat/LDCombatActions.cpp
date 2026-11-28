@@ -488,7 +488,9 @@ FLDCombatActionReceipt ALDCombatDirector::StartNavAttack(const FLDCombatCaller& 
     const auto Timing=LDTactical::EvaluateBasicTiming(TimingInput,*Catalog());
     int64 ReleaseAt=0, NextAttack=0;
     FString Error;
-    const int64 WindupMs=Timing.IsSuccess() ? Timing.Value->WindupMs : 0;
+    // C-09 S17 2B: an armed heavy empowered basic winds up longer (its interval stays).
+    const int64 WindupScaleBp=LDCombatControl::EmpoweredWindupScaleBp(Body->Empowers,Now);
+    const int64 WindupMs=Timing.IsSuccess() ? Timing.Value->WindupMs/10000*WindupScaleBp+Timing.Value->WindupMs%10000*WindupScaleBp/10000 : 0;
     if (!Timing.IsSuccess() || Record->NextToken==MAX_uint64
         || !LDMatchLifecycle::AddDurationMs(Now,WindupMs,ReleaseAt,Error)
         || !LDMatchLifecycle::AddDurationMs(Now,Timing.Value->IntervalMs,NextAttack,Error))

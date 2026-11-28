@@ -1811,7 +1811,7 @@
             "shield"
           ],
           "windup": {
-            "ms": 100,
+            "ms": 300,
             "unit": "ms"
           }
         },
@@ -2181,7 +2181,7 @@
             "shield"
           ],
           "windup": {
-            "ms": 100,
+            "ms": 300,
             "unit": "ms"
           }
         },
@@ -2310,7 +2310,7 @@
             "shield"
           ],
           "windup": {
-            "ms": 100,
+            "ms": 300,
             "unit": "ms"
           }
         }
@@ -3933,7 +3933,7 @@
             "crit"
           ],
           "windup": {
-            "ms": 120,
+            "ms": 300,
             "unit": "ms"
           }
         },
@@ -4173,7 +4173,7 @@
             "crit"
           ],
           "windup": {
-            "ms": 120,
+            "ms": 300,
             "unit": "ms"
           }
         },
@@ -4292,7 +4292,7 @@
             "crit"
           ],
           "windup": {
-            "ms": 120,
+            "ms": 300,
             "unit": "ms"
           }
         },
@@ -9130,7 +9130,7 @@
             "area"
           ],
           "windup": {
-            "ms": 140,
+            "ms": 280,
             "unit": "ms"
           }
         },
@@ -9502,7 +9502,7 @@
             "area"
           ],
           "windup": {
-            "ms": 140,
+            "ms": 280,
             "unit": "ms"
           }
         },
@@ -9606,7 +9606,7 @@
             "area"
           ],
           "windup": {
-            "ms": 140,
+            "ms": 280,
             "unit": "ms"
           }
         }
@@ -13728,6 +13728,10 @@
                   "bp": 3500,
                   "unit": "ratio"
                 }
+              },
+              "windup_scale": {
+                "bp": 16000,
+                "unit": "ratio"
               }
             }
           ],
@@ -13896,6 +13900,10 @@
                   "bp": 3500,
                   "unit": "ratio"
                 }
+              },
+              "windup_scale": {
+                "bp": 16000,
+                "unit": "ratio"
               }
             }
           ],
@@ -13950,6 +13958,10 @@
                   "bp": 3500,
                   "unit": "ratio"
                 }
+              },
+              "windup_scale": {
+                "bp": 16000,
+                "unit": "ratio"
               }
             }
           ],
@@ -19611,7 +19623,7 @@
     },
     {
       "description_key": "active_charged_ram_2b.description",
-      "description_text": "冲撞距离提高到 [dash.distance] 厘米，推开距离提高到 [knockback.distance] 厘米。",
+      "description_text": "冲撞距离提高到 [dash.distance] 厘米，推开距离提高到 [knockback.distance] 厘米，起手更慢。",
       "icon_id": "icon_active_charged_ram",
       "id": "active_charged_ram_2b",
       "name_key": "active_charged_ram_2b.name",
@@ -19791,7 +19803,7 @@
     },
     {
       "description_key": "active_crotch_grab_2a.description",
-      "description_text": "滑步探爪拉长至 [dash.distance] 厘米，命中伤害大幅提高。",
+      "description_text": "滑步探爪拉长至 [dash.distance] 厘米，命中伤害大幅提高，起手更慢。",
       "icon_id": "icon_active_crotch_grab",
       "id": "active_crotch_grab_2a",
       "name_key": "active_crotch_grab_2a.name",
@@ -20304,7 +20316,7 @@
     },
     {
       "description_key": "active_pants_down_2b.description",
-      "description_text": "抓扯射程延长，未抓中人时挥出气劲使前方敌人减速 [grab_line.ratio]%，持续 [grab_line.duration] 秒。",
+      "description_text": "抓扯射程延长，未抓中人时挥出气劲使前方敌人减速 [grab_line.ratio]%，持续 [grab_line.duration] 秒；起手更慢。",
       "icon_id": "icon_active_pants_down",
       "id": "active_pants_down_2b",
       "name_key": "active_pants_down_2b.name",
@@ -20745,7 +20757,7 @@
     },
     {
       "description_key": "active_triple_combo_2b.description",
-      "description_text": "强化 [empower_basic.count] 次，每次伤害更高。",
+      "description_text": "强化 [empower_basic.count] 次，每次伤害更高，强化的普攻出手更慢。",
       "icon_id": "icon_active_triple_combo",
       "id": "active_triple_combo_2b",
       "name_key": "active_triple_combo_2b.name",
