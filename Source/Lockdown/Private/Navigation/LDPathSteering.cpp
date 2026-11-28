@@ -192,6 +192,18 @@ namespace LDPathSteering
         return bFound;
     }
 
+    bool SameLayerNavPoint(const ANavigationData& Data, const FVector& Foot, double ReachCm, double StepCm, FVector& Out)
+    {
+        FNavLocation OnMesh;
+        if (!(ReachCm > 0) || !(StepCm > 0) || !Data.ProjectPoint(Foot, OnMesh, FVector(ReachCm, ReachCm, StepCm))
+            || FVector::DistSquared2D(OnMesh.Location, Foot) > FMath::Square(ReachCm) || FMath::Abs(OnMesh.Location.Z - Foot.Z) > StepCm)
+        {
+            return false;
+        }
+        Out = OnMesh.Location;
+        return true;
+    }
+
     bool PlanStart(const ULDMapRegistry& Registry, const FLDLegalGround& BodyGround, const FCollisionShape& Capsule,
         FLDLegalGround& Out, ELDWorldQueryFailure& Failure, FString& Error)
     {
@@ -201,15 +213,24 @@ namespace LDPathSteering
         const double Reach=Capsule.GetCapsuleRadius()*2.;
         const double VerticalExtent=FMath::Max<double>(Capsule.GetCapsuleHalfHeight(),
             Registry.WalkableVerticalSpanCm()+Capsule.GetCapsuleHalfHeight());
+        const double StepHeight=GetDefault<ALDCharacter>()->GetCharacterMovement()->MaxStepHeight;
         FVector Vertical;
-        if (Data && VerticalNavPoint(*Data,BodyGround.SurfaceCm,
-            GetDefault<ALDCharacter>()->GetCharacterMovement()->MaxStepHeight,Vertical))
+        if (Data && VerticalNavPoint(*Data,BodyGround.SurfaceCm,StepHeight,Vertical))
         {
             Out=BodyGround;Failure=ELDWorldQueryFailure::None;Error.Reset();return true;
         }
+        // B01: the body's own layer first; the tall box finds a mesh only when this layer has none within reach.
         FNavLocation OnMesh;
-        if (!Data || !Nav->ProjectPointToNavigation(BodyGround.SurfaceCm,OnMesh,FVector(Reach,Reach,VerticalExtent),Data)
-            || FVector::DistSquared2D(OnMesh.Location,BodyGround.SurfaceCm)<=UE_KINDA_SMALL_NUMBER
+        FVector Layer;
+        if (Data && SameLayerNavPoint(*Data,BodyGround.SurfaceCm,Reach,StepHeight,Layer)) { OnMesh.Location=Layer; }
+        else if (!Data || !Nav->ProjectPointToNavigation(BodyGround.SurfaceCm,OnMesh,FVector(Reach,Reach,VerticalExtent),Data))
+        {
+            Out=BodyGround;
+            Failure=ELDWorldQueryFailure::None;
+            Error.Reset();
+            return true;
+        }
+        if (FVector::DistSquared2D(OnMesh.Location,BodyGround.SurfaceCm)<=UE_KINDA_SMALL_NUMBER
             || FVector::DistSquared2D(OnMesh.Location,BodyGround.SurfaceCm)>FMath::Square(Reach))
         {
             Out=BodyGround;

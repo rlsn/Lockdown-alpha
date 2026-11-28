@@ -177,10 +177,10 @@ bool ALDOpponentController::BindRegisteredSelf(const FLDAIContenderBinding& InBi
     if (Evaluation)
     {
         Evaluation->bBound = true;
-        UE_LOG(LogLDAI, Display, TEXT("LD_EVAL_PROFILE contender=%s rival=%s site=%s choices=%d reaction_ms=%d aim_error_cm=%d skip_bp=%d warning_react_ms=%d lead_aim=%d"),
+        UE_LOG(LogLDAI, Display, TEXT("LD_EVAL_PROFILE contender=%s rival=%s site=%s choices=%d reaction_ms=%d aim_error_cm=%d skip_bp=%d warning_react_ms=%d lead_aim=%d reserve_dash=%d"),
             *Binding.GetContender().ToString(), *Evaluation->Profile.Opponent.ToString(), *Evaluation->Profile.Site.ToString(),
             Evaluation->Profile.Choices.Num(), Evaluation->Profile.ReactionMs, Evaluation->Profile.AimErrorCm, Evaluation->Profile.SkipBp,
-            Evaluation->Profile.WarningReactMs, Evaluation->Profile.bLeadAim ? 1 : 0);
+            Evaluation->Profile.WarningReactMs, Evaluation->Profile.bLeadAim ? 1 : 0, Evaluation->Profile.bReserveDash ? 1 : 0);
     }
 #endif
     UE_LOG(LogLDAI, Log, TEXT("LD_AI_OPENING_PLAN contender=%s after_ms=%lld seed=%d"), *Binding.GetContender().ToString(),
@@ -279,6 +279,104 @@ void ALDOpponentController::NoteContest(const FLDOpponentDecisionFrame& Frame, c
     Tally.ChallengesReleased += bReleased ? 1 : 0;
 }
 
+#if WITH_DEV_AUTOMATION_TESTS
+bool ALDOpponentController::EvaluationWarningDue(ALDGameMode& Mode, int64 NowMs)
+{
+    FLDWorldView View;
+    FString Error;
+    if (!Mode.Vision || !Content || !Mode.Vision->EnumerateVisibleUnits(*this, ELDObservationPurpose::Inspect, View, Error)
+        || View.Footprint.SourceStatus != ELDObservationSource::ActiveBody)
+    {
+        return false;
+    }
+    TArray<FLDOpponentWarning> Warnings;
+    LDOpponentFrame::ReadWarnings(View, Warnings);
+    LDOpponentFrame::ReadCastWarnings(View, Binding.GetContender(), *Content, Warnings);
+    // Sightings between decisions count from their own tick; the policy keeps an earlier sighting of a handle.
+    TMap<FGuid, int64>& Seen = Evaluation->State.WarningSeenAtMs;
+    bool bDue = false;
+    for (const FLDOpponentWarning& Warning : Warnings)
+    {
+        const int64 SeenAt = Seen.FindOrAdd(Warning.Handle, NowMs);
+        if (WarningsDecided.Contains(Warning.Handle) || NowMs - SeenAt < Evaluation->Profile.WarningReactMs
+            || Warning.RemainingMs > LDOpponentPolicy::DodgeLeadMs || !LDOpponentPolicy::WarningCovers(Warning, View.Footprint.SourceFeetCm))
+        {
+            continue;
+        }
+        WarningsDecided.Add(Warning.Handle);
+        bDue = true;
+    }
+    return bDue;
+}
+#endif
+
+void ALDOpponentController::WatchDodges(const FLDOpponentDecisionFrame& Frame, const FLDOpponentDecision& Decision, int64 NowMs)
+{
+    if (Frame.Self.Life != DodgeLife)
+    {
+        DodgeWatch.Reset();
+        DodgeLife = Frame.Self.Life;
+    }
+    // -2: the production dodge (its AI.DodgeChance roll); otherwise the evaluation's WarningReactMs (-1: never dodges).
+    int32 ReactMs = -2;
+#if WITH_DEV_AUTOMATION_TESTS
+    if (Evaluation) { ReactMs = Evaluation->Profile.WarningReactMs; }
+#endif
+    const FString React = ReactMs == -2 ? FString(TEXT("-")) : FString::FromInt(ReactMs);
+    const auto Log = [&](const FGuid& Handle, const FDodgeWatch& Watch, const TCHAR* Result, const TCHAR* Reason)
+    {
+        UE_LOG(LogLDAI, Display, TEXT("LD_AI_DODGE t=%lld contender=%s life=%u warning=%s source=%s seen_remaining_ms=%lld react_ms=%s result=%s reason=%s remaining_ms=%lld"),
+            NowMs, *Binding.GetContender().ToString(), DodgeLife, *Handle.ToString(), *Watch.Source.ToString(), Watch.SeenRemainingMs,
+            *React, Result, Reason, Watch.LastRemainingMs);
+    };
+    for (auto It = DodgeWatch.CreateIterator(); It; ++It)
+    {
+        if (Frame.Warnings.ContainsByPredicate([&It](const FLDOpponentWarning& Warning) { return Warning.Handle == It.Key(); })) { continue; }
+        // Landed or out of sight: it ends undodged, standing in it (Reason) or out of it by then (left).
+        if (!It.Value().bDashed && It.Value().bEverCovered) { Log(It.Key(), It.Value(), TEXT("none"), It.Value().bCovered ? It.Value().Reason : TEXT("left")); }
+        It.RemoveCurrent();
+    }
+    if (Frame.Self.Phase != ELDLifePhase::Alive) { return; }
+    const bool bDash = Decision.Body.Kind == ELDOpponentBodyKind::Activate && Decision.Body.Source == ELDOpponentSourceSlot::Dash;
+    const bool bActing = Frame.Self.bChanneling || (Frame.Order.IsLive() && Frame.Order.Kind == ELDOpponentOrderKind::Action);
+    const FLDOpponentSource* Dash = Frame.Self.Sources.FindByPredicate([](const FLDOpponentSource& S) { return S.Slot == ELDOpponentSourceSlot::Dash; });
+    for (const FLDOpponentWarning& Warning : Frame.Warnings)
+    {
+        FDodgeWatch& Watch = DodgeWatch.FindOrAdd(Warning.Handle);
+        if (Watch.SeenAtMs == 0)
+        {
+            Watch.Source = Warning.Source;
+            Watch.SeenAtMs = Frame.Public.NowMs;
+            Watch.SeenRemainingMs = Warning.RemainingMs;
+        }
+        if (Watch.bDashed) { continue; }
+        Watch.bCovered = LDOpponentPolicy::WarningCovers(Warning, Frame.Self.FootCm);
+        Watch.bEverCovered |= Watch.bCovered;
+        Watch.LastRemainingMs = Warning.RemainingMs;
+        if (!Watch.bCovered || Warning.RemainingMs > LDOpponentPolicy::DodgeLeadMs) { continue; }
+        if (bDash)
+        {
+            Watch.bDashed = true;
+            Log(Warning.Handle, Watch, TEXT("dash"), TEXT("-"));
+            continue;
+        }
+        const uint32 Roll = HashCombine(GetTypeHash(Warning.Handle), GetTypeHash(Frame.Self.ContenderId)) % 10000;
+        int64 SeenAt = Watch.SeenAtMs;
+#if WITH_DEV_AUTOMATION_TESTS
+        if (Evaluation)
+        {
+            if (const int64* Earlier = Evaluation->State.WarningSeenAtMs.Find(Warning.Handle)) { SeenAt = *Earlier; }
+        }
+#endif
+        Watch.Reason = bActing ? TEXT("acting")
+            : !Dash || !Dash->bReady ? TEXT("dash_unready")
+            : ReactMs == -1 ? TEXT("off")
+            : ReactMs >= 0 && Frame.Public.NowMs - SeenAt < ReactMs ? TEXT("reaction_wait")
+            : ReactMs == -2 && int64(Roll) >= Content->Get().Parameters.AI.DodgeChanceBp ? TEXT("roll")
+            : TEXT("retry_blocked");
+    }
+}
+
 void ALDOpponentController::ClientTravelInternal_Implementation(const FString&, ETravelType, bool, FGuid)
 {
     UE_LOG(LogLDAI, Display, TEXT("LD_AI_TRAVEL_IGNORED contender=%s"), *Binding.GetContender().ToString());
@@ -306,6 +404,12 @@ void ALDOpponentController::Tick(float DeltaSeconds)
         return;
     }
     const int64 NowMs = Mode->GetAuthorityNowMs();
+#if WITH_DEV_AUTOMATION_TESTS
+    if (NowMs < NextDecisionAtMs && Evaluation && Evaluation->Profile.WarningReactMs >= 0 && EvaluationWarningDue(*Mode, NowMs))
+    {
+        NextDecisionAtMs = NowMs;
+    }
+#endif
     if (NowMs < NextDecisionAtMs) { return; }
     // A long frame plans once on the latest publication; missed decisions are never replayed.
     NextDecisionAtMs = NowMs + Content->Get().Parameters.AI.DecisionIntervalMs;
@@ -350,6 +454,7 @@ void ALDOpponentController::Tick(float DeltaSeconds)
 #endif
     }();
     NoteContest(Frame, Decision);
+    WatchDodges(Frame, Decision, NowMs);
     if (Policy.bBreakoutDrawn && !bGoalReported)
     {
         bGoalReported = true;

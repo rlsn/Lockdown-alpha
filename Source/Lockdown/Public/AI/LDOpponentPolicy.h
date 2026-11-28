@@ -65,6 +65,8 @@ struct FLDOpponentWarning
     FVector Heading = FVector::ForwardVector;
     double RadiusCm = 0, LengthCm = 0, AngleDegrees = 0;
     int64 RemainingMs = 0;
+    // For logs only: the public look of a pending ground or projectile warning, or cast_<ability> for a cast cue.
+    FName Source;
 };
 
 // One bound active source exactly as the authority's availability read reports it; no second cooldown.
@@ -703,6 +705,13 @@ namespace LDOpponentPolicy
     constexpr double BodyPressedCm = 30.;
     // B01 T04-03: how far inside the final street ring a body keeps; one outside Radius - margin walks back to Radius - 2 x margin.
     constexpr double StreetRingMarginCm = 150.;
+    // Issue #287 spec §13: an enemy warning on the own foot is dashed out of once it lands within this many ms.
+    constexpr int64 DodgeLeadMs = 450;
+    // A dodge clears the outline by this much, and passes no visible body's foot closer than this (two capsules).
+    constexpr double DodgeClearanceCm = 90.;
+    // True when FootCm stands in Warning's public outline (a disc, a line of half-width RadiusCm, or a cone of LengthCm);
+    // OutAway is the unit way out (sideways from a line or cone, outward from a disc).
+    LOCKDOWN_API bool WarningCovers(const FLDOpponentWarning& Warning, const FVector& FootCm, FVector* OutAway = nullptr);
 #if WITH_DEV_AUTOMATION_TESTS
     // DEV build evaluation (docs/systems/BUILD_EVALUATION.md): the production engagement of one visible unit exactly as
     // Decide engages it (activation order §6.3, dash chase, then the basic attack, with the same failure memory). A fixed

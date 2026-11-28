@@ -27,7 +27,7 @@ import re
 from pathlib import Path
 
 ADAPTER_ID = "lockdown-demo"
-ADAPTER_VERSION = 17
+ADAPTER_VERSION = 18
 # LDBuildEvaluation::MaxCases and MaxBuildSteps of the native driver (LDBuildEvaluationProbe.h); a larger plan is refused
 # before any run.
 NATIVE_MAX_CASES = 500
@@ -43,7 +43,7 @@ CAST_LAG_MS = 50
 # (every active is ready at the field entry) did not exercise its build, so the Case is Invalid (NeverCast).
 NEVER_CAST_GRACE_MS = 5000
 # Stances that walk into the rival: a timeout with no hit between two of them is an approach failure (NoEngagement); a
-# kite, hold or guard stance may keep its distance on purpose, so such a timeout stays a censored result.
+# kite, hold, guard or strafe stance may keep its distance on purpose, so such a timeout stays a censored result.
 ENGAGING_STANCES = ("pursue", "burst")
 ROLES = ("subject", "opponent")
 PUBLIC_PLACE_KINDS = ("Spawn", "Camp", "Capture", "Dorm", "Airdrop")
@@ -219,7 +219,8 @@ def describe(project_root):
                 "sides": 2,
                 "budget_classes": ["standard"],
                 "metrics": list(METRICS),
-                "parameters": {"site": places, "duel_timeout_ms": [1000, min(first_field_ms, boss_appear_ms) - 1],
+                "parameters": {"site": places, "clear_camps": [False, True],
+                               "duel_timeout_ms": [1000, min(first_field_ms, boss_appear_ms) - 1],
                                "first_field_ms": first_field_ms,
                                "supply_xp": [0, cumulative_xp(progression)[-1]],
                                "empower": [False, True], "empower_host": list(EMPOWER_HOSTS),
@@ -235,7 +236,9 @@ def describe(project_root):
                 "description": ("A Listen Host of L_Demo runs one ordinary match per Case: the Host only orchestrates; two AI "
                                 "contenders choose their active offers along their plans from a T=0 XP supply, build by their "
                                 "planned build steps (or, without them, by the production AI rule), walk to a public place and "
-                                "fight each other with the production engagement until a death or the duel timeout."),
+                                "fight each other with the production engagement until a death or the duel timeout. With "
+                                "clear_camps every camp group leaves the field once the initial camps stand and stays away "
+                                "for the duel (an evaluation fixture; the map and its camps are unchanged)."),
             }
         },
         "metrics": METRICS,
@@ -326,21 +329,22 @@ def card_capacity(params, level):
     return params["card_capacity_base"] + (level - 1) // params["card_levels_per_slot"]
 
 
-STANCE_KINDS = ("kite", "burst", "hold", "guard")
+STANCE_KINDS = ("kite", "burst", "hold", "guard", "strafe")
 STANCE_STANDOFF_CM = (200, 2000)
 STANCE_THRESHOLD_BP = (1000, 9000)
 STANCE_LEASH_CM = (500, 5000)
 # Operation knobs (any stance, each optional) and their native limits; an absent knob is its default (exact play, no
-# warning dodge, no lead aim). lead_aim is a flag.
+# warning dodge, no lead aim, the dash free for chases). lead_aim and reserve_dash are flags.
 OPERATION_KNOBS = {"reaction_ms": (0, 1500), "aim_error_cm": (0, 400), "skip_bp": (0, 9000), "warning_react_ms": (0, 1500)}
-OPERATION_FLAGS = ("lead_aim",)
-OPERATION_DEFAULTS = {"reaction_ms": 0, "aim_error_cm": 0, "skip_bp": 0, "warning_react_ms": -1, "lead_aim": False}
+OPERATION_FLAGS = ("lead_aim", "reserve_dash")
+OPERATION_DEFAULTS = {"reaction_ms": 0, "aim_error_cm": 0, "skip_bp": 0, "warning_react_ms": -1, "lead_aim": False,
+                      "reserve_dash": False}
 
 
 def _stance(plan, role):
-    """The optional engagement stance (absent: the production pursue): {"kind": "kite"|"burst"|"hold"|"guard",
+    """The optional engagement stance (absent: the production pursue): {"kind": "kite"|"burst"|"hold"|"guard"|"strafe",
     "standoff_cm": N, "threshold_bp": N (guard only, required), "leash_cm": N (optional)}, each with the optional operation
-    knobs reaction_ms, aim_error_cm, skip_bp, warning_react_ms and the flag lead_aim. {"kind": "pursue"} is written only to
+    knobs reaction_ms, aim_error_cm, skip_bp, warning_react_ms and the flags lead_aim and reserve_dash. {"kind": "pursue"} is written only to
     carry knobs."""
     stance = plan[role].get("stance")
     if stance is None:
@@ -368,7 +372,7 @@ def _stance(plan, role):
             or set(stance) - keys - {"leash_cm"} - knobs or not bounded("standoff_cm", STANCE_STANDOFF_CM)
             or (guard and not bounded("threshold_bp", STANCE_THRESHOLD_BP))
             or ("leash_cm" in stance and not bounded("leash_cm", STANCE_LEASH_CM))):
-        raise ValueError(f"plan.{role}.stance: {{\"kind\": kite|burst|hold|guard, \"standoff_cm\": "
+        raise ValueError(f"plan.{role}.stance: {{\"kind\": kite|burst|hold|guard|strafe, \"standoff_cm\": "
                          f"{STANCE_STANDOFF_CM[0]}..{STANCE_STANDOFF_CM[1]}, \"threshold_bp\": "
                          f"{STANCE_THRESHOLD_BP[0]}..{STANCE_THRESHOLD_BP[1]} (guard only), optional \"leash_cm\": "
                          f"{STANCE_LEASH_CM[0]}..{STANCE_LEASH_CM[1]}}} (omit it to pursue)")
@@ -656,9 +660,11 @@ def scenario_problems(scenario, caps):
     params = scenario["parameters"]
     spec = caps["scenarios"]["duel_site"]["parameters"]
     problems = []
-    unknown = set(params) - {"site", "duel_timeout_ms", "supply_xp", "empower", "empower_host"}
+    unknown = set(params) - {"site", "duel_timeout_ms", "supply_xp", "clear_camps", "empower", "empower_host"}
     if unknown:
         problems.append(f"IllegalScenario: unknown duel_site parameters {sorted(unknown)}")
+    if "clear_camps" in params and not isinstance(params["clear_camps"], bool):
+        problems.append("IllegalScenario: clear_camps is true or false")
     if params.get("site") not in spec["site"]:
         problems.append(f"IllegalScenario: site {params.get('site')} is not a public place of this world")
     timeout = params.get("duel_timeout_ms")
@@ -712,9 +718,12 @@ def native_input(run_id, manifest, caps, cases):
             if plan[role].get("breakout_preset"):
                 row["breakout_preset"] = plan[role]["breakout_preset"]
             contenders.append(row)
-        out.append({"case_id": case["case_id"], "seed": case["seed"], "site": params["site"],
-                    "duel_timeout_ms": params["duel_timeout_ms"], "wall_timeout_s": manifest["budget"]["case_wall_timeout_s"],
-                    "contenders": contenders})
+        row = {"case_id": case["case_id"], "seed": case["seed"], "site": params["site"],
+               "duel_timeout_ms": params["duel_timeout_ms"], "wall_timeout_s": manifest["budget"]["case_wall_timeout_s"],
+               "contenders": contenders}
+        if params.get("clear_camps"):
+            row["clear_camps"] = True
+        out.append(row)
     return {"schema": NATIVE_INPUT_SCHEMA, "schema_version": NATIVE_INPUT_SCHEMA_VERSION, "run_id": run_id,
             "content_root": caps["content"]["digest"], "cases": out}
 
@@ -1101,6 +1110,11 @@ def case_evidence(case, manifest, caps, result, trace_text):
             or fields[0].get("segment") != "0" or fields[0].get("at_ms") != str(t0)
             or fields[0].get("field_t_ms") != "0" or fields[0].get("final") != "0"):
         reasons.append("TraceIncomplete: the first field entry is missing or disagrees with the duel start")
+    clears = [fields for tag, fields, _ in events if tag == "LD_EVAL_CAMPS_CLEARED"]
+    if params.get("clear_camps") and len(clears) != 1:
+        reasons.append("CampsNotCleared: clear_camps has no single LD_EVAL_CAMPS_CLEARED in the Case")
+    if not params.get("clear_camps") and clears:
+        reasons.append("TraceIncomplete: camps were cleared without clear_camps")
     for role, contender in ids.items():
         spawns = [fields for tag, fields, _ in events if tag == "LD_EVAL_FIELD_SPAWN" and fields.get("contender") == contender]
         if (len(spawns) != 1 or spawns[0].get("t") != str(t0) or spawns[0].get("generation") != str(result["generation"])

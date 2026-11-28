@@ -3394,6 +3394,47 @@ bool FLDDemoOpponentCastWarningsTest::RunTest(const FString& Parameters)
     return true;
 }
 
+// B01 X1: a dodge leaves the warning's outline by a way no visible body stands on; the plain way out (outward from a disc)
+// can run into the rival who cast it at the edge, where the dash stops still inside.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentDodgeWayTest, "Lockdown.Rules.DemoOpponentPolicy.DodgeWay",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentDodgeWayTest::RunTest(const FString& Parameters)
+{
+    using namespace LDOpponentPolicyTests;
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(*this, Catalog)) { return false; }
+    FLDOpponentDecisionFrame Frame;
+    if (!BaseFrame(*this, *Catalog, Frame)) { return false; }
+    FLDOpponentSource Dash;
+    Dash.Slot = ELDOpponentSourceSlot::Dash;
+    Dash.DefinitionId = TEXT("innate_dash");
+    Dash.bReady = true;
+    Dash.RangeCm = 450;
+    Frame.Self.Sources = {Dash};
+    FLDOpponentWarning Disc;
+    Disc.Handle = FGuid(0xF4, 0, 0, 1);
+    Disc.CentreCm = FVector(-50, 0, 0);
+    Disc.RadiusCm = 200;
+    Disc.RemainingMs = 300;
+    Frame.Warnings = {Disc};
+    const auto Way = [&](const FLDOpponentDecisionFrame& At)
+    {
+        FLDOpponentPolicyState State;
+        const TOptional<FLDOpponentBodyIntent> Dodge = LDOpponentPolicy::DodgeWarning(At, *Catalog, State);
+        return Dodge.IsSet() && Dodge->Source == ELDOpponentSourceSlot::Dash ? Dodge->Direction : FVector::ZeroVector;
+    };
+    const FVector Open = Way(Frame);
+    bool bGood = TestTrue(TEXT("Nobody in the way: straight out of the disc"), Open.Equals(FVector(1, 0, 0), 1.e-4));
+    Frame.Units = {Unit(2, ELDOpponentUnitKind::Contender, 150, 0)};
+    const FVector Round = Way(Frame);
+    bGood &= TestTrue(TEXT("The rival on the way out: another way that leaves the disc within the dash and passes clear of it"),
+        !Round.IsNearlyZero() && FVector::DotProduct(Round, FVector(1, 0, 0)) < .75
+        && FVector::Dist2D(Round * 450., Disc.CentreCm) > Disc.RadiusCm + LDOpponentPolicy::DodgeClearanceCm
+        && FMath::PointDistToSegment(Frame.Units[0].FootCm, FVector::ZeroVector, Round * 450.) >= LDOpponentPolicy::DodgeClearanceCm);
+    return bGood;
+}
+
 // B01 T04-03: once the final street closure runs, a body outside the current ring walks back inside it before anything else.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentStreetRingTest, "Lockdown.Rules.DemoOpponentPolicy.StreetRing",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
