@@ -1,6 +1,7 @@
 import contextlib
 import io
 import json
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -345,6 +346,15 @@ class SummarizePlaytestLogTest(unittest.TestCase):
         flagged = summarize(collect([str(silent)]), metrics_only=True)
         self.assertIn("  - AI that never cast in any of their fights: 1 (B 1 fights)", flagged)
         self.assertIn("| AI that never cast in any of their fights | 0 | 1 |", flagged)
+        # A Host without overdrive and perfect dodges writes no overdrive=/dodge= fields and no LD_PERFECT_DODGE lines:
+        # those read as not applicable, never 0, and dodge leaves the income split.
+        removed = [re.sub(r" (dodge|overdrive)=\S+", "", row) for row in rows if "LD_PERFECT_DODGE" not in row]
+        (self.root / "Removed.log").write_text("\n".join(removed) + "\n", encoding="utf-8")
+        trimmed = summarize(collect([str(self.root / "Removed.log")]), metrics_only=True)
+        self.assertIn("Momentum income: 95 over 2 field lives (basic 21.1%, combat 21.1%, skill 47.4%, reaction 10.5%, "
+                      "other 0.0%); idle drift -5, spent 130, overdrives n/a (the Host log has no such mechanic), "
+                      "perfect dodges n/a (the Host log has no such mechanic)", trimmed)
+        self.assertIn("overdrives n/a", trimmed.split("## Metrics across")[1])
         # Field objectives: one serial ends, the other repeats its Open line every frame and never ends.
         objective = lambda serial, kind, phase: line(15, "LogLDWorld", "Display",
                                                      f"LD_OBJECTIVE serial={serial} kind={kind} phase={phase} anchor=a field_t_ms=1")

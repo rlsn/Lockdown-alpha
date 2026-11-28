@@ -467,6 +467,7 @@ DAMAGE_CATEGORIES = (("basic", "basic"), ("skill", "skill"), ("card", "card"), (
 DAMAGE_NOTE = "reaction settles count under their applier's source; reaction share: no data (LD_HIT has no reaction field)"
 MOMENTUM_INCOME = ("basic", "combat", "skill", "reaction", "dodge", "other")
 NO_DATA = "no data"
+NOT_APPLICABLE = "n/a (the Host log has no such mechanic)"
 NO_BASELINE = ("no measured same-level bare-build baseline; pass --baseline-run with BuildEvaluation bare-mirror runs "
                "or --baseline-dps")
 
@@ -780,12 +781,16 @@ def match_metrics(events, baseline):
     out["lives_without_ledger"] = len(field_lives - ledger_lives)
     momentum = defaultdict(float)
     for event in ledgers:
+        # A Host without overdrive or perfect dodges writes no overdrive= or dodge= field: those keys stay absent.
         for key in (*MOMENTUM_INCOME, "idle", "spent", "overdrive"):
-            momentum[key] += number(event, key)
+            if key in event.fields:
+                momentum[key] += number(event, key)
     out["momentum"] = dict(momentum) if ledgers else None
     out["momentum_lives"] = len(ledgers)
-    out["perfect_dodges"] = sum(1 for event in events if event.tag == "LD_PERFECT_DODGE" and field_life(event)
-                                and (event.get("entity"), event.get("life")) in ledger_lives)
+    dodge_lines = [event for event in events if event.tag == "LD_PERFECT_DODGE"]
+    out["perfect_dodges"] = (sum(1 for event in dodge_lines if field_life(event)
+                                 and (event.get("entity"), event.get("life")) in ledger_lives)
+                             if dodge_lines or "dodge" in momentum else None)
     out["training_lines"] = sum(1 for event in events if event.tag in ("LD_MOMENTUM", "LD_PERFECT_DODGE")
                                 and not field_life(event))
 
@@ -900,9 +905,11 @@ def momentum_text(momentum, lives, dodges):
     income = sum(momentum.get(key, 0) for key in MOMENTUM_INCOME) if momentum else 0
     if not income:
         return f"{NO_DATA} (no LD_MOMENTUM line)"
-    parts = ", ".join(f"{key} {100 * momentum.get(key, 0) / income:.1f}%" for key in MOMENTUM_INCOME)
+    parts = ", ".join(f"{key} {100 * momentum.get(key, 0) / income:.1f}%" for key in MOMENTUM_INCOME if key in momentum)
+    overdrives = f"{momentum['overdrive']:.0f}" if "overdrive" in momentum else NOT_APPLICABLE
     return (f"{income:.0f} over {lives} field lives ({parts}); idle drift {momentum.get('idle', 0):+.0f}, spent "
-            f"{momentum.get('spent', 0):.0f}, overdrives {momentum.get('overdrive', 0):.0f}, perfect dodges {dodges}")
+            f"{momentum.get('spent', 0):.0f}, overdrives {overdrives}, "
+            f"perfect dodges {NOT_APPLICABLE if dodges is None else dodges}")
 
 
 OBJECTIVE_PHASES = {"1": "Announced", "2": "Open", "3": "Won", "4": "Expired"}  # ELDObjectivePhase (LDFieldPacing.h)
@@ -1064,7 +1071,7 @@ def aggregate_lines(all_metrics, baseline_source):
               *([f"Casts leave out {no_casts} matches without LD_CAST lines.", ""] if no_casts and has_casts else []),
               f"Breakout baseline: {baseline_source or 'none measured'}.", ""]
     totals = {"contender": defaultdict(float), "camp": defaultdict(float)}
-    momentum, lives, dodges, missing = defaultdict(float), 0, 0, 0
+    momentum, lives, dodges, missing = defaultdict(float), 0, None, 0
     for metrics in host:
         for group, amounts in metrics["damage_share"].items():
             for key, value in amounts.items():
@@ -1072,7 +1079,8 @@ def aggregate_lines(all_metrics, baseline_source):
         for key, value in (metrics["momentum"] or {}).items():
             momentum[key] += value
         lives += metrics["momentum_lives"]
-        dodges += metrics["perfect_dodges"]
+        if metrics["perfect_dodges"] is not None:
+            dodges = (dodges or 0) + metrics["perfect_dodges"]
         missing += metrics["lives_without_ledger"]
     lines.append(f"- Damage share, hits on contenders: {share_line(totals['contender'])}")
     lines.append(f"- Damage share, hits on camps: {share_line(totals['camp'])}")
