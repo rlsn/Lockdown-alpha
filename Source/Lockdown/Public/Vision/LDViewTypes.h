@@ -25,8 +25,10 @@ namespace LDObservation
     // 21 packs public status expiry times without losing precision.
     // 22 uses the finer square-cell ground coverage raster.
     // 23 moves camp-clear recovery orbs and #345 tactical entities/hit flags into sight-authorized FLDWorldView.
-    // 25 removes the overdrive charge, the overdrive cast and the Overdriven hit flag.
-    constexpr uint32 Schema = 26;
+    // 25 removes the overdrive charge, the overdrive cast, the Overdriven hit flag and the phantom decoy look (23 is a hole).
+    // 26 removes the Dodged hit flag (32 is a hole).
+    // 27 adds the public auto-empower ready mark (EmpowerReady) to the momentum group.
+    constexpr uint32 Schema = 27;
     // A ground state's wire size (LDViewTypes.cpp SerializeObservedGround): SC-07 registers MaxGroundStates of them per frame.
     constexpr int32 GroundStateWireBytes = 16;
     // The public momentum bar of a visible contender: 0..MomentumBarFull (never the exact value).
@@ -36,8 +38,8 @@ namespace LDObservation
     constexpr uint16 RecentHitWindowMs = 300;
     // A visible reaction's name floats over its target while its cue is this young (spec §12).
     constexpr uint16 RecentReactionWindowMs = 1000;
-    enum EHitFlags : uint8 { Critical = 1, ShieldAbsorbed = 2, ShieldBroken = 4, Dodged = 32, Parried = 64 };
-    constexpr uint8 HitFlagsMask = Critical | ShieldAbsorbed | ShieldBroken | Dodged | Parried;
+    enum EHitFlags : uint8 { Critical = 1, ShieldAbsorbed = 2, ShieldBroken = 4, Parried = 64 };
+    constexpr uint8 HitFlagsMask = Critical | ShieldAbsorbed | ShieldBroken | Parried;
     // Square display cells sampled over the native ground bounds with padding as needed. Low bit first.
     constexpr int32 CoverageWidth = 512;
     constexpr int32 CoverageHeight = 320;
@@ -84,8 +86,8 @@ UENUM() enum class ELDObservedProjectileLook : uint8
     ChalkReturn = 12, SockReturn = 13, Road = 14, ConeWarning = 15, LineWarning = 16, Wind = 17,
     // N4: a school bag (RadiusCm = its body) and the wall between two bags (LengthCm, RadiusCm = half width).
     Bag = 18, BagWall = 19,
-    // #345: piercing fist-wind wave, collectible slipper drop, elastic cordon tape, phantom decoy afterimage, and shield shard burst.
-    FistWind = 20, SlipperDrop = 21, CordonTape = 22, PhantomDecoy = 23, ShardBurst = 24
+    // #345: piercing fist-wind wave, collectible slipper drop, elastic cordon tape and shield shard burst (23 is retired).
+    FistWind = 20, SlipperDrop = 21, CordonTape = 22, ShardBurst = 24
 };
 // Spec §8.3 ground-state footprints: a circle, D10's band (ExtentCm = half length) or N1's sector (ExtentCm = angle).
 UENUM() enum class ELDObservedGroundShape : uint8 { Circle = 0, Band = 1, Sector = 2 };

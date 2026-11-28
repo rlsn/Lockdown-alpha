@@ -128,9 +128,6 @@ public:
     UNiagaraComponent* PlayPack(LDSliceVfx::EPack Pack, const FVector& At, float Scale, const FRotator& Rotation = FRotator::ZeroRotator);
     // A prop mesh a skill's observed proxy is drawn with (LDSliceVfx::EMesh past the slashes); null while it is missing.
     UStaticMesh* PropMesh(LDSliceVfx::EMesh Mesh);
-    // A still translucent copy of the nearest shown body within ReachCm of At, in the pose it holds now, standing at At
-    // and attached to Host (it leaves with Host). Null when no body is that near.
-    UPoseableMeshComponent* StandIn(AActor& Host, const FVector& At, const FLinearColor& Glow, float ReachCm);
     // The supporting floor under At (the point itself when nothing is below it within reach).
     FVector FloorUnder(const FVector& At) const { FVector Normal; return GroundUnder(At, Normal); }
     // A basic or finisher hit on Victim's Chest struck from From's side, bound to Victim.

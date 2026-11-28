@@ -587,7 +587,7 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
     {
         View.MomentumCostP2=Body->SplitDashLeft>0 && NowMs<=Body->SplitDashUntilMs ? 0 : Terms.DashMomentumCostP2;
     }
-    else if (BranchRecastOpen(*Body,Source,NowMs) || BranchFreeCast(*Body,Source,NowMs) || Body->FreeCasts>0 || Terms.HPCostBpPerMomentum>0)
+    else if (BranchRecastOpen(*Body,Source,NowMs) || BranchFreeCast(*Body,Source,NowMs) || Terms.HPCostBpPerMomentum>0)
     {
         View.MomentumCostP2=0;
     }
@@ -1049,8 +1049,6 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
         Out.ShieldP2=Body->Resources.ShieldP2;
         Out.ComboStep=Body->ComboStep;
         Out.ComboStartMs=Body->ComboStartMs;
-        Out.PerfectDodges=Body->PerfectDodges;
-        Out.LastPerfectDodgeAtMs=Body->LastPerfectDodgeAtMs;
         if (!Body->bPendingDeath)
         {
             const int64 RootedUntilMs=LDTactical::ActiveRootUntilMs(Body->Roots,NowMs);

@@ -19,10 +19,9 @@ class ALDGameState;
 namespace LDWorldFeedback
 {
     // DealtConfirm: the own receipt of a hit the own body landed (LDHitFeel), shown as a short word in front of it.
-    // PerfectDodge / ChainEnd (#305): a perfect dodge of the own body and the end of one of its counted chains (Amount = its
-    // steps), each a word over the own body.
+    // ChainEnd (#305): the end of one of the own body's counted chains (Amount = its steps), a word over the own body.
     enum class EKind : uint8 { DamageTaken, Heal, ShieldGain, ShieldAbsorbed, UnitDamage, UnitHeal, Experience, LevelUp, Kill, UnitCast, DealtConfirm,
-        UnitReaction, PerfectDodge, ChainEnd, RecoveryPack };
+        UnitReaction, ChainEnd, RecoveryPack };
     struct FEvent
     {
         EKind Kind=EKind::DamageTaken;
@@ -121,7 +120,6 @@ namespace LDWorldFeedback
         int64 DealtAtMs=0;         // the own hit receipt of the baseline (LastDealtAtMs)
         int64 ReactionAtMs=0;      // the own body's last reaction of the baseline (Cues.LastReactionAtMs)
         int64 RecoveryPackAtMs=0;
-        uint32 PerfectDodges=0;    // the own body's perfect dodges of the baseline life
         bool bChains=false;        // the chain ends of this match are primed
         uint64 ChainSerial=0;      // the newest own chain end already told
         bool bGrowth=false;

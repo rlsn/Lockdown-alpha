@@ -27,57 +27,8 @@ namespace LDCombatMomentumDetail
     }
 }
 
-// Momentum (劲) and the momentum income hooks of Combat (docs/systems/COMBAT_AND_GROWTH.md
-// "劲、连击、爆劲与完美闪避"). The pure rules are LDMomentum; this file owns the body records they change.
-
-bool ALDCombatDirector::ResolvePerfectDodges(const FGuid& EffectId, const FGuid& SourceEntity, TFunctionRef<bool(const FVector&)> InArea,
-    int64 NowMs, FString& Error, TFunction<int64(const FVector&)> ResolveAt)
-{
-    const FLDDemoContentSnapshot* Content=Catalog();
-    if (!Content) { Error=TEXT("A perfect dodge needs the approved momentum terms."); return false; }
-    const FLDDemoMomentumParameters& M=Content->Get().Parameters.Momentum;
-    PerfectDodgeMarks.RemoveAll([NowMs,&M](const TTuple<FGuid,FGuid,int64>& Mark) { return NowMs-Mark.Get<2>()>M.PerfectDodgeWindowMs*4; });
-    for (auto& Pair : Bodies)
-    {
-        FLDBodyCombatState& Body=Pair.Value;
-        ALDCharacter* Actor=Pair.Key.Get();
-        if (!Actor || Body.bPendingDeath || Body.Victim.Kind!=ELDVictimKind::Contender || Body.Victim.EntityId==SourceEntity
-            || !Body.DashStartedAtMs.IsSet()) { continue; }
-        const bool bStartInside=InArea(Body.DashStartFootCm);
-        const bool bNowInside=InArea(FootOf(*Actor));
-        const int64 ResolveMs=ResolveAt ? FMath::Min(NowMs,ResolveAt(Body.DashStartFootCm)) : NowMs;
-        if (!LDMomentum::IsPerfectDodge(M.PerfectDodgeWindowMs,Body.DashStartedAtMs.GetValue(),ResolveMs,bStartInside,bNowInside)) { continue; }
-        const FGuid Dodger=Body.Victim.EntityId;
-        if (PerfectDodgeMarks.ContainsByPredicate([&EffectId,&Dodger](const TTuple<FGuid,FGuid,int64>& Mark)
-            { return Mark.Get<0>()==EffectId && Mark.Get<1>()==Dodger; })) { continue; }
-        PerfectDodgeMarks.Emplace(EffectId,Dodger,NowMs);
-        GrantMomentum(Body,M.PerfectDodgeP2,ELDMomentumBook::Dodge);
-        if (M.DashDodgeCooldownRefundBp>0)
-        {
-            if (FLDCombatEntityRecord* Record=FindRecord(Dodger))
-            {
-                const FName InnateId=LDCombatSourceRules::InnateDashId();
-                for (FLDCombatTrack& Track : Record->Tracks)
-                {
-                    if (Track.Kind==ELDCombatSourceKind::Innate && Track.DefinitionId==InnateId && Track.ReadyAtMs>NowMs)
-                    {
-                        const int64 Rem=Track.ReadyAtMs-NowMs;
-                        Track.ReadyAtMs=LDCombatSourceRules::ReduceReadyAt(Track.ReadyAtMs,NowMs,
-                            Rem/10000*M.DashDodgeCooldownRefundBp+Rem%10000*M.DashDodgeCooldownRefundBp/10000);
-                    }
-                }
-            }
-        }
-        ++Body.PerfectDodges;
-        Body.LastPerfectDodgeAtMs=NowMs;
-        MarkViewChanged(Dodger);
-        // D04 and D09 answer the dodge.
-        if (!OnPerfectDodgeCards(Body,NowMs,Error)) { return false; }
-        UE_LOG(LogLDCombat,Log,TEXT("LD_PERFECT_DODGE t=%lld entity=%s life=%u effect=%s source=%s momentum=%s"),NowMs,*LDLog::Id(Dodger),
-            Body.Victim.Life,*LDLog::Id(EffectId),*LDLog::Id(SourceEntity),*LDLog::P2(Body.Resources.MomentumP2));
-    }
-    return true;
-}
+// Momentum (劲) and the momentum income hooks of Combat (docs/systems/COMBAT_AND_GROWTH.md "劲与连击").
+// The pure rules are LDMomentum; this file owns the body records they change.
 
 int64 ALDCombatDirector::GrantMomentum(FLDBodyCombatState& Body, int64 AmountP2, ELDMomentumBook Kind)
 {
@@ -108,7 +59,6 @@ int64 ALDCombatDirector::GrantMomentum(FLDBodyCombatState& Body, int64 AmountP2,
     case ELDMomentumBook::Combat: Ledger.CombatP2+=Applied; break;
     case ELDMomentumBook::Skill: Ledger.SkillP2+=Applied; break;
     case ELDMomentumBook::Reaction: Ledger.ReactionP2+=Applied; break;
-    case ELDMomentumBook::Dodge: Ledger.DodgeP2+=Applied; break;
     case ELDMomentumBook::Idle: Ledger.IdleP2+=Applied; break;
     case ELDMomentumBook::Spent: Ledger.SpentP2-=Applied; break;
     default: Ledger.OtherP2+=Applied; break;
@@ -171,9 +121,9 @@ void ALDCombatDirector::LogMomentumLedger(const FLDBodyCombatState& Body) const
     const LDMomentum::FLedger& L=Body.MomentumLedger;
     const ILDLifeAuthority* Mode=Authority();
     const int64 ArmedMs=Body.EmpowerArmedMs+(Body.EmpowerArmedSinceMs>=0 && Mode ? FMath::Max<int64>(Mode->GetAuthorityNowMs()-Body.EmpowerArmedSinceMs,0) : 0);
-    UE_LOG(LogLDCombat,Log,TEXT("LD_MOMENTUM entity=%s life=%u basic=%s combat=%s skill=%s reaction=%s dodge=%s other=%s idle=%s spent=%s empower=%d empower_spent=%s blocked=%s armed_ms=%lld end=%s"),
+    UE_LOG(LogLDCombat,Log,TEXT("LD_MOMENTUM entity=%s life=%u basic=%s combat=%s skill=%s reaction=%s other=%s idle=%s spent=%s empower=%d empower_spent=%s blocked=%s armed_ms=%lld end=%s"),
         *LDLog::Id(Body.Victim.EntityId),Body.Victim.Life,*LDLog::P2(L.BasicP2),*LDLog::P2(L.CombatP2),*LDLog::P2(L.SkillP2),
-        *LDLog::P2(L.ReactionP2),*LDLog::P2(L.DodgeP2),*LDLog::P2(L.OtherP2),*LDLog::P2(L.IdleP2),*LDLog::P2(L.SpentP2),
+        *LDLog::P2(L.ReactionP2),*LDLog::P2(L.OtherP2),*LDLog::P2(L.IdleP2),*LDLog::P2(L.SpentP2),
         Body.Empowerments,*LDLog::P2(Body.EmpowerSpentP2),*LDLog::P2(Body.EmpowerBlockedP2),ArmedMs,
         *LDLog::P2(Body.Resources.MomentumP2));
 }

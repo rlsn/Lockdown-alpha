@@ -1712,11 +1712,10 @@ bool ALDCombatDirector::CardGrowthTerms(const FLDAttributeProjection& Projection
     {
         for (const FLDDemoStatBonus& Stat : Ref.Effect.Stats) { Totals.FindOrAdd(Stat.Stat)+=Stat.Amount*Counters.ControlsTaken; }
     }
-    // A13: every full count of basic hits on contenders, D09: every perfect dodge, adds the card's stats (each copy).
+    // A13: every full count of basic hits on contenders adds the card's stats (each copy).
     for (const FLDPassiveEffectRef& Ref : Counted)
     {
-        const int32 Events=Ref.Effect.Trigger==ELDDemoEffectTrigger::BasicHit ? Counters.BasicHits
-            : Ref.Effect.Trigger==ELDDemoEffectTrigger::PerfectDodge ? Counters.PerfectDodges : 0;
+        const int32 Events=Ref.Effect.Trigger==ELDDemoEffectTrigger::BasicHit ? Counters.BasicHits : 0;
         const int32 Steps=Ref.Effect.Count>0 ? Events/Ref.Effect.Count : 0;
         for (const FLDDemoStatBonus& Stat : Ref.Effect.Stats) { Totals.FindOrAdd(Stat.Stat)+=Stat.Amount*Steps; }
     }
@@ -1947,54 +1946,6 @@ bool ALDCombatDirector::RunAutoRecasts(int64 NowMs, FString& Error)
 }
 
 // ---------------------------------------------------------------- issue #292 P5 cards
-
-bool ALDCombatDirector::OnPerfectDodgeCards(FLDBodyCombatState& Body, int64 NowMs, FString& Error)
-{
-    TArray<FLDPassiveEffectRef> Frees, Counted;
-    if (!CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::DodgeFreeCast,Frees,Error)
-        || !CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::HitGrowth,Counted,Error))
-    { return false; }
-    // D04: each copy makes one next skill free.
-    if (!Frees.IsEmpty())
-    {
-        Body.FreeCasts+=Frees.Num();
-        ++Body.StateRevision;
-        MarkViewChanged(Body.Victim.EntityId);
-        LedgerCardTriggered(Body,Frees[0].Key);
-    }
-    // D09: every perfect dodge counts toward the match growth.
-    if (Counted.ContainsByPredicate([](const FLDPassiveEffectRef& Ref) { return Ref.Effect.Trigger==ELDDemoEffectTrigger::PerfectDodge; }))
-    {
-        FLDCombatEntityRecord* Record=FindRecord(Body.Victim.EntityId);
-        if (!Record) { Error=TEXT("A perfect dodge's growth lost its entity record."); return false; }
-        ++Record->CardGrowth.PerfectDodges;
-        LedgerCardTriggered(Body,Counted[0].Key);
-        if (!RefreshCardGrowth(Body.Victim.EntityId,NowMs,Error)) { return false; }
-    }
-    // #345 card_phantom_molt: perfect dodge leaves a decoy afterimage at the dodge spot that taunts camp monsters and explodes after delay.
-    TArray<FLDPassiveEffectRef> Molts;
-    if (!CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::PhantomMolt,Molts,Error)) { return false; }
-    if (!Molts.IsEmpty() && Catalog())
-    {
-        const ALDCharacter* Actor=ActorOf(Body);
-        const FVector DecoyFoot=Actor ? FootOf(*Actor) : Body.DashStartFootCm;
-        FLDCombatDecoy& Decoy=Decoys.AddDefaulted_GetRef();
-        Decoy.Id=FGuid::NewGuid();
-        Decoy.OwnerBody={Body.Victim,Body.Identity};
-        Decoy.OwnerEntity=Body.Victim.EntityId;
-        Decoy.CreditOwner=Body.Victim.Kind==ELDVictimKind::Contender ? Body.Victim.EntityId : FGuid();
-        Decoy.Source=Molts[0].Source;
-        Decoy.FootCm=DecoyFoot;
-        Decoy.RadiusCm=LDCombatCardsDetail::Cm(Molts[0].Effect.RadiusCm)*HulkingAreaScaleOf(Body);
-        Decoy.Terms=Molts[0].Effect;
-        Decoy.SourceADP2=Body.AttributeProjection.Final.ADP2;
-        Decoy.SourceAPP2=Body.AttributeProjection.Final.APP2;
-        Decoy.SourceBonusADP2=LDTactical::BonusADOf(Catalog()->Get().Parameters,GrowthLevelOf(Body),Decoy.SourceADP2);
-        if (!LDMatchLifecycle::AddDurationMs(NowMs,Molts[0].Effect.DelayMs,Decoy.ExplodeAtMs,Error)) { return false; }
-        LedgerCardTriggered(Body,Molts[0].Key);
-    }
-    return true;
-}
 
 bool ALDCombatDirector::OnShieldBrokenCards(FLDBodyCombatState& Holder, int64 NowMs, FString& Error)
 {

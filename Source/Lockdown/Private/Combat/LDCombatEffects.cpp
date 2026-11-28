@@ -302,50 +302,6 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         if (const int64 Guard=BranchGuardBp(*Body,NowMs); Guard>0)
         { Evaluation.DeliveryScaleBp=Evaluation.DeliveryScaleBp/10000*(10000-Guard)+Evaluation.DeliveryScaleBp%10000*(10000-Guard)/10000; }
     }
-    // #345 Batch 2.1: innate D dash (and as_dash roll branches) native 0.12s hit-graze Perfect Dodge.
-    bool bNativeDashDodged=false;
-    if (Hit.SourceEntity!=Body->Victim.EntityId && Body->Victim.Kind==ELDVictimKind::Contender && Body->DashStartedAtMs.IsSet()
-        && !Hit.bReflect && !Hit.bBurnTick && !Hit.bPeriodic && !Hit.bStatusSettle && !Hit.bStaggerBleed && !Hit.bRider)
-    {
-        const FLDDemoMomentumParameters& M=Content->Get().Parameters.Momentum;
-        const int64 DashStart=Body->DashStartedAtMs.GetValue();
-        if (NowMs>=DashStart && NowMs-DashStart<=M.DashDodgeWindowMs && Body->LastDashDodgeStartMs!=DashStart)
-        {
-            const FGuid Dodger=Body->Victim.EntityId;
-            if (!PerfectDodgeMarks.ContainsByPredicate([&Hit,&Dodger](const TTuple<FGuid,FGuid,int64>& Mark)
-                { return Mark.Get<0>()==Hit.EffectId && Mark.Get<1>()==Dodger; }))
-            {
-                bNativeDashDodged=true;
-                Body->LastDashDodgeStartMs=DashStart;
-                PerfectDodgeMarks.Emplace(Hit.EffectId,Dodger,NowMs);
-                const int64 KeepBp=FMath::Clamp<int64>(10000-M.DashDodgeCutBp,0,10000);
-                Evaluation.DeliveryScaleBp=Evaluation.DeliveryScaleBp/10000*KeepBp+Evaluation.DeliveryScaleBp%10000*KeepBp/10000;
-                GrantMomentum(*Body,M.PerfectDodgeP2,ELDMomentumBook::Dodge);
-                if (M.DashDodgeCooldownRefundBp>0)
-                {
-                    if (FLDCombatEntityRecord* DodgerRecord=FindRecord(Dodger))
-                    {
-                        const FName InnateId=LDCombatSourceRules::InnateDashId();
-                        for (FLDCombatTrack& Track : DodgerRecord->Tracks)
-                        {
-                            if (Track.Kind==ELDCombatSourceKind::Innate && Track.DefinitionId==InnateId && Track.ReadyAtMs>NowMs)
-                            {
-                                const int64 Rem=Track.ReadyAtMs-NowMs;
-                                Track.ReadyAtMs=LDCombatSourceRules::ReduceReadyAt(Track.ReadyAtMs,NowMs,
-                                    Rem/10000*M.DashDodgeCooldownRefundBp+Rem%10000*M.DashDodgeCooldownRefundBp/10000);
-                            }
-                        }
-                    }
-                }
-                ++Body->PerfectDodges;
-                Body->LastPerfectDodgeAtMs=NowMs;
-                MarkViewChanged(Dodger);
-                if (!OnPerfectDodgeCards(*Body,NowMs,Error)) { return false; }
-                UE_LOG(LogLDCombat,Log,TEXT("LD_PERFECT_DODGE t=%lld entity=%s life=%u effect=%s source=%s momentum=%s"),NowMs,*LDLog::Id(Dodger),
-                    Body->Victim.Life,*LDLog::Id(Hit.EffectId),*LDLog::Id(Hit.SourceEntity),*LDLog::P2(Body->Resources.MomentumP2));
-            }
-        }
-    }
     // #345 active_unplug ParryStance: 65% damage cut while active; first direct/projectile/dash hit triggers counter-shock & Combo 3.
     bool bParryCounterNow=false;
     if (Body->ActiveParry.IsSet() && NowMs<Body->ParryUntilMs && Hit.SourceEntity!=Body->Victim.EntityId
@@ -715,17 +671,16 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     bool bSendOwnHit=false;
     ELDObservedHitLook OwnHitLook=ELDObservedHitLook::None;
     uint8 OwnHitFlags=0;
-    // A hit that harmed, controlled, slowed, was perfect-dodged or was parried shows its cue on the struck body.
-    if (Damage.DamageP2>0 || bControlled || bNativeDashDodged || bParryCounterNow)
+    // A hit that harmed, controlled, slowed or was parried shows its cue on the struck body.
+    if (Damage.DamageP2>0 || bControlled || bParryCounterNow)
     {
         // A zone's periodic slow refresh is not a visible hit.
-        if (!Hit.bSilent || Damage.DamageP2>0 || bNativeDashDodged || bParryCounterNow)
+        if (!Hit.bSilent || Damage.DamageP2>0 || bParryCounterNow)
         {
             Body->Cues.LastHitAtMs=NowMs;
             Body->Cues.LastHitId=Hit.HitId;
             Body->Cues.LastHitLook=uint8(LDCombatCues::ClassifyHit(Hit));
             Body->Cues.LastHitFlags=LDCombatCues::ClassifyImpact(bCritical,ShieldBeforeP2,Damage)
-                | (bNativeDashDodged ? LDObservation::Dodged : 0)
                 | (bParryCounterNow ? LDObservation::Parried : 0);
         }
         MarkViewChanged(Body->Victim.EntityId);

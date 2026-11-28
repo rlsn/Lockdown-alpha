@@ -4404,9 +4404,6 @@ namespace
         return Area;
     }
 
-    const FPalette PhantomPalette{FLinearColor(1.f, .92f, 1.f), FLinearColor(.72f, .42f, 1.f), FLinearColor(.22f, .08f, .42f), 2.2f, 1.3f};
-    const FPalette PhantomSmokePalette{FLinearColor(.62f, .5f, .8f), FLinearColor(.36f, .26f, .52f), FLinearColor(.12f, .08f, .2f), 1.f, 1.f};
-
     // Reactive armour's shard burst: the broken shield thrown outward. A cold snap at the chest (End), plates of the shell
     // flung out flat and skidding to rest on the floor (Start), and bright slivers ahead of them.
     FSystemParts ShardBurstParts(UMaterial& Material, UMaterial& Top, FString& Error)
@@ -4422,24 +4419,6 @@ namespace
             TEXT("float2(1.0, 1.0) * (30.0 + 22.0 * frac(float(Particles.UniqueID) * 0.41))"), TEXT("0.0"), true, false, 1.3f);
         Thrown(Burst, TEXT("Slivers"), Sliver, TEXT("int(lerp(8.0, 12.0, User.Focus) + 0.5)"), .5f, 1311.f, TEXT("User.End"), 500.f, 900.f, 60.f, 240.f,
             TEXT("float2(46.0, 9.0)"), TEXT("0.0"), false, true, 2.2f);
-        return Burst;
-    }
-
-    // The phantom decoy going off: the figure folds and bursts. A violet flash at the chest (End), wisps thrown out low
-    // over the floor (Start), and thin violet smoke spreading to its radius where it stood.
-    FSystemParts DecoyPopParts(UMaterial& Material, UMaterial& Top, FString& Error)
-    {
-        UMaterialInstanceConstant* Flash = ChainPaint(TEXT("MI_LDDecoyPop_Flash"), Top, SliceTexture(LDSliceVfx::ETex::ChainAFlash), nullptr, 0.f, PhantomPalette, 1.f, 0.f, Error);
-        UMaterialInstanceConstant* Wisp = ChainPaint(TEXT("MI_LDDecoyPop_Wisp"), Top, SliceTexture(LDSliceVfx::ETex::ChainASparkStreak), nullptr, 0.f, PhantomPalette, 1.f, 0.f, Error);
-        UMaterialInstanceConstant* Smoke = ChainPaint(TEXT("MI_LDDecoyPop_Smoke"), Material, SliceTexture(LDSliceVfx::ETex::SoftPuff), nullptr, 0.f, PhantomSmokePalette, 1.f, 0.f, Error);
-        FSystemParts Burst;
-        Burst.System = LDSliceVfx::ESystem::DecoyPop;
-        if (!Flash || !Wisp || !Smoke) { return Burst; }
-        ImpactCore(Burst, Flash, 210.f, 380.f, TEXT("User.End"));
-        Thrown(Burst, TEXT("Wisps"), Wisp, TEXT("int(lerp(10.0, 14.0, User.Focus) + 0.5)"), .45f, 1321.f, TEXT("User.End"), 500.f, 900.f, 0.f, 160.f,
-            TEXT("float2(90.0, 14.0)"), TEXT("0.0"), false, true, 2.4f);
-        Puffs(Burst, TEXT("Smoke"), Smoke, TEXT("int(lerp(8.0, 12.0, User.Focus) + 0.5)"), 1.f, 1331.f,
-            [](const FString& Angle, const FString& Travel) { return FString::Printf(TEXT("User.End + float3(cos(%s), sin(%s), 0.0) * (20.0 + User.Width * 0.8 * %s) + float3(0.0, 0.0, 60.0 * %s)"), *Angle, *Angle, *Travel, *Travel); }, 110.f, .7f);
         return Burst;
     }
 
@@ -5399,7 +5378,6 @@ bool LDDemoVfxNiagara::Build(FString& Error)
         [&]() { return WindZoneParts(*Chain, *Top, Error); },
         [&]() { return AreaPlainParts(*Chain, *Top, Error); },
         [&]() { return ShardBurstParts(*Chain, *Top, Error); },
-        [&]() { return DecoyPopParts(*Chain, *Top, Error); },
         [&]() { return RootStateParts(*Chain, *Top, Error); },
         [&]() { return ProtectedStateParts(*Chain, *Top, Error); },
         [&]() { return SlowStateParts(false, *Chain, *Top, Error); },

@@ -289,7 +289,7 @@ bool FLDBodyMotionSliceLayersTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The slice shows unflagged plain, water, electric and fire hits; any outcome flag or other look keeps the hit layers"),
         ShowsHit(ELDObservedHitLook::None,0) && ShowsHit(ELDObservedHitLook::Water,0) && ShowsHit(ELDObservedHitLook::Electric,0)
         && ShowsHit(ELDObservedHitLook::Fire,0) && !ShowsHit(ELDObservedHitLook::Magic,0) && !ShowsHit(ELDObservedHitLook::None,LDObservation::Critical)
-        && !ShowsHit(ELDObservedHitLook::Water,LDObservation::ShieldAbsorbed) && !ShowsHit(ELDObservedHitLook::Electric,LDObservation::Dodged));
+        && !ShowsHit(ELDObservedHitLook::Water,LDObservation::ShieldAbsorbed) && !ShowsHit(ELDObservedHitLook::Electric,LDObservation::Parried));
     // The basic and finisher hits and the swing are generated Niagara systems; the slice keeps the skill burst, water's
     // follow-through and the ground contact lights.
     const FRecipe Basic=Impact(EStrike::Basic,Chest,Feet,Dir,From,false,Own), Finisher=Impact(EStrike::Finisher,Chest,Feet,Dir,From,false,Own);

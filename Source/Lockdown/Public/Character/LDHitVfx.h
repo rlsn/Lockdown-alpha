@@ -100,7 +100,7 @@ namespace LDSliceVfx
         ShieldState, BracedState, EmpoweredState, StareDownAura, FlurryAura, UnplugRelease, UnplugHit, NotMadRelease, StareDownRelease,
         BraceRelease, BraceBurst, TripleRelease, OpenMicRelease, OpenMicHit, FlurryRelease, FogReact, FreezeReact, OverloadReact,
         MeltReact, MethaneReact, FermentReact, ShatterReact, CorrodeReact, FrostbiteReact,
-        FlightChalk, FlightSock, FlightFist, WindZone, AreaPlain, ShardBurst, DecoyPop,
+        FlightChalk, FlightSock, FlightFist, WindZone, AreaPlain, ShardBurst,
         RootState, ProtectedState, SlowState, AttackSlowState, StunState, DisarmState, SilenceState, TauntState, ExposedState,
         DashWake, LevelUp,
         OwnMark, RingBand, RingDanger, RingNext, CritBurst, ReturnState, Count

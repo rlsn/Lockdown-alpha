@@ -18047,22 +18047,6 @@
       ]
     },
     {
-      "effects": [
-        {
-          "op": "dodge_free_cast",
-          "opcode": 252
-        }
-      ],
-      "form": "dash",
-      "id": "card_dodge_strike",
-      "native_id": 247,
-      "type": "trigger",
-      "vocab": [
-        "perfect_dodge",
-        "momentum"
-      ]
-    },
-    {
       "drop_weight": 6,
       "effects": [
         {
@@ -18166,30 +18150,6 @@
       "vocab": [
         "momentum",
         "dash"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "count": 1,
-          "op": "hit_growth",
-          "opcode": 247,
-          "stats": {
-            "MoveSpeedBonusRatio": {
-              "bp": 150,
-              "unit": "ratio"
-            }
-          },
-          "trigger": "PerfectDodge"
-        }
-      ],
-      "form": "dash",
-      "id": "card_slippery",
-      "native_id": 252,
-      "type": "grow",
-      "vocab": [
-        "perfect_dodge",
-        "move_speed"
       ]
     },
     {
@@ -18464,31 +18424,6 @@
       "vocab": [
         "heal",
         "skill_hit"
-      ]
-    },
-    {
-      "drop_weight": 22,
-      "effects": [
-        {
-          "momentum": {
-            "p2": 3500,
-            "unit": "momentum"
-          },
-          "multiplier": {
-            "bp": 14000,
-            "unit": "ratio"
-          },
-          "op": "overdrive_short",
-          "opcode": 254
-        }
-      ],
-      "form": "body",
-      "id": "card_short_breath",
-      "native_id": 266,
-      "type": "modify",
-      "vocab": [
-        "overdrive",
-        "momentum"
       ]
     },
     {
@@ -19168,48 +19103,6 @@
         "dash_contact",
         "move_speed",
         "wall_impact"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "adaptive_ratio": {
-            "bp": 7500,
-            "unit": "ratio"
-          },
-          "base": {
-            "p2": 7000,
-            "unit": "points"
-          },
-          "delay": {
-            "ms": 1000,
-            "unit": "ms"
-          },
-          "op": "phantom_molt",
-          "opcode": 269,
-          "radius": {
-            "denominator": 1,
-            "numerator": 240,
-            "unit": "cm"
-          },
-          "slow_duration": {
-            "ms": 1500,
-            "unit": "ms"
-          },
-          "slow_ratio": {
-            "bp": 3000,
-            "unit": "ratio"
-          }
-        }
-      ],
-      "form": "dash",
-      "id": "card_phantom_molt",
-      "native_id": 296,
-      "type": "trigger",
-      "vocab": [
-        "perfect_dodge",
-        "dash",
-        "area"
       ]
     },
     {
@@ -19907,7 +19800,7 @@
     },
     {
       "description_key": "active_crotch_grab_2b.description",
-      "description_text": "得手瞬间轻巧翻滚 [dash_back.distance] 厘米并享有完美闪避窗口。",
+      "description_text": "得手瞬间轻巧翻滚 [dash_back.distance] 厘米。",
       "icon_id": "icon_active_crotch_grab",
       "id": "active_crotch_grab_2b",
       "name_key": "active_crotch_grab_2b.name",
@@ -21229,15 +21122,6 @@
       "namespace": "DemoContent"
     },
     {
-      "description_key": "card_dodge_strike.description",
-      "description_text": "完美闪避后，你的下一个技能不耗劲。",
-      "icon_id": "icon_card_dodge_strike",
-      "id": "card_dodge_strike",
-      "name_key": "card_dodge_strike.name",
-      "name_text": "闪完就打",
-      "namespace": "DemoContent"
-    },
-    {
       "description_key": "card_double_dash.description",
       "description_text": "冲刺分成两段，每段 [dash_split.distance] 厘米；第一段后 [dash_split.duration] 秒内再按冲刺放第二段，冷却不变。",
       "icon_id": "icon_card_double_dash",
@@ -21562,15 +21446,6 @@
       "namespace": "DemoContent"
     },
     {
-      "description_key": "card_phantom_molt.description",
-      "description_text": "触发完美闪避时在原地留下嘲讽野怪的残影，[phantom_molt.delay] 秒后自爆对 [phantom_molt.radius] 厘米内敌人造成 [phantom_molt.amount] 自适应伤害并减速 [phantom_molt.ratio]%，持续 [phantom_molt.duration] 秒。",
-      "icon_id": "icon_card_phantom_molt",
-      "id": "card_phantom_molt",
-      "name_key": "card_phantom_molt.name",
-      "name_text": "幻影脱壳",
-      "namespace": "DemoContent"
-    },
-    {
       "description_key": "card_pin_amp.description",
       "description_text": "这个技能造成控制后 [control_amp.duration] 秒内，你的下一个技能伤害 +[control_amp.ratio]%。",
       "icon_id": "icon_card_pin_amp",
@@ -21706,15 +21581,6 @@
       "namespace": "DemoContent"
     },
     {
-      "description_key": "card_short_breath.description",
-      "description_text": "劲到 [overdrive_short.limit] 就能爆劲，爆劲倍率变为 [overdrive_short.multiplier]%。",
-      "icon_id": "icon_card_short_breath",
-      "id": "card_short_breath",
-      "name_key": "card_short_breath.name",
-      "name_text": "气短",
-      "namespace": "DemoContent"
-    },
-    {
       "description_key": "card_skate_blade.description",
       "description_text": "敌人在冰面滑行或被推开每移动 [skate_blade.distance] 厘米受 [skate_blade.amount] 自适应伤害；你在任何冰面上攻速 +[skate_blade.AttackSpeedBonusRatio]% 且移速 +[skate_blade.MoveSpeedBonusRatio]%。",
       "icon_id": "icon_card_skate_blade",
@@ -21739,15 +21605,6 @@
       "id": "card_skill_drain",
       "name_key": "card_skill_drain.name",
       "name_text": "吸血对技能生效",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "card_slippery.description",
-      "description_text": "每次完美闪避，本局移速 +[hit_growth.MoveSpeedBonusRatio]%，没有上限。",
-      "icon_id": "icon_card_slippery",
-      "id": "card_slippery",
-      "name_key": "card_slippery.name",
-      "name_text": "越躲越快",
       "namespace": "DemoContent"
     },
     {
@@ -23452,18 +23309,6 @@
       "numerator": 5,
       "unit": "momentum/s"
     },
-    "MOMENTUM.DashDodgeCooldownRefundRatio": {
-      "bp": 3000,
-      "unit": "ratio"
-    },
-    "MOMENTUM.DashDodgeCutRatio": {
-      "bp": 5000,
-      "unit": "ratio"
-    },
-    "MOMENTUM.DashDodgeWindowSec": {
-      "ms": 120,
-      "unit": "ms"
-    },
     "MOMENTUM.IdleDelaySec": {
       "ms": 5000,
       "unit": "ms"
@@ -23476,14 +23321,6 @@
     "MOMENTUM.Max": {
       "p2": 10000,
       "unit": "momentum"
-    },
-    "MOMENTUM.PerfectDodge": {
-      "p2": 2000,
-      "unit": "momentum"
-    },
-    "MOMENTUM.PerfectDodgeWindowSec": {
-      "ms": 300,
-      "unit": "ms"
     },
     "MOMENTUM.Reaction": {
       "p2": 1000,

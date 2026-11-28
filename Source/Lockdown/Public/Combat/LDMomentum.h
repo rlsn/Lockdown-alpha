@@ -4,18 +4,18 @@
 #include "Development/LDDemoContentDefinitions.h"
 
 // Momentum (劲), the basic three-step combo and the perfect dodge as pure rules (CONTENT_AND_BALANCE §3.3-§3.5,
-// docs/systems/COMBAT_AND_GROWTH.md "劲、连击与完美闪避"). Combat owns the P2 bar on the body's resources and calls
+// docs/systems/COMBAT_AND_GROWTH.md "劲与连击"). Combat owns the P2 bar on the body's resources and calls
 // these; nothing here reads the world, a clock or randomness.
 namespace LDMomentum
 {
     // The per-life momentum books one LD_MOMENTUM line reports (P2 amounts).
     struct FLedger
     {
-        int64 BasicP2 = 0, CombatP2 = 0, SkillP2 = 0, ReactionP2 = 0, DodgeP2 = 0, OtherP2 = 0, IdleP2 = 0, SpentP2 = 0;
+        int64 BasicP2 = 0, CombatP2 = 0, SkillP2 = 0, ReactionP2 = 0, OtherP2 = 0, IdleP2 = 0, SpentP2 = 0;
 
         bool IsEmpty() const
         {
-            return BasicP2 == 0 && CombatP2 == 0 && SkillP2 == 0 && ReactionP2 == 0 && DodgeP2 == 0 && OtherP2 == 0
+            return BasicP2 == 0 && CombatP2 == 0 && SkillP2 == 0 && ReactionP2 == 0 && OtherP2 == 0
                 && IdleP2 == 0 && SpentP2 == 0;
         }
     };
@@ -45,8 +45,4 @@ namespace LDMomentum
     LOCKDOWN_API uint8 NextComboStep(uint8 Step, int64 PreviousStartMs, int64 NowMs, int64 ResetMs);
     // COMBO.StepRatios of Step 1..3 in basis points; 10000 for any other step (no combo).
     LOCKDOWN_API int64 ComboRatioBp(const FLDDemoComboParameters& P, uint8 Step);
-
-    // A perfect dodge: the D started within WindowMs before the telegraphed effect resolved at ResolveMs (inclusive),
-    // the foot at the dash start was inside the effect's hit area and the body at resolution is not.
-    LOCKDOWN_API bool IsPerfectDodge(int64 WindowMs, int64 DashStartMs, int64 ResolveMs, bool bStartInside, bool bResolvedInside);
 }

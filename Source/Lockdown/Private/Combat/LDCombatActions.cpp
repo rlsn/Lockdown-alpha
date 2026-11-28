@@ -1012,7 +1012,7 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
     const bool bInnateEntry=Source.Kind==ELDCombatSourceKind::Innate;
     const bool bSplitOpen=bInnateEntry && Body->SplitDashLeft>0 && Now<=Body->SplitDashUntilMs;
     Gate.MomentumCostP2=bInnateEntry ? (bSplitOpen ? 0 : Terms.DashMomentumCostP2)
-        : bRecastOpen || BranchFreeCast(*Body,Source,Now) || Body->FreeCasts>0 || Terms.HPCostBpPerMomentum>0 ? 0 : ValuesDef->MomentumCostP2;
+        : bRecastOpen || BranchFreeCast(*Body,Source,Now) || Terms.HPCostBpPerMomentum>0 ? 0 : ValuesDef->MomentumCostP2;
     // Only an action that displaces its caster is a dash for the root matrix (a ground zone is not).
     Gate.bDash=LDCombatSourceRules::DisplacesCaster(*ValuesDef);
     Gate.Roots=&Body->Roots;
@@ -1362,7 +1362,8 @@ bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body,
             if (!WaveDir.IsNearlyZero())
             {
                 FLDCombatHit WaveHit;
-                WaveHit.EffectId=FGuid::NewGuid();
+                WaveHit.EffectId=Body.FrenzyEffectId.IsValid() ? Body.FrenzyEffectId : FGuid::NewGuid();
+                WaveHit.CastLedger=Body.FrenzyLedger;
                 WaveHit.Token=Action.Token;
                 WaveHit.SourceBody=Hit.SourceBody;
                 WaveHit.SourceEntity=Hit.SourceEntity;
@@ -1589,7 +1590,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     const bool bBranchRecast=!bInnate && !Action.bAutoRecast && BranchRecastOpen(Body,Source,Now);
     const bool bRecast=bBranchRecast || Action.bAutoRecast || bSplitSegment;
     // S05 B2's window or D04's free cast of a perfect dodge.
-    const bool bFreeCast=!bInnate && !bRecast && (BranchFreeCast(Body,Source,Now) || Body.FreeCasts>0);
+    const bool bFreeCast=!bInnate && !bRecast && BranchFreeCast(Body,Source,Now);
     // K12: the release pays health instead of momentum (refused while the body cannot pay it and live).
     const bool bHealthCost=!bInnate && !bRecast && !bFreeCast && Terms.HPCostBpPerMomentum>0;
     const int64 HealthCostP2=bHealthCost ? Body.Resources.MaxHpP2/10000*Terms.HPCostBpPerMomentum*ValuesDef->MomentumCostP2/100
@@ -1744,12 +1745,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         else { Body.SplitDashLeft=Terms.SplitSegments-1; }
         if (!LDMatchLifecycle::AddDurationMs(Now,Terms.SplitWindowMs+Innate.DurationMs,Body.SplitDashUntilMs,Error)) { return false; }
     }
-    if (bFreeCast)
-    {
-        // A branch window spends first; otherwise one of D04's free casts.
-        if (BranchFreeCast(Body,Source,Now)) { Body.Branch.FreeCastUntilMs=0; }
-        else { Body.FreeCasts=FMath::Max(Body.FreeCasts-1,0); }
-    }
+    if (bFreeCast) { Body.Branch.FreeCastUntilMs=0; }
     // K05: the next skill took the control bonus; K18: this release joins the recent ones (repeats and recasts do not).
     if (Source.Kind==ELDCombatSourceKind::Learned && !Body.ControlAmpCard.IsNone())
     {
@@ -1963,12 +1959,6 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
                 LDTactical::ApplyTimedBonus(Body.TimedBonuses,AgilityHaste);
                 bTimedBonus=true;
             }
-            // Perfect dodge (spec §4.4) reads where and when a D started.
-            if (bInnate)
-            {
-                Body.DashStartedAtMs=Now;
-                Body.DashStartFootCm=ReleaseFoot;
-            }
             // B12: a voluntary dash (D or an active's) that completes naturally arms DashComplete empowers.
             FLDCombatVoluntaryDash& Voluntary=Body.VoluntaryDash.Emplace();
             Voluntary.EffectId=EffectId;
@@ -2134,6 +2124,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             Body.ActiveFrenzy=Effect;
             Body.FrenzyEffectId=EffectId;
             Body.FrenzySource=Source;
+            Body.FrenzyLedger=CastLedger;
             if (!LDMatchLifecycle::AddDurationMs(Now,Effect.DurationMs,Body.FrenzyUntilMs,Error)) { return false; }
             if (!Effect.Stats.IsEmpty())
             {
@@ -2364,7 +2355,6 @@ bool ALDCombatDirector::DeliverReleasePayload(const ALDCharacter& Actor, const F
             Projectile.ReturnScaleBp=Terms.ProjectileReturn->Effect.MultiplierBp;
             Projectile.ReturnElement=Terms.ProjectileReturn->Effect.Element;
         }
-        Projectile.bTelegraphed=Terms.WindupMs>=150;
         if (const FLDDemoEffectDefinition* Landing=LDCA::FindEffect(Terms.Values,ELDDemoEffectOp::GroundState)) { Projectile.LandingGround=*Landing; }
         Projectile.Payload=Template;
         Projectiles.Add(Projectile);
@@ -2393,18 +2383,6 @@ bool ALDCombatDirector::DeliverReleasePayload(const ALDCharacter& Actor, const F
                 return FVector::DotProduct(A.Value-ReleaseFoot,Along)<FVector::DotProduct(B.Value-ReleaseFoot,Along);
             });
             if (!Line.IsEmpty()) { Line.SetNum(1); }
-        }
-        // A telegraphed line can be perfectly dodged at its resolution (spec §4.4).
-        if (Terms.WindupMs>=150)
-        {
-            const double Range=LineRangeCm, Half=LDCA::ToDouble(TargetDef.LineHalfWidthCm);
-            const auto InBand=[&ReleaseFoot,&Along,Range,Half](const FVector& Point)
-            {
-                const FVector Offset(Point.X-ReleaseFoot.X,Point.Y-ReleaseFoot.Y,0);
-                const double Ahead=FVector::DotProduct(Offset,Along);
-                return Ahead>=0 && Ahead<=Range && FVector::CrossProduct(Along,Offset).Size()<=Half;
-            };
-            if (!ResolvePerfectDodges(Template.EffectId,Template.SourceEntity,InBand,NowMs,Error)) { return false; }
         }
         if (Grab && Line.IsEmpty() && Grab->RatioBp>0 && Grab->DurationMs>0)
         {
@@ -2443,17 +2421,10 @@ bool ALDCombatDirector::DeliverReleasePayload(const ALDCharacter& Actor, const F
     }
     else
     {
-        // A telegraphed self area can be perfectly dodged at its resolution (spec §4.4).
         const FLDDemoEffectDefinition* Around=LDCA::FindEffect(Terms.Values,ELDDemoEffectOp::SelfArea);
         // The same circle the release collected its targets in.
         const double AroundRadius=Around
             ? LDCA::ToDouble(Around->RadiusCm)*HulkingAreaScaleOf(Body,Terms.AreaBp,WarcryAreaBpOf(Body,Terms.Values)) : 0.;
-        if (Around && Terms.WindupMs>=150)
-        {
-            const double Radius=AroundRadius;
-            if (!ResolvePerfectDodges(Template.EffectId,Template.SourceEntity,
-                [&ReleaseFoot,Radius](const FVector& Point) { return FVector::Dist2D(ReleaseFoot,Point)<=Radius; },NowMs,Error)) { return false; }
-        }
         for (const FLDCombatBodyRef& Target : AreaTargets) { Deliver(Target); }
         if (Around && !HitBagsInCircle(ReleaseFoot, AroundRadius, Template, NowMs, Error)) { return false; }
         if (Around) { HitFenceInCircle(ReleaseFoot, AroundRadius, Template); }
