@@ -59,9 +59,15 @@ namespace LDAutoEmpower
         bool bHeld=false;
         int32 Score=0;
     };
-    // A host's investment: Invested (a learned active's rank plus its cards; the cards on the basic or D) decides, the medal
-    // tiers on it only break a tie.
-    LOCKDOWN_API int32 HostScore(int32 Invested, int32 MedalTiers);
+    // A host's build identity (B01 M-12): Invested decides (a learned active's ranks past the first and the cards on it, the
+    // cards on D, plus every body card sharing a key of the host's family vocabulary); a tie goes to a learned active, then
+    // to the medal tiers on the host.
+    LOCKDOWN_API int32 HostScore(int32 Invested, bool bLearnedActive, int32 MedalTiers);
+    // The card vocabulary (ELDCardVocab bits) a processor's host is built around: fist the basic hit, combo, attack speed and
+    // crit; move the dash, its contacts and move speed; guard shields, armour, health, damage taken and being controlled;
+    // strike and ward skill hits and casts, elements and reactions (strike also knockback, range and control, ward also
+    // areas and ground).
+    LOCKDOWN_API uint32 ProcessorVocab(ELDEmpowerProcessor Processor);
     // The held candidate with the highest score; ties go to the earlier of Q, W, E, the basic, D (the basic without any).
     LOCKDOWN_API ELDCombatEntry AutoHost(const TArray<FHostCandidate>& Candidates);
 

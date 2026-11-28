@@ -7,7 +7,7 @@ DEV 实验工具（非产品模式）：在真实无画面 Listen Host（`-nullr
 | 层 | 位置 | 责任 |
 | --- | --- | --- |
 | 通用核心 | `Scripts\BuildEvaluation.py` | 清单 v2 校验、能力表准入、块种子展开、磁盘/事件/墙钟预算门禁、成对区间统计、重放比对（不含任何游戏词汇） |
-| 玩法 Adapter | `Scripts\BuildEvaluationLockdown.py` | 从 `Content\Lockdown\Data\Demo` 生成能力表（`lockdown_demo` v20）、写原生输入、判读 `LD_*` 权威日志与重放一致性 |
+| 玩法 Adapter | `Scripts\BuildEvaluationLockdown.py` | 从 `Content\Lockdown\Data\Demo` 生成能力表（`lockdown_demo` v22）、写原生输入、判读 `LD_*` 权威日志与重放一致性 |
 | 原生驱动 | `Source\Lockdown\Private\Tests\LDBuildEvaluationProbe.*`、`Evaluation\LDEvaluation*` | 1 名编排 Host + 2 名服务器 AI 进入 `duel_site` 对决，落盘 `native\results\<case>.json` 与 `native\traces\<case>.log` |
 | 唯一入口 | `Scripts\RunBuildEvaluation.ps1` | `plan -> native -> analyze` 及单 Case 重放核验 |
 

@@ -27,7 +27,7 @@ import re
 from pathlib import Path
 
 ADAPTER_ID = "lockdown-demo"
-ADAPTER_VERSION = 20
+ADAPTER_VERSION = 22
 # LDBuildEvaluation::MaxCases and MaxBuildSteps of the native driver (LDBuildEvaluationProbe.h); a larger plan is refused
 # before any run.
 NATIVE_MAX_CASES = 500
@@ -780,9 +780,16 @@ def breakout_roles(plan):
     return {role for role in ROLES if plan[role].get("breakout_preset")}
 
 
-def breakout_problems(events, ids, plan, contenders):
-    """Prove each breakout sample was committed once by the authority and that the side ends on it."""
+def breakout_problems(events, ids, plan, contenders, outcome=None):
+    """Prove each breakout sample was committed once by the authority and that the side ends on it. The element medal a
+    side's deciding kill drops (LD_MEDAL cause=contender_kill; the duel ends at its first kill) is that kill's own reward,
+    exempt like its XP, so it is not counted against the sample's cards."""
     problems = []
+    killers = set()
+    if outcome and outcome.get("kind") == "kill" and outcome.get("killer") in ids:
+        killers = {outcome["killer"]}
+    elif outcome and outcome.get("kind") == "trade":
+        killers = set(ROLES)
     for role in sorted(breakout_roles(plan)):
         preset = plan[role]["breakout_preset"]
         applied = [fields for tag, fields, _ in events if tag == "LD_DEV_BREAKOUT_PRESET" and fields.get("contender") == ids[role]]
@@ -790,9 +797,13 @@ def breakout_problems(events, ids, plan, contenders):
             problems.append(f"PresetNotApplied: the {role} needs exactly one committed {preset}")
             continue
         row, fields = contenders[role], applied[0]
+        kill_medals = {(medal.get("medal"), medal.get("serial")) for tag, medal, _ in events
+                       if role in killers and tag == "LD_MEDAL" and medal.get("contender") == ids[role]
+                       and medal.get("cause") == "contender_kill"}
+        cards = [card for card in row["cards"] if (card.get("id"), str(card.get("serial"))) not in kill_medals]
         if (not fields.get("level", "").isdigit() or not fields.get("cards", "").isdigit()
-                or row["level"] != int(fields["level"]) or len(row["cards"]) != int(fields["cards"])):
-            problems.append(f"PresetNotApplied: the {role} ends at level {row['level']} with {len(row['cards'])} cards, "
+                or row["level"] != int(fields["level"]) or len(cards) != int(fields["cards"])):
+            problems.append(f"PresetNotApplied: the {role} ends at level {row['level']} with {len(cards)} cards, "
                             f"{preset} committed level {fields.get('level')} with {fields.get('cards')} cards")
     for tag, fields, _ in events:
         if tag == "LD_DEV_BREAKOUT_PRESET" and not any(fields.get("contender") == ids[role] for role in breakout_roles(plan)):
@@ -1213,7 +1224,7 @@ def case_evidence(case, manifest, caps, result, trace_text):
         if supplied[role] != (0 if role in samples else params["supply_xp"][role]):
             reasons.append(f"SupplyMismatch: the {role} received {supplied[role]} dev_fixture XP, planned {params['supply_xp'][role]}")
     plans = {arm["id"]: arm["plan"] for arm in manifest["design"]["arms"]}
-    reasons += breakout_problems(events, ids, plans[case["arm"]], {row["role"]: row for row in rows})
+    reasons += breakout_problems(events, ids, plans[case["arm"]], {row["role"]: row for row in rows}, outcome)
     reasons += selection_problems(events, ids, plans[case["arm"]], {row["role"]: row for row in rows}, t_out)
     reasons += build_problems(events, ids, plans[case["arm"]], {row["role"]: row for row in rows}, t_out, caps)
     reasons += level_card_problems(events, ids, plans[case["arm"]], {row["role"]: row for row in rows},
