@@ -1296,7 +1296,7 @@ namespace
                         {0.f, Place(A3, ELDObservedProjectileLook::AreaElectric, 170.f, 0.f, 0.)}, {0.f, Place(A, ELDObservedProjectileLook::Wind, 220.f, 30.f, 0.)}},
                         nullptr, ClearProxies, false, .9f, .5f, 30});
                     // Placed props and one-shots on their real proxies: two bags and the wall between them, a dropped slipper,
-                    // a cordon tape, a phantom decoy (going off at 0.8 s), a shard burst, a brick falling (landing at 0.7 s)
+                    // a cordon tape, a shard burst, a brick falling (landing at 0.7 s)
                     // and an armed trap.
                     const auto Put = [FlightWorld, Proxies, Views](TWeakObjectPtr<ULDHumanoidVisualComponent> At, ELDObservedProjectileLook ProxyLook, float Radius, float TowardDegrees,
                         double Ahead, float FaceDegrees, float Length, uint32 WarningMs)
@@ -1340,14 +1340,13 @@ namespace
                     };
                     TArray<FSeqStep> Props{{0.f, Put(V1, ELDObservedProjectileLook::Bag, 50.f, 60.f, 220., 0.f, 0.f, 0)}, {0.f, Put(V1, ELDObservedProjectileLook::Bag, 50.f, -60.f, 220., 0.f, 0.f, 0)},
                         {0.f, Put(V1, ELDObservedProjectileLook::BagWall, 25.f, 0.f, 110., 90.f, 280.f, 0)}, {0.f, Put(V2, ELDObservedProjectileLook::SlipperDrop, 45.f, 180.f, 150., 0.f, 0.f, 0)},
-                        {0.f, Put(V3, ELDObservedProjectileLook::CordonTape, 30.f, 180.f, 170., 90.f, 500.f, 0)}, {0.f, Put(A2, ELDObservedProjectileLook::PhantomDecoy, 220.f, 0.f, 130., 0.f, 0.f, 800)},
+                        {0.f, Put(V3, ELDObservedProjectileLook::CordonTape, 30.f, 180.f, 170., 90.f, 500.f, 0)},
                         {0.f, Put(A3, ELDObservedProjectileLook::ShardBurst, 250.f, 0.f, 0., 0.f, 0.f, 0)}, {0.f, Put(A, ELDObservedProjectileLook::BookShadow, 200.f, 180.f, 260., 0.f, 0.f, 700)},
                         {0.f, Put(A, ELDObservedProjectileLook::FlyerArmed, 180.f, 90.f, 260., 0.f, 0.f, 0)}};
                     for (int32 Frame = 1; Frame <= 40; ++Frame)
                     {
                         Props.Add({Frame / 30.f, Hold(Frame / 30.f)});
-                        if (Frame == 21) { Props.Add({.7f, GoOff(7)}); }
-                        if (Frame == 24) { Props.Add({.8f, GoOff(5)}); }
+                        if (Frame == 21) { Props.Add({.7f, GoOff(6)}); }
                     }
                     ChainJobs.Add({Look, TEXT("flights-props"), Props, nullptr, ClearProxies, false, .5f, 0.f, 40});
                     // The three warnings a second before they land: a circle by V1, a cone from V3 and a line from A2.

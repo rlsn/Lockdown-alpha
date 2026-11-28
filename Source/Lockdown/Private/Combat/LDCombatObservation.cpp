@@ -315,18 +315,6 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
         Fact.LengthCm=float(FMath::Max(Cordon.HalfLengthCm*2.,60.));
         Fact.RadiusCm=float(FMath::Max(Cordon.HalfWidthCm,30.));
     }
-    for (const FLDCombatDecoy& Decoy : Decoys)
-    {
-        if (Decoy.ExplodeAtMs<=NowMs) { continue; }
-        FLDObservedProjectileFact& Fact=Out.AddDefaulted_GetRef();
-        Fact.Key=Decoy.Id;
-        Fact.SourceEntity=Decoy.OwnerEntity;
-        Fact.PositionCm=Decoy.FootCm;
-        Fact.Heading=FVector2D(1,0);
-        Fact.Look=ELDObservedProjectileLook::PhantomDecoy;
-        Fact.RadiusCm=float(FMath::Max(Decoy.RadiusCm,80.));
-        Fact.WarningRemainingMs=uint32(FMath::Min<int64>(FMath::Max<int64>(Decoy.ExplodeAtMs-NowMs,0),MAX_uint32));
-    }
     for (const FLDCombatShardBurst& Burst : ShardBursts)
     {
         if (Burst.ExpiresAtMs<=NowMs) { continue; }

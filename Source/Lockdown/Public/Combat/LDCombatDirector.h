@@ -437,9 +437,8 @@ struct FLDBodyCombatState
     int64 IdleSinceMs=0;
     int32 SplitDashLeft=0;
     int64 SplitDashUntilMs=0;
-    // Issue #292 P5 cards: D04's free next casts, K05's next-skill bonus (its card and window), K18's recent releases (skill and
+    // Issue #292 P5 cards: K05's next-skill bonus (its card and window), K18's recent releases (skill and
     // instant), Y24's open tally (marks and the last mark's instant) and K03's skill contributions on this contender life.
-    int32 FreeCasts=0;
     FName ControlAmpCard;
     int64 ControlAmpBp=0, ControlAmpUntilMs=0;
     TArray<TPair<FName,int64>> RecentCasts;
@@ -497,8 +496,8 @@ struct FLDCardGrowth
     int32 Kills=0, Assists=0, ControlsTaken=0;
     // K17: hits on contenders of each installed copy's host (by card serial).
     TMap<uint16,int32> SkillHits;
-    // A13: primary basic hits on contenders; D09: perfect dodges.
-    int32 BasicHits=0, PerfectDodges=0;
+    // A13: primary basic hits on contenders.
+    int32 BasicHits=0;
 };
 
 // Persistent cooldown identity; the entry slot is only its current binding.
@@ -1547,7 +1546,6 @@ private:
     bool AdvanceStaggerBleeds(int64 NowMs, FString& Error);
     bool AdvanceSlipperDrops(int64 NowMs, FString& Error);
     bool AdvanceCordons(int64 NowMs, FString& Error);
-    bool AdvanceDecoys(int64 NowMs, FString& Error);
     bool AdvanceSynergyStates(int64 NowMs, FString& Error);
     bool IsEagleStanceActive(const FLDBodyCombatState& Body, int64 NowMs) const;
     // Max HP above the character's own base and level growth. Damage that scales with max HP reads this, shields read
@@ -1617,7 +1615,6 @@ private:
     bool OnHardControl(FLDBodyCombatState& Victim, const FLDControlApplication& App, int64 NowMs, FString& Error);
     // Issue #292 P5 cards: D04/D09 on a perfect dodge of Body; Y06 on a broken shield of Holder; Y29 a share of the burn damage
     // Source dealt as its shield; Y24's tally of a hit of Source on Target.
-    bool OnPerfectDodgeCards(FLDBodyCombatState& Body, int64 NowMs, FString& Error);
     bool OnShieldBrokenCards(FLDBodyCombatState& Holder, int64 NowMs, FString& Error);
     bool OnBurnDealtCards(FLDBodyCombatState& Source, int64 BurnDamageP2, int64 NowMs, FString& Error);
     bool OnTallyHit(FLDBodyCombatState& Source, const FLDCombatHit& Hit, int64 NowMs, FString& Error);
@@ -1796,19 +1793,6 @@ private:
         TSet<FGuid> BoostedFlights;
         uint64 CreatedSerial=0;
     };
-    struct FLDCombatDecoy
-    {
-        FGuid Id;
-        FLDCombatBodyRef OwnerBody;
-        FGuid OwnerEntity;
-        FGuid CreditOwner;
-        FLDCombatSourceRef Source;
-        FVector FootCm=FVector::ZeroVector;
-        double RadiusCm=240;
-        int64 ExplodeAtMs=0;
-        FLDDemoEffectDefinition Terms;
-        int64 SourceADP2=0, SourceAPP2=0, SourceBonusADP2=0;
-    };
     struct FLDCombatShardBurst
     {
         FGuid Id;
@@ -1819,7 +1803,6 @@ private:
     };
     TArray<FLDCombatSlipperDrop> SlipperDrops;
     TArray<FLDCombatCordon> Cordons;
-    TArray<FLDCombatDecoy> Decoys;
     TArray<FLDCombatShardBurst> ShardBursts;
     // Skill branch schedules (LDCombatBranchDirector.cpp).
     TArray<FLDCombatFollowUp> FollowUps;

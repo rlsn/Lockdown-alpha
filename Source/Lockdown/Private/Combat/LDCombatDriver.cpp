@@ -84,7 +84,6 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
     for(const auto& Strike:MonsterStrikes){Consider(Strike.AtMs);}
     for(const auto& Drop:SlipperDrops){Consider(Drop.ExpiresAtMs);}
     for(const auto& Cordon:Cordons){Consider(Cordon.ExpiresAtMs);}
-    for(const auto& Decoy:Decoys){Consider(Decoy.ExplodeAtMs);}
     for(const auto& Burst:ShardBursts){Consider(Burst.ExpiresAtMs);}
     Consider(NextMechanicsDueMs(NowMs));
     Consider(NextCardsDueMs(NowMs));

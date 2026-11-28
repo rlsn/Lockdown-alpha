@@ -282,7 +282,7 @@
 
 ## 7. 覆盖清单
 
-范围来自 `SourceData/Demo/content.json`（24 个主动技能、94 张卡与勋章、5 种元素、10 种反应、5 种地面状态、12 种野怪招式与院长）和客户端能看到的权威事件（`FLDObservedUnitView` 的动作提示、命中外观与标志、状态、反应，`FLDObservedProjectileView` 的 24 种外观，`FLDObservedGroundState`，阵亡通知）。特效只能挂在这些事件上；没有公开事件的效果不能凭空表现，记为 BLOCKED 并写明缺什么。
+范围来自 `SourceData/Demo/content.json`（24 个主动技能、90 张卡与勋章、5 种元素、10 种反应、5 种地面状态、12 种野怪招式与院长）和客户端能看到的权威事件（`FLDObservedUnitView` 的动作提示、命中外观与标志、状态、反应，`FLDObservedProjectileView` 的 23 种外观，`FLDObservedGroundState`，阵亡通知）。特效只能挂在这些事件上；没有公开事件的效果不能凭空表现，记为 BLOCKED 并写明缺什么。
 
 状态：NOT STARTED / IN PROGRESS / IMPLEMENTED / LOCALLY VERIFIED / USER APPROVED / BLOCKED；“设计上不需要”表示该项没有独立特效，由所指的其他表现覆盖。“旧”指仍在运行、但属于 §1.1 禁用语言的表现（网格月牙、星爆、粗黑边、平涂几何体），要整体替换，不算覆盖。未标 USER APPROVED 的项都未经用户验收。
 
@@ -414,7 +414,6 @@
 | 卡牌 | 公开事件 | 状态 | 实现 | 已知问题 |
 | --- | --- | --- | --- | --- |
 | 疯狗乱拳 / 咒刃回响的拳风 | 投射物 FistWind | LOCALLY VERIFIED | `NS_LDFlightFist`：横在前进方向上的弓形压力波 + 两道回波 + 贴地拖起的尘；无本体方块 |  |
-| 幻影脱壳 | 投射物 PhantomDecoy | LOCALLY VERIFIED | 幻影是离它最近的可见身体当前姿势的半透明紫色复制（`ULDImpactFxSubsystem::StandIn`，450 cm 内没有身体时退回圆柱）；引爆 `NS_LDDecoyPop`：紫色闪光、贴地甩出的光丝、扩到爆炸半径的紫烟 |  |
 | 反应装甲 | 投射物 ShardBurst | LOCALLY VERIFIED | `NS_LDShardBurst`：胸口一记冷光、护盾壳片向四周平飞并滑停、前面的亮丝；细线圈为伤害范围 |  |
 | 一路结冰、挪地盘 | 地面状态（冰面 / 迁移） | LOCALLY VERIFIED | 两张卡只通过地面状态公开：冰面是 `NS_LDIceGround`，迁移后的地面状态在新位置重新出现 | 没有卡牌自己的事件 |
 | 元素勋章（火、水、电、冰、腐） | 命中外观与元素状态 | LOCALLY VERIFIED | 勋章只通过命中外观与元素状态公开：见 §7.3 的五种元素状态与 §7.10 的元素命中 | 没有勋章自己的事件 |

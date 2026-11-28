@@ -517,7 +517,6 @@ const TCHAR* LDSliceVfx::SystemName(ESystem System)
     case ESystem::WindZone: return TEXT("NS_LDWindZone");
     case ESystem::AreaPlain: return TEXT("NS_LDAreaPlain");
     case ESystem::ShardBurst: return TEXT("NS_LDShardBurst");
-    case ESystem::DecoyPop: return TEXT("NS_LDDecoyPop");
     case ESystem::RootState: return TEXT("NS_LDRootState");
     case ESystem::ProtectedState: return TEXT("NS_LDProtectedState");
     case ESystem::SlowState: return TEXT("NS_LDSlowState");
@@ -830,7 +829,6 @@ bool LDHitVfx::AppearBurstOf(ELDObservedProjectileLook Look, EBurst& Out, FLinea
     case ELDObservedProjectileLook::FistWind: Out = EBurst::Gust; Tint = FLinearColor(1.f, .42f, .18f); return true;
     case ELDObservedProjectileLook::SlipperDrop: Out = EBurst::Aura; Tint = FLinearColor(.25f, .95f, 1.f); return true;
     case ELDObservedProjectileLook::CordonTape: Out = EBurst::Zap; Tint = FLinearColor(1.f, .86f, .12f); return true;
-    case ELDObservedProjectileLook::PhantomDecoy: Out = EBurst::Dash; Tint = FLinearColor(.82f, .42f, 1.f); return true;
     case ELDObservedProjectileLook::ShardBurst: Out = EBurst::Slam; Tint = FLinearColor(.2f, .92f, 1.f); return true;
     case ELDObservedProjectileLook::AreaFire: Out = EBurst::Flame; Tint = FLinearColor(1.f, .3f, .05f); return true;
     case ELDObservedProjectileLook::AreaWater: Out = EBurst::Splash; Tint = FLinearColor(.25f, .7f, 1.f); return true;
@@ -854,7 +852,6 @@ bool LDHitVfx::EndBurstOf(ELDObservedProjectileLook Look, EBurst& Out, FLinearCo
     case ELDObservedProjectileLook::SockReturn: Out = EBurst::Rot; Tint = FLinearColor(.55f, .85f, .25f); return true;
     case ELDObservedProjectileLook::FistWind: Out = EBurst::Gust; Tint = FLinearColor(1.f, .42f, .18f); return true;
     case ELDObservedProjectileLook::SlipperDrop: Out = EBurst::Aura; Tint = FLinearColor(.25f, .95f, 1.f); return true;
-    case ELDObservedProjectileLook::PhantomDecoy: Out = EBurst::Arcane; Tint = FLinearColor(.88f, .45f, 1.f); return true;
     case ELDObservedProjectileLook::BookShadow: Out = EBurst::Slam; Tint = FLinearColor(.95f, .95f, .85f); return true;
     default: return false;
     }

@@ -138,7 +138,7 @@ def target(value=None):
     }
 
 
-TRIGGERS = ("None", "BasicHit", "AbilityHit", "Damaged", "DashComplete", "PerfectDodge", "AttackSpeedBelow", "MoveSpeedAbove")
+TRIGGERS = ("None", "BasicHit", "AbilityHit", "Damaged", "DashComplete", "AttackSpeedBelow", "MoveSpeedAbove")
 # ELDDemoElement, ELDCardForm and ELDCardType in declaration order.
 ELEMENTS = ("none", "fire", "water", "electric", "chill", "rot", "gust")
 CARD_FORMS = ("", "skill", "dash", "body", "medal")
@@ -266,10 +266,6 @@ def card_terms(value, result):
         result["DistanceCm"] = rational(value["far"]) if "far" in value else rational()
         result["SecondaryRatioBp"] = scalar(value["far_ratio"]) if "far_ratio" in value else 0
         result["CostRatioBp"] = scalar(value["control"]) if "control" in value else 0
-    elif op == "overdrive_short":
-        result["BaseP2"] = 0
-        result["LimitP2"] = scalar(value["momentum"])
-        result["MultiplierBp"] = scalar(value["multiplier"])
     elif op == "dash_ram":
         result["DamageType"] = 0
     elif op == "tally":
@@ -292,11 +288,6 @@ def card_terms(value, result):
         result["RatioBp"] = scalar(value["speed_ratio"])
         result["SecondaryRatioBp"] = scalar(value["distance_ratio"])
         result["CostRatioBp"] = scalar(value["wall_refund"])
-        result["DamageType"] = 0
-    elif op == "phantom_molt":
-        result["RatioBp"] = scalar(value["slow_ratio"])
-        result["DurationMs"] = scalar(value["slow_duration"])
-        result["SecondaryDurationMs"] = 0
         result["DamageType"] = 0
     elif op == "skate_blade":
         result["DamageType"] = 0

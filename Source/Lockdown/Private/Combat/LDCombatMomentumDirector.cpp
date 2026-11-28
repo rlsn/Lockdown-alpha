@@ -52,8 +52,6 @@ bool ALDCombatDirector::ResolvePerfectDodges(const FGuid& EffectId, const FGuid&
         ++Body.PerfectDodges;
         Body.LastPerfectDodgeAtMs=NowMs;
         MarkViewChanged(Dodger);
-        // D04 and D09 answer the dodge.
-        if (!OnPerfectDodgeCards(Body,NowMs,Error)) { return false; }
         UE_LOG(LogLDCombat,Log,TEXT("LD_PERFECT_DODGE t=%lld entity=%s life=%u effect=%s source=%s momentum=%s"),NowMs,*LDLog::Id(Dodger),
             Body.Victim.Life,*LDLog::Id(EffectId),*LDLog::Id(SourceEntity),*LDLog::P2(Body.Resources.MomentumP2));
     }

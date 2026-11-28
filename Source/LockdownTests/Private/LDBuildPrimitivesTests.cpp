@@ -119,11 +119,9 @@ struct FLDBuildPrimitivesAccess
     static bool OwnerCardStacks(ALDCombatDirector& Driver, const FLDCombatEntityRecord& Record, const FLDBodyCombatState* Body,
         const FLDAttributeProjection& Projection, int64 NowMs, TArray<FLDCombatCardStackView>& Out)
     { return Driver.OwnerCardStacks(Record, Body, Projection, NowMs, Out); }
-    static TArray<ALDCombatDirector::FLDCombatDecoy>& Decoys(ALDCombatDirector& Driver) { return Driver.Decoys; }
     static bool AdvanceStaggerBleeds(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceStaggerBleeds(NowMs, Error); }
     static bool AdvanceSlipperDrops(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceSlipperDrops(NowMs, Error); }
     static bool AdvanceCordons(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceCordons(NowMs, Error); }
-    static bool AdvanceDecoys(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceDecoys(NowMs, Error); }
     static bool AdvanceSynergyStates(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceSynergyStates(NowMs, Error); }
     static bool PlaceBag(ALDCombatDirector& Driver, FLDBodyCombatState& Body, const FLDCombatHit& Payload, const FLDDemoEffectDefinition& Effect,
         const FVector& Centre, int64 NowMs, FString& Error) { return Driver.PlaceBag(Body, Payload, Effect, nullptr, Centre, NowMs, Error); }
@@ -4148,33 +4146,12 @@ bool FLDCardRuleK18Test::RunTest(const FString& Parameters)
     using namespace LDBuildPrimitivesTests;
     return RunCardRule(*this, {TEXT("card_combo_chain"), ELDDemoEffectOp::RecentCastAmp, ELDCardTargetKind::Skill});
 }
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleD04Test, "Lockdown.Rules.Combat.Cards.D04",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FLDCardRuleD04Test::RunTest(const FString& Parameters)
-{
-    using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_dodge_strike"), ELDDemoEffectOp::DodgeFreeCast, ELDCardTargetKind::Dash});
-}
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleD09Test, "Lockdown.Rules.Combat.Cards.D09",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FLDCardRuleD09Test::RunTest(const FString& Parameters)
-{
-    using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_slippery"), ELDDemoEffectOp::HitGrowth, ELDCardTargetKind::Dash});
-}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY06Test, "Lockdown.Rules.Combat.Cards.Y06",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDCardRuleY06Test::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
     return RunCardRule(*this, {TEXT("card_shell_burst"), ELDDemoEffectOp::ShieldBurstBreak, ELDCardTargetKind::Body});
-}
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY11Test, "Lockdown.Rules.Combat.Cards.Y11",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FLDCardRuleY11Test::RunTest(const FString& Parameters)
-{
-    using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_short_breath"), ELDDemoEffectOp::OverdriveShort, ELDCardTargetKind::Body});
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY18Test, "Lockdown.Rules.Combat.Cards.Y18",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -4745,14 +4722,6 @@ bool FLDCardRuleU06Test::RunTest(const FString& Parameters)
     return RunCardRule(*this, {TEXT("card_runaway_train"), ELDDemoEffectOp::RunawayTrain, ELDCardTargetKind::Dash});
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleU07Test, "Lockdown.Rules.Combat.Cards.U07",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FLDCardRuleU07Test::RunTest(const FString& Parameters)
-{
-    using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_phantom_molt"), ELDDemoEffectOp::PhantomMolt, ELDCardTargetKind::Dash});
-}
-
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleU08Test, "Lockdown.Rules.Combat.Cards.U08",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDCardRuleU08Test::RunTest(const FString& Parameters)
@@ -4855,11 +4824,10 @@ bool FLDIssue345SkillsAndFrameworksTest::RunTest(const FString& Parameters)
     if (!F.Init(*this, true)) { return false; }
     FString Error;
 
-    // 1. Native 0.12s D-dash hit-graze Perfect Dodge + card_phantom_molt decoy spawn & detonation.
+    // 1. Native 0.12s D-dash hit-graze Perfect Dodge.
     const FLDCombatBodyRef Dodger = F.AddBody(), Attacker = F.AddBody();
     F.Place(Dodger, 0, 0);
     F.Place(Attacker, 180, 0);
-    if (!InstallCards(*this, F, Dodger, 6, {{TEXT("card_phantom_molt"), ELDCardTargetKind::Dash}})) { return false; }
     F.Body(Dodger).Resources.HpP2 = F.Body(Dodger).Resources.MaxHpP2 = 100000;
     F.Body(Dodger).Resources.MomentumP2 = 2000;
     F.Body(Dodger).DashStartedAtMs = 1000;
@@ -4877,15 +4845,10 @@ bool FLDIssue345SkillsAndFrameworksTest::RunTest(const FString& Parameters)
     GrazingHit.BaseP2 = 20000;
     GrazingHit.DamageType = ELDDemoDamageType::Physical;
     if (!TestTrue(TEXT("Grazing hit during 0.12s dash window resolves: ") + Error, F.Apply(GrazingHit, Error))) { return false; }
-    TestTrue(TEXT("0.12s dash window halves damage, grants +20 momentum, sets Dodged cue flag, and spawns phantom decoy"),
+    TestTrue(TEXT("0.12s dash window halves damage, grants +20 momentum and sets Dodged cue flag"),
         F.Body(Dodger).PerfectDodges == 1 && F.Body(Dodger).Resources.MomentumP2 == 4000
         && (F.Body(Dodger).Cues.LastHitFlags & LDObservation::Dodged) != 0
-        && F.Body(Dodger).Resources.HpP2 > 88000
-        && FAccess::Decoys(*F.Driver).Num() == 1);
-    F.Now(2100);
-    if (!TestTrue(TEXT("Phantom decoy detonates after 1s: ") + Error, FAccess::AdvanceDecoys(*F.Driver, 2100, Error) && Drain(*this, F)))
-    { return false; }
-    TestTrue(TEXT("Phantom decoy blast slows nearby attacker"), FAccess::Decoys(*F.Driver).IsEmpty() && !F.Body(Attacker).Slows.IsEmpty());
+        && F.Body(Dodger).Resources.HpP2 > 88000);
 
     // 2. Thick Skin 18-point keystone 35% MaxHP stagger bleed gate.
     const FLDCombatBodyRef Tank = F.AddBody();

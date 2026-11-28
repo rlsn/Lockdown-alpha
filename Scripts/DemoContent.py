@@ -49,10 +49,10 @@ NATIVE_ENUMS = {
 # Inclusive native numbers that are never reused (#198 retires the passives, cower, attribute cards, their statuses and
 # unused ops; #287 P2 retires the components 1-63 below the cards; P4 retires the grievous status and operation and the
 # projectile zone).
-RETIRED_RANGES = {"abilities": [[0, 91], [101, 101], [104, 113], [116, 116], [118, 125], [130, 130]], "stats": [[0, 26]], "cards": [[0, 199], [214, 218], [237, 242], [255, 255]],
+RETIRED_RANGES = {"abilities": [[0, 91], [101, 101], [104, 113], [116, 116], [118, 125], [130, 130]], "stats": [[0, 26]], "cards": [[0, 199], [214, 218], [237, 242], [247, 247], [252, 252], [255, 255], [266, 266], [296, 296]],
                   "final_mods": [[2, 2], [5, 5], [11, 11], [15, 15], [21, 24]],
                   "statuses": [[7, 8], [11, 11], [15, 19], [21, 24], [28, 29], [33, 33]],
-                  "effect_ops": [[5, 6], [9, 11], [15, 17], [19, 19], [23, 23], [25, 30], [32, 36], [38, 39], [41, 49], [51, 51], [53, 53], [55, 68], [72, 76], [83, 89], [96, 96], [100, 100], [102, 102], [104, 104], [120, 129], [131, 137], [139, 145], [147, 151], [154, 154], [159, 159], [161, 161], [165, 169], [195, 195], [235, 235]]}
+                  "effect_ops": [[5, 6], [9, 11], [15, 17], [19, 19], [23, 23], [25, 30], [32, 36], [38, 39], [41, 49], [51, 51], [53, 53], [55, 68], [72, 76], [83, 89], [96, 96], [100, 100], [102, 102], [104, 104], [120, 129], [131, 137], [139, 145], [147, 151], [154, 154], [159, 159], [161, 161], [165, 169], [195, 195], [235, 235], [252, 252], [254, 254], [269, 269]]}
 # #97: three camp difficulty tiers, one monster definition each; the Boss is its own block.
 CAMP_TIERS = frozenset(("Low", "High", "Elite", "Ancient"))
 # The operations only a skill branch adds to an active (issue #287 spec §5.1); rank 1 never carries them.
@@ -97,11 +97,10 @@ CARD_ONLY_OPS = frozenset(("thorns", "lifesteal", "triggered_shield", "basic_ele
                            "reaction_factor", "burn_cap", "dash_ice", "ground_relocate", "double_stall", "ground_growth",
                            # Issue #292 P5 cards (spec §7).
                            "basic_projectile", "combo_sweep", "combo_cast", "speed_factor", "hit_growth", "control_amp",
-                           "reshape", "shield_spend", "recent_cast_amp", "dodge_free_cast", "dash_ram", "overdrive_short",
-                           "tally",
+                           "reshape", "shield_spend", "recent_cast_amp", "dash_ram", "tally",
                            # Issue #345 cross-axis synergy unlock cards.
                            "brain_speed", "spellblade_echo", "heavy_mallet", "projectile_flight_amp", "eagle_stance",
-                           "runaway_train", "phantom_molt", "skate_blade", "tonnage_crush", "hulking_presence",
+                           "runaway_train", "skate_blade", "tonnage_crush", "hulking_presence",
                            "iron_hedgehog", "reactive_plating", "desperado", "fuel_the_fire", "rogue_works", "martial_scholar"))
 # burn, breach and empower_basic also have an active form; shield_burst_break is S13 A1's branch and Y06's card.
 CARD_OPS = CARD_ONLY_OPS | {"burn", "breach", "empower_basic", "shield_burst_break"}
@@ -114,13 +113,13 @@ FORM_OPS = {
                         "skill_growth", "reaction_haste", "takedown_reset", "control_amp", "reshape",
                         "shield_spend", "recent_cast_amp", "fuel_the_fire")),
     "dash": frozenset(("dash_contact_reset", "hit_haste_other", "empower_basic", "dash_split", "dash_phase",
-                       "dash_ice", "ground_relocate", "dodge_free_cast", "dash_ram", "cooldown_cost", "hit_growth",
-                       "runaway_train", "phantom_molt")),
+                       "dash_ice", "ground_relocate", "dash_ram", "cooldown_cost",
+                       "runaway_train")),
     "body": frozenset(("thorns", "takedown_reset", "last_stand", "reaction_momentum", "reaction_element", "triggered_shield",
                        "knockback_impact", "skill_crit", "lifesteal_skills", "armor_to_hp", "overheal_shield",
                        "missing_hp_attack_speed", "haste_momentum", "lifesteal", "heal_growth", "kill_growth",
                        "control_growth", "idle_charge", "element_aura", "element_duration", "reaction_factor", "burn_cap",
-                       "double_stall", "ground_growth", "shield_burst_break", "overdrive_short", "speed_factor", "tally",
+                       "double_stall", "ground_growth", "shield_burst_break", "speed_factor", "tally",
                        "breach", "combo_momentum", "basic_cooldown_cut", "combo_skill_hit", "combo_knockback", "combo_double",
                        "overcap_extra_hit", "basic_ap_rider", "focus_attack_speed", "basic_projectile", "combo_sweep",
                        "combo_cast", "hit_growth", "brain_speed", "spellblade_echo", "heavy_mallet",
@@ -131,8 +130,8 @@ FORM_OPS = {
 CARD_FORMS = ("skill", "dash", "body", "medal")
 CARD_TYPES = ("trigger", "modify", "convert", "grow", "element")
 # Spec §6.3 vocabulary keys in bit order (ELDCardVocab).
-CARD_VOCAB = ("basic_hit", "combo3", "skill_hit", "skill_cast", "overdrive", "reaction", "element", "dash", "dash_contact",
-              "perfect_dodge", "knockback", "wall_impact", "shield", "shield_break", "controlled", "control", "damaged",
+CARD_VOCAB = ("basic_hit", "combo3", "skill_hit", "skill_cast", "reaction", "element", "dash", "dash_contact",
+              "knockback", "wall_impact", "shield", "shield_break", "controlled", "control", "damaged",
               "low_hp", "kill", "idle", "ground", "heal", "momentum", "attack_speed", "move_speed", "crit", "armor", "max_hp",
               "area", "range")
 # Content element names (electric is the shock element); Y25's aura may name any.
@@ -814,7 +813,7 @@ _CARD_MAGNITUDES = {
     "idle_ready_amp": ("ratio",), "thorns": ("ratio",), "skill_lifesteal": ("ratio",), "lifesteal": ("ratio",),
     "basic_projectile": ("distance", "speed", "radius"), "combo_sweep": ("angle", "ratio"), "combo_cast": ("damage_ratio",),
     "speed_factor": ("ratio",), "control_amp": ("ratio",), "shield_spend": ("ratio",), "recent_cast_amp": ("ratio",),
-    "dash_ram": ("ratio", "distance"), "overdrive_short": ("momentum", "multiplier"), "tally": ("base",),
+    "dash_ram": ("ratio", "distance"), "tally": ("base",),
     "shield_burst_break": ("radius",),
     "brain_speed": ("ap_step", "attack_speed_ratio", "base"),
     "spellblade_echo": ("ap_ratio", "radius"),
@@ -822,7 +821,6 @@ _CARD_MAGNITUDES = {
     "projectile_flight_amp": ("distance", "ratio", "max_ratio"),
     "eagle_stance": ("distance",),
     "runaway_train": ("speed_ratio", "distance_ratio", "wall_refund"),
-    "phantom_molt": ("radius", "slow_ratio"),
     "skate_blade": ("distance",),
     "tonnage_crush": ("max_hp_ratio", "monster_ratio"),
     "hulking_presence": ("hp_step", "area_ratio", "knockback_cut"),
@@ -909,11 +907,9 @@ def _validate_cards(data):
                         "skill_crit only grants CritChanceBonusRatio")
             if effect["op"] == "hit_growth":
                 _positive_stats(effect["stats"], identity)
-                basic = effect["trigger"] == "BasicHit"
-                require(row["form"] == ("body" if basic else "dash"), "CardForm", identity,
-                        "basic hits grow a body card; perfect dodges a dash card")
-                require(set(effect["stats"]) <= ({"ADFlat", "APFlat", "AttackSpeedBonusRatio"} if basic else {"MoveSpeedBonusRatio"}), "UnknownField",
-                        identity, "basic hits grow attack, power or attack speed; perfect dodges grow move speed")
+                require(row["form"] == "body", "CardForm", identity, "basic hits grow a body card")
+                require(set(effect["stats"]) <= {"ADFlat", "APFlat", "AttackSpeedBonusRatio"}, "UnknownField",
+                        identity, "basic hits grow attack, power or attack speed")
             if effect["op"] == "reshape":
                 fields = {key for key in ("area", "range", "far", "far_ratio", "control") if key in effect}
                 require(fields and all(quantity(effect[key]) > 0 for key in fields), "IneffectiveEffect", identity,
@@ -923,8 +919,6 @@ def _validate_cards(data):
             if effect["op"] == "cooldown_cost" and "momentum" in effect:
                 require(row["form"] == "dash" and quantity(effect["momentum"]) > 0, "CardForm", identity,
                         "only the D dash takes a flat momentum cost")
-            if effect["op"] == "overdrive_short":
-                require(quantity(effect["multiplier"]) > 1, "NumericDomain", identity, "an overdrive still scales up")
             if effect["op"] == "element_duration":
                 require(quantity(effect["multiplier"]) > 1, "NumericDomain", identity, "an element duration only grows")
 

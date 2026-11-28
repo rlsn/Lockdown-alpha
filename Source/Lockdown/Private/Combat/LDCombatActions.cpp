@@ -998,7 +998,7 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
     const bool bInnateEntry=Source.Kind==ELDCombatSourceKind::Innate;
     const bool bSplitOpen=bInnateEntry && Body->SplitDashLeft>0 && Now<=Body->SplitDashUntilMs;
     Gate.MomentumCostP2=bInnateEntry ? (bSplitOpen ? 0 : Terms.DashMomentumCostP2)
-        : bRecastOpen || BranchFreeCast(*Body,Source,Now) || Body->FreeCasts>0 || Terms.HPCostBpPerMomentum>0 ? 0 : ValuesDef->MomentumCostP2;
+        : bRecastOpen || BranchFreeCast(*Body,Source,Now) || Terms.HPCostBpPerMomentum>0 ? 0 : ValuesDef->MomentumCostP2;
     // Only an action that displaces its caster is a dash for the root matrix (a ground zone is not).
     Gate.bDash=LDCombatSourceRules::DisplacesCaster(*ValuesDef);
     Gate.Roots=&Body->Roots;
@@ -1547,7 +1547,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     const bool bBranchRecast=!bInnate && !Action.bAutoRecast && BranchRecastOpen(Body,Source,Now);
     const bool bRecast=bBranchRecast || Action.bAutoRecast || bSplitSegment;
     // S05 B2's window or D04's free cast of a perfect dodge.
-    const bool bFreeCast=!bInnate && !bRecast && (BranchFreeCast(Body,Source,Now) || Body.FreeCasts>0);
+    const bool bFreeCast=!bInnate && !bRecast && BranchFreeCast(Body,Source,Now);
     // K12: the release pays health instead of momentum (refused while the body cannot pay it and live).
     const bool bHealthCost=!bInnate && !bRecast && !bFreeCast && Terms.HPCostBpPerMomentum>0;
     const int64 HealthCostP2=bHealthCost ? Body.Resources.MaxHpP2/10000*Terms.HPCostBpPerMomentum*ValuesDef->MomentumCostP2/100
@@ -1701,12 +1701,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         else { Body.SplitDashLeft=Terms.SplitSegments-1; }
         if (!LDMatchLifecycle::AddDurationMs(Now,Terms.SplitWindowMs+Innate.DurationMs,Body.SplitDashUntilMs,Error)) { return false; }
     }
-    if (bFreeCast)
-    {
-        // A branch window spends first; otherwise one of D04's free casts.
-        if (BranchFreeCast(Body,Source,Now)) { Body.Branch.FreeCastUntilMs=0; }
-        else { Body.FreeCasts=FMath::Max(Body.FreeCasts-1,0); }
-    }
+    if (bFreeCast) { Body.Branch.FreeCastUntilMs=0; }
     // K05: the next skill took the control bonus; K18: this release joins the recent ones (repeats and recasts do not).
     if (Source.Kind==ELDCombatSourceKind::Learned && !Body.ControlAmpCard.IsNone())
     {

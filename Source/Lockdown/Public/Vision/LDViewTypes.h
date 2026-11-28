@@ -25,7 +25,7 @@ namespace LDObservation
     // 21 packs public status expiry times without losing precision.
     // 22 uses the finer square-cell ground coverage raster.
     // 23 moves camp-clear recovery orbs and #345 tactical entities/hit flags into sight-authorized FLDWorldView.
-    // 25 removes the overdrive charge, the overdrive cast and the Overdriven hit flag.
+    // 25 removes the overdrive charge, the overdrive cast, the Overdriven hit flag and the phantom decoy look (23 is a hole).
     constexpr uint32 Schema = 25;
     // A ground state's wire size (LDViewTypes.cpp SerializeObservedGround): SC-07 registers MaxGroundStates of them per frame.
     constexpr int32 GroundStateWireBytes = 16;
@@ -84,8 +84,8 @@ UENUM() enum class ELDObservedProjectileLook : uint8
     ChalkReturn = 12, SockReturn = 13, Road = 14, ConeWarning = 15, LineWarning = 16, Wind = 17,
     // N4: a school bag (RadiusCm = its body) and the wall between two bags (LengthCm, RadiusCm = half width).
     Bag = 18, BagWall = 19,
-    // #345: piercing fist-wind wave, collectible slipper drop, elastic cordon tape, phantom decoy afterimage, and shield shard burst.
-    FistWind = 20, SlipperDrop = 21, CordonTape = 22, PhantomDecoy = 23, ShardBurst = 24
+    // #345: piercing fist-wind wave, collectible slipper drop, elastic cordon tape and shield shard burst (23 is retired).
+    FistWind = 20, SlipperDrop = 21, CordonTape = 22, ShardBurst = 24
 };
 // Spec §8.3 ground-state footprints: a circle, D10's band (ExtentCm = half length) or N1's sector (ExtentCm = angle).
 UENUM() enum class ELDObservedGroundShape : uint8 { Circle = 0, Band = 1, Sector = 2 };

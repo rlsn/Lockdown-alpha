@@ -335,7 +335,6 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
                 ++Body->PerfectDodges;
                 Body->LastPerfectDodgeAtMs=NowMs;
                 MarkViewChanged(Dodger);
-                if (!OnPerfectDodgeCards(*Body,NowMs,Error)) { return false; }
                 UE_LOG(LogLDCombat,Log,TEXT("LD_PERFECT_DODGE t=%lld entity=%s life=%u effect=%s source=%s momentum=%s"),NowMs,*LDLog::Id(Dodger),
                     Body->Victim.Life,*LDLog::Id(Hit.EffectId),*LDLog::Id(Hit.SourceEntity),*LDLog::P2(Body->Resources.MomentumP2));
             }

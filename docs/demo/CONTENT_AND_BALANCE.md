@@ -12,7 +12,7 @@
 | XP、营地、野怪与 AI 参数 | [§6 经验、营地和发育供给](#6-经验营地和发育供给) |
 | 帧率预算与目录契约 | [§8.1 性能预算](#81-性能预算)、[§10 数据来源与提交契约](#10-数据来源与提交契约) |
 
-当前运行目录包含：**1 个基础角色、5 项五维属性（含 18 点关键石）、24 个三级分支角色主动、89 张构筑牌 + 5 枚三阶融合元素勋章（共 94 项 `cards` 条目）、8 项终局改装、四档 12 种野怪与 1 个 Boss**。所有世界距离按脚点中心 XY 厘米判定，不重复加减胶囊碰撞半径。
+当前运行目录包含：**1 个基础角色、5 项五维属性（含 18 点关键石）、24 个三级分支角色主动、85 张构筑牌 + 5 枚三阶融合元素勋章（共 90 项 `cards` 条目）、8 项终局改装、四档 12 种野怪与 1 个 Boss**。所有世界距离按脚点中心 XY 厘米判定，不重复加减胶囊碰撞半径。
 
 ## 3. 单位、参数与公式
 
@@ -427,7 +427,7 @@ $$
 
 ### 4.4 构筑牌与参数
 
-`content.json` 的 `cards` 共 94 项（89 张构筑牌 + 5 枚独立掉落三阶融合元素勋章；K05/K11 的 `host_control` 与 K07/K10 的 `host_hit_types` 按技能当前已选分支完整效果集校验可装宿主）。规则见 [App Spec §4.4](../APP_SPEC.md#44-构筑牌)。
+`content.json` 的 `cards` 共 90 项（85 张构筑牌 + 5 枚独立掉落三阶融合元素勋章；K05/K11 的 `host_control` 与 K07/K10 的 `host_hit_types` 按技能当前已选分支完整效果集校验可装宿主）。规则见 [App Spec §4.4](../APP_SPEC.md#44-构筑牌)。
 
 **参数**（运行中）：
 
@@ -496,12 +496,10 @@ $$
 | D01 | `card_bump_reset` | 撞着就刷新 | 触发 | 冲刺接触参赛者 → 冲刺冷却刷新；接触野怪或画饼老板减剩余冷却的 50%（每次冲刺最多一次） | dash_contact |
 | D02 | `card_bump_again` | 撞着了再撞 | 触发 | 冲刺接触敌人 → 所有技能冷却 −1.5 s | dash_contact, skill_cast |
 | D03 | `card_dash_punch` | 蹿过去抡一拳 | 触发 | 冲刺结束 → 3 s 内下一次普攻 +100% 攻击力（并入主击） | dash, basic_hit |
-| D04 | `card_dodge_strike` | 闪完就打 | 触发 | 完美闪避后，你的下一个技能不耗劲 | perfect_dodge, momentum |
 | D05 | `card_double_dash` | 两段冲刺 | 改造 | 冲刺分两段，各 200 cm，第二段需在 1 s 内再按 D；冷却不变 | dash |
 | D06 | `card_pass_through` | 穿人而过 | 改造 | 冲刺穿过敌人身体（不被阻挡），对每个穿过的人造成一次普攻（算普攻命中，不推进连击） | dash_contact, basic_hit |
 | D07 | `card_head_down` | 闷头撞到底 | 改造 | 冲刺距离 +60%；撞到的敌人受 30 + 0.4 × 攻击力物理伤害并被撞开 150 cm / 0.12 s | dash_contact, knockback |
 | D08 | `card_paid_dash` | 冲刺耗劲 | 转换 | 冲刺消耗 15 劲，冷却 ×0.4 | momentum, dash |
-| D09 | `card_slippery` | 越躲越快 | 成长 | 每次完美闪避，本局移速 +1.5%，无上限 | perfect_dodge, move_speed |
 | D10 | `card_ice_trail` | 一路结冰 | 元素 | 冲刺路径留冰面（宽 160 cm，5 s；每份一条） | ground |
 | D11 | `card_move_turf` | 挪地盘 | 元素 | 冲刺结束 → 把你最近放下的地面状态、区域或陷阱挪到脚下（每个只挪一次；跟随你的区域不算） | ground |
 | Y01 | `card_spiky_hide` | 打我也硌手 | 触发 | 受到敌方直接伤害（含被护盾吸收）→ 向出手者反弹 25%（魔法伤害，不暴击）；反弹不吸血；持续伤害与反弹不触发 | damaged |
@@ -514,7 +512,6 @@ $$
 | Y08 | `card_ball_kick` | 拿你当球踢 | 触发 | 你造成的击退撞上固定障碍 → 眩晕 0.8 s；撞上另一敌人 → 两人各受 P 60 + 0.5AD | knockback, wall_impact |
 | Y09 | `card_skill_crit` | 技能也能暴击 | 改造 | 你的技能可以暴击（用你的暴击率另加 15%，倍率 2） | crit, skill_hit |
 | Y10 | `card_skill_drain` | 吸血对技能生效 | 改造 | 你的吸血也按技能实际生命伤害生效 | heal, skill_hit |
-| Y11 | `card_short_breath` | 气短 | 改造 | 劲到 35 就能爆劲，爆劲倍率 140%（多份取同一门槛，不叠加） | overdrive, momentum |
 | Y12 | `card_double_stall` | 双摊位 | 改造 | 你的陷阱、风扇和技能放下的地面状态每份多同时留一份，风扇与占座书包每份多 1 次充能；D10 的冰带每份多留一倍时长 | ground |
 | Y13 | `card_thick_hide` | 皮糙肉厚 | 转换 | 每 1 点护甲 → 生命上限 +6 | armor, max_hp |
 | Y14 | `card_overfed` | 吃撑了 | 转换 | 溢出的治疗变成护盾（上限 30% 生命上限，5 s，与现有护盾取强） | heal, shield |
@@ -539,7 +536,6 @@ $$
 | U04 | `card_let_bullets_fly` | 让子弹飞 | 改造 | 技能弹道与飞行普攻每飞行 100cm 伤害提高 8%，最高 +64% | range, skill_hit, basic_hit |
 | U05 | `card_eagle_stance` | 鹰眼架枪 | 改造 | 站立不动满 0.8s 进入架枪态（移动后保留 0.35s）：普攻与指向/弹道/地面技能射程 +160cm | range, idle, basic_hit |
 | U06 | `card_runaway_train` | 失控列车 | 转化 | 冲刺碰撞附加 45% 当前移速 + 30% 本次冲刺距离的物理伤害；冲刺撞墙返还 40% 剩余冲刺冷却 | dash, dash_contact, move_speed, wall_impact |
-| U07 | `card_phantom_molt` | 幻影脱壳 | 触发 | 触发精准闪避时原地留下 1.0s 嘲讽野怪的残影，随后爆炸对 240cm 内造成 70 + 0.65 自适应伤害并减速 35%（1.2s） | perfect_dodge, dash, area |
 | U08 | `card_skate_blade` | 冰刀割裂 | 触发 | 敌人在冰面上每位移或滑行 100cm 受 28 + 0.30 自适应物理伤害；自身站在冰面上攻速 +25%、移速 +20% | ground, element, move_speed, attack_speed |
 | U09 | `card_tonnage_crush` | 吨位碾压 | 转化 | 第 3 段普攻与自身周围范围技能额外附加 3.5% 额外生命上限的物理伤害（对野怪翻倍为 7%） | max_hp, combo3, area |
 | U10 | `card_hulking_presence` | 大块头有威慑 | 转化 | 每拥有 800 额外最大生命，自身范围/光环/护盾爆破半径扩大 10%（上限 +100%；与 K07 的范围加成、扯嗓子喷你“低音震胸”分支按生命上限的扩圈相加成一个倍率，不相乘），受到的击退距离减少 12% | max_hp, area, knockback |
@@ -756,7 +752,7 @@ $$
 
 ### 4.7 终局改装
 
-`final_mods` 是独立于 24 个角色主动与 94 项 `cards` 的八项规则目录，八项全部普适：不绑定来源、不看构筑。R3（独立配装窗 `REST.FinalBuildSec = 20s`）每人从八项中无放回均匀抽三项（击杀画饼老板或赢得擂台多一项，最多一次），一局只选一项；揭示后固定，选择及其公开展示见 App Spec §2.1、规则见 §2.2。每项只改终局的胜负或旗杆规则，不造成伤害、不改构筑数值。终局棘轮（`SHOWDOWN.SprayRatchetSec = [1.15s, 2.3s]`、`SHOWDOWN.GuardRatchetSec = [7s, 14s]`）与终局基础击杀守护时间（`SHOWDOWN.KillGuardBonusSec = 4s`）统一由 `content.json` 参数化驱动。
+`final_mods` 是独立于 24 个角色主动与 90 项 `cards` 的八项规则目录，八项全部普适：不绑定来源、不看构筑。R3（独立配装窗 `REST.FinalBuildSec = 20s`）每人从八项中无放回均匀抽三项（击杀画饼老板或赢得擂台多一项，最多一次），一局只选一项；揭示后固定，选择及其公开展示见 App Spec §2.1、规则见 §2.2。每项只改终局的胜负或旗杆规则，不造成伤害、不改构筑数值。终局棘轮（`SHOWDOWN.SprayRatchetSec = [1.15s, 2.3s]`、`SHOWDOWN.GuardRatchetSec = [7s, 14s]`）与终局基础击杀守护时间（`SHOWDOWN.KillGuardBonusSec = 4s`）统一由 `content.json` 参数化驱动。
 
 | ID / 名称 | 参数 | 规则 |
 | --- | --- | --- |

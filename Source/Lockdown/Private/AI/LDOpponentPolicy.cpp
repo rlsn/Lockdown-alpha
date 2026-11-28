@@ -1815,7 +1815,6 @@ bool RelevantStats(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Ca
         | (1u << uint32(ELDCardVocab::Crit));
     constexpr uint32 MobilityVocab = (1u << uint32(ELDCardVocab::Dash))
         | (1u << uint32(ELDCardVocab::DashContact))
-        | (1u << uint32(ELDCardVocab::PerfectDodge))
         | (1u << uint32(ELDCardVocab::MoveSpeed));
     constexpr uint32 CastElementVocab = (1u << uint32(ELDCardVocab::Reaction))
         | (1u << uint32(ELDCardVocab::Element))

@@ -812,43 +812,6 @@ UStaticMesh* ULDImpactFxSubsystem::PropMesh(LDSliceVfx::EMesh Mesh)
     return FApp::CanEverRender() && LoadSliceAssets() && SlashMeshes.IsValidIndex(int32(Mesh)) ? SlashMeshes[int32(Mesh)].Get() : nullptr;
 }
 
-UPoseableMeshComponent* ULDImpactFxSubsystem::StandIn(AActor& Host, const FVector& At, const FLinearColor& Glow, float ReachCm)
-{
-    if (!FApp::CanEverRender() || At.ContainsNaN() || !Host.GetRootComponent() || !LoadLayerAssets() || !GhostMaterial) { return nullptr; }
-    const USkeletalMeshComponent* Near = nullptr;
-    double Best = FMath::Square(double(ReachCm));
-    for (int32 Index = Bodies.Num() - 1; Index >= 0; --Index)
-    {
-        const USkeletalMeshComponent* Body = Bodies[Index].Get();
-        if (!Body) { Bodies.RemoveAtSwap(Index); continue; }
-        if (Body->GetWorld() != GetWorld() || !Body->GetSkinnedAsset() || !Body->GetOwner() || Body->GetOwner()->IsHidden()) { continue; }
-        const double Far = FVector::DistSquared2D(Body->GetComponentLocation(), At);
-        if (Far < Best) { Best = Far; Near = Body; }
-    }
-    if (!Near) { return nullptr; }
-    auto* Copy = NewObject<UPoseableMeshComponent>(&Host, NAME_None, RF_Transient);
-    Copy->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-    Copy->SetGenerateOverlapEvents(false);
-    Copy->SetCanEverAffectNavigation(false);
-    Copy->SetCastShadow(false);
-    Copy->bReceivesDecals = false;
-    Copy->SetupAttachment(Host.GetRootComponent());
-    Copy->RegisterComponent();
-    Copy->SetSkinnedAssetAndUpdate(Near->GetSkinnedAsset());
-    UMaterialInstanceDynamic* Paint = UMaterialInstanceDynamic::Create(GhostMaterial, Copy);
-    Paint->SetVectorParameterValue(LDHitVfx::GlowParameter, Glow);
-    Paint->SetScalarParameterValue(LDHitVfx::FadeParameter, .8f);
-    for (int32 Index = 0; Index < Copy->GetNumMaterials(); ++Index) { Copy->SetMaterial(Index, Paint); }
-    // The body's own height over its floor, at the stand-in's place.
-    FTransform Pose = Near->GetComponentTransform();
-    const FVector From = Near->GetComponentLocation();
-    Pose.SetLocation(FVector(At.X, At.Y, FloorUnder(At).Z + From.Z - FloorUnder(From).Z));
-    Copy->SetWorldTransform(Pose);
-    // The engine reads the source pose only; its parameter is not const.
-    Copy->CopyPoseFromSkeletalComponent(const_cast<USkeletalMeshComponent*>(Near));
-    return Copy;
-}
-
 bool ULDImpactFxSubsystem::LoadSliceAssets()
 {
     if (bSliceAssetsTried) { return bSliceAssetsReady; }

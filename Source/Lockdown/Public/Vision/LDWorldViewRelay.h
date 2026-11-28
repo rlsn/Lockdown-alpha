@@ -301,8 +301,6 @@ public:
 private:
     UPROPERTY() TObjectPtr<UStaticMeshComponent> Chalk;
     UPROPERTY() TObjectPtr<UStaticMeshComponent> Accent;
-    // A phantom decoy's figure: a still copy of the body it left (ULDImpactFxSubsystem::StandIn).
-    UPROPERTY() TObjectPtr<class UPoseableMeshComponent> StandIn;
     UPROPERTY() TObjectPtr<UStaticMesh> BoxMesh;
     UPROPERTY() TObjectPtr<UStaticMesh> CylinderMesh;
     UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> EffectTint;

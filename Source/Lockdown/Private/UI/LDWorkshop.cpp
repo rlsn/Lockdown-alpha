@@ -590,11 +590,6 @@ bool ULDWorkshop::LiveOf(const FCard& Card,int32& Badge,FString& Line) const
         const int64 Bp=Grown(ELDDemoBonusStat::AttackSpeedBonusRatio);
         Badge=int32(Bp/100);Line=FString::Printf(TEXT("本局已 +%d 攻击力、攻速 +%d%%"),int32(Bp/100)*2,int32(Bp/100));
     }
-    else if(Id==TEXT("card_slippery"))
-    {
-        const int64 Bp=Grown(ELDDemoBonusStat::MoveSpeedBonusRatio);
-        Badge=int32(Bp/150);Line=FString::Printf(TEXT("本局移速已 +%.1f%%"),double(Bp)/100.);
-    }
     else if(Id==TEXT("card_thick_hide"))
     {
         const int64 Armor=Latest.Stats.ArmorP2/100;

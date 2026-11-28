@@ -26,7 +26,7 @@ enum class ELDDemoFinalModId : uint8
 };
 // Issue #287 spec §7 build cards: A01-A19 take 200-218, K01-K25 219-243, D01-D12 244-255 and Y01-Y29 256-284 (P2, P4 and the
 // #292 P5 cards); the element medals 285-289. The #198 components 0-199 and the single-element cards 214-218, 237-242 and 255
-// are retired and never reused.
+// and the deleted perfect-dodge/overdrive cards 247, 252, 266 and 296 are retired and never reused.
 enum class ELDDemoCardId : uint16
 {
     CardThirdBreath=200, CardPunchThink=201, CardSolidPunch=202, CardThirdShove=203, CardLongArm=204, CardBothHands=205,
@@ -34,16 +34,16 @@ enum class ELDDemoCardId : uint16
     CardMuscleMemory=212, CardBreachFist=213, CardNextUp=219, CardPayBack=220, CardQuickTakedown=221, CardSetupLine=222, CardPinAmp=223,
     CardEncore=224, CardCrowdHit=225, CardAgainNow=226, CardBigOne=227, CardLongReach=228, CardHoldLonger=229,
     CardBloodPrice=230, CardLendFist=231, CardHeldBreath=232, CardHurtHeal=233, CardHeldShot=234, CardPractice=235,
-    CardComboChain=236, CardBlastReload=243, CardBumpReset=244, CardBumpAgain=245, CardDashPunch=246, CardDodgeStrike=247,
-    CardDoubleDash=248, CardPassThrough=249, CardHeadDown=250, CardPaidDash=251, CardSlippery=252, CardIceTrail=253,
+    CardComboChain=236, CardBlastReload=243, CardBumpReset=244, CardBumpAgain=245, CardDashPunch=246,
+    CardDoubleDash=248, CardPassThrough=249, CardHeadDown=250, CardPaidDash=251, CardIceTrail=253,
     CardMoveTurf=254, CardSpikyHide=256, CardTakedown=257, CardHangOn=258, CardReactionRefund=259,
     CardWaveAfter=260, CardShellBurst=261, CardHardSkin=262, CardBallKick=263, CardSkillCrit=264, CardSkillDrain=265,
-    CardShortBreath=266, CardDoubleStall=267, CardThickHide=268, CardOverfed=269, CardBerserk=270, CardQuickBrain=271,
+    CardDoubleStall=267, CardThickHide=268, CardOverfed=269, CardBerserk=270, CardQuickBrain=271,
     CardPunchHeal=272, CardRunHit=273, CardGrowFat=274, CardKillStreak=275, CardToughSkin=276, CardChargeUp=277,
     CardTurfGrowth=278, CardTally=279, CardLiveWire=280, CardLongSoak=281, CardLouderBlast=282, CardEndlessBurn=283,
     CardBurnGuard=284, MedalFire=285, MedalWater=286, MedalElectric=287, MedalChill=288, MedalRot=289,
     CardBrainSpeed=290, CardSpellbladeEcho=291, CardHeavyMallet=292, CardLetBulletsFly=293, CardEagleStance=294,
-    CardRunawayTrain=295, CardPhantomMolt=296, CardSkateBlade=297, CardTonnageCrush=298, CardHulkingPresence=299,
+    CardRunawayTrain=295, CardSkateBlade=297, CardTonnageCrush=298, CardHulkingPresence=299,
     CardIronHedgehog=300, CardReactivePlating=301, CardDesperado=302, CardFuelTheFire=303, CardRogueWorks=304,
     CardMartialScholar=305
 };
@@ -61,7 +61,7 @@ enum class ELDDemoStatusId : uint8 { Root=1, Shield=2, CampReturning=3, RespawnP
 // operations (256..278).
 // Retired operation identities must never be reused (native_ids.json retired_ranges): 5..6, 9..11, 15..17, 19, 23,
 // 25..30, 32..36, 38..39, 41..49, 51, 53, 55..68, 72..76, 83..89, 96, 100, 102, 104, 120..129, 131..137, 139..145, 147..151,
-// 154, 159, 161, 165..169, 195, 235.
+// 154, 159, 161, 165..169, 195, 235, 252, 254, 269.
 enum class ELDDemoEffectOp : uint16
 {
     Damage=1, Shield=2, DispelRoot=3, Root=4, Lifesteal=7, Dash=8, Slow=12, TimedStatBonus=13, SelfArea=14, Taunt=18,
@@ -84,9 +84,9 @@ enum class ELDDemoEffectOp : uint16
     Rot=233, Chill=234, GroundState=236, Fan=237, DashIce=238, GroundRelocate=239, DoubleStall=240,
     GroundGrowth=241, Bag=242,
     BasicProjectile=243, ComboSweep=244, ComboCast=245, SpeedFactor=246, HitGrowth=247, ControlAmp=248, Reshape=249,
-    ShieldSpend=250, RecentCastAmp=251, DodgeFreeCast=252, DashRam=253, OverdriveShort=254, Tally=255,
+    ShieldSpend=250, RecentCastAmp=251, DashRam=253, Tally=255,
     GrabLine=256, BackstabLunge=257, ParryStance=258, WarcryRing=259, SlipperPickup=260, FrenzyWaves=261, CordonLine=262,
     BrainSpeed=263, SpellbladeEcho=264, HeavyMallet=265, ProjectileFlightAmp=266, EagleStance=267,
-    RunawayTrain=268, PhantomMolt=269, SkateBlade=270, TonnageCrush=271, HulkingPresence=272,
+    RunawayTrain=268, SkateBlade=270, TonnageCrush=271, HulkingPresence=272,
     IronHedgehog=273, ReactivePlating=274, Desperado=275, FuelTheFire=276, RogueWorks=277, MartialScholar=278
 };

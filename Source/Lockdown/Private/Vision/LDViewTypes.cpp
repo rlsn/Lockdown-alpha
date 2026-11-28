@@ -511,7 +511,6 @@ bool LDObservation::ValidateProjectile(const FLDObservedProjectileView& Projecti
     case ELDObservedProjectileLook::AreaWater:
     case ELDObservedProjectileLook::AreaElectric:
     case ELDObservedProjectileLook::SlipperDrop:
-    case ELDObservedProjectileLook::PhantomDecoy:
     case ELDObservedProjectileLook::ShardBurst:
         if (Projectile.RadiusCm <= 0 || Projectile.InnerRadiusCm < 0 || Projectile.AngleDegrees != 0)
         { return FailObservation(Error, TEXT("An observed area needs its public radius and no cone angle.")); }

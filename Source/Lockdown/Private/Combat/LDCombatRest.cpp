@@ -130,7 +130,6 @@ int32 ALDCombatDirector::CancelAllForPhase(const FLDGameplayWritePermit& Permit)
     PendingContacts.Reset();
     SlipperDrops.Reset();
     Cordons.Reset();
-    Decoys.Reset();
     ShardBursts.Reset();
     RemoveBags([](const FLDCombatBag&) { return true; });
     for (auto& Pair : Bodies)

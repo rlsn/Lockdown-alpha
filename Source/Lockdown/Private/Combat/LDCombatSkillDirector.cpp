@@ -438,7 +438,7 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
 {
     if (!AdvanceFans(NowMs,Error) || !AdvanceBags(NowMs,Error)
         || !AdvanceStaggerBleeds(NowMs,Error) || !AdvanceSlipperDrops(NowMs,Error)
-        || !AdvanceCordons(NowMs,Error) || !AdvanceDecoys(NowMs,Error)
+        || !AdvanceCordons(NowMs,Error)
         || !AdvanceSynergyStates(NowMs,Error))
     { return false; }
     for (int32 Index=Channels.Num()-1; Index>=0; --Index)
