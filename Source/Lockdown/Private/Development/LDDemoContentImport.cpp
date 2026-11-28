@@ -1652,6 +1652,8 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bCard, FChec
             || (F.Has(TEXT("breach")) && !IntInto(F, TEXT("breach"), Out.BasicCount, 1, 5))
             || !OptionalFixed(F, TEXT("last_stun"), TEXT("ms"), TEXT("ms"), Out.ExtraDurationMs, 1)
             || !OptionalFlag(F, TEXT("crit"), Out.bAlwaysCrit)
+            // C-09 S17 2B: the empowered basic's windup scale (MultiplierBp, above 1).
+            || !OptionalFixed(F, TEXT("windup_scale"), TEXT("ratio"), TEXT("bp"), Out.MultiplierBp, 10001)
             || (F.Has(TEXT("stats")) && (!Stats(F.Take(TEXT("stats")), Out.Stats, Check, Path + TEXT(".stats"))
                 || !Check.Require((StatMask(Out.Stats) & ~TemporaryStats) == 0, Path, TEXT("timed bonuses cannot change resource maxima")))))
         {
@@ -2583,6 +2585,7 @@ bool Branches(const FValue& Value, TArray<FLDDemoAbilityBranch>& Out, FCheck& Ch
             || !Check.Require(Name.Equals(Paths[Index].Key, ESearchCase::CaseSensitive), RowPath, TEXT("branch paths must be A, B, A1, A2, B1, B2"))
             || !Target(F.Take(TEXT("target")), Branch.Target, Check, RowPath + TEXT(".target"))
             || !F.Fixed(TEXT("windup"), TEXT("ms"), TEXT("ms"), Branch.WindupMs)
+            || !OptionalFixed(F, TEXT("interrupt_cooldown"), TEXT("ratio"), TEXT("bp"), Branch.InterruptCooldownBp, 1, 9999)
             || !SkillElementField(F, Branch.Element, Check, RowPath) || !HitTypeField(F, Branch.HitType, Check, RowPath)
             || !F.Fixed(TEXT("momentum_cost"), TEXT("momentum"), TEXT("p2"), Branch.Values.MomentumCostP2)
             || !F.Fixed(TEXT("cooldown"), TEXT("ms"), TEXT("ms"), Branch.Values.CooldownMs, 1)

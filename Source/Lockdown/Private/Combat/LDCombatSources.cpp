@@ -449,6 +449,7 @@ bool ALDCombatDirector::ActiveOf(const FLDCombatEntityRecord& Record, const FLDC
         if (!Values || (Branch!=ELDSkillBranch::None && !Variant)) { return false; }
         Out.Target=Variant ? Variant->Target : Ability->Target;
         Out.WindupMs=Variant ? Variant->WindupMs : Ability->WindupMs;
+        Out.InterruptCooldownBp=Variant ? Variant->InterruptCooldownBp : 0;
         Out.Branch=Branch;
     }
     else if (Source.Kind==ELDCombatSourceKind::Innate && Content)
@@ -467,6 +468,16 @@ bool ALDCombatDirector::ActiveOf(const FLDCombatEntityRecord& Record, const FLDC
         UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_WORKSHOP_COMPILE_FAILED entity=%s source=%s error=%s"),*LDLog::Id(Record.Entity),
             *LDLog::Source(Source),*Error);
         return false;
+    }
+    // C-14 prototype (-LDProtoPotDelay): S08's 2B forms (2B, 3B1, 3B2) land after the switch's delay; 3B1's second blast
+    // still follows the first by its own content delay.
+    if (Proto.PotDelayMs>=0 && Source.Kind==ELDCombatSourceKind::Learned && Source.DefinitionId==LDProto::PotSkillId()
+        && (Out.Branch==ELDSkillBranch::B || Out.Branch==ELDSkillBranch::B1 || Out.Branch==ELDSkillBranch::B2))
+    {
+        for (FLDDemoEffectDefinition& Effect : Out.Values.Effects)
+        {
+            if (Effect.GetOp()==ELDDemoEffectOp::GroundImpact) { Effect.DelayMs=Proto.PotDelayMs; }
+        }
     }
     return true;
 }

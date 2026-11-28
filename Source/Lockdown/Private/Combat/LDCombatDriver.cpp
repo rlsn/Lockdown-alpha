@@ -56,6 +56,7 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         if (Body.SharedBreach.Stacks>0) { Consider(Body.SharedBreach.ExpiresAtMs); }
         if (!Body.Burn.Layers.IsEmpty()) { Consider(LDCombatKeywords::NextBurnTickAtMs(Body.Burn)); }
         for (const auto& Package : Body.Empowers) { Consider(Package.ExpiresAtMs); }
+        if (Proto.bAgency && !Body.Agency.Losses.IsEmpty()) { Consider(LDCombatControl::AgencyDueMs(Body.Agency,NowMs,Proto.Agency)); }
         if (Body.VoluntaryDash.IsSet()) { Consider(Body.VoluntaryDash->EndMs); }
         if (Body.Shield.IsSet()) { Consider(Body.Shield->ExpiresAtMs); }
         for (const FLDBodyCombatState::FShieldLayer& Layer : Body.ShieldLayers) { Consider(Layer.ExpiresAtMs); }
@@ -379,6 +380,7 @@ bool ALDCombatDirector::RunEffects(const FLDGameplayWritePermit& Permit, FString
     // Skill branch follow-ups, pulses and bursts due now (a shield's natural end heals before statuses expire).
     if (!LD_TRACED(LDEffects_Branches,AdvanceBranches(Now,Error))) { return false; }
     // Half-open statuses end before this boundary's hits; regeneration already settled in Actions.
+    if (Proto.bAgency) { AdvanceAgency(Now); }
     { TRACE_CPUPROFILER_EVENT_SCOPE(LDEffects_ExpireStatuses); ExpireStatuses(Now); }
     // B12: voluntary dashes that completed by now (motion already ran to this boundary) arm their empowered packages.
     if (!LD_TRACED(LDEffects_Dashes,ResolveDashCompletions(Now,Error))) { return false; }

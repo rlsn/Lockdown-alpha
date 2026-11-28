@@ -83,6 +83,8 @@ const FLinearColor WorldMomentumFill=FLinearColor(FColor(0xF5,0x9E,0x0B));
 const FLinearColor WorldShieldFill=FLinearColor(FColor(0xE2,0xE8,0xF0));
 const FLinearColor WorldShieldRim=FLinearColor(FColor(0x7D,0xD3,0xFC));
 const FLinearColor WorldHealFlashInk=FLinearColor(FColor(0x86,0xEF,0xAC));
+// C-12: the own body is locked by a unit skill in its windup.
+const FLinearColor WorldIncomingLockInk=FLinearColor(1.f,.2f,.12f);
 const FLinearColor WorldCCBarFill=FLinearColor(FColor(0xF8,0xFA,0xFC));
 
 bool WorldIsHardCC(uint8 StatusId,const TCHAR*& OutShortName)
@@ -814,6 +816,24 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
         }
     }
     if(PC->HUDUI){PC->HUDUI->ReportOwnStatusRects(MoveTemp(OwnMarkRects));}
+    // C-12: while a shown caster's unit skill locks the own body, a red mark over the own head points toward that caster.
+    FVector2D LockScreen;
+    if(Frame&&IsValid(OwnBody)&&!Frame->IncomingLocks.IsEmpty()
+        &&Projector.Project(OwnBody->PresentedLocation()+FVector(0,0,OwnBarsHeadroomCm+60.),LockScreen))
+    {
+        const FVector2f Head(float(LockScreen.X)*ToLocalX,float(LockScreen.Y)*ToLocalY);
+        Diamond(12,Head,BadgeSide,WorldIncomingLockInk);
+        for(const FLDObservedIncomingLock& Lock:Frame->IncomingLocks)
+        {
+            const FLDObservedUnitView* Caster=Frame->Units.FindByPredicate([&Lock](const FLDObservedUnitView& Unit){return Unit.Handle==Lock.SourceHandle;});
+            FVector2D CasterScreen;
+            if(!Caster||!Projector.Project(FVector(Caster->FeetCm)+FVector(0,0,OwnBarsHeadroomCm),CasterScreen)){continue;}
+            const FVector2f Toward=FVector2f(float(CasterScreen.X)*ToLocalX,float(CasterScreen.Y)*ToLocalY)-Head;
+            if(Toward.IsNearlyZero()){continue;}
+            FSlateDrawElement::MakeLines(E,Base+12,G.ToPaintGeometry(),{Head,Head+Toward.GetSafeNormal()*(BadgeSide*2.2f)},
+                ESlateDrawEffect::None,WorldIncomingLockInk,true,2.f);
+        }
+    }
 
     // Prune unit damage-trail and occlusion caches strictly to handles visible in this exact frame (no cross-visibility memory).
     TSet<FGuid> SeenHandles;

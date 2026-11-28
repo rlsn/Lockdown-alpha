@@ -913,6 +913,7 @@ bool ALDCombatDirector::MakeEmpower(const FLDBodyCombatState& Body, const FLDCom
     Out.BreachStacks=Effect.BasicCount;
     Out.LastStunMs=Effect.ExtraDurationMs;
     Out.bAlwaysCrit=Effect.bAlwaysCrit;
+    Out.WindupScaleBp=Effect.MultiplierBp>10000 ? Effect.MultiplierBp : 10000;
     const FLDProjectedAttributes& Final=Body.AttributeProjection.Final;
     const int64 AD=Share(Final.ADP2,Effect.ADRatioBp), AP=Share(Final.APP2,Effect.APRatioBp);
     if (Effect.BaseP2<0 || AD>MAX_int64-Effect.BaseP2 || AP>MAX_int64-Effect.BaseP2-AD)
@@ -1908,6 +1909,8 @@ bool ALDCombatDirector::ScheduleAutoRecasts(const FLDBodyCombatState& Body, cons
         FLDCombatAutoRecast& Repeat=AutoRecasts.AddDefaulted_GetRef();
         Repeat.Body={Body.Victim,Body.Identity};
         Repeat.Action=Action;
+        // A repeat lands from where it is released; the first release's previewed landing and its key stay with it.
+        Repeat.Action.Landing.Reset();
         Repeat.Action.bAutoRecast=true;
         Repeat.Action.AutoRecastScaleBp=Terms.AutoRecastScaleBp;
         Repeat.Card=FName(TEXT("card_encore"));

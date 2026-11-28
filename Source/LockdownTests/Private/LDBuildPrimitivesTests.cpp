@@ -74,6 +74,10 @@ struct FLDBuildPrimitivesAccess
     { Driver.AppendKeywordStatuses(Body, NowMs, Out); }
     static void MarkBuildUnsafe(ALDCombatDirector& Driver, const FGuid& Entity, int64 NowMs) { Driver.MarkBuildUnsafe(Entity, NowMs); }
     static void AbandonAction(ALDCombatDirector& Driver, FLDBodyCombatState& Body, ELDCombatReject Reason) { Driver.AbandonAction(Body, Reason); }
+    static FLDProtoSettings& Proto(ALDCombatDirector& Driver) { return Driver.Proto; }
+    static void AdvanceAgency(ALDCombatDirector& Driver, int64 NowMs) { Driver.AdvanceAgency(NowMs); }
+    static bool ActiveOf(const ALDCombatDirector& Driver, const FLDCombatEntityRecord& Record, const FLDCombatSourceRef& Source,
+        const FLDDemoAbilityDefinition* Ability, FLDCombatActiveTerms& Out) { return Driver.ActiveOf(Record, Source, Ability, Out); }
     static void FinishAction(ALDCombatDirector& Driver, FLDBodyCombatState& Body, ELDCombatReject Reason, bool bReleased)
     { Driver.FinishAction(Body, Reason, bReleased); }
     static bool ReleaseMechanics(ALDCombatDirector& Driver, FLDBodyCombatState& Body, const FLDCombatSourceRef& Source,
@@ -1317,6 +1321,89 @@ bool FLDExpandedDeliveryTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Only the two independent ground effects remain visible"),Facts.Num(),2);
     FAccess::CancelEntityEffects(*F.Driver,Source.Victim.EntityId);
     TestTrue(TEXT("Departure cancels those independent effects"),FAccess::Ground(*F.Driver).IsEmpty());
+    return true;
+}
+
+// C-12: a ground impact in its windup shows the landing it will strike, from the first frame, under the key its ground
+// effect keeps; the release lands there whatever point it is handed; an interrupted windup shows nothing.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDGroundWarningFromWindupTest, "Lockdown.Rules.DemoSkillExpansion.GroundWarningFromWindup",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDGroundWarningFromWindupTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const auto Source=F.AddBody();
+    auto& Body=F.Body(Source);
+    FString Error;
+    const FLDDemoAbilityDefinition* Ability=nullptr;
+    if (!TestTrue(TEXT("The brick exists"),F.Catalog->FindAbility(TEXT("active_calculus_drop"),Ability,Error))) { return false; }
+    F.Now(1000);
+    FLDCombatAction Action;
+    Action.Kind=ELDCombatActionKind::Ability;
+    Action.Source.Kind=ELDCombatSourceKind::Learned; Action.Source.DefinitionId=TEXT("active_calculus_drop");
+    Action.Direction=FVector(1,0,0); Action.TargetPoint=FVector(2000,0,0); Action.Key.DirectSequence=1;
+    Action.StartedAtMs=1000; Action.ReleaseAtMs=1250;
+    FLDCombatLandingPreview& Landing=Action.Landing.Emplace();
+    Landing.CentreCm=FVector(500,100,0); Landing.RadiusCm=200; Landing.InnerRadiusCm=80; Landing.ImpactAtMs=1800;
+    Landing.ObservedKey=FGuid::NewGuid();
+    Body.Action=Action;
+    TArray<FLDObservedProjectileFact> Facts;
+    TestTrue(TEXT("The windup is observable"),F.Driver->ReadObservedProjectiles(Facts,Error));
+    TestTrue(TEXT("Its landing shows from the first frame with the full warning and the release's radii"),Facts.Num()==1
+        && Facts[0].Key==Landing.ObservedKey && Facts[0].Look==ELDObservedProjectileLook::BookShadow && Facts[0].PositionCm.X==500
+        && Facts[0].PositionCm.Y==100 && Facts[0].RadiusCm==200 && Facts[0].InnerRadiusCm==80 && Facts[0].WarningRemainingMs==800);
+    Body.Action.Reset();
+    Facts.Reset();
+    TestTrue(TEXT("An interrupted windup shows nothing"),F.Driver->ReadObservedProjectiles(Facts,Error) && Facts.IsEmpty());
+    F.Now(1250);
+    auto Hit=FFixture::Hit(Source,Source,10000);
+    Hit.Source=Action.Source;
+    Hit.CastLedger=MakeShared<FLDCombatCastLedger>();
+    Hit.bDirectAbilityDamage=true;
+    bool Handled=false;
+    TestTrue(TEXT("The release delivers its impact"),
+        FAccess::Delivery(*F.Driver,Body,Ability->Values,Ability->Target,Action,Hit,1250,Handled,Error) && Handled);
+    const auto* Brick=FAccess::Ground(*F.Driver).FindByPredicate([](const auto& Ground) { return Ground.Origin==ELDCombatGroundOrigin::Impact; });
+    if (!TestNotNull(TEXT("The brick lands"),Brick)) { return false; }
+    TestTrue(TEXT("It lands on the previewed landing under the same key"), Brick->CentreCm.X==500 && Brick->CentreCm.Y==100
+        && Brick->ObservedKey==Landing.ObservedKey);
+    Facts.Reset();
+    TestTrue(TEXT("The observer keeps one handle across the release"),F.Driver->ReadObservedProjectiles(Facts,Error)
+        && Facts.Num()==1 && Facts[0].Key==Landing.ObservedKey && Facts[0].WarningRemainingMs==550);
+    return true;
+}
+
+// C-12: a learned unit skill in its windup locks only its target, never its caster or a bystander, until it releases.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDIncomingLockTest, "Lockdown.Rules.DemoSkillExpansion.IncomingLock",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDIncomingLockTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const auto Caster=F.AddBody(), Target=F.AddBody(), Bystander=F.AddBody();
+    FString Error;
+    const FLDDemoAbilityDefinition* Zap=nullptr;
+    if (!TestTrue(TEXT("The zap exists"),F.Catalog->FindAbility(TEXT("active_zap"),Zap,Error))) { return false; }
+    F.Now(1000);
+    FLDCombatAction Action;
+    Action.Kind=ELDCombatActionKind::Ability;
+    Action.Source.Kind=ELDCombatSourceKind::Learned; Action.Source.DefinitionId=TEXT("active_zap");
+    Action.Target.Kind=ELDCombatTargetKind::Unit;
+    Action.TargetBody=Target;
+    Action.StartedAtMs=1000; Action.ReleaseAtMs=1250;
+    F.Body(Caster).Action=Action;
+    TArray<FLDCombatIncomingLock> Locks;
+    TestTrue(TEXT("The target reads its lock"),F.Driver->ReadIncomingLocks(Target.Victim.EntityId,Locks,Error) && Locks.Num()==1
+        && Locks[0].SourceEntity==Caster.Victim.EntityId && Locks[0].RemainingMs==250 && Locks[0].Ability==Zap->NativeId);
+    TestTrue(TEXT("Nobody else is locked"),F.Driver->ReadIncomingLocks(Bystander.Victim.EntityId,Locks,Error) && Locks.IsEmpty()
+        && F.Driver->ReadIncomingLocks(Caster.Victim.EntityId,Locks,Error) && Locks.IsEmpty());
+    F.Now(1250);
+    TestTrue(TEXT("A windup at its release locks nothing more"),F.Driver->ReadIncomingLocks(Target.Victim.EntityId,Locks,Error) && Locks.IsEmpty());
+    F.Now(1100);
+    F.Body(Caster).Action.Reset();
+    TestTrue(TEXT("An abandoned windup locks nothing"),F.Driver->ReadIncomingLocks(Target.Victim.EntityId,Locks,Error) && Locks.IsEmpty());
     return true;
 }
 
@@ -5106,6 +5193,201 @@ bool FLDCombatFrenzyThirdWaveTest::RunTest(const FString& Parameters)
         if (!TestTrue(TEXT("The wave advances: ") + Error, FAccess::AdvanceProjectiles(*F.Driver, Error))) { return false; }
     }
     TestTrue(TEXT("The boosted wave's hits evaluate without an authority fault"), Drain(*this, F));
+    return true;
+}
+
+// C-09: the committing branches wind up longer than their base forms (S03 2A, S13 2B 0.30 s, S02 2B 0.28 s, their rank 3
+// forms too), and S17 2B's armed empowered basic winds up 1.6 times as long while it is live.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatCommitWindupsTest, "Lockdown.Rules.Combat.Skills.CommitWindups",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCombatCommitWindupsTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    FString Error;
+    struct FExpect { const TCHAR* Id; ELDSkillBranch Rank2; ELDSkillBranch Rank3; int64 Ms; };
+    for (const FExpect& Row : {FExpect{TEXT("active_crotch_grab"), ELDSkillBranch::A, ELDSkillBranch::A1, 300},
+        FExpect{TEXT("active_charged_ram"), ELDSkillBranch::B, ELDSkillBranch::B2, 300},
+        FExpect{TEXT("active_pants_down"), ELDSkillBranch::B, ELDSkillBranch::B1, 280}})
+    {
+        const FLDDemoAbilityDefinition* Ability=nullptr;
+        if (!TestTrue(Row.Id,F.Catalog->FindAbility(Row.Id,Ability,Error))) { return false; }
+        const FLDDemoAbilityBranch* Two=Ability->FindBranch(Row.Rank2);
+        const FLDDemoAbilityBranch* Three=Ability->FindBranch(Row.Rank3);
+        TestTrue(FString::Printf(TEXT("%s's committing branch and its rank 3 wind up %lld ms, longer than the base"),Row.Id,Row.Ms),
+            Two && Three && Two->WindupMs==Row.Ms && Three->WindupMs==Row.Ms && Ability->WindupMs<Row.Ms);
+    }
+    const FLDDemoAbilityDefinition* Triple=nullptr;
+    if (!TestTrue(TEXT("S17"),F.Catalog->FindAbility(TEXT("active_triple_combo"),Triple,Error))) { return false; }
+    const FLDDemoAbilityValues* Heavy=F.Catalog->FindValues(*Triple,1,ELDSkillBranch::B);
+    const FLDDemoEffectDefinition* Empower=Heavy ? FindEffect(*Heavy,ELDDemoEffectOp::EmpowerBasic) : nullptr;
+    TestTrue(TEXT("S17 2B's empowered basic winds up 1.6 times as long"),Empower && Empower->MultiplierBp==16000);
+    FLDCombatEmpower Armed;
+    Armed.WindupScaleBp=16000;
+    Armed.ExpiresAtMs=5000;
+    FLDCombatEmpower Plain;
+    Plain.ExpiresAtMs=9000;
+    TestEqual(TEXT("A live heavy package scales the next basic's windup"),LDCombatControl::EmpoweredWindupScaleBp({Plain,Armed},4999),int64(16000));
+    TestEqual(TEXT("A lapsed one does not"),LDCombatControl::EmpoweredWindupScaleBp({Plain,Armed},5000),int64(10000));
+    return true;
+}
+// C-11: control that stops a committing branch (S13 2B here) before its release puts half its hasted cooldown on the skill;
+// cancelling it, a base form and a control after the release moment cost nothing.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatInterruptedCommitCooldownTest, "Lockdown.Rules.Combat.Skills.InterruptedCommitCooldown",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCombatInterruptedCommitCooldownTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    FString Error;
+    const TCHAR* Ram=TEXT("active_charged_ram");
+    const FLDCombatBodyRef Caster=F.AddBody();
+    if (!InstallCards(*this,F,Caster,6,{})) { return false; }
+    FLDBodyCombatState& Body=F.Body(Caster);
+    FLDCombatEntityRecord& Record=FAccess::Records(*F.Driver).FindChecked(Caster.Victim.EntityId);
+    Record.Projection=Body.AttributeProjection;
+    const FLDDemoAbilityDefinition* Ability=nullptr;
+    if (!TestTrue(TEXT("S13"),F.Catalog->FindAbility(Ram,Ability,Error) && Ability)) { return false; }
+    for (const FLDDemoAbilityBranch& Branch : Ability->Branches)
+    {
+        TestEqual(TEXT("Only S13's committing B forms carry the interrupt cooldown"),Branch.InterruptCooldownBp,
+            Branch.Path==ELDSkillBranch::B || Branch.Path==ELDSkillBranch::B1 || Branch.Path==ELDSkillBranch::B2 ? int64(5000) : int64(0));
+    }
+    const FLDDemoAbilityValues* Values=F.Catalog->FindValues(*Ability,6,ELDSkillBranch::B);
+    int64 FullMs=0;
+    if (!TestTrue(TEXT("S13 2B's hasted cooldown"),Values && LDTactical::CooldownDurationMs(Values->CooldownMs,
+        Body.AttributeProjection.Final.CooldownHasteP2,F.Catalog->Get().Formulas.HasteScaleP2,FullMs,Error)))
+    { return false; }
+    FullMs=FMath::Max(FullMs,F.Catalog->Get().Parameters.SkillRanks.CooldownFloorMs);
+    const auto Windup=[&](ELDSkillBranch Branch, int64 StartMs, int64 StopMs, ELDCombatReject Reason)
+    {
+        Record.Build.Actives={{FName(Ram),ELDCombatEntry::Q,Branch}};
+        FLDCombatTrack& Track=TrackOf(F,Caster,Ram,0);
+        Track.LastDurationMs=0;
+        Body.Resources.MomentumP2=5000;
+        F.Now(StartMs);
+        FLDCombatAction Action;
+        Action.Kind=ELDCombatActionKind::Ability;
+        Action.Key.Origin=ELDCombatRequestOrigin::Nav;
+        Action.Key.Entity=Caster.Victim.EntityId;
+        Action.Entry=ELDCombatEntry::Q;
+        Action.Source=SourceOf(ELDCombatSourceKind::Learned,Ram);
+        Action.StartedAtMs=StartMs;
+        Action.ReleaseAtMs=StartMs+300;
+        Body.Action=Action;
+        F.Now(StopMs);
+        FAccess::AbandonAction(*F.Driver,Body,Reason);
+        return Track.ReadyAtMs;
+    };
+    TestEqual(TEXT("A stun in the windup costs half the cooldown"),Windup(ELDSkillBranch::B,1000,1100,ELDCombatReject::ControlBlocked),
+        1100+FullMs/2);
+    TestEqual(TEXT("The skill shows that part as its cooldown"),TrackOf(F,Caster,Ram,1100+FullMs/2).LastDurationMs,FullMs/2);
+    TestFalse(TEXT("The interrupted action ends"),Body.Action.IsSet());
+    TestEqual(TEXT("Nothing is paid or refunded"),Body.Resources.MomentumP2,int64(5000));
+    TestEqual(TEXT("Cancelling the committing windup is free"),Windup(ELDSkillBranch::B,5000,5100,ELDCombatReject::Cancelled),int64(0));
+    TestEqual(TEXT("The base form's interrupt is free"),Windup(ELDSkillBranch::None,9000,9100,ELDCombatReject::ControlBlocked),int64(0));
+    TestEqual(TEXT("Control at the release moment costs nothing extra"),
+        Windup(ELDSkillBranch::B,13000,13300,ELDCombatReject::ControlBlocked),int64(0));
+    return true;
+}
+
+// C-10 prototype on the single control path: off, nothing is recorded; on, a stun-locked contender triggers at 2 s of lost
+// agency, V-Cut ends the stun, the guard refuses the next hard control and turns a knockback into a roll; V-Next keeps it.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatAgencyPrototypeTest, "Lockdown.Rules.DemoBuildPrimitives.AgencyPrototype",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCombatAgencyPrototypeTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef Caster=F.AddBody(), Victim=F.AddBody(), Other=F.AddBody();
+    const auto Commit=[&](const FLDCombatBodyRef& Ref, ELDControlKind Kind, int64 AtMs, int64 DurationMs)
+    {
+        F.Now(AtMs);
+        FLDControlApplication App;
+        App.Kind=Kind;
+        App.EffectId=FGuid::NewGuid();
+        App.SourceEntity=App.CreditOwner=Caster.Victim.EntityId;
+        App.SourceBody=Caster;
+        App.DurationMs=DurationMs;
+        FString Error;
+        bool bApplied=false;
+        if (!F.Driver->CommitControl(F.Body(Ref),App,AtMs,bApplied,Error)) { AddError(Error); }
+        return bApplied;
+    };
+    FLDProtoSettings& Proto=FAccess::Proto(*F.Driver);
+    Proto=FLDProtoSettings();
+    TestTrue(TEXT("Off: a stun lands as before"),Commit(Victim,ELDControlKind::Stun,1000,2500));
+    TestTrue(TEXT("and records no agency"),F.Body(Victim).Agency.Losses.IsEmpty());
+    F.Body(Victim).Stuns.Reset();
+    F.Body(Victim).HardControl=FLDHardControlChain();
+
+    Proto.bAgency=true;
+    TestTrue(TEXT("On: a 2.5 s stun lands"),Commit(Victim,ELDControlKind::Stun,10000,2500));
+    TestEqual(TEXT("its 2 s of lost agency are due at 12 s"),
+        LDCombatControl::AgencyDueMs(F.Body(Victim).Agency,10000,Proto.Agency),int64(12000));
+    F.Now(12000);
+    FAccess::AdvanceAgency(*F.Driver,12000);
+    FLDBodyCombatState& Body=F.Body(Victim);
+    TestTrue(TEXT("V-Cut ends the stun at the trigger"),Body.Stuns.IsEmpty() && Body.Agency.GuardUntilMs==13000);
+    TestFalse(TEXT("The guard refuses a new hard control"),Commit(Victim,ELDControlKind::Stun,12500,1000));
+    TestTrue(TEXT("A knockback in the guard still lands"),Commit(Victim,ELDControlKind::Knockback,12600,300));
+    TestTrue(TEXT("as a roll that blocks nothing"),Body.Knockbacks.IsEmpty()
+        && !F.Driver->IsActionBlocked(Body,ELDCombatControlAction::Basic));
+    TestTrue(TEXT("After the guard a stun lands again"),Commit(Victim,ELDControlKind::Stun,13000,500));
+    FAccess::AdvanceAgency(*F.Driver,13400);
+    TestEqual(TEXT("No second trigger inside the cooldown"),Body.Agency.LastTriggerMs,int64(12000));
+
+    Proto.Agency.bCut=false;
+    TestTrue(TEXT("V-Next: a 2.5 s stun lands"),Commit(Other,ELDControlKind::Stun,20000,2500));
+    FAccess::AdvanceAgency(*F.Driver,22000);
+    TestTrue(TEXT("it triggers but keeps the stun"),F.Body(Other).Agency.LastTriggerMs==22000 && F.Body(Other).Stuns.Num()==1);
+    TestFalse(TEXT("while the next hard control is refused"),Commit(Other,ELDControlKind::Root,22100,1000));
+    return true;
+}
+
+// C-14 prototype: -LDProtoPotDelay retimes only S08's 2B ground impacts (2B, 3B1, 3B2); its 2A zone, its base form and
+// every other skill keep their content, and without the switch 2B lands at once as authored.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatPotDelayPrototypeTest, "Lockdown.Rules.DemoBuildPrimitives.PotDelayPrototype",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCombatPotDelayPrototypeTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef Caster=F.AddBody();
+    if (!InstallCards(*this,F,Caster,6,{})) { return false; }
+    FLDCombatEntityRecord& Record=FAccess::Records(*F.Driver).FindChecked(Caster.Victim.EntityId);
+    Record.Projection=F.Body(Caster).AttributeProjection;
+    const auto ImpactDelay=[&](const TCHAR* Id, ELDSkillBranch Branch)
+    {
+        Record.Build.Actives={{FName(Id),ELDCombatEntry::Q,Branch}};
+        const FLDDemoAbilityDefinition* Ability=nullptr;
+        FString Error;
+        FLDCombatActiveTerms Terms;
+        if (!F.Catalog->FindAbility(Id,Ability,Error)
+            || !FAccess::ActiveOf(*F.Driver,Record,SourceOf(ELDCombatSourceKind::Learned,Id),Ability,Terms))
+        { AddError(FString::Printf(TEXT("No terms for %s"),Id)); return int64(-2); }
+        const FLDDemoEffectDefinition* Impact=FindEffect(Terms.Values,ELDDemoEffectOp::GroundImpact);
+        return Impact ? Impact->DelayMs : int64(-1);
+    };
+    const TCHAR* Pot=TEXT("active_quick_meeting");
+    FAccess::Proto(*F.Driver)=FLDProtoSettings();
+    TestEqual(TEXT("Off: 2B lands at once as authored"),ImpactDelay(Pot,ELDSkillBranch::B),int64(0));
+    FAccess::Proto(*F.Driver).PotDelayMs=450;
+    for (const ELDSkillBranch Branch : {ELDSkillBranch::B,ELDSkillBranch::B1,ELDSkillBranch::B2})
+    { TestEqual(TEXT("On: every 2B form lands after the switch's delay"),ImpactDelay(Pot,Branch),int64(450)); }
+    TestEqual(TEXT("2A keeps its zone and no impact"),ImpactDelay(Pot,ELDSkillBranch::A),int64(-1));
+    TestEqual(TEXT("The base form has no impact"),ImpactDelay(Pot,ELDSkillBranch::None),int64(-1));
+    const FLDDemoAbilityDefinition* Brick=nullptr;
+    FString Error;
+    const FLDDemoAbilityValues* BrickValues=F.Catalog->FindAbility(TEXT("active_calculus_drop"),Brick,Error) && Brick
+        ? F.Catalog->FindValues(*Brick,6,ELDSkillBranch::None) : nullptr;
+    const FLDDemoEffectDefinition* BrickImpact=BrickValues ? FindEffect(*BrickValues,ELDDemoEffectOp::GroundImpact) : nullptr;
+    TestTrue(TEXT("Another impact skill keeps its content delay"),BrickImpact
+        && ImpactDelay(TEXT("active_calculus_drop"),ELDSkillBranch::None)==BrickImpact->DelayMs);
     return true;
 }
 

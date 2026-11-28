@@ -16,6 +16,8 @@
    - **三段普攻连招**：`AttackStart` 通过射程与控制检查即提交攻击节拍，前摇 `ceil(180ms * 0.85 / AS)` 内若被打断退还节拍；到达释放时刻复查可见性与无高墙阻挡（不因目标拉远取消已挥出的一击），三段伤害依次 `×0.9 / ×0.9 / ×1.3`（`COMBO.StepRatios`），连招超时 `2.5 s` 归回第 1 段。
    - **动作提示**：导航普攻出手后取消收招时清除收招的起手提示，保留出手时间供本人音效去重；不会将普攻投影成施法或重置已提交的普攻节拍。
    - **主动技能与三级分支**：24 个主动技能按 `SKILL.GrowthPerLevel`（每角色等级 `+4%`）放大固定基础值，并叠加当前技能等级（1–3 级）及已选 2 级 A/B、3 级 A/B 分支补丁；仅在成功 `Release` 瞬间扣劲、写 `ReadyAtMs` 并快照源属性（包括双系数 `ADRatioBp + APRatioBp`、双抗系数 `ResistRatioBp` 与自适应系数 `AdaptiveRatioBp`：`BonusAD * 1.4 >= AP` 取额外 AD 并转物理伤害，否则取 AP 走魔法伤害）。
+   - **落点预警从前摇开始（C-12，`FLDCombatLandingPreview`）**：目标形式为地面点且当前形态含 `ground_impact` 的技能，准入时按释放时同一规则（`LDGroundLanding::Resolve`）锁定落点；整个前摇期间以地面效果将沿用的观察键发布 `BookShadow` 预警（剩余时间 = 前摇剩余 + 落地延迟），释放后砸在这个落点上；前摇被打断即不再发布。K06/A08 的重放从各自释放处重新计算落点。
+- **承诺分支被控制打断的部分冷却（C-11，`interrupt_cooldown`）**：带 `interrupt_cooldown` 的分支形态（S03 2A、S13 2B、S02 2B 及其 3 阶，`0.5`）在释放时刻之前被控制打断（`ControlBlocked`）时，技能进入按同一急速公式与下限计算的该比例冷却；多充能技能只花掉一格的这一部分。主动取消、分支二段与重放不受影响，不扣劲也不返劲，打断者不获任何收益。
 3. **伤害、乘区、护盾与吸血（`LDCombatEffects` / `LDTacticalRules`）**：
    - **结算顺序**：基础与系数和 → 暴击（普攻 `×2`，技能仅装 `Y09` 或耗盾暴击牌时可暴击）→ 乘区连乘 `DamageFactorBp`（同名牌多份相加为一乘区，不同来源相乘，技术上限 `×1000`）→ 双抗减伤 `100 / (100 + max(0, Resist - Breach*3))` → 脸皮关键石平摊减免 → 护盾层吸收（按最早到期层优先扣减，每打空一层触发一次破盾事件如 `Y06`）→ 实扣生命 `HPLostP2`（激活脸皮 18 点关键石时，单次实扣超出 `35%` 最大生命的份额转入 `StaggerBleeds`，在 `2.0 s` 内每 `0.5 s` 延缓结算）。
    - **吸血与反伤**：普攻吸血（`Y17`）与技能吸血（`K15`、`Y10`）均按实际扣血 `HPLostP2` 结算且无上限；`Y01` 反伤按直接受击总量（含打在护盾上的份额）反弹 `25%` 真实/对应伤害，反伤标记 `bReflect` 不暴击、不吸血、不再触发反伤。
@@ -52,6 +54,18 @@
 ## 局末构筑蓝图
 
 对局正常锁定 `MatchResult` 时，每位真人拥有者收到本局完整 `FLDBuildBlueprint`（`schema=lockdown.build-blueprint`、`schema_version=5`），包含开局至终局每次构筑结构变更的版本时间段、Q/W/E 分支、五维分配、已装牌/勋章及宿主绑定参数、终局改装与归属伤害统计，并由 `LDBuildBlueprintStore` 原子写入 `Saved/Blueprints/match-<ResultId>.ldbuild.json`（自动保留最近 50 份且总计 `<= 100 MiB`）。
+
+## 隔离原型
+
+服务器命令行开关（`LDProtoFlags`，每个进程只读一次）。开关不写入 `SourceData`，也不参与内容哈希；不带开关时，所有规则与正式版本一致。启用时写一行 `LD_PROTO flags=… params=…`；参数无效时写 `LD_PROTO_INVALID`，并且不启用任何原型。
+
+- **急眼了（C-10，`-LDProtoAgency`）**：真人或 AI 选手每受到他人的控制，就按权重记录失去操作权的时段。权重：眩晕与击退 1.0，嘲讽 0.8，定身 0.5，沉默与缴械 0.2，减速 0；同一时刻多个控制重叠时，只按其中最大的权重计算一次。
+  - 触发：滑动窗口 `-LDProtoAgencyWindow=`（默认 4 s）内的累计值达到 `-LDProtoAgencyThreshold=`（默认 2 s）时触发，触发时刻精确到毫秒（`AgencyDueMs`）。两次触发至少间隔 `-LDProtoAgencyCooldown=`（默认 6 s）。
+  - 守护期：触发后进入 `-LDProtoAgencyGuard=`（默认 1 s）守护期，期间新的硬控不生效。
+  - 两种变体：`-LDProtoAgencyCut=Immediate`（V-Cut，默认）立即结束他人施加的眩晕、定身、缴械、沉默与嘲讽，击退的位移照常完成，但不再锁定输入；`NextControl`（V-Next）不结束当前控制，只防住下一次。
+  - 翻滚：同一连击链（距上一次击退结束不到 2 s）中，第 `-LDProtoAgencyRollFrom=`（默认 3）次及以后的击退，以及守护期内受到的击退，都照常推开身体，但不锁定动作、不打断前摇与移动指令，也不计入失去操作权的时长。
+  - 日志：`LD_PROTO_AGENCY trigger|guarded|roll`。急眼状态目前没有画面表现。
+- **一锅端落地延迟（C-14，`-LDProtoPotDelay=<秒>`）**：只把 S08（`active_quick_meeting`）2B、3B1、3B2 的 `ground_impact` 延迟改为该值（0–5 s），落点预警也随之延长；3B1 的二次爆炸仍在首砸后按内容延迟发生。
 
 ## 检查入口
 

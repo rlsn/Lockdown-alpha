@@ -10,6 +10,7 @@
 #include "Combat/LDDamageRecap.h"
 #include "Combat/LDChainRules.h"
 #include "Combat/LDCombatControlRules.h"
+#include "Combat/LDProtoFlags.h"
 #include "Combat/LDCombatMechanics.h"
 #include "Combat/LDMonsterRules.h"
 #include "Combat/LDCombatKeywords.h"
@@ -181,6 +182,8 @@ struct FLDCombatActiveTerms
     FLDDemoTargetDefinition Target;
     FLDDemoAbilityValues Values;
     int64 WindupMs=0;
+    // C-11: the share of the cooldown a control interrupt before the release costs (the branch's; 0 = free).
+    int64 InterruptCooldownBp=0;
     // The learned branch the release snapshot came from (None = rank 1).
     ELDSkillBranch Branch=ELDSkillBranch::None;
     // Native direct damage package multiplier, applied as the hits' PackageScaleBp.
@@ -246,6 +249,24 @@ struct FLDCombatSetupMark
 };
 
 
+// C-12: a ground impact's landing, locked when its action is accepted and published from the first windup frame
+// (ReadObservedProjectiles); the release lands there and its ground effect keeps ObservedKey.
+struct FLDCombatLandingPreview
+{
+    FVector CentreCm=FVector::ZeroVector;
+    double RadiusCm=0, InnerRadiusCm=0;
+    int64 ImpactAtMs=0;
+    FGuid ObservedKey;
+};
+
+// C-12: a learned unit skill in its windup aimed at one contender: its caster, the time to its release and the skill.
+struct FLDCombatIncomingLock
+{
+    FGuid SourceEntity;
+    int64 RemainingMs=0;
+    uint8 Ability=0;
+};
+
 // One accepted, not yet released action of one body life. Dies with the life.
 struct FLDCombatAction
 {
@@ -272,6 +293,7 @@ struct FLDCombatAction
     bool bWholeEffectShare=false;
     // Spec §6.5: the chain a free repeat (K06, A08) continues; unset for a player's own action (it opens one).
     FGuid ChainId;
+    TOptional<FLDCombatLandingPreview> Landing;
 };
 
 // A K06 repeat of one release, due at DueMs: the same action toward the same target or direction (LDCombatCards.cpp).
@@ -332,6 +354,8 @@ struct FLDBodyCombatState
     TArray<FLDCombatTimedBonus> TimedBonuses;
     // Hard-control diminishing returns of this life (LDCombatControl::DiminishHardControl).
     FLDHardControlChain HardControl;
+    // C-10 prototype (-LDProtoAgency only): the contender's agency meter of this life.
+    FLDAgencyMeter Agency;
     // Disarm and Stun instances (LDCombatControl); each keeps its effect, source and half-open expiry.
     TArray<FLDCombatRoot> Disarms;
     TArray<FLDCombatRoot> Stuns;
@@ -1044,6 +1068,9 @@ public:
     // Spec §14 public ground-state facts for the observation owner (every live state; its relay keeps the visible ones).
     bool ReadObservedGround(TArray<struct FLDObservedGroundFact>& Out, FString& Error) const;
     bool ReadObservedProjectiles(TArray<FLDObservedProjectileFact>& Out, FString& Error) const;
+    // C-12: every learned unit skill in its windup aimed at Observer's body (never its own). The observation owner keeps
+    // only the ones whose caster the observer's frame already shows.
+    bool ReadIncomingLocks(const FGuid& Observer, TArray<FLDCombatIncomingLock>& Out, FString& Error) const;
     // A body life's cue facts with its winding-up action and dash filled in.
     static FLDCombatCueFacts CueFactsOf(const FLDBodyCombatState& Body);
     // Public Q/W/E facts of a build (#112 §10): each held active's native id in its slot. False when a held active has no
@@ -1692,6 +1719,9 @@ private:
         const FLDExpectedBuildVersions& Expected) const;
     const FLDCombatTrack* TrackFor(const FLDCombatEntityRecord& Record, ELDCombatEntry Entry) const;
     FLDCombatTrack* TrackFor(FLDCombatEntityRecord& Record, ELDCombatEntry Entry);
+    void ChargeInterruptedCommit(const FLDBodyCombatState& Body, const FLDCombatAction& Action);
+    // C-10 prototype: triggers the agency meters due at NowMs (V-Cut ends the controls holding the body).
+    void AdvanceAgency(int64 NowMs);
     bool ResolveEntry(const FLDCombatEntityRecord& Record, ELDCombatEntry Entry, FLDCombatSourceRef& OutSource,
         const FLDDemoAbilityDefinition*& OutAbility) const;
     // The executable active of a resolved entry: a learned active's values grown for its owner's level (#198), or the
@@ -1854,6 +1884,8 @@ private:
     TArray<FLDCombatHostileContact> PendingContacts;
     TArray<FLDCommittedDeath> RetryRewards;
     FRandomStream CritRandom;
+    // Batch 01 prototype switches of this process (LDProto::Settings); all off by default.
+    FLDProtoSettings Proto;
     bool bAdvancing=false;
     FLDBuildLedger BuildLedger;
     // Per contender: the match total of committed damage credited to it, one row per source.
