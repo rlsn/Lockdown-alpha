@@ -119,6 +119,8 @@ struct LOCKDOWN_API FLDObjectiveState
     // Arena close: among the contenders alive inside the circle, the most damage dealt inside, ties by the earlier last hit
     // (then the smaller id); invalid when nobody qualifies.
     FGuid ArenaWinner(TConstArrayView<LDFieldPacing::FPresence> Living) const;
+    // Settles the open arena once NowT reaches its close: Won by ArenaWinner(Living), else Expired. True only at that change.
+    bool SettleArena(int64 NowT, TConstArrayView<LDFieldPacing::FPresence> Living);
     bool IsInside(const FVector& FootCm) const;
 };
 

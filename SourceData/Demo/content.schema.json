@@ -784,7 +784,7 @@
         {"type": "object", "additionalProperties": false, "required": ["op"], "properties": {"op": {"const": "skill_crit"}, "stats": {"$ref": "#/$defs/stat_bonus"}, "chance": {"$ref": "#/$defs/probability"}}},
         {"type": "object", "additionalProperties": false, "required": ["op"], "properties": {"op": {"const": "lifesteal_skills"}}},
         {"type": "object", "additionalProperties": false, "required": ["op", "max_hp"], "properties": {"op": {"const": "armor_to_hp"}, "max_hp": {"$ref": "#/$defs/hp"}}},
-        {"type": "object", "additionalProperties": false, "required": ["op", "duration"], "properties": {"op": {"const": "overheal_shield"}, "cap_ratio": {"$ref": "#/$defs/probability"}, "burn_ratio": {"$ref": "#/$defs/probability"}, "duration": {"$ref": "#/$defs/positive_sec"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "duration"], "properties": {"op": {"const": "overheal_shield"}, "cap_ratio": {"$ref": "#/$defs/probability"}, "burn_ratio": {"$ref": "#/$defs/probability"}, "shield_cap": {"$ref": "#/$defs/probability"}, "duration": {"$ref": "#/$defs/positive_sec"}}},
         {"type": "object", "additionalProperties": false, "required": ["op", "ratio"], "properties": {"op": {"const": "missing_hp_attack_speed"}, "ratio": {"$ref": "#/$defs/multiplier"}}},
         {"type": "object", "additionalProperties": false, "required": ["op", "haste", "momentum"], "properties": {"op": {"const": "haste_momentum"}, "haste": {"$ref": "#/$defs/points"}, "momentum": {"$ref": "#/$defs/momentum"}}},
         {"type": "object", "additionalProperties": false, "required": ["op", "heal", "max_hp"], "properties": {"op": {"const": "heal_growth"}, "heal": {"$ref": "#/$defs/hp"}, "max_hp": {"$ref": "#/$defs/hp"}}},

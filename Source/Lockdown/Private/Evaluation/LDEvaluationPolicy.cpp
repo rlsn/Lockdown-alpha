@@ -28,6 +28,29 @@ bool IsLearned(const FLDOpponentSelf& Self, const FString& Id)
     return Self.Actives.ContainsByPredicate([&Id](const FLDOpponentActive& Active) { return SameId(Active.DefinitionId, Id); });
 }
 
+// A stance's ground click to Point on the meeting place's surface, named for its own refused-walk memory; false when the
+// leash or that memory refuses it (the leash: never a step that ends beyond it and farther from the place than now).
+bool GroundStep(const FLDOpponentDecisionFrame& Frame, const FLDEvaluationProfile& Profile, const FLDOpponentPolicyState& Policy,
+    const FLDOpponentPOI& Site, const FVector& Point, const TCHAR* Name, FLDOpponentBodyIntent& Walk)
+{
+    const FVector Foot = Frame.Self.FootCm;
+    if (Profile.LeashCm > 0)
+    {
+        const double To = FVector::Dist2D(Point, Site.FootCm);
+        if (To > double(Profile.LeashCm) && To >= FVector::Dist2D(Foot, Site.FootCm)) { return false; }
+    }
+    FLDOpponentRetryKey Key;
+    Key.Category = ELDOpponentFailure::Path;
+    Key.POI = FName(Name);
+    if (!Policy.Failures.CanAttempt(Key, LDOpponentPolicy::Fingerprint(ELDOpponentFailure::Path, Frame.Self), Frame.Public.NowMs)) { return false; }
+    Walk = FLDOpponentBodyIntent();
+    Walk.Kind = ELDOpponentBodyKind::MoveGround;
+    Walk.Point = FVector(Point.X, Point.Y, Foot.Z);
+    Walk.Surface = Site.SurfaceId;
+    Walk.Key = Key;
+    return true;
+}
+
 const FLDOpponentActive* InSlot(const FLDOpponentSelf& Self, uint8 Slot)
 {
     return Self.Actives.FindByPredicate([Slot](const FLDOpponentActive& Active) { return Active.Slot == Slot; });
@@ -610,7 +633,13 @@ FLDOpponentDecision LDEvaluationPolicy::Decide(const FLDOpponentDecisionFrame& F
                 return Finish(ELDOpponentMode::Engage, ELDOpponentReason::EngageTarget);
             }
         }
-        const FLDOpponentBodyIntent Engaged = LDOpponentPolicy::EngageUnit(Frame, Catalog, Policy, *Rival);
+        FLDOpponentDecisionFrame Reserved;
+        if (Profile.bReserveDash)
+        {
+            Reserved = Frame;
+            for (FLDOpponentSource& Source : Reserved.Self.Sources) { Source.bReady &= Source.Slot != ELDOpponentSourceSlot::Dash; }
+        }
+        const FLDOpponentBodyIntent Engaged = LDOpponentPolicy::EngageUnit(Profile.bReserveDash ? Reserved : Frame, Catalog, Policy, *Rival);
         Out.Body = Stance(Frame, Catalog, Profile, Policy, State, *Rival, Engaged);
         const bool bOperation = LDEvaluationPolicyDetail::HasOperation(Profile);
         if (!bActionLive && Out.Body.Kind == EBody::Activate && (bOperation || Profile.bLeadAim))
@@ -781,6 +810,8 @@ FLDOpponentBodyIntent LDEvaluationPolicy::Stance(const FLDOpponentDecisionFrame&
         return Engaged;
     case ELDEvaluationStance::Kite:
         return Kite(Frame, Profile, Policy, Rival, Site, Engaged, &State);
+    case ELDEvaluationStance::Strafe:
+        return Strafe(Frame, Profile, Policy, State, Rival, Site, Engaged);
     case ELDEvaluationStance::Burst:
     {
         const bool bAnyReady = Frame.Self.Sources.ContainsByPredicate([](const FLDOpponentSource& Source)
@@ -829,28 +860,11 @@ FLDOpponentBodyIntent LDEvaluationPolicy::Kite(const FLDOpponentDecisionFrame& F
     const FVector Foot = Frame.Self.FootCm;
     const double Gap = FVector::Dist2D(Foot, Rival.FootCm);
     const double Standoff = double(Profile.StandoffCm);
-    const FName Surface = Site ? Site->SurfaceId : NAME_None;
     const bool bKiteWalkLive = Frame.Order.IsLive() && Frame.Order.Kind == ELDOpponentOrderKind::MoveGround && Frame.Order.POI.IsNone();
-    if (bKiteWalkLive || Surface.IsNone() || Frame.Self.MoveBlockedUntilMs > Frame.Public.NowMs) { return Out; }
-    const uint64 Print = LDOpponentPolicy::Fingerprint(ELDOpponentFailure::Path, Frame.Self);
+    if (bKiteWalkLive || !Site || Site->SurfaceId.IsNone() || Frame.Self.MoveBlockedUntilMs > Frame.Public.NowMs) { return Out; }
     const auto Step = [&](const FVector& Point, const TCHAR* Name, FLDOpponentBodyIntent& Walk)
     {
-        if (Profile.LeashCm > 0)
-        {
-            // The leash: never a step that ends beyond it and farther from the meeting place than the body stands now.
-            const double To = FVector::Dist2D(Point, Site->FootCm);
-            if (To > double(Profile.LeashCm) && To >= FVector::Dist2D(Foot, Site->FootCm)) { return false; }
-        }
-        FLDOpponentRetryKey Key;
-        Key.Category = ELDOpponentFailure::Path;
-        Key.POI = FName(Name);
-        if (!Policy.Failures.CanAttempt(Key, Print, Frame.Public.NowMs)) { return false; }
-        Walk = FLDOpponentBodyIntent();
-        Walk.Kind = EBody::MoveGround;
-        Walk.Point = FVector(Point.X, Point.Y, Foot.Z);
-        Walk.Surface = Surface;
-        Walk.Key = Key;
-        return true;
+        return LDEvaluationPolicyDetail::GroundStep(Frame, Profile, Policy, *Site, Point, Name, Walk);
     };
     FVector Away = (Foot - Rival.FootCm).GetSafeNormal2D();
     if (Away.IsNearlyZero()) { Away = FVector::ForwardVector; }
@@ -882,6 +896,41 @@ FLDOpponentBodyIntent LDEvaluationPolicy::Kite(const FLDOpponentDecisionFrame& F
     }
     if (Frame.Order.IsLive() && Frame.Order.Kind == ELDOpponentOrderKind::AttackUnit) { Out.Kind = EBody::Stop; }
     return Out;
+}
+
+FLDOpponentBodyIntent LDEvaluationPolicy::Strafe(const FLDOpponentDecisionFrame& Frame, const FLDEvaluationProfile& Profile,
+    const FLDOpponentPolicyState& Policy, FLDEvaluationProfileState& State, const FLDOpponentUnit& Rival, const FLDOpponentPOI* Site,
+    const FLDOpponentBodyIntent& Engaged)
+{
+    using EBody = ELDOpponentBodyKind;
+    if (Engaged.Kind == EBody::Activate && Engaged.TargetMode != ELDDemoTargetMode::DirectionDash) { return Engaged; }
+    FLDOpponentBodyIntent Out;
+    Out.Kind = EBody::Keep;
+    const bool bStepLive = Frame.Order.IsLive() && Frame.Order.Kind == ELDOpponentOrderKind::MoveGround && Frame.Order.POI.IsNone();
+    if (bStepLive || !Site || Site->SurfaceId.IsNone() || Frame.Self.MoveBlockedUntilMs > Frame.Public.NowMs) { return Out; }
+    FVector Away = (Frame.Self.FootCm - Rival.FootCm).GetSafeNormal2D();
+    if (Away.IsNearlyZero()) { Away = FVector::ForwardVector; }
+    const double Standoff = double(Profile.StandoffCm);
+    // One step of StrafeStepCm along the circle of radius StandoffCm round the rival (also closing or opening the gap).
+    const double TurnDegrees = FMath::RadiansToDegrees(FMath::Min(StrafeStepCm / Standoff, UE_DOUBLE_PI / 3.));
+    for (int32 Try = 0; Try < 2; ++Try)
+    {
+        const int32 Sign = Try == 0 ? State.StrafeSign : -State.StrafeSign;
+        const FVector Point = Rival.FootCm + Away.RotateAngleAxis(Sign * TurnDegrees, FVector::UpVector) * Standoff;
+        if (!LDEvaluationPolicyDetail::GroundStep(Frame, Profile, Policy, *Site, Point, Sign > 0 ? TEXT("strafe_l") : TEXT("strafe_r"), Out))
+        {
+            continue;
+        }
+        // A refused side turns the strafe; otherwise it turns after StrafeLegSteps steps one way.
+        if (Try == 1 || ++State.StrafeSteps >= StrafeLegSteps)
+        {
+            State.StrafeSign = -State.StrafeSign;
+            State.StrafeSteps = 0;
+        }
+        return Out;
+    }
+    // Both sides refused here: it fights where it stands.
+    return Engaged.Kind == EBody::AttackUnit ? Engaged : Out;
 }
 
 void LDEvaluationPolicy::Lead(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,

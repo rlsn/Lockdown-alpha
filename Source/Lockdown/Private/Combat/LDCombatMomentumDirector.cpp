@@ -12,7 +12,7 @@
 // "劲、连击、爆劲与完美闪避"). The pure rules are LDMomentum; this file owns the body records they change.
 
 bool ALDCombatDirector::ResolvePerfectDodges(const FGuid& EffectId, const FGuid& SourceEntity, TFunctionRef<bool(const FVector&)> InArea,
-    int64 NowMs, FString& Error)
+    int64 NowMs, FString& Error, TFunction<int64(const FVector&)> ResolveAt)
 {
     const FLDDemoContentSnapshot* Content=Catalog();
     if (!Content) { Error=TEXT("A perfect dodge needs the approved momentum terms."); return false; }
@@ -26,7 +26,8 @@ bool ALDCombatDirector::ResolvePerfectDodges(const FGuid& EffectId, const FGuid&
             || !Body.DashStartedAtMs.IsSet()) { continue; }
         const bool bStartInside=InArea(Body.DashStartFootCm);
         const bool bNowInside=InArea(FootOf(*Actor));
-        if (!LDMomentum::IsPerfectDodge(M.PerfectDodgeWindowMs,Body.DashStartedAtMs.GetValue(),NowMs,bStartInside,bNowInside)) { continue; }
+        const int64 ResolveMs=ResolveAt ? FMath::Min(NowMs,ResolveAt(Body.DashStartFootCm)) : NowMs;
+        if (!LDMomentum::IsPerfectDodge(M.PerfectDodgeWindowMs,Body.DashStartedAtMs.GetValue(),ResolveMs,bStartInside,bNowInside)) { continue; }
         const FGuid Dodger=Body.Victim.EntityId;
         if (PerfectDodgeMarks.ContainsByPredicate([&EffectId,&Dodger](const TTuple<FGuid,FGuid,int64>& Mark)
             { return Mark.Get<0>()==EffectId && Mark.Get<1>()==Dodger; })) { continue; }

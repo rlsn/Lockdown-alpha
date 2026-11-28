@@ -23,10 +23,14 @@
 
 野外地面行走在提交时按真实注册路径检查：穿过可见敌方地面状态时比较绕行代价；路径前 `BodyLookaheadCm`（1200 cm）内撞上可见营地成员（目录碰撞半径加自身胶囊半径）时改走该成员两侧的绕行点。保持中的行走在附近有营地成员时每 `BodyRerouteIntervalMs` 重查一次。找不到绕行（营地与地形把通道封死）时，控制器把挡路成员写进决策帧，策略（含构筑评估的接近阶段）先打穿它。`LD_AI_BODY_DETOUR` / `LD_AI_BODY_BLOCKED` 记录绕行与受阻原因。
 
+## 躲避预警
+
+视野内的敌方预警（地面延时落点、陷阱、营地前摇，以及公开施法动作的直线/扇形前摇）覆盖自身脚下、且离落地不超过 `DodgeLeadMs`（450 ms）时，AI 用就绪的 D 冲出轮廓（直线与扇形向侧面，圆形向外）。生产 AI 对每个预警按 `AI.DodgeChance` 做一次稳定判定；构筑评估的 `warning_react_ms` 去掉判定，改为看见后等满反应时间。动作进行中（前摇、引导）不打断。`LD_AI_DODGE` 为每个覆盖过自身的预警记一行：`result=dash` 时 `remaining_ms` 是发出冲刺时的剩余时间；`result=none` 时 `reason` 是拦下冲刺的原因：`acting`（动作进行中）、`dash_unready`（D 未就绪）、`reaction_wait`（评估反应时间未到）、`off`（评估未开躲避）、`roll`（生产判定未中）、`retry_blocked`（失败记忆暂停）、`early`（没有决策落在窗口内）或 `left`（落地前已离开轮廓）。
+
 ## 构筑、分支与施法覆盖
 
 - **26 主动与 7 种目标模式全覆盖**：`LDOpponentPolicy` 按 `ELDDemoTargetMode`（`Self`、`Unit`、`Direction`、`GroundPoint`、`Cone`、`Line` 及通用 `Dash`）与技能角色（控制、护盾/解控、突进、爆发、持续区、召唤/墙体）生成瞄准点、施法时机与满 60 劲的爆劲（Overdrive）释放决策。技能形状按已学分支的变体读取（分支可改目标、元素与效果）；自身嘲讽在半径内对敌方参赛者作为控制施放（不只用于打断喷漆）；自身护盾/格挡在低血保命之外，也在敌方参赛者进入普攻射程且无更优技能时施放。
-- **质变目标（`DrawBreakoutGoal` / `BreakoutProgress`）**：每个 AI 在第一个构筑步前按 `AI.BreakoutChance` 抽一套 AI 可用的质变样板（`LDBreakoutPresets`，不含 DEV 专用的地雷阵）作为本局目标；对局代数轮换样板顺序，房间名单里的每个座位取下一套，所以同房 AI 目标互不重复。目标技能在主动三选一、图纸学习与休息室替换中优先于其他偏好；技能点先给未到目标分支的目标技能并沿目标分支走；样板指定的属性（攒个大的：力道，刺猬肉山：脸皮）成为第一关键石且不会被洗点；目标里的牌按 `AI.BreakoutCardScore` 加分。`LD_AI_BREAKOUT_GOAL` 记录抽到的目标，`LD_AI_SUMMARY` 的 `goal_skills`、`goal_cards` 记录局末达成的目标技能（到目标分支）与已装目标牌数。
+- **质变目标（`DrawBreakoutGoal` / `BreakoutProgress`）**：每个 AI 在第一个构筑步前按 `AI.BreakoutChance` 抽一套 AI 可用的质变样板（`LDBreakoutPresets`，不含 DEV 与评估专用的地雷阵和抽裤腰带）作为本局目标；对局代数轮换样板顺序，房间名单里的每个座位取下一套，所以同房 AI 目标互不重复。目标技能在主动三选一、图纸学习与休息室替换中优先于其他偏好；技能点先给未到目标分支的目标技能并沿目标分支走；样板指定的属性（攒个大的：力道，刺猬肉山：脸皮）成为第一关键石且不会被洗点；目标里的牌按 `AI.BreakoutCardScore` 加分。`LD_AI_BREAKOUT_GOAL` 记录抽到的目标，`LD_AI_SUMMARY` 的 `goal_skills`、`goal_cards` 记录局末达成的目标技能（到目标分支）与已装目标牌数。
 - **构筑牌、元素勋章与终局改装**：优先选择与已学技能宿主形态/词汇匹配的构筑牌并装入容量格（库存中最契合的先装，勋章优先且不占容量）；容量满时若库存牌比已装最不契合的牌更契合（与已学技能共享词汇、目标样板牌加分），先卸下后者再装入；拾得元素勋章后装入空元素槽；R3 从候选终局改装中选定一项。质变样板（`LDBreakoutPresets`）自带满级全部合法属性点分配，DEV 与构筑评估不再依赖之后由谁加点。
 - **五维加点与双关键石聚焦（`RelevantStats` / `AllocatePoints` / `WantsRespec`）**：
   - 综合已学主动的当前 1–3 级分支效果（`ADRatioBp`、`APRatioBp`、`AdaptiveRatioBp`、`MaxHPRatioBp`、`ArmorRatioBp` 及强化普攻效果）与已装构筑牌词汇（普攻/三段/攻速/暴击、冲刺机动、施法元素、生命/护甲）评估体格、脸皮、力道、脑力、身手五维权重。

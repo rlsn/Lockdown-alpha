@@ -704,15 +704,24 @@ bool ALDCombatDirector::OnBasicLanded(FLDBodyCombatState& Body, FLDCombatHit& Pr
             // #305: past the card's own threshold (ExtraDistanceCm attacks/s), not the attack-speed maximum.
             const double Step=Cm(Ref.Effect.StepRate), Threshold=Cm(Ref.Effect.ExtraDistanceCm);
             if (Step<=0 || Threshold<=0 || Uncapped<=Threshold) { continue; }
-            ChanceBp+=int64(FMath::FloorToDouble((Uncapped-Threshold)/Step+1e-9))*Ref.Effect.RatioBp;
+            // Bounded so the chance never leaves int64; anything near the bound is past the pending-hit budget anyway.
+            const double Steps=FMath::Min(FMath::FloorToDouble((Uncapped-Threshold)/Step+1e-9),double(TechPendingHitsCap)*10000.);
+            ChanceBp+=int64(Steps)*Ref.Effect.RatioBp;
         }
-        int32 Strikes=int32(ChanceBp/10000);
+        int32 Strikes=int32(FMath::Min<int64>(ChanceBp/10000,TechPendingHitsCap));
         if (ChanceBp%10000>0 && CritRandom.RandRange(0,9999)<ChanceBp%10000) { ++Strikes; }
+        if (Strikes>TechPendingHitsCap)
+        {
+            UE_LOG(LogLDCombat,Error,TEXT("LD_CHAIN_GUARD reason=Overflow what=overcap_extra_hit src=%s requested=%lld kept=%d"),
+                *LDLog::Id(Body.Victim.EntityId),ChanceBp/10000,TechPendingHitsCap);
+            Strikes=TechPendingHitsCap;
+        }
         for (int32 Index=0; Index<Strikes; ++Index)
         {
             FLDCombatHit Strike=Primary;
             Strike.HitId=FGuid::NewGuid();
             Strike.bExtraStrike=true;
+            Strike.bAttackSpeedStrike=true;
             Strike.KnockbackCm=0;
             Strike.KnockbackMs=0;
             OutExtra.Add(MoveTemp(Strike));
@@ -933,6 +942,12 @@ bool ALDCombatDirector::ResolveDashCompletions(int64 NowMs, FString& Error)
         if (!CardsOn(Body.AttributeProjection,ELDDemoEffectOp::DashIce,Dash.Source,Trails,Error)
             || !CardsOn(Body.AttributeProjection,ELDDemoEffectOp::GroundRelocate,Dash.Source,Movers,Error)) { return false; }
         const FVector EndFoot=FootOf(*Actor);
+        // D11 moves what was placed before this dash, never the band D10 lays along it (both read the same completion).
+        if (!Movers.IsEmpty())
+        {
+            if (!RelocateNewestGround(Body,EndFoot,NowMs,Error)) { return false; }
+            LedgerCardTriggered(Body,Movers[0].Key);
+        }
         // Y12: every copy keeps a trail one more of its lifetimes, so that many more bands stand at once.
         TArray<FLDPassiveEffectRef> Stalls;
         if (!Trails.IsEmpty() && !CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::DoubleStall,Stalls,Error)) { return false; }
@@ -950,11 +965,6 @@ bool ALDCombatDirector::ResolveDashCompletions(int64 NowMs, FString& Error)
             if (!SpawnGround(ELDGroundStateKind::Ice,TrailOwner,(Dash.StartFootCm+EndFoot)*.5,NowMs,Error,Width*.5,Trail.Effect.DurationMs*(1+Stalls.Num()),
                 FVector2D(Path.X,Path.Y),Path.Size()*.5)) { return false; }
             LedgerCardTriggered(Body,Trail.Key);
-        }
-        if (!Movers.IsEmpty())
-        {
-            if (!RelocateNewestGround(Body,EndFoot,NowMs,Error)) { return false; }
-            LedgerCardTriggered(Body,Movers[0].Key);
         }
         // D03: the hosted D's completion arms one package per copy (a newer one replaces that copy's unused package).
         TArray<FLDPassiveEffectRef> Held;
@@ -1440,8 +1450,9 @@ bool ALDCombatDirector::OnCardHit(const FLDCombatHit& Hit, FLDBodyCombatState& T
                 }
             }
         }
-        // A13: primary basic hits grant 2 progress on contenders and 1 progress on monsters toward match growth.
-        if (!Target.bTrainingDummy
+        // A13: primary basic hits grant 2 progress on contenders and 1 progress on monsters toward match growth (an A09
+        // strike is not a new attack of that growth).
+        if (!Target.bTrainingDummy && !Hit.bAttackSpeedStrike
             && (Hit.Target.Victim.Kind==ELDVictimKind::Contender || Hit.Target.Victim.Kind==ELDVictimKind::CampMember))
         {
             TArray<FLDPassiveEffectRef> Practice;
@@ -1455,10 +1466,11 @@ bool ALDCombatDirector::OnCardHit(const FLDCombatHit& Hit, FLDBodyCombatState& T
                 }
             }
         }
-        // A12: consecutive hits on the same life stack attack speed; another target or a pause restarts it.
+        // A12: consecutive hits on the same life stack attack speed; another target or a pause restarts it. An A09 strike
+        // neither stacks nor keeps it: it is converted from that attack speed.
         TArray<FLDPassiveEffectRef> Focus;
         if (!CardsOn(Source->AttributeProjection,ELDDemoEffectOp::FocusAttackSpeed,Basic,Focus,Error)) { return false; }
-        if (!Focus.IsEmpty())
+        if (!Focus.IsEmpty() && !Hit.bAttackSpeedStrike)
         {
             const bool bSame=Source->FocusTarget==Hit.Target && NowMs<=Source->FocusUntilMs;
             Source->FocusTarget=Hit.Target;
@@ -2024,10 +2036,17 @@ bool ALDCombatDirector::OnBurnDealtCards(FLDBodyCombatState& Source, int64 BurnD
     if (!CollectPassiveEffects(Source.AttributeProjection,ELDDemoEffectOp::OverhealShield,Guards,Error)) { return false; }
     Guards.RemoveAll([](const FLDPassiveEffectRef& Ref) { return Ref.Effect.RatioBp<=0; });
     if (Guards.IsEmpty()) { return true; }
-    // Y29: copies add their share; the shield takes the stronger of the current one and this one.
-    int64 ShareBp=0;
-    for (const FLDPassiveEffectRef& Ref : Guards) { ShareBp+=Ref.Effect.RatioBp; }
-    const int64 Amount=LDCombatCardsDetail::Share(BurnDamageP2,ShareBp);
+    // Y29: copies add their share; the live shield of this card stays within its balance cap (copies add their cap).
+    int64 ShareBp=0, CapBp=0;
+    for (const FLDPassiveEffectRef& Ref : Guards) { ShareBp+=Ref.Effect.RatioBp; CapBp+=Ref.Effect.SecondaryRatioBp; }
+    int64 Amount=LDCombatCardsDetail::Share(BurnDamageP2,ShareBp);
+    ExpireShieldLayers(Source,NowMs);
+    int64 HeldP2=0;
+    for (const FLDBodyCombatState::FShieldLayer& Layer : Source.ShieldLayers)
+    {
+        if (Layer.ExpiresAtMs>NowMs && Layer.AmountP2>0 && Layer.Source==Guards[0].Source) { HeldP2+=Layer.AmountP2; }
+    }
+    Amount=FMath::Min(Amount,LDCombatCardsDetail::Share(Source.Resources.MaxHpP2,CapBp)-HeldP2);
     if (Amount<=0) { return true; }
     if (!GrantShieldTo(Source,Amount,Guards[0].Effect.DurationMs,FGuid::NewGuid(),Source.Victim.EntityId,NowMs,Error,Guards[0].Source))
     { return false; }
@@ -2103,12 +2122,12 @@ int64 ALDCombatDirector::OverdriveScaleOf(const FLDBodyCombatState& Body) const
     int64 Scale=Content ? Content->Get().Parameters.Overdrive.ScaleBp : 10000;
     TArray<FLDPassiveEffectRef> Shorts;
     FString Error;
+    // Y11: its own overdrive multiplier replaces the base one (copies take the same multiplier; they do not stack).
     if (CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::OverdriveShort,Shorts,Error))
     {
-        for (const FLDPassiveEffectRef& Ref : Shorts)
-        {
-            if (Ref.Effect.MultiplierBp>0) { Scale=Scale*8750/10000; }
-        }
+        int64 Short=0;
+        for (const FLDPassiveEffectRef& Ref : Shorts) { Short=FMath::Max(Short,Ref.Effect.MultiplierBp); }
+        if (Short>0) { Scale=Short; }
     }
     return Scale;
 }

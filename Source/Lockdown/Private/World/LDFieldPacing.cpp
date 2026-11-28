@@ -72,12 +72,18 @@ bool FLDObjectiveState::Advance(int64 NowT)
 {
     if (!IsActive()) { return false; }
     const FLDObjectiveView Before = View;
-    for (int32 Segment = 0; Segment < FLDTimelineParameters::TimedSegments; ++Segment)
+    // Only the latest segment whose announcement is due holds the objective; an earlier one never replaces it again.
+    int32 Segment = INDEX_NONE;
+    for (int32 Each = 0; Each < FLDTimelineParameters::TimedSegments; ++Each)
+    {
+        if (NowT < int64(Each) * SegmentMs + StartMs - AnnounceLeadMs) { break; }
+        Segment = Each;
+    }
+    if (Segment != INDEX_NONE)
     {
         const ELDObjectiveKind Kind = LDFieldPacing::KindOfSegment(Segment);
         const int64 Open = int64(Segment) * SegmentMs + StartMs;
         const int64 Close = Open + (Kind == ELDObjectiveKind::Arena ? ArenaMs : FlagWindowMs);
-        if (NowT < Open - AnnounceLeadMs) { break; }
         if (View.Serial != Segment + 1)
         {
             // A new segment's objective: drawn once from the server-only seed.
@@ -202,6 +208,14 @@ FGuid FLDObjectiveState::ArenaWinner(TConstArrayView<LDFieldPacing::FPresence> L
         }
     }
     return Best;
+}
+
+bool FLDObjectiveState::SettleArena(int64 NowT, TConstArrayView<LDFieldPacing::FPresence> Living)
+{
+    if (View.Kind != ELDObjectiveKind::Arena || View.Phase != ELDObjectivePhase::Open || NowT < View.ClosesAtT) { return false; }
+    View.Winner = ArenaWinner(Living);
+    View.Phase = View.Winner.IsValid() ? ELDObjectivePhase::Won : ELDObjectivePhase::Expired;
+    return true;
 }
 
 void LDFieldPacing::DrawCandidates(uint64 Seed, uint64 Salt, TConstArrayView<FName> Anchors, int32 Count, TArray<FName>& Out)

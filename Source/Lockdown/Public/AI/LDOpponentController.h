@@ -184,6 +184,9 @@ private:
     void ForgetBodyWork();
     void Report(const FLDOpponentDecisionFrame& Frame, const FLDOpponentDecision& Decision, const FString& Problem);
     void NoteContest(const FLDOpponentDecisionFrame& Frame, const FLDOpponentDecision& Decision);
+    // B01: one LD_AI_DODGE line per enemy warning that covered the own foot: when a dash out of it is sent, or when it
+    // ends (landed or out of sight) undodged, with what held the dash back at the last decision inside its window.
+    void WatchDodges(const FLDOpponentDecisionFrame& Frame, const FLDOpponentDecision& Decision, int64 NowMs);
     void ReportTally();
 
     FLDAIContenderBinding Binding;
@@ -215,6 +218,17 @@ private:
     };
     // Renewed by ComposeFrame while the own attack on it is still under way.
     mutable FWalled Walled;
+    struct FDodgeWatch
+    {
+        FName Source;
+        int64 SeenAtMs = 0, SeenRemainingMs = 0, LastRemainingMs = 0;
+        bool bCovered = false, bEverCovered = false, bDashed = false;
+        // What held the dash back at the last decision inside the dodge window ("early": none fell inside it).
+        const TCHAR* Reason = TEXT("early");
+    };
+    // WatchDodges: the covering warnings of the current life by handle.
+    TMap<FGuid, FDodgeWatch> DodgeWatch;
+    uint32 DodgeLife = 0;
     bool bClosed = false;
     bool bRetiring = false;
     bool bTallyReported = false;
@@ -234,6 +248,10 @@ private:
     // DEV build evaluation (-LDBuildEvaluation only): the profile the Host probe staged for this contender, taken at bind.
     // It replaces only the decision; frames, requests, receipts and failure memory stay this adapter's.
     TSharedPtr<FLDEvaluationRun> Evaluation;
+    // WarningReactMs: true once (per warning) when a warning on the own foot, seen at every tick, has been in sight for the
+    // reaction time and lands within LDOpponentPolicy::DodgeLeadMs, so the decision comes then, not at the next interval.
+    bool EvaluationWarningDue(ALDGameMode& Mode, int64 NowMs);
+    TSet<FGuid> WarningsDecided;
 #endif
     FLDMatchContext RetiringMatch;
     ELDOpponentMode ReportedMode = ELDOpponentMode::Stopped;

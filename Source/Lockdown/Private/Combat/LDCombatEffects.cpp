@@ -890,7 +890,7 @@ bool ALDCombatDirector::ApplyPendingHits(int64 NowMs, FString& Error)
     const FLDDemoContentSnapshot* Content=Catalog();
     if (!Content) { Error=TEXT("Pending hits require the approved Demo content."); return false; }
     const int32 MaxDepth=Content->Get().Parameters.ChainMaxDepth;
-    const int32 Budget=PendingHits.Num()+Content->Get().Parameters.ChainMaxEffectsPerStep;
+    const int32 Budget=FMath::Min(PendingHits.Num()+Content->Get().Parameters.ChainMaxEffectsPerStep,TechHitsPerStep);
     int32 Index=0;
     for (; Index<PendingHits.Num() && Index<Budget; ++Index)
     {
@@ -918,6 +918,12 @@ bool ALDCombatDirector::ApplyPendingHits(int64 NowMs, FString& Error)
     {
         UE_LOG(LogLDCombat,Warning,TEXT("LD_CHAIN_GUARD reason=Step t=%lld deferred=%d"),NowMs,PendingHits.Num()-Index);
         PendingHits.RemoveAt(0,Index);
+        if (PendingHits.Num()>TechPendingHitsCap)
+        {
+            UE_LOG(LogLDCombat,Error,TEXT("LD_CHAIN_GUARD reason=Overflow t=%lld dropped=%d kept=%d"),NowMs,
+                PendingHits.Num()-TechPendingHitsCap,TechPendingHitsCap);
+            PendingHits.SetNum(TechPendingHitsCap);
+        }
         return true;
     }
     PendingHits.Reset();

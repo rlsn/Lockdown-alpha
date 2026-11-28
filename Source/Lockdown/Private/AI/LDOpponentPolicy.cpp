@@ -740,46 +740,52 @@ TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActiva
     return {};
 }
 
+// The way out of Warning for a dash of ReachCm from Foot: the first candidate that leaves the outline within the reach (plus
+// a body's clearance) without passing a visible body on the way, the plain way out (sideways from a line or cone, outward
+// from a disc) first, then ever wider turns from it. Unset when none does.
+TOptional<FVector> DodgeWay(const FContext& C, const FLDOpponentWarning& Warning, const FVector& Away, double ReachCm)
+{
+    const FVector Foot(C.Self.FootCm.X, C.Self.FootCm.Y, 0);
+    static constexpr double Turns[] = {0., 45., -45., 90., -90., 135., -135., 180.};
+    for (const double Turn : Turns)
+    {
+        const FVector Way = Away.RotateAngleAxis(Turn, FVector::UpVector).GetSafeNormal2D();
+        double ExitCm = -1;
+        for (double Along = LDOpponentPolicy::GroundPathSampleCm; Along <= ReachCm; Along += LDOpponentPolicy::GroundPathSampleCm)
+        {
+            if (!LDOpponentPolicy::WarningCovers(Warning, Foot + Way * Along)) { ExitCm = Along; break; }
+        }
+        if (ExitCm < 0 || ExitCm + LDOpponentPolicy::DodgeClearanceCm > ReachCm) { continue; }
+        // Bodies stop a dash: none may stand within the clearance of the way out before it clears the outline.
+        const FVector End = Foot + Way * (ExitCm + LDOpponentPolicy::DodgeClearanceCm);
+        const bool bBlocked = C.Frame.Units.ContainsByPredicate([&](const FLDOpponentUnit& Unit)
+        {
+            const FVector At(Unit.FootCm.X, Unit.FootCm.Y, 0);
+            return FMath::PointDistToSegment(At, Foot, End) < LDOpponentPolicy::DodgeClearanceCm;
+        });
+        if (!bBlocked) { return Way; }
+    }
+    return {};
+}
+
 // Issue #287 spec §13: a visible enemy warning about to land on the own foot is dashed out of with the ready D, at
 // AI.DodgeChance (one stable roll per warning); without bRoll (DEV evaluation's WarningReactMs) every such warning is.
 TOptional<FLDOpponentBodyIntent> DodgeIntent(const FContext& C, bool bRoll = true)
 {
     const FLDOpponentSource* Dash = C.Self.Sources.FindByPredicate([](const FLDOpponentSource& S) { return S.Slot == ELDOpponentSourceSlot::Dash; });
     if (!Dash || !Dash->bReady) { return {}; }
-    const FVector Foot(C.Self.FootCm.X, C.Self.FootCm.Y, 0);
     for (const FLDOpponentWarning& Warning : C.Frame.Warnings)
     {
-        if (Warning.RemainingMs > 450) { continue; }
-        const FVector Centre(Warning.CentreCm.X, Warning.CentreCm.Y, 0);
-        const FVector Heading = FVector(Warning.Heading.X, Warning.Heading.Y, 0).GetSafeNormal();
-        const FVector Offset = Foot - Centre;
-        bool bInside = false;
-        FVector Away = Offset.GetSafeNormal();
-        if (Warning.LengthCm > 0 && !Heading.IsNearlyZero())
-        {
-            const double Ahead = FVector::DotProduct(Offset, Heading);
-            const FVector Side = FVector::CrossProduct(FVector::UpVector, Heading);
-            const double Across = FVector::DotProduct(Offset, Side);
-            bInside = Warning.AngleDegrees > 0
-                ? Offset.Size() <= Warning.LengthCm && (Offset.IsNearlyZero()
-                    || FVector::DotProduct(Offset.GetSafeNormal(), Heading) >= FMath::Cos(FMath::DegreesToRadians(Warning.AngleDegrees * .5)))
-                : Ahead >= 0 && Ahead <= Warning.LengthCm && FMath::Abs(Across) <= Warning.RadiusCm;
-            // Out of a line or a cone sideways.
-            Away = Across >= 0 ? Side : -Side;
-        }
-        else
-        {
-            bInside = Offset.Size() <= Warning.RadiusCm;
-        }
-        if (!bInside) { continue; }
-        if (Away.IsNearlyZero()) { Away = Heading.IsNearlyZero() ? FVector::ForwardVector : FVector::CrossProduct(FVector::UpVector, Heading); }
+        FVector Away;
+        if (Warning.RemainingMs > LDOpponentPolicy::DodgeLeadMs || !LDOpponentPolicy::WarningCovers(Warning, C.Self.FootCm, &Away)) { continue; }
         const uint32 Roll = HashCombine(GetTypeHash(Warning.Handle), GetTypeHash(C.Self.ContenderId)) % 10000;
         if (bRoll && int64(Roll) >= C.Catalog.Get().Parameters.AI.DodgeChanceBp) { continue; }
         FLDOpponentBodyIntent Body;
         Body.Kind = EBody::Activate;
         Body.Source = ELDOpponentSourceSlot::Dash;
         Body.TargetMode = ELDDemoTargetMode::DirectionDash;
-        Body.Direction = Away.GetSafeNormal2D();
+        // B01: an outward dash into the rival standing at the edge stops on its body inside the outline.
+        Body.Direction = DodgeWay(C, Warning, Away, double(Dash->RangeCm)).Get(Away);
         Body.Key.Category = ELDOpponentFailure::Activation;
         Body.Key.Slot = uint8(ELDOpponentSourceSlot::Dash);
         if (C.CanAttempt(Body.Key)) { return Body; }
@@ -3408,6 +3414,34 @@ bool DecideFollowUpBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoCon
     FLDOpponentPolicyState& State, FLDOpponentBuildIntent& Out)
 {
     return Detail::DecideBuild(Frame, Catalog, State, false, Out);
+}
+
+bool WarningCovers(const FLDOpponentWarning& Warning, const FVector& FootCm, FVector* OutAway)
+{
+    const FVector Centre(Warning.CentreCm.X, Warning.CentreCm.Y, 0);
+    const FVector Heading = FVector(Warning.Heading.X, Warning.Heading.Y, 0).GetSafeNormal();
+    const FVector Offset = FVector(FootCm.X, FootCm.Y, 0) - Centre;
+    bool bInside = false;
+    FVector Away = Offset.GetSafeNormal();
+    if (Warning.LengthCm > 0 && !Heading.IsNearlyZero())
+    {
+        const double Ahead = FVector::DotProduct(Offset, Heading);
+        const FVector Side = FVector::CrossProduct(FVector::UpVector, Heading);
+        const double Across = FVector::DotProduct(Offset, Side);
+        bInside = Warning.AngleDegrees > 0
+            ? Offset.Size() <= Warning.LengthCm && (Offset.IsNearlyZero()
+                || FVector::DotProduct(Offset.GetSafeNormal(), Heading) >= FMath::Cos(FMath::DegreesToRadians(Warning.AngleDegrees * .5)))
+            : Ahead >= 0 && Ahead <= Warning.LengthCm && FMath::Abs(Across) <= Warning.RadiusCm;
+        // Out of a line or a cone sideways.
+        Away = Across >= 0 ? Side : -Side;
+    }
+    else
+    {
+        bInside = Offset.Size() <= Warning.RadiusCm;
+    }
+    if (Away.IsNearlyZero()) { Away = Heading.IsNearlyZero() ? FVector::ForwardVector : FVector::CrossProduct(FVector::UpVector, Heading); }
+    if (OutAway) { *OutAway = Away.GetSafeNormal2D(); }
+    return bInside;
 }
 
 #if WITH_DEV_AUTOMATION_TESTS

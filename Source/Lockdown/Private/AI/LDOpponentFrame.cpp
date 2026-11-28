@@ -1,4 +1,5 @@
 #include "AI/LDOpponentFrame.h"
+#include "Core/LDLog.h"
 #include "Combat/LDAttributeProjection.h"
 #include "Combat/LDCombatTypes.h"
 #include "Combat/LDCombatSourceRules.h"
@@ -160,6 +161,7 @@ void ReadWarnings(const FLDWorldView& View, TArray<FLDOpponentWarning>& Out)
         // A public cone carries its reach as RadiusCm; the dodge test reads a cone's reach from LengthCm.
         if (Seen.AngleDegrees > 0 && Seen.LengthCm <= 0) { Warning.LengthCm = Seen.RadiusCm; }
         Warning.RemainingMs = Seen.WarningRemainingMs;
+        Warning.Source = FName(LDLog::EnumName(Seen.Look));
     }
 }
 
@@ -197,6 +199,7 @@ void ReadCastWarnings(const FLDWorldView& View, const FGuid& OwnContender, const
         Warning.Heading = FRotator(0, double(Unit.Facing) * 360. / 65536., 0).Vector();
         Warning.LengthCm = Reach;
         Warning.RemainingMs = int64(Unit.ActionCueImpactDelayMs) - int64(Unit.ActionCueAgeMs);
+        Warning.Source = FName(TEXT("cast_") + Ability->Id);
         Out.Add(Warning);
     }
 }

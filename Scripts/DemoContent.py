@@ -874,6 +874,10 @@ def _validate_cards(data):
                 shares = [key for key in ("cap_ratio", "burn_ratio") if key in effect]
                 require(len(shares) == 1 and quantity(effect[shares[0]]) > 0, "IneffectiveEffect", identity,
                         "an overheal shield names one positive cap_ratio or burn_ratio")
+                # Y29's own live shield is capped at shield_cap of max HP; only a burn shield names it.
+                require(("shield_cap" in effect) == ("burn_ratio" in effect)
+                        and ("shield_cap" not in effect or quantity(effect["shield_cap"]) > 0), "IneffectiveEffect", identity,
+                        "a burn shield (and only it) names a positive shield_cap")
             fields = _CARD_MAGNITUDES.get(effect["op"])
             if fields is not None:
                 require(all(quantity(effect[key]) > 0 for key in fields), "IneffectiveEffect", identity,

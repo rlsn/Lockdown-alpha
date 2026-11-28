@@ -1218,6 +1218,33 @@ bool RunWarningsAndLead(FAutomationTestBase& Test)
         bGood &= Test.TestTrue(FString::Printf(TEXT("%s: a still rival is aimed at exactly"), Id),
             bPoint ? Same.Point.Equals(FVector(Attack - 10, 100, 0), 1.e-3) : Same.Direction.Equals(Still.Direction, 1.e-4));
     }
+
+    // ---- Strafe: round the rival on the standoff circle, two steps one way, then back ----
+    FLDEvaluationProfile Strafing = Exact;
+    Strafing.Stance = ELDEvaluationStance::Strafe;
+    Strafing.StandoffCm = 500;
+    auto Near = Base;
+    Near.Units = {Rival(8, Exact.Opponent, 600, 0)};
+    const FLDOpponentPOI* Site = Near.POIs.FindByPredicate([](const FLDOpponentPOI& POI) { return POI.Id == TEXT("capture"); });
+    FLDOpponentBodyIntent Keep;
+    Keep.Kind = EBody::Keep;
+    FLDOpponentPolicyState Policy;
+    FLDEvaluationProfileState Orbit;
+    TArray<double> Sides;
+    for (int32 Step = 0; Step < 3; ++Step)
+    {
+        const FLDOpponentBodyIntent Body = LDEvaluationPolicy::Strafe(Near, Strafing, Policy, Orbit, Near.Units[0], Site, Keep);
+        bGood &= Test.TestTrue(TEXT("Strafe: every step is a ground click on the standoff circle, off the aim line"),
+            Body.Kind == EBody::MoveGround && FMath::IsNearlyEqual(FVector::Dist2D(Body.Point, Near.Units[0].FootCm), 500., 1.)
+            && FMath::Abs(Body.Point.Y) > 100.);
+        Sides.Add(FMath::Sign(Body.Point.Y));
+    }
+    bGood &= Test.TestTrue(TEXT("Strafe: two steps one way, then it turns back"), Sides[0] == Sides[1] && Sides[2] == -Sides[0]);
+    FLDOpponentBodyIntent Cast;
+    Cast.Kind = EBody::Activate;
+    Cast.TargetMode = ELDDemoTargetMode::GroundPoint;
+    bGood &= Test.TestTrue(TEXT("Strafe: the picker's casts go first"),
+        LDEvaluationPolicy::Strafe(Near, Strafing, Policy, Orbit, Near.Units[0], Site, Cast).Kind == EBody::Activate);
     return bGood;
 }
 }

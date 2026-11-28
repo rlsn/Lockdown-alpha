@@ -286,6 +286,10 @@ bool FLDCampLifecycleTest::RunTest(const FString& Parameters)
         && !DevState.IsRespawnDue(2, 20000));
     State.QueueFieldReset(0);
     State.QueueFieldReset(1);
+    FLDCampMatchState Held = State;
+    Held.DevHoldEmpty(0);
+    TestTrue(TEXT("An evaluation hold keeps a queued camp empty while the others refresh"),
+        !Held.IsRespawnDue(0, MAX_int64 - 1) && Held.IsRespawnDue(1, 160) && Held.NextRespawnDueMs() == 0);
     TestTrue(TEXT("Field reset commits the next life for every slot"), State.CommitSpawn(0, Spawned(State, 0, 1), 160, Error));
     TestTrue(TEXT("The other group is still queued for the boundary"),
         !State.FindCamp(0)->bRespawnPending && State.FindCamp(1)->bRespawnPending);

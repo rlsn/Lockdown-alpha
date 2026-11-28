@@ -116,12 +116,13 @@ void ULDChoicesPanel::Refresh()
     const bool bCards=Usable()&&Latest.bHasCardOffer&&!Latest.CardOffer.Options.IsEmpty();
     ShownCardOffer=bCards?Latest.CardOffer.OfferId:FGuid();ShownCardRevision=bCards?Latest.CardOffer.OfferRevision:0;
     ShownCardOptions=bCards?Latest.CardOffer.Options:TArray<FName>();
-    // A confirm line whose terms changed (another slot content, a used blueprint, the rest over) is withdrawn, never resent.
-    const bool bRest=Usable()&&(Gate.bInRest||Gate.bDormSwap);
-    if(RestConfirm.Kind!=ELDBuildCommandKind::None&&(!bRest||!RestConfirmHolds()))
+    // A confirm line whose terms changed (another slot content, a used blueprint) or whose command its gate no longer admits
+    // (a forget once the rest is over) is withdrawn, never resent. A replace is open in the field too (LDProgression::CommandGate).
+    const bool bHolds=RestConfirmHolds();
+    if(RestConfirm.Kind!=ELDBuildCommandKind::None&&(!bHolds||!RestConfirmRefusal().IsEmpty()))
     {
         RestConfirm=FRestConfirm();
-        if(bRest){Tell(TEXT("技能槽或图纸已变化，请重新选择。"));}
+        if(Usable()&&!bHolds){Tell(TEXT("技能槽或图纸已变化，请重新选择。"));}
     }
 }
 bool ULDChoicesPanel::CardOfferCommand(ELDBuildCommandKind Kind,FLDBuildCommand& Out)

@@ -268,12 +268,15 @@ bool ALDPlayerController::ClearArmedAim()
 bool ALDPlayerController::CancelArmedCombat()
 {
     // A real cancel (S, Escape, a menu, a move order, a new life or source revision) also ends a running or completed
-    // overdrive hold and the visible charge with it.
+    // overdrive hold and the visible charge with it. A held skill with no armed aim (a self skill charging) is reported like
+    // an armed one, so its key never goes quiet without a sign.
+    const ELDCombatEntry Charging=bOverdriveHolding || bOverdriveArmed ? OverdriveEntry : ELDCombatEntry::None;
     if (bOverdriveHolding || bOverdriveArmed) { EndOverdriveHold(); }
-    if (ArmedEntry!=ELDCombatEntry::None)
+    const ELDCombatEntry Cancelled=ArmedEntry!=ELDCombatEntry::None ? ArmedEntry : Charging;
+    if (Cancelled!=ELDCombatEntry::None)
     {
-        UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT armed-cancelled entry=%u"),uint32(ArmedEntry));
-        ArmedCancelEntry=ArmedEntry;
+        UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT armed-cancelled entry=%u overdrive=%u"),uint32(Cancelled),uint32(Charging));
+        ArmedCancelEntry=Cancelled;
         ++ArmedCancelSerial;
     }
     return ClearArmedAim();

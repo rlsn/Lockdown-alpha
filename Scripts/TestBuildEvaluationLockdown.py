@@ -294,6 +294,22 @@ class PlanTest(AdapterCase):
         scenario["parameters"]["duel_timeout_ms"] = end
         self.assertTrue(any("duel_timeout_ms" in problem for problem in lockdown.scenario_problems(scenario, self.caps)))
 
+    def test_clear_camps_reaches_native_and_must_be_evidenced(self):
+        scenario = manifest()["scenario"]
+        scenario["parameters"]["clear_camps"] = "yes"
+        self.assertTrue(any("clear_camps" in problem for problem in lockdown.scenario_problems(scenario, self.caps)))
+        cleared = manifest()
+        cleared["scenario"]["parameters"]["clear_camps"] = True
+        self.assertEqual(lockdown.scenario_problems(cleared["scenario"], self.caps), [])
+        case = [{"case_id": "c000a-t", "seed": "7", "arm": "t", "side": 0}]
+        self.assertTrue(lockdown.native_input("run-1", cleared, self.caps, case)["cases"][0]["clear_camps"])
+        self.assertNotIn("clear_camps", lockdown.native_input("run-1", manifest(), self.caps, case)["cases"][0],
+                         "an uncleared input stays byte-identical")
+        line = "LD_EVAL_CAMPS_CLEARED groups=64 members=150 field_t_ms=50"
+        self.assertIn("CampsNotCleared", self.evidence(plan_manifest=cleared)["reason"])
+        self.assertEqual(self.evidence(text=trace(line), plan_manifest=cleared)["status"], "Completed")
+        self.assertIn("TraceIncomplete", self.evidence(text=trace(line))["reason"], "a clear nobody planned")
+
     def test_shipped_manifests_are_admitted_by_current_capabilities(self):
         paths = sorted((ROOT / "Scripts" / "BuildEvaluationManifests").glob("*.json"))
         self.assertTrue(paths)
@@ -615,7 +631,7 @@ class PlanTest(AdapterCase):
                 lockdown.native_input("run-1", manifest(subject={**kite, "stance": invalid}, sample="diagnostic"),
                                       self.caps, case)
         for valid in ({"kind": "burst", "standoff_cm": 700, "leash_cm": 1200}, {"kind": "hold", "standoff_cm": 600},
-                      {"kind": "guard", "standoff_cm": 600, "threshold_bp": 3500}):
+                      {"kind": "guard", "standoff_cm": 600, "threshold_bp": 3500}, {"kind": "strafe", "standoff_cm": 500}):
             with self.subTest(stance=valid):
                 native = lockdown.native_input("run-1", manifest(subject={**kite, "stance": valid}, sample="diagnostic"),
                                                self.caps, case)
@@ -628,6 +644,7 @@ class PlanTest(AdapterCase):
                       {"kind": "guard", "standoff_cm": 600, "threshold_bp": 3500, "skip_bp": 9000, "reaction_ms": 1500,
                        "aim_error_cm": 400},
                       {"kind": "pursue", "warning_react_ms": 250}, {"kind": "pursue", "warning_react_ms": 450, "lead_aim": True},
+                      {"kind": "burst", "standoff_cm": 420, "warning_react_ms": 0, "reserve_dash": True},
                       {"kind": "kite", "standoff_cm": 450, "lead_aim": False}):
             with self.subTest(stance=valid):
                 plan = manifest(subject={"choices": ["ai_select"] * 3, "stance": valid}, sample="diagnostic")
@@ -666,7 +683,8 @@ class EvidenceTest(AdapterCase):
         text = trace().replace(begin, begin + "\n" + line)
         out = self.evidence(text=text, plan_manifest=plan)
         self.assertEqual(out["status"], "Completed", out["reason"])
-        exact = {"reaction_ms": 0, "aim_error_cm": 0, "skip_bp": 0, "warning_react_ms": -1, "lead_aim": False}
+        exact = {"reaction_ms": 0, "aim_error_cm": 0, "skip_bp": 0, "warning_react_ms": -1, "lead_aim": False,
+                 "reserve_dash": False}
         self.assertEqual(out["facts"]["operation"], {
             "subject": {**exact, "reaction_ms": 800, "aim_error_cm": 200, "skip_bp": 3500}, "opponent": exact},
             "a knob left at its default may be absent from the profile line")

@@ -1,6 +1,7 @@
 #include "LDVisionTestParameters.h"
 #include "Combat/LDMomentum.h"
 #include "Algo/AllOf.h"
+#include "Algo/Count.h"
 #include "Combat/LDCombatDirector.h"
 #include "Combat/LDCombatKeywords.h"
 #include "Combat/LDCombatElements.h"
@@ -200,6 +201,10 @@ struct FLDBuildPrimitivesAccess
         const FVector& UnitFoot, const FVector& Foot, int64 NowMs, FString& Error)
     { return Driver.DeliverReleasePayload(Actor, Body, Terms, Action, Template, Unit, UnitFoot, Foot, {}, NowMs, Error); }
     static bool ApplyPendingHits(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.ApplyPendingHits(NowMs, Error); }
+    static bool BurnDealt(ALDCombatDirector& Driver, FLDBodyCombatState& Source, int64 BurnP2, int64 NowMs, FString& Error)
+    { return Driver.OnBurnDealtCards(Source, BurnP2, NowMs, Error); }
+    static bool EndBranchProjectile(ALDCombatDirector& Driver, const FLDCombatProjectile& Projectile, const FVector& EndCm, FString& Error)
+    { return Driver.EndBranchProjectile(Projectile, EndCm, true, Error); }
     static bool AdvanceMechanics(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceMechanics(NowMs, Error); }
     static bool MakeEmpower(const ALDCombatDirector& Driver, const FLDBodyCombatState& Body, const FLDCombatSourceRef& Source,
         const FLDDemoEffectDefinition& Effect, int64 NowMs, FLDCombatEmpower& Out, FString& Error)
@@ -2739,6 +2744,119 @@ bool FLDCardRuleA12Test::RunTest(const FString& Parameters)
     using namespace LDBuildPrimitivesTests;
     return RunCardRule(*this, {TEXT("card_heated_up"), ELDDemoEffectOp::FocusAttackSpeed, ELDCardTargetKind::Body});
 }
+// A09 strikes converted from attack speed are no new attacks of the attack-speed growth they convert: with A12 and A09 (and
+// A13) on one holder, every attack on the same unkillable body adds one A12 stack and one A13 count, never one per strike
+// (each strike stacking A12 fed A09 back: the strikes per attack grew exponentially until the server stalled).
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardA12A09NoFeedbackTest, "Lockdown.Rules.Combat.Cards.A12A09NoFeedback",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardA12A09NoFeedbackTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody(), Target = F.AddBody(ELDVictimKind::Contender, int64(1) << 50);
+    FLDAttributeBuildValues Values(16, {FLDStatPointsValue(TEXT("stat_agility"), 80)});
+    uint16 Serial = 0;
+    for (const TCHAR* Id : {TEXT("card_heated_up"), TEXT("card_heated_up"), TEXT("card_quick_hands"), TEXT("card_quick_hands"),
+        TEXT("card_muscle_memory")})
+    {
+        FLDInstalledCardValue& Installed = Values.Cards.AddDefaulted_GetRef();
+        Installed.CardId = FName(Id);
+        Installed.Serial = ++Serial;
+        Installed.TargetKind = ELDCardTargetKind::Body;
+        Installed.Tier = 1;
+    }
+    const FLDAttributeProjectionResult Build = LDAttributeProjection::Project(Values, *F.Catalog);
+    if (!TestTrue(TEXT("The A12 + A09 + A13 build projects"), Build.IsSuccess())) { return false; }
+    FLDBodyCombatState& Body = F.Body(Holder);
+    Body.BuildProjection = Body.AttributeProjection = Build.Value.GetValue();
+    FLDCombatEntityRecord& Record = FAccess::Records(*F.Driver).FindChecked(Holder.Victim.EntityId);
+    Record.Build.Level = 16;
+    constexpr int32 Attacks = 12;
+    int32 Strikes = 0, MostPerAttack = 0;
+    for (int32 Attack = 1; Attack <= Attacks; ++Attack)
+    {
+        F.Now(1000 + Attack * 200);
+        FAccess::PendingHits(*F.Driver).Reset();
+        if (!Basic(*this, F, Holder, Target)) { return false; }
+        const int32 These = Algo::CountIf(FAccess::PendingHits(*F.Driver), [](const FLDCombatHit& Hit) { return Hit.bAttackSpeedStrike; });
+        Strikes += These;
+        MostPerAttack = FMath::Max(MostPerAttack, These);
+        if (!Drain(*this, F)) { return false; }
+    }
+    TestTrue(FString::Printf(TEXT("A09 converts the build's attack speed into strikes (%d)"), Strikes), Strikes >= Attacks);
+    TestEqual(TEXT("A12 stacks once per attack, never per converted strike"), Body.FocusHits, Attacks);
+    TestEqual(TEXT("A13 counts each attack on a contender once (2), never a converted strike"), Record.CardGrowth.BasicHits, 2 * Attacks);
+    TestTrue(FString::Printf(TEXT("The strikes per attack grow only with the stacks (%d at most)"), MostPerAttack), MostPerAttack <= 16);
+    return true;
+}
+// The server's hit budget (not a game rule): an ordinary step resolves every queued hit; a flood resolves TechHitsPerStep
+// per step, the rest waiting, and never keeps more than TechPendingHitsCap queued.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatHitBudgetTest, "Lockdown.Rules.Combat.Events.HitBudget",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCombatHitBudgetTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef From = F.AddBody(), To = F.AddBody(ELDVictimKind::Contender, int64(1) << 50);
+    TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
+    const auto Queue = [&](int32 Count)
+    {
+        for (int32 Index = 0; Index < Count; ++Index)
+        {
+            FLDCombatHit Hit = FFixture::Hit(From, To, 100);
+            Hit.HitId = FGuid::NewGuid();
+            Pending.Add(MoveTemp(Hit));
+        }
+    };
+    Queue(10);
+    if (!Drain(*this, F)) { return false; }
+    bool bGood = TestEqual(TEXT("An ordinary step resolves all its hits"), Pending.Num(), 0);
+    constexpr int32 Flood = ALDCombatDirector::TechPendingHitsCap + ALDCombatDirector::TechHitsPerStep + 500;
+    Queue(Flood);
+    AddExpectedError(TEXT("LD_CHAIN_GUARD reason=Overflow"), EAutomationExpectedErrorFlags::Contains, 1);
+    if (!Drain(*this, F)) { return false; }
+    bGood &= TestEqual(TEXT("A flood resolves one step's budget and keeps at most the cap queued"), Pending.Num(),
+        ALDCombatDirector::TechPendingHitsCap);
+    return bGood;
+}
+// A telegraphed flight is perfectly dodged by a D started within the window before it passed the dasher's spot, judged when
+// it passed there, not when the flight ended farther on.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatFlightDodgeTimingTest, "Lockdown.Rules.Combat.Events.FlightDodgeTiming",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCombatFlightDodgeTimingTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef Thrower = F.AddBody(), Early = F.AddBody(), Late = F.AddBody();
+    F.Place(Thrower, 0, 0);
+    F.Place(Early, 300, 300);
+    F.Place(Late, 1300, 300);
+    FLDCombatProjectile Flight;
+    Flight.EffectId = FGuid::NewGuid();
+    Flight.SourceBody = Thrower;
+    Flight.SourceEntity = Thrower.Victim.EntityId;
+    Flight.OriginCm = F.Foot(Thrower);
+    Flight.Direction = FVector(1, 0, 0);
+    Flight.SpeedCmPerSec = 1500.;
+    Flight.RadiusCm = 40.;
+    Flight.RangeCm = 1500.;
+    Flight.bTelegraphed = true;
+    const FVector End = Flight.OriginCm + FVector(1500, 0, 0);
+    // The flight ends at 2000 ms: it passed x = 300 at 1200 ms and x = 1300 at 1867 ms.
+    F.Body(Early).DashStartedAtMs = 1150;
+    F.Body(Early).DashStartFootCm = Flight.OriginCm + FVector(300, 0, 0);
+    F.Body(Late).DashStartedAtMs = 1500;
+    F.Body(Late).DashStartFootCm = Flight.OriginCm + FVector(1300, 0, 0);
+    F.Now(2000);
+    FString Error;
+    if (!TestTrue(TEXT("The flight ends: ") + Error, FAccess::EndBranchProjectile(*F.Driver, Flight, End, Error))) { return false; }
+    TestEqual(TEXT("A D 50 ms before the flight passed perfectly dodges it"), F.Body(Early).PerfectDodges, uint32(1));
+    TestEqual(TEXT("A D 367 ms before it passed does not"), F.Body(Late).PerfectDodges, uint32(0));
+    return true;
+}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA14Test, "Lockdown.Rules.Combat.Cards.A14",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDCardRuleA14Test::RunTest(const FString& Parameters)
@@ -4033,6 +4151,29 @@ bool FLDCardRuleD11Test::RunTest(const FString& Parameters)
                 && TestFalse(TEXT("and never twice"), Live[0].CentreCm.Equals(F.Foot(Holder), 0.01));
         });
 }
+// D10 and D11 on one dash: D11 moves what was placed before the dash, and D10's band stays along the path.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardD10D11OrderTest, "Lockdown.Rules.Combat.Cards.D10D11Order",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardD10D11OrderTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody();
+    if (!InstallCards(*this, F, Holder, 6, {{TEXT("card_ice_trail"), ELDCardTargetKind::Dash}, {TEXT("card_move_turf"), ELDCardTargetKind::Dash}}))
+    { return false; }
+    FString Error;
+    const FVector Placed(2000, 0, 0);
+    FAccess::SpawnGround(*F.Driver, ELDGroundStateKind::Puddle, ApplierOf(F, Holder), Placed, 1000, Error);
+    if (!CompleteDash(*this, F, Holder)) { return false; }
+    const TArray<FLDGroundState>& Live = FAccess::GroundStates(*F.Driver);
+    bool bGood = TestFalse(TEXT("The ground placed before the dash moved away"),
+        Live.ContainsByPredicate([&Placed](const FLDGroundState& Row) { return Row.CentreCm.Equals(Placed, 0.01); }));
+    const FVector Middle = F.Foot(Holder) - FVector(200, 0, 0);
+    bGood &= TestTrue(TEXT("The ice band lies along the dash path"), Live.ContainsByPredicate([&Middle](const FLDGroundState& Row)
+        { return Row.Kind == ELDGroundStateKind::Ice && Row.CentreCm.Equals(Middle, 0.01) && !Row.bRelocated; }));
+    return bGood;
+}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY12Test, "Lockdown.Rules.Combat.Cards.Y12",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDCardRuleY12Test::RunTest(const FString& Parameters)
@@ -4197,7 +4338,22 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY29Test, "Lockdown.Rules.Combat.Card
 bool FLDCardRuleY29Test::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_burn_guard"), ELDDemoEffectOp::OverhealShield, ELDCardTargetKind::Body});
+    return RunCardRule(*this, {TEXT("card_burn_guard"), ELDDemoEffectOp::OverhealShield, ELDCardTargetKind::Body},
+        [this](FFixture& F, const FLDCombatBodyRef& Holder, int32 Copies)
+        {
+            // Spec: 30% of the burn dealt becomes shield, the card's own live shield capped at 30% max HP (copies add both).
+            FLDBodyCombatState& Body = F.Body(Holder);
+            const int64 CapP2 = Body.Resources.MaxHpP2 * 3000 * Copies / 10000;
+            FString Error;
+            bool bGood = true;
+            for (int32 Burn = 0; Burn < 3; ++Burn)
+            {
+                bGood &= TestTrue(TEXT("A burn tick feeds the shield: ") + Error,
+                    FAccess::BurnDealt(*F.Driver, Body, Body.Resources.MaxHpP2, F.Mode->GetAuthorityNowMs(), Error));
+            }
+            return bGood && TestEqual(FString::Printf(TEXT("%d copies hold at most %d%% max HP of shield"), Copies, 30 * Copies),
+                Body.Resources.ShieldP2, CapP2);
+        });
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA05Test, "Lockdown.Rules.Combat.Cards.A05",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -4299,7 +4455,8 @@ bool FLDAdaptiveAndKeystonesTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Magical adaptive damage adds AP * adaptive_ratio (50 + 60 = 110)"),
         MagEval.IsSuccess() && MagEval.Value->DamageP2 == 11000);
 
-    // 2. Y09 (card_skill_crit) projects +15% CritChanceBonusRatio per copy and Y11 (card_short_breath) multiplies overdrive scale by 0.875x per copy.
+    // 2. Y09 (card_skill_crit) projects +15% CritChanceBonusRatio per copy and Y11 (card_short_breath) replaces the overdrive
+    // scale with its own 140% (copies do not stack).
     const FLDCombatBodyRef Holder = F.AddBody();
     if (!InstallCards(*this, F, Holder, 6, {
         {TEXT("card_skill_crit"), ELDCardTargetKind::Body},
@@ -4311,8 +4468,8 @@ bool FLDAdaptiveAndKeystonesTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("card_skill_crit adds +15% flat crit chance"), F.Body(Holder).AttributeProjection.Final.CritChanceBp, int64(1500));
     FLDCombatActiveTerms Plain, Over;
     if (!OverdriveTerms(*this, F, Holder, TEXT("active_elbow"), Plain, Over)) { return false; }
-    const int64 ExpectedScaleBp = F.Catalog->Get().Parameters.Overdrive.ScaleBp * 8750 / 10000 * 8750 / 10000;
-    TestEqual(TEXT("Two card_short_breath copies multiply overdrive scale independently by 0.875^2"),
+    const int64 ExpectedScaleBp = 14000;
+    TestEqual(TEXT("Two card_short_breath copies overdrive at the card's 140%, once"),
         FindEffect(Over.Values, ELDDemoEffectOp::Damage)->BaseP2,
         FindEffect(Plain.Values, ELDDemoEffectOp::Damage)->BaseP2 * ExpectedScaleBp / 10000);
 
@@ -4686,6 +4843,56 @@ bool FLDCardRuleU05Test::RunTest(const FString& Parameters)
         });
 }
 
+// U05's extra reach is the release's own: a line skill strikes and a ground skill lands as far as the range the order
+// approached with, not the authored reach.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardU05ReleaseRangeTest, "Lockdown.Rules.Combat.Cards.U05ReleaseRange",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardU05ReleaseRangeTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    FString Error;
+    const FLDCombatBodyRef Holder = F.AddBody(), Far = F.AddBody(ELDVictimKind::Contender, 10000000);
+    F.Place(Holder, -400, 0);
+    F.Place(Far, 290, 0);
+    if (!InstallCards(*this, F, Holder, 6, {{TEXT("card_eagle_stance"), ELDCardTargetKind::Body}})) { return false; }
+    F.Body(Holder).StillSinceMs = 100;
+    F.Body(Holder).LastStillFootCm = F.Foot(Holder);
+    F.Body(Holder).bHasLastStillFoot = true;
+    F.Now(1000);
+    if (!TestTrue(TEXT("Standing still takes the stance: ") + Error, FAccess::AdvanceSynergyStates(*F.Driver, 1000, Error))) { return false; }
+    // S09's 600 cm line: the body 690 cm ahead is inside 600 + 160.
+    FLDCombatActiveTerms LineTerms;
+    FLDCombatHit LinePayload;
+    if (!Released(*this, F, Holder, TEXT("active_hose_down"), LineTerms, LinePayload)) { return false; }
+    double LineRange = 0;
+    if (!TestTrue(TEXT("The line's release range: ") + Error, FAccess::CastRange(*F.Driver, F.Body(Holder), LineTerms.Target, LineRange, Error))
+        || !TestTrue(FString::Printf(TEXT("The stance reaches the body (%.0f cm)"), LineRange), LineRange >= 690.))
+    { return false; }
+    FLDCombatAction LineAction;
+    LineAction.Kind = ELDCombatActionKind::Ability;
+    LineAction.Direction = FVector(1, 0, 0);
+    FAccess::PendingHits(*F.Driver).Reset();
+    if (!TestTrue(TEXT("The line releases: ") + Error, FAccess::DeliverPayload(*F.Driver, F.Actor(Holder), F.Body(Holder), LineTerms,
+        LineAction, LinePayload, FLDCombatBodyRef(), FVector::ZeroVector, F.Foot(Holder), 1000, Error))) { return false; }
+    TestTrue(TEXT("The line strikes the body within its release range"),
+        FAccess::PendingHits(*F.Driver).ContainsByPredicate([&Far](const FLDCombatHit& Hit) { return Hit.Target == Far; }));
+    // N6's 560 cm ground point: a point 680 cm away is inside 560 + 160.
+    FLDCombatActiveTerms TapeTerms;
+    FLDCombatHit TapePayload;
+    if (!Released(*this, F, Holder, TEXT("active_cordon_tape"), TapeTerms, TapePayload)) { return false; }
+    FLDCombatAction TapeAction;
+    TapeAction.TargetPoint = F.Foot(Holder) + FVector(680, 0, 0);
+    bool bHandled = false;
+    if (!TestTrue(TEXT("The cordon places: ") + Error,
+        FAccess::DeliverTerms(*F.Driver, F.Body(Holder), TapeTerms, TapeAction, TapePayload, 1000, bHandled, Error) && bHandled
+            && FAccess::Cordons(*F.Driver).Num() == 1)) { return false; }
+    TestTrue(TEXT("The cordon stands at the point within its release range"),
+        FVector::Dist2D(FAccess::Cordons(*F.Driver)[0].CentreCm, TapeAction.TargetPoint) < 1.);
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleU06Test, "Lockdown.Rules.Combat.Cards.U06",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDCardRuleU06Test::RunTest(const FString& Parameters)
@@ -4993,6 +5200,57 @@ bool FLDIssue345SkillsAndFrameworksTest::RunTest(const FString& Parameters)
     return true;
 }
 
+// A Ⅲ medal's hit attaches its primary element and then the fixed secondary of that primary (CONTENT_AND_BALANCE: fire,
+// water -> shock; shock, chill -> water; rot -> fire), so every hit of one medal triggers the same reaction.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatMedalTier3SecondaryTest, "Lockdown.Rules.Combat.Elements.MedalTier3Secondary",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCombatMedalTier3SecondaryTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    struct FCase { const TCHAR* Medal; ELDCombatElement Primary; ELDCombatElement Secondary; };
+    const FCase Cases[] = {
+        {TEXT("medal_fire"), ELDCombatElement::Fire, ELDCombatElement::Shock},
+        {TEXT("medal_water"), ELDCombatElement::Water, ELDCombatElement::Shock},
+        {TEXT("medal_electric"), ELDCombatElement::Shock, ELDCombatElement::Water},
+        {TEXT("medal_chill"), ELDCombatElement::Chill, ELDCombatElement::Water},
+        {TEXT("medal_rot"), ELDCombatElement::Rot, ELDCombatElement::Fire}};
+    bool bGood = true;
+    for (const FCase& Case : Cases)
+    {
+        const FLDCombatBodyRef Holder = F.AddBody();
+        F.Place(Holder, -300, 0);
+        if (!InstallCards(*this, F, Holder, 6, {{Case.Medal, ELDCardTargetKind::Skill, FName(TEXT("active_elbow")), ELDDemoElement::None, 3}}))
+        { return false; }
+        const ELDCombatReaction Expected = LDCombatElements::ReactionOf(Case.Primary, Case.Secondary);
+        for (int32 Trial = 0; Trial < 6; ++Trial)
+        {
+            // A fresh body on clean ground each time: what an earlier reaction left behind never joins this one.
+            FAccess::GroundStates(*F.Driver).Reset();
+            FAccess::Fogs(*F.Driver).Reset();
+            FAccess::Zones(*F.Driver).Reset();
+            FAccess::PendingHits(*F.Driver).Reset();
+            const FLDCombatBodyRef Target = F.AddBody(ELDVictimKind::Contender, 10000000);
+            F.Place(Target, 0, 0);
+            FLDCombatHit Hit = FFixture::Hit(Holder, Target, 2000);
+            Hit.Source = SourceOf(ELDCombatSourceKind::Learned, TEXT("active_elbow"));
+            Hit.DamageType = ELDDemoDamageType::Physical;
+            Hit.bDirectAbilityDamage = true;
+            FAccess::Reactions(*F.Driver).Reset();
+            FString Error;
+            if (!TestTrue(FString::Printf(TEXT("%s hit resolves: %s"), Case.Medal, *Error), F.Apply(Hit, Error))) { return false; }
+            const FLDCombatReactionFact* Fact = FAccess::Reactions(*F.Driver).FindByPredicate([&Target](const FLDCombatReactionFact& Each)
+            { return Each.Primary == Target; });
+            bGood &= TestTrue(FString::Printf(TEXT("%s Ⅲ (trial %d) reacts with its fixed secondary"), Case.Medal, Trial),
+                Fact && Fact->Kind == Expected);
+            F.Body(Target).bPendingDeath = true;
+        }
+        F.Body(Holder).bPendingDeath = true;
+    }
+    return bGood;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatCordonBoostTest, "Lockdown.Rules.Combat.Skills.CordonBoost",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
@@ -5089,6 +5347,38 @@ bool FLDCombatFrenzyThirdWaveTest::RunTest(const FString& Parameters)
         if (!TestTrue(TEXT("The wave advances: ") + Error, FAccess::AdvanceProjectiles(*F.Driver, Error))) { return false; }
     }
     TestTrue(TEXT("The boosted wave's hits evaluate without an authority fault"), Drain(*this, F));
+    return true;
+}
+
+// N6's tape is 70 cm across (spec 500 x 70 cm): a body touches it when the band reaches its collision, never 70 cm to each side.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatCordonWidthTest, "Lockdown.Rules.Combat.Skills.CordonWidth",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCombatCordonWidthTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    FString Error;
+    const FLDCombatBodyRef Warden = F.AddBody(), Near = F.AddBody(), Far = F.AddBody();
+    F.Place(Warden, 0, 0);
+    F.Place(Near, 360, 200);
+    F.Place(Far, 400, -200);
+    if (!InstallCards(*this, F, Warden, 6, {})) { return false; }
+    FLDCombatActiveTerms Terms;
+    FLDCombatHit Payload;
+    if (!Released(*this, F, Warden, TEXT("active_cordon_tape"), Terms, Payload)) { return false; }
+    FLDCombatAction Action;
+    Action.TargetPoint = F.Origin + FVector(300, 0, 0);
+    F.Now(1000);
+    bool bHandled = false;
+    if (!TestTrue(TEXT("The tapped cordon places across the cast: ") + Error,
+        FAccess::DeliverTerms(*F.Driver, F.Body(Warden), Terms, Action, Payload, 1000, bHandled, Error) && bHandled
+            && FAccess::Cordons(*F.Driver).Num() == 1))
+    { return false; }
+    TestEqual(TEXT("Half the authored 70 cm on each side of the tape"), FAccess::Cordons(*F.Driver)[0].HalfWidthCm, 35.);
+    if (!TestTrue(TEXT("The cordon steps: ") + Error, FAccess::AdvanceCordons(*F.Driver, 1050, Error) && Drain(*this, F))) { return false; }
+    TestTrue(TEXT("A body 60 cm from the tape touches it"), !F.Body(Near).Slows.IsEmpty());
+    TestTrue(TEXT("A body 100 cm from the tape does not"), F.Body(Far).Slows.IsEmpty() && F.Body(Far).Branch.Vulnerabilities.IsEmpty());
     return true;
 }
 
