@@ -1,6 +1,7 @@
 #include "LDVisionTestParameters.h"
 #include "Combat/LDMomentum.h"
 #include "Algo/AllOf.h"
+#include "Algo/Count.h"
 #include "Combat/LDCombatDirector.h"
 #include "Combat/LDCombatKeywords.h"
 #include "Combat/LDCombatElements.h"
@@ -2738,6 +2739,52 @@ bool FLDCardRuleA12Test::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
     return RunCardRule(*this, {TEXT("card_heated_up"), ELDDemoEffectOp::FocusAttackSpeed, ELDCardTargetKind::Body});
+}
+// A09 strikes converted from attack speed are no new attacks of the attack-speed growth they convert: with A12 and A09 (and
+// A13) on one holder, every attack on the same unkillable body adds one A12 stack and one A13 count, never one per strike
+// (each strike stacking A12 fed A09 back: the strikes per attack grew exponentially until the server stalled).
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardA12A09NoFeedbackTest, "Lockdown.Rules.Combat.Cards.A12A09NoFeedback",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardA12A09NoFeedbackTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody(), Target = F.AddBody(ELDVictimKind::Contender, int64(1) << 50);
+    FLDAttributeBuildValues Values(16, {FLDStatPointsValue(TEXT("stat_agility"), 80)});
+    uint16 Serial = 0;
+    for (const TCHAR* Id : {TEXT("card_heated_up"), TEXT("card_heated_up"), TEXT("card_quick_hands"), TEXT("card_quick_hands"),
+        TEXT("card_muscle_memory")})
+    {
+        FLDInstalledCardValue& Installed = Values.Cards.AddDefaulted_GetRef();
+        Installed.CardId = FName(Id);
+        Installed.Serial = ++Serial;
+        Installed.TargetKind = ELDCardTargetKind::Body;
+        Installed.Tier = 1;
+    }
+    const FLDAttributeProjectionResult Build = LDAttributeProjection::Project(Values, *F.Catalog);
+    if (!TestTrue(TEXT("The A12 + A09 + A13 build projects"), Build.IsSuccess())) { return false; }
+    FLDBodyCombatState& Body = F.Body(Holder);
+    Body.BuildProjection = Body.AttributeProjection = Build.Value.GetValue();
+    FLDCombatEntityRecord& Record = FAccess::Records(*F.Driver).FindChecked(Holder.Victim.EntityId);
+    Record.Build.Level = 16;
+    constexpr int32 Attacks = 12;
+    int32 Strikes = 0, MostPerAttack = 0;
+    for (int32 Attack = 1; Attack <= Attacks; ++Attack)
+    {
+        F.Now(1000 + Attack * 200);
+        FAccess::PendingHits(*F.Driver).Reset();
+        if (!Basic(*this, F, Holder, Target)) { return false; }
+        const int32 These = Algo::CountIf(FAccess::PendingHits(*F.Driver), [](const FLDCombatHit& Hit) { return Hit.bAttackSpeedStrike; });
+        Strikes += These;
+        MostPerAttack = FMath::Max(MostPerAttack, These);
+        if (!Drain(*this, F)) { return false; }
+    }
+    TestTrue(FString::Printf(TEXT("A09 converts the build's attack speed into strikes (%d)"), Strikes), Strikes >= Attacks);
+    TestEqual(TEXT("A12 stacks once per attack, never per converted strike"), Body.FocusHits, Attacks);
+    TestEqual(TEXT("A13 counts each attack on a contender once (2), never a converted strike"), Record.CardGrowth.BasicHits, 2 * Attacks);
+    TestTrue(FString::Printf(TEXT("The strikes per attack grow only with the stacks (%d at most)"), MostPerAttack), MostPerAttack <= 16);
+    return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA14Test, "Lockdown.Rules.Combat.Cards.A14",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

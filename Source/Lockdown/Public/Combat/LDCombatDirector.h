@@ -613,6 +613,9 @@ struct FLDCombatHit
     bool bRider=false;
     // A primary basic's extra strike (A06, A09): a basic hit for triggers, no combo advance.
     bool bExtraStrike=false;
+    // An A09 strike converted from attack speed: an added hit of the same attack, never a new step of the attack-speed growth
+    // (A12 focus stacks, A13 progress) that A09 converts again (that loop grows without bound on a body that never dies).
+    bool bAttackSpeedStrike=false;
     int64 DisarmDurationMs=0;
     int64 StunDurationMs=0;
     // A reflection never crits, heals or triggers another reflection.

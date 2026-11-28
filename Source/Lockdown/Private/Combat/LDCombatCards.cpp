@@ -713,6 +713,7 @@ bool ALDCombatDirector::OnBasicLanded(FLDBodyCombatState& Body, FLDCombatHit& Pr
             FLDCombatHit Strike=Primary;
             Strike.HitId=FGuid::NewGuid();
             Strike.bExtraStrike=true;
+            Strike.bAttackSpeedStrike=true;
             Strike.KnockbackCm=0;
             Strike.KnockbackMs=0;
             OutExtra.Add(MoveTemp(Strike));
@@ -1440,8 +1441,9 @@ bool ALDCombatDirector::OnCardHit(const FLDCombatHit& Hit, FLDBodyCombatState& T
                 }
             }
         }
-        // A13: primary basic hits grant 2 progress on contenders and 1 progress on monsters toward match growth.
-        if (!Target.bTrainingDummy
+        // A13: primary basic hits grant 2 progress on contenders and 1 progress on monsters toward match growth (an A09
+        // strike is not a new attack of that growth).
+        if (!Target.bTrainingDummy && !Hit.bAttackSpeedStrike
             && (Hit.Target.Victim.Kind==ELDVictimKind::Contender || Hit.Target.Victim.Kind==ELDVictimKind::CampMember))
         {
             TArray<FLDPassiveEffectRef> Practice;
@@ -1455,10 +1457,11 @@ bool ALDCombatDirector::OnCardHit(const FLDCombatHit& Hit, FLDBodyCombatState& T
                 }
             }
         }
-        // A12: consecutive hits on the same life stack attack speed; another target or a pause restarts it.
+        // A12: consecutive hits on the same life stack attack speed; another target or a pause restarts it. An A09 strike
+        // neither stacks nor keeps it: it is converted from that attack speed.
         TArray<FLDPassiveEffectRef> Focus;
         if (!CardsOn(Source->AttributeProjection,ELDDemoEffectOp::FocusAttackSpeed,Basic,Focus,Error)) { return false; }
-        if (!Focus.IsEmpty())
+        if (!Focus.IsEmpty() && !Hit.bAttackSpeedStrike)
         {
             const bool bSame=Source->FocusTarget==Hit.Target && NowMs<=Source->FocusUntilMs;
             Source->FocusTarget=Hit.Target;
