@@ -163,6 +163,8 @@ public:
     bool IsCommittedMember(const FGuid& ContenderId) const;
     int64 GetBankedGuardMs(const FGuid& ContenderId) const { return BankedGuard.FindRef(ContenderId); }
     int64 GetEffectiveGuardMs(const FGuid& ContenderId, int64 AtMs) const;
+    // Every guard the contender held through AtMs (BankedGuard plus the running guard not yet accounted), with credits.
+    int64 GetHistoricalGuardMs(const FGuid& ContenderId, int64 AtMs) const;
     // SHOWDOWN.GuardRatchetSec: the highest checkpoint a contender's own guard passed, the start of his next graffiti's guard.
     int64 GetGuardFloorMs(const FGuid& ContenderId) const { return GuardFloors.FindRef(ContenderId); }
     // final_private_pole: guard held elsewhere that counts toward the timeout ranking (its share, added once at the end).

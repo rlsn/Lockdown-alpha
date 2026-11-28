@@ -1412,11 +1412,11 @@ bool FLDShowdownAntiStalemateTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Equal guard percentage and kills break ties by Showdown damage among living contenders"),
         FLDCaptureReducer::ResolveShowdownTimeoutWinner(Candidates), B);
     Candidates = {
-        {A, true, 0, 20000, 0, 0, 2}, // lost graffiti; historical sprays do not win a 3-tier tie
+        {A, true, 0, 20000, 0, 0, 2}, // lost graffiti; completed sprays are an objective contribution
         {B, true, 0, 20000, 0, 0, 0},
     };
-    TestEqual(TEXT("All three tiers tied at zero yield no winner even if one contender had historical sprays"),
-        FLDCaptureReducer::ResolveShowdownTimeoutWinner(Candidates), FGuid());
+    TestEqual(TEXT("Completed sprays make the only contributor the timeout winner"),
+        FLDCaptureReducer::ResolveShowdownTimeoutWinner(Candidates), A);
     Candidates = {
         {A, true, 10000, 20000, 1, 25000, 3},
         {B, true, 14000, 28000, 1, 25000, 1},
@@ -1425,7 +1425,8 @@ bool FLDShowdownAntiStalemateTest::RunTest(const FString& Parameters)
         FLDCaptureReducer::ResolveShowdownTimeoutWinner(Candidates), FGuid());
     return true;
 }
-// SHOWDOWN.GuardRatchetSec: an owner painted over past 7 s starts his next graffiti's guard from 7 s.
+// SHOWDOWN.GuardRatchetSec: an owner painted over past 7 s starts his next graffiti's guard from 7 s; the timeout reads the
+// guard he held over the whole showdown.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDShowdownGuardFloorTest, "Lockdown.Rules.DemoCapture.ShowdownGuardFloor",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDShowdownGuardFloorTest::RunTest(const FString& Parameters)
@@ -1452,6 +1453,8 @@ bool FLDShowdownGuardFloorTest::RunTest(const FString& Parameters)
     Probe.Close(18500, false, TEXT("A's spray completes"));
     Probe.ExpectGuard(A, ELDCircleState::Guarded, 31500, 0, TEXT("A's new guard starts at his 7 s floor"));
     TestEqual(TEXT("B passed no checkpoint"), Probe.Reducer.GetGuardFloorMs(B), int64(0));
+    TestEqual(TEXT("A's showdown guard is his 7.5 s first tenure plus the running 1.5 s"),
+        Probe.Reducer.GetHistoricalGuardMs(A, 20000), int64(9000));
     TestEqual(TEXT("A's current guard counts from the floor"), Probe.Reducer.GetEffectiveGuardMs(A, 20000), int64(8500));
     return true;
 }

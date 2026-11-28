@@ -241,6 +241,16 @@ bool FLDCaptureReducer::AccountGuard(int64 ThroughMs, FString& Error)
     return true;
 }
 
+int64 FLDCaptureReducer::GetHistoricalGuardMs(const FGuid& ContenderId, int64 AtMs) const
+{
+    int64 Held = GetBankedGuardMs(ContenderId);
+    if (ContenderId.IsValid() && Owner == ContenderId && IsGuardRunning())
+    {
+        Held += FMath::Max<int64>(0, FMath::Min(AtMs, GuardDue) - GuardAccountedThroughMs);
+    }
+    return Held;
+}
+
 int64 FLDCaptureReducer::GetEffectiveGuardMs(const FGuid& ContenderId, int64 AtMs) const
 {
     if (!ContenderId.IsValid() || Guard <= 0 || Owner != ContenderId || FadeAt != 0) { return 0; }
@@ -271,7 +281,7 @@ FGuid FLDCaptureReducer::ResolveShowdownTimeoutWinner(const TArray<FLDShowdownTi
         if (!Row.bEligible || !Row.Contender.IsValid()) { continue; }
         ++EligibleCount;
         SoleEligible = Row.Contender;
-        if (Row.GuardProgressMs <= 0 && Row.ShowdownKills <= 0 && Row.ShowdownDamageP2 <= 0)
+        if (Row.GuardProgressMs <= 0 && Row.CompletedSprays == 0 && Row.ShowdownKills <= 0 && Row.ShowdownDamageP2 <= 0)
         {
             continue;
         }
