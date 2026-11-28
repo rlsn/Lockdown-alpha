@@ -27,8 +27,9 @@ namespace LDObservation
     // 23 moves camp-clear recovery orbs and #345 tactical entities/hit flags into sight-authorized FLDWorldView.
     // 25 removes the overdrive charge, the overdrive cast, the Overdriven hit flag and the phantom decoy look (23 is a hole).
     // 26 removes the Dodged hit flag (32 is a hole).
-    // 27 adds the public auto-empower ready mark (EmpowerReady) to the momentum group.
-    constexpr uint32 Schema = 27;
+    // 27 adds the observer's incoming locks (C-12).
+    // 28 adds the public auto-empower ready mark (EmpowerReady) to the momentum group.
+    constexpr uint32 Schema = 28;
     // A ground state's wire size (LDViewTypes.cpp SerializeObservedGround): SC-07 registers MaxGroundStates of them per frame.
     constexpr int32 GroundStateWireBytes = 16;
     // The public momentum bar of a visible contender: 0..MomentumBarFull (never the exact value).
@@ -63,6 +64,9 @@ namespace LDObservation
     // Spec §8.3/§14: every live ground state of the map at once (GROUND.MaxTotal fits it); each is one compact public record.
     constexpr int32 MaxGroundStates = 40;
     constexpr int32 MaxRecoveryOrbs = 48;
+    // C-12: unit skills in their windup locking the observer, one per other contender; each windup is under a minute.
+    constexpr int32 MaxIncomingLocks = 7;
+    constexpr uint32 MaxIncomingLockMs = 60000;
     static_assert(MaxUnits + MaxProjectiles <= MAX_uint16, "Conceal count must represent all authorized handles.");
     // One identity tint per seat of the eight-contender roster (APP_SPEC 1).
     constexpr uint8 MaxPresentations = 8;
@@ -241,6 +245,17 @@ struct FLDObservedRecoveryOrb
     UPROPERTY() FVector_NetQuantize10 PositionCm = FVector::ZeroVector;
 };
 
+// C-12: a unit skill in its windup that locks the observer, cast by a unit of this same frame (its handle), with the time
+// left to its release and the skill's native id. Only the locked observer's own frame lists it.
+USTRUCT()
+struct FLDObservedIncomingLock
+{
+    GENERATED_BODY()
+    UPROPERTY() FGuid SourceHandle;
+    UPROPERTY() uint32 RemainingMs = 0;
+    UPROPERTY() uint8 Ability = 0;
+};
+
 USTRUCT()
 struct FLDObservedFootprint
 {
@@ -271,6 +286,7 @@ struct LOCKDOWN_API FLDWorldView
     UPROPERTY() TArray<FLDObservedGroundState> GroundStates;
     UPROPERTY() TArray<FLDObservedRecoveryOrb> RecoveryOrbs;
     UPROPERTY() TArray<FName> WitnessedEmptyCamps;
+    UPROPERTY() TArray<FLDObservedIncomingLock> IncomingLocks;
     // Not on the wire: the bytes this view took when a connection delivered it; 0 for a view built or delivered locally.
     int32 ReceivedWireBytes = 0;
     bool NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuccess);

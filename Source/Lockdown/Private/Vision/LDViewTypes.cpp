@@ -556,13 +556,14 @@ bool LDObservation::ValidateView(const FLDWorldView& View, FString& Error)
     {
         if (!FVector(Footprint.SourceFeetCm).IsZero() || Footprint.RadiusCm != 0 || Footprint.CurrentBits.Num() != 0
             || View.Units.Num() != 0 || View.RecentTerminations.Num() != 0 || View.Projectiles.Num() != 0
-            || View.GroundStates.Num() != 0 || View.RecoveryOrbs.Num() != 0 || !View.WitnessedEmptyCamps.IsEmpty())
+            || View.GroundStates.Num() != 0 || View.RecoveryOrbs.Num() != 0 || !View.WitnessedEmptyCamps.IsEmpty()
+            || !View.IncomingLocks.IsEmpty())
         { return FailObservation(Error, TEXT("A frame without a living source carries no coverage, unit, termination or projectile.")); }
     }
     else { return FailObservation(Error, TEXT("Unknown observation source status.")); }
     if (View.Units.Num() > MaxUnits || View.RecentTerminations.Num() > MaxTerminations || View.Projectiles.Num() > MaxProjectiles
         || View.GroundStates.Num() > MaxGroundStates || View.RecoveryOrbs.Num() > MaxRecoveryOrbs
-        || View.WitnessedEmptyCamps.Num() > MaxUnits)
+        || View.WitnessedEmptyCamps.Num() > MaxUnits || View.IncomingLocks.Num() > MaxIncomingLocks)
     { return FailObservation(Error, TEXT("Observation frame exceeds its bounded capacity.")); }
     for (const FLDObservedGroundState& Ground : View.GroundStates)
     {
@@ -606,6 +607,15 @@ bool LDObservation::ValidateView(const FLDWorldView& View, FString& Error)
             || Duplicate || Handles.Contains(Termination.Handle))
         { return FailObservation(Error, TEXT("Recent terminations must be ordered, unique and absent from the current unit set.")); }
         LastSequence = Termination.TerminationSequence;
+    }
+    TSet<FGuid> Locking;
+    for (const FLDObservedIncomingLock& Lock : View.IncomingLocks)
+    {
+        bool Duplicate = false;
+        Locking.Add(Lock.SourceHandle, &Duplicate);
+        if (Duplicate || Lock.Ability == 0 || Lock.RemainingMs == 0 || Lock.RemainingMs > MaxIncomingLockMs
+            || !View.Units.ContainsByPredicate([&Lock](const FLDObservedUnitView& Unit) { return Unit.Handle == Lock.SourceHandle; }))
+        { return FailObservation(Error, TEXT("An incoming lock names one shown caster, a skill and its pending windup.")); }
     }
     // Projectile handles share the observer's handle space with units and recent terminations.
     for (const FLDObservedProjectileView& Projectile : View.Projectiles)
@@ -724,6 +734,14 @@ bool FLDWorldView::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuccess)
     for (FName& Camp : WitnessedEmptyCamps)
     {
         if (!SerializeObservedMapId(Ar, Camp)) { return RejectObservationArchive(Ar, bSuccess); }
+    }
+    uint8 LockCount = uint8(FMath::Min(IncomingLocks.Num(), 255));
+    Ar << LockCount;
+    if (Ar.IsError() || LockCount > LDObservation::MaxIncomingLocks) { return RejectObservationArchive(Ar, bSuccess); }
+    if (Ar.IsLoading()) { IncomingLocks.SetNum(LockCount); }
+    for (FLDObservedIncomingLock& Lock : IncomingLocks)
+    {
+        Ar << Lock.SourceHandle << Lock.RemainingMs << Lock.Ability;
     }
     if (Ar.IsError() || (Ar.IsLoading() && !LDObservation::ValidateView(*this, Error))) { return RejectObservationArchive(Ar, bSuccess); }
     // A connection always brings its package map; a probe or test that encodes a view by itself has none and is not traffic.

@@ -136,6 +136,32 @@ bool ALDCombatDirector::ObservedCastSource(const ALDCharacter& Body, int64 NowMs
     return false;
 }
 
+bool ALDCombatDirector::ReadIncomingLocks(const FGuid& Observer, TArray<FLDCombatIncomingLock>& Out, FString& Error) const
+{
+    Out.Reset();
+    const auto* Mode=Authority();
+    const FLDDemoContentSnapshot* Content=Catalog();
+    if (!Mode || !Content) { Error=TEXT("Incoming locks require the current match and its content."); return false; }
+    const int64 NowMs=Mode->GetAuthorityNowMs();
+    for (const auto& Pair : Bodies)
+    {
+        const FLDBodyCombatState& Body=Pair.Value;
+        if (Body.bPendingDeath || !Body.Action.IsSet() || Body.Victim.EntityId==Observer) { continue; }
+        const FLDCombatAction& Action=Body.Action.GetValue();
+        if (Action.Kind!=ELDCombatActionKind::Ability || Action.Source.Kind!=ELDCombatSourceKind::Learned
+            || Action.Target.Kind!=ELDCombatTargetKind::Unit || Action.TargetBody.Victim.EntityId!=Observer || Action.ReleaseAtMs<=NowMs)
+        { continue; }
+        const FLDDemoAbilityDefinition* Ability=nullptr;
+        if (!Content->FindAbilityByName(Action.Source.DefinitionId,Ability,Error)) { return false; }
+        FLDCombatIncomingLock& Lock=Out.AddDefaulted_GetRef();
+        Lock.SourceEntity=Body.Victim.EntityId;
+        Lock.RemainingMs=Action.ReleaseAtMs-NowMs;
+        Lock.Ability=Ability->NativeId;
+    }
+    Error.Reset();
+    return true;
+}
+
 bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact>& Out, FString& Error) const
 {
     Out.Reset();
@@ -217,6 +243,22 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
         Fact.InnerRadiusCm=float(Ground.InnerRadiusCm);
         Fact.WarningRemainingMs=Ground.ReadyAtMs>NowMs
             ? uint32(FMath::Min<int64>(Ground.ReadyAtMs-NowMs,MAX_uint32)) : 0;
+    }
+    // C-12: a ground impact in its windup shows the landing it will strike, under the key its ground effect keeps.
+    for (const auto& Pair : Bodies)
+    {
+        const FLDBodyCombatState& Body=Pair.Value;
+        if (Body.bPendingDeath || !Body.Action.IsSet() || !Body.Action->Landing.IsSet()) { continue; }
+        const FLDCombatLandingPreview& Landing=Body.Action->Landing.GetValue();
+        FLDObservedProjectileFact& Fact=Out.AddDefaulted_GetRef();
+        Fact.Key=Landing.ObservedKey;
+        Fact.SourceEntity=Body.Victim.EntityId;
+        Fact.PositionCm=Landing.CentreCm;
+        Fact.Heading=FVector2D(1,0);
+        Fact.Look=ELDObservedProjectileLook::BookShadow;
+        Fact.RadiusCm=float(Landing.RadiusCm);
+        Fact.InnerRadiusCm=float(Landing.InnerRadiusCm);
+        Fact.WarningRemainingMs=uint32(FMath::Clamp<int64>(Landing.ImpactAtMs-NowMs,0,MAX_uint32));
     }
     for (const FLDCombatZone& Zone : Zones)
     {

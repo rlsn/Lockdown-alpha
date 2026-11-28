@@ -14,6 +14,8 @@
 #include "NavLinkComponent.h"
 #include "NavMesh/RecastNavMesh.h"
 #include "Character/LDCharacter.h"
+#include "Components/CapsuleComponent.h"
+#include "Navigation/LDPathSteering.h"
 #include "GameFramework/CharacterMovementComponent.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLedgeNavigation, "Lockdown.Rules.DemoMotionProbe.LedgeNavigation",
@@ -102,5 +104,40 @@ bool FLDLedgeNavigation::RunTest(const FString& Parameters)
     }
     TestEqual(TEXT("Ledge walking disabled produces no downward link actors"),DerivedActors,0);
     TestFalse(TEXT("Play preparation removes links from a deleted platform"),StaleLink);
+    return !HasAnyErrors();
+}
+
+// B01: the Boss stood on the low floor beside a raised top in L_Demo; a tall navmesh projection of its foot answered with
+// that top (a 71 cm rise), so every route from it was refused and the Boss froze. Its own layer has navmesh within reach,
+// and the planner's start now prefers it.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDPlanStartLayer, "Lockdown.Rules.DemoMotionProbe.PlanStartLayer",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDPlanStartLayer::RunTest(const FString& Parameters)
+{
+    UWorld* World=UEditorLoadingAndSavingUtils::LoadMap(
+        FPackageName::LongPackageNameToFilename(LDDemoEntry::WorldMap,FPackageName::GetMapPackageExtension()));
+    if (!TestNotNull(TEXT("Authored world"),World)) { return false; }
+    FlushAsyncLoading();
+    auto* Nav=FNavigationSystem::GetCurrent<UNavigationSystemV1>(World);
+    const ANavigationData* Data=Nav?Nav->GetDefaultNavDataInstance(FNavigationSystem::DontCreate):nullptr;
+    if (!TestNotNull(TEXT("Saved native nav data"),Data)) { return false; }
+    const ALDCharacter* Body=GetDefault<ALDCharacter>();
+    const double Reach=Body->GetCapsuleComponent()->GetUnscaledCapsuleRadius()*2.;
+    const double Step=Body->GetCharacterMovement()->MaxStepHeight;
+    const FVector Foot(682.006,2020.499,500.550);
+    FNavLocation Tall;
+    if (Data->ProjectPoint(Foot,Tall,FVector(Reach,Reach,500.)))
+    {
+        AddInfo(FString::Printf(TEXT("A tall projection of the foot answers %s (%.1f cm up)"),*Tall.Location.ToString(),Tall.Location.Z-Foot.Z));
+    }
+    FVector Layer;
+    if (!TestTrue(TEXT("The foot's own layer has navmesh within reach and one step"),
+        LDPathSteering::SameLayerNavPoint(*Data,Foot,Reach,Step,Layer))) { return false; }
+    TestTrue(TEXT("That point is on the floor the Boss stands on"),FMath::Abs(Layer.Z-Foot.Z)<=Step && FVector::Dist2D(Layer,Foot)<=Reach);
+    FPathFindingQuery Query(World,*Data,Layer,FVector(329.406,1093.551,500.550));
+    Query.SetAllowPartialPaths(false);
+    const FPathFindingResult Result=Nav->FindPathSync(Data->GetConfig(),Query);
+    TestTrue(TEXT("From it the Boss has a complete route back to its first waypoint"),
+        Result.IsSuccessful() && Result.Path.IsValid() && !Result.Path->IsPartial());
     return !HasAnyErrors();
 }

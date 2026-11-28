@@ -266,6 +266,8 @@ bool FLDDemoVisionCodecTest::RunTest(const FString& Parameters)
     Full.RecoveryOrbs.Add({11, FVector(-1250.4, 840.7, 0.0)});
     Full.RecoveryOrbs.Add({27, FVector(2100.2, -630.5, 50.0)});
     Full.WitnessedEmptyCamps = {FName(TEXT("h08")), FName(TEXT("l10")), FName(TEXT("e01"))};
+    for (int32 Index = 0; Index < LDObservation::MaxIncomingLocks; ++Index)
+    { Full.IncomingLocks.Add({Full.Units[Index * 2].Handle, uint32(250 + Index), uint8(16 + Index)}); }
     FLDWorldView Read;
     int64 Bytes = 0;
     TestTrue(TEXT("Bounded full view round-trips"), Wire(Full, Read, &Bytes));
@@ -278,6 +280,14 @@ bool FLDDemoVisionCodecTest::RunTest(const FString& Parameters)
         && Read.RecoveryOrbs[0].Serial == 11 && Read.RecoveryOrbs[0].PositionCm.Equals(Full.RecoveryOrbs[0].PositionCm, FeetToleranceCm)
         && Read.RecoveryOrbs[1].Serial == 27 && Read.RecoveryOrbs[1].PositionCm.Equals(Full.RecoveryOrbs[1].PositionCm, FeetToleranceCm));
     TestTrue(TEXT("Witnessed empty camps round-trip in order"), Read.WitnessedEmptyCamps == Full.WitnessedEmptyCamps);
+    bool bLocksKept = Read.IncomingLocks.Num() == Full.IncomingLocks.Num();
+    for (int32 Index = 0; bLocksKept && Index < Full.IncomingLocks.Num(); ++Index)
+    {
+        bLocksKept = Read.IncomingLocks[Index].SourceHandle == Full.IncomingLocks[Index].SourceHandle
+            && Read.IncomingLocks[Index].RemainingMs == Full.IncomingLocks[Index].RemainingMs
+            && Read.IncomingLocks[Index].Ability == Full.IncomingLocks[Index].Ability;
+    }
+    TestTrue(TEXT("Incoming locks round-trip exactly"), bLocksKept);
     TestTrue(TEXT("Coverage is the exact fixed bitmap"), Read.Footprint.CurrentBits == Full.Footprint.CurrentBits
         && LDObservation::CoverageBit(Read.Footprint.CurrentBits, 0) && LDObservation::CoverageBit(Read.Footprint.CurrentBits, LDObservation::CoverageCells - 1)
         && (Read.Footprint.CurrentBits[0] & 1) != 0 && (Read.Footprint.CurrentBits[LDObservation::CoverageBytes - 1] & 0x80) != 0);
@@ -384,6 +394,14 @@ bool FLDDemoVisionCodecTest::RunTest(const FString& Parameters)
         V.Units.Reset(); V.RecentTerminations.Reset(); V.Projectiles.Reset(); V.GroundStates.Reset(); V.RecoveryOrbs.Reset();
         V.WitnessedEmptyCamps = {FName(TEXT("h08"))};
     })));
+    TestTrue(TEXT("An incoming lock from a shown caster encodes"), Encodes(Mutated([](FLDWorldView& V)
+    { V.IncomingLocks = {{V.Units[0].Handle, 250, 16}}; })));
+    TestFalse(TEXT("An incoming lock from a caster the frame does not show is refused"), Encodes(Mutated([](FLDWorldView& V)
+    { V.IncomingLocks = {{FGuid::NewGuid(), 250, 16}}; })));
+    TestFalse(TEXT("An incoming lock without a pending windup is refused"), Encodes(Mutated([](FLDWorldView& V)
+    { V.IncomingLocks = {{V.Units[0].Handle, 0, 16}}; })));
+    TestFalse(TEXT("One caster locks at most once"), Encodes(Mutated([](FLDWorldView& V)
+    { V.IncomingLocks = {{V.Units[0].Handle, 250, 16}, {V.Units[0].Handle, 300, 16}}; })));
     TestFalse(TEXT("Contender without level is not complete"), Encodes(Mutated([](FLDWorldView& V)
     { V.Units[0].AuthorizedFieldMask &= ~uint32(LDObservation::Level); })));
     TestFalse(TEXT("Missing level is not a default"), Encodes(Mutated([](FLDWorldView& V) { V.Units[0].Level = 0; })));
@@ -580,8 +598,11 @@ bool FLDDemoVisionPrivacyTest::RunTest(const FString& Parameters)
     Exact(FLDObservedFootprint::StaticStruct(), {TEXT("SourceStatus"), TEXT("SourceFeetCm"), TEXT("RadiusCm"), TEXT("CurrentBits")});
     Exact(FLDWorldView::StaticStruct(), {TEXT("Schema"), TEXT("MatchGeneration"), TEXT("ObserverLife"), TEXT("Generation"), TEXT("Revision"),
         TEXT("WorldMapId"), TEXT("WorldLayoutRevision"), TEXT("WorldGeometryRevision"), TEXT("SampledAtServerSec"), TEXT("Footprint"),
-        TEXT("Units"), TEXT("RecentTerminations"), TEXT("Projectiles"), TEXT("GroundStates"), TEXT("RecoveryOrbs"), TEXT("WitnessedEmptyCamps")});
+        TEXT("Units"), TEXT("RecentTerminations"), TEXT("Projectiles"), TEXT("GroundStates"), TEXT("RecoveryOrbs"), TEXT("WitnessedEmptyCamps"),
+        TEXT("IncomingLocks")});
     Exact(FLDObservedRecoveryOrb::StaticStruct(), {TEXT("Serial"), TEXT("PositionCm")});
+    // C-12: the observer's own incoming lock names a shown caster's handle, the windup left and the skill; no caster identity.
+    Exact(FLDObservedIncomingLock::StaticStruct(), {TEXT("SourceHandle"), TEXT("RemainingMs"), TEXT("Ability")});
     // Spec §8.3: a ground state names its public id, kind, shape, the owner's roster seat and its footprint and time; no owner
     // identity, source or value.
     Exact(FLDObservedGroundState::StaticStruct(), {TEXT("Id"), TEXT("Kind"), TEXT("Shape"), TEXT("OwnerSeat"), TEXT("CentreCm"),

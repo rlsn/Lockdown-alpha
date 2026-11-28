@@ -57,6 +57,9 @@ enum class ELDEvaluationStepKind : uint8
 // - Kite keeps StandoffCm from the rival: it takes only the non-dash activations the production picker offers, never walks
 //   in for a basic attack, and while the rival is closer it clicks legal ground away from it (wider turns when refused).
 // - Burst pursues while any own Q/W/E source is ready and kites at StandoffCm while all of them recover.
+// - Strafe takes the same casts as Kite; otherwise it walks round the rival on the circle of radius StandoffCm, one
+//   StrafeStepCm step at a time, turning back after StrafeLegSteps steps or when a side is refused, so an aim at it must
+//   lead (B01 X1: the target of a lead-aim test).
 // - Hold defends the meeting place with radius StandoffCm: it pursues the rival only while the rival stands inside the
 //   radius; otherwise it walks back to the place and takes only the non-dash activations the picker offers from there.
 // - Guard pursues until its health falls below ThresholdBp of its maximum, then kites at StandoffCm until it recovers
@@ -72,12 +75,15 @@ enum class ELDEvaluationStepKind : uint8
 //   max(ReactionMs, 500) ms, then rolls again.
 // - WarningReactMs (-1: off, the strategy never dodges): a visible enemy warning counts only once it has been in sight for
 //   WarningReactMs; the production dodge (LDOpponentPolicy::DodgeWarning, without its AI.DodgeChance roll) then dashes out
-//   of it, before the stance fights.
+//   of it, before the stance fights. The adapter takes sightings at every tick and decides the moment a warning on the own
+//   foot has been in sight that long and lands within LDOpponentPolicy::DodgeLeadMs, not at the next decision interval.
 // - LeadAim: a ground-point, projectile, line or cone activation aims at where the rival will be when it lands: its foot
 //   plus its observed velocity (two consecutive sightings, capped at MaxLeadSpeedCmPerSec) times the windup, a ground
 //   effect's delay and a projectile's flight, up to MaxLeadMs. Applied before AimErrorCm.
+// - ReserveDash: its engagement of the rival never spends the innate dash on a chase or a damaging dash, so it is ready for
+//   a WarningReactMs dodge (or held unused).
 // Rolls are CityHash64 of the Case seed's "eval.operation" stream, the own contender identity and a per-profile counter.
-enum class ELDEvaluationStance : uint8 { Pursue, Kite, Burst, Hold, Guard };
+enum class ELDEvaluationStance : uint8 { Pursue, Kite, Burst, Hold, Guard, Strafe };
 
 namespace LDEvaluationPolicy
 {
@@ -102,6 +108,9 @@ namespace LDEvaluationPolicy
     inline constexpr double MinAimLeverCm = 200.;
     // One kite step: the length of the ground click away from the rival.
     inline constexpr double KiteStepCm = 350.;
+    // One strafe step along the circle round the rival, and the steps taken one way before it turns back.
+    inline constexpr double StrafeStepCm = 350.;
+    inline constexpr int32 StrafeLegSteps = 2;
     // The approach to the meeting place: a body that gained less than ApproachProgressCm in ApproachStuckMs stands behind
     // another body (a camp member on the planned route does not step aside, and a walk does not go round bodies), so it
     // takes one ApproachSidestepCm step to the side and walks on from there.
@@ -133,7 +142,8 @@ struct FLDEvaluationProfile
 {
     // How the strategy fights once its rival is visible (empty manifest field: Pursue).
     ELDEvaluationStance Stance = ELDEvaluationStance::Pursue;
-    // Kite/Burst/Guard: the distance kept from the rival while retreating (cm); Hold: the defended radius. 0 for Pursue.
+    // Kite/Burst/Guard: the distance kept from the rival while retreating (cm); Strafe: the radius it circles at; Hold: the
+    // defended radius. 0 for Pursue.
     int32 StandoffCm = 0;
     // Guard: the health share (basis points) below which it retreats. 0 otherwise.
     int32 ThresholdBp = 0;
@@ -148,6 +158,7 @@ struct FLDEvaluationProfile
     bool bLeadAim = false;
     // Auto-empower runs: the planned host the evaluation probe submits (None: the AI's own pick or -LDEmpowerHost).
     ELDCombatEntry EmpowerHost = ELDCombatEntry::None;
+    bool bReserveDash = false;
     // The Case root seed the operation rolls derive from.
     uint64 OperationSeed = 0;
     // The designated rival: the only contender this strategy engages.
@@ -206,6 +217,9 @@ struct FLDEvaluationProfileState
     FVector ApproachFoot = FVector::ZeroVector;
     int64 ApproachSinceMs = -1;
     int32 Sidesteps = 0;
+    // Strafe: the way round the rival (+1 counter-clockwise, -1 clockwise) and the steps taken that way.
+    int32 StrafeSign = 1;
+    int32 StrafeSteps = 0;
 };
 
 // One profile and its evaluation state, shared by the Host probe (reads the state) and the adapter (runs the strategy).
@@ -235,6 +249,11 @@ namespace LDEvaluationPolicy
     LOCKDOWN_API FLDOpponentBodyIntent Kite(const FLDOpponentDecisionFrame& Frame, const FLDEvaluationProfile& Profile,
         const FLDOpponentPolicyState& Policy, const FLDOpponentUnit& Rival, const FLDOpponentPOI* Site, const FLDOpponentBodyIntent& Engaged,
         const FLDEvaluationProfileState* State = nullptr);
+    // The Strafe stance's body given the production engagement's choice Engaged: Engaged when it is a non-dash activation,
+    // otherwise a ground click StrafeStepCm round Rival on the circle of radius StandoffCm (Site's surface, within the leash).
+    LOCKDOWN_API FLDOpponentBodyIntent Strafe(const FLDOpponentDecisionFrame& Frame, const FLDEvaluationProfile& Profile,
+        const FLDOpponentPolicyState& Policy, FLDEvaluationProfileState& State, const FLDOpponentUnit& Rival, const FLDOpponentPOI* Site,
+        const FLDOpponentBodyIntent& Engaged);
     // Updates the operation gates from the authorized frame: per slot since when it is ready, since when the rival stands
     // inside the standoff; another life starts them afresh. Decide calls it on every fighting frame.
     LOCKDOWN_API void ObserveOperation(const FLDOpponentDecisionFrame& Frame, const FLDEvaluationProfile& Profile,

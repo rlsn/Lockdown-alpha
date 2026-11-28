@@ -1165,6 +1165,8 @@ struct FLDDemoAbilityBranch
     UPROPERTY() ELDSkillBranch Path = ELDSkillBranch::None;
     UPROPERTY() FLDDemoTargetDefinition Target;
     UPROPERTY() int64 WindupMs = 0;
+    // C-11: the share of its cooldown a committing form takes when control stops it before its release (0 = none).
+    UPROPERTY() int64 InterruptCooldownBp = 0;
     UPROPERTY() ELDDemoSkillElement Element = ELDDemoSkillElement::None;
     UPROPERTY() ELDDemoHitType HitType = ELDDemoHitType::Targeted;
     // Spec §6.3: the vocabulary the compiler derives from element, delivery, control, displacement and shield (ELDCardVocab bits).

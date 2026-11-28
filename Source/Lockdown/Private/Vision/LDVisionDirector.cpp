@@ -1749,6 +1749,22 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
         }
         View.Units = MoveTemp(Units);
         View.Projectiles = MoveTemp(Projectiles);
+        // C-12: unit skills in their windup that lock this observer, only from casters this frame already shows.
+        if (Combat)
+        {
+            TArray<FLDCombatIncomingLock> Locks;
+            if (!Combat->ReadIncomingLocks(Observer.ContenderId, Locks, Error)) { return false; }
+            for (const FLDCombatIncomingLock& Lock : Locks)
+            {
+                const FLDObservedUnitView* Caster = View.Units.FindByPredicate([&Lock](const FLDObservedUnitView& Unit)
+                    { return Unit.ContenderId == Lock.SourceEntity; });
+                if (!Caster || View.IncomingLocks.Num() >= LDObservation::MaxIncomingLocks) { continue; }
+                FLDObservedIncomingLock& Seen = View.IncomingLocks.AddDefaulted_GetRef();
+                Seen.SourceHandle = Caster->Handle;
+                Seen.RemainingMs = uint32(FMath::Clamp<int64>(Lock.RemainingMs, 1, LDObservation::MaxIncomingLockMs));
+                Seen.Ability = Lock.Ability;
+            }
+        }
         Observer.Ledger.RecentTerminations(View.RecentTerminations);
         // Ground states: the observer's own ones, and every other whose centre (or a band's end) it sees, nearest first, at
         // most LDObservation::MaxGroundStates; isolation groups follow the owner like a skill effect.

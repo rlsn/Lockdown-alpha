@@ -46,6 +46,9 @@ namespace LDPathSteering
     // Match a validated foot to a native navigation layer vertically, within the body's step height.
     // The caller still validates physical ground; this only accounts for Recast's voxel height without moving XY.
     LOCKDOWN_API bool VerticalNavPoint(const ANavigationData& Data, const FVector& Foot, double HeightToleranceCm, FVector& Out);
+    // The navmesh point nearest Foot on Foot's own layer: at most ReachCm across and StepCm up or down. A tall projection
+    // beside a raised top can answer with that top instead (a step the body cannot take). False when the layer has none.
+    LOCKDOWN_API bool SameLayerNavPoint(const ANavigationData& Data, const FVector& Foot, double ReachCm, double StepCm, FVector& Out);
     // Route endpoint for any registered body from its validated ground: a planner's own start, or the foot of a body it
     // chases. Recast erodes the walkable area conservatively, so a legal capsule against a wall or another body, or one
     // cutting a corner, can stand just outside the mesh: the endpoint then moves to the nearest navmesh point at most one

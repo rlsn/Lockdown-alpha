@@ -290,6 +290,12 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
         Ground.Payload=Payload;
         Ground.CentreCm=Origin + Offset.GetClampedToMaxSize(Reach);
         Ground.CentreCm.Z=Action.TargetPoint.Z;
+        // C-12: an impact previewed through its windup lands on that landing and keeps its observed key.
+        if (Impact && Action.Landing.IsSet())
+        {
+            Ground.CentreCm=Action.Landing->CentreCm;
+            Ground.ObservedKey=Action.Landing->ObservedKey;
+        }
         Ground.RadiusCm=Cm(Shape.RadiusCm);
         Ground.InnerRadiusCm=Cm(Shape.DistanceCm);
         Ground.OuterRatioBp=Impact ? Shape.RatioBp : 10000;

@@ -414,6 +414,8 @@ def branch_terms(value, result):
             result["BaseP2"] = scalar(value["base"])
         if "breach" in value:
             result["BasicCount"] = value["breach"]
+        if "windup_scale" in value:
+            result["MultiplierBp"] = scalar(value["windup_scale"])
     elif op == "ground_impact" and "linger" in value:
         result["SecondaryDurationMs"] = scalar(value["linger"])
     elif op == "contact_trap":
@@ -882,6 +884,7 @@ def expected_projection(compilation):
             "Branches": [{
                 "Path": ("None", "A", "B", "A1", "A2", "B1", "B2").index(branch["path"]), "Target": target(branch["target"]),
                 "WindupMs": scalar(branch["windup"]), "Element": SKILL_ELEMENTS.index(branch["element"]),
+                "InterruptCooldownBp": scalar(branch["interrupt_cooldown"]) if "interrupt_cooldown" in branch else 0,
                 "HitType": HIT_TYPES.index(branch["hit_type"]), "VocabMask": vocab_mask(branch.get("vocab", [])),
                 "Values": values(branch),
             } for branch in row["branches"]],

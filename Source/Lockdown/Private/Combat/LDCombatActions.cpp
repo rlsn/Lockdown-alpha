@@ -172,6 +172,7 @@ void ALDCombatDirector::AbandonAction(FLDBodyCombatState& Body, ELDCombatReject 
     if (!Body.Action.IsSet()) { return; }
     const FLDCombatAction Action=Body.Action.GetValue();
     FinishAction(Body,Reason,false);
+    if (Reason==ELDCombatReject::ControlBlocked) { ChargeInterruptedCommit(Body,Action); }
     auto* Record=Action.Key.Origin==ELDCombatRequestOrigin::Direct ? FindRecord(Action.Key.Entity) : nullptr;
     const auto* Known=Record ? Record->Recent.FindByPredicate([&Action](const FLDCombatDirectEntry& Entry)
         { return Entry.Request.DirectSequence==Action.Key.DirectSequence; }) : nullptr;
@@ -184,6 +185,52 @@ void ALDCombatDirector::AbandonAction(FLDBodyCombatState& Body, ELDCombatReject 
     // The entry exists, so StoreReceipt updates it in place and Known stays valid.
     StoreReceipt(*Record,Known->Request,Receipt);
     SendReceipt(*Record,Known->Receipt);
+}
+
+// C-11: control that stops a committing form (a branch with an interrupt cooldown) before its release puts that share of
+// its hasted cooldown on its track; nothing is paid or refunded and the interrupter gains nothing. Cancelling it is free.
+void ALDCombatDirector::ChargeInterruptedCommit(const FLDBodyCombatState& Body, const FLDCombatAction& Action)
+{
+    const auto* Mode=Core();
+    const FLDDemoContentSnapshot* Content=Catalog();
+    FLDCombatEntityRecord* Record=FindRecord(Body.Victim.EntityId);
+    if (!Mode || !Content || !Record || Action.Kind!=ELDCombatActionKind::Ability || Action.Source.Kind!=ELDCombatSourceKind::Learned
+        || Action.bAutoRecast) { return; }
+    const int64 Now=Mode->GetAuthorityNowMs();
+    if (Now>=Action.ReleaseAtMs) { return; }
+    FString Error;
+    FLDCombatSourceRef Source;
+    const FLDDemoAbilityDefinition* Ability=nullptr;
+    FLDCombatActiveTerms Terms;
+    // The interrupted action's source left the entry (relearned or unlearned mid-windup): its release would refuse too.
+    if (!ResolveEntry(*Record,Action.Entry,Source,Ability) || Source!=Action.Source || !ActiveOf(*Record,Source,Ability,Terms)) { return; }
+    // A recast issues no cooldown at its release, so stopping it costs none either.
+    if (Terms.InterruptCooldownBp<=0 || BranchRecastOpen(Body,Source,Now)) { return; }
+    int64 DurationMs=0;
+    FLDCombatTrack* Track=TrackFor(*Record,Action.Entry);
+    if (!Track || !LDTactical::CooldownDurationMs(Terms.Values.CooldownMs,Body.AttributeProjection.Final.CooldownHasteP2,
+        Content->Get().Formulas.HasteScaleP2,DurationMs,Error))
+    {
+        UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_INTERRUPT_COOLDOWN_UNAVAILABLE entity=%s source=%s %s"),*LDLog::Id(Body.Victim.EntityId),
+            *LDLog::Source(Action.Source),*Error);
+        return;
+    }
+    DurationMs=FMath::Max(DurationMs,Content->Get().Parameters.SkillRanks.CooldownFloorMs);
+    const int64 PartMs=DurationMs/10000*Terms.InterruptCooldownBp+DurationMs%10000*Terms.InterruptCooldownBp/10000;
+    int32 Charges=1;
+    int64 ReadyAt=0;
+    if (!SkillChargesOf(Body,Terms.Values,Charges,Error) || !LDCombatSourceRules::SpendCharge(Track->ReadyAtMs,Now,PartMs,ReadyAt))
+    {
+        UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_INTERRUPT_COOLDOWN_UNAVAILABLE entity=%s source=%s %s"),*LDLog::Id(Body.Victim.EntityId),
+            *LDLog::Source(Action.Source),*Error);
+        return;
+    }
+    Track->ReadyAtMs=ReadyAt;
+    // A charged track keeps recovering at its full rate (this spends part of one charge); a single one shows the part.
+    Track->LastDurationMs=Charges>1 ? DurationMs : PartMs;
+    MarkViewChanged(Body.Victim.EntityId);
+    UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_INTERRUPT_COOLDOWN entity=%s source=%s cooldown_ms=%lld"),*LDLog::Id(Body.Victim.EntityId),
+        *LDLog::Source(Action.Source),PartMs);
 }
 
 // Every queued Direct request (held behind an own windup included) ends with a terminal receipt, never silently.
@@ -488,7 +535,9 @@ FLDCombatActionReceipt ALDCombatDirector::StartNavAttack(const FLDCombatCaller& 
     const auto Timing=LDTactical::EvaluateBasicTiming(TimingInput,*Catalog());
     int64 ReleaseAt=0, NextAttack=0;
     FString Error;
-    const int64 WindupMs=Timing.IsSuccess() ? Timing.Value->WindupMs : 0;
+    // C-09 S17 2B: an armed heavy empowered basic winds up longer (its interval stays).
+    const int64 WindupScaleBp=LDCombatControl::EmpoweredWindupScaleBp(Body->Empowers,Now);
+    const int64 WindupMs=Timing.IsSuccess() ? Timing.Value->WindupMs/10000*WindupScaleBp+Timing.Value->WindupMs%10000*WindupScaleBp/10000 : 0;
     if (!Timing.IsSuccess() || Record->NextToken==MAX_uint64
         || !LDMatchLifecycle::AddDurationMs(Now,WindupMs,ReleaseAt,Error)
         || !LDMatchLifecycle::AddDurationMs(Now,Timing.Value->IntervalMs,NextAttack,Error))
@@ -1083,6 +1132,26 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
         return Refuse(ELDCombatReject::SourceUnavailable);
     }
     if (Record.NextToken==MAX_uint64 || !LDMatchLifecycle::AddDurationMs(Now,WindupMs+EmpowerWindupMs,Action.ReleaseAtMs,Error)) { return false; }
+    // C-12: a ground impact lands where the release would have landed it from here, and that landing is locked now.
+    const FLDDemoEffectDefinition* LandingImpact=TargetDef->Mode==ELDDemoTargetMode::GroundPoint
+        ? LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::GroundImpact) : nullptr;
+    const auto* LandingRegistry=LandingImpact ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
+    const auto* LandingGeometry=LandingRegistry ? LandingRegistry->GetGeometry() : nullptr;
+    if (LandingRegistry && LandingRegistry->Enabled() && LandingGeometry && !LandingGeometry->Surfaces.IsEmpty())
+    {
+        double ReachCm=0;
+        TOptional<FVector> Landed;
+        if (!CastRangeCm(*Body,*TargetDef,ReachCm,Error)
+            || !LDGroundLanding::Resolve(*LandingRegistry,FootOf(*Actor),Action.TargetPoint,ReachCm,
+                Actor->GetCapsuleComponent()->GetCollisionShape(),Landed,Error)) { return false; }
+        if (!Landed.IsSet()) { return Refuse(ELDCombatReject::Blocked); }
+        FLDCombatLandingPreview& Landing=Action.Landing.Emplace();
+        Landing.CentreCm=*Landed;
+        Landing.RadiusCm=LDCA::ToDouble(LandingImpact->RadiusCm);
+        Landing.InnerRadiusCm=LDCA::ToDouble(LandingImpact->DistanceCm);
+        Landing.ObservedKey=FGuid::NewGuid();
+        if (!LDMatchLifecycle::AddDurationMs(Action.ReleaseAtMs,LandingImpact->DelayMs,Landing.ImpactAtMs,Error)) { return false; }
+    }
     Action.Token=Record.NextToken++;
     Action.StartedAtMs=Now;
     CancelChannel(*Body);
@@ -1668,7 +1737,8 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         if (bNeedsGround && !bRegistered) { Error=TEXT("A ground skill requires the registered ground surface."); return false; }
         // The release range (U05 eagle stance included), the reach the order approached with.
         if (!CastRangeCm(Body,TargetDef,GroundReachCm,Error)) { return false; }
-        if (bRegistered && !LDGroundLanding::Resolve(*Registry,ReleaseFoot,Action.TargetPoint,GroundReachCm,
+        if (Action.Landing.IsSet()) { LandedPoint=Action.Landing->CentreCm; }
+        else if (bRegistered && !LDGroundLanding::Resolve(*Registry,ReleaseFoot,Action.TargetPoint,GroundReachCm,
             Actor.GetCapsuleComponent()->GetCollisionShape(),LandedPoint,Error)) { return false; }
         if (LandedPoint.IsSet()) { DeliveryAction.TargetPoint=*LandedPoint; }
         else if (bNeedsGround) { Reject=ELDCombatReject::Blocked; return true; }
