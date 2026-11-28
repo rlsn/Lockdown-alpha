@@ -4111,6 +4111,29 @@ bool FLDCardRuleD11Test::RunTest(const FString& Parameters)
                 && TestFalse(TEXT("and never twice"), Live[0].CentreCm.Equals(F.Foot(Holder), 0.01));
         });
 }
+// D10 and D11 on one dash: D11 moves what was placed before the dash, and D10's band stays along the path.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardD10D11OrderTest, "Lockdown.Rules.Combat.Cards.D10D11Order",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCardD10D11OrderTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody();
+    if (!InstallCards(*this, F, Holder, 6, {{TEXT("card_ice_trail"), ELDCardTargetKind::Dash}, {TEXT("card_move_turf"), ELDCardTargetKind::Dash}}))
+    { return false; }
+    FString Error;
+    const FVector Placed(2000, 0, 0);
+    FAccess::SpawnGround(*F.Driver, ELDGroundStateKind::Puddle, ApplierOf(F, Holder), Placed, 1000, Error);
+    if (!CompleteDash(*this, F, Holder)) { return false; }
+    const TArray<FLDGroundState>& Live = FAccess::GroundStates(*F.Driver);
+    bool bGood = TestFalse(TEXT("The ground placed before the dash moved away"),
+        Live.ContainsByPredicate([&Placed](const FLDGroundState& Row) { return Row.CentreCm.Equals(Placed, 0.01); }));
+    const FVector Middle = F.Foot(Holder) - FVector(200, 0, 0);
+    bGood &= TestTrue(TEXT("The ice band lies along the dash path"), Live.ContainsByPredicate([&Middle](const FLDGroundState& Row)
+        { return Row.Kind == ELDGroundStateKind::Ice && Row.CentreCm.Equals(Middle, 0.01) && !Row.bRelocated; }));
+    return bGood;
+}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY12Test, "Lockdown.Rules.Combat.Cards.Y12",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDCardRuleY12Test::RunTest(const FString& Parameters)

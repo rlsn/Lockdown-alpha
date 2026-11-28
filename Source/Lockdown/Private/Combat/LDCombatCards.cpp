@@ -942,6 +942,12 @@ bool ALDCombatDirector::ResolveDashCompletions(int64 NowMs, FString& Error)
         if (!CardsOn(Body.AttributeProjection,ELDDemoEffectOp::DashIce,Dash.Source,Trails,Error)
             || !CardsOn(Body.AttributeProjection,ELDDemoEffectOp::GroundRelocate,Dash.Source,Movers,Error)) { return false; }
         const FVector EndFoot=FootOf(*Actor);
+        // D11 moves what was placed before this dash, never the band D10 lays along it (both read the same completion).
+        if (!Movers.IsEmpty())
+        {
+            if (!RelocateNewestGround(Body,EndFoot,NowMs,Error)) { return false; }
+            LedgerCardTriggered(Body,Movers[0].Key);
+        }
         // Y12: every copy keeps a trail one more of its lifetimes, so that many more bands stand at once.
         TArray<FLDPassiveEffectRef> Stalls;
         if (!Trails.IsEmpty() && !CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::DoubleStall,Stalls,Error)) { return false; }
@@ -959,11 +965,6 @@ bool ALDCombatDirector::ResolveDashCompletions(int64 NowMs, FString& Error)
             if (!SpawnGround(ELDGroundStateKind::Ice,TrailOwner,(Dash.StartFootCm+EndFoot)*.5,NowMs,Error,Width*.5,Trail.Effect.DurationMs*(1+Stalls.Num()),
                 FVector2D(Path.X,Path.Y),Path.Size()*.5)) { return false; }
             LedgerCardTriggered(Body,Trail.Key);
-        }
-        if (!Movers.IsEmpty())
-        {
-            if (!RelocateNewestGround(Body,EndFoot,NowMs,Error)) { return false; }
-            LedgerCardTriggered(Body,Movers[0].Key);
         }
         // D03: the hosted D's completion arms one package per copy (a newer one replaces that copy's unused package).
         TArray<FLDPassiveEffectRef> Held;
