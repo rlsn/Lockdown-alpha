@@ -741,8 +741,8 @@ TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActiva
 }
 
 // Issue #287 spec §13: a visible enemy warning about to land on the own foot is dashed out of with the ready D, at
-// AI.DodgeChance (one stable roll per warning).
-TOptional<FLDOpponentBodyIntent> DodgeIntent(const FContext& C)
+// AI.DodgeChance (one stable roll per warning); without bRoll (DEV evaluation's WarningReactMs) every such warning is.
+TOptional<FLDOpponentBodyIntent> DodgeIntent(const FContext& C, bool bRoll = true)
 {
     const FLDOpponentSource* Dash = C.Self.Sources.FindByPredicate([](const FLDOpponentSource& S) { return S.Slot == ELDOpponentSourceSlot::Dash; });
     if (!Dash || !Dash->bReady) { return {}; }
@@ -774,7 +774,7 @@ TOptional<FLDOpponentBodyIntent> DodgeIntent(const FContext& C)
         if (!bInside) { continue; }
         if (Away.IsNearlyZero()) { Away = Heading.IsNearlyZero() ? FVector::ForwardVector : FVector::CrossProduct(FVector::UpVector, Heading); }
         const uint32 Roll = HashCombine(GetTypeHash(Warning.Handle), GetTypeHash(C.Self.ContenderId)) % 10000;
-        if (int64(Roll) >= C.Catalog.Get().Parameters.AI.DodgeChanceBp) { continue; }
+        if (bRoll && int64(Roll) >= C.Catalog.Get().Parameters.AI.DodgeChanceBp) { continue; }
         FLDOpponentBodyIntent Body;
         Body.Kind = EBody::Activate;
         Body.Source = ELDOpponentSourceSlot::Dash;
@@ -3428,6 +3428,15 @@ FLDOpponentBodyIntent WalkTo(const FLDOpponentDecisionFrame& Frame, const FLDDem
     const FLDOpponentPOI* Place = C.FindPOI(POI);
     if (!Place || !C.Initialize()) { return {}; }
     return MoveTo(C, *Place);
+}
+
+TOptional<FLDOpponentBodyIntent> DodgeWarning(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
+    FLDOpponentPolicyState& State)
+{
+    using namespace Detail;
+    FContext C(Frame, Catalog, State);
+    if (!C.Initialize()) { return {}; }
+    return DodgeIntent(C, false);
 }
 
 #endif

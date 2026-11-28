@@ -48,7 +48,7 @@ struct FLDBreakoutPreset
 
 namespace LDBreakoutPresets
 {
-    // The spec §7.6 samples in spec order: the nine P2 ones, then the P4 minefield.
+    // The spec §7.6 samples in spec order: the nine P2 ones, then the P4 minefield; then evaluation-only samples (no AI goal).
     LOCKDOWN_API const TArray<FLDBreakoutPreset>& All();
     LOCKDOWN_API const FLDBreakoutPreset* Find(FName Id);
     // Whether Card belongs to Preset (any copy).

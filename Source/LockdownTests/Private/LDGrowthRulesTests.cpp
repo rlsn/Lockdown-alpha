@@ -3761,11 +3761,13 @@ bool FLDDevBreakoutPresetsTest::RunTest(const FString& Parameters)
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if (!LDTestApprovedFixture::Read(*this, Catalog)) { return false; }
     const FLDDemoContentDefinitions& Content = Catalog->Get();
-    // Spec §7.6: the nine P2 samples and the P4 minefield, each a valid max-level build that Combat projects with every card
-    // installed; the AI aims only at the P2 ones.
+    // Spec §7.6: the nine P2 samples and the P4 minefield, then the evaluation-only samples, each a valid max-level build that
+    // Combat projects with every card installed; the AI aims only at the P2 ones.
     const TArray<FLDBreakoutPreset>& All = LDBreakoutPresets::All();
-    bool bGood = TestEqual(TEXT("Ten samples"), All.Num(), 10)
-        && TestTrue(TEXT("The minefield is last and no AI goal"), FString(All.Last().Id) == TEXT("breakout_minefield") && !All.Last().bAIGoal
+    bool bGood = TestEqual(TEXT("Eleven samples"), All.Num(), 11)
+        && TestTrue(TEXT("The minefield follows the P2 samples and no sample after the P2 ones is an AI goal"),
+            FString(All[9].Id) == TEXT("breakout_minefield") && FString(All.Last().Id) == TEXT("breakout_long_grab")
+            && !All[9].bAIGoal && !All.Last().bAIGoal
             && Algo::CountIf(All, [](const FLDBreakoutPreset& Preset) { return Preset.bAIGoal; }) == 9);
     TSet<FString> Ids;
     for (const FLDBreakoutPreset& Preset : All)

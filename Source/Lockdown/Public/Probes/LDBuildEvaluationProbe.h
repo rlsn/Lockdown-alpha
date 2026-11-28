@@ -36,7 +36,8 @@ struct FLDEvalContenderPlan
     FName BreakoutPreset;
     // Optional "stance" object (absent: pursue): {"kind": "kite"|"burst"|"hold"|"guard", "standoff_cm": N,
     // "threshold_bp": N (guard only, required), "leash_cm": N (optional)}, with the optional operation knobs "reaction_ms",
-    // "aim_error_cm" and "skip_bp" on any stance; {"kind": "pursue"} is written only to carry knobs.
+    // "aim_error_cm", "skip_bp", "warning_react_ms" (absent: no dodge) and "lead_aim" (bool) on any stance; {"kind": "pursue"}
+    // is written only to carry knobs.
     ELDEvaluationStance Stance = ELDEvaluationStance::Pursue;
     int32 StandoffCm = 0;
     int32 ThresholdBp = 0;
@@ -44,6 +45,8 @@ struct FLDEvalContenderPlan
     int32 ReactionMs = 0;
     int32 AimErrorCm = 0;
     int32 SkipBp = 0;
+    int32 WarningReactMs = -1;
+    bool bLeadAim = false;
 };
 
 struct FLDEvalCase
