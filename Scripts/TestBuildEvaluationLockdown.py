@@ -842,18 +842,20 @@ class EvidenceTest(AdapterCase):
 
     def test_auto_empower_is_a_host_switch_counted_per_side(self):
         def empower(t, src, outcome="applied", host="Q", serial=1):
+            paid = "0.00" if outcome == "prepaid" else "50.00"
             return (f"LD_EMPOWER t={t} src={src} life=2 host={host} processor=strike source=learned:active_elbow "
-                    f"serial={serial if outcome != 'short' else 0} paid=50.00 before=70.00 after=20.00 outcome={outcome}")
+                    f"serial={serial if outcome != 'short' else 0} paid={paid} before=70.00 after=20.00 outcome={outcome}")
 
         on = manifest()
         on["scenario"]["parameters"]["empower"] = True
-        lines = (empower(9000, S), empower(12000, S, "prepaid", serial=2), empower(13000, S, "short"),
+        # 12000: the Q released at 9000 paid for an empowered basic; its delivery is the same empowerment.
+        lines = (empower(9000, S), empower(12000, S, "prepaid", host="Basic", serial=2), empower(13000, S, "short"),
                  empower(14000, O, host="Basic"), empower(4000, S, serial=9))  # 4000: the opening rest, before the duel
         out = self.evidence(text=trace(*lines), plan_manifest=on)
         self.assertEqual(out["status"], "Completed", out["reason"])
-        self.assertEqual((out["metrics"]["subject_empowers"]["value"], out["metrics"]["opponent_empowers"]["value"]), (2, 1))
+        self.assertEqual((out["metrics"]["subject_empowers"]["value"], out["metrics"]["opponent_empowers"]["value"]), (1, 1))
         self.assertEqual(out["facts"]["empower"]["subject"],
-                         {"empowers": 2, "short": 1, "paid": 100.0, "hosts": {"Q": 2}, "processors": {"strike": 2}})
+                         {"empowers": 1, "delivered": 1, "short": 1, "paid": 50.0, "hosts": {"Q": 1}, "processors": {"strike": 1}})
         # An off run has no empower line; one is a setup failure, not a result.
         self.assertIn("Setup: an LD_EMPOWER line in a run without auto-empower",
                       self.evidence(text=trace(empower(9000, S)))["reason"])

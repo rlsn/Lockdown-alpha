@@ -27,7 +27,7 @@ import re
 from pathlib import Path
 
 ADAPTER_ID = "lockdown-demo"
-ADAPTER_VERSION = 19
+ADAPTER_VERSION = 20
 # LDBuildEvaluation::MaxCases and MaxBuildSteps of the native driver (LDBuildEvaluationProbe.h); a larger plan is refused
 # before any run.
 NATIVE_MAX_CASES = 500
@@ -114,17 +114,19 @@ METRICS = {
                        "description": "the opponent's Q/W/E releases (LD_CAST) from first-field entry to the outcome "
                                       "(and the outcome's own advance, at most 50 ms later)"},
     "subject_empowers": {"unit": "empowers", "kind": "continuous", "direction": "descriptive",
-                         "description": "the subject's empowered releases (LD_EMPOWER applied or prepaid) from first-field "
+                         "description": "the subject's empowerments (LD_EMPOWER applied; a prepaid delivery is not another) from first-field "
                                         "entry to the outcome; 0 in a run without auto-empower"},
     "opponent_empowers": {"unit": "empowers", "kind": "continuous", "direction": "descriptive",
-                          "description": "the opponent's empowered releases (LD_EMPOWER applied or prepaid) from first-field "
+                          "description": "the opponent's empowerments (LD_EMPOWER applied; a prepaid delivery is not another) from first-field "
                                          "entry to the outcome; 0 in a run without auto-empower"},
 }
 # Auto-empower is a Host-wide switch (-LDEmpower, optionally -LDEmpowerHost=<entry> for every contender without a chosen
 # host): one run is all off or all on, so off/on is compared across two runs of the same seeds. An AI picks its own host
 # unless empower_host forces one for both duelists.
 EMPOWER_HOSTS = ("Basic", "Q", "W", "E", "D")
-EMPOWER_DONE = ("applied", "prepaid")
+# One empowerment is one applied line (the release that paid). A prepaid line is the delivery of an empowerment an earlier
+# applied release already paid for (a Q that empowers the next basic): paid 0, host and serial of the delivering action.
+EMPOWER_DONE = ("applied",)
 
 
 # ---------------------------------------------------------------- capabilities
@@ -1232,7 +1234,7 @@ def case_evidence(case, manifest, caps, result, trace_text):
             if offered.get(str(position + 2)) != preset:
                 reasons.append(f"PresetNotApplied: the {role} offer at ordinal {position + 2} is {offered.get(str(position + 2))}, prepared {preset}")
     empowered = params.get("empower", False)
-    empower = {role: {"empowers": 0, "short": 0, "paid": 0, "hosts": {}, "processors": {}} for role in ROLES}
+    empower = {role: {"empowers": 0, "delivered": 0, "short": 0, "paid": 0, "hosts": {}, "processors": {}} for role in ROLES}
     for tag, row, _ in events:
         if tag != "LD_EMPOWER" or row.get("src") not in duelists:
             continue
@@ -1247,6 +1249,8 @@ def case_evidence(case, manifest, caps, result, trace_text):
             side["paid"] += _hundredths(row.get("paid", "0"))
             for key, value in (("hosts", row.get("host")), ("processors", row.get("processor"))):
                 side[key][value] = side[key].get(value, 0) + 1
+        elif row.get("outcome") == "prepaid":
+            side["delivered"] += 1
         else:
             side["short"] += 1
     if empowered:

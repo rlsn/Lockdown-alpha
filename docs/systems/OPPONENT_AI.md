@@ -29,7 +29,7 @@
 
 ## 躲避预警
 
-视野内的敌方预警（地面延时落点、陷阱、营地前摇，以及公开施法动作的直线/扇形前摇）覆盖自身脚下、且离落地不超过 `DodgeLeadMs`（450 ms）时，AI 用就绪的 D 冲出轮廓（直线与扇形向侧面，圆形向外）。生产 AI 对每个预警按 `AI.DodgeChance` 做一次稳定判定；构筑评估的 `warning_react_ms` 去掉判定，改为看见后等满反应时间。动作进行中（前摇、引导）不打断。`LD_AI_DODGE` 为每个覆盖过自身的预警记一行：`result=dash` 时 `remaining_ms` 是发出冲刺时的剩余时间；`result=none` 时 `reason` 是拦下冲刺的原因：`acting`（动作进行中）、`dash_unready`（D 未就绪）、`reaction_wait`（评估反应时间未到）、`off`（评估未开躲避）、`roll`（生产判定未中）、`retry_blocked`（失败记忆暂停）、`early`（没有决策落在窗口内）或 `left`（落地前已离开轮廓）。
+视野内的敌方预警（地面延时落点、陷阱、营地前摇，以及公开施法动作的直线/扇形前摇）覆盖自身脚下、且离落地不超过 `DodgeLeadMs`（450 ms）时，AI 用就绪的 D 冲出轮廓（直线与扇形向侧面，圆形向外）。生产 AI 对每个预警按 `AI.DodgeChance` 做一次稳定判定；构筑评估的 `warning_react_ms` 去掉判定，改为看见后等满反应时间。动作进行中（前摇、引导）不打断。`LD_AI_DODGE` 为每个覆盖过自身的预警记一行（`seen_t` 为首次看见，评估 AI 逐帧看；`impact_t` 为落地时刻，即躲避的真实截止；`seen_remaining_ms` 为二者之差）：`result=dash` 时 `remaining_ms` 是发出冲刺时的剩余时间；`result=none` 时 `reason` 是拦下冲刺的原因：`acting`（动作进行中）、`dash_unready`（D 未就绪）、`reaction_wait`（评估反应时间未到）、`off`（评估未开躲避）、`roll`（生产判定未中）、`retry_blocked`（失败记忆暂停）、`early`（没有决策落在窗口内）或 `left`（落地前已离开轮廓）。
 
 ## 构筑、分支与施法覆盖
 
