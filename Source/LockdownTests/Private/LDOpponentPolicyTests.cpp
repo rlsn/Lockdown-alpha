@@ -3320,6 +3320,29 @@ bool FLDDemoOpponentBodyDetoursTest::RunTest(const FString& Parameters)
             {FVector(0, 0, 0), Waypoint, FVector(600, 0, 0)}, {InWay[1]}, Walker, LDOpponentPolicy::BodyLookaheadCm, Along),
             int32(INDEX_NONE));
     }
+    // A walker pressed against a body (inside both radii) is blocked by a leg into it, not by one sliding past it.
+    const FBody Touching{FVector(80, 0, 0), 50};
+    TestEqual(TEXT("Pressed against a body, a leg into it is blocked"), LDOpponentPolicy::BlockingBody(
+        {FVector(0, 0, 0), FVector(600, 0, 0)}, {Touching}, Walker, LDOpponentPolicy::BodyLookaheadCm, Along), 0);
+    TestEqual(TEXT("and a leg sliding past it to the side is not"), LDOpponentPolicy::BlockingBody(
+        {FVector(0, 0, 0), FVector(80, 260, 0)}, {Touching}, Walker, LDOpponentPolicy::BodyLookaheadCm, Along), int32(INDEX_NONE));
+
+    // With no way round, the walk's walling camp member is fought through.
+    using namespace LDOpponentPolicyTests;
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(*this, Catalog)) { return false; }
+    FLDOpponentDecisionFrame Frame;
+    if (!BaseFrame(*this, *Catalog, Frame)) { return false; }
+    Frame.Units = {Unit(4, ELDOpponentUnitKind::CampMember, 120, 0, TEXT("monster_scavenger"))};
+    Frame.WallingHandle = Frame.Units[0].Handle;
+    Frame.WallingEpoch = Frame.Units[0].Epoch;
+    FLDOpponentPolicyState Walled;
+    const auto Through = LDOpponentPolicy::Decide(Frame, *Catalog, Walled);
+    TestTrue(TEXT("The walling member is engaged"), Through.Mode == ELDOpponentMode::Engage
+        && (Through.Body.Kind == ELDOpponentBodyKind::AttackUnit || Through.Body.Kind == ELDOpponentBodyKind::Activate)
+        && (Through.Body.Kind != ELDOpponentBodyKind::AttackUnit || Through.Body.Handle == Frame.Units[0].Handle));
+    Frame.WallingEpoch = Frame.Units[0].Epoch + 1;
+    TestNull(TEXT("A walling report of another visibility interval names nobody"), LDOpponentPolicy::WallingUnit(Frame));
     return true;
 }
 

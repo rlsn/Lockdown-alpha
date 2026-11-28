@@ -320,6 +320,10 @@ struct FLDOpponentDecisionFrame
     // #198 站圈报名 (user decision A on issue #198): in a rest, the own PK sign-up disk (its roster slot's public anchor);
     // unset outside a rest. Never part of POIs, so no field decision ever walks there.
     TOptional<FLDOpponentPOI> SignupPOI;
+    // B01 T03-02: a visible camp member that walls off the own kept walk with no way round it (its handle and epoch);
+    // invalid otherwise. The policy fights through it.
+    FGuid WallingHandle;
+    uint32 WallingEpoch = 0;
 };
 
 // Walk: the body's own walking, refused for its ground or path from where it stands (#160); fingerprinted by that spot.
@@ -684,14 +688,19 @@ namespace LDOpponentPolicy
     };
     // The first body (index into Bodies) a walked polyline runs into within its first LookaheadCm, for a walker of
     // WalkerRadiusCm: its path passes closer to the body's centre than the two radii. A body within that clearance of
-    // the polyline's end is the walk's destination, not an obstacle. INDEX_NONE when nothing is in the way. OutAlong is the
-    // direction of the segment that meets the body.
+    // the polyline's end is the walk's destination, not an obstacle, and a first leg that comes no more than BodyGrazeCm
+    // closer to a body than the walker already stands (it slides past a body it touches) is not blocked by it.
+    // INDEX_NONE when nothing is in the way. OutAlong is the direction of the segment that meets the body.
     LOCKDOWN_API int32 BlockingBody(TConstArrayView<FVector> Points, TConstArrayView<FBodyDisc> Bodies, double WalkerRadiusCm,
         double LookaheadCm, FVector& OutAlong);
     // Detour waypoints around one blocking body for a walk heading Along: on either side, at the walker's clearance plus one
     // to three GroundDetourMarginCm (a wider step clears a group of bodies), nearest first.
     LOCKDOWN_API void BodyDetours(const FBodyDisc& Body, const FVector& Along, double WalkerRadiusCm, TArray<FVector>& Out);
+    // The visible camp member the frame names as walling off the own walk (FLDOpponentDecisionFrame::WallingHandle), or null.
+    LOCKDOWN_API const FLDOpponentUnit* WallingUnit(const FLDOpponentDecisionFrame& Frame);
     constexpr double BodyLookaheadCm = 1200.;
+    constexpr double BodyGrazeCm = 25.;
+    constexpr int64 BodyRerouteIntervalMs = 1000;
     // B01 T04-03: how far inside the final street ring a body keeps; one outside Radius - margin walks back to Radius - 2 x margin.
     constexpr double StreetRingMarginCm = 150.;
 #if WITH_DEV_AUTOMATION_TESTS

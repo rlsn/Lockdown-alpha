@@ -196,6 +196,7 @@ void ALDOpponentController::ForgetBodyWork()
     // A charge belongs to the body that started it; a new life starts its own.
     Charge = FChargeTrack();
     bWasInDorm = false;
+    Walled = FWalled();
 }
 
 void ALDOpponentController::HandleLifeCommitted(const FLDLifeNotice& Notice)
@@ -704,14 +705,17 @@ void ALDOpponentController::SettleOrders(const FReads& Reads, const FLDOpponentD
 }
 
 bool ALDOpponentController::RouteAroundGrounds(const FLDOpponentDecisionFrame& Frame, const FVector& FootCm,
-    const FLDSpatialOrderRequest& Request, FVector& Out) const
+    const FLDSpatialOrderRequest& Request, FVector& Out, bool bOnlyBodies, const FLDOpponentUnit** OutWalling) const
 {
+    if (OutWalling) { *OutWalling = nullptr; }
     TRACE_CPUPROFILER_EVENT_SCOPE(LDAI_RouteAroundGrounds);
     if (Request.Kind != ELDSpatialOrderKind::MoveGround) { return false; }
-    const bool bEnemyGrounds = Frame.Grounds.ContainsByPredicate([](const FLDOpponentGround& Ground) { return Ground.bEnemy; });
+    const bool bEnemyGrounds = !bOnlyBodies
+        && Frame.Grounds.ContainsByPredicate([](const FLDOpponentGround& Ground) { return Ground.bEnemy; });
     // B01 T03-02: a visible camp member stays at its home and the navigation path does not go round bodies, so a walk
     // whose route runs into one is pushed against it for good (seed c001). Only the walk's own reading of what it sees.
     TArray<LDOpponentPolicy::FBodyDisc> Bodies;
+    TArray<const FLDOpponentUnit*> BodyUnits;
     for (const FLDOpponentUnit& Unit : Frame.Units)
     {
         if (Unit.Kind != ELDOpponentUnitKind::CampMember) { continue; }
@@ -721,6 +725,7 @@ bool ALDOpponentController::RouteAroundGrounds(const FLDOpponentDecisionFrame& F
         const auto& Radius = Monster->CollisionRadiusCm;
         if (Radius.Denominator <= 0) { continue; }
         Bodies.Add({Unit.FootCm, double(Radius.Numerator) / double(Radius.Denominator)});
+        BodyUnits.Add(&Unit);
     }
     if (!bEnemyGrounds && Bodies.IsEmpty()) { return false; }
     const ULDMapRegistry* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
@@ -759,12 +764,15 @@ bool ALDOpponentController::RouteAroundGrounds(const FLDOpponentDecisionFrame& F
         Detours.Append(Around);
     }
     bool bDetour = false;
+    // Why each detour was refused (no route there, its leg meets a body, no route on from it), for the blocked report.
+    int32 NoLeg = 0, LegBlocked = 0, NoFinal = 0;
     for (const FVector& Waypoint : Detours)
     {
         FLDCompletePath First, Second;
         FVector Unused;
-        if (!Path(FootCm, FVector(Waypoint.X, Waypoint.Y, FootCm.Z), First) || Blocked(First.Points, Unused) != INDEX_NONE
-            || !Path(First.EndProjectionCm, Request.GroundCm, Second)) { continue; }
+        if (!Path(FootCm, FVector(Waypoint.X, Waypoint.Y, FootCm.Z), First)) { ++NoLeg; continue; }
+        if (Blocked(First.Points, Unused) != INDEX_NONE) { ++LegBlocked; continue; }
+        if (!Path(First.EndProjectionCm, Request.GroundCm, Second)) { ++NoFinal; continue; }
         const double Cost = LDOpponentPolicy::GroundWeightedCm(First.Points, Frame.Grounds, CostBp)
             + LDOpponentPolicy::GroundWeightedCm(Second.Points, Frame.Grounds, CostBp);
         if (Cost < Best)
@@ -774,7 +782,49 @@ bool ALDOpponentController::RouteAroundGrounds(const FLDOpponentDecisionFrame& F
             bDetour = true;
         }
     }
+    if (Blocker != INDEX_NONE && !bDetour)
+    {
+        if (OutWalling) { *OutWalling = BodyUnits[Blocker]; }
+        UE_LOG(LogLDAI, Display, TEXT("LD_AI_BODY_BLOCKED contender=%s foot=%s body=%s goal=%s detours=%d no_leg=%d leg_blocked=%d no_final=%d"),
+            *Binding.GetContender().ToString(), *LDLog::Cm(FootCm), *LDLog::Cm(Bodies[Blocker].CentreCm), *LDLog::Cm(Request.GroundCm),
+            Detours.Num(), NoLeg, LegBlocked, NoFinal);
+    }
     return bDetour;
+}
+
+void ALDOpponentController::KeepWalkClearOfBodies(const FReads& Reads, const FLDOpponentDecisionFrame& Frame, int64 NowMs,
+    FString& Problem)
+{
+    // A kept walk was routed when it was sent; a camp member it meets later (beyond the lookahead then, or out of sight)
+    // is gone round from here. A detour leg is left to finish; its final leg is routed again on arrival.
+    if (!Incumbent.bHas || Incumbent.bFinal || Incumbent.bDetour || Candidate.bHas || NowMs < NextBodyRouteAtMs
+        || Incumbent.Request.Kind != ELDSpatialOrderKind::MoveGround
+        || (Incumbent.Status != ELDOpponentOrderStatus::Pending && Incumbent.Status != ELDOpponentOrderStatus::Active))
+    {
+        return;
+    }
+    const FVector Foot = Frame.Self.FootCm;
+    if (!Frame.Units.ContainsByPredicate([&Foot](const FLDOpponentUnit& Unit)
+        { return Unit.Kind == ELDOpponentUnitKind::CampMember && FVector::Dist2D(Unit.FootCm, Foot) <= LDOpponentPolicy::BodyLookaheadCm; }))
+    {
+        return;
+    }
+    NextBodyRouteAtMs = NowMs + LDOpponentPolicy::BodyRerouteIntervalMs;
+    FVector Waypoint;
+    const FLDOpponentUnit* Walling = nullptr;
+    if (!RouteAroundGrounds(Frame, Foot, Incumbent.Request, Waypoint, true, &Walling))
+    {
+        // No way round: the next decisions fight through the member that walls the walk off.
+        if (Walling) { Walled = {Walling->Handle, Walling->Epoch, NowMs + 2 * LDOpponentPolicy::BodyRerouteIntervalMs}; }
+        return;
+    }
+    FLDSpatialOrderRequest Leg = Incumbent.Request;
+    const FVector FinalCm = Incumbent.Request.GroundCm;
+    const FLDOpponentBodyIntent Intent = Incumbent.Intent;
+    Leg.GroundCm = Waypoint;
+    UE_LOG(LogLDAI, Display, TEXT("LD_AI_BODY_DETOUR contender=%s foot=%s waypoint=%s goal=%s"), *Binding.GetContender().ToString(),
+        *LDLog::Cm(Foot), *LDLog::Cm(Waypoint), *LDLog::Cm(FinalCm));
+    SubmitWalk(Reads, Intent, Leg, true, FinalCm, Frame.Self, NowMs, Problem);
 }
 
 bool ALDOpponentController::SubmitWalk(const FReads& Reads, const FLDOpponentBodyIntent& Intent, FLDSpatialOrderRequest Request,
@@ -890,6 +940,19 @@ void ALDOpponentController::ComposeFrame(FLDOpponentDecisionFrame& Frame) const
         Current.Epoch = Incumbent.Intent.Epoch;
     }
     Frame.bBuildChangeInFlight = Build.bHas;
+    // An attack on the walling member keeps it published until the member is gone from sight (dead, or another epoch).
+    const FOrderTrack& Latest = Candidate.bHas ? Candidate : Incumbent;
+    if (Walled.Handle.IsValid() && Latest.bHas && !Latest.bFinal && Latest.Intent.Kind == ELDOpponentBodyKind::AttackUnit
+        && Latest.Intent.Handle == Walled.Handle)
+    {
+        Walled.UntilMs = FMath::Max(Walled.UntilMs, Frame.Public.NowMs + LDOpponentPolicy::BodyRerouteIntervalMs);
+    }
+    if (Walled.UntilMs >= Frame.Public.NowMs && Frame.Units.ContainsByPredicate([this](const FLDOpponentUnit& Unit)
+        { return Unit.Handle == Walled.Handle && Unit.Epoch == Walled.Epoch; }))
+    {
+        Frame.WallingHandle = Walled.Handle;
+        Frame.WallingEpoch = Walled.Epoch;
+    }
     Frame.PKThrowReadyAtMs = PKThrowSerial != 0 && PKThrowSerial == Frame.Public.PK.Serial ? PKThrowReadyAtMs : 0;
 }
 
@@ -921,7 +984,11 @@ void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads,
             : Intent.Source == ELDOpponentSourceSlot::E ? ELDCombatEntry::E : ELDCombatEntry::None;
         if (Intent.Kind != ELDOpponentBodyKind::Activate || !Intent.bOverdrive || Wanted != Charge.Entry) { AbandonCharge(Mode, Reads); }
     }
-    if (Intent.Kind == ELDOpponentBodyKind::None || Intent.Kind == ELDOpponentBodyKind::Keep) { return; }
+    if (Intent.Kind == ELDOpponentBodyKind::None || Intent.Kind == ELDOpponentBodyKind::Keep)
+    {
+        if (Reads.bCombat && Navigation) { KeepWalkClearOfBodies(Reads, Frame, NowMs, Problem); }
+        return;
+    }
     const FLDOpponentSelf& Self = Frame.Self;
     const uint32 Generation = Binding.GetMatch().Generation;
     const uint32 Life = Reads.Owner.BodyRef.Victim.Life;

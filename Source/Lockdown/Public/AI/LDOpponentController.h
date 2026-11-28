@@ -157,9 +157,12 @@ private:
     // Spec §13 path cost: the cheapest of the direct walk and one detour around each enemy ground state in the way, by
     // GroundWeightedCm over real registry paths. A direct walk that runs into a visible camp member within
     // BodyLookaheadCm is replaced by a detour around that body (B01 T03-02). True when a detour waypoint replaced the goal
-    // (Out); false keeps it.
+    // (Out); false keeps it. bOnlyBodies: only a walk blocked by a body is replaced (a kept walk's later check).
     bool RouteAroundGrounds(const FLDOpponentDecisionFrame& Frame, const FVector& FootCm, const FLDSpatialOrderRequest& Request,
-        FVector& Out) const;
+        FVector& Out, bool bOnlyBodies = false, const FLDOpponentUnit** OutWalling = nullptr) const;
+    // B01 T03-02: every BodyRerouteIntervalMs while a kept ground walk has a camp member within BodyLookaheadCm, its route
+    // from the current foot is checked again and a detour leg is sent when that member blocks it.
+    void KeepWalkClearOfBodies(const FReads& Reads, const FLDOpponentDecisionFrame& Frame, int64 NowMs, FString& Problem);
     // Sends one ground-walk leg of Intent and makes it the candidate; false when refused on receipt or out of identities.
     bool SubmitWalk(const FReads& Reads, const FLDOpponentBodyIntent& Intent, FLDSpatialOrderRequest Request, bool bDetour,
         const FVector& FinalGroundCm, const FLDOpponentSelf& Self, int64 NowMs, FString& Problem);
@@ -202,6 +205,16 @@ private:
     // Build request ids from 1, consumed only when the domain reserved the sequence.
     uint64 BuildRequestId = 1;
     int64 NextDecisionAtMs = 0;
+    int64 NextBodyRouteAtMs = 0;
+    // B01 T03-02: the camp member last found walling off the kept walk, published to the policy until UntilMs.
+    struct FWalled
+    {
+        FGuid Handle;
+        uint32 Epoch = 0;
+        int64 UntilMs = 0;
+    };
+    // Renewed by ComposeFrame while the own attack on it is still under way.
+    mutable FWalled Walled;
     bool bClosed = false;
     bool bRetiring = false;
     bool bTallyReported = false;

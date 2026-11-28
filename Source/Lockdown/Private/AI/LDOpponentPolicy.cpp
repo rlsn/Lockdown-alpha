@@ -3125,6 +3125,12 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
             Body(Leave.GetValue());
             return Finish(State.Mode, EReason::EngageTarget);
         }
+        // B01 T03-02: a camp member that walls off the kept walk with no way round is fought through.
+        if (const FLDOpponentUnit* Wall = WallingUnit(Frame))
+        {
+            Body(EngageBody(C, *Wall));
+            return Finish(EMode::Engage, EReason::EngageTarget);
+        }
     }
 
     if (Frame.Public.Timeline.Stage == ELDMatchStage::FinalField)
@@ -3496,6 +3502,8 @@ int32 LDOpponentPolicy::BlockingBody(TConstArrayView<FVector> Points, TConstArra
             if (FVector2D::DistSquared(Centre, End) <= FMath::Square(Clearance)) { continue; }
             const FVector2D Closest = FMath::ClosestPointOnSegment2D(Centre, A, Cut);
             if (FVector2D::DistSquared(Closest, Centre) >= FMath::Square(Clearance)) { continue; }
+            // A walker already touching a body is not blocked by a first leg that slides past it rather than into it.
+            if (I == 1 && FVector2D::Distance(Closest, Centre) >= FVector2D::Distance(A, Centre) - BodyGrazeCm) { continue; }
             const double At = Walked + FVector2D::Distance(A, Closest);
             if (At < BestAt)
             {
@@ -3521,4 +3529,13 @@ void LDOpponentPolicy::BodyDetours(const FBodyDisc& Body, const FVector& Along, 
     {
         for (const double Sign : {1., -1.}) { Out.Add(Body.CentreCm + Side * Sign * (Clearance + GroundDetourMarginCm * Step)); }
     }
+}
+
+const FLDOpponentUnit* LDOpponentPolicy::WallingUnit(const FLDOpponentDecisionFrame& Frame)
+{
+    if (!Frame.WallingHandle.IsValid()) { return nullptr; }
+    return Frame.Units.FindByPredicate([&Frame](const FLDOpponentUnit& Unit)
+    {
+        return Unit.Kind == ELDOpponentUnitKind::CampMember && Unit.Handle == Frame.WallingHandle && Unit.Epoch == Frame.WallingEpoch;
+    });
 }
