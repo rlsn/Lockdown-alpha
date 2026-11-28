@@ -821,9 +821,19 @@ class EvidenceTest(AdapterCase):
     def test_a_timeout_without_any_duelist_hit_is_no_engagement_not_censored(self):
         value = result(kind="timeout", ended_at_ms=50000)
         value["contenders"][1] = contender("opponent", 1, O, hp=10000)
-        out = self.evidence(value, trace(drop=("hit1", "hit2", "lethal", "death", "death_reward")))
+        no_hits = ("hit1", "hit2", "lethal", "death", "death_reward")
+        out = self.evidence(value, trace(drop=no_hits))
         self.assertEqual(out["status"], "Invalid", out)
         self.assertIn("NoEngagement", out["reason"])
+        self.assertIn("closest approach 200 cm", out["reason"], "the 6000 heartbeats stand 200 cm apart")
+        # A kite stance may keep its distance on purpose: the same timeout is a censored result.
+        stance = {"kind": "kite", "standoff_cm": 600}
+        kite = manifest(subject={"choices": ["ai_select"] * 3, "stance": stance}, sample="diagnostic")
+        begin = f"LD_EVAL_CASE_BEGIN case=c000a-t index=0 seed=7 subject={S} opponent={O}"
+        profile = f"LD_EVAL_PROFILE contender={S} rival={O} site=capture choices=3 reaction_ms=0 aim_error_cm=0 skip_bp=0"
+        kept = self.evidence(value, trace(drop=no_hits).replace(begin, begin + "\n" + profile), plan_manifest=kite)
+        self.assertEqual(kept["status"], "Completed", kept["reason"])
+        self.assertTrue(kept["metrics"]["duel_score"]["censored"])
 
     def test_a_duelist_that_never_casts_through_its_engagement_is_invalid(self):
         out = self.evidence(text=trace(drop=("o_cast",)))
@@ -835,6 +845,13 @@ class EvidenceTest(AdapterCase):
         quick = trace(drop=NO_CASTS).replace("LD_HIT t=10000", f"LD_HIT t={start}").replace("LD_HIT t=11000",
                                                                                             f"LD_HIT t={start + 1}")
         self.assertEqual(self.evidence(text=quick)["status"], "Completed")
+        # SkipBp holds casts on purpose, so zero casts under it is the planned play, not a failure.
+        stance = {"kind": "pursue", "skip_bp": 9000}
+        skipping = manifest(opponent={"choices": ["ai_select"] * 3, "stance": stance}, sample="diagnostic")
+        begin = f"LD_EVAL_CASE_BEGIN case=c000a-t index=0 seed=7 subject={S} opponent={O}"
+        profile = f"LD_EVAL_PROFILE contender={O} rival={S} site=capture choices=3 reaction_ms=0 aim_error_cm=0 skip_bp=9000"
+        held = self.evidence(text=trace(drop=("o_cast",)).replace(begin, begin + "\n" + profile), plan_manifest=skipping)
+        self.assertEqual(held["status"], "Completed", held["reason"])
         self.assertIn("NeverCast", " ".join(lockdown.limitations(manifest(), self.caps)))
 
     def test_simultaneous_reciprocal_kills_are_an_observed_trade_not_a_win_or_timeout(self):

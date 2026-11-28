@@ -42,6 +42,9 @@ CAST_LAG_MS = 50
 # Sample validity, not a balance target: a duelist that holds a learned active and casts none over this much engagement
 # (every active is ready at the field entry) did not exercise its build, so the Case is Invalid (NeverCast).
 NEVER_CAST_GRACE_MS = 5000
+# Stances that walk into the rival: a timeout with no hit between two of them is an approach failure (NoEngagement); a
+# kite, hold or guard stance may keep its distance on purpose, so such a timeout stays a censored result.
+ENGAGING_STANCES = ("pursue", "burst")
 ROLES = ("subject", "opponent")
 PUBLIC_PLACE_KINDS = ("Spawn", "Camp", "Capture", "Dorm", "Airdrop")
 CATALOG_EVIDENCE = "in the runtime catalog the native importer accepted (it refuses any definition without a handler)"
@@ -1179,15 +1182,21 @@ def case_evidence(case, manifest, caps, result, trace_text):
         reasons.append("TraceIncomplete: duelist skill hits without any LD_CAST line (the Host build predates the cast trace)")
     duel_hits = [int(row["t"]) for tag, row, _ in events if tag == "LD_HIT" and t0 <= int(row["t"]) <= t_out
                  and {row["src"], row["victim"]} == duelists]
-    if outcome["kind"] == "timeout" and not duel_hits:
-        reasons.append("NoEngagement: the duelists never hit each other before the duel horizon (an approach or pathing "
-                       "failure, not a censored fight)")
-    elif duel_hits and t_out - min(duel_hits) >= NEVER_CAST_GRACE_MS:
+    plan = plans[case["arm"]]
+    engaging = all((_stance(plan, role) or {}).get("kind", "pursue") in ENGAGING_STANCES for role in ROLES)
+    if outcome["kind"] == "timeout" and not duel_hits and engaging:
+        reasons.append(f"NoEngagement: the duelists never hit each other before the duel horizon (closest approach "
+                       f"{_closest_approach(events, ids, t0, t_out)}; an approach or pathing failure, not a censored fight)")
+    elif duel_hits:
         for row in rows:
-            if row["actives"] and not casts[row["role"]]:
+            knobs = operation_knobs(plan, row["role"])
+            engaged_ms = t_out - min(duel_hits)
+            # SkipBp holds casts on purpose and ReactionMs delays each one: zero casts can then be the planned play.
+            if (row["actives"] and not casts[row["role"]] and not knobs["skip_bp"]
+                    and engaged_ms >= NEVER_CAST_GRACE_MS + knobs["reaction_ms"]):
                 reasons.append(f"NeverCast: the {row['role']} held {len(row['actives'])} learned "
                                f"active{'s' if len(row['actives']) != 1 else ''} and cast none in "
-                               f"{(t_out - min(duel_hits)) / 1000:g} s of engagement (an AI execution failure; the sample "
+                               f"{engaged_ms / 1000:g} s of engagement (an AI execution failure; the sample "
                                f"does not exercise its build)")
     if out["violations"]:
         reasons.append("EvidenceViolation: a committed hit contradicts its recorded damage")
@@ -1219,6 +1228,18 @@ def case_evidence(case, manifest, caps, result, trace_text):
         "opponent_casts": {"value": casts["opponent"], "censored": False},
     })
     return out
+
+
+def _closest_approach(events, ids, t0, t_out):
+    """The smallest XY distance between the duelists over their same-time heartbeats, or "unknown" without any."""
+    feet = {}
+    for tag, fields, _ in events:
+        if tag == "LD_HEARTBEAT" and fields.get("contender") in ids.values() and fields.get("t", "").isdigit() \
+                and t0 <= int(fields["t"]) <= t_out and re.fullmatch(r"-?[\d.]+,-?[\d.]+,-?[\d.]+", fields.get("pos", "")):
+            x, y, _ = (float(part) for part in fields["pos"].split(","))
+            feet.setdefault(int(fields["t"]), {})[fields["contender"]] = (x, y)
+    gaps = [math.dist(*pair.values()) for pair in feet.values() if len(pair) == 2]
+    return f"{min(gaps):.0f} cm" if gaps else "unknown"
 
 
 def _is_outcome_kill_reward(fields, outcome, ids, t_out):
@@ -1592,8 +1613,9 @@ def limitations(manifest, caps):
     if uneven:
         out.append(f"属性点预算不对等（{', '.join(f'`{arm}`' for arm in uneven)}）：一方花完赚到的全部属性点，另一方"
                    "（keep_points_unspent）全部不分配；这些 arm 的结果同时包含属性点预算差与构筑本身，不能单独归因于构筑质变。")
-    out.append(f"无效样本不计入结论：到时双方从未互相命中（NoEngagement，接近或寻路失败，不是删失）；学会主动的一方在至少 "
-               f"{NEVER_CAST_GRACE_MS / 1000:g} s 交战中一次未施放（NeverCast，AI 执行失败）。")
+    out.append(f"无效样本不计入结论：双方都是走近交战的架势（pursue/burst）而到时从未互相命中（NoEngagement，接近或寻路"
+               f"失败，不是删失，原因里写最近距离）；学会主动的一方在至少 {NEVER_CAST_GRACE_MS / 1000:g} s（另加其 reaction_ms）"
+               f"交战中一次未施放（NeverCast，AI 执行失败；设了 skip_bp 的一方不判）。kite/hold/guard 架势到时未交手仍是删失。")
     if manifest["sample_class"] == "legal_search":
         out.append("候选由原生抽取按 Case 种子真实抽出，选择按计划规则；搜索频率不是自然出现率。")
     return out
