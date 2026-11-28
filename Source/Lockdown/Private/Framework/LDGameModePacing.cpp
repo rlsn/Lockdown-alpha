@@ -32,6 +32,26 @@ int64 NextMultiple(int64 NowT, int64 Interval)
 {
     return Interval > 0 ? (NowT / Interval + 1) * Interval : MAX_int64;
 }
+
+// One line per objective phase change, its end included. At the arena's close: how many contenders stood alive inside and
+// how many had scored damage inside, so a winnerless arena tells an empty circle from one nobody fought in.
+void LogObjective(const FLDObjectiveState& Objective, int64 T, const TArray<LDFieldPacing::FPresence>* Living = nullptr)
+{
+    const FLDObjectiveView& View = Objective.View;
+    FString Close;
+    if (Living)
+    {
+        int32 Inside = 0;
+        for (const LDFieldPacing::FPresence& Presence : *Living)
+        {
+            Inside += FVector::DistSquared2D(View.CentreCm, Presence.FootCm) <= FMath::Square(double(View.RadiusCm)) ? 1 : 0;
+        }
+        Close = FString::Printf(TEXT(" inside=%d scorers=%d"), Inside, Objective.ArenaDamageP2.Num());
+    }
+    UE_LOG(LogLDWorld, Display, TEXT("LD_OBJECTIVE serial=%u kind=%s phase=%u anchor=%s field_t_ms=%lld winner=%s%s"), View.Serial,
+        View.Kind == ELDObjectiveKind::Arena ? TEXT("arena") : TEXT("mini_flag"), uint32(View.Phase), *View.AnchorId.ToString(), T,
+        *LDLog::Id(View.Winner), *Close);
+}
 }
 
 void ALDGameMode::ResetPacing()
@@ -148,21 +168,19 @@ bool ALDGameMode::AdvanceFieldPacing(const FLDGameplayWritePermit& Permit, FStri
     if (Objective.Advance(T))
     {
         bPublicMatchDirty = true;
-        const FLDObjectiveView& View = Objective.View;
-        UE_LOG(LogLDWorld, Display, TEXT("LD_OBJECTIVE serial=%u kind=%s phase=%u anchor=%s field_t_ms=%lld"), View.Serial,
-            View.Kind == ELDObjectiveKind::Arena ? TEXT("arena") : TEXT("mini_flag"), uint32(View.Phase), *View.AnchorId.ToString(), T);
+        LogObjective(Objective, T);
     }
     // The arena settles at its close: the winner is judged from the living feet now; its reward is paid in Transactions.
-    FLDObjectiveView& View = Objective.View;
-    if (View.Kind == ELDObjectiveKind::Arena && View.Phase == ELDObjectivePhase::Open && T >= View.ClosesAtT)
+    if (Objective.View.Kind == ELDObjectiveKind::Arena && Objective.View.Phase == ELDObjectivePhase::Open && T >= Objective.View.ClosesAtT)
     {
         TArray<LDFieldPacing::FPresence> Living;
         BuildPacingPresence(Living);
-        View.Winner = Objective.ArenaWinner(Living);
-        View.Phase = View.Winner.IsValid() ? ELDObjectivePhase::Won : ELDObjectivePhase::Expired;
-        bObjectiveRewardOwed = View.Winner.IsValid();
-        bPublicMatchDirty = true;
-        UE_LOG(LogLDWorld, Display, TEXT("LD_ARENA_CLOSE serial=%u winner=%s field_t_ms=%lld"), View.Serial, *LDLog::Id(View.Winner), T);
+        if (Objective.SettleArena(T, Living))
+        {
+            bObjectiveRewardOwed = Objective.View.Winner.IsValid();
+            bPublicMatchDirty = true;
+            LogObjective(Objective, T, &Living);
+        }
     }
     // Spec §11.3: the dealer comes out once beside a camp, and leaves unkilled.
     if (!Peddler.bSpawned && T >= Peddler.AppearT && T < Peddler.LeaveT && T >= Peddler.RetryT)
@@ -235,8 +253,7 @@ bool ALDGameMode::ClaimFieldPacing(const FLDGameplayWritePermit& Permit, FString
     if (Objective.StepFlag(T, Living, bChanged))
     {
         const FLDObjectiveView& View = Objective.View;
-        UE_LOG(LogLDWorld, Display, TEXT("LD_MINI_FLAG_WON serial=%u anchor=%s winner=%s field_t_ms=%lld"), View.Serial,
-            *View.AnchorId.ToString(), *LDLog::Id(View.Winner), T);
+        LogObjective(Objective, T);
         if (!PayPacingReward(View.Winner, TEXT("mini_flag"), View.Serial, ELDFieldRewardKind::MiniFlagOffer,
             Permit, Error)) { return false; }
     }
