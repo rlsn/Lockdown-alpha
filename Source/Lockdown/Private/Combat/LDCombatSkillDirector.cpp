@@ -250,7 +250,8 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
         Cordon.Payload=Payload;
         Cordon.Terms=*Tape;
         Cordon.CentreCm=Centre;
-        Cordon.HalfWidthCm=FMath::Max(25.,Cm(Tape->ExtraDistanceCm));
+        // The authored width is the whole tape across (spec 500 x 70 cm).
+        Cordon.HalfWidthCm=FMath::Max(25.,Cm(Tape->ExtraDistanceCm)*.5);
         Cordon.OwnerGroup=Body.IsolationGroup;
         Cordon.OwnerPKSide=Body.PKSide;
         Cordon.CreatedSerial=++NextAreaSerial;

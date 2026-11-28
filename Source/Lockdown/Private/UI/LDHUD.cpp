@@ -4542,7 +4542,7 @@ void ULDHUD::PaintWorldPreviews(const FGeometry& G,FSlateWindowElementList& E,in
                             bCordonShape=Ef.GetOp()==ELDDemoEffectOp::CordonLine;
                             bFanShape=!bCordonShape;
                             ShapeLengthCm=RationalCm(Ef.RadiusCm);
-                            ShapeHalfWidthCm=bCordonShape?FMath::Max(25.,RationalCm(Ef.ExtraDistanceCm)):RationalCm(Ef.ExtraDistanceCm)*.5;
+                            ShapeHalfWidthCm=bCordonShape?FMath::Max(25.,RationalCm(Ef.ExtraDistanceCm)*.5):RationalCm(Ef.ExtraDistanceCm)*.5;
                             continue;
                         }
                         if(Ef.GroundKind!=0)

@@ -5191,6 +5191,38 @@ bool FLDCombatFrenzyThirdWaveTest::RunTest(const FString& Parameters)
     return true;
 }
 
+// N6's tape is 70 cm across (spec 500 x 70 cm): a body touches it when the band reaches its collision, never 70 cm to each side.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatCordonWidthTest, "Lockdown.Rules.Combat.Skills.CordonWidth",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCombatCordonWidthTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    FString Error;
+    const FLDCombatBodyRef Warden = F.AddBody(), Near = F.AddBody(), Far = F.AddBody();
+    F.Place(Warden, 0, 0);
+    F.Place(Near, 360, 200);
+    F.Place(Far, 400, -200);
+    if (!InstallCards(*this, F, Warden, 6, {})) { return false; }
+    FLDCombatActiveTerms Terms;
+    FLDCombatHit Payload;
+    if (!Released(*this, F, Warden, TEXT("active_cordon_tape"), Terms, Payload)) { return false; }
+    FLDCombatAction Action;
+    Action.TargetPoint = F.Origin + FVector(300, 0, 0);
+    F.Now(1000);
+    bool bHandled = false;
+    if (!TestTrue(TEXT("The tapped cordon places across the cast: ") + Error,
+        FAccess::DeliverTerms(*F.Driver, F.Body(Warden), Terms, Action, Payload, 1000, bHandled, Error) && bHandled
+            && FAccess::Cordons(*F.Driver).Num() == 1))
+    { return false; }
+    TestEqual(TEXT("Half the authored 70 cm on each side of the tape"), FAccess::Cordons(*F.Driver)[0].HalfWidthCm, 35.);
+    if (!TestTrue(TEXT("The cordon steps: ") + Error, FAccess::AdvanceCordons(*F.Driver, 1050, Error) && Drain(*this, F))) { return false; }
+    TestTrue(TEXT("A body 60 cm from the tape touches it"), !F.Body(Near).Slows.IsEmpty());
+    TestTrue(TEXT("A body 100 cm from the tape does not"), F.Body(Far).Slows.IsEmpty() && F.Body(Far).Branch.Vulnerabilities.IsEmpty());
+    return true;
+}
+
 // Vector cast (LoL-style press, drag, release): the cordon tape and the desk fan take a dragged facing with their ground
 // point; every other ground-point skill keeps a plain point. A tap (no facing) keeps the default: the cordon centred on the
 // point across the cast, the fan blowing away from the caster.
