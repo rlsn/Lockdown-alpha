@@ -74,6 +74,15 @@ TArray<FLDBreakoutPreset> MakeBreakoutPresets()
     Minefield.bAIGoal = false;
     Minefield.Allocation = {{TEXT("stat_physique"), 18}, {TEXT("stat_brains"), 18}, {TEXT("stat_thick_skin"), 6}, {TEXT("stat_agility"), 6}};
     Out.Add(MoveTemp(Minefield));
+    // B01 X1 (evaluation only, never an AI goal): S02 2B 抽裤腰带, the 620 cm line grab, with the two control skill cards
+    // (card_pin_amp, card_hold_longer) on it. A test of how much the far root depends on aiming ahead of the rival.
+    FLDBreakoutPreset LongGrab{TEXT("breakout_long_grab"), TEXT("抽裤腰带（评估）"),
+        {{TEXT("active_pants_down"), EB::B}},
+        {{TEXT("card_pin_amp"), ET::Skill, 0}, {TEXT("card_hold_longer"), ET::Skill, 0}}};
+    LongGrab.bAIGoal = false;
+    LongGrab.Allocation = {{TEXT("stat_strength"), 18}, {TEXT("stat_agility"), 18}, {TEXT("stat_physique"), 4},
+        {TEXT("stat_thick_skin"), 4}, {TEXT("stat_brains"), 4}};
+    Out.Add(MoveTemp(LongGrab));
     return Out;
 }
 }

@@ -249,14 +249,24 @@ bool RunPolicy(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("Building: the unspent points are allocated before the body moves"),
         Decision.Build.Kind == ELDOpponentBuildKind::AllocatePoints && Decision.Body.Kind == ELDOpponentBodyKind::None
         && State.Phase == ELDEvaluationPhase::Building);
-    // A blueprint with Q/W/E full waits for the rest-only replacement and never holds the duel.
+    // A blueprint with Q/W/E full that ranks below every learned active is sold by the production follow-up rule (#374: a
+    // sale is open in the field). Before the first fight it settles like any build step; once engaging it never holds the duel.
     auto Full = Engage;
     Full.Self.Actives = {Active(TEXT("active_not_mad"), 0), Active(TEXT("active_snark_bolt"), 1), Active(TEXT("active_elbow"), 2)};
     Full.Self.Blueprints = {TEXT("active_seethe")};
     State = {};
     Decision = Decide(Full, Profile, State);
-    bGood &= Test.TestTrue(TEXT("A blueprint without an empty slot does not hold the duel"),
+    bGood &= Test.TestTrue(TEXT("Before the first fight the blueprint's sale settles first"),
+        Decision.Build.Kind == ELDOpponentBuildKind::SellBlueprint && State.Phase == ELDEvaluationPhase::Building);
+    auto Sold = Full;
+    Sold.Self.Blueprints.Reset();
+    Decision = Decide(Sold, Profile, State);
+    bGood &= Test.TestTrue(TEXT("Once sold the duel starts"),
         Decision.Build.Kind == ELDOpponentBuildKind::None && State.Phase == ELDEvaluationPhase::Engaging);
+    Decision = Decide(Full, Profile, State);
+    bGood &= Test.TestTrue(TEXT("A blueprint without an empty slot does not hold the duel"),
+        State.Phase == ELDEvaluationPhase::Engaging
+        && (Decision.Body.Kind == ELDOpponentBodyKind::AttackUnit || Decision.Body.Kind == ELDOpponentBodyKind::Activate));
     auto Low = Engage;
     Low.Self.HpP2 = Low.Self.MaxHpP2 / 10;
     State = {};
