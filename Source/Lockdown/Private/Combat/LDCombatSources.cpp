@@ -470,6 +470,8 @@ bool ALDCombatDirector::ActiveOf(const FLDCombatEntityRecord& Record, const FLDC
             *LDLog::Source(Source),*Error);
         return false;
     }
+    // Auto-empower: while the experiment runs a learned Q/W/E costs no momentum (only its cooldown limits it).
+    if (Source.Kind==ELDCombatSourceKind::Learned && EmpowerTerms()) { Out.Values.MomentumCostP2=0; }
     // C-14 prototype (-LDProtoPotDelay): S08's 2B forms (2B, 3B1, 3B2) land after the switch's delay; 3B1's second blast
     // still follows the first by its own content delay.
     if (Proto.PotDelayMs>=0 && Source.Kind==ELDCombatSourceKind::Learned && Source.DefinitionId==LDProto::PotSkillId()
@@ -1036,6 +1038,21 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
     Out.BuildSafeAtMs=LDCombatSourceRules::BuildSafeAtMs(Record->LastBuildUnsafeAtMs,Content->Get().Parameters.BuildSafeWindowMs);
     // The chain history belongs to the contender: an eliminated one without a body still receives its last chain ends.
     ReadOwnerChains(Caller.EntityId,Out.Chains);
+    if (const FLDDemoEmpowerParameters* Empower=EmpowerTerms())
+    {
+        Out.bEmpowerEnabled=true;
+        Out.EmpowerHost=EmpowerHostOf(*Record);
+        Out.EmpowerProcessor=uint8(EmpowerProcessorOf(*Record,Out.EmpowerHost));
+        Out.bEmpowerHostChosen=Record->EmpowerHost!=ELDCombatEntry::None;
+        Out.EmpowerHostSequence=Record->EmpowerHostSequence;
+        Out.EmpowerThresholdP2=Empower->ThresholdP2;
+        Out.EmpowerCostP2=Empower->CostP2;
+        if (Body)
+        {
+            Out.Empowerments=Body->Empowerments;
+            Out.LastEmpowerAtMs=Body->LastEmpowerAtMs;
+        }
+    }
     if (Body)
     {
         Out.HPP2=Body->Resources.HpP2;

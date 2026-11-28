@@ -432,7 +432,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     {FSlateDrawElement::MakeRotatedBox(E,Base+Layer,G.ToPaintGeometry(FVector2f(Edge,Edge),FSlateLayoutTransform(At-FVector2f(Edge*.5f,Edge*.5f))),White,ESlateDrawEffect::None,UE_PI*.25f,TOptional<FVector2f>(),FSlateDrawElement::RelativeToElement,Tint);};
     auto DrawSegmentedBar=[&](float BarLeft,float BarTop,float BarW,float BarH,int64 CurrentHPP2,int64 MaxHPP2,int64 ShieldP2,
         const FLinearColor& HPFill,const LDWorldLabels::FBarTrailState& Trail,bool bHasMomentum,float MomentumFrac,
-        const FLinearColor* AccentFrame)
+        const FLinearColor* AccentFrame,bool bEmpowerReady=false)
     {
         const float ShakeAge=float(UiNow-Trail.LastShakeAtSec);
         const float ShakeOffset=(ShakeAge>=0.f&&ShakeAge<.14f)?3.5f*(1.f-ShakeAge/.14f)*FMath::Sin(ShakeAge*95.f):0.f;
@@ -513,7 +513,9 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             Box(2,FVector2f(X0,MomTop),FVector2f(BarW,ContenderMomentumHeight),LDHUDStyle::BarTrack);
             if(MomentumFrac>0.f)
             {
-                Box(3,FVector2f(X0,MomTop),FVector2f(BarW*FMath::Clamp(MomentumFrac,0.f,1.f),ContenderMomentumHeight),WorldMomentumFill);
+                // Auto-empower: a contender whose next host action is empowered shows a gold bar.
+                Box(3,FVector2f(X0,MomTop),FVector2f(BarW*FMath::Clamp(MomentumFrac,0.f,1.f),ContenderMomentumHeight),
+                    bEmpowerReady?LDBroadcast::Gold:WorldMomentumFill);
             }
         }
     };
@@ -869,6 +871,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
         int64 CurrentHPP2=0,MaxHPP2=0,ShieldP2=0;
         bool bHasMomentum=false;
         float MomentumFrac=0.f;
+        bool bEmpowerReady=false;
         float CCFrac=0.f;
         FString CCName;
         TArray<TPair<FString,FLinearColor>,TInlineAllocator<4>> ElemDiscs;
@@ -916,6 +919,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             {
                 Entry.bHasMomentum=true;
                 Entry.MomentumFrac=float(Unit.MomentumBar)/float(LDObservation::MomentumBarFull);
+                Entry.bEmpowerReady=Unit.EmpowerReady!=0;
             }
             for(const FLDObservedStatus& St:Unit.Statuses)
             {
@@ -1121,7 +1125,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             const FLinearColor TargetFrame=FLinearColor::White;
             DrawSegmentedBar(BarLeft,BarTop,Dim.X,Dim.Y,Entry.CurrentHPP2,Entry.MaxHPP2,Entry.ShieldP2,
                 HPFill,Entry.TrailSnapshot,Entry.bHasMomentum,Entry.MomentumFrac,
-                (bBoss||Label.CampTier>=0)?&TierAccent:bTargetFrame?&TargetFrame:nullptr);
+                (bBoss||Label.CampTier>=0)?&TierAccent:bTargetFrame?&TargetFrame:nullptr,Entry.bEmpowerReady);
 
             float UpperY=BarTop-2.f;
             // A training dummy is nobody's seat: it keeps its name and bar only.

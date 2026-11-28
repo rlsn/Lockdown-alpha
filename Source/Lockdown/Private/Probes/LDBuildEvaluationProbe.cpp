@@ -4,6 +4,8 @@
 #if WITH_DEV_AUTOMATION_TESTS
 #include "AI/LDOpponentController.h"
 #include "Algo/Find.h"
+#include "Combat/LDAutoEmpower.h"
+#include "Combat/LDCombatDirector.h"
 #include "Containers/Ticker.h"
 #include "Development/LDBreakoutPresets.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -342,7 +344,8 @@ bool ParseContender(const FJsonObject& Object, const FString& Where, FLDEvalCont
     const TArray<TSharedPtr<FJsonValue>>* Presets = nullptr;
     const TArray<TSharedPtr<FJsonValue>>* Build = nullptr;
     if (!OnlyKeys(Object, {TEXT("role"), TEXT("slot"), TEXT("supply_xp"), TEXT("choices"), TEXT("opening_preset"),
-            TEXT("presets"), TEXT("level_cards"), TEXT("build"), TEXT("stance"), TEXT("breakout_preset")}, Where, Error)
+            TEXT("presets"), TEXT("level_cards"), TEXT("build"), TEXT("stance"), TEXT("breakout_preset"), TEXT("empower_host")},
+            Where, Error)
         || !ReadString(Object, TEXT("role"), Where, Out.Role, Error)
         || !ReadInteger(Object, TEXT("slot"), Where, 0, DuelAISlots - 1, Slot, Error)
         || !ReadInteger(Object, TEXT("supply_xp"), Where, 0, 1000000, Supply, Error)
@@ -361,6 +364,17 @@ bool ParseContender(const FJsonObject& Object, const FString& Where, FLDEvalCont
     }
     Out.Slot = int32(Slot);
     Out.SupplyXP = Supply;
+    if (Object.HasField(TEXT("empower_host")))
+    {
+        FString Host;
+        if (!ReadString(Object, TEXT("empower_host"), Where, Host, Error)) { return false; }
+        Out.EmpowerHost = LDAutoEmpower::ParseHost(Host);
+        if (Out.EmpowerHost == ELDCombatEntry::None)
+        {
+            Error = Where + TEXT(".empower_host: Basic, Q, W, E or D");
+            return false;
+        }
+    }
     if (Object.HasField(TEXT("breakout_preset")))
     {
         FString Preset;
@@ -896,6 +910,7 @@ public:
             Profile.WarningReactMs = Row.Contenders[Index].WarningReactMs;
             Profile.bLeadAim = Row.Contenders[Index].bLeadAim;
             Profile.bReserveDash = Row.Contenders[Index].bReserveDash;
+            Profile.EmpowerHost = Row.Contenders[Index].EmpowerHost;
             Profile.OperationSeed = Row.Seed;
             if (LDProgression::LevelForXP(Content->Get().Progression, Row.Contenders[Index].SupplyXP, Profile.SupplyLevel)
                 != ELDGrowthReason::None)
@@ -1093,6 +1108,23 @@ public:
                     return true;
                 }
                 ++Sides[Index].PresetsQueued;
+            }
+        }
+        // Auto-empower: a planned host goes through the authority's own host command (its receipt is LD_EMPOWER_HOST).
+        for (int32 Index = 0; Index < LDBuildEvaluation::DuelAISlots; ++Index)
+        {
+            const ELDCombatEntry Host = Case().Contenders[Index].EmpowerHost;
+            if (Host == ELDCombatEntry::None) { continue; }
+            FLDCombatCaller Caller;
+            Caller.Kind = ELDVictimKind::Contender;
+            Caller.Match = Mode.GetMatchContext();
+            Caller.EntityId = Sides[Index].Contender;
+            FString Reason;
+            if (!Mode.Combat || !Mode.Combat->SubmitEmpowerHost(Caller, 1, Host, Reason))
+            {
+                EndCase(Mode, World, TEXT("Invalid"), FString::Printf(TEXT("%s empower host refused: %s"),
+                    *Case().Contenders[Index].Role, Mode.Combat ? *Reason : TEXT("no combat authority")));
+                return true;
             }
         }
         return true;

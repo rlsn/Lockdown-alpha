@@ -1912,6 +1912,9 @@ bool ALDCombatDirector::ScheduleAutoRecasts(const FLDBodyCombatState& Body, cons
         // A repeat lands from where it is released; the first release's previewed landing and its key stay with it.
         Repeat.Action.Landing.Reset();
         Repeat.Action.bAutoRecast=true;
+        // A repeat is derived: never empowered (EMPOWER rule E2).
+        Repeat.Action.bEmpowered=false;
+        Repeat.Action.EmpowerProcessor=ELDEmpowerProcessor::None;
         Repeat.Action.AutoRecastScaleBp=Terms.AutoRecastScaleBp;
         Repeat.Card=FName(TEXT("card_encore"));
         Repeat.Action.ChainId=CurrentChain;
@@ -1947,7 +1950,7 @@ bool ALDCombatDirector::RunAutoRecasts(int64 NowMs, FString& Error)
 
 // ---------------------------------------------------------------- issue #292 P5 cards
 
-bool ALDCombatDirector::OnShieldBrokenCards(FLDBodyCombatState& Holder, int64 NowMs, FString& Error)
+bool ALDCombatDirector::OnShieldBrokenCards(FLDBodyCombatState& Holder, int64 NowMs, FString& Error, int32 EmpowerSerial)
 {
     using namespace LDCombatCardsDetail;
     if (Holder.bPendingDeath) { return true; }
@@ -1975,6 +1978,7 @@ bool ALDCombatDirector::OnShieldBrokenCards(FLDBodyCombatState& Holder, int64 No
         Blast.SourceMaxHPP2=BonusMaxHpP2Of(Holder);
         Blast.DamageType=ELDDemoDamageType::Magical;
         Blast.bFromShieldTrigger=true;
+        Blast.EmpowerSerial=EmpowerSerial;
         if (!StampSourceTerms(Holder,Blast,Error)) { return false; }
         PendingHits.Add(MoveTemp(Blast));
     }

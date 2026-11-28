@@ -592,4 +592,16 @@ struct FLDCombatOwnerView
     UPROPERTY() int64 BuildSafeAtMs=0;
     // The server-fixed duration of this life's respawn wait, for the owning player's countdown only.
     UPROPERTY() int64 RespawnDurationMs=0;
+    // Auto-empower (LDAutoEmpower): whether the authority runs the experiment, the host the next empowered action takes and
+    // its processor (ELDEmpowerProcessor), whether the owner chose it, the last host request judged, the bar it needs and
+    // its price, and this life's empowered actions with the last one's instant (the owner's notice).
+    UPROPERTY() bool bEmpowerEnabled=false;
+    UPROPERTY() ELDCombatEntry EmpowerHost=ELDCombatEntry::None;
+    UPROPERTY() uint8 EmpowerProcessor=0;
+    UPROPERTY() bool bEmpowerHostChosen=false;
+    UPROPERTY() uint64 EmpowerHostSequence=0;
+    UPROPERTY() int64 EmpowerThresholdP2=0;
+    UPROPERTY() int64 EmpowerCostP2=0;
+    UPROPERTY() int32 Empowerments=0;
+    UPROPERTY() int64 LastEmpowerAtMs=0;
 };

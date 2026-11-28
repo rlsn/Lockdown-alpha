@@ -677,6 +677,34 @@ void ALDPlayerController::ServerCancelCombatAction_Implementation(const FLDComba
     ClientCombatReceipt(Mode->Combat->CancelAction(Caller,Request));
 }
 
+void ALDPlayerController::RequestEmpowerHost(ELDCombatEntry Host)
+{
+    EmpowerHostSequence=FMath::Max(EmpowerHostSequence,CombatView.EmpowerHostSequence)+1;
+    ServerSetEmpowerHost(CombatView.Generation,EmpowerHostSequence,Host);
+}
+
+void ALDPlayerController::ServerSetEmpowerHost_Implementation(uint32 Generation, uint64 Sequence, ELDCombatEntry Host)
+{
+    auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
+    FLDCombatCaller Caller;
+    FString Reason;
+    if (!Mode || !Mode->Combat || !Mode->Combat->ResolveControllerCaller(*this,Caller,Reason))
+    {
+        ClientEmpowerHostRefused(Sequence,TEXT("对局已变化"));
+        return;
+    }
+    if (Generation!=Caller.Match.Generation) { ClientEmpowerHostRefused(Sequence,TEXT("对局已变化")); return; }
+    if (!Mode->Combat->SubmitEmpowerHost(Caller,Sequence,Host,Reason)) { ClientEmpowerHostRefused(Sequence,Reason); }
+}
+
+void ALDPlayerController::ClientEmpowerHostRefused_Implementation(uint64 Sequence, const FString& Reason)
+{
+    UE_LOG(LogLDCombat,Display,TEXT("LD_EMPOWER_HOST refused sequence=%llu reason=%s"),Sequence,*Reason);
+    EmpowerHostRefusedSequence=Sequence;
+    EmpowerHostRefusal=Reason;
+    PostIntentNotice(Reason);
+}
+
 // Only records the receipt: the HUD alone presents combat receipts (LDHUD::CombatReceiptNotice).
 void ALDPlayerController::ClientCombatReceipt_Implementation(const FLDCombatActionReceipt& Receipt)
 {

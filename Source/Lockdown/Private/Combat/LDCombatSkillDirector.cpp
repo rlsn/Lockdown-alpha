@@ -252,6 +252,7 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
         Cordon.Id=FGuid::NewGuid();
         Cordon.Payload=Payload;
         Cordon.Terms=*Tape;
+        Cordon.TouchStunMs=Terms.EmpowerShape.TouchStunMs;
         Cordon.CentreCm=Centre;
         // The authored width is the whole tape across (spec 500 x 70 cm).
         Cordon.HalfWidthCm=FMath::Max(25.,Cm(Tape->ExtraDistanceCm)*.5);
@@ -352,7 +353,7 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
         { Error=TEXT("A contact skill has no matching released dash."); return false; }
         Payload.bDashContactHit=true;
         Body.DashContact->NativeHit=Payload;
-        Body.DashContact->NativeHitsRemaining=Contact->bEveryContact ? MAX_int32 : Contact->Count;
+        Body.DashContact->NativeHitsRemaining=Contact->bEveryContact || Body.DashContact->bEmpowered ? MAX_int32 : Contact->Count;
         bHandled=true;
     }
     return true;
@@ -642,6 +643,12 @@ bool ALDCombatDirector::ResolveDashContacts(int64 NowMs, FString& Error)
         auto& Dash=*Contact.Dash;
         auto* Body=FindBody(Dash.Body);
         if (!Body || Body->bPendingDeath || Dash.Struck.Contains(Contact.Target)) { continue; }
+        // Auto-empower (rule E3): an empowered dash settles at most EMPOWER.DashContactCap contacts; the rest are no contact.
+        if (Dash.bEmpowered)
+        {
+            const FLDDemoEmpowerParameters* EmpowerP=EmpowerTerms();
+            if (EmpowerP && Dash.Struck.Num()>=EmpowerP->DashContactCap) { continue; }
+        }
         Dash.Struck.Add(Contact.Target);
         // Spec §6.5: the contact's cards and hits are steps of the dash's own chain (while it is open).
         TGuardValue<FGuid> ChainScope(CurrentChain,EffectChains.FindRef(Dash.EffectId));

@@ -34,8 +34,8 @@ namespace LDBroadcastPaint
     // outside the roster paints a neutral plate with "?".
     LOCKDOWN_API void SeatPlate(const LDUIPaint::FContext& P,int32 Layer,const FBox2D& Box,int32 Seat,float TextScale=1.f,float FigurePx=0.f);
 
-    // A bar: a dark track, a white damage trail, the fill, an optional shield run after the fill and thin cuts every Segment
-    // (a fraction of the track; 0 = none).
+    // A bar: a dark track, a white damage trail, the fill, an optional shield run after the fill, thin cuts every Segment
+    // (a fraction of the track; 0 = none) and a notch at Notch (0..1, <0 = none) standing above and below the track.
     struct FBar
     {
         float Fraction=0.f;
@@ -45,6 +45,8 @@ namespace LDBroadcastPaint
         FLinearColor Track=FLinearColor(0.f,0.f,0.f,.6f);
         FLinearColor ShieldInk=FLinearColor(FColor(0xA6,0xEC,0xFF));
         float Segment=0.f;
+        float Notch=-1.f;
+        FLinearColor NotchInk=FLinearColor::White;
         bool bLean=true;
     };
     LOCKDOWN_API void Bar(const LDUIPaint::FContext& P,int32 Layer,const FBox2D& Box,const FBar& Bar);

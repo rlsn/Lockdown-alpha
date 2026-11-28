@@ -16,6 +16,7 @@
 #include "Combat/LDCombatKeywords.h"
 #include "Combat/LDCombatElements.h"
 #include "Combat/LDMomentum.h"
+#include "Combat/LDAutoEmpower.h"
 #include "Development/LDBuildBlueprint.h"
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Vision/LDViewTypes.h"
@@ -70,6 +71,8 @@ struct FLDCombatCastLedger
     TArray<FLDCombatBodyRef> RecastFirst;
     bool bNextBasicGranted=false;
     bool bRecast=false;
+    // Auto-empower: the caster's serial of an empowered release (0 = none); its hits never give their caster momentum.
+    int32 EmpowerSerial=0;
 };
 
 // A vulnerability a skill branch left on a life: hits of Scope (from OwnerEntity only when it is set) take RatioBp more.
@@ -119,6 +122,11 @@ struct FLDCombatBranchState
         int64 ReflectBp=0, EndHealBp=0;
         TOptional<FLDDemoEffectDefinition> BreakBurst;
         FLDCombatSourceRef Exit;
+        // Auto-empower: an empowered guard's burst also goes off when the layer runs out (EmpowerShieldBurst).
+        bool bBurstOnLapse=false;
+        // Auto-empower: the serial of the empowered release that granted this layer (0 = ordinary); every burst of the
+        // layer (its own, S13 A1's, Y06's) is part of that action (rule E1).
+        int32 EmpowerSerial=0;
     };
     TArray<FShieldBranch> ShieldBranches;
     FShieldBranch& ShieldBranchFor(const FGuid& EffectId)
@@ -211,6 +219,8 @@ struct FLDCombatActiveTerms
     int64 DashMomentumCostP2=0;
     // K07: the multiplier the reshapes put into this release's areas (10000 without one).
     int64 AreaBp=10000;
+    // Auto-empower: the empowered release's behaviour switches (all off for an ordinary release).
+    FLDEmpowerShape EmpowerShape;
 };
 
 // Y08: a knockback whose source holds Y08 watches for its first real blocking fact (also a branch wall stun).
@@ -295,6 +305,11 @@ struct FLDCombatAction
     bool bWholeEffectShare=false;
     // Spec §6.5: the chain a free repeat (K06, A08) continues; unset for a player's own action (it opens one).
     FGuid ChainId;
+    // Auto-empower: the owner's own action of its host, started on a bar holding EMPOWER.Threshold (a repeat never is).
+    bool bEmpowered=false;
+    ELDEmpowerProcessor EmpowerProcessor=ELDEmpowerProcessor::None;
+    // A single-package fist skill already paid for this empowered punch.
+    bool bEmpowerPrepaid=false;
     TOptional<FLDCombatLandingPreview> Landing;
     // C-09: a committing windup (a branch's lengthened start or S17 2B's heavier basic): public until its release.
     bool bCommitWindup=false;
@@ -508,6 +523,17 @@ struct FLDBodyCombatState
     double IceSlideAccumCm=0;
     int64 ScholarBasicUntilMs=0;
     int64 ScholarSkillUntilMs=0;
+    // Auto-empower (LDCombatEmpowerDirector.cpp): the empowered actions of this life and what they paid, the momentum their
+    // chains kept from this caster, the time the bar held the threshold (ArmedSinceMs while it does, else -1), a single-package
+    // fist skill's pending empowered punch and the last empowered release (owner notice).
+    int32 Empowerments=0;
+    int64 EmpowerSpentP2=0;
+    int64 EmpowerBlockedP2=0;
+    int64 EmpowerArmedMs=0;
+    int64 EmpowerArmedSinceMs=-1;
+    bool bEmpowerPunchPending=false;
+    ELDEmpowerProcessor LastEmpowerProcessor=ELDEmpowerProcessor::None;
+    int64 LastEmpowerAtMs=0;
 };
 
 // The match counts the grow cards read (spec §7.4), kept on the entity record across lives.
@@ -574,6 +600,10 @@ struct FLDCombatEntityRecord
     // Grow cards (spec §7.4): the match counts their growth reads, kept across lives (Y19 healing, Y20 kills and assists,
     // Y21 controls taken) and K17's contender hits per installed copy (by serial).
     FLDCardGrowth CardGrowth;
+    // Auto-empower: the host the contender chose (None until it chooses: a human's is the basic, an AI's its best-invested
+    // entry) and the last host request sequence it judged (a repeat or older one changes nothing). Kept across lives.
+    ELDCombatEntry EmpowerHost=ELDCombatEntry::None;
+    uint64 EmpowerHostSequence=0;
 };
 
 // One committed hit waiting for the Effects phase.
@@ -700,6 +730,9 @@ struct FLDCombatHit
     bool bTriggersBasicOnHit=false;
     bool bStaggerBleed=false;
     TOptional<FLDDemoEffectDefinition> BackstabTerms;
+    // Auto-empower: the caster's serial of the empowered basic this hit belongs to (its cone hits too; 0 = none); a release's
+    // hits read their cast ledger instead.
+    int32 EmpowerSerial=0;
     bool CarriesElement(ELDCombatElement Element) const
     {
         return (NativeElements & LDCombatElements::Bit(Element))!=0
@@ -753,6 +786,8 @@ struct FLDCombatDashContact
     // The dash direction; D06 phases through bodies (each passed one takes a basic strike) and D01 refreshes the dash once.
     FVector Direction=FVector::ZeroVector;
     bool bPhase=false, bReset=false;
+    // Auto-empower: an empowered dash passes through bodies and settles at most EMPOWER.DashContactCap contacts.
+    bool bEmpowered=false;
 };
 
 struct FLDCombatContactMotion
@@ -906,6 +941,9 @@ struct FLDCombatProjectile
     // A08 on a flying third basic: its free Q is queued at the first contact, toward the body struck (bComboCast).
     bool bComboCast=false;
     FLDCombatAction ComboBasic;
+    // Auto-empower: an empowered flying punch pierces to the end of its flight; the bodies past the first take added damage
+    // (no on-hit, no combo step, no lifesteal).
+    bool bEmpowerPunch=false;
 };
 
 // A ground zone (EFFECT zone): Count pulses from StartMs+DelayMs every IntervalMs, and (#198) a slow check and a burn check
@@ -1009,6 +1047,16 @@ public:
     bool RecordDirectRefusal(const FLDCombatCaller& Caller, const FLDCombatActionRequest& Request, ELDCombatReject Reject,
         FLDCombatActionReceipt& Out);
     FLDCombatActionReceipt CancelAction(const FLDCombatCaller& Caller, const FLDCombatCancelRequest& Request);
+    // Auto-empower: the owner chooses its host (Basic, Q, W, E or D) by a per-contender increasing Sequence; a repeated or
+    // older sequence changes nothing (true, already judged). Refused (false with Reason) while the experiment is off, for a
+    // stale caller or for an entry that cannot host. The choice holds for the rest of the match.
+    bool SubmitEmpowerHost(const FLDCombatCaller& Caller, uint64 Sequence, ELDCombatEntry Host, FString& Reason);
+    // The match's EMPOWER terms while the experiment runs, else null.
+    const FLDDemoEmpowerParameters* EmpowerTerms() const;
+#if WITH_DEV_AUTOMATION_TESTS
+    // Rule tests run the experiment over the approved (switched-off) terms.
+    bool bEmpowerTestOverride=false;
+#endif
     FLDCombatActionReceipt QueryActionReceipt(const FLDCombatCaller& Caller, uint64 DirectSequence) const;
     FLDCombatEntryView QueryAvailability(const FLDCombatCaller& Caller, ELDCombatEntry Entry) const;
     // The body stands in a dorm and has been out of combat for DORM.RegenDelaySec (the dorm rest that allows a swap).
@@ -1242,6 +1290,8 @@ public:
         const FLDGameplayWritePermit& Permit, FString& Error);
     // Current and maximum HP of a living body; false when Combat does not hold it.
     bool ReadBodyHealth(const FLDCombatBodyRef& Body, int64& OutHpP2, int64& OutMaxHpP2) const;
+    // Auto-empower: the empowerments a contender's current body paid and the momentum they cost (false without a body).
+    bool ReadEmpowerLedger(const FGuid& ContenderId, int32& OutEmpowerments, int64& OutSpentP2) const;
     // Whether the body is Exposed at NowMs.
     bool IsExposed(const FLDCombatBodyRef& Body, int64 NowMs) const;
     // Line of sight between two feet with the area rule (ELDSightResult::Visible), for the throw's landing.
@@ -1409,6 +1459,56 @@ private:
         bool bNativeDirect, FString& Error);
     // One LD_MOMENTUM line of a contender life's momentum books (at the end of the life; a rest starts a new life).
     void LogMomentumLedger(const FLDBodyCombatState& Body) const;
+    // ---- Auto-empower (LDCombatEmpowerDirector.cpp, docs/systems/COMBAT_AND_GROWTH.md "自动强化实验").
+    // The host Record's next empowered action takes: its choice, else -LDEmpowerHost, else the basic for a human and the
+    // best-invested entry for an AI contender (LDAutoEmpower::AutoHost).
+    ELDCombatEntry EmpowerHostOf(const FLDCombatEntityRecord& Record) const;
+    // The processor of Entry on Record now (its learned active's release terms for Q/W/E).
+    ELDEmpowerProcessor EmpowerProcessorOf(const FLDCombatEntityRecord& Record, ELDCombatEntry Entry) const;
+    // Admission: whether an own action of Entry starting now is empowered: the host's, on a bar holding the threshold, and
+    // for a basic or D aimed at a contender (a basic's Target; D any enemy contender within sight radius), or at a camp
+    // member while no enemy contender is within sight radius. Returns the processor, None when it is not.
+    ELDEmpowerProcessor AdmitEmpower(const FLDBodyCombatState& Body, const FLDCombatEntityRecord& Record, ELDCombatEntry Entry,
+        const FLDCombatBodyRef* Target, int64 NowMs) const;
+    // Whether an enemy contender (or, bCamp, a camp member) stands within sight radius of Body.
+    bool EmpowerFoeNear(const FLDBodyCombatState& Body, bool bCamp) const;
+    // The processor's changes to an empowered release's terms (strike and ward shapes, guard windows, fist-skill charges and
+    // the element layer).
+    bool ApplyEmpowerTerms(const FLDBodyCombatState& Body, const FLDCombatEntityRecord& Record, const FLDDemoAbilityDefinition* Ability,
+        ELDEmpowerProcessor Processor, FLDCombatActiveTerms& Terms, FString& Error) const;
+    // The release of an empowered action: bApplied pays EMPOWER.Cost (unless prepaid) and counts it; otherwise the bar fell
+    // below the cost since the admission and the action released normally (outcome short). Logs LD_EMPOWER; returns the serial
+    // of an applied one (0 otherwise).
+    int32 PayEmpower(FLDBodyCombatState& Body, const FLDCombatAction& Action, bool bApplied, int64 NowMs);
+    // Marks the current chain as an empowered action's (rule E1).
+    void MarkEmpoweredChain();
+    // A guard shield's burst over its radius from Body (its break or its natural end), part of empowered action Serial.
+    bool EmpowerShieldBurst(FLDBodyCombatState& Body, const FLDDemoEffectDefinition& Burst, const FLDCombatSourceRef& Exit,
+        int32 Serial, FString& Error);
+    // The empowered action serial of a shield layer Body holds (0 = an ordinary layer).
+    static int32 EmpowerSerialOfLayer(const FLDBodyCombatState& Body, const FGuid& LayerId);
+    // After an empowered ability's effects: a guard shield's burst, a move's quake, a single-package fist skill's punch.
+    bool EmpowerAfterRelease(FLDBodyCombatState& Body, ELDEmpowerProcessor Processor, const FLDCombatSourceRef& Exit,
+        const FGuid& EffectId, const TSharedPtr<FLDCombatCastLedger>& Ledger, int64 NowMs, FString& Error);
+    // The ground state an empowered strike leaves (FLDEmpowerShape): under the caster or where its line ends, owned by the
+    // caster at the release snapshot.
+    bool EmpowerGround(const FLDBodyCombatState& Body, const FLDCombatActiveTerms& Terms, const FLDCombatHit& Template,
+        const FVector& ReleaseFoot, const FVector& Direction, int64 NowMs, FString& Error);
+    // The empowered punch: a third step that pushes its target and strikes the cone ahead (OutCone); a flying punch (A05)
+    // strikes no cone, its flight pierces instead.
+    bool EmpowerPunch(const ALDCharacter& Actor, FLDBodyCombatState& Body, FLDCombatHit& Primary, TArray<FLDCombatHit>& OutCone,
+        bool bFlying, FString& Error);
+    // Books the time Body's bar holds the threshold up to NowMs.
+    void TrackEmpowerArmed(FLDBodyCombatState& Body, int64 NowMs) const;
+    // The public ready mark (FLDObservedUnitView::EmpowerReady): the host's processor while the bar holds the threshold and the
+    // host can act now; None otherwise.
+    ELDEmpowerProcessor EmpowerReadyOf(const FLDBodyCombatState& Body, int64 NowMs) const;
+    static bool IsEmpoweredHit(const FLDCombatHit& Hit);
+    // While a hit of an empowered action resolves: its caster (GrantMomentum gives it nothing).
+    FGuid EmpowerHitCaster;
+    // While a hit a player's own action dealt resolves (not a tick, pulse, settle or ground state): a reaction it sets off
+    // keeps MOMENTUM.Reaction under the experiment.
+    bool bOwnHitScope=false;
     // Cast range of an active for this body now: the authored range and its share of the extra basic-attack range.
     bool CastRangeCm(const FLDBodyCombatState& Body, const FLDDemoTargetDefinition& Target, double& OutCm, FString& Error) const;
     // Hooks of one landing primary basic before it is queued (LDCombatCards.cpp): A04's push on the third step, A06's double
@@ -1638,7 +1738,7 @@ private:
     bool OnHardControl(FLDBodyCombatState& Victim, const FLDControlApplication& App, int64 NowMs, FString& Error);
     // Issue #292 P5 cards: D04/D09 on a perfect dodge of Body; Y06 on a broken shield of Holder; Y29 a share of the burn damage
     // Source dealt as its shield; Y24's tally of a hit of Source on Target.
-    bool OnShieldBrokenCards(FLDBodyCombatState& Holder, int64 NowMs, FString& Error);
+    bool OnShieldBrokenCards(FLDBodyCombatState& Holder, int64 NowMs, FString& Error, int32 EmpowerSerial=0);
     bool OnBurnDealtCards(FLDBodyCombatState& Source, int64 BurnDamageP2, int64 NowMs, FString& Error);
     bool OnTallyHit(FLDBodyCombatState& Source, const FLDCombatHit& Hit, int64 NowMs, FString& Error);
     // D07: an innate dash ramming Target deals the card's damage and pushes it away.
@@ -1816,6 +1916,8 @@ private:
         TMap<FGuid,int64> EnemyCooldownUntilMs;
         TSet<FGuid> BoostedFlights;
         uint64 CreatedSerial=0;
+        // Auto-empower (N6): every enemy's first touch stuns this long (0 = only the branch's second-touch stun).
+        int64 TouchStunMs=0;
     };
     struct FLDCombatShardBurst
     {
@@ -1845,6 +1947,8 @@ private:
         int64 DamageP2=0;
         int64 LastStepMs=0;
         TArray<FGuid> Effects;
+        // Auto-empower: an empowered action opened it; nothing in it gives its owner momentum (EMPOWER rule E1).
+        bool bEmpowered=false;
     };
     struct FChainOwner
     {

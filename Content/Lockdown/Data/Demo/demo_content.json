@@ -23008,6 +23008,125 @@
       "numerator": 400,
       "unit": "cm"
     },
+    "EMPOWER.CombatPerSec": {
+      "denominator": 2,
+      "numerator": 5,
+      "unit": "momentum/s"
+    },
+    "EMPOWER.ConeAngleScale": {
+      "bp": 20000,
+      "unit": "ratio"
+    },
+    "EMPOWER.Cost": {
+      "p2": 5000,
+      "unit": "momentum"
+    },
+    "EMPOWER.CounterStunSec": {
+      "ms": 500,
+      "unit": "ms"
+    },
+    "EMPOWER.DamagedPerPercent": {
+      "p2": 0,
+      "unit": "momentum"
+    },
+    "EMPOWER.DashContactCap": 3,
+    "EMPOWER.DerivedReaction": {
+      "p2": 0,
+      "unit": "momentum"
+    },
+    "EMPOWER.ElementChillRootSec": {
+      "ms": 600,
+      "unit": "ms"
+    },
+    "EMPOWER.ElementFireBurnStacks": 3,
+    "EMPOWER.ElementRotDurationScale": {
+      "bp": 20000,
+      "unit": "ratio"
+    },
+    "EMPOWER.ElementShockReactionRatio": {
+      "bp": 5000,
+      "unit": "ratio"
+    },
+    "EMPOWER.ElementWaterSlow": {
+      "bp": 4500,
+      "unit": "ratio"
+    },
+    "EMPOWER.ElementWaterSlowSec": {
+      "ms": 1500,
+      "unit": "ms"
+    },
+    "EMPOWER.Enabled": 0,
+    "EMPOWER.ExtraCount": 2,
+    "EMPOWER.FistConeAngleDeg": {
+      "denominator": 1,
+      "numerator": 60,
+      "unit": "degrees"
+    },
+    "EMPOWER.FistConeLengthCm": {
+      "denominator": 1,
+      "numerator": 300,
+      "unit": "cm"
+    },
+    "EMPOWER.FistConeRatio": {
+      "bp": 5000,
+      "unit": "ratio"
+    },
+    "EMPOWER.FistPushCm": {
+      "denominator": 1,
+      "numerator": 120,
+      "unit": "cm"
+    },
+    "EMPOWER.GroundSec": {
+      "ms": 3000,
+      "unit": "ms"
+    },
+    "EMPOWER.GuardBurstRadiusCm": {
+      "denominator": 1,
+      "numerator": 300,
+      "unit": "cm"
+    },
+    "EMPOWER.GuardBurstRatio": {
+      "bp": 4000,
+      "unit": "ratio"
+    },
+    "EMPOWER.QuakeRadiusCm": {
+      "denominator": 1,
+      "numerator": 200,
+      "unit": "cm"
+    },
+    "EMPOWER.QuakeSlow": {
+      "bp": 3000,
+      "unit": "ratio"
+    },
+    "EMPOWER.QuakeSlowSec": {
+      "ms": 1000,
+      "unit": "ms"
+    },
+    "EMPOWER.ShapeScale": {
+      "bp": 14000,
+      "unit": "ratio"
+    },
+    "EMPOWER.SkillHitTargets": 3,
+    "EMPOWER.StrikeExtraWindupSec": {
+      "ms": 100,
+      "unit": "ms"
+    },
+    "EMPOWER.Threshold": {
+      "p2": 6000,
+      "unit": "momentum"
+    },
+    "EMPOWER.TouchStunSec": {
+      "ms": 600,
+      "unit": "ms"
+    },
+    "EMPOWER.WallStunSec": {
+      "ms": 600,
+      "unit": "ms"
+    },
+    "EMPOWER.WardFuseSec": {
+      "ms": 150,
+      "unit": "ms"
+    },
     "EXPLORE.LockerCardOffer": 3,
     "EXPLORE.LockerChannelSec": {
       "ms": 3000,

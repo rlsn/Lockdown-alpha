@@ -291,11 +291,14 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
         if (FLDBodyCombatState* ApplierBody=FindBody(Applier.SourceBody)) { ApplierBody->LastAppliedElement=Kind; }
     }
     const ELDCombatReaction Reaction=LDCombatElements::ReactionOf(Held,Kind);
-    // MOMENTUM.Reaction: the contender who triggers a reaction gains it, once per reaction.
+    // MOMENTUM.Reaction: the contender who triggers a reaction gains it, once per reaction (under the auto-empower experiment
+    // only a player's own hit does; a tick, pulse, ground or settle gains EMPOWER.DerivedReaction).
     if (Reaction!=ELDCombatReaction::None)
     {
-        if (FLDBodyCombatState* Trigger=FindBody(Applier.SourceBody); Trigger && !Trigger->bPendingDeath)
-        { GrantMomentum(*Trigger,Catalog()->Get().Parameters.Momentum.ReactionP2,ELDMomentumBook::Reaction); }
+        const FLDDemoEmpowerParameters* EmpowerP=EmpowerTerms();
+        const int64 ReactionP2=EmpowerP && !bOwnHitScope ? EmpowerP->DerivedReactionP2 : Catalog()->Get().Parameters.Momentum.ReactionP2;
+        if (FLDBodyCombatState* Trigger=FindBody(Applier.SourceBody); Trigger && !Trigger->bPendingDeath && ReactionP2>0)
+        { GrantMomentum(*Trigger,ReactionP2,ELDMomentumBook::Reaction); }
     }
     // The brains keystone (#330 §4.4): a reaction its holder triggers refunds 30% of paid cast momentum (or grants reaction
     // momentum on 0-cost medal triggers, once per cast) and cuts every cooling learned skill by 1.0 s. Free auto-recasts
@@ -310,7 +313,8 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
             const FLDDemoContentParameters& Parameters=Catalog()->Get().Parameters;
             if (Applier.CastLedger) { Applier.CastLedger->bBrainsKeystoneRefunded=true; }
             const int64 PaidP2=Applier.CastLedger ? Applier.CastLedger->PaidMomentumP2 : 0;
-            const int64 RefundP2=PaidP2>0
+            // Under the auto-empower experiment no cast pays momentum, so the refund (and its zero-cost grant) is off.
+            const int64 RefundP2=EmpowerTerms() ? 0 : PaidP2>0
                 ? PaidP2/10000*Parameters.KeystoneBrainsMomentumRefundBp+PaidP2%10000*Parameters.KeystoneBrainsMomentumRefundBp/10000
                 : Parameters.KeystoneBrainsReactionMomentumP2;
             if (RefundP2>0) { GrantMomentum(*SourceBody,RefundP2,ELDMomentumBook::Reaction); }

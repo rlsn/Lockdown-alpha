@@ -1044,12 +1044,13 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             HealthRegenText=Figure(TEXT(""),LDBroadcast::TypeSmall,LDBroadcast::Grey);HealthRegenText->SetJustification(ETextJustify::Right);
             Side->AddChildToVerticalBox(HealthRegenText)->SetHorizontalAlignment(HAlign_Right);
             auto* MomentumLine=WidgetTree->ConstructWidget<UHorizontalBox>();
-            UTextBlock* Jin=Words(LDTerms::Momentum,LDBroadcast::TypeSmall,LDBroadcast::Grey,true);
-            MomentumLine->AddChildToHorizontalBox(Jin)->SetVerticalAlignment(VAlign_Center);
+            MomentumLabel=Words(LDTerms::Momentum,LDBroadcast::TypeSmall,LDBroadcast::Grey,true);
+            MomentumLine->AddChildToHorizontalBox(MomentumLabel)->SetVerticalAlignment(VAlign_Center);
             MomentumBarSpot=Fixed(Painted(nullptr,[this,Whole](const LDUIPaint::FContext& P)
             {
                 LDBroadcastPaint::FBar Bar;Bar.Fraction=StripPaint.bMomentum?StripPaint.Momentum:0.f;
-                Bar.Fill=LDBroadcast::White;Bar.Track=LDBroadcast::White.CopyWithNewOpacity(.14f);
+                Bar.Fill=StripPaint.bEmpowerReady?LDBroadcast::Gold:LDBroadcast::White;Bar.Track=LDBroadcast::White.CopyWithNewOpacity(.14f);
+                Bar.Notch=StripPaint.bMomentum?StripPaint.Notch:-1.f;Bar.NotchInk=StripPaint.bEmpowerReady?LDBroadcast::Gold:LDBroadcast::White;
                 LDBroadcastPaint::Bar(P,P.Layer,Whole(P),Bar);
             }),HudMomentumBarW,HudMomentumBarH);
             auto* BarSlot=MomentumLine->AddChildToHorizontalBox(MomentumBarSpot);BarSlot->SetVerticalAlignment(VAlign_Center);BarSlot->SetPadding(FMargin(6,0,6,0));
@@ -1446,6 +1447,11 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             };
             Workshop->RequestOpen=[this](){if(ChoicesPanel&&!ChoicesPanel->IsTrayOpen()){ToggleWorkshop();}};
             Workshop->Notify=[this](const FString& Notice){ShowToast(Notice);};
+            // Auto-empower: a click on an empty-handed host chooses it as the empowered host (the server judges it).
+            Workshop->RequestEmpowerHost=[this](ELDCombatEntry Host)
+            {
+                if(auto* Owner=Cast<ALDPlayerController>(GetOwningPlayer())){Owner->RequestEmpowerHost(Host);}
+            };
             // The ring's ground darkening lies under the band, the minimap and the rest of the HUD chrome.
             WorkshopGround=CreateWidget<ULDBuildRingGround>(PC);
             if(WorkshopGround)
@@ -2264,11 +2270,26 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         HudSetColor(HealthText,bLow?StripPaint.HealthInk:LDBroadcast::White);
         if(HealthText->GetToolTipText().ToString()!=Health.Text){HealthText->SetToolTipText(FText::FromString(Health.Text));}
     }
-    // The momentum bar has no rate text (momentum is no steady regeneration).
-    StripPaint.bMomentum=Momentum.bKnown;StripPaint.Momentum=Momentum.Fraction;
+    // The momentum bar has no rate text (momentum is no steady regeneration). Under the auto-empower experiment it carries
+    // the EMPOWER.Threshold notch, glows gold while it holds it and its label names the host the empowered action takes.
+    const bool bEmpower=OwnCombat&&OwnCombat->bEmpowerEnabled;
+    const int64 ThresholdP2=bEmpower?OwnCombat->EmpowerThresholdP2:0;
+    const bool bFullBar=Momentum.bKnown&&bEmpower&&ThresholdP2>0&&OwnCombat->MomentumP2>=ThresholdP2;
+    StripPaint.bMomentum=Momentum.bKnown;StripPaint.Momentum=Momentum.Fraction;StripPaint.bEmpowerReady=bFullBar;
+    StripPaint.Notch=OwnCombat&&OwnCombat->MaxMomentumP2>0&&ThresholdP2>0
+        ?float(FMath::Clamp(double(ThresholdP2)/double(OwnCombat->MaxMomentumP2),0.,1.)):-1.f;
     HudSetText(MomentumText,Momentum.bKnown?Momentum.Now:FString(TEXT("—")));
-    HudSetColor(MomentumText,LDBroadcast::White);
-    if(MomentumText->GetToolTipText().ToString()!=Momentum.Text){MomentumText->SetToolTipText(FText::FromString(Momentum.Text));}
+    HudSetColor(MomentumText,bFullBar?LDBroadcast::Gold:LDBroadcast::White);
+    const FString HostName=bEmpower?LDHUD::EmpowerHostName(OwnCombat->EmpowerHost):FString();
+    HudSetText(MomentumLabel,bEmpower?FString(LDTerms::Momentum)+TEXT("·")+HostName:FString(LDTerms::Momentum));
+    HudSetColor(MomentumLabel,bEmpower&&bFullBar?LDBroadcast::Gold:LDBroadcast::Grey);
+    {
+        const FString MomentumTip=bEmpower
+            ? Momentum.Text+(bFullBar?FString::Printf(TEXT(" · 强化就绪：下一次%s自动强化（消耗 %lld）"),*HostName,OwnCombat->EmpowerCostP2/100)
+                :FString::Printf(TEXT(" · 劲 ≥ %lld 时下一次%s自动强化"),ThresholdP2/100,*HostName))
+            : Momentum.Text;
+        if(MomentumText->GetToolTipText().ToString()!=MomentumTip){MomentumText->SetToolTipText(FText::FromString(MomentumTip));}
+    }
     {
         FString Aside=LDHUD::RegenText(O,OwnCombat,true);
         if(Health.bKnown&&ShieldPoints>0){Aside=FString::Printf(TEXT("%s %.0f"),LDTerms::Shield,FMath::CeilToDouble(ShieldPoints))+(Aside.IsEmpty()?FString():TEXT("  ")+Aside);}
@@ -2732,7 +2753,13 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         const bool bCancelFlash=CancelAge<LDHUDStyle::ReadyFlashSeconds;
         if(!bCancelFlash){Entry.CancelledAt=-1;}
         const bool bRankGlow=!bFlash&&!bCancelFlash&&Entry.Plus&&Entry.Plus->IsVisible();
-        HudSetShown(Entry.Flash,bFlash||bCancelFlash||bRankGlow,ESlateVisibility::HitTestInvisible);
+        // Auto-empower: the host slot keeps a thin gold edge; ready (the bar holds the threshold and the slot is usable) it
+        // breathes gold.
+        const bool bEmpowerHost=OwnCombat&&OwnCombat->bEmpowerEnabled&&OwnCombat->EmpowerHost==Wanted;
+        const bool bEmpowerReady=bEmpowerHost&&OwnCombat->MomentumP2>=OwnCombat->EmpowerThresholdP2&&!bCooling
+            &&Look!=LDHUD::EActionLook::Blocked&&Look!=LDHUD::EActionLook::Empty&&Look!=LDHUD::EActionLook::Controlled;
+        const bool bEmpowerGlow=!bFlash&&!bCancelFlash&&!bRankGlow&&bEmpowerHost;
+        HudSetShown(Entry.Flash,bFlash||bCancelFlash||bRankGlow||bEmpowerGlow,ESlateVisibility::HitTestInvisible);
         if(bCancelFlash||bFlash)
         {
             const FLinearColor Tint=bCancelFlash?LDHUDStyle::EnemyHealth:LDHUDStyle::SlotReadyFlash;
@@ -2746,6 +2773,13 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             Entry.Flash->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,0.f,LDBroadcast::Orange.CopyWithNewOpacity(Wave),3.f));
             Entry.Flash->SetBrushColor(LDBroadcast::Orange.CopyWithNewOpacity(.12f*Wave));
             bReadModelLive=true;
+        }
+        else if(bEmpowerGlow)
+        {
+            const float Wave=bEmpowerReady?.45f+.55f*LDTween::PingPong(UiNow,1.):.4f;
+            Entry.Flash->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,0.f,LDBroadcast::Gold.CopyWithNewOpacity(Wave),bEmpowerReady?3.f:1.5f));
+            Entry.Flash->SetBrushColor(LDBroadcast::Gold.CopyWithNewOpacity(bEmpowerReady?.14f*Wave:0.f));
+            bReadModelLive|=bEmpowerReady;
         }
         const float Pop=bFlash?1.f+(LDHUDStyle::ReadyPopScale-1.f)*LDTween::PingPong(FlashAge,LDHUDStyle::ReadyFlashSeconds):1.f;
         LDTween::SetScale(Entry.Box,Pop);

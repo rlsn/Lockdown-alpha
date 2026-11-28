@@ -445,6 +445,8 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> LevelBadgeText;
     UPROPERTY() TObjectPtr<UWidget> HealthBarSpot;
     UPROPERTY() TObjectPtr<UWidget> MomentumBarSpot;
+    // The 劲 label before the momentum bar; under the auto-empower experiment it names the empowered host (劲·Q).
+    UPROPERTY() TObjectPtr<UTextBlock> MomentumLabel;
     UPROPERTY() TObjectPtr<UWidget> StripPanelSpot;
     struct FStripPaint
     {
@@ -457,6 +459,9 @@ private:
         float HealthSegment=0.f;
         bool bMomentum=false;
         float Momentum=0.f;
+        // Auto-empower: the threshold notch (0..1, <0 = none) and a bar holding it (gold).
+        float Notch=-1.f;
+        bool bEmpowerReady=false;
         int32 Combo=0;
     } StripPaint;
     mutable FLDHudTrail StripTrail;

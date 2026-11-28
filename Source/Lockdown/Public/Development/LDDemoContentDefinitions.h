@@ -379,6 +379,63 @@ struct FLDDemoVisionRangeParameters
     }
 };
 
+// Auto-empower (自动强化, EMPOWER.*): an isolated experiment, off unless Enabled (or the authority's -LDEmpower switch). While
+// on, learned Q/W/E cost no momentum and the combat gain is CombatPerSec; an own action of the owner's host started on a bar
+// holding ThresholdP2 is empowered and pays CostP2 at its release. The rest are the five processors' and the element layer's
+// terms (docs/systems/COMBAT_AND_GROWTH.md "自动强化实验").
+USTRUCT()
+struct FLDDemoEmpowerParameters
+{
+    GENERATED_BODY()
+
+    UPROPERTY() bool bEnabled = false;
+    UPROPERTY() int64 ThresholdP2 = 0;
+    UPROPERTY() int64 CostP2 = 0;
+    UPROPERTY() FLDDemoRational CombatPerSec;
+    // MOMENTUM.SkillHit reaches at most this many bodies of one release.
+    UPROPERTY() int32 SkillHitTargets = 0;
+    // MOMENTUM.Reaction of a reaction a periodic, zone or ground hit set off (a player's own hit keeps MOMENTUM.Reaction).
+    UPROPERTY() int64 DerivedReactionP2 = 0;
+    // Momentum per percent of max HP lost to a hostile hit (0 = off; an A/B switch).
+    UPROPERTY() int64 DamagedPerPercentP2 = 0;
+    // Strike: the readable windup an empowered strike adds.
+    UPROPERTY() int64 StrikeWindupMs = 0;
+    // Fist: the empowered punch strikes a cone ahead (others at FistConeRatioBp of its own package) and pushes it away.
+    UPROPERTY() FLDDemoRational FistConeLengthCm;
+    UPROPERTY() FLDDemoRational FistConeAngleDegrees;
+    UPROPERTY() int64 FistConeRatioBp = 0;
+    UPROPERTY() FLDDemoRational FistPushCm;
+    // Move: an empowered dash passes through at most DashContactCap bodies and quakes where it ends.
+    UPROPERTY() int32 DashContactCap = 0;
+    UPROPERTY() FLDDemoRational QuakeRadiusCm;
+    UPROPERTY() int64 QuakeSlowBp = 0;
+    UPROPERTY() int64 QuakeSlowMs = 0;
+    // Strike, guard and ward shapes (areas, lengths, angles, windows, lives) scale by ShapeScaleBp; chain bounces and
+    // empowered-basic charges gain ExtraCount.
+    UPROPERTY() int64 ShapeScaleBp = 0;
+    UPROPERTY() int32 ExtraCount = 0;
+    // Guard: an empowered shield bursts GuardBurstRatioBp of its grant over GuardBurstRadiusCm when it breaks or lapses.
+    UPROPERTY() int64 GuardBurstRatioBp = 0;
+    UPROPERTY() FLDDemoRational GuardBurstRadiusCm;
+    // Ward: an empowered trap's fuse.
+    UPROPERTY() int64 WardFuseMs = 0;
+    // Form changes (AUTO_EMPOWER_SPEC §2.3): a strike's native element leaves its ground state for GroundLifeMs; a push
+    // strike stuns on a wall, a parry stuns its attacker and a cordon stuns at the first touch; a cone opens ConeAngleScaleBp
+    // wider.
+    UPROPERTY() int64 GroundLifeMs = 0;
+    UPROPERTY() int64 WallStunMs = 0;
+    UPROPERTY() int64 CounterStunMs = 0;
+    UPROPERTY() int64 TouchStunMs = 0;
+    UPROPERTY() int64 ConeAngleScaleBp = 0;
+    // The element layer (fire burn layers, water slow, shock discharge share of R, rot duration scale, chill root).
+    UPROPERTY() int64 FireBurnStacks = 0;
+    UPROPERTY() int64 WaterSlowBp = 0;
+    UPROPERTY() int64 WaterSlowMs = 0;
+    UPROPERTY() int64 ShockReactionBp = 0;
+    UPROPERTY() int64 RotDurationBp = 0;
+    UPROPERTY() int64 ChillRootMs = 0;
+};
+
 USTRUCT()
 struct FLDDemoContentParameters
 {
@@ -670,6 +727,8 @@ struct FLDDemoContentParameters
     // Spec §6.5: a chain ends ChainEndMs after its last step (CHAIN.EndSec); its key counts from ChainMinKeySteps kinds.
     UPROPERTY() int64 ChainEndMs = 0;
     UPROPERTY() int32 ChainMinKeySteps = 0;
+    // EMPOWER.*: the auto-empower experiment (LDAutoEmpower); inert while it is off.
+    UPROPERTY() FLDDemoEmpowerParameters Empower;
 };
 
 UENUM()

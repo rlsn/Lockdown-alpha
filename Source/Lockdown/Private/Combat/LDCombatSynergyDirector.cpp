@@ -292,6 +292,8 @@ bool ALDCombatDirector::AdvanceCordons(int64 NowMs, FString& Error)
             {
                 Hit.StunDurationMs = FMath::Max(Hit.StunDurationMs, Cordon.Terms.ExtraDurationMs);
             }
+            // Auto-empower (N6): an empowered cordon stuns at the first touch.
+            if (Cordon.TouchStunMs > 0 && Touches == 1) { Hit.StunDurationMs = FMath::Max(Hit.StunDurationMs, Cordon.TouchStunMs); }
             PendingHits.Add(MoveTemp(Hit));
         }
     }

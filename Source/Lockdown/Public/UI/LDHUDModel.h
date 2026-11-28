@@ -575,6 +575,19 @@ namespace LDHUD
     LOCKDOWN_API FActionView Action(const FActionInput& Input,const FActionContext& Context);
     // Skill ranks (issue #287 spec §12): the rank dots of a slot ("●●○") and the branch cards of its next rank.
     LOCKDOWN_API FString RankDots(uint8 Rank);
+    // Auto-empower: the short name of the host an empowered action takes (普攻, Q, W, E, D).
+    inline FString EmpowerHostName(ELDCombatEntry Host)
+    {
+        switch(Host)
+        {
+        case ELDCombatEntry::Basic: return TEXT("普攻");
+        case ELDCombatEntry::Q: return TEXT("Q");
+        case ELDCombatEntry::W: return TEXT("W");
+        case ELDCombatEntry::E: return TEXT("E");
+        case ELDCombatEntry::Dash: return TEXT("D");
+        default: return FString();
+        }
+    }
     // The branch paths the next rank offers: A/B from rank 1, A1/A2 under A, B1/B2 under B, none at rank 3.
     LOCKDOWN_API TArray<ELDSkillBranch> NextBranches(ELDSkillBranch Current);
     struct FBranchCardView

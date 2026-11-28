@@ -188,7 +188,7 @@ bool SerializeObservedUnit(FArchive& Ar, UPackageMap* Map, FLDObservedUnitView& 
     }
     if (Mask & LDObservation::Level) { Ar << Unit.Level; }
     if (Mask & LDObservation::Health) { Ar << Unit.Health.CurrentP2 << Unit.Health.MaxP2 << Unit.ShieldBar; }
-    if (Mask & LDObservation::Momentum) { Ar << Unit.MomentumBar; }
+    if (Mask & LDObservation::Momentum) { Ar << Unit.MomentumBar << Unit.EmpowerReady; }
     if (Mask & LDObservation::Statuses)
     {
         uint8 Count = uint8(FMath::Min(Unit.Statuses.Num(), 255));
@@ -389,7 +389,7 @@ bool LDObservation::ValidateUnit(const FLDObservedUnitView& Unit, FString& Error
     if (!IsObservedResourcePair(Unit.Health, true)) { return FailObservation(Error, TEXT("Observed health must be a complete current/maximum P2 pair.")); }
     if (!(Mask & Health) && Unit.ShieldBar != 0)
     { return FailObservation(Error, TEXT("An observed shield bar is present without health authorization.")); }
-    if (!(Mask & Momentum) && Unit.MomentumBar != 0)
+    if (!(Mask & Momentum) && (Unit.MomentumBar != 0 || Unit.EmpowerReady != 0))
     { return FailObservation(Error, TEXT("Observed momentum is present without authorization.")); }
     if (Unit.ActionComboStep > 3 || (Unit.ActionComboStep != 0 && Unit.ActionCue != ELDObservedActionCue::Attack))
     { return FailObservation(Error, TEXT("An observed combo step needs an Attack cue and is 1..3.")); }

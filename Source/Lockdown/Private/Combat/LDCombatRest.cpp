@@ -205,6 +205,7 @@ bool ALDCombatDirector::ClearBodyForPhase(FLDBodyCombatState& Body, ALDCharacter
     Body.ActiveParry.Reset();
     Body.ParryUntilMs=0;
     Body.ForcedCombo3Charges=0;
+    Body.bEmpowerPunchPending=false;
     Body.ActiveFrenzy.Reset();
     Body.FrenzyLedger.Reset();
     Body.FrenzyUntilMs=0;
