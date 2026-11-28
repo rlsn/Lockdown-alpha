@@ -924,10 +924,21 @@ def momentum_text(momentum, lives):
 def empower_stats(lines, hits, ledgers, contenders, share):
     """Additive auto-empower totals of one match's field lives (empower_merge adds matches)."""
     empowers = [event for event in lines if event.get("outcome") in EMPOWER_DONE]
-    victims = defaultdict(set)
+    # The serial restarts with every life and LD_HIT names no source life: a tagged hit belongs to the latest release of
+    # that source and serial at or before it.
+    releases = defaultdict(list)
+    for index, event in enumerate(empowers):
+        releases[(event.get("src"), event.get("serial"))].append((authority_ms(event), index))
+    for rows in releases.values():
+        rows.sort()
+    victims, tally = defaultdict(set), defaultdict(int)
     for event in hits:
-        if event.get("empower") not in ("", "-", "0"):
-            victims[(event.get("src"), event.get("empower"))].add(event.get("victim_kind"))
+        if event.get("empower") in ("", "-", "0") or authority_ms(event) is None:
+            continue
+        owners = [index for at, index in releases.get((event.get("src"), event.get("empower")), []) if at <= authority_ms(event)]
+        if owners:
+            victims[owners[-1]].add(event.get("victim_kind"))
+            tally[owners[-1]] += 1
     rapid, last = 0, {}
     for event in sorted(empowers, key=lambda event: (event.get("src"), authority_ms(event))):
         key = (event.get("src"), event.get("life"))
@@ -935,12 +946,8 @@ def empower_stats(lines, hits, ledgers, contenders, share):
             rapid += 1
         last[key] = authority_ms(event)
     has_tags = any("empower" in event.fields for event in hits)
-    struck = [victims.get((event.get("src"), event.get("serial")), set()) for event in empowers]
+    struck = [victims.get(index, set()) for index in range(len(empowers))]
     armed = [number(event, "armed_ms") for event in ledgers if "armed_ms" in event.fields]
-    tally = defaultdict(int)
-    for event in hits:
-        if event.get("empower") not in ("", "-", "0"):
-            tally[(event.get("src"), event.get("empower"))] += 1
     return {
         "triggers": len(empowers),
         "short": len(lines) - len(empowers),

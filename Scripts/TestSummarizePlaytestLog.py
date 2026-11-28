@@ -347,8 +347,8 @@ class SummarizePlaytestLogTest(unittest.TestCase):
         self.assertIn("| AI that never cast in any of their fights | 0 | 1 |", flagged)
         # Auto-empower (the Host's LD_EMPOWER): A pays twice 100 ms apart (a loop), its first release lands a tagged hit on
         # B and the second lands nothing; one A release came short of the cost; B's basic empower lands on a camp.
-        empower = lambda at, t, who, host, processor, before, paid, serial, outcome="applied": line(
-            at, "LogLDCombat", "Log", f"LD_EMPOWER t={t} src={who} life=1 host={host} processor={processor} source=basic "
+        empower = lambda at, t, who, host, processor, before, paid, serial, outcome="applied", life=1: line(
+            at, "LogLDCombat", "Log", f"LD_EMPOWER t={t} src={who} life={life} host={host} processor={processor} source=basic "
                                       f"serial={serial} paid={paid:.2f} before={before:.2f} after={before - paid:.2f} outcome={outcome}")
         armed = {f"entity={a} life=1 ": " empower=2 armed_ms=5000", f"entity={b} life=1 ": " empower=1 armed_ms=1000"}
         ledgered = [row + next((extra for key, extra in armed.items() if "LD_MOMENTUM" in row and key in row), "")
@@ -361,12 +361,15 @@ class SummarizePlaytestLogTest(unittest.TestCase):
             empower(11, 11000, b, "Basic", "fist", 60, 20, 1),
             hit(11, 11100, b, a, "basic", "5.00", "factor_bp=10000 factors=- empower=1").replace(
                 "victim_kind=contender", "victim_kind=camp"),
+            # The serial restarts with each life: B's next life's first release is serial 1 again, its hit is its own.
+            empower(12, 12000, b, "Basic", "fist", 60, 20, 1, life=2),
+            hit(12, 12100, b, a, "basic", "5.00", "factor_bp=10000 factors=- empower=1"),
         ] + ledgered[-1:]
         (self.root / "Empower.log").write_text("\n".join(empowered) + "\n", encoding="utf-8")
         report = summarize(collect([str(self.root / "Empower.log")]), metrics_only=True)
-        expected = ("Auto-empower: 3 triggers (9.00 per contender field minute); momentum short at release 1; hosts Basic 33%, "
-                    "Q 67%; processors fist 33%, strike 67%; targets contender 33%, camp 33%, none 33%; paid and missed 33%; "
-                    "mean cost 26.7, mean momentum before 56.7; re-triggers within 250 ms 1; most hits from one trigger 1; "
+        expected = ("Auto-empower: 4 triggers (12.00 per contender field minute); momentum short at release 1; hosts Basic 50%, "
+                    "Q 50%; processors fist 50%, strike 50%; targets contender 50%, camp 25%, none 25%; paid and missed 25%; "
+                    "mean cost 25.0, mean momentum before 57.5; re-triggers within 250 ms 1; most hits from one trigger 1; "
                     "armed 30% of contender field time")
         self.assertIn(f"- {expected}", report.split("## Metrics across")[0])
         self.assertIn(f"- {expected}", report.split("## Metrics across")[1])
