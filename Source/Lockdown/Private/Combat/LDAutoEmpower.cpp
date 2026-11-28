@@ -107,6 +107,12 @@ ELDEmpowerProcessor LDAutoEmpower::ProcessorOf(ELDCombatEntry Entry, const FLDDe
     return ELDEmpowerProcessor::Strike;
 }
 
+int32 LDAutoEmpower::HostScore(int32 Invested, int32 MedalTiers)
+{
+    // Medal tiers are clamped below one point of investment, so they only ever break a tie.
+    return FMath::Max(Invested,0)*16+FMath::Clamp(MedalTiers,0,15);
+}
+
 ELDCombatEntry LDAutoEmpower::AutoHost(const TArray<FHostCandidate>& Candidates)
 {
     static const ELDCombatEntry Order[]={ELDCombatEntry::Q,ELDCombatEntry::W,ELDCombatEntry::E,ELDCombatEntry::Basic,ELDCombatEntry::Dash};

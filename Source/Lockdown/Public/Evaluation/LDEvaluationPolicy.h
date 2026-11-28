@@ -156,9 +156,9 @@ struct FLDEvaluationProfile
     // -1 (no dodge) or 0..MaxWarningReactMs, and lead aim (see ELDEvaluationStance).
     int32 WarningReactMs = -1;
     bool bLeadAim = false;
+    bool bReserveDash = false;
     // Auto-empower runs: the planned host the evaluation probe submits (None: the AI's own pick or -LDEmpowerHost).
     ELDCombatEntry EmpowerHost = ELDCombatEntry::None;
-    bool bReserveDash = false;
     // The Case root seed the operation rolls derive from.
     uint64 OperationSeed = 0;
     // The designated rival: the only contender this strategy engages.

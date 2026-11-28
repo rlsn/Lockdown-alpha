@@ -909,8 +909,8 @@ public:
             Profile.SkipBp = Row.Contenders[Index].SkipBp;
             Profile.WarningReactMs = Row.Contenders[Index].WarningReactMs;
             Profile.bLeadAim = Row.Contenders[Index].bLeadAim;
-            Profile.EmpowerHost = Row.Contenders[Index].EmpowerHost;
             Profile.bReserveDash = Row.Contenders[Index].bReserveDash;
+            Profile.EmpowerHost = Row.Contenders[Index].EmpowerHost;
             Profile.OperationSeed = Row.Seed;
             if (LDProgression::LevelForXP(Content->Get().Progression, Row.Contenders[Index].SupplyXP, Profile.SupplyLevel)
                 != ELDGrowthReason::None)

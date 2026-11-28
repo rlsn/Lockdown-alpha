@@ -48,10 +48,10 @@ struct FLDEvalContenderPlan
     int32 SkipBp = 0;
     int32 WarningReactMs = -1;
     bool bLeadAim = false;
+    bool bReserveDash = false;
     // Auto-empower runs only: the host submitted through the authority's host command when the match starts (None: the AI's
     // own pick or -LDEmpowerHost).
     ELDCombatEntry EmpowerHost = ELDCombatEntry::None;
-    bool bReserveDash = false;
 };
 
 struct FLDEvalCase

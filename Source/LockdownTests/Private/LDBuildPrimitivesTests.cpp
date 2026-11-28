@@ -5996,6 +5996,17 @@ bool FLDEmpowerProcessorsTest::RunTest(const FString& Parameters)
         FRow{ELDCombatEntry::Basic, true, 2}, FRow{ELDCombatEntry::Dash, true, 2}})), int32(ELDCombatEntry::E));
     TestEqual(TEXT("An empty slot never hosts"), int32(LDAutoEmpower::AutoHost({FRow{ELDCombatEntry::Q, false, 9},
         FRow{ELDCombatEntry::Basic, true, 0}, FRow{ELDCombatEntry::Dash, true, 0}})), int32(ELDCombatEntry::Basic));
+    // B01 M-12: investment decides and medals only break ties: a rank-1 Q with nothing on it outscores a basic carrying a
+    // tier-3 medal, a carded basic outscores it, and between equal investments the medal decides.
+    TestEqual(TEXT("A learned Q outweighs a medal on the basic"), int32(LDAutoEmpower::AutoHost({
+        FRow{ELDCombatEntry::Q, true, LDAutoEmpower::HostScore(1, 0)}, FRow{ELDCombatEntry::Basic, true, LDAutoEmpower::HostScore(0, 3)}})),
+        int32(ELDCombatEntry::Q));
+    TestEqual(TEXT("Two cards on the basic outweigh a bare Q"), int32(LDAutoEmpower::AutoHost({
+        FRow{ELDCombatEntry::Q, true, LDAutoEmpower::HostScore(1, 0)}, FRow{ELDCombatEntry::Basic, true, LDAutoEmpower::HostScore(2, 0)}})),
+        int32(ELDCombatEntry::Basic));
+    TestEqual(TEXT("A medal breaks a tie of investment"), int32(LDAutoEmpower::AutoHost({
+        FRow{ELDCombatEntry::Q, true, LDAutoEmpower::HostScore(2, 0)}, FRow{ELDCombatEntry::W, true, LDAutoEmpower::HostScore(2, 1)}})),
+        int32(ELDCombatEntry::W));
     // The approved terms keep the experiment off and its price under its threshold.
     const FLDDemoEmpowerParameters& P = F.Catalog->Get().Parameters.Empower;
     TestTrue(TEXT("The approved content leaves the experiment off"), !P.bEnabled && P.CostP2 > 0 && P.CostP2 <= P.ThresholdP2);
