@@ -479,6 +479,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.Combat.Empower.Processors",
         "Lockdown.Rules.Combat.Empower.ThresholdAndCost",
         "Lockdown.Rules.Combat.Empower.HostCommand",
+        "Lockdown.Rules.Combat.Empower.AutoHost",
         "Lockdown.Rules.Combat.Empower.ChainNoMomentum",
         "Lockdown.Rules.Combat.Empower.Shapes",
         "Lockdown.Rules.Combat.Empower.Punch",

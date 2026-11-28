@@ -107,10 +107,26 @@ ELDEmpowerProcessor LDAutoEmpower::ProcessorOf(ELDCombatEntry Entry, const FLDDe
     return ELDEmpowerProcessor::Strike;
 }
 
-int32 LDAutoEmpower::HostScore(int32 Invested, int32 MedalTiers)
+int32 LDAutoEmpower::HostScore(int32 Invested, bool bLearnedActive, int32 MedalTiers)
 {
-    // Medal tiers are clamped below one point of investment, so they only ever break a tie.
-    return FMath::Max(Invested,0)*16+FMath::Clamp(MedalTiers,0,15);
+    // The learned-active and medal terms stay below one point of investment, so they only ever break a tie.
+    return FMath::Max(Invested,0)*32+(bLearnedActive ? 16 : 0)+FMath::Clamp(MedalTiers,0,15);
+}
+
+uint32 LDAutoEmpower::ProcessorVocab(ELDEmpowerProcessor Processor)
+{
+    using V=ELDCardVocab;
+    const auto Bits=[](std::initializer_list<V> Keys) { uint32 Out=0; for (const V Key : Keys) { Out|=1u<<uint32(Key); } return Out; };
+    switch (Processor)
+    {
+    case ELDEmpowerProcessor::Fist: return Bits({V::BasicHit,V::Combo3,V::AttackSpeed,V::Crit});
+    case ELDEmpowerProcessor::Move: return Bits({V::Dash,V::DashContact,V::MoveSpeed});
+    case ELDEmpowerProcessor::Guard: return Bits({V::Shield,V::Armor,V::MaxHP,V::Damaged,V::Controlled,V::LowHP,V::Heal});
+    case ELDEmpowerProcessor::Strike: return Bits({V::SkillHit,V::SkillCast,V::Element,V::Reaction,V::Knockback,V::WallImpact,V::Range,
+        V::Control,V::ShieldBreak});
+    case ELDEmpowerProcessor::Ward: return Bits({V::SkillHit,V::SkillCast,V::Element,V::Reaction,V::Area,V::Ground,V::Control});
+    default: return 0;
+    }
 }
 
 ELDCombatEntry LDAutoEmpower::AutoHost(const TArray<FHostCandidate>& Candidates)

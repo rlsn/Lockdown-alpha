@@ -1432,6 +1432,8 @@ private:
     // The host Record's next empowered action takes: its choice, else -LDEmpowerHost, else the basic for a human and the
     // best-invested entry for an AI contender (LDAutoEmpower::AutoHost).
     ELDCombatEntry EmpowerHostOf(const FLDCombatEntityRecord& Record) const;
+    // An AI contender's automatic host for Record's build (LDAutoEmpower::HostScore over its entries).
+    ELDCombatEntry AutoHostOf(const FLDCombatEntityRecord& Record) const;
     // The processor of Entry on Record now (its learned active's release terms for Q/W/E).
     ELDEmpowerProcessor EmpowerProcessorOf(const FLDCombatEntityRecord& Record, ELDCombatEntry Entry) const;
     // Admission: whether an own action of Entry starting now is empowered: the host's, on a bar holding the threshold, and

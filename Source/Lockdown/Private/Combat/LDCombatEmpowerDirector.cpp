@@ -61,21 +61,32 @@ ELDCombatEntry ALDCombatDirector::EmpowerHostOf(const FLDCombatEntityRecord& Rec
             if (Pair.Value.Session==Record.Entity) { bOpponentAI=Pair.Value.Kind==ELDContenderKind::OpponentAI; break; }
         }
     }
-    if (!bOpponentAI) { return ELDCombatEntry::Basic; }
-    // B01 M-12: the build's identity decides. A learned active scores its rank plus the cards on it; the basic and D score the
-    // cards on them. Medals only break ties (a body medal no longer outweighs a learned Q).
+    return bOpponentAI ? AutoHostOf(Record) : ELDCombatEntry::Basic;
+}
+
+ELDCombatEntry ALDCombatDirector::AutoHostOf(const FLDCombatEntityRecord& Record) const
+{
+    // B01 M-12: the build's identity decides (LDAutoEmpower::HostScore). A learned active scores its ranks past the first and
+    // the cards on it, D the cards on it; every host also scores the body cards sharing its family vocabulary (its processor's,
+    // a learned active's own too), so a body card counts where it belongs, not always for the basic. Medals break ties.
     const FLDDemoContentSnapshot* Content=Catalog();
     TArray<LDAutoEmpower::FHostCandidate> Candidates;
-    const auto CardsOn=[&Record,Content](ELDCardTargetKind Kind, FName Active, int32 Base)
+    const auto Score=[this,&Record,Content](ELDCombatEntry Entry, ELDCardTargetKind OnKind, FName Active, int32 Base, uint32 OwnVocab)
     {
-        int32 Cards=Base, Medals=0;
+        const uint32 Family=LDAutoEmpower::ProcessorVocab(EmpowerProcessorOf(Record,Entry))|OwnVocab;
+        int32 Invested=Base, Medals=0;
         for (const FLDInstalledCardValue& Card : Record.Build.Cards)
         {
-            if (Card.TargetKind!=Kind || (Kind==ELDCardTargetKind::Skill && Card.Active!=Active)) { continue; }
-            if (Content && LDProgression::IsMedal(Content->Get(),Card.CardId)) { Medals+=FMath::Max<int32>(Card.Tier,1); }
-            else { ++Cards; }
+            const FLDDemoCardDefinition* Definition=nullptr;
+            FString Error;
+            if (!Content || !Content->FindCardByName(Card.CardId,Definition,Error) || !Definition) { continue; }
+            const bool bMedal=LDProgression::IsMedal(Content->Get(),Card.CardId);
+            const bool bOn=Card.TargetKind==OnKind && (OnKind!=ELDCardTargetKind::Skill || Card.Active==Active);
+            if (bOn && bMedal) { Medals+=FMath::Max<int32>(Card.Tier,1); }
+            else if (bOn && OnKind!=ELDCardTargetKind::Body) { ++Invested; }
+            else if (!bMedal && Card.TargetKind==ELDCardTargetKind::Body && (Definition->VocabMask&Family)!=0) { ++Invested; }
         }
-        return LDAutoEmpower::HostScore(Cards,Medals);
+        return LDAutoEmpower::HostScore(Invested,OnKind==ELDCardTargetKind::Skill,Medals);
     };
     for (const ELDCombatEntry Entry : {ELDCombatEntry::Q,ELDCombatEntry::W,ELDCombatEntry::E})
     {
@@ -84,12 +95,20 @@ ELDCombatEntry ALDCombatDirector::EmpowerHostOf(const FLDCombatEntityRecord& Rec
         if (const FLDLearnedActiveValue* Learned=Record.Build.Actives.FindByPredicate(
             [Entry](const FLDLearnedActiveValue& Active) { return Active.Entry==Entry; }))
         {
+            uint32 OwnVocab=0;
+            const FLDDemoAbilityDefinition* Ability=nullptr;
+            FString Error;
+            if (Content && Content->FindAbilityByName(Learned->AbilityId,Ability,Error) && Ability)
+            {
+                const FLDDemoAbilityBranch* Branch=Ability->FindBranch(Learned->Branch);
+                OwnVocab=Ability->VocabMask|(Branch ? Branch->VocabMask : 0u);
+            }
             Row.bHeld=true;
-            Row.Score=CardsOn(ELDCardTargetKind::Skill,Learned->AbilityId,LDSkillBranch::RankOf(Learned->Branch));
+            Row.Score=Score(Entry,ELDCardTargetKind::Skill,Learned->AbilityId,LDSkillBranch::RankOf(Learned->Branch)-1,OwnVocab);
         }
     }
-    Candidates.Add({ELDCombatEntry::Basic,true,CardsOn(ELDCardTargetKind::Body,NAME_None,0)});
-    Candidates.Add({ELDCombatEntry::Dash,true,CardsOn(ELDCardTargetKind::Dash,NAME_None,0)});
+    Candidates.Add({ELDCombatEntry::Basic,true,Score(ELDCombatEntry::Basic,ELDCardTargetKind::Body,NAME_None,0,0)});
+    Candidates.Add({ELDCombatEntry::Dash,true,Score(ELDCombatEntry::Dash,ELDCardTargetKind::Dash,NAME_None,0,0)});
     return LDAutoEmpower::AutoHost(Candidates);
 }
 

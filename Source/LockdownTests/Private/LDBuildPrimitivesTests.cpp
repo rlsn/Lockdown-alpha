@@ -1,4 +1,6 @@
 #include "LDVisionTestParameters.h"
+#include "Combat/LDAutoEmpower.h"
+#include "Development/LDBreakoutPresets.h"
 #include "Combat/LDMomentum.h"
 #include "Algo/AllOf.h"
 #include "Algo/Count.h"
@@ -284,6 +286,9 @@ struct FLDBuildPrimitivesAccess
         return Mode.SendReactionAssist(Setter.Victim.EntityId, Target, Trigger, View, Sent, Error);
     }
     // The auto-empower experiment.
+    static ELDCombatEntry AutoHostOf(const ALDCombatDirector& Driver, const FLDCombatEntityRecord& Record) { return Driver.AutoHostOf(Record); }
+    static ELDEmpowerProcessor EmpowerProcessorOf(const ALDCombatDirector& Driver, const FLDCombatEntityRecord& Record, ELDCombatEntry Entry)
+    { return Driver.EmpowerProcessorOf(Record, Entry); }
     static ELDEmpowerProcessor AdmitEmpower(ALDCombatDirector& Driver, const FLDBodyCombatState& Body, ELDCombatEntry Entry,
         const FLDCombatBodyRef* Target, int64 NowMs)
     { return Driver.AdmitEmpower(Body, Driver.Records.FindChecked(Body.Victim.EntityId), Entry, Target, NowMs); }
@@ -5374,16 +5379,16 @@ bool FLDEmpowerProcessorsTest::RunTest(const FString& Parameters)
         FRow{ELDCombatEntry::Basic, true, 2}, FRow{ELDCombatEntry::Dash, true, 2}})), int32(ELDCombatEntry::E));
     TestEqual(TEXT("An empty slot never hosts"), int32(LDAutoEmpower::AutoHost({FRow{ELDCombatEntry::Q, false, 9},
         FRow{ELDCombatEntry::Basic, true, 0}, FRow{ELDCombatEntry::Dash, true, 0}})), int32(ELDCombatEntry::Basic));
-    // B01 M-12: investment decides and medals only break ties: a rank-1 Q with nothing on it outscores a basic carrying a
-    // tier-3 medal, a carded basic outscores it, and between equal investments the medal decides.
+    // B01 M-12: investment decides; a tie goes to a learned active, then to the medal tiers: a bare rank-1 Q outscores a basic
+    // carrying a tier-3 medal, two cards in the basic's family outscore it, and between equal skills the medal decides.
     TestEqual(TEXT("A learned Q outweighs a medal on the basic"), int32(LDAutoEmpower::AutoHost({
-        FRow{ELDCombatEntry::Q, true, LDAutoEmpower::HostScore(1, 0)}, FRow{ELDCombatEntry::Basic, true, LDAutoEmpower::HostScore(0, 3)}})),
+        FRow{ELDCombatEntry::Q, true, LDAutoEmpower::HostScore(0, true, 0)}, FRow{ELDCombatEntry::Basic, true, LDAutoEmpower::HostScore(0, false, 3)}})),
         int32(ELDCombatEntry::Q));
-    TestEqual(TEXT("Two cards on the basic outweigh a bare Q"), int32(LDAutoEmpower::AutoHost({
-        FRow{ELDCombatEntry::Q, true, LDAutoEmpower::HostScore(1, 0)}, FRow{ELDCombatEntry::Basic, true, LDAutoEmpower::HostScore(2, 0)}})),
+    TestEqual(TEXT("Two cards for the basic outweigh a bare Q"), int32(LDAutoEmpower::AutoHost({
+        FRow{ELDCombatEntry::Q, true, LDAutoEmpower::HostScore(0, true, 0)}, FRow{ELDCombatEntry::Basic, true, LDAutoEmpower::HostScore(2, false, 0)}})),
         int32(ELDCombatEntry::Basic));
     TestEqual(TEXT("A medal breaks a tie of investment"), int32(LDAutoEmpower::AutoHost({
-        FRow{ELDCombatEntry::Q, true, LDAutoEmpower::HostScore(2, 0)}, FRow{ELDCombatEntry::W, true, LDAutoEmpower::HostScore(2, 1)}})),
+        FRow{ELDCombatEntry::Q, true, LDAutoEmpower::HostScore(2, true, 0)}, FRow{ELDCombatEntry::W, true, LDAutoEmpower::HostScore(2, true, 1)}})),
         int32(ELDCombatEntry::W));
     // The approved terms keep the experiment off and its price under its threshold.
     const FLDDemoEmpowerParameters& P = F.Catalog->Get().Parameters.Empower;
@@ -5433,6 +5438,61 @@ bool FLDEmpowerThresholdAndCostTest::RunTest(const FString& Parameters)
     // A free repeat is derived: never empowered, never paying.
     if (!ReleaseEmpoweredOnQ(*this, F, Holder, TEXT("active_snark_bolt"), ELDEmpowerProcessor::Strike, 10000, -1, true)) { return false; }
     TestTrue(TEXT("A repeat neither empowers nor pays"), F.Body(Holder).Resources.MomentumP2 == 10000 && F.Body(Holder).Empowerments == 1);
+    return true;
+}
+
+// B01 M-12: an AI's automatic host follows its build's identity. Every P2/P4 sample's skills and cards on a record: the dash
+// ghost (three cards on D) hosts on D, the hedgehog (defensive body cards) on a guard skill; a lone learned Q outweighs a
+// medal on the basic. Each sample's pick is reported.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDEmpowerAutoHostTest, "Lockdown.Rules.Combat.Empower.AutoHost",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDEmpowerAutoHostTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody();
+    F.Driver->bEmpowerTestOverride = true;
+    FLDCombatEntityRecord& Record = FAccess::Records(*F.Driver).FindChecked(Holder.Victim.EntityId);
+    static const ELDCombatEntry Slots[] = {ELDCombatEntry::Q, ELDCombatEntry::W, ELDCombatEntry::E};
+    TMap<FString, TPair<ELDCombatEntry, ELDEmpowerProcessor>> Picks;
+    for (const FLDBreakoutPreset& Preset : LDBreakoutPresets::All())
+    {
+        Record.Build.Actives.Reset();
+        Record.Build.Cards.Reset();
+        for (int32 Index = 0; Index < Preset.Skills.Num() && Index < 3; ++Index)
+        {
+            Record.Build.Actives.Add({FName(Preset.Skills[Index].Ability), Slots[Index], Preset.Skills[Index].Branch});
+        }
+        uint16 Serial = 0;
+        for (const FLDBreakoutCard& Card : Preset.Cards)
+        {
+            FLDInstalledCardValue& Row = Record.Build.Cards.AddDefaulted_GetRef();
+            Row.CardId = FName(Card.Card);
+            Row.Serial = ++Serial;
+            Row.TargetKind = Card.Target;
+            if (Card.Target == ELDCardTargetKind::Skill && Preset.Skills.IsValidIndex(Card.Skill)) { Row.Active = FName(Preset.Skills[Card.Skill].Ability); }
+        }
+        const ELDCombatEntry Host = FAccess::AutoHostOf(*F.Driver, Record);
+        const ELDEmpowerProcessor Processor = FAccess::EmpowerProcessorOf(*F.Driver, Record, Host);
+        Picks.Add(Preset.Id, {Host, Processor});
+        AddInfo(FString::Printf(TEXT("%s hosts on %s (%s)"), Preset.Id, LDAutoEmpower::EntryName(Host), LDAutoEmpower::ProcessorName(Processor)));
+    }
+    const auto* Dash = Picks.Find(TEXT("breakout_dash_ghost"));
+    const auto* Hedgehog = Picks.Find(TEXT("breakout_hedgehog"));
+    TestTrue(TEXT("The dash ghost hosts on D"), Dash && Dash->Key == ELDCombatEntry::Dash);
+    TestTrue(TEXT("The hedgehog hosts on a guard skill"), Hedgehog && Hedgehog->Value == ELDEmpowerProcessor::Guard
+        && Hedgehog->Key != ELDCombatEntry::Basic);
+    // A level-1 elbow with a fire medal on the body: the learned Q, not the medal, decides.
+    Record.Build.Actives.Reset();
+    Record.Build.Cards.Reset();
+    Record.Build.Actives.Add({FName(TEXT("active_elbow")), ELDCombatEntry::Q});
+    FLDInstalledCardValue& Medal = Record.Build.Cards.AddDefaulted_GetRef();
+    Medal.CardId = FName(TEXT("medal_fire"));
+    Medal.Serial = 1;
+    Medal.TargetKind = ELDCardTargetKind::Body;
+    TestEqual(TEXT("A learned Q outweighs a medal on the basic"), int32(FAccess::AutoHostOf(*F.Driver, Record)), int32(ELDCombatEntry::Q));
     return true;
 }
 

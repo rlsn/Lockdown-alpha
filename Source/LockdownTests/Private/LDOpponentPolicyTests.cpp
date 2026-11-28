@@ -3451,6 +3451,20 @@ bool FLDDemoOpponentEmpowerHostTest::RunTest(const FString& Parameters)
         Step.Kind == EBody::MoveGround && Step.Surface == TEXT("ground")
         && FMath::IsNearlyEqual(FVector::Dist2D(Step.Point, FVector(Gap, 0, 0)), 220. - LDOpponentPolicy::CloseInMarginCm, 1.));
     bGood &= TestTrue(TEXT("A kept host is not stepped in for"), Engage(6000, ELDCombatEntry::Q, 3000, Gap).Kind != EBody::MoveGround);
+    {
+        // A D host: armed, it dashes through the rival within reach before any other cast; below the threshold the Q goes.
+        FLDOpponentSource Dash;
+        Dash.Slot = ELDOpponentSourceSlot::Dash;
+        Dash.DefinitionId = TEXT("innate_dash");
+        Dash.bReady = true;
+        Dash.RangeCm = 450;
+        Base.Self.Sources.Add(Dash);
+        const FLDOpponentBodyIntent Through = Engage(6000, ELDCombatEntry::Dash, 6000, 150);
+        bGood &= TestTrue(TEXT("An armed D host dashes through the rival in reach"), Through.Kind == EBody::Activate
+            && Through.Source == ELDOpponentSourceSlot::Dash && Through.Direction.Equals(FVector(1, 0, 0), 1.e-4));
+        bGood &= TestTrue(TEXT("Below the threshold the D host waits and the Q is cast"), CastsQ(Engage(6000, ELDCombatEntry::Dash, 3000, 150)));
+        bGood &= TestTrue(TEXT("Off, the dash is not spent on a rival in reach"), CastsQ(Engage(0, ELDCombatEntry::None, 6000, 150)));
+    }
     return bGood;
 }
 

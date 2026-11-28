@@ -690,6 +690,16 @@ TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActiva
                 {
                     TOptional<FVector> Direction = Need.DashDirection.IsSet() ? Need.DashDirection
                         : Need.bChase && Need.Target ? ChaseDirection(C, *Need.Target, Shape.RangeCm) : TOptional<FVector>();
+                    // B01 M-12: an armed D host is released through a rival contender within its reach (an empowered move
+                    // passes through bodies and slows them where it lands).
+                    if (!Direction.IsSet() && Slot == ELDOpponentSourceSlot::Dash && C.Self.EmpowerHost == ELDCombatEntry::Dash
+                        && C.Self.EmpowerThresholdP2 > 0 && C.Self.MomentumP2 >= C.Self.EmpowerThresholdP2 && Need.bAllowDamage
+                        && Need.Target && Need.Target->Kind == ELDOpponentUnitKind::Contender
+                        && C.Distance(Need.Target->FootCm) <= Shape.RangeCm)
+                    {
+                        const FVector Toward = (Need.Target->FootCm - C.Self.FootCm).GetSafeNormal2D();
+                        if (!Toward.IsNearlyZero()) { Direction = Toward; }
+                    }
                     if (!Direction.IsSet() && Need.bAllowDamage && bTargetInRange && Shape.bDamage)
                     {
                         const FVector Toward=(Need.Target->FootCm-C.Self.FootCm).GetSafeNormal2D();

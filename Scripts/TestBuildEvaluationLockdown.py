@@ -362,6 +362,13 @@ class PlanTest(AdapterCase):
         other = ("LD_DEV_BREAKOUT_PRESET", {"contender": ids["opponent"], "preset": "breakout_lifesteal", "level": "16", "cards": "5"}, 0)
         rows["subject"]["level"] = 16
         self.assertTrue(lockdown.breakout_problems([applied, other], ids, plan, rows))
+        # The deciding kill's own element medal is that kill's reward, exempt like its XP; any other extra card is not.
+        rows["subject"]["cards"] = [{}] * 5 + [{"id": "medal_fire", "serial": 6}]
+        medal = ("LD_MEDAL", {"contender": ids["subject"], "cause": "contender_kill", "medal": "medal_fire", "serial": "6"}, 0)
+        kill = {"kind": "kill", "killer": "subject", "victim": "opponent"}
+        self.assertEqual(lockdown.breakout_problems([applied, medal], ids, plan, rows, kill), [])
+        self.assertTrue(lockdown.breakout_problems([applied, medal], ids, plan, rows, {"kind": "timeout"}))
+        self.assertTrue(lockdown.breakout_problems([applied], ids, plan, rows, kill), "a medal without its kill drop counts")
 
     def test_known_illegal_plans_are_refused_before_any_run(self):
         needs = self.requirements({"choices": ["ai_select"] * 2})
