@@ -165,8 +165,10 @@ void ReadEffects(const TArray<FLDDemoEffectDefinition>& Effects, FSourceShape& O
     }
 }
 
-// The typed target and effects of the active bound to a source (#198: one value set per active).
-bool ResolveSource(const FLDOpponentSource& Source, const FLDDemoContentSnapshot& Catalog, FSourceShape& Out)
+// The typed target and effects of the active bound to a source, read from its learned branch variant when it has one
+// (a branch may change the target, element and effects, e.g. S11 3B1 adds the dash's contact damage).
+bool ResolveSource(const FLDOpponentSource& Source, const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog,
+    FSourceShape& Out)
 {
     Out = {};
     FString Error;
@@ -180,10 +182,15 @@ bool ResolveSource(const FLDOpponentSource& Source, const FLDDemoContentSnapshot
     }
     const FLDDemoAbilityDefinition* Ability = nullptr;
     if (!Catalog.FindAbility(Source.DefinitionId, Ability, Error) || !Ability) { return false; }
-    Out.Mode = Ability->Target.Mode;
-    Out.RangeCm = ToDouble(Ability->Target.RangeCm);
-    Out.Element = uint8(Ability->Element);
-    ReadEffects(Ability->Values.Effects, Out);
+    const FLDOpponentActive* Learned = Self.Actives.FindByPredicate([&Source](const FLDOpponentActive& Active)
+        { return Active.Slot == uint8(Source.Slot) && Active.DefinitionId == Source.DefinitionId; });
+    const FLDDemoAbilityBranch* Branch = Learned ? Ability->FindBranch(Learned->Branch) : nullptr;
+    if (Learned && Learned->Branch != ELDSkillBranch::None && !Branch) { return false; }
+    const FLDDemoTargetDefinition& Target = Branch ? Branch->Target : Ability->Target;
+    Out.Mode = Target.Mode;
+    Out.RangeCm = ToDouble(Target.RangeCm);
+    Out.Element = uint8(Branch ? Branch->Element : Ability->Element);
+    ReadEffects(Branch ? Branch->Values.Effects : Ability->Values.Effects, Out);
     return true;
 }
 
@@ -337,6 +344,19 @@ struct FContext
     {
         const FLDOpponentPOI* Drop = Frame.Public.AirdropPOI.IsNone() ? nullptr : FindPOI(Frame.Public.AirdropPOI);
         return Drop && Drop->Kind == ELDOpponentPOIKind::Airdrop && CanAttempt(PathKey(Drop->Id)) ? Drop : nullptr;
+    }
+    // B01 T04-03: the nearest camp-clear recovery orb in sight within the objective reach, for a body missing health or
+    // momentum, when its walk is not suppressed; nullptr otherwise.
+    const FLDOpponentPOI* RecoveryOrbTarget() const
+    {
+        if (Self.HpP2 >= Self.MaxHpP2 && Self.MomentumP2 >= Self.MaxMomentumP2) { return nullptr; }
+        const FLDOpponentPOI* Best = nullptr;
+        for (const auto& POI : Frame.POIs)
+        {
+            if (POI.Kind != ELDOpponentPOIKind::RecoveryOrb || Distance(POI.FootCm) > ObjectiveReachCm || !CanAttempt(PathKey(POI.Id))) { continue; }
+            if (!Best || Distance(POI.FootCm) < Distance(Best->FootCm)) { Best = &POI; }
+        }
+        return Best;
     }
     // P6 spec §10.3: the public place of the live mid-field objective (a mini_flag_* point, or the flagpole for the arena)
     // while it is announced or open, within the approved reach, for a body at the approved entry health, when its walk is
@@ -599,20 +619,20 @@ TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActiva
         {
             const auto* Source = C.Self.Sources.FindByPredicate([Slot](const FLDOpponentSource& S) { return S.Slot == Slot; });
             FSourceShape Shape;
-            if (!Source || !ResolveSource(*Source, C.Catalog, Shape) || Shape.Element == 0) { return 0; }
+            if (!Source || !ResolveSource(*Source, C.Self, C.Catalog, Shape) || Shape.Element == 0) { return 0; }
             const ELDCombatElement Held = static_cast<ELDCombatElement>(Need.Target->HeldElement);
             if (LDCombatElements::ReactionOf(Held, static_cast<ELDCombatElement>(Shape.Element)) != ELDCombatReaction::None) { return 2; }
             return Held == ELDCombatElement::None ? 1 : 0;
         };
         Ordered.StableSort([&Score](ELDOpponentSourceSlot A, ELDOpponentSourceSlot B) { return Score(A) > Score(B); });
     }
-    for (int32 Tier = 0; Tier < 4; ++Tier)
+    for (int32 Tier = 0; Tier < 5; ++Tier)
     {
         for (const ELDOpponentSourceSlot Slot : (Tier == 3 ? TConstArrayView<ELDOpponentSourceSlot>(Ordered) : TConstArrayView<ELDOpponentSourceSlot>(Fixed)))
         {
             const auto* Source = C.Self.Sources.FindByPredicate([Slot](const FLDOpponentSource& S) { return S.Slot == Slot; });
             FSourceShape Shape;
-            if (!Source || !Source->bReady || !ResolveSource(*Source, C.Catalog, Shape)) { continue; }
+            if (!Source || !Source->bReady || !ResolveSource(*Source, C.Self, C.Catalog, Shape)) { continue; }
             FLDOpponentRetryKey Key;
             Key.Category = ELDOpponentFailure::Activation;
             Key.Slot = uint8(Slot);
@@ -643,7 +663,10 @@ TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActiva
                 }
                 break;
             case 2:
-                if (Need.bInterrupt && Shape.Mode == ELDDemoTargetMode::Self && Shape.bTaunt && Need.Target
+                // A self taunt is a hard control: it interrupts a sole sprayer and, in a fight with a rival contender
+                // inside its radius, forces that rival onto the caster like any other control.
+                if (Shape.Mode == ELDDemoTargetMode::Self && Shape.bTaunt && Need.Target
+                    && (Need.bInterrupt || (Need.bAllowDamage && Need.Target->Kind == ELDOpponentUnitKind::Contender))
                     && C.Distance(Need.Target->FootCm) <= Shape.TauntRadiusCm)
                 {
                     bUse = true;
@@ -690,11 +713,18 @@ TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActiva
                     }
                 }
                 break;
+            case 4:
+                // A self shield or brace also covers an ordinary trade: once nothing better is ready, it goes up when a
+                // rival contender stands within attack range (Tier 0 keeps the low-health protection first).
+                bUse = Need.bAllowDamage && Need.Target && Need.Target->Kind == ELDOpponentUnitKind::Contender
+                    && Shape.Mode == ELDDemoTargetMode::Self && Shape.bShield
+                    && C.Distance(Need.Target->FootCm) <= C.AttackRangeCm;
+                break;
             default:
                 break;
             }
             // Issue #287 spec §13: a full bar on a healthy target spends itself as an overdrive.
-            if (bUse && Tier >= 2 && Need.Target && Need.Target->HpP2.IsSet() && Need.Target->MaxHpP2.IsSet()
+            if (bUse && (Tier == 2 || Tier == 3) && Need.Target && Need.Target->HpP2.IsSet() && Need.Target->MaxHpP2.IsSet()
                 && Need.Target->MaxHpP2.GetValue() > 0 && C.Self.MomentumP2 >= C.Catalog.Get().Parameters.Overdrive.ThresholdP2
                 && Need.Target->HpP2.GetValue() * 10 > Need.Target->MaxHpP2.GetValue() * 4)
             {
@@ -800,7 +830,7 @@ bool ProtectionReady(const FContext& C)
     for (const auto& Source : C.Self.Sources)
     {
         FSourceShape Shape;
-        if (!Source.bReady || !ResolveSource(Source, C.Catalog, Shape) || Shape.Mode != ELDDemoTargetMode::Self
+        if (!Source.bReady || !ResolveSource(Source, C.Self, C.Catalog, Shape) || Shape.Mode != ELDDemoTargetMode::Self
             || !Shape.bShield)
         {
             continue;
@@ -1582,7 +1612,7 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
     {
         uint16 Serial = 0;
         FLDCardTarget Target;
-        if (LDOpponentPolicy::SelectCardInstall(Self, Catalog, Serial, Target))
+        if (LDOpponentPolicy::SelectCardInstall(Self, Catalog, Serial, Target, State.BreakoutGoal))
         {
             FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::InstallCard);
             Key.Slot = uint8(Serial & 0xFF);
@@ -1594,6 +1624,21 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
                 Out.CardTarget = Target.Kind;
                 Out.TargetId = Target.Active.IsNone() ? FString() : Target.Active.ToString();
                 Out.Element = Target.Element;
+                Out.Key = Key;
+                return true;
+            }
+        }
+        // B01 T04-04: a full workshop takes off its least fitting card for a stored one that fits better; the install
+        // step above then puts the better card in.
+        if (LDOpponentPolicy::SelectCardSwap(Self, Catalog, State.BreakoutGoal, Serial))
+        {
+            FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::UninstallCard);
+            Key.Slot = uint8(Serial & 0xFF);
+            if (State.Failures.CanAttempt(Key, Print, Now))
+            {
+                Out = FLDOpponentBuildIntent();
+                Out.Kind = ELDOpponentBuildKind::UninstallCard;
+                Out.CardSerial = Serial;
                 Out.Key = Key;
                 return true;
             }
@@ -2482,6 +2527,28 @@ uint32 OpponentVocab(const FLDOpponentSelf& Self, const FLDDemoContentDefinition
     }
     return Vocab;
 }
+
+// How well an owned card fits the build for keeping it installed: AI.CardVocabScore per vocabulary key it shares with the
+// learned skills, plus AI.BreakoutCardScore for a card of Goal. It reads the skills only, not the installed cards, so
+// swapping cards never changes another card's fit.
+double OpponentCardFit(const FLDOpponentSelf& Self, const FLDDemoContentDefinitions& Content, FName Goal, const FString& Id)
+{
+    const FLDDemoCardDefinition* Card = Content.Cards.FindByPredicate([&Id](const FLDDemoCardDefinition& Row) { return Row.Id == Id; });
+    if (!Card) { return -1.; }
+    uint32 Vocab = 0;
+    for (const FLDOpponentActive& Active : Self.Actives)
+    {
+        if (const FLDDemoAbilityDefinition* Ability = Content.Abilities.FindByPredicate([&Active](const FLDDemoAbilityDefinition& Row) { return Row.Id == Active.DefinitionId; }))
+        {
+            const FLDDemoAbilityBranch* Branch = Ability->FindBranch(Active.Branch);
+            Vocab |= Ability->VocabMask | (Branch ? Branch->VocabMask : 0u);
+        }
+    }
+    const FLDDemoAIParameters& AI = Content.Parameters.AI;
+    const FLDBreakoutPreset* Preset = Goal.IsNone() ? nullptr : LDBreakoutPresets::Find(Goal);
+    return double(AI.CardVocabScore) * double(FMath::CountBits64(uint64(Card->VocabMask & Vocab)))
+        + (Preset && LDBreakoutPresets::HasCard(*Preset, FName(*Id)) ? double(AI.BreakoutCardScore) : 0.);
+}
 }
 
 bool SelectCard(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FName Goal, FString& OutCard, FString& Error)
@@ -2615,21 +2682,59 @@ bool OpponentMedalTarget(const FLDOpponentSelf& Self, const FLDDemoContentDefini
 }
 }
 
-bool SelectCardInstall(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, uint16& OutSerial, FLDCardTarget& OutTarget)
+bool SelectCardInstall(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, uint16& OutSerial, FLDCardTarget& OutTarget,
+    FName Goal)
 {
     const FLDDemoContentDefinitions& Content = Catalog.Get();
     const bool bFull = InstalledCards(Self, Catalog) >= Self.CardCapacity;
+    double Best = -1.;
     for (const FLDOpponentCard& Owned : Self.Cards)
     {
         if (Owned.IsInstalled()) { continue; }
-        const bool bMedal = LDProgression::IsMedal(Content, FName(*Owned.DefinitionId));
-        if (bMedal ? OpponentMedalTarget(Self, Content, Owned, OutTarget) : !bFull && CardTarget(Self, Catalog, Owned.DefinitionId, OutTarget))
+        FLDCardTarget Target;
+        if (LDProgression::IsMedal(Content, FName(*Owned.DefinitionId)))
         {
+            // A medal takes no capacity slot and goes first.
+            if (OpponentMedalTarget(Self, Content, Owned, Target)) { OutSerial = Owned.Serial; OutTarget = Target; return true; }
+            continue;
+        }
+        if (bFull || !CardTarget(Self, Catalog, Owned.DefinitionId, Target)) { continue; }
+        // B01 T04-04: the most fitting stored card takes a free slot, so a swap never puts the card it took off back.
+        const double Score = OpponentCardFit(Self, Content, Goal, Owned.DefinitionId);
+        if (Score > Best)
+        {
+            Best = Score;
             OutSerial = Owned.Serial;
-            return true;
+            OutTarget = Target;
         }
     }
-    return false;
+    return Best >= 0.;
+}
+
+bool SelectCardSwap(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FName Goal, uint16& OutSerial)
+{
+    const FLDDemoContentDefinitions& Content = Catalog.Get();
+    if (Self.CardCapacity <= 0 || InstalledCards(Self, Catalog) < Self.CardCapacity) { return false; }
+    double BestStored = -1.;
+    for (const FLDOpponentCard& Owned : Self.Cards)
+    {
+        FLDCardTarget Target;
+        if (Owned.IsInstalled() || LDProgression::IsMedal(Content, FName(*Owned.DefinitionId))
+            || !CardTarget(Self, Catalog, Owned.DefinitionId, Target)) { continue; }
+        BestStored = FMath::Max(BestStored, OpponentCardFit(Self, Content, Goal, Owned.DefinitionId));
+    }
+    double Lowest = TNumericLimits<double>::Max();
+    for (const FLDOpponentCard& Owned : Self.Cards)
+    {
+        if (!Owned.IsInstalled() || LDProgression::IsMedal(Content, FName(*Owned.DefinitionId))) { continue; }
+        const double Fit = OpponentCardFit(Self, Content, Goal, Owned.DefinitionId);
+        if (Fit < Lowest)
+        {
+            Lowest = Fit;
+            OutSerial = Owned.Serial;
+        }
+    }
+    return BestStored >= 0. && BestStored > Lowest;
 }
 
 bool IsCaptureDefenseUrgent(const FLDCaptureUrgencyInput& Input)
@@ -3020,6 +3125,12 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
             Body(Leave.GetValue());
             return Finish(State.Mode, EReason::EngageTarget);
         }
+        // B01 T03-02: a camp member that walls off the kept walk with no way round is fought through.
+        if (const FLDOpponentUnit* Wall = WallingUnit(Frame))
+        {
+            Body(EngageBody(C, *Wall));
+            return Finish(EMode::Engage, EReason::EngageTarget);
+        }
     }
 
     if (Frame.Public.Timeline.Stage == ELDMatchStage::FinalField)
@@ -3027,6 +3138,19 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         FLDOpponentBodyIntent Intent;
         EndVisit(State, false);
         State.bRecovering = false;
+        // B01 T04-03: once the street closure runs, a body outside the current ring (or about to be passed by it) walks
+        // back in before anything else; outside it only loses health.
+        const double Street = double(Frame.Public.StreetRadiusCm);
+        const FVector FromCentre = (Self.FootCm - Frame.Public.ArenaCentreCm) * FVector(1, 1, 0);
+        if (Street > 0 && C.Now >= Frame.Public.ClosureAtMs && FromCentre.Size() > Street - StreetRingMarginCm)
+        {
+            ForgetTarget(State);
+            FVector Inside = Frame.Public.ArenaCentreCm
+                + FromCentre.GetSafeNormal() * FMath::Max(0., Street - 2. * StreetRingMarginCm);
+            Inside.Z = Frame.Public.ArenaCentreCm.Z;
+            Body(MoveToPoint(C, Inside));
+            return Finish(EMode::Contest, EReason::ContestCapture);
+        }
         if (C.bCaptureOpen && FinalModBody(C, Intent)) { Body(Intent); }
         else if (CircleBody(C, true, Intent)) { Body(Intent); }
         else { Body(Halt(C)); }
@@ -3148,6 +3272,12 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         const bool bRivalHolds = C.bCaptureOpen && ((Frame.Public.Circle == ELDOpponentCircle::Solo && !bHoldingSolo) || bRivalGraffiti);
         // After escaping a threat, continue to recovery instead of turning back toward a charm at the sight edge.
         const FLDOpponentPOI* Drop = bRivalHolds || !State.RetreatPOI.IsNone() ? nullptr : C.AirdropTarget();
+        // B01 T04-03: a recovery orb in sight heals at once; it comes before the airdrop and the dorm.
+        if (const FLDOpponentPOI* Orb = bRivalHolds ? nullptr : C.RecoveryOrbTarget())
+        {
+            Body(ApproachPickup(C, *Orb, C.AirdropRadiusCm));
+            return Finish(EMode::Disengage, EReason::Recover);
+        }
         if (Drop && (C.Self.HpP2 < C.Self.MaxHpP2 || C.Self.MomentumP2 < C.Self.MaxMomentumP2))
         {
             Body(ApproachPickup(C, *Drop, C.AirdropRadiusCm));
@@ -3166,6 +3296,13 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
     // D26 (#79): a healthy body goes for a public airdrop that is announced or on the ground; first come, first served.
     // It stays below defending, holding and an active contest of the circle, and does not leave a camp fight it began.
     // On the point it waits for the landing instead of re-ordering the same walk.
+    // B01 T04-03: a recovery orb in sight is picked up first by a body missing health or momentum, out of a camp fight.
+    if (const FLDOpponentPOI* Orb = State.VisitEngagedAtMs == 0 ? C.RecoveryOrbTarget() : nullptr)
+    {
+        EndVisit(State, false);
+        Body(ApproachPickup(C, *Orb, C.AirdropRadiusCm));
+        return Finish(EMode::Disengage, EReason::Recover);
+    }
     if (const FLDOpponentPOI* Drop = State.VisitEngagedAtMs == 0 ? C.AirdropTarget() : nullptr)
     {
         EndVisit(State, false);
@@ -3339,4 +3476,66 @@ void LDOpponentPolicy::GroundDetours(const FVector& From, const FVector& To, TCo
         if (FVector::Dist2D(Closest, Centre) >= Bound) { continue; }
         for (const double Sign : {1., -1.}) { Out.Add(Centre + Side * Sign * (Bound + GroundDetourMarginCm)); }
     }
+}
+
+int32 LDOpponentPolicy::BlockingBody(TConstArrayView<FVector> Points, TConstArrayView<FBodyDisc> Bodies, double WalkerRadiusCm,
+    double LookaheadCm, FVector& OutAlong)
+{
+    OutAlong = FVector::ZeroVector;
+    if (Points.Num() < 2) { return INDEX_NONE; }
+    const FVector2D End(Points.Last());
+    double Walked = 0;
+    int32 Best = INDEX_NONE;
+    double BestAt = TNumericLimits<double>::Max();
+    for (int32 I = 1; I < Points.Num() && Walked < LookaheadCm; ++I)
+    {
+        const FVector2D A(Points[I - 1]), B(Points[I]);
+        const double Length = FVector2D::Distance(A, B);
+        if (Length <= 0) { continue; }
+        // Only the part of this segment inside the lookahead is judged.
+        const FVector2D Cut = Walked + Length > LookaheadCm ? A + (B - A) * ((LookaheadCm - Walked) / Length) : B;
+        for (int32 Index = 0; Index < Bodies.Num(); ++Index)
+        {
+            const FBodyDisc& Body = Bodies[Index];
+            const FVector2D Centre(Body.CentreCm);
+            const double Clearance = Body.RadiusCm + WalkerRadiusCm;
+            if (FVector2D::DistSquared(Centre, End) <= FMath::Square(Clearance)) { continue; }
+            const FVector2D Closest = FMath::ClosestPointOnSegment2D(Centre, A, Cut);
+            if (FVector2D::DistSquared(Closest, Centre) >= FMath::Square(Clearance)) { continue; }
+            // A walker already touching a body is not blocked by a first leg that slides past it rather than into it.
+            if (I == 1 && FVector2D::Distance(Closest, Centre) >= FVector2D::Distance(A, Centre) - BodyGrazeCm) { continue; }
+            const double At = Walked + FVector2D::Distance(A, Closest);
+            if (At < BestAt)
+            {
+                BestAt = At;
+                Best = Index;
+                OutAlong = FVector(B - A, 0).GetSafeNormal2D();
+            }
+        }
+        if (Best != INDEX_NONE) { return Best; }
+        Walked += Length;
+    }
+    return Best;
+}
+
+void LDOpponentPolicy::BodyDetours(const FBodyDisc& Body, const FVector& Along, double WalkerRadiusCm, TArray<FVector>& Out)
+{
+    Out.Reset();
+    const FVector Heading = Along.GetSafeNormal2D();
+    if (Heading.IsNearlyZero()) { return; }
+    const FVector Side(-Heading.Y, Heading.X, 0);
+    const double Clearance = Body.RadiusCm + WalkerRadiusCm;
+    for (int32 Step = 1; Step <= 3; ++Step)
+    {
+        for (const double Sign : {1., -1.}) { Out.Add(Body.CentreCm + Side * Sign * (Clearance + GroundDetourMarginCm * Step)); }
+    }
+}
+
+const FLDOpponentUnit* LDOpponentPolicy::WallingUnit(const FLDOpponentDecisionFrame& Frame)
+{
+    if (!Frame.WallingHandle.IsValid()) { return nullptr; }
+    return Frame.Units.FindByPredicate([&Frame](const FLDOpponentUnit& Unit)
+    {
+        return Unit.Kind == ELDOpponentUnitKind::CampMember && Unit.Handle == Frame.WallingHandle && Unit.Epoch == Frame.WallingEpoch;
+    });
 }

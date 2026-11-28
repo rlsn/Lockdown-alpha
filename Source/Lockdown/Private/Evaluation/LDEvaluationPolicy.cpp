@@ -640,6 +640,14 @@ FLDOpponentDecision LDEvaluationPolicy::Decide(const FLDOpponentDecisionFrame& F
         Hold();
         return Finish(ELDOpponentMode::Explore, ELDOpponentReason::Explore);
     }
+    // B01 T03-02: a camp member walling off the walk with no way round (the controller's route check) is fought through
+    // with the production engagement, before any side step.
+    if (const FLDOpponentUnit* Wall = LDOpponentPolicy::WallingUnit(Frame))
+    {
+        Out.Body = LDOpponentPolicy::EngageUnit(Frame, Catalog, Policy, *Wall);
+        if (bActionLive) { Hold(); }
+        return Finish(ELDOpponentMode::Engage, ELDOpponentReason::EngageTarget);
+    }
     if (Now - State.ApproachSinceMs >= ApproachStuckMs && !Site->SurfaceId.IsNone())
     {
         // Three steps to one side, then three to the other: enough to clear a camp from either flank.

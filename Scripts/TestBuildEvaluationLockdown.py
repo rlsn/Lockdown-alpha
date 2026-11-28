@@ -308,11 +308,18 @@ class PlanTest(AdapterCase):
                         "shipped experiments must use supported mechanics and decisions")
 
     def test_breakout_manifest_runs_every_sample_against_a_bare_build(self):
-        # #287 §7.6: each DEV breakout sample (breakout_preset) faces the same-level bare build.
+        # #287 §7.6: each DEV breakout sample (breakout_preset) faces the same-level bare build. The reference subject is a
+        # bare build that spends the same legal budget as a sample; the old all-unspent bare arm stays as a baseline.
         value = core.validate_manifest(core.read_json(ROOT / "Scripts" / "BuildEvaluationManifests" / "p3-breakout-samples.json"))
         arms = {arm["id"]: arm["plan"] for arm in value["design"]["arms"]}
         reference = arms.pop(value["design"]["reference"])
+        self.assertEqual(value["design"]["reference"], "bare_spent")
         self.assertEqual(lockdown.requirements(value["scenario"], reference, self.caps)["problems"], [])
+        self.assertFalse(reference["subject"].get("keep_points_unspent", False), "the reference spends its points")
+        self.assertNotIn("breakout_preset", reference["subject"])
+        unspent = arms.pop("bare")
+        self.assertTrue(unspent["subject"].get("keep_points_unspent"))
+        self.assertEqual(unspent["opponent"], reference["opponent"])
         self.assertEqual(len(arms), 10)
         for arm, plan in arms.items():
             with self.subTest(arm=arm):
