@@ -5228,6 +5228,67 @@ bool FLDCombatCommitWindupsTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("A lapsed one does not"),LDCombatControl::EmpoweredWindupScaleBp({Plain,Armed},5000),int64(10000));
     return true;
 }
+// C-11: control that stops a committing branch (S13 2B here) before its release puts half its hasted cooldown on the skill;
+// cancelling it, a base form and a control after the release moment cost nothing.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatInterruptedCommitCooldownTest, "Lockdown.Rules.Combat.Skills.InterruptedCommitCooldown",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCombatInterruptedCommitCooldownTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    FString Error;
+    const TCHAR* Ram=TEXT("active_charged_ram");
+    const FLDCombatBodyRef Caster=F.AddBody();
+    if (!InstallCards(*this,F,Caster,6,{})) { return false; }
+    FLDBodyCombatState& Body=F.Body(Caster);
+    FLDCombatEntityRecord& Record=FAccess::Records(*F.Driver).FindChecked(Caster.Victim.EntityId);
+    Record.Projection=Body.AttributeProjection;
+    const FLDDemoAbilityDefinition* Ability=nullptr;
+    if (!TestTrue(TEXT("S13"),F.Catalog->FindAbility(Ram,Ability,Error) && Ability)) { return false; }
+    for (const FLDDemoAbilityBranch& Branch : Ability->Branches)
+    {
+        TestEqual(TEXT("Only S13's committing B forms carry the interrupt cooldown"),Branch.InterruptCooldownBp,
+            Branch.Path==ELDSkillBranch::B || Branch.Path==ELDSkillBranch::B1 || Branch.Path==ELDSkillBranch::B2 ? int64(5000) : int64(0));
+    }
+    const FLDDemoAbilityValues* Values=F.Catalog->FindValues(*Ability,6,ELDSkillBranch::B);
+    int64 FullMs=0;
+    if (!TestTrue(TEXT("S13 2B's hasted cooldown"),Values && LDTactical::CooldownDurationMs(Values->CooldownMs,
+        Body.AttributeProjection.Final.CooldownHasteP2,F.Catalog->Get().Formulas.HasteScaleP2,FullMs,Error)))
+    { return false; }
+    FullMs=FMath::Max(FullMs,F.Catalog->Get().Parameters.SkillRanks.CooldownFloorMs);
+    const auto Windup=[&](ELDSkillBranch Branch, int64 StartMs, int64 StopMs, ELDCombatReject Reason)
+    {
+        Record.Build.Actives={{FName(Ram),ELDCombatEntry::Q,Branch}};
+        FLDCombatTrack& Track=TrackOf(F,Caster,Ram,0);
+        Track.LastDurationMs=0;
+        Body.Resources.MomentumP2=5000;
+        F.Now(StartMs);
+        FLDCombatAction Action;
+        Action.Kind=ELDCombatActionKind::Ability;
+        Action.Key.Origin=ELDCombatRequestOrigin::Nav;
+        Action.Key.Entity=Caster.Victim.EntityId;
+        Action.Entry=ELDCombatEntry::Q;
+        Action.Source=SourceOf(ELDCombatSourceKind::Learned,Ram);
+        Action.StartedAtMs=StartMs;
+        Action.ReleaseAtMs=StartMs+300;
+        Body.Action=Action;
+        F.Now(StopMs);
+        FAccess::AbandonAction(*F.Driver,Body,Reason);
+        return Track.ReadyAtMs;
+    };
+    TestEqual(TEXT("A stun in the windup costs half the cooldown"),Windup(ELDSkillBranch::B,1000,1100,ELDCombatReject::ControlBlocked),
+        1100+FullMs/2);
+    TestEqual(TEXT("The skill shows that part as its cooldown"),TrackOf(F,Caster,Ram,1100+FullMs/2).LastDurationMs,FullMs/2);
+    TestFalse(TEXT("The interrupted action ends"),Body.Action.IsSet());
+    TestEqual(TEXT("Nothing is paid or refunded"),Body.Resources.MomentumP2,int64(5000));
+    TestEqual(TEXT("Cancelling the committing windup is free"),Windup(ELDSkillBranch::B,5000,5100,ELDCombatReject::Cancelled),int64(0));
+    TestEqual(TEXT("The base form's interrupt is free"),Windup(ELDSkillBranch::None,9000,9100,ELDCombatReject::ControlBlocked),int64(0));
+    TestEqual(TEXT("Control at the release moment costs nothing extra"),
+        Windup(ELDSkillBranch::B,13000,13300,ELDCombatReject::ControlBlocked),int64(0));
+    return true;
+}
+
 // N6's tape is 70 cm across (spec 500 x 70 cm): a body touches it when the band reaches its collision, never 70 cm to each side.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatCordonWidthTest, "Lockdown.Rules.Combat.Skills.CordonWidth",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

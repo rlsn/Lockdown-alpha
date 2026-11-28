@@ -181,6 +181,8 @@ struct FLDCombatActiveTerms
     FLDDemoTargetDefinition Target;
     FLDDemoAbilityValues Values;
     int64 WindupMs=0;
+    // C-11: the share of the cooldown a control interrupt before the release costs (the branch's; 0 = free).
+    int64 InterruptCooldownBp=0;
     // The learned branch the release snapshot came from (None = rank 1).
     ELDSkillBranch Branch=ELDSkillBranch::None;
     // Native direct damage package multiplier, applied as the hits' PackageScaleBp.
@@ -1714,6 +1716,7 @@ private:
         const FLDExpectedBuildVersions& Expected) const;
     const FLDCombatTrack* TrackFor(const FLDCombatEntityRecord& Record, ELDCombatEntry Entry) const;
     FLDCombatTrack* TrackFor(FLDCombatEntityRecord& Record, ELDCombatEntry Entry);
+    void ChargeInterruptedCommit(const FLDBodyCombatState& Body, const FLDCombatAction& Action);
     bool ResolveEntry(const FLDCombatEntityRecord& Record, ELDCombatEntry Entry, FLDCombatSourceRef& OutSource,
         const FLDDemoAbilityDefinition*& OutAbility) const;
     // The executable active of a resolved entry: a learned active's values grown for its owner's level (#198), or the

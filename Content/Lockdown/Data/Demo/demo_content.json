@@ -1796,6 +1796,10 @@
           ],
           "element": "none",
           "hit_type": "dash",
+          "interrupt_cooldown": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
           "momentum_cost": {
             "p2": 3000,
             "unit": "momentum"
@@ -2166,6 +2170,10 @@
           ],
           "element": "none",
           "hit_type": "dash",
+          "interrupt_cooldown": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
           "momentum_cost": {
             "p2": 3000,
             "unit": "momentum"
@@ -2295,6 +2303,10 @@
           ],
           "element": "none",
           "hit_type": "dash",
+          "interrupt_cooldown": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
           "momentum_cost": {
             "p2": 3000,
             "unit": "momentum"
@@ -3917,6 +3929,10 @@
           ],
           "element": "none",
           "hit_type": "dash",
+          "interrupt_cooldown": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
           "momentum_cost": {
             "p2": 3000,
             "unit": "momentum"
@@ -4157,6 +4173,10 @@
           ],
           "element": "none",
           "hit_type": "dash",
+          "interrupt_cooldown": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
           "momentum_cost": {
             "p2": 3000,
             "unit": "momentum"
@@ -4275,6 +4295,10 @@
           ],
           "element": "none",
           "hit_type": "dash",
+          "interrupt_cooldown": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
           "momentum_cost": {
             "p2": 3000,
             "unit": "momentum"
@@ -9107,6 +9131,10 @@
           ],
           "element": "none",
           "hit_type": "area",
+          "interrupt_cooldown": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
           "momentum_cost": {
             "p2": 2500,
             "unit": "momentum"
@@ -9479,6 +9507,10 @@
           ],
           "element": "none",
           "hit_type": "area",
+          "interrupt_cooldown": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
           "momentum_cost": {
             "p2": 2500,
             "unit": "momentum"
@@ -9583,6 +9615,10 @@
           ],
           "element": "none",
           "hit_type": "area",
+          "interrupt_cooldown": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
           "momentum_cost": {
             "p2": 2500,
             "unit": "momentum"

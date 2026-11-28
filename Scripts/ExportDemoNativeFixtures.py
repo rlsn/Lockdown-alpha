@@ -856,6 +856,7 @@ def expected_projection(compilation):
             "Branches": [{
                 "Path": ("None", "A", "B", "A1", "A2", "B1", "B2").index(branch["path"]), "Target": target(branch["target"]),
                 "WindupMs": scalar(branch["windup"]), "Element": SKILL_ELEMENTS.index(branch["element"]),
+                "InterruptCooldownBp": scalar(branch["interrupt_cooldown"]) if "interrupt_cooldown" in branch else 0,
                 "HitType": HIT_TYPES.index(branch["hit_type"]), "VocabMask": vocab_mask(branch.get("vocab", [])),
                 "Values": values(branch),
             } for branch in row["branches"]],

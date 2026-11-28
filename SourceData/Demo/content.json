@@ -1859,6 +1859,10 @@
               "value": {
                 "unit": "s",
                 "value": 0.28
+              },
+              "interrupt_cooldown": {
+                "unit": "ratio",
+                "value": 0.5
               }
             }
           ]
@@ -2034,6 +2038,10 @@
               "value": {
                 "unit": "s",
                 "value": 0.3
+              },
+              "interrupt_cooldown": {
+                "unit": "ratio",
+                "value": 0.5
               }
             }
           ]
@@ -4914,6 +4922,10 @@
               "value": {
                 "unit": "s",
                 "value": 0.3
+              },
+              "interrupt_cooldown": {
+                "unit": "ratio",
+                "value": 0.5
               }
             }
           ]

@@ -449,6 +449,7 @@ bool ALDCombatDirector::ActiveOf(const FLDCombatEntityRecord& Record, const FLDC
         if (!Values || (Branch!=ELDSkillBranch::None && !Variant)) { return false; }
         Out.Target=Variant ? Variant->Target : Ability->Target;
         Out.WindupMs=Variant ? Variant->WindupMs : Ability->WindupMs;
+        Out.InterruptCooldownBp=Variant ? Variant->InterruptCooldownBp : 0;
         Out.Branch=Branch;
     }
     else if (Source.Kind==ELDCombatSourceKind::Innate && Content)
