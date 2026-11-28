@@ -1,0 +1,3169 @@
+[
+ {
+  "id": "active_elbow",
+  "name": "滚远点",
+  "opening": true,
+  "element": "none",
+  "hit_type": "targeted",
+  "mode": "Unit",
+  "range": 220,
+  "target": {
+   "mode": "Unit",
+   "range": 220
+  },
+  "windup": 0.15,
+  "cost": 25,
+  "cooldown": 4.2,
+  "effects": [
+   {
+    "op": "damage",
+    "base": 65,
+    "ad_ratio": 0.85,
+    "ap_ratio": 0,
+    "max_hp_ratio": 0,
+    "damage_type": "Physical"
+   },
+   {
+    "op": "knockback",
+    "duration": 0.25,
+    "distance": 300
+   }
+  ],
+  "ranks": {
+   "2A": {
+    "name": "给我过来",
+    "text": "改为把目标拉到身前 [pull.radius] 厘米。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "pull",
+       "distance": 300,
+       "duration": 0.25,
+       "min_distance": 120
+      }
+     }
+    ]
+   },
+   "3A1": {
+    "name": "拉完就揍",
+    "text": "拉完 [next_basic_amp.duration] 秒内下一次普攻伤害 +[next_basic_amp.ratio]%。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "next_basic_amp",
+       "ratio": 1,
+       "duration": 2
+      }
+     }
+    ]
+   },
+   "3A2": {
+    "name": "拉进水里",
+    "text": "拉完让目标湿。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "wet"
+      }
+     }
+    ]
+   },
+   "2B": {
+    "name": "一脚踹远",
+    "text": "击退距离改为 [knockback.distance] 厘米。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "knockback",
+      "field": "distance",
+      "value": 500
+     }
+    ]
+   },
+   "3B1": {
+    "name": "踹到墙上",
+    "text": "撞墙时眩晕 [knockback.extra_duration] 秒。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "knockback",
+      "field": "wall_stun",
+      "value": 0.8
+     }
+    ]
+   },
+   "3B2": {
+    "name": "踹出内伤",
+    "text": "被踹的人 [vulnerable.duration] 秒内受到的伤害 +[vulnerable.ratio]%。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "vulnerable",
+       "ratio": 0.2,
+       "duration": 3,
+       "scope": "all"
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "id": "active_pants_down",
+  "name": "扒裤子",
+  "opening": true,
+  "element": "none",
+  "hit_type": "area",
+  "mode": "DirectionLine",
+  "range": 440,
+  "target": {
+   "mode": "DirectionLine",
+   "range": 440,
+   "half_width": 65
+  },
+  "windup": 0.14,
+  "cost": 25,
+  "cooldown": 6,
+  "effects": [
+   {
+    "op": "damage",
+    "base": 55,
+    "ad_ratio": 0.7,
+    "ap_ratio": 0.5,
+    "max_hp_ratio": 0,
+    "damage_type": "Physical"
+   },
+   {
+    "op": "root",
+    "duration": 1.1
+   },
+   {
+    "op": "breach"
+   },
+   {
+    "op": "grab_line",
+    "extra_duration": 0.3
+   }
+  ],
+  "ranks": {
+   "2A": {
+    "name": "拽裤腰带",
+    "text": "抓中后将目标往身前拽回 [pull.distance] 厘米。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "knockback",
+       "distance": 220,
+       "duration": 0.18
+      }
+     },
+     {
+      "op": "add",
+      "effect": {
+       "op": "pull",
+       "distance": 220,
+       "duration": 0.18,
+       "min_distance": 110
+      }
+     }
+    ]
+   },
+   "3A1": {
+    "name": "光着挨揍",
+    "text": "抓中后 [self_buff.duration] 秒内攻速 +[self_buff.AttackSpeedBonusRatio]%，下一次普攻伤害 +[next_basic_amp.ratio]%。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "self_buff",
+       "duration": 1.8,
+       "stats": {
+        "AttackSpeedBonusRatio": 0.35
+       }
+      }
+     },
+     {
+      "op": "add",
+      "effect": {
+       "op": "next_basic_amp",
+       "ratio": 0.55,
+       "duration": 2
+      }
+     }
+    ]
+   },
+   "3A2": {
+    "name": "静电秋裤",
+    "text": "拽回时摩擦起电让目标麻，并在 [follow_up.delay] 秒后迸发 [follow_up.amount] 魔法伤害。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "electrify"
+      }
+     },
+     {
+      "op": "add",
+      "effect": {
+       "op": "follow_up",
+       "delay": 0.25,
+       "count": 1,
+       "interval": 0.25,
+       "base": 40,
+       "ap_ratio": 0.45,
+       "damage_type": "Magical",
+       "electrify": true
+      }
+     }
+    ]
+   },
+   "2B": {
+    "name": "抽裤腰带",
+    "text": "抓扯射程延长，未抓中人时挥出气劲使前方敌人减速 [grab_line.ratio]%，持续 [grab_line.duration] 秒。",
+    "patches": [
+     {
+      "op": "target",
+      "range": 620
+     },
+     {
+      "op": "set",
+      "effect": "grab_line",
+      "field": "miss_slow",
+      "value": 0.25
+     },
+     {
+      "op": "set",
+      "effect": "grab_line",
+      "field": "miss_slow_duration",
+      "value": 1.2
+     }
+    ]
+   },
+   "3B1": {
+    "name": "顺手摸兜",
+    "text": "抓中时从目标兜里顺走 [momentum_steal.amount] 劲归自己。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "momentum_steal",
+       "momentum": 22,
+       "ratio": 1
+      }
+     }
+    ]
+   },
+   "3B2": {
+    "name": "连扒两下",
+    "text": "[recast.duration] 秒内可免劲再拽一次，重复命中改为缴械 [recast.secondary_duration] 秒。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "recast",
+       "window": 3,
+       "damage_ratio": 0.85,
+       "control": "disarm",
+       "control_duration": 1.2,
+       "free_direction": true
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "id": "active_crotch_grab",
+  "name": "掏蛋子",
+  "opening": false,
+  "element": "none",
+  "hit_type": "dash",
+  "mode": "DirectionDash",
+  "range": null,
+  "target": {
+   "mode": "DirectionDash"
+  },
+  "windup": 0.12,
+  "cost": 30,
+  "cooldown": 6.3,
+  "effects": [
+   {
+    "op": "dash",
+    "duration": 0.16,
+    "distance": 280
+   },
+   {
+    "op": "dash_contact",
+    "targets": "First"
+   },
+   {
+    "op": "damage",
+    "base": 72,
+    "ad_ratio": 0,
+    "ap_ratio": 0,
+    "max_hp_ratio": 0,
+    "damage_type": "Physical"
+   },
+   {
+    "op": "slow",
+    "duration": 1.5,
+    "ratio": 0.35
+   },
+   {
+    "op": "attack_slow",
+    "duration": 1.5,
+    "ratio": 0.35
+   },
+   {
+    "op": "backstab_lunge",
+    "angle": 150,
+    "stun_duration": 1.1
+   }
+  ],
+  "ranks": {
+   "2A": {
+    "name": "蓄势黑手",
+    "text": "滑步探爪拉长至 [dash.distance] 厘米，命中伤害大幅提高。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "dash",
+      "field": "distance",
+      "value": 450
+     },
+     {
+      "op": "scale",
+      "effect": "damage",
+      "fields": [
+       "base",
+       "adaptive_ratio"
+      ],
+      "ratio": 1.35
+     }
+    ]
+   },
+   "3A1": {
+    "name": "断子绝孙",
+    "text": "对生命低于 [backstab_lunge.secondary_ratio]% 的目标额外造成已损生命 [backstab_lunge.ratio]% 的处决伤害。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "backstab_lunge",
+      "field": "execute_threshold",
+      "value": 0.5
+     },
+     {
+      "op": "set",
+      "effect": "backstab_lunge",
+      "field": "execute_ratio",
+      "value": 0.12
+     }
+    ]
+   },
+   "3A2": {
+    "name": "麻筋寸劲",
+    "text": "转为魔法内伤并附着麻，触发暴击时震波波及周围 [backstab_lunge.radius] 厘米。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "damage",
+      "field": "damage_type",
+      "value": "Magical"
+     },
+     {
+      "op": "add",
+      "effect": {
+       "op": "electrify"
+      }
+     },
+     {
+      "op": "set",
+      "effect": "backstab_lunge",
+      "field": "crit_shock_radius",
+      "value": 260
+     }
+    ]
+   },
+   "2B": {
+    "name": "掏完就溜",
+    "text": "得手瞬间轻巧翻滚 [dash_back.distance] 厘米并享有完美闪避窗口。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "dash_back",
+       "distance": 250,
+       "duration": 0.18,
+       "as_dash": true
+      }
+     }
+    ]
+   },
+   "3B1": {
+    "name": "惯犯连手",
+    "text": "触发痛晕时立即返还本技能 [backstab_lunge.cost_ratio]% 剩余冷却。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "backstab_lunge",
+      "field": "stun_refund",
+      "value": 0.55
+     }
+    ]
+   },
+   "3B2": {
+    "name": "疼得撒手",
+    "text": "命中额外缴械 [backstab_lunge.extra_duration] 秒，并提高自身移速 [self_buff.MoveSpeedBonusRatio]%。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "backstab_lunge",
+      "field": "disarm_duration",
+      "value": 1.2
+     },
+     {
+      "op": "add",
+      "effect": {
+       "op": "self_buff",
+       "duration": 1.6,
+       "stats": {
+        "MoveSpeedBonusRatio": 0.3
+       }
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "id": "active_unplug",
+  "name": "拧你手腕",
+  "opening": false,
+  "element": "none",
+  "hit_type": "area",
+  "mode": "Self",
+  "range": null,
+  "target": {
+   "mode": "Self"
+  },
+  "windup": 0,
+  "cost": 20,
+  "cooldown": 6.3,
+  "effects": [
+   {
+    "op": "parry_stance",
+    "radius": 280,
+    "duration": 0.45,
+    "disarm_duration": 1.3,
+    "base": 65,
+    "ad_ratio": 0.75
+   }
+  ],
+  "ranks": {
+   "2A": {
+    "name": "寸步贴打",
+    "text": "成功卸力时瞬步贴到攻击者身旁并回复 [parry_stance.limit] 劲。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "parry_stance",
+      "field": "step_momentum",
+      "value": 25
+     }
+    ]
+   },
+   "3A1": {
+    "name": "借力打力",
+    "text": "反震额外附加所挡下那击原始伤害的 [parry_stance.multiplier]%。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "parry_stance",
+      "field": "reflect_ratio",
+      "value": 0.6
+     }
+    ]
+   },
+   "3A2": {
+    "name": "连拧三下",
+    "text": "成功卸力后接下来 [parry_stance.count] 次普攻全部视作第三段重拳。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "parry_stance",
+      "field": "combo_charges",
+      "value": 3
+     }
+    ]
+   },
+   "2B": {
+    "name": "铁腕硬接",
+    "text": "卸力架势延长至 [parry_stance.duration] 秒，成功格挡获得生命上限的护盾。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "parry_stance",
+      "field": "duration",
+      "value": 0.75
+     },
+     {
+      "op": "set",
+      "effect": "parry_stance",
+      "field": "shield_max_hp_ratio",
+      "value": 0.1
+     }
+    ]
+   },
+   "3B1": {
+    "name": "反震晕眩",
+    "text": "格挡近战或冲刺时，额外使攻击者眩晕 [parry_stance.extra_duration] 秒。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "parry_stance",
+      "field": "melee_stun",
+      "value": 1
+     }
+    ]
+   },
+   "3B2": {
+    "name": "回一口血",
+    "text": "格挡成功时立即回复已损生命的治疗。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "parry_stance",
+      "field": "heal_missing_ratio",
+      "value": 0.12
+     }
+    ]
+   }
+  }
+ },
+ {
+  "id": "active_snark_bolt",
+  "name": "甩你一鞋",
+  "opening": true,
+  "element": "none",
+  "hit_type": "projectile",
+  "mode": "DirectionProjectile",
+  "range": 850,
+  "target": {
+   "mode": "DirectionProjectile",
+   "range": 850,
+   "projectile_radius": 55,
+   "projectile_speed": 1650
+  },
+  "windup": 0.18,
+  "cost": 25,
+  "cooldown": 4.2,
+  "effects": [
+   {
+    "op": "damage",
+    "base": 85,
+    "ad_ratio": 0,
+    "ap_ratio": 0,
+    "max_hp_ratio": 0,
+    "damage_type": "Physical"
+   },
+   {
+    "op": "slow",
+    "duration": 1.5,
+    "ratio": 0.25
+   },
+   {
+    "op": "slipper_pickup",
+    "radius": 110,
+    "duration": 3
+   }
+  ],
+  "ranks": {
+   "2A": {
+    "name": "大号拖鞋",
+    "text": "飞鞋变宽，命中把目标往回拽 [pull.distance] 厘米。",
+    "patches": [
+     {
+      "op": "target",
+      "projectile_radius": 105
+     },
+     {
+      "op": "add",
+      "effect": {
+       "op": "knockback",
+       "distance": 180,
+       "duration": 0.18
+      }
+     },
+     {
+      "op": "add",
+      "effect": {
+       "op": "pull",
+       "distance": 180,
+       "duration": 0.18,
+       "min_distance": 120
+      }
+     }
+    ]
+   },
+   "3A1": {
+    "name": "啪嗒破防",
+    "text": "飞鞋命中额外施加 [breach.count] 层破防。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "breach",
+       "stacks": 2
+      }
+     }
+    ]
+   },
+   "3A2": {
+    "name": "沾水拖鞋",
+    "text": "飞鞋命中让目标湿。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "wet"
+      }
+     }
+    ]
+   },
+   "2B": {
+    "name": "回旋飞鞋",
+    "text": "飞鞋到终点折返飞回，回程造成 [projectile_return.multiplier]% 伤害。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "projectile_return",
+       "damage_ratio": 0.6
+      }
+     }
+    ]
+   },
+   "3B1": {
+    "name": "带电鞋底",
+    "text": "回程飞鞋让目标麻。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "projectile_return",
+      "field": "electrify",
+      "value": true
+     }
+    ]
+   },
+   "3B2": {
+    "name": "接鞋抽脸",
+    "text": "接住回程飞鞋或捡起拖鞋后下一次普攻伤害 +[next_basic_amp.ratio]%。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "next_basic_amp",
+       "ratio": 0.85,
+       "duration": 3,
+       "on_catch": true
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "id": "active_seethe",
+  "name": "烫你屁股",
+  "opening": true,
+  "element": "fire",
+  "hit_type": "area",
+  "mode": "Self",
+  "range": null,
+  "target": {
+   "mode": "Self"
+  },
+  "windup": 0.25,
+  "cost": 30,
+  "cooldown": 4.9,
+  "effects": [
+   {
+    "op": "self_area",
+    "radius": 300
+   },
+   {
+    "op": "damage",
+    "base": 60,
+    "ad_ratio": 0,
+    "ap_ratio": 0.6,
+    "max_hp_ratio": 0.02,
+    "damage_type": "Magical"
+   },
+   {
+    "op": "burn"
+   }
+  ],
+  "ranks": {
+   "2A": {
+    "name": "越烧越旺",
+    "text": "灼烧改为 [burn.count] 层。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "burn",
+      "field": "stacks",
+      "value": 4
+     }
+    ]
+   },
+   "3A1": {
+    "name": "烧透了",
+    "text": "目标灼烧满 [burn_burst.count] 层时额外造成 [burn_burst.amount] 魔法伤害。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "burn_burst",
+       "stacks": 5,
+       "base": 40,
+       "ap_ratio": 0.4
+      }
+     }
+    ]
+   },
+   "3A2": {
+    "name": "烫一大片",
+    "text": "半径改为 [self_area.radius] 厘米。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "self_area",
+      "field": "radius",
+      "value": 400
+     }
+    ]
+   },
+   "2B": {
+    "name": "烫一路",
+    "text": "之后每 [pulse.interval] 秒以你为中心再烫一次，共 [pulse.count] 次，每次 [pulse.multiplier]%。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "pulse",
+       "count": 2,
+       "interval": 1,
+       "damage_ratio": 0.4
+      }
+     }
+    ]
+   },
+   "3B1": {
+    "name": "烫出劲",
+    "text": "每次再烫回 [pulse.limit] 劲。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "pulse",
+      "field": "momentum",
+      "value": 5
+     }
+    ]
+   },
+   "3B2": {
+    "name": "烫出壳",
+    "text": "每次再烫给自己 [pulse.amount] 护盾。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "pulse",
+      "field": "shield_base",
+      "value": 20
+     },
+     {
+      "op": "set",
+      "effect": "pulse",
+      "field": "shield_max_hp_ratio",
+      "value": 0.02
+     }
+    ]
+   }
+  }
+ },
+ {
+  "id": "active_quick_meeting",
+  "name": "脚底开锅",
+  "opening": true,
+  "element": "fire",
+  "hit_type": "area",
+  "mode": "GroundPoint",
+  "range": 650,
+  "target": {
+   "mode": "GroundPoint",
+   "range": 650
+  },
+  "windup": 0.25,
+  "cost": 35,
+  "cooldown": 5.6,
+  "effects": [
+   {
+    "op": "zone",
+    "radius": 240,
+    "delay": 0,
+    "duration": 3,
+    "interval": 1,
+    "count": 3
+   },
+   {
+    "op": "zone_damage",
+    "base": 30,
+    "ad_ratio": 0,
+    "ap_ratio": 0.25,
+    "damage_type": "Magical"
+   },
+   {
+    "op": "zone_slow",
+    "duration": 0.5,
+    "interval": 1,
+    "ratio": 0.2
+   },
+   {
+    "op": "zone_burn",
+    "interval": 1
+   }
+  ],
+  "ranks": {
+   "2A": {
+    "name": "边走边开",
+    "text": "区域跟着你走，半径变为 [zone_tether.ratio]%。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "zone_tether",
+       "radius_ratio": 0.8
+      }
+     }
+    ]
+   },
+   "3A1": {
+    "name": "会上溜达",
+    "text": "你在区域里移速 +[zone_haste.ratio]%。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "zone_haste",
+       "ratio": 0.2
+      }
+     }
+    ]
+   },
+   "3A2": {
+    "name": "会上装死",
+    "text": "你在区域里受到的伤害 -[zone_guard.ratio]%。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "zone_guard",
+       "ratio": 0.15
+      }
+     }
+    ]
+   },
+   "2B": {
+    "name": "一锅端",
+    "text": "改为落点一次造成 [damage.amount] 魔法伤害和 [burn.count] 层灼烧。",
+    "patches": [
+     {
+      "op": "remove",
+      "effect": "zone_damage"
+     },
+     {
+      "op": "remove",
+      "effect": "zone_slow"
+     },
+     {
+      "op": "remove",
+      "effect": "zone_burn"
+     },
+     {
+      "op": "remove",
+      "effect": "zone"
+     },
+     {
+      "op": "add",
+      "effect": {
+       "op": "ground_impact",
+       "radius": 240,
+       "inner_radius": 240,
+       "outer_ratio": 0.6,
+       "delay": 0
+      }
+     },
+     {
+      "op": "add",
+      "effect": {
+       "op": "damage",
+       "base": 90,
+       "ad_ratio": 0,
+       "ap_ratio": 0.8,
+       "max_hp_ratio": 0,
+       "damage_type": "Magical"
+      }
+     },
+     {
+      "op": "add",
+      "effect": {
+       "op": "burn",
+       "stacks": 3
+      }
+     }
+    ]
+   },
+   "3B1": {
+    "name": "锅再炸",
+    "text": "落点 [echo_impact.delay] 秒后再炸一次，[echo_impact.multiplier]% 伤害。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "echo_impact",
+       "delay": 1,
+       "damage_ratio": 0.5,
+       "cooldown_ratio": 1
+      }
+     }
+    ]
+   },
+   "3B2": {
+    "name": "锅底最烫",
+    "text": "中心 [ground_impact.radius] 厘米内伤害更高。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "ground_impact",
+      "field": "inner_radius",
+      "value": 80
+     },
+     {
+      "op": "set",
+      "effect": "ground_impact",
+      "field": "outer_ratio",
+      "value": 0.667
+     },
+     {
+      "op": "scale",
+      "effect": "damage",
+      "fields": [
+       "base",
+       "ad_ratio",
+       "ap_ratio",
+       "max_hp_ratio"
+      ],
+      "ratio": 1.5
+     }
+    ]
+   }
+  }
+ },
+ {
+  "id": "active_bail_out",
+  "name": "贴脸补一拳",
+  "opening": true,
+  "element": "none",
+  "hit_type": "dash",
+  "mode": "DirectionDash",
+  "range": null,
+  "target": {
+   "mode": "DirectionDash"
+  },
+  "windup": 0,
+  "cost": 20,
+  "cooldown": 4.9,
+  "effects": [
+   {
+    "op": "dash",
+    "duration": 0.2,
+    "distance": 350
+   },
+   {
+    "op": "empower_basic",
+    "duration": 3,
+    "base": 55,
+    "ad_ratio": 0.75,
+    "ap_ratio": 0.45,
+    "damage_type": "Physical"
+   }
+  ],
+  "ranks": {
+   "2A": {
+    "name": "隔空连打",
+    "text": "强化存 [empower_basic.count] 次，每次伤害降低；有强化时普攻射程 +[empower_reach.distance] 厘米。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "empower_basic",
+      "field": "charges",
+      "value": 3
+     },
+     {
+      "op": "scale",
+      "effect": "empower_basic",
+      "fields": [
+       "base",
+       "ad_ratio",
+       "ap_ratio"
+      ],
+      "ratio": 0.7
+     },
+     {
+      "op": "add",
+      "effect": {
+       "op": "empower_reach",
+       "range": 250,
+       "damage_ratio": 1
+      }
+     }
+    ]
+   },
+   "3A1": {
+    "name": "打出劲",
+    "text": "每次强化普攻回 [empower_basic.limit] 劲。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "empower_basic",
+      "field": "momentum",
+      "value": 5
+     }
+    ]
+   },
+   "3A2": {
+    "name": "最后一脚",
+    "text": "第三次强化普攻击退 [final_knockback.distance] 厘米。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "final_knockback",
+       "distance": 200,
+       "duration": 0.2,
+       "cost_ratio": 1
+      }
+     }
+    ]
+   },
+   "2B": {
+    "name": "闪身",
+    "text": "冲刺距离改为 [dash.distance] 厘米，冲刺后短时间无视碰撞。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "dash",
+      "field": "distance",
+      "value": 500
+     },
+     {
+      "op": "set",
+      "effect": "dash",
+      "field": "ghost",
+      "value": 0.5
+     }
+    ]
+   },
+   "3B1": {
+    "name": "穿身而过",
+    "text": "冲刺穿过的敌人也吃一次强化普攻伤害 [damage.amount]。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "dash_contact",
+       "targets": "Every"
+      }
+     },
+     {
+      "op": "add",
+      "effect": {
+       "op": "damage",
+       "base": 45,
+       "ad_ratio": 0.55,
+       "ap_ratio": 0.35,
+       "max_hp_ratio": 0,
+       "damage_type": "Physical"
+      }
+     }
+    ]
+   },
+   "3B2": {
+    "name": "看准了打",
+    "text": "强化普攻伤害更高并必定暴击。",
+    "patches": [
+     {
+      "op": "scale",
+      "effect": "empower_basic",
+      "fields": [
+       "base",
+       "ad_ratio",
+       "ap_ratio"
+      ],
+      "ratio": 1.5
+     },
+     {
+      "op": "set",
+      "effect": "empower_basic",
+      "field": "crit",
+      "value": true
+     }
+    ]
+   }
+  }
+ },
+ {
+  "id": "active_not_mad",
+  "name": "锅盖挡脸",
+  "opening": true,
+  "element": "none",
+  "hit_type": "self",
+  "mode": "Self",
+  "range": null,
+  "target": {
+   "mode": "Self"
+  },
+  "windup": 0,
+  "cost": 25,
+  "cooldown": 7,
+  "effects": [
+   {
+    "op": "shield",
+    "duration": 3,
+    "base": 95,
+    "ad_ratio": 0.65,
+    "ap_ratio": 0.6,
+    "max_hp_ratio": 0.08
+   },
+   {
+    "op": "dispel_slow"
+   },
+   {
+    "op": "dispel_root"
+   }
+  ],
+  "ranks": {
+   "2A": {
+    "name": "铁锅",
+    "text": "护盾变为 [shield.amount]，持续 [shield.duration] 秒。",
+    "patches": [
+     {
+      "op": "scale",
+      "effect": "shield",
+      "fields": [
+       "base",
+       "ap_ratio",
+       "ad_ratio",
+       "max_hp_ratio"
+      ],
+      "ratio": 1.5
+     },
+     {
+      "op": "set",
+      "effect": "shield",
+      "field": "duration",
+      "value": 4
+     }
+    ]
+   },
+   "3A1": {
+    "name": "锅反弹",
+    "text": "护盾存在时反弹 [shield_reflect.ratio]% 直接伤害。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "shield_reflect",
+       "ratio": 0.2
+      }
+     }
+    ]
+   },
+   "3A2": {
+    "name": "锅底回血",
+    "text": "护盾结束时剩余量的 [shield_end_heal.ratio]% 治疗自己。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "shield_end_heal",
+       "ratio": 0.5
+      }
+     }
+    ]
+   },
+   "2B": {
+    "name": "锅盖拍脸",
+    "text": "护盾变小，同时对 [self_area.radius] 厘米内造成 [damage.amount] 魔法伤害并击退。",
+    "patches": [
+     {
+      "op": "scale",
+      "effect": "shield",
+      "fields": [
+       "base",
+       "ap_ratio",
+       "ad_ratio",
+       "max_hp_ratio"
+      ],
+      "ratio": 0.6
+     },
+     {
+      "op": "add",
+      "effect": {
+       "op": "self_area",
+       "radius": 300
+      }
+     },
+     {
+      "op": "add",
+      "effect": {
+       "op": "damage",
+       "base": 60,
+       "ad_ratio": 0,
+       "ap_ratio": 0.6,
+       "max_hp_ratio": 0,
+       "damage_type": "Magical"
+      }
+     },
+     {
+      "op": "add",
+      "effect": {
+       "op": "knockback",
+       "distance": 150,
+       "duration": 0.15
+      }
+     }
+    ]
+   },
+   "3B1": {
+    "name": "拍出劲",
+    "text": "拍到人回 [momentum_gain.amount] 劲。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "momentum_gain",
+       "momentum": 15
+      }
+     }
+    ]
+   },
+   "3B2": {
+    "name": "拍出厚锅",
+    "text": "拍到人时护盾 +[shield_hit_bonus.ratio]%。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "shield_hit_bonus",
+       "ratio": 1
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "id": "active_stare_down",
+  "name": "来打老子啊",
+  "opening": false,
+  "element": "none",
+  "hit_type": "area",
+  "mode": "Self",
+  "range": null,
+  "target": {
+   "mode": "Self"
+  },
+  "windup": 0.2,
+  "cost": 30,
+  "cooldown": 8.4,
+  "effects": [
+   {
+    "op": "taunt",
+    "radius": 300,
+    "duration": 1
+   },
+   {
+    "op": "timed_stat_bonus",
+    "duration": 3
+   }
+  ],
+  "ranks": {
+   "2A": {
+    "name": "嘴硬",
+    "text": "嘲讽改为 [taunt.duration] 秒。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "taunt",
+      "field": "duration",
+      "value": 1.4
+     }
+    ]
+   },
+   "3A1": {
+    "name": "脸皮厚",
+    "text": "嘲讽期间你受到的伤害 -[self_buff.ratio]%。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "self_buff",
+       "duration": 1.4,
+       "cut": 0.25
+      }
+     }
+    ]
+   },
+   "3A2": {
+    "name": "破你防",
+    "text": "嘲讽期间被你普攻的人挂 [basic_rider.count] 层破防。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "basic_rider",
+       "duration": 1.4,
+       "breach": 1
+      }
+     }
+    ]
+   },
+   "2B": {
+    "name": "来来来",
+    "text": "先把人拉近再嘲讽 [taunt.duration] 秒。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "pull",
+       "distance": 150,
+       "duration": 0.15,
+       "min_distance": 120
+      }
+     },
+     {
+      "op": "set",
+      "effect": "taunt",
+      "field": "duration",
+      "value": 0.8
+     }
+    ]
+   },
+   "3B1": {
+    "name": "撞一块",
+    "text": "拉近时撞到人的两人各受 [pull.amount] 物理伤害。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "pull",
+      "field": "base",
+      "value": 40
+     },
+     {
+      "op": "set",
+      "effect": "pull",
+      "field": "ad_ratio",
+      "value": 0.4
+     }
+    ]
+   },
+   "3B2": {
+    "name": "来一个打一个",
+    "text": "嘲讽期间你攻速 +[self_buff.AttackSpeedBonusRatio]%。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "self_buff",
+       "duration": 0.8,
+       "stats": {
+        "AttackSpeedBonusRatio": 0.4
+       }
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "id": "active_triple_combo",
+  "name": "左右开抽",
+  "opening": true,
+  "element": "none",
+  "hit_type": "self",
+  "mode": "Self",
+  "range": null,
+  "target": {
+   "mode": "Self"
+  },
+  "windup": 0,
+  "cost": 20,
+  "cooldown": 6.3,
+  "effects": [
+   {
+    "op": "empower_basic",
+    "duration": 5,
+    "charges": 3,
+    "base": 24,
+    "ad_ratio": 0.28,
+    "ap_ratio": 0.18,
+    "damage_type": "Physical"
+   }
+  ],
+  "ranks": {
+   "2A": {
+    "name": "多抽两下",
+    "text": "强化 [empower_basic.count] 次，每次伤害降低。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "empower_basic",
+      "field": "charges",
+      "value": 5
+     },
+     {
+      "op": "scale",
+      "effect": "empower_basic",
+      "fields": [
+       "base",
+       "ad_ratio",
+       "ap_ratio"
+      ],
+      "ratio": 0.75
+     }
+    ]
+   },
+   "3A1": {
+    "name": "抽出劲",
+    "text": "每次强化回 [empower_basic.limit] 劲。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "empower_basic",
+      "field": "momentum",
+      "value": 4
+     }
+    ]
+   },
+   "3A2": {
+    "name": "抽破防",
+    "text": "每次强化挂 [empower_basic.basic_count] 层破防。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "empower_basic",
+      "field": "breach",
+      "value": 1
+     }
+    ]
+   },
+   "2B": {
+    "name": "狠抽",
+    "text": "强化 [empower_basic.count] 次，每次伤害更高。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "empower_basic",
+      "field": "charges",
+      "value": 2
+     },
+     {
+      "op": "scale",
+      "effect": "empower_basic",
+      "fields": [
+       "base",
+       "ad_ratio",
+       "ap_ratio"
+      ],
+      "ratio": 1.8
+     }
+    ]
+   },
+   "3B1": {
+    "name": "抽晕你",
+    "text": "第二次眩晕 [empower_basic.extra_duration] 秒。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "empower_basic",
+      "field": "last_stun",
+      "value": 0.4
+     }
+    ]
+   },
+   "3B2": {
+    "name": "抽准了",
+    "text": "两次都暴击。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "empower_basic",
+      "field": "crit",
+      "value": true
+     }
+    ]
+   }
+  }
+ },
+ {
+  "id": "active_calculus_drop",
+  "name": "板砖糊脸",
+  "opening": true,
+  "element": "none",
+  "hit_type": "area",
+  "mode": "GroundPoint",
+  "range": 650,
+  "target": {
+   "mode": "GroundPoint",
+   "range": 650
+  },
+  "windup": 0.25,
+  "cost": 35,
+  "cooldown": 5.6,
+  "effects": [
+   {
+    "op": "ground_impact",
+    "radius": 200,
+    "inner_radius": 80,
+    "delay": 0.55
+   },
+   {
+    "op": "damage",
+    "base": 110,
+    "ad_ratio": 0,
+    "ap_ratio": 0,
+    "max_hp_ratio": 0,
+    "damage_type": "Magical"
+   }
+  ],
+  "ranks": {
+   "2A": {
+    "name": "连环砖",
+    "text": "落下后 [echo_impact.delay] 秒同点再落一次，[echo_impact.multiplier]% 伤害。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "echo_impact",
+       "delay": 0.8,
+       "damage_ratio": 0.5,
+       "cooldown_ratio": 1
+      }
+     }
+    ]
+   },
+   "3A1": {
+    "name": "第二砖更狠",
+    "text": "第二砖中心伤害更高。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "echo_impact",
+      "field": "center_ratio",
+      "value": 2
+     }
+    ]
+   },
+   "3A2": {
+    "name": "带电砖",
+    "text": "第二砖让目标麻。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "echo_impact",
+      "field": "electrify",
+      "value": true
+     }
+    ]
+   },
+   "2B": {
+    "name": "精准砖",
+    "text": "只砸中心 [ground_impact.radius] 厘米，伤害更高。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "ground_impact",
+      "field": "radius",
+      "value": 120
+     },
+     {
+      "op": "set",
+      "effect": "ground_impact",
+      "field": "inner_radius",
+      "value": 120
+     },
+     {
+      "op": "scale",
+      "effect": "damage",
+      "fields": [
+       "base",
+       "ad_ratio",
+       "ap_ratio",
+       "adaptive_ratio",
+       "max_hp_ratio"
+      ],
+      "ratio": 1.4
+     }
+    ]
+   },
+   "3B1": {
+    "name": "砸晕",
+    "text": "中心命中眩晕 [ground_impact.extra_duration] 秒。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "ground_impact",
+      "field": "center_stun",
+      "value": 0.6
+     }
+    ]
+   },
+   "3B2": {
+    "name": "砸出劲",
+    "text": "中心命中回 [momentum_gain.amount] 劲。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "momentum_gain",
+       "momentum": 20,
+       "center": true
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "id": "active_flyer_trap",
+  "name": "踩一脚试试",
+  "opening": false,
+  "element": "none",
+  "hit_type": "area",
+  "mode": "GroundPoint",
+  "range": 550,
+  "target": {
+   "mode": "GroundPoint",
+   "range": 550
+  },
+  "windup": 0.15,
+  "cost": 30,
+  "cooldown": 6.3,
+  "effects": [
+   {
+    "op": "contact_trap",
+    "radius": 180,
+    "trigger_radius": 100,
+    "delay": 0.45,
+    "duration": 6
+   },
+   {
+    "op": "damage",
+    "base": 100,
+    "ad_ratio": 0,
+    "ap_ratio": 0.75,
+    "max_hp_ratio": 0,
+    "damage_type": "Magical"
+   },
+   {
+    "op": "slow",
+    "duration": 1.5,
+    "ratio": 0.3
+   }
+  ],
+  "ranks": {
+   "2A": {
+    "name": "雷区",
+    "text": "每人同时 [contact_trap.count] 张陷阱。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "contact_trap",
+      "field": "max",
+      "value": 2
+     }
+    ]
+   },
+   "3A1": {
+    "name": "连线",
+    "text": "两张相距 [contact_trap.distance] 厘米内时连线，穿线的人受 [contact_trap.amount] 魔法伤害。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "contact_trap",
+      "field": "wire_distance",
+      "value": 400
+     },
+     {
+      "op": "set",
+      "effect": "contact_trap",
+      "field": "wire_base",
+      "value": 30
+     },
+     {
+      "op": "set",
+      "effect": "contact_trap",
+      "field": "wire_ap_ratio",
+      "value": 0.3
+     }
+    ]
+   },
+   "3A2": {
+    "name": "湿传单",
+    "text": "爆炸让目标湿。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "wet"
+      }
+     }
+    ]
+   },
+   "2B": {
+    "name": "大地雷",
+    "text": "半径 [contact_trap.radius] 厘米，触发后 [contact_trap.delay] 秒爆炸。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "contact_trap",
+      "field": "radius",
+      "value": 260
+     },
+     {
+      "op": "set",
+      "effect": "contact_trap",
+      "field": "delay",
+      "value": 0.25
+     }
+    ]
+   },
+   "3B1": {
+    "name": "炸飞",
+    "text": "爆炸击飞 [knockback.distance] 厘米。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "knockback",
+       "distance": 150,
+       "duration": 0.25
+      }
+     }
+    ]
+   },
+   "3B2": {
+    "name": "炸软",
+    "text": "爆炸改为定身 [root.duration] 秒。",
+    "patches": [
+     {
+      "op": "remove",
+      "effect": "slow"
+     },
+     {
+      "op": "add",
+      "effect": {
+       "op": "root",
+       "duration": 0.8
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "id": "active_open_mic",
+  "name": "扯嗓子喷你",
+  "opening": true,
+  "element": "none",
+  "hit_type": "area",
+  "mode": "Self",
+  "range": null,
+  "target": {
+   "mode": "Self"
+  },
+  "windup": 0.15,
+  "cost": 25,
+  "cooldown": 5.6,
+  "effects": [
+   {
+    "op": "self_area",
+    "radius": 340
+   },
+   {
+    "op": "damage",
+    "base": 65,
+    "ad_ratio": 0.55,
+    "ap_ratio": 0.5,
+    "max_hp_ratio": 0.03,
+    "damage_type": "Magical"
+   },
+   {
+    "op": "knockback",
+    "duration": 0.15,
+    "distance": 160
+   },
+   {
+    "op": "shield",
+    "duration": 3,
+    "base": 75,
+    "ad_ratio": 0,
+    "ap_ratio": 0.45,
+    "max_hp_ratio": 0.06
+   },
+   {
+    "op": "warcry_ring"
+   }
+  ],
+  "ranks": {
+   "2A": {
+    "name": "麦霸回音",
+    "text": "吼完留下跟随自身跳响 [pulse.count] 次的声浪光环，每跳造成 [pulse.ratio]% 伤害。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "pulse",
+       "count": 3,
+       "interval": 1,
+       "damage_ratio": 0.4
+      }
+     }
+    ]
+   },
+   "3A1": {
+    "name": "震耳欲聋",
+    "text": "每 [warcry_ring.limit] 生命上限扩大声浪半径，且每跳叠加 [warcry_ring.count] 层破防。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "warcry_ring",
+      "field": "hp_radius_step",
+      "value": 1000
+     },
+     {
+      "op": "set",
+      "effect": "warcry_ring",
+      "field": "pulse_breach",
+      "value": 1
+     }
+    ]
+   },
+   "3A2": {
+    "name": "越吼越嗨",
+    "text": "声浪光环每次跳伤将 [warcry_ring.secondary_ratio]% 转化为刷新护盾。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "warcry_ring",
+      "field": "pulse_shield_ratio",
+      "value": 0.3
+     }
+    ]
+   },
+   "2B": {
+    "name": "破音大嗓门",
+    "text": "震退提高到 [knockback.distance] 厘米，撞墙目标 [warcry_ring.extra_duration] 秒内易伤 +[warcry_ring.multiplier]%。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "knockback",
+      "field": "distance",
+      "value": 320
+     },
+     {
+      "op": "set",
+      "effect": "warcry_ring",
+      "field": "wall_vulnerable",
+      "value": 0.2
+     },
+     {
+      "op": "set",
+      "effect": "warcry_ring",
+      "field": "wall_vulnerable_duration",
+      "value": 2.5
+     }
+    ]
+   },
+   "3B1": {
+    "name": "吼哑全场",
+    "text": "被声浪震中的敌人额外沉默 [silence.duration] 秒。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "silence",
+       "duration": 1
+      }
+     }
+    ]
+   },
+   "3B2": {
+    "name": "炸麦",
+    "text": "若施放时身上已有护盾，引爆旧护盾对周围追加 [warcry_ring.cost_ratio]% 旧盾量的魔法伤害。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "warcry_ring",
+      "field": "detonate_shield_ratio",
+      "value": 1
+     }
+    ]
+   }
+  }
+ },
+ {
+  "id": "active_hose_down",
+  "name": "滋你一脸",
+  "opening": true,
+  "element": "water",
+  "hit_type": "area",
+  "mode": "DirectionLine",
+  "range": 600,
+  "target": {
+   "mode": "DirectionLine",
+   "range": 600,
+   "half_width": 80
+  },
+  "windup": 0.2,
+  "cost": 25,
+  "cooldown": 4.9,
+  "effects": [
+   {
+    "op": "damage",
+    "base": 55,
+    "ad_ratio": 0,
+    "ap_ratio": 0.55,
+    "max_hp_ratio": 0,
+    "damage_type": "Magical"
+   },
+   {
+    "op": "knockback",
+    "duration": 0.15,
+    "distance": 180
+   },
+   {
+    "op": "wet"
+   }
+  ],
+  "ranks": {
+   "2A": {
+    "name": "拉回来",
+    "text": "改为把命中的人拉近。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "pull",
+       "distance": 180,
+       "duration": 0.15,
+       "min_distance": 120
+      }
+     }
+    ]
+   },
+   "3A1": {
+    "name": "湿身挨打",
+    "text": "拉近后 [vulnerable.duration] 秒内他受到的普攻伤害 +[vulnerable.ratio]%。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "vulnerable",
+       "ratio": 0.3,
+       "duration": 1.5,
+       "scope": "basic"
+      }
+     }
+    ]
+   },
+   "3A2": {
+    "name": "带电水枪",
+    "text": "命中让目标麻。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "electrify"
+      }
+     }
+    ]
+   },
+   "2B": {
+    "name": "高压水枪",
+    "text": "宽度减半，伤害变高，击退 [knockback.distance] 厘米。",
+    "patches": [
+     {
+      "op": "target",
+      "mode": "DirectionLine",
+      "range": 600,
+      "half_width": 40
+     },
+     {
+      "op": "scale",
+      "effect": "damage",
+      "fields": [
+       "base",
+       "ad_ratio",
+       "ap_ratio",
+       "max_hp_ratio"
+      ],
+      "ratio": 1.6
+     },
+     {
+      "op": "set",
+      "effect": "knockback",
+      "field": "distance",
+      "value": 300
+     }
+    ]
+   },
+   "3B1": {
+    "name": "冲到墙上",
+    "text": "撞墙时眩晕 [knockback.extra_duration] 秒。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "knockback",
+      "field": "wall_stun",
+      "value": 0.8
+     }
+    ]
+   },
+   "3B2": {
+    "name": "冲得过瘾",
+    "text": "命中回 [momentum_gain.amount] 劲。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "momentum_gain",
+       "momentum": 15
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "id": "active_zap",
+  "name": "电你个哆嗦",
+  "opening": true,
+  "element": "shock",
+  "hit_type": "targeted",
+  "mode": "Unit",
+  "range": 650,
+  "target": {
+   "mode": "Unit",
+   "range": 650
+  },
+  "windup": 0.25,
+  "cost": 30,
+  "cooldown": 4.9,
+  "effects": [
+   {
+    "op": "damage",
+    "base": 60,
+    "ad_ratio": 0,
+    "ap_ratio": 0.65,
+    "max_hp_ratio": 0,
+    "damage_type": "Magical"
+   },
+   {
+    "op": "electrify"
+   },
+   {
+    "op": "chain_bounce",
+    "radius": 350,
+    "interval": 0.15,
+    "count": 2,
+    "ratio": 0.7
+   }
+  ],
+  "ranks": {
+   "2A": {
+    "name": "多弹两下",
+    "text": "最多弹 [chain_bounce.count] 次。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "chain_bounce",
+      "field": "count",
+      "value": 4
+     }
+    ]
+   },
+   "3A1": {
+    "name": "电出火",
+    "text": "每次弹射挂 [burn.count] 层灼烧。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "burn",
+       "stacks": 1
+      }
+     }
+    ]
+   },
+   "3A2": {
+    "name": "电出劲",
+    "text": "每次命中回 [momentum_gain.amount] 劲。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "momentum_gain",
+       "momentum": 3
+      }
+     }
+    ]
+   },
+   "2B": {
+    "name": "一道粗的",
+    "text": "不弹射，伤害变高。",
+    "patches": [
+     {
+      "op": "remove",
+      "effect": "chain_bounce"
+     },
+     {
+      "op": "scale",
+      "effect": "damage",
+      "fields": [
+       "base",
+       "ad_ratio",
+       "ap_ratio",
+       "max_hp_ratio"
+      ],
+      "ratio": 1.8
+     }
+    ]
+   },
+   "3B1": {
+    "name": "过载",
+    "text": "命中后 [overcharge.duration] 秒内他每次受击都放电。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "overcharge",
+       "duration": 2
+      }
+     }
+    ]
+   },
+   "3B2": {
+    "name": "远程电击",
+    "text": "射程变远。",
+    "patches": [
+     {
+      "op": "target",
+      "range": 900
+     }
+    ]
+   }
+  }
+ },
+ {
+  "id": "active_charged_ram",
+  "name": "蛮牛顶",
+  "opening": true,
+  "element": "none",
+  "hit_type": "dash",
+  "mode": "DirectionDash",
+  "range": null,
+  "target": {
+   "mode": "DirectionDash"
+  },
+  "windup": 0.1,
+  "cost": 30,
+  "cooldown": 6.3,
+  "effects": [
+   {
+    "op": "dash",
+    "duration": 0.28,
+    "distance": 460
+   },
+   {
+    "op": "shield",
+    "duration": 2.5,
+    "base": 70,
+    "ad_ratio": 0.4,
+    "ap_ratio": 0,
+    "max_hp_ratio": 0.06
+   },
+   {
+    "op": "dash_contact",
+    "targets": "Every"
+   },
+   {
+    "op": "damage",
+    "base": 60,
+    "ad_ratio": 0.6,
+    "ap_ratio": 0.4,
+    "max_hp_ratio": 0.03,
+    "damage_type": "Physical"
+   },
+   {
+    "op": "knockback",
+    "duration": 0.16,
+    "distance": 180
+   }
+  ],
+  "ranks": {
+   "2A": {
+    "name": "铁角厚盾",
+    "text": "冲锋护盾提高到 [shield.amount]。",
+    "patches": [
+     {
+      "op": "scale",
+      "effect": "shield",
+      "fields": [
+       "base",
+       "ad_ratio",
+       "max_hp_ratio",
+       "resist_ratio"
+      ],
+      "ratio": 1.5
+     }
+    ]
+   },
+   "3A1": {
+    "name": "顶碎护壳",
+    "text": "护盾被打破时震击周围 [shield_burst_break.radius] 厘米造成 [shield_burst_break.amount] 伤害。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "shield_burst_break",
+       "base": 70,
+       "ap_ratio": 0.5,
+       "max_hp_ratio": 0.04,
+       "radius": 300
+      }
+     }
+    ]
+   },
+   "3A2": {
+    "name": "蛮劲破甲",
+    "text": "护盾存在期间普攻命中附加 [basic_rider.count] 层破防。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "basic_rider",
+       "duration": 2.5,
+       "breach": 1
+      }
+     }
+    ]
+   },
+   "2B": {
+    "name": "长途奔袭",
+    "text": "冲撞距离提高到 [dash.distance] 厘米，推开距离提高到 [knockback.distance] 厘米。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "dash",
+      "field": "distance",
+      "value": 650
+     },
+     {
+      "op": "set",
+      "effect": "knockback",
+      "field": "distance",
+      "value": 280
+     }
+    ]
+   },
+   "3B1": {
+    "name": "壁咚重创",
+    "text": "把敌人撞上墙时眩晕 [knockback.extra_duration] 秒。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "knockback",
+      "field": "wall_stun",
+      "value": 0.9
+     }
+    ]
+   },
+   "3B2": {
+    "name": "落脚震地",
+    "text": "冲锋结束 [delayed_burst.delay] 秒后震地冲击周围 [delayed_burst.radius] 厘米。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "delayed_burst",
+       "delay": 0.2,
+       "radius": 260,
+       "reaction_ratio": 0.85
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "id": "active_brace",
+  "name": "顶着揍",
+  "opening": false,
+  "element": "none",
+  "hit_type": "self",
+  "mode": "Self",
+  "range": null,
+  "target": {
+   "mode": "Self"
+  },
+  "windup": 0.1,
+  "cost": 25,
+  "cooldown": 8.4,
+  "effects": [
+   {
+    "op": "brace",
+    "radius": 300,
+    "duration": 3,
+    "base": 50,
+    "ratio": 0.2
+   }
+  ],
+  "ranks": {
+   "2A": {
+    "name": "硬顶",
+    "text": "减伤改为 [brace.ratio]%，记录上限变高。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "brace",
+      "field": "ratio",
+      "value": 0.35
+     },
+     {
+      "op": "scale",
+      "effect": "brace",
+      "fields": [
+       "limit"
+      ],
+      "ratio": 1.5
+     }
+    ]
+   },
+   "3A1": {
+    "name": "顶晕你",
+    "text": "反震眩晕 [brace_stun.duration] 秒。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "brace_stun",
+       "duration": 0.5
+      }
+     }
+    ]
+   },
+   "3A2": {
+    "name": "顶出血",
+    "text": "反震也治疗自己记录的 [brace_heal.ratio]%。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "brace_heal",
+       "ratio": 0.3
+      }
+     }
+    ]
+   },
+   "2B": {
+    "name": "越顶越疼",
+    "text": "持续 [brace.duration] 秒，每被打一次下一次普攻伤害 +[brace_stack.ratio]%，可叠。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "brace",
+      "field": "duration",
+      "value": 2
+     },
+     {
+      "op": "add",
+      "effect": {
+       "op": "brace_stack",
+       "ratio": 0.1
+      }
+     }
+    ]
+   },
+   "3B1": {
+    "name": "顶开你",
+    "text": "反震改为推开 [brace_shove.distance] 厘米。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "brace_shove",
+       "distance": 200,
+       "duration": 0.2
+      }
+     }
+    ]
+   },
+   "3B2": {
+    "name": "顶成壳",
+    "text": "结束时记录量转为等量护盾 [brace_shield.duration] 秒。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "brace_shield",
+       "duration": 3
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "id": "active_cola_shake",
+  "name": "冰可乐摇一摇",
+  "opening": true,
+  "element": "chill",
+  "hit_type": "area",
+  "mode": "DirectionCone",
+  "range": 400,
+  "target": {
+   "mode": "DirectionCone",
+   "range": 400,
+   "angle": 60
+  },
+  "windup": 0.15,
+  "cost": 25,
+  "cooldown": 4.2,
+  "effects": [
+   {
+    "op": "channel_cone",
+    "interval": 0.25,
+    "count": 1
+   },
+   {
+    "op": "damage",
+    "base": 55,
+    "ad_ratio": 0,
+    "ap_ratio": 0.5,
+    "max_hp_ratio": 0,
+    "damage_type": "Magical"
+   },
+   {
+    "op": "chill"
+   },
+   {
+    "op": "knockback",
+    "duration": 0.12,
+    "distance": 100
+   }
+  ],
+  "ranks": {
+   "2A": {
+    "name": "喷地成冰",
+    "text": "扇形区留冰面 [ground_state.duration] 秒。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "ground_state",
+       "kind": "ice",
+       "duration": 3
+      }
+     }
+    ]
+   },
+   "3A1": {
+    "name": "冰上加料",
+    "text": "站在这片冰面上的敌人受到你的伤害提高 [ground_state.secondary_ratio]%。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "ground_state",
+      "field": "vulnerable",
+      "value": 0.15
+     }
+    ]
+   },
+   "3A2": {
+    "name": "冰面持久",
+    "text": "冰面持续 [ground_state.duration] 秒。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "ground_state",
+      "field": "duration",
+      "value": 6
+     }
+    ]
+   },
+   "2B": {
+    "name": "连喷",
+    "text": "改为连喷 [channel_cone.count] 下，每下伤害降低。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "channel_cone",
+      "field": "count",
+      "value": 3
+     },
+     {
+      "op": "scale",
+      "effect": "damage",
+      "fields": [
+       "base",
+       "ad_ratio",
+       "ap_ratio",
+       "max_hp_ratio"
+      ],
+      "ratio": 0.5
+     }
+    ]
+   },
+   "3B1": {
+    "name": "冻住",
+    "text": "最后一下定身 [channel_cone.extra_duration] 秒（计硬控递减）。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "channel_cone",
+      "field": "final_root",
+      "value": 0.6
+     }
+    ]
+   },
+   "3B2": {
+    "name": "冰爽回劲",
+    "text": "每下命中回 [momentum_gain.amount] 劲。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "momentum_gain",
+       "momentum": 4
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "id": "active_desk_fan",
+  "name": "电风扇",
+  "opening": false,
+  "element": "none",
+  "hit_type": "area",
+  "mode": "GroundPoint",
+  "range": 500,
+  "target": {
+   "mode": "GroundPoint",
+   "range": 500
+  },
+  "windup": 0.2,
+  "cost": 35,
+  "cooldown": 7,
+  "effects": [
+   {
+    "op": "fan",
+    "width": 200,
+    "length": 600,
+    "duration": 4,
+    "distance": 60,
+    "interval": 0.5
+   }
+  ],
+  "ranks": {
+   "2A": {
+    "name": "大风扇",
+    "text": "风更宽，推开 [fan.distance] 厘米。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "fan",
+      "field": "width",
+      "value": 300
+     },
+     {
+      "op": "set",
+      "effect": "fan",
+      "field": "distance",
+      "value": 100
+     }
+    ]
+   },
+   "3A1": {
+    "name": "吹上墙",
+    "text": "被风推到墙上的敌人眩晕 [fan.extra_duration] 秒。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "fan",
+      "field": "stun_duration",
+      "value": 0.5
+     }
+    ]
+   },
+   "3A2": {
+    "name": "带料的风",
+    "text": "风同时带上你最后施加的元素。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "fan",
+      "field": "carry_element",
+      "value": true
+     }
+    ]
+   },
+   "2B": {
+    "name": "摇头扇",
+    "text": "风扇左右摇头，每秒摆 [fan.angle] 度。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "fan",
+      "field": "sweep",
+      "value": 60
+     }
+    ]
+   },
+   "3B1": {
+    "name": "吹出劲",
+    "text": "每吹到敌人一次回 [fan.amount] 劲。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "fan",
+      "field": "momentum",
+      "value": 2
+     }
+    ]
+   },
+   "3B2": {
+    "name": "开一整天",
+    "text": "风扇持续 [fan.duration] 秒。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "fan",
+      "field": "duration",
+      "value": 6
+     }
+    ]
+   }
+  }
+ },
+ {
+  "id": "active_stale_takeout",
+  "name": "过期外卖",
+  "opening": false,
+  "element": "rot",
+  "hit_type": "projectile",
+  "mode": "DirectionProjectile",
+  "range": 700,
+  "target": {
+   "mode": "DirectionProjectile",
+   "range": 700,
+   "projectile_radius": 60,
+   "projectile_speed": 1400
+  },
+  "windup": 0.2,
+  "cost": 30,
+  "cooldown": 5.6,
+  "effects": [
+   {
+    "op": "damage",
+    "base": 75,
+    "ad_ratio": 0.7,
+    "ap_ratio": 0.7,
+    "max_hp_ratio": 0,
+    "damage_type": "Magical"
+   },
+   {
+    "op": "rot"
+   },
+   {
+    "op": "ground_state"
+   },
+   {
+    "op": "knockback",
+    "duration": 0.12,
+    "distance": 100
+   }
+  ],
+  "ranks": {
+   "2A": {
+    "name": "全家桶",
+    "text": "毒雾更大。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "ground_state",
+      "field": "radius_ratio",
+      "value": 1.5
+     }
+    ]
+   },
+   "3A1": {
+    "name": "熏得手软",
+    "text": "毒雾里的敌人攻速降低 [ground_state.multiplier]%。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "ground_state",
+      "field": "attack_slow",
+      "value": 0.2
+     }
+    ]
+   },
+   "3A2": {
+    "name": "臭得持久",
+    "text": "毒雾持续 [ground_state.duration] 秒。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "ground_state",
+      "field": "duration",
+      "value": 7
+     }
+    ]
+   },
+   "2B": {
+    "name": "外卖到付",
+    "text": "命中后 [follow_up.delay] 秒在他脚下再爆一次，造成 [follow_up.amount] 魔法伤害。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "follow_up",
+       "delay": 1.5,
+       "count": 1,
+       "interval": 1.5,
+       "base": 45,
+       "ap_ratio": 0.42,
+       "damage_type": "Magical"
+      }
+     }
+    ]
+   },
+   "3B1": {
+    "name": "加倍馊",
+    "text": "二次爆炸挂上双倍时长的馊。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "follow_up",
+      "field": "rot_duration",
+      "value": 8
+     }
+    ]
+   },
+   "3B2": {
+    "name": "到付回本",
+    "text": "二次爆炸回 [follow_up.limit] 劲。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "follow_up",
+      "field": "momentum",
+      "value": 15
+     }
+    ]
+   }
+  }
+ },
+ {
+  "id": "active_school_bag",
+  "name": "占座书包",
+  "opening": true,
+  "element": "none",
+  "hit_type": "area",
+  "mode": "GroundPoint",
+  "range": 450,
+  "target": {
+   "mode": "GroundPoint",
+   "range": 450
+  },
+  "windup": 0.2,
+  "cost": 30,
+  "cooldown": 7.7,
+  "effects": [
+   {
+    "op": "bag",
+    "radius": 200,
+    "duration": 4,
+    "size": 40,
+    "count": 1
+   },
+   {
+    "op": "damage",
+    "base": 85,
+    "ad_ratio": 0.7,
+    "ap_ratio": 0.65,
+    "max_hp_ratio": 0,
+    "damage_type": "Magical"
+   }
+  ],
+  "ranks": {
+   "2A": {
+    "name": "两个书包",
+    "text": "可以连放 [bag.count] 个书包。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "bag",
+      "field": "count",
+      "value": 2
+     }
+    ]
+   },
+   "3A1": {
+    "name": "书包连墙",
+    "text": "两个书包之间连起一道墙，跟书包一起消失。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "bag",
+      "field": "wall_width",
+      "value": 60
+     }
+    ]
+   },
+   "3A2": {
+    "name": "冰镇书包",
+    "text": "书包爆炸挂冻。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "chill"
+      }
+     }
+    ]
+   },
+   "2B": {
+    "name": "炸药包",
+    "text": "书包生命减半，爆炸伤害翻倍，半径 [bag.radius] 厘米。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "bag",
+      "field": "hp_ratio",
+      "value": 0.5
+     },
+     {
+      "op": "scale",
+      "effect": "damage",
+      "fields": [
+       "base",
+       "ad_ratio",
+       "ap_ratio",
+       "max_hp_ratio"
+      ],
+      "ratio": 2
+     },
+     {
+      "op": "set",
+      "effect": "bag",
+      "field": "radius",
+      "value": 260
+     }
+    ]
+   },
+   "3B1": {
+    "name": "书包炸飞",
+    "text": "爆炸把敌人击退 [knockback.distance] 厘米。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "knockback",
+       "distance": 250,
+       "duration": 0.2
+      }
+     }
+    ]
+   },
+   "3B2": {
+    "name": "炸出火场",
+    "text": "爆炸后留下火场 [ground_state.duration] 秒。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "ground_state",
+       "kind": "fire",
+       "duration": 3
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "id": "active_flurry_rush",
+  "name": "疯狗乱拳",
+  "opening": false,
+  "element": "none",
+  "hit_type": "area",
+  "mode": "Self",
+  "range": null,
+  "target": {
+   "mode": "Self"
+  },
+  "windup": 0,
+  "cost": 25,
+  "cooldown": 7,
+  "effects": [
+   {
+    "op": "frenzy_waves",
+    "radius": 65,
+    "speed": 1900,
+    "duration": 4,
+    "distance": 420,
+    "base": 32
+   }
+  ],
+  "ranks": {
+   "2A": {
+    "name": "掌风破空",
+    "text": "拳风射程扩至 [frenzy_waves.distance] 厘米，宽度扩至 [frenzy_waves.radius] 厘米。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "frenzy_waves",
+      "field": "distance",
+      "value": 560
+     },
+     {
+      "op": "set",
+      "effect": "frenzy_waves",
+      "field": "radius",
+      "value": 95
+     }
+    ]
+   },
+   "3A1": {
+    "name": "碎甲连拳",
+    "text": "每道拳风命中叠加 [frenzy_waves.count] 层破防。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "frenzy_waves",
+      "field": "breach",
+      "value": 1
+     }
+    ]
+   },
+   "3A2": {
+    "name": "嗜血乱打",
+    "text": "拳风造成伤害的 [frenzy_waves.ratio]% 治疗自己。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "frenzy_waves",
+      "field": "lifesteal",
+      "value": 0.2
+     }
+    ]
+   },
+   "2B": {
+    "name": "疯狗步法",
+    "text": "狂热延长至 [frenzy_waves.duration] 秒，额外提高攻速 [self_buff.AttackSpeedBonusRatio]% 与移速 [self_buff.MoveSpeedBonusRatio]%。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "frenzy_waves",
+      "field": "duration",
+      "value": 5.2
+     },
+     {
+      "op": "add",
+      "effect": {
+       "op": "self_buff",
+       "duration": 5.2,
+       "stats": {
+        "AttackSpeedBonusRatio": 0.2,
+        "MoveSpeedBonusRatio": 0.1
+       }
+      }
+     }
+    ]
+   },
+   "3B1": {
+    "name": "重炮收尾",
+    "text": "第三段普攻挥出的拳风伤害提高至 [frenzy_waves.multiplier]%。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "frenzy_waves",
+      "field": "third_multiplier",
+      "value": 1.8
+     }
+    ]
+   },
+   "3B2": {
+    "name": "越打越疯",
+    "text": "参与击倒参赛者时延长狂热 [frenzy_waves.extra_duration] 秒并回复 [frenzy_waves.limit] 劲。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "frenzy_waves",
+      "field": "extend_on_kill",
+      "value": 2.5
+     },
+     {
+      "op": "set",
+      "effect": "frenzy_waves",
+      "field": "kill_momentum",
+      "value": 25
+     }
+    ]
+   }
+  }
+ },
+ {
+  "id": "active_cordon_tape",
+  "name": "警戒封条",
+  "opening": false,
+  "element": "none",
+  "hit_type": "area",
+  "mode": "GroundPoint",
+  "range": 560,
+  "target": {
+   "mode": "GroundPoint",
+   "range": 560
+  },
+  "windup": 0.16,
+  "cost": 30,
+  "cooldown": 6.8,
+  "effects": [
+   {
+    "op": "cordon_line",
+    "width": 70,
+    "length": 500,
+    "duration": 5,
+    "distance": 180
+   },
+   {
+    "op": "damage",
+    "base": 65,
+    "ad_ratio": 0,
+    "ap_ratio": 0,
+    "max_hp_ratio": 0,
+    "damage_type": "Magical"
+   },
+   {
+    "op": "slow",
+    "duration": 1.5,
+    "ratio": 0.3
+   }
+  ],
+  "ranks": {
+   "2A": {
+    "name": "加宽封锁",
+    "text": "警戒带拉长至 [cordon_line.radius] 厘米，弹退距离提高到 [cordon_line.distance] 厘米。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "cordon_line",
+      "field": "length",
+      "value": 680
+     },
+     {
+      "op": "set",
+      "effect": "cordon_line",
+      "field": "distance",
+      "value": 280
+     }
+    ]
+   },
+   "3A1": {
+    "name": "强闯绊倒",
+    "text": "冲刺撞线或二次触碰警戒带的敌人眩晕 [cordon_line.extra_duration] 秒。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "cordon_line",
+      "field": "second_stun",
+      "value": 0.9
+     }
+    ]
+   },
+   "3A2": {
+    "name": "高压电线",
+    "text": "触碰警戒带的敌人额外附着麻。",
+    "patches": [
+     {
+      "op": "add",
+      "effect": {
+       "op": "electrify"
+      }
+     }
+    ]
+   },
+   "2B": {
+    "name": "增程射击线",
+    "text": "本人飞行弹道穿过警戒带时射程与伤害加成提高到 [cordon_line.ratio]%。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "cordon_line",
+      "field": "ally_amp",
+      "value": 0.4
+     }
+    ]
+   },
+   "3B1": {
+    "name": "穿线加速",
+    "text": "穿过警戒带的本人弹道飞行速度乘 [cordon_line.multiplier]% 并额外穿透 [cordon_line.count] 个目标。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "cordon_line",
+      "field": "crossing_speed_ratio",
+      "value": 1.4
+     },
+     {
+      "op": "set",
+      "effect": "cordon_line",
+      "field": "crossing_pierce",
+      "value": 1
+     }
+    ]
+   },
+   "3B2": {
+    "name": "过线回冷",
+    "text": "本人弹道每次穿过警戒带缩减本技能 [cordon_line.refund] 秒剩余冷却。",
+    "patches": [
+     {
+      "op": "set",
+      "effect": "cordon_line",
+      "field": "crossing_haste",
+      "value": 1.2
+     }
+    ]
+   }
+  }
+ }
+]

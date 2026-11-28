@@ -1,0 +1,2034 @@
+{
+ "grid": {
+  "T50_C30_S30": {
+   "fist_as": {
+    "emp_per_fight": 1.35,
+    "pct_fights_with_emp": 90.0,
+    "first_median": 2.24,
+    "emp_interval_s": 3.97,
+    "host_emp_share_pct": 72.1,
+    "mean_m": 41.5,
+    "wasted_per_s": 0.0,
+    "income_per_s": 7.91
+   },
+   "heavy_basic": {
+    "emp_per_fight": 0.98,
+    "pct_fights_with_emp": 80.8,
+    "first_median": 2.36,
+    "emp_interval_s": 6.42,
+    "host_emp_share_pct": 95.1,
+    "mean_m": 63.7,
+    "wasted_per_s": 0.26,
+    "income_per_s": 6.69
+   },
+   "skill_atk": {
+    "emp_per_fight": 0.54,
+    "pct_fights_with_emp": 49.6,
+    "first_median": 3.26,
+    "emp_interval_s": 7.69,
+    "host_emp_share_pct": 93.4,
+    "mean_m": 85.5,
+    "wasted_per_s": 4.66,
+    "income_per_s": 10.69
+   },
+   "element_atk": {
+    "emp_per_fight": 0.53,
+    "pct_fights_with_emp": 45.2,
+    "first_median": 3.5,
+    "emp_interval_s": 8.57,
+    "host_emp_share_pct": 92.7,
+    "mean_m": 87.7,
+    "wasted_per_s": 7.45,
+    "income_per_s": 13.17
+   },
+   "shield_guard": {
+    "emp_per_fight": 0.58,
+    "pct_fights_with_emp": 55.6,
+    "first_median": 2.6,
+    "emp_interval_s": 12.37,
+    "host_emp_share_pct": 91.5,
+    "mean_m": 89.6,
+    "wasted_per_s": 6.87,
+    "income_per_s": 11.54
+   },
+   "dash_d": {
+    "emp_per_fight": 0.41,
+    "pct_fights_with_emp": 40.4,
+    "first_median": 2.66,
+    "emp_interval_s": 12.12,
+    "host_emp_share_pct": 85.3,
+    "mean_m": 87.4,
+    "wasted_per_s": 5.88,
+    "income_per_s": 10.55
+   },
+   "zone_ward": {
+    "emp_per_fight": 0.46,
+    "pct_fights_with_emp": 44.8,
+    "first_median": 2.92,
+    "emp_interval_s": 11.01,
+    "host_emp_share_pct": 89.3,
+    "mean_m": 87.7,
+    "wasted_per_s": 5.45,
+    "income_per_s": 10.4
+   },
+   "bare_q": {
+    "emp_per_fight": 0.53,
+    "pct_fights_with_emp": 46.8,
+    "first_median": 3.2,
+    "emp_interval_s": 9.09,
+    "host_emp_share_pct": 92.3,
+    "mean_m": 85.5,
+    "wasted_per_s": 4.46,
+    "income_per_s": 9.97
+   }
+  },
+  "T50_C30_S50": {
+   "fist_as": {
+    "emp_per_fight": 1.74,
+    "pct_fights_with_emp": 99.2,
+    "first_median": 0.0,
+    "emp_interval_s": 3.76,
+    "host_emp_share_pct": 74.7,
+    "mean_m": 40.0,
+    "wasted_per_s": 0.0,
+    "income_per_s": 7.72
+   },
+   "heavy_basic": {
+    "emp_per_fight": 1.27,
+    "pct_fights_with_emp": 97.2,
+    "first_median": 0.0,
+    "emp_interval_s": 5.74,
+    "host_emp_share_pct": 106.3,
+    "mean_m": 61.2,
+    "wasted_per_s": 0.27,
+    "income_per_s": 6.36
+   },
+   "skill_atk": {
+    "emp_per_fight": 0.85,
+    "pct_fights_with_emp": 70.0,
+    "first_median": 1.94,
+    "emp_interval_s": 7.19,
+    "host_emp_share_pct": 100.0,
+    "mean_m": 88.3,
+    "wasted_per_s": 5.02,
+    "income_per_s": 10.66
+   },
+   "element_atk": {
+    "emp_per_fight": 0.81,
+    "pct_fights_with_emp": 66.4,
+    "first_median": 1.74,
+    "emp_interval_s": 8.0,
+    "host_emp_share_pct": 100.0,
+    "mean_m": 90.0,
+    "wasted_per_s": 7.91,
+    "income_per_s": 13.2
+   },
+   "shield_guard": {
+    "emp_per_fight": 0.79,
+    "pct_fights_with_emp": 74.0,
+    "first_median": 1.86,
+    "emp_interval_s": 11.32,
+    "host_emp_share_pct": 100.0,
+    "mean_m": 92.5,
+    "wasted_per_s": 7.31,
+    "income_per_s": 11.54
+   },
+   "dash_d": {
+    "emp_per_fight": 0.81,
+    "pct_fights_with_emp": 78.0,
+    "first_median": 1.36,
+    "emp_interval_s": 10.34,
+    "host_emp_share_pct": 100.0,
+    "mean_m": 89.9,
+    "wasted_per_s": 6.12,
+    "income_per_s": 10.55
+   },
+   "zone_ward": {
+    "emp_per_fight": 0.78,
+    "pct_fights_with_emp": 74.0,
+    "first_median": 1.86,
+    "emp_interval_s": 9.84,
+    "host_emp_share_pct": 100.0,
+    "mean_m": 90.1,
+    "wasted_per_s": 5.75,
+    "income_per_s": 10.36
+   },
+   "bare_q": {
+    "emp_per_fight": 0.85,
+    "pct_fights_with_emp": 70.0,
+    "first_median": 1.94,
+    "emp_interval_s": 8.39,
+    "host_emp_share_pct": 100.0,
+    "mean_m": 88.3,
+    "wasted_per_s": 4.82,
+    "income_per_s": 9.94
+   }
+  },
+  "T50_C40_S30": {
+   "fist_as": {
+    "emp_per_fight": 1.19,
+    "pct_fights_with_emp": 90.0,
+    "first_median": 2.24,
+    "emp_interval_s": 4.6,
+    "host_emp_share_pct": 60.1,
+    "mean_m": 35.6,
+    "wasted_per_s": 0.0,
+    "income_per_s": 8.8
+   },
+   "heavy_basic": {
+    "emp_per_fight": 0.92,
+    "pct_fights_with_emp": 80.8,
+    "first_median": 2.36,
+    "emp_interval_s": 6.59,
+    "host_emp_share_pct": 92.5,
+    "mean_m": 49.5,
+    "wasted_per_s": 0.03,
+    "income_per_s": 6.91
+   },
+   "skill_atk": {
+    "emp_per_fight": 0.54,
+    "pct_fights_with_emp": 49.6,
+    "first_median": 3.26,
+    "emp_interval_s": 7.74,
+    "host_emp_share_pct": 92.8,
+    "mean_m": 80.7,
+    "wasted_per_s": 3.55,
+    "income_per_s": 10.7
+   },
+   "element_atk": {
+    "emp_per_fight": 0.53,
+    "pct_fights_with_emp": 45.2,
+    "first_median": 3.5,
+    "emp_interval_s": 8.57,
+    "host_emp_share_pct": 92.7,
+    "mean_m": 83.7,
+    "wasted_per_s": 6.37,
+    "income_per_s": 13.17
+   },
+   "shield_guard": {
+    "emp_per_fight": 0.58,
+    "pct_fights_with_emp": 55.6,
+    "first_median": 2.6,
+    "emp_interval_s": 12.37,
+    "host_emp_share_pct": 91.5,
+    "mean_m": 86.8,
+    "wasted_per_s": 6.12,
+    "income_per_s": 11.54
+   },
+   "dash_d": {
+    "emp_per_fight": 0.41,
+    "pct_fights_with_emp": 40.4,
+    "first_median": 2.66,
+    "emp_interval_s": 12.12,
+    "host_emp_share_pct": 85.3,
+    "mean_m": 84.2,
+    "wasted_per_s": 5.14,
+    "income_per_s": 10.55
+   },
+   "zone_ward": {
+    "emp_per_fight": 0.46,
+    "pct_fights_with_emp": 44.8,
+    "first_median": 2.92,
+    "emp_interval_s": 11.01,
+    "host_emp_share_pct": 89.3,
+    "mean_m": 84.2,
+    "wasted_per_s": 4.62,
+    "income_per_s": 10.4
+   },
+   "bare_q": {
+    "emp_per_fight": 0.53,
+    "pct_fights_with_emp": 46.8,
+    "first_median": 3.2,
+    "emp_interval_s": 9.09,
+    "host_emp_share_pct": 92.3,
+    "mean_m": 80.8,
+    "wasted_per_s": 3.5,
+    "income_per_s": 9.97
+   }
+  },
+  "T50_C40_S50": {
+   "fist_as": {
+    "emp_per_fight": 1.54,
+    "pct_fights_with_emp": 99.2,
+    "first_median": 0.0,
+    "emp_interval_s": 4.4,
+    "host_emp_share_pct": 63.8,
+    "mean_m": 34.2,
+    "wasted_per_s": 0.0,
+    "income_per_s": 8.56
+   },
+   "heavy_basic": {
+    "emp_per_fight": 1.19,
+    "pct_fights_with_emp": 97.2,
+    "first_median": 0.0,
+    "emp_interval_s": 6.42,
+    "host_emp_share_pct": 95.1,
+    "mean_m": 46.7,
+    "wasted_per_s": 0.02,
+    "income_per_s": 6.65
+   },
+   "skill_atk": {
+    "emp_per_fight": 0.84,
+    "pct_fights_with_emp": 70.0,
+    "first_median": 1.94,
+    "emp_interval_s": 7.23,
+    "host_emp_share_pct": 99.4,
+    "mean_m": 82.6,
+    "wasted_per_s": 3.82,
+    "income_per_s": 10.67
+   },
+   "element_atk": {
+    "emp_per_fight": 0.8,
+    "pct_fights_with_emp": 66.4,
+    "first_median": 1.74,
+    "emp_interval_s": 8.0,
+    "host_emp_share_pct": 100.0,
+    "mean_m": 85.8,
+    "wasted_per_s": 6.75,
+    "income_per_s": 13.2
+   },
+   "shield_guard": {
+    "emp_per_fight": 0.79,
+    "pct_fights_with_emp": 74.0,
+    "first_median": 1.86,
+    "emp_interval_s": 11.32,
+    "host_emp_share_pct": 100.0,
+    "mean_m": 89.4,
+    "wasted_per_s": 6.49,
+    "income_per_s": 11.54
+   },
+   "dash_d": {
+    "emp_per_fight": 0.81,
+    "pct_fights_with_emp": 78.0,
+    "first_median": 1.36,
+    "emp_interval_s": 10.34,
+    "host_emp_share_pct": 100.0,
+    "mean_m": 86.1,
+    "wasted_per_s": 5.24,
+    "income_per_s": 10.55
+   },
+   "zone_ward": {
+    "emp_per_fight": 0.78,
+    "pct_fights_with_emp": 74.0,
+    "first_median": 1.86,
+    "emp_interval_s": 9.84,
+    "host_emp_share_pct": 100.0,
+    "mean_m": 86.0,
+    "wasted_per_s": 4.82,
+    "income_per_s": 10.36
+   },
+   "bare_q": {
+    "emp_per_fight": 0.85,
+    "pct_fights_with_emp": 70.0,
+    "first_median": 1.94,
+    "emp_interval_s": 8.45,
+    "host_emp_share_pct": 99.3,
+    "mean_m": 83.3,
+    "wasted_per_s": 3.81,
+    "income_per_s": 9.94
+   }
+  },
+  "T50_C50_S30": {
+   "fist_as": {
+    "emp_per_fight": 1.12,
+    "pct_fights_with_emp": 90.0,
+    "first_median": 2.24,
+    "emp_interval_s": 5.31,
+    "host_emp_share_pct": 52.2,
+    "mean_m": 30.2,
+    "wasted_per_s": 0.0,
+    "income_per_s": 9.47
+   },
+   "heavy_basic": {
+    "emp_per_fight": 0.88,
+    "pct_fights_with_emp": 80.8,
+    "first_median": 2.36,
+    "emp_interval_s": 7.36,
+    "host_emp_share_pct": 82.9,
+    "mean_m": 39.6,
+    "wasted_per_s": 0.01,
+    "income_per_s": 7.26
+   },
+   "skill_atk": {
+    "emp_per_fight": 0.54,
+    "pct_fights_with_emp": 49.6,
+    "first_median": 3.26,
+    "emp_interval_s": 7.79,
+    "host_emp_share_pct": 92.2,
+    "mean_m": 74.1,
+    "wasted_per_s": 2.58,
+    "income_per_s": 10.7
+   },
+   "element_atk": {
+    "emp_per_fight": 0.52,
+    "pct_fights_with_emp": 45.2,
+    "first_median": 3.5,
+    "emp_interval_s": 8.63,
+    "host_emp_share_pct": 92.1,
+    "mean_m": 78.5,
+    "wasted_per_s": 5.39,
+    "income_per_s": 13.17
+   },
+   "shield_guard": {
+    "emp_per_fight": 0.58,
+    "pct_fights_with_emp": 55.6,
+    "first_median": 2.6,
+    "emp_interval_s": 12.37,
+    "host_emp_share_pct": 91.5,
+    "mean_m": 83.3,
+    "wasted_per_s": 5.41,
+    "income_per_s": 11.54
+   },
+   "dash_d": {
+    "emp_per_fight": 0.41,
+    "pct_fights_with_emp": 40.4,
+    "first_median": 2.66,
+    "emp_interval_s": 12.12,
+    "host_emp_share_pct": 85.3,
+    "mean_m": 80.3,
+    "wasted_per_s": 4.42,
+    "income_per_s": 10.55
+   },
+   "zone_ward": {
+    "emp_per_fight": 0.46,
+    "pct_fights_with_emp": 44.8,
+    "first_median": 2.92,
+    "emp_interval_s": 11.01,
+    "host_emp_share_pct": 89.3,
+    "mean_m": 79.9,
+    "wasted_per_s": 3.83,
+    "income_per_s": 10.4
+   },
+   "bare_q": {
+    "emp_per_fight": 0.53,
+    "pct_fights_with_emp": 46.8,
+    "first_median": 3.2,
+    "emp_interval_s": 9.09,
+    "host_emp_share_pct": 92.3,
+    "mean_m": 74.0,
+    "wasted_per_s": 2.66,
+    "income_per_s": 9.97
+   }
+  },
+  "T50_C50_S50": {
+   "fist_as": {
+    "emp_per_fight": 1.41,
+    "pct_fights_with_emp": 99.2,
+    "first_median": 0.0,
+    "emp_interval_s": 5.08,
+    "host_emp_share_pct": 54.6,
+    "mean_m": 28.6,
+    "wasted_per_s": 0.0,
+    "income_per_s": 9.16
+   },
+   "heavy_basic": {
+    "emp_per_fight": 1.16,
+    "pct_fights_with_emp": 97.2,
+    "first_median": 0.0,
+    "emp_interval_s": 6.67,
+    "host_emp_share_pct": 91.5,
+    "mean_m": 36.0,
+    "wasted_per_s": 0.0,
+    "income_per_s": 7.0
+   },
+   "skill_atk": {
+    "emp_per_fight": 0.83,
+    "pct_fights_with_emp": 70.0,
+    "first_median": 1.94,
+    "emp_interval_s": 7.36,
+    "host_emp_share_pct": 97.6,
+    "mean_m": 74.8,
+    "wasted_per_s": 2.85,
+    "income_per_s": 10.67
+   },
+   "element_atk": {
+    "emp_per_fight": 0.79,
+    "pct_fights_with_emp": 66.4,
+    "first_median": 1.74,
+    "emp_interval_s": 8.05,
+    "host_emp_share_pct": 99.3,
+    "mean_m": 80.5,
+    "wasted_per_s": 5.71,
+    "income_per_s": 13.21
+   },
+   "shield_guard": {
+    "emp_per_fight": 0.79,
+    "pct_fights_with_emp": 74.0,
+    "first_median": 1.86,
+    "emp_interval_s": 11.32,
+    "host_emp_share_pct": 100.0,
+    "mean_m": 85.5,
+    "wasted_per_s": 5.7,
+    "income_per_s": 11.54
+   },
+   "dash_d": {
+    "emp_per_fight": 0.81,
+    "pct_fights_with_emp": 78.0,
+    "first_median": 1.36,
+    "emp_interval_s": 10.34,
+    "host_emp_share_pct": 100.0,
+    "mean_m": 81.4,
+    "wasted_per_s": 4.38,
+    "income_per_s": 10.55
+   },
+   "zone_ward": {
+    "emp_per_fight": 0.78,
+    "pct_fights_with_emp": 74.0,
+    "first_median": 1.86,
+    "emp_interval_s": 9.84,
+    "host_emp_share_pct": 100.0,
+    "mean_m": 80.9,
+    "wasted_per_s": 3.91,
+    "income_per_s": 10.36
+   },
+   "bare_q": {
+    "emp_per_fight": 0.82,
+    "pct_fights_with_emp": 70.0,
+    "first_median": 1.94,
+    "emp_interval_s": 8.57,
+    "host_emp_share_pct": 97.9,
+    "mean_m": 76.5,
+    "wasted_per_s": 2.96,
+    "income_per_s": 9.95
+   }
+  },
+  "T60_C30_S30": {
+   "fist_as": {
+    "emp_per_fight": 1.14,
+    "pct_fights_with_emp": 81.2,
+    "first_median": 2.8,
+    "emp_interval_s": 4.07,
+    "host_emp_share_pct": 68.8,
+    "mean_m": 51.0,
+    "wasted_per_s": 0.0,
+    "income_per_s": 8.13
+   },
+   "heavy_basic": {
+    "emp_per_fight": 0.75,
+    "pct_fights_with_emp": 66.0,
+    "first_median": 3.54,
+    "emp_interval_s": 6.49,
+    "host_emp_share_pct": 94.1,
+    "mean_m": 69.4,
+    "wasted_per_s": 0.45,
+    "income_per_s": 6.83
+   },
+   "skill_atk": {
+    "emp_per_fight": 0.4,
+    "pct_fights_with_emp": 36.8,
+    "first_median": 4.06,
+    "emp_interval_s": 7.84,
+    "host_emp_share_pct": 91.6,
+    "mean_m": 86.1,
+    "wasted_per_s": 4.74,
+    "income_per_s": 10.7
+   },
+   "element_atk": {
+    "emp_per_fight": 0.43,
+    "pct_fights_with_emp": 37.6,
+    "first_median": 4.62,
+    "emp_interval_s": 8.57,
+    "host_emp_share_pct": 88.1,
+    "mean_m": 88.9,
+    "wasted_per_s": 7.51,
+    "income_per_s": 13.2
+   },
+   "shield_guard": {
+    "emp_per_fight": 0.42,
+    "pct_fights_with_emp": 41.6,
+    "first_median": 3.12,
+    "emp_interval_s": 13.04,
+    "host_emp_share_pct": 86.8,
+    "mean_m": 90.4,
+    "wasted_per_s": 6.99,
+    "income_per_s": 11.54
+   },
+   "dash_d": {
+    "emp_per_fight": 0.21,
+    "pct_fights_with_emp": 20.4,
+    "first_median": 4.1,
+    "emp_interval_s": 13.33,
+    "host_emp_share_pct": 77.6,
+    "mean_m": 88.8,
+    "wasted_per_s": 6.1,
+    "income_per_s": 10.55
+   },
+   "zone_ward": {
+    "emp_per_fight": 0.28,
+    "pct_fights_with_emp": 27.2,
+    "first_median": 4.1,
+    "emp_interval_s": 11.54,
+    "host_emp_share_pct": 85.2,
+    "mean_m": 88.5,
+    "wasted_per_s": 5.6,
+    "income_per_s": 10.42
+   },
+   "bare_q": {
+    "emp_per_fight": 0.37,
+    "pct_fights_with_emp": 33.2,
+    "first_median": 4.44,
+    "emp_interval_s": 9.3,
+    "host_emp_share_pct": 90.2,
+    "mean_m": 86.0,
+    "wasted_per_s": 4.54,
+    "income_per_s": 9.97
+   }
+  },
+  "T60_C30_S50": {
+   "fist_as": {
+    "emp_per_fight": 1.52,
+    "pct_fights_with_emp": 95.2,
+    "first_median": 1.68,
+    "emp_interval_s": 3.88,
+    "host_emp_share_pct": 73.3,
+    "mean_m": 51.6,
+    "wasted_per_s": 0.0,
+    "income_per_s": 7.78
+   },
+   "heavy_basic": {
+    "emp_per_fight": 1.12,
+    "pct_fights_with_emp": 90.8,
+    "first_median": 1.18,
+    "emp_interval_s": 6.22,
+    "host_emp_share_pct": 98.1,
+    "mean_m": 71.1,
+    "wasted_per_s": 0.49,
+    "income_per_s": 6.55
+   },
+   "skill_atk": {
+    "emp_per_fight": 0.69,
+    "pct_fights_with_emp": 61.6,
+    "first_median": 2.68,
+    "emp_interval_s": 7.5,
+    "host_emp_share_pct": 95.8,
+    "mean_m": 89.8,
+    "wasted_per_s": 5.22,
+    "income_per_s": 10.69
+   },
+   "element_atk": {
+    "emp_per_fight": 0.66,
+    "pct_fights_with_emp": 54.8,
+    "first_median": 2.52,
+    "emp_interval_s": 8.22,
+    "host_emp_share_pct": 96.7,
+    "mean_m": 90.5,
+    "wasted_per_s": 7.97,
+    "income_per_s": 13.16
+   },
+   "shield_guard": {
+    "emp_per_fight": 0.79,
+    "pct_fights_with_emp": 74.0,
+    "first_median": 1.86,
+    "emp_interval_s": 11.32,
+    "host_emp_share_pct": 100.0,
+    "mean_m": 92.5,
+    "wasted_per_s": 7.31,
+    "income_per_s": 11.54
+   },
+   "dash_d": {
+    "emp_per_fight": 0.6,
+    "pct_fights_with_emp": 58.8,
+    "first_median": 2.0,
+    "emp_interval_s": 11.11,
+    "host_emp_share_pct": 93.1,
+    "mean_m": 91.0,
+    "wasted_per_s": 6.32,
+    "income_per_s": 10.55
+   },
+   "zone_ward": {
+    "emp_per_fight": 0.59,
+    "pct_fights_with_emp": 56.4,
+    "first_median": 2.46,
+    "emp_interval_s": 10.62,
+    "host_emp_share_pct": 92.6,
+    "mean_m": 91.5,
+    "wasted_per_s": 6.01,
+    "income_per_s": 10.4
+   },
+   "bare_q": {
+    "emp_per_fight": 0.7,
+    "pct_fights_with_emp": 59.2,
+    "first_median": 2.6,
+    "emp_interval_s": 8.82,
+    "host_emp_share_pct": 95.1,
+    "mean_m": 89.9,
+    "wasted_per_s": 5.02,
+    "income_per_s": 9.96
+   }
+  },
+  "T60_C40_S30": {
+   "fist_as": {
+    "emp_per_fight": 1.03,
+    "pct_fights_with_emp": 81.2,
+    "first_median": 2.8,
+    "emp_interval_s": 4.69,
+    "host_emp_share_pct": 60.0,
+    "mean_m": 45.2,
+    "wasted_per_s": 0.0,
+    "income_per_s": 8.96
+   },
+   "heavy_basic": {
+    "emp_per_fight": 0.72,
+    "pct_fights_with_emp": 66.0,
+    "first_median": 3.54,
+    "emp_interval_s": 6.67,
+    "host_emp_share_pct": 91.5,
+    "mean_m": 57.0,
+    "wasted_per_s": 0.1,
+    "income_per_s": 7.05
+   },
+   "skill_atk": {
+    "emp_per_fight": 0.4,
+    "pct_fights_with_emp": 36.8,
+    "first_median": 4.06,
+    "emp_interval_s": 7.89,
+    "host_emp_share_pct": 91.0,
+    "mean_m": 81.7,
+    "wasted_per_s": 3.66,
+    "income_per_s": 10.71
+   },
+   "element_atk": {
+    "emp_per_fight": 0.42,
+    "pct_fights_with_emp": 37.6,
+    "first_median": 4.62,
+    "emp_interval_s": 8.57,
+    "host_emp_share_pct": 88.1,
+    "mean_m": 85.2,
+    "wasted_per_s": 6.46,
+    "income_per_s": 13.2
+   },
+   "shield_guard": {
+    "emp_per_fight": 0.42,
+    "pct_fights_with_emp": 41.6,
+    "first_median": 3.12,
+    "emp_interval_s": 13.04,
+    "host_emp_share_pct": 86.8,
+    "mean_m": 87.9,
+    "wasted_per_s": 6.29,
+    "income_per_s": 11.54
+   },
+   "dash_d": {
+    "emp_per_fight": 0.21,
+    "pct_fights_with_emp": 20.4,
+    "first_median": 4.1,
+    "emp_interval_s": 13.33,
+    "host_emp_share_pct": 77.6,
+    "mean_m": 86.2,
+    "wasted_per_s": 5.44,
+    "income_per_s": 10.55
+   },
+   "zone_ward": {
+    "emp_per_fight": 0.28,
+    "pct_fights_with_emp": 27.2,
+    "first_median": 4.1,
+    "emp_interval_s": 11.54,
+    "host_emp_share_pct": 85.2,
+    "mean_m": 85.5,
+    "wasted_per_s": 4.81,
+    "income_per_s": 10.42
+   },
+   "bare_q": {
+    "emp_per_fight": 0.37,
+    "pct_fights_with_emp": 33.2,
+    "first_median": 4.44,
+    "emp_interval_s": 9.3,
+    "host_emp_share_pct": 90.2,
+    "mean_m": 81.5,
+    "wasted_per_s": 3.6,
+    "income_per_s": 9.97
+   }
+  },
+  "T60_C40_S50": {
+   "fist_as": {
+    "emp_per_fight": 1.37,
+    "pct_fights_with_emp": 95.2,
+    "first_median": 1.68,
+    "emp_interval_s": 4.55,
+    "host_emp_share_pct": 61.4,
+    "mean_m": 45.8,
+    "wasted_per_s": 0.0,
+    "income_per_s": 8.63
+   },
+   "heavy_basic": {
+    "emp_per_fight": 1.09,
+    "pct_fights_with_emp": 90.8,
+    "first_median": 1.18,
+    "emp_interval_s": 6.52,
+    "host_emp_share_pct": 93.6,
+    "mean_m": 58.0,
+    "wasted_per_s": 0.1,
+    "income_per_s": 6.77
+   },
+   "skill_atk": {
+    "emp_per_fight": 0.69,
+    "pct_fights_with_emp": 61.6,
+    "first_median": 2.68,
+    "emp_interval_s": 7.5,
+    "host_emp_share_pct": 95.8,
+    "mean_m": 84.7,
+    "wasted_per_s": 4.04,
+    "income_per_s": 10.69
+   },
+   "element_atk": {
+    "emp_per_fight": 0.66,
+    "pct_fights_with_emp": 54.8,
+    "first_median": 2.52,
+    "emp_interval_s": 8.22,
+    "host_emp_share_pct": 96.7,
+    "mean_m": 86.6,
+    "wasted_per_s": 6.85,
+    "income_per_s": 13.16
+   },
+   "shield_guard": {
+    "emp_per_fight": 0.79,
+    "pct_fights_with_emp": 74.0,
+    "first_median": 1.86,
+    "emp_interval_s": 11.32,
+    "host_emp_share_pct": 100.0,
+    "mean_m": 89.4,
+    "wasted_per_s": 6.49,
+    "income_per_s": 11.54
+   },
+   "dash_d": {
+    "emp_per_fight": 0.6,
+    "pct_fights_with_emp": 58.8,
+    "first_median": 2.0,
+    "emp_interval_s": 11.11,
+    "host_emp_share_pct": 93.1,
+    "mean_m": 87.6,
+    "wasted_per_s": 5.51,
+    "income_per_s": 10.55
+   },
+   "zone_ward": {
+    "emp_per_fight": 0.59,
+    "pct_fights_with_emp": 56.4,
+    "first_median": 2.46,
+    "emp_interval_s": 10.62,
+    "host_emp_share_pct": 92.6,
+    "mean_m": 88.1,
+    "wasted_per_s": 5.15,
+    "income_per_s": 10.4
+   },
+   "bare_q": {
+    "emp_per_fight": 0.68,
+    "pct_fights_with_emp": 59.2,
+    "first_median": 2.6,
+    "emp_interval_s": 8.82,
+    "host_emp_share_pct": 95.1,
+    "mean_m": 85.3,
+    "wasted_per_s": 4.03,
+    "income_per_s": 9.96
+   }
+  },
+  "T60_C50_S30": {
+   "fist_as": {
+    "emp_per_fight": 0.98,
+    "pct_fights_with_emp": 81.2,
+    "first_median": 2.8,
+    "emp_interval_s": 5.56,
+    "host_emp_share_pct": 50.0,
+    "mean_m": 39.9,
+    "wasted_per_s": 0.0,
+    "income_per_s": 9.54
+   },
+   "heavy_basic": {
+    "emp_per_fight": 0.7,
+    "pct_fights_with_emp": 66.0,
+    "first_median": 3.54,
+    "emp_interval_s": 7.64,
+    "host_emp_share_pct": 79.8,
+    "mean_m": 49.5,
+    "wasted_per_s": 0.02,
+    "income_per_s": 7.35
+   },
+   "skill_atk": {
+    "emp_per_fight": 0.4,
+    "pct_fights_with_emp": 36.8,
+    "first_median": 4.06,
+    "emp_interval_s": 7.89,
+    "host_emp_share_pct": 91.0,
+    "mean_m": 74.8,
+    "wasted_per_s": 2.67,
+    "income_per_s": 10.71
+   },
+   "element_atk": {
+    "emp_per_fight": 0.42,
+    "pct_fights_with_emp": 37.6,
+    "first_median": 4.62,
+    "emp_interval_s": 8.7,
+    "host_emp_share_pct": 86.8,
+    "mean_m": 80.6,
+    "wasted_per_s": 5.58,
+    "income_per_s": 13.25
+   },
+   "shield_guard": {
+    "emp_per_fight": 0.42,
+    "pct_fights_with_emp": 41.6,
+    "first_median": 3.12,
+    "emp_interval_s": 13.04,
+    "host_emp_share_pct": 86.8,
+    "mean_m": 84.8,
+    "wasted_per_s": 5.62,
+    "income_per_s": 11.54
+   },
+   "dash_d": {
+    "emp_per_fight": 0.21,
+    "pct_fights_with_emp": 20.4,
+    "first_median": 4.1,
+    "emp_interval_s": 13.33,
+    "host_emp_share_pct": 77.6,
+    "mean_m": 82.9,
+    "wasted_per_s": 4.8,
+    "income_per_s": 10.55
+   },
+   "zone_ward": {
+    "emp_per_fight": 0.28,
+    "pct_fights_with_emp": 27.2,
+    "first_median": 4.1,
+    "emp_interval_s": 11.54,
+    "host_emp_share_pct": 85.2,
+    "mean_m": 81.6,
+    "wasted_per_s": 4.06,
+    "income_per_s": 10.42
+   },
+   "bare_q": {
+    "emp_per_fight": 0.36,
+    "pct_fights_with_emp": 33.2,
+    "first_median": 4.44,
+    "emp_interval_s": 9.45,
+    "host_emp_share_pct": 88.8,
+    "mean_m": 76.1,
+    "wasted_per_s": 2.88,
+    "income_per_s": 9.98
+   }
+  },
+  "T60_C50_S50": {
+   "fist_as": {
+    "emp_per_fight": 1.24,
+    "pct_fights_with_emp": 95.2,
+    "first_median": 1.68,
+    "emp_interval_s": 5.19,
+    "host_emp_share_pct": 53.7,
+    "mean_m": 40.4,
+    "wasted_per_s": 0.0,
+    "income_per_s": 9.25
+   },
+   "heavy_basic": {
+    "emp_per_fight": 1.03,
+    "pct_fights_with_emp": 90.8,
+    "first_median": 1.18,
+    "emp_interval_s": 7.14,
+    "host_emp_share_pct": 85.4,
+    "mean_m": 49.3,
+    "wasted_per_s": 0.03,
+    "income_per_s": 7.16
+   },
+   "skill_atk": {
+    "emp_per_fight": 0.69,
+    "pct_fights_with_emp": 61.6,
+    "first_median": 2.68,
+    "emp_interval_s": 7.69,
+    "host_emp_share_pct": 93.4,
+    "mean_m": 78.7,
+    "wasted_per_s": 3.17,
+    "income_per_s": 10.7
+   },
+   "element_atk": {
+    "emp_per_fight": 0.65,
+    "pct_fights_with_emp": 54.8,
+    "first_median": 2.52,
+    "emp_interval_s": 8.28,
+    "host_emp_share_pct": 95.4,
+    "mean_m": 81.5,
+    "wasted_per_s": 5.85,
+    "income_per_s": 13.19
+   },
+   "shield_guard": {
+    "emp_per_fight": 0.79,
+    "pct_fights_with_emp": 74.0,
+    "first_median": 1.86,
+    "emp_interval_s": 11.32,
+    "host_emp_share_pct": 100.0,
+    "mean_m": 85.5,
+    "wasted_per_s": 5.7,
+    "income_per_s": 11.54
+   },
+   "dash_d": {
+    "emp_per_fight": 0.6,
+    "pct_fights_with_emp": 58.8,
+    "first_median": 2.0,
+    "emp_interval_s": 11.11,
+    "host_emp_share_pct": 93.1,
+    "mean_m": 83.4,
+    "wasted_per_s": 4.72,
+    "income_per_s": 10.55
+   },
+   "zone_ward": {
+    "emp_per_fight": 0.59,
+    "pct_fights_with_emp": 56.4,
+    "first_median": 2.46,
+    "emp_interval_s": 10.62,
+    "host_emp_share_pct": 92.6,
+    "mean_m": 83.9,
+    "wasted_per_s": 4.32,
+    "income_per_s": 10.4
+   },
+   "bare_q": {
+    "emp_per_fight": 0.68,
+    "pct_fights_with_emp": 59.2,
+    "first_median": 2.6,
+    "emp_interval_s": 8.89,
+    "host_emp_share_pct": 94.4,
+    "mean_m": 79.4,
+    "wasted_per_s": 3.18,
+    "income_per_s": 9.96
+   }
+  },
+  "T60_C60_S30": {
+   "fist_as": {
+    "emp_per_fight": 0.95,
+    "pct_fights_with_emp": 81.2,
+    "first_median": 2.8,
+    "emp_interval_s": 6.09,
+    "host_emp_share_pct": 46.0,
+    "mean_m": 33.8,
+    "wasted_per_s": 0.0,
+    "income_per_s": 9.96
+   },
+   "heavy_basic": {
+    "emp_per_fight": 0.69,
+    "pct_fights_with_emp": 66.0,
+    "first_median": 3.54,
+    "emp_interval_s": 8.33,
+    "host_emp_share_pct": 73.2,
+    "mean_m": 41.2,
+    "wasted_per_s": 0.02,
+    "income_per_s": 7.63
+   },
+   "skill_atk": {
+    "emp_per_fight": 0.39,
+    "pct_fights_with_emp": 36.8,
+    "first_median": 4.06,
+    "emp_interval_s": 8.11,
+    "host_emp_share_pct": 88.6,
+    "mean_m": 66.5,
+    "wasted_per_s": 1.94,
+    "income_per_s": 10.72
+   },
+   "element_atk": {
+    "emp_per_fight": 0.42,
+    "pct_fights_with_emp": 37.6,
+    "first_median": 4.62,
+    "emp_interval_s": 8.82,
+    "host_emp_share_pct": 85.5,
+    "mean_m": 74.7,
+    "wasted_per_s": 4.78,
+    "income_per_s": 13.28
+   },
+   "shield_guard": {
+    "emp_per_fight": 0.42,
+    "pct_fights_with_emp": 41.6,
+    "first_median": 3.12,
+    "emp_interval_s": 13.04,
+    "host_emp_share_pct": 86.8,
+    "mean_m": 81.1,
+    "wasted_per_s": 4.98,
+    "income_per_s": 11.54
+   },
+   "dash_d": {
+    "emp_per_fight": 0.21,
+    "pct_fights_with_emp": 20.4,
+    "first_median": 4.1,
+    "emp_interval_s": 13.33,
+    "host_emp_share_pct": 77.6,
+    "mean_m": 79.1,
+    "wasted_per_s": 4.2,
+    "income_per_s": 10.55
+   },
+   "zone_ward": {
+    "emp_per_fight": 0.28,
+    "pct_fights_with_emp": 27.2,
+    "first_median": 4.1,
+    "emp_interval_s": 11.54,
+    "host_emp_share_pct": 85.2,
+    "mean_m": 76.8,
+    "wasted_per_s": 3.35,
+    "income_per_s": 10.42
+   },
+   "bare_q": {
+    "emp_per_fight": 0.35,
+    "pct_fights_with_emp": 33.2,
+    "first_median": 4.44,
+    "emp_interval_s": 9.6,
+    "host_emp_share_pct": 87.4,
+    "mean_m": 68.8,
+    "wasted_per_s": 2.2,
+    "income_per_s": 9.99
+   }
+  },
+  "T60_C60_S50": {
+   "fist_as": {
+    "emp_per_fight": 1.16,
+    "pct_fights_with_emp": 95.2,
+    "first_median": 1.68,
+    "emp_interval_s": 5.88,
+    "host_emp_share_pct": 47.4,
+    "mean_m": 34.5,
+    "wasted_per_s": 0.0,
+    "income_per_s": 9.8
+   },
+   "heavy_basic": {
+    "emp_per_fight": 0.98,
+    "pct_fights_with_emp": 90.8,
+    "first_median": 1.18,
+    "emp_interval_s": 7.89,
+    "host_emp_share_pct": 77.3,
+    "mean_m": 43.0,
+    "wasted_per_s": 0.01,
+    "income_per_s": 7.44
+   },
+   "skill_atk": {
+    "emp_per_fight": 0.68,
+    "pct_fights_with_emp": 61.6,
+    "first_median": 2.68,
+    "emp_interval_s": 7.89,
+    "host_emp_share_pct": 91.0,
+    "mean_m": 71.1,
+    "wasted_per_s": 2.41,
+    "income_per_s": 10.71
+   },
+   "element_atk": {
+    "emp_per_fight": 0.64,
+    "pct_fights_with_emp": 54.8,
+    "first_median": 2.52,
+    "emp_interval_s": 8.45,
+    "host_emp_share_pct": 93.4,
+    "mean_m": 75.3,
+    "wasted_per_s": 4.99,
+    "income_per_s": 13.19
+   },
+   "shield_guard": {
+    "emp_per_fight": 0.79,
+    "pct_fights_with_emp": 74.0,
+    "first_median": 1.86,
+    "emp_interval_s": 11.32,
+    "host_emp_share_pct": 100.0,
+    "mean_m": 80.9,
+    "wasted_per_s": 4.94,
+    "income_per_s": 11.54
+   },
+   "dash_d": {
+    "emp_per_fight": 0.6,
+    "pct_fights_with_emp": 58.8,
+    "first_median": 2.0,
+    "emp_interval_s": 11.11,
+    "host_emp_share_pct": 93.1,
+    "mean_m": 78.4,
+    "wasted_per_s": 3.96,
+    "income_per_s": 10.55
+   },
+   "zone_ward": {
+    "emp_per_fight": 0.59,
+    "pct_fights_with_emp": 56.4,
+    "first_median": 2.46,
+    "emp_interval_s": 10.62,
+    "host_emp_share_pct": 92.6,
+    "mean_m": 78.6,
+    "wasted_per_s": 3.53,
+    "income_per_s": 10.4
+   },
+   "bare_q": {
+    "emp_per_fight": 0.68,
+    "pct_fights_with_emp": 59.2,
+    "first_median": 2.6,
+    "emp_interval_s": 9.16,
+    "host_emp_share_pct": 91.6,
+    "mean_m": 72.1,
+    "wasted_per_s": 2.5,
+    "income_per_s": 9.98
+   }
+  },
+  "T75_C30_S30": {
+   "fist_as": {
+    "emp_per_fight": 0.84,
+    "pct_fights_with_emp": 63.2,
+    "first_median": 3.92,
+    "emp_interval_s": 4.21,
+    "host_emp_share_pct": 66.5,
+    "mean_m": 63.8,
+    "wasted_per_s": 0.0,
+    "income_per_s": 8.28
+   },
+   "heavy_basic": {
+    "emp_per_fight": 0.5,
+    "pct_fights_with_emp": 45.6,
+    "first_median": 4.72,
+    "emp_interval_s": 6.74,
+    "host_emp_share_pct": 90.5,
+    "mean_m": 77.2,
+    "wasted_per_s": 0.77,
+    "income_per_s": 7.03
+   },
+   "skill_atk": {
+    "emp_per_fight": 0.23,
+    "pct_fights_with_emp": 21.2,
+    "first_median": 6.02,
+    "emp_interval_s": 8.22,
+    "host_emp_share_pct": 87.4,
+    "mean_m": 87.2,
+    "wasted_per_s": 4.93,
+    "income_per_s": 10.72
+   },
+   "element_atk": {
+    "emp_per_fight": 0.34,
+    "pct_fights_with_emp": 30.4,
+    "first_median": 5.16,
+    "emp_interval_s": 9.09,
+    "host_emp_share_pct": 83.0,
+    "mean_m": 89.7,
+    "wasted_per_s": 7.71,
+    "income_per_s": 13.22
+   },
+   "shield_guard": {
+    "emp_per_fight": 0.19,
+    "pct_fights_with_emp": 18.4,
+    "first_median": 5.42,
+    "emp_interval_s": 14.12,
+    "host_emp_share_pct": 80.2,
+    "mean_m": 91.1,
+    "wasted_per_s": 7.17,
+    "income_per_s": 11.54
+   },
+   "dash_d": {
+    "emp_per_fight": 0.1,
+    "pct_fights_with_emp": 10.4,
+    "first_median": 5.92,
+    "emp_interval_s": 14.63,
+    "host_emp_share_pct": 70.7,
+    "mean_m": 89.7,
+    "wasted_per_s": 6.3,
+    "income_per_s": 10.55
+   },
+   "zone_ward": {
+    "emp_per_fight": 0.14,
+    "pct_fights_with_emp": 13.6,
+    "first_median": 7.04,
+    "emp_interval_s": 12.0,
+    "host_emp_share_pct": 82.0,
+    "mean_m": 89.1,
+    "wasted_per_s": 5.72,
+    "income_per_s": 10.44
+   },
+   "bare_q": {
+    "emp_per_fight": 0.22,
+    "pct_fights_with_emp": 20.8,
+    "first_median": 6.58,
+    "emp_interval_s": 9.92,
+    "host_emp_share_pct": 84.6,
+    "mean_m": 87.2,
+    "wasted_per_s": 4.76,
+    "income_per_s": 9.99
+   }
+  },
+  "T75_C30_S50": {
+   "fist_as": {
+    "emp_per_fight": 1.23,
+    "pct_fights_with_emp": 85.6,
+    "first_median": 2.24,
+    "emp_interval_s": 4.0,
+    "host_emp_share_pct": 71.1,
+    "mean_m": 65.5,
+    "wasted_per_s": 0.01,
+    "income_per_s": 7.97
+   },
+   "heavy_basic": {
+    "emp_per_fight": 0.88,
+    "pct_fights_with_emp": 74.8,
+    "first_median": 2.36,
+    "emp_interval_s": 6.45,
+    "host_emp_share_pct": 94.6,
+    "mean_m": 80.0,
+    "wasted_per_s": 0.87,
+    "income_per_s": 6.75
+   },
+   "skill_atk": {
+    "emp_per_fight": 0.47,
+    "pct_fights_with_emp": 42.4,
+    "first_median": 3.68,
+    "emp_interval_s": 7.74,
+    "host_emp_share_pct": 92.8,
+    "mean_m": 90.6,
+    "wasted_per_s": 5.35,
+    "income_per_s": 10.7
+   },
+   "element_atk": {
+    "emp_per_fight": 0.46,
+    "pct_fights_with_emp": 40.0,
+    "first_median": 4.12,
+    "emp_interval_s": 8.57,
+    "host_emp_share_pct": 89.2,
+    "mean_m": 91.9,
+    "wasted_per_s": 8.14,
+    "income_per_s": 13.18
+   },
+   "shield_guard": {
+    "emp_per_fight": 0.51,
+    "pct_fights_with_emp": 49.6,
+    "first_median": 2.84,
+    "emp_interval_s": 12.9,
+    "host_emp_share_pct": 87.7,
+    "mean_m": 94.0,
+    "wasted_per_s": 7.64,
+    "income_per_s": 11.54
+   },
+   "dash_d": {
+    "emp_per_fight": 0.3,
+    "pct_fights_with_emp": 29.2,
+    "first_median": 3.22,
+    "emp_interval_s": 12.77,
+    "host_emp_share_pct": 81.0,
+    "mean_m": 92.6,
+    "wasted_per_s": 6.67,
+    "income_per_s": 10.55
+   },
+   "zone_ward": {
+    "emp_per_fight": 0.35,
+    "pct_fights_with_emp": 34.4,
+    "first_median": 3.48,
+    "emp_interval_s": 11.11,
+    "host_emp_share_pct": 88.5,
+    "mean_m": 92.1,
+    "wasted_per_s": 6.15,
+    "income_per_s": 10.41
+   },
+   "bare_q": {
+    "emp_per_fight": 0.43,
+    "pct_fights_with_emp": 38.0,
+    "first_median": 3.84,
+    "emp_interval_s": 9.16,
+    "host_emp_share_pct": 91.6,
+    "mean_m": 90.7,
+    "wasted_per_s": 5.15,
+    "income_per_s": 9.97
+   }
+  },
+  "T75_C40_S30": {
+   "fist_as": {
+    "emp_per_fight": 0.78,
+    "pct_fights_with_emp": 63.2,
+    "first_median": 3.92,
+    "emp_interval_s": 5.0,
+    "host_emp_share_pct": 56.2,
+    "mean_m": 59.3,
+    "wasted_per_s": 0.01,
+    "income_per_s": 9.03
+   },
+   "heavy_basic": {
+    "emp_per_fight": 0.48,
+    "pct_fights_with_emp": 45.6,
+    "first_median": 4.72,
+    "emp_interval_s": 7.41,
+    "host_emp_share_pct": 82.4,
+    "mean_m": 68.5,
+    "wasted_per_s": 0.37,
+    "income_per_s": 7.27
+   },
+   "skill_atk": {
+    "emp_per_fight": 0.23,
+    "pct_fights_with_emp": 21.2,
+    "first_median": 6.02,
+    "emp_interval_s": 8.22,
+    "host_emp_share_pct": 87.4,
+    "mean_m": 83.0,
+    "wasted_per_s": 3.87,
+    "income_per_s": 10.72
+   },
+   "element_atk": {
+    "emp_per_fight": 0.34,
+    "pct_fights_with_emp": 30.4,
+    "first_median": 5.16,
+    "emp_interval_s": 9.09,
+    "host_emp_share_pct": 83.0,
+    "mean_m": 86.4,
+    "wasted_per_s": 6.71,
+    "income_per_s": 13.22
+   },
+   "shield_guard": {
+    "emp_per_fight": 0.19,
+    "pct_fights_with_emp": 18.4,
+    "first_median": 5.42,
+    "emp_interval_s": 14.12,
+    "host_emp_share_pct": 80.2,
+    "mean_m": 89.0,
+    "wasted_per_s": 6.52,
+    "income_per_s": 11.54
+   },
+   "dash_d": {
+    "emp_per_fight": 0.1,
+    "pct_fights_with_emp": 10.4,
+    "first_median": 5.92,
+    "emp_interval_s": 14.63,
+    "host_emp_share_pct": 70.7,
+    "mean_m": 87.4,
+    "wasted_per_s": 5.71,
+    "income_per_s": 10.55
+   },
+   "zone_ward": {
+    "emp_per_fight": 0.14,
+    "pct_fights_with_emp": 13.6,
+    "first_median": 7.04,
+    "emp_interval_s": 12.0,
+    "host_emp_share_pct": 82.0,
+    "mean_m": 86.3,
+    "wasted_per_s": 4.96,
+    "income_per_s": 10.44
+   },
+   "bare_q": {
+    "emp_per_fight": 0.22,
+    "pct_fights_with_emp": 20.8,
+    "first_median": 6.58,
+    "emp_interval_s": 9.92,
+    "host_emp_share_pct": 84.6,
+    "mean_m": 83.4,
+    "wasted_per_s": 3.89,
+    "income_per_s": 9.99
+   }
+  },
+  "T75_C40_S50": {
+   "fist_as": {
+    "emp_per_fight": 1.12,
+    "pct_fights_with_emp": 85.6,
+    "first_median": 2.24,
+    "emp_interval_s": 4.67,
+    "host_emp_share_pct": 59.8,
+    "mean_m": 60.0,
+    "wasted_per_s": 0.0,
+    "income_per_s": 8.84
+   },
+   "heavy_basic": {
+    "emp_per_fight": 0.84,
+    "pct_fights_with_emp": 74.8,
+    "first_median": 2.36,
+    "emp_interval_s": 6.67,
+    "host_emp_share_pct": 91.5,
+    "mean_m": 69.6,
+    "wasted_per_s": 0.3,
+    "income_per_s": 6.96
+   },
+   "skill_atk": {
+    "emp_per_fight": 0.47,
+    "pct_fights_with_emp": 42.4,
+    "first_median": 3.68,
+    "emp_interval_s": 7.84,
+    "host_emp_share_pct": 91.6,
+    "mean_m": 86.5,
+    "wasted_per_s": 4.28,
+    "income_per_s": 10.7
+   },
+   "element_atk": {
+    "emp_per_fight": 0.45,
+    "pct_fights_with_emp": 40.0,
+    "first_median": 4.12,
+    "emp_interval_s": 8.57,
+    "host_emp_share_pct": 89.2,
+    "mean_m": 88.4,
+    "wasted_per_s": 7.08,
+    "income_per_s": 13.18
+   },
+   "shield_guard": {
+    "emp_per_fight": 0.51,
+    "pct_fights_with_emp": 49.6,
+    "first_median": 2.84,
+    "emp_interval_s": 12.9,
+    "host_emp_share_pct": 87.7,
+    "mean_m": 91.6,
+    "wasted_per_s": 6.92,
+    "income_per_s": 11.54
+   },
+   "dash_d": {
+    "emp_per_fight": 0.3,
+    "pct_fights_with_emp": 29.2,
+    "first_median": 3.22,
+    "emp_interval_s": 12.77,
+    "host_emp_share_pct": 81.0,
+    "mean_m": 90.0,
+    "wasted_per_s": 5.97,
+    "income_per_s": 10.55
+   },
+   "zone_ward": {
+    "emp_per_fight": 0.35,
+    "pct_fights_with_emp": 34.4,
+    "first_median": 3.48,
+    "emp_interval_s": 11.11,
+    "host_emp_share_pct": 88.5,
+    "mean_m": 89.1,
+    "wasted_per_s": 5.33,
+    "income_per_s": 10.41
+   },
+   "bare_q": {
+    "emp_per_fight": 0.43,
+    "pct_fights_with_emp": 38.0,
+    "first_median": 3.84,
+    "emp_interval_s": 9.16,
+    "host_emp_share_pct": 91.6,
+    "mean_m": 86.7,
+    "wasted_per_s": 4.2,
+    "income_per_s": 9.97
+   }
+  },
+  "T75_C50_S30": {
+   "fist_as": {
+    "emp_per_fight": 0.75,
+    "pct_fights_with_emp": 63.2,
+    "first_median": 3.92,
+    "emp_interval_s": 5.58,
+    "host_emp_share_pct": 50.1,
+    "mean_m": 53.4,
+    "wasted_per_s": 0.0,
+    "income_per_s": 9.7
+   },
+   "heavy_basic": {
+    "emp_per_fight": 0.48,
+    "pct_fights_with_emp": 45.6,
+    "first_median": 4.72,
+    "emp_interval_s": 8.11,
+    "host_emp_share_pct": 75.3,
+    "mean_m": 61.9,
+    "wasted_per_s": 0.21,
+    "income_per_s": 7.55
+   },
+   "skill_atk": {
+    "emp_per_fight": 0.23,
+    "pct_fights_with_emp": 21.2,
+    "first_median": 6.02,
+    "emp_interval_s": 8.28,
+    "host_emp_share_pct": 86.8,
+    "mean_m": 76.8,
+    "wasted_per_s": 2.97,
+    "income_per_s": 10.72
+   },
+   "element_atk": {
+    "emp_per_fight": 0.34,
+    "pct_fights_with_emp": 30.4,
+    "first_median": 5.16,
+    "emp_interval_s": 9.16,
+    "host_emp_share_pct": 82.4,
+    "mean_m": 81.9,
+    "wasted_per_s": 5.81,
+    "income_per_s": 13.25
+   },
+   "shield_guard": {
+    "emp_per_fight": 0.19,
+    "pct_fights_with_emp": 18.4,
+    "first_median": 5.42,
+    "emp_interval_s": 14.12,
+    "host_emp_share_pct": 80.2,
+    "mean_m": 86.3,
+    "wasted_per_s": 5.91,
+    "income_per_s": 11.54
+   },
+   "dash_d": {
+    "emp_per_fight": 0.1,
+    "pct_fights_with_emp": 10.4,
+    "first_median": 5.92,
+    "emp_interval_s": 14.63,
+    "host_emp_share_pct": 70.7,
+    "mean_m": 84.7,
+    "wasted_per_s": 5.13,
+    "income_per_s": 10.55
+   },
+   "zone_ward": {
+    "emp_per_fight": 0.14,
+    "pct_fights_with_emp": 13.6,
+    "first_median": 7.04,
+    "emp_interval_s": 12.0,
+    "host_emp_share_pct": 82.0,
+    "mean_m": 82.8,
+    "wasted_per_s": 4.24,
+    "income_per_s": 10.44
+   },
+   "bare_q": {
+    "emp_per_fight": 0.22,
+    "pct_fights_with_emp": 20.8,
+    "first_median": 6.58,
+    "emp_interval_s": 10.0,
+    "host_emp_share_pct": 83.9,
+    "mean_m": 78.3,
+    "wasted_per_s": 3.14,
+    "income_per_s": 9.99
+   }
+  },
+  "T75_C50_S50": {
+   "fist_as": {
+    "emp_per_fight": 1.06,
+    "pct_fights_with_emp": 85.6,
+    "first_median": 2.24,
+    "emp_interval_s": 5.48,
+    "host_emp_share_pct": 51.0,
+    "mean_m": 54.2,
+    "wasted_per_s": 0.0,
+    "income_per_s": 9.44
+   },
+   "heavy_basic": {
+    "emp_per_fight": 0.8,
+    "pct_fights_with_emp": 74.8,
+    "first_median": 2.36,
+    "emp_interval_s": 7.64,
+    "host_emp_share_pct": 79.8,
+    "mean_m": 63.1,
+    "wasted_per_s": 0.19,
+    "income_per_s": 7.33
+   },
+   "skill_atk": {
+    "emp_per_fight": 0.47,
+    "pct_fights_with_emp": 42.4,
+    "first_median": 3.68,
+    "emp_interval_s": 7.84,
+    "host_emp_share_pct": 91.6,
+    "mean_m": 80.3,
+    "wasted_per_s": 3.29,
+    "income_per_s": 10.71
+   },
+   "element_atk": {
+    "emp_per_fight": 0.45,
+    "pct_fights_with_emp": 40.0,
+    "first_median": 4.12,
+    "emp_interval_s": 8.76,
+    "host_emp_share_pct": 87.3,
+    "mean_m": 83.9,
+    "wasted_per_s": 6.23,
+    "income_per_s": 13.23
+   },
+   "shield_guard": {
+    "emp_per_fight": 0.51,
+    "pct_fights_with_emp": 49.6,
+    "first_median": 2.84,
+    "emp_interval_s": 12.9,
+    "host_emp_share_pct": 87.7,
+    "mean_m": 88.6,
+    "wasted_per_s": 6.24,
+    "income_per_s": 11.54
+   },
+   "dash_d": {
+    "emp_per_fight": 0.3,
+    "pct_fights_with_emp": 29.2,
+    "first_median": 3.22,
+    "emp_interval_s": 12.77,
+    "host_emp_share_pct": 81.0,
+    "mean_m": 86.7,
+    "wasted_per_s": 5.3,
+    "income_per_s": 10.55
+   },
+   "zone_ward": {
+    "emp_per_fight": 0.35,
+    "pct_fights_with_emp": 34.4,
+    "first_median": 3.48,
+    "emp_interval_s": 11.11,
+    "host_emp_share_pct": 88.5,
+    "mean_m": 85.2,
+    "wasted_per_s": 4.54,
+    "income_per_s": 10.41
+   },
+   "bare_q": {
+    "emp_per_fight": 0.42,
+    "pct_fights_with_emp": 38.0,
+    "first_median": 3.84,
+    "emp_interval_s": 9.3,
+    "host_emp_share_pct": 90.2,
+    "mean_m": 81.8,
+    "wasted_per_s": 3.45,
+    "income_per_s": 9.98
+   }
+  },
+  "T75_C60_S30": {
+   "fist_as": {
+    "emp_per_fight": 0.72,
+    "pct_fights_with_emp": 63.2,
+    "first_median": 3.92,
+    "emp_interval_s": 6.32,
+    "host_emp_share_pct": 43.8,
+    "mean_m": 48.9,
+    "wasted_per_s": 0.0,
+    "income_per_s": 10.16
+   },
+   "heavy_basic": {
+    "emp_per_fight": 0.48,
+    "pct_fights_with_emp": 45.6,
+    "first_median": 4.72,
+    "emp_interval_s": 8.57,
+    "host_emp_share_pct": 71.2,
+    "mean_m": 56.1,
+    "wasted_per_s": 0.13,
+    "income_per_s": 7.82
+   },
+   "skill_atk": {
+    "emp_per_fight": 0.22,
+    "pct_fights_with_emp": 21.2,
+    "first_median": 6.02,
+    "emp_interval_s": 9.09,
+    "host_emp_share_pct": 79.0,
+    "mean_m": 73.1,
+    "wasted_per_s": 2.7,
+    "income_per_s": 10.75
+   },
+   "element_atk": {
+    "emp_per_fight": 0.33,
+    "pct_fights_with_emp": 30.4,
+    "first_median": 5.16,
+    "emp_interval_s": 10.17,
+    "host_emp_share_pct": 75.6,
+    "mean_m": 79.0,
+    "wasted_per_s": 5.66,
+    "income_per_s": 13.33
+   },
+   "shield_guard": {
+    "emp_per_fight": 0.19,
+    "pct_fights_with_emp": 18.4,
+    "first_median": 5.42,
+    "emp_interval_s": 14.12,
+    "host_emp_share_pct": 80.2,
+    "mean_m": 83.0,
+    "wasted_per_s": 5.33,
+    "income_per_s": 11.54
+   },
+   "dash_d": {
+    "emp_per_fight": 0.1,
+    "pct_fights_with_emp": 10.4,
+    "first_median": 5.92,
+    "emp_interval_s": 14.63,
+    "host_emp_share_pct": 70.7,
+    "mean_m": 81.4,
+    "wasted_per_s": 4.6,
+    "income_per_s": 10.55
+   },
+   "zone_ward": {
+    "emp_per_fight": 0.14,
+    "pct_fights_with_emp": 13.6,
+    "first_median": 7.04,
+    "emp_interval_s": 12.0,
+    "host_emp_share_pct": 82.0,
+    "mean_m": 78.5,
+    "wasted_per_s": 3.56,
+    "income_per_s": 10.44
+   },
+   "bare_q": {
+    "emp_per_fight": 0.22,
+    "pct_fights_with_emp": 20.8,
+    "first_median": 6.58,
+    "emp_interval_s": 10.53,
+    "host_emp_share_pct": 79.7,
+    "mean_m": 73.2,
+    "wasted_per_s": 2.68,
+    "income_per_s": 10.01
+   }
+  },
+  "T75_C60_S50": {
+   "fist_as": {
+    "emp_per_fight": 1.01,
+    "pct_fights_with_emp": 85.6,
+    "first_median": 2.24,
+    "emp_interval_s": 6.03,
+    "host_emp_share_pct": 46.5,
+    "mean_m": 49.0,
+    "wasted_per_s": 0.0,
+    "income_per_s": 9.86
+   },
+   "heavy_basic": {
+    "emp_per_fight": 0.78,
+    "pct_fights_with_emp": 74.8,
+    "first_median": 2.36,
+    "emp_interval_s": 8.22,
+    "host_emp_share_pct": 74.2,
+    "mean_m": 56.2,
+    "wasted_per_s": 0.07,
+    "income_per_s": 7.6
+   },
+   "skill_atk": {
+    "emp_per_fight": 0.46,
+    "pct_fights_with_emp": 42.4,
+    "first_median": 3.68,
+    "emp_interval_s": 8.39,
+    "host_emp_share_pct": 85.6,
+    "mean_m": 75.1,
+    "wasted_per_s": 2.81,
+    "income_per_s": 10.73
+   },
+   "element_atk": {
+    "emp_per_fight": 0.44,
+    "pct_fights_with_emp": 40.0,
+    "first_median": 4.12,
+    "emp_interval_s": 9.38,
+    "host_emp_share_pct": 82.1,
+    "mean_m": 80.6,
+    "wasted_per_s": 5.76,
+    "income_per_s": 13.23
+   },
+   "shield_guard": {
+    "emp_per_fight": 0.51,
+    "pct_fights_with_emp": 49.6,
+    "first_median": 2.84,
+    "emp_interval_s": 12.9,
+    "host_emp_share_pct": 87.7,
+    "mean_m": 85.0,
+    "wasted_per_s": 5.59,
+    "income_per_s": 11.54
+   },
+   "dash_d": {
+    "emp_per_fight": 0.3,
+    "pct_fights_with_emp": 29.2,
+    "first_median": 3.22,
+    "emp_interval_s": 12.77,
+    "host_emp_share_pct": 81.0,
+    "mean_m": 82.7,
+    "wasted_per_s": 4.66,
+    "income_per_s": 10.55
+   },
+   "zone_ward": {
+    "emp_per_fight": 0.35,
+    "pct_fights_with_emp": 34.4,
+    "first_median": 3.48,
+    "emp_interval_s": 11.21,
+    "host_emp_share_pct": 87.7,
+    "mean_m": 80.6,
+    "wasted_per_s": 3.85,
+    "income_per_s": 10.41
+   },
+   "bare_q": {
+    "emp_per_fight": 0.4,
+    "pct_fights_with_emp": 38.0,
+    "first_median": 3.84,
+    "emp_interval_s": 9.68,
+    "host_emp_share_pct": 86.7,
+    "mean_m": 76.1,
+    "wasted_per_s": 2.83,
+    "income_per_s": 10.0
+   }
+  },
+  "T60_C40_S30_hurt0.3": {
+   "fist_as": {
+    "emp_per_fight": 1.32,
+    "pct_fights_with_emp": 88.8,
+    "first_median": 2.24,
+    "emp_interval_s": 3.77,
+    "host_emp_share_pct": 75.0,
+    "mean_m": 49.6,
+    "wasted_per_s": 0.0,
+    "income_per_s": 11.29
+   },
+   "heavy_basic": {
+    "emp_per_fight": 0.92,
+    "pct_fights_with_emp": 77.2,
+    "first_median": 2.36,
+    "emp_interval_s": 6.35,
+    "host_emp_share_pct": 96.1,
+    "mean_m": 75.9,
+    "wasted_per_s": 2.12,
+    "income_per_s": 10.28
+   },
+   "skill_atk": {
+    "emp_per_fight": 0.5,
+    "pct_fights_with_emp": 45.6,
+    "first_median": 3.5,
+    "emp_interval_s": 7.69,
+    "host_emp_share_pct": 93.4,
+    "mean_m": 86.8,
+    "wasted_per_s": 7.03,
+    "income_per_s": 14.3
+   },
+   "element_atk": {
+    "emp_per_fight": 0.49,
+    "pct_fights_with_emp": 42.4,
+    "first_median": 3.86,
+    "emp_interval_s": 8.82,
+    "host_emp_share_pct": 90.1,
+    "mean_m": 88.7,
+    "wasted_per_s": 10.09,
+    "income_per_s": 16.81
+   },
+   "shield_guard": {
+    "emp_per_fight": 0.51,
+    "pct_fights_with_emp": 50.0,
+    "first_median": 2.76,
+    "emp_interval_s": 12.9,
+    "host_emp_share_pct": 87.7,
+    "mean_m": 91.1,
+    "wasted_per_s": 9.82,
+    "income_per_s": 15.14
+   },
+   "dash_d": {
+    "emp_per_fight": 0.34,
+    "pct_fights_with_emp": 34.0,
+    "first_median": 3.02,
+    "emp_interval_s": 12.77,
+    "host_emp_share_pct": 81.0,
+    "mean_m": 89.6,
+    "wasted_per_s": 8.86,
+    "income_per_s": 14.15
+   },
+   "zone_ward": {
+    "emp_per_fight": 0.39,
+    "pct_fights_with_emp": 38.4,
+    "first_median": 3.2,
+    "emp_interval_s": 11.11,
+    "host_emp_share_pct": 88.5,
+    "mean_m": 89.0,
+    "wasted_per_s": 8.23,
+    "income_per_s": 14.01
+   },
+   "bare_q": {
+    "emp_per_fight": 0.48,
+    "pct_fights_with_emp": 43.2,
+    "first_median": 3.58,
+    "emp_interval_s": 9.09,
+    "host_emp_share_pct": 92.3,
+    "mean_m": 87.1,
+    "wasted_per_s": 6.99,
+    "income_per_s": 13.57
+   }
+  },
+  "T60_C40_S30_hurt0.6": {
+   "fist_as": {
+    "emp_per_fight": 1.56,
+    "pct_fights_with_emp": 91.6,
+    "first_median": 2.24,
+    "emp_interval_s": 3.16,
+    "host_emp_share_pct": 89.8,
+    "mean_m": 57.8,
+    "wasted_per_s": 0.24,
+    "income_per_s": 13.78
+   },
+   "heavy_basic": {
+    "emp_per_fight": 1.0,
+    "pct_fights_with_emp": 82.0,
+    "first_median": 2.36,
+    "emp_interval_s": 6.28,
+    "host_emp_share_pct": 97.1,
+    "mean_m": 84.0,
+    "wasted_per_s": 5.37,
+    "income_per_s": 13.83
+   },
+   "skill_atk": {
+    "emp_per_fight": 0.54,
+    "pct_fights_with_emp": 50.0,
+    "first_median": 3.2,
+    "emp_interval_s": 7.69,
+    "host_emp_share_pct": 93.4,
+    "mean_m": 89.8,
+    "wasted_per_s": 10.58,
+    "income_per_s": 17.9
+   },
+   "element_atk": {
+    "emp_per_fight": 0.55,
+    "pct_fights_with_emp": 47.6,
+    "first_median": 3.5,
+    "emp_interval_s": 8.63,
+    "host_emp_share_pct": 92.1,
+    "mean_m": 90.7,
+    "wasted_per_s": 13.52,
+    "income_per_s": 20.37
+   },
+   "shield_guard": {
+    "emp_per_fight": 0.54,
+    "pct_fights_with_emp": 52.8,
+    "first_median": 2.7,
+    "emp_interval_s": 12.63,
+    "host_emp_share_pct": 89.6,
+    "mean_m": 92.8,
+    "wasted_per_s": 13.33,
+    "income_per_s": 18.74
+   },
+   "dash_d": {
+    "emp_per_fight": 0.43,
+    "pct_fights_with_emp": 42.0,
+    "first_median": 2.62,
+    "emp_interval_s": 11.76,
+    "host_emp_share_pct": 87.9,
+    "mean_m": 91.1,
+    "wasted_per_s": 12.16,
+    "income_per_s": 17.75
+   },
+   "zone_ward": {
+    "emp_per_fight": 0.48,
+    "pct_fights_with_emp": 46.4,
+    "first_median": 2.86,
+    "emp_interval_s": 11.01,
+    "host_emp_share_pct": 89.3,
+    "mean_m": 91.3,
+    "wasted_per_s": 11.77,
+    "income_per_s": 17.61
+   },
+   "bare_q": {
+    "emp_per_fight": 0.54,
+    "pct_fights_with_emp": 48.4,
+    "first_median": 3.2,
+    "emp_interval_s": 9.09,
+    "host_emp_share_pct": 92.3,
+    "mean_m": 90.2,
+    "wasted_per_s": 10.54,
+    "income_per_s": 17.17
+   }
+  }
+ },
+ "carry": {
+  "pve70_现行(5s,10/s→50)": {
+   "ge60_pct": 63.7,
+   "ge75_pct": 0.0,
+   "mean": 62.7
+  },
+  "pve70_慢落(5s,5/s→30)": {
+   "ge60_pct": 69.2,
+   "ge75_pct": 0.0,
+   "mean": 60.5
+  },
+  "pve70_快落(3s,10/s→30)": {
+   "ge60_pct": 48.7,
+   "ge75_pct": 0.0,
+   "mean": 52.4
+  },
+  "pve70_保温(8s,5/s→30)": {
+   "ge60_pct": 81.3,
+   "ge75_pct": 0.0,
+   "mean": 64.2
+  },
+  "pve90_现行(5s,10/s→50)": {
+   "ge60_pct": 73.9,
+   "ge75_pct": 66.5,
+   "mean": 77.4
+  },
+  "pve90_慢落(5s,5/s→30)": {
+   "ge60_pct": 84.2,
+   "ge75_pct": 73.9,
+   "mean": 78.8
+  },
+  "pve90_快落(3s,10/s→30)": {
+   "ge60_pct": 63.7,
+   "ge75_pct": 53.0,
+   "mean": 67.2
+  },
+  "pve90_保温(8s,5/s→30)": {
+   "ge60_pct": 90.3,
+   "ge75_pct": 84.2,
+   "mean": 83.2
+  },
+  "pve100_现行(5s,10/s→50)": {
+   "ge60_pct": 77.9,
+   "ge75_pct": 71.7,
+   "mean": 85.4
+  },
+  "pve100_慢落(5s,5/s→30)": {
+   "ge60_pct": 88.5,
+   "ge75_pct": 81.3,
+   "mean": 88.3
+  },
+  "pve100_快落(3s,10/s→30)": {
+   "ge60_pct": 69.2,
+   "ge75_pct": 60.4,
+   "mean": 75.1
+  },
+  "pve100_保温(8s,5/s→30)": {
+   "ge60_pct": 93.0,
+   "ge75_pct": 88.5,
+   "mean": 92.9
+  }
+ }
+}

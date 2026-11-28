@@ -1,0 +1,1367 @@
+{
+ "source": "SourceData/Demo/content.json",
+ "card_count": 89,
+ "medal_count": 5,
+ "pool_weight": 6994,
+ "skill_classes": {
+  "strike": {
+   "handler": "strike",
+   "skills": [
+    "active_elbow",
+    "active_pants_down",
+    "active_snark_bolt",
+    "active_seethe",
+    "active_calculus_drop",
+    "active_hose_down",
+    "active_zap",
+    "active_cola_shake",
+    "active_stale_takeout"
+   ],
+   "opening": [
+    "active_elbow",
+    "active_pants_down",
+    "active_snark_bolt",
+    "active_seethe",
+    "active_calculus_drop",
+    "active_hose_down",
+    "active_zap",
+    "active_cola_shake"
+   ],
+   "p_offer_opening": 0.923
+  },
+  "guard": {
+   "handler": "guard",
+   "skills": [
+    "active_unplug",
+    "active_not_mad",
+    "active_stare_down",
+    "active_open_mic",
+    "active_brace"
+   ],
+   "opening": [
+    "active_not_mad",
+    "active_open_mic"
+   ],
+   "p_offer_opening": 0.371
+  },
+  "works": {
+   "handler": "works",
+   "skills": [
+    "active_quick_meeting",
+    "active_flyer_trap",
+    "active_desk_fan",
+    "active_school_bag",
+    "active_cordon_tape"
+   ],
+   "opening": [
+    "active_quick_meeting",
+    "active_school_bag"
+   ],
+   "p_offer_opening": 0.371
+  },
+  "fist": {
+   "handler": "fist",
+   "skills": [
+    "active_bail_out",
+    "active_triple_combo",
+    "active_flurry_rush"
+   ],
+   "opening": [
+    "active_bail_out",
+    "active_triple_combo"
+   ],
+   "p_offer_opening": 0.371
+  },
+  "move": {
+   "handler": "dash",
+   "skills": [
+    "active_crotch_grab",
+    "active_charged_ram"
+   ],
+   "opening": [
+    "active_charged_ram"
+   ],
+   "p_offer_opening": 0.2
+  }
+ },
+ "handler_cards": {
+  "fist": {
+   "count": 29,
+   "weight_share": 0.357,
+   "rare_or_legendary": 5,
+   "ids": [
+    "card_third_breath",
+    "card_punch_think",
+    "card_solid_punch",
+    "card_third_shove",
+    "card_long_arm",
+    "card_both_hands",
+    "card_wide_swing",
+    "card_fist_skill",
+    "card_quick_hands",
+    "card_slow_craft",
+    "card_scholar_punch",
+    "card_heated_up",
+    "card_muscle_memory",
+    "card_breach_fist",
+    "card_dash_punch",
+    "card_pass_through",
+    "card_skill_crit",
+    "card_berserk",
+    "card_punch_heal",
+    "card_tally",
+    "card_brain_speed",
+    "card_spellblade_echo",
+    "card_heavy_mallet",
+    "card_let_bullets_fly",
+    "card_eagle_stance",
+    "card_skate_blade",
+    "card_tonnage_crush",
+    "card_reactive_plating",
+    "card_martial_scholar"
+   ]
+  },
+  "strike": {
+   "count": 26,
+   "weight_share": 0.278,
+   "rare_or_legendary": 8,
+   "ids": [
+    "card_punch_think",
+    "card_solid_punch",
+    "card_fist_skill",
+    "card_next_up",
+    "card_pay_back",
+    "card_setup_line",
+    "card_pin_amp",
+    "card_encore",
+    "card_again_now",
+    "card_big_one",
+    "card_hold_longer",
+    "card_lend_fist",
+    "card_hurt_heal",
+    "card_practice",
+    "card_combo_chain",
+    "card_bump_again",
+    "card_skill_crit",
+    "card_skill_drain",
+    "card_quick_brain",
+    "card_tally",
+    "card_brain_speed",
+    "card_spellblade_echo",
+    "card_let_bullets_fly",
+    "card_iron_hedgehog",
+    "card_fuel_the_fire",
+    "card_martial_scholar"
+   ]
+  },
+  "host_skill": {
+   "count": 20,
+   "weight_share": 0.214,
+   "rare_or_legendary": 6,
+   "ids": [
+    "card_next_up",
+    "card_pay_back",
+    "card_quick_takedown",
+    "card_setup_line",
+    "card_pin_amp",
+    "card_encore",
+    "card_crowd_hit",
+    "card_again_now",
+    "card_big_one",
+    "card_long_reach",
+    "card_hold_longer",
+    "card_blood_price",
+    "card_lend_fist",
+    "card_held_breath",
+    "card_hurt_heal",
+    "card_held_shot",
+    "card_practice",
+    "card_combo_chain",
+    "card_blast_reload",
+    "card_fuel_the_fire"
+   ]
+  },
+  "dash": {
+   "count": 13,
+   "weight_share": 0.15,
+   "rare_or_legendary": 3,
+   "ids": [
+    "card_bump_reset",
+    "card_bump_again",
+    "card_dash_punch",
+    "card_double_dash",
+    "card_pass_through",
+    "card_head_down",
+    "card_paid_dash",
+    "card_ice_trail",
+    "card_move_turf",
+    "card_ball_kick",
+    "card_run_hit",
+    "card_runaway_train",
+    "card_skate_blade"
+   ]
+  },
+  "guard": {
+   "count": 18,
+   "weight_share": 0.213,
+   "rare_or_legendary": 4,
+   "ids": [
+    "card_breach_fist",
+    "card_blood_price",
+    "card_held_breath",
+    "card_hurt_heal",
+    "card_spiky_hide",
+    "card_shell_burst",
+    "card_hard_skin",
+    "card_skill_drain",
+    "card_thick_hide",
+    "card_overfed",
+    "card_punch_heal",
+    "card_grow_fat",
+    "card_tough_skin",
+    "card_live_wire",
+    "card_burn_guard",
+    "card_iron_hedgehog",
+    "card_reactive_plating",
+    "card_desperado"
+   ]
+  },
+  "works": {
+   "count": 6,
+   "weight_share": 0.086,
+   "rare_or_legendary": 0,
+   "ids": [
+    "card_ice_trail",
+    "card_move_turf",
+    "card_double_stall",
+    "card_turf_growth",
+    "card_skate_blade",
+    "card_rogue_works"
+   ]
+  },
+  "element": {
+   "count": 11,
+   "weight_share": 0.133,
+   "rare_or_legendary": 2,
+   "ids": [
+    "card_blast_reload",
+    "card_reaction_refund",
+    "card_wave_after",
+    "card_live_wire",
+    "card_long_soak",
+    "card_louder_blast",
+    "card_endless_burn",
+    "card_burn_guard",
+    "card_spellblade_echo",
+    "card_fuel_the_fire",
+    "card_rogue_works"
+   ]
+  },
+  "charge": {
+   "count": 9,
+   "weight_share": 0.095,
+   "rare_or_legendary": 3,
+   "ids": [
+    "card_third_breath",
+    "card_pay_back",
+    "card_again_now",
+    "card_paid_dash",
+    "card_takedown",
+    "card_reaction_refund",
+    "card_short_breath",
+    "card_quick_brain",
+    "card_martial_scholar"
+   ]
+  },
+  "neutral": {
+   "count": 4,
+   "weight_share": 0.03,
+   "rare_or_legendary": 2,
+   "ids": [
+    "card_hang_on",
+    "card_kill_streak",
+    "card_charge_up",
+    "card_hulking_presence"
+   ]
+  },
+  "removed_m02": {
+   "count": 3,
+   "weight_share": 0.043,
+   "rare_or_legendary": 0,
+   "ids": [
+    "card_dodge_strike",
+    "card_slippery",
+    "card_phantom_molt"
+   ]
+  }
+ },
+ "c1_form_card": {
+  "L3（开局+L3 两组）": [
+   0.076,
+   0.017,
+   0.005
+  ],
+  "L6（三组+R1 商店 4 格）": [
+   0.158,
+   0.037,
+   0.01
+  ],
+  "L9（四组+R1/R2 商店）": [
+   0.233,
+   0.056,
+   0.016
+  ]
+ },
+ "c2_keystone": {
+  "points_by_level": {
+   "1": 3,
+   "2": 6,
+   "3": 9,
+   "4": 12,
+   "5": 15,
+   "6": 18,
+   "7": 21,
+   "8": 24,
+   "9": 27,
+   "10": 30,
+   "11": 33,
+   "12": 36,
+   "13": 39,
+   "14": 42,
+   "15": 45,
+   "16": 48
+  },
+  "earliest_all_in_level": 6,
+  "keystone_share_of_L16_formula_points": 0.375,
+  "keystone_share_of_observed_L16_points": 0.222
+ },
+ "branch_union": {
+  "active_elbow": {
+   "status": "conflict",
+   "note": "拉近 vs 击退 500"
+  },
+  "active_pants_down": {
+   "status": "ok",
+   "note": "射程 620 + 命中拉近"
+  },
+  "active_crotch_grab": {
+   "status": "ok",
+   "note": "长突刺 + 命中后翻滚"
+  },
+  "active_unplug": {
+   "status": "ok",
+   "note": "踏步回劲 + 长招架护盾"
+  },
+  "active_snark_bolt": {
+   "status": "ok",
+   "note": "大号拉人 + 回旋"
+  },
+  "active_seethe": {
+   "status": "ok",
+   "note": "4 层灼烧 + 余烫"
+  },
+  "active_quick_meeting": {
+   "status": "conflict",
+   "note": "跟随区域 vs 一次性爆炸"
+  },
+  "active_bail_out": {
+   "status": "ok",
+   "note": "存 3 次 + 长冲刺"
+  },
+  "active_not_mad": {
+   "status": "conflict",
+   "note": "护盾 ×1.5 vs ×0.6 拍脸"
+  },
+  "active_stare_down": {
+   "status": "conflict",
+   "note": "长嘲讽 vs 拉近短嘲讽"
+  },
+  "active_triple_combo": {
+   "status": "conflict",
+   "note": "5×75% vs 2×180%"
+  },
+  "active_calculus_drop": {
+   "status": "conflict",
+   "note": "双砖 vs 只砸中心"
+  },
+  "active_flyer_trap": {
+   "status": "ok",
+   "note": "双陷阱 + 大地雷"
+  },
+  "active_open_mic": {
+   "status": "ok",
+   "note": "余音光环 + 大震退"
+  },
+  "active_hose_down": {
+   "status": "conflict",
+   "note": "拉近 vs 击退 300"
+  },
+  "active_zap": {
+   "status": "conflict",
+   "note": "多弹 vs 不弹"
+  },
+  "active_charged_ram": {
+   "status": "ok",
+   "note": "重甲 + 远冲"
+  },
+  "active_brace": {
+   "status": "ok",
+   "note": "高减伤 + 叠普攻"
+  },
+  "active_cola_shake": {
+   "status": "ok",
+   "note": "冰面 + 三连喷"
+  },
+  "active_desk_fan": {
+   "status": "ok",
+   "note": "大风扇 + 摇头"
+  },
+  "active_stale_takeout": {
+   "status": "ok",
+   "note": "大毒雾 + 二次爆炸"
+  },
+  "active_school_bag": {
+   "status": "conflict",
+   "note": "两个书包 vs 炸药包生命减半"
+  },
+  "active_flurry_rush": {
+   "status": "ok",
+   "note": "宽拳风 + 高攻速"
+  },
+  "active_cordon_tape": {
+   "status": "ok",
+   "note": "长封条眩晕 + 加速门"
+  }
+ },
+ "momentum_card_fate": {
+  "card_third_breath": [
+   "R 充能",
+   "R 充能",
+   "R 充能",
+   "推高劲态"
+  ],
+  "card_pay_back": [
+   "R 充能",
+   "R 充能",
+   "R 充能",
+   "推高劲态"
+  ],
+  "card_quick_brain": [
+   "R 充能",
+   "R 充能",
+   "R 充能",
+   "推高劲态"
+  ],
+  "card_reaction_refund": [
+   "R 充能",
+   "R 充能",
+   "R 充能",
+   "推高劲态"
+  ],
+  "card_martial_scholar": [
+   "偷劲=压制对手 R",
+   "偷劲=压制对手 R",
+   "同左",
+   "拉低对手劲态"
+  ],
+  "card_takedown": [
+   "劲回满=击杀后可再 R",
+   "同左",
+   "同左",
+   "直达高劲态"
+  ],
+  "card_again_now": [
+   "代价成立",
+   "代价消失→须改",
+   "按类别",
+   "代价=劲态下滑"
+  ],
+  "card_blood_price": [
+   "代价成立",
+   "无意义→须改",
+   "按类别",
+   "绕过劲态"
+  ],
+  "card_paid_dash": [
+   "代价成立",
+   "仍成立（冲刺耗劲）",
+   "按类别",
+   "代价=劲态下滑"
+  ],
+  "card_short_breath": [
+   "迁移为 R 门槛/倍率牌",
+   "同左",
+   "同左",
+   "同左"
+  ],
+  "card_dodge_strike": [
+   "M-02 删除触发→须迁移",
+   "同左",
+   "同左",
+   "同左"
+  ]
+ },
+ "maintenance_proxy": {
+  "C1 卡牌驱动（覆盖 8 构筑约需 12 张 R 牌）": {
+   "handlers": 12,
+   "new_entries": 12,
+   "conflict_rule": "要：形态牌互斥"
+  },
+  "C2 关键石驱动": {
+   "handlers": 5,
+   "new_entries": 5,
+   "conflict_rule": "要：可同时激活 2–3 块关键石"
+  },
+  "C3 技能驱动·逐类别": {
+   "handlers": 5,
+   "new_entries": 0,
+   "conflict_rule": "要：主修并列"
+  },
+  "C3 技能驱动·逐技能": {
+   "handlers": 24,
+   "new_entries": 24,
+   "conflict_rule": "要：主修并列"
+  },
+  "C3 技能驱动·逐分支": {
+   "handlers": 168,
+   "new_entries": 168,
+   "conflict_rule": "要：主修并列"
+  },
+  "C4 显式原型 + 成长节点": {
+   "handlers": 6,
+   "new_entries": 7,
+   "conflict_rule": "否（单选）"
+  },
+  "C5 涌现积分（118 个组件打标签）": {
+   "handlers": 6,
+   "new_entries": 118,
+   "conflict_rule": "要：并列/抖动"
+  },
+  "C6 宿主印记（推荐）": {
+   "handlers": 5,
+   "new_entries": 0,
+   "conflict_rule": "否（印记单宿主）；另需一次性监听者审计（§7）"
+  }
+ },
+ "listener_audit": {
+  "combo_momentum": {
+   "cards": [
+    "card_third_breath"
+   ],
+   "events": [
+    "combo3"
+   ],
+   "rule": "关闭",
+   "now": "不排除追加打击：A06/A07/A09 复制品段数仍为 3，各回一次劲（:1381）"
+  },
+  "basic_cooldown_cut": {
+   "cards": [
+    "card_punch_think"
+   ],
+   "events": [
+    "basic_hit"
+   ],
+   "rule": "链内一次",
+   "now": "不排除追加打击，每个复制品各减一次（:1384-1402）"
+  },
+  "combo_skill_hit": {
+   "cards": [
+    "card_solid_punch"
+   ],
+   "events": [
+    "combo3"
+   ],
+   "rule": "每次引爆≤1",
+   "now": "排除追加打击（:1406）；扇出到全部已学技能的技能命中"
+  },
+  "combo_knockback": {
+   "cards": [
+    "card_third_shove"
+   ],
+   "events": [
+    "combo3"
+   ],
+   "rule": "开放",
+   "now": "复制品清击退（:676/715/751）"
+  },
+  "combo_double": {
+   "cards": [
+    "card_both_hands"
+   ],
+   "events": [
+    "combo3"
+   ],
+   "rule": "派生生产",
+   "now": "复制主命中（段数 3），bExtraStrike（:672-680）"
+  },
+  "combo_sweep": {
+   "cards": [
+    "card_wide_swing"
+   ],
+   "events": [
+    "combo3"
+   ],
+   "rule": "派生生产",
+   "now": "复制主命中给扇形内其他人（:741-755）"
+  },
+  "combo_cast": {
+   "cards": [
+    "card_fist_skill"
+   ],
+   "events": [
+    "combo3"
+   ],
+   "rule": "每次引爆≤1",
+   "now": "排除追加打击（:2174）；派生施放"
+  },
+  "overcap_extra_hit": {
+   "cards": [
+    "card_quick_hands"
+   ],
+   "events": [
+    "basic_hit"
+   ],
+   "rule": "派生生产",
+   "now": "整份复制主命中含段数（:713-716）"
+  },
+  "basic_ap_rider": {
+   "cards": [
+    "card_scholar_punch"
+   ],
+   "events": [
+    "basic_hit"
+   ],
+   "rule": "开放",
+   "now": "并入主击"
+  },
+  "focus_attack_speed": {
+   "cards": [
+    "card_heated_up"
+   ],
+   "events": [
+    "basic_hit"
+   ],
+   "rule": "仅引爆动作本身",
+   "now": "主干不排除；集成分支 3f22d22e 排除 A09 复制品"
+  },
+  "hit_growth": {
+   "cards": [
+    "card_muscle_memory"
+   ],
+   "events": [
+    "basic_hit"
+   ],
+   "rule": "仅引爆动作本身",
+   "now": "A13 同上；D09 属精准闪避（M-02）"
+  },
+  "breach": {
+   "cards": [
+    "card_breach_fist"
+   ],
+   "events": [
+    "basic_hit"
+   ],
+   "rule": "开放",
+   "now": "待审计"
+  },
+  "hit_haste_other": {
+   "cards": [
+    "card_next_up",
+    "card_bump_again"
+   ],
+   "events": [
+    "dash_contact",
+    "skill_hit"
+   ],
+   "rule": "链内一次",
+   "now": "待审计"
+  },
+  "skill_hit_momentum": {
+   "cards": [
+    "card_pay_back"
+   ],
+   "events": [
+    "skill_hit"
+   ],
+   "rule": "关闭",
+   "now": "待审计"
+  },
+  "takedown_reset": {
+   "cards": [
+    "card_quick_takedown",
+    "card_takedown"
+   ],
+   "events": [
+    "kill"
+   ],
+   "rule": "关闭",
+   "now": "待审计"
+  },
+  "setup_mark": {
+   "cards": [
+    "card_setup_line"
+   ],
+   "events": [
+    "skill_hit"
+   ],
+   "rule": "开放",
+   "now": "待审计"
+  },
+  "control_amp": {
+   "cards": [
+    "card_pin_amp"
+   ],
+   "events": [
+    "control"
+   ],
+   "rule": "开放",
+   "now": "待审计"
+  },
+  "auto_recast": {
+   "cards": [
+    "card_encore"
+   ],
+   "events": [
+    "skill_cast"
+   ],
+   "rule": "每次引爆≤1",
+   "now": "bAutoRecast 护栏（屏蔽回劲、减冷却、脑力关键石）"
+  },
+  "skill_ad_rider": {
+   "cards": [
+    "card_lend_fist"
+   ],
+   "events": [
+    "skill_hit"
+   ],
+   "rule": "开放",
+   "now": "ChainAllows 护栏"
+  },
+  "shield_spend": {
+   "cards": [
+    "card_held_breath"
+   ],
+   "events": [
+    "skill_hit"
+   ],
+   "rule": "开放",
+   "now": "待审计"
+  },
+  "skill_lifesteal": {
+   "cards": [
+    "card_hurt_heal"
+   ],
+   "events": [
+    "skill_hit"
+   ],
+   "rule": "开放",
+   "now": "待审计"
+  },
+  "idle_ready_amp": {
+   "cards": [
+    "card_held_shot"
+   ],
+   "events": [
+    "skill_cast"
+   ],
+   "rule": "开放",
+   "now": "乘区；攻类载荷用加法预算（§3.9）"
+  },
+  "skill_growth": {
+   "cards": [
+    "card_practice"
+   ],
+   "events": [
+    "skill_hit"
+   ],
+   "rule": "仅引爆动作本身",
+   "now": "待审计"
+  },
+  "recent_cast_amp": {
+   "cards": [
+    "card_combo_chain"
+   ],
+   "events": [
+    "skill_cast"
+   ],
+   "rule": "开放",
+   "now": "待审计"
+  },
+  "reaction_haste": {
+   "cards": [
+    "card_blast_reload"
+   ],
+   "events": [
+    "reaction"
+   ],
+   "rule": "关闭",
+   "now": "返还宿主自身冷却"
+  },
+  "dash_contact_reset": {
+   "cards": [
+    "card_bump_reset"
+   ],
+   "events": [
+    "dash_contact"
+   ],
+   "rule": "关闭",
+   "now": "刷新冲刺并退还冲刺劲（LDCombatSkillDirector.cpp:741）"
+  },
+  "empower_basic": {
+   "cards": [
+    "card_dash_punch"
+   ],
+   "events": [
+    "dash"
+   ],
+   "rule": "开放",
+   "now": "每次冲刺一次"
+  },
+  "dash_split": {
+   "cards": [
+    "card_double_dash"
+   ],
+   "events": [
+    "dash"
+   ],
+   "rule": "派生生产",
+   "now": "只有第一段引爆"
+  },
+  "dash_phase": {
+   "cards": [
+    "card_pass_through"
+   ],
+   "events": [
+    "dash_contact"
+   ],
+   "rule": "按人数递减",
+   "now": "每穿一人一次普攻（MakeBasicStrike，bExtraStrike）"
+  },
+  "dash_ram": {
+   "cards": [
+    "card_head_down"
+   ],
+   "events": [
+    "dash_contact"
+   ],
+   "rule": "按人数递减",
+   "now": "每个接触者"
+  },
+  "runaway_train": {
+   "cards": [
+    "card_runaway_train"
+   ],
+   "events": [
+    "dash_contact",
+    "wall_impact"
+   ],
+   "rule": "按人数递减",
+   "now": "撞墙返还冲刺冷却部分 = 关闭"
+  },
+  "dash_ice": {
+   "cards": [
+    "card_ice_trail"
+   ],
+   "events": [
+    "dash"
+   ],
+   "rule": "开放",
+   "now": "—"
+  },
+  "ground_relocate": {
+   "cards": [
+    "card_move_turf"
+   ],
+   "events": [
+    "dash"
+   ],
+   "rule": "开放",
+   "now": "—"
+  },
+  "thorns": {
+   "cards": [
+    "card_spiky_hide"
+   ],
+   "events": [
+    "damaged"
+   ],
+   "rule": "非 R 事件",
+   "now": "反伤（bReflect）"
+  },
+  "last_stand": {
+   "cards": [
+    "card_hang_on"
+   ],
+   "events": [
+    "low_hp"
+   ],
+   "rule": "非 R 事件",
+   "now": "—"
+  },
+  "reaction_momentum": {
+   "cards": [
+    "card_reaction_refund"
+   ],
+   "events": [
+    "reaction"
+   ],
+   "rule": "关闭",
+   "now": "待审计"
+  },
+  "reaction_element": {
+   "cards": [
+    "card_wave_after"
+   ],
+   "events": [
+    "reaction"
+   ],
+   "rule": "链内一次",
+   "now": "豁免反应锁一次"
+  },
+  "shield_burst_break": {
+   "cards": [
+    "card_shell_burst"
+   ],
+   "events": [
+    "shield_break"
+   ],
+   "rule": "链内一次",
+   "now": "每打空一层计一次打破 → 同一伤害事件一次"
+  },
+  "triggered_shield": {
+   "cards": [
+    "card_hard_skin"
+   ],
+   "events": [
+    "damaged"
+   ],
+   "rule": "非 R 事件",
+   "now": "—"
+  },
+  "knockback_impact": {
+   "cards": [
+    "card_ball_kick"
+   ],
+   "events": [
+    "knockback",
+    "wall_impact"
+   ],
+   "rule": "开放",
+   "now": "待审计"
+  },
+  "lifesteal_skills": {
+   "cards": [
+    "card_skill_drain"
+   ],
+   "events": [
+    "skill_hit"
+   ],
+   "rule": "开放",
+   "now": "—"
+  },
+  "lifesteal": {
+   "cards": [
+    "card_punch_heal"
+   ],
+   "events": [
+    "basic_hit"
+   ],
+   "rule": "开放",
+   "now": "—"
+  },
+  "overheal_shield": {
+   "cards": [
+    "card_overfed",
+    "card_burn_guard"
+   ],
+   "events": [
+    "heal"
+   ],
+   "rule": "开放",
+   "now": "Y29 上限已修（398d2928，集成分支）"
+  },
+  "haste_momentum": {
+   "cards": [
+    "card_quick_brain"
+   ],
+   "events": [
+    "skill_hit"
+   ],
+   "rule": "关闭",
+   "now": "待审计"
+  },
+  "heal_growth": {
+   "cards": [
+    "card_grow_fat"
+   ],
+   "events": [
+    "heal"
+   ],
+   "rule": "仅引爆动作本身",
+   "now": "待审计"
+  },
+  "kill_growth": {
+   "cards": [
+    "card_kill_streak"
+   ],
+   "events": [
+    "kill"
+   ],
+   "rule": "开放",
+   "now": "击杀本身计入"
+  },
+  "control_growth": {
+   "cards": [
+    "card_tough_skin"
+   ],
+   "events": [
+    "controlled"
+   ],
+   "rule": "非 R 事件",
+   "now": "—"
+  },
+  "idle_charge": {
+   "cards": [
+    "card_charge_up"
+   ],
+   "events": [
+    "damage"
+   ],
+   "rule": "开放",
+   "now": "乘区；同 idle_ready_amp"
+  },
+  "ground_growth": {
+   "cards": [
+    "card_turf_growth"
+   ],
+   "events": [
+    "ground"
+   ],
+   "rule": "开放",
+   "now": "—"
+  },
+  "tally": {
+   "cards": [
+    "card_tally"
+   ],
+   "events": [
+    "basic_hit",
+    "skill_hit"
+   ],
+   "rule": "开放",
+   "now": "排除反伤/灼烧/周期/附加命中"
+  },
+  "element_aura": {
+   "cards": [
+    "card_live_wire"
+   ],
+   "events": [
+    "damaged"
+   ],
+   "rule": "非 R 事件",
+   "now": "—"
+  },
+  "spellblade_echo": {
+   "cards": [
+    "card_spellblade_echo"
+   ],
+   "events": [
+    "skill_cast"
+   ],
+   "rule": "开放",
+   "now": "待审计"
+  },
+  "skate_blade": {
+   "cards": [
+    "card_skate_blade"
+   ],
+   "events": [
+    "ground"
+   ],
+   "rule": "开放",
+   "now": "—"
+  },
+  "tonnage_crush": {
+   "cards": [
+    "card_tonnage_crush"
+   ],
+   "events": [
+    "combo3"
+   ],
+   "rule": "开放",
+   "now": "待审计"
+  },
+  "iron_hedgehog": {
+   "cards": [
+    "card_iron_hedgehog"
+   ],
+   "events": [
+    "damaged"
+   ],
+   "rule": "非 R 事件",
+   "now": "反伤"
+  },
+  "reactive_plating": {
+   "cards": [
+    "card_reactive_plating"
+   ],
+   "events": [
+    "shield"
+   ],
+   "rule": "链内一次",
+   "now": "同一伤害/施放事件一次"
+  },
+  "fuel_the_fire": {
+   "cards": [
+    "card_fuel_the_fire"
+   ],
+   "events": [
+    "skill_hit"
+   ],
+   "rule": "开放",
+   "now": "待审计"
+  },
+  "rogue_works": {
+   "cards": [
+    "card_rogue_works"
+   ],
+   "events": [
+    "ground"
+   ],
+   "rule": "开放",
+   "now": "待审计"
+  },
+  "martial_scholar": {
+   "cards": [
+    "card_martial_scholar"
+   ],
+   "events": [
+    "basic_hit",
+    "skill_hit"
+   ],
+   "rule": "开放",
+   "now": "偷劲部分 = 关闭；排除追加打击（:1343/1364）"
+  }
+ },
+ "listener_rule_counts": {
+  "关闭": 8,
+  "链内一次": 6,
+  "每次引爆≤1": 3,
+  "开放": 28,
+  "派生生产": 4,
+  "仅引爆动作本身": 4,
+  "按人数递减": 3,
+  "非 R 事件": 6
+ },
+ "static_cards": [
+  "card_again_now",
+  "card_berserk",
+  "card_big_one",
+  "card_blood_price",
+  "card_brain_speed",
+  "card_crowd_hit",
+  "card_desperado",
+  "card_double_stall",
+  "card_eagle_stance",
+  "card_endless_burn",
+  "card_heavy_mallet",
+  "card_hold_longer",
+  "card_hulking_presence",
+  "card_let_bullets_fly",
+  "card_long_arm",
+  "card_long_reach",
+  "card_long_soak",
+  "card_louder_blast",
+  "card_paid_dash",
+  "card_run_hit",
+  "card_short_breath",
+  "card_skill_crit",
+  "card_slow_craft",
+  "card_thick_hide"
+ ],
+ "unaudited_ops": [
+  "armor_to_hp",
+  "basic_projectile",
+  "brain_speed",
+  "burn_cap",
+  "cooldown_cost",
+  "desperado",
+  "double_stall",
+  "eagle_stance",
+  "element_duration",
+  "heavy_mallet",
+  "hp_cost",
+  "hulking_presence",
+  "missing_hp_attack_speed",
+  "overdrive_short",
+  "projectile_flight_amp",
+  "reaction_factor",
+  "reshape",
+  "skill_crit",
+  "skill_damage_factor",
+  "speed_factor"
+ ],
+ "op_engaged": {
+  "fist": [
+   "card_ball_kick",
+   "card_both_hands",
+   "card_breach_fist",
+   "card_burn_guard",
+   "card_charge_up",
+   "card_fist_skill",
+   "card_grow_fat",
+   "card_heated_up",
+   "card_kill_streak",
+   "card_martial_scholar",
+   "card_muscle_memory",
+   "card_overfed",
+   "card_punch_heal",
+   "card_punch_think",
+   "card_quick_hands",
+   "card_quick_takedown",
+   "card_scholar_punch",
+   "card_solid_punch",
+   "card_takedown",
+   "card_tally",
+   "card_third_breath",
+   "card_third_shove",
+   "card_tonnage_crush",
+   "card_wide_swing"
+  ],
+  "strike": [
+   "card_ball_kick",
+   "card_blast_reload",
+   "card_bump_again",
+   "card_burn_guard",
+   "card_charge_up",
+   "card_combo_chain",
+   "card_encore",
+   "card_fuel_the_fire",
+   "card_grow_fat",
+   "card_held_breath",
+   "card_held_shot",
+   "card_hurt_heal",
+   "card_kill_streak",
+   "card_lend_fist",
+   "card_martial_scholar",
+   "card_next_up",
+   "card_overfed",
+   "card_pay_back",
+   "card_pin_amp",
+   "card_practice",
+   "card_quick_brain",
+   "card_quick_takedown",
+   "card_reaction_refund",
+   "card_runaway_train",
+   "card_setup_line",
+   "card_skill_drain",
+   "card_spellblade_echo",
+   "card_takedown",
+   "card_tally",
+   "card_wave_after"
+  ],
+  "guard": [
+   "card_burn_guard",
+   "card_charge_up",
+   "card_combo_chain",
+   "card_encore",
+   "card_grow_fat",
+   "card_held_shot",
+   "card_overfed",
+   "card_reactive_plating",
+   "card_shell_burst",
+   "card_spellblade_echo"
+  ],
+  "dash": [
+   "card_ball_kick",
+   "card_breach_fist",
+   "card_bump_again",
+   "card_bump_reset",
+   "card_charge_up",
+   "card_dash_punch",
+   "card_double_dash",
+   "card_head_down",
+   "card_heated_up",
+   "card_ice_trail",
+   "card_kill_streak",
+   "card_martial_scholar",
+   "card_move_turf",
+   "card_muscle_memory",
+   "card_next_up",
+   "card_pass_through",
+   "card_punch_heal",
+   "card_punch_think",
+   "card_quick_hands",
+   "card_quick_takedown",
+   "card_runaway_train",
+   "card_scholar_punch",
+   "card_takedown",
+   "card_tally"
+  ],
+  "works": [
+   "card_bump_again",
+   "card_charge_up",
+   "card_combo_chain",
+   "card_encore",
+   "card_fuel_the_fire",
+   "card_held_breath",
+   "card_held_shot",
+   "card_hurt_heal",
+   "card_kill_streak",
+   "card_lend_fist",
+   "card_martial_scholar",
+   "card_next_up",
+   "card_pay_back",
+   "card_pin_amp",
+   "card_practice",
+   "card_quick_brain",
+   "card_quick_takedown",
+   "card_rogue_works",
+   "card_setup_line",
+   "card_skate_blade",
+   "card_skill_drain",
+   "card_spellblade_echo",
+   "card_takedown",
+   "card_tally",
+   "card_turf_growth"
+  ]
+ },
+ "auto_pin": {
+  "3.1 普攻攻速": {
+   "old": "本体",
+   "new": "Q 左右开抽"
+  },
+  "3.2 慢速重击": {
+   "old": "本体",
+   "new": "Q 拧你手腕"
+  },
+  "3.3 技能循环": {
+   "old": "Q 甩你一鞋",
+   "new": "Q 甩你一鞋"
+  },
+  "3.4 元素反应": {
+   "old": "Q 滋你一脸",
+   "new": "Q 滋你一脸"
+  },
+  "3.5 冲刺机动": {
+   "old": "D",
+   "new": "D"
+  },
+  "3.6 护盾防反": {
+   "old": "W 扯嗓子喷你",
+   "new": "W 扯嗓子喷你"
+  },
+  "3.7 召唤工事": {
+   "old": "Q 占座书包",
+   "new": "Q 占座书包"
+  },
+  "3.8 文武混合": {
+   "old": "本体",
+   "new": "Q 甩你一鞋"
+  },
+  "3.9 憋大招": {
+   "old": "Q 板砖糊脸",
+   "new": "Q 板砖糊脸"
+  }
+ }
+}

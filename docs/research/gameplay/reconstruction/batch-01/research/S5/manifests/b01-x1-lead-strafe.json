@@ -1,0 +1,243 @@
+{
+  "schema": "build_evaluation.manifest",
+  "schema_version": 2,
+  "experiment": {
+    "id": "b01-x1-lead-strafe",
+    "hypothesis": "X1-R2：攻击方用落点延迟或飞行时间长的技能（板砖、嘲讽弹、过期外卖）打横向走位的目标，瞄准线性预测位置（lead_on）与瞄准当前位置（lead_off，生产 AI）的差别。"
+  },
+  "adapter": {
+    "module": "BuildEvaluationLockdown",
+    "id": "lockdown-demo"
+  },
+  "scenario": {
+    "kind": "duel_site",
+    "parameters": {
+      "site": "capture",
+      "duel_timeout_ms": 90000,
+      "supply_xp": {
+        "subject": 1890,
+        "opponent": 1890
+      },
+      "clear_camps": true
+    }
+  },
+  "sample_class": "diagnostic",
+  "assumptions": [
+    "双方由 DEV 奖励事务在第一野外入口获得 1890 XP，达到 L10 与 30 点；不是自然成长速率。",
+    "主动由 DEV 预置候选固定（S3 代表构筑），技能 1 级；不装牌。",
+    "subject 攻击方：板砖（地面点，落点延迟）+ 嘲讽弹、过期外卖（弹道，有飞行时间）；技能 1 级，生产追击架势，aim_error_cm 为 0。",
+    "opponent 目标：远程构筑（嘲讽弹、电、滋你一脸）用 {\"kind\": \"strafe\", \"standoff_cm\": 500} 绕 subject 横向走位，施放与 kite 相同。",
+    "S2 的几何结论：扒裤子 2B 前摇 0.14 s × 移速 240–300 ≈ 34–42 cm，小于半线宽 65 cm，不预判也命中，所以本清单不再测 2B。",
+    "评估夹具 clear_camps：初始营地站齐后全部离场且本段不再刷新，排除营地卷入（S2 T05-07）。",
+    "8 个确认种子 × 双侧：每个 arm 16 Case。"
+  ],
+  "design": {
+    "kind": "paired_arms",
+    "reference": "lead_off",
+    "arms": [
+      {
+        "id": "lead_off",
+        "plan": {
+          "subject": {
+            "opening_preset": [
+              "active_calculus_drop"
+            ],
+            "choices": [
+              {
+                "rule": "definition",
+                "definition": "active_calculus_drop"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_snark_bolt"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_stale_takeout"
+              },
+              "ai_select"
+            ],
+            "presets": [
+              [
+                "active_snark_bolt"
+              ],
+              [
+                "active_stale_takeout"
+              ]
+            ],
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "field",
+                "points": {
+                  "stat_brains": 18,
+                  "stat_agility": 12
+                }
+              }
+            ]
+          },
+          "opponent": {
+            "opening_preset": [
+              "active_snark_bolt"
+            ],
+            "choices": [
+              {
+                "rule": "definition",
+                "definition": "active_snark_bolt"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_zap"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_hose_down"
+              },
+              "ai_select"
+            ],
+            "presets": [
+              [
+                "active_zap"
+              ],
+              [
+                "active_hose_down"
+              ]
+            ],
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "field",
+                "points": {
+                  "stat_brains": 18,
+                  "stat_agility": 12
+                }
+              }
+            ],
+            "stance": {
+              "kind": "strafe",
+              "standoff_cm": 500
+            }
+          }
+        }
+      },
+      {
+        "id": "lead_on",
+        "plan": {
+          "subject": {
+            "opening_preset": [
+              "active_calculus_drop"
+            ],
+            "choices": [
+              {
+                "rule": "definition",
+                "definition": "active_calculus_drop"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_snark_bolt"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_stale_takeout"
+              },
+              "ai_select"
+            ],
+            "presets": [
+              [
+                "active_snark_bolt"
+              ],
+              [
+                "active_stale_takeout"
+              ]
+            ],
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "field",
+                "points": {
+                  "stat_brains": 18,
+                  "stat_agility": 12
+                }
+              }
+            ],
+            "stance": {
+              "kind": "pursue",
+              "lead_aim": true
+            }
+          },
+          "opponent": {
+            "opening_preset": [
+              "active_snark_bolt"
+            ],
+            "choices": [
+              {
+                "rule": "definition",
+                "definition": "active_snark_bolt"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_zap"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_hose_down"
+              },
+              "ai_select"
+            ],
+            "presets": [
+              [
+                "active_zap"
+              ],
+              [
+                "active_hose_down"
+              ]
+            ],
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "field",
+                "points": {
+                  "stat_brains": 18,
+                  "stat_agility": 12
+                }
+              }
+            ],
+            "stance": {
+              "kind": "strafe",
+              "standoff_cm": 500
+            }
+          }
+        }
+      }
+    ]
+  },
+  "blocks": {
+    "root_seed": "20261201",
+    "splits": {
+      "search": 0,
+      "confirm": 8
+    },
+    "sides": 2
+  },
+  "metrics": {
+    "primary": "duel_score",
+    "secondary": [
+      "engage_to_kill_ms",
+      "damage_dealt_hp",
+      "damage_taken_hp",
+      "subject_casts",
+      "opponent_casts",
+      "subject_hp_end_bp"
+    ],
+    "material_difference": null
+  },
+  "budget": {
+    "class": "standard",
+    "case_wall_timeout_s": 180,
+    "max_case_events": 200000,
+    "max_run_disk_bytes": 2147483648,
+    "max_root_disk_bytes": 6442450944,
+    "max_cases": 32,
+    "run_wall_timeout_s": 5400
+  }
+}

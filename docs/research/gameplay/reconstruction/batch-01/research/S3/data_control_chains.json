@@ -1,0 +1,834 @@
+{
+ "horizon_s": 8.0,
+ "action_window_s": 0.35,
+ "results": {
+  "A_control_solo_L10": {
+   "R0_current": {
+    "worst_4s_no_move_s": 1.47,
+    "lock_s": 0.74,
+    "no_move_s": 2.94,
+    "longest_no_move_s": 1.22,
+    "first_escape_s": 1.64,
+    "escape_windows": 2,
+    "combo3_s": 1.47,
+    "combo3_retained": 1.0
+   },
+   "C1_kb_in_DR": {
+    "worst_4s_no_move_s": 1.42,
+    "lock_s": 0.64,
+    "no_move_s": 2.07,
+    "longest_no_move_s": 1.22,
+    "first_escape_s": 1.59,
+    "escape_windows": 2,
+    "combo3_s": 1.42,
+    "combo3_retained": 0.97
+   },
+   "C1lite_kb_advances_DR": {
+    "worst_4s_no_move_s": 1.47,
+    "lock_s": 0.74,
+    "no_move_s": 2.17,
+    "longest_no_move_s": 1.22,
+    "first_escape_s": 1.64,
+    "escape_windows": 2,
+    "combo3_s": 1.47,
+    "combo3_retained": 1.0
+   },
+   "C2_immune0.5": {
+    "worst_4s_no_move_s": 1.47,
+    "lock_s": 0.74,
+    "no_move_s": 2.94,
+    "longest_no_move_s": 1.22,
+    "first_escape_s": 1.64,
+    "escape_windows": 2,
+    "combo3_s": 1.47,
+    "combo3_retained": 1.0
+   },
+   "C2_immune1.0_incl_kb": {
+    "worst_4s_no_move_s": 1.47,
+    "lock_s": 0.37,
+    "no_move_s": 2.58,
+    "longest_no_move_s": 1.11,
+    "first_escape_s": 1.25,
+    "escape_windows": 2,
+    "combo3_s": 1.47,
+    "combo3_retained": 1.0
+   },
+   "C3_guard_2.0in4_for1.0": {
+    "worst_4s_no_move_s": 1.47,
+    "lock_s": 0.74,
+    "no_move_s": 2.94,
+    "longest_no_move_s": 1.22,
+    "first_escape_s": 1.64,
+    "escape_windows": 2,
+    "combo3_s": 1.47,
+    "combo3_retained": 1.0
+   },
+   "C3_guard_2.5in4_for0.8": {
+    "worst_4s_no_move_s": 1.47,
+    "lock_s": 0.74,
+    "no_move_s": 2.94,
+    "longest_no_move_s": 1.22,
+    "first_escape_s": 1.64,
+    "escape_windows": 2,
+    "combo3_s": 1.47,
+    "combo3_retained": 1.0
+   },
+   "C5_tumble_from3rd_kb": {
+    "worst_4s_no_move_s": 1.47,
+    "lock_s": 0.74,
+    "no_move_s": 2.94,
+    "longest_no_move_s": 1.22,
+    "first_escape_s": 1.64,
+    "escape_windows": 2,
+    "combo3_s": 1.47,
+    "combo3_retained": 1.0
+   },
+   "C3+C5": {
+    "worst_4s_no_move_s": 1.47,
+    "lock_s": 0.74,
+    "no_move_s": 2.94,
+    "longest_no_move_s": 1.22,
+    "first_escape_s": 1.64,
+    "escape_windows": 2,
+    "combo3_s": 1.47,
+    "combo3_retained": 1.0
+   }
+  },
+  "B_knockback_wall_solo": {
+   "R0_current": {
+    "worst_4s_no_move_s": 2.4,
+    "lock_s": 3.81,
+    "no_move_s": 3.81,
+    "longest_no_move_s": 2.04,
+    "first_escape_s": 1.56,
+    "escape_windows": 3,
+    "combo3_s": 1.2,
+    "combo3_retained": 1.0
+   },
+   "C1_kb_in_DR": {
+    "worst_4s_no_move_s": 1.79,
+    "lock_s": 2.88,
+    "no_move_s": 2.88,
+    "longest_no_move_s": 1.09,
+    "first_escape_s": 1.24,
+    "escape_windows": 4,
+    "combo3_s": 0.88,
+    "combo3_retained": 0.73
+   },
+   "C1lite_kb_advances_DR": {
+    "worst_4s_no_move_s": 1.84,
+    "lock_s": 2.93,
+    "no_move_s": 2.93,
+    "longest_no_move_s": 1.09,
+    "first_escape_s": 1.24,
+    "escape_windows": 4,
+    "combo3_s": 0.88,
+    "combo3_retained": 0.73
+   },
+   "C2_immune0.5": {
+    "worst_4s_no_move_s": 2.16,
+    "lock_s": 3.33,
+    "no_move_s": 3.33,
+    "longest_no_move_s": 1.17,
+    "first_escape_s": 1.32,
+    "escape_windows": 3,
+    "combo3_s": 1.2,
+    "combo3_retained": 1.0
+   },
+   "C2_immune1.0_incl_kb": {
+    "worst_4s_no_move_s": 1.52,
+    "lock_s": 2.58,
+    "no_move_s": 2.58,
+    "longest_no_move_s": 1.06,
+    "first_escape_s": 1.21,
+    "escape_windows": 3,
+    "combo3_s": 1.17,
+    "combo3_retained": 0.97
+   },
+   "C3_guard_2.0in4_for1.0": {
+    "worst_4s_no_move_s": 2.4,
+    "lock_s": 3.77,
+    "no_move_s": 3.77,
+    "longest_no_move_s": 2.04,
+    "first_escape_s": 1.52,
+    "escape_windows": 3,
+    "combo3_s": 1.2,
+    "combo3_retained": 1.0
+   },
+   "C3_guard_2.5in4_for0.8": {
+    "worst_4s_no_move_s": 2.4,
+    "lock_s": 3.81,
+    "no_move_s": 3.81,
+    "longest_no_move_s": 2.04,
+    "first_escape_s": 1.56,
+    "escape_windows": 3,
+    "combo3_s": 1.2,
+    "combo3_retained": 1.0
+   },
+   "C5_tumble_from3rd_kb": {
+    "worst_4s_no_move_s": 2.13,
+    "lock_s": 3.43,
+    "no_move_s": 3.43,
+    "longest_no_move_s": 1.65,
+    "first_escape_s": 1.56,
+    "escape_windows": 3,
+    "combo3_s": 1.2,
+    "combo3_retained": 1.0
+   },
+   "C3+C5": {
+    "worst_4s_no_move_s": 1.51,
+    "lock_s": 2.81,
+    "no_move_s": 2.81,
+    "longest_no_move_s": 1.06,
+    "first_escape_s": 1.56,
+    "escape_windows": 3,
+    "combo3_s": 1.2,
+    "combo3_retained": 1.0
+   }
+  },
+  "B_knockback_open_field": {
+   "R0_current": {
+    "worst_4s_no_move_s": 0.64,
+    "lock_s": 1.16,
+    "no_move_s": 1.16,
+    "longest_no_move_s": 0.52,
+    "first_escape_s": 0.67,
+    "escape_windows": 4,
+    "combo3_s": 0.52,
+    "combo3_retained": 1.0
+   },
+   "C1_kb_in_DR": {
+    "worst_4s_no_move_s": 0.64,
+    "lock_s": 1.11,
+    "no_move_s": 1.11,
+    "longest_no_move_s": 0.52,
+    "first_escape_s": 0.67,
+    "escape_windows": 4,
+    "combo3_s": 0.52,
+    "combo3_retained": 1.0
+   },
+   "C1lite_kb_advances_DR": {
+    "worst_4s_no_move_s": 0.64,
+    "lock_s": 1.16,
+    "no_move_s": 1.16,
+    "longest_no_move_s": 0.52,
+    "first_escape_s": 0.67,
+    "escape_windows": 4,
+    "combo3_s": 0.52,
+    "combo3_retained": 1.0
+   },
+   "C2_immune0.5": {
+    "worst_4s_no_move_s": 0.64,
+    "lock_s": 1.16,
+    "no_move_s": 1.16,
+    "longest_no_move_s": 0.52,
+    "first_escape_s": 0.67,
+    "escape_windows": 4,
+    "combo3_s": 0.52,
+    "combo3_retained": 1.0
+   },
+   "C2_immune1.0_incl_kb": {
+    "worst_4s_no_move_s": 0.64,
+    "lock_s": 1.16,
+    "no_move_s": 1.16,
+    "longest_no_move_s": 0.52,
+    "first_escape_s": 0.67,
+    "escape_windows": 4,
+    "combo3_s": 0.52,
+    "combo3_retained": 1.0
+   },
+   "C3_guard_2.0in4_for1.0": {
+    "worst_4s_no_move_s": 0.64,
+    "lock_s": 1.16,
+    "no_move_s": 1.16,
+    "longest_no_move_s": 0.52,
+    "first_escape_s": 0.67,
+    "escape_windows": 4,
+    "combo3_s": 0.52,
+    "combo3_retained": 1.0
+   },
+   "C3_guard_2.5in4_for0.8": {
+    "worst_4s_no_move_s": 0.64,
+    "lock_s": 1.16,
+    "no_move_s": 1.16,
+    "longest_no_move_s": 0.52,
+    "first_escape_s": 0.67,
+    "escape_windows": 4,
+    "combo3_s": 0.52,
+    "combo3_retained": 1.0
+   },
+   "C5_tumble_from3rd_kb": {
+    "worst_4s_no_move_s": 0.52,
+    "lock_s": 0.77,
+    "no_move_s": 0.77,
+    "longest_no_move_s": 0.4,
+    "first_escape_s": 0.55,
+    "escape_windows": 3,
+    "combo3_s": 0.52,
+    "combo3_retained": 1.0
+   },
+   "C3+C5": {
+    "worst_4s_no_move_s": 0.52,
+    "lock_s": 0.77,
+    "no_move_s": 0.77,
+    "longest_no_move_s": 0.4,
+    "first_escape_s": 0.55,
+    "escape_windows": 3,
+    "combo3_s": 0.52,
+    "combo3_retained": 1.0
+   }
+  },
+  "C_control_haste150": {
+   "R0_current": {
+    "worst_4s_no_move_s": 2.49,
+    "lock_s": 1.0,
+    "no_move_s": 3.76,
+    "longest_no_move_s": 1.71,
+    "first_escape_s": 1.85,
+    "escape_windows": 4,
+    "combo3_s": 1.71,
+    "combo3_retained": 1.0
+   },
+   "C1_kb_in_DR": {
+    "worst_4s_no_move_s": 2.4,
+    "lock_s": 0.81,
+    "no_move_s": 3.57,
+    "longest_no_move_s": 1.66,
+    "first_escape_s": 1.8,
+    "escape_windows": 4,
+    "combo3_s": 1.66,
+    "combo3_retained": 0.97
+   },
+   "C1lite_kb_advances_DR": {
+    "worst_4s_no_move_s": 2.49,
+    "lock_s": 1.0,
+    "no_move_s": 3.76,
+    "longest_no_move_s": 1.71,
+    "first_escape_s": 1.85,
+    "escape_windows": 4,
+    "combo3_s": 1.71,
+    "combo3_retained": 1.0
+   },
+   "C2_immune0.5": {
+    "worst_4s_no_move_s": 1.97,
+    "lock_s": 1.0,
+    "no_move_s": 2.91,
+    "longest_no_move_s": 1.11,
+    "first_escape_s": 1.64,
+    "escape_windows": 4,
+    "combo3_s": 1.71,
+    "combo3_retained": 1.0
+   },
+   "C2_immune1.0_incl_kb": {
+    "worst_4s_no_move_s": 1.47,
+    "lock_s": 0.0,
+    "no_move_s": 1.91,
+    "longest_no_move_s": 1.11,
+    "first_escape_s": 1.25,
+    "escape_windows": 4,
+    "combo3_s": 1.66,
+    "combo3_retained": 0.97
+   },
+   "C3_guard_2.0in4_for1.0": {
+    "worst_4s_no_move_s": 2.0,
+    "lock_s": 0.75,
+    "no_move_s": 3.27,
+    "longest_no_move_s": 1.71,
+    "first_escape_s": 1.85,
+    "escape_windows": 4,
+    "combo3_s": 1.71,
+    "combo3_retained": 1.0
+   },
+   "C3_guard_2.5in4_for0.8": {
+    "worst_4s_no_move_s": 2.49,
+    "lock_s": 1.0,
+    "no_move_s": 3.76,
+    "longest_no_move_s": 1.71,
+    "first_escape_s": 1.85,
+    "escape_windows": 4,
+    "combo3_s": 1.71,
+    "combo3_retained": 1.0
+   },
+   "C5_tumble_from3rd_kb": {
+    "worst_4s_no_move_s": 2.49,
+    "lock_s": 0.5,
+    "no_move_s": 3.26,
+    "longest_no_move_s": 1.71,
+    "first_escape_s": 1.85,
+    "escape_windows": 5,
+    "combo3_s": 1.71,
+    "combo3_retained": 1.0
+   },
+   "C3+C5": {
+    "worst_4s_no_move_s": 2.0,
+    "lock_s": 0.75,
+    "no_move_s": 3.27,
+    "longest_no_move_s": 1.71,
+    "first_escape_s": 1.85,
+    "escape_windows": 4,
+    "combo3_s": 1.71,
+    "combo3_retained": 1.0
+   }
+  },
+  "C_control_haste400_cap": {
+   "R0_current": {
+    "worst_4s_no_move_s": 2.72,
+    "lock_s": 1.75,
+    "no_move_s": 4.61,
+    "longest_no_move_s": 1.46,
+    "first_escape_s": 1.6,
+    "escape_windows": 8,
+    "combo3_s": 1.66,
+    "combo3_retained": 1.0
+   },
+   "C1_kb_in_DR": {
+    "worst_4s_no_move_s": 2.62,
+    "lock_s": 1.4,
+    "no_move_s": 4.26,
+    "longest_no_move_s": 1.46,
+    "first_escape_s": 1.6,
+    "escape_windows": 8,
+    "combo3_s": 1.66,
+    "combo3_retained": 1.0
+   },
+   "C1lite_kb_advances_DR": {
+    "worst_4s_no_move_s": 2.72,
+    "lock_s": 1.75,
+    "no_move_s": 4.61,
+    "longest_no_move_s": 1.46,
+    "first_escape_s": 1.6,
+    "escape_windows": 8,
+    "combo3_s": 1.66,
+    "combo3_retained": 1.0
+   },
+   "C2_immune0.5": {
+    "worst_4s_no_move_s": 2.18,
+    "lock_s": 1.5,
+    "no_move_s": 4.1,
+    "longest_no_move_s": 1.11,
+    "first_escape_s": 1.78,
+    "escape_windows": 7,
+    "combo3_s": 1.71,
+    "combo3_retained": 1.03
+   },
+   "C2_immune1.0_incl_kb": {
+    "worst_4s_no_move_s": 1.72,
+    "lock_s": 0.25,
+    "no_move_s": 2.12,
+    "longest_no_move_s": 1.11,
+    "first_escape_s": 1.25,
+    "escape_windows": 5,
+    "combo3_s": 1.71,
+    "combo3_retained": 1.03
+   },
+   "C3_guard_2.0in4_for1.0": {
+    "worst_4s_no_move_s": 2.07,
+    "lock_s": 1.5,
+    "no_move_s": 4.05,
+    "longest_no_move_s": 1.46,
+    "first_escape_s": 1.6,
+    "escape_windows": 7,
+    "combo3_s": 1.66,
+    "combo3_retained": 1.0
+   },
+   "C3_guard_2.5in4_for0.8": {
+    "worst_4s_no_move_s": 2.5,
+    "lock_s": 1.5,
+    "no_move_s": 4.3,
+    "longest_no_move_s": 1.46,
+    "first_escape_s": 1.6,
+    "escape_windows": 7,
+    "combo3_s": 1.66,
+    "combo3_retained": 1.0
+   },
+   "C5_tumble_from3rd_kb": {
+    "worst_4s_no_move_s": 2.58,
+    "lock_s": 0.5,
+    "no_move_s": 4.21,
+    "longest_no_move_s": 1.46,
+    "first_escape_s": 1.6,
+    "escape_windows": 5,
+    "combo3_s": 1.66,
+    "combo3_retained": 1.0
+   },
+   "C3+C5": {
+    "worst_4s_no_move_s": 2.07,
+    "lock_s": 0.5,
+    "no_move_s": 3.71,
+    "longest_no_move_s": 1.46,
+    "first_escape_s": 1.6,
+    "escape_windows": 5,
+    "combo3_s": 1.66,
+    "combo3_retained": 1.0
+   }
+  },
+  "D_gank_3v1": {
+   "R0_current": {
+    "worst_4s_no_move_s": 2.01,
+    "lock_s": 2.26,
+    "no_move_s": 3.36,
+    "longest_no_move_s": 1.76,
+    "first_escape_s": 1.47,
+    "escape_windows": 2,
+    "combo3_s": 2.18,
+    "combo3_retained": 1.0
+   },
+   "C1_kb_in_DR": {
+    "worst_4s_no_move_s": 1.3,
+    "lock_s": 1.88,
+    "no_move_s": 2.21,
+    "longest_no_move_s": 1.3,
+    "first_escape_s": 1.42,
+    "escape_windows": 3,
+    "combo3_s": 2.18,
+    "combo3_retained": 1.0
+   },
+   "C1lite_kb_advances_DR": {
+    "worst_4s_no_move_s": 1.35,
+    "lock_s": 1.93,
+    "no_move_s": 2.26,
+    "longest_no_move_s": 1.35,
+    "first_escape_s": 1.47,
+    "escape_windows": 3,
+    "combo3_s": 2.18,
+    "combo3_retained": 1.0
+   },
+   "C2_immune0.5": {
+    "worst_4s_no_move_s": 1.35,
+    "lock_s": 1.6,
+    "no_move_s": 2.7,
+    "longest_no_move_s": 1.35,
+    "first_escape_s": 1.47,
+    "escape_windows": 3,
+    "combo3_s": 1.47,
+    "combo3_retained": 0.67
+   },
+   "C2_immune1.0_incl_kb": {
+    "worst_4s_no_move_s": 1.35,
+    "lock_s": 1.36,
+    "no_move_s": 2.46,
+    "longest_no_move_s": 1.11,
+    "first_escape_s": 1.23,
+    "escape_windows": 3,
+    "combo3_s": 1.47,
+    "combo3_retained": 0.67
+   },
+   "C3_guard_2.0in4_for1.0": {
+    "worst_4s_no_move_s": 1.88,
+    "lock_s": 1.7,
+    "no_move_s": 2.8,
+    "longest_no_move_s": 1.63,
+    "first_escape_s": 1.04,
+    "escape_windows": 2,
+    "combo3_s": 2.0,
+    "combo3_retained": 0.92
+   },
+   "C3_guard_2.5in4_for0.8": {
+    "worst_4s_no_move_s": 2.01,
+    "lock_s": 2.21,
+    "no_move_s": 3.31,
+    "longest_no_move_s": 1.76,
+    "first_escape_s": 1.42,
+    "escape_windows": 2,
+    "combo3_s": 2.18,
+    "combo3_retained": 1.0
+   },
+   "C5_tumble_from3rd_kb": {
+    "worst_4s_no_move_s": 2.01,
+    "lock_s": 2.26,
+    "no_move_s": 3.36,
+    "longest_no_move_s": 1.76,
+    "first_escape_s": 1.47,
+    "escape_windows": 2,
+    "combo3_s": 2.18,
+    "combo3_retained": 1.0
+   },
+   "C3+C5": {
+    "worst_4s_no_move_s": 1.88,
+    "lock_s": 1.7,
+    "no_move_s": 2.8,
+    "longest_no_move_s": 1.63,
+    "first_escape_s": 1.04,
+    "escape_windows": 2,
+    "combo3_s": 2.0,
+    "combo3_retained": 0.92
+   }
+  },
+  "D_gank_3v1_reactive": {
+   "R0_current": {
+    "worst_4s_no_move_s": 1.83,
+    "lock_s": 2.09,
+    "no_move_s": 3.19,
+    "longest_no_move_s": 1.11,
+    "first_escape_s": 1.72,
+    "escape_windows": 1,
+    "combo3_s": 2.18,
+    "combo3_retained": 1.0
+   },
+   "C1_kb_in_DR": {
+    "worst_4s_no_move_s": 1.31,
+    "lock_s": 1.89,
+    "no_move_s": 2.22,
+    "longest_no_move_s": 1.11,
+    "first_escape_s": 1.67,
+    "escape_windows": 2,
+    "combo3_s": 2.18,
+    "combo3_retained": 1.0
+   },
+   "C1lite_kb_advances_DR": {
+    "worst_4s_no_move_s": 1.36,
+    "lock_s": 1.94,
+    "no_move_s": 2.27,
+    "longest_no_move_s": 1.11,
+    "first_escape_s": 1.72,
+    "escape_windows": 2,
+    "combo3_s": 2.18,
+    "combo3_retained": 1.0
+   },
+   "C2_immune0.5": {
+    "worst_4s_no_move_s": 1.36,
+    "lock_s": 1.61,
+    "no_move_s": 2.71,
+    "longest_no_move_s": 1.11,
+    "first_escape_s": 1.72,
+    "escape_windows": 2,
+    "combo3_s": 1.47,
+    "combo3_retained": 0.67
+   },
+   "C2_immune1.0_incl_kb": {
+    "worst_4s_no_move_s": 1.35,
+    "lock_s": 1.36,
+    "no_move_s": 2.46,
+    "longest_no_move_s": 1.11,
+    "first_escape_s": 1.23,
+    "escape_windows": 2,
+    "combo3_s": 1.47,
+    "combo3_retained": 0.67
+   },
+   "C3_guard_2.0in4_for1.0": {
+    "worst_4s_no_move_s": 1.86,
+    "lock_s": 1.68,
+    "no_move_s": 2.78,
+    "longest_no_move_s": 1.1,
+    "first_escape_s": 1.04,
+    "escape_windows": 2,
+    "combo3_s": 2.0,
+    "combo3_retained": 0.92
+   },
+   "C3_guard_2.5in4_for0.8": {
+    "worst_4s_no_move_s": 1.83,
+    "lock_s": 2.04,
+    "no_move_s": 3.14,
+    "longest_no_move_s": 1.11,
+    "first_escape_s": 1.67,
+    "escape_windows": 1,
+    "combo3_s": 2.18,
+    "combo3_retained": 1.0
+   },
+   "C5_tumble_from3rd_kb": {
+    "worst_4s_no_move_s": 1.83,
+    "lock_s": 2.09,
+    "no_move_s": 3.19,
+    "longest_no_move_s": 1.11,
+    "first_escape_s": 1.72,
+    "escape_windows": 1,
+    "combo3_s": 2.18,
+    "combo3_retained": 1.0
+   },
+   "C3+C5": {
+    "worst_4s_no_move_s": 1.86,
+    "lock_s": 1.68,
+    "no_move_s": 2.78,
+    "longest_no_move_s": 1.1,
+    "first_escape_s": 1.04,
+    "escape_windows": 2,
+    "combo3_s": 2.0,
+    "combo3_retained": 0.92
+   }
+  },
+  "F_gank_haste100_wall": {
+   "R0_current": {
+    "worst_4s_no_move_s": 2.95,
+    "lock_s": 5.77,
+    "no_move_s": 5.77,
+    "longest_no_move_s": 1.81,
+    "first_escape_s": 3.26,
+    "escape_windows": 2,
+    "combo3_s": 1.8,
+    "combo3_retained": 1.0
+   },
+   "C1_kb_in_DR": {
+    "worst_4s_no_move_s": 3.16,
+    "lock_s": 5.26,
+    "no_move_s": 5.68,
+    "longest_no_move_s": 1.09,
+    "first_escape_s": 1.0,
+    "escape_windows": 2,
+    "combo3_s": 0.82,
+    "combo3_retained": 0.46
+   },
+   "C1lite_kb_advances_DR": {
+    "worst_4s_no_move_s": 3.21,
+    "lock_s": 5.36,
+    "no_move_s": 5.78,
+    "longest_no_move_s": 1.27,
+    "first_escape_s": 1.0,
+    "escape_windows": 2,
+    "combo3_s": 0.82,
+    "combo3_retained": 0.46
+   },
+   "C2_immune0.5": {
+    "worst_4s_no_move_s": 2.43,
+    "lock_s": 4.07,
+    "no_move_s": 4.34,
+    "longest_no_move_s": 1.58,
+    "first_escape_s": 1.73,
+    "escape_windows": 5,
+    "combo3_s": 1.8,
+    "combo3_retained": 1.0
+   },
+   "C2_immune1.0_incl_kb": {
+    "worst_4s_no_move_s": 2.08,
+    "lock_s": 2.8,
+    "no_move_s": 2.8,
+    "longest_no_move_s": 1.45,
+    "first_escape_s": 1.6,
+    "escape_windows": 5,
+    "combo3_s": 1.8,
+    "combo3_retained": 1.0
+   },
+   "C3_guard_2.0in4_for1.0": {
+    "worst_4s_no_move_s": 2.47,
+    "lock_s": 3.74,
+    "no_move_s": 3.92,
+    "longest_no_move_s": 1.32,
+    "first_escape_s": 1.08,
+    "escape_windows": 4,
+    "combo3_s": 1.28,
+    "combo3_retained": 0.71
+   },
+   "C3_guard_2.5in4_for0.8": {
+    "worst_4s_no_move_s": 2.57,
+    "lock_s": 4.76,
+    "no_move_s": 4.76,
+    "longest_no_move_s": 1.72,
+    "first_escape_s": 1.58,
+    "escape_windows": 4,
+    "combo3_s": 1.78,
+    "combo3_retained": 0.99
+   },
+   "C5_tumble_from3rd_kb": {
+    "worst_4s_no_move_s": 2.51,
+    "lock_s": 4.55,
+    "no_move_s": 4.55,
+    "longest_no_move_s": 1.81,
+    "first_escape_s": 1.96,
+    "escape_windows": 4,
+    "combo3_s": 1.8,
+    "combo3_retained": 1.0
+   },
+   "C3+C5": {
+    "worst_4s_no_move_s": 2.1,
+    "lock_s": 3.09,
+    "no_move_s": 3.27,
+    "longest_no_move_s": 1.32,
+    "first_escape_s": 1.08,
+    "escape_windows": 4,
+    "combo3_s": 1.28,
+    "combo3_retained": 0.71
+   }
+  },
+  "E_freeze_plus_root": {
+   "R0_current": {
+    "worst_4s_no_move_s": 2.04,
+    "lock_s": 0.3,
+    "no_move_s": 2.89,
+    "longest_no_move_s": 1.68,
+    "first_escape_s": 1.83,
+    "escape_windows": 3,
+    "combo3_s": 1.95,
+    "combo3_retained": 1.0
+   },
+   "C1_kb_in_DR": {
+    "worst_4s_no_move_s": 2.04,
+    "lock_s": 0.3,
+    "no_move_s": 2.89,
+    "longest_no_move_s": 1.68,
+    "first_escape_s": 1.83,
+    "escape_windows": 3,
+    "combo3_s": 1.65,
+    "combo3_retained": 0.85
+   },
+   "C1lite_kb_advances_DR": {
+    "worst_4s_no_move_s": 2.04,
+    "lock_s": 0.3,
+    "no_move_s": 2.89,
+    "longest_no_move_s": 1.68,
+    "first_escape_s": 1.83,
+    "escape_windows": 3,
+    "combo3_s": 1.65,
+    "combo3_retained": 0.85
+   },
+   "C2_immune0.5": {
+    "worst_4s_no_move_s": 2.07,
+    "lock_s": 0.3,
+    "no_move_s": 2.59,
+    "longest_no_move_s": 1.35,
+    "first_escape_s": 1.5,
+    "escape_windows": 4,
+    "combo3_s": 2.07,
+    "combo3_retained": 1.06
+   },
+   "C2_immune1.0_incl_kb": {
+    "worst_4s_no_move_s": 1.92,
+    "lock_s": 0.15,
+    "no_move_s": 2.07,
+    "longest_no_move_s": 1.2,
+    "first_escape_s": 1.35,
+    "escape_windows": 3,
+    "combo3_s": 2.07,
+    "combo3_retained": 1.06
+   },
+   "C3_guard_2.0in4_for1.0": {
+    "worst_4s_no_move_s": 2.0,
+    "lock_s": 0.3,
+    "no_move_s": 2.85,
+    "longest_no_move_s": 1.68,
+    "first_escape_s": 1.83,
+    "escape_windows": 3,
+    "combo3_s": 1.95,
+    "combo3_retained": 1.0
+   },
+   "C3_guard_2.5in4_for0.8": {
+    "worst_4s_no_move_s": 2.04,
+    "lock_s": 0.3,
+    "no_move_s": 2.89,
+    "longest_no_move_s": 1.68,
+    "first_escape_s": 1.83,
+    "escape_windows": 3,
+    "combo3_s": 1.95,
+    "combo3_retained": 1.0
+   },
+   "C5_tumble_from3rd_kb": {
+    "worst_4s_no_move_s": 2.04,
+    "lock_s": 0.3,
+    "no_move_s": 2.89,
+    "longest_no_move_s": 1.68,
+    "first_escape_s": 1.83,
+    "escape_windows": 3,
+    "combo3_s": 1.95,
+    "combo3_retained": 1.0
+   },
+   "C3+C5": {
+    "worst_4s_no_move_s": 2.0,
+    "lock_s": 0.3,
+    "no_move_s": 2.85,
+    "longest_no_move_s": 1.68,
+    "first_escape_s": 1.83,
+    "escape_windows": 3,
+    "combo3_s": 1.95,
+    "combo3_retained": 1.0
+   }
+  }
+ }
+}

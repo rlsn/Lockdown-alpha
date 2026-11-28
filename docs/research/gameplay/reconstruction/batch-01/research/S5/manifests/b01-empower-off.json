@@ -1,0 +1,321 @@
+{
+  "schema": "build_evaluation.manifest",
+  "schema_version": 2,
+  "experiment": {
+    "id": "b01-empower-off",
+    "hypothesis": "自动强化 off/on 对照（T05-05 §11）：6 个代表样板各自对同级花完属性点的裸构筑；本次为 关闭（删除分支后的基线）。与同种子的另一次运行逐 Case 对照触发次数、击杀时间与胜负。"
+  },
+  "adapter": {
+    "module": "BuildEvaluationLockdown",
+    "id": "lockdown-demo"
+  },
+  "scenario": {
+    "kind": "duel_site",
+    "parameters": {
+      "site": "capture",
+      "duel_timeout_ms": 90000,
+      "supply_xp": {
+        "subject": 5340,
+        "opponent": 5340
+      },
+      "clear_camps": true
+    }
+  },
+  "sample_class": "diagnostic",
+  "assumptions": [
+    "双方由 DEV 奖励事务在第一野外入口获得 5340 XP，达到 L16；样板一方由 DEV 质变样板预设一次配齐技能、分支、牌与属性点。",
+    "对手是同级裸构筑：不装牌、技能 1 级，但按计划花完全部合法属性点（力道 18、身手 18、体格/脸皮/脑力各 4），与 p3 的 bare_spent 相同。",
+    "自动强化是整个房主进程的开关：off 与 on 是同一组种子（root 20261290，与 Clean Baseline p3 相同）的两次运行；on 运行中双方都可强化，宿主由 AI 按“宿主上的牌阶 + 技能分支阶”自选，实际宿主见 facts.empower。",
+    "6 个样板：attack_speed（普攻攻速）、skill_engine（技能循环）、element_loop（元素反应）、hedgehog（护盾、反伤）、dash_ghost（冲刺）、minefield（工事、区域）。",
+    "评估夹具 clear_camps：初始营地站齐后全部离场且本段不再刷新，排除营地卷入（S2 T05-07）。"
+  ],
+  "design": {
+    "kind": "paired_arms",
+    "reference": "attack_speed",
+    "arms": [
+      {
+        "id": "attack_speed",
+        "plan": {
+          "subject": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "breakout_preset": "breakout_attack_speed"
+          },
+          "opponent": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "opening_rest",
+                "points": {
+                  "stat_strength": 3
+                }
+              },
+              {
+                "step": "allocate_points",
+                "at": "field",
+                "points": {
+                  "stat_strength": 15,
+                  "stat_agility": 18,
+                  "stat_physique": 4,
+                  "stat_thick_skin": 4,
+                  "stat_brains": 4
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "skill_engine",
+        "plan": {
+          "subject": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "breakout_preset": "breakout_skill_engine"
+          },
+          "opponent": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "opening_rest",
+                "points": {
+                  "stat_strength": 3
+                }
+              },
+              {
+                "step": "allocate_points",
+                "at": "field",
+                "points": {
+                  "stat_strength": 15,
+                  "stat_agility": 18,
+                  "stat_physique": 4,
+                  "stat_thick_skin": 4,
+                  "stat_brains": 4
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "element_loop",
+        "plan": {
+          "subject": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "breakout_preset": "breakout_element_loop"
+          },
+          "opponent": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "opening_rest",
+                "points": {
+                  "stat_strength": 3
+                }
+              },
+              {
+                "step": "allocate_points",
+                "at": "field",
+                "points": {
+                  "stat_strength": 15,
+                  "stat_agility": 18,
+                  "stat_physique": 4,
+                  "stat_thick_skin": 4,
+                  "stat_brains": 4
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "hedgehog",
+        "plan": {
+          "subject": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "breakout_preset": "breakout_hedgehog"
+          },
+          "opponent": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "opening_rest",
+                "points": {
+                  "stat_strength": 3
+                }
+              },
+              {
+                "step": "allocate_points",
+                "at": "field",
+                "points": {
+                  "stat_strength": 15,
+                  "stat_agility": 18,
+                  "stat_physique": 4,
+                  "stat_thick_skin": 4,
+                  "stat_brains": 4
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "dash_ghost",
+        "plan": {
+          "subject": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "breakout_preset": "breakout_dash_ghost"
+          },
+          "opponent": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "opening_rest",
+                "points": {
+                  "stat_strength": 3
+                }
+              },
+              {
+                "step": "allocate_points",
+                "at": "field",
+                "points": {
+                  "stat_strength": 15,
+                  "stat_agility": 18,
+                  "stat_physique": 4,
+                  "stat_thick_skin": 4,
+                  "stat_brains": 4
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "minefield",
+        "plan": {
+          "subject": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "breakout_preset": "breakout_minefield"
+          },
+          "opponent": {
+            "choices": [
+              "ai_select",
+              "ai_select",
+              "ai_select",
+              "ai_select"
+            ],
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "opening_rest",
+                "points": {
+                  "stat_strength": 3
+                }
+              },
+              {
+                "step": "allocate_points",
+                "at": "field",
+                "points": {
+                  "stat_strength": 15,
+                  "stat_agility": 18,
+                  "stat_physique": 4,
+                  "stat_thick_skin": 4,
+                  "stat_brains": 4
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "blocks": {
+    "root_seed": "20261290",
+    "splits": {
+      "search": 0,
+      "confirm": 2
+    },
+    "sides": 2
+  },
+  "metrics": {
+    "primary": "engage_to_kill_ms",
+    "secondary": [
+      "duel_score",
+      "damage_dealt_hp",
+      "damage_taken_hp",
+      "subject_casts",
+      "opponent_casts",
+      "subject_empowers",
+      "opponent_empowers",
+      "subject_hp_end_bp"
+    ],
+    "material_difference": null
+  },
+  "budget": {
+    "class": "standard",
+    "case_wall_timeout_s": 180,
+    "max_case_events": 200000,
+    "max_run_disk_bytes": 2147483648,
+    "max_root_disk_bytes": 6442450944,
+    "max_cases": 24,
+    "run_wall_timeout_s": 2700
+  }
+}

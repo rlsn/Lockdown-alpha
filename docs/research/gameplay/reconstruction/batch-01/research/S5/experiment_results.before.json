@@ -1,0 +1,2418 @@
+{
+  "schema": "lockdown.gameplay_research.results",
+  "schema_version": 1,
+  "commit": "e62ff30473ce02d73761aadaea092d8a7e965248",
+  "catalog_manifest_sha256": "fc05a7db4abfe62ebc956fdf2e0167a508c91048e529471c8b36623defd3c142",
+  "seed": 20261128,
+  "interaction_graph_summary": {
+    "metadata": {
+      "commit": "e62ff30473ce02d73761aadaea092d8a7e965248",
+      "manifest_sha256": "fc05a7db4abfe62ebc956fdf2e0167a508c91048e529471c8b36623defd3c142",
+      "node_count": 133,
+      "edge_count": 542
+    },
+    "catalog_structure": {
+      "abilities_total": 24,
+      "abilities_with_base_element": 6,
+      "abilities_without_base_element": 18,
+      "abilities_gaining_element_via_branch": 10,
+      "cards_by_weight": {
+        "100": 66,
+        "6": 7,
+        "22": 16
+      },
+      "medals_count": 5
+    },
+    "closed_feedback_loops": [
+      {
+        "id": "loop_cd_engine",
+        "name": "技能冷却永动环 (Skill Cooldown Engine)",
+        "chain": [
+          "skill_cast",
+          "skill_hit",
+          "card_next_up (-1.0s other CDs) / keystone_brains (-1.0s)",
+          "card_encore (0.6x free recast)",
+          "skill_cast"
+        ],
+        "classification": "Bounded Positive Feedback",
+        "bound_mechanism": "SKILL.CooldownFloorSec = 0.3s + windups (0.15-0.25s) + card_again_now 1.5x momentum cost (though skills have 0 mandatory momentum cost unless card_paid_dash/overdrive!).",
+        "design_note": "Wait: check momentum_cost on skills! In content.json abilities carry momentum_cost=25..35 ONLY for Overdrive/card_blood_price reference because APP_SPEC §3.2 states skills cost 0 momentum at base! Thus card_again_now (-35% CD, 1.5x cost) has ZERO downside unless using Overdrive or card_blood_price!"
+      },
+      {
+        "id": "loop_combo_cast_bridge",
+        "name": "普攻三段触发技能桥接环 (Combo3 -> Auto Q & Synthetic Skill Hit)",
+        "chain": [
+          "basic_hit x3 -> combo3",
+          "card_both_hands (+extra combo3 strikes)",
+          "card_fist_skill (45% free Q cast) + card_solid_punch (synthetic skill_hit)",
+          "card_punch_think (-0.5s CD) + card_next_up (-1.0s CD)"
+        ],
+        "classification": "High-Roll Emergent Synergy",
+        "bound_mechanism": "card_fist_skill has drop_weight=6 (0.086% per slot!), making the most exciting hybrid loop nearly unobtainable in organic matches."
+      },
+      {
+        "id": "loop_blood_shield_plating",
+        "name": "血魔过量治疗护盾迸射环 (Blood Price -> Lifesteal -> Overfed Shield -> Reactive Plating)",
+        "chain": [
+          "card_blood_price (pay HP, +20% dmg)",
+          "low_hp -> card_desperado (+dmg/+heal) & card_berserk (+AS)",
+          "card_punch_heal / card_skill_drain -> heal",
+          "card_overfed / keystone_physique -> shield gain",
+          "card_reactive_plating (35% shield AoE burst) + card_grow_fat (+18 permanent MaxHP per 100 heal)"
+        ],
+        "classification": "Unbounded Permanent Scaling + Sustain Tank",
+        "bound_mechanism": "Ferment reaction (60% heal cut) or Rot (25% heal cut), BUT 18/24 skills lack elements and only 1 non-opening skill has Rot!"
+      },
+      {
+        "id": "loop_t3_medal_reaction_chain",
+        "name": "三阶勋章单键自触发反应环 (Tier-3 Medal Self-Reaction + WaveAfter + BlastReload)",
+        "chain": [
+          "Single Skill Hit with Tier-3 Medal",
+          "Applies Primary + Deterministic Secondary Element -> Instant Reaction",
+          "card_blast_reload (-3s CD) + card_reaction_refund (+15 Momentum) + card_wave_after (applies 3rd random element bypassing ReactionLockSec=0.5s once)"
+        ],
+        "classification": "Degenerate Skill-Compression Loop",
+        "bound_mechanism": "Acquiring 3 identical medals is ~1-3% RNG gated, NOT skill-gated. Once assembled, collapses 2-skill elemental combo setup into 1-button spam."
+      },
+      {
+        "id": "loop_dash_pinball",
+        "name": "冲刺穿人刷新列车环 (Dash Contact Reset + Pass Through + Runaway Train)",
+        "chain": [
+          "Dash (D)",
+          "card_pass_through (phase through enemies + basic_hit)",
+          "card_bump_reset (100% CD reset on contender contact) + card_bump_again (-1.5s all skill CDs)"
+        ],
+        "classification": "High-Skill / High-Risk Mobility Loop",
+        "bound_mechanism": "CC root/stun interrupts dash; requires contender contact (50% refund on monsters); single miss puts D on 9.0s CD."
+      }
+    ],
+    "vocab_vs_mechanics_findings": [
+      {
+        "card_id": "card_solid_punch",
+        "name": "拳拳到肉",
+        "vocab": [
+          "combo3",
+          "skill_hit"
+        ],
+        "issue": "Bridge catalyst: turns every 3rd basic attack into a synthetic skill_hit, unlocking skill_hit cards for pure basic-attack builds."
+      },
+      {
+        "card_id": "card_double_stall",
+        "name": "双摊位",
+        "vocab": [
+          "ground"
+        ],
+        "issue": "Hard-coded to 3 specific actives (school_bag, desk_fan, flyer_trap) yet shares generic 'ground'/'max_hp'/'element' vocab, polluting shop slots for unrelated builds."
+      },
+      {
+        "card_id": "card_skate_blade",
+        "name": "冰刀割裂",
+        "vocab": [
+          "ground",
+          "knockback",
+          "move_speed",
+          "attack_speed"
+        ],
+        "issue": "Requires ice_surface (Freeze reaction or card_ice_trail), but vocab uses broad 'ground' without 'element', biasing toward non-ice ground skills."
+      },
+      {
+        "card_id": "card_rogue_works",
+        "name": "违章工事",
+        "vocab": [
+          "ground",
+          "max_hp",
+          "element"
+        ],
+        "issue": "Hard-coded to 3 specific actives (school_bag, desk_fan, flyer_trap) yet shares generic 'ground'/'max_hp'/'element' vocab, polluting shop slots for unrelated builds."
+      }
+    ],
+    "bus_summary": {
+      "ad_stat": {
+        "producer_count": 1,
+        "ability_producer_count": 0,
+        "consumer_count": 3,
+        "producers_sample": [
+          "card_kill_streak"
+        ],
+        "consumers_sample": [
+          "card_lend_fist",
+          "card_martial_scholar",
+          "keystone_strength"
+        ]
+      },
+      "anti_heal": {
+        "producer_count": 1,
+        "ability_producer_count": 1,
+        "consumer_count": 0,
+        "producers_sample": [
+          "active_stale_takeout"
+        ],
+        "consumers_sample": []
+      },
+      "ap_stat": {
+        "producer_count": 1,
+        "ability_producer_count": 0,
+        "consumer_count": 4,
+        "producers_sample": [
+          "card_kill_streak"
+        ],
+        "consumers_sample": [
+          "card_scholar_punch",
+          "card_brain_speed",
+          "card_martial_scholar",
+          "keystone_brains"
+        ]
+      },
+      "area": {
+        "producer_count": 17,
+        "ability_producer_count": 8,
+        "consumer_count": 1,
+        "producers_sample": [
+          "active_seethe",
+          "active_quick_meeting",
+          "active_not_mad",
+          "active_calculus_drop",
+          "active_open_mic",
+          "active_cola_shake",
+          "active_school_bag",
+          "active_flurry_rush"
+        ],
+        "consumers_sample": [
+          "card_tonnage_crush"
+        ]
+      },
+      "armor_shred": {
+        "producer_count": 6,
+        "ability_producer_count": 2,
+        "consumer_count": 0,
+        "producers_sample": [
+          "active_pants_down",
+          "active_snark_bolt",
+          "card_breach_fist",
+          "card_martial_scholar",
+          "reaction_overload",
+          "reaction_corrode"
+        ],
+        "consumers_sample": []
+      },
+      "armor_stat": {
+        "producer_count": 1,
+        "ability_producer_count": 0,
+        "consumer_count": 3,
+        "producers_sample": [
+          "card_tough_skin"
+        ],
+        "consumers_sample": [
+          "card_thick_hide",
+          "card_iron_hedgehog",
+          "keystone_thick_skin"
+        ]
+      },
+      "attack_speed": {
+        "producer_count": 6,
+        "ability_producer_count": 0,
+        "consumer_count": 5,
+        "producers_sample": [
+          "card_heated_up",
+          "card_muscle_memory",
+          "card_slippery",
+          "card_berserk",
+          "card_brain_speed",
+          "card_skate_blade"
+        ],
+        "consumers_sample": [
+          "card_quick_hands",
+          "card_slow_craft",
+          "card_run_hit",
+          "card_heavy_mallet",
+          "keystone_agility"
+        ]
+      },
+      "basic_hit": {
+        "producer_count": 7,
+        "ability_producer_count": 2,
+        "consumer_count": 13,
+        "producers_sample": [
+          "active_bail_out",
+          "active_triple_combo",
+          "card_both_hands",
+          "card_quick_hands",
+          "card_dash_punch",
+          "card_pass_through",
+          "keystone_agility"
+        ],
+        "consumers_sample": [
+          "card_punch_think",
+          "card_long_arm",
+          "card_quick_hands",
+          "card_scholar_punch",
+          "card_heated_up",
+          "card_muscle_memory",
+          "card_breach_fist",
+          "card_slippery"
+        ]
+      },
+      "combo3": {
+        "producer_count": 2,
+        "ability_producer_count": 2,
+        "consumer_count": 13,
+        "producers_sample": [
+          "active_bail_out",
+          "active_triple_combo"
+        ],
+        "consumers_sample": [
+          "card_third_breath",
+          "card_solid_punch",
+          "card_third_shove",
+          "card_both_hands",
+          "card_wide_swing",
+          "card_fist_skill",
+          "medal_fire",
+          "medal_water"
+        ]
+      },
+      "construct": {
+        "producer_count": 4,
+        "ability_producer_count": 3,
+        "consumer_count": 2,
+        "producers_sample": [
+          "active_flyer_trap",
+          "active_desk_fan",
+          "active_school_bag",
+          "card_double_stall"
+        ],
+        "consumers_sample": [
+          "card_double_stall",
+          "card_rogue_works"
+        ]
+      },
+      "control": {
+        "producer_count": 11,
+        "ability_producer_count": 6,
+        "consumer_count": 2,
+        "producers_sample": [
+          "active_elbow",
+          "active_pants_down",
+          "active_snark_bolt",
+          "active_stare_down",
+          "active_flyer_trap",
+          "active_hose_down",
+          "card_crowd_hit",
+          "card_long_reach"
+        ],
+        "consumers_sample": [
+          "card_pin_amp",
+          "card_tough_skin"
+        ]
+      },
+      "cooldown_refund": {
+        "producer_count": 14,
+        "ability_producer_count": 0,
+        "consumer_count": 0,
+        "producers_sample": [
+          "card_punch_think",
+          "card_next_up",
+          "card_quick_takedown",
+          "card_again_now",
+          "card_big_one",
+          "card_hold_longer",
+          "card_blast_reload",
+          "card_bump_reset"
+        ],
+        "consumers_sample": []
+      },
+      "crit_stat": {
+        "producer_count": 2,
+        "ability_producer_count": 0,
+        "consumer_count": 2,
+        "producers_sample": [
+          "card_heavy_mallet",
+          "card_reactive_plating"
+        ],
+        "consumers_sample": [
+          "card_skill_crit",
+          "keystone_strength"
+        ]
+      },
+      "damage_amp": {
+        "producer_count": 20,
+        "ability_producer_count": 0,
+        "consumer_count": 0,
+        "producers_sample": [
+          "card_slow_craft",
+          "card_breach_fist",
+          "card_setup_line",
+          "card_pin_amp",
+          "card_big_one",
+          "card_blood_price",
+          "card_held_shot",
+          "card_practice"
+        ],
+        "consumers_sample": []
+      },
+      "damage_instance": {
+        "producer_count": 49,
+        "ability_producer_count": 19,
+        "consumer_count": 1,
+        "producers_sample": [
+          "active_elbow",
+          "active_pants_down",
+          "active_crotch_grab",
+          "active_snark_bolt",
+          "active_seethe",
+          "active_quick_meeting",
+          "active_bail_out",
+          "active_not_mad"
+        ],
+        "consumers_sample": [
+          "card_hurt_heal"
+        ]
+      },
+      "damaged": {
+        "producer_count": 0,
+        "ability_producer_count": 0,
+        "consumer_count": 7,
+        "producers_sample": [],
+        "consumers_sample": [
+          "card_spiky_hide",
+          "card_hang_on",
+          "card_hard_skin",
+          "card_tough_skin",
+          "card_live_wire",
+          "card_iron_hedgehog",
+          "keystone_thick_skin"
+        ]
+      },
+      "dash": {
+        "producer_count": 4,
+        "ability_producer_count": 3,
+        "consumer_count": 11,
+        "producers_sample": [
+          "active_crotch_grab",
+          "active_bail_out",
+          "active_charged_ram",
+          "card_double_dash"
+        ],
+        "consumers_sample": [
+          "card_again_now",
+          "card_big_one",
+          "card_hold_longer",
+          "card_dash_punch",
+          "card_double_dash",
+          "card_pass_through",
+          "card_head_down",
+          "card_paid_dash"
+        ]
+      },
+      "dash_contact": {
+        "producer_count": 6,
+        "ability_producer_count": 3,
+        "consumer_count": 4,
+        "producers_sample": [
+          "active_crotch_grab",
+          "active_bail_out",
+          "active_charged_ram",
+          "card_double_dash",
+          "card_pass_through",
+          "card_head_down"
+        ],
+        "consumers_sample": [
+          "card_next_up",
+          "card_bump_reset",
+          "card_bump_again",
+          "card_runaway_train"
+        ]
+      },
+      "dot_burn": {
+        "producer_count": 4,
+        "ability_producer_count": 3,
+        "consumer_count": 4,
+        "producers_sample": [
+          "active_seethe",
+          "active_quick_meeting",
+          "active_zap",
+          "card_endless_burn"
+        ],
+        "consumers_sample": [
+          "card_overfed",
+          "card_endless_burn",
+          "card_burn_guard",
+          "card_fuel_the_fire"
+        ]
+      },
+      "dot_rot": {
+        "producer_count": 1,
+        "ability_producer_count": 1,
+        "consumer_count": 1,
+        "producers_sample": [
+          "active_stale_takeout"
+        ],
+        "consumers_sample": [
+          "card_fuel_the_fire"
+        ]
+      },
+      "element_apply": {
+        "producer_count": 23,
+        "ability_producer_count": 13,
+        "consumer_count": 1,
+        "producers_sample": [
+          "active_elbow",
+          "active_pants_down",
+          "active_crotch_grab",
+          "active_snark_bolt",
+          "active_seethe",
+          "active_quick_meeting",
+          "active_flyer_trap",
+          "active_hose_down"
+        ],
+        "consumers_sample": [
+          "card_long_soak"
+        ]
+      },
+      "ground_state": {
+        "producer_count": 20,
+        "ability_producer_count": 7,
+        "consumer_count": 4,
+        "producers_sample": [
+          "active_quick_meeting",
+          "active_flyer_trap",
+          "active_cola_shake",
+          "active_desk_fan",
+          "active_stale_takeout",
+          "active_school_bag",
+          "active_cordon_tape",
+          "card_ice_trail"
+        ],
+        "consumers_sample": [
+          "card_move_turf",
+          "card_double_stall",
+          "card_turf_growth",
+          "card_rogue_works"
+        ]
+      },
+      "haste_stat": {
+        "producer_count": 0,
+        "ability_producer_count": 0,
+        "consumer_count": 3,
+        "producers_sample": [],
+        "consumers_sample": [
+          "card_quick_brain",
+          "card_brain_speed",
+          "keystone_brains"
+        ]
+      },
+      "heal": {
+        "producer_count": 4,
+        "ability_producer_count": 0,
+        "consumer_count": 6,
+        "producers_sample": [
+          "card_hurt_heal",
+          "card_skill_drain",
+          "card_punch_heal",
+          "card_desperado"
+        ],
+        "consumers_sample": [
+          "card_skill_drain",
+          "card_overfed",
+          "card_grow_fat",
+          "card_burn_guard",
+          "card_desperado",
+          "keystone_physique"
+        ]
+      },
+      "ice_surface": {
+        "producer_count": 3,
+        "ability_producer_count": 0,
+        "consumer_count": 1,
+        "producers_sample": [
+          "card_ice_trail",
+          "reaction_freeze",
+          "reaction_shatter"
+        ],
+        "consumers_sample": [
+          "card_skate_blade"
+        ]
+      },
+      "idle": {
+        "producer_count": 0,
+        "ability_producer_count": 0,
+        "consumer_count": 3,
+        "producers_sample": [],
+        "consumers_sample": [
+          "card_held_shot",
+          "card_charge_up",
+          "card_eagle_stance"
+        ]
+      },
+      "kill_takedown": {
+        "producer_count": 0,
+        "ability_producer_count": 0,
+        "consumer_count": 3,
+        "producers_sample": [],
+        "consumers_sample": [
+          "card_quick_takedown",
+          "card_takedown",
+          "card_kill_streak"
+        ]
+      },
+      "knockback": {
+        "producer_count": 17,
+        "ability_producer_count": 13,
+        "consumer_count": 2,
+        "producers_sample": [
+          "active_elbow",
+          "active_pants_down",
+          "active_snark_bolt",
+          "active_not_mad",
+          "active_stare_down",
+          "active_flyer_trap",
+          "active_open_mic",
+          "active_hose_down"
+        ],
+        "consumers_sample": [
+          "card_ball_kick",
+          "card_skate_blade"
+        ]
+      },
+      "low_hp": {
+        "producer_count": 1,
+        "ability_producer_count": 0,
+        "consumer_count": 3,
+        "producers_sample": [
+          "card_blood_price"
+        ],
+        "consumers_sample": [
+          "card_hang_on",
+          "card_berserk",
+          "card_desperado"
+        ]
+      },
+      "max_hp": {
+        "producer_count": 2,
+        "ability_producer_count": 0,
+        "consumer_count": 6,
+        "producers_sample": [
+          "card_thick_hide",
+          "card_grow_fat"
+        ],
+        "consumers_sample": [
+          "card_blood_price",
+          "card_shell_burst",
+          "card_tonnage_crush",
+          "card_hulking_presence",
+          "card_rogue_works",
+          "keystone_physique"
+        ]
+      },
+      "momentum": {
+        "producer_count": 20,
+        "ability_producer_count": 0,
+        "consumer_count": 5,
+        "producers_sample": [
+          "card_third_breath",
+          "card_solid_punch",
+          "card_pay_back",
+          "card_quick_takedown",
+          "card_bump_reset",
+          "card_takedown",
+          "card_reaction_refund",
+          "card_quick_brain"
+        ],
+        "consumers_sample": [
+          "card_again_now",
+          "card_big_one",
+          "card_hold_longer",
+          "card_paid_dash",
+          "card_short_breath"
+        ]
+      },
+      "momentum_bypass": {
+        "producer_count": 2,
+        "ability_producer_count": 0,
+        "consumer_count": 0,
+        "producers_sample": [
+          "card_blood_price",
+          "card_dodge_strike"
+        ],
+        "consumers_sample": []
+      },
+      "move_speed": {
+        "producer_count": 4,
+        "ability_producer_count": 0,
+        "consumer_count": 4,
+        "producers_sample": [
+          "card_muscle_memory",
+          "card_slippery",
+          "card_skate_blade",
+          "keystone_agility"
+        ],
+        "consumers_sample": [
+          "card_slow_craft",
+          "card_run_hit",
+          "card_runaway_train",
+          "keystone_agility"
+        ]
+      },
+      "overdrive": {
+        "producer_count": 1,
+        "ability_producer_count": 0,
+        "consumer_count": 0,
+        "producers_sample": [
+          "card_short_breath"
+        ],
+        "consumers_sample": []
+      },
+      "perfect_dodge": {
+        "producer_count": 0,
+        "ability_producer_count": 0,
+        "consumer_count": 4,
+        "producers_sample": [],
+        "consumers_sample": [
+          "card_muscle_memory",
+          "card_dodge_strike",
+          "card_slippery",
+          "card_phantom_molt"
+        ]
+      },
+      "permanent_stats": {
+        "producer_count": 6,
+        "ability_producer_count": 0,
+        "consumer_count": 0,
+        "producers_sample": [
+          "card_muscle_memory",
+          "card_practice",
+          "card_slippery",
+          "card_grow_fat",
+          "card_kill_streak",
+          "card_tough_skin"
+        ],
+        "consumers_sample": []
+      },
+      "range_projectile": {
+        "producer_count": 5,
+        "ability_producer_count": 0,
+        "consumer_count": 1,
+        "producers_sample": [
+          "card_long_arm",
+          "card_crowd_hit",
+          "card_long_reach",
+          "card_hold_longer",
+          "card_eagle_stance"
+        ],
+        "consumers_sample": [
+          "card_let_bullets_fly"
+        ]
+      },
+      "reaction": {
+        "producer_count": 11,
+        "ability_producer_count": 0,
+        "consumer_count": 5,
+        "producers_sample": [
+          "card_wave_after",
+          "reaction_fog",
+          "reaction_overload",
+          "reaction_melt",
+          "reaction_methane",
+          "reaction_conduct",
+          "reaction_freeze",
+          "reaction_ferment"
+        ],
+        "consumers_sample": [
+          "card_blast_reload",
+          "card_reaction_refund",
+          "card_wave_after",
+          "card_louder_blast",
+          "keystone_brains"
+        ]
+      },
+      "shield": {
+        "producer_count": 9,
+        "ability_producer_count": 5,
+        "consumer_count": 3,
+        "producers_sample": [
+          "active_unplug",
+          "active_not_mad",
+          "active_open_mic",
+          "active_charged_ram",
+          "active_brace",
+          "card_hard_skin",
+          "card_overfed",
+          "card_burn_guard"
+        ],
+        "consumers_sample": [
+          "card_held_breath",
+          "card_spiky_hide",
+          "card_reactive_plating"
+        ]
+      },
+      "shield_break": {
+        "producer_count": 7,
+        "ability_producer_count": 3,
+        "consumer_count": 1,
+        "producers_sample": [
+          "active_not_mad",
+          "active_open_mic",
+          "active_charged_ram",
+          "card_hard_skin",
+          "card_overfed",
+          "card_burn_guard",
+          "keystone_physique"
+        ],
+        "consumers_sample": [
+          "card_shell_burst"
+        ]
+      },
+      "skill_cast": {
+        "producer_count": 26,
+        "ability_producer_count": 24,
+        "consumer_count": 11,
+        "producers_sample": [
+          "active_elbow",
+          "active_pants_down",
+          "active_crotch_grab",
+          "active_unplug",
+          "active_snark_bolt",
+          "active_seethe",
+          "active_quick_meeting",
+          "active_bail_out"
+        ],
+        "consumers_sample": [
+          "card_encore",
+          "card_crowd_hit",
+          "card_again_now",
+          "card_big_one",
+          "card_long_reach",
+          "card_hold_longer",
+          "card_blood_price",
+          "card_combo_chain"
+        ]
+      },
+      "skill_hit": {
+        "producer_count": 22,
+        "ability_producer_count": 19,
+        "consumer_count": 22,
+        "producers_sample": [
+          "active_elbow",
+          "active_pants_down",
+          "active_crotch_grab",
+          "active_snark_bolt",
+          "active_seethe",
+          "active_quick_meeting",
+          "active_bail_out",
+          "active_not_mad"
+        ],
+        "consumers_sample": [
+          "card_next_up",
+          "card_pay_back",
+          "card_setup_line",
+          "card_big_one",
+          "card_blood_price",
+          "card_lend_fist",
+          "card_held_breath",
+          "card_hurt_heal"
+        ]
+      },
+      "slow": {
+        "producer_count": 8,
+        "ability_producer_count": 7,
+        "consumer_count": 0,
+        "producers_sample": [
+          "active_crotch_grab",
+          "active_snark_bolt",
+          "active_quick_meeting",
+          "active_flyer_trap",
+          "active_cola_shake",
+          "active_school_bag",
+          "active_cordon_tape",
+          "card_phantom_molt"
+        ],
+        "consumers_sample": []
+      },
+      "stance": {
+        "producer_count": 3,
+        "ability_producer_count": 3,
+        "consumer_count": 1,
+        "producers_sample": [
+          "active_unplug",
+          "active_stare_down",
+          "active_brace"
+        ],
+        "consumers_sample": [
+          "card_iron_hedgehog"
+        ]
+      },
+      "survival_gate": {
+        "producer_count": 1,
+        "ability_producer_count": 0,
+        "consumer_count": 0,
+        "producers_sample": [
+          "card_hang_on"
+        ],
+        "consumers_sample": []
+      },
+      "wall_impact": {
+        "producer_count": 13,
+        "ability_producer_count": 11,
+        "consumer_count": 2,
+        "producers_sample": [
+          "active_elbow",
+          "active_pants_down",
+          "active_snark_bolt",
+          "active_not_mad",
+          "active_flyer_trap",
+          "active_open_mic",
+          "active_hose_down",
+          "active_charged_ram"
+        ],
+        "consumers_sample": [
+          "card_ball_kick",
+          "card_runaway_train"
+        ]
+      }
+    }
+  },
+  "draft_and_agency": {
+    "metadata": {
+      "seed": 20261128,
+      "trials_per_regime": 3000,
+      "commit": "e62ff30473ce02d73761aadaea092d8a7e965248"
+    },
+    "regimes": {
+      "S0_CurrentBaseline": {
+        "trials": 3000,
+        "viable_formation_rate": 0.5727,
+        "transformative_formation_rate": 0.241,
+        "breakout_formation_rate": 0.0387,
+        "legendary_offer_sighting_rate": 0.0181,
+        "forced_pivot_rate": 0.0903,
+        "pivot_recovery_rate": 0.6531,
+        "optimizer_mean_synergy_score": 9.95,
+        "beginner_mean_synergy_score": 4.88,
+        "skill_decision_leverage_ratio": 2.04,
+        "by_archetype": {
+          "skill_engine": {
+            "viable_rate": 0.548,
+            "transformative_rate": 0.22,
+            "breakout_rate": 0.012
+          },
+          "attack_speed_onhit": {
+            "viable_rate": 0.74,
+            "transformative_rate": 0.452,
+            "breakout_rate": 0.076
+          },
+          "lifesteal_bruiser": {
+            "viable_rate": 0.66,
+            "transformative_rate": 0.112,
+            "breakout_rate": 0.004
+          },
+          "one_shot_artillery": {
+            "viable_rate": 0.36,
+            "transformative_rate": 0.108,
+            "breakout_rate": 0.004
+          },
+          "thorn_fortress": {
+            "viable_rate": 0.632,
+            "transformative_rate": 0.088,
+            "breakout_rate": 0.0
+          },
+          "elemental_reactor": {
+            "viable_rate": 0.656,
+            "transformative_rate": 0.256,
+            "breakout_rate": 0.024
+          },
+          "dash_ghost": {
+            "viable_rate": 0.652,
+            "transformative_rate": 0.324,
+            "breakout_rate": 0.008
+          },
+          "snowball_reaper": {
+            "viable_rate": 0.336,
+            "transformative_rate": 0.18,
+            "breakout_rate": 0.044
+          },
+          "low_hp_berserk": {
+            "viable_rate": 0.328,
+            "transformative_rate": 0.112,
+            "breakout_rate": 0.0
+          },
+          "turf_engineer": {
+            "viable_rate": 0.848,
+            "transformative_rate": 0.66,
+            "breakout_rate": 0.22
+          },
+          "heavy_mallet_juggernaut": {
+            "viable_rate": 0.54,
+            "transformative_rate": 0.156,
+            "breakout_rate": 0.024
+          },
+          "hybrid_spellblade": {
+            "viable_rate": 0.572,
+            "transformative_rate": 0.224,
+            "breakout_rate": 0.048
+          }
+        }
+      },
+      "S1_PureUniformNoVocab": {
+        "trials": 3000,
+        "viable_formation_rate": 0.539,
+        "transformative_formation_rate": 0.1927,
+        "breakout_formation_rate": 0.028,
+        "legendary_offer_sighting_rate": 0.02,
+        "forced_pivot_rate": 0.0957,
+        "pivot_recovery_rate": 0.6237,
+        "optimizer_mean_synergy_score": 9.4,
+        "beginner_mean_synergy_score": 4.9,
+        "skill_decision_leverage_ratio": 1.92,
+        "by_archetype": {
+          "skill_engine": {
+            "viable_rate": 0.472,
+            "transformative_rate": 0.124,
+            "breakout_rate": 0.008
+          },
+          "attack_speed_onhit": {
+            "viable_rate": 0.728,
+            "transformative_rate": 0.34,
+            "breakout_rate": 0.056
+          },
+          "lifesteal_bruiser": {
+            "viable_rate": 0.668,
+            "transformative_rate": 0.056,
+            "breakout_rate": 0.004
+          },
+          "one_shot_artillery": {
+            "viable_rate": 0.396,
+            "transformative_rate": 0.096,
+            "breakout_rate": 0.008
+          },
+          "thorn_fortress": {
+            "viable_rate": 0.628,
+            "transformative_rate": 0.084,
+            "breakout_rate": 0.004
+          },
+          "elemental_reactor": {
+            "viable_rate": 0.604,
+            "transformative_rate": 0.252,
+            "breakout_rate": 0.012
+          },
+          "dash_ghost": {
+            "viable_rate": 0.556,
+            "transformative_rate": 0.244,
+            "breakout_rate": 0.012
+          },
+          "snowball_reaper": {
+            "viable_rate": 0.34,
+            "transformative_rate": 0.176,
+            "breakout_rate": 0.032
+          },
+          "low_hp_berserk": {
+            "viable_rate": 0.332,
+            "transformative_rate": 0.064,
+            "breakout_rate": 0.004
+          },
+          "turf_engineer": {
+            "viable_rate": 0.736,
+            "transformative_rate": 0.508,
+            "breakout_rate": 0.172
+          },
+          "heavy_mallet_juggernaut": {
+            "viable_rate": 0.476,
+            "transformative_rate": 0.192,
+            "breakout_rate": 0.004
+          },
+          "hybrid_spellblade": {
+            "viable_rate": 0.532,
+            "transformative_rate": 0.176,
+            "breakout_rate": 0.02
+          }
+        }
+      },
+      "S2_PhasedRarityAndTagFocus": {
+        "trials": 3000,
+        "viable_formation_rate": 0.719,
+        "transformative_formation_rate": 0.4313,
+        "breakout_formation_rate": 0.0977,
+        "legendary_offer_sighting_rate": 0.0327,
+        "forced_pivot_rate": 0.086,
+        "pivot_recovery_rate": 0.7868,
+        "optimizer_mean_synergy_score": 14.35,
+        "beginner_mean_synergy_score": 6.61,
+        "skill_decision_leverage_ratio": 2.17,
+        "by_archetype": {
+          "skill_engine": {
+            "viable_rate": 0.728,
+            "transformative_rate": 0.428,
+            "breakout_rate": 0.076
+          },
+          "attack_speed_onhit": {
+            "viable_rate": 0.852,
+            "transformative_rate": 0.6,
+            "breakout_rate": 0.148
+          },
+          "lifesteal_bruiser": {
+            "viable_rate": 0.836,
+            "transformative_rate": 0.316,
+            "breakout_rate": 0.036
+          },
+          "one_shot_artillery": {
+            "viable_rate": 0.596,
+            "transformative_rate": 0.312,
+            "breakout_rate": 0.032
+          },
+          "thorn_fortress": {
+            "viable_rate": 0.816,
+            "transformative_rate": 0.312,
+            "breakout_rate": 0.048
+          },
+          "elemental_reactor": {
+            "viable_rate": 0.772,
+            "transformative_rate": 0.516,
+            "breakout_rate": 0.124
+          },
+          "dash_ghost": {
+            "viable_rate": 0.74,
+            "transformative_rate": 0.516,
+            "breakout_rate": 0.096
+          },
+          "snowball_reaper": {
+            "viable_rate": 0.476,
+            "transformative_rate": 0.324,
+            "breakout_rate": 0.1
+          },
+          "low_hp_berserk": {
+            "viable_rate": 0.54,
+            "transformative_rate": 0.236,
+            "breakout_rate": 0.008
+          },
+          "turf_engineer": {
+            "viable_rate": 0.856,
+            "transformative_rate": 0.728,
+            "breakout_rate": 0.308
+          },
+          "heavy_mallet_juggernaut": {
+            "viable_rate": 0.62,
+            "transformative_rate": 0.364,
+            "breakout_rate": 0.04
+          },
+          "hybrid_spellblade": {
+            "viable_rate": 0.796,
+            "transformative_rate": 0.524,
+            "breakout_rate": 0.156
+          }
+        }
+      },
+      "S3_DecoupledShopCurrency": {
+        "trials": 3000,
+        "viable_formation_rate": 0.7607,
+        "transformative_formation_rate": 0.462,
+        "breakout_formation_rate": 0.093,
+        "legendary_offer_sighting_rate": 0.0179,
+        "forced_pivot_rate": 0.091,
+        "pivot_recovery_rate": 0.8535,
+        "optimizer_mean_synergy_score": 13.81,
+        "beginner_mean_synergy_score": 4.9,
+        "skill_decision_leverage_ratio": 2.82,
+        "by_archetype": {
+          "skill_engine": {
+            "viable_rate": 0.804,
+            "transformative_rate": 0.46,
+            "breakout_rate": 0.064
+          },
+          "attack_speed_onhit": {
+            "viable_rate": 0.9,
+            "transformative_rate": 0.776,
+            "breakout_rate": 0.232
+          },
+          "lifesteal_bruiser": {
+            "viable_rate": 0.872,
+            "transformative_rate": 0.38,
+            "breakout_rate": 0.036
+          },
+          "one_shot_artillery": {
+            "viable_rate": 0.576,
+            "transformative_rate": 0.256,
+            "breakout_rate": 0.008
+          },
+          "thorn_fortress": {
+            "viable_rate": 0.808,
+            "transformative_rate": 0.324,
+            "breakout_rate": 0.044
+          },
+          "elemental_reactor": {
+            "viable_rate": 0.852,
+            "transformative_rate": 0.58,
+            "breakout_rate": 0.092
+          },
+          "dash_ghost": {
+            "viable_rate": 0.748,
+            "transformative_rate": 0.576,
+            "breakout_rate": 0.088
+          },
+          "snowball_reaper": {
+            "viable_rate": 0.556,
+            "transformative_rate": 0.248,
+            "breakout_rate": 0.068
+          },
+          "low_hp_berserk": {
+            "viable_rate": 0.548,
+            "transformative_rate": 0.244,
+            "breakout_rate": 0.028
+          },
+          "turf_engineer": {
+            "viable_rate": 0.92,
+            "transformative_rate": 0.752,
+            "breakout_rate": 0.312
+          },
+          "heavy_mallet_juggernaut": {
+            "viable_rate": 0.712,
+            "transformative_rate": 0.412,
+            "breakout_rate": 0.04
+          },
+          "hybrid_spellblade": {
+            "viable_rate": 0.832,
+            "transformative_rate": 0.536,
+            "breakout_rate": 0.104
+          }
+        }
+      },
+      "S4_HybridGuidedWithPivot": {
+        "trials": 3000,
+        "viable_formation_rate": 0.9127,
+        "transformative_formation_rate": 0.6257,
+        "breakout_formation_rate": 0.1597,
+        "legendary_offer_sighting_rate": 0.0332,
+        "forced_pivot_rate": 0.0833,
+        "pivot_recovery_rate": 0.936,
+        "optimizer_mean_synergy_score": 17.86,
+        "beginner_mean_synergy_score": 6.72,
+        "skill_decision_leverage_ratio": 2.66,
+        "by_archetype": {
+          "skill_engine": {
+            "viable_rate": 0.912,
+            "transformative_rate": 0.704,
+            "breakout_rate": 0.156
+          },
+          "attack_speed_onhit": {
+            "viable_rate": 0.996,
+            "transformative_rate": 0.88,
+            "breakout_rate": 0.284
+          },
+          "lifesteal_bruiser": {
+            "viable_rate": 0.96,
+            "transformative_rate": 0.556,
+            "breakout_rate": 0.088
+          },
+          "one_shot_artillery": {
+            "viable_rate": 0.892,
+            "transformative_rate": 0.5,
+            "breakout_rate": 0.06
+          },
+          "thorn_fortress": {
+            "viable_rate": 0.956,
+            "transformative_rate": 0.484,
+            "breakout_rate": 0.104
+          },
+          "elemental_reactor": {
+            "viable_rate": 0.928,
+            "transformative_rate": 0.724,
+            "breakout_rate": 0.28
+          },
+          "dash_ghost": {
+            "viable_rate": 0.944,
+            "transformative_rate": 0.676,
+            "breakout_rate": 0.152
+          },
+          "snowball_reaper": {
+            "viable_rate": 0.748,
+            "transformative_rate": 0.412,
+            "breakout_rate": 0.108
+          },
+          "low_hp_berserk": {
+            "viable_rate": 0.804,
+            "transformative_rate": 0.432,
+            "breakout_rate": 0.036
+          },
+          "turf_engineer": {
+            "viable_rate": 0.956,
+            "transformative_rate": 0.804,
+            "breakout_rate": 0.364
+          },
+          "heavy_mallet_juggernaut": {
+            "viable_rate": 0.896,
+            "transformative_rate": 0.58,
+            "breakout_rate": 0.112
+          },
+          "hybrid_spellblade": {
+            "viable_rate": 0.96,
+            "transformative_rate": 0.756,
+            "breakout_rate": 0.172
+          }
+        }
+      }
+    }
+  },
+  "combat_and_matchups": {
+    "metadata": {
+      "seed": 20261128,
+      "duels_per_pair": 16,
+      "commit": "e62ff30473ce02d73761aadaea092d8a7e965248"
+    },
+    "bare_ttk_by_level": {
+      "L1": {
+        "mean_ttk_s": 9.71,
+        "median_ttk_s": 9.65,
+        "min_ttk_s": 9.55,
+        "max_ttk_s": 10.85
+      },
+      "L6": {
+        "mean_ttk_s": 18.98,
+        "median_ttk_s": 18.92,
+        "min_ttk_s": 17.95,
+        "max_ttk_s": 20.05
+      },
+      "L10": {
+        "mean_ttk_s": 26.34,
+        "median_ttk_s": 26.45,
+        "min_ttk_s": 26.05,
+        "max_ttk_s": 26.7
+      },
+      "L16": {
+        "mean_ttk_s": 35.75,
+        "median_ttk_s": 35.48,
+        "min_ttk_s": 34.55,
+        "max_ttk_s": 40.1
+      }
+    },
+    "breakout_vs_bare_l16": {
+      "skill_engine": {
+        "name": "技能永动机 (CD Reset Caster)",
+        "preset_no_stats_ttk_s": 7.12,
+        "preset_no_stats_speedup_x": 5.02,
+        "full_l16_ttk_s": 2.25,
+        "full_l16_speedup_x": 15.89,
+        "win_rate_vs_bare": 1.0
+      },
+      "attack_speed_onhit": {
+        "name": "疯狗连击手 (On-Hit Combo Flurry)",
+        "preset_no_stats_ttk_s": 10.99,
+        "preset_no_stats_speedup_x": 3.25,
+        "full_l16_ttk_s": 4.6,
+        "full_l16_speedup_x": 7.77,
+        "win_rate_vs_bare": 1.0
+      },
+      "lifesteal_bruiser": {
+        "name": "血魔永生流 (Blood-Price Drain Tank)",
+        "preset_no_stats_ttk_s": 16.08,
+        "preset_no_stats_speedup_x": 2.22,
+        "full_l16_ttk_s": 8.48,
+        "full_l16_speedup_x": 4.22,
+        "win_rate_vs_bare": 1.0
+      },
+      "one_shot_artillery": {
+        "name": "憋大招一击流 (Idle-Charge Nuke)",
+        "preset_no_stats_ttk_s": 12.39,
+        "preset_no_stats_speedup_x": 2.88,
+        "full_l16_ttk_s": 4.93,
+        "full_l16_speedup_x": 7.25,
+        "win_rate_vs_bare": 1.0
+      },
+      "thorn_fortress": {
+        "name": "铁刺猬肉山 (Shield-Reflect Juggernaut)",
+        "preset_no_stats_ttk_s": 21.3,
+        "preset_no_stats_speedup_x": 1.68,
+        "full_l16_ttk_s": 12.36,
+        "full_l16_speedup_x": 2.89,
+        "win_rate_vs_bare": 1.0
+      },
+      "elemental_reactor": {
+        "name": "元素连锁师 (Multi-Element Reactor)",
+        "preset_no_stats_ttk_s": 7.39,
+        "preset_no_stats_speedup_x": 4.84,
+        "full_l16_ttk_s": 3.93,
+        "full_l16_speedup_x": 9.09,
+        "win_rate_vs_bare": 1.0
+      },
+      "dash_ghost": {
+        "name": "冲刺鬼影列车 (Dash-Reset Pinball)",
+        "preset_no_stats_ttk_s": 13.55,
+        "preset_no_stats_speedup_x": 2.64,
+        "full_l16_ttk_s": 4.9,
+        "full_l16_speedup_x": 7.3,
+        "win_rate_vs_bare": 1.0
+      },
+      "snowball_reaper": {
+        "name": "收割滚雪球 (Takedown Reset Assassin)",
+        "preset_no_stats_ttk_s": 20.58,
+        "preset_no_stats_speedup_x": 1.74,
+        "full_l16_ttk_s": 7.26,
+        "full_l16_speedup_x": 4.92,
+        "win_rate_vs_bare": 1.0
+      },
+      "low_hp_berserk": {
+        "name": "残血亡命徒 (Last-Stand Berserker)",
+        "preset_no_stats_ttk_s": 14.17,
+        "preset_no_stats_speedup_x": 2.52,
+        "full_l16_ttk_s": 8.99,
+        "full_l16_speedup_x": 3.98,
+        "win_rate_vs_bare": 1.0
+      },
+      "turf_engineer": {
+        "name": "违章阵地王 (Construct & Turf Controller)",
+        "preset_no_stats_ttk_s": 21.92,
+        "preset_no_stats_speedup_x": 1.63,
+        "full_l16_ttk_s": 18.57,
+        "full_l16_speedup_x": 1.93,
+        "win_rate_vs_bare": 1.0
+      },
+      "heavy_mallet_juggernaut": {
+        "name": "千斤重锤一拳流 (Slow-AS Crit Slam)",
+        "preset_no_stats_ttk_s": 12.54,
+        "preset_no_stats_speedup_x": 2.85,
+        "full_l16_ttk_s": 5.0,
+        "full_l16_speedup_x": 7.15,
+        "win_rate_vs_bare": 1.0
+      },
+      "hybrid_spellblade": {
+        "name": "文武双全魔剑士 (Hybrid AP/AD Weave)",
+        "preset_no_stats_ttk_s": 17.38,
+        "preset_no_stats_speedup_x": 2.06,
+        "full_l16_ttk_s": 4.34,
+        "full_l16_speedup_x": 8.24,
+        "win_rate_vs_bare": 1.0
+      }
+    },
+    "l12_archetype_summary": {
+      "skill_engine": {
+        "name": "技能永动机 (CD Reset Caster)",
+        "overall_win_rate_l12": 0.977,
+        "mean_ttk_s": 3.15,
+        "mean_burst_2s_hp_share": 0.597,
+        "mean_heal_hp_share": 0.0,
+        "countered_by_count": 0,
+        "countered_by": [],
+        "favored_against_count": 11
+      },
+      "attack_speed_onhit": {
+        "name": "疯狗连击手 (On-Hit Combo Flurry)",
+        "overall_win_rate_l12": 0.261,
+        "mean_ttk_s": 5.23,
+        "mean_burst_2s_hp_share": 0.318,
+        "mean_heal_hp_share": 0.0,
+        "countered_by_count": 8,
+        "countered_by": [
+          "skill_engine",
+          "lifesteal_bruiser",
+          "thorn_fortress",
+          "elemental_reactor",
+          "dash_ghost",
+          "low_hp_berserk",
+          "heavy_mallet_juggernaut",
+          "hybrid_spellblade"
+        ],
+        "favored_against_count": 3
+      },
+      "lifesteal_bruiser": {
+        "name": "血魔永生流 (Blood-Price Drain Tank)",
+        "overall_win_rate_l12": 0.705,
+        "mean_ttk_s": 11.12,
+        "mean_burst_2s_hp_share": 0.336,
+        "mean_heal_hp_share": 0.124,
+        "countered_by_count": 3,
+        "countered_by": [
+          "skill_engine",
+          "thorn_fortress",
+          "elemental_reactor"
+        ],
+        "favored_against_count": 8
+      },
+      "one_shot_artillery": {
+        "name": "憋大招一击流 (Idle-Charge Nuke)",
+        "overall_win_rate_l12": 0.29,
+        "mean_ttk_s": 5.31,
+        "mean_burst_2s_hp_share": 0.486,
+        "mean_heal_hp_share": 0.0,
+        "countered_by_count": 7,
+        "countered_by": [
+          "skill_engine",
+          "lifesteal_bruiser",
+          "thorn_fortress",
+          "elemental_reactor",
+          "low_hp_berserk",
+          "heavy_mallet_juggernaut",
+          "hybrid_spellblade"
+        ],
+        "favored_against_count": 2
+      },
+      "thorn_fortress": {
+        "name": "铁刺猬肉山 (Shield-Reflect Juggernaut)",
+        "overall_win_rate_l12": 0.909,
+        "mean_ttk_s": 11.31,
+        "mean_burst_2s_hp_share": 0.108,
+        "mean_heal_hp_share": 0.0,
+        "countered_by_count": 1,
+        "countered_by": [
+          "skill_engine"
+        ],
+        "favored_against_count": 10
+      },
+      "elemental_reactor": {
+        "name": "元素连锁师 (Multi-Element Reactor)",
+        "overall_win_rate_l12": 0.798,
+        "mean_ttk_s": 5.22,
+        "mean_burst_2s_hp_share": 0.452,
+        "mean_heal_hp_share": 0.0,
+        "countered_by_count": 2,
+        "countered_by": [
+          "skill_engine",
+          "thorn_fortress"
+        ],
+        "favored_against_count": 8
+      },
+      "dash_ghost": {
+        "name": "冲刺鬼影列车 (Dash-Reset Pinball)",
+        "overall_win_rate_l12": 0.449,
+        "mean_ttk_s": 6.45,
+        "mean_burst_2s_hp_share": 0.338,
+        "mean_heal_hp_share": 0.0,
+        "countered_by_count": 6,
+        "countered_by": [
+          "skill_engine",
+          "lifesteal_bruiser",
+          "thorn_fortress",
+          "elemental_reactor",
+          "low_hp_berserk",
+          "heavy_mallet_juggernaut"
+        ],
+        "favored_against_count": 5
+      },
+      "snowball_reaper": {
+        "name": "收割滚雪球 (Takedown Reset Assassin)",
+        "overall_win_rate_l12": 0.017,
+        "mean_ttk_s": 5.67,
+        "mean_burst_2s_hp_share": 0.294,
+        "mean_heal_hp_share": 0.0,
+        "countered_by_count": 11,
+        "countered_by": [
+          "skill_engine",
+          "attack_speed_onhit",
+          "lifesteal_bruiser",
+          "one_shot_artillery",
+          "thorn_fortress",
+          "elemental_reactor",
+          "dash_ghost",
+          "low_hp_berserk",
+          "turf_engineer",
+          "heavy_mallet_juggernaut",
+          "hybrid_spellblade"
+        ],
+        "favored_against_count": 0
+      },
+      "low_hp_berserk": {
+        "name": "残血亡命徒 (Last-Stand Berserker)",
+        "overall_win_rate_l12": 0.693,
+        "mean_ttk_s": 7.38,
+        "mean_burst_2s_hp_share": 0.37,
+        "mean_heal_hp_share": 0.079,
+        "countered_by_count": 3,
+        "countered_by": [
+          "skill_engine",
+          "lifesteal_bruiser",
+          "thorn_fortress"
+        ],
+        "favored_against_count": 7
+      },
+      "turf_engineer": {
+        "name": "违章阵地王 (Construct & Turf Controller)",
+        "overall_win_rate_l12": 0.119,
+        "mean_ttk_s": 13.81,
+        "mean_burst_2s_hp_share": 0.195,
+        "mean_heal_hp_share": 0.0,
+        "countered_by_count": 10,
+        "countered_by": [
+          "skill_engine",
+          "attack_speed_onhit",
+          "lifesteal_bruiser",
+          "one_shot_artillery",
+          "thorn_fortress",
+          "elemental_reactor",
+          "dash_ghost",
+          "low_hp_berserk",
+          "heavy_mallet_juggernaut",
+          "hybrid_spellblade"
+        ],
+        "favored_against_count": 1
+      },
+      "heavy_mallet_juggernaut": {
+        "name": "千斤重锤一拳流 (Slow-AS Crit Slam)",
+        "overall_win_rate_l12": 0.54,
+        "mean_ttk_s": 5.82,
+        "mean_burst_2s_hp_share": 0.418,
+        "mean_heal_hp_share": 0.0,
+        "countered_by_count": 5,
+        "countered_by": [
+          "skill_engine",
+          "lifesteal_bruiser",
+          "thorn_fortress",
+          "elemental_reactor",
+          "low_hp_berserk"
+        ],
+        "favored_against_count": 6
+      },
+      "hybrid_spellblade": {
+        "name": "文武双全魔剑士 (Hybrid AP/AD Weave)",
+        "overall_win_rate_l12": 0.347,
+        "mean_ttk_s": 5.22,
+        "mean_burst_2s_hp_share": 0.324,
+        "mean_heal_hp_share": 0.0,
+        "countered_by_count": 7,
+        "countered_by": [
+          "skill_engine",
+          "lifesteal_bruiser",
+          "thorn_fortress",
+          "elemental_reactor",
+          "dash_ghost",
+          "low_hp_berserk",
+          "heavy_mallet_juggernaut"
+        ],
+        "favored_against_count": 4
+      }
+    },
+    "l12_matchup_matrix": {
+      "skill_engine": {
+        "skill_engine": 0.5,
+        "attack_speed_onhit": 1.0,
+        "lifesteal_bruiser": 1.0,
+        "one_shot_artillery": 1.0,
+        "thorn_fortress": 1.0,
+        "elemental_reactor": 0.75,
+        "dash_ghost": 1.0,
+        "snowball_reaper": 1.0,
+        "low_hp_berserk": 1.0,
+        "turf_engineer": 1.0,
+        "heavy_mallet_juggernaut": 1.0,
+        "hybrid_spellblade": 1.0
+      },
+      "attack_speed_onhit": {
+        "skill_engine": 0.0,
+        "attack_speed_onhit": 0.5,
+        "lifesteal_bruiser": 0.0,
+        "one_shot_artillery": 0.625,
+        "thorn_fortress": 0.0,
+        "elemental_reactor": 0.0,
+        "dash_ghost": 0.062,
+        "snowball_reaper": 1.0,
+        "low_hp_berserk": 0.0,
+        "turf_engineer": 1.0,
+        "heavy_mallet_juggernaut": 0.0,
+        "hybrid_spellblade": 0.188
+      },
+      "lifesteal_bruiser": {
+        "skill_engine": 0.0,
+        "attack_speed_onhit": 1.0,
+        "lifesteal_bruiser": 0.5,
+        "one_shot_artillery": 1.0,
+        "thorn_fortress": 0.0,
+        "elemental_reactor": 0.062,
+        "dash_ghost": 1.0,
+        "snowball_reaper": 1.0,
+        "low_hp_berserk": 0.688,
+        "turf_engineer": 1.0,
+        "heavy_mallet_juggernaut": 1.0,
+        "hybrid_spellblade": 1.0
+      },
+      "one_shot_artillery": {
+        "skill_engine": 0.0,
+        "attack_speed_onhit": 0.5,
+        "lifesteal_bruiser": 0.0,
+        "one_shot_artillery": 0.5,
+        "thorn_fortress": 0.0,
+        "elemental_reactor": 0.0,
+        "dash_ghost": 0.562,
+        "snowball_reaper": 0.875,
+        "low_hp_berserk": 0.0,
+        "turf_engineer": 1.0,
+        "heavy_mallet_juggernaut": 0.0,
+        "hybrid_spellblade": 0.25
+      },
+      "thorn_fortress": {
+        "skill_engine": 0.0,
+        "attack_speed_onhit": 1.0,
+        "lifesteal_bruiser": 1.0,
+        "one_shot_artillery": 1.0,
+        "thorn_fortress": 0.5,
+        "elemental_reactor": 1.0,
+        "dash_ghost": 1.0,
+        "snowball_reaper": 1.0,
+        "low_hp_berserk": 1.0,
+        "turf_engineer": 1.0,
+        "heavy_mallet_juggernaut": 1.0,
+        "hybrid_spellblade": 1.0
+      },
+      "elemental_reactor": {
+        "skill_engine": 0.312,
+        "attack_speed_onhit": 1.0,
+        "lifesteal_bruiser": 0.688,
+        "one_shot_artillery": 1.0,
+        "thorn_fortress": 0.281,
+        "elemental_reactor": 0.5,
+        "dash_ghost": 1.0,
+        "snowball_reaper": 1.0,
+        "low_hp_berserk": 0.5,
+        "turf_engineer": 1.0,
+        "heavy_mallet_juggernaut": 1.0,
+        "hybrid_spellblade": 1.0
+      },
+      "dash_ghost": {
+        "skill_engine": 0.0,
+        "attack_speed_onhit": 0.938,
+        "lifesteal_bruiser": 0.0,
+        "one_shot_artillery": 0.938,
+        "thorn_fortress": 0.0,
+        "elemental_reactor": 0.0,
+        "dash_ghost": 0.5,
+        "snowball_reaper": 1.0,
+        "low_hp_berserk": 0.0,
+        "turf_engineer": 1.0,
+        "heavy_mallet_juggernaut": 0.062,
+        "hybrid_spellblade": 1.0
+      },
+      "snowball_reaper": {
+        "skill_engine": 0.0,
+        "attack_speed_onhit": 0.0,
+        "lifesteal_bruiser": 0.0,
+        "one_shot_artillery": 0.125,
+        "thorn_fortress": 0.0,
+        "elemental_reactor": 0.0,
+        "dash_ghost": 0.0,
+        "snowball_reaper": 0.5,
+        "low_hp_berserk": 0.0,
+        "turf_engineer": 0.0,
+        "heavy_mallet_juggernaut": 0.0,
+        "hybrid_spellblade": 0.062
+      },
+      "low_hp_berserk": {
+        "skill_engine": 0.0,
+        "attack_speed_onhit": 1.0,
+        "lifesteal_bruiser": 0.125,
+        "one_shot_artillery": 1.0,
+        "thorn_fortress": 0.0,
+        "elemental_reactor": 0.5,
+        "dash_ghost": 1.0,
+        "snowball_reaper": 1.0,
+        "low_hp_berserk": 0.5,
+        "turf_engineer": 1.0,
+        "heavy_mallet_juggernaut": 1.0,
+        "hybrid_spellblade": 1.0
+      },
+      "turf_engineer": {
+        "skill_engine": 0.0,
+        "attack_speed_onhit": 0.0,
+        "lifesteal_bruiser": 0.0,
+        "one_shot_artillery": 0.0,
+        "thorn_fortress": 0.0,
+        "elemental_reactor": 0.0,
+        "dash_ghost": 0.0,
+        "snowball_reaper": 1.0,
+        "low_hp_berserk": 0.0,
+        "turf_engineer": 0.5,
+        "heavy_mallet_juggernaut": 0.0,
+        "hybrid_spellblade": 0.312
+      },
+      "heavy_mallet_juggernaut": {
+        "skill_engine": 0.0,
+        "attack_speed_onhit": 1.0,
+        "lifesteal_bruiser": 0.0,
+        "one_shot_artillery": 0.938,
+        "thorn_fortress": 0.0,
+        "elemental_reactor": 0.0,
+        "dash_ghost": 1.0,
+        "snowball_reaper": 1.0,
+        "low_hp_berserk": 0.0,
+        "turf_engineer": 1.0,
+        "heavy_mallet_juggernaut": 0.5,
+        "hybrid_spellblade": 1.0
+      },
+      "hybrid_spellblade": {
+        "skill_engine": 0.0,
+        "attack_speed_onhit": 1.0,
+        "lifesteal_bruiser": 0.0,
+        "one_shot_artillery": 0.75,
+        "thorn_fortress": 0.0,
+        "elemental_reactor": 0.0,
+        "dash_ghost": 0.062,
+        "snowball_reaper": 1.0,
+        "low_hp_berserk": 0.0,
+        "turf_engineer": 1.0,
+        "heavy_mallet_juggernaut": 0.0,
+        "hybrid_spellblade": 0.5
+      }
+    },
+    "overdrive_hold_tradeoff": {
+      "skill_engine": {
+        "with_overdrive_hold_dps": 889.0,
+        "without_overdrive_hold_dps": 1301.7,
+        "with_overdrive_win_rate": 1.0,
+        "without_overdrive_win_rate": 1.0
+      },
+      "attack_speed_onhit": {
+        "with_overdrive_hold_dps": 172.4,
+        "without_overdrive_hold_dps": 153.1,
+        "with_overdrive_win_rate": 0.0,
+        "without_overdrive_win_rate": 0.0
+      },
+      "one_shot_artillery": {
+        "with_overdrive_hold_dps": 181.7,
+        "without_overdrive_hold_dps": 174.9,
+        "with_overdrive_win_rate": 0.0,
+        "without_overdrive_win_rate": 0.0
+      }
+    },
+    "level_gap_snowball": [
+      {
+        "matchup": "L6 vs L5 (+1 lvls)",
+        "higher_level_win_rate": 1.0,
+        "mean_ttk_s": 5.05
+      },
+      {
+        "matchup": "L8 vs L6 (+2 lvls)",
+        "higher_level_win_rate": 1.0,
+        "mean_ttk_s": 4.97
+      },
+      {
+        "matchup": "L10 vs L7 (+3 lvls)",
+        "higher_level_win_rate": 1.0,
+        "mean_ttk_s": 4.19
+      },
+      {
+        "matchup": "L12 vs L8 (+4 lvls)",
+        "higher_level_win_rate": 1.0,
+        "mean_ttk_s": 3.59
+      },
+      {
+        "matchup": "L16 vs L10 (+6 lvls)",
+        "higher_level_win_rate": 1.0,
+        "mean_ttk_s": 2.31
+      }
+    ],
+    "global_combat_distributions": {
+      "ttk_p10_s": 2.95,
+      "ttk_median_s": 5.45,
+      "ttk_mean_s": 7.14,
+      "ttk_p90_s": 12.75,
+      "cc_lockout_mean_s": 0.28,
+      "cc_lockout_max_s": 4.8
+    }
+  },
+  "ffa_economy_and_showdown": {
+    "metadata": {
+      "seed": 20261128,
+      "matches_per_setting": 250,
+      "commit": "e62ff30473ce02d73761aadaea092d8a7e965248",
+      "note": "Model-based strategic simulation grounded in content.json/world.json parameters; separate from Unreal 60Hz native execution."
+    },
+    "static_pve_and_economy_audit": {
+      "stat_point_gold_value_conflict": {
+        "1_pt_physique": "+70 HP, +0.08 HP/s (+1/18 of 12% MaxHP periodic shield keystone)",
+        "1_pt_strength": "+3.5 AD, +0.6% Crit (+1/18 of +14% universal damage keystone)",
+        "1_pt_brains": "+6 AP, +1 Haste, +0.06 Mom/s (+1/18 of -1s CD & 30% Mom refund keystone)",
+        "common_card_cost_pts": 2,
+        "rare_card_cost_pts": 3,
+        "legendary_card_cost_pts": 4,
+        "skill_point_cost_pts": 3,
+        "random_medal_cost_pts": 4,
+        "break_even_note": "Before reaching the first 18-point Keystone (requires Level 6 with 0 shop spend, or Level 8-9 if buying 2 shop items), spending 3-4 stat points in R1 Shop reduces immediate EHP/DPS unless the purchased card provides >15% unconditional output."
+      },
+      "camp_tiers": {
+        "Low": {
+          "count_per_camp": 3,
+          "unit_hp": 90.0,
+          "armor_mr": 8.0,
+          "total_camp_ehp_stage0": 291.6,
+          "camp_dps_stage0": 33.6,
+          "camp_xp_stage0": 45,
+          "xp_per_100_ehp": 15.43
+        },
+        "High": {
+          "count_per_camp": 2,
+          "unit_hp": 315.0,
+          "armor_mr": 20.0,
+          "total_camp_ehp_stage0": 756.0,
+          "camp_dps_stage0": 65.0,
+          "camp_xp_stage0": 88,
+          "xp_per_100_ehp": 11.64
+        },
+        "Elite": {
+          "count_per_camp": 1,
+          "unit_hp": 1350.0,
+          "armor_mr": 30.0,
+          "total_camp_ehp_stage0": 1755.0,
+          "camp_dps_stage0": 75.6,
+          "camp_xp_stage0": 196,
+          "xp_per_100_ehp": 11.17
+        },
+        "Ancient": {
+          "count_per_camp": 1,
+          "unit_hp": 2100.0,
+          "armor_mr": 40.0,
+          "total_camp_ehp_stage0": 2940.0,
+          "camp_dps_stage0": 100.1,
+          "camp_xp_stage0": 405,
+          "xp_per_100_ehp": 13.78
+        }
+      },
+      "segment_camp_xp_ideal_34_camps": [
+        3284.0,
+        3875.1,
+        4466.2
+      ],
+      "segment_camp_xp_live_26_reachable": [
+        2601.0,
+        3069.2,
+        3537.4
+      ],
+      "total_match_camp_xp_ideal": 11625.3,
+      "total_match_camp_xp_live_issue353": 9207.6,
+      "per_player_camp_ceiling_by_lobby_size": {
+        "2_players": {
+          "max_camp_xp_per_player_ideal": 5812.6,
+          "level_from_camps_only_ideal": 16,
+          "max_camp_xp_per_player_with_issue353": 4603.8,
+          "level_from_camps_only_with_issue353": 14,
+          "share_of_l16_xp_5340": 0.862
+        },
+        "4_players": {
+          "max_camp_xp_per_player_ideal": 2906.3,
+          "level_from_camps_only_ideal": 12,
+          "max_camp_xp_per_player_with_issue353": 2301.9,
+          "level_from_camps_only_with_issue353": 10,
+          "share_of_l16_xp_5340": 0.431
+        },
+        "6_players": {
+          "max_camp_xp_per_player_ideal": 1937.5,
+          "level_from_camps_only_ideal": 10,
+          "max_camp_xp_per_player_with_issue353": 1534.6,
+          "level_from_camps_only_with_issue353": 9,
+          "share_of_l16_xp_5340": 0.287
+        },
+        "8_players": {
+          "max_camp_xp_per_player_ideal": 1453.2,
+          "level_from_camps_only_ideal": 8,
+          "max_camp_xp_per_player_with_issue353": 1151.0,
+          "level_from_camps_only_with_issue353": 8,
+          "share_of_l16_xp_5340": 0.216
+        }
+      },
+      "hp_growth_stage6_multiplier": 1.72,
+      "xp_growth_stage6_multiplier": 1.36,
+      "f3_farming_efficiency_decay": 0.791
+    },
+    "player_count_sensitivity": {
+      "P2": {
+        "player_count": 2,
+        "victory_mode": "V1_CurrentSoloFlag",
+        "matches": 250,
+        "bot_win_rates": {
+          "Aggressor": 0.594,
+          "Beginner": 0.403,
+          "BuildOptimizer": 0.581,
+          "ComboSpecialist": 0.274,
+          "Farmer": 0.46,
+          "ObjectiveHunter": 0.629,
+          "Opportunist": 0.381,
+          "Turtle": 0.677
+        },
+        "f1_leader_conversion_rate": 0.508,
+        "bottom_half_comeback_rate": 0.492,
+        "third_party_kill_share": 0.104,
+        "mean_field_pvp_kills": 0.19,
+        "mean_final_level": 13.14,
+        "median_final_level": 13.0,
+        "end_reason_shares": {
+          "ClearOut": 0.508,
+          "GuardSucceeded": 0.488,
+          "GuardSucceeded_PrivatePole": 0.004
+        },
+        "mean_showdown_lead_changes": 2.65,
+        "mean_time_to_first_spike_s": 83.9,
+        "attention_budget_shares": {
+          "active_combat_share": 0.347,
+          "walking_search_share": 0.348,
+          "rest_pk_spectate_respawn_wait_share": 0.359
+        }
+      },
+      "P4": {
+        "player_count": 4,
+        "victory_mode": "V1_CurrentSoloFlag",
+        "matches": 250,
+        "bot_win_rates": {
+          "Aggressor": 0.167,
+          "Beginner": 0.161,
+          "BuildOptimizer": 0.266,
+          "ComboSpecialist": 0.137,
+          "Farmer": 0.232,
+          "ObjectiveHunter": 0.349,
+          "Opportunist": 0.222,
+          "Turtle": 0.464
+        },
+        "f1_leader_conversion_rate": 0.312,
+        "bottom_half_comeback_rate": 0.456,
+        "third_party_kill_share": 0.089,
+        "mean_field_pvp_kills": 2.29,
+        "mean_final_level": 10.72,
+        "median_final_level": 11.0,
+        "end_reason_shares": {
+          "ClearOut": 0.68,
+          "GuardSucceeded": 0.256,
+          "ObjectiveTimeout": 0.056,
+          "GuardSucceeded_PrivatePole": 0.008
+        },
+        "mean_showdown_lead_changes": 5.71,
+        "mean_time_to_first_spike_s": 117.1,
+        "attention_budget_shares": {
+          "active_combat_share": 0.263,
+          "walking_search_share": 0.506,
+          "rest_pk_spectate_respawn_wait_share": 0.448
+        }
+      },
+      "P6": {
+        "player_count": 6,
+        "victory_mode": "V1_CurrentSoloFlag",
+        "matches": 250,
+        "bot_win_rates": {
+          "Aggressor": 0.202,
+          "Beginner": 0.081,
+          "BuildOptimizer": 0.112,
+          "ComboSpecialist": 0.197,
+          "Farmer": 0.064,
+          "ObjectiveHunter": 0.261,
+          "Opportunist": 0.149,
+          "Turtle": 0.266
+        },
+        "f1_leader_conversion_rate": 0.232,
+        "bottom_half_comeback_rate": 0.408,
+        "third_party_kill_share": 0.299,
+        "mean_field_pvp_kills": 7.62,
+        "mean_final_level": 9.46,
+        "median_final_level": 9.0,
+        "end_reason_shares": {
+          "ClearOut": 0.612,
+          "ObjectiveTimeout": 0.22,
+          "GuardSucceeded": 0.156,
+          "GuardSucceeded_PrivatePole": 0.012
+        },
+        "mean_showdown_lead_changes": 6.84,
+        "mean_time_to_first_spike_s": 169.9,
+        "attention_budget_shares": {
+          "active_combat_share": 0.242,
+          "walking_search_share": 0.517,
+          "rest_pk_spectate_respawn_wait_share": 0.488
+        }
+      },
+      "P8": {
+        "player_count": 8,
+        "victory_mode": "V1_CurrentSoloFlag",
+        "matches": 250,
+        "bot_win_rates": {
+          "Aggressor": 0.1,
+          "Beginner": 0.044,
+          "BuildOptimizer": 0.148,
+          "ComboSpecialist": 0.108,
+          "Farmer": 0.064,
+          "ObjectiveHunter": 0.148,
+          "Opportunist": 0.124,
+          "Turtle": 0.264
+        },
+        "f1_leader_conversion_rate": 0.128,
+        "bottom_half_comeback_rate": 0.48,
+        "third_party_kill_share": 0.427,
+        "mean_field_pvp_kills": 15.84,
+        "mean_final_level": 8.86,
+        "median_final_level": 9.0,
+        "end_reason_shares": {
+          "ObjectiveTimeout": 0.54,
+          "ClearOut": 0.36,
+          "GuardSucceeded": 0.088,
+          "GuardSucceeded_PrivatePole": 0.012
+        },
+        "mean_showdown_lead_changes": 5.93,
+        "mean_time_to_first_spike_s": 199.3,
+        "attention_budget_shares": {
+          "active_combat_share": 0.233,
+          "walking_search_share": 0.501,
+          "rest_pk_spectate_respawn_wait_share": 0.504
+        }
+      }
+    },
+    "showdown_victory_comparison_8p": {
+      "V1_CurrentSoloFlag": {
+        "player_count": 8,
+        "victory_mode": "V1_CurrentSoloFlag",
+        "matches": 250,
+        "bot_win_rates": {
+          "Aggressor": 0.1,
+          "Beginner": 0.044,
+          "BuildOptimizer": 0.148,
+          "ComboSpecialist": 0.108,
+          "Farmer": 0.064,
+          "ObjectiveHunter": 0.148,
+          "Opportunist": 0.124,
+          "Turtle": 0.264
+        },
+        "f1_leader_conversion_rate": 0.128,
+        "bottom_half_comeback_rate": 0.48,
+        "third_party_kill_share": 0.427,
+        "mean_field_pvp_kills": 15.84,
+        "mean_final_level": 8.86,
+        "median_final_level": 9.0,
+        "end_reason_shares": {
+          "ObjectiveTimeout": 0.54,
+          "ClearOut": 0.36,
+          "GuardSucceeded": 0.088,
+          "GuardSucceeded_PrivatePole": 0.012
+        },
+        "mean_showdown_lead_changes": 5.93,
+        "mean_time_to_first_spike_s": 199.3,
+        "attention_budget_shares": {
+          "active_combat_share": 0.233,
+          "walking_search_share": 0.501,
+          "rest_pk_spectate_respawn_wait_share": 0.504
+        }
+      },
+      "V2_RotatingMultiTurf": {
+        "player_count": 8,
+        "victory_mode": "V2_RotatingMultiTurf",
+        "matches": 250,
+        "bot_win_rates": {
+          "Aggressor": 0.188,
+          "Beginner": 0.0,
+          "BuildOptimizer": 0.2,
+          "ComboSpecialist": 0.124,
+          "Farmer": 0.008,
+          "ObjectiveHunter": 0.244,
+          "Opportunist": 0.208,
+          "Turtle": 0.028
+        },
+        "f1_leader_conversion_rate": 0.268,
+        "bottom_half_comeback_rate": 0.276,
+        "third_party_kill_share": 0.429,
+        "mean_field_pvp_kills": 16.43,
+        "mean_final_level": 8.9,
+        "median_final_level": 9.0,
+        "end_reason_shares": {
+          "MultiTurfScoreReached": 1.0
+        },
+        "mean_showdown_lead_changes": 4.85,
+        "mean_time_to_first_spike_s": 196.9,
+        "attention_budget_shares": {
+          "active_combat_share": 0.234,
+          "walking_search_share": 0.496,
+          "rest_pk_spectate_respawn_wait_share": 0.503
+        }
+      },
+      "V3_KingCrownCarrier": {
+        "player_count": 8,
+        "victory_mode": "V3_KingCrownCarrier",
+        "matches": 250,
+        "bot_win_rates": {
+          "Aggressor": 0.188,
+          "Beginner": 0.012,
+          "BuildOptimizer": 0.216,
+          "ComboSpecialist": 0.104,
+          "Farmer": 0.016,
+          "ObjectiveHunter": 0.256,
+          "Opportunist": 0.108,
+          "Turtle": 0.1
+        },
+        "f1_leader_conversion_rate": 0.232,
+        "bottom_half_comeback_rate": 0.292,
+        "third_party_kill_share": 0.414,
+        "mean_field_pvp_kills": 16.06,
+        "mean_final_level": 8.88,
+        "median_final_level": 9.0,
+        "end_reason_shares": {
+          "CrownCharged": 0.812,
+          "ObjectiveTimeout": 0.104,
+          "ClearOut": 0.084
+        },
+        "mean_showdown_lead_changes": 7.43,
+        "mean_time_to_first_spike_s": 198.2,
+        "attention_budget_shares": {
+          "active_combat_share": 0.234,
+          "walking_search_share": 0.501,
+          "rest_pk_spectate_respawn_wait_share": 0.504
+        }
+      },
+      "V4_MultiPathMatchPoint": {
+        "player_count": 8,
+        "victory_mode": "V4_MultiPathMatchPoint",
+        "matches": 250,
+        "bot_win_rates": {
+          "Aggressor": 0.108,
+          "Beginner": 0.024,
+          "BuildOptimizer": 0.144,
+          "ComboSpecialist": 0.1,
+          "Farmer": 0.064,
+          "ObjectiveHunter": 0.284,
+          "Opportunist": 0.12,
+          "Turtle": 0.156
+        },
+        "f1_leader_conversion_rate": 0.18,
+        "bottom_half_comeback_rate": 0.368,
+        "third_party_kill_share": 0.404,
+        "mean_field_pvp_kills": 15.27,
+        "mean_final_level": 8.81,
+        "median_final_level": 9.0,
+        "end_reason_shares": {
+          "MatchPointConverted": 0.992,
+          "ObjectiveTimeout": 0.004,
+          "ClearOut": 0.004
+        },
+        "mean_showdown_lead_changes": 0.0,
+        "mean_time_to_first_spike_s": 200.3,
+        "attention_budget_shares": {
+          "active_combat_share": 0.232,
+          "walking_search_share": 0.51,
+          "rest_pk_spectate_respawn_wait_share": 0.506
+        }
+      },
+      "V5_MinimalTunedFlag": {
+        "player_count": 8,
+        "victory_mode": "V5_MinimalTunedFlag",
+        "matches": 250,
+        "bot_win_rates": {
+          "Aggressor": 0.12,
+          "Beginner": 0.08,
+          "BuildOptimizer": 0.144,
+          "ComboSpecialist": 0.092,
+          "Farmer": 0.072,
+          "ObjectiveHunter": 0.16,
+          "Opportunist": 0.128,
+          "Turtle": 0.204
+        },
+        "f1_leader_conversion_rate": 0.152,
+        "bottom_half_comeback_rate": 0.468,
+        "third_party_kill_share": 0.404,
+        "mean_field_pvp_kills": 15.94,
+        "mean_final_level": 8.86,
+        "median_final_level": 9.0,
+        "end_reason_shares": {
+          "ObjectiveTimeout": 0.484,
+          "GuardSucceeded": 0.28,
+          "ClearOut": 0.236
+        },
+        "mean_showdown_lead_changes": 17.92,
+        "mean_time_to_first_spike_s": 198.1,
+        "attention_budget_shares": {
+          "active_combat_share": 0.232,
+          "walking_search_share": 0.507,
+          "rest_pk_spectate_respawn_wait_share": 0.506
+        }
+      }
+    },
+    "economy_and_map_redesign_ab_8p": {
+      "1_Baseline_Bug353_NoRespawn_StatShop": {
+        "player_count": 8,
+        "victory_mode": "V1_CurrentSoloFlag",
+        "matches": 250,
+        "bot_win_rates": {
+          "Aggressor": 0.1,
+          "Beginner": 0.044,
+          "BuildOptimizer": 0.148,
+          "ComboSpecialist": 0.108,
+          "Farmer": 0.064,
+          "ObjectiveHunter": 0.148,
+          "Opportunist": 0.124,
+          "Turtle": 0.264
+        },
+        "f1_leader_conversion_rate": 0.128,
+        "bottom_half_comeback_rate": 0.48,
+        "third_party_kill_share": 0.427,
+        "mean_field_pvp_kills": 15.84,
+        "mean_final_level": 8.86,
+        "median_final_level": 9.0,
+        "end_reason_shares": {
+          "ObjectiveTimeout": 0.54,
+          "ClearOut": 0.36,
+          "GuardSucceeded": 0.088,
+          "GuardSucceeded_PrivatePole": 0.012
+        },
+        "mean_showdown_lead_changes": 5.93,
+        "mean_time_to_first_spike_s": 199.3,
+        "attention_budget_shares": {
+          "active_combat_share": 0.233,
+          "walking_search_share": 0.501,
+          "rest_pk_spectate_respawn_wait_share": 0.504
+        }
+      },
+      "2_FixIssue353_Only": {
+        "player_count": 8,
+        "victory_mode": "V1_CurrentSoloFlag",
+        "matches": 250,
+        "bot_win_rates": {
+          "Aggressor": 0.092,
+          "Beginner": 0.056,
+          "BuildOptimizer": 0.1,
+          "ComboSpecialist": 0.108,
+          "Farmer": 0.08,
+          "ObjectiveHunter": 0.196,
+          "Opportunist": 0.108,
+          "Turtle": 0.26
+        },
+        "f1_leader_conversion_rate": 0.152,
+        "bottom_half_comeback_rate": 0.48,
+        "third_party_kill_share": 0.366,
+        "mean_field_pvp_kills": 12.91,
+        "mean_final_level": 9.27,
+        "median_final_level": 9.0,
+        "end_reason_shares": {
+          "ObjectiveTimeout": 0.552,
+          "ClearOut": 0.344,
+          "GuardSucceeded": 0.092,
+          "GuardSucceeded_PrivatePole": 0.012
+        },
+        "mean_showdown_lead_changes": 6.02,
+        "mean_time_to_first_spike_s": 176.4,
+        "attention_budget_shares": {
+          "active_combat_share": 0.245,
+          "walking_search_share": 0.508,
+          "rest_pk_spectate_respawn_wait_share": 0.503
+        }
+      },
+      "3_Fix353_Plus_LowHighRespawn65s": {
+        "player_count": 8,
+        "victory_mode": "V1_CurrentSoloFlag",
+        "matches": 250,
+        "bot_win_rates": {
+          "Aggressor": 0.112,
+          "Beginner": 0.04,
+          "BuildOptimizer": 0.112,
+          "ComboSpecialist": 0.104,
+          "Farmer": 0.068,
+          "ObjectiveHunter": 0.16,
+          "Opportunist": 0.116,
+          "Turtle": 0.288
+        },
+        "f1_leader_conversion_rate": 0.128,
+        "bottom_half_comeback_rate": 0.484,
+        "third_party_kill_share": 0.176,
+        "mean_field_pvp_kills": 6.87,
+        "mean_final_level": 11.3,
+        "median_final_level": 11.0,
+        "end_reason_shares": {
+          "ObjectiveTimeout": 0.588,
+          "ClearOut": 0.3,
+          "GuardSucceeded": 0.08,
+          "GuardSucceeded_PrivatePole": 0.032
+        },
+        "mean_showdown_lead_changes": 6.02,
+        "mean_time_to_first_spike_s": 126.9,
+        "attention_budget_shares": {
+          "active_combat_share": 0.304,
+          "walking_search_share": 0.434,
+          "rest_pk_spectate_respawn_wait_share": 0.458
+        }
+      },
+      "4_Fix353_LowHighRespawn65s_DecoupledShop": {
+        "player_count": 8,
+        "victory_mode": "V1_CurrentSoloFlag",
+        "matches": 250,
+        "bot_win_rates": {
+          "Aggressor": 0.124,
+          "Beginner": 0.072,
+          "BuildOptimizer": 0.116,
+          "ComboSpecialist": 0.084,
+          "Farmer": 0.06,
+          "ObjectiveHunter": 0.192,
+          "Opportunist": 0.144,
+          "Turtle": 0.208
+        },
+        "f1_leader_conversion_rate": 0.144,
+        "bottom_half_comeback_rate": 0.416,
+        "third_party_kill_share": 0.191,
+        "mean_field_pvp_kills": 6.67,
+        "mean_final_level": 11.32,
+        "median_final_level": 11.0,
+        "end_reason_shares": {
+          "ObjectiveTimeout": 0.556,
+          "ClearOut": 0.344,
+          "GuardSucceeded": 0.072,
+          "GuardSucceeded_PrivatePole": 0.028
+        },
+        "mean_showdown_lead_changes": 5.63,
+        "mean_time_to_first_spike_s": 126.1,
+        "attention_budget_shares": {
+          "active_combat_share": 0.304,
+          "walking_search_share": 0.434,
+          "rest_pk_spectate_respawn_wait_share": 0.458
+        }
+      },
+      "5_FullStack_With_TunedFlag_V5": {
+        "player_count": 8,
+        "victory_mode": "V5_MinimalTunedFlag",
+        "matches": 250,
+        "bot_win_rates": {
+          "Aggressor": 0.1,
+          "Beginner": 0.052,
+          "BuildOptimizer": 0.164,
+          "ComboSpecialist": 0.108,
+          "Farmer": 0.116,
+          "ObjectiveHunter": 0.132,
+          "Opportunist": 0.092,
+          "Turtle": 0.236
+        },
+        "f1_leader_conversion_rate": 0.128,
+        "bottom_half_comeback_rate": 0.532,
+        "third_party_kill_share": 0.194,
+        "mean_field_pvp_kills": 7.08,
+        "mean_final_level": 11.33,
+        "median_final_level": 11.0,
+        "end_reason_shares": {
+          "ObjectiveTimeout": 0.472,
+          "GuardSucceeded": 0.272,
+          "ClearOut": 0.256
+        },
+        "mean_showdown_lead_changes": 17.78,
+        "mean_time_to_first_spike_s": 126.2,
+        "attention_budget_shares": {
+          "active_combat_share": 0.303,
+          "walking_search_share": 0.435,
+          "rest_pk_spectate_respawn_wait_share": 0.458
+        }
+      },
+      "6_FullInfoOracle_Benchmark_8p": {
+        "player_count": 8,
+        "victory_mode": "V1_CurrentSoloFlag",
+        "matches": 250,
+        "bot_win_rates": {
+          "Aggressor": 0.087,
+          "Beginner": 0.041,
+          "BuildOptimizer": 0.128,
+          "ComboSpecialist": 0.105,
+          "Farmer": 0.046,
+          "ObjectiveHunter": 0.187,
+          "Opportunist": 0.146,
+          "OracleFullInfo": 0.2,
+          "Turtle": 0.174
+        },
+        "f1_leader_conversion_rate": 0.196,
+        "bottom_half_comeback_rate": 0.424,
+        "third_party_kill_share": 0.469,
+        "mean_field_pvp_kills": 21.51,
+        "mean_final_level": 9.17,
+        "median_final_level": 9.0,
+        "end_reason_shares": {
+          "ObjectiveTimeout": 0.552,
+          "ClearOut": 0.368,
+          "GuardSucceeded": 0.068,
+          "GuardSucceeded_PrivatePole": 0.012
+        },
+        "mean_showdown_lead_changes": 6.14,
+        "mean_time_to_first_spike_s": 194.2,
+        "attention_budget_shares": {
+          "active_combat_share": 0.251,
+          "walking_search_share": 0.403,
+          "rest_pk_spectate_respawn_wait_share": 0.476
+        }
+      }
+    }
+  }
+}
