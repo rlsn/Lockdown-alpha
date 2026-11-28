@@ -249,14 +249,24 @@ bool RunPolicy(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("Building: the unspent points are allocated before the body moves"),
         Decision.Build.Kind == ELDOpponentBuildKind::AllocatePoints && Decision.Body.Kind == ELDOpponentBodyKind::None
         && State.Phase == ELDEvaluationPhase::Building);
-    // A blueprint with Q/W/E full waits for the rest-only replacement and never holds the duel.
+    // A blueprint with Q/W/E full that ranks below every learned active is sold by the production follow-up rule (#374: a
+    // sale is open in the field). Before the first fight it settles like any build step; once engaging it never holds the duel.
     auto Full = Engage;
     Full.Self.Actives = {Active(TEXT("active_not_mad"), 0), Active(TEXT("active_snark_bolt"), 1), Active(TEXT("active_elbow"), 2)};
     Full.Self.Blueprints = {TEXT("active_seethe")};
     State = {};
     Decision = Decide(Full, Profile, State);
-    bGood &= Test.TestTrue(TEXT("A blueprint without an empty slot does not hold the duel"),
+    bGood &= Test.TestTrue(TEXT("Before the first fight the blueprint's sale settles first"),
+        Decision.Build.Kind == ELDOpponentBuildKind::SellBlueprint && State.Phase == ELDEvaluationPhase::Building);
+    auto Sold = Full;
+    Sold.Self.Blueprints.Reset();
+    Decision = Decide(Sold, Profile, State);
+    bGood &= Test.TestTrue(TEXT("Once sold the duel starts"),
         Decision.Build.Kind == ELDOpponentBuildKind::None && State.Phase == ELDEvaluationPhase::Engaging);
+    Decision = Decide(Full, Profile, State);
+    bGood &= Test.TestTrue(TEXT("A blueprint without an empty slot does not hold the duel"),
+        State.Phase == ELDEvaluationPhase::Engaging
+        && (Decision.Body.Kind == ELDOpponentBodyKind::AttackUnit || Decision.Body.Kind == ELDOpponentBodyKind::Activate));
     auto Low = Engage;
     Low.Self.HpP2 = Low.Self.MaxHpP2 / 10;
     State = {};
@@ -1103,7 +1113,118 @@ bool RunOperationGates(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("Kite reaction: a rival back outside the standoff resets it"), State.CloseSinceMs == -1);
     return bGood;
 }
+
+// B01 S3B-08: the warning reaction lets the production dodge answer a warning only once it has been in sight that long
+// (absent: the strategy never dodges); lead aim casts at where the moving rival will be.
+bool RunWarningsAndLead(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDTestApprovedFixture::Read(Test, Catalog)) { return false; }
+    const FLDDemoContentSnapshot& C = *Catalog;
+    using EBody = ELDOpponentBodyKind;
+    FLDOpponentDecisionFrame Base;
+    if (!Frame(Test, C, Base)) { return false; }
+    Base.Self.OffersConsumed = 1;
+    const double Attack = double(Base.Self.Attributes.AttackRangeCm.Numerator) / double(Base.Self.Attributes.AttackRangeCm.Denominator);
+    FLDEvaluationProfile Exact;
+    Exact.Opponent = FGuid(0xED, 0, 0, 2);
+    Exact.Site = TEXT("capture");
+    Exact.Choices = {FLDEvaluationChoice()};
+    const auto Decide = [&C](const FLDOpponentDecisionFrame& At, const FLDEvaluationProfile& Plan, FLDEvaluationProfileState& State)
+    {
+        FLDOpponentPolicyState Policy;
+        return LDEvaluationPolicy::Decide(At, C, Plan, Policy, State).Body;
+    };
+    bool bGood = true;
+
+    // ---- Warning reaction: a warning on the own foot, the rival far away, the innate dash ready ----
+    FLDOpponentSource Dash;
+    Dash.Slot = ELDOpponentSourceSlot::Dash;
+    Dash.bReady = true;
+    Dash.RangeCm = 450;
+    FLDOpponentWarning Warning;
+    Warning.Handle = FGuid(0xEE, 0, 0, 1);
+    Warning.RadiusCm = 300;
+    const auto Warned = [&](int64 NowMs, int64 RemainingMs)
+    {
+        auto Out = Base;
+        Out.Public.NowMs = NowMs;
+        Out.Self.Sources = {Dash};
+        Out.Units = {Rival(8, Exact.Opponent, 2500, 0)};
+        FLDOpponentWarning Due = Warning;
+        Due.RemainingMs = RemainingMs;
+        Out.Warnings = {Due};
+        return Out;
+    };
+    const auto Dodges = [](const FLDOpponentBodyIntent& Body) { return Body.Kind == EBody::Activate && Body.Source == ELDOpponentSourceSlot::Dash; };
+    FLDEvaluationProfileState State;
+    bGood &= Test.TestFalse(TEXT("Off: the strategy never dodges"), Dodges(Decide(Warned(20000, 100), Exact, State)));
+    FLDEvaluationProfile Quick = Exact;
+    Quick.WarningReactMs = 250;
+    State = {};
+    bGood &= Test.TestFalse(TEXT("250 ms: a warning just seen is not answered"), Dodges(Decide(Warned(20000, 400), Quick, State)));
+    bGood &= Test.TestTrue(TEXT("250 ms: in sight 250 ms it is dashed out of, every time (no chance roll)"),
+        Dodges(Decide(Warned(20250, 150), Quick, State)));
+    FLDEvaluationProfile Late = Exact;
+    Late.WarningReactMs = 450;
+    State = {};
+    Decide(Warned(20000, 400), Late, State);
+    bGood &= Test.TestFalse(TEXT("450 ms: a 400 ms warning lands before the reaction"), Dodges(Decide(Warned(20300, 100), Late, State)));
+    auto Gone = Warned(20350, 0);
+    Gone.Warnings.Reset();
+    Decide(Gone, Late, State);
+    bGood &= Test.TestTrue(TEXT("A warning gone from sight is forgotten"), State.WarningSeenAtMs.IsEmpty());
+
+    // ---- Lead aim: the rival walks +Y at 400 cm/s between two sightings ----
+    const auto Casting = [&](const TCHAR* Id, int64 NowMs, double Y)
+    {
+        auto Out = Base;
+        Out.Public.NowMs = NowMs;
+        Out.Self.Actives = {Active(Id, 0)};
+        FLDOpponentSource Source;
+        Source.Slot = ELDOpponentSourceSlot::Q;
+        Source.DefinitionId = Id;
+        Source.bReady = true;
+        const FLDDemoAbilityDefinition* Ability = nullptr;
+        FString Error;
+        if (C.FindAbility(Id, Ability, Error) && Ability)
+        {
+            Source.RangeCm = int32(Ability->Target.RangeCm.Numerator / FMath::Max<int64>(1, Ability->Target.RangeCm.Denominator));
+        }
+        Out.Self.Sources = {Source};
+        Out.Units = {Rival(8, Exact.Opponent, Attack - 10, Y)};
+        return Out;
+    };
+    FLDEvaluationProfile Leading = Exact;
+    Leading.bLeadAim = true;
+    for (const TCHAR* Id : {TEXT("active_snark_bolt"), TEXT("active_quick_meeting")})
+    {
+        FLDEvaluationProfileState Plain, Led;
+        Decide(Casting(Id, 20000, 0), Exact, Plain);
+        Decide(Casting(Id, 20000, 0), Leading, Led);
+        const FLDOpponentBodyIntent Still = Decide(Casting(Id, 20250, 100), Exact, Plain);
+        const FLDOpponentBodyIntent Ahead = Decide(Casting(Id, 20250, 100), Leading, Led);
+        const bool bPoint = Ahead.TargetMode == ELDDemoTargetMode::GroundPoint;
+        bGood &= Test.TestTrue(FString::Printf(TEXT("%s: the rival's velocity is observed from two sightings"), Id),
+            Led.RivalVelocity.Equals(FVector(0, 400, 0), 1.e-3));
+        bGood &= Test.TestTrue(FString::Printf(TEXT("%s: without lead it aims at the foot, with lead ahead of it along +Y"), Id),
+            Still.Kind == EBody::Activate && Ahead.Kind == EBody::Activate
+            && (bPoint ? Still.Point.Equals(FVector(Attack - 10, 100, 0), 1.e-3) && Ahead.Point.Y > 100. + 1.
+                : Still.Direction.Equals(FVector(Attack - 10, 100, 0).GetSafeNormal2D(), 1.e-4)
+                    && Ahead.Direction.Y > Still.Direction.Y + 1.e-3));
+        FLDEvaluationProfileState Stopped;
+        Decide(Casting(Id, 20000, 100), Leading, Stopped);
+        const FLDOpponentBodyIntent Same = Decide(Casting(Id, 20250, 100), Leading, Stopped);
+        bGood &= Test.TestTrue(FString::Printf(TEXT("%s: a still rival is aimed at exactly"), Id),
+            bPoint ? Same.Point.Equals(FVector(Attack - 10, 100, 0), 1.e-3) : Same.Direction.Equals(Still.Direction, 1.e-4));
+    }
+    return bGood;
 }
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDBuildEvaluationWarningsAndLeadTest, "Lockdown.Rules.BuildEvaluation.WarningsAndLead",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDBuildEvaluationWarningsAndLeadTest::RunTest(const FString& Parameters) { return LDBuildEvaluationTests::RunWarningsAndLead(*this); }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDBuildEvaluationOperationGatesTest, "Lockdown.Rules.BuildEvaluation.OperationGates",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

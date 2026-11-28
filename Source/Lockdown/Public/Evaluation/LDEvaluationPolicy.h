@@ -69,6 +69,12 @@ enum class ELDEvaluationStepKind : uint8
 //   line or cone turns by atan2(AimErrorCm * s, max(200, gap)), s in [-1, 1]. Unit, self and dash activations are exact.
 // - SkipBp: when a slot's gate first opens in a readiness window, a roll below SkipBp of 10000 holds it another
 //   max(ReactionMs, 500) ms, then rolls again.
+// - WarningReactMs (-1: off, the strategy never dodges): a visible enemy warning counts only once it has been in sight for
+//   WarningReactMs; the production dodge (LDOpponentPolicy::DodgeWarning, without its AI.DodgeChance roll) then dashes out
+//   of it, before the stance fights.
+// - LeadAim: a ground-point, projectile, line or cone activation aims at where the rival will be when it lands: its foot
+//   plus its observed velocity (two consecutive sightings, capped at MaxLeadSpeedCmPerSec) times the windup, a ground
+//   effect's delay and a projectile's flight, up to MaxLeadMs. Applied before AimErrorCm.
 // Rolls are CityHash64 of the Case seed's "eval.operation" stream, the own contender identity and a per-profile counter.
 enum class ELDEvaluationStance : uint8 { Pursue, Kite, Burst, Hold, Guard };
 
@@ -84,6 +90,11 @@ namespace LDEvaluationPolicy
     inline constexpr int32 MaxReactionMs = 1500;
     inline constexpr int32 MaxAimErrorCm = 400;
     inline constexpr int32 MaxSkipBp = 9000;
+    inline constexpr int32 MaxWarningReactMs = 1500;
+    // Lead aim: the fastest observed rival velocity it extrapolates, the longest lead and the oldest sighting it pairs.
+    inline constexpr double MaxLeadSpeedCmPerSec = 1000.;
+    inline constexpr int64 MaxLeadMs = 1500;
+    inline constexpr int64 MaxLeadSampleGapMs = 1000;
     // A skipped slot is held at least this long before it rolls again.
     inline constexpr int32 MinSkipHoldMs = 500;
     // The shortest lever an aim error turns a direction by.
@@ -131,6 +142,9 @@ struct FLDEvaluationProfile
     int32 ReactionMs = 0;
     int32 AimErrorCm = 0;
     int32 SkipBp = 0;
+    // -1 (no dodge) or 0..MaxWarningReactMs, and lead aim (see ELDEvaluationStance).
+    int32 WarningReactMs = -1;
+    bool bLeadAim = false;
     // The Case root seed the operation rolls derive from.
     uint64 OperationSeed = 0;
     // The designated rival: the only contender this strategy engages.
@@ -177,6 +191,14 @@ struct FLDEvaluationProfileState
     uint32 OperationLife = 0;
     // Rolls drawn so far (the roll counter).
     uint64 Rolls = 0;
+    // WarningReactMs: since when each visible enemy warning (by handle) is in sight.
+    TMap<FGuid, int64> WarningSeenAtMs;
+    // LeadAim: the rival's last sighting (handle, epoch, foot, time; -1: none) and the velocity two sightings show.
+    FGuid LeadHandle;
+    uint32 LeadEpoch = 0;
+    FVector LeadFootCm = FVector::ZeroVector;
+    int64 LeadAtMs = -1;
+    FVector RivalVelocity = FVector::ZeroVector;
     // The approach: the foot of the last progress and when it was made (-1: not approaching yet), and the side steps taken.
     FVector ApproachFoot = FVector::ZeroVector;
     int64 ApproachSinceMs = -1;
@@ -218,6 +240,11 @@ namespace LDEvaluationPolicy
     LOCKDOWN_API FLDOpponentBodyIntent Stance(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
         const FLDEvaluationProfile& Profile, FLDOpponentPolicyState& Policy, FLDEvaluationProfileState& State,
         const FLDOpponentUnit& Rival, const FLDOpponentBodyIntent& Engaged);
+    // LeadAim: Body (a ground-point or direction activation at Rival) re-aimed at Rival's foot plus State.RivalVelocity times
+    // the active's windup, ground delay and projectile flight (capped at MaxLeadMs, within the source's reach). Other
+    // activations and a still rival are unchanged.
+    LOCKDOWN_API void Lead(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
+        const FLDEvaluationProfileState& State, const FLDOpponentUnit& Rival, FLDOpponentBodyIntent& Body);
 }
 
 // Profiles the Host probe staged for the next match, keyed by contender identity (the evaluation seeds fix the AI

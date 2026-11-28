@@ -117,10 +117,4 @@ void LDBroadcastPaint::Bar(const LDUIPaint::FContext& P,int32 Layer,const FBox2D
             P.Line(Layer+3,FVector2D(X+Shift,Box.Min.Y),FVector2D(X-Shift,Box.Max.Y),LDBroadcast::Ink.CopyWithNewOpacity(.9f),2.f);
         }
     }
-    if(In.Notch>=0.f&&In.Notch<=1.f)
-    {
-        const float Height=float(Box.Max.Y-Box.Min.Y);
-        const float X=BarX(Box,In.Notch);
-        Block(P,Layer+4,FBox2D(FVector2D(X-1.f,Box.Min.Y-Height*.45f),FVector2D(X+1.f,Box.Max.Y+Height*.45f)),In.NotchInk);
-    }
 }
