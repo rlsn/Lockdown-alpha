@@ -5,6 +5,7 @@
 #include "Combat/LDCombatElements.h"
 #include "Core/LDLog.h"
 #include "Development/LDDemoContentCatalog.h"
+#include "Development/LDProgressionRules.h"
 #include "Framework/LDGameMode.h"
 
 // Auto-empower (自动强化, decision M-12) on Combat's records (docs/systems/COMBAT_AND_GROWTH.md "自动强化实验"). The pure rules
@@ -61,15 +62,20 @@ ELDCombatEntry ALDCombatDirector::EmpowerHostOf(const FLDCombatEntityRecord& Rec
         }
     }
     if (!bOpponentAI) { return ELDCombatEntry::Basic; }
+    // B01 M-12: the build's identity decides. A learned active scores its rank plus the cards on it; the basic and D score the
+    // cards on them. Medals only break ties (a body medal no longer outweighs a learned Q).
+    const FLDDemoContentSnapshot* Content=Catalog();
     TArray<LDAutoEmpower::FHostCandidate> Candidates;
-    const auto CardsOn=[&Record](ELDCardTargetKind Kind, FName Active)
+    const auto CardsOn=[&Record,Content](ELDCardTargetKind Kind, FName Active, int32 Base)
     {
-        int32 Score=0;
+        int32 Cards=Base, Medals=0;
         for (const FLDInstalledCardValue& Card : Record.Build.Cards)
         {
-            if (Card.TargetKind==Kind && (Kind!=ELDCardTargetKind::Skill || Card.Active==Active)) { Score+=FMath::Max<int32>(Card.Tier,1); }
+            if (Card.TargetKind!=Kind || (Kind==ELDCardTargetKind::Skill && Card.Active!=Active)) { continue; }
+            if (Content && LDProgression::IsMedal(Content->Get(),Card.CardId)) { Medals+=FMath::Max<int32>(Card.Tier,1); }
+            else { ++Cards; }
         }
-        return Score;
+        return LDAutoEmpower::HostScore(Cards,Medals);
     };
     for (const ELDCombatEntry Entry : {ELDCombatEntry::Q,ELDCombatEntry::W,ELDCombatEntry::E})
     {
@@ -79,11 +85,11 @@ ELDCombatEntry ALDCombatDirector::EmpowerHostOf(const FLDCombatEntityRecord& Rec
             [Entry](const FLDLearnedActiveValue& Active) { return Active.Entry==Entry; }))
         {
             Row.bHeld=true;
-            Row.Score=CardsOn(ELDCardTargetKind::Skill,Learned->AbilityId)+LDSkillBranch::RankOf(Learned->Branch)-1;
+            Row.Score=CardsOn(ELDCardTargetKind::Skill,Learned->AbilityId,LDSkillBranch::RankOf(Learned->Branch));
         }
     }
-    Candidates.Add({ELDCombatEntry::Basic,true,CardsOn(ELDCardTargetKind::Body,NAME_None)});
-    Candidates.Add({ELDCombatEntry::Dash,true,CardsOn(ELDCardTargetKind::Dash,NAME_None)});
+    Candidates.Add({ELDCombatEntry::Basic,true,CardsOn(ELDCardTargetKind::Body,NAME_None,0)});
+    Candidates.Add({ELDCombatEntry::Dash,true,CardsOn(ELDCardTargetKind::Dash,NAME_None,0)});
     return LDAutoEmpower::AutoHost(Candidates);
 }
 

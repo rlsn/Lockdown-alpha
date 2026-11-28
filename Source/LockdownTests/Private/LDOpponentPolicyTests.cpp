@@ -3394,6 +3394,66 @@ bool FLDDemoOpponentCastWarningsTest::RunTest(const FString& Parameters)
     return true;
 }
 
+// B01 M-12: with auto-empower on, a Q/W/E host is kept below the threshold and cast at it; the switch off (or another host)
+// leaves the casts as they were. A ready cast shorter than basic-attack reach is stepped into (both switch states).
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentEmpowerHostTest, "Lockdown.Rules.DemoOpponentPolicy.EmpowerHost",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentEmpowerHostTest::RunTest(const FString& Parameters)
+{
+    using namespace LDOpponentPolicyTests;
+    using EBody = ELDOpponentBodyKind;
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(*this, Catalog)) { return false; }
+    FLDOpponentDecisionFrame Base;
+    if (!BaseFrame(*this, *Catalog, Base)) { return false; }
+    FLDOpponentSource Elbow;
+    Elbow.Slot = ELDOpponentSourceSlot::Q;
+    Elbow.DefinitionId = TEXT("active_elbow");
+    Elbow.bReady = true;
+    Elbow.RangeCm = 220;
+    Base.Self.Actives = {Active(TEXT("active_elbow"), 0)};
+    Base.Self.Sources = {Elbow};
+    const double Attack = double(Base.Self.Attributes.AttackRangeCm.Numerator) / double(Base.Self.Attributes.AttackRangeCm.Denominator);
+    const auto Engage = [&](int64 ThresholdP2, ELDCombatEntry Host, int64 MomentumP2, double Gap)
+    {
+        auto Frame = Base;
+        Frame.Self.EmpowerThresholdP2 = ThresholdP2;
+        Frame.Self.EmpowerHost = Host;
+        Frame.Self.MomentumP2 = MomentumP2;
+        Frame.Units = {Unit(2, ELDOpponentUnitKind::Contender, Gap, 0)};
+        FLDOpponentPolicyState State;
+        return LDOpponentPolicy::EngageUnit(Frame, *Catalog, State, Frame.Units[0]);
+    };
+    const auto CastsQ = [](const FLDOpponentBodyIntent& Body) { return Body.Kind == EBody::Activate && Body.Source == ELDOpponentSourceSlot::Q; };
+    bool bGood = TestTrue(TEXT("Off: a ready Q in reach is cast at any bar"), CastsQ(Engage(0, ELDCombatEntry::None, 3000, 150)));
+    bGood &= TestFalse(TEXT("On, Q hosts: below the threshold the Q is kept"), CastsQ(Engage(6000, ELDCombatEntry::Q, 3000, 150)));
+    bGood &= TestTrue(TEXT("On, Q hosts: at the threshold the Q is cast (empowered)"), CastsQ(Engage(6000, ELDCombatEntry::Q, 6000, 150)));
+    bGood &= TestTrue(TEXT("On, the basic hosts: the Q is cast at any bar"), CastsQ(Engage(6000, ELDCombatEntry::Basic, 3000, 150)));
+    {
+        // A lull settles the bar below the threshold: the kept host goes unempowered after EmpowerHoldMaxMs.
+        auto Lull = Base;
+        Lull.Self.EmpowerThresholdP2 = 6000;
+        Lull.Self.EmpowerHost = ELDCombatEntry::Q;
+        Lull.Self.MomentumP2 = 5000;
+        Lull.Units = {Unit(2, ELDOpponentUnitKind::Contender, 150, 0)};
+        FLDOpponentPolicyState Kept;
+        bGood &= TestFalse(TEXT("A ready host is kept at first"), CastsQ(LDOpponentPolicy::EngageUnit(Lull, *Catalog, Kept, Lull.Units[0])));
+        Lull.Public.NowMs += LDOpponentPolicy::EmpowerHoldMaxMs;
+        bGood &= TestTrue(TEXT("and cast once the hold has lasted EmpowerHoldMaxMs"),
+            CastsQ(LDOpponentPolicy::EngageUnit(Lull, *Catalog, Kept, Lull.Units[0])));
+    }
+    // Fighting at basic reach just beyond the elbow's 220 cm.
+    const double Gap = FMath::Min(Attack + 20., 220. + LDOpponentPolicy::CloseInSlackCm);
+    if (!TestTrue(TEXT("The level-1 basic reach stands beyond the elbow"), Gap > 220.)) { return false; }
+    const FLDOpponentBodyIntent Step = Engage(0, ELDCombatEntry::None, 3000, Gap);
+    bGood &= TestTrue(TEXT("A ready cast just out of reach is stepped into on the ground, to inside its reach"),
+        Step.Kind == EBody::MoveGround && Step.Surface == TEXT("ground")
+        && FMath::IsNearlyEqual(FVector::Dist2D(Step.Point, FVector(Gap, 0, 0)), 220. - LDOpponentPolicy::CloseInMarginCm, 1.));
+    bGood &= TestTrue(TEXT("A kept host is not stepped in for"), Engage(6000, ELDCombatEntry::Q, 3000, Gap).Kind != EBody::MoveGround);
+    return bGood;
+}
+
 // B01 X1: a dodge leaves the warning's outline by a way no visible body stands on; the plain way out (outward from a disc)
 // can run into the rival who cast it at the edge, where the dash stops still inside.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentDodgeWayTest, "Lockdown.Rules.DemoOpponentPolicy.DodgeWay",

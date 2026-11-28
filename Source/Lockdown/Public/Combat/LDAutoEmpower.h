@@ -52,14 +52,16 @@ namespace LDAutoEmpower
     LOCKDOWN_API ELDEmpowerProcessor ProcessorOf(ELDCombatEntry Entry, const FLDDemoTargetDefinition* Target,
         const FLDDemoAbilityValues* Values);
 
-    // One automatic host candidate (an AI contender's): its entry, whether it holds an action, and its investment (cards on it,
-    // ranks past the first, medal tier).
+    // One automatic host candidate (an AI contender's): its entry, whether it holds an action, and its HostScore.
     struct FHostCandidate
     {
         ELDCombatEntry Entry=ELDCombatEntry::None;
         bool bHeld=false;
         int32 Score=0;
     };
+    // A host's investment: Invested (a learned active's rank plus its cards; the cards on the basic or D) decides, the medal
+    // tiers on it only break a tie.
+    LOCKDOWN_API int32 HostScore(int32 Invested, int32 MedalTiers);
     // The held candidate with the highest score; ties go to the earlier of Q, W, E, the basic, D (the basic without any).
     LOCKDOWN_API ELDCombatEntry AutoHost(const TArray<FHostCandidate>& Candidates);
 
