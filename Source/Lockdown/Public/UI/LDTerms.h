@@ -15,7 +15,6 @@ inline constexpr TCHAR Title[]=TEXT("谁是雾港最强淫人王");
 // 资源与属性
 inline constexpr TCHAR Health[]=TEXT("生命");
 inline constexpr TCHAR Momentum[]=TEXT("劲");
-inline constexpr TCHAR Overdrive[]=TEXT("爆劲");
 inline constexpr TCHAR Combo[]=TEXT("连击");
 inline constexpr TCHAR SkillPoint[]=TEXT("技能点");
 inline constexpr TCHAR PerfectDodge[]=TEXT("完美闪避");
@@ -264,7 +263,7 @@ inline const TCHAR* HowToBody(int32 Index)
 {
     static const TCHAR* const Bodies[HowToCards]={
         TEXT("右键地面移动，按住就跟着鼠标走；右键敌人或野怪就一直普攻。"),
-        TEXT("技能键加左键确认。打人、连击、躲招都回劲；劲够多时长按技能键是更强的爆劲。"),
+        TEXT("技能键加左键确认。打人、连击、躲招都回劲。"),
         TEXT("加属性点，选一张牌，技能格发光时点它升技能。"),
         TEXT("每段野外之后回休息室：逛商店、装牌、打假人试招；站进报名圈参加 PK。"),
         TEXT("目标身上挂着一种元素时，再打上另一种就会反应。"),

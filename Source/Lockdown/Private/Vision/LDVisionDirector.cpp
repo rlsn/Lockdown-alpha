@@ -139,7 +139,7 @@ bool SameObservedPresentation(const FLDObservedUnitView& A, const FLDObservedUni
         && A.RecentHitId == B.RecentHitId
         && A.ContenderId == B.ContenderId && A.CreatureId == B.CreatureId && A.Level == B.Level
         && A.Health.CurrentP2 == B.Health.CurrentP2 && A.Health.MaxP2 == B.Health.MaxP2 && A.ShieldBar == B.ShieldBar
-        && A.MomentumBar == B.MomentumBar && A.bCharging == B.bCharging && A.bOverdriveCast == B.bOverdriveCast
+        && A.MomentumBar == B.MomentumBar
         && A.ActionComboStep == B.ActionComboStep
         && A.Actives.Abilities[0] == B.Actives.Abilities[0] && A.Actives.Abilities[1] == B.Actives.Abilities[1]
         && A.Actives.Abilities[2] == B.Actives.Abilities[2]
@@ -1581,9 +1581,6 @@ bool ALDVisionDirector::GatherTargets(TArray<FLDObservedTarget>& Out, FString& E
             Unit.ContenderId = Ref.Victim.EntityId;
             Unit.Level = Facts.Level;
             Unit.MomentumBar = Facts.MomentumBar;
-            Unit.bCharging = Facts.bCharging;
-            Unit.ChargeAgeMs = Facts.bCharging ? uint16(FMath::Clamp<int64>(NowMs - Facts.ChargeAtMs, 0, MAX_uint16)) : 0;
-            Unit.bOverdriveCast = Facts.bOverdriveCast;
             Unit.Actives = Facts.Actives;
         }
         else

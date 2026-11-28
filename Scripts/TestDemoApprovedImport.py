@@ -357,9 +357,6 @@ class ApprovedDemoData(unittest.TestCase):
             ("MOMENTUM.DashDodgeCutRatio", "ratio", ".5"), ("MOMENTUM.DashDodgeCooldownRefundRatio", "ratio", ".3"),
             ("MOMENTUM.IdleDelaySec", "ms", "5"),
             ("MOMENTUM.IdleReturnPerSec", "momentum/s", "10"), ("COMBO.ResetSec", "ms", "2.5"),
-            ("OVERDRIVE.Threshold", "momentum", "60"), ("OVERDRIVE.HoldSec", "ms", ".35"), ("OVERDRIVE.Scale", "ratio", "1.35"),
-            ("OVERDRIVE.WaterSlow", "ratio", ".45"), ("OVERDRIVE.WaterSlowSec", "ms", "1.5"),
-            ("OVERDRIVE.ShockReactionRatio", "ratio", ".5"), ("OVERDRIVE.RotDurationScale", "ratio", "2"),
             ("AI.DodgeChance", "ratio", ".5"), ("AI.EnemyGroundPathCost", "ratio", "3"), ("AI.BreakoutChance", "ratio", "1"),
             ("AI.CardSkipChance", "ratio", ".3"),
             ("CHAIN.EndSec", "ms", "3"), ("CARDS.IdleCarrySec", "ms", "5"),
@@ -507,7 +504,6 @@ class ApprovedDemoData(unittest.TestCase):
             ("GROUND.FieldSec", "ms", "4"),
             ("GROUND.FieldTickSec", "ms", ".5"),
             ("GROUND.FieldRatio", "ratio", ".3"),
-            ("OVERDRIVE.ChillRootSec", "ms", ".6"),
             ("CARDS.VocabWeight", "ratio", "1.2"),
             ("SHOP.VocabWeight", "ratio", "1.8"),
         ):
@@ -536,7 +532,6 @@ class ApprovedDemoData(unittest.TestCase):
             ("CHAIN.MaxDepth", 16), ("CHAIN.MaxEffectsPerStep", 256), ("AI.CardVocabScore", 2), ("AI.LeaderHuntMaxLevelGap", 2), ("AI.BreakoutCardScore", 5),
             # Spec §3.13, §6.5 and §13 (P5): offer skips, the rest shop (in stat points), chain ends and the AI's skip.
             ("CARDS.SkipPoints", 1), ("CARDS.OfferEveryLevels", 3), ("SHOP.CardSlots", 4), ("SHOP.VocabCardSlots", 2), ("SHOP.SkillSlots", 2), ("SHOP.CardPrice", 2), ("SHOP.SkillPrice", 2), ("SHOP.RefreshPrice", 0), ("SHOP.RefreshStep", 1), ("SHOP.SkillPointPrice", 3), ("SHOP.SkillPointMaxPerMatch", 2), ("SHOP.MedalPrice", 4), ("SHOP.MedalMaxPerMatch", 1), ("CHAIN.MinKeySteps", 3),
-            ("OVERDRIVE.FireBurnStacks", 3),
         ):
             expected[key] = (None, value)
         expected["SKILL.PointLevels"] = (None, (3, 6, 9, 12, 15))

@@ -390,14 +390,12 @@
 | 营地回位 CampReturning | LOCALLY VERIFIED | `NS_LDReturnState`（由提示位 Returning 驱动）：身上升起并散开的淡色雾丝、脚下一条缓慢转动的淡色细带；刻意不亮，回位中的野怪不是威胁。旧的背后牌子已删除 | 雾丝在亮地面上很淡，只在验证舞台的球员身体上看过 |
 | 野怪激怒 CampEnraged、守卫 CampGuarding | LOCALLY VERIFIED | 激怒沿用嘲讽的头顶红色火舌（`NS_LDTauntState`），守卫沿用架势的铜带（`NS_LDBracedState`）；在院长外观的身体上看过激怒 |  |
 
-### 7.7 冲刺、闪避与爆劲
+### 7.7 冲刺与闪避
 
 | 项 | 事件 | 状态 | 实现 | 已知问题 |
 | --- | --- | --- | --- | --- |
 | 冲刺拖尾与起步 | 身体速度超过 950 cm/s | IMPLEMENTED | `NS_LDDashWake`：身后贴地扬起的尘、胸口高度两三道气流细痕；起步处素材包尘环 `DustRing` 0.35 倍；残影保留（`ULDImpactFxSubsystem::Ghost`） | 验证舞台没有冲刺场景，待真实对战确认 |
 | 完美闪避 | PerfectDodge 命中标志 | LOCALLY VERIFIED | 身体留下一道淡金残影，轮廓闪一下金色边缘光；不画命中，也不再画金色光环 |  |
-| 爆劲蓄力 | `bCharging` | LOCALLY VERIFIED | `NS_LDOverdriveCharge`：地面品红光环一圈圈向身体收拢、被吸向胸口的光点、脚下品红色光，强度随蓄力进度；蓄满时身体轮廓闪一下品红边缘光 | 光点偏小 |
-| 爆劲就绪、释放、命中 | 蓄满、`bOverdriveCast`、Overdriven 标志 | LOCALLY VERIFIED | 释放与带爆劲的命中：`NS_LDOverdriveBurst`（品红闪光 + 向外甩出并落地的硬质光丝）；就绪见上一行 | 舞台上看的是带爆劲的命中，释放用同一套爆发 |
 
 ### 7.8 预警与危险区域
 

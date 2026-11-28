@@ -102,7 +102,7 @@ namespace LDSliceVfx
         MeltReact, MethaneReact, FermentReact, ShatterReact, CorrodeReact, FrostbiteReact,
         FlightChalk, FlightSock, FlightFist, WindZone, AreaPlain, ShardBurst, DecoyPop,
         RootState, ProtectedState, SlowState, AttackSlowState, StunState, DisarmState, SilenceState, TauntState, ExposedState,
-        DashWake, OverdriveCharge, OverdriveBurst, LevelUp,
+        DashWake, LevelUp,
         OwnMark, RingBand, RingDanger, RingNext, CritBurst, ReturnState, Count
     };
     LOCKDOWN_API const TCHAR* SystemName(ESystem System);
@@ -190,7 +190,7 @@ namespace LDSliceVfx
     // Which visible strike a hit belongs to (ULDImpactFxSubsystem::NoteStrike / MatchHit); its tier picks the silhouette:
     // basic < finisher (the 3rd basic) < skill < reaction.
     enum class EStrike : uint8 { None, Basic, Finisher, Skill, Hose, Zap };
-    // The hits the slice shows (Impact): a plain, water, electric or fire hit without a critical, shield, overdrive, dodge or
+    // The hits the slice shows (Impact): a plain, water, electric or fire hit without a critical, shield, dodge or
     // parry outcome. A magic hit is its skill's own hit or the heavier Niagara hit; a flag adds its own mark over the hit.
     LOCKDOWN_API bool ShowsHit(ELDObservedHitLook Look, uint8 HitFlags);
     // bOwn: the strike is the local player's (white with the ball orange; others' strikes are white only). bFocus: the
@@ -267,7 +267,7 @@ namespace LDHitVfx
         FLinearColor Glow = FLinearColor::Black, Ink = FLinearColor::Black;
         bool bOptional = false;      // dropped with reduced effects: a repeat or a halo, never the tier's or look's shape
     };
-    // The heaviest mix (shield absorbed, critical, overdrive, electric) needs seven.
+    // The heaviest mix (shield absorbed, critical, electric) needs seven.
     constexpr int32 MaxLayers = 8;
     struct FRecipe
     {
@@ -313,7 +313,7 @@ namespace LDHitVfx
     // Particle kit (Niagara NS_LDBurst, its user parameters): one burst of velocity-stretched sparks with a settable
     // gravity and drag (rising embers, falling droplets, hanging motes, fast arcs), soft smoke, a core flash and mesh
     // shards. Every skill release, element hit, landing, muzzle, dash and fall picks a preset tinted by its source.
-    enum class EBurst : uint8 { Strike, Muzzle, Flame, Splash, Zap, Frost, Rot, Gust, Arcane, Dash, Aura, Slam, Overdrive, Count };
+    enum class EBurst : uint8 { Strike, Muzzle, Flame, Splash, Zap, Frost, Rot, Gust, Arcane, Dash, Aura, Slam, Count };
     struct FBurst
     {
         int32 Sparks = 0, Smoke = 0, Shards = 0;
@@ -389,7 +389,4 @@ namespace LDHitVfx
     // pattern and the owner outline stay (never colour alone).
     LOCKDOWN_API FZone GroundZoneOf(uint8 Kind, float RadiusCm, float EffectScale);
     LOCKDOWN_API bool GroundAppearBurstOf(uint8 Kind, EBurst& Out, FLinearColor& Tint);
-
-    // Overdrive (#305): one colour for its charge, release and hits.
-    LOCKDOWN_API FLinearColor OverdriveTint();
 }

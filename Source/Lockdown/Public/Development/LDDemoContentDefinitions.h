@@ -284,25 +284,6 @@ struct FLDDemoComboParameters
     UPROPERTY() int64 ResetMs = 0;
 };
 
-// Overdrive (爆劲, OVERDRIVE.*): a full-bar release held HoldMs; ScaleBp multiplies its base amounts and ratios, and
-// the release's element adds its bonus.
-USTRUCT()
-struct FLDDemoOverdriveParameters
-{
-    GENERATED_BODY()
-
-    UPROPERTY() int64 ThresholdP2 = 0;
-    UPROPERTY() int64 HoldMs = 0;
-    UPROPERTY() int64 ScaleBp = 0;
-    UPROPERTY() int64 FireBurnStacks = 0;
-    UPROPERTY() int64 WaterSlowBp = 0;
-    UPROPERTY() int64 WaterSlowMs = 0;
-    UPROPERTY() int64 ShockReactionBp = 0;
-    UPROPERTY() int64 RotDurationBp = 0;
-    // Chill: the overdrive roots its targets (hard control, diminishing returns).
-    UPROPERTY() int64 ChillRootMs = 0;
-};
-
 // Issue #287 spec §3.10 and §8.1-§8.2 element and reaction terms beyond the #198 water/fire ones (COMBAT.*): shock (every
 // ShockEveryNthHit-th direct hit on the holder strikes ShockRatio x R on it and on the applier's other enemies within
 // ShockSplashRadiusCm), chill (attack and move slow), rot (heal and shield cut, damage every RotTickMs), the short shove of a
@@ -424,7 +405,6 @@ struct FLDDemoContentParameters
     UPROPERTY() FLDDemoSkillRankParameters SkillRanks;
     UPROPERTY() FLDDemoMomentumParameters Momentum;
     UPROPERTY() FLDDemoComboParameters Combo;
-    UPROPERTY() FLDDemoOverdriveParameters Overdrive;
     UPROPERTY() int64 CooldownHasteMaxP2 = 0;
     UPROPERTY() FLDDemoRationalBounds MoveSpeedCmPerSec;
     UPROPERTY() FLDDemoRational CollisionRadiusCm;
@@ -786,7 +766,7 @@ enum class ELDDemoEffectTrigger : uint8 { None, BasicHit, AbilityHit, Damaged, D
 UENUM()
 enum class ELDDemoElement : uint8 { None = 0, Fire = 1, Water = 2, Electric = 3, Chill = 4, Rot = 5 };
 
-// The element an active carries (its own or a branch's): it picks the overdrive bonus (CONTENT_AND_BALANCE §3.5).
+// The element an active carries (its own or a branch's).
 UENUM()
 enum class ELDDemoSkillElement : uint8 { None = 0, Fire = 1, Water = 2, Shock = 3, Chill = 4, Rot = 5 };
 

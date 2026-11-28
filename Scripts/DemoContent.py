@@ -1538,12 +1538,11 @@ def _validate_pacing(data, timed_field):
 
 
 def _validate_momentum(data):
-    """Momentum, combo, overdrive and skill ranks (CONTENT_AND_BALANCE §3.3-§3.6)."""
+    """Momentum, combo and skill ranks (CONTENT_AND_BALANCE §3.3-§3.6)."""
     params = data["parameters"]
     p = lambda key: quantity(params[key])
     top = p("MOMENTUM.Max")
-    require(0 < p("MOMENTUM.Start") <= top and 0 < p("OVERDRIVE.Threshold") <= top, "NumericDomain", "MOMENTUM",
-            "the start and the overdrive threshold must lie in (0, max]")
+    require(0 < p("MOMENTUM.Start") <= top, "NumericDomain", "MOMENTUM", "the start must lie in (0, max]")
     for key in ("MOMENTUM.CombatPerSec", "MOMENTUM.IdleReturnPerSec", "MOMENTUM.BasicPerRefInterval", "MOMENTUM.SkillHit",
                 "MOMENTUM.Reaction", "MOMENTUM.PerfectDodge", "AIRDROP.Momentum"):
         require(0 < p(key) <= top, "NumericDomain", key, "a momentum income must be positive and fit the bar")
@@ -1551,9 +1550,6 @@ def _validate_momentum(data):
             "the reference interval must be positive")
     ratios = [quantity(value) for value in params["COMBO.StepRatios"]]
     require(all(ratio > 0 for ratio in ratios), "NumericDomain", "COMBO.StepRatios", "every combo step deals damage")
-    require(p("OVERDRIVE.Scale") >= 1 and p("OVERDRIVE.RotDurationScale") >= 1, "NumericDomain", "OVERDRIVE",
-            "overdrive never weakens a release")
-    require(0 < p("OVERDRIVE.WaterSlow") < 1, "NumericDomain", "OVERDRIVE.WaterSlow", "a slow must keep some move speed")
     base_scales = [quantity(value) for value in params["SKILL.RankBaseScale"]]
     ratio_scales = [quantity(value) for value in params["SKILL.RankRatioScale"]]
     require(base_scales[0] == 1 and ratio_scales[0] == 1 and base_scales == sorted(base_scales)
@@ -1575,11 +1571,11 @@ def _validate_build_envelope(data):
     max_ap = params["STAT.AP.Max"]["p2"]
     max_hp = params["STAT.MaxHP.Max"]["p2"]
     max_resist = checked_add(params["STAT.Armor.Max"]["p2"], params["STAT.MagicResist.Max"]["p2"], "STAT.Armor.Max")
-    # G(L) = 1 + SKILL.GrowthPerLevel x (L - 1); the top rank and overdrive scale the grown base amounts again.
+    # G(L) = 1 + SKILL.GrowthPerLevel x (L - 1); the top rank scales the grown base amounts again.
     top_level = data["progression"]["max_level"]
     factor = checked_add(10000, checked_mul(top_level - 1, params["SKILL.GrowthPerLevel"]["bp"], "SKILL.GrowthPerLevel"),
                          "SKILL.GrowthPerLevel")
-    rank_factor = checked_mul(params["SKILL.RankBaseScale"][-1]["bp"], params["OVERDRIVE.Scale"]["bp"], "SKILL.RankBaseScale")
+    rank_factor = checked_mul(params["SKILL.RankBaseScale"][-1]["bp"], 10000, "SKILL.RankBaseScale")
     grow = lambda amount, path: checked_mul(checked_mul(amount, factor, path) // 10000, rank_factor, path) // 100000000
     checked_add(grow(params["COMBAT.BurnPerSec"]["p2"], "COMBAT.BurnPerSec"),
                 checked_mul(max_ap, params["COMBAT.BurnAPRatioPerSec"]["bp"], "COMBAT.BurnAPRatioPerSec") // 10000, "COMBAT.BurnPerSec")

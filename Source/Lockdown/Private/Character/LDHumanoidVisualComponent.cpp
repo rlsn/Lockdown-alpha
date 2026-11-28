@@ -195,11 +195,8 @@ void ULDHumanoidVisualComponent::ClearImpacts()
     UWorld* World = GetWorld();
     if (auto* Impacts = World ? World->GetSubsystem<ULDImpactFxSubsystem>() : nullptr) { Impacts->ClearFor(*this); }
     if (IsValid(DashTrail)) { DashTrail->DeactivateImmediate(); }
-    if (IsValid(ChargeColumn)) { ChargeColumn->DeactivateImmediate(); }
     bTelegraphShown = false;
     bDashing = false;
-    bChargeShown = false;
-    bChargeReady = false;
 }
 
 bool ULDHumanoidVisualComponent::CanShowImpact() const
@@ -224,7 +221,7 @@ void ULDHumanoidVisualComponent::UpdateSlice(float EffectScale)
     UWorld* World = GetWorld();
     ULDImpactFxSubsystem* Impacts = World ? World->GetSubsystem<ULDImpactFxSubsystem>() : nullptr;
     const bool bAttack = Action == LDBodyMotion::EAction::Attack;
-    const bool bSkill = Action == LDBodyMotion::EAction::Cast && !bOverdriveCast && LDHumanoidVisualSlice::IsSliceCast(CastAbility);
+    const bool bSkill = Action == LDBodyMotion::EAction::Cast && LDHumanoidVisualSlice::IsSliceCast(CastAbility);
     if (!Impacts || !Art || !FApp::CanEverRender() || !CanShowImpact() || EffectScale <= 0.f || (!bAttack && !bSkill))
     {
         // A withdrawn, cancelled or ended windup takes its telegraph with it.
@@ -475,23 +472,14 @@ void ULDHumanoidVisualComponent::UpdateRelease(float EffectScale)
     const LDHitVfx::FSkillLook* Skill = LDHitVfx::SkillLookOf(CastAbility);
     UWorld* World = GetWorld();
     ULDImpactFxSubsystem* Impacts = World ? World->GetSubsystem<ULDImpactFxSubsystem>() : nullptr;
-    if (!Impacts || !CanShowImpact()) { return; }
-    if (bOverdriveCast)
-    {
-        // An overdrive release: the shockwave and its burst over the skill's own release.
-        const FTransform& Space = Pivot->GetComponentTransform();
-        const FVector Chest = Space.TransformPosition(FVector(0, 0, .5f * HeightCm - HalfHeight));
-        Impacts->Play(LDSliceVfx::ESystem::OverdriveBurst, *this, Impacts->FloorUnder(Chest), Chest, FLinearColor::White, 60.f, .6f,
-            Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, bOwnBody, bOwnBody), 0.f);
-    }
-    if (!Skill) { return; }
+    if (!Impacts || !CanShowImpact() || !Skill) { return; }
     const bool bBody = Skill->Release == LDHitVfx::EBurst::Aura || Skill->Release == LDHitVfx::EBurst::Dash;
     const FVector At = bBody ? Pivot->GetComponentTransform().TransformPosition(FVector(0, 0, .45f * HeightCm - HalfHeight))
         : Mesh->GetSocketLocation(Art->HandBone);
     const FVector Facing = GetOwner() ? GetOwner()->GetActorForwardVector() : FVector::ForwardVector;
     const float Late = FMath::Max(ShownAge() - ActionImpactSeconds, 0.f);
     const LDSliceVfx::FLook Look = Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, bOwnBody, bOwnBody);
-    if (CastAbility == uint8(ELDDemoAbilityId::ActiveHoseDown) && !bOverdriveCast)
+    if (CastAbility == uint8(ELDDemoAbilityId::ActiveHoseDown))
     {
         // Release: the stream over the approved band from the hand along the cast direction; its hits splash.
         float Range = 0.f, HalfWidth = 0.f;
@@ -504,7 +492,7 @@ void ULDHumanoidVisualComponent::UpdateRelease(float EffectScale)
         }
         Impacts->NoteStrike(*this, LDSliceVfx::EStrike::Hose, At, Facing, bOwnBody, CastAbility);
     }
-    else if (CastAbility == uint8(ELDDemoAbilityId::ActiveColaShake) && !bOverdriveCast)
+    else if (CastAbility == uint8(ELDDemoAbilityId::ActiveColaShake))
     {
         // Release: the icy fizz blast over the approved cone and its frosted floor.
         float Range = 0.f, HalfWidth = 0.f;
@@ -518,7 +506,7 @@ void ULDHumanoidVisualComponent::UpdateRelease(float EffectScale)
         }
         Impacts->NoteStrike(*this, LDSliceVfx::EStrike::Skill, At, Facing, bOwnBody, CastAbility);
     }
-    else if (CastAbility == uint8(ELDDemoAbilityId::ActiveSeethe) && !bOverdriveCast)
+    else if (CastAbility == uint8(ELDDemoAbilityId::ActiveSeethe))
     {
         // Release: the flame wall out to the approved radius and the scorched floor; its hits burn.
         const float Radius = Impacts->SkillEffectRadius(CastAbility, uint16(ELDDemoEffectOp::SelfArea));
@@ -530,7 +518,7 @@ void ULDHumanoidVisualComponent::UpdateRelease(float EffectScale)
         }
         Impacts->NoteStrike(*this, LDSliceVfx::EStrike::Skill, At, Facing, bOwnBody, CastAbility);
     }
-    else if (CastAbility == uint8(ELDDemoAbilityId::ActiveZap) && !bOverdriveCast)
+    else if (CastAbility == uint8(ELDDemoAbilityId::ActiveZap))
     {
         // Release: the spark at the hand; each hit of the chain draws its arc from here or the previous body struck.
         Impacts->Slice(this, LDSliceVfx::ZapRelease(At, Look), Late);
@@ -600,7 +588,7 @@ void ULDHumanoidVisualComponent::UpdateSound()
         ReleaseSoundOnset = ActionOnset;
         if (ChargeSound.IsValid()) { LDAudioFeel::CutCharge(ChargeSound.Get()); }
         ChargeSound = nullptr;
-        if (bAudible && Age - ActionImpactSeconds < .2f) { LDAudioFeel::Release(*this, bOwnBody, CastAbility, bOverdriveCast, At); }
+        if (bAudible && Age - ActionImpactSeconds < .2f) { LDAudioFeel::Release(*this, bOwnBody, CastAbility, At); }
     }
 }
 
@@ -636,50 +624,6 @@ void ULDHumanoidVisualComponent::UpdateDash(const FVector& Velocity, bool bFalli
         bDashing = true;
         // The launch kicks a low ring of dust off the floor where the body stood.
         Impacts->PlayPack(LDSliceVfx::EPack::DustRing, Floor - FVector(0, 0, 6.f), .35f);
-    }
-}
-
-void ULDHumanoidVisualComponent::UpdateOverdrive(float EffectScale)
-{
-    UWorld* World = GetWorld();
-    ULDImpactFxSubsystem* Impacts = World ? World->GetSubsystem<ULDImpactFxSubsystem>() : nullptr;
-    if (!Impacts || !Art || !FApp::CanEverRender()) { return; }
-    const bool bShow = bCharging && CanShowImpact() && EffectScale > 0.f;
-    const FTransform& Space = Pivot->GetComponentTransform();
-    const FVector Feet = Space.TransformPosition(FVector(0, 0, -HalfHeight + 4.f));
-    const float Hold = Impacts->OverdriveHoldSeconds();
-    if (bShow)
-    {
-        if (!bChargeShown)
-        {
-            bChargeShown = true;
-            bChargeReady = false;
-            // Start from the charge's real age: a body seen mid-hold shows the charge where it is.
-            ChargeOnset = Clock - (FMath::IsFinite(ChargeAge) ? FMath::Max(ChargeAge, 0.f) : 0.f);
-        }
-        const float Progress = ChargeProgress >= 0.f ? ChargeProgress : Hold > 0.f ? float(Clock - ChargeOnset) / Hold : 1.f;
-        // The charge gathers on the floor and up the body, stronger as it fills; full, the body's rim flares once.
-        const FVector Head = Space.TransformPosition(FVector(0, 0, HeightCm - HalfHeight));
-        ChargeColumn = Impacts->ShowLoop(*Pivot, ChargeColumn, LDSliceVfx::ESystem::OverdriveCharge, Feet, Head, FLinearColor::White, .17f * HeightCm,
-            2.2f * (.35f + .65f * FMath::Clamp(Progress, 0.f, 1.f)) * (bOwnBody ? 1.f : .8f) * FMath::Clamp(EffectScale, .45f, 1.f), 1.e4f, bOwnBody);
-        if (!bChargeReady && Progress >= 1.f)
-        {
-            bChargeReady = true;
-            LDHitVfx::FGhosts Flare;
-            Flare.bShow = true;
-            Flare.bShell = true;
-            Flare.Seconds = .4f;
-            Flare.Glow = LDHitVfx::OverdriveTint() * 1.3f * FMath::Clamp(EffectScale, .45f, 1.f);
-            Impacts->Ghost(*Mesh, Flare, *this);
-        }
-        return;
-    }
-    if (bChargeShown)
-    {
-        // The charge ended (released, let go or cancelled); the release itself is the cast's (UpdateRelease).
-        bChargeShown = false;
-        if (IsValid(ChargeColumn)) { ChargeColumn->DestroyComponent(); }
-        ChargeColumn = nullptr;
     }
 }
 
@@ -1342,7 +1286,6 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
     UpdateStates(bFalling, EffectScale);
     UpdateRelease(EffectScale);
     UpdateDash(Velocity, bFalling, EffectScale);
-    UpdateOverdrive(EffectScale);
     UpdateSound();
 
     // The release spark follows the striking or casting hand.
@@ -1365,8 +1308,8 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
             for (const FPendingImpact& Impact : PendingImpacts)
             {
                 const float Age = float(Clock - Impact.Onset);
-                // Every hit flag has its own mark below (a crit's chips, a shield's flare or shards, an overdrive's burst, a
-                // parry's or a dodge's rim), so the hit itself is drawn as the plain hit of its look; a dodge draws none.
+                // Every hit flag has its own mark below (a crit's chips, a shield's flare or shards, a parry's or a dodge's
+                // rim), so the hit itself is drawn as the plain hit of its look; a dodge draws none.
                 const bool bDodged = (Impact.Flags & LDObservation::Dodged) != 0;
                 bool bSlice = !bDodged && LDSliceVfx::ShowsHit(Impact.Look, 0);
                 bool bFinisherHit = false;
@@ -1408,11 +1351,6 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
                 if (bImpactOn && Age < .3f && (Impact.Flags & LDObservation::Critical))
                 {
                     Impacts->Play(LDSliceVfx::ESystem::CritBurst, *this, Impacts->FloorUnder(At), At, FLinearColor::White, 60.f, .6f,
-                        Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, false, bOwnBody), Age);
-                }
-                if (bImpactOn && Age < .3f && (Impact.Flags & LDObservation::Overdriven))
-                {
-                    Impacts->Play(LDSliceVfx::ESystem::OverdriveBurst, *this, Impacts->FloorUnder(At), At, FLinearColor::White, 60.f, .6f,
                         Impacts->SliceLook(ULDImpactFxSubsystem::ESliceTuning::Impact, false, bOwnBody), Age);
                 }
                 // The struck body's impact sound at the hit's own time; the own body's hurt sounds from the owner tracker.

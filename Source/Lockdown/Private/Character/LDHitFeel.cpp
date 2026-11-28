@@ -165,8 +165,7 @@ bool LDHitFeel::TakeFreshReceipt(int64& SeenAtMs, int64 ReceiptAtMs, int64 NowMs
 LDHitFeel::ETier LDHitFeel::TierOf(uint8 HitFlags)
 {
     if (HitFlags & LDCombatCues::DealtLethal) { return ETier::Kill; }
-    // #305: an overdrive blow lands with a critical hit's weight.
-    if (HitFlags & (LDObservation::Critical | LDCombatCues::DealtOverdrive)) { return ETier::Critical; }
+    if (HitFlags & LDObservation::Critical) { return ETier::Critical; }
     if (HitFlags & LDObservation::ShieldBroken) { return ETier::ShieldBreak; }
     return ETier::Normal;
 }
@@ -206,7 +205,7 @@ FString LDHitFeel::Word(uint8 HitFlags)
     switch (TierOf(HitFlags))
     {
     case ETier::Kill: return TEXT("终结！");
-    case ETier::Critical: return (HitFlags & LDCombatCues::DealtOverdrive) ? TEXT("爆劲！") : TEXT("暴击！");
+    case ETier::Critical: return TEXT("暴击！");
     case ETier::ShieldBreak: return TEXT("破盾！");
     default: return (HitFlags & LDObservation::ShieldAbsorbed) ? TEXT("铛！") : TEXT("啪！");
     }

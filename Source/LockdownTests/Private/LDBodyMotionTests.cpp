@@ -195,22 +195,15 @@ bool FLDBodyMotionTimelinesTest::RunTest(const FString& Parameters)
         && LDHitFeel::Word(LDObservation::Critical|LDObservation::ShieldAbsorbed)==TEXT("暴击！")
         && LDHitFeel::Word(LDObservation::ShieldBroken)==TEXT("破盾！")
         && LDHitFeel::Word(LDCombatCues::DealtLethal)==TEXT("终结！")
-        && LDHitFeel::Word(LDCombatCues::DealtOverdrive)==TEXT("爆劲！")
-        && LDHitFeel::Word(LDCombatCues::DealtOverdrive|LDCombatCues::DealtLethal)==TEXT("终结！"));
-    TestTrue(TEXT("An overdrive blow weighs like a critical hit and outranks one in the same instant"),
-        LDHitFeel::TierOf(LDCombatCues::DealtOverdrive)==LDHitFeel::ETier::Critical
-        && LDCombatCues::DealtRank(LDCombatCues::DealtOverdrive)>LDCombatCues::DealtRank(LDObservation::Critical)
-        && LDCombatCues::DealtRank(LDCombatCues::DealtLethal)>LDCombatCues::DealtRank(LDCombatCues::DealtOverdrive));
+        && LDHitFeel::Word(LDCombatCues::DealtLethal|LDObservation::Critical)==TEXT("终结！"));
+    TestTrue(TEXT("A lethal blow outranks a critical one in the same instant"),
+        LDCombatCues::DealtRank(LDCombatCues::DealtLethal)>LDCombatCues::DealtRank(LDObservation::Critical));
     FLDDamageEvaluation Dealt, Absorbed;
     Dealt.DamageP2=100;
     TestTrue(TEXT("The lethal receipt bit only marks a blow that dealt damage"),
         (LDCombatCues::ClassifyDealt(false,0,Dealt,true) & LDCombatCues::DealtLethal)!=0
         && (LDCombatCues::ClassifyDealt(false,0,Absorbed,true) & LDCombatCues::DealtLethal)==0
         && (LDCombatCues::ClassifyDealt(false,0,Dealt,false) & LDCombatCues::DealtLethal)==0);
-    TestTrue(TEXT("The overdrive receipt bit only marks an overdrive blow that dealt damage"),
-        (LDCombatCues::ClassifyDealt(false,0,Dealt,false,true) & LDCombatCues::DealtOverdrive)!=0
-        && (LDCombatCues::ClassifyDealt(false,0,Absorbed,false,true) & LDCombatCues::DealtOverdrive)==0
-        && (LDCombatCues::ClassifyDealt(false,0,Dealt,false) & LDCombatCues::DealtOverdrive)==0);
     LDHitFeel::ResetAll();
     TestTrue(TEXT("Stepping moves one step and stops at the ends of the range"),
         LDHitFeel::Step(0,1) && FMath::IsNearlyEqual(LDHitFeel::Read().StopSeconds,.07f) && !LDHitFeel::IsAllDefault());
@@ -437,34 +430,6 @@ bool FLDBodyMotionHitLayersTest::RunTest(const FString& Parameters)
             && ScreenFlashReplaces(CritEdge, ScreenFlashGapSeconds, CritEdge) && !ScreenFlashReplaces(FScreenFlash(), 0.f, HurtFlashOf(true)));
         TestEqual(TEXT("A critical hit's edge has no lens fringe"), CritEdge.Fringe, 0.f);
     }
-    // Overdrive (#305): a public hit flag, the heaviest flash short of a kill, a charge and a release.
-    TestTrue(TEXT("The overdrive bit is public and is the owner receipt's overdrive bit"),
-        (LDObservation::HitFlagsMask & LDObservation::Overdriven)!=0 && LDCombatCues::DealtOverdrive==LDObservation::Overdriven
-        && (LDCombatCues::DealtLethal & LDObservation::HitFlagsMask)==0);
-    const FScreenFlash OverFlash=ScreenFlashOf(LDCombatCues::DealtOverdrive|LDObservation::Critical,false);
-    TestTrue(TEXT("A kill still outranks overdrive, which outranks a critical hit on the screen edge"),
-        OverFlash.Seconds>0.f && OverFlash.Colour.B>OverFlash.Colour.G && OverFlash.Fringe>CritFlash.Fringe
-        && ScreenFlashOf(LDCombatCues::DealtOverdrive|LDCombatCues::DealtLethal,false).Colour==KillFlash.Colour
-        && ScreenFlashOf(LDCombatCues::DealtOverdrive,true).Seconds==0.f);
-    // The overdrive release is public only on a Cast cue and only with the momentum authorization.
-    FLDObservedUnitView Caster;
-    Caster.Handle=FGuid::NewGuid(); Caster.ObservationEpoch=1; Caster.StateRevision=1;
-    Caster.Kind=ELDObservedUnitKind::Contender; Caster.AuthorizedFieldMask=LDObservation::ContenderFields;
-    Caster.Presentation=2; Caster.FeetCm=FVector(100,-200,2); Caster.Facing=1234;
-    Caster.ContenderId=FGuid::NewGuid(); Caster.Level=3; Caster.Health.CurrentP2=45000; Caster.Health.MaxP2=60000;
-    Caster.ActionCue=ELDObservedActionCue::Cast; Caster.bOverdriveCast=true;
-    FString CasterError;
-    const bool bCastOk=LDObservation::ValidateUnit(Caster,CasterError);
-    FLDObservedUnitView NoCast=Caster; NoCast.ActionCue=ELDObservedActionCue::None;
-    FLDObservedUnitView Hidden=Caster; Hidden.AuthorizedFieldMask&=~LDObservation::Momentum;
-    FLDObservedUnitView StrayAge=Caster; StrayAge.ChargeAgeMs=120;
-    FLDObservedUnitView Held=Caster; Held.bCharging=true; Held.ChargeAgeMs=120;
-    TestTrue(TEXT("A charge age rides only a held charge"), !LDObservation::ValidateUnit(StrayAge,CasterError) && LDObservation::ValidateUnit(Held,CasterError));
-    TestTrue(*FString::Printf(TEXT("An overdrive release rides a Cast cue under the momentum authorization (%s)"),*CasterError),
-        bCastOk && !LDObservation::ValidateUnit(NoCast,CasterError) && !LDObservation::ValidateUnit(Hidden,CasterError));
-    const FBurst OverBurst=BurstOf(EBurst::Overdrive,FLinearColor::White,1.f);
-    TestTrue(TEXT("The overdrive burst is the heaviest particle preset short of a kill and keeps its own colour"),
-        OverBurst.Sparks>BurstOf(EBurst::Strike,FLinearColor::White,1.f).Sparks && OverBurst.SparkColour.B>OverBurst.SparkColour.G);
     // Element reactions and public ground states use the particle kit in their own colours.
     TestTrue(TEXT("A reaction flashes a cross and rings in its element's colour; reduced effects drop the echo"),
         Has(React,EMask::Cross,EPlace::Sprite) && Has(React,EMask::Ring,EPlace::Ground) && React.Layers[0].Glow.R>React.Layers[0].Glow.B

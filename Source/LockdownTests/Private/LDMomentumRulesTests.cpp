@@ -140,21 +140,6 @@ bool FLDComboStepsTest::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDOverdriveReadyTest, "Lockdown.Rules.Combat.Overdrive.Threshold",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FLDOverdriveReadyTest::RunTest(const FString& Parameters)
-{
-    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if (!LDMomentumRulesTests::Approved(*this, Catalog)) { return false; }
-    const FLDDemoOverdriveParameters& O = Catalog->Get().Parameters.Overdrive;
-    TestTrue(TEXT("Overdrive needs 60 momentum"), O.ThresholdP2 == 6000 && !LDMomentum::OverdriveReady(O, 5999)
-        && LDMomentum::OverdriveReady(O, 6000));
-    TestTrue(TEXT("The approved overdrive terms"), O.HoldMs == 350 && O.ScaleBp == 13500 && O.FireBurnStacks == 3 && O.WaterSlowBp == 4500
-        && O.WaterSlowMs == 1500 && O.ShockReactionBp == 5000 && O.RotDurationBp == 20000);
-    return true;
-}
-
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDPerfectDodgeWindowTest, "Lockdown.Rules.Combat.PerfectDodge.Window",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
@@ -322,7 +307,7 @@ bool FLDSkillRankPatchesTest::RunTest(const FString& Parameters)
             }
         }
     }
-    // A branch's momentum amount (momentum_gain, momentum_steal, zone_momentum) never grows with level, rank or overdrive.
+    // A branch's momentum amount (momentum_gain, momentum_steal, zone_momentum) never grows with level or rank.
     int32 MomentumEffects = 0;
     for (const FLDDemoAbilityDefinition& Ability : Content.Abilities)
     {
@@ -334,11 +319,8 @@ bool FLDSkillRankPatchesTest::RunTest(const FString& Parameters)
                 const ELDDemoEffectOp Op = Branch.Values.Effects[Index].GetOp();
                 if (Op != ELDDemoEffectOp::MomentumGain && Op != ELDDemoEffectOp::MomentumSteal && Op != ELDDemoEffectOp::ZoneMomentum) { continue; }
                 ++MomentumEffects;
-                FLDDemoAbilityValues Overdriven = *Grown;
-                TestTrue(FString::Printf(TEXT("%s %s keeps its authored momentum at level 16 and under overdrive"), *Ability.Id,
-                    LDSkillBranch::StepKey(Branch.Path)), Grown->Effects[Index].BaseP2 == Branch.Values.Effects[Index].BaseP2
-                    && LDSkillGrowth::ScaleValues(Overdriven, Content.Parameters.Overdrive.ScaleBp, Content.Parameters.Overdrive.ScaleBp)
-                    && Overdriven.Effects[Index].BaseP2 == Branch.Values.Effects[Index].BaseP2);
+                TestTrue(FString::Printf(TEXT("%s %s keeps its authored momentum at level 16"), *Ability.Id,
+                    LDSkillBranch::StepKey(Branch.Path)), Grown->Effects[Index].BaseP2 == Branch.Values.Effects[Index].BaseP2);
             }
         }
     }

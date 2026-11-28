@@ -719,7 +719,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
             Body->Cues.LastHitAtMs=NowMs;
             Body->Cues.LastHitId=Hit.HitId;
             Body->Cues.LastHitLook=uint8(LDCombatCues::ClassifyHit(Hit));
-            Body->Cues.LastHitFlags=LDCombatCues::ClassifyImpact(bCritical,ShieldBeforeP2,Damage,Hit.CastLedger && Hit.CastLedger->bOverdrive)
+            Body->Cues.LastHitFlags=LDCombatCues::ClassifyImpact(bCritical,ShieldBeforeP2,Damage)
                 | (bNativeDashDodged ? LDObservation::Dodged : 0)
                 | (bParryCounterNow ? LDObservation::Parried : 0);
         }
@@ -728,7 +728,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         {
             // A training dummy refills at zero rather than dying, so emptying it is no kill.
             const uint8 Dealt=LDCombatCues::ClassifyDealt(bCritical,ShieldBeforeP2,Damage,
-                HPBefore>0 && Body->Resources.HpP2==0 && !Body->bTrainingDummy, Hit.CastLedger && Hit.CastLedger->bOverdrive);
+                HPBefore>0 && Body->Resources.HpP2==0 && !Body->bTrainingDummy);
             // One receipt per authority instant: an area release confirms its strongest hit whatever the target order.
             if (Source->Cues.LastDealtAtMs!=NowMs || LDCombatCues::DealtRank(Dealt)>LDCombatCues::DealtRank(Source->Cues.LastDealtFlags))
             {

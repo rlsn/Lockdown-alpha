@@ -344,8 +344,7 @@ bool ALDCombatDirector::RunActions(const FLDGameplayWritePermit& Permit, FString
                 Buffered.CastMode=ELDCombatPreInputMode::Direct;
                 Buffered.AimDirection=Request.Target.Direction;
                 Buffered.GroundPointCm=Request.Target.Point;
-                Buffered.bOverdrive=Request.bOverdrive;
-                Buffered.ExpiresAtMs=Mode->GetAuthorityNowMs()+LDCombatPreInput::HoldWindowMs;
+                            Buffered.ExpiresAtMs=Mode->GetAuthorityNowMs()+LDCombatPreInput::HoldWindowMs;
                 Buffered.Action=Request;
                 BufferPreInputIntent(Entity,MoveTemp(Buffered));
                 continue;

@@ -489,11 +489,10 @@ bool RatioArray(FFields& F, const TCHAR* Key, int32 Count, int64 Min, TArray<int
     return true;
 }
 
-// Momentum, combo, overdrive and skill rank parameters (CONTENT_AND_BALANCE §3.3-§3.6).
+// Momentum, combo and skill rank parameters (CONTENT_AND_BALANCE §3.3-§3.6).
 bool CoreParameters(FFields& F, FLDDemoContentParameters& P, FCheck& Check)
 {
     FLDDemoMomentumParameters& M = P.Momentum;
-    FLDDemoOverdriveParameters& O = P.Overdrive;
     struct FFixedField { const TCHAR* Key; const TCHAR* Unit; const TCHAR* Storage; int64* Out; int64 Min; int64 Max; };
     const FFixedField Fixed[] =
     {
@@ -510,14 +509,6 @@ bool CoreParameters(FFields& F, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("MOMENTUM.DashDodgeCooldownRefundRatio"), TEXT("ratio"), TEXT("bp"), &M.DashDodgeCooldownRefundBp, 1, 9999},
         {TEXT("MOMENTUM.IdleDelaySec"), TEXT("ms"), TEXT("ms"), &M.IdleDelayMs, 1, MAX_int64},
         {TEXT("COMBO.ResetSec"), TEXT("ms"), TEXT("ms"), &P.Combo.ResetMs, 1, MAX_int64},
-        {TEXT("OVERDRIVE.Threshold"), TEXT("momentum"), TEXT("p2"), &O.ThresholdP2, 1, MAX_int64},
-        {TEXT("OVERDRIVE.HoldSec"), TEXT("ms"), TEXT("ms"), &O.HoldMs, 1, MAX_int64},
-        {TEXT("OVERDRIVE.Scale"), TEXT("ratio"), TEXT("bp"), &O.ScaleBp, 10000, MAX_int64},
-        {TEXT("OVERDRIVE.WaterSlow"), TEXT("ratio"), TEXT("bp"), &O.WaterSlowBp, 1, 9999},
-        {TEXT("OVERDRIVE.WaterSlowSec"), TEXT("ms"), TEXT("ms"), &O.WaterSlowMs, 1, MAX_int64},
-        {TEXT("OVERDRIVE.ShockReactionRatio"), TEXT("ratio"), TEXT("bp"), &O.ShockReactionBp, 1, MAX_int64},
-        {TEXT("OVERDRIVE.RotDurationScale"), TEXT("ratio"), TEXT("bp"), &O.RotDurationBp, 10000, MAX_int64},
-        {TEXT("OVERDRIVE.ChillRootSec"), TEXT("ms"), TEXT("ms"), &O.ChillRootMs, 1, MAX_int64},
         {TEXT("SKILL.CooldownFloorSec"), TEXT("ms"), TEXT("ms"), &P.SkillRanks.CooldownFloorMs, 1, MAX_int64},
         {TEXT("AIRDROP.Momentum"), TEXT("momentum"), TEXT("p2"), &P.AirdropMomentumP2, 1, MAX_int64},
         {TEXT("AI.DodgeChance"), TEXT("ratio"), TEXT("bp"), &P.AI.DodgeChanceBp, 0, 10000},
@@ -537,7 +528,6 @@ bool CoreParameters(FFields& F, FLDDemoContentParameters& P, FCheck& Check)
     if (!F.Fraction(TEXT("MOMENTUM.CombatPerSec"), TEXT("momentum/s"), M.CombatPerSec, true)
         || !F.Fraction(TEXT("MOMENTUM.IdleReturnPerSec"), TEXT("momentum/s"), M.IdleReturnPerSec, true)
         || !F.Fraction(TEXT("AI.ObjectiveReachCm"), TEXT("cm"), P.AI.ObjectiveReachCm, true)
-        || !F.Int(TEXT("OVERDRIVE.FireBurnStacks"), O.FireBurnStacks, 1)
         || !RatioArray(F, TEXT("COMBO.StepRatios"), 3, 1, P.Combo.StepRatiosBp, Check)
         || !RatioArray(F, TEXT("SKILL.RankBaseScale"), 3, 10000, P.SkillRanks.RankBaseScaleBp, Check)
         || !RatioArray(F, TEXT("SKILL.RankRatioScale"), 3, 10000, P.SkillRanks.RankRatioScaleBp, Check))
@@ -563,8 +553,7 @@ bool CoreParameters(FFields& F, FLDDemoContentParameters& P, FCheck& Check)
     }
     const auto& Base = P.SkillRanks.RankBaseScaleBp;
     const auto& Ratio = P.SkillRanks.RankRatioScaleBp;
-    return Check.Require(M.StartP2 <= M.MaxP2 && O.ThresholdP2 <= M.MaxP2, F.Path,
-            TEXT("the momentum start and the overdrive threshold must fit the bar"))
+    return Check.Require(M.StartP2 <= M.MaxP2, F.Path, TEXT("the momentum start must fit the bar"))
         && Check.Require(Base[0] == 10000 && Ratio[0] == 10000 && Base[0] <= Base[1] && Base[1] <= Base[2]
             && Ratio[0] <= Ratio[1] && Ratio[1] <= Ratio[2], F.Path, TEXT("rank 1 is the authored set and ranks never weaken it"));
 }

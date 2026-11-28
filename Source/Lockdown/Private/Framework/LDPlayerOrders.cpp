@@ -35,8 +35,6 @@ void ALDPlayerController::ActivateCombatEntry(ELDCombatEntry Entry, const FLDCom
     // The full world-command gate: under the menu, Settings, a child confirmation or a text edit no entry arms or
     // sends (MOVEMENT_INPUT_AND_CAMERA input ownership); the root already cancelled any older preview.
     if (!IsLocalController() || !LDCombatPreInput::IsDirectEntry(Entry) || !CanWorldCommand()) { return; }
-    // Another entry takes over: an overdrive armed for a different skill ends with its charge.
-    if (bOverdriveArmed && OverdriveEntry!=Entry) { EndOverdriveHold(); }
     const bool bCurrentView=CombatView.Generation==OwnerState.Match && CombatView.Life==OwnerState.Life;
     const FLDCombatEntryView* View=bCurrentView?LDPlayerOrdersDetail::FindEntry(CombatView,Entry):nullptr;
     // An entry whose source does not resolve reports Self (0) and is sent as is for the server's explicit refusal.
@@ -135,7 +133,6 @@ bool ALDPlayerController::CancelPreviewedQuickCastHolds()
         }
         const ELDCombatEntry Entry=SlotEntries[Index];
         QuickCastHolds[Index]={};
-        if ((bOverdriveHolding || bOverdriveArmed) && OverdriveEntry==Entry) { EndOverdriveHold(); }
         UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT armed-cancelled entry=%u"),uint32(Entry));
         ArmedCancelEntry=Entry;
         ++ArmedCancelSerial;
@@ -143,7 +140,6 @@ bool ALDPlayerController::CancelPreviewedQuickCastHolds()
     }
     if (ArmedEntry!=ELDCombatEntry::None && !IsQuickCastHolding(ArmedEntry))
     {
-        if ((bOverdriveHolding || bOverdriveArmed) && OverdriveEntry==ArmedEntry) { EndOverdriveHold(); }
         if (!bCancelledQuickHold)
         {
             UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT armed-cancelled entry=%u"),uint32(ArmedEntry));
@@ -220,7 +216,6 @@ void ALDPlayerController::ExecuteQuickCastAim(ELDCombatEntry Entry)
         }
         else
         {
-            if ((bOverdriveHolding || bOverdriveArmed) && OverdriveEntry==Entry) { EndOverdriveHold(); }
             ClearQuickCastHold(Entry);
             ArmedCancelEntry=Entry;
             ++ArmedCancelSerial;
@@ -267,16 +262,11 @@ bool ALDPlayerController::ClearArmedAim()
 
 bool ALDPlayerController::CancelArmedCombat()
 {
-    // A real cancel (S, Escape, a menu, a move order, a new life or source revision) also ends a running or completed
-    // overdrive hold and the visible charge with it. A held skill with no armed aim (a self skill charging) is reported like
-    // an armed one, so its key never goes quiet without a sign.
-    const ELDCombatEntry Charging=bOverdriveHolding || bOverdriveArmed ? OverdriveEntry : ELDCombatEntry::None;
-    if (bOverdriveHolding || bOverdriveArmed) { EndOverdriveHold(); }
-    const ELDCombatEntry Cancelled=ArmedEntry!=ELDCombatEntry::None ? ArmedEntry : Charging;
-    if (Cancelled!=ELDCombatEntry::None)
+    // A real cancel: S, Escape, a menu, a move order, a new life or source revision.
+    if (ArmedEntry!=ELDCombatEntry::None)
     {
-        UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT armed-cancelled entry=%u overdrive=%u"),uint32(Cancelled),uint32(Charging));
-        ArmedCancelEntry=Cancelled;
+        UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT armed-cancelled entry=%u"),uint32(ArmedEntry));
+        ArmedCancelEntry=ArmedEntry;
         ++ArmedCancelSerial;
     }
     return ClearArmedAim();
@@ -389,12 +379,8 @@ bool ALDPlayerController::ConfirmArmedEntry(const FLDCombatTarget& Aim, const FV
     if (Entry==ELDCombatEntry::None) { return false; }
     ClearQuickCastHold(Entry);
     SyncArmedEntryFromQuickCastHolds();
-    if (!IsLocalController() || !CanWorldCommand()) { EndOverdriveHold(); return true; }
+    if (!IsLocalController() || !CanWorldCommand()) { return true; }
     SendCombatAction(Entry,Aim,IsQueueModifierDown(),AimCm);
-    // An overdrive the send neither consumed nor queued ends here instead of lingering as a visible charge.
-    if (bOverdriveArmed && OverdriveEntry==Entry && QueuedCombat.Entry!=Entry) { EndOverdriveHold(); }
-    // Confirmed before the hold completed: an ordinary cast, and the hold ends with it.
-    if (bOverdriveHolding && OverdriveEntry==Entry) { EndOverdriveHold(); }
     return true;
 }
 
@@ -528,13 +514,6 @@ bool ALDPlayerController::NextCombatRequest(ELDCombatEntry Entry, const FLDComba
     Request.Target=Aim;
     Request.Target.ServerBody={};
     Request.ExpectedSourceRevision=CombatView.SourceRevision;
-    // The overdrive armed by a completed hold rides on this entry's next request only.
-    if (bOverdriveArmed && Entry==OverdriveEntry)
-    {
-        Request.bOverdrive=true;
-        bOverdriveArmed=false;
-        OverdriveEntry=ELDCombatEntry::None;
-    }
     if (auto* GI=Cast<ULDGameInstance>(GetGameInstance()))
     {
         GI->NoteCrashCommand(*FString::Printf(TEXT("CombatEntry=%u Kind=%u Seq=%llu"),
@@ -547,9 +526,9 @@ bool ALDPlayerController::IsVectorAimedEntry(ELDCombatEntry Entry)
 {
     const bool bCurrentView=CombatView.Generation==OwnerState.Match && CombatView.Life==OwnerState.Life;
     const FLDCombatEntryView* View=bCurrentView?LDPlayerOrdersDetail::FindEntry(CombatView,Entry):nullptr;
-    if (!View || View->DefinitionId.IsNone() || ELDDemoTargetMode(View->TargetMode)!=ELDDemoTargetMode::GroundPoint || !OverdriveTerms())
+    if (!View || View->DefinitionId.IsNone() || ELDDemoTargetMode(View->TargetMode)!=ELDDemoTargetMode::GroundPoint || !LoadRuntimeContent())
     { return false; }
-    const FLDDemoContentDefinitions& Content=OverdriveContent->Get();
+    const FLDDemoContentDefinitions& Content=RuntimeContent->Get();
     const FLDDemoAbilityDefinition* Ability=Content.Abilities.FindByPredicate([View](const FLDDemoAbilityDefinition& Row)
         { return Row.Id==View->DefinitionId.ToString(); });
     if (!Ability) { return false; }
@@ -589,98 +568,38 @@ bool ALDPlayerController::ReadVectorAim(ELDCombatEntry& OutEntry, FVector& OutSt
     return VectorAimEntry!=ELDCombatEntry::None && VectorAimEntry==ArmedEntry;
 }
 
-const FLDDemoOverdriveParameters* ALDPlayerController::OverdriveTerms()
+bool ALDPlayerController::LoadRuntimeContent()
 {
-    if (!bOverdriveContentTried)
+    if (!bRuntimeContentTried)
     {
-        bOverdriveContentTried=true;
+        bRuntimeContentTried=true;
         FString Error;
-        if (!LDDemoEntry::LoadRuntimeContent(OverdriveContent,Error)) { OverdriveContent.Reset(); }
+        if (!LDDemoEntry::LoadRuntimeContent(RuntimeContent,Error)) { RuntimeContent.Reset(); }
     }
-    return OverdriveContent ? &OverdriveContent->Get().Parameters.Overdrive : nullptr;
-}
-
-void ALDPlayerController::SendCharge(ELDCombatEntry Entry, bool bCharging)
-{
-    FLDCombatChargeRequest Request;
-    Request.Generation=OwnerState.Match;
-    Request.Life=OwnerState.Life;
-    Request.Entry=Entry;
-    Request.bCharging=bCharging;
-    ServerChargeOverdrive(Request);
-}
-
-void ALDPlayerController::EndOverdriveHold()
-{
-    if (OverdriveEntry!=ELDCombatEntry::None && (bOverdriveHolding || bOverdriveArmed)) { SendCharge(OverdriveEntry,false); }
-    OverdriveEntry=ELDCombatEntry::None;
-    bOverdriveHolding=false;
-    bOverdriveArmed=false;
-    bOverdriveLatched=false;
+    return RuntimeContent.IsValid();
 }
 
 void ALDPlayerController::PressSkill(ELDCombatEntry Entry)
 {
     if (!IsLocalController() || !LDCombatPreInput::IsDirectEntry(Entry) || !CanWorldCommand()) { return; }
-    // A full bar and a ready learned active start the hold: the release decides between a normal cast and overdrive.
     const bool bCurrentView=CombatView.Generation==OwnerState.Match && CombatView.Life==OwnerState.Life;
     const FLDCombatEntryView* View=bCurrentView?LDPlayerOrdersDetail::FindEntry(CombatView,Entry):nullptr;
     const bool bHeld=View && !View->DefinitionId.IsNone();
     const ELDDemoTargetMode Mode=bHeld?ELDDemoTargetMode(View->TargetMode):ELDDemoTargetMode::Self;
     const bool bAimed=bHeld && LDPlayerOrdersDetail::IsArmedMode(Mode) && !LDCombatPreInput::FiresOnPress(Entry);
     const bool bQuick=Controls && Controls->GetQuickCast();
-    const FLDDemoOverdriveParameters* Terms=OverdriveTerms();
-    // Unavailable is the published snapshot: a cooldown or momentum reason in it can be stale, so readiness is judged on the
-    // current authority time and the current bar; any other reason (control, busy) still blocks. The server decides.
-    int64 NowMs=0;
-    const bool bClock=ReadDemoAuthorityTimeMs(NowMs);
-    const bool bStaleOnlyReason=View && (View->Unavailable==ELDCombatReject::None || View->Unavailable==ELDCombatReject::Cooldown
-        || View->Unavailable==ELDCombatReject::MomentumShort);
-    const bool bOverdriveEligible=Terms && bHeld && View->SourceKind==ELDCombatSourceKind::Learned && bStaleOnlyReason && bClock
-        && View->ReadyAtMs<=NowMs
-        && CombatView.MomentumP2>=(CombatView.OverdriveThresholdP2>0 ? CombatView.OverdriveThresholdP2 : Terms->ThresholdP2)
-        && CombatView.MomentumP2>=View->MomentumCostP2 && (!bOverdriveHolding || OverdriveEntry!=Entry);
-
     // Keyboard QuickCast on an aimed skill: < 0.18s tap hides the preview and casts on release; >= 0.18s hold reveals the
     // aim indicator and casts on release (right-click after >= 0.18s cancels without firing). Tracked per entry so
     // overlapping Q/W/E presses preserve every pending release-cast.
     const int32 HoldSlot=QuickCastSlotIndex(Entry);
     if (bQuick && bAimed && HoldSlot!=INDEX_NONE)
     {
-        if (bOverdriveArmed && OverdriveEntry!=Entry) { EndOverdriveHold(); }
-        const double NowSec=QuickCastClockSeconds();
         bAttackMoveArmed=false;
         if (ArmedEntry!=Entry) { UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT armed entry=%u"),uint32(Entry)); }
         ArmedEntry=Entry;
         QuickCastHolds[HoldSlot].bHolding=true;
-        QuickCastHolds[HoldSlot].PressSec=NowSec;
+        QuickCastHolds[HoldSlot].PressSec=QuickCastClockSeconds();
         BeginVectorAim(Entry,false);
-        if (bOverdriveEligible)
-        {
-            if ((bOverdriveHolding || bOverdriveArmed) && OverdriveEntry!=Entry) { EndOverdriveHold(); }
-            else if (bOverdriveArmed) { EndOverdriveHold(); }
-            OverdriveEntry=Entry;
-            OverdriveHoldStartSec=NowSec;
-            bOverdriveHolding=true;
-            bOverdriveLatched=FSlateApplication::IsInitialized()&&FSlateApplication::Get().GetModifierKeys().IsAltDown();
-            SendCharge(Entry,true);
-        }
-        return;
-    }
-
-    if (bOverdriveEligible)
-    {
-        if ((bOverdriveHolding || bOverdriveArmed) && OverdriveEntry!=Entry) { EndOverdriveHold(); }
-        else if (bOverdriveArmed) { EndOverdriveHold(); }
-        OverdriveEntry=Entry;
-        OverdriveHoldStartSec=QuickCastClockSeconds();
-        bOverdriveHolding=true;
-        // Alt with the key: one press is enough, the charge completes without holding the key.
-        bOverdriveLatched=FSlateApplication::IsInitialized()&&FSlateApplication::Get().GetModifierKeys().IsAltDown();
-        SendCharge(Entry,true);
-        // An aimed skill with QuickCast off is armed from the press itself: a left click during the hold is an ordinary cast,
-        // and only a hold that completes turns the armed aim into overdrive.
-        if (bAimed) { ActivateCombatEntry(Entry); }
         return;
     }
     ActivateCombatEntry(Entry);
@@ -688,60 +607,9 @@ void ALDPlayerController::PressSkill(ELDCombatEntry Entry)
 
 void ALDPlayerController::ReleaseSkill(ELDCombatEntry Entry)
 {
-    if (IsQuickCastHolding(Entry))
-    {
-        ClearQuickCastHold(Entry);
-        if (bOverdriveHolding && OverdriveEntry==Entry)
-        {
-            // Alt-latched overdrive keeps charging after early key release and fires once HoldMs completes.
-            if (bOverdriveLatched)
-            {
-                SyncArmedEntryFromQuickCastHolds();
-                return;
-            }
-            EndOverdriveHold();
-        }
-        ExecuteQuickCastAim(Entry);
-        return;
-    }
-    if (!bOverdriveHolding || Entry!=OverdriveEntry) { return; }
-    // A one-press (Alt) charge keeps going after the key is let go.
-    if (bOverdriveLatched) { return; }
-    // Let go before the hold completed: the charge ends and the press is an ordinary cast.
-    EndOverdriveHold();
-    if (ArmedEntry!=Entry) { ActivateCombatEntry(Entry); }
-}
-
-void ALDPlayerController::TickOverdriveHold()
-{
-    if (!bOverdriveHolding) { return; }
-    const FLDDemoOverdriveParameters* Terms=OverdriveTerms();
-    if (!Terms || !CanWorldCommand()) { EndOverdriveHold(); return; }
-    if ((QuickCastClockSeconds()-OverdriveHoldStartSec)*1000.<double(Terms->HoldMs)) { return; }
-    // Held through OVERDRIVE.HoldSec: the next request of this entry asks for overdrive (the server decides by the bar).
-    bOverdriveHolding=false;
-    bOverdriveArmed=true;
-    // While the player still holds a QuickCast aimed key (without Alt latch), keep previewing and fire on key release.
-    if (IsQuickCastHolding(OverdriveEntry) && !bOverdriveLatched) { return; }
-    const bool bCurrentView=CombatView.Generation==OwnerState.Match && CombatView.Life==OwnerState.Life;
-    const FLDCombatEntryView* View=bCurrentView?LDPlayerOrdersDetail::FindEntry(CombatView,OverdriveEntry):nullptr;
-    const bool bAimed=View && !View->DefinitionId.IsNone() && LDPlayerOrdersDetail::IsArmedMode(ELDDemoTargetMode(View->TargetMode));
-    if (Controls && Controls->GetQuickCast() && bAimed)
-    {
-        ClearQuickCastHold(OverdriveEntry);
-        ExecuteQuickCastAim(OverdriveEntry);
-        return;
-    }
-    ActivateCombatEntry(OverdriveEntry);
-}
-
-float ALDPlayerController::OverdriveHoldProgress(ELDCombatEntry Entry) const
-{
-    if (Entry!=OverdriveEntry) { return 0.f; }
-    if (bOverdriveArmed) { return 1.f; }
-    if (!bOverdriveHolding || !OverdriveContent) { return 0.f; }
-    const double HoldMs=double(OverdriveContent->Get().Parameters.Overdrive.HoldMs);
-    return HoldMs>0 ? float(FMath::Clamp((QuickCastClockSeconds()-OverdriveHoldStartSec)*1000./HoldMs,0.,1.)) : 0.f;
+    if (!IsQuickCastHolding(Entry)) { return; }
+    ClearQuickCastHold(Entry);
+    ExecuteQuickCastAim(Entry);
 }
 
 void ALDPlayerController::SendCombatNow(ELDCombatEntry Entry, const FLDCombatTarget& Aim)
@@ -809,20 +677,6 @@ void ALDPlayerController::ServerCancelCombatAction_Implementation(const FLDComba
     ClientCombatReceipt(Mode->Combat->CancelAction(Caller,Request));
 }
 
-void ALDPlayerController::ServerChargeOverdrive_Implementation(const FLDCombatChargeRequest& Request)
-{
-    auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
-    FLDCombatCaller Caller;
-    FString Error;
-    if (!Mode || !Mode->Combat || !Mode->Combat->ResolveControllerCaller(*this,Caller,Error))
-    {
-        UE_LOG(LogLDCombat,Verbose,TEXT("LD_COMBAT_CHARGE_CALLER_REJECTED %s"),*Error);
-        return;
-    }
-    // A charge is presentation and a gate for the later request: no receipt, a stale one simply changes nothing.
-    Mode->Combat->SubmitCharge(Caller,Request);
-}
-
 // Only records the receipt: the HUD alone presents combat receipts (LDHUD::CombatReceiptNotice).
 void ALDPlayerController::ClientCombatReceipt_Implementation(const FLDCombatActionReceipt& Receipt)
 {
@@ -856,15 +710,6 @@ void ALDPlayerController::OnRep_CombatView()
         }
         else
         {
-            if ((bOverdriveHolding || bOverdriveArmed) && OverdriveEntry!=ELDCombatEntry::None)
-            {
-                const FLDCombatEntryView* OldOver=LDPlayerOrdersDetail::FindEntry(LatestCombatView,OverdriveEntry);
-                const FLDCombatEntryView* NewOver=LDPlayerOrdersDetail::FindEntry(CombatView,OverdriveEntry);
-                if (!OldOver || !NewOver || OldOver->DefinitionId!=NewOver->DefinitionId || OldOver->TargetMode!=NewOver->TargetMode)
-                {
-                    EndOverdriveHold();
-                }
-            }
             static constexpr ELDCombatEntry SlotEntries[3]={ELDCombatEntry::Q,ELDCombatEntry::W,ELDCombatEntry::E};
             for (int32 Index=0; Index<3; ++Index)
             {

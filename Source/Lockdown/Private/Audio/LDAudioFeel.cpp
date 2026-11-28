@@ -49,12 +49,11 @@ void LDAudioFeel::CutCharge(UAudioComponent* Charge)
     if (IsValid(Charge) && Charge->IsPlaying()) { Charge->FadeOut(ChargeCutSeconds, 0.f); }
 }
 
-void LDAudioFeel::Release(const UObject& BodyContext, bool bOwnBody, uint8 Ability, bool bOverdrive, const FVector& At)
+void LDAudioFeel::Release(const UObject& BodyContext, bool bOwnBody, uint8 Ability, const FVector& At)
 {
     if (ULDAudioSubsystem* Audio = AudioOf(BodyContext))
     {
         Audio->PlaySkillRelease(Ability, !bOwnBody, At, bOwnBody ? 1.f : OtherDangerGain);
-        if (bOverdrive) { Body(*Audio, ELDAudioCue::SwingFinisher, bOwnBody, At, .8f, .8f); }
     }
 }
 

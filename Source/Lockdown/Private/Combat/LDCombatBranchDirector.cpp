@@ -632,7 +632,8 @@ bool ALDCombatDirector::OnBranchHitTaken(const FLDCombatHit& Hit, FLDBodyCombatS
         Discharge.CreditOwner=Branch.OverchargeSource.Victim.Kind==ELDVictimKind::Contender ? Discharge.SourceEntity : FGuid();
         Discharge.Source=Branch.OverchargeExit;
         Discharge.HitClass=ELDCombatHitClass::Ability;
-        Discharge.BaseP2=Share(R,Content->Get().Parameters.Overdrive.ShockReactionBp);
+        // S10 3B1: every direct hit discharges COMBAT.ShockRatio x R.
+        Discharge.BaseP2=Share(R,Content->Get().Parameters.Elements.ShockRatioBp);
         Discharge.DamageType=ELDDemoDamageType::Magical;
         Discharge.bStatusSettle=true;
         Discharge.bOverchargeDischarge=true;

@@ -113,11 +113,6 @@ int64 LDMomentum::ComboRatioBp(const FLDDemoComboParameters& P, uint8 Step)
     return Step >= 1 && Step <= P.StepRatiosBp.Num() ? P.StepRatiosBp[Step - 1] : 10000;
 }
 
-bool LDMomentum::OverdriveReady(const FLDDemoOverdriveParameters& P, int64 MomentumP2)
-{
-    return P.ThresholdP2 > 0 && MomentumP2 >= P.ThresholdP2;
-}
-
 bool LDMomentum::IsPerfectDodge(int64 WindowMs, int64 DashStartMs, int64 ResolveMs, bool bStartInside, bool bResolvedInside)
 {
     return WindowMs > 0 && DashStartMs <= ResolveMs && ResolveMs - DashStartMs <= WindowMs && bStartInside && !bResolvedInside;

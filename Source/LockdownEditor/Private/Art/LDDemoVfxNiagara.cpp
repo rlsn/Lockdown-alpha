@@ -4702,8 +4702,7 @@ namespace
         return State;
     }
 
-    // ---- A body's own moments: the dash, the overdrive charge and its burst, and a level gained.
-    const FPalette OverPalette{FLinearColor(1.f, .9f, 1.f), FLinearColor(1.f, .22f, .76f), FLinearColor(.42f, .02f, .3f), 2.6f, 1.4f};
+    // ---- A body's own moments: the dash and a level gained.
 
     // A dash (Start the feet, End a metre along the way it runs): dust torn off the floor behind the body and two thin
     // streaks of air at the chest. The afterimages are the body's own (ULDImpactFxSubsystem::Ghost).
@@ -4732,53 +4731,6 @@ namespace
                 .Set(TEXT("Particles.Color"), Glowing(1.5f, FString::Printf(TEXT("0.7 * sin(%s * 3.1416)"), *T)));
         }
         return Dash;
-    }
-
-    // The overdrive charge (Start the feet, End the head; User.Intensity follows the charge): a ring on the floor closing
-    // in on the body again and again, motes drawn in and up to the chest, and the floor under it warming to magenta.
-    FSystemParts OverdriveChargeParts(UMaterial& Material, UMaterial& Top, FString& Error)
-    {
-        UMaterialInstanceConstant* Line = ChainPaint(TEXT("MI_LDOverdrive_Ring"), Top, SliceTexture(LDSliceVfx::ETex::ChainAProfile), nullptr, 0.f, OverPalette, 1.f, 0.f, Error);
-        UMaterialInstanceConstant* Glow = ChainPaint(TEXT("MI_LDOverdrive_Floor"), Material, SliceTexture(LDSliceVfx::ETex::ChainAGroundGlow), nullptr, 0.f, OverPalette, 1.f, 0.f, Error);
-        UMaterialInstanceConstant* Mote = ChainPaint(TEXT("MI_LDOverdrive_Mote"), Top, SliceTexture(LDSliceVfx::ETex::ChainAFlash), nullptr, 0.f, OverPalette, 1.f, 0.f, Error);
-        FSystemParts Charge;
-        Charge.System = LDSliceVfx::ESystem::OverdriveCharge;
-        if (!Line || !Glow || !Mote) { return Charge; }
-        StateAura(Charge, TEXT("Floor"), Glow, 1.2f, .6f);
-        {
-            const FString In = TEXT("frac(Particles.Age * 1.3 + float(Particles.LDRibbon) * 0.5)");
-            Band(Charge, TEXT("Closing"), Line, 2, 32, TEXT("0.03"), TEXT("Particles.Age * 0.8"), FString::Printf(TEXT("User.Width * (5.0 - 3.8 * %s)"), *In),
-                FString::Printf(TEXT("4.0 + 8.0 * %s"), *In), Glowing(2.2f, FString::Printf(TEXT("%s * sin(%s * 3.1416)"), StateOn, *In)));
-        }
-        FPart& Motes = Charge.Parts.AddDefaulted_GetRef();
-        Motes.Name = TEXT("Motes");
-        Motes.Kind = FPart::Sprite;
-        Motes.Count = TEXT("int(lerp(8.0, 12.0, User.Focus) + 0.5)");
-        Motes.Lifetime = TEXT("User.Duration");
-        Motes.Paint = Mote;
-        {
-            const FString T = Cycle(1.4f, 1521.f);
-            Motes.Set(TEXT("Particles.Position"), Round(Axis(FString::Printf(TEXT("lerp(0.05, 0.55, %s)"), *T)), FString::Printf(TEXT("(%s * 6.2832 + %s * 2.5)"), *Random(1522.f), *T),
-                    FString::Printf(TEXT("User.Width * (4.4 * (1.0 - %s) + 0.5)"), *T)))
-                .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(1.0, 1.0) * (12.0 + 18.0 * %s)"), *T))
-                .Set(TEXT("Particles.Color"), Glowing(2.4f, FString::Printf(TEXT("%s * sin(%s * 3.1416)"), StateOn, *T)));
-        }
-        return Charge;
-    }
-
-    // An overdrive going off (a release, or a hit that carries it): a magenta snap at End, hard streaks thrown out from it
-    // and falling to the floor at Start.
-    FSystemParts OverdriveBurstParts(UMaterial& Top, FString& Error)
-    {
-        UMaterialInstanceConstant* Flash = ChainPaint(TEXT("MI_LDOverdrive_Snap"), Top, SliceTexture(LDSliceVfx::ETex::ChainAFlash), nullptr, 0.f, OverPalette, 1.f, 0.f, Error);
-        UMaterialInstanceConstant* Streak = ChainPaint(TEXT("MI_LDOverdrive_Streak"), Top, SliceTexture(LDSliceVfx::ETex::ChainASparkStreak), nullptr, 0.f, OverPalette, 1.f, 0.f, Error);
-        FSystemParts Burst;
-        Burst.System = LDSliceVfx::ESystem::OverdriveBurst;
-        if (!Flash || !Streak) { return Burst; }
-        ImpactCore(Burst, Flash, 170.f, 360.f, TEXT("User.End"));
-        Thrown(Burst, TEXT("Streaks"), Streak, TEXT("int(lerp(10.0, 16.0, User.Focus) + 0.5)"), .45f, 1531.f, TEXT("User.End"), 500.f, 950.f, 40.f, 260.f,
-            TEXT("float2(80.0, 12.0)"), TEXT("0.0"), false, true, 2.4f);
-        return Burst;
     }
 
     // A level gained (Start the feet, End the head; one second): the floor lights warm gold, two veils wind up the body
@@ -5458,8 +5410,7 @@ bool LDDemoVfxNiagara::Build(FString& Error)
         [&]() { return TauntStateParts(*Top, Error); },
         [&]() { return ExposedStateParts(*Top, Error); },
         [&]() { return DashWakeParts(*Chain, *Top, Error); },
-        [&]() { return OverdriveChargeParts(*Chain, *Top, Error); },
-        [&]() { return OverdriveBurstParts(*Top, Error); },
+
         [&]() { return LevelUpParts(*Chain, *Top, Error); },
         [&]() { return OwnMarkParts(*Top, Error); },
         [&]() { return RingBandParts(*Top, Error); },
