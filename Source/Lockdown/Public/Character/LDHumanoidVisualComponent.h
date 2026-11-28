@@ -80,6 +80,8 @@ public:
     // The ability of the shown cast (ELDDemoAbilityId; 0 = none or the innate dash): its own tint on the cast charge,
     // its release burst at the action's release and its dash trail colour (LDHitVfx::SkillLookOf).
     void SetCastAbility(uint8 Ability) { CastAbility = Ability; }
+    // C-09: the shown windup is a committing start (an observed unit's public commit tell).
+    void SetCommitTell(bool bCommit) { bCommitTell = bCommit; }
     // The combo step (1..3) of the shown basic attack (FLDObservedUnitView::ActionComboStep; the own body's from its
     // projection): its slash shape and, on the third, the finisher's hit tier. 0 shows the first stage's shape.
     void SetComboStep(uint8 Step) { ComboStep = Step; }
@@ -174,6 +176,8 @@ private:
     FVector PreviousVelocity = FVector::ZeroVector;
     double TelegraphOnset = -1, SwingReleasedOnset = -1;
     bool bTelegraphShown = false;
+    bool bCommitTell = false;
+    double CommitTellOnset = -1;
     uint8 ComboStep = 0;
     bool bOwnBody = false;
     // When a strike of the local player last landed on this body (a reaction right after it is the local player's).

@@ -62,6 +62,7 @@ bool ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 Now
     InOut.LastReaction=0;
     InOut.LastReactionAtMs=0;
     InOut.LastReactionElement=0;
+    InOut.CueFlags=0;
     const FLDBodyCombatState* State=StateFor(&Body);
     if (!State || State->bPendingDeath) { return true; }
     const LDCombatCues::FCue Cue=LDCombatCues::Select(CueFactsOf(*State),NowMs);
@@ -91,6 +92,12 @@ bool ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 Now
     InOut.ActionCue=Cue.Cue;
     InOut.ActionCueAtMs=Cue.AtMs;
     InOut.ActionCueImpactAtMs=Cue.ImpactAtMs;
+    // C-09 commit tell: the shown cue is the committing windup itself, until its release.
+    if (Cue.Cue!=ELDObservedActionCue::None && State->Action.IsSet() && State->Action->bCommitWindup
+        && State->Action->StartedAtMs==Cue.AtMs && NowMs<State->Action->ReleaseAtMs)
+    { InOut.CueFlags|=LDObservation::CommitWindup; }
+    if (Proto.bAgency && State->Victim.Kind==ELDVictimKind::Contender && NowMs<State->Agency.GuardUntilMs)
+    { InOut.CueFlags|=LDObservation::ProtoAgencyGuard; }
     if (State->Cues.LastHitAtMs>0 && NowMs>=State->Cues.LastHitAtMs
         && NowMs-State->Cues.LastHitAtMs<LDCombatCues::HitHoldMs)
     {
@@ -108,6 +115,18 @@ bool ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 Now
         InOut.LastReactionElement=State->Cues.LastReactionElement;
     }
     return true;
+}
+
+bool ALDCombatDirector::IsProtoAgencyGuarded(const FGuid& Entity) const
+{
+    const auto* Mode=Core();
+    if (!Proto.bAgency || !Mode) { return false; }
+    for (const auto& Pair : Bodies)
+    {
+        if (Pair.Value.Victim.EntityId==Entity && !Pair.Value.bPendingDeath)
+        { return Mode->GetAuthorityNowMs()<Pair.Value.Agency.GuardUntilMs; }
+    }
+    return false;
 }
 
 bool ALDCombatDirector::ObservedCastSource(const ALDCharacter& Body, int64 NowMs, uint8& OutAbility) const

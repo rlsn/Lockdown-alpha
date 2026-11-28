@@ -28,7 +28,8 @@ namespace LDObservation
     // 25 removes the overdrive charge, the overdrive cast, the Overdriven hit flag and the phantom decoy look (23 is a hole).
     // 26 removes the Dodged hit flag (32 is a hole).
     // 27 adds the observer's incoming locks (C-12).
-    constexpr uint32 Schema = 27;
+    // 28 adds a unit's cue flags (C-09 commit tell, the C-10 prototype guard) and the observer's own prototype flags.
+    constexpr uint32 Schema = 28;
     // A ground state's wire size (LDViewTypes.cpp SerializeObservedGround): SC-07 registers MaxGroundStates of them per frame.
     constexpr int32 GroundStateWireBytes = 16;
     // The public momentum bar of a visible contender: 0..MomentumBarFull (never the exact value).
@@ -72,6 +73,10 @@ namespace LDObservation
     constexpr int32 MaxMapIdBytes = 63;
     // Bit 32 (the retired equipment slots, #144) is never reused.
     enum EField : uint32 { Identity = 1, Level = 2, Health = 4, Momentum = 8, Statuses = 16, Actives = 64 };
+    // FLDObservedUnitView::CueFlags. CommitWindup: the current cue is a windup with an approved committing start (C-09), shown
+    // until its release. ProtoAgencyGuard: a contender in its C-10 prototype guard (only with -LDProtoAgency on the server).
+    enum ECueFlags : uint8 { CommitWindup = 1, ProtoAgencyGuard = 2 };
+    constexpr uint8 CueFlagsMask = CommitWindup | ProtoAgencyGuard;
     constexpr uint32 ContenderFields = Identity | Level | Health | Momentum | Statuses | Actives;
     constexpr uint32 CampFields = Identity | Health | Statuses;
 }
@@ -163,6 +168,8 @@ struct FLDObservedUnitView
     UPROPERTY() uint16 RecentReactionAgePlusOneMs = 0;
     // The element that set that reaction off (ELDCombatElement 1..6); 0 with no reaction.
     UPROPERTY() uint8 RecentReactionElement = 0;
+    // LDObservation::ECueFlags.
+    UPROPERTY() uint8 CueFlags = 0;
     UPROPERTY() TArray<FLDObservedStatus> Statuses;
     UPROPERTY() FLDObservedActivesView Actives;
 };
@@ -283,6 +290,8 @@ struct LOCKDOWN_API FLDWorldView
     UPROPERTY() TArray<FLDObservedRecoveryOrb> RecoveryOrbs;
     UPROPERTY() TArray<FName> WitnessedEmptyCamps;
     UPROPERTY() TArray<FLDObservedIncomingLock> IncomingLocks;
+    // The observer's own LDObservation::ProtoAgencyGuard (C-10 prototype only); 0 otherwise.
+    UPROPERTY() uint8 OwnProtoFlags = 0;
     // Not on the wire: the bytes this view took when a connection delivered it; 0 for a view built or delivered locally.
     int32 ReceivedWireBytes = 0;
     bool NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuccess);
@@ -341,6 +350,8 @@ struct FLDObservedPublicFacts
     uint8 LastReaction = 0;
     int64 LastReactionAtMs = 0;
     uint8 LastReactionElement = 0;
+    // LDObservation::ECueFlags of this body now.
+    uint8 CueFlags = 0;
 };
 
 // Server-only public fact of one live ground state (ALDCombatDirector::ReadObservedGround). Never serialized.

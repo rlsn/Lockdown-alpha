@@ -64,10 +64,12 @@
   - 守护期：触发后进入 `-LDProtoAgencyGuard=`（默认 1 s）守护期，期间新的硬控不生效。
   - 两种变体：`-LDProtoAgencyCut=Immediate`（V-Cut，默认）立即结束他人施加的眩晕、定身、缴械、沉默与嘲讽，击退的位移照常完成，但不再锁定输入；`NextControl`（V-Next）不结束当前控制，只防住下一次。
   - 翻滚：同一连击链（距上一次击退结束不到 2 s）中，第 `-LDProtoAgencyRollFrom=`（默认 3）次及以后的击退，以及守护期内受到的击退，都照常推开身体，但不锁定动作、不打断前摇与移动指令，也不计入失去操作权的时长。
-  - 日志：`LD_PROTO_AGENCY trigger|guarded|roll`。急眼状态目前没有画面表现。
+  - 日志：`LD_PROTO_AGENCY trigger|guarded|roll`。守护期内所有看得见该选手的人（包括本人）在其头顶看到开发用文字“急眼了”（[视野与 UI](VISION_AND_UI.md)）。翻滚击退推开期间，位移仍由根运动接管。
+  - 判据探针：见下文“检查入口”。
 - **一锅端落地延迟（C-14，`-LDProtoPotDelay=<秒>`）**：只把 S08（`active_quick_meeting`）2B、3B1、3B2 的 `ground_impact` 延迟改为该值（0–5 s），落点预警也随之延长；3B1 的二次爆炸仍在首砸后按内容延迟发生。
 
 ## 检查入口
 
 - 纯规则：`Lockdown.Rules.DemoCombat*`、`Lockdown.Rules.DemoAttributeProjection.*`、`Lockdown.Rules.DemoMechanics.*`、`Lockdown.Rules.DemoBuildPrimitives.*`、`Lockdown.Rules.Combat.*`、`Lockdown.Rules.DamageRecap.*`、`Lockdown.Rules.BuildBlueprint.*`。
 - 拥有连接场景：`Scripts/RunDemoCombatCheck.ps1`、`Scripts/RunDemoCampCheck.ps1`。
+- 急眼了原型判据探针：`.\Scripts\RunAgencyProbe.ps1 [-Switches '-LDProtoAgencyThreshold=2.2',…]`（`Lockdown.Probe.AgencyCriteria`）。它让 `control_chain_model.py` 中的脚本化攻击者经权威控制路径施加控制，不包含伤害、位移和真实墙体（撞墙眩晕按击退结束时刻施加）。每个场景分别以关闭、V-Cut、V-Next 运行，结果写入 `Artifacts/ProtoAgency/agency-probe-*.json`，并给出单人连招触发次数、三人围攻首轮保留率、墙边急速围攻首次可逃时刻这三项判据。

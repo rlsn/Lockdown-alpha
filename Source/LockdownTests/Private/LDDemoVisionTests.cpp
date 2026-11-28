@@ -268,6 +268,11 @@ bool FLDDemoVisionCodecTest::RunTest(const FString& Parameters)
     Full.WitnessedEmptyCamps = {FName(TEXT("h08")), FName(TEXT("l10")), FName(TEXT("e01"))};
     for (int32 Index = 0; Index < LDObservation::MaxIncomingLocks; ++Index)
     { Full.IncomingLocks.Add({Full.Units[Index * 2].Handle, uint32(250 + Index), uint8(16 + Index)}); }
+    Full.Units[0].ActionCue = ELDObservedActionCue::Cast;
+    Full.Units[0].ActionCueAgeMs = 40;
+    Full.Units[0].ActionCueImpactDelayMs = 300;
+    Full.Units[0].CueFlags = LDObservation::CommitWindup | LDObservation::ProtoAgencyGuard;
+    Full.OwnProtoFlags = LDObservation::ProtoAgencyGuard;
     FLDWorldView Read;
     int64 Bytes = 0;
     TestTrue(TEXT("Bounded full view round-trips"), Wire(Full, Read, &Bytes));
@@ -288,6 +293,8 @@ bool FLDDemoVisionCodecTest::RunTest(const FString& Parameters)
             && Read.IncomingLocks[Index].Ability == Full.IncomingLocks[Index].Ability;
     }
     TestTrue(TEXT("Incoming locks round-trip exactly"), bLocksKept);
+    TestTrue(TEXT("Cue flags and the own prototype flags round-trip"), Read.Units[0].CueFlags == Full.Units[0].CueFlags
+        && Read.Units[1].CueFlags == 0 && Read.OwnProtoFlags == Full.OwnProtoFlags);
     TestTrue(TEXT("Coverage is the exact fixed bitmap"), Read.Footprint.CurrentBits == Full.Footprint.CurrentBits
         && LDObservation::CoverageBit(Read.Footprint.CurrentBits, 0) && LDObservation::CoverageBit(Read.Footprint.CurrentBits, LDObservation::CoverageCells - 1)
         && (Read.Footprint.CurrentBits[0] & 1) != 0 && (Read.Footprint.CurrentBits[LDObservation::CoverageBytes - 1] & 0x80) != 0);
@@ -393,6 +400,24 @@ bool FLDDemoVisionCodecTest::RunTest(const FString& Parameters)
         V.Footprint.SourceStatus = ELDObservationSource::NoLivingBody;
         V.Units.Reset(); V.RecentTerminations.Reset(); V.Projectiles.Reset(); V.GroundStates.Reset(); V.RecoveryOrbs.Reset();
         V.WitnessedEmptyCamps = {FName(TEXT("h08"))};
+    })));
+    TestTrue(TEXT("A commit tell on a shown cue encodes"), Encodes(Mutated([](FLDWorldView& V)
+    {
+        V.Units[0].ActionCue = ELDObservedActionCue::Cast;
+        V.Units[0].ActionCueImpactDelayMs = 300;
+        V.Units[0].CueFlags = LDObservation::CommitWindup;
+    })));
+    TestFalse(TEXT("A commit tell without a cue is refused"), Encodes(Mutated([](FLDWorldView& V)
+    { V.Units[0].CueFlags = LDObservation::CommitWindup; })));
+    TestFalse(TEXT("Unknown cue flags are refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[0].CueFlags = 4; })));
+    TestFalse(TEXT("A camp member has no prototype guard"), Encodes(Mutated([](FLDWorldView& V)
+    { V.Units[1].CueFlags = LDObservation::ProtoAgencyGuard; })));
+    TestFalse(TEXT("A frame without a living source has no own prototype flags"), Encodes(Mutated([](FLDWorldView& V)
+    {
+        V.Footprint = FLDObservedFootprint();
+        V.Footprint.SourceStatus = ELDObservationSource::NoLivingBody;
+        V.Units.Reset();
+        V.OwnProtoFlags = LDObservation::ProtoAgencyGuard;
     })));
     TestTrue(TEXT("An incoming lock from a shown caster encodes"), Encodes(Mutated([](FLDWorldView& V)
     { V.IncomingLocks = {{V.Units[0].Handle, 250, 16}}; })));
@@ -583,7 +608,8 @@ bool FLDDemoVisionPrivacyTest::RunTest(const FString& Parameters)
     Exact(FLDObservedUnitView::StaticStruct(), {TEXT("Handle"), TEXT("ObservationEpoch"), TEXT("StateRevision"), TEXT("AuthorizedFieldMask"),
         TEXT("Kind"), TEXT("Presentation"), TEXT("FeetCm"), TEXT("Facing"), TEXT("ActionCue"), TEXT("ActionCueAgeMs"), TEXT("ActionCueImpactDelayMs"), TEXT("HitLook"), TEXT("RecentHitAgePlusOneMs"), TEXT("RecentHitId"), TEXT("HitFlags"), TEXT("ActionAbility"), TEXT("ContenderId"), TEXT("CreatureId"),
         TEXT("Level"), TEXT("Health"), TEXT("ShieldBar"), TEXT("MomentumBar"), TEXT("ActionComboStep"), TEXT("Statuses"), TEXT("Actives"),
-        TEXT("RecentReaction"), TEXT("RecentReactionAgePlusOneMs"), TEXT("RecentReactionElement"), TEXT("CampAffix"), TEXT("bPeddler")});
+        TEXT("RecentReaction"), TEXT("RecentReactionAgePlusOneMs"), TEXT("RecentReactionElement"), TEXT("CampAffix"), TEXT("bPeddler"),
+        TEXT("CueFlags")});
     Exact(FLDObservedHitReceipt::StaticStruct(), {TEXT("MatchGeneration"), TEXT("ObserverLife"), TEXT("Generation"),
         TEXT("Handle"), TEXT("ObservationEpoch"), TEXT("HitId"), TEXT("OccurredAtMs"), TEXT("HitLook"), TEXT("HitFlags")});
     // A flight names no caster, effect, source or target: only its handle, ground point, heading and look.
@@ -599,7 +625,7 @@ bool FLDDemoVisionPrivacyTest::RunTest(const FString& Parameters)
     Exact(FLDWorldView::StaticStruct(), {TEXT("Schema"), TEXT("MatchGeneration"), TEXT("ObserverLife"), TEXT("Generation"), TEXT("Revision"),
         TEXT("WorldMapId"), TEXT("WorldLayoutRevision"), TEXT("WorldGeometryRevision"), TEXT("SampledAtServerSec"), TEXT("Footprint"),
         TEXT("Units"), TEXT("RecentTerminations"), TEXT("Projectiles"), TEXT("GroundStates"), TEXT("RecoveryOrbs"), TEXT("WitnessedEmptyCamps"),
-        TEXT("IncomingLocks")});
+        TEXT("IncomingLocks"), TEXT("OwnProtoFlags")});
     Exact(FLDObservedRecoveryOrb::StaticStruct(), {TEXT("Serial"), TEXT("PositionCm")});
     // C-12: the observer's own incoming lock names a shown caster's handle, the windup left and the skill; no caster identity.
     Exact(FLDObservedIncomingLock::StaticStruct(), {TEXT("SourceHandle"), TEXT("RemainingMs"), TEXT("Ability")});
