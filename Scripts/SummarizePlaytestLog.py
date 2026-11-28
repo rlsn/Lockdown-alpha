@@ -473,10 +473,14 @@ NO_DATA = "no data"
 NOT_APPLICABLE = "n/a (the Host log has no such mechanic)"
 NO_BASELINE = ("no measured same-level bare-build baseline; pass --baseline-run with BuildEvaluation bare-mirror runs "
                "or --baseline-dps")
-# Auto-empower (Batch 01 momentum redesign): one LD_EMPOWER per empowered release (host, target, momentum before and
-# cost); LD_HIT empower=<serial> marks the hits of that release and its derived events; LD_MOMENTUM empower=<count> and
-# armed_ms=<ms at or above the threshold> mark a Host that has the mechanic even when nobody triggered it.
+# Auto-empower (Batch 01 momentum redesign): one LD_EMPOWER per host release with enough momentum (src, host, processor,
+# serial, paid, before, outcome applied/prepaid, or short with serial 0 when momentum fell below the cost); LD_HIT
+# empower=<serial> (0: none) marks the hits of that release and its derived events; LD_MOMENTUM empower=<count> and
+# armed_ms=<ms at or above the threshold> mark a Host that has the mechanic (a Host with the switch off writes 0).
 EMPOWER_HOSTS = ("Basic", "Q", "W", "E", "D")
+EMPOWER_PROCESSORS = ("fist", "strike", "guard", "move", "ward")
+EMPOWER_DONE = ("applied", "prepaid")
+# What an empowered release hit, from its tagged LD_HIT victims: a contender first, then a camp, else nothing.
 EMPOWER_TARGETS = ("contender", "camp", "none")
 # Two triggers of one body closer than this cannot both be paid from income: a refund loop or a derived re-trigger.
 EMPOWER_RAPID_MS = 250
@@ -797,7 +801,7 @@ def match_metrics(events, baseline):
     out["momentum_lives"] = len(ledgers)
     out["training_lines"] = sum(1 for event in events if event.tag == "LD_MOMENTUM" and not field_life(event))
     empowers = [event for event in events if event.tag == "LD_EMPOWER" and authority_ms(event) is not None
-                and field_life(event)]
+                and field_life({"entity": event.get("src"), "life": event.get("life")})]
     out["empower"] = (empower_stats(empowers, hits, ledgers, len(contenders), field_share(events))
                       if empowers or any("empower" in event.fields for event in ledgers) else None)
 
@@ -917,30 +921,39 @@ def momentum_text(momentum, lives):
             f"{momentum.get('spent', 0):.0f}")
 
 
-def empower_stats(empowers, hits, ledgers, contenders, share):
+def empower_stats(lines, hits, ledgers, contenders, share):
     """Additive auto-empower totals of one match's field lives (empower_merge adds matches)."""
-    tagged = defaultdict(int)
+    empowers = [event for event in lines if event.get("outcome") in EMPOWER_DONE]
+    victims = defaultdict(set)
     for event in hits:
-        if event.get("empower") not in ("", "-"):
-            tagged[(event.get("src"), event.get("empower"))] += 1
+        if event.get("empower") not in ("", "-", "0"):
+            victims[(event.get("src"), event.get("empower"))].add(event.get("victim_kind"))
     rapid, last = 0, {}
-    for event in sorted(empowers, key=lambda event: (event.get("entity"), authority_ms(event))):
-        key = (event.get("entity"), event.get("life"))
+    for event in sorted(empowers, key=lambda event: (event.get("src"), authority_ms(event))):
+        key = (event.get("src"), event.get("life"))
         if key in last and authority_ms(event) - last[key] < EMPOWER_RAPID_MS:
             rapid += 1
         last[key] = authority_ms(event)
     has_tags = any("empower" in event.fields for event in hits)
+    struck = [victims.get((event.get("src"), event.get("serial")), set()) for event in empowers]
     armed = [number(event, "armed_ms") for event in ledgers if "armed_ms" in event.fields]
+    tally = defaultdict(int)
+    for event in hits:
+        if event.get("empower") not in ("", "-", "0"):
+            tally[(event.get("src"), event.get("empower"))] += 1
     return {
         "triggers": len(empowers),
+        "short": len(lines) - len(empowers),
         "hosts": {host: sum(1 for event in empowers if event.get("host") == host) for host in EMPOWER_HOSTS},
-        "targets": {target: sum(1 for event in empowers if event.get("target") == target) for target in EMPOWER_TARGETS},
-        "cost": sum(number(event, "cost") for event in empowers),
+        "processors": {name: sum(1 for event in empowers if event.get("processor") == name) for name in EMPOWER_PROCESSORS},
+        # Unknown without the LD_HIT empower field.
+        "targets": ({"contender": sum(1 for kinds in struck if "contender" in kinds),
+                     "camp": sum(1 for kinds in struck if kinds and "contender" not in kinds and "camp" in kinds),
+                     "none": sum(1 for kinds in struck if not kinds)} if has_tags else None),
+        "cost": sum(number(event, "paid") for event in empowers),
         "before": sum(number(event, "before") for event in empowers),
-        # A trigger none of whose hits landed: the release paid and missed. Unknown when LD_HIT has no empower field.
-        "whiffs": (sum(1 for event in empowers if not tagged.get((event.get("entity"), event.get("serial")))) if has_tags
-                   else None),
-        "max_hits": max(tagged.values(), default=0) if has_tags else None,
+        "whiffs": sum(1 for kinds in struck if not kinds) if has_tags else None,
+        "max_hits": max(tally.values(), default=0) if has_tags else None,
         "rapid": rapid,
         "armed_ms": sum(armed) if armed else None,
         "contender_field_ms": contenders * share[0] if share else None,
@@ -953,7 +966,10 @@ def empower_merge(total, stats):
     if total is None:
         return {key: dict(value) if isinstance(value, dict) else value for key, value in stats.items()}
     for key, value in stats.items():
-        if isinstance(value, dict):
+        if isinstance(value, dict) or value is None and key == "targets":
+            if value is None or total[key] is None:
+                total[key] = None
+                continue
             for inner, count in value.items():
                 total[key][inner] += count
         elif key == "max_hits":
@@ -971,15 +987,18 @@ def empower_text(stats):
     armed = (f"{100 * stats['armed_ms'] / stats['contender_field_ms']:.0f}% of contender field time"
              if stats["armed_ms"] is not None and stats["contender_field_ms"]
              else f"{NO_DATA} (no armed_ms or no finished field time)")
+    short = f"; momentum short at release {stats['short']}" if stats["short"] else ""
     if not count:
-        return f"0 triggers; armed {armed}"
+        return f"0 triggers{short}; armed {armed}"
     def shares(counts):
         return ", ".join(f"{key} {100 * value / count:.0f}%" for key, value in counts.items() if value)
     rate = f"{count / minutes:.2f} per contender field minute" if minutes else f"rate {NO_DATA} (no finished field time)"
     whiffs = (f"{100 * stats['whiffs'] / count:.0f}%" if stats["whiffs"] is not None
               else f"{NO_DATA} (LD_HIT has no empower field)")
+    targets = shares(stats["targets"]) if stats["targets"] is not None else f"{NO_DATA} (LD_HIT has no empower field)"
     most = stats["max_hits"] if stats["max_hits"] is not None else NO_DATA
-    return (f"{count} triggers ({rate}); hosts {shares(stats['hosts'])}; targets {shares(stats['targets'])}; "
+    return (f"{count} triggers ({rate}){short}; hosts {shares(stats['hosts'])}; processors {shares(stats['processors'])}; "
+            f"targets {targets}; "
             f"paid and missed {whiffs}; mean cost {stats['cost'] / count:.1f}, mean momentum before "
             f"{stats['before'] / count:.1f}; re-triggers within {EMPOWER_RAPID_MS} ms {stats['rapid']}; "
             f"most hits from one trigger {most}; armed {armed}")

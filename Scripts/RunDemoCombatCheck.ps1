@@ -14,7 +14,9 @@ param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(300,1500)][int]$
     [string]$RecordGame,
     # With CaptureOnly: a camera-feedback A/B take with the Host's camera shake off (NoShake) or reduced combat effects on
     # (Reduced); the default is the shipped preferences.
-    [ValidateSet('Default','NoShake','Reduced')][string]$Feel = 'Default')
+    [ValidateSet('Default','NoShake','Reduced')][string]$Feel = 'Default',
+    # Extra command-line arguments for every role, for an A/B run, e.g. '-LDEmpower' (auto-empower on).
+    [string]$ExtraArguments)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
 Assert-LDDemoInputs
@@ -52,6 +54,7 @@ function Start-CombatRole {
             elseif ($RenderClient) { "-windowed -RenderOffScreen $resolutionArguments" } else { '-nullrhi' }
         $arguments = '-unattended -nop4 -nosound -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoCombatProbe -LDDemoCombatRole={2} -LDDemoCombatTimeout={3} -LDDemoCombatOutput="{4}" -abslog="{5}"' -f $render,$user,$Role,$TimeoutSeconds,$evidence,$log
         if ($NetEmulation) { $arguments += " $NetEmulation" }
+        if ($ExtraArguments) { $arguments += " $ExtraArguments" }
         if ($CaptureOnly) { $arguments += ' -LDDemoCombatCaptureOnly' }
         if ($CaptureOnly -and $Role -eq 'Host') { $arguments = $arguments.Replace(' -nosound', '') + ' -LDAudioEventLog' }
         if ($CaptureOnly -and $RecordGame -and $Role -eq 'Host') { $arguments += ' -LDRecordGame="{0}"' -f $RecordGame }
