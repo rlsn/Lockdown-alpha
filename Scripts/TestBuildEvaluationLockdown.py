@@ -129,6 +129,8 @@ def trace(*extra, drop=()):
         ("s_heartbeat", heartbeat(6000, S, "100,0,0")),
         ("o_heartbeat", heartbeat(6000, O, "-100,5,0")),
         ("o_learn", f"LD_BUILD t=9300 contender={O} kind=LearnBlueprint card=active_bail_out slot=E points=- unspent=0 level=6"),
+        ("s_cast", f"LD_CAST t=9500 contender={S} life=2 casts=1 added=1"),
+        ("o_cast", f"LD_CAST t=10500 contender={O} life=2 casts=1 added=1"),
         ("hit1", hit(10000, S, O, "100.00", "0.00", "100.00", "620.00", "520.00")),
         ("hit2", hit(11000, O, S, "50.00", "10.00", "40.00", "620.00", "580.00")),
         ("lethal", hit(20000, S, O, "600.00", "0.00", "520.00", "520.00", "0.00")),
@@ -138,6 +140,9 @@ def trace(*extra, drop=()):
     ]
     lines = [line for key, line in lines if key not in drop]
     return "\n".join(lines + list(extra)) + "\n"
+
+
+NO_CASTS = ("s_cast", "o_cast")
 
 
 # Workshop: the subject owns its build. Three opening points go to strength in the opening rest; on the field the level
@@ -776,7 +781,7 @@ class EvidenceTest(AdapterCase):
                  f"LD_CAST t=12000 contender={S} life=2 casts=4 added=2",
                  f"LD_CAST t=20017 contender={O} life=2 casts=2 added=1",  # the outcome's own advance
                  f"LD_CAST t=21000 contender={S} life=2 casts=5 added=1")  # after the outcome
-        out = self.evidence(text=trace(*casts))
+        out = self.evidence(text=trace(*casts, drop=NO_CASTS))
         self.assertEqual(out["status"], "Completed", out["reason"])
         # The first hit between the duelists lands at 10000, the opponent dies at 20000.
         self.assertEqual(out["metrics"]["engage_to_kill_ms"], {"value": 10000, "censored": False})
@@ -784,15 +789,13 @@ class EvidenceTest(AdapterCase):
         self.assertEqual(out["metrics"]["opponent_casts"], {"value": 2, "censored": False})
         value = result(kind="timeout", ended_at_ms=50000)
         value["contenders"][1] = contender("opponent", 1, O, hp=10000)
-        timeout = self.evidence(value, trace(*casts, drop=("lethal", "death", "death_reward")))
+        timeout = self.evidence(value, trace(*casts, drop=("lethal", "death", "death_reward", *NO_CASTS)))
         self.assertEqual(timeout["status"], "Completed", timeout["reason"])
         self.assertEqual(timeout["metrics"]["engage_to_kill_ms"], {"value": 40000, "censored": True})
-        # No cast at all and no skill hit: zero casts is what happened.
-        self.assertEqual(self.evidence()["metrics"]["subject_casts"], {"value": 0, "censored": False})
         skill = hit(12500, S, O, "10.00", "0.00", "10.00", "520.00", "510.00").replace("via=basic class=basic",
                                                                                       "via=learned:active_elbow class=ability")
-        self.assertIn("duelist skill hits without any LD_CAST line", self.evidence(text=trace(skill))["reason"])
-        self.assertEqual(self.evidence(text=trace(skill, *casts))["status"], "Completed")
+        self.assertIn("duelist skill hits without any LD_CAST line", self.evidence(text=trace(skill, drop=NO_CASTS))["reason"])
+        self.assertEqual(self.evidence(text=trace(skill, *casts, drop=NO_CASTS))["status"], "Completed")
         self.assertIn("LD_CAST has no valid authority time or count",
                       self.evidence(text=trace(f"LD_CAST t=9000 contender={S} life=2 casts=1 added=0"))["reason"])
 
@@ -814,6 +817,42 @@ class EvidenceTest(AdapterCase):
         self.assertEqual(out["status"], "Completed", out["reason"])
         self.assertEqual(out["metrics"]["duel_score"], {"value": 0, "censored": True})
         self.assertEqual(out["metrics"]["decision_time_ms"], {"value": 45000, "censored": True})
+
+    def test_a_timeout_without_any_duelist_hit_is_no_engagement_not_censored(self):
+        value = result(kind="timeout", ended_at_ms=50000)
+        value["contenders"][1] = contender("opponent", 1, O, hp=10000)
+        no_hits = ("hit1", "hit2", "lethal", "death", "death_reward")
+        out = self.evidence(value, trace(drop=no_hits))
+        self.assertEqual(out["status"], "Invalid", out)
+        self.assertIn("NoEngagement", out["reason"])
+        self.assertIn("closest approach 200 cm", out["reason"], "the 6000 heartbeats stand 200 cm apart")
+        # A kite stance may keep its distance on purpose: the same timeout is a censored result.
+        stance = {"kind": "kite", "standoff_cm": 600}
+        kite = manifest(subject={"choices": ["ai_select"] * 3, "stance": stance}, sample="diagnostic")
+        begin = f"LD_EVAL_CASE_BEGIN case=c000a-t index=0 seed=7 subject={S} opponent={O}"
+        profile = f"LD_EVAL_PROFILE contender={S} rival={O} site=capture choices=3 reaction_ms=0 aim_error_cm=0 skip_bp=0"
+        kept = self.evidence(value, trace(drop=no_hits).replace(begin, begin + "\n" + profile), plan_manifest=kite)
+        self.assertEqual(kept["status"], "Completed", kept["reason"])
+        self.assertTrue(kept["metrics"]["duel_score"]["censored"])
+
+    def test_a_duelist_that_never_casts_through_its_engagement_is_invalid(self):
+        out = self.evidence(text=trace(drop=("o_cast",)))
+        self.assertEqual(out["status"], "Invalid", out)
+        self.assertIn("NeverCast: the opponent", out["reason"])
+        self.assertNotIn("the subject", out["reason"])
+        # A kill inside the grace window is not enough engagement to call zero casts a failure.
+        start = 20000 - lockdown.NEVER_CAST_GRACE_MS + 1
+        quick = trace(drop=NO_CASTS).replace("LD_HIT t=10000", f"LD_HIT t={start}").replace("LD_HIT t=11000",
+                                                                                            f"LD_HIT t={start + 1}")
+        self.assertEqual(self.evidence(text=quick)["status"], "Completed")
+        # SkipBp holds casts on purpose, so zero casts under it is the planned play, not a failure.
+        stance = {"kind": "pursue", "skip_bp": 9000}
+        skipping = manifest(opponent={"choices": ["ai_select"] * 3, "stance": stance}, sample="diagnostic")
+        begin = f"LD_EVAL_CASE_BEGIN case=c000a-t index=0 seed=7 subject={S} opponent={O}"
+        profile = f"LD_EVAL_PROFILE contender={O} rival={S} site=capture choices=3 reaction_ms=0 aim_error_cm=0 skip_bp=9000"
+        held = self.evidence(text=trace(drop=("o_cast",)).replace(begin, begin + "\n" + profile), plan_manifest=skipping)
+        self.assertEqual(held["status"], "Completed", held["reason"])
+        self.assertIn("NeverCast", " ".join(lockdown.limitations(manifest(), self.caps)))
 
     def test_simultaneous_reciprocal_kills_are_an_observed_trade_not_a_win_or_timeout(self):
         value = result(kind="trade")
