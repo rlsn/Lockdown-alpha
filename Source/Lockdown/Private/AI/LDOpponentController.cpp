@@ -772,13 +772,17 @@ bool ALDOpponentController::RouteAroundGrounds(const FLDOpponentDecisionFrame& F
         FVector Unused;
         if (!Path(FootCm, FVector(Waypoint.X, Waypoint.Y, FootCm.Z), First)) { ++NoLeg; continue; }
         if (Blocked(First.Points, Unused) != INDEX_NONE) { ++LegBlocked; continue; }
-        if (!Path(First.EndProjectionCm, Request.GroundCm, Second)) { ++NoFinal; continue; }
+        // The leg's legal end ground: the registry appends it when navigation moved the end sideways, otherwise its last
+        // point is the navigation end, EndProjectionCm above or below it (EndProjectionCm is an offset, not a position).
+        const FVector Reached = First.EndProjectionCm.SizeSquared2D() > UE_KINDA_SMALL_NUMBER ? First.Points.Last()
+            : First.Points.Last() - First.EndProjectionCm;
+        if (!Path(Reached, Request.GroundCm, Second)) { ++NoFinal; continue; }
         const double Cost = LDOpponentPolicy::GroundWeightedCm(First.Points, Frame.Grounds, CostBp)
             + LDOpponentPolicy::GroundWeightedCm(Second.Points, Frame.Grounds, CostBp);
         if (Cost < Best)
         {
             Best = Cost;
-            Out = First.EndProjectionCm;
+            Out = Reached;
             bDetour = true;
         }
     }
@@ -814,8 +818,23 @@ void ALDOpponentController::KeepWalkClearOfBodies(const FReads& Reads, const FLD
     const FLDOpponentUnit* Walling = nullptr;
     if (!RouteAroundGrounds(Frame, Foot, Incumbent.Request, Waypoint, true, &Walling))
     {
-        // No way round: the next decisions fight through the member that walls the walk off.
-        if (Walling) { Walled = {Walling->Handle, Walling->Epoch, NowMs + 2 * LDOpponentPolicy::BodyRerouteIntervalMs}; }
+        // No way round: once pressed against the walling member (a body only grazing past it still slides by), the next
+        // decisions fight through it.
+        if (Walling)
+        {
+            const FLDDemoMonsterDefinition* Monster = nullptr;
+            FString Why;
+            FCollisionShape Capsule;
+            const double Reach = Content->FindMonster(Walling->MonsterId, Monster, Why) && Monster
+                && Monster->CollisionRadiusCm.Denominator > 0 && ULDMapRegistry::ContentCapsule(*Content, Capsule, Why)
+                ? double(Monster->CollisionRadiusCm.Numerator) / double(Monster->CollisionRadiusCm.Denominator)
+                    + Capsule.GetCapsuleRadius() + LDOpponentPolicy::BodyPressedCm
+                : 0.;
+            if (FVector::Dist2D(Foot, Walling->FootCm) <= Reach)
+            {
+                Walled = {Walling->Handle, Walling->Epoch, NowMs + 2 * LDOpponentPolicy::BodyRerouteIntervalMs};
+            }
+        }
         return;
     }
     FLDSpatialOrderRequest Leg = Incumbent.Request;

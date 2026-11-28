@@ -701,6 +701,8 @@ namespace LDOpponentPolicy
     constexpr double BodyLookaheadCm = 1200.;
     constexpr double BodyGrazeCm = 25.;
     constexpr int64 BodyRerouteIntervalMs = 1000;
+    // A walker this much beyond touching distance of a walling body counts as pressed against it.
+    constexpr double BodyPressedCm = 30.;
     // B01 T04-03: how far inside the final street ring a body keeps; one outside Radius - margin walks back to Radius - 2 x margin.
     constexpr double StreetRingMarginCm = 150.;
 #if WITH_DEV_AUTOMATION_TESTS
