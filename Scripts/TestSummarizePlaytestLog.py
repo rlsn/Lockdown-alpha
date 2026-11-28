@@ -355,6 +355,32 @@ class SummarizePlaytestLogTest(unittest.TestCase):
                       "other 0.0%); idle drift -5, spent 130, overdrives n/a (the Host log has no such mechanic), "
                       "perfect dodges n/a (the Host log has no such mechanic)", trimmed)
         self.assertIn("overdrives n/a", trimmed.split("## Metrics across")[1])
+        self.assertIn("- Auto-empower: n/a (the Host log has no such mechanic)", trimmed)
+        # Auto-empower: A pays twice 100 ms apart (a loop) and lands one tagged hit; B's basic empower on a camp misses.
+        empower = lambda at, t, who, life, host, target, before, cost, serial: line(
+            at, "LogLDCombat", "Log", f"LD_EMPOWER t={t} entity={who} life={life} host={host} skill=- target={target} "
+                                      f"before={before} cost={cost} after={before - cost} serial={serial} payload=p")
+        armed = {f"entity={a} life=1 ": " empower=2 armed_ms=5000", f"entity={b} life=1 ": " empower=1 armed_ms=1000"}
+        ledgered = [row + next((extra for key, extra in armed.items() if "LD_MOMENTUM" in row and key in row), "")
+                    for row in removed]
+        empowered = ledgered[:-1] + [
+            empower(10, 10000, a, 1, "Q", "contender", 70, 30, 1),
+            empower(10, 10100, a, 1, "Q", "contender", 40, 30, 2),
+            hit(10, 10200, a, b, "learned:active_zap", "10.00", "factor_bp=10000 factors=- empower=1"),
+            empower(11, 11000, b, 1, "Basic", "camp", 60, 20, 1),
+        ] + ledgered[-1:]
+        (self.root / "Empower.log").write_text("\n".join(empowered) + "\n", encoding="utf-8")
+        report = summarize(collect([str(self.root / "Empower.log")]), metrics_only=True)
+        expected = ("Auto-empower: 3 triggers (9.00 per contender field minute); hosts Basic 33%, Q 67%; targets contender 67%, "
+                    "camp 33%; paid and missed 67%; mean cost 26.7, mean momentum before 56.7; re-triggers within 250 ms 1; "
+                    "most hits from one trigger 1; armed 30% of contender field time")
+        self.assertIn(f"- {expected}", report.split("## Metrics across")[0])
+        self.assertIn(f"- {expected}", report.split("## Metrics across")[1])
+        # The mechanic is on (ledgers carry empower=) but nobody triggered: 0, not n/a.
+        quiet_empower = [row for row in empowered if "LD_EMPOWER" not in row]
+        (self.root / "EmpowerIdle.log").write_text("\n".join(quiet_empower) + "\n", encoding="utf-8")
+        self.assertIn("- Auto-empower: 0 triggers; armed 30% of contender field time",
+                      summarize(collect([str(self.root / "EmpowerIdle.log")]), metrics_only=True))
         # Field objectives: one serial ends, the other repeats its Open line every frame and never ends.
         objective = lambda serial, kind, phase: line(15, "LogLDWorld", "Display",
                                                      f"LD_OBJECTIVE serial={serial} kind={kind} phase={phase} anchor=a field_t_ms=1")
