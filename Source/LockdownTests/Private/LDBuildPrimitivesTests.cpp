@@ -52,8 +52,6 @@ struct FLDBuildPrimitivesAccess
     static TMap<FGuid, FLDCombatEntityRecord>& Records(ALDCombatDirector& Driver) { return Driver.Records; }
     static TArray<FLDCombatHit>& PendingHits(ALDCombatDirector& Driver) { return Driver.PendingHits; }
     // Issue #287 P1: perfect dodges and branch riders.
-    static bool PerfectDodges(ALDCombatDirector& Driver, const FGuid& EffectId, const FGuid& Source, TFunctionRef<bool(const FVector&)> InArea,
-        int64 NowMs, FString& Error) { return Driver.ResolvePerfectDodges(EffectId, Source, InArea, NowMs, Error); }
     static int64 Vulnerable(const ALDCombatDirector& Driver, const FLDBodyCombatState& Target, const FLDCombatHit& Hit, int64 NowMs)
     { return Driver.BranchVulnerableBp(Target, Hit, NowMs); }
     static bool AdvanceBranches(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceBranches(NowMs, Error); }
@@ -2400,38 +2398,7 @@ bool FLDMonsterDeliveryTest::RunTest(const FString& Parameters)
     return true;
 }
 
-// ---- Issue #287 P1: perfect dodge and branch riders on Combat ----
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDPerfectDodgeResolveTest, "Lockdown.Rules.Combat.PerfectDodge.Resolve",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FLDPerfectDodgeResolveTest::RunTest(const FString& Parameters)
-{
-    using namespace LDBuildPrimitivesTests;
-    FFixture F;
-    if (!F.Init(*this)) { return false; }
-    const FLDCombatBodyRef Caster = F.AddBody(), Dodger = F.AddBody();
-    F.Place(Dodger, 600, 0);
-    FLDBodyCombatState& Body = F.Body(Dodger);
-    Body.Resources.MomentumP2 = 1000;
-    F.Now(2000);
-    // The dodger's D started at 1800 inside a 200 cm circle at the origin; it now stands 600 cm away.
-    Body.DashStartedAtMs = 1800;
-    Body.DashStartFootCm = FVector(50, 0, F.Foot(Dodger).Z);
-    const auto InCircle = [](const FVector& Point) { return FVector::Dist2D(Point, FVector::ZeroVector) <= 200.; };
-    const FGuid Effect = FGuid::NewGuid();
-    FString Error;
-    TestTrue(TEXT("The resolution judges"), FAccess::PerfectDodges(*F.Driver, Effect, Caster.Victim.EntityId, InCircle, 2000, Error));
-    TestTrue(TEXT("A perfect dodge gains 20 momentum and is counted"), Body.Resources.MomentumP2 == 3000 && Body.PerfectDodges == 1
-        && Body.LastPerfectDodgeAtMs == 2000);
-    TestTrue(TEXT("The same effect never pays twice"), FAccess::PerfectDodges(*F.Driver, Effect, Caster.Victim.EntityId, InCircle, 2000, Error)
-        && Body.Resources.MomentumP2 == 3000);
-    TestTrue(TEXT("The caster never dodges its own effect"), FAccess::PerfectDodges(*F.Driver, FGuid::NewGuid(), Dodger.Victim.EntityId,
-        InCircle, 2000, Error) && Body.Resources.MomentumP2 == 3000);
-    TestTrue(TEXT("A dash older than the window is no perfect dodge"), FAccess::PerfectDodges(*F.Driver, FGuid::NewGuid(),
-        Caster.Victim.EntityId, InCircle, 2301, Error) && Body.Resources.MomentumP2 == 3000);
-    return true;
-}
+// ---- Issue #287 P1: branch riders on Combat ----
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDSkillRankRidersTest, "Lockdown.Rules.Combat.SkillRank.Riders",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -2675,42 +2642,6 @@ bool FLDCombatHitBudgetTest::RunTest(const FString& Parameters)
     bGood &= TestEqual(TEXT("A flood resolves one step's budget and keeps at most the cap queued"), Pending.Num(),
         ALDCombatDirector::TechPendingHitsCap);
     return bGood;
-}
-// A telegraphed flight is perfectly dodged by a D started within the window before it passed the dasher's spot, judged when
-// it passed there, not when the flight ended farther on.
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatFlightDodgeTimingTest, "Lockdown.Rules.Combat.Events.FlightDodgeTiming",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FLDCombatFlightDodgeTimingTest::RunTest(const FString& Parameters)
-{
-    using namespace LDBuildPrimitivesTests;
-    FFixture F;
-    if (!F.Init(*this)) { return false; }
-    const FLDCombatBodyRef Thrower = F.AddBody(), Early = F.AddBody(), Late = F.AddBody();
-    F.Place(Thrower, 0, 0);
-    F.Place(Early, 300, 300);
-    F.Place(Late, 1300, 300);
-    FLDCombatProjectile Flight;
-    Flight.EffectId = FGuid::NewGuid();
-    Flight.SourceBody = Thrower;
-    Flight.SourceEntity = Thrower.Victim.EntityId;
-    Flight.OriginCm = F.Foot(Thrower);
-    Flight.Direction = FVector(1, 0, 0);
-    Flight.SpeedCmPerSec = 1500.;
-    Flight.RadiusCm = 40.;
-    Flight.RangeCm = 1500.;
-    Flight.bTelegraphed = true;
-    const FVector End = Flight.OriginCm + FVector(1500, 0, 0);
-    // The flight ends at 2000 ms: it passed x = 300 at 1200 ms and x = 1300 at 1867 ms.
-    F.Body(Early).DashStartedAtMs = 1150;
-    F.Body(Early).DashStartFootCm = Flight.OriginCm + FVector(300, 0, 0);
-    F.Body(Late).DashStartedAtMs = 1500;
-    F.Body(Late).DashStartFootCm = Flight.OriginCm + FVector(1300, 0, 0);
-    F.Now(2000);
-    FString Error;
-    if (!TestTrue(TEXT("The flight ends: ") + Error, FAccess::EndBranchProjectile(*F.Driver, Flight, End, Error))) { return false; }
-    TestEqual(TEXT("A D 50 ms before the flight passed perfectly dodges it"), F.Body(Early).PerfectDodges, uint32(1));
-    TestEqual(TEXT("A D 367 ms before it passed does not"), F.Body(Late).PerfectDodges, uint32(0));
-    return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA14Test, "Lockdown.Rules.Combat.Cards.A14",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -4824,31 +4755,18 @@ bool FLDIssue345SkillsAndFrameworksTest::RunTest(const FString& Parameters)
     if (!F.Init(*this, true)) { return false; }
     FString Error;
 
-    // 1. Native 0.12s D-dash hit-graze Perfect Dodge.
-    const FLDCombatBodyRef Dodger = F.AddBody(), Attacker = F.AddBody();
-    F.Place(Dodger, 0, 0);
+    // An attacker's ability hit, the template of the hits below.
+    const FLDCombatBodyRef Attacker = F.AddBody();
     F.Place(Attacker, 180, 0);
-    F.Body(Dodger).Resources.HpP2 = F.Body(Dodger).Resources.MaxHpP2 = 100000;
-    F.Body(Dodger).Resources.MomentumP2 = 2000;
-    F.Body(Dodger).DashStartedAtMs = 1000;
-    F.Body(Dodger).DashUntilMs = 1180;
     F.Now(1080);
-    FLDCombatHit GrazingHit;
-    GrazingHit.HitId = FGuid::NewGuid();
-    GrazingHit.EffectId = FGuid::NewGuid();
-    GrazingHit.Target = Dodger;
-    GrazingHit.SourceBody = Attacker;
-    GrazingHit.SourceEntity = Attacker.Victim.EntityId;
-    GrazingHit.CreditOwner = Attacker.Victim.EntityId;
-    GrazingHit.Source = SourceOf(ELDCombatSourceKind::Learned, TEXT("active_elbow"));
-    GrazingHit.HitClass = ELDCombatHitClass::Ability;
-    GrazingHit.BaseP2 = 20000;
-    GrazingHit.DamageType = ELDDemoDamageType::Physical;
-    if (!TestTrue(TEXT("Grazing hit during 0.12s dash window resolves: ") + Error, F.Apply(GrazingHit, Error))) { return false; }
-    TestTrue(TEXT("0.12s dash window halves damage, grants +20 momentum and sets Dodged cue flag"),
-        F.Body(Dodger).PerfectDodges == 1 && F.Body(Dodger).Resources.MomentumP2 == 4000
-        && (F.Body(Dodger).Cues.LastHitFlags & LDObservation::Dodged) != 0
-        && F.Body(Dodger).Resources.HpP2 > 88000);
+    FLDCombatHit AbilityHit;
+    AbilityHit.SourceBody = Attacker;
+    AbilityHit.SourceEntity = Attacker.Victim.EntityId;
+    AbilityHit.CreditOwner = Attacker.Victim.EntityId;
+    AbilityHit.Source = SourceOf(ELDCombatSourceKind::Learned, TEXT("active_elbow"));
+    AbilityHit.HitClass = ELDCombatHitClass::Ability;
+    AbilityHit.BaseP2 = 20000;
+    AbilityHit.DamageType = ELDDemoDamageType::Physical;
 
     // 2. Thick Skin 18-point keystone 35% MaxHP stagger bleed gate.
     const FLDCombatBodyRef Tank = F.AddBody();
@@ -4857,7 +4775,7 @@ bool FLDIssue345SkillsAndFrameworksTest::RunTest(const FString& Parameters)
     F.Body(Tank).BuildProjection = F.Body(Tank).AttributeProjection = TankProj.Value.GetValue();
     F.Body(Tank).Resources.HpP2 = F.Body(Tank).Resources.MaxHpP2 = 100000; // 1000 HP -> 35% cap = 350 HP (35000 P2)
     F.Body(Tank).KeystoneThickSkinReadyAtMs = 99999; // isolate bleed gate from flat guard
-    FLDCombatHit NukingHit = GrazingHit;
+    FLDCombatHit NukingHit = AbilityHit;
     NukingHit.HitId = FGuid::NewGuid();
     NukingHit.EffectId = FGuid::NewGuid();
     NukingHit.Target = Tank;
@@ -4877,7 +4795,7 @@ bool FLDIssue345SkillsAndFrameworksTest::RunTest(const FString& Parameters)
     if (!InstallCards(*this, F, Parrier, 6, {})) { return false; }
     F.Now(3000);
     if (!ReleaseOnQ(*this, F, Parrier, TEXT("active_unplug"), 10000)) { return false; }
-    FLDCombatHit Strike = GrazingHit;
+    FLDCombatHit Strike = AbilityHit;
     Strike.HitId = FGuid::NewGuid();
     Strike.EffectId = FGuid::NewGuid();
     Strike.Target = Parrier;
@@ -4966,7 +4884,7 @@ bool FLDIssue345SkillsAndFrameworksTest::RunTest(const FString& Parameters)
         {TEXT("medal_fire"), ELDCardTargetKind::Body, NAME_None, ELDDemoElement::None, 1},
         {TEXT("medal_water"), ELDCardTargetKind::Skill, FName(TEXT("active_crotch_grab")), ELDDemoElement::None, 3}}))
     { return false; }
-    FLDCombatHit DualHit = GrazingHit;
+    FLDCombatHit DualHit = AbilityHit;
     DualHit.HitId = FGuid::NewGuid();
     DualHit.EffectId = FGuid::NewGuid();
     DualHit.Target = DualTarget;

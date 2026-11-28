@@ -35,9 +35,9 @@ bool FLDMomentumIncomeTest::RunTest(const FString& Parameters)
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if (!LDMomentumRulesTests::Approved(*this, Catalog)) { return false; }
     const FLDDemoMomentumParameters& P = Catalog->Get().Parameters.Momentum;
-    TestTrue(TEXT("The approved incomes: basic 10 per 1.334 s, skill hit 5, reaction 10, perfect dodge 20, combat 5/s"),
+    TestTrue(TEXT("The approved incomes: basic 10 per 1.334 s, skill hit 5, reaction 10, combat 5/s"),
         P.BasicPerRefP2 == 1000 && P.BasicRefIntervalMs == 1334 && P.SkillHitP2 == 500 && P.ReactionP2 == 1000
-        && P.PerfectDodgeP2 == 2000 && P.CombatPerSec.Numerator == 5 * P.CombatPerSec.Denominator);
+        && P.CombatPerSec.Numerator == 5 * P.CombatPerSec.Denominator);
     TestEqual(TEXT("A basic at the reference interval gains the reference amount"), LDMomentum::BasicGainP2(P, 1334), int64(1000));
     // Momentum per second from basics does not depend on attack speed: faster swings gain less each.
     const double Reference = double(LDMomentum::BasicGainP2(P, 1334)) * 1000. / 1334.;
@@ -137,24 +137,6 @@ bool FLDComboStepsTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("and around to 1"), int32(Step), 1);
     TestEqual(TEXT("At exactly the reset the combo goes on"), int32(LDMomentum::NextComboStep(2, 1000, 3500, P.ResetMs)), 3);
     TestEqual(TEXT("More than the reset after the previous start starts over"), int32(LDMomentum::NextComboStep(2, 1000, 3501, P.ResetMs)), 1);
-    return true;
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDPerfectDodgeWindowTest, "Lockdown.Rules.Combat.PerfectDodge.Window",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FLDPerfectDodgeWindowTest::RunTest(const FString& Parameters)
-{
-    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if (!LDMomentumRulesTests::Approved(*this, Catalog)) { return false; }
-    const int64 Window = Catalog->Get().Parameters.Momentum.PerfectDodgeWindowMs;
-    TestEqual(TEXT("The window is 0.3 s"), Window, int64(300));
-    TestTrue(TEXT("A dash started inside within the window that left the area dodges perfectly"),
-        LDMomentum::IsPerfectDodge(Window, 1000, 1300, true, false));
-    TestFalse(TEXT("One millisecond too early is not"), LDMomentum::IsPerfectDodge(Window, 1000, 1301, true, false));
-    TestFalse(TEXT("A dash that started outside the area is not"), LDMomentum::IsPerfectDodge(Window, 1000, 1200, false, false));
-    TestFalse(TEXT("A body still inside at the resolution is not"), LDMomentum::IsPerfectDodge(Window, 1000, 1200, true, true));
-    TestFalse(TEXT("A dash after the resolution is not"), LDMomentum::IsPerfectDodge(Window, 1300, 1200, true, false));
     return true;
 }
 

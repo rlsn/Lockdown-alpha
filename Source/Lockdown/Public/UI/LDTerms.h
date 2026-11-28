@@ -17,7 +17,6 @@ inline constexpr TCHAR Health[]=TEXT("生命");
 inline constexpr TCHAR Momentum[]=TEXT("劲");
 inline constexpr TCHAR Combo[]=TEXT("连击");
 inline constexpr TCHAR SkillPoint[]=TEXT("技能点");
-inline constexpr TCHAR PerfectDodge[]=TEXT("完美闪避");
 inline constexpr TCHAR AttackDamage[]=TEXT("攻击力");
 inline constexpr TCHAR AbilityPower[]=TEXT("法术强度");
 inline constexpr TCHAR Armor[]=TEXT("护甲");

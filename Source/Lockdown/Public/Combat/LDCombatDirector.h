@@ -33,7 +33,7 @@ struct FLDAirdropRewardFact
 };
 
 // Which momentum book a change goes to (the LD_MOMENTUM line of a life or rest, LDMomentum::FLedger).
-enum class ELDMomentumBook : uint8 { Basic, Combat, Skill, Reaction, Dodge, Other, Idle, Spent };
+enum class ELDMomentumBook : uint8 { Basic, Combat, Skill, Reaction, Other, Idle, Spent };
 
 class ALDCharacter;
 class ALDGameMode;
@@ -363,14 +363,6 @@ struct FLDBodyCombatState
     // The combo step the last released basic of this life took (0 = none) and its AttackStart instant.
     uint8 ComboStep=0;
     int64 ComboStartMs=0;
-    // The last D or dash-counting start of this life (perfect dodge, LDMomentum::IsPerfectDodge).
-    TOptional<int64> DashStartedAtMs;
-    FVector DashStartFootCm=FVector::ZeroVector;
-    // Perfect dodges of this life and the last one's instant (owner notice).
-    uint32 PerfectDodges=0;
-    int64 LastPerfectDodgeAtMs=0;
-    // Innate 0.12s hit-graze perfect dodge: the DashStartedAtMs that already consumed its hit-dodge proc.
-    int64 LastDashDodgeStartMs=-1;
     int32 MonsterAttackCount=0;
     bool bMonsterEnraged=false;
     int64 MonsterGuardUntilMs=0;
@@ -871,8 +863,6 @@ struct FLDCombatProjectile
     // S21 A2).
     ELDDemoElement ReturnElement=ELDDemoElement::None;
     TOptional<FLDDemoEffectDefinition> LandingGround;
-    // A telegraphed flight (windup of at least 0.15 s, or a camp warning): its end can be perfectly dodged.
-    bool bTelegraphed=false;
     bool bReturn=false;
     TArray<FGuid> Struck;
     // A return that starts on the body its outbound flight ended on touches that body at its start (it may strike it again).
@@ -1658,12 +1648,6 @@ private:
     bool AdvanceBranches(int64 NowMs, FString& Error);
     int64 NextBranchDueMs(int64 NowMs) const;
     void ClearBranchState(FLDBodyCombatState& Body);
-    // Perfect dodge (issue #287 spec §4.4): at the resolution of a telegraphed enemy effect, a contender whose D started inside
-    // InArea within MOMENTUM.PerfectDodgeWindowSec and whose foot is outside now gains MOMENTUM.PerfectDodge, once per effect.
-    // ResolveAt (when set) is the instant the effect reached a body that started its D at that foot (a flight passing by);
-    // otherwise every body is judged at NowMs.
-    bool ResolvePerfectDodges(const FGuid& EffectId, const FGuid& SourceEntity, TFunctionRef<bool(const FVector&)> InArea, int64 NowMs,
-        FString& Error, TFunction<int64(const FVector&)> ResolveAt=nullptr);
     // Branch reactions of a committed hit on Target: S10 B1 discharges, S14 A1 reflections, S16 B stacks, S13 A1 bursts.
     // BrokenLayers: the shield layers (their EffectIds) this hit emptied; a branch shield settles by its own layer.
     bool OnBranchHitTaken(const FLDCombatHit& Hit, FLDBodyCombatState& Target, int64 DamageP2, const TArray<FGuid>& BrokenLayers,
@@ -1807,8 +1791,6 @@ private:
     // Skill branch schedules (LDCombatBranchDirector.cpp).
     TArray<FLDCombatFollowUp> FollowUps;
     TArray<FLDCombatPulse> Pulses;
-    // (effect, dodger) pairs already judged a perfect dodge, with the instant; pruned after the window.
-    TArray<TTuple<FGuid,FGuid,int64>> PerfectDodgeMarks;
     TArray<FLDMonsterStrike> MonsterStrikes;
     // Creation order of zones and traps.
     uint64 NextAreaSerial=0;

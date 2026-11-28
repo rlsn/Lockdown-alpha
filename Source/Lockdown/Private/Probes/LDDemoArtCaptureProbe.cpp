@@ -1222,7 +1222,7 @@ namespace
                         nullptr, ClearMarks, false, 1.f, .6f, 24});
                     ChainJobs.Add({Look, TEXT("world-arena"), {{0.f, Arena}}, nullptr, ClearMarks, false, 1.f, .6f, 24});
                     // A recovery orb by V1, and the flagged hits at 0.3 s: a critical on V2, a broken shield on V3, an absorbed
-                    // one on A2, a parry on A3 and a dodge on A.
+                    // one on A2 and a parry on A3.
                     const auto Orb = [MarkWorld, Marks, FeetOf, V1]()
                     {
                         ALDRecoveryOrbMarker* Mark = MarkWorld->SpawnActor<ALDRecoveryOrbMarker>();
@@ -1233,7 +1233,7 @@ namespace
                     const auto Flagged = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, uint8 Flags)
                     { return [Body, Flags]() { if (auto* B = Body.Get()) { B->SetHitReaction(0.f, ELDObservedHitLook::None, Flags, FGuid::NewGuid()); } }; };
                     ChainJobs.Add({Look, TEXT("world-orb-flags"), {{0.f, Orb}, {.3f, Flagged(V2, LDObservation::Critical)}, {.3f, Flagged(V3, LDObservation::ShieldBroken)},
-                        {.3f, Flagged(A2, LDObservation::ShieldAbsorbed)}, {.3f, Flagged(A3, LDObservation::Parried)}, {.3f, Flagged(A, LDObservation::Dodged)}},
+                        {.3f, Flagged(A2, LDObservation::ShieldAbsorbed)}, {.3f, Flagged(A3, LDObservation::Parried)}},
                         nullptr, ClearMarks, false, .4f, .25f, 20});
                 }
                 else if (Look == TEXT("flights"))

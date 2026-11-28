@@ -66,7 +66,7 @@
 
 ## 音效与音量
 
-正式音效登记于 `SourceData/Audio/audio_cues.json`（CC0 来源 + SHA-256），经 `Scripts/ImportDemoAudio.ps1 -Mode Import` 生成 `SW_*` 与 `DA_DemoAudio`，全部归入 `SC_DemoMaster` 子混音分类（覆盖普攻/施放/命中/重击/死亡、原生精准闪避 `SelfPerfectDodge`、招架格挡 `SelfParry`、拾取拖鞋/回复球 `SelfPickup`、同色元素石融合 `UIMedalFuse` 及全局提示音）；敌方施放与受击音效仅在当前授权观察帧可见时衰减播放，绝不通过声音泄露迷雾内隐藏动作。
+正式音效登记于 `SourceData/Audio/audio_cues.json`（CC0 来源 + SHA-256），经 `Scripts/ImportDemoAudio.ps1 -Mode Import` 生成 `SW_*` 与 `DA_DemoAudio`，全部归入 `SC_DemoMaster` 子混音分类（覆盖普攻/施放/命中/重击/死亡、招架格挡 `SelfParry`、拾取拖鞋/回复球 `SelfPickup`、同色元素石融合 `UIMedalFuse` 及全局提示音）；敌方施放与受击音效仅在当前授权观察帧可见时衰减播放，绝不通过声音泄露迷雾内隐藏动作。
 
 ## 表现层覆盖清单
 

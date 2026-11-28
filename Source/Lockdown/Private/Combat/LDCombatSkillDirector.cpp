@@ -464,16 +464,6 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
             const double CosHalfAngle=FMath::Cos(FMath::DegreesToRadians(Channel.AngleDegrees * .5));
             if (!HitBagsInCone(Origin, Channel.Direction, Channel.RangeCm, Channel.AngleDegrees, Channel.Payload, NowMs, Error)) { return false; }
             HitFenceInCone(Origin, Channel.Direction, Channel.RangeCm, Channel.AngleDegrees, Channel.Payload);
-            // Each wave of a telegraphed cone can be perfectly dodged (spec §4.4).
-            {
-                const FVector Facing=Channel.Direction;
-                const double Range=Channel.RangeCm;
-                if (!ResolvePerfectDodges(Channel.Payload.EffectId, Channel.Payload.SourceEntity, [&Origin, &Facing, Range, CosHalfAngle](const FVector& Point)
-                {
-                    const FVector Offset(Point.X-Origin.X, Point.Y-Origin.Y, 0);
-                    return Offset.Size() <= Range && (Offset.IsNearlyZero() || FVector::DotProduct(Facing, Offset.GetSafeNormal()) >= CosHalfAngle);
-                }, NowMs, Error)) { return false; }
-            }
             for (const auto& Ref : Targets)
             {
                 ALDCharacter* Target=nullptr;
@@ -536,13 +526,6 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
         }
         // C06 (#198 F) answers the natural completion; the blast record is copied first because the list may grow.
         const FLDCombatGroundEffect Completed=Ground;
-        // A landing or a trap blast is telegraphed: it can be perfectly dodged (spec §4.4).
-        {
-            const FVector Centre=Ground.CentreCm;
-            const double Radius=Ground.RadiusCm;
-            if (!ResolvePerfectDodges(Ground.Payload.EffectId, Ground.Payload.SourceEntity,
-                [&Centre, Radius](const FVector& Point) { return FVector::Dist2D(Centre, Point) <= Radius; }, NowMs, Error)) { return false; }
-        }
         if (!CollectAreaTargets(Ground.CentreCm, Ground.RadiusCm, Holder, Ground.Payload.SourceEntity, Targets, Error)) { return false; }
         for (const auto& Ref : Targets)
         {

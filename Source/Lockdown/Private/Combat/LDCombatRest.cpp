@@ -230,7 +230,6 @@ bool ALDCombatDirector::ClearBodyForPhase(FLDBodyCombatState& Body, ALDCharacter
     Body.DashUntilMs=0;
     // A new phase starts a new combo; a dodge window ends with the old one.
     Body.ComboStep=0;
-    Body.DashStartedAtMs.Reset();
     ClearBranchState(Body);
     // Card rests are cooldowns too: every one is ready in the new phase.
     Body.DamagedShieldReadyAtMs=0;

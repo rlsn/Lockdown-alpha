@@ -1911,12 +1911,6 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
                 LDTactical::ApplyTimedBonus(Body.TimedBonuses,AgilityHaste);
                 bTimedBonus=true;
             }
-            // Perfect dodge (spec §4.4) reads where and when a D started.
-            if (bInnate)
-            {
-                Body.DashStartedAtMs=Now;
-                Body.DashStartFootCm=ReleaseFoot;
-            }
             // B12: a voluntary dash (D or an active's) that completes naturally arms DashComplete empowers.
             FLDCombatVoluntaryDash& Voluntary=Body.VoluntaryDash.Emplace();
             Voluntary.EffectId=EffectId;
@@ -2310,7 +2304,6 @@ bool ALDCombatDirector::DeliverReleasePayload(const ALDCharacter& Actor, const F
             Projectile.ReturnScaleBp=Terms.ProjectileReturn->Effect.MultiplierBp;
             Projectile.ReturnElement=Terms.ProjectileReturn->Effect.Element;
         }
-        Projectile.bTelegraphed=Terms.WindupMs>=150;
         if (const FLDDemoEffectDefinition* Landing=LDCA::FindEffect(Terms.Values,ELDDemoEffectOp::GroundState)) { Projectile.LandingGround=*Landing; }
         Projectile.Payload=Template;
         Projectiles.Add(Projectile);
@@ -2339,18 +2332,6 @@ bool ALDCombatDirector::DeliverReleasePayload(const ALDCharacter& Actor, const F
                 return FVector::DotProduct(A.Value-ReleaseFoot,Along)<FVector::DotProduct(B.Value-ReleaseFoot,Along);
             });
             if (!Line.IsEmpty()) { Line.SetNum(1); }
-        }
-        // A telegraphed line can be perfectly dodged at its resolution (spec §4.4).
-        if (Terms.WindupMs>=150)
-        {
-            const double Range=LineRangeCm, Half=LDCA::ToDouble(TargetDef.LineHalfWidthCm);
-            const auto InBand=[&ReleaseFoot,&Along,Range,Half](const FVector& Point)
-            {
-                const FVector Offset(Point.X-ReleaseFoot.X,Point.Y-ReleaseFoot.Y,0);
-                const double Ahead=FVector::DotProduct(Offset,Along);
-                return Ahead>=0 && Ahead<=Range && FVector::CrossProduct(Along,Offset).Size()<=Half;
-            };
-            if (!ResolvePerfectDodges(Template.EffectId,Template.SourceEntity,InBand,NowMs,Error)) { return false; }
         }
         if (Grab && Line.IsEmpty() && Grab->RatioBp>0 && Grab->DurationMs>0)
         {
@@ -2389,17 +2370,10 @@ bool ALDCombatDirector::DeliverReleasePayload(const ALDCharacter& Actor, const F
     }
     else
     {
-        // A telegraphed self area can be perfectly dodged at its resolution (spec §4.4).
         const FLDDemoEffectDefinition* Around=LDCA::FindEffect(Terms.Values,ELDDemoEffectOp::SelfArea);
         // The same circle the release collected its targets in.
         const double AroundRadius=Around
             ? LDCA::ToDouble(Around->RadiusCm)*HulkingAreaScaleOf(Body,Terms.AreaBp,WarcryAreaBpOf(Body,Terms.Values)) : 0.;
-        if (Around && Terms.WindupMs>=150)
-        {
-            const double Radius=AroundRadius;
-            if (!ResolvePerfectDodges(Template.EffectId,Template.SourceEntity,
-                [&ReleaseFoot,Radius](const FVector& Point) { return FVector::Dist2D(ReleaseFoot,Point)<=Radius; },NowMs,Error)) { return false; }
-        }
         for (const FLDCombatBodyRef& Target : AreaTargets) { Deliver(Target); }
         if (Around && !HitBagsInCircle(ReleaseFoot, AroundRadius, Template, NowMs, Error)) { return false; }
         if (Around) { HitFenceInCircle(ReleaseFoot, AroundRadius, Template); }

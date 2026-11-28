@@ -19800,7 +19800,7 @@
     },
     {
       "description_key": "active_crotch_grab_2b.description",
-      "description_text": "得手瞬间轻巧翻滚 [dash_back.distance] 厘米并享有完美闪避窗口。",
+      "description_text": "得手瞬间轻巧翻滚 [dash_back.distance] 厘米。",
       "icon_id": "icon_active_crotch_grab",
       "id": "active_crotch_grab_2b",
       "name_key": "active_crotch_grab_2b.name",
@@ -23210,18 +23210,6 @@
       "numerator": 5,
       "unit": "momentum/s"
     },
-    "MOMENTUM.DashDodgeCooldownRefundRatio": {
-      "bp": 3000,
-      "unit": "ratio"
-    },
-    "MOMENTUM.DashDodgeCutRatio": {
-      "bp": 5000,
-      "unit": "ratio"
-    },
-    "MOMENTUM.DashDodgeWindowSec": {
-      "ms": 120,
-      "unit": "ms"
-    },
     "MOMENTUM.IdleDelaySec": {
       "ms": 5000,
       "unit": "ms"
@@ -23234,14 +23222,6 @@
     "MOMENTUM.Max": {
       "p2": 10000,
       "unit": "momentum"
-    },
-    "MOMENTUM.PerfectDodge": {
-      "p2": 2000,
-      "unit": "momentum"
-    },
-    "MOMENTUM.PerfectDodgeWindowSec": {
-      "ms": 300,
-      "unit": "ms"
     },
     "MOMENTUM.Reaction": {
       "p2": 1000,

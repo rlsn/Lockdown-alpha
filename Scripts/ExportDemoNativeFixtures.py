@@ -782,11 +782,6 @@ def parameter_projection(parameters):
         "BasicPerRefP2": scalar(parameters["MOMENTUM.BasicPerRefInterval"]),
         "BasicRefIntervalMs": scalar(parameters["MOMENTUM.BasicRefIntervalSec"]),
         "SkillHitP2": scalar(parameters["MOMENTUM.SkillHit"]), "ReactionP2": scalar(parameters["MOMENTUM.Reaction"]),
-        "PerfectDodgeP2": scalar(parameters["MOMENTUM.PerfectDodge"]),
-        "PerfectDodgeWindowMs": scalar(parameters["MOMENTUM.PerfectDodgeWindowSec"]),
-        "DashDodgeWindowMs": scalar(parameters["MOMENTUM.DashDodgeWindowSec"]),
-        "DashDodgeCutBp": scalar(parameters["MOMENTUM.DashDodgeCutRatio"]),
-        "DashDodgeCooldownRefundBp": scalar(parameters["MOMENTUM.DashDodgeCooldownRefundRatio"]),
         "IdleDelayMs": scalar(parameters["MOMENTUM.IdleDelaySec"]),
         "IdleReturnPerSec": rational(parameters["MOMENTUM.IdleReturnPerSec"]),
     }

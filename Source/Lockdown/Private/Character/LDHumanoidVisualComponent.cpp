@@ -1308,32 +1308,19 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
             for (const FPendingImpact& Impact : PendingImpacts)
             {
                 const float Age = float(Clock - Impact.Onset);
-                // Every hit flag has its own mark below (a crit's chips, a shield's flare or shards, a parry's or a dodge's
-                // rim), so the hit itself is drawn as the plain hit of its look; a dodge draws none.
-                const bool bDodged = (Impact.Flags & LDObservation::Dodged) != 0;
-                bool bSlice = !bDodged && LDSliceVfx::ShowsHit(Impact.Look, 0);
+                // Every hit flag has its own mark below (a crit's chips, a shield's flare or shards, a parry's rim), so the
+                // hit itself is drawn as the plain hit of its look.
+                bool bSlice = LDSliceVfx::ShowsHit(Impact.Look, 0);
                 bool bFinisherHit = false;
                 HitAbility = 0;
                 // A plain magic hit of a skill with its own designed hit (a chill cone's icy hit) shows that instead of the
                 // old magic layers; other magic hits keep them until their skills are designed.
-                if (bDodged) {}
-                else if (!bSlice && Impact.Look == ELDObservedHitLook::Magic && ShowSkillHit(Impact, At, EffectScale)) { bSlice = true; }
+                if (!bSlice && Impact.Look == ELDObservedHitLook::Magic && ShowSkillHit(Impact, At, EffectScale)) { bSlice = true; }
                 else if (bSlice) { bFinisherHit = ShowSliceImpact(Impact, At, Ground, EffectScale); }
                 // The extra hit particles follow the same impact controls as the Niagara burst and the layers.
                 const LDHitFeel::FTuning Feel = LDHitFeel::Read();
                 const bool bImpactOn = Feel.ImpactScale > 0.f && Feel.ImpactSeconds > 0.f;
-                if (bImpactOn && Age < .3f && (Impact.Flags & LDObservation::Dodged))
-                {
-                    const LDHitVfx::FGhosts GoldGhost = LDHitVfx::GhostsOf(FLinearColor(1.f, .86f, .2f), EffectScale);
-                    if (GoldGhost.bShow) { Impacts->Ghost(*Mesh, GoldGhost, *this); }
-                    LDHitVfx::FGhosts Slip;
-                    Slip.bShow = true;
-                    Slip.bShell = true;
-                    Slip.Seconds = .35f;
-                    Slip.Glow = FLinearColor(1.f, .86f, .3f) * 1.2f * FMath::Clamp(EffectScale, .45f, 1.f);
-                    Impacts->Ghost(*Mesh, Slip, *this);
-                }
-                else if (bImpactOn && Age < .3f && (Impact.Flags & (LDObservation::Parried | LDObservation::ShieldAbsorbed)))
+                if (bImpactOn && Age < .3f && (Impact.Flags & (LDObservation::Parried | LDObservation::ShieldAbsorbed)))
                 {
                     // A parry, or a shield taking the blow: the body's rim flares cold for a moment.
                     LDHitVfx::FGhosts Flare;

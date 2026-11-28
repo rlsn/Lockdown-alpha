@@ -64,10 +64,10 @@
 | `character.dash.duration` | s/Sec | 0.18 | 正数，短于冷却 | 450cm 在 0.18s 内按 `1 - (1 - t)^3` 曲线完成 |
 | `character.dash.cooldown` | s/Sec | 9.0 | 正数 | 不受技能急速影响 |
 
-### 3.2.1 劲、连击与完美闪避
+### 3.2.1 劲与连击
 
 劲是唯一的技能资源，以 P2 整数存在战斗资源记录里，取整与亚 P2 余数沿用 `POLICY.RegenIntegration`。野怪没有劲
-（`CAMP.MomentumPolicy=NotApplicable`），技能不耗劲。
+（`CAMP.MomentumPolicy=NotApplicable`），野怪技能不耗劲。
 
 | 稳定参数键 | 值 | 规则 |
 | --- | --- | --- |
@@ -78,9 +78,6 @@
 | `MOMENTUM.BasicRefIntervalSec` | 1.334s | 基础攻速 0.75 的攻击间隔 |
 | `MOMENTUM.SkillHit` | 5 | 一次技能释放对每个目标的第一次原生直接命中给一次 |
 | `MOMENTUM.Reaction` | 10 | 触发元素反应的人获得 |
-| `MOMENTUM.PerfectDodge` | 20 | 精准闪避获得 |
-| `MOMENTUM.PerfectDodgeWindowSec` | 0.3s | 预警效果结算前这段时间内按下的 D 躲出范围算预警精准闪避 |
-| `MOMENTUM.DashDodgeWindowSec` / `DashDodgeCutRatio` / `DashDodgeCooldownRefundRatio` | 0.12s / 0.5 / 0.3 | D 冲刺（及 `as_dash` 翻滚分支）起手 0.12s 内擦过敌方直接攻击/弹道命中时触发原生精准闪避：本次伤害减半、返还通用冲刺 30% 剩余冷却、获得 `MOMENTUM.PerfectDodge` 并触发全部 `perfect_dodge` 牌 |
 | `MOMENTUM.IdleDelaySec` | 5s | 脱战多久后开始回落 |
 | `MOMENTUM.IdleReturnPerSec` | 10/秒 | 脱战时每秒向 `MOMENTUM.Start` 靠拢，到达后停住 |
 | `AIRDROP.Momentum` | 40 | 领取外卖获得 |
@@ -90,8 +87,6 @@
 | `AI.EnemyGroundPathCost` | 3 | 对手 AI 规划步行路线时，路线落在可见敌方地面状态里的长度乘此 |
 
 - 收入、花费与回落按生命记账，每条生命结束时写一行 `LD_MOMENTUM`（各项收入、回落、花费与结束值），不逐次写。
-- 完美闪避适用于技能前摇至少 0.15s 的弹道、直线、扇形、自身范围、地面落点、陷阱爆炸与野怪预警技能；普攻不适用。
-  每个效果实例对每人最多一次；写 `LD_PERFECT_DODGE` 并进入本人的战斗投影。
 - 本体元素槽（勋章装在本体上）从普攻第 2 段起每次命中都挂元素；`COMBO.ResetSec` 内不断连即可。
 
 属性点叠加后单项属性可能触及上下限；
@@ -379,7 +374,7 @@ $$
 | --- | --- | --- | --- | --- | --- | --- |
 | S01 | 给我过来：改为拉到身前 120cm | 拉完就揍：2s 内下一次普攻 +100% | 拉进水里：拉完挂湿 | 一脚踹远：击退 500cm | 踹到墙上：撞墙眩晕 0.8s | 踹出内伤：被踹的人 3s 内受到伤害 +20% |
 | S02 | 拽裤腰带：命中后将目标拉近 220cm | 光着挨揍：定身期间你对他伤害 +25% 且下次普攻强化 | 静电秋裤：拉近后挂麻 | 抽裤腰带：抓扯射程扩至 620cm，挥空减速前方敌人 | 顺手摸兜：抓中偷取目标 22 劲 | 连扒两下：3s 内免劲再扒一次，重复命中改为缴械 1.0s |
-| S03 | 蓄势黑手：突刺扩至 360cm、伤害提高 | 断子绝孙：对低于 45% 生命目标按已损生命追加处决伤害 | 麻筋寸劲：转魔法伤害，触发暴击时向周围迸射感电冲击波 | 掏完就溜：命中后向后/移动方向翻滚 250cm（享 0.12s 精准闪避） | 惯犯连手：触发背刺眩晕时返还 55% 剩余冷却 | 疼得撒手：命中额外缴械 1.1s 并加速自身 |
+| S03 | 蓄势黑手：突刺扩至 360cm、伤害提高 | 断子绝孙：对低于 45% 生命目标按已损生命追加处决伤害 | 麻筋寸劲：转魔法伤害，触发暴击时向周围迸射感电冲击波 | 掏完就溜：命中后向后/移动方向翻滚 250cm | 惯犯连手：触发背刺眩晕时返还 55% 剩余冷却 | 疼得撒手：命中额外缴械 1.1s 并加速自身 |
 | S05 | 借力贴身：反震成功向攻击者踏步贴近并回 18 劲 | 以彼之道：反震额外附加所挡原始伤害的 55% | 卸腕连锤：反震后接下来 3 次普攻全视为第 3 段重拳 | 站桩铁腕：招架延至 0.65s，成功获双抗+最大生命护盾 | 震麻虎口：反震对近战/冲刺来源额外眩晕 0.7s | 气沉丹田：反震成功回复 12% 已损生命 |
 | S06 | 大号拖鞋：弹道变宽，命中把人拉近 200cm | 泡水拖鞋：挂湿 | 臭脚老鞋：挂馊 | 回旋拖鞋：到终点折返，回程可再命中 | 带电回程：回程挂麻 | 接住再抽：拾取/接鞋时下次普攻 +80% |
 | S07 | 越烧越旺：灼烧 4 层 | 烧透了：满 5 层时额外 M 40 + 0.4 法强 | 烫一大片：半径 +100cm | 烫一路：之后 2s 每秒以你为中心再烫一次（40%） | 烫出劲：每次再烫回 5 劲 | 烫出壳：每次再烫给自己 20 + 2% H 护盾 |
@@ -448,7 +443,7 @@ $$
 
 - **稀有度与抽取权重**：每张构筑牌按 `drop_weight` 分为普通 `100`、稀有 `22`、传说 `6`；悬赏、空投等高档来源设最低稀有度保底；叠加不设上限。
 
-**词汇**：`basic_hit`、`combo3`、`skill_hit`、`skill_cast`、`overdrive`、`reaction`、`element`、`dash`、`dash_contact`、`perfect_dodge`、
+**词汇**：`basic_hit`、`combo3`、`skill_hit`、`skill_cast`、`reaction`、`element`、`dash`、`dash_contact`、
 `knockback`、`wall_impact`、`shield`、`shield_break`、`controlled`、`control`、`damaged`、`low_hp`、`kill`、`idle`、`ground`、`heal`、
 `momentum`、`attack_speed`、`move_speed`、`crit`、`armor`、`max_hp`（原生 `ELDCardVocab` 位序）。技能的词汇由编译器按元素、投送、控制、
 位移与护盾推出（`ability_vocab`），分支各自另算；界面不显示词汇。

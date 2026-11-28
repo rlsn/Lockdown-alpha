@@ -506,7 +506,7 @@ bool ALDCombatDirector::PublishOwnerViews(FString& Error)
             const FLDCombatEntryView& Old=PC->CombatView.Entries[Index];
             bEntryTermsChanged=New.DamageFactorBp!=Old.DamageFactorBp || New.NextCooldownMs!=Old.NextCooldownMs;
         }
-        if (bEntryTermsChanged || View.HPRegenPerSec!=PC->CombatView.HPRegenPerSec || View.PerfectDodges!=PC->CombatView.PerfectDodges
+        if (bEntryTermsChanged || View.HPRegenPerSec!=PC->CombatView.HPRegenPerSec
             || View.bPreviewLiving!=PC->CombatView.bPreviewLiving || View.bPreviewFinalField!=PC->CombatView.bPreviewFinalField
             || View.RespawnDurationMs!=PC->CombatView.RespawnDurationMs)
         {

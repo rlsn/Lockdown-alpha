@@ -1348,9 +1348,6 @@ def validate_numbers(data):
             and 0 < guard_ratchets[0] < guard_ratchets[1] < p("CAPTURE.GuardSec")
             and 0 < p("SHOWDOWN.KillGuardBonusSec") <= p("CAPTURE.GuardSec"),
             "InvalidTiming", "SHOWDOWN.SprayRatchetSec", "showdown ratchets must ascend strictly inside spray/guard durations")
-    require(0 < p("MOMENTUM.DashDodgeWindowSec") <= quantity(data["character"]["dash"]["duration"])
-            and 0 < p("MOMENTUM.DashDodgeCutRatio") < 1 and 0 < p("MOMENTUM.DashDodgeCooldownRefundRatio") < 1,
-            "InvalidTiming", "MOMENTUM.DashDodgeWindowSec", "innate dash dodge window and cuts must fit inside the dash")
     require(0 < p("COMBAT.KeystoneThickSkinBleedThresholdRatio") < 1
             and 0 < p("COMBAT.KeystoneThickSkinBleedTickSec") <= p("COMBAT.KeystoneThickSkinBleedSec"),
             "InvalidTiming", "COMBAT.KeystoneThickSkinBleedSec", "thick-skin stagger bleed must tick inside its window")
@@ -1538,7 +1535,7 @@ def _validate_momentum(data):
     top = p("MOMENTUM.Max")
     require(0 < p("MOMENTUM.Start") <= top, "NumericDomain", "MOMENTUM", "the start must lie in (0, max]")
     for key in ("MOMENTUM.CombatPerSec", "MOMENTUM.IdleReturnPerSec", "MOMENTUM.BasicPerRefInterval", "MOMENTUM.SkillHit",
-                "MOMENTUM.Reaction", "MOMENTUM.PerfectDodge", "AIRDROP.Momentum"):
+                "MOMENTUM.Reaction", "AIRDROP.Momentum"):
         require(0 < p(key) <= top, "NumericDomain", key, "a momentum income must be positive and fit the bar")
     require(params["MOMENTUM.BasicRefIntervalSec"]["ms"] > 0, "NumericDomain", "MOMENTUM.BasicRefIntervalSec",
             "the reference interval must be positive")

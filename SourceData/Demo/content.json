@@ -204,14 +204,6 @@
       "unit": "momentum",
       "value": 10
     },
-    "MOMENTUM.PerfectDodge": {
-      "unit": "momentum",
-      "value": 20
-    },
-    "MOMENTUM.PerfectDodgeWindowSec": {
-      "unit": "s",
-      "value": 0.3
-    },
     "MOMENTUM.IdleDelaySec": {
       "unit": "s",
       "value": 5
@@ -1361,18 +1353,6 @@
     },
     "GROUND.MaxPerOwner": 6,
     "GROUND.MaxTotal": 40,
-    "MOMENTUM.DashDodgeWindowSec": {
-      "unit": "s",
-      "value": 0.12
-    },
-    "MOMENTUM.DashDodgeCutRatio": {
-      "unit": "ratio",
-      "value": 0.5
-    },
-    "MOMENTUM.DashDodgeCooldownRefundRatio": {
-      "unit": "ratio",
-      "value": 0.3
-    },
     "SHOWDOWN.SprayRatchetSec": [
       {
         "unit": "s",
@@ -2097,7 +2077,7 @@
         },
         "2B": {
           "name": "掏完就溜",
-          "text": "得手瞬间轻巧翻滚 [dash_back.distance] 厘米并享有完美闪避窗口。",
+          "text": "得手瞬间轻巧翻滚 [dash_back.distance] 厘米。",
           "patches": [
             {
               "op": "add",

@@ -26,7 +26,8 @@ namespace LDObservation
     // 22 uses the finer square-cell ground coverage raster.
     // 23 moves camp-clear recovery orbs and #345 tactical entities/hit flags into sight-authorized FLDWorldView.
     // 25 removes the overdrive charge, the overdrive cast, the Overdriven hit flag and the phantom decoy look (23 is a hole).
-    constexpr uint32 Schema = 25;
+    // 26 removes the Dodged hit flag (32 is a hole).
+    constexpr uint32 Schema = 26;
     // A ground state's wire size (LDViewTypes.cpp SerializeObservedGround): SC-07 registers MaxGroundStates of them per frame.
     constexpr int32 GroundStateWireBytes = 16;
     // The public momentum bar of a visible contender: 0..MomentumBarFull (never the exact value).
@@ -36,8 +37,8 @@ namespace LDObservation
     constexpr uint16 RecentHitWindowMs = 300;
     // A visible reaction's name floats over its target while its cue is this young (spec §12).
     constexpr uint16 RecentReactionWindowMs = 1000;
-    enum EHitFlags : uint8 { Critical = 1, ShieldAbsorbed = 2, ShieldBroken = 4, Dodged = 32, Parried = 64 };
-    constexpr uint8 HitFlagsMask = Critical | ShieldAbsorbed | ShieldBroken | Dodged | Parried;
+    enum EHitFlags : uint8 { Critical = 1, ShieldAbsorbed = 2, ShieldBroken = 4, Parried = 64 };
+    constexpr uint8 HitFlagsMask = Critical | ShieldAbsorbed | ShieldBroken | Parried;
     // Square display cells sampled over the native ground bounds with padding as needed. Low bit first.
     constexpr int32 CoverageWidth = 512;
     constexpr int32 CoverageHeight = 320;

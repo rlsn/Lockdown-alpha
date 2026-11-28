@@ -263,11 +263,6 @@ struct FLDDemoMomentumParameters
     UPROPERTY() int64 BasicRefIntervalMs = 0;
     UPROPERTY() int64 SkillHitP2 = 0;
     UPROPERTY() int64 ReactionP2 = 0;
-    UPROPERTY() int64 PerfectDodgeP2 = 0;
-    UPROPERTY() int64 PerfectDodgeWindowMs = 0;
-    UPROPERTY() int64 DashDodgeWindowMs = 0;
-    UPROPERTY() int64 DashDodgeCutBp = 0;
-    UPROPERTY() int64 DashDodgeCooldownRefundBp = 0;
     // IdleDelayMs after the last combat event the bar drifts toward StartP2 at IdleReturnPerSec.
     UPROPERTY() int64 IdleDelayMs = 0;
     UPROPERTY() FLDDemoRational IdleReturnPerSec;
@@ -758,7 +753,7 @@ enum class ELDDemoTargetMode : uint8 { Self, Unit, DirectionProjectile, Directio
 // #198 B: DashComplete arms an empower_basic of a component when a voluntary dash (D or an active dash) completes with
 // a positive displacement (B12).
 UENUM()
-// PerfectDodge: D09's growth; AttackSpeedBelow / MoveSpeedAbove: which speed a speed_factor card reads (A10, Y18).
+// AttackSpeedBelow / MoveSpeedAbove: which speed a speed_factor card reads (A10, Y18).
 enum class ELDDemoEffectTrigger : uint8 { None, BasicHit, AbilityHit, Damaged, DashComplete, AttackSpeedBelow, MoveSpeedAbove };
 
 // The element a card effect, branch or Y25 choice names (content "fire|water|electric|chill|rot"; electric is the shock
