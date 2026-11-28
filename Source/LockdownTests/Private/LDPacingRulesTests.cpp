@@ -175,6 +175,26 @@ bool FLDPacingObjectiveKeptTest::RunTest(const FString& Parameters)
     }
     bGood &= TestTrue(TEXT("A sole sprayer stepped every frame wins the flag"), bWon && State.View.Phase == ELDObjectivePhase::Won
         && State.View.Winner == At(2, Centre).Contender && State.View.Serial == 3);
+    // A won objective stays won through every later step: its reward (once per serial) is never owed again.
+    for (int64 T = FlagOpen + P.Objective.FlagSprayMs + 50; T <= 3 * P.FieldSegmentMs; T += 50)
+    {
+        bGood &= TestFalse(TEXT("A later step after the win changes nothing"), State.Advance(T)
+            || State.StepFlag(T, {At(2, Centre)}, bChanged));
+    }
+    bGood &= TestTrue(TEXT("The flag is still won by its sprayer"), State.View.Phase == ELDObjectivePhase::Won
+        && State.View.Winner == At(2, Centre).Contender && State.View.Serial == 3);
+    // The arena too: settled won by its owner, later steps of its segment keep it.
+    FLDObjectiveState Arena;
+    Arena.Begin(P, Points(TEXT("mini_flag"), 3), Flagpole, 5, Error);
+    Arena.Advance(Open);
+    Arena.View.Phase = ELDObjectivePhase::Won;
+    Arena.View.Winner = At(1, Flagpole).Contender;
+    for (int64 T = Open + 50; T < 2 * P.FieldSegmentMs; T += 50)
+    {
+        bGood &= TestFalse(TEXT("A later step after the arena's win changes nothing"), Arena.Advance(T));
+    }
+    bGood &= TestTrue(TEXT("The arena is still won"), Arena.View.Phase == ELDObjectivePhase::Won && Arena.View.Serial == 2
+        && Arena.View.Winner == At(1, Flagpole).Contender);
     return bGood;
 }
 
