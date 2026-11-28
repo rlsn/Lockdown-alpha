@@ -1405,7 +1405,7 @@ bool FLDDemoContentCardCatalogTest::RunTest(const FString& Parameters)
         return false;
     }
     const FLDDemoContentDefinitions& Definitions = Snapshot->Get();
-    if (!TestEqual(TEXT("Eighty-nine cards and five element medals"), Definitions.Cards.Num(), 94)) { return false; }
+    if (!TestEqual(TEXT("Eighty-five cards and five element medals"), Definitions.Cards.Num(), 90)) { return false; }
     int32 Forms[int32(ELDCardForm::Count)] = {};
     int32 Types[int32(ELDCardType::Count)] = {};
     uint16 Previous = 199;
@@ -1426,9 +1426,9 @@ bool FLDDemoContentCardCatalogTest::RunTest(const FString& Parameters)
         TestTrue(FString::Printf(TEXT("FindCard resolves %s to its own row: %s"), *Row.Id, *Error),
             Snapshot->FindCard(Row.Id, Found, Error) && Found == &Row);
     }
-    TestTrue(TEXT("Twenty skill, thirteen dash and fifty-six body cards and five element medals"),
-        Forms[int32(ELDCardForm::Skill)] == 20 && Forms[int32(ELDCardForm::Dash)] == 13
-        && Forms[int32(ELDCardForm::Body)] == 56 && Forms[int32(ELDCardForm::Medal)] == 5);
+    TestTrue(TEXT("Twenty skill, ten dash and fifty-five body cards and five element medals"),
+        Forms[int32(ELDCardForm::Skill)] == 20 && Forms[int32(ELDCardForm::Dash)] == 10
+        && Forms[int32(ELDCardForm::Body)] == 55 && Forms[int32(ELDCardForm::Medal)] == 5);
     TestTrue(TEXT("Every card type has cards"), Algo::AllOf(Types, [](int32 Count) { return Count > 0; }));
     const FLDDemoCardParameters& Cards = Definitions.Parameters.Cards;
     TestTrue(TEXT("Capacity 6 plus one per three levels, three-card offers, three free rerolls plus one per rest"),
