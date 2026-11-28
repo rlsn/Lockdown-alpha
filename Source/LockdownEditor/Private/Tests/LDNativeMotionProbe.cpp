@@ -1041,7 +1041,7 @@ bool FLDNativeDemoMapDashProbe::RunTest(const FString& Parameters)
                         const FVector D=Heading.RotateAngleAxis(Skew,FVector::UpVector);
                         const double Cm=bPush?180.:450., Sec=bPush?.16:.18;
                         double Landed=0;
-                        if (!ULDCharacterMovementComponent::LandedDashDistance(*Registry,Start-FVector(0,0,Half),D,Cm,Capsule,Landed,Error))
+                        if (!ULDCharacterMovementComponent::LandedDashDistance(*Registry,Start-FVector(0,0,Half),D,Cm,Capsule,Landed,Error,bPush))
                         { return TestTrue(TEXT("Landing query: ")+Error,false); }
                         if (Landed<1. || !Place(Start)) { continue; }
                         ++Pushes;

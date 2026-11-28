@@ -27,6 +27,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.Art.BasketballRuntime",
         "Lockdown.Rules.DemoGround.ParityAndCache",
         "Lockdown.Rules.DemoGround.SkillLanding",
+        "Lockdown.Rules.DemoGround.PushLanding",
         "Lockdown.Rules.DemoGround.BossBodyAdmission",
         "Lockdown.Rules.DemoMotionProbe.RampSeamSupport",
         "Lockdown.Rules.DemoMotionProbe.TerrainTraversal",

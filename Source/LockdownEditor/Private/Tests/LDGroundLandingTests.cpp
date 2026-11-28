@@ -1,4 +1,5 @@
 #include "Combat/LDGroundLanding.h"
+#include "Character/LDCharacterMovementComponent.h"
 #include "Core/LDGroundQueries.h"
 #include "Navigation/LDPathSteering.h"
 #include "Region/LDMapRegistry.h"
@@ -157,5 +158,77 @@ bool FLDGroundLandingTest::RunTest(const FString& Parameters)
     TOptional<FVector> Airborne;
     TestTrue(TEXT("An airborne caster lands nothing"), LDGroundLanding::Resolve(*Registry, Caster + FVector(0, 0, 600), Requested - Direction * 150.,
         Range, Capsule, Airborne, Error) && !Airborne.IsSet());
+    return true;
+}
+
+// A forced push (knockback, pull) over the saved Demo world: over open ground it keeps its full length; with a block on its
+// straight line it stops on legal ground before the block, never past it or round it the way a ground skill's landing may
+// (a body pushed into a mesh could not walk out), and names the block as the wall it was pushed into.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDGroundPushLandingTest, "Lockdown.Rules.DemoGround.PushLanding",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDGroundPushLandingTest::RunTest(const FString& Parameters)
+{
+    UWorld* World = UEditorLoadingAndSavingUtils::LoadMap(
+        FPackageName::LongPackageNameToFilename(LDDemoEntry::WorldMap, FPackageName::GetMapPackageExtension()));
+    if (!TestNotNull(TEXT("Saved Demo world"), World)) { return false; }
+    FlushAsyncLoading();
+    FAssetCompilingManager::Get().FinishAllCompilation();
+    auto* Registry = World->GetSubsystem<ULDMapRegistry>();
+    FString Error;
+    TSharedPtr<const FLDDemoContentSnapshot> Content;
+    FCollisionShape Capsule;
+    if (!TestNotNull(TEXT("Registry"), Registry)
+        || !TestTrue(TEXT("Native world binding: ") + Error, Registry->Rebuild(Error))
+        || !TestTrue(TEXT("Runtime content"), LDDemoEntry::LoadRuntimeContent(Content, Error))
+        || !TestTrue(TEXT("Approved capsule"), ULDMapRegistry::ContentCapsule(*Content, Capsule, Error))
+        || !TestTrue(TEXT("The world has a field site"), !Registry->Sites().IsEmpty())) { return false; }
+    const FVector Foot = Registry->Sites()[0].Position;
+    constexpr double PushCm = 700., BlockAt = 320., BlockHalf = 90.;
+    TWeakObjectPtr<AActor> Wall;
+    FVector Direction = FVector::ZeroVector;
+    for (int32 Turn = 0; Turn < 16 && Direction.IsZero(); ++Turn)
+    {
+        const FVector Candidate = FVector(1, 0, 0).RotateAngleAxis(Turn * 22.5, FVector::UpVector);
+        double Open = 0;
+        if (!ULDCharacterMovementComponent::LandedDashDistance(*Registry, Foot, Candidate, PushCm, Capsule, Open, Error, true, &Wall))
+        { return TestTrue(TEXT("Push query: ") + Error, false); }
+        if (Open >= PushCm - .5) { Direction = Candidate; }
+    }
+    if (!TestFalse(TEXT("Some direction from the site keeps a full open push"), Direction.IsZero())) { return false; }
+    TestFalse(TEXT("A full push names no wall"), Wall.IsValid());
+
+    AActor* Block = World->SpawnActor<AActor>();
+    auto* Box = NewObject<UBoxComponent>(Block);
+    Block->SetRootComponent(Box);
+    Block->AddInstanceComponent(Box);
+    Box->SetBoxExtent(FVector(BlockHalf, BlockHalf, 200));
+    Box->SetCollisionObjectType(ECC_WorldStatic);
+    Box->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    Box->SetCollisionResponseToAllChannels(ECR_Block);
+    Box->SetCanEverAffectNavigation(false);
+    Box->RegisterComponent();
+    Block->SetActorLocation(Foot + Direction * BlockAt + FVector(0, 0, 200));
+    Block->SetActorRotation(Direction.Rotation());
+    ON_SCOPE_EXIT
+    {
+        if (IsValid(Block)) { Block->Destroy(); }
+        FString Restore;
+        Registry->Rebuild(Restore);
+    };
+    if (!TestTrue(TEXT("The block binds as ordinary scene support: ") + Error, Registry->Rebuild(Error))) { return false; }
+    double Pushed = 0;
+    if (!TestTrue(TEXT("Push into the block: ") + Error,
+        ULDCharacterMovementComponent::LandedDashDistance(*Registry, Foot, Direction, PushCm, Capsule, Pushed, Error, true, &Wall)))
+    { return false; }
+    TestTrue(FString::Printf(TEXT("The push stops before the block (%.0f cm)"), Pushed),
+        Pushed > 0. && Pushed + Capsule.GetCapsuleRadius() <= BlockAt - BlockHalf + 1.);
+    TestTrue(TEXT("and names the block as its wall"), Wall.Get() == Block);
+    FVector End = Foot + Direction * Pushed;
+    Registry->ResolveWalkableGround(FVector2D(End.X, End.Y), End);
+    FLDLegalGround Ground;
+    ELDWorldQueryFailure Failure = ELDWorldQueryFailure::None;
+    TestTrue(TEXT("It ends on legal ground: ") + Error, Registry->QueryGround(Registry->Revision(), End, Capsule,
+        FName(*Registry->GetGeometry()->Surfaces[0].Id), Ground, Failure, Error));
     return true;
 }
