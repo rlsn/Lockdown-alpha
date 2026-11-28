@@ -27,7 +27,7 @@ import re
 from pathlib import Path
 
 ADAPTER_ID = "lockdown-demo"
-ADAPTER_VERSION = 15
+ADAPTER_VERSION = 16
 # LDBuildEvaluation::MaxCases and MaxBuildSteps of the native driver (LDBuildEvaluationProbe.h); a larger plan is refused
 # before any run.
 NATIVE_MAX_CASES = 500
@@ -39,6 +39,9 @@ NATIVE_INPUT_SCHEMA_VERSION = 6
 NATIVE_RESULT_SCHEMA_VERSION = 7
 SEED_DERIVATION = 1
 CAST_LAG_MS = 50
+# Sample validity, not a balance target: a duelist that holds a learned active and casts none over this much engagement
+# (every active is ready at the field entry) did not exercise its build, so the Case is Invalid (NeverCast).
+NEVER_CAST_GRACE_MS = 5000
 ROLES = ("subject", "opponent")
 PUBLIC_PLACE_KINDS = ("Spawn", "Camp", "Capture", "Dorm", "Airdrop")
 CATALOG_EVIDENCE = "in the runtime catalog the native importer accepted (it refuses any definition without a handler)"
@@ -1174,6 +1177,18 @@ def case_evidence(case, manifest, caps, result, trace_text):
             tag == "LD_HIT" and row.get("src") in duelists and row.get("via", "").startswith("learned:")
             for tag, row, _ in events):
         reasons.append("TraceIncomplete: duelist skill hits without any LD_CAST line (the Host build predates the cast trace)")
+    duel_hits = [int(row["t"]) for tag, row, _ in events if tag == "LD_HIT" and t0 <= int(row["t"]) <= t_out
+                 and {row["src"], row["victim"]} == duelists]
+    if outcome["kind"] == "timeout" and not duel_hits:
+        reasons.append("NoEngagement: the duelists never hit each other before the duel horizon (an approach or pathing "
+                       "failure, not a censored fight)")
+    elif duel_hits and t_out - min(duel_hits) >= NEVER_CAST_GRACE_MS:
+        for row in rows:
+            if row["actives"] and not casts[row["role"]]:
+                reasons.append(f"NeverCast: the {row['role']} held {len(row['actives'])} learned "
+                               f"active{'s' if len(row['actives']) != 1 else ''} and cast none in "
+                               f"{(t_out - min(duel_hits)) / 1000:g} s of engagement (an AI execution failure; the sample "
+                               f"does not exercise its build)")
     if out["violations"]:
         reasons.append("EvidenceViolation: a committed hit contradicts its recorded damage")
     if reasons:
@@ -1572,6 +1587,13 @@ def limitations(manifest, caps):
     ]
     if manifest["sample_class"] == "diagnostic":
         out.append("本实验用 DevQueueOffer 预置候选：样本是条件实验（diagnostic），不能估计自然抽到率或全局主动健康。")
+    uneven = [arm["id"] for arm in manifest["design"]["arms"]
+              if len({bool(arm["plan"][role].get("keep_points_unspent")) for role in ROLES}) > 1]
+    if uneven:
+        out.append(f"属性点预算不对等（{', '.join(f'`{arm}`' for arm in uneven)}）：一方花完赚到的全部属性点，另一方"
+                   "（keep_points_unspent）全部不分配；这些 arm 的结果同时包含属性点预算差与构筑本身，不能单独归因于构筑质变。")
+    out.append(f"无效样本不计入结论：到时双方从未互相命中（NoEngagement，接近或寻路失败，不是删失）；学会主动的一方在至少 "
+               f"{NEVER_CAST_GRACE_MS / 1000:g} s 交战中一次未施放（NeverCast，AI 执行失败）。")
     if manifest["sample_class"] == "legal_search":
         out.append("候选由原生抽取按 Case 种子真实抽出，选择按计划规则；搜索频率不是自然出现率。")
     return out
