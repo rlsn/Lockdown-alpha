@@ -837,6 +837,28 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
         }
     }
 
+    // C-10 prototype (only while the server runs -LDProtoAgency): "急眼了" over each body in its agency guard, the own one too.
+    {
+        const FSlateFontInfo GuardFont=WorldLabelFont(TEXT("Bold"),LDHUDStyle::TypeText,TextScale);
+        const FLinearColor GuardInk(1.f,.55f,.05f);
+        auto GuardTag=[&](const FVector& Feet)
+        {
+            FVector2D Screen;
+            if(!Projector.Project(Feet+FVector(0,0,OwnBarsHeadroomCm+95.),Screen)){return;}
+            float Bottom=float(Screen.Y)*ToLocalY;
+            Line(TEXT("急眼了"),GuardFont,GuardInk,float(Screen.X)*ToLocalX,Bottom);
+        };
+        if(Frame)
+        {
+            for(const FLDObservedUnitView& Unit:Frame->Units)
+            {
+                if(Unit.CueFlags&LDObservation::ProtoAgencyGuard){GuardTag(FVector(Unit.FeetCm));}
+            }
+            if((Frame->OwnProtoFlags&LDObservation::ProtoAgencyGuard)&&IsValid(OwnBody))
+            { GuardTag(OwnBody->PresentedLocation()); }
+        }
+    }
+
     // Prune unit damage-trail and occlusion caches strictly to handles visible in this exact frame (no cross-visibility memory).
     TSet<FGuid> SeenHandles;
     if(Frame){for(const FLDObservedUnitView& Unit:Frame->Units){SeenHandles.Add(Unit.Handle);}}

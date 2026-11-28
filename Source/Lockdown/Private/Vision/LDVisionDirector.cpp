@@ -136,7 +136,7 @@ bool SameObservedPresentation(const FLDObservedUnitView& A, const FLDObservedUni
     return A.AuthorizedFieldMask == B.AuthorizedFieldMask && A.Kind == B.Kind && A.Presentation == B.Presentation
         && A.ActionCue == B.ActionCue && A.ActionAbility == B.ActionAbility && A.HitLook == B.HitLook && A.HitFlags == B.HitFlags
         && (A.RecentHitAgePlusOneMs != 0) == (B.RecentHitAgePlusOneMs != 0) && A.RecentReaction == B.RecentReaction
-        && A.RecentHitId == B.RecentHitId
+        && A.RecentHitId == B.RecentHitId && A.CueFlags == B.CueFlags
         && A.ContenderId == B.ContenderId && A.CreatureId == B.CreatureId && A.Level == B.Level
         && A.Health.CurrentP2 == B.Health.CurrentP2 && A.Health.MaxP2 == B.Health.MaxP2 && A.ShieldBar == B.ShieldBar
         && A.MomentumBar == B.MomentumBar && A.EmpowerReady == B.EmpowerReady
@@ -1556,6 +1556,7 @@ bool ALDVisionDirector::GatherTargets(TArray<FLDObservedTarget>& Out, FString& E
         Unit.RecentReaction = bReaction ? Facts.LastReaction : 0;
         Unit.RecentReactionAgePlusOneMs = bReaction ? uint16(NowMs - Facts.LastReactionAtMs + 1) : 0;
         Unit.RecentReactionElement = bReaction ? Facts.LastReactionElement : 0;
+        Unit.CueFlags = Facts.CueFlags;
         Unit.ActionCueAgeMs = Facts.ActionCue == ELDObservedActionCue::None ? 0 : uint16(FMath::Min<int64>(NowMs - Facts.ActionCueAtMs, MAX_uint16));
         if (Facts.ActionCue != ELDObservedActionCue::None)
         {
@@ -1764,6 +1765,7 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
                 Seen.RemainingMs = uint32(FMath::Clamp<int64>(Lock.RemainingMs, 1, LDObservation::MaxIncomingLockMs));
                 Seen.Ability = Lock.Ability;
             }
+            View.OwnProtoFlags = Combat->IsProtoAgencyGuarded(Observer.ContenderId) ? uint8(LDObservation::ProtoAgencyGuard) : 0;
         }
         Observer.Ledger.RecentTerminations(View.RecentTerminations);
         // Ground states: the observer's own ones, and every other whose centre (or a band's end) it sees, nearest first, at

@@ -63,7 +63,7 @@
 
 - **技能不耗劲**：开启时已学 Q/W/E 的劲耗记为 0，只受冷却限制；交战被动改用 `EMPOWER.CombatPerSec`（脑力加成照算）；一次释放最多 `EMPOWER.SkillHitTargets` 个目标给 `MOMENTUM.SkillHit`；持续伤害、区域、地面和结算引发的反应只给 `EMPOWER.DerivedReaction`；脑力关键石不再返还劲。
 - **宿主**：每人一个，存在战斗记录里、跨命保留。玩家在构筑环上空手点普攻/Q/W/E/D 的宿主格指定（`ServerSetEmpowerHost`，序号单调，重复或更旧的请求不生效，实验关闭时拒绝并提示）。没选过时，真人用普攻，AI 用投入最深的格（宿主上牌数与勋章阶 + 技能等级 − 1；并列按 Q→W→E→普攻→D）。
-- **起手判定**：宿主上的本人动作在起手时劲 ≥ `EMPOWER.Threshold` 即为强化动作（`FLDCombatAction::bEmpowered`）。普攻与 D 只在针对参赛者时（D：视野半径内有敌方参赛者）判定；视野半径内没有敌方参赛者时，打野怪、打假人也算。D05 后续段、分支再放窗口、K06/A08 重放都不判定。攻类强化起手加 `EMPOWER.StrikeExtraWindupSec`。
+- **起手判定**：宿主上的本人动作在起手时劲 ≥ `EMPOWER.Threshold` 即为强化动作（`FLDCombatAction::bEmpowered`）。普攻与 D 只在针对参赛者时（D：视野半径内有敌方参赛者）判定；视野半径内没有敌方参赛者时，打野怪、打假人也算。D05 后续段、分支再放窗口、K06/A08 重放都不判定。攻类强化起手加 `EMPOWER.StrikeExtraWindupSec`（与承诺起手相加；落点预警与锁定提示按合计释放时刻显示）。
 - **释放扣费**：强化动作释放时劲仍 ≥ `EMPOWER.Cost` 就扣费并生效，打空也扣；此时劲不够则按普通动作释放、不扣（`LD_EMPOWER outcome=short`）。前摇被取消或打断都不扣。
 - **处理器**：普攻为拳，D 为动；技能按自身效果分——强化普攻包或拳风为拳，冲刺为动，自身护盾/招架/顶住/嘲讽为守，放置区域/陷阱/风扇/书包/封条为阵，其余为攻。
   - 拳：本拳按第 3 段结算（连击不推进也不重置），推开目标 `EMPOWER.FistPushCm`，前方扇形内其他敌人吃本拳 `EMPOWER.FistConeRatio` 的追加伤害。单包拳技（S11）释放后，下一拳就是不再扣费的强化拳；多包拳技多 `EMPOWER.ExtraCount` 包，拳风宽 `EMPOWER.ShapeScale` 倍。
@@ -85,10 +85,12 @@
   - 守护期：触发后进入 `-LDProtoAgencyGuard=`（默认 1 s）守护期，期间新的硬控不生效。
   - 两种变体：`-LDProtoAgencyCut=Immediate`（V-Cut，默认）立即结束他人施加的眩晕、定身、缴械、沉默与嘲讽，击退的位移照常完成，但不再锁定输入；`NextControl`（V-Next）不结束当前控制，只防住下一次。
   - 翻滚：同一连击链（距上一次击退结束不到 2 s）中，第 `-LDProtoAgencyRollFrom=`（默认 3）次及以后的击退，以及守护期内受到的击退，都照常推开身体，但不锁定动作、不打断前摇与移动指令，也不计入失去操作权的时长。
-  - 日志：`LD_PROTO_AGENCY trigger|guarded|roll`。急眼状态目前没有画面表现。
+  - 日志：`LD_PROTO_AGENCY trigger|guarded|roll`。守护期内所有看得见该选手的人（包括本人）在其头顶看到开发用文字“急眼了”（[视野与 UI](VISION_AND_UI.md)）。翻滚击退推开期间，位移仍由根运动接管。
+  - 判据探针：见下文“检查入口”。
 - **一锅端落地延迟（C-14，`-LDProtoPotDelay=<秒>`）**：只把 S08（`active_quick_meeting`）2B、3B1、3B2 的 `ground_impact` 延迟改为该值（0–5 s），落点预警也随之延长；3B1 的二次爆炸仍在首砸后按内容延迟发生。
 
 ## 检查入口
 
 - 纯规则：`Lockdown.Rules.DemoCombat*`、`Lockdown.Rules.DemoAttributeProjection.*`、`Lockdown.Rules.DemoMechanics.*`、`Lockdown.Rules.DemoBuildPrimitives.*`、`Lockdown.Rules.Combat.*`、`Lockdown.Rules.DamageRecap.*`、`Lockdown.Rules.BuildBlueprint.*`。
 - 拥有连接场景：`Scripts/RunDemoCombatCheck.ps1`、`Scripts/RunDemoCampCheck.ps1`。
+- 急眼了原型判据探针：`.\Scripts\RunAgencyProbe.ps1 [-Switches '-LDProtoAgencyThreshold=2.2',…]`（`Lockdown.Probe.AgencyCriteria`）。它让 `control_chain_model.py` 中的脚本化攻击者经权威控制路径施加控制，不包含伤害、位移和真实墙体（撞墙眩晕按击退结束时刻施加）。每个场景分别以关闭、V-Cut、V-Next 运行，结果写入 `Artifacts/ProtoAgency/agency-probe-*.json`，并给出单人连招触发次数、三人围攻首轮保留率、墙边急速围攻首次可逃时刻这三项判据。

@@ -171,7 +171,7 @@ bool SerializeObservedUnit(FArchive& Ar, UPackageMap* Map, FLDObservedUnitView& 
     Unit.FeetCm.NetSerialize(Ar, Map, bFeet);
     Ar << Unit.Facing << Cue << Unit.ActionCueAgeMs << Unit.ActionCueImpactDelayMs << HitLook
         << Unit.RecentHitAgePlusOneMs << Unit.RecentHitId << Unit.HitFlags << Unit.ActionAbility << Unit.ActionComboStep
-        << Unit.RecentReaction << Unit.RecentReactionAgePlusOneMs << Unit.RecentReactionElement;
+        << Unit.RecentReaction << Unit.RecentReactionAgePlusOneMs << Unit.RecentReactionElement << Unit.CueFlags;
     if (Ar.IsLoading())
     {
         Unit.Kind = static_cast<ELDObservedUnitKind>(Kind);
@@ -373,6 +373,9 @@ bool LDObservation::ValidateUnit(const FLDObservedUnitView& Unit, FString& Error
     if (Unit.ActionAbility != 0 && Unit.ActionCue != ELDObservedActionCue::Cast)
     { return FailObservation(Error, TEXT("An observed cast source needs a Cast cue and names an ability.")); }
     const bool Contender = Unit.Kind == ELDObservedUnitKind::Contender;
+    if ((Unit.CueFlags & ~CueFlagsMask) != 0 || ((Unit.CueFlags & CommitWindup) != 0 && Unit.ActionCue == ELDObservedActionCue::None)
+        || ((Unit.CueFlags & ProtoAgencyGuard) != 0 && !Contender))
+    { return FailObservation(Error, TEXT("A commit tell needs a cue and a prototype guard a contender.")); }
     if (!Contender && Unit.Kind != ELDObservedUnitKind::CampMember) { return FailObservation(Error, TEXT("Unknown observed unit kind.")); }
     const uint32 Mask = Unit.AuthorizedFieldMask;
     if (Contender ? Mask != ContenderFields : Mask != CampFields)
@@ -557,7 +560,7 @@ bool LDObservation::ValidateView(const FLDWorldView& View, FString& Error)
         if (!FVector(Footprint.SourceFeetCm).IsZero() || Footprint.RadiusCm != 0 || Footprint.CurrentBits.Num() != 0
             || View.Units.Num() != 0 || View.RecentTerminations.Num() != 0 || View.Projectiles.Num() != 0
             || View.GroundStates.Num() != 0 || View.RecoveryOrbs.Num() != 0 || !View.WitnessedEmptyCamps.IsEmpty()
-            || !View.IncomingLocks.IsEmpty())
+            || !View.IncomingLocks.IsEmpty() || View.OwnProtoFlags != 0)
         { return FailObservation(Error, TEXT("A frame without a living source carries no coverage, unit, termination or projectile.")); }
     }
     else { return FailObservation(Error, TEXT("Unknown observation source status.")); }
@@ -617,6 +620,8 @@ bool LDObservation::ValidateView(const FLDWorldView& View, FString& Error)
             || !View.Units.ContainsByPredicate([&Lock](const FLDObservedUnitView& Unit) { return Unit.Handle == Lock.SourceHandle; }))
         { return FailObservation(Error, TEXT("An incoming lock names one shown caster, a skill and its pending windup.")); }
     }
+    if ((View.OwnProtoFlags & ~uint8(ProtoAgencyGuard)) != 0)
+    { return FailObservation(Error, TEXT("The observer's own prototype flags are the prototype guard only.")); }
     // Projectile handles share the observer's handle space with units and recent terminations.
     for (const FLDObservedProjectileView& Projectile : View.Projectiles)
     {
@@ -743,6 +748,7 @@ bool FLDWorldView::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuccess)
     {
         Ar << Lock.SourceHandle << Lock.RemainingMs << Lock.Ability;
     }
+    Ar << OwnProtoFlags;
     if (Ar.IsError() || (Ar.IsLoading() && !LDObservation::ValidateView(*this, Error))) { return RejectObservationArchive(Ar, bSuccess); }
     // A connection always brings its package map; a probe or test that encodes a view by itself has none and is not traffic.
     if (Ar.IsNetArchive() && Map)

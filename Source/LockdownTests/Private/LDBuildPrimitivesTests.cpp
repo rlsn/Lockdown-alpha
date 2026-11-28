@@ -40,6 +40,12 @@
 #include "LDTestApprovedFixture.h"
 #include "UI/LDHUDModel.h"
 #include "Misc/ScopeExit.h"
+#include "Core/LDLog.h"
+#include "Dom/JsonObject.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "Serialization/JsonSerializer.h"
+#include "Serialization/JsonWriter.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -5406,6 +5412,340 @@ bool FLDCombatPotDelayPrototypeTest::RunTest(const FString& Parameters)
     const FLDDemoEffectDefinition* BrickImpact=BrickValues ? FindEffect(*BrickValues,ELDDemoEffectOp::GroundImpact) : nullptr;
     TestTrue(TEXT("Another impact skill keeps its content delay"),BrickImpact
         && ImpactDelay(TEXT("active_calculus_drop"),ELDSkillBranch::None)==BrickImpact->DelayMs);
+    return true;
+}
+
+// C-09 commit tell: a committing branch (S13 2B) winding up is public until its release, a plain one never; the C-10
+// prototype guard is public only while -LDProtoAgency is on.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatCommitTellTest, "Lockdown.Rules.DemoSkillExpansion.CommitTell",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCombatCommitTellTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const TCHAR* Ram=TEXT("active_charged_ram");
+    const FLDCombatBodyRef Caster=F.AddBody();
+    if (!InstallCards(*this,F,Caster,6,{})) { return false; }
+    FLDCombatEntityRecord& Record=FAccess::Records(*F.Driver).FindChecked(Caster.Victim.EntityId);
+    Record.Projection=F.Body(Caster).AttributeProjection;
+    const FLDDemoAbilityDefinition* Ability=nullptr;
+    FString Error;
+    if (!TestTrue(TEXT("S13"),F.Catalog->FindAbility(Ram,Ability,Error) && Ability)) { return false; }
+    const auto Committing=[&](ELDSkillBranch Branch)
+    {
+        Record.Build.Actives={{FName(Ram),ELDCombatEntry::Q,Branch}};
+        FLDCombatActiveTerms Terms;
+        return FAccess::ActiveOf(*F.Driver,Record,SourceOf(ELDCombatSourceKind::Learned,Ram),Ability,Terms) && Terms.bCommitWindup;
+    };
+    TestTrue(TEXT("S13 2B starts committing"),Committing(ELDSkillBranch::B));
+    TestTrue(TEXT("and so does its rank 3"),Committing(ELDSkillBranch::B2));
+    TestFalse(TEXT("the base form does not"),Committing(ELDSkillBranch::None));
+    TestFalse(TEXT("nor 2A"),Committing(ELDSkillBranch::A));
+    FLDBodyCombatState& Body=F.Body(Caster);
+    const auto Flags=[&](bool bCommit, int64 NowMs)
+    {
+        FLDCombatAction Action;
+        Action.Kind=ELDCombatActionKind::Ability;
+        Action.Entry=ELDCombatEntry::Q;
+        Action.Source=SourceOf(ELDCombatSourceKind::Learned,Ram);
+        Action.StartedAtMs=1000;
+        Action.ReleaseAtMs=1300;
+        Action.bCommitWindup=bCommit;
+        Body.Action=Action;
+        F.Now(NowMs);
+        FLDObservedPublicFacts Facts;
+        FString ReadError;
+        if (!F.Driver->AppendObservedAction(F.Actor(Caster),NowMs,Facts,ReadError)) { AddError(ReadError); }
+        return Facts.CueFlags;
+    };
+    TestEqual(TEXT("A committing windup shows its tell"),Flags(true,1100),uint8(LDObservation::CommitWindup));
+    TestEqual(TEXT("A plain windup shows none"),Flags(false,1100),uint8(0));
+    TestEqual(TEXT("The tell ends at the release moment"),Flags(true,1300),uint8(0));
+    Body.Action.Reset();
+    Body.Agency.GuardUntilMs=3000;
+    FAccess::Proto(*F.Driver)=FLDProtoSettings();
+    F.Now(2000);
+    FLDObservedPublicFacts Facts;
+    TestTrue(TEXT("Without the switch no guard is public"),F.Driver->AppendObservedAction(F.Actor(Caster),2000,Facts,Error)
+        && Facts.CueFlags==0 && !F.Driver->IsProtoAgencyGuarded(Caster.Victim.EntityId));
+    FAccess::Proto(*F.Driver).bAgency=true;
+    TestTrue(TEXT("With it the guard is public and the owner's own"),F.Driver->AppendObservedAction(F.Actor(Caster),2000,Facts,Error)
+        && Facts.CueFlags==LDObservation::ProtoAgencyGuard && F.Driver->IsProtoAgencyGuarded(Caster.Victim.EntityId));
+    return true;
+}
+
+// ---- C-10 prototype criteria probe (S3b spec §C1): not a rule test, run by Scripts/RunAgencyProbe.ps1.
+// The native counterpart of the L2 control_chain_model.py: the same scripted attackers (perfect chaining, controls only, no
+// damage or motion) commit their controls through the authority's single control path, so diminishing returns, the agency
+// meter, guard, roll and V-Cut/V-Next are the production code. Each scenario runs with the prototype off, V-Cut and V-Next;
+// the victim cannot escape while IsActionBlocked(Move) or taunted, sampled every 10 ms. Writes Artifacts/ProtoAgency/agency-probe-*.json.
+namespace LDAgencyProbe
+{
+struct FSkill
+{
+    const TCHAR* Name;
+    ELDControlKind Kind;
+    int64 DurMs, CdMs, WindupMs;
+    int64 WallStunMs = 0;
+    ELDControlKind ExtraKind = ELDControlKind::Slow;
+    int64 ExtraMs = 0;
+};
+struct FAttacker { TArray<FSkill> Skills; int64 Haste = 0; int64 ReactMs = 0; };
+struct FScenario { const TCHAR* Name; TArray<FAttacker> Attackers; bool bWalls = true; };
+struct FPending { int64 LandMs; int32 Attacker; FSkill Skill; };
+struct FSpan { int64 Start, End; };
+struct FResult
+{
+    double NoMoveS = 0, Worst4S = 0, LongestS = 0, Combo3S = 0;
+    double FirstEscapeS = -1;
+    int32 Windows = 0, Triggers = 0, Guarded = 0, Rolls = 0;
+    double FirstTriggerS = -1;
+};
+
+// Rank values mirrored from control_chain_model.py (content.json ranks 1-3; 2B/3B1 from the branch patches).
+const FSkill S02{TEXT("S02_root"), ELDControlKind::Root, 1100, 6000, 140};
+const FSkill N1{TEXT("N1_push"), ELDControlKind::Knockback, 120, 4200, 150};
+const FSkill N1_3B1{TEXT("N1_3B1_root"), ELDControlKind::Root, 600, 4200, 650};
+const FSkill S01{TEXT("S01_kick"), ELDControlKind::Knockback, 250, 4200, 150};
+const FSkill S01Wall{TEXT("S01_2B3B1"), ELDControlKind::Knockback, 250, 4200, 150, 800};
+const FSkill S09Wall{TEXT("S09_2B3B1"), ELDControlKind::Knockback, 150, 4900, 200, 800};
+const FSkill S22Silence{TEXT("S22_2B3B1"), ELDControlKind::Knockback, 150, 5600, 150, 0, ELDControlKind::Silence, 1000};
+const FSkill S03Stun{TEXT("S03_backstab"), ELDControlKind::Stun, 1100, 6300, 120};
+const FSkill S15_2A{TEXT("S15_2A"), ELDControlKind::Taunt, 1400, 8400, 200};
+const FSkill ThirdShove{TEXT("card_third_shove"), ELDControlKind::Knockback, 120, 2600, 150, 800};
+const FSkill Freeze{TEXT("freeze_reaction"), ELDControlKind::Root, 1200, 4200, 150};
+
+TArray<FScenario> Scenarios()
+{
+    return {
+        {TEXT("A_control_solo_L10"), {{{S02, N1, S01}, 18}}},
+        {TEXT("B_knockback_wall_solo"), {{{S01Wall, S09Wall, ThirdShove}, 0}}},
+        {TEXT("B_knockback_open_field"), {{{S01Wall, S09Wall, ThirdShove}, 0}}, false},
+        {TEXT("C_control_haste150"), {{{S02, N1_3B1, S01}, 150}}},
+        {TEXT("C_control_haste400_cap"), {{{S02, N1_3B1, S01}, 400}}},
+        {TEXT("D_gank_3v1"), {{{S02}}, {{S03Stun, S01}}, {{S15_2A, N1}}}},
+        {TEXT("D_gank_3v1_reactive"), {{{S02}, 0, 250}, {{S03Stun, S01}, 0, 250}, {{S15_2A, N1}, 0, 250}}},
+        {TEXT("F_gank_haste100_wall"), {{{S01Wall, S02}, 100}, {{S09Wall, S03Stun}, 100}, {{S15_2A, ThirdShove}, 100}}},
+        {TEXT("E_freeze_plus_root"), {{{Freeze, S02, S22Silence}, 40}}},
+    };
+}
+
+constexpr int64 TickMs = 10, HorizonMs = 8000, ActionWindowMs = 350, T0 = 10000;
+
+bool IsNoMove(ELDControlKind Kind)
+{ return Kind == ELDControlKind::Root || Kind == ELDControlKind::Stun || Kind == ELDControlKind::Knockback || Kind == ELDControlKind::Taunt; }
+
+// The expiry of the instance EffectId committed on Body, -1 when none landed (refused, rolled or absent).
+int64 ExpiryOf(const FLDBodyCombatState& Body, const FGuid& EffectId)
+{
+    for (const TArray<FLDCombatRoot>* Rows : {&Body.Roots, &Body.Stuns, &Body.Knockbacks, &Body.Disarms, &Body.Silences})
+    {
+        if (const FLDCombatRoot* Row = Rows->FindByPredicate([&EffectId](const FLDCombatRoot& R) { return R.EffectId == EffectId; }))
+        { return Row->ExpiresAtMs; }
+    }
+    return Body.Taunt.IsSet() && Body.Taunt->EffectId == EffectId ? Body.Taunt->ExpiresAtMs : -1;
+}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDAgencyCriteriaProbe, "Lockdown.Probe.AgencyCriteria",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDAgencyCriteriaProbe::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    using namespace LDAgencyProbe;
+    // The prototype's parameters come from this process's own switches (-LDProtoAgencyThreshold=... and so on).
+    FLDProtoSettings Base;
+    FString Error;
+    if (!TestTrue(TEXT("Probe switches: ") + Error, LDProto::Parse(FCommandLine::Get(), Base, Error))) { return false; }
+    struct FVariant { const TCHAR* Name; bool bAgency; bool bCut; };
+    const FVariant Variants[] = {{TEXT("Off"), false, true}, {TEXT("VCut"), true, true}, {TEXT("VNext"), true, false}};
+    TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
+    Root->SetStringField(TEXT("schema"), TEXT("lockdown.agency-probe"));
+    Root->SetNumberField(TEXT("schema_version"), 1);
+    Root->SetStringField(TEXT("params"), LDProto::Describe([&Base] { FLDProtoSettings S = Base; S.bAgency = true; return S; }()));
+    TSharedRef<FJsonObject> Results = MakeShared<FJsonObject>();
+    TMap<FString, FResult> All;
+    for (const FScenario& Scenario : Scenarios())
+    {
+        TSharedRef<FJsonObject> PerScenario = MakeShared<FJsonObject>();
+        for (const FVariant& Variant : Variants)
+        {
+            FFixture F;
+            if (!F.Init(*this)) { return false; }
+            FLDProtoSettings& Proto = FAccess::Proto(*F.Driver);
+            Proto = Base;
+            Proto.bAgency = Variant.bAgency;
+            Proto.Agency.bCut = Variant.bCut;
+            const FLDCombatBodyRef Victim = F.AddBody();
+            TArray<FLDCombatBodyRef> Refs;
+            TArray<FAttacker> Attackers = Scenario.Attackers;
+            for (int32 Index = 0; Index < Attackers.Num(); ++Index) { Refs.Add(F.AddBody()); }
+            TArray<TMap<FString, int64>> Ready;
+            TArray<int64> Busy;
+            Ready.SetNum(Attackers.Num());
+            Busy.Init(T0, Attackers.Num());
+            TArray<FPending> Pending;
+            TArray<FSpan> Spans;
+            TArray<bool> NoMove;
+            int64 LastNoMoveEnd = MIN_int64, LastTrigger = MIN_int64, KnockEnd = MIN_int64;
+            FResult R;
+            const auto Commit = [&](int32 AttackerIndex, ELDControlKind Kind, int64 DurMs, int64 NowMs)
+            {
+                FLDBodyCombatState& Body = F.Body(Victim);
+                FLDControlApplication App;
+                App.Kind = Kind;
+                App.EffectId = FGuid::NewGuid();
+                App.SourceEntity = App.CreditOwner = Refs[AttackerIndex].Victim.EntityId;
+                App.SourceBody = Refs[AttackerIndex];
+                App.DurationMs = DurMs;
+                const int64 GuardBefore = Body.Agency.GuardUntilMs;
+                bool bApplied = false;
+                FString CommitError;
+                if (!F.Driver->CommitControl(Body, App, NowMs, bApplied, CommitError)) { AddError(CommitError); return; }
+                const int64 End = ExpiryOf(Body, App.EffectId);
+                if (End > NowMs)
+                {
+                    Spans.Add({NowMs, End});
+                    if (IsNoMove(Kind)) { LastNoMoveEnd = FMath::Max(LastNoMoveEnd, End); }
+                }
+                else if (Variant.bAgency && !bApplied && NowMs < GuardBefore) { ++R.Guarded; }
+                else if (Variant.bAgency && bApplied && Kind == ELDControlKind::Knockback) { ++R.Rolls; }
+            };
+            for (int64 Now = T0; Now < T0 + HorizonMs; Now += TickMs)
+            {
+                F.Now(Now);
+                if (Variant.bAgency) { FAccess::AdvanceAgency(*F.Driver, Now); }
+                FAccess::ExpireStatuses(*F.Driver, Now);
+                const FLDBodyCombatState& Body = F.Body(Victim);
+                if (Body.Agency.LastTriggerMs != LastTrigger && Body.Agency.LastTriggerMs == Now)
+                {
+                    LastTrigger = Now;
+                    ++R.Triggers;
+                    if (R.FirstTriggerS < 0) { R.FirstTriggerS = double(Now - T0) / 1000.; }
+                    if (Variant.bCut)
+                    {
+                        for (FSpan& Span : Spans) { Span.End = FMath::Min(Span.End, Now); }
+                        LastNoMoveEnd = FMath::Min(LastNoMoveEnd, Now);
+                    }
+                }
+                for (int32 Index = Pending.Num() - 1; Index >= 0; --Index)
+                {
+                    if (Pending[Index].LandMs > Now) { continue; }
+                    const FPending Land = Pending[Index];
+                    Pending.RemoveAt(Index);
+                    Commit(Land.Attacker, Land.Skill.Kind, Land.Skill.DurMs, Now);
+                    if (Land.Skill.ExtraMs > 0) { Commit(Land.Attacker, Land.Skill.ExtraKind, Land.Skill.ExtraMs, Now); }
+                    if (Land.Skill.WallStunMs > 0 && Scenario.bWalls && Land.Skill.Kind == ELDControlKind::Knockback)
+                    { Pending.Add({Now + Land.Skill.DurMs, Land.Attacker, FSkill{TEXT("wall"), ELDControlKind::Stun, Land.Skill.WallStunMs, 0, 0}}); }
+                }
+                // The no-move lock now running (every live root, stun, knockback or taunt ends by its latest expiry).
+                int64 LockEnd = Now;
+                for (const TArray<FLDCombatRoot>* Rows : {&Body.Roots, &Body.Stuns, &Body.Knockbacks})
+                { for (const FLDCombatRoot& Row : *Rows) { if (Row.ExpiresAtMs > Now) { LockEnd = FMath::Max(LockEnd, Row.ExpiresAtMs); } } }
+                if (Body.Taunt.IsSet() && Body.Taunt->ExpiresAtMs > Now) { LockEnd = FMath::Max(LockEnd, Body.Taunt->ExpiresAtMs); }
+                for (int32 A = 0; A < Attackers.Num(); ++A)
+                {
+                    if (Now < Busy[A]) { continue; }
+                    for (const FSkill& Skill : Attackers[A].Skills)
+                    {
+                        if (Now < Ready[A].FindOrAdd(Skill.Name, T0)) { continue; }
+                        const int64 SeenEnd = LastNoMoveEnd == MIN_int64 ? MIN_int64 : LastNoMoveEnd + Attackers[A].ReactMs;
+                        if (Now + Skill.WindupMs < FMath::Max(LockEnd, SeenEnd)) { continue; }
+                        Pending.Add({Now + Skill.WindupMs, A, Skill});
+                        Ready[A].Add(Skill.Name, Now + FMath::Max<int64>(300, Skill.CdMs * 100 / (100 + Attackers[A].Haste)));
+                        Busy[A] = Now + Skill.WindupMs;
+                        break;
+                    }
+                }
+                // A taunted body walks only at its taunter (forced), so it cannot escape either: the L2 model's no-move set.
+                const FLDBodyCombatState& Sampled = F.Body(Victim);
+                NoMove.Add(F.Driver->IsActionBlocked(Sampled, ELDCombatControlAction::Move)
+                    || (Sampled.Taunt.IsSet() && Sampled.Taunt->ExpiresAtMs > Now));
+            }
+            // The L2 measures: no-move total, worst 4 s, longest run, the first 0.35 s window and the first three controls.
+            int64 Run = 0, Cur = 0, Longest = 0, Total = 0;
+            for (int32 Tick = 0; Tick < NoMove.Num(); ++Tick)
+            {
+                if (NoMove[Tick])
+                {
+                    Total += TickMs; Cur += TickMs; Longest = FMath::Max(Longest, Cur);
+                    if (Run >= ActionWindowMs) { ++R.Windows; }
+                    Run = 0;
+                }
+                else
+                {
+                    Cur = 0; Run += TickMs;
+                    if (Run >= ActionWindowMs && R.FirstEscapeS < 0) { R.FirstEscapeS = double(Tick * TickMs - ActionWindowMs + TickMs) / 1000.; }
+                }
+            }
+            if (Run >= ActionWindowMs) { ++R.Windows; }
+            const int32 Span4 = int32(4000 / TickMs);
+            int32 Acc = 0, Worst = 0;
+            for (int32 Tick = 0; Tick < NoMove.Num(); ++Tick)
+            {
+                Acc += NoMove[Tick] ? 1 : 0;
+                if (Tick >= Span4) { Acc -= NoMove[Tick - Span4] ? 1 : 0; }
+                Worst = FMath::Max(Worst, Acc);
+            }
+            Spans.Sort([](const FSpan& A, const FSpan& B) { return A.Start != B.Start ? A.Start < B.Start : A.End < B.End; });
+            for (int32 Index = 0; Index < FMath::Min(3, Spans.Num()); ++Index) { R.Combo3S += double(Spans[Index].End - Spans[Index].Start) / 1000.; }
+            R.NoMoveS = double(Total) / 1000.;
+            R.Worst4S = double(Worst * TickMs) / 1000.;
+            R.LongestS = double(Longest) / 1000.;
+            const double BaseCombo = Variant.bAgency ? All.FindRef(FString(Scenario.Name) + TEXT("/Off")).Combo3S : R.Combo3S;
+            All.Add(FString(Scenario.Name) + TEXT("/") + Variant.Name, R);
+            TSharedRef<FJsonObject> Out = MakeShared<FJsonObject>();
+            Out->SetNumberField(TEXT("no_move_s"), R.NoMoveS);
+            Out->SetNumberField(TEXT("worst_4s_no_move_s"), R.Worst4S);
+            Out->SetNumberField(TEXT("longest_no_move_s"), R.LongestS);
+            Out->SetNumberField(TEXT("first_escape_s"), R.FirstEscapeS);
+            Out->SetNumberField(TEXT("escape_windows"), R.Windows);
+            Out->SetNumberField(TEXT("combo3_s"), R.Combo3S);
+            Out->SetNumberField(TEXT("combo3_retained"), BaseCombo > 0 ? R.Combo3S / BaseCombo : 0.);
+            Out->SetNumberField(TEXT("triggers"), R.Triggers);
+            Out->SetNumberField(TEXT("first_trigger_s"), R.FirstTriggerS);
+            Out->SetNumberField(TEXT("guarded_hard_controls"), R.Guarded);
+            Out->SetNumberField(TEXT("rolled_knockbacks"), R.Rolls);
+            PerScenario->SetObjectField(Variant.Name, Out);
+            UE_LOG(LogLDCombat, Display, TEXT("LD_PROTO_AGENCY_PROBE scenario=%s variant=%s no_move=%.2f worst4=%.2f longest=%.2f first_escape=%.2f windows=%d combo3=%.2f retained=%.2f triggers=%d first_trigger=%.2f guarded=%d rolls=%d"),
+                Scenario.Name, Variant.Name, R.NoMoveS, R.Worst4S, R.LongestS, R.FirstEscapeS, R.Windows, R.Combo3S,
+                BaseCombo > 0 ? R.Combo3S / BaseCombo : 0., R.Triggers, R.FirstTriggerS, R.Guarded, R.Rolls);
+        }
+        Results->SetObjectField(Scenario.Name, PerScenario);
+    }
+    Root->SetObjectField(TEXT("results"), Results);
+    // S3b spec §C1 criteria answerable here (the 7-AI match and the human ones are not): per prototype variant.
+    TSharedRef<FJsonObject> Criteria = MakeShared<FJsonObject>();
+    for (const TCHAR* Variant : {TEXT("VCut"), TEXT("VNext")})
+    {
+        const FString V(Variant);
+        const int32 SoloTriggers = All.FindRef(TEXT("A_control_solo_L10/") + V).Triggers + All.FindRef(TEXT("B_knockback_open_field/") + V).Triggers;
+        const double Off3 = All.FindRef(TEXT("D_gank_3v1/Off")).Combo3S;
+        const double Kept = Off3 > 0 ? All.FindRef(TEXT("D_gank_3v1/") + V).Combo3S / Off3 : 0.;
+        const double Escape = All.FindRef(TEXT("F_gank_haste100_wall/") + V).FirstEscapeS;
+        const auto Verdict = [](bool bPass, bool bFail) { return bPass ? TEXT("pass") : bFail ? TEXT("fail") : TEXT("between"); };
+        TSharedRef<FJsonObject> C = MakeShared<FJsonObject>();
+        C->SetNumberField(TEXT("solo_combo_triggers"), SoloTriggers);
+        C->SetStringField(TEXT("solo_combo"), Verdict(SoloTriggers == 0, SoloTriggers > 0));
+        C->SetNumberField(TEXT("gank_first_round_retained"), Kept);
+        C->SetStringField(TEXT("gank_first_round"), Verdict(Kept >= .85, Kept < .75));
+        C->SetNumberField(TEXT("wall_gank_haste100_first_escape_s"), Escape);
+        C->SetStringField(TEXT("wall_gank_haste100_first_escape"), Verdict(Escape >= 0 && Escape <= 1.5, Escape < 0 || Escape > 2.0));
+        Criteria->SetObjectField(V, C);
+        UE_LOG(LogLDCombat, Display, TEXT("LD_PROTO_AGENCY_CRITERIA variant=%s solo_triggers=%d (%s) gank_retained=%.2f (%s) wall_first_escape=%.2f (%s)"),
+            *V, SoloTriggers, Verdict(SoloTriggers == 0, SoloTriggers > 0), Kept, Verdict(Kept >= .85, Kept < .75),
+            Escape, Verdict(Escape >= 0 && Escape <= 1.5, Escape < 0 || Escape > 2.0));
+    }
+    Root->SetObjectField(TEXT("criteria"), Criteria);
+    FString Text;
+    const auto Writer = TJsonWriterFactory<>::Create(&Text);
+    if (!TestTrue(TEXT("Probe report serializes"), FJsonSerializer::Serialize(Root, Writer))) { return false; }
+    const FString Path = FPaths::ProjectDir() / TEXT("Artifacts/ProtoAgency") / FString::Printf(TEXT("agency-probe-%s.json"),
+        *FDateTime::Now().ToString(TEXT("%Y%m%d-%H%M%S")));
+    if (!TestTrue(TEXT("Probe report written: ") + Path, FFileHelper::SaveStringToFile(Text, *Path, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM)))
+    { return false; }
+    UE_LOG(LogLDCombat, Display, TEXT("LD_PROTO_AGENCY_PROBE_REPORT %s"), *FPaths::ConvertRelativePathToFull(Path));
     return true;
 }
 
