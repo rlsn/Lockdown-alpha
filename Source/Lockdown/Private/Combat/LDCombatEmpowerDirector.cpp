@@ -444,7 +444,9 @@ ELDEmpowerProcessor ALDCombatDirector::EmpowerReadyOf(const FLDBodyCombatState& 
     const ELDCombatEntry Host=EmpowerHostOf(*Record);
     if (Host==ELDCombatEntry::Basic)
     {
-        if (IsActionBlocked(Body,ELDCombatControlAction::Basic) || NowMs<Record->NextAttackAtMs) { return ELDEmpowerProcessor::None; }
+        // A basic host is available while it may attack at all: its swing timer only says when (an attacking body's next
+        // punch is the empowered one).
+        if (IsActionBlocked(Body,ELDCombatControlAction::Basic)) { return ELDEmpowerProcessor::None; }
     }
     else
     {

@@ -608,6 +608,9 @@ public:
         {
             Check(UnauthorizedMarks == 0, TEXT("An opponent's empower ready mark appears only with its sight-authorized momentum group"),
                 FString::Printf(TEXT("%d unauthorized, %d frames with the client's mark"), UnauthorizedMarks, ReadyMarks));
+            // The client's bar crossed the threshold next to the Host before its empowered punches (ClientReward checks them).
+            Check(ReadyMarks > 0, TEXT("The Host saw the attacking client's public ready mark"),
+                FString::Printf(TEXT("%d frames with the client's mark"), ReadyMarks));
             Facts->SetNumberField(TEXT("host_seen_client_ready_frames"), ReadyMarks);
         }
         if (!Passed) { return Finish(); }
