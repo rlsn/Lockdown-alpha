@@ -345,24 +345,29 @@ class SummarizePlaytestLogTest(unittest.TestCase):
         flagged = summarize(collect([str(silent)]), metrics_only=True)
         self.assertIn("  - AI that never cast in any of their fights: 1 (B 1 fights)", flagged)
         self.assertIn("| AI that never cast in any of their fights | 0 | 1 |", flagged)
-        # Auto-empower: A pays twice 100 ms apart (a loop) and lands one tagged hit; B's basic empower on a camp misses.
-        empower = lambda at, t, who, life, host, target, before, cost, serial: line(
-            at, "LogLDCombat", "Log", f"LD_EMPOWER t={t} entity={who} life={life} host={host} skill=- target={target} "
-                                      f"before={before} cost={cost} after={before - cost} serial={serial} payload=p")
+        # Auto-empower (the Host's LD_EMPOWER): A pays twice 100 ms apart (a loop), its first release lands a tagged hit on
+        # B and the second lands nothing; one A release came short of the cost; B's basic empower lands on a camp.
+        empower = lambda at, t, who, host, processor, before, paid, serial, outcome="applied": line(
+            at, "LogLDCombat", "Log", f"LD_EMPOWER t={t} src={who} life=1 host={host} processor={processor} source=basic "
+                                      f"serial={serial} paid={paid:.2f} before={before:.2f} after={before - paid:.2f} outcome={outcome}")
         armed = {f"entity={a} life=1 ": " empower=2 armed_ms=5000", f"entity={b} life=1 ": " empower=1 armed_ms=1000"}
         ledgered = [row + next((extra for key, extra in armed.items() if "LD_MOMENTUM" in row and key in row), "")
                     for row in rows]
         empowered = ledgered[:-1] + [
-            empower(10, 10000, a, 1, "Q", "contender", 70, 30, 1),
-            empower(10, 10100, a, 1, "Q", "contender", 40, 30, 2),
+            empower(10, 10000, a, "Q", "strike", 70, 30, 1),
+            empower(10, 10100, a, "Q", "strike", 40, 30, 2),
+            empower(10, 10150, a, "Q", "strike", 10, 0, 0, "short"),
             hit(10, 10200, a, b, "learned:active_zap", "10.00", "factor_bp=10000 factors=- empower=1"),
-            empower(11, 11000, b, 1, "Basic", "camp", 60, 20, 1),
+            empower(11, 11000, b, "Basic", "fist", 60, 20, 1),
+            hit(11, 11100, b, a, "basic", "5.00", "factor_bp=10000 factors=- empower=1").replace(
+                "victim_kind=contender", "victim_kind=camp"),
         ] + ledgered[-1:]
         (self.root / "Empower.log").write_text("\n".join(empowered) + "\n", encoding="utf-8")
         report = summarize(collect([str(self.root / "Empower.log")]), metrics_only=True)
-        expected = ("Auto-empower: 3 triggers (9.00 per contender field minute); hosts Basic 33%, Q 67%; targets contender 67%, "
-                    "camp 33%; paid and missed 67%; mean cost 26.7, mean momentum before 56.7; re-triggers within 250 ms 1; "
-                    "most hits from one trigger 1; armed 30% of contender field time")
+        expected = ("Auto-empower: 3 triggers (9.00 per contender field minute); momentum short at release 1; hosts Basic 33%, "
+                    "Q 67%; processors fist 33%, strike 67%; targets contender 33%, camp 33%, none 33%; paid and missed 33%; "
+                    "mean cost 26.7, mean momentum before 56.7; re-triggers within 250 ms 1; most hits from one trigger 1; "
+                    "armed 30% of contender field time")
         self.assertIn(f"- {expected}", report.split("## Metrics across")[0])
         self.assertIn(f"- {expected}", report.split("## Metrics across")[1])
         # The mechanic is on (ledgers carry empower=) but nobody triggered: 0, not n/a.
