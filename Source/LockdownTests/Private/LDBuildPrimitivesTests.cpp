@@ -201,6 +201,8 @@ struct FLDBuildPrimitivesAccess
         const FVector& UnitFoot, const FVector& Foot, int64 NowMs, FString& Error)
     { return Driver.DeliverReleasePayload(Actor, Body, Terms, Action, Template, Unit, UnitFoot, Foot, {}, NowMs, Error); }
     static bool ApplyPendingHits(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.ApplyPendingHits(NowMs, Error); }
+    static bool EndBranchProjectile(ALDCombatDirector& Driver, const FLDCombatProjectile& Projectile, const FVector& EndCm, FString& Error)
+    { return Driver.EndBranchProjectile(Projectile, EndCm, true, Error); }
     static bool AdvanceMechanics(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceMechanics(NowMs, Error); }
     static bool MakeEmpower(const ALDCombatDirector& Driver, const FLDBodyCombatState& Body, const FLDCombatSourceRef& Source,
         const FLDDemoEffectDefinition& Effect, int64 NowMs, FLDCombatEmpower& Out, FString& Error)
@@ -2816,6 +2818,42 @@ bool FLDCombatHitBudgetTest::RunTest(const FString& Parameters)
     bGood &= TestEqual(TEXT("A flood resolves one step's budget and keeps at most the cap queued"), Pending.Num(),
         ALDCombatDirector::TechPendingHitsCap);
     return bGood;
+}
+// A telegraphed flight is perfectly dodged by a D started within the window before it passed the dasher's spot, judged when
+// it passed there, not when the flight ended farther on.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatFlightDodgeTimingTest, "Lockdown.Rules.Combat.Events.FlightDodgeTiming",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCombatFlightDodgeTimingTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef Thrower = F.AddBody(), Early = F.AddBody(), Late = F.AddBody();
+    F.Place(Thrower, 0, 0);
+    F.Place(Early, 300, 300);
+    F.Place(Late, 1300, 300);
+    FLDCombatProjectile Flight;
+    Flight.EffectId = FGuid::NewGuid();
+    Flight.SourceBody = Thrower;
+    Flight.SourceEntity = Thrower.Victim.EntityId;
+    Flight.OriginCm = F.Foot(Thrower);
+    Flight.Direction = FVector(1, 0, 0);
+    Flight.SpeedCmPerSec = 1500.;
+    Flight.RadiusCm = 40.;
+    Flight.RangeCm = 1500.;
+    Flight.bTelegraphed = true;
+    const FVector End = Flight.OriginCm + FVector(1500, 0, 0);
+    // The flight ends at 2000 ms: it passed x = 300 at 1200 ms and x = 1300 at 1867 ms.
+    F.Body(Early).DashStartedAtMs = 1150;
+    F.Body(Early).DashStartFootCm = Flight.OriginCm + FVector(300, 0, 0);
+    F.Body(Late).DashStartedAtMs = 1500;
+    F.Body(Late).DashStartFootCm = Flight.OriginCm + FVector(1300, 0, 0);
+    F.Now(2000);
+    FString Error;
+    if (!TestTrue(TEXT("The flight ends: ") + Error, FAccess::EndBranchProjectile(*F.Driver, Flight, End, Error))) { return false; }
+    TestEqual(TEXT("A D 50 ms before the flight passed perfectly dodges it"), F.Body(Early).PerfectDodges, uint32(1));
+    TestEqual(TEXT("A D 367 ms before it passed does not"), F.Body(Late).PerfectDodges, uint32(0));
+    return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA14Test, "Lockdown.Rules.Combat.Cards.A14",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

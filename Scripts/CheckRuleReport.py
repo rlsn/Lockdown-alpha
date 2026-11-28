@@ -162,6 +162,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.Combat.SkillRank.TrapWire",
         "Lockdown.Rules.Combat.Events.AttributeMarginal",
         "Lockdown.Rules.Combat.Events.DefenseBudget",
+        "Lockdown.Rules.Combat.Events.FlightDodgeTiming",
         "Lockdown.Rules.Combat.Events.HitBudget",
         "Lockdown.Rules.Combat.Events.ProjectileCounterplay",
         "Lockdown.Rules.Combat.Events.TrapFuse",

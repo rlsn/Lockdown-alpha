@@ -704,13 +704,21 @@ bool ALDCombatDirector::EndBranchProjectile(const FLDCombatProjectile& Projectil
     ILDLifeAuthority* Mode=Authority();
     if (!Mode) { Error=TEXT("A flight end needs the current core."); return false; }
     const int64 NowMs=Mode->GetAuthorityNowMs();
-    // A telegraphed flight can be perfectly dodged where it went (spec §4.4): its corridor from launch to end.
+    // A telegraphed flight can be perfectly dodged where it went (spec §4.4): its corridor from launch to end, each body judged
+    // at the instant the flight passed the foot it dashed from (back from the end at the flight's speed), not at the end.
     if (Projectile.bTelegraphed && !Projectile.bReturn)
     {
         const FVector From(Projectile.OriginCm.X,Projectile.OriginCm.Y,0), To(EndCm.X,EndCm.Y,0);
         const double Reach=Projectile.RadiusCm+40.;
+        const double Span=FVector::Dist(From,To), Speed=Projectile.SpeedCmPerSec;
+        const auto PassedAt=[From,To,Span,Speed,NowMs](const FVector& Foot) -> int64
+        {
+            if (Span<=0. || Speed<=0.) { return NowMs; }
+            const double Along=FMath::Clamp(FVector::DotProduct(FVector(Foot.X,Foot.Y,0)-From,(To-From)/Span),0.,Span);
+            return NowMs-int64(FMath::RoundToDouble((Span-Along)/Speed*1000.));
+        };
         if (!ResolvePerfectDodges(Projectile.EffectId,Projectile.SourceEntity,[&From,&To,Reach](const FVector& Point)
-            { return FMath::PointDistToSegment(FVector(Point.X,Point.Y,0),From,To)<=Reach; },NowMs,Error)) { return false; }
+            { return FMath::PointDistToSegment(FVector(Point.X,Point.Y,0),From,To)<=Reach; },NowMs,Error,PassedAt)) { return false; }
     }
     // S06 B2: a return that reached its living thrower was caught.
     if (Projectile.bReturn && bReachedRange && Projectile.Payload.CastLedger)

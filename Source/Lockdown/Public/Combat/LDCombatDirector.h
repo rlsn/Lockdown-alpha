@@ -1699,8 +1699,10 @@ private:
     void ClearBranchState(FLDBodyCombatState& Body);
     // Perfect dodge (issue #287 spec §4.4): at the resolution of a telegraphed enemy effect, a contender whose D started inside
     // InArea within MOMENTUM.PerfectDodgeWindowSec and whose foot is outside now gains MOMENTUM.PerfectDodge, once per effect.
+    // ResolveAt (when set) is the instant the effect reached a body that started its D at that foot (a flight passing by);
+    // otherwise every body is judged at NowMs.
     bool ResolvePerfectDodges(const FGuid& EffectId, const FGuid& SourceEntity, TFunctionRef<bool(const FVector&)> InArea, int64 NowMs,
-        FString& Error);
+        FString& Error, TFunction<int64(const FVector&)> ResolveAt=nullptr);
     // Branch reactions of a committed hit on Target: S10 B1 discharges, S14 A1 reflections, S16 B stacks, S13 A1 bursts.
     // BrokenLayers: the shield layers (their EffectIds) this hit emptied; a branch shield settles by its own layer.
     bool OnBranchHitTaken(const FLDCombatHit& Hit, FLDBodyCombatState& Target, int64 DamageP2, const TArray<FGuid>& BrokenLayers,
