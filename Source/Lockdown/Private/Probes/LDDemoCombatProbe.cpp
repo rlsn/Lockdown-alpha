@@ -291,7 +291,7 @@ public:
     int32 ProjectileSamples = 0;
     bool bBoltHeading = true, bCastCueSeen = false, bBoltLanded = false;
     bool bShieldCaptured = false;
-    double SkillGapCm = 0, ReachHitCm = 0;
+    double SkillGapCm = 0, ReachHitCm = 0, SwingGapCm = 0;
     FLDMoveIdentity ReachOrder, HostCastOrder;
     enum class EFollowUpStep : uint8 { Start, AwaitAttack, AwaitRefusal, AwaitFollowUp, Return };
     EFollowUpStep FollowUpStep = EFollowUpStep::Start;
@@ -2969,6 +2969,12 @@ public:
             const ALDCharacter* Own = Cast<ALDCharacter>(PC.GetPawn());
             const ALDCharacter* Other = ClientBody(Mode);
             const FLDBodyCombatState* Victim = Other ? Mode.Combat->StateFor(Other) : nullptr;
+            const FLDBodyCombatState* Striker = Own ? Mode.Combat->StateFor(Own) : nullptr;
+            // The swing is admitted only within range and lands for certain from there (the striker stands while it winds
+            // up): its gap is the hit's gap. A push the hit itself carries (an auto-empower punch) moves the target after it.
+            if (Own && Other && Victim && Victim->Cues.LastHitAtMs <= HitBeforeMs && Striker && Striker->Action.IsSet()
+                && Striker->Action->Kind == ELDCombatActionKind::Basic)
+            { SwingGapCm = FVector::Dist2D(ALDCombatDirector::FootOf(*Own), ALDCombatDirector::FootOf(*Other)); }
             const FLDOrderReceipt& Latest = PC.Navigation->LatestReceipt();
             if (Latest.Identity == ReachOrder && (Latest.Status == ELDOrderStatus::Rejected || Latest.Status == ELDOrderStatus::Cancelled
                 || Latest.Status == ELDOrderStatus::Completed))
@@ -2980,11 +2986,13 @@ public:
                 if (Now - StageAt <= LDDemoCombatScenario::CombatProbeStepSeconds) { return true; }
                 return Fail(TEXT("Skills"), TEXT("The basic chase never hit Client1: ") + PC.Navigation->Status);
             }
-            ReachHitCm = FVector::Dist2D(ALDCombatDirector::FootOf(*Own), ALDCombatDirector::FootOf(*Other));
+            const double AfterHitCm = FVector::Dist2D(ALDCombatDirector::FootOf(*Own), ALDCombatDirector::FootOf(*Other));
+            ReachHitCm = SwingGapCm > 0 ? SwingGapCm : AfterHitCm;
             const double Base = LDDemoCombatScenario::CombatProbeRational(Catalog->Get().Parameters.AttackRangeCm.Base);
             Check(Base > 0 && FMath::IsNearlyEqual(double(PC.CombatView.AttackRangeCm), Base, 0.01) && ReachHitCm <= Base + 1.0,
                 TEXT("Skills"), TEXT("A right-click chase from beyond the basic range closes in and lands its hit within the projected base range"),
-                FString::Printf(TEXT("hit_gap_cm=%.1f base_cm=%.0f projected_cm=%.0f"), ReachHitCm, Base, PC.CombatView.AttackRangeCm));
+                FString::Printf(TEXT("hit_gap_cm=%.1f (%s) after_hit_cm=%.1f base_cm=%.0f projected_cm=%.0f"), ReachHitCm,
+                    SwingGapCm > 0 ? TEXT("swing") : TEXT("after hit"), AfterHitCm, Base, PC.CombatView.AttackRangeCm));
             if (!Passed) { return Finish(); }
             bReachMeasured = true;
         }
