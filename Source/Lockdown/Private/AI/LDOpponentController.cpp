@@ -547,6 +547,7 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
         }
     }
     LDOpponentFrame::ReadWarnings(View, Frame.Warnings);
+    LDOpponentFrame::ReadCastWarnings(View, Own.ContenderId, *Content, Frame.Warnings);
     // A camp this seat saw empty stays empty for the segment; the view forgets it when the next one begins.
     Frame.POIs.RemoveAll([&View](const FLDOpponentPOI& Place)
         { return Place.Kind == ELDOpponentPOIKind::Camp && View.WitnessedEmptyCamps.Contains(Place.Id); });

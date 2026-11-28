@@ -22,6 +22,11 @@ namespace LDOpponentFrame
         const FLDDemoContentSnapshot& Catalog, TArray<FLDOpponentUnit>& Out, FString& Error);
     // The enemy warnings of one observation frame that are still pending (their public outline only).
     LOCKDOWN_API void ReadWarnings(const FLDWorldView& View, TArray<FLDOpponentWarning>& Out);
+    // B01 T04-02: a visible rival contender winding up a line or cone active (its public Cast cue, ability and facing, as
+    // a human sees the cast) adds a warning of that active's level-1 outline from the caster's foot along its facing,
+    // until the cue's release. Appends to Out; the own body (OwnContender) is skipped.
+    LOCKDOWN_API void ReadCastWarnings(const FLDWorldView& View, const FGuid& OwnContender, const FLDDemoContentSnapshot& Catalog,
+        TArray<FLDOpponentWarning>& Out);
     // Spec §13: the public ground states in sight; those whose owner seat is not OwnSeat are an enemy's.
     LOCKDOWN_API void ReadGrounds(const FLDWorldView& View, uint8 OwnSeat, TArray<FLDOpponentGround>& Out);
     // Own actives, blueprints, stat points, the current active offer and queued opportunities, and (#198 B) the owned

@@ -3276,6 +3276,54 @@ bool FLDDemoOpponentBodyDetoursTest::RunTest(const FString& Parameters)
     return true;
 }
 
+// B01 T04-02: a rival's visible line or cone windup reaches the AI as a warning of that active's outline along the caster's
+// facing until its release; the own cast, a finished cue and other target modes add none.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentCastWarningsTest, "Lockdown.Rules.DemoOpponentPolicy.CastWarnings",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentCastWarningsTest::RunTest(const FString& Parameters)
+{
+    using namespace LDOpponentPolicyTests;
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(*this, Catalog)) { return false; }
+    const auto& C = *Catalog;
+    const auto Find = [&C](const TCHAR* Id) { return C.Get().Abilities.FindByPredicate([Id](const FLDDemoAbilityDefinition& Row) { return Row.Id == Id; }); };
+    const FLDDemoAbilityDefinition* Line = Find(TEXT("active_pants_down"));
+    const FLDDemoAbilityDefinition* Cone = Find(TEXT("active_cola_shake"));
+    const FLDDemoAbilityDefinition* Targeted = Find(TEXT("active_elbow"));
+    if (!TestTrue(TEXT("The line, cone and unit actives are approved"), Line && Cone && Targeted
+        && Line->Target.Mode == ELDDemoTargetMode::DirectionLine && Cone->Target.Mode == ELDDemoTargetMode::DirectionCone)) { return false; }
+    const auto Cm = [](const FLDDemoRational& Value) { return double(Value.Numerator) / double(Value.Denominator); };
+    const auto Casting = [](uint32 Handle, const FLDDemoAbilityDefinition& Ability, double X, uint16 Facing, uint16 Age, uint16 Delay)
+    {
+        FLDObservedUnitView Out;
+        Out.Handle = FGuid(0xF2, 0, 0, Handle);
+        Out.Kind = ELDObservedUnitKind::Contender;
+        Out.ContenderId = FGuid(0xF3, 0, 0, Handle);
+        Out.FeetCm = FVector(X, 0, 0);
+        Out.Facing = Facing;
+        Out.ActionCue = ELDObservedActionCue::Cast;
+        Out.ActionAbility = Ability.NativeId;
+        Out.ActionCueAgeMs = Age;
+        Out.ActionCueImpactDelayMs = Delay;
+        return Out;
+    };
+    FLDWorldView View;
+    View.Units = {Casting(1, *Line, 100, 0, 100, 400), Casting(2, *Cone, 500, 16384, 50, 300),
+        Casting(3, *Line, 900, 0, 400, 400), Casting(4, *Targeted, 1200, 0, 0, 300), Casting(5, *Line, 1500, 0, 0, 300)};
+    TArray<FLDOpponentWarning> Warnings;
+    LDOpponentFrame::ReadCastWarnings(View, FGuid(0xF3, 0, 0, 5), C, Warnings);
+    if (!TestEqual(TEXT("Only the rivals' pending line and cone windups warn"), Warnings.Num(), 2)) { return false; }
+    TestTrue(TEXT("The line runs from the caster's foot along its facing for its reach and half width, until release"),
+        Warnings[0].Handle == View.Units[0].Handle && Warnings[0].CentreCm.Equals(FVector(100, 0, 0), 1.e-3)
+        && Warnings[0].Heading.Equals(FVector(1, 0, 0), 1.e-3) && FMath::IsNearlyEqual(Warnings[0].LengthCm, Cm(Line->Target.RangeCm), 1.e-3)
+        && FMath::IsNearlyEqual(Warnings[0].RadiusCm, Cm(Line->Target.LineHalfWidthCm), 1.e-3) && Warnings[0].RemainingMs == 300);
+    TestTrue(TEXT("The cone carries its angle and reach along the caster's facing"),
+        Warnings[1].Heading.Equals(FVector(0, 1, 0), 1.e-3) && FMath::IsNearlyEqual(Warnings[1].AngleDegrees, Cm(Cone->Target.AngleDegrees), 1.e-3)
+        && FMath::IsNearlyEqual(Warnings[1].LengthCm, Cm(Cone->Target.RangeCm), 1.e-3) && Warnings[1].RemainingMs == 250);
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentBreakoutGoalTest, "Lockdown.Rules.DemoOpponentPolicy.BreakoutGoal",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 

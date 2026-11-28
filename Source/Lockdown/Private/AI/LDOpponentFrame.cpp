@@ -163,6 +163,44 @@ void ReadWarnings(const FLDWorldView& View, TArray<FLDOpponentWarning>& Out)
     }
 }
 
+void ReadCastWarnings(const FLDWorldView& View, const FGuid& OwnContender, const FLDDemoContentSnapshot& Catalog,
+    TArray<FLDOpponentWarning>& Out)
+{
+    for (const FLDObservedUnitView& Unit : View.Units)
+    {
+        if (Unit.Kind != ELDObservedUnitKind::Contender || Unit.ContenderId == OwnContender
+            || Unit.ActionCue != ELDObservedActionCue::Cast || Unit.ActionAbility == 0
+            || Unit.ActionCueImpactDelayMs <= Unit.ActionCueAgeMs) { continue; }
+        const FLDDemoAbilityDefinition* Ability = Catalog.Get().Abilities.FindByPredicate(
+            [&Unit](const FLDDemoAbilityDefinition& Row) { return Row.NativeId == Unit.ActionAbility; });
+        if (!Ability) { continue; }
+        const auto& Target = Ability->Target;
+        const auto Cm = [](const FLDDemoRational& Value) { return Value.Denominator > 0 ? double(Value.Numerator) / double(Value.Denominator) : 0.; };
+        const double Reach = Cm(Target.RangeCm);
+        if (!(Reach > 0)) { continue; }
+        FLDOpponentWarning Warning;
+        if (Target.Mode == ELDDemoTargetMode::DirectionLine)
+        {
+            Warning.RadiusCm = Cm(Target.LineHalfWidthCm);
+        }
+        else if (Target.Mode == ELDDemoTargetMode::DirectionCone)
+        {
+            Warning.AngleDegrees = Cm(Target.AngleDegrees);
+        }
+        else
+        {
+            continue;
+        }
+        if (!(Warning.RadiusCm > 0) && !(Warning.AngleDegrees > 0)) { continue; }
+        Warning.Handle = Unit.Handle;
+        Warning.CentreCm = Unit.FeetCm;
+        Warning.Heading = FRotator(0, double(Unit.Facing) * 360. / 65536., 0).Vector();
+        Warning.LengthCm = Reach;
+        Warning.RemainingMs = int64(Unit.ActionCueImpactDelayMs) - int64(Unit.ActionCueAgeMs);
+        Out.Add(Warning);
+    }
+}
+
 bool ReadObservedUnits(const FLDWorldView& View, uint32 MatchGeneration, const FLDDemoContentSnapshot& Catalog,
     TArray<FLDOpponentUnit>& Out, FString& Error)
 {
