@@ -210,7 +210,7 @@ private:
     struct FDodgeWatch
     {
         FName Source;
-        int64 SeenAtMs = 0, SeenRemainingMs = 0, LastRemainingMs = 0;
+        int64 SeenAtMs = 0, ImpactAtMs = 0, LastRemainingMs = 0;
         bool bCovered = false, bEverCovered = false, bDashed = false;
         // What held the dash back at the last decision inside the dodge window ("early": none fell inside it).
         const TCHAR* Reason = TEXT("early");

@@ -330,9 +330,11 @@ void ALDOpponentController::WatchDodges(const FLDOpponentDecisionFrame& Frame, c
     const FString React = ReactMs == -2 ? FString(TEXT("-")) : FString::FromInt(ReactMs);
     const auto Log = [&](const FGuid& Handle, const FDodgeWatch& Watch, const TCHAR* Result, const TCHAR* Reason)
     {
-        UE_LOG(LogLDAI, Display, TEXT("LD_AI_DODGE t=%lld contender=%s life=%u warning=%s source=%s seen_remaining_ms=%lld react_ms=%s result=%s reason=%s remaining_ms=%lld"),
-            NowMs, *Binding.GetContender().ToString(), DodgeLife, *Handle.ToString(), *Watch.Source.ToString(), Watch.SeenRemainingMs,
-            *React, Result, Reason, Watch.LastRemainingMs);
+        // seen_t is the first sighting (an evaluation adapter sights every tick, between decisions); impact_t is when the
+        // warning lands (the authority's WarningRemainingMs from the latest decision): the dodge's real deadline.
+        UE_LOG(LogLDAI, Display, TEXT("LD_AI_DODGE t=%lld contender=%s life=%u warning=%s source=%s seen_t=%lld impact_t=%lld seen_remaining_ms=%lld react_ms=%s result=%s reason=%s remaining_ms=%lld"),
+            NowMs, *Binding.GetContender().ToString(), DodgeLife, *Handle.ToString(), *Watch.Source.ToString(), Watch.SeenAtMs,
+            Watch.ImpactAtMs, Watch.ImpactAtMs - Watch.SeenAtMs, *React, Result, Reason, Watch.LastRemainingMs);
     };
     for (auto It = DodgeWatch.CreateIterator(); It; ++It)
     {
@@ -352,9 +354,15 @@ void ALDOpponentController::WatchDodges(const FLDOpponentDecisionFrame& Frame, c
         {
             Watch.Source = Warning.Source;
             Watch.SeenAtMs = Frame.Public.NowMs;
-            Watch.SeenRemainingMs = Warning.RemainingMs;
         }
+#if WITH_DEV_AUTOMATION_TESTS
+        if (Evaluation)
+        {
+            if (const int64* Earlier = Evaluation->State.WarningSeenAtMs.Find(Warning.Handle)) { Watch.SeenAtMs = FMath::Min(Watch.SeenAtMs, *Earlier); }
+        }
+#endif
         if (Watch.bDashed) { continue; }
+        Watch.ImpactAtMs = Frame.Public.NowMs + Warning.RemainingMs;
         Watch.bCovered = LDOpponentPolicy::WarningCovers(Warning, Frame.Self.FootCm);
         Watch.bEverCovered |= Watch.bCovered;
         Watch.LastRemainingMs = Warning.RemainingMs;
@@ -366,13 +374,7 @@ void ALDOpponentController::WatchDodges(const FLDOpponentDecisionFrame& Frame, c
             continue;
         }
         const uint32 Roll = HashCombine(GetTypeHash(Warning.Handle), GetTypeHash(Frame.Self.ContenderId)) % 10000;
-        int64 SeenAt = Watch.SeenAtMs;
-#if WITH_DEV_AUTOMATION_TESTS
-        if (Evaluation)
-        {
-            if (const int64* Earlier = Evaluation->State.WarningSeenAtMs.Find(Warning.Handle)) { SeenAt = *Earlier; }
-        }
-#endif
+        const int64 SeenAt = Watch.SeenAtMs;
         Watch.Reason = bActing ? TEXT("acting")
             : !Dash || !Dash->bReady ? TEXT("dash_unready")
             : ReactMs == -1 ? TEXT("off")
