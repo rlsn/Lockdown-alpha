@@ -476,7 +476,7 @@ $$
 | A06 | `card_both_hands` | 左右开弓 | 改造 | 第 3 段变成两下，各 0.8 倍，两下都算普攻命中 | combo3, basic_hit |
 | A07 | `card_wide_swing` | 抡圆了打 | 改造 | 第 3 段变成身前 160° 横扫：主目标全额，其他人 60% | combo3 |
 | A08 | `card_fist_skill` | 拳里带招 | 改造 | 第 3 段命中 → 以 45% 伤害/护盾/治疗效果、50% 硬控时长放出 Q 技能（不耗劲、不进冷却、不触发爆劲；按 Q 的射程） | combo3, skill_cast |
-| A09 | `card_quick_hands` | 手快有手慢无 | 转换 | 攻速超过 1.35 次/秒的部分，每 0.1 次/秒 → 每次普攻多打一下的概率 +18%（可超过 100%：每满 100% 必定多一下） | attack_speed, basic_hit |
+| A09 | `card_quick_hands` | 手快有手慢无 | 转换 | 攻速超过 1.35 次/秒的部分，每 0.1 次/秒 → 每次普攻多打一下的概率 +18%（可超过 100%：每满 100% 必定多一下）；多打的那下由攻速换来，不算新的一次出手：不给 A12 叠层、不计 A13 进度 | attack_speed, basic_hit |
 | A10 | `card_slow_craft` | 慢工出细活 | 转换 | 攻速每比 1.2 次/秒低 0.1，普攻伤害 +8%（乘区） | attack_speed |
 | A11 | `card_scholar_punch` | 读书人打架 | 转换 | 普攻额外造成 40% 法强的魔法伤害（并入主击） | basic_hit |
 | A12 | `card_heated_up` | 越打越上头 | 成长 | 连续打同一个人，每下攻速 +4%，无上限；换目标或 3 s 没打清零 | attack_speed, basic_hit |

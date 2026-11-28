@@ -1634,6 +1634,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     // back along the cast. An impact or trap with nowhere to land refuses; a zone without a registered map, or with no
     // landing, keeps its clamped point.
     TOptional<FVector> LandedPoint;
+    double GroundReachCm=LDCA::ToDouble(TargetDef.RangeCm);
     const bool bNeedsGround=TargetDef.Mode==ELDDemoTargetMode::GroundPoint
         && (LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::GroundImpact) || LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::ContactTrap));
     if (TargetDef.Mode==ELDDemoTargetMode::GroundPoint)
@@ -1642,7 +1643,9 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         const auto* Geometry=Registry ? Registry->GetGeometry() : nullptr;
         const bool bRegistered=Registry && Registry->Enabled() && Geometry && !Geometry->Surfaces.IsEmpty();
         if (bNeedsGround && !bRegistered) { Error=TEXT("A ground skill requires the registered ground surface."); return false; }
-        if (bRegistered && !LDGroundLanding::Resolve(*Registry,ReleaseFoot,Action.TargetPoint,LDCA::ToDouble(TargetDef.RangeCm),
+        // The release range (U05 eagle stance included), the reach the order approached with.
+        if (!CastRangeCm(Body,TargetDef,GroundReachCm,Error)) { return false; }
+        if (bRegistered && !LDGroundLanding::Resolve(*Registry,ReleaseFoot,Action.TargetPoint,GroundReachCm,
             Actor.GetCapsuleComponent()->GetCollisionShape(),LandedPoint,Error)) { return false; }
         if (LandedPoint.IsSet()) { DeliveryAction.TargetPoint=*LandedPoint; }
         else if (bNeedsGround) { Reject=ELDCombatReject::Blocked; return true; }
@@ -2185,7 +2188,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     else if (TargetDef.Mode==ELDDemoTargetMode::GroundPoint)
     {
         const FVector Offset(ZonePoint.X-ReleaseFoot.X,ZonePoint.Y-ReleaseFoot.Y,0.);
-        const double Reach=LDCA::ToDouble(TargetDef.RangeCm);
+        const double Reach=GroundReachCm;
         ZonePoint=Offset.Size2D()>Reach ? ReleaseFoot+Offset.GetSafeNormal2D()*Reach : FVector(ZonePoint.X,ZonePoint.Y,ReleaseFoot.Z);
     }
     if (!ReleaseMechanics(Body,Source,Terms,ReleaseFoot,ZonePoint,Action.Direction,EffectId,Action.Token,CastLedger,Error)) { return false; }
@@ -2366,7 +2369,10 @@ bool ALDCombatDirector::DeliverReleasePayload(const ALDCharacter& Actor, const F
     {
         // #198 S09 / #345 S02: every legal body in the band (or only the closest first enemy for grab_line).
         TArray<TPair<FLDCombatBodyRef,FVector>> Line;
-        if (!CollectLineTargets(ReleaseFoot,Action.Direction,LDCA::ToDouble(TargetDef.RangeCm),
+        // The release range (U05 eagle stance included), the reach the order approached with.
+        double LineRangeCm=0;
+        if (!CastRangeCm(Body,TargetDef,LineRangeCm,Error)) { return false; }
+        if (!CollectLineTargets(ReleaseFoot,Action.Direction,LineRangeCm,
             LDCA::ToDouble(TargetDef.LineHalfWidthCm),Body,Line,Error)) { return false; }
         const FVector Along=FVector(Action.Direction.X,Action.Direction.Y,0).GetSafeNormal();
         const FLDDemoEffectDefinition* Grab=LDCA::FindEffect(Terms.Values,ELDDemoEffectOp::GrabLine);
@@ -2381,7 +2387,7 @@ bool ALDCombatDirector::DeliverReleasePayload(const ALDCharacter& Actor, const F
         // A telegraphed line can be perfectly dodged at its resolution (spec §4.4).
         if (Terms.WindupMs>=150)
         {
-            const double Range=LDCA::ToDouble(TargetDef.RangeCm), Half=LDCA::ToDouble(TargetDef.LineHalfWidthCm);
+            const double Range=LineRangeCm, Half=LDCA::ToDouble(TargetDef.LineHalfWidthCm);
             const auto InBand=[&ReleaseFoot,&Along,Range,Half](const FVector& Point)
             {
                 const FVector Offset(Point.X-ReleaseFoot.X,Point.Y-ReleaseFoot.Y,0);
@@ -2393,7 +2399,7 @@ bool ALDCombatDirector::DeliverReleasePayload(const ALDCharacter& Actor, const F
         if (Grab && Line.IsEmpty() && Grab->RatioBp>0 && Grab->DurationMs>0)
         {
             TArray<TPair<FLDCombatBodyRef,FVector>> MissBand;
-            if (!CollectLineTargets(ReleaseFoot,Action.Direction,LDCA::ToDouble(TargetDef.RangeCm),
+            if (!CollectLineTargets(ReleaseFoot,Action.Direction,LineRangeCm,
                 LDCA::ToDouble(TargetDef.LineHalfWidthCm)*1.8,Body,MissBand,Error)) { return false; }
             for (const TPair<FLDCombatBodyRef,FVector>& Swept : MissBand)
             {

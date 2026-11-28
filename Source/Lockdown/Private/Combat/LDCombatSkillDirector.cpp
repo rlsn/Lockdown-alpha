@@ -95,6 +95,9 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
     bHandled=false;
     const FLDDemoAbilityValues& Values=Terms.Values;
     const FLDDemoTargetDefinition& Target=Terms.Target;
+    // A ground point is reached as far as the release range (U05 eagle stance included), the reach the order approached with.
+    double GroundReachCm=Cm(Target.RangeCm);
+    if (Target.Mode==ELDDemoTargetMode::GroundPoint && !CastRangeCm(Body,Target,GroundReachCm,Error)) { return false; }
     if (const auto* Cone=Op(Values, ELDDemoEffectOp::ChannelCone))
     {
         FLDCombatChannel Channel;
@@ -163,7 +166,7 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
         FLDCombatFan Fan;
         Fan.Payload=Payload;
         Fan.ObservedKey=FGuid::NewGuid();
-        Fan.OriginCm=Origin + Offset.GetClampedToMaxSize(Cm(Target.RangeCm));
+        Fan.OriginCm=Origin + Offset.GetClampedToMaxSize(GroundReachCm);
         Fan.OriginCm.Z=Action.TargetPoint.Z;
         Fan.Direction=FVector(Action.Direction.X, Action.Direction.Y, 0).GetSafeNormal();
         if (Fan.Direction.IsNearlyZero()) { Fan.Direction=Offset.GetSafeNormal2D(); }
@@ -214,7 +217,7 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
         if (!Actor) { Error=TEXT("A bag skill lost its releasing body."); return false; }
         const FVector Origin=FootOf(*Actor);
         const FVector Offset(Action.TargetPoint.X-Origin.X, Action.TargetPoint.Y-Origin.Y, 0);
-        FVector Centre=Origin + Offset.GetClampedToMaxSize(Cm(Target.RangeCm));
+        FVector Centre=Origin + Offset.GetClampedToMaxSize(GroundReachCm);
         Centre.Z=Action.TargetPoint.Z;
         if (!PlaceBag(Body, Payload, *Bag, Op(Values, ELDDemoEffectOp::GroundState), Centre, NowMs, Error)) { return false; }
         bHandled=true;
@@ -227,7 +230,7 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
         if (!Actor) { Error=TEXT("A cordon skill lost its releasing body."); return false; }
         const FVector Origin=FootOf(*Actor);
         const FVector Offset(Action.TargetPoint.X-Origin.X, Action.TargetPoint.Y-Origin.Y, 0);
-        FVector Centre=Origin + Offset.GetClampedToMaxSize(Cm(Target.RangeCm));
+        FVector Centre=Origin + Offset.GetClampedToMaxSize(GroundReachCm);
         Centre.Z=Action.TargetPoint.Z;
         FLDCombatCordon Cordon;
         Cordon.HalfLengthCm=Cm(Tape->RadiusCm)*.5;
@@ -250,7 +253,8 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
         Cordon.Payload=Payload;
         Cordon.Terms=*Tape;
         Cordon.CentreCm=Centre;
-        Cordon.HalfWidthCm=FMath::Max(25.,Cm(Tape->ExtraDistanceCm));
+        // The authored width is the whole tape across (spec 500 x 70 cm).
+        Cordon.HalfWidthCm=FMath::Max(25.,Cm(Tape->ExtraDistanceCm)*.5);
         Cordon.OwnerGroup=Body.IsolationGroup;
         Cordon.OwnerPKSide=Body.PKSide;
         Cordon.CreatedSerial=++NextAreaSerial;
@@ -280,7 +284,7 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
         if (!Actor) { Error=TEXT("A ground skill lost its releasing body."); return false; }
         const FVector Origin=FootOf(*Actor);
         const FVector Offset(Action.TargetPoint.X-Origin.X, Action.TargetPoint.Y-Origin.Y, 0);
-        const double Reach=Cm(Target.RangeCm);
+        const double Reach=GroundReachCm;
         FLDCombatGroundEffect Ground;
         Ground.Payload=Payload;
         Ground.CentreCm=Origin + Offset.GetClampedToMaxSize(Reach);

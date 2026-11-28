@@ -613,6 +613,9 @@ struct FLDCombatHit
     bool bRider=false;
     // A primary basic's extra strike (A06, A09): a basic hit for triggers, no combo advance.
     bool bExtraStrike=false;
+    // An A09 strike converted from attack speed: an added hit of the same attack, never a new step of the attack-speed growth
+    // (A12 focus stacks, A13 progress) that A09 converts again (that loop grows without bound on a body that never dies).
+    bool bAttackSpeedStrike=false;
     int64 DisarmDurationMs=0;
     int64 StunDurationMs=0;
     // A reflection never crits, heals or triggers another reflection.
@@ -977,6 +980,11 @@ class LOCKDOWN_API ALDCombatDirector : public AActor
 {
     GENERATED_BODY()
 public:
+    // Server safety budgets, not game rules (no match comes near them; peaks are a few dozen hits per step): one authority
+    // step resolves at most TechHitsPerStep queued hits and the rest wait for the next step; past TechPendingHitsCap queued
+    // hits the newest are dropped. Both log LD_CHAIN_GUARD (Step: Warning, Overflow: Error).
+    static constexpr int32 TechHitsPerStep=4096;
+    static constexpr int32 TechPendingHitsCap=16384;
     ALDCombatDirector();
     virtual void Tick(float Delta) override;
     const FLDBodyCombatState* StateFor(const ALDCharacter* Body) const;
@@ -1691,8 +1699,10 @@ private:
     void ClearBranchState(FLDBodyCombatState& Body);
     // Perfect dodge (issue #287 spec §4.4): at the resolution of a telegraphed enemy effect, a contender whose D started inside
     // InArea within MOMENTUM.PerfectDodgeWindowSec and whose foot is outside now gains MOMENTUM.PerfectDodge, once per effect.
+    // ResolveAt (when set) is the instant the effect reached a body that started its D at that foot (a flight passing by);
+    // otherwise every body is judged at NowMs.
     bool ResolvePerfectDodges(const FGuid& EffectId, const FGuid& SourceEntity, TFunctionRef<bool(const FVector&)> InArea, int64 NowMs,
-        FString& Error);
+        FString& Error, TFunction<int64(const FVector&)> ResolveAt=nullptr);
     // Branch reactions of a committed hit on Target: S10 B1 discharges, S14 A1 reflections, S16 B stacks, S13 A1 bursts.
     // BrokenLayers: the shield layers (their EffectIds) this hit emptied; a branch shield settles by its own layer.
     bool OnBranchHitTaken(const FLDCombatHit& Hit, FLDBodyCombatState& Target, int64 DamageP2, const TArray<FGuid>& BrokenLayers,

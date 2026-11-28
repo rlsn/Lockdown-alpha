@@ -139,11 +139,15 @@ bool ALDCombatDirector::ApplyElements(FLDBodyCombatState& Target, const FLDComba
     const auto MaybeApplyTier3Secondary=[&](ELDCombatElement Primary, const FLDCombatSourceRef& Ref, uint8 SelectedTier) -> bool
     {
         if (SelectedTier<3 || Target.bPendingDeath || Target.ReactionLockedUntilMs>NowMs) { return true; }
-        static const ELDCombatElement Order[]={ELDCombatElement::Fire,ELDCombatElement::Water,ELDCombatElement::Shock,
-            ELDCombatElement::Chill,ELDCombatElement::Rot};
-        int32 PrimaryIdx=0;
-        for (int32 Idx=0; Idx<5; ++Idx) { if (Order[Idx]==Primary) { PrimaryIdx=Idx; break; } }
-        const ELDCombatElement Secondary=Order[(PrimaryIdx+1+int32(Hit.HitId.A%4u))%5];
+        // The fixed secondary of each primary (CONTENT_AND_BALANCE Ⅲ 阶): fire, water -> shock; shock, chill -> water; rot -> fire.
+        ELDCombatElement Secondary=ELDCombatElement::None;
+        switch (Primary)
+        {
+        case ELDCombatElement::Fire: case ELDCombatElement::Water: Secondary=ELDCombatElement::Shock; break;
+        case ELDCombatElement::Shock: case ELDCombatElement::Chill: Secondary=ELDCombatElement::Water; break;
+        case ELDCombatElement::Rot: Secondary=ELDCombatElement::Fire; break;
+        default: return true;
+        }
         return ApplyElement(Target,Secondary,SourceApplier(Ref,SelectedTier),Secondary==ELDCombatElement::Fire ? 1 : 0,Hit.HitId,NowMs,Error);
     };
     // A card's fire on this hit (K19, ApplyCardElement): one application of all its layers, including overdrive extra stacks.
