@@ -210,6 +210,14 @@ FGuid FLDObjectiveState::ArenaWinner(TConstArrayView<LDFieldPacing::FPresence> L
     return Best;
 }
 
+bool FLDObjectiveState::SettleArena(int64 NowT, TConstArrayView<LDFieldPacing::FPresence> Living)
+{
+    if (View.Kind != ELDObjectiveKind::Arena || View.Phase != ELDObjectivePhase::Open || NowT < View.ClosesAtT) { return false; }
+    View.Winner = ArenaWinner(Living);
+    View.Phase = View.Winner.IsValid() ? ELDObjectivePhase::Won : ELDObjectivePhase::Expired;
+    return true;
+}
+
 void LDFieldPacing::DrawCandidates(uint64 Seed, uint64 Salt, TConstArrayView<FName> Anchors, int32 Count, TArray<FName>& Out)
 {
     Out = TArray<FName>(Anchors.GetData(), Anchors.Num());

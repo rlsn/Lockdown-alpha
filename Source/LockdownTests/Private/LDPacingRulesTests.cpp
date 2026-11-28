@@ -183,18 +183,29 @@ bool FLDPacingObjectiveKeptTest::RunTest(const FString& Parameters)
     }
     bGood &= TestTrue(TEXT("The flag is still won by its sprayer"), State.View.Phase == ELDObjectivePhase::Won
         && State.View.Winner == At(2, Centre).Contender && State.View.Serial == 3);
-    // The arena too: settled won by its owner, later steps of its segment keep it.
+    // The arena too: settled by its owner at the close, reported once, and later steps of its segment keep it.
     FLDObjectiveState Arena;
     Arena.Begin(P, Points(TEXT("mini_flag"), 3), Flagpole, 5, Error);
     Arena.Advance(Open);
-    Arena.View.Phase = ELDObjectivePhase::Won;
-    Arena.View.Winner = At(1, Flagpole).Contender;
-    for (int64 T = Open + 50; T < 2 * P.FieldSegmentMs; T += 50)
+    Arena.NoteArenaDamage(At(1, Flagpole).Contender, 500, Open + 1000);
+    const int64 Close = Open + P.Objective.ArenaMs;
+    bGood &= TestFalse(TEXT("The arena does not settle before its close"), Arena.SettleArena(Close - 1, {At(1, Flagpole)}));
+    bGood &= TestTrue(TEXT("Its close settles it won, reported once"), Arena.SettleArena(Close, {At(1, Flagpole)})
+        && Arena.View.Phase == ELDObjectivePhase::Won && Arena.View.Winner == At(1, Flagpole).Contender);
+    for (int64 T = Close; T < 2 * P.FieldSegmentMs; T += 50)
     {
-        bGood &= TestFalse(TEXT("A later step after the arena's win changes nothing"), Arena.Advance(T));
+        bGood &= TestFalse(TEXT("A later step after the arena's win changes nothing"), Arena.Advance(T)
+            || Arena.SettleArena(T, {At(1, Flagpole)}));
     }
     bGood &= TestTrue(TEXT("The arena is still won"), Arena.View.Phase == ELDObjectivePhase::Won && Arena.View.Serial == 2
         && Arena.View.Winner == At(1, Flagpole).Contender);
+    // An arena nobody fought in ends too: expired at its close, once.
+    FLDObjectiveState Empty;
+    Empty.Begin(P, Points(TEXT("mini_flag"), 3), Flagpole, 5, Error);
+    Empty.Advance(Open);
+    bGood &= TestTrue(TEXT("An arena without damage expires at its close"), Empty.SettleArena(Close, {At(1, Flagpole)})
+        && Empty.View.Phase == ELDObjectivePhase::Expired && !Empty.View.Winner.IsValid());
+    bGood &= TestFalse(TEXT("An expired arena is not settled again"), Empty.SettleArena(Close + 50, {At(1, Flagpole)}));
     return bGood;
 }
 
