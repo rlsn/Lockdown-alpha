@@ -918,8 +918,10 @@ bool RunPriorities(FAutomationTestBase& Test)
         Spray.Public.DueAtMs = 0;
         FLDOpponentPolicyState Paused;
         const auto NoInterrupt = LDOpponentPolicy::Decide(Spray, C, Paused);
-        bGood &= Expect(Test, TEXT("A paused holder is fought, not taunted, since nobody sprays"), NoInterrupt, EMode::Contest,
-            EBody::AttackUnit);
+        // B01 T04-01: the taunt is no longer kept for spray interrupts only; a rival inside its radius is taunted in a
+        // fight like any other control.
+        bGood &= Expect(Test, TEXT("A paused holder inside the taunt radius is fought with the taunt"), NoInterrupt, EMode::Contest,
+            EBody::Activate);
     }
 
     Frame = Base;
@@ -1998,6 +2000,50 @@ bool RunV7Activations(FAutomationTestBase& Test)
     FLDOpponentPolicyState Rooted;
     bGood &= Test.TestTrue(TEXT("not_mad cleanses the root of an urgent defender"),
         IsCast(LDOpponentPolicy::Decide(Frame, C, Rooted), ELDDemoTargetMode::Self));
+
+    // B01 T04-01: a learned branch is read as its own variant. S11 3B1 (2B/3B1) adds contact damage to bail_out's dash,
+    // so a rival already in reach is dashed through; the level-1 bail_out has no damage of its own and only chases.
+    Frame = With(TEXT("active_bail_out"));
+    Frame.Units = {Unit(2, ELDOpponentUnitKind::Contender, Attack - 10, 0)};
+    FLDOpponentPolicyState Plain;
+    bGood &= Test.TestFalse(TEXT("The level-1 bail_out does not dash at a rival already in reach"),
+        IsCast(LDOpponentPolicy::Decide(Frame, C, Plain), ELDDemoTargetMode::DirectionDash));
+    Frame.Self.Actives[0].Branch = ELDSkillBranch::B1;
+    FLDOpponentPolicyState Ghost;
+    const auto Through = LDOpponentPolicy::Decide(Frame, C, Ghost);
+    bGood &= Test.TestTrue(TEXT("bail_out 3B1 dashes through a rival in reach with its contact damage"),
+        IsCast(Through, ELDDemoTargetMode::DirectionDash) && Through.Body.Direction.Equals(FVector(1, 0, 0), 1.e-4));
+
+    // B01 T04-01: a self taunt is cast in an ordinary fight with a rival inside its radius, not only to interrupt a spray.
+    double TauntRadius = 0;
+    {
+        const FLDDemoAbilityDefinition* Ability = nullptr;
+        FString Error;
+        const FLDDemoEffectDefinition* Taunt = C.FindAbility(TEXT("active_stare_down"), Ability, Error) && Ability
+            ? Ability->Values.Effects.FindByPredicate([](const FLDDemoEffectDefinition& E) { return E.GetOp() == ELDDemoEffectOp::Taunt; })
+            : nullptr;
+        if (!Test.TestNotNull(TEXT("stare_down taunts"), Taunt)) { return false; }
+        TauntRadius = double(Taunt->RadiusCm.Numerator) / double(Taunt->RadiusCm.Denominator);
+    }
+    Frame = With(TEXT("active_stare_down"));
+    Frame.Units = {Unit(2, ELDOpponentUnitKind::Contender, FMath::Min(TauntRadius, Attack) - 10, 0)};
+    FLDOpponentPolicyState Stare;
+    bGood &= Test.TestTrue(TEXT("A rival inside the taunt radius is taunted"),
+        IsCast(LDOpponentPolicy::Decide(Frame, C, Stare), ELDDemoTargetMode::Self));
+    Frame.Units[0].FootCm = FVector(TauntRadius + 50, 0, 0);
+    FLDOpponentPolicyState StareFar;
+    bGood &= Test.TestFalse(TEXT("A rival outside it is not"), IsCast(LDOpponentPolicy::Decide(Frame, C, StareFar), ELDDemoTargetMode::Self));
+
+    // B01 T04-01: a healthy body puts its brace up when a rival trades with it inside attack range.
+    Frame = With(TEXT("active_brace"));
+    Frame.Units = {Unit(2, ELDOpponentUnitKind::Contender, Attack - 10, 0)};
+    FLDOpponentPolicyState Brace;
+    bGood &= Test.TestTrue(TEXT("A healthy body braces against a rival in attack range"),
+        IsCast(LDOpponentPolicy::Decide(Frame, C, Brace), ELDDemoTargetMode::Self));
+    Frame.Units[0].FootCm = FVector(Attack + 200, 0, 0);
+    FLDOpponentPolicyState BraceFar;
+    bGood &= Test.TestFalse(TEXT("and keeps it while the rival is beyond attack range"),
+        IsCast(LDOpponentPolicy::Decide(Frame, C, BraceFar), ELDDemoTargetMode::Self));
     return bGood;
 }
 

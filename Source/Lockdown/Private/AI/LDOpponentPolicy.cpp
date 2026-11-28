@@ -165,8 +165,10 @@ void ReadEffects(const TArray<FLDDemoEffectDefinition>& Effects, FSourceShape& O
     }
 }
 
-// The typed target and effects of the active bound to a source (#198: one value set per active).
-bool ResolveSource(const FLDOpponentSource& Source, const FLDDemoContentSnapshot& Catalog, FSourceShape& Out)
+// The typed target and effects of the active bound to a source, read from its learned branch variant when it has one
+// (a branch may change the target, element and effects, e.g. S11 3B1 adds the dash's contact damage).
+bool ResolveSource(const FLDOpponentSource& Source, const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog,
+    FSourceShape& Out)
 {
     Out = {};
     FString Error;
@@ -180,10 +182,15 @@ bool ResolveSource(const FLDOpponentSource& Source, const FLDDemoContentSnapshot
     }
     const FLDDemoAbilityDefinition* Ability = nullptr;
     if (!Catalog.FindAbility(Source.DefinitionId, Ability, Error) || !Ability) { return false; }
-    Out.Mode = Ability->Target.Mode;
-    Out.RangeCm = ToDouble(Ability->Target.RangeCm);
-    Out.Element = uint8(Ability->Element);
-    ReadEffects(Ability->Values.Effects, Out);
+    const FLDOpponentActive* Learned = Self.Actives.FindByPredicate([&Source](const FLDOpponentActive& Active)
+        { return Active.Slot == uint8(Source.Slot) && Active.DefinitionId == Source.DefinitionId; });
+    const FLDDemoAbilityBranch* Branch = Learned ? Ability->FindBranch(Learned->Branch) : nullptr;
+    if (Learned && Learned->Branch != ELDSkillBranch::None && !Branch) { return false; }
+    const FLDDemoTargetDefinition& Target = Branch ? Branch->Target : Ability->Target;
+    Out.Mode = Target.Mode;
+    Out.RangeCm = ToDouble(Target.RangeCm);
+    Out.Element = uint8(Branch ? Branch->Element : Ability->Element);
+    ReadEffects(Branch ? Branch->Values.Effects : Ability->Values.Effects, Out);
     return true;
 }
 
@@ -599,20 +606,20 @@ TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActiva
         {
             const auto* Source = C.Self.Sources.FindByPredicate([Slot](const FLDOpponentSource& S) { return S.Slot == Slot; });
             FSourceShape Shape;
-            if (!Source || !ResolveSource(*Source, C.Catalog, Shape) || Shape.Element == 0) { return 0; }
+            if (!Source || !ResolveSource(*Source, C.Self, C.Catalog, Shape) || Shape.Element == 0) { return 0; }
             const ELDCombatElement Held = static_cast<ELDCombatElement>(Need.Target->HeldElement);
             if (LDCombatElements::ReactionOf(Held, static_cast<ELDCombatElement>(Shape.Element)) != ELDCombatReaction::None) { return 2; }
             return Held == ELDCombatElement::None ? 1 : 0;
         };
         Ordered.StableSort([&Score](ELDOpponentSourceSlot A, ELDOpponentSourceSlot B) { return Score(A) > Score(B); });
     }
-    for (int32 Tier = 0; Tier < 4; ++Tier)
+    for (int32 Tier = 0; Tier < 5; ++Tier)
     {
         for (const ELDOpponentSourceSlot Slot : (Tier == 3 ? TConstArrayView<ELDOpponentSourceSlot>(Ordered) : TConstArrayView<ELDOpponentSourceSlot>(Fixed)))
         {
             const auto* Source = C.Self.Sources.FindByPredicate([Slot](const FLDOpponentSource& S) { return S.Slot == Slot; });
             FSourceShape Shape;
-            if (!Source || !Source->bReady || !ResolveSource(*Source, C.Catalog, Shape)) { continue; }
+            if (!Source || !Source->bReady || !ResolveSource(*Source, C.Self, C.Catalog, Shape)) { continue; }
             FLDOpponentRetryKey Key;
             Key.Category = ELDOpponentFailure::Activation;
             Key.Slot = uint8(Slot);
@@ -643,7 +650,10 @@ TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActiva
                 }
                 break;
             case 2:
-                if (Need.bInterrupt && Shape.Mode == ELDDemoTargetMode::Self && Shape.bTaunt && Need.Target
+                // A self taunt is a hard control: it interrupts a sole sprayer and, in a fight with a rival contender
+                // inside its radius, forces that rival onto the caster like any other control.
+                if (Shape.Mode == ELDDemoTargetMode::Self && Shape.bTaunt && Need.Target
+                    && (Need.bInterrupt || (Need.bAllowDamage && Need.Target->Kind == ELDOpponentUnitKind::Contender))
                     && C.Distance(Need.Target->FootCm) <= Shape.TauntRadiusCm)
                 {
                     bUse = true;
@@ -690,11 +700,18 @@ TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActiva
                     }
                 }
                 break;
+            case 4:
+                // A self shield or brace also covers an ordinary trade: once nothing better is ready, it goes up when a
+                // rival contender stands within attack range (Tier 0 keeps the low-health protection first).
+                bUse = Need.bAllowDamage && Need.Target && Need.Target->Kind == ELDOpponentUnitKind::Contender
+                    && Shape.Mode == ELDDemoTargetMode::Self && Shape.bShield
+                    && C.Distance(Need.Target->FootCm) <= C.AttackRangeCm;
+                break;
             default:
                 break;
             }
             // Issue #287 spec §13: a full bar on a healthy target spends itself as an overdrive.
-            if (bUse && Tier >= 2 && Need.Target && Need.Target->HpP2.IsSet() && Need.Target->MaxHpP2.IsSet()
+            if (bUse && (Tier == 2 || Tier == 3) && Need.Target && Need.Target->HpP2.IsSet() && Need.Target->MaxHpP2.IsSet()
                 && Need.Target->MaxHpP2.GetValue() > 0 && C.Self.MomentumP2 >= C.Catalog.Get().Parameters.Overdrive.ThresholdP2
                 && Need.Target->HpP2.GetValue() * 10 > Need.Target->MaxHpP2.GetValue() * 4)
             {
@@ -800,7 +817,7 @@ bool ProtectionReady(const FContext& C)
     for (const auto& Source : C.Self.Sources)
     {
         FSourceShape Shape;
-        if (!Source.bReady || !ResolveSource(Source, C.Catalog, Shape) || Shape.Mode != ELDDemoTargetMode::Self
+        if (!Source.bReady || !ResolveSource(Source, C.Self, C.Catalog, Shape) || Shape.Mode != ELDDemoTargetMode::Self
             || !Shape.bShield)
         {
             continue;
