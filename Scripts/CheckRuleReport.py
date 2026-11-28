@@ -134,6 +134,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoBuildPrimitives.FullDebuffObservation",
         "Lockdown.Rules.DemoElements.Rules",
         "Lockdown.Rules.DemoElements.FogAndSlot",
+        "Lockdown.Rules.DemoElements.DualNative",
         "Lockdown.Rules.DemoElements.Brace",
         # Issue #287 P4: elements, reactions, ground states and the 1v1 bounce.
         "Lockdown.Rules.Combat.Elements.Matrix",

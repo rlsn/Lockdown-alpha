@@ -1509,6 +1509,35 @@ bool FLDDemoElementFogTest::RunTest(const FString& Parameters)
     return true;
 }
 
+// S09 3A2 and S10 3A1 carry two elements of their own: both apply as one batch in the fixed order, so the second
+// reacts with the first on an element-free target.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoElementDualNativeTest, "Lockdown.Rules.DemoElements.DualNative",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoElementDualNativeTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    const FLDCombatBodyRef A = F.AddBody(), Hosed = F.AddBody(), Zapped = F.AddBody();
+    F.Place(A, -600, -600);
+    F.Place(Hosed, 600, -600);
+    F.Place(Zapped, -600, 600);
+    FString Error;
+    FLDCombatHit WetShock = FFixture::Hit(A, Hosed, 0);
+    WetShock.NativeElements = LDCombatElements::Bit(ELDCombatElement::Water) | LDCombatElements::Bit(ELDCombatElement::Shock);
+    if (!TestTrue(FString::Printf(TEXT("A water and shock hit: %s"), *Error), F.Apply(WetShock, Error))) { return false; }
+    TestTrue(TEXT("Water then shock conducts"), FAccess::Reactions(*F.Driver).Num() == 1
+        && FAccess::Reactions(*F.Driver)[0].Kind == ELDCombatReaction::Conduct);
+    FLDCombatHit ShockFire = FFixture::Hit(A, Zapped, 0);
+    ShockFire.BurnStacks = 1;
+    ShockFire.NativeElements = LDCombatElements::Bit(ELDCombatElement::Shock);
+    if (!TestTrue(FString::Printf(TEXT("A shock hit with a burn layer: %s"), *Error), F.Apply(ShockFire, Error))) { return false; }
+    TestTrue(TEXT("Fire then shock overloads"), FAccess::Reactions(*F.Driver).Num() == 2
+        && FAccess::Reactions(*F.Driver)[1].Kind == ELDCombatReaction::Overload);
+    return true;
+}
+
 // #198 S16 顶着揍 (AI spec §9.1): 20% of hostile damage after resistance is cut and recorded up to the cap; its own damage is
 // not; a dying stance ends without its answer.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoElementBraceTest, "Lockdown.Rules.DemoElements.Brace",
