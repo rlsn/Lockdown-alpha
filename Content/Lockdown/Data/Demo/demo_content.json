@@ -1796,6 +1796,10 @@
           ],
           "element": "none",
           "hit_type": "dash",
+          "interrupt_cooldown": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
           "momentum_cost": {
             "p2": 3000,
             "unit": "momentum"
@@ -1811,7 +1815,7 @@
             "shield"
           ],
           "windup": {
-            "ms": 100,
+            "ms": 300,
             "unit": "ms"
           }
         },
@@ -2166,6 +2170,10 @@
           ],
           "element": "none",
           "hit_type": "dash",
+          "interrupt_cooldown": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
           "momentum_cost": {
             "p2": 3000,
             "unit": "momentum"
@@ -2181,7 +2189,7 @@
             "shield"
           ],
           "windup": {
-            "ms": 100,
+            "ms": 300,
             "unit": "ms"
           }
         },
@@ -2295,6 +2303,10 @@
           ],
           "element": "none",
           "hit_type": "dash",
+          "interrupt_cooldown": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
           "momentum_cost": {
             "p2": 3000,
             "unit": "momentum"
@@ -2310,7 +2322,7 @@
             "shield"
           ],
           "windup": {
-            "ms": 100,
+            "ms": 300,
             "unit": "ms"
           }
         }
@@ -3917,6 +3929,10 @@
           ],
           "element": "none",
           "hit_type": "dash",
+          "interrupt_cooldown": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
           "momentum_cost": {
             "p2": 3000,
             "unit": "momentum"
@@ -3933,7 +3949,7 @@
             "crit"
           ],
           "windup": {
-            "ms": 120,
+            "ms": 300,
             "unit": "ms"
           }
         },
@@ -4157,6 +4173,10 @@
           ],
           "element": "none",
           "hit_type": "dash",
+          "interrupt_cooldown": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
           "momentum_cost": {
             "p2": 3000,
             "unit": "momentum"
@@ -4173,7 +4193,7 @@
             "crit"
           ],
           "windup": {
-            "ms": 120,
+            "ms": 300,
             "unit": "ms"
           }
         },
@@ -4275,6 +4295,10 @@
           ],
           "element": "none",
           "hit_type": "dash",
+          "interrupt_cooldown": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
           "momentum_cost": {
             "p2": 3000,
             "unit": "momentum"
@@ -4292,7 +4316,7 @@
             "crit"
           ],
           "windup": {
-            "ms": 120,
+            "ms": 300,
             "unit": "ms"
           }
         },
@@ -9107,6 +9131,10 @@
           ],
           "element": "none",
           "hit_type": "area",
+          "interrupt_cooldown": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
           "momentum_cost": {
             "p2": 2500,
             "unit": "momentum"
@@ -9130,7 +9158,7 @@
             "area"
           ],
           "windup": {
-            "ms": 140,
+            "ms": 280,
             "unit": "ms"
           }
         },
@@ -9479,6 +9507,10 @@
           ],
           "element": "none",
           "hit_type": "area",
+          "interrupt_cooldown": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
           "momentum_cost": {
             "p2": 2500,
             "unit": "momentum"
@@ -9502,7 +9534,7 @@
             "area"
           ],
           "windup": {
-            "ms": 140,
+            "ms": 280,
             "unit": "ms"
           }
         },
@@ -9583,6 +9615,10 @@
           ],
           "element": "none",
           "hit_type": "area",
+          "interrupt_cooldown": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
           "momentum_cost": {
             "p2": 2500,
             "unit": "momentum"
@@ -9606,7 +9642,7 @@
             "area"
           ],
           "windup": {
-            "ms": 140,
+            "ms": 280,
             "unit": "ms"
           }
         }
@@ -13728,6 +13764,10 @@
                   "bp": 3500,
                   "unit": "ratio"
                 }
+              },
+              "windup_scale": {
+                "bp": 16000,
+                "unit": "ratio"
               }
             }
           ],
@@ -13896,6 +13936,10 @@
                   "bp": 3500,
                   "unit": "ratio"
                 }
+              },
+              "windup_scale": {
+                "bp": 16000,
+                "unit": "ratio"
               }
             }
           ],
@@ -13950,6 +13994,10 @@
                   "bp": 3500,
                   "unit": "ratio"
                 }
+              },
+              "windup_scale": {
+                "bp": 16000,
+                "unit": "ratio"
               }
             }
           ],
@@ -18047,22 +18095,6 @@
       ]
     },
     {
-      "effects": [
-        {
-          "op": "dodge_free_cast",
-          "opcode": 252
-        }
-      ],
-      "form": "dash",
-      "id": "card_dodge_strike",
-      "native_id": 247,
-      "type": "trigger",
-      "vocab": [
-        "perfect_dodge",
-        "momentum"
-      ]
-    },
-    {
       "drop_weight": 6,
       "effects": [
         {
@@ -18166,30 +18198,6 @@
       "vocab": [
         "momentum",
         "dash"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "count": 1,
-          "op": "hit_growth",
-          "opcode": 247,
-          "stats": {
-            "MoveSpeedBonusRatio": {
-              "bp": 150,
-              "unit": "ratio"
-            }
-          },
-          "trigger": "PerfectDodge"
-        }
-      ],
-      "form": "dash",
-      "id": "card_slippery",
-      "native_id": 252,
-      "type": "grow",
-      "vocab": [
-        "perfect_dodge",
-        "move_speed"
       ]
     },
     {
@@ -18464,31 +18472,6 @@
       "vocab": [
         "heal",
         "skill_hit"
-      ]
-    },
-    {
-      "drop_weight": 22,
-      "effects": [
-        {
-          "momentum": {
-            "p2": 3500,
-            "unit": "momentum"
-          },
-          "multiplier": {
-            "bp": 14000,
-            "unit": "ratio"
-          },
-          "op": "overdrive_short",
-          "opcode": 254
-        }
-      ],
-      "form": "body",
-      "id": "card_short_breath",
-      "native_id": 266,
-      "type": "modify",
-      "vocab": [
-        "overdrive",
-        "momentum"
       ]
     },
     {
@@ -18889,7 +18872,11 @@
             "unit": "ms"
           },
           "op": "overheal_shield",
-          "opcode": 222
+          "opcode": 222,
+          "shield_cap": {
+            "bp": 3000,
+            "unit": "ratio"
+          }
         }
       ],
       "form": "body",
@@ -19164,48 +19151,6 @@
         "dash_contact",
         "move_speed",
         "wall_impact"
-      ]
-    },
-    {
-      "effects": [
-        {
-          "adaptive_ratio": {
-            "bp": 7500,
-            "unit": "ratio"
-          },
-          "base": {
-            "p2": 7000,
-            "unit": "points"
-          },
-          "delay": {
-            "ms": 1000,
-            "unit": "ms"
-          },
-          "op": "phantom_molt",
-          "opcode": 269,
-          "radius": {
-            "denominator": 1,
-            "numerator": 240,
-            "unit": "cm"
-          },
-          "slow_duration": {
-            "ms": 1500,
-            "unit": "ms"
-          },
-          "slow_ratio": {
-            "bp": 3000,
-            "unit": "ratio"
-          }
-        }
-      ],
-      "form": "dash",
-      "id": "card_phantom_molt",
-      "native_id": 296,
-      "type": "trigger",
-      "vocab": [
-        "perfect_dodge",
-        "dash",
-        "area"
       ]
     },
     {
@@ -19714,7 +19659,7 @@
     },
     {
       "description_key": "active_charged_ram_2b.description",
-      "description_text": "冲撞距离提高到 [dash.distance] 厘米，推开距离提高到 [knockback.distance] 厘米。",
+      "description_text": "冲撞距离提高到 [dash.distance] 厘米，推开距离提高到 [knockback.distance] 厘米，起手更慢。",
       "icon_id": "icon_active_charged_ram",
       "id": "active_charged_ram_2b",
       "name_key": "active_charged_ram_2b.name",
@@ -19894,7 +19839,7 @@
     },
     {
       "description_key": "active_crotch_grab_2a.description",
-      "description_text": "滑步探爪拉长至 [dash.distance] 厘米，命中伤害大幅提高。",
+      "description_text": "滑步探爪拉长至 [dash.distance] 厘米，命中伤害大幅提高，起手更慢。",
       "icon_id": "icon_active_crotch_grab",
       "id": "active_crotch_grab_2a",
       "name_key": "active_crotch_grab_2a.name",
@@ -19903,7 +19848,7 @@
     },
     {
       "description_key": "active_crotch_grab_2b.description",
-      "description_text": "得手瞬间轻巧翻滚 [dash_back.distance] 厘米并享有完美闪避窗口。",
+      "description_text": "得手瞬间轻巧翻滚 [dash_back.distance] 厘米。",
       "icon_id": "icon_active_crotch_grab",
       "id": "active_crotch_grab_2b",
       "name_key": "active_crotch_grab_2b.name",
@@ -20407,7 +20352,7 @@
     },
     {
       "description_key": "active_pants_down_2b.description",
-      "description_text": "抓扯射程延长，未抓中人时挥出气劲使前方敌人减速 [grab_line.ratio]%，持续 [grab_line.duration] 秒。",
+      "description_text": "抓扯射程延长，未抓中人时挥出气劲使前方敌人减速 [grab_line.ratio]%，持续 [grab_line.duration] 秒；起手更慢。",
       "icon_id": "icon_active_pants_down",
       "id": "active_pants_down_2b",
       "name_key": "active_pants_down_2b.name",
@@ -20848,7 +20793,7 @@
     },
     {
       "description_key": "active_triple_combo_2b.description",
-      "description_text": "强化 [empower_basic.count] 次，每次伤害更高。",
+      "description_text": "强化 [empower_basic.count] 次，每次伤害更高，强化的普攻出手更慢。",
       "icon_id": "icon_active_triple_combo",
       "id": "active_triple_combo_2b",
       "name_key": "active_triple_combo_2b.name",
@@ -21172,7 +21117,7 @@
     },
     {
       "description_key": "card_burn_guard.description",
-      "description_text": "你造成的灼烧伤害的 [overheal_shield.ratio]% 变成护盾，持续 [overheal_shield.duration] 秒。",
+      "description_text": "你造成的灼烧伤害的 [overheal_shield.ratio]% 变成护盾，持续 [overheal_shield.duration] 秒；这张牌的护盾最多 [overheal_shield.secondary_ratio]% 生命上限。",
       "icon_id": "icon_card_burn_guard",
       "id": "card_burn_guard",
       "name_key": "card_burn_guard.name",
@@ -21225,15 +21170,6 @@
       "namespace": "DemoContent"
     },
     {
-      "description_key": "card_dodge_strike.description",
-      "description_text": "完美闪避后，你的下一个技能不耗劲。",
-      "icon_id": "icon_card_dodge_strike",
-      "id": "card_dodge_strike",
-      "name_key": "card_dodge_strike.name",
-      "name_text": "闪完就打",
-      "namespace": "DemoContent"
-    },
-    {
       "description_key": "card_double_dash.description",
       "description_text": "冲刺分成两段，每段 [dash_split.distance] 厘米；第一段后 [dash_split.duration] 秒内再按冲刺放第二段，冷却不变。",
       "icon_id": "icon_card_double_dash",
@@ -21280,7 +21216,7 @@
     },
     {
       "description_key": "card_fist_skill.description",
-      "description_text": "第三段命中时，以 [combo_cast.multiplier]% 效果放出 Q 技能，不耗劲、不进冷却、不触发爆劲。",
+      "description_text": "第三段命中时，以 [combo_cast.multiplier]% 效果放出 Q 技能，不耗劲、不进冷却。",
       "icon_id": "icon_card_fist_skill",
       "id": "card_fist_skill",
       "name_key": "card_fist_skill.name",
@@ -21558,15 +21494,6 @@
       "namespace": "DemoContent"
     },
     {
-      "description_key": "card_phantom_molt.description",
-      "description_text": "触发完美闪避时在原地留下嘲讽野怪的残影，[phantom_molt.delay] 秒后自爆对 [phantom_molt.radius] 厘米内敌人造成 [phantom_molt.amount] 自适应伤害并减速 [phantom_molt.ratio]%，持续 [phantom_molt.duration] 秒。",
-      "icon_id": "icon_card_phantom_molt",
-      "id": "card_phantom_molt",
-      "name_key": "card_phantom_molt.name",
-      "name_text": "幻影脱壳",
-      "namespace": "DemoContent"
-    },
-    {
       "description_key": "card_pin_amp.description",
       "description_text": "这个技能造成控制后 [control_amp.duration] 秒内，你的下一个技能伤害 +[control_amp.ratio]%。",
       "icon_id": "icon_card_pin_amp",
@@ -21702,15 +21629,6 @@
       "namespace": "DemoContent"
     },
     {
-      "description_key": "card_short_breath.description",
-      "description_text": "劲到 [overdrive_short.limit] 就能爆劲，爆劲倍率变为 [overdrive_short.multiplier]%。",
-      "icon_id": "icon_card_short_breath",
-      "id": "card_short_breath",
-      "name_key": "card_short_breath.name",
-      "name_text": "气短",
-      "namespace": "DemoContent"
-    },
-    {
       "description_key": "card_skate_blade.description",
       "description_text": "敌人在冰面滑行或被推开每移动 [skate_blade.distance] 厘米受 [skate_blade.amount] 自适应伤害；你在任何冰面上攻速 +[skate_blade.AttackSpeedBonusRatio]% 且移速 +[skate_blade.MoveSpeedBonusRatio]%。",
       "icon_id": "icon_card_skate_blade",
@@ -21735,15 +21653,6 @@
       "id": "card_skill_drain",
       "name_key": "card_skill_drain.name",
       "name_text": "吸血对技能生效",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "card_slippery.description",
-      "description_text": "每次完美闪避，本局移速 +[hit_growth.MoveSpeedBonusRatio]%，没有上限。",
-      "icon_id": "icon_card_slippery",
-      "id": "card_slippery",
-      "name_key": "card_slippery.name",
-      "name_text": "越躲越快",
       "namespace": "DemoContent"
     },
     {
@@ -23099,6 +23008,125 @@
       "numerator": 400,
       "unit": "cm"
     },
+    "EMPOWER.CombatPerSec": {
+      "denominator": 2,
+      "numerator": 5,
+      "unit": "momentum/s"
+    },
+    "EMPOWER.ConeAngleScale": {
+      "bp": 20000,
+      "unit": "ratio"
+    },
+    "EMPOWER.Cost": {
+      "p2": 5000,
+      "unit": "momentum"
+    },
+    "EMPOWER.CounterStunSec": {
+      "ms": 500,
+      "unit": "ms"
+    },
+    "EMPOWER.DamagedPerPercent": {
+      "p2": 0,
+      "unit": "momentum"
+    },
+    "EMPOWER.DashContactCap": 3,
+    "EMPOWER.DerivedReaction": {
+      "p2": 0,
+      "unit": "momentum"
+    },
+    "EMPOWER.ElementChillRootSec": {
+      "ms": 600,
+      "unit": "ms"
+    },
+    "EMPOWER.ElementFireBurnStacks": 3,
+    "EMPOWER.ElementRotDurationScale": {
+      "bp": 20000,
+      "unit": "ratio"
+    },
+    "EMPOWER.ElementShockReactionRatio": {
+      "bp": 5000,
+      "unit": "ratio"
+    },
+    "EMPOWER.ElementWaterSlow": {
+      "bp": 4500,
+      "unit": "ratio"
+    },
+    "EMPOWER.ElementWaterSlowSec": {
+      "ms": 1500,
+      "unit": "ms"
+    },
+    "EMPOWER.Enabled": 0,
+    "EMPOWER.ExtraCount": 2,
+    "EMPOWER.FistConeAngleDeg": {
+      "denominator": 1,
+      "numerator": 60,
+      "unit": "degrees"
+    },
+    "EMPOWER.FistConeLengthCm": {
+      "denominator": 1,
+      "numerator": 300,
+      "unit": "cm"
+    },
+    "EMPOWER.FistConeRatio": {
+      "bp": 5000,
+      "unit": "ratio"
+    },
+    "EMPOWER.FistPushCm": {
+      "denominator": 1,
+      "numerator": 120,
+      "unit": "cm"
+    },
+    "EMPOWER.GroundSec": {
+      "ms": 3000,
+      "unit": "ms"
+    },
+    "EMPOWER.GuardBurstRadiusCm": {
+      "denominator": 1,
+      "numerator": 300,
+      "unit": "cm"
+    },
+    "EMPOWER.GuardBurstRatio": {
+      "bp": 4000,
+      "unit": "ratio"
+    },
+    "EMPOWER.QuakeRadiusCm": {
+      "denominator": 1,
+      "numerator": 200,
+      "unit": "cm"
+    },
+    "EMPOWER.QuakeSlow": {
+      "bp": 3000,
+      "unit": "ratio"
+    },
+    "EMPOWER.QuakeSlowSec": {
+      "ms": 1000,
+      "unit": "ms"
+    },
+    "EMPOWER.ShapeScale": {
+      "bp": 14000,
+      "unit": "ratio"
+    },
+    "EMPOWER.SkillHitTargets": 3,
+    "EMPOWER.StrikeExtraWindupSec": {
+      "ms": 100,
+      "unit": "ms"
+    },
+    "EMPOWER.Threshold": {
+      "p2": 6000,
+      "unit": "momentum"
+    },
+    "EMPOWER.TouchStunSec": {
+      "ms": 600,
+      "unit": "ms"
+    },
+    "EMPOWER.WallStunSec": {
+      "ms": 600,
+      "unit": "ms"
+    },
+    "EMPOWER.WardFuseSec": {
+      "ms": 150,
+      "unit": "ms"
+    },
     "EXPLORE.LockerCardOffer": 3,
     "EXPLORE.LockerChannelSec": {
       "ms": 3000,
@@ -23349,18 +23377,6 @@
       "numerator": 5,
       "unit": "momentum/s"
     },
-    "MOMENTUM.DashDodgeCooldownRefundRatio": {
-      "bp": 3000,
-      "unit": "ratio"
-    },
-    "MOMENTUM.DashDodgeCutRatio": {
-      "bp": 5000,
-      "unit": "ratio"
-    },
-    "MOMENTUM.DashDodgeWindowSec": {
-      "ms": 120,
-      "unit": "ms"
-    },
     "MOMENTUM.IdleDelaySec": {
       "ms": 5000,
       "unit": "ms"
@@ -23373,14 +23389,6 @@
     "MOMENTUM.Max": {
       "p2": 10000,
       "unit": "momentum"
-    },
-    "MOMENTUM.PerfectDodge": {
-      "p2": 2000,
-      "unit": "momentum"
-    },
-    "MOMENTUM.PerfectDodgeWindowSec": {
-      "ms": 300,
-      "unit": "ms"
     },
     "MOMENTUM.Reaction": {
       "p2": 1000,
@@ -23424,39 +23432,6 @@
     },
     "OBJECTIVE.StartSec": {
       "ms": 100000,
-      "unit": "ms"
-    },
-    "OVERDRIVE.ChillRootSec": {
-      "ms": 600,
-      "unit": "ms"
-    },
-    "OVERDRIVE.FireBurnStacks": 3,
-    "OVERDRIVE.HoldSec": {
-      "ms": 350,
-      "unit": "ms"
-    },
-    "OVERDRIVE.RotDurationScale": {
-      "bp": 20000,
-      "unit": "ratio"
-    },
-    "OVERDRIVE.Scale": {
-      "bp": 13500,
-      "unit": "ratio"
-    },
-    "OVERDRIVE.ShockReactionRatio": {
-      "bp": 5000,
-      "unit": "ratio"
-    },
-    "OVERDRIVE.Threshold": {
-      "p2": 6000,
-      "unit": "momentum"
-    },
-    "OVERDRIVE.WaterSlow": {
-      "bp": 4500,
-      "unit": "ratio"
-    },
-    "OVERDRIVE.WaterSlowSec": {
-      "ms": 1500,
       "unit": "ms"
     },
     "PK.ArenaRadiusCm": {

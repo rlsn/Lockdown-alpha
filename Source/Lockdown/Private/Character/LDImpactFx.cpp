@@ -275,19 +275,16 @@ void ULDImpactFxSubsystem::ReleaseGhost(int32 Index)
     LiveGhosts.RemoveAt(Index, EAllowShrinking::No);
 }
 
-float ULDImpactFxSubsystem::OverdriveHoldSeconds()
+void ULDImpactFxSubsystem::LoadContent()
 {
-    if (!bContentTried)
+    if (bContentTried) { return; }
+    bContentTried = true;
+    FString Error;
+    if (!LDDemoEntry::LoadRuntimeContent(Content, Error))
     {
-        bContentTried = true;
-        FString Error;
-        if (!LDDemoEntry::LoadRuntimeContent(Content, Error))
-        {
-            Content.Reset();
-            UE_LOG(LogLDContent, Error, TEXT("LD_OVERDRIVE_FX content=unavailable %s"), *Error);
-        }
+        Content.Reset();
+        UE_LOG(LogLDContent, Error, TEXT("LD_IMPACT_FX content=unavailable %s"), *Error);
     }
-    return Content ? float(Content->Get().Parameters.Overdrive.HoldMs) / 1000.f : 0.f;
 }
 
 void ULDImpactFxSubsystem::ApplyZone(UNiagaraComponent& Effect, const LDHitVfx::FZone& Zone, float RadiusCm, const FVector& Velocity)
@@ -751,9 +748,9 @@ void ULDImpactFxSubsystem::WarmUp()
     if (!FApp::CanEverRender() || !GetWorld()) { return; }
     // The frontend has no fights; warming every system there only froze each return to the title screen for seconds.
     if (UWorld::RemovePIEPrefix(GetWorld()->GetOutermost()->GetName()) == LDDemoEntry::FrontendMap) { return; }
-    // Textures, materials, meshes and the approved hold time load now rather than on the first hit.
+    // Textures, materials, meshes and the approved content load now rather than on the first hit.
     const bool bLayers = LoadLayerAssets();
-    OverdriveHoldSeconds();
+    LoadContent();
     if (bLayers)
     {
         FreeSlots.Add(TakeSlot(SlotPlane));
@@ -813,43 +810,6 @@ void ULDImpactFxSubsystem::WarmGhost(const USkeletalMeshComponent& Source)
 UStaticMesh* ULDImpactFxSubsystem::PropMesh(LDSliceVfx::EMesh Mesh)
 {
     return FApp::CanEverRender() && LoadSliceAssets() && SlashMeshes.IsValidIndex(int32(Mesh)) ? SlashMeshes[int32(Mesh)].Get() : nullptr;
-}
-
-UPoseableMeshComponent* ULDImpactFxSubsystem::StandIn(AActor& Host, const FVector& At, const FLinearColor& Glow, float ReachCm)
-{
-    if (!FApp::CanEverRender() || At.ContainsNaN() || !Host.GetRootComponent() || !LoadLayerAssets() || !GhostMaterial) { return nullptr; }
-    const USkeletalMeshComponent* Near = nullptr;
-    double Best = FMath::Square(double(ReachCm));
-    for (int32 Index = Bodies.Num() - 1; Index >= 0; --Index)
-    {
-        const USkeletalMeshComponent* Body = Bodies[Index].Get();
-        if (!Body) { Bodies.RemoveAtSwap(Index); continue; }
-        if (Body->GetWorld() != GetWorld() || !Body->GetSkinnedAsset() || !Body->GetOwner() || Body->GetOwner()->IsHidden()) { continue; }
-        const double Far = FVector::DistSquared2D(Body->GetComponentLocation(), At);
-        if (Far < Best) { Best = Far; Near = Body; }
-    }
-    if (!Near) { return nullptr; }
-    auto* Copy = NewObject<UPoseableMeshComponent>(&Host, NAME_None, RF_Transient);
-    Copy->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-    Copy->SetGenerateOverlapEvents(false);
-    Copy->SetCanEverAffectNavigation(false);
-    Copy->SetCastShadow(false);
-    Copy->bReceivesDecals = false;
-    Copy->SetupAttachment(Host.GetRootComponent());
-    Copy->RegisterComponent();
-    Copy->SetSkinnedAssetAndUpdate(Near->GetSkinnedAsset());
-    UMaterialInstanceDynamic* Paint = UMaterialInstanceDynamic::Create(GhostMaterial, Copy);
-    Paint->SetVectorParameterValue(LDHitVfx::GlowParameter, Glow);
-    Paint->SetScalarParameterValue(LDHitVfx::FadeParameter, .8f);
-    for (int32 Index = 0; Index < Copy->GetNumMaterials(); ++Index) { Copy->SetMaterial(Index, Paint); }
-    // The body's own height over its floor, at the stand-in's place.
-    FTransform Pose = Near->GetComponentTransform();
-    const FVector From = Near->GetComponentLocation();
-    Pose.SetLocation(FVector(At.X, At.Y, FloorUnder(At).Z + From.Z - FloorUnder(From).Z));
-    Copy->SetWorldTransform(Pose);
-    // The engine reads the source pose only; its parameter is not const.
-    Copy->CopyPoseFromSkeletalComponent(const_cast<USkeletalMeshComponent*>(Near));
-    return Copy;
 }
 
 bool ULDImpactFxSubsystem::LoadSliceAssets()
@@ -1441,7 +1401,7 @@ UNiagaraComponent* ULDImpactFxSubsystem::PlayPack(LDSliceVfx::EPack Pack, const 
 bool ULDImpactFxSubsystem::SkillReach(uint8 Ability, float& OutRangeCm, float& OutHalfWidthCm)
 {
     OutRangeCm = OutHalfWidthCm = 0.f;
-    OverdriveHoldSeconds();
+    LoadContent();
     if (!Content) { return false; }
     const auto Cm = [](const FLDDemoRational& Value) { return Value.Denominator > 0 ? float(double(Value.Numerator) / double(Value.Denominator)) : 0.f; };
     for (const FLDDemoAbilityDefinition& Definition : Content->Get().Abilities)
@@ -1457,7 +1417,7 @@ bool ULDImpactFxSubsystem::SkillReach(uint8 Ability, float& OutRangeCm, float& O
 
 float ULDImpactFxSubsystem::SkillDashCm(uint8 Ability)
 {
-    OverdriveHoldSeconds();
+    LoadContent();
     if (!Content || Ability == 0) { return 0.f; }
     for (const FLDDemoAbilityDefinition& Definition : Content->Get().Abilities)
     {
@@ -1472,7 +1432,7 @@ float ULDImpactFxSubsystem::SkillDashCm(uint8 Ability)
 
 bool ULDImpactFxSubsystem::IsElementalSkill(uint8 Ability)
 {
-    OverdriveHoldSeconds();
+    LoadContent();
     if (!Content || Ability == 0) { return false; }
     const FLDDemoAbilityDefinition* Definition = Content->Get().Abilities.FindByPredicate([Ability](const FLDDemoAbilityDefinition& Row) { return Row.NativeId == Ability; });
     return Definition && Definition->Element != ELDDemoSkillElement::None;
@@ -1480,7 +1440,7 @@ bool ULDImpactFxSubsystem::IsElementalSkill(uint8 Ability)
 
 bool ULDImpactFxSubsystem::IsSelfSkill(uint8 Ability)
 {
-    OverdriveHoldSeconds();
+    LoadContent();
     if (!Content || Ability == 0) { return false; }
     const FLDDemoAbilityDefinition* Definition = Content->Get().Abilities.FindByPredicate([Ability](const FLDDemoAbilityDefinition& Row) { return Row.NativeId == Ability; });
     return Definition && Definition->Target.Mode == ELDDemoTargetMode::Self;
@@ -1488,7 +1448,7 @@ bool ULDImpactFxSubsystem::IsSelfSkill(uint8 Ability)
 
 bool ULDImpactFxSubsystem::IsPhysicalSkill(uint8 Ability)
 {
-    OverdriveHoldSeconds();
+    LoadContent();
     if (!Content || Ability == 0) { return false; }
     for (const FLDDemoAbilityDefinition& Definition : Content->Get().Abilities)
     {
@@ -1502,7 +1462,7 @@ bool ULDImpactFxSubsystem::IsPhysicalSkill(uint8 Ability)
 
 float ULDImpactFxSubsystem::SkillConeDegrees(uint8 Ability)
 {
-    OverdriveHoldSeconds();
+    LoadContent();
     if (!Content) { return 0.f; }
     for (const FLDDemoAbilityDefinition& Definition : Content->Get().Abilities)
     {
@@ -1514,7 +1474,7 @@ float ULDImpactFxSubsystem::SkillConeDegrees(uint8 Ability)
 
 float ULDImpactFxSubsystem::SkillEffectRadius(uint8 Ability, uint16 Opcode)
 {
-    OverdriveHoldSeconds();
+    LoadContent();
     if (!Content) { return 0.f; }
     for (const FLDDemoAbilityDefinition& Definition : Content->Get().Abilities)
     {
@@ -1529,7 +1489,7 @@ float ULDImpactFxSubsystem::SkillEffectRadius(uint8 Ability, uint16 Opcode)
 
 float ULDImpactFxSubsystem::SkillSelfRadius(uint8 Ability)
 {
-    OverdriveHoldSeconds();
+    LoadContent();
     if (!Content) { return 0.f; }
     for (const FLDDemoAbilityDefinition& Definition : Content->Get().Abilities)
     {
@@ -1546,7 +1506,7 @@ float ULDImpactFxSubsystem::SkillSelfRadius(uint8 Ability)
 
 float ULDImpactFxSubsystem::SkillHoldSeconds(uint8 Ability)
 {
-    OverdriveHoldSeconds();
+    LoadContent();
     if (!Content) { return 0.f; }
     int64 Longest = 0;
     for (const FLDDemoAbilityDefinition& Definition : Content->Get().Abilities)
@@ -1564,7 +1524,7 @@ float ULDImpactFxSubsystem::SkillHoldSeconds(uint8 Ability)
 
 float ULDImpactFxSubsystem::ReactionRadiusCm(uint8 Reaction)
 {
-    OverdriveHoldSeconds();
+    LoadContent();
     if (!Content) { return 0.f; }
     const auto& Parameters = Content->Get().Parameters;
     const FLDDemoRational* Radius = Reaction == uint8(ELDCombatReaction::Fog) ? &Parameters.FogRadiusCm
@@ -1575,13 +1535,13 @@ float ULDImpactFxSubsystem::ReactionRadiusCm(uint8 Reaction)
 
 float ULDImpactFxSubsystem::FreezeRootSeconds()
 {
-    OverdriveHoldSeconds();
+    LoadContent();
     return Content ? float(double(Content->Get().Parameters.Elements.FreezeRootMs) / 1000.) : 0.f;
 }
 
 float ULDImpactFxSubsystem::ConductRadiusCm()
 {
-    OverdriveHoldSeconds();
+    LoadContent();
     if (!Content) { return 0.f; }
     const FLDDemoRational& Radius = Content->Get().Parameters.ConductRadiusCm;
     return Radius.Denominator > 0 ? float(double(Radius.Numerator) / double(Radius.Denominator)) : 0.f;

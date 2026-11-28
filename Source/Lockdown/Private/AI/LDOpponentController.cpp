@@ -177,9 +177,15 @@ bool ALDOpponentController::BindRegisteredSelf(const FLDAIContenderBinding& InBi
     if (Evaluation)
     {
         Evaluation->bBound = true;
-        UE_LOG(LogLDAI, Display, TEXT("LD_EVAL_PROFILE contender=%s rival=%s site=%s choices=%d reaction_ms=%d aim_error_cm=%d skip_bp=%d"),
+        // Auto-empower: off, auto (the AI's own pick) or the host the plan (or -LDEmpowerHost) fixes.
+        const ELDCombatEntry EmpowerHost = Evaluation->Profile.EmpowerHost != ELDCombatEntry::None
+            ? Evaluation->Profile.EmpowerHost : LDAutoEmpower::SwitchHost();
+        const TCHAR* Empower = !(Mode->Combat && Mode->Combat->EmpowerTerms()) ? TEXT("off")
+            : EmpowerHost == ELDCombatEntry::None ? TEXT("auto") : LDAutoEmpower::EntryName(EmpowerHost);
+        UE_LOG(LogLDAI, Display, TEXT("LD_EVAL_PROFILE contender=%s rival=%s site=%s choices=%d reaction_ms=%d aim_error_cm=%d skip_bp=%d warning_react_ms=%d lead_aim=%d reserve_dash=%d empower=%s"),
             *Binding.GetContender().ToString(), *Evaluation->Profile.Opponent.ToString(), *Evaluation->Profile.Site.ToString(),
-            Evaluation->Profile.Choices.Num(), Evaluation->Profile.ReactionMs, Evaluation->Profile.AimErrorCm, Evaluation->Profile.SkipBp);
+            Evaluation->Profile.Choices.Num(), Evaluation->Profile.ReactionMs, Evaluation->Profile.AimErrorCm, Evaluation->Profile.SkipBp,
+            Evaluation->Profile.WarningReactMs, Evaluation->Profile.bLeadAim ? 1 : 0, Evaluation->Profile.bReserveDash ? 1 : 0, Empower);
     }
 #endif
     UE_LOG(LogLDAI, Log, TEXT("LD_AI_OPENING_PLAN contender=%s after_ms=%lld seed=%d"), *Binding.GetContender().ToString(),
@@ -193,9 +199,8 @@ void ALDOpponentController::ForgetBodyWork()
     Candidate = FOrderTrack();
     StopTrack = FStopTrack();
     Action = FActionTrack();
-    // A charge belongs to the body that started it; a new life starts its own.
-    Charge = FChargeTrack();
     bWasInDorm = false;
+    Walled = FWalled();
 }
 
 void ALDOpponentController::HandleLifeCommitted(const FLDLifeNotice& Notice)
@@ -279,6 +284,106 @@ void ALDOpponentController::NoteContest(const FLDOpponentDecisionFrame& Frame, c
     Tally.ChallengesReleased += bReleased ? 1 : 0;
 }
 
+#if WITH_DEV_AUTOMATION_TESTS
+bool ALDOpponentController::EvaluationWarningDue(ALDGameMode& Mode, int64 NowMs)
+{
+    FLDWorldView View;
+    FString Error;
+    if (!Mode.Vision || !Content || !Mode.Vision->EnumerateVisibleUnits(*this, ELDObservationPurpose::Inspect, View, Error)
+        || View.Footprint.SourceStatus != ELDObservationSource::ActiveBody)
+    {
+        return false;
+    }
+    TArray<FLDOpponentWarning> Warnings;
+    LDOpponentFrame::ReadWarnings(View, Warnings);
+    LDOpponentFrame::ReadCastWarnings(View, Binding.GetContender(), *Content, Warnings);
+    // Sightings between decisions count from their own tick; the policy keeps an earlier sighting of a handle.
+    TMap<FGuid, int64>& Seen = Evaluation->State.WarningSeenAtMs;
+    bool bDue = false;
+    for (const FLDOpponentWarning& Warning : Warnings)
+    {
+        const int64 SeenAt = Seen.FindOrAdd(Warning.Handle, NowMs);
+        if (WarningsDecided.Contains(Warning.Handle) || NowMs - SeenAt < Evaluation->Profile.WarningReactMs
+            || Warning.RemainingMs > LDOpponentPolicy::DodgeLeadMs || !LDOpponentPolicy::WarningCovers(Warning, View.Footprint.SourceFeetCm))
+        {
+            continue;
+        }
+        WarningsDecided.Add(Warning.Handle);
+        bDue = true;
+    }
+    return bDue;
+}
+#endif
+
+void ALDOpponentController::WatchDodges(const FLDOpponentDecisionFrame& Frame, const FLDOpponentDecision& Decision, int64 NowMs)
+{
+    if (Frame.Self.Life != DodgeLife)
+    {
+        DodgeWatch.Reset();
+        DodgeLife = Frame.Self.Life;
+    }
+    // -2: the production dodge (its AI.DodgeChance roll); otherwise the evaluation's WarningReactMs (-1: never dodges).
+    int32 ReactMs = -2;
+#if WITH_DEV_AUTOMATION_TESTS
+    if (Evaluation) { ReactMs = Evaluation->Profile.WarningReactMs; }
+#endif
+    const FString React = ReactMs == -2 ? FString(TEXT("-")) : FString::FromInt(ReactMs);
+    const auto Log = [&](const FGuid& Handle, const FDodgeWatch& Watch, const TCHAR* Result, const TCHAR* Reason)
+    {
+        // seen_t is the first sighting (an evaluation adapter sights every tick, between decisions); impact_t is when the
+        // warning lands (the authority's WarningRemainingMs from the latest decision): the dodge's real deadline.
+        UE_LOG(LogLDAI, Display, TEXT("LD_AI_DODGE t=%lld contender=%s life=%u warning=%s source=%s seen_t=%lld impact_t=%lld seen_remaining_ms=%lld react_ms=%s result=%s reason=%s remaining_ms=%lld"),
+            NowMs, *Binding.GetContender().ToString(), DodgeLife, *Handle.ToString(), *Watch.Source.ToString(), Watch.SeenAtMs,
+            Watch.ImpactAtMs, Watch.ImpactAtMs - Watch.SeenAtMs, *React, Result, Reason, Watch.LastRemainingMs);
+    };
+    for (auto It = DodgeWatch.CreateIterator(); It; ++It)
+    {
+        if (Frame.Warnings.ContainsByPredicate([&It](const FLDOpponentWarning& Warning) { return Warning.Handle == It.Key(); })) { continue; }
+        // Landed or out of sight: it ends undodged, standing in it (Reason) or out of it by then (left).
+        if (!It.Value().bDashed && It.Value().bEverCovered) { Log(It.Key(), It.Value(), TEXT("none"), It.Value().bCovered ? It.Value().Reason : TEXT("left")); }
+        It.RemoveCurrent();
+    }
+    if (Frame.Self.Phase != ELDLifePhase::Alive) { return; }
+    const bool bDash = Decision.Body.Kind == ELDOpponentBodyKind::Activate && Decision.Body.Source == ELDOpponentSourceSlot::Dash;
+    const bool bActing = Frame.Self.bChanneling || (Frame.Order.IsLive() && Frame.Order.Kind == ELDOpponentOrderKind::Action);
+    const FLDOpponentSource* Dash = Frame.Self.Sources.FindByPredicate([](const FLDOpponentSource& S) { return S.Slot == ELDOpponentSourceSlot::Dash; });
+    for (const FLDOpponentWarning& Warning : Frame.Warnings)
+    {
+        FDodgeWatch& Watch = DodgeWatch.FindOrAdd(Warning.Handle);
+        if (Watch.SeenAtMs == 0)
+        {
+            Watch.Source = Warning.Source;
+            Watch.SeenAtMs = Frame.Public.NowMs;
+        }
+#if WITH_DEV_AUTOMATION_TESTS
+        if (Evaluation)
+        {
+            if (const int64* Earlier = Evaluation->State.WarningSeenAtMs.Find(Warning.Handle)) { Watch.SeenAtMs = FMath::Min(Watch.SeenAtMs, *Earlier); }
+        }
+#endif
+        if (Watch.bDashed) { continue; }
+        Watch.ImpactAtMs = Frame.Public.NowMs + Warning.RemainingMs;
+        Watch.bCovered = LDOpponentPolicy::WarningCovers(Warning, Frame.Self.FootCm);
+        Watch.bEverCovered |= Watch.bCovered;
+        Watch.LastRemainingMs = Warning.RemainingMs;
+        if (!Watch.bCovered || Warning.RemainingMs > LDOpponentPolicy::DodgeLeadMs) { continue; }
+        if (bDash)
+        {
+            Watch.bDashed = true;
+            Log(Warning.Handle, Watch, TEXT("dash"), TEXT("-"));
+            continue;
+        }
+        const uint32 Roll = HashCombine(GetTypeHash(Warning.Handle), GetTypeHash(Frame.Self.ContenderId)) % 10000;
+        const int64 SeenAt = Watch.SeenAtMs;
+        Watch.Reason = bActing ? TEXT("acting")
+            : !Dash || !Dash->bReady ? TEXT("dash_unready")
+            : ReactMs == -1 ? TEXT("off")
+            : ReactMs >= 0 && Frame.Public.NowMs - SeenAt < ReactMs ? TEXT("reaction_wait")
+            : ReactMs == -2 && int64(Roll) >= Content->Get().Parameters.AI.DodgeChanceBp ? TEXT("roll")
+            : TEXT("retry_blocked");
+    }
+}
+
 void ALDOpponentController::ClientTravelInternal_Implementation(const FString&, ETravelType, bool, FGuid)
 {
     UE_LOG(LogLDAI, Display, TEXT("LD_AI_TRAVEL_IGNORED contender=%s"), *Binding.GetContender().ToString());
@@ -306,6 +411,12 @@ void ALDOpponentController::Tick(float DeltaSeconds)
         return;
     }
     const int64 NowMs = Mode->GetAuthorityNowMs();
+#if WITH_DEV_AUTOMATION_TESTS
+    if (NowMs < NextDecisionAtMs && Evaluation && Evaluation->Profile.WarningReactMs >= 0 && EvaluationWarningDue(*Mode, NowMs))
+    {
+        NextDecisionAtMs = NowMs;
+    }
+#endif
     if (NowMs < NextDecisionAtMs) { return; }
     // A long frame plans once on the latest publication; missed decisions are never replayed.
     NextDecisionAtMs = NowMs + Content->Get().Parameters.AI.DecisionIntervalMs;
@@ -350,6 +461,7 @@ void ALDOpponentController::Tick(float DeltaSeconds)
 #endif
     }();
     NoteContest(Frame, Decision);
+    WatchDodges(Frame, Decision, NowMs);
     if (Policy.bBreakoutDrawn && !bGoalReported)
     {
         bGoalReported = true;
@@ -425,6 +537,9 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
         Frame.Public.PrivatePoles = Public.PrivatePoles;
         Frame.Public.ArenaCentreCm = Public.Showdown.CentreCm;
         Frame.Public.SafeRadiusCm = float(Public.Showdown.FinalRadiusCm);
+        // B01 T04-03: the street ring as it stands now (the public closure every HUD draws), not only its last radius.
+        Frame.Public.StreetRadiusCm = float(LDShowdown::StreetRadiusCm(Public.Showdown, NowMs));
+        Frame.Public.ClosureAtMs = Public.Showdown.ClosureAtMs;
     }
     if (Public.Phase == ELDMatchPhase::Rest)
     {
@@ -547,11 +662,16 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
         }
     }
     LDOpponentFrame::ReadWarnings(View, Frame.Warnings);
+    LDOpponentFrame::ReadCastWarnings(View, Own.ContenderId, *Content, Frame.Warnings);
     // A camp this seat saw empty stays empty for the segment; the view forgets it when the next one begins.
     Frame.POIs.RemoveAll([&View](const FLDOpponentPOI& Place)
         { return Place.Kind == ELDOpponentPOIKind::Camp && View.WitnessedEmptyCamps.Contains(Place.Id); });
     if (const ALDCharacter* OwnBody = Cast<ALDCharacter>(GetPawn())) { Me.Seat = OwnBody->PresentationKey; }
     LDOpponentFrame::ReadGrounds(View, Me.Seat, Frame.Grounds);
+    if (const FLDOpponentPOI* Capture = Frame.POIs.FindByPredicate([](const FLDOpponentPOI& Place) { return Place.Kind == ELDOpponentPOIKind::Capture; }))
+    {
+        LDOpponentFrame::ReadRecoveryOrbs(View, Capture->SurfaceId, Frame.POIs);
+    }
 #if WITH_DEV_AUTOMATION_TESTS
     // Only annotate already authorized visible units; the policy never queries hidden contenders.
     for (auto& Unit : Frame.Units) { Unit.bProtected |= Mode.IsDevPeaceful(Unit.ContenderId); }
@@ -696,20 +816,34 @@ void ALDOpponentController::SettleOrders(const FReads& Reads, const FLDOpponentD
 }
 
 bool ALDOpponentController::RouteAroundGrounds(const FLDOpponentDecisionFrame& Frame, const FVector& FootCm,
-    const FLDSpatialOrderRequest& Request, FVector& Out) const
+    const FLDSpatialOrderRequest& Request, FVector& Out, bool bOnlyBodies, const FLDOpponentUnit** OutWalling) const
 {
+    if (OutWalling) { *OutWalling = nullptr; }
     TRACE_CPUPROFILER_EVENT_SCOPE(LDAI_RouteAroundGrounds);
-    if (Request.Kind != ELDSpatialOrderKind::MoveGround
-        || !Frame.Grounds.ContainsByPredicate([](const FLDOpponentGround& Ground) { return Ground.bEnemy; }))
+    if (Request.Kind != ELDSpatialOrderKind::MoveGround) { return false; }
+    const bool bEnemyGrounds = !bOnlyBodies
+        && Frame.Grounds.ContainsByPredicate([](const FLDOpponentGround& Ground) { return Ground.bEnemy; });
+    // B01 T03-02: a visible camp member stays at its home and the navigation path does not go round bodies, so a walk
+    // whose route runs into one is pushed against it for good (seed c001). Only the walk's own reading of what it sees.
+    TArray<LDOpponentPolicy::FBodyDisc> Bodies;
+    TArray<const FLDOpponentUnit*> BodyUnits;
+    for (const FLDOpponentUnit& Unit : Frame.Units)
     {
-        return false;
+        if (Unit.Kind != ELDOpponentUnitKind::CampMember) { continue; }
+        const FLDDemoMonsterDefinition* Monster = nullptr;
+        FString Why;
+        if (!Content->FindMonster(Unit.MonsterId, Monster, Why) || !Monster) { continue; }
+        const auto& Radius = Monster->CollisionRadiusCm;
+        if (Radius.Denominator <= 0) { continue; }
+        Bodies.Add({Unit.FootCm, double(Radius.Numerator) / double(Radius.Denominator)});
+        BodyUnits.Add(&Unit);
     }
-    TArray<FVector> Detours;
-    LDOpponentPolicy::GroundDetours(FootCm, Request.GroundCm, Frame.Grounds, Detours);
+    if (!bEnemyGrounds && Bodies.IsEmpty()) { return false; }
     const ULDMapRegistry* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
     FCollisionShape Capsule;
     FString Error;
-    if (Detours.IsEmpty() || !Registry || !Registry->Enabled() || !ULDMapRegistry::ContentCapsule(*Content, Capsule, Error)) { return false; }
+    if (!Registry || !Registry->Enabled() || !ULDMapRegistry::ContentCapsule(*Content, Capsule, Error)) { return false; }
+    const double Walker = Capsule.GetCapsuleRadius();
     const int64 CostBp = Content->Get().Parameters.AI.EnemyGroundPathCostBp;
     const auto Path = [&](const FVector& A, const FVector& B, FLDCompletePath& Result)
     {
@@ -722,25 +856,105 @@ bool ALDOpponentController::RouteAroundGrounds(const FLDOpponentDecisionFrame& F
         FString Why;
         return Registry->QueryCompletePath(Registry->Revision(), From, To, Capsule, Result, Failure, Why);
     };
+    const auto Blocked = [&](const TArray<FVector>& Points, FVector& Along)
+    { return LDOpponentPolicy::BlockingBody(Points, Bodies, Walker, LDOpponentPolicy::BodyLookaheadCm, Along); };
     FLDCompletePath Direct;
     // Without a direct path Navigation refuses the walk itself; a detour never hides that.
     if (!Path(FootCm, Request.GroundCm, Direct)) { return false; }
-    double Best = LDOpponentPolicy::GroundWeightedCm(Direct.Points, Frame.Grounds, CostBp);
+    TArray<FVector> Detours;
+    if (bEnemyGrounds) { LDOpponentPolicy::GroundDetours(FootCm, Request.GroundCm, Frame.Grounds, Detours); }
+    FVector Along;
+    const int32 Blocker = Blocked(Direct.Points, Along);
+    // A blocked direct walk is never kept while a clear detour exists.
+    double Best = Blocker == INDEX_NONE ? LDOpponentPolicy::GroundWeightedCm(Direct.Points, Frame.Grounds, CostBp)
+        : TNumericLimits<double>::Max();
+    if (Blocker != INDEX_NONE)
+    {
+        TArray<FVector> Around;
+        LDOpponentPolicy::BodyDetours(Bodies[Blocker], Along, Walker, Around);
+        Detours.Append(Around);
+    }
     bool bDetour = false;
+    // Why each detour was refused (no route there, its leg meets a body, no route on from it), for the blocked report.
+    int32 NoLeg = 0, LegBlocked = 0, NoFinal = 0;
     for (const FVector& Waypoint : Detours)
     {
         FLDCompletePath First, Second;
-        if (!Path(FootCm, Waypoint, First) || !Path(First.EndProjectionCm, Request.GroundCm, Second)) { continue; }
+        FVector Unused;
+        if (!Path(FootCm, FVector(Waypoint.X, Waypoint.Y, FootCm.Z), First)) { ++NoLeg; continue; }
+        if (Blocked(First.Points, Unused) != INDEX_NONE) { ++LegBlocked; continue; }
+        // The leg's legal end ground: the registry appends it when navigation moved the end sideways, otherwise its last
+        // point is the navigation end, EndProjectionCm above or below it (EndProjectionCm is an offset, not a position).
+        const FVector Reached = First.EndProjectionCm.SizeSquared2D() > UE_KINDA_SMALL_NUMBER ? First.Points.Last()
+            : First.Points.Last() - First.EndProjectionCm;
+        if (!Path(Reached, Request.GroundCm, Second)) { ++NoFinal; continue; }
         const double Cost = LDOpponentPolicy::GroundWeightedCm(First.Points, Frame.Grounds, CostBp)
             + LDOpponentPolicy::GroundWeightedCm(Second.Points, Frame.Grounds, CostBp);
         if (Cost < Best)
         {
             Best = Cost;
-            Out = First.EndProjectionCm;
+            Out = Reached;
             bDetour = true;
         }
     }
+    if (Blocker != INDEX_NONE && !bDetour)
+    {
+        if (OutWalling) { *OutWalling = BodyUnits[Blocker]; }
+        UE_LOG(LogLDAI, Display, TEXT("LD_AI_BODY_BLOCKED contender=%s foot=%s body=%s goal=%s detours=%d no_leg=%d leg_blocked=%d no_final=%d"),
+            *Binding.GetContender().ToString(), *LDLog::Cm(FootCm), *LDLog::Cm(Bodies[Blocker].CentreCm), *LDLog::Cm(Request.GroundCm),
+            Detours.Num(), NoLeg, LegBlocked, NoFinal);
+    }
     return bDetour;
+}
+
+void ALDOpponentController::KeepWalkClearOfBodies(const FReads& Reads, const FLDOpponentDecisionFrame& Frame, int64 NowMs,
+    FString& Problem)
+{
+    // A kept walk was routed when it was sent; a camp member it meets later (beyond the lookahead then, or out of sight)
+    // is gone round from here. A detour leg is left to finish; its final leg is routed again on arrival.
+    if (!Incumbent.bHas || Incumbent.bFinal || Incumbent.bDetour || Candidate.bHas || NowMs < NextBodyRouteAtMs
+        || Incumbent.Request.Kind != ELDSpatialOrderKind::MoveGround
+        || (Incumbent.Status != ELDOpponentOrderStatus::Pending && Incumbent.Status != ELDOpponentOrderStatus::Active))
+    {
+        return;
+    }
+    const FVector Foot = Frame.Self.FootCm;
+    if (!Frame.Units.ContainsByPredicate([&Foot](const FLDOpponentUnit& Unit)
+        { return Unit.Kind == ELDOpponentUnitKind::CampMember && FVector::Dist2D(Unit.FootCm, Foot) <= LDOpponentPolicy::BodyLookaheadCm; }))
+    {
+        return;
+    }
+    NextBodyRouteAtMs = NowMs + LDOpponentPolicy::BodyRerouteIntervalMs;
+    FVector Waypoint;
+    const FLDOpponentUnit* Walling = nullptr;
+    if (!RouteAroundGrounds(Frame, Foot, Incumbent.Request, Waypoint, true, &Walling))
+    {
+        // No way round: once pressed against the walling member (a body only grazing past it still slides by), the next
+        // decisions fight through it.
+        if (Walling)
+        {
+            const FLDDemoMonsterDefinition* Monster = nullptr;
+            FString Why;
+            FCollisionShape Capsule;
+            const double Reach = Content->FindMonster(Walling->MonsterId, Monster, Why) && Monster
+                && Monster->CollisionRadiusCm.Denominator > 0 && ULDMapRegistry::ContentCapsule(*Content, Capsule, Why)
+                ? double(Monster->CollisionRadiusCm.Numerator) / double(Monster->CollisionRadiusCm.Denominator)
+                    + Capsule.GetCapsuleRadius() + LDOpponentPolicy::BodyPressedCm
+                : 0.;
+            if (FVector::Dist2D(Foot, Walling->FootCm) <= Reach)
+            {
+                Walled = {Walling->Handle, Walling->Epoch, NowMs + 2 * LDOpponentPolicy::BodyRerouteIntervalMs};
+            }
+        }
+        return;
+    }
+    FLDSpatialOrderRequest Leg = Incumbent.Request;
+    const FVector FinalCm = Incumbent.Request.GroundCm;
+    const FLDOpponentBodyIntent Intent = Incumbent.Intent;
+    Leg.GroundCm = Waypoint;
+    UE_LOG(LogLDAI, Display, TEXT("LD_AI_BODY_DETOUR contender=%s foot=%s waypoint=%s goal=%s"), *Binding.GetContender().ToString(),
+        *LDLog::Cm(Foot), *LDLog::Cm(Waypoint), *LDLog::Cm(FinalCm));
+    SubmitWalk(Reads, Intent, Leg, true, FinalCm, Frame.Self, NowMs, Problem);
 }
 
 bool ALDOpponentController::SubmitWalk(const FReads& Reads, const FLDOpponentBodyIntent& Intent, FLDSpatialOrderRequest Request,
@@ -856,38 +1070,31 @@ void ALDOpponentController::ComposeFrame(FLDOpponentDecisionFrame& Frame) const
         Current.Epoch = Incumbent.Intent.Epoch;
     }
     Frame.bBuildChangeInFlight = Build.bHas;
-    Frame.PKThrowReadyAtMs = PKThrowSerial != 0 && PKThrowSerial == Frame.Public.PK.Serial ? PKThrowReadyAtMs : 0;
-}
-
-void ALDOpponentController::AbandonCharge(ALDGameMode& Mode, const FReads& Reads)
-{
-    if (!Charge.bHas) { return; }
-    if (Mode.Combat && Reads.bCombat)
+    // An attack on the walling member keeps it published until the member is gone from sight (dead, or another epoch).
+    const FOrderTrack& Latest = Candidate.bHas ? Candidate : Incumbent;
+    if (Walled.Handle.IsValid() && Latest.bHas && !Latest.bFinal && Latest.Intent.Kind == ELDOpponentBodyKind::AttackUnit
+        && Latest.Intent.Handle == Walled.Handle)
     {
-        FLDCombatChargeRequest End;
-        End.Generation = Binding.GetMatch().Generation;
-        End.Life = Charge.Life;
-        End.Entry = Charge.Entry;
-        End.bCharging = false;
-        Mode.Combat->SubmitCharge(Reads.CombatCaller, End);
+        Walled.UntilMs = FMath::Max(Walled.UntilMs, Frame.Public.NowMs + LDOpponentPolicy::BodyRerouteIntervalMs);
     }
-    Charge = FChargeTrack();
+    if (Walled.UntilMs >= Frame.Public.NowMs && Frame.Units.ContainsByPredicate([this](const FLDOpponentUnit& Unit)
+        { return Unit.Handle == Walled.Handle && Unit.Epoch == Walled.Epoch; }))
+    {
+        Frame.WallingHandle = Walled.Handle;
+        Frame.WallingEpoch = Walled.Epoch;
+    }
+    Frame.PKThrowReadyAtMs = PKThrowSerial != 0 && PKThrowSerial == Frame.Public.PK.Serial ? PKThrowReadyAtMs : 0;
 }
 
 void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads, const FLDOpponentDecisionFrame& Frame,
     const FLDOpponentBodyIntent& Intent, int64 NowMs, FString& Problem)
 {
     TRACE_CPUPROFILER_EVENT_SCOPE(LDAI_DispatchBody);
-    // A charge lives only while the policy keeps asking to overdrive the same skill: any other intent (keep, stop, move,
-    // retreat, another skill) ends it on the authority so no stale charge stays visible or is reused later.
-    if (Charge.bHas)
+    if (Intent.Kind == ELDOpponentBodyKind::None || Intent.Kind == ELDOpponentBodyKind::Keep)
     {
-        const ELDCombatEntry Wanted = Intent.Source == ELDOpponentSourceSlot::Q ? ELDCombatEntry::Q
-            : Intent.Source == ELDOpponentSourceSlot::W ? ELDCombatEntry::W
-            : Intent.Source == ELDOpponentSourceSlot::E ? ELDCombatEntry::E : ELDCombatEntry::None;
-        if (Intent.Kind != ELDOpponentBodyKind::Activate || !Intent.bOverdrive || Wanted != Charge.Entry) { AbandonCharge(Mode, Reads); }
+        if (Reads.bCombat && Navigation) { KeepWalkClearOfBodies(Reads, Frame, NowMs, Problem); }
+        return;
     }
-    if (Intent.Kind == ELDOpponentBodyKind::None || Intent.Kind == ELDOpponentBodyKind::Keep) { return; }
     const FLDOpponentSelf& Self = Frame.Self;
     const uint32 Generation = Binding.GetMatch().Generation;
     const uint32 Life = Reads.Owner.BodyRef.Victim.Life;
@@ -926,33 +1133,6 @@ void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads,
     }
     if (Intent.Kind == ELDOpponentBodyKind::Activate)
     {
-        // Issue #287 spec §13: an overdrive holds the charge (seen by observers) for OVERDRIVE.HoldSec before the release.
-        bool bOverdriveNow = false;
-        if (Intent.bOverdrive && Intent.Source != ELDOpponentSourceSlot::Dash)
-        {
-            const ELDCombatEntry Held = Intent.Source == ELDOpponentSourceSlot::Q ? ELDCombatEntry::Q
-                : Intent.Source == ELDOpponentSourceSlot::W ? ELDCombatEntry::W : ELDCombatEntry::E;
-            // The authority ended the charge since (a stun, silence or knockback, or a bar drop): start over and time it anew.
-            if (Charge.bHas && Charge.Life == Life && Charge.Entry == Held && Reads.Combat.AsOfMs > Charge.StartMs
-                && Reads.Combat.ChargingEntry != Held)
-            {
-                Charge = FChargeTrack();
-            }
-            if (!Charge.bHas || Charge.Life != Life || Charge.Entry != Held)
-            {
-                FLDCombatChargeRequest Start;
-                Start.Generation = Generation;
-                Start.Life = Life;
-                Start.Entry = Held;
-                Start.bCharging = true;
-                Mode.Combat->SubmitCharge(Reads.CombatCaller, Start);
-                Charge = {true, Life, Held, NowMs};
-                return;
-            }
-            if (NowMs - Charge.StartMs < Content->Get().Parameters.Overdrive.HoldMs) { return; }
-            bOverdriveNow = true;
-        }
-        Charge = FChargeTrack();
         FLDCombatActionRequest Request;
         FString Error;
         if (DirectSequence == MAX_uint64 || !LDOpponentRequests::BuildAction(Intent, Generation, Life, DirectSequence + 1,
@@ -962,7 +1142,6 @@ void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads,
             Learn(Intent.Key, ELDOpponentSettle::Failed, Self, NowMs);
             return;
         }
-        Request.bOverdrive = bOverdriveNow;
         DirectSequence = Request.DirectSequence;
         ++Tally.Actions;
         Tally.Dashes += Intent.Source == ELDOpponentSourceSlot::Dash ? 1 : 0;

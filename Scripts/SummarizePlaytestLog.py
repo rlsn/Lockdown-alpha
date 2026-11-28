@@ -8,8 +8,10 @@ the frame-time and connection summaries, and the warnings and errors.
 
 From the Host's lines it also computes the gameplay metrics of the #287 spec §16 for each match and across all matches:
 damage share by source (basic / skill / card / reaction / other, on contenders and on camps), Q/W/E casts per
-person per fight (LD_CAST), time to kill, momentum income by kind (LD_MOMENTUM), breakout builds against a same-level
-bare-build DPS baseline (--baseline-dps), pick rates of offered actives and cards, outrageous hits (>= 60% of the
+person per fight (LD_CAST), time to kill, momentum income by kind (LD_MOMENTUM), auto-empower triggers (LD_EMPOWER: host,
+target, cost, paid-and-missed, re-trigger loops, armed time), breakout builds against a measured
+same-level bare-build DPS baseline (--baseline-run of BuildEvaluation bare-mirror duels, or --baseline-dps; none by
+default), pick rates of offered actives and cards, outrageous hits (>= 60% of the
 target's max HP), the longest chain (LD_CHAIN) and damage factors (LD_HIT factor_bp). A metric whose lines are absent
 says "no data" instead of a number. --metrics-only prints just these sections.
 
@@ -18,6 +20,7 @@ says "no data" instead of a number. --metrics-only prints just these sections.
 """
 
 import argparse
+import json
 import re
 import sys
 from collections import defaultdict
@@ -39,13 +42,15 @@ HOST_ONLY_TAGS = frozenset(
         "LD_HIT", "LD_HEARTBEAT", "LD_REWARD", "LD_LEVEL_UP", "LD_OFFER", "LD_OFFER_WAITING", "LD_CHOICE", "LD_BUILD",
         "LD_CARD", "LD_CARD_OFFER", "LD_DEATH_RECEIPT", "LD_CAMP_DEATH", "LD_MATCH_STARTING", "LD_MATCH_HEADER", "LD_MATCH_ROSTER",
         "LD_MATCH_SUMMARY", "LD_MATCH_SUMMARY_ROW", "LD_MATCH_STARTED", "LD_MATCH_RESULT", "LD_AI_DECISION",
-        "LD_AI_SUMMARY", "LD_MEMBER_LEFT", "LD_PLAYER_MARK_REJECTED", "LD_CAST", "LD_MOMENTUM",
+        "LD_AI_SUMMARY", "LD_MEMBER_LEFT", "LD_PLAYER_MARK_REJECTED", "LD_CAST", "LD_MOMENTUM", "LD_EMPOWER",
     }
 )
 # Once-per-second or ten-second samples: summarized, never listed one by one in a timeline.
 PERIODIC_TAGS = frozenset({"LD_HEARTBEAT", "LD_SELF_STATE", "LD_PERF", "LD_NET", "LD_PERF_HITCH"})
-# Routine AI and order bookkeeping: counted around a mark, listed only with --mark-all.
-ROUTINE_TAGS = frozenset({"LD_AI_DECISION", "LD_NAV_ACCEPT", "LD_NAV_END", "LD_CAMP_ATTACK", "LD_CAMP_CHASE_PATH_REJECTED"})
+# Routine AI and order bookkeeping, and the every-few-seconds auto-empower triggers: counted around a mark, listed only
+# with --mark-all.
+ROUTINE_TAGS = frozenset({"LD_AI_DECISION", "LD_NAV_ACCEPT", "LD_NAV_END", "LD_CAMP_ATTACK", "LD_CAMP_CHASE_PATH_REJECTED",
+                          "LD_EMPOWER"})
 GROWTH_TAGS = (
     "LD_REWARD", "LD_LEVEL_UP", "LD_OFFER", "LD_OFFER_WAITING", "LD_CHOICE", "LD_BUILD", "LD_CARD_OFFER", "LD_CARD",
     "LD_SELF_REWARD", "LD_SELF_LEVEL", "LD_SELF_OFFER", "LD_SELF_BUILD",
@@ -209,8 +214,8 @@ class Report:
     def __init__(self, events, names, death_window, mark_before, mark_after, mark_all=False,
                  baseline=None, baseline_source=None, metrics_only=False):
         self.events = events
-        self.baseline = baseline or DEFAULT_BASELINE_DPS
-        self.baseline_source = baseline_source or DEFAULT_BASELINE_SOURCE
+        self.baseline = baseline
+        self.baseline_source = baseline_source
         self.metrics_only = metrics_only
         self.metrics = []
         self.names = names
@@ -456,16 +461,31 @@ CHAIN_OUTRAGEOUS_STEPS = 5
 # 60 FPS) after it, so a release just before its caster's death can carry a time just after the death receipt.
 CAST_LAG_MS = 50
 LOW_PICK_RATE = 0.04
-# Same-level bare-build effective DPS (no cards, no points, armor 18) by level; linear between the points and extended
-# along the nearest segment outside them. --baseline-dps replaces it (for example with duel_site results).
-DEFAULT_BASELINE_DPS = ((1, 72.0), (10, 154.0))
-DEFAULT_BASELINE_SOURCE = "spec §3.9 estimate (L1 860 HP / 11.9 s, L10 1580 HP / about 10.25 s)"
+# The same-level bare build (no cards, no points, level-1 skills) has no default output rate: the breakout ratio needs a
+# measured one (--baseline-run of BuildEvaluation bare-mirror duels, or --baseline-dps). The old spec §3.9 estimate
+# (L1 72, L10 154, extended linearly) predates the current HP curve and overstated the native L16 bare mirror ~1.6x.
 # A reaction's settle hit carries its applier's own source and LD_HIT has no reaction field, so reaction damage stays in
 # its applier's category; a separate reaction share would need an authority field on LD_HIT.
 DAMAGE_CATEGORIES = (("basic", "basic"), ("skill", "skill"), ("card", "card"), ("other", "other"))
 DAMAGE_NOTE = "reaction settles count under their applier's source; reaction share: no data (LD_HIT has no reaction field)"
-MOMENTUM_INCOME = ("basic", "combat", "skill", "reaction", "dodge", "other")
+MOMENTUM_INCOME = ("basic", "combat", "skill", "reaction", "other")
 NO_DATA = "no data"
+NOT_APPLICABLE = "n/a (the Host log has no such mechanic)"
+NO_BASELINE = ("no measured same-level bare-build baseline; pass --baseline-run with BuildEvaluation bare-mirror runs "
+               "or --baseline-dps")
+# Auto-empower (Batch 01 momentum redesign): one LD_EMPOWER per host release with enough momentum (src, host, processor,
+# serial, paid, before, outcome applied/prepaid, or short with serial 0 when momentum fell below the cost); LD_HIT
+# empower=<serial> (0: none) marks the hits of that release and its derived events; LD_MOMENTUM empower=<count> and
+# armed_ms=<ms at or above the threshold> mark a Host that has the mechanic (a Host with the switch off writes 0).
+EMPOWER_HOSTS = ("Basic", "Q", "W", "E", "D")
+EMPOWER_PROCESSORS = ("fist", "strike", "guard", "move", "ward")
+# One empowerment is one applied line; a prepaid line delivers an empowerment an earlier applied release of that life
+# already paid for (a Q that empowers the next basic), with its own serial for the hits it lands.
+EMPOWER_DONE = ("applied",)
+# What an empowered release hit, from its tagged LD_HIT victims: a contender first, then a camp, else nothing.
+EMPOWER_TARGETS = ("contender", "camp", "none")
+# Two triggers of one body closer than this cannot both be paid from income: a refund loop or a derived re-trigger.
+EMPOWER_RAPID_MS = 250
 
 
 def authority_ms(event, key="t"):
@@ -493,14 +513,43 @@ def parse_baseline(text):
 
 
 def baseline_at(points, level):
-    """The bare-build DPS at level: linear between the two surrounding points, the nearest segment outside them."""
-    if len(points) == 1:
-        return points[0][1]
-    index = 0
-    while index < len(points) - 2 and level > points[index + 1][0]:
-        index += 1
-    (low, low_dps), (high, high_dps) = points[index], points[index + 1]
-    return max(low_dps + (high_dps - low_dps) * (level - low) / (high - low), 1.0)
+    """The bare-build DPS at level, linear between the two surrounding measured levels; None outside the measured levels
+    (a guess along the nearest segment is not a measurement)."""
+    if not points[0][0] <= level <= points[-1][0]:
+        return None
+    for (low, low_dps), (high, high_dps) in zip(points, points[1:]):
+        if level <= high:
+            return low_dps + (high_dps - low_dps) * (level - low) / (high - low)
+    return points[0][1]
+
+
+def baseline_from_runs(paths):
+    """((level, DPS), ...) and its description from BuildEvaluation duel_site runs: every Completed, uncensored Case of an
+    arm whose two sides keep every point unspent (a bare mirror) gives the duelists' mean output over its engage-to-kill
+    time; Invalid Cases (no engagement, never cast, contamination) never count."""
+    samples, runs = defaultdict(list), []
+    for path in paths:
+        run = Path(path)
+        manifest = json.loads((run / "manifest.json").read_text(encoding="utf-8"))
+        bare = {arm["id"] for arm in manifest["design"]["arms"]
+                if all(arm["plan"][role].get("keep_points_unspent") for role in ("subject", "opponent"))}
+        runs.append(run.name)
+        for text in (run / "cases.jsonl").read_text(encoding="utf-8").splitlines():
+            case = json.loads(text)
+            metrics = case.get("metrics", {})
+            ttk = metrics.get("engage_to_kill_ms") or {}
+            levels = {build.get("level") for build in case.get("facts", {}).get("builds", {}).values()}
+            if (case.get("status") != "Completed" or case.get("arm") not in bare or ttk.get("censored")
+                    or not ttk.get("value") or len(levels) != 1):
+                continue
+            output = (metrics["damage_dealt_hp"]["value"] + metrics["damage_taken_hp"]["value"]) / 2
+            samples[levels.pop()].append(output * 1000 / ttk["value"])
+    if not samples:
+        raise ValueError(f"no Completed, uncensored bare-mirror Case in {', '.join(runs)}")
+    points = tuple((level, sum(rows) / len(rows)) for level, rows in sorted(samples.items()))
+    source = ("measured bare mirror " + ", ".join(f"L{level} {dps:.1f} DPS (n={len(samples[level])})" for level, dps in points)
+              + f" from {', '.join(runs)}")
+    return points, source
 
 
 def hit_category(event):
@@ -725,14 +774,21 @@ def match_metrics(events, baseline):
         fight.level = levels(fight.contender, fight.start)
         fight.same_level = all(levels(other, fight.start) == fight.level for other in fight.opponents)
     out["fights"] = fights
+    # An AI contender whose every fight holds no Q/W/E release: an execution failure, not a style (a human is not judged).
+    humans = {event.get("contender") for event in events if event.tag == "LD_MATCH_ROSTER" and event.get("kind") == "Human"}
+    out["never_cast"] = ({contender: sum(1 for fight in fights if fight.contender == contender)
+                          for contender in sorted(contenders - humans)
+                          if any(fight.contender == contender for fight in fights)
+                          and not any(fight.casts for fight in fights if fight.contender == contender)}
+                         if casts else None)
     out["kills"] = kill_times(deaths, hits, contenders, levels)
 
-    # Momentum and perfect dodges of the field lives only: rest lives train against their dummies.
+    # Momentum and auto-empower of the field lives only: rest lives train against their dummies.
     def field_life(event):
         return event.get("entity") not in dummies and (event.get("entity"), event.get("life")) not in rest_lives
 
     # LD_MOMENTUM is written when a body leaves (death, rest, retirement); a life still alive when the match ends or the log
-    # stops has none. Dodges are counted over the same lives, and the field lives without a ledger are reported.
+    # stops has none, and the field lives without a ledger are reported.
     ledgers = [event for event in events if event.tag == "LD_MOMENTUM" and field_life(event)]
     ledger_lives = {(event.get("entity"), event.get("life")) for event in ledgers}
     field_lives = {(event.get("contender"), event.get("life")) for event in events if event.tag == "LD_HEARTBEAT"
@@ -741,23 +797,29 @@ def match_metrics(events, baseline):
     out["lives_without_ledger"] = len(field_lives - ledger_lives)
     momentum = defaultdict(float)
     for event in ledgers:
-        for key in (*MOMENTUM_INCOME, "idle", "spent", "overdrive"):
+        for key in (*MOMENTUM_INCOME, "idle", "spent"):
             momentum[key] += number(event, key)
     out["momentum"] = dict(momentum) if ledgers else None
     out["momentum_lives"] = len(ledgers)
-    out["perfect_dodges"] = sum(1 for event in events if event.tag == "LD_PERFECT_DODGE" and field_life(event)
-                                and (event.get("entity"), event.get("life")) in ledger_lives)
-    out["training_lines"] = sum(1 for event in events if event.tag in ("LD_MOMENTUM", "LD_PERFECT_DODGE")
-                                and not field_life(event))
+    out["training_lines"] = sum(1 for event in events if event.tag == "LD_MOMENTUM" and not field_life(event))
+    empowers = [event for event in events if event.tag == "LD_EMPOWER" and authority_ms(event) is not None
+                and field_life({"entity": event.get("src"), "life": event.get("life")})]
+    out["empower"] = (empower_stats(empowers, hits, ledgers, len(contenders), field_share(events))
+                      if empowers or any("empower" in event.fields for event in ledgers) else None)
 
-    # Breakout: damage to contenders over the contender's fights against the same-level bare build over the same time.
-    ratios = {}
-    for contender in sorted(contenders):
+    # Breakout: damage to contenders over the contender's fights against the same-level bare build over the same time;
+    # only fights at a measured baseline level count, the others are reported as left out.
+    ratios, outside = {}, 0
+    for contender in sorted(contenders) if baseline else ():
         own = [fight for fight in fights if fight.contender == contender]
-        expected = sum(baseline_at(baseline, fight.level) * max(fight.end - fight.start, 1000) / 1000 for fight in own)
+        inside = [(fight, baseline_at(baseline, fight.level)) for fight in own]
+        inside = [(fight, dps) for fight, dps in inside if dps is not None]
+        outside += len(own) - len(inside)
+        expected = sum(dps * max(fight.end - fight.start, 1000) / 1000 for fight, dps in inside)
         if expected:
-            ratios[contender] = sum(fight.dealt for fight in own) / expected
-    out["output_ratio"] = ratios
+            ratios[contender] = sum(fight.dealt for fight, _ in inside) / expected
+    out["output_ratio"] = ratios if baseline else None
+    out["baseline_outside"] = outside
 
     outrageous = [(number(event, "dmg") / number(event, "max_hp"), event) for event in hits
                   if event.get("victim") in contenders and event.get("src") != event.get("victim")
@@ -781,6 +843,16 @@ def match_metrics(events, baseline):
     out["amp_max_bp"] = max((int(number(event, "amp_bp")) for event in match_hits if event.get("amp_bp")), default=None)
     out["reaction_kinds"] = sorted({event.get("kind") for event in events if event.tag == "LD_REACTION"
                                     and event.get("trigger") not in dummies and event.get("primary") not in dummies})
+
+    # Field objectives (F2 arena, F3 mini flag): each serial should log Announced, Open and one terminal phase once.
+    objectives = {}
+    for event in events:
+        if event.tag == "LD_OBJECTIVE" and event.get("serial", "").isdigit():
+            row = objectives.setdefault(int(event.get("serial")), {"kind": event.get("kind"), "phases": [], "lines": 0})
+            row["lines"] += 1
+            if event.get("phase") not in row["phases"]:
+                row["phases"].append(event.get("phase"))
+    out["objectives"] = objectives
 
     # Offers and picks: an LD_OFFER (actives) or LD_CARD_OFFER (cards) lists the offered ids; LD_CHOICE and an LD_CARD
     # PickCard is a pick; an LD_CARD with installed=1 is an installation. Actives are active_*; every other id is a card.
@@ -842,13 +914,125 @@ def ttk_text(kills):
     return stats_text(mutual, 1, " s") + (f" (+{one_sided} one-sided kills)" if one_sided else "")
 
 
-def momentum_text(momentum, lives, dodges):
+def momentum_text(momentum, lives):
     income = sum(momentum.get(key, 0) for key in MOMENTUM_INCOME) if momentum else 0
     if not income:
         return f"{NO_DATA} (no LD_MOMENTUM line)"
     parts = ", ".join(f"{key} {100 * momentum.get(key, 0) / income:.1f}%" for key in MOMENTUM_INCOME)
     return (f"{income:.0f} over {lives} field lives ({parts}); idle drift {momentum.get('idle', 0):+.0f}, spent "
-            f"{momentum.get('spent', 0):.0f}, overdrives {momentum.get('overdrive', 0):.0f}, perfect dodges {dodges}")
+            f"{momentum.get('spent', 0):.0f}")
+
+
+def empower_stats(lines, hits, ledgers, contenders, share):
+    """Additive auto-empower totals of one match's field lives (empower_merge adds matches)."""
+    empowers = [event for event in lines if event.get("outcome") in EMPOWER_DONE]
+    # The serial restarts with every life and LD_HIT names no source life: a tagged hit belongs to the latest release of
+    # that source and serial at or before it.
+    releases = defaultdict(list)
+    for index, event in enumerate(empowers):
+        releases[(event.get("src"), event.get("serial"))].append((authority_ms(event), index))
+    for event in lines:
+        if event.get("outcome") == "prepaid":
+            paid = [index for index, release in enumerate(empowers) if release.get("src") == event.get("src")
+                    and release.get("life") == event.get("life") and authority_ms(release) <= authority_ms(event)]
+            if paid:
+                releases[(event.get("src"), event.get("serial"))].append((authority_ms(event), paid[-1]))
+    for rows in releases.values():
+        rows.sort()
+    victims, tally = defaultdict(set), defaultdict(int)
+    for event in hits:
+        if event.get("empower") in ("", "-", "0") or authority_ms(event) is None:
+            continue
+        owners = [index for at, index in releases.get((event.get("src"), event.get("empower")), []) if at <= authority_ms(event)]
+        if owners:
+            victims[owners[-1]].add(event.get("victim_kind"))
+            tally[owners[-1]] += 1
+    rapid, last = 0, {}
+    for event in sorted(empowers, key=lambda event: (event.get("src"), authority_ms(event))):
+        key = (event.get("src"), event.get("life"))
+        if key in last and authority_ms(event) - last[key] < EMPOWER_RAPID_MS:
+            rapid += 1
+        last[key] = authority_ms(event)
+    has_tags = any("empower" in event.fields for event in hits)
+    struck = [victims.get(index, set()) for index in range(len(empowers))]
+    armed = [number(event, "armed_ms") for event in ledgers if "armed_ms" in event.fields]
+    return {
+        "triggers": len(empowers),
+        "short": sum(1 for event in lines if event.get("outcome") == "short"),
+        "hosts": {host: sum(1 for event in empowers if event.get("host") == host) for host in EMPOWER_HOSTS},
+        "processors": {name: sum(1 for event in empowers if event.get("processor") == name) for name in EMPOWER_PROCESSORS},
+        # Unknown without the LD_HIT empower field.
+        "targets": ({"contender": sum(1 for kinds in struck if "contender" in kinds),
+                     "camp": sum(1 for kinds in struck if kinds and "contender" not in kinds and "camp" in kinds),
+                     "none": sum(1 for kinds in struck if not kinds)} if has_tags else None),
+        "cost": sum(number(event, "paid") for event in empowers),
+        "before": sum(number(event, "before") for event in empowers),
+        "whiffs": sum(1 for kinds in struck if not kinds) if has_tags else None,
+        "max_hits": max(tally.values(), default=0) if has_tags else None,
+        "rapid": rapid,
+        "armed_ms": sum(armed) if armed else None,
+        "contender_field_ms": contenders * share[0] if share else None,
+    }
+
+
+def empower_merge(total, stats):
+    if stats is None:
+        return total
+    if total is None:
+        return {key: dict(value) if isinstance(value, dict) else value for key, value in stats.items()}
+    for key, value in stats.items():
+        if isinstance(value, dict) or value is None and key == "targets":
+            if value is None or total[key] is None:
+                total[key] = None
+                continue
+            for inner, count in value.items():
+                total[key][inner] += count
+        elif key == "max_hits":
+            total[key] = None if value is None or total[key] is None else max(total[key], value)
+        else:
+            total[key] = None if value is None or total[key] is None else total[key] + value
+    return total
+
+
+def empower_text(stats):
+    if stats is None:
+        return NOT_APPLICABLE
+    count = stats["triggers"]
+    minutes = (stats["contender_field_ms"] or 0) / 60000
+    armed = (f"{100 * stats['armed_ms'] / stats['contender_field_ms']:.0f}% of contender field time"
+             if stats["armed_ms"] is not None and stats["contender_field_ms"]
+             else f"{NO_DATA} (no armed_ms or no finished field time)")
+    short = f"; momentum short at release {stats['short']}" if stats["short"] else ""
+    if not count:
+        return f"0 triggers{short}; armed {armed}"
+    def shares(counts):
+        return ", ".join(f"{key} {100 * value / count:.0f}%" for key, value in counts.items() if value)
+    rate = f"{count / minutes:.2f} per contender field minute" if minutes else f"rate {NO_DATA} (no finished field time)"
+    whiffs = (f"{100 * stats['whiffs'] / count:.0f}%" if stats["whiffs"] is not None
+              else f"{NO_DATA} (LD_HIT has no empower field)")
+    targets = shares(stats["targets"]) if stats["targets"] is not None else f"{NO_DATA} (LD_HIT has no empower field)"
+    most = stats["max_hits"] if stats["max_hits"] is not None else NO_DATA
+    return (f"{count} triggers ({rate}){short}; hosts {shares(stats['hosts'])}; processors {shares(stats['processors'])}; "
+            f"targets {targets}; "
+            f"paid and missed {whiffs}; mean cost {stats['cost'] / count:.1f}, mean momentum before "
+            f"{stats['before'] / count:.1f}; re-triggers within {EMPOWER_RAPID_MS} ms {stats['rapid']}; "
+            f"most hits from one trigger {most}; armed {armed}")
+
+
+OBJECTIVE_PHASES = {"1": "Announced", "2": "Open", "3": "Won", "4": "Expired"}  # ELDObjectivePhase (LDFieldPacing.h)
+OBJECTIVE_TERMINAL = ("3", "4")
+
+
+def objective_text(objectives):
+    if not objectives:
+        return f"{NO_DATA} (no LD_OBJECTIVE line)"
+    parts = []
+    for serial, row in sorted(objectives.items()):
+        flow = "→".join(OBJECTIVE_PHASES.get(phase, phase) for phase in row["phases"])
+        end = "" if any(phase in OBJECTIVE_TERMINAL for phase in row["phases"]) else ", never ended"
+        repeated = row["lines"] - len(row["phases"])
+        parts.append(f"#{serial} {row['kind']} {flow}{end}" + (f", {repeated} repeated lines" if repeated else ""))
+    return "; ".join(parts)
 
 
 def metric_lines(metrics, names, baseline_source):
@@ -864,18 +1048,27 @@ def metric_lines(metrics, names, baseline_source):
     fights, kills = metrics["fights"], metrics["kills"]
     lines.append(f"- Casts per person per fight (Q/W/E releases): {casts_text(fights, metrics['has_casts'])}")
     lines.append(f"  - same-level fights: {casts_text([fight for fight in fights if fight.same_level], metrics['has_casts'])}")
+    if metrics["never_cast"]:
+        lines.append(f"  - AI that never cast in any of their fights: {len(metrics['never_cast'])} ("
+                     + ", ".join(f"{names(contender)} {count} fights" for contender, count in metrics["never_cast"].items()) + ")")
     lines.append(f"- Time to kill (first damage between the pair to the death): {ttk_text(kills)}")
     for level in sorted({kill["level"] for kill in kills if kill["same_level"]}):
         lines.append(f"  - same level L{level}: {ttk_text([kill for kill in kills if kill['same_level'] and kill['level'] == level])}")
-    lines.append(f"- Momentum income: {momentum_text(metrics['momentum'], metrics['momentum_lives'], metrics['perfect_dodges'])}"
-                 + (f" ({metrics['training_lines']} rest-training ledger/dodge lines left out)" if metrics["training_lines"] else "")
+    lines.append(f"- Momentum income: {momentum_text(metrics['momentum'], metrics['momentum_lives'])}"
+                 + (f" ({metrics['training_lines']} rest-training ledger lines left out)" if metrics["training_lines"] else "")
                  + (f"; incomplete: {metrics['lives_without_ledger']} field lives have no ledger (alive at the match end)"
                     if metrics["lives_without_ledger"] else ""))
+    lines.append(f"- Auto-empower: {empower_text(metrics['empower'])}")
     ratios = metrics["output_ratio"]
-    breakouts = sum(1 for ratio in ratios.values() if ratio >= BREAKOUT_RATIO)
-    ranked = ", ".join(f"{names(contender)} x{ratio:.2f}" for contender, ratio in sorted(ratios.items(), key=lambda row: -row[1]))
-    lines.append(f"- Breakout builds (output / same-level bare build >= {BREAKOUT_RATIO:g}, baseline {baseline_source}): "
-                 f"{breakouts}" + (f" ({ranked})" if ranked else ""))
+    if ratios is None:
+        lines.append(f"- Breakout builds: {NO_DATA} ({NO_BASELINE})")
+    else:
+        breakouts = sum(1 for ratio in ratios.values() if ratio >= BREAKOUT_RATIO)
+        ranked = ", ".join(f"{names(contender)} x{ratio:.2f}" for contender, ratio in sorted(ratios.items(), key=lambda row: -row[1]))
+        lines.append(f"- Breakout builds (output / same-level bare build >= {BREAKOUT_RATIO:g}, baseline {baseline_source}): "
+                     f"{breakouts}" + (f" ({ranked})" if ranked else "")
+                     + (f"; {metrics['baseline_outside']} fights outside the measured levels left out"
+                        if metrics["baseline_outside"] else ""))
     outrageous = metrics["outrageous"]
     lines.append(f"- Outrageous hits (>= {OUTRAGEOUS_SHARE:.0%} of the target's max HP): {len(outrageous)}")
     for ratio, event in outrageous[:5]:
@@ -894,6 +1087,7 @@ def metric_lines(metrics, names, baseline_source):
         lines.append(f"- Damage factors: {NO_DATA} (LD_HIT has no factor_bp{old})")
     kinds = metrics["reaction_kinds"]
     lines.append(f"- Reaction kinds: {len(kinds)}" + (f" ({', '.join(kinds)})" if kinds else ""))
+    lines.append(f"- Field objectives: {objective_text(metrics['objectives'])}")
     cards = sum(count for card, count in metrics["offered"].items() if not card.startswith("active_"))
     lines.append(f"- Cards offered: {cards}" if cards else f"- Cards offered: {NO_DATA} (no card offer)")
     lines.append(share_line_text)
@@ -931,6 +1125,15 @@ def pick_lines(all_metrics):
     return lines
 
 
+def objective_totals(host):
+    rows = [row for metrics in host for row in metrics["objectives"].values()]
+    if not rows:
+        return f"{NO_DATA} (no LD_OBJECTIVE line)"
+    ended = sum(1 for row in rows if any(phase in OBJECTIVE_TERMINAL for phase in row["phases"]))
+    repeated = sum(row["lines"] - len(row["phases"]) for row in rows)
+    return f"{ended} of {len(rows)}" + (f"; {repeated} repeated phase lines" if repeated else "")
+
+
 def aggregate_lines(all_metrics, baseline_source):
     """The §16 table across every match of these logs; the targets guide judgement and are never a gate."""
     host = [metrics for metrics in all_metrics if metrics["has_hits"]]
@@ -947,7 +1150,8 @@ def aggregate_lines(all_metrics, baseline_source):
     has_casts = any(metrics["has_casts"] for metrics in host)
     no_casts = sum(1 for metrics in host if not metrics["has_casts"])
     same_kills = [kill for kill in kills if kill["same_level"]]
-    breakouts = [sum(1 for ratio in metrics["output_ratio"].values() if ratio >= BREAKOUT_RATIO) for metrics in host]
+    breakouts = [sum(1 for ratio in metrics["output_ratio"].values() if ratio >= BREAKOUT_RATIO) for metrics in host
+                 if metrics["output_ratio"] is not None]
     moments = [len(metrics["outrageous"]) + sum(1 for steps in (metrics["chains"] or []) if steps >= CHAIN_OUTRAGEOUS_STEPS)
                for metrics in host]
     winners = [metrics["winner_build"] for metrics in host if metrics["winner_build"]]
@@ -960,17 +1164,22 @@ def aggregate_lines(all_metrics, baseline_source):
               f"| Casts per person per same-level fight | 7–10 | "
               f"{casts_text([fight for fight in fights if fight.same_level], has_casts)} |",
               f"| Casts per person per fight, any level | — | {casts_text(fights, has_casts)} |",
-              f"| Breakout builds per match (x{BREAKOUT_RATIO:g} the same-level bare build) | 1–2 | {stats_text(breakouts, 2)} |",
+              f"| AI that never cast in any of their fights | 0 | "
+              f"{sum(len(metrics['never_cast']) for metrics in host if metrics['never_cast'] is not None) if has_casts else NO_DATA} |",
+              f"| Breakout builds per match (x{BREAKOUT_RATIO:g} the same-level bare build) | 1–2 | "
+              f"{stats_text(breakouts, 2) if breakouts else f'{NO_DATA} ({NO_BASELINE})'} |",
               f"| Distinct winner builds (actives, points, installed cards) | ≥ 8 per 50 matches | {winner_text} |",
               f"| Matches with an outrageous moment (hit ≥ 60% max HP or chain ≥ 5) | every match | "
               f"{sum(1 for count in moments if count)} of {len(host)} |",
               f"| Reaction kinds per match | ≥ 6 (after P4) | {stats_text([len(metrics['reaction_kinds']) for metrics in host])} |",
+              f"| Field objectives that ended (Won or Expired) | every one | "
+              f"{objective_totals(host)} |",
               f"| Field time share (before the showdown / whole match) | ≥ 65% | "
               f"{share_text} |", "",
               *([f"Casts leave out {no_casts} matches without LD_CAST lines.", ""] if no_casts and has_casts else []),
-              f"Breakout baseline: {baseline_source}.", ""]
+              f"Breakout baseline: {baseline_source or 'none measured'}.", ""]
     totals = {"contender": defaultdict(float), "camp": defaultdict(float)}
-    momentum, lives, dodges, missing = defaultdict(float), 0, 0, 0
+    momentum, lives, missing, empower = defaultdict(float), 0, 0, None
     for metrics in host:
         for group, amounts in metrics["damage_share"].items():
             for key, value in amounts.items():
@@ -978,13 +1187,14 @@ def aggregate_lines(all_metrics, baseline_source):
         for key, value in (metrics["momentum"] or {}).items():
             momentum[key] += value
         lives += metrics["momentum_lives"]
-        dodges += metrics["perfect_dodges"]
         missing += metrics["lives_without_ledger"]
+        empower = empower_merge(empower, metrics["empower"])
     lines.append(f"- Damage share, hits on contenders: {share_line(totals['contender'])}")
     lines.append(f"- Damage share, hits on camps: {share_line(totals['camp'])}")
     lines.append(f"  - {DAMAGE_NOTE}")
-    lines.append(f"- Momentum income: {momentum_text(momentum, lives, dodges)}"
+    lines.append(f"- Momentum income: {momentum_text(momentum, lives)}"
                  + (f"; incomplete: {missing} field lives have no ledger (alive at the match end)" if missing else ""))
+    lines.append(f"- Auto-empower: {empower_text(empower)}")
     for level in sorted({kill["level"] for kill in same_kills}):
         lines.append(f"- Same-level time to kill at L{level}: {ttk_text([kill for kill in same_kills if kill['level'] == level])}")
     chains = [steps for metrics in host for steps in (metrics["chains"] or [])]
@@ -994,16 +1204,17 @@ def aggregate_lines(all_metrics, baseline_source):
     return lines + pick_lines(host)
 
 
-def summarize(logs, death_window=10.0, mark_before=30.0, mark_after=10.0, mark_all=False, baseline=None, metrics_only=False):
+def summarize(logs, death_window=10.0, mark_before=30.0, mark_after=10.0, mark_all=False, baseline=None, metrics_only=False,
+              baseline_source=None):
     events, names = [], Names()
     for source, rows in logs:
         assign_generations(rows)
         names.learn(rows)
         events.extend(rows)
     events.sort(key=lambda event: (event.when, event.source, event.order))
-    source = DEFAULT_BASELINE_SOURCE if baseline is None else "--baseline-dps " + ",".join(f"{level}={dps:g}" for level, dps in baseline)
-    report = Report(events, names, death_window, mark_before, mark_after, mark_all,
-                    DEFAULT_BASELINE_DPS if baseline is None else baseline, source, metrics_only)
+    source = baseline_source or (None if baseline is None else
+                                 "--baseline-dps " + ",".join(f"{level}={dps:g}" for level, dps in baseline))
+    report = Report(events, names, death_window, mark_before, mark_after, mark_all, baseline, source, metrics_only)
     report.out("# Lockdown playtest summary")
     report.out()
     # A generation is unique only inside one Host process. When several Host logs reuse one, each Host log's match stays
@@ -1074,11 +1285,22 @@ def main(argv=None):
     parser.add_argument("--mark-after", type=float, default=10.0, help="seconds of events listed after each mark")
     parser.add_argument("--mark-all", action="store_true", help="also list routine AI and order lines around each mark")
     parser.add_argument("--baseline-dps", type=parse_baseline, default=None, metavar="LEVEL=DPS,...",
-                        help="same-level bare-build DPS by level for breakout builds (default: the spec §3.9 estimate)")
+                        help="measured same-level bare-build DPS by level for breakout builds")
+    parser.add_argument("--baseline-run", action="append", default=None, metavar="RUN_DIR",
+                        help="BuildEvaluation run directory whose bare-mirror Cases measure the bare-build DPS by level "
+                             "(repeatable; for example p3-ttk-baseline-l1/l6/l10)")
     parser.add_argument("--metrics-only", action="store_true", help="print only the spec §16 metric sections")
     parser.add_argument("--check-client", action="store_true",
                         help="fail when a log that never hosted a match contains Host-only authority lines")
     args = parser.parse_args(argv)
+    baseline, baseline_source = args.baseline_dps, None
+    if args.baseline_run:
+        if baseline:
+            parser.error("--baseline-dps and --baseline-run are alternatives")
+        try:
+            baseline, baseline_source = baseline_from_runs(args.baseline_run)
+        except (OSError, ValueError, KeyError) as error:
+            parser.error(f"--baseline-run: {error}")
     logs = collect(args.logs)
     if not logs:
         print("No Lockdown LD_ lines found in the given logs.", file=sys.stderr)
@@ -1095,8 +1317,8 @@ def main(argv=None):
                 print(f"{source}: {role} holds no Host-only authority lines ({len(rows)} lines checked)")
         if failed:
             return 1
-    text = summarize(logs, args.death_window, args.mark_before, args.mark_after, args.mark_all, args.baseline_dps,
-                     args.metrics_only)
+    text = summarize(logs, args.death_window, args.mark_before, args.mark_after, args.mark_all, baseline,
+                     args.metrics_only, baseline_source)
     if args.out:
         Path(args.out).write_text(text, encoding="utf-8")
     else:

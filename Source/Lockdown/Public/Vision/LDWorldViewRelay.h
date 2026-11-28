@@ -133,15 +133,13 @@ namespace LDObservedPresentation
         uint16 CueImpactDelayMs = 0;
         uint8 ActionAbility = 0;  // the Cast cue's ability, 0 otherwise
         uint8 ActionComboStep = 0;  // the Attack cue's combo step, 0 otherwise
-        bool bCharging = false;   // the public overdrive charge
-        uint16 ChargeAgeMs = 0;
-        bool bOverdriveCast = false;  // the Cast cue is an overdrive release
         uint8 RecentReaction = 0, RecentReactionElement = 0;
         uint16 RecentReactionAgePlusOneMs = 0;
         ELDObservedHitLook HitLook = ELDObservedHitLook::None;
         uint16 RecentHitAgePlusOneMs = 0;
         FGuid RecentHitId;
         uint8 HitFlags = 0;
+        uint8 CueFlags = 0;  // LDObservation::ECueFlags
         TArray<FLDObservedStatus> Statuses;
     };
     // Points ascend by At. Before the first point: the first; between two: linear, yaw along the shorter arc; at or after
@@ -304,8 +302,6 @@ public:
 private:
     UPROPERTY() TObjectPtr<UStaticMeshComponent> Chalk;
     UPROPERTY() TObjectPtr<UStaticMeshComponent> Accent;
-    // A phantom decoy's figure: a still copy of the body it left (ULDImpactFxSubsystem::StandIn).
-    UPROPERTY() TObjectPtr<class UPoseableMeshComponent> StandIn;
     UPROPERTY() TObjectPtr<UStaticMesh> BoxMesh;
     UPROPERTY() TObjectPtr<UStaticMesh> CylinderMesh;
     UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> EffectTint;

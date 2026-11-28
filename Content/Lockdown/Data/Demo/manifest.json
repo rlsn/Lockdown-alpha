@@ -1,14 +1,14 @@
 {
-  "author_schema_sha256": "28c01b4a5dfa38a6fbf4908413caec88df06794b772b6e3f8a96c12b5a9b4a7a",
+  "author_schema_sha256": "cff70a6e460f65e2ba600d5ba76682d22d6e4a038c82b00111aa501dcb93cd6c",
   "content": {
     "file": "demo_content.json",
-    "sha256": "ddbc5fd3862f2aa69fdd3004da37fe6fa0fe09d1f09d63c3a3ca9cb9a2382d13"
+    "sha256": "aa8164230be3b2881104cb369fdc13c4ca6277aa8003cecccb9b08bf2cb712cb"
   },
-  "display_sha256": "bcea7d2dbed3ba2e118da449cdef1e70c287c7b0495424a4b5482c163308d4ca",
+  "display_sha256": "5e11b60a25d8d7bcf537b0c23a5c753559d739f5697ff04f8cba081a7c0edfba",
   "format": "lockdown-demo-content",
   "handler_revision": 15,
-  "native_contract_sha256": "03f227bfb44eda1d4b249cb59ef403e0faee3ef825f6cc0efcbc9f54ca8e6785",
-  "native_ids_sha256": "dfa2d83fdab2eb6f21e29ed719866c5ff59df3813d654c6f20af186bd4c19cbc",
+  "native_contract_sha256": "056521e1ba3188c89b451911e8a94a2f8e2ec40684689b7f8d19683c04f98288",
+  "native_ids_sha256": "23a4c156a5af9fbc88827d005582579e0e2e0a838fe4512eab025c3e9b86f301",
   "projection_revision": 11,
   "schema_version": 8,
   "world": {

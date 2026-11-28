@@ -25,7 +25,12 @@ namespace LDObservation
     // 21 packs public status expiry times without losing precision.
     // 22 uses the finer square-cell ground coverage raster.
     // 23 moves camp-clear recovery orbs and #345 tactical entities/hit flags into sight-authorized FLDWorldView.
-    constexpr uint32 Schema = 24;
+    // 25 removes the overdrive charge, the overdrive cast, the Overdriven hit flag and the phantom decoy look (23 is a hole).
+    // 26 removes the Dodged hit flag (32 is a hole).
+    // 27 adds the observer's incoming locks (C-12).
+    // 28 adds a unit's cue flags (C-09 commit tell, the C-10 prototype guard) and the observer's own prototype flags.
+    // 29 adds the public auto-empower ready mark (EmpowerReady) to the momentum group.
+    constexpr uint32 Schema = 29;
     // A ground state's wire size (LDViewTypes.cpp SerializeObservedGround): SC-07 registers MaxGroundStates of them per frame.
     constexpr int32 GroundStateWireBytes = 16;
     // The public momentum bar of a visible contender: 0..MomentumBarFull (never the exact value).
@@ -35,10 +40,8 @@ namespace LDObservation
     constexpr uint16 RecentHitWindowMs = 300;
     // A visible reaction's name floats over its target while its cue is this young (spec §12).
     constexpr uint16 RecentReactionWindowMs = 1000;
-    // Overdriven: the hit came from an overdrive release. Public like the charge that preceded it (spec: the charge ring
-    // shows to everyone who sees the body); the owner receipt carries the same bit (LDCombatCues::DealtOverdrive).
-    enum EHitFlags : uint8 { Critical = 1, ShieldAbsorbed = 2, ShieldBroken = 4, Overdriven = 16, Dodged = 32, Parried = 64 };
-    constexpr uint8 HitFlagsMask = Critical | ShieldAbsorbed | ShieldBroken | Overdriven | Dodged | Parried;
+    enum EHitFlags : uint8 { Critical = 1, ShieldAbsorbed = 2, ShieldBroken = 4, Parried = 64 };
+    constexpr uint8 HitFlagsMask = Critical | ShieldAbsorbed | ShieldBroken | Parried;
     // Square display cells sampled over the native ground bounds with padding as needed. Low bit first.
     constexpr int32 CoverageWidth = 512;
     constexpr int32 CoverageHeight = 320;
@@ -62,12 +65,19 @@ namespace LDObservation
     // Spec §8.3/§14: every live ground state of the map at once (GROUND.MaxTotal fits it); each is one compact public record.
     constexpr int32 MaxGroundStates = 40;
     constexpr int32 MaxRecoveryOrbs = 48;
+    // C-12: unit skills in their windup locking the observer, one per other contender; each windup is under a minute.
+    constexpr int32 MaxIncomingLocks = 7;
+    constexpr uint32 MaxIncomingLockMs = 60000;
     static_assert(MaxUnits + MaxProjectiles <= MAX_uint16, "Conceal count must represent all authorized handles.");
     // One identity tint per seat of the eight-contender roster (APP_SPEC 1).
     constexpr uint8 MaxPresentations = 8;
     constexpr int32 MaxMapIdBytes = 63;
     // Bit 32 (the retired equipment slots, #144) is never reused.
     enum EField : uint32 { Identity = 1, Level = 2, Health = 4, Momentum = 8, Statuses = 16, Actives = 64 };
+    // FLDObservedUnitView::CueFlags. CommitWindup: the current cue is a windup with an approved committing start (C-09), shown
+    // until its release. ProtoAgencyGuard: a contender in its C-10 prototype guard (only with -LDProtoAgency on the server).
+    enum ECueFlags : uint8 { CommitWindup = 1, ProtoAgencyGuard = 2 };
+    constexpr uint8 CueFlagsMask = CommitWindup | ProtoAgencyGuard;
     constexpr uint32 ContenderFields = Identity | Level | Health | Momentum | Statuses | Actives;
     constexpr uint32 CampFields = Identity | Health | Statuses;
 }
@@ -85,8 +95,8 @@ UENUM() enum class ELDObservedProjectileLook : uint8
     ChalkReturn = 12, SockReturn = 13, Road = 14, ConeWarning = 15, LineWarning = 16, Wind = 17,
     // N4: a school bag (RadiusCm = its body) and the wall between two bags (LengthCm, RadiusCm = half width).
     Bag = 18, BagWall = 19,
-    // #345: piercing fist-wind wave, collectible slipper drop, elastic cordon tape, phantom decoy afterimage, and shield shard burst.
-    FistWind = 20, SlipperDrop = 21, CordonTape = 22, PhantomDecoy = 23, ShardBurst = 24
+    // #345: piercing fist-wind wave, collectible slipper drop, elastic cordon tape and shield shard burst (23 is retired).
+    FistWind = 20, SlipperDrop = 21, CordonTape = 22, ShardBurst = 24
 };
 // Spec §8.3 ground-state footprints: a circle, D10's band (ExtentCm = half length) or N1's sector (ExtentCm = angle).
 UENUM() enum class ELDObservedGroundShape : uint8 { Circle = 0, Band = 1, Sector = 2 };
@@ -150,14 +160,11 @@ struct FLDObservedUnitView
     // The live shield as a share of the maximum HP, quantized to 0..LDObservation::ShieldBarFull (never the exact amount);
     // sent with the health field, so the head bar can show how thick it is.
     UPROPERTY() uint8 ShieldBar = 0;
-    // Contenders: the momentum bar quantized to 0..LDObservation::MomentumBarFull and whether an overdrive charge shows.
+    // Contenders: the momentum bar quantized to 0..LDObservation::MomentumBarFull.
     UPROPERTY() uint8 MomentumBar = 0;
-    UPROPERTY() bool bCharging = false;
-    // How long the shown charge has been held on the authority clock (0 without a charge), so a body entering sight
-    // mid-hold shows the charge where it is.
-    UPROPERTY() uint16 ChargeAgeMs = 0;
-    // Contenders: the shown Cast cue is an overdrive release (authorized with the momentum bar, like the charge).
-    UPROPERTY() bool bOverdriveCast = false;
+    // Auto-empower: the kind (ELDEmpowerProcessor) of the empowered action this contender's next host action would be, while
+    // its bar holds the threshold and the host can act now; 0 otherwise. Sent with the momentum field.
+    UPROPERTY() uint8 EmpowerReady = 0;
     // The combo step (1..3) of an Attack cue; 0 for every other cue.
     UPROPERTY() uint8 ActionComboStep = 0;
     // The reaction this unit suffered (ELDCombatReaction 1..15) and 1 + its age; 0 = none within the window.
@@ -165,6 +172,8 @@ struct FLDObservedUnitView
     UPROPERTY() uint16 RecentReactionAgePlusOneMs = 0;
     // The element that set that reaction off (ELDCombatElement 1..6); 0 with no reaction.
     UPROPERTY() uint8 RecentReactionElement = 0;
+    // LDObservation::ECueFlags.
+    UPROPERTY() uint8 CueFlags = 0;
     UPROPERTY() TArray<FLDObservedStatus> Statuses;
     UPROPERTY() FLDObservedActivesView Actives;
 };
@@ -243,6 +252,17 @@ struct FLDObservedRecoveryOrb
     UPROPERTY() FVector_NetQuantize10 PositionCm = FVector::ZeroVector;
 };
 
+// C-12: a unit skill in its windup that locks the observer, cast by a unit of this same frame (its handle), with the time
+// left to its release and the skill's native id. Only the locked observer's own frame lists it.
+USTRUCT()
+struct FLDObservedIncomingLock
+{
+    GENERATED_BODY()
+    UPROPERTY() FGuid SourceHandle;
+    UPROPERTY() uint32 RemainingMs = 0;
+    UPROPERTY() uint8 Ability = 0;
+};
+
 USTRUCT()
 struct FLDObservedFootprint
 {
@@ -273,6 +293,9 @@ struct LOCKDOWN_API FLDWorldView
     UPROPERTY() TArray<FLDObservedGroundState> GroundStates;
     UPROPERTY() TArray<FLDObservedRecoveryOrb> RecoveryOrbs;
     UPROPERTY() TArray<FName> WitnessedEmptyCamps;
+    UPROPERTY() TArray<FLDObservedIncomingLock> IncomingLocks;
+    // The observer's own LDObservation::ProtoAgencyGuard (C-10 prototype only); 0 otherwise.
+    UPROPERTY() uint8 OwnProtoFlags = 0;
     // Not on the wire: the bytes this view took when a connection delivered it; 0 for a view built or delivered locally.
     int32 ReceivedWireBytes = 0;
     bool NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuccess);
@@ -324,16 +347,16 @@ struct FLDObservedPublicFacts
     uint8 HitFlags = 0;
     // Source of a Cast cue (FLDObservedUnitView::ActionAbility): one approved ability id, 0 otherwise.
     uint8 ActionAbility = 0;
-    // The combo step of an Attack cue and a held overdrive charge (contenders).
+    // The combo step of an Attack cue (contenders).
     uint8 ActionComboStep = 0;
-    bool bCharging = false;
-    int64 ChargeAtMs = 0;
-    bool bOverdriveCast = false;
     uint8 MomentumBar = 0;
+    uint8 EmpowerReady = 0;
     // The last reaction on this body within LDObservation::RecentReactionWindowMs, and when.
     uint8 LastReaction = 0;
     int64 LastReactionAtMs = 0;
     uint8 LastReactionElement = 0;
+    // LDObservation::ECueFlags of this body now.
+    uint8 CueFlags = 0;
 };
 
 // Server-only public fact of one live ground state (ALDCombatDirector::ReadObservedGround). Never serialized.

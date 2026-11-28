@@ -215,12 +215,10 @@ CARD_FRAMES = {
     "card_bump_reset": ("撞着就刷新", "dash", "trigger"),
     "card_bump_again": ("撞着了再撞", "dash", "trigger"),
     "card_dash_punch": ("蹿过去抡一拳", "dash", "trigger"),
-    "card_dodge_strike": ("闪完就打", "dash", "trigger"),
     "card_double_dash": ("两段冲刺", "dash", "modify"),
     "card_pass_through": ("穿人而过", "dash", "modify"),
     "card_head_down": ("闷头撞到底", "dash", "modify"),
     "card_paid_dash": ("冲刺耗劲", "dash", "convert"),
-    "card_slippery": ("越躲越快", "dash", "grow"),
     "card_ice_trail": ("一路结冰", "dash", "element"),
     "card_move_turf": ("挪地盘", "dash", "element"),
     "card_spiky_hide": ("打我也硌手", "body", "trigger"),
@@ -233,7 +231,6 @@ CARD_FRAMES = {
     "card_ball_kick": ("拿你当球踢", "body", "trigger"),
     "card_skill_crit": ("技能也能暴击", "body", "modify"),
     "card_skill_drain": ("吸血对技能生效", "body", "modify"),
-    "card_short_breath": ("气短", "body", "modify"),
     "card_double_stall": ("双摊位", "body", "modify"),
     "card_thick_hide": ("皮糙肉厚", "body", "convert"),
     "card_overfed": ("吃撑了", "body", "convert"),
@@ -265,7 +262,6 @@ CARD_FRAMES = {
     "card_let_bullets_fly": ("让子弹飞", "body", "modify"),
     "card_eagle_stance": ("鹰眼架枪", "body", "modify"),
     "card_runaway_train": ("失控列车", "dash", "convert"),
-    "card_phantom_molt": ("幻影脱壳", "dash", "trigger"),
     "card_skate_blade": ("冰刀割裂", "body", "trigger"),
     "card_tonnage_crush": ("吨位碾压", "body", "convert"),
     "card_hulking_presence": ("大块头有威慑", "body", "convert"),
@@ -352,14 +348,23 @@ class ApprovedDemoData(unittest.TestCase):
             ("MOMENTUM.Max", "momentum", "100"), ("MOMENTUM.Start", "momentum", "50"),
             ("MOMENTUM.CombatPerSec", "momentum/s", "5"), ("MOMENTUM.BasicPerRefInterval", "momentum", "10"),
             ("MOMENTUM.BasicRefIntervalSec", "ms", "1.334"), ("MOMENTUM.SkillHit", "momentum", "5"),
-            ("MOMENTUM.Reaction", "momentum", "10"), ("MOMENTUM.PerfectDodge", "momentum", "20"),
-            ("MOMENTUM.PerfectDodgeWindowSec", "ms", ".3"), ("MOMENTUM.DashDodgeWindowSec", "ms", ".12"),
-            ("MOMENTUM.DashDodgeCutRatio", "ratio", ".5"), ("MOMENTUM.DashDodgeCooldownRefundRatio", "ratio", ".3"),
+            ("MOMENTUM.Reaction", "momentum", "10"),
             ("MOMENTUM.IdleDelaySec", "ms", "5"),
             ("MOMENTUM.IdleReturnPerSec", "momentum/s", "10"), ("COMBO.ResetSec", "ms", "2.5"),
-            ("OVERDRIVE.Threshold", "momentum", "60"), ("OVERDRIVE.HoldSec", "ms", ".35"), ("OVERDRIVE.Scale", "ratio", "1.35"),
-            ("OVERDRIVE.WaterSlow", "ratio", ".45"), ("OVERDRIVE.WaterSlowSec", "ms", "1.5"),
-            ("OVERDRIVE.ShockReactionRatio", "ratio", ".5"), ("OVERDRIVE.RotDurationScale", "ratio", "2"),
+            # The auto-empower experiment (EMPOWER.*): off by default, its price under its threshold.
+            ("EMPOWER.Threshold", "momentum", "60"), ("EMPOWER.Cost", "momentum", "50"),
+            ("EMPOWER.CombatPerSec", "momentum/s", "2.5"), ("EMPOWER.ShapeScale", "ratio", "1.4"),
+            ("EMPOWER.DerivedReaction", "momentum", "0"), ("EMPOWER.DamagedPerPercent", "momentum", "0"),
+            ("EMPOWER.StrikeExtraWindupSec", "ms", ".1"), ("EMPOWER.FistConeLengthCm", "cm", "300"),
+            ("EMPOWER.FistConeAngleDeg", "degrees", "60"), ("EMPOWER.FistConeRatio", "ratio", ".5"),
+            ("EMPOWER.FistPushCm", "cm", "120"), ("EMPOWER.QuakeRadiusCm", "cm", "200"), ("EMPOWER.QuakeSlow", "ratio", ".3"),
+            ("EMPOWER.QuakeSlowSec", "ms", "1"), ("EMPOWER.GuardBurstRatio", "ratio", ".4"),
+            ("EMPOWER.GuardBurstRadiusCm", "cm", "300"), ("EMPOWER.WardFuseSec", "ms", ".15"),
+            ("EMPOWER.GroundSec", "ms", "3"), ("EMPOWER.WallStunSec", "ms", ".6"), ("EMPOWER.CounterStunSec", "ms", ".5"),
+            ("EMPOWER.TouchStunSec", "ms", ".6"), ("EMPOWER.ConeAngleScale", "ratio", "2"),
+            ("EMPOWER.ElementWaterSlow", "ratio", ".45"), ("EMPOWER.ElementWaterSlowSec", "ms", "1.5"),
+            ("EMPOWER.ElementShockReactionRatio", "ratio", ".5"), ("EMPOWER.ElementRotDurationScale", "ratio", "2"),
+            ("EMPOWER.ElementChillRootSec", "ms", ".6"),
             ("AI.DodgeChance", "ratio", ".5"), ("AI.EnemyGroundPathCost", "ratio", "3"), ("AI.BreakoutChance", "ratio", "1"),
             ("AI.CardSkipChance", "ratio", ".3"),
             ("CHAIN.EndSec", "ms", "3"), ("CARDS.IdleCarrySec", "ms", "5"),
@@ -507,7 +512,6 @@ class ApprovedDemoData(unittest.TestCase):
             ("GROUND.FieldSec", "ms", "4"),
             ("GROUND.FieldTickSec", "ms", ".5"),
             ("GROUND.FieldRatio", "ratio", ".3"),
-            ("OVERDRIVE.ChillRootSec", "ms", ".6"),
             ("CARDS.VocabWeight", "ratio", "1.2"),
             ("SHOP.VocabWeight", "ratio", "1.8"),
         ):
@@ -516,6 +520,8 @@ class ApprovedDemoData(unittest.TestCase):
             ("XP.BaseToNext", 60), ("XP.IncreasePerLevel", 20), ("XP.SteepFromLevel", 5), ("XP.SteepExtraPerLevel", 30),
             ("MEDAL.MaxTier", 3),
             ("SHOWDOWN.RespawnLimit", 2),
+            ("EMPOWER.Enabled", 0), ("EMPOWER.SkillHitTargets", 3), ("EMPOWER.DashContactCap", 3), ("EMPOWER.ExtraCount", 2),
+            ("EMPOWER.ElementFireBurnStacks", 3),
             ("REWARD.PlayerXP.Base", 70), ("REWARD.PlayerXP.PerLevel", 20), ("REWARD.BountyXP", 150), ("REWARD.BountyCardOffer", 3), ("AI.RetryPolicy.MaxAttempts", 3),
             ("FIELD.SpawnPoolMin", 18), ("FIELD.MapRecoveryCount", 10),
             ("CAMP.ReturnDeadEndPlans", 3), ("CAMP.GrowthStagesPerSegment", 3), ("CAMP.GrowthMaxStage", 10), ("AIRDROP.RewardXP", 200),
@@ -536,7 +542,6 @@ class ApprovedDemoData(unittest.TestCase):
             ("CHAIN.MaxDepth", 16), ("CHAIN.MaxEffectsPerStep", 256), ("AI.CardVocabScore", 2), ("AI.LeaderHuntMaxLevelGap", 2), ("AI.BreakoutCardScore", 5),
             # Spec §3.13, §6.5 and §13 (P5): offer skips, the rest shop (in stat points), chain ends and the AI's skip.
             ("CARDS.SkipPoints", 1), ("CARDS.OfferEveryLevels", 3), ("SHOP.CardSlots", 4), ("SHOP.VocabCardSlots", 2), ("SHOP.SkillSlots", 2), ("SHOP.CardPrice", 2), ("SHOP.SkillPrice", 2), ("SHOP.RefreshPrice", 0), ("SHOP.RefreshStep", 1), ("SHOP.SkillPointPrice", 3), ("SHOP.SkillPointMaxPerMatch", 2), ("SHOP.MedalPrice", 4), ("SHOP.MedalMaxPerMatch", 1), ("CHAIN.MinKeySteps", 3),
-            ("OVERDRIVE.FireBurnStacks", 3),
         ):
             expected[key] = (None, value)
         expected["SKILL.PointLevels"] = (None, (3, 6, 9, 12, 15))
@@ -583,7 +588,7 @@ class ApprovedDemoData(unittest.TestCase):
                                            "knockback": 20, "silence": 25, "burn": 26,
                                            "attack_slowed": 27, "wet": 30, "electrified": 31, "braced": 32,
                                            "camp_enraged": 34, "camp_guarding": 35, "chilled": 36, "rotten": 37})
-        self.assertEqual(ids["effect_ops"], {"damage": 1, "shield": 2, "dispel_root": 3, "root": 4, "lifesteal": 7, "dash": 8, "slow": 12, "timed_stat_bonus": 13, "self_area": 14, "taunt": 18, "disarm": 20, "stun": 21, "empower_basic": 22, "thorns": 24, "triggered_shield": 31, "dispel_slow": 37, "knockback": 40, "zone": 50, "zone_slow": 52, "zone_damage": 54, "silence": 69, "breach": 70, "burn": 71, "zone_burn": 77, "channel_cone": 78, "ground_impact": 79, "attack_slow": 80, "contact_trap": 81, "dash_contact": 82, "wet": 90, "electrify": 91, "chain_bounce": 92, "brace": 93, "zone_wet": 94, "zone_haste": 95, "basic_element": 101, "idle_ready_amp": 103, "cooldown_cost": 130, "knockback_impact": 138, "skill_lifesteal": 146, "projectile_return": 152, "projectile_pierce": 153, "echo_impact": 155, "hit_haste_other": 156, "setup_mark": 157, "reaction_haste": 158, "zone_tether": 160, "final_knockback": 162, "empower_reach": 163, "pull": 164, "vulnerable": 170, "next_basic_amp": 171, "momentum_gain": 172, "momentum_steal": 173, "follow_up": 174, "recast": 175, "dash_back": 176, "self_buff": 177, "burn_burst": 178, "pulse": 179, "zone_guard": 180, "zone_momentum": 181, "overcharge": 182, "follow_basic": 183, "shield_burst_break": 184, "basic_rider": 185, "delayed_burst": 186, "shield_reflect": 187, "shield_end_heal": 188, "shield_hit_bonus": 189, "brace_stun": 190, "brace_heal": 191, "brace_stack": 192, "brace_shove": 193, "brace_shield": 194, "combo_momentum": 196, "basic_cooldown_cut": 197, "combo_skill_hit": 198, "combo_knockback": 199, "combo_double": 200, "overcap_extra_hit": 201, "basic_ap_rider": 202, "focus_attack_speed": 203, "skill_hit_momentum": 204, "auto_recast": 205, "skill_damage_factor": 206, "hp_cost": 207, "skill_ad_rider": 208, "skill_growth": 209, "skill_element": 210, "dash_contact_reset": 211, "dash_split": 212, "dash_phase": 213, "dash_contact_element": 214, "takedown_reset": 215, "last_stand": 216, "reaction_momentum": 217, "reaction_element": 218, "skill_crit": 219, "lifesteal_skills": 220, "armor_to_hp": 221, "overheal_shield": 222, "missing_hp_attack_speed": 223, "haste_momentum": 224, "heal_growth": 225, "kill_growth": 226, "control_growth": 227, "idle_charge": 228, "element_aura": 229, "element_duration": 230, "reaction_factor": 231, "burn_cap": 232, "rot": 233, "chill": 234, "ground_state": 236, "fan": 237, "dash_ice": 238, "ground_relocate": 239, "double_stall": 240, "ground_growth": 241, "bag": 242, "basic_projectile": 243, "combo_sweep": 244, "combo_cast": 245, "speed_factor": 246, "hit_growth": 247, "control_amp": 248, "reshape": 249, "shield_spend": 250, "recent_cast_amp": 251, "dodge_free_cast": 252, "dash_ram": 253, "overdrive_short": 254, "tally": 255, "grab_line": 256, "backstab_lunge": 257, "parry_stance": 258, "warcry_ring": 259, "slipper_pickup": 260, "frenzy_waves": 261, "cordon_line": 262, "brain_speed": 263, "spellblade_echo": 264, "heavy_mallet": 265, "projectile_flight_amp": 266, "eagle_stance": 267, "runaway_train": 268, "phantom_molt": 269, "skate_blade": 270, "tonnage_crush": 271, "hulking_presence": 272, "iron_hedgehog": 273, "reactive_plating": 274, "desperado": 275, "fuel_the_fire": 276, "rogue_works": 277, "martial_scholar": 278})
+        self.assertEqual(ids["effect_ops"], {"damage": 1, "shield": 2, "dispel_root": 3, "root": 4, "lifesteal": 7, "dash": 8, "slow": 12, "timed_stat_bonus": 13, "self_area": 14, "taunt": 18, "disarm": 20, "stun": 21, "empower_basic": 22, "thorns": 24, "triggered_shield": 31, "dispel_slow": 37, "knockback": 40, "zone": 50, "zone_slow": 52, "zone_damage": 54, "silence": 69, "breach": 70, "burn": 71, "zone_burn": 77, "channel_cone": 78, "ground_impact": 79, "attack_slow": 80, "contact_trap": 81, "dash_contact": 82, "wet": 90, "electrify": 91, "chain_bounce": 92, "brace": 93, "zone_wet": 94, "zone_haste": 95, "basic_element": 101, "idle_ready_amp": 103, "cooldown_cost": 130, "knockback_impact": 138, "skill_lifesteal": 146, "projectile_return": 152, "projectile_pierce": 153, "echo_impact": 155, "hit_haste_other": 156, "setup_mark": 157, "reaction_haste": 158, "zone_tether": 160, "final_knockback": 162, "empower_reach": 163, "pull": 164, "vulnerable": 170, "next_basic_amp": 171, "momentum_gain": 172, "momentum_steal": 173, "follow_up": 174, "recast": 175, "dash_back": 176, "self_buff": 177, "burn_burst": 178, "pulse": 179, "zone_guard": 180, "zone_momentum": 181, "overcharge": 182, "follow_basic": 183, "shield_burst_break": 184, "basic_rider": 185, "delayed_burst": 186, "shield_reflect": 187, "shield_end_heal": 188, "shield_hit_bonus": 189, "brace_stun": 190, "brace_heal": 191, "brace_stack": 192, "brace_shove": 193, "brace_shield": 194, "combo_momentum": 196, "basic_cooldown_cut": 197, "combo_skill_hit": 198, "combo_knockback": 199, "combo_double": 200, "overcap_extra_hit": 201, "basic_ap_rider": 202, "focus_attack_speed": 203, "skill_hit_momentum": 204, "auto_recast": 205, "skill_damage_factor": 206, "hp_cost": 207, "skill_ad_rider": 208, "skill_growth": 209, "skill_element": 210, "dash_contact_reset": 211, "dash_split": 212, "dash_phase": 213, "dash_contact_element": 214, "takedown_reset": 215, "last_stand": 216, "reaction_momentum": 217, "reaction_element": 218, "skill_crit": 219, "lifesteal_skills": 220, "armor_to_hp": 221, "overheal_shield": 222, "missing_hp_attack_speed": 223, "haste_momentum": 224, "heal_growth": 225, "kill_growth": 226, "control_growth": 227, "idle_charge": 228, "element_aura": 229, "element_duration": 230, "reaction_factor": 231, "burn_cap": 232, "rot": 233, "chill": 234, "ground_state": 236, "fan": 237, "dash_ice": 238, "ground_relocate": 239, "double_stall": 240, "ground_growth": 241, "bag": 242, "basic_projectile": 243, "combo_sweep": 244, "combo_cast": 245, "speed_factor": 246, "hit_growth": 247, "control_amp": 248, "reshape": 249, "shield_spend": 250, "recent_cast_amp": 251, "dash_ram": 253, "tally": 255, "grab_line": 256, "backstab_lunge": 257, "parry_stance": 258, "warcry_ring": 259, "slipper_pickup": 260, "frenzy_waves": 261, "cordon_line": 262, "brain_speed": 263, "spellblade_echo": 264, "heavy_mallet": 265, "projectile_flight_amp": 266, "eagle_stance": 267, "runaway_train": 268, "skate_blade": 270, "tonnage_crush": 271, "hulking_presence": 272, "iron_hedgehog": 273, "reactive_plating": 274, "desperado": 275, "fuel_the_fire": 276, "rogue_works": 277, "martial_scholar": 278})
         entries = [row for row in self.data["display"] if row["id"] == "respawn_protection"]
         self.assertEqual(len(entries), 1)
         self.assertEqual({key: value for key, value in entries[0].items() if not key.endswith("_text")}, {
@@ -731,7 +736,7 @@ class ApprovedDemoData(unittest.TestCase):
                 self.assertEqual((row["form"], row["type"]), (form, kind))
                 self.assertTrue(1 <= len(row["vocab"]) <= 4 and set(row["vocab"]) <= set(content.CARD_VOCAB))
                 self.assertEqual("choose_element" in row, identity == "card_live_wire")
-        self.assertEqual(len(CARD_FRAMES), 94)
+        self.assertEqual(len(CARD_FRAMES), 90)
 
     def test_retired_content_ids_stay_reserved_and_absent(self):
         ids = content.parse_json((content.ROOT / content.IDS_SOURCE).read_bytes(), "native IDs")

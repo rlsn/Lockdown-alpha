@@ -1,0 +1,343 @@
+{
+  "schema": "build_evaluation.manifest",
+  "schema_version": 2,
+  "experiment": {
+    "id": "b01-x1-warning-react-cycle",
+    "hypothesis": "X1-R1：技能循环镜像中，只有 subject 会躲预警；看到预警后反应 0 / 250 / 450 ms，对胜负、击杀时间、承伤的影响。"
+  },
+  "adapter": {
+    "module": "BuildEvaluationLockdown",
+    "id": "lockdown-demo"
+  },
+  "scenario": {
+    "kind": "duel_site",
+    "parameters": {
+      "site": "capture",
+      "duel_timeout_ms": 90000,
+      "supply_xp": {
+        "subject": 1890,
+        "opponent": 1890
+      },
+      "clear_camps": true
+    }
+  },
+  "sample_class": "diagnostic",
+  "assumptions": [
+    "双方由 DEV 奖励事务在第一野外入口获得 1890 XP，达到 L10 与 30 点；不是自然成长速率。",
+    "主动由 DEV 预置候选固定（S3 代表构筑），技能 1 级；不装牌。",
+    "warning_react_ms：可见敌方预警在视野内满该时长后，才按生产 AI 的躲避（DodgeWarning，无 DodgeChance 掷骰）冲刺离开；opponent 不躲（-1，评估默认）。与 reaction_ms（使用延迟）、aim_error_cm 无关，三者分开报告。",
+    "本构筑的预警来源：对手板砖落点（地面延时，约 0.55 s）；对手扎心会议、生闷气不产生预警。450 ms 只剩约 0.1 s，近似“来不及”。",
+    "subject 的每个 arm 都设 reserve_dash（追击与伤害性冲刺不用冲刺，留给躲避），只改 warning_react_ms；opponent 不躲。",
+    "主指标改为 damage_taken_hp：技能循环镜像常到时僵持，duel_score 对躲避不敏感。",
+    "评估夹具 clear_camps：初始营地站齐后全部离场且本段不再刷新，排除营地卷入（S2 T05-07）。",
+    "8 个确认种子 × 双侧：每个 arm 16 Case。"
+  ],
+  "design": {
+    "kind": "paired_arms",
+    "reference": "warn0",
+    "arms": [
+      {
+        "id": "warn0",
+        "plan": {
+          "subject": {
+            "opening_preset": [
+              "active_calculus_drop"
+            ],
+            "choices": [
+              {
+                "rule": "definition",
+                "definition": "active_calculus_drop"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_quick_meeting"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_seethe"
+              },
+              "ai_select"
+            ],
+            "presets": [
+              [
+                "active_quick_meeting"
+              ],
+              [
+                "active_seethe"
+              ]
+            ],
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "field",
+                "points": {
+                  "stat_brains": 18,
+                  "stat_physique": 12
+                }
+              }
+            ],
+            "stance": {
+              "kind": "burst",
+              "standoff_cm": 420,
+              "reserve_dash": true,
+              "warning_react_ms": 0
+            }
+          },
+          "opponent": {
+            "opening_preset": [
+              "active_calculus_drop"
+            ],
+            "choices": [
+              {
+                "rule": "definition",
+                "definition": "active_calculus_drop"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_quick_meeting"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_seethe"
+              },
+              "ai_select"
+            ],
+            "presets": [
+              [
+                "active_quick_meeting"
+              ],
+              [
+                "active_seethe"
+              ]
+            ],
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "field",
+                "points": {
+                  "stat_brains": 18,
+                  "stat_physique": 12
+                }
+              }
+            ],
+            "stance": {
+              "kind": "burst",
+              "standoff_cm": 420
+            }
+          }
+        }
+      },
+      {
+        "id": "warn250",
+        "plan": {
+          "subject": {
+            "opening_preset": [
+              "active_calculus_drop"
+            ],
+            "choices": [
+              {
+                "rule": "definition",
+                "definition": "active_calculus_drop"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_quick_meeting"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_seethe"
+              },
+              "ai_select"
+            ],
+            "presets": [
+              [
+                "active_quick_meeting"
+              ],
+              [
+                "active_seethe"
+              ]
+            ],
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "field",
+                "points": {
+                  "stat_brains": 18,
+                  "stat_physique": 12
+                }
+              }
+            ],
+            "stance": {
+              "kind": "burst",
+              "standoff_cm": 420,
+              "reserve_dash": true,
+              "warning_react_ms": 250
+            }
+          },
+          "opponent": {
+            "opening_preset": [
+              "active_calculus_drop"
+            ],
+            "choices": [
+              {
+                "rule": "definition",
+                "definition": "active_calculus_drop"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_quick_meeting"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_seethe"
+              },
+              "ai_select"
+            ],
+            "presets": [
+              [
+                "active_quick_meeting"
+              ],
+              [
+                "active_seethe"
+              ]
+            ],
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "field",
+                "points": {
+                  "stat_brains": 18,
+                  "stat_physique": 12
+                }
+              }
+            ],
+            "stance": {
+              "kind": "burst",
+              "standoff_cm": 420
+            }
+          }
+        }
+      },
+      {
+        "id": "warn450",
+        "plan": {
+          "subject": {
+            "opening_preset": [
+              "active_calculus_drop"
+            ],
+            "choices": [
+              {
+                "rule": "definition",
+                "definition": "active_calculus_drop"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_quick_meeting"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_seethe"
+              },
+              "ai_select"
+            ],
+            "presets": [
+              [
+                "active_quick_meeting"
+              ],
+              [
+                "active_seethe"
+              ]
+            ],
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "field",
+                "points": {
+                  "stat_brains": 18,
+                  "stat_physique": 12
+                }
+              }
+            ],
+            "stance": {
+              "kind": "burst",
+              "standoff_cm": 420,
+              "reserve_dash": true,
+              "warning_react_ms": 450
+            }
+          },
+          "opponent": {
+            "opening_preset": [
+              "active_calculus_drop"
+            ],
+            "choices": [
+              {
+                "rule": "definition",
+                "definition": "active_calculus_drop"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_quick_meeting"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_seethe"
+              },
+              "ai_select"
+            ],
+            "presets": [
+              [
+                "active_quick_meeting"
+              ],
+              [
+                "active_seethe"
+              ]
+            ],
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "field",
+                "points": {
+                  "stat_brains": 18,
+                  "stat_physique": 12
+                }
+              }
+            ],
+            "stance": {
+              "kind": "burst",
+              "standoff_cm": 420
+            }
+          }
+        }
+      }
+    ]
+  },
+  "blocks": {
+    "root_seed": "20261201",
+    "splits": {
+      "search": 0,
+      "confirm": 8
+    },
+    "sides": 2
+  },
+  "metrics": {
+    "primary": "damage_taken_hp",
+    "secondary": [
+      "duel_score",
+      "engage_to_kill_ms",
+      "damage_dealt_hp",
+      "subject_casts",
+      "opponent_casts",
+      "subject_hp_end_bp"
+    ],
+    "material_difference": null
+  },
+  "budget": {
+    "class": "standard",
+    "case_wall_timeout_s": 180,
+    "max_case_events": 200000,
+    "max_run_disk_bytes": 2147483648,
+    "max_root_disk_bytes": 6442450944,
+    "max_cases": 48,
+    "run_wall_timeout_s": 5400
+  }
+}

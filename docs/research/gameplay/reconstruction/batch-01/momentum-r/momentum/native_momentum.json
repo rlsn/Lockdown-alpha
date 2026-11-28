@@ -1,0 +1,436 @@
+{
+ "EXP01_human_match": {
+  "alive_seconds": 3715,
+  "state": {
+   "human": {
+    "idle": {
+     "n": 376,
+     "mean": 53.7,
+     "median": 50.0,
+     "ge60_pct": 16.5,
+     "full_pct": 0.0,
+     "lt25_pct": 2.9,
+     "lt35_pct": 4.8
+    },
+    "pve": {
+     "n": 245,
+     "mean": 89.0,
+     "median": 100.0,
+     "ge60_pct": 91.0,
+     "full_pct": 53.5,
+     "lt25_pct": 0.4,
+     "lt35_pct": 1.6
+    },
+    "pvp": {
+     "n": 156,
+     "mean": 77.1,
+     "median": 79.4,
+     "ge60_pct": 71.2,
+     "full_pct": 30.1,
+     "lt25_pct": 0.0,
+     "lt35_pct": 1.9
+    }
+   },
+   "all": {
+    "idle": {
+     "n": 2367,
+     "mean": 51.3,
+     "median": 50.0,
+     "ge60_pct": 6.5,
+     "full_pct": 0.2,
+     "lt25_pct": 1.7,
+     "lt35_pct": 2.4
+    },
+    "pve": {
+     "n": 808,
+     "mean": 65.7,
+     "median": 65.0,
+     "ge60_pct": 55.0,
+     "full_pct": 23.1,
+     "lt25_pct": 7.8,
+     "lt35_pct": 17.1
+    },
+    "pvp": {
+     "n": 540,
+     "mean": 61.5,
+     "median": 56.2,
+     "ge60_pct": 46.1,
+     "full_pct": 14.6,
+     "lt25_pct": 8.7,
+     "lt35_pct": 15.9
+    }
+   },
+   "ai": {
+    "idle": {
+     "n": 1991,
+     "mean": 50.8,
+     "median": 50.0,
+     "ge60_pct": 4.7,
+     "full_pct": 0.2,
+     "lt25_pct": 1.5,
+     "lt35_pct": 2.0
+    },
+    "pve": {
+     "n": 563,
+     "mean": 55.5,
+     "median": 50.8,
+     "ge60_pct": 39.3,
+     "full_pct": 9.9,
+     "lt25_pct": 11.0,
+     "lt35_pct": 23.8
+    },
+    "pvp": {
+     "n": 384,
+     "mean": 55.1,
+     "median": 50.0,
+     "ge60_pct": 35.9,
+     "full_pct": 8.3,
+     "lt25_pct": 12.2,
+     "lt35_pct": 21.6
+    }
+   }
+  },
+  "momentum_by_match_minute": {
+   "00min": 57.0,
+   "01min": 56.2,
+   "02min": 61.5,
+   "03min": 55.2,
+   "04min": 53.6,
+   "05min": 55.3,
+   "06min": 53.4,
+   "07min": 57.5,
+   "08min": 57.1,
+   "09min": 58.5,
+   "10min": 55.9,
+   "11min": 51.4,
+   "12min": 53.2
+  },
+  "pvp_entry": {
+   "ai": {
+    "n": 43,
+    "mean": 49.5,
+    "median": 50.0,
+    "ge60_pct": 9.3,
+    "full_pct": 2.3,
+    "lt25_pct": 11.6,
+    "lt35_pct": 11.6
+   },
+   "all": {
+    "n": 56,
+    "mean": 51.2,
+    "median": 50.0,
+    "ge60_pct": 12.5,
+    "full_pct": 3.6,
+    "lt25_pct": 10.7,
+    "lt35_pct": 10.7
+   },
+   "human": {
+    "n": 13,
+    "mean": 57.0,
+    "median": 50.0,
+    "ge60_pct": 23.1,
+    "full_pct": 7.7,
+    "lt25_pct": 7.7,
+    "lt35_pct": 7.7
+   }
+  },
+  "ledger": {
+   "human": {
+    "lives": 11,
+    "basic": 738.3,
+    "combat": 1375.0,
+    "skill": 1254.1,
+    "reaction": 1096.3,
+    "dodge": 0.0,
+    "other": 208.4,
+    "idle": -623.5,
+    "spent": 3905.0,
+    "income_share_pct": {
+     "basic": 15.8,
+     "combat": 29.4,
+     "skill": 26.8,
+     "reaction": 23.5,
+     "dodge": 0.0,
+     "other": 4.5
+    },
+    "overdrives": 3,
+    "overdrive_paid": 180.0,
+    "spent_on_normal_casts": 3725.0
+   },
+   "ai": {
+    "lives": 124,
+    "basic": 2721.9,
+    "combat": 4217.2,
+    "skill": 1333.9,
+    "reaction": 514.0,
+    "dodge": 80.0,
+    "other": 841.2,
+    "idle": -1331.7,
+    "spent": 8380.0,
+    "income_share_pct": {
+     "basic": 28.0,
+     "combat": 43.4,
+     "skill": 13.7,
+     "reaction": 5.3,
+     "dodge": 0.8,
+     "other": 8.7
+    },
+    "overdrives": 37,
+    "overdrive_paid": 2220.0,
+    "spent_on_normal_casts": 6160.0
+   },
+   "all": {
+    "lives": 135,
+    "basic": 3460.2,
+    "combat": 5592.2,
+    "skill": 2588.0,
+    "reaction": 1610.3,
+    "dodge": 80.0,
+    "other": 1049.7,
+    "idle": -1955.2,
+    "spent": 12285.0,
+    "income_share_pct": {
+     "basic": 24.1,
+     "combat": 38.9,
+     "skill": 18.0,
+     "reaction": 11.2,
+     "dodge": 0.6,
+     "other": 7.3
+    },
+    "overdrives": 40,
+    "overdrive_paid": 2400.0,
+    "spent_on_normal_casts": 9885.0
+   }
+  },
+  "overdrive_by_active": {
+   "active_school_bag": 8,
+   "active_quick_meeting": 16,
+   "active_hose_down": 3,
+   "active_flyer_trap": 8,
+   "active_elbow": 2,
+   "active_triple_combo": 3
+  },
+  "human_receipts": {
+   "Q:None": 71,
+   "Dash:None": 64,
+   "W:None": 57,
+   "E:None": 34,
+   "Q:Cooldown": 30,
+   "Dash:Cooldown": 23,
+   "W:Cooldown": 23,
+   "E:Cooldown": 17,
+   "0:Cancelled": 13,
+   "E:MomentumShort": 5,
+   "Dash:Blocked": 3,
+   "W:SourceUnavailable": 1,
+   "W:MatchClosed": 1
+  }
+ },
+ "EXP03_7ai_match": {
+  "alive_seconds": 5710,
+  "state": {
+   "human": {
+    "idle": {
+     "n": 694,
+     "mean": 50.0,
+     "median": 50.0,
+     "ge60_pct": 0.0,
+     "full_pct": 0.0,
+     "lt25_pct": 0.0,
+     "lt35_pct": 0.0
+    },
+    "pvp": {
+     "n": 22,
+     "mean": 67.2,
+     "median": 65.0,
+     "ge60_pct": 63.6,
+     "full_pct": 0.0,
+     "lt25_pct": 0.0,
+     "lt35_pct": 0.0
+    }
+   },
+   "all": {
+    "idle": {
+     "n": 3852,
+     "mean": 51.0,
+     "median": 50.0,
+     "ge60_pct": 4.2,
+     "full_pct": 0.2,
+     "lt25_pct": 0.7,
+     "lt35_pct": 0.9
+    },
+    "pvp": {
+     "n": 1194,
+     "mean": 58.8,
+     "median": 55.6,
+     "ge60_pct": 44.8,
+     "full_pct": 14.0,
+     "lt25_pct": 11.6,
+     "lt35_pct": 23.2
+    },
+    "pve": {
+     "n": 664,
+     "mean": 54.9,
+     "median": 51.4,
+     "ge60_pct": 41.4,
+     "full_pct": 13.1,
+     "lt25_pct": 16.1,
+     "lt35_pct": 30.1
+    }
+   },
+   "ai": {
+    "idle": {
+     "n": 3158,
+     "mean": 51.2,
+     "median": 50.0,
+     "ge60_pct": 5.2,
+     "full_pct": 0.3,
+     "lt25_pct": 0.8,
+     "lt35_pct": 1.0
+    },
+    "pvp": {
+     "n": 1172,
+     "mean": 58.7,
+     "median": 55.1,
+     "ge60_pct": 44.5,
+     "full_pct": 14.2,
+     "lt25_pct": 11.9,
+     "lt35_pct": 23.6
+    },
+    "pve": {
+     "n": 664,
+     "mean": 54.9,
+     "median": 51.4,
+     "ge60_pct": 41.4,
+     "full_pct": 13.1,
+     "lt25_pct": 16.1,
+     "lt35_pct": 30.1
+    }
+   }
+  },
+  "momentum_by_match_minute": {
+   "00min": 59.9,
+   "01min": 58.0,
+   "02min": 51.5,
+   "03min": 54.1,
+   "04min": 52.9,
+   "05min": 49.8,
+   "06min": 51.0,
+   "07min": 50.7,
+   "08min": 49.9,
+   "09min": 49.7,
+   "10min": 52.2,
+   "11min": 52.5,
+   "12min": 64.7
+  },
+  "pvp_entry": {
+   "ai": {
+    "n": 83,
+    "mean": 50.4,
+    "median": 50.0,
+    "ge60_pct": 8.4,
+    "full_pct": 1.2,
+    "lt25_pct": 3.6,
+    "lt35_pct": 7.2
+   },
+   "all": {
+    "n": 87,
+    "mean": 50.4,
+    "median": 50.0,
+    "ge60_pct": 8.0,
+    "full_pct": 1.1,
+    "lt25_pct": 3.4,
+    "lt35_pct": 6.9
+   },
+   "human": {
+    "n": 4,
+    "mean": 50.0,
+    "median": 50.0,
+    "ge60_pct": 0.0,
+    "full_pct": 0.0,
+    "lt25_pct": 0.0,
+    "lt35_pct": 0.0
+   }
+  },
+  "ledger": {
+   "human": {
+    "lives": 10,
+    "basic": 0.0,
+    "combat": 107.2,
+    "skill": 0.0,
+    "reaction": 0.0,
+    "dodge": 0.0,
+    "other": 0.0,
+    "idle": 0.0,
+    "spent": 0.0,
+    "income_share_pct": {
+     "basic": 0.0,
+     "combat": 100.0,
+     "skill": 0.0,
+     "reaction": 0.0,
+     "dodge": 0.0,
+     "other": 0.0
+    },
+    "overdrives": 0,
+    "overdrive_paid": 0,
+    "spent_on_normal_casts": 0.0
+   },
+   "ai": {
+    "lives": 142,
+    "basic": 5559.1,
+    "combat": 8371.2,
+    "skill": 2560.8,
+    "reaction": 939.6,
+    "dodge": 134.7,
+    "other": 1392.2,
+    "idle": -2353.7,
+    "spent": 15980.0,
+    "income_share_pct": {
+     "basic": 29.3,
+     "combat": 44.2,
+     "skill": 13.5,
+     "reaction": 5.0,
+     "dodge": 0.7,
+     "other": 7.3
+    },
+    "overdrives": 49,
+    "overdrive_paid": 3360.0,
+    "spent_on_normal_casts": 12620.0
+   },
+   "all": {
+    "lives": 152,
+    "basic": 5559.1,
+    "combat": 8478.4,
+    "skill": 2560.8,
+    "reaction": 939.6,
+    "dodge": 134.7,
+    "other": 1392.2,
+    "idle": -2353.7,
+    "spent": 15980.0,
+    "income_share_pct": {
+     "basic": 29.2,
+     "combat": 44.5,
+     "skill": 13.4,
+     "reaction": 4.9,
+     "dodge": 0.7,
+     "other": 7.3
+    },
+    "overdrives": 49,
+    "overdrive_paid": 3360.0,
+    "spent_on_normal_casts": 12620.0
+   }
+  },
+  "overdrive_by_active": {
+   "active_school_bag": 6,
+   "active_zap": 8,
+   "active_pants_down": 13,
+   "active_cordon_tape": 3,
+   "active_seethe": 9,
+   "active_elbow": 7,
+   "active_hose_down": 5,
+   "active_triple_combo": 4,
+   "active_quick_meeting": 1
+  },
+  "human_receipts": {}
+ }
+}

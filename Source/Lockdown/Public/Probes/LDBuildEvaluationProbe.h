@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Combat/LDCombatTypes.h"
 
 class ALDPlayerController;
 
@@ -36,7 +37,8 @@ struct FLDEvalContenderPlan
     FName BreakoutPreset;
     // Optional "stance" object (absent: pursue): {"kind": "kite"|"burst"|"hold"|"guard", "standoff_cm": N,
     // "threshold_bp": N (guard only, required), "leash_cm": N (optional)}, with the optional operation knobs "reaction_ms",
-    // "aim_error_cm" and "skip_bp" on any stance; {"kind": "pursue"} is written only to carry knobs.
+    // "aim_error_cm", "skip_bp", "warning_react_ms" (absent: no dodge) and "lead_aim" (bool) on any stance; {"kind": "pursue"}
+    // is written only to carry knobs.
     ELDEvaluationStance Stance = ELDEvaluationStance::Pursue;
     int32 StandoffCm = 0;
     int32 ThresholdBp = 0;
@@ -44,6 +46,12 @@ struct FLDEvalContenderPlan
     int32 ReactionMs = 0;
     int32 AimErrorCm = 0;
     int32 SkipBp = 0;
+    int32 WarningReactMs = -1;
+    bool bLeadAim = false;
+    bool bReserveDash = false;
+    // Auto-empower runs only: the host submitted through the authority's host command when the match starts (None: the AI's
+    // own pick or -LDEmpowerHost).
+    ELDCombatEntry EmpowerHost = ELDCombatEntry::None;
 };
 
 struct FLDEvalCase
@@ -56,6 +64,8 @@ struct FLDEvalCase
     int64 DuelTimeoutMs = 0;
     // Wall-clock budget of the whole Case; exceeding it is BudgetExceeded, never a result.
     int32 WallTimeoutSeconds = 0;
+    // Every camp group leaves the field once its initial camps stand, held empty for the duel (no route through a camp).
+    bool bClearCamps = false;
     TArray<FLDEvalContenderPlan> Contenders;
 };
 

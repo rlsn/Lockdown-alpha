@@ -1,5 +1,6 @@
 #include "Combat/LDCombatDirector.h"
 #include "Combat/LDCombatControlRules.h"
+#include "Combat/LDProtoFlags.h"
 #include "Combat/LDCombatSourceRules.h"
 #include "Combat/LDControlRules.h"
 #include "Combat/LDTacticalRules.h"
@@ -42,6 +43,53 @@ bool FLDCombatHardControlDiminishTest::RunTest(const FString& Parameters)
     FLDHardControlChain Untouched;
     TestEqual(TEXT("A non-positive duration is returned unchanged"), DiminishHardControl(Untouched, 0, 0), int64(0));
     TestTrue(TEXT("and leaves the chain untouched"), Untouched.Count == 0 && Untouched.WindowEndMs == 0);
+    return true;
+}
+
+// C-10 prototype "急眼了" (-LDProtoAgency): the weighted agency meter, its trigger instant, guard, cooldown and knockback roll.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatAgencyMeterTest, "Lockdown.Rules.DemoCombatPrimitives.AgencyMeter",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatAgencyMeterTest::RunTest(const FString& Parameters)
+{
+    using namespace LDCombatControl;
+    const FLDAgencyParams Params;
+    TestTrue(TEXT("Stun and knockback 1.0, taunt 0.8, root 0.5, silence and disarm 0.2, slow 0"),
+        AgencyWeightBp(ELDControlKind::Stun, Params) == 10000 && AgencyWeightBp(ELDControlKind::Knockback, Params) == 10000
+        && AgencyWeightBp(ELDControlKind::Taunt, Params) == 8000 && AgencyWeightBp(ELDControlKind::Root, Params) == 5000
+        && AgencyWeightBp(ELDControlKind::Silence, Params) == 2000 && AgencyWeightBp(ELDControlKind::Disarm, Params) == 2000
+        && AgencyWeightBp(ELDControlKind::Slow, Params) == 0);
+    FLDProtoSettings Switched;
+    FString SwitchError;
+    TestTrue(TEXT("Without the switch the taunt weighs 0.8"), LDProto::Parse(TEXT("-LDProtoAgency"), Switched, SwitchError)
+        && Switched.Agency.TauntWeightBp == 8000);
+    TestTrue(TEXT("-LDProtoAgencyTauntWeight sets the taunt's weight only"),
+        LDProto::Parse(TEXT("-LDProtoAgency -LDProtoAgencyTauntWeight=0.5"), Switched, SwitchError)
+        && AgencyWeightBp(ELDControlKind::Taunt, Switched.Agency) == 5000 && AgencyWeightBp(ELDControlKind::Root, Switched.Agency) == 5000
+        && LDProto::Describe(Switched).Contains(TEXT("agency_taunt_weight_bp=5000")));
+    TestFalse(TEXT("A weight outside [0, 1] is refused"), LDProto::Parse(TEXT("-LDProtoAgency -LDProtoAgencyTauntWeight=1.5"), Switched, SwitchError));
+    FLDAgencyMeter Meter;
+    Meter.Losses = {{0, 1500, 10000}, {1000, 3000, 5000}};
+    TestEqual(TEXT("Overlapping controls count their largest share once"), AgencyLossBpMs(Meter.Losses, 3000, 4000), int64(22500000));
+    TestEqual(TEXT("Only the window counts"), AgencyLossBpMs(Meter.Losses, 5000, 4000), int64(12500000));
+    TestEqual(TEXT("A stun then a root reach 2 s of lost agency at 2.5 s"), AgencyDueMs(Meter, 0, Params), int64(2500));
+    TestFalse(TEXT("Not before"), AgencyTriggers(Meter, 2499, Params));
+    TestTrue(TEXT("At it"), AgencyTriggers(Meter, 2500, Params));
+    FLDAgencyMeter Short;
+    Short.Losses = {{0, 1000, 10000}, {1200, 1800, 10000}};
+    TestEqual(TEXT("A normal two-control combo never triggers"), AgencyDueMs(Short, 0, Params), MAX_int64);
+    Meter.LastTriggerMs = 2500;
+    Meter.GuardUntilMs = 3500;
+    Meter.Losses.Add({7000, 9500, 10000});
+    TestFalse(TEXT("Not again inside the cooldown"), AgencyTriggers(Meter, 8400, Params));
+    TestEqual(TEXT("After the cooldown it triggers once the window holds 2 s again"), AgencyDueMs(Meter, 7000, Params), int64(9000));
+    PruneAgency(Meter, 9000, Params.WindowMs);
+    TestEqual(TEXT("Losses that left the window are dropped"), Meter.Losses.Num(), 1);
+    FLDAgencyMeter Knock;
+    TestFalse(TEXT("A first knockback pushes as usual"), AgencyKnockbackRolls(Knock, 0, 300, Params));
+    TestFalse(TEXT("so does a second inside the chain"), AgencyKnockbackRolls(Knock, 1000, 1300, Params));
+    TestTrue(TEXT("the third of the chain rolls"), AgencyKnockbackRolls(Knock, 2000, 2300, Params));
+    TestFalse(TEXT("2 s after the last one ended the chain restarts"), AgencyKnockbackRolls(Knock, 4300, 4600, Params));
     return true;
 }
 

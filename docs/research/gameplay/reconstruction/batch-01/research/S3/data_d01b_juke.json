@@ -1,0 +1,16 @@
+{
+ "V0_baseline": {
+  "control": 0.375,
+  "melee": 0.625,
+  "ranged": 0.8625,
+  "heavy": 0.425,
+  "control_vs_ranged_juking_ranged": 0.13749999999999996
+ },
+ "V8_D01B_240": {
+  "control": 0.4,
+  "melee": 0.625,
+  "ranged": 0.8625,
+  "heavy": 0.675,
+  "control_vs_ranged_juking_ranged": 0.275
+ }
+}

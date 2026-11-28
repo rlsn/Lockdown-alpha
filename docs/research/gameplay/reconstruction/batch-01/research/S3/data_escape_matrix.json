@@ -1,0 +1,658 @@
+[
+ {
+  "id": "active_elbow",
+  "name": "滚远点",
+  "mode": "Unit",
+  "windup": 0.15,
+  "telegraphed": true,
+  "tell": "generic",
+  "cls": "lock-on",
+  "need_cm": null,
+  "t_cue": 0.15,
+  "note": "release re-checks range/LoS (LDCombatActions.cpp:1604-1620): only escapable at range edge",
+  "range": 220,
+  "walk": {}
+ },
+ {
+  "id": "active_pants_down",
+  "name": "扒裤子",
+  "mode": "DirectionLine",
+  "windup": 0.14,
+  "telegraphed": false,
+  "tell": "generic",
+  "cls": "line",
+  "need_cm": 65,
+  "t_cue": 0.14,
+  "range": 440,
+  "unled_cross_cm_at_240": 33.6,
+  "walk": {
+   "v240_r200": {
+    "margin_cm": -65.0
+   },
+   "v240_r300": {
+    "margin_cm": -65.0
+   },
+   "v270_r200": {
+    "margin_cm": -65.0
+   },
+   "v270_r300": {
+    "margin_cm": -65.0
+   },
+   "v300_r200": {
+    "margin_cm": -65.0
+   },
+   "v300_r300": {
+    "margin_cm": -65.0
+   },
+   "v330_r200": {
+    "margin_cm": -65.0
+   },
+   "v330_r300": {
+    "margin_cm": -65.0
+   }
+  }
+ },
+ {
+  "id": "active_crotch_grab",
+  "name": "掏蛋子",
+  "mode": "DirectionDash",
+  "windup": 0.12,
+  "telegraphed": false,
+  "tell": "generic",
+  "cls": "dash-skill",
+  "need_cm": null,
+  "t_cue": 0.12,
+  "distance": 280,
+  "duration": 0.16,
+  "walk": {}
+ },
+ {
+  "id": "active_unplug",
+  "name": "拧你手腕",
+  "mode": "Self",
+  "windup": 0,
+  "telegraphed": false,
+  "tell": "none",
+  "cls": "self-buff",
+  "need_cm": null,
+  "t_cue": null,
+  "walk": {}
+ },
+ {
+  "id": "active_snark_bolt",
+  "name": "甩你一鞋",
+  "mode": "DirectionProjectile",
+  "windup": 0.18,
+  "telegraphed": true,
+  "tell": "generic",
+  "cls": "projectile",
+  "need_cm": 95.0,
+  "t_cue": 0.6951515151515151,
+  "range": 850,
+  "speed": 1650,
+  "flight_at_max": 0.5151515151515151,
+  "unled_cross_cm_at_240": 115.9,
+  "min_dodge_range_cm": {
+   "v240_r200": 686.0,
+   "v240_r300": 851.0,
+   "v270_r200": 614.0,
+   "v270_r300": 779.0,
+   "v300_r200": 555.0,
+   "v300_r300": 721.0,
+   "v330_r200": 508.0,
+   "v330_r300": 673.0
+  },
+  "walk": {
+   "v240_r200": {
+    "margin_cm": 23.8
+   },
+   "v240_r300": {
+    "margin_cm": -0.2
+   },
+   "v270_r200": {
+    "margin_cm": 38.7
+   },
+   "v270_r300": {
+    "margin_cm": 11.7
+   },
+   "v300_r200": {
+    "margin_cm": 53.5
+   },
+   "v300_r300": {
+    "margin_cm": 23.5
+   },
+   "v330_r200": {
+    "margin_cm": 68.4
+   },
+   "v330_r300": {
+    "margin_cm": 35.4
+   }
+  }
+ },
+ {
+  "id": "active_seethe",
+  "name": "烫你屁股",
+  "mode": "Self",
+  "windup": 0.25,
+  "telegraphed": true,
+  "tell": "geometry",
+  "cls": "self-area",
+  "need_cm": 300,
+  "t_cue": 0.25,
+  "walk": {
+   "v240_r200": {
+    "margin_cm": -288.0,
+    "escapable_area": 0.078
+   },
+   "v240_r300": {
+    "margin_cm": -300.0,
+    "escapable_area": 0.0
+   },
+   "v270_r200": {
+    "margin_cm": -286.5,
+    "escapable_area": 0.088
+   },
+   "v270_r300": {
+    "margin_cm": -300.0,
+    "escapable_area": 0.0
+   },
+   "v300_r200": {
+    "margin_cm": -285.0,
+    "escapable_area": 0.098
+   },
+   "v300_r300": {
+    "margin_cm": -300.0,
+    "escapable_area": 0.0
+   },
+   "v330_r200": {
+    "margin_cm": -283.5,
+    "escapable_area": 0.107
+   },
+   "v330_r300": {
+    "margin_cm": -300.0,
+    "escapable_area": 0.0
+   }
+  }
+ },
+ {
+  "id": "active_quick_meeting",
+  "name": "脚底开锅",
+  "mode": "GroundPoint",
+  "windup": 0.25,
+  "telegraphed": true,
+  "tell": "generic",
+  "cls": "zone",
+  "need_cm": 240,
+  "t_cue": 0.25,
+  "pulse_interval": 1,
+  "range": 650,
+  "walk": {
+   "v240_r200": {
+    "margin_cm": -228.0,
+    "escapable_area": 0.098
+   },
+   "v240_r300": {
+    "margin_cm": -240.0,
+    "escapable_area": 0.0
+   },
+   "v270_r200": {
+    "margin_cm": -226.5,
+    "escapable_area": 0.109
+   },
+   "v270_r300": {
+    "margin_cm": -240.0,
+    "escapable_area": 0.0
+   },
+   "v300_r200": {
+    "margin_cm": -225.0,
+    "escapable_area": 0.121
+   },
+   "v300_r300": {
+    "margin_cm": -240.0,
+    "escapable_area": 0.0
+   },
+   "v330_r200": {
+    "margin_cm": -223.5,
+    "escapable_area": 0.133
+   },
+   "v330_r300": {
+    "margin_cm": -240.0,
+    "escapable_area": 0.0
+   }
+  }
+ },
+ {
+  "id": "active_bail_out",
+  "name": "贴脸补一拳",
+  "mode": "DirectionDash",
+  "windup": 0,
+  "telegraphed": false,
+  "tell": "none",
+  "cls": "dash-skill",
+  "need_cm": null,
+  "t_cue": 0,
+  "distance": 350,
+  "duration": 0.2,
+  "walk": {}
+ },
+ {
+  "id": "active_not_mad",
+  "name": "锅盖挡脸",
+  "mode": "Self",
+  "windup": 0,
+  "telegraphed": false,
+  "tell": "none",
+  "cls": "self-buff",
+  "need_cm": null,
+  "t_cue": null,
+  "walk": {}
+ },
+ {
+  "id": "active_stare_down",
+  "name": "来打老子啊",
+  "mode": "Self",
+  "windup": 0.2,
+  "telegraphed": true,
+  "tell": "generic",
+  "cls": "self-area",
+  "need_cm": 300,
+  "t_cue": 0.2,
+  "walk": {
+   "v240_r200": {
+    "margin_cm": -300.0,
+    "escapable_area": 0.0
+   },
+   "v240_r300": {
+    "margin_cm": -300.0,
+    "escapable_area": 0.0
+   },
+   "v270_r200": {
+    "margin_cm": -300.0,
+    "escapable_area": 0.0
+   },
+   "v270_r300": {
+    "margin_cm": -300.0,
+    "escapable_area": 0.0
+   },
+   "v300_r200": {
+    "margin_cm": -300.0,
+    "escapable_area": 0.0
+   },
+   "v300_r300": {
+    "margin_cm": -300.0,
+    "escapable_area": 0.0
+   },
+   "v330_r200": {
+    "margin_cm": -300.0,
+    "escapable_area": 0.0
+   },
+   "v330_r300": {
+    "margin_cm": -300.0,
+    "escapable_area": 0.0
+   }
+  }
+ },
+ {
+  "id": "active_triple_combo",
+  "name": "左右开抽",
+  "mode": "Self",
+  "windup": 0,
+  "telegraphed": false,
+  "tell": "none",
+  "cls": "self-buff",
+  "need_cm": null,
+  "t_cue": null,
+  "walk": {}
+ },
+ {
+  "id": "active_calculus_drop",
+  "name": "板砖糊脸",
+  "mode": "GroundPoint",
+  "windup": 0.25,
+  "telegraphed": true,
+  "tell": "generic",
+  "cls": "ground-delay",
+  "need_cm": 200,
+  "t_cue": 0.55,
+  "t_from_windup_start": 0.8,
+  "inner_radius": 80,
+  "range": 650,
+  "walk": {
+   "v240_r200": {
+    "margin_cm": -116.0,
+    "escapable_area": 0.664
+   },
+   "v240_r300": {
+    "margin_cm": -140.0,
+    "escapable_area": 0.51
+   },
+   "v270_r200": {
+    "margin_cm": -105.5,
+    "escapable_area": 0.722
+   },
+   "v270_r300": {
+    "margin_cm": -132.5,
+    "escapable_area": 0.561
+   },
+   "v300_r200": {
+    "margin_cm": -95.0,
+    "escapable_area": 0.774
+   },
+   "v300_r300": {
+    "margin_cm": -125.0,
+    "escapable_area": 0.609
+   },
+   "v330_r200": {
+    "margin_cm": -84.5,
+    "escapable_area": 0.821
+   },
+   "v330_r300": {
+    "margin_cm": -117.5,
+    "escapable_area": 0.655
+   }
+  }
+ },
+ {
+  "id": "active_flyer_trap",
+  "name": "踩一脚试试",
+  "mode": "GroundPoint",
+  "windup": 0.15,
+  "telegraphed": true,
+  "tell": "generic",
+  "cls": "trap",
+  "need_cm": 80,
+  "t_cue": 0.45,
+  "range": 550,
+  "walk": {
+   "v240_r200": {
+    "margin_cm": -20.0
+   },
+   "v240_r300": {
+    "margin_cm": -44.0
+   },
+   "v270_r200": {
+    "margin_cm": -12.5
+   },
+   "v270_r300": {
+    "margin_cm": -39.5
+   },
+   "v300_r200": {
+    "margin_cm": -5.0
+   },
+   "v300_r300": {
+    "margin_cm": -35.0
+   },
+   "v330_r200": {
+    "margin_cm": 2.5
+   },
+   "v330_r300": {
+    "margin_cm": -30.5
+   }
+  }
+ },
+ {
+  "id": "active_open_mic",
+  "name": "扯嗓子喷你",
+  "mode": "Self",
+  "windup": 0.15,
+  "telegraphed": true,
+  "tell": "generic",
+  "cls": "self-area",
+  "need_cm": 340,
+  "t_cue": 0.15,
+  "walk": {
+   "v240_r200": {
+    "margin_cm": -340.0,
+    "escapable_area": 0.0
+   },
+   "v240_r300": {
+    "margin_cm": -340.0,
+    "escapable_area": 0.0
+   },
+   "v270_r200": {
+    "margin_cm": -340.0,
+    "escapable_area": 0.0
+   },
+   "v270_r300": {
+    "margin_cm": -340.0,
+    "escapable_area": 0.0
+   },
+   "v300_r200": {
+    "margin_cm": -340.0,
+    "escapable_area": 0.0
+   },
+   "v300_r300": {
+    "margin_cm": -340.0,
+    "escapable_area": 0.0
+   },
+   "v330_r200": {
+    "margin_cm": -340.0,
+    "escapable_area": 0.0
+   },
+   "v330_r300": {
+    "margin_cm": -340.0,
+    "escapable_area": 0.0
+   }
+  }
+ },
+ {
+  "id": "active_hose_down",
+  "name": "滋你一脸",
+  "mode": "DirectionLine",
+  "windup": 0.2,
+  "telegraphed": true,
+  "tell": "geometry",
+  "cls": "line",
+  "need_cm": 80,
+  "t_cue": 0.2,
+  "range": 600,
+  "unled_cross_cm_at_240": 48.0,
+  "walk": {
+   "v240_r200": {
+    "margin_cm": -80.0
+   },
+   "v240_r300": {
+    "margin_cm": -80.0
+   },
+   "v270_r200": {
+    "margin_cm": -80.0
+   },
+   "v270_r300": {
+    "margin_cm": -80.0
+   },
+   "v300_r200": {
+    "margin_cm": -80.0
+   },
+   "v300_r300": {
+    "margin_cm": -80.0
+   },
+   "v330_r200": {
+    "margin_cm": -80.0
+   },
+   "v330_r300": {
+    "margin_cm": -80.0
+   }
+  }
+ },
+ {
+  "id": "active_zap",
+  "name": "电你个哆嗦",
+  "mode": "Unit",
+  "windup": 0.25,
+  "telegraphed": true,
+  "tell": "generic",
+  "cls": "lock-on",
+  "need_cm": null,
+  "t_cue": 0.25,
+  "note": "release re-checks range/LoS (LDCombatActions.cpp:1604-1620): only escapable at range edge",
+  "range": 650,
+  "walk": {}
+ },
+ {
+  "id": "active_charged_ram",
+  "name": "蛮牛顶",
+  "mode": "DirectionDash",
+  "windup": 0.1,
+  "telegraphed": false,
+  "tell": "generic",
+  "cls": "dash-skill",
+  "need_cm": null,
+  "t_cue": 0.1,
+  "distance": 460,
+  "duration": 0.28,
+  "walk": {}
+ },
+ {
+  "id": "active_brace",
+  "name": "顶着揍",
+  "mode": "Self",
+  "windup": 0.1,
+  "telegraphed": false,
+  "tell": "generic",
+  "cls": "self-buff",
+  "need_cm": null,
+  "t_cue": null,
+  "walk": {}
+ },
+ {
+  "id": "active_cola_shake",
+  "name": "冰可乐摇一摇",
+  "mode": "DirectionCone",
+  "windup": 0.15,
+  "telegraphed": true,
+  "tell": "geometry",
+  "cls": "cone",
+  "need_cm": 99.99999999999999,
+  "t_cue": 0.15,
+  "range": 400,
+  "unled_cross_cm_at_240": 36.0,
+  "walk": {
+   "v240_r200": {
+    "margin_cm": -100.0
+   },
+   "v240_r300": {
+    "margin_cm": -100.0
+   },
+   "v270_r200": {
+    "margin_cm": -100.0
+   },
+   "v270_r300": {
+    "margin_cm": -100.0
+   },
+   "v300_r200": {
+    "margin_cm": -100.0
+   },
+   "v300_r300": {
+    "margin_cm": -100.0
+   },
+   "v330_r200": {
+    "margin_cm": -100.0
+   },
+   "v330_r300": {
+    "margin_cm": -100.0
+   }
+  }
+ },
+ {
+  "id": "active_desk_fan",
+  "name": "电风扇",
+  "mode": "GroundPoint",
+  "windup": 0.2,
+  "telegraphed": true,
+  "tell": "generic",
+  "cls": "placement",
+  "need_cm": null,
+  "t_cue": null,
+  "range": 500,
+  "walk": {}
+ },
+ {
+  "id": "active_stale_takeout",
+  "name": "过期外卖",
+  "mode": "DirectionProjectile",
+  "windup": 0.2,
+  "telegraphed": true,
+  "tell": "generic",
+  "cls": "projectile",
+  "need_cm": 100.0,
+  "t_cue": 0.7,
+  "range": 700,
+  "speed": 1400,
+  "flight_at_max": 0.5,
+  "unled_cross_cm_at_240": 133.7,
+  "min_dodge_range_cm": {
+   "v240_r200": 583.0,
+   "v240_r300": 723.0,
+   "v270_r200": 519.0,
+   "v270_r300": 659.0,
+   "v300_r200": 467.0,
+   "v300_r300": 607.0,
+   "v330_r200": 424.0,
+   "v330_r300": 564.0
+  },
+  "walk": {
+   "v240_r200": {
+    "margin_cm": 20.0
+   },
+   "v240_r300": {
+    "margin_cm": -4.0
+   },
+   "v270_r200": {
+    "margin_cm": 35.0
+   },
+   "v270_r300": {
+    "margin_cm": 8.0
+   },
+   "v300_r200": {
+    "margin_cm": 50.0
+   },
+   "v300_r300": {
+    "margin_cm": 20.0
+   },
+   "v330_r200": {
+    "margin_cm": 65.0
+   },
+   "v330_r300": {
+    "margin_cm": 32.0
+   }
+  }
+ },
+ {
+  "id": "active_school_bag",
+  "name": "占座书包",
+  "mode": "GroundPoint",
+  "windup": 0.2,
+  "telegraphed": true,
+  "tell": "generic",
+  "cls": "placement",
+  "need_cm": null,
+  "t_cue": null,
+  "range": 450,
+  "walk": {}
+ },
+ {
+  "id": "active_flurry_rush",
+  "name": "疯狗乱拳",
+  "mode": "Self",
+  "windup": 0,
+  "telegraphed": false,
+  "tell": "none",
+  "cls": "self-buff",
+  "need_cm": null,
+  "t_cue": null,
+  "walk": {}
+ },
+ {
+  "id": "active_cordon_tape",
+  "name": "警戒封条",
+  "mode": "GroundPoint",
+  "windup": 0.16,
+  "telegraphed": true,
+  "tell": "generic",
+  "cls": "placement",
+  "need_cm": null,
+  "t_cue": null,
+  "range": 560,
+  "walk": {}
+ }
+]

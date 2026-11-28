@@ -56,6 +56,7 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         if (Body.SharedBreach.Stacks>0) { Consider(Body.SharedBreach.ExpiresAtMs); }
         if (!Body.Burn.Layers.IsEmpty()) { Consider(LDCombatKeywords::NextBurnTickAtMs(Body.Burn)); }
         for (const auto& Package : Body.Empowers) { Consider(Package.ExpiresAtMs); }
+        if (Proto.bAgency && !Body.Agency.Losses.IsEmpty()) { Consider(LDCombatControl::AgencyDueMs(Body.Agency,NowMs,Proto.Agency)); }
         if (Body.VoluntaryDash.IsSet()) { Consider(Body.VoluntaryDash->EndMs); }
         if (Body.Shield.IsSet()) { Consider(Body.Shield->ExpiresAtMs); }
         for (const FLDBodyCombatState::FShieldLayer& Layer : Body.ShieldLayers) { Consider(Layer.ExpiresAtMs); }
@@ -84,7 +85,6 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
     for(const auto& Strike:MonsterStrikes){Consider(Strike.AtMs);}
     for(const auto& Drop:SlipperDrops){Consider(Drop.ExpiresAtMs);}
     for(const auto& Cordon:Cordons){Consider(Cordon.ExpiresAtMs);}
-    for(const auto& Decoy:Decoys){Consider(Decoy.ExplodeAtMs);}
     for(const auto& Burst:ShardBursts){Consider(Burst.ExpiresAtMs);}
     Consider(NextMechanicsDueMs(NowMs));
     Consider(NextCardsDueMs(NowMs));
@@ -344,8 +344,7 @@ bool ALDCombatDirector::RunActions(const FLDGameplayWritePermit& Permit, FString
                 Buffered.CastMode=ELDCombatPreInputMode::Direct;
                 Buffered.AimDirection=Request.Target.Direction;
                 Buffered.GroundPointCm=Request.Target.Point;
-                Buffered.bOverdrive=Request.bOverdrive;
-                Buffered.ExpiresAtMs=Mode->GetAuthorityNowMs()+LDCombatPreInput::HoldWindowMs;
+                            Buffered.ExpiresAtMs=Mode->GetAuthorityNowMs()+LDCombatPreInput::HoldWindowMs;
                 Buffered.Action=Request;
                 BufferPreInputIntent(Entity,MoveTemp(Buffered));
                 continue;
@@ -381,6 +380,7 @@ bool ALDCombatDirector::RunEffects(const FLDGameplayWritePermit& Permit, FString
     // Skill branch follow-ups, pulses and bursts due now (a shield's natural end heals before statuses expire).
     if (!LD_TRACED(LDEffects_Branches,AdvanceBranches(Now,Error))) { return false; }
     // Half-open statuses end before this boundary's hits; regeneration already settled in Actions.
+    if (Proto.bAgency) { AdvanceAgency(Now); }
     { TRACE_CPUPROFILER_EVENT_SCOPE(LDEffects_ExpireStatuses); ExpireStatuses(Now); }
     // B12: voluntary dashes that completed by now (motion already ran to this boundary) arm their empowered packages.
     if (!LD_TRACED(LDEffects_Dashes,ResolveDashCompletions(Now,Error))) { return false; }
@@ -508,7 +508,7 @@ bool ALDCombatDirector::PublishOwnerViews(FString& Error)
             const FLDCombatEntryView& Old=PC->CombatView.Entries[Index];
             bEntryTermsChanged=New.DamageFactorBp!=Old.DamageFactorBp || New.NextCooldownMs!=Old.NextCooldownMs;
         }
-        if (bEntryTermsChanged || View.HPRegenPerSec!=PC->CombatView.HPRegenPerSec || View.PerfectDodges!=PC->CombatView.PerfectDodges
+        if (bEntryTermsChanged || View.HPRegenPerSec!=PC->CombatView.HPRegenPerSec
             || View.bPreviewLiving!=PC->CombatView.bPreviewLiving || View.bPreviewFinalField!=PC->CombatView.bPreviewFinalField
             || View.RespawnDurationMs!=PC->CombatView.RespawnDurationMs)
         {

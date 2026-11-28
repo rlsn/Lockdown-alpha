@@ -449,6 +449,8 @@ bool ALDCombatDirector::ActiveOf(const FLDCombatEntityRecord& Record, const FLDC
         if (!Values || (Branch!=ELDSkillBranch::None && !Variant)) { return false; }
         Out.Target=Variant ? Variant->Target : Ability->Target;
         Out.WindupMs=Variant ? Variant->WindupMs : Ability->WindupMs;
+        Out.InterruptCooldownBp=Variant ? Variant->InterruptCooldownBp : 0;
+        Out.bCommitWindup=Variant && Variant->WindupMs>Ability->WindupMs;
         Out.Branch=Branch;
     }
     else if (Source.Kind==ELDCombatSourceKind::Innate && Content)
@@ -467,6 +469,18 @@ bool ALDCombatDirector::ActiveOf(const FLDCombatEntityRecord& Record, const FLDC
         UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_WORKSHOP_COMPILE_FAILED entity=%s source=%s error=%s"),*LDLog::Id(Record.Entity),
             *LDLog::Source(Source),*Error);
         return false;
+    }
+    // Auto-empower: while the experiment runs a learned Q/W/E costs no momentum (only its cooldown limits it).
+    if (Source.Kind==ELDCombatSourceKind::Learned && EmpowerTerms()) { Out.Values.MomentumCostP2=0; }
+    // C-14 prototype (-LDProtoPotDelay): S08's 2B forms (2B, 3B1, 3B2) land after the switch's delay; 3B1's second blast
+    // still follows the first by its own content delay.
+    if (Proto.PotDelayMs>=0 && Source.Kind==ELDCombatSourceKind::Learned && Source.DefinitionId==LDProto::PotSkillId()
+        && (Out.Branch==ELDSkillBranch::B || Out.Branch==ELDSkillBranch::B1 || Out.Branch==ELDSkillBranch::B2))
+    {
+        for (FLDDemoEffectDefinition& Effect : Out.Values.Effects)
+        {
+            if (Effect.GetOp()==ELDDemoEffectOp::GroundImpact) { Effect.DelayMs=Proto.PotDelayMs; }
+        }
     }
     return true;
 }
@@ -585,7 +599,7 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
     {
         View.MomentumCostP2=Body->SplitDashLeft>0 && NowMs<=Body->SplitDashUntilMs ? 0 : Terms.DashMomentumCostP2;
     }
-    else if (BranchRecastOpen(*Body,Source,NowMs) || BranchFreeCast(*Body,Source,NowMs) || Body->FreeCasts>0 || Terms.HPCostBpPerMomentum>0)
+    else if (BranchRecastOpen(*Body,Source,NowMs) || BranchFreeCast(*Body,Source,NowMs) || Terms.HPCostBpPerMomentum>0)
     {
         View.MomentumCostP2=0;
     }
@@ -1024,18 +1038,29 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
     Out.BuildSafeAtMs=LDCombatSourceRules::BuildSafeAtMs(Record->LastBuildUnsafeAtMs,Content->Get().Parameters.BuildSafeWindowMs);
     // The chain history belongs to the contender: an eliminated one without a body still receives its last chain ends.
     ReadOwnerChains(Caller.EntityId,Out.Chains);
+    if (const FLDDemoEmpowerParameters* Empower=EmpowerTerms())
+    {
+        Out.bEmpowerEnabled=true;
+        Out.EmpowerHost=EmpowerHostOf(*Record);
+        Out.EmpowerProcessor=uint8(EmpowerProcessorOf(*Record,Out.EmpowerHost));
+        Out.bEmpowerHostChosen=Record->EmpowerHost!=ELDCombatEntry::None;
+        Out.EmpowerHostSequence=Record->EmpowerHostSequence;
+        Out.EmpowerThresholdP2=Empower->ThresholdP2;
+        Out.EmpowerCostP2=Empower->CostP2;
+        if (Body)
+        {
+            Out.Empowerments=Body->Empowerments;
+            Out.LastEmpowerAtMs=Body->LastEmpowerAtMs;
+        }
+    }
     if (Body)
     {
         Out.HPP2=Body->Resources.HpP2;
         Out.MaxHPP2=Body->Resources.MaxHpP2;
         Out.MomentumP2=Body->Resources.MomentumP2;
-        Out.OverdriveThresholdP2=OverdriveThresholdOf(*Body);
         Out.ShieldP2=Body->Resources.ShieldP2;
         Out.ComboStep=Body->ComboStep;
         Out.ComboStartMs=Body->ComboStartMs;
-        Out.PerfectDodges=Body->PerfectDodges;
-        Out.LastPerfectDodgeAtMs=Body->LastPerfectDodgeAtMs;
-        Out.ChargingEntry=Body->OverdriveCharge.IsSet() ? Body->OverdriveCharge->Entry : ELDCombatEntry::None;
         if (!Body->bPendingDeath)
         {
             const int64 RootedUntilMs=LDTactical::ActiveRootUntilMs(Body->Roots,NowMs);
@@ -1127,7 +1152,7 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
                 Out.ActionToken=Body->Action->Token;
                 Out.ActionReleaseAtMs=Body->Action->ReleaseAtMs;
             }
-            Out.Cues=PresentedCueFactsOf(*Body);
+            Out.Cues=CueFactsOf(*Body);
             if (Out.Cues.LastHitId.IsValid())
             {
                 Out.Cues.LastHitId=LDObservation::ScopedHitId(Body->Identity,Out.Cues.LastHitId);

@@ -1,0 +1,659 @@
+{
+ "pvp_hits": 6602,
+ "deaths": 44,
+ "ttk_s": {
+  "median": 5.890000000000001,
+  "p25": 4.0127500000000005,
+  "p75": 7.9455
+ },
+ "multi_attacker_deaths": 13,
+ "peak_1s_share_median": 0.37566782200067506,
+ "damage_share_mean": {
+  "basic": 0.42992056588077227,
+  "ability": 0.49896895093221194,
+  "periodic": 0.07111048318701578
+ },
+ "rows": [
+  {
+   "victim": "487F64D3",
+   "life": "1",
+   "ttk_ms": 11787,
+   "hits": 13,
+   "attackers": 1,
+   "max_hp": 860.0,
+   "peak_1s_share": 0.21066279069767443,
+   "share": {
+    "basic": 0.8615349604596917,
+    "ability": 0.13846503954030834
+   },
+   "controls": 0
+  },
+  {
+   "victim": "5FF11F3E",
+   "life": "1",
+   "ttk_ms": 13150,
+   "hits": 13,
+   "attackers": 1,
+   "max_hp": 860.0,
+   "peak_1s_share": 0.20286046511627906,
+   "share": {
+    "ability": 0.1283369654045219,
+    "basic": 0.8716630345954781
+   },
+   "controls": 1
+  },
+  {
+   "victim": "54E80AFA",
+   "life": "2",
+   "ttk_ms": 9232,
+   "hits": 26,
+   "attackers": 1,
+   "max_hp": 860.0,
+   "peak_1s_share": 0.23388372093023257,
+   "share": {
+    "basic": 0.55714073413583,
+    "ability": 0.2197148964870766,
+    "periodic": 0.22314436937709337
+   },
+   "controls": 0
+  },
+  {
+   "victim": "87F7357C",
+   "life": "2",
+   "ttk_ms": 7755,
+   "hits": 20,
+   "attackers": 2,
+   "max_hp": 1360.0,
+   "peak_1s_share": 0.43634558823529407,
+   "share": {
+    "ability": 0.6080675517574649,
+    "basic": 0.39193244824253526
+   },
+   "controls": 3
+  },
+  {
+   "victim": "C18BA66D",
+   "life": "2",
+   "ttk_ms": 12126,
+   "hits": 11,
+   "attackers": 1,
+   "max_hp": 1110.0,
+   "peak_1s_share": 0.3827477477477478,
+   "share": {
+    "ability": 0.583151698992557,
+    "basic": 0.41684830100744286
+   },
+   "controls": 1
+  },
+  {
+   "victim": "C7111DE9",
+   "life": "2",
+   "ttk_ms": 11312,
+   "hits": 5,
+   "attackers": 2,
+   "max_hp": 1110.0,
+   "peak_1s_share": 0.26610810810810803,
+   "share": {
+    "basic": 0.2036057900667418,
+    "ability": 0.7963942099332582
+   },
+   "controls": 1
+  },
+  {
+   "victim": "97D223FC",
+   "life": "2",
+   "ttk_ms": 4730,
+   "hits": 9,
+   "attackers": 1,
+   "max_hp": 1110.0,
+   "peak_1s_share": 0.4660540540540541,
+   "share": {
+    "basic": 0.554456065075534,
+    "ability": 0.44554393492446587
+   },
+   "controls": 2
+  },
+  {
+   "victim": "D5525476",
+   "life": "2",
+   "ttk_ms": 6420,
+   "hits": 9,
+   "attackers": 1,
+   "max_hp": 1110.0,
+   "peak_1s_share": 0.5366036036036035,
+   "share": {
+    "ability": 0.43984275412057305,
+    "basic": 0.5601572458794271
+   },
+   "controls": 3
+  },
+  {
+   "victim": "97D223FC",
+   "life": "3",
+   "ttk_ms": 8009,
+   "hits": 28,
+   "attackers": 2,
+   "max_hp": 1110.0,
+   "peak_1s_share": 0.39945945945945943,
+   "share": {
+    "basic": 0.4258888799978661,
+    "ability": 0.46086616343477993,
+    "periodic": 0.11324495656735392
+   },
+   "controls": 0
+  },
+  {
+   "victim": "97D223FC",
+   "life": "4",
+   "ttk_ms": 8372,
+   "hits": 31,
+   "attackers": 1,
+   "max_hp": 1110.0,
+   "peak_1s_share": 0.2254144144144144,
+   "share": {
+    "basic": 0.46378176648302827,
+    "ability": 0.3617025057757241,
+    "periodic": 0.17451572774124746
+   },
+   "controls": 0
+  },
+  {
+   "victim": "54E80AFA",
+   "life": "3",
+   "ttk_ms": 3331,
+   "hits": 10,
+   "attackers": 1,
+   "max_hp": 860.0,
+   "peak_1s_share": 0.4606744186046512,
+   "share": {
+    "ability": 0.660495539222484,
+    "basic": 0.2787639254842139,
+    "periodic": 0.0607405352933019
+   },
+   "controls": 2
+  },
+  {
+   "victim": "C7111DE9",
+   "life": "3",
+   "ttk_ms": 6310,
+   "hits": 24,
+   "attackers": 1,
+   "max_hp": 1235.0,
+   "peak_1s_share": 0.30204858299595144,
+   "share": {
+    "ability": 0.5083456259620318,
+    "basic": 0.3986339148281169,
+    "periodic": 0.09302045920985118
+   },
+   "controls": 2
+  },
+  {
+   "victim": "E91D55C9",
+   "life": "1",
+   "ttk_ms": 3550,
+   "hits": 14,
+   "attackers": 1,
+   "max_hp": 860.0,
+   "peak_1s_share": 0.4540581395348837,
+   "share": {
+    "ability": 0.4845554939469549,
+    "basic": 0.4463658626744294,
+    "periodic": 0.06907864337861566
+   },
+   "controls": 1
+  },
+  {
+   "victim": "B3094685",
+   "life": "1",
+   "ttk_ms": 5732,
+   "hits": 7,
+   "attackers": 1,
+   "max_hp": 860.0,
+   "peak_1s_share": 0.3035348837209302,
+   "share": {
+    "ability": 0.18482000069031373,
+    "basic": 0.8151799993096862
+   },
+   "controls": 1
+  },
+  {
+   "victim": "97D223FC",
+   "life": "7",
+   "ttk_ms": 5413,
+   "hits": 11,
+   "attackers": 3,
+   "max_hp": 1110.0,
+   "peak_1s_share": 0.38858558558558565,
+   "share": {
+    "basic": 0.5782490289745078,
+    "ability": 0.3720969686146703,
+    "periodic": 0.04965400241082191
+   },
+   "controls": 2
+  },
+  {
+   "victim": "87F7357C",
+   "life": "5",
+   "ttk_ms": 3805,
+   "hits": 9,
+   "attackers": 2,
+   "max_hp": 1360.0,
+   "peak_1s_share": 0.41707352941176473,
+   "share": {
+    "ability": 0.6414383987250624,
+    "basic": 0.3585616012749377
+   },
+   "controls": 2
+  },
+  {
+   "victim": "C7111DE9",
+   "life": "6",
+   "ttk_ms": 9100,
+   "hits": 16,
+   "attackers": 4,
+   "max_hp": 1235.0,
+   "peak_1s_share": 0.2910445344129555,
+   "share": {
+    "ability": 0.38190337076858,
+    "basic": 0.5776521954295476,
+    "periodic": 0.040444433801872556
+   },
+   "controls": 1
+  },
+  {
+   "victim": "D23151D0",
+   "life": "4",
+   "ttk_ms": 6890,
+   "hits": 21,
+   "attackers": 3,
+   "max_hp": 1485.0,
+   "peak_1s_share": 0.3443030303030303,
+   "share": {
+    "ability": 0.5275702443750673,
+    "basic": 0.4477069652276886,
+    "periodic": 0.02472279039724405
+   },
+   "controls": 1
+  },
+  {
+   "victim": "C7111DE9",
+   "life": "8",
+   "ttk_ms": 6347,
+   "hits": 22,
+   "attackers": 1,
+   "max_hp": 1235.0,
+   "peak_1s_share": 0.29375708502024295,
+   "share": {
+    "basic": 0.4908292182389534,
+    "ability": 0.4161562880779837,
+    "periodic": 0.09301449368306289
+   },
+   "controls": 1
+  },
+  {
+   "victim": "D23151D0",
+   "life": "6",
+   "ttk_ms": 6533,
+   "hits": 25,
+   "attackers": 1,
+   "max_hp": 1485.0,
+   "peak_1s_share": 0.34474747474747464,
+   "share": {
+    "ability": 0.5074124992839547,
+    "basic": 0.41688148020851234,
+    "periodic": 0.07570602050753279
+   },
+   "controls": 2
+  },
+  {
+   "victim": "97D223FC",
+   "life": "9",
+   "ttk_ms": 3694,
+   "hits": 8,
+   "attackers": 1,
+   "max_hp": 1235.0,
+   "peak_1s_share": 0.5694089068825912,
+   "share": {
+    "ability": 0.5781198772018717,
+    "basic": 0.42188012279812825
+   },
+   "controls": 5
+  },
+  {
+   "victim": "87F7357C",
+   "life": "7",
+   "ttk_ms": 4566,
+   "hits": 17,
+   "attackers": 1,
+   "max_hp": 1610.0,
+   "peak_1s_share": 0.2750124223602484,
+   "share": {
+    "ability": 0.4213046655640602,
+    "basic": 0.5027020270010385,
+    "periodic": 0.07599330743490135
+   },
+   "controls": 1
+  },
+  {
+   "victim": "C7111DE9",
+   "life": "9",
+   "ttk_ms": 4069,
+   "hits": 25,
+   "attackers": 1,
+   "max_hp": 1235.0,
+   "peak_1s_share": 0.5368421052631579,
+   "share": {
+    "ability": 0.6715689035133591,
+    "basic": 0.22722189594278222,
+    "periodic": 0.10120920054385867
+   },
+   "controls": 3
+  },
+  {
+   "victim": "97D223FC",
+   "life": "10",
+   "ttk_ms": 3516,
+   "hits": 9,
+   "attackers": 1,
+   "max_hp": 1235.0,
+   "peak_1s_share": 0.5694089068825912,
+   "share": {
+    "ability": 0.7354306881619449,
+    "basic": 0.264569311838055
+   },
+   "controls": 5
+  },
+  {
+   "victim": "D23151D0",
+   "life": "7",
+   "ttk_ms": 8072,
+   "hits": 27,
+   "attackers": 2,
+   "max_hp": 1610.0,
+   "peak_1s_share": 0.367055900621118,
+   "share": {
+    "basic": 0.32005830630715015,
+    "ability": 0.5711559401013921,
+    "periodic": 0.1087857535914578
+   },
+   "controls": 1
+  },
+  {
+   "victim": "54E80AFA",
+   "life": "6",
+   "ttk_ms": 6943,
+   "hits": 8,
+   "attackers": 1,
+   "max_hp": 860.0,
+   "peak_1s_share": 0.3035348837209302,
+   "share": {
+    "ability": 0.18441051544024795,
+    "basic": 0.8155894845597521
+   },
+   "controls": 1
+  },
+  {
+   "victim": "60EE8972",
+   "life": "4",
+   "ttk_ms": 5667,
+   "hits": 22,
+   "attackers": 1,
+   "max_hp": 1873.0,
+   "peak_1s_share": 0.30208222103577154,
+   "share": {
+    "ability": 0.4324672113644793,
+    "basic": 0.5643691208037853,
+    "periodic": 0.003163667831735578
+   },
+   "controls": 2
+  },
+  {
+   "victim": "97D223FC",
+   "life": "11",
+   "ttk_ms": 4500,
+   "hits": 27,
+   "attackers": 1,
+   "max_hp": 1235.0,
+   "peak_1s_share": 0.5586882591093117,
+   "share": {
+    "ability": 0.675667227341064,
+    "basic": 0.21414536848216018,
+    "periodic": 0.1101874041767762
+   },
+   "controls": 3
+  },
+  {
+   "victim": "87F7357C",
+   "life": "8",
+   "ttk_ms": 6300,
+   "hits": 22,
+   "attackers": 2,
+   "max_hp": 1735.0,
+   "peak_1s_share": 0.29037463976945244,
+   "share": {
+    "ability": 0.7043653627518753,
+    "basic": 0.26369853231031154,
+    "periodic": 0.031936104937813146
+   },
+   "controls": 2
+  },
+  {
+   "victim": "C18BA66D",
+   "life": "6",
+   "ttk_ms": 5627,
+   "hits": 25,
+   "attackers": 2,
+   "max_hp": 1485.0,
+   "peak_1s_share": 0.2827878787878788,
+   "share": {
+    "ability": 0.29257574589468816,
+    "periodic": 0.0632599995794815,
+    "basic": 0.6441642545258304
+   },
+   "controls": 6
+  },
+  {
+   "victim": "9037DFCB",
+   "life": "1",
+   "ttk_ms": 4950,
+   "hits": 10,
+   "attackers": 1,
+   "max_hp": 860.0,
+   "peak_1s_share": 0.5471395348837209,
+   "share": {
+    "ability": 0.45350954004977423,
+    "basic": 0.5464904599502259
+   },
+   "controls": 1
+  },
+  {
+   "victim": "1866DF37",
+   "life": "1",
+   "ttk_ms": 1882,
+   "hits": 4,
+   "attackers": 1,
+   "max_hp": 860.0,
+   "peak_1s_share": 0.6015348837209301,
+   "share": {
+    "ability": 0.2008203844683144,
+    "basic": 0.7991796155316857
+   },
+   "controls": 1
+  },
+  {
+   "victim": "38A605B6",
+   "life": "1",
+   "ttk_ms": 5550,
+   "hits": 10,
+   "attackers": 1,
+   "max_hp": 860.0,
+   "peak_1s_share": 0.3936860465116279,
+   "share": {
+    "ability": 0.95055703894669,
+    "periodic": 0.04944296105331
+   },
+   "controls": 0
+  },
+  {
+   "victim": "97D223FC",
+   "life": "14",
+   "ttk_ms": 3994,
+   "hits": 32,
+   "attackers": 1,
+   "max_hp": 1235.0,
+   "peak_1s_share": 0.5230364372469636,
+   "share": {
+    "ability": 0.5569036659665431,
+    "basic": 0.3235986355037166,
+    "periodic": 0.11949769852974036
+   },
+   "controls": 3
+  },
+  {
+   "victim": "D23151D0",
+   "life": "10",
+   "ttk_ms": 7367,
+   "hits": 48,
+   "attackers": 3,
+   "max_hp": 1875.0,
+   "peak_1s_share": 0.33372266666666656,
+   "share": {
+    "ability": 0.6621518545492155,
+    "periodic": 0.10554145424928145,
+    "basic": 0.2323066912015031
+   },
+   "controls": 4
+  },
+  {
+   "victim": "D5525476",
+   "life": "10",
+   "ttk_ms": 3194,
+   "hits": 33,
+   "attackers": 3,
+   "max_hp": 1860.0,
+   "peak_1s_share": 0.7963064516129031,
+   "share": {
+    "ability": 0.7198926323583859,
+    "basic": 0.26315808959644577,
+    "periodic": 0.016949278045168457
+   },
+   "controls": 4
+  },
+  {
+   "victim": "C18BA66D",
+   "life": "9",
+   "ttk_ms": 6987,
+   "hits": 21,
+   "attackers": 3,
+   "max_hp": 1485.0,
+   "peak_1s_share": 0.5101616161616161,
+   "share": {
+    "ability": 0.9875497377313596,
+    "periodic": 0.012450262268640398
+   },
+   "controls": 5
+  },
+  {
+   "victim": "87F7357C",
+   "life": "13",
+   "ttk_ms": 6048,
+   "hits": 29,
+   "attackers": 1,
+   "max_hp": 1735.0,
+   "peak_1s_share": 0.3007953890489913,
+   "share": {
+    "ability": 0.5572624660665809,
+    "basic": 0.35765109301328757,
+    "periodic": 0.08508644092013146
+   },
+   "controls": 1
+  },
+  {
+   "victim": "87F7357C",
+   "life": "14",
+   "ttk_ms": 8400,
+   "hits": 30,
+   "attackers": 1,
+   "max_hp": 1735.0,
+   "peak_1s_share": 0.36858789625360233,
+   "share": {
+    "ability": 0.5959988379312898,
+    "basic": 0.2794205606411885,
+    "periodic": 0.12458060142752167
+   },
+   "controls": 1
+  },
+  {
+   "victim": "54E80AFA",
+   "life": "9",
+   "ttk_ms": 1932,
+   "hits": 14,
+   "attackers": 1,
+   "max_hp": 860.0,
+   "peak_1s_share": 0.8276279069767442,
+   "share": {
+    "ability": 0.6897079099514536,
+    "basic": 0.21084707272706205,
+    "periodic": 0.09944501732148443
+   },
+   "controls": 1
+  },
+  {
+   "victim": "167CFCD3",
+   "life": "1",
+   "ttk_ms": 2418,
+   "hits": 16,
+   "attackers": 1,
+   "max_hp": 1860.0,
+   "peak_1s_share": 0.47838172043010746,
+   "share": {
+    "basic": 0.3653700855754237,
+    "ability": 0.630584238475182,
+    "periodic": 0.004045675949394221
+   },
+   "controls": 5
+  },
+  {
+   "victim": "608041F1",
+   "life": "1",
+   "ttk_ms": 5450,
+   "hits": 7,
+   "attackers": 1,
+   "max_hp": 860.0,
+   "peak_1s_share": 0.3159883720930233,
+   "share": {
+    "basic": 0.8090408877428861,
+    "ability": 0.1909591122571139
+   },
+   "controls": 0
+  },
+  {
+   "victim": "961C33DA",
+   "life": "1",
+   "ttk_ms": 2286,
+   "hits": 13,
+   "attackers": 1,
+   "max_hp": 860.0,
+   "peak_1s_share": 0.670953488372093,
+   "share": {
+    "basic": 0.375209865107393,
+    "ability": 0.6247901348926068
+   },
+   "controls": 0
+  },
+  {
+   "victim": "B6ECC14E",
+   "life": "1",
+   "ttk_ms": 16500,
+   "hits": 52,
+   "attackers": 1,
+   "max_hp": 860.0,
+   "peak_1s_share": 0.2122906976744186,
+   "share": {
+    "periodic": 1.0000000000000002,
+    "ability": 0.0
+   },
+   "controls": 10
+  }
+ ]
+}

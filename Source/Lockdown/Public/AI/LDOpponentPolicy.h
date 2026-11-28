@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Combat/LDAttributeProjection.h"
+#include "Combat/LDCombatTypes.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Development/LDGrowthProtocol.h"
 #include "Framework/LDMatchLifecycleTypes.h"
@@ -65,6 +66,8 @@ struct FLDOpponentWarning
     FVector Heading = FVector::ForwardVector;
     double RadiusCm = 0, LengthCm = 0, AngleDegrees = 0;
     int64 RemainingMs = 0;
+    // For logs only: the public look of a pending ground or projectile warning, or cast_<ability> for a cast cue.
+    FName Source;
 };
 
 // One bound active source exactly as the authority's availability read reports it; no second cooldown.
@@ -128,6 +131,10 @@ struct FLDOpponentSelf
     int64 MaxHpP2 = 0;
     int64 MomentumP2 = 0;
     int64 MaxMomentumP2 = 0;
+    // M-12 auto-empower, from the own combat view (the bar's mark and host the owner's HUD shows): the bar an empowered
+    // action needs (0 while the experiment is off) and the host entry it applies to.
+    int64 EmpowerThresholdP2 = 0;
+    ELDCombatEntry EmpowerHost = ELDCombatEntry::None;
     FLDProjectedAttributes Attributes;
     // Authority ms at which the next basic AttackStart may begin; at or before now when ready.
     int64 BasicReadyAtMs = 0;
@@ -214,6 +221,10 @@ struct FLDOpponentPublicMatch
     TArray<FLDPrivatePoleView> PrivatePoles;
     FVector ArenaCentreCm = FVector::ZeroVector;
     float SafeRadiusCm = 0;
+    // B01 T04-03: the final street ring's current radius (LDShowdown::StreetRadiusCm) and when its closure starts; outside
+    // it after the start a contender loses health. 0 outside the final field.
+    float StreetRadiusCm = 0;
+    int64 ClosureAtMs = 0;
     FName FinalModOf(const FGuid& Contender) const
     {
         const FLDFinalModHolderView* Row = FinalMods.FindByPredicate([&Contender](const FLDFinalModHolderView& Each)
@@ -263,7 +274,8 @@ struct FLDOpponentGround
 
 // Sign-up and service places are carried only by rest frames, not the field POI list.
 // Locker (#305): a delivery locker that is out now (the public match view); never a static place.
-enum class ELDOpponentPOIKind : uint8 { Spawn, Camp, Capture, Dorm, Airdrop, MiniFlag, Locker, PKSignup };
+// RecoveryOrb (B01 T04-03): a camp-clear recovery orb in sight (FLDWorldView::RecoveryOrbs); never a static place.
+enum class ELDOpponentPOIKind : uint8 { Spawn, Camp, Capture, Dorm, Airdrop, MiniFlag, Locker, PKSignup, RecoveryOrb };
 
 // Static public place from the approved world and content; never a live occupancy fact.
 struct FLDOpponentPOI
@@ -315,6 +327,10 @@ struct FLDOpponentDecisionFrame
     // #198 站圈报名 (user decision A on issue #198): in a rest, the own PK sign-up disk (its roster slot's public anchor);
     // unset outside a rest. Never part of POIs, so no field decision ever walks there.
     TOptional<FLDOpponentPOI> SignupPOI;
+    // B01 T03-02: a visible camp member that walls off the own kept walk with no way round it (its handle and epoch);
+    // invalid otherwise. The policy fights through it.
+    FGuid WallingHandle;
+    uint32 WallingEpoch = 0;
 };
 
 // Walk: the body's own walking, refused for its ground or path from where it stands (#160); fingerprinted by that spot.
@@ -353,8 +369,6 @@ struct FLDOpponentBodyIntent
     FName Surface;
     // Failure memory of MoveGround, AttackUnit and Activate; the final receipt settles against it.
     FLDOpponentRetryKey Key;
-    // Activate: release it as an overdrive (the adapter holds the charge for OVERDRIVE.HoldSec first).
-    bool bOverdrive = false;
 };
 
 // #198 build commands, as a player sends them: choose an active of the current offer (always asking to learn it now),
@@ -478,6 +492,8 @@ struct FLDOpponentPolicyState
     // D26 (#160): the walk to RetreatPOI steps away from the Boss and continues while the Boss stays in sight, so the
     // body does not turn back at the edge of the Boss's band and flip between the escape and its errand.
     bool bEscapingBoss = false;
+    // B01 M-12: since when a ready auto-empower host has been kept below the threshold (-1: not kept).
+    int64 EmpowerHoldSinceMs = -1;
     // #160: the goal of the last walk navigation refused for its ground or path; a different refused goal from the
     // same standing point counts against the body's own walking.
     FLDOpponentRetryKey LastRefusedWalk;
@@ -605,10 +621,15 @@ namespace LDOpponentPolicy
     LOCKDOWN_API int32 InstalledCards(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog);
     LOCKDOWN_API bool CardTarget(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, const FString& Card,
         FLDCardTarget& Out);
-    // The first stored card (serial order) with a place: a card while a capacity slot is free; an element medal, which takes
-    // none, onto a host whose same medal can still fuse, else onto the first empty element slot (Q/W/E, then the body).
+    // The stored card with a place that goes in next: first an element medal, which takes no capacity slot, onto a host whose
+    // same medal can still fuse, else onto the first empty element slot (Q/W/E, then the body); otherwise, while a capacity
+    // slot is free, the card that fits the build best (OpponentCardFit: shared skill vocabulary, the Goal's cards), serial
+    // order on a tie.
     LOCKDOWN_API bool SelectCardInstall(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, uint16& OutSerial,
-        FLDCardTarget& OutTarget);
+        FLDCardTarget& OutTarget, FName Goal = NAME_None);
+    // B01 T04-04: with every capacity slot taken, the installed card (OutSerial) to take off because a stored card with a
+    // place fits the build strictly better; SelectCardInstall then puts the better card in. False when nothing fits better.
+    LOCKDOWN_API bool SelectCardSwap(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FName Goal, uint16& OutSerial);
     // True when the public solo deadline leaves no more than travel, control and reaction budget.
     // An unknown path or zero speed is conservatively urgent; it never divides by zero.
     LOCKDOWN_API bool IsCaptureDefenseUrgent(const FLDCaptureUrgencyInput& Input);
@@ -666,6 +687,45 @@ namespace LDOpponentPolicy
         TArray<FVector>& Out);
     constexpr double GroundPathSampleCm = 25.;
     constexpr double GroundDetourMarginCm = 120.;
+    // A visible body that does not step aside for a walk (a camp member at its home), as a disc of its collision radius.
+    struct FBodyDisc
+    {
+        FVector CentreCm = FVector::ZeroVector;
+        double RadiusCm = 0;
+    };
+    // The first body (index into Bodies) a walked polyline runs into within its first LookaheadCm, for a walker of
+    // WalkerRadiusCm: its path passes closer to the body's centre than the two radii. A body within that clearance of
+    // the polyline's end is the walk's destination, not an obstacle, and a first leg that comes no more than BodyGrazeCm
+    // closer to a body than the walker already stands (it slides past a body it touches) is not blocked by it.
+    // INDEX_NONE when nothing is in the way. OutAlong is the direction of the segment that meets the body.
+    LOCKDOWN_API int32 BlockingBody(TConstArrayView<FVector> Points, TConstArrayView<FBodyDisc> Bodies, double WalkerRadiusCm,
+        double LookaheadCm, FVector& OutAlong);
+    // Detour waypoints around one blocking body for a walk heading Along: on either side, at the walker's clearance plus one
+    // to three GroundDetourMarginCm (a wider step clears a group of bodies), nearest first.
+    LOCKDOWN_API void BodyDetours(const FBodyDisc& Body, const FVector& Along, double WalkerRadiusCm, TArray<FVector>& Out);
+    // The visible camp member the frame names as walling off the own walk (FLDOpponentDecisionFrame::WallingHandle), or null.
+    LOCKDOWN_API const FLDOpponentUnit* WallingUnit(const FLDOpponentDecisionFrame& Frame);
+    constexpr double BodyLookaheadCm = 1200.;
+    constexpr double BodyGrazeCm = 25.;
+    constexpr int64 BodyRerouteIntervalMs = 1000;
+    // A walker this much beyond touching distance of a walling body counts as pressed against it.
+    constexpr double BodyPressedCm = 30.;
+    // B01 T04-03: how far inside the final street ring a body keeps; one outside Radius - margin walks back to Radius - 2 x margin.
+    constexpr double StreetRingMarginCm = 150.;
+    // Issue #287 spec §13: an enemy warning on the own foot is dashed out of once it lands within this many ms.
+    constexpr int64 DodgeLeadMs = 450;
+    // B01: a ready damaging cast at least CloseInMinRangeCm long whose target stands beyond it but within basic-attack reach
+    // plus CloseInSlackCm is stepped into, to CloseInMarginCm inside its reach.
+    constexpr double CloseInMinRangeCm = 120.;
+    constexpr double CloseInSlackCm = 50.;
+    constexpr double CloseInMarginCm = 40.;
+    // B01 M-12: the longest a ready Q/W/E auto-empower host is kept for the threshold before it is cast unempowered.
+    constexpr int64 EmpowerHoldMaxMs = 3000;
+    // A dodge clears the outline by this much, and passes no visible body's foot closer than this (two capsules).
+    constexpr double DodgeClearanceCm = 90.;
+    // True when FootCm stands in Warning's public outline (a disc, a line of half-width RadiusCm, or a cone of LengthCm);
+    // OutAway is the unit way out (sideways from a line or cone, outward from a disc).
+    LOCKDOWN_API bool WarningCovers(const FLDOpponentWarning& Warning, const FVector& FootCm, FVector* OutAway = nullptr);
 #if WITH_DEV_AUTOMATION_TESTS
     // DEV build evaluation (docs/systems/BUILD_EVALUATION.md): the production engagement of one visible unit exactly as
     // Decide engages it (activation order §6.3, dash chase, then the basic attack, with the same failure memory). A fixed
@@ -677,5 +737,9 @@ namespace LDOpponentPolicy
     // place is unknown or the context cannot initialize.
     LOCKDOWN_API FLDOpponentBodyIntent WalkTo(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
         FLDOpponentPolicyState& State, FName POI);
+    // The production warning dodge (Decide's first body step) without its AI.DodgeChance roll: every frame warning due
+    // within its window on the own foot is dashed out of with the ready D. Unset when none applies.
+    LOCKDOWN_API TOptional<FLDOpponentBodyIntent> DodgeWarning(const FLDOpponentDecisionFrame& Frame,
+        const FLDDemoContentSnapshot& Catalog, FLDOpponentPolicyState& State);
 #endif
 }

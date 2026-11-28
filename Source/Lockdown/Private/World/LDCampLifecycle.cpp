@@ -294,6 +294,11 @@ int32 FLDCampMatchState::DevRefreshNow(int64 NowMs)
     }
     return Waiting;
 }
+
+void FLDCampMatchState::DevHoldEmpty(int32 Camp)
+{
+    if (Camps.IsValidIndex(Camp) && Camps[Camp].bRespawnPending) { Camps[Camp].RespawnDueMs = MAX_int64; }
+}
 #endif
 
 void FLDCampMatchState::QueueFieldReset(int32 Camp)

@@ -330,6 +330,53 @@ bool RunChoiceOrder(FAutomationTestBase& Test)
             bGood &= Test.TestFalse(TEXT("A stored medal never swaps one out"),
                 LDOpponentPolicy::SelectCardInstall(MedalHolder, C, Serial, Target));
         }
+        // B01 T04-04: a full workshop swaps its least fitting card for a stored card that shares the skills' vocabulary,
+        // and never the other way round.
+        {
+            const FLDDemoAbilityDefinition* Elbow = nullptr;
+            FString Why;
+            const uint32 SkillVocab = C.FindAbility(TEXT("active_elbow"), Elbow, Why) && Elbow ? Elbow->VocabMask : 0u;
+            FLDOpponentSelf Probe;
+            Probe.Actives = {Active(TEXT("active_elbow"), 0)};
+            const FLDDemoCardDefinition* Fits = nullptr;
+            const FLDDemoCardDefinition* Misfit = nullptr;
+            for (const FLDDemoCardDefinition& Row : C.Get().Cards)
+            {
+                FLDCardTarget Place;
+                if (Row.Form == ELDCardForm::Medal || !LDOpponentPolicy::CardTarget(Probe, C, Row.Id, Place)) { continue; }
+                if (!Fits && (Row.VocabMask & SkillVocab) != 0) { Fits = &Row; }
+                if (!Misfit && (Row.VocabMask & SkillVocab) == 0) { Misfit = &Row; }
+            }
+            if (Test.TestTrue(TEXT("The catalog has a fitting and a misfit card for the swap"), Fits && Misfit))
+            {
+                FLDOpponentSelf Full = Probe;
+                Full.CardCapacity = 1;
+                FLDOpponentCard Installed;
+                Installed.Serial = 1;
+                Installed.DefinitionId = Misfit->Id;
+                FLDCardTarget Place;
+                LDOpponentPolicy::CardTarget(Probe, C, Misfit->Id, Place);
+                Installed.TargetKind = Place.Kind;
+                Installed.TargetActive = Place.Active.IsNone() ? FString() : Place.Active.ToString();
+                FLDOpponentCard Stored;
+                Stored.Serial = 2;
+                Stored.DefinitionId = Fits->Id;
+                Full.Cards = {Installed, Stored};
+                uint16 Off = 0;
+                bGood &= Test.TestTrue(TEXT("The misfit card comes off for the fitting one"),
+                    LDOpponentPolicy::SelectCardSwap(Full, C, NAME_None, Off) && Off == 1);
+                FLDOpponentSelf Freed = Full;
+                Freed.Cards[0].TargetKind = ELDCardTargetKind::None;
+                Freed.Cards[0].TargetActive.Reset();
+                uint16 In = 0;
+                FLDCardTarget InPlace;
+                bGood &= Test.TestTrue(TEXT("and the fitting card takes the freed slot, not the one taken off"),
+                    LDOpponentPolicy::SelectCardInstall(Freed, C, In, InPlace) && In == 2);
+                Swap(Full.Cards[0].DefinitionId, Full.Cards[1].DefinitionId);
+                bGood &= Test.TestFalse(TEXT("A fitting card is never swapped for a misfit"),
+                    LDOpponentPolicy::SelectCardSwap(Full, C, NAME_None, Off));
+            }
+        }
         BasicArchetype.StatPoints = StatRows(C, {{Agility, 18}});
         BasicArchetype.UnspentPoints = 10;
         TArray<uint8> DualCounts;
@@ -918,8 +965,10 @@ bool RunPriorities(FAutomationTestBase& Test)
         Spray.Public.DueAtMs = 0;
         FLDOpponentPolicyState Paused;
         const auto NoInterrupt = LDOpponentPolicy::Decide(Spray, C, Paused);
-        bGood &= Expect(Test, TEXT("A paused holder is fought, not taunted, since nobody sprays"), NoInterrupt, EMode::Contest,
-            EBody::AttackUnit);
+        // B01 T04-01: the taunt is no longer kept for spray interrupts only; a rival inside its radius is taunted in a
+        // fight like any other control.
+        bGood &= Expect(Test, TEXT("A paused holder inside the taunt radius is fought with the taunt"), NoInterrupt, EMode::Contest,
+            EBody::Activate);
     }
 
     Frame = Base;
@@ -1998,6 +2047,50 @@ bool RunV7Activations(FAutomationTestBase& Test)
     FLDOpponentPolicyState Rooted;
     bGood &= Test.TestTrue(TEXT("not_mad cleanses the root of an urgent defender"),
         IsCast(LDOpponentPolicy::Decide(Frame, C, Rooted), ELDDemoTargetMode::Self));
+
+    // B01 T04-01: a learned branch is read as its own variant. S11 3B1 (2B/3B1) adds contact damage to bail_out's dash,
+    // so a rival already in reach is dashed through; the level-1 bail_out has no damage of its own and only chases.
+    Frame = With(TEXT("active_bail_out"));
+    Frame.Units = {Unit(2, ELDOpponentUnitKind::Contender, Attack - 10, 0)};
+    FLDOpponentPolicyState Plain;
+    bGood &= Test.TestFalse(TEXT("The level-1 bail_out does not dash at a rival already in reach"),
+        IsCast(LDOpponentPolicy::Decide(Frame, C, Plain), ELDDemoTargetMode::DirectionDash));
+    Frame.Self.Actives[0].Branch = ELDSkillBranch::B1;
+    FLDOpponentPolicyState Ghost;
+    const auto Through = LDOpponentPolicy::Decide(Frame, C, Ghost);
+    bGood &= Test.TestTrue(TEXT("bail_out 3B1 dashes through a rival in reach with its contact damage"),
+        IsCast(Through, ELDDemoTargetMode::DirectionDash) && Through.Body.Direction.Equals(FVector(1, 0, 0), 1.e-4));
+
+    // B01 T04-01: a self taunt is cast in an ordinary fight with a rival inside its radius, not only to interrupt a spray.
+    double TauntRadius = 0;
+    {
+        const FLDDemoAbilityDefinition* Ability = nullptr;
+        FString Error;
+        const FLDDemoEffectDefinition* Taunt = C.FindAbility(TEXT("active_stare_down"), Ability, Error) && Ability
+            ? Ability->Values.Effects.FindByPredicate([](const FLDDemoEffectDefinition& E) { return E.GetOp() == ELDDemoEffectOp::Taunt; })
+            : nullptr;
+        if (!Test.TestNotNull(TEXT("stare_down taunts"), Taunt)) { return false; }
+        TauntRadius = double(Taunt->RadiusCm.Numerator) / double(Taunt->RadiusCm.Denominator);
+    }
+    Frame = With(TEXT("active_stare_down"));
+    Frame.Units = {Unit(2, ELDOpponentUnitKind::Contender, FMath::Min(TauntRadius, Attack) - 10, 0)};
+    FLDOpponentPolicyState Stare;
+    bGood &= Test.TestTrue(TEXT("A rival inside the taunt radius is taunted"),
+        IsCast(LDOpponentPolicy::Decide(Frame, C, Stare), ELDDemoTargetMode::Self));
+    Frame.Units[0].FootCm = FVector(TauntRadius + 50, 0, 0);
+    FLDOpponentPolicyState StareFar;
+    bGood &= Test.TestFalse(TEXT("A rival outside it is not"), IsCast(LDOpponentPolicy::Decide(Frame, C, StareFar), ELDDemoTargetMode::Self));
+
+    // B01 T04-01: a healthy body puts its brace up when a rival trades with it inside attack range.
+    Frame = With(TEXT("active_brace"));
+    Frame.Units = {Unit(2, ELDOpponentUnitKind::Contender, Attack - 10, 0)};
+    FLDOpponentPolicyState Brace;
+    bGood &= Test.TestTrue(TEXT("A healthy body braces against a rival in attack range"),
+        IsCast(LDOpponentPolicy::Decide(Frame, C, Brace), ELDDemoTargetMode::Self));
+    Frame.Units[0].FootCm = FVector(Attack + 200, 0, 0);
+    FLDOpponentPolicyState BraceFar;
+    bGood &= Test.TestFalse(TEXT("and keeps it while the rival is beyond attack range"),
+        IsCast(LDOpponentPolicy::Decide(Frame, C, BraceFar), ELDDemoTargetMode::Self));
     return bGood;
 }
 
@@ -3189,6 +3282,297 @@ bool FLDDemoOpponentGroundPathCostTest::RunTest(const FString& Parameters)
     return true;
 }
 
+// B01 T03-02 (seed c001): a walk whose route runs into a camp member standing at its home goes round it; a body at the
+// walk's end or off the route is not in the way.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentBodyDetoursTest, "Lockdown.Rules.DemoOpponentPolicy.BodyDetours",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentBodyDetoursTest::RunTest(const FString& Parameters)
+{
+    using FBody = LDOpponentPolicy::FBodyDisc;
+    const double Walker = 40;
+    const TArray<FVector> Route = {FVector(0, 0, 0), FVector(600, 0, 0), FVector(600, 2000, 0)};
+    FVector Along;
+    const TArray<FBody> InWay = {{FVector(900, 0, 0), 50}, {FVector(300, 60, 0), 50}};
+    TestEqual(TEXT("The nearest body on the route blocks it"),
+        LDOpponentPolicy::BlockingBody(Route, InWay, Walker, LDOpponentPolicy::BodyLookaheadCm, Along), 1);
+    TestTrue(TEXT("along its segment"), Along.Equals(FVector(1, 0, 0), 1.e-6));
+    TestEqual(TEXT("A body beside the route by more than both radii is not in the way"),
+        LDOpponentPolicy::BlockingBody(Route, {FBody{FVector(300, 95, 0), 50}}, Walker, LDOpponentPolicy::BodyLookaheadCm, Along),
+        int32(INDEX_NONE));
+    TestEqual(TEXT("A body on the second segment blocks it"),
+        LDOpponentPolicy::BlockingBody(Route, {FBody{FVector(620, 500, 0), 50}}, Walker, LDOpponentPolicy::BodyLookaheadCm, Along), 0);
+    TestTrue(TEXT("along that segment"), Along.Equals(FVector(0, 1, 0), 1.e-6));
+    TestEqual(TEXT("A body beyond the lookahead is left for a later walk"),
+        LDOpponentPolicy::BlockingBody(Route, {FBody{FVector(600, 1500, 0), 50}}, Walker, 1000., Along), int32(INDEX_NONE));
+    TestEqual(TEXT("A body at the walk's end is its destination"),
+        LDOpponentPolicy::BlockingBody(Route, {FBody{FVector(600, 1950, 0), 50}}, Walker, 5000., Along), int32(INDEX_NONE));
+    TArray<FVector> Detours;
+    LDOpponentPolicy::BodyDetours(InWay[1], FVector(1, 0, 0), Walker, Detours);
+    TestTrue(TEXT("Three widening steps on either side, beside the body"), Detours.Num() == 6
+        && FMath::IsNearlyEqual(Detours[0].Y, 60. + 90. + LDOpponentPolicy::GroundDetourMarginCm, 1.e-6)
+        && FMath::IsNearlyEqual(Detours[1].Y, 60. - 90. - LDOpponentPolicy::GroundDetourMarginCm, 1.e-6)
+        && FMath::IsNearlyEqual(Detours[5].Y, 60. - 90. - 3 * LDOpponentPolicy::GroundDetourMarginCm, 1.e-6)
+        && FMath::IsNearlyEqual(Detours[0].X, 300., 1.e-6));
+    for (const FVector& Waypoint : Detours)
+    {
+        TestEqual(TEXT("A detour leg clears the body it goes round"), LDOpponentPolicy::BlockingBody(
+            {FVector(0, 0, 0), Waypoint, FVector(600, 0, 0)}, {InWay[1]}, Walker, LDOpponentPolicy::BodyLookaheadCm, Along),
+            int32(INDEX_NONE));
+    }
+    // A walker pressed against a body (inside both radii) is blocked by a leg into it, not by one sliding past it.
+    const FBody Touching{FVector(80, 0, 0), 50};
+    TestEqual(TEXT("Pressed against a body, a leg into it is blocked"), LDOpponentPolicy::BlockingBody(
+        {FVector(0, 0, 0), FVector(600, 0, 0)}, {Touching}, Walker, LDOpponentPolicy::BodyLookaheadCm, Along), 0);
+    TestEqual(TEXT("and a leg sliding past it to the side is not"), LDOpponentPolicy::BlockingBody(
+        {FVector(0, 0, 0), FVector(80, 260, 0)}, {Touching}, Walker, LDOpponentPolicy::BodyLookaheadCm, Along), int32(INDEX_NONE));
+
+    // With no way round, the walk's walling camp member is fought through.
+    using namespace LDOpponentPolicyTests;
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(*this, Catalog)) { return false; }
+    FLDOpponentDecisionFrame Frame;
+    if (!BaseFrame(*this, *Catalog, Frame)) { return false; }
+    Frame.Units = {Unit(4, ELDOpponentUnitKind::CampMember, 120, 0, TEXT("monster_scavenger"))};
+    Frame.WallingHandle = Frame.Units[0].Handle;
+    Frame.WallingEpoch = Frame.Units[0].Epoch;
+    FLDOpponentPolicyState Walled;
+    const auto Through = LDOpponentPolicy::Decide(Frame, *Catalog, Walled);
+    TestTrue(TEXT("The walling member is engaged"), Through.Mode == ELDOpponentMode::Engage
+        && (Through.Body.Kind == ELDOpponentBodyKind::AttackUnit || Through.Body.Kind == ELDOpponentBodyKind::Activate)
+        && (Through.Body.Kind != ELDOpponentBodyKind::AttackUnit || Through.Body.Handle == Frame.Units[0].Handle));
+    Frame.WallingEpoch = Frame.Units[0].Epoch + 1;
+    TestNull(TEXT("A walling report of another visibility interval names nobody"), LDOpponentPolicy::WallingUnit(Frame));
+    return true;
+}
+
+// B01 T04-02: a rival's visible line or cone windup reaches the AI as a warning of that active's outline along the caster's
+// facing until its release; the own cast, a finished cue and other target modes add none.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentCastWarningsTest, "Lockdown.Rules.DemoOpponentPolicy.CastWarnings",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentCastWarningsTest::RunTest(const FString& Parameters)
+{
+    using namespace LDOpponentPolicyTests;
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(*this, Catalog)) { return false; }
+    const auto& C = *Catalog;
+    const auto Find = [&C](const TCHAR* Id) { return C.Get().Abilities.FindByPredicate([Id](const FLDDemoAbilityDefinition& Row) { return Row.Id == Id; }); };
+    const FLDDemoAbilityDefinition* Line = Find(TEXT("active_pants_down"));
+    const FLDDemoAbilityDefinition* Cone = Find(TEXT("active_cola_shake"));
+    const FLDDemoAbilityDefinition* Targeted = Find(TEXT("active_elbow"));
+    if (!TestTrue(TEXT("The line, cone and unit actives are approved"), Line && Cone && Targeted
+        && Line->Target.Mode == ELDDemoTargetMode::DirectionLine && Cone->Target.Mode == ELDDemoTargetMode::DirectionCone)) { return false; }
+    const auto Cm = [](const FLDDemoRational& Value) { return double(Value.Numerator) / double(Value.Denominator); };
+    const auto Casting = [](uint32 Handle, const FLDDemoAbilityDefinition& Ability, double X, uint16 Facing, uint16 Age, uint16 Delay)
+    {
+        FLDObservedUnitView Out;
+        Out.Handle = FGuid(0xF2, 0, 0, Handle);
+        Out.Kind = ELDObservedUnitKind::Contender;
+        Out.ContenderId = FGuid(0xF3, 0, 0, Handle);
+        Out.FeetCm = FVector(X, 0, 0);
+        Out.Facing = Facing;
+        Out.ActionCue = ELDObservedActionCue::Cast;
+        Out.ActionAbility = Ability.NativeId;
+        Out.ActionCueAgeMs = Age;
+        Out.ActionCueImpactDelayMs = Delay;
+        return Out;
+    };
+    FLDWorldView View;
+    View.Units = {Casting(1, *Line, 100, 0, 100, 400), Casting(2, *Cone, 500, 16384, 50, 300),
+        Casting(3, *Line, 900, 0, 400, 400), Casting(4, *Targeted, 1200, 0, 0, 300), Casting(5, *Line, 1500, 0, 0, 300)};
+    TArray<FLDOpponentWarning> Warnings;
+    LDOpponentFrame::ReadCastWarnings(View, FGuid(0xF3, 0, 0, 5), C, Warnings);
+    if (!TestEqual(TEXT("Only the rivals' pending line and cone windups warn"), Warnings.Num(), 2)) { return false; }
+    TestTrue(TEXT("The line runs from the caster's foot along its facing for its reach and half width, until release"),
+        Warnings[0].Handle == View.Units[0].Handle && Warnings[0].CentreCm.Equals(FVector(100, 0, 0), 1.e-3)
+        && Warnings[0].Heading.Equals(FVector(1, 0, 0), 1.e-3) && FMath::IsNearlyEqual(Warnings[0].LengthCm, Cm(Line->Target.RangeCm), 1.e-3)
+        && FMath::IsNearlyEqual(Warnings[0].RadiusCm, Cm(Line->Target.LineHalfWidthCm), 1.e-3) && Warnings[0].RemainingMs == 300);
+    TestTrue(TEXT("The cone carries its angle and reach along the caster's facing"),
+        Warnings[1].Heading.Equals(FVector(0, 1, 0), 1.e-3) && FMath::IsNearlyEqual(Warnings[1].AngleDegrees, Cm(Cone->Target.AngleDegrees), 1.e-3)
+        && FMath::IsNearlyEqual(Warnings[1].LengthCm, Cm(Cone->Target.RangeCm), 1.e-3) && Warnings[1].RemainingMs == 250);
+    return true;
+}
+
+// B01 M-12: with auto-empower on, a Q/W/E host is kept below the threshold and cast at it; the switch off (or another host)
+// leaves the casts as they were. A ready cast shorter than basic-attack reach is stepped into (both switch states).
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentEmpowerHostTest, "Lockdown.Rules.DemoOpponentPolicy.EmpowerHost",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentEmpowerHostTest::RunTest(const FString& Parameters)
+{
+    using namespace LDOpponentPolicyTests;
+    using EBody = ELDOpponentBodyKind;
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(*this, Catalog)) { return false; }
+    FLDOpponentDecisionFrame Base;
+    if (!BaseFrame(*this, *Catalog, Base)) { return false; }
+    FLDOpponentSource Elbow;
+    Elbow.Slot = ELDOpponentSourceSlot::Q;
+    Elbow.DefinitionId = TEXT("active_elbow");
+    Elbow.bReady = true;
+    Elbow.RangeCm = 220;
+    Base.Self.Actives = {Active(TEXT("active_elbow"), 0)};
+    Base.Self.Sources = {Elbow};
+    const double Attack = double(Base.Self.Attributes.AttackRangeCm.Numerator) / double(Base.Self.Attributes.AttackRangeCm.Denominator);
+    const auto Engage = [&](int64 ThresholdP2, ELDCombatEntry Host, int64 MomentumP2, double Gap)
+    {
+        auto Frame = Base;
+        Frame.Self.EmpowerThresholdP2 = ThresholdP2;
+        Frame.Self.EmpowerHost = Host;
+        Frame.Self.MomentumP2 = MomentumP2;
+        Frame.Units = {Unit(2, ELDOpponentUnitKind::Contender, Gap, 0)};
+        FLDOpponentPolicyState State;
+        return LDOpponentPolicy::EngageUnit(Frame, *Catalog, State, Frame.Units[0]);
+    };
+    const auto CastsQ = [](const FLDOpponentBodyIntent& Body) { return Body.Kind == EBody::Activate && Body.Source == ELDOpponentSourceSlot::Q; };
+    bool bGood = TestTrue(TEXT("Off: a ready Q in reach is cast at any bar"), CastsQ(Engage(0, ELDCombatEntry::None, 3000, 150)));
+    bGood &= TestFalse(TEXT("On, Q hosts: below the threshold the Q is kept"), CastsQ(Engage(6000, ELDCombatEntry::Q, 3000, 150)));
+    bGood &= TestTrue(TEXT("On, Q hosts: at the threshold the Q is cast (empowered)"), CastsQ(Engage(6000, ELDCombatEntry::Q, 6000, 150)));
+    bGood &= TestTrue(TEXT("On, the basic hosts: the Q is cast at any bar"), CastsQ(Engage(6000, ELDCombatEntry::Basic, 3000, 150)));
+    {
+        // A lull settles the bar below the threshold: the kept host goes unempowered after EmpowerHoldMaxMs.
+        auto Lull = Base;
+        Lull.Self.EmpowerThresholdP2 = 6000;
+        Lull.Self.EmpowerHost = ELDCombatEntry::Q;
+        Lull.Self.MomentumP2 = 5000;
+        Lull.Units = {Unit(2, ELDOpponentUnitKind::Contender, 150, 0)};
+        FLDOpponentPolicyState Kept;
+        bGood &= TestFalse(TEXT("A ready host is kept at first"), CastsQ(LDOpponentPolicy::EngageUnit(Lull, *Catalog, Kept, Lull.Units[0])));
+        Lull.Public.NowMs += LDOpponentPolicy::EmpowerHoldMaxMs;
+        bGood &= TestTrue(TEXT("and cast once the hold has lasted EmpowerHoldMaxMs"),
+            CastsQ(LDOpponentPolicy::EngageUnit(Lull, *Catalog, Kept, Lull.Units[0])));
+    }
+    // Fighting at basic reach just beyond the elbow's 220 cm.
+    const double Gap = FMath::Min(Attack + 20., 220. + LDOpponentPolicy::CloseInSlackCm);
+    if (!TestTrue(TEXT("The level-1 basic reach stands beyond the elbow"), Gap > 220.)) { return false; }
+    const FLDOpponentBodyIntent Step = Engage(0, ELDCombatEntry::None, 3000, Gap);
+    bGood &= TestTrue(TEXT("A ready cast just out of reach is stepped into on the ground, to inside its reach"),
+        Step.Kind == EBody::MoveGround && Step.Surface == TEXT("ground")
+        && FMath::IsNearlyEqual(FVector::Dist2D(Step.Point, FVector(Gap, 0, 0)), 220. - LDOpponentPolicy::CloseInMarginCm, 1.));
+    bGood &= TestTrue(TEXT("A kept host is not stepped in for"), Engage(6000, ELDCombatEntry::Q, 3000, Gap).Kind != EBody::MoveGround);
+    {
+        // A D host: armed, it dashes through the rival within reach before any other cast; below the threshold the Q goes.
+        FLDOpponentSource Dash;
+        Dash.Slot = ELDOpponentSourceSlot::Dash;
+        Dash.DefinitionId = TEXT("innate_dash");
+        Dash.bReady = true;
+        Dash.RangeCm = 450;
+        Base.Self.Sources.Add(Dash);
+        const FLDOpponentBodyIntent Through = Engage(6000, ELDCombatEntry::Dash, 6000, 150);
+        bGood &= TestTrue(TEXT("An armed D host dashes through the rival in reach"), Through.Kind == EBody::Activate
+            && Through.Source == ELDOpponentSourceSlot::Dash && Through.Direction.Equals(FVector(1, 0, 0), 1.e-4));
+        bGood &= TestTrue(TEXT("Below the threshold the D host waits and the Q is cast"), CastsQ(Engage(6000, ELDCombatEntry::Dash, 3000, 150)));
+        bGood &= TestTrue(TEXT("Off, the dash is not spent on a rival in reach"), CastsQ(Engage(0, ELDCombatEntry::None, 6000, 150)));
+    }
+    return bGood;
+}
+
+// B01 X1: a dodge leaves the warning's outline by a way no visible body stands on; the plain way out (outward from a disc)
+// can run into the rival who cast it at the edge, where the dash stops still inside.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentDodgeWayTest, "Lockdown.Rules.DemoOpponentPolicy.DodgeWay",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentDodgeWayTest::RunTest(const FString& Parameters)
+{
+    using namespace LDOpponentPolicyTests;
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(*this, Catalog)) { return false; }
+    FLDOpponentDecisionFrame Frame;
+    if (!BaseFrame(*this, *Catalog, Frame)) { return false; }
+    FLDOpponentSource Dash;
+    Dash.Slot = ELDOpponentSourceSlot::Dash;
+    Dash.DefinitionId = TEXT("innate_dash");
+    Dash.bReady = true;
+    Dash.RangeCm = 450;
+    Frame.Self.Sources = {Dash};
+    FLDOpponentWarning Disc;
+    Disc.Handle = FGuid(0xF4, 0, 0, 1);
+    Disc.CentreCm = FVector(-50, 0, 0);
+    Disc.RadiusCm = 200;
+    Disc.RemainingMs = 300;
+    Frame.Warnings = {Disc};
+    const auto Way = [&](const FLDOpponentDecisionFrame& At)
+    {
+        FLDOpponentPolicyState State;
+        const TOptional<FLDOpponentBodyIntent> Dodge = LDOpponentPolicy::DodgeWarning(At, *Catalog, State);
+        return Dodge.IsSet() && Dodge->Source == ELDOpponentSourceSlot::Dash ? Dodge->Direction : FVector::ZeroVector;
+    };
+    const FVector Open = Way(Frame);
+    bool bGood = TestTrue(TEXT("Nobody in the way: straight out of the disc"), Open.Equals(FVector(1, 0, 0), 1.e-4));
+    Frame.Units = {Unit(2, ELDOpponentUnitKind::Contender, 150, 0)};
+    const FVector Round = Way(Frame);
+    bGood &= TestTrue(TEXT("The rival on the way out: another way that leaves the disc within the dash and passes clear of it"),
+        !Round.IsNearlyZero() && FVector::DotProduct(Round, FVector(1, 0, 0)) < .75
+        && FVector::Dist2D(Round * 450., Disc.CentreCm) > Disc.RadiusCm + LDOpponentPolicy::DodgeClearanceCm
+        && FMath::PointDistToSegment(Frame.Units[0].FootCm, FVector::ZeroVector, Round * 450.) >= LDOpponentPolicy::DodgeClearanceCm);
+    return bGood;
+}
+
+// B01 T04-03: once the final street closure runs, a body outside the current ring walks back inside it before anything else.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentStreetRingTest, "Lockdown.Rules.DemoOpponentPolicy.StreetRing",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentStreetRingTest::RunTest(const FString& Parameters)
+{
+    using namespace LDOpponentPolicyTests;
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(*this, Catalog)) { return false; }
+    FLDOpponentDecisionFrame Frame;
+    if (!BaseFrame(*this, *Catalog, Frame)) { return false; }
+    Frame.Public.Phase = ELDMatchPhase::CaptureOpen;
+    Frame.Public.Timeline.Stage = ELDMatchStage::FinalField;
+    Frame.Public.ArenaCentreCm = FVector(0, 0, 0);
+    Frame.Public.StreetRadiusCm = 2000;
+    Frame.Public.ClosureAtMs = Frame.Public.NowMs - 1;
+    Frame.Self.FootCm = FVector(4000, 0, 0);
+    const FVector Inside(2000. - 2. * LDOpponentPolicy::StreetRingMarginCm, 0, 0);
+    const auto WalksIn = [&Inside](const FLDOpponentDecision& Decision)
+    { return Decision.Body.Kind == ELDOpponentBodyKind::MoveGround && Decision.Body.Point.Equals(Inside, 1.e-3); };
+    FLDOpponentPolicyState Outside;
+    TestTrue(TEXT("A body outside the running closure walks back inside the ring"), WalksIn(LDOpponentPolicy::Decide(Frame, *Catalog, Outside)));
+    Frame.Self.FootCm = FVector(2000. - .5 * LDOpponentPolicy::StreetRingMarginCm, 0, 0);
+    FLDOpponentPolicyState Edge;
+    TestTrue(TEXT("and so does one the shrinking ring is about to pass"), WalksIn(LDOpponentPolicy::Decide(Frame, *Catalog, Edge)));
+    Frame.Self.FootCm = FVector(4000, 0, 0);
+    Frame.Public.ClosureAtMs = Frame.Public.NowMs + 1000;
+    FLDOpponentPolicyState Early;
+    TestFalse(TEXT("Before the closure starts the ring costs nothing"), WalksIn(LDOpponentPolicy::Decide(Frame, *Catalog, Early)));
+    return true;
+}
+
+// B01 T04-03: a camp-clear recovery orb in sight is a place the AI walks onto when it misses health or momentum.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentRecoveryOrbTest, "Lockdown.Rules.DemoOpponentPolicy.RecoveryOrb",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentRecoveryOrbTest::RunTest(const FString& Parameters)
+{
+    using namespace LDOpponentPolicyTests;
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(*this, Catalog)) { return false; }
+    FLDOpponentDecisionFrame Frame;
+    if (!BaseFrame(*this, *Catalog, Frame)) { return false; }
+    FLDWorldView View;
+    FLDObservedRecoveryOrb Orb;
+    Orb.Serial = 7;
+    Orb.PositionCm = FVector(800, 0, 0);
+    View.RecoveryOrbs = {Orb};
+    const int32 Before = Frame.POIs.Num();
+    LDOpponentFrame::ReadRecoveryOrbs(View, TEXT("demo_ground"), Frame.POIs);
+    if (!TestEqual(TEXT("The orb in sight is one more place"), Frame.POIs.Num(), Before + 1)) { return false; }
+    const FLDOpponentPOI& Place = Frame.POIs.Last();
+    TestTrue(TEXT("on the given surface where the orb lies"), Place.Kind == ELDOpponentPOIKind::RecoveryOrb
+        && Place.SurfaceId == FName(TEXT("demo_ground")) && Place.FootCm.Equals(Orb.PositionCm, 1.e-3));
+    Frame.Self.HpP2 = Frame.Self.MaxHpP2 * 9 / 10;
+    FLDOpponentPolicyState Hurt;
+    const auto Walk = LDOpponentPolicy::Decide(Frame, *Catalog, Hurt);
+    TestTrue(TEXT("A body missing health walks onto the orb"), Walk.Body.Kind == ELDOpponentBodyKind::MoveGround && Walk.Body.POI == Place.Id);
+    Frame.Self.HpP2 = Frame.Self.MaxHpP2;
+    FLDOpponentPolicyState Whole;
+    TestTrue(TEXT("A whole body leaves it"), LDOpponentPolicy::Decide(Frame, *Catalog, Whole).Body.POI != Place.Id);
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentBreakoutGoalTest, "Lockdown.Rules.DemoOpponentPolicy.BreakoutGoal",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
@@ -3259,6 +3643,17 @@ bool FLDDemoOpponentBreakoutGoalTest::RunTest(const FString& Parameters)
     Built.Actives[0].Branch = ELDSkillBranch::A1;
     LDOpponentPolicy::BreakoutProgress(Built, Hedgehog, Skills, SkillsTotal, Cards, CardsTotal);
     TestTrue(TEXT("Progress counts goal skills at their goal branch"), Skills == 2 && SkillsTotal == 3 && Cards == 0 && CardsTotal == 4);
+
+    // B01 T04-05: every sample spends exactly its level's attribute points, so no evaluation leaves them to the AI.
+    for (const FLDBreakoutPreset& Preset : LDBreakoutPresets::All())
+    {
+        FLDGrowthBuild Sample;
+        int64 XP = 0, Unspent = -1;
+        FString Why;
+        TestTrue(FString::Printf(TEXT("%s spends every attribute point (%s)"), Preset.Id, *Why),
+            LDBreakoutPresets::Build(C.Get(), Preset, Sample, XP, Why)
+            && LDProgression::UnspentPoints(C.Get(), Sample, XP, Unspent) == ELDGrowthReason::None && Unspent == 0);
+    }
     return true;
 }
 

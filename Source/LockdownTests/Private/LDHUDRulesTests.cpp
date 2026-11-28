@@ -1,4 +1,5 @@
 #include "UI/LDHUDModel.h"
+#include "UI/LDChoicesPanel.h"
 #include "Combat/LDChainRules.h"
 #include "Combat/LDDamageRecap.h"
 #include "Combat/LDCombatElements.h"
@@ -2351,31 +2352,6 @@ bool FLDHUDLiveSkillTooltipTest::RunTest(const FString& Parameters)
         &&FullTip.FormulaLines[4].Contains(FString::Printf(TEXT("= %lld"),(ExpectedFinalDmgP2+50)/100))
         &&FullTip.FormulaLines.Last().Contains(TEXT("技能急速")));
 
-    // Non-elemental skill (active_elbow) bare vs equipped with medal_fire reflects elemental overdrive in live tooltip.
-    if(const FLDDemoAbilityDefinition* Elbow=Content.Abilities.FindByPredicate([](const FLDDemoAbilityDefinition& A){return A.Id==TEXT("active_elbow");}))
-    {
-        LDHUD::FActionInput ElbowIn=In;
-        ElbowIn.DefinitionId=TEXT("active_elbow");
-        ElbowIn.Name=LDHUD::ContentName(&Content,TEXT("active_elbow"));
-        ElbowIn.MomentumCostP2=Elbow->Values.MomentumCostP2;
-        ElbowIn.CooldownMs=Elbow->Values.CooldownMs;
-        const LDHUD::FActionView ElbowView=LDHUD::Action(ElbowIn,Ctx);
-        FLDProgressionView ElbowBuild=BareBuild;
-        ElbowBuild.Actives[0].DefinitionId=TEXT("active_elbow");
-        const LDHUD::FLiveSkillTooltip PlainElbowTip=LDHUD::EvaluateLiveSkillTooltip(ElbowView,ElbowIn,Ctx,&ElbowBuild,&OwnCombat,&Content,false);
-        FLDCardInstanceView EquippedFire=StoredStone;
-        EquippedFire.Target.Kind=ELDCardTargetKind::Skill;
-        EquippedFire.Target.Active=TEXT("active_elbow");
-        ElbowBuild.Cards={EquippedFire};
-        const LDHUD::FLiveSkillTooltip FireElbowTip=LDHUD::EvaluateLiveSkillTooltip(ElbowView,ElbowIn,Ctx,&ElbowBuild,&OwnCombat,&Content,false);
-        TestTrue(TEXT("Non-elemental active_elbow shows plain overdrive bare and Fire overdrive once medal_fire is equipped"),
-            PlainElbowTip.OverdriveElement==uint8(ELDDemoSkillElement::None)
-            &&PlainElbowTip.Detail.Body.Contains(TEXT("爆劲："))
-            &&FireElbowTip.OverdriveElement==uint8(ELDDemoSkillElement::Fire)
-            &&FireElbowTip.Detail.Body.Contains(TEXT("火爆劲："))
-            &&FireElbowTip.Detail.Body.Contains(LDHUD::ContentName(&Content,TEXT("medal_fire"))));
-    }
-
     // #328 §4.4: 6-player tactical scoreboard combines roster, leader crown, graffiti guard bar and sighted skills.
     FLDPublicMatchView Public;Public.Generation=1;Public.Phase=ELDMatchPhase::CaptureOpen;
     const FGuid SelfId(1,0,0,1),RivalId(2,0,0,2);
@@ -2393,3 +2369,29 @@ bool FLDHUDLiveSkillTooltipTest::RunTest(const FString& Parameters)
     return true;
 }
 
+#if WITH_DEV_AUTOMATION_TESTS
+// A pending blueprint dropped on a learned skill in the field replaces it at once (VISION_AND_UI: no confirm step; the
+// replace is open in every stage): the panel submits the replace instead of withdrawing its own line outside a rest.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDChoicesFieldReplaceTest, "Lockdown.Rules.HUDChoicesFieldReplace",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDChoicesFieldReplaceTest::RunTest(const FString& Parameters)
+{
+    ULDChoicesPanel* Panel=NewObject<ULDChoicesPanel>(GetTransientPackage());
+    TArray<FLDBuildCommand> Sent;
+    Panel->SubmitBuild=[&Sent](const FLDBuildCommand& Command,ELDGrowthReason& Reason){Reason=ELDGrowthReason::None;Sent.Add(Command);return uint64(Sent.Num());};
+    Panel->PeekRequestId=[&Sent](){return uint64(Sent.Num()+1);};
+    TArray<FString> Told;
+    Panel->Notify=[&Told](const FString& Text){Told.Add(Text);};
+    FLDProgressionView View;
+    View.bValid=true;View.Generation=3;View.Life=1;View.LifePhase=ELDLifePhase::Alive;
+    FLDActiveSlotView Q;Q.DefinitionId=TEXT("active_elbow");Q.Slot=0;
+    View.Actives.Add(Q);
+    View.PendingBlueprints.Add(TEXT("active_zap"));
+    LDHUD::FSlotKeys Keys;
+    Panel->Present(View,3,1,ELDLifePhase::Alive,LDProgression::EMatchStage::Live,nullptr,Keys,false);
+    const bool bSubmitted=Panel->ReplaceBlueprint(0,0);
+    TestTrue(FString::Printf(TEXT("The field replace is submitted (%s)"),*FString::Join(Told,TEXT(" / "))),bSubmitted);
+    TestTrue(TEXT("as one replace of Q by the blueprint"),Sent.Num()==1&&Sent[0].Kind==ELDBuildCommandKind::ReplaceActive&&Sent[0].Slot==0);
+    return true;
+}
+#endif

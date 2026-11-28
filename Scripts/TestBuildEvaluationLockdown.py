@@ -129,6 +129,8 @@ def trace(*extra, drop=()):
         ("s_heartbeat", heartbeat(6000, S, "100,0,0")),
         ("o_heartbeat", heartbeat(6000, O, "-100,5,0")),
         ("o_learn", f"LD_BUILD t=9300 contender={O} kind=LearnBlueprint card=active_bail_out slot=E points=- unspent=0 level=6"),
+        ("s_cast", f"LD_CAST t=9500 contender={S} life=2 casts=1 added=1"),
+        ("o_cast", f"LD_CAST t=10500 contender={O} life=2 casts=1 added=1"),
         ("hit1", hit(10000, S, O, "100.00", "0.00", "100.00", "620.00", "520.00")),
         ("hit2", hit(11000, O, S, "50.00", "10.00", "40.00", "620.00", "580.00")),
         ("lethal", hit(20000, S, O, "600.00", "0.00", "520.00", "520.00", "0.00")),
@@ -138,6 +140,9 @@ def trace(*extra, drop=()):
     ]
     lines = [line for key, line in lines if key not in drop]
     return "\n".join(lines + list(extra)) + "\n"
+
+
+NO_CASTS = ("s_cast", "o_cast")
 
 
 # Workshop: the subject owns its build. Three opening points go to strength in the opening rest; on the field the level
@@ -244,7 +249,7 @@ class CapabilitiesTest(AdapterCase):
                          "Y25 chooses an element")
         self.assertEqual(self.caps["content"]["cards"], len(cards))
         self.assertEqual(set(self.caps["decisions"]),
-                         {"ai_select", "option_index", "definition", "preset_offer", "preset_level_cards", "breakout_preset",
+                         {"ai_select", "option_index", "definition", "preset_offer", "preset_level_cards", "breakout_preset", "empower_host",
                           "allocate_points", "install_card", "uninstall_card", "respec_points", "learn_blueprint", "replace_active"})
         self.assertTrue(all(row["description"] for row in self.caps["decisions"].values()))
         for decision, reason in lockdown.UNPLANNABLE.values():
@@ -289,6 +294,22 @@ class PlanTest(AdapterCase):
         scenario["parameters"]["duel_timeout_ms"] = end
         self.assertTrue(any("duel_timeout_ms" in problem for problem in lockdown.scenario_problems(scenario, self.caps)))
 
+    def test_clear_camps_reaches_native_and_must_be_evidenced(self):
+        scenario = manifest()["scenario"]
+        scenario["parameters"]["clear_camps"] = "yes"
+        self.assertTrue(any("clear_camps" in problem for problem in lockdown.scenario_problems(scenario, self.caps)))
+        cleared = manifest()
+        cleared["scenario"]["parameters"]["clear_camps"] = True
+        self.assertEqual(lockdown.scenario_problems(cleared["scenario"], self.caps), [])
+        case = [{"case_id": "c000a-t", "seed": "7", "arm": "t", "side": 0}]
+        self.assertTrue(lockdown.native_input("run-1", cleared, self.caps, case)["cases"][0]["clear_camps"])
+        self.assertNotIn("clear_camps", lockdown.native_input("run-1", manifest(), self.caps, case)["cases"][0],
+                         "an uncleared input stays byte-identical")
+        line = "LD_EVAL_CAMPS_CLEARED groups=64 members=150 field_t_ms=50"
+        self.assertIn("CampsNotCleared", self.evidence(plan_manifest=cleared)["reason"])
+        self.assertEqual(self.evidence(text=trace(line), plan_manifest=cleared)["status"], "Completed")
+        self.assertIn("TraceIncomplete", self.evidence(text=trace(line))["reason"], "a clear nobody planned")
+
     def test_shipped_manifests_are_admitted_by_current_capabilities(self):
         paths = sorted((ROOT / "Scripts" / "BuildEvaluationManifests").glob("*.json"))
         self.assertTrue(paths)
@@ -303,11 +324,18 @@ class PlanTest(AdapterCase):
                         "shipped experiments must use supported mechanics and decisions")
 
     def test_breakout_manifest_runs_every_sample_against_a_bare_build(self):
-        # #287 §7.6: each DEV breakout sample (breakout_preset) faces the same-level bare build.
+        # #287 §7.6: each DEV breakout sample (breakout_preset) faces the same-level bare build. The reference subject is a
+        # bare build that spends the same legal budget as a sample; the old all-unspent bare arm stays as a baseline.
         value = core.validate_manifest(core.read_json(ROOT / "Scripts" / "BuildEvaluationManifests" / "p3-breakout-samples.json"))
         arms = {arm["id"]: arm["plan"] for arm in value["design"]["arms"]}
         reference = arms.pop(value["design"]["reference"])
+        self.assertEqual(value["design"]["reference"], "bare_spent")
         self.assertEqual(lockdown.requirements(value["scenario"], reference, self.caps)["problems"], [])
+        self.assertFalse(reference["subject"].get("keep_points_unspent", False), "the reference spends its points")
+        self.assertNotIn("breakout_preset", reference["subject"])
+        unspent = arms.pop("bare")
+        self.assertTrue(unspent["subject"].get("keep_points_unspent"))
+        self.assertEqual(unspent["opponent"], reference["opponent"])
         self.assertEqual(len(arms), 10)
         for arm, plan in arms.items():
             with self.subTest(arm=arm):
@@ -334,6 +362,13 @@ class PlanTest(AdapterCase):
         other = ("LD_DEV_BREAKOUT_PRESET", {"contender": ids["opponent"], "preset": "breakout_lifesteal", "level": "16", "cards": "5"}, 0)
         rows["subject"]["level"] = 16
         self.assertTrue(lockdown.breakout_problems([applied, other], ids, plan, rows))
+        # The deciding kill's own element medal is that kill's reward, exempt like its XP; any other extra card is not.
+        rows["subject"]["cards"] = [{}] * 5 + [{"id": "medal_fire", "serial": 6}]
+        medal = ("LD_MEDAL", {"contender": ids["subject"], "cause": "contender_kill", "medal": "medal_fire", "serial": "6"}, 0)
+        kill = {"kind": "kill", "killer": "subject", "victim": "opponent"}
+        self.assertEqual(lockdown.breakout_problems([applied, medal], ids, plan, rows, kill), [])
+        self.assertTrue(lockdown.breakout_problems([applied, medal], ids, plan, rows, {"kind": "timeout"}))
+        self.assertTrue(lockdown.breakout_problems([applied], ids, plan, rows, kill), "a medal without its kill drop counts")
 
     def test_known_illegal_plans_are_refused_before_any_run(self):
         needs = self.requirements({"choices": ["ai_select"] * 2})
@@ -603,7 +638,7 @@ class PlanTest(AdapterCase):
                 lockdown.native_input("run-1", manifest(subject={**kite, "stance": invalid}, sample="diagnostic"),
                                       self.caps, case)
         for valid in ({"kind": "burst", "standoff_cm": 700, "leash_cm": 1200}, {"kind": "hold", "standoff_cm": 600},
-                      {"kind": "guard", "standoff_cm": 600, "threshold_bp": 3500}):
+                      {"kind": "guard", "standoff_cm": 600, "threshold_bp": 3500}, {"kind": "strafe", "standoff_cm": 500}):
             with self.subTest(stance=valid):
                 native = lockdown.native_input("run-1", manifest(subject={**kite, "stance": valid}, sample="diagnostic"),
                                                self.caps, case)
@@ -614,7 +649,10 @@ class PlanTest(AdapterCase):
         for valid in ({"kind": "kite", "standoff_cm": 450, "reaction_ms": 800, "aim_error_cm": 200, "skip_bp": 3500},
                       {"kind": "pursue", "reaction_ms": 150}, {"kind": "pursue", "aim_error_cm": 0},
                       {"kind": "guard", "standoff_cm": 600, "threshold_bp": 3500, "skip_bp": 9000, "reaction_ms": 1500,
-                       "aim_error_cm": 400}):
+                       "aim_error_cm": 400},
+                      {"kind": "pursue", "warning_react_ms": 250}, {"kind": "pursue", "warning_react_ms": 450, "lead_aim": True},
+                      {"kind": "burst", "standoff_cm": 420, "warning_react_ms": 0, "reserve_dash": True},
+                      {"kind": "kite", "standoff_cm": 450, "lead_aim": False}):
             with self.subTest(stance=valid):
                 plan = manifest(subject={"choices": ["ai_select"] * 3, "stance": valid}, sample="diagnostic")
                 native = lockdown.native_input("run-1", plan, self.caps, case)
@@ -625,7 +663,9 @@ class PlanTest(AdapterCase):
                         {"kind": "kite", "standoff_cm": 450, "skip_bp": True},
                         {"kind": "kite", "standoff_cm": 450, "reaction_ms": 800.0},
                         {"kind": "pursue"}, {"kind": "pursue", "reaction_ms": 150, "standoff_cm": 600},
-                        {"kind": "pursue", "reaction_ms": 150, "leash_cm": 600}):
+                        {"kind": "pursue", "reaction_ms": 150, "leash_cm": 600},
+                        {"kind": "pursue", "warning_react_ms": 1501}, {"kind": "pursue", "warning_react_ms": -1},
+                        {"kind": "pursue", "lead_aim": 1}, {"kind": "pursue", "lead_aim": "true"}):
             with self.subTest(stance=invalid), self.assertRaises(ValueError):
                 plan = manifest(subject={"choices": ["ai_select"] * 3, "stance": invalid}, sample="diagnostic")
                 lockdown.native_input("run-1", plan, self.caps, case)
@@ -650,16 +690,29 @@ class EvidenceTest(AdapterCase):
         text = trace().replace(begin, begin + "\n" + line)
         out = self.evidence(text=text, plan_manifest=plan)
         self.assertEqual(out["status"], "Completed", out["reason"])
+        exact = {"reaction_ms": 0, "aim_error_cm": 0, "skip_bp": 0, "warning_react_ms": -1, "lead_aim": False,
+                 "reserve_dash": False}
         self.assertEqual(out["facts"]["operation"], {
-            "subject": {"reaction_ms": 800, "aim_error_cm": 200, "skip_bp": 3500},
-            "opponent": {"reaction_ms": 0, "aim_error_cm": 0, "skip_bp": 0}})
+            "subject": {**exact, "reaction_ms": 800, "aim_error_cm": 200, "skip_bp": 3500}, "opponent": exact},
+            "a knob left at its default may be absent from the profile line")
         for invalid in (trace(), text.replace("skip_bp=3500", "skip_bp=0"), text.replace(line, line + "\n" + line)):
             with self.subTest(text=invalid[:0]):
                 out = self.evidence(text=invalid, plan_manifest=plan)
                 self.assertEqual(out["status"], "Invalid")
                 self.assertIn("Setup: the subject operation knobs did not reach the native profile", out["reason"])
-        self.assertEqual(self.evidence()["facts"]["operation"]["subject"],
-                         {"reaction_ms": 0, "aim_error_cm": 0, "skip_bp": 0}, "no knobs is exact play")
+        self.assertEqual(self.evidence()["facts"]["operation"]["subject"], exact, "no knobs is exact play")
+        # B01 S3B-08: the warning reaction and lead aim must reach the native profile like the other knobs.
+        stance = {"kind": "pursue", "warning_react_ms": 250, "lead_aim": True}
+        plan = manifest(subject={"choices": ["ai_select"] * 3, "stance": stance}, sample="diagnostic")
+        line = (f"LD_EVAL_PROFILE contender={S} rival={O} site=capture choices=3 "
+                f"reaction_ms=0 aim_error_cm=0 skip_bp=0 warning_react_ms=250 lead_aim=1")
+        text = trace().replace(begin, begin + "\n" + line)
+        out = self.evidence(text=text, plan_manifest=plan)
+        self.assertEqual(out["status"], "Completed", out["reason"])
+        self.assertEqual(out["facts"]["operation"]["subject"], {**exact, "warning_react_ms": 250, "lead_aim": True})
+        for invalid in (text.replace("warning_react_ms=250", "warning_react_ms=-1"), text.replace("lead_aim=1", "lead_aim=0")):
+            with self.subTest(text=invalid[-40:]):
+                self.assertEqual(self.evidence(text=invalid, plan_manifest=plan)["status"], "Invalid")
 
     def test_actual_field_spawn_is_not_the_first_opening_rest_heartbeat(self):
         rest = heartbeat(100, S, "6900,-500,2") + "\n" + heartbeat(100, O, "7300,-500,2")
@@ -776,7 +829,7 @@ class EvidenceTest(AdapterCase):
                  f"LD_CAST t=12000 contender={S} life=2 casts=4 added=2",
                  f"LD_CAST t=20017 contender={O} life=2 casts=2 added=1",  # the outcome's own advance
                  f"LD_CAST t=21000 contender={S} life=2 casts=5 added=1")  # after the outcome
-        out = self.evidence(text=trace(*casts))
+        out = self.evidence(text=trace(*casts, drop=NO_CASTS))
         self.assertEqual(out["status"], "Completed", out["reason"])
         # The first hit between the duelists lands at 10000, the opponent dies at 20000.
         self.assertEqual(out["metrics"]["engage_to_kill_ms"], {"value": 10000, "censored": False})
@@ -784,17 +837,75 @@ class EvidenceTest(AdapterCase):
         self.assertEqual(out["metrics"]["opponent_casts"], {"value": 2, "censored": False})
         value = result(kind="timeout", ended_at_ms=50000)
         value["contenders"][1] = contender("opponent", 1, O, hp=10000)
-        timeout = self.evidence(value, trace(*casts, drop=("lethal", "death", "death_reward")))
+        timeout = self.evidence(value, trace(*casts, drop=("lethal", "death", "death_reward", *NO_CASTS)))
         self.assertEqual(timeout["status"], "Completed", timeout["reason"])
         self.assertEqual(timeout["metrics"]["engage_to_kill_ms"], {"value": 40000, "censored": True})
-        # No cast at all and no skill hit: zero casts is what happened.
-        self.assertEqual(self.evidence()["metrics"]["subject_casts"], {"value": 0, "censored": False})
         skill = hit(12500, S, O, "10.00", "0.00", "10.00", "520.00", "510.00").replace("via=basic class=basic",
                                                                                       "via=learned:active_elbow class=ability")
-        self.assertIn("duelist skill hits without any LD_CAST line", self.evidence(text=trace(skill))["reason"])
-        self.assertEqual(self.evidence(text=trace(skill, *casts))["status"], "Completed")
+        self.assertIn("duelist skill hits without any LD_CAST line", self.evidence(text=trace(skill, drop=NO_CASTS))["reason"])
+        self.assertEqual(self.evidence(text=trace(skill, *casts, drop=NO_CASTS))["status"], "Completed")
         self.assertIn("LD_CAST has no valid authority time or count",
                       self.evidence(text=trace(f"LD_CAST t=9000 contender={S} life=2 casts=1 added=0"))["reason"])
+
+    def test_auto_empower_is_a_host_switch_counted_per_side(self):
+        def empower(t, src, outcome="applied", host="Q", serial=1):
+            paid = "0.00" if outcome == "prepaid" else "50.00"
+            return (f"LD_EMPOWER t={t} src={src} life=2 host={host} processor=strike source=learned:active_elbow "
+                    f"serial={serial if outcome != 'short' else 0} paid={paid} before=70.00 after=20.00 outcome={outcome}")
+
+        on = manifest()
+        on["scenario"]["parameters"]["empower"] = True
+        # 12000: the Q released at 9000 paid for an empowered basic; its delivery is the same empowerment.
+        lines = (empower(9000, S), empower(12000, S, "prepaid", host="Basic", serial=2), empower(13000, S, "short"),
+                 empower(14000, O, host="Basic"), empower(4000, S, serial=9))  # 4000: the opening rest, before the duel
+        out = self.evidence(text=trace(*lines), plan_manifest=on)
+        self.assertEqual(out["status"], "Completed", out["reason"])
+        self.assertEqual((out["metrics"]["subject_empowers"]["value"], out["metrics"]["opponent_empowers"]["value"]), (1, 1))
+        self.assertEqual(out["facts"]["empower"]["subject"],
+                         {"empowers": 1, "delivered": 1, "short": 1, "paid": 50.0, "hosts": {"Q": 1}, "processors": {"strike": 1}})
+        # An off run has no empower line; one is a setup failure, not a result.
+        self.assertIn("Setup: an LD_EMPOWER line in a run without auto-empower",
+                      self.evidence(text=trace(empower(9000, S)))["reason"])
+        self.assertEqual(self.evidence()["metrics"]["subject_empowers"], {"value": 0, "censored": False})
+        # The scenario names the Host switches; the run must have been started with exactly those.
+        self.assertEqual(lockdown.scenario_problems(on["scenario"], self.caps), [])
+        self.assertEqual(lockdown.engine_switches(on), ["-LDEmpower"])
+        on["scenario"]["parameters"]["empower_host"] = "D"
+        self.assertEqual(lockdown.engine_switches(on), ["-LDEmpower", "-LDEmpowerHost=D"])
+        self.assertEqual(lockdown.runner_problems(on, {"engine_switches": ["-LDEmpower", "-LDEmpowerHost=D"]}), [])
+        self.assertTrue(lockdown.runner_problems(on, {}))
+        self.assertEqual(lockdown.runner_problems(manifest(), {}), [])
+        bad = manifest()
+        bad["scenario"]["parameters"]["empower_host"] = "Q"
+        self.assertTrue(any("empower_host" in problem for problem in lockdown.scenario_problems(bad["scenario"], self.caps)))
+
+    def test_a_planned_empower_host_is_the_sides_accepted_host_command(self):
+        on = manifest()
+        on["scenario"]["parameters"]["empower"] = True
+        for arm in on["design"]["arms"]:
+            arm["plan"]["subject"]["empower_host"] = "Q"
+        host = f"LD_EMPOWER_HOST t=1000 src={S} host=Q sequence=1"
+        profile = f"LD_EVAL_PROFILE contender={S} rival={O} site=capture choices=3 empower=Q"
+        empower = (f"LD_EMPOWER t=9000 src={S} life=2 host=Q processor=strike source=learned:active_elbow serial=1 "
+                   "paid=50.00 before=70.00 after=20.00 outcome=applied")
+        out = self.evidence(text=trace(profile, host, empower), plan_manifest=on)
+        self.assertEqual(out["status"], "Completed", out["reason"])
+        self.assertIn("Setup: the subject native profile has empower=auto, the run needs Q",
+                      self.evidence(text=trace(profile.replace("empower=Q", "empower=auto"), host, empower),
+                                    plan_manifest=on)["reason"])
+        self.assertIn("Setup: the subject native profile has empower=Q, the run needs off",
+                      self.evidence(text=trace(profile))["reason"])
+        self.assertIn("EmpowerHostNotApplied: the subject host commands are none",
+                      self.evidence(text=trace(empower), plan_manifest=on)["reason"])
+        self.assertIn("EmpowerHostNotApplied: the subject empowered ['Basic']",
+                      self.evidence(text=trace(host, empower.replace("host=Q", "host=Basic")), plan_manifest=on)["reason"])
+        with self.assertRaises(ValueError):
+            lockdown._side_plan({"subject": {"choices": [], "empower_host": "R"}}, "subject")
+        off = manifest()
+        for arm in off["design"]["arms"]:
+            arm["plan"]["opponent"]["empower_host"] = "D"
+        problems = lockdown.requirements(off["scenario"], off["design"]["arms"][0]["plan"], self.caps)["problems"]
+        self.assertTrue(any("empower_host needs the scenario's empower true" in problem for problem in problems))
 
     def test_a_choice_kept_as_a_blueprint_is_held_at_the_end(self):
         value = result()
@@ -814,6 +925,42 @@ class EvidenceTest(AdapterCase):
         self.assertEqual(out["status"], "Completed", out["reason"])
         self.assertEqual(out["metrics"]["duel_score"], {"value": 0, "censored": True})
         self.assertEqual(out["metrics"]["decision_time_ms"], {"value": 45000, "censored": True})
+
+    def test_a_timeout_without_any_duelist_hit_is_no_engagement_not_censored(self):
+        value = result(kind="timeout", ended_at_ms=50000)
+        value["contenders"][1] = contender("opponent", 1, O, hp=10000)
+        no_hits = ("hit1", "hit2", "lethal", "death", "death_reward")
+        out = self.evidence(value, trace(drop=no_hits))
+        self.assertEqual(out["status"], "Invalid", out)
+        self.assertIn("NoEngagement", out["reason"])
+        self.assertIn("closest approach 200 cm", out["reason"], "the 6000 heartbeats stand 200 cm apart")
+        # A kite stance may keep its distance on purpose: the same timeout is a censored result.
+        stance = {"kind": "kite", "standoff_cm": 600}
+        kite = manifest(subject={"choices": ["ai_select"] * 3, "stance": stance}, sample="diagnostic")
+        begin = f"LD_EVAL_CASE_BEGIN case=c000a-t index=0 seed=7 subject={S} opponent={O}"
+        profile = f"LD_EVAL_PROFILE contender={S} rival={O} site=capture choices=3 reaction_ms=0 aim_error_cm=0 skip_bp=0"
+        kept = self.evidence(value, trace(drop=no_hits).replace(begin, begin + "\n" + profile), plan_manifest=kite)
+        self.assertEqual(kept["status"], "Completed", kept["reason"])
+        self.assertTrue(kept["metrics"]["duel_score"]["censored"])
+
+    def test_a_duelist_that_never_casts_through_its_engagement_is_invalid(self):
+        out = self.evidence(text=trace(drop=("o_cast",)))
+        self.assertEqual(out["status"], "Invalid", out)
+        self.assertIn("NeverCast: the opponent", out["reason"])
+        self.assertNotIn("the subject", out["reason"])
+        # A kill inside the grace window is not enough engagement to call zero casts a failure.
+        start = 20000 - lockdown.NEVER_CAST_GRACE_MS + 1
+        quick = trace(drop=NO_CASTS).replace("LD_HIT t=10000", f"LD_HIT t={start}").replace("LD_HIT t=11000",
+                                                                                            f"LD_HIT t={start + 1}")
+        self.assertEqual(self.evidence(text=quick)["status"], "Completed")
+        # SkipBp holds casts on purpose, so zero casts under it is the planned play, not a failure.
+        stance = {"kind": "pursue", "skip_bp": 9000}
+        skipping = manifest(opponent={"choices": ["ai_select"] * 3, "stance": stance}, sample="diagnostic")
+        begin = f"LD_EVAL_CASE_BEGIN case=c000a-t index=0 seed=7 subject={S} opponent={O}"
+        profile = f"LD_EVAL_PROFILE contender={O} rival={S} site=capture choices=3 reaction_ms=0 aim_error_cm=0 skip_bp=9000"
+        held = self.evidence(text=trace(drop=("o_cast",)).replace(begin, begin + "\n" + profile), plan_manifest=skipping)
+        self.assertEqual(held["status"], "Completed", held["reason"])
+        self.assertIn("NeverCast", " ".join(lockdown.limitations(manifest(), self.caps)))
 
     def test_simultaneous_reciprocal_kills_are_an_observed_trade_not_a_win_or_timeout(self):
         value = result(kind="trade")

@@ -171,7 +171,7 @@ bool SerializeObservedUnit(FArchive& Ar, UPackageMap* Map, FLDObservedUnitView& 
     Unit.FeetCm.NetSerialize(Ar, Map, bFeet);
     Ar << Unit.Facing << Cue << Unit.ActionCueAgeMs << Unit.ActionCueImpactDelayMs << HitLook
         << Unit.RecentHitAgePlusOneMs << Unit.RecentHitId << Unit.HitFlags << Unit.ActionAbility << Unit.ActionComboStep
-        << Unit.RecentReaction << Unit.RecentReactionAgePlusOneMs << Unit.RecentReactionElement;
+        << Unit.RecentReaction << Unit.RecentReactionAgePlusOneMs << Unit.RecentReactionElement << Unit.CueFlags;
     if (Ar.IsLoading())
     {
         Unit.Kind = static_cast<ELDObservedUnitKind>(Kind);
@@ -188,7 +188,7 @@ bool SerializeObservedUnit(FArchive& Ar, UPackageMap* Map, FLDObservedUnitView& 
     }
     if (Mask & LDObservation::Level) { Ar << Unit.Level; }
     if (Mask & LDObservation::Health) { Ar << Unit.Health.CurrentP2 << Unit.Health.MaxP2 << Unit.ShieldBar; }
-    if (Mask & LDObservation::Momentum) { Ar << Unit.MomentumBar << Unit.bCharging << Unit.ChargeAgeMs << Unit.bOverdriveCast; }
+    if (Mask & LDObservation::Momentum) { Ar << Unit.MomentumBar << Unit.EmpowerReady; }
     if (Mask & LDObservation::Statuses)
     {
         uint8 Count = uint8(FMath::Min(Unit.Statuses.Num(), 255));
@@ -373,6 +373,9 @@ bool LDObservation::ValidateUnit(const FLDObservedUnitView& Unit, FString& Error
     if (Unit.ActionAbility != 0 && Unit.ActionCue != ELDObservedActionCue::Cast)
     { return FailObservation(Error, TEXT("An observed cast source needs a Cast cue and names an ability.")); }
     const bool Contender = Unit.Kind == ELDObservedUnitKind::Contender;
+    if ((Unit.CueFlags & ~CueFlagsMask) != 0 || ((Unit.CueFlags & CommitWindup) != 0 && Unit.ActionCue == ELDObservedActionCue::None)
+        || ((Unit.CueFlags & ProtoAgencyGuard) != 0 && !Contender))
+    { return FailObservation(Error, TEXT("A commit tell needs a cue and a prototype guard a contender.")); }
     if (!Contender && Unit.Kind != ELDObservedUnitKind::CampMember) { return FailObservation(Error, TEXT("Unknown observed unit kind.")); }
     const uint32 Mask = Unit.AuthorizedFieldMask;
     if (Contender ? Mask != ContenderFields : Mask != CampFields)
@@ -386,12 +389,8 @@ bool LDObservation::ValidateUnit(const FLDObservedUnitView& Unit, FString& Error
     if (!IsObservedResourcePair(Unit.Health, true)) { return FailObservation(Error, TEXT("Observed health must be a complete current/maximum P2 pair.")); }
     if (!(Mask & Health) && Unit.ShieldBar != 0)
     { return FailObservation(Error, TEXT("An observed shield bar is present without health authorization.")); }
-    if (!(Mask & Momentum) && (Unit.MomentumBar != 0 || Unit.bCharging || Unit.bOverdriveCast))
+    if (!(Mask & Momentum) && (Unit.MomentumBar != 0 || Unit.EmpowerReady != 0))
     { return FailObservation(Error, TEXT("Observed momentum is present without authorization.")); }
-    if (Unit.ChargeAgeMs != 0 && !Unit.bCharging)
-    { return FailObservation(Error, TEXT("An observed charge age needs a held charge.")); }
-    if (Unit.bOverdriveCast && Unit.ActionCue != ELDObservedActionCue::Cast)
-    { return FailObservation(Error, TEXT("An observed overdrive release needs a Cast cue.")); }
     if (Unit.ActionComboStep > 3 || (Unit.ActionComboStep != 0 && Unit.ActionCue != ELDObservedActionCue::Attack))
     { return FailObservation(Error, TEXT("An observed combo step needs an Attack cue and is 1..3.")); }
     if (Unit.Statuses.Num() > MaxStatuses) { return FailObservation(Error, TEXT("Too many observed statuses.")); }
@@ -515,7 +514,6 @@ bool LDObservation::ValidateProjectile(const FLDObservedProjectileView& Projecti
     case ELDObservedProjectileLook::AreaWater:
     case ELDObservedProjectileLook::AreaElectric:
     case ELDObservedProjectileLook::SlipperDrop:
-    case ELDObservedProjectileLook::PhantomDecoy:
     case ELDObservedProjectileLook::ShardBurst:
         if (Projectile.RadiusCm <= 0 || Projectile.InnerRadiusCm < 0 || Projectile.AngleDegrees != 0)
         { return FailObservation(Error, TEXT("An observed area needs its public radius and no cone angle.")); }
@@ -561,13 +559,14 @@ bool LDObservation::ValidateView(const FLDWorldView& View, FString& Error)
     {
         if (!FVector(Footprint.SourceFeetCm).IsZero() || Footprint.RadiusCm != 0 || Footprint.CurrentBits.Num() != 0
             || View.Units.Num() != 0 || View.RecentTerminations.Num() != 0 || View.Projectiles.Num() != 0
-            || View.GroundStates.Num() != 0 || View.RecoveryOrbs.Num() != 0 || !View.WitnessedEmptyCamps.IsEmpty())
+            || View.GroundStates.Num() != 0 || View.RecoveryOrbs.Num() != 0 || !View.WitnessedEmptyCamps.IsEmpty()
+            || !View.IncomingLocks.IsEmpty() || View.OwnProtoFlags != 0)
         { return FailObservation(Error, TEXT("A frame without a living source carries no coverage, unit, termination or projectile.")); }
     }
     else { return FailObservation(Error, TEXT("Unknown observation source status.")); }
     if (View.Units.Num() > MaxUnits || View.RecentTerminations.Num() > MaxTerminations || View.Projectiles.Num() > MaxProjectiles
         || View.GroundStates.Num() > MaxGroundStates || View.RecoveryOrbs.Num() > MaxRecoveryOrbs
-        || View.WitnessedEmptyCamps.Num() > MaxUnits)
+        || View.WitnessedEmptyCamps.Num() > MaxUnits || View.IncomingLocks.Num() > MaxIncomingLocks)
     { return FailObservation(Error, TEXT("Observation frame exceeds its bounded capacity.")); }
     for (const FLDObservedGroundState& Ground : View.GroundStates)
     {
@@ -612,6 +611,17 @@ bool LDObservation::ValidateView(const FLDWorldView& View, FString& Error)
         { return FailObservation(Error, TEXT("Recent terminations must be ordered, unique and absent from the current unit set.")); }
         LastSequence = Termination.TerminationSequence;
     }
+    TSet<FGuid> Locking;
+    for (const FLDObservedIncomingLock& Lock : View.IncomingLocks)
+    {
+        bool Duplicate = false;
+        Locking.Add(Lock.SourceHandle, &Duplicate);
+        if (Duplicate || Lock.Ability == 0 || Lock.RemainingMs == 0 || Lock.RemainingMs > MaxIncomingLockMs
+            || !View.Units.ContainsByPredicate([&Lock](const FLDObservedUnitView& Unit) { return Unit.Handle == Lock.SourceHandle; }))
+        { return FailObservation(Error, TEXT("An incoming lock names one shown caster, a skill and its pending windup.")); }
+    }
+    if ((View.OwnProtoFlags & ~uint8(ProtoAgencyGuard)) != 0)
+    { return FailObservation(Error, TEXT("The observer's own prototype flags are the prototype guard only.")); }
     // Projectile handles share the observer's handle space with units and recent terminations.
     for (const FLDObservedProjectileView& Projectile : View.Projectiles)
     {
@@ -730,6 +740,15 @@ bool FLDWorldView::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuccess)
     {
         if (!SerializeObservedMapId(Ar, Camp)) { return RejectObservationArchive(Ar, bSuccess); }
     }
+    uint8 LockCount = uint8(FMath::Min(IncomingLocks.Num(), 255));
+    Ar << LockCount;
+    if (Ar.IsError() || LockCount > LDObservation::MaxIncomingLocks) { return RejectObservationArchive(Ar, bSuccess); }
+    if (Ar.IsLoading()) { IncomingLocks.SetNum(LockCount); }
+    for (FLDObservedIncomingLock& Lock : IncomingLocks)
+    {
+        Ar << Lock.SourceHandle << Lock.RemainingMs << Lock.Ability;
+    }
+    Ar << OwnProtoFlags;
     if (Ar.IsError() || (Ar.IsLoading() && !LDObservation::ValidateView(*this, Error))) { return RejectObservationArchive(Ar, bSuccess); }
     // A connection always brings its package map; a probe or test that encodes a view by itself has none and is not traffic.
     if (Ar.IsNetArchive() && Map)

@@ -42,7 +42,6 @@ FLDCombatCueFacts ALDCombatDirector::CueFactsOf(const FLDBodyCombatState& Body)
     // The cast these describe: the acting Q/W/E, else the last released one (a basic that started inside the released
     // cast's cue window leaves that cast's facts in place).
     const bool bActingCast=Body.Action.IsSet() && Body.Action->Kind!=ELDCombatActionKind::Basic;
-    Facts.bOverdriveCast=bActingCast ? Body.Action->bOverdrive : Body.bReleasedOverdrive;
     const FLDCombatSourceRef& CastSource=bActingCast ? Body.Action->Source : Body.ReleasedSource;
     Facts.CastDefinitionId=CastSource.Kind==ELDCombatSourceKind::Learned ? CastSource.DefinitionId : NAME_None;
     return Facts;
@@ -59,28 +58,24 @@ bool ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 Now
     InOut.HitFlags=0;
     InOut.ActionAbility=0;
     InOut.ActionComboStep=0;
-    InOut.bCharging=false;
-    InOut.ChargeAtMs=0;
-    InOut.bOverdriveCast=false;
     InOut.MomentumBar=0;
+    InOut.EmpowerReady=0;
     InOut.LastReaction=0;
     InOut.LastReactionAtMs=0;
     InOut.LastReactionElement=0;
+    InOut.CueFlags=0;
     const FLDBodyCombatState* State=StateFor(&Body);
     if (!State || State->bPendingDeath) { return true; }
     const LDCombatCues::FCue Cue=LDCombatCues::Select(CueFactsOf(*State),NowMs);
     if (State->Victim.Kind==ELDVictimKind::Contender)
     {
-        // The public bar is quantized; an overdrive charge shows while held (never which active it is).
+        // The public bar is quantized.
         const FLDDemoContentSnapshot* Content=Catalog();
         const int64 MaxP2=Content ? Content->Get().Parameters.Momentum.MaxP2 : 0;
         if (MaxP2<=0) { Error=TEXT("The visible momentum bar needs the approved maximum."); return false; }
         const int64 Bar=FMath::Clamp<int64>(State->Resources.MomentumP2,0,MaxP2)*LDObservation::MomentumBarFull/MaxP2;
         InOut.MomentumBar=uint8(Bar);
-        InOut.bCharging=State->OverdriveCharge.IsSet();
-        InOut.ChargeAtMs=InOut.bCharging ? State->OverdriveCharge->StartMs : 0;
-        // An overdrive release shows on its Cast cue like the charge before it (spec: the charge is public).
-        InOut.bOverdriveCast=Cue.Cue==ELDObservedActionCue::Cast && PresentedCueFactsOf(*State).bOverdriveCast;
+        InOut.EmpowerReady=uint8(EmpowerReadyOf(*State,NowMs));
         if (Cue.Cue==ELDObservedActionCue::Attack)
         {
             const bool bActingBasic=State->Action.IsSet() && State->Action->Kind==ELDCombatActionKind::Basic
@@ -99,6 +94,12 @@ bool ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 Now
     InOut.ActionCue=Cue.Cue;
     InOut.ActionCueAtMs=Cue.AtMs;
     InOut.ActionCueImpactAtMs=Cue.ImpactAtMs;
+    // C-09 commit tell: the shown cue is the committing windup itself, until its release.
+    if (Cue.Cue!=ELDObservedActionCue::None && State->Action.IsSet() && State->Action->bCommitWindup
+        && State->Action->StartedAtMs==Cue.AtMs && NowMs<State->Action->ReleaseAtMs)
+    { InOut.CueFlags|=LDObservation::CommitWindup; }
+    if (Proto.bAgency && State->Victim.Kind==ELDVictimKind::Contender && NowMs<State->Agency.GuardUntilMs)
+    { InOut.CueFlags|=LDObservation::ProtoAgencyGuard; }
     if (State->Cues.LastHitAtMs>0 && NowMs>=State->Cues.LastHitAtMs
         && NowMs-State->Cues.LastHitAtMs<LDCombatCues::HitHoldMs)
     {
@@ -116,6 +117,18 @@ bool ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 Now
         InOut.LastReactionElement=State->Cues.LastReactionElement;
     }
     return true;
+}
+
+bool ALDCombatDirector::IsProtoAgencyGuarded(const FGuid& Entity) const
+{
+    const auto* Mode=Core();
+    if (!Proto.bAgency || !Mode) { return false; }
+    for (const auto& Pair : Bodies)
+    {
+        if (Pair.Value.Victim.EntityId==Entity && !Pair.Value.bPendingDeath)
+        { return Mode->GetAuthorityNowMs()<Pair.Value.Agency.GuardUntilMs; }
+    }
+    return false;
 }
 
 bool ALDCombatDirector::ObservedCastSource(const ALDCharacter& Body, int64 NowMs, uint8& OutAbility) const
@@ -140,6 +153,32 @@ bool ALDCombatDirector::ObservedCastSource(const ALDCharacter& Body, int64 NowMs
     }
     UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_CAST_SOURCE_UNAVAILABLE %s %s"),*Source.DefinitionId.ToString(),*Error);
     return false;
+}
+
+bool ALDCombatDirector::ReadIncomingLocks(const FGuid& Observer, TArray<FLDCombatIncomingLock>& Out, FString& Error) const
+{
+    Out.Reset();
+    const auto* Mode=Authority();
+    const FLDDemoContentSnapshot* Content=Catalog();
+    if (!Mode || !Content) { Error=TEXT("Incoming locks require the current match and its content."); return false; }
+    const int64 NowMs=Mode->GetAuthorityNowMs();
+    for (const auto& Pair : Bodies)
+    {
+        const FLDBodyCombatState& Body=Pair.Value;
+        if (Body.bPendingDeath || !Body.Action.IsSet() || Body.Victim.EntityId==Observer) { continue; }
+        const FLDCombatAction& Action=Body.Action.GetValue();
+        if (Action.Kind!=ELDCombatActionKind::Ability || Action.Source.Kind!=ELDCombatSourceKind::Learned
+            || Action.Target.Kind!=ELDCombatTargetKind::Unit || Action.TargetBody.Victim.EntityId!=Observer || Action.ReleaseAtMs<=NowMs)
+        { continue; }
+        const FLDDemoAbilityDefinition* Ability=nullptr;
+        if (!Content->FindAbilityByName(Action.Source.DefinitionId,Ability,Error)) { return false; }
+        FLDCombatIncomingLock& Lock=Out.AddDefaulted_GetRef();
+        Lock.SourceEntity=Body.Victim.EntityId;
+        Lock.RemainingMs=Action.ReleaseAtMs-NowMs;
+        Lock.Ability=Ability->NativeId;
+    }
+    Error.Reset();
+    return true;
 }
 
 bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact>& Out, FString& Error) const
@@ -223,6 +262,22 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
         Fact.InnerRadiusCm=float(Ground.InnerRadiusCm);
         Fact.WarningRemainingMs=Ground.ReadyAtMs>NowMs
             ? uint32(FMath::Min<int64>(Ground.ReadyAtMs-NowMs,MAX_uint32)) : 0;
+    }
+    // C-12: a ground impact in its windup shows the landing it will strike, under the key its ground effect keeps.
+    for (const auto& Pair : Bodies)
+    {
+        const FLDBodyCombatState& Body=Pair.Value;
+        if (Body.bPendingDeath || !Body.Action.IsSet() || !Body.Action->Landing.IsSet()) { continue; }
+        const FLDCombatLandingPreview& Landing=Body.Action->Landing.GetValue();
+        FLDObservedProjectileFact& Fact=Out.AddDefaulted_GetRef();
+        Fact.Key=Landing.ObservedKey;
+        Fact.SourceEntity=Body.Victim.EntityId;
+        Fact.PositionCm=Landing.CentreCm;
+        Fact.Heading=FVector2D(1,0);
+        Fact.Look=ELDObservedProjectileLook::BookShadow;
+        Fact.RadiusCm=float(Landing.RadiusCm);
+        Fact.InnerRadiusCm=float(Landing.InnerRadiusCm);
+        Fact.WarningRemainingMs=uint32(FMath::Clamp<int64>(Landing.ImpactAtMs-NowMs,0,MAX_uint32));
     }
     for (const FLDCombatZone& Zone : Zones)
     {
@@ -322,18 +377,6 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
         Fact.Look=ELDObservedProjectileLook::CordonTape;
         Fact.LengthCm=float(FMath::Max(Cordon.HalfLengthCm*2.,60.));
         Fact.RadiusCm=float(FMath::Max(Cordon.HalfWidthCm,30.));
-    }
-    for (const FLDCombatDecoy& Decoy : Decoys)
-    {
-        if (Decoy.ExplodeAtMs<=NowMs) { continue; }
-        FLDObservedProjectileFact& Fact=Out.AddDefaulted_GetRef();
-        Fact.Key=Decoy.Id;
-        Fact.SourceEntity=Decoy.OwnerEntity;
-        Fact.PositionCm=Decoy.FootCm;
-        Fact.Heading=FVector2D(1,0);
-        Fact.Look=ELDObservedProjectileLook::PhantomDecoy;
-        Fact.RadiusCm=float(FMath::Max(Decoy.RadiusCm,80.));
-        Fact.WarningRemainingMs=uint32(FMath::Min<int64>(FMath::Max<int64>(Decoy.ExplodeAtMs-NowMs,0),MAX_uint32));
     }
     for (const FLDCombatShardBurst& Burst : ShardBursts)
     {

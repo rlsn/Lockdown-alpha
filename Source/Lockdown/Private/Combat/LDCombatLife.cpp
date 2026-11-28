@@ -308,7 +308,6 @@ void ALDCombatDirector::CancelEntityEffects(const FGuid& Entity)
     RemoveBags([&Entity](const FLDCombatBag& Bag) { return Bag.Payload.SourceEntity==Entity; });
     Cordons.RemoveAll([&Entity](const FLDCombatCordon& Cordon) { return Cordon.Payload.SourceEntity==Entity; });
     SlipperDrops.RemoveAll([&Entity](const FLDCombatSlipperDrop& Drop) { return Drop.OwnerEntity==Entity; });
-    Decoys.RemoveAll([&Entity](const FLDCombatDecoy& Decoy) { return Decoy.OwnerEntity==Entity; });
     ShardBursts.RemoveAll([&Entity](const FLDCombatShardBurst& Burst) { return Burst.OwnerEntity==Entity; });
     GroundStates.RemoveAll([&Entity](const FLDGroundState& Ground) { return Ground.Owner.SourceEntity==Entity; });
     Chains.RemoveAll([&Entity](const FLDCombatChain& Chain) { return Chain.Payload.SourceEntity==Entity; });

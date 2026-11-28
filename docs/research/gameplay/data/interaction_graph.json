@@ -1,0 +1,7337 @@
+{
+  "metadata": {
+    "commit": "e62ff30473ce02d73761aadaea092d8a7e965248",
+    "manifest_sha256": "fc05a7db4abfe62ebc956fdf2e0167a508c91048e529471c8b36623defd3c142",
+    "node_count": 133,
+    "edge_count": 542
+  },
+  "catalog_structure": {
+    "abilities_total": 24,
+    "abilities_with_base_element": 6,
+    "abilities_without_base_element": 18,
+    "abilities_gaining_element_via_branch": 10,
+    "cards_by_weight": {
+      "100": 66,
+      "6": 7,
+      "22": 16
+    },
+    "medals_count": 5
+  },
+  "bus_summary": {
+    "ad_stat": {
+      "producer_count": 1,
+      "ability_producer_count": 0,
+      "consumer_count": 3,
+      "producers_sample": [
+        "card_kill_streak"
+      ],
+      "consumers_sample": [
+        "card_lend_fist",
+        "card_martial_scholar",
+        "keystone_strength"
+      ]
+    },
+    "anti_heal": {
+      "producer_count": 1,
+      "ability_producer_count": 1,
+      "consumer_count": 0,
+      "producers_sample": [
+        "active_stale_takeout"
+      ],
+      "consumers_sample": []
+    },
+    "ap_stat": {
+      "producer_count": 1,
+      "ability_producer_count": 0,
+      "consumer_count": 4,
+      "producers_sample": [
+        "card_kill_streak"
+      ],
+      "consumers_sample": [
+        "card_scholar_punch",
+        "card_brain_speed",
+        "card_martial_scholar",
+        "keystone_brains"
+      ]
+    },
+    "area": {
+      "producer_count": 17,
+      "ability_producer_count": 8,
+      "consumer_count": 1,
+      "producers_sample": [
+        "active_seethe",
+        "active_quick_meeting",
+        "active_not_mad",
+        "active_calculus_drop",
+        "active_open_mic",
+        "active_cola_shake",
+        "active_school_bag",
+        "active_flurry_rush"
+      ],
+      "consumers_sample": [
+        "card_tonnage_crush"
+      ]
+    },
+    "armor_shred": {
+      "producer_count": 6,
+      "ability_producer_count": 2,
+      "consumer_count": 0,
+      "producers_sample": [
+        "active_pants_down",
+        "active_snark_bolt",
+        "card_breach_fist",
+        "card_martial_scholar",
+        "reaction_overload",
+        "reaction_corrode"
+      ],
+      "consumers_sample": []
+    },
+    "armor_stat": {
+      "producer_count": 1,
+      "ability_producer_count": 0,
+      "consumer_count": 3,
+      "producers_sample": [
+        "card_tough_skin"
+      ],
+      "consumers_sample": [
+        "card_thick_hide",
+        "card_iron_hedgehog",
+        "keystone_thick_skin"
+      ]
+    },
+    "attack_speed": {
+      "producer_count": 6,
+      "ability_producer_count": 0,
+      "consumer_count": 5,
+      "producers_sample": [
+        "card_heated_up",
+        "card_muscle_memory",
+        "card_slippery",
+        "card_berserk",
+        "card_brain_speed",
+        "card_skate_blade"
+      ],
+      "consumers_sample": [
+        "card_quick_hands",
+        "card_slow_craft",
+        "card_run_hit",
+        "card_heavy_mallet",
+        "keystone_agility"
+      ]
+    },
+    "basic_hit": {
+      "producer_count": 7,
+      "ability_producer_count": 2,
+      "consumer_count": 13,
+      "producers_sample": [
+        "active_bail_out",
+        "active_triple_combo",
+        "card_both_hands",
+        "card_quick_hands",
+        "card_dash_punch",
+        "card_pass_through",
+        "keystone_agility"
+      ],
+      "consumers_sample": [
+        "card_punch_think",
+        "card_long_arm",
+        "card_quick_hands",
+        "card_scholar_punch",
+        "card_heated_up",
+        "card_muscle_memory",
+        "card_breach_fist",
+        "card_slippery"
+      ]
+    },
+    "combo3": {
+      "producer_count": 2,
+      "ability_producer_count": 2,
+      "consumer_count": 13,
+      "producers_sample": [
+        "active_bail_out",
+        "active_triple_combo"
+      ],
+      "consumers_sample": [
+        "card_third_breath",
+        "card_solid_punch",
+        "card_third_shove",
+        "card_both_hands",
+        "card_wide_swing",
+        "card_fist_skill",
+        "medal_fire",
+        "medal_water"
+      ]
+    },
+    "construct": {
+      "producer_count": 4,
+      "ability_producer_count": 3,
+      "consumer_count": 2,
+      "producers_sample": [
+        "active_flyer_trap",
+        "active_desk_fan",
+        "active_school_bag",
+        "card_double_stall"
+      ],
+      "consumers_sample": [
+        "card_double_stall",
+        "card_rogue_works"
+      ]
+    },
+    "control": {
+      "producer_count": 11,
+      "ability_producer_count": 6,
+      "consumer_count": 2,
+      "producers_sample": [
+        "active_elbow",
+        "active_pants_down",
+        "active_snark_bolt",
+        "active_stare_down",
+        "active_flyer_trap",
+        "active_hose_down",
+        "card_crowd_hit",
+        "card_long_reach"
+      ],
+      "consumers_sample": [
+        "card_pin_amp",
+        "card_tough_skin"
+      ]
+    },
+    "cooldown_refund": {
+      "producer_count": 14,
+      "ability_producer_count": 0,
+      "consumer_count": 0,
+      "producers_sample": [
+        "card_punch_think",
+        "card_next_up",
+        "card_quick_takedown",
+        "card_again_now",
+        "card_big_one",
+        "card_hold_longer",
+        "card_blast_reload",
+        "card_bump_reset"
+      ],
+      "consumers_sample": []
+    },
+    "crit_stat": {
+      "producer_count": 2,
+      "ability_producer_count": 0,
+      "consumer_count": 2,
+      "producers_sample": [
+        "card_heavy_mallet",
+        "card_reactive_plating"
+      ],
+      "consumers_sample": [
+        "card_skill_crit",
+        "keystone_strength"
+      ]
+    },
+    "damage_amp": {
+      "producer_count": 20,
+      "ability_producer_count": 0,
+      "consumer_count": 0,
+      "producers_sample": [
+        "card_slow_craft",
+        "card_breach_fist",
+        "card_setup_line",
+        "card_pin_amp",
+        "card_big_one",
+        "card_blood_price",
+        "card_held_shot",
+        "card_practice"
+      ],
+      "consumers_sample": []
+    },
+    "damage_instance": {
+      "producer_count": 49,
+      "ability_producer_count": 19,
+      "consumer_count": 1,
+      "producers_sample": [
+        "active_elbow",
+        "active_pants_down",
+        "active_crotch_grab",
+        "active_snark_bolt",
+        "active_seethe",
+        "active_quick_meeting",
+        "active_bail_out",
+        "active_not_mad"
+      ],
+      "consumers_sample": [
+        "card_hurt_heal"
+      ]
+    },
+    "damaged": {
+      "producer_count": 0,
+      "ability_producer_count": 0,
+      "consumer_count": 7,
+      "producers_sample": [],
+      "consumers_sample": [
+        "card_spiky_hide",
+        "card_hang_on",
+        "card_hard_skin",
+        "card_tough_skin",
+        "card_live_wire",
+        "card_iron_hedgehog",
+        "keystone_thick_skin"
+      ]
+    },
+    "dash": {
+      "producer_count": 4,
+      "ability_producer_count": 3,
+      "consumer_count": 11,
+      "producers_sample": [
+        "active_crotch_grab",
+        "active_bail_out",
+        "active_charged_ram",
+        "card_double_dash"
+      ],
+      "consumers_sample": [
+        "card_again_now",
+        "card_big_one",
+        "card_hold_longer",
+        "card_dash_punch",
+        "card_double_dash",
+        "card_pass_through",
+        "card_head_down",
+        "card_paid_dash"
+      ]
+    },
+    "dash_contact": {
+      "producer_count": 6,
+      "ability_producer_count": 3,
+      "consumer_count": 4,
+      "producers_sample": [
+        "active_crotch_grab",
+        "active_bail_out",
+        "active_charged_ram",
+        "card_double_dash",
+        "card_pass_through",
+        "card_head_down"
+      ],
+      "consumers_sample": [
+        "card_next_up",
+        "card_bump_reset",
+        "card_bump_again",
+        "card_runaway_train"
+      ]
+    },
+    "dot_burn": {
+      "producer_count": 4,
+      "ability_producer_count": 3,
+      "consumer_count": 4,
+      "producers_sample": [
+        "active_seethe",
+        "active_quick_meeting",
+        "active_zap",
+        "card_endless_burn"
+      ],
+      "consumers_sample": [
+        "card_overfed",
+        "card_endless_burn",
+        "card_burn_guard",
+        "card_fuel_the_fire"
+      ]
+    },
+    "dot_rot": {
+      "producer_count": 1,
+      "ability_producer_count": 1,
+      "consumer_count": 1,
+      "producers_sample": [
+        "active_stale_takeout"
+      ],
+      "consumers_sample": [
+        "card_fuel_the_fire"
+      ]
+    },
+    "element_apply": {
+      "producer_count": 23,
+      "ability_producer_count": 13,
+      "consumer_count": 1,
+      "producers_sample": [
+        "active_elbow",
+        "active_pants_down",
+        "active_crotch_grab",
+        "active_snark_bolt",
+        "active_seethe",
+        "active_quick_meeting",
+        "active_flyer_trap",
+        "active_hose_down"
+      ],
+      "consumers_sample": [
+        "card_long_soak"
+      ]
+    },
+    "ground_state": {
+      "producer_count": 20,
+      "ability_producer_count": 7,
+      "consumer_count": 4,
+      "producers_sample": [
+        "active_quick_meeting",
+        "active_flyer_trap",
+        "active_cola_shake",
+        "active_desk_fan",
+        "active_stale_takeout",
+        "active_school_bag",
+        "active_cordon_tape",
+        "card_ice_trail"
+      ],
+      "consumers_sample": [
+        "card_move_turf",
+        "card_double_stall",
+        "card_turf_growth",
+        "card_rogue_works"
+      ]
+    },
+    "haste_stat": {
+      "producer_count": 0,
+      "ability_producer_count": 0,
+      "consumer_count": 3,
+      "producers_sample": [],
+      "consumers_sample": [
+        "card_quick_brain",
+        "card_brain_speed",
+        "keystone_brains"
+      ]
+    },
+    "heal": {
+      "producer_count": 4,
+      "ability_producer_count": 0,
+      "consumer_count": 6,
+      "producers_sample": [
+        "card_hurt_heal",
+        "card_skill_drain",
+        "card_punch_heal",
+        "card_desperado"
+      ],
+      "consumers_sample": [
+        "card_skill_drain",
+        "card_overfed",
+        "card_grow_fat",
+        "card_burn_guard",
+        "card_desperado",
+        "keystone_physique"
+      ]
+    },
+    "ice_surface": {
+      "producer_count": 3,
+      "ability_producer_count": 0,
+      "consumer_count": 1,
+      "producers_sample": [
+        "card_ice_trail",
+        "reaction_freeze",
+        "reaction_shatter"
+      ],
+      "consumers_sample": [
+        "card_skate_blade"
+      ]
+    },
+    "idle": {
+      "producer_count": 0,
+      "ability_producer_count": 0,
+      "consumer_count": 3,
+      "producers_sample": [],
+      "consumers_sample": [
+        "card_held_shot",
+        "card_charge_up",
+        "card_eagle_stance"
+      ]
+    },
+    "kill_takedown": {
+      "producer_count": 0,
+      "ability_producer_count": 0,
+      "consumer_count": 3,
+      "producers_sample": [],
+      "consumers_sample": [
+        "card_quick_takedown",
+        "card_takedown",
+        "card_kill_streak"
+      ]
+    },
+    "knockback": {
+      "producer_count": 17,
+      "ability_producer_count": 13,
+      "consumer_count": 2,
+      "producers_sample": [
+        "active_elbow",
+        "active_pants_down",
+        "active_snark_bolt",
+        "active_not_mad",
+        "active_stare_down",
+        "active_flyer_trap",
+        "active_open_mic",
+        "active_hose_down"
+      ],
+      "consumers_sample": [
+        "card_ball_kick",
+        "card_skate_blade"
+      ]
+    },
+    "low_hp": {
+      "producer_count": 1,
+      "ability_producer_count": 0,
+      "consumer_count": 3,
+      "producers_sample": [
+        "card_blood_price"
+      ],
+      "consumers_sample": [
+        "card_hang_on",
+        "card_berserk",
+        "card_desperado"
+      ]
+    },
+    "max_hp": {
+      "producer_count": 2,
+      "ability_producer_count": 0,
+      "consumer_count": 6,
+      "producers_sample": [
+        "card_thick_hide",
+        "card_grow_fat"
+      ],
+      "consumers_sample": [
+        "card_blood_price",
+        "card_shell_burst",
+        "card_tonnage_crush",
+        "card_hulking_presence",
+        "card_rogue_works",
+        "keystone_physique"
+      ]
+    },
+    "momentum": {
+      "producer_count": 20,
+      "ability_producer_count": 0,
+      "consumer_count": 5,
+      "producers_sample": [
+        "card_third_breath",
+        "card_solid_punch",
+        "card_pay_back",
+        "card_quick_takedown",
+        "card_bump_reset",
+        "card_takedown",
+        "card_reaction_refund",
+        "card_quick_brain"
+      ],
+      "consumers_sample": [
+        "card_again_now",
+        "card_big_one",
+        "card_hold_longer",
+        "card_paid_dash",
+        "card_short_breath"
+      ]
+    },
+    "momentum_bypass": {
+      "producer_count": 2,
+      "ability_producer_count": 0,
+      "consumer_count": 0,
+      "producers_sample": [
+        "card_blood_price",
+        "card_dodge_strike"
+      ],
+      "consumers_sample": []
+    },
+    "move_speed": {
+      "producer_count": 4,
+      "ability_producer_count": 0,
+      "consumer_count": 4,
+      "producers_sample": [
+        "card_muscle_memory",
+        "card_slippery",
+        "card_skate_blade",
+        "keystone_agility"
+      ],
+      "consumers_sample": [
+        "card_slow_craft",
+        "card_run_hit",
+        "card_runaway_train",
+        "keystone_agility"
+      ]
+    },
+    "overdrive": {
+      "producer_count": 1,
+      "ability_producer_count": 0,
+      "consumer_count": 0,
+      "producers_sample": [
+        "card_short_breath"
+      ],
+      "consumers_sample": []
+    },
+    "perfect_dodge": {
+      "producer_count": 0,
+      "ability_producer_count": 0,
+      "consumer_count": 4,
+      "producers_sample": [],
+      "consumers_sample": [
+        "card_muscle_memory",
+        "card_dodge_strike",
+        "card_slippery",
+        "card_phantom_molt"
+      ]
+    },
+    "permanent_stats": {
+      "producer_count": 6,
+      "ability_producer_count": 0,
+      "consumer_count": 0,
+      "producers_sample": [
+        "card_muscle_memory",
+        "card_practice",
+        "card_slippery",
+        "card_grow_fat",
+        "card_kill_streak",
+        "card_tough_skin"
+      ],
+      "consumers_sample": []
+    },
+    "range_projectile": {
+      "producer_count": 5,
+      "ability_producer_count": 0,
+      "consumer_count": 1,
+      "producers_sample": [
+        "card_long_arm",
+        "card_crowd_hit",
+        "card_long_reach",
+        "card_hold_longer",
+        "card_eagle_stance"
+      ],
+      "consumers_sample": [
+        "card_let_bullets_fly"
+      ]
+    },
+    "reaction": {
+      "producer_count": 11,
+      "ability_producer_count": 0,
+      "consumer_count": 5,
+      "producers_sample": [
+        "card_wave_after",
+        "reaction_fog",
+        "reaction_overload",
+        "reaction_melt",
+        "reaction_methane",
+        "reaction_conduct",
+        "reaction_freeze",
+        "reaction_ferment"
+      ],
+      "consumers_sample": [
+        "card_blast_reload",
+        "card_reaction_refund",
+        "card_wave_after",
+        "card_louder_blast",
+        "keystone_brains"
+      ]
+    },
+    "shield": {
+      "producer_count": 9,
+      "ability_producer_count": 5,
+      "consumer_count": 3,
+      "producers_sample": [
+        "active_unplug",
+        "active_not_mad",
+        "active_open_mic",
+        "active_charged_ram",
+        "active_brace",
+        "card_hard_skin",
+        "card_overfed",
+        "card_burn_guard"
+      ],
+      "consumers_sample": [
+        "card_held_breath",
+        "card_spiky_hide",
+        "card_reactive_plating"
+      ]
+    },
+    "shield_break": {
+      "producer_count": 7,
+      "ability_producer_count": 3,
+      "consumer_count": 1,
+      "producers_sample": [
+        "active_not_mad",
+        "active_open_mic",
+        "active_charged_ram",
+        "card_hard_skin",
+        "card_overfed",
+        "card_burn_guard",
+        "keystone_physique"
+      ],
+      "consumers_sample": [
+        "card_shell_burst"
+      ]
+    },
+    "skill_cast": {
+      "producer_count": 26,
+      "ability_producer_count": 24,
+      "consumer_count": 11,
+      "producers_sample": [
+        "active_elbow",
+        "active_pants_down",
+        "active_crotch_grab",
+        "active_unplug",
+        "active_snark_bolt",
+        "active_seethe",
+        "active_quick_meeting",
+        "active_bail_out"
+      ],
+      "consumers_sample": [
+        "card_encore",
+        "card_crowd_hit",
+        "card_again_now",
+        "card_big_one",
+        "card_long_reach",
+        "card_hold_longer",
+        "card_blood_price",
+        "card_combo_chain"
+      ]
+    },
+    "skill_hit": {
+      "producer_count": 22,
+      "ability_producer_count": 19,
+      "consumer_count": 22,
+      "producers_sample": [
+        "active_elbow",
+        "active_pants_down",
+        "active_crotch_grab",
+        "active_snark_bolt",
+        "active_seethe",
+        "active_quick_meeting",
+        "active_bail_out",
+        "active_not_mad"
+      ],
+      "consumers_sample": [
+        "card_next_up",
+        "card_pay_back",
+        "card_setup_line",
+        "card_big_one",
+        "card_blood_price",
+        "card_lend_fist",
+        "card_held_breath",
+        "card_hurt_heal"
+      ]
+    },
+    "slow": {
+      "producer_count": 8,
+      "ability_producer_count": 7,
+      "consumer_count": 0,
+      "producers_sample": [
+        "active_crotch_grab",
+        "active_snark_bolt",
+        "active_quick_meeting",
+        "active_flyer_trap",
+        "active_cola_shake",
+        "active_school_bag",
+        "active_cordon_tape",
+        "card_phantom_molt"
+      ],
+      "consumers_sample": []
+    },
+    "stance": {
+      "producer_count": 3,
+      "ability_producer_count": 3,
+      "consumer_count": 1,
+      "producers_sample": [
+        "active_unplug",
+        "active_stare_down",
+        "active_brace"
+      ],
+      "consumers_sample": [
+        "card_iron_hedgehog"
+      ]
+    },
+    "survival_gate": {
+      "producer_count": 1,
+      "ability_producer_count": 0,
+      "consumer_count": 0,
+      "producers_sample": [
+        "card_hang_on"
+      ],
+      "consumers_sample": []
+    },
+    "wall_impact": {
+      "producer_count": 13,
+      "ability_producer_count": 11,
+      "consumer_count": 2,
+      "producers_sample": [
+        "active_elbow",
+        "active_pants_down",
+        "active_snark_bolt",
+        "active_not_mad",
+        "active_flyer_trap",
+        "active_open_mic",
+        "active_hose_down",
+        "active_charged_ram"
+      ],
+      "consumers_sample": [
+        "card_ball_kick",
+        "card_runaway_train"
+      ]
+    }
+  },
+  "closed_feedback_loops": [
+    {
+      "id": "loop_cd_engine",
+      "name": "技能冷却永动环 (Skill Cooldown Engine)",
+      "chain": [
+        "skill_cast",
+        "skill_hit",
+        "card_next_up (-1.0s other CDs) / keystone_brains (-1.0s)",
+        "card_encore (0.6x free recast)",
+        "skill_cast"
+      ],
+      "classification": "Bounded Positive Feedback",
+      "bound_mechanism": "SKILL.CooldownFloorSec = 0.3s + windups (0.15-0.25s) + card_again_now 1.5x momentum cost (though skills have 0 mandatory momentum cost unless card_paid_dash/overdrive!).",
+      "design_note": "Wait: check momentum_cost on skills! In content.json abilities carry momentum_cost=25..35 ONLY for Overdrive/card_blood_price reference because APP_SPEC §3.2 states skills cost 0 momentum at base! Thus card_again_now (-35% CD, 1.5x cost) has ZERO downside unless using Overdrive or card_blood_price!"
+    },
+    {
+      "id": "loop_combo_cast_bridge",
+      "name": "普攻三段触发技能桥接环 (Combo3 -> Auto Q & Synthetic Skill Hit)",
+      "chain": [
+        "basic_hit x3 -> combo3",
+        "card_both_hands (+extra combo3 strikes)",
+        "card_fist_skill (45% free Q cast) + card_solid_punch (synthetic skill_hit)",
+        "card_punch_think (-0.5s CD) + card_next_up (-1.0s CD)"
+      ],
+      "classification": "High-Roll Emergent Synergy",
+      "bound_mechanism": "card_fist_skill has drop_weight=6 (0.086% per slot!), making the most exciting hybrid loop nearly unobtainable in organic matches."
+    },
+    {
+      "id": "loop_blood_shield_plating",
+      "name": "血魔过量治疗护盾迸射环 (Blood Price -> Lifesteal -> Overfed Shield -> Reactive Plating)",
+      "chain": [
+        "card_blood_price (pay HP, +20% dmg)",
+        "low_hp -> card_desperado (+dmg/+heal) & card_berserk (+AS)",
+        "card_punch_heal / card_skill_drain -> heal",
+        "card_overfed / keystone_physique -> shield gain",
+        "card_reactive_plating (35% shield AoE burst) + card_grow_fat (+18 permanent MaxHP per 100 heal)"
+      ],
+      "classification": "Unbounded Permanent Scaling + Sustain Tank",
+      "bound_mechanism": "Ferment reaction (60% heal cut) or Rot (25% heal cut), BUT 18/24 skills lack elements and only 1 non-opening skill has Rot!"
+    },
+    {
+      "id": "loop_t3_medal_reaction_chain",
+      "name": "三阶勋章单键自触发反应环 (Tier-3 Medal Self-Reaction + WaveAfter + BlastReload)",
+      "chain": [
+        "Single Skill Hit with Tier-3 Medal",
+        "Applies Primary + Deterministic Secondary Element -> Instant Reaction",
+        "card_blast_reload (-3s CD) + card_reaction_refund (+15 Momentum) + card_wave_after (applies 3rd random element bypassing ReactionLockSec=0.5s once)"
+      ],
+      "classification": "Degenerate Skill-Compression Loop",
+      "bound_mechanism": "Acquiring 3 identical medals is ~1-3% RNG gated, NOT skill-gated. Once assembled, collapses 2-skill elemental combo setup into 1-button spam."
+    },
+    {
+      "id": "loop_dash_pinball",
+      "name": "冲刺穿人刷新列车环 (Dash Contact Reset + Pass Through + Runaway Train)",
+      "chain": [
+        "Dash (D)",
+        "card_pass_through (phase through enemies + basic_hit)",
+        "card_bump_reset (100% CD reset on contender contact) + card_bump_again (-1.5s all skill CDs)"
+      ],
+      "classification": "High-Skill / High-Risk Mobility Loop",
+      "bound_mechanism": "CC root/stun interrupts dash; requires contender contact (50% refund on monsters); single miss puts D on 9.0s CD."
+    }
+  ],
+  "vocab_vs_mechanics_findings": [
+    {
+      "card_id": "card_solid_punch",
+      "name": "拳拳到肉",
+      "vocab": [
+        "combo3",
+        "skill_hit"
+      ],
+      "issue": "Bridge catalyst: turns every 3rd basic attack into a synthetic skill_hit, unlocking skill_hit cards for pure basic-attack builds."
+    },
+    {
+      "card_id": "card_double_stall",
+      "name": "双摊位",
+      "vocab": [
+        "ground"
+      ],
+      "issue": "Hard-coded to 3 specific actives (school_bag, desk_fan, flyer_trap) yet shares generic 'ground'/'max_hp'/'element' vocab, polluting shop slots for unrelated builds."
+    },
+    {
+      "card_id": "card_skate_blade",
+      "name": "冰刀割裂",
+      "vocab": [
+        "ground",
+        "knockback",
+        "move_speed",
+        "attack_speed"
+      ],
+      "issue": "Requires ice_surface (Freeze reaction or card_ice_trail), but vocab uses broad 'ground' without 'element', biasing toward non-ice ground skills."
+    },
+    {
+      "card_id": "card_rogue_works",
+      "name": "违章工事",
+      "vocab": [
+        "ground",
+        "max_hp",
+        "element"
+      ],
+      "issue": "Hard-coded to 3 specific actives (school_bag, desk_fan, flyer_trap) yet shares generic 'ground'/'max_hp'/'element' vocab, polluting shop slots for unrelated builds."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "active_elbow",
+      "name": "滚远点",
+      "kind": "ability",
+      "opening": true,
+      "base_element": "none",
+      "branch_elements": [
+        "3A2:wet"
+      ],
+      "cooldown_s": 4.2,
+      "windup_s": 0.15,
+      "momentum_cost": 25.0,
+      "ops": [
+        "damage",
+        "knockback"
+      ],
+      "produces": [
+        "control",
+        "damage_instance",
+        "element_apply",
+        "knockback",
+        "skill_cast",
+        "skill_hit",
+        "wall_impact"
+      ]
+    },
+    {
+      "id": "active_pants_down",
+      "name": "扒裤子",
+      "kind": "ability",
+      "opening": true,
+      "base_element": "none",
+      "branch_elements": [
+        "3A2:electrify"
+      ],
+      "cooldown_s": 6.0,
+      "windup_s": 0.14,
+      "momentum_cost": 25.0,
+      "ops": [
+        "damage",
+        "root",
+        "breach",
+        "grab_line"
+      ],
+      "produces": [
+        "armor_shred",
+        "control",
+        "damage_instance",
+        "element_apply",
+        "knockback",
+        "skill_cast",
+        "skill_hit",
+        "wall_impact"
+      ]
+    },
+    {
+      "id": "active_crotch_grab",
+      "name": "掏蛋子",
+      "kind": "ability",
+      "opening": false,
+      "base_element": "none",
+      "branch_elements": [
+        "3A2:electrify"
+      ],
+      "cooldown_s": 6.3,
+      "windup_s": 0.12,
+      "momentum_cost": 30.0,
+      "ops": [
+        "dash",
+        "dash_contact",
+        "damage",
+        "slow",
+        "attack_slow",
+        "backstab_lunge"
+      ],
+      "produces": [
+        "damage_instance",
+        "dash",
+        "dash_contact",
+        "element_apply",
+        "skill_cast",
+        "skill_hit",
+        "slow"
+      ]
+    },
+    {
+      "id": "active_unplug",
+      "name": "拧你手腕",
+      "kind": "ability",
+      "opening": false,
+      "base_element": "none",
+      "branch_elements": [],
+      "cooldown_s": 6.3,
+      "windup_s": 0.0,
+      "momentum_cost": 20.0,
+      "ops": [
+        "parry_stance"
+      ],
+      "produces": [
+        "shield",
+        "skill_cast",
+        "stance"
+      ]
+    },
+    {
+      "id": "active_snark_bolt",
+      "name": "甩你一鞋",
+      "kind": "ability",
+      "opening": true,
+      "base_element": "none",
+      "branch_elements": [
+        "3A2:wet"
+      ],
+      "cooldown_s": 4.2,
+      "windup_s": 0.18,
+      "momentum_cost": 25.0,
+      "ops": [
+        "damage",
+        "slow",
+        "slipper_pickup"
+      ],
+      "produces": [
+        "armor_shred",
+        "control",
+        "damage_instance",
+        "element_apply",
+        "knockback",
+        "skill_cast",
+        "skill_hit",
+        "slow",
+        "wall_impact"
+      ]
+    },
+    {
+      "id": "active_seethe",
+      "name": "烫你屁股",
+      "kind": "ability",
+      "opening": true,
+      "base_element": "fire",
+      "branch_elements": [],
+      "cooldown_s": 4.9,
+      "windup_s": 0.25,
+      "momentum_cost": 30.0,
+      "ops": [
+        "self_area",
+        "damage",
+        "burn"
+      ],
+      "produces": [
+        "area",
+        "damage_instance",
+        "dot_burn",
+        "element_apply",
+        "skill_cast",
+        "skill_hit"
+      ]
+    },
+    {
+      "id": "active_quick_meeting",
+      "name": "脚底开锅",
+      "kind": "ability",
+      "opening": true,
+      "base_element": "fire",
+      "branch_elements": [
+        "2B:burn"
+      ],
+      "cooldown_s": 5.6,
+      "windup_s": 0.25,
+      "momentum_cost": 35.0,
+      "ops": [
+        "zone",
+        "zone_damage",
+        "zone_slow",
+        "zone_burn"
+      ],
+      "produces": [
+        "area",
+        "damage_instance",
+        "dot_burn",
+        "element_apply",
+        "ground_state",
+        "skill_cast",
+        "skill_hit",
+        "slow"
+      ]
+    },
+    {
+      "id": "active_bail_out",
+      "name": "贴脸补一拳",
+      "kind": "ability",
+      "opening": true,
+      "base_element": "none",
+      "branch_elements": [],
+      "cooldown_s": 4.9,
+      "windup_s": 0.0,
+      "momentum_cost": 20.0,
+      "ops": [
+        "dash",
+        "empower_basic"
+      ],
+      "produces": [
+        "basic_hit",
+        "combo3",
+        "damage_instance",
+        "dash",
+        "dash_contact",
+        "skill_cast",
+        "skill_hit"
+      ]
+    },
+    {
+      "id": "active_not_mad",
+      "name": "锅盖挡脸",
+      "kind": "ability",
+      "opening": true,
+      "base_element": "none",
+      "branch_elements": [],
+      "cooldown_s": 7.0,
+      "windup_s": 0.0,
+      "momentum_cost": 25.0,
+      "ops": [
+        "shield",
+        "dispel_slow",
+        "dispel_root"
+      ],
+      "produces": [
+        "area",
+        "damage_instance",
+        "knockback",
+        "shield",
+        "shield_break",
+        "skill_cast",
+        "skill_hit",
+        "wall_impact"
+      ]
+    },
+    {
+      "id": "active_stare_down",
+      "name": "来打老子啊",
+      "kind": "ability",
+      "opening": false,
+      "base_element": "none",
+      "branch_elements": [],
+      "cooldown_s": 8.4,
+      "windup_s": 0.2,
+      "momentum_cost": 30.0,
+      "ops": [
+        "taunt",
+        "timed_stat_bonus"
+      ],
+      "produces": [
+        "control",
+        "knockback",
+        "skill_cast",
+        "stance"
+      ]
+    },
+    {
+      "id": "active_triple_combo",
+      "name": "左右开抽",
+      "kind": "ability",
+      "opening": true,
+      "base_element": "none",
+      "branch_elements": [],
+      "cooldown_s": 6.3,
+      "windup_s": 0.0,
+      "momentum_cost": 20.0,
+      "ops": [
+        "empower_basic"
+      ],
+      "produces": [
+        "basic_hit",
+        "combo3",
+        "skill_cast"
+      ]
+    },
+    {
+      "id": "active_calculus_drop",
+      "name": "板砖糊脸",
+      "kind": "ability",
+      "opening": true,
+      "base_element": "none",
+      "branch_elements": [],
+      "cooldown_s": 5.6,
+      "windup_s": 0.25,
+      "momentum_cost": 35.0,
+      "ops": [
+        "ground_impact",
+        "damage"
+      ],
+      "produces": [
+        "area",
+        "damage_instance",
+        "skill_cast",
+        "skill_hit"
+      ]
+    },
+    {
+      "id": "active_flyer_trap",
+      "name": "踩一脚试试",
+      "kind": "ability",
+      "opening": false,
+      "base_element": "none",
+      "branch_elements": [
+        "3A2:wet"
+      ],
+      "cooldown_s": 6.3,
+      "windup_s": 0.15,
+      "momentum_cost": 30.0,
+      "ops": [
+        "contact_trap",
+        "damage",
+        "slow"
+      ],
+      "produces": [
+        "construct",
+        "control",
+        "damage_instance",
+        "element_apply",
+        "ground_state",
+        "knockback",
+        "skill_cast",
+        "skill_hit",
+        "slow",
+        "wall_impact"
+      ]
+    },
+    {
+      "id": "active_open_mic",
+      "name": "扯嗓子喷你",
+      "kind": "ability",
+      "opening": true,
+      "base_element": "none",
+      "branch_elements": [],
+      "cooldown_s": 5.6,
+      "windup_s": 0.15,
+      "momentum_cost": 25.0,
+      "ops": [
+        "self_area",
+        "damage",
+        "knockback",
+        "shield",
+        "warcry_ring"
+      ],
+      "produces": [
+        "area",
+        "damage_instance",
+        "knockback",
+        "shield",
+        "shield_break",
+        "skill_cast",
+        "skill_hit",
+        "wall_impact"
+      ]
+    },
+    {
+      "id": "active_hose_down",
+      "name": "滋你一脸",
+      "kind": "ability",
+      "opening": true,
+      "base_element": "water",
+      "branch_elements": [
+        "3A2:electrify"
+      ],
+      "cooldown_s": 4.9,
+      "windup_s": 0.2,
+      "momentum_cost": 25.0,
+      "ops": [
+        "damage",
+        "knockback",
+        "wet"
+      ],
+      "produces": [
+        "control",
+        "damage_instance",
+        "element_apply",
+        "knockback",
+        "skill_cast",
+        "skill_hit",
+        "wall_impact"
+      ]
+    },
+    {
+      "id": "active_zap",
+      "name": "电你个哆嗦",
+      "kind": "ability",
+      "opening": true,
+      "base_element": "shock",
+      "branch_elements": [
+        "3A1:burn"
+      ],
+      "cooldown_s": 4.9,
+      "windup_s": 0.25,
+      "momentum_cost": 30.0,
+      "ops": [
+        "damage",
+        "electrify",
+        "chain_bounce"
+      ],
+      "produces": [
+        "damage_instance",
+        "dot_burn",
+        "element_apply",
+        "skill_cast",
+        "skill_hit"
+      ]
+    },
+    {
+      "id": "active_charged_ram",
+      "name": "蛮牛顶",
+      "kind": "ability",
+      "opening": true,
+      "base_element": "none",
+      "branch_elements": [],
+      "cooldown_s": 6.3,
+      "windup_s": 0.1,
+      "momentum_cost": 30.0,
+      "ops": [
+        "dash",
+        "shield",
+        "dash_contact",
+        "damage",
+        "knockback"
+      ],
+      "produces": [
+        "damage_instance",
+        "dash",
+        "dash_contact",
+        "knockback",
+        "shield",
+        "shield_break",
+        "skill_cast",
+        "skill_hit",
+        "wall_impact"
+      ]
+    },
+    {
+      "id": "active_brace",
+      "name": "顶着揍",
+      "kind": "ability",
+      "opening": false,
+      "base_element": "none",
+      "branch_elements": [],
+      "cooldown_s": 8.4,
+      "windup_s": 0.1,
+      "momentum_cost": 25.0,
+      "ops": [
+        "brace"
+      ],
+      "produces": [
+        "shield",
+        "skill_cast",
+        "stance"
+      ]
+    },
+    {
+      "id": "active_cola_shake",
+      "name": "冰可乐摇一摇",
+      "kind": "ability",
+      "opening": true,
+      "base_element": "chill",
+      "branch_elements": [],
+      "cooldown_s": 4.2,
+      "windup_s": 0.15,
+      "momentum_cost": 25.0,
+      "ops": [
+        "channel_cone",
+        "damage",
+        "chill",
+        "knockback"
+      ],
+      "produces": [
+        "area",
+        "damage_instance",
+        "element_apply",
+        "ground_state",
+        "knockback",
+        "skill_cast",
+        "skill_hit",
+        "slow",
+        "wall_impact"
+      ]
+    },
+    {
+      "id": "active_desk_fan",
+      "name": "电风扇",
+      "kind": "ability",
+      "opening": false,
+      "base_element": "none",
+      "branch_elements": [],
+      "cooldown_s": 7.0,
+      "windup_s": 0.2,
+      "momentum_cost": 35.0,
+      "ops": [
+        "fan"
+      ],
+      "produces": [
+        "construct",
+        "ground_state",
+        "knockback",
+        "skill_cast"
+      ]
+    },
+    {
+      "id": "active_stale_takeout",
+      "name": "过期外卖",
+      "kind": "ability",
+      "opening": false,
+      "base_element": "rot",
+      "branch_elements": [],
+      "cooldown_s": 5.6,
+      "windup_s": 0.2,
+      "momentum_cost": 30.0,
+      "ops": [
+        "damage",
+        "rot",
+        "ground_state",
+        "knockback"
+      ],
+      "produces": [
+        "anti_heal",
+        "damage_instance",
+        "dot_rot",
+        "element_apply",
+        "ground_state",
+        "knockback",
+        "skill_cast",
+        "skill_hit",
+        "wall_impact"
+      ]
+    },
+    {
+      "id": "active_school_bag",
+      "name": "占座书包",
+      "kind": "ability",
+      "opening": true,
+      "base_element": "none",
+      "branch_elements": [
+        "3A2:chill"
+      ],
+      "cooldown_s": 7.7,
+      "windup_s": 0.2,
+      "momentum_cost": 30.0,
+      "ops": [
+        "bag",
+        "damage"
+      ],
+      "produces": [
+        "area",
+        "construct",
+        "damage_instance",
+        "element_apply",
+        "ground_state",
+        "knockback",
+        "skill_cast",
+        "skill_hit",
+        "slow",
+        "wall_impact"
+      ]
+    },
+    {
+      "id": "active_flurry_rush",
+      "name": "疯狗乱拳",
+      "kind": "ability",
+      "opening": false,
+      "base_element": "none",
+      "branch_elements": [],
+      "cooldown_s": 7.0,
+      "windup_s": 0.0,
+      "momentum_cost": 25.0,
+      "ops": [
+        "frenzy_waves"
+      ],
+      "produces": [
+        "area",
+        "damage_instance",
+        "skill_cast",
+        "skill_hit"
+      ]
+    },
+    {
+      "id": "active_cordon_tape",
+      "name": "警戒封条",
+      "kind": "ability",
+      "opening": false,
+      "base_element": "none",
+      "branch_elements": [
+        "3A2:electrify"
+      ],
+      "cooldown_s": 6.8,
+      "windup_s": 0.16,
+      "momentum_cost": 30.0,
+      "ops": [
+        "cordon_line",
+        "damage",
+        "slow"
+      ],
+      "produces": [
+        "damage_instance",
+        "element_apply",
+        "ground_state",
+        "skill_cast",
+        "skill_hit",
+        "slow"
+      ]
+    },
+    {
+      "id": "card_third_breath",
+      "name": "第三拳回口气",
+      "kind": "card",
+      "form": "body",
+      "card_type": "trigger",
+      "drop_weight": 100,
+      "vocab": [
+        "combo3",
+        "momentum"
+      ],
+      "ops": [
+        "combo_momentum"
+      ],
+      "consumes": [
+        "combo3"
+      ],
+      "produces": [
+        "momentum"
+      ],
+      "mechanisms": [
+        "resource_gain"
+      ]
+    },
+    {
+      "id": "card_punch_think",
+      "name": "边打边想",
+      "kind": "card",
+      "form": "body",
+      "card_type": "trigger",
+      "drop_weight": 100,
+      "vocab": [
+        "basic_hit",
+        "skill_cast"
+      ],
+      "ops": [
+        "basic_cooldown_cut"
+      ],
+      "consumes": [
+        "basic_hit"
+      ],
+      "produces": [
+        "cooldown_refund"
+      ],
+      "mechanisms": [
+        "cooldown_loop"
+      ]
+    },
+    {
+      "id": "card_solid_punch",
+      "name": "拳拳到肉",
+      "kind": "card",
+      "form": "body",
+      "card_type": "trigger",
+      "drop_weight": 100,
+      "vocab": [
+        "combo3",
+        "skill_hit"
+      ],
+      "ops": [
+        "combo_skill_hit"
+      ],
+      "consumes": [
+        "combo3"
+      ],
+      "produces": [
+        "momentum",
+        "skill_hit"
+      ],
+      "mechanisms": [
+        "bridge_trigger"
+      ]
+    },
+    {
+      "id": "card_third_shove",
+      "name": "第三拳滚蛋",
+      "kind": "card",
+      "form": "body",
+      "card_type": "trigger",
+      "drop_weight": 100,
+      "vocab": [
+        "combo3",
+        "knockback"
+      ],
+      "ops": [
+        "combo_knockback"
+      ],
+      "consumes": [
+        "combo3"
+      ],
+      "produces": [
+        "knockback",
+        "wall_impact"
+      ],
+      "mechanisms": [
+        "displacement"
+      ]
+    },
+    {
+      "id": "card_long_arm",
+      "name": "隔空抽你",
+      "kind": "card",
+      "form": "body",
+      "card_type": "modify",
+      "drop_weight": 100,
+      "vocab": [
+        "basic_hit"
+      ],
+      "ops": [
+        "basic_projectile"
+      ],
+      "consumes": [
+        "basic_hit"
+      ],
+      "produces": [
+        "range_projectile"
+      ],
+      "mechanisms": [
+        "form_transform"
+      ]
+    },
+    {
+      "id": "card_both_hands",
+      "name": "左右开弓",
+      "kind": "card",
+      "form": "body",
+      "card_type": "modify",
+      "drop_weight": 100,
+      "vocab": [
+        "combo3",
+        "basic_hit"
+      ],
+      "ops": [
+        "combo_double"
+      ],
+      "consumes": [
+        "combo3"
+      ],
+      "produces": [
+        "basic_hit"
+      ],
+      "mechanisms": [
+        "hit_multiplication"
+      ]
+    },
+    {
+      "id": "card_wide_swing",
+      "name": "抡圆了打",
+      "kind": "card",
+      "form": "body",
+      "card_type": "modify",
+      "drop_weight": 100,
+      "vocab": [
+        "combo3"
+      ],
+      "ops": [
+        "combo_sweep"
+      ],
+      "consumes": [
+        "combo3"
+      ],
+      "produces": [
+        "area"
+      ],
+      "mechanisms": [
+        "aoe_transform"
+      ]
+    },
+    {
+      "id": "card_fist_skill",
+      "name": "拳里带招",
+      "kind": "card",
+      "form": "body",
+      "card_type": "modify",
+      "drop_weight": 6,
+      "vocab": [
+        "combo3",
+        "skill_cast"
+      ],
+      "ops": [
+        "combo_cast"
+      ],
+      "consumes": [
+        "combo3"
+      ],
+      "produces": [
+        "skill_cast",
+        "skill_hit"
+      ],
+      "mechanisms": [
+        "auto_cast_bridge"
+      ]
+    },
+    {
+      "id": "card_quick_hands",
+      "name": "手快有手慢无",
+      "kind": "card",
+      "form": "body",
+      "card_type": "convert",
+      "drop_weight": 100,
+      "vocab": [
+        "attack_speed",
+        "basic_hit"
+      ],
+      "ops": [
+        "overcap_extra_hit"
+      ],
+      "consumes": [
+        "attack_speed",
+        "basic_hit"
+      ],
+      "produces": [
+        "basic_hit"
+      ],
+      "mechanisms": [
+        "hit_multiplication"
+      ]
+    },
+    {
+      "id": "card_slow_craft",
+      "name": "慢工出细活",
+      "kind": "card",
+      "form": "body",
+      "card_type": "convert",
+      "drop_weight": 100,
+      "vocab": [
+        "attack_speed"
+      ],
+      "ops": [
+        "speed_factor"
+      ],
+      "consumes": [
+        "attack_speed",
+        "move_speed"
+      ],
+      "produces": [
+        "damage_amp"
+      ],
+      "mechanisms": [
+        "stat_conversion"
+      ]
+    },
+    {
+      "id": "card_scholar_punch",
+      "name": "读书人打架",
+      "kind": "card",
+      "form": "body",
+      "card_type": "convert",
+      "drop_weight": 100,
+      "vocab": [
+        "basic_hit"
+      ],
+      "ops": [
+        "basic_ap_rider"
+      ],
+      "consumes": [
+        "ap_stat",
+        "basic_hit"
+      ],
+      "produces": [
+        "damage_instance"
+      ],
+      "mechanisms": [
+        "hybrid_scaling"
+      ]
+    },
+    {
+      "id": "card_heated_up",
+      "name": "越打越上头",
+      "kind": "card",
+      "form": "body",
+      "card_type": "grow",
+      "drop_weight": 100,
+      "vocab": [
+        "attack_speed",
+        "basic_hit"
+      ],
+      "ops": [
+        "focus_attack_speed"
+      ],
+      "consumes": [
+        "basic_hit"
+      ],
+      "produces": [
+        "attack_speed"
+      ],
+      "mechanisms": [
+        "ramp_loop"
+      ]
+    },
+    {
+      "id": "card_muscle_memory",
+      "name": "熟能生巧",
+      "kind": "card",
+      "form": "body",
+      "card_type": "grow",
+      "drop_weight": 100,
+      "vocab": [
+        "basic_hit"
+      ],
+      "ops": [
+        "hit_growth"
+      ],
+      "consumes": [
+        "basic_hit",
+        "perfect_dodge"
+      ],
+      "produces": [
+        "attack_speed",
+        "move_speed",
+        "permanent_stats"
+      ],
+      "mechanisms": [
+        "permanent_growth"
+      ]
+    },
+    {
+      "id": "card_breach_fist",
+      "name": "越揍越不经打",
+      "kind": "card",
+      "form": "body",
+      "card_type": "grow",
+      "drop_weight": 100,
+      "vocab": [
+        "basic_hit",
+        "armor"
+      ],
+      "ops": [
+        "breach"
+      ],
+      "consumes": [
+        "basic_hit"
+      ],
+      "produces": [
+        "armor_shred",
+        "damage_amp"
+      ],
+      "mechanisms": [
+        "mitigation_shred"
+      ]
+    },
+    {
+      "id": "card_next_up",
+      "name": "打完换下一招",
+      "kind": "card",
+      "form": "skill",
+      "card_type": "trigger",
+      "drop_weight": 100,
+      "vocab": [
+        "skill_hit",
+        "skill_cast"
+      ],
+      "ops": [
+        "hit_haste_other"
+      ],
+      "consumes": [
+        "dash_contact",
+        "skill_hit"
+      ],
+      "produces": [
+        "cooldown_refund"
+      ],
+      "mechanisms": [
+        "cooldown_loop"
+      ]
+    },
+    {
+      "id": "card_pay_back",
+      "name": "一招回本",
+      "kind": "card",
+      "form": "skill",
+      "card_type": "trigger",
+      "drop_weight": 100,
+      "vocab": [
+        "skill_hit",
+        "momentum"
+      ],
+      "ops": [
+        "skill_hit_momentum"
+      ],
+      "consumes": [
+        "skill_hit"
+      ],
+      "produces": [
+        "momentum"
+      ],
+      "mechanisms": [
+        "resource_gain"
+      ]
+    },
+    {
+      "id": "card_quick_takedown",
+      "name": "收人头不用等",
+      "kind": "card",
+      "form": "skill",
+      "card_type": "trigger",
+      "drop_weight": 100,
+      "vocab": [
+        "kill"
+      ],
+      "ops": [
+        "takedown_reset"
+      ],
+      "consumes": [
+        "kill_takedown"
+      ],
+      "produces": [
+        "cooldown_refund",
+        "momentum"
+      ],
+      "mechanisms": [
+        "reset_snowball"
+      ]
+    },
+    {
+      "id": "card_setup_line",
+      "name": "先垫一句",
+      "kind": "card",
+      "form": "skill",
+      "card_type": "trigger",
+      "drop_weight": 100,
+      "vocab": [
+        "skill_hit"
+      ],
+      "ops": [
+        "setup_mark"
+      ],
+      "consumes": [
+        "skill_hit"
+      ],
+      "produces": [
+        "damage_amp"
+      ],
+      "mechanisms": [
+        "combo_sequencing"
+      ]
+    },
+    {
+      "id": "card_pin_amp",
+      "name": "按住了就放大",
+      "kind": "card",
+      "form": "skill",
+      "card_type": "trigger",
+      "drop_weight": 100,
+      "vocab": [
+        "control"
+      ],
+      "ops": [
+        "control_amp"
+      ],
+      "consumes": [
+        "control"
+      ],
+      "produces": [
+        "damage_amp"
+      ],
+      "mechanisms": [
+        "cc_payoff"
+      ]
+    },
+    {
+      "id": "card_encore",
+      "name": "再来一遍",
+      "kind": "card",
+      "form": "skill",
+      "card_type": "modify",
+      "drop_weight": 6,
+      "vocab": [
+        "skill_cast"
+      ],
+      "ops": [
+        "auto_recast"
+      ],
+      "consumes": [
+        "skill_cast"
+      ],
+      "produces": [
+        "skill_cast",
+        "skill_hit"
+      ],
+      "mechanisms": [
+        "cast_multiplication"
+      ]
+    },
+    {
+      "id": "card_crowd_hit",
+      "name": "一群人一起挨",
+      "kind": "card",
+      "form": "skill",
+      "card_type": "modify",
+      "drop_weight": 100,
+      "vocab": [
+        "area"
+      ],
+      "ops": [
+        "reshape"
+      ],
+      "consumes": [
+        "skill_cast"
+      ],
+      "produces": [
+        "area",
+        "control",
+        "range_projectile"
+      ],
+      "mechanisms": [
+        "geometry_mod"
+      ]
+    },
+    {
+      "id": "card_again_now",
+      "name": "再来一下别喘",
+      "kind": "card",
+      "form": "skill",
+      "card_type": "modify",
+      "drop_weight": 100,
+      "vocab": [
+        "skill_cast",
+        "momentum"
+      ],
+      "ops": [
+        "cooldown_cost"
+      ],
+      "consumes": [
+        "dash",
+        "momentum",
+        "skill_cast"
+      ],
+      "produces": [
+        "cooldown_refund"
+      ],
+      "mechanisms": [
+        "resource_for_cd"
+      ]
+    },
+    {
+      "id": "card_big_one",
+      "name": "攒够一顿狠的",
+      "kind": "card",
+      "form": "skill",
+      "card_type": "modify",
+      "drop_weight": 22,
+      "vocab": [
+        "skill_hit"
+      ],
+      "ops": [
+        "cooldown_cost",
+        "skill_damage_factor"
+      ],
+      "consumes": [
+        "dash",
+        "momentum",
+        "skill_cast",
+        "skill_hit"
+      ],
+      "produces": [
+        "cooldown_refund",
+        "damage_amp"
+      ],
+      "mechanisms": [
+        "resource_for_cd",
+        "damage_multiplier"
+      ]
+    },
+    {
+      "id": "card_long_reach",
+      "name": "站远点照样抽你",
+      "kind": "card",
+      "form": "skill",
+      "card_type": "modify",
+      "drop_weight": 100,
+      "vocab": [
+        "range"
+      ],
+      "ops": [
+        "reshape"
+      ],
+      "consumes": [
+        "skill_cast"
+      ],
+      "produces": [
+        "area",
+        "control",
+        "range_projectile"
+      ],
+      "mechanisms": [
+        "geometry_mod"
+      ]
+    },
+    {
+      "id": "card_hold_longer",
+      "name": "按住多揍一会",
+      "kind": "card",
+      "form": "skill",
+      "card_type": "modify",
+      "drop_weight": 100,
+      "vocab": [
+        "control"
+      ],
+      "ops": [
+        "reshape",
+        "cooldown_cost"
+      ],
+      "consumes": [
+        "dash",
+        "momentum",
+        "skill_cast"
+      ],
+      "produces": [
+        "area",
+        "control",
+        "cooldown_refund",
+        "range_projectile"
+      ],
+      "mechanisms": [
+        "geometry_mod",
+        "resource_for_cd"
+      ]
+    },
+    {
+      "id": "card_blood_price",
+      "name": "拿命换",
+      "kind": "card",
+      "form": "skill",
+      "card_type": "convert",
+      "drop_weight": 22,
+      "vocab": [
+        "low_hp",
+        "heal"
+      ],
+      "ops": [
+        "hp_cost",
+        "skill_damage_factor"
+      ],
+      "consumes": [
+        "max_hp",
+        "skill_cast",
+        "skill_hit"
+      ],
+      "produces": [
+        "damage_amp",
+        "low_hp",
+        "momentum_bypass"
+      ],
+      "mechanisms": [
+        "blood_magic",
+        "damage_multiplier"
+      ]
+    },
+    {
+      "id": "card_lend_fist",
+      "name": "拳头借给技能",
+      "kind": "card",
+      "form": "skill",
+      "card_type": "convert",
+      "drop_weight": 22,
+      "vocab": [
+        "skill_hit"
+      ],
+      "ops": [
+        "skill_ad_rider"
+      ],
+      "consumes": [
+        "ad_stat",
+        "skill_hit"
+      ],
+      "produces": [
+        "damage_instance"
+      ],
+      "mechanisms": [
+        "hybrid_scaling"
+      ]
+    },
+    {
+      "id": "card_held_breath",
+      "name": "憋着的气",
+      "kind": "card",
+      "form": "skill",
+      "card_type": "convert",
+      "drop_weight": 100,
+      "vocab": [
+        "shield"
+      ],
+      "ops": [
+        "shield_spend"
+      ],
+      "consumes": [
+        "shield",
+        "skill_hit"
+      ],
+      "produces": [
+        "damage_instance"
+      ],
+      "mechanisms": [
+        "shield_to_damage"
+      ]
+    },
+    {
+      "id": "card_hurt_heal",
+      "name": "打疼了我回血",
+      "kind": "card",
+      "form": "skill",
+      "card_type": "convert",
+      "drop_weight": 100,
+      "vocab": [
+        "heal",
+        "skill_hit"
+      ],
+      "ops": [
+        "skill_lifesteal"
+      ],
+      "consumes": [
+        "damage_instance",
+        "skill_hit"
+      ],
+      "produces": [
+        "heal"
+      ],
+      "mechanisms": [
+        "sustain_loop"
+      ]
+    },
+    {
+      "id": "card_held_shot",
+      "name": "憋着一发狠的",
+      "kind": "card",
+      "form": "skill",
+      "card_type": "grow",
+      "drop_weight": 6,
+      "vocab": [
+        "idle"
+      ],
+      "ops": [
+        "idle_ready_amp"
+      ],
+      "consumes": [
+        "idle"
+      ],
+      "produces": [
+        "damage_amp"
+      ],
+      "mechanisms": [
+        "burst_window"
+      ]
+    },
+    {
+      "id": "card_practice",
+      "name": "越用越顺手",
+      "kind": "card",
+      "form": "skill",
+      "card_type": "grow",
+      "drop_weight": 22,
+      "vocab": [
+        "skill_hit"
+      ],
+      "ops": [
+        "skill_growth"
+      ],
+      "consumes": [
+        "skill_hit"
+      ],
+      "produces": [
+        "damage_amp",
+        "permanent_stats"
+      ],
+      "mechanisms": [
+        "permanent_growth"
+      ]
+    },
+    {
+      "id": "card_combo_chain",
+      "name": "一招接一招",
+      "kind": "card",
+      "form": "skill",
+      "card_type": "grow",
+      "drop_weight": 100,
+      "vocab": [
+        "skill_cast"
+      ],
+      "ops": [
+        "recent_cast_amp"
+      ],
+      "consumes": [
+        "skill_cast"
+      ],
+      "produces": [
+        "damage_amp"
+      ],
+      "mechanisms": [
+        "combo_sequencing"
+      ]
+    },
+    {
+      "id": "card_blast_reload",
+      "name": "炸了接着放",
+      "kind": "card",
+      "form": "skill",
+      "card_type": "element",
+      "drop_weight": 100,
+      "vocab": [
+        "reaction"
+      ],
+      "ops": [
+        "reaction_haste"
+      ],
+      "consumes": [
+        "reaction"
+      ],
+      "produces": [
+        "cooldown_refund"
+      ],
+      "mechanisms": [
+        "reaction_cd_loop"
+      ]
+    },
+    {
+      "id": "card_bump_reset",
+      "name": "撞着就刷新",
+      "kind": "card",
+      "form": "dash",
+      "card_type": "trigger",
+      "drop_weight": 22,
+      "vocab": [
+        "dash_contact"
+      ],
+      "ops": [
+        "dash_contact_reset"
+      ],
+      "consumes": [
+        "dash_contact"
+      ],
+      "produces": [
+        "cooldown_refund",
+        "momentum"
+      ],
+      "mechanisms": [
+        "dash_reset_loop"
+      ]
+    },
+    {
+      "id": "card_bump_again",
+      "name": "撞着了再撞",
+      "kind": "card",
+      "form": "dash",
+      "card_type": "trigger",
+      "drop_weight": 100,
+      "vocab": [
+        "dash_contact",
+        "skill_cast"
+      ],
+      "ops": [
+        "hit_haste_other"
+      ],
+      "consumes": [
+        "dash_contact",
+        "skill_hit"
+      ],
+      "produces": [
+        "cooldown_refund"
+      ],
+      "mechanisms": [
+        "cooldown_loop"
+      ]
+    },
+    {
+      "id": "card_dash_punch",
+      "name": "蹿过去抡一拳",
+      "kind": "card",
+      "form": "dash",
+      "card_type": "trigger",
+      "drop_weight": 100,
+      "vocab": [
+        "dash",
+        "basic_hit"
+      ],
+      "ops": [
+        "empower_basic"
+      ],
+      "consumes": [
+        "dash"
+      ],
+      "produces": [
+        "basic_hit",
+        "damage_instance"
+      ],
+      "mechanisms": [
+        "dash_weave"
+      ]
+    },
+    {
+      "id": "card_dodge_strike",
+      "name": "闪完就打",
+      "kind": "card",
+      "form": "dash",
+      "card_type": "trigger",
+      "drop_weight": 100,
+      "vocab": [
+        "perfect_dodge",
+        "momentum"
+      ],
+      "ops": [
+        "dodge_free_cast"
+      ],
+      "consumes": [
+        "perfect_dodge"
+      ],
+      "produces": [
+        "momentum_bypass"
+      ],
+      "mechanisms": [
+        "dodge_payoff"
+      ]
+    },
+    {
+      "id": "card_double_dash",
+      "name": "两段冲刺",
+      "kind": "card",
+      "form": "dash",
+      "card_type": "modify",
+      "drop_weight": 6,
+      "vocab": [
+        "dash"
+      ],
+      "ops": [
+        "dash_split"
+      ],
+      "consumes": [
+        "dash"
+      ],
+      "produces": [
+        "dash",
+        "dash_contact"
+      ],
+      "mechanisms": [
+        "mobility_multiplication"
+      ]
+    },
+    {
+      "id": "card_pass_through",
+      "name": "穿人而过",
+      "kind": "card",
+      "form": "dash",
+      "card_type": "modify",
+      "drop_weight": 100,
+      "vocab": [
+        "dash_contact",
+        "basic_hit"
+      ],
+      "ops": [
+        "dash_phase"
+      ],
+      "consumes": [
+        "dash"
+      ],
+      "produces": [
+        "basic_hit",
+        "dash_contact"
+      ],
+      "mechanisms": [
+        "bridge_trigger"
+      ]
+    },
+    {
+      "id": "card_head_down",
+      "name": "闷头撞到底",
+      "kind": "card",
+      "form": "dash",
+      "card_type": "modify",
+      "drop_weight": 100,
+      "vocab": [
+        "dash_contact",
+        "knockback"
+      ],
+      "ops": [
+        "dash_ram"
+      ],
+      "consumes": [
+        "dash"
+      ],
+      "produces": [
+        "dash_contact",
+        "knockback",
+        "wall_impact"
+      ],
+      "mechanisms": [
+        "displacement"
+      ]
+    },
+    {
+      "id": "card_paid_dash",
+      "name": "冲刺耗劲",
+      "kind": "card",
+      "form": "dash",
+      "card_type": "convert",
+      "drop_weight": 100,
+      "vocab": [
+        "momentum",
+        "dash"
+      ],
+      "ops": [
+        "cooldown_cost"
+      ],
+      "consumes": [
+        "dash",
+        "momentum",
+        "skill_cast"
+      ],
+      "produces": [
+        "cooldown_refund"
+      ],
+      "mechanisms": [
+        "resource_for_cd"
+      ]
+    },
+    {
+      "id": "card_slippery",
+      "name": "越躲越快",
+      "kind": "card",
+      "form": "dash",
+      "card_type": "grow",
+      "drop_weight": 100,
+      "vocab": [
+        "perfect_dodge",
+        "move_speed"
+      ],
+      "ops": [
+        "hit_growth"
+      ],
+      "consumes": [
+        "basic_hit",
+        "perfect_dodge"
+      ],
+      "produces": [
+        "attack_speed",
+        "move_speed",
+        "permanent_stats"
+      ],
+      "mechanisms": [
+        "permanent_growth"
+      ]
+    },
+    {
+      "id": "card_ice_trail",
+      "name": "一路结冰",
+      "kind": "card",
+      "form": "dash",
+      "card_type": "element",
+      "drop_weight": 100,
+      "vocab": [
+        "ground"
+      ],
+      "ops": [
+        "dash_ice"
+      ],
+      "consumes": [
+        "dash"
+      ],
+      "produces": [
+        "ground_state",
+        "ice_surface"
+      ],
+      "mechanisms": [
+        "ground_creation"
+      ]
+    },
+    {
+      "id": "card_move_turf",
+      "name": "挪地盘",
+      "kind": "card",
+      "form": "dash",
+      "card_type": "element",
+      "drop_weight": 100,
+      "vocab": [
+        "ground"
+      ],
+      "ops": [
+        "ground_relocate"
+      ],
+      "consumes": [
+        "dash",
+        "ground_state"
+      ],
+      "produces": [
+        "ground_state"
+      ],
+      "mechanisms": [
+        "zone_reposition"
+      ]
+    },
+    {
+      "id": "card_spiky_hide",
+      "name": "打我也硌手",
+      "kind": "card",
+      "form": "body",
+      "card_type": "trigger",
+      "drop_weight": 100,
+      "vocab": [
+        "damaged"
+      ],
+      "ops": [
+        "thorns"
+      ],
+      "consumes": [
+        "damaged",
+        "shield"
+      ],
+      "produces": [
+        "damage_instance"
+      ],
+      "mechanisms": [
+        "retaliation"
+      ]
+    },
+    {
+      "id": "card_takedown",
+      "name": "人头刷新",
+      "kind": "card",
+      "form": "body",
+      "card_type": "trigger",
+      "drop_weight": 22,
+      "vocab": [
+        "kill",
+        "momentum"
+      ],
+      "ops": [
+        "takedown_reset"
+      ],
+      "consumes": [
+        "kill_takedown"
+      ],
+      "produces": [
+        "cooldown_refund",
+        "momentum"
+      ],
+      "mechanisms": [
+        "reset_snowball"
+      ]
+    },
+    {
+      "id": "card_hang_on",
+      "name": "死扛",
+      "kind": "card",
+      "form": "body",
+      "card_type": "trigger",
+      "drop_weight": 100,
+      "vocab": [
+        "low_hp"
+      ],
+      "ops": [
+        "last_stand"
+      ],
+      "consumes": [
+        "damaged",
+        "low_hp"
+      ],
+      "produces": [
+        "survival_gate"
+      ],
+      "mechanisms": [
+        "anti_burst"
+      ]
+    },
+    {
+      "id": "card_reaction_refund",
+      "name": "反应回本",
+      "kind": "card",
+      "form": "body",
+      "card_type": "trigger",
+      "drop_weight": 100,
+      "vocab": [
+        "reaction",
+        "momentum"
+      ],
+      "ops": [
+        "reaction_momentum"
+      ],
+      "consumes": [
+        "reaction"
+      ],
+      "produces": [
+        "momentum"
+      ],
+      "mechanisms": [
+        "reaction_resource_loop"
+      ]
+    },
+    {
+      "id": "card_wave_after",
+      "name": "一波接一波",
+      "kind": "card",
+      "form": "body",
+      "card_type": "trigger",
+      "drop_weight": 6,
+      "vocab": [
+        "reaction",
+        "element"
+      ],
+      "ops": [
+        "reaction_element"
+      ],
+      "consumes": [
+        "reaction"
+      ],
+      "produces": [
+        "element_apply",
+        "reaction"
+      ],
+      "mechanisms": [
+        "recursive_reaction"
+      ]
+    },
+    {
+      "id": "card_shell_burst",
+      "name": "壳碎了也崩你",
+      "kind": "card",
+      "form": "body",
+      "card_type": "trigger",
+      "drop_weight": 22,
+      "vocab": [
+        "shield_break"
+      ],
+      "ops": [
+        "shield_burst_break"
+      ],
+      "consumes": [
+        "max_hp",
+        "shield_break"
+      ],
+      "produces": [
+        "area",
+        "damage_instance"
+      ],
+      "mechanisms": [
+        "shield_payoff"
+      ]
+    },
+    {
+      "id": "card_hard_skin",
+      "name": "挨揍起硬皮",
+      "kind": "card",
+      "form": "body",
+      "card_type": "trigger",
+      "drop_weight": 100,
+      "vocab": [
+        "damaged",
+        "shield"
+      ],
+      "ops": [
+        "triggered_shield"
+      ],
+      "consumes": [
+        "damaged"
+      ],
+      "produces": [
+        "shield",
+        "shield_break"
+      ],
+      "mechanisms": [
+        "defensive_trigger"
+      ]
+    },
+    {
+      "id": "card_ball_kick",
+      "name": "拿你当球踢",
+      "kind": "card",
+      "form": "body",
+      "card_type": "trigger",
+      "drop_weight": 100,
+      "vocab": [
+        "knockback",
+        "wall_impact"
+      ],
+      "ops": [
+        "knockback_impact"
+      ],
+      "consumes": [
+        "knockback",
+        "wall_impact"
+      ],
+      "produces": [
+        "control",
+        "damage_instance"
+      ],
+      "mechanisms": [
+        "terrain_payoff"
+      ]
+    },
+    {
+      "id": "card_skill_crit",
+      "name": "技能也能暴击",
+      "kind": "card",
+      "form": "body",
+      "card_type": "modify",
+      "drop_weight": 22,
+      "vocab": [
+        "crit",
+        "skill_hit"
+      ],
+      "ops": [
+        "skill_crit"
+      ],
+      "consumes": [
+        "crit_stat",
+        "skill_hit"
+      ],
+      "produces": [
+        "damage_amp"
+      ],
+      "mechanisms": [
+        "crit_unlock"
+      ]
+    },
+    {
+      "id": "card_skill_drain",
+      "name": "吸血对技能生效",
+      "kind": "card",
+      "form": "body",
+      "card_type": "modify",
+      "drop_weight": 100,
+      "vocab": [
+        "heal",
+        "skill_hit"
+      ],
+      "ops": [
+        "lifesteal_skills"
+      ],
+      "consumes": [
+        "heal",
+        "skill_hit"
+      ],
+      "produces": [
+        "heal"
+      ],
+      "mechanisms": [
+        "sustain_bridge"
+      ]
+    },
+    {
+      "id": "card_short_breath",
+      "name": "气短",
+      "kind": "card",
+      "form": "body",
+      "card_type": "modify",
+      "drop_weight": 22,
+      "vocab": [
+        "overdrive",
+        "momentum"
+      ],
+      "ops": [
+        "overdrive_short"
+      ],
+      "consumes": [
+        "momentum"
+      ],
+      "produces": [
+        "damage_amp",
+        "overdrive"
+      ],
+      "mechanisms": [
+        "overdrive_enabler"
+      ]
+    },
+    {
+      "id": "card_double_stall",
+      "name": "双摊位",
+      "kind": "card",
+      "form": "body",
+      "card_type": "modify",
+      "drop_weight": 100,
+      "vocab": [
+        "ground"
+      ],
+      "ops": [
+        "double_stall"
+      ],
+      "consumes": [
+        "construct",
+        "ground_state"
+      ],
+      "produces": [
+        "construct",
+        "ground_state"
+      ],
+      "mechanisms": [
+        "zone_multiplication"
+      ]
+    },
+    {
+      "id": "card_thick_hide",
+      "name": "皮糙肉厚",
+      "kind": "card",
+      "form": "body",
+      "card_type": "convert",
+      "drop_weight": 100,
+      "vocab": [
+        "armor",
+        "max_hp"
+      ],
+      "ops": [
+        "armor_to_hp"
+      ],
+      "consumes": [
+        "armor_stat"
+      ],
+      "produces": [
+        "max_hp"
+      ],
+      "mechanisms": [
+        "stat_conversion"
+      ]
+    },
+    {
+      "id": "card_overfed",
+      "name": "吃撑了",
+      "kind": "card",
+      "form": "body",
+      "card_type": "convert",
+      "drop_weight": 100,
+      "vocab": [
+        "heal",
+        "shield"
+      ],
+      "ops": [
+        "overheal_shield"
+      ],
+      "consumes": [
+        "dot_burn",
+        "heal"
+      ],
+      "produces": [
+        "shield",
+        "shield_break"
+      ],
+      "mechanisms": [
+        "heal_to_shield_bridge"
+      ]
+    },
+    {
+      "id": "card_berserk",
+      "name": "残血狂暴",
+      "kind": "card",
+      "form": "body",
+      "card_type": "convert",
+      "drop_weight": 100,
+      "vocab": [
+        "low_hp",
+        "attack_speed"
+      ],
+      "ops": [
+        "missing_hp_attack_speed"
+      ],
+      "consumes": [
+        "low_hp"
+      ],
+      "produces": [
+        "attack_speed"
+      ],
+      "mechanisms": [
+        "berserk_loop"
+      ]
+    },
+    {
+      "id": "card_quick_brain",
+      "name": "脑子转得快",
+      "kind": "card",
+      "form": "body",
+      "card_type": "convert",
+      "drop_weight": 100,
+      "vocab": [
+        "momentum",
+        "skill_hit"
+      ],
+      "ops": [
+        "haste_momentum"
+      ],
+      "consumes": [
+        "haste_stat",
+        "skill_hit"
+      ],
+      "produces": [
+        "momentum"
+      ],
+      "mechanisms": [
+        "resource_gain"
+      ]
+    },
+    {
+      "id": "card_punch_heal",
+      "name": "揍人续命",
+      "kind": "card",
+      "form": "body",
+      "card_type": "convert",
+      "drop_weight": 100,
+      "vocab": [
+        "heal",
+        "basic_hit"
+      ],
+      "ops": [
+        "lifesteal"
+      ],
+      "consumes": [
+        "basic_hit"
+      ],
+      "produces": [
+        "heal"
+      ],
+      "mechanisms": [
+        "sustain_loop"
+      ]
+    },
+    {
+      "id": "card_run_hit",
+      "name": "跑起来打",
+      "kind": "card",
+      "form": "body",
+      "card_type": "convert",
+      "drop_weight": 100,
+      "vocab": [
+        "move_speed"
+      ],
+      "ops": [
+        "speed_factor"
+      ],
+      "consumes": [
+        "attack_speed",
+        "move_speed"
+      ],
+      "produces": [
+        "damage_amp"
+      ],
+      "mechanisms": [
+        "stat_conversion"
+      ]
+    },
+    {
+      "id": "card_grow_fat",
+      "name": "越吃越壮",
+      "kind": "card",
+      "form": "body",
+      "card_type": "grow",
+      "drop_weight": 100,
+      "vocab": [
+        "heal",
+        "max_hp"
+      ],
+      "ops": [
+        "heal_growth"
+      ],
+      "consumes": [
+        "heal"
+      ],
+      "produces": [
+        "max_hp",
+        "permanent_stats"
+      ],
+      "mechanisms": [
+        "permanent_growth"
+      ]
+    },
+    {
+      "id": "card_kill_streak",
+      "name": "越杀越猛",
+      "kind": "card",
+      "form": "body",
+      "card_type": "grow",
+      "drop_weight": 6,
+      "vocab": [
+        "kill"
+      ],
+      "ops": [
+        "kill_growth"
+      ],
+      "consumes": [
+        "kill_takedown"
+      ],
+      "produces": [
+        "ad_stat",
+        "ap_stat",
+        "permanent_stats"
+      ],
+      "mechanisms": [
+        "permanent_growth"
+      ]
+    },
+    {
+      "id": "card_tough_skin",
+      "name": "越挨越硬",
+      "kind": "card",
+      "form": "body",
+      "card_type": "grow",
+      "drop_weight": 100,
+      "vocab": [
+        "controlled",
+        "armor"
+      ],
+      "ops": [
+        "control_growth"
+      ],
+      "consumes": [
+        "control",
+        "damaged"
+      ],
+      "produces": [
+        "armor_stat",
+        "permanent_stats"
+      ],
+      "mechanisms": [
+        "permanent_growth"
+      ]
+    },
+    {
+      "id": "card_charge_up",
+      "name": "攒个大的",
+      "kind": "card",
+      "form": "body",
+      "card_type": "grow",
+      "drop_weight": 6,
+      "vocab": [
+        "idle"
+      ],
+      "ops": [
+        "idle_charge"
+      ],
+      "consumes": [
+        "idle"
+      ],
+      "produces": [
+        "damage_amp"
+      ],
+      "mechanisms": [
+        "burst_window"
+      ]
+    },
+    {
+      "id": "card_turf_growth",
+      "name": "地头蛇",
+      "kind": "card",
+      "form": "body",
+      "card_type": "grow",
+      "drop_weight": 100,
+      "vocab": [
+        "ground"
+      ],
+      "ops": [
+        "ground_growth"
+      ],
+      "consumes": [
+        "ground_state"
+      ],
+      "produces": [
+        "damage_amp"
+      ],
+      "mechanisms": [
+        "zone_payoff"
+      ]
+    },
+    {
+      "id": "card_tally",
+      "name": "揍一下记一笔",
+      "kind": "card",
+      "form": "body",
+      "card_type": "grow",
+      "drop_weight": 100,
+      "vocab": [
+        "skill_hit",
+        "basic_hit"
+      ],
+      "ops": [
+        "tally"
+      ],
+      "consumes": [
+        "basic_hit",
+        "skill_hit"
+      ],
+      "produces": [
+        "damage_instance"
+      ],
+      "mechanisms": [
+        "hit_payoff"
+      ]
+    },
+    {
+      "id": "card_live_wire",
+      "name": "浑身带电",
+      "kind": "card",
+      "form": "body",
+      "card_type": "element",
+      "drop_weight": 100,
+      "vocab": [
+        "element",
+        "damaged"
+      ],
+      "ops": [
+        "element_aura"
+      ],
+      "consumes": [
+        "damaged"
+      ],
+      "produces": [
+        "element_apply"
+      ],
+      "mechanisms": [
+        "defensive_primer"
+      ]
+    },
+    {
+      "id": "card_long_soak",
+      "name": "久泡",
+      "kind": "card",
+      "form": "body",
+      "card_type": "element",
+      "drop_weight": 100,
+      "vocab": [
+        "element"
+      ],
+      "ops": [
+        "element_duration"
+      ],
+      "consumes": [
+        "element_apply"
+      ],
+      "produces": [
+        "element_apply"
+      ],
+      "mechanisms": [
+        "status_extension"
+      ]
+    },
+    {
+      "id": "card_louder_blast",
+      "name": "炸得更响",
+      "kind": "card",
+      "form": "body",
+      "card_type": "element",
+      "drop_weight": 22,
+      "vocab": [
+        "reaction"
+      ],
+      "ops": [
+        "reaction_factor"
+      ],
+      "consumes": [
+        "reaction"
+      ],
+      "produces": [
+        "damage_amp"
+      ],
+      "mechanisms": [
+        "reaction_amp"
+      ]
+    },
+    {
+      "id": "card_endless_burn",
+      "name": "烧不完",
+      "kind": "card",
+      "form": "body",
+      "card_type": "element",
+      "drop_weight": 100,
+      "vocab": [
+        "element"
+      ],
+      "ops": [
+        "burn_cap"
+      ],
+      "consumes": [
+        "dot_burn"
+      ],
+      "produces": [
+        "damage_instance",
+        "dot_burn"
+      ],
+      "mechanisms": [
+        "dot_cap_unlock"
+      ]
+    },
+    {
+      "id": "card_burn_guard",
+      "name": "烧着还挺扛揍",
+      "kind": "card",
+      "form": "body",
+      "card_type": "element",
+      "drop_weight": 100,
+      "vocab": [
+        "element",
+        "shield"
+      ],
+      "ops": [
+        "overheal_shield"
+      ],
+      "consumes": [
+        "dot_burn",
+        "heal"
+      ],
+      "produces": [
+        "shield",
+        "shield_break"
+      ],
+      "mechanisms": [
+        "heal_to_shield_bridge"
+      ]
+    },
+    {
+      "id": "medal_fire",
+      "name": "烫勋章",
+      "kind": "medal",
+      "form": "medal",
+      "card_type": "element",
+      "drop_weight": 0,
+      "vocab": [
+        "element"
+      ],
+      "ops": [
+        "skill_element"
+      ],
+      "consumes": [
+        "combo3",
+        "skill_hit"
+      ],
+      "produces": [
+        "element_apply"
+      ],
+      "mechanisms": [
+        "medal_primer"
+      ]
+    },
+    {
+      "id": "medal_water",
+      "name": "湿勋章",
+      "kind": "medal",
+      "form": "medal",
+      "card_type": "element",
+      "drop_weight": 0,
+      "vocab": [
+        "element"
+      ],
+      "ops": [
+        "skill_element"
+      ],
+      "consumes": [
+        "combo3",
+        "skill_hit"
+      ],
+      "produces": [
+        "element_apply"
+      ],
+      "mechanisms": [
+        "medal_primer"
+      ]
+    },
+    {
+      "id": "medal_electric",
+      "name": "麻勋章",
+      "kind": "medal",
+      "form": "medal",
+      "card_type": "element",
+      "drop_weight": 0,
+      "vocab": [
+        "element"
+      ],
+      "ops": [
+        "skill_element"
+      ],
+      "consumes": [
+        "combo3",
+        "skill_hit"
+      ],
+      "produces": [
+        "element_apply"
+      ],
+      "mechanisms": [
+        "medal_primer"
+      ]
+    },
+    {
+      "id": "medal_chill",
+      "name": "冻勋章",
+      "kind": "medal",
+      "form": "medal",
+      "card_type": "element",
+      "drop_weight": 0,
+      "vocab": [
+        "element"
+      ],
+      "ops": [
+        "skill_element"
+      ],
+      "consumes": [
+        "combo3",
+        "skill_hit"
+      ],
+      "produces": [
+        "element_apply"
+      ],
+      "mechanisms": [
+        "medal_primer"
+      ]
+    },
+    {
+      "id": "medal_rot",
+      "name": "馊勋章",
+      "kind": "medal",
+      "form": "medal",
+      "card_type": "element",
+      "drop_weight": 0,
+      "vocab": [
+        "element"
+      ],
+      "ops": [
+        "skill_element"
+      ],
+      "consumes": [
+        "combo3",
+        "skill_hit"
+      ],
+      "produces": [
+        "element_apply"
+      ],
+      "mechanisms": [
+        "medal_primer"
+      ]
+    },
+    {
+      "id": "card_brain_speed",
+      "name": "脑转手快",
+      "kind": "card",
+      "form": "body",
+      "card_type": "convert",
+      "drop_weight": 100,
+      "vocab": [
+        "attack_speed",
+        "basic_hit",
+        "skill_cast"
+      ],
+      "ops": [
+        "brain_speed"
+      ],
+      "consumes": [
+        "ap_stat",
+        "basic_hit",
+        "haste_stat"
+      ],
+      "produces": [
+        "attack_speed",
+        "damage_instance"
+      ],
+      "mechanisms": [
+        "hybrid_scaling"
+      ]
+    },
+    {
+      "id": "card_spellblade_echo",
+      "name": "咒刃回响",
+      "kind": "card",
+      "form": "body",
+      "card_type": "trigger",
+      "drop_weight": 100,
+      "vocab": [
+        "skill_cast",
+        "basic_hit",
+        "element",
+        "area"
+      ],
+      "ops": [
+        "spellblade_echo"
+      ],
+      "consumes": [
+        "basic_hit",
+        "skill_cast"
+      ],
+      "produces": [
+        "area",
+        "damage_instance",
+        "element_apply"
+      ],
+      "mechanisms": [
+        "bridge_trigger"
+      ]
+    },
+    {
+      "id": "card_heavy_mallet",
+      "name": "千斤重锤",
+      "kind": "card",
+      "form": "body",
+      "card_type": "convert",
+      "drop_weight": 22,
+      "vocab": [
+        "combo3",
+        "crit",
+        "knockback",
+        "basic_hit"
+      ],
+      "ops": [
+        "heavy_mallet"
+      ],
+      "consumes": [
+        "attack_speed",
+        "combo3"
+      ],
+      "produces": [
+        "crit_stat",
+        "damage_amp",
+        "knockback"
+      ],
+      "mechanisms": [
+        "anti_as_conversion"
+      ]
+    },
+    {
+      "id": "card_let_bullets_fly",
+      "name": "让子弹飞",
+      "kind": "card",
+      "form": "body",
+      "card_type": "modify",
+      "drop_weight": 100,
+      "vocab": [
+        "range",
+        "skill_hit",
+        "basic_hit"
+      ],
+      "ops": [
+        "projectile_flight_amp"
+      ],
+      "consumes": [
+        "range_projectile",
+        "skill_hit"
+      ],
+      "produces": [
+        "damage_amp"
+      ],
+      "mechanisms": [
+        "distance_payoff"
+      ]
+    },
+    {
+      "id": "card_eagle_stance",
+      "name": "鹰眼架枪",
+      "kind": "card",
+      "form": "body",
+      "card_type": "modify",
+      "drop_weight": 100,
+      "vocab": [
+        "range",
+        "idle",
+        "basic_hit"
+      ],
+      "ops": [
+        "eagle_stance"
+      ],
+      "consumes": [
+        "idle"
+      ],
+      "produces": [
+        "range_projectile"
+      ],
+      "mechanisms": [
+        "stance_range"
+      ]
+    },
+    {
+      "id": "card_runaway_train",
+      "name": "失控列车",
+      "kind": "card",
+      "form": "dash",
+      "card_type": "convert",
+      "drop_weight": 22,
+      "vocab": [
+        "dash_contact",
+        "move_speed",
+        "wall_impact"
+      ],
+      "ops": [
+        "runaway_train"
+      ],
+      "consumes": [
+        "dash_contact",
+        "move_speed",
+        "wall_impact"
+      ],
+      "produces": [
+        "cooldown_refund",
+        "damage_instance"
+      ],
+      "mechanisms": [
+        "dash_wall_loop"
+      ]
+    },
+    {
+      "id": "card_phantom_molt",
+      "name": "幻影脱壳",
+      "kind": "card",
+      "form": "dash",
+      "card_type": "trigger",
+      "drop_weight": 100,
+      "vocab": [
+        "perfect_dodge",
+        "dash",
+        "area"
+      ],
+      "ops": [
+        "phantom_molt"
+      ],
+      "consumes": [
+        "perfect_dodge"
+      ],
+      "produces": [
+        "area",
+        "damage_instance",
+        "slow"
+      ],
+      "mechanisms": [
+        "dodge_payoff"
+      ]
+    },
+    {
+      "id": "card_skate_blade",
+      "name": "冰刀割裂",
+      "kind": "card",
+      "form": "body",
+      "card_type": "trigger",
+      "drop_weight": 100,
+      "vocab": [
+        "ground",
+        "knockback",
+        "move_speed",
+        "attack_speed"
+      ],
+      "ops": [
+        "skate_blade"
+      ],
+      "consumes": [
+        "ice_surface",
+        "knockback"
+      ],
+      "produces": [
+        "attack_speed",
+        "damage_instance",
+        "move_speed"
+      ],
+      "mechanisms": [
+        "narrow_surface_payoff"
+      ]
+    },
+    {
+      "id": "card_tonnage_crush",
+      "name": "吨位碾压",
+      "kind": "card",
+      "form": "body",
+      "card_type": "convert",
+      "drop_weight": 22,
+      "vocab": [
+        "max_hp",
+        "combo3",
+        "area"
+      ],
+      "ops": [
+        "tonnage_crush"
+      ],
+      "consumes": [
+        "area",
+        "combo3",
+        "max_hp"
+      ],
+      "produces": [
+        "damage_instance"
+      ],
+      "mechanisms": [
+        "tank_to_damage"
+      ]
+    },
+    {
+      "id": "card_hulking_presence",
+      "name": "大块头有威慑",
+      "kind": "card",
+      "form": "body",
+      "card_type": "convert",
+      "drop_weight": 100,
+      "vocab": [
+        "max_hp",
+        "area",
+        "knockback"
+      ],
+      "ops": [
+        "hulking_presence"
+      ],
+      "consumes": [
+        "max_hp"
+      ],
+      "produces": [
+        "area"
+      ],
+      "mechanisms": [
+        "tank_geometry"
+      ]
+    },
+    {
+      "id": "card_iron_hedgehog",
+      "name": "铁刺猬",
+      "kind": "card",
+      "form": "body",
+      "card_type": "convert",
+      "drop_weight": 22,
+      "vocab": [
+        "armor",
+        "damaged",
+        "control"
+      ],
+      "ops": [
+        "iron_hedgehog"
+      ],
+      "consumes": [
+        "armor_stat",
+        "damaged",
+        "stance"
+      ],
+      "produces": [
+        "damage_instance"
+      ],
+      "mechanisms": [
+        "retaliation_amp"
+      ]
+    },
+    {
+      "id": "card_reactive_plating",
+      "name": "反应装甲",
+      "kind": "card",
+      "form": "body",
+      "card_type": "trigger",
+      "drop_weight": 100,
+      "vocab": [
+        "shield",
+        "shield_break",
+        "area",
+        "crit"
+      ],
+      "ops": [
+        "reactive_plating"
+      ],
+      "consumes": [
+        "shield"
+      ],
+      "produces": [
+        "area",
+        "crit_stat",
+        "damage_instance"
+      ],
+      "mechanisms": [
+        "shield_stack_loop"
+      ]
+    },
+    {
+      "id": "card_desperado",
+      "name": "亡命之徒",
+      "kind": "card",
+      "form": "body",
+      "card_type": "modify",
+      "drop_weight": 22,
+      "vocab": [
+        "low_hp",
+        "heal",
+        "damaged"
+      ],
+      "ops": [
+        "desperado"
+      ],
+      "consumes": [
+        "heal",
+        "low_hp"
+      ],
+      "produces": [
+        "damage_amp",
+        "heal"
+      ],
+      "mechanisms": [
+        "berserk_sustain_loop"
+      ]
+    },
+    {
+      "id": "card_fuel_the_fire",
+      "name": "火上浇油",
+      "kind": "card",
+      "form": "skill",
+      "card_type": "trigger",
+      "drop_weight": 100,
+      "vocab": [
+        "element",
+        "skill_hit"
+      ],
+      "ops": [
+        "fuel_the_fire"
+      ],
+      "consumes": [
+        "dot_burn",
+        "dot_rot",
+        "skill_hit"
+      ],
+      "produces": [
+        "damage_instance"
+      ],
+      "mechanisms": [
+        "dot_detonator"
+      ]
+    },
+    {
+      "id": "card_rogue_works",
+      "name": "违章工事",
+      "kind": "card",
+      "form": "body",
+      "card_type": "modify",
+      "drop_weight": 100,
+      "vocab": [
+        "ground",
+        "max_hp",
+        "element"
+      ],
+      "ops": [
+        "rogue_works"
+      ],
+      "consumes": [
+        "construct",
+        "ground_state",
+        "max_hp"
+      ],
+      "produces": [
+        "damage_instance",
+        "element_apply"
+      ],
+      "mechanisms": [
+        "narrow_construct_payoff"
+      ]
+    },
+    {
+      "id": "card_martial_scholar",
+      "name": "文武双全",
+      "kind": "card",
+      "form": "body",
+      "card_type": "trigger",
+      "drop_weight": 22,
+      "vocab": [
+        "basic_hit",
+        "skill_hit",
+        "momentum"
+      ],
+      "ops": [
+        "martial_scholar"
+      ],
+      "consumes": [
+        "ad_stat",
+        "ap_stat",
+        "basic_hit",
+        "skill_hit"
+      ],
+      "produces": [
+        "armor_shred",
+        "damage_amp",
+        "momentum"
+      ],
+      "mechanisms": [
+        "hybrid_weave_loop"
+      ]
+    },
+    {
+      "id": "keystone_physique",
+      "name": "体格关键石(18点)",
+      "kind": "keystone",
+      "consumes": [
+        "max_hp",
+        "heal"
+      ],
+      "produces": [
+        "shield",
+        "shield_break"
+      ],
+      "desc": "Periodic 12% MaxHP shield + 50% overheal-to-shield"
+    },
+    {
+      "id": "keystone_thick_skin",
+      "name": "脸皮关键石(18点)",
+      "kind": "keystone",
+      "consumes": [
+        "armor_stat",
+        "damaged"
+      ],
+      "produces": [
+        "damage_instance",
+        "knockback"
+      ],
+      "desc": "Flat damage guard + bleed reflect on heavy hit + knockback resist"
+    },
+    {
+      "id": "keystone_strength",
+      "name": "力道关键石(18点)",
+      "kind": "keystone",
+      "consumes": [
+        "ad_stat",
+        "crit_stat"
+      ],
+      "produces": [
+        "damage_amp"
+      ],
+      "desc": "+14% universal damage multiplier"
+    },
+    {
+      "id": "keystone_brains",
+      "name": "脑力关键石(18点)",
+      "kind": "keystone",
+      "consumes": [
+        "ap_stat",
+        "haste_stat",
+        "skill_cast",
+        "reaction"
+      ],
+      "produces": [
+        "cooldown_refund",
+        "momentum"
+      ],
+      "desc": "1s CD cut + 30% momentum refund + 15 reaction momentum"
+    },
+    {
+      "id": "keystone_agility",
+      "name": "身手关键石(18点)",
+      "kind": "keystone",
+      "consumes": [
+        "attack_speed",
+        "move_speed",
+        "dash"
+      ],
+      "produces": [
+        "cooldown_refund",
+        "basic_hit",
+        "move_speed"
+      ],
+      "desc": "40% dash CD cut + post-dash speed & empowered basic"
+    },
+    {
+      "id": "reaction_fog",
+      "name": "起雾",
+      "kind": "reaction",
+      "pair": [
+        "fire",
+        "water"
+      ],
+      "ground": "puddle",
+      "produces": [
+        "reaction",
+        "damage_instance",
+        "momentum",
+        "ground_state"
+      ],
+      "role": "zone_blind_obscure"
+    },
+    {
+      "id": "reaction_overload",
+      "name": "过载",
+      "kind": "reaction",
+      "pair": [
+        "fire",
+        "electric"
+      ],
+      "ground": "fire",
+      "produces": [
+        "reaction",
+        "damage_instance",
+        "momentum",
+        "ground_state",
+        "armor_shred"
+      ],
+      "role": "aoe_burst_breach"
+    },
+    {
+      "id": "reaction_melt",
+      "name": "融化",
+      "kind": "reaction",
+      "pair": [
+        "fire",
+        "chill"
+      ],
+      "ground": "puddle",
+      "produces": [
+        "reaction",
+        "damage_instance",
+        "momentum",
+        "ground_state"
+      ],
+      "role": "single_burst_amp"
+    },
+    {
+      "id": "reaction_methane",
+      "name": "沼气爆",
+      "kind": "reaction",
+      "pair": [
+        "fire",
+        "rot"
+      ],
+      "ground": "fire",
+      "produces": [
+        "reaction",
+        "damage_instance",
+        "momentum",
+        "ground_state"
+      ],
+      "role": "aoe_dot_detonation"
+    },
+    {
+      "id": "reaction_conduct",
+      "name": "导电",
+      "kind": "reaction",
+      "pair": [
+        "water",
+        "electric"
+      ],
+      "ground": "electric_field",
+      "produces": [
+        "reaction",
+        "damage_instance",
+        "momentum",
+        "ground_state"
+      ],
+      "role": "wide_chain_slow"
+    },
+    {
+      "id": "reaction_freeze",
+      "name": "冻住",
+      "kind": "reaction",
+      "pair": [
+        "water",
+        "chill"
+      ],
+      "ground": "ice",
+      "produces": [
+        "reaction",
+        "damage_instance",
+        "momentum",
+        "ground_state",
+        "ice_surface",
+        "control"
+      ],
+      "role": "hard_root_ice_setup"
+    },
+    {
+      "id": "reaction_ferment",
+      "name": "发酵",
+      "kind": "reaction",
+      "pair": [
+        "water",
+        "rot"
+      ],
+      "ground": "miasma",
+      "produces": [
+        "reaction",
+        "damage_instance",
+        "momentum",
+        "ground_state"
+      ],
+      "role": "anti_heal_attrition"
+    },
+    {
+      "id": "reaction_shatter",
+      "name": "碎冰",
+      "kind": "reaction",
+      "pair": [
+        "electric",
+        "chill"
+      ],
+      "ground": "ice",
+      "produces": [
+        "reaction",
+        "damage_instance",
+        "momentum",
+        "ground_state",
+        "ice_surface"
+      ],
+      "role": "skill_burst_window"
+    },
+    {
+      "id": "reaction_corrode",
+      "name": "腐蚀",
+      "kind": "reaction",
+      "pair": [
+        "electric",
+        "rot"
+      ],
+      "ground": "miasma",
+      "produces": [
+        "reaction",
+        "damage_instance",
+        "momentum",
+        "ground_state",
+        "armor_shred"
+      ],
+      "role": "max_armor_shred"
+    },
+    {
+      "id": "reaction_frostbite",
+      "name": "冻疮",
+      "kind": "reaction",
+      "pair": [
+        "chill",
+        "rot"
+      ],
+      "ground": "miasma",
+      "produces": [
+        "reaction",
+        "damage_instance",
+        "momentum",
+        "ground_state"
+      ],
+      "role": "anti_attack_speed_cripple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "active_elbow",
+      "target": "bus:control",
+      "relation": "produces",
+      "mechanism": "damage,knockback"
+    },
+    {
+      "source": "active_elbow",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "damage,knockback"
+    },
+    {
+      "source": "active_elbow",
+      "target": "bus:element_apply",
+      "relation": "produces",
+      "mechanism": "damage,knockback"
+    },
+    {
+      "source": "active_elbow",
+      "target": "bus:knockback",
+      "relation": "produces",
+      "mechanism": "damage,knockback"
+    },
+    {
+      "source": "active_elbow",
+      "target": "bus:skill_cast",
+      "relation": "produces",
+      "mechanism": "damage,knockback"
+    },
+    {
+      "source": "active_elbow",
+      "target": "bus:skill_hit",
+      "relation": "produces",
+      "mechanism": "damage,knockback"
+    },
+    {
+      "source": "active_elbow",
+      "target": "bus:wall_impact",
+      "relation": "produces",
+      "mechanism": "damage,knockback"
+    },
+    {
+      "source": "active_pants_down",
+      "target": "bus:armor_shred",
+      "relation": "produces",
+      "mechanism": "damage,root,breach,grab_line"
+    },
+    {
+      "source": "active_pants_down",
+      "target": "bus:control",
+      "relation": "produces",
+      "mechanism": "damage,root,breach,grab_line"
+    },
+    {
+      "source": "active_pants_down",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "damage,root,breach,grab_line"
+    },
+    {
+      "source": "active_pants_down",
+      "target": "bus:element_apply",
+      "relation": "produces",
+      "mechanism": "damage,root,breach,grab_line"
+    },
+    {
+      "source": "active_pants_down",
+      "target": "bus:knockback",
+      "relation": "produces",
+      "mechanism": "damage,root,breach,grab_line"
+    },
+    {
+      "source": "active_pants_down",
+      "target": "bus:skill_cast",
+      "relation": "produces",
+      "mechanism": "damage,root,breach,grab_line"
+    },
+    {
+      "source": "active_pants_down",
+      "target": "bus:skill_hit",
+      "relation": "produces",
+      "mechanism": "damage,root,breach,grab_line"
+    },
+    {
+      "source": "active_pants_down",
+      "target": "bus:wall_impact",
+      "relation": "produces",
+      "mechanism": "damage,root,breach,grab_line"
+    },
+    {
+      "source": "active_crotch_grab",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "dash,dash_contact,damage,slow,attack_slow,backstab_lunge"
+    },
+    {
+      "source": "active_crotch_grab",
+      "target": "bus:dash",
+      "relation": "produces",
+      "mechanism": "dash,dash_contact,damage,slow,attack_slow,backstab_lunge"
+    },
+    {
+      "source": "active_crotch_grab",
+      "target": "bus:dash_contact",
+      "relation": "produces",
+      "mechanism": "dash,dash_contact,damage,slow,attack_slow,backstab_lunge"
+    },
+    {
+      "source": "active_crotch_grab",
+      "target": "bus:element_apply",
+      "relation": "produces",
+      "mechanism": "dash,dash_contact,damage,slow,attack_slow,backstab_lunge"
+    },
+    {
+      "source": "active_crotch_grab",
+      "target": "bus:skill_cast",
+      "relation": "produces",
+      "mechanism": "dash,dash_contact,damage,slow,attack_slow,backstab_lunge"
+    },
+    {
+      "source": "active_crotch_grab",
+      "target": "bus:skill_hit",
+      "relation": "produces",
+      "mechanism": "dash,dash_contact,damage,slow,attack_slow,backstab_lunge"
+    },
+    {
+      "source": "active_crotch_grab",
+      "target": "bus:slow",
+      "relation": "produces",
+      "mechanism": "dash,dash_contact,damage,slow,attack_slow,backstab_lunge"
+    },
+    {
+      "source": "active_unplug",
+      "target": "bus:shield",
+      "relation": "produces",
+      "mechanism": "parry_stance"
+    },
+    {
+      "source": "active_unplug",
+      "target": "bus:skill_cast",
+      "relation": "produces",
+      "mechanism": "parry_stance"
+    },
+    {
+      "source": "active_unplug",
+      "target": "bus:stance",
+      "relation": "produces",
+      "mechanism": "parry_stance"
+    },
+    {
+      "source": "active_snark_bolt",
+      "target": "bus:armor_shred",
+      "relation": "produces",
+      "mechanism": "damage,slow,slipper_pickup"
+    },
+    {
+      "source": "active_snark_bolt",
+      "target": "bus:control",
+      "relation": "produces",
+      "mechanism": "damage,slow,slipper_pickup"
+    },
+    {
+      "source": "active_snark_bolt",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "damage,slow,slipper_pickup"
+    },
+    {
+      "source": "active_snark_bolt",
+      "target": "bus:element_apply",
+      "relation": "produces",
+      "mechanism": "damage,slow,slipper_pickup"
+    },
+    {
+      "source": "active_snark_bolt",
+      "target": "bus:knockback",
+      "relation": "produces",
+      "mechanism": "damage,slow,slipper_pickup"
+    },
+    {
+      "source": "active_snark_bolt",
+      "target": "bus:skill_cast",
+      "relation": "produces",
+      "mechanism": "damage,slow,slipper_pickup"
+    },
+    {
+      "source": "active_snark_bolt",
+      "target": "bus:skill_hit",
+      "relation": "produces",
+      "mechanism": "damage,slow,slipper_pickup"
+    },
+    {
+      "source": "active_snark_bolt",
+      "target": "bus:slow",
+      "relation": "produces",
+      "mechanism": "damage,slow,slipper_pickup"
+    },
+    {
+      "source": "active_snark_bolt",
+      "target": "bus:wall_impact",
+      "relation": "produces",
+      "mechanism": "damage,slow,slipper_pickup"
+    },
+    {
+      "source": "active_seethe",
+      "target": "bus:area",
+      "relation": "produces",
+      "mechanism": "self_area,damage,burn"
+    },
+    {
+      "source": "active_seethe",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "self_area,damage,burn"
+    },
+    {
+      "source": "active_seethe",
+      "target": "bus:dot_burn",
+      "relation": "produces",
+      "mechanism": "self_area,damage,burn"
+    },
+    {
+      "source": "active_seethe",
+      "target": "bus:element_apply",
+      "relation": "produces",
+      "mechanism": "self_area,damage,burn"
+    },
+    {
+      "source": "active_seethe",
+      "target": "bus:skill_cast",
+      "relation": "produces",
+      "mechanism": "self_area,damage,burn"
+    },
+    {
+      "source": "active_seethe",
+      "target": "bus:skill_hit",
+      "relation": "produces",
+      "mechanism": "self_area,damage,burn"
+    },
+    {
+      "source": "active_quick_meeting",
+      "target": "bus:area",
+      "relation": "produces",
+      "mechanism": "zone,zone_damage,zone_slow,zone_burn"
+    },
+    {
+      "source": "active_quick_meeting",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "zone,zone_damage,zone_slow,zone_burn"
+    },
+    {
+      "source": "active_quick_meeting",
+      "target": "bus:dot_burn",
+      "relation": "produces",
+      "mechanism": "zone,zone_damage,zone_slow,zone_burn"
+    },
+    {
+      "source": "active_quick_meeting",
+      "target": "bus:element_apply",
+      "relation": "produces",
+      "mechanism": "zone,zone_damage,zone_slow,zone_burn"
+    },
+    {
+      "source": "active_quick_meeting",
+      "target": "bus:ground_state",
+      "relation": "produces",
+      "mechanism": "zone,zone_damage,zone_slow,zone_burn"
+    },
+    {
+      "source": "active_quick_meeting",
+      "target": "bus:skill_cast",
+      "relation": "produces",
+      "mechanism": "zone,zone_damage,zone_slow,zone_burn"
+    },
+    {
+      "source": "active_quick_meeting",
+      "target": "bus:skill_hit",
+      "relation": "produces",
+      "mechanism": "zone,zone_damage,zone_slow,zone_burn"
+    },
+    {
+      "source": "active_quick_meeting",
+      "target": "bus:slow",
+      "relation": "produces",
+      "mechanism": "zone,zone_damage,zone_slow,zone_burn"
+    },
+    {
+      "source": "active_bail_out",
+      "target": "bus:basic_hit",
+      "relation": "produces",
+      "mechanism": "dash,empower_basic"
+    },
+    {
+      "source": "active_bail_out",
+      "target": "bus:combo3",
+      "relation": "produces",
+      "mechanism": "dash,empower_basic"
+    },
+    {
+      "source": "active_bail_out",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "dash,empower_basic"
+    },
+    {
+      "source": "active_bail_out",
+      "target": "bus:dash",
+      "relation": "produces",
+      "mechanism": "dash,empower_basic"
+    },
+    {
+      "source": "active_bail_out",
+      "target": "bus:dash_contact",
+      "relation": "produces",
+      "mechanism": "dash,empower_basic"
+    },
+    {
+      "source": "active_bail_out",
+      "target": "bus:skill_cast",
+      "relation": "produces",
+      "mechanism": "dash,empower_basic"
+    },
+    {
+      "source": "active_bail_out",
+      "target": "bus:skill_hit",
+      "relation": "produces",
+      "mechanism": "dash,empower_basic"
+    },
+    {
+      "source": "active_not_mad",
+      "target": "bus:area",
+      "relation": "produces",
+      "mechanism": "shield,dispel_slow,dispel_root"
+    },
+    {
+      "source": "active_not_mad",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "shield,dispel_slow,dispel_root"
+    },
+    {
+      "source": "active_not_mad",
+      "target": "bus:knockback",
+      "relation": "produces",
+      "mechanism": "shield,dispel_slow,dispel_root"
+    },
+    {
+      "source": "active_not_mad",
+      "target": "bus:shield",
+      "relation": "produces",
+      "mechanism": "shield,dispel_slow,dispel_root"
+    },
+    {
+      "source": "active_not_mad",
+      "target": "bus:shield_break",
+      "relation": "produces",
+      "mechanism": "shield,dispel_slow,dispel_root"
+    },
+    {
+      "source": "active_not_mad",
+      "target": "bus:skill_cast",
+      "relation": "produces",
+      "mechanism": "shield,dispel_slow,dispel_root"
+    },
+    {
+      "source": "active_not_mad",
+      "target": "bus:skill_hit",
+      "relation": "produces",
+      "mechanism": "shield,dispel_slow,dispel_root"
+    },
+    {
+      "source": "active_not_mad",
+      "target": "bus:wall_impact",
+      "relation": "produces",
+      "mechanism": "shield,dispel_slow,dispel_root"
+    },
+    {
+      "source": "active_stare_down",
+      "target": "bus:control",
+      "relation": "produces",
+      "mechanism": "taunt,timed_stat_bonus"
+    },
+    {
+      "source": "active_stare_down",
+      "target": "bus:knockback",
+      "relation": "produces",
+      "mechanism": "taunt,timed_stat_bonus"
+    },
+    {
+      "source": "active_stare_down",
+      "target": "bus:skill_cast",
+      "relation": "produces",
+      "mechanism": "taunt,timed_stat_bonus"
+    },
+    {
+      "source": "active_stare_down",
+      "target": "bus:stance",
+      "relation": "produces",
+      "mechanism": "taunt,timed_stat_bonus"
+    },
+    {
+      "source": "active_triple_combo",
+      "target": "bus:basic_hit",
+      "relation": "produces",
+      "mechanism": "empower_basic"
+    },
+    {
+      "source": "active_triple_combo",
+      "target": "bus:combo3",
+      "relation": "produces",
+      "mechanism": "empower_basic"
+    },
+    {
+      "source": "active_triple_combo",
+      "target": "bus:skill_cast",
+      "relation": "produces",
+      "mechanism": "empower_basic"
+    },
+    {
+      "source": "active_calculus_drop",
+      "target": "bus:area",
+      "relation": "produces",
+      "mechanism": "ground_impact,damage"
+    },
+    {
+      "source": "active_calculus_drop",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "ground_impact,damage"
+    },
+    {
+      "source": "active_calculus_drop",
+      "target": "bus:skill_cast",
+      "relation": "produces",
+      "mechanism": "ground_impact,damage"
+    },
+    {
+      "source": "active_calculus_drop",
+      "target": "bus:skill_hit",
+      "relation": "produces",
+      "mechanism": "ground_impact,damage"
+    },
+    {
+      "source": "active_flyer_trap",
+      "target": "bus:construct",
+      "relation": "produces",
+      "mechanism": "contact_trap,damage,slow"
+    },
+    {
+      "source": "active_flyer_trap",
+      "target": "bus:control",
+      "relation": "produces",
+      "mechanism": "contact_trap,damage,slow"
+    },
+    {
+      "source": "active_flyer_trap",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "contact_trap,damage,slow"
+    },
+    {
+      "source": "active_flyer_trap",
+      "target": "bus:element_apply",
+      "relation": "produces",
+      "mechanism": "contact_trap,damage,slow"
+    },
+    {
+      "source": "active_flyer_trap",
+      "target": "bus:ground_state",
+      "relation": "produces",
+      "mechanism": "contact_trap,damage,slow"
+    },
+    {
+      "source": "active_flyer_trap",
+      "target": "bus:knockback",
+      "relation": "produces",
+      "mechanism": "contact_trap,damage,slow"
+    },
+    {
+      "source": "active_flyer_trap",
+      "target": "bus:skill_cast",
+      "relation": "produces",
+      "mechanism": "contact_trap,damage,slow"
+    },
+    {
+      "source": "active_flyer_trap",
+      "target": "bus:skill_hit",
+      "relation": "produces",
+      "mechanism": "contact_trap,damage,slow"
+    },
+    {
+      "source": "active_flyer_trap",
+      "target": "bus:slow",
+      "relation": "produces",
+      "mechanism": "contact_trap,damage,slow"
+    },
+    {
+      "source": "active_flyer_trap",
+      "target": "bus:wall_impact",
+      "relation": "produces",
+      "mechanism": "contact_trap,damage,slow"
+    },
+    {
+      "source": "active_open_mic",
+      "target": "bus:area",
+      "relation": "produces",
+      "mechanism": "self_area,damage,knockback,shield,warcry_ring"
+    },
+    {
+      "source": "active_open_mic",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "self_area,damage,knockback,shield,warcry_ring"
+    },
+    {
+      "source": "active_open_mic",
+      "target": "bus:knockback",
+      "relation": "produces",
+      "mechanism": "self_area,damage,knockback,shield,warcry_ring"
+    },
+    {
+      "source": "active_open_mic",
+      "target": "bus:shield",
+      "relation": "produces",
+      "mechanism": "self_area,damage,knockback,shield,warcry_ring"
+    },
+    {
+      "source": "active_open_mic",
+      "target": "bus:shield_break",
+      "relation": "produces",
+      "mechanism": "self_area,damage,knockback,shield,warcry_ring"
+    },
+    {
+      "source": "active_open_mic",
+      "target": "bus:skill_cast",
+      "relation": "produces",
+      "mechanism": "self_area,damage,knockback,shield,warcry_ring"
+    },
+    {
+      "source": "active_open_mic",
+      "target": "bus:skill_hit",
+      "relation": "produces",
+      "mechanism": "self_area,damage,knockback,shield,warcry_ring"
+    },
+    {
+      "source": "active_open_mic",
+      "target": "bus:wall_impact",
+      "relation": "produces",
+      "mechanism": "self_area,damage,knockback,shield,warcry_ring"
+    },
+    {
+      "source": "active_hose_down",
+      "target": "bus:control",
+      "relation": "produces",
+      "mechanism": "damage,knockback,wet"
+    },
+    {
+      "source": "active_hose_down",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "damage,knockback,wet"
+    },
+    {
+      "source": "active_hose_down",
+      "target": "bus:element_apply",
+      "relation": "produces",
+      "mechanism": "damage,knockback,wet"
+    },
+    {
+      "source": "active_hose_down",
+      "target": "bus:knockback",
+      "relation": "produces",
+      "mechanism": "damage,knockback,wet"
+    },
+    {
+      "source": "active_hose_down",
+      "target": "bus:skill_cast",
+      "relation": "produces",
+      "mechanism": "damage,knockback,wet"
+    },
+    {
+      "source": "active_hose_down",
+      "target": "bus:skill_hit",
+      "relation": "produces",
+      "mechanism": "damage,knockback,wet"
+    },
+    {
+      "source": "active_hose_down",
+      "target": "bus:wall_impact",
+      "relation": "produces",
+      "mechanism": "damage,knockback,wet"
+    },
+    {
+      "source": "active_zap",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "damage,electrify,chain_bounce"
+    },
+    {
+      "source": "active_zap",
+      "target": "bus:dot_burn",
+      "relation": "produces",
+      "mechanism": "damage,electrify,chain_bounce"
+    },
+    {
+      "source": "active_zap",
+      "target": "bus:element_apply",
+      "relation": "produces",
+      "mechanism": "damage,electrify,chain_bounce"
+    },
+    {
+      "source": "active_zap",
+      "target": "bus:skill_cast",
+      "relation": "produces",
+      "mechanism": "damage,electrify,chain_bounce"
+    },
+    {
+      "source": "active_zap",
+      "target": "bus:skill_hit",
+      "relation": "produces",
+      "mechanism": "damage,electrify,chain_bounce"
+    },
+    {
+      "source": "active_charged_ram",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "dash,shield,dash_contact,damage,knockback"
+    },
+    {
+      "source": "active_charged_ram",
+      "target": "bus:dash",
+      "relation": "produces",
+      "mechanism": "dash,shield,dash_contact,damage,knockback"
+    },
+    {
+      "source": "active_charged_ram",
+      "target": "bus:dash_contact",
+      "relation": "produces",
+      "mechanism": "dash,shield,dash_contact,damage,knockback"
+    },
+    {
+      "source": "active_charged_ram",
+      "target": "bus:knockback",
+      "relation": "produces",
+      "mechanism": "dash,shield,dash_contact,damage,knockback"
+    },
+    {
+      "source": "active_charged_ram",
+      "target": "bus:shield",
+      "relation": "produces",
+      "mechanism": "dash,shield,dash_contact,damage,knockback"
+    },
+    {
+      "source": "active_charged_ram",
+      "target": "bus:shield_break",
+      "relation": "produces",
+      "mechanism": "dash,shield,dash_contact,damage,knockback"
+    },
+    {
+      "source": "active_charged_ram",
+      "target": "bus:skill_cast",
+      "relation": "produces",
+      "mechanism": "dash,shield,dash_contact,damage,knockback"
+    },
+    {
+      "source": "active_charged_ram",
+      "target": "bus:skill_hit",
+      "relation": "produces",
+      "mechanism": "dash,shield,dash_contact,damage,knockback"
+    },
+    {
+      "source": "active_charged_ram",
+      "target": "bus:wall_impact",
+      "relation": "produces",
+      "mechanism": "dash,shield,dash_contact,damage,knockback"
+    },
+    {
+      "source": "active_brace",
+      "target": "bus:shield",
+      "relation": "produces",
+      "mechanism": "brace"
+    },
+    {
+      "source": "active_brace",
+      "target": "bus:skill_cast",
+      "relation": "produces",
+      "mechanism": "brace"
+    },
+    {
+      "source": "active_brace",
+      "target": "bus:stance",
+      "relation": "produces",
+      "mechanism": "brace"
+    },
+    {
+      "source": "active_cola_shake",
+      "target": "bus:area",
+      "relation": "produces",
+      "mechanism": "channel_cone,damage,chill,knockback"
+    },
+    {
+      "source": "active_cola_shake",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "channel_cone,damage,chill,knockback"
+    },
+    {
+      "source": "active_cola_shake",
+      "target": "bus:element_apply",
+      "relation": "produces",
+      "mechanism": "channel_cone,damage,chill,knockback"
+    },
+    {
+      "source": "active_cola_shake",
+      "target": "bus:ground_state",
+      "relation": "produces",
+      "mechanism": "channel_cone,damage,chill,knockback"
+    },
+    {
+      "source": "active_cola_shake",
+      "target": "bus:knockback",
+      "relation": "produces",
+      "mechanism": "channel_cone,damage,chill,knockback"
+    },
+    {
+      "source": "active_cola_shake",
+      "target": "bus:skill_cast",
+      "relation": "produces",
+      "mechanism": "channel_cone,damage,chill,knockback"
+    },
+    {
+      "source": "active_cola_shake",
+      "target": "bus:skill_hit",
+      "relation": "produces",
+      "mechanism": "channel_cone,damage,chill,knockback"
+    },
+    {
+      "source": "active_cola_shake",
+      "target": "bus:slow",
+      "relation": "produces",
+      "mechanism": "channel_cone,damage,chill,knockback"
+    },
+    {
+      "source": "active_cola_shake",
+      "target": "bus:wall_impact",
+      "relation": "produces",
+      "mechanism": "channel_cone,damage,chill,knockback"
+    },
+    {
+      "source": "active_desk_fan",
+      "target": "bus:construct",
+      "relation": "produces",
+      "mechanism": "fan"
+    },
+    {
+      "source": "active_desk_fan",
+      "target": "bus:ground_state",
+      "relation": "produces",
+      "mechanism": "fan"
+    },
+    {
+      "source": "active_desk_fan",
+      "target": "bus:knockback",
+      "relation": "produces",
+      "mechanism": "fan"
+    },
+    {
+      "source": "active_desk_fan",
+      "target": "bus:skill_cast",
+      "relation": "produces",
+      "mechanism": "fan"
+    },
+    {
+      "source": "active_stale_takeout",
+      "target": "bus:anti_heal",
+      "relation": "produces",
+      "mechanism": "damage,rot,ground_state,knockback"
+    },
+    {
+      "source": "active_stale_takeout",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "damage,rot,ground_state,knockback"
+    },
+    {
+      "source": "active_stale_takeout",
+      "target": "bus:dot_rot",
+      "relation": "produces",
+      "mechanism": "damage,rot,ground_state,knockback"
+    },
+    {
+      "source": "active_stale_takeout",
+      "target": "bus:element_apply",
+      "relation": "produces",
+      "mechanism": "damage,rot,ground_state,knockback"
+    },
+    {
+      "source": "active_stale_takeout",
+      "target": "bus:ground_state",
+      "relation": "produces",
+      "mechanism": "damage,rot,ground_state,knockback"
+    },
+    {
+      "source": "active_stale_takeout",
+      "target": "bus:knockback",
+      "relation": "produces",
+      "mechanism": "damage,rot,ground_state,knockback"
+    },
+    {
+      "source": "active_stale_takeout",
+      "target": "bus:skill_cast",
+      "relation": "produces",
+      "mechanism": "damage,rot,ground_state,knockback"
+    },
+    {
+      "source": "active_stale_takeout",
+      "target": "bus:skill_hit",
+      "relation": "produces",
+      "mechanism": "damage,rot,ground_state,knockback"
+    },
+    {
+      "source": "active_stale_takeout",
+      "target": "bus:wall_impact",
+      "relation": "produces",
+      "mechanism": "damage,rot,ground_state,knockback"
+    },
+    {
+      "source": "active_school_bag",
+      "target": "bus:area",
+      "relation": "produces",
+      "mechanism": "bag,damage"
+    },
+    {
+      "source": "active_school_bag",
+      "target": "bus:construct",
+      "relation": "produces",
+      "mechanism": "bag,damage"
+    },
+    {
+      "source": "active_school_bag",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "bag,damage"
+    },
+    {
+      "source": "active_school_bag",
+      "target": "bus:element_apply",
+      "relation": "produces",
+      "mechanism": "bag,damage"
+    },
+    {
+      "source": "active_school_bag",
+      "target": "bus:ground_state",
+      "relation": "produces",
+      "mechanism": "bag,damage"
+    },
+    {
+      "source": "active_school_bag",
+      "target": "bus:knockback",
+      "relation": "produces",
+      "mechanism": "bag,damage"
+    },
+    {
+      "source": "active_school_bag",
+      "target": "bus:skill_cast",
+      "relation": "produces",
+      "mechanism": "bag,damage"
+    },
+    {
+      "source": "active_school_bag",
+      "target": "bus:skill_hit",
+      "relation": "produces",
+      "mechanism": "bag,damage"
+    },
+    {
+      "source": "active_school_bag",
+      "target": "bus:slow",
+      "relation": "produces",
+      "mechanism": "bag,damage"
+    },
+    {
+      "source": "active_school_bag",
+      "target": "bus:wall_impact",
+      "relation": "produces",
+      "mechanism": "bag,damage"
+    },
+    {
+      "source": "active_flurry_rush",
+      "target": "bus:area",
+      "relation": "produces",
+      "mechanism": "frenzy_waves"
+    },
+    {
+      "source": "active_flurry_rush",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "frenzy_waves"
+    },
+    {
+      "source": "active_flurry_rush",
+      "target": "bus:skill_cast",
+      "relation": "produces",
+      "mechanism": "frenzy_waves"
+    },
+    {
+      "source": "active_flurry_rush",
+      "target": "bus:skill_hit",
+      "relation": "produces",
+      "mechanism": "frenzy_waves"
+    },
+    {
+      "source": "active_cordon_tape",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "cordon_line,damage,slow"
+    },
+    {
+      "source": "active_cordon_tape",
+      "target": "bus:element_apply",
+      "relation": "produces",
+      "mechanism": "cordon_line,damage,slow"
+    },
+    {
+      "source": "active_cordon_tape",
+      "target": "bus:ground_state",
+      "relation": "produces",
+      "mechanism": "cordon_line,damage,slow"
+    },
+    {
+      "source": "active_cordon_tape",
+      "target": "bus:skill_cast",
+      "relation": "produces",
+      "mechanism": "cordon_line,damage,slow"
+    },
+    {
+      "source": "active_cordon_tape",
+      "target": "bus:skill_hit",
+      "relation": "produces",
+      "mechanism": "cordon_line,damage,slow"
+    },
+    {
+      "source": "active_cordon_tape",
+      "target": "bus:slow",
+      "relation": "produces",
+      "mechanism": "cordon_line,damage,slow"
+    },
+    {
+      "source": "bus:combo3",
+      "target": "card_third_breath",
+      "relation": "triggers_or_scales",
+      "mechanism": "combo_momentum"
+    },
+    {
+      "source": "card_third_breath",
+      "target": "bus:momentum",
+      "relation": "produces",
+      "mechanism": "combo_momentum"
+    },
+    {
+      "source": "bus:basic_hit",
+      "target": "card_punch_think",
+      "relation": "triggers_or_scales",
+      "mechanism": "basic_cooldown_cut"
+    },
+    {
+      "source": "card_punch_think",
+      "target": "bus:cooldown_refund",
+      "relation": "produces",
+      "mechanism": "basic_cooldown_cut"
+    },
+    {
+      "source": "bus:combo3",
+      "target": "card_solid_punch",
+      "relation": "triggers_or_scales",
+      "mechanism": "combo_skill_hit"
+    },
+    {
+      "source": "card_solid_punch",
+      "target": "bus:momentum",
+      "relation": "produces",
+      "mechanism": "combo_skill_hit"
+    },
+    {
+      "source": "card_solid_punch",
+      "target": "bus:skill_hit",
+      "relation": "produces",
+      "mechanism": "combo_skill_hit"
+    },
+    {
+      "source": "bus:combo3",
+      "target": "card_third_shove",
+      "relation": "triggers_or_scales",
+      "mechanism": "combo_knockback"
+    },
+    {
+      "source": "card_third_shove",
+      "target": "bus:knockback",
+      "relation": "produces",
+      "mechanism": "combo_knockback"
+    },
+    {
+      "source": "card_third_shove",
+      "target": "bus:wall_impact",
+      "relation": "produces",
+      "mechanism": "combo_knockback"
+    },
+    {
+      "source": "bus:basic_hit",
+      "target": "card_long_arm",
+      "relation": "triggers_or_scales",
+      "mechanism": "basic_projectile"
+    },
+    {
+      "source": "card_long_arm",
+      "target": "bus:range_projectile",
+      "relation": "produces",
+      "mechanism": "basic_projectile"
+    },
+    {
+      "source": "bus:combo3",
+      "target": "card_both_hands",
+      "relation": "triggers_or_scales",
+      "mechanism": "combo_double"
+    },
+    {
+      "source": "card_both_hands",
+      "target": "bus:basic_hit",
+      "relation": "produces",
+      "mechanism": "combo_double"
+    },
+    {
+      "source": "bus:combo3",
+      "target": "card_wide_swing",
+      "relation": "triggers_or_scales",
+      "mechanism": "combo_sweep"
+    },
+    {
+      "source": "card_wide_swing",
+      "target": "bus:area",
+      "relation": "produces",
+      "mechanism": "combo_sweep"
+    },
+    {
+      "source": "bus:combo3",
+      "target": "card_fist_skill",
+      "relation": "triggers_or_scales",
+      "mechanism": "combo_cast"
+    },
+    {
+      "source": "card_fist_skill",
+      "target": "bus:skill_cast",
+      "relation": "produces",
+      "mechanism": "combo_cast"
+    },
+    {
+      "source": "card_fist_skill",
+      "target": "bus:skill_hit",
+      "relation": "produces",
+      "mechanism": "combo_cast"
+    },
+    {
+      "source": "bus:attack_speed",
+      "target": "card_quick_hands",
+      "relation": "triggers_or_scales",
+      "mechanism": "overcap_extra_hit"
+    },
+    {
+      "source": "bus:basic_hit",
+      "target": "card_quick_hands",
+      "relation": "triggers_or_scales",
+      "mechanism": "overcap_extra_hit"
+    },
+    {
+      "source": "card_quick_hands",
+      "target": "bus:basic_hit",
+      "relation": "produces",
+      "mechanism": "overcap_extra_hit"
+    },
+    {
+      "source": "bus:attack_speed",
+      "target": "card_slow_craft",
+      "relation": "triggers_or_scales",
+      "mechanism": "speed_factor"
+    },
+    {
+      "source": "bus:move_speed",
+      "target": "card_slow_craft",
+      "relation": "triggers_or_scales",
+      "mechanism": "speed_factor"
+    },
+    {
+      "source": "card_slow_craft",
+      "target": "bus:damage_amp",
+      "relation": "produces",
+      "mechanism": "speed_factor"
+    },
+    {
+      "source": "bus:ap_stat",
+      "target": "card_scholar_punch",
+      "relation": "triggers_or_scales",
+      "mechanism": "basic_ap_rider"
+    },
+    {
+      "source": "bus:basic_hit",
+      "target": "card_scholar_punch",
+      "relation": "triggers_or_scales",
+      "mechanism": "basic_ap_rider"
+    },
+    {
+      "source": "card_scholar_punch",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "basic_ap_rider"
+    },
+    {
+      "source": "bus:basic_hit",
+      "target": "card_heated_up",
+      "relation": "triggers_or_scales",
+      "mechanism": "focus_attack_speed"
+    },
+    {
+      "source": "card_heated_up",
+      "target": "bus:attack_speed",
+      "relation": "produces",
+      "mechanism": "focus_attack_speed"
+    },
+    {
+      "source": "bus:basic_hit",
+      "target": "card_muscle_memory",
+      "relation": "triggers_or_scales",
+      "mechanism": "hit_growth"
+    },
+    {
+      "source": "bus:perfect_dodge",
+      "target": "card_muscle_memory",
+      "relation": "triggers_or_scales",
+      "mechanism": "hit_growth"
+    },
+    {
+      "source": "card_muscle_memory",
+      "target": "bus:attack_speed",
+      "relation": "produces",
+      "mechanism": "hit_growth"
+    },
+    {
+      "source": "card_muscle_memory",
+      "target": "bus:move_speed",
+      "relation": "produces",
+      "mechanism": "hit_growth"
+    },
+    {
+      "source": "card_muscle_memory",
+      "target": "bus:permanent_stats",
+      "relation": "produces",
+      "mechanism": "hit_growth"
+    },
+    {
+      "source": "bus:basic_hit",
+      "target": "card_breach_fist",
+      "relation": "triggers_or_scales",
+      "mechanism": "breach"
+    },
+    {
+      "source": "card_breach_fist",
+      "target": "bus:armor_shred",
+      "relation": "produces",
+      "mechanism": "breach"
+    },
+    {
+      "source": "card_breach_fist",
+      "target": "bus:damage_amp",
+      "relation": "produces",
+      "mechanism": "breach"
+    },
+    {
+      "source": "bus:dash_contact",
+      "target": "card_next_up",
+      "relation": "triggers_or_scales",
+      "mechanism": "hit_haste_other"
+    },
+    {
+      "source": "bus:skill_hit",
+      "target": "card_next_up",
+      "relation": "triggers_or_scales",
+      "mechanism": "hit_haste_other"
+    },
+    {
+      "source": "card_next_up",
+      "target": "bus:cooldown_refund",
+      "relation": "produces",
+      "mechanism": "hit_haste_other"
+    },
+    {
+      "source": "bus:skill_hit",
+      "target": "card_pay_back",
+      "relation": "triggers_or_scales",
+      "mechanism": "skill_hit_momentum"
+    },
+    {
+      "source": "card_pay_back",
+      "target": "bus:momentum",
+      "relation": "produces",
+      "mechanism": "skill_hit_momentum"
+    },
+    {
+      "source": "bus:kill_takedown",
+      "target": "card_quick_takedown",
+      "relation": "triggers_or_scales",
+      "mechanism": "takedown_reset"
+    },
+    {
+      "source": "card_quick_takedown",
+      "target": "bus:cooldown_refund",
+      "relation": "produces",
+      "mechanism": "takedown_reset"
+    },
+    {
+      "source": "card_quick_takedown",
+      "target": "bus:momentum",
+      "relation": "produces",
+      "mechanism": "takedown_reset"
+    },
+    {
+      "source": "bus:skill_hit",
+      "target": "card_setup_line",
+      "relation": "triggers_or_scales",
+      "mechanism": "setup_mark"
+    },
+    {
+      "source": "card_setup_line",
+      "target": "bus:damage_amp",
+      "relation": "produces",
+      "mechanism": "setup_mark"
+    },
+    {
+      "source": "bus:control",
+      "target": "card_pin_amp",
+      "relation": "triggers_or_scales",
+      "mechanism": "control_amp"
+    },
+    {
+      "source": "card_pin_amp",
+      "target": "bus:damage_amp",
+      "relation": "produces",
+      "mechanism": "control_amp"
+    },
+    {
+      "source": "bus:skill_cast",
+      "target": "card_encore",
+      "relation": "triggers_or_scales",
+      "mechanism": "auto_recast"
+    },
+    {
+      "source": "card_encore",
+      "target": "bus:skill_cast",
+      "relation": "produces",
+      "mechanism": "auto_recast"
+    },
+    {
+      "source": "card_encore",
+      "target": "bus:skill_hit",
+      "relation": "produces",
+      "mechanism": "auto_recast"
+    },
+    {
+      "source": "bus:skill_cast",
+      "target": "card_crowd_hit",
+      "relation": "triggers_or_scales",
+      "mechanism": "reshape"
+    },
+    {
+      "source": "card_crowd_hit",
+      "target": "bus:area",
+      "relation": "produces",
+      "mechanism": "reshape"
+    },
+    {
+      "source": "card_crowd_hit",
+      "target": "bus:control",
+      "relation": "produces",
+      "mechanism": "reshape"
+    },
+    {
+      "source": "card_crowd_hit",
+      "target": "bus:range_projectile",
+      "relation": "produces",
+      "mechanism": "reshape"
+    },
+    {
+      "source": "bus:dash",
+      "target": "card_again_now",
+      "relation": "triggers_or_scales",
+      "mechanism": "cooldown_cost"
+    },
+    {
+      "source": "bus:momentum",
+      "target": "card_again_now",
+      "relation": "triggers_or_scales",
+      "mechanism": "cooldown_cost"
+    },
+    {
+      "source": "bus:skill_cast",
+      "target": "card_again_now",
+      "relation": "triggers_or_scales",
+      "mechanism": "cooldown_cost"
+    },
+    {
+      "source": "card_again_now",
+      "target": "bus:cooldown_refund",
+      "relation": "produces",
+      "mechanism": "cooldown_cost"
+    },
+    {
+      "source": "bus:dash",
+      "target": "card_big_one",
+      "relation": "triggers_or_scales",
+      "mechanism": "cooldown_cost,skill_damage_factor"
+    },
+    {
+      "source": "bus:momentum",
+      "target": "card_big_one",
+      "relation": "triggers_or_scales",
+      "mechanism": "cooldown_cost,skill_damage_factor"
+    },
+    {
+      "source": "bus:skill_cast",
+      "target": "card_big_one",
+      "relation": "triggers_or_scales",
+      "mechanism": "cooldown_cost,skill_damage_factor"
+    },
+    {
+      "source": "bus:skill_hit",
+      "target": "card_big_one",
+      "relation": "triggers_or_scales",
+      "mechanism": "cooldown_cost,skill_damage_factor"
+    },
+    {
+      "source": "card_big_one",
+      "target": "bus:cooldown_refund",
+      "relation": "produces",
+      "mechanism": "cooldown_cost,skill_damage_factor"
+    },
+    {
+      "source": "card_big_one",
+      "target": "bus:damage_amp",
+      "relation": "produces",
+      "mechanism": "cooldown_cost,skill_damage_factor"
+    },
+    {
+      "source": "bus:skill_cast",
+      "target": "card_long_reach",
+      "relation": "triggers_or_scales",
+      "mechanism": "reshape"
+    },
+    {
+      "source": "card_long_reach",
+      "target": "bus:area",
+      "relation": "produces",
+      "mechanism": "reshape"
+    },
+    {
+      "source": "card_long_reach",
+      "target": "bus:control",
+      "relation": "produces",
+      "mechanism": "reshape"
+    },
+    {
+      "source": "card_long_reach",
+      "target": "bus:range_projectile",
+      "relation": "produces",
+      "mechanism": "reshape"
+    },
+    {
+      "source": "bus:dash",
+      "target": "card_hold_longer",
+      "relation": "triggers_or_scales",
+      "mechanism": "reshape,cooldown_cost"
+    },
+    {
+      "source": "bus:momentum",
+      "target": "card_hold_longer",
+      "relation": "triggers_or_scales",
+      "mechanism": "reshape,cooldown_cost"
+    },
+    {
+      "source": "bus:skill_cast",
+      "target": "card_hold_longer",
+      "relation": "triggers_or_scales",
+      "mechanism": "reshape,cooldown_cost"
+    },
+    {
+      "source": "card_hold_longer",
+      "target": "bus:area",
+      "relation": "produces",
+      "mechanism": "reshape,cooldown_cost"
+    },
+    {
+      "source": "card_hold_longer",
+      "target": "bus:control",
+      "relation": "produces",
+      "mechanism": "reshape,cooldown_cost"
+    },
+    {
+      "source": "card_hold_longer",
+      "target": "bus:cooldown_refund",
+      "relation": "produces",
+      "mechanism": "reshape,cooldown_cost"
+    },
+    {
+      "source": "card_hold_longer",
+      "target": "bus:range_projectile",
+      "relation": "produces",
+      "mechanism": "reshape,cooldown_cost"
+    },
+    {
+      "source": "bus:max_hp",
+      "target": "card_blood_price",
+      "relation": "triggers_or_scales",
+      "mechanism": "hp_cost,skill_damage_factor"
+    },
+    {
+      "source": "bus:skill_cast",
+      "target": "card_blood_price",
+      "relation": "triggers_or_scales",
+      "mechanism": "hp_cost,skill_damage_factor"
+    },
+    {
+      "source": "bus:skill_hit",
+      "target": "card_blood_price",
+      "relation": "triggers_or_scales",
+      "mechanism": "hp_cost,skill_damage_factor"
+    },
+    {
+      "source": "card_blood_price",
+      "target": "bus:damage_amp",
+      "relation": "produces",
+      "mechanism": "hp_cost,skill_damage_factor"
+    },
+    {
+      "source": "card_blood_price",
+      "target": "bus:low_hp",
+      "relation": "produces",
+      "mechanism": "hp_cost,skill_damage_factor"
+    },
+    {
+      "source": "card_blood_price",
+      "target": "bus:momentum_bypass",
+      "relation": "produces",
+      "mechanism": "hp_cost,skill_damage_factor"
+    },
+    {
+      "source": "bus:ad_stat",
+      "target": "card_lend_fist",
+      "relation": "triggers_or_scales",
+      "mechanism": "skill_ad_rider"
+    },
+    {
+      "source": "bus:skill_hit",
+      "target": "card_lend_fist",
+      "relation": "triggers_or_scales",
+      "mechanism": "skill_ad_rider"
+    },
+    {
+      "source": "card_lend_fist",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "skill_ad_rider"
+    },
+    {
+      "source": "bus:shield",
+      "target": "card_held_breath",
+      "relation": "triggers_or_scales",
+      "mechanism": "shield_spend"
+    },
+    {
+      "source": "bus:skill_hit",
+      "target": "card_held_breath",
+      "relation": "triggers_or_scales",
+      "mechanism": "shield_spend"
+    },
+    {
+      "source": "card_held_breath",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "shield_spend"
+    },
+    {
+      "source": "bus:damage_instance",
+      "target": "card_hurt_heal",
+      "relation": "triggers_or_scales",
+      "mechanism": "skill_lifesteal"
+    },
+    {
+      "source": "bus:skill_hit",
+      "target": "card_hurt_heal",
+      "relation": "triggers_or_scales",
+      "mechanism": "skill_lifesteal"
+    },
+    {
+      "source": "card_hurt_heal",
+      "target": "bus:heal",
+      "relation": "produces",
+      "mechanism": "skill_lifesteal"
+    },
+    {
+      "source": "bus:idle",
+      "target": "card_held_shot",
+      "relation": "triggers_or_scales",
+      "mechanism": "idle_ready_amp"
+    },
+    {
+      "source": "card_held_shot",
+      "target": "bus:damage_amp",
+      "relation": "produces",
+      "mechanism": "idle_ready_amp"
+    },
+    {
+      "source": "bus:skill_hit",
+      "target": "card_practice",
+      "relation": "triggers_or_scales",
+      "mechanism": "skill_growth"
+    },
+    {
+      "source": "card_practice",
+      "target": "bus:damage_amp",
+      "relation": "produces",
+      "mechanism": "skill_growth"
+    },
+    {
+      "source": "card_practice",
+      "target": "bus:permanent_stats",
+      "relation": "produces",
+      "mechanism": "skill_growth"
+    },
+    {
+      "source": "bus:skill_cast",
+      "target": "card_combo_chain",
+      "relation": "triggers_or_scales",
+      "mechanism": "recent_cast_amp"
+    },
+    {
+      "source": "card_combo_chain",
+      "target": "bus:damage_amp",
+      "relation": "produces",
+      "mechanism": "recent_cast_amp"
+    },
+    {
+      "source": "bus:reaction",
+      "target": "card_blast_reload",
+      "relation": "triggers_or_scales",
+      "mechanism": "reaction_haste"
+    },
+    {
+      "source": "card_blast_reload",
+      "target": "bus:cooldown_refund",
+      "relation": "produces",
+      "mechanism": "reaction_haste"
+    },
+    {
+      "source": "bus:dash_contact",
+      "target": "card_bump_reset",
+      "relation": "triggers_or_scales",
+      "mechanism": "dash_contact_reset"
+    },
+    {
+      "source": "card_bump_reset",
+      "target": "bus:cooldown_refund",
+      "relation": "produces",
+      "mechanism": "dash_contact_reset"
+    },
+    {
+      "source": "card_bump_reset",
+      "target": "bus:momentum",
+      "relation": "produces",
+      "mechanism": "dash_contact_reset"
+    },
+    {
+      "source": "bus:dash_contact",
+      "target": "card_bump_again",
+      "relation": "triggers_or_scales",
+      "mechanism": "hit_haste_other"
+    },
+    {
+      "source": "bus:skill_hit",
+      "target": "card_bump_again",
+      "relation": "triggers_or_scales",
+      "mechanism": "hit_haste_other"
+    },
+    {
+      "source": "card_bump_again",
+      "target": "bus:cooldown_refund",
+      "relation": "produces",
+      "mechanism": "hit_haste_other"
+    },
+    {
+      "source": "bus:dash",
+      "target": "card_dash_punch",
+      "relation": "triggers_or_scales",
+      "mechanism": "empower_basic"
+    },
+    {
+      "source": "card_dash_punch",
+      "target": "bus:basic_hit",
+      "relation": "produces",
+      "mechanism": "empower_basic"
+    },
+    {
+      "source": "card_dash_punch",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "empower_basic"
+    },
+    {
+      "source": "bus:perfect_dodge",
+      "target": "card_dodge_strike",
+      "relation": "triggers_or_scales",
+      "mechanism": "dodge_free_cast"
+    },
+    {
+      "source": "card_dodge_strike",
+      "target": "bus:momentum_bypass",
+      "relation": "produces",
+      "mechanism": "dodge_free_cast"
+    },
+    {
+      "source": "bus:dash",
+      "target": "card_double_dash",
+      "relation": "triggers_or_scales",
+      "mechanism": "dash_split"
+    },
+    {
+      "source": "card_double_dash",
+      "target": "bus:dash",
+      "relation": "produces",
+      "mechanism": "dash_split"
+    },
+    {
+      "source": "card_double_dash",
+      "target": "bus:dash_contact",
+      "relation": "produces",
+      "mechanism": "dash_split"
+    },
+    {
+      "source": "bus:dash",
+      "target": "card_pass_through",
+      "relation": "triggers_or_scales",
+      "mechanism": "dash_phase"
+    },
+    {
+      "source": "card_pass_through",
+      "target": "bus:basic_hit",
+      "relation": "produces",
+      "mechanism": "dash_phase"
+    },
+    {
+      "source": "card_pass_through",
+      "target": "bus:dash_contact",
+      "relation": "produces",
+      "mechanism": "dash_phase"
+    },
+    {
+      "source": "bus:dash",
+      "target": "card_head_down",
+      "relation": "triggers_or_scales",
+      "mechanism": "dash_ram"
+    },
+    {
+      "source": "card_head_down",
+      "target": "bus:dash_contact",
+      "relation": "produces",
+      "mechanism": "dash_ram"
+    },
+    {
+      "source": "card_head_down",
+      "target": "bus:knockback",
+      "relation": "produces",
+      "mechanism": "dash_ram"
+    },
+    {
+      "source": "card_head_down",
+      "target": "bus:wall_impact",
+      "relation": "produces",
+      "mechanism": "dash_ram"
+    },
+    {
+      "source": "bus:dash",
+      "target": "card_paid_dash",
+      "relation": "triggers_or_scales",
+      "mechanism": "cooldown_cost"
+    },
+    {
+      "source": "bus:momentum",
+      "target": "card_paid_dash",
+      "relation": "triggers_or_scales",
+      "mechanism": "cooldown_cost"
+    },
+    {
+      "source": "bus:skill_cast",
+      "target": "card_paid_dash",
+      "relation": "triggers_or_scales",
+      "mechanism": "cooldown_cost"
+    },
+    {
+      "source": "card_paid_dash",
+      "target": "bus:cooldown_refund",
+      "relation": "produces",
+      "mechanism": "cooldown_cost"
+    },
+    {
+      "source": "bus:basic_hit",
+      "target": "card_slippery",
+      "relation": "triggers_or_scales",
+      "mechanism": "hit_growth"
+    },
+    {
+      "source": "bus:perfect_dodge",
+      "target": "card_slippery",
+      "relation": "triggers_or_scales",
+      "mechanism": "hit_growth"
+    },
+    {
+      "source": "card_slippery",
+      "target": "bus:attack_speed",
+      "relation": "produces",
+      "mechanism": "hit_growth"
+    },
+    {
+      "source": "card_slippery",
+      "target": "bus:move_speed",
+      "relation": "produces",
+      "mechanism": "hit_growth"
+    },
+    {
+      "source": "card_slippery",
+      "target": "bus:permanent_stats",
+      "relation": "produces",
+      "mechanism": "hit_growth"
+    },
+    {
+      "source": "bus:dash",
+      "target": "card_ice_trail",
+      "relation": "triggers_or_scales",
+      "mechanism": "dash_ice"
+    },
+    {
+      "source": "card_ice_trail",
+      "target": "bus:ground_state",
+      "relation": "produces",
+      "mechanism": "dash_ice"
+    },
+    {
+      "source": "card_ice_trail",
+      "target": "bus:ice_surface",
+      "relation": "produces",
+      "mechanism": "dash_ice"
+    },
+    {
+      "source": "bus:dash",
+      "target": "card_move_turf",
+      "relation": "triggers_or_scales",
+      "mechanism": "ground_relocate"
+    },
+    {
+      "source": "bus:ground_state",
+      "target": "card_move_turf",
+      "relation": "triggers_or_scales",
+      "mechanism": "ground_relocate"
+    },
+    {
+      "source": "card_move_turf",
+      "target": "bus:ground_state",
+      "relation": "produces",
+      "mechanism": "ground_relocate"
+    },
+    {
+      "source": "bus:damaged",
+      "target": "card_spiky_hide",
+      "relation": "triggers_or_scales",
+      "mechanism": "thorns"
+    },
+    {
+      "source": "bus:shield",
+      "target": "card_spiky_hide",
+      "relation": "triggers_or_scales",
+      "mechanism": "thorns"
+    },
+    {
+      "source": "card_spiky_hide",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "thorns"
+    },
+    {
+      "source": "bus:kill_takedown",
+      "target": "card_takedown",
+      "relation": "triggers_or_scales",
+      "mechanism": "takedown_reset"
+    },
+    {
+      "source": "card_takedown",
+      "target": "bus:cooldown_refund",
+      "relation": "produces",
+      "mechanism": "takedown_reset"
+    },
+    {
+      "source": "card_takedown",
+      "target": "bus:momentum",
+      "relation": "produces",
+      "mechanism": "takedown_reset"
+    },
+    {
+      "source": "bus:damaged",
+      "target": "card_hang_on",
+      "relation": "triggers_or_scales",
+      "mechanism": "last_stand"
+    },
+    {
+      "source": "bus:low_hp",
+      "target": "card_hang_on",
+      "relation": "triggers_or_scales",
+      "mechanism": "last_stand"
+    },
+    {
+      "source": "card_hang_on",
+      "target": "bus:survival_gate",
+      "relation": "produces",
+      "mechanism": "last_stand"
+    },
+    {
+      "source": "bus:reaction",
+      "target": "card_reaction_refund",
+      "relation": "triggers_or_scales",
+      "mechanism": "reaction_momentum"
+    },
+    {
+      "source": "card_reaction_refund",
+      "target": "bus:momentum",
+      "relation": "produces",
+      "mechanism": "reaction_momentum"
+    },
+    {
+      "source": "bus:reaction",
+      "target": "card_wave_after",
+      "relation": "triggers_or_scales",
+      "mechanism": "reaction_element"
+    },
+    {
+      "source": "card_wave_after",
+      "target": "bus:element_apply",
+      "relation": "produces",
+      "mechanism": "reaction_element"
+    },
+    {
+      "source": "card_wave_after",
+      "target": "bus:reaction",
+      "relation": "produces",
+      "mechanism": "reaction_element"
+    },
+    {
+      "source": "bus:max_hp",
+      "target": "card_shell_burst",
+      "relation": "triggers_or_scales",
+      "mechanism": "shield_burst_break"
+    },
+    {
+      "source": "bus:shield_break",
+      "target": "card_shell_burst",
+      "relation": "triggers_or_scales",
+      "mechanism": "shield_burst_break"
+    },
+    {
+      "source": "card_shell_burst",
+      "target": "bus:area",
+      "relation": "produces",
+      "mechanism": "shield_burst_break"
+    },
+    {
+      "source": "card_shell_burst",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "shield_burst_break"
+    },
+    {
+      "source": "bus:damaged",
+      "target": "card_hard_skin",
+      "relation": "triggers_or_scales",
+      "mechanism": "triggered_shield"
+    },
+    {
+      "source": "card_hard_skin",
+      "target": "bus:shield",
+      "relation": "produces",
+      "mechanism": "triggered_shield"
+    },
+    {
+      "source": "card_hard_skin",
+      "target": "bus:shield_break",
+      "relation": "produces",
+      "mechanism": "triggered_shield"
+    },
+    {
+      "source": "bus:knockback",
+      "target": "card_ball_kick",
+      "relation": "triggers_or_scales",
+      "mechanism": "knockback_impact"
+    },
+    {
+      "source": "bus:wall_impact",
+      "target": "card_ball_kick",
+      "relation": "triggers_or_scales",
+      "mechanism": "knockback_impact"
+    },
+    {
+      "source": "card_ball_kick",
+      "target": "bus:control",
+      "relation": "produces",
+      "mechanism": "knockback_impact"
+    },
+    {
+      "source": "card_ball_kick",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "knockback_impact"
+    },
+    {
+      "source": "bus:crit_stat",
+      "target": "card_skill_crit",
+      "relation": "triggers_or_scales",
+      "mechanism": "skill_crit"
+    },
+    {
+      "source": "bus:skill_hit",
+      "target": "card_skill_crit",
+      "relation": "triggers_or_scales",
+      "mechanism": "skill_crit"
+    },
+    {
+      "source": "card_skill_crit",
+      "target": "bus:damage_amp",
+      "relation": "produces",
+      "mechanism": "skill_crit"
+    },
+    {
+      "source": "bus:heal",
+      "target": "card_skill_drain",
+      "relation": "triggers_or_scales",
+      "mechanism": "lifesteal_skills"
+    },
+    {
+      "source": "bus:skill_hit",
+      "target": "card_skill_drain",
+      "relation": "triggers_or_scales",
+      "mechanism": "lifesteal_skills"
+    },
+    {
+      "source": "card_skill_drain",
+      "target": "bus:heal",
+      "relation": "produces",
+      "mechanism": "lifesteal_skills"
+    },
+    {
+      "source": "bus:momentum",
+      "target": "card_short_breath",
+      "relation": "triggers_or_scales",
+      "mechanism": "overdrive_short"
+    },
+    {
+      "source": "card_short_breath",
+      "target": "bus:damage_amp",
+      "relation": "produces",
+      "mechanism": "overdrive_short"
+    },
+    {
+      "source": "card_short_breath",
+      "target": "bus:overdrive",
+      "relation": "produces",
+      "mechanism": "overdrive_short"
+    },
+    {
+      "source": "bus:construct",
+      "target": "card_double_stall",
+      "relation": "triggers_or_scales",
+      "mechanism": "double_stall"
+    },
+    {
+      "source": "bus:ground_state",
+      "target": "card_double_stall",
+      "relation": "triggers_or_scales",
+      "mechanism": "double_stall"
+    },
+    {
+      "source": "card_double_stall",
+      "target": "bus:construct",
+      "relation": "produces",
+      "mechanism": "double_stall"
+    },
+    {
+      "source": "card_double_stall",
+      "target": "bus:ground_state",
+      "relation": "produces",
+      "mechanism": "double_stall"
+    },
+    {
+      "source": "bus:armor_stat",
+      "target": "card_thick_hide",
+      "relation": "triggers_or_scales",
+      "mechanism": "armor_to_hp"
+    },
+    {
+      "source": "card_thick_hide",
+      "target": "bus:max_hp",
+      "relation": "produces",
+      "mechanism": "armor_to_hp"
+    },
+    {
+      "source": "bus:dot_burn",
+      "target": "card_overfed",
+      "relation": "triggers_or_scales",
+      "mechanism": "overheal_shield"
+    },
+    {
+      "source": "bus:heal",
+      "target": "card_overfed",
+      "relation": "triggers_or_scales",
+      "mechanism": "overheal_shield"
+    },
+    {
+      "source": "card_overfed",
+      "target": "bus:shield",
+      "relation": "produces",
+      "mechanism": "overheal_shield"
+    },
+    {
+      "source": "card_overfed",
+      "target": "bus:shield_break",
+      "relation": "produces",
+      "mechanism": "overheal_shield"
+    },
+    {
+      "source": "bus:low_hp",
+      "target": "card_berserk",
+      "relation": "triggers_or_scales",
+      "mechanism": "missing_hp_attack_speed"
+    },
+    {
+      "source": "card_berserk",
+      "target": "bus:attack_speed",
+      "relation": "produces",
+      "mechanism": "missing_hp_attack_speed"
+    },
+    {
+      "source": "bus:haste_stat",
+      "target": "card_quick_brain",
+      "relation": "triggers_or_scales",
+      "mechanism": "haste_momentum"
+    },
+    {
+      "source": "bus:skill_hit",
+      "target": "card_quick_brain",
+      "relation": "triggers_or_scales",
+      "mechanism": "haste_momentum"
+    },
+    {
+      "source": "card_quick_brain",
+      "target": "bus:momentum",
+      "relation": "produces",
+      "mechanism": "haste_momentum"
+    },
+    {
+      "source": "bus:basic_hit",
+      "target": "card_punch_heal",
+      "relation": "triggers_or_scales",
+      "mechanism": "lifesteal"
+    },
+    {
+      "source": "card_punch_heal",
+      "target": "bus:heal",
+      "relation": "produces",
+      "mechanism": "lifesteal"
+    },
+    {
+      "source": "bus:attack_speed",
+      "target": "card_run_hit",
+      "relation": "triggers_or_scales",
+      "mechanism": "speed_factor"
+    },
+    {
+      "source": "bus:move_speed",
+      "target": "card_run_hit",
+      "relation": "triggers_or_scales",
+      "mechanism": "speed_factor"
+    },
+    {
+      "source": "card_run_hit",
+      "target": "bus:damage_amp",
+      "relation": "produces",
+      "mechanism": "speed_factor"
+    },
+    {
+      "source": "bus:heal",
+      "target": "card_grow_fat",
+      "relation": "triggers_or_scales",
+      "mechanism": "heal_growth"
+    },
+    {
+      "source": "card_grow_fat",
+      "target": "bus:max_hp",
+      "relation": "produces",
+      "mechanism": "heal_growth"
+    },
+    {
+      "source": "card_grow_fat",
+      "target": "bus:permanent_stats",
+      "relation": "produces",
+      "mechanism": "heal_growth"
+    },
+    {
+      "source": "bus:kill_takedown",
+      "target": "card_kill_streak",
+      "relation": "triggers_or_scales",
+      "mechanism": "kill_growth"
+    },
+    {
+      "source": "card_kill_streak",
+      "target": "bus:ad_stat",
+      "relation": "produces",
+      "mechanism": "kill_growth"
+    },
+    {
+      "source": "card_kill_streak",
+      "target": "bus:ap_stat",
+      "relation": "produces",
+      "mechanism": "kill_growth"
+    },
+    {
+      "source": "card_kill_streak",
+      "target": "bus:permanent_stats",
+      "relation": "produces",
+      "mechanism": "kill_growth"
+    },
+    {
+      "source": "bus:control",
+      "target": "card_tough_skin",
+      "relation": "triggers_or_scales",
+      "mechanism": "control_growth"
+    },
+    {
+      "source": "bus:damaged",
+      "target": "card_tough_skin",
+      "relation": "triggers_or_scales",
+      "mechanism": "control_growth"
+    },
+    {
+      "source": "card_tough_skin",
+      "target": "bus:armor_stat",
+      "relation": "produces",
+      "mechanism": "control_growth"
+    },
+    {
+      "source": "card_tough_skin",
+      "target": "bus:permanent_stats",
+      "relation": "produces",
+      "mechanism": "control_growth"
+    },
+    {
+      "source": "bus:idle",
+      "target": "card_charge_up",
+      "relation": "triggers_or_scales",
+      "mechanism": "idle_charge"
+    },
+    {
+      "source": "card_charge_up",
+      "target": "bus:damage_amp",
+      "relation": "produces",
+      "mechanism": "idle_charge"
+    },
+    {
+      "source": "bus:ground_state",
+      "target": "card_turf_growth",
+      "relation": "triggers_or_scales",
+      "mechanism": "ground_growth"
+    },
+    {
+      "source": "card_turf_growth",
+      "target": "bus:damage_amp",
+      "relation": "produces",
+      "mechanism": "ground_growth"
+    },
+    {
+      "source": "bus:basic_hit",
+      "target": "card_tally",
+      "relation": "triggers_or_scales",
+      "mechanism": "tally"
+    },
+    {
+      "source": "bus:skill_hit",
+      "target": "card_tally",
+      "relation": "triggers_or_scales",
+      "mechanism": "tally"
+    },
+    {
+      "source": "card_tally",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "tally"
+    },
+    {
+      "source": "bus:damaged",
+      "target": "card_live_wire",
+      "relation": "triggers_or_scales",
+      "mechanism": "element_aura"
+    },
+    {
+      "source": "card_live_wire",
+      "target": "bus:element_apply",
+      "relation": "produces",
+      "mechanism": "element_aura"
+    },
+    {
+      "source": "bus:element_apply",
+      "target": "card_long_soak",
+      "relation": "triggers_or_scales",
+      "mechanism": "element_duration"
+    },
+    {
+      "source": "card_long_soak",
+      "target": "bus:element_apply",
+      "relation": "produces",
+      "mechanism": "element_duration"
+    },
+    {
+      "source": "bus:reaction",
+      "target": "card_louder_blast",
+      "relation": "triggers_or_scales",
+      "mechanism": "reaction_factor"
+    },
+    {
+      "source": "card_louder_blast",
+      "target": "bus:damage_amp",
+      "relation": "produces",
+      "mechanism": "reaction_factor"
+    },
+    {
+      "source": "bus:dot_burn",
+      "target": "card_endless_burn",
+      "relation": "triggers_or_scales",
+      "mechanism": "burn_cap"
+    },
+    {
+      "source": "card_endless_burn",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "burn_cap"
+    },
+    {
+      "source": "card_endless_burn",
+      "target": "bus:dot_burn",
+      "relation": "produces",
+      "mechanism": "burn_cap"
+    },
+    {
+      "source": "bus:dot_burn",
+      "target": "card_burn_guard",
+      "relation": "triggers_or_scales",
+      "mechanism": "overheal_shield"
+    },
+    {
+      "source": "bus:heal",
+      "target": "card_burn_guard",
+      "relation": "triggers_or_scales",
+      "mechanism": "overheal_shield"
+    },
+    {
+      "source": "card_burn_guard",
+      "target": "bus:shield",
+      "relation": "produces",
+      "mechanism": "overheal_shield"
+    },
+    {
+      "source": "card_burn_guard",
+      "target": "bus:shield_break",
+      "relation": "produces",
+      "mechanism": "overheal_shield"
+    },
+    {
+      "source": "bus:combo3",
+      "target": "medal_fire",
+      "relation": "triggers_or_scales",
+      "mechanism": "skill_element"
+    },
+    {
+      "source": "bus:skill_hit",
+      "target": "medal_fire",
+      "relation": "triggers_or_scales",
+      "mechanism": "skill_element"
+    },
+    {
+      "source": "medal_fire",
+      "target": "bus:element_apply",
+      "relation": "produces",
+      "mechanism": "skill_element"
+    },
+    {
+      "source": "bus:combo3",
+      "target": "medal_water",
+      "relation": "triggers_or_scales",
+      "mechanism": "skill_element"
+    },
+    {
+      "source": "bus:skill_hit",
+      "target": "medal_water",
+      "relation": "triggers_or_scales",
+      "mechanism": "skill_element"
+    },
+    {
+      "source": "medal_water",
+      "target": "bus:element_apply",
+      "relation": "produces",
+      "mechanism": "skill_element"
+    },
+    {
+      "source": "bus:combo3",
+      "target": "medal_electric",
+      "relation": "triggers_or_scales",
+      "mechanism": "skill_element"
+    },
+    {
+      "source": "bus:skill_hit",
+      "target": "medal_electric",
+      "relation": "triggers_or_scales",
+      "mechanism": "skill_element"
+    },
+    {
+      "source": "medal_electric",
+      "target": "bus:element_apply",
+      "relation": "produces",
+      "mechanism": "skill_element"
+    },
+    {
+      "source": "bus:combo3",
+      "target": "medal_chill",
+      "relation": "triggers_or_scales",
+      "mechanism": "skill_element"
+    },
+    {
+      "source": "bus:skill_hit",
+      "target": "medal_chill",
+      "relation": "triggers_or_scales",
+      "mechanism": "skill_element"
+    },
+    {
+      "source": "medal_chill",
+      "target": "bus:element_apply",
+      "relation": "produces",
+      "mechanism": "skill_element"
+    },
+    {
+      "source": "bus:combo3",
+      "target": "medal_rot",
+      "relation": "triggers_or_scales",
+      "mechanism": "skill_element"
+    },
+    {
+      "source": "bus:skill_hit",
+      "target": "medal_rot",
+      "relation": "triggers_or_scales",
+      "mechanism": "skill_element"
+    },
+    {
+      "source": "medal_rot",
+      "target": "bus:element_apply",
+      "relation": "produces",
+      "mechanism": "skill_element"
+    },
+    {
+      "source": "bus:ap_stat",
+      "target": "card_brain_speed",
+      "relation": "triggers_or_scales",
+      "mechanism": "brain_speed"
+    },
+    {
+      "source": "bus:basic_hit",
+      "target": "card_brain_speed",
+      "relation": "triggers_or_scales",
+      "mechanism": "brain_speed"
+    },
+    {
+      "source": "bus:haste_stat",
+      "target": "card_brain_speed",
+      "relation": "triggers_or_scales",
+      "mechanism": "brain_speed"
+    },
+    {
+      "source": "card_brain_speed",
+      "target": "bus:attack_speed",
+      "relation": "produces",
+      "mechanism": "brain_speed"
+    },
+    {
+      "source": "card_brain_speed",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "brain_speed"
+    },
+    {
+      "source": "bus:basic_hit",
+      "target": "card_spellblade_echo",
+      "relation": "triggers_or_scales",
+      "mechanism": "spellblade_echo"
+    },
+    {
+      "source": "bus:skill_cast",
+      "target": "card_spellblade_echo",
+      "relation": "triggers_or_scales",
+      "mechanism": "spellblade_echo"
+    },
+    {
+      "source": "card_spellblade_echo",
+      "target": "bus:area",
+      "relation": "produces",
+      "mechanism": "spellblade_echo"
+    },
+    {
+      "source": "card_spellblade_echo",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "spellblade_echo"
+    },
+    {
+      "source": "card_spellblade_echo",
+      "target": "bus:element_apply",
+      "relation": "produces",
+      "mechanism": "spellblade_echo"
+    },
+    {
+      "source": "bus:attack_speed",
+      "target": "card_heavy_mallet",
+      "relation": "triggers_or_scales",
+      "mechanism": "heavy_mallet"
+    },
+    {
+      "source": "bus:combo3",
+      "target": "card_heavy_mallet",
+      "relation": "triggers_or_scales",
+      "mechanism": "heavy_mallet"
+    },
+    {
+      "source": "card_heavy_mallet",
+      "target": "bus:crit_stat",
+      "relation": "produces",
+      "mechanism": "heavy_mallet"
+    },
+    {
+      "source": "card_heavy_mallet",
+      "target": "bus:damage_amp",
+      "relation": "produces",
+      "mechanism": "heavy_mallet"
+    },
+    {
+      "source": "card_heavy_mallet",
+      "target": "bus:knockback",
+      "relation": "produces",
+      "mechanism": "heavy_mallet"
+    },
+    {
+      "source": "bus:range_projectile",
+      "target": "card_let_bullets_fly",
+      "relation": "triggers_or_scales",
+      "mechanism": "projectile_flight_amp"
+    },
+    {
+      "source": "bus:skill_hit",
+      "target": "card_let_bullets_fly",
+      "relation": "triggers_or_scales",
+      "mechanism": "projectile_flight_amp"
+    },
+    {
+      "source": "card_let_bullets_fly",
+      "target": "bus:damage_amp",
+      "relation": "produces",
+      "mechanism": "projectile_flight_amp"
+    },
+    {
+      "source": "bus:idle",
+      "target": "card_eagle_stance",
+      "relation": "triggers_or_scales",
+      "mechanism": "eagle_stance"
+    },
+    {
+      "source": "card_eagle_stance",
+      "target": "bus:range_projectile",
+      "relation": "produces",
+      "mechanism": "eagle_stance"
+    },
+    {
+      "source": "bus:dash_contact",
+      "target": "card_runaway_train",
+      "relation": "triggers_or_scales",
+      "mechanism": "runaway_train"
+    },
+    {
+      "source": "bus:move_speed",
+      "target": "card_runaway_train",
+      "relation": "triggers_or_scales",
+      "mechanism": "runaway_train"
+    },
+    {
+      "source": "bus:wall_impact",
+      "target": "card_runaway_train",
+      "relation": "triggers_or_scales",
+      "mechanism": "runaway_train"
+    },
+    {
+      "source": "card_runaway_train",
+      "target": "bus:cooldown_refund",
+      "relation": "produces",
+      "mechanism": "runaway_train"
+    },
+    {
+      "source": "card_runaway_train",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "runaway_train"
+    },
+    {
+      "source": "bus:perfect_dodge",
+      "target": "card_phantom_molt",
+      "relation": "triggers_or_scales",
+      "mechanism": "phantom_molt"
+    },
+    {
+      "source": "card_phantom_molt",
+      "target": "bus:area",
+      "relation": "produces",
+      "mechanism": "phantom_molt"
+    },
+    {
+      "source": "card_phantom_molt",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "phantom_molt"
+    },
+    {
+      "source": "card_phantom_molt",
+      "target": "bus:slow",
+      "relation": "produces",
+      "mechanism": "phantom_molt"
+    },
+    {
+      "source": "bus:ice_surface",
+      "target": "card_skate_blade",
+      "relation": "triggers_or_scales",
+      "mechanism": "skate_blade"
+    },
+    {
+      "source": "bus:knockback",
+      "target": "card_skate_blade",
+      "relation": "triggers_or_scales",
+      "mechanism": "skate_blade"
+    },
+    {
+      "source": "card_skate_blade",
+      "target": "bus:attack_speed",
+      "relation": "produces",
+      "mechanism": "skate_blade"
+    },
+    {
+      "source": "card_skate_blade",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "skate_blade"
+    },
+    {
+      "source": "card_skate_blade",
+      "target": "bus:move_speed",
+      "relation": "produces",
+      "mechanism": "skate_blade"
+    },
+    {
+      "source": "bus:area",
+      "target": "card_tonnage_crush",
+      "relation": "triggers_or_scales",
+      "mechanism": "tonnage_crush"
+    },
+    {
+      "source": "bus:combo3",
+      "target": "card_tonnage_crush",
+      "relation": "triggers_or_scales",
+      "mechanism": "tonnage_crush"
+    },
+    {
+      "source": "bus:max_hp",
+      "target": "card_tonnage_crush",
+      "relation": "triggers_or_scales",
+      "mechanism": "tonnage_crush"
+    },
+    {
+      "source": "card_tonnage_crush",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "tonnage_crush"
+    },
+    {
+      "source": "bus:max_hp",
+      "target": "card_hulking_presence",
+      "relation": "triggers_or_scales",
+      "mechanism": "hulking_presence"
+    },
+    {
+      "source": "card_hulking_presence",
+      "target": "bus:area",
+      "relation": "produces",
+      "mechanism": "hulking_presence"
+    },
+    {
+      "source": "bus:armor_stat",
+      "target": "card_iron_hedgehog",
+      "relation": "triggers_or_scales",
+      "mechanism": "iron_hedgehog"
+    },
+    {
+      "source": "bus:damaged",
+      "target": "card_iron_hedgehog",
+      "relation": "triggers_or_scales",
+      "mechanism": "iron_hedgehog"
+    },
+    {
+      "source": "bus:stance",
+      "target": "card_iron_hedgehog",
+      "relation": "triggers_or_scales",
+      "mechanism": "iron_hedgehog"
+    },
+    {
+      "source": "card_iron_hedgehog",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "iron_hedgehog"
+    },
+    {
+      "source": "bus:shield",
+      "target": "card_reactive_plating",
+      "relation": "triggers_or_scales",
+      "mechanism": "reactive_plating"
+    },
+    {
+      "source": "card_reactive_plating",
+      "target": "bus:area",
+      "relation": "produces",
+      "mechanism": "reactive_plating"
+    },
+    {
+      "source": "card_reactive_plating",
+      "target": "bus:crit_stat",
+      "relation": "produces",
+      "mechanism": "reactive_plating"
+    },
+    {
+      "source": "card_reactive_plating",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "reactive_plating"
+    },
+    {
+      "source": "bus:heal",
+      "target": "card_desperado",
+      "relation": "triggers_or_scales",
+      "mechanism": "desperado"
+    },
+    {
+      "source": "bus:low_hp",
+      "target": "card_desperado",
+      "relation": "triggers_or_scales",
+      "mechanism": "desperado"
+    },
+    {
+      "source": "card_desperado",
+      "target": "bus:damage_amp",
+      "relation": "produces",
+      "mechanism": "desperado"
+    },
+    {
+      "source": "card_desperado",
+      "target": "bus:heal",
+      "relation": "produces",
+      "mechanism": "desperado"
+    },
+    {
+      "source": "bus:dot_burn",
+      "target": "card_fuel_the_fire",
+      "relation": "triggers_or_scales",
+      "mechanism": "fuel_the_fire"
+    },
+    {
+      "source": "bus:dot_rot",
+      "target": "card_fuel_the_fire",
+      "relation": "triggers_or_scales",
+      "mechanism": "fuel_the_fire"
+    },
+    {
+      "source": "bus:skill_hit",
+      "target": "card_fuel_the_fire",
+      "relation": "triggers_or_scales",
+      "mechanism": "fuel_the_fire"
+    },
+    {
+      "source": "card_fuel_the_fire",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "fuel_the_fire"
+    },
+    {
+      "source": "bus:construct",
+      "target": "card_rogue_works",
+      "relation": "triggers_or_scales",
+      "mechanism": "rogue_works"
+    },
+    {
+      "source": "bus:ground_state",
+      "target": "card_rogue_works",
+      "relation": "triggers_or_scales",
+      "mechanism": "rogue_works"
+    },
+    {
+      "source": "bus:max_hp",
+      "target": "card_rogue_works",
+      "relation": "triggers_or_scales",
+      "mechanism": "rogue_works"
+    },
+    {
+      "source": "card_rogue_works",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "rogue_works"
+    },
+    {
+      "source": "card_rogue_works",
+      "target": "bus:element_apply",
+      "relation": "produces",
+      "mechanism": "rogue_works"
+    },
+    {
+      "source": "bus:ad_stat",
+      "target": "card_martial_scholar",
+      "relation": "triggers_or_scales",
+      "mechanism": "martial_scholar"
+    },
+    {
+      "source": "bus:ap_stat",
+      "target": "card_martial_scholar",
+      "relation": "triggers_or_scales",
+      "mechanism": "martial_scholar"
+    },
+    {
+      "source": "bus:basic_hit",
+      "target": "card_martial_scholar",
+      "relation": "triggers_or_scales",
+      "mechanism": "martial_scholar"
+    },
+    {
+      "source": "bus:skill_hit",
+      "target": "card_martial_scholar",
+      "relation": "triggers_or_scales",
+      "mechanism": "martial_scholar"
+    },
+    {
+      "source": "card_martial_scholar",
+      "target": "bus:armor_shred",
+      "relation": "produces",
+      "mechanism": "martial_scholar"
+    },
+    {
+      "source": "card_martial_scholar",
+      "target": "bus:damage_amp",
+      "relation": "produces",
+      "mechanism": "martial_scholar"
+    },
+    {
+      "source": "card_martial_scholar",
+      "target": "bus:momentum",
+      "relation": "produces",
+      "mechanism": "martial_scholar"
+    },
+    {
+      "source": "bus:max_hp",
+      "target": "keystone_physique",
+      "relation": "triggers_or_scales",
+      "mechanism": "keystone_18pt"
+    },
+    {
+      "source": "bus:heal",
+      "target": "keystone_physique",
+      "relation": "triggers_or_scales",
+      "mechanism": "keystone_18pt"
+    },
+    {
+      "source": "keystone_physique",
+      "target": "bus:shield",
+      "relation": "produces",
+      "mechanism": "keystone_18pt"
+    },
+    {
+      "source": "keystone_physique",
+      "target": "bus:shield_break",
+      "relation": "produces",
+      "mechanism": "keystone_18pt"
+    },
+    {
+      "source": "bus:armor_stat",
+      "target": "keystone_thick_skin",
+      "relation": "triggers_or_scales",
+      "mechanism": "keystone_18pt"
+    },
+    {
+      "source": "bus:damaged",
+      "target": "keystone_thick_skin",
+      "relation": "triggers_or_scales",
+      "mechanism": "keystone_18pt"
+    },
+    {
+      "source": "keystone_thick_skin",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "keystone_18pt"
+    },
+    {
+      "source": "keystone_thick_skin",
+      "target": "bus:knockback",
+      "relation": "produces",
+      "mechanism": "keystone_18pt"
+    },
+    {
+      "source": "bus:ad_stat",
+      "target": "keystone_strength",
+      "relation": "triggers_or_scales",
+      "mechanism": "keystone_18pt"
+    },
+    {
+      "source": "bus:crit_stat",
+      "target": "keystone_strength",
+      "relation": "triggers_or_scales",
+      "mechanism": "keystone_18pt"
+    },
+    {
+      "source": "keystone_strength",
+      "target": "bus:damage_amp",
+      "relation": "produces",
+      "mechanism": "keystone_18pt"
+    },
+    {
+      "source": "bus:ap_stat",
+      "target": "keystone_brains",
+      "relation": "triggers_or_scales",
+      "mechanism": "keystone_18pt"
+    },
+    {
+      "source": "bus:haste_stat",
+      "target": "keystone_brains",
+      "relation": "triggers_or_scales",
+      "mechanism": "keystone_18pt"
+    },
+    {
+      "source": "bus:skill_cast",
+      "target": "keystone_brains",
+      "relation": "triggers_or_scales",
+      "mechanism": "keystone_18pt"
+    },
+    {
+      "source": "bus:reaction",
+      "target": "keystone_brains",
+      "relation": "triggers_or_scales",
+      "mechanism": "keystone_18pt"
+    },
+    {
+      "source": "keystone_brains",
+      "target": "bus:cooldown_refund",
+      "relation": "produces",
+      "mechanism": "keystone_18pt"
+    },
+    {
+      "source": "keystone_brains",
+      "target": "bus:momentum",
+      "relation": "produces",
+      "mechanism": "keystone_18pt"
+    },
+    {
+      "source": "bus:attack_speed",
+      "target": "keystone_agility",
+      "relation": "triggers_or_scales",
+      "mechanism": "keystone_18pt"
+    },
+    {
+      "source": "bus:move_speed",
+      "target": "keystone_agility",
+      "relation": "triggers_or_scales",
+      "mechanism": "keystone_18pt"
+    },
+    {
+      "source": "bus:dash",
+      "target": "keystone_agility",
+      "relation": "triggers_or_scales",
+      "mechanism": "keystone_18pt"
+    },
+    {
+      "source": "keystone_agility",
+      "target": "bus:cooldown_refund",
+      "relation": "produces",
+      "mechanism": "keystone_18pt"
+    },
+    {
+      "source": "keystone_agility",
+      "target": "bus:basic_hit",
+      "relation": "produces",
+      "mechanism": "keystone_18pt"
+    },
+    {
+      "source": "keystone_agility",
+      "target": "bus:move_speed",
+      "relation": "produces",
+      "mechanism": "keystone_18pt"
+    },
+    {
+      "source": "bus:element_apply",
+      "target": "reaction_fog",
+      "relation": "triggers_or_scales",
+      "mechanism": "fire+water"
+    },
+    {
+      "source": "reaction_fog",
+      "target": "bus:reaction",
+      "relation": "produces",
+      "mechanism": "puddle"
+    },
+    {
+      "source": "reaction_fog",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "puddle"
+    },
+    {
+      "source": "reaction_fog",
+      "target": "bus:momentum",
+      "relation": "produces",
+      "mechanism": "puddle"
+    },
+    {
+      "source": "reaction_fog",
+      "target": "bus:ground_state",
+      "relation": "produces",
+      "mechanism": "puddle"
+    },
+    {
+      "source": "bus:element_apply",
+      "target": "reaction_overload",
+      "relation": "triggers_or_scales",
+      "mechanism": "fire+electric"
+    },
+    {
+      "source": "reaction_overload",
+      "target": "bus:reaction",
+      "relation": "produces",
+      "mechanism": "fire"
+    },
+    {
+      "source": "reaction_overload",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "fire"
+    },
+    {
+      "source": "reaction_overload",
+      "target": "bus:momentum",
+      "relation": "produces",
+      "mechanism": "fire"
+    },
+    {
+      "source": "reaction_overload",
+      "target": "bus:ground_state",
+      "relation": "produces",
+      "mechanism": "fire"
+    },
+    {
+      "source": "reaction_overload",
+      "target": "bus:armor_shred",
+      "relation": "produces",
+      "mechanism": "fire"
+    },
+    {
+      "source": "bus:element_apply",
+      "target": "reaction_melt",
+      "relation": "triggers_or_scales",
+      "mechanism": "fire+chill"
+    },
+    {
+      "source": "reaction_melt",
+      "target": "bus:reaction",
+      "relation": "produces",
+      "mechanism": "puddle"
+    },
+    {
+      "source": "reaction_melt",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "puddle"
+    },
+    {
+      "source": "reaction_melt",
+      "target": "bus:momentum",
+      "relation": "produces",
+      "mechanism": "puddle"
+    },
+    {
+      "source": "reaction_melt",
+      "target": "bus:ground_state",
+      "relation": "produces",
+      "mechanism": "puddle"
+    },
+    {
+      "source": "bus:element_apply",
+      "target": "reaction_methane",
+      "relation": "triggers_or_scales",
+      "mechanism": "fire+rot"
+    },
+    {
+      "source": "reaction_methane",
+      "target": "bus:reaction",
+      "relation": "produces",
+      "mechanism": "fire"
+    },
+    {
+      "source": "reaction_methane",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "fire"
+    },
+    {
+      "source": "reaction_methane",
+      "target": "bus:momentum",
+      "relation": "produces",
+      "mechanism": "fire"
+    },
+    {
+      "source": "reaction_methane",
+      "target": "bus:ground_state",
+      "relation": "produces",
+      "mechanism": "fire"
+    },
+    {
+      "source": "bus:element_apply",
+      "target": "reaction_conduct",
+      "relation": "triggers_or_scales",
+      "mechanism": "water+electric"
+    },
+    {
+      "source": "reaction_conduct",
+      "target": "bus:reaction",
+      "relation": "produces",
+      "mechanism": "electric_field"
+    },
+    {
+      "source": "reaction_conduct",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "electric_field"
+    },
+    {
+      "source": "reaction_conduct",
+      "target": "bus:momentum",
+      "relation": "produces",
+      "mechanism": "electric_field"
+    },
+    {
+      "source": "reaction_conduct",
+      "target": "bus:ground_state",
+      "relation": "produces",
+      "mechanism": "electric_field"
+    },
+    {
+      "source": "bus:element_apply",
+      "target": "reaction_freeze",
+      "relation": "triggers_or_scales",
+      "mechanism": "water+chill"
+    },
+    {
+      "source": "reaction_freeze",
+      "target": "bus:reaction",
+      "relation": "produces",
+      "mechanism": "ice"
+    },
+    {
+      "source": "reaction_freeze",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "ice"
+    },
+    {
+      "source": "reaction_freeze",
+      "target": "bus:momentum",
+      "relation": "produces",
+      "mechanism": "ice"
+    },
+    {
+      "source": "reaction_freeze",
+      "target": "bus:ground_state",
+      "relation": "produces",
+      "mechanism": "ice"
+    },
+    {
+      "source": "reaction_freeze",
+      "target": "bus:ice_surface",
+      "relation": "produces",
+      "mechanism": "ice"
+    },
+    {
+      "source": "reaction_freeze",
+      "target": "bus:control",
+      "relation": "produces",
+      "mechanism": "ice"
+    },
+    {
+      "source": "bus:element_apply",
+      "target": "reaction_ferment",
+      "relation": "triggers_or_scales",
+      "mechanism": "water+rot"
+    },
+    {
+      "source": "reaction_ferment",
+      "target": "bus:reaction",
+      "relation": "produces",
+      "mechanism": "miasma"
+    },
+    {
+      "source": "reaction_ferment",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "miasma"
+    },
+    {
+      "source": "reaction_ferment",
+      "target": "bus:momentum",
+      "relation": "produces",
+      "mechanism": "miasma"
+    },
+    {
+      "source": "reaction_ferment",
+      "target": "bus:ground_state",
+      "relation": "produces",
+      "mechanism": "miasma"
+    },
+    {
+      "source": "bus:element_apply",
+      "target": "reaction_shatter",
+      "relation": "triggers_or_scales",
+      "mechanism": "electric+chill"
+    },
+    {
+      "source": "reaction_shatter",
+      "target": "bus:reaction",
+      "relation": "produces",
+      "mechanism": "ice"
+    },
+    {
+      "source": "reaction_shatter",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "ice"
+    },
+    {
+      "source": "reaction_shatter",
+      "target": "bus:momentum",
+      "relation": "produces",
+      "mechanism": "ice"
+    },
+    {
+      "source": "reaction_shatter",
+      "target": "bus:ground_state",
+      "relation": "produces",
+      "mechanism": "ice"
+    },
+    {
+      "source": "reaction_shatter",
+      "target": "bus:ice_surface",
+      "relation": "produces",
+      "mechanism": "ice"
+    },
+    {
+      "source": "bus:element_apply",
+      "target": "reaction_corrode",
+      "relation": "triggers_or_scales",
+      "mechanism": "electric+rot"
+    },
+    {
+      "source": "reaction_corrode",
+      "target": "bus:reaction",
+      "relation": "produces",
+      "mechanism": "miasma"
+    },
+    {
+      "source": "reaction_corrode",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "miasma"
+    },
+    {
+      "source": "reaction_corrode",
+      "target": "bus:momentum",
+      "relation": "produces",
+      "mechanism": "miasma"
+    },
+    {
+      "source": "reaction_corrode",
+      "target": "bus:ground_state",
+      "relation": "produces",
+      "mechanism": "miasma"
+    },
+    {
+      "source": "reaction_corrode",
+      "target": "bus:armor_shred",
+      "relation": "produces",
+      "mechanism": "miasma"
+    },
+    {
+      "source": "bus:element_apply",
+      "target": "reaction_frostbite",
+      "relation": "triggers_or_scales",
+      "mechanism": "chill+rot"
+    },
+    {
+      "source": "reaction_frostbite",
+      "target": "bus:reaction",
+      "relation": "produces",
+      "mechanism": "miasma"
+    },
+    {
+      "source": "reaction_frostbite",
+      "target": "bus:damage_instance",
+      "relation": "produces",
+      "mechanism": "miasma"
+    },
+    {
+      "source": "reaction_frostbite",
+      "target": "bus:momentum",
+      "relation": "produces",
+      "mechanism": "miasma"
+    },
+    {
+      "source": "reaction_frostbite",
+      "target": "bus:ground_state",
+      "relation": "produces",
+      "mechanism": "miasma"
+    }
+  ]
+}

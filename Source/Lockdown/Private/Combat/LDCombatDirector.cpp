@@ -8,6 +8,7 @@ ALDCombatDirector::ALDCombatDirector()
     PrimaryActorTick.bCanEverTick=true;
     PrimaryActorTick.TickGroup=TG_PrePhysics;
     CritRandom.GenerateNewSeed();
+    Proto=LDProto::Settings();
 }
 
 void ALDCombatDirector::Tick(float Delta)

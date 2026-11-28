@@ -88,6 +88,9 @@ public:
     // DEV test session (Transactions permit): FLDCampMatchState::DevRefreshNow at the permit boundary; the next
     // RespawnsAndWorld refreshes them through AdvanceCamps. OutWaiting is the number of cleared camps.
     bool DevRefreshCleared(const FLDGameplayWritePermit& Permit, int32& OutWaiting, FString& Error);
+    // Build evaluation (duel_site clear_camps, no player route): once every initial camp stands, the next AdvanceCamps
+    // retires every camp group without a death or reward and holds it empty until the next field segment's reset.
+    void RequestEvaluationClear() { bEvaluationClearPending = true; }
 #endif
 
     // Vision publication of a currently registered camp member; see FLDCampMatchState::AppendObservedFacts.
@@ -169,6 +172,9 @@ private:
     // Contenders already paid the audit affix's skill point this match (AFFIX.AuditSkillPointsMax each).
     TMap<FGuid, int32> AuditPointsPaid;
     bool bBossBlockedLogged = false;
+    // The Boss's last refused walk (logged once until it changes or a plan succeeds) and when it may plan again.
+    FString BossPathRefusal;
+    double BossPathRetryAt = 0;
     uint64 BossSequence = 0;
     // Roster index of the next initial camp to spawn; NumCamps once every camp stood up (MAX_int32 before the match).
     int32 NextInitialCamp = MAX_int32;
@@ -181,6 +187,8 @@ private:
     uint64 InitialBatchFrame = MAX_uint64;
     // GFrameCounter of the last batch of PrepareFieldSegmentAhead.
     uint64 FieldResetFrame = MAX_uint64;
+    // RequestEvaluationClear: the clear waits for the initial camps.
+    bool bEvaluationClearPending = false;
     void BeginFieldReset(uint8 SegmentIndex);
     bool RetireCampForReset(int32 Camp, const FLDGameplayWritePermit& Permit, FString& Error);
     // Stands one pending group of the reset up suspended; bBlocked when its placement must wait.

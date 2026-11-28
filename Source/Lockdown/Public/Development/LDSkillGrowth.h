@@ -21,7 +21,7 @@ namespace LDSkillGrowth
     LOCKDOWN_API bool GrowEffect(const FLDDemoEffectDefinition& Authored, int64 FactorBp, FLDDemoEffectDefinition& Out);
     // The AD/AP/max-HP coefficients of an effect times RatioBp; false on overflow.
     LOCKDOWN_API bool ScaleRatios(FLDDemoEffectDefinition& InOut, int64 RatioBp);
-    // Every effect of Values: its growing amounts times BaseBp and its ratios times RatioBp (rank and overdrive scaling).
+    // Every effect of Values: its growing amounts times BaseBp and its ratios times RatioBp (rank and share scaling).
     LOCKDOWN_API bool ScaleValues(FLDDemoAbilityValues& InOut, int64 BaseBp, int64 RatioBp);
     // The rank scales of Rank 1..3 (basis points); false for another rank or a malformed table.
     LOCKDOWN_API bool RankScales(const FLDDemoSkillRankParameters& Ranks, uint8 Rank, int64& OutBaseBp, int64& OutRatioBp);

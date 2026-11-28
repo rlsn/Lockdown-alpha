@@ -138,7 +138,7 @@ def target(value=None):
     }
 
 
-TRIGGERS = ("None", "BasicHit", "AbilityHit", "Damaged", "DashComplete", "PerfectDodge", "AttackSpeedBelow", "MoveSpeedAbove")
+TRIGGERS = ("None", "BasicHit", "AbilityHit", "Damaged", "DashComplete", "AttackSpeedBelow", "MoveSpeedAbove")
 # ELDDemoElement, ELDCardForm and ELDCardType in declaration order.
 ELEMENTS = ("none", "fire", "water", "electric", "chill", "rot", "gust")
 CARD_FORMS = ("", "skill", "dash", "body", "medal")
@@ -176,7 +176,7 @@ def effect(value):
         # #198 F workshop terms.
         ("damage_ratio", "MultiplierBp"), ("cooldown_ratio", "SecondaryRatioBp"), ("cost_ratio", "CostRatioBp"),
         ("stun_duration", "SecondaryDurationMs"), ("root_duration", "SecondaryDurationMs"), ("cap_ratio", "MultiplierBp"),
-        ("burn_ratio", "RatioBp"),
+        ("burn_ratio", "RatioBp"), ("shield_cap", "SecondaryRatioBp"),
         # Y09's own skill crit chance.
         ("chance", "RatioBp"),
     ):
@@ -266,10 +266,6 @@ def card_terms(value, result):
         result["DistanceCm"] = rational(value["far"]) if "far" in value else rational()
         result["SecondaryRatioBp"] = scalar(value["far_ratio"]) if "far_ratio" in value else 0
         result["CostRatioBp"] = scalar(value["control"]) if "control" in value else 0
-    elif op == "overdrive_short":
-        result["BaseP2"] = 0
-        result["LimitP2"] = scalar(value["momentum"])
-        result["MultiplierBp"] = scalar(value["multiplier"])
     elif op == "dash_ram":
         result["DamageType"] = 0
     elif op == "tally":
@@ -292,11 +288,6 @@ def card_terms(value, result):
         result["RatioBp"] = scalar(value["speed_ratio"])
         result["SecondaryRatioBp"] = scalar(value["distance_ratio"])
         result["CostRatioBp"] = scalar(value["wall_refund"])
-        result["DamageType"] = 0
-    elif op == "phantom_molt":
-        result["RatioBp"] = scalar(value["slow_ratio"])
-        result["DurationMs"] = scalar(value["slow_duration"])
-        result["SecondaryDurationMs"] = 0
         result["DamageType"] = 0
     elif op == "skate_blade":
         result["DamageType"] = 0
@@ -423,6 +414,8 @@ def branch_terms(value, result):
             result["BaseP2"] = scalar(value["base"])
         if "breach" in value:
             result["BasicCount"] = value["breach"]
+        if "windup_scale" in value:
+            result["MultiplierBp"] = scalar(value["windup_scale"])
     elif op == "ground_impact" and "linger" in value:
         result["SecondaryDurationMs"] = scalar(value["linger"])
     elif op == "contact_trap":
@@ -791,23 +784,38 @@ def parameter_projection(parameters):
         "BasicPerRefP2": scalar(parameters["MOMENTUM.BasicPerRefInterval"]),
         "BasicRefIntervalMs": scalar(parameters["MOMENTUM.BasicRefIntervalSec"]),
         "SkillHitP2": scalar(parameters["MOMENTUM.SkillHit"]), "ReactionP2": scalar(parameters["MOMENTUM.Reaction"]),
-        "PerfectDodgeP2": scalar(parameters["MOMENTUM.PerfectDodge"]),
-        "PerfectDodgeWindowMs": scalar(parameters["MOMENTUM.PerfectDodgeWindowSec"]),
-        "DashDodgeWindowMs": scalar(parameters["MOMENTUM.DashDodgeWindowSec"]),
-        "DashDodgeCutBp": scalar(parameters["MOMENTUM.DashDodgeCutRatio"]),
-        "DashDodgeCooldownRefundBp": scalar(parameters["MOMENTUM.DashDodgeCooldownRefundRatio"]),
         "IdleDelayMs": scalar(parameters["MOMENTUM.IdleDelaySec"]),
         "IdleReturnPerSec": rational(parameters["MOMENTUM.IdleReturnPerSec"]),
     }
     result["Combo"] = {"StepRatiosBp": [scalar(value) for value in parameters["COMBO.StepRatios"]],
                        "ResetMs": scalar(parameters["COMBO.ResetSec"])}
-    result["Overdrive"] = {
-        "ThresholdP2": scalar(parameters["OVERDRIVE.Threshold"]), "HoldMs": scalar(parameters["OVERDRIVE.HoldSec"]),
-        "ScaleBp": scalar(parameters["OVERDRIVE.Scale"]), "FireBurnStacks": parameters["OVERDRIVE.FireBurnStacks"],
-        "WaterSlowBp": scalar(parameters["OVERDRIVE.WaterSlow"]), "WaterSlowMs": scalar(parameters["OVERDRIVE.WaterSlowSec"]),
-        "ShockReactionBp": scalar(parameters["OVERDRIVE.ShockReactionRatio"]),
-        "RotDurationBp": scalar(parameters["OVERDRIVE.RotDurationScale"]),
-        "ChillRootMs": scalar(parameters["OVERDRIVE.ChillRootSec"]),
+    result["Empower"] = {
+        "bEnabled": parameters["EMPOWER.Enabled"] != 0,
+        "ThresholdP2": scalar(parameters["EMPOWER.Threshold"]), "CostP2": scalar(parameters["EMPOWER.Cost"]),
+        "CombatPerSec": rational(parameters["EMPOWER.CombatPerSec"]),
+        "SkillHitTargets": parameters["EMPOWER.SkillHitTargets"],
+        "DerivedReactionP2": scalar(parameters["EMPOWER.DerivedReaction"]),
+        "DamagedPerPercentP2": scalar(parameters["EMPOWER.DamagedPerPercent"]),
+        "StrikeWindupMs": scalar(parameters["EMPOWER.StrikeExtraWindupSec"]),
+        "FistConeLengthCm": rational(parameters["EMPOWER.FistConeLengthCm"]),
+        "FistConeAngleDegrees": rational(parameters["EMPOWER.FistConeAngleDeg"]),
+        "FistConeRatioBp": scalar(parameters["EMPOWER.FistConeRatio"]),
+        "FistPushCm": rational(parameters["EMPOWER.FistPushCm"]),
+        "DashContactCap": parameters["EMPOWER.DashContactCap"],
+        "QuakeRadiusCm": rational(parameters["EMPOWER.QuakeRadiusCm"]),
+        "QuakeSlowBp": scalar(parameters["EMPOWER.QuakeSlow"]), "QuakeSlowMs": scalar(parameters["EMPOWER.QuakeSlowSec"]),
+        "ShapeScaleBp": scalar(parameters["EMPOWER.ShapeScale"]), "ExtraCount": parameters["EMPOWER.ExtraCount"],
+        "GuardBurstRatioBp": scalar(parameters["EMPOWER.GuardBurstRatio"]),
+        "GuardBurstRadiusCm": rational(parameters["EMPOWER.GuardBurstRadiusCm"]),
+        "WardFuseMs": scalar(parameters["EMPOWER.WardFuseSec"]),
+        "GroundLifeMs": scalar(parameters["EMPOWER.GroundSec"]), "WallStunMs": scalar(parameters["EMPOWER.WallStunSec"]),
+        "CounterStunMs": scalar(parameters["EMPOWER.CounterStunSec"]), "TouchStunMs": scalar(parameters["EMPOWER.TouchStunSec"]),
+        "ConeAngleScaleBp": scalar(parameters["EMPOWER.ConeAngleScale"]),
+        "FireBurnStacks": parameters["EMPOWER.ElementFireBurnStacks"],
+        "WaterSlowBp": scalar(parameters["EMPOWER.ElementWaterSlow"]), "WaterSlowMs": scalar(parameters["EMPOWER.ElementWaterSlowSec"]),
+        "ShockReactionBp": scalar(parameters["EMPOWER.ElementShockReactionRatio"]),
+        "RotDurationBp": scalar(parameters["EMPOWER.ElementRotDurationScale"]),
+        "ChillRootMs": scalar(parameters["EMPOWER.ElementChillRootSec"]),
     }
     result["SkillRanks"] = {
         "RankBaseScaleBp": [scalar(value) for value in parameters["SKILL.RankBaseScale"]],
@@ -876,6 +884,7 @@ def expected_projection(compilation):
             "Branches": [{
                 "Path": ("None", "A", "B", "A1", "A2", "B1", "B2").index(branch["path"]), "Target": target(branch["target"]),
                 "WindupMs": scalar(branch["windup"]), "Element": SKILL_ELEMENTS.index(branch["element"]),
+                "InterruptCooldownBp": scalar(branch["interrupt_cooldown"]) if "interrupt_cooldown" in branch else 0,
                 "HitType": HIT_TYPES.index(branch["hit_type"]), "VocabMask": vocab_mask(branch.get("vocab", [])),
                 "Values": values(branch),
             } for branch in row["branches"]],

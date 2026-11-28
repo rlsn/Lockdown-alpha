@@ -114,15 +114,6 @@ private:
         int64 SentAtMs = 0;
         int32 Attempts = 0;
     };
-    // An overdrive charge this adapter holds before it sends the release (OVERDRIVE.HoldSec).
-    struct FChargeTrack
-    {
-        bool bHas = false;
-        uint32 Life = 0;
-        ELDCombatEntry Entry = ELDCombatEntry::None;
-        int64 StartMs = 0;
-    };
-    FChargeTrack Charge;
     // The latest direct action; it owns the body until its receipt is final.
     struct FActionTrack
     {
@@ -155,9 +146,14 @@ private:
     bool ReadCapturePath(const FVector& FootCm, double& OutCm, FString& Error) const;
     void SettleOrders(const FReads& Reads, const FLDOpponentDecisionFrame& Frame, int64 NowMs, FString& Problem);
     // Spec §13 path cost: the cheapest of the direct walk and one detour around each enemy ground state in the way, by
-    // GroundWeightedCm over real registry paths. True when a detour waypoint replaced the goal (Out); false keeps it.
+    // GroundWeightedCm over real registry paths. A direct walk that runs into a visible camp member within
+    // BodyLookaheadCm is replaced by a detour around that body (B01 T03-02). True when a detour waypoint replaced the goal
+    // (Out); false keeps it. bOnlyBodies: only a walk blocked by a body is replaced (a kept walk's later check).
     bool RouteAroundGrounds(const FLDOpponentDecisionFrame& Frame, const FVector& FootCm, const FLDSpatialOrderRequest& Request,
-        FVector& Out) const;
+        FVector& Out, bool bOnlyBodies = false, const FLDOpponentUnit** OutWalling = nullptr) const;
+    // B01 T03-02: every BodyRerouteIntervalMs while a kept ground walk has a camp member within BodyLookaheadCm, its route
+    // from the current foot is checked again and a detour leg is sent when that member blocks it.
+    void KeepWalkClearOfBodies(const FReads& Reads, const FLDOpponentDecisionFrame& Frame, int64 NowMs, FString& Problem);
     // Sends one ground-walk leg of Intent and makes it the candidate; false when refused on receipt or out of identities.
     bool SubmitWalk(const FReads& Reads, const FLDOpponentBodyIntent& Intent, FLDSpatialOrderRequest Request, bool bDetour,
         const FVector& FinalGroundCm, const FLDOpponentSelf& Self, int64 NowMs, FString& Problem);
@@ -165,8 +161,6 @@ private:
     void SettleDirectAction(ALDGameMode& Mode, const FReads& Reads, const FLDOpponentSelf& Self, int64 NowMs, FString& Problem);
     void SettleBuild(ALDGameMode& Mode, const FLDOpponentSelf& Self, int64 NowMs, FString& Problem);
     void ComposeFrame(FLDOpponentDecisionFrame& Frame) const;
-    // Ends the AI's own charge on the authority and forgets it (the intent changed or the charge is stale).
-    void AbandonCharge(ALDGameMode& Mode, const FReads& Reads);
     void DispatchBody(ALDGameMode& Mode, const FReads& Reads, const FLDOpponentDecisionFrame& Frame,
         const FLDOpponentBodyIntent& Intent, int64 NowMs, FString& Problem);
     void DispatchBuild(ALDGameMode& Mode, const FReads& Reads, const FLDOpponentDecisionFrame& Frame,
@@ -179,6 +173,9 @@ private:
     void ForgetBodyWork();
     void Report(const FLDOpponentDecisionFrame& Frame, const FLDOpponentDecision& Decision, const FString& Problem);
     void NoteContest(const FLDOpponentDecisionFrame& Frame, const FLDOpponentDecision& Decision);
+    // B01: one LD_AI_DODGE line per enemy warning that covered the own foot: when a dash out of it is sent, or when it
+    // ends (landed or out of sight) undodged, with what held the dash back at the last decision inside its window.
+    void WatchDodges(const FLDOpponentDecisionFrame& Frame, const FLDOpponentDecision& Decision, int64 NowMs);
     void ReportTally();
 
     FLDAIContenderBinding Binding;
@@ -200,6 +197,27 @@ private:
     // Build request ids from 1, consumed only when the domain reserved the sequence.
     uint64 BuildRequestId = 1;
     int64 NextDecisionAtMs = 0;
+    int64 NextBodyRouteAtMs = 0;
+    // B01 T03-02: the camp member last found walling off the kept walk, published to the policy until UntilMs.
+    struct FWalled
+    {
+        FGuid Handle;
+        uint32 Epoch = 0;
+        int64 UntilMs = 0;
+    };
+    // Renewed by ComposeFrame while the own attack on it is still under way.
+    mutable FWalled Walled;
+    struct FDodgeWatch
+    {
+        FName Source;
+        int64 SeenAtMs = 0, ImpactAtMs = 0, LastRemainingMs = 0;
+        bool bCovered = false, bEverCovered = false, bDashed = false;
+        // What held the dash back at the last decision inside the dodge window ("early": none fell inside it).
+        const TCHAR* Reason = TEXT("early");
+    };
+    // WatchDodges: the covering warnings of the current life by handle.
+    TMap<FGuid, FDodgeWatch> DodgeWatch;
+    uint32 DodgeLife = 0;
     bool bClosed = false;
     bool bRetiring = false;
     bool bTallyReported = false;
@@ -219,6 +237,10 @@ private:
     // DEV build evaluation (-LDBuildEvaluation only): the profile the Host probe staged for this contender, taken at bind.
     // It replaces only the decision; frames, requests, receipts and failure memory stay this adapter's.
     TSharedPtr<FLDEvaluationRun> Evaluation;
+    // WarningReactMs: true once (per warning) when a warning on the own foot, seen at every tick, has been in sight for the
+    // reaction time and lands within LDOpponentPolicy::DodgeLeadMs, so the decision comes then, not at the next interval.
+    bool EvaluationWarningDue(ALDGameMode& Mode, int64 NowMs);
+    TSet<FGuid> WarningsDecided;
 #endif
     FLDMatchContext RetiringMatch;
     ELDOpponentMode ReportedMode = ELDOpponentMode::Stopped;

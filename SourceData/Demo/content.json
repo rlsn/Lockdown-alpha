@@ -204,14 +204,6 @@
       "unit": "momentum",
       "value": 10
     },
-    "MOMENTUM.PerfectDodge": {
-      "unit": "momentum",
-      "value": 20
-    },
-    "MOMENTUM.PerfectDodgeWindowSec": {
-      "unit": "s",
-      "value": 0.3
-    },
     "MOMENTUM.IdleDelaySec": {
       "unit": "s",
       "value": 5
@@ -238,24 +230,38 @@
       "unit": "s",
       "value": 2.5
     },
-    "OVERDRIVE.Threshold": {
-      "unit": "momentum",
-      "value": 60
-    },
-    "OVERDRIVE.HoldSec": {
-      "unit": "s",
-      "value": 0.35
-    },
-    "OVERDRIVE.Scale": {
-      "unit": "ratio",
-      "value": 1.35
-    },
-    "OVERDRIVE.FireBurnStacks": 3,
-    "OVERDRIVE.WaterSlow": {"unit": "ratio", "value": 0.45},
-    "OVERDRIVE.WaterSlowSec": {"unit": "s", "value": 1.5},
-    "OVERDRIVE.ShockReactionRatio": {"unit": "ratio", "value": 0.5},
-    "OVERDRIVE.RotDurationScale": {"unit": "ratio", "value": 2},
-    "OVERDRIVE.ChillRootSec": {"unit": "s", "value": 0.6},
+    "EMPOWER.Enabled": 0,
+    "EMPOWER.Threshold": {"unit": "momentum", "value": 60},
+    "EMPOWER.Cost": {"unit": "momentum", "value": 50},
+    "EMPOWER.CombatPerSec": {"unit": "momentum/s", "value": 2.5},
+    "EMPOWER.SkillHitTargets": 3,
+    "EMPOWER.DerivedReaction": {"unit": "momentum", "value": 0},
+    "EMPOWER.DamagedPerPercent": {"unit": "momentum", "value": 0},
+    "EMPOWER.StrikeExtraWindupSec": {"unit": "s", "value": 0.1},
+    "EMPOWER.FistConeLengthCm": {"unit": "cm", "value": 300},
+    "EMPOWER.FistConeAngleDeg": {"unit": "degrees", "value": 60},
+    "EMPOWER.FistConeRatio": {"unit": "ratio", "value": 0.5},
+    "EMPOWER.FistPushCm": {"unit": "cm", "value": 120},
+    "EMPOWER.DashContactCap": 3,
+    "EMPOWER.QuakeRadiusCm": {"unit": "cm", "value": 200},
+    "EMPOWER.QuakeSlow": {"unit": "ratio", "value": 0.3},
+    "EMPOWER.QuakeSlowSec": {"unit": "s", "value": 1},
+    "EMPOWER.ShapeScale": {"unit": "ratio", "value": 1.4},
+    "EMPOWER.ExtraCount": 2,
+    "EMPOWER.GuardBurstRatio": {"unit": "ratio", "value": 0.4},
+    "EMPOWER.GuardBurstRadiusCm": {"unit": "cm", "value": 300},
+    "EMPOWER.WardFuseSec": {"unit": "s", "value": 0.15},
+    "EMPOWER.GroundSec": {"unit": "s", "value": 3},
+    "EMPOWER.WallStunSec": {"unit": "s", "value": 0.6},
+    "EMPOWER.CounterStunSec": {"unit": "s", "value": 0.5},
+    "EMPOWER.TouchStunSec": {"unit": "s", "value": 0.6},
+    "EMPOWER.ConeAngleScale": {"unit": "ratio", "value": 2},
+    "EMPOWER.ElementFireBurnStacks": 3,
+    "EMPOWER.ElementWaterSlow": {"unit": "ratio", "value": 0.45},
+    "EMPOWER.ElementWaterSlowSec": {"unit": "s", "value": 1.5},
+    "EMPOWER.ElementShockReactionRatio": {"unit": "ratio", "value": 0.5},
+    "EMPOWER.ElementRotDurationScale": {"unit": "ratio", "value": 2},
+    "EMPOWER.ElementChillRootSec": {"unit": "s", "value": 0.6},
     "UNIT.MoveSpeedCmPerSec": {"unit": "cm/s", "value": 240},
     "STAT.MoveSpeed.Min": {"unit": "cm/s", "value": 138.4},
     "STAT.MoveSpeed.Max": {"unit": "cm/s", "value": 540},
@@ -1379,18 +1385,6 @@
     },
     "GROUND.MaxPerOwner": 6,
     "GROUND.MaxTotal": 40,
-    "MOMENTUM.DashDodgeWindowSec": {
-      "unit": "s",
-      "value": 0.12
-    },
-    "MOMENTUM.DashDodgeCutRatio": {
-      "unit": "ratio",
-      "value": 0.5
-    },
-    "MOMENTUM.DashDodgeCooldownRefundRatio": {
-      "unit": "ratio",
-      "value": 0.3
-    },
     "SHOWDOWN.SprayRatchetSec": [
       {
         "unit": "s",
@@ -1865,7 +1859,7 @@
         },
         "2B": {
           "name": "抽裤腰带",
-          "text": "抓扯射程延长，未抓中人时挥出气劲使前方敌人减速 [grab_line.ratio]%，持续 [grab_line.duration] 秒。",
+          "text": "抓扯射程延长，未抓中人时挥出气劲使前方敌人减速 [grab_line.ratio]%，持续 [grab_line.duration] 秒；起手更慢。",
           "patches": [
             {
               "op": "target",
@@ -1890,6 +1884,17 @@
               "value": {
                 "unit": "s",
                 "value": 1.2
+              }
+            },
+            {
+              "op": "windup",
+              "value": {
+                "unit": "s",
+                "value": 0.28
+              },
+              "interrupt_cooldown": {
+                "unit": "ratio",
+                "value": 0.5
               }
             }
           ]
@@ -2040,7 +2045,7 @@
       "ranks": {
         "2A": {
           "name": "蓄势黑手",
-          "text": "滑步探爪拉长至 [dash.distance] 厘米，命中伤害大幅提高。",
+          "text": "滑步探爪拉长至 [dash.distance] 厘米，命中伤害大幅提高，起手更慢。",
           "patches": [
             {
               "op": "set",
@@ -2059,6 +2064,17 @@
                 "adaptive_ratio"
               ],
               "ratio": 1.35
+            },
+            {
+              "op": "windup",
+              "value": {
+                "unit": "s",
+                "value": 0.3
+              },
+              "interrupt_cooldown": {
+                "unit": "ratio",
+                "value": 0.5
+              }
             }
           ]
         },
@@ -2115,7 +2131,7 @@
         },
         "2B": {
           "name": "掏完就溜",
-          "text": "得手瞬间轻巧翻滚 [dash_back.distance] 厘米并享有完美闪避窗口。",
+          "text": "得手瞬间轻巧翻滚 [dash_back.distance] 厘米。",
           "patches": [
             {
               "op": "add",
@@ -3720,7 +3736,7 @@
         },
         "2B": {
           "name": "狠抽",
-          "text": "强化 [empower_basic.count] 次，每次伤害更高。",
+          "text": "强化 [empower_basic.count] 次，每次伤害更高，强化的普攻出手更慢。",
           "patches": [
             {
               "op": "set",
@@ -3737,6 +3753,15 @@
                 "ap_ratio"
               ],
               "ratio": 1.8
+            },
+            {
+              "op": "set",
+              "effect": "empower_basic",
+              "field": "windup_scale",
+              "value": {
+                "unit": "ratio",
+                "value": 1.6
+              }
             }
           ]
         },
@@ -4904,7 +4929,7 @@
         },
         "2B": {
           "name": "长途奔袭",
-          "text": "冲撞距离提高到 [dash.distance] 厘米，推开距离提高到 [knockback.distance] 厘米。",
+          "text": "冲撞距离提高到 [dash.distance] 厘米，推开距离提高到 [knockback.distance] 厘米，起手更慢。",
           "patches": [
             {
               "op": "set",
@@ -4922,6 +4947,17 @@
               "value": {
                 "unit": "cm",
                 "value": 280
+              }
+            },
+            {
+              "op": "windup",
+              "value": {
+                "unit": "s",
+                "value": 0.3
+              },
+              "interrupt_cooldown": {
+                "unit": "ratio",
+                "value": 0.5
               }
             }
           ]
@@ -7105,20 +7141,6 @@
       ]
     },
     {
-      "id": "card_dodge_strike",
-      "form": "dash",
-      "type": "trigger",
-      "vocab": [
-        "perfect_dodge",
-        "momentum"
-      ],
-      "effects": [
-        {
-          "op": "dodge_free_cast"
-        }
-      ]
-    },
-    {
       "id": "card_double_dash",
       "form": "dash",
       "type": "modify",
@@ -7210,28 +7232,6 @@
           "momentum": {
             "unit": "momentum",
             "value": 15
-          }
-        }
-      ]
-    },
-    {
-      "id": "card_slippery",
-      "form": "dash",
-      "type": "grow",
-      "vocab": [
-        "perfect_dodge",
-        "move_speed"
-      ],
-      "effects": [
-        {
-          "op": "hit_growth",
-          "trigger": "PerfectDodge",
-          "count": 1,
-          "stats": {
-            "MoveSpeedBonusRatio": {
-              "unit": "ratio",
-              "value": 0.015
-            }
           }
         }
       ]
@@ -7481,29 +7481,6 @@
       "effects": [
         {
           "op": "lifesteal_skills"
-        }
-      ]
-    },
-    {
-      "id": "card_short_breath",
-      "form": "body",
-      "type": "modify",
-      "vocab": [
-        "overdrive",
-        "momentum"
-      ],
-      "drop_weight": 22,
-      "effects": [
-        {
-          "op": "overdrive_short",
-          "momentum": {
-            "unit": "momentum",
-            "value": 35
-          },
-          "multiplier": {
-            "unit": "ratio",
-            "value": 1.4
-          }
         }
       ]
     },
@@ -7873,6 +7850,10 @@
             "unit": "ratio",
             "value": 0.3
           },
+          "shield_cap": {
+            "unit": "ratio",
+            "value": 0.3
+          },
           "duration": {
             "unit": "s",
             "value": 3
@@ -8115,45 +8096,6 @@
           "wall_refund": {
             "unit": "ratio",
             "value": 0.4
-          }
-        }
-      ]
-    },
-    {
-      "id": "card_phantom_molt",
-      "form": "dash",
-      "type": "trigger",
-      "vocab": [
-        "perfect_dodge",
-        "dash",
-        "area"
-      ],
-      "effects": [
-        {
-          "op": "phantom_molt",
-          "delay": {
-            "unit": "s",
-            "value": 1
-          },
-          "radius": {
-            "unit": "cm",
-            "value": 240
-          },
-          "base": {
-            "unit": "points",
-            "value": 70
-          },
-          "adaptive_ratio": {
-            "unit": "ratio",
-            "value": 0.75
-          },
-          "slow_ratio": {
-            "unit": "ratio",
-            "value": 0.3
-          },
-          "slow_duration": {
-            "unit": "s",
-            "value": 1.5
           }
         }
       ]
@@ -10447,7 +10389,7 @@
       "name_key": "card_fist_skill.name",
       "name_text": "拳里带招",
       "description_key": "card_fist_skill.description",
-      "description_text": "第三段命中时，以 [combo_cast.multiplier]% 效果放出 Q 技能，不耗劲、不进冷却、不触发爆劲。",
+      "description_text": "第三段命中时，以 [combo_cast.multiplier]% 效果放出 Q 技能，不耗劲、不进冷却。",
       "icon_id": "icon_card_fist_skill"
     },
     {
@@ -10703,15 +10645,6 @@
       "icon_id": "icon_card_dash_punch"
     },
     {
-      "id": "card_dodge_strike",
-      "namespace": "DemoContent",
-      "name_key": "card_dodge_strike.name",
-      "name_text": "闪完就打",
-      "description_key": "card_dodge_strike.description",
-      "description_text": "完美闪避后，你的下一个技能不耗劲。",
-      "icon_id": "icon_card_dodge_strike"
-    },
-    {
       "id": "card_double_dash",
       "namespace": "DemoContent",
       "name_key": "card_double_dash.name",
@@ -10746,15 +10679,6 @@
       "description_key": "card_paid_dash.description",
       "description_text": "冲刺消耗 [cooldown_cost.limit] 劲，冷却变为 [cooldown_cost.secondary_ratio]%。",
       "icon_id": "icon_card_paid_dash"
-    },
-    {
-      "id": "card_slippery",
-      "namespace": "DemoContent",
-      "name_key": "card_slippery.name",
-      "name_text": "越躲越快",
-      "description_key": "card_slippery.description",
-      "description_text": "每次完美闪避，本局移速 +[hit_growth.MoveSpeedBonusRatio]%，没有上限。",
-      "icon_id": "icon_card_slippery"
     },
     {
       "id": "card_ice_trail",
@@ -10863,15 +10787,6 @@
       "description_key": "card_skill_drain.description",
       "description_text": "你的吸血也按技能实际造成的生命伤害生效。",
       "icon_id": "icon_card_skill_drain"
-    },
-    {
-      "id": "card_short_breath",
-      "namespace": "DemoContent",
-      "name_key": "card_short_breath.name",
-      "name_text": "气短",
-      "description_key": "card_short_breath.description",
-      "description_text": "劲到 [overdrive_short.limit] 就能爆劲，爆劲倍率变为 [overdrive_short.multiplier]%。",
-      "icon_id": "icon_card_short_breath"
     },
     {
       "id": "card_double_stall",
@@ -11032,7 +10947,7 @@
       "name_key": "card_burn_guard.name",
       "name_text": "烧着还挺扛揍",
       "description_key": "card_burn_guard.description",
-      "description_text": "你造成的灼烧伤害的 [overheal_shield.ratio]% 变成护盾，持续 [overheal_shield.duration] 秒。",
+      "description_text": "你造成的灼烧伤害的 [overheal_shield.ratio]% 变成护盾，持续 [overheal_shield.duration] 秒；这张牌的护盾最多 [overheal_shield.secondary_ratio]% 生命上限。",
       "icon_id": "icon_card_burn_guard"
     },
     {
@@ -11791,15 +11706,6 @@
       "description_key": "card_runaway_train.description",
       "description_text": "冲刺与位移碰撞额外造成当前移速 [runaway_train.ratio]% 加冲刺距离 [runaway_train.secondary_ratio]% 的物理伤害；把敌人撞上墙时返还冲刺 [runaway_train.cost_ratio]% 剩余冷却。",
       "icon_id": "icon_card_runaway_train"
-    },
-    {
-      "id": "card_phantom_molt",
-      "namespace": "DemoContent",
-      "name_key": "card_phantom_molt.name",
-      "name_text": "幻影脱壳",
-      "description_key": "card_phantom_molt.description",
-      "description_text": "触发完美闪避时在原地留下嘲讽野怪的残影，[phantom_molt.delay] 秒后自爆对 [phantom_molt.radius] 厘米内敌人造成 [phantom_molt.amount] 自适应伤害并减速 [phantom_molt.ratio]%，持续 [phantom_molt.duration] 秒。",
-      "icon_id": "icon_card_phantom_molt"
     },
     {
       "id": "card_skate_blade",

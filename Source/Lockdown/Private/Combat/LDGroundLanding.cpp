@@ -55,3 +55,43 @@ bool LDGroundLanding::Resolve(const ULDMapRegistry& Registry, const FVector& Cas
     }
     return true;
 }
+
+bool LDGroundLanding::ResolvePush(const ULDMapRegistry& Registry, const FVector& Foot, const FVector& Direction, double DistanceCm,
+    const FCollisionShape& Capsule, double& OutCm, FString& Error)
+{
+    OutCm=0;
+    const auto* Geometry=Registry.GetGeometry();
+    if (!Registry.Enabled() || !Geometry || Geometry->Surfaces.IsEmpty())
+    { Error=TEXT("A push requires the registered ground surface."); return false; }
+    const FVector Planar=FVector(Direction.X,Direction.Y,0).GetSafeNormal();
+    if (Planar.IsNearlyZero() || !FMath::IsFinite(DistanceCm) || DistanceCm<=0)
+    { Error=TEXT("A push needs a planar direction and a positive distance."); return false; }
+    const FName Surface(*Geometry->Surfaces[0].Id);
+    const int32 Steps=FMath::Max(1,FMath::CeilToInt(DistanceCm/PushStepCm));
+    double PreviousCm=0, PreviousZ=Foot.Z;
+    for (int32 Step=1; Step<=Steps; ++Step)
+    {
+        const double Cm=FMath::Min(DistanceCm,Step*PushStepCm);
+        FVector Point=Foot+Planar*Cm;
+        FVector Normal;
+        if (!Registry.ResolveWalkableGround(FVector2D(Point.X,Point.Y),Point,&Normal))
+        {
+            Registry.GetTerrain().Ground(FVector2D(Point.X,Point.Y),Point.Z,Normal);
+        }
+        FLDLegalGround Ground;
+        ELDWorldQueryFailure Failure=ELDWorldQueryFailure::None;
+        if (!Registry.QueryGround(Registry.Revision(),Point,Capsule,Surface,Ground,Failure,Error))
+        {
+            if (Failure!=ELDWorldQueryFailure::Blocked && Failure!=ELDWorldQueryFailure::NotGrounded
+                && Failure!=ELDWorldQueryFailure::WrongSurface && Failure!=ELDWorldQueryFailure::InvalidPosition) { return false; }
+            Error.Reset();
+            break;
+        }
+        // A rise steeper than about 50 degrees between two samples is a ledge or a platform's side, not a slope.
+        if (FMath::Abs(Ground.FootCm.Z-PreviousZ)>(Cm-PreviousCm)*1.2+5.) { break; }
+        PreviousCm=OutCm=Cm;
+        PreviousZ=Ground.FootCm.Z;
+    }
+    Error.Reset();
+    return true;
+}

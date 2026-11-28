@@ -1,0 +1,68 @@
+{
+ "price40_base0": {
+  "first_min": 2.46,
+  "first_max": 3.76,
+  "ratio": 1.53,
+  "Rpct_min": 63.3,
+  "Rpct_max": 93.3
+ },
+ "price40_base30": {
+  "first_min": 0.0,
+  "first_max": 1.7,
+  "ratio": 170.0,
+  "Rpct_min": 96.0,
+  "Rpct_max": 100.0
+ },
+ "price50_base0": {
+  "first_min": 2.68,
+  "first_max": 5.06,
+  "ratio": 1.89,
+  "Rpct_min": 41.3,
+  "Rpct_max": 84.0
+ },
+ "price50_base30": {
+  "first_min": 0.5,
+  "first_max": 2.54,
+  "ratio": 5.08,
+  "Rpct_min": 83.3,
+  "Rpct_max": 99.3
+ },
+ "price60_base0": {
+  "first_min": 2.46,
+  "first_max": 6.74,
+  "ratio": 2.74,
+  "Rpct_min": 27.3,
+  "Rpct_max": 78.0
+ },
+ "price60_base30": {
+  "first_min": 1.7,
+  "first_max": 3.38,
+  "ratio": 1.99,
+  "Rpct_min": 68.7,
+  "Rpct_max": 96.7
+ },
+ "r_uses_6.9s_price50_base0": {
+  "bare": 1.0,
+  "attack_speed": 1.35,
+  "heavy": 1.02,
+  "skill_engine": 1.55,
+  "element": 2.35,
+  "control": 1.03,
+  "shield": 1.07,
+  "dash": 0.9,
+  "zone": 1.02,
+  "hybrid": 1.1
+ },
+ "r_uses_12s_price50_base0": {
+  "bare": 2.05,
+  "attack_speed": 2.73,
+  "heavy": 2.07,
+  "skill_engine": 2.92,
+  "element": 4.15,
+  "control": 2.18,
+  "shield": 2.33,
+  "dash": 1.67,
+  "zone": 2.05,
+  "hybrid": 2.32
+ }
+}

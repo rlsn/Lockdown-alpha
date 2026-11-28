@@ -69,6 +69,16 @@ namespace LDCombatControl
         return true;
     }
 
+    int64 EmpoweredWindupScaleBp(const TArray<FLDCombatEmpower>& Armed, int64 AtMs)
+    {
+        int64 Scale = 10000;
+        for (const FLDCombatEmpower& Pending : Armed)
+        {
+            if (Pending.ExpiresAtMs > AtMs) { Scale = FMath::Max(Scale, Pending.WindupScaleBp); }
+        }
+        return Scale;
+    }
+
     bool ExpireEmpowers(TArray<FLDCombatEmpower>& Armed, int64 AtMs)
     {
         return Armed.RemoveAll([AtMs](const FLDCombatEmpower& Pending) { return Pending.ExpiresAtMs <= AtMs; }) > 0;
@@ -87,7 +97,7 @@ namespace LDCombatControl
 
     int64 DiminishHardControl(FLDHardControlChain& Chain, int64 NowMs, int64 DurationMs)
     {
-        constexpr int64 WindowMs = 2000;
+        constexpr int64 WindowMs = HardControlChainWindowMs;
         constexpr int64 FloorMs = 200;
         if (DurationMs <= 0) { return DurationMs; }
         Chain.Count = NowMs < Chain.WindowEndMs ? FMath::Min(Chain.Count + 1, 2) : 0;
@@ -97,5 +107,107 @@ namespace LDCombatControl
         const int64 EndsAt = NowMs <= MAX_int64 - Result - WindowMs ? NowMs + Result + WindowMs : MAX_int64;
         Chain.WindowEndMs = FMath::Max(Chain.WindowEndMs, EndsAt);
         return Result;
+    }
+
+    int64 AgencyWeightBp(ELDControlKind Kind, const FLDAgencyParams& Params)
+    {
+        switch (Kind)
+        {
+        case ELDControlKind::Stun: case ELDControlKind::Knockback: return 10000;
+        case ELDControlKind::Taunt: return Params.TauntWeightBp;
+        case ELDControlKind::Root: return 5000;
+        case ELDControlKind::Silence: case ELDControlKind::Disarm: return 2000;
+        default: return 0;
+        }
+    }
+
+    int64 AgencyLossBpMs(const TArray<FLDAgencyLoss>& Losses, int64 NowMs, int64 WindowMs)
+    {
+        const int64 From = NowMs - WindowMs;
+        TArray<int64, TInlineAllocator<16>> Cuts;
+        Cuts.Add(From);
+        Cuts.Add(NowMs);
+        for (const FLDAgencyLoss& Loss : Losses)
+        {
+            if (Loss.StartMs > From && Loss.StartMs < NowMs) { Cuts.Add(Loss.StartMs); }
+            if (Loss.EndMs > From && Loss.EndMs < NowMs) { Cuts.Add(Loss.EndMs); }
+        }
+        Cuts.Sort();
+        int64 Sum = 0;
+        for (int32 Index = 1; Index < Cuts.Num(); ++Index)
+        {
+            const int64 A = Cuts[Index - 1], B = Cuts[Index];
+            if (B <= A) { continue; }
+            int64 Weight = 0;
+            for (const FLDAgencyLoss& Loss : Losses)
+            {
+                if (Loss.StartMs <= A && Loss.EndMs >= B) { Weight = FMath::Max(Weight, Loss.WeightBp); }
+            }
+            Sum += (B - A) * Weight;
+        }
+        return Sum;
+    }
+
+    namespace
+    {
+        int64 AgencyOpenFromMs(const FLDAgencyMeter& Meter, const FLDAgencyParams& Params)
+        {
+            const int64 AfterCooldown = Meter.LastTriggerMs == MIN_int64 ? MIN_int64 : Meter.LastTriggerMs + Params.CooldownMs;
+            return FMath::Max(Meter.GuardUntilMs, AfterCooldown);
+        }
+    }
+
+    bool AgencyTriggers(const FLDAgencyMeter& Meter, int64 NowMs, const FLDAgencyParams& Params)
+    {
+        return NowMs >= AgencyOpenFromMs(Meter, Params)
+            && AgencyLossBpMs(Meter.Losses, NowMs, Params.WindowMs) >= Params.ThresholdMs * 10000;
+    }
+
+    int64 AgencyDueMs(const FLDAgencyMeter& Meter, int64 NowMs, const FLDAgencyParams& Params)
+    {
+        const int64 Threshold = Params.ThresholdMs * 10000;
+        // The loss is linear between these instants: a loss starts or ends, or its edge leaves the window.
+        TArray<int64, TInlineAllocator<32>> Points;
+        const int64 Open = FMath::Max(NowMs + 1, AgencyOpenFromMs(Meter, Params));
+        Points.Add(Open);
+        for (const FLDAgencyLoss& Loss : Meter.Losses)
+        {
+            for (const int64 At : {Loss.StartMs, Loss.EndMs, Loss.StartMs + Params.WindowMs, Loss.EndMs + Params.WindowMs})
+            {
+                if (At > Open) { Points.Add(At); }
+            }
+        }
+        Points.Sort();
+        int64 T0 = Points[0];
+        int64 L0 = AgencyLossBpMs(Meter.Losses, T0, Params.WindowMs);
+        if (L0 >= Threshold) { return T0; }
+        for (int32 Index = 1; Index < Points.Num(); ++Index)
+        {
+            const int64 T1 = Points[Index];
+            if (T1 <= T0) { continue; }
+            const int64 L1 = AgencyLossBpMs(Meter.Losses, T1, Params.WindowMs);
+            if (L1 >= Threshold)
+            {
+                // Smallest whole millisecond on the rising segment that reaches the threshold.
+                const int64 Rise = L1 - L0, Span = T1 - T0, Need = Threshold - L0;
+                return T0 + (Need * Span + Rise - 1) / Rise;
+            }
+            T0 = T1;
+            L0 = L1;
+        }
+        return MAX_int64;
+    }
+
+    void PruneAgency(FLDAgencyMeter& Meter, int64 NowMs, int64 WindowMs)
+    {
+        Meter.Losses.RemoveAll([From = NowMs - WindowMs](const FLDAgencyLoss& Loss) { return Loss.EndMs <= From; });
+    }
+
+    bool AgencyKnockbackRolls(FLDAgencyMeter& Meter, int64 NowMs, int64 EndMs, const FLDAgencyParams& Params)
+    {
+        const bool bChained = Meter.LastKnockEndMs != MIN_int64 && NowMs < Meter.LastKnockEndMs + HardControlChainWindowMs;
+        Meter.KnockChain = bChained ? Meter.KnockChain + 1 : 1;
+        Meter.LastKnockEndMs = FMath::Max(Meter.LastKnockEndMs, EndMs);
+        return Meter.KnockChain >= Params.RollFrom;
     }
 }

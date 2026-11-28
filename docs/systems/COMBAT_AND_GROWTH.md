@@ -13,11 +13,11 @@
 
 1. **前闸与解保护**：校验拥有者、当前 `Generation/Life`、阶段写闸与请求去重；合法进攻意图（`AttackUnit`、`AttackMove` 及任意 `Q/W/E` 主动尝试，即使随后因缺劲或冷却被拒）立即解除本人复活保护。
 2. **起手与释放（`LDCombatActions`）**：
-   - **三段普攻连招**：`AttackStart` 通过射程与控制检查即提交攻击节拍，前摇 `ceil(180ms * 0.85 / AS)` 内若被打断退还节拍；到达释放时刻复查可见性与无高墙阻挡（不因目标拉远取消已挥出的一击），第 3 段伤害 `×1.25`，连招超时 `2.5 s` 归回第 1 段。
+   - **三段普攻连招**：`AttackStart` 通过射程与控制检查即提交攻击节拍，前摇 `ceil(180ms * 0.85 / AS)` 内若被打断退还节拍；到达释放时刻复查可见性与无高墙阻挡（不因目标拉远取消已挥出的一击），三段伤害依次 `×0.9 / ×0.9 / ×1.3`（`COMBO.StepRatios`），连招超时 `2.5 s` 归回第 1 段。
    - **动作提示**：导航普攻出手后取消收招时清除收招的起手提示，保留出手时间供本人音效去重；不会将普攻投影成施法或重置已提交的普攻节拍。
    - **主动技能与三级分支**：24 个主动技能按 `SKILL.GrowthPerLevel`（每角色等级 `+4%`）放大固定基础值，并叠加当前技能等级（1–3 级）及已选 2 级 A/B、3 级 A/B 分支补丁；仅在成功 `Release` 瞬间扣劲、写 `ReadyAtMs` 并快照源属性（包括双系数 `ADRatioBp + APRatioBp`、双抗系数 `ResistRatioBp` 与自适应系数 `AdaptiveRatioBp`：`BonusAD * 1.4 >= AP` 取额外 AD 并转物理伤害，否则取 AP 走魔法伤害）。
-   - **原生精准闪避（Perfect Dodge）**：通用冲刺 `D`（及带 `as_dash` 判定的翻滚分支）除了躲出预警范围触发预警闪避外，起手 `0.12 s`（`MOMENTUM.DashDodgeWindowSec`）内若擦过敌方直接攻击或弹道命中，亦触发原生精准闪避（本次命中减伤 `50%`、返还冲刺 `30%` 剩余冷却、获 `20` 劲并触发精准闪避牌与 `LDObservation::Dodged` 金色残影表现）。
-   - **爆劲（Overdrive）**：劲满 `60` 且蓄力满 `0.35 s` 释放时额外消耗 `60` 劲，按技能有效元素强化本次释放——优先读取技能原生/分支元素，原生无元素时读取该技能槽镶嵌的 `SkillElement` 元素勋章（仍无元素时仅享受基础数值放大 `×1.35`；火 `+3` 层灼烧、水减速升至 `45%/1.5s`、电直伤追加 `0.5R`、冻附 `0.6s` 定身、馊持续 `×2`）。
+   - **落点预警从前摇开始（C-12，`FLDCombatLandingPreview`）**：目标形式为地面点且当前形态含 `ground_impact` 的技能，准入时按释放时同一规则（`LDGroundLanding::Resolve`）锁定落点；整个前摇期间以地面效果将沿用的观察键发布 `BookShadow` 预警（剩余时间 = 前摇剩余 + 落地延迟），释放后砸在这个落点上；前摇被打断即不再发布。K06/A08 的重放从各自释放处重新计算落点。
+- **承诺分支被控制打断的部分冷却（C-11，`interrupt_cooldown`）**：带 `interrupt_cooldown` 的分支形态（S03 2A、S13 2B、S02 2B 及其 3 阶，`0.5`）在释放时刻之前被控制打断（`ControlBlocked`）时，技能进入按同一急速公式与下限计算的该比例冷却；多充能技能只花掉一格的这一部分。主动取消、分支二段与重放不受影响，不扣劲也不返劲，打断者不获任何收益。
 3. **伤害、乘区、护盾与吸血（`LDCombatEffects` / `LDTacticalRules`）**：
    - **结算顺序**：基础与系数和 → 暴击（普攻 `×2`，技能仅装 `Y09` 或耗盾暴击牌时可暴击）→ 乘区连乘 `DamageFactorBp`（同名牌多份相加为一乘区，不同来源相乘，技术上限 `×1000`）→ 双抗减伤 `100 / (100 + max(0, Resist - Breach*3))` → 脸皮关键石平摊减免 → 护盾层吸收（按最早到期层优先扣减，每打空一层触发一次破盾事件如 `Y06`）→ 实扣生命 `HPLostP2`（激活脸皮 18 点关键石时，单次实扣超出 `35%` 最大生命的份额转入 `StaggerBleeds`，在 `2.0 s` 内每 `0.5 s` 延缓结算）。
    - **吸血与反伤**：普攻吸血（`Y17`）与技能吸血（`K15`、`Y10`）均按实际扣血 `HPLostP2` 结算且无上限；`Y01` 反伤按直接受击总量（含打在护盾上的份额）反弹 `25%` 真实/对应伤害，反伤标记 `bReflect` 不暴击、不吸血、不再触发反伤。
@@ -25,7 +25,8 @@
 4. **五元素反应、地面状态与连锁护栏**：
    - **元素附着、三阶勋章融合与 10 种双元素反应（`LDCombatElementsDirector`）**：技能原生元素、宿主元素勋章（技能槽每次直接命中生效；本体槽从普攻第 2 段起生效；同色勋章融合 `Ⅱ 阶` 使该宿主触发的反应伤害 `+35%`，`Ⅲ 阶` 命中挂主元素后额外附着确定性异种副元素自触发反应）及冰箱词条命中目标时，若目标无元素则挂单元素，若已有异种元素则立即消耗并触发 10 种反应之一（基准值 `R = 30 + 4*(L - 1) + 0.25*AP`）及地面状态转换。
    - **地面状态上限与自免**：水洼、冰面（加减速惯性 `×0.5`、冲刺/击退距离 `×1.5`）、火场、毒雾、电场仅对非主人敌人生效；每人最多 6 片、全场最多 40 片，超出淘汰最早片。
-   - **连锁与免费重放护栏**：同一次施法链有深度与单步上限保护；`Y05`（余波再起）每条连锁提供一次同目标反应冷却豁免，豁免用尽后仅对未反应目标挂次生元素；`K06`（再来一下）与 `A08` 的免费自动重放（`bAutoRecast`）保留 `K09` 冷却惩罚但屏蔽免费回劲、减 CD 与脑力关键石刷钱循环。
+   - **连锁与免费重放护栏**：同一次施法链有深度与单步上限保护；`Y05`（余波再起）每条连锁提供一次同目标反应冷却豁免，豁免用尽后仅对未反应目标挂次生元素；`K06`（再来一下）与 `A08` 的免费自动重放（`bAutoRecast`）保留 `K09` 冷却惩罚但屏蔽免费回劲、减 CD 与脑力关键石刷钱循环；`A09` 由攻速换来的追加打击（`bAttackSpeedStrike`）不给 `A12` 叠层、不计 `A13` 进度，切断攻速自我放大。
+   - **服务器命中预算（技术保护，非玩法上限）**：`ALDCombatDirector::TechHitsPerStep`（4096）限制一个权威步结算的命中数，其余顺延到下一步；排队命中超过 `TechPendingHitsCap`（16384）时丢弃最新的部分，`A09` 一次出手的追加打击也不超过该上限。正常对局每步只有几十次命中，触发即异常，分别记 `LD_CHAIN_GUARD reason=Step`（Warning）与 `reason=Overflow`（Error）。
 
 ## 权威时序
 
@@ -54,7 +55,42 @@
 
 对局正常锁定 `MatchResult` 时，每位真人拥有者收到本局完整 `FLDBuildBlueprint`（`schema=lockdown.build-blueprint`、`schema_version=5`），包含开局至终局每次构筑结构变更的版本时间段、Q/W/E 分支、五维分配、已装牌/勋章及宿主绑定参数、终局改装与归属伤害统计，并由 `LDBuildBlueprintStore` 原子写入 `Saved/Blueprints/match-<ResultId>.ldbuild.json`（自动保留最近 50 份且总计 `<= 100 MiB`）。
 
+## 自动强化实验
+
+默认关闭的隔离实验（决定 M-12），参数在 [内容与数值 §3.2.2](../demo/CONTENT_AND_BALANCE.md#322-自动强化实验参数默认关闭) 单点维护。
+`EMPOWER.Enabled=1`，或房主进程带 `-LDEmpower` 时开启；`-LDEmpowerHost=Basic|Q|W|E|D` 让没选过宿主的参赛者都用这个宿主（评测用）。
+关闭时以下规则全部不生效。纯规则在 `LDAutoEmpower`，身体与记录上的部分在 `LDCombatEmpowerDirector.cpp`。
+
+- **技能不耗劲**：开启时已学 Q/W/E 的劲耗记为 0，只受冷却限制；交战被动改用 `EMPOWER.CombatPerSec`（脑力加成照算）；一次释放最多 `EMPOWER.SkillHitTargets` 个目标给 `MOMENTUM.SkillHit`；持续伤害、区域、地面和结算引发的反应只给 `EMPOWER.DerivedReaction`；脑力关键石不再返还劲。
+- **宿主**：每人一个，存在战斗记录里、跨命保留。玩家在构筑环上空手点普攻/Q/W/E/D 的宿主格指定（`ServerSetEmpowerHost`，序号单调，重复或更旧的请求不生效，实验关闭时拒绝并提示）。没选过时，真人用普攻，AI 用构筑身份最重的格（`LDAutoEmpower::HostScore`）：已学技能按技能等级 − 1 加其上的牌数，D 按其上的牌数；每个格还加上与它的处理器（及已学技能自身）共享词汇的身上牌（`ProcessorVocab`：拳为普攻、连击、攻速、暴击，动为冲刺与移速，守为护盾、护甲、生命、受伤与受控，攻与阵为技能命中、施法、元素与反应等），身上牌不再一律算给普攻；同分时已学技能优先，再比该格勋章阶，再按 Q→W→E→普攻→D。
+- **起手判定**：宿主上的本人动作在起手时劲 ≥ `EMPOWER.Threshold` 即为强化动作（`FLDCombatAction::bEmpowered`）。普攻与 D 只在针对参赛者时（D：视野半径内有敌方参赛者）判定；视野半径内没有敌方参赛者时，打野怪、打假人也算。D05 后续段、分支再放窗口、K06/A08 重放都不判定。攻类强化起手加 `EMPOWER.StrikeExtraWindupSec`（与承诺起手相加；落点预警与锁定提示按合计释放时刻显示）。
+- **释放扣费**：强化动作释放时劲仍 ≥ `EMPOWER.Cost` 就扣费并生效，打空也扣；此时劲不够则按普通动作释放、不扣（`LD_EMPOWER outcome=short`）。前摇被取消或打断都不扣。
+- **处理器**：普攻为拳，D 为动；技能按自身效果分——强化普攻包或拳风为拳，冲刺为动，自身护盾/招架/顶住/嘲讽为守，放置区域/陷阱/风扇/书包/封条为阵，其余为攻。
+  - 拳：本拳按第 3 段结算（连击不推进也不重置），推开目标 `EMPOWER.FistPushCm`，前方扇形内其他敌人吃本拳 `EMPOWER.FistConeRatio` 的追加伤害。单包拳技（S11）释放后，下一拳就是不再扣费的强化拳；多包拳技多 `EMPOWER.ExtraCount` 包，拳风宽 `EMPOWER.ShapeScale` 倍。
+  - 攻：范围、直线长宽、弹道射程与半径、击退距离乘 `EMPOWER.ShapeScale`，扇形角度乘 `EMPOWER.ConeAngleScale`（射程不变），弹射多 `EMPOWER.ExtraCount` 次，伤害不乘；叠加元素层。
+  - 守：招架窗口、顶住的记录上限与反击半径、嘲讽半径乘 `EMPOWER.ShapeScale`（控制时长不变）；本次给的护盾被打破或到期时，向 `EMPOWER.GuardBurstRadiusCm` 内爆开本次护盾量的 `EMPOWER.GuardBurstRatio`。这层护盾的所有爆炸（自身、S13 A1 式、Y06 每层一次）都带本次强化序号。
+  - 形态变化（每条对应规格 §2.3 一行所复用的机制，`LDAutoEmpower::ApplyForms`）：攻的单体击退撞墙眩晕至少 `EMPOWER.WallStunSec`（S01）；抓扯拉住直线上所有身体（S02）；弹道穿过路上所有身体、每人吃全额（S06、N3）；技能自身元素留地面——火在脚下留火场（范围同本次区域，S07），水在直线终点留水洼（S09），冰在扇形上留冰面（复用 N1 2A，S 已有时取较长时长），各持续 `EMPOWER.GroundSec`；守的招架反震眩晕至少 `EMPOWER.CounterStunSec`（S05）；阵的封条首次触碰即眩晕 `EMPOWER.TouchStunSec`（N6）。拳宿主带 A05 飞行普攻时不打扇形，改为弹体穿透到射程尽头，后续每人吃 `EMPOWER.FistConeRatio` 的追加伤害。
+  - 动：穿过身体不被拦停，一次最多结算 `EMPOWER.DashContactCap` 个接触（多出的不算接触），冲刺技能每个接触都吃原生命中；不刷新、不改冲刺距离与冷却；落地在 `EMPOWER.QuakeRadiusCm` 内减速。
+  - 阵：区域（含跳数）、陷阱、风扇、书包（含生命）、封条持续与范围乘 `EMPOWER.ShapeScale`，陷阱引信最多 `EMPOWER.WardFuseSec`；叠加元素层。
+  - 元素层：技能元素，否则分支元素，否则该槽勋章元素——烫加层、湿减速、麻追加 R 的份额、馊延长、冻定身（计硬控递减）。
+- **防递归**：强化动作打开的连锁（`FChainTrack::bEmpowered`）与带强化序号的命中（`EmpowerSerial`）在结算中不给施法者任何劲（记 `blocked`），受害者的劲变化照常；重放与派生施放不判定、不继承载荷。
+- **表现**：本人劲条在门槛处有刻度，达到门槛变金，标签显示宿主（`劲·Q`）；宿主技能槽常驻细金边，就绪且可用时呼吸；构筑环宿主格带金色“劲”标。他人只看到公开的 `EmpowerReady`（达到门槛且宿主现在可用时的处理器类别）：头顶劲条变金，目标卡写“强化就绪（类别）”。
+- **遥测**：每次判定释放写 `LD_EMPOWER`（宿主、处理器、序号、扣费、前后劲、`applied|prepaid|short`）；改宿主写 `LD_EMPOWER_HOST`；`LD_HIT empower=<序号>`；`LD_MOMENTUM` 加 `empower=`、`empower_spent=`、`blocked=`、`armed_ms=`（劲 ≥ 门槛的时长）。
+## 隔离原型
+
+服务器命令行开关（`LDProtoFlags`，每个进程只读一次）。开关不写入 `SourceData`，也不参与内容哈希；不带开关时，所有规则与正式版本一致。启用时写一行 `LD_PROTO flags=… params=…`；参数无效时写 `LD_PROTO_INVALID`，并且不启用任何原型。
+
+- **急眼了（C-10，`-LDProtoAgency`）**：真人或 AI 选手每受到他人的控制，就按权重记录失去操作权的时段。权重：眩晕与击退 1.0，嘲讽 0.8（`-LDProtoAgencyTauntWeight=` 可在 0–1 内调），定身 0.5，沉默与缴械 0.2，减速 0；同一时刻多个控制重叠时，只按其中最大的权重计算一次。
+  - 触发：滑动窗口 `-LDProtoAgencyWindow=`（默认 4 s）内的累计值达到 `-LDProtoAgencyThreshold=`（默认 2 s）时触发，触发时刻精确到毫秒（`AgencyDueMs`）。两次触发至少间隔 `-LDProtoAgencyCooldown=`（默认 6 s）。
+  - 守护期：触发后进入 `-LDProtoAgencyGuard=`（默认 1 s）守护期，期间新的硬控不生效。
+  - 两种变体：`-LDProtoAgencyCut=Immediate`（V-Cut，默认）立即结束他人施加的眩晕、定身、缴械、沉默与嘲讽，击退的位移照常完成，但不再锁定输入；`NextControl`（V-Next）不结束当前控制，只防住下一次。
+  - 翻滚：同一连击链（距上一次击退结束不到 2 s）中，第 `-LDProtoAgencyRollFrom=`（默认 3）次及以后的击退，以及守护期内受到的击退，都照常推开身体，但不锁定动作、不打断前摇与移动指令，也不计入失去操作权的时长。
+  - 日志：`LD_PROTO_AGENCY trigger|guarded|roll`。守护期内所有看得见该选手的人（包括本人）在其头顶看到开发用文字“急眼了”（[视野与 UI](VISION_AND_UI.md)）。翻滚击退推开期间，位移仍由根运动接管。
+  - 判据探针：见下文“检查入口”。
+- **一锅端落地延迟（C-14，`-LDProtoPotDelay=<秒>`）**：只把 S08（`active_quick_meeting`）2B、3B1、3B2 的 `ground_impact` 延迟改为该值（0–5 s），落点预警也随之延长；3B1 的二次爆炸仍在首砸后按内容延迟发生。
+
 ## 检查入口
 
 - 纯规则：`Lockdown.Rules.DemoCombat*`、`Lockdown.Rules.DemoAttributeProjection.*`、`Lockdown.Rules.DemoMechanics.*`、`Lockdown.Rules.DemoBuildPrimitives.*`、`Lockdown.Rules.Combat.*`、`Lockdown.Rules.DamageRecap.*`、`Lockdown.Rules.BuildBlueprint.*`。
 - 拥有连接场景：`Scripts/RunDemoCombatCheck.ps1`、`Scripts/RunDemoCampCheck.ps1`。
+- 急眼了原型判据探针：`.\Scripts\RunAgencyProbe.ps1 [-Switches '-LDProtoAgencyThreshold=2.2',…]`（`Lockdown.Probe.AgencyCriteria`）。它让 `control_chain_model.py` 中的脚本化攻击者经权威控制路径施加控制，不包含伤害、位移和真实墙体（撞墙眩晕按击退结束时刻施加）。每个场景分别以关闭、V-Cut、V-Next 运行，结果写入 `Artifacts/ProtoAgency/agency-probe-*.json`，并给出单人连招触发次数、三人围攻首轮保留率、墙边急速围攻首次可逃时刻这三项判据。

@@ -3,7 +3,7 @@
 #include "UI/LDUIPaint.h"
 
 // The on-air chrome's painted shapes (LDBroadcastStyle tokens): 12 degree parallelogram slabs, square blocks, 2 px rules,
-// seat plates (seat ink + jersey number), segmented bars with an overdrive notch, and text in the figure face. Everything
+// seat plates (seat ink + jersey number), segmented bars, and text in the figure face. Everything
 // paints into a widget's own geometry (ULDPaintLayer); local presentation only, no gameplay value lives here.
 namespace LDBroadcastPaint
 {

@@ -28,6 +28,29 @@ bool IsLearned(const FLDOpponentSelf& Self, const FString& Id)
     return Self.Actives.ContainsByPredicate([&Id](const FLDOpponentActive& Active) { return SameId(Active.DefinitionId, Id); });
 }
 
+// A stance's ground click to Point on the meeting place's surface, named for its own refused-walk memory; false when the
+// leash or that memory refuses it (the leash: never a step that ends beyond it and farther from the place than now).
+bool GroundStep(const FLDOpponentDecisionFrame& Frame, const FLDEvaluationProfile& Profile, const FLDOpponentPolicyState& Policy,
+    const FLDOpponentPOI& Site, const FVector& Point, const TCHAR* Name, FLDOpponentBodyIntent& Walk)
+{
+    const FVector Foot = Frame.Self.FootCm;
+    if (Profile.LeashCm > 0)
+    {
+        const double To = FVector::Dist2D(Point, Site.FootCm);
+        if (To > double(Profile.LeashCm) && To >= FVector::Dist2D(Foot, Site.FootCm)) { return false; }
+    }
+    FLDOpponentRetryKey Key;
+    Key.Category = ELDOpponentFailure::Path;
+    Key.POI = FName(Name);
+    if (!Policy.Failures.CanAttempt(Key, LDOpponentPolicy::Fingerprint(ELDOpponentFailure::Path, Frame.Self), Frame.Public.NowMs)) { return false; }
+    Walk = FLDOpponentBodyIntent();
+    Walk.Kind = ELDOpponentBodyKind::MoveGround;
+    Walk.Point = FVector(Point.X, Point.Y, Foot.Z);
+    Walk.Surface = Site.SurfaceId;
+    Walk.Key = Key;
+    return true;
+}
+
 const FLDOpponentActive* InSlot(const FLDOpponentSelf& Self, uint8 Slot)
 {
     return Self.Actives.FindByPredicate([Slot](const FLDOpponentActive& Active) { return Active.Slot == Slot; });
@@ -595,12 +618,35 @@ FLDOpponentDecision LDEvaluationPolicy::Decide(const FLDOpponentDecisionFrame& F
     if (Rival)
     {
         State.Phase = ELDEvaluationPhase::Engaging;
-        const FLDOpponentBodyIntent Engaged = LDOpponentPolicy::EngageUnit(Frame, Catalog, Policy, *Rival);
-        Out.Body = Stance(Frame, Catalog, Profile, Policy, State, *Rival, Engaged);
-        if (!bActionLive && Out.Body.Kind == EBody::Activate && LDEvaluationPolicyDetail::HasOperation(Profile))
+        // WarningReactMs: a warning in sight for the reaction time is dashed out of before the stance fights.
+        if (!bActionLive && Profile.WarningReactMs >= 0 && !Frame.Warnings.IsEmpty())
         {
-            if (LDEvaluationPolicyDetail::OperationAdmits(Frame, Profile, State, Out.Body.Source))
+            FLDOpponentDecisionFrame Seen = Frame;
+            Seen.Warnings.RemoveAll([&](const FLDOpponentWarning& Warning)
             {
+                const int64* SeenAt = State.WarningSeenAtMs.Find(Warning.Handle);
+                return !SeenAt || Frame.Public.NowMs - *SeenAt < Profile.WarningReactMs;
+            });
+            if (const TOptional<FLDOpponentBodyIntent> Dodge = LDOpponentPolicy::DodgeWarning(Seen, Catalog, Policy))
+            {
+                Out.Body = Dodge.GetValue();
+                return Finish(ELDOpponentMode::Engage, ELDOpponentReason::EngageTarget);
+            }
+        }
+        FLDOpponentDecisionFrame Reserved;
+        if (Profile.bReserveDash)
+        {
+            Reserved = Frame;
+            for (FLDOpponentSource& Source : Reserved.Self.Sources) { Source.bReady &= Source.Slot != ELDOpponentSourceSlot::Dash; }
+        }
+        const FLDOpponentBodyIntent Engaged = LDOpponentPolicy::EngageUnit(Profile.bReserveDash ? Reserved : Frame, Catalog, Policy, *Rival);
+        Out.Body = Stance(Frame, Catalog, Profile, Policy, State, *Rival, Engaged);
+        const bool bOperation = LDEvaluationPolicyDetail::HasOperation(Profile);
+        if (!bActionLive && Out.Body.Kind == EBody::Activate && (bOperation || Profile.bLeadAim))
+        {
+            if (!bOperation || LDEvaluationPolicyDetail::OperationAdmits(Frame, Profile, State, Out.Body.Source))
+            {
+                if (Profile.bLeadAim) { Lead(Frame, Catalog, State, *Rival, Out.Body); }
                 LDEvaluationPolicyDetail::Aim(Frame, Profile, State, *Rival, Out.Body);
             }
             else
@@ -639,6 +685,14 @@ FLDOpponentDecision LDEvaluationPolicy::Decide(const FLDOpponentDecisionFrame& F
         // A side step is on its way; the walk to the meeting place resumes when it ends.
         Hold();
         return Finish(ELDOpponentMode::Explore, ELDOpponentReason::Explore);
+    }
+    // B01 T03-02: a camp member walling off the walk with no way round (the controller's route check) is fought through
+    // with the production engagement, before any side step.
+    if (const FLDOpponentUnit* Wall = LDOpponentPolicy::WallingUnit(Frame))
+    {
+        Out.Body = LDOpponentPolicy::EngageUnit(Frame, Catalog, Policy, *Wall);
+        if (bActionLive) { Hold(); }
+        return Finish(ELDOpponentMode::Engage, ELDOpponentReason::EngageTarget);
     }
     if (Now - State.ApproachSinceMs >= ApproachStuckMs && !Site->SurfaceId.IsNone())
     {
@@ -685,6 +739,9 @@ void LDEvaluationPolicy::ObserveOperation(const FLDOpponentDecisionFrame& Frame,
             State.bSkipPassed[Index] = false;
         }
         State.CloseSinceMs = -1;
+        State.WarningSeenAtMs.Reset();
+        State.LeadAtMs = -1;
+        State.RivalVelocity = FVector::ZeroVector;
         State.OperationLife = Frame.Self.Life;
     }
     for (int32 Index = 0; Index < OperationSlots; ++Index)
@@ -705,6 +762,32 @@ void LDEvaluationPolicy::ObserveOperation(const FLDOpponentDecisionFrame& Frame,
     }
     const FLDOpponentUnit* Rival = Frame.Units.FindByPredicate([&Profile](const FLDOpponentUnit& Unit)
         { return Unit.Kind == ELDOpponentUnitKind::Contender && Unit.ContenderId == Profile.Opponent; });
+    // WarningReactMs: a warning keeps its first sighting while in sight; one gone from sight is forgotten.
+    TMap<FGuid, int64> Seen;
+    for (const FLDOpponentWarning& Warning : Frame.Warnings)
+    {
+        const int64* Earlier = State.WarningSeenAtMs.Find(Warning.Handle);
+        Seen.Add(Warning.Handle, Earlier ? *Earlier : Now);
+    }
+    State.WarningSeenAtMs = MoveTemp(Seen);
+    // LeadAim: two sightings of the same visibility interval close enough in time give the rival's velocity.
+    if (!Rival)
+    {
+        State.LeadAtMs = -1;
+        State.RivalVelocity = FVector::ZeroVector;
+    }
+    else if (Now > State.LeadAtMs)
+    {
+        const bool bPair = State.LeadAtMs >= 0 && State.LeadHandle == Rival->Handle && State.LeadEpoch == Rival->Epoch
+            && Now - State.LeadAtMs <= MaxLeadSampleGapMs;
+        State.RivalVelocity = bPair
+            ? ((Rival->FootCm - State.LeadFootCm) * FVector(1, 1, 0) / (double(Now - State.LeadAtMs) / 1000.)).GetClampedToMaxSize2D(MaxLeadSpeedCmPerSec)
+            : FVector::ZeroVector;
+        State.LeadHandle = Rival->Handle;
+        State.LeadEpoch = Rival->Epoch;
+        State.LeadFootCm = Rival->FootCm;
+        State.LeadAtMs = Now;
+    }
     if (!Rival || Profile.StandoffCm <= 0 || FVector::Dist2D(Frame.Self.FootCm, Rival->FootCm) >= double(Profile.StandoffCm))
     {
         State.CloseSinceMs = -1;
@@ -727,6 +810,8 @@ FLDOpponentBodyIntent LDEvaluationPolicy::Stance(const FLDOpponentDecisionFrame&
         return Engaged;
     case ELDEvaluationStance::Kite:
         return Kite(Frame, Profile, Policy, Rival, Site, Engaged, &State);
+    case ELDEvaluationStance::Strafe:
+        return Strafe(Frame, Profile, Policy, State, Rival, Site, Engaged);
     case ELDEvaluationStance::Burst:
     {
         const bool bAnyReady = Frame.Self.Sources.ContainsByPredicate([](const FLDOpponentSource& Source)
@@ -775,28 +860,11 @@ FLDOpponentBodyIntent LDEvaluationPolicy::Kite(const FLDOpponentDecisionFrame& F
     const FVector Foot = Frame.Self.FootCm;
     const double Gap = FVector::Dist2D(Foot, Rival.FootCm);
     const double Standoff = double(Profile.StandoffCm);
-    const FName Surface = Site ? Site->SurfaceId : NAME_None;
     const bool bKiteWalkLive = Frame.Order.IsLive() && Frame.Order.Kind == ELDOpponentOrderKind::MoveGround && Frame.Order.POI.IsNone();
-    if (bKiteWalkLive || Surface.IsNone() || Frame.Self.MoveBlockedUntilMs > Frame.Public.NowMs) { return Out; }
-    const uint64 Print = LDOpponentPolicy::Fingerprint(ELDOpponentFailure::Path, Frame.Self);
+    if (bKiteWalkLive || !Site || Site->SurfaceId.IsNone() || Frame.Self.MoveBlockedUntilMs > Frame.Public.NowMs) { return Out; }
     const auto Step = [&](const FVector& Point, const TCHAR* Name, FLDOpponentBodyIntent& Walk)
     {
-        if (Profile.LeashCm > 0)
-        {
-            // The leash: never a step that ends beyond it and farther from the meeting place than the body stands now.
-            const double To = FVector::Dist2D(Point, Site->FootCm);
-            if (To > double(Profile.LeashCm) && To >= FVector::Dist2D(Foot, Site->FootCm)) { return false; }
-        }
-        FLDOpponentRetryKey Key;
-        Key.Category = ELDOpponentFailure::Path;
-        Key.POI = FName(Name);
-        if (!Policy.Failures.CanAttempt(Key, Print, Frame.Public.NowMs)) { return false; }
-        Walk = FLDOpponentBodyIntent();
-        Walk.Kind = EBody::MoveGround;
-        Walk.Point = FVector(Point.X, Point.Y, Foot.Z);
-        Walk.Surface = Surface;
-        Walk.Key = Key;
-        return true;
+        return LDEvaluationPolicyDetail::GroundStep(Frame, Profile, Policy, *Site, Point, Name, Walk);
     };
     FVector Away = (Foot - Rival.FootCm).GetSafeNormal2D();
     if (Away.IsNearlyZero()) { Away = FVector::ForwardVector; }
@@ -830,6 +898,96 @@ FLDOpponentBodyIntent LDEvaluationPolicy::Kite(const FLDOpponentDecisionFrame& F
     return Out;
 }
 
+FLDOpponentBodyIntent LDEvaluationPolicy::Strafe(const FLDOpponentDecisionFrame& Frame, const FLDEvaluationProfile& Profile,
+    const FLDOpponentPolicyState& Policy, FLDEvaluationProfileState& State, const FLDOpponentUnit& Rival, const FLDOpponentPOI* Site,
+    const FLDOpponentBodyIntent& Engaged)
+{
+    using EBody = ELDOpponentBodyKind;
+    if (Engaged.Kind == EBody::Activate && Engaged.TargetMode != ELDDemoTargetMode::DirectionDash) { return Engaged; }
+    FLDOpponentBodyIntent Out;
+    Out.Kind = EBody::Keep;
+    const bool bStepLive = Frame.Order.IsLive() && Frame.Order.Kind == ELDOpponentOrderKind::MoveGround && Frame.Order.POI.IsNone();
+    if (bStepLive || !Site || Site->SurfaceId.IsNone() || Frame.Self.MoveBlockedUntilMs > Frame.Public.NowMs) { return Out; }
+    FVector Away = (Frame.Self.FootCm - Rival.FootCm).GetSafeNormal2D();
+    if (Away.IsNearlyZero()) { Away = FVector::ForwardVector; }
+    const double Standoff = double(Profile.StandoffCm);
+    // One step of StrafeStepCm along the circle of radius StandoffCm round the rival (also closing or opening the gap).
+    const double TurnDegrees = FMath::RadiansToDegrees(FMath::Min(StrafeStepCm / Standoff, UE_DOUBLE_PI / 3.));
+    for (int32 Try = 0; Try < 2; ++Try)
+    {
+        const int32 Sign = Try == 0 ? State.StrafeSign : -State.StrafeSign;
+        const FVector Point = Rival.FootCm + Away.RotateAngleAxis(Sign * TurnDegrees, FVector::UpVector) * Standoff;
+        if (!LDEvaluationPolicyDetail::GroundStep(Frame, Profile, Policy, *Site, Point, Sign > 0 ? TEXT("strafe_l") : TEXT("strafe_r"), Out))
+        {
+            continue;
+        }
+        // A refused side turns the strafe; otherwise it turns after StrafeLegSteps steps one way.
+        if (Try == 1 || ++State.StrafeSteps >= StrafeLegSteps)
+        {
+            State.StrafeSign = -State.StrafeSign;
+            State.StrafeSteps = 0;
+        }
+        return Out;
+    }
+    // Both sides refused here: it fights where it stands.
+    return Engaged.Kind == EBody::AttackUnit ? Engaged : Out;
+}
+
+void LDEvaluationPolicy::Lead(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
+    const FLDEvaluationProfileState& State, const FLDOpponentUnit& Rival, FLDOpponentBodyIntent& Body)
+{
+    const ELDDemoTargetMode Mode = Body.TargetMode;
+    const bool bPoint = Mode == ELDDemoTargetMode::GroundPoint;
+    const bool bProjectile = Mode == ELDDemoTargetMode::DirectionProjectile;
+    if ((!bPoint && !bProjectile && Mode != ELDDemoTargetMode::DirectionCone && Mode != ELDDemoTargetMode::DirectionLine)
+        || State.RivalVelocity.IsNearlyZero())
+    {
+        return;
+    }
+    const FLDOpponentSource* Source = Frame.Self.Sources.FindByPredicate([&Body](const FLDOpponentSource& Each) { return Each.Slot == Body.Source; });
+    const FLDOpponentActive* Learned = Source ? Frame.Self.Actives.FindByPredicate([Source](const FLDOpponentActive& Active)
+        { return Active.Slot == uint8(Source->Slot) && Active.DefinitionId == Source->DefinitionId; }) : nullptr;
+    const FLDDemoAbilityDefinition* Ability = nullptr;
+    FString Error;
+    if (!Learned || !Catalog.FindAbility(Learned->DefinitionId, Ability, Error) || !Ability) { return; }
+    const FLDDemoAbilityBranch* Branch = Ability->FindBranch(Learned->Branch);
+    const FLDDemoTargetDefinition& Target = Branch ? Branch->Target : Ability->Target;
+    const auto Ratio = [](const FLDDemoRational& Value) { return Value.Denominator > 0 ? double(Value.Numerator) / double(Value.Denominator) : 0.; };
+    // The time from the decision to the landing: the windup, a ground effect's delay, then a projectile's flight.
+    int64 FixedMs = Branch ? Branch->WindupMs : Ability->WindupMs;
+    if (bPoint)
+    {
+        int64 Delay = 0;
+        for (const FLDDemoEffectDefinition& Effect : (Branch ? Branch->Values : Ability->Values).Effects)
+        {
+            const ELDDemoEffectOp Op = Effect.GetOp();
+            if (Op == ELDDemoEffectOp::GroundImpact || Op == ELDDemoEffectOp::Zone || Op == ELDDemoEffectOp::ZoneDamage
+                || Op == ELDDemoEffectOp::ZoneBurn) { Delay = FMath::Max(Delay, Effect.DelayMs); }
+        }
+        FixedMs += Delay;
+    }
+    const double Speed = bProjectile ? Ratio(Target.ProjectileSpeedCmPerSec) : 0.;
+    const FVector Foot = Frame.Self.FootCm;
+    FVector Predicted = Rival.FootCm;
+    // A projectile's flight depends on where it meets the rival: two refinements settle it.
+    for (int32 Pass = 0; Pass < (Speed > 0 ? 2 : 1); ++Pass)
+    {
+        const double FlightMs = Speed > 0 ? FVector::Dist2D(Foot, Predicted) / Speed * 1000. : 0.;
+        const double LeadMs = FMath::Min(double(FixedMs) + FlightMs, double(MaxLeadMs));
+        Predicted = Rival.FootCm + State.RivalVelocity * (LeadMs / 1000.);
+    }
+    if (bPoint)
+    {
+        const double Reach = FMath::Max(Source->RangeCm > 0 ? double(Source->RangeCm) : 0., FVector::Dist2D(Foot, Body.Point));
+        const FVector Offset = FVector(Predicted.X - Foot.X, Predicted.Y - Foot.Y, 0.);
+        if (Offset.Size2D() > Reach) { Predicted = Foot + Offset.GetSafeNormal2D() * Reach; }
+        Body.Point = FVector(Predicted.X, Predicted.Y, Body.Point.Z);
+        return;
+    }
+    const FVector Toward = (Predicted - Foot).GetSafeNormal2D();
+    if (!Toward.IsNearlyZero()) { Body.Direction = Toward; }
+}
+
 bool LDEvaluationProfiles::Stage(const FGuid& Contender, const FLDEvaluationProfile& Profile, FString& Error)
 {
     if (!LDEvaluationSeeds::IsSwitchPresent())
@@ -859,10 +1017,10 @@ bool LDEvaluationProfiles::Stage(const FGuid& Contender, const FLDEvaluationProf
         return false;
     }
     if (Profile.ReactionMs < 0 || Profile.ReactionMs > MaxReactionMs || Profile.AimErrorCm < 0 || Profile.AimErrorCm > MaxAimErrorCm
-        || Profile.SkipBp < 0 || Profile.SkipBp > MaxSkipBp)
+        || Profile.SkipBp < 0 || Profile.SkipBp > MaxSkipBp || Profile.WarningReactMs < -1 || Profile.WarningReactMs > MaxWarningReactMs)
     {
-        Error = FString::Printf(TEXT("Operation knobs are reaction 0..%d ms, aim error 0..%d cm and skip 0..%d basis points."),
-            MaxReactionMs, MaxAimErrorCm, MaxSkipBp);
+        Error = FString::Printf(TEXT("Operation knobs are reaction 0..%d ms, aim error 0..%d cm, skip 0..%d basis points and warning reaction -1 (off) or 0..%d ms."),
+            MaxReactionMs, MaxAimErrorCm, MaxSkipBp, MaxWarningReactMs);
         return false;
     }
     auto Run = MakeShared<FLDEvaluationRun>();

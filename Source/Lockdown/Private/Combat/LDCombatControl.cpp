@@ -131,9 +131,31 @@ bool ALDCombatDirector::CommitControl(FLDBodyCombatState& Victim, const FLDContr
         ? Victim.IsolationGroup == ALDGameMode::RestIsolationGroup() && !Victim.bTrainingDummy
         : IsIsolated(App.SourceEntity,Victim);
     if (App.DurationMs<=0 || Victim.bPendingDeath || bIsolated) { return true; }
+    const bool bHard=LDCombatControl::IsHardControl(App.Kind);
+    // C-10 prototype: inside a contender's guard no new hard control lands, and a knockback from the chain's roll on (or in
+    // the guard) still pushes the body but keeps its input.
+    const bool bAgency=Proto.bAgency && Victim.Victim.Kind==ELDVictimKind::Contender && App.SourceEntity!=Victim.Victim.EntityId;
+    const bool bGuarded=bAgency && NowMs<Victim.Agency.GuardUntilMs;
+    if (bGuarded && bHard)
+    {
+        UE_LOG(LogLDCombat,Display,TEXT("LD_PROTO_AGENCY guarded t=%lld victim=%s kind=%u"),NowMs,*LDLog::Id(Victim.Victim.EntityId),
+            uint32(App.Kind));
+        return true;
+    }
+    bool bRoll=false;
+    if (bAgency && App.Kind==ELDControlKind::Knockback)
+    {
+        int64 EndMs=0;
+        if (!LDMatchLifecycle::AddDurationMs(NowMs,App.DurationMs,EndMs,Error)) { return false; }
+        bRoll=LDCombatControl::AgencyKnockbackRolls(Victim.Agency,NowMs,EndMs,Proto.Agency) || bGuarded;
+        if (bRoll)
+        {
+            UE_LOG(LogLDCombat,Display,TEXT("LD_PROTO_AGENCY roll t=%lld victim=%s chain=%d"),NowMs,*LDLog::Id(Victim.Victim.EntityId),
+                Victim.Agency.KnockChain);
+        }
+    }
     // Hard controls take the diminished duration; the chain advances only when the control actually lands.
     FLDHardControlChain Chain=Victim.HardControl;
-    const bool bHard=LDCombatControl::IsHardControl(App.Kind);
     const int64 BaseDurationMs=App.DurationMs;
     const int64 DurationMs=bHard ? LDCombatControl::DiminishHardControl(Chain,NowMs,BaseDurationMs) : BaseDurationMs;
     int64 ExpiresAtMs=0;
@@ -155,13 +177,12 @@ bool ALDCombatDirector::CommitControl(FLDBodyCombatState& Victim, const FLDContr
         break;
     case ELDControlKind::Stun:
         bApplied=LDCombatControl::Apply(Victim.Stuns,Instance,NowMs);
-        // A stun interrupts any unreleased windup and an overdrive charge; queued and later requests are refused while it lasts.
-        if (bApplied) { AbandonAction(Victim,ELDCombatReject::ControlBlocked); EndOverdriveCharge(Victim); }
+        // A stun interrupts any unreleased windup; queued and later requests are refused while it lasts.
+        if (bApplied) { AbandonAction(Victim,ELDCombatReject::ControlBlocked); }
         break;
     case ELDControlKind::Silence:
         // #147 D10: a silence forbids Q/W only; a learned skill still winding up ends unpaid, a basic or the dash goes on.
         bApplied=LDCombatControl::Apply(Victim.Silences,Instance,NowMs);
-        if (bApplied) { EndOverdriveCharge(Victim); }
         if (bApplied && Victim.Action.IsSet() && (Victim.Action->Kind==ELDCombatActionKind::Ability || Victim.Action->bMonsterSpecial)
             && Victim.Action->Source.Kind!=ELDCombatSourceKind::Innate)
         { AbandonAction(Victim,ELDCombatReject::ControlBlocked); }
@@ -196,8 +217,9 @@ bool ALDCombatDirector::CommitControl(FLDBodyCombatState& Victim, const FLDContr
         // #112 C2: the forced-displacement window (no diminishing returns). Every voluntary action is blocked while it
         // lasts, the unreleased action ends, and Navigation drops the current order when KnockbackSerial changes; the
         // caller (ApplyKnockback) starts the displacement itself after this commit.
+        // C-10 roll: the caller still pushes the body, but no window blocks its actions, its windup and order go on.
+        if (bRoll) { bApplied=true; break; }
         bApplied=LDCombatControl::Apply(Victim.Knockbacks,Instance,NowMs);
-        if (bApplied) { EndOverdriveCharge(Victim); }
         if (bApplied)
         {
             AbandonAction(Victim,ELDCombatReject::ControlBlocked);
@@ -209,8 +231,10 @@ bool ALDCombatDirector::CommitControl(FLDBodyCombatState& Victim, const FLDContr
         return false;
     }
     if (!bApplied) { return true; }
+    if (const int64 WeightBp=bAgency && !bRoll ? LDCombatControl::AgencyWeightBp(App.Kind,Proto.Agency) : 0; WeightBp>0)
+    { Victim.Agency.Losses.Add({NowMs,ExpiresAtMs,WeightBp}); }
     if (App.Kind==ELDControlKind::Stun || App.Kind==ELDControlKind::Silence
-        || App.Kind==ELDControlKind::Taunt || App.Kind==ELDControlKind::Knockback)
+        || App.Kind==ELDControlKind::Taunt || (App.Kind==ELDControlKind::Knockback && !bRoll))
     { CancelChannel(Victim); }
     if (bHard) { Victim.HardControl=Chain; }
     // #198 build safe window: a hard control or a knockback received is a combat action of its victim; a slow is not.
@@ -220,12 +244,45 @@ bool ALDCombatDirector::CommitControl(FLDBodyCombatState& Victim, const FLDContr
     // Root, stun, taunt, knockback and (#147 D10) silence reset the victim's spray progress at the moment they land;
     // disarm and slow do not.
     if ((App.Kind==ELDControlKind::Root || App.Kind==ELDControlKind::Stun || App.Kind==ELDControlKind::Taunt
-        || App.Kind==ELDControlKind::Knockback || App.Kind==ELDControlKind::Silence) && !InterruptSpray(Victim,Error))
+        || (App.Kind==ELDControlKind::Knockback && !bRoll) || App.Kind==ELDControlKind::Silence) && !InterruptSpray(Victim,Error))
     { return false; }
     // Every committed control or slow is its owner's assist contribution on this life.
     RecordAssistContribution(Victim,App.CreditOwner,NowMs);
     // #198 F C05/C07 read every hard control that actually landed.
     return !bHard || OnHardControl(Victim,App,NowMs,Error);
+}
+
+// C-10 prototype "急眼了": a contender whose weighted lost agency inside the window reaches the threshold (outside its guard
+// and cooldown) gets the guard; V-Cut also ends the controls others hold on it (a push in flight keeps moving).
+void ALDCombatDirector::AdvanceAgency(int64 NowMs)
+{
+    const FLDAgencyParams& Params=Proto.Agency;
+    for (auto& Pair : Bodies)
+    {
+        FLDBodyCombatState& Body=Pair.Value;
+        if (Body.Victim.Kind!=ELDVictimKind::Contender || Body.bPendingDeath) { continue; }
+        LDCombatControl::PruneAgency(Body.Agency,NowMs,Params.WindowMs);
+        if (Body.Agency.Losses.IsEmpty() || !LDCombatControl::AgencyTriggers(Body.Agency,NowMs,Params)) { continue; }
+        const int64 LossBpMs=LDCombatControl::AgencyLossBpMs(Body.Agency.Losses,NowMs,Params.WindowMs);
+        Body.Agency.LastTriggerMs=NowMs;
+        Body.Agency.GuardUntilMs=NowMs+Params.GuardMs;
+        if (Params.bCut)
+        {
+            const FGuid Self=Body.Victim.EntityId;
+            const auto Others=[Self](const FLDCombatRoot& Row) { return Row.SourceEntity!=Self; };
+            Body.Stuns.RemoveAll(Others);
+            Body.Roots.RemoveAll(Others);
+            Body.Disarms.RemoveAll(Others);
+            Body.Silences.RemoveAll(Others);
+            Body.Knockbacks.RemoveAll(Others);
+            if (Body.Taunt.IsSet() && Body.Taunt->SourceEntity!=Self) { Body.Taunt.Reset(); }
+            for (FLDAgencyLoss& Loss : Body.Agency.Losses) { Loss.EndMs=FMath::Min(Loss.EndMs,NowMs); }
+        }
+        ++Body.StateRevision;
+        MarkViewChanged(Body.Victim.EntityId);
+        UE_LOG(LogLDCombat,Display,TEXT("LD_PROTO_AGENCY trigger t=%lld victim=%s meter=%.2f cut=%d"),NowMs,*LDLog::Id(Body.Victim.EntityId),
+            double(LossBpMs)/10000000.,Params.bCut ? 1 : 0);
+    }
 }
 
 bool ALDCombatDirector::IsImpaired(const FLDBodyCombatState& Body, int64 NowMs) const

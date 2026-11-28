@@ -136,6 +136,79 @@ bool FLDPacingArenaTest::RunTest(const FString& Parameters)
     return bGood;
 }
 
+// Every field step advances the objectives: a later step of the same segment keeps its objective (the arena's damage, the
+// flag's spray) instead of replaying the earlier segments and drawing it anew.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDPacingObjectiveKeptTest, "Lockdown.Rules.DemoRest.Objective.KeptAcrossSteps",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDPacingObjectiveKeptTest::RunTest(const FString& Parameters)
+{
+    using namespace LDPacingRulesTesting;
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!Approved(*this, Catalog)) { return false; }
+    const FLDDemoContentParameters& P = Catalog->Get().Parameters;
+    FLDObjectiveState State;
+    FString Error;
+    const FVector Flagpole(4000, 2000, 0);
+    if (!TestTrue(TEXT("The objectives begin"), State.Begin(P, Points(TEXT("mini_flag"), 3), Flagpole, 5, Error))) { return false; }
+    bool bGood = true;
+    int32 Changes = 0;
+    for (int64 T = 0; T <= P.FieldSegmentMs + P.Objective.StartMs + 1000; T += 50) { Changes += State.Advance(T) ? 1 : 0; }
+    const int64 Open = P.FieldSegmentMs + P.Objective.StartMs;
+    // Segment 0: announced, opened, expired; segment 1: announced, opened.
+    bGood &= TestEqual(TEXT("Each objective boundary changes the view once"), Changes, 5);
+    bGood &= TestTrue(TEXT("The arena is open"), State.View.Serial == 2 && State.View.Phase == ELDObjectivePhase::Open);
+    State.NoteArenaDamage(At(1, Flagpole).Contender, 500, Open + 1000);
+    for (int64 T = Open + 1050; T < Open + P.Objective.ArenaMs; T += 50)
+    {
+        bGood &= TestFalse(TEXT("A later step of the arena changes nothing"), State.Advance(T));
+    }
+    bGood &= TestEqual(TEXT("The arena's damage is kept to its close"), State.ArenaWinner({At(1, Flagpole)}), At(1, Flagpole).Contender);
+    const int64 FlagOpen = 2 * P.FieldSegmentMs + P.Objective.StartMs;
+    State.Advance(FlagOpen);
+    const FVector Centre = State.View.CentreCm;
+    bool bChanged = false;
+    bool bWon = false;
+    for (int64 T = FlagOpen; T <= FlagOpen + P.Objective.FlagSprayMs && !bWon; T += 50)
+    {
+        bGood &= TestFalse(TEXT("A later step of the flag changes nothing"), T > FlagOpen && State.Advance(T));
+        bWon = State.StepFlag(T, {At(2, Centre)}, bChanged);
+    }
+    bGood &= TestTrue(TEXT("A sole sprayer stepped every frame wins the flag"), bWon && State.View.Phase == ELDObjectivePhase::Won
+        && State.View.Winner == At(2, Centre).Contender && State.View.Serial == 3);
+    // A won objective stays won through every later step: its reward (once per serial) is never owed again.
+    for (int64 T = FlagOpen + P.Objective.FlagSprayMs + 50; T <= 3 * P.FieldSegmentMs; T += 50)
+    {
+        bGood &= TestFalse(TEXT("A later step after the win changes nothing"), State.Advance(T)
+            || State.StepFlag(T, {At(2, Centre)}, bChanged));
+    }
+    bGood &= TestTrue(TEXT("The flag is still won by its sprayer"), State.View.Phase == ELDObjectivePhase::Won
+        && State.View.Winner == At(2, Centre).Contender && State.View.Serial == 3);
+    // The arena too: settled by its owner at the close, reported once, and later steps of its segment keep it.
+    FLDObjectiveState Arena;
+    Arena.Begin(P, Points(TEXT("mini_flag"), 3), Flagpole, 5, Error);
+    Arena.Advance(Open);
+    Arena.NoteArenaDamage(At(1, Flagpole).Contender, 500, Open + 1000);
+    const int64 Close = Open + P.Objective.ArenaMs;
+    bGood &= TestFalse(TEXT("The arena does not settle before its close"), Arena.SettleArena(Close - 1, {At(1, Flagpole)}));
+    bGood &= TestTrue(TEXT("Its close settles it won, reported once"), Arena.SettleArena(Close, {At(1, Flagpole)})
+        && Arena.View.Phase == ELDObjectivePhase::Won && Arena.View.Winner == At(1, Flagpole).Contender);
+    for (int64 T = Close; T < 2 * P.FieldSegmentMs; T += 50)
+    {
+        bGood &= TestFalse(TEXT("A later step after the arena's win changes nothing"), Arena.Advance(T)
+            || Arena.SettleArena(T, {At(1, Flagpole)}));
+    }
+    bGood &= TestTrue(TEXT("The arena is still won"), Arena.View.Phase == ELDObjectivePhase::Won && Arena.View.Serial == 2
+        && Arena.View.Winner == At(1, Flagpole).Contender);
+    // An arena nobody fought in ends too: expired at its close, once.
+    FLDObjectiveState Empty;
+    Empty.Begin(P, Points(TEXT("mini_flag"), 3), Flagpole, 5, Error);
+    Empty.Advance(Open);
+    bGood &= TestTrue(TEXT("An arena without damage expires at its close"), Empty.SettleArena(Close, {At(1, Flagpole)})
+        && Empty.View.Phase == ELDObjectivePhase::Expired && !Empty.View.Winner.IsValid());
+    bGood &= TestFalse(TEXT("An expired arena is not settled again"), Empty.SettleArena(Close + 50, {At(1, Flagpole)}));
+    return bGood;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDPacingRespawnChoiceTest, "Lockdown.Rules.DemoRest.Respawn.Choice",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDPacingRespawnChoiceTest::RunTest(const FString& Parameters)

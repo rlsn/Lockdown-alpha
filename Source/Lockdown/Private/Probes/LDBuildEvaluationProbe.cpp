@@ -4,6 +4,8 @@
 #if WITH_DEV_AUTOMATION_TESTS
 #include "AI/LDOpponentController.h"
 #include "Algo/Find.h"
+#include "Combat/LDAutoEmpower.h"
+#include "Combat/LDCombatDirector.h"
 #include "Containers/Ticker.h"
 #include "Development/LDBreakoutPresets.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -30,6 +32,7 @@
 #include "Misc/Paths.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
+#include "World/LDCampDirector.h"
 
 bool LDBuildEvaluation::SelectDuelOutcome(const TArray<FLDKillNotice>& Notices, uint64& LastSerial, const FGuid& Subject,
     const FGuid& Opponent, int64 StartedAtMs, int64 DuelTimeoutMs, FLDEvalOutcome& Out)
@@ -341,7 +344,8 @@ bool ParseContender(const FJsonObject& Object, const FString& Where, FLDEvalCont
     const TArray<TSharedPtr<FJsonValue>>* Presets = nullptr;
     const TArray<TSharedPtr<FJsonValue>>* Build = nullptr;
     if (!OnlyKeys(Object, {TEXT("role"), TEXT("slot"), TEXT("supply_xp"), TEXT("choices"), TEXT("opening_preset"),
-            TEXT("presets"), TEXT("level_cards"), TEXT("build"), TEXT("stance"), TEXT("breakout_preset")}, Where, Error)
+            TEXT("presets"), TEXT("level_cards"), TEXT("build"), TEXT("stance"), TEXT("breakout_preset"), TEXT("empower_host")},
+            Where, Error)
         || !ReadString(Object, TEXT("role"), Where, Out.Role, Error)
         || !ReadInteger(Object, TEXT("slot"), Where, 0, DuelAISlots - 1, Slot, Error)
         || !ReadInteger(Object, TEXT("supply_xp"), Where, 0, 1000000, Supply, Error)
@@ -360,6 +364,17 @@ bool ParseContender(const FJsonObject& Object, const FString& Where, FLDEvalCont
     }
     Out.Slot = int32(Slot);
     Out.SupplyXP = Supply;
+    if (Object.HasField(TEXT("empower_host")))
+    {
+        FString Host;
+        if (!ReadString(Object, TEXT("empower_host"), Where, Host, Error)) { return false; }
+        Out.EmpowerHost = LDAutoEmpower::ParseHost(Host);
+        if (Out.EmpowerHost == ELDCombatEntry::None)
+        {
+            Error = Where + TEXT(".empower_host: Basic, Q, W, E or D");
+            return false;
+        }
+    }
     if (Object.HasField(TEXT("breakout_preset")))
     {
         FString Preset;
@@ -376,10 +391,10 @@ bool ParseContender(const FJsonObject& Object, const FString& Where, FLDEvalCont
         const FString At = Where + TEXT(".stance");
         TSharedPtr<FJsonObject> Stance;
         FString Kind;
-        int64 Standoff = 0, Threshold = 0, Leash = 0, Reaction = 0, Aim = 0, Skip = 0;
+        int64 Standoff = 0, Threshold = 0, Leash = 0, Reaction = 0, Aim = 0, Skip = 0, WarningReact = -1;
         if (!ReadObject(Object, TEXT("stance"), Where, Stance, Error)
             || !OnlyKeys(*Stance, {TEXT("kind"), TEXT("standoff_cm"), TEXT("threshold_bp"), TEXT("leash_cm"), TEXT("reaction_ms"),
-                TEXT("aim_error_cm"), TEXT("skip_bp")}, At, Error)
+                TEXT("aim_error_cm"), TEXT("skip_bp"), TEXT("warning_react_ms"), TEXT("lead_aim"), TEXT("reserve_dash")}, At, Error)
             || !ReadString(*Stance, TEXT("kind"), At, Kind, Error))
         {
             return false;
@@ -389,15 +404,33 @@ bool ParseContender(const FJsonObject& Object, const FString& Where, FLDEvalCont
             || (Stance->HasField(TEXT("aim_error_cm")) && !ReadInteger(*Stance, TEXT("aim_error_cm"), At, 0,
                 LDEvaluationPolicy::MaxAimErrorCm, Aim, Error))
             || (Stance->HasField(TEXT("skip_bp")) && !ReadInteger(*Stance, TEXT("skip_bp"), At, 0, LDEvaluationPolicy::MaxSkipBp,
-                Skip, Error)))
+                Skip, Error))
+            || (Stance->HasField(TEXT("warning_react_ms")) && !ReadInteger(*Stance, TEXT("warning_react_ms"), At, 0,
+                LDEvaluationPolicy::MaxWarningReactMs, WarningReact, Error)))
         {
             return false;
         }
+        bool bLeadAim = false;
+        if (Stance->HasField(TEXT("lead_aim")) && !Stance->TryGetBoolField(TEXT("lead_aim"), bLeadAim))
+        {
+            Error = At + TEXT(".lead_aim: true or false is required");
+            return false;
+        }
+        Out.WarningReactMs = int32(WarningReact);
+        Out.bLeadAim = bLeadAim;
+        bool bReserveDash = false;
+        if (Stance->HasField(TEXT("reserve_dash")) && !Stance->TryGetBoolField(TEXT("reserve_dash"), bReserveDash))
+        {
+            Error = At + TEXT(".reserve_dash: true or false is required");
+            return false;
+        }
+        Out.bReserveDash = bReserveDash;
         Out.ReactionMs = int32(Reaction);
         Out.AimErrorCm = int32(Aim);
         Out.SkipBp = int32(Skip);
         const bool bOperation = Stance->HasField(TEXT("reaction_ms")) || Stance->HasField(TEXT("aim_error_cm"))
-            || Stance->HasField(TEXT("skip_bp"));
+            || Stance->HasField(TEXT("skip_bp")) || Stance->HasField(TEXT("warning_react_ms")) || Stance->HasField(TEXT("lead_aim"))
+            || Stance->HasField(TEXT("reserve_dash"));
         if (Kind == TEXT("pursue") && bOperation)
         {
             // An explicit pursue only carries operation knobs; a plain pursue is the absent stance.
@@ -412,13 +445,14 @@ bool ParseContender(const FJsonObject& Object, const FString& Where, FLDEvalCont
         else
         {
             static const TPair<const TCHAR*, ELDEvaluationStance> Kinds[] = {{TEXT("kite"), ELDEvaluationStance::Kite},
-                {TEXT("burst"), ELDEvaluationStance::Burst}, {TEXT("hold"), ELDEvaluationStance::Hold}, {TEXT("guard"), ELDEvaluationStance::Guard}};
+                {TEXT("burst"), ELDEvaluationStance::Burst}, {TEXT("hold"), ELDEvaluationStance::Hold}, {TEXT("guard"), ELDEvaluationStance::Guard},
+                {TEXT("strafe"), ELDEvaluationStance::Strafe}};
             const TPair<const TCHAR*, ELDEvaluationStance>* Known = Algo::FindByPredicate(Kinds,
                 [&Kind](const TPair<const TCHAR*, ELDEvaluationStance>& Row) { return Kind == Row.Key; });
             if (!Known)
             {
                 // The pursue stance is the absent field: one spelling per behaviour.
-                Error = At + TEXT(".kind: kite, burst, hold or guard (omit the stance to pursue)");
+                Error = At + TEXT(".kind: kite, burst, hold, guard or strafe (omit the stance to pursue)");
                 return false;
             }
             const bool bGuard = Known->Value == ELDEvaluationStance::Guard;
@@ -664,7 +698,7 @@ bool LDBuildEvaluation::ParseInput(const FString& Json, FLDEvalRunInput& Out, FS
         int64 Timeout = 0, Wall = 0;
         const TArray<TSharedPtr<FJsonValue>>* Contenders = nullptr;
         if (!OnlyKeys(Object, {TEXT("case_id"), TEXT("seed"), TEXT("site"), TEXT("duel_timeout_ms"), TEXT("wall_timeout_s"),
-                TEXT("contenders")}, Where, Error)
+                TEXT("clear_camps"), TEXT("contenders")}, Where, Error)
             || !ReadString(Object, TEXT("case_id"), Where, Case.CaseId, Error)
             || !ReadString(Object, TEXT("seed"), Where, Seed, Error)
             || !ReadString(Object, TEXT("site"), Where, Site, Error)
@@ -693,6 +727,11 @@ bool LDBuildEvaluation::ParseInput(const FString& Json, FLDEvalRunInput& Out, FS
         Case.Site = FName(*Site);
         Case.DuelTimeoutMs = Timeout;
         Case.WallTimeoutSeconds = int32(Wall);
+        if (Object.HasField(TEXT("clear_camps")) && !Object.TryGetBoolField(TEXT("clear_camps"), Case.bClearCamps))
+        {
+            Error = Where + TEXT(".clear_camps: true or false is required");
+            return false;
+        }
         if (Contenders->Num() != DuelAISlots)
         {
             Error = Where + TEXT(".contenders: exactly one subject and one opponent");
@@ -868,6 +907,10 @@ public:
             Profile.ReactionMs = Row.Contenders[Index].ReactionMs;
             Profile.AimErrorCm = Row.Contenders[Index].AimErrorCm;
             Profile.SkipBp = Row.Contenders[Index].SkipBp;
+            Profile.WarningReactMs = Row.Contenders[Index].WarningReactMs;
+            Profile.bLeadAim = Row.Contenders[Index].bLeadAim;
+            Profile.bReserveDash = Row.Contenders[Index].bReserveDash;
+            Profile.EmpowerHost = Row.Contenders[Index].EmpowerHost;
             Profile.OperationSeed = Row.Seed;
             if (LDProgression::LevelForXP(Content->Get().Progression, Row.Contenders[Index].SupplyXP, Profile.SupplyLevel)
                 != ELDGrowthReason::None)
@@ -1067,6 +1110,23 @@ public:
                 ++Sides[Index].PresetsQueued;
             }
         }
+        // Auto-empower: a planned host goes through the authority's own host command (its receipt is LD_EMPOWER_HOST).
+        for (int32 Index = 0; Index < LDBuildEvaluation::DuelAISlots; ++Index)
+        {
+            const ELDCombatEntry Host = Case().Contenders[Index].EmpowerHost;
+            if (Host == ELDCombatEntry::None) { continue; }
+            FLDCombatCaller Caller;
+            Caller.Kind = ELDVictimKind::Contender;
+            Caller.Match = Mode.GetMatchContext();
+            Caller.EntityId = Sides[Index].Contender;
+            FString Reason;
+            if (!Mode.Combat || !Mode.Combat->SubmitEmpowerHost(Caller, 1, Host, Reason))
+            {
+                EndCase(Mode, World, TEXT("Invalid"), FString::Printf(TEXT("%s empower host refused: %s"),
+                    *Case().Contenders[Index].Role, Mode.Combat ? *Reason : TEXT("no combat authority")));
+                return true;
+            }
+        }
         return true;
     }
 
@@ -1123,6 +1183,15 @@ public:
         if (!bSupplySent)
         {
             bSupplySent = true;
+            if (Row.bClearCamps)
+            {
+                if (!Mode.Camps)
+                {
+                    EndCase(Mode, World, TEXT("Invalid"), TEXT("clear_camps: this match has no camp owner"));
+                    return true;
+                }
+                Mode.Camps->RequestEvaluationClear();
+            }
             for (int32 Index = 0; Index < LDBuildEvaluation::DuelAISlots; ++Index)
             {
                 const FLDEvalContenderPlan& Plan = Row.Contenders[Index];

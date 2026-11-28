@@ -1,0 +1,319 @@
+{
+  "schema": "build_evaluation.manifest",
+  "schema_version": 2,
+  "experiment": {
+    "id": "b01-x2-spacing-ranged-vs-melee",
+    "hypothesis": "X2：远程对追击的近战，三种移动策略（直接追打 / 打了就走 / 持续保持 600 cm）的胜负与击杀时间差别，检验风筝在原生碰撞与地形下是否成立。"
+  },
+  "adapter": {
+    "module": "BuildEvaluationLockdown",
+    "id": "lockdown-demo"
+  },
+  "scenario": {
+    "kind": "duel_site",
+    "parameters": {
+      "site": "capture",
+      "duel_timeout_ms": 90000,
+      "supply_xp": {
+        "subject": 1890,
+        "opponent": 1890
+      },
+      "clear_camps": true
+    }
+  },
+  "sample_class": "diagnostic",
+  "assumptions": [
+    "双方由 DEV 奖励事务在第一野外入口获得 1890 XP，达到 L10 与 30 点；不是自然成长速率。",
+    "主动由 DEV 预置候选固定（S3 代表构筑），技能 1 级；不装牌。",
+    "旋钮是测试用的非完美操作，不等于操作水平：reaction_ms 只延迟“技能就绪后的使用”和“撤退开始”，不是对敌方预警的反应；aim_error_cm 只影响地面点、弹道、直线、扇形，单体/自身/冲刺精确。",
+    "对手为生产 AI 追击；kite 只用非冲刺主动、不走近普攻；kite 方到时未交手是删失。",
+    "评估夹具 clear_camps：初始营地站齐后全部离场且本段不再刷新，排除营地卷入（S2 T05-07）。",
+    "8 个确认种子 × 双侧：每个 arm 16 Case。"
+  ],
+  "design": {
+    "kind": "paired_arms",
+    "reference": "pursue",
+    "arms": [
+      {
+        "id": "pursue",
+        "plan": {
+          "subject": {
+            "opening_preset": [
+              "active_snark_bolt"
+            ],
+            "choices": [
+              {
+                "rule": "definition",
+                "definition": "active_snark_bolt"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_zap"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_hose_down"
+              },
+              "ai_select"
+            ],
+            "presets": [
+              [
+                "active_zap"
+              ],
+              [
+                "active_hose_down"
+              ]
+            ],
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "field",
+                "points": {
+                  "stat_brains": 18,
+                  "stat_agility": 12
+                }
+              }
+            ]
+          },
+          "opponent": {
+            "opening_preset": [
+              "active_elbow"
+            ],
+            "choices": [
+              {
+                "rule": "definition",
+                "definition": "active_elbow"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_pants_down"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_bail_out"
+              },
+              "ai_select"
+            ],
+            "presets": [
+              [
+                "active_pants_down"
+              ],
+              [
+                "active_bail_out"
+              ]
+            ],
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "field",
+                "points": {
+                  "stat_strength": 18,
+                  "stat_agility": 12
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "burst600",
+        "plan": {
+          "subject": {
+            "opening_preset": [
+              "active_snark_bolt"
+            ],
+            "choices": [
+              {
+                "rule": "definition",
+                "definition": "active_snark_bolt"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_zap"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_hose_down"
+              },
+              "ai_select"
+            ],
+            "presets": [
+              [
+                "active_zap"
+              ],
+              [
+                "active_hose_down"
+              ]
+            ],
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "field",
+                "points": {
+                  "stat_brains": 18,
+                  "stat_agility": 12
+                }
+              }
+            ],
+            "stance": {
+              "kind": "burst",
+              "standoff_cm": 600
+            }
+          },
+          "opponent": {
+            "opening_preset": [
+              "active_elbow"
+            ],
+            "choices": [
+              {
+                "rule": "definition",
+                "definition": "active_elbow"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_pants_down"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_bail_out"
+              },
+              "ai_select"
+            ],
+            "presets": [
+              [
+                "active_pants_down"
+              ],
+              [
+                "active_bail_out"
+              ]
+            ],
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "field",
+                "points": {
+                  "stat_strength": 18,
+                  "stat_agility": 12
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "kite600",
+        "plan": {
+          "subject": {
+            "opening_preset": [
+              "active_snark_bolt"
+            ],
+            "choices": [
+              {
+                "rule": "definition",
+                "definition": "active_snark_bolt"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_zap"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_hose_down"
+              },
+              "ai_select"
+            ],
+            "presets": [
+              [
+                "active_zap"
+              ],
+              [
+                "active_hose_down"
+              ]
+            ],
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "field",
+                "points": {
+                  "stat_brains": 18,
+                  "stat_agility": 12
+                }
+              }
+            ],
+            "stance": {
+              "kind": "kite",
+              "standoff_cm": 600
+            }
+          },
+          "opponent": {
+            "opening_preset": [
+              "active_elbow"
+            ],
+            "choices": [
+              {
+                "rule": "definition",
+                "definition": "active_elbow"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_pants_down"
+              },
+              {
+                "rule": "definition",
+                "definition": "active_bail_out"
+              },
+              "ai_select"
+            ],
+            "presets": [
+              [
+                "active_pants_down"
+              ],
+              [
+                "active_bail_out"
+              ]
+            ],
+            "build": [
+              {
+                "step": "allocate_points",
+                "at": "field",
+                "points": {
+                  "stat_strength": 18,
+                  "stat_agility": 12
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "blocks": {
+    "root_seed": "20261201",
+    "splits": {
+      "search": 0,
+      "confirm": 8
+    },
+    "sides": 2
+  },
+  "metrics": {
+    "primary": "duel_score",
+    "secondary": [
+      "engage_to_kill_ms",
+      "damage_dealt_hp",
+      "damage_taken_hp",
+      "subject_casts",
+      "opponent_casts",
+      "subject_hp_end_bp"
+    ],
+    "material_difference": null
+  },
+  "budget": {
+    "class": "standard",
+    "case_wall_timeout_s": 180,
+    "max_case_events": 200000,
+    "max_run_disk_bytes": 2147483648,
+    "max_root_disk_bytes": 6442450944,
+    "max_cases": 48,
+    "run_wall_timeout_s": 5400
+  }
+}

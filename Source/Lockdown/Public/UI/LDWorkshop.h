@@ -82,6 +82,8 @@ public:
     TFunction<void()> RequestOpen;
     // A local refusal line (the HUD's toast).
     TFunction<void(const FString&)> Notify;
+    // Auto-empower: the owner picks the host its empowered action takes (Basic, Q, W, E or D).
+    TFunction<void(ELDCombatEntry)> RequestEmpowerHost;
     void ApplyTextScale(float Scale);
     void AllocationApplied(const FLDBuildReceipt& Receipt);
     void FinalModApplied(const FLDBuildReceipt& Receipt,const FLDFinalModSelection& Selection);

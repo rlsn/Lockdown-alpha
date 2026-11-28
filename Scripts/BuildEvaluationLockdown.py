@@ -27,7 +27,7 @@ import re
 from pathlib import Path
 
 ADAPTER_ID = "lockdown-demo"
-ADAPTER_VERSION = 15
+ADAPTER_VERSION = 22
 # LDBuildEvaluation::MaxCases and MaxBuildSteps of the native driver (LDBuildEvaluationProbe.h); a larger plan is refused
 # before any run.
 NATIVE_MAX_CASES = 500
@@ -39,6 +39,12 @@ NATIVE_INPUT_SCHEMA_VERSION = 6
 NATIVE_RESULT_SCHEMA_VERSION = 7
 SEED_DERIVATION = 1
 CAST_LAG_MS = 50
+# Sample validity, not a balance target: a duelist that holds a learned active and casts none over this much engagement
+# (every active is ready at the field entry) did not exercise its build, so the Case is Invalid (NeverCast).
+NEVER_CAST_GRACE_MS = 5000
+# Stances that walk into the rival: a timeout with no hit between two of them is an approach failure (NoEngagement); a
+# kite, hold, guard or strafe stance may keep its distance on purpose, so such a timeout stays a censored result.
+ENGAGING_STANCES = ("pursue", "burst")
 ROLES = ("subject", "opponent")
 PUBLIC_PLACE_KINDS = ("Spawn", "Camp", "Capture", "Dorm", "Airdrop")
 CATALOG_EVIDENCE = "in the runtime catalog the native importer accepted (it refuses any definition without a handler)"
@@ -107,7 +113,20 @@ METRICS = {
     "opponent_casts": {"unit": "casts", "kind": "continuous", "direction": "descriptive",
                        "description": "the opponent's Q/W/E releases (LD_CAST) from first-field entry to the outcome "
                                       "(and the outcome's own advance, at most 50 ms later)"},
+    "subject_empowers": {"unit": "empowers", "kind": "continuous", "direction": "descriptive",
+                         "description": "the subject's empowerments (LD_EMPOWER applied; a prepaid delivery is not another) from first-field "
+                                        "entry to the outcome; 0 in a run without auto-empower"},
+    "opponent_empowers": {"unit": "empowers", "kind": "continuous", "direction": "descriptive",
+                          "description": "the opponent's empowerments (LD_EMPOWER applied; a prepaid delivery is not another) from first-field "
+                                         "entry to the outcome; 0 in a run without auto-empower"},
 }
+# Auto-empower is a Host-wide switch (-LDEmpower, optionally -LDEmpowerHost=<entry> for every contender without a chosen
+# host): one run is all off or all on, so off/on is compared across two runs of the same seeds. An AI picks its own host
+# unless empower_host forces one for both duelists.
+EMPOWER_HOSTS = ("Basic", "Q", "W", "E", "D")
+# One empowerment is one applied line (the release that paid). A prepaid line is the delivery of an empowerment an earlier
+# applied release already paid for (a Q that empowers the next basic): paid 0, host and serial of the delivering action.
+EMPOWER_DONE = ("applied",)
 
 
 # ---------------------------------------------------------------- capabilities
@@ -175,6 +194,9 @@ def describe(project_root):
             "definition": {"description": "the actual active offer's option of one active; refused when not offered"},
             "preset_offer": {"description": "a diagnostic opening offer or a later one-to-three-active offer prepared by DevQueueOffer",
                              "sample_classes": ["diagnostic"]},
+            "empower_host": {"description": "auto-empower only: the side's host (Basic, Q, W, E or D) submitted through the "
+                                            "authority's host command when the match starts, instead of the AI's own pick or "
+                                            "the scenario-wide empower_host"},
             "breakout_preset": {"description": "a DEV breakout sample (LDBreakoutPresets) applied at the field entry instead of "
                                                "the side's XP supply: its max-level skills, branches, cards and points",
                                 "sample_classes": ["diagnostic"]},
@@ -202,9 +224,11 @@ def describe(project_root):
                 "sides": 2,
                 "budget_classes": ["standard"],
                 "metrics": list(METRICS),
-                "parameters": {"site": places, "duel_timeout_ms": [1000, min(first_field_ms, boss_appear_ms) - 1],
+                "parameters": {"site": places, "clear_camps": [False, True],
+                               "duel_timeout_ms": [1000, min(first_field_ms, boss_appear_ms) - 1],
                                "first_field_ms": first_field_ms,
                                "supply_xp": [0, cumulative_xp(progression)[-1]],
+                               "empower": [False, True], "empower_host": list(EMPOWER_HOSTS),
                                "xp_to_next": progression["xp_to_next"],
                                "active_offer_levels": progression["active_offer_levels"],
                                "card_capacity_base": int(content["parameters"]["CARDS.CapacityBase"]),
@@ -217,7 +241,9 @@ def describe(project_root):
                 "description": ("A Listen Host of L_Demo runs one ordinary match per Case: the Host only orchestrates; two AI "
                                 "contenders choose their active offers along their plans from a T=0 XP supply, build by their "
                                 "planned build steps (or, without them, by the production AI rule), walk to a public place and "
-                                "fight each other with the production engagement until a death or the duel timeout."),
+                                "fight each other with the production engagement until a death or the duel timeout. With "
+                                "clear_camps every camp group leaves the field once the initial camps stand and stays away "
+                                "for the duel (an evaluation fixture; the map and its camps are unchanged)."),
             }
         },
         "metrics": METRICS,
@@ -257,9 +283,11 @@ def _side_plan(plan, role):
     side = plan.get(role)
     if (not isinstance(side, dict) or "choices" not in side
             or set(side) - {"choices", "opening_preset", "presets", "level_cards", "build", "stance", "keep_points_unspent",
-                            "breakout_preset"}):
+                            "breakout_preset", "empower_host"}):
         raise ValueError(f"plan.{role}: an object with choices (and optional opening_preset, presets, level_cards, build, "
-                         "stance, keep_points_unspent and breakout_preset)")
+                         "stance, keep_points_unspent, breakout_preset and empower_host)")
+    if "empower_host" in side and side["empower_host"] not in EMPOWER_HOSTS:
+        raise ValueError(f"plan.{role}.empower_host: one of {', '.join(EMPOWER_HOSTS)}")
     preset = side.get("breakout_preset")
     if preset is not None and (not isinstance(preset, str) or not preset.startswith("breakout_")):
         raise ValueError(f"plan.{role}.breakout_preset: a DEV breakout sample id (breakout_*)")
@@ -308,18 +336,23 @@ def card_capacity(params, level):
     return params["card_capacity_base"] + (level - 1) // params["card_levels_per_slot"]
 
 
-STANCE_KINDS = ("kite", "burst", "hold", "guard")
+STANCE_KINDS = ("kite", "burst", "hold", "guard", "strafe")
 STANCE_STANDOFF_CM = (200, 2000)
 STANCE_THRESHOLD_BP = (1000, 9000)
 STANCE_LEASH_CM = (500, 5000)
-# Operation knobs (any stance, each optional, 0: exact play) and their native limits.
-OPERATION_KNOBS = {"reaction_ms": (0, 1500), "aim_error_cm": (0, 400), "skip_bp": (0, 9000)}
+# Operation knobs (any stance, each optional) and their native limits; an absent knob is its default (exact play, no
+# warning dodge, no lead aim, the dash free for chases). lead_aim and reserve_dash are flags.
+OPERATION_KNOBS = {"reaction_ms": (0, 1500), "aim_error_cm": (0, 400), "skip_bp": (0, 9000), "warning_react_ms": (0, 1500)}
+OPERATION_FLAGS = ("lead_aim", "reserve_dash")
+OPERATION_DEFAULTS = {"reaction_ms": 0, "aim_error_cm": 0, "skip_bp": 0, "warning_react_ms": -1, "lead_aim": False,
+                      "reserve_dash": False}
 
 
 def _stance(plan, role):
-    """The optional engagement stance (absent: the production pursue): {"kind": "kite"|"burst"|"hold"|"guard",
+    """The optional engagement stance (absent: the production pursue): {"kind": "kite"|"burst"|"hold"|"guard"|"strafe",
     "standoff_cm": N, "threshold_bp": N (guard only, required), "leash_cm": N (optional)}, each with the optional operation
-    knobs reaction_ms, aim_error_cm and skip_bp. {"kind": "pursue"} is written only to carry knobs."""
+    knobs reaction_ms, aim_error_cm, skip_bp, warning_react_ms and the flags lead_aim and reserve_dash. {"kind": "pursue"} is written only to
+    carry knobs."""
     stance = plan[role].get("stance")
     if stance is None:
         return None
@@ -328,32 +361,36 @@ def _stance(plan, role):
         value = stance[key]
         return isinstance(value, int) and not isinstance(value, bool) and bounds[0] <= value <= bounds[1]
 
-    knobs = set(OPERATION_KNOBS) & set(stance) if isinstance(stance, dict) else set()
-    if (not isinstance(stance, dict) or any(not bounded(key, OPERATION_KNOBS[key]) for key in knobs)):
+    knobs = (set(OPERATION_KNOBS) | set(OPERATION_FLAGS)) & set(stance) if isinstance(stance, dict) else set()
+    if (not isinstance(stance, dict)
+            or any(not (isinstance(stance[key], bool) if key in OPERATION_FLAGS else bounded(key, OPERATION_KNOBS[key]))
+                   for key in knobs)):
         raise ValueError(f"plan.{role}.stance: optional integer knobs " + ", ".join(
-            f"{key} {low}..{high}" for key, (low, high) in OPERATION_KNOBS.items()))
+            f"{key} {low}..{high}" for key, (low, high) in OPERATION_KNOBS.items())
+            + " and optional true/false " + ", ".join(OPERATION_FLAGS))
     if stance.get("kind") == "pursue":
         if not knobs or set(stance) - knobs - {"kind"}:
             raise ValueError(f"plan.{role}.stance: a pursue stance carries only operation knobs, at least one "
                              f"(omit the stance to pursue exactly)")
-        return {key: stance[key] for key in ("kind", *OPERATION_KNOBS) if key in stance}
+        return {key: stance[key] for key in ("kind", *OPERATION_KNOBS, *OPERATION_FLAGS) if key in stance}
     guard = stance.get("kind") == "guard"
     keys = {"kind", "standoff_cm"} | ({"threshold_bp"} if guard else set())
     if (stance.get("kind") not in STANCE_KINDS or not keys <= set(stance)
             or set(stance) - keys - {"leash_cm"} - knobs or not bounded("standoff_cm", STANCE_STANDOFF_CM)
             or (guard and not bounded("threshold_bp", STANCE_THRESHOLD_BP))
             or ("leash_cm" in stance and not bounded("leash_cm", STANCE_LEASH_CM))):
-        raise ValueError(f"plan.{role}.stance: {{\"kind\": kite|burst|hold|guard, \"standoff_cm\": "
+        raise ValueError(f"plan.{role}.stance: {{\"kind\": kite|burst|hold|guard|strafe, \"standoff_cm\": "
                          f"{STANCE_STANDOFF_CM[0]}..{STANCE_STANDOFF_CM[1]}, \"threshold_bp\": "
                          f"{STANCE_THRESHOLD_BP[0]}..{STANCE_THRESHOLD_BP[1]} (guard only), optional \"leash_cm\": "
                          f"{STANCE_LEASH_CM[0]}..{STANCE_LEASH_CM[1]}}} (omit it to pursue)")
-    return {key: stance[key] for key in ("kind", "standoff_cm", "threshold_bp", "leash_cm", *OPERATION_KNOBS) if key in stance}
+    return {key: stance[key] for key in ("kind", "standoff_cm", "threshold_bp", "leash_cm", *OPERATION_KNOBS, *OPERATION_FLAGS)
+            if key in stance}
 
 
 def operation_knobs(plan, role):
-    """The role's planned operation knobs, each 0 when not written."""
+    """The role's planned operation knobs, each its default when not written."""
     stance = _stance(plan, role) or {}
-    return {key: stance.get(key, 0) for key in OPERATION_KNOBS}
+    return {key: stance.get(key, default) for key, default in OPERATION_DEFAULTS.items()}
 
 
 def _definition(value, where):
@@ -550,6 +587,10 @@ def requirements(scenario, plan, caps):
             problems += needs[2]
         if plan[role].get("breakout_preset"):
             decisions.add("breakout_preset")
+        if plan[role].get("empower_host"):
+            decisions.add("empower_host")
+            if scenario["parameters"].get("empower") is not True:
+                problems.append(f"IllegalScenario: plan.{role}.empower_host needs the scenario's empower true")
         if level_cards:
             decisions.add("preset_level_cards")
             mechanics.update(level_cards)
@@ -630,9 +671,11 @@ def scenario_problems(scenario, caps):
     params = scenario["parameters"]
     spec = caps["scenarios"]["duel_site"]["parameters"]
     problems = []
-    unknown = set(params) - {"site", "duel_timeout_ms", "supply_xp"}
+    unknown = set(params) - {"site", "duel_timeout_ms", "supply_xp", "clear_camps", "empower", "empower_host"}
     if unknown:
         problems.append(f"IllegalScenario: unknown duel_site parameters {sorted(unknown)}")
+    if "clear_camps" in params and not isinstance(params["clear_camps"], bool):
+        problems.append("IllegalScenario: clear_camps is true or false")
     if params.get("site") not in spec["site"]:
         problems.append(f"IllegalScenario: site {params.get('site')} is not a public place of this world")
     timeout = params.get("duel_timeout_ms")
@@ -644,7 +687,27 @@ def scenario_problems(scenario, caps):
     if not isinstance(supply, dict) or set(supply) != set(ROLES) or any(
             isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high for value in supply.values()):
         problems.append(f"IllegalScenario: supply_xp names subject and opponent, each {low}..{high} XP")
+    if not isinstance(params.get("empower", False), bool):
+        problems.append("IllegalScenario: empower is true or false (the Host-wide -LDEmpower switch)")
+    if "empower_host" in params and (params.get("empower") is not True or params["empower_host"] not in EMPOWER_HOSTS):
+        problems.append(f"IllegalScenario: empower_host needs empower true and is one of {', '.join(EMPOWER_HOSTS)}")
     return problems
+
+
+def engine_switches(manifest):
+    """The Host command-line switches the manifest's scenario needs (RunBuildEvaluation.ps1 passes them)."""
+    params = manifest["scenario"]["parameters"]
+    if not params.get("empower"):
+        return []
+    return ["-LDEmpower"] + ([f"-LDEmpowerHost={params['empower_host']}"] if params.get("empower_host") else [])
+
+
+def runner_problems(manifest, runner):
+    switches = runner.get("engine_switches", [])
+    expected = engine_switches(manifest)
+    if switches != expected:
+        return [f"the Host ran with switches {switches or 'none'}, the scenario needs {expected or 'none'}"]
+    return []
 
 
 def native_input(run_id, manifest, caps, cases):
@@ -665,10 +728,15 @@ def native_input(run_id, manifest, caps, cases):
                 row["stance"] = stance
             if plan[role].get("breakout_preset"):
                 row["breakout_preset"] = plan[role]["breakout_preset"]
+            if plan[role].get("empower_host"):
+                row["empower_host"] = plan[role]["empower_host"]
             contenders.append(row)
-        out.append({"case_id": case["case_id"], "seed": case["seed"], "site": params["site"],
-                    "duel_timeout_ms": params["duel_timeout_ms"], "wall_timeout_s": manifest["budget"]["case_wall_timeout_s"],
-                    "contenders": contenders})
+        row = {"case_id": case["case_id"], "seed": case["seed"], "site": params["site"],
+               "duel_timeout_ms": params["duel_timeout_ms"], "wall_timeout_s": manifest["budget"]["case_wall_timeout_s"],
+               "contenders": contenders}
+        if params.get("clear_camps"):
+            row["clear_camps"] = True
+        out.append(row)
     return {"schema": NATIVE_INPUT_SCHEMA, "schema_version": NATIVE_INPUT_SCHEMA_VERSION, "run_id": run_id,
             "content_root": caps["content"]["digest"], "cases": out}
 
@@ -712,9 +780,16 @@ def breakout_roles(plan):
     return {role for role in ROLES if plan[role].get("breakout_preset")}
 
 
-def breakout_problems(events, ids, plan, contenders):
-    """Prove each breakout sample was committed once by the authority and that the side ends on it."""
+def breakout_problems(events, ids, plan, contenders, outcome=None):
+    """Prove each breakout sample was committed once by the authority and that the side ends on it. The element medal a
+    side's deciding kill drops (LD_MEDAL cause=contender_kill; the duel ends at its first kill) is that kill's own reward,
+    exempt like its XP, so it is not counted against the sample's cards."""
     problems = []
+    killers = set()
+    if outcome and outcome.get("kind") == "kill" and outcome.get("killer") in ids:
+        killers = {outcome["killer"]}
+    elif outcome and outcome.get("kind") == "trade":
+        killers = set(ROLES)
     for role in sorted(breakout_roles(plan)):
         preset = plan[role]["breakout_preset"]
         applied = [fields for tag, fields, _ in events if tag == "LD_DEV_BREAKOUT_PRESET" and fields.get("contender") == ids[role]]
@@ -722,9 +797,13 @@ def breakout_problems(events, ids, plan, contenders):
             problems.append(f"PresetNotApplied: the {role} needs exactly one committed {preset}")
             continue
         row, fields = contenders[role], applied[0]
+        kill_medals = {(medal.get("medal"), medal.get("serial")) for tag, medal, _ in events
+                       if role in killers and tag == "LD_MEDAL" and medal.get("contender") == ids[role]
+                       and medal.get("cause") == "contender_kill"}
+        cards = [card for card in row["cards"] if (card.get("id"), str(card.get("serial"))) not in kill_medals]
         if (not fields.get("level", "").isdigit() or not fields.get("cards", "").isdigit()
-                or row["level"] != int(fields["level"]) or len(row["cards"]) != int(fields["cards"])):
-            problems.append(f"PresetNotApplied: the {role} ends at level {row['level']} with {len(row['cards'])} cards, "
+                or row["level"] != int(fields["level"]) or len(cards) != int(fields["cards"])):
+            problems.append(f"PresetNotApplied: the {role} ends at level {row['level']} with {len(cards)} cards, "
                             f"{preset} committed level {fields.get('level')} with {fields.get('cards')} cards")
     for tag, fields, _ in events:
         if tag == "LD_DEV_BREAKOUT_PRESET" and not any(fields.get("contender") == ids[role] for role in breakout_roles(plan)):
@@ -1055,6 +1134,11 @@ def case_evidence(case, manifest, caps, result, trace_text):
             or fields[0].get("segment") != "0" or fields[0].get("at_ms") != str(t0)
             or fields[0].get("field_t_ms") != "0" or fields[0].get("final") != "0"):
         reasons.append("TraceIncomplete: the first field entry is missing or disagrees with the duel start")
+    clears = [fields for tag, fields, _ in events if tag == "LD_EVAL_CAMPS_CLEARED"]
+    if params.get("clear_camps") and len(clears) != 1:
+        reasons.append("CampsNotCleared: clear_camps has no single LD_EVAL_CAMPS_CLEARED in the Case")
+    if not params.get("clear_camps") and clears:
+        reasons.append("TraceIncomplete: camps were cleared without clear_camps")
     for role, contender in ids.items():
         spawns = [fields for tag, fields, _ in events if tag == "LD_EVAL_FIELD_SPAWN" and fields.get("contender") == contender]
         if (len(spawns) != 1 or spawns[0].get("t") != str(t0) or spawns[0].get("generation") != str(result["generation"])
@@ -1140,7 +1224,7 @@ def case_evidence(case, manifest, caps, result, trace_text):
         if supplied[role] != (0 if role in samples else params["supply_xp"][role]):
             reasons.append(f"SupplyMismatch: the {role} received {supplied[role]} dev_fixture XP, planned {params['supply_xp'][role]}")
     plans = {arm["id"]: arm["plan"] for arm in manifest["design"]["arms"]}
-    reasons += breakout_problems(events, ids, plans[case["arm"]], {row["role"]: row for row in rows})
+    reasons += breakout_problems(events, ids, plans[case["arm"]], {row["role"]: row for row in rows}, outcome)
     reasons += selection_problems(events, ids, plans[case["arm"]], {row["role"]: row for row in rows}, t_out)
     reasons += build_problems(events, ids, plans[case["arm"]], {row["role"]: row for row in rows}, t_out, caps)
     reasons += level_card_problems(events, ids, plans[case["arm"]], {row["role"]: row for row in rows},
@@ -1160,6 +1244,45 @@ def case_evidence(case, manifest, caps, result, trace_text):
         for position, preset in enumerate(presets):
             if offered.get(str(position + 2)) != preset:
                 reasons.append(f"PresetNotApplied: the {role} offer at ordinal {position + 2} is {offered.get(str(position + 2))}, prepared {preset}")
+    empowered = params.get("empower", False)
+    empower = {role: {"empowers": 0, "delivered": 0, "short": 0, "paid": 0, "hosts": {}, "processors": {}} for role in ROLES}
+    for tag, row, _ in events:
+        if tag != "LD_EMPOWER" or row.get("src") not in duelists:
+            continue
+        if not empowered:
+            reasons.append("Setup: an LD_EMPOWER line in a run without auto-empower")
+            break
+        if not row.get("t", "").isdigit() or not t0 <= int(row["t"]) <= t_out + CAST_LAG_MS:
+            continue
+        side = empower[roles[row["src"]]]
+        if row.get("outcome") in EMPOWER_DONE:
+            side["empowers"] += 1
+            side["paid"] += _hundredths(row.get("paid", "0"))
+            for key, value in (("hosts", row.get("host")), ("processors", row.get("processor"))):
+                side[key][value] = side[key].get(value, 0) + 1
+        elif row.get("outcome") == "prepaid":
+            side["delivered"] += 1
+        else:
+            side["short"] += 1
+    if empowered:
+        out["facts"]["empower"] = {role: dict(side, paid=side["paid"] / 100) for role, side in empower.items()}
+    # A planned host is the authority's accepted host command (LD_EMPOWER_HOST) and the only host that side empowers.
+    for role in ROLES:
+        planned = plans[case["arm"]][role].get("empower_host")
+        # The native profile line names the side's auto-empower (off, auto or the fixed host) when it carries the field.
+        needed = "off" if not empowered else planned or params.get("empower_host") or "auto"
+        profiles = [row.get("empower") for tag, row, _ in events
+                    if tag == "LD_EVAL_PROFILE" and row.get("contender") == ids[role] and "empower" in row]
+        if any(value != needed for value in profiles):
+            reasons.append(f"Setup: the {role} native profile has empower={profiles[0]}, the run needs {needed}")
+        if not planned:
+            continue
+        hosted = [row.get("host") for tag, row, _ in events if tag == "LD_EMPOWER_HOST" and row.get("src") == ids[role]]
+        if hosted != [planned]:
+            reasons.append(f"EmpowerHostNotApplied: the {role} host commands are {hosted or 'none'}, planned {planned}")
+        other = sorted(set(empower[role]["hosts"]) - {planned})
+        if other:
+            reasons.append(f"EmpowerHostNotApplied: the {role} empowered {other}, planned {planned}")
     casts = {role: 0 for role in ROLES}
     for tag, row, _ in events:
         if tag == "LD_CAST" and row.get("contender") in duelists:
@@ -1174,6 +1297,24 @@ def case_evidence(case, manifest, caps, result, trace_text):
             tag == "LD_HIT" and row.get("src") in duelists and row.get("via", "").startswith("learned:")
             for tag, row, _ in events):
         reasons.append("TraceIncomplete: duelist skill hits without any LD_CAST line (the Host build predates the cast trace)")
+    duel_hits = [int(row["t"]) for tag, row, _ in events if tag == "LD_HIT" and t0 <= int(row["t"]) <= t_out
+                 and {row["src"], row["victim"]} == duelists]
+    plan = plans[case["arm"]]
+    engaging = all((_stance(plan, role) or {}).get("kind", "pursue") in ENGAGING_STANCES for role in ROLES)
+    if outcome["kind"] == "timeout" and not duel_hits and engaging:
+        reasons.append(f"NoEngagement: the duelists never hit each other before the duel horizon (closest approach "
+                       f"{_closest_approach(events, ids, t0, t_out)}; an approach or pathing failure, not a censored fight)")
+    elif duel_hits:
+        for row in rows:
+            knobs = operation_knobs(plan, row["role"])
+            engaged_ms = t_out - min(duel_hits)
+            # SkipBp holds casts on purpose and ReactionMs delays each one: zero casts can then be the planned play.
+            if (row["actives"] and not casts[row["role"]] and not knobs["skip_bp"]
+                    and engaged_ms >= NEVER_CAST_GRACE_MS + knobs["reaction_ms"]):
+                reasons.append(f"NeverCast: the {row['role']} held {len(row['actives'])} learned "
+                               f"active{'s' if len(row['actives']) != 1 else ''} and cast none in "
+                               f"{engaged_ms / 1000:g} s of engagement (an AI execution failure; the sample "
+                               f"does not exercise its build)")
     if out["violations"]:
         reasons.append("EvidenceViolation: a committed hit contradicts its recorded damage")
     if reasons:
@@ -1202,8 +1343,22 @@ def case_evidence(case, manifest, caps, result, trace_text):
         "engage_to_kill_ms": {"value": t_out - engaged, "censored": outcome["kind"] == "timeout"},
         "subject_casts": {"value": casts["subject"], "censored": False},
         "opponent_casts": {"value": casts["opponent"], "censored": False},
+        "subject_empowers": {"value": empower["subject"]["empowers"], "censored": False},
+        "opponent_empowers": {"value": empower["opponent"]["empowers"], "censored": False},
     })
     return out
+
+
+def _closest_approach(events, ids, t0, t_out):
+    """The smallest XY distance between the duelists over their same-time heartbeats, or "unknown" without any."""
+    feet = {}
+    for tag, fields, _ in events:
+        if tag == "LD_HEARTBEAT" and fields.get("contender") in ids.values() and fields.get("t", "").isdigit() \
+                and t0 <= int(fields["t"]) <= t_out and re.fullmatch(r"-?[\d.]+,-?[\d.]+,-?[\d.]+", fields.get("pos", "")):
+            x, y, _ = (float(part) for part in fields["pos"].split(","))
+            feet.setdefault(int(fields["t"]), {})[fields["contender"]] = (x, y)
+    gaps = [math.dist(*pair.values()) for pair in feet.values() if len(pair) == 2]
+    return f"{min(gaps):.0f} cm" if gaps else "unknown"
 
 
 def _is_outcome_kill_reward(fields, outcome, ids, t_out):
@@ -1283,10 +1438,13 @@ def operation_problems(events, ids, plan):
     reasons = []
     for role in ROLES:
         knobs = operation_knobs(plan, role)
-        if not any(knobs.values()):
+        if knobs == OPERATION_DEFAULTS:
             continue
         lines = [fields for tag, fields, _ in events if tag == "LD_EVAL_PROFILE" and fields.get("contender") == ids[role]]
-        if len(lines) != 1 or any(lines[0].get(key) != str(value) for key, value in knobs.items()):
+        # A knob left at its default may be absent from a profile line written before it existed.
+        if len(lines) != 1 or any(lines[0].get(key) != str(int(value))
+                                  and not (value == OPERATION_DEFAULTS[key] and key not in lines[0])
+                                  for key, value in knobs.items()):
             reasons.append(f"Setup: the {role} operation knobs did not reach the native profile")
     return reasons
 
@@ -1572,6 +1730,19 @@ def limitations(manifest, caps):
     ]
     if manifest["sample_class"] == "diagnostic":
         out.append("本实验用 DevQueueOffer 预置候选：样本是条件实验（diagnostic），不能估计自然抽到率或全局主动健康。")
+    uneven = [arm["id"] for arm in manifest["design"]["arms"]
+              if len({bool(arm["plan"][role].get("keep_points_unspent")) for role in ROLES}) > 1]
+    if uneven:
+        out.append(f"属性点预算不对等（{', '.join(f'`{arm}`' for arm in uneven)}）：一方花完赚到的全部属性点，另一方"
+                   "（keep_points_unspent）全部不分配；这些 arm 的结果同时包含属性点预算差与构筑本身，不能单独归因于构筑质变。")
+    out.append(f"无效样本不计入结论：双方都是走近交战的架势（pursue/burst）而到时从未互相命中（NoEngagement，接近或寻路"
+               f"失败，不是删失，原因里写最近距离）；学会主动的一方在至少 {NEVER_CAST_GRACE_MS / 1000:g} s（另加其 reaction_ms）"
+               f"交战中一次未施放（NeverCast，AI 执行失败；设了 skip_bp 的一方不判）。kite/hold/guard 架势到时未交手仍是删失。")
+    if manifest["scenario"]["parameters"].get("empower"):
+        host = manifest["scenario"]["parameters"].get("empower_host")
+        out.append("自动强化是整个房主进程的开关（-LDEmpower）：本次运行所有 Case 都开启，off/on 对照是同一组种子的两次运行，"
+                   "不在一次运行内成对。" + (f"双方宿主都被 -LDEmpowerHost={host} 固定。" if host else
+                   "宿主由 AI 按“宿主上的牌阶 + 技能分支阶”自选，实际宿主见各 Case facts.empower.hosts。"))
     if manifest["sample_class"] == "legal_search":
         out.append("候选由原生抽取按 Case 种子真实抽出，选择按计划规则；搜索频率不是自然出现率。")
     return out
