@@ -679,68 +679,18 @@ bool FLDControlFeelElevationAimAndClipTest::RunTest(const FString& Parameters)
         PC->CancelArmedCombat();
         PC->Navigation->DevSetAimRay(TPair<FVector, FVector>(FVector(0., -800., 1200.), FVector(0.3, 0.8, -0.5).GetSafeNormal()));
 
-        // (g) Full-momentum long-held Unit QuickCast released with no nearby target ends completed overdrive cleanly
-        // while preserving another entry's pending QuickCast hold.
-        Public->DemoClock = {1, 1, 1000};
-        PC->CombatView.MomentumP2 = 10000;
-        PC->CombatView.OverdriveThresholdP2 = 10000;
-        PC->CombatView.Entries[0].TargetMode = uint8(ELDDemoTargetMode::Unit); // Q = Unit
-        PC->CombatView.Entries[0].MomentumCostP2 = 2500;
-        PC->CombatView.Entries[0].ReadyAtMs = 0;
-        PC->QuickCastTestClockSec = 70.00;
-        PC->PressSkill(ELDCombatEntry::W);
-        PC->QuickCastTestClockSec = 70.02;
-        PC->PressSkill(ELDCombatEntry::Q);
-        TestTrue(TEXT("Full-momentum Unit Q starts overdrive hold"), PC->bOverdriveHolding && PC->OverdriveEntry == ELDCombatEntry::Q);
-        PC->QuickCastTestClockSec = 70.40; // past OVERDRIVE.HoldSec (0.35s)
-        PC->TickOverdriveHold();
-        TestTrue(TEXT("Completed overdrive hold arms overdrive while key remains held"),
-            PC->bOverdriveArmed && FMath::IsNearlyEqual(PC->OverdriveHoldProgress(ELDCombatEntry::Q), 1.f));
-        PC->ReleaseSkill(ELDCombatEntry::Q); // no ObservedNearPointer target in headless fixture
-        TestTrue(TEXT("Failed Unit QuickCast target resolution ends overdrive and restores held W"),
-            !PC->bOverdriveArmed && !PC->bOverdriveHolding && PC->OverdriveEntry == ELDCombatEntry::None
-            && FMath::IsNearlyEqual(PC->OverdriveHoldProgress(ELDCombatEntry::Q), 0.f)
-            && PC->IsQuickCastHolding(ELDCombatEntry::W) && PC->ReadArmedCombatEntry(Armed) && Armed == ELDCombatEntry::W);
-        PC->CancelArmedCombat();
-
-        // (h) Replacing a charging skill via OnRep_CombatView ends its overdrive charge even when another slot is ArmedEntry.
-        PC->CombatView.MomentumP2 = 10000;
-        PC->LatestCombatView = PC->CombatView;
-        PC->QuickCastTestClockSec = 80.00;
-        PC->PressSkill(ELDCombatEntry::Q); // starts overdrive hold on Q
-        PC->QuickCastTestClockSec = 80.02;
-        PC->CombatView.MomentumP2 = 0; // W won't steal overdrive
-        PC->PressSkill(ELDCombatEntry::W); // ArmedEntry is now W, while OverdriveEntry is still Q!
-        TestTrue(TEXT("Q overdrive hold stays active while W becomes ArmedEntry"),
-            PC->bOverdriveHolding && PC->OverdriveEntry == ELDCombatEntry::Q
-            && PC->ReadArmedCombatEntry(Armed) && Armed == ELDCombatEntry::W);
-        ++PC->CombatView.Revision;
-        ++PC->CombatView.SourceRevision;
-        PC->CombatView.Entries[0].DefinitionId = TEXT("active_elbow"); // Q replaced!
-        PC->OnRep_CombatView();
-        TestTrue(TEXT("OnRep_CombatView ends replaced Q's overdrive hold so TickOverdriveHold never fires replacement Q"),
-            !PC->bOverdriveHolding && !PC->bOverdriveArmed && PC->OverdriveEntry == ELDCombatEntry::None
-            && PC->IsQuickCastHolding(ELDCombatEntry::W));
-        const uint64 SeqBeforeTick = PC->NextDirectSequence;
-        PC->QuickCastTestClockSec = 80.50;
-        PC->TickOverdriveHold();
-        TestEqual(TEXT("TickOverdriveHold sends nothing for invalidated Q overdrive"), PC->NextDirectSequence, SeqBeforeTick);
-        PC->CancelArmedCombat();
-
-        // (i) A move click that ends a full-momentum self skill's overdrive charge (no aim is armed) reports the cancel like
-        // an armed one instead of dropping the press silently.
+        // (g) The bar never changes the input: a full-momentum self skill fires on its press, and its release sends nothing more.
         PC->CombatView.MomentumP2 = 10000;
         PC->CombatView.Entries[2].MomentumCostP2 = 2500;
         PC->CombatView.Entries[2].ReadyAtMs = 0;
         PC->LatestCombatView = PC->CombatView;
+        const uint64 SeqBeforeSelf = PC->NextDirectSequence;
         PC->QuickCastTestClockSec = 90.00;
         PC->PressSkill(ELDCombatEntry::E);
-        const bool bSelfCharging = PC->bOverdriveHolding && PC->OverdriveEntry == ELDCombatEntry::E;
-        const uint32 SelfCancelBase = PC->GetArmedCancelSerial();
-        PC->CancelArmedCombat();
-        TestTrue(TEXT("Cancelling a charging self skill ends the charge and reports E as cancelled"),
-            bSelfCharging && !PC->bOverdriveHolding && PC->GetArmedCancelSerial() == SelfCancelBase + 1
-            && PC->GetArmedCancelEntry() == ELDCombatEntry::E);
+        TestEqual(TEXT("A full-momentum self skill is sent on its press"), PC->NextDirectSequence, SeqBeforeSelf + 1);
+        PC->QuickCastTestClockSec = 90.50;
+        PC->ReleaseSkill(ELDCombatEntry::E);
+        TestEqual(TEXT("Its release sends nothing more"), PC->NextDirectSequence, SeqBeforeSelf + 1);
     }
 
     // DASH-02: Issuing MoveGround or AttackUnit while IsDashing() retains the order across the dash and pursues/attacks upon completion.

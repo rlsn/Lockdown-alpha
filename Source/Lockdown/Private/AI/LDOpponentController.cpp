@@ -193,8 +193,6 @@ void ALDOpponentController::ForgetBodyWork()
     Candidate = FOrderTrack();
     StopTrack = FStopTrack();
     Action = FActionTrack();
-    // A charge belongs to the body that started it; a new life starts its own.
-    Charge = FChargeTrack();
     bWasInDorm = false;
 }
 
@@ -859,34 +857,10 @@ void ALDOpponentController::ComposeFrame(FLDOpponentDecisionFrame& Frame) const
     Frame.PKThrowReadyAtMs = PKThrowSerial != 0 && PKThrowSerial == Frame.Public.PK.Serial ? PKThrowReadyAtMs : 0;
 }
 
-void ALDOpponentController::AbandonCharge(ALDGameMode& Mode, const FReads& Reads)
-{
-    if (!Charge.bHas) { return; }
-    if (Mode.Combat && Reads.bCombat)
-    {
-        FLDCombatChargeRequest End;
-        End.Generation = Binding.GetMatch().Generation;
-        End.Life = Charge.Life;
-        End.Entry = Charge.Entry;
-        End.bCharging = false;
-        Mode.Combat->SubmitCharge(Reads.CombatCaller, End);
-    }
-    Charge = FChargeTrack();
-}
-
 void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads, const FLDOpponentDecisionFrame& Frame,
     const FLDOpponentBodyIntent& Intent, int64 NowMs, FString& Problem)
 {
     TRACE_CPUPROFILER_EVENT_SCOPE(LDAI_DispatchBody);
-    // A charge lives only while the policy keeps asking to overdrive the same skill: any other intent (keep, stop, move,
-    // retreat, another skill) ends it on the authority so no stale charge stays visible or is reused later.
-    if (Charge.bHas)
-    {
-        const ELDCombatEntry Wanted = Intent.Source == ELDOpponentSourceSlot::Q ? ELDCombatEntry::Q
-            : Intent.Source == ELDOpponentSourceSlot::W ? ELDCombatEntry::W
-            : Intent.Source == ELDOpponentSourceSlot::E ? ELDCombatEntry::E : ELDCombatEntry::None;
-        if (Intent.Kind != ELDOpponentBodyKind::Activate || !Intent.bOverdrive || Wanted != Charge.Entry) { AbandonCharge(Mode, Reads); }
-    }
     if (Intent.Kind == ELDOpponentBodyKind::None || Intent.Kind == ELDOpponentBodyKind::Keep) { return; }
     const FLDOpponentSelf& Self = Frame.Self;
     const uint32 Generation = Binding.GetMatch().Generation;
@@ -926,33 +900,6 @@ void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads,
     }
     if (Intent.Kind == ELDOpponentBodyKind::Activate)
     {
-        // Issue #287 spec §13: an overdrive holds the charge (seen by observers) for OVERDRIVE.HoldSec before the release.
-        bool bOverdriveNow = false;
-        if (Intent.bOverdrive && Intent.Source != ELDOpponentSourceSlot::Dash)
-        {
-            const ELDCombatEntry Held = Intent.Source == ELDOpponentSourceSlot::Q ? ELDCombatEntry::Q
-                : Intent.Source == ELDOpponentSourceSlot::W ? ELDCombatEntry::W : ELDCombatEntry::E;
-            // The authority ended the charge since (a stun, silence or knockback, or a bar drop): start over and time it anew.
-            if (Charge.bHas && Charge.Life == Life && Charge.Entry == Held && Reads.Combat.AsOfMs > Charge.StartMs
-                && Reads.Combat.ChargingEntry != Held)
-            {
-                Charge = FChargeTrack();
-            }
-            if (!Charge.bHas || Charge.Life != Life || Charge.Entry != Held)
-            {
-                FLDCombatChargeRequest Start;
-                Start.Generation = Generation;
-                Start.Life = Life;
-                Start.Entry = Held;
-                Start.bCharging = true;
-                Mode.Combat->SubmitCharge(Reads.CombatCaller, Start);
-                Charge = {true, Life, Held, NowMs};
-                return;
-            }
-            if (NowMs - Charge.StartMs < Content->Get().Parameters.Overdrive.HoldMs) { return; }
-            bOverdriveNow = true;
-        }
-        Charge = FChargeTrack();
         FLDCombatActionRequest Request;
         FString Error;
         if (DirectSequence == MAX_uint64 || !LDOpponentRequests::BuildAction(Intent, Generation, Life, DirectSequence + 1,
@@ -962,7 +909,6 @@ void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads,
             Learn(Intent.Key, ELDOpponentSettle::Failed, Self, NowMs);
             return;
         }
-        Request.bOverdrive = bOverdriveNow;
         DirectSequence = Request.DirectSequence;
         ++Tally.Actions;
         Tally.Dashes += Intent.Source == ELDOpponentSourceSlot::Dash ? 1 : 0;

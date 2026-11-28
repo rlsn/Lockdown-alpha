@@ -22,7 +22,7 @@ bool CombatDevPermitValid(const ALDGameMode* Mode, const FLDGameplayWritePermit&
 
 bool ALDCombatDirector::DevRefillPool(FLDBodyCombatState::FResources& Pool, int64 MomentumMaxP2)
 {
-    // HP to its maximum and a full momentum bar (overdrive is ready).
+    // HP to its maximum and a full momentum bar.
     const bool bChanged = Pool.HpP2 != Pool.MaxHpP2 || Pool.MomentumP2 != MomentumMaxP2;
     Pool.HpP2 = Pool.MaxHpP2;
     Pool.MomentumP2 = MomentumMaxP2;
@@ -140,8 +140,6 @@ bool ALDCombatDirector::DevSetMomentum(const FGuid& Contender, int64 Points, con
     }
     if (bChanged)
     {
-        // Like any other momentum change: a charge does not outlive momentum below its threshold.
-        if (Body->OverdriveCharge.IsSet() && Body->Resources.MomentumP2 < OverdriveThresholdOf(*Body)) { EndOverdriveCharge(*Body); }
         MarkViewChanged(Contender);
     }
     Detail = FString::Printf(TEXT("momentum %lld->%lld P2"), Before, Body->Resources.MomentumP2);
@@ -317,13 +315,12 @@ int32 ALDCombatDirector::DevFinishReset(const FGuid& Contender, int64 NowMs)
     Record->LastBuildUnsafeAtMs = 0;
     if (FLDBodyCombatState* Body = FindEntityBody(Contender); Body && !Body->bPendingDeath && Catalog())
     {
-        // As at the match start: full HP, momentum at MOMENTUM.Start, no combo and no charge.
+        // As at the match start: full HP, momentum at MOMENTUM.Start, and no combo.
         DevRefillPool(Body->Resources, Catalog()->Get().Parameters.Momentum.StartP2);
         Body->MomentumMicroP2 = 0;
         Body->MomentumEngagedAtMs.Reset();
         Body->FightStartedAtMs = 0;
         Body->ComboStep = 0;
-        EndOverdriveCharge(*Body);
     }
     MarkViewChanged(Contender);
     return Dropped;

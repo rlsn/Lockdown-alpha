@@ -44,16 +44,7 @@ namespace LDCA
             && A.Target.ObservationEpoch==B.Target.ObservationEpoch
             && FVector(A.Target.Direction).Equals(FVector(B.Target.Direction),0.0001)
             && FVector(A.Target.Point).Equals(FVector(B.Target.Point),0.0001)
-            && A.Target.ServerBody==B.Target.ServerBody && A.ExpectedSourceRevision==B.ExpectedSourceRevision
-            && A.bOverdrive==B.bOverdrive;
-    }
-
-    // Whether Body holds the overdrive charge of Entry long enough at NowMs: half of OVERDRIVE.HoldSec at the server, the
-    // client's own hold being the rest (jitter room between the charge and the request).
-    bool ChargeHeld(const FLDBodyCombatState& Body, ELDCombatEntry Entry, int64 NowMs, int64 HoldMs)
-    {
-        return Body.OverdriveCharge.IsSet() && Body.OverdriveCharge->Entry==Entry && HoldMs>0
-            && NowMs-Body.OverdriveCharge->StartMs>=HoldMs/2;
+            && A.Target.ServerBody==B.Target.ServerBody && A.ExpectedSourceRevision==B.ExpectedSourceRevision;
     }
 
     bool ValidDirection(const FVector& Direction)
@@ -332,7 +323,6 @@ FLDCombatActionReceipt ALDCombatDirector::SubmitAction(const FLDCombatCaller& Ca
         Buffered.CastMode=ELDCombatPreInputMode::Direct;
         Buffered.AimDirection=Request.Target.Direction;
         Buffered.GroundPointCm=Request.Target.Point;
-        Buffered.bOverdrive=Request.bOverdrive;
         Buffered.ExpiresAtMs=Mode->GetAuthorityNowMs()+LDCombatPreInput::HoldWindowMs;
         Buffered.Action=Request;
         BufferPreInputIntent(Caller.EntityId,MoveTemp(Buffered));
@@ -1039,10 +1029,6 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
     Action.Source=Source;
     Action.Target=Request.Target;
     Action.SourceRevision=Record.SourceRevision;
-    // Overdrive needs the visible charge of this entry held for half of OVERDRIVE.HoldSec at the server (the rest is
-    // jitter room); without it the request releases normally. The charge ends with the admission.
-    Action.bOverdrive=Request.bOverdrive && Source.Kind==ELDCombatSourceKind::Learned
-        && LDCA::ChargeHeld(*Body,Request.Entry,Now,Content->Get().Parameters.Overdrive.HoldMs);
     // Auto-empower: the host's own release started on a bar holding the threshold; a strike adds its readable windup.
     Action.EmpowerProcessor=AdmitEmpower(*Body,Record,Request.Entry,nullptr,Now);
     Action.bEmpowered=Action.EmpowerProcessor!=ELDEmpowerProcessor::None;
@@ -1099,7 +1085,6 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
     if (Record.NextToken==MAX_uint64 || !LDMatchLifecycle::AddDurationMs(Now,WindupMs+EmpowerWindupMs,Action.ReleaseAtMs,Error)) { return false; }
     Action.Token=Record.NextToken++;
     Action.StartedAtMs=Now;
-    if (Body->OverdriveCharge.IsSet() && Body->OverdriveCharge->Entry==Request.Entry) { EndOverdriveCharge(*Body); }
     CancelChannel(*Body);
     // A new ability interrupts an unreleased basic windup; FinishAction gives its committed cadence back.
     if (Body->Action.IsSet()) { AbandonAction(*Body,ELDCombatReject::Cancelled); }
@@ -1150,8 +1135,6 @@ bool ALDCombatDirector::ReleaseDue(const FLDGameplayWritePermit& Permit, FString
                 After->Cues.ReleasedStartedAtMs=Action.StartedAtMs;
                 After->Cues.ReleasedAtMs=Now;
                 After->ReleasedSource=Action.Source;
-                // ReleaseAbility stored the resolved overdrive of an ability; a basic never is one.
-                if (Action.Kind==ELDCombatActionKind::Basic) { After->bReleasedOverdrive=false; }
                 MarkViewChanged(After->Victim.EntityId);
             }
         };
@@ -1547,23 +1530,11 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     auto* Track=TrackFor(*Record,Action.Entry);
     if (!ActiveOf(*Record,Source,Ability,Terms) || !Track)
     { Reject=ELDCombatReject::SourceUnavailable; return true; }
-    // Overdrive: a release admitted with a held charge whose bar still holds OVERDRIVE.Threshold scales its base amounts
-    // and ratios and takes its element's bonus; otherwise it releases normally (never a refusal).
-    const auto& OverdriveTerms=Content->Get().Parameters.Overdrive;
-    // Y11: the holder's own threshold.
-    FLDDemoOverdriveParameters BodyOverdrive=OverdriveTerms;
-    BodyOverdrive.ThresholdP2=OverdriveThresholdOf(Body);
-    const bool bOverdrive=Action.bOverdrive && Source.Kind==ELDCombatSourceKind::Learned
-        && LDMomentum::OverdriveReady(BodyOverdrive,Body.Resources.MomentumP2);
-    if (bOverdrive && !ApplyOverdrive(Body,*Ability,Terms,Error)) { return false; }
     // Auto-empower: an action admitted as empowered releases empowered while the bar still holds the cost (else normally).
     const FLDDemoEmpowerParameters* EmpowerP=EmpowerTerms();
     const bool bEmpowerAsked=Action.bEmpowered && !Action.bAutoRecast;
     const bool bEmpowered=bEmpowerAsked && EmpowerP && LDAutoEmpower::CanPay(*EmpowerP,Body.Resources.MomentumP2);
     if (bEmpowered && !ApplyEmpowerTerms(Body,*Record,Ability,Action.EmpowerProcessor,Terms,Error)) { return false; }
-    // The released cast shows as overdrive only when it actually resolved as one (a bar that fell during the windup
-    // releases a normal cast).
-    Body.bReleasedOverdrive=bOverdrive;
     // A08: a combo cast releases its whole effect at its share (damage and shields by ShareBp = 0.45, hard-control durations
     // by 0.50 per #330 §5.2.6); K06: a repeat releases at its share of the damage.
     if (Action.bAutoRecast && Action.bWholeEffectShare)
@@ -1756,9 +1727,8 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     // the next one (K16's wait restarts after it).
     TArray<FLDDamageFactor> ReleaseFactorsNow;
     if (!ReleaseFactors(Body,*Record,Source,Track,Now,ReleaseFactorsNow,Error)) { return false; }
-    // Every fallible step is done: pay once and register the effects (an overdrive pays the holder's own threshold, never
-    // less than the skill's cost, so the rest of the bar stays for the next cast).
-    const int64 PaidP2=bOverdrive ? FMath::Max(BodyOverdrive.ThresholdP2,Gate.MomentumCostP2) : Gate.MomentumCostP2;
+    // Every fallible step is done: pay once and register the effects.
+    const int64 PaidP2=Gate.MomentumCostP2;
     GrantMomentum(Body,-PaidP2,ELDMomentumBook::Spent);
     const int32 EmpowerSerial=bEmpowerAsked ? PayEmpower(Body,Action,bEmpowered,Now) : 0;
     if (bHealthCost)
@@ -1774,13 +1744,6 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         else { Body.SplitDashLeft=Terms.SplitSegments-1; }
         if (!LDMatchLifecycle::AddDurationMs(Now,Terms.SplitWindowMs+Innate.DurationMs,Body.SplitDashUntilMs,Error)) { return false; }
     }
-    if (bOverdrive)
-    {
-        ++Body.MomentumLedger.Overdrives;
-        UE_LOG(LogLDCombat,Log,TEXT("LD_OVERDRIVE t=%lld src=%s active=%s paid=%lld"),Now,*LDLog::Id(Body.Victim.EntityId),
-            *Source.DefinitionId.ToString(),PaidP2);
-    }
-    if (Body.OverdriveCharge.IsSet()) { EndOverdriveCharge(Body); }
     if (bFreeCast)
     {
         // A branch window spends first; otherwise one of D04's free casts.
@@ -1848,7 +1811,6 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     LedgerEffectReleased(Body,EffectId,bInnate ? ELDBlueprintFact::Count : ELDBlueprintFact::AbilityCasts);
     auto CastLedger=MakeShared<FLDCombatCastLedger>();
     CastLedger->PaidMomentumP2=PaidP2;
-    CastLedger->bOverdrive=bOverdrive;
     CastLedger->Factors=MoveTemp(ReleaseFactorsNow);
     CastLedger->bAutoRecast=Action.bAutoRecast;
     CastLedger->EmpowerSerial=EmpowerSerial;
@@ -2324,7 +2286,6 @@ bool ALDCombatDirector::BuildReleasePayload(const FLDBodyCombatState& Body, cons
     Template.SilenceDurationMs=SilenceEffect ? SilenceEffect->DurationMs : 0;
     Template.BreachStacks=BreachEffect ? BreachEffect->Count : 0;
     Template.BurnStacks=BurnEffect ? BurnEffect->Count : 0;
-    Template.OverdriveBurnStacks=Terms.OverdriveBurnStacks;
     // Elements of every hit of this release, with the caster's snapshot now (a rot's own cut and duration).
     for (const TPair<ELDDemoEffectOp,ELDCombatElement>& Row : {TPair<ELDDemoEffectOp,ELDCombatElement>(ELDDemoEffectOp::Wet,ELDCombatElement::Water),
         {ELDDemoEffectOp::Electrify,ELDCombatElement::Shock}, {ELDDemoEffectOp::Chill,ELDCombatElement::Chill},

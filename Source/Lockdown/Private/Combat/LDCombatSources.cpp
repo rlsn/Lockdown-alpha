@@ -1046,13 +1046,11 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
         Out.HPP2=Body->Resources.HpP2;
         Out.MaxHPP2=Body->Resources.MaxHpP2;
         Out.MomentumP2=Body->Resources.MomentumP2;
-        Out.OverdriveThresholdP2=OverdriveThresholdOf(*Body);
         Out.ShieldP2=Body->Resources.ShieldP2;
         Out.ComboStep=Body->ComboStep;
         Out.ComboStartMs=Body->ComboStartMs;
         Out.PerfectDodges=Body->PerfectDodges;
         Out.LastPerfectDodgeAtMs=Body->LastPerfectDodgeAtMs;
-        Out.ChargingEntry=Body->OverdriveCharge.IsSet() ? Body->OverdriveCharge->Entry : ELDCombatEntry::None;
         if (!Body->bPendingDeath)
         {
             const int64 RootedUntilMs=LDTactical::ActiveRootUntilMs(Body->Roots,NowMs);
@@ -1144,7 +1142,7 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
                 Out.ActionToken=Body->Action->Token;
                 Out.ActionReleaseAtMs=Body->Action->ReleaseAtMs;
             }
-            Out.Cues=PresentedCueFactsOf(*Body);
+            Out.Cues=CueFactsOf(*Body);
             if (Out.Cues.LastHitId.IsValid())
             {
                 Out.Cues.LastHitId=LDObservation::ScopedHitId(Body->Identity,Out.Cues.LastHitId);

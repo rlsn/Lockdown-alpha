@@ -89,8 +89,6 @@ namespace
         ELDObservedProjectileLook Effect = ELDObservedProjectileLook::Chalk;
         float EffectRadius = 0.f;
         float CaptureDelay = 0.f;
-        // Overdrive: 1 holds a charge through the shot, 2 releases a held charge as a cast.
-        uint8 Overdrive = 0;
         // An element reaction on the victim (ELDCombatElement), a public ground state (ELDGroundStateKind), a flight that
         // keeps flying through the shot, and a shot that keeps the interface (the screen edge flash).
         uint8 ReactionElement = 0;
@@ -121,7 +119,6 @@ namespace
         uint64 VfxCaptureFrame = 0;
         bool bVfxPrepared = false;
         bool bVfxDash = false;
-        double VfxReleaseAt = -1.;
         TWeakObjectPtr<ALDObservedGroundProxy> VfxGround;
         FLDObservedProjectileView VfxFlight;
         double VfxFlightAt = -1.;
@@ -685,11 +682,6 @@ namespace
                     0, false, true, ELDObservedProjectileLook::AreaElectric, 220.f, .6f},
                 {TEXT("VFX-Chalk"), Focus, LDCamera::DefaultArmLength, false, 0, ELDObservedHitLook::None, 0, false, .08f, false,
                     0, false, true, ELDObservedProjectileLook::Chalk, 0.f, .1f},
-                {TEXT("VFX-OverdriveHit"), Focus, LDCamera::DefaultArmLength, false, 1, ELDObservedHitLook::None, LDObservation::Overdriven, true},
-                {TEXT("VFX-OverdriveCharge"), Focus, LDCamera::DefaultArmLength, false, 0, ELDObservedHitLook::None, 0, false, .08f, false,
-                    0, false, false, ELDObservedProjectileLook::Chalk, 0.f, .45f, 1},
-                {TEXT("VFX-OverdriveRelease"), Focus, LDCamera::DefaultArmLength, false, 0, ELDObservedHitLook::None, 0, false, .08f, false,
-                    uint8(ELDDemoAbilityId::ActiveZap), false, false, ELDObservedProjectileLook::Chalk, 0.f, .5f, 2},
                 // Last: the fall leaves the victim fallen.
                 {TEXT("VFX-Kill"), Focus, LDCamera::DefaultArmLength, false, 1, ELDObservedHitLook::None, 0, false, .08f, true},
             };
@@ -1230,7 +1222,7 @@ namespace
                         nullptr, ClearMarks, false, 1.f, .6f, 24});
                     ChainJobs.Add({Look, TEXT("world-arena"), {{0.f, Arena}}, nullptr, ClearMarks, false, 1.f, .6f, 24});
                     // A recovery orb by V1, and the flagged hits at 0.3 s: a critical on V2, a broken shield on V3, an absorbed
-                    // one on A2, a parry on A3, an overdriven hit on V1 and a dodge on A.
+                    // one on A2, a parry on A3 and a dodge on A.
                     const auto Orb = [MarkWorld, Marks, FeetOf, V1]()
                     {
                         ALDRecoveryOrbMarker* Mark = MarkWorld->SpawnActor<ALDRecoveryOrbMarker>();
@@ -1241,8 +1233,7 @@ namespace
                     const auto Flagged = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, uint8 Flags)
                     { return [Body, Flags]() { if (auto* B = Body.Get()) { B->SetHitReaction(0.f, ELDObservedHitLook::None, Flags, FGuid::NewGuid()); } }; };
                     ChainJobs.Add({Look, TEXT("world-orb-flags"), {{0.f, Orb}, {.3f, Flagged(V2, LDObservation::Critical)}, {.3f, Flagged(V3, LDObservation::ShieldBroken)},
-                        {.3f, Flagged(A2, LDObservation::ShieldAbsorbed)}, {.3f, Flagged(A3, LDObservation::Parried)},
-                        {.3f, Flagged(V1, LDObservation::Overdriven)}, {.3f, Flagged(A, LDObservation::Dodged)}},
+                        {.3f, Flagged(A2, LDObservation::ShieldAbsorbed)}, {.3f, Flagged(A3, LDObservation::Parried)}, {.3f, Flagged(A, LDObservation::Dodged)}},
                         nullptr, ClearMarks, false, .4f, .25f, 20});
                 }
                 else if (Look == TEXT("flights"))
@@ -1667,13 +1658,10 @@ namespace
                     ChainJobs.Add({Look, TEXT("states-control-b"), {{0.f, State(V2, ELDDemoStatusId::AttackSlowed, 1)}, {0.f, State(V3, ELDDemoStatusId::Disarm, 1)},
                         {0.f, State(A2, ELDDemoStatusId::Silence, 1)}, {0.f, State(A3, ELDDemoStatusId::Taunt, 1)}},
                         nullptr, Clear, false, 1.f, .6f, 30});
-                    // A level gained on V2 and V3, and an overdrive charge half full on A2 and full on A3.
+                    // A level gained on V2 and V3.
                     const auto Level = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, uint8 To) { return [Body, To]() { if (auto* B = Body.Get()) { B->SetLevel(To); } }; };
-                    const auto Charge = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body, bool bOn, float Progress)
-                    { return [Body, bOn, Progress]() { if (auto* B = Body.Get()) { B->SetCharging(bOn, 0.f, Progress); } }; };
-                    ChainJobs.Add({Look, TEXT("states-level-charge"), {{0.f, Level(V2, 1)}, {0.f, Level(V3, 1)}, {0.f, Charge(A2, true, .5f)}, {0.f, Charge(A3, true, 1.f)},
-                        {.05f, Level(V2, 2)}, {.35f, Level(V3, 2)}},
-                        nullptr, [Clear, Charge, A2, A3]() { Clear(); Charge(A2, false, -1.f)(); Charge(A3, false, -1.f)(); }, false, .5f, .1f, 36});
+                    ChainJobs.Add({Look, TEXT("states-level"), {{0.f, Level(V2, 1)}, {0.f, Level(V3, 1)}, {.05f, Level(V2, 2)}, {.35f, Level(V3, 2)}},
+                        nullptr, Clear, false, .5f, .1f, 36});
                     // A basic swing from a body in the dean's look (A3), and an empowered basic at combo step 1 (V2), which swings
                     // as the finisher does; the dean is enraged and V3 stands on guard as a camp member does.
                     const auto SwingOf = [](TWeakObjectPtr<ULDHumanoidVisualComponent> Body)
@@ -2257,9 +2245,6 @@ namespace
             if (bVfxDash) { Attacker->GetOwner()->SetActorLocation(VfxDashFrom); }
             bVfxDash = false;
             Attacker->SetCastAbility(Current.CastAbility);
-            Attacker->SetCharging(Current.Overdrive != 0);
-            Attacker->SetOverdriveCast(false);
-            VfxReleaseAt = Current.Overdrive == 2 ? FPlatformTime::Seconds() + .4 : -1.;
             Victim->Animate(FVector::ZeroVector, .5f);
             Attacker->SetCue(Current.Action, Current.Action ? (Current.bHit ? .36f : .22f) : -1.f, .4f);
             Attacker->Animate(FVector::ZeroVector, 0.f);
@@ -2455,14 +2440,7 @@ namespace
                     Flight->Apply(Next, 100. + Elapsed);
                     Flight->Present(100. + Elapsed);
                 }
-                if (auto* Body = VfxAttacker.Get(); Body && VfxReleaseAt > 0. && FPlatformTime::Seconds() >= VfxReleaseAt)
-                {
-                    // The held charge ends as the authority's overdrive cast begins (public bOverdriveCast) and releases.
-                    VfxReleaseAt = -1.;
-                    Body->SetCharging(false);
-                    Body->SetOverdriveCast(true);
-                    Body->SetCue(2, .1f, .1f);
-                }
+
                 if (auto* Body = VfxAttacker.Get())
                 {
                     // The streak holds still at the end of the run the stage search cleared.
@@ -2535,11 +2513,6 @@ namespace
                 if (Current.bDash) { Check(Impacts && Impacts->LiveGhostCount() > 0, TEXT("A dash leaves afterimages")); }
                 if (Current.ReactionElement != 0)
                 { Check(Impacts && Impacts->LiveLayerCount() > 0 && Impacts->LiveCount() > 0, TEXT("The reaction's layers and particles are still showing at the capture")); }
-                if (Current.Overdrive == 2)
-                {
-                    Check(Impacts && Impacts->LiveCount() > 0,
-                        TEXT("A held charge released as a cast shows the overdrive shockwave"));
-                }
             }
             PendingImage = Directory / (Current.Name + TEXT(".png"));
             Images.Add(MakeShared<FJsonValueString>(FPaths::GetCleanFilename(PendingImage)));

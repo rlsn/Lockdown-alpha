@@ -456,9 +456,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                 LDBroadcastPaint::Bar(P,P.Layer,FBox2D(Box.Min,FVector2D(Box.Max.X,Box.Min.Y+BarH)),HealthBar);
                 if(TargetPaint.bMomentum)
                 {
-                    LDBroadcastPaint::FBar Momentum;Momentum.Fraction=TargetPaint.Momentum;Momentum.Notch=TargetPaint.MomentumNotch;
-                    const float Pulse=TargetPaint.bCharging?.55f+.45f*FMath::Abs(FMath::Sin(float(Now)*9.f)):1.f;
-                    Momentum.Fill=TargetPaint.bMomentumFull?LDBroadcast::Gold.CopyWithNewOpacity(Pulse):LDHUDStyle::Momentum;
+                    LDBroadcastPaint::FBar Momentum;Momentum.Fraction=TargetPaint.Momentum;Momentum.Fill=LDHUDStyle::Momentum;
                     LDBroadcastPaint::Bar(P,P.Layer+5,FBox2D(FVector2D(Box.Min.X,Box.Max.Y-Box.GetSize().Y*.26f),Box.Max),Momentum);
                 }
             });
@@ -1002,7 +1000,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         // Settings open from the Back menu (its 设置 entry); the HUD has no separate settings button.
 
         // Bottom lower-third strip, centred on the screen: the seat block (own jersey number), level and experience, the health
-        // figure over its segmented bar, momentum with the overdrive notch, then Q/W/E | D over their key bands. Weight follows
+        // figure over its segmented bar, momentum, then Q/W/E | D over their key bands. Weight follows
         // importance: the health figure and the slots lead; the level, numbers and keys stay small. The five stats do not live
         // here (the build ring allocates on its radar; the corner entry shows the unspent points).
         auto* StripRow=WidgetTree->ConstructWidget<UHorizontalBox>();StripRow->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
@@ -1051,8 +1049,8 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             MomentumBarSpot=Fixed(Painted(nullptr,[this,Whole](const LDUIPaint::FContext& P)
             {
                 LDBroadcastPaint::FBar Bar;Bar.Fraction=StripPaint.bMomentum?StripPaint.Momentum:0.f;
-                Bar.Fill=StripPaint.bOverdrive?LDBroadcast::Gold:LDBroadcast::White;Bar.Track=LDBroadcast::White.CopyWithNewOpacity(.14f);
-                Bar.Notch=StripPaint.bMomentum?StripPaint.Notch:-1.f;Bar.NotchInk=StripPaint.bOverdrive?LDBroadcast::Gold:LDBroadcast::White;
+                Bar.Fill=StripPaint.bEmpowerReady?LDBroadcast::Gold:LDBroadcast::White;Bar.Track=LDBroadcast::White.CopyWithNewOpacity(.14f);
+                Bar.Notch=StripPaint.bMomentum?StripPaint.Notch:-1.f;Bar.NotchInk=StripPaint.bEmpowerReady?LDBroadcast::Gold:LDBroadcast::White;
                 LDBroadcastPaint::Bar(P,P.Layer,Whole(P),Bar);
             }),HudMomentumBarW,HudMomentumBarH);
             auto* BarSlot=MomentumLine->AddChildToHorizontalBox(MomentumBarSpot);BarSlot->SetVerticalAlignment(VAlign_Center);BarSlot->SetPadding(FMargin(6,0,6,0));
@@ -1125,14 +1123,6 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             auto* RanksLayer=Face->AddChildToOverlay(Entry.Ranks);RanksLayer->SetHorizontalAlignment(HAlign_Left);RanksLayer->SetVerticalAlignment(VAlign_Bottom);RanksLayer->SetPadding(FMargin(5,0,0,1));
             Entry.Gap=Figure(TEXT(""),LDBroadcast::TypeLabel,LDBroadcast::Orange);Entry.Gap->SetVisibility(ESlateVisibility::Collapsed);
             auto* GapLayer=Face->AddChildToOverlay(Entry.Gap);GapLayer->SetHorizontalAlignment(HAlign_Center);GapLayer->SetVerticalAlignment(VAlign_Center);
-            // The overdrive hold fills the face from the bottom in gold while the key is held on a full bar.
-            Entry.Hold=WidgetTree->ConstructWidget<UProgressBar>();
-            {
-                FProgressBarStyle HoldStyle;HoldStyle.SetBackgroundImage(FSlateNoResource()).SetFillImage(FSlateColorBrush(FLinearColor::White)).SetMarqueeImage(FSlateNoResource());
-                Entry.Hold->SetWidgetStyle(HoldStyle);Entry.Hold->SetBarFillType(EProgressBarFillType::BottomToTop);
-                Entry.Hold->SetFillColorAndOpacity(LDBroadcast::Gold.CopyWithNewOpacity(.45f));Entry.Hold->SetPercent(0);Entry.Hold->SetVisibility(ESlateVisibility::Collapsed);
-            }
-            FillLayer(Face->AddChildToOverlay(Entry.Hold));
             Entry.Frame=WidgetTree->ConstructWidget<UBorder>();Entry.Frame->SetPadding(FMargin(LDBroadcast::RuleWidth));
             Entry.Frame->SetHorizontalAlignment(HAlign_Fill);Entry.Frame->SetVerticalAlignment(VAlign_Fill);Entry.Frame->SetContent(Face);
             // The ready flash covers the whole face; neither layer takes input, the button under them does.
@@ -2280,13 +2270,12 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         HudSetColor(HealthText,bLow?StripPaint.HealthInk:LDBroadcast::White);
         if(HealthText->GetToolTipText().ToString()!=Health.Text){HealthText->SetToolTipText(FText::FromString(Health.Text));}
     }
-    // A bar at the own overdrive threshold (OVERDRIVE.Threshold, or Y11's lower one) glows overdrive gold and says so; the bar
-    // has no rate text (momentum is no steady regeneration). Under the auto-empower experiment the notch and the glow follow
-    // EMPOWER.Threshold and the label names the host the empowered action takes.
+    // The momentum bar has no rate text (momentum is no steady regeneration). Under the auto-empower experiment it carries
+    // the EMPOWER.Threshold notch, glows gold while it holds it and its label names the host the empowered action takes.
     const bool bEmpower=OwnCombat&&OwnCombat->bEmpowerEnabled;
-    const int64 ThresholdP2=!OwnCombat?0:bEmpower?OwnCombat->EmpowerThresholdP2:OwnCombat->OverdriveThresholdP2;
-    const bool bFullBar=Momentum.bKnown&&OwnCombat&&ThresholdP2>0&&OwnCombat->MomentumP2>=ThresholdP2;
-    StripPaint.bMomentum=Momentum.bKnown;StripPaint.Momentum=Momentum.Fraction;StripPaint.bOverdrive=bFullBar;
+    const int64 ThresholdP2=bEmpower?OwnCombat->EmpowerThresholdP2:0;
+    const bool bFullBar=Momentum.bKnown&&bEmpower&&ThresholdP2>0&&OwnCombat->MomentumP2>=ThresholdP2;
+    StripPaint.bMomentum=Momentum.bKnown;StripPaint.Momentum=Momentum.Fraction;StripPaint.bEmpowerReady=bFullBar;
     StripPaint.Notch=OwnCombat&&OwnCombat->MaxMomentumP2>0&&ThresholdP2>0
         ?float(FMath::Clamp(double(ThresholdP2)/double(OwnCombat->MaxMomentumP2),0.,1.)):-1.f;
     HudSetText(MomentumText,Momentum.bKnown?Momentum.Now:FString(TEXT("—")));
@@ -2298,7 +2287,7 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         const FString MomentumTip=bEmpower
             ? Momentum.Text+(bFullBar?FString::Printf(TEXT(" · 强化就绪：下一次%s自动强化（消耗 %lld）"),*HostName,OwnCombat->EmpowerCostP2/100)
                 :FString::Printf(TEXT(" · 劲 ≥ %lld 时下一次%s自动强化"),ThresholdP2/100,*HostName))
-            : bFullBar?Momentum.Text+TEXT(" · ")+LDTerms::Overdrive:Momentum.Text;
+            : Momentum.Text;
         if(MomentumText->GetToolTipText().ToString()!=MomentumTip){MomentumText->SetToolTipText(FText::FromString(MomentumTip));}
     }
     {
@@ -2738,7 +2727,7 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         HudSetText(Entry.ChargeCount,View.Charges);HudSetShown(Entry.ChargeChip,!View.Charges.IsEmpty(),ESlateVisibility::HitTestInvisible);
         // The ready charge count changes with time alone: keep the read model live while a charge is recovering.
         bReadModelLive|=!View.Charges.IsEmpty()&&Input.ReadyAtMs>NowMs;
-        // Skill ranks: the dots, the "+" while a point can raise this skill, the momentum gap and the overdrive hold.
+        // Skill ranks: the dots, the "+" while a point can raise this skill and the momentum gap.
         if(Index<3)
         {
             const int32 ProgressionSlot=Wanted==ELDCombatEntry::Q?0:Wanted==ELDCombatEntry::W?1:Wanted==ELDCombatEntry::E?2:INDEX_NONE;
@@ -2750,11 +2739,6 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
             HudSetShown(Entry.Plus,Learned&&Rank<3&&Progression->SkillPoints>0&&bAlive,ESlateVisibility::Visible);
         }
         HudSetText(Entry.Gap,View.Gap);HudSetShown(Entry.Gap,!View.Gap.IsEmpty()&&!bCooling,ESlateVisibility::HitTestInvisible);
-        {
-            const float Held=Index<3?PC->OverdriveHoldProgress(Wanted):0.f;
-            Entry.Hold->SetPercent(Held);HudSetShown(Entry.Hold,Held>0.f,ESlateVisibility::HitTestInvisible);
-            bReadModelLive|=Held>0.f;
-        }
         Entry.Cooldown->SetPercent(View.CooldownFraction);HudSetShown(Entry.Cooldown,bCooling,ESlateVisibility::HitTestInvisible);
         HudSetText(Entry.Countdown,View.Countdown);HudSetShown(Entry.Countdown,bCooling,ESlateVisibility::HitTestInvisible);
         // An empty slot fades as a whole; the ready flash pops the slot and fades out.
@@ -3004,12 +2988,8 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         HudSetText(TargetHealth,Card.Health.bKnown?Card.Health.Now:FString(TEXT("—")));
         HudSetColor(TargetHealth,TargetPaint.HealthInk);
         if(TargetHealth->GetToolTipText().ToString()!=Card.Health.Text){TargetHealth->SetToolTipText(FText::FromString(Card.Health.Text));}
-        TargetPaint.bMomentum=Card.bMomentum;TargetPaint.Momentum=Card.Momentum.Fraction;TargetPaint.bMomentumFull=Card.bMomentumFull;
-        TargetPaint.bCharging=!bLostVisionGhost&&Card.bCharging;
-        TargetPaint.MomentumNotch=Content&&Content->Parameters.Momentum.MaxP2>0
-            ?float(FMath::Clamp(double(Content->Parameters.Overdrive.ThresholdP2)/double(Content->Parameters.Momentum.MaxP2),0.,1.)):-1.f;
+        TargetPaint.bMomentum=Card.bMomentum;TargetPaint.Momentum=Card.Momentum.Fraction;
         if(Card.bMomentum&&TargetBarSpot->GetToolTipText().ToString()!=Card.Momentum.Text){TargetBarSpot->SetToolTipText(FText::FromString(Card.Momentum.Text));}
-        bReadModelLive|=TargetPaint.bCharging;
         // The status squares: grown on demand, the unused ones collapsed.
         while(TargetStatusTiles.Num()<Card.StatusChips.Num())
         {

@@ -51,9 +51,7 @@ struct FLDBuildPrimitivesAccess
     static TMap<TWeakObjectPtr<ALDCharacter>, FLDBodyCombatState>& Bodies(ALDCombatDirector& Driver) { return Driver.Bodies; }
     static TMap<FGuid, FLDCombatEntityRecord>& Records(ALDCombatDirector& Driver) { return Driver.Records; }
     static TArray<FLDCombatHit>& PendingHits(ALDCombatDirector& Driver) { return Driver.PendingHits; }
-    // Issue #287 P1: overdrive terms, perfect dodges and branch riders.
-    static bool Overdrive(const ALDCombatDirector& Driver, const FLDBodyCombatState& Body, const FLDDemoAbilityDefinition& Ability,
-        FLDCombatActiveTerms& Terms, FString& Error) { return Driver.ApplyOverdrive(Body, Ability, Terms, Error); }
+    // Issue #287 P1: perfect dodges and branch riders.
     static bool PerfectDodges(ALDCombatDirector& Driver, const FGuid& EffectId, const FGuid& Source, TFunctionRef<bool(const FVector&)> InArea,
         int64 NowMs, FString& Error) { return Driver.ResolvePerfectDodges(EffectId, Source, InArea, NowMs, Error); }
     static int64 Vulnerable(const ALDCombatDirector& Driver, const FLDBodyCombatState& Target, const FLDCombatHit& Hit, int64 NowMs)
@@ -2170,9 +2168,9 @@ FLDCombatTrack& TrackOf(FFixture& F, const FLDCombatBodyRef& Ref, const TCHAR* A
 namespace LDBuildPrimitivesTests
 {
 // One real ReleaseAbility of Active on Q, with the body's installed projection as its record's build, from a bar of
-// StartMomentumP2; bOverdrive asks for an overdrive release.
+// StartMomentumP2.
 bool ReleaseOnQ(FAutomationTestBase& Test, FFixture& F, const FLDCombatBodyRef& Ref, const TCHAR* Active,
-    int64 StartMomentumP2 = 10000, bool bOverdrive = false)
+    int64 StartMomentumP2 = 10000)
 {
     FLDBodyCombatState& Body = F.Body(Ref);
     FLDCombatEntityRecord& Record = FAccess::Records(*F.Driver).FindChecked(Ref.Victim.EntityId);
@@ -2184,7 +2182,6 @@ bool ReleaseOnQ(FAutomationTestBase& Test, FFixture& F, const FLDCombatBodyRef& 
     FLDCombatAction Action;
     Action.Kind = ELDCombatActionKind::Ability;
     Action.Entry = ELDCombatEntry::Q;
-    Action.bOverdrive = bOverdrive;
     Action.Source = SourceOf(ELDCombatSourceKind::Learned, Active);
     Action.Direction = FVector(1, 0, 0);
     ELDCombatReject Reject = ELDCombatReject::None;
@@ -2405,147 +2402,7 @@ bool FLDMonsterDeliveryTest::RunTest(const FString& Parameters)
     return true;
 }
 
-// ---- Issue #287 P1: overdrive, perfect dodge and branch riders on Combat ----
-
-namespace LDBuildPrimitivesTests
-{
-// The level-1 terms of Active with its overdrive applied by Combat for Holder.
-bool OverdriveTerms(FAutomationTestBase& Test, FFixture& F, const FLDCombatBodyRef& Holder, const TCHAR* Active, FLDCombatActiveTerms& Plain,
-    FLDCombatActiveTerms& Over)
-{
-    const FLDDemoAbilityDefinition* Ability = nullptr;
-    FString Error;
-    if (!ActiveTerms(Test, F, Active, Plain) || !F.Catalog->FindAbility(Active, Ability, Error)) { return false; }
-    Over = Plain;
-    return Test.TestTrue(FString::Printf(TEXT("%s overdrives: %s"), Active, *Error), FAccess::Overdrive(*F.Driver, F.Body(Holder), *Ability, Over, Error));
-}
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDOverdriveReleaseTest, "Lockdown.Rules.Combat.Overdrive.Release",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FLDOverdriveReleaseTest::RunTest(const FString& Parameters)
-{
-    using namespace LDBuildPrimitivesTests;
-    FFixture F;
-    if (!F.Init(*this)) { return false; }
-    const FLDCombatBodyRef Holder = F.AddBody();
-    FLDCombatActiveTerms Plain, Over;
-    if (!OverdriveTerms(*this, F, Holder, TEXT("active_elbow"), Plain, Over)) { return false; }
-    const int64 ScaleBp = F.Catalog->Get().Parameters.Overdrive.ScaleBp;
-    const FLDDemoEffectDefinition* Base = FindEffect(Plain.Values, ELDDemoEffectOp::Damage);
-    const FLDDemoEffectDefinition* Scaled = FindEffect(Over.Values, ELDDemoEffectOp::Damage);
-    TestTrue(TEXT("S01's base and AD coefficient scale by OVERDRIVE.Scale"), Base && Scaled
-        && Scaled->BaseP2 == Base->BaseP2 * ScaleBp / 10000
-        && Scaled->ADRatioBp == Base->ADRatioBp * ScaleBp / 10000);
-    TestTrue(TEXT("its push distance and time do not scale"), FindEffect(Over.Values, ELDDemoEffectOp::Knockback)->DistanceCm.Numerator
-        == FindEffect(Plain.Values, ELDDemoEffectOp::Knockback)->DistanceCm.Numerator
-        && FindEffect(Over.Values, ELDDemoEffectOp::Knockback)->DurationMs == FindEffect(Plain.Values, ELDDemoEffectOp::Knockback)->DurationMs);
-    if (!OverdriveTerms(*this, F, Holder, TEXT("active_pants_down"), Plain, Over)) { return false; }
-    TestEqual(TEXT("A control's duration never scales"), FindEffect(Over.Values, ELDDemoEffectOp::Root)->DurationMs,
-        FindEffect(Plain.Values, ELDDemoEffectOp::Root)->DurationMs);
-    if (!OverdriveTerms(*this, F, Holder, TEXT("active_not_mad"), Plain, Over)) { return false; }
-    TestTrue(TEXT("A shield's base, AP and max-HP shares scale by OVERDRIVE.Scale"), FindEffect(Over.Values, ELDDemoEffectOp::Shield)->BaseP2
-        == FindEffect(Plain.Values, ELDDemoEffectOp::Shield)->BaseP2 * ScaleBp / 10000
-        && FindEffect(Over.Values, ELDDemoEffectOp::Shield)->MaxHPRatioBp == FindEffect(Plain.Values, ELDDemoEffectOp::Shield)->MaxHPRatioBp * ScaleBp / 10000);
-    TestTrue(TEXT("Only a bar at the approved 60 momentum may overdrive"), !LDMomentum::OverdriveReady(F.Catalog->Get().Parameters.Overdrive, 5999)
-        && LDMomentum::OverdriveReady(F.Catalog->Get().Parameters.Overdrive, 6000));
-    return true;
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDOverdriveCostTest, "Lockdown.Rules.Combat.Overdrive.Cost",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FLDOverdriveCostTest::RunTest(const FString& Parameters)
-{
-    using namespace LDBuildPrimitivesTests;
-    FFixture F;
-    if (!F.Init(*this)) { return false; }
-    const FLDCombatBodyRef Holder = F.AddBody();
-    // S06 costs 25 momentum; an overdrive pays the 60 threshold, not the whole bar.
-    if (!ReleaseOnQ(*this, F, Holder, TEXT("active_snark_bolt"), 10000, true)) { return false; }
-    TestTrue(TEXT("An overdrive from a full bar pays the 60 threshold and keeps 40"),
-        F.Body(Holder).bReleasedOverdrive && F.Body(Holder).Resources.MomentumP2 == 4000);
-    if (!ReleaseOnQ(*this, F, Holder, TEXT("active_snark_bolt"), 5900, true)) { return false; }
-    TestTrue(TEXT("A bar below the threshold releases normally and pays the skill's cost"),
-        !F.Body(Holder).bReleasedOverdrive && F.Body(Holder).Resources.MomentumP2 == 3400);
-    if (!ReleaseOnQ(*this, F, Holder, TEXT("active_snark_bolt"), 10000, false)) { return false; }
-    TestEqual(TEXT("A normal release pays only the skill's cost"), F.Body(Holder).Resources.MomentumP2, int64(7500));
-    // Y11 lowers the holder's threshold to 35, which is what its overdrive pays.
-    if (!InstallCards(*this, F, Holder, 6, {{TEXT("card_short_breath"), ELDCardTargetKind::Body}})) { return false; }
-    if (!ReleaseOnQ(*this, F, Holder, TEXT("active_snark_bolt"), 10000, true)) { return false; }
-    TestTrue(TEXT("Y11's overdrive pays its 35 threshold and keeps 65"),
-        F.Body(Holder).bReleasedOverdrive && F.Body(Holder).Resources.MomentumP2 == 6500);
-    return true;
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDOverdriveElementTest, "Lockdown.Rules.Combat.Overdrive.ElementBonus",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FLDOverdriveElementTest::RunTest(const FString& Parameters)
-{
-    using namespace LDBuildPrimitivesTests;
-    FFixture F;
-    if (!F.Init(*this)) { return false; }
-    const FLDCombatBodyRef Holder = F.AddBody();
-    const FLDDemoOverdriveParameters& O = F.Catalog->Get().Parameters.Overdrive;
-    FLDCombatActiveTerms Plain, Over;
-    if (!OverdriveTerms(*this, F, Holder, TEXT("active_seethe"), Plain, Over)) { return false; }
-    TestEqual(TEXT("Fire (S07) adds three burn layers"), FindEffect(Over.Values, ELDDemoEffectOp::Burn)->Count,
-        FindEffect(Plain.Values, ELDDemoEffectOp::Burn)->Count + int32(O.FireBurnStacks));
-    if (!OverdriveTerms(*this, F, Holder, TEXT("active_hose_down"), Plain, Over)) { return false; }
-    const FLDDemoEffectDefinition* Slow = FindEffect(Over.Values, ELDDemoEffectOp::Slow);
-    TestTrue(TEXT("Water (S09) slows 45% for 1.5 s"), Slow && Slow->RatioBp == O.WaterSlowBp && Slow->DurationMs == O.WaterSlowMs);
-    if (!OverdriveTerms(*this, F, Holder, TEXT("active_zap"), Plain, Over)) { return false; }
-    TestTrue(TEXT("Shock (S10) discharges once more: its base gains 0.5 R on top of the overdrive scale"),
-        FindEffect(Over.Values, ELDDemoEffectOp::Damage)->BaseP2 > FindEffect(Plain.Values, ELDDemoEffectOp::Damage)->BaseP2 * O.ScaleBp / 10000);
-    if (!OverdriveTerms(*this, F, Holder, TEXT("active_stale_takeout"), Plain, Over)) { return false; }
-    TestEqual(TEXT("Rot (N3) lasts twice the approved rot"), FindEffect(Over.Values, ELDDemoEffectOp::Rot)->DurationMs,
-        F.Catalog->Get().Parameters.Elements.RotMs * 2);
-    if (!OverdriveTerms(*this, F, Holder, TEXT("active_cola_shake"), Plain, Over)) { return false; }
-    const FLDDemoEffectDefinition* Root = FindEffect(Over.Values, ELDDemoEffectOp::Root);
-    TestTrue(TEXT("Chill (N1) roots for 0.6 s"), Root && Root->DurationMs == O.ChillRootMs && !FindEffect(Plain.Values, ELDDemoEffectOp::Root));
-    if (!OverdriveTerms(*this, F, Holder, TEXT("active_elbow"), Plain, Over)) { return false; }
-    TestFalse(TEXT("A skill without an element gains only the scale"),
-        FindEffect(Over.Values, ELDDemoEffectOp::Burn) || FindEffect(Over.Values, ELDDemoEffectOp::Slow));
-
-    // Regression: non-elemental active_elbow equipped with a SkillElement medal triggers the corresponding elemental overdrive.
-    if (!InstallCards(*this, F, Holder, 6, {{TEXT("medal_fire"), ELDCardTargetKind::Skill, FName(TEXT("active_elbow"))}})
-        || !OverdriveTerms(*this, F, Holder, TEXT("active_elbow"), Plain, Over)) { return false; }
-    TestTrue(TEXT("Non-elemental skill + medal_fire gains Fire overdrive burn stacks"),
-        FindEffect(Over.Values, ELDDemoEffectOp::Burn) && FindEffect(Over.Values, ELDDemoEffectOp::Burn)->Count == int32(O.FireBurnStacks));
-
-    if (!InstallCards(*this, F, Holder, 6, {{TEXT("medal_water"), ELDCardTargetKind::Skill, FName(TEXT("active_elbow"))}})
-        || !OverdriveTerms(*this, F, Holder, TEXT("active_elbow"), Plain, Over)) { return false; }
-    TestTrue(TEXT("Non-elemental skill + medal_water gains Water overdrive slow"),
-        FindEffect(Over.Values, ELDDemoEffectOp::Slow)
-        && FindEffect(Over.Values, ELDDemoEffectOp::Slow)->RatioBp == O.WaterSlowBp
-        && FindEffect(Over.Values, ELDDemoEffectOp::Slow)->DurationMs == O.WaterSlowMs);
-
-    if (!InstallCards(*this, F, Holder, 6, {{TEXT("medal_electric"), ELDCardTargetKind::Skill, FName(TEXT("active_elbow"))}})
-        || !OverdriveTerms(*this, F, Holder, TEXT("active_elbow"), Plain, Over)) { return false; }
-    TestTrue(TEXT("Non-elemental skill + medal_electric gains Shock overdrive +0.5R base damage"),
-        FindEffect(Over.Values, ELDDemoEffectOp::Damage)->BaseP2
-            > FindEffect(Plain.Values, ELDDemoEffectOp::Damage)->BaseP2 * O.ScaleBp / 10000);
-
-    if (!InstallCards(*this, F, Holder, 6, {{TEXT("medal_chill"), ELDCardTargetKind::Skill, FName(TEXT("active_elbow"))}})
-        || !OverdriveTerms(*this, F, Holder, TEXT("active_elbow"), Plain, Over)) { return false; }
-    TestTrue(TEXT("Non-elemental skill + medal_chill gains Chill overdrive root"),
-        FindEffect(Over.Values, ELDDemoEffectOp::Root)
-        && FindEffect(Over.Values, ELDDemoEffectOp::Root)->DurationMs == O.ChillRootMs);
-
-    if (!InstallCards(*this, F, Holder, 6, {{TEXT("medal_rot"), ELDCardTargetKind::Skill, FName(TEXT("active_elbow"))}})
-        || !OverdriveTerms(*this, F, Holder, TEXT("active_elbow"), Plain, Over)) { return false; }
-    TestTrue(TEXT("Non-elemental skill + medal_rot gains Rot overdrive extended duration"),
-        FindEffect(Over.Values, ELDDemoEffectOp::Rot)
-        && FindEffect(Over.Values, ELDDemoEffectOp::Rot)->DurationMs == F.Catalog->Get().Parameters.Elements.RotMs * O.RotDurationBp / 10000);
-
-    // Pure self shield without SelfArea must not receive hostile rider ops even if a medal is installed.
-    if (!InstallCards(*this, F, Holder, 6, {{TEXT("medal_chill"), ELDCardTargetKind::Skill, FName(TEXT("active_not_mad"))}})
-        || !OverdriveTerms(*this, F, Holder, TEXT("active_not_mad"), Plain, Over)) { return false; }
-    TestNull(TEXT("Non-area Self skill never receives unroutable hostile Root op"), FindEffect(Over.Values, ELDDemoEffectOp::Root));
-    return true;
-}
+// ---- Issue #287 P1: perfect dodge and branch riders on Combat ----
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDPerfectDodgeResolveTest, "Lockdown.Rules.Combat.PerfectDodge.Resolve",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -4455,23 +4312,10 @@ bool FLDAdaptiveAndKeystonesTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Magical adaptive damage adds AP * adaptive_ratio (50 + 60 = 110)"),
         MagEval.IsSuccess() && MagEval.Value->DamageP2 == 11000);
 
-    // 2. Y09 (card_skill_crit) projects +15% CritChanceBonusRatio per copy and Y11 (card_short_breath) replaces the overdrive
-    // scale with its own 140% (copies do not stack).
+    // 2. Y09 (card_skill_crit) projects +15% CritChanceBonusRatio per copy.
     const FLDCombatBodyRef Holder = F.AddBody();
-    if (!InstallCards(*this, F, Holder, 6, {
-        {TEXT("card_skill_crit"), ELDCardTargetKind::Body},
-        {TEXT("card_short_breath"), ELDCardTargetKind::Body},
-        {TEXT("card_short_breath"), ELDCardTargetKind::Body}}))
-    {
-        return false;
-    }
+    if (!InstallCards(*this, F, Holder, 6, {{TEXT("card_skill_crit"), ELDCardTargetKind::Body}})) { return false; }
     TestEqual(TEXT("card_skill_crit adds +15% flat crit chance"), F.Body(Holder).AttributeProjection.Final.CritChanceBp, int64(1500));
-    FLDCombatActiveTerms Plain, Over;
-    if (!OverdriveTerms(*this, F, Holder, TEXT("active_elbow"), Plain, Over)) { return false; }
-    const int64 ExpectedScaleBp = 14000;
-    TestEqual(TEXT("Two card_short_breath copies overdrive at the card's 140%, once"),
-        FindEffect(Over.Values, ELDDemoEffectOp::Damage)->BaseP2,
-        FindEffect(Plain.Values, ELDDemoEffectOp::Damage)->BaseP2 * ExpectedScaleBp / 10000);
 
     // 3. Thick Skin keystone reduces any post-mitigation hit >= 30 by Max(Flat, Damage * Ratio) and ignores hits < 30.
     FLDDamageEvaluationInput GuardInput = AdaptivePhys;
@@ -5069,7 +4913,7 @@ bool FLDIssue345SkillsAndFrameworksTest::RunTest(const FString& Parameters)
     F.Place(Striker, 1180, 0);
     if (!InstallCards(*this, F, Parrier, 6, {})) { return false; }
     F.Now(3000);
-    if (!ReleaseOnQ(*this, F, Parrier, TEXT("active_unplug"), 10000, false)) { return false; }
+    if (!ReleaseOnQ(*this, F, Parrier, TEXT("active_unplug"), 10000)) { return false; }
     FLDCombatHit Strike = GrazingHit;
     Strike.HitId = FGuid::NewGuid();
     Strike.EffectId = FGuid::NewGuid();
@@ -5179,7 +5023,7 @@ bool FLDIssue345SkillsAndFrameworksTest::RunTest(const FString& Parameters)
         && F.Body(DualTarget).ElementMark.Kind == ELDCombatElement::None
         && F.Body(DualTarget).ReactionLockedUntilMs <= 6000);
 
-    // 7. Ordinary fire-skill hit with medal_fire overrides native burn stacks instead of summing them unless Fire Overdrive added stacks.
+    // 7. Ordinary fire-skill hit with medal_fire overrides native burn stacks instead of summing them.
     const FLDCombatBodyRef SeetheCaster = F.AddBody(), SeetheTarget = F.AddBody();
     F.Place(SeetheCaster, -2000, -1000);
     F.Place(SeetheTarget, -1880, -1000);

@@ -37,8 +37,6 @@
         "MOMENTUM.SkillHit", "MOMENTUM.Reaction", "MOMENTUM.PerfectDodge", "MOMENTUM.PerfectDodgeWindowSec",
         "MOMENTUM.DashDodgeWindowSec", "MOMENTUM.DashDodgeCutRatio", "MOMENTUM.DashDodgeCooldownRefundRatio",
         "MOMENTUM.IdleDelaySec", "MOMENTUM.IdleReturnPerSec", "COMBO.StepRatios", "COMBO.ResetSec",
-        "OVERDRIVE.Threshold", "OVERDRIVE.HoldSec", "OVERDRIVE.Scale", "OVERDRIVE.FireBurnStacks", "OVERDRIVE.WaterSlow",
-        "OVERDRIVE.WaterSlowSec", "OVERDRIVE.ShockReactionRatio", "OVERDRIVE.RotDurationScale",
         "UNIT.MoveSpeedCmPerSec", "STAT.MoveSpeed.Min", "STAT.MoveSpeed.Max",
         "UNIT.CollisionRadiusCm", "UNIT.BasicAttackRangeCm", "STAT.AttackRange.Min", "STAT.AttackRange.Max",
         "UNIT.BasicAttackWindupSec", "VISION.RadiusCm", "VISION.SightGraceSec", "CAPTURE.RadiusCm",
@@ -123,8 +121,7 @@
         "GROUND.FireBurnStacks", "GROUND.MiasmaRadiusCm", "GROUND.MiasmaSec", "GROUND.MiasmaTickSec",
         "GROUND.FieldRadiusCm", "GROUND.FieldSec", "GROUND.FieldTickSec", "GROUND.FieldRatio",
        
-        "GROUND.MaxPerOwner", "GROUND.MaxTotal",
-        "OVERDRIVE.ChillRootSec"
+        "GROUND.MaxPerOwner", "GROUND.MaxTotal"
       ],
       "properties": {
         "STAT.MaxHP.Base": {"$ref": "#/$defs/hp"}, "STAT.MaxHP.PerLevel": {"$ref": "#/$defs/hp"},
@@ -156,10 +153,6 @@
         "MOMENTUM.DashDodgeCooldownRefundRatio": {"$ref": "#/$defs/probability"}, "MOMENTUM.IdleDelaySec": {"$ref": "#/$defs/positive_sec"},
         "MOMENTUM.IdleReturnPerSec": {"$ref": "#/$defs/momentum_rate"},
         "COMBO.StepRatios": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"$ref": "#/$defs/multiplier"}}, "COMBO.ResetSec": {"$ref": "#/$defs/positive_sec"},
-        "OVERDRIVE.Threshold": {"$ref": "#/$defs/momentum"}, "OVERDRIVE.HoldSec": {"$ref": "#/$defs/positive_sec"},
-        "OVERDRIVE.Scale": {"$ref": "#/$defs/multiplier"}, "OVERDRIVE.FireBurnStacks": {"$ref": "#/$defs/positive_count"},
-        "OVERDRIVE.WaterSlow": {"$ref": "#/$defs/probability"}, "OVERDRIVE.WaterSlowSec": {"$ref": "#/$defs/positive_sec"},
-        "OVERDRIVE.ShockReactionRatio": {"$ref": "#/$defs/multiplier"}, "OVERDRIVE.RotDurationScale": {"$ref": "#/$defs/multiplier"},
        
         "UNIT.MoveSpeedCmPerSec": {"$ref": "#/$defs/speed"}, "STAT.MoveSpeed.Min": {"$ref": "#/$defs/speed"}, "STAT.MoveSpeed.Max": {"$ref": "#/$defs/speed"},
         "UNIT.CollisionRadiusCm": {"$ref": "#/$defs/cm"}, "UNIT.BasicAttackRangeCm": {"$ref": "#/$defs/cm"},
@@ -379,8 +372,7 @@
        
        
         "GROUND.MaxPerOwner": {"$ref": "#/$defs/positive_count"},
-        "GROUND.MaxTotal": {"$ref": "#/$defs/positive_count"},
-        "OVERDRIVE.ChillRootSec": {"$ref": "#/$defs/positive_sec"}
+        "GROUND.MaxTotal": {"$ref": "#/$defs/positive_count"}
       }
     },
     "formulas": {

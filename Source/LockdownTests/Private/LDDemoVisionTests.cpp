@@ -58,7 +58,6 @@ FLDObservedUnitView ContenderUnit(uint32 Epoch = 1)
     Unit.Health.CurrentP2 = 45000;
     Unit.Health.MaxP2 = 60000;
     Unit.MomentumBar = 85;
-    Unit.bCharging = true;
     FLDObservedStatus Root;
     Root.StatusId = uint8(ELDDemoStatusId::Root);
     Root.ExpiresAtServerMs = 12345;
@@ -348,10 +347,10 @@ bool FLDDemoVisionCodecTest::RunTest(const FString& Parameters)
     }
     const FLDObservedUnitView& Contender = Read.Units[0];
     TestTrue(TEXT("Contender whitelist survives exactly"), Contender.ContenderId == Full.Units[0].ContenderId && Contender.Level == 3
-        && Contender.Health.CurrentP2 == 45000 && Contender.Health.MaxP2 == 60000 && Contender.MomentumBar == 85 && Contender.bCharging
+        && Contender.Health.CurrentP2 == 45000 && Contender.Health.MaxP2 == 60000 && Contender.MomentumBar == 85
         && Contender.Statuses.Num() == 1);
     TestTrue(TEXT("Camp NotApplicable fields stay absent"), Read.Units[1].Level == 0 && Read.Units[1].MomentumBar == 0
-        && !Read.Units[1].bCharging && Read.Units[1].CreatureId == uint8(ELDDemoMonsterId::MonsterScavenger));
+        && Read.Units[1].CreatureId == uint8(ELDDemoMonsterId::MonsterScavenger));
 
     auto Mutated = [&](TFunctionRef<void(FLDWorldView&)> Change)
     {
@@ -565,7 +564,7 @@ bool FLDDemoVisionPrivacyTest::RunTest(const FString& Parameters)
     };
     Exact(FLDObservedUnitView::StaticStruct(), {TEXT("Handle"), TEXT("ObservationEpoch"), TEXT("StateRevision"), TEXT("AuthorizedFieldMask"),
         TEXT("Kind"), TEXT("Presentation"), TEXT("FeetCm"), TEXT("Facing"), TEXT("ActionCue"), TEXT("ActionCueAgeMs"), TEXT("ActionCueImpactDelayMs"), TEXT("HitLook"), TEXT("RecentHitAgePlusOneMs"), TEXT("RecentHitId"), TEXT("HitFlags"), TEXT("ActionAbility"), TEXT("ContenderId"), TEXT("CreatureId"),
-        TEXT("Level"), TEXT("Health"), TEXT("ShieldBar"), TEXT("MomentumBar"), TEXT("bCharging"), TEXT("ChargeAgeMs"), TEXT("bOverdriveCast"), TEXT("ActionComboStep"), TEXT("Statuses"), TEXT("Actives"),
+        TEXT("Level"), TEXT("Health"), TEXT("ShieldBar"), TEXT("MomentumBar"), TEXT("ActionComboStep"), TEXT("Statuses"), TEXT("Actives"),
         TEXT("RecentReaction"), TEXT("RecentReactionAgePlusOneMs"), TEXT("RecentReactionElement"), TEXT("CampAffix"), TEXT("bPeddler")});
     Exact(FLDObservedHitReceipt::StaticStruct(), {TEXT("MatchGeneration"), TEXT("ObserverLife"), TEXT("Generation"),
         TEXT("Handle"), TEXT("ObservationEpoch"), TEXT("HitId"), TEXT("OccurredAtMs"), TEXT("HitLook"), TEXT("HitFlags")});

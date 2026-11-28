@@ -43,7 +43,6 @@ namespace LDWorldLabels
         FGuid Handle;              // this visibility interval of the unit, for the bar's damage trail
         bool bShield=false;    // the unit has the public shield status
         float ShieldFraction=0.f;  // the live shield over the maximum HP (quantized, 0..1): the bar's shield segment
-        bool bCharging=false;  // a contender holding an overdrive charge: a gold halo rings its bar (never which skill)
         int64 ControlRemainingMs=0;  // the longest public hard control left on the unit; 0 = none
         FGuid BreakHitId;            // the recent hit when it broke the unit's shield (HitFlags ShieldBroken); else none
     };

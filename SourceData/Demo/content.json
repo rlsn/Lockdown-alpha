@@ -238,24 +238,6 @@
       "unit": "s",
       "value": 2.5
     },
-    "OVERDRIVE.Threshold": {
-      "unit": "momentum",
-      "value": 60
-    },
-    "OVERDRIVE.HoldSec": {
-      "unit": "s",
-      "value": 0.35
-    },
-    "OVERDRIVE.Scale": {
-      "unit": "ratio",
-      "value": 1.35
-    },
-    "OVERDRIVE.FireBurnStacks": 3,
-    "OVERDRIVE.WaterSlow": {"unit": "ratio", "value": 0.45},
-    "OVERDRIVE.WaterSlowSec": {"unit": "s", "value": 1.5},
-    "OVERDRIVE.ShockReactionRatio": {"unit": "ratio", "value": 0.5},
-    "OVERDRIVE.RotDurationScale": {"unit": "ratio", "value": 2},
-    "OVERDRIVE.ChillRootSec": {"unit": "s", "value": 0.6},
     "UNIT.MoveSpeedCmPerSec": {"unit": "cm/s", "value": 240},
     "STAT.MoveSpeed.Min": {"unit": "cm/s", "value": 138.4},
     "STAT.MoveSpeed.Max": {"unit": "cm/s", "value": 540},
@@ -10451,7 +10433,7 @@
       "name_key": "card_fist_skill.name",
       "name_text": "拳里带招",
       "description_key": "card_fist_skill.description",
-      "description_text": "第三段命中时，以 [combo_cast.multiplier]% 效果放出 Q 技能，不耗劲、不进冷却、不触发爆劲。",
+      "description_text": "第三段命中时，以 [combo_cast.multiplier]% 效果放出 Q 技能，不耗劲、不进冷却。",
       "icon_id": "icon_card_fist_skill"
     },
     {

@@ -21284,7 +21284,7 @@
     },
     {
       "description_key": "card_fist_skill.description",
-      "description_text": "第三段命中时，以 [combo_cast.multiplier]% 效果放出 Q 技能，不耗劲、不进冷却、不触发爆劲。",
+      "description_text": "第三段命中时，以 [combo_cast.multiplier]% 效果放出 Q 技能，不耗劲、不进冷却。",
       "icon_id": "icon_card_fist_skill",
       "id": "card_fist_skill",
       "name_key": "card_fist_skill.name",
@@ -23428,39 +23428,6 @@
     },
     "OBJECTIVE.StartSec": {
       "ms": 100000,
-      "unit": "ms"
-    },
-    "OVERDRIVE.ChillRootSec": {
-      "ms": 600,
-      "unit": "ms"
-    },
-    "OVERDRIVE.FireBurnStacks": 3,
-    "OVERDRIVE.HoldSec": {
-      "ms": 350,
-      "unit": "ms"
-    },
-    "OVERDRIVE.RotDurationScale": {
-      "bp": 20000,
-      "unit": "ratio"
-    },
-    "OVERDRIVE.Scale": {
-      "bp": 13500,
-      "unit": "ratio"
-    },
-    "OVERDRIVE.ShockReactionRatio": {
-      "bp": 5000,
-      "unit": "ratio"
-    },
-    "OVERDRIVE.Threshold": {
-      "p2": 6000,
-      "unit": "momentum"
-    },
-    "OVERDRIVE.WaterSlow": {
-      "bp": 4500,
-      "unit": "ratio"
-    },
-    "OVERDRIVE.WaterSlowSec": {
-      "ms": 1500,
       "unit": "ms"
     },
     "PK.ArenaRadiusCm": {

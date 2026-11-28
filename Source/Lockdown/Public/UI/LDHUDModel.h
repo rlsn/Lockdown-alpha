@@ -623,8 +623,6 @@ namespace LDHUD
         int32 Level=0;
         FResourceView Health;
         bool bMomentum=false;
-        bool bMomentumFull=false;   // a full public bar: the target may overdrive
-        bool bCharging=false;       // the target holds an overdrive charge
         FResourceView Momentum;
         FString Statuses;
         // The same public statuses as icon squares: the picture (or the name's first character), green when it helps the
@@ -1196,7 +1194,7 @@ namespace LDHUD
     LOCKDOWN_API FString KillerLabel(const FLDKillNotice& Notice,const FString& LowCampName,const FString& HighCampName,
         const FString& EliteCampName,const FString& BossName);
     // The element a learned active applies (its branch's element, else the ability's; ELDCombatElement order), 0 for none or
-    // unknown content. The chip on the slot shows it; medals that change the overdrive element stay in the tooltip.
+    // unknown content. The chip on the slot shows it.
     LOCKDOWN_API uint8 SkillElement(const FLDDemoContentDefinitions* Content,FName DefinitionId,ELDSkillBranch Branch);
     // The one-character element name (烫 湿 麻 冻 馊), empty for none.
     LOCKDOWN_API FString ElementGlyph(uint8 Element);
@@ -1254,8 +1252,6 @@ namespace LDHUD
         int64 RiderDamageP2=0;
         int64 FinalCooldownMs=0;
         int64 FinalMomentumCostP2=0;
-        uint8 OverdriveElement=0;
-        FString OverdriveLine;
         bool bHasFormula=false;
         FString FooterHint;
         TArray<FString> FormulaLines;

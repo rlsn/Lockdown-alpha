@@ -1910,7 +1910,6 @@ bool ALDCombatDirector::ScheduleAutoRecasts(const FLDBodyCombatState& Body, cons
         Repeat.Body={Body.Victim,Body.Identity};
         Repeat.Action=Action;
         Repeat.Action.bAutoRecast=true;
-        Repeat.Action.bOverdrive=false;
         // A repeat is derived: never empowered (EMPOWER rule E2).
         Repeat.Action.bEmpowered=false;
         Repeat.Action.EmpowerProcessor=ELDEmpowerProcessor::None;
@@ -2091,50 +2090,6 @@ bool ALDCombatDirector::OnTallyHit(FLDBodyCombatState& Source, const FLDCombatHi
     return true;
 }
 
-FLDCombatCueFacts ALDCombatDirector::PresentedCueFactsOf(const FLDBodyCombatState& Body) const
-{
-    FLDCombatCueFacts Facts=CueFactsOf(Body);
-    // Only a cast still winding up is rechecked against the bar; a released one keeps its resolved value.
-    if (Facts.bOverdriveCast && Body.Action.IsSet() && Body.Action->Kind!=ELDCombatActionKind::Basic)
-    {
-        const FLDDemoContentSnapshot* Content=Catalog();
-        FLDDemoOverdriveParameters Terms=Content ? Content->Get().Parameters.Overdrive : FLDDemoOverdriveParameters();
-        Terms.ThresholdP2=OverdriveThresholdOf(Body);
-        Facts.bOverdriveCast=Content && LDMomentum::OverdriveReady(Terms,Body.Resources.MomentumP2);
-    }
-    return Facts;
-}
-
-int64 ALDCombatDirector::OverdriveThresholdOf(const FLDBodyCombatState& Body) const
-{
-    const FLDDemoContentSnapshot* Content=Catalog();
-    int64 Threshold=Content ? Content->Get().Parameters.Overdrive.ThresholdP2 : 0;
-    TArray<FLDPassiveEffectRef> Shorts;
-    FString Error;
-    // Y11: the lowest threshold of the copies (they do not stack below it).
-    if (CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::OverdriveShort,Shorts,Error))
-    {
-        for (const FLDPassiveEffectRef& Ref : Shorts) { if (Ref.Effect.LimitP2>0) { Threshold=FMath::Min(Threshold,Ref.Effect.LimitP2); } }
-    }
-    return Threshold;
-}
-
-int64 ALDCombatDirector::OverdriveScaleOf(const FLDBodyCombatState& Body) const
-{
-    const FLDDemoContentSnapshot* Content=Catalog();
-    int64 Scale=Content ? Content->Get().Parameters.Overdrive.ScaleBp : 10000;
-    TArray<FLDPassiveEffectRef> Shorts;
-    FString Error;
-    // Y11: its own overdrive multiplier replaces the base one (copies take the same multiplier; they do not stack).
-    if (CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::OverdriveShort,Shorts,Error))
-    {
-        int64 Short=0;
-        for (const FLDPassiveEffectRef& Ref : Shorts) { Short=FMath::Max(Short,Ref.Effect.MultiplierBp); }
-        if (Short>0) { Scale=Short; }
-    }
-    return Scale;
-}
-
 bool ALDCombatDirector::DashRamHit(FLDBodyCombatState& Body, const FLDCombatDashContact& Dash, const FLDCombatBodyRef& Target,
     FString& Error)
 {
@@ -2212,7 +2167,7 @@ bool ALDCombatDirector::QueueComboCast(FLDBodyCombatState& Body, const FLDCombat
     // A unit Q follows the basic's own target only: a flying basic that struck another body casts no unit Q.
     if (Ability->Target.Mode==ELDDemoTargetMode::Unit && Primary.Target!=Basic.TargetBody) { return true; }
     // A08: the Q skill releases at once toward the struck body at the card's share (copies add), costing nothing, issuing no
-    // cooldown, never an overdrive and never repeated (a K06-style free release).
+    // cooldown and never repeated (a K06-style free release).
     FLDCombatAction Cast;
     Cast.Kind=ELDCombatActionKind::Ability;
     Cast.Key=Basic.Key;
@@ -2235,7 +2190,6 @@ bool ALDCombatDirector::QueueComboCast(FLDBodyCombatState& Body, const FLDCombat
     Cast.ReleaseAtMs=NowMs;
     Cast.SourceRevision=Record->SourceRevision;
     Cast.bAutoRecast=true;
-    Cast.bOverdrive=false;
     int64 ShareBp=0;
     for (const FLDPassiveEffectRef& Ref : Casts) { ShareBp+=Ref.Effect.MultiplierBp; }
     Cast.AutoRecastScaleBp=ShareBp;

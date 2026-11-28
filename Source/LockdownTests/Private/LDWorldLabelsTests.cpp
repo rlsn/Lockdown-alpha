@@ -76,7 +76,7 @@ FLDObservedUnitView WorldLabelCampMember(ELDDemoMonsterId Creature)
 bool WorldLabelSame(const LDWorldLabels::FLabel& A,const LDWorldLabels::FLabel& B)
 {
     return A.Name.Equals(B.Name,ESearchCase::CaseSensitive)&&A.Status.Equals(B.Status,ESearchCase::CaseSensitive)&&A.bContender==B.bContender
-        &&A.Presentation==B.Presentation&&A.CreatureId==B.CreatureId&&A.Level==B.Level&&A.bHealth==B.bHealth&&A.HealthFraction==B.HealthFraction&&A.bShield==B.bShield&&A.bCharging==B.bCharging;
+        &&A.Presentation==B.Presentation&&A.CreatureId==B.CreatureId&&A.Level==B.Level&&A.bHealth==B.bHealth&&A.HealthFraction==B.HealthFraction&&A.bShield==B.bShield;
 }
 // The local owner alive in public match 5, life 2, and its own combat projection of that life with a body.
 FLDOwnerState WorldLabelOwner()
@@ -185,9 +185,6 @@ bool FLDWorldLabelsWhitelistTest::RunTest(const FString& Parameters)
     FLDObservedUnitView Hurt=Rival;Hurt.Health.CurrentP2=1;Hurt.Health.MaxP2=99999;
     Expected=Label;Expected.HealthFraction=float(1./99999.);
     TestTrue(TEXT("New health changes only the label's health fraction"),WorldLabelSame(LDWorldLabels::Build(Hurt,TEXT("玩家甲"),&Content,10.),Expected));
-    FLDObservedUnitView Charging=Rival;Charging.bCharging=true;
-    Expected=Label;Expected.bCharging=true;
-    TestTrue(TEXT("An overdrive charge changes only the label's halo"),WorldLabelSame(LDWorldLabels::Build(Charging,TEXT("玩家甲"),&Content,10.),Expected));
     FLDObservedUnitView Camp=WorldLabelCampMember(ELDDemoMonsterId::MonsterGuardian);Camp.Presentation=3;Camp.ContenderId=Rival.ContenderId;Camp.Level=5;
     const LDWorldLabels::FLabel CampLabel=LDWorldLabels::Build(Camp,TEXT("玩家甲"),&Content,10.);
     TestTrue(TEXT("A camp member never takes a contender's name, tint or level"),CampLabel.Name==WorldLabelName(TEXT("monster_guardian"))&&CampLabel.Presentation==0&&CampLabel.Level==0&&!CampLabel.bContender);

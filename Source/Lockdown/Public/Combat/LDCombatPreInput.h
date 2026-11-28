@@ -19,7 +19,6 @@ struct LOCKDOWN_API FPendingCombatIntent
     FVector GroundPointCm = FVector::ZeroVector;
     FName SurfaceHint;
     FVector AimDirection = FVector::ZeroVector;
-    bool bOverdrive = false;
     int64 ExpiresAtMs = 0;
     FLDCombatActionRequest Action;
     FLDSpatialOrderRequest SpatialOrder;

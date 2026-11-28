@@ -150,11 +150,11 @@ bool ALDCombatDirector::ApplyElements(FLDBodyCombatState& Target, const FLDComba
         }
         return ApplyElement(Target,Secondary,SourceApplier(Ref,SelectedTier),Secondary==ELDCombatElement::Fire ? 1 : 0,Hit.HitId,NowMs,Error);
     };
-    // A card's fire on this hit (K19, ApplyCardElement): one application of all its layers, including overdrive extra stacks.
+    // A card's fire on this hit (K19, ApplyCardElement): one application of all its layers.
     if (bCardFire)
     {
         if (!ApplyElement(Target,ELDCombatElement::Fire,SourceApplier(Hit.CardBurnSource,Hit.CardBurnTier),
-            Hit.CardBurnStacks+FMath::Max(Hit.OverdriveBurnStacks,0),Hit.HitId,NowMs,Error)) { return false; }
+            Hit.CardBurnStacks,Hit.HitId,NowMs,Error)) { return false; }
         const bool bFirstApplied=bElementApplied;
         if (bFirstApplied && !MaybeApplyTier3Secondary(ELDCombatElement::Fire,Hit.CardBurnSource,Hit.CardBurnTier)) { return false; }
         if (OutCard) { OutCard->bApplied=bFirstApplied; OutCard->bFire=true; }

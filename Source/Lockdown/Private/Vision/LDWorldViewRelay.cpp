@@ -518,9 +518,6 @@ void ALDObservedEntityProxy::Apply(const FLDObservedUnitView& Unit, double Visua
     Shown.CueImpactDelayMs = Unit.ActionCueImpactDelayMs;
     Shown.ActionAbility = Unit.ActionAbility;
     Shown.ActionComboStep = Unit.ActionComboStep;
-    Shown.bCharging = Unit.bCharging;
-    Shown.ChargeAgeMs = Unit.ChargeAgeMs;
-    Shown.bOverdriveCast = Unit.bOverdriveCast;
     Shown.RecentReaction = Unit.RecentReaction;
     Shown.RecentReactionElement = Unit.RecentReactionElement;
     Shown.RecentReactionAgePlusOneMs = Unit.RecentReactionAgePlusOneMs;
@@ -566,9 +563,6 @@ void ALDObservedEntityProxy::Present(double AtServerSec, float Delta)
         Body->SetElementStates(Reached.Statuses);
         Body->SetCastAbility(Reached.Cue == ELDObservedActionCue::Cast ? Reached.ActionAbility : 0);
         Body->SetComboStep(Reached.Cue == ELDObservedActionCue::Attack ? Reached.ActionComboStep : 0);
-        Body->SetCharging(Reached.bCharging,
-            float(double(Reached.ChargeAgeMs) / 1000.0 + FMath::Max(0.0, AtServerSec - Points[Pose.Reached].At)));
-        Body->SetOverdriveCast(Reached.Cue == ELDObservedActionCue::Cast && Reached.bOverdriveCast);
         if (Reached.RecentReactionAgePlusOneMs)
         {
             const double ReactionAge = double(Reached.RecentReactionAgePlusOneMs - 1) / 1000.0;

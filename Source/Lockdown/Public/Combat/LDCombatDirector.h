@@ -36,14 +36,6 @@ struct FLDAirdropRewardFact
 // Which momentum book a change goes to (the LD_MOMENTUM line of a life or rest, LDMomentum::FLedger).
 enum class ELDMomentumBook : uint8 { Basic, Combat, Skill, Reaction, Dodge, Other, Idle, Spent };
 
-// An owner holding a Q/W/E with a full bar (overdrive charge): public while it lasts, ended by the release, a
-// let-go or abandon of the key (bCharging false), a bar below the threshold, death or a stun, silence or knockback.
-struct FLDCombatOverdriveCharge
-{
-    ELDCombatEntry Entry=ELDCombatEntry::None;
-    int64 StartMs=0;
-};
-
 class ALDCharacter;
 class ALDGameMode;
 class ILDLifeAuthority;
@@ -59,13 +51,12 @@ struct FLDNativeMotionBatch;
 struct FLDCombatDashContact;
 
 // What one release shares across all of its hits: the brains-keystone refund pays once per release; PaidMomentumP2 is the
-// momentum this release really paid (after K08; a whole bar for an overdrive). Factors are the damage factors the release
+// momentum this release really paid (after K08). Factors are the damage factors the release
 // locked (K09/K12/K16/K17, Y22), carried by every native direct hit of it. MomentumStruck holds the bodies whose first native
-// direct hit of this release already gained MOMENTUM.SkillHit; bOverdrive marks an overdrive release; bAutoRecast marks a
+// direct hit of this release already gained MOMENTUM.SkillHit; bAutoRecast marks a
 // K06 repeat (it never repeats again).
 struct FLDCombatCastLedger
 {
-    bool bOverdrive=false;
     TArray<FLDCombatBodyRef> MomentumStruck;
     bool bBrainsKeystoneRefunded=false;
     int64 PaidMomentumP2=0;
@@ -209,9 +200,6 @@ struct FLDCombatActiveTerms
     TOptional<FLDDemoEffectDefinition> FinalKnockbackTerms, PullTerms;
     // K12: the release pays HPCostBpPerMomentum of max HP per momentum of its cost instead of momentum (copies add).
     int64 HPCostBpPerMomentum=0;
-    // Extra burn layers added specifically by Fire Overdrive (merged onto a selected fire medal without copying native skill burn).
-    int32 OverdriveBurnStacks=0;
-    int32 OverdriveZoneBurnStacks=0;
     // K06: AutoRecasts repeats of this release, each AutoRecastDelayMs after the previous, at AutoRecastScaleBp.
     int32 AutoRecasts=0;
     int64 AutoRecastDelayMs=0, AutoRecastScaleBp=0;
@@ -282,8 +270,6 @@ struct FLDCombatAction
     // A contender basic: the combo step its AttackStart took and the attack interval it committed (momentum income).
     uint8 ComboStep=0;
     int64 BasicIntervalMs=0;
-    // A Q/W/E admitted with a held overdrive charge; the release decides by the bar (LDMomentum::OverdriveReady).
-    bool bOverdrive=false;
     // K06 / A08: a free repeat of a release at AutoRecastScaleBp of its damage (no momentum, no cooldown, no further repeat).
     bool bAutoRecast=false;
     int64 AutoRecastScaleBp=10000;
@@ -387,8 +373,6 @@ struct FLDBodyCombatState
     // The combo step the last released basic of this life took (0 = none) and its AttackStart instant.
     uint8 ComboStep=0;
     int64 ComboStartMs=0;
-    // The overdrive charge shown to observers while an owner holds a Q/W/E with a full bar (FLDCombatOverdriveCharge).
-    TOptional<FLDCombatOverdriveCharge> OverdriveCharge;
     // The last D or dash-counting start of this life (perfect dodge, LDMomentum::IsPerfectDodge).
     TOptional<int64> DashStartedAtMs;
     FVector DashStartFootCm=FVector::ZeroVector;
@@ -408,8 +392,6 @@ struct FLDBodyCombatState
     FLDCombatCueFacts Cues;
     // Source of the last released action (the visible Cast cue's ability once its windup released).
     FLDCombatSourceRef ReleasedSource;
-    // The last released action was admitted as an overdrive release (FLDCombatCueFacts::bOverdriveCast).
-    bool bReleasedOverdrive=false;
     uint64 ResetThroughEpoch=0;
     bool bPendingDeath=false;
     // #112 C2 mechanics (LDCombatMechanicsDirector.cpp): forced displacement windows (blocking every voluntary action).
@@ -688,7 +670,6 @@ struct FLDCombatHit
     bool bStatusSettle=false;
     // The rot this hit applies when it differs from COMBAT.Rot* (S21 A1's cut and duration, N3 B1's longer rot); 0 = approved.
     int64 RotCutBp=0, RotMs=0;
-    // An overdrive's chill root (OVERDRIVE.ChillRootSec) rides with its chill.
     bool bBurnTick=false;            // a burn tick: no crit, no on-hit, never a Q/W hit for passives
     int64 AttackSlowBp=0, AttackSlowMs=0;
     // Delivery scaling is separate from the additive damage bonus pool (impact outer ring, for example).
@@ -713,7 +694,6 @@ struct FLDCombatHit
         uint8 Tier=1;
     };
     int32 CardBurnStacks=0;
-    int32 OverdriveBurnStacks=0;
     FLDCombatSourceRef CardBurnSource;
     uint8 CardBurnTier=1;
     TArray<FCardElementEntry> CardElements;
@@ -970,7 +950,6 @@ struct FLDCombatZone
     int32 BurnStacks=0;
     int64 BurnIntervalMs=0, NextBurnAtMs=0;
     int32 PulseBurnStacks=0;
-    int32 OverdrivePulseBurnStacks=0;
     // #198: the owner's element snapshot (level, AP) at release; zone_wet makes every pulse apply wet; zone_haste gives
     // the owner and its current-match teammates (OwnerGroup/OwnerPKSide at release, PK side 0: none) HasteBp move speed
     // while their foot stands inside.
@@ -1041,9 +1020,6 @@ public:
     bool RecordDirectRefusal(const FLDCombatCaller& Caller, const FLDCombatActionRequest& Request, ELDCombatReject Reject,
         FLDCombatActionReceipt& Out);
     FLDCombatActionReceipt CancelAction(const FLDCombatCaller& Caller, const FLDCombatCancelRequest& Request);
-    // The owner's overdrive charge intent (a Q/W/E pressed or let go with a full bar). Shown to observers while held;
-    // refused silently when stale, not castable or the bar is short. A later request with bOverdrive needs it.
-    void SubmitCharge(const FLDCombatCaller& Caller, const FLDCombatChargeRequest& Request);
     // Auto-empower: the owner chooses its host (Basic, Q, W, E or D) by a per-contender increasing Sequence; a repeated or
     // older sequence changes nothing (true, already judged). Refused (false with Reason) while the experiment is off, for a
     // stale caller or for an entry that cannot host. The choice holds for the rest of the match.
@@ -1445,11 +1421,6 @@ private:
     // direct hit on each body MOMENTUM.SkillHit.
     bool OnMomentumHit(FLDBodyCombatState& Source, const FLDCombatHit& Hit, const FLDBodyCombatState& Victim,
         bool bNativeDirect, FString& Error);
-    // Ends the body's overdrive charge (released, let go, controlled, the bar fell); observers stop seeing it.
-    void EndOverdriveCharge(FLDBodyCombatState& Body);
-    // OVERDRIVE.Scale on the release's terms and the bonus of the active's element (CONTENT_AND_BALANCE §3.5).
-    bool ApplyOverdrive(const FLDBodyCombatState& Body, const FLDDemoAbilityDefinition& Ability, FLDCombatActiveTerms& Terms,
-        FString& Error) const;
     // One LD_MOMENTUM line of a contender life's momentum books (at the end of the life; a rest starts a new life).
     void LogMomentumLedger(const FLDBodyCombatState& Body) const;
     // ---- Auto-empower (LDCombatEmpowerDirector.cpp, docs/systems/COMBAT_AND_GROWTH.md "自动强化实验").
@@ -1726,13 +1697,6 @@ private:
     bool OnShieldBrokenCards(FLDBodyCombatState& Holder, int64 NowMs, FString& Error);
     bool OnBurnDealtCards(FLDBodyCombatState& Source, int64 BurnDamageP2, int64 NowMs, FString& Error);
     bool OnTallyHit(FLDBodyCombatState& Source, const FLDCombatHit& Hit, int64 NowMs, FString& Error);
-    // Y11: Body's overdrive threshold and scale (OVERDRIVE.Threshold / OVERDRIVE.Scale unless an overdrive_short card replaces them).
-    int64 OverdriveThresholdOf(const FLDBodyCombatState& Body) const;
-    // Cue facts with the overdrive cast as it will resolve: an acting Q/W/E admitted as overdrive counts only while the
-    // bar still holds this body's threshold (the release decides by the same LDMomentum::OverdriveReady); a released one
-    // keeps the resolved value ReleaseAbility stored.
-    FLDCombatCueFacts PresentedCueFactsOf(const FLDBodyCombatState& Body) const;
-    int64 OverdriveScaleOf(const FLDBodyCombatState& Body) const;
     // D07: an innate dash ramming Target deals the card's damage and pushes it away.
     bool DashRamHit(FLDBodyCombatState& Body, const FLDCombatDashContact& Dash, const FLDCombatBodyRef& Target, FString& Error);
     // A08: a landed third basic step queues a free Q release toward its target at the card's share.

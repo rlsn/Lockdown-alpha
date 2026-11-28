@@ -801,14 +801,6 @@ def parameter_projection(parameters):
     }
     result["Combo"] = {"StepRatiosBp": [scalar(value) for value in parameters["COMBO.StepRatios"]],
                        "ResetMs": scalar(parameters["COMBO.ResetSec"])}
-    result["Overdrive"] = {
-        "ThresholdP2": scalar(parameters["OVERDRIVE.Threshold"]), "HoldMs": scalar(parameters["OVERDRIVE.HoldSec"]),
-        "ScaleBp": scalar(parameters["OVERDRIVE.Scale"]), "FireBurnStacks": parameters["OVERDRIVE.FireBurnStacks"],
-        "WaterSlowBp": scalar(parameters["OVERDRIVE.WaterSlow"]), "WaterSlowMs": scalar(parameters["OVERDRIVE.WaterSlowSec"]),
-        "ShockReactionBp": scalar(parameters["OVERDRIVE.ShockReactionRatio"]),
-        "RotDurationBp": scalar(parameters["OVERDRIVE.RotDurationScale"]),
-        "ChillRootMs": scalar(parameters["OVERDRIVE.ChillRootSec"]),
-    }
     result["SkillRanks"] = {
         "RankBaseScaleBp": [scalar(value) for value in parameters["SKILL.RankBaseScale"]],
         "RankRatioScaleBp": [scalar(value) for value in parameters["SKILL.RankRatioScale"]],
