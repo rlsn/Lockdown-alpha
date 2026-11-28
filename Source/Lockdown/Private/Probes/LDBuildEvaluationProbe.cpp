@@ -376,10 +376,10 @@ bool ParseContender(const FJsonObject& Object, const FString& Where, FLDEvalCont
         const FString At = Where + TEXT(".stance");
         TSharedPtr<FJsonObject> Stance;
         FString Kind;
-        int64 Standoff = 0, Threshold = 0, Leash = 0, Reaction = 0, Aim = 0, Skip = 0;
+        int64 Standoff = 0, Threshold = 0, Leash = 0, Reaction = 0, Aim = 0, Skip = 0, WarningReact = -1;
         if (!ReadObject(Object, TEXT("stance"), Where, Stance, Error)
             || !OnlyKeys(*Stance, {TEXT("kind"), TEXT("standoff_cm"), TEXT("threshold_bp"), TEXT("leash_cm"), TEXT("reaction_ms"),
-                TEXT("aim_error_cm"), TEXT("skip_bp")}, At, Error)
+                TEXT("aim_error_cm"), TEXT("skip_bp"), TEXT("warning_react_ms"), TEXT("lead_aim")}, At, Error)
             || !ReadString(*Stance, TEXT("kind"), At, Kind, Error))
         {
             return false;
@@ -389,15 +389,25 @@ bool ParseContender(const FJsonObject& Object, const FString& Where, FLDEvalCont
             || (Stance->HasField(TEXT("aim_error_cm")) && !ReadInteger(*Stance, TEXT("aim_error_cm"), At, 0,
                 LDEvaluationPolicy::MaxAimErrorCm, Aim, Error))
             || (Stance->HasField(TEXT("skip_bp")) && !ReadInteger(*Stance, TEXT("skip_bp"), At, 0, LDEvaluationPolicy::MaxSkipBp,
-                Skip, Error)))
+                Skip, Error))
+            || (Stance->HasField(TEXT("warning_react_ms")) && !ReadInteger(*Stance, TEXT("warning_react_ms"), At, 0,
+                LDEvaluationPolicy::MaxWarningReactMs, WarningReact, Error)))
         {
             return false;
         }
+        bool bLeadAim = false;
+        if (Stance->HasField(TEXT("lead_aim")) && !Stance->TryGetBoolField(TEXT("lead_aim"), bLeadAim))
+        {
+            Error = At + TEXT(".lead_aim: true or false is required");
+            return false;
+        }
+        Out.WarningReactMs = int32(WarningReact);
+        Out.bLeadAim = bLeadAim;
         Out.ReactionMs = int32(Reaction);
         Out.AimErrorCm = int32(Aim);
         Out.SkipBp = int32(Skip);
         const bool bOperation = Stance->HasField(TEXT("reaction_ms")) || Stance->HasField(TEXT("aim_error_cm"))
-            || Stance->HasField(TEXT("skip_bp"));
+            || Stance->HasField(TEXT("skip_bp")) || Stance->HasField(TEXT("warning_react_ms")) || Stance->HasField(TEXT("lead_aim"));
         if (Kind == TEXT("pursue") && bOperation)
         {
             // An explicit pursue only carries operation knobs; a plain pursue is the absent stance.
@@ -868,6 +878,8 @@ public:
             Profile.ReactionMs = Row.Contenders[Index].ReactionMs;
             Profile.AimErrorCm = Row.Contenders[Index].AimErrorCm;
             Profile.SkipBp = Row.Contenders[Index].SkipBp;
+            Profile.WarningReactMs = Row.Contenders[Index].WarningReactMs;
+            Profile.bLeadAim = Row.Contenders[Index].bLeadAim;
             Profile.OperationSeed = Row.Seed;
             if (LDProgression::LevelForXP(Content->Get().Progression, Row.Contenders[Index].SupplyXP, Profile.SupplyLevel)
                 != ELDGrowthReason::None)

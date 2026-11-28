@@ -312,14 +312,18 @@ STANCE_KINDS = ("kite", "burst", "hold", "guard")
 STANCE_STANDOFF_CM = (200, 2000)
 STANCE_THRESHOLD_BP = (1000, 9000)
 STANCE_LEASH_CM = (500, 5000)
-# Operation knobs (any stance, each optional, 0: exact play) and their native limits.
-OPERATION_KNOBS = {"reaction_ms": (0, 1500), "aim_error_cm": (0, 400), "skip_bp": (0, 9000)}
+# Operation knobs (any stance, each optional) and their native limits; an absent knob is its default (exact play, no
+# warning dodge, no lead aim). lead_aim is a flag.
+OPERATION_KNOBS = {"reaction_ms": (0, 1500), "aim_error_cm": (0, 400), "skip_bp": (0, 9000), "warning_react_ms": (0, 1500)}
+OPERATION_FLAGS = ("lead_aim",)
+OPERATION_DEFAULTS = {"reaction_ms": 0, "aim_error_cm": 0, "skip_bp": 0, "warning_react_ms": -1, "lead_aim": False}
 
 
 def _stance(plan, role):
     """The optional engagement stance (absent: the production pursue): {"kind": "kite"|"burst"|"hold"|"guard",
     "standoff_cm": N, "threshold_bp": N (guard only, required), "leash_cm": N (optional)}, each with the optional operation
-    knobs reaction_ms, aim_error_cm and skip_bp. {"kind": "pursue"} is written only to carry knobs."""
+    knobs reaction_ms, aim_error_cm, skip_bp, warning_react_ms and the flag lead_aim. {"kind": "pursue"} is written only to
+    carry knobs."""
     stance = plan[role].get("stance")
     if stance is None:
         return None
@@ -328,15 +332,18 @@ def _stance(plan, role):
         value = stance[key]
         return isinstance(value, int) and not isinstance(value, bool) and bounds[0] <= value <= bounds[1]
 
-    knobs = set(OPERATION_KNOBS) & set(stance) if isinstance(stance, dict) else set()
-    if (not isinstance(stance, dict) or any(not bounded(key, OPERATION_KNOBS[key]) for key in knobs)):
+    knobs = (set(OPERATION_KNOBS) | set(OPERATION_FLAGS)) & set(stance) if isinstance(stance, dict) else set()
+    if (not isinstance(stance, dict)
+            or any(not (isinstance(stance[key], bool) if key in OPERATION_FLAGS else bounded(key, OPERATION_KNOBS[key]))
+                   for key in knobs)):
         raise ValueError(f"plan.{role}.stance: optional integer knobs " + ", ".join(
-            f"{key} {low}..{high}" for key, (low, high) in OPERATION_KNOBS.items()))
+            f"{key} {low}..{high}" for key, (low, high) in OPERATION_KNOBS.items())
+            + " and optional true/false " + ", ".join(OPERATION_FLAGS))
     if stance.get("kind") == "pursue":
         if not knobs or set(stance) - knobs - {"kind"}:
             raise ValueError(f"plan.{role}.stance: a pursue stance carries only operation knobs, at least one "
                              f"(omit the stance to pursue exactly)")
-        return {key: stance[key] for key in ("kind", *OPERATION_KNOBS) if key in stance}
+        return {key: stance[key] for key in ("kind", *OPERATION_KNOBS, *OPERATION_FLAGS) if key in stance}
     guard = stance.get("kind") == "guard"
     keys = {"kind", "standoff_cm"} | ({"threshold_bp"} if guard else set())
     if (stance.get("kind") not in STANCE_KINDS or not keys <= set(stance)
@@ -347,13 +354,14 @@ def _stance(plan, role):
                          f"{STANCE_STANDOFF_CM[0]}..{STANCE_STANDOFF_CM[1]}, \"threshold_bp\": "
                          f"{STANCE_THRESHOLD_BP[0]}..{STANCE_THRESHOLD_BP[1]} (guard only), optional \"leash_cm\": "
                          f"{STANCE_LEASH_CM[0]}..{STANCE_LEASH_CM[1]}}} (omit it to pursue)")
-    return {key: stance[key] for key in ("kind", "standoff_cm", "threshold_bp", "leash_cm", *OPERATION_KNOBS) if key in stance}
+    return {key: stance[key] for key in ("kind", "standoff_cm", "threshold_bp", "leash_cm", *OPERATION_KNOBS, *OPERATION_FLAGS)
+            if key in stance}
 
 
 def operation_knobs(plan, role):
-    """The role's planned operation knobs, each 0 when not written."""
+    """The role's planned operation knobs, each its default when not written."""
     stance = _stance(plan, role) or {}
-    return {key: stance.get(key, 0) for key in OPERATION_KNOBS}
+    return {key: stance.get(key, default) for key, default in OPERATION_DEFAULTS.items()}
 
 
 def _definition(value, where):
@@ -1283,10 +1291,13 @@ def operation_problems(events, ids, plan):
     reasons = []
     for role in ROLES:
         knobs = operation_knobs(plan, role)
-        if not any(knobs.values()):
+        if knobs == OPERATION_DEFAULTS:
             continue
         lines = [fields for tag, fields, _ in events if tag == "LD_EVAL_PROFILE" and fields.get("contender") == ids[role]]
-        if len(lines) != 1 or any(lines[0].get(key) != str(value) for key, value in knobs.items()):
+        # A knob left at its default may be absent from a profile line written before it existed.
+        if len(lines) != 1 or any(lines[0].get(key) != str(int(value))
+                                  and not (value == OPERATION_DEFAULTS[key] and key not in lines[0])
+                                  for key, value in knobs.items()):
             reasons.append(f"Setup: the {role} operation knobs did not reach the native profile")
     return reasons
 

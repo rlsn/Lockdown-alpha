@@ -716,5 +716,9 @@ namespace LDOpponentPolicy
     // place is unknown or the context cannot initialize.
     LOCKDOWN_API FLDOpponentBodyIntent WalkTo(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
         FLDOpponentPolicyState& State, FName POI);
+    // The production warning dodge (Decide's first body step) without its AI.DodgeChance roll: every frame warning due
+    // within its window on the own foot is dashed out of with the ready D. Unset when none applies.
+    LOCKDOWN_API TOptional<FLDOpponentBodyIntent> DodgeWarning(const FLDOpponentDecisionFrame& Frame,
+        const FLDDemoContentSnapshot& Catalog, FLDOpponentPolicyState& State);
 #endif
 }

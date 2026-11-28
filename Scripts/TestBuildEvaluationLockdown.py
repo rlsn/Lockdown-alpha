@@ -621,7 +621,9 @@ class PlanTest(AdapterCase):
         for valid in ({"kind": "kite", "standoff_cm": 450, "reaction_ms": 800, "aim_error_cm": 200, "skip_bp": 3500},
                       {"kind": "pursue", "reaction_ms": 150}, {"kind": "pursue", "aim_error_cm": 0},
                       {"kind": "guard", "standoff_cm": 600, "threshold_bp": 3500, "skip_bp": 9000, "reaction_ms": 1500,
-                       "aim_error_cm": 400}):
+                       "aim_error_cm": 400},
+                      {"kind": "pursue", "warning_react_ms": 250}, {"kind": "pursue", "warning_react_ms": 450, "lead_aim": True},
+                      {"kind": "kite", "standoff_cm": 450, "lead_aim": False}):
             with self.subTest(stance=valid):
                 plan = manifest(subject={"choices": ["ai_select"] * 3, "stance": valid}, sample="diagnostic")
                 native = lockdown.native_input("run-1", plan, self.caps, case)
@@ -632,7 +634,9 @@ class PlanTest(AdapterCase):
                         {"kind": "kite", "standoff_cm": 450, "skip_bp": True},
                         {"kind": "kite", "standoff_cm": 450, "reaction_ms": 800.0},
                         {"kind": "pursue"}, {"kind": "pursue", "reaction_ms": 150, "standoff_cm": 600},
-                        {"kind": "pursue", "reaction_ms": 150, "leash_cm": 600}):
+                        {"kind": "pursue", "reaction_ms": 150, "leash_cm": 600},
+                        {"kind": "pursue", "warning_react_ms": 1501}, {"kind": "pursue", "warning_react_ms": -1},
+                        {"kind": "pursue", "lead_aim": 1}, {"kind": "pursue", "lead_aim": "true"}):
             with self.subTest(stance=invalid), self.assertRaises(ValueError):
                 plan = manifest(subject={"choices": ["ai_select"] * 3, "stance": invalid}, sample="diagnostic")
                 lockdown.native_input("run-1", plan, self.caps, case)
@@ -657,16 +661,28 @@ class EvidenceTest(AdapterCase):
         text = trace().replace(begin, begin + "\n" + line)
         out = self.evidence(text=text, plan_manifest=plan)
         self.assertEqual(out["status"], "Completed", out["reason"])
+        exact = {"reaction_ms": 0, "aim_error_cm": 0, "skip_bp": 0, "warning_react_ms": -1, "lead_aim": False}
         self.assertEqual(out["facts"]["operation"], {
-            "subject": {"reaction_ms": 800, "aim_error_cm": 200, "skip_bp": 3500},
-            "opponent": {"reaction_ms": 0, "aim_error_cm": 0, "skip_bp": 0}})
+            "subject": {**exact, "reaction_ms": 800, "aim_error_cm": 200, "skip_bp": 3500}, "opponent": exact},
+            "a knob left at its default may be absent from the profile line")
         for invalid in (trace(), text.replace("skip_bp=3500", "skip_bp=0"), text.replace(line, line + "\n" + line)):
             with self.subTest(text=invalid[:0]):
                 out = self.evidence(text=invalid, plan_manifest=plan)
                 self.assertEqual(out["status"], "Invalid")
                 self.assertIn("Setup: the subject operation knobs did not reach the native profile", out["reason"])
-        self.assertEqual(self.evidence()["facts"]["operation"]["subject"],
-                         {"reaction_ms": 0, "aim_error_cm": 0, "skip_bp": 0}, "no knobs is exact play")
+        self.assertEqual(self.evidence()["facts"]["operation"]["subject"], exact, "no knobs is exact play")
+        # B01 S3B-08: the warning reaction and lead aim must reach the native profile like the other knobs.
+        stance = {"kind": "pursue", "warning_react_ms": 250, "lead_aim": True}
+        plan = manifest(subject={"choices": ["ai_select"] * 3, "stance": stance}, sample="diagnostic")
+        line = (f"LD_EVAL_PROFILE contender={S} rival={O} site=capture choices=3 "
+                f"reaction_ms=0 aim_error_cm=0 skip_bp=0 warning_react_ms=250 lead_aim=1")
+        text = trace().replace(begin, begin + "\n" + line)
+        out = self.evidence(text=text, plan_manifest=plan)
+        self.assertEqual(out["status"], "Completed", out["reason"])
+        self.assertEqual(out["facts"]["operation"]["subject"], {**exact, "warning_react_ms": 250, "lead_aim": True})
+        for invalid in (text.replace("warning_react_ms=250", "warning_react_ms=-1"), text.replace("lead_aim=1", "lead_aim=0")):
+            with self.subTest(text=invalid[-40:]):
+                self.assertEqual(self.evidence(text=invalid, plan_manifest=plan)["status"], "Invalid")
 
     def test_actual_field_spawn_is_not_the_first_opening_rest_heartbeat(self):
         rest = heartbeat(100, S, "6900,-500,2") + "\n" + heartbeat(100, O, "7300,-500,2")
