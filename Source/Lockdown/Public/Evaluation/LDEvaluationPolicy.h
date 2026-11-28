@@ -4,6 +4,7 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "AI/LDOpponentPolicy.h"
+#include "Combat/LDCombatTypes.h"
 
 class FLDDemoContentSnapshot;
 
@@ -156,6 +157,8 @@ struct FLDEvaluationProfile
     int32 WarningReactMs = -1;
     bool bLeadAim = false;
     bool bReserveDash = false;
+    // Auto-empower runs: the planned host the evaluation probe submits (None: the AI's own pick or -LDEmpowerHost).
+    ELDCombatEntry EmpowerHost = ELDCombatEntry::None;
     // The Case root seed the operation rolls derive from.
     uint64 OperationSeed = 0;
     // The designated rival: the only contender this strategy engages.

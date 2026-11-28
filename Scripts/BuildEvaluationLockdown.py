@@ -27,7 +27,7 @@ import re
 from pathlib import Path
 
 ADAPTER_ID = "lockdown-demo"
-ADAPTER_VERSION = 18
+ADAPTER_VERSION = 20
 # LDBuildEvaluation::MaxCases and MaxBuildSteps of the native driver (LDBuildEvaluationProbe.h); a larger plan is refused
 # before any run.
 NATIVE_MAX_CASES = 500
@@ -114,17 +114,19 @@ METRICS = {
                        "description": "the opponent's Q/W/E releases (LD_CAST) from first-field entry to the outcome "
                                       "(and the outcome's own advance, at most 50 ms later)"},
     "subject_empowers": {"unit": "empowers", "kind": "continuous", "direction": "descriptive",
-                         "description": "the subject's empowered releases (LD_EMPOWER applied or prepaid) from first-field "
+                         "description": "the subject's empowerments (LD_EMPOWER applied; a prepaid delivery is not another) from first-field "
                                         "entry to the outcome; 0 in a run without auto-empower"},
     "opponent_empowers": {"unit": "empowers", "kind": "continuous", "direction": "descriptive",
-                          "description": "the opponent's empowered releases (LD_EMPOWER applied or prepaid) from first-field "
+                          "description": "the opponent's empowerments (LD_EMPOWER applied; a prepaid delivery is not another) from first-field "
                                          "entry to the outcome; 0 in a run without auto-empower"},
 }
 # Auto-empower is a Host-wide switch (-LDEmpower, optionally -LDEmpowerHost=<entry> for every contender without a chosen
 # host): one run is all off or all on, so off/on is compared across two runs of the same seeds. An AI picks its own host
 # unless empower_host forces one for both duelists.
 EMPOWER_HOSTS = ("Basic", "Q", "W", "E", "D")
-EMPOWER_DONE = ("applied", "prepaid")
+# One empowerment is one applied line (the release that paid). A prepaid line is the delivery of an empowerment an earlier
+# applied release already paid for (a Q that empowers the next basic): paid 0, host and serial of the delivering action.
+EMPOWER_DONE = ("applied",)
 
 
 # ---------------------------------------------------------------- capabilities
@@ -192,6 +194,9 @@ def describe(project_root):
             "definition": {"description": "the actual active offer's option of one active; refused when not offered"},
             "preset_offer": {"description": "a diagnostic opening offer or a later one-to-three-active offer prepared by DevQueueOffer",
                              "sample_classes": ["diagnostic"]},
+            "empower_host": {"description": "auto-empower only: the side's host (Basic, Q, W, E or D) submitted through the "
+                                            "authority's host command when the match starts, instead of the AI's own pick or "
+                                            "the scenario-wide empower_host"},
             "breakout_preset": {"description": "a DEV breakout sample (LDBreakoutPresets) applied at the field entry instead of "
                                                "the side's XP supply: its max-level skills, branches, cards and points",
                                 "sample_classes": ["diagnostic"]},
@@ -278,9 +283,11 @@ def _side_plan(plan, role):
     side = plan.get(role)
     if (not isinstance(side, dict) or "choices" not in side
             or set(side) - {"choices", "opening_preset", "presets", "level_cards", "build", "stance", "keep_points_unspent",
-                            "breakout_preset"}):
+                            "breakout_preset", "empower_host"}):
         raise ValueError(f"plan.{role}: an object with choices (and optional opening_preset, presets, level_cards, build, "
-                         "stance, keep_points_unspent and breakout_preset)")
+                         "stance, keep_points_unspent, breakout_preset and empower_host)")
+    if "empower_host" in side and side["empower_host"] not in EMPOWER_HOSTS:
+        raise ValueError(f"plan.{role}.empower_host: one of {', '.join(EMPOWER_HOSTS)}")
     preset = side.get("breakout_preset")
     if preset is not None and (not isinstance(preset, str) or not preset.startswith("breakout_")):
         raise ValueError(f"plan.{role}.breakout_preset: a DEV breakout sample id (breakout_*)")
@@ -580,6 +587,10 @@ def requirements(scenario, plan, caps):
             problems += needs[2]
         if plan[role].get("breakout_preset"):
             decisions.add("breakout_preset")
+        if plan[role].get("empower_host"):
+            decisions.add("empower_host")
+            if scenario["parameters"].get("empower") is not True:
+                problems.append(f"IllegalScenario: plan.{role}.empower_host needs the scenario's empower true")
         if level_cards:
             decisions.add("preset_level_cards")
             mechanics.update(level_cards)
@@ -717,6 +728,8 @@ def native_input(run_id, manifest, caps, cases):
                 row["stance"] = stance
             if plan[role].get("breakout_preset"):
                 row["breakout_preset"] = plan[role]["breakout_preset"]
+            if plan[role].get("empower_host"):
+                row["empower_host"] = plan[role]["empower_host"]
             contenders.append(row)
         row = {"case_id": case["case_id"], "seed": case["seed"], "site": params["site"],
                "duel_timeout_ms": params["duel_timeout_ms"], "wall_timeout_s": manifest["budget"]["case_wall_timeout_s"],
@@ -1221,7 +1234,7 @@ def case_evidence(case, manifest, caps, result, trace_text):
             if offered.get(str(position + 2)) != preset:
                 reasons.append(f"PresetNotApplied: the {role} offer at ordinal {position + 2} is {offered.get(str(position + 2))}, prepared {preset}")
     empowered = params.get("empower", False)
-    empower = {role: {"empowers": 0, "short": 0, "paid": 0, "hosts": {}, "processors": {}} for role in ROLES}
+    empower = {role: {"empowers": 0, "delivered": 0, "short": 0, "paid": 0, "hosts": {}, "processors": {}} for role in ROLES}
     for tag, row, _ in events:
         if tag != "LD_EMPOWER" or row.get("src") not in duelists:
             continue
@@ -1236,10 +1249,29 @@ def case_evidence(case, manifest, caps, result, trace_text):
             side["paid"] += _hundredths(row.get("paid", "0"))
             for key, value in (("hosts", row.get("host")), ("processors", row.get("processor"))):
                 side[key][value] = side[key].get(value, 0) + 1
+        elif row.get("outcome") == "prepaid":
+            side["delivered"] += 1
         else:
             side["short"] += 1
     if empowered:
         out["facts"]["empower"] = {role: dict(side, paid=side["paid"] / 100) for role, side in empower.items()}
+    # A planned host is the authority's accepted host command (LD_EMPOWER_HOST) and the only host that side empowers.
+    for role in ROLES:
+        planned = plans[case["arm"]][role].get("empower_host")
+        # The native profile line names the side's auto-empower (off, auto or the fixed host) when it carries the field.
+        needed = "off" if not empowered else planned or params.get("empower_host") or "auto"
+        profiles = [row.get("empower") for tag, row, _ in events
+                    if tag == "LD_EVAL_PROFILE" and row.get("contender") == ids[role] and "empower" in row]
+        if any(value != needed for value in profiles):
+            reasons.append(f"Setup: the {role} native profile has empower={profiles[0]}, the run needs {needed}")
+        if not planned:
+            continue
+        hosted = [row.get("host") for tag, row, _ in events if tag == "LD_EMPOWER_HOST" and row.get("src") == ids[role]]
+        if hosted != [planned]:
+            reasons.append(f"EmpowerHostNotApplied: the {role} host commands are {hosted or 'none'}, planned {planned}")
+        other = sorted(set(empower[role]["hosts"]) - {planned})
+        if other:
+            reasons.append(f"EmpowerHostNotApplied: the {role} empowered {other}, planned {planned}")
     casts = {role: 0 for role in ROLES}
     for tag, row, _ in events:
         if tag == "LD_CAST" and row.get("contender") in duelists:

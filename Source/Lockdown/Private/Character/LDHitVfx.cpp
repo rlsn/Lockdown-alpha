@@ -517,7 +517,6 @@ const TCHAR* LDSliceVfx::SystemName(ESystem System)
     case ESystem::WindZone: return TEXT("NS_LDWindZone");
     case ESystem::AreaPlain: return TEXT("NS_LDAreaPlain");
     case ESystem::ShardBurst: return TEXT("NS_LDShardBurst");
-    case ESystem::DecoyPop: return TEXT("NS_LDDecoyPop");
     case ESystem::RootState: return TEXT("NS_LDRootState");
     case ESystem::ProtectedState: return TEXT("NS_LDProtectedState");
     case ESystem::SlowState: return TEXT("NS_LDSlowState");
@@ -528,8 +527,6 @@ const TCHAR* LDSliceVfx::SystemName(ESystem System)
     case ESystem::TauntState: return TEXT("NS_LDTauntState");
     case ESystem::ExposedState: return TEXT("NS_LDExposedState");
     case ESystem::DashWake: return TEXT("NS_LDDashWake");
-    case ESystem::OverdriveCharge: return TEXT("NS_LDOverdriveCharge");
-    case ESystem::OverdriveBurst: return TEXT("NS_LDOverdriveBurst");
     case ESystem::LevelUp: return TEXT("NS_LDLevelUp");
     case ESystem::OwnMark: return TEXT("NS_LDOwnMark");
     case ESystem::RingBand: return TEXT("NS_LDRingBand");
@@ -609,7 +606,6 @@ LDHitVfx::FScreenFlash LDHitVfx::ScreenFlashOf(uint8 DealtFlags, bool bReduced)
     FScreenFlash Flash;
     if (bReduced) { return Flash; }
     if (DealtFlags & LDCombatCues::DealtLethal) { Flash = {FLinearColor(1.f, .12f, .06f, .55f), .24f, 3.5f}; }
-    else if (DealtFlags & LDCombatCues::DealtOverdrive) { Flash = {FLinearColor(1.f, .2f, .8f, .5f), .2f, 3.f}; }
     // Critical hits come often in a crit build: a faint gold edge without a lens fringe.
     else if (DealtFlags & LDObservation::Critical) { Flash = {FLinearColor(1.f, .62f, .12f, .25f), .12f, 0.f}; }
     else if (DealtFlags & LDObservation::ShieldBroken) { Flash = {FLinearColor(.1f, .8f, 1.f, .4f), .14f, 1.5f}; }
@@ -704,13 +700,6 @@ LDHitVfx::FBurst LDHitVfx::BurstOf(EBurst Kind, const FLinearColor& Tint, float 
         B.Sparks = 12; B.Smoke = 12; B.Shards = 10; B.Speed = 1.f; B.Scale = 1.5f; B.Life = 1.2f; B.Gravity = FVector(0, 0, -1400);
         B.SmokeColour = FLinearColor(.24f, .21f, .17f, .6f);
         B.ShardColour = FLinearColor(.2f, .17f, .13f, 1.f);
-        break;
-    case EBurst::Overdrive:
-        B.Sparks = 34; B.Smoke = 10; B.Shards = 8; B.Speed = 1.6f; B.Scale = 1.8f; B.Life = 1.3f; B.Gravity = FVector(0, 0, -600);
-        B.SparkColour = Hot(OverdriveTint(), 3.2f);
-        B.CoreColour = Hot(OverdriveTint(), 2.4f, .7f);
-        B.SmokeColour = FLinearColor(.35f, .04f, .25f, .6f);
-        B.ShardColour = FLinearColor(.3f, .05f, .22f, 1.f);
         break;
     default: return FBurst();
     }
@@ -840,7 +829,6 @@ bool LDHitVfx::AppearBurstOf(ELDObservedProjectileLook Look, EBurst& Out, FLinea
     case ELDObservedProjectileLook::FistWind: Out = EBurst::Gust; Tint = FLinearColor(1.f, .42f, .18f); return true;
     case ELDObservedProjectileLook::SlipperDrop: Out = EBurst::Aura; Tint = FLinearColor(.25f, .95f, 1.f); return true;
     case ELDObservedProjectileLook::CordonTape: Out = EBurst::Zap; Tint = FLinearColor(1.f, .86f, .12f); return true;
-    case ELDObservedProjectileLook::PhantomDecoy: Out = EBurst::Dash; Tint = FLinearColor(.82f, .42f, 1.f); return true;
     case ELDObservedProjectileLook::ShardBurst: Out = EBurst::Slam; Tint = FLinearColor(.2f, .92f, 1.f); return true;
     case ELDObservedProjectileLook::AreaFire: Out = EBurst::Flame; Tint = FLinearColor(1.f, .3f, .05f); return true;
     case ELDObservedProjectileLook::AreaWater: Out = EBurst::Splash; Tint = FLinearColor(.25f, .7f, 1.f); return true;
@@ -864,7 +852,6 @@ bool LDHitVfx::EndBurstOf(ELDObservedProjectileLook Look, EBurst& Out, FLinearCo
     case ELDObservedProjectileLook::SockReturn: Out = EBurst::Rot; Tint = FLinearColor(.55f, .85f, .25f); return true;
     case ELDObservedProjectileLook::FistWind: Out = EBurst::Gust; Tint = FLinearColor(1.f, .42f, .18f); return true;
     case ELDObservedProjectileLook::SlipperDrop: Out = EBurst::Aura; Tint = FLinearColor(.25f, .95f, 1.f); return true;
-    case ELDObservedProjectileLook::PhantomDecoy: Out = EBurst::Arcane; Tint = FLinearColor(.88f, .45f, 1.f); return true;
     case ELDObservedProjectileLook::BookShadow: Out = EBurst::Slam; Tint = FLinearColor(.95f, .95f, .85f); return true;
     default: return false;
     }
@@ -892,11 +879,6 @@ float LDHitVfx::GhostFade(const FGhosts& Ghosts, float AgeSeconds)
 {
     if (!Ghosts.bShow || Ghosts.Seconds <= 0.f || !FMath::IsFinite(AgeSeconds) || AgeSeconds < 0.f || AgeSeconds >= Ghosts.Seconds) { return 0.f; }
     return .88f * (1.f - AgeSeconds / Ghosts.Seconds);
-}
-
-FLinearColor LDHitVfx::OverdriveTint()
-{
-    return FLinearColor(1.f, .18f, .75f);
 }
 
 FLinearColor LDHitVfx::ElementTint(uint8 Element) { return LDSliceVfx::ElementInk(Element); }

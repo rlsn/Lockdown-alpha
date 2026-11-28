@@ -80,7 +80,6 @@ const FLinearColor WorldEnemyHPColorblind=FLinearColor(FColor(0xF9,0x73,0x16));
 const FLinearColor WorldCampHPFill=FLinearColor(FColor(0xB8,0x3B,0x3B));
 const FLinearColor WorldBossFrameInk=FLinearColor(FColor(0xD9,0x77,0x06));
 const FLinearColor WorldMomentumFill=FLinearColor(FColor(0xF5,0x9E,0x0B));
-const FLinearColor WorldMomentumOverdrive=FLinearColor(FColor(0xFA,0xCC,0x15));
 const FLinearColor WorldShieldFill=FLinearColor(FColor(0xE2,0xE8,0xF0));
 const FLinearColor WorldShieldRim=FLinearColor(FColor(0x7D,0xD3,0xFC));
 const FLinearColor WorldHealFlashInk=FLinearColor(FColor(0x86,0xEF,0xAC));
@@ -170,7 +169,6 @@ LDWorldLabels::FLabel LDWorldLabels::Build(const FLDObservedUnitView& Unit,const
     // As on the target card (LDHUD::ResourceP2), health without a known maximum or with a malformed current is unknown:
     // no bar rather than an empty one.
     Label.bHealth=Unit.Health.MaxP2>0&&Unit.Health.CurrentP2>=0;
-    Label.bCharging=Label.bContender&&Unit.bCharging;
     if(Label.bHealth)
     {
         Label.HealthFraction=float(FMath::Clamp(double(Unit.Health.CurrentP2)/double(Unit.Health.MaxP2),0.,1.));
@@ -431,8 +429,8 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     auto Diamond=[&](int32 Layer,const FVector2f& At,float Edge,const FLinearColor& Tint)
     {FSlateDrawElement::MakeRotatedBox(E,Base+Layer,G.ToPaintGeometry(FVector2f(Edge,Edge),FSlateLayoutTransform(At-FVector2f(Edge*.5f,Edge*.5f))),White,ESlateDrawEffect::None,UE_PI*.25f,TOptional<FVector2f>(),FSlateDrawElement::RelativeToElement,Tint);};
     auto DrawSegmentedBar=[&](float BarLeft,float BarTop,float BarW,float BarH,int64 CurrentHPP2,int64 MaxHPP2,int64 ShieldP2,
-        const FLinearColor& HPFill,const LDWorldLabels::FBarTrailState& Trail,bool bHasMomentum,float MomentumFrac,bool bMomentumOverdrive,
-        const FLinearColor* AccentFrame)
+        const FLinearColor& HPFill,const LDWorldLabels::FBarTrailState& Trail,bool bHasMomentum,float MomentumFrac,
+        const FLinearColor* AccentFrame,bool bEmpowerReady=false)
     {
         const float ShakeAge=float(UiNow-Trail.LastShakeAtSec);
         const float ShakeOffset=(ShakeAge>=0.f&&ShakeAge<.14f)?3.5f*(1.f-ShakeAge/.14f)*FMath::Sin(ShakeAge*95.f):0.f;
@@ -513,8 +511,9 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             Box(2,FVector2f(X0,MomTop),FVector2f(BarW,ContenderMomentumHeight),LDHUDStyle::BarTrack);
             if(MomentumFrac>0.f)
             {
+                // Auto-empower: a contender whose next host action is empowered shows a gold bar.
                 Box(3,FVector2f(X0,MomTop),FVector2f(BarW*FMath::Clamp(MomentumFrac,0.f,1.f),ContenderMomentumHeight),
-                    bMomentumOverdrive?WorldMomentumOverdrive:WorldMomentumFill);
+                    bEmpowerReady?LDBroadcast::Gold:WorldMomentumFill);
             }
         }
     };
@@ -700,14 +699,11 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             LDWorldLabels::AdvanceBarTrail(OwnTrail,Combat.HPP2,Combat.MaxHPP2,Combat.ShieldP2,0,FGuid(),UiNow);
             const float TotalInnerH=ContenderBarHeight+(SelfBars.bMomentum?ContenderMomentumHeight+1.f:0.f);
             const float BarLeft=OwnX-ContenderBarWidth*.5f,BarTop=OwnBottom-TotalInnerH-1.5f;
-            const int64 OverdriveThresh=Combat.OverdriveThresholdP2>0?Combat.OverdriveThresholdP2
-                :(Content?Content->Parameters.Overdrive.ThresholdP2:6000);
-            const bool bOwnOverdrive=SelfBars.bMomentum&&Combat.MomentumP2>=OverdriveThresh;
             // On air: the own bar is the ball orange (colour blind: the own blue), behind the own seat plate; no name.
             DrawSegmentedBar(BarLeft,BarTop,ContenderBarWidth,ContenderBarHeight,Combat.HPP2,Combat.MaxHPP2,Combat.ShieldP2,
                 // Low, the own overhead bar takes the strip's low ink (live red; colour blind: gold).
                 PC->HUDUI&&PC->HUDUI->IsOwnHealthLow()?(bColorblind?LDBroadcast::Gold:LDBroadcast::LiveRed):bColorblind?WorldOwnHPColorblind:WorldOwnHPFill,
-                OwnTrail,SelfBars.bMomentum,SelfBars.Momentum,bOwnOverdrive,nullptr);
+                OwnTrail,SelfBars.bMomentum,SelfBars.Momentum,nullptr);
 
             const ALDCharacter* OwnCharacter=Cast<ALDCharacter>(OwnBody);
             float ReachLeft=BarLeft-2.f,ReachRight=BarLeft+ContenderBarWidth+2.f;
@@ -831,8 +827,9 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     {
         LDWorldLabels::FLabel Label;
         int64 CurrentHPP2=0,MaxHPP2=0,ShieldP2=0;
-        bool bHasMomentum=false,bMomentumOverdrive=false;
+        bool bHasMomentum=false;
         float MomentumFrac=0.f;
+        bool bEmpowerReady=false;
         float CCFrac=0.f;
         FString CCName;
         TArray<TPair<FString,FLinearColor>,TInlineAllocator<4>> ElemDiscs;
@@ -865,9 +862,6 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     }
     if(Frame)
     {
-        const int64 OverdriveThreshP2=Content?Content->Parameters.Overdrive.ThresholdP2:6000;
-        const int64 MaxMomP2=Content&&Content->Parameters.Momentum.MaxP2>0?Content->Parameters.Momentum.MaxP2:10000;
-        const uint8 OverdriveBarCut=uint8(FMath::Clamp(FMath::RoundToInt32(double(OverdriveThreshP2)/double(MaxMomP2)*double(LDObservation::MomentumBarFull)),1,255));
         for(const FLDObservedUnitView& Unit:Frame->Units)
         {
             FVector Centre;
@@ -883,7 +877,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             {
                 Entry.bHasMomentum=true;
                 Entry.MomentumFrac=float(Unit.MomentumBar)/float(LDObservation::MomentumBarFull);
-                Entry.bMomentumOverdrive=Unit.bCharging||Unit.MomentumBar>=OverdriveBarCut;
+                Entry.bEmpowerReady=Unit.EmpowerReady!=0;
             }
             for(const FLDObservedStatus& St:Unit.Statuses)
             {
@@ -1081,11 +1075,6 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             const float TotalInnerH=Dim.Y+(Entry.bHasMomentum?ContenderMomentumHeight+1.f:0.f);
             const float BarLeft=CentreX-Dim.X*.5f;
             const float BarTop=Bottom-TotalInnerH-1.5f;
-            if(Label.bCharging)
-            {
-                const float Pulse=.55f+.45f*FMath::Abs(FMath::Sin(float(UiNow)*9.f));
-                Box(0,FVector2f(BarLeft-4.f,BarTop-4.f),FVector2f(Dim.X+8.f,TotalInnerH+8.f),LDHUDStyle::Overdrive.CopyWithNewOpacity(Pulse));
-            }
             const bool bBoss=Label.CampTier==int8(ELDDemoCampTier::Boss)||Label.CreatureId==uint8(ELDDemoMonsterId::MonsterDean);
             const FLinearColor TierAccent=bBoss?WorldBossFrameInk:(Label.CampTier>=0?LDHUDStyle::CampTierInk(uint8(Label.CampTier)):FLinearColor::Transparent);
             const FLinearColor HPFill=!Label.bContender?WorldCampHPFill:Label.bPeaceful?LDHUDStyle::PeacefulHealth
@@ -1093,8 +1082,8 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             const bool bTargetFrame=Label.bContender&&!Label.bPeaceful&&Entry.bFocused;
             const FLinearColor TargetFrame=FLinearColor::White;
             DrawSegmentedBar(BarLeft,BarTop,Dim.X,Dim.Y,Entry.CurrentHPP2,Entry.MaxHPP2,Entry.ShieldP2,
-                HPFill,Entry.TrailSnapshot,Entry.bHasMomentum,Entry.MomentumFrac,Entry.bMomentumOverdrive,
-                (bBoss||Label.CampTier>=0)?&TierAccent:bTargetFrame?&TargetFrame:nullptr);
+                HPFill,Entry.TrailSnapshot,Entry.bHasMomentum,Entry.MomentumFrac,
+                (bBoss||Label.CampTier>=0)?&TierAccent:bTargetFrame?&TargetFrame:nullptr,Entry.bEmpowerReady);
 
             float UpperY=BarTop-2.f;
             // A training dummy is nobody's seat: it keeps its name and bar only.

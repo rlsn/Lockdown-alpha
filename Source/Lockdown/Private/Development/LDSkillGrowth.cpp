@@ -4,7 +4,7 @@
 
 namespace LDSkillGrowthDetail
 {
-    // Momentum grants keep their authored amount in BaseP2 under level growth, skill rank and overdrive
+    // Momentum grants keep their authored amount in BaseP2 under level growth and skill rank
     // (control_momentum, multi_hit_momentum and the branch gains momentum_gain, momentum_steal, zone_momentum).
     // Amounts that are rules rather than power: momentum grants and the card conversion steps (Y13 HP per armor, Y16 haste
     // per momentum, Y19 heal per growth) keep their authored value at every level.

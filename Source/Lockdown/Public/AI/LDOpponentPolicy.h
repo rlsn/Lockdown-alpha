@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Combat/LDAttributeProjection.h"
+#include "Combat/LDCombatTypes.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Development/LDGrowthProtocol.h"
 #include "Framework/LDMatchLifecycleTypes.h"
@@ -130,6 +131,10 @@ struct FLDOpponentSelf
     int64 MaxHpP2 = 0;
     int64 MomentumP2 = 0;
     int64 MaxMomentumP2 = 0;
+    // M-12 auto-empower, from the own combat view (the bar's mark and host the owner's HUD shows): the bar an empowered
+    // action needs (0 while the experiment is off) and the host entry it applies to.
+    int64 EmpowerThresholdP2 = 0;
+    ELDCombatEntry EmpowerHost = ELDCombatEntry::None;
     FLDProjectedAttributes Attributes;
     // Authority ms at which the next basic AttackStart may begin; at or before now when ready.
     int64 BasicReadyAtMs = 0;
@@ -364,8 +369,6 @@ struct FLDOpponentBodyIntent
     FName Surface;
     // Failure memory of MoveGround, AttackUnit and Activate; the final receipt settles against it.
     FLDOpponentRetryKey Key;
-    // Activate: release it as an overdrive (the adapter holds the charge for OVERDRIVE.HoldSec first).
-    bool bOverdrive = false;
 };
 
 // #198 build commands, as a player sends them: choose an active of the current offer (always asking to learn it now),
@@ -489,6 +492,8 @@ struct FLDOpponentPolicyState
     // D26 (#160): the walk to RetreatPOI steps away from the Boss and continues while the Boss stays in sight, so the
     // body does not turn back at the edge of the Boss's band and flip between the escape and its errand.
     bool bEscapingBoss = false;
+    // B01 M-12: since when a ready auto-empower host has been kept below the threshold (-1: not kept).
+    int64 EmpowerHoldSinceMs = -1;
     // #160: the goal of the last walk navigation refused for its ground or path; a different refused goal from the
     // same standing point counts against the body's own walking.
     FLDOpponentRetryKey LastRefusedWalk;
@@ -709,6 +714,13 @@ namespace LDOpponentPolicy
     constexpr double StreetRingMarginCm = 150.;
     // Issue #287 spec §13: an enemy warning on the own foot is dashed out of once it lands within this many ms.
     constexpr int64 DodgeLeadMs = 450;
+    // B01: a ready damaging cast at least CloseInMinRangeCm long whose target stands beyond it but within basic-attack reach
+    // plus CloseInSlackCm is stepped into, to CloseInMarginCm inside its reach.
+    constexpr double CloseInMinRangeCm = 120.;
+    constexpr double CloseInSlackCm = 50.;
+    constexpr double CloseInMarginCm = 40.;
+    // B01 M-12: the longest a ready Q/W/E auto-empower host is kept for the threshold before it is cast unempowered.
+    constexpr int64 EmpowerHoldMaxMs = 3000;
     // A dodge clears the outline by this much, and passes no visible body's foot closer than this (two capsules).
     constexpr double DodgeClearanceCm = 90.;
     // True when FootCm stands in Warning's public outline (a disc, a line of half-width RadiusCm, or a cone of LengthCm);

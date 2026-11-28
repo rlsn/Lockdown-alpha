@@ -102,11 +102,10 @@ struct FLDHUDActionSlot
     UPROPERTY() TObjectPtr<UTextBlock> Countdown;
     UPROPERTY() TObjectPtr<UBorder> Flash;
     // Skill ranks and momentum (issue #287 spec §12): the rank dots on the lower edge, the "+" on the corner while a skill
-    // point can raise this skill, the missing momentum over a dimmed face and the overdrive hold filling the face.
+    // point can raise this skill and the missing momentum over a dimmed face.
     UPROPERTY() TObjectPtr<UTextBlock> Ranks;
     UPROPERTY() TObjectPtr<ULDCommandButton> Plus;
     UPROPERTY() TObjectPtr<UTextBlock> Gap;
-    UPROPERTY() TObjectPtr<UProgressBar> Hold;
     // Local presentation only (real time): the applied look, the ready flash and the last rejected press of this slot.
     int32 AppliedLook=-1;
     FString AppliedIcon;
@@ -227,9 +226,6 @@ private:
         FLinearColor HealthInk=FLinearColor::White;
         bool bMomentum=false;
         float Momentum=0.f;
-        bool bMomentumFull=false;
-        bool bCharging=false;
-        float MomentumNotch=-1.f;
     } TargetPaint;
     // The white damage trail behind the target's bar, kept for one target.
     mutable FLDHudTrail TargetTrail;
@@ -441,7 +437,7 @@ private:
     // The elapsed match time (LDHUD::MatchTimer), centred right above the minimap frame; click-through.
     UPROPERTY() TObjectPtr<UTextBlock> MatchTimerText;
     // The bottom lower-third strip (APP_SPEC §7): the seat block (own jersey number in the seat ink, the basic attack's combo
-    // ticks under it), level and experience, the health figure over its segmented bar, momentum with the overdrive notch,
+    // ticks under it), level and experience, the health figure over its segmented bar, momentum,
     // then the Q/W/E and D slots over their key bands. The slabs and bars are painted (PaintStrip) on the widgets' layout.
     UPROPERTY() TObjectPtr<UBorder> Band;
     // The seat block; its brush colour keeps the own identity tint (the workshop reads it), it draws nothing itself.
@@ -449,6 +445,8 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> LevelBadgeText;
     UPROPERTY() TObjectPtr<UWidget> HealthBarSpot;
     UPROPERTY() TObjectPtr<UWidget> MomentumBarSpot;
+    // The 劲 label before the momentum bar; under the auto-empower experiment it names the empowered host (劲·Q).
+    UPROPERTY() TObjectPtr<UTextBlock> MomentumLabel;
     UPROPERTY() TObjectPtr<UWidget> StripPanelSpot;
     struct FStripPaint
     {
@@ -461,8 +459,9 @@ private:
         float HealthSegment=0.f;
         bool bMomentum=false;
         float Momentum=0.f;
+        // Auto-empower: the threshold notch (0..1, <0 = none) and a bar holding it (gold).
         float Notch=-1.f;
-        bool bOverdrive=false;
+        bool bEmpowerReady=false;
         int32 Combo=0;
     } StripPaint;
     mutable FLDHudTrail StripTrail;

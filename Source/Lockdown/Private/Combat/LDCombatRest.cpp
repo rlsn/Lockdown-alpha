@@ -130,7 +130,6 @@ int32 ALDCombatDirector::CancelAllForPhase(const FLDGameplayWritePermit& Permit)
     PendingContacts.Reset();
     SlipperDrops.Reset();
     Cordons.Reset();
-    Decoys.Reset();
     ShardBursts.Reset();
     RemoveBags([](const FLDCombatBag&) { return true; });
     for (auto& Pair : Bodies)
@@ -206,7 +205,9 @@ bool ALDCombatDirector::ClearBodyForPhase(FLDBodyCombatState& Body, ALDCharacter
     Body.ActiveParry.Reset();
     Body.ParryUntilMs=0;
     Body.ForcedCombo3Charges=0;
+    Body.bEmpowerPunchPending=false;
     Body.ActiveFrenzy.Reset();
+    Body.FrenzyLedger.Reset();
     Body.FrenzyUntilMs=0;
     Body.SpellbladeCharges=0;
     Body.SpellbladeUntilMs=0;
@@ -229,10 +230,8 @@ bool ALDCombatDirector::ClearBodyForPhase(FLDBodyCombatState& Body, ALDCharacter
     Body.HardControl={};
     Body.DashContact.Reset();
     Body.DashUntilMs=0;
-    // A new phase starts a new combo; a held overdrive charge and a dodge window end with the old one.
+    // A new phase starts a new combo; a dodge window ends with the old one.
     Body.ComboStep=0;
-    Body.OverdriveCharge.Reset();
-    Body.DashStartedAtMs.Reset();
     ClearBranchState(Body);
     // Card rests are cooldowns too: every one is ready in the new phase.
     Body.DamagedShieldReadyAtMs=0;

@@ -1712,11 +1712,10 @@ bool ALDCombatDirector::CardGrowthTerms(const FLDAttributeProjection& Projection
     {
         for (const FLDDemoStatBonus& Stat : Ref.Effect.Stats) { Totals.FindOrAdd(Stat.Stat)+=Stat.Amount*Counters.ControlsTaken; }
     }
-    // A13: every full count of basic hits on contenders, D09: every perfect dodge, adds the card's stats (each copy).
+    // A13: every full count of basic hits on contenders adds the card's stats (each copy).
     for (const FLDPassiveEffectRef& Ref : Counted)
     {
-        const int32 Events=Ref.Effect.Trigger==ELDDemoEffectTrigger::BasicHit ? Counters.BasicHits
-            : Ref.Effect.Trigger==ELDDemoEffectTrigger::PerfectDodge ? Counters.PerfectDodges : 0;
+        const int32 Events=Ref.Effect.Trigger==ELDDemoEffectTrigger::BasicHit ? Counters.BasicHits : 0;
         const int32 Steps=Ref.Effect.Count>0 ? Events/Ref.Effect.Count : 0;
         for (const FLDDemoStatBonus& Stat : Ref.Effect.Stats) { Totals.FindOrAdd(Stat.Stat)+=Stat.Amount*Steps; }
     }
@@ -1910,7 +1909,9 @@ bool ALDCombatDirector::ScheduleAutoRecasts(const FLDBodyCombatState& Body, cons
         Repeat.Body={Body.Victim,Body.Identity};
         Repeat.Action=Action;
         Repeat.Action.bAutoRecast=true;
-        Repeat.Action.bOverdrive=false;
+        // A repeat is derived: never empowered (EMPOWER rule E2).
+        Repeat.Action.bEmpowered=false;
+        Repeat.Action.EmpowerProcessor=ELDEmpowerProcessor::None;
         Repeat.Action.AutoRecastScaleBp=Terms.AutoRecastScaleBp;
         Repeat.Card=FName(TEXT("card_encore"));
         Repeat.Action.ChainId=CurrentChain;
@@ -1946,55 +1947,7 @@ bool ALDCombatDirector::RunAutoRecasts(int64 NowMs, FString& Error)
 
 // ---------------------------------------------------------------- issue #292 P5 cards
 
-bool ALDCombatDirector::OnPerfectDodgeCards(FLDBodyCombatState& Body, int64 NowMs, FString& Error)
-{
-    TArray<FLDPassiveEffectRef> Frees, Counted;
-    if (!CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::DodgeFreeCast,Frees,Error)
-        || !CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::HitGrowth,Counted,Error))
-    { return false; }
-    // D04: each copy makes one next skill free.
-    if (!Frees.IsEmpty())
-    {
-        Body.FreeCasts+=Frees.Num();
-        ++Body.StateRevision;
-        MarkViewChanged(Body.Victim.EntityId);
-        LedgerCardTriggered(Body,Frees[0].Key);
-    }
-    // D09: every perfect dodge counts toward the match growth.
-    if (Counted.ContainsByPredicate([](const FLDPassiveEffectRef& Ref) { return Ref.Effect.Trigger==ELDDemoEffectTrigger::PerfectDodge; }))
-    {
-        FLDCombatEntityRecord* Record=FindRecord(Body.Victim.EntityId);
-        if (!Record) { Error=TEXT("A perfect dodge's growth lost its entity record."); return false; }
-        ++Record->CardGrowth.PerfectDodges;
-        LedgerCardTriggered(Body,Counted[0].Key);
-        if (!RefreshCardGrowth(Body.Victim.EntityId,NowMs,Error)) { return false; }
-    }
-    // #345 card_phantom_molt: perfect dodge leaves a decoy afterimage at the dodge spot that taunts camp monsters and explodes after delay.
-    TArray<FLDPassiveEffectRef> Molts;
-    if (!CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::PhantomMolt,Molts,Error)) { return false; }
-    if (!Molts.IsEmpty() && Catalog())
-    {
-        const ALDCharacter* Actor=ActorOf(Body);
-        const FVector DecoyFoot=Actor ? FootOf(*Actor) : Body.DashStartFootCm;
-        FLDCombatDecoy& Decoy=Decoys.AddDefaulted_GetRef();
-        Decoy.Id=FGuid::NewGuid();
-        Decoy.OwnerBody={Body.Victim,Body.Identity};
-        Decoy.OwnerEntity=Body.Victim.EntityId;
-        Decoy.CreditOwner=Body.Victim.Kind==ELDVictimKind::Contender ? Body.Victim.EntityId : FGuid();
-        Decoy.Source=Molts[0].Source;
-        Decoy.FootCm=DecoyFoot;
-        Decoy.RadiusCm=LDCombatCardsDetail::Cm(Molts[0].Effect.RadiusCm)*HulkingAreaScaleOf(Body);
-        Decoy.Terms=Molts[0].Effect;
-        Decoy.SourceADP2=Body.AttributeProjection.Final.ADP2;
-        Decoy.SourceAPP2=Body.AttributeProjection.Final.APP2;
-        Decoy.SourceBonusADP2=LDTactical::BonusADOf(Catalog()->Get().Parameters,GrowthLevelOf(Body),Decoy.SourceADP2);
-        if (!LDMatchLifecycle::AddDurationMs(NowMs,Molts[0].Effect.DelayMs,Decoy.ExplodeAtMs,Error)) { return false; }
-        LedgerCardTriggered(Body,Molts[0].Key);
-    }
-    return true;
-}
-
-bool ALDCombatDirector::OnShieldBrokenCards(FLDBodyCombatState& Holder, int64 NowMs, FString& Error)
+bool ALDCombatDirector::OnShieldBrokenCards(FLDBodyCombatState& Holder, int64 NowMs, FString& Error, int32 EmpowerSerial)
 {
     using namespace LDCombatCardsDetail;
     if (Holder.bPendingDeath) { return true; }
@@ -2022,6 +1975,7 @@ bool ALDCombatDirector::OnShieldBrokenCards(FLDBodyCombatState& Holder, int64 No
         Blast.SourceMaxHPP2=BonusMaxHpP2Of(Holder);
         Blast.DamageType=ELDDemoDamageType::Magical;
         Blast.bFromShieldTrigger=true;
+        Blast.EmpowerSerial=EmpowerSerial;
         if (!StampSourceTerms(Holder,Blast,Error)) { return false; }
         PendingHits.Add(MoveTemp(Blast));
     }
@@ -2086,50 +2040,6 @@ bool ALDCombatDirector::OnTallyHit(FLDBodyCombatState& Source, const FLDCombatHi
     UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_TALLY t=%lld src=%s marks=%lld target=%s"),NowMs,*LDLog::Id(Source.Victim.EntityId),Marks,
         *LDLog::Id(Hit.Target.Victim.EntityId));
     return true;
-}
-
-FLDCombatCueFacts ALDCombatDirector::PresentedCueFactsOf(const FLDBodyCombatState& Body) const
-{
-    FLDCombatCueFacts Facts=CueFactsOf(Body);
-    // Only a cast still winding up is rechecked against the bar; a released one keeps its resolved value.
-    if (Facts.bOverdriveCast && Body.Action.IsSet() && Body.Action->Kind!=ELDCombatActionKind::Basic)
-    {
-        const FLDDemoContentSnapshot* Content=Catalog();
-        FLDDemoOverdriveParameters Terms=Content ? Content->Get().Parameters.Overdrive : FLDDemoOverdriveParameters();
-        Terms.ThresholdP2=OverdriveThresholdOf(Body);
-        Facts.bOverdriveCast=Content && LDMomentum::OverdriveReady(Terms,Body.Resources.MomentumP2);
-    }
-    return Facts;
-}
-
-int64 ALDCombatDirector::OverdriveThresholdOf(const FLDBodyCombatState& Body) const
-{
-    const FLDDemoContentSnapshot* Content=Catalog();
-    int64 Threshold=Content ? Content->Get().Parameters.Overdrive.ThresholdP2 : 0;
-    TArray<FLDPassiveEffectRef> Shorts;
-    FString Error;
-    // Y11: the lowest threshold of the copies (they do not stack below it).
-    if (CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::OverdriveShort,Shorts,Error))
-    {
-        for (const FLDPassiveEffectRef& Ref : Shorts) { if (Ref.Effect.LimitP2>0) { Threshold=FMath::Min(Threshold,Ref.Effect.LimitP2); } }
-    }
-    return Threshold;
-}
-
-int64 ALDCombatDirector::OverdriveScaleOf(const FLDBodyCombatState& Body) const
-{
-    const FLDDemoContentSnapshot* Content=Catalog();
-    int64 Scale=Content ? Content->Get().Parameters.Overdrive.ScaleBp : 10000;
-    TArray<FLDPassiveEffectRef> Shorts;
-    FString Error;
-    // Y11: its own overdrive multiplier replaces the base one (copies take the same multiplier; they do not stack).
-    if (CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::OverdriveShort,Shorts,Error))
-    {
-        int64 Short=0;
-        for (const FLDPassiveEffectRef& Ref : Shorts) { Short=FMath::Max(Short,Ref.Effect.MultiplierBp); }
-        if (Short>0) { Scale=Short; }
-    }
-    return Scale;
 }
 
 bool ALDCombatDirector::DashRamHit(FLDBodyCombatState& Body, const FLDCombatDashContact& Dash, const FLDCombatBodyRef& Target,
@@ -2209,7 +2119,7 @@ bool ALDCombatDirector::QueueComboCast(FLDBodyCombatState& Body, const FLDCombat
     // A unit Q follows the basic's own target only: a flying basic that struck another body casts no unit Q.
     if (Ability->Target.Mode==ELDDemoTargetMode::Unit && Primary.Target!=Basic.TargetBody) { return true; }
     // A08: the Q skill releases at once toward the struck body at the card's share (copies add), costing nothing, issuing no
-    // cooldown, never an overdrive and never repeated (a K06-style free release).
+    // cooldown and never repeated (a K06-style free release).
     FLDCombatAction Cast;
     Cast.Kind=ELDCombatActionKind::Ability;
     Cast.Key=Basic.Key;
@@ -2232,7 +2142,6 @@ bool ALDCombatDirector::QueueComboCast(FLDBodyCombatState& Body, const FLDCombat
     Cast.ReleaseAtMs=NowMs;
     Cast.SourceRevision=Record->SourceRevision;
     Cast.bAutoRecast=true;
-    Cast.bOverdrive=false;
     int64 ShareBp=0;
     for (const FLDPassiveEffectRef& Ref : Casts) { ShareBp+=Ref.Effect.MultiplierBp; }
     Cast.AutoRecastScaleBp=ShareBp;

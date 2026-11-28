@@ -364,11 +364,14 @@ class SummarizePlaytestLogTest(unittest.TestCase):
             # The serial restarts with each life: B's next life's first release is serial 1 again, its hit is its own.
             empower(12, 12000, b, "Basic", "fist", 60, 20, 1, life=2),
             hit(12, 12100, b, a, "basic", "5.00", "factor_bp=10000 factors=- empower=1"),
+            # A's Q at 10100 paid for an empowered basic; its prepaid delivery (serial 3) lands on B: the same empowerment.
+            empower(12, 12200, a, "Basic", "fist", 10, 0, 3, "prepaid"),
+            hit(12, 12300, a, b, "basic", "5.00", "factor_bp=10000 factors=- empower=3"),
         ] + ledgered[-1:]
         (self.root / "Empower.log").write_text("\n".join(empowered) + "\n", encoding="utf-8")
         report = summarize(collect([str(self.root / "Empower.log")]), metrics_only=True)
         expected = ("Auto-empower: 4 triggers (12.00 per contender field minute); momentum short at release 1; hosts Basic 50%, "
-                    "Q 50%; processors fist 50%, strike 50%; targets contender 50%, camp 25%, none 25%; paid and missed 25%; "
+                    "Q 50%; processors fist 50%, strike 50%; targets contender 75%, camp 25%; paid and missed 0%; "
                     "mean cost 25.0, mean momentum before 57.5; re-triggers within 250 ms 1; most hits from one trigger 1; "
                     "armed 30% of contender field time")
         self.assertIn(f"- {expected}", report.split("## Metrics across")[0])

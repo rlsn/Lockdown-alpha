@@ -42,7 +42,6 @@ FLDCombatCueFacts ALDCombatDirector::CueFactsOf(const FLDBodyCombatState& Body)
     // The cast these describe: the acting Q/W/E, else the last released one (a basic that started inside the released
     // cast's cue window leaves that cast's facts in place).
     const bool bActingCast=Body.Action.IsSet() && Body.Action->Kind!=ELDCombatActionKind::Basic;
-    Facts.bOverdriveCast=bActingCast ? Body.Action->bOverdrive : Body.bReleasedOverdrive;
     const FLDCombatSourceRef& CastSource=bActingCast ? Body.Action->Source : Body.ReleasedSource;
     Facts.CastDefinitionId=CastSource.Kind==ELDCombatSourceKind::Learned ? CastSource.DefinitionId : NAME_None;
     return Facts;
@@ -59,10 +58,8 @@ bool ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 Now
     InOut.HitFlags=0;
     InOut.ActionAbility=0;
     InOut.ActionComboStep=0;
-    InOut.bCharging=false;
-    InOut.ChargeAtMs=0;
-    InOut.bOverdriveCast=false;
     InOut.MomentumBar=0;
+    InOut.EmpowerReady=0;
     InOut.LastReaction=0;
     InOut.LastReactionAtMs=0;
     InOut.LastReactionElement=0;
@@ -71,16 +68,13 @@ bool ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 Now
     const LDCombatCues::FCue Cue=LDCombatCues::Select(CueFactsOf(*State),NowMs);
     if (State->Victim.Kind==ELDVictimKind::Contender)
     {
-        // The public bar is quantized; an overdrive charge shows while held (never which active it is).
+        // The public bar is quantized.
         const FLDDemoContentSnapshot* Content=Catalog();
         const int64 MaxP2=Content ? Content->Get().Parameters.Momentum.MaxP2 : 0;
         if (MaxP2<=0) { Error=TEXT("The visible momentum bar needs the approved maximum."); return false; }
         const int64 Bar=FMath::Clamp<int64>(State->Resources.MomentumP2,0,MaxP2)*LDObservation::MomentumBarFull/MaxP2;
         InOut.MomentumBar=uint8(Bar);
-        InOut.bCharging=State->OverdriveCharge.IsSet();
-        InOut.ChargeAtMs=InOut.bCharging ? State->OverdriveCharge->StartMs : 0;
-        // An overdrive release shows on its Cast cue like the charge before it (spec: the charge is public).
-        InOut.bOverdriveCast=Cue.Cue==ELDObservedActionCue::Cast && PresentedCueFactsOf(*State).bOverdriveCast;
+        InOut.EmpowerReady=uint8(EmpowerReadyOf(*State,NowMs));
         if (Cue.Cue==ELDObservedActionCue::Attack)
         {
             const bool bActingBasic=State->Action.IsSet() && State->Action->Kind==ELDCombatActionKind::Basic
@@ -322,18 +316,6 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
         Fact.Look=ELDObservedProjectileLook::CordonTape;
         Fact.LengthCm=float(FMath::Max(Cordon.HalfLengthCm*2.,60.));
         Fact.RadiusCm=float(FMath::Max(Cordon.HalfWidthCm,30.));
-    }
-    for (const FLDCombatDecoy& Decoy : Decoys)
-    {
-        if (Decoy.ExplodeAtMs<=NowMs) { continue; }
-        FLDObservedProjectileFact& Fact=Out.AddDefaulted_GetRef();
-        Fact.Key=Decoy.Id;
-        Fact.SourceEntity=Decoy.OwnerEntity;
-        Fact.PositionCm=Decoy.FootCm;
-        Fact.Heading=FVector2D(1,0);
-        Fact.Look=ELDObservedProjectileLook::PhantomDecoy;
-        Fact.RadiusCm=float(FMath::Max(Decoy.RadiusCm,80.));
-        Fact.WarningRemainingMs=uint32(FMath::Min<int64>(FMath::Max<int64>(Decoy.ExplodeAtMs-NowMs,0),MAX_uint32));
     }
     for (const FLDCombatShardBurst& Burst : ShardBursts)
     {

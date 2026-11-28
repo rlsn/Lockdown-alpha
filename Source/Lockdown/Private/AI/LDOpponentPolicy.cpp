@@ -604,12 +604,43 @@ TOptional<FVector> ChaseDirection(const FContext& C, const FLDOpponentUnit& Targ
     return Toward.IsNearlyZero() ? TOptional<FVector>() : TOptional<FVector>(Toward);
 }
 
-// §6.3 fixed order: self-protection, mobility, control, damage; basic attacks stay with the order.
-TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActivationNeed& Need)
+// B01 M-12: the own Q/W/E source the auto-empower host is while the experiment runs (none for the basic, D or off).
+TOptional<ELDOpponentSourceSlot> EmpowerHostSlot(const FLDOpponentSelf& Self)
+{
+    if (Self.EmpowerThresholdP2 <= 0) { return {}; }
+    switch (Self.EmpowerHost)
+    {
+    case ELDCombatEntry::Q: return ELDOpponentSourceSlot::Q;
+    case ELDCombatEntry::W: return ELDOpponentSourceSlot::W;
+    case ELDCombatEntry::E: return ELDOpponentSourceSlot::E;
+    default: return {};
+    }
+}
+
+// §6.3 fixed order: self-protection, mobility, control, damage; basic attacks stay with the order. With OutCloseInCm, a
+// ready damaging cast the target stands just beyond (inside basic-attack reach, outside the cast's) reports the gap to step
+// in to instead of being skipped.
+TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActivationNeed& Need, double* OutCloseInCm = nullptr)
 {
     if (C.Self.bChanneling) { return {}; }
-    static constexpr ELDOpponentSourceSlot Fixed[] = {
+    ELDOpponentSourceSlot Fixed[] = {
         ELDOpponentSourceSlot::Q, ELDOpponentSourceSlot::W, ELDOpponentSourceSlot::E, ELDOpponentSourceSlot::Dash};
+    // B01 M-12: below the empower threshold a ready host skill is kept for the empowered cast for up to EmpowerHoldMaxMs
+    // (only self-protection may use it meanwhile); at the threshold it goes first. Out of combat the bar settles below the
+    // threshold, so a hold without that limit would never end a lull.
+    const TOptional<ELDOpponentSourceSlot> Host = EmpowerHostSlot(C.Self);
+    const bool bHostArmed = Host.IsSet() && C.Self.MomentumP2 >= C.Self.EmpowerThresholdP2;
+    const FLDOpponentSource* HostSource = Host.IsSet()
+        ? C.Self.Sources.FindByPredicate([&Host](const FLDOpponentSource& S) { return S.Slot == Host.GetValue(); }) : nullptr;
+    if (!HostSource || !HostSource->bReady || bHostArmed) { C.State.EmpowerHoldSinceMs = -1; }
+    else if (C.State.EmpowerHoldSinceMs < 0) { C.State.EmpowerHoldSinceMs = C.Now; }
+    const bool bHostKept = C.State.EmpowerHoldSinceMs >= 0 && C.Now - C.State.EmpowerHoldSinceMs < LDOpponentPolicy::EmpowerHoldMaxMs;
+    if (bHostArmed)
+    {
+        int32 At = 0;
+        while (At < UE_ARRAY_COUNT(Fixed) && Fixed[At] != Host.GetValue()) { ++At; }
+        for (int32 Index = FMath::Min<int32>(At, UE_ARRAY_COUNT(Fixed) - 1); Index > 0; --Index) { Swap(Fixed[Index], Fixed[Index - 1]); }
+    }
     // Spec §13 element and reaction choice: among damaging skills, one whose element reacts with the element the target
     // visibly holds goes first, then one that lays an element on a clean target; otherwise the fixed order.
     TArray<ELDOpponentSourceSlot, TInlineAllocator<4>> Ordered(Fixed, UE_ARRAY_COUNT(Fixed));
@@ -626,6 +657,11 @@ TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActiva
         };
         Ordered.StableSort([&Score](ELDOpponentSourceSlot A, ELDOpponentSourceSlot B) { return Score(A) > Score(B); });
     }
+    if (bHostArmed)
+    {
+        Ordered.Remove(Host.GetValue());
+        Ordered.Insert(Host.GetValue(), 0);
+    }
     for (int32 Tier = 0; Tier < 5; ++Tier)
     {
         for (const ELDOpponentSourceSlot Slot : (Tier == 3 ? TConstArrayView<ELDOpponentSourceSlot>(Ordered) : TConstArrayView<ELDOpponentSourceSlot>(Fixed)))
@@ -633,6 +669,7 @@ TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActiva
             const auto* Source = C.Self.Sources.FindByPredicate([Slot](const FLDOpponentSource& S) { return S.Slot == Slot; });
             FSourceShape Shape;
             if (!Source || !Source->bReady || !ResolveSource(*Source, C.Self, C.Catalog, Shape)) { continue; }
+            if (Tier != 0 && bHostKept && Slot == Host.GetValue()) { continue; }
             FLDOpponentRetryKey Key;
             Key.Category = ELDOpponentFailure::Activation;
             Key.Slot = uint8(Slot);
@@ -700,6 +737,17 @@ TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActiva
                         Key.Target = Need.Target->Handle;
                     }
                 }
+                // B01: a cast shorter than basic-attack reach was never used by a body fighting at that reach.
+                if (Tier == 3 && OutCloseInCm && *OutCloseInCm <= 0 && Shape.bDamage && Need.bAllowDamage && Need.Target
+                    && !bTargetInRange && Shape.RangeCm >= LDOpponentPolicy::CloseInMinRangeCm
+                    && C.Distance(Need.Target->FootCm) <= C.AttackRangeCm + LDOpponentPolicy::CloseInSlackCm
+                    && (Shape.Mode == ELDDemoTargetMode::Unit || Shape.Mode == ELDDemoTargetMode::DirectionProjectile
+                        || Shape.Mode == ELDDemoTargetMode::DirectionCone || Shape.Mode == ELDDemoTargetMode::DirectionLine
+                        || (Shape.Mode == ELDDemoTargetMode::GroundPoint && Shape.ZoneRadiusCm > 0))
+                    && C.CanAttempt(Key))
+                {
+                    *OutCloseInCm = Shape.RangeCm - LDOpponentPolicy::CloseInMarginCm;
+                }
                 if (Tier == 3 && Need.bAllowDamage && Need.Target && Shape.Mode == ELDDemoTargetMode::Self)
                 {
                     // #147: a self area (active_seethe) needs the target inside its radius; an empowered basic without
@@ -722,13 +770,6 @@ TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActiva
                 break;
             default:
                 break;
-            }
-            // Issue #287 spec §13: a full bar on a healthy target spends itself as an overdrive.
-            if (bUse && (Tier == 2 || Tier == 3) && Need.Target && Need.Target->HpP2.IsSet() && Need.Target->MaxHpP2.IsSet()
-                && Need.Target->MaxHpP2.GetValue() > 0 && C.Self.MomentumP2 >= C.Catalog.Get().Parameters.Overdrive.ThresholdP2
-                && Need.Target->HpP2.GetValue() * 10 > Need.Target->MaxHpP2.GetValue() * 4)
-            {
-                Body.bOverdrive = true;
             }
             if (bUse && C.CanAttempt(Key))
             {
@@ -867,7 +908,25 @@ FLDOpponentBodyIntent EngageBody(const FContext& C, const FLDOpponentUnit& Targe
     Need.Target = &Target;
     // Only a visible rival contender is chased with a dash (innate or a learned dash active); camp members never are.
     Need.bChase = Target.Kind == ELDOpponentUnitKind::Contender && !Need.bProtect && bAllowDamage && !C.Rooted();
-    if (auto Activation = PickActivation(C, Need)) { return Activation.GetValue(); }
+    double CloseInCm = 0;
+    if (auto Activation = PickActivation(C, Need, &CloseInCm)) { return Activation.GetValue(); }
+    // B01: a ready cast just out of reach is stepped into on the ground (the next decision casts it).
+    if (CloseInCm > 0 && C.Capture && !C.Rooted())
+    {
+        const auto& Order = C.Frame.Order;
+        if (Order.IsLive() && Order.Kind == ELDOpponentOrderKind::MoveGround && Order.POI.IsNone()) { return Hold(C); }
+        const FVector Away = (C.Self.FootCm - Target.FootCm).GetSafeNormal2D();
+        const FLDOpponentRetryKey Key = FContext::PathKey(TEXT("close_in"));
+        if (!Away.IsNearlyZero() && C.CanWalk() && C.CanAttempt(Key))
+        {
+            FLDOpponentBodyIntent Step;
+            Step.Kind = EBody::MoveGround;
+            Step.Point = Target.FootCm + Away * CloseInCm;
+            Step.Surface = C.Capture->SurfaceId;
+            Step.Key = Key;
+            return Step;
+        }
+    }
     return AttackBody(C, Target);
 }
 
@@ -1873,7 +1932,6 @@ bool RelevantStats(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Ca
         | (1u << uint32(ELDCardVocab::Crit));
     constexpr uint32 MobilityVocab = (1u << uint32(ELDCardVocab::Dash))
         | (1u << uint32(ELDCardVocab::DashContact))
-        | (1u << uint32(ELDCardVocab::PerfectDodge))
         | (1u << uint32(ELDCardVocab::MoveSpeed));
     constexpr uint32 CastElementVocab = (1u << uint32(ELDCardVocab::Reaction))
         | (1u << uint32(ELDCardVocab::Element))

@@ -468,6 +468,8 @@ bool ALDCombatDirector::ActiveOf(const FLDCombatEntityRecord& Record, const FLDC
             *LDLog::Source(Source),*Error);
         return false;
     }
+    // Auto-empower: while the experiment runs a learned Q/W/E costs no momentum (only its cooldown limits it).
+    if (Source.Kind==ELDCombatSourceKind::Learned && EmpowerTerms()) { Out.Values.MomentumCostP2=0; }
     return true;
 }
 
@@ -585,7 +587,7 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
     {
         View.MomentumCostP2=Body->SplitDashLeft>0 && NowMs<=Body->SplitDashUntilMs ? 0 : Terms.DashMomentumCostP2;
     }
-    else if (BranchRecastOpen(*Body,Source,NowMs) || BranchFreeCast(*Body,Source,NowMs) || Body->FreeCasts>0 || Terms.HPCostBpPerMomentum>0)
+    else if (BranchRecastOpen(*Body,Source,NowMs) || BranchFreeCast(*Body,Source,NowMs) || Terms.HPCostBpPerMomentum>0)
     {
         View.MomentumCostP2=0;
     }
@@ -1024,18 +1026,29 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
     Out.BuildSafeAtMs=LDCombatSourceRules::BuildSafeAtMs(Record->LastBuildUnsafeAtMs,Content->Get().Parameters.BuildSafeWindowMs);
     // The chain history belongs to the contender: an eliminated one without a body still receives its last chain ends.
     ReadOwnerChains(Caller.EntityId,Out.Chains);
+    if (const FLDDemoEmpowerParameters* Empower=EmpowerTerms())
+    {
+        Out.bEmpowerEnabled=true;
+        Out.EmpowerHost=EmpowerHostOf(*Record);
+        Out.EmpowerProcessor=uint8(EmpowerProcessorOf(*Record,Out.EmpowerHost));
+        Out.bEmpowerHostChosen=Record->EmpowerHost!=ELDCombatEntry::None;
+        Out.EmpowerHostSequence=Record->EmpowerHostSequence;
+        Out.EmpowerThresholdP2=Empower->ThresholdP2;
+        Out.EmpowerCostP2=Empower->CostP2;
+        if (Body)
+        {
+            Out.Empowerments=Body->Empowerments;
+            Out.LastEmpowerAtMs=Body->LastEmpowerAtMs;
+        }
+    }
     if (Body)
     {
         Out.HPP2=Body->Resources.HpP2;
         Out.MaxHPP2=Body->Resources.MaxHpP2;
         Out.MomentumP2=Body->Resources.MomentumP2;
-        Out.OverdriveThresholdP2=OverdriveThresholdOf(*Body);
         Out.ShieldP2=Body->Resources.ShieldP2;
         Out.ComboStep=Body->ComboStep;
         Out.ComboStartMs=Body->ComboStartMs;
-        Out.PerfectDodges=Body->PerfectDodges;
-        Out.LastPerfectDodgeAtMs=Body->LastPerfectDodgeAtMs;
-        Out.ChargingEntry=Body->OverdriveCharge.IsSet() ? Body->OverdriveCharge->Entry : ELDCombatEntry::None;
         if (!Body->bPendingDeath)
         {
             const int64 RootedUntilMs=LDTactical::ActiveRootUntilMs(Body->Roots,NowMs);
@@ -1127,7 +1140,7 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
                 Out.ActionToken=Body->Action->Token;
                 Out.ActionReleaseAtMs=Body->Action->ReleaseAtMs;
             }
-            Out.Cues=PresentedCueFactsOf(*Body);
+            Out.Cues=CueFactsOf(*Body);
             if (Out.Cues.LastHitId.IsValid())
             {
                 Out.Cues.LastHitId=LDObservation::ScopedHitId(Body->Identity,Out.Cues.LastHitId);

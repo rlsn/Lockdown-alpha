@@ -43,9 +43,8 @@ namespace LDHUDStyle
         default: return FLinearColor(1.f,.8f,.42f);
         }
     }
-    // Momentum: a hot orange bar; a full bar glows overdrive gold (the bar, slot rings, target bars and charge halos).
+    // Momentum: a hot orange bar.
     inline const FLinearColor Momentum(.95f,.30f,.02f);
-    inline const FLinearColor Overdrive(1.f,.80f,.10f);
     inline const FLinearColor Shield(0.f,.78f,1.f);
     inline const FLinearColor BarTrack(.04f,.05f,.07f,.85f);
 

@@ -575,6 +575,19 @@ namespace LDHUD
     LOCKDOWN_API FActionView Action(const FActionInput& Input,const FActionContext& Context);
     // Skill ranks (issue #287 spec §12): the rank dots of a slot ("●●○") and the branch cards of its next rank.
     LOCKDOWN_API FString RankDots(uint8 Rank);
+    // Auto-empower: the short name of the host an empowered action takes (普攻, Q, W, E, D).
+    inline FString EmpowerHostName(ELDCombatEntry Host)
+    {
+        switch(Host)
+        {
+        case ELDCombatEntry::Basic: return TEXT("普攻");
+        case ELDCombatEntry::Q: return TEXT("Q");
+        case ELDCombatEntry::W: return TEXT("W");
+        case ELDCombatEntry::E: return TEXT("E");
+        case ELDCombatEntry::Dash: return TEXT("D");
+        default: return FString();
+        }
+    }
     // The branch paths the next rank offers: A/B from rank 1, A1/A2 under A, B1/B2 under B, none at rank 3.
     LOCKDOWN_API TArray<ELDSkillBranch> NextBranches(ELDSkillBranch Current);
     struct FBranchCardView
@@ -610,8 +623,6 @@ namespace LDHUD
         int32 Level=0;
         FResourceView Health;
         bool bMomentum=false;
-        bool bMomentumFull=false;   // a full public bar: the target may overdrive
-        bool bCharging=false;       // the target holds an overdrive charge
         FResourceView Momentum;
         FString Statuses;
         // The same public statuses as icon squares: the picture (or the name's first character), green when it helps the
@@ -1183,7 +1194,7 @@ namespace LDHUD
     LOCKDOWN_API FString KillerLabel(const FLDKillNotice& Notice,const FString& LowCampName,const FString& HighCampName,
         const FString& EliteCampName,const FString& BossName);
     // The element a learned active applies (its branch's element, else the ability's; ELDCombatElement order), 0 for none or
-    // unknown content. The chip on the slot shows it; medals that change the overdrive element stay in the tooltip.
+    // unknown content. The chip on the slot shows it.
     LOCKDOWN_API uint8 SkillElement(const FLDDemoContentDefinitions* Content,FName DefinitionId,ELDSkillBranch Branch);
     // The one-character element name (烫 湿 麻 冻 馊), empty for none.
     LOCKDOWN_API FString ElementGlyph(uint8 Element);
@@ -1241,8 +1252,6 @@ namespace LDHUD
         int64 RiderDamageP2=0;
         int64 FinalCooldownMs=0;
         int64 FinalMomentumCostP2=0;
-        uint8 OverdriveElement=0;
-        FString OverdriveLine;
         bool bHasFormula=false;
         FString FooterHint;
         TArray<FString> FormulaLines;

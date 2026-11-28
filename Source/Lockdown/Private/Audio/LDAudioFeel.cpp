@@ -49,12 +49,11 @@ void LDAudioFeel::CutCharge(UAudioComponent* Charge)
     if (IsValid(Charge) && Charge->IsPlaying()) { Charge->FadeOut(ChargeCutSeconds, 0.f); }
 }
 
-void LDAudioFeel::Release(const UObject& BodyContext, bool bOwnBody, uint8 Ability, bool bOverdrive, const FVector& At)
+void LDAudioFeel::Release(const UObject& BodyContext, bool bOwnBody, uint8 Ability, const FVector& At)
 {
     if (ULDAudioSubsystem* Audio = AudioOf(BodyContext))
     {
         Audio->PlaySkillRelease(Ability, !bOwnBody, At, bOwnBody ? 1.f : OtherDangerGain);
-        if (bOverdrive) { Body(*Audio, ELDAudioCue::SwingFinisher, bOwnBody, At, .8f, .8f); }
     }
 }
 
@@ -62,11 +61,10 @@ void LDAudioFeel::Impact(const UObject& BodyContext, ELDObservedHitLook Look, ui
 {
     ULDAudioSubsystem* Audio = AudioOf(BodyContext);
     if (!Audio) { return; }
-    // A plain hit of a skill with its own hit sound; outcome hits (dodged, parried, shield) keep their outcome sound.
-    const bool bOutcome = (HitFlags & (LDObservation::Dodged | LDObservation::Parried | LDObservation::ShieldBroken | LDObservation::ShieldAbsorbed)) != 0;
+    // A plain hit of a skill with its own hit sound; outcome hits (parried, shield) keep their outcome sound.
+    const bool bOutcome = (HitFlags & (LDObservation::Parried | LDObservation::ShieldBroken | LDObservation::ShieldAbsorbed)) != 0;
     if (Ability != 0 && !bOutcome && Audio->PlaySkillHit(Ability, At, OtherGain * ((HitFlags & LDObservation::Critical) ? 1.25f : 1.f))) { return; }
-    const ELDAudioCue Cue = (HitFlags & LDObservation::Dodged) ? ELDAudioCue::SelfPerfectDodge
-        : (HitFlags & LDObservation::Parried) ? ELDAudioCue::SelfParry
+    const ELDAudioCue Cue = (HitFlags & LDObservation::Parried) ? ELDAudioCue::SelfParry
         : (HitFlags & LDObservation::ShieldBroken) ? ELDAudioCue::SelfShieldBreak
         : (HitFlags & LDObservation::ShieldAbsorbed) ? ELDAudioCue::SelfShieldHit
         : Look == ELDObservedHitLook::Electric ? ELDAudioCue::HitElectric

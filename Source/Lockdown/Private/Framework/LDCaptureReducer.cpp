@@ -100,6 +100,21 @@ void FLDCaptureReducer::UpdateGuardLatch(int64 ProgressMs)
     }
 }
 
+void FLDCaptureReducer::KeepGuardFloor(const FGuid& ContenderId, int64 ProgressMs)
+{
+    if (!ContenderId.IsValid() || ProgressMs <= 0) { return; }
+    int64 Floor = 0;
+    for (const int64 Checkpoint : GuardCheckpointsMs)
+    {
+        if (Checkpoint > 0 && Checkpoint < Guard && ProgressMs >= Checkpoint) { Floor = FMath::Max(Floor, Checkpoint); }
+    }
+    if (Floor > 0)
+    {
+        int64& Stored = GuardFloors.FindOrAdd(ContenderId);
+        Stored = FMath::Max(Stored, Floor);
+    }
+}
+
 bool FLDCaptureReducer::BeginPrivate(const FLDCaptureReducer& Main, const FGuid& Holder, int64 SprayMs, int64 GuardMs, FString& Error)
 {
     if (!Main.bActive || Main.bOpen || !Holder.IsValid() || !Main.Committed.Contains(Holder))
@@ -226,6 +241,16 @@ bool FLDCaptureReducer::AccountGuard(int64 ThroughMs, FString& Error)
     return true;
 }
 
+int64 FLDCaptureReducer::GetHistoricalGuardMs(const FGuid& ContenderId, int64 AtMs) const
+{
+    int64 Held = GetBankedGuardMs(ContenderId);
+    if (ContenderId.IsValid() && Owner == ContenderId && IsGuardRunning())
+    {
+        Held += FMath::Max<int64>(0, FMath::Min(AtMs, GuardDue) - GuardAccountedThroughMs);
+    }
+    return Held;
+}
+
 int64 FLDCaptureReducer::GetEffectiveGuardMs(const FGuid& ContenderId, int64 AtMs) const
 {
     if (!ContenderId.IsValid() || Guard <= 0 || Owner != ContenderId || FadeAt != 0) { return 0; }
@@ -256,7 +281,7 @@ FGuid FLDCaptureReducer::ResolveShowdownTimeoutWinner(const TArray<FLDShowdownTi
         if (!Row.bEligible || !Row.Contender.IsValid()) { continue; }
         ++EligibleCount;
         SoleEligible = Row.Contender;
-        if (Row.GuardProgressMs <= 0 && Row.ShowdownKills <= 0 && Row.ShowdownDamageP2 <= 0)
+        if (Row.GuardProgressMs <= 0 && Row.CompletedSprays == 0 && Row.ShowdownKills <= 0 && Row.ShowdownDamageP2 <= 0)
         {
             continue;
         }
@@ -573,10 +598,12 @@ bool FLDCaptureReducer::CompleteSpray(FString& Error)
     // checkpoint, once). An owner painted over past the checkpoint keeps one for his next graffiti.
     const int64 At = DueAt;
     const FGuid Sprayer = Occupier;
-    if (Owner.IsValid() && Owner != Sprayer && Rules.GuardCheckpointMs > 0)
+    if (Owner.IsValid() && Owner != Sprayer)
     {
         const int64 Progress = IsGuardRunning() ? At - (GuardDue - Guard) : GuardKept;
-        if (Progress >= Rules.GuardCheckpointMs) { GuardCheckpoints.Add(Owner, Rules.GuardResumeMs); }
+        if (Rules.GuardCheckpointMs > 0 && Progress >= Rules.GuardCheckpointMs) { GuardCheckpoints.Add(Owner, Rules.GuardResumeMs); }
+        // The showdown ratchet: the painted-over owner's guard never falls back below the checkpoint it passed.
+        KeepGuardFloor(Owner, Progress);
     }
     if (!AccountGuard(At, Error)) { return false; }
     uint32& Sprays = CompletedSprays.FindOrAdd(Occupier);
@@ -599,7 +626,9 @@ bool FLDCaptureReducer::CompleteSpray(FString& Error)
     SprayLatchedMs.Reset();
     GuardLatchedMs = 0;
     int64 Resume = 0;
-    if (GuardCheckpoints.RemoveAndCopyValue(Sprayer, Resume)) { NextGuardDue -= FMath::Clamp<int64>(Resume, 0, Guard - 1); }
+    GuardCheckpoints.RemoveAndCopyValue(Sprayer, Resume);
+    GuardLatchedMs = FMath::Clamp<int64>(GetGuardFloorMs(Sprayer), 0, Guard - 1);
+    NextGuardDue -= FMath::Clamp<int64>(FMath::Max(Resume, GuardLatchedMs), 0, Guard - 1);
     GuardDue = NextGuardDue;
     GuardKept = 0;
     GuardAccountedThroughMs = At;
@@ -790,6 +819,7 @@ bool FLDCaptureReducer::ApplyKill(const FLDCaptureEvent& Event, FString& Error)
             return false;
         }
         ++Epoch;
+        if (FadeAt == 0) { KeepGuardFloor(Owner, IsGuardRunning() ? Now - (GuardDue - Guard) : GuardKept); }
         Owner = Killer;
         Cause = ELDGraffitiCause::Usurped;
         if (FadeAt != 0)

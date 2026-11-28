@@ -479,7 +479,9 @@ NO_BASELINE = ("no measured same-level bare-build baseline; pass --baseline-run 
 # armed_ms=<ms at or above the threshold> mark a Host that has the mechanic (a Host with the switch off writes 0).
 EMPOWER_HOSTS = ("Basic", "Q", "W", "E", "D")
 EMPOWER_PROCESSORS = ("fist", "strike", "guard", "move", "ward")
-EMPOWER_DONE = ("applied", "prepaid")
+# One empowerment is one applied line; a prepaid line delivers an empowerment an earlier applied release of that life
+# already paid for (a Q that empowers the next basic), with its own serial for the hits it lands.
+EMPOWER_DONE = ("applied",)
 # What an empowered release hit, from its tagged LD_HIT victims: a contender first, then a camp, else nothing.
 EMPOWER_TARGETS = ("contender", "camp", "none")
 # Two triggers of one body closer than this cannot both be paid from income: a refund loop or a derived re-trigger.
@@ -929,6 +931,12 @@ def empower_stats(lines, hits, ledgers, contenders, share):
     releases = defaultdict(list)
     for index, event in enumerate(empowers):
         releases[(event.get("src"), event.get("serial"))].append((authority_ms(event), index))
+    for event in lines:
+        if event.get("outcome") == "prepaid":
+            paid = [index for index, release in enumerate(empowers) if release.get("src") == event.get("src")
+                    and release.get("life") == event.get("life") and authority_ms(release) <= authority_ms(event)]
+            if paid:
+                releases[(event.get("src"), event.get("serial"))].append((authority_ms(event), paid[-1]))
     for rows in releases.values():
         rows.sort()
     victims, tally = defaultdict(set), defaultdict(int)
@@ -950,7 +958,7 @@ def empower_stats(lines, hits, ledgers, contenders, share):
     armed = [number(event, "armed_ms") for event in ledgers if "armed_ms" in event.fields]
     return {
         "triggers": len(empowers),
-        "short": len(lines) - len(empowers),
+        "short": sum(1 for event in lines if event.get("outcome") == "short"),
         "hosts": {host: sum(1 for event in empowers if event.get("host") == host) for host in EMPOWER_HOSTS},
         "processors": {name: sum(1 for event in empowers if event.get("processor") == name) for name in EMPOWER_PROCESSORS},
         # Unknown without the LD_HIT empower field.

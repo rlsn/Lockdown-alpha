@@ -380,6 +380,8 @@ bool ReadOwnCombat(const FLDCombatOwnerView& Combat, int64 NowMs, FLDOpponentSel
     Out.MaxHpP2 = Combat.MaxHPP2;
     Out.MomentumP2 = Combat.MomentumP2;
     Out.MaxMomentumP2 = Combat.MaxMomentumP2;
+    Out.EmpowerThresholdP2 = Combat.bEmpowerEnabled ? Combat.EmpowerThresholdP2 : 0;
+    Out.EmpowerHost = Combat.bEmpowerEnabled ? Combat.EmpowerHost : ELDCombatEntry::None;
     Out.BasicReadyAtMs = Combat.NextAttackAtMs;
     Out.MoveBlockedUntilMs = 0;
     Out.bChanneling = Combat.Cues.bActing && !Combat.Cues.bActingBasic && Combat.ActionPhase == ELDCombatPhase::Finished;
