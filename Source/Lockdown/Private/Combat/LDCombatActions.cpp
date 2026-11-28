@@ -1325,7 +1325,8 @@ bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body,
             if (!WaveDir.IsNearlyZero())
             {
                 FLDCombatHit WaveHit;
-                WaveHit.EffectId=FGuid::NewGuid();
+                WaveHit.EffectId=Body.FrenzyEffectId.IsValid() ? Body.FrenzyEffectId : FGuid::NewGuid();
+                WaveHit.CastLedger=Body.FrenzyLedger;
                 WaveHit.Token=Action.Token;
                 WaveHit.SourceBody=Hit.SourceBody;
                 WaveHit.SourceEntity=Hit.SourceEntity;
@@ -2075,6 +2076,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             Body.ActiveFrenzy=Effect;
             Body.FrenzyEffectId=EffectId;
             Body.FrenzySource=Source;
+            Body.FrenzyLedger=CastLedger;
             if (!LDMatchLifecycle::AddDurationMs(Now,Effect.DurationMs,Body.FrenzyUntilMs,Error)) { return false; }
             if (!Effect.Stats.IsEmpty())
             {

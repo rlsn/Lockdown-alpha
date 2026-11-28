@@ -462,6 +462,8 @@ struct FLDBodyCombatState
     int64 FrenzyUntilMs=0;
     FGuid FrenzyEffectId;
     FLDCombatSourceRef FrenzySource;
+    // N5's release ledger: every wave of one activation belongs to that one cast (its factors, once-per-cast cards).
+    TSharedPtr<FLDCombatCastLedger> FrenzyLedger;
     // #345 cross-axis synergy card states.
     int32 SpellbladeCharges=0;
     int64 SpellbladeUntilMs=0;

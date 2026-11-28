@@ -5084,6 +5084,9 @@ bool FLDCombatFrenzyThirdWaveTest::RunTest(const FString& Parameters)
     F.Body(Brawler).ActiveFrenzy->MultiplierBp = ThirdBp;
     F.Body(Brawler).FrenzySource = SourceOf(ELDCombatSourceKind::Learned, TEXT("active_flurry_rush"));
     F.Body(Brawler).FrenzyUntilMs = 5000;
+    // T02-14: the waves of one activation are its one cast.
+    F.Body(Brawler).FrenzyEffectId = FGuid::NewGuid();
+    F.Body(Brawler).FrenzyLedger = MakeShared<FLDCombatCastLedger>();
     FLDCombatAction Third = BasicAt(Target, 7);
     Third.ComboStep = 3;
     F.Now(1100);
@@ -5092,6 +5095,8 @@ bool FLDCombatFrenzyThirdWaveTest::RunTest(const FString& Parameters)
     const FLDCombatProjectile* Wave = FAccess::Projectiles(*F.Driver).FindByPredicate([](const FLDCombatProjectile& P)
         { return P.Payload.Source.Kind == ELDCombatSourceKind::Learned; });
     if (!TestNotNull(TEXT("The frenzy wave flies"), Wave)) { return false; }
+    TestTrue(TEXT("The wave carries its activation's effect and cast ledger"), Wave->EffectId == F.Body(Brawler).FrenzyEffectId
+        && Wave->Payload.EffectId == F.Body(Brawler).FrenzyEffectId && Wave->Payload.CastLedger == F.Body(Brawler).FrenzyLedger);
     TestEqual(TEXT("The third wave's boost rides the package multiplier"), Wave->Payload.PackageScaleBp,
         int64(10000) / 10000 * ThirdBp + int64(10000) % 10000 * ThirdBp / 10000);
     TestTrue(TEXT("The wave's delivery share stays within its domain"), Wave->Payload.DeliveryScaleBp >= 0 && Wave->Payload.DeliveryScaleBp <= 10000);
