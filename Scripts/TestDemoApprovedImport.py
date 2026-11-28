@@ -360,6 +360,8 @@ class ApprovedDemoData(unittest.TestCase):
             ("EMPOWER.FistPushCm", "cm", "120"), ("EMPOWER.QuakeRadiusCm", "cm", "200"), ("EMPOWER.QuakeSlow", "ratio", ".3"),
             ("EMPOWER.QuakeSlowSec", "ms", "1"), ("EMPOWER.GuardBurstRatio", "ratio", ".4"),
             ("EMPOWER.GuardBurstRadiusCm", "cm", "300"), ("EMPOWER.WardFuseSec", "ms", ".15"),
+            ("EMPOWER.GroundSec", "ms", "3"), ("EMPOWER.WallStunSec", "ms", ".6"), ("EMPOWER.CounterStunSec", "ms", ".5"),
+            ("EMPOWER.TouchStunSec", "ms", ".6"), ("EMPOWER.ConeAngleScale", "ratio", "2"),
             ("EMPOWER.ElementWaterSlow", "ratio", ".45"), ("EMPOWER.ElementWaterSlowSec", "ms", "1.5"),
             ("EMPOWER.ElementShockReactionRatio", "ratio", ".5"), ("EMPOWER.ElementRotDurationScale", "ratio", "2"),
             ("EMPOWER.ElementChillRootSec", "ms", ".6"),

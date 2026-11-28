@@ -419,6 +419,14 @@ struct FLDDemoEmpowerParameters
     UPROPERTY() FLDDemoRational GuardBurstRadiusCm;
     // Ward: an empowered trap's fuse.
     UPROPERTY() int64 WardFuseMs = 0;
+    // Form changes (AUTO_EMPOWER_SPEC §2.3): a strike's native element leaves its ground state for GroundLifeMs; a push
+    // strike stuns on a wall, a parry stuns its attacker and a cordon stuns at the first touch; a cone opens ConeAngleScaleBp
+    // wider.
+    UPROPERTY() int64 GroundLifeMs = 0;
+    UPROPERTY() int64 WallStunMs = 0;
+    UPROPERTY() int64 CounterStunMs = 0;
+    UPROPERTY() int64 TouchStunMs = 0;
+    UPROPERTY() int64 ConeAngleScaleBp = 0;
     // The element layer (fire burn layers, water slow, shock discharge share of R, rot duration scale, chill root).
     UPROPERTY() int64 FireBurnStacks = 0;
     UPROPERTY() int64 WaterSlowBp = 0;

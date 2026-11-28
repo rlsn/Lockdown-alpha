@@ -5602,4 +5602,286 @@ bool FLDEmpowerPunchTest::RunTest(const FString& Parameters)
     return true;
 }
 
+// ---- Form changes of an empowered release (AUTO_EMPOWER_SPEC §2.3): one rule per mechanism a skill row reuses ----
+
+namespace LDBuildPrimitivesTests
+{
+// The level-1 terms of Active with its processor's shape and the form changes (Element: its native element).
+bool FormTerms(FAutomationTestBase& Test, FFixture& F, const TCHAR* Active, ELDEmpowerProcessor Processor, FLDCombatActiveTerms& Plain,
+    FLDCombatActiveTerms& Empowered)
+{
+    const FLDDemoAbilityDefinition* Ability = nullptr;
+    FString Error;
+    if (!F.Catalog->FindAbility(Active, Ability, Error) || !Ability) { Test.AddError(FString(TEXT("Missing active ")) + Active); return false; }
+    const ELDDemoSkillElement Element = Ability->Element;
+    return EmpoweredTerms(Test, F, Active, Plain, Empowered, [Processor, Element](const FLDDemoEmpowerParameters& E, FLDCombatActiveTerms& T)
+    {
+        if (Processor == ELDEmpowerProcessor::Strike) { LDAutoEmpower::ApplyStrike(E, T.Target, T.Values); }
+        if (Processor == ELDEmpowerProcessor::Guard) { LDAutoEmpower::ApplyGuard(E, T.Values); }
+        if (Processor == ELDEmpowerProcessor::Ward) { LDAutoEmpower::ApplyWard(E, T.Values); }
+        LDAutoEmpower::ApplyForms(E, Processor, Element, T.Target, T.Values, T.EmpowerShape);
+    });
+}
+
+// A real empowered release of Active on Q by Caster (its host Q, the bar at the threshold).
+bool ReleaseEmpoweredHost(FAutomationTestBase& Test, FFixture& F, const FLDCombatBodyRef& Caster, const TCHAR* Active,
+    ELDEmpowerProcessor Processor)
+{
+    FAccess::Records(*F.Driver).FindChecked(Caster.Victim.EntityId).EmpowerHost = ELDCombatEntry::Q;
+    return ReleaseEmpoweredOnQ(Test, F, Caster, Active, Processor, F.Catalog->Get().Parameters.Empower.ThresholdP2);
+}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDEmpowerFormsTest, "Lockdown.Rules.Combat.Empower.Forms",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDEmpowerFormsTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDDemoEmpowerParameters& P = F.Catalog->Get().Parameters.Empower;
+    FLDCombatActiveTerms Plain, Empowered;
+    // S01: the push onto its one target stuns on a wall; its damage is not multiplied.
+    if (!FormTerms(*this, F, TEXT("active_elbow"), ELDEmpowerProcessor::Strike, Plain, Empowered)) { return false; }
+    TestTrue(TEXT("S01's push stuns on a wall"), FindEffect(Empowered.Values, ELDDemoEffectOp::Knockback)->ExtraDurationMs >= P.WallStunMs
+        && FindEffect(Plain.Values, ELDDemoEffectOp::Knockback)->ExtraDurationMs < P.WallStunMs
+        && FindEffect(Empowered.Values, ELDDemoEffectOp::Damage)->BaseP2 == FindEffect(Plain.Values, ELDDemoEffectOp::Damage)->BaseP2);
+    // S05: the parry stuns its attacker.
+    if (!FormTerms(*this, F, TEXT("active_unplug"), ELDEmpowerProcessor::Guard, Plain, Empowered)) { return false; }
+    TestTrue(TEXT("S05's parry stuns its attacker"), FindEffect(Empowered.Values, ELDDemoEffectOp::ParryStance)->ExtraDurationMs >= P.CounterStunMs);
+    // N1: the cone opens ConeAngleScale wider (no longer) and leaves ice over itself.
+    if (!FormTerms(*this, F, TEXT("active_cola_shake"), ELDEmpowerProcessor::Strike, Plain, Empowered)) { return false; }
+    const FLDDemoEffectDefinition* Ice = FindEffect(Empowered.Values, ELDDemoEffectOp::GroundState);
+    TestTrue(TEXT("N1's cone is twice as wide, as long as before"),
+        FMath::IsNearlyEqual(CmOf(Empowered.Target.AngleDegrees), CmOf(Plain.Target.AngleDegrees) * double(P.ConeAngleScaleBp) / 10000., 0.01)
+        && FMath::IsNearlyEqual(CmOf(Empowered.Target.RangeCm), CmOf(Plain.Target.RangeCm), 0.01));
+    TestTrue(TEXT("N1 leaves its ice over the cone"), !FindEffect(Plain.Values, ELDDemoEffectOp::GroundState) && Ice
+        && Ice->GroundKind == uint8(ELDGroundStateKind::Ice) && Ice->DurationMs >= P.GroundLifeMs);
+    // S02 grabs the whole line; S06 and N3 fly through every body.
+    if (!FormTerms(*this, F, TEXT("active_pants_down"), ELDEmpowerProcessor::Strike, Plain, Empowered)) { return false; }
+    TestTrue(TEXT("S02 grabs every body on its line"), Empowered.EmpowerShape.bGrabAll && !Plain.EmpowerShape.bGrabAll);
+    for (const TCHAR* Flight : {TEXT("active_snark_bolt"), TEXT("active_stale_takeout")})
+    {
+        if (!FormTerms(*this, F, Flight, ELDEmpowerProcessor::Strike, Plain, Empowered)) { return false; }
+        TestTrue(FString::Printf(TEXT("%s pierces every body at its full package"), Flight),
+            Empowered.EmpowerShape.PierceCount > 0 && Empowered.EmpowerShape.PierceScaleBp == 10000);
+    }
+    // S07 leaves fire under the caster as wide as its area; S09 a puddle where its line ends; S10 (shock) leaves nothing.
+    if (!FormTerms(*this, F, TEXT("active_seethe"), ELDEmpowerProcessor::Strike, Plain, Empowered)) { return false; }
+    TestTrue(TEXT("S07 leaves a fire field as wide as its area"), Empowered.EmpowerShape.GroundKind == uint8(ELDGroundStateKind::Fire)
+        && Empowered.EmpowerShape.GroundLifeMs == P.GroundLifeMs
+        && FMath::IsNearlyEqual(CmOf(Empowered.EmpowerShape.GroundRadiusCm), CmOf(FindEffect(Empowered.Values, ELDDemoEffectOp::SelfArea)->RadiusCm), 0.01));
+    if (!FormTerms(*this, F, TEXT("active_hose_down"), ELDEmpowerProcessor::Strike, Plain, Empowered)) { return false; }
+    TestEqual(TEXT("S09 leaves a puddle"), Empowered.EmpowerShape.GroundKind, uint8(ELDGroundStateKind::Puddle));
+    if (!FormTerms(*this, F, TEXT("active_zap"), ELDEmpowerProcessor::Strike, Plain, Empowered)) { return false; }
+    TestTrue(TEXT("S10 leaves no ground and pierces nothing"), Empowered.EmpowerShape.GroundKind == 0 && Empowered.EmpowerShape.PierceCount == 0);
+    // N6 stuns at the first touch.
+    if (!FormTerms(*this, F, TEXT("active_cordon_tape"), ELDEmpowerProcessor::Ward, Plain, Empowered)) { return false; }
+    TestEqual(TEXT("N6 stuns at the first touch"), Empowered.EmpowerShape.TouchStunMs, P.TouchStunMs);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDEmpowerGrabAllTest, "Lockdown.Rules.Combat.Empower.GrabAll",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDEmpowerGrabAllTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    const FLDCombatBodyRef Grabber = F.AddBody(), Near = F.AddBody(), Far = F.AddBody();
+    F.Place(Grabber, 0, 0);
+    F.Place(Near, 150, 0);
+    F.Place(Far, 300, 0);
+    FLDCombatActiveTerms Terms;
+    FLDCombatHit Payload;
+    FLDCombatAction Action;
+    Action.Kind = ELDCombatActionKind::Ability;
+    Action.Direction = FVector(1, 0, 0);
+    FString Error;
+    for (const bool bEmpowered : {false, true})
+    {
+        FAccess::PendingHits(*F.Driver).Reset();
+        if (!Released(*this, F, Grabber, TEXT("active_pants_down"), Terms, Payload)) { return false; }
+        Terms.EmpowerShape.bGrabAll = bEmpowered;
+        if (!TestTrue(TEXT("The grab delivers: ") + Error, FAccess::DeliverPayload(*F.Driver, F.Actor(Grabber), F.Body(Grabber), Terms,
+            Action, Payload, FLDCombatBodyRef(), FVector::ZeroVector, F.Foot(Grabber), 1000, Error))) { return false; }
+        TestTrue(bEmpowered ? TEXT("An empowered grab takes both bodies on its line") : TEXT("An ordinary grab takes only the first"),
+            PendingOn(F, Near) && (PendingOn(F, Far) != nullptr) == bEmpowered);
+    }
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDEmpowerPierceTest, "Lockdown.Rules.Combat.Empower.Pierce",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDEmpowerPierceTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    F.Driver->bEmpowerTestOverride = true;
+    const FLDDemoEmpowerParameters& P = F.Catalog->Get().Parameters.Empower;
+    const FLDCombatBodyRef Thrower = F.AddBody(), First = F.AddBody(), Second = F.AddBody();
+    F.Place(Thrower, 0, 0);
+    F.Place(First, 200, 0);
+    F.Place(Second, 400, 0);
+    FString Error;
+    const auto Fly = [&](int64 From)
+    {
+        for (int64 At = From; At <= From + 800; At += 50)
+        {
+            F.Now(At);
+            if (!FAccess::AdvanceProjectiles(*F.Driver, Error)) { return false; }
+        }
+        return true;
+    };
+    // S06: an empowered shoe flies through both bodies at its full package.
+    FLDCombatActiveTerms Terms;
+    FLDCombatHit Payload;
+    if (!Released(*this, F, Thrower, TEXT("active_snark_bolt"), Terms, Payload)) { return false; }
+    LDAutoEmpower::ApplyForms(P, ELDEmpowerProcessor::Strike, ELDDemoSkillElement::None, Terms.Target, Terms.Values, Terms.EmpowerShape);
+    FLDCombatAction Action;
+    Action.Kind = ELDCombatActionKind::Ability;
+    Action.Direction = FVector(1, 0, 0);
+    F.Now(1000);
+    if (!TestTrue(TEXT("The shoe flies: ") + Error, FAccess::DeliverPayload(*F.Driver, F.Actor(Thrower), F.Body(Thrower), Terms, Action,
+        Payload, FLDCombatBodyRef(), FVector::ZeroVector, F.Foot(Thrower), 1000, Error) && Fly(1050))) { return false; }
+    const FLDCombatHit* OnFirst = PendingOn(F, First);
+    const FLDCombatHit* OnSecond = PendingOn(F, Second);
+    TestTrue(TEXT("S06 strikes both bodies on its way, the second at its full package"), OnFirst && OnSecond
+        && OnSecond->DeliveryScaleBp == OnFirst->DeliveryScaleBp);
+    // A05: an empowered flying punch strikes no cone; its flight pierces, the bodies past the first taking the cone share as
+    // added damage.
+    FAccess::PendingHits(*F.Driver).Reset();
+    FAccess::Projectiles(*F.Driver).Reset();
+    if (!InstallCards(*this, F, Thrower, 6, {{TEXT("card_long_arm")}})) { return false; }
+    FAccess::Records(*F.Driver).FindChecked(Thrower.Victim.EntityId).EmpowerHost = ELDCombatEntry::Basic;
+    FLDBodyCombatState& Body = F.Body(Thrower);
+    Body.Resources.MomentumP2 = P.ThresholdP2;
+    FLDCombatAction Punch = BasicAt(First, 2);
+    Punch.StartedAtMs = 2000;
+    Punch.ComboStep = 3;
+    Punch.bEmpowered = true;
+    Punch.EmpowerProcessor = ELDEmpowerProcessor::Fist;
+    F.Now(2000);
+    if (!FAccess::LandBasic(*F.Driver, F.Actor(Thrower), Body, Punch, Error)) { AddError(Error); return false; }
+    const TArray<FLDCombatProjectile>& Flights = FAccess::Projectiles(*F.Driver);
+    TestTrue(TEXT("The empowered punch flies as a piercing flight and strikes no cone"), Flights.Num() == 1 && Flights[0].bEmpowerPunch
+        && Flights[0].PierceRemaining > 0 && Flights[0].PierceScaleBp == P.FistConeRatioBp && FAccess::PendingHits(*F.Driver).IsEmpty());
+    if (!TestTrue(TEXT("The punch flies: ") + Error, Fly(2050))) { return false; }
+    const FLDCombatHit* Struck = PendingOn(F, First);
+    const FLDCombatHit* Pierced = PendingOn(F, Second);
+    TestTrue(TEXT("The first body takes the punch; the one behind takes the cone share as added damage"), Struck && Pierced
+        && Struck->EmpowerSerial > 0 && Pierced->bAddedDamage && Pierced->OnHitScaleBp == 0 && Pierced->ComboStep == 0
+        && Pierced->DeliveryScaleBp == LDAutoEmpower::Share(Struck->DeliveryScaleBp, P.FistConeRatioBp));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDEmpowerGroundTest, "Lockdown.Rules.Combat.Empower.Ground",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDEmpowerGroundTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    F.Driver->bEmpowerTestOverride = true;
+    const FLDDemoEmpowerParameters& P = F.Catalog->Get().Parameters.Empower;
+    const FLDCombatBodyRef Burner = F.AddBody(), Hoser = F.AddBody();
+    F.Place(Burner, 0, 0);
+    F.Place(Hoser, 0, 2000);
+    const auto GroundOf = [&F](const FLDCombatBodyRef& Owner) -> const FLDGroundState*
+    {
+        return FAccess::GroundStates(*F.Driver).FindByPredicate([&Owner](const FLDGroundState& State)
+            { return State.Owner.SourceEntity == Owner.Victim.EntityId; });
+    };
+    // An ordinary S07 leaves nothing; an empowered one leaves fire under its caster for EMPOWER.GroundSec.
+    if (!ReleaseEmpoweredOnQ(*this, F, Burner, TEXT("active_seethe"), ELDEmpowerProcessor::None, 1000)) { return false; }
+    TestNull(TEXT("An ordinary S07 leaves no ground"), GroundOf(Burner));
+    if (!ReleaseEmpoweredHost(*this, F, Burner, TEXT("active_seethe"), ELDEmpowerProcessor::Strike)) { return false; }
+    const FLDGroundState* Fire = GroundOf(Burner);
+    TestTrue(TEXT("An empowered S07 leaves fire under its caster"), Fire && Fire->Kind == ELDGroundStateKind::Fire
+        && FVector::Dist2D(Fire->CentreCm, F.Foot(Burner)) < 1. && Fire->ExpiresAtMs - Fire->StartMs == P.GroundLifeMs);
+    // An empowered S09 leaves a puddle where its (longer) line ends.
+    FLDCombatActiveTerms Plain;
+    if (!ActiveTerms(*this, F, TEXT("active_hose_down"), Plain)) { return false; }
+    if (!ReleaseEmpoweredHost(*this, F, Hoser, TEXT("active_hose_down"), ELDEmpowerProcessor::Strike)) { return false; }
+    const FLDGroundState* Puddle = GroundOf(Hoser);
+    const double Reach = CmOf(Plain.Target.RangeCm) * double(P.ShapeScaleBp) / 10000.;
+    TestTrue(TEXT("An empowered S09 leaves a puddle where its line ends"), Puddle && Puddle->Kind == ELDGroundStateKind::Puddle
+        && FMath::IsNearlyEqual(FVector::Dist2D(Puddle->CentreCm, F.Foot(Hoser)), Reach, 1.));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDEmpowerCordonTouchTest, "Lockdown.Rules.Combat.Empower.CordonTouch",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDEmpowerCordonTouchTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    const FLDDemoEmpowerParameters& P = F.Catalog->Get().Parameters.Empower;
+    const FLDCombatBodyRef Warden = F.AddBody(), Walker = F.AddBody();
+    F.Place(Warden, 0, 0);
+    F.Place(Walker, 300, 100);
+    FString Error;
+    for (const bool bEmpowered : {false, true})
+    {
+        FAccess::Cordons(*F.Driver).Reset();
+        FAccess::PendingHits(*F.Driver).Reset();
+        FLDCombatActiveTerms Terms;
+        FLDCombatHit Payload;
+        if (!Released(*this, F, Warden, TEXT("active_cordon_tape"), Terms, Payload)) { return false; }
+        if (bEmpowered) { LDAutoEmpower::ApplyForms(P, ELDEmpowerProcessor::Ward, ELDDemoSkillElement::None, Terms.Target, Terms.Values, Terms.EmpowerShape); }
+        FLDCombatAction Action;
+        Action.TargetPoint = F.Origin + FVector(300, 0, 0);
+        F.Now(1000);
+        bool bHandled = false;
+        if (!TestTrue(TEXT("The cordon is placed: ") + Error, FAccess::DeliverTerms(*F.Driver, F.Body(Warden), Terms, Action, Payload, 1000,
+            bHandled, Error) && bHandled && FAccess::AdvanceCordons(*F.Driver, 1050, Error))) { return false; }
+        const FLDCombatHit* Touch = PendingOn(F, Walker);
+        TestTrue(bEmpowered ? TEXT("An empowered cordon stuns at the first touch") : TEXT("An ordinary cordon's first touch only pushes"),
+            Touch && Touch->StunDurationMs == (bEmpowered ? P.TouchStunMs : 0));
+    }
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDEmpowerShieldBurstSerialTest, "Lockdown.Rules.Combat.Empower.ShieldBurstSerial",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDEmpowerShieldBurstSerialTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    F.Driver->bEmpowerTestOverride = true;
+    const FLDCombatBodyRef Holder = F.AddBody(), Enemy = F.AddBody();
+    F.Place(Holder, 0, 0);
+    F.Place(Enemy, 120, 0);
+    // Y06 bursts again on every broken layer; with an empowered S14 shield both bursts are part of that empowered action.
+    if (!InstallCards(*this, F, Holder, 6, {{TEXT("card_shell_burst")}})) { return false; }
+    if (!ReleaseEmpoweredHost(*this, F, Holder, TEXT("active_not_mad"), ELDEmpowerProcessor::Guard)) { return false; }
+    if (!TestTrue(TEXT("The empowered guard holds a shield"), !F.Body(Holder).ShieldLayers.IsEmpty())) { return false; }
+    FAccess::PendingHits(*F.Driver).Reset();
+    // Enough to empty the shield through the holder's resistance, far short of its health.
+    int64 ShieldP2 = 0;
+    for (const FLDBodyCombatState::FShieldLayer& Layer : F.Body(Holder).ShieldLayers) { ShieldP2 += Layer.AmountP2; }
+    FLDCombatHit Break = FFixture::Hit(Enemy, Holder, 3 * ShieldP2);
+    FString Error;
+    if (!F.Apply(Break, Error)) { AddError(Error); return false; }
+    int32 Bursts = 0, Marked = 0;
+    for (const FLDCombatHit& Hit : FAccess::PendingHits(*F.Driver))
+    {
+        if (!Hit.bFromShieldTrigger || Hit.Target.Victim.EntityId != Enemy.Victim.EntityId) { continue; }
+        ++Bursts;
+        Marked += Hit.EmpowerSerial == F.Body(Holder).Empowerments ? 1 : 0;
+    }
+    TestTrue(FString::Printf(TEXT("The guard's burst and Y06's both carry the empowered serial (%d of %d)"), Marked, Bursts),
+        Bursts == 2 && Marked == 2 && F.Body(Holder).Empowerments == 1);
+    return true;
+}
+
 #endif

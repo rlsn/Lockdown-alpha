@@ -1557,7 +1557,8 @@ def _validate_momentum(data):
             "the empower cost fits under its threshold and the threshold fits the bar")
     require(0 < p("EMPOWER.CombatPerSec") <= top, "NumericDomain", "EMPOWER.CombatPerSec",
             "the experiment's combat gain must be positive and fit the bar")
-    require(p("EMPOWER.ShapeScale") >= 1 and p("EMPOWER.ElementRotDurationScale") >= 1, "NumericDomain", "EMPOWER",
+    require(p("EMPOWER.ShapeScale") >= 1 and p("EMPOWER.ElementRotDurationScale") >= 1 and p("EMPOWER.ConeAngleScale") >= 1,
+            "NumericDomain", "EMPOWER",
             "an empowered shape or rot never shrinks")
 
 

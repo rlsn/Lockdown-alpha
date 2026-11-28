@@ -792,7 +792,9 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     {
         for (int32 Layer=0;Layer<FMath::Max(BrokenLayers,bShieldBroken ? 1 : 0);++Layer)
         {
-            if (!OnShieldBrokenCards(*Body,NowMs,Error)) { return false; }
+            // An empowered guard's layer bursts as part of its empowered action (rule E1).
+            const int32 Serial=BrokenLayerIds.IsValidIndex(Layer) ? EmpowerSerialOfLayer(*Body,BrokenLayerIds[Layer]) : 0;
+            if (!OnShieldBrokenCards(*Body,NowMs,Error,Serial)) { return false; }
         }
     }
     if (!bProtected && Source && Hit.bBurnTick && Hit.SourceEntity!=Body->Victim.EntityId
@@ -1079,6 +1081,15 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
             {
                 const int64 Scale=Contact.DeliveryScaleBp, Bp=Projectile.PierceScaleBp;
                 Contact.DeliveryScaleBp=Scale/10000*Bp+Scale%10000*Bp/10000;
+                // An empowered flying punch: the bodies past the first take added damage, as its cone would.
+                if (Projectile.bEmpowerPunch)
+                {
+                    Contact.ComboStep=0;
+                    Contact.bExtraStrike=true;
+                    Contact.bAddedDamage=true;
+                    Contact.OnHitScaleBp=0;
+                    Contact.bLifesteal=false;
+                }
             }
             PendingHits.Add(Contact);
             // active_snark_bolt: first enemy hit drops a collectible slipper for DurationMs slightly toward the caster.

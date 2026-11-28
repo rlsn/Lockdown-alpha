@@ -50,6 +50,8 @@ def content_fixture():
         ("EMPOWER.FistConeRatio", "ratio", 0.5), ("EMPOWER.FistPushCm", "cm", 100), ("EMPOWER.QuakeRadiusCm", "cm", 150),
         ("EMPOWER.QuakeSlow", "ratio", 0.25), ("EMPOWER.QuakeSlowSec", "s", 1), ("EMPOWER.ShapeScale", "ratio", 1.25),
         ("EMPOWER.GuardBurstRatio", "ratio", 0.5), ("EMPOWER.GuardBurstRadiusCm", "cm", 250), ("EMPOWER.WardFuseSec", "s", 0.2),
+        ("EMPOWER.GroundSec", "s", 2.5), ("EMPOWER.WallStunSec", "s", 0.5), ("EMPOWER.CounterStunSec", "s", 0.4),
+        ("EMPOWER.TouchStunSec", "s", 0.5), ("EMPOWER.ConeAngleScale", "ratio", 1.75),
         ("EMPOWER.ElementWaterSlow", "ratio", 0.4), ("EMPOWER.ElementWaterSlowSec", "s", 1.25),
         ("EMPOWER.ElementShockReactionRatio", "ratio", 0.5), ("EMPOWER.ElementRotDurationScale", "ratio", 2),
         ("EMPOWER.ElementChillRootSec", "s", 0.5),

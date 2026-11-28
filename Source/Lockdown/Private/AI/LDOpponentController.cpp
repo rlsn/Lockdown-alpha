@@ -177,10 +177,15 @@ bool ALDOpponentController::BindRegisteredSelf(const FLDAIContenderBinding& InBi
     if (Evaluation)
     {
         Evaluation->bBound = true;
-        UE_LOG(LogLDAI, Display, TEXT("LD_EVAL_PROFILE contender=%s rival=%s site=%s choices=%d reaction_ms=%d aim_error_cm=%d skip_bp=%d warning_react_ms=%d lead_aim=%d"),
+        // Auto-empower: off, auto (the AI's own pick) or the host the plan (or -LDEmpowerHost) fixes.
+        const ELDCombatEntry EmpowerHost = Evaluation->Profile.EmpowerHost != ELDCombatEntry::None
+            ? Evaluation->Profile.EmpowerHost : LDAutoEmpower::SwitchHost();
+        const TCHAR* Empower = !(Mode->Combat && Mode->Combat->EmpowerTerms()) ? TEXT("off")
+            : EmpowerHost == ELDCombatEntry::None ? TEXT("auto") : LDAutoEmpower::EntryName(EmpowerHost);
+        UE_LOG(LogLDAI, Display, TEXT("LD_EVAL_PROFILE contender=%s rival=%s site=%s choices=%d reaction_ms=%d aim_error_cm=%d skip_bp=%d warning_react_ms=%d lead_aim=%d empower=%s"),
             *Binding.GetContender().ToString(), *Evaluation->Profile.Opponent.ToString(), *Evaluation->Profile.Site.ToString(),
             Evaluation->Profile.Choices.Num(), Evaluation->Profile.ReactionMs, Evaluation->Profile.AimErrorCm, Evaluation->Profile.SkipBp,
-            Evaluation->Profile.WarningReactMs, Evaluation->Profile.bLeadAim ? 1 : 0);
+            Evaluation->Profile.WarningReactMs, Evaluation->Profile.bLeadAim ? 1 : 0, Empower);
     }
 #endif
     UE_LOG(LogLDAI, Log, TEXT("LD_AI_OPENING_PLAN contender=%s after_ms=%lld seed=%d"), *Binding.GetContender().ToString(),

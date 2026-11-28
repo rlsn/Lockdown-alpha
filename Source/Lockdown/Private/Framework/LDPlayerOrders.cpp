@@ -700,6 +700,8 @@ void ALDPlayerController::ServerSetEmpowerHost_Implementation(uint32 Generation,
 void ALDPlayerController::ClientEmpowerHostRefused_Implementation(uint64 Sequence, const FString& Reason)
 {
     UE_LOG(LogLDCombat,Display,TEXT("LD_EMPOWER_HOST refused sequence=%llu reason=%s"),Sequence,*Reason);
+    EmpowerHostRefusedSequence=Sequence;
+    EmpowerHostRefusal=Reason;
     PostIntentNotice(Reason);
 }
 

@@ -1947,7 +1947,7 @@ bool ALDCombatDirector::RunAutoRecasts(int64 NowMs, FString& Error)
 
 // ---------------------------------------------------------------- issue #292 P5 cards
 
-bool ALDCombatDirector::OnShieldBrokenCards(FLDBodyCombatState& Holder, int64 NowMs, FString& Error)
+bool ALDCombatDirector::OnShieldBrokenCards(FLDBodyCombatState& Holder, int64 NowMs, FString& Error, int32 EmpowerSerial)
 {
     using namespace LDCombatCardsDetail;
     if (Holder.bPendingDeath) { return true; }
@@ -1975,6 +1975,7 @@ bool ALDCombatDirector::OnShieldBrokenCards(FLDBodyCombatState& Holder, int64 No
         Blast.SourceMaxHPP2=BonusMaxHpP2Of(Holder);
         Blast.DamageType=ELDDemoDamageType::Magical;
         Blast.bFromShieldTrigger=true;
+        Blast.EmpowerSerial=EmpowerSerial;
         if (!StampSourceTerms(Holder,Blast,Error)) { return false; }
         PendingHits.Add(MoveTemp(Blast));
     }

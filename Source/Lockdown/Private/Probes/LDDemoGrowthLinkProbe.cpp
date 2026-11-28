@@ -3,6 +3,8 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Character/LDCharacter.h"
+#include "Combat/LDAutoEmpower.h"
+#include "Combat/LDCombatDirector.h"
 #include "Combat/LDCombatTypes.h"
 #include "Components/TextBlock.h"
 #include "Containers/Ticker.h"
@@ -92,7 +94,7 @@ public:
         // Host
         HostGrant, HostHud, HostAwaitBuilt, HostStand, HostAwaitDeath, HostAudit,
         // Client1
-        ClientGrant, ClientChoice, ClientPoints, ClientSeek, ClientKill, ClientReward,
+        ClientGrant, ClientChoice, ClientPoints, ClientEmpower, ClientSeek, ClientKill, ClientReward,
     };
 
     TWeakObjectPtr<ALDPlayerController> Controller;
@@ -125,6 +127,13 @@ public:
     int32 Orders = 0, Bearing = 0, Skips = 0;
     FLDMoveIdentity AttackOrder;
     uint32 LifeBefore = 0;
+    // Auto-empower (on only with -LDEmpower): the host command's steps, the sequence in flight, whether the client's own view
+    // ever showed a ready bar, and the Host's count of the client's public ready marks and of marks without authorization.
+    int32 EmpowerStep = 0;
+    uint64 EmpowerSeq = 0;
+    double EmpowerAt = 0;
+    bool bEmpowerOn = false, bSawReady = false;
+    int32 ReadyMarks = 0, UnauthorizedMarks = 0;
 
     bool IsHost() const { return Role == TEXT("Host"); }
 
@@ -355,6 +364,7 @@ public:
         case EStage::HostAudit: return TickHostAudit(Now, *World);
         case EStage::ClientChoice: return TickClientChoice(Now, *PC);
         case EStage::ClientPoints: return TickClientPoints(Now, *PC);
+        case EStage::ClientEmpower: return TickClientEmpower(Now, *PC);
         case EStage::ClientSeek: return TickClientSeek(Now, *PC);
         case EStage::ClientKill: return TickClientKill(Now, *PC);
         case EStage::ClientReward: return TickClientReward(Now, *PC);
@@ -572,6 +582,21 @@ public:
 
     bool TickHostAwaitDeath(double Now, ALDPlayerController& PC, const ALDGameState& Public)
     {
+        // Auto-empower: an opponent's public ready mark rides only its sight-authorized momentum group.
+        bEmpowerOn = PC.CombatView.bEmpowerEnabled;
+        if (const ALDWorldViewRelay* Relay = bEmpowerOn ? PC.LocalView() : nullptr)
+        {
+            const FLDObservedFrameRead Read = Relay->ReadObservedFrame();
+            for (int32 Index = 0; Read.Status == ELDObservedViewStatus::Current && Read.Frame && Index < Read.Frame->Units.Num(); ++Index)
+            {
+                const FLDObservedUnitView& Unit = Read.Frame->Units[Index];
+                if (Unit.EmpowerReady == 0) { continue; }
+                const bool bAuthorized = Unit.Kind == ELDObservedUnitKind::Contender && (Unit.AuthorizedFieldMask & LDObservation::Momentum) != 0
+                    && Unit.EmpowerReady <= uint8(ELDEmpowerProcessor::Ward);
+                UnauthorizedMarks += bAuthorized ? 0 : 1;
+                ReadyMarks += bAuthorized && Unit.ContenderId == ClientId ? 1 : 0;
+            }
+        }
         const bool bDied = PC.OwnerState.Life == LifeBefore ? PC.OwnerState.LifePhase == ELDLifePhase::Dead : PC.OwnerState.Life > LifeBefore;
         const bool bNoticed = Public.KillFeed.Notices.ContainsByPredicate([this](const FLDKillNotice& Notice)
             { return Notice.Victim == HostId && Notice.Killer == ClientId && Notice.Cause == ELDKillCause::Contender; });
@@ -579,6 +604,12 @@ public:
         Check(bDied, TEXT("The Host's own life ended under the client's attack"),
             FString::Printf(TEXT("life %u->%u phase %d hp %.0f"), LifeBefore, PC.OwnerState.Life, int32(PC.OwnerState.LifePhase), PC.OwnerState.Hp));
         Check(bNoticed, TEXT("The public kill feed names the client as the Host's killer"));
+        if (bEmpowerOn)
+        {
+            Check(UnauthorizedMarks == 0, TEXT("An opponent's empower ready mark appears only with its sight-authorized momentum group"),
+                FString::Printf(TEXT("%d unauthorized, %d frames with the client's mark"), UnauthorizedMarks, ReadyMarks));
+            Facts->SetNumberField(TEXT("host_seen_client_ready_frames"), ReadyMarks);
+        }
         if (!Passed) { return Finish(); }
         SetStage(EStage::HostAudit);
         return true;
@@ -604,6 +635,24 @@ public:
         Check(bEqual, TEXT("The client's own view XP after the kill equals the authority's record for that contender"),
             FString::Printf(TEXT("client view %lld, authority record %lld"), ClientXPAfterKill, Record.bValid ? Record.CumulativeXP : -1));
         Facts->SetNumberField(TEXT("authority_client_xp"), double(Record.bValid ? Record.CumulativeXP : -1));
+        if (bEmpowerOn)
+        {
+            // Every empowered punch paid EMPOWER.Cost exactly once (no resent action paid again), and the owner saw them.
+            double Seen = -1;
+            FString Text;
+            TSharedPtr<FJsonObject> Marker;
+            if (FFileHelper::LoadFileToString(Text, *FPaths::Combine(Output, TEXT("ClientKill.json")))
+                && FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Marker) && Marker.IsValid())
+            { Marker->TryGetNumberField(TEXT("empowerments"), Seen); }
+            int32 Count = 0;
+            int64 SpentP2 = 0;
+            const bool bRead = Mode && Mode->Combat && Mode->Combat->ReadEmpowerLedger(ClientId, Count, SpentP2);
+            const int64 CostP2 = Catalog->Get().Parameters.Empower.CostP2;
+            Check(bRead && Count >= 1 && SpentP2 == int64(Count) * CostP2 && Seen >= 1 && int32(Seen) <= Count,
+                TEXT("Each of the client's empowerments paid its price exactly once, and its own view counted them"),
+                FString::Printf(TEXT("authority %d paid %lld (cost %lld each); client view %.0f"), Count, SpentP2, CostP2, Seen));
+            Facts->SetNumberField(TEXT("authority_client_empowerments"), Count);
+        }
         return Finish();
     }
 
@@ -680,6 +729,93 @@ public:
         Check(bApplied, TEXT("The client's SubmitBuild point allocation returns an Applied receipt"), Detail);
         Check(bView, TEXT("The allocated stat's points rise in the client's own view"), Detail);
         Check(bCombat, TEXT("The client's combat projection follows the allocation with a larger maximum HP"), Detail);
+        if (!Passed) { return Finish(); }
+        SetStage(EStage::ClientEmpower);
+        return true;
+    }
+
+    static FString EmpowerText(const FLDCombatOwnerView& View)
+    {
+        return FString::Printf(TEXT("on=%d host=%d chosen=%d sequence=%llu threshold=%lld cost=%lld momentum=%lld empowerments=%d"),
+            View.bEmpowerEnabled ? 1 : 0, int32(View.EmpowerHost), View.bEmpowerHostChosen ? 1 : 0, View.EmpowerHostSequence,
+            View.EmpowerThresholdP2, View.EmpowerCostP2, View.MomentumP2, View.Empowerments);
+    }
+
+    // Auto-empower host commands on this owner's own connection: an accepted request shows in the owner view under its
+    // sequence, an invalid one comes back refused with its reason, and a replayed sequence changes nothing; the kill then
+    // runs on the basic host. Off (no -LDEmpower), one request is refused and changes nothing.
+    bool TickClientEmpower(double Now, ALDPlayerController& PC)
+    {
+        const FLDCombatOwnerView& View = PC.CombatView;
+        const bool bLate = Now - EmpowerAt > LDDemoGrowthLink::RequestSeconds;
+        const auto Next = [this, Now]() { ++EmpowerStep; EmpowerAt = Now; };
+        switch (EmpowerStep)
+        {
+        case 0:
+            EmpowerAt = Now;
+            bEmpowerOn = View.bEmpowerEnabled;
+            Facts->SetBoolField(TEXT("empower"), bEmpowerOn);
+            if (bEmpowerOn)
+            {
+                Check(View.EmpowerHost == ELDCombatEntry::Basic && !View.bEmpowerHostChosen && View.EmpowerThresholdP2 > 0
+                    && View.EmpowerCostP2 > 0 && View.EmpowerCostP2 <= View.EmpowerThresholdP2,
+                    TEXT("The owner view starts on the basic host with the experiment's threshold and price"), EmpowerText(View));
+            }
+            PC.RequestEmpowerHost(ELDCombatEntry::Q);
+            EmpowerSeq = PC.SentEmpowerHostSequence();
+            EmpowerStep = bEmpowerOn ? 1 : 10;
+            return true;
+        case 1:
+        {
+            const bool bShown = View.EmpowerHost == ELDCombatEntry::Q && View.bEmpowerHostChosen && View.EmpowerHostSequence == EmpowerSeq;
+            if (!bShown && !bLate) { return true; }
+            if (!Check(bShown, TEXT("A host request's receipt is the owner view naming it under its sequence"), EmpowerText(View)))
+            { return Finish(); }
+            // A replay of the same sequence (naming another host) must change nothing; the invalid request after it is
+            // refused, and its refusal, ordered after the replay on this connection, bounds the wait.
+            PC.ServerSetEmpowerHost(View.Generation, EmpowerSeq, ELDCombatEntry::Dash);
+            PC.RequestEmpowerHost(ELDCombatEntry::None);
+            Next();
+            return true;
+        }
+        case 2:
+        {
+            FString Reason;
+            const bool bRefused = PC.RefusedEmpowerHostSequence(&Reason) == PC.SentEmpowerHostSequence();
+            if (!bRefused && !bLate) { return true; }
+            if (!Check(bRefused && !Reason.IsEmpty(), TEXT("An invalid host request comes back refused with its reason"), Reason))
+            { return Finish(); }
+            Next();
+            return true;
+        }
+        case 3:
+            // One second for any view change the replay could have caused to arrive.
+            if (Now - EmpowerAt < 1.0) { return true; }
+            Check(View.EmpowerHost == ELDCombatEntry::Q && View.EmpowerHostSequence == EmpowerSeq,
+                TEXT("A replayed host sequence changes nothing"), EmpowerText(View));
+            PC.RequestEmpowerHost(ELDCombatEntry::Basic);
+            EmpowerSeq = PC.SentEmpowerHostSequence();
+            Next();
+            return true;
+        case 4:
+        {
+            const bool bShown = View.EmpowerHost == ELDCombatEntry::Basic && View.EmpowerHostSequence == EmpowerSeq;
+            if (!bShown && !bLate) { return true; }
+            Check(bShown, TEXT("A newer host request moves the host to the basic for the kill"), EmpowerText(View));
+            break;
+        }
+        case 10:
+        {
+            FString Reason;
+            const bool bRefused = PC.RefusedEmpowerHostSequence(&Reason) == EmpowerSeq;
+            if (!bRefused && !bLate) { return true; }
+            Check(bRefused && !Reason.IsEmpty() && View.EmpowerHostSequence == 0,
+                TEXT("Off, a host request comes back refused with its reason and changes nothing"), Reason);
+            break;
+        }
+        default:
+            return Fail(TEXT("The empower step is unknown"));
+        }
         if (!Passed || !Mark(TEXT("ClientBuilt.json"))) { return Finish(); }
         SetStage(EStage::ClientSeek);
         return true;
@@ -718,6 +854,7 @@ public:
 
     bool TickClientKill(double Now, ALDPlayerController& PC)
     {
+        bSawReady |= bEmpowerOn && PC.CombatView.EmpowerThresholdP2 > 0 && PC.CombatView.MomentumP2 >= PC.CombatView.EmpowerThresholdP2;
         const FLDOrderReceipt& Latest = PC.Navigation->LatestReceipt();
         const bool bEnded = Latest.Identity == AttackOrder && (Latest.Status == ELDOrderStatus::Rejected
             || Latest.Status == ELDOrderStatus::Cancelled || Latest.Status == ELDOrderStatus::Completed);
@@ -754,6 +891,14 @@ public:
         if (!Passed) { return Finish(); }
         const TSharedRef<FJsonObject> Marker = MakeShared<FJsonObject>();
         Marker->SetNumberField(TEXT("xp"), double(View->CumulativeXP));
+        if (bEmpowerOn)
+        {
+            // The kill ran on the basic host against a contender: the bar crossed the threshold and punches were empowered.
+            Check(bSawReady, TEXT("The client's own view showed its bar at the empower threshold during the kill"), EmpowerText(PC.CombatView));
+            Check(PC.CombatView.Empowerments >= 1, TEXT("The client's empowered punches are counted in its own view"), EmpowerText(PC.CombatView));
+            Marker->SetNumberField(TEXT("empowerments"), double(PC.CombatView.Empowerments));
+            Facts->SetNumberField(TEXT("client_empowerments"), double(PC.CombatView.Empowerments));
+        }
         Facts->SetNumberField(TEXT("xp_before_kill"), double(KillXPBefore));
         Facts->SetNumberField(TEXT("xp_after_kill"), double(View->CumulativeXP));
         Mark(TEXT("ClientKill.json"), Marker);

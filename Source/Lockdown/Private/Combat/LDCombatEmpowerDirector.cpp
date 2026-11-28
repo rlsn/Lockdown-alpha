@@ -163,6 +163,8 @@ bool ALDCombatDirector::ApplyEmpowerTerms(const FLDBodyCombatState& Body, const 
     case ELDEmpowerProcessor::Fist: LDAutoEmpower::ApplyFistSkill(*P,Terms.Values); break;
     default: break;
     }
+    LDAutoEmpower::ApplyForms(*P,Processor,Ability ? Ability->Element : ELDDemoSkillElement::None,Terms.Target,Terms.Values,
+        Terms.EmpowerShape);
     if (Processor!=ELDEmpowerProcessor::Strike && Processor!=ELDEmpowerProcessor::Ward) { return true; }
     // The element layer: the active's element, else its learned branch's, else its slot medal's.
     ELDDemoSkillElement Element=Ability ? Ability->Element : ELDDemoSkillElement::None;
@@ -247,6 +249,7 @@ bool ALDCombatDirector::EmpowerAfterRelease(FLDBodyCombatState& Body, ELDEmpower
             Burst.BaseP2=LDAutoEmpower::Share(Body.LastShieldGrantP2,P->GuardBurstRatioBp);
             Row.BreakBurst=Burst;
             Row.bBurstOnLapse=true;
+            Row.EmpowerSerial=FMath::Max(Body.Empowerments,1);
             Row.Exit=Exit;
         }
         break;
@@ -279,7 +282,7 @@ bool ALDCombatDirector::EmpowerAfterRelease(FLDBodyCombatState& Body, ELDEmpower
 }
 
 bool ALDCombatDirector::EmpowerShieldBurst(FLDBodyCombatState& Body, const FLDDemoEffectDefinition& Burst, const FLDCombatSourceRef& Exit,
-    FString& Error)
+    int32 Serial, FString& Error)
 {
     const ALDCharacter* Actor=ActorOf(Body);
     if (!Actor || Burst.BaseP2<=0) { return true; }
@@ -300,14 +303,60 @@ bool ALDCombatDirector::EmpowerShieldBurst(FLDBodyCombatState& Body, const FLDDe
         Blast.BaseP2=Burst.BaseP2;
         Blast.DamageType=ELDDemoDamageType::Magical;
         Blast.bFromShieldTrigger=true;
-        Blast.EmpowerSerial=FMath::Max(Body.Empowerments,1);
+        Blast.EmpowerSerial=FMath::Max(Serial,1);
         if (!StampSourceTerms(Body,Blast,Error)) { return false; }
     }
     return true;
 }
 
+bool ALDCombatDirector::ReadEmpowerLedger(const FGuid& ContenderId, int32& OutEmpowerments, int64& OutSpentP2) const
+{
+    for (const auto& Pair : Bodies)
+    {
+        const FLDBodyCombatState& Body=Pair.Value;
+        if (Body.Victim.Kind!=ELDVictimKind::Contender || Body.Victim.EntityId!=ContenderId) { continue; }
+        OutEmpowerments=Body.Empowerments;
+        OutSpentP2=Body.EmpowerSpentP2;
+        return true;
+    }
+    return false;
+}
+
+int32 ALDCombatDirector::EmpowerSerialOfLayer(const FLDBodyCombatState& Body, const FGuid& LayerId)
+{
+    const FLDCombatBranchState::FShieldBranch* Row=Body.Branch.ShieldBranches.FindByPredicate(
+        [&LayerId](const FLDCombatBranchState::FShieldBranch& Candidate) { return Candidate.EffectId==LayerId; });
+    return Row ? Row->EmpowerSerial : 0;
+}
+
+bool ALDCombatDirector::EmpowerGround(const FLDBodyCombatState& Body, const FLDCombatActiveTerms& Terms, const FLDCombatHit& Template,
+    const FVector& ReleaseFoot, const FVector& Direction, int64 NowMs, FString& Error)
+{
+    using namespace LDCombatEmpowerDetail;
+    const FLDEmpowerShape& Shape=Terms.EmpowerShape;
+    if (Shape.GroundKind==0 || Shape.GroundLifeMs<=0) { return true; }
+    FLDElementApplier GroundOwner;
+    GroundOwner.SourceEntity=Body.Victim.EntityId;
+    GroundOwner.SourceBody={Body.Victim,Body.Identity};
+    GroundOwner.CreditOwner=Template.CreditOwner;
+    GroundOwner.Source=Template.Source;
+    GroundOwner.Level=FMath::Max(Template.ElementLevel,1);
+    GroundOwner.SourceAPP2=Template.ElementAPP2;
+    GroundOwner.EffectId=Template.EffectId;
+    FVector Centre=ReleaseFoot;
+    if (Terms.Target.Mode==ELDDemoTargetMode::DirectionLine)
+    {
+        // Where the line ends (the release range, extended reach included).
+        double RangeCm=0;
+        if (!CastRangeCm(Body,Terms.Target,RangeCm,Error)) { return false; }
+        Centre+=FVector(Direction.X,Direction.Y,0).GetSafeNormal()*RangeCm;
+    }
+    return SpawnGround(static_cast<ELDGroundStateKind>(Shape.GroundKind),GroundOwner,Centre,NowMs,Error,Cm(Shape.GroundRadiusCm),
+        Shape.GroundLifeMs);
+}
+
 bool ALDCombatDirector::EmpowerPunch(const ALDCharacter& Actor, FLDBodyCombatState& Body, FLDCombatHit& Primary,
-    TArray<FLDCombatHit>& OutCone, FString& Error)
+    TArray<FLDCombatHit>& OutCone, bool bFlying, FString& Error)
 {
     using namespace LDCombatEmpowerDetail;
     const FLDDemoEmpowerParameters* P=EmpowerTerms();
@@ -327,7 +376,8 @@ bool ALDCombatDirector::EmpowerPunch(const ALDCharacter& Actor, FLDBodyCombatSta
         Primary.KnockbackAnchorCm=Foot;
         Primary.bKnockbackFromAnchor=true;
     }
-    if (Ahead.IsNearlyZero()) { return true; }
+    // A flying punch (A05) strikes no cone: its flight pierces to its end instead (LandBasic).
+    if (Ahead.IsNearlyZero() || bFlying) { return true; }
     TArray<FLDCombatBodyRef> Around;
     if (!CollectAreaTargets(Foot,Cm(P->FistConeLengthCm),&Body,Body.Victim.EntityId,Around,Error)) { return false; }
     const double HalfCos=FMath::Cos(FMath::DegreesToRadians(Cm(P->FistConeAngleDegrees)*.5));

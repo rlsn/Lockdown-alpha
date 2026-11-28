@@ -123,6 +123,9 @@ struct FLDCombatBranchState
         FLDCombatSourceRef Exit;
         // Auto-empower: an empowered guard's burst also goes off when the layer runs out (EmpowerShieldBurst).
         bool bBurstOnLapse=false;
+        // Auto-empower: the serial of the empowered release that granted this layer (0 = ordinary); every burst of the
+        // layer (its own, S13 A1's, Y06's) is part of that action (rule E1).
+        int32 EmpowerSerial=0;
     };
     TArray<FShieldBranch> ShieldBranches;
     FShieldBranch& ShieldBranchFor(const FGuid& EffectId)
@@ -211,6 +214,8 @@ struct FLDCombatActiveTerms
     int64 DashMomentumCostP2=0;
     // K07: the multiplier the reshapes put into this release's areas (10000 without one).
     int64 AreaBp=10000;
+    // Auto-empower: the empowered release's behaviour switches (all off for an ordinary release).
+    FLDEmpowerShape EmpowerShape;
 };
 
 // Y08: a knockback whose source holds Y08 watches for its first real blocking fact (also a branch wall stun).
@@ -908,6 +913,9 @@ struct FLDCombatProjectile
     // A08 on a flying third basic: its free Q is queued at the first contact, toward the body struck (bComboCast).
     bool bComboCast=false;
     FLDCombatAction ComboBasic;
+    // Auto-empower: an empowered flying punch pierces to the end of its flight; the bodies past the first take added damage
+    // (no on-hit, no combo step, no lifesteal).
+    bool bEmpowerPunch=false;
 };
 
 // A ground zone (EFFECT zone): Count pulses from StartMs+DelayMs every IntervalMs, and (#198) a slow check and a burn check
@@ -1251,6 +1259,8 @@ public:
         const FLDGameplayWritePermit& Permit, FString& Error);
     // Current and maximum HP of a living body; false when Combat does not hold it.
     bool ReadBodyHealth(const FLDCombatBodyRef& Body, int64& OutHpP2, int64& OutMaxHpP2) const;
+    // Auto-empower: the empowerments a contender's current body paid and the momentum they cost (false without a body).
+    bool ReadEmpowerLedger(const FGuid& ContenderId, int32& OutEmpowerments, int64& OutSpentP2) const;
     // Whether the body is Exposed at NowMs.
     bool IsExposed(const FLDCombatBodyRef& Body, int64 NowMs) const;
     // Line of sight between two feet with the area rule (ELDSightResult::Visible), for the throw's landing.
@@ -1441,15 +1451,22 @@ private:
     int32 PayEmpower(FLDBodyCombatState& Body, const FLDCombatAction& Action, bool bApplied, int64 NowMs);
     // Marks the current chain as an empowered action's (rule E1).
     void MarkEmpoweredChain();
-    // A guard shield's burst over its radius from Body (its break or its natural end).
+    // A guard shield's burst over its radius from Body (its break or its natural end), part of empowered action Serial.
     bool EmpowerShieldBurst(FLDBodyCombatState& Body, const FLDDemoEffectDefinition& Burst, const FLDCombatSourceRef& Exit,
-        FString& Error);
+        int32 Serial, FString& Error);
+    // The empowered action serial of a shield layer Body holds (0 = an ordinary layer).
+    static int32 EmpowerSerialOfLayer(const FLDBodyCombatState& Body, const FGuid& LayerId);
     // After an empowered ability's effects: a guard shield's burst, a move's quake, a single-package fist skill's punch.
     bool EmpowerAfterRelease(FLDBodyCombatState& Body, ELDEmpowerProcessor Processor, const FLDCombatSourceRef& Exit,
         const FGuid& EffectId, const TSharedPtr<FLDCombatCastLedger>& Ledger, int64 NowMs, FString& Error);
-    // The empowered punch: a third step that pushes its target and strikes the cone ahead (OutCone).
+    // The ground state an empowered strike leaves (FLDEmpowerShape): under the caster or where its line ends, owned by the
+    // caster at the release snapshot.
+    bool EmpowerGround(const FLDBodyCombatState& Body, const FLDCombatActiveTerms& Terms, const FLDCombatHit& Template,
+        const FVector& ReleaseFoot, const FVector& Direction, int64 NowMs, FString& Error);
+    // The empowered punch: a third step that pushes its target and strikes the cone ahead (OutCone); a flying punch (A05)
+    // strikes no cone, its flight pierces instead.
     bool EmpowerPunch(const ALDCharacter& Actor, FLDBodyCombatState& Body, FLDCombatHit& Primary, TArray<FLDCombatHit>& OutCone,
-        FString& Error);
+        bool bFlying, FString& Error);
     // Books the time Body's bar holds the threshold up to NowMs.
     void TrackEmpowerArmed(FLDBodyCombatState& Body, int64 NowMs) const;
     // The public ready mark (FLDObservedUnitView::EmpowerReady): the host's processor while the bar holds the threshold and the
@@ -1690,7 +1707,7 @@ private:
     bool OnHardControl(FLDBodyCombatState& Victim, const FLDControlApplication& App, int64 NowMs, FString& Error);
     // Issue #292 P5 cards: D04/D09 on a perfect dodge of Body; Y06 on a broken shield of Holder; Y29 a share of the burn damage
     // Source dealt as its shield; Y24's tally of a hit of Source on Target.
-    bool OnShieldBrokenCards(FLDBodyCombatState& Holder, int64 NowMs, FString& Error);
+    bool OnShieldBrokenCards(FLDBodyCombatState& Holder, int64 NowMs, FString& Error, int32 EmpowerSerial=0);
     bool OnBurnDealtCards(FLDBodyCombatState& Source, int64 BurnDamageP2, int64 NowMs, FString& Error);
     bool OnTallyHit(FLDBodyCombatState& Source, const FLDCombatHit& Hit, int64 NowMs, FString& Error);
     // D07: an innate dash ramming Target deals the card's damage and pushes it away.
@@ -1861,6 +1878,8 @@ private:
         TMap<FGuid,int64> EnemyCooldownUntilMs;
         TSet<FGuid> BoostedFlights;
         uint64 CreatedSerial=0;
+        // Auto-empower (N6): every enemy's first touch stuns this long (0 = only the branch's second-touch stun).
+        int64 TouchStunMs=0;
     };
     struct FLDCombatShardBurst
     {

@@ -27,7 +27,7 @@ import re
 from pathlib import Path
 
 ADAPTER_ID = "lockdown-demo"
-ADAPTER_VERSION = 17
+ADAPTER_VERSION = 18
 # LDBuildEvaluation::MaxCases and MaxBuildSteps of the native driver (LDBuildEvaluationProbe.h); a larger plan is refused
 # before any run.
 NATIVE_MAX_CASES = 500
@@ -192,6 +192,9 @@ def describe(project_root):
             "definition": {"description": "the actual active offer's option of one active; refused when not offered"},
             "preset_offer": {"description": "a diagnostic opening offer or a later one-to-three-active offer prepared by DevQueueOffer",
                              "sample_classes": ["diagnostic"]},
+            "empower_host": {"description": "auto-empower only: the side's host (Basic, Q, W, E or D) submitted through the "
+                                            "authority's host command when the match starts, instead of the AI's own pick or "
+                                            "the scenario-wide empower_host"},
             "breakout_preset": {"description": "a DEV breakout sample (LDBreakoutPresets) applied at the field entry instead of "
                                                "the side's XP supply: its max-level skills, branches, cards and points",
                                 "sample_classes": ["diagnostic"]},
@@ -275,9 +278,11 @@ def _side_plan(plan, role):
     side = plan.get(role)
     if (not isinstance(side, dict) or "choices" not in side
             or set(side) - {"choices", "opening_preset", "presets", "level_cards", "build", "stance", "keep_points_unspent",
-                            "breakout_preset"}):
+                            "breakout_preset", "empower_host"}):
         raise ValueError(f"plan.{role}: an object with choices (and optional opening_preset, presets, level_cards, build, "
-                         "stance, keep_points_unspent and breakout_preset)")
+                         "stance, keep_points_unspent, breakout_preset and empower_host)")
+    if "empower_host" in side and side["empower_host"] not in EMPOWER_HOSTS:
+        raise ValueError(f"plan.{role}.empower_host: one of {', '.join(EMPOWER_HOSTS)}")
     preset = side.get("breakout_preset")
     if preset is not None and (not isinstance(preset, str) or not preset.startswith("breakout_")):
         raise ValueError(f"plan.{role}.breakout_preset: a DEV breakout sample id (breakout_*)")
@@ -576,6 +581,10 @@ def requirements(scenario, plan, caps):
             problems += needs[2]
         if plan[role].get("breakout_preset"):
             decisions.add("breakout_preset")
+        if plan[role].get("empower_host"):
+            decisions.add("empower_host")
+            if scenario["parameters"].get("empower") is not True:
+                problems.append(f"IllegalScenario: plan.{role}.empower_host needs the scenario's empower true")
         if level_cards:
             decisions.add("preset_level_cards")
             mechanics.update(level_cards)
@@ -711,6 +720,8 @@ def native_input(run_id, manifest, caps, cases):
                 row["stance"] = stance
             if plan[role].get("breakout_preset"):
                 row["breakout_preset"] = plan[role]["breakout_preset"]
+            if plan[role].get("empower_host"):
+                row["empower_host"] = plan[role]["empower_host"]
             contenders.append(row)
         out.append({"case_id": case["case_id"], "seed": case["seed"], "site": params["site"],
                     "duel_timeout_ms": params["duel_timeout_ms"], "wall_timeout_s": manifest["budget"]["case_wall_timeout_s"],
@@ -1226,6 +1237,23 @@ def case_evidence(case, manifest, caps, result, trace_text):
             side["short"] += 1
     if empowered:
         out["facts"]["empower"] = {role: dict(side, paid=side["paid"] / 100) for role, side in empower.items()}
+    # A planned host is the authority's accepted host command (LD_EMPOWER_HOST) and the only host that side empowers.
+    for role in ROLES:
+        planned = plans[case["arm"]][role].get("empower_host")
+        # The native profile line names the side's auto-empower (off, auto or the fixed host) when it carries the field.
+        needed = "off" if not empowered else planned or params.get("empower_host") or "auto"
+        profiles = [row.get("empower") for tag, row, _ in events
+                    if tag == "LD_EVAL_PROFILE" and row.get("contender") == ids[role] and "empower" in row]
+        if any(value != needed for value in profiles):
+            reasons.append(f"Setup: the {role} native profile has empower={profiles[0]}, the run needs {needed}")
+        if not planned:
+            continue
+        hosted = [row.get("host") for tag, row, _ in events if tag == "LD_EMPOWER_HOST" and row.get("src") == ids[role]]
+        if hosted != [planned]:
+            reasons.append(f"EmpowerHostNotApplied: the {role} host commands are {hosted or 'none'}, planned {planned}")
+        other = sorted(set(empower[role]["hosts"]) - {planned})
+        if other:
+            reasons.append(f"EmpowerHostNotApplied: the {role} empowered {other}, planned {planned}")
     casts = {role: 0 for role in ROLES}
     for tag, row, _ in events:
         if tag == "LD_CAST" and row.get("contender") in duelists:

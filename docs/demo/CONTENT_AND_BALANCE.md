@@ -109,6 +109,9 @@
 | `EMPOWER.ExtraCount` | 2 | 弹射次数、多包拳技包数的增量 |
 | `EMPOWER.GuardBurstRatio` / `GuardBurstRadiusCm` | 0.4 / 300cm | 强化护盾破碎或到期时的爆开 |
 | `EMPOWER.WardFuseSec` | 0.15s | 强化陷阱的引信上限 |
+| `EMPOWER.GroundSec` | 3s | 强化攻按技能自身元素留下的火场 / 水洼 / 冰面持续时长 |
+| `EMPOWER.WallStunSec` / `CounterStunSec` / `TouchStunSec` | 0.6s / 0.5s / 0.6s | 强化单体击退撞墙眩晕、强化招架反震眩晕、强化封条首触眩晕的下限 |
+| `EMPOWER.ConeAngleScale` | 2 | 强化扇形的角度倍率（射程不变） |
 | `EMPOWER.ElementFireBurnStacks` / `ElementWaterSlow` / `ElementWaterSlowSec` / `ElementShockReactionRatio` / `ElementRotDurationScale` / `ElementChillRootSec` | 3 / 0.45 / 1.5s / 0.5 / 2 / 0.6s | 攻、阵的元素层 |
 
 属性点叠加后单项属性可能触及上下限；

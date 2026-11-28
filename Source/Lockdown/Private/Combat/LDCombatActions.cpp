@@ -1348,8 +1348,13 @@ bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body,
     // Cards of the landing basic: A04's push, A06/A09 strikes and A11 riders queue with it.
     TArray<FLDCombatHit> Extra;
     if (!OnBasicLanded(Body,Hit,Extra,Error)) { return false; }
+    // A05: a contender's basic flies (below); an empowered flying punch pierces instead of striking a cone.
+    TArray<FLDPassiveEffectRef> Flights;
+    if (Body.Victim.Kind==ELDVictimKind::Contender
+        && !CardsOn(Body.AttributeProjection,ELDDemoEffectOp::BasicProjectile,{ELDCombatSourceKind::Basic,NAME_None},Flights,Error))
+    { return false; }
     // Auto-empower: the empowered punch pushes its target and strikes the cone ahead (the copies above take neither).
-    if (EmpowerSerial>0 && !EmpowerPunch(Actor,Body,Hit,Extra,Error)) { return false; }
+    if (EmpowerSerial>0 && !EmpowerPunch(Actor,Body,Hit,Extra,!Flights.IsEmpty(),Error)) { return false; }
     // #345 active_flurry_rush FrenzyWaves: while frenzy is active, each primary basic launches a piercing adaptive fist-wind wave.
     if (Body.ActiveFrenzy.IsSet() && Now<Body.FrenzyUntilMs)
     {
@@ -1460,10 +1465,6 @@ bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body,
     }
     // A05: a contender's basic flies toward its target as a dodgeable projectile carrying its strikes and riders; it lands on
     // the first legal body in its way instead of the target for certain.
-    TArray<FLDPassiveEffectRef> Flights;
-    if (Body.Victim.Kind==ELDVictimKind::Contender
-        && !CardsOn(Body.AttributeProjection,ELDDemoEffectOp::BasicProjectile,{ELDCombatSourceKind::Basic,NAME_None},Flights,Error))
-    { return false; }
     ALDCharacter* TargetActor=nullptr;
     FindBody(Action.TargetBody,&TargetActor);
     if (!Flights.IsEmpty() && TargetActor)
@@ -1491,6 +1492,14 @@ bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body,
         // A08 waits for the flight to strike a body.
         Projectile.bComboCast=true;
         Projectile.ComboBasic=Action;
+        // Auto-empower: the empowered punch flies through every body to the end of its reach; the others take its cone share.
+        if (EmpowerSerial>0)
+        {
+            const FLDDemoEmpowerParameters* EmpowerP=EmpowerTerms();
+            Projectile.bEmpowerPunch=true;
+            Projectile.PierceRemaining=32;
+            Projectile.PierceScaleBp=EmpowerP ? EmpowerP->FistConeRatioBp : 0;
+        }
         if (Projectile.Direction.IsNearlyZero() || Projectile.SpeedCmPerSec<=0)
         { Error=TEXT("A flying basic has no direction or speed."); return false; }
         Projectiles.Add(MoveTemp(Projectile));
@@ -2183,6 +2192,8 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         if (!bHandled && !DeliverReleasePayload(Actor,Body,Terms,DeliveryAction,Template,UnitTarget,TargetFoot,ReleaseFoot,AreaTargets,Now,Error))
         { return false; }
         if (!ArmBranchHostile(Body,Terms,Template,AreaTargets,Now,Error)) { return false; }
+        // Auto-empower (S07, S09): the strike's ground state under the caster or where its line ends.
+        if (EmpowerSerial>0 && !EmpowerGround(Body,Terms,Template,ReleaseFoot,Action.Direction,Now,Error)) { return false; }
     }
     // A ground zone sits on the landed ground point, else at the requested point clamped to the authored reach.
     FVector ZonePoint=Action.TargetPoint;
@@ -2350,6 +2361,12 @@ bool ALDCombatDirector::DeliverReleasePayload(const ALDCharacter& Actor, const F
             Projectile.PierceRemaining=Terms.ProjectilePierce->Effect.Count;
             Projectile.PierceScaleBp=Terms.ProjectilePierce->Effect.MultiplierBp;
         }
+        // Auto-empower (S06, N3): the flight goes through every body on its way at its full package.
+        if (Terms.EmpowerShape.PierceCount>0)
+        {
+            Projectile.PierceRemaining=FMath::Max(Projectile.PierceRemaining,Terms.EmpowerShape.PierceCount);
+            Projectile.PierceScaleBp=FMath::Max(Projectile.PierceScaleBp,Terms.EmpowerShape.PierceScaleBp);
+        }
         if (Terms.ProjectileReturn.IsSet())
         {
             Projectile.ReturnScaleBp=Terms.ProjectileReturn->Effect.MultiplierBp;
@@ -2382,7 +2399,8 @@ bool ALDCombatDirector::DeliverReleasePayload(const ALDCharacter& Actor, const F
             {
                 return FVector::DotProduct(A.Value-ReleaseFoot,Along)<FVector::DotProduct(B.Value-ReleaseFoot,Along);
             });
-            if (!Line.IsEmpty()) { Line.SetNum(1); }
+            // Auto-empower (S02): an empowered grab takes every body on its line.
+            if (!Line.IsEmpty() && !Terms.EmpowerShape.bGrabAll) { Line.SetNum(1); }
         }
         if (Grab && Line.IsEmpty() && Grab->RatioBp>0 && Grab->DurationMs>0)
         {

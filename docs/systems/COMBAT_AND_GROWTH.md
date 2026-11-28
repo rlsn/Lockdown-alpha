@@ -65,8 +65,9 @@
 - **释放扣费**：强化动作释放时劲仍 ≥ `EMPOWER.Cost` 就扣费并生效，打空也扣；此时劲不够则按普通动作释放、不扣（`LD_EMPOWER outcome=short`）。前摇被取消或打断都不扣。
 - **处理器**：普攻为拳，D 为动；技能按自身效果分——强化普攻包或拳风为拳，冲刺为动，自身护盾/招架/顶住/嘲讽为守，放置区域/陷阱/风扇/书包/封条为阵，其余为攻。
   - 拳：本拳按第 3 段结算（连击不推进也不重置），推开目标 `EMPOWER.FistPushCm`，前方扇形内其他敌人吃本拳 `EMPOWER.FistConeRatio` 的追加伤害。单包拳技（S11）释放后，下一拳就是不再扣费的强化拳；多包拳技多 `EMPOWER.ExtraCount` 包，拳风宽 `EMPOWER.ShapeScale` 倍。
-  - 攻：范围、直线长宽、扇形角度、弹道射程与半径、击退距离乘 `EMPOWER.ShapeScale`，弹射多 `EMPOWER.ExtraCount` 次，伤害不乘；叠加元素层。
-  - 守：招架窗口、顶住的记录上限与反击半径、嘲讽半径乘 `EMPOWER.ShapeScale`（控制时长不变）；本次给的护盾被打破或到期时，向 `EMPOWER.GuardBurstRadiusCm` 内爆开本次护盾量的 `EMPOWER.GuardBurstRatio`。
+  - 攻：范围、直线长宽、弹道射程与半径、击退距离乘 `EMPOWER.ShapeScale`，扇形角度乘 `EMPOWER.ConeAngleScale`（射程不变），弹射多 `EMPOWER.ExtraCount` 次，伤害不乘；叠加元素层。
+  - 守：招架窗口、顶住的记录上限与反击半径、嘲讽半径乘 `EMPOWER.ShapeScale`（控制时长不变）；本次给的护盾被打破或到期时，向 `EMPOWER.GuardBurstRadiusCm` 内爆开本次护盾量的 `EMPOWER.GuardBurstRatio`。这层护盾的所有爆炸（自身、S13 A1 式、Y06 每层一次）都带本次强化序号。
+  - 形态变化（每条对应规格 §2.3 一行所复用的机制，`LDAutoEmpower::ApplyForms`）：攻的单体击退撞墙眩晕至少 `EMPOWER.WallStunSec`（S01）；抓扯拉住直线上所有身体（S02）；弹道穿过路上所有身体、每人吃全额（S06、N3）；技能自身元素留地面——火在脚下留火场（范围同本次区域，S07），水在直线终点留水洼（S09），冰在扇形上留冰面（复用 N1 2A，S 已有时取较长时长），各持续 `EMPOWER.GroundSec`；守的招架反震眩晕至少 `EMPOWER.CounterStunSec`（S05）；阵的封条首次触碰即眩晕 `EMPOWER.TouchStunSec`（N6）。拳宿主带 A05 飞行普攻时不打扇形，改为弹体穿透到射程尽头，后续每人吃 `EMPOWER.FistConeRatio` 的追加伤害。
   - 动：穿过身体不被拦停，一次最多结算 `EMPOWER.DashContactCap` 个接触（多出的不算接触），冲刺技能每个接触都吃原生命中；不刷新、不改冲刺距离与冷却；落地在 `EMPOWER.QuakeRadiusCm` 内减速。
   - 阵：区域（含跳数）、陷阱、风扇、书包（含生命）、封条持续与范围乘 `EMPOWER.ShapeScale`，陷阱引信最多 `EMPOWER.WardFuseSec`；叠加元素层。
   - 元素层：技能元素，否则分支元素，否则该槽勋章元素——烫加层、湿减速、麻追加 R 的份额、馊延长、冻定身（计硬控递减）。

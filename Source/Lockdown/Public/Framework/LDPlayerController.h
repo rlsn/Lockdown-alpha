@@ -250,6 +250,13 @@ public:
     // Auto-empower: the owner's host choice (Basic, Q, W, E or D) under its own increasing sequence (a repeat changes
     // nothing); a refusal comes back as one toast.
     void RequestEmpowerHost(ELDCombatEntry Host);
+    // The sequence of the last host request this owner sent, and of its last refused one (with the reason).
+    uint64 SentEmpowerHostSequence() const { return EmpowerHostSequence; }
+    uint64 RefusedEmpowerHostSequence(FString* OutReason=nullptr) const
+    {
+        if (OutReason) { *OutReason=EmpowerHostRefusal; }
+        return EmpowerHostRefusedSequence;
+    }
     UFUNCTION(Server,Reliable) void ServerSetEmpowerHost(uint32 Generation,uint64 Sequence,ELDCombatEntry Host);
     UFUNCTION(Client,Reliable) void ClientEmpowerHostRefused(uint64 Sequence,const FString& Reason);
     UFUNCTION(Client,Reliable) void ClientCombatReceipt(const FLDCombatActionReceipt& Receipt);
@@ -270,6 +277,9 @@ private:
     uint64 DemoPendingSequence=0;
     // The last auto-empower host request sequence this owner sent.
     uint64 EmpowerHostSequence=0;
+    // The last refused host request (its sequence and reason; 0 = none yet).
+    uint64 EmpowerHostRefusedSequence=0;
+    FString EmpowerHostRefusal;
     void InitializeLocalUI();
     void UpdateV05Inputs(float Delta);
     void V05Pressed(FName Action);

@@ -1,10 +1,14 @@
 #include "Combat/LDAutoEmpower.h"
 
+#include "Combat/LDCombatElements.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 
 namespace LDAutoEmpowerDetail
 {
+    // An empowered flight's pierce budget: more than the bodies one flight can meet.
+    constexpr int32 MaxPierce=32;
+
     FLDDemoEffectDefinition* Find(FLDDemoAbilityValues& Values, ELDDemoEffectOp Op)
     {
         return Values.Effects.FindByPredicate([Op](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp()==Op; });
@@ -27,15 +31,19 @@ bool LDAutoEmpower::Enabled(const FLDDemoEmpowerParameters& P)
     return (P.bEnabled || bSwitch) && P.ThresholdP2>0 && P.CostP2>0 && P.CostP2<=P.ThresholdP2;
 }
 
-ELDCombatEntry LDAutoEmpower::SwitchHost()
+ELDCombatEntry LDAutoEmpower::ParseHost(const FString& Name)
 {
-    FString Name;
-    if (!FParse::Value(FCommandLine::Get(),TEXT("LDEmpowerHost="),Name)) { return ELDCombatEntry::None; }
     for (const ELDCombatEntry Entry : {ELDCombatEntry::Basic,ELDCombatEntry::Q,ELDCombatEntry::W,ELDCombatEntry::E,ELDCombatEntry::Dash})
     {
         if (Name.Equals(EntryName(Entry),ESearchCase::IgnoreCase)) { return Entry; }
     }
     return ELDCombatEntry::None;
+}
+
+ELDCombatEntry LDAutoEmpower::SwitchHost()
+{
+    FString Name;
+    return FParse::Value(FCommandLine::Get(),TEXT("LDEmpowerHost="),Name) ? ParseHost(Name) : ELDCombatEntry::None;
 }
 
 bool LDAutoEmpower::Ready(const FLDDemoEmpowerParameters& P, int64 MomentumP2)
@@ -140,8 +148,7 @@ void LDAutoEmpower::ApplyStrike(const FLDDemoEmpowerParameters& P, FLDDemoTarget
         Target.LineHalfWidthCm=ScaleCm(Target.LineHalfWidthCm,Bp);
         break;
     case ELDDemoTargetMode::DirectionCone:
-        Target.RangeCm=ScaleCm(Target.RangeCm,Bp);
-        Target.AngleDegrees=ScaleCm(Target.AngleDegrees,Bp);
+        Target.AngleDegrees=ScaleCm(Target.AngleDegrees,P.ConeAngleScaleBp);
         break;
     case ELDDemoTargetMode::DirectionProjectile:
         Target.RangeCm=ScaleCm(Target.RangeCm,Bp);
@@ -162,7 +169,7 @@ void LDAutoEmpower::ApplyStrike(const FLDDemoEmpowerParameters& P, FLDDemoTarget
             Effect.DistanceCm=ScaleCm(Effect.DistanceCm,Bp);
             break;
         case EOp::ChannelCone:
-            Effect.AngleDegrees=ScaleCm(Effect.AngleDegrees,Bp);
+            Effect.AngleDegrees=ScaleCm(Effect.AngleDegrees,P.ConeAngleScaleBp);
             break;
         case EOp::ChainBounce:
             Effect.Count+=P.ExtraCount;
@@ -170,6 +177,63 @@ void LDAutoEmpower::ApplyStrike(const FLDDemoEmpowerParameters& P, FLDDemoTarget
         default:
             break;
         }
+    }
+}
+
+void LDAutoEmpower::ApplyForms(const FLDDemoEmpowerParameters& P, ELDEmpowerProcessor Processor, ELDDemoSkillElement Element,
+    FLDDemoTargetDefinition& Target, FLDDemoAbilityValues& Values, FLDEmpowerShape& Out)
+{
+    using namespace LDAutoEmpowerDetail;
+    using EOp=ELDDemoEffectOp;
+    Out=FLDEmpowerShape();
+    if (Processor==ELDEmpowerProcessor::Guard)
+    {
+        if (FLDDemoEffectDefinition* Parry=Find(Values,EOp::ParryStance)) { Parry->ExtraDurationMs=FMath::Max(Parry->ExtraDurationMs,P.CounterStunMs); }
+        return;
+    }
+    if (Processor==ELDEmpowerProcessor::Ward)
+    {
+        if (Has(Values,EOp::CordonLine)) { Out.TouchStunMs=P.TouchStunMs; }
+        return;
+    }
+    if (Processor!=ELDEmpowerProcessor::Strike) { return; }
+    if (FLDDemoEffectDefinition* Push=Find(Values,EOp::Knockback); Push && Target.Mode==ELDDemoTargetMode::Unit)
+    { Push->ExtraDurationMs=FMath::Max(Push->ExtraDurationMs,P.WallStunMs); }
+    Out.bGrabAll=Has(Values,EOp::GrabLine);
+    if (Target.Mode==ELDDemoTargetMode::DirectionProjectile)
+    {
+        // Every body on the way (each one once: a flight never strikes the same body twice).
+        Out.PierceCount=MaxPierce;
+        Out.PierceScaleBp=10000;
+    }
+    ELDGroundStateKind Kind=ELDGroundStateKind::None;
+    switch (Element)
+    {
+    case ELDDemoSkillElement::Fire: Kind=ELDGroundStateKind::Fire; break;
+    case ELDDemoSkillElement::Water: Kind=ELDGroundStateKind::Puddle; break;
+    case ELDDemoSkillElement::Chill: Kind=ELDGroundStateKind::Ice; break;
+    default: break;
+    }
+    if (Kind==ELDGroundStateKind::None || P.GroundLifeMs<=0) { return; }
+    if (Has(Values,EOp::ChannelCone))
+    {
+        // The cone's own ground state (N1 2A's ice over the sector) lasts at least GroundLifeMs.
+        FLDDemoEffectDefinition* Ground=Find(Values,EOp::GroundState);
+        if (!Ground)
+        {
+            Ground=&Values.Effects.AddDefaulted_GetRef();
+            Ground->Opcode=uint16(EOp::GroundState);
+            Ground->GroundKind=uint8(Kind);
+        }
+        Ground->DurationMs=FMath::Max(Ground->DurationMs,P.GroundLifeMs);
+        return;
+    }
+    const FLDDemoEffectDefinition* Area=Find(Values,EOp::SelfArea);
+    if ((Target.Mode==ELDDemoTargetMode::Self && Area) || Target.Mode==ELDDemoTargetMode::DirectionLine)
+    {
+        Out.GroundKind=uint8(Kind);
+        Out.GroundLifeMs=P.GroundLifeMs;
+        if (Target.Mode==ELDDemoTargetMode::Self) { Out.GroundRadiusCm=Area->RadiusCm; }
     }
 }
 

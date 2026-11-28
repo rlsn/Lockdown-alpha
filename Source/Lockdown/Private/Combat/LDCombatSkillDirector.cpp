@@ -252,6 +252,7 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
         Cordon.Id=FGuid::NewGuid();
         Cordon.Payload=Payload;
         Cordon.Terms=*Tape;
+        Cordon.TouchStunMs=Terms.EmpowerShape.TouchStunMs;
         Cordon.CentreCm=Centre;
         // The authored width is the whole tape across (spec 500 x 70 cm).
         Cordon.HalfWidthCm=FMath::Max(25.,Cm(Tape->ExtraDistanceCm)*.5);

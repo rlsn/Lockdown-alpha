@@ -22965,9 +22965,17 @@
       "numerator": 5,
       "unit": "momentum/s"
     },
+    "EMPOWER.ConeAngleScale": {
+      "bp": 20000,
+      "unit": "ratio"
+    },
     "EMPOWER.Cost": {
       "p2": 5000,
       "unit": "momentum"
+    },
+    "EMPOWER.CounterStunSec": {
+      "ms": 500,
+      "unit": "ms"
     },
     "EMPOWER.DamagedPerPercent": {
       "p2": 0,
@@ -23020,6 +23028,10 @@
       "numerator": 120,
       "unit": "cm"
     },
+    "EMPOWER.GroundSec": {
+      "ms": 3000,
+      "unit": "ms"
+    },
     "EMPOWER.GuardBurstRadiusCm": {
       "denominator": 1,
       "numerator": 300,
@@ -23054,6 +23066,14 @@
     "EMPOWER.Threshold": {
       "p2": 6000,
       "unit": "momentum"
+    },
+    "EMPOWER.TouchStunSec": {
+      "ms": 600,
+      "unit": "ms"
+    },
+    "EMPOWER.WallStunSec": {
+      "ms": 600,
+      "unit": "ms"
     },
     "EMPOWER.WardFuseSec": {
       "ms": 150,
