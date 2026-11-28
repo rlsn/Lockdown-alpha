@@ -172,6 +172,9 @@ private:
     // Contenders already paid the audit affix's skill point this match (AFFIX.AuditSkillPointsMax each).
     TMap<FGuid, int32> AuditPointsPaid;
     bool bBossBlockedLogged = false;
+    // The Boss's last refused walk (logged once until it changes or a plan succeeds) and when it may plan again.
+    FString BossPathRefusal;
+    double BossPathRetryAt = 0;
     uint64 BossSequence = 0;
     // Roster index of the next initial camp to spawn; NumCamps once every camp stood up (MAX_int32 before the match).
     int32 NextInitialCamp = MAX_int32;

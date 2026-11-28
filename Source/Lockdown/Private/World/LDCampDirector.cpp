@@ -27,6 +27,8 @@ namespace
     constexpr double CampGoalToleranceCm = LDPathSteering::WaypointToleranceCm;
     constexpr double CampReplanShiftCm = 50.;
     constexpr double CampStallSeconds = 2.;
+    // A refused Boss walk is planned again no sooner than this.
+    constexpr double BossPathRetrySeconds = .5;
 
     bool CampPositiveCm(const FLDDemoRational& Value, double& Out)
     {
@@ -799,15 +801,26 @@ bool ALDCampDirector::ProcessBoss(const FLDGameplayWritePermit& Permit, FString&
     auto Walk = [&](const FVector& Goal, const TCHAR* What)
     {
         if (Track.bActive && FVector::DistSquared2D(Track.Goal, Goal) <= FMath::Square(CampReplanShiftCm)) { return; }
+        // A refused plan holds the Boss where it stands and is tried again only after BossPathRetrySeconds.
+        if (!Track.bActive && Now < BossPathRetryAt) { return; }
         FMotion Planned;
         FString PlanError;
         if (PlanPath(Self, Boss.Rules.SurfaceId, Goal, Now, Planned, PlanError))
         {
             Track = MoveTemp(Planned);
+            BossPathRefusal.Reset();
+            BossPathRetryAt = 0;
             return;
         }
         StopMotion(Entity);
-        UE_LOG(LogLDWorld, Warning, TEXT("LD_BOSS_PATH_REJECTED %s %s"), What, *PlanError);
+        BossPathRetryAt = Now + BossPathRetrySeconds;
+        // One line per refusal, not per retry: again only once it changes or a plan succeeded in between.
+        const FString Refusal = FString::Printf(TEXT("%s %s"), What, *PlanError);
+        if (Refusal != BossPathRefusal)
+        {
+            BossPathRefusal = Refusal;
+            UE_LOG(LogLDWorld, Warning, TEXT("LD_BOSS_PATH_REJECTED %s"), *Refusal);
+        }
     };
     switch (Decision.Intent)
     {
@@ -1394,6 +1407,8 @@ void ALDCampDirector::EndMatch()
     Stranded.Reset();
     BlockedRefresh.Reset();
     bEvaluationClearPending = false;
+    BossPathRefusal.Reset();
+    BossPathRetryAt = 0;
     Boss = {};
     CampAffixes.Reset();
     MemberAffixes.Reset();

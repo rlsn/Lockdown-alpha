@@ -31,6 +31,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoMotionProbe.RampSeamSupport",
         "Lockdown.Rules.DemoMotionProbe.TerrainTraversal",
         "Lockdown.Rules.DemoMotionProbe.LedgeNavigation",
+        "Lockdown.Rules.DemoMotionProbe.PlanStartLayer",
         "Lockdown.Rules.DemoMotionProbe.Stationary",
         "Lockdown.Rules.DemoMotionProbe.StationarySupport",
         "Lockdown.Rules.ArtCatalogAsset",
