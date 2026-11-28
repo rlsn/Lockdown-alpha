@@ -1370,6 +1370,39 @@ bool FLDGroundWarningFromWindupTest::RunTest(const FString& Parameters)
     return true;
 }
 
+// C-12: a learned unit skill in its windup locks only its target, never its caster or a bystander, until it releases.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDIncomingLockTest, "Lockdown.Rules.DemoSkillExpansion.IncomingLock",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDIncomingLockTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const auto Caster=F.AddBody(), Target=F.AddBody(), Bystander=F.AddBody();
+    FString Error;
+    const FLDDemoAbilityDefinition* Zap=nullptr;
+    if (!TestTrue(TEXT("The zap exists"),F.Catalog->FindAbility(TEXT("active_zap"),Zap,Error))) { return false; }
+    F.Now(1000);
+    FLDCombatAction Action;
+    Action.Kind=ELDCombatActionKind::Ability;
+    Action.Source.Kind=ELDCombatSourceKind::Learned; Action.Source.DefinitionId=TEXT("active_zap");
+    Action.Target.Kind=ELDCombatTargetKind::Unit;
+    Action.TargetBody=Target;
+    Action.StartedAtMs=1000; Action.ReleaseAtMs=1250;
+    F.Body(Caster).Action=Action;
+    TArray<FLDCombatIncomingLock> Locks;
+    TestTrue(TEXT("The target reads its lock"),F.Driver->ReadIncomingLocks(Target.Victim.EntityId,Locks,Error) && Locks.Num()==1
+        && Locks[0].SourceEntity==Caster.Victim.EntityId && Locks[0].RemainingMs==250 && Locks[0].Ability==Zap->NativeId);
+    TestTrue(TEXT("Nobody else is locked"),F.Driver->ReadIncomingLocks(Bystander.Victim.EntityId,Locks,Error) && Locks.IsEmpty()
+        && F.Driver->ReadIncomingLocks(Caster.Victim.EntityId,Locks,Error) && Locks.IsEmpty());
+    F.Now(1250);
+    TestTrue(TEXT("A windup at its release locks nothing more"),F.Driver->ReadIncomingLocks(Target.Victim.EntityId,Locks,Error) && Locks.IsEmpty());
+    F.Now(1100);
+    F.Body(Caster).Action.Reset();
+    TestTrue(TEXT("An abandoned windup locks nothing"),F.Driver->ReadIncomingLocks(Target.Victim.EntityId,Locks,Error) && Locks.IsEmpty());
+    return true;
+}
+
 // Every flight a contender can throw has a public look: A05's flying basic (an unnamed basic source) and N3 used to stop
 // the match when the observation step met them.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDFlightLookTest, "Lockdown.Rules.DemoSkillExpansion.FlightLooks",

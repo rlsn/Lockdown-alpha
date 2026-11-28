@@ -134,6 +134,32 @@ bool ALDCombatDirector::ObservedCastSource(const ALDCharacter& Body, int64 NowMs
     return false;
 }
 
+bool ALDCombatDirector::ReadIncomingLocks(const FGuid& Observer, TArray<FLDCombatIncomingLock>& Out, FString& Error) const
+{
+    Out.Reset();
+    const auto* Mode=Authority();
+    const FLDDemoContentSnapshot* Content=Catalog();
+    if (!Mode || !Content) { Error=TEXT("Incoming locks require the current match and its content."); return false; }
+    const int64 NowMs=Mode->GetAuthorityNowMs();
+    for (const auto& Pair : Bodies)
+    {
+        const FLDBodyCombatState& Body=Pair.Value;
+        if (Body.bPendingDeath || !Body.Action.IsSet() || Body.Victim.EntityId==Observer) { continue; }
+        const FLDCombatAction& Action=Body.Action.GetValue();
+        if (Action.Kind!=ELDCombatActionKind::Ability || Action.Source.Kind!=ELDCombatSourceKind::Learned
+            || Action.Target.Kind!=ELDCombatTargetKind::Unit || Action.TargetBody.Victim.EntityId!=Observer || Action.ReleaseAtMs<=NowMs)
+        { continue; }
+        const FLDDemoAbilityDefinition* Ability=nullptr;
+        if (!Content->FindAbilityByName(Action.Source.DefinitionId,Ability,Error)) { return false; }
+        FLDCombatIncomingLock& Lock=Out.AddDefaulted_GetRef();
+        Lock.SourceEntity=Body.Victim.EntityId;
+        Lock.RemainingMs=Action.ReleaseAtMs-NowMs;
+        Lock.Ability=Ability->NativeId;
+    }
+    Error.Reset();
+    return true;
+}
+
 bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact>& Out, FString& Error) const
 {
     Out.Reset();

@@ -256,6 +256,14 @@ struct FLDCombatLandingPreview
     FGuid ObservedKey;
 };
 
+// C-12: a learned unit skill in its windup aimed at one contender: its caster, the time to its release and the skill.
+struct FLDCombatIncomingLock
+{
+    FGuid SourceEntity;
+    int64 RemainingMs=0;
+    uint8 Ability=0;
+};
+
 // One accepted, not yet released action of one body life. Dies with the life.
 struct FLDCombatAction
 {
@@ -1055,6 +1063,9 @@ public:
     // Spec §14 public ground-state facts for the observation owner (every live state; its relay keeps the visible ones).
     bool ReadObservedGround(TArray<struct FLDObservedGroundFact>& Out, FString& Error) const;
     bool ReadObservedProjectiles(TArray<FLDObservedProjectileFact>& Out, FString& Error) const;
+    // C-12: every learned unit skill in its windup aimed at Observer's body (never its own). The observation owner keeps
+    // only the ones whose caster the observer's frame already shows.
+    bool ReadIncomingLocks(const FGuid& Observer, TArray<FLDCombatIncomingLock>& Out, FString& Error) const;
     // A body life's cue facts with its winding-up action and dash filled in.
     static FLDCombatCueFacts CueFactsOf(const FLDBodyCombatState& Body);
     // Public Q/W/E facts of a build (#112 §10): each held active's native id in its slot. False when a held active has no
