@@ -137,6 +137,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoElements.Brace",
         # Issue #287 P4: elements, reactions, ground states and the 1v1 bounce.
         "Lockdown.Rules.Combat.Elements.Matrix",
+        "Lockdown.Rules.Combat.Elements.MedalTier3Secondary",
         "Lockdown.Rules.Combat.Elements.Shock",
         "Lockdown.Rules.Combat.Elements.Rot",
         "Lockdown.Rules.Combat.GroundState.Transitions",

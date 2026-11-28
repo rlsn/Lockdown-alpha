@@ -5041,6 +5041,57 @@ bool FLDIssue345SkillsAndFrameworksTest::RunTest(const FString& Parameters)
     return true;
 }
 
+// A Ⅲ medal's hit attaches its primary element and then the fixed secondary of that primary (CONTENT_AND_BALANCE: fire,
+// water -> shock; shock, chill -> water; rot -> fire), so every hit of one medal triggers the same reaction.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatMedalTier3SecondaryTest, "Lockdown.Rules.Combat.Elements.MedalTier3Secondary",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCombatMedalTier3SecondaryTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    struct FCase { const TCHAR* Medal; ELDCombatElement Primary; ELDCombatElement Secondary; };
+    const FCase Cases[] = {
+        {TEXT("medal_fire"), ELDCombatElement::Fire, ELDCombatElement::Shock},
+        {TEXT("medal_water"), ELDCombatElement::Water, ELDCombatElement::Shock},
+        {TEXT("medal_electric"), ELDCombatElement::Shock, ELDCombatElement::Water},
+        {TEXT("medal_chill"), ELDCombatElement::Chill, ELDCombatElement::Water},
+        {TEXT("medal_rot"), ELDCombatElement::Rot, ELDCombatElement::Fire}};
+    bool bGood = true;
+    for (const FCase& Case : Cases)
+    {
+        const FLDCombatBodyRef Holder = F.AddBody();
+        F.Place(Holder, -300, 0);
+        if (!InstallCards(*this, F, Holder, 6, {{Case.Medal, ELDCardTargetKind::Skill, FName(TEXT("active_elbow")), ELDDemoElement::None, 3}}))
+        { return false; }
+        const ELDCombatReaction Expected = LDCombatElements::ReactionOf(Case.Primary, Case.Secondary);
+        for (int32 Trial = 0; Trial < 6; ++Trial)
+        {
+            // A fresh body on clean ground each time: what an earlier reaction left behind never joins this one.
+            FAccess::GroundStates(*F.Driver).Reset();
+            FAccess::Fogs(*F.Driver).Reset();
+            FAccess::Zones(*F.Driver).Reset();
+            FAccess::PendingHits(*F.Driver).Reset();
+            const FLDCombatBodyRef Target = F.AddBody(ELDVictimKind::Contender, 10000000);
+            F.Place(Target, 0, 0);
+            FLDCombatHit Hit = FFixture::Hit(Holder, Target, 2000);
+            Hit.Source = SourceOf(ELDCombatSourceKind::Learned, TEXT("active_elbow"));
+            Hit.DamageType = ELDDemoDamageType::Physical;
+            Hit.bDirectAbilityDamage = true;
+            FAccess::Reactions(*F.Driver).Reset();
+            FString Error;
+            if (!TestTrue(FString::Printf(TEXT("%s hit resolves: %s"), Case.Medal, *Error), F.Apply(Hit, Error))) { return false; }
+            const FLDCombatReactionFact* Fact = FAccess::Reactions(*F.Driver).FindByPredicate([&Target](const FLDCombatReactionFact& Each)
+            { return Each.Primary == Target; });
+            bGood &= TestTrue(FString::Printf(TEXT("%s Ⅲ (trial %d) reacts with its fixed secondary"), Case.Medal, Trial),
+                Fact && Fact->Kind == Expected);
+            F.Body(Target).bPendingDeath = true;
+        }
+        F.Body(Holder).bPendingDeath = true;
+    }
+    return bGood;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatCordonBoostTest, "Lockdown.Rules.Combat.Skills.CordonBoost",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
