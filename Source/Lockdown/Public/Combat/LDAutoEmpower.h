@@ -16,7 +16,8 @@ namespace LDAutoEmpower
     // The host -LDEmpowerHost=Basic|Q|W|E|D gives every contender that has not chosen one (None without the switch).
     LOCKDOWN_API ELDCombatEntry SwitchHost();
 
-    // An action started on a bar holding the threshold is empowered; it pays the cost when it releases on a bar holding it.
+    // An action started on a bar holding the threshold is empowered; it pays the cost when it releases on a bar holding it
+    // (the caller has the running terms: ALDCombatDirector::EmpowerTerms).
     LOCKDOWN_API bool Ready(const FLDDemoEmpowerParameters& P, int64 MomentumP2);
     LOCKDOWN_API bool CanPay(const FLDDemoEmpowerParameters& P, int64 MomentumP2);
 

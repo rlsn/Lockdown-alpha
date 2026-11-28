@@ -5557,6 +5557,7 @@ bool FLDEmpowerChainNoMomentumTest::RunTest(const FString& Parameters)
     // E1: a primary basic of an empowered punch gains its caster nothing; an ordinary one gains its interval's share.
     FLDCombatHit Punch = FFixture::Hit(Caster, Victim, 100);
     Punch.HitClass = ELDCombatHitClass::BasicPrimary;
+    Punch.DamageType = ELDDemoDamageType::Physical;
     Punch.BasicIntervalMs = 1334;
     Punch.EmpowerSerial = 1;
     F.Body(Caster).Resources.MomentumP2 = 1000;

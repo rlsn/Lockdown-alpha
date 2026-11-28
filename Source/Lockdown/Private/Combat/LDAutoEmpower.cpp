@@ -40,12 +40,12 @@ ELDCombatEntry LDAutoEmpower::SwitchHost()
 
 bool LDAutoEmpower::Ready(const FLDDemoEmpowerParameters& P, int64 MomentumP2)
 {
-    return Enabled(P) && MomentumP2>=P.ThresholdP2;
+    return P.ThresholdP2>0 && MomentumP2>=P.ThresholdP2;
 }
 
 bool LDAutoEmpower::CanPay(const FLDDemoEmpowerParameters& P, int64 MomentumP2)
 {
-    return Enabled(P) && MomentumP2>=P.CostP2;
+    return P.CostP2>0 && MomentumP2>=P.CostP2;
 }
 
 bool LDAutoEmpower::IsHostEntry(ELDCombatEntry Entry)
