@@ -353,6 +353,11 @@ namespace LDProgression
     // rest shop, minus one per rank above 1 of each learned skill. Forgetting or replacing a skill drops its ranks, so their points come back. Negative is a
     // corrupt build (ValidateBuild refuses it).
     LOCKDOWN_API int32 SkillPoints(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build);
+    // The skill points the build could still turn into ranks: ranks 2 and 3 of every active slot, less every point it has
+    // earned (levels, shop, affix, development). Once it is 0 the shop sells no more and the affix grants none.
+    LOCKDOWN_API int32 SkillPointRoom(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build);
+    // The match's shop skill points this build may buy: SHOP.SkillPointMaxPerMatch, no more than it can still use.
+    LOCKDOWN_API int32 ShopSkillPointCap(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build);
     // RankUpSkill: the skill in Slot takes Branch, its next rank, for one skill point; open like AllocatePoints.
     LOCKDOWN_API ELDGrowthReason ApplyRankUpSkill(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
         uint8 Slot, ELDSkillBranch Branch, const FBuildContext& Context, FLDGrowthBuild& Out);

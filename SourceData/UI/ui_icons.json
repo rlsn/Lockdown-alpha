@@ -724,12 +724,6 @@
       "height": 128
     },
     {
-      "id": "icon_card_dodge_strike",
-      "sha256": "6c8d057dfb349cbc0944b85a19eec11ef0ee2ebb9966b008fe480e782bd027d9",
-      "width": 128,
-      "height": 128
-    },
-    {
       "id": "icon_card_fist_skill",
       "sha256": "58dd9b9a80be9cdd09ce60101592107f4c84e26ec3e1848e6b141017f660355f",
       "width": 128,
@@ -802,18 +796,6 @@
       "height": 128
     },
     {
-      "id": "icon_card_short_breath",
-      "sha256": "f5765c122fd4a7ae3624a219b8d90f1342ddd9c01430a3427fd0c40888b10701",
-      "width": 128,
-      "height": 128
-    },
-    {
-      "id": "icon_card_slippery",
-      "sha256": "785d1dac0fdc1d42e360f96a8d691eec376be967bd8e738edc887c77623e21e3",
-      "width": 128,
-      "height": 128
-    },
-    {
       "id": "icon_card_slow_craft",
       "sha256": "1b8ade8a8539fdd81e87bcc564f30f77a270084fba2a0a1939b8914e54e4805b",
       "width": 128,
@@ -876,12 +858,6 @@
     {
       "id": "icon_card_runaway_train",
       "sha256": "d05cbdad6862df464169235248144dd5ae24e1d1562ca6d3f5919636a15eaf87",
-      "width": 128,
-      "height": 128
-    },
-    {
-      "id": "icon_card_phantom_molt",
-      "sha256": "282e80a01674cd5409044d103c1a46d1f97ed673cd67727b06b5b21ec0153db9",
       "width": 128,
       "height": 128
     },

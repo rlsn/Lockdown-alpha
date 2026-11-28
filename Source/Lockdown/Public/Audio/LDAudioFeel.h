@@ -29,8 +29,8 @@ namespace LDAudioFeel
     // The start of a cast windup long enough to charge; the returned sound is cut at the release (null = none plays).
     LOCKDOWN_API UAudioComponent* Charge(const UObject& Body, bool bOwnBody, const FVector& At);
     LOCKDOWN_API void CutCharge(UAudioComponent* Charge);
-    // A skill (ELDDemoAbilityId) released; an overdrive release adds the finisher body under it.
-    LOCKDOWN_API void Release(const UObject& Body, bool bOwnBody, uint8 Ability, bool bOverdrive, const FVector& At);
+    // A skill (ELDDemoAbilityId) released.
+    LOCKDOWN_API void Release(const UObject& Body, bool bOwnBody, uint8 Ability, const FVector& At);
     // A resolved hit on another visible body (the own body's hurt sounds from the owner tracker): its look, its outcome
     // flags (LDObservation::EHitFlags), whether the strike it belongs to is a combo finisher, and the skill (ELDDemoAbilityId)
     // whose visible strike the effects matched it to (0 = none): a skill with its own hit sound plays that.

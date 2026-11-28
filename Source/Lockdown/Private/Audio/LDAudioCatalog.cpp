@@ -16,7 +16,7 @@ namespace
         TEXT("SelfDash"), TEXT("UIHover"), TEXT("UIPickup"), TEXT("UIInstall"), TEXT("UIReject"), TEXT("UIWorkshopOpen"),
         TEXT("UIWorkshopClose"), TEXT("UIOfferDeal"), TEXT("UIChoose"), TEXT("UIGain"), TEXT("UIAddPoint"), TEXT("UIHoldCharge"),
         TEXT("UIFinalLock"), TEXT("SelfDealtImpact"), TEXT("SelfDealtAccent"),
-        TEXT("SelfPerfectDodge"), TEXT("SelfParry"), TEXT("SelfPickup"), TEXT("UIMedalFuse"),
+        nullptr, TEXT("SelfParry"), TEXT("SelfPickup"), TEXT("UIMedalFuse"),
         TEXT("SwingLight"), TEXT("SwingFinisher"), TEXT("HitBasic"), TEXT("HitFinisher"), TEXT("HitElectric"), TEXT("HitFire"),
         TEXT("HitWater"), TEXT("HitMagic"), TEXT("CastCharge"), TEXT("CastRelease"), TEXT("SelfDealtCrit"), TEXT("SelfDealtKill"),
         TEXT("ReactionFog"), TEXT("ReactionConduct"), TEXT("ReactionOverload"), TEXT("ReactionMelt"), TEXT("ReactionMethane"),

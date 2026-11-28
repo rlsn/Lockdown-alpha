@@ -1548,16 +1548,10 @@ LDHUD::FObservedCard LDHUD::ObservedCard(const FLDObservedUnitView& Unit,const F
     Card.bMomentum=(Unit.AuthorizedFieldMask&LDObservation::Momentum)!=0;
     if(Card.bMomentum)
     {
-        // The public bar is a 0..255 fraction: the card shows its share, and a bar at the public overdrive threshold (a possible
-        // overdrive) glows.
+        // The public bar is a 0..255 fraction: the card shows its share.
         Card.Momentum.bKnown=true;
         Card.Momentum.Fraction=float(Unit.MomentumBar)/float(LDObservation::MomentumBarFull);
         Card.Momentum.Text=FString::Printf(TEXT("%s %d%%"),LDTerms::Momentum,FMath::RoundToInt(Card.Momentum.Fraction*100.f));
-        const int64 MaxP2=Content?Content->Parameters.Momentum.MaxP2:0;
-        const int64 ReadyBar=MaxP2>0?FMath::DivideAndRoundUp<int64>(Content->Parameters.Overdrive.ThresholdP2*LDObservation::MomentumBarFull,MaxP2)
-            :int64(LDObservation::MomentumBarFull);
-        Card.bMomentumFull=int64(Unit.MomentumBar)>=ReadyBar;
-        Card.bCharging=Unit.bCharging;
     }
     FString Statuses;
     for(const FLDObservedStatus& Status:Unit.Statuses)
@@ -3449,10 +3443,6 @@ LDHUD::FLiveSkillTooltip LDHUD::EvaluateLiveSkillTooltip(const FActionView& View
     int64 TotalFactorBp=10000;
     int64 RiderADBp=0;
     TArray<FString> RiderCardNames;
-    ELDDemoSkillElement MedalSkillElem=ELDDemoSkillElement::None;
-    FString MedalCardName;
-    int64 OverdriveScaleBp=Content->Parameters.Overdrive.ScaleBp;
-    int64 ShortOverdriveScaleBp=0;
     if(Build&&Build->bValid)
     {
         for(const FLDCardInstanceView& Inst:Build->Cards)
@@ -3511,42 +3501,11 @@ LDHUD::FLiveSkillTooltip LDHUD::EvaluateLiveSkillTooltip(const FActionView& View
                         RiderCardNames.AddUnique(CardDisplayName);
                     }
                     break;
-                case ELDDemoEffectOp::SkillElement:
-                    if(Inst.Target.Kind==ELDCardTargetKind::Skill&&MedalSkillElem==ELDDemoSkillElement::None)
-                    {
-                        switch(Ef.Element)
-                        {
-                        case ELDDemoElement::Fire: MedalSkillElem=ELDDemoSkillElement::Fire; break;
-                        case ELDDemoElement::Water: MedalSkillElem=ELDDemoSkillElement::Water; break;
-                        case ELDDemoElement::Electric: MedalSkillElem=ELDDemoSkillElement::Shock; break;
-                        case ELDDemoElement::Chill: MedalSkillElem=ELDDemoSkillElement::Chill; break;
-                        case ELDDemoElement::Rot: MedalSkillElem=ELDDemoSkillElement::Rot; break;
-                        default: break;
-                        }
-                        if(MedalSkillElem!=ELDDemoSkillElement::None)
-                        {
-                            const uint8 Tier=FMath::Clamp<uint8>(Inst.Tier,1,3);
-                            const TCHAR* Roman=Tier>=3?TEXT(" Ⅲ"):Tier==2?TEXT(" Ⅱ"):TEXT(" Ⅰ");
-                            MedalCardName=CardDisplayName+Roman;
-                            if(Tier>=2)
-                            {
-                                MedalCardName+=Tier>=3
-                                    ?FString::Printf(TEXT(" · 反应 +%s / 命中附异种副元素"),*HudPercent(Content->Parameters.Medal.Tier2ReactionBonusBp))
-                                    :FString::Printf(TEXT(" · 反应 +%s"),*HudPercent(Content->Parameters.Medal.Tier2ReactionBonusBp));
-                            }
-                        }
-                    }
-                    break;
-                case ELDDemoEffectOp::OverdriveShort:
-                    // Y11: its own multiplier replaces the base one; copies do not stack (ALDCombatDirector::OverdriveScaleOf).
-                    if(Ef.MultiplierBp>0){ShortOverdriveScaleBp=FMath::Max(ShortOverdriveScaleBp,Ef.MultiplierBp);}
-                    break;
                 default: break;
                 }
             }
         }
     }
-    if(ShortOverdriveScaleBp>0){OverdriveScaleBp=ShortOverdriveScaleBp;}
     if(Content->Parameters.DamageFactorTechCapBp>0)
     {
         TotalFactorBp=FMath::Min(TotalFactorBp,Content->Parameters.DamageFactorTechCapBp);
@@ -3720,48 +3679,9 @@ LDHUD::FLiveSkillTooltip LDHUD::EvaluateLiveSkillTooltip(const FActionView& View
         Result.FormulaLines.Add(CdExpr);
     }
 
-    ELDDemoSkillElement EffectiveOverdriveElem=(Path&&Path->Element!=ELDDemoSkillElement::None)?Path->Element:Ability->Element;
-    bool bOverdriveFromMedal=false;
-    if(EffectiveOverdriveElem==ELDDemoSkillElement::None&&MedalSkillElem!=ELDDemoSkillElement::None)
-    {
-        EffectiveOverdriveElem=MedalSkillElem;
-        bOverdriveFromMedal=true;
-    }
-    Result.OverdriveElement=uint8(EffectiveOverdriveElem);
-    {
-        const FLDDemoOverdriveParameters& O=Content->Parameters.Overdrive;
-        const double Scale=double(OverdriveScaleBp)/10000.;
-        switch(EffectiveOverdriveElem)
-        {
-        case ELDDemoSkillElement::Fire:
-            Result.OverdriveLine=FString::Printf(TEXT("火爆劲：数值 ×%.2f，追加 %lld 层灼烧"),Scale,O.FireBurnStacks);
-            break;
-        case ELDDemoSkillElement::Water:
-            Result.OverdriveLine=FString::Printf(TEXT("水爆劲：数值 ×%.2f，减速升至 %s（%.1f秒）"),Scale,*HudPercent(O.WaterSlowBp),double(O.WaterSlowMs)/1000.);
-            break;
-        case ELDDemoSkillElement::Shock:
-            Result.OverdriveLine=FString::Printf(TEXT("电爆劲：数值 ×%.2f，直伤追加 %s 元素反应值"),Scale,*HudPercent(O.ShockReactionBp));
-            break;
-        case ELDDemoSkillElement::Chill:
-            Result.OverdriveLine=FString::Printf(TEXT("冻爆劲：数值 ×%.2f，附加 %.1f秒定身"),Scale,double(O.ChillRootMs)/1000.);
-            break;
-        case ELDDemoSkillElement::Rot:
-            Result.OverdriveLine=FString::Printf(TEXT("馊爆劲：数值 ×%.2f，馊持续 ×%.1f"),Scale,double(O.RotDurationBp)/10000.);
-            break;
-        default:
-            Result.OverdriveLine=FString::Printf(TEXT("爆劲：数值 ×%.2f"),Scale);
-            break;
-        }
-        if(bOverdriveFromMedal&&!MedalCardName.IsEmpty())
-        {
-            Result.OverdriveLine+=FString::Printf(TEXT(" [%s]"),*MedalCardName);
-        }
-    }
-
     TArray<FString> BodyLines;
     BodyLines.Add(MainText);
     BodyLines.Add(TargetLine(Path?Path->Target:Ability->Target));
-    BodyLines.Add(Result.OverdriveLine);
     Result.FooterHint=bExpandFormula?TEXT("松开 [Alt] 收起计算过程"):TEXT("按住 [Alt] 查看实时伤害与冷却计算过程");
     if(Context.bInputCaptured){BodyLines.Add(TEXT("当前输入暂不可用：界面占用或按键尚未松开"));}
     Result.Detail.Body=FString::Join(BodyLines,TEXT("\n"));

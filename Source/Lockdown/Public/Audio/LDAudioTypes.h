@@ -49,9 +49,9 @@ enum class ELDAudioCue : uint8
     // Two local layers of the owner's confirmed hit, not the sound of the owner's body being hit.
     SelfDealtImpact,
     SelfDealtAccent,
-    // #345 tactical combat & workshop audio cues: 0.12s perfect dodge, parry counter-shock, world pickup, and medal tier fusion.
-    SelfPerfectDodge,
-    SelfParry,
+    // #345 tactical combat & workshop audio cues: parry counter-shock, world pickup, and medal tier fusion.
+    // 36 (the own perfect dodge) is retired.
+    SelfParry = 37,
     SelfPickup,
     UIMedalFuse,
     // Body sounds of every visible body, on the same presentation hooks as its effects (LDAudioFeel, AUDIO_AND_FEEL sync
@@ -147,7 +147,7 @@ namespace LDAudio
     LOCKDOWN_API ELDAudioCue GroundLoopCue(uint8 Kind);
 
     // Retired numbers below Count, which are not cues.
-    inline constexpr int32 RetiredCueCount = 6;
+    inline constexpr int32 RetiredCueCount = 7;
     // Playable cues: every number between None and Count except the retired ones.
     inline constexpr int32 CueCount = int32(ELDAudioCue::Count) - 1 - RetiredCueCount;
     LOCKDOWN_API bool IsPlayableCue(ELDAudioCue Cue);

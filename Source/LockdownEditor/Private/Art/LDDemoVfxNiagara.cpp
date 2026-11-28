@@ -4404,9 +4404,6 @@ namespace
         return Area;
     }
 
-    const FPalette PhantomPalette{FLinearColor(1.f, .92f, 1.f), FLinearColor(.72f, .42f, 1.f), FLinearColor(.22f, .08f, .42f), 2.2f, 1.3f};
-    const FPalette PhantomSmokePalette{FLinearColor(.62f, .5f, .8f), FLinearColor(.36f, .26f, .52f), FLinearColor(.12f, .08f, .2f), 1.f, 1.f};
-
     // Reactive armour's shard burst: the broken shield thrown outward. A cold snap at the chest (End), plates of the shell
     // flung out flat and skidding to rest on the floor (Start), and bright slivers ahead of them.
     FSystemParts ShardBurstParts(UMaterial& Material, UMaterial& Top, FString& Error)
@@ -4422,24 +4419,6 @@ namespace
             TEXT("float2(1.0, 1.0) * (30.0 + 22.0 * frac(float(Particles.UniqueID) * 0.41))"), TEXT("0.0"), true, false, 1.3f);
         Thrown(Burst, TEXT("Slivers"), Sliver, TEXT("int(lerp(8.0, 12.0, User.Focus) + 0.5)"), .5f, 1311.f, TEXT("User.End"), 500.f, 900.f, 60.f, 240.f,
             TEXT("float2(46.0, 9.0)"), TEXT("0.0"), false, true, 2.2f);
-        return Burst;
-    }
-
-    // The phantom decoy going off: the figure folds and bursts. A violet flash at the chest (End), wisps thrown out low
-    // over the floor (Start), and thin violet smoke spreading to its radius where it stood.
-    FSystemParts DecoyPopParts(UMaterial& Material, UMaterial& Top, FString& Error)
-    {
-        UMaterialInstanceConstant* Flash = ChainPaint(TEXT("MI_LDDecoyPop_Flash"), Top, SliceTexture(LDSliceVfx::ETex::ChainAFlash), nullptr, 0.f, PhantomPalette, 1.f, 0.f, Error);
-        UMaterialInstanceConstant* Wisp = ChainPaint(TEXT("MI_LDDecoyPop_Wisp"), Top, SliceTexture(LDSliceVfx::ETex::ChainASparkStreak), nullptr, 0.f, PhantomPalette, 1.f, 0.f, Error);
-        UMaterialInstanceConstant* Smoke = ChainPaint(TEXT("MI_LDDecoyPop_Smoke"), Material, SliceTexture(LDSliceVfx::ETex::SoftPuff), nullptr, 0.f, PhantomSmokePalette, 1.f, 0.f, Error);
-        FSystemParts Burst;
-        Burst.System = LDSliceVfx::ESystem::DecoyPop;
-        if (!Flash || !Wisp || !Smoke) { return Burst; }
-        ImpactCore(Burst, Flash, 210.f, 380.f, TEXT("User.End"));
-        Thrown(Burst, TEXT("Wisps"), Wisp, TEXT("int(lerp(10.0, 14.0, User.Focus) + 0.5)"), .45f, 1321.f, TEXT("User.End"), 500.f, 900.f, 0.f, 160.f,
-            TEXT("float2(90.0, 14.0)"), TEXT("0.0"), false, true, 2.4f);
-        Puffs(Burst, TEXT("Smoke"), Smoke, TEXT("int(lerp(8.0, 12.0, User.Focus) + 0.5)"), 1.f, 1331.f,
-            [](const FString& Angle, const FString& Travel) { return FString::Printf(TEXT("User.End + float3(cos(%s), sin(%s), 0.0) * (20.0 + User.Width * 0.8 * %s) + float3(0.0, 0.0, 60.0 * %s)"), *Angle, *Angle, *Travel, *Travel); }, 110.f, .7f);
         return Burst;
     }
 
@@ -4702,8 +4681,7 @@ namespace
         return State;
     }
 
-    // ---- A body's own moments: the dash, the overdrive charge and its burst, and a level gained.
-    const FPalette OverPalette{FLinearColor(1.f, .9f, 1.f), FLinearColor(1.f, .22f, .76f), FLinearColor(.42f, .02f, .3f), 2.6f, 1.4f};
+    // ---- A body's own moments: the dash and a level gained.
 
     // A dash (Start the feet, End a metre along the way it runs): dust torn off the floor behind the body and two thin
     // streaks of air at the chest. The afterimages are the body's own (ULDImpactFxSubsystem::Ghost).
@@ -4732,53 +4710,6 @@ namespace
                 .Set(TEXT("Particles.Color"), Glowing(1.5f, FString::Printf(TEXT("0.7 * sin(%s * 3.1416)"), *T)));
         }
         return Dash;
-    }
-
-    // The overdrive charge (Start the feet, End the head; User.Intensity follows the charge): a ring on the floor closing
-    // in on the body again and again, motes drawn in and up to the chest, and the floor under it warming to magenta.
-    FSystemParts OverdriveChargeParts(UMaterial& Material, UMaterial& Top, FString& Error)
-    {
-        UMaterialInstanceConstant* Line = ChainPaint(TEXT("MI_LDOverdrive_Ring"), Top, SliceTexture(LDSliceVfx::ETex::ChainAProfile), nullptr, 0.f, OverPalette, 1.f, 0.f, Error);
-        UMaterialInstanceConstant* Glow = ChainPaint(TEXT("MI_LDOverdrive_Floor"), Material, SliceTexture(LDSliceVfx::ETex::ChainAGroundGlow), nullptr, 0.f, OverPalette, 1.f, 0.f, Error);
-        UMaterialInstanceConstant* Mote = ChainPaint(TEXT("MI_LDOverdrive_Mote"), Top, SliceTexture(LDSliceVfx::ETex::ChainAFlash), nullptr, 0.f, OverPalette, 1.f, 0.f, Error);
-        FSystemParts Charge;
-        Charge.System = LDSliceVfx::ESystem::OverdriveCharge;
-        if (!Line || !Glow || !Mote) { return Charge; }
-        StateAura(Charge, TEXT("Floor"), Glow, 1.2f, .6f);
-        {
-            const FString In = TEXT("frac(Particles.Age * 1.3 + float(Particles.LDRibbon) * 0.5)");
-            Band(Charge, TEXT("Closing"), Line, 2, 32, TEXT("0.03"), TEXT("Particles.Age * 0.8"), FString::Printf(TEXT("User.Width * (5.0 - 3.8 * %s)"), *In),
-                FString::Printf(TEXT("4.0 + 8.0 * %s"), *In), Glowing(2.2f, FString::Printf(TEXT("%s * sin(%s * 3.1416)"), StateOn, *In)));
-        }
-        FPart& Motes = Charge.Parts.AddDefaulted_GetRef();
-        Motes.Name = TEXT("Motes");
-        Motes.Kind = FPart::Sprite;
-        Motes.Count = TEXT("int(lerp(8.0, 12.0, User.Focus) + 0.5)");
-        Motes.Lifetime = TEXT("User.Duration");
-        Motes.Paint = Mote;
-        {
-            const FString T = Cycle(1.4f, 1521.f);
-            Motes.Set(TEXT("Particles.Position"), Round(Axis(FString::Printf(TEXT("lerp(0.05, 0.55, %s)"), *T)), FString::Printf(TEXT("(%s * 6.2832 + %s * 2.5)"), *Random(1522.f), *T),
-                    FString::Printf(TEXT("User.Width * (4.4 * (1.0 - %s) + 0.5)"), *T)))
-                .Set(TEXT("Particles.SpriteSize"), FString::Printf(TEXT("float2(1.0, 1.0) * (12.0 + 18.0 * %s)"), *T))
-                .Set(TEXT("Particles.Color"), Glowing(2.4f, FString::Printf(TEXT("%s * sin(%s * 3.1416)"), StateOn, *T)));
-        }
-        return Charge;
-    }
-
-    // An overdrive going off (a release, or a hit that carries it): a magenta snap at End, hard streaks thrown out from it
-    // and falling to the floor at Start.
-    FSystemParts OverdriveBurstParts(UMaterial& Top, FString& Error)
-    {
-        UMaterialInstanceConstant* Flash = ChainPaint(TEXT("MI_LDOverdrive_Snap"), Top, SliceTexture(LDSliceVfx::ETex::ChainAFlash), nullptr, 0.f, OverPalette, 1.f, 0.f, Error);
-        UMaterialInstanceConstant* Streak = ChainPaint(TEXT("MI_LDOverdrive_Streak"), Top, SliceTexture(LDSliceVfx::ETex::ChainASparkStreak), nullptr, 0.f, OverPalette, 1.f, 0.f, Error);
-        FSystemParts Burst;
-        Burst.System = LDSliceVfx::ESystem::OverdriveBurst;
-        if (!Flash || !Streak) { return Burst; }
-        ImpactCore(Burst, Flash, 170.f, 360.f, TEXT("User.End"));
-        Thrown(Burst, TEXT("Streaks"), Streak, TEXT("int(lerp(10.0, 16.0, User.Focus) + 0.5)"), .45f, 1531.f, TEXT("User.End"), 500.f, 950.f, 40.f, 260.f,
-            TEXT("float2(80.0, 12.0)"), TEXT("0.0"), false, true, 2.4f);
-        return Burst;
     }
 
     // A level gained (Start the feet, End the head; one second): the floor lights warm gold, two veils wind up the body
@@ -5447,7 +5378,6 @@ bool LDDemoVfxNiagara::Build(FString& Error)
         [&]() { return WindZoneParts(*Chain, *Top, Error); },
         [&]() { return AreaPlainParts(*Chain, *Top, Error); },
         [&]() { return ShardBurstParts(*Chain, *Top, Error); },
-        [&]() { return DecoyPopParts(*Chain, *Top, Error); },
         [&]() { return RootStateParts(*Chain, *Top, Error); },
         [&]() { return ProtectedStateParts(*Chain, *Top, Error); },
         [&]() { return SlowStateParts(false, *Chain, *Top, Error); },
@@ -5458,8 +5388,7 @@ bool LDDemoVfxNiagara::Build(FString& Error)
         [&]() { return TauntStateParts(*Top, Error); },
         [&]() { return ExposedStateParts(*Top, Error); },
         [&]() { return DashWakeParts(*Chain, *Top, Error); },
-        [&]() { return OverdriveChargeParts(*Chain, *Top, Error); },
-        [&]() { return OverdriveBurstParts(*Top, Error); },
+
         [&]() { return LevelUpParts(*Chain, *Top, Error); },
         [&]() { return OwnMarkParts(*Top, Error); },
         [&]() { return RingBandParts(*Top, Error); },

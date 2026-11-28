@@ -41,13 +41,9 @@ def content_fixture():
         ("SKILL.GrowthPerLevel", "ratio", 0.05), ("SKILL.CooldownFloorSec", "s", 0.25),
         ("MOMENTUM.Max", "momentum", 80), ("MOMENTUM.Start", "momentum", 40), ("MOMENTUM.CombatPerSec", "momentum/s", 2),
         ("MOMENTUM.BasicPerRefInterval", "momentum", 8), ("MOMENTUM.BasicRefIntervalSec", "s", 1),
-        ("MOMENTUM.SkillHit", "momentum", 4), ("MOMENTUM.Reaction", "momentum", 6), ("MOMENTUM.PerfectDodge", "momentum", 12),
-        ("MOMENTUM.PerfectDodgeWindowSec", "s", 0.25), ("MOMENTUM.DashDodgeWindowSec", "s", 0.12),
-        ("MOMENTUM.DashDodgeCutRatio", "ratio", 0.5), ("MOMENTUM.DashDodgeCooldownRefundRatio", "ratio", 0.3),
+        ("MOMENTUM.SkillHit", "momentum", 4), ("MOMENTUM.Reaction", "momentum", 6),
         ("MOMENTUM.IdleDelaySec", "s", 4), ("MOMENTUM.IdleReturnPerSec", "momentum/s", 8),
-        ("COMBO.ResetSec", "s", 1.25), ("OVERDRIVE.Threshold", "momentum", 80), ("OVERDRIVE.HoldSec", "s", 0.25),
-        ("OVERDRIVE.Scale", "ratio", 1.5), ("OVERDRIVE.WaterSlow", "ratio", 0.4), ("OVERDRIVE.WaterSlowSec", "s", 1.25),
-        ("OVERDRIVE.ShockReactionRatio", "ratio", 0.5), ("OVERDRIVE.RotDurationScale", "ratio", 2),
+        ("COMBO.ResetSec", "s", 1.25),
         ("AI.DodgeChance", "ratio", 0.5), ("AI.EnemyGroundPathCost", "ratio", 3), ("AI.ObjectiveEntryHPRatio", "ratio", 0.6), ("AI.ObjectiveReachCm", "cm", 2500), ("AIRDROP.Momentum", "momentum", 30),
         ("UNIT.MoveSpeedCmPerSec", "cm/s", 500), ("STAT.MoveSpeed.Min", "cm/s", 100), ("STAT.MoveSpeed.Max", "cm/s", 1200),
         ("UNIT.CollisionRadiusCm", "cm", 20), ("UNIT.BasicAttackRangeCm", "cm", 100),
@@ -186,7 +182,6 @@ def content_fixture():
         ("GROUND.FieldSec", "s", 4.5),
         ("GROUND.FieldTickSec", "s", 1),
         ("GROUND.FieldRatio", "ratio", 0.25),
-        ("OVERDRIVE.ChillRootSec", "s", 0.5),
     ):
         parameters[key] = q(unit, value)
     parameters["AIRDROP.LandSec"] = [q("s", 30), q("s", 90), q("s", 150)]
@@ -197,7 +192,6 @@ def content_fixture():
     parameters["COMBO.StepRatios"] = [q("ratio", 0.75), q("ratio", 1), q("ratio", 1.5)]
     parameters["SHOWDOWN.SprayRatchetSec"] = [q("s", 1), q("s", 2)]
     parameters["SHOWDOWN.GuardRatchetSec"] = [q("s", 8), q("s", 14)]
-    parameters["OVERDRIVE.FireBurnStacks"] = 2
     parameters.update({
         "XP.BaseToNext": 50, "XP.IncreasePerLevel": 10, "XP.SteepFromLevel": 5, "XP.SteepExtraPerLevel": 0,
         "MEDAL.MaxTier": 3,

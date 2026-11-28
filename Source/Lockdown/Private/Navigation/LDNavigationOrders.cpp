@@ -272,7 +272,6 @@ FLDOrderReceipt ULDNavigationComponent::SubmitSpatial(const FLDOrderCaller& Call
             Buffered.GroundPointCm=Request.GroundCm;
             Buffered.SurfaceHint=Request.SurfaceHint;
             Buffered.AimDirection=Cast->Target.Direction;
-            Buffered.bOverdrive=Cast->bOverdrive;
             Buffered.ExpiresAtMs=AuthorityMode()->GetAuthorityNowMs()+LDCombatPreInput::HoldWindowMs;
             Buffered.Action=*Cast;
             Buffered.SpatialOrder=Request;

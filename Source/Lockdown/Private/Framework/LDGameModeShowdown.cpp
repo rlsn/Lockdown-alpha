@@ -238,7 +238,8 @@ bool ALDGameMode::CloseShowdownIfDue(const FLDGameplayWritePermit& Permit, FStri
             Row.Contender = Id;
             Row.bEligible = IsMemberPresent(Id) && Life && Life->Phase == ELDLifePhase::Alive && Life->ProtectedUntilMs <= CloseAt;
             Row.GuardTargetMs = FMath::Max<int64>(1, CaptureReducer.GetGuardMs());
-            Row.GuardProgressMs = CaptureReducer.GetEffectiveGuardMs(Id, CloseAt);
+            // Spec §2.2: the main flagpole's guard counts what the contender held over the whole showdown, at least the current.
+            Row.GuardProgressMs = FMath::Max(CaptureReducer.GetHistoricalGuardMs(Id, CloseAt), CaptureReducer.GetEffectiveGuardMs(Id, CloseAt));
             Row.CompletedSprays = CaptureReducer.GetCompletedSprays(Id);
             for (const FLDPrivatePole& Pole : PrivatePoles)
             {

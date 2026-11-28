@@ -91,18 +91,10 @@ public:
     bool IsOwnBody() const { return bOwnBody; }
     // The roster seat whose palette the body wears (MAX_uint8 for none).
     uint8 PaletteSlot() const { return LookSlot; }
-    // The public overdrive charge (FLDObservedUnitView::bCharging; the own body's ChargingEntry): an energy column while
-    // held, a ready flare once OVERDRIVE.HoldSec passes, and the release shockwave when it ends as a cast begins.
-    // AgeSeconds: how long the charge has been held (authority age for a proxy); Progress: the own key's hold progress
-    // 0..1 when known (ALDPlayerController::OverdriveHoldProgress), which then drives the column and the ready flare.
-    void SetCharging(bool bInCharging, float AgeSeconds = 0.f, float Progress = -1.f)
-    { bCharging = bInCharging; ChargeAge = AgeSeconds; ChargeProgress = Progress; }
     // A public element reaction on this body AgeSeconds ago (ELDCombatReaction, the element that set it off), committed at
     // AtServerSec on the authority clock: a fresh one flashes its cross and ring and bursts the element's particles once.
     // An old one, or the same reaction at the same authority time seen again, shows nothing.
     void SetReaction(uint8 Reaction, uint8 Element, float AgeSeconds, double AtServerSec);
-    // The shown cast is an overdrive release (public, FLDObservedUnitView::bOverdriveCast): its release plays the shockwave.
-    void SetOverdriveCast(bool bInOverdrive) { bOverdriveCast = bInOverdrive; }
     void PlayAppear();
     // Plays the death clip, then sinks and shrinks away; markers and actions stop. IsFallen once it has vanished.
     void PlayFall();
@@ -137,7 +129,6 @@ private:
     void UpdateSlice(float EffectScale);
     void UpdateRelease(float EffectScale);
     void UpdateDash(const FVector& Velocity, bool bFalling, float EffectScale);
-    void UpdateOverdrive(float EffectScale);
     UPROPERTY() TObjectPtr<USceneComponent> Pivot;
     UPROPERTY() TObjectPtr<USkeletalMeshComponent> Mesh;
     UPROPERTY() TObjectPtr<UStaticMeshComponent> Basketball;
@@ -160,7 +151,6 @@ private:
     uint8 AuraSystem = 0;
     double AuraFrom = -1, AuraUntil = -1, BraceEndsAt = -1;
     UPROPERTY() TObjectPtr<UNiagaraComponent> DashTrail;
-    UPROPERTY() TObjectPtr<UNiagaraComponent> ChargeColumn;
     UPROPERTY() TObjectPtr<UNiagaraComponent> LevelEffect;
     uint8 ShownLevel = 0;
     bool bLevelUp = false;
@@ -203,9 +193,6 @@ private:
     uint8 CastAbility = 0;
     bool bDashing = false;
     double LastGhostAt = -1;
-    bool bCharging = false, bChargeShown = false, bChargeReady = false, bOverdriveCast = false;
-    double ChargeOnset = -1;
-    float ChargeAge = 0, ChargeProgress = -1;
     double ReactionOnset = -1, ReactionAtServerSec = -1;
     uint8 ShownReaction = 0, PendingReactionElement = 0;
     bool bPendingReaction = false, bGhostWarmed = false;

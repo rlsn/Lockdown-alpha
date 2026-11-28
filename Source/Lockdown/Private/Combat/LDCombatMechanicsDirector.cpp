@@ -531,8 +531,7 @@ bool ALDCombatDirector::ReleaseMechanics(FLDBodyCombatState& Body, const FLDComb
                     return false;
                 }
                 Zone.PulseBurnStacks=Burn->Count;
-                Zone.OverdrivePulseBurnStacks=Terms.OverdriveZoneBurnStacks;
-            }
+                        }
             else
             {
                 Zone.BurnStacks=Burn->Count;
@@ -606,8 +605,7 @@ bool ALDCombatDirector::EmitZonePulse(const FLDCombatZone& Zone, FString& Error)
         Hit.PackageScaleBp=Zone.PackageScaleBp;
         if (Zone.bWet) { Hit.NativeElements|=LDCombatElements::Bit(ELDCombatElement::Water); }
         Hit.BurnStacks=Zone.PulseBurnStacks;
-        Hit.OverdriveBurnStacks=Zone.OverdrivePulseBurnStacks;
-        Hit.ElementLevel=Zone.ElementLevel;
+            Hit.ElementLevel=Zone.ElementLevel;
         Hit.ElementAPP2=Zone.ElementAPP2;
         Hit.SlowBp=Zone.PulseSlowBp;
         Hit.SlowDurationMs=Zone.PulseSlowMs;

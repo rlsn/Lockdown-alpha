@@ -20,7 +20,7 @@ namespace LDBroadcast
     inline const FLinearColor Grey = FLinearColor(FColor(0x9A, 0xA0, 0xA8));
     inline const FLinearColor Mute = FLinearColor(FColor(0x5C, 0x61, 0x6A));
     // Accents: Orange is the only highlight, kept for what can be pressed now (a rank-up "+", points to spend, a waiting choice, the primary button); LiveRed is low health and danger;
-    // Gold is legendary, overdrive and a maxed keystone.
+    // Gold is legendary and a maxed keystone.
     inline const FLinearColor Orange = FLinearColor(FColor(0xFF, 0x6B, 0x1A));
     inline const FLinearColor LiveRed = FLinearColor(FColor(0xE8, 0x00, 0x2E));
     inline const FLinearColor Gold = FLinearColor(FColor(0xFF, 0xD2, 0x3D));

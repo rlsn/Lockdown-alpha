@@ -25,7 +25,9 @@ namespace LDObservation
     // 21 packs public status expiry times without losing precision.
     // 22 uses the finer square-cell ground coverage raster.
     // 23 moves camp-clear recovery orbs and #345 tactical entities/hit flags into sight-authorized FLDWorldView.
-    constexpr uint32 Schema = 24;
+    // 25 removes the overdrive charge, the overdrive cast, the Overdriven hit flag and the phantom decoy look (23 is a hole).
+    // 26 removes the Dodged hit flag (32 is a hole).
+    constexpr uint32 Schema = 26;
     // A ground state's wire size (LDViewTypes.cpp SerializeObservedGround): SC-07 registers MaxGroundStates of them per frame.
     constexpr int32 GroundStateWireBytes = 16;
     // The public momentum bar of a visible contender: 0..MomentumBarFull (never the exact value).
@@ -35,10 +37,8 @@ namespace LDObservation
     constexpr uint16 RecentHitWindowMs = 300;
     // A visible reaction's name floats over its target while its cue is this young (spec §12).
     constexpr uint16 RecentReactionWindowMs = 1000;
-    // Overdriven: the hit came from an overdrive release. Public like the charge that preceded it (spec: the charge ring
-    // shows to everyone who sees the body); the owner receipt carries the same bit (LDCombatCues::DealtOverdrive).
-    enum EHitFlags : uint8 { Critical = 1, ShieldAbsorbed = 2, ShieldBroken = 4, Overdriven = 16, Dodged = 32, Parried = 64 };
-    constexpr uint8 HitFlagsMask = Critical | ShieldAbsorbed | ShieldBroken | Overdriven | Dodged | Parried;
+    enum EHitFlags : uint8 { Critical = 1, ShieldAbsorbed = 2, ShieldBroken = 4, Parried = 64 };
+    constexpr uint8 HitFlagsMask = Critical | ShieldAbsorbed | ShieldBroken | Parried;
     // Square display cells sampled over the native ground bounds with padding as needed. Low bit first.
     constexpr int32 CoverageWidth = 512;
     constexpr int32 CoverageHeight = 320;
@@ -85,8 +85,8 @@ UENUM() enum class ELDObservedProjectileLook : uint8
     ChalkReturn = 12, SockReturn = 13, Road = 14, ConeWarning = 15, LineWarning = 16, Wind = 17,
     // N4: a school bag (RadiusCm = its body) and the wall between two bags (LengthCm, RadiusCm = half width).
     Bag = 18, BagWall = 19,
-    // #345: piercing fist-wind wave, collectible slipper drop, elastic cordon tape, phantom decoy afterimage, and shield shard burst.
-    FistWind = 20, SlipperDrop = 21, CordonTape = 22, PhantomDecoy = 23, ShardBurst = 24
+    // #345: piercing fist-wind wave, collectible slipper drop, elastic cordon tape and shield shard burst (23 is retired).
+    FistWind = 20, SlipperDrop = 21, CordonTape = 22, ShardBurst = 24
 };
 // Spec §8.3 ground-state footprints: a circle, D10's band (ExtentCm = half length) or N1's sector (ExtentCm = angle).
 UENUM() enum class ELDObservedGroundShape : uint8 { Circle = 0, Band = 1, Sector = 2 };
@@ -150,14 +150,8 @@ struct FLDObservedUnitView
     // The live shield as a share of the maximum HP, quantized to 0..LDObservation::ShieldBarFull (never the exact amount);
     // sent with the health field, so the head bar can show how thick it is.
     UPROPERTY() uint8 ShieldBar = 0;
-    // Contenders: the momentum bar quantized to 0..LDObservation::MomentumBarFull and whether an overdrive charge shows.
+    // Contenders: the momentum bar quantized to 0..LDObservation::MomentumBarFull.
     UPROPERTY() uint8 MomentumBar = 0;
-    UPROPERTY() bool bCharging = false;
-    // How long the shown charge has been held on the authority clock (0 without a charge), so a body entering sight
-    // mid-hold shows the charge where it is.
-    UPROPERTY() uint16 ChargeAgeMs = 0;
-    // Contenders: the shown Cast cue is an overdrive release (authorized with the momentum bar, like the charge).
-    UPROPERTY() bool bOverdriveCast = false;
     // The combo step (1..3) of an Attack cue; 0 for every other cue.
     UPROPERTY() uint8 ActionComboStep = 0;
     // The reaction this unit suffered (ELDCombatReaction 1..15) and 1 + its age; 0 = none within the window.
@@ -324,11 +318,8 @@ struct FLDObservedPublicFacts
     uint8 HitFlags = 0;
     // Source of a Cast cue (FLDObservedUnitView::ActionAbility): one approved ability id, 0 otherwise.
     uint8 ActionAbility = 0;
-    // The combo step of an Attack cue and a held overdrive charge (contenders).
+    // The combo step of an Attack cue (contenders).
     uint8 ActionComboStep = 0;
-    bool bCharging = false;
-    int64 ChargeAtMs = 0;
-    bool bOverdriveCast = false;
     uint8 MomentumBar = 0;
     // The last reaction on this body within LDObservation::RecentReactionWindowMs, and when.
     uint8 LastReaction = 0;

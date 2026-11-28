@@ -290,8 +290,6 @@ void ALDPlayerController::V05Pressed(FName Action)
         if (ArmedEntry!=ELDCombatEntry::None && VectorAimEntry!=ArmedEntry && !IsQuickCastHolding(ArmedEntry)
             && BeginVectorAim(ArmedEntry,true)) { return; }
         if (ConfirmArmedCombat()) { return; }
-        if (bOverdriveHolding)
-        { UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT dropped action=Select reason=not-armed holding=%u"),uint32(OverdriveEntry)); }
         FGuid Handle;
         uint32 ObservationEpoch=0;
         ObservedUnderPointer(Handle,ObservationEpoch);

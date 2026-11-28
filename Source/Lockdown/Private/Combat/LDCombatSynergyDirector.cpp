@@ -298,47 +298,6 @@ bool ALDCombatDirector::AdvanceCordons(int64 NowMs, FString& Error)
     return true;
 }
 
-bool ALDCombatDirector::AdvanceDecoys(int64 NowMs, FString& Error)
-{
-    using namespace LDCombatSynergyDetail;
-    // Active decoys taunt nearby camp monsters; at ExplodeAtMs they detonate for adaptive damage + slow.
-    for (int32 Idx = Decoys.Num() - 1; Idx >= 0; --Idx)
-    {
-        const FLDCombatDecoy Decoy = Decoys[Idx];
-        FLDBodyCombatState* Holder = FindBody(Decoy.OwnerBody);
-        if (Decoy.ExplodeAtMs > NowMs) { continue; }
-        Decoys.RemoveAt(Idx);
-        if (!Catalog()) { continue; }
-        TArray<FLDCombatBodyRef> Around;
-        if (!CollectAreaTargets(Decoy.FootCm, Decoy.RadiusCm, Holder, Decoy.OwnerEntity, Around, Error)) { return false; }
-        const FGuid BlastId = FGuid::NewGuid();
-        const ELDDemoDamageType DmgType = LDTactical::EffectiveDamageType(
-            ELDDemoDamageType::Physical, Decoy.Terms.AdaptiveRatioBp, Decoy.SourceBonusADP2, Decoy.SourceAPP2);
-        for (const FLDCombatBodyRef& TargetRef : Around)
-        {
-            FLDCombatHit Hit;
-            Hit.HitId = FGuid::NewGuid();
-            Hit.EffectId = BlastId;
-            Hit.Target = TargetRef;
-            Hit.SourceBody = Decoy.OwnerBody;
-            Hit.SourceEntity = Decoy.OwnerEntity;
-            Hit.CreditOwner = Decoy.CreditOwner;
-            Hit.Source = Decoy.Source;
-            Hit.HitClass = ELDCombatHitClass::Ability;
-            Hit.BaseP2 = Decoy.Terms.BaseP2;
-            Hit.AdaptiveRatioBp = Decoy.Terms.AdaptiveRatioBp;
-            Hit.DamageType = DmgType;
-            Hit.SourceADP2 = Decoy.SourceADP2;
-            Hit.SourceAPP2 = Decoy.SourceAPP2;
-            Hit.SourceBonusADP2 = Decoy.SourceBonusADP2;
-            Hit.SlowBp = Decoy.Terms.RatioBp;
-            Hit.SlowDurationMs = Decoy.Terms.DurationMs;
-            PendingHits.Add(MoveTemp(Hit));
-        }
-    }
-    return true;
-}
-
 bool ALDCombatDirector::AdvanceSynergyStates(int64 NowMs, FString& Error)
 {
     using namespace LDCombatSynergyDetail;

@@ -167,18 +167,12 @@ void FLDAudioCueTracker::ObserveOwn(const FLDAudioFrame& Frame, TArray<ELDAudioC
             // A lethal hit is left to the death cue.
             const bool bLost = Combat->HPP2 < HitHPP2 && Combat->MaxHPP2 >= HitMaxHPP2 && Combat->HPP2 > 0;
             const bool bNewHit = Facts.LastHitAtMs > HitSeenAtMs && Facts.LastHitAtMs <= Combat->AsOfMs;
-            const bool bDodged = bNewHit && (Facts.LastHitFlags & LDObservation::Dodged);
             const bool bParried = bNewHit && (Facts.LastHitFlags & LDObservation::Parried);
             const bool bAbsorbed = bNewHit && (Facts.LastHitFlags & LDObservation::ShieldAbsorbed);
             const bool bBroken = bAbsorbed && (Facts.LastHitFlags & LDObservation::ShieldBroken);
             if (Combat->HPP2 > 0 && Frame.OwnLifePhase == ELDLifePhase::Alive)
             {
-                if (bDodged)
-                {
-                    LDAudio::AddUnique(Out, ELDAudioCue::SelfPerfectDodge);
-                    LastHitAt = Frame.LocalSeconds;
-                }
-                else if (bParried)
+                if (bParried)
                 {
                     LDAudio::AddUnique(Out, ELDAudioCue::SelfParry);
                     LastHitAt = Frame.LocalSeconds;

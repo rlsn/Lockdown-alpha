@@ -118,8 +118,9 @@ bool ALDCombatDirector::ApplyElements(FLDBodyCombatState& Target, const FLDComba
     if (OutCard) { *OutCard=FLDAppliedCardElement(); }
     const FLDElementExtras Extras=ExtrasOf(Hit);
     const bool bLivingSource=Source && !Source->bPendingDeath;
-    // A hit carries one element: a card's element on it replaces the hit's own, and of several cards the first in the
-    // fixed order (fire, water, shock, chill, rot) applies. So one release never reacts with itself. Ticks, settles,
+    // A card's element on a hit replaces the hit's own, and of several cards the first in the fixed order (fire, water,
+    // shock, chill, rot) applies. A hit's own elements (S09 3A2 water and shock, S10 3A1 shock and fire) all apply as one
+    // batch in that order. Ticks, settles,
     // reflections, added damage and shield answers carry none of the source's triggers.
     const bool bCardFire=bLivingSource && Hit.CardBurnStacks>0;
     const bool bCardElement=bCardFire || (bLivingSource && !Hit.CardElements.IsEmpty());
@@ -150,11 +151,11 @@ bool ALDCombatDirector::ApplyElements(FLDBodyCombatState& Target, const FLDComba
         }
         return ApplyElement(Target,Secondary,SourceApplier(Ref,SelectedTier),Secondary==ELDCombatElement::Fire ? 1 : 0,Hit.HitId,NowMs,Error);
     };
-    // A card's fire on this hit (K19, ApplyCardElement): one application of all its layers, including overdrive extra stacks.
+    // A card's fire on this hit (K19, ApplyCardElement): one application of all its layers.
     if (bCardFire)
     {
         if (!ApplyElement(Target,ELDCombatElement::Fire,SourceApplier(Hit.CardBurnSource,Hit.CardBurnTier),
-            Hit.CardBurnStacks+FMath::Max(Hit.OverdriveBurnStacks,0),Hit.HitId,NowMs,Error)) { return false; }
+            Hit.CardBurnStacks,Hit.HitId,NowMs,Error)) { return false; }
         const bool bFirstApplied=bElementApplied;
         if (bFirstApplied && !MaybeApplyTier3Secondary(ELDCombatElement::Fire,Hit.CardBurnSource,Hit.CardBurnTier)) { return false; }
         if (OutCard) { OutCard->bApplied=bFirstApplied; OutCard->bFire=true; }
@@ -209,14 +210,14 @@ bool ALDCombatDirector::ApplyElements(FLDBodyCombatState& Target, const FLDComba
         }
         return true;
     }
-    // The hit's own fire layers.
-    if (Hit.BurnStacks>0) { return ApplyElement(Target,ELDCombatElement::Fire,ApplierOf(Hit),Hit.BurnStacks,Hit.HitId,NowMs,Error); }
-    // The hit's native element (its release snapshot), the first in the fixed order.
+    // The hit's own fire layers, then its native elements (its release snapshot), in the fixed order.
+    if (Hit.BurnStacks>0 && !ApplyElement(Target,ELDCombatElement::Fire,ApplierOf(Hit),Hit.BurnStacks,Hit.HitId,NowMs,Error))
+    { return false; }
     for (const ELDCombatElement Kind : {ELDCombatElement::Water,ELDCombatElement::Shock,ELDCombatElement::Chill,
         ELDCombatElement::Rot})
     {
-        if ((Hit.NativeElements & LDCombatElements::Bit(Kind))!=0)
-        { return ApplyElement(Target,Kind,ApplierOf(Hit),0,Hit.HitId,NowMs,Error,Extras); }
+        if ((Hit.NativeElements & LDCombatElements::Bit(Kind))!=0
+            && !ApplyElement(Target,Kind,ApplierOf(Hit),0,Hit.HitId,NowMs,Error,Extras)) { return false; }
     }
     return true;
 }

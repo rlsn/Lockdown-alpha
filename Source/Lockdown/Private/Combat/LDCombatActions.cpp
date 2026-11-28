@@ -44,16 +44,7 @@ namespace LDCA
             && A.Target.ObservationEpoch==B.Target.ObservationEpoch
             && FVector(A.Target.Direction).Equals(FVector(B.Target.Direction),0.0001)
             && FVector(A.Target.Point).Equals(FVector(B.Target.Point),0.0001)
-            && A.Target.ServerBody==B.Target.ServerBody && A.ExpectedSourceRevision==B.ExpectedSourceRevision
-            && A.bOverdrive==B.bOverdrive;
-    }
-
-    // Whether Body holds the overdrive charge of Entry long enough at NowMs: half of OVERDRIVE.HoldSec at the server, the
-    // client's own hold being the rest (jitter room between the charge and the request).
-    bool ChargeHeld(const FLDBodyCombatState& Body, ELDCombatEntry Entry, int64 NowMs, int64 HoldMs)
-    {
-        return Body.OverdriveCharge.IsSet() && Body.OverdriveCharge->Entry==Entry && HoldMs>0
-            && NowMs-Body.OverdriveCharge->StartMs>=HoldMs/2;
+            && A.Target.ServerBody==B.Target.ServerBody && A.ExpectedSourceRevision==B.ExpectedSourceRevision;
     }
 
     bool ValidDirection(const FVector& Direction)
@@ -332,7 +323,6 @@ FLDCombatActionReceipt ALDCombatDirector::SubmitAction(const FLDCombatCaller& Ca
         Buffered.CastMode=ELDCombatPreInputMode::Direct;
         Buffered.AimDirection=Request.Target.Direction;
         Buffered.GroundPointCm=Request.Target.Point;
-        Buffered.bOverdrive=Request.bOverdrive;
         Buffered.ExpiresAtMs=Mode->GetAuthorityNowMs()+LDCombatPreInput::HoldWindowMs;
         Buffered.Action=Request;
         BufferPreInputIntent(Caller.EntityId,MoveTemp(Buffered));
@@ -1008,7 +998,7 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
     const bool bInnateEntry=Source.Kind==ELDCombatSourceKind::Innate;
     const bool bSplitOpen=bInnateEntry && Body->SplitDashLeft>0 && Now<=Body->SplitDashUntilMs;
     Gate.MomentumCostP2=bInnateEntry ? (bSplitOpen ? 0 : Terms.DashMomentumCostP2)
-        : bRecastOpen || BranchFreeCast(*Body,Source,Now) || Body->FreeCasts>0 || Terms.HPCostBpPerMomentum>0 ? 0 : ValuesDef->MomentumCostP2;
+        : bRecastOpen || BranchFreeCast(*Body,Source,Now) || Terms.HPCostBpPerMomentum>0 ? 0 : ValuesDef->MomentumCostP2;
     // Only an action that displaces its caster is a dash for the root matrix (a ground zone is not).
     Gate.bDash=LDCombatSourceRules::DisplacesCaster(*ValuesDef);
     Gate.Roots=&Body->Roots;
@@ -1025,10 +1015,6 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
     Action.Source=Source;
     Action.Target=Request.Target;
     Action.SourceRevision=Record.SourceRevision;
-    // Overdrive needs the visible charge of this entry held for half of OVERDRIVE.HoldSec at the server (the rest is
-    // jitter room); without it the request releases normally. The charge ends with the admission.
-    Action.bOverdrive=Request.bOverdrive && Source.Kind==ELDCombatSourceKind::Learned
-        && LDCA::ChargeHeld(*Body,Request.Entry,Now,Content->Get().Parameters.Overdrive.HoldMs);
     switch (TargetDef->Mode)
     {
     case ELDDemoTargetMode::Self:
@@ -1081,7 +1067,6 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
     if (Record.NextToken==MAX_uint64 || !LDMatchLifecycle::AddDurationMs(Now,WindupMs,Action.ReleaseAtMs,Error)) { return false; }
     Action.Token=Record.NextToken++;
     Action.StartedAtMs=Now;
-    if (Body->OverdriveCharge.IsSet() && Body->OverdriveCharge->Entry==Request.Entry) { EndOverdriveCharge(*Body); }
     CancelChannel(*Body);
     // A new ability interrupts an unreleased basic windup; FinishAction gives its committed cadence back.
     if (Body->Action.IsSet()) { AbandonAction(*Body,ELDCombatReject::Cancelled); }
@@ -1132,8 +1117,6 @@ bool ALDCombatDirector::ReleaseDue(const FLDGameplayWritePermit& Permit, FString
                 After->Cues.ReleasedStartedAtMs=Action.StartedAtMs;
                 After->Cues.ReleasedAtMs=Now;
                 After->ReleasedSource=Action.Source;
-                // ReleaseAbility stored the resolved overdrive of an ability; a basic never is one.
-                if (Action.Kind==ELDCombatActionKind::Basic) { After->bReleasedOverdrive=false; }
                 MarkViewChanged(After->Victim.EntityId);
             }
         };
@@ -1342,7 +1325,8 @@ bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body,
             if (!WaveDir.IsNearlyZero())
             {
                 FLDCombatHit WaveHit;
-                WaveHit.EffectId=FGuid::NewGuid();
+                WaveHit.EffectId=Body.FrenzyEffectId.IsValid() ? Body.FrenzyEffectId : FGuid::NewGuid();
+                WaveHit.CastLedger=Body.FrenzyLedger;
                 WaveHit.Token=Action.Token;
                 WaveHit.SourceBody=Hit.SourceBody;
                 WaveHit.SourceEntity=Hit.SourceEntity;
@@ -1510,18 +1494,6 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     auto* Track=TrackFor(*Record,Action.Entry);
     if (!ActiveOf(*Record,Source,Ability,Terms) || !Track)
     { Reject=ELDCombatReject::SourceUnavailable; return true; }
-    // Overdrive: a release admitted with a held charge whose bar still holds OVERDRIVE.Threshold scales its base amounts
-    // and ratios and takes its element's bonus; otherwise it releases normally (never a refusal).
-    const auto& OverdriveTerms=Content->Get().Parameters.Overdrive;
-    // Y11: the holder's own threshold.
-    FLDDemoOverdriveParameters BodyOverdrive=OverdriveTerms;
-    BodyOverdrive.ThresholdP2=OverdriveThresholdOf(Body);
-    const bool bOverdrive=Action.bOverdrive && Source.Kind==ELDCombatSourceKind::Learned
-        && LDMomentum::OverdriveReady(BodyOverdrive,Body.Resources.MomentumP2);
-    if (bOverdrive && !ApplyOverdrive(Body,*Ability,Terms,Error)) { return false; }
-    // The released cast shows as overdrive only when it actually resolved as one (a bar that fell during the windup
-    // releases a normal cast).
-    Body.bReleasedOverdrive=bOverdrive;
     // A08: a combo cast releases its whole effect at its share (damage and shields by ShareBp = 0.45, hard-control durations
     // by 0.50 per #330 §5.2.6); K06: a repeat releases at its share of the damage.
     if (Action.bAutoRecast && Action.bWholeEffectShare)
@@ -1576,7 +1548,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     const bool bBranchRecast=!bInnate && !Action.bAutoRecast && BranchRecastOpen(Body,Source,Now);
     const bool bRecast=bBranchRecast || Action.bAutoRecast || bSplitSegment;
     // S05 B2's window or D04's free cast of a perfect dodge.
-    const bool bFreeCast=!bInnate && !bRecast && (BranchFreeCast(Body,Source,Now) || Body.FreeCasts>0);
+    const bool bFreeCast=!bInnate && !bRecast && BranchFreeCast(Body,Source,Now);
     // K12: the release pays health instead of momentum (refused while the body cannot pay it and live).
     const bool bHealthCost=!bInnate && !bRecast && !bFreeCast && Terms.HPCostBpPerMomentum>0;
     const int64 HealthCostP2=bHealthCost ? Body.Resources.MaxHpP2/10000*Terms.HPCostBpPerMomentum*ValuesDef->MomentumCostP2/100
@@ -1714,9 +1686,8 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     // the next one (K16's wait restarts after it).
     TArray<FLDDamageFactor> ReleaseFactorsNow;
     if (!ReleaseFactors(Body,*Record,Source,Track,Now,ReleaseFactorsNow,Error)) { return false; }
-    // Every fallible step is done: pay once and register the effects (an overdrive pays the holder's own threshold, never
-    // less than the skill's cost, so the rest of the bar stays for the next cast).
-    const int64 PaidP2=bOverdrive ? FMath::Max(BodyOverdrive.ThresholdP2,Gate.MomentumCostP2) : Gate.MomentumCostP2;
+    // Every fallible step is done: pay once and register the effects.
+    const int64 PaidP2=Gate.MomentumCostP2;
     GrantMomentum(Body,-PaidP2,ELDMomentumBook::Spent);
     if (bHealthCost)
     {
@@ -1731,19 +1702,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         else { Body.SplitDashLeft=Terms.SplitSegments-1; }
         if (!LDMatchLifecycle::AddDurationMs(Now,Terms.SplitWindowMs+Innate.DurationMs,Body.SplitDashUntilMs,Error)) { return false; }
     }
-    if (bOverdrive)
-    {
-        ++Body.MomentumLedger.Overdrives;
-        UE_LOG(LogLDCombat,Log,TEXT("LD_OVERDRIVE t=%lld src=%s active=%s paid=%lld"),Now,*LDLog::Id(Body.Victim.EntityId),
-            *Source.DefinitionId.ToString(),PaidP2);
-    }
-    if (Body.OverdriveCharge.IsSet()) { EndOverdriveCharge(Body); }
-    if (bFreeCast)
-    {
-        // A branch window spends first; otherwise one of D04's free casts.
-        if (BranchFreeCast(Body,Source,Now)) { Body.Branch.FreeCastUntilMs=0; }
-        else { Body.FreeCasts=FMath::Max(Body.FreeCasts-1,0); }
-    }
+    if (bFreeCast) { Body.Branch.FreeCastUntilMs=0; }
     // K05: the next skill took the control bonus; K18: this release joins the recent ones (repeats and recasts do not).
     if (Source.Kind==ELDCombatSourceKind::Learned && !Body.ControlAmpCard.IsNone())
     {
@@ -1804,7 +1763,6 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     LedgerEffectReleased(Body,EffectId,bInnate ? ELDBlueprintFact::Count : ELDBlueprintFact::AbilityCasts);
     auto CastLedger=MakeShared<FLDCombatCastLedger>();
     CastLedger->PaidMomentumP2=PaidP2;
-    CastLedger->bOverdrive=bOverdrive;
     CastLedger->Factors=MoveTemp(ReleaseFactorsNow);
     CastLedger->bAutoRecast=Action.bAutoRecast;
     if (RecastWindow.IsSet())
@@ -1953,12 +1911,6 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
                 if (!LDMatchLifecycle::AddDurationMs(Now,1500,AgilityHaste.ExpiresAtMs,Error)) { return false; }
                 LDTactical::ApplyTimedBonus(Body.TimedBonuses,AgilityHaste);
                 bTimedBonus=true;
-            }
-            // Perfect dodge (spec §4.4) reads where and when a D started.
-            if (bInnate)
-            {
-                Body.DashStartedAtMs=Now;
-                Body.DashStartFootCm=ReleaseFoot;
             }
             // B12: a voluntary dash (D or an active's) that completes naturally arms DashComplete empowers.
             FLDCombatVoluntaryDash& Voluntary=Body.VoluntaryDash.Emplace();
@@ -2124,6 +2076,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             Body.ActiveFrenzy=Effect;
             Body.FrenzyEffectId=EffectId;
             Body.FrenzySource=Source;
+            Body.FrenzyLedger=CastLedger;
             if (!LDMatchLifecycle::AddDurationMs(Now,Effect.DurationMs,Body.FrenzyUntilMs,Error)) { return false; }
             if (!Effect.Stats.IsEmpty())
             {
@@ -2275,7 +2228,6 @@ bool ALDCombatDirector::BuildReleasePayload(const FLDBodyCombatState& Body, cons
     Template.SilenceDurationMs=SilenceEffect ? SilenceEffect->DurationMs : 0;
     Template.BreachStacks=BreachEffect ? BreachEffect->Count : 0;
     Template.BurnStacks=BurnEffect ? BurnEffect->Count : 0;
-    Template.OverdriveBurnStacks=Terms.OverdriveBurnStacks;
     // Elements of every hit of this release, with the caster's snapshot now (a rot's own cut and duration).
     for (const TPair<ELDDemoEffectOp,ELDCombatElement>& Row : {TPair<ELDDemoEffectOp,ELDCombatElement>(ELDDemoEffectOp::Wet,ELDCombatElement::Water),
         {ELDDemoEffectOp::Electrify,ELDCombatElement::Shock}, {ELDDemoEffectOp::Chill,ELDCombatElement::Chill},
@@ -2354,7 +2306,6 @@ bool ALDCombatDirector::DeliverReleasePayload(const ALDCharacter& Actor, const F
             Projectile.ReturnScaleBp=Terms.ProjectileReturn->Effect.MultiplierBp;
             Projectile.ReturnElement=Terms.ProjectileReturn->Effect.Element;
         }
-        Projectile.bTelegraphed=Terms.WindupMs>=150;
         if (const FLDDemoEffectDefinition* Landing=LDCA::FindEffect(Terms.Values,ELDDemoEffectOp::GroundState)) { Projectile.LandingGround=*Landing; }
         Projectile.Payload=Template;
         Projectiles.Add(Projectile);
@@ -2383,18 +2334,6 @@ bool ALDCombatDirector::DeliverReleasePayload(const ALDCharacter& Actor, const F
                 return FVector::DotProduct(A.Value-ReleaseFoot,Along)<FVector::DotProduct(B.Value-ReleaseFoot,Along);
             });
             if (!Line.IsEmpty()) { Line.SetNum(1); }
-        }
-        // A telegraphed line can be perfectly dodged at its resolution (spec §4.4).
-        if (Terms.WindupMs>=150)
-        {
-            const double Range=LineRangeCm, Half=LDCA::ToDouble(TargetDef.LineHalfWidthCm);
-            const auto InBand=[&ReleaseFoot,&Along,Range,Half](const FVector& Point)
-            {
-                const FVector Offset(Point.X-ReleaseFoot.X,Point.Y-ReleaseFoot.Y,0);
-                const double Ahead=FVector::DotProduct(Offset,Along);
-                return Ahead>=0 && Ahead<=Range && FVector::CrossProduct(Along,Offset).Size()<=Half;
-            };
-            if (!ResolvePerfectDodges(Template.EffectId,Template.SourceEntity,InBand,NowMs,Error)) { return false; }
         }
         if (Grab && Line.IsEmpty() && Grab->RatioBp>0 && Grab->DurationMs>0)
         {
@@ -2433,17 +2372,10 @@ bool ALDCombatDirector::DeliverReleasePayload(const ALDCharacter& Actor, const F
     }
     else
     {
-        // A telegraphed self area can be perfectly dodged at its resolution (spec §4.4).
         const FLDDemoEffectDefinition* Around=LDCA::FindEffect(Terms.Values,ELDDemoEffectOp::SelfArea);
         // The same circle the release collected its targets in.
         const double AroundRadius=Around
             ? LDCA::ToDouble(Around->RadiusCm)*HulkingAreaScaleOf(Body,Terms.AreaBp,WarcryAreaBpOf(Body,Terms.Values)) : 0.;
-        if (Around && Terms.WindupMs>=150)
-        {
-            const double Radius=AroundRadius;
-            if (!ResolvePerfectDodges(Template.EffectId,Template.SourceEntity,
-                [&ReleaseFoot,Radius](const FVector& Point) { return FVector::Dist2D(ReleaseFoot,Point)<=Radius; },NowMs,Error)) { return false; }
-        }
         for (const FLDCombatBodyRef& Target : AreaTargets) { Deliver(Target); }
         if (Around && !HitBagsInCircle(ReleaseFoot, AroundRadius, Template, NowMs, Error)) { return false; }
         if (Around) { HitFenceInCircle(ReleaseFoot, AroundRadius, Template); }

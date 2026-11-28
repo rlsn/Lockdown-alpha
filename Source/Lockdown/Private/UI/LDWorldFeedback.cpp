@@ -105,13 +105,7 @@ void LDWorldFeedback::FTracker::ObserveBody(const FSample& Sample,TArray<FEvent>
             Reaction.Element=Combat->Cues.LastReactionElement;Reaction.Name=LDTerms::ReactionTerm(Combat->Cues.LastReaction);
         }
     }
-    // #305: a new perfect dodge of this life and a newly ended counted chain each float a word; the first view only primes.
-    if(bNewLife){PerfectDodges=Combat->PerfectDodges;}
-    else if(Combat->PerfectDodges>PerfectDodges)
-    {
-        PerfectDodges=Combat->PerfectDodges;
-        FEvent& Dodge=Out.AddDefaulted_GetRef();Dodge.Kind=EKind::PerfectDodge;Dodge.bOwn=true;Dodge.Amount=1;
-    }
+    // #305: a newly ended counted chain floats a word; the first view only primes.
     // A chain that ended while this body was not shown (an interruption, the wait for the next life) only moves the
     // baseline: it never floats over the resumed or respawned body.
     for(const FLDChainEndView& End:Combat->Chains)
@@ -304,7 +298,6 @@ FString LDWorldFeedback::Text(const FEvent& Event)
     case EKind::UnitCast: return Event.Name.IsEmpty()?FString(TEXT("施法！")):Event.Name+TEXT("！");
     case EKind::UnitReaction: return Event.Name+TEXT("！");
     case EKind::DealtConfirm: return LDHitFeel::Word(Event.HitFlags);
-    case EKind::PerfectDodge: return FString(LDTerms::PerfectDodge)+TEXT("！");
     case EKind::ChainEnd: return LDTerms::ChainEndFloat(int32(Event.Amount));
     }
     return FString();
@@ -398,7 +391,6 @@ FWorldFeedbackLook WorldFeedbackLookOf(LDWorldFeedback::EKind Kind)
     case LDWorldFeedback::EKind::Experience: return {LDHUDStyle::ExperienceGain,LDHUDStyle::TypeBody};
     case LDWorldFeedback::EKind::UnitCast: return {FLinearColor(.85f,.55f,1.f),LDHUDStyle::TypeTitle};
     case LDWorldFeedback::EKind::UnitReaction: return {FLinearColor(1.f,.85f,.35f),LDHUDStyle::TypeTitle};
-    case LDWorldFeedback::EKind::PerfectDodge: return {FLinearColor(.45f,.95f,1.f),LDHUDStyle::TypeTitle};
     case LDWorldFeedback::EKind::ChainEnd: return {FLinearColor(1.f,.6f,.2f),LDHUDStyle::TypeTitle};
     default: return {LDHUDStyle::Celebration,LDHUDStyle::TypeBanner};
     }
@@ -469,7 +461,7 @@ void ULDWorldFeedback::Present(const LDWorldFeedback::FEvent& Event,double Now)
     // adds up and pops the number again without restarting its rise. Each reward publication keeps its own lines.
     const bool bReward=WorldFeedbackIsReward(Event.Kind);
     // A reaction is its own word: two reactions on one unit never add up.
-    LDWorldFeedback::FFloater* Same=bReward||Event.Kind==LDWorldFeedback::EKind::UnitReaction||Event.Kind==LDWorldFeedback::EKind::PerfectDodge
+    LDWorldFeedback::FFloater* Same=bReward||Event.Kind==LDWorldFeedback::EKind::UnitReaction
         ||Event.Kind==LDWorldFeedback::EKind::ChainEnd?nullptr:Floaters.FindByPredicate([&Event,Now](const LDWorldFeedback::FFloater& Shown)
     {return Shown.Event.Kind==Event.Kind&&WorldFeedbackSameAnchor(Shown.Event,Event)&&Now-Shown.BornAt<=WorldFeedbackMergeSeconds;});
     if(Same)
@@ -730,10 +722,9 @@ int32 ULDWorldFeedback::NativePaint(const FPaintArgs& A,const FGeometry& G,const
             const float WordProgress=float(Age/WorldFeedbackWordSeconds);
             const float WordAlpha=WordProgress<.55f?1.f:FMath::Clamp((1.f-WordProgress)/.45f,0.f,1.f);
             const bool bCritical=(Floater.Event.HitFlags&LDObservation::Critical)!=0;
-            const bool bOverdriveWord=(Floater.Event.HitFlags&LDCombatCues::DealtOverdrive)!=0;
-            const bool bHeavy=bCritical||bOverdriveWord||(Floater.Event.HitFlags&LDCombatCues::DealtLethal)!=0;
-            // Overdrive in its own magenta, a critical hit gold, else warm white.
-            FLinearColor WordInk=bOverdriveWord?FLinearColor(1.f,.32f,.82f):bCritical?FLinearColor(1.f,.55f,.08f):FLinearColor(1.f,.93f,.72f);
+            const bool bHeavy=bCritical||(Floater.Event.HitFlags&LDCombatCues::DealtLethal)!=0;
+            // A critical hit gold, else warm white.
+            FLinearColor WordInk=bCritical?FLinearColor(1.f,.55f,.08f):FLinearColor(1.f,.93f,.72f);
             WordInk.A*=WordAlpha;
             const FSlateFontInfo WordFont=WorldFeedbackFont(bHeavy?LDHUDStyle::TypeBanner:LDHUDStyle::TypeTitle,TextScale,3,WordAlpha);
             FVector2f WordAnchor(WordAt.X,WordAt.Y-WorldFeedbackWordRise*TextScale*WorldFeedbackEaseOut(WordProgress));

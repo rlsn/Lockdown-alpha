@@ -585,7 +585,7 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
     {
         View.MomentumCostP2=Body->SplitDashLeft>0 && NowMs<=Body->SplitDashUntilMs ? 0 : Terms.DashMomentumCostP2;
     }
-    else if (BranchRecastOpen(*Body,Source,NowMs) || BranchFreeCast(*Body,Source,NowMs) || Body->FreeCasts>0 || Terms.HPCostBpPerMomentum>0)
+    else if (BranchRecastOpen(*Body,Source,NowMs) || BranchFreeCast(*Body,Source,NowMs) || Terms.HPCostBpPerMomentum>0)
     {
         View.MomentumCostP2=0;
     }
@@ -1029,13 +1029,9 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
         Out.HPP2=Body->Resources.HpP2;
         Out.MaxHPP2=Body->Resources.MaxHpP2;
         Out.MomentumP2=Body->Resources.MomentumP2;
-        Out.OverdriveThresholdP2=OverdriveThresholdOf(*Body);
         Out.ShieldP2=Body->Resources.ShieldP2;
         Out.ComboStep=Body->ComboStep;
         Out.ComboStartMs=Body->ComboStartMs;
-        Out.PerfectDodges=Body->PerfectDodges;
-        Out.LastPerfectDodgeAtMs=Body->LastPerfectDodgeAtMs;
-        Out.ChargingEntry=Body->OverdriveCharge.IsSet() ? Body->OverdriveCharge->Entry : ELDCombatEntry::None;
         if (!Body->bPendingDeath)
         {
             const int64 RootedUntilMs=LDTactical::ActiveRootUntilMs(Body->Roots,NowMs);
@@ -1127,7 +1123,7 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
                 Out.ActionToken=Body->Action->Token;
                 Out.ActionReleaseAtMs=Body->Action->ReleaseAtMs;
             }
-            Out.Cues=PresentedCueFactsOf(*Body);
+            Out.Cues=CueFactsOf(*Body);
             if (Out.Cues.LastHitId.IsValid())
             {
                 Out.Cues.LastHitId=LDObservation::ScopedHitId(Body->Identity,Out.Cues.LastHitId);

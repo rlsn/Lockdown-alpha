@@ -84,7 +84,6 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
     for(const auto& Strike:MonsterStrikes){Consider(Strike.AtMs);}
     for(const auto& Drop:SlipperDrops){Consider(Drop.ExpiresAtMs);}
     for(const auto& Cordon:Cordons){Consider(Cordon.ExpiresAtMs);}
-    for(const auto& Decoy:Decoys){Consider(Decoy.ExplodeAtMs);}
     for(const auto& Burst:ShardBursts){Consider(Burst.ExpiresAtMs);}
     Consider(NextMechanicsDueMs(NowMs));
     Consider(NextCardsDueMs(NowMs));
@@ -344,8 +343,7 @@ bool ALDCombatDirector::RunActions(const FLDGameplayWritePermit& Permit, FString
                 Buffered.CastMode=ELDCombatPreInputMode::Direct;
                 Buffered.AimDirection=Request.Target.Direction;
                 Buffered.GroundPointCm=Request.Target.Point;
-                Buffered.bOverdrive=Request.bOverdrive;
-                Buffered.ExpiresAtMs=Mode->GetAuthorityNowMs()+LDCombatPreInput::HoldWindowMs;
+                            Buffered.ExpiresAtMs=Mode->GetAuthorityNowMs()+LDCombatPreInput::HoldWindowMs;
                 Buffered.Action=Request;
                 BufferPreInputIntent(Entity,MoveTemp(Buffered));
                 continue;
@@ -508,7 +506,7 @@ bool ALDCombatDirector::PublishOwnerViews(FString& Error)
             const FLDCombatEntryView& Old=PC->CombatView.Entries[Index];
             bEntryTermsChanged=New.DamageFactorBp!=Old.DamageFactorBp || New.NextCooldownMs!=Old.NextCooldownMs;
         }
-        if (bEntryTermsChanged || View.HPRegenPerSec!=PC->CombatView.HPRegenPerSec || View.PerfectDodges!=PC->CombatView.PerfectDodges
+        if (bEntryTermsChanged || View.HPRegenPerSec!=PC->CombatView.HPRegenPerSec
             || View.bPreviewLiving!=PC->CombatView.bPreviewLiving || View.bPreviewFinalField!=PC->CombatView.bPreviewFinalField
             || View.RespawnDurationMs!=PC->CombatView.RespawnDurationMs)
         {

@@ -194,6 +194,17 @@ bool FLDGrowthShopBuyTest::RunTest(const FString& Parameters)
     Maxed.BoughtSkillPoints = Terms.SkillPointMaxPerMatch;
     bGood &= Reason(*this, TEXT("Past the match's skill points"), LDProgression::ApplyShopBuy(Content, Maxed, Rich, Point, Rich.Shop.Revision, Rest,
         Out, OutProgression, Outcome), ELDGrowthReason::SkillPointLimit);
+    // A build that already earned every point its three skills can rank with buys no more, even under the match limit.
+    FLDGrowthBuild Saturated = Of;
+    Saturated.DevSkillPoints = Content.Progression.ActiveSlots * 2 - LDProgression::SkillPoints(Content, Of);
+    bGood &= TestTrue(TEXT("The saturated build has no room and a shop cap of what it bought"),
+        Saturated.DevSkillPoints >= 1 && LDProgression::SkillPointRoom(Content, Saturated) == 0
+        && LDProgression::ShopSkillPointCap(Content, Saturated) == 0);
+    bGood &= Reason(*this, TEXT("A skill point the build can no longer use"), LDProgression::ApplyShopBuy(Content, Saturated, Rich, Point,
+        Rich.Shop.Revision, Rest, Out, OutProgression, Outcome), ELDGrowthReason::SkillPointLimit);
+    --Saturated.DevSkillPoints;
+    bGood &= Reason(*this, TEXT("The last usable skill point"), LDProgression::ApplyShopBuy(Content, Saturated, Rich, Point,
+        Rich.Shop.Revision, Rest, Out, OutProgression, Outcome), ELDGrowthReason::None);
     const FLDGrowthBuild Poor = Build(Content, ExpectedCardPrice - 1);
     bGood &= Reason(*this, TEXT("Short of the price"), LDProgression::ApplyShopBuy(Content, Poor, Rich, CardSlot, Rich.Shop.Revision, Rest, Out,
         OutProgression, Outcome), ELDGrowthReason::NotEnoughPoints);

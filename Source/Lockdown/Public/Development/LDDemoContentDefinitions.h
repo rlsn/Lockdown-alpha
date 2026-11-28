@@ -263,11 +263,6 @@ struct FLDDemoMomentumParameters
     UPROPERTY() int64 BasicRefIntervalMs = 0;
     UPROPERTY() int64 SkillHitP2 = 0;
     UPROPERTY() int64 ReactionP2 = 0;
-    UPROPERTY() int64 PerfectDodgeP2 = 0;
-    UPROPERTY() int64 PerfectDodgeWindowMs = 0;
-    UPROPERTY() int64 DashDodgeWindowMs = 0;
-    UPROPERTY() int64 DashDodgeCutBp = 0;
-    UPROPERTY() int64 DashDodgeCooldownRefundBp = 0;
     // IdleDelayMs after the last combat event the bar drifts toward StartP2 at IdleReturnPerSec.
     UPROPERTY() int64 IdleDelayMs = 0;
     UPROPERTY() FLDDemoRational IdleReturnPerSec;
@@ -282,25 +277,6 @@ struct FLDDemoComboParameters
 
     UPROPERTY() TArray<int64> StepRatiosBp;
     UPROPERTY() int64 ResetMs = 0;
-};
-
-// Overdrive (爆劲, OVERDRIVE.*): a full-bar release held HoldMs; ScaleBp multiplies its base amounts and ratios, and
-// the release's element adds its bonus.
-USTRUCT()
-struct FLDDemoOverdriveParameters
-{
-    GENERATED_BODY()
-
-    UPROPERTY() int64 ThresholdP2 = 0;
-    UPROPERTY() int64 HoldMs = 0;
-    UPROPERTY() int64 ScaleBp = 0;
-    UPROPERTY() int64 FireBurnStacks = 0;
-    UPROPERTY() int64 WaterSlowBp = 0;
-    UPROPERTY() int64 WaterSlowMs = 0;
-    UPROPERTY() int64 ShockReactionBp = 0;
-    UPROPERTY() int64 RotDurationBp = 0;
-    // Chill: the overdrive roots its targets (hard control, diminishing returns).
-    UPROPERTY() int64 ChillRootMs = 0;
 };
 
 // Issue #287 spec §3.10 and §8.1-§8.2 element and reaction terms beyond the #198 water/fire ones (COMBAT.*): shock (every
@@ -424,7 +400,6 @@ struct FLDDemoContentParameters
     UPROPERTY() FLDDemoSkillRankParameters SkillRanks;
     UPROPERTY() FLDDemoMomentumParameters Momentum;
     UPROPERTY() FLDDemoComboParameters Combo;
-    UPROPERTY() FLDDemoOverdriveParameters Overdrive;
     UPROPERTY() int64 CooldownHasteMaxP2 = 0;
     UPROPERTY() FLDDemoRationalBounds MoveSpeedCmPerSec;
     UPROPERTY() FLDDemoRational CollisionRadiusCm;
@@ -778,15 +753,15 @@ enum class ELDDemoTargetMode : uint8 { Self, Unit, DirectionProjectile, Directio
 // #198 B: DashComplete arms an empower_basic of a component when a voluntary dash (D or an active dash) completes with
 // a positive displacement (B12).
 UENUM()
-// PerfectDodge: D09's growth; AttackSpeedBelow / MoveSpeedAbove: which speed a speed_factor card reads (A10, Y18).
-enum class ELDDemoEffectTrigger : uint8 { None, BasicHit, AbilityHit, Damaged, DashComplete, PerfectDodge, AttackSpeedBelow, MoveSpeedAbove };
+// AttackSpeedBelow / MoveSpeedAbove: which speed a speed_factor card reads (A10, Y18).
+enum class ELDDemoEffectTrigger : uint8 { None, BasicHit, AbilityHit, Damaged, DashComplete, AttackSpeedBelow, MoveSpeedAbove };
 
 // The element a card effect, branch or Y25 choice names (content "fire|water|electric|chill|rot"; electric is the shock
 // element). Fire is burn stacks; the others are LDCombatElements marks.
 UENUM()
 enum class ELDDemoElement : uint8 { None = 0, Fire = 1, Water = 2, Electric = 3, Chill = 4, Rot = 5 };
 
-// The element an active carries (its own or a branch's): it picks the overdrive bonus (CONTENT_AND_BALANCE §3.5).
+// The element an active carries (its own or a branch's).
 UENUM()
 enum class ELDDemoSkillElement : uint8 { None = 0, Fire = 1, Water = 2, Shock = 3, Chill = 4, Rot = 5 };
 
@@ -820,7 +795,7 @@ enum class ELDCardType : uint8 { Trigger = 0, Modify = 1, Convert = 2, Grow = 3,
 // the AI read them).
 enum class ELDCardVocab : uint8
 {
-    BasicHit, Combo3, SkillHit, SkillCast, Overdrive, Reaction, Element, Dash, DashContact, PerfectDodge, Knockback,
+    BasicHit, Combo3, SkillHit, SkillCast, Reaction, Element, Dash, DashContact, Knockback,
     WallImpact, Shield, ShieldBreak, Controlled, Control, Damaged, LowHP, Kill, Idle, Ground, Heal, Momentum, AttackSpeed,
     MoveSpeed, Crit, Armor, MaxHP, Area, Range, Count
 };

@@ -723,13 +723,6 @@ TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActiva
             default:
                 break;
             }
-            // Issue #287 spec §13: a full bar on a healthy target spends itself as an overdrive.
-            if (bUse && (Tier == 2 || Tier == 3) && Need.Target && Need.Target->HpP2.IsSet() && Need.Target->MaxHpP2.IsSet()
-                && Need.Target->MaxHpP2.GetValue() > 0 && C.Self.MomentumP2 >= C.Catalog.Get().Parameters.Overdrive.ThresholdP2
-                && Need.Target->HpP2.GetValue() * 10 > Need.Target->MaxHpP2.GetValue() * 4)
-            {
-                Body.bOverdrive = true;
-            }
             if (bUse && C.CanAttempt(Key))
             {
                 Body.Key = Key;
@@ -1867,7 +1860,6 @@ bool RelevantStats(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Ca
         | (1u << uint32(ELDCardVocab::Crit));
     constexpr uint32 MobilityVocab = (1u << uint32(ELDCardVocab::Dash))
         | (1u << uint32(ELDCardVocab::DashContact))
-        | (1u << uint32(ELDCardVocab::PerfectDodge))
         | (1u << uint32(ELDCardVocab::MoveSpeed));
     constexpr uint32 CastElementVocab = (1u << uint32(ELDCardVocab::Reaction))
         | (1u << uint32(ELDCardVocab::Element))
