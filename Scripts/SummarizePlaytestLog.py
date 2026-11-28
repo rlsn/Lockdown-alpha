@@ -826,6 +826,16 @@ def match_metrics(events, baseline):
     out["reaction_kinds"] = sorted({event.get("kind") for event in events if event.tag == "LD_REACTION"
                                     and event.get("trigger") not in dummies and event.get("primary") not in dummies})
 
+    # Field objectives (F2 arena, F3 mini flag): each serial should log Announced, Open and one terminal phase once.
+    objectives = {}
+    for event in events:
+        if event.tag == "LD_OBJECTIVE" and event.get("serial", "").isdigit():
+            row = objectives.setdefault(int(event.get("serial")), {"kind": event.get("kind"), "phases": [], "lines": 0})
+            row["lines"] += 1
+            if event.get("phase") not in row["phases"]:
+                row["phases"].append(event.get("phase"))
+    out["objectives"] = objectives
+
     # Offers and picks: an LD_OFFER (actives) or LD_CARD_OFFER (cards) lists the offered ids; LD_CHOICE and an LD_CARD
     # PickCard is a pick; an LD_CARD with installed=1 is an installation. Actives are active_*; every other id is a card.
     offered, picked, installed = defaultdict(int), defaultdict(int), defaultdict(set)
@@ -895,6 +905,22 @@ def momentum_text(momentum, lives, dodges):
             f"{momentum.get('spent', 0):.0f}, overdrives {momentum.get('overdrive', 0):.0f}, perfect dodges {dodges}")
 
 
+OBJECTIVE_PHASES = {"1": "Announced", "2": "Open", "3": "Won", "4": "Expired"}  # ELDObjectivePhase (LDFieldPacing.h)
+OBJECTIVE_TERMINAL = ("3", "4")
+
+
+def objective_text(objectives):
+    if not objectives:
+        return f"{NO_DATA} (no LD_OBJECTIVE line)"
+    parts = []
+    for serial, row in sorted(objectives.items()):
+        flow = "→".join(OBJECTIVE_PHASES.get(phase, phase) for phase in row["phases"])
+        end = "" if any(phase in OBJECTIVE_TERMINAL for phase in row["phases"]) else ", never ended"
+        repeated = row["lines"] - len(row["phases"])
+        parts.append(f"#{serial} {row['kind']} {flow}{end}" + (f", {repeated} repeated lines" if repeated else ""))
+    return "; ".join(parts)
+
+
 def metric_lines(metrics, names, baseline_source):
     share_line_text = (f"- Field time share (field segments before the showdown / whole match): "
                        f"{field_share_text([metrics['field_share']])}")
@@ -946,6 +972,7 @@ def metric_lines(metrics, names, baseline_source):
         lines.append(f"- Damage factors: {NO_DATA} (LD_HIT has no factor_bp{old})")
     kinds = metrics["reaction_kinds"]
     lines.append(f"- Reaction kinds: {len(kinds)}" + (f" ({', '.join(kinds)})" if kinds else ""))
+    lines.append(f"- Field objectives: {objective_text(metrics['objectives'])}")
     cards = sum(count for card, count in metrics["offered"].items() if not card.startswith("active_"))
     lines.append(f"- Cards offered: {cards}" if cards else f"- Cards offered: {NO_DATA} (no card offer)")
     lines.append(share_line_text)
@@ -981,6 +1008,15 @@ def pick_lines(all_metrics):
         lines.append(f"- Installed (share of {entries} contender-matches): "
                      + ", ".join(f"{card} {100 * installed[card] / entries:.0f}%" for card in held))
     return lines
+
+
+def objective_totals(host):
+    rows = [row for metrics in host for row in metrics["objectives"].values()]
+    if not rows:
+        return f"{NO_DATA} (no LD_OBJECTIVE line)"
+    ended = sum(1 for row in rows if any(phase in OBJECTIVE_TERMINAL for phase in row["phases"]))
+    repeated = sum(row["lines"] - len(row["phases"]) for row in rows)
+    return f"{ended} of {len(rows)}" + (f"; {repeated} repeated phase lines" if repeated else "")
 
 
 def aggregate_lines(all_metrics, baseline_source):
@@ -1021,6 +1057,8 @@ def aggregate_lines(all_metrics, baseline_source):
               f"| Matches with an outrageous moment (hit ≥ 60% max HP or chain ≥ 5) | every match | "
               f"{sum(1 for count in moments if count)} of {len(host)} |",
               f"| Reaction kinds per match | ≥ 6 (after P4) | {stats_text([len(metrics['reaction_kinds']) for metrics in host])} |",
+              f"| Field objectives that ended (Won or Expired) | every one | "
+              f"{objective_totals(host)} |",
               f"| Field time share (before the showdown / whole match) | ≥ 65% | "
               f"{share_text} |", "",
               *([f"Casts leave out {no_casts} matches without LD_CAST lines.", ""] if no_casts and has_casts else []),

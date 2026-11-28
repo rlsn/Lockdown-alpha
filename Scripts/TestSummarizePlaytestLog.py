@@ -345,6 +345,17 @@ class SummarizePlaytestLogTest(unittest.TestCase):
         flagged = summarize(collect([str(silent)]), metrics_only=True)
         self.assertIn("  - AI that never cast in any of their fights: 1 (B 1 fights)", flagged)
         self.assertIn("| AI that never cast in any of their fights | 0 | 1 |", flagged)
+        # Field objectives: one serial ends, the other repeats its Open line every frame and never ends.
+        objective = lambda serial, kind, phase: line(15, "LogLDWorld", "Display",
+                                                     f"LD_OBJECTIVE serial={serial} kind={kind} phase={phase} anchor=a field_t_ms=1")
+        stuck = [objective(1, "mini_flag", 1), objective(1, "mini_flag", 2), objective(1, "mini_flag", 3),
+                 objective(2, "arena", 1), *[objective(2, "arena", 2)] * 4]
+        (self.root / "Objectives.log").write_text("\n".join(rows[:-1] + stuck + rows[-1:]) + "\n", encoding="utf-8")
+        lifecycle = summarize(collect([str(self.root / "Objectives.log")]), metrics_only=True)
+        self.assertIn("- Field objectives: #1 mini_flag Announced→Open→Won; #2 arena Announced→Open, never ended, "
+                      "3 repeated lines", lifecycle)
+        self.assertIn("| Field objectives that ended (Won or Expired) | every one | 1 of 2; 3 repeated phase lines |", lifecycle)
+        self.assertIn("- Field objectives: no data (no LD_OBJECTIVE line)", text)
         # A measured baseline is named in the report.
         measured = summarize(collect([str(self.root / "P2.log")]), baseline=parse_baseline("1=300"), metrics_only=True)
         self.assertIn("baseline --baseline-dps 1=300): 0 (A x0.82, B x0.08)", measured)
