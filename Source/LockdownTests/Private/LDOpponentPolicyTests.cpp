@@ -3235,6 +3235,47 @@ bool FLDDemoOpponentGroundPathCostTest::RunTest(const FString& Parameters)
     return true;
 }
 
+// B01 T03-02 (seed c001): a walk whose route runs into a camp member standing at its home goes round it; a body at the
+// walk's end or off the route is not in the way.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentBodyDetoursTest, "Lockdown.Rules.DemoOpponentPolicy.BodyDetours",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentBodyDetoursTest::RunTest(const FString& Parameters)
+{
+    using FBody = LDOpponentPolicy::FBodyDisc;
+    const double Walker = 40;
+    const TArray<FVector> Route = {FVector(0, 0, 0), FVector(600, 0, 0), FVector(600, 2000, 0)};
+    FVector Along;
+    const TArray<FBody> InWay = {{FVector(900, 0, 0), 50}, {FVector(300, 60, 0), 50}};
+    TestEqual(TEXT("The nearest body on the route blocks it"),
+        LDOpponentPolicy::BlockingBody(Route, InWay, Walker, LDOpponentPolicy::BodyLookaheadCm, Along), 1);
+    TestTrue(TEXT("along its segment"), Along.Equals(FVector(1, 0, 0), 1.e-6));
+    TestEqual(TEXT("A body beside the route by more than both radii is not in the way"),
+        LDOpponentPolicy::BlockingBody(Route, {FBody{FVector(300, 95, 0), 50}}, Walker, LDOpponentPolicy::BodyLookaheadCm, Along),
+        int32(INDEX_NONE));
+    TestEqual(TEXT("A body on the second segment blocks it"),
+        LDOpponentPolicy::BlockingBody(Route, {FBody{FVector(620, 500, 0), 50}}, Walker, LDOpponentPolicy::BodyLookaheadCm, Along), 0);
+    TestTrue(TEXT("along that segment"), Along.Equals(FVector(0, 1, 0), 1.e-6));
+    TestEqual(TEXT("A body beyond the lookahead is left for a later walk"),
+        LDOpponentPolicy::BlockingBody(Route, {FBody{FVector(600, 1500, 0), 50}}, Walker, 1000., Along), int32(INDEX_NONE));
+    TestEqual(TEXT("A body at the walk's end is its destination"),
+        LDOpponentPolicy::BlockingBody(Route, {FBody{FVector(600, 1950, 0), 50}}, Walker, 5000., Along), int32(INDEX_NONE));
+    TArray<FVector> Detours;
+    LDOpponentPolicy::BodyDetours(InWay[1], FVector(1, 0, 0), Walker, Detours);
+    TestTrue(TEXT("Three widening steps on either side, beside the body"), Detours.Num() == 6
+        && FMath::IsNearlyEqual(Detours[0].Y, 60. + 90. + LDOpponentPolicy::GroundDetourMarginCm, 1.e-6)
+        && FMath::IsNearlyEqual(Detours[1].Y, 60. - 90. - LDOpponentPolicy::GroundDetourMarginCm, 1.e-6)
+        && FMath::IsNearlyEqual(Detours[5].Y, 60. - 90. - 3 * LDOpponentPolicy::GroundDetourMarginCm, 1.e-6)
+        && FMath::IsNearlyEqual(Detours[0].X, 300., 1.e-6));
+    for (const FVector& Waypoint : Detours)
+    {
+        TestEqual(TEXT("A detour leg clears the body it goes round"), LDOpponentPolicy::BlockingBody(
+            {FVector(0, 0, 0), Waypoint, FVector(600, 0, 0)}, {InWay[1]}, Walker, LDOpponentPolicy::BodyLookaheadCm, Along),
+            int32(INDEX_NONE));
+    }
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentBreakoutGoalTest, "Lockdown.Rules.DemoOpponentPolicy.BreakoutGoal",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 

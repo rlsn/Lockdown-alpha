@@ -155,7 +155,9 @@ private:
     bool ReadCapturePath(const FVector& FootCm, double& OutCm, FString& Error) const;
     void SettleOrders(const FReads& Reads, const FLDOpponentDecisionFrame& Frame, int64 NowMs, FString& Problem);
     // Spec §13 path cost: the cheapest of the direct walk and one detour around each enemy ground state in the way, by
-    // GroundWeightedCm over real registry paths. True when a detour waypoint replaced the goal (Out); false keeps it.
+    // GroundWeightedCm over real registry paths. A direct walk that runs into a visible camp member within
+    // BodyLookaheadCm is replaced by a detour around that body (B01 T03-02). True when a detour waypoint replaced the goal
+    // (Out); false keeps it.
     bool RouteAroundGrounds(const FLDOpponentDecisionFrame& Frame, const FVector& FootCm, const FLDSpatialOrderRequest& Request,
         FVector& Out) const;
     // Sends one ground-walk leg of Intent and makes it the candidate; false when refused on receipt or out of identities.

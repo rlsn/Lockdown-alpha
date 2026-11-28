@@ -3357,3 +3357,54 @@ void LDOpponentPolicy::GroundDetours(const FVector& From, const FVector& To, TCo
         for (const double Sign : {1., -1.}) { Out.Add(Centre + Side * Sign * (Bound + GroundDetourMarginCm)); }
     }
 }
+
+int32 LDOpponentPolicy::BlockingBody(TConstArrayView<FVector> Points, TConstArrayView<FBodyDisc> Bodies, double WalkerRadiusCm,
+    double LookaheadCm, FVector& OutAlong)
+{
+    OutAlong = FVector::ZeroVector;
+    if (Points.Num() < 2) { return INDEX_NONE; }
+    const FVector2D End(Points.Last());
+    double Walked = 0;
+    int32 Best = INDEX_NONE;
+    double BestAt = TNumericLimits<double>::Max();
+    for (int32 I = 1; I < Points.Num() && Walked < LookaheadCm; ++I)
+    {
+        const FVector2D A(Points[I - 1]), B(Points[I]);
+        const double Length = FVector2D::Distance(A, B);
+        if (Length <= 0) { continue; }
+        // Only the part of this segment inside the lookahead is judged.
+        const FVector2D Cut = Walked + Length > LookaheadCm ? A + (B - A) * ((LookaheadCm - Walked) / Length) : B;
+        for (int32 Index = 0; Index < Bodies.Num(); ++Index)
+        {
+            const FBodyDisc& Body = Bodies[Index];
+            const FVector2D Centre(Body.CentreCm);
+            const double Clearance = Body.RadiusCm + WalkerRadiusCm;
+            if (FVector2D::DistSquared(Centre, End) <= FMath::Square(Clearance)) { continue; }
+            const FVector2D Closest = FMath::ClosestPointOnSegment2D(Centre, A, Cut);
+            if (FVector2D::DistSquared(Closest, Centre) >= FMath::Square(Clearance)) { continue; }
+            const double At = Walked + FVector2D::Distance(A, Closest);
+            if (At < BestAt)
+            {
+                BestAt = At;
+                Best = Index;
+                OutAlong = FVector(B - A, 0).GetSafeNormal2D();
+            }
+        }
+        if (Best != INDEX_NONE) { return Best; }
+        Walked += Length;
+    }
+    return Best;
+}
+
+void LDOpponentPolicy::BodyDetours(const FBodyDisc& Body, const FVector& Along, double WalkerRadiusCm, TArray<FVector>& Out)
+{
+    Out.Reset();
+    const FVector Heading = Along.GetSafeNormal2D();
+    if (Heading.IsNearlyZero()) { return; }
+    const FVector Side(-Heading.Y, Heading.X, 0);
+    const double Clearance = Body.RadiusCm + WalkerRadiusCm;
+    for (int32 Step = 1; Step <= 3; ++Step)
+    {
+        for (const double Sign : {1., -1.}) { Out.Add(Body.CentreCm + Side * Sign * (Clearance + GroundDetourMarginCm * Step)); }
+    }
+}

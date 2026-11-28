@@ -666,6 +666,22 @@ namespace LDOpponentPolicy
         TArray<FVector>& Out);
     constexpr double GroundPathSampleCm = 25.;
     constexpr double GroundDetourMarginCm = 120.;
+    // A visible body that does not step aside for a walk (a camp member at its home), as a disc of its collision radius.
+    struct FBodyDisc
+    {
+        FVector CentreCm = FVector::ZeroVector;
+        double RadiusCm = 0;
+    };
+    // The first body (index into Bodies) a walked polyline runs into within its first LookaheadCm, for a walker of
+    // WalkerRadiusCm: its path passes closer to the body's centre than the two radii. A body within that clearance of
+    // the polyline's end is the walk's destination, not an obstacle. INDEX_NONE when nothing is in the way. OutAlong is the
+    // direction of the segment that meets the body.
+    LOCKDOWN_API int32 BlockingBody(TConstArrayView<FVector> Points, TConstArrayView<FBodyDisc> Bodies, double WalkerRadiusCm,
+        double LookaheadCm, FVector& OutAlong);
+    // Detour waypoints around one blocking body for a walk heading Along: on either side, at the walker's clearance plus one
+    // to three GroundDetourMarginCm (a wider step clears a group of bodies), nearest first.
+    LOCKDOWN_API void BodyDetours(const FBodyDisc& Body, const FVector& Along, double WalkerRadiusCm, TArray<FVector>& Out);
+    constexpr double BodyLookaheadCm = 1200.;
 #if WITH_DEV_AUTOMATION_TESTS
     // DEV build evaluation (docs/systems/BUILD_EVALUATION.md): the production engagement of one visible unit exactly as
     // Decide engages it (activation order §6.3, dash chase, then the basic attack, with the same failure memory). A fixed

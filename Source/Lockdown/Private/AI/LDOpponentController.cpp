@@ -699,17 +699,27 @@ bool ALDOpponentController::RouteAroundGrounds(const FLDOpponentDecisionFrame& F
     const FLDSpatialOrderRequest& Request, FVector& Out) const
 {
     TRACE_CPUPROFILER_EVENT_SCOPE(LDAI_RouteAroundGrounds);
-    if (Request.Kind != ELDSpatialOrderKind::MoveGround
-        || !Frame.Grounds.ContainsByPredicate([](const FLDOpponentGround& Ground) { return Ground.bEnemy; }))
+    if (Request.Kind != ELDSpatialOrderKind::MoveGround) { return false; }
+    const bool bEnemyGrounds = Frame.Grounds.ContainsByPredicate([](const FLDOpponentGround& Ground) { return Ground.bEnemy; });
+    // B01 T03-02: a visible camp member stays at its home and the navigation path does not go round bodies, so a walk
+    // whose route runs into one is pushed against it for good (seed c001). Only the walk's own reading of what it sees.
+    TArray<LDOpponentPolicy::FBodyDisc> Bodies;
+    for (const FLDOpponentUnit& Unit : Frame.Units)
     {
-        return false;
+        if (Unit.Kind != ELDOpponentUnitKind::CampMember) { continue; }
+        const FLDDemoMonsterDefinition* Monster = nullptr;
+        FString Why;
+        if (!Content->FindMonster(Unit.MonsterId, Monster, Why) || !Monster) { continue; }
+        const auto& Radius = Monster->CollisionRadiusCm;
+        if (Radius.Denominator <= 0) { continue; }
+        Bodies.Add({Unit.FootCm, double(Radius.Numerator) / double(Radius.Denominator)});
     }
-    TArray<FVector> Detours;
-    LDOpponentPolicy::GroundDetours(FootCm, Request.GroundCm, Frame.Grounds, Detours);
+    if (!bEnemyGrounds && Bodies.IsEmpty()) { return false; }
     const ULDMapRegistry* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
     FCollisionShape Capsule;
     FString Error;
-    if (Detours.IsEmpty() || !Registry || !Registry->Enabled() || !ULDMapRegistry::ContentCapsule(*Content, Capsule, Error)) { return false; }
+    if (!Registry || !Registry->Enabled() || !ULDMapRegistry::ContentCapsule(*Content, Capsule, Error)) { return false; }
+    const double Walker = Capsule.GetCapsuleRadius();
     const int64 CostBp = Content->Get().Parameters.AI.EnemyGroundPathCostBp;
     const auto Path = [&](const FVector& A, const FVector& B, FLDCompletePath& Result)
     {
@@ -722,15 +732,31 @@ bool ALDOpponentController::RouteAroundGrounds(const FLDOpponentDecisionFrame& F
         FString Why;
         return Registry->QueryCompletePath(Registry->Revision(), From, To, Capsule, Result, Failure, Why);
     };
+    const auto Blocked = [&](const TArray<FVector>& Points, FVector& Along)
+    { return LDOpponentPolicy::BlockingBody(Points, Bodies, Walker, LDOpponentPolicy::BodyLookaheadCm, Along); };
     FLDCompletePath Direct;
     // Without a direct path Navigation refuses the walk itself; a detour never hides that.
     if (!Path(FootCm, Request.GroundCm, Direct)) { return false; }
-    double Best = LDOpponentPolicy::GroundWeightedCm(Direct.Points, Frame.Grounds, CostBp);
+    TArray<FVector> Detours;
+    if (bEnemyGrounds) { LDOpponentPolicy::GroundDetours(FootCm, Request.GroundCm, Frame.Grounds, Detours); }
+    FVector Along;
+    const int32 Blocker = Blocked(Direct.Points, Along);
+    // A blocked direct walk is never kept while a clear detour exists.
+    double Best = Blocker == INDEX_NONE ? LDOpponentPolicy::GroundWeightedCm(Direct.Points, Frame.Grounds, CostBp)
+        : TNumericLimits<double>::Max();
+    if (Blocker != INDEX_NONE)
+    {
+        TArray<FVector> Around;
+        LDOpponentPolicy::BodyDetours(Bodies[Blocker], Along, Walker, Around);
+        Detours.Append(Around);
+    }
     bool bDetour = false;
     for (const FVector& Waypoint : Detours)
     {
         FLDCompletePath First, Second;
-        if (!Path(FootCm, Waypoint, First) || !Path(First.EndProjectionCm, Request.GroundCm, Second)) { continue; }
+        FVector Unused;
+        if (!Path(FootCm, FVector(Waypoint.X, Waypoint.Y, FootCm.Z), First) || Blocked(First.Points, Unused) != INDEX_NONE
+            || !Path(First.EndProjectionCm, Request.GroundCm, Second)) { continue; }
         const double Cost = LDOpponentPolicy::GroundWeightedCm(First.Points, Frame.Grounds, CostBp)
             + LDOpponentPolicy::GroundWeightedCm(Second.Points, Frame.Grounds, CostBp);
         if (Cost < Best)
