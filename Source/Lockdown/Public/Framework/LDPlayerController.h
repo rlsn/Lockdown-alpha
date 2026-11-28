@@ -254,6 +254,11 @@ public:
     UFUNCTION(Server,Reliable) void ServerCancelCombatAction(const FLDCombatCancelRequest& Request);
     // The overdrive charge intent of a Q/W/E held with a full bar (reliable: it stays ordered before the cast request).
     UFUNCTION(Server,Reliable) void ServerChargeOverdrive(const FLDCombatChargeRequest& Request);
+    // Auto-empower: the owner's host choice (Basic, Q, W, E or D) under its own increasing sequence (a repeat changes
+    // nothing); a refusal comes back as one toast.
+    void RequestEmpowerHost(ELDCombatEntry Host);
+    UFUNCTION(Server,Reliable) void ServerSetEmpowerHost(uint32 Generation,uint64 Sequence,ELDCombatEntry Host);
+    UFUNCTION(Client,Reliable) void ClientEmpowerHostRefused(uint64 Sequence,const FString& Reason);
     UFUNCTION(Client,Reliable) void ClientCombatReceipt(const FLDCombatActionReceipt& Receipt);
     UPROPERTY(ReplicatedUsing=OnRep_CombatView) FLDCombatOwnerView CombatView;
     UFUNCTION() void OnRep_CombatView();
@@ -270,6 +275,8 @@ private:
     uint32 DemoRequestGeneration=0;
     uint64 DemoRequestSequence=0;
     uint64 DemoPendingSequence=0;
+    // The last auto-empower host request sequence this owner sent.
+    uint64 EmpowerHostSequence=0;
     void InitializeLocalUI();
     void UpdateV05Inputs(float Delta);
     void V05Pressed(FName Action);

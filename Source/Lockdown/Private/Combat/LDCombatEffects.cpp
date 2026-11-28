@@ -148,6 +148,11 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
 {
     // Hits queue more hits; keep this one stable even when the caller passed one of PendingHits' elements.
     FLDCombatHit Hit=InHit;
+    // Auto-empower: an empowered action's hit gives its caster no momentum (E1); a reaction a player's own hit sets off
+    // keeps its full reaction momentum, a tick's, pulse's or settle's only EMPOWER.DerivedReaction.
+    TGuardValue<FGuid> EmpowerScope(EmpowerHitCaster,IsEmpoweredHit(InHit) ? InHit.SourceEntity : EmpowerHitCaster);
+    TGuardValue<bool> OwnHitScope(bOwnHitScope,!InHit.bPeriodic && !InHit.bBurnTick && !InHit.bStatusSettle
+        && InHit.ReactionKind==ELDCombatReaction::None && !InHit.bReflect);
     ILDLifeAuthority* Mode=Authority();
     const FLDDemoContentSnapshot* Content=Catalog();
     if (!Mode || !Content)
@@ -1536,6 +1541,7 @@ bool ALDCombatDirector::RegenerateBodies(const LDTactical::FOutOfCombatRecovery&
         {
             ++Pool.Revision;
             MarkViewChanged(Body.Victim.EntityId);
+            if (bContender) { TrackEmpowerArmed(Body,NowMs); }
         }
         LedgerRegenerated(Body,RestoredP2);
     }

@@ -449,6 +449,8 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> LevelBadgeText;
     UPROPERTY() TObjectPtr<UWidget> HealthBarSpot;
     UPROPERTY() TObjectPtr<UWidget> MomentumBarSpot;
+    // The 劲 label before the momentum bar; under the auto-empower experiment it names the empowered host (劲·Q).
+    UPROPERTY() TObjectPtr<UTextBlock> MomentumLabel;
     UPROPERTY() TObjectPtr<UWidget> StripPanelSpot;
     struct FStripPaint
     {

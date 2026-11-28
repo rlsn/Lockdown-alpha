@@ -533,7 +533,10 @@ bool ALDCombatDirector::AdvanceBranches(int64 NowMs, FString& Error)
             Blast.Payload=MakeHit(Body,Branch.DashEndExit,FLDCombatBodyRef(),Branch.DashEndEffectId);
             Blast.Payload.BaseP2=Share(R+Share(ResistSum,5000),Burst.RatioBp);
             Blast.Payload.DamageType=ELDDemoDamageType::Physical;
-            Blast.Payload.bDirectAbilityDamage=true;
+            Blast.Payload.bDirectAbilityDamage=Burst.RatioBp>0;
+            // An empowered move's quake only slows (its slow rides in the secondary terms).
+            Blast.Payload.SlowBp=Burst.SecondaryRatioBp;
+            Blast.Payload.SlowDurationMs=Burst.SecondaryDurationMs;
             Blast.Payload.CastLedger=Branch.DashEndLedger;
             if (!StampElementSnapshot(Body,Blast.Payload,Error) || !StampSourceTerms(Body,Blast.Payload,Error)) { return false; }
             Blast.CentreCm=FootOf(*Actor);
@@ -553,6 +556,14 @@ bool ALDCombatDirector::AdvanceBranches(int64 NowMs, FString& Error)
             const FLDBodyCombatState::FShieldLayer* Layer=Body.ShieldLayers.FindByPredicate(
                 [&Row](const FLDBodyCombatState::FShieldLayer& Candidate) { return Candidate.EffectId==Row.EffectId; });
             if (!Layer) { Branch.ShieldBranches.RemoveAt(Index); continue; }
+            // Auto-empower: an empowered guard's shield also bursts when it runs out.
+            if (Row.bBurstOnLapse && Row.BreakBurst.IsSet() && Layer->ExpiresAtMs<=NowMs)
+            {
+                const FLDDemoEffectDefinition Burst=Row.BreakBurst.GetValue();
+                const FLDCombatSourceRef Exit=Row.Exit;
+                Row.BreakBurst.Reset();
+                if (!EmpowerShieldBurst(Body,Burst,Exit,Error)) { return false; }
+            }
             if (Row.EndHealBp>0 && Layer->ExpiresAtMs<=NowMs && Layer->AmountP2>0)
             {
                 const int64 Heal=Share(Layer->AmountP2,Row.EndHealBp);

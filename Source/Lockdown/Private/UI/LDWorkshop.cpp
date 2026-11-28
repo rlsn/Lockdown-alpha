@@ -58,6 +58,19 @@ FLinearColor ElementInk(ELDDemoElement Element)
     }
 }
 FBox2D Square(FVector2D Centre,float Size){return FBox2D(Centre-FVector2D(Size,Size)*.5,Centre+FVector2D(Size,Size)*.5);}
+// The combat entry of a ring host column (the auto-empower host).
+ELDCombatEntry EmpowerEntryOf(LDHUD::EStorageColumn Column)
+{
+    switch(Column)
+    {
+    case LDHUD::EStorageColumn::Body: return ELDCombatEntry::Basic;
+    case LDHUD::EStorageColumn::SlotQ: return ELDCombatEntry::Q;
+    case LDHUD::EStorageColumn::SlotW: return ELDCombatEntry::W;
+    case LDHUD::EStorageColumn::SlotE: return ELDCombatEntry::E;
+    case LDHUD::EStorageColumn::Dash: return ELDCombatEntry::Dash;
+    default: return ELDCombatEntry::None;
+    }
+}
 FBox2D Grow(const FBox2D& Box,float By){return FBox2D(Box.Min-FVector2D(By,By),Box.Max+FVector2D(By,By));}
 FBox2D Shift(const FBox2D& Box,FVector2D By){return FBox2D(Box.Min+By,Box.Max+By);}
 FBox2D BoxAt(FVector2D Min,FVector2D Size){return FBox2D(Min,Min+Size);}
@@ -1185,6 +1198,13 @@ void ULDWorkshop::Click(const FHit& Hit,bool bRight)
             SelectedBlueprint=INDEX_NONE;
             return;
         }
+        // Auto-empower: an empty-handed click chooses the host the empowered action takes.
+        if(!Held&&SelectedBlueprint==INDEX_NONE&&RequestEmpowerHost&&Latest.Combat&&Latest.Combat->bEmpowerEnabled&&Ring.Hosts.IsValidIndex(Hit.Host))
+        {
+            const ELDCombatEntry Entry=EmpowerEntryOf(Ring.Hosts[Hit.Host].Column);
+            if(Entry!=Latest.Combat->EmpowerHost){RequestEmpowerHost(Entry);LDWidgets::PlayCue(this,ELDAudioCue::UIChoose);}
+            return;
+        }
         Install(Hit.Host,NAME_None);
         return;
     case EHit::Drop:
@@ -1357,6 +1377,13 @@ ULDWorkshop::FInfo ULDWorkshop::InfoOf(const FHit& Hit) const
             else if(Host.Column==LDHUD::EStorageColumn::Body){Out.Name=TEXT("本体");Out.Meta=TEXT("角色本体 · 普攻");Out.Body=TEXT("本体牌装在这里；元素槽让第 2、3 段普攻带上元素。");Out.bBodyIcon=true;}
             else if(Host.Column==LDHUD::EStorageColumn::Dash){Out.Name=Host.Name;Out.IconId=Host.IconId;Out.Meta=FString::Printf(TEXT("冲刺 · %s"),*Host.Key);Out.Body=TEXT("冲刺牌装在这里。");}
             else{Out.Name=TEXT("空技能槽");Out.Meta=Host.Key;Out.Body=TEXT("学会一个主动技能后，技能牌才能装在这里。");}
+            // Auto-empower: whether this host takes the empowered action, else how to choose it.
+            if(Latest.Combat&&Latest.Combat->bEmpowerEnabled)
+            {
+                Out.Gain=EmpowerEntryOf(Host.Column)==Latest.Combat->EmpowerHost
+                    ? FString::Printf(TEXT("强化宿主 · 劲 ≥ %lld 时下一次动作自动强化，消耗 %lld"),Latest.Combat->EmpowerThresholdP2/100,Latest.Combat->EmpowerCostP2/100)
+                    : FString(TEXT("点击：设为强化宿主"));
+            }
         }
         break;
     case EHit::Gem:
@@ -1682,6 +1709,15 @@ void ULDWorkshop::PaintHosts(FPainter& P,const TArray<uint64>& Lit,bool bDim) co
             P.Fill(Lean(Tab,5.f*F,5.f*F),LDBroadcast::White);
             P.Text(Tag,Tab.GetCenter(),Font,LDBroadcast::Ink,FVector2D(.5,.5));
             P.Opacity=Saved;
+        }
+        // Auto-empower: the host the empowered action takes wears a gold 劲 tab at its top-left corner.
+        if(Latest.Combat&&Latest.Combat->bEmpowerEnabled&&EmpowerEntryOf(Host.Column)==Latest.Combat->EmpowerHost)
+        {
+            const FSlateFontInfo Font=Face(EFace::Heavy,18.f,F);
+            const float W=WidthOf(TEXT("劲"),Font)+12.f*F,H=22.f*F;
+            const FBox2D Tab(FVector2D(Box.Min.X-6.f*R,Box.Min.Y-8.f*R),FVector2D(Box.Min.X-6.f*R+W,Box.Min.Y-8.f*R+H));
+            P.Fill(Lean(Tab,4.f*F,4.f*F),LDBroadcast::Gold);
+            P.Text(TEXT("劲"),Tab.GetCenter(),Font,LDBroadcast::Ink,FVector2D(.5,.5));
         }
     }
 }

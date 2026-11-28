@@ -1911,6 +1911,9 @@ bool ALDCombatDirector::ScheduleAutoRecasts(const FLDBodyCombatState& Body, cons
         Repeat.Action=Action;
         Repeat.Action.bAutoRecast=true;
         Repeat.Action.bOverdrive=false;
+        // A repeat is derived: never empowered (EMPOWER rule E2).
+        Repeat.Action.bEmpowered=false;
+        Repeat.Action.EmpowerProcessor=ELDEmpowerProcessor::None;
         Repeat.Action.AutoRecastScaleBp=Terms.AutoRecastScaleBp;
         Repeat.Card=FName(TEXT("card_encore"));
         Repeat.Action.ChainId=CurrentChain;

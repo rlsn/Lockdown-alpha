@@ -525,6 +525,20 @@ FLDCombatActionReceipt ALDCombatDirector::StartNavAttack(const FLDCombatCaller& 
     {
         Action.ComboStep=LDMomentum::NextComboStep(Body->ComboStep,Body->ComboStartMs,Now,Parameters.Combo.ResetMs);
     }
+    // Auto-empower: a pending punch a fist skill paid for, else the basic host's own punch on a bar holding the threshold;
+    // an empowered punch lands as a third step.
+    if (Body->bEmpowerPunchPending && EmpowerTerms())
+    {
+        Body->bEmpowerPunchPending=false;
+        Action.bEmpowered=Action.bEmpowerPrepaid=true;
+        Action.EmpowerProcessor=ELDEmpowerProcessor::Fist;
+    }
+    else
+    {
+        Action.EmpowerProcessor=AdmitEmpower(*Body,*Record,ELDCombatEntry::Basic,&Target,Now);
+        Action.bEmpowered=Action.EmpowerProcessor!=ELDEmpowerProcessor::None;
+    }
+    if (Action.bEmpowered) { Action.ComboStep=3; }
     Action.BasicIntervalMs=Timing.Value->IntervalMs;
     CancelChannel(*Body);
     Body->Action=Action;
@@ -1029,6 +1043,10 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
     // jitter room); without it the request releases normally. The charge ends with the admission.
     Action.bOverdrive=Request.bOverdrive && Source.Kind==ELDCombatSourceKind::Learned
         && LDCA::ChargeHeld(*Body,Request.Entry,Now,Content->Get().Parameters.Overdrive.HoldMs);
+    // Auto-empower: the host's own release started on a bar holding the threshold; a strike adds its readable windup.
+    Action.EmpowerProcessor=AdmitEmpower(*Body,Record,Request.Entry,nullptr,Now);
+    Action.bEmpowered=Action.EmpowerProcessor!=ELDEmpowerProcessor::None;
+    const int64 EmpowerWindupMs=Action.EmpowerProcessor==ELDEmpowerProcessor::Strike && EmpowerTerms() ? EmpowerTerms()->StrikeWindupMs : 0;
     switch (TargetDef->Mode)
     {
     case ELDDemoTargetMode::Self:
@@ -1078,7 +1096,7 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
     default:
         return Refuse(ELDCombatReject::SourceUnavailable);
     }
-    if (Record.NextToken==MAX_uint64 || !LDMatchLifecycle::AddDurationMs(Now,WindupMs,Action.ReleaseAtMs,Error)) { return false; }
+    if (Record.NextToken==MAX_uint64 || !LDMatchLifecycle::AddDurationMs(Now,WindupMs+EmpowerWindupMs,Action.ReleaseAtMs,Error)) { return false; }
     Action.Token=Record.NextToken++;
     Action.StartedAtMs=Now;
     if (Body->OverdriveCharge.IsSet() && Body->OverdriveCharge->Entry==Request.Entry) { EndOverdriveCharge(*Body); }
@@ -1259,18 +1277,34 @@ bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body,
     Hit.SourceAPP2=Final.APP2;
     if (!StampSourceTerms(Body,Hit,Error) || !SnapshotOnHit(Body,10000,Hit,Error)) { return false; }
     const int64 Now=Mode->GetAuthorityNowMs();
+    // Auto-empower: an empowered punch pays at its release on a bar holding the cost (else it lands as the ordinary step it
+    // would have been); it lands as a third step without moving the combo.
+    int32 EmpowerSerial=0;
+    uint8 ComboStep=Action.ComboStep;
+    if (Action.bEmpowered && Body.Victim.Kind==ELDVictimKind::Contender)
+    {
+        const FLDDemoEmpowerParameters* EmpowerP=EmpowerTerms();
+        const bool bApplied=EmpowerP && (Action.bEmpowerPrepaid || LDAutoEmpower::CanPay(*EmpowerP,Body.Resources.MomentumP2));
+        EmpowerSerial=PayEmpower(Body,Action,bApplied,Now);
+        if (!EmpowerSerial)
+        { ComboStep=LDMomentum::NextComboStep(Body.ComboStep,Body.ComboStartMs,Action.StartedAtMs,Content->Get().Parameters.Combo.ResetMs); }
+    }
     // COMBO.StepRatios: the contender's combo step scales the basic's own raw package (not the merged empowered ones)
     // before its critical roll. The released step is the body's combo from now on.
-    if (Body.Victim.Kind==ELDVictimKind::Contender && Action.ComboStep>0)
+    if (Body.Victim.Kind==ELDVictimKind::Contender && ComboStep>0)
     {
-        const int64 ComboBp=LDMomentum::ComboRatioBp(Content->Get().Parameters.Combo,Action.ComboStep);
+        const int64 ComboBp=LDMomentum::ComboRatioBp(Content->Get().Parameters.Combo,ComboStep);
         if (ComboBp<=0 || Hit.ADRatioBp>MAX_int64/ComboBp) { Error=TEXT("A combo step leaves the checked numeric domain."); return false; }
         Hit.ADRatioBp=Hit.ADRatioBp*ComboBp/10000;
-        Hit.ComboStep=Action.ComboStep;
+        Hit.ComboStep=ComboStep;
         Hit.BasicIntervalMs=Action.BasicIntervalMs;
-        Body.ComboStep=Action.ComboStep;
-        Body.ComboStartMs=Action.StartedAtMs;
+        if (!EmpowerSerial)
+        {
+            Body.ComboStep=ComboStep;
+            Body.ComboStartMs=Action.StartedAtMs;
+        }
     }
+    Hit.EmpowerSerial=EmpowerSerial;
     // Spec §10.2: every live empowered package (one per source: S11, S17, B12) joins this one primary hit before its
     // critical roll, so the hit crits, heals and counts once.
     const int32 PendingBefore=Body.Empowers.Num();
@@ -1292,6 +1326,7 @@ bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body,
     // Spec §6.5: a contender's basic opens its chain; every card its landing triggers (consumed packages, A04/A06/A07/A09/A11,
     // A08) is a step of it.
     TGuardValue<FGuid> ChainScope(CurrentChain,OpenChain(Body,Hit.EffectId,FGuid(),Now));
+    if (EmpowerSerial>0) { MarkEmpoweredChain(); }
     bool bChargeBonusEnded=false;
     for (const FLDCombatEmpower& Package : Taken)
     {
@@ -1330,6 +1365,8 @@ bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body,
     // Cards of the landing basic: A04's push, A06/A09 strikes and A11 riders queue with it.
     TArray<FLDCombatHit> Extra;
     if (!OnBasicLanded(Body,Hit,Extra,Error)) { return false; }
+    // Auto-empower: the empowered punch pushes its target and strikes the cone ahead (the copies above take neither).
+    if (EmpowerSerial>0 && !EmpowerPunch(Actor,Body,Hit,Extra,Error)) { return false; }
     // #345 active_flurry_rush FrenzyWaves: while frenzy is active, each primary basic launches a piercing adaptive fist-wind wave.
     if (Body.ActiveFrenzy.IsSet() && Now<Body.FrenzyUntilMs)
     {
@@ -1519,6 +1556,11 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     const bool bOverdrive=Action.bOverdrive && Source.Kind==ELDCombatSourceKind::Learned
         && LDMomentum::OverdriveReady(BodyOverdrive,Body.Resources.MomentumP2);
     if (bOverdrive && !ApplyOverdrive(Body,*Ability,Terms,Error)) { return false; }
+    // Auto-empower: an action admitted as empowered releases empowered while the bar still holds the cost (else normally).
+    const FLDDemoEmpowerParameters* EmpowerP=EmpowerTerms();
+    const bool bEmpowerAsked=Action.bEmpowered && !Action.bAutoRecast;
+    const bool bEmpowered=bEmpowerAsked && EmpowerP && LDAutoEmpower::CanPay(*EmpowerP,Body.Resources.MomentumP2);
+    if (bEmpowered && !ApplyEmpowerTerms(Body,*Record,Ability,Action.EmpowerProcessor,Terms,Error)) { return false; }
     // The released cast shows as overdrive only when it actually resolved as one (a bar that fell during the windup
     // releases a normal cast).
     Body.bReleasedOverdrive=bOverdrive;
@@ -1718,6 +1760,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     // less than the skill's cost, so the rest of the bar stays for the next cast).
     const int64 PaidP2=bOverdrive ? FMath::Max(BodyOverdrive.ThresholdP2,Gate.MomentumCostP2) : Gate.MomentumCostP2;
     GrantMomentum(Body,-PaidP2,ELDMomentumBook::Spent);
+    const int32 EmpowerSerial=bEmpowerAsked ? PayEmpower(Body,Action,bEmpowered,Now) : 0;
     if (bHealthCost)
     {
         Body.Resources.HpP2-=HealthCostP2;
@@ -1800,6 +1843,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     // Spec §6.5: the release opens its chain (a free repeat continues the chain of the action that queued it).
     TGuardValue<FGuid> ChainScope(CurrentChain,OpenChain(Body,EffectId,Action.ChainId,Now));
     LastReleaseChain=CurrentChain;
+    if (EmpowerSerial>0) { MarkEmpoweredChain(); }
     // The innate dash is no build ability: its hits still belong to the version, but it is not counted as a cast.
     LedgerEffectReleased(Body,EffectId,bInnate ? ELDBlueprintFact::Count : ELDBlueprintFact::AbilityCasts);
     auto CastLedger=MakeShared<FLDCombatCastLedger>();
@@ -1807,6 +1851,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     CastLedger->bOverdrive=bOverdrive;
     CastLedger->Factors=MoveTemp(ReleaseFactorsNow);
     CastLedger->bAutoRecast=Action.bAutoRecast;
+    CastLedger->EmpowerSerial=EmpowerSerial;
     if (RecastWindow.IsSet())
     {
         CastLedger->bRecast=true;
@@ -1907,7 +1952,9 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             // Spec §8.3: a dash from an enemy's ice goes GROUND.IceDisplacementScale as far.
             if (Body.bOnEnemyIce) { Distance*=double(Content->Get().Parameters.Ground.IceDisplacementScaleBp)/10000.; }
             const double PlannedDistance=Distance;
-            if (bInnate && Phases.IsEmpty())
+            // Auto-empower: an empowered move passes through the bodies it meets (no stop short of the pinned enemy).
+            const bool bEmpowerMove=EmpowerSerial>0 && Action.EmpowerProcessor==ELDEmpowerProcessor::Move;
+            if (bInnate && Phases.IsEmpty() && !bEmpowerMove)
             {
                 FVector EnemyCenterCm=FVector::ZeroVector;
                 bool bHasEnemy=false;
@@ -1968,7 +2015,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             Voluntary.EndMs=Body.DashUntilMs;
             Voluntary.bClampedStop=bClampedZeroStop;
             const bool bCards=!Resets.IsEmpty() || !Hastes.IsEmpty() || !Phases.IsEmpty() || !Shocks.IsEmpty() || !Trains.IsEmpty();
-            if (bCards || LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::DashContact))
+            if (bCards || bEmpowerMove || LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::DashContact))
             {
                 Body.DashContact=MakeShared<FLDCombatDashContact>();
                 Body.DashContact->EffectId=EffectId;
@@ -1981,6 +2028,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
                 Body.DashContact->bPhase=!Phases.IsEmpty();
                 Body.DashContact->bReset=!Resets.IsEmpty();
                 Body.DashContact->Direction=DeliveryAction.Direction;
+                Body.DashContact->bEmpowered=bEmpowerMove;
             }
             break;
         }
@@ -2171,6 +2219,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         }
     }
     if (!ArmBranchRelease(Actor,Body,Source,Terms,EffectId,CastLedger,DeliveryAction,Now,Error)) { return false; }
+    if (EmpowerSerial>0 && !EmpowerAfterRelease(Body,Action.EmpowerProcessor,Source,EffectId,CastLedger,Now,Error)) { return false; }
     if (bHostile)
     {
         // One hit payload per target, snapshotted at release; a skill's own delivery takes it, or the standard one does.
