@@ -176,7 +176,7 @@ def effect(value):
         # #198 F workshop terms.
         ("damage_ratio", "MultiplierBp"), ("cooldown_ratio", "SecondaryRatioBp"), ("cost_ratio", "CostRatioBp"),
         ("stun_duration", "SecondaryDurationMs"), ("root_duration", "SecondaryDurationMs"), ("cap_ratio", "MultiplierBp"),
-        ("burn_ratio", "RatioBp"),
+        ("burn_ratio", "RatioBp"), ("shield_cap", "SecondaryRatioBp"),
         # Y09's own skill crit chance.
         ("chance", "RatioBp"),
     ):

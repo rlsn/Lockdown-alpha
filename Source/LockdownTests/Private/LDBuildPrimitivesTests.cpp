@@ -201,6 +201,8 @@ struct FLDBuildPrimitivesAccess
         const FVector& UnitFoot, const FVector& Foot, int64 NowMs, FString& Error)
     { return Driver.DeliverReleasePayload(Actor, Body, Terms, Action, Template, Unit, UnitFoot, Foot, {}, NowMs, Error); }
     static bool ApplyPendingHits(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.ApplyPendingHits(NowMs, Error); }
+    static bool BurnDealt(ALDCombatDirector& Driver, FLDBodyCombatState& Source, int64 BurnP2, int64 NowMs, FString& Error)
+    { return Driver.OnBurnDealtCards(Source, BurnP2, NowMs, Error); }
     static bool EndBranchProjectile(ALDCombatDirector& Driver, const FLDCombatProjectile& Projectile, const FVector& EndCm, FString& Error)
     { return Driver.EndBranchProjectile(Projectile, EndCm, true, Error); }
     static bool AdvanceMechanics(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceMechanics(NowMs, Error); }
@@ -4336,7 +4338,22 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleY29Test, "Lockdown.Rules.Combat.Card
 bool FLDCardRuleY29Test::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
-    return RunCardRule(*this, {TEXT("card_burn_guard"), ELDDemoEffectOp::OverhealShield, ELDCardTargetKind::Body});
+    return RunCardRule(*this, {TEXT("card_burn_guard"), ELDDemoEffectOp::OverhealShield, ELDCardTargetKind::Body},
+        [this](FFixture& F, const FLDCombatBodyRef& Holder, int32 Copies)
+        {
+            // Spec: 30% of the burn dealt becomes shield, the card's own live shield capped at 30% max HP (copies add both).
+            FLDBodyCombatState& Body = F.Body(Holder);
+            const int64 CapP2 = Body.Resources.MaxHpP2 * 3000 * Copies / 10000;
+            FString Error;
+            bool bGood = true;
+            for (int32 Burn = 0; Burn < 3; ++Burn)
+            {
+                bGood &= TestTrue(TEXT("A burn tick feeds the shield: ") + Error,
+                    FAccess::BurnDealt(*F.Driver, Body, Body.Resources.MaxHpP2, F.Mode->GetAuthorityNowMs(), Error));
+            }
+            return bGood && TestEqual(FString::Printf(TEXT("%d copies hold at most %d%% max HP of shield"), Copies, 30 * Copies),
+                Body.Resources.ShieldP2, CapP2);
+        });
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA05Test, "Lockdown.Rules.Combat.Cards.A05",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

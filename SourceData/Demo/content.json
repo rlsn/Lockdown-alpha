@@ -7873,6 +7873,10 @@
             "unit": "ratio",
             "value": 0.3
           },
+          "shield_cap": {
+            "unit": "ratio",
+            "value": 0.3
+          },
           "duration": {
             "unit": "s",
             "value": 3
@@ -11032,7 +11036,7 @@
       "name_key": "card_burn_guard.name",
       "name_text": "烧着还挺扛揍",
       "description_key": "card_burn_guard.description",
-      "description_text": "你造成的灼烧伤害的 [overheal_shield.ratio]% 变成护盾，持续 [overheal_shield.duration] 秒。",
+      "description_text": "你造成的灼烧伤害的 [overheal_shield.ratio]% 变成护盾，持续 [overheal_shield.duration] 秒；这张牌的护盾最多 [overheal_shield.secondary_ratio]% 生命上限。",
       "icon_id": "icon_card_burn_guard"
     },
     {

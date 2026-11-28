@@ -2036,10 +2036,17 @@ bool ALDCombatDirector::OnBurnDealtCards(FLDBodyCombatState& Source, int64 BurnD
     if (!CollectPassiveEffects(Source.AttributeProjection,ELDDemoEffectOp::OverhealShield,Guards,Error)) { return false; }
     Guards.RemoveAll([](const FLDPassiveEffectRef& Ref) { return Ref.Effect.RatioBp<=0; });
     if (Guards.IsEmpty()) { return true; }
-    // Y29: copies add their share; the shield takes the stronger of the current one and this one.
-    int64 ShareBp=0;
-    for (const FLDPassiveEffectRef& Ref : Guards) { ShareBp+=Ref.Effect.RatioBp; }
-    const int64 Amount=LDCombatCardsDetail::Share(BurnDamageP2,ShareBp);
+    // Y29: copies add their share; the live shield of this card stays within its balance cap (copies add their cap).
+    int64 ShareBp=0, CapBp=0;
+    for (const FLDPassiveEffectRef& Ref : Guards) { ShareBp+=Ref.Effect.RatioBp; CapBp+=Ref.Effect.SecondaryRatioBp; }
+    int64 Amount=LDCombatCardsDetail::Share(BurnDamageP2,ShareBp);
+    ExpireShieldLayers(Source,NowMs);
+    int64 HeldP2=0;
+    for (const FLDBodyCombatState::FShieldLayer& Layer : Source.ShieldLayers)
+    {
+        if (Layer.ExpiresAtMs>NowMs && Layer.AmountP2>0 && Layer.Source==Guards[0].Source) { HeldP2+=Layer.AmountP2; }
+    }
+    Amount=FMath::Min(Amount,LDCombatCardsDetail::Share(Source.Resources.MaxHpP2,CapBp)-HeldP2);
     if (Amount<=0) { return true; }
     if (!GrantShieldTo(Source,Amount,Guards[0].Effect.DurationMs,FGuid::NewGuid(),Source.Victim.EntityId,NowMs,Error,Guards[0].Source))
     { return false; }

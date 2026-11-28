@@ -2210,11 +2210,14 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bCard, FChec
         if (!F.Fixed(TEXT("max_hp"), TEXT("hp"), TEXT("p2"), Out.BaseP2, 1)) { return false; }
         break;
     case ELDDemoEffectOp::OverhealShield:
-        // Y14 shields overflowing heals up to cap_ratio (MultiplierBp); Y29 shields burn_ratio of the burn it deals (RatioBp).
+        // Y14 shields overflowing heals up to cap_ratio (MultiplierBp); Y29 shields burn_ratio of the burn it deals (RatioBp),
+        // its own live shield capped at shield_cap of max HP (SecondaryRatioBp).
         if (!OptionalFixed(F, TEXT("cap_ratio"), TEXT("ratio"), TEXT("bp"), Out.MultiplierBp, 1, 10000)
             || !OptionalFixed(F, TEXT("burn_ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 10000)
+            || !OptionalFixed(F, TEXT("shield_cap"), TEXT("ratio"), TEXT("bp"), Out.SecondaryRatioBp, 1, 10000)
             || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)) { return false; }
-        if (!Check.Require((Out.MultiplierBp > 0) != (Out.RatioBp > 0), Path, TEXT("an overheal shield names one of cap_ratio or burn_ratio")))
+        if (!Check.Require((Out.MultiplierBp > 0) != (Out.RatioBp > 0), Path, TEXT("an overheal shield names one of cap_ratio or burn_ratio"))
+            || !Check.Require((Out.SecondaryRatioBp > 0) == (Out.RatioBp > 0), Path, TEXT("a burn shield (and only it) names its shield_cap")))
         { return false; }
         break;
     case ELDDemoEffectOp::HasteMomentum:
