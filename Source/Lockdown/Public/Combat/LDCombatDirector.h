@@ -980,6 +980,11 @@ class LOCKDOWN_API ALDCombatDirector : public AActor
 {
     GENERATED_BODY()
 public:
+    // Server safety budgets, not game rules (no match comes near them; peaks are a few dozen hits per step): one authority
+    // step resolves at most TechHitsPerStep queued hits and the rest wait for the next step; past TechPendingHitsCap queued
+    // hits the newest are dropped. Both log LD_CHAIN_GUARD (Step: Warning, Overflow: Error).
+    static constexpr int32 TechHitsPerStep=4096;
+    static constexpr int32 TechPendingHitsCap=16384;
     ALDCombatDirector();
     virtual void Tick(float Delta) override;
     const FLDBodyCombatState* StateFor(const ALDCharacter* Body) const;

@@ -704,10 +704,18 @@ bool ALDCombatDirector::OnBasicLanded(FLDBodyCombatState& Body, FLDCombatHit& Pr
             // #305: past the card's own threshold (ExtraDistanceCm attacks/s), not the attack-speed maximum.
             const double Step=Cm(Ref.Effect.StepRate), Threshold=Cm(Ref.Effect.ExtraDistanceCm);
             if (Step<=0 || Threshold<=0 || Uncapped<=Threshold) { continue; }
-            ChanceBp+=int64(FMath::FloorToDouble((Uncapped-Threshold)/Step+1e-9))*Ref.Effect.RatioBp;
+            // Bounded so the chance never leaves int64; anything near the bound is past the pending-hit budget anyway.
+            const double Steps=FMath::Min(FMath::FloorToDouble((Uncapped-Threshold)/Step+1e-9),double(TechPendingHitsCap)*10000.);
+            ChanceBp+=int64(Steps)*Ref.Effect.RatioBp;
         }
-        int32 Strikes=int32(ChanceBp/10000);
+        int32 Strikes=int32(FMath::Min<int64>(ChanceBp/10000,TechPendingHitsCap));
         if (ChanceBp%10000>0 && CritRandom.RandRange(0,9999)<ChanceBp%10000) { ++Strikes; }
+        if (Strikes>TechPendingHitsCap)
+        {
+            UE_LOG(LogLDCombat,Error,TEXT("LD_CHAIN_GUARD reason=Overflow what=overcap_extra_hit src=%s requested=%lld kept=%d"),
+                *LDLog::Id(Body.Victim.EntityId),ChanceBp/10000,TechPendingHitsCap);
+            Strikes=TechPendingHitsCap;
+        }
         for (int32 Index=0; Index<Strikes; ++Index)
         {
             FLDCombatHit Strike=Primary;

@@ -2786,6 +2786,37 @@ bool FLDCardA12A09NoFeedbackTest::RunTest(const FString& Parameters)
     TestTrue(FString::Printf(TEXT("The strikes per attack grow only with the stacks (%d at most)"), MostPerAttack), MostPerAttack <= 16);
     return true;
 }
+// The server's hit budget (not a game rule): an ordinary step resolves every queued hit; a flood resolves TechHitsPerStep
+// per step, the rest waiting, and never keeps more than TechPendingHitsCap queued.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatHitBudgetTest, "Lockdown.Rules.Combat.Events.HitBudget",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCombatHitBudgetTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef From = F.AddBody(), To = F.AddBody(ELDVictimKind::Contender, int64(1) << 50);
+    TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
+    const auto Queue = [&](int32 Count)
+    {
+        for (int32 Index = 0; Index < Count; ++Index)
+        {
+            FLDCombatHit Hit = FFixture::Hit(From, To, 100);
+            Hit.HitId = FGuid::NewGuid();
+            Pending.Add(MoveTemp(Hit));
+        }
+    };
+    Queue(10);
+    if (!Drain(*this, F)) { return false; }
+    bool bGood = TestEqual(TEXT("An ordinary step resolves all its hits"), Pending.Num(), 0);
+    constexpr int32 Flood = ALDCombatDirector::TechPendingHitsCap + ALDCombatDirector::TechHitsPerStep + 500;
+    Queue(Flood);
+    AddExpectedError(TEXT("LD_CHAIN_GUARD reason=Overflow"), EAutomationExpectedErrorFlags::Contains, 1);
+    if (!Drain(*this, F)) { return false; }
+    bGood &= TestEqual(TEXT("A flood resolves one step's budget and keeps at most the cap queued"), Pending.Num(),
+        ALDCombatDirector::TechPendingHitsCap);
+    return bGood;
+}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCardRuleA14Test, "Lockdown.Rules.Combat.Cards.A14",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDCardRuleA14Test::RunTest(const FString& Parameters)
