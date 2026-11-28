@@ -10,6 +10,7 @@
 #include "Combat/LDDamageRecap.h"
 #include "Combat/LDChainRules.h"
 #include "Combat/LDCombatControlRules.h"
+#include "Combat/LDProtoFlags.h"
 #include "Combat/LDCombatMechanics.h"
 #include "Combat/LDMonsterRules.h"
 #include "Combat/LDCombatKeywords.h"
@@ -353,6 +354,8 @@ struct FLDBodyCombatState
     TArray<FLDCombatTimedBonus> TimedBonuses;
     // Hard-control diminishing returns of this life (LDCombatControl::DiminishHardControl).
     FLDHardControlChain HardControl;
+    // C-10 prototype (-LDProtoAgency only): the contender's agency meter of this life.
+    FLDAgencyMeter Agency;
     // Disarm and Stun instances (LDCombatControl); each keeps its effect, source and half-open expiry.
     TArray<FLDCombatRoot> Disarms;
     TArray<FLDCombatRoot> Stuns;
@@ -1717,6 +1720,8 @@ private:
     const FLDCombatTrack* TrackFor(const FLDCombatEntityRecord& Record, ELDCombatEntry Entry) const;
     FLDCombatTrack* TrackFor(FLDCombatEntityRecord& Record, ELDCombatEntry Entry);
     void ChargeInterruptedCommit(const FLDBodyCombatState& Body, const FLDCombatAction& Action);
+    // C-10 prototype: triggers the agency meters due at NowMs (V-Cut ends the controls holding the body).
+    void AdvanceAgency(int64 NowMs);
     bool ResolveEntry(const FLDCombatEntityRecord& Record, ELDCombatEntry Entry, FLDCombatSourceRef& OutSource,
         const FLDDemoAbilityDefinition*& OutAbility) const;
     // The executable active of a resolved entry: a learned active's values grown for its owner's level (#198), or the
@@ -1879,6 +1884,8 @@ private:
     TArray<FLDCombatHostileContact> PendingContacts;
     TArray<FLDCommittedDeath> RetryRewards;
     FRandomStream CritRandom;
+    // Batch 01 prototype switches of this process (LDProto::Settings); all off by default.
+    FLDProtoSettings Proto;
     bool bAdvancing=false;
     FLDBuildLedger BuildLedger;
     // Per contender: the match total of committed damage credited to it, one row per source.

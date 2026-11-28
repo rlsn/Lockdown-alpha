@@ -55,6 +55,17 @@
 
 对局正常锁定 `MatchResult` 时，每位真人拥有者收到本局完整 `FLDBuildBlueprint`（`schema=lockdown.build-blueprint`、`schema_version=5`），包含开局至终局每次构筑结构变更的版本时间段、Q/W/E 分支、五维分配、已装牌/勋章及宿主绑定参数、终局改装与归属伤害统计，并由 `LDBuildBlueprintStore` 原子写入 `Saved/Blueprints/match-<ResultId>.ldbuild.json`（自动保留最近 50 份且总计 `<= 100 MiB`）。
 
+## 隔离原型
+
+服务器命令行开关（`LDProtoFlags`，每个进程只读一次）。开关不写入 `SourceData`，也不参与内容哈希；不带开关时，所有规则与正式版本一致。启用时写一行 `LD_PROTO flags=… params=…`；参数无效时写 `LD_PROTO_INVALID`，并且不启用任何原型。
+
+- **急眼了（C-10，`-LDProtoAgency`）**：真人或 AI 选手每受到他人的控制，就按权重记录失去操作权的时段。权重：眩晕与击退 1.0，嘲讽 0.8，定身 0.5，沉默与缴械 0.2，减速 0；同一时刻多个控制重叠时，只按其中最大的权重计算一次。
+  - 触发：滑动窗口 `-LDProtoAgencyWindow=`（默认 4 s）内的累计值达到 `-LDProtoAgencyThreshold=`（默认 2 s）时触发，触发时刻精确到毫秒（`AgencyDueMs`）。两次触发至少间隔 `-LDProtoAgencyCooldown=`（默认 6 s）。
+  - 守护期：触发后进入 `-LDProtoAgencyGuard=`（默认 1 s）守护期，期间新的硬控不生效。
+  - 两种变体：`-LDProtoAgencyCut=Immediate`（V-Cut，默认）立即结束他人施加的眩晕、定身、缴械、沉默与嘲讽，击退的位移照常完成，但不再锁定输入；`NextControl`（V-Next）不结束当前控制，只防住下一次。
+  - 翻滚：同一连击链（距上一次击退结束不到 2 s）中，第 `-LDProtoAgencyRollFrom=`（默认 3）次及以后的击退，以及守护期内受到的击退，都照常推开身体，但不锁定动作、不打断前摇与移动指令，也不计入失去操作权的时长。
+  - 日志：`LD_PROTO_AGENCY trigger|guarded|roll`。急眼状态目前没有画面表现。
+
 ## 检查入口
 
 - 纯规则：`Lockdown.Rules.DemoCombat*`、`Lockdown.Rules.DemoAttributeProjection.*`、`Lockdown.Rules.DemoMechanics.*`、`Lockdown.Rules.DemoBuildPrimitives.*`、`Lockdown.Rules.Combat.*`、`Lockdown.Rules.DamageRecap.*`、`Lockdown.Rules.BuildBlueprint.*`。

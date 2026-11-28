@@ -581,6 +581,8 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.Combat.Skills.FrenzyThirdWave",
         "Lockdown.Rules.Combat.Skills.CommitWindups",
         "Lockdown.Rules.Combat.Skills.InterruptedCommitCooldown",
+        "Lockdown.Rules.DemoBuildPrimitives.AgencyPrototype",
+        "Lockdown.Rules.DemoCombatPrimitives.AgencyMeter",
         "Lockdown.Rules.Combat.Chain.Guard",
         "Lockdown.Rules.Combat.Damage.FactorProduct",
         "Lockdown.Rules.Combat.Damage.SameCardAdds",

@@ -74,6 +74,8 @@ struct FLDBuildPrimitivesAccess
     { Driver.AppendKeywordStatuses(Body, NowMs, Out); }
     static void MarkBuildUnsafe(ALDCombatDirector& Driver, const FGuid& Entity, int64 NowMs) { Driver.MarkBuildUnsafe(Entity, NowMs); }
     static void AbandonAction(ALDCombatDirector& Driver, FLDBodyCombatState& Body, ELDCombatReject Reason) { Driver.AbandonAction(Body, Reason); }
+    static FLDProtoSettings& Proto(ALDCombatDirector& Driver) { return Driver.Proto; }
+    static void AdvanceAgency(ALDCombatDirector& Driver, int64 NowMs) { Driver.AdvanceAgency(NowMs); }
     static void FinishAction(ALDCombatDirector& Driver, FLDBodyCombatState& Body, ELDCombatReject Reason, bool bReleased)
     { Driver.FinishAction(Body, Reason, bReleased); }
     static bool ReleaseMechanics(ALDCombatDirector& Driver, FLDBodyCombatState& Body, const FLDCombatSourceRef& Source,
@@ -5286,6 +5288,61 @@ bool FLDCombatInterruptedCommitCooldownTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("The base form's interrupt is free"),Windup(ELDSkillBranch::None,9000,9100,ELDCombatReject::ControlBlocked),int64(0));
     TestEqual(TEXT("Control at the release moment costs nothing extra"),
         Windup(ELDSkillBranch::B,13000,13300,ELDCombatReject::ControlBlocked),int64(0));
+    return true;
+}
+
+// C-10 prototype on the single control path: off, nothing is recorded; on, a stun-locked contender triggers at 2 s of lost
+// agency, V-Cut ends the stun, the guard refuses the next hard control and turns a knockback into a roll; V-Next keeps it.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatAgencyPrototypeTest, "Lockdown.Rules.DemoBuildPrimitives.AgencyPrototype",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCombatAgencyPrototypeTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef Caster=F.AddBody(), Victim=F.AddBody(), Other=F.AddBody();
+    const auto Commit=[&](const FLDCombatBodyRef& Ref, ELDControlKind Kind, int64 AtMs, int64 DurationMs)
+    {
+        F.Now(AtMs);
+        FLDControlApplication App;
+        App.Kind=Kind;
+        App.EffectId=FGuid::NewGuid();
+        App.SourceEntity=App.CreditOwner=Caster.Victim.EntityId;
+        App.SourceBody=Caster;
+        App.DurationMs=DurationMs;
+        FString Error;
+        bool bApplied=false;
+        if (!F.Driver->CommitControl(F.Body(Ref),App,AtMs,bApplied,Error)) { AddError(Error); }
+        return bApplied;
+    };
+    FLDProtoSettings& Proto=FAccess::Proto(*F.Driver);
+    Proto=FLDProtoSettings();
+    TestTrue(TEXT("Off: a stun lands as before"),Commit(Victim,ELDControlKind::Stun,1000,2500));
+    TestTrue(TEXT("and records no agency"),F.Body(Victim).Agency.Losses.IsEmpty());
+    F.Body(Victim).Stuns.Reset();
+    F.Body(Victim).HardControl=FLDHardControlChain();
+
+    Proto.bAgency=true;
+    TestTrue(TEXT("On: a 2.5 s stun lands"),Commit(Victim,ELDControlKind::Stun,10000,2500));
+    TestEqual(TEXT("its 2 s of lost agency are due at 12 s"),
+        LDCombatControl::AgencyDueMs(F.Body(Victim).Agency,10000,Proto.Agency),int64(12000));
+    F.Now(12000);
+    FAccess::AdvanceAgency(*F.Driver,12000);
+    FLDBodyCombatState& Body=F.Body(Victim);
+    TestTrue(TEXT("V-Cut ends the stun at the trigger"),Body.Stuns.IsEmpty() && Body.Agency.GuardUntilMs==13000);
+    TestFalse(TEXT("The guard refuses a new hard control"),Commit(Victim,ELDControlKind::Stun,12500,1000));
+    TestTrue(TEXT("A knockback in the guard still lands"),Commit(Victim,ELDControlKind::Knockback,12600,300));
+    TestTrue(TEXT("as a roll that blocks nothing"),Body.Knockbacks.IsEmpty()
+        && !F.Driver->IsActionBlocked(Body,ELDCombatControlAction::Basic));
+    TestTrue(TEXT("After the guard a stun lands again"),Commit(Victim,ELDControlKind::Stun,13000,500));
+    FAccess::AdvanceAgency(*F.Driver,13400);
+    TestEqual(TEXT("No second trigger inside the cooldown"),Body.Agency.LastTriggerMs,int64(12000));
+
+    Proto.Agency.bCut=false;
+    TestTrue(TEXT("V-Next: a 2.5 s stun lands"),Commit(Other,ELDControlKind::Stun,20000,2500));
+    FAccess::AdvanceAgency(*F.Driver,22000);
+    TestTrue(TEXT("it triggers but keeps the stun"),F.Body(Other).Agency.LastTriggerMs==22000 && F.Body(Other).Stuns.Num()==1);
+    TestFalse(TEXT("while the next hard control is refused"),Commit(Other,ELDControlKind::Root,22100,1000));
     return true;
 }
 

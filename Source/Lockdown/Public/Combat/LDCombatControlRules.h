@@ -43,6 +43,42 @@ struct FLDHardControlChain
     int64 WindowEndMs = 0;
 };
 
+// C-10 prototype "急眼了" (-LDProtoAgency, docs/systems/COMBAT_AND_GROWTH.md): a contender's weighted loss of agency over
+// a sliding window. Off by default; its parameters come from the command line only (LDProtoFlags).
+struct FLDAgencyLoss
+{
+    int64 StartMs = 0;
+    int64 EndMs = 0;
+    // The share of agency this control takes (10000 = all); overlapping controls count their largest share once.
+    int64 WeightBp = 0;
+};
+
+struct FLDAgencyParams
+{
+    int64 WindowMs = 4000;
+    // Weighted milliseconds of lost agency inside the window that trigger it.
+    int64 ThresholdMs = 2000;
+    // After a trigger no new hard control lands, and a knockback moves the body without locking its input.
+    int64 GuardMs = 1000;
+    // The shortest time between two triggers.
+    int64 CooldownMs = 6000;
+    // The knockback of a chain from which on the push keeps input (a "roll"); a chain continues within the hard-control
+    // window after the previous knockback ended.
+    int32 RollFrom = 3;
+    // V-Cut ends the controls holding the body at the trigger; V-Next only guards against the next ones.
+    bool bCut = true;
+};
+
+// One contender life's meter.
+struct FLDAgencyMeter
+{
+    TArray<FLDAgencyLoss> Losses;
+    int64 GuardUntilMs = 0;
+    int64 LastTriggerMs = MIN_int64;
+    int32 KnockChain = 0;
+    int64 LastKnockEndMs = MIN_int64;
+};
+
 // One pending empowered-basic package (spec §10.2): S11, S17 and B12 (C09 later) are separate sources, each holding at
 // most one package; the same source re-arming replaces its unused value and expiry, different sources coexist. A landed
 // primary basic takes one charge of every live package and adds them into its one primary hit before the critical roll.
@@ -119,4 +155,19 @@ namespace LDCombatControl
     // Duration of a hard control landing at NowMs after the chain's diminishing returns; advances the chain.
     // Non-positive durations are returned unchanged and leave the chain untouched.
     LOCKDOWN_API int64 DiminishHardControl(FLDHardControlChain& Chain, int64 NowMs, int64 DurationMs);
+
+    // C-10 prototype: stun and knockback 1.0, taunt 0.8, root 0.5, silence and disarm 0.2, slow 0.
+    LOCKDOWN_API int64 AgencyWeightBp(ELDControlKind Kind);
+    // The weighted loss inside [NowMs - WindowMs, NowMs], in weight-basis-point milliseconds (ms x 10000 at full weight).
+    LOCKDOWN_API int64 AgencyLossBpMs(const TArray<FLDAgencyLoss>& Losses, int64 NowMs, int64 WindowMs);
+    // Whether a trigger is allowed at NowMs (outside the guard and the cooldown) and the loss has reached the threshold.
+    LOCKDOWN_API bool AgencyTriggers(const FLDAgencyMeter& Meter, int64 NowMs, const FLDAgencyParams& Params);
+    // The first instant after NowMs at which AgencyTriggers holds if no new control lands; MAX_int64 when never.
+    LOCKDOWN_API int64 AgencyDueMs(const FLDAgencyMeter& Meter, int64 NowMs, const FLDAgencyParams& Params);
+    // Drops losses that ended before the window.
+    LOCKDOWN_API void PruneAgency(FLDAgencyMeter& Meter, int64 NowMs, int64 WindowMs);
+    // Advances the knockback chain with a knockback from NowMs to EndMs; true when it rolls (RollFrom-th and later).
+    LOCKDOWN_API bool AgencyKnockbackRolls(FLDAgencyMeter& Meter, int64 NowMs, int64 EndMs, const FLDAgencyParams& Params);
+    // The hard-control chain window (DiminishHardControl), which also links knockbacks into one chain.
+    constexpr int64 HardControlChainWindowMs = 2000;
 }
