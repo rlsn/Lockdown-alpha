@@ -1050,6 +1050,22 @@ int32 LDProgression::SkillPoints(const FLDDemoContentDefinitions& Content, const
     return Points;
 }
 
+int32 LDProgression::SkillPointRoom(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build)
+{
+    int32 Earned = Build.DevSkillPoints + Build.BoughtSkillPoints + Build.AffixSkillPoints;
+    for (const int64 Level : Content.Parameters.SkillRanks.PointLevels)
+    {
+        Earned += Level <= int64(Build.Level) ? 1 : 0;
+    }
+    constexpr int32 RanksAboveFirst = 2;
+    return FMath::Max(0, Content.Progression.ActiveSlots * RanksAboveFirst - Earned);
+}
+
+int32 LDProgression::ShopSkillPointCap(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build)
+{
+    return FMath::Min(Content.Parameters.Shop.SkillPointMaxPerMatch, Build.BoughtSkillPoints + SkillPointRoom(Content, Build));
+}
+
 ELDGrowthReason LDProgression::ApplyRankUpSkill(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
     uint8 Slot, ELDSkillBranch Branch, const FBuildContext& Context, FLDGrowthBuild& Out)
 {
@@ -1974,7 +1990,7 @@ ELDGrowthReason LDProgression::ApplyShopBuy(const FLDDemoContentDefinitions& Con
     }
     if (Slot == FLDBuildCommand::ShopSkillPointSlot)
     {
-        if (Current.BoughtSkillPoints >= Parameters.Shop.SkillPointMaxPerMatch) { return ELDGrowthReason::SkillPointLimit; }
+        if (Current.BoughtSkillPoints >= ShopSkillPointCap(Content, Current)) { return ELDGrowthReason::SkillPointLimit; }
         const int32 PointPrice = ShopSkillPointPrice(Parameters, Shop);
         if (Unspent < PointPrice) { return ELDGrowthReason::NotEnoughPoints; }
         ++Out.BoughtSkillPoints;
